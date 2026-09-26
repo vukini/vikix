@@ -281,7 +281,7 @@ A snapshot is taken after every install or `vikix update`, and before every agen
 | `editors` | Emacs, Neovim, the pdf-tools build deps, and the language servers Void packages (ccls, lua-language-server, gopls, efm-langserver) plus nodejs for the npm ones |
 | `apps` | Firefox, PCManFM with USB mounting, mpv, nsxiv, zathura |
 | `dev` | base-devel (gcc, make), gdb, valgrind, python3, rlwrap |
-| `cli` | htop, ripgrep, fd, fzf, bat, eza, tmux, tree, jq |
+| `cli` | htop, ripgrep, fd, fzf, bat, eza, tmux, tree, jq, zoxide, yazi, lazygit, atuin (with bash-preexec) |
 | `lisp` | SBCL |
 | `lang-*` | One file per language, so a language is one file to keep or delete: C extras (tcc, rr, cmake, meson, ninja, shellcheck, shfmt), Python (pip, ipython, pipx), Lisp and Scheme (ccl, racket, chez-scheme, guile), Haskell (ghc, cabal, HLS, hlint), Forth (gforth), WebAssembly (wabt, wasmtime), Ruby, SQLite (sqlite, litecli, sqlitebrowser), Lua (lua54, LuaJIT), Go, Zig (zig, zls), and `lang-tools` (tree-sitter, ctags, entr, hyperfine, tokei, just) |
 
@@ -299,7 +299,7 @@ A snapshot is taken after every install or `vikix update`, and before every agen
 Both configs are separate repositories, cloned by `45-editors` and pulled by `vikix update`; Vikix never edits them.
 
 - **Emacs** — `~/.emacs.d` is [vukini/emacs-void](https://github.com/vukini/emacs-void). `vikix-session` starts `emacs --fg-daemon` at login, so `e` (`emacsclient -c -a ""`) opens a frame at once. The first start on a new machine installs the packages from MELPA in the background; give it a few minutes before the first `e`. SLIME connects to StumpWM on port 4004.
-- **Neovim** — `~/.config/nvim` is [vukini/nvim-void-linux](https://github.com/vukini/nvim-void-linux). Plugins are installed by the stage to the versions in `lazy-lock.json`. `v` opens it.
+- **Neovim** — `~/.config/nvim` is [vukini/nvim-void-linux](https://github.com/vukini/nvim-void-linux), an [AstroNvim](https://astronvim.com) v5 setup. Plugins are installed by the stage to the versions in `lazy-lock.json`; on the first start, Mason adds the tools the config names (stylua, debugpy, tree-sitter-cli) in the background. `v` opens it.
 - **Language servers** on PATH for both: `ccls`, `lua-language-server`, `gopls`, `efm-langserver` from Void; `typescript-language-server`, `pyright`, `bash-language-server` from npm in `~/.local/bin`.
 
 ## Languages
@@ -337,16 +337,32 @@ These come from `~/.config/vikix/vikix.bash`. Type `alias` to see them all.
 | Alias | Does |
 |---|---|
 | `ll` `la` `lt` | Long list, list with hidden files, tree (eza) |
+| `..` `...` `....` `cd-` `d` | Up one, two, three folders; back to the previous one; the folder stack |
+| `z NAME` / `zi` | zoxide: go to a folder you've been to, by part of its name / pick from a list |
+| `y` | yazi, the file manager; quit with `q` and the shell stays where you were looking |
 | `v` / `e` | Neovim / Emacs (starting an Emacs server if none is running) |
+| `nvd A B` | Neovim diff of two files |
+| `eq`, `ekill`, `emacs-restart` | Emacs with no config (for debugging it), stop the daemon, restart it (refuses with unsaved buffers) |
 | `b` | bat: `cat` with colour. Plain `cat` is left alone. |
+| `mkd` `cpr` `chx` `xo` | `mkdir -p`, `cp -r`, `chmod +x`, open with the usual program |
+| `psg NAME` / `hg WORD` | find a running process / a line in your history |
+| `r` | reload `~/.bashrc` |
 | `xi` `xu` `xr` `xs` `xl` | xbps: install, update everything, remove, search, list a package's files |
 | `svls`, `sv-on NAME`, `sv-off NAME` | runit: list services, switch one on, switch one off |
-| `g` `gs` `gl` `gd` | git, status, log graph, diff |
+| `g` `gst` `gl` `gla` `gd` `gds` | git, status, log graph (this branch / all), diff (unstaged / staged) |
+| `ga` `gaa` `gcm` `gca` `gamend` | add, add everything, commit with a message, commit every change, amend |
+| `gundo` `gwip` | undo the last commit (changes stay staged), commit everything as "wip" |
+| `gco` `gsw` `gb` `gps` `gpl` `gf` `gr` `gsh` `gshp` | checkout, switch, branches, push, pull, fetch, remotes, stash, stash pop |
+| `lg` | lazygit |
 | `sbcl` | SBCL with history and arrow keys (through rlwrap) |
+| `activate` | the Python virtual environment in `.venv` |
 | `a` | Claude Code, after a snapshot of your files |
-| `Ctrl+R` / `Ctrl+T` | fzf: search history / pick a file |
+| `Ctrl+R` | atuin: search all your history, from every terminal |
+| `Ctrl+T` / `Alt+C` | fzf: pick a file / a folder |
 
-Put your own aliases in `~/.bashrc`, after the vikix block. They load later, so they win.
+Git status is `gst`, not `gs`, which is Ghostscript's command.
+
+Put your own aliases in `~/.bashrc`. Vikix's line sits at the top of that file, so anything you write below it loads later and wins.
 
 ## Everyday commands
 

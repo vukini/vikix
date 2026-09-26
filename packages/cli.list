@@ -8,3 +8,8 @@ eza             # ls with colour and git status
 tmux
 tree
 jq              # read and reshape JSON
+zoxide          # z: cd by a remembered part of a folder's name
+yazi            # y: file manager in the terminal
+lazygit         # lg: git in a terminal UI
+atuin           # Ctrl+R: search all your shell history
+bash-preexec    # lets atuin see each command as it runs

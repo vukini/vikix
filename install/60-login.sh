@@ -10,7 +10,8 @@
 #   ~/.bash_profile  vikix path    puts ~/.local/bin on PATH
 #                    vikix bashrc  reads ~/.bashrc, if the profile doesn't already
 #                    vikix startx  starts X after login on tty1
-#   ~/.bashrc        vikix         reads ~/.config/vikix/vikix.bash (aliases, prompt)
+#   ~/.bashrc        vikix         reads ~/.config/vikix/vikix.bash (aliases, prompt);
+#                                  at the top, so your own lines below it win
 
 set -euo pipefail
 # shellcheck source=../lib/common.sh
@@ -34,7 +35,7 @@ fi
 
 # shellcheck disable=SC2016
 ensure_block "$HOME/.bashrc" aliases \
-'[ -f "$HOME/.config/vikix/vikix.bash" ] && . "$HOME/.config/vikix/vikix.bash"'
+'[ -f "$HOME/.config/vikix/vikix.bash" ] && . "$HOME/.config/vikix/vikix.bash"' top
 
 # shellcheck disable=SC2016
 ensure_block "$profile" startx \

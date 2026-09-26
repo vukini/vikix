@@ -7,7 +7,7 @@
 #   pkg_installed PKG       is this xbps package already installed?
 #   link_managed SRC DEST   point DEST at a Vikix-owned file (backs up anything in the way)
 #   copy_user SRC DEST      give the user a starter file, once; never overwrite
-#   ensure_block FILE NAME TEXT   keep one marked block in a file, replaced on re-run
+#   ensure_block FILE NAME TEXT [top]   keep one marked block in a file, replaced on re-run
 #   sudo_keepalive          ask for the password once, keep sudo valid until the script ends
 #   use_mirror URL          point every xbps repository at the mirror URL
 #   current_mirror          the mirror /etc/xbps.d points at (empty if none)
@@ -88,8 +88,10 @@ copy_user() {
 # Keeps exactly one block, fenced by '# >>> vikix NAME >>>' and
 # '# <<< vikix NAME <<<', in FILE. Re-running replaces the block, so
 # there are never duplicates and nothing outside the fence is touched.
+# The block goes at the end of FILE, or with 'top' at the start: there,
+# anything the user wrote below it runs later and so wins.
 ensure_block() {
-  local file=$1 name=$2 text=$3
+  local file=$1 name=$2 text=$3 where=${4:-end}
   local start="# >>> vikix $name >>>" end="# <<< vikix $name <<<"
   if [ "$DRY_RUN" = 1 ]; then
     printf '   would write block "%s" into %s\n' "$name" "$file"
@@ -98,12 +100,13 @@ ensure_block() {
   touch "$file"
   local tmp
   tmp=$(mktemp)
+  [ "$where" = top ] && printf '%s\n%s\n%s\n' "$start" "$text" "$end" > "$tmp"
   awk -v s="$start" -v e="$end" '
     $0 == s { skip = 1; next }
     $0 == e { skip = 0; next }
     !skip   { print }
-  ' "$file" > "$tmp"
-  printf '%s\n%s\n%s\n' "$start" "$text" "$end" >> "$tmp"
+  ' "$file" >> "$tmp"
+  [ "$where" = top ] || printf '%s\n%s\n%s\n' "$start" "$text" "$end" >> "$tmp"
   cat "$tmp" > "$file"
   rm -f "$tmp"
 }
