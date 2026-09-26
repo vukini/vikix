@@ -205,6 +205,7 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 | `s-d` | Launcher |
 | `s-w` | Browser (Firefox) |
 | `s-e` | Files (PCManFM) |
+| `s-E` | Files in SpaceFM (tabs, split panes) |
 | `s-a` | AI agent: Claude Code in a terminal |
 | `s-x` | Emacs: a new window (the Emacs server is already running) |
 | `s-c` | Clipboard history: pick something copied earlier, then paste it |
@@ -280,7 +281,7 @@ A snapshot is taken after every install or `vikix update`, and before every agen
 | `audio` | PipeWire, WirePlumber (with Bluetooth audio), pamixer, pavucontrol |
 | `laptop` | tlp, acpid, brightnessctl, Bluetooth (bluez, blueman), autorandr, and the firmware a recent ThinkPad needs: sof-firmware (sound), intel-ucode (from the nonfree repo, enabled by `repos.list`), intel-video-accel |
 | `editors` | Emacs, Neovim, the pdf-tools build deps, the `tree-sitter` CLI (Neovim builds its parsers with it), and the language servers Void packages (ccls, lua-language-server, gopls, efm-langserver) plus nodejs for the npm ones |
-| `apps` | Firefox, PCManFM with USB mounting, mpv, nsxiv, zathura, Zeal (offline docs) |
+| `apps` | Firefox, PCManFM with USB mounting, SpaceFM, mpv, nsxiv, zathura, Foliate (EPUB), LibreOffice (Writer, Calc, Impress, Draw, Math), Zeal (offline docs) |
 | `dev` | base-devel (gcc, make), gdb, valgrind, python3, rlwrap |
 | `cli` | htop, ripgrep, fd, fzf, bat, eza, tmux, tree, jq, zoxide, yazi, lazygit, atuin (with bash-preexec) |
 | `lisp` | SBCL |

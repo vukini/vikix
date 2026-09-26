@@ -21,6 +21,7 @@
     ("s-d"    "exec rofi -show drun" "Launcher: start any program")
     ("s-w"    "exec firefox"      "Browser")
     ("s-e"    "exec pcmanfm"      "Files")
+    ("s-E"    "exec spacefm"      "Files in SpaceFM: tabs and split panes")
     ("s-a"    "vikix-agent"       "AI agent: Claude Code in a terminal")
     ("s-x"    "exec emacsclient -c -a ''" "Emacs: a new window")
     ("s-c"    "exec env CM_LAUNCHER=rofi clipmenu" "Clipboard history: pick to paste again")
