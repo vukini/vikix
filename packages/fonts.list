@@ -1,0 +1,5 @@
+# fonts.list — fonts too big for part one.
+# font-iosevka is every Iosevka variant: a 173 MB download, 862 MB
+# installed. Part one would wait on it, so it comes in part two; until
+# then config/fontconfig/50-vikix-iosevka.conf stands in a plain monospace.
+font-iosevka    # terminal font (alacritty, rofi, dunst)

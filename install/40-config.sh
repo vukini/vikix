@@ -12,6 +12,7 @@
 #     ~/.local/bin/vikix-screenshot, vikix-battery, vikix-osd   small helpers
 #     ~/.config/vikix/vikix.bash   aliases and prompt (read by ~/.bashrc)
 #     ~/.claude/skills/vikix     tells Claude Code how Vikix is put together
+#     ~/.config/fontconfig/conf.d/50-vikix-iosevka.conf   monospace until Iosevka is installed
 #
 #   Yours (copied once as a starting point, never overwritten)
 #     ~/.stumpwm.d/user.lisp     your StumpWM changes; loaded last, so they win
@@ -61,6 +62,7 @@ link_managed "$VIKIX_DIR/bin/vikix-screenshot" "$HOME/.local/bin/vikix-screensho
 link_managed "$VIKIX_DIR/bin/vikix-battery"  "$HOME/.local/bin/vikix-battery"
 link_managed "$C/bash/vikix.bash"   "$HOME/.config/vikix/vikix.bash"
 link_managed "$C/claude/skills/vikix" "$HOME/.claude/skills/vikix"
+link_managed "$C/fontconfig/50-vikix-iosevka.conf" "$HOME/.config/fontconfig/conf.d/50-vikix-iosevka.conf"
 
 # --- Your files -----------------------------------------------------------
 copy_user "$C/stumpwm/user.lisp"          "$SD/user.lisp"

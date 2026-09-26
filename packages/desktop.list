@@ -13,7 +13,6 @@ dunst           # notifications
 libnotify       # notify-send
 rofi            # launcher
 alacritty       # terminal
-font-iosevka    # terminal font
 noto-fonts-ttf  # everything else
 xss-lock        # locks the screen on suspend/idle
 i3lock          # the lock screen

@@ -266,7 +266,8 @@ A snapshot is taken after every install or `vikix update`, and before every agen
 | List | Contents |
 |---|---|
 | `base` | dbus, elogind, polkit and its password box, openssh, chrony (clock), git, curl, rsync, zip, 7zip, man pages, xdg-utils |
-| `desktop` | X11, picom, dunst, rofi, alacritty, fonts (Iosevka, Noto, Nerd Font symbols), i3lock, screenshots, clipmenu (clipboard history) |
+| `desktop` | X11, picom, dunst, rofi, alacritty, fonts (Noto, Nerd Font symbols), i3lock, screenshots, clipmenu (clipboard history) |
+| `fonts` | Iosevka, the terminal font. Every variant comes in one 862 MB package, so it waits for part two; until then the terminal uses a plain monospace font. |
 | `network` | NetworkManager (`nmtui` for Wi-Fi), with its connection editor |
 | `audio` | PipeWire, WirePlumber (with Bluetooth audio), pamixer, pavucontrol |
 | `laptop` | tlp, acpid, brightnessctl, Bluetooth (bluez, blueman), autorandr, and the firmware a recent ThinkPad needs: sof-firmware (sound), intel-ucode (from the nonfree repo, enabled by `repos.list`), intel-video-accel |
