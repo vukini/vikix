@@ -1,5 +1,7 @@
 # Tests for Vikix. Each step runs a script from tests/, so everything here
 # can also be run on your own machine: tests/run.sh (or tests/run.sh --all).
+# tests/ci.sh wraps each one so a failure's last lines show up as a public
+# annotation (job logs need a GitHub login; annotations don't).
 #
 #   lint     every script parses, is executable where it should be, and
 #            passes shellcheck; vikix update restarts into a new version
@@ -26,11 +28,11 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: lint
-        run: tests/lint.sh
+        run: tests/ci.sh lint
       - name: update
-        run: tests/update.sh
+        run: tests/ci.sh update
 
   void:
     runs-on: ubuntu-latest
@@ -43,7 +45,7 @@ jobs:
           xbps-install -Syu xbps
           xbps-install -yu
           xbps-install -y bash git sudo curl
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # The installer refuses to run as root, so the tests run as a normal
       # user with sudo, as on a real machine.
       - name: A normal user
@@ -52,9 +54,9 @@ jobs:
           echo 'tester ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/tester
           chown -R tester: "$GITHUB_WORKSPACE"
       - name: packages
-        run: su tester -c "cd '$GITHUB_WORKSPACE' && tests/packages.sh"
+        run: su tester -c "cd '$GITHUB_WORKSPACE' && GITHUB_ACTIONS=true tests/ci.sh packages"
       - name: dry-run
-        run: su tester -c "cd '$GITHUB_WORKSPACE' && tests/dry-run.sh"
+        run: su tester -c "cd '$GITHUB_WORKSPACE' && GITHUB_ACTIONS=true tests/ci.sh dry-run"
 
   editors:
     runs-on: ubuntu-latest
@@ -67,7 +69,7 @@ jobs:
           xbps-install -Syu xbps
           xbps-install -yu
           xbps-install -y bash git sudo curl
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # What Vikix installs for the editors, plus a compiler for the
       # Treesitter parsers and the Emacs packages that build code.
       - name: The editors, as Vikix installs them
@@ -79,4 +81,4 @@ jobs:
           useradd -m tester
           chown -R tester: "$GITHUB_WORKSPACE"
       - name: editors
-        run: su tester -c "cd '$GITHUB_WORKSPACE' && tests/editors.sh"
+        run: su tester -c "cd '$GITHUB_WORKSPACE' && GITHUB_ACTIONS=true tests/ci.sh editors"
