@@ -27,6 +27,10 @@ if [ "${#repos[@]}" -gt 0 ]; then
   say "enabling repositories: ${repos[*]}"
   run sudo xbps-install -Syu xbps
   run sudo xbps-install -Sy "${repos[@]}"
+  # The new repositories come pointed at Void's default mirror; move them
+  # to the one 05-mirror chose, so nonfree downloads are fast too.
+  mirror=$(current_mirror)
+  if [ -n "$mirror" ]; then use_mirror "$mirror"; fi
 fi
 
 wanted=()

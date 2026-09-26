@@ -34,6 +34,12 @@ Each part asks for your password **once**, at the start, and then runs by itself
 
 `./install.sh` runs both parts one after the other, for a machine you just want to leave to it.
 
+**Mirrors.** The install downloads 1–2 GB, and Void's default mirror is slow in much of the world. Part one first times the mirrors in `mirrors.list` and uses the fastest. To pick one yourself instead, name it:
+
+```sh
+VIKIX_MIRROR=https://mirror.accum.se/mirror/voidlinux ./install-1.sh
+```
+
 **If a stage fails.** Part one stops at the first stage that fails, because each of its stages needs the one before. Part two carries on with the rest and lists at the end what failed. Either way, the error names the stage. Fix the problem, then run just that stage:
 
 ```sh
@@ -45,6 +51,7 @@ Every stage checks before it changes anything, so re-running either part is safe
 | Stage | Part | What it does |
 |---|---|---|
 | `00-preflight` | 1 | Checks this is glibc Void, and that you are not root. Notes any existing StumpWM config. |
+| `05-mirror` | 1 | Downloads from each mirror in `mirrors.list` for six seconds and points xbps at the fastest (about a minute). Skipped if you set `VIKIX_MIRROR`, or already chose a mirror in `/etc/xbps.d/`. |
 | `10-packages` | 1, 2 | Updates xbps itself, then installs what `packages/*.list` names, skipping anything already installed. Part one installs the core lists (base, desktop, network, lisp, cli); part two the rest. |
 | `20-services` | 1, 2 | Enables the runit services in `services.list`, and adds you to the `video` group. |
 | `25-network` | 1 | Starts NetworkManager, waits until it's running, then switches off dhcpcd and wpa_supplicant. Adds you to the `network` group. |
@@ -362,6 +369,7 @@ vikix snapshot / changes / history / undo   # the history of your files
 | `lib/` | Shared shell helpers, and the StumpWM build script |
 | `packages/` | Package lists, one per concern |
 | `services.list` | The runit services to enable |
+| `mirrors.list` | The Void mirrors `05-mirror` chooses from |
 | `config/` | Everything that ends up in `~` |
 | `bin/` | `vikix`; `vikix-session`, which `.xinitrc` starts; `vikix-eval`, behind `vikix eval` |
 | `migrations/` | One-off changes for machines already installed (see its README) |

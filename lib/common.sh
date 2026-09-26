@@ -9,6 +9,8 @@
 #   copy_user SRC DEST      give the user a starter file, once; never overwrite
 #   ensure_block FILE NAME TEXT   keep one marked block in a file, replaced on re-run
 #   sudo_keepalive          ask for the password once, keep sudo valid until the script ends
+#   use_mirror URL          point every xbps repository at the mirror URL
+#   current_mirror          the mirror /etc/xbps.d points at (empty if none)
 
 # Where the Vikix checkout lives (the folder that holds install.sh).
 : "${VIKIX_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
@@ -121,4 +123,31 @@ sudo_keepalive() {
     >/dev/null 2>&1 &
   VIKIX_SUDO_KEPT=1
   export VIKIX_SUDO_KEPT
+}
+
+# use_mirror URL
+# Points every xbps repository at URL (a mirror's base, without /current).
+# Void's own repository files live in /usr/share/xbps.d; a file of the
+# same name in /etc/xbps.d replaces one there, as the Void handbook
+# describes. Repositories added later (void-repo-nonfree) bring new files,
+# so this is run again after them and copies only what isn't there yet.
+use_mirror() {
+  local url=${1%/} f base
+  run sudo mkdir -p /etc/xbps.d
+  for f in /usr/share/xbps.d/*-repository-*.conf; do
+    [ -e "$f" ] || continue
+    base=$(basename "$f")
+    [ -e "/etc/xbps.d/$base" ] || run sudo cp "$f" "/etc/xbps.d/$base"
+  done
+  for f in /etc/xbps.d/*-repository-*.conf; do
+    [ -e "$f" ] || continue
+    grep -q "^repository=$url/current" "$f" && continue
+    say "$(basename "$f"): now $url"
+    run sudo sed -i -E "s|^repository=.*/current|repository=$url/current|" "$f"
+  done
+}
+
+# current_mirror — the mirror /etc/xbps.d points the main repository at.
+current_mirror() {
+  sed -n 's|^repository=\(.*\)/current$|\1|p' /etc/xbps.d/*-repository-main.conf 2>/dev/null | head -1 || true
 }

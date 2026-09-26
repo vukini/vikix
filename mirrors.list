@@ -1,0 +1,13 @@
+# mirrors.list — the Void mirrors install/05-mirror.sh times; the fastest wins.
+# All official mirrors (https://xmirror.voidlinux.org). To skip the timing,
+# set VIKIX_MIRROR to the one you want, e.g.
+#   VIKIX_MIRROR=https://mirror.accum.se/mirror/voidlinux ./install-1.sh
+https://repo-default.voidlinux.org          # Void's default
+https://repo-fastly.voidlinux.org           # CDN (Fastly), worldwide
+https://repo-de.voidlinux.org               # Germany
+https://repo-fi.voidlinux.org               # Finland
+https://mirror.accum.se/mirror/voidlinux    # Sweden
+https://mirrors.dotsrc.org/voidlinux        # Denmark
+https://mirror.puzzle.ch/voidlinux          # Switzerland
+https://mirrors.bfsu.edu.cn/voidlinux       # China
+https://mirror.aarnet.edu.au/pub/voidlinux  # Australia
