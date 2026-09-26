@@ -46,8 +46,15 @@ cmd_migrate() {
 
 cmd_update() {
   sudo_keepalive
-  say "pulling Vikix"
-  run git -C "$VIKIX_DIR" pull --ff-only
+  if [ "${1:-}" != --pulled ]; then
+    say "pulling Vikix"
+    run git -C "$VIKIX_DIR" pull --ff-only
+    # The pull may have replaced this very script, but bash goes on running
+    # the copy it already opened: the steps below would be the OLD version's,
+    # and a stage new in this version would be skipped. So start again from
+    # the new copy. (Same process, so sudo_keepalive carries on.)
+    exec "$VIKIX_DIR/bin/vikix" update --pulled
+  fi
   say "updating Void"
   # xbps refuses every other install until xbps itself is current.
   run sudo xbps-install -Syu xbps
@@ -244,7 +251,7 @@ cmd_agent() {
 # reading whatever the pull put after it.
 main() {
   case ${1:-help} in
-    update)      cmd_update ;;
+    update)      cmd_update "${2:-}" ;;
     migrate)     cmd_migrate ;;
     rebuild-wm)  VIKIX_REBUILD_WM=1 bash "$VIKIX_DIR/install/30-lisp.sh" ;;
     doctor)      cmd_doctor ;;
