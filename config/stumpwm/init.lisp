@@ -16,6 +16,7 @@
   '("theme"      ; colours and borders, as one palette
     "groups"     ; workspaces 1-9
     "commands"   ; Vikix's own commands (menu, key help, reload)
+    "windows"    ; focus, gaps, layout undo, finding windows
     "keys"       ; Super-key bindings
     "help"       ; key help (s-F1) and the list of all commands
     "modeline"   ; the bar at the top

@@ -52,6 +52,13 @@
     ("s-b"    "hsplit"            "Split: side by side")
     ("s-v"    "vsplit"            "Split: one above the other")
     ("s-r"    "remove"            "Remove this split")
+    ;; windows.lisp: gaps, layout undo, finding windows
+    ("s-g"    "toggle-gaps"       "Gaps around windows on/off")
+    ("s-u"    "winner-undo"       "Undo the last layout change (splits, moves)")
+    ("s-U"    "winner-redo"       "Redo the layout change")
+    ("s-A"    "global-windowlist" "Any window, on any workspace: go there")
+    ("s-C-a"  "global-pull-windowlist" "Any window, on any workspace: bring it here")
+    ("s-p"    "beckon"            "Move the pointer to this window")
     ;; Vikix
     ("s-m"    "vikix-menu"      "Vikix menu")
     ("s-F1"   "vikix-keys"      "These keys")

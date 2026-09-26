@@ -24,7 +24,7 @@ Every config file belongs either to Vikix or to the user.
 replaces them, so any edit there is lost, and it breaks the update
 (`git pull --ff-only`). **Do not edit them**:
 
-- `~/.stumpwm.d/init.lisp`, `~/.stumpwm.d/vikix/` (theme, groups, commands, keys, help, modeline, swank)
+- `~/.stumpwm.d/init.lisp`, `~/.stumpwm.d/vikix/` (theme, groups, commands, windows, keys, help, modeline, swank)
 - `~/.xinitrc`, `~/.local/bin/vikix*`, `~/.config/vikix/vikix.bash`
 - this skill, and everything else in the checkout. Find the checkout with `readlink -f ~/.local/bin/vikix` (it is `<checkout>/bin/vikix`); normally `~/vikix`.
 
@@ -103,9 +103,12 @@ agent, Super+x an Emacs window, Super+c clipboard history (clipmenu),
 Print / Shift+Print a screenshot of an area to the clipboard / to
 ~/Pictures/Screenshots, Super+q close, Super+f fullscreen, Super+h/j/k/l focus (Shift to
 move the window; the arrow keys do the same), Super+b / Super+v split,
-Super+r remove split, Super+1..9 workspaces, Super+Ctrl+1..9 send the
+Super+r remove split, Super+u / Super+Shift+u undo / redo a layout
+change, Super+g gaps on/off, Super+Shift+a / Super+Ctrl+a any window on
+any workspace (go there / bring it here), Super+p pointer to the focused
+window, Super+1..9 workspaces, Super+Ctrl+1..9 send the
 window there, Super+m the Vikix menu, Super+Escape lock. StumpWM's own
-keys follow the prefix Ctrl+t.
+keys follow the prefix Ctrl+t. Focus follows the mouse (sloppy focus).
 
 ## Checking and fixing
 

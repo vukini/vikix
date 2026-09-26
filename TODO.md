@@ -1,19 +1,6 @@
 # To do
 
-What's left to add or clean up, most valuable first within each section. Delete an item when it ships. The first list was drawn up on 2026-09-26, from loose ends of earlier sessions and a review of 0.15.0.
-
-## Loose ends
-
-- **Bring back the rest of the old StumpWM config.** `~/stumpwm-pre-vikix-2026-09-26/.stumpwmrc` has things Vikix still lacks:
-  - gaps (`swm-gaps`, with a fix to its `maximize-window`), toggled with `s-g`
-  - layout undo and redo (`winner-mode`) on `s-Left` / `s-Right`
-  - a window list across all workspaces (`globalwindows`)
-  - `beckon`, to move the pointer to the focused window
-  - 4px borders instead of 2px; this is a taste, so it may belong in `user.lisp`
-
-  Clipboard history, wallpaper and screenshots are already covered.
-- **Make sloppy focus a default?** Mouse focus that follows the pointer is set only in this machine's `user.lisp`. If every install should get it, it belongs in `theme.lisp` or `keys.lisp`.
-- **Tags differ between checkouts.** `v0.14.0` and `v0.14.1` are annotated in `~/vikix` but plain tags here. Both point at the same commits. Decide which copy of the tags GitHub keeps.
+What's left to add or clean up, most valuable first within each section. Delete an item when it ships. The first list was drawn up on 2026-09-26, from a review of 0.15.0.
 
 ## Cleanups
 

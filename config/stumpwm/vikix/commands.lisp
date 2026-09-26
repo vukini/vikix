@@ -58,6 +58,8 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
     ("Programming docs (offline)" (run-shell-command "xdg-open ~/dev/index.html"))
     ("Zeal: search the docs" (run-shell-command "zeal"))
     ("Clipboard history"   (run-shell-command "env CM_LAUNCHER=rofi clipmenu"))
+    ("Find a window, any workspace" global-windowlist)
+    ("Gaps around windows on/off" toggle-gaps)
     ("Screenshot: an area, to a file" (run-shell-command "vikix-screenshot file"))
     ("Undo: my files back one snapshot" vikix-undo)
     ("Reload config"       vikix-reload)

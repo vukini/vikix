@@ -197,7 +197,7 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 
 ## Keys
 
-`s` means Super. StumpWM's own `Ctrl+t` prefix keys still work too.
+`s` means Super. StumpWM's own `Ctrl+t` prefix keys still work too. Focus follows the mouse: pointing at a window focuses it, without a click. To click instead, put `(setf *mouse-focus-policy* :click)` in `user.lisp`.
 
 | Key | What it does |
 |---|---|
@@ -218,6 +218,11 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 | `s-b` | Split side by side |
 | `s-v` | Split one above the other |
 | `s-r` | Remove the split |
+| `s-u` / `s-U` | Undo / redo the last layout change on this workspace (splits, moves, closes) |
+| `s-g` | Gaps around windows, on or off (off at login) |
+| `s-A` | Any window on any workspace: pick one and go there |
+| `s-C-a` | Any window on any workspace: pick one and bring it here |
+| `s-p` | Move the mouse pointer to the focused window |
 | `s-1`…`s-9` | Go to a workspace |
 | `s-C-1`…`s-C-9` | Send the window to a workspace |
 | `s-m` | Vikix menu: key help, all commands, "what does a key do?", themes, network, screens, update, suspend / reboot / power off |
