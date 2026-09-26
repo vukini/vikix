@@ -1,0 +1,5 @@
+# lang-sql.list — SQLite
+sqlite          # the sqlite3 shell
+sqlite-devel    # headers, for the C API
+litecli         # sqlite3 shell with completion and colour
+sqlitebrowser   # a GUI for looking inside a database file

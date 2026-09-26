@@ -1,0 +1,3 @@
+# lang-lua.list — Lua (lua-language-server is in editors.list)
+lua54
+LuaJIT

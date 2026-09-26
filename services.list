@@ -1,0 +1,11 @@
+# services.list — runit services install/20-services.sh switches on.
+# NetworkManager is switched on separately, by install/25-network.sh,
+# because the old network services have to be stopped at the right moment.
+dbus
+# elogind is deliberately NOT here: dbus starts it on demand. Enabling its
+# runit service as well races with that and loops forever printing
+# "elogind is already running" on the console.
+acpid
+tlp
+chronyd         # from chrony
+bluetoothd      # from bluez

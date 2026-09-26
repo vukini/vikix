@@ -1,0 +1,59 @@
+#!/bin/sh
+# vikix-session — everything that runs for the length of a desktop session.
+#
+# Started by ~/.xinitrc inside dbus-run-session, so every program here
+# shares one session bus. Without systemd there are no "user services":
+# the background programs are simply started here, and they end when
+# StumpWM (the last line) exits.
+
+# Everything this session prints (StumpWM's messages, errors from the
+# programs below) goes to a log, so a desktop that won't start can be
+# looked into from another console. The previous session's log is kept.
+log_dir="${XDG_STATE_HOME:-$HOME/.local/state}/vikix"
+mkdir -p "$log_dir"
+[ -f "$log_dir/session.log" ] && mv "$log_dir/session.log" "$log_dir/session.log.old"
+exec >"$log_dir/session.log" 2>&1
+echo "vikix-session started $(date)"
+set -x    # each command is written to the log before it runs
+
+[ -f "$HOME/.Xresources" ] && xrdb -merge "$HOME/.Xresources"
+xsetroot -cursor_name left_ptr
+"$HOME/.local/bin/vikix-keyboard"    # layout and options from ~/.config/vikix/keyboard
+command -v autorandr >/dev/null 2>&1 && autorandr --change --default default 2>/dev/null
+[ -f "$HOME/.config/vikix/wallpaper" ] && feh --no-fehbg --bg-fill "$HOME/.config/vikix/wallpaper"
+
+pipewire &                             # audio (starts WirePlumber and pipewire-pulse)
+dunst &                                # notifications
+clipmenud &                            # remembers what you copy (Super+c)
+picom -b                               # compositor (forks itself)
+xset s 600                             # idle after 10 minutes...
+xss-lock -- i3lock -n -c 1e1e2e &      # ...then lock; also lock on suspend
+
+# Emacs as a daemon, so `e` (emacsclient) opens a frame at once. The first
+# start on a new machine installs the config's packages; that happens here,
+# in the background, not while you wait.
+command -v emacs >/dev/null 2>&1 && emacs --fg-daemon >/dev/null 2>&1 &
+
+# A warning when the battery runs low; only on machines that have one.
+for battery in /sys/class/power_supply/BAT*; do
+  [ -e "$battery" ] && "$HOME/.local/bin/vikix-battery" &
+  break
+done
+
+# The password box programs show when they need admin rights.
+for agent in /usr/libexec/polkit-gnome-authentication-agent-1 \
+             /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1; do
+  if [ -x "$agent" ]; then "$agent" & break; fi
+done
+
+# Inside VirtualBox only (installed by install/70-vm.sh): shared
+# clipboard and a screen that follows the window size.
+command -v VBoxClient-all >/dev/null 2>&1 && VBoxClient-all
+
+# Not exec: when StumpWM exits, the X server ends, which takes the X
+# programs with it, but pipewire is not an X program and would live on.
+set +x
+echo "starting StumpWM"
+"$HOME/.local/bin/stumpwm"
+echo "StumpWM exited with status $?"
+kill $(jobs -p) 2>/dev/null

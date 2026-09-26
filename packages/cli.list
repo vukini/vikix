@@ -1,0 +1,10 @@
+# cli.list — command-line tools (aliases in config/bash/vikix.bash).
+htop            # what is running
+ripgrep         # rg: search file contents, fast
+fd              # find files by name, fast
+fzf             # fuzzy finder: Ctrl+R history, Ctrl+T files
+bat             # cat with colour and line numbers
+eza             # ls with colour and git status
+tmux
+tree
+jq              # read and reshape JSON

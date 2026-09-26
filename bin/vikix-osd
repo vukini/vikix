@@ -1,0 +1,32 @@
+#!/bin/sh
+# vikix-osd — change volume or brightness and show a bar for it.
+#
+#   vikix-osd volume up|down|mute|mic
+#   vikix-osd brightness up|down
+#
+# The bar is a dunst notification with a progress value. The stack tag
+# makes each new press replace the last bar instead of piling up.
+step=5
+
+show() {   # show TITLE PERCENT
+  notify-send -a vikix -t 1200 -h string:x-dunst-stack-tag:vikix-osd \
+              -h "int:value:$2" "$1  $2%"
+}
+
+case "$1 $2" in
+  "volume up")     pamixer -i "$step"; show "Volume" "$(pamixer --get-volume)" ;;
+  "volume down")   pamixer -d "$step"; show "Volume" "$(pamixer --get-volume)" ;;
+  "volume mute")   pamixer -t
+                   if [ "$(pamixer --get-mute)" = true ]; then show "Muted" 0
+                   else show "Volume" "$(pamixer --get-volume)"; fi ;;
+  "volume mic")    pamixer --default-source -t
+                   if [ "$(pamixer --default-source --get-mute)" = true ]
+                   then show "Microphone muted" 0
+                   else show "Microphone on" 100; fi ;;
+  "brightness up")   brightnessctl -q set "+$step%" ;;
+  "brightness down") brightnessctl -q set "$step%-" ;;
+  *) echo "usage: vikix-osd volume up|down|mute|mic | brightness up|down" >&2; exit 2 ;;
+esac
+case "$1" in
+  brightness) show "Brightness" "$(( 100 * $(brightnessctl get) / $(brightnessctl max) ))" ;;
+esac

@@ -1,0 +1,17 @@
+# editors.list — the editors, and what their configs assume is installed
+# (install/45-editors.sh clones the configs and adds the npm servers).
+emacs-x11       # Emacs with its own window; SLIME reaches StumpWM on port 4004
+neovim
+# pdf-tools (Emacs) builds its epdfinfo helper the first time:
+pkg-config
+autoconf
+automake
+poppler-glib-devel
+libpng-devel
+zlib-devel
+# language servers that Void packages; the npm ones come from 45-editors
+ccls                    # C and C++
+lua-language-server
+gopls                   # Go
+efm-langserver          # linters and formatters (Neovim)
+nodejs                  # npm, for typescript-language-server, pyright, bash-language-server

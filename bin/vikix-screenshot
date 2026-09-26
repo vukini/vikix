@@ -1,0 +1,34 @@
+#!/bin/sh
+# vikix-screenshot — drag out an area with the mouse and keep a picture of it.
+#
+#   vikix-screenshot clip   to the clipboard, ready to paste   (Print)
+#   vikix-screenshot file   to ~/Pictures/Screenshots/<date>.png (Shift+Print)
+#
+# Escape or a right-click while choosing cancels, and nothing is kept.
+
+shot=$(mktemp --suffix=.png) || exit 1
+trap 'rm -f "$shot"' EXIT
+
+maim -s "$shot" || exit 0          # cancelled
+
+case ${1:-clip} in
+  clip)
+    xclip -selection clipboard -t image/png < "$shot"
+    ;;
+  file)
+    # xdg-user-dir answers ~/Pictures, or the folder you renamed it to.
+    pictures=$(xdg-user-dir PICTURES 2>/dev/null)
+    if [ -z "$pictures" ] || [ "$pictures" = "$HOME" ]; then
+      pictures="$HOME/Pictures"
+    fi
+    dir="$pictures/Screenshots"
+    mkdir -p "$dir"
+    file="$dir/$(date +%Y-%m-%d_%H-%M-%S).png"
+    cp "$shot" "$file"
+    notify-send -a Vikix "Screenshot saved" "$file"
+    ;;
+  *)
+    echo "usage: vikix-screenshot [clip|file]" >&2
+    exit 2
+    ;;
+esac

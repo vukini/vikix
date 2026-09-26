@@ -1,0 +1,9 @@
+#!/bin/sh
+# vikix-keyboard — apply the layout and options in ~/.config/vikix/keyboard.
+# Run at login by vikix-session; run again after editing the file.
+kb="$HOME/.config/vikix/keyboard"
+[ -f "$kb" ] && . "$kb"
+# -option with an empty argument clears the old options first, so running
+# this twice never stacks them.
+setxkbmap ${VIKIX_KB_LAYOUT:+-layout "$VIKIX_KB_LAYOUT"} \
+          -option "" ${VIKIX_KB_OPTIONS:+-option "$VIKIX_KB_OPTIONS"}

@@ -1,0 +1,7 @@
+# audio.list — PipeWire (configured by install/50-audio.sh).
+pipewire        # also provides wireplumber support and pipewire-pulse
+wireplumber
+alsa-pipewire
+libspa-bluetooth  # Bluetooth headphones and speakers through PipeWire
+pamixer         # volume keys
+pavucontrol     # volume, with a GUI

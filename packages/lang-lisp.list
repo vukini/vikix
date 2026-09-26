@@ -1,0 +1,12 @@
+# lang-lisp.list — Common Lisp and the Scheme family
+# sbcl is in lisp.list (it builds StumpWM). Quicklisp comes from 30-lisp.
+ccl             # Clozure CL: a second implementation, fast compiler, good error messages
+racket          # Racket, with DrRacket and raco
+chez-scheme     # Chez: the fastest Scheme, and Racket's engine
+guile           # GNU Guile: Scheme as an extension language
+
+# What PicoLisp (built from source by 65-languages) needs besides clang:
+llvm            # llvm-config, opt, llc, llvm-link: pil21 compiles through LLVM IR
+libffi-devel
+readline-devel
+openssl-devel   # for PicoLisp's ssl and httpGate helpers

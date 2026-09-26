@@ -1,0 +1,4 @@
+# network.list — NetworkManager (switched on by install/25-network.sh).
+NetworkManager          # includes nmtui, a text interface for Wi-Fi
+wpa_supplicant          # NetworkManager drives Wi-Fi through it
+network-manager-applet  # nm-connection-editor, the GUI for connections

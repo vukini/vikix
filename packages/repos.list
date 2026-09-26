@@ -1,0 +1,3 @@
+# repos.list — extra package repositories. 10-packages installs these
+# first and syncs, so the other lists may name packages from them.
+void-repo-nonfree       # intel-ucode

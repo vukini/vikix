@@ -1,0 +1,2 @@
+# lisp.list — what StumpWM is built with (see install/30-lisp.sh).
+sbcl

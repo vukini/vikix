@@ -1,0 +1,3 @@
+# lang-zig.list — Zig
+zig
+zls             # its language server

@@ -1,0 +1,3 @@
+# lang-wasm.list — WebAssembly
+wabt            # wat2wasm, wasm2wat, wasm-objdump: the text/binary tools
+wasmtime        # run a .wasm file outside the browser

@@ -1,0 +1,6 @@
+# /etc/udev/rules.d/60-vboxguest.rules — installed by Vikix (install/70-vm.sh).
+# Void's virtualbox-ose-guest package ships no device rules, so /dev/vboxuser
+# is root-only and VBoxClient fails with VERR_ACCESS_DENIED. vboxuser is the
+# device meant for ordinary users (clipboard, resize); vboxguest stays root-only.
+ACTION=="add", KERNEL=="vboxguest", SUBSYSTEM=="misc", OWNER="root", MODE="0600"
+ACTION=="add", KERNEL=="vboxuser", SUBSYSTEM=="misc", OWNER="root", MODE="0666"

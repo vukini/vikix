@@ -1,0 +1,5 @@
+# lang-haskell.list — Haskell
+ghc
+cabal-install
+haskell-language-server
+hlint

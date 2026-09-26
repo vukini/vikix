@@ -1,0 +1,262 @@
+#!/usr/bin/env bash
+# vikix — the everyday command.
+#
+#   vikix update        pull Vikix, update Void, add new packages,
+#                         refresh config links, pull the editor configs,
+#                         run new migrations
+#   vikix migrate       run only the migrations not yet applied
+#   vikix rebuild-wm    rebuild the StumpWM executable (after a Quicklisp update)
+#   vikix doctor        check the pieces are all there
+#   vikix version
+#
+#   vikix eval FORM     run Lisp in the running StumpWM, print the result
+#   vikix agent         Claude Code, after a snapshot of your files (alias: a)
+#   vikix snapshot [MESSAGE]   record your files as they are now
+#   vikix changes [ID]  what changed since the last snapshot (or in snapshot ID)
+#   vikix history       the snapshots, newest first
+#   vikix undo [ID]     put your files back as they were one snapshot ago (or at ID)
+
+set -euo pipefail
+
+# ~/.local/bin/vikix is a symlink; follow it back to the checkout.
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+export VIKIX_DIR
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+
+cmd_migrate() {
+  run mkdir -p "$VIKIX_STATE/migrations"
+  local m id applied=0
+  # Migrations are named <unix-time>.sh, so a plain sort is time order.
+  for m in "$VIKIX_DIR"/migrations/*.sh; do
+    [ -e "$m" ] || continue
+    id=$(basename "$m" .sh)
+    [ -e "$VIKIX_STATE/migrations/$id" ] && continue
+    say "migration $id"
+    if [ "$DRY_RUN" = 1 ]; then
+      printf '   would run: %s\n' "$m"
+    else
+      bash "$m" || die "migration $id failed; nothing after it was run"
+      touch "$VIKIX_STATE/migrations/$id"
+    fi
+    applied=$((applied + 1))
+  done
+  say "$applied new migration(s)"
+}
+
+cmd_update() {
+  sudo_keepalive
+  say "pulling Vikix"
+  run git -C "$VIKIX_DIR" pull --ff-only
+  say "updating Void"
+  # xbps refuses every other install until xbps itself is current.
+  run sudo xbps-install -Syu xbps
+  run sudo xbps-install -Su
+  bash "$VIKIX_DIR/install/10-packages.sh"
+  bash "$VIKIX_DIR/install/40-config.sh"
+  bash "$VIKIX_DIR/install/45-editors.sh"
+  bash "$VIKIX_DIR/install/65-languages.sh"
+  cmd_migrate
+}
+
+cmd_doctor() {
+  local ok=1 c sv
+  # pam_elogind creates this at login; pipewire and dbus-run-session need it.
+  if [ -n "${XDG_RUNTIME_DIR:-}" ]; then say "XDG_RUNTIME_DIR is set"
+  else warn "XDG_RUNTIME_DIR is not set (pam_elogind isn't creating sessions)"; ok=0; fi
+  for c in sbcl stumpwm alacritty rofi picom dunst pipewire i3lock firefox emacs nvim nmtui clipmenu maim; do
+    if command -v "$c" >/dev/null 2>&1 || [ -x "$HOME/.local/bin/$c" ]; then
+      say "found $c"
+    else
+      warn "missing $c"; ok=0
+    fi
+  done
+  while IFS= read -r sv; do
+    if [ -e "/var/service/$sv" ]; then say "service $sv enabled"
+    else warn "service $sv not enabled"; ok=0; fi
+  done < <(read_list "$VIKIX_DIR/services.list")
+  if [ -e /var/service/NetworkManager ]; then say "service NetworkManager enabled"
+  else warn "service NetworkManager not enabled"; ok=0; fi
+  for d in "$HOME/.emacs.d" "$HOME/.config/nvim"; do
+    if [ -d "$d/.git" ]; then say "$d is a git clone"
+    else warn "$d is not a git clone (45-editors did not set it up)"; ok=0; fi
+  done
+  if [ ! -L "$HOME/.stumpwm.d/init.lisp" ]; then
+    warn "$HOME/.stumpwm.d/init.lisp is not Vikix's"; ok=0
+  fi
+  # The AI side. Claude Code itself is optional: Super+a offers to install it.
+  if [ -d "$YOURS_GIT" ]; then say "your files have a snapshot history"
+  else warn "no snapshot history of your files yet (40-config starts it)"; ok=0; fi
+  if [ -L "$HOME/.claude/skills/vikix" ]; then say "the Vikix skill is linked for Claude Code"
+  else warn "the Vikix skill isn't in ~/.claude/skills (40-config links it)"; ok=0; fi
+  if command -v claude >/dev/null 2>&1 || [ -x "$HOME/.local/bin/claude" ]; then
+    say "found claude"
+  else
+    say "claude is not installed (optional: Super+a or 'vikix agent' offers to install it)"
+  fi
+  if [ -n "${DISPLAY:-}" ]; then
+    if python3 "$VIKIX_DIR/bin/vikix-eval" '(+ 1 1)' >/dev/null 2>&1; then
+      say "vikix eval reaches the running StumpWM"
+    else
+      warn "vikix eval can't reach StumpWM (is it running? reload it: Super+m, Reload config)"; ok=0
+    fi
+  fi
+  if [ "$ok" = 1 ]; then say "all good"; else warn "see above"; return 1; fi
+}
+
+# --- Snapshots of your files -----------------------------------------------
+# Your files (config/yours.list names them) are kept in a git repository
+# of their own, $VIKIX_STATE/yours.git, whose work tree is your home
+# folder. Nothing is added to ~ itself: no .git folder appears anywhere.
+# Every change an AI agent (or you) makes to them can then be seen with
+# `vikix changes` and taken back with `vikix undo`.
+
+YOURS_GIT="$VIKIX_STATE/yours.git"
+
+yours_git() { git --git-dir="$YOURS_GIT" --work-tree="$HOME" "$@"; }
+
+yours_init() {
+  [ -d "$YOURS_GIT" ] && return 0
+  say "starting the history of your files in $YOURS_GIT"
+  run mkdir -p "$VIKIX_STATE"
+  run git init -q --bare "$YOURS_GIT"
+  # Commits here are Vikix's bookkeeping, so they don't need (or change)
+  # your own git name.
+  run yours_git config user.name "Vikix"
+  run yours_git config user.email "vikix@localhost"
+  # `git status` in this repo would otherwise list every file in ~.
+  run yours_git config status.showUntrackedFiles no
+  # Vikix's own links, and things that change by themselves, stay out.
+  [ "$DRY_RUN" = 1 ] || cat > "$YOURS_GIT/info/exclude" <<'EXCLUDE'
+/.stumpwm.d/init.lisp
+/.stumpwm.d/vikix
+/.stumpwm.d/modules/
+/.stumpwm.d/*.log*
+/.stumpwm.d/history
+*.vikix-bak.*
+*.fasl
+*~
+EXCLUDE
+}
+
+# Stage every file of yours as it is now: changed, new and deleted ones.
+yours_stage() {
+  local p
+  while IFS= read -r p; do
+    if [ -e "$HOME/$p" ]; then yours_git add -A -- "$HOME/$p"; fi
+  done < <(read_list "$VIKIX_DIR/config/yours.list")
+  yours_git add -u    # files that were recorded and are now gone
+}
+
+has_snapshot() { yours_git rev-parse -q --verify HEAD >/dev/null 2>&1; }
+
+cmd_snapshot() {
+  local message=${1:-snapshot}
+  yours_init
+  if [ "$DRY_RUN" = 1 ]; then
+    printf '   would record your files: %s\n' "$message"; return 0
+  fi
+  yours_stage
+  if has_snapshot && yours_git diff --cached --quiet; then
+    say "your files haven't changed since snapshot $(yours_git rev-parse --short HEAD)"
+    return 0
+  fi
+  yours_git commit -q -m "$message"
+  say "snapshot $(yours_git rev-parse --short HEAD): $message"
+}
+
+cmd_changes() {
+  has_snapshot || die "no snapshots yet (vikix snapshot makes one)"
+  if [ -n "${1:-}" ]; then
+    yours_git show --stat --patch "$1"
+    return
+  fi
+  yours_stage
+  if yours_git diff --cached --quiet; then
+    say "nothing has changed since snapshot $(yours_git rev-parse --short HEAD)"
+  else
+    yours_git diff --cached --stat
+    yours_git diff --cached
+  fi
+}
+
+cmd_history() {
+  has_snapshot || die "no snapshots yet (vikix snapshot makes one)"
+  yours_git log --date=format:'%Y-%m-%d %H:%M' --format='%h  %ad  %s'
+}
+
+cmd_undo() {
+  local target=${1:-} f
+  has_snapshot || die "no snapshots yet, so nothing to undo"
+  [ "$DRY_RUN" = 1 ] && { printf '   would put your files back to %s\n' "${target:-the previous snapshot}"; return 0; }
+  # Record the files as they are first, so the undo can itself be undone.
+  cmd_snapshot "before undo"
+  if [ -z "$target" ]; then
+    yours_git rev-parse -q --verify HEAD~1 >/dev/null ||
+      die "there is only one snapshot, so there is nothing before it to go back to"
+    target=HEAD~1
+  fi
+  yours_git rev-parse -q --verify "$target^{commit}" >/dev/null ||
+    die "no snapshot called $target (vikix history lists them)"
+  local label
+  label="$(yours_git rev-parse --short "$target") ($(yours_git log -1 --format=%s "$target"))"
+  # Files that were added after the target snapshot are removed; they
+  # stay in the history, so `vikix undo` again brings them back.
+  while IFS= read -r -d '' f; do
+    rm -f -- "${HOME:?}/$f"
+  done < <(yours_git diff --name-only --diff-filter=A -z "$target" HEAD)
+  yours_git checkout "$target" -- ':/'
+  yours_stage
+  yours_git commit -q --allow-empty -m "undo: back to $label"
+  say "your files are as they were at snapshot $label"
+  say "to take this back too: vikix undo"
+  say "StumpWM keeps the old settings until it reloads: Super+m, then Reload config"
+}
+
+# --- The agent --------------------------------------------------------------
+# Claude Code, started after a snapshot, so whatever it changes in your
+# files can be seen (vikix changes) and undone (vikix undo). The Vikix
+# skill (config/claude/skills/vikix) tells it how this desktop is put together.
+
+cmd_agent() {
+  PATH="$HOME/.local/bin:$PATH"
+  if ! command -v claude >/dev/null 2>&1; then
+    say "Claude Code isn't installed."
+    printf 'Install it now with Anthropic'"'"'s installer (curl -fsSL https://claude.ai/install.sh | bash)? [y/N] '
+    local answer
+    read -r answer
+    case $answer in
+      y|Y|yes) curl -fsSL https://claude.ai/install.sh | bash ;;
+      *) say "not installed. Press Enter to close."; read -r _; return 1 ;;
+    esac
+    command -v claude >/dev/null 2>&1 || { warn "claude still isn't on PATH. Press Enter to close."; read -r _; return 1; }
+  fi
+  cmd_snapshot "before an agent session"
+  say "to see what the agent changed: vikix changes    to take it back: vikix undo"
+  exec claude "$@"
+}
+
+# Everything runs inside main, and main is the last thing in the file.
+# Bash reads a script as it goes, and `vikix update` pulls a new copy
+# of this very file while it runs. Parsed whole before it starts, main
+# can't be changed under our feet; the final `exit` keeps bash from
+# reading whatever the pull put after it.
+main() {
+  case ${1:-help} in
+    update)      cmd_update ;;
+    migrate)     cmd_migrate ;;
+    rebuild-wm)  VIKIX_REBUILD_WM=1 bash "$VIKIX_DIR/install/30-lisp.sh" ;;
+    doctor)      cmd_doctor ;;
+    version)     cat "$VIKIX_DIR/VERSION" ;;
+    eval)        shift; exec python3 "$VIKIX_DIR/bin/vikix-eval" "$@" ;;
+    agent)       shift; cmd_agent "$@" ;;
+    snapshot)    cmd_snapshot "${2:-snapshot}" ;;
+    changes)     cmd_changes "${2:-}" ;;
+    history)     cmd_history ;;
+    undo)        cmd_undo "${2:-}" ;;
+    help|-h|--help) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//' ;;
+    *)           die "unknown command: $1 (try: vikix help)" ;;
+  esac
+}
+main "$@"
+exit

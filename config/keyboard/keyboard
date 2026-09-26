@@ -1,0 +1,25 @@
+# ~/.config/vikix/keyboard — yours; Vikix copied it once and won't touch it again.
+#
+# Read by vikix-keyboard at every login (and from the s-m menu, "Apply
+# keyboard settings"). Plain shell assignments, so keep the quotes.
+#
+# Layout: a name setxkbmap knows — us, gb, de ... Leave empty to keep
+# whatever X starts with.
+VIKIX_KB_LAYOUT=""
+
+# Options, comma-separated. Some useful ones:
+#   ctrl:swapcaps      Caps Lock and Left Ctrl change places
+#   ctrl:nocaps        Caps Lock becomes another Ctrl
+#   caps:escape        Caps Lock becomes Escape
+#   compose:ralt       Right Alt is the Compose key (for é, ĉ, ŝ ...)
+# See /usr/share/X11/xkb/rules/base.lst, section "! option", for all of them.
+#
+# Esperanto: ĉ ĝ ĥ ĵ ŝ ŭ with Right Alt (AltGr), on an ordinary US layout:
+#   lv3:ralt_switch     Right Alt reaches the third level of each key
+#   esperanto:qwerty    AltGr+c ĉ, AltGr+g ĝ, AltGr+h ĥ, AltGr+j ĵ,
+#                       AltGr+s ŝ, AltGr+u ŭ (hold Shift too for capitals)
+# Every other key stays where it was, [ and ] included, so code is unaffected:
+#   VIKIX_KB_OPTIONS="ctrl:swapcaps,lv3:ralt_switch,esperanto:qwerty"
+# (The full Esperanto layout, VIKIX_KB_LAYOUT="epo", moves ŝ ĝ ŭ ĉ ĵ ĥ
+# onto q w y x [ ], which gets in the way when programming.)
+VIKIX_KB_OPTIONS="ctrl:swapcaps"

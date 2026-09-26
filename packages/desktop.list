@@ -1,0 +1,25 @@
+# desktop.list — X11 and the programs around the window manager.
+xorg-minimal    # X server, xinit/startx, libinput
+xorg-fonts
+mesa-dri        # graphics drivers (Intel/AMD)
+xsetroot        # root window cursor
+xrdb            # loads ~/.Xresources
+xset            # idle timeout for the screen lock
+setxkbmap       # keyboard layout
+xrandr          # screens
+arandr          # screens, with a GUI
+picom           # compositor: no tearing
+dunst           # notifications
+libnotify       # notify-send
+rofi            # launcher
+alacritty       # terminal
+font-iosevka    # terminal font
+noto-fonts-ttf  # everything else
+xss-lock        # locks the screen on suspend/idle
+i3lock          # the lock screen
+maim            # screenshots
+xclip           # clipboard from the command line
+clipmenu        # clipboard history (Super+c); clipmenud records it
+xdotool
+feh             # wallpaper
+nerd-fonts-symbols-ttf  # icon glyphs only; the full Nerd Fonts set is nerd-fonts-ttf

@@ -1,0 +1,45 @@
+#!/bin/sh
+# vikix-battery — a warning when the battery runs low.
+#
+# vikix-session starts it on machines that have a battery. Once a minute
+# it reads the charge. While the battery is discharging it warns once at
+# 15% and again, urgently, at 5%. Plugging in resets both warnings.
+#
+#   VIKIX_BATTERY_LOW, VIKIX_BATTERY_CRITICAL   change the two levels
+#   vikix-battery --once                        check now, print, and stop
+
+LOW=${VIKIX_BATTERY_LOW:-15}
+CRITICAL=${VIKIX_BATTERY_CRITICAL:-5}
+POWER=${VIKIX_POWER_SUPPLY:-/sys/class/power_supply}   # a test can point this elsewhere
+
+warned=none     # none, low or critical: the warning already given on this discharge
+
+check() {
+  for battery in "$POWER"/BAT*; do
+    [ -r "$battery/capacity" ] || continue
+    level=$(cat "$battery/capacity")
+    status=$(cat "$battery/status")
+    [ "$1" = print ] && echo "$(basename "$battery"): $level% ($status)"
+    if [ "$status" != Discharging ]; then
+      warned=none
+    elif [ "$level" -le "$CRITICAL" ] && [ "$warned" != critical ]; then
+      notify-send -a Vikix -u critical "Battery at $level%" \
+        "Plug in now. Or suspend: Super+m, then Suspend."
+      warned=critical
+    elif [ "$level" -le "$LOW" ] && [ "$warned" = none ]; then
+      notify-send -a Vikix "Battery at $level%" "Time to find the charger."
+      warned=low
+    fi
+    return            # the first battery is enough
+  done
+}
+
+if [ "${1:-}" = --once ]; then
+  check print
+  exit 0
+fi
+
+while :; do
+  check quiet
+  sleep 60
+done

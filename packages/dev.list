@@ -1,0 +1,5 @@
+# dev.list — for the C and Lisp work.
+base-devel      # gcc, make and friends
+gdb
+valgrind
+rlwrap          # line editing and history for the bare sbcl REPL: rlwrap sbcl

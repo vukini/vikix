@@ -1,0 +1,9 @@
+#!/bin/sh
+# ~/.xinitrc — managed by Vikix (a symlink into the Vikix checkout).
+# startx runs this. It starts one D-Bus session and the Vikix session in it.
+# Put personal start-up programs in ~/.stumpwm.d/user.lisp, not here.
+
+# This file is a symlink; follow it back to the checkout it lives in.
+vikix_dir=$(cd "$(dirname "$(readlink -f "$0")")/../.." && pwd)
+
+exec dbus-run-session "$vikix_dir/bin/vikix-session"

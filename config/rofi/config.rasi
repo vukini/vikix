@@ -1,0 +1,7 @@
+/* ~/.config/rofi/config.rasi — yours; Vikix copied it once. */
+configuration {
+    modi: "drun,run,window";
+    show-icons: false;
+    font: "Iosevka 12";
+}
+@theme "Arc-Dark"

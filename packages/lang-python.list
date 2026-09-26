@@ -1,0 +1,5 @@
+# lang-python.list — Python (python3 itself is in base.list)
+python3-pip
+python3-devel   # headers, for packages that compile a C part
+python3-ipython # a better REPL: history, completion, ? for help
+python3-pipx    # installs command-line tools each in their own venv

@@ -1,0 +1,154 @@
+#!/usr/bin/env python3
+"""vikix-eval — run Lisp inside the running StumpWM and print the result.
+
+    vikix eval '(current-group)'             one or more forms as an argument
+    vikix eval < file.lisp                   or read them from standard input
+    echo '(vikix-apply-theme :paper)' | vikix eval
+
+The forms are read in the STUMPWM package, so Vikix's and StumpWM's own
+names work without a prefix. For each form it prints what the form
+printed, then "=> " and the value.
+
+It talks to the Swank server that config/stumpwm/vikix/swank.lisp starts
+on 127.0.0.1:4004 (VIKIX_SWANK_PORT changes the port). The Lisp side,
+vikix-eval-for-agent, catches errors, so a bad form prints "error: ..."
+instead of leaving this command waiting.
+
+Exit status: 0 when every form ran, 1 when one failed, 2 when StumpWM
+could not be reached.
+
+Changes made this way live in the running StumpWM only. They are gone
+after a restart or a reload; to keep one, put it in ~/.stumpwm.d/user.lisp.
+"""
+
+import os
+import socket
+import sys
+
+HOST = "127.0.0.1"
+PORT = int(os.environ.get("VIKIX_SWANK_PORT", "4004"))
+TIMEOUT = 30  # seconds; the Lisp side gives up on a busy main thread sooner
+
+
+def lisp_string(text):
+    """TEXT as a Lisp string literal."""
+    return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def send(sock, message):
+    """Swank's framing: six hex digits of length, then the message (UTF-8)."""
+    body = message.encode("utf-8")
+    sock.sendall(b"%06x" % len(body) + body)
+
+
+def receive(sock):
+    """One Swank message, as text."""
+    def exactly(n):
+        data = b""
+        while len(data) < n:
+            chunk = sock.recv(n - len(data))
+            if not chunk:
+                raise ConnectionError("StumpWM closed the connection")
+            data += chunk
+        return data
+    length = int(exactly(6), 16)
+    return exactly(length).decode("utf-8", errors="replace")
+
+
+def lisp_strings(text):
+    """Every string literal in a Swank reply, in order, unescaped.
+    The replies we care about look like
+        (:return (:ok ("what was printed" ":OK")) 1)
+    so the strings are all we need to pull out."""
+    found, i = [], 0
+    while i < len(text):
+        if text[i] == '"':
+            i += 1
+            chars = []
+            while text[i] != '"':
+                if text[i] == "\\":
+                    i += 1
+                chars.append(text[i])
+                i += 1
+            found.append("".join(chars))
+        i += 1
+    return found
+
+
+def main():
+    args = sys.argv[1:]
+    if args and args[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return 0
+    code = " ".join(args) if args else sys.stdin.read()
+    if not code.strip():
+        print("vikix eval: no Lisp to run (try: vikix eval '(+ 1 2)')", file=sys.stderr)
+        return 2
+
+    try:
+        sock = socket.create_connection((HOST, PORT), timeout=5)
+    except OSError:
+        print(f"vikix eval: nothing is listening on {HOST}:{PORT}.\n"
+              "Is StumpWM running with Vikix's config? (swank.lisp starts the server)",
+              file=sys.stderr)
+        return 2
+    sock.settimeout(TIMEOUT)
+
+    # Ask Swank to call our safe evaluator, and to hand back what it printed.
+    # The fboundp check keeps Swank out of its debugger when StumpWM is
+    # still running a config from before `vikix eval` existed.
+    inner = ("(if (fboundp 'stumpwm::vikix-eval-for-agent)"
+             " (stumpwm::vikix-eval-for-agent %s)"
+             " :missing)" % lisp_string(code))
+    send(sock, '(:emacs-rex (swank:eval-and-grab-output %s) "STUMPWM" t 1)'
+         % lisp_string(inner))
+
+    try:
+        while True:
+            reply = receive(sock)
+            if reply.startswith("(:return"):
+                break
+            if reply.startswith("(:debug "):
+                # Swank's debugger opened: only possible when the Lisp side
+                # is missing (an old swank.lisp). Leave the debugger, so
+                # StumpWM's thread isn't left waiting, and say so.
+                # Swank's debugger opened. vikix-eval-for-agent never lets
+                # that happen, so this is a fault in Swank itself. Leave the
+                # debugger and wait until Swank confirms, so no thread is
+                # left stuck in it.
+                thread = reply.split()[1]
+                send(sock, '(:emacs-rex (swank:throw-to-toplevel) "STUMPWM" %s 2)'
+                     % thread)
+                while not receive(sock).startswith("(:return"):
+                    pass
+                problem = (lisp_strings(reply) or ["?"])[0]
+                print(f"vikix eval: Swank failed: {problem}", file=sys.stderr)
+                return 2
+            # Anything else (:indentation-update, :new-features ...) is
+            # Swank talking to Emacs; skip it.
+    except (socket.timeout, ConnectionError) as e:
+        print(f"vikix eval: no answer from StumpWM ({e})", file=sys.stderr)
+        return 2
+    finally:
+        sock.close()
+
+    if not reply.startswith("(:return (:ok"):
+        print("vikix eval: StumpWM aborted the request:\n" + reply, file=sys.stderr)
+        return 2
+
+    strings = lisp_strings(reply)
+    printed = strings[0] if strings else ""
+    status = strings[1] if len(strings) > 1 else ""
+    if status == ":MISSING":
+        print("vikix eval: the running StumpWM has an older Vikix config.\n"
+              "Reload it (Super+m, then Reload config) and try again.",
+              file=sys.stderr)
+        return 2
+    sys.stdout.write(printed)
+    if printed and not printed.endswith("\n"):
+        sys.stdout.write("\n")
+    return 0 if status == ":OK" else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

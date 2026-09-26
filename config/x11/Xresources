@@ -1,0 +1,25 @@
+! ~/.Xresources — yours; Vikix copied it once and will not touch it again.
+!
+! Read at every login (vikix-session runs xrdb -merge). Lines starting
+! with ! are comments.
+!
+! --- Screen size -----------------------------------------------------------
+! On a high-resolution screen everything is small, because X assumes
+! 96 dots per inch. Xft.dpi scales text in most programs (alacritty,
+! Firefox, Emacs, rofi). Start with one of these, log out and back in:
+!
+!   96    ordinary screens, and the VM
+!   120   a 14-inch 1920x1200 laptop screen, if the text feels small
+!   144   a 14-inch 2880x1800 (2.8K) screen: 1.5 times
+!   192   a 4K screen at laptop size: 2 times
+!
+Xft.dpi: 96
+
+! The mouse pointer, to match. 24 is normal; 36 for 144 dpi, 48 for 192.
+Xcursor.size: 24
+
+! --- Text rendering --------------------------------------------------------
+Xft.antialias: true
+Xft.hinting: true
+Xft.hintstyle: hintslight
+Xft.rgba: rgb

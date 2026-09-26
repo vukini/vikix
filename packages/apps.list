@@ -1,0 +1,10 @@
+# apps.list — everyday programs.
+firefox
+pcmanfm         # file manager
+udisks2         # lets the file manager mount USB sticks
+gvfs            # ...and show them in its sidebar
+ntfs-3g         # read and write Windows drives
+mpv             # video and audio
+nsxiv           # images
+zathura         # PDFs (keyboard-driven)...
+zathura-pdf-mupdf  # ...with the MuPDF engine

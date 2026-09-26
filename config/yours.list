@@ -1,0 +1,18 @@
+# yours.list — your files, the ones `vikix snapshot` keeps a history of.
+#
+# Paths are relative to your home folder. A folder means everything in
+# it, apart from what the exclude list in bin/vikix leaves out (Vikix's
+# own links in ~/.stumpwm.d, logs, backups). With this history, any
+# change to these files, by you or by an AI agent, can be seen with
+# `vikix changes` and taken back with `vikix undo`.
+
+.stumpwm.d                  # user.lisp, and any Lisp files of your own
+.config/alacritty
+.config/picom
+.config/dunst
+.config/rofi
+.config/vikix/keyboard
+.config/mimeapps.list
+.Xresources
+.bashrc
+.bash_profile

@@ -1,0 +1,11 @@
+# laptop.list — power and brightness.
+tlp             # battery life
+acpid           # lid and power-button events
+brightnessctl   # brightness keys
+bluez           # Bluetooth
+blueman         # Bluetooth, with a GUI (blueman-manager)
+autorandr       # remembers a monitor layout per dock/desk and re-applies it on hotplug
+# firmware a recent ThinkPad needs; harmless elsewhere
+sof-firmware    # sound on Intel laptops from about 2019 on
+intel-ucode     # CPU microcode (nonfree repo; 55-hardware rebuilds the initramfs)
+intel-video-accel  # hardware video decoding
