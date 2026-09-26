@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # 20-services — switch on the runit services named in services.list.
 #
-# Void uses runit, not systemd. A service is enabled by symlinking its
-# folder in /etc/sv into /var/service; runit notices and starts it.
-# There is no "systemctl enable" — this symlink is the whole mechanism.
+# Void uses runit, not systemd: enable_service (lib/common.sh) links a
+# service's folder into /var/service. `vikix update` runs this stage too,
+# so a service whose package arrives with an update is switched on.
 #
 # Also adds you to the 'video' group so brightnessctl can change the
 # screen brightness without sudo (takes effect at your next login).
@@ -17,18 +17,7 @@ while IFS= read -r sv; do
     say "service $sv: its package isn't installed yet; skipped (part two or vikix update switches it on)"
     continue
   fi
-  if [ -e "/var/service/$sv" ]; then
-    say "service $sv already enabled"
-  else
-    say "enabling service $sv"
-    run sudo ln -s "/etc/sv/$sv" /var/service/
-  fi
+  enable_service "$sv"
 done < <(read_list "$VIKIX_DIR/services.list")
 
-if id -nG | tr ' ' '\n' | grep -qx video; then
-  say "already in the video group"
-else
-  me=$(id -un)
-  say "adding $me to the video group"
-  run sudo usermod -aG video "$me"
-fi
+ensure_group video "for screen brightness"

@@ -62,7 +62,7 @@
     ;; Vikix
     ("s-m"    "vikix-menu"      "Vikix menu")
     ("s-F1"   "vikix-keys"      "These keys")
-    ("s-ESC"  "exec i3lock -c 1e1e2e" "Lock the screen")
+    ("s-ESC"  "exec vikix-lock"  "Lock the screen")
     ("Print"   "exec vikix-screenshot clip" "Screenshot of an area, to the clipboard")
     ("S-Print" "exec vikix-screenshot file" "Screenshot of an area, to ~/Pictures/Screenshots")
     ;; the laptop's function keys

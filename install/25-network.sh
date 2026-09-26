@@ -17,18 +17,12 @@ set -euo pipefail
 . "$(dirname "$0")/../lib/common.sh"
 
 if [ ! -d /etc/sv/NetworkManager ]; then
-  problem_msg="NetworkManager is not installed (run the 10-packages stage first)"
-  if [ "$DRY_RUN" = 1 ]; then warn "$problem_msg"; else die "$problem_msg"; fi
+  problem "NetworkManager is not installed (run the 10-packages stage first)"
 fi
 
 # 1 + 2: NetworkManager up
-if [ -e /var/service/NetworkManager ]; then
-  say "NetworkManager already enabled"
-else
-  [ -e /var/service/dbus ] || warn "dbus is not enabled; NetworkManager will not start without it"
-  say "enabling NetworkManager"
-  run sudo ln -s /etc/sv/NetworkManager /var/service/
-fi
+[ -e /var/service/dbus ] || warn "dbus is not enabled; NetworkManager will not start without it"
+enable_service NetworkManager
 
 if [ "$DRY_RUN" != 1 ]; then
   say "waiting for NetworkManager to start"
@@ -48,10 +42,4 @@ for link in /var/service/dhcpcd* /var/service/wpa_supplicant* /var/service/wicd;
 done
 
 # 4: the network group
-if id -nG | tr ' ' '\n' | grep -qx network; then
-  say "already in the network group"
-else
-  me=$(id -un)
-  say "adding $me to the network group (takes effect at next login)"
-  run sudo usermod -aG network "$me"
-fi
+ensure_group network "NetworkManager requires it"

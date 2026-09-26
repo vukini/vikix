@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # vikix — the everyday command.
 #
-#   vikix update        pull Vikix, update Void, add new packages,
-#                         refresh config links, pull the editor configs,
-#                         run new migrations
+#   vikix update        pull Vikix, update Void, add new packages and their
+#                         services, refresh config links, pull the editor
+#                         configs, run new migrations
 #   vikix migrate       run only the migrations not yet applied
 #   vikix rebuild-wm    rebuild the StumpWM executable (after a Quicklisp update)
 #   vikix docs          download the offline programming docs into ~/dev
@@ -70,12 +70,19 @@ cmd_update() {
   # xbps refuses every other install until xbps itself is current.
   run sudo xbps-install -Syu xbps
   run sudo xbps-install -Su
-  bash "$VIKIX_DIR/install/10-packages.sh"
-  bash "$VIKIX_DIR/install/40-config.sh"
-  bash "$VIKIX_DIR/install/45-editors.sh"
-  bash "$VIKIX_DIR/install/65-languages.sh"
-  bash "$VIKIX_DIR/install/67-dev.sh"
+  # One failed stage (a network hiccup in 45-editors, say) must not keep
+  # the rest, or the migrations, from running: carry on, and report at
+  # the end, as part two of the install does.
+  local stage failed=()
+  for stage in 10-packages 20-services 40-config 45-editors 65-languages 67-dev; do
+    say "stage $stage"
+    bash "$VIKIX_DIR/install/$stage.sh" || { warn "stage $stage failed; carrying on"; failed+=("$stage"); }
+  done
   cmd_migrate
+  if [ "${#failed[@]}" -gt 0 ]; then
+    warn "these stages failed: ${failed[*]}. Fix them, then: vikix update (log: $VIKIX_UPDATE_LOG)"
+    return 1
+  fi
   say "Vikix $(cat "$VIKIX_DIR/VERSION") is up to date; log: $VIKIX_UPDATE_LOG"
 }
 

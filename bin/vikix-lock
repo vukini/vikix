@@ -1,0 +1,18 @@
+#!/bin/sh
+# vikix-lock — lock the screen, with only ever one locker.
+#
+# The session runs xss-lock, which starts `vikix-lock --locker` after 10
+# idle minutes and before a suspend. The key (s-Escape) and the menu run
+# plain `vikix-lock`, which asks xss-lock to lock now: a second i3lock
+# started beside xss-lock's would need unlocking twice. Without xss-lock
+# (another session), it locks by itself.
+
+colour=1e1e2e
+
+if [ "${1:-}" = --locker ]; then
+  exec i3lock -n -c "$colour"          # -n: xss-lock waits for it to exit
+fi
+if pgrep -x -u "$(id -u)" xss-lock >/dev/null; then
+  exec xset s activate
+fi
+exec i3lock -c "$colour"

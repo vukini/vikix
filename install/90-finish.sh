@@ -35,7 +35,7 @@ if [ "${VIKIX_PHASE:-2}" = 1 ]; then
     2. Log in on tty1. The desktop starts by itself.
     3. Super+Return opens a terminal. In it, run part two:
 
-         ~/vikix/install-2.sh
+         $VIKIX_DIR/install-2.sh
 
        Editors, languages, apps, sound, laptop hardware. It is the long
        part: it asks for your password once, then runs by itself, and a

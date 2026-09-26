@@ -72,7 +72,7 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
     ("Screens: arrange (arandr)" (run-shell-command "arandr"))
     ("Screens: save this layout" vikix-screens-save)
     ("Sound (pavucontrol)" (run-shell-command "pavucontrol"))
-    ("Lock"                (run-shell-command "i3lock -c 1e1e2e"))
+    ("Lock"                (run-shell-command "vikix-lock"))
     ;; Through elogind, so no sudo. xss-lock locks the screen before a suspend.
     ("Suspend"             (run-shell-command "loginctl suspend"))
     ("Log out"             quit)

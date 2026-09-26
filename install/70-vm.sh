@@ -35,11 +35,7 @@ virtualbox() {
     run sudo xbps-install -Sy virtualbox-ose-guest
   fi
 
-  if [ -e /var/service/vboxservice ]; then
-    say "vboxservice already enabled"
-  else
-    run sudo ln -s /etc/sv/vboxservice /var/service/
-  fi
+  enable_service vboxservice
 
   # Void's guest package ships no udev rule, which leaves /dev/vboxuser
   # root-only; VBoxClient then fails with VERR_ACCESS_DENIED. Add the rule,
@@ -61,14 +57,7 @@ virtualbox() {
     run sudo groupadd -r vboxsf
   fi
 
-  if id -nG | tr ' ' '\n' | grep -qx vboxsf; then
-    say "already in the vboxsf group"
-  else
-    local me
-    me=$(id -un)
-    say "adding $me to the vboxsf group (takes effect at next login)"
-    run sudo usermod -aG vboxsf "$me"
-  fi
+  ensure_group vboxsf "for shared folders"
 
   say "reboot the VM once so the guest kernel modules load"
 }
@@ -79,14 +68,12 @@ virtualbox() {
 # switched on when the VM actually has the channel it talks through.
 enable_if_channel() {
   local sv=$1 port=/dev/virtio-ports/$2 how=$3
-  if [ -e "/var/service/$sv" ]; then
-    say "$sv already enabled"
-  elif [ -e "$port" ]; then
-    run sudo ln -s "/etc/sv/$sv" /var/service/
+  if [ -e "/var/service/$sv" ] || [ -e "$port" ]; then
+    enable_service "$sv"
   else
     warn "no $2 channel in this VM, so $sv is left off"
     warn "  to add it: $how"
-    warn "  then run: ~/vikix/install.sh --only 70-vm"
+    warn "  then run: $VIKIX_DIR/install.sh --only 70-vm"
   fi
 }
 

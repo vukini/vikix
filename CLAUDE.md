@@ -29,7 +29,7 @@ Real testing happens in a VM. The dev machine has a libvirt VM `void-vm` (`virsh
 
 **Two-part install** (`install.sh`, with `install-1.sh` / `install-2.sh` as thin wrappers). `PHASE1` and `PHASE2` in `install.sh` list the stages, and `CORE_LISTS` names the package lists part one installs; part two installs every list. Part one stops at the first failed stage (each needs the one before); part two carries on and summarises failures. Both ask for sudo once (`sudo_keepalive`) and log to `~/.local/state/vikix/logs/`.
 
-**Stages** (`install/NN-name.sh`) are run with `bash` and each sources `lib/common.sh`. Each must be safe to re-run: check first, then change. `10-packages` and `20-services` appear in both parts. `vikix update` re-runs only `10-packages`, `40-config`, `45-editors`, `65-languages`, then migrations.
+**Stages** (`install/NN-name.sh`) are run with `bash` and each sources `lib/common.sh`. Each must be safe to re-run: check first, then change. `10-packages` and `20-services` appear in both parts. `vikix update` re-runs only `10-packages`, `20-services`, `40-config`, `45-editors`, `65-languages`, `67-dev`, then migrations; a failed stage is reported at the end and doesn't stop the rest. Shared steps live in `lib/common.sh` (`enable_service`, `ensure_group`, `problem`, …); use them rather than repeating the code.
 
 **Data files, not code, for what gets installed:** `packages/*.list` (one list per concern; `lang-*.list` one per language), `services.list` (runit services), `mirrors.list` (mirrors `05-mirror` times), `config/yours.list` (files the snapshot history covers). List files allow `#` comments; read them with `read_list`.
 

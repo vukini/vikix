@@ -2,9 +2,12 @@
 #
 # Sourced, never run. Each helper does one small job:
 #   say / warn / die        print progress, a warning, or stop
+#   problem MSG             stop, or in a dry run only warn (so a dry run reads to the end)
 #   run                     run a command (or only print it when DRY_RUN=1)
 #   read_list FILE          print the entries of a list file (no comments, no blanks)
 #   pkg_installed PKG       is this xbps package already installed?
+#   enable_service SV       switch on the runit service SV
+#   ensure_group GROUP [WHY]   add the user to GROUP
 #   link_managed SRC DEST   point DEST at a Vikix-owned file (backs up anything in the way)
 #   copy_user SRC DEST      give the user a starter file, once; never overwrite
 #   ensure_block FILE NAME TEXT [top]   keep one marked block in a file, replaced on re-run
@@ -32,6 +35,7 @@ fi
 say()  { printf '%s::%s %s\n' "$c_say"  "$c_off" "$*"; }
 warn() { printf '%s!!%s %s\n' "$c_warn" "$c_off" "$*" >&2; }
 die()  { printf '%sxx%s %s\n' "$c_die"  "$c_off" "$*" >&2; exit 1; }
+problem() { if [ "$DRY_RUN" = 1 ]; then warn "$*"; else die "$*"; fi; }
 
 # run CMD ARGS... — the only way scripts change the system.
 # With DRY_RUN=1 it prints the command instead, so a whole install can be
@@ -51,6 +55,31 @@ read_list() {
 
 pkg_installed() {
   command -v xbps-query >/dev/null 2>&1 && xbps-query "$1" >/dev/null 2>&1
+}
+
+# enable_service SV
+# Void uses runit, not systemd: a service is switched on by linking its
+# folder in /etc/sv into /var/service, and runit then starts it.
+enable_service() {
+  if [ -e "/var/service/$1" ]; then
+    say "service $1 already enabled"
+  else
+    say "enabling service $1"
+    run sudo ln -s "/etc/sv/$1" /var/service/
+  fi
+}
+
+# ensure_group GROUP [WHY]
+# Adds the user to GROUP. Like any group change, it takes effect at the
+# next login.
+ensure_group() {
+  local group=$1 why=${2:+ ($2)}
+  if id -nG | tr ' ' '\n' | grep -qx "$group"; then
+    say "already in the $group group"
+  else
+    say "adding $(id -un) to the $group group$why; takes effect at next login"
+    run sudo usermod -aG "$group" "$(id -un)"
+  fi
 }
 
 timestamp() { date +%Y%m%d-%H%M%S; }

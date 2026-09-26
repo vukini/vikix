@@ -59,14 +59,15 @@ def lisp_strings(text):
     """Every string literal in a Swank reply, in order, unescaped.
     The replies we care about look like
         (:return (:ok ("what was printed" ":OK")) 1)
-    so the strings are all we need to pull out."""
+    so the strings are all we need to pull out. A reply cut off in the
+    middle of a string gives what arrived of it, rather than an error."""
     found, i = [], 0
     while i < len(text):
         if text[i] == '"':
             i += 1
             chars = []
-            while text[i] != '"':
-                if text[i] == "\\":
+            while i < len(text) and text[i] != '"':
+                if text[i] == "\\" and i + 1 < len(text):
                     i += 1
                 chars.append(text[i])
                 i += 1
@@ -109,9 +110,6 @@ def main():
             if reply.startswith("(:return"):
                 break
             if reply.startswith("(:debug "):
-                # Swank's debugger opened: only possible when the Lisp side
-                # is missing (an old swank.lisp). Leave the debugger, so
-                # StumpWM's thread isn't left waiting, and say so.
                 # Swank's debugger opened. vikix-eval-for-agent never lets
                 # that happen, so this is a fault in Swank itself. Leave the
                 # debugger and wait until Swank confirms, so no thread is

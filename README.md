@@ -53,7 +53,7 @@ Every stage checks before it changes anything, so re-running either part is safe
 | `00-preflight` | 1 | Checks this is glibc Void, and that you are not root. Notes any existing StumpWM config. |
 | `05-mirror` | 1 | Downloads from each mirror in `mirrors.list` for six seconds and points xbps at the fastest (about a minute). Skipped if you set `VIKIX_MIRROR`, or already chose a mirror in `/etc/xbps.d/`. |
 | `10-packages` | 1, 2 | Updates xbps itself, then installs what `packages/*.list` names, skipping anything already installed. Part one installs the core lists (base, desktop, network, lisp, cli); part two the rest. |
-| `20-services` | 1, 2 | Enables the runit services in `services.list`, and adds you to the `video` group. |
+| `20-services` | 1, 2 | Enables the runit services in `services.list`, and adds you to the `video` group. `vikix update` runs it again, so a service that comes with a new package is switched on. |
 | `25-network` | 1 | Starts NetworkManager, waits until it's running, then switches off dhcpcd and wpa_supplicant. Adds you to the `network` group. |
 | `30-lisp` | 1 | Installs Quicklisp (and adds it to `~/.sbclrc`), builds `~/.local/bin/stumpwm` with Swank inside, and clones `stumpwm-contrib`. |
 | `40-config` | 1 | Links Vikix's config files into place and copies starter files you then own (including the keyboard file). |
@@ -183,8 +183,10 @@ Every config file belongs either to Vikix or to you:
   - `~/.stumpwm.d/init.lisp`
   - `~/.stumpwm.d/vikix/`
   - `~/.xinitrc`
+  - `~/.local/bin/vikix` and its helpers (`vikix-lock`, `vikix-osd`, `vikix-screenshot`, …)
   - `~/.config/vikix/vikix.bash`, the aliases and prompt
   - `~/.claude/skills/vikix`, which tells Claude Code how Vikix works
+  - `~/.config/fontconfig/conf.d/50-vikix-iosevka.conf`, the monospace font
 - **Your files** are copied once, then never touched again:
   - `~/.stumpwm.d/user.lisp`, which loads last, so anything in it wins
   - the configs under `~/.config` for alacritty, picom, dunst and rofi
@@ -279,7 +281,7 @@ A snapshot is taken after every install or `vikix update`, and before every agen
 
 | List | Contents |
 |---|---|
-| `base` | dbus, elogind, polkit and its password box, openssh, chrony (clock), git, curl, rsync, zip, 7zip, man pages, xdg-utils |
+| `base` | dbus, elogind, polkit and its password box, openssh, chrony (clock), git, curl, rsync, zip, 7zip, man pages, xdg-utils, python3 (for `vikix eval`) |
 | `desktop` | X11, picom, dunst, rofi, alacritty, fonts (Noto, Nerd Font symbols), i3lock, screenshots, clipmenu (clipboard history) |
 | `fonts` | Iosevka, the terminal font. Every variant comes in one 862 MB package, so it waits for part two; until then the terminal uses a plain monospace font. |
 | `network` | NetworkManager (`nmtui` for Wi-Fi), with its connection editor |
@@ -287,7 +289,7 @@ A snapshot is taken after every install or `vikix update`, and before every agen
 | `laptop` | tlp, acpid, brightnessctl, Bluetooth (bluez, blueman), autorandr, and the firmware a recent ThinkPad needs: sof-firmware (sound), intel-ucode (from the nonfree repo, enabled by `repos.list`), intel-video-accel |
 | `editors` | Emacs, Neovim, the pdf-tools build deps, the `tree-sitter` CLI (Neovim builds its parsers with it), and the language servers Void packages (ccls, lua-language-server, gopls, efm-langserver) plus nodejs for the npm ones |
 | `apps` | Firefox, PCManFM with USB mounting, SpaceFM, mpv, nsxiv, zathura, Foliate (EPUB), LibreOffice (Writer, Calc, Impress, Draw, Math), Zeal (offline docs) |
-| `dev` | base-devel (gcc, make), gdb, valgrind, python3, rlwrap |
+| `dev` | base-devel (gcc, make), gdb, valgrind, rlwrap |
 | `cli` | htop, ripgrep, fd, fzf, bat, eza, tmux, tree, jq, zoxide, yazi, lazygit, atuin (with bash-preexec) |
 | `lisp` | SBCL |
 | `lang-*` | One file per language, so a language is one file to keep or delete: C extras (tcc, rr, cmake, meson, ninja, shellcheck, shfmt, the C and POSIX man pages), Python (pip, ipython, pipx, uv), Lisp and Scheme (ccl, racket and its docs, chez-scheme, guile), Haskell (ghc and its docs, cabal, HLS, hlint), Forth (gforth), WebAssembly (wabt, wasmtime), Ruby (with `ri` docs), SQLite (sqlite, litecli, sqlitebrowser), Lua (lua54, LuaJIT), Go, Zig (zig, zls), and `lang-tools` (ctags, entr, hyperfine, tokei, just) |
@@ -409,7 +411,7 @@ Put your own aliases in `~/.bashrc`. Vikix's line sits at the top of that file, 
 ## Everyday commands
 
 ```sh
-vikix update       # pull Vikix, update Void, new packages, config links, editor configs, migrations
+vikix update       # pull Vikix, update Void, new packages and services, config links, editor configs, migrations
 vikix migrate      # only the migrations not yet applied
 vikix rebuild-wm   # rebuild the StumpWM executable
 vikix docs         # download the offline programming docs into ~/dev (slow; update skips them)
@@ -431,7 +433,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | Test | Checks |
 |---|---|
 | `lint` | Every script parses, the ones you run are executable, and shellcheck has no warnings |
-| `update` | `vikix update` runs the new version's steps after it pulls, and logs the whole run |
+| `update` | `vikix update` runs the new version's steps after it pulls, logs the whole run, and carries on past a failed stage, naming it at the end |
 | `packages` | Every name in `packages/*.list` is a real Void package |
 | `dry-run` | Both install parts run through with `--dry-run`, and leave the offline docs to `vikix docs` |
 | `editors` | The Emacs and Neovim configs install from scratch into an empty home and start without errors |

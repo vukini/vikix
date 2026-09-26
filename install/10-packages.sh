@@ -26,7 +26,7 @@ wanted_list repos && while IFS= read -r pkg; do pkg_installed "$pkg" || repos+=(
 if [ "${#repos[@]}" -gt 0 ]; then
   say "enabling repositories: ${repos[*]}"
   run sudo xbps-install -Syu xbps
-  run sudo xbps-install -Sy "${repos[@]}"
+  run sudo xbps-install -y "${repos[@]}"
   # The new repositories come pointed at Void's default mirror; move them
   # to the one 05-mirror chose, so nonfree downloads are fast too.
   mirror=$(current_mirror)
@@ -41,9 +41,12 @@ for list in "$VIKIX_DIR"/packages/*.list; do
   while IFS= read -r pkg; do wanted+=("$pkg"); done < <(read_list "$list")
 done
 
-# Sync the repository index once, so unknown names can be spotted before
-# the install: one bad line would otherwise fail the whole batch.
-run sudo xbps-install -Sy >/dev/null </dev/null || true
+# Sync the repository index, once from here on (twice in all when
+# repositories were just added: they bring new indexes). The sync lets
+# unknown names be spotted before the install, where one bad line would
+# fail the whole batch.
+run sudo xbps-install -Sy >/dev/null </dev/null ||
+  warn "could not sync the package index; installing from the last one"
 
 missing=()
 for pkg in "${wanted[@]}"; do
@@ -62,6 +65,6 @@ fi
 
 # A fresh Void install refuses every other package until xbps itself is
 # current ("The 'xbps' package must be updated"). A no-op when it is.
-run sudo xbps-install -Syu xbps
+run sudo xbps-install -yu xbps
 say "installing ${#missing[@]} of ${#wanted[@]} packages: ${missing[*]}"
-run sudo xbps-install -Sy "${missing[@]}"
+run sudo xbps-install -y "${missing[@]}"

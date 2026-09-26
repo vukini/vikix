@@ -27,7 +27,7 @@ dunst &                                # notifications
 clipmenud &                            # remembers what you copy (Super+c)
 picom -b                               # compositor (forks itself)
 xset s 600                             # idle after 10 minutes...
-xss-lock -- i3lock -n -c 1e1e2e &      # ...then lock; also lock on suspend
+xss-lock -- "$HOME/.local/bin/vikix-lock" --locker &   # ...then lock; also on suspend
 
 # Emacs as a daemon, so `e` (emacsclient) opens a frame at once. The first
 # start on a new machine installs the config's packages; that happens here,

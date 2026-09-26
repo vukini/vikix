@@ -7,10 +7,9 @@
 #     ~/.stumpwm.d/init.lisp     loads Vikix's layer, then your user.lisp
 #     ~/.stumpwm.d/vikix/      keys, mode line, theme, commands, Swank
 #     ~/.xinitrc                 starts the session
-#     ~/.local/bin/vikix       the vikix command
-#     ~/.local/bin/vikix-keyboard   applies your keyboard file at login
-#     ~/.local/bin/vikix-screenshot, vikix-battery, vikix-osd   small helpers
-#     ~/.local/bin/vikix-jupyter, and its launcher entry   JupyterLab in ~/dev
+#     ~/.local/bin/vikix*      the vikix command and its helpers, all of bin/
+#                                (but vikix-eval and vikix-session)
+#     ~/.local/share/applications/vikix-jupyterlab.desktop   JupyterLab in the launcher
 #     ~/.config/vikix/vikix.bash   aliases and prompt (read by ~/.bashrc)
 #     ~/.claude/skills/vikix     tells Claude Code how Vikix is put together
 #     ~/.config/fontconfig/conf.d/50-vikix-iosevka.conf   monospace until Iosevka is installed
@@ -56,13 +55,13 @@ done
 link_managed "$C/stumpwm/init.lisp" "$SD/init.lisp"
 link_managed "$C/stumpwm/vikix"   "$SD/vikix"
 link_managed "$C/x11/xinitrc"       "$HOME/.xinitrc"
-link_managed "$VIKIX_DIR/bin/vikix" "$HOME/.local/bin/vikix"
-link_managed "$VIKIX_DIR/bin/vikix-keyboard" "$HOME/.local/bin/vikix-keyboard"
-link_managed "$VIKIX_DIR/bin/vikix-osd"      "$HOME/.local/bin/vikix-osd"
-link_managed "$VIKIX_DIR/bin/vikix-net"      "$HOME/.local/bin/vikix-net"
-link_managed "$VIKIX_DIR/bin/vikix-screenshot" "$HOME/.local/bin/vikix-screenshot"
-link_managed "$VIKIX_DIR/bin/vikix-battery"  "$HOME/.local/bin/vikix-battery"
-link_managed "$VIKIX_DIR/bin/vikix-jupyter"  "$HOME/.local/bin/vikix-jupyter"
+# Every command in bin/, so a new helper can't be forgotten here. Two stay
+# out of PATH: vikix-eval is reached through `vikix eval`, and
+# vikix-session is run by ~/.xinitrc from the checkout.
+for cmd in "$VIKIX_DIR"/bin/vikix*; do
+  case "${cmd##*/}" in vikix-eval|vikix-session) continue ;; esac
+  link_managed "$cmd" "$HOME/.local/bin/${cmd##*/}"
+done
 link_managed "$C/applications/vikix-jupyterlab.desktop" "$HOME/.local/share/applications/vikix-jupyterlab.desktop"
 link_managed "$C/bash/vikix.bash"   "$HOME/.config/vikix/vikix.bash"
 link_managed "$C/claude/skills/vikix" "$HOME/.claude/skills/vikix"

@@ -10,7 +10,9 @@ jupyter="$dev/python/.venv/bin/jupyter"
 log="${XDG_STATE_HOME:-$HOME/.local/state}/vikix/jupyter.log"
 
 if [ ! -x "$jupyter" ]; then
-  msg="JupyterLab isn't set up yet: run ~/vikix/install.sh --only 67-dev"
+  # This file is a link in ~/.local/bin; the checkout is where it points.
+  vikix_dir=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
+  msg="JupyterLab isn't set up yet: run $vikix_dir/install.sh --only 67-dev"
   echo "$msg" >&2
   command -v notify-send >/dev/null && notify-send "Vikix" "$msg"
   exit 1

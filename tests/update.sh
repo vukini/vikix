@@ -33,4 +33,24 @@ else
     { echo "FAIL: the log is missing one half of the run"; fail=1; }
 fi
 [ "$fail" = 0 ] && echo "update: restarts into the new version, and logs the whole run"
+
+# A failed stage must not stop the others, or the migrations, and must be
+# named at the end. The stages are swapped for stubs, the first of which
+# fails; DRY_RUN keeps xbps and the migrations to printing. The machine
+# now has the fake newer bin/vikix from above, so it gets the real one back.
+cp "$here/bin/vikix" "$t/machine/bin/vikix"
+for s in "$t"/machine/install/[0-9]*.sh; do
+  printf '#!/bin/sh\necho "STUB %s"\n' "$(basename "$s" .sh)" > "$s"
+done
+printf '#!/bin/sh\nexit 1\n' > "$t/machine/install/10-packages.sh"
+status=0
+out=$(HOME="$t/home" VIKIX_STATE="$t/state2" VIKIX_SUDO_KEPT=1 DRY_RUN=1 \
+  bash "$t/machine/bin/vikix" update --pulled 2>&1) || status=$?
+for s in 20-services 40-config 45-editors 65-languages 67-dev; do
+  grep -q "STUB $s" <<<"$out" || { echo "FAIL: stage $s didn't run after a failed one"; fail=1; }
+done
+grep -q 'new migration(s)' <<<"$out" || { echo "FAIL: the migrations didn't run after a failed stage"; fail=1; }
+grep -q 'these stages failed: 10-packages' <<<"$out" || { echo "FAIL: the failed stage isn't named at the end"; fail=1; }
+[ "$status" != 0 ] || { echo "FAIL: update exits 0 although a stage failed"; fail=1; }
+[ "$fail" = 0 ] && echo "update: a failed stage is reported, and the rest still run"
 exit "$fail"

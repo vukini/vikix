@@ -113,7 +113,7 @@ keys follow the prefix Ctrl+t. Focus follows the mouse (sloppy focus).
 ## Checking and fixing
 
 - `vikix doctor` checks programs, services, links, the snapshot history and that `vikix eval` works. Start here when something is broken.
-- `vikix update` pulls Vikix, updates Void and re-links the config; `vikix migrate` runs one-off fixes; `vikix rebuild-wm` rebuilds the StumpWM binary after a Quicklisp update; `vikix docs` downloads the offline programming docs into `~/dev` (a few GB, slow, so `vikix update` and the installer skip it).
+- `vikix update` pulls Vikix, updates Void, adds new packages and switches on their services, and re-links the config; a failed step is named at the end, and the rest still run; `vikix migrate` runs one-off fixes; `vikix rebuild-wm` rebuilds the StumpWM binary after a Quicklisp update; `vikix docs` downloads the offline programming docs into `~/dev` (a few GB, slow, so `vikix update` and the installer skip it).
 - Installer stages are `<checkout>/install/NN-name.sh`; re-run one with `<checkout>/install.sh --only NN-name`. Each checks before it changes anything, so re-running is safe.
 - The session starts from tty1: `~/.bash_profile` runs `startx`, `~/.xinitrc` runs `vikix-session`, which starts pipewire, dunst, picom, the Emacs daemon, then StumpWM (`~/.local/bin/stumpwm`).
 - `sudo` asks for a password. Tell the user before running anything with sudo, and prefer to give them the command when it changes the system (packages, services, `/etc`).

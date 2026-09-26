@@ -12,8 +12,6 @@ set -euo pipefail
 # shellcheck source=../lib/common.sh
 . "$(dirname "$0")/../lib/common.sh"
 
-problem() { if [ "$DRY_RUN" = 1 ]; then warn "$*"; else die "$*"; fi; }
-
 # shellcheck disable=SC1091
 id=$( . /etc/os-release 2>/dev/null && echo "${ID:-}" )
 [ "$id" = void ] || problem "this is not Void Linux (os-release ID='$id')"
