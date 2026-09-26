@@ -15,7 +15,7 @@ On a glibc Void install, logged in as your normal user. The install comes in two
 **Part one: the desktop.** The base system, the network, StumpWM and its config, and the login.
 
 ```sh
-git clone <this repo> ~/vikix
+git clone https://github.com/vukini/vikix.git ~/vikix
 cd ~/vikix
 ./install-1.sh --dry-run    # read what it would do
 ./install-1.sh              # do it
