@@ -46,9 +46,11 @@ for agent in /usr/libexec/polkit-gnome-authentication-agent-1 \
   if [ -x "$agent" ]; then "$agent" & break; fi
 done
 
-# Inside VirtualBox only (installed by install/70-vm.sh): shared
-# clipboard and a screen that follows the window size.
+# Inside a VM only (installed by install/70-vm.sh): shared clipboard and
+# a screen that follows the window size. VBoxClient-all for VirtualBox,
+# spice-vdagent for KVM/QEMU; both fork themselves.
 command -v VBoxClient-all >/dev/null 2>&1 && VBoxClient-all
+command -v spice-vdagent >/dev/null 2>&1 && spice-vdagent
 
 # Not exec: when StumpWM exits, the X server ends, which takes the X
 # programs with it, but pipewire is not an X program and would live on.

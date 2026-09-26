@@ -55,7 +55,7 @@ Every stage checks before it changes anything, so re-running either part is safe
 | `50-audio` | 2 | Sets up PipeWire, WirePlumber and the ALSA links, as the Void handbook describes. |
 | `60-login` | 1 | Adds `~/.local/bin` to PATH, loads the aliases in every shell, and makes X start after login on tty1. |
 | `65-languages` | 2 | Builds the languages Void doesn't package (PicoLisp). The packaged ones are lines in `packages/lang-*.list`. |
-| `70-vm` | 1 | Inside VirtualBox only: installs the guest additions (shared clipboard, screen resizing). Does nothing on real hardware. |
+| `70-vm` | 1 | Inside a VM only (VirtualBox, or KVM/QEMU such as virt-manager): installs the guest tools (shared clipboard, screen resizing). Does nothing on real hardware. |
 | `90-finish` | 1, 2 | Marks existing migrations as applied, and prints what to do next. |
 
 ## Trying it in VirtualBox (from Windows)
@@ -136,6 +136,36 @@ Then log out and back in on tty1. To start from scratch instead, restore the `vo
 | `scp` says "REMOTE HOST IDENTIFICATION HAS CHANGED" after reinstalling Void in the VM | Run `ssh-keygen -R "[127.0.0.1]:2222"` in PowerShell, then try again. |
 | The screen doesn't follow the window size | Graphics Controller isn't VMSVGA, or the VM hasn't been rebooted since `70-vm`. |
 | Copy and paste doesn't cross between Windows and the VM | Shared Clipboard is off: **Devices → Shared Clipboard → Bidirectional**. |
+
+## Trying it in virt-manager (KVM, from Linux)
+
+The repo is public, so the VM clones it directly; nothing is copied in by hand. Install a plain glibc Void in the VM first.
+
+**In virt-manager, before the install.** Open the VM's details (the light-bulb icon) and check:
+
+- **Display: Spice**, and **Video: Virtio** (or QXL). The screen then resizes with the window; also tick **View → Scale Display → Auto resize VM with window**.
+- **Channel `com.redhat.spice.0`** (shared clipboard and resizing) and **Channel `org.qemu.guest_agent.0`** (clean shutdown from the host). New VMs usually have both; if not, **Add Hardware → Channel**.
+
+**In the VM, as your normal user:**
+
+```sh
+sudo xbps-install -Syu xbps
+sudo xbps-install -S git
+git clone https://github.com/vukini/vikix.git ~/vikix
+cd ~/vikix
+./install-1.sh
+sudo reboot
+```
+
+Log in on tty1, then run part two from a terminal (Super+Return): `~/vikix/install-2.sh`.
+
+**Later versions** arrive with `vikix update`, which pulls from GitHub.
+
+| Symptom | Likely cause |
+|---|---|
+| `70-vm` says a channel is missing | Add it as above, then run `~/vikix/install.sh --only 70-vm` and log in again. |
+| The screen doesn't follow the window size | Display isn't Spice, Video isn't Virtio/QXL, or "Auto resize VM with window" is off. |
+| Copy and paste doesn't cross between host and VM | No `com.redhat.spice.0` channel, or you haven't logged in again since `70-vm`. |
 
 ## Who owns which file
 
