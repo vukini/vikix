@@ -3,3 +3,4 @@ ghc
 cabal-install
 haskell-language-server
 hlint
+ghc-doc         # GHC and base library docs, linked from ~/dev/haskell/docs (686 MB)

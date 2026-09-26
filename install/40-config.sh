@@ -10,6 +10,7 @@
 #     ~/.local/bin/vikix       the vikix command
 #     ~/.local/bin/vikix-keyboard   applies your keyboard file at login
 #     ~/.local/bin/vikix-screenshot, vikix-battery, vikix-osd   small helpers
+#     ~/.local/bin/vikix-jupyter, and its launcher entry   JupyterLab in ~/dev
 #     ~/.config/vikix/vikix.bash   aliases and prompt (read by ~/.bashrc)
 #     ~/.claude/skills/vikix     tells Claude Code how Vikix is put together
 #     ~/.config/fontconfig/conf.d/50-vikix-iosevka.conf   monospace until Iosevka is installed
@@ -60,6 +61,8 @@ link_managed "$VIKIX_DIR/bin/vikix-keyboard" "$HOME/.local/bin/vikix-keyboard"
 link_managed "$VIKIX_DIR/bin/vikix-osd"      "$HOME/.local/bin/vikix-osd"
 link_managed "$VIKIX_DIR/bin/vikix-screenshot" "$HOME/.local/bin/vikix-screenshot"
 link_managed "$VIKIX_DIR/bin/vikix-battery"  "$HOME/.local/bin/vikix-battery"
+link_managed "$VIKIX_DIR/bin/vikix-jupyter"  "$HOME/.local/bin/vikix-jupyter"
+link_managed "$C/applications/vikix-jupyterlab.desktop" "$HOME/.local/share/applications/vikix-jupyterlab.desktop"
 link_managed "$C/bash/vikix.bash"   "$HOME/.config/vikix/vikix.bash"
 link_managed "$C/claude/skills/vikix" "$HOME/.claude/skills/vikix"
 link_managed "$C/fontconfig/50-vikix-iosevka.conf" "$HOME/.config/fontconfig/conf.d/50-vikix-iosevka.conf"

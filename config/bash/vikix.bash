@@ -147,6 +147,9 @@ alias a='vikix agent'
 # --- languages -------------------------------------------------------------
 have rlwrap && have sbcl && alias sbcl='rlwrap sbcl'   # history and arrow keys at the REPL
 alias activate='. .venv/bin/activate'    # the Python virtual environment in this folder
+alias jlab='vikix-jupyter'                # JupyterLab in ~/dev, ready to use
+alias docs='xdg-open ~/dev/index.html'   # every offline doc on one page
+alias dev='cd ~/dev'
 
 # --- fzf: Ctrl+T picks a file, Alt+C a folder ------------------------------
 for f in /usr/share/fzf/key-bindings.bash /usr/share/fzf/completion.bash; do

@@ -8,3 +8,4 @@ mpv             # video and audio
 nsxiv           # images
 zathura         # PDFs (keyboard-driven)...
 zathura-pdf-mupdf  # ...with the MuPDF engine
+zeal            # offline docs for every language, searchable (docsets from 67-dev)

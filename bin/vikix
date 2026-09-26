@@ -56,6 +56,7 @@ cmd_update() {
   bash "$VIKIX_DIR/install/40-config.sh"
   bash "$VIKIX_DIR/install/45-editors.sh"
   bash "$VIKIX_DIR/install/65-languages.sh"
+  bash "$VIKIX_DIR/install/67-dev.sh"
   cmd_migrate
 }
 

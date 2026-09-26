@@ -1,0 +1,27 @@
+#!/bin/sh
+# vikix-jupyter — JupyterLab in ~/dev, with the Python that 67-dev set up.
+#
+# Started by `jlab`, the launcher (s-d) or the menu (s-m). If a JupyterLab
+# is already running, its page is opened again rather than a second one
+# started. The server's messages go to ~/.local/state/vikix/jupyter.log.
+
+dev=${VIKIX_DEV_DIR:-$HOME/dev}
+jupyter="$dev/python/.venv/bin/jupyter"
+log="${XDG_STATE_HOME:-$HOME/.local/state}/vikix/jupyter.log"
+
+if [ ! -x "$jupyter" ]; then
+  msg="JupyterLab isn't set up yet: run ~/vikix/install.sh --only 67-dev"
+  echo "$msg" >&2
+  command -v notify-send >/dev/null && notify-send "Vikix" "$msg"
+  exit 1
+fi
+
+url=$("$jupyter" server list 2>/dev/null | grep -o 'http://[^ ]*' | head -1)
+if [ -n "$url" ]; then
+  exec xdg-open "$url"
+fi
+
+mkdir -p "$(dirname "$log")"
+cd "$dev" || exit 1
+nohup "$jupyter" lab >"$log" 2>&1 &
+echo "JupyterLab is starting in $dev; it opens in the browser (log: $log)"

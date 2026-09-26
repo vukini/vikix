@@ -1,3 +1,4 @@
 # lang-ruby.list — Ruby
 ruby
 ruby-devel      # headers, for gems with a C part
+ruby-ri         # ri: the core and standard library docs

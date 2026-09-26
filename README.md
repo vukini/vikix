@@ -62,6 +62,7 @@ Every stage checks before it changes anything, so re-running either part is safe
 | `50-audio` | 2 | Sets up PipeWire, WirePlumber and the ALSA links, as the Void handbook describes. |
 | `60-login` | 1 | Adds `~/.local/bin` to PATH, loads the aliases in every shell, and makes X start after login on tty1. |
 | `65-languages` | 2 | Builds the languages Void doesn't package (PicoLisp). The packaged ones are lines in `packages/lang-*.list`. |
+| `67-dev` | 2 | Makes `~/dev`: a folder per installed language with its offline docs, the Zeal docsets, and the Python environment JupyterLab runs on. `vikix update` runs it again to add what's new. |
 | `70-vm` | 1 | Inside a VM only (VirtualBox, or KVM/QEMU such as virt-manager): installs the guest tools (shared clipboard, screen resizing). Does nothing on real hardware. |
 | `90-finish` | 1, 2 | Marks existing migrations as applied, and prints what to do next. |
 
@@ -279,11 +280,11 @@ A snapshot is taken after every install or `vikix update`, and before every agen
 | `audio` | PipeWire, WirePlumber (with Bluetooth audio), pamixer, pavucontrol |
 | `laptop` | tlp, acpid, brightnessctl, Bluetooth (bluez, blueman), autorandr, and the firmware a recent ThinkPad needs: sof-firmware (sound), intel-ucode (from the nonfree repo, enabled by `repos.list`), intel-video-accel |
 | `editors` | Emacs, Neovim, the pdf-tools build deps, the `tree-sitter` CLI (Neovim builds its parsers with it), and the language servers Void packages (ccls, lua-language-server, gopls, efm-langserver) plus nodejs for the npm ones |
-| `apps` | Firefox, PCManFM with USB mounting, mpv, nsxiv, zathura |
+| `apps` | Firefox, PCManFM with USB mounting, mpv, nsxiv, zathura, Zeal (offline docs) |
 | `dev` | base-devel (gcc, make), gdb, valgrind, python3, rlwrap |
 | `cli` | htop, ripgrep, fd, fzf, bat, eza, tmux, tree, jq, zoxide, yazi, lazygit, atuin (with bash-preexec) |
 | `lisp` | SBCL |
-| `lang-*` | One file per language, so a language is one file to keep or delete: C extras (tcc, rr, cmake, meson, ninja, shellcheck, shfmt), Python (pip, ipython, pipx), Lisp and Scheme (ccl, racket, chez-scheme, guile), Haskell (ghc, cabal, HLS, hlint), Forth (gforth), WebAssembly (wabt, wasmtime), Ruby, SQLite (sqlite, litecli, sqlitebrowser), Lua (lua54, LuaJIT), Go, Zig (zig, zls), and `lang-tools` (ctags, entr, hyperfine, tokei, just) |
+| `lang-*` | One file per language, so a language is one file to keep or delete: C extras (tcc, rr, cmake, meson, ninja, shellcheck, shfmt, the C and POSIX man pages), Python (pip, ipython, pipx, uv), Lisp and Scheme (ccl, racket and its docs, chez-scheme, guile), Haskell (ghc and its docs, cabal, HLS, hlint), Forth (gforth), WebAssembly (wabt, wasmtime), Ruby (with `ri` docs), SQLite (sqlite, litecli, sqlitebrowser), Lua (lua54, LuaJIT), Go, Zig (zig, zls), and `lang-tools` (ctags, entr, hyperfine, tokei, just) |
 
 ## Laptop
 
@@ -309,7 +310,7 @@ Vikix is for playing with languages, so it installs them. Each is a small file i
 | Language | Packages | Try |
 |---|---|---|
 | C | gcc and friends (`base-devel`), clang, gdb, valgrind, tcc, rr, cmake, meson, ninja | `tcc -run hello.c` |
-| Python | python3, pip, ipython, pipx | `ipython` |
+| Python | python3, pip, ipython, pipx, uv; JupyterLab in `~/dev/python/.venv` | `ipython`, `jlab` |
 | Common Lisp | sbcl (with Quicklisp), ccl; SLIME in Emacs, Swank into StumpWM on 4004 | `sbcl` (rlwrap'd) |
 | Scheme, Racket | racket, chez-scheme, guile | `racket`, `scheme`, `guile` |
 | PicoLisp | built from source by `65-languages` into `~/.local/opt/picolisp` | `pil +` |
@@ -324,6 +325,40 @@ Vikix is for playing with languages, so it installs them. Each is a small file i
 | Zig | zig, zls | `zig run x.zig` |
 
 Language servers for the editors are in `editors.list` and `45-editors`.
+
+### `~/dev`: your projects, and the docs offline
+
+`67-dev` makes a folder for each installed language, with its documentation inside, so it works with no network:
+
+```
+~/dev/
+  index.html         every doc below on one page (`docs` opens it)
+  docsets -> Zeal's docsets
+  python/  docs/python-3.x-docs-html/     .venv/  (JupyterLab)
+  lisp/    docs/HyperSpec/
+  racket/  docs/racket -> the racket-doc package
+  haskell/ docs/ghc    -> the ghc-doc package
+  lua/     docs/manual.html
+  zig/     docs/langref-<version>.html    (`zig std` for the library)
+  sql/     docs/sqlite-doc-<version>/
+  c/ go/ forth/ ruby/  docs/README.md     (man 3, go doc, info gforth, ri)
+```
+
+Every language also has a **Zeal** docset (Bash too): open Zeal (`s-m` → "Zeal"), type, and it searches them all. Emacs finds the same docsets through `~/.docsets`, the default folder of `dash-docs`.
+
+**Disk space.** With every language installed it comes to about 4 GB: the Zeal docsets 2.4 GB (Racket's alone is a quarter of that), the `ghc-doc` and `racket-doc` packages 0.9 GB, the Python environment 0.5 GB, the HTML docs under 0.1 GB. A download that crawls (under 10 KB/s for a minute) is skipped with a warning, and the next `vikix update` tries it again.
+
+Only installed languages get a folder. `~/dev` is yours: Vikix only adds to it, and never deletes or overwrites anything there except `index.html`.
+
+### Python and JupyterLab
+
+`jlab` (or `s-d` → JupyterLab, or `s-m` → "JupyterLab") starts JupyterLab in `~/dev`, and it opens in the browser. If it is already running, its page opens again. The Python behind it is `~/dev/python/.venv`, made with `uv` and ready with jupyterlab, numpy, pandas, matplotlib, scipy and sympy. To add a library:
+
+```sh
+uv pip install --python ~/dev/python/.venv polars
+```
+
+It is a separate environment because Void's own Python won't take `pip install`. When Void moves to a new Python version, `vikix update` makes the environment again.
 
 **Not automated.** Two things you install by hand, the way they are on the X1 now:
 
@@ -356,6 +391,7 @@ These come from `~/.config/vikix/vikix.bash`. Type `alias` to see them all.
 | `lg` | lazygit |
 | `sbcl` | SBCL with history and arrow keys (through rlwrap) |
 | `activate` | the Python virtual environment in `.venv` |
+| `jlab` / `docs` / `dev` | JupyterLab in `~/dev` / the offline docs page / go to `~/dev` |
 | `a` | Claude Code, after a snapshot of your files |
 | `Ctrl+R` | atuin: search all your history, from every terminal |
 | `Ctrl+T` / `Alt+C` | fzf: pick a file / a folder |

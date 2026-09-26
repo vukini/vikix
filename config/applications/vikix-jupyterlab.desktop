@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=JupyterLab
+Comment=Python notebooks in ~/dev
+Exec=vikix-jupyter
+Icon=applications-science
+Terminal=false
+Categories=Development;Science;

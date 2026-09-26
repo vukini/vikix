@@ -7,3 +7,5 @@ meson
 ninja
 shellcheck      # for the shell scripts around the C
 shfmt
+man-pages-devel # man 3: the C library
+man-pages-posix # man 3p: what POSIX says

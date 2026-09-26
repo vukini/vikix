@@ -36,7 +36,7 @@ export VIKIX_DIR
 # one installs the core package lists, part two the rest, and services
 # whose packages arrive in part two are switched on then.
 PHASE1=(00-preflight 05-mirror 10-packages 20-services 25-network 30-lisp 40-config 60-login 70-vm 90-finish)
-PHASE2=(10-packages 20-services 45-editors 50-audio 55-hardware 65-languages 90-finish)
+PHASE2=(10-packages 20-services 45-editors 50-audio 55-hardware 65-languages 67-dev 90-finish)
 # The package lists part one installs: enough for a working desktop.
 CORE_LISTS="base desktop network lisp cli"
 

@@ -10,3 +10,4 @@ llvm            # llvm-config, opt, llc, llvm-link: pil21 compiles through LLVM 
 libffi-devel
 readline-devel
 openssl-devel   # for PicoLisp's ssl and httpGate helpers
+racket-doc      # Racket docs, linked from ~/dev/racket/docs (212 MB)
