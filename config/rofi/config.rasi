@@ -4,4 +4,5 @@ configuration {
     show-icons: false;
     font: "Iosevka 12";
 }
-@theme "Arc-Dark"
+/* Vikix's theme; vikix theme NAME changes it. */
+@theme "~/.config/vikix/theme/rofi.rasi"

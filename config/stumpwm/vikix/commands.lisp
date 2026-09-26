@@ -23,10 +23,23 @@ SHELL-COMMAND is wrapped in single quotes, so it must not contain one."
   "Reload the whole configuration (Vikix's files and user.lisp)."
   (loadrc))   ; loadrc prints its own confirmation
 
-(defcommand vikix-theme (name) ((:string "Theme (void, paper): "))
-  "Switch to the theme called NAME."
-  (vikix-apply-theme (intern (string-upcase name) :keyword))
-  (message "Theme: ~a" name))
+(defcommand vikix-theme (name) ((:string "Theme: "))
+  "Switch to the theme called NAME everywhere: StumpWM, the terminals,
+rofi, notifications and the lock screen (`vikix theme NAME`, which also
+saves the choice for the next start)."
+  (if (every (lambda (c) (or (alphanumericp c) (find c "-_"))) name)
+      (run-shell-command (format nil "vikix theme ~a" (string-downcase name)))
+      (message "No theme called ~a" name)))
+
+(defcommand vikix-pick-theme () ()
+  "Pick a theme from the list of theme files."
+  (vikix-load-themes)
+  (let* ((names (loop for (name nil) on *vikix-themes* by #'cddr
+                      collect (string-downcase (symbol-name name))))
+         (choice (select-from-menu (current-screen) (sort names #'string<)
+                                   (format nil "Theme (now ~(~a~)): " *vikix-theme*))))
+    (when choice
+      (vikix-theme (if (consp choice) (first choice) choice)))))
 
 (defcommand vikix-update () ()
   "Run `vikix update` in a terminal."
@@ -63,8 +76,7 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
     ("Screenshot: an area, to a file" (run-shell-command "vikix-screenshot file"))
     ("Undo: my files back one snapshot" vikix-undo)
     ("Reload config"       vikix-reload)
-    ("Theme: void (dark)"  (vikix-theme "void"))
-    ("Theme: paper (light)" (vikix-theme "paper"))
+    ("Theme"               vikix-pick-theme)
     ("Apply keyboard settings" (run-shell-command "vikix-keyboard"))
     ("Network (nmtui)"     (run-shell-command
                             (format nil "~a -e nmtui" *vikix-terminal*)))

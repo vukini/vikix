@@ -234,6 +234,21 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 | `Shift+Print` | Screenshot an area to `~/Pictures/Screenshots` |
 | volume and brightness keys | Change the level and show a bar for it |
 
+## Themes
+
+One theme colours the whole desktop: StumpWM and its bar, the terminal (alacritty, and kitty if you want it), rofi, notifications and the lock screen. Two come with Vikix: **void** (dark, the default) and **paper** (light).
+
+```sh
+vikix theme           # the current theme, and the list
+vikix theme paper     # switch, everywhere, now; kept for the next start
+```
+
+Or `s-m`, then Theme. Open alacritty windows change at once; rofi and the lock screen use the new colours from their next start.
+
+- **A theme is a file of colours:** `themes/void.theme` shows every name. Copy it to `~/.config/vikix/themes/mine.theme`, change the colours, and `vikix theme mine`.
+- **How the programs get them:** `vikix theme` writes each program's colours into `~/.config/vikix/theme/`, and your configs include those files. Your `alacritty.toml` imports `alacritty.toml` from there, and rofi's `config.rasi` names `rofi.rasi`; dunst reads `~/.config/dunst/dunstrc.d/10-vikix-theme.conf` by itself. For kitty, add `include ~/.config/vikix/theme/kitty.conf` to your `kitty.conf`.
+- **Keeping colours of your own** in one program: set them in its config (for dunst, in a drop-in that sorts after `10-vikix-theme.conf`, like `90-mine.conf`). Your own colours win there, and the rest still follows the theme.
+
 ## Changing the window manager while it runs
 
 The StumpWM executable has Swank built in, and it listens on `127.0.0.1:4004`. From Emacs:
@@ -442,6 +457,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `lisp` | Every Lisp file reads cleanly, so a missing paren shows up here, not at login (needs `sbcl`) |
 | `battery` | The low-battery warner warns once at 15%, once at 5%, and again only after charging |
 | `image` | `vikix-image` opens nsxiv on the image's whole folder, in name order, at the image you picked |
+| `theme` | `vikix theme` writes every program's colours from one theme file and refuses a broken one; the migration hooks old starter configs up to it without touching your own settings |
 | `home` | `40-config` and `60-login` change nothing when run again, and `vikix undo` puts your files back (and undoing again brings the change back) |
 | `update` | `vikix update` runs the new version's steps after it pulls, logs the whole run, and carries on past a failed stage, naming it at the end |
 | `packages` | Every name in `packages/*.list` is a real Void package |
@@ -460,11 +476,12 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `mirrors.list` | The Void mirrors `05-mirror` chooses from |
 | `config/` | Everything that ends up in `~` |
 | `bin/` | `vikix`; `vikix-session`, which `.xinitrc` starts; `vikix-eval`, behind `vikix eval` |
+| `themes/` | The colour themes (see [Themes](#themes)) |
 | `migrations/` | One-off changes for machines already installed (see its README) |
 | `tests/` | The tests (see [Tests](#tests)) |
 
 ## Not done yet
 
 - **System tray.** StumpWM has no tray, so the network and Bluetooth applets aren't started. Use `nmtui` and `blueman-manager` instead; both are in the `s-m` menu.
-- **Theme switching.** It only covers StumpWM so far. The terminal, dunst and rofi copies keep the dark colours.
+- **Themes for GTK and Qt programs** (Firefox, PCManFM, LibreOffice). They keep their own look.
 - **Installer ISO.** None yet. For now it's a script on top of a plain Void install.

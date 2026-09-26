@@ -80,6 +80,10 @@ copy_user "$C/keyboard/keyboard"          "$HOME/.config/vikix/keyboard"
 copy_user "$C/xdg/mimeapps.list"          "$HOME/.config/mimeapps.list"
 copy_user "$C/x11/Xresources"             "$HOME/.Xresources"
 
+# The theme's files for the terminals, rofi, dunst and the lock screen,
+# written again from the saved theme, so a Vikix update reaches them.
+"$VIKIX_DIR/bin/vikix" theme --refresh
+
 say "config in place"
 
 # --- A snapshot of your files ---------------------------------------------

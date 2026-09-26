@@ -91,7 +91,7 @@ let the user see it, then write the same form into `user.lisp`.
 - `(vikix-bind "s-KEY" "command")` binds a Super key (`s-` Super, `C-` Ctrl, `M-` Alt; `s-H` means Super+Shift+h). Commands are StumpWM command strings: `"exec firefox"`, `"vikix-terminal"`, `"move-focus left"`.
 - `*vikix-bindings*` is the list of Vikix's keys: `(key command description)`. The key help (Super+F1) is built from it, so to make a user key show up there too: `(push '("s-y" "exec xterm" "XTerm") *vikix-bindings*)` then `(vikix-bind "s-y" "exec xterm")`.
 - `(setf *vikix-terminal* "xterm")` changes the terminal Super+Return opens.
-- `(vikix-apply-theme :void)` or `:paper`. Palettes live in `*vikix-themes*` (keys `:bg :fg :dim :accent :alert`); a new theme is `(setf (getf *vikix-themes* :mine) '(:bg "#..." ...))` then apply it, both in user.lisp so they survive a reload.
+- Themes: `vikix theme NAME` (shell) switches everything (StumpWM, terminals, rofi, dunst, lock screen) and saves the choice; `vikix theme` lists them. A theme is a file of colours: `themes/NAME.theme` in the checkout, or the user's own in `~/.config/vikix/themes/NAME.theme` (copy `void.theme` and change it). Programs get the colours from files `vikix theme` writes into `~/.config/vikix/theme/`, which their configs include; don't edit those, they're overwritten. `(vikix-apply-theme :name)` in Lisp repaints StumpWM alone.
 - `*vikix-menu*` is the Super+m menu: a list of `(label action)`, where the action is a command symbol or a Lisp form. Add to it with `push` or `append` in user.lisp.
 - `(vikix-in-terminal "shell command")` runs a command in a terminal that waits for Enter.
 - `(run-shell-command "program")` starts a program; put startup programs in user.lisp.

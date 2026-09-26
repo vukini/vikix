@@ -13,7 +13,7 @@ This folder sits inside an Obsidian vault, but it is a code repo: the vault's no
 No build step. The tests are scripts in `tests/`, and `.github/workflows/test.yml` runs the same scripts on GitHub (on each push and weekly):
 
 ```sh
-tests/run.sh                  # about a minute: lint, lisp, battery, home, image, update, and on Void packages + dry-run
+tests/run.sh                  # about a minute: lint, lisp, battery, home, image, theme, update, and on Void packages + dry-run
 tests/run.sh --all            # plus editors: Emacs and Neovim configs from scratch (minutes, network)
 tests/lint.sh                 # bash -n, executable bits, shellcheck -S warning (must stay at zero)
 DRY_RUN=1 bash install/<stage>.sh     # one stage, printing instead of changing
@@ -31,7 +31,7 @@ Real testing happens in a VM. The dev machine has a libvirt VM `void-vm` (`virsh
 
 **Stages** (`install/NN-name.sh`) are run with `bash` and each sources `lib/common.sh`. Each must be safe to re-run: check first, then change. `10-packages` and `20-services` appear in both parts. `vikix update` re-runs only `10-packages`, `20-services`, `40-config`, `45-editors`, `65-languages`, `67-dev`, then migrations; a failed stage is reported at the end and doesn't stop the rest. Shared steps live in `lib/common.sh` (`enable_service`, `ensure_group`, `problem`, …); use them rather than repeating the code.
 
-**Data files, not code, for what gets installed:** `packages/*.list` (one list per concern; `lang-*.list` one per language), `services.list` (runit services), `mirrors.list` (mirrors `05-mirror` times), `config/yours.list` (files the snapshot history covers). List files allow `#` comments; read them with `read_list`.
+**Data files, not code, for what gets installed:** `packages/*.list` (one list per concern; `lang-*.list` one per language), `services.list` (runit services), `mirrors.list` (mirrors `05-mirror` times), `config/yours.list` (files the snapshot history covers), `themes/*.theme` (colour palettes; `vikix theme` writes them out per program and StumpWM reads them). List files allow `#` comments; read them with `read_list`.
 
 **Migrations** (`migrations/<unix-time>.sh`, see `migrations/README.md`). A fresh install gets changes from the stages; machines already installed only get them through a migration, which `vikix update` runs once each, oldest first, and records in `~/.local/state/vikix/migrations/`. `90-finish` marks all existing migrations as applied on a fresh install. So: if a change to a stage must reach existing machines and `vikix update` doesn't already re-run that stage, add a migration. Start it with a `# Why:` comment, and make it safe to run twice.
 

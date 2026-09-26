@@ -9,6 +9,8 @@
 #   vikix docs          download the offline programming docs into ~/dev
 #                         (a few GB, slow; update and the installer skip them)
 #   vikix doctor        check the pieces are all there
+#   vikix theme [NAME]  the colour theme, everywhere: the current one and
+#                         the list, or switch to NAME
 #   vikix version
 #
 #   vikix eval FORM     run Lisp in the running StumpWM, print the result
@@ -263,6 +265,187 @@ cmd_agent() {
   exec claude "$@"
 }
 
+# --- Themes ------------------------------------------------------------------
+# A theme is a file of named colours: themes/NAME.theme in Vikix, or your own
+# in ~/.config/vikix/themes/. `vikix theme NAME` remembers the choice and
+# writes the colours out for each program into ~/.config/vikix/theme/. Your
+# config files include those (alacritty.toml imports alacritty.toml; rofi's
+# config.rasi names rofi.rasi; kitty.conf can include kitty.conf), and dunst
+# reads its drop-in by itself. StumpWM reads the saved name when it starts,
+# so the theme survives a restart.
+
+THEME_OUT="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/theme"
+USER_THEMES="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/themes"
+DUNST_DROPIN="${XDG_CONFIG_HOME:-$HOME/.config}/dunst/dunstrc.d/10-vikix-theme.conf"
+THEME_KEYS="bg fg subtle dim accent alert color0 color1 color2 color3 color4 color5
+            color6 color7 color8 color9 color10 color11 color12 color13 color14 color15"
+
+theme_file() {   # theme_file NAME — the file that defines NAME (yours first)
+  local f
+  for f in "$USER_THEMES/$1.theme" "$VIKIX_DIR/themes/$1.theme"; do
+    [ -f "$f" ] && { echo "$f"; return 0; }
+  done
+  return 1
+}
+
+theme_names() {
+  local f
+  for f in "$VIKIX_DIR"/themes/*.theme "$USER_THEMES"/*.theme; do
+    [ -f "$f" ] && basename "$f" .theme
+  done | sort -u
+}
+
+# theme_read FILE — sets c_KEY for each colour. The file is read, never run.
+theme_read() {
+  local key value k missing=()
+  for k in $THEME_KEYS; do unset "c_$k"; done
+  while IFS='=' read -r key value; do
+    key=${key//[[:space:]]/}
+    [ -n "$key" ] || continue
+    read -r value _ <<<"$value"             # the first word; the rest is a comment
+    [[ " $THEME_KEYS " == *[[:space:]]"$key"[[:space:]]* ]] || continue
+    [[ $value =~ ^#[0-9A-Fa-f]{6}$ ]] || { warn "$1: $key=$value is not a #rrggbb colour"; continue; }
+    printf -v "c_$key" '%s' "$value"
+  done < "$1"
+  for k in $THEME_KEYS; do
+    local var="c_$k"
+    [ -n "${!var:-}" ] || missing+=("$k")
+  done
+  [ "${#missing[@]}" -eq 0 ] || { warn "$1 has no colour for: ${missing[*]}"; return 1; }
+}
+
+# theme_write NAME — every program's theme file, from theme NAME.
+# shellcheck disable=SC2154  # the c_* colours are set by theme_read, with printf -v
+theme_write() {
+  local file
+  file=$(theme_file "$1") || die "no theme called '$1' (vikix theme lists them)"
+  theme_read "$file" || die "theme '$1' is incomplete; nothing was changed"
+  [ "$DRY_RUN" = 1 ] && { printf '   would write the %s theme into %s\n' "$1" "$THEME_OUT"; return 0; }
+  mkdir -p "$THEME_OUT" "$(dirname "$DUNST_DROPIN")"
+  local head="Written by \`vikix theme\` from $file; changes here are overwritten."
+
+  cat > "$THEME_OUT/alacritty.toml" <<EOF
+# $head
+[colors.primary]
+background = "$c_bg"
+foreground = "$c_fg"
+
+[colors.selection]
+background = "$c_accent"
+text = "$c_bg"
+
+[colors.normal]
+black = "$c_color0"
+red = "$c_color1"
+green = "$c_color2"
+yellow = "$c_color3"
+blue = "$c_color4"
+magenta = "$c_color5"
+cyan = "$c_color6"
+white = "$c_color7"
+
+[colors.bright]
+black = "$c_color8"
+red = "$c_color9"
+green = "$c_color10"
+yellow = "$c_color11"
+blue = "$c_color12"
+magenta = "$c_color13"
+cyan = "$c_color14"
+white = "$c_color15"
+EOF
+
+  local i kitty="# $head
+background $c_bg
+foreground $c_fg
+selection_background $c_accent
+selection_foreground $c_bg
+cursor $c_fg
+active_border_color $c_accent
+inactive_border_color $c_dim"
+  for i in $(seq 0 15); do
+    local var="c_color$i"
+    kitty+=$'\n'"color$i ${!var}"
+  done
+  printf '%s\n' "$kitty" > "$THEME_OUT/kitty.conf"
+
+  cat > "$THEME_OUT/rofi.rasi" <<EOF
+/* $head */
+* {
+    bg: $c_bg; fg: $c_fg; dim: $c_dim; accent: $c_accent; alert: $c_alert;
+    background-color: transparent;
+    text-color: @fg;
+}
+window {
+    background-color: @bg;
+    border: 2px;
+    border-color: @accent;
+    padding: 12px;
+    width: 40%;
+}
+inputbar { children: [ prompt, entry ]; spacing: 8px; padding: 0 0 8px 0; }
+prompt { text-color: @accent; }
+entry { placeholder: "Type to search"; placeholder-color: @dim; }
+listview { lines: 10; scrollbar: false; }
+element { padding: 4px 8px; }
+element selected.normal, element selected.active { background-color: @accent; text-color: @bg; }
+element-text, element-icon { background-color: inherit; text-color: inherit; }
+EOF
+
+  cat > "$DUNST_DROPIN" <<EOF
+# $head
+# A drop-in: dunst reads it after ~/.config/dunst/dunstrc, so these colours
+# win over the ones there. To keep your own, add a drop-in named after this
+# one (e.g. 90-mine.conf): the last in name order wins.
+[global]
+    frame_color = "$c_accent"
+[urgency_low]
+    background = "$c_bg"
+    foreground = "$c_subtle"
+[urgency_normal]
+    background = "$c_bg"
+    foreground = "$c_fg"
+[urgency_critical]
+    background = "$c_bg"
+    foreground = "$c_fg"
+    frame_color = "$c_alert"
+EOF
+
+  printf '%s\n' "${c_bg#\#}" > "$THEME_OUT/lock"     # i3lock -c takes rrggbb
+  printf '%s\n' "$1" > "$THEME_OUT/current"
+}
+
+theme_current() { cat "$THEME_OUT/current" 2>/dev/null || echo void; }
+
+# vikix theme            the current theme, and the ones there are
+# vikix theme NAME       switch to NAME, everywhere, now
+# vikix theme --refresh  write the current theme's files again (40-config
+#                        does this, so a Vikix update reaches them)
+cmd_theme() {
+  local name=${1:-}
+  if [ -z "$name" ]; then
+    say "theme: $(theme_current)"
+    say "themes: $(theme_names | tr '\n' ' ')"
+    say "switch with: vikix theme NAME (or Super+m, Theme); your own go in $USER_THEMES"
+    return 0
+  fi
+  [ "$name" = --refresh ] && name=$(theme_current)
+  theme_write "$name"
+  [ "$DRY_RUN" = 1 ] && return 0
+  # The programs that are running pick the new colours up now. Alacritty
+  # notices by itself that the file it imports has changed; rofi and the
+  # lock screen read theirs each time they start.
+  if [ -n "${DISPLAY:-}" ]; then
+    command -v dunstctl >/dev/null 2>&1 && dunstctl reload >/dev/null 2>&1
+    python3 "$VIKIX_DIR/bin/vikix-eval" "(vikix-apply-theme :$name)" >/dev/null 2>&1 ||
+      warn "StumpWM didn't repaint (is it running?); it will use $name from its next start"
+    # kitty reads its config again on SIGUSR1: with kitty.conf including
+    # ours, open kitty windows change too.
+    pkill -USR1 -x kitty 2>/dev/null || true
+  fi
+  say "theme: $name"
+}
+
 # Everything runs inside main, and main is the last thing in the file.
 # Bash reads a script as it goes, and `vikix update` pulls a new copy
 # of this very file while it runs. Parsed whole before it starts, main
@@ -282,6 +465,7 @@ main() {
     changes)     cmd_changes "${2:-}" ;;
     history)     cmd_history ;;
     undo)        cmd_undo "${2:-}" ;;
+    theme)       cmd_theme "${2:-}" ;;
     help|-h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//' ;;
     *)           die "unknown command: $1 (try: vikix help)" ;;
   esac

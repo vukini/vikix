@@ -1,26 +1,19 @@
 # ~/.config/dunst/dunstrc — yours; Vikix copied it once.
-# Colours match Vikix's "void" theme.
+# Colours come from Vikix's theme, in dunstrc.d/10-vikix-theme.conf, which
+# dunst reads after this file. To use your own, see the note in that file.
 [global]
     font = Iosevka 11
     origin = top-right
     offset = (12, 36)
     width = 360
     frame_width = 2
-    frame_color = "#89b4fa"
     corner_radius = 0
 
 [urgency_low]
-    background = "#1e1e2e"
-    foreground = "#a6adc8"
     timeout = 5
 
 [urgency_normal]
-    background = "#1e1e2e"
-    foreground = "#cdd6f4"
     timeout = 8
 
 [urgency_critical]
-    background = "#1e1e2e"
-    foreground = "#cdd6f4"
-    frame_color = "#f38ba8"
     timeout = 0

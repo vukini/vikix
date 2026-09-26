@@ -7,7 +7,9 @@
 # started beside xss-lock's would need unlocking twice. Without xss-lock
 # (another session), it locks by itself.
 
-colour=1e1e2e
+# The theme's background (vikix theme writes it), or void's.
+colour=$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/vikix/theme/lock" 2>/dev/null)
+case $colour in [0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]) ;; *) colour=1e1e2e ;; esac
 
 if [ "${1:-}" = --locker ]; then
   exec i3lock -n -c "$colour"          # -n: xss-lock waits for it to exit
