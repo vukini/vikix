@@ -9,7 +9,8 @@
 #     ~/.xinitrc                 starts the session
 #     ~/.local/bin/vikix*      the vikix command and its helpers, all of bin/
 #                                (but vikix-eval and vikix-session)
-#     ~/.local/share/applications/vikix-jupyterlab.desktop   JupyterLab in the launcher
+#     ~/.local/share/applications/vikix-*.desktop   JupyterLab in the launcher,
+#                                and vikix-image, which opens images
 #     ~/.config/vikix/vikix.bash   aliases and prompt (read by ~/.bashrc)
 #     ~/.claude/skills/vikix     tells Claude Code how Vikix is put together
 #     ~/.config/fontconfig/conf.d/50-vikix-iosevka.conf   monospace until Iosevka is installed
@@ -62,7 +63,9 @@ for cmd in "$VIKIX_DIR"/bin/vikix*; do
   case "${cmd##*/}" in vikix-eval|vikix-session) continue ;; esac
   link_managed "$cmd" "$HOME/.local/bin/${cmd##*/}"
 done
-link_managed "$C/applications/vikix-jupyterlab.desktop" "$HOME/.local/share/applications/vikix-jupyterlab.desktop"
+for app in "$C"/applications/*.desktop; do
+  link_managed "$app" "$HOME/.local/share/applications/${app##*/}"
+done
 link_managed "$C/bash/vikix.bash"   "$HOME/.config/vikix/vikix.bash"
 link_managed "$C/claude/skills/vikix" "$HOME/.claude/skills/vikix"
 link_managed "$C/fontconfig/50-vikix-iosevka.conf" "$HOME/.config/fontconfig/conf.d/50-vikix-iosevka.conf"

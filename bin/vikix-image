@@ -1,0 +1,30 @@
+#!/bin/sh
+# vikix-image — open an image in nsxiv together with the rest of its folder.
+#
+# Given one file, nsxiv shows only that file. This hands it every image in
+# the same folder, in name order, starting at the one asked for, so
+# n / p (or the arrow keys) move on through the folder and Enter shows
+# them all as thumbnails. Given several files, it opens just those.
+#
+# xdg-open and the file managers use it through vikix-image.desktop,
+# which ~/.config/mimeapps.list names for images.
+
+command -v nsxiv >/dev/null || { echo "vikix-image: nsxiv is not installed" >&2; exit 1; }
+
+# -a: play GIFs and other animations.
+if [ "$#" -ne 1 ] || [ ! -f "$1" ]; then
+  exec nsxiv -a -- "$@"
+fi
+
+dir=$(dirname -- "$1")
+name=$(basename -- "$1")
+list=$(find "$dir" -maxdepth 1 -type f -iregex '.*\.\(jpe?g\|png\|gif\|webp\|bmp\|tiff?\|svg\|avif\|heic\|heif\|jxl\|ppm\|pgm\|pbm\|pnm\|xpm\|tga\|jp2\)' \
+         -printf '%f\n' 2>/dev/null | sort -V)
+# The file's place in that list; empty when its name isn't one of the above.
+n=$(printf '%s\n' "$list" | awk -v f="$name" '$0 == f { print NR; exit }')
+
+if [ -z "$n" ]; then
+  exec nsxiv -a -- "$1"
+fi
+# -i: the file names come on stdin, one per line.
+printf '%s\n' "$list" | awk -v d="$dir" '{ print d "/" $0 }' | nsxiv -a -n "$n" -i

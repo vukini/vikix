@@ -301,7 +301,7 @@ A snapshot is taken after every install or `vikix update`, and before every agen
 - **Touchpad**: tap to click, natural scrolling, off while typing (`/etc/X11/xorg.conf.d/40-libinput.conf`, installed by `55-hardware`).
 - **Battery.** `vikix-battery` warns at 15% and again, urgently, at 5% (change them with `VIKIX_BATTERY_LOW` / `VIKIX_BATTERY_CRITICAL`). It only starts on a machine with a battery; `vikix-battery --once` shows the charge.
 - **High-resolution screen.** Set `Xft.dpi` in `~/.Xresources` (see the file for values), then log in again.
-- **Which program opens what** is `~/.config/mimeapps.list`, yours after the first copy: Firefox for links, zathura for PDFs, nsxiv for images, mpv for video and audio.
+- **Which program opens what** is `~/.config/mimeapps.list`, yours after the first copy: Firefox for links, zathura for PDFs, nsxiv for images (through `vikix-image`, so the rest of the folder is a key press away: `n` / `p`, or Enter for thumbnails), mpv for video and audio.
 
 ## Editors
 
@@ -435,6 +435,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `lint` | Every script parses (shell and Python), the ones you run are executable, and shellcheck has no warnings |
 | `lisp` | Every Lisp file reads cleanly, so a missing paren shows up here, not at login (needs `sbcl`) |
 | `battery` | The low-battery warner warns once at 15%, once at 5%, and again only after charging |
+| `image` | `vikix-image` opens nsxiv on the image's whole folder, in name order, at the image you picked |
 | `home` | `40-config` and `60-login` change nothing when run again, and `vikix undo` puts your files back (and undoing again brings the change back) |
 | `update` | `vikix update` runs the new version's steps after it pulls, logs the whole run, and carries on past a failed stage, naming it at the end |
 | `packages` | Every name in `packages/*.list` is a real Void package |

@@ -36,7 +36,7 @@ replaces them, so any edit there is lost, and it breaks the update
 | Terminal look | `~/.config/alacritty/alacritty.toml` |
 | Compositor, notifications, launcher | `~/.config/picom/picom.conf`, `~/.config/dunst/dunstrc`, `~/.config/rofi/config.rasi` |
 | Keyboard layout and options (e.g. `ctrl:swapcaps`) | `~/.config/vikix/keyboard`, then run `vikix-keyboard` |
-| Which program opens which file type | `~/.config/mimeapps.list` |
+| Which program opens which file type | `~/.config/mimeapps.list` (images: `vikix-image.desktop`, nsxiv with the rest of the folder) |
 | Text size on a high-resolution screen | `~/.Xresources` (`Xft.dpi`, `Xcursor.size`); takes effect at the next login |
 | Shell aliases, PATH additions | `~/.bashrc`, **after** the `# <<< vikix ... <<<` blocks. Never edit inside a `# >>> vikix NAME >>>` block; Vikix rewrites those. |
 

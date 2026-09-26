@@ -6,7 +6,8 @@
 #   lint     every script parses, is executable where it should be, and
 #            passes shellcheck; every Lisp file reads; the battery warner
 #            warns when it should; stages are safe to re-run and undo
-#            works; vikix update restarts into a new version
+#            works; images open with their folder; vikix update
+#            restarts into a new version
 #   void     inside Void's own container: every package name exists, and
 #            both install parts run through with --dry-run
 #   editors  the Emacs and Neovim configs install from scratch and start
@@ -41,6 +42,8 @@ jobs:
         run: tests/ci.sh battery
       - name: home
         run: tests/ci.sh home
+      - name: image
+        run: tests/ci.sh image
       - name: update
         run: tests/ci.sh update
 
