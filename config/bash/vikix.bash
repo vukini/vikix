@@ -47,10 +47,14 @@ fi
 if have emacs; then
   # e: open a file in Emacs, starting an Emacs server first if none is running
   alias e='emacsclient -c -a ""'
+  alias eg='emacsclient -c -n -a ""'     # the same, but the terminal is free at once
+  alias ec='emacsclient -nw -a ""'       # Emacs inside this terminal
   alias eq='emacs -Q -nw'                # Emacs with no config: for debugging it
   alias ekill="emacsclient -e '(kill-emacs)'"
 fi
 alias r='source ~/.bashrc'               # reload after editing it
+# bb: edit ~/.bashrc. Not when babashka is installed: bb is its command.
+have bb || alias bb='${EDITOR:-nvim} ~/.bashrc'
 
 # emacs-restart: stop the Emacs daemon and start a new one, e.g. after
 # changing the config. Refuses while a buffer has unsaved changes.
@@ -72,6 +76,9 @@ emacs-restart() {
     [ "$i" -gt 40 ] && { echo "the Emacs daemon did not stop" >&2; return 1; }
     sleep 0.25
   done
+  # A lock left by a daemon that didn't exit cleanly would stop the new
+  # one restoring its desktop (a live daemon removes its own).
+  rm -f ~/.emacs.desktop.lock ~/.emacs.d/.emacs.desktop.lock
   echo "starting Emacs (config errors, if any, show here)"
   emacs --daemon && emacsclient -e '(format "Emacs %s, config loaded in %s" emacs-version (emacs-init-time))'
 }
@@ -87,6 +94,8 @@ else
   alias la='ls -lah'
 fi
 alias grep='grep --color=auto'
+# Your own colours for ls and eza, if you keep them in ~/.dircolors.
+[ -r ~/.dircolors ] && eval "$(dircolors -b ~/.dircolors)"
 have bat && alias b='bat'                # cat with colour; plain `cat` is left alone
 
 # --- moving around ---------------------------------------------------------
@@ -155,6 +164,7 @@ alias gps='git push'
 alias gpl='git pull --ff-only'
 alias gf='git fetch --all --prune'
 alias gr='git remote -v'
+have gc || alias gc='git clone'          # unless Graphviz's gc is installed
 alias gsh='git stash'
 alias gshp='git stash pop'
 have lazygit && alias lg='lazygit'       # git in a terminal UI

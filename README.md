@@ -384,18 +384,20 @@ These come from `~/.config/vikix/vikix.bash`. Type `alias` to see them all.
 | `z NAME` / `zi` | zoxide: go to a folder you've been to, by part of its name / pick from a list |
 | `y` | yazi, the file manager; quit with `q` and the shell stays where you were looking |
 | `v` / `e` | Neovim / Emacs (starting an Emacs server if none is running) |
+| `eg` / `ec` | Emacs in a new window, leaving the terminal free / Emacs inside the terminal |
 | `nvd A B` | Neovim diff of two files |
 | `eq`, `ekill`, `emacs-restart` | Emacs with no config (for debugging it), stop the daemon, restart it (refuses with unsaved buffers) |
 | `b` | bat: `cat` with colour. Plain `cat` is left alone. |
 | `mkd` `cpr` `chx` `xo` | `mkdir -p`, `cp -r`, `chmod +x`, open with the usual program |
 | `psg NAME` / `hg WORD` | find a running process / a line in your history |
-| `r` | reload `~/.bashrc` |
+| `r` / `bb` | reload `~/.bashrc` / edit it (`bb` is left alone if babashka is installed) |
 | `xi` `xu` `xr` `xs` `xl` | xbps: install, update everything, remove, search, list a package's files |
 | `svls`, `sv-on NAME`, `sv-off NAME` | runit: list services, switch one on, switch one off |
 | `g` `gst` `gl` `gla` `gd` `gds` | git, status, log graph (this branch / all), diff (unstaged / staged) |
 | `ga` `gaa` `gcm` `gca` `gamend` | add, add everything, commit with a message, commit every change, amend |
 | `gundo` `gwip` | undo the last commit (changes stay staged), commit everything as "wip" |
 | `gco` `gsw` `gb` `gps` `gpl` `gf` `gr` `gsh` `gshp` | checkout, switch, branches, push, pull, fetch, remotes, stash, stash pop |
+| `gc URL` | clone (unless Graphviz's `gc` is installed) |
 | `lg` | lazygit |
 | `sbcl` | SBCL with history and arrow keys (through rlwrap) |
 | `activate` | the Python virtual environment in `.venv` |
@@ -407,6 +409,8 @@ These come from `~/.config/vikix/vikix.bash`. Type `alias` to see them all.
 | `Alt+.` | bash's own: the last argument of the previous command (press again for older ones) |
 
 Git status is `gst`, not `gs`, which is Ghostscript's command.
+
+Your own colours for `ls` and eza can go in `~/.dircolors`; it is read when it exists. The desktop session runs one `ssh-agent`, so every terminal and Emacs share it: with `AddKeysToAgent yes` in `~/.ssh/config`, a key's passphrase is asked once per login.
 
 Put your own aliases in `~/.bashrc`. Vikix's line sits at the top of that file, so anything you write below it loads later and wins.
 

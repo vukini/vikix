@@ -22,6 +22,16 @@ xsetroot -cursor_name left_ptr
 command -v autorandr >/dev/null 2>&1 && autorandr --change --default default 2>/dev/null
 [ -f "$HOME/.config/vikix/wallpaper" ] && feh --no-fehbg --bg-fill "$HOME/.config/vikix/wallpaper"
 
+# One ssh-agent for the whole session, started before anything that may
+# use it (Emacs pushing with Magit, every terminal), so a key's passphrase
+# is asked once; `AddKeysToAgent yes` in ~/.ssh/config adds the key on its
+# first use. An agent that is already there (forwarded, or started by the
+# login shell) is used as it is, and only our own is stopped at the end.
+if [ -z "${SSH_AUTH_SOCK:-}" ] && command -v ssh-agent >/dev/null 2>&1; then
+  eval "$(ssh-agent -s)" >/dev/null
+  vikix_ssh_agent=1
+fi
+
 pipewire &                             # audio (starts WirePlumber and pipewire-pulse)
 dunst &                                # notifications
 clipmenud &                            # remembers what you copy (Super+c)
@@ -58,5 +68,6 @@ set +x
 echo "starting StumpWM"
 "$HOME/.local/bin/stumpwm"
 echo "StumpWM exited with status $?"
+[ -n "${vikix_ssh_agent:-}" ] && ssh-agent -k >/dev/null
 # shellcheck disable=SC2046  # split on purpose: one argument per job
 kill $(jobs -p) 2>/dev/null
