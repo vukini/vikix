@@ -14,4 +14,6 @@ ccls                    # C and C++
 lua-language-server
 gopls                   # Go
 efm-langserver          # linters and formatters (Neovim)
+tree-sitter-cli         # `tree-sitter`: nvim-treesitter builds its parsers with it.
+                        # (Void's plain tree-sitter package is only the library.)
 nodejs                  # npm, for typescript-language-server, pyright, bash-language-server

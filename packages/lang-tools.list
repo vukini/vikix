@@ -1,5 +1,4 @@
 # lang-tools.list — small tools that help with any language
-tree-sitter     # the parser generator and CLI (grammars for the editors)
 ctags           # tags for jumping to definitions
 entr            # run a command when files change: ls *.c | entr make
 hyperfine       # benchmark a command properly

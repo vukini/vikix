@@ -278,12 +278,12 @@ A snapshot is taken after every install or `vikix update`, and before every agen
 | `network` | NetworkManager (`nmtui` for Wi-Fi), with its connection editor |
 | `audio` | PipeWire, WirePlumber (with Bluetooth audio), pamixer, pavucontrol |
 | `laptop` | tlp, acpid, brightnessctl, Bluetooth (bluez, blueman), autorandr, and the firmware a recent ThinkPad needs: sof-firmware (sound), intel-ucode (from the nonfree repo, enabled by `repos.list`), intel-video-accel |
-| `editors` | Emacs, Neovim, the pdf-tools build deps, and the language servers Void packages (ccls, lua-language-server, gopls, efm-langserver) plus nodejs for the npm ones |
+| `editors` | Emacs, Neovim, the pdf-tools build deps, the `tree-sitter` CLI (Neovim builds its parsers with it), and the language servers Void packages (ccls, lua-language-server, gopls, efm-langserver) plus nodejs for the npm ones |
 | `apps` | Firefox, PCManFM with USB mounting, mpv, nsxiv, zathura |
 | `dev` | base-devel (gcc, make), gdb, valgrind, python3, rlwrap |
 | `cli` | htop, ripgrep, fd, fzf, bat, eza, tmux, tree, jq, zoxide, yazi, lazygit, atuin (with bash-preexec) |
 | `lisp` | SBCL |
-| `lang-*` | One file per language, so a language is one file to keep or delete: C extras (tcc, rr, cmake, meson, ninja, shellcheck, shfmt), Python (pip, ipython, pipx), Lisp and Scheme (ccl, racket, chez-scheme, guile), Haskell (ghc, cabal, HLS, hlint), Forth (gforth), WebAssembly (wabt, wasmtime), Ruby, SQLite (sqlite, litecli, sqlitebrowser), Lua (lua54, LuaJIT), Go, Zig (zig, zls), and `lang-tools` (tree-sitter, ctags, entr, hyperfine, tokei, just) |
+| `lang-*` | One file per language, so a language is one file to keep or delete: C extras (tcc, rr, cmake, meson, ninja, shellcheck, shfmt), Python (pip, ipython, pipx), Lisp and Scheme (ccl, racket, chez-scheme, guile), Haskell (ghc, cabal, HLS, hlint), Forth (gforth), WebAssembly (wabt, wasmtime), Ruby, SQLite (sqlite, litecli, sqlitebrowser), Lua (lua54, LuaJIT), Go, Zig (zig, zls), and `lang-tools` (ctags, entr, hyperfine, tokei, just) |
 
 ## Laptop
 
