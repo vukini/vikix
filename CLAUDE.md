@@ -6,6 +6,8 @@ Vikix is an opinionated desktop layer for **glibc Void Linux** built around **St
 
 This folder sits inside an Obsidian vault, but it is a code repo: the vault's note conventions (frontmatter, tags, `_Index_of_*`) don't apply here. The `vikix-*.zip` files are old releases and are gitignored.
 
+`TODO.md` lists planned features and cleanups. Read it when asked what's next, and remove an item in the commit that ships it.
+
 ## Checking changes
 
 No build step. The tests are scripts in `tests/`, and `.github/workflows/test.yml` runs the same scripts on GitHub (on each push and weekly):
