@@ -403,6 +403,8 @@ These come from `~/.config/vikix/vikix.bash`. Type `alias` to see them all.
 | `a` | Claude Code, after a snapshot of your files |
 | `Ctrl+R` | atuin: search all your history, from every terminal |
 | `Ctrl+T` / `Alt+C` | fzf: pick a file / a folder |
+| `Alt+s` | the last command again without its command and options, cursor at the start: after `ls -la ~/Pictures/cat.png`, press `Alt+s` and type `xo` to open it |
+| `Alt+.` | bash's own: the last argument of the previous command (press again for older ones) |
 
 Git status is `gst`, not `gs`, which is Ghostscript's command.
 

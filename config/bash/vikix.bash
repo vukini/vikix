@@ -18,6 +18,26 @@ HISTCONTROL=ignoreboth:erasedups         # no duplicates, nor lines starting wit
 shopt -s histappend                      # several terminals add to one history
 shopt -s checkwinsize                    # keep LINES/COLUMNS right after a resize
 
+# Alt+s: the last command again, without its command and options, and the
+# cursor at the start, ready for a new command. After exploring with
+# `ls -la ~/Pictures/cat.png`, Alt+s and then `nsxiv` gives
+# `nsxiv ~/Pictures/cat.png`. (Alt+. inserts just the last argument.)
+_vikix_new_command() {
+  local last
+  # Not `fc -ln -1`: inside a key binding it skips the newest entry,
+  # taking it to be the fc command itself.
+  last=$(HISTTIMEFORMAT='' history 1)
+  [[ $last =~ ^[[:space:]]*[0-9]+\*?[[:space:]]+(.*)$ ]] || return 0
+  last=${BASH_REMATCH[1]}
+  last=${last#"${last%%[[:space:]]*}"}                   # the command
+  while [[ $last =~ ^[[:space:]]+-[^[:space:]]*(.*)$ ]]; do  # its options
+    last=${BASH_REMATCH[1]}
+  done
+  READLINE_LINE=$last
+  READLINE_POINT=0
+}
+bind -x '"\es": _vikix_new_command'
+
 # --- editors ---------------------------------------------------------------
 export EDITOR=${EDITOR:-nvim} VISUAL=${VISUAL:-nvim}
 if have nvim; then
