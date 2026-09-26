@@ -62,7 +62,7 @@ Every stage checks before it changes anything, so re-running either part is safe
 | `50-audio` | 2 | Sets up PipeWire, WirePlumber and the ALSA links, as the Void handbook describes. |
 | `60-login` | 1 | Adds `~/.local/bin` to PATH, loads the aliases in every shell, and makes X start after login on tty1. |
 | `65-languages` | 2 | Builds the languages Void doesn't package (PicoLisp). The packaged ones are lines in `packages/lang-*.list`. |
-| `67-dev` | 2 | Makes `~/dev`: a folder per installed language with its offline docs, the Zeal docsets, and the Python environment JupyterLab runs on. `vikix update` runs it again to add what's new. |
+| `67-dev` | 2 | Makes `~/dev`: a folder per installed language, the docs page, and the Python environment JupyterLab runs on. It downloads the offline docs and Zeal docsets only when run by `vikix docs`; otherwise it lists what is missing. `vikix update` runs it again. |
 | `70-vm` | 1 | Inside a VM only (VirtualBox, or KVM/QEMU such as virt-manager): installs the guest tools (shared clipboard, screen resizing). Does nothing on real hardware. |
 | `90-finish` | 1, 2 | Marks existing migrations as applied, and prints what to do next. |
 
@@ -329,7 +329,7 @@ Language servers for the editors are in `editors.list` and `45-editors`.
 
 ### `~/dev`: your projects, and the docs offline
 
-`67-dev` makes a folder for each installed language, with its documentation inside, so it works with no network:
+`67-dev` makes a folder for each installed language. `vikix docs` then downloads each one's documentation into it, so it works with no network. The installer and `vikix update` leave the downloads out, because they are a few GB from sites that are sometimes very slow; run `vikix docs` when you have the time, and again later to add a new language's docs.
 
 ```
 ~/dev/
@@ -347,7 +347,7 @@ Language servers for the editors are in `editors.list` and `45-editors`.
 
 Every language also has a **Zeal** docset (Bash too): open Zeal (`s-m` → "Zeal"), type, and it searches them all. Emacs finds the same docsets through `~/.docsets`, the default folder of `dash-docs`.
 
-**Disk space.** With every language installed it comes to about 4 GB: the Zeal docsets 2.4 GB (Racket's alone is a quarter of that), the `ghc-doc` and `racket-doc` packages 0.9 GB, the Python environment 0.5 GB, the HTML docs under 0.1 GB. A download that crawls (under 10 KB/s for a minute) is skipped with a warning, and the next `vikix update` tries it again.
+**Disk space.** With every language installed it comes to about 4 GB: the Zeal docsets 2.4 GB (Racket's alone is a quarter of that), the `ghc-doc` and `racket-doc` packages 0.9 GB, the Python environment 0.5 GB, the HTML docs under 0.1 GB. A download that crawls (under 10 KB/s for a minute) is skipped with a warning, and the next `vikix docs` tries it again.
 
 Only installed languages get a folder. `~/dev` is yours: Vikix only adds to it, and never deletes or overwrites anything there except `index.html`.
 
@@ -407,6 +407,7 @@ Put your own aliases in `~/.bashrc`. Vikix's line sits at the top of that file, 
 vikix update       # pull Vikix, update Void, new packages, config links, editor configs, migrations
 vikix migrate      # only the migrations not yet applied
 vikix rebuild-wm   # rebuild the StumpWM executable
+vikix docs         # download the offline programming docs into ~/dev (slow; update skips them)
 vikix doctor       # check everything is in place (programs, services, XDG_RUNTIME_DIR, the agent's pieces)
 vikix eval FORM    # run Lisp in the running StumpWM
 vikix agent        # Claude Code (Super+a)
@@ -427,7 +428,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `lint` | Every script parses, the ones you run are executable, and shellcheck has no warnings |
 | `update` | `vikix update` runs the new version's steps after it pulls, and logs the whole run |
 | `packages` | Every name in `packages/*.list` is a real Void package |
-| `dry-run` | Both install parts run through with `--dry-run` |
+| `dry-run` | Both install parts run through with `--dry-run`, and leave the offline docs to `vikix docs` |
 | `editors` | The Emacs and Neovim configs install from scratch into an empty home and start without errors |
 
 ## Folder layout

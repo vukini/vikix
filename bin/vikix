@@ -6,6 +6,8 @@
 #                         run new migrations
 #   vikix migrate       run only the migrations not yet applied
 #   vikix rebuild-wm    rebuild the StumpWM executable (after a Quicklisp update)
+#   vikix docs          download the offline programming docs into ~/dev
+#                         (a few GB, slow; update and the installer skip them)
 #   vikix doctor        check the pieces are all there
 #   vikix version
 #
@@ -264,6 +266,7 @@ main() {
     update)      cmd_update "${2:-}" ;;
     migrate)     cmd_migrate ;;
     rebuild-wm)  VIKIX_REBUILD_WM=1 bash "$VIKIX_DIR/install/30-lisp.sh" ;;
+    docs)        VIKIX_DOCS=1 bash "$VIKIX_DIR/install/67-dev.sh" ;;
     doctor)      cmd_doctor ;;
     version)     cat "$VIKIX_DIR/VERSION" ;;
     eval)        shift; exec python3 "$VIKIX_DIR/bin/vikix-eval" "$@" ;;
@@ -272,7 +275,7 @@ main() {
     changes)     cmd_changes "${2:-}" ;;
     history)     cmd_history ;;
     undo)        cmd_undo "${2:-}" ;;
-    help|-h|--help) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//' ;;
+    help|-h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//' ;;
     *)           die "unknown command: $1 (try: vikix help)" ;;
   esac
 }

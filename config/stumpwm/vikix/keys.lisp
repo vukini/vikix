@@ -59,11 +59,12 @@
     ("Print"   "exec vikix-screenshot clip" "Screenshot of an area, to the clipboard")
     ("S-Print" "exec vikix-screenshot file" "Screenshot of an area, to ~/Pictures/Screenshots")
     ;; the laptop's function keys
-    ;; vikix-osd changes the level and shows a bar for it (bin/vikix-osd)
-    ("XF86AudioRaiseVolume"  "exec vikix-osd volume up"      "Volume up")
-    ("XF86AudioLowerVolume"  "exec vikix-osd volume down"    "Volume down")
-    ("XF86AudioMute"         "exec vikix-osd volume mute"    "Mute")
-    ("XF86AudioMicMute"      "exec vikix-osd volume mic"     "Microphone mute")
+    ;; vikix-osd changes the level and shows a bar for it (bin/vikix-osd);
+    ;; the vikix-volume command also updates the volume in the mode line.
+    ("XF86AudioRaiseVolume"  "vikix-volume up"               "Volume up")
+    ("XF86AudioLowerVolume"  "vikix-volume down"             "Volume down")
+    ("XF86AudioMute"         "vikix-volume mute"             "Mute")
+    ("XF86AudioMicMute"      "vikix-volume mic"              "Microphone mute")
     ("XF86MonBrightnessUp"   "exec vikix-osd brightness up"  "Brightness up")
     ("XF86MonBrightnessDown" "exec vikix-osd brightness down" "Brightness down"))
   "Each entry: a key name, the StumpWM command it runs, and a description.

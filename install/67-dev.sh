@@ -17,9 +17,14 @@
 #   - Zeal docsets, searchable in one app (Zeal), and readable from Emacs
 #     too: ~/.docsets, dash-docs' default folder, links to the same place
 #
+# The downloads (the HTML docs and the Zeal docsets, a few GB, from sites
+# that are sometimes very slow) happen only with VIKIX_DOCS=1, which is
+# what `vikix docs` sets. The installer and `vikix update` run this stage
+# without it: they make the folders and the page, and say what is missing.
+#
 # ~/dev is yours: nothing here is ever deleted or overwritten. Downloads
-# already done are skipped, so `vikix update` (which runs this stage)
-# only adds what is new. VIKIX_DEV_DIR moves the folder.
+# already done are skipped, so `vikix docs` only adds what is new.
+# VIKIX_DEV_DIR moves the folder.
 
 set -euo pipefail
 # shellcheck source=../lib/common.sh
@@ -33,12 +38,22 @@ have() { command -v "$1" >/dev/null 2>&1; }
 # of the stage (one unreachable site shouldn't cost the other languages).
 # A download crawling below 10 KB/s for a minute is given up too: from some
 # places a site sends 5 KB/s, and a docs archive would then take an hour.
-# The next `vikix update` tries again.
+# The next `vikix docs` tries again.
 fetch() {
   # --continue-at -: a retry resumes the partial file instead of starting over.
   run curl -fL --retry 2 --continue-at - --connect-timeout 20 --speed-limit 10000 --speed-time 60 \
     -o "$2" "$1" && return 0
   warn "could not download $1"
+  return 1
+}
+
+# want WHAT — true when downloads are on; otherwise count WHAT as missing,
+# so the end of the stage can say that `vikix docs` would add it.
+DOCS=${VIKIX_DOCS:-0}
+missing=()
+want() {
+  [ "$DOCS" = 1 ] && return 0
+  missing+=("$1")
   return 1
 }
 
@@ -102,7 +117,7 @@ if has python; then
   pv=$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])')
   if [ -d "$d/python-$pv-docs-html" ]; then
     say "Python $pv docs already there"
-  else
+  elif want "the Python $pv docs"; then
     say "downloading the Python $pv docs"
     fetch "https://docs.python.org/$pv/archives/python-$pv-docs-html.zip" "$tmp/py.zip" &&
       run unzip -q "$tmp/py.zip" -d "$d"
@@ -113,7 +128,7 @@ if has lisp; then
   d=$(docs_dir lisp)
   if [ -d "$d/HyperSpec" ]; then
     say "Common Lisp HyperSpec already there"
-  else
+  elif want "the HyperSpec"; then
     say "downloading the Common Lisp HyperSpec (LispWorks)"
     fetch http://ftp.lispworks.com/pub/software_tools/reference/HyperSpec-7-0.tar.gz "$tmp/clhs.tgz" &&
       run tar -xzf "$tmp/clhs.tgz" -C "$d"            # unpacks to HyperSpec/
@@ -130,7 +145,7 @@ if has lua; then
   d=$(docs_dir lua)
   if [ -f "$d/manual.html" ]; then
     say "Lua 5.4 manual already there"
-  else
+  elif want "the Lua manual"; then
     say "downloading the Lua 5.4 reference manual"
     for f in manual.html contents.html manual.css lua.css; do
       fetch "https://www.lua.org/manual/5.4/$f" "$d/$f" || break
@@ -152,7 +167,7 @@ if has zig; then
   zv=$(zig version)
   if [ -f "$d/langref-$zv.html" ]; then
     say "Zig $zv language reference already there"
-  else
+  elif want "the Zig $zv reference"; then
     say "downloading the Zig $zv language reference"
     fetch "https://ziglang.org/documentation/$zv/" "$d/langref-$zv.html" || true
   fi
@@ -181,7 +196,7 @@ if has sql; then
   d=$(docs_dir sql)
   if compgen -G "$d/sqlite-doc-*" >/dev/null; then
     say "SQLite docs already there"
-  else
+  elif want "the SQLite docs"; then
     # The download page names the current archive, dated folder and all.
     rel=$(curl -fsL https://www.sqlite.org/download.html | grep -o '[0-9]*/sqlite-doc-[0-9]*\.zip' | head -1 || true)
     if [ -n "$rel" ]; then
@@ -208,6 +223,7 @@ for lang in "${langs[@]}" bash; do
     say "Zeal docset $name already there"
     continue
   fi
+  want "the $name docset" || continue
   mapfile -t urls < <(curl -fsL "https://kapeli.com/feeds/$name.xml" | grep -o '<url>[^<]*' | sed 's/<url>//' || true)
   if [ "${#urls[@]}" -eq 0 ]; then warn "no feed for the $name docset"; continue; fi
   say "downloading the $name docset"
@@ -276,3 +292,6 @@ fi
 
 # shellcheck disable=SC2088
 say "~/dev ready: docs opens the docs page, jlab starts JupyterLab"
+if [ "${#missing[@]}" -gt 0 ]; then
+  say "${#missing[@]} offline docs not downloaded; vikix docs gets them (a few GB, can take an hour)"
+fi

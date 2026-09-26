@@ -58,6 +58,8 @@ cat <<EOF
        reaches the running window manager.
     5. Super+a opens Claude Code (it offers to install it the first
        time). Whatever it changes: vikix changes, then vikix undo.
+    6. When you have an hour and a good connection: vikix docs
+       downloads the offline programming docs into ~/dev (a few GB).
 
   Later: 'vikix update' pulls changes and applies new migrations.
 

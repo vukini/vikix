@@ -86,3 +86,51 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
         (if (symbolp action)
             (run-commands (string-downcase (symbol-name action)))
             (eval action))))))
+
+;;; Volume and network, for the bar (modeline.lisp). Each is read into a
+;;; variable by a timer rather than on every redraw, because reading it
+;;; runs a program and the window manager waits while it does.
+
+(defun vikix-shell-line (command)
+  "The output of COMMAND without its trailing newline, with ^ doubled so
+the mode line shows it as it is. \"\" on any error. Never signals: it runs
+from a timer, where an error would reach the top level of the window
+manager."
+  (handler-case
+      (let ((out (string-trim '(#\Space #\Newline)
+                              (run-shell-command (format nil "~a 2>/dev/null" command) t))))
+        (with-output-to-string (s)
+          (loop for c across out
+                do (write-char c s)
+                   (when (char= c #\^) (write-char c s)))))
+    (error () "")))
+
+(defvar *vikix-volume* ""
+  "The volume as pamixer puts it (\"40%\" or \"muted\"), or \"\" when
+there is no sound server to ask.")
+
+(defvar *vikix-net* ""
+  "The network link as bin/vikix-net puts it (\"VID 62%\", \"wired\",
+\"offline\"), or \"\" when NetworkManager isn't running.")
+
+(defun vikix-volume-refresh ()
+  "Read the volume into *vikix-volume*, and redraw the bar if it changed."
+  (let ((new (vikix-shell-line "pamixer --get-volume-human")))
+    (unless (string= new *vikix-volume*)
+      (setf *vikix-volume* new)
+      (update-all-mode-lines))))
+
+(defun vikix-net-refresh ()
+  "Read the network link into *vikix-net*, and redraw the bar if it changed."
+  (let ((new (vikix-shell-line "vikix-net")))
+    (unless (string= new *vikix-net*)
+      (setf *vikix-net* new)
+      (update-all-mode-lines))))
+
+(defcommand vikix-volume (change) ((:string "Volume (up, down, mute, mic): "))
+  "Change the volume with vikix-osd, which shows a bar for it, then show
+the new level in the mode line."
+  (run-shell-command (format nil "vikix-osd volume ~a" change))
+  ;; vikix-osd runs in the background; read the level once it has finished.
+  ;; A ratio, not 0.5: StumpWM's timers want rationals.
+  (run-with-timer 1/2 nil #'vikix-volume-refresh))

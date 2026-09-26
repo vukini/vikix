@@ -19,3 +19,12 @@ if [ "$status" != 0 ] || grep -q '^xx ' <<<"$out"; then
   exit 1
 fi
 echo "dry run: both parts ran through ($(grep -c 'would run' <<<"$out") commands printed, none run)"
+
+# The docs are a few GB from slow sites: the installer (and so `vikix update`,
+# which runs the same stage) must leave them to `vikix docs`.
+if grep -E 'would run: curl' <<<"$out" | grep -qE 'docs-html|HyperSpec|lua\.org|ziglang|sqlite-doc|kapeli'; then
+  grep -E 'would run: curl' <<<"$out" | grep -E 'docs-html|HyperSpec|lua\.org|ziglang|sqlite-doc|kapeli' | head -3
+  echo "FAIL: the install downloads the offline docs (only vikix docs should)"
+  exit 1
+fi
+echo "dry run: the offline docs are left to vikix docs"

@@ -1,0 +1,23 @@
+#!/bin/sh
+# vikix-net — the network link as one short line, for the mode line.
+#
+#   VID 62%    Wi-Fi: the network's name and its signal strength
+#   wired      a cable, and no Wi-Fi
+#   offline    neither
+#
+# Asks NetworkManager. Prints nothing when it isn't running, so the bar
+# leaves the field out instead of showing something wrong.
+devices=$(nmcli -t -f TYPE,STATE device 2>/dev/null) || exit 0
+
+# SIGNAL before SSID, so a name with a colon in it (nmcli writes "\:")
+# stays in one piece at the end of the line.
+wifi=$(nmcli -t -f ACTIVE,SIGNAL,SSID device wifi list --rescan no 2>/dev/null |
+       sed -n 's/^yes:\([0-9]*\):\(.*\)$/\2 \1%/p' | sed 's/\\\(.\)/\1/g' | head -n 1)
+
+if [ -n "$wifi" ]; then
+  printf '%s\n' "$wifi"
+elif printf '%s\n' "$devices" | grep -q '^ethernet:connected'; then
+  echo wired
+else
+  echo offline
+fi
