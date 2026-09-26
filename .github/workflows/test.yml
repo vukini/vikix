@@ -4,7 +4,9 @@
 # annotation (job logs need a GitHub login; annotations don't).
 #
 #   lint     every script parses, is executable where it should be, and
-#            passes shellcheck; vikix update restarts into a new version
+#            passes shellcheck; every Lisp file reads; the battery warner
+#            warns when it should; stages are safe to re-run and undo
+#            works; vikix update restarts into a new version
 #   void     inside Void's own container: every package name exists, and
 #            both install parts run through with --dry-run
 #   editors  the Emacs and Neovim configs install from scratch and start
@@ -31,6 +33,14 @@ jobs:
       - uses: actions/checkout@v5
       - name: lint
         run: tests/ci.sh lint
+      - name: sbcl, to read the Lisp files
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends sbcl
+      - name: lisp
+        run: tests/ci.sh lisp
+      - name: battery
+        run: tests/ci.sh battery
+      - name: home
+        run: tests/ci.sh home
       - name: update
         run: tests/ci.sh update
 

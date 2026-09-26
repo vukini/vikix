@@ -115,10 +115,11 @@ copy_user() {
 
 # ensure_block FILE NAME TEXT
 # Keeps exactly one block, fenced by '# >>> vikix NAME >>>' and
-# '# <<< vikix NAME <<<', in FILE. Re-running replaces the block, so
-# there are never duplicates and nothing outside the fence is touched.
-# The block goes at the end of FILE, or with 'top' at the start: there,
-# anything the user wrote below it runs later and so wins.
+# '# <<< vikix NAME <<<', in FILE. Re-running replaces the block where it
+# is, so there are never duplicates, the blocks keep their order, and
+# nothing outside the fence is touched. A new block goes at the end of
+# FILE, or with 'top' at the start: there, anything the user wrote below
+# it runs later and so wins.
 ensure_block() {
   local file=$1 name=$2 text=$3 where=${4:-end}
   local start="# >>> vikix $name >>>" end="# <<< vikix $name <<<"
@@ -127,15 +128,21 @@ ensure_block() {
     return 0
   fi
   touch "$file"
-  local tmp
+  local block tmp
+  block=$(printf '%s\n%s\n%s' "$start" "$text" "$end")
   tmp=$(mktemp)
-  [ "$where" = top ] && printf '%s\n%s\n%s\n' "$start" "$text" "$end" > "$tmp"
-  awk -v s="$start" -v e="$end" '
-    $0 == s { skip = 1; next }
-    $0 == e { skip = 0; next }
-    !skip   { print }
-  ' "$file" >> "$tmp"
-  [ "$where" = top ] || printf '%s\n%s\n%s\n' "$start" "$text" "$end" >> "$tmp"
+  if grep -qxF "$start" "$file"; then
+    # awk -v would turn the backslashes in the text into escapes; ENVIRON doesn't.
+    BLOCK=$block awk -v s="$start" -v e="$end" '
+      $0 == s { skip = 1; print ENVIRON["BLOCK"]; next }
+      $0 == e { skip = 0; next }
+      !skip   { print }
+    ' "$file" > "$tmp"
+  elif [ "$where" = top ]; then
+    { printf '%s\n' "$block"; cat "$file"; } > "$tmp"
+  else
+    { cat "$file"; printf '%s\n' "$block"; } > "$tmp"
+  fi
   cat "$tmp" > "$file"
   rm -f "$tmp"
 }

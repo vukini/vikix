@@ -2,13 +2,6 @@
 
 What's left to add or clean up, most valuable first within each section. Delete an item when it ships. The first list was drawn up on 2026-09-26, from a review of 0.15.0.
 
-## Tests
-
-1. **Check the StumpWM Lisp.** Nothing reads `config/stumpwm/**/*.lisp` before login, so a missing paren only shows up on the desktop. Have `sbcl --non-interactive` read every form.
-2. **Lint the Python.** `lint.sh` only picks up shell scripts; add `python3 -m py_compile bin/vikix-eval`.
-3. **Test the battery warner.** `vikix-battery` has a `VIKIX_POWER_SUPPLY` hook for a test that doesn't exist yet.
-4. **Test "safe to re-run" and undo.** Run `40-config` and `60-login` twice in a temporary HOME and compare the results; round-trip snapshot → edit → undo.
-
 ## Features
 
 1. **Themes for the whole desktop that survive a restart.** The theme changes only StumpWM, and resets to `:void` at every start. Alacritty, dunst, rofi, the lock screen and the wallpaper should switch with it.

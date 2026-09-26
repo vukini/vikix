@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# tests/lint.sh — every script parses, the ones run directly are executable,
-# and shellcheck finds nothing at warning level.
+# tests/lint.sh — every script parses (shell and Python), the ones run
+# directly are executable, and shellcheck finds nothing at warning level.
 #
 # Runs anywhere; no Void needed. shellcheck comes from PATH, or through
 # uvx (uv's runner) when it isn't installed.
@@ -16,6 +16,15 @@ for f in "${scripts[@]}"; do
   bash -n "$f" || { echo "FAIL syntax: $f"; fail=1; }
 done
 echo "syntax: ${#scripts[@]} scripts checked"
+
+# The Python ones (vikix eval): parsed, not run, and nothing written to disk.
+mapfile -t pythons < <(grep -lE '^#!.*python' bin/*)
+python3 -c '
+import ast, sys
+for f in sys.argv[1:]:
+    ast.parse(open(f).read(), f)
+' "${pythons[@]}" || { echo "FAIL syntax: a Python script (above)"; fail=1; }
+echo "python: ${#pythons[@]} script(s) checked"
 
 # Scripts that are run as ./name must carry the executable bit (0.10.0
 # reached GitHub without it, and ./install-1.sh failed with "Permission denied").

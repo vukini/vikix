@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # tests/run.sh — run the tests that fit this machine.
 #
-#   tests/run.sh          the quick ones (about a minute): lint, update, and
-#                         on Void also packages and dry-run
+#   tests/run.sh          the quick ones (about a minute): lint, lisp (with
+#                         sbcl), battery, home, update, and on Void also
+#                         packages and dry-run
 #   tests/run.sh --all    those, plus editors (several minutes, network)
 #
 # Each test is its own script in tests/ and can be run alone. GitHub runs
@@ -10,7 +11,9 @@
 
 set -uo pipefail
 cd "$(dirname "$0")" || exit 1
-tests=(lint update)
+tests=(lint)
+if command -v sbcl >/dev/null; then tests+=(lisp); else echo "(lisp needs sbcl; skipped here)"; fi
+tests+=(battery home update)
 if command -v xbps-query >/dev/null && [ "$(id -u)" -ne 0 ]; then
   tests+=(packages dry-run)
 else

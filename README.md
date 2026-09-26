@@ -432,7 +432,10 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 
 | Test | Checks |
 |---|---|
-| `lint` | Every script parses, the ones you run are executable, and shellcheck has no warnings |
+| `lint` | Every script parses (shell and Python), the ones you run are executable, and shellcheck has no warnings |
+| `lisp` | Every Lisp file reads cleanly, so a missing paren shows up here, not at login (needs `sbcl`) |
+| `battery` | The low-battery warner warns once at 15%, once at 5%, and again only after charging |
+| `home` | `40-config` and `60-login` change nothing when run again, and `vikix undo` puts your files back (and undoing again brings the change back) |
 | `update` | `vikix update` runs the new version's steps after it pulls, logs the whole run, and carries on past a failed stage, naming it at the end |
 | `packages` | Every name in `packages/*.list` is a real Void package |
 | `dry-run` | Both install parts run through with `--dry-run`, and leave the offline docs to `vikix docs` |
