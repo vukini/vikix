@@ -28,6 +28,7 @@ else
 fi
 # Make ql:quickload available in your own `sbcl` too, not only in the build.
 if grep -qs quicklisp "$HOME/.sbclrc"; then
+  # shellcheck disable=SC2088  # a message: the ~ is for reading, not expanding
   say "~/.sbclrc already loads Quicklisp"
 else
   say "adding Quicklisp to ~/.sbclrc"

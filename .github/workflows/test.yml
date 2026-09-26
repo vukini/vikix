@@ -1,0 +1,82 @@
+# Tests for Vikix. Each step runs a script from tests/, so everything here
+# can also be run on your own machine: tests/run.sh (or tests/run.sh --all).
+#
+#   lint     every script parses, is executable where it should be, and
+#            passes shellcheck; vikix update restarts into a new version
+#   void     inside Void's own container: every package name exists, and
+#            both install parts run through with --dry-run
+#   editors  the Emacs and Neovim configs install from scratch and start
+#            without errors
+#
+# Weekly as well as on every push: the editor configs pull packages from
+# MELPA, GitHub and the Treesitter grammars, which can break with no change
+# here (SLIME's xterm-color contrib and nvim-treesitter's archived branch
+# both did).
+
+name: test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 1"     # Mondays, 04:17 UTC
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: lint
+        run: tests/lint.sh
+      - name: update
+        run: tests/update.sh
+
+  void:
+    runs-on: ubuntu-latest
+    container: ghcr.io/void-linux/void-glibc-full:latest
+    steps:
+      # A fresh Void refuses other installs until xbps itself is current.
+      - name: Update Void, add git and sudo
+        shell: sh
+        run: |
+          xbps-install -Syu xbps
+          xbps-install -yu
+          xbps-install -y bash git sudo curl
+      - uses: actions/checkout@v4
+      # The installer refuses to run as root, so the tests run as a normal
+      # user with sudo, as on a real machine.
+      - name: A normal user
+        run: |
+          useradd -m tester
+          echo 'tester ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/tester
+          chown -R tester: "$GITHUB_WORKSPACE"
+      - name: packages
+        run: su tester -c "cd '$GITHUB_WORKSPACE' && tests/packages.sh"
+      - name: dry-run
+        run: su tester -c "cd '$GITHUB_WORKSPACE' && tests/dry-run.sh"
+
+  editors:
+    runs-on: ubuntu-latest
+    container: ghcr.io/void-linux/void-glibc-full:latest
+    timeout-minutes: 45
+    steps:
+      - name: Update Void, add git and sudo
+        shell: sh
+        run: |
+          xbps-install -Syu xbps
+          xbps-install -yu
+          xbps-install -y bash git sudo curl
+      - uses: actions/checkout@v4
+      # What Vikix installs for the editors, plus a compiler for the
+      # Treesitter parsers and the Emacs packages that build code.
+      - name: The editors, as Vikix installs them
+        run: |
+          . lib/common.sh
+          xbps-install -y base-devel $(read_list packages/editors.list)
+      - name: A normal user
+        run: |
+          useradd -m tester
+          chown -R tester: "$GITHUB_WORKSPACE"
+      - name: editors
+        run: su tester -c "cd '$GITHUB_WORKSPACE' && tests/editors.sh"

@@ -78,6 +78,7 @@ have gforth                    && langs+=(forth)
 have ruby                      && langs+=(ruby)
 have sqlite3                   && langs+=(sql)
 have wat2wasm                  && langs+=(wasm)
+# shellcheck disable=SC2088  # messages: the ~ is for reading, not expanding
 say "~/dev for: ${langs[*]}"
 has() { case " ${langs[*]} " in *" $1 "*) return 0 ;; esac; return 1; }
 
@@ -273,4 +274,5 @@ else
   page > "$DEV/index.html"
 fi
 
+# shellcheck disable=SC2088
 say "~/dev ready: docs opens the docs page, jlab starts JupyterLab"

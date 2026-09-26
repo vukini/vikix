@@ -45,6 +45,15 @@ cmd_migrate() {
 }
 
 cmd_update() {
+  # Everything it prints also goes to a log, like the installer's. Set up
+  # once: the run restarted after the pull (below) inherits it.
+  if [ -z "${VIKIX_UPDATE_LOG:-}" ]; then
+    VIKIX_UPDATE_LOG="$VIKIX_STATE/logs/update-$(date +%Y%m%d-%H%M%S).log"
+    export VIKIX_UPDATE_LOG
+    mkdir -p "$(dirname "$VIKIX_UPDATE_LOG")"
+    exec > >(tee -a "$VIKIX_UPDATE_LOG") 2>&1
+    say "Vikix $(cat "$VIKIX_DIR/VERSION"): update; log: $VIKIX_UPDATE_LOG"
+  fi
   sudo_keepalive
   if [ "${1:-}" != --pulled ]; then
     say "pulling Vikix"
@@ -65,6 +74,7 @@ cmd_update() {
   bash "$VIKIX_DIR/install/65-languages.sh"
   bash "$VIKIX_DIR/install/67-dev.sh"
   cmd_migrate
+  say "Vikix $(cat "$VIKIX_DIR/VERSION") is up to date; log: $VIKIX_UPDATE_LOG"
 }
 
 cmd_doctor() {

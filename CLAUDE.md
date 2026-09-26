@@ -8,14 +8,16 @@ This folder sits inside an Obsidian vault, but it is a code repo: the vault's no
 
 ## Checking changes
 
-There is no test suite and no build step. Checks that work on the dev machine:
+No build step. The tests are scripts in `tests/`, and `.github/workflows/test.yml` runs the same scripts on GitHub (on each push and weekly):
 
 ```sh
-bash -n install/*.sh lib/common.sh bin/vikix          # syntax
-./install.sh --list                                   # stage order per part
-DRY_RUN=1 bash install/<stage>.sh                     # one stage, printing instead of changing
-./install.sh --dry-run [--phase 1|2]                  # a whole part
+tests/run.sh                  # about a minute: lint, update, and on Void packages + dry-run
+tests/run.sh --all            # plus editors: Emacs and Neovim configs from scratch (minutes, network)
+tests/lint.sh                 # bash -n, executable bits, shellcheck -S warning (must stay at zero)
+DRY_RUN=1 bash install/<stage>.sh     # one stage, printing instead of changing
 ```
+
+`lint.sh` uses `shellcheck` from PATH, or `uvx --from shellcheck-py shellcheck` when it isn't installed. A deliberate shellcheck exception gets a `# shellcheck disable=SCxxxx  # why` comment on the line before. A new kind of breakage found by hand should become a check in the matching test.
 
 `DRY_RUN=1` works because every system change goes through `run` in `lib/common.sh`, which prints instead of executing. Any new change to the system must go through `run` (or check `DRY_RUN` itself, as `ensure_block` does), or dry runs lie.
 

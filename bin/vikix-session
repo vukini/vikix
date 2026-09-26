@@ -58,4 +58,5 @@ set +x
 echo "starting StumpWM"
 "$HOME/.local/bin/stumpwm"
 echo "StumpWM exited with status $?"
+# shellcheck disable=SC2046  # split on purpose: one argument per job
 kill $(jobs -p) 2>/dev/null

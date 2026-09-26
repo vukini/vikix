@@ -2,6 +2,7 @@
 # vikix-keyboard — apply the layout and options in ~/.config/vikix/keyboard.
 # Run at login by vikix-session; run again after editing the file.
 kb="$HOME/.config/vikix/keyboard"
+# shellcheck source=/dev/null  # your file, not one in this repo
 [ -f "$kb" ] && . "$kb"
 # -option with an empty argument clears the old options first, so running
 # this twice never stacks them.

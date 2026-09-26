@@ -30,7 +30,7 @@ Log in on tty1 and the desktop starts.
 ~/vikix/install-2.sh
 ```
 
-Each part asks for your password **once**, at the start, and then runs by itself, so you can walk away. Part two says when it has finished with a notification. Everything each part prints is also kept in `~/.local/state/vikix/logs/`.
+Each part asks for your password **once**, at the start, and then runs by itself, so you can walk away. Part two says when it has finished with a notification. Everything each part prints is also kept in `~/.local/state/vikix/logs/`, and so is each `vikix update`.
 
 `./install.sh` runs both parts one after the other, for a machine you just want to leave to it.
 
@@ -413,6 +413,23 @@ vikix agent        # Claude Code (Super+a)
 vikix snapshot / changes / history / undo   # the history of your files
 ```
 
+## Tests
+
+The tests are scripts in `tests/`. GitHub runs them on every push, and every Monday, since the editor configs can break when a package they pull in changes upstream (`.github/workflows/test.yml`). To run them yourself:
+
+```sh
+tests/run.sh          # about a minute
+tests/run.sh --all    # plus the editors: several minutes, needs the network
+```
+
+| Test | Checks |
+|---|---|
+| `lint` | Every script parses, the ones you run are executable, and shellcheck has no warnings |
+| `update` | `vikix update` runs the new version's steps after it pulls, and logs the whole run |
+| `packages` | Every name in `packages/*.list` is a real Void package |
+| `dry-run` | Both install parts run through with `--dry-run` |
+| `editors` | The Emacs and Neovim configs install from scratch into an empty home and start without errors |
+
 ## Folder layout
 
 | Path | Contents |
@@ -426,6 +443,7 @@ vikix snapshot / changes / history / undo   # the history of your files
 | `config/` | Everything that ends up in `~` |
 | `bin/` | `vikix`; `vikix-session`, which `.xinitrc` starts; `vikix-eval`, behind `vikix eval` |
 | `migrations/` | One-off changes for machines already installed (see its README) |
+| `tests/` | The tests (see [Tests](#tests)) |
 
 ## Not done yet
 
