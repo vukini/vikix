@@ -1,6 +1,7 @@
 # lang-c.list — C (the base-devel toolchain, gdb and valgrind are in dev.list)
 tcc             # Tiny C Compiler: `tcc -run hello.c` runs a file like a script
 clang           # a second compiler, with better diagnostics; also builds PicoLisp
+clang-tools-extra  # clangd, the C language server Neovim uses; clang-tidy
 rr              # record a run, then step through it backwards in gdb
 cmake
 meson

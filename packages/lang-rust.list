@@ -1,0 +1,6 @@
+# lang-rust.list — Rust
+rust
+cargo
+rust-analyzer   # the language server
+rust-src        # the standard library's source, for rust-analyzer's go-to-definition
+rust-doc        # the Rust book and the standard library docs, offline (~700 MB)

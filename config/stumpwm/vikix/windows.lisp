@@ -5,8 +5,9 @@
 ;;;;   undo       the last split or window move, per workspace (s-u, s-U)
 ;;;;   find       any window on any workspace (s-A goes there, s-C-a pulls it here)
 ;;;;   beckon     the pointer jumps to the focused window (s-p)
+;;;;   lazarus    the docked IDE tiles; its dialogs float
 ;;;;
-;;;; The last four come from stumpwm-contrib, cloned into
+;;;; Gaps, undo, find and beckon come from stumpwm-contrib, cloned into
 ;;;; ~/.stumpwm.d/modules by install/30-lisp. The keys are in keys.lisp.
 
 (in-package :stumpwm)
@@ -127,3 +128,33 @@ below zero for a small window, and X then kills the window manager."
 
 (vikix-load-module "globalwindows")
 (vikix-load-module "beckon")
+
+;;; Lazarus
+
+;; 65-languages builds Lazarus with its docked IDE (anchordockingdsgn and
+;; dockedformeditor): menu, editor, object inspector and form designer
+;; share one main window, which tiles like any other. Every other Lazarus
+;; window (dialogs, the welcome screen, anything undocked) floats. Tiled,
+;; StumpWM would stretch each to fill a frame, and fight Lazarus over its
+;; size, which flickers.
+(defun vikix-lazarus-window-p (win)
+  (search "lazarus" (string-downcase (or (window-class win) ""))))
+
+(defun vikix-lazarus-main-window-p (win)
+  "The IDE's main window. Its title settles as \"Lazarus IDE v...\", but
+StumpWM sees it before that: the Qt5 build (Void's) first calls it
+\"Lazarus\", or \"MainIDE\" (its form's name) with the docked IDE."
+  (let ((title (or (window-title win) "")))
+    (or (member title '("Lazarus" "MainIDE") :test #'string=)
+        (string= "Lazarus IDE v" title :end2 (min (length title) 13)))))
+
+(defun vikix-float-lazarus-window (win)
+  ;; Only a tiled window: floating one twice (another hook may do it too,
+  ;; as an older user.lisp does) would be an error.
+  (when (and (vikix-lazarus-window-p win)
+             (not (vikix-lazarus-main-window-p win))
+             (typep win 'tile-window)
+             (typep (window-group win) 'tile-group))
+    (float-window win (window-group win))))
+
+(add-hook *new-window-hook* 'vikix-float-lazarus-window)

@@ -1,0 +1,2 @@
+# lang-julia.list — Julia
+juliaup         # `julia` and its version manager; 65-languages fetches the current release

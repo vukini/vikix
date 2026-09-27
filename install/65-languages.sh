@@ -9,6 +9,15 @@
 #              (Not the git server, git.software-lab.de: it is often
 #              unreachable. The tarball is the official release channel.)
 #
+#   Lazarus    Void packages it (lang-pascal.list); this builds the docked
+#              IDE from it, in ~/.lazarus: menu, editor, object inspector
+#              and form designer in one window, which StumpWM tiles (the
+#              rules are in windows.lisp). Rebuilt when Void's Lazarus is
+#              newer than the build. vikix-lazarus starts it.
+#   Julia      Void packages juliaup (lang-julia.list), which downloads
+#              Julia itself; this gets the current release now, not at the
+#              first `julia`.
+#
 # Not automated (see README, "Languages"): Cuis Smalltalk (a VM download
 # that changes shape between releases) and Odin (prebuilt binaries).
 # Everything here is skipped when already present; VIKIX_REBUILD_LANGS=1
@@ -56,4 +65,63 @@ if [ -x "$pil_dir/bin/picolisp" ] || [ "$DRY_RUN" = 1 ]; then
   fi
 fi
 
-say "languages ready; try: pil +   (PicoLisp)   racket   gforth   ghci   tcc -run x.c"
+# --- Lazarus, docked ----------------------------------------------------------
+LAZ=/usr/lib/lazarus
+IDE="$HOME/.lazarus/bin/lazarus"
+if ! command -v lazbuild >/dev/null || [ ! -d "$LAZ/lcl" ]; then
+  say "no Lazarus (packages/lang-pascal.list); skipping its docked IDE"
+elif [ -x "$IDE" ] && [ "$IDE" -nt "$LAZ/lazarus" ] && [ "${VIKIX_REBUILD_LANGS:-0}" != 1 ]; then
+  say "Lazarus: the docked IDE is already built in ~/.lazarus"
+else
+  # The widget set Void built the LCL for (Qt5 now; GTK2 in older builds).
+  ws=
+  for w in qt5 gtk2 qt6 gtk3; do
+    compgen -G "$LAZ/lcl/units/*-linux/$w" >/dev/null && { ws=$w; break; }
+  done
+  log="$VIKIX_STATE/logs/lazarus-build.log"
+  say "building the docked Lazarus IDE ($ws) into ~/.lazarus (a minute or two; log: $log)"
+  # /usr/lib/lazarus isn't writable, so lazbuild puts the IDE and the
+  # packages it compiles under ~/.lazarus instead.
+  cmd=(lazbuild --lazarusdir="$LAZ/" ${ws:+--ws=$ws}
+       --add-package "$LAZ/components/anchordocking/design/anchordockingdsgn.lpk"
+                     "$LAZ/components/dockedformeditor/dockedformeditor.lpk"
+       --build-ide=)
+  if [ "$DRY_RUN" = 1 ]; then
+    printf '   would run: %s > %s\n' "${cmd[*]}" "$log"
+  else
+    mkdir -p "$(dirname "$log")"
+    if "${cmd[@]}" > "$log" 2>&1 && [ -x "$IDE" ]; then
+      touch "$IDE"          # newer than Void's, so the next run skips this
+    else
+      warn "the docked Lazarus IDE didn't build; see $log. vikix-lazarus starts the plain one."
+    fi
+  fi
+fi
+
+# lazbuild's config names the Lazarus folder and the compiler but no
+# version, so the IDE would open by offering to "upgrade" it. Add the
+# version and the rest the IDE's first-start checks look at. Only what is
+# missing: the IDE rewrites this file, and your settings stay.
+env_opts="$HOME/.lazarus/environmentoptions.xml"
+if [ -f "$env_opts" ] && [ "$DRY_RUN" != 1 ]; then
+  add_opt() {   # add_opt NAME XML — the element, unless the file has one
+    grep -q "<$1[ >]" "$env_opts" ||
+      sed -i "s|^  <EnvironmentOptions>\$|  <EnvironmentOptions>\n    $2|" "$env_opts"
+  }
+  add_opt Version "<Version Value=\"110\" Lazarus=\"$(lazbuild --version 2>/dev/null | head -n 1)\"/>"
+  [ -d /usr/lib/fpc/src ] && add_opt FPCSourceDirectory '<FPCSourceDirectory Value="/usr/lib/fpc/src/"/>'
+  add_opt MakeFilename '<MakeFilename Value="/usr/bin/make"/>'
+  add_opt DebuggerFilename '<DebuggerFilename Value="/usr/bin/gdb"/>'
+fi
+
+# --- Julia -----------------------------------------------------------------------
+if ! command -v juliaup >/dev/null; then
+  say "no juliaup (packages/lang-julia.list); skipping Julia"
+elif juliaup status 2>/dev/null | grep -qw release; then
+  say "Julia: the release channel is already installed (juliaup update brings new ones)"
+else
+  say "downloading the current Julia release (juliaup add release)"
+  run juliaup add release || warn "juliaup couldn't download Julia; the first \`julia\` will try again"
+fi
+
+say "languages ready; try: pil +   (PicoLisp)   racket   gforth   ghci   tcc -run x.c   julia   vikix-lazarus"

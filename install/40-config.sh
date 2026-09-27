@@ -9,8 +9,9 @@
 #     ~/.xinitrc                 starts the session
 #     ~/.local/bin/vikix*      the vikix command and its helpers, all of bin/
 #                                (but vikix-eval and vikix-session)
-#     ~/.local/share/applications/vikix-*.desktop   JupyterLab in the launcher,
-#                                and vikix-image, which opens images
+#     ~/.local/share/applications/*.desktop   JupyterLab in the launcher,
+#                                vikix-image, which opens images, and
+#                                Lazarus (the docked IDE, vikix-lazarus)
 #     ~/.config/vikix/vikix.bash   aliases and prompt (read by ~/.bashrc)
 #     ~/.claude/skills/vikix     tells Claude Code how Vikix is put together
 #     ~/.config/fontconfig/conf.d/50-vikix-iosevka.conf   monospace until Iosevka is installed

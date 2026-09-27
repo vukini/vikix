@@ -61,7 +61,7 @@ Every stage checks before it changes anything, so re-running either part is safe
 | `55-hardware` | 2 | Touchpad settings (tap to click, natural scrolling), the Intel microcode rebuilt into the initramfs, and the standard `~/Documents` … folders. |
 | `50-audio` | 2 | Sets up PipeWire, WirePlumber and the ALSA links, as the Void handbook describes. |
 | `60-login` | 1 | Adds `~/.local/bin` to PATH, loads the aliases in every shell, and makes X start after login on tty1. |
-| `65-languages` | 2 | Builds the languages Void doesn't package (PicoLisp). The packaged ones are lines in `packages/lang-*.list`. |
+| `65-languages` | 2 | Builds the languages Void doesn't package (PicoLisp), builds Lazarus's docked IDE into `~/.lazarus`, and fetches the current Julia with juliaup. The packaged ones are lines in `packages/lang-*.list`. |
 | `67-dev` | 2 | Makes `~/dev`: a folder per installed language, the docs page, and the Python environment JupyterLab runs on. It downloads the offline docs and Zeal docsets only when run by `vikix docs`; otherwise it lists what is missing. `vikix update` runs it again. |
 | `70-vm` | 1 | Inside a VM only (VirtualBox, or KVM/QEMU such as virt-manager): installs the guest tools (shared clipboard, screen resizing). Does nothing on real hardware. |
 | `90-finish` | 1, 2 | Marks existing migrations as applied, and prints what to do next. |
@@ -333,7 +333,7 @@ A snapshot is taken after every install or `vikix update`, and before every agen
 | `dev` | base-devel (gcc, make), gdb, valgrind, rlwrap |
 | `cli` | htop, ripgrep, fd, fzf, bat, eza, tmux, tree, jq, zoxide, yazi, lazygit, gh (GitHub CLI), atuin (with bash-preexec) |
 | `lisp` | SBCL |
-| `lang-*` | One file per language, so a language is one file to keep or delete: C extras (tcc, rr, cmake, meson, ninja, shellcheck, shfmt, the C and POSIX man pages), Python (pip, ipython, pipx, uv), Lisp and Scheme (ccl, racket and its docs, chez-scheme, guile), Haskell (ghc and its docs, cabal, HLS, hlint), Forth (gforth), WebAssembly (wabt, wasmtime), Ruby (with `ri` docs), SQLite (sqlite, litecli, sqlitebrowser), Lua (lua54, LuaJIT), Go, Zig (zig, zls), and `lang-tools` (ctags, entr, hyperfine, tokei, just) |
+| `lang-*` | One file per language, so a language is one file to keep or delete: C extras (tcc, rr, cmake, meson, ninja, shellcheck, shfmt, the C and POSIX man pages), Python (pip, ipython, pipx, uv), Lisp and Scheme (ccl, racket and its docs, chez-scheme, guile), Haskell (ghc and its docs, cabal, HLS, hlint), Forth (gforth), WebAssembly (wabt, wasmtime), Ruby (with `ri` docs), SQLite (sqlite, litecli, sqlitebrowser), Lua (lua54, LuaJIT), Go, Zig (zig, zls), Rust (with rust-analyzer and the docs), Java (openjdk21, gradle), OCaml (dune, ocamlfind, opam), Julia (juliaup), Pascal (fpc, Lazarus), and `lang-tools` (ctags, entr, hyperfine, tokei, just) |
 
 ## Laptop
 
@@ -360,7 +360,7 @@ Vikix is for playing with languages, so it installs them. Each is a small file i
 
 | Language | Packages | Try |
 |---|---|---|
-| C | gcc and friends (`base-devel`), clang, gdb, valgrind, tcc, rr, cmake, meson, ninja | `tcc -run hello.c` |
+| C | gcc and friends (`base-devel`), clang, clangd, gdb, valgrind, tcc, rr, cmake, meson, ninja | `tcc -run hello.c` |
 | Python | python3, pip, ipython, pipx, uv; JupyterLab in `~/dev/python/.venv` | `ipython`, `jlab` |
 | Common Lisp | sbcl (with Quicklisp), ccl; SLIME in Emacs, Swank into StumpWM on 4004 | `sbcl` (rlwrap'd) |
 | Scheme, Racket | racket, chez-scheme, guile | `racket`, `scheme`, `guile` |
@@ -374,6 +374,11 @@ Vikix is for playing with languages, so it installs them. Each is a small file i
 | Lua | lua54, LuaJIT | `lua5.4` |
 | Go | go, gopls | `go run .` |
 | Zig | zig, zls | `zig run x.zig` |
+| Rust | rust, cargo, rust-analyzer, rust-src; the Rust book and the standard library docs offline (rust-doc) | `cargo new hi && cd hi && cargo run` |
+| Java | openjdk21 (java, javac, jshell), gradle | `jshell` |
+| OCaml | ocaml, dune, ocamlfind, opam (`opam install utop ocaml-lsp-server` for a better REPL and the language server) | `ocaml` |
+| Julia | juliaup, and the current Julia it fetches | `julia` |
+| Free Pascal | fpc and its sources; Lazarus, built with the docked IDE: one window that StumpWM tiles, with its dialogs floating | `fpc hello.pas`, `vikix-lazarus` |
 
 Language servers for the editors are in `editors.list` and `45-editors`.
 
@@ -392,12 +397,14 @@ Language servers for the editors are in `editors.list` and `45-editors`.
   lua/     docs/manual.html
   zig/     docs/langref-<version>.html    (`zig std` for the library)
   sql/     docs/sqlite-doc-<version>/
+  rust/    docs/rust   -> the rust-doc package (the book, std)
   c/ go/ forth/ ruby/  docs/README.md     (man 3, go doc, info gforth, ri)
+  java/ ocaml/ julia/ pascal/  docs/README.md   (jshell, man ocaml, ? in julia, Lazarus F1)
 ```
 
 Every language also has a **Zeal** docset (Bash too): open Zeal (`s-m` → "Zeal"), type, and it searches them all. Emacs finds the same docsets through `~/.docsets`, the default folder of `dash-docs`.
 
-**Disk space.** With every language installed it comes to about 4 GB: the Zeal docsets 2.4 GB (Racket's alone is a quarter of that), the `ghc-doc` and `racket-doc` packages 0.9 GB, the Python environment 0.5 GB, the HTML docs under 0.1 GB. A download that crawls (under 10 KB/s for a minute) is skipped with a warning, and the next `vikix docs` tries it again.
+**Disk space.** With every language installed it comes to about 5 GB: the Zeal docsets roughly 3.4 GB (Racket's alone is 0.6 GB; Rust's, Java's and Julia's add about 1 GB), the `ghc-doc`, `racket-doc` and `rust-doc` packages 1.6 GB, the Python environment 0.5 GB, the HTML docs under 0.1 GB. A download that crawls (under 10 KB/s for a minute) is skipped with a warning, and the next `vikix docs` tries it again.
 
 Only installed languages get a folder. `~/dev` is yours: Vikix only adds to it, and never deletes or overwrites anything there except `index.html`.
 

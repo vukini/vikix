@@ -1,0 +1,9 @@
+#!/bin/sh
+# vikix-lazarus — start Lazarus: the docked IDE that 65-languages builds in
+# ~/.lazarus (one window, which StumpWM tiles), or Void's plain one if that
+# build isn't there. Void's startlazarus would pick the plain one.
+# config/applications/lazarus.desktop runs this, so the launcher (Super+d)
+# and opening a .lpi file both come here.
+ide="$HOME/.lazarus/bin/lazarus"
+[ -x "$ide" ] && exec "$ide" "$@"
+exec startlazarus "$@"

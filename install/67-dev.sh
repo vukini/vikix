@@ -93,6 +93,11 @@ have gforth                    && langs+=(forth)
 have ruby                      && langs+=(ruby)
 have sqlite3                   && langs+=(sql)
 have wat2wasm                  && langs+=(wasm)
+have rustc                     && langs+=(rust)
+have javac                     && langs+=(java)
+have ocaml                     && langs+=(ocaml)
+have julia                     && langs+=(julia)
+have fpc                       && langs+=(pascal)
 # shellcheck disable=SC2088  # messages: the ~ is for reading, not expanding
 say "~/dev for: ${langs[*]}"
 has() { case " ${langs[*]} " in *" $1 "*) return 0 ;; esac; return 1; }
@@ -210,11 +215,59 @@ fi
 
 has wasm && docs_dir wasm >/dev/null
 
+if has rust; then
+  docs_dir rust >/dev/null
+  link_doc rust /usr/share/doc/rust/html rust        # the rust-doc package
+  note rust '# Rust docs
+
+- `rust/book/index.html` here — The Rust Programming Language (rust-doc)
+- `rust/std/index.html` here — the standard library
+- `cargo doc --open` — the docs of your project and everything it uses
+- Zeal: the Rust docset'
+fi
+
+if has java; then
+  docs_dir java >/dev/null
+  note java '# Java docs
+
+- `jshell` — try a line of Java at once
+- `javap java.util.List` — what a class offers
+- Zeal: the Java docset (the standard library)'
+fi
+
+if has ocaml; then
+  docs_dir ocaml >/dev/null
+  note ocaml '# OCaml docs
+
+- `man ocaml`, `man ocamlfind`, `dune --help`
+- https://ocaml.org/manual — the manual; https://ocaml.org/docs — tutorials
+- `opam install utop ocaml-lsp-server` — a better REPL, and the language server for the editors'
+fi
+
+if has julia; then
+  docs_dir julia >/dev/null
+  note julia '# Julia docs
+
+- in `julia`, type `?` then a name: the docs of anything loaded
+- `juliaup update` — a newer Julia; `juliaup status` — the ones you have
+- Zeal: the Julia docset'
+fi
+
+if has pascal; then
+  docs_dir pascal >/dev/null
+  note pascal '# Free Pascal and Lazarus docs
+
+- `vikix-lazarus` — the Lazarus IDE; F1 on a word opens its help
+- https://www.freepascal.org/docs.html — the language and library reference
+- `man fpc` — the compiler'
+fi
+
 # --- Zeal docsets ------------------------------------------------------------
 # Each docset's feed lists the same file on several mirrors. A mirror
 # slower than 200 KB/s for 15 seconds is dropped for the next one.
 declare -A docset=([c]=C [python]=Python [lisp]=Common_Lisp [racket]=Racket
-                   [haskell]=Haskell [lua]=Lua [go]=Go [ruby]=Ruby [sql]=SQLite)
+                   [haskell]=Haskell [lua]=Lua [go]=Go [ruby]=Ruby [sql]=SQLite
+                   [rust]=Rust [java]=Java [julia]=Julia)
 run mkdir -p "$ZEAL"
 for lang in "${langs[@]}" bash; do
   if [ "$lang" = bash ]; then name=Bash; else name=${docset[$lang]:-}; fi

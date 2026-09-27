@@ -1,0 +1,3 @@
+# lang-java.list — Java
+openjdk21       # the current long-term release: java, javac, jshell
+gradle          # builds (Maven isn't packaged for Void)

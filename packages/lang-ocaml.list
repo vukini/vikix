@@ -1,0 +1,5 @@
+# lang-ocaml.list — OCaml
+ocaml           # ocaml (the REPL), ocamlc, ocamlopt
+dune            # the build system
+ocaml-findlib   # ocamlfind, which finds libraries
+opam            # the package manager; utop and ocaml-lsp-server come from it (README)

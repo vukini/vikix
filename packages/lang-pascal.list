@@ -1,0 +1,4 @@
+# lang-pascal.list — Free Pascal and Lazarus
+fpc             # the Free Pascal compiler
+fpc-src         # its sources: Lazarus reads them for code completion
+lazarus         # the IDE (Qt5); 65-languages builds it docked, in ~/.lazarus
