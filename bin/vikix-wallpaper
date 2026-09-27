@@ -5,20 +5,24 @@
 #   vikix-wallpaper pick     choose one in rofi, with pictures (Super+m, Wallpaper)
 #   vikix-wallpaper FILE     use FILE from now on
 #   vikix-wallpaper theme    follow the theme again
+#   vikix-wallpaper off      leave the wallpaper alone: for your own tool
+#                            (feh, nitrogen, a script that rotates them)
 #   vikix-wallpaper which    print the picture it would show
 #
 # Unless you choose one, the wallpaper follows the theme: each theme's own
 # is the picture next to its theme file with the same name (themes/void.jpg,
 # or ~/.config/vikix/themes/mine.jpg beside mine.theme), so `vikix theme`
 # changes it too. A theme without a picture gets a plain background in its
-# own colour. Your choice is ~/.config/vikix/wallpaper, a link to the file.
+# own colour. Your choice is ~/.config/vikix/wallpaper, a link to the file;
+# off is ~/.config/vikix/wallpaper-off. Choosing a picture, or theme, ends off.
 #
 # The picker lists the themes' pictures, ~/Pictures/Wallpapers and
-# ~/wallpapers. Put yours in either folder.
+# ~/wallpapers (put yours in either folder); its last entry is off.
 
 VIKIX_DIR=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
 CONFIG=${XDG_CONFIG_HOME:-$HOME/.config}
 CHOICE="$CONFIG/vikix/wallpaper"
+OFF="$CONFIG/vikix/wallpaper-off"
 USER_THEMES="$CONFIG/vikix/themes"
 CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/vikix
 
@@ -59,6 +63,7 @@ which_one() {
 
 show() {
   [ -n "${DISPLAY:-}" ] || return 0
+  [ -e "$OFF" ] && return 0
   feh --no-fehbg --bg-fill "$(which_one)"
 }
 
@@ -67,10 +72,12 @@ choose() {
   file=$(readlink -f "$1") && [ -f "$file" ] || { echo "vikix-wallpaper: no such file: $1" >&2; exit 1; }
   mkdir -p "$(dirname "$CHOICE")"
   ln -sfn "$file" "$CHOICE"
+  rm -f "$OFF"
   show
 }
 
-follow_theme() { rm -f "$CHOICE"; show; }
+follow_theme() { rm -f "$CHOICE" "$OFF"; show; }
+off() { mkdir -p "$(dirname "$OFF")"; : > "$OFF"; }
 
 pictures() {
   for dir in "$VIKIX_DIR/themes" "$USER_THEMES" "$HOME/Pictures/Wallpapers" "$HOME/wallpapers"; do
@@ -86,15 +93,19 @@ pick() {
   # show as its icon. -format i gives back the line number picked.
   n=$(
     {
-      printf 'Follow the theme (%s)\0icon\037%s\n' "$(theme)" "$(picture_of "$(theme)" || plain "$(theme)")"
+      printf 'Theme: %s\0icon\037%s\n' "$(theme)" "$(picture_of "$(theme)" || plain "$(theme)")"
       printf '%s\n' "$list" | while IFS= read -r f; do
         [ -n "$f" ] && printf '%s\0icon\037%s\n' "$(basename "${f%.*}")" "$f"
       done
+      echo 'My own tool'   # off; no picture, since Vikix won't show one
     } | rofi -dmenu -i -show-icons -format i -p wallpaper \
           -theme-str 'window { width: 60%; } listview { columns: 3; lines: 3; flow: horizontal; } element { orientation: vertical; } element-icon { size: 8em; } element-text { horizontal-align: 0.5; }'
   ) || exit 0
+  count=$(printf '%s\n' "$list" | grep -c .)
   if [ "$n" = 0 ]; then
     follow_theme
+  elif [ "$n" -gt "$count" ]; then
+    off
   else
     choose "$(printf '%s\n' "$list" | sed -n "${n}p")"
   fi
@@ -104,7 +115,8 @@ case ${1:-} in
   "")    show ;;
   pick)  pick ;;
   theme) follow_theme ;;
+  off)   off ;;
   which) which_one ;;
-  -*)    echo "usage: vikix-wallpaper [pick | FILE | theme | which]" >&2; exit 2 ;;
+  -*)    echo "usage: vikix-wallpaper [pick | FILE | theme | off | which]" >&2; exit 2 ;;
   *)     choose "$1" ;;
 esac

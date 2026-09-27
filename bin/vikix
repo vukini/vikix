@@ -449,7 +449,8 @@ cmd_theme() {
     say "switch with: vikix theme NAME (or Super+m, Theme); your own go in $USER_THEMES"
     return 0
   fi
-  [ "$name" = --refresh ] && name=$(theme_current)
+  local refresh=0
+  [ "$name" = --refresh ] && { refresh=1; name=$(theme_current); }
   theme_write "$name"
   [ "$DRY_RUN" = 1 ] && return 0
   # The programs that are running pick the new colours up now. Alacritty
@@ -463,7 +464,11 @@ cmd_theme() {
     # ours, open kitty windows change too.
     pkill -USR1 -x kitty 2>/dev/null || true
     # The theme's own wallpaper, unless you chose one (vikix-wallpaper).
-    "$VIKIX_DIR/bin/vikix-wallpaper" || warn "the wallpaper didn't change"
+    # Not on --refresh: that is `vikix update` rewriting the same theme,
+    # and must not replace a picture set some other way.
+    if [ "$refresh" = 0 ]; then
+      "$VIKIX_DIR/bin/vikix-wallpaper" || warn "the wallpaper didn't change"
+    fi
   fi
   say "theme: $name"
 }

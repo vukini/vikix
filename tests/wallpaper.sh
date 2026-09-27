@@ -58,16 +58,31 @@ check "theme should go back to the theme's picture" test "$(wp which)" = "$here/
 # --- the picker ----------------------------------------------------------------------
 ROFI_ANSWER='' wp pick
 check "cancelling the picker shouldn't change anything" test "$(wp which)" = "$here/themes/void.jpg"
-check "the picker should start with the theme's own" grep -qa '^Follow the theme (void)' "$t/offered"
+check "the picker should start with the theme's own" grep -qa '^Theme: void' "$t/offered"
 check "the picker should sort b2 before b10" \
   test "$(grep -an '^b2' "$t/offered" | cut -d: -f1)" -lt "$(grep -an '^b10' "$t/offered" | cut -d: -f1)"
 check "each entry should carry its picture as the icon" grep -qa "mine.icon.$H/Pictures/Wallpapers/mine.png" "$t/offered"
-# The answer is a line number, 0 being "Follow the theme".
+# The answer is a line number, 0 being the theme's own.
 n=$(grep -an '^b10' "$t/offered" | cut -d: -f1)
 ROFI_ANSWER=$((n - 1)) wp pick 2>/dev/null || true
 check "the picked line should become the wallpaper" test "$(wp which)" = "$H/wallpapers/b10.jpg"
 ROFI_ANSWER=0 wp pick
-check "picking Follow the theme should drop the choice" test "$(wp which)" = "$here/themes/void.jpg"
+check "picking the theme's own should drop the choice" test "$(wp which)" = "$here/themes/void.jpg"
+
+# --- off: your own tool sets it -------------------------------------------------------
+wp off
+wp
+check "off should leave the wallpaper alone" test ! -s "$log"
+wp "$H/wallpapers/b2.jpg"
+check "choosing a picture should end off" grep -q "bg-fill $H/wallpapers/b2.jpg" "$log"
+wp off
+wp theme
+check "theme should end off too" grep -q "bg-fill $here/themes/void.jpg" "$log"
+ROFI_ANSWER='' wp pick
+check "the picker should end with the off entry" test "$(tail -n 1 "$t/offered")" = "My own tool"
+ROFI_ANSWER=$(($(wc -l < "$t/offered") - 1)) wp pick
+check "picking the last entry should turn off" test -e "$H/.config/vikix/wallpaper-off"
+wp theme
 
 # --- vikix theme changes it -----------------------------------------------------------
 # With a display set, vikix theme also repaints StumpWM (python3 runs
@@ -81,6 +96,26 @@ stub pkill    "echo \"pkill \$*\" >> $log"
 bash "$here/bin/vikix" theme paper >/dev/null 2>&1 || true
 check "the stand-in didn't get the repaint" grep -q 'python3 .*vikix-apply-theme :paper' "$log"
 check "vikix theme should show the new theme's picture" grep -q "bg-fill $here/themes/paper.jpg" "$log"
+: > "$log"
+bash "$here/bin/vikix" theme --refresh >/dev/null 2>&1 || true
+check "vikix update's --refresh shouldn't touch the wallpaper" test -z "$(grep feh "$log")"
 
-[ "$fail" = 0 ] && echo "wallpaper: follows the theme until you choose; the picker sets what was picked"
+# --- the migration: machines with a wallpaper of their own -----------------------------
+m=$(grep -l 'vikix-wallpaper off' "$here"/migrations/*.sh | head -1)
+migrate() {   # migrate CASE — a fresh made-up home set up as CASE; off or follows?
+  local h="$t/m-$1"; mkdir -p "$h/.stumpwm.d" "$h/.config/vikix"
+  case $1 in
+    fehbg)    touch "$h/.fehbg" ;;
+    userlisp) echo '(run-shell-command "~/bin/wallpaper-rotate &")' > "$h/.stumpwm.d/user.lisp" ;;
+    chosen)   touch "$h/.fehbg"; ln -s /gone.jpg "$h/.config/vikix/wallpaper" ;;
+  esac
+  HOME="$h" XDG_CONFIG_HOME="$h/.config" VIKIX_DIR="$here" bash "$m" >/dev/null
+  [ -e "$h/.config/vikix/wallpaper-off" ] && echo off || echo follows
+}
+check "a ~/.fehbg should turn Vikix's wallpaper off" test "$(migrate fehbg)" = off
+check "a wallpaper command in user.lisp should turn it off" test "$(migrate userlisp)" = off
+check "with nothing of your own it should follow the theme" test "$(migrate none)" = follows
+check "a picture chosen in Vikix should be kept" test "$(migrate chosen)" = follows
+
+[ "$fail" = 0 ] && echo "wallpaper: follows the theme until you choose or turn it off; update leaves it; the migration spots your own"
 exit "$fail"
