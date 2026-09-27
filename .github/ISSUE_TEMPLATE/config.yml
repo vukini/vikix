@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Ask a question
+    url: https://github.com/vukini/vikix/discussions/categories/q-a
+    about: How do I…? Why does it…? Ask in Discussions, where the answer helps the next person too.
+  - name: Suggest an idea
+    url: https://github.com/vukini/vikix/discussions/categories/ideas
+    about: Things you'd like Vikix to do.

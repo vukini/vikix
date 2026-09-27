@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+"""Drive the test VM from the host, for the review agents in .claude/agents.
+
+  .claude/vm start                 start the VM and wait for its guest agent
+  .claude/vm run 'shell command'   run as vukini, in a login shell, on the desktop's display
+  .claude/vm root 'shell command'  run as root
+  .claude/vm shot [file.png]       screenshot of the VM's screen (default /tmp/vm-shot.png)
+  .claude/vm key KEY_LEFTMETA KEY_D   press keys together (Linux key names)
+  .claude/vm type 'some text'      type text into the focused window
+  .claude/vm snapshot NAME         save the VM's state
+  .claude/vm revert NAME           go back to a saved state
+  .claude/vm snapshots             list saved states
+
+VM=void-vm-clone .claude/vm ... uses another domain (default void-vm).
+Commands run through the QEMU guest agent, so they have no terminal:
+nothing interactive, and each one times out after TIMEOUT seconds (default 300).
+"""
+import base64, json, os, subprocess, sys, time
+
+VM = os.environ.get("VM", "void-vm")
+TIMEOUT = int(os.environ.get("TIMEOUT", "300"))
+VIRSH = ["virsh", "-c", "qemu:///system"]
+
+
+def virsh(*args, check=True):
+    r = subprocess.run(VIRSH + list(args), capture_output=True, text=True)
+    if check and r.returncode:
+        sys.exit(f"virsh {' '.join(args)}: {r.stderr.strip()}")
+    return r
+
+
+def agent(cmd):
+    r = virsh("qemu-agent-command", VM, json.dumps(cmd), check=False)
+    if r.returncode:
+        sys.exit(f"guest agent: {r.stderr.strip()} (is the VM running? try: .claude/vm start)")
+    return json.loads(r.stdout)["return"]
+
+
+def run(argv):
+    pid = agent({"execute": "guest-exec",
+                 "arguments": {"path": argv[0], "arg": argv[1:], "capture-output": True}})["pid"]
+    deadline = time.time() + TIMEOUT
+    while True:
+        st = agent({"execute": "guest-exec-status", "arguments": {"pid": pid}})
+        if st["exited"]:
+            break
+        if time.time() > deadline:
+            sys.exit(f"timed out after {TIMEOUT}s (the command is still running in the VM)")
+        time.sleep(0.5)
+    for key, stream in (("out-data", sys.stdout), ("err-data", sys.stderr)):
+        if key in st:
+            stream.write(base64.b64decode(st[key]).decode(errors="replace"))
+    return st.get("exitcode", 1)
+
+
+# Take DISPLAY and XAUTHORITY from the running StumpWM: X isn't always on :0
+# (a stale lock from an unclean shutdown moves it to :1).
+X_ENV = ('p=$(pgrep -xu vukini stumpwm | head -1); '
+         'if [ -n "$p" ]; then eval "$(tr "\\0" "\\n" < /proc/$p/environ | grep -E \'^(DISPLAY|XAUTHORITY)=\' | sed "s/^/export /")"; '
+         'else export DISPLAY=:0 XAUTHORITY=$HOME/.Xauthority; fi; ')
+
+
+def main():
+    if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
+        print(__doc__)
+        return 0
+    cmd, args = sys.argv[1], sys.argv[2:]
+    if cmd == "start":
+        if "running" not in virsh("domstate", VM).stdout:
+            virsh("start", VM)
+        for _ in range(120):
+            if virsh("qemu-agent-command", VM, '{"execute":"guest-ping"}', check=False).returncode == 0:
+                print(f"{VM} is up")
+                return 0
+            time.sleep(1)
+        sys.exit("the guest agent didn't answer within 2 minutes")
+    if cmd == "run":
+        shell = X_ENV + " ".join(args)
+        return run(["/bin/su", "-", "vukini", "-c", shell])
+    if cmd == "root":
+        return run(["/bin/bash", "-lc", " ".join(args)])
+    if cmd == "shot":
+        out = args[0] if args else "/tmp/vm-shot.png"
+        ppm = out + ".ppm"
+        virsh("screenshot", VM, ppm)
+        subprocess.run(["magick", ppm, out], check=True)
+        os.remove(ppm)
+        print(out)
+        return 0
+    if cmd == "key":
+        virsh("send-key", VM, *args)
+        return 0
+    if cmd == "type":
+        return run(["/bin/su", "-", "vukini", "-c",
+                    X_ENV + "xdotool type --delay 30 -- "
+                    + json.dumps(" ".join(args))])
+    if cmd == "snapshot":
+        virsh("snapshot-create-as", VM, args[0])
+        return 0
+    if cmd == "revert":
+        virsh("snapshot-revert", VM, args[0], "--running")
+        return 0
+    if cmd == "snapshots":
+        print(virsh("snapshot-list", VM).stdout)
+        return 0
+    sys.exit(f"unknown command: {cmd} (see .claude/vm --help)")
+
+
+if __name__ == "__main__":
+    sys.exit(main())

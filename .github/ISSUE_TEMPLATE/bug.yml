@@ -1,0 +1,57 @@
+name: Something is broken
+description: Vikix did something wrong, or an install or update failed.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting it. A question rather than a bug? Ask in [Discussions](https://github.com/vukini/vikix/discussions/categories/q-a) instead.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Vikix version
+      description: The output of `vikix version` (or `cat ~/vikix/VERSION`).
+      placeholder: "0.25.3"
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where did it happen?
+      options:
+        - Install, part one
+        - Install, part two
+        - vikix update
+        - On the desktop (StumpWM, keys, bar, themes)
+        - Something else
+    validations:
+      required: true
+  - type: dropdown
+    id: machine
+    attributes:
+      label: Machine
+      options:
+        - A real computer
+        - A VM (virt-manager / KVM)
+        - A VM (VirtualBox)
+        - A VM (something else)
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: |
+        Installs and updates keep a log in `~/.local/state/vikix/logs/`. Paste the end of the newest one:
+        `tail -n 50 "$(ls -t ~/.local/state/vikix/logs/* | head -1)"`
+      render: text
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: Screenshots, changes you made to your own files (`vikix changes` lists them), hardware.
