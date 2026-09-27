@@ -17,7 +17,18 @@ mkdir -p "$t/upstream" "$t/bin"
 ( cd "$t/upstream" && git init -q && for i in 1 2 3; do git_q commit -q --allow-empty -m "c$i"; done )
 git clone -q "$t/upstream" "$t/vikix"
 git -C "$t/vikix" reset -q --hard HEAD~2
-mkdir -p "$t/vikix/bin" && cp "$here/bin/vikix-updates" "$t/vikix/bin/"
+mkdir -p "$t/vikix/bin" "$t/vikix/lib" && cp "$here/bin/vikix-updates" "$here/bin/vikix-firmware" "$t/vikix/bin/"
+cp "$here/lib/common.sh" "$t/vikix/lib/"
+
+# fwupd's stand-in: N devices with a firmware update (never the real one).
+fake_fwupd() {   # fake_fwupd N
+  cat > "$t/bin/fwupdmgr" <<EOF
+#!/bin/sh
+case "\$*" in *get-updates*) python3 -c 'import json; print(json.dumps({"Devices": [{}] * $1}))' ;; esac
+EOF
+  chmod +x "$t/bin/fwupdmgr"
+}
+fake_fwupd 0
 
 fake_xbps() {   # fake_xbps LINES|fail
   if [ "$1" = fail ]; then
@@ -30,14 +41,17 @@ fake_xbps() {   # fake_xbps LINES|fail
 counts() { PATH="$t/bin:$PATH" XDG_STATE_HOME="$t/state" sh "$t/vikix/bin/vikix-updates" >/dev/null; cat "$t/state/vikix/updates"; }
 
 fake_xbps 3
-[ "$(counts)" = "3 2" ] || { echo "FAIL: 3 packages and 2 commits read as: $(counts)"; fail=1; }
+[ "$(counts)" = "3 2 0" ] || { echo "FAIL: 3 packages and 2 commits read as: $(counts)"; fail=1; }
 fake_xbps 0
-[ "$(counts)" = "0 2" ] || { echo "FAIL: no packages read as: $(counts)"; fail=1; }
+[ "$(counts)" = "0 2 0" ] || { echo "FAIL: no packages read as: $(counts)"; fail=1; }
 fake_xbps fail
-[ "$(counts)" = "? 2" ] || { echo "FAIL: a failed package check read as: $(counts)"; fail=1; }
+[ "$(counts)" = "? 2 0" ] || { echo "FAIL: a failed package check read as: $(counts)"; fail=1; }
+fake_xbps 0; fake_fwupd 2
+[ "$(counts)" = "0 2 2" ] || { echo "FAIL: 2 firmware updates read as: $(counts)"; fail=1; }
+fake_fwupd 0
 git -C "$t/vikix" remote set-url origin "$t/nowhere"
 fake_xbps 1
-[ "$(counts)" = "1 ?" ] || { echo "FAIL: an unreachable Vikix read as: $(counts)"; fail=1; }
+[ "$(counts)" = "1 ? 0" ] || { echo "FAIL: an unreachable Vikix read as: $(counts)"; fail=1; }
 
 # An SSH remote is fetched over HTTPS: the check has no terminal, so a
 # key with a passphrase would otherwise always give ?.

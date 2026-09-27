@@ -56,6 +56,8 @@ jobs:
         run: tests/ci.sh examples
       - name: drives
         run: tests/ci.sh drives
+      - name: firmware
+        run: tests/ci.sh firmware
       - name: rofi
         run: tests/ci.sh rofi
       - name: wallpaper

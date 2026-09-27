@@ -93,6 +93,9 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
     ("Bluetooth"           (run-shell-command "blueman-manager"))
     ("Printers"            (run-shell-command "system-config-printer"))
     ("Eject a drive"       (run-shell-command "vikix-drives eject"))
+    ("Firmware updates"    (run-shell-command
+                            (format nil "~a -e sh -c 'vikix firmware update; printf \"\\nEnter closes this window. \"; read x'"
+                                    *vikix-terminal*)))
     ("Screens: arrange (arandr)" (run-shell-command "arandr"))
     ("Screens: save this layout" vikix-screens-save)
     ("Sound (pavucontrol)" (run-shell-command "pavucontrol"))
@@ -195,16 +198,21 @@ couldn't be checked).")
 
 (defparameter *vikix-updates-file*
   (merge-pathnames ".local/state/vikix/updates" (user-homedir-pathname))
-  "Where bin/vikix-updates saves its counts: \"PACKAGES COMMITS\".")
+  "Where bin/vikix-updates saves its counts: \"PACKAGES COMMITS FIRMWARE\".")
 
-(defun vikix-updates-text (packages commits)
-  "The bar's words for PACKAGES and COMMITS (numbers, or NIL when unknown)."
-  (let ((p (and packages (plusp packages)))
-        (c (and commits (plusp commits))))
-    (cond ((and p c) (format nil "updates ~d + Vikix" packages))
-          (p (format nil "updates ~d" packages))
-          (c "Vikix update")
-          (t ""))))
+(defun vikix-updates-text (packages commits &optional firmware)
+  "The bar's words for PACKAGES, COMMITS and FIRMWARE (numbers, or NIL when
+unknown): \"updates 12 + Vikix + firmware\", or any part of it."
+  (let* ((p (and packages (plusp packages)))
+         (c (and commits (plusp commits)))
+         (f (and firmware (plusp firmware)))
+         (text (cond ((and p c) (format nil "updates ~d + Vikix" packages))
+                     (p (format nil "updates ~d" packages))
+                     (c "Vikix update")
+                     (t ""))))
+    (cond ((not f) text)
+          ((string= text "") "firmware")
+          (t (concatenate 'string text " + firmware")))))
 
 (defun vikix-updates-refresh ()
   "Read bin/vikix-updates' file into *vikix-updates*; redraw the bar if it
@@ -214,7 +222,8 @@ changed. Reading a small file is cheap, so this runs with the others."
          (words (and line (split-string line " ")))
          (new (vikix-updates-text
                (ignore-errors (parse-integer (first words)))
-               (ignore-errors (parse-integer (second words))))))
+               (ignore-errors (parse-integer (second words)))
+               (ignore-errors (parse-integer (third words))))))
     (unless (string= new *vikix-updates*)
       (setf *vikix-updates* new)
       (update-all-mode-lines))))

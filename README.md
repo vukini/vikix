@@ -254,7 +254,7 @@ Along the top, in Iosevka like the terminal: on the left the workspaces in use (
 - **rec**, in the theme's alert colour, while the screen is being recorded (`s-R` stops it).
 - **awake**, in the theme's quieter text colour, while keep awake is on (`s-M-a`).
 - **quiet**, in the quieter text colour, while do not disturb is on (`s-M-n`), with the number of notifications waiting: they show when you switch it off.
-- **updates**, in the theme's accent colour, when `vikix update` has something to bring: `updates 12` (Void packages), `updates 12 + Vikix`, or `Vikix update`. Checked a minute after you log in and then every 6 hours, in the background (`vikix-updates`); `vikix update` clears it. Nothing shows when there's nothing, or when it couldn't check (offline).
+- **updates**, in the theme's accent colour, when `vikix update` has something to bring: `updates 12` (Void packages), `updates 12 + Vikix`, or `Vikix update`; and `+ firmware` (or `firmware` alone) when a firmware update is waiting (see [Firmware updates](#firmware-updates)). Checked a minute after you log in and then every 6 hours, in the background (`vikix-updates`); `vikix update` clears it. Nothing shows when there's nothing, or when it couldn't check (offline).
 - **usb**, in the accent colour, while a USB drive is mounted: eject it (`s-C-e`) before pulling it out.
 - **backup 9d**, in the accent colour, once backups are set up and the last one is older than a week (`backup` alone: set up, but none yet). See [Backups](#backups).
 - the network: `wifi` and the network's name (and its signal when it is weak, under 60%), `wired`, or `offline`
@@ -359,7 +359,7 @@ A restore goes into `~/Restored/<time>/`, beside your files, never over them; mo
 | `fonts` | Iosevka, the terminal font. Every variant comes in one 862 MB package, so it waits for part two; until then the terminal uses a plain monospace font, and the bar Noto Sans Mono. Also fonttools, which `vikix-font` uses to take the one Iosevka the bar needs out of that package. |
 | `network` | NetworkManager (`nmtui` for Wi-Fi), with its connection editor |
 | `audio` | PipeWire, WirePlumber (with Bluetooth audio), pamixer, pavucontrol |
-| `laptop` | tlp, acpid, brightnessctl, xprintidle (suspend when idle on battery), Bluetooth (bluez, blueman), autorandr, and the firmware a recent ThinkPad needs: sof-firmware (sound), intel-ucode (from the nonfree repo, enabled by `repos.list`), intel-video-accel |
+| `laptop` | tlp, fwupd (firmware updates), acpid, brightnessctl, xprintidle (suspend when idle on battery), Bluetooth (bluez, blueman), autorandr, and the firmware a recent ThinkPad needs: sof-firmware (sound), intel-ucode (from the nonfree repo, enabled by `repos.list`), intel-video-accel |
 | `printing` | CUPS with its filters, system-config-printer (and cups-pk-helper, so it needs no root), avahi and nss-mdns (finding network printers), ipp-usb (driverless USB printers), and drivers for older printers: gutenprint, foomatic, brlaser |
 | `editors` | Emacs, Neovim, the pdf-tools build deps, the `tree-sitter` CLI (Neovim builds its parsers with it), and the language servers Void packages (ccls, lua-language-server, gopls, efm-langserver) plus nodejs for the npm ones |
 | `apps` | Firefox, PCManFM, USB drives that mount when plugged in (udisks2, udiskie; gvfs-mtp for Android phones), SpaceFM, mpv, nsxiv, zathura, Foliate (EPUB), LibreOffice (Writer, Calc, Impress, Draw, Math), Zeal (offline docs) |
@@ -378,6 +378,22 @@ A restore goes into `~/Restored/<time>/`, beside your files, never over them; mo
 - **Battery.** `vikix-battery` warns at 15% and again, urgently, at 5% (change them with `VIKIX_BATTERY_LOW` / `VIKIX_BATTERY_CRITICAL`). It only starts on a machine with a battery; `vikix-battery --once` shows the charge.
 - **High-resolution screen.** Set `Xft.dpi` in `~/.Xresources` (see the file for values), then log in again.
 - **Which program opens what** is `~/.config/mimeapps.list`, yours after the first copy: Firefox for links, zathura for PDFs, nsxiv for images (through `vikix-image`, so the rest of the folder is a key press away: `n` / `p`, or Enter for thumbnails), mpv for video and audio.
+
+## Firmware updates
+
+Laptop makers publish firmware updates on [LVFS](https://fwupd.org): for a ThinkPad, the BIOS, Thunderbolt, docks and the fingerprint reader. fwupd installs them; `vikix firmware` is the short way in.
+
+```sh
+vikix firmware            # fetch the latest list and show what's waiting
+vikix firmware update     # install it (or s-m → Firmware updates)
+vikix firmware devices    # what fwupd knows about, with each one's version
+```
+
+- **Keep the charger in.** `vikix firmware update` won't start on battery: a firmware update that loses power halfway can leave a device that doesn't start. Don't turn the computer off while it runs.
+- **Some updates finish during a reboot.** The BIOS is one: fwupd asks before restarting, and the screen can stay dark for a minute or two while it installs.
+- **The bar** says `firmware` (or `updates 12 + firmware`) when something is waiting: `vikix-updates` asks LVFS every 6 hours.
+- **Passwords:** none for the check. Signed firmware from LVFS, which is nearly all of it, installs without one; so does the laptop's own firmware (the BIOS), since you're in `wheel` at the machine itself (fwupd's polkit rules). Anything else asks for your password once.
+- **"UEFI ESP partition not detected"**: fwupd didn't find the EFI partition, which BIOS updates are staged on. If it's mounted somewhere unusual, set `EspLocation=` in `/etc/fwupd/fwupd.conf` to that folder.
 
 ## USB drives
 
@@ -538,6 +554,7 @@ vikix eval FORM    # run Lisp in the running StumpWM
 vikix agent        # Claude Code (Super+a)
 vikix snapshot / changes / history / undo   # the history of your files
 vikix backup       # back up your home folder (vikix backup help for the rest)
+vikix firmware     # firmware updates waiting (BIOS, Thunderbolt, ...); vikix firmware update installs them
 ```
 
 ## Tests
@@ -565,6 +582,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `theme` | `vikix theme` writes every program's colours from one theme file and refuses a broken one; the migration hooks old starter configs up to it without touching your own settings |
 | `wallpaper` | `vikix-wallpaper` shows the theme's picture until you choose one, keeps your choice across theme changes, gives a theme without a picture a plain background in its colour, sets what the picker picked, and leaves the wallpaper alone when off or during `vikix update`; the migration turns it off where you had your own |
 | `rofi` | `vikix-rofi` opens the emoji picker and calculator with Vikix's keys, the calculator's Enter copies exactly the answer, and a missing plugin is named in a notification |
+| `firmware` | `vikix firmware update` refuses on battery and goes ahead on the charger or on a desktop, fetches the LVFS list first, and counts the waiting updates for the bar |
 | `drives` | `vikix-drives` finds the mounted drives (a space in a name too), ejects the one picked and says when it's safe or that it's in use, starts a backup on plug-in only for the backup drive and only when one is due, and gives udiskie your own settings when you have them |
 | `examples` | every example in `dev/*/examples/` builds and runs with its Makefile, where its compiler is installed, and every `wordfreq` prints the same `expected.txt` |
 | `bar` | `vikix-net` labels the link and shows the Wi-Fi signal only when it is weak; `vikix-bt` shows Bluetooth only when it is on, with the device and its battery, and never waits on a hung bluetoothd; `vikix-font` gives StumpWM Iosevka Regular, or a stand-in until Iosevka is installed |

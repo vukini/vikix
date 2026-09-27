@@ -1,12 +1,13 @@
 #!/bin/sh
 # vikix-updates — what `vikix update` would bring: Void packages with a newer
-# version, and new Vikix commits. The bar shows it (modeline.lisp).
+# version, and new Vikix commits; and firmware updates waiting on LVFS
+# (`vikix firmware update` installs those). The bar shows it (modeline.lisp).
 #
 #   vikix-updates          check now, print the result, and save it
 #   vikix-updates --watch  check a minute from now, then every 6 hours;
 #                          vikix-session runs this for the whole session
 #
-# The result goes to ~/.local/state/vikix/updates as "PACKAGES COMMITS",
+# The result goes to ~/.local/state/vikix/updates as "PACKAGES COMMITS FIRMWARE",
 # with ? for a count that couldn't be checked (offline, say). Checking
 # takes a few seconds of network, so it happens here, in the background,
 # and the bar only reads the file.
@@ -35,8 +36,10 @@ check() {
   else
     commits='?'
   fi
+  # Devices with a firmware update (0 without fwupd; ? if it couldn't tell).
+  firmware=$("$vikix_dir/bin/vikix-firmware" count 2>/dev/null || echo '?')
   mkdir -p "$state"
-  echo "$packages $commits" > "$out.tmp" && mv "$out.tmp" "$out"
+  echo "$packages $commits $firmware" > "$out.tmp" && mv "$out.tmp" "$out"
 }
 
 if [ "${1:-}" = --watch ]; then

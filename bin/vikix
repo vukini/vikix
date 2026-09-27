@@ -22,6 +22,8 @@
 #
 #   vikix backup [now]  back up your home folder with restic (vikix backup help:
 #                         setup, status, list, restore, check, off)
+#   vikix firmware [update]   firmware updates from LVFS (BIOS, Thunderbolt, ...):
+#                         what's waiting, or install it (on AC power)
 
 set -euo pipefail
 
@@ -502,6 +504,7 @@ main() {
     undo)        cmd_undo "${2:-}" ;;
     theme)       cmd_theme "${2:-}" ;;
     backup)      shift; exec "$VIKIX_DIR/bin/vikix-backup" "$@" ;;
+    firmware)    shift; exec "$VIKIX_DIR/bin/vikix-firmware" "$@" ;;
     help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
     *)           die "unknown command: $1 (try: vikix help)" ;;
   esac

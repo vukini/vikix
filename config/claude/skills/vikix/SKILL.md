@@ -122,7 +122,7 @@ Super+r remove split, Super+u / Super+Shift+u undo / redo a layout
 change, Super+g gaps on/off, Super+Shift+a / Super+Ctrl+a any window on
 any workspace (go there / bring it here), Super+p pointer to the focused
 window, Super+1..9 workspaces, Super+Ctrl+1..9 send the
-window there, Super+m the Vikix menu, Super+Escape lock, Super+Shift+Escape the power menu (lock, suspend, log out, reboot, power off). USB drives: udiskie (started by vikix-session through `vikix-drives start`) mounts them under /run/media/$USER when plugged in; Super+Ctrl+e (`vikix-drives eject`) unmounts and powers one off; the bar says `usb` while one is mounted; plugging in the backup drive runs a due backup. Mounting needs the process to be in the desktop session (polkit): run udisksctl/udiskie from a terminal on the desktop, not over ssh. StumpWM's own
+window there, Super+m the Vikix menu, Super+Escape lock, Super+Shift+Escape the power menu (lock, suspend, log out, reboot, power off). Firmware: `vikix firmware` (fwupd, LVFS) shows waiting updates, `vikix firmware update` installs them and refuses on battery; the bar's updates field adds `firmware`. USB drives: udiskie (started by vikix-session through `vikix-drives start`) mounts them under /run/media/$USER when plugged in; Super+Ctrl+e (`vikix-drives eject`) unmounts and powers one off; the bar says `usb` while one is mounted; plugging in the backup drive runs a due backup. Mounting needs the process to be in the desktop session (polkit): run udisksctl/udiskie from a terminal on the desktop, not over ssh. StumpWM's own
 keys follow the prefix Ctrl+t. Focus follows the mouse (sloppy focus).
 
 ## Checking and fixing

@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# vikix-firmware — firmware updates from LVFS, through fwupd (`vikix firmware`).
+#
+#   vikix firmware           fetch the latest list from LVFS and show what's waiting
+#   vikix firmware update    install it: on AC power only, and some of it (the
+#                            BIOS, say) finishes during the next reboot
+#   vikix firmware devices   what fwupd knows about, and each one's firmware version
+#   vikix firmware count     how many devices have an update (for the bar), or ?
+#
+# Laptop makers, Lenovo among them, publish BIOS, Thunderbolt, dock and
+# fingerprint-reader firmware on LVFS (fwupd.org). fwupd itself starts when
+# asked (D-Bus); there is no service to switch on. The bar says "firmware"
+# when an update is waiting: vikix-updates checks every 6 hours.
+
+set -euo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+POWER=${VIKIX_POWER_SUPPLY:-/sys/class/power_supply}   # a test can point this elsewhere
+
+need_fwupd() {
+  command -v fwupdmgr >/dev/null 2>&1 || die "fwupd isn't installed (it comes with part two: laptop.list)"
+}
+
+# On mains power: a charger that is online, or no battery at all (a desktop).
+on_ac() {
+  local ps battery=0
+  for ps in "$POWER"/*; do
+    [ -r "$ps/type" ] || continue
+    case $(cat "$ps/type") in
+      Mains)   [ "$(cat "$ps/online" 2>/dev/null)" = 1 ] && return 0 ;;
+      Battery) battery=1 ;;
+    esac
+  done
+  [ "$battery" = 0 ]
+}
+
+# --no-unreported-check: don't stop to ask about sending reports to LVFS.
+fw() { fwupdmgr --no-unreported-check "$@"; }
+
+cmd_check() {
+  need_fwupd
+  say "fetching the latest firmware list from LVFS"
+  fw refresh >/dev/null 2>&1 || warn "couldn't fetch the list (offline?); showing what was known"
+  fw get-updates || true          # it exits non-zero when there's nothing
+  say "install with: vikix firmware update (on AC power)"
+}
+
+cmd_count() {
+  command -v fwupdmgr >/dev/null 2>&1 || { echo 0; return 0; }
+  fw refresh >/dev/null 2>&1 || true
+  fw get-updates --json 2>/dev/null |
+    python3 -c 'import json, sys; print(len(json.load(sys.stdin).get("Devices", [])))' 2>/dev/null ||
+    echo '?'
+}
+
+cmd_update() {
+  need_fwupd
+  on_ac || die "plug in the charger first: a firmware update must not lose power halfway"
+  say "installing firmware updates"
+  echo "   Keep the charger in, and don't turn the computer off until it's done."
+  echo "   Some updates (the BIOS, say) finish during the next reboot: fwupd asks"
+  echo "   before restarting, and the screen may stay dark for a minute or two."
+  fw refresh >/dev/null 2>&1 || true
+  fw update || true
+  # The bar's count, now rather than in six hours.
+  "$VIKIX_DIR/bin/vikix-updates" >/dev/null 2>&1 &
+}
+
+case ${1:-} in
+  ""|check) cmd_check ;;
+  update)   cmd_update ;;
+  devices)  need_fwupd; fw get-devices ;;
+  count)    cmd_count ;;
+  help|-h|--help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) die "unknown: vikix firmware $1 (try: vikix firmware help)" ;;
+esac
