@@ -5,6 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Vikix</title>
 <meta name="description" content="Vikix is an opinionated StumpWM desktop for Void Linux: one script on top of a plain Void install, and one command to keep it current.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%231e1e2e'/%3E%3Ctext x='30' y='47' font-family='monospace' font-weight='800' font-size='44' text-anchor='middle' fill='%23cdd6f4'%3Ev%3C/text%3E%3Ccircle cx='50' cy='44' r='5' fill='%2389b4fa'/%3E%3C/svg%3E">
+<link rel="canonical" href="https://vikix.dev/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Vikix">
+<meta property="og:url" content="https://vikix.dev/">
+<meta property="og:title" content="Vikix: Void underneath. StumpWM on top.">
+<meta property="og:description" content="An opinionated, keyboard-driven StumpWM desktop for Void Linux: one script on top of a plain Void install, and one command to keep it current.">
+<meta property="og:image" content="https://vikix.dev/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Vikix: Void underneath. StumpWM on top. Nothing in the way.">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;600;800&family=Schibsted+Grotesk:ital,wght@0,400;0,500;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
@@ -92,6 +104,7 @@ p { margin: 0; }
 .theme-btn:hover { color: var(--fg); border-color: var(--dim); }
 .theme-btn b { color: var(--accent); font-weight: 600; }
 @media (max-width: 760px) { .top nav a.opt { display: none; } }
+@media (max-width: 520px) { .theme-btn .tb-cmd { display: none; } .top .wrap { gap: 12px; } }
 
 /* ---------- hero ---------- */
 .hero { padding-block: 64px 40px; }
@@ -154,7 +167,7 @@ p { margin: 0; }
 }
 .frame.on .tag { color: var(--accent); }
 .frame .empty-note { position: absolute; inset: 0; display: grid; place-items: center; color: var(--subtle); text-align: center; padding: 8px; font-size: .95em; }
-.win { position: absolute; inset: 0; padding: 6px 9px; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; }
+.win { position: absolute; inset: 0; padding: 1.5em 9px 6px; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-start; }
 .win pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: inherit; color: var(--fg); }
 .win.top-align { justify-content: flex-start; }
 .t-p { color: var(--green); } .t-a { color: var(--accent); } .t-d { color: var(--subtle); }
@@ -350,7 +363,7 @@ footer nav { display: flex; gap: 18px; flex-wrap: wrap; }
       <a href="#maker" class="opt">Creator</a>
       <a href="https://github.com/vukini/vikix" class="opt">GitHub</a>
     </nav>
-    <button class="theme-btn" id="themeBtn" type="button" aria-label="Switch theme">vikix theme <b id="themeName">void</b></button>
+    <button class="theme-btn" id="themeBtn" type="button" aria-label="Switch theme"><span class="tb-cmd">vikix theme </span><b id="themeName">void</b></button>
   </div>
 </header>
 
@@ -484,7 +497,7 @@ exec /usr/bin/sshd -D $OPTS
               <td class="void">xbps, written for Void</td>
               <td>pacman</td><td>zypper and RPM</td><td>Portage, built on your machine; an optional binary host</td></tr>
             <tr><th>EXTRA SOFTWARE</th>
-              <td class="void">All in one official repo, reviewed as pull requests. Software with restrictive licences is built locally with <code>xbps-src</code>.</td>
+              <td class="void">All in one official repo, reviewed as pull requests. Software that may not be redistributed is built locally with <code>xbps-src</code>.</td>
               <td>The AUR: build scripts anyone can upload. You read each one, or trust a helper to.</td>
               <td>Community projects on the Open Build Service</td>
               <td>Overlays</td></tr>
@@ -634,7 +647,7 @@ exec /usr/bin/sshd -D $OPTS
 
         <div class="card full">
           <p class="eyebrow">Made for playing with languages</p>
-          <h3>Fourteen languages, their docs offline, and a folder each in <code style="font-size:.95em">~/dev</code>.</h3>
+          <h3>Fifteen languages, their docs offline, and a folder each in <code style="font-size:.95em">~/dev</code>.</h3>
           <p>Each language is a small list file: delete it to drop the language. <code>vikix docs</code> downloads the documentation for each one, and Zeal searches it all with no network.</p>
           <div class="langs">
             <span>C<em>tcc -run</em></span><span>Python<em>JupyterLab</em></span><span>Common Lisp<em>sbcl, ccl</em></span>
@@ -837,7 +850,7 @@ exec /usr/bin/sshd -D $OPTS
   var PROGRAMS = {
     update: { name: "alacritty", script: [
       ["$", "vikix update"],
-      ["o", "<span class='t-a'>==></span> Pulling Vikix <span class='t-d'>0.23.0 → 0.24.0</span>"],
+      ["o", function () { return "<span class='t-a'>==></span> Pulling Vikix <span class='t-d'>→ " + document.getElementById("ver").textContent + "</span>"; }],
       ["o", "<span class='t-a'>==></span> xbps: 12 packages to update"],
       ["o", "   10-packages   <span class='t-p'>ok</span>"],
       ["o", "   20-services   <span class='t-p'>ok</span>"],
