@@ -11,5 +11,6 @@ jq              # read and reshape JSON
 zoxide          # z: cd by a remembered part of a folder's name
 yazi            # y: file manager in the terminal
 lazygit         # lg: git in a terminal UI
+github-cli      # gh: GitHub from the terminal (pull requests, issues, Actions)
 atuin           # Ctrl+R: search all your shell history
 bash-preexec    # lets atuin see each command as it runs

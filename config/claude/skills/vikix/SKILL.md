@@ -7,7 +7,8 @@ description: How the Vikix desktop (Void Linux + StumpWM, vikix.dev) is put toge
 
 This machine runs **Vikix**: an opinionated desktop layer on top of an
 ordinary **Void Linux** install, built around the **StumpWM** window
-manager (written in Common Lisp). It is to Void what Omarchy is to Arch.
+manager (written in Common Lisp). Think of it as Void, supercharged:
+inspired by Omarchy, but its own thing.
 
 Void is not a systemd distribution. Remember:
 

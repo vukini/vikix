@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Vikix is an opinionated desktop layer for **glibc Void Linux** built around **StumpWM**: Omarchy for Void. It is not a distribution; it's a set of bash install stages run on top of a plain Void install, plus the config it puts in place and a `vikix` command that keeps it current. Repo: github.com/vukini/vikix (MIT).
+Vikix is an opinionated desktop layer for **glibc Void Linux** built around **StumpWM**: Void, supercharged. It was inspired by Omarchy but is its own thing: credit Omarchy as the inspiration, but don't call Vikix "Omarchy for Void". It is not a distribution; it's a set of bash install stages run on top of a plain Void install, plus the config it puts in place and a `vikix` command that keeps it current. Repo: github.com/vukini/vikix (MIT).
 
 This folder sits inside an Obsidian vault, but it is a code repo: the vault's note conventions (frontmatter, tags, `_Index_of_*`) don't apply here. The `vikix-*.zip` files are old releases and are gitignored.
 

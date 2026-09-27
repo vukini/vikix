@@ -2,7 +2,7 @@
 
 **Vikix** — [vikix.dev](https://vikix.dev) — is an opinionated desktop layer for **Void Linux**, built around **StumpWM**.
 
-It is to Void what Omarchy is to Arch. It is not a new distribution: it is a script run on top of an ordinary Void install. What you get:
+Think of it as Void, supercharged: inspired by Omarchy, but its own thing. It is not a new distribution: it is a script run on top of an ordinary Void install. What you get:
 
 - a keyboard-driven StumpWM desktop
 - a small set of programs that work together
@@ -331,7 +331,7 @@ A snapshot is taken after every install or `vikix update`, and before every agen
 | `editors` | Emacs, Neovim, the pdf-tools build deps, the `tree-sitter` CLI (Neovim builds its parsers with it), and the language servers Void packages (ccls, lua-language-server, gopls, efm-langserver) plus nodejs for the npm ones |
 | `apps` | Firefox, PCManFM with USB mounting, SpaceFM, mpv, nsxiv, zathura, Foliate (EPUB), LibreOffice (Writer, Calc, Impress, Draw, Math), Zeal (offline docs) |
 | `dev` | base-devel (gcc, make), gdb, valgrind, rlwrap |
-| `cli` | htop, ripgrep, fd, fzf, bat, eza, tmux, tree, jq, zoxide, yazi, lazygit, atuin (with bash-preexec) |
+| `cli` | htop, ripgrep, fd, fzf, bat, eza, tmux, tree, jq, zoxide, yazi, lazygit, gh (GitHub CLI), atuin (with bash-preexec) |
 | `lisp` | SBCL |
 | `lang-*` | One file per language, so a language is one file to keep or delete: C extras (tcc, rr, cmake, meson, ninja, shellcheck, shfmt, the C and POSIX man pages), Python (pip, ipython, pipx, uv), Lisp and Scheme (ccl, racket and its docs, chez-scheme, guile), Haskell (ghc and its docs, cabal, HLS, hlint), Forth (gforth), WebAssembly (wabt, wasmtime), Ruby (with `ri` docs), SQLite (sqlite, litecli, sqlitebrowser), Lua (lua54, LuaJIT), Go, Zig (zig, zls), and `lang-tools` (ctags, entr, hyperfine, tokei, just) |
 

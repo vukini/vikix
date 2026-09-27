@@ -312,6 +312,17 @@ table.cmp { border-collapse: collapse; width: 100%; min-width: 820px; font-size:
 .copy:hover { border-color: var(--accent); }
 @media (max-width: 860px) { .install { grid-template-columns: 1fr; } }
 
+.maker { display: grid; grid-template-columns: auto 1fr auto; gap: 28px; align-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); border-radius: 14px; padding: 32px;
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg)); }
+.maker .mono {
+  width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center;
+  font: 800 1.6rem var(--display); color: var(--bg); background: var(--accent); letter-spacing: -.04em;
+}
+.maker div.txt { display: grid; gap: 8px; max-width: 60ch; }
+.maker p { color: var(--subtle); }
+.maker .cta { justify-content: flex-end; }
+@media (max-width: 860px) { .maker { grid-template-columns: 1fr; gap: 18px; padding: 24px; } .maker .cta { justify-content: flex-start; } }
 footer { border-top: 1px solid var(--line); padding-block: 40px 56px; font-family: var(--mono); font-size: .82rem; color: var(--subtle); }
 footer .wrap { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
 footer nav { display: flex; gap: 18px; flex-wrap: wrap; }
@@ -336,6 +347,7 @@ footer nav { display: flex; gap: 18px; flex-wrap: wrap; }
       <a href="#vikix">Vikix</a>
       <a href="#keys" class="opt">Keys</a>
       <a href="#install">Install</a>
+      <a href="#maker" class="opt">Creator</a>
       <a href="https://github.com/vukini/vikix" class="opt">GitHub</a>
     </nav>
     <button class="theme-btn" id="themeBtn" type="button" aria-label="Switch theme">vikix theme <b id="themeName">void</b></button>
@@ -348,7 +360,7 @@ footer nav { display: flex; gap: 18px; flex-wrap: wrap; }
     <div class="wrap">
       <div class="hero-head">
         <div style="display:grid;gap:18px">
-          <p class="eyebrow">Omarchy for <b>Void Linux</b> · version <span id="ver">0.24.0</span></p>
+          <p class="eyebrow">Void Linux, <b>supercharged</b> · version <span id="ver">0.25.2</span></p>
           <h1><span class="v">Void</span> underneath.<br>StumpWM on top.<br><em>Nothing in the way.</em></h1>
         </div>
         <div class="hero-side">
@@ -693,11 +705,29 @@ exec /usr/bin/sshd -D $OPTS
       </div>
     </div>
   </section>
+
+  <!-- ================= MAKER ================= -->
+  <section id="maker">
+    <div class="wrap">
+      <div class="maker">
+        <span class="mono" aria-hidden="true">V</span>
+        <div class="txt">
+          <p class="eyebrow">Made by</p>
+          <h2 style="font-size:clamp(1.4rem,2.6vw,1.9rem)">Hi, I am The Vikid Truth.</h2>
+          <p>I build Vikix for my own laptop, and share it so you can have it too. I also write on Substack. If you like Vikix, follow me there.</p>
+        </div>
+        <div class="cta">
+          <a class="btn primary" href="https://thevikidtruth.substack.com/">Follow on Substack</a>
+          <a class="btn" href="https://github.com/vukini">@vukini on GitHub</a>
+        </div>
+      </div>
+    </div>
+  </section>
 </main>
 
 <footer>
   <div class="wrap">
-    <span>Vikix · MIT licence · built on <a href="https://voidlinux.org">Void Linux</a> and <a href="https://stumpwm.github.io">StumpWM</a></span>
+    <span>Vikix · made by <a href="https://thevikidtruth.substack.com/">The Vikid Truth</a> · MIT licence · built on <a href="https://voidlinux.org">Void Linux</a> and <a href="https://stumpwm.github.io">StumpWM</a> · inspired by <a href="https://omarchy.org">Omarchy</a></span>
     <nav><a href="https://github.com/vukini/vikix">Source</a><a href="https://github.com/vukini/vikix/blob/main/README.md">README</a><a href="https://docs.voidlinux.org">Void handbook</a></nav>
   </div>
 </footer>
