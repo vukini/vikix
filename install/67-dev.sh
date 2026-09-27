@@ -87,6 +87,9 @@ have cc                        && langs+=(c)
 have python3                   && langs+=(python)
 { have sbcl || have ccl; }     && langs+=(lisp)
 have racket                    && langs+=(racket)
+{ have scheme || have guile; } && langs+=(scheme)
+# pil lives in ~/.local/bin (65-languages), which may not be on PATH yet.
+{ have pil || [ -x "$HOME/.local/bin/pil" ]; } && langs+=(picolisp)
 have ghc                       && langs+=(haskell)
 have lua5.4                    && langs+=(lua)
 have go                        && langs+=(go)
@@ -182,6 +185,22 @@ if has zig; then
 
 - `langref-*.html` here — the language reference
 - `zig std` — the standard library docs, served locally in the browser'
+fi
+
+if has scheme; then
+  docs_dir scheme >/dev/null
+  note scheme '# Scheme docs
+
+- https://www.scheme.com/tspl4/ — The Scheme Programming Language, by the author of Chez Scheme
+- `guile` then `,help` — Guile has its own manual: `info guile`'
+fi
+
+if has picolisp; then
+  docs_dir picolisp >/dev/null
+  note picolisp '# PicoLisp docs
+
+- https://software-lab.de/doc/ref.html — the reference, every function
+- https://software-lab.de/doc/tut.html — the tutorial'
 fi
 
 if has forth; then

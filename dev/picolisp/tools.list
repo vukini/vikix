@@ -1,0 +1,3 @@
+# tools.list — the tools ~/dev/picolisp/README.md lists, with their path and version.
+# command | how to ask its version | what it is for
+pil | pil -version -bye | PicoLisp: `pil x.l`, or `pil +` for a REPL with debugging on (built by Vikix in ~/.local/opt/picolisp)

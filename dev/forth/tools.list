@@ -1,0 +1,4 @@
+# tools.list — the tools ~/dev/forth/README.md lists, with their path and version.
+# command | how to ask its version | what it is for
+gforth      | gforth --version 2>&1 | GNU Forth: `gforth` for a prompt, `gforth x.fs` runs a file
+gforth-fast | -                     | the same, faster, with fewer checks

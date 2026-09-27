@@ -1,0 +1,5 @@
+# tools.list — the tools ~/dev/racket/README.md lists, with their path and version.
+# command | how to ask its version | what it is for
+racket   | racket --version | runs programs and gives a REPL: `racket x.rkt`, `racket`
+raco     | -                | Racket's command tool: `raco make` compiles, `raco exe` makes a program, `raco pkg install` adds packages
+drracket | -                | DrRacket, the IDE made for learning: `drracket x.rkt`

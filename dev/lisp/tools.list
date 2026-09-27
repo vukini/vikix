@@ -1,0 +1,6 @@
+# tools.list — the tools ~/dev/lisp/README.md lists, with their path and version.
+# command | how to ask its version | what it is for
+sbcl   | sbcl --version   | Steel Bank Common Lisp, the main one: `sbcl` for a REPL, `sbcl --script x.lisp`
+ccl    | ccl --version    | Clozure Common Lisp, a second implementation: try the same code in both
+rlwrap | rlwrap --version | gives sbcl's REPL history and arrow keys (Vikix's `sbcl` alias uses it)
+emacs  | -                | Emacs with SLIME: `M-x slime` is the full Lisp environment (REPL, inspector, debugger)

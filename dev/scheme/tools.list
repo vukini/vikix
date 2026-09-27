@@ -1,0 +1,4 @@
+# tools.list — the tools ~/dev/scheme/README.md lists, with their path and version.
+# command | how to ask its version | what it is for
+scheme | scheme --version 2>&1 | Chez Scheme, very fast: `scheme` for a REPL, `scheme --script x.ss`
+guile  | guile --version       | GNU Guile, the GNU project's Scheme: `guile x.scm`
