@@ -107,7 +107,7 @@ agent, Super+x an Emacs window, Super+c clipboard history (clipmenu),
 Super+. emoji picker and Super+= calculator (vikix-rofi: rofi-emoji,
 rofi-calc with qalculate; Enter copies the answer), Super+n / Super+Shift+n the last
 notification again / pick an earlier one, Super+Ctrl+n close all,
-Super+Alt+n do not disturb (dunstctl; the bar says quiet), Super+Alt+a keep
+Super+Alt+n do not disturb (dunstctl; the bar says quiet; the bar also shows `bt`, or `bt DEVICE 80%`, while Bluetooth is on, from bin/vikix-bt), Super+Alt+a keep
 awake (vikix-idle; no lock, dark screen or suspend; the bar says awake),
 Super+Alt+l night light on/off (vikix-nightlight, gammastep; times and
 colours in the user's ~/.config/gammastep/config.ini; off lasts across logins),

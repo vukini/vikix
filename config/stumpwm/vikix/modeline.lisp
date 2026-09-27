@@ -10,6 +10,7 @@
 ;;;;   %U   updates waiting (bin/vikix-updates checks every 6 hours)
 ;;;;   %A   backup 9d: the last backup is older than the reminder's days
 ;;;;   %O   network: Wi-Fi name and signal, wired, or offline
+;;;;   %T   Bluetooth: bt when on, and the connected device (bin/vikix-bt)
 ;;;;   %V   volume (only when there is a sound server)
 ;;;;   %E   battery: "bat 84%", "+" while charging; nothing when full on the charger
 ;;;;   %d   date and time
@@ -65,6 +66,13 @@ NetworkManager."
       ""
       (format nil "~a  " *vikix-net*)))
 
+(defun vikix-mode-line-bt (ml)
+  "Bluetooth, from *vikix-bt* (commands.lisp); nothing when it's off or absent."
+  (declare (ignore ml))
+  (if (string= *vikix-bt* "")
+      ""
+      (format nil "~a  " *vikix-bt*)))
+
 (defun vikix-mode-line-updates (ml)
   "Waiting updates, from *vikix-updates* (commands.lisp), in the accent
 colour; nothing when there are none."
@@ -104,11 +112,12 @@ colour; nothing while backups are recent, or not set up."
       (format nil "^(:push)^(:fg \"~a\")awake^(:pop)  " (vikix-colour :subtle))
       ""))
 
-;; %J, %V, %O, %U, %A, %Q, %K, %R and %E are free: neither StumpWM nor its
+;; %J, %V, %O, %T, %U, %A, %Q, %K, %R and %E are free: neither StumpWM nor its
 ;; contrib modules use them.
 (add-screen-mode-line-formatter #\J 'vikix-mode-line-groups)
 (add-screen-mode-line-formatter #\V 'vikix-mode-line-volume)
 (add-screen-mode-line-formatter #\O 'vikix-mode-line-net)
+(add-screen-mode-line-formatter #\T 'vikix-mode-line-bt)
 (add-screen-mode-line-formatter #\U 'vikix-mode-line-updates)
 (add-screen-mode-line-formatter #\A 'vikix-mode-line-backup)
 (add-screen-mode-line-formatter #\Q 'vikix-mode-line-quiet)
@@ -119,6 +128,7 @@ colour; nothing while backups are recent, or not set up."
 (defun vikix-bar-refresh ()
   (vikix-volume-refresh)
   (vikix-net-refresh)
+  (vikix-bt-refresh)
   (vikix-updates-refresh)
   (vikix-backup-refresh)
   (vikix-quiet-refresh)
@@ -142,7 +152,7 @@ colour; nothing while backups are recent, or not set up."
       ;; The window's number and title. StumpWM's default adds * + - marks,
       ;; which say again what the accent colour already shows.
       *window-format*        "%n %30t"
-      *screen-mode-line-format* "%J  %W^>%R%K%Q%U%A%O%V%E%d")
+      *screen-mode-line-format* "%J  %W^>%R%K%Q%U%A%O%T%V%E%d")
 
 ;; Turn the bar on for every screen and head (monitor).
 (dolist (screen *screen-list*)

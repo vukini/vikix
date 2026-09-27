@@ -148,8 +148,12 @@ manager."
 there is no sound server to ask.")
 
 (defvar *vikix-net* ""
-  "The network link as bin/vikix-net puts it (\"VID 62%\", \"wired\",
+  "The network link as bin/vikix-net puts it (\"wifi VID\", \"wired\",
 \"offline\"), or \"\" when NetworkManager isn't running.")
+
+(defvar *vikix-bt* ""
+  "Bluetooth as bin/vikix-bt puts it (\"bt\", \"bt WH-1000XM4 80%\"), or \"\"
+when there is none or it's off.")
 
 (defun vikix-volume-refresh ()
   "Read the volume into *vikix-volume*, and redraw the bar if it changed."
@@ -163,6 +167,13 @@ there is no sound server to ask.")
   (let ((new (vikix-shell-line "vikix-net")))
     (unless (string= new *vikix-net*)
       (setf *vikix-net* new)
+      (update-all-mode-lines))))
+
+(defun vikix-bt-refresh ()
+  "Read Bluetooth into *vikix-bt*, and redraw the bar if it changed."
+  (let ((new (vikix-shell-line "vikix-bt")))
+    (unless (string= new *vikix-bt*)
+      (setf *vikix-bt* new)
       (update-all-mode-lines))))
 
 (defvar *vikix-updates* ""

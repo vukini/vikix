@@ -256,6 +256,7 @@ Along the top, in Iosevka like the terminal: on the left the workspaces in use (
 - **updates**, in the theme's accent colour, when `vikix update` has something to bring: `updates 12` (Void packages), `updates 12 + Vikix`, or `Vikix update`. Checked a minute after you log in and then every 6 hours, in the background (`vikix-updates`); `vikix update` clears it. Nothing shows when there's nothing, or when it couldn't check (offline).
 - **backup 9d**, in the accent colour, once backups are set up and the last one is older than a week (`backup` alone: set up, but none yet). See [Backups](#backups).
 - the network: `wifi` and the network's name (and its signal when it is weak, under 60%), `wired`, or `offline`
+- Bluetooth, when it's on: `bt`, or the connected device and its battery, `bt WH-1000XM4 80%` (`+1` for another); nothing when it's off or there is none (`vikix-bt`). `s-m` → Bluetooth pairs and connects
 - the volume: `vol 40%`
 - the battery, on a laptop: `bat 84%`, with a `+` while charging; nothing when it is full on the charger
 - the date and time
@@ -542,7 +543,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `theme` | `vikix theme` writes every program's colours from one theme file and refuses a broken one; the migration hooks old starter configs up to it without touching your own settings |
 | `wallpaper` | `vikix-wallpaper` shows the theme's picture until you choose one, keeps your choice across theme changes, gives a theme without a picture a plain background in its colour, sets what the picker picked, and leaves the wallpaper alone when off or during `vikix update`; the migration turns it off where you had your own |
 | `rofi` | `vikix-rofi` opens the emoji picker and calculator with Vikix's keys, the calculator's Enter copies exactly the answer, and a missing plugin is named in a notification |
-| `bar` | `vikix-net` labels the link and shows the Wi-Fi signal only when it is weak; `vikix-font` gives StumpWM Iosevka Regular, or a stand-in until Iosevka is installed |
+| `bar` | `vikix-net` labels the link and shows the Wi-Fi signal only when it is weak; `vikix-bt` shows Bluetooth only when it is on, with the device and its battery, and never waits on a hung bluetoothd; `vikix-font` gives StumpWM Iosevka Regular, or a stand-in until Iosevka is installed |
 | `home` | `40-config` and `60-login` change nothing when run again, and `vikix undo` puts your files back (and undoing again brings the change back) |
 | `update` | `vikix update` runs the new version's steps after it pulls, logs the whole run, carries on past a failed stage, naming it at the end, and pulls a checkout with an SSH remote over HTTPS |
 | `packages` | Every name in `packages/*.list` is a real Void package |

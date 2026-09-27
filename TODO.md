@@ -4,7 +4,7 @@ What's left to add or clean up, most valuable first within each section. Delete 
 
 ## Features
 
-1. **Bluetooth in the bar.**
+Nothing planned right now.
 
 ## To look into
 

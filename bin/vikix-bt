@@ -1,0 +1,34 @@
+#!/bin/sh
+# vikix-bt — Bluetooth as one short line, for the mode line.
+#
+#   bt                  on, nothing connected
+#   bt WH-1000XM4 80%   a device connected: its name, and its battery if it says
+#   bt Buds +1          and another one besides
+#
+# Prints nothing when there is no Bluetooth, when it's switched off, or when
+# bluetoothd isn't answering, so the bar leaves the field out. Asks bluez
+# through bluetoothctl, each question with a time limit: a hung bluetoothd
+# must not hold up the bar.
+
+ask() { timeout 2 bluetoothctl "$@" 2>/dev/null; }
+
+command -v bluetoothctl >/dev/null 2>&1 || exit 0
+ask show | grep -q 'Powered: yes' || exit 0
+
+# "Device AA:BB:CC:DD:EE:FF Name with spaces", one line per connected device.
+connected=$(ask devices Connected | grep '^Device ')
+if [ -z "$connected" ]; then
+  echo bt
+  exit 0
+fi
+
+first=$(printf '%s\n' "$connected" | head -n 1)
+mac=$(printf '%s\n' "$first" | cut -d' ' -f2)
+name=$(printf '%s\n' "$first" | cut -d' ' -f3- | cut -c1-16)
+battery=$(ask info "$mac" | sed -n 's/.*Battery Percentage: .*(\([0-9]*\)).*/\1/p' | head -n 1)
+more=$(($(printf '%s\n' "$connected" | wc -l) - 1))
+
+line="bt $name"
+[ -n "$battery" ] && line="$line $battery%"
+[ "$more" -gt 0 ] && line="$line +$more"
+printf '%s\n' "$line"

@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # tests/bar.sh — what the bar shows and draws with: vikix-net labels the
-# link (and hides a strong signal), and vikix-font gives StumpWM one font
-# file, Iosevka when it can be had, a stand-in until then.
+# link (and hides a strong signal), vikix-bt shows Bluetooth only when it's
+# on, and vikix-font gives StumpWM one font file, Iosevka when it can be
+# had, a stand-in until then.
 #
-# nmcli and the fonts are stand-ins in a made-up folder; nothing real is
-# asked or written.
+# nmcli, bluetoothctl and the fonts are stand-ins in a made-up folder;
+# nothing real is asked or written.
 
 set -euo pipefail
 here=$(cd "$(dirname "$0")/.." && pwd)
@@ -34,6 +35,44 @@ check "a weak signal should show its strength" test "$(net 42)" = "wifi Cafe:Two
 check "a cable should say wired" test "$(net none ethernet:connected)" = wired
 check "nothing should say offline" test "$(net none ethernet:unavailable)" = offline
 [ "$fail" = 0 ] && echo "bar: vikix-net labels Wi-Fi, and shows the signal only when it is weak"
+
+# --- vikix-bt ---------------------------------------------------------------------
+# bt POWERED DEVICES... — what vikix-bt prints when Bluetooth is on (yes) or
+# off (no), with these devices connected, each "MAC NAME" or "MAC NAME BATTERY".
+# POWERED "hang" is a bluetoothd that never answers.
+bt() {
+  local powered=$1; shift
+  {
+    echo '#!/bin/sh'
+    [ "$powered" = hang ] && echo 'exec sleep 30'
+    echo 'case "$1" in'
+    echo "  show) echo 'Controller 00:11:22:33:44:55 (public)'; echo '	Powered: $powered' ;;"
+    printf '  devices) '
+    for d in "$@"; do printf "echo 'Device %s'; " "$(echo "$d" | cut -d'|' -f1)"; done
+    echo ':;;'
+    echo '  info) case "$2" in'
+    for d in "$@"; do
+      mac=$(echo "$d" | cut -d' ' -f1); pct=$(echo "$d" | cut -s -d'|' -f2)
+      [ -n "$pct" ] && echo "    $mac) printf '\tBattery Percentage: 0x%x (%s)\n' $pct $pct ;;"
+    done
+    echo '  esac ;;'
+    echo 'esac'
+  } > "$t/bin/bluetoothctl"
+  chmod +x "$t/bin/bluetoothctl"
+  PATH="$t/bin:$PATH" sh "$here/bin/vikix-bt"
+}
+check "Bluetooth off should show nothing" test -z "$(bt no)"
+check "on with nothing connected should say bt" test "$(bt yes)" = bt
+check "a device with a battery should show its name and battery" \
+  test "$(bt yes 'AA:BB:CC:DD:EE:01 WH-1000XM4|80')" = "bt WH-1000XM4 80%"
+check "a second device should show as +1" \
+  test "$(bt yes 'AA:BB:CC:DD:EE:01 Buds' 'AA:BB:CC:DD:EE:02 Mouse|40')" = "bt Buds +1"
+check "a long name should be cut to 16 characters" \
+  test "$(bt yes 'AA:BB:CC:DD:EE:01 A Very Long Headphone Name')" = "bt A Very Long Head"
+start=$(date +%s)
+check "a hung bluetoothd should show nothing" test -z "$(bt hang)"
+check "a hung bluetoothd should not hold the bar up" test $(($(date +%s) - start)) -lt 6
+[ "$fail" = 0 ] && echo "bar: vikix-bt shows Bluetooth when it's on, the device and its battery; nothing when off"
 
 # --- vikix-font -----------------------------------------------------------------
 font() {
