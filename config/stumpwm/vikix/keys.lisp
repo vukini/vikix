@@ -70,6 +70,7 @@
     ("s-m"    "vikix-menu"      "Vikix menu")
     ("s-F1"   "vikix-keys"      "These keys")
     ("s-ESC"  "exec vikix-lock"  "Lock the screen")
+    ("s-S-ESC" "vikix-power"     "Power: lock, suspend, log out, reboot, power off")
     ("s-M-a"  "vikix-awake"      "Keep awake on/off: no lock, dark screen or suspend")
     ("s-M-l"  "vikix-nightlight" "Night light on/off: a warmer screen in the evening")
     ;; Screenshots: the modifier picks what, Shift keeps it in a file

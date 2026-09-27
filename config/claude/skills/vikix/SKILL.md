@@ -122,7 +122,7 @@ Super+r remove split, Super+u / Super+Shift+u undo / redo a layout
 change, Super+g gaps on/off, Super+Shift+a / Super+Ctrl+a any window on
 any workspace (go there / bring it here), Super+p pointer to the focused
 window, Super+1..9 workspaces, Super+Ctrl+1..9 send the
-window there, Super+m the Vikix menu, Super+Escape lock. StumpWM's own
+window there, Super+m the Vikix menu, Super+Escape lock, Super+Shift+Escape the power menu (lock, suspend, log out, reboot, power off). StumpWM's own
 keys follow the prefix Ctrl+t. Focus follows the mouse (sloppy focus).
 
 ## Checking and fixing

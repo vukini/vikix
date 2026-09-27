@@ -816,14 +816,14 @@ exec /usr/bin/sshd -D $OPTS
     [["s-C-a"], "Any window on any workspace: bring it here"],
     [["s-1…9"], "Go to a workspace"], [["s-C-1…9"], "Send the window to a workspace"],
     [["s-m"], "Vikix menu: themes, network, screens, update, power"], [["s-F1"], "Every key, searchable"],
-    [["s-Escape"], "Lock the screen"], [["s-M-a"], "Keep awake: no lock or suspend while you present"],
+    [["s-Escape"], "Lock the screen"], [["s-S-Escape"], "Power: lock, suspend, log out, reboot, power off"], [["s-M-a"], "Keep awake: no lock or suspend while you present"],
     [["s-M-l"], "Night light on and off"], [["Print"], "Screenshot an area to the clipboard"],
     [["C-Print"], "Screenshot the focused window"], [["s-Print"], "Screenshot the whole screen"],
     [["s-R"], "Record an area or a window; press again to stop"]
   ];
   function kbd(k) {
     return k.split("-").map(function (p, i, a) {
-      var name = { s: "Super", C: "Ctrl", M: "Alt" }[p];
+      var name = { s: "Super", C: "Ctrl", M: "Alt", S: "Shift" }[p];
       return "<kbd>" + ((i < a.length - 1 && name) ? name : p) + "</kbd>";
     }).join("+");
   }

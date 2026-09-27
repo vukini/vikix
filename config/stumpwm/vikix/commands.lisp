@@ -95,22 +95,35 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
     ("Screens: arrange (arandr)" (run-shell-command "arandr"))
     ("Screens: save this layout" vikix-screens-save)
     ("Sound (pavucontrol)" (run-shell-command "pavucontrol"))
-    ("Lock"                (run-shell-command "vikix-lock"))
+    ("Power: lock, suspend, log out, reboot, power off" vikix-power))
+  "Each entry: a label, then what to do — a command name, or a Lisp form.")
+
+(defparameter *vikix-power-menu*
+  ;; Lock first: the harmless one is where an Enter pressed by mistake lands.
+  '(("Lock"                (run-shell-command "vikix-lock"))
     ;; Through elogind, so no sudo. xss-lock locks the screen before a suspend.
     ("Suspend"             (run-shell-command "loginctl suspend"))
     ("Log out"             quit)
     ("Reboot"              (run-shell-command "loginctl reboot"))
     ("Power off"           (run-shell-command "loginctl poweroff")))
-  "Each entry: a label, then what to do — a command name, or a Lisp form.")
+  "The power menu (Super+Shift+Escape), in the same form as *vikix-menu*.")
 
-(defcommand vikix-menu () ()
-  "Pick from the Vikix menu."
-  (let ((choice (select-from-menu (current-screen) *vikix-menu* "Vikix: ")))
+(defun vikix-run-menu (entries prompt)
+  "Pick from ENTRIES, a menu like *vikix-menu*, and do what the choice says."
+  (let ((choice (select-from-menu (current-screen) entries prompt)))
     (when choice
       (let ((action (second choice)))
         (if (symbolp action)
             (run-commands (string-downcase (symbol-name action)))
             (eval action))))))
+
+(defcommand vikix-menu () ()
+  "Pick from the Vikix menu."
+  (vikix-run-menu *vikix-menu* "Vikix: "))
+
+(defcommand vikix-power () ()
+  "Lock, suspend, log out, reboot or power off."
+  (vikix-run-menu *vikix-power-menu* "Power: "))
 
 ;;; Volume and network, for the bar (modeline.lisp). Each is read into a
 ;;; variable by a timer rather than on every redraw, because reading it

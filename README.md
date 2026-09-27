@@ -232,9 +232,10 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 | `s-p` | Move the mouse pointer to the focused window |
 | `s-1`…`s-9` | Go to a workspace |
 | `s-C-1`…`s-C-9` | Send the window to a workspace |
-| `s-m` | Vikix menu: key help, all commands, "what does a key do?", themes, network, printers, backup now, screens, update, suspend / reboot / power off |
+| `s-m` | Vikix menu: key help, all commands, "what does a key do?", themes, network, printers, backup now, screens, update, and Power (the same as `s-S-Escape`) |
 | `s-F1` | Every key, searchable. Pick one to run it. |
 | `s-Escape` | Lock the screen |
+| `s-S-Escape` | Power: lock, suspend, log out, reboot, power off (Lock first, so a stray Enter is harmless) |
 | `s-M-a` | Keep awake on/off: no lock, dark screen or suspend while you watch or present (the bar says `awake`) |
 | `s-M-l` | Night light on/off: a warmer screen in the evening |
 | `Print` | Screenshot an area (drag one out, or click a window) to the clipboard |
@@ -369,7 +370,7 @@ A restore goes into `~/Restored/<time>/`, beside your files, never over them; mo
 - **Docking.** Arrange the monitors once with `s-m` → *Screens: arrange*, then `s-m` → *Screens: save this layout* and call it `default` (or `desk`, `home` …). autorandr re-applies the matching layout whenever those monitors are plugged in, and at login.
 - **Away from the keyboard.** After 10 minutes the screen locks, after 11 it goes dark, and after 20, on battery only, the computer suspends. Change the minutes in `~/.config/vikix/idle` (`LOCK=10`, `SCREEN_OFF=11`, `SUSPEND=20`, and `SUSPEND=0` never suspends), then log in again. **Keep awake** (`s-M-a`, or `s-m` → Keep awake) stops all three for a film or a talk; the bar says `awake`, and every login starts with it off.
 - **Night light.** From 19:00 the screen warms over an hour, and from 6:00 it cools again (gammastep). The times and colours are in `~/.config/gammastep/config.ini`: by the clock, not the sun, so no location is needed. `s-M-l` (or `s-m` → Night light) switches it off, and it stays off at the next login until you switch it on.
-- **Suspend** from the `s-m` menu or by closing the lid; the screen locks first. **Reboot** and **Power off** are there too, through elogind, no sudo.
+- **Suspend** from the power menu (`s-S-Escape`, or `s-m` → Power) or by closing the lid; the screen locks first. **Log out**, **Reboot** and **Power off** are there too, through elogind, no sudo.
 - **Touchpad**: tap to click, natural scrolling, off while typing (`/etc/X11/xorg.conf.d/40-libinput.conf`, installed by `55-hardware`).
 - **Battery.** `vikix-battery` warns at 15% and again, urgently, at 5% (change them with `VIKIX_BATTERY_LOW` / `VIKIX_BATTERY_CRITICAL`). It only starts on a machine with a battery; `vikix-battery --once` shows the charge.
 - **High-resolution screen.** Set `Xft.dpi` in `~/.Xresources` (see the file for values), then log in again.
