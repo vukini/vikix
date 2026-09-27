@@ -25,6 +25,9 @@
 #     ~/.Xresources              text size (Xft.dpi) for high-resolution screens
 #     ~/.config/vikix/backup-exclude   what vikix backup leaves out
 #
+#   Made from the checkout (again when it changes)
+#     ~/.local/share/info/vikix.info   the guides in docs/, as an Info manual
+#
 # Last, a snapshot of your files (config/yours.list), so from here on
 # every change to them can be seen and undone: vikix changes, vikix undo.
 #
@@ -88,6 +91,29 @@ copy_user "$C/backup/exclude"             "$HOME/.config/vikix/backup-exclude"
 # The theme's files for the terminals, rofi, dunst and the lock screen,
 # written again from the saved theme, so a Vikix update reaches them.
 "$VIKIX_DIR/bin/vikix" theme --refresh
+
+# --- The guides as an Info manual -------------------------------------------
+# docs/ as ~/.local/share/info/vikix.info, for Emacs (C-h i) and `info vikix`,
+# which find it through INFOPATH (set by vikix-session and vikix.bash).
+# Written again only when the guides changed.
+info_dir="$HOME/.local/share/info"
+if ! command -v makeinfo >/dev/null || ! command -v install-info >/dev/null; then
+  warn "makeinfo is missing (the texinfo package), so no Info manual of the guides"
+elif [ "$DRY_RUN" = 1 ]; then
+  printf '   would run: %s\n' "build $info_dir/vikix.info from docs/ (lib/md2texi.py, makeinfo)"
+else
+  tmp=$(mktemp -d)
+  if python3 "$VIKIX_DIR/lib/md2texi.py" "$VIKIX_DIR/docs" > "$tmp/vikix.texi" &&
+     makeinfo --no-split -o "$tmp/vikix.info" "$tmp/vikix.texi" 2>"$tmp/errors"; then
+    mkdir -p "$info_dir"
+    cmp -s "$tmp/vikix.info" "$info_dir/vikix.info" || cp "$tmp/vikix.info" "$info_dir/vikix.info"
+    install-info --info-dir="$info_dir" "$info_dir/vikix.info" 2>/dev/null ||
+      warn "couldn't add the Vikix manual to $info_dir/dir"
+  else
+    warn "couldn't build the Info manual of the guides: $(head -3 "$tmp/errors")"
+  fi
+  rm -rf "$tmp"
+fi
 
 say "config in place"
 

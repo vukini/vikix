@@ -34,8 +34,8 @@ jobs:
       - uses: actions/checkout@v5
       - name: lint
         run: tests/ci.sh lint
-      - name: sbcl, to read the Lisp files, and restic for the backup test
-        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends sbcl restic
+      - name: sbcl, to read the Lisp files, restic for the backup test, texinfo for the info test
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends sbcl restic texinfo
       - name: lisp
         run: tests/ci.sh lisp
       - name: battery
@@ -74,6 +74,8 @@ jobs:
         run: tests/ci.sh nightlight
       - name: update
         run: tests/ci.sh update
+      - name: info
+        run: tests/ci.sh info
 
   void:
     runs-on: ubuntu-latest

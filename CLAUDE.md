@@ -8,7 +8,7 @@ This folder sits inside an Obsidian vault, but it is a code repo: the vault's no
 
 `site/index.html` is the website, vikix.dev: one static page, no build, published by `.github/workflows/pages.yml` on each push that touches `site/` or `VERSION` (the workflow writes `VERSION` into the page). When a release adds something a visitor would care about (a key, a feature card), update the page in the same commit.
 
-`docs/` holds the user's guides (the map of files, how it fits together, customizing, fixing). They name real paths, keys, variables and commands: when a change moves or renames one, update the guide in the same commit.
+`docs/` holds the user's guides (the map of files, how it fits together, customizing, fixing). They name real paths, keys, variables and commands: when a change moves or renames one, update the guide in the same commit. `40-config` also makes them an Info manual, `~/.local/share/info/vikix.info` (`info vikix`, Emacs `C-h i`), through `lib/md2texi.py`, which knows only the Markdown the guides use; `tests/info.sh` fails on a broken link, a page missing from `docs/README.md`'s table, or a makeinfo warning.
 
 `TODO.md` lists planned features and cleanups. Read it when asked what's next, and remove an item in the commit that ships it.
 
@@ -17,7 +17,7 @@ This folder sits inside an Obsidian vault, but it is a code repo: the vault's no
 No build step. The tests are scripts in `tests/`, and `.github/workflows/test.yml` runs the same scripts on GitHub (on each push and weekly):
 
 ```sh
-tests/run.sh                  # about two minutes: lint, lisp, battery, home, services, backup (with restic), image, theme, bar, rofi, wallpaper, examples, drives, firmware, updates, notifications, idle, capture, nightlight, update, and on Void packages + dry-run
+tests/run.sh                  # about two minutes: lint, lisp, battery, home, services, backup (with restic), image, theme, bar, rofi, wallpaper, examples, drives, firmware, updates, notifications, idle, capture, nightlight, update, info, and on Void packages + dry-run
 tests/run.sh --all            # plus editors: Emacs and Neovim configs from scratch (minutes, network)
 tests/lint.sh                 # bash -n, executable bits, shellcheck -S warning (must stay at zero)
 DRY_RUN=1 bash install/<stage>.sh     # one stage, printing instead of changing

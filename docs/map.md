@@ -59,6 +59,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   └── pil, claude, ...   installed by 65-languages, the npm language servers, Claude Code
 │   ├── share/applications/*.desktop   Vikix's   JupyterLab, vikix-image, Lazarus in the launcher
 │   ├── share/vikix/fonts/wm.ttf       built     the bar's font, made by vikix-font
+│   ├── share/info/vikix.info          written   these guides as an Info manual (`info vikix`)
 │   ├── opt/picolisp/          built     PicoLisp, from source
 │   └── state/vikix/           Vikix's record of this machine (see below)
 │

@@ -16,6 +16,13 @@ exec >"$log_dir/session.log" 2>&1
 echo "vikix-session started $(date)"
 set -x    # each command is written to the log before it runs
 
+# The Vikix manual (the guides in docs/, made by 40-config), for Emacs's
+# C-h i and `info vikix`. The empty entry at the end keeps the system's.
+case ":${INFOPATH:-}:" in
+  *":$HOME/.local/share/info:"*) ;;
+  *) INFOPATH="$HOME/.local/share/info:${INFOPATH:-}"; export INFOPATH ;;
+esac
+
 [ -f "$HOME/.Xresources" ] && xrdb -merge "$HOME/.Xresources"
 xsetroot -cursor_name left_ptr
 "$HOME/.local/bin/vikix-keyboard"    # layout and options from ~/.config/vikix/keyboard

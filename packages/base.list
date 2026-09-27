@@ -17,4 +17,5 @@ mdocml          # ...and the man command that reads it
 xdg-utils       # xdg-open: "open this file with the right program"
 xdg-user-dirs   # ~/Documents, ~/Downloads ...
 polkit-gnome    # the password box when a program asks for admin rights
+texinfo         # info, and makeinfo, which makes the guides in docs/ an Info manual
 python3         # vikix eval (the door into the running StumpWM) is written in Python

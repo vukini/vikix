@@ -10,6 +10,7 @@ login on tty1
       └─ ~/.xinitrc           Vikix's: runs vikix-session inside dbus-run-session
           └─ vikix-session    everything that lasts as long as the desktop; its output goes to
               │               ~/.local/state/vikix/session.log
+              ├─ INFOPATH, so Emacs and `info` find the Vikix manual
               ├─ .Xresources, the keyboard, screen layout (autorandr), the wallpaper
               ├─ ssh-agent, one for the whole session
               ├─ pipewire, dunst, clipmenud, udiskie (USB drives), picom
@@ -41,7 +42,7 @@ Each file in that list is loaded on its own. If one has a mistake, StumpWM shows
 3. **Runs six install stages again**, each safe to repeat:
    - `10-packages`: installs anything new in `packages/*.list`
    - `20-services`: switches on services new packages brought
-   - `40-config`: links Vikix's files again, copies starters you don't have yet, writes the theme files again, and takes a snapshot of your files
+   - `40-config`: links Vikix's files again, copies starters you don't have yet, writes the theme files again, makes these guides into the Info manual, and takes a snapshot of your files
    - `45-editors`: pulls the Emacs and Neovim configs
    - `65-languages`: PicoLisp, Lazarus, Julia
    - `67-dev`: the `~/dev` READMEs, new examples

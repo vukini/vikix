@@ -65,6 +65,9 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
   '(("Keyboard shortcuts"  vikix-keys)
     ("All commands"        vikix-commands)
     ("What does a key do?" describe-key)
+    ("Vikix guide (in Emacs)" (run-shell-command
+                               (format nil "emacsclient -c -a '' -e '(info \"~~/.local/share/info/vikix.info\")' || ~a -e info -f ~~/.local/share/info/vikix.info"
+                                       *vikix-terminal*)))
     ("Update Vikix"      vikix-update)
     ("AI agent (Claude Code)" vikix-agent)
     ("JupyterLab (in ~/dev)" (run-shell-command "vikix-jupyter"))

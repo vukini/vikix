@@ -2,7 +2,7 @@
 
 These pages are for someone who has installed Vikix and wants to know where things are and how to make it their own. The main [README](../README.md) is the full reference: every key, every package list, every test. These pages are the map.
 
-They are in the Vikix checkout, so they are on your machine too: `~/vikix/docs/`.
+They are on your machine too, in two forms: as these files in `~/vikix/docs/`, and as an Info manual. Read that with `Super+m` → *Vikix guide* (it opens in Emacs), `C-h i` then *Vikix* in Emacs, or `info vikix` in a terminal.
 
 | Page | Read it when |
 |---|---|

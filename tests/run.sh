@@ -5,7 +5,7 @@
 #                         sbcl), battery, home, services, backup (with
 #                         restic), image, theme, bar, rofi,
 #                         wallpaper, examples, drives, firmware, updates, notifications, idle, capture,
-#                         nightlight, update,
+#                         nightlight, update, info (with makeinfo),
 #                         and on Void also packages and dry-run
 #   tests/run.sh --all    those, plus editors (several minutes, network)
 #
@@ -22,6 +22,7 @@ tests=(lint)
 if command -v sbcl >/dev/null; then tests+=(lisp); else echo "(lisp needs sbcl; skipped here)"; fi
 tests+=(battery home services image theme bar rofi wallpaper examples drives firmware updates notifications idle capture nightlight update)
 if command -v restic >/dev/null; then tests+=(backup); else echo "(backup needs restic; skipped here)"; fi
+if command -v makeinfo >/dev/null; then tests+=(info); else echo "(info needs makeinfo; skipped here)"; fi
 if command -v xbps-query >/dev/null && [ "$(id -u)" -ne 0 ]; then
   tests+=(packages dry-run)
 else

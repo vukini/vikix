@@ -58,7 +58,7 @@ Every stage checks before it changes anything, so re-running either part is safe
 | `20-services` | 1, 2 | Enables the runit services in `services.list`, and adds you to the `video` group, and to `lpadmin` once CUPS is installed (with a polkit rule, so the Printers app needs no password). Before switching on a new service it has D-Bus reread its config, since Void's D-Bus only reads a new package's policy at boot, and a service started before that can't use it. `vikix update` runs it again, so a service that comes with a new package is switched on. |
 | `25-network` | 1 | Starts NetworkManager, waits until it's running, then switches off dhcpcd and wpa_supplicant. Adds you to the `network` group. |
 | `30-lisp` | 1 | Installs Quicklisp (and adds it to `~/.sbclrc`), clones clx-truetype (TrueType fonts for the bar, not in Quicklisp), builds `~/.local/bin/stumpwm` with Swank and clx-truetype inside, and clones `stumpwm-contrib`. |
-| `40-config` | 1 | Links Vikix's config files into place and copies starter files you then own (including the keyboard file and the night light times). |
+| `40-config` | 1 | Links Vikix's config files into place and copies starter files you then own (including the keyboard file and the night light times). Makes the guides in `docs/` an Info manual, `~/.local/share/info/vikix.info`. |
 | `45-editors` | 2 | Clones the Emacs config (`vukini/emacs-void`) to `~/.emacs.d` and the Neovim config (`vukini/nvim-void-linux`) to `~/.config/nvim`, installs the npm language servers into `~/.local`, and installs Neovim's plugins. Other repos: set `VIKIX_EMACS_REPO` / `VIKIX_NVIM_REPO`. |
 | `55-hardware` | 2 | Touchpad settings (tap to click, natural scrolling), the Intel microcode rebuilt into the initramfs, and the standard `~/Documents` … folders. |
 | `50-audio` | 2 | Sets up PipeWire, WirePlumber and the ALSA links, as the Void handbook describes. |
@@ -235,7 +235,7 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 | `s-p` | Move the mouse pointer to the focused window |
 | `s-1`…`s-9` | Go to a workspace |
 | `s-C-1`…`s-C-9` | Send the window to a workspace |
-| `s-m` | Vikix menu: key help, all commands, "what does a key do?", themes, network, printers, backup now, screens, update, and Power (the same as `s-S-Escape`) |
+| `s-m` | Vikix menu: key help, all commands, the Vikix guide, "what does a key do?", themes, network, printers, backup now, screens, update, and Power (the same as `s-S-Escape`) |
 | `s-F1` | Every key, searchable. Pick one to run it. |
 | `s-Escape` | Lock the screen |
 | `s-S-Escape` | Power: lock, suspend, log out, reboot, power off (Lock first, so a stray Enter is harmless) |
@@ -356,7 +356,7 @@ A restore goes into `~/Restored/<time>/`, beside your files, never over them; mo
 
 | List | Contents |
 |---|---|
-| `base` | dbus, elogind, polkit and its password box, openssh, chrony (clock), git, curl, rsync, zip, 7zip, man pages, xdg-utils, python3 (for `vikix eval`) |
+| `base` | dbus, elogind, polkit and its password box, openssh, chrony (clock), git, curl, rsync, zip, 7zip, man pages, xdg-utils, texinfo (`info`, and makeinfo for the Vikix manual), python3 (for `vikix eval`) |
 | `desktop` | X11, picom, dunst, rofi (with its emoji picker and calculator), alacritty, fonts (Noto, colour emoji, Nerd Font symbols), i3lock, gammastep (night light), screenshots and screen recording (maim, slop, ffmpeg), clipmenu (clipboard history) |
 | `fonts` | Iosevka, the terminal font. Every variant comes in one 862 MB package, so it waits for part two; until then the terminal uses a plain monospace font, and the bar Noto Sans Mono. Also fonttools, which `vikix-font` uses to take the one Iosevka the bar needs out of that package. |
 | `network` | NetworkManager (`nmtui` for Wi-Fi), with its connection editor |
@@ -588,6 +588,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `drives` | `vikix-drives` finds the mounted drives (a space in a name too), ejects the one picked and says when it's safe or that it's in use, starts a backup on plug-in only for the backup drive and only when one is due, and gives udiskie your own settings when you have them |
 | `examples` | every example in `dev/*/examples/` builds and runs with its Makefile, where its compiler is installed, and every `wordfreq` prints the same `expected.txt` |
 | `bar` | `vikix-net` labels the link and shows the Wi-Fi signal only when it is weak; `vikix-bt` shows Bluetooth only when it is on, with the device and its battery, and never waits on a hung bluetoothd; `vikix-font` gives StumpWM Iosevka Regular, or a stand-in until Iosevka is installed |
+| `info` | The guides in `docs/` make an Info manual with no makeinfo warnings and a node for every heading; a broken link or a page missing from the table stops the build; `40-config` installs it once and lists it in the info `dir`; Emacs opens it and follows a link (needs makeinfo) |
 | `home` | `40-config` and `60-login` change nothing when run again, and `vikix undo` puts your files back (and undoing again brings the change back) |
 | `update` | `vikix update` runs the new version's steps after it pulls, logs the whole run, carries on past a failed stage, naming it at the end, and pulls a checkout with an SSH remote over HTTPS |
 | `packages` | Every name in `packages/*.list` is a real Void package |
@@ -610,7 +611,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `dev/` | What `67-dev` puts in `~/dev` for each language: its README (with `tools.list`, the tools whose paths and versions it fills in) and its examples |
 | `migrations/` | One-off changes for machines already installed (see its README) |
 | `tests/` | The tests (see [Tests](#tests)) |
-| `docs/` | The user's guides: where everything is, how it fits together, customizing, fixing |
+| `docs/` | The user's guides: where everything is, how it fits together, customizing, fixing. Installed as an Info manual too: `info vikix`, or `C-h i` in Emacs |
 | `site/` | The website, [vikix.dev](https://vikix.dev): one static page, published to GitHub Pages by `.github/workflows/pages.yml` |
 
 ## Not done yet

@@ -38,6 +38,14 @@ _vikix_new_command() {
 }
 bind -x '"\es": _vikix_new_command'
 
+# --- the Vikix manual --------------------------------------------------------
+# `info vikix` (and Emacs's C-h i) read the guides from here. The empty
+# entry at the end keeps the system's manuals.
+case ":${INFOPATH:-}:" in
+  *":$HOME/.local/share/info:"*) ;;
+  *) export INFOPATH="$HOME/.local/share/info:${INFOPATH:-}" ;;
+esac
+
 # --- editors ---------------------------------------------------------------
 export EDITOR=${EDITOR:-nvim} VISUAL=${VISUAL:-nvim}
 if have nvim; then
