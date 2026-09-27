@@ -11,7 +11,8 @@ What's left to add or clean up, most valuable first within each section. Delete 
 5. **`vikix debug`.** One file with the session and install logs, doctor's output, VERSION, the checkout's git status, uname, lspci/lsusb and xrandr, to attach to an issue or hand to Claude.
 6. **More themes.** Three or four more (Gruvbox, Nord, Tokyo Night, a high-contrast one), each with a wallpaper. Then make Emacs and Neovim follow `vikix theme`.
 7. **Whole-system undo.** When / is btrfs: snapper snapshots before each `vikix update`, and `vikix rollback` notes. Skip cleanly on ext4.
-8. **An install menu.** `vikix pkg add` and `vikix pkg drop`: a fuzzy search over `xbps-query -Rs` with a preview, installing or removing with xi or xr. Also a Super+m entry.
+8. **An install menu.** `vikix pkg add` and `vikix pkg drop`: a fuzzy search over `xbps-query -Rs` with a preview, installing or removing with xi or xr. Also a Super+m entry. Dropping a package Vikix's lists name must stick: today `vikix update` installs it again (docs/customize.md says so). A list of your own, `~/.config/vikix/packages-skip`, read by `10-packages`, and in `yours.list`; then update the docs.
+9. **The guides on vikix.dev.** A Docs link on the site to `docs/` on GitHub, or the four pages built into the site. Same words either way: `docs/` stays the source.
 
 ## To look into
 

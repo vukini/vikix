@@ -8,6 +8,8 @@ Think of it as Void, supercharged: inspired by Omarchy, but its own thing. It is
 - a small set of programs that work together
 - one command, `vikix update`, that keeps it all current
 
+Installed it already? [docs/](docs/README.md) is the map: where everything is, how it fits together, how to make it yours, and what to do when something breaks.
+
 ## Install
 
 On a glibc Void install, logged in as your normal user. The install comes in two parts, so the long part never stands between you and a working desktop.
@@ -608,6 +610,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `dev/` | What `67-dev` puts in `~/dev` for each language: its README (with `tools.list`, the tools whose paths and versions it fills in) and its examples |
 | `migrations/` | One-off changes for machines already installed (see its README) |
 | `tests/` | The tests (see [Tests](#tests)) |
+| `docs/` | The user's guides: where everything is, how it fits together, customizing, fixing |
 | `site/` | The website, [vikix.dev](https://vikix.dev): one static page, published to GitHub Pages by `.github/workflows/pages.yml` |
 
 ## Not done yet
