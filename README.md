@@ -167,7 +167,7 @@ sudo reboot
 
 Log in on tty1, then run part two from a terminal (Super+Return): `~/vikix/install-2.sh`.
 
-**Later versions** arrive with `vikix update`, which pulls from GitHub and then reloads StumpWM, so new keys, bar and menu work at once.
+**Later versions** arrive with `vikix update`, which pulls from GitHub and then reloads StumpWM, so new keys, bar and menu work at once. The only password it asks for is your own, for sudo: it reads GitHub over HTTPS, which needs no login, even when a checkout's remote is SSH (`git@github.com:`, as in a clone you push from), so no key passphrase is asked either. The remote itself is left as it is.
 
 | Symptom | Likely cause |
 |---|---|
@@ -489,13 +489,13 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `capture` | `vikix-screenshot` takes an area, the focused window or the monitor under the pointer, to the clipboard or a file; `vikix-record` records the right part of the screen, stops, saves, and clears the bar |
 | `idle` | `vikix-idle` suspends only on battery, only after the idle time in its settings, and never while keep awake is on |
 | `notifications` | `vikix-notifications` lists dunst's history newest first, and shows again the one you pick |
-| `updates` | `vikix-updates` counts waiting Void packages and Vikix commits, and says `?` for a check that failed, not 0 |
+| `updates` | `vikix-updates` counts waiting Void packages and Vikix commits, says `?` for a check that failed, not 0, and fetches a checkout with an SSH remote over HTTPS |
 | `theme` | `vikix theme` writes every program's colours from one theme file and refuses a broken one; the migration hooks old starter configs up to it without touching your own settings |
 | `wallpaper` | `vikix-wallpaper` shows the theme's picture until you choose one, keeps your choice across theme changes, gives a theme without a picture a plain background in its colour, sets what the picker picked, and leaves the wallpaper alone when off or during `vikix update`; the migration turns it off where you had your own |
 | `rofi` | `vikix-rofi` opens the emoji picker and calculator with Vikix's keys, the calculator's Enter copies exactly the answer, and a missing plugin is named in a notification |
 | `bar` | `vikix-net` labels the link and shows the Wi-Fi signal only when it is weak; `vikix-font` gives StumpWM Iosevka Regular, or a stand-in until Iosevka is installed |
 | `home` | `40-config` and `60-login` change nothing when run again, and `vikix undo` puts your files back (and undoing again brings the change back) |
-| `update` | `vikix update` runs the new version's steps after it pulls, logs the whole run, and carries on past a failed stage, naming it at the end |
+| `update` | `vikix update` runs the new version's steps after it pulls, logs the whole run, carries on past a failed stage, naming it at the end, and pulls a checkout with an SSH remote over HTTPS |
 | `packages` | Every name in `packages/*.list` is a real Void package |
 | `dry-run` | Both install parts run through with `--dry-run`, and leave the offline docs to `vikix docs` |
 | `editors` | The Emacs and Neovim configs install from scratch into an empty home and start without errors |

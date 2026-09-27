@@ -14,6 +14,7 @@
 #   sudo_keepalive          ask for the password once, keep sudo valid until the script ends
 #   use_mirror URL          point every xbps repository at the mirror URL
 #   current_mirror          the mirror /etc/xbps.d points at (empty if none)
+#   git_pull DIR            pull a clone, never asking for a password or passphrase
 
 # Where the Vikix checkout lives (the folder that holds install.sh).
 : "${VIKIX_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
@@ -189,4 +190,18 @@ use_mirror() {
 # current_mirror — the mirror /etc/xbps.d points the main repository at.
 current_mirror() {
   sed -n 's|^repository=\(.*\)/current$|\1|p' /etc/xbps.d/*-repository-main.conf 2>/dev/null | head -1 || true
+}
+
+# git_pull DIR — pull a clone without ever asking for a password or a
+# passphrase: `vikix update` may ask for nothing but sudo's password.
+# GitHub is read over HTTPS, which needs no login for a public repo, even
+# when the clone's remote is SSH (git@github.com:, as in a clone its owner
+# pushes from); the remote itself stays as it is. If that fails (a private
+# repo, another host), the pull as the clone is set up, with SSH told not to
+# ask: a key already loaded in ssh-agent still works.
+GIT_HTTPS_GITHUB=(-c 'url.https://github.com/.insteadOf=git@github.com:'
+                  -c 'url.https://github.com/.insteadOf=ssh://git@github.com/')
+git_pull() {
+  run git -C "$1" "${GIT_HTTPS_GITHUB[@]}" pull --ff-only 2>/dev/null ||
+    run env GIT_SSH_COMMAND='ssh -o BatchMode=yes' git -C "$1" pull --ff-only
 }

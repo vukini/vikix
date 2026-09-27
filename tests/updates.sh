@@ -39,5 +39,33 @@ git -C "$t/vikix" remote set-url origin "$t/nowhere"
 fake_xbps 1
 [ "$(counts)" = "1 ?" ] || { echo "FAIL: an unreachable Vikix read as: $(counts)"; fail=1; }
 
-[ "$fail" = 0 ] && echo "updates: packages and Vikix commits counted; ? when a check fails"
+# An SSH remote is fetched over HTTPS: the check has no terminal, so a
+# key with a passphrase would otherwise always give ?.
+# spy_git DIR LOG — a git that, asked to pull or fetch, writes to LOG the
+# URL the real git would use with the same options, and stops there (no
+# network); anything else goes to the real git.
+spy_git() {
+  local real; real=$(command -v git)
+  mkdir -p "$1"
+  cat > "$1/git" <<SPY
+#!/usr/bin/env bash
+opts=()
+while [ "\$#" -gt 0 ]; do
+  case \$1 in
+    -C|-c) opts+=("\$1" "\$2"); shift 2 ;;
+    pull|fetch) "$real" "\${opts[@]}" ls-remote --get-url origin >> "$2"; exit 0 ;;
+    *) break ;;
+  esac
+done
+exec "$real" "\${opts[@]}" "\$@"
+SPY
+  chmod +x "$1/git"
+}
+spy_git "$t/spy" "$t/fetched-from"
+git -C "$t/vikix" remote set-url origin git@github.com:vukini/vikix.git
+PATH="$t/spy:$t/bin:$PATH" XDG_STATE_HOME="$t/state" sh "$t/vikix/bin/vikix-updates" >/dev/null
+[ "$(cat "$t/fetched-from")" = https://github.com/vukini/vikix.git ] ||
+  { echo "FAIL: with an SSH remote, vikix-updates fetches from: $(cat "$t/fetched-from")"; fail=1; }
+
+[ "$fail" = 0 ] && echo "updates: packages and Vikix commits counted; ? when a check fails; SSH remotes read over HTTPS"
 exit "$fail"

@@ -61,7 +61,7 @@ cmd_update() {
   sudo_keepalive
   if [ "${1:-}" != --pulled ]; then
     say "pulling Vikix"
-    run git -C "$VIKIX_DIR" pull --ff-only
+    git_pull "$VIKIX_DIR"
     # The pull may have replaced this very script, but bash goes on running
     # the copy it already opened: the steps below would be the OLD version's,
     # and a stage new in this version would be skipped. So start again from

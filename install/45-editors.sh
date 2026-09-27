@@ -32,7 +32,8 @@ clone_or_pull() {
   local url=$1 dir=$2
   if [ -d "$dir/.git" ]; then
     say "$dir is a clone; pulling"
-    run git -C "$dir" pull --ff-only || warn "could not update $dir (local changes?)"
+    # Over HTTPS even when the clone's remote is SSH (see git_pull).
+    git_pull "$dir" || warn "could not update $dir (local changes?)"
   elif [ -e "$dir" ]; then
     warn "$dir exists and is not a git clone; leaving it alone"
   else

@@ -25,8 +25,12 @@ check() {
     packages='?'
   fi
   # Never ask for a password or a passphrase: fail and say ? instead.
+  # GitHub over HTTPS even when the checkout's remote is SSH, as
+  # `vikix update` pulls (git_pull in lib/common.sh): this runs with no
+  # terminal, so an SSH remote with a passphrase would always give ?.
   if GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND='ssh -o BatchMode=yes' \
-       git -C "$vikix_dir" fetch -q 2>/dev/null; then
+       git -C "$vikix_dir" -c 'url.https://github.com/.insteadOf=git@github.com:' \
+         -c 'url.https://github.com/.insteadOf=ssh://git@github.com/' fetch -q 2>/dev/null; then
     commits=$(git -C "$vikix_dir" rev-list --count 'HEAD..@{upstream}' 2>/dev/null || echo '?')
   else
     commits='?'

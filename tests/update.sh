@@ -34,6 +34,40 @@ else
 fi
 [ "$fail" = 0 ] && echo "update: restarts into the new version, and logs the whole run"
 
+# A checkout whose remote is SSH (its owner pushes from it) still pulls
+# over HTTPS: vikix update may ask for nothing but sudo's password, and SSH
+# would ask for the key's passphrase even though the repo is public.
+# spy_git DIR LOG — a git that, asked to pull or fetch, writes to LOG the
+# URL the real git would use with the same options, and stops there (no
+# network); anything else goes to the real git.
+spy_git() {
+  local real; real=$(command -v git)
+  mkdir -p "$1"
+  cat > "$1/git" <<SPY
+#!/usr/bin/env bash
+opts=()
+while [ "\$#" -gt 0 ]; do
+  case \$1 in
+    -C|-c) opts+=("\$1" "\$2"); shift 2 ;;
+    pull|fetch) "$real" "\${opts[@]}" ls-remote --get-url origin >> "$2"; exit 0 ;;
+    *) break ;;
+  esac
+done
+exec "$real" "\${opts[@]}" "\$@"
+SPY
+  chmod +x "$1/git"
+}
+spy_git "$t/spy" "$t/pulled-from"
+for remote in git@github.com:vukini/vikix.git ssh://git@github.com/vukini/vikix.git; do
+  git -C "$t/machine" remote set-url origin "$remote"
+  : > "$t/pulled-from"
+  PATH="$t/spy:$PATH" HOME="$t/home" VIKIX_STATE="$t/state-ssh" VIKIX_SUDO_KEPT=1 \
+    bash "$t/machine/bin/vikix" update >/dev/null 2>&1 || true
+  [ "$(head -n 1 "$t/pulled-from")" = https://github.com/vukini/vikix.git ] ||
+    { echo "FAIL: with the remote $remote, vikix update pulls from: $(head -n 1 "$t/pulled-from")"; fail=1; }
+done
+[ "$fail" = 0 ] && echo "update: an SSH remote is still pulled over HTTPS, so no passphrase is asked"
+
 # A failed stage must not stop the others, or the migrations, and must be
 # named at the end. The stages are swapped for stubs, the first of which
 # fails; DRY_RUN keeps xbps and the migrations to printing. The machine
