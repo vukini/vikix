@@ -1,0 +1,11 @@
+// Installed by Vikix (install/20-services.sh) into /etc/polkit-1/rules.d/.
+// People in the lpadmin group add and change printers in the Printers
+// app (system-config-printer, through cups-pk-helper) without a password,
+// as they already can with lpadmin and CUPS's page on localhost:631.
+// Only at the machine itself, in the active session.
+polkit.addRule(function(action, subject) {
+    if (action.id.indexOf("org.opensuse.cupspkhelper.mechanism.") == 0 &&
+        subject.local && subject.active && subject.isInGroup("lpadmin")) {
+        return polkit.Result.YES;
+    }
+});

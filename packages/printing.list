@@ -1,0 +1,15 @@
+# printing.list — CUPS, as the Void handbook sets it up. A printer that
+# works with AirPrint (IPP Everywhere) needs no driver at all; the
+# drivers here cover older ones. HP's own hplip is left out (it
+# is large, and newer HPs work without it): `xi hplip` adds it.
+cups
+cups-filters          # turns documents into what printers take
+cups-pk-helper        # lets system-config-printer change printers without root
+system-config-printer # add and manage printers (s-m → Printers)
+avahi                 # finds printers on the network (avahi-daemon)
+nss-mdns              # resolves their printer.local names; Void's nsswitch.conf already asks mdns
+ipp-usb               # a driverless USB printer works like a network one
+gutenprint            # drivers for many older inkjets
+foomatic-db           # printer descriptions for older models
+foomatic-db-engine
+brother-brlaser       # Brother mono lasers

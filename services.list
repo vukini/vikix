@@ -9,3 +9,6 @@ acpid
 tlp
 chronyd         # from chrony
 bluetoothd      # from bluez
+cupsd           # printing, from cups
+avahi-daemon    # finds printers (and other devices) on the network
+ipp-usb         # driverless USB printers

@@ -90,6 +90,7 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
     ("Network (nmtui)"     (run-shell-command
                             (format nil "~a -e nmtui" *vikix-terminal*)))
     ("Bluetooth"           (run-shell-command "blueman-manager"))
+    ("Printers"            (run-shell-command "system-config-printer"))
     ("Screens: arrange (arandr)" (run-shell-command "arandr"))
     ("Screens: save this layout" vikix-screens-save)
     ("Sound (pavucontrol)" (run-shell-command "pavucontrol"))

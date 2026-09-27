@@ -42,6 +42,8 @@ jobs:
         run: tests/ci.sh battery
       - name: home
         run: tests/ci.sh home
+      - name: services
+        run: tests/ci.sh services
       - name: image
         run: tests/ci.sh image
       - name: theme

@@ -21,6 +21,9 @@
 # Where Vikix remembers what it has done (migrations already applied).
 : "${VIKIX_STATE:=${XDG_STATE_HOME:-$HOME/.local/state}/vikix}"
 : "${DRY_RUN:=0}"
+# runit's folders: the services there are, and the ones switched on. Only
+# tests point these elsewhere.
+: "${VIKIX_SV_DIR:=/etc/sv}" "${VIKIX_SERVICE_DIR:=/var/service}"
 export VIKIX_DIR VIKIX_STATE DRY_RUN
 # An install runs unattended, so nothing may stop to ask a question: git
 # fails at once instead of prompting for a username on a missing repo.
@@ -62,11 +65,11 @@ pkg_installed() {
 # Void uses runit, not systemd: a service is switched on by linking its
 # folder in /etc/sv into /var/service, and runit then starts it.
 enable_service() {
-  if [ -e "/var/service/$1" ]; then
+  if [ -e "$VIKIX_SERVICE_DIR/$1" ]; then
     say "service $1 already enabled"
   else
     say "enabling service $1"
-    run sudo ln -s "/etc/sv/$1" /var/service/
+    run sudo ln -s "$VIKIX_SV_DIR/$1" "$VIKIX_SERVICE_DIR/"
   fi
 }
 
@@ -75,7 +78,10 @@ enable_service() {
 # next login.
 ensure_group() {
   local group=$1 why=${2:+ ($2)}
-  if id -nG | tr ' ' '\n' | grep -qx "$group"; then
+  # Ask the group database (id -nG USER), not this session's groups, which
+  # only change at the next login: a second run in the same session would
+  # otherwise add the user again.
+  if id -nG "$(id -un)" | tr ' ' '\n' | grep -qx "$group"; then
     say "already in the $group group"
   else
     say "adding $(id -un) to the $group group$why; takes effect at next login"

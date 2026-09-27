@@ -53,7 +53,7 @@ Every stage checks before it changes anything, so re-running either part is safe
 | `00-preflight` | 1 | Checks this is glibc Void, and that you are not root. Notes any existing StumpWM config. |
 | `05-mirror` | 1 | Downloads from each mirror in `mirrors.list` for six seconds and points xbps at the fastest (about a minute). Skipped if you set `VIKIX_MIRROR`, or already chose a mirror in `/etc/xbps.d/`. |
 | `10-packages` | 1, 2 | Updates xbps itself, then installs what `packages/*.list` names, skipping anything already installed. Part one installs the core lists (base, desktop, network, lisp, cli); part two the rest. |
-| `20-services` | 1, 2 | Enables the runit services in `services.list`, and adds you to the `video` group. `vikix update` runs it again, so a service that comes with a new package is switched on. |
+| `20-services` | 1, 2 | Enables the runit services in `services.list`, and adds you to the `video` group, and to `lpadmin` once CUPS is installed (with a polkit rule, so the Printers app needs no password). Before switching on a new service it has D-Bus reread its config, since Void's D-Bus only reads a new package's policy at boot, and a service started before that can't use it. `vikix update` runs it again, so a service that comes with a new package is switched on. |
 | `25-network` | 1 | Starts NetworkManager, waits until it's running, then switches off dhcpcd and wpa_supplicant. Adds you to the `network` group. |
 | `30-lisp` | 1 | Installs Quicklisp (and adds it to `~/.sbclrc`), clones clx-truetype (TrueType fonts for the bar, not in Quicklisp), builds `~/.local/bin/stumpwm` with Swank and clx-truetype inside, and clones `stumpwm-contrib`. |
 | `40-config` | 1 | Links Vikix's config files into place and copies starter files you then own (including the keyboard file and the night light times). |
@@ -231,7 +231,7 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 | `s-p` | Move the mouse pointer to the focused window |
 | `s-1`…`s-9` | Go to a workspace |
 | `s-C-1`…`s-C-9` | Send the window to a workspace |
-| `s-m` | Vikix menu: key help, all commands, "what does a key do?", themes, network, screens, update, suspend / reboot / power off |
+| `s-m` | Vikix menu: key help, all commands, "what does a key do?", themes, network, printers, screens, update, suspend / reboot / power off |
 | `s-F1` | Every key, searchable. Pick one to run it. |
 | `s-Escape` | Lock the screen |
 | `s-M-a` | Keep awake on/off: no lock, dark screen or suspend while you watch or present (the bar says `awake`) |
@@ -328,6 +328,7 @@ A snapshot is taken after every install or `vikix update`, and before every agen
 | `network` | NetworkManager (`nmtui` for Wi-Fi), with its connection editor |
 | `audio` | PipeWire, WirePlumber (with Bluetooth audio), pamixer, pavucontrol |
 | `laptop` | tlp, acpid, brightnessctl, xprintidle (suspend when idle on battery), Bluetooth (bluez, blueman), autorandr, and the firmware a recent ThinkPad needs: sof-firmware (sound), intel-ucode (from the nonfree repo, enabled by `repos.list`), intel-video-accel |
+| `printing` | CUPS with its filters, system-config-printer (and cups-pk-helper, so it needs no root), avahi and nss-mdns (finding network printers), ipp-usb (driverless USB printers), and drivers for older printers: gutenprint, foomatic, brlaser |
 | `editors` | Emacs, Neovim, the pdf-tools build deps, the `tree-sitter` CLI (Neovim builds its parsers with it), and the language servers Void packages (ccls, lua-language-server, gopls, efm-langserver) plus nodejs for the npm ones |
 | `apps` | Firefox, PCManFM with USB mounting, SpaceFM, mpv, nsxiv, zathura, Foliate (EPUB), LibreOffice (Writer, Calc, Impress, Draw, Math), Zeal (offline docs) |
 | `dev` | base-devel (gcc, make), gdb, valgrind, rlwrap |
@@ -345,6 +346,15 @@ A snapshot is taken after every install or `vikix update`, and before every agen
 - **Battery.** `vikix-battery` warns at 15% and again, urgently, at 5% (change them with `VIKIX_BATTERY_LOW` / `VIKIX_BATTERY_CRITICAL`). It only starts on a machine with a battery; `vikix-battery --once` shows the charge.
 - **High-resolution screen.** Set `Xft.dpi` in `~/.Xresources` (see the file for values), then log in again.
 - **Which program opens what** is `~/.config/mimeapps.list`, yours after the first copy: Firefox for links, zathura for PDFs, nsxiv for images (through `vikix-image`, so the rest of the folder is a key press away: `n` / `p`, or Enter for thumbnails), mpv for video and audio.
+
+## Printing
+
+Part two installs CUPS and switches it on, with avahi to find printers on the network.
+
+- **Add a printer:** `s-m` → *Printers*. A printer on your network shows up by itself, and so does a USB printer that works with AirPrint (through ipp-usb). When it offers a driver, pick the driverless one ("IPP Everywhere"). From your next login you are in the `lpadmin` group, so neither it nor `lpadmin` asks for a password (a polkit rule, `/etc/polkit-1/rules.d/50-vikix-printers.rules`, lets that group manage printers at the machine itself).
+- **Print** from any program's Print dialog, or from a terminal: `lp file.pdf`. `lpstat -p` lists the printers, `cancel` stops a job.
+- **An older printer** may need a driver. gutenprint, foomatic and brlaser (Brother lasers) are installed. For HP, `xi hplip`, then `hp-setup -i`; for Epson inkjets, `xi epson-inkjet-printer-escpr`.
+- **CUPS's own page**, http://localhost:631, shows every printer and its queue.
 
 ## Editors
 
@@ -491,6 +501,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `lint` | Every script parses (shell and Python), the ones you run are executable, and shellcheck has no warnings |
 | `lisp` | Every Lisp file reads cleanly, so a missing paren shows up here, not at login (needs `sbcl`) |
 | `battery` | The low-battery warner warns once at 15%, once at 5%, and again only after charging |
+| `services` | `20-services` switches on only services whose package is there, has D-Bus reread its config once before the first new one, adds you to `lpadmin` and installs the Printers app's polkit rule once CUPS is installed, and changes nothing when run again |
 | `image` | `vikix-image` opens nsxiv on the image's whole folder, in name order, at the image you picked |
 | `nightlight` | `vikix-nightlight` starts gammastep at login unless it was switched off, toggles it, remembers off, and stops it so the colours come back |
 | `capture` | `vikix-screenshot` takes an area, the focused window or the monitor under the pointer, to the clipboard or a file; `vikix-record` records the right part of the screen, stops, saves, and clears the bar |
