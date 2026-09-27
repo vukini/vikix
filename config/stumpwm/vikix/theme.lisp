@@ -149,6 +149,19 @@
 (handler-case (vikix-set-font)
   (error (e) (message "^1Vikix: bar font not loaded, keeping 9x15:^n ~a" e)))
 
+;; Menus (the key help, the Vikix menu, the window lists) scroll instead of
+;; running off the screen: at most as many rows as fit on the smallest
+;; monitor in this font, leaving room for the prompt and the border.
+;; StumpWM's default is no limit at all.
+(defun vikix-fit-menus (&rest ignore)
+  (declare (ignore ignore))
+  (let ((line (max 1 (font-height (screen-font (current-screen)))))
+        (height (reduce #'min (mapcar #'head-height (screen-heads (current-screen))))))
+    (setf *menu-maximum-height* (max 5 (- (floor (* height 9/10) line) 2)))))
+
+(vikix-fit-menus)
+(add-hook *new-head-hook* 'vikix-fit-menus)   ; a monitor plugged in
+
 ;; The saved theme, at startup and on every reload. (A theme applied from
 ;; user.lisp still wins: it runs after this.)
 (vikix-load-themes)

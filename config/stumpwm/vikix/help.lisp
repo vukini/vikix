@@ -13,6 +13,7 @@
 
 (defparameter *vikix-key-names*
   '(("RET" . "Return") ("TAB" . "Tab") ("ESC" . "Escape") ("Print" . "Print Screen")
+    ("period" . ".") ("equal" . "=")
     ("XF86AudioRaiseVolume"  . "Volume-up key")
     ("XF86AudioLowerVolume"  . "Volume-down key")
     ("XF86AudioMute"         . "Mute key")
@@ -39,18 +40,20 @@ front, so a name like Brightness-up is never mistaken for one."
 
 (defun vikix-keys-table ()
   "The rows of the key help: (label command). Built from *vikix-bindings*,
-plus the workspace keys, which keys.lisp binds in a loop."
-  (append
-   (mapcar (lambda (b)
-             (list (format nil "~22a ~a" (vikix-pretty-key (first b)) (third b))
-                   (second b)))
-           *vikix-bindings*)
-   (list (list (format nil "~22a ~a" "Super+1 ... Super+9" "Go to workspace 1-9")
-               "grouplist")
-         (list (format nil "~22a ~a" "Super+Ctrl+1 ... 9" "Send window to workspace 1-9")
-               "gmove")
-         (list (format nil "~22a ~a" "Ctrl+t then ?" "StumpWM's own keys (after the prefix)")
-               "vikix-prefix-keys"))))
+plus the workspace keys, which keys.lisp binds in a loop. The key column
+is as wide as the longest key, so no key runs into its description."
+  (let* ((rows (append
+                (mapcar (lambda (b)
+                          (list (vikix-pretty-key (first b)) (third b) (second b)))
+                        *vikix-bindings*)
+                '(("Super+1 ... Super+9" "Go to workspace 1-9" "grouplist")
+                  ("Super+Ctrl+1 ... 9" "Send window to workspace 1-9" "gmove")
+                  ("Ctrl+t then ?" "StumpWM's own keys (after the prefix)" "vikix-prefix-keys"))))
+         (width (reduce #'max rows :key (lambda (row) (length (first row))))))
+    (mapcar (lambda (row)
+              (list (format nil "~va  ~a" width (first row) (second row))
+                    (third row)))
+            rows)))
 
 (defcommand vikix-prefix-keys () ()
   "Show StumpWM's own keys: the ones pressed after the prefix key (Ctrl+t)."
