@@ -4,6 +4,8 @@
 #
 #   ~/dev/<language>/          your projects in that language
 #   ~/dev/<language>/docs/     its documentation, offline
+#   ~/dev/<language>/examples/ small programs to build and change (make run)
+#   ~/dev/<language>/README.md its tools here (paths, versions), and where to learn
 #   ~/dev/python/.venv/        Python for JupyterLab (jlab, or s-m → JupyterLab)
 #   ~/dev/docsets              the Zeal docsets (a link into Zeal's folder)
 #   ~/dev/index.html           every doc on one page (`docs` opens it)
@@ -262,6 +264,74 @@ if has pascal; then
 - `man fpc` — the compiler'
 fi
 
+# --- examples -------------------------------------------------------------------
+# dev/<language>/examples/<name>/ in the checkout: small programs, each with a
+# Makefile (make, make run, make clean) that calls the language's own tool.
+# Copied once into ~/dev/<language>/examples/, so they are yours to change:
+# a new example arrives with a later update; one you have is never touched.
+for lang in "${langs[@]}"; do
+  [ -d "$VIKIX_DIR/dev/$lang/examples" ] || continue
+  for ex in "$VIKIX_DIR/dev/$lang/examples"/*/; do
+    ex=${ex%/}
+    dest="$DEV/$lang/examples/${ex##*/}"
+    [ -e "$dest" ] && continue
+    say "example: ~/dev/$lang/examples/${ex##*/}"
+    run mkdir -p "$DEV/$lang/examples"
+    run cp -r "$ex" "$dest"
+  done
+done
+
+# --- each language's README ---------------------------------------------------
+# dev/<language>/README.md in the checkout: the language's tools, where to
+# start, and where to learn more online. The table of tools is filled in
+# here, from this machine: where each one is and which version it is
+# (dev/<language>/tools.list names them). Written again on every update, so
+# it stays true. A README.md of your own, one that doesn't start with the
+# mark below, is left alone.
+readme_mark='<!-- Written by vikix update from dev/'
+
+# tools_table LIST — a markdown table of the tools in tools.list LIST.
+tools_table() {
+  local cmd ask what path version
+  printf '| Tool | Where | Version | For |\n|---|---|---|---|\n'
+  while IFS='|' read -r cmd ask what; do
+    cmd=$(printf '%s' "$cmd" | sed 's/^ *//; s/ *$//')
+    case $cmd in ''|'#'*) continue ;; esac
+    ask=$(printf '%s' "$ask" | sed 's/^ *//; s/ *$//')
+    what=$(printf '%s' "$what" | sed 's/^ *//; s/ *$//')
+    if path=$(PATH="$HOME/.local/bin:$PATH" command -v "$cmd"); then
+      version=
+      [ "$ask" = - ] || version=$(PATH="$HOME/.local/bin:$PATH" timeout 5 sh -c "$ask" </dev/null 2>/dev/null |
+                                    head -n 1 | sed 's/|/\\|/g' || true)
+      printf '| `%s` | `%s` | %s | %s |\n' "$cmd" "$path" "$version" "$what"
+    else
+      printf '| `%s` | not installed | | %s |\n' "$cmd" "$what"
+    fi
+  done < "$1"
+}
+
+for lang in "${langs[@]}"; do
+  src="$VIKIX_DIR/dev/$lang/README.md"
+  [ -f "$src" ] || continue
+  dest="$DEV/$lang/README.md"
+  if [ -e "$dest" ] && ! head -n 1 "$dest" | grep -qF "$readme_mark"; then
+    # shellcheck disable=SC2088  # a message: the ~ is for reading, not expanding
+    warn "~/dev/$lang/README.md is your own; leaving it (Vikix's guide is $src)"
+    continue
+  fi
+  if [ "$DRY_RUN" = 1 ]; then printf '   would write %s\n' "$dest"; continue; fi
+  {
+    printf '%s%s/README.md; rewritten on every update, so keep notes of your own in another file. -->\n' "$readme_mark" "$lang"
+    while IFS= read -r line; do
+      if [ "$line" = '<!-- tools -->' ]; then
+        tools_table "$VIKIX_DIR/dev/$lang/tools.list"
+      else
+        printf '%s\n' "$line"
+      fi
+    done < "$src"
+  } > "$dest.tmp" && mv "$dest.tmp" "$dest"
+done
+
 # --- Zeal docsets ------------------------------------------------------------
 # Each docset's feed lists the same file on several mirrors. A mirror
 # slower than 200 KB/s for 15 seconds is dropped for the next one.
@@ -464,6 +534,21 @@ EOF
             -e 's#\(https\?://[^ <]*\)#<a href="\1">\1</a>#g' \
             -e 's/^/      <li>/; s/$/<\/li>/')
       [ -n "$f" ] && { printf '%s\n' "$f"; n=$((n + 1)); }
+    fi
+    # The language's README: its tools here, and where to learn more.
+    if [ -f "$DEV/$l/README.md" ]; then
+      printf '      <li class="doc"><a href="file://%s">README: the tools here, and where to learn</a></li>\n' "$DEV/$l/README.md"
+      n=$((n + 1))
+    fi
+    # The examples, each a folder with a Makefile and a README.
+    if compgen -G "$DEV/$l/examples/*/Makefile" >/dev/null; then
+      printf '      <li class="ex">Examples, <code>make run</code> in each:'
+      for e in "$DEV/$l/examples"/*/; do
+        e=${e%/}
+        printf ' <a href="file://%s/">%s</a>' "$e" "${e##*/}"
+      done
+      printf '</li>\n'
+      n=$((n + 1))
     fi
     printf '    </ul>\n'
     [ "$n" = 0 ] && printf '    <p class="none">No offline docs here yet.</p>\n'

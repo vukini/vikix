@@ -1,0 +1,10 @@
+# tools.list — the tools ~/dev/python/README.md lists, with their path and version.
+# command | how to ask its version | what it is for
+python3            | python3 --version  | the interpreter: `python3 x.py`, or `python3` for a prompt
+ipython            | ipython --version  | a friendlier prompt: colours, completion, `?` for help
+uv                 | uv --version       | fast environments and packages: `uv venv`, `uv pip install x`
+pipx               | pipx --version     | installs Python programs, each in its own environment
+pytest             | pytest --version   | runs tests: any test_*.py file, any test_ function
+ruff               | ruff --version     | lints and formats: `ruff check .`, `ruff format .`
+pyright-langserver | pyright --version  | the language server the editors use (checks types too)
+vikix-jupyter      | -                  | JupyterLab in ~/dev/python, in its own environment (`jlab` for short)

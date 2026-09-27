@@ -1,0 +1,6 @@
+12
+7
+# a comment line is skipped
+30
+x4
+1

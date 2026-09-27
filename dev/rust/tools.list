@@ -1,0 +1,8 @@
+# tools.list — the tools ~/dev/rust/README.md lists, with their path and version.
+# command | how to ask its version | what it is for
+rustc         | rustc --version         | the compiler (cargo calls it for you)
+cargo         | cargo --version         | builds, runs, tests and fetches crates: `cargo new`, `cargo run`
+rust-analyzer | rust-analyzer --version | the language server the editors use
+rustfmt       | rustfmt --version       | formats code: `cargo fmt`
+cargo-clippy  | cargo clippy --version  | lints: `cargo clippy` explains what could be better
+rust-gdb      | -                       | gdb that shows Rust values readably: `rust-gdb target/debug/x`

@@ -1,0 +1,6 @@
+# tools.list — the tools ~/dev/go/README.md lists, with their path and version.
+# command | how to ask its version | what it is for
+go    | go version    | builds, runs, tests, formats and documents: `go run .`, `go test`, `go doc`
+gofmt | -             | the one Go format: `gofmt -w .` (or `go fmt`)
+gopls | gopls version | the language server the editors use
+dlv   | dlv version   | Delve, the Go debugger: `dlv debug`, then `break main.main`, `continue`

@@ -1,2 +1,3 @@
 # lang-go.list — Go (gopls is in editors.list)
 go
+delve           # dlv, the Go debugger

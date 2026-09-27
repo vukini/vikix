@@ -1,0 +1,15 @@
+# tools.list — the tools ~/dev/c/README.md lists, with their path and version.
+# command | how to ask its version | what it is for
+cc           | cc --version           | the C compiler (GCC); `cc -Wall -g x.c -o x`
+clang        | clang --version        | a second compiler, clearer error messages
+tcc          | tcc -v                 | Tiny C Compiler: `tcc -run x.c` runs a file like a script
+make         | make --version         | builds from a Makefile, as the examples do
+cmake        | cmake --version        | the build system most C projects use
+meson        | meson --version        | a newer build system (with ninja)
+gdb          | gdb --version          | the debugger: `gdb ./x`, then `break main`, `run`, `next`
+valgrind     | valgrind --version     | finds memory mistakes and leaks: `valgrind ./x`
+rr           | rr --version           | records a run, then steps through it backwards in gdb
+clangd       | clangd --version       | the language server Neovim uses for C
+ccls         | -                      | the language server Emacs uses for C
+clang-format | clang-format --version | formats code: `clang-format -i x.c`
+clang-tidy   | -                      | finds bugs and style problems: `clang-tidy x.c --`

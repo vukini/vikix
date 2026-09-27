@@ -1,0 +1,9 @@
+# tools.list — the tools ~/dev/pascal/README.md lists, with their path and version.
+# command | how to ask its version | what it is for
+fpc           | fpc -iV            | the Free Pascal compiler: `fpc x.pas`
+instantfpc    | -                  | runs a .pas file like a script: `instantfpc x.pas`
+lazbuild      | lazbuild --version | builds a Lazarus project (.lpi) without the IDE
+vikix-lazarus | -                  | the Lazarus IDE, docked in one window
+gdb           | gdb --version      | the debugger Lazarus uses (F9 runs under it)
+ptop          | -                  | formats Pascal code: `ptop in.pas out.pas`
+fpdoc         | -                  | makes documentation from your units
