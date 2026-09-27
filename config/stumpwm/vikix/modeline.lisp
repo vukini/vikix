@@ -4,6 +4,7 @@
 ;;;;   %J   workspaces in use, the current one in bold
 ;;;;   %W   the current workspace's windows
 ;;;;   ^>   everything after this goes on the right
+;;;;   %U   updates waiting (bin/vikix-updates checks every 6 hours)
 ;;;;   %O   network: Wi-Fi name and signal, wired, or offline
 ;;;;   %V   volume (only when there is a sound server)
 ;;;;   %B   battery (only if the contrib module loaded)
@@ -44,14 +45,25 @@ NetworkManager."
       ""
       (format nil "~a  " *vikix-net*)))
 
-;; %J, %V and %O are free: neither StumpWM nor its contrib modules use them.
+(defun vikix-mode-line-updates (ml)
+  "Waiting updates, from *vikix-updates* (commands.lisp), in the accent
+colour; nothing when there are none."
+  (declare (ignore ml))
+  (if (string= *vikix-updates* "")
+      ""
+      (format nil "^(:push)^(:fg \"~a\")~a^(:pop)  "
+              (vikix-colour :accent) *vikix-updates*)))
+
+;; %J, %V, %O and %U are free: neither StumpWM nor its contrib modules use them.
 (add-screen-mode-line-formatter #\J 'vikix-mode-line-groups)
 (add-screen-mode-line-formatter #\V 'vikix-mode-line-volume)
 (add-screen-mode-line-formatter #\O 'vikix-mode-line-net)
+(add-screen-mode-line-formatter #\U 'vikix-mode-line-updates)
 
 (defun vikix-bar-refresh ()
   (vikix-volume-refresh)
-  (vikix-net-refresh))
+  (vikix-net-refresh)
+  (vikix-updates-refresh))
 
 ;; The volume keys update the bar at once (vikix-volume); this timer
 ;; catches everything else: pavucontrol, a new Wi-Fi network, a cable.
@@ -68,7 +80,7 @@ NetworkManager."
       *mode-line-pad-y*      4
       *time-modeline-string* "%a %d %b  %H:%M"
       *screen-mode-line-format*
-      (format nil "%J  %W^>%O%V~a  %d" (if *vikix-battery* "%B " "")))
+      (format nil "%J  %W^>%U%O%V~a  %d" (if *vikix-battery* "%B " "")))
 
 ;; Turn the bar on for every screen and head (monitor).
 (dolist (screen *screen-list*)

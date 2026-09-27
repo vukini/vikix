@@ -141,6 +141,37 @@ there is no sound server to ask.")
       (setf *vikix-net* new)
       (update-all-mode-lines))))
 
+(defvar *vikix-updates* ""
+  "What `vikix update` would bring, for the bar: \"updates 12\", \"updates
+12 + Vikix\", \"Vikix update\", or \"\" when there is nothing (or it
+couldn't be checked).")
+
+(defparameter *vikix-updates-file*
+  (merge-pathnames ".local/state/vikix/updates" (user-homedir-pathname))
+  "Where bin/vikix-updates saves its counts: \"PACKAGES COMMITS\".")
+
+(defun vikix-updates-text (packages commits)
+  "The bar's words for PACKAGES and COMMITS (numbers, or NIL when unknown)."
+  (let ((p (and packages (plusp packages)))
+        (c (and commits (plusp commits))))
+    (cond ((and p c) (format nil "updates ~d + Vikix" packages))
+          (p (format nil "updates ~d" packages))
+          (c "Vikix update")
+          (t ""))))
+
+(defun vikix-updates-refresh ()
+  "Read bin/vikix-updates' file into *vikix-updates*; redraw the bar if it
+changed. Reading a small file is cheap, so this runs with the others."
+  (let* ((line (ignore-errors
+                (with-open-file (in *vikix-updates-file*) (read-line in nil ""))))
+         (words (and line (split-string line " ")))
+         (new (vikix-updates-text
+               (ignore-errors (parse-integer (first words)))
+               (ignore-errors (parse-integer (second words))))))
+    (unless (string= new *vikix-updates*)
+      (setf *vikix-updates* new)
+      (update-all-mode-lines))))
+
 (defcommand vikix-volume (change) ((:string "Volume (up, down, mute, mic): "))
   "Change the volume with vikix-osd, which shows a bar for it, then show
 the new level in the mode line."

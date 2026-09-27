@@ -113,6 +113,7 @@ keys follow the prefix Ctrl+t. Focus follows the mouse (sloppy focus).
 ## Checking and fixing
 
 - `vikix doctor` checks programs, services, links, the snapshot history and that `vikix eval` works. Start here when something is broken.
+- The bar shows `updates N` / `Vikix update` when `vikix update` has something to bring; `vikix-updates` checks (every 6 hours, from the session) and saves the counts in `~/.local/state/vikix/updates`.
 - `vikix update` pulls Vikix, updates Void, adds new packages and switches on their services, and re-links the config; a failed step is named at the end, and the rest still run; `vikix migrate` runs one-off fixes; `vikix rebuild-wm` rebuilds the StumpWM binary after a Quicklisp update; `vikix docs` downloads the offline programming docs into `~/dev` (a few GB, slow, so `vikix update` and the installer skip it).
 - Installer stages are `<checkout>/install/NN-name.sh`; re-run one with `<checkout>/install.sh --only NN-name`. Each checks before it changes anything, so re-running is safe.
 - The session starts from tty1: `~/.bash_profile` runs `startx`, `~/.xinitrc` runs `vikix-session`, which starts pipewire, dunst, picom, the Emacs daemon, then StumpWM (`~/.local/bin/stumpwm`).

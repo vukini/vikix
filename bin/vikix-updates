@@ -1,0 +1,54 @@
+#!/bin/sh
+# vikix-updates — what `vikix update` would bring: Void packages with a newer
+# version, and new Vikix commits. The bar shows it (modeline.lisp).
+#
+#   vikix-updates          check now, print the result, and save it
+#   vikix-updates --watch  check a minute from now, then every 6 hours;
+#                          vikix-session runs this for the whole session
+#
+# The result goes to ~/.local/state/vikix/updates as "PACKAGES COMMITS",
+# with ? for a count that couldn't be checked (offline, say). Checking
+# takes a few seconds of network, so it happens here, in the background,
+# and the bar only reads the file.
+
+state="${XDG_STATE_HOME:-$HOME/.local/state}/vikix"
+out="$state/updates"
+# This file is a link in ~/.local/bin; the checkout is where it points.
+vikix_dir=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
+
+check() {
+  # -M: the package index is fetched into memory, so no root is needed and
+  # the system's own copy is left alone.
+  if list=$(xbps-install -Mun 2>/dev/null); then
+    packages=$(printf '%s' "$list" | grep -c .)
+  else
+    packages='?'
+  fi
+  # Never ask for a password or a passphrase: fail and say ? instead.
+  if GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND='ssh -o BatchMode=yes' \
+       git -C "$vikix_dir" fetch -q 2>/dev/null; then
+    commits=$(git -C "$vikix_dir" rev-list --count 'HEAD..@{upstream}' 2>/dev/null || echo '?')
+  else
+    commits='?'
+  fi
+  mkdir -p "$state"
+  echo "$packages $commits" > "$out.tmp" && mv "$out.tmp" "$out"
+}
+
+if [ "${1:-}" = --watch ]; then
+  # One watcher per user, however often the session is restarted.
+  mkdir -p "$state"
+  exec 9>"$state/updates.lock"
+  flock -n 9 || exit 0
+  sleep 60                      # let the network come up after login
+  while :; do
+    check
+    case "$packages $commits" in
+      *'?'*) sleep 900 ;;       # couldn't check: try again in 15 minutes
+      *)     sleep 21600 ;;
+    esac
+  done
+fi
+
+check
+echo "packages: $packages  Vikix commits: $commits"

@@ -81,6 +81,8 @@ cmd_update() {
     bash "$VIKIX_DIR/install/$stage.sh" || { warn "stage $stage failed; carrying on"; failed+=("$stage"); }
   done
   cmd_migrate
+  # So the bar stops showing the updates that were just installed.
+  [ "$DRY_RUN" = 1 ] || "$VIKIX_DIR/bin/vikix-updates" >/dev/null 2>&1 || true
   if [ "${#failed[@]}" -gt 0 ]; then
     warn "these stages failed: ${failed[*]}. Fix them, then: vikix update (log: $VIKIX_UPDATE_LOG)"
     return 1

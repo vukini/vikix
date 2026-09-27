@@ -50,6 +50,10 @@ for battery in /sys/class/power_supply/BAT*; do
   break
 done
 
+# Updates waiting, for the bar: checked a minute after login and then every
+# 6 hours, in the background (bin/vikix-updates).
+"$HOME/.local/bin/vikix-updates" --watch &
+
 # The password box programs show when they need admin rights.
 for agent in /usr/libexec/polkit-gnome-authentication-agent-1 \
              /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1; do

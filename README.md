@@ -234,6 +234,16 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 | `Shift+Print` | Screenshot an area to `~/Pictures/Screenshots` |
 | volume and brightness keys | Change the level and show a bar for it |
 
+## The bar
+
+Along the top: on the left the workspaces in use (the current one in brackets) and this workspace's windows; on the right, from left to right:
+
+- **updates**, in the theme's accent colour, when `vikix update` has something to bring: `updates 12` (Void packages), `updates 12 + Vikix`, or `Vikix update`. Checked a minute after you log in and then every 6 hours, in the background (`vikix-updates`); `vikix update` clears it. Nothing shows when there's nothing, or when it couldn't check (offline).
+- the network: the Wi-Fi name and signal, `wired`, or `offline`
+- the volume
+- the battery, on a laptop
+- the date and time
+
 ## Themes
 
 One theme colours the whole desktop: StumpWM and its bar, the terminal (alacritty, and kitty if you want it), rofi, notifications and the lock screen. Two come with Vikix: **void** (dark, the default) and **paper** (light).
@@ -457,6 +467,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `lisp` | Every Lisp file reads cleanly, so a missing paren shows up here, not at login (needs `sbcl`) |
 | `battery` | The low-battery warner warns once at 15%, once at 5%, and again only after charging |
 | `image` | `vikix-image` opens nsxiv on the image's whole folder, in name order, at the image you picked |
+| `updates` | `vikix-updates` counts waiting Void packages and Vikix commits, and says `?` for a check that failed, not 0 |
 | `theme` | `vikix theme` writes every program's colours from one theme file and refuses a broken one; the migration hooks old starter configs up to it without touching your own settings |
 | `home` | `40-config` and `60-login` change nothing when run again, and `vikix undo` puts your files back (and undoing again brings the change back) |
 | `update` | `vikix update` runs the new version's steps after it pulls, logs the whole run, and carries on past a failed stage, naming it at the end |

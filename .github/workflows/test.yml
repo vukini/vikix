@@ -46,6 +46,8 @@ jobs:
         run: tests/ci.sh image
       - name: theme
         run: tests/ci.sh theme
+      - name: updates
+        run: tests/ci.sh updates
       - name: update
         run: tests/ci.sh update
 
