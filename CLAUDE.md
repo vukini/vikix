@@ -6,6 +6,8 @@ Vikix is an opinionated desktop layer for **glibc Void Linux** built around **St
 
 This folder sits inside an Obsidian vault, but it is a code repo: the vault's note conventions (frontmatter, tags, `_Index_of_*`) don't apply here. The `vikix-*.zip` files are old releases and are gitignored.
 
+`site/index.html` is the website, vikix.dev: one static page, no build, published by `.github/workflows/pages.yml` on each push that touches `site/` or `VERSION` (the workflow writes `VERSION` into the page). When a release adds something a visitor would care about (a key, a feature card), update the page in the same commit.
+
 `TODO.md` lists planned features and cleanups. Read it when asked what's next, and remove an item in the commit that ships it.
 
 ## Checking changes

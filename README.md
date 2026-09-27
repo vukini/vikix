@@ -515,6 +515,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `themes/` | The colour themes (see [Themes](#themes)) |
 | `migrations/` | One-off changes for machines already installed (see its README) |
 | `tests/` | The tests (see [Tests](#tests)) |
+| `site/` | The website, [vikix.dev](https://vikix.dev): one static page, published to GitHub Pages by `.github/workflows/pages.yml` |
 
 ## Not done yet
 

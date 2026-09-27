@@ -1,0 +1,45 @@
+# The website, vikix.dev: publishes site/ to GitHub Pages.
+#
+# The page is one static file, so there is no build, only one step: the
+# version in the page is taken from VERSION, so the site never shows an
+# old release. The custom domain is set in the repo's Pages settings;
+# site/CNAME records it too.
+
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths: ["site/**", "VERSION", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; a newer push waits rather than cancelling a
+# deploy halfway.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Put the current version in the page
+        run: |
+          version=$(tr -d '[:space:]' < VERSION)
+          sed -i "s|<span id=\"ver\">[^<]*</span>|<span id=\"ver\">$version</span>|" site/index.html
+          grep -q "<span id=\"ver\">$version</span>" site/index.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
