@@ -38,7 +38,9 @@ fake_xbps() {   # fake_xbps LINES|fail
   fi
   chmod +x "$t/bin/xbps-install"
 }
-counts() { PATH="$t/bin:$PATH" XDG_STATE_HOME="$t/state" sh "$t/vikix/bin/vikix-updates" >/dev/null; cat "$t/state/vikix/updates"; }
+# VIKIX_FWUPDMGR: the stand-in outright, never a real fwupdmgr on PATH.
+counts() { PATH="$t/bin:$PATH" XDG_STATE_HOME="$t/state" VIKIX_FWUPDMGR="$t/bin/fwupdmgr" \
+             sh "$t/vikix/bin/vikix-updates" >/dev/null; cat "$t/state/vikix/updates"; }
 
 fake_xbps 3
 [ "$(counts)" = "3 2 0" ] || { echo "FAIL: 3 packages and 2 commits read as: $(counts)"; fail=1; }

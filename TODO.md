@@ -4,14 +4,13 @@ What's left to add or clean up, most valuable first within each section. Delete 
 
 ## Features
 
-1. **Fingerprint (fprintd), for sudo and unlocking the screen.** An optional step that does nothing unless a reader is found. Enrol with `vikix fingerprint`. The PAM lines go in with ensure_block's care, and the password always keeps working. i3lock may still need the password; if so, say so plainly.
-2. **A Windows VM for Windows-only work software.** An optional stage: virt-manager, qemu, libvirt (a runit service), the user in the libvirt group, and a README section on making a Windows guest with virtio drivers and a shared folder.
-3. **OCR and a colour picker, in the Super+Ctrl+Print menu.** "Text from an area": maim -s, then tesseract-ocr (and its English data), then the clipboard and a notification. "Pick a colour": xcolor, with the hex to the clipboard.
-4. **A firewall (ufw).** Deny incoming, allow outgoing, allow SSH. A runit service, and a Super+m entry that shows the status.
-5. **`vikix debug`.** One file with the session and install logs, doctor's output, VERSION, the checkout's git status, uname, lspci/lsusb and xrandr, to attach to an issue or hand to Claude.
-6. **More themes.** Three or four more (Gruvbox, Nord, Tokyo Night, a high-contrast one), each with a wallpaper. Then make Emacs and Neovim follow `vikix theme`.
-7. **Whole-system undo.** When / is btrfs: snapper snapshots before each `vikix update`, and `vikix rollback` notes. Skip cleanly on ext4.
-8. **An install menu.** `vikix pkg add` and `vikix pkg drop`: a fuzzy search over `xbps-query -Rs` with a preview, installing or removing with xi or xr. Also a Super+m entry. Dropping a package Vikix's lists name must stick: today `vikix update` installs it again (docs/customize.md says so). A list of your own, `~/.config/vikix/packages-skip`, read by `10-packages`, and in `yours.list`; then update the docs.
+1. **A Windows VM for Windows-only work software.** An optional stage: virt-manager, qemu, libvirt (a runit service), the user in the libvirt group, and a README section on making a Windows guest with virtio drivers and a shared folder.
+2. **OCR and a colour picker, in the Super+Ctrl+Print menu.** "Text from an area": maim -s, then tesseract-ocr (and its English data), then the clipboard and a notification. "Pick a colour": xcolor, with the hex to the clipboard.
+3. **A firewall (ufw).** Deny incoming, allow outgoing, allow SSH. A runit service, and a Super+m entry that shows the status.
+4. **`vikix debug`.** One file with the session and install logs, doctor's output, VERSION, the checkout's git status, uname, lspci/lsusb and xrandr, to attach to an issue or hand to Claude.
+5. **More themes.** Three or four more (Gruvbox, Nord, Tokyo Night, a high-contrast one), each with a wallpaper. Then make Emacs and Neovim follow `vikix theme`.
+6. **Whole-system undo.** When / is btrfs: snapper snapshots before each `vikix update`, and `vikix rollback` notes. Skip cleanly on ext4.
+7. **An install menu.** `vikix pkg add` and `vikix pkg drop`: a fuzzy search over `xbps-query -Rs` with a preview, installing or removing with xi or xr. Also a Super+m entry. Dropping a package Vikix's lists name must stick: today `vikix update` installs it again (docs/customize.md says so). A list of your own, `~/.config/vikix/packages-skip`, read by `10-packages`, and in `yours.list`; then update the docs.
 9. **The guides on vikix.dev.** A Docs link on the site to `docs/` on GitHub, or the four pages built into the site. Same words either way: `docs/` stays the source.
 
 ## To look into

@@ -58,6 +58,8 @@ jobs:
         run: tests/ci.sh drives
       - name: firmware
         run: tests/ci.sh firmware
+      - name: fingerprint
+        run: tests/ci.sh fingerprint
       - name: rofi
         run: tests/ci.sh rofi
       - name: wallpaper

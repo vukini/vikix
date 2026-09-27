@@ -17,9 +17,10 @@ VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 # shellcheck source=../lib/common.sh
 . "$VIKIX_DIR/lib/common.sh"
 POWER=${VIKIX_POWER_SUPPLY:-/sys/class/power_supply}   # a test can point this elsewhere
+FWUPDMGR=${VIKIX_FWUPDMGR:-fwupdmgr}                  # ... and this at a stand-in
 
 need_fwupd() {
-  command -v fwupdmgr >/dev/null 2>&1 || die "fwupd isn't installed (it comes with part two: laptop.list)"
+  command -v "$FWUPDMGR" >/dev/null 2>&1 || die "fwupd isn't installed (it comes with part two: laptop.list)"
 }
 
 # On mains power: a charger that is online, or no battery at all (a desktop).
@@ -36,7 +37,7 @@ on_ac() {
 }
 
 # --no-unreported-check: don't stop to ask about sending reports to LVFS.
-fw() { fwupdmgr --no-unreported-check "$@"; }
+fw() { "$FWUPDMGR" --no-unreported-check "$@"; }
 
 cmd_check() {
   need_fwupd
@@ -47,7 +48,7 @@ cmd_check() {
 }
 
 cmd_count() {
-  command -v fwupdmgr >/dev/null 2>&1 || { echo 0; return 0; }
+  command -v "$FWUPDMGR" >/dev/null 2>&1 || { echo 0; return 0; }
   fw refresh >/dev/null 2>&1 || true
   fw get-updates --json 2>/dev/null |
     python3 -c 'import json, sys; print(len(json.load(sys.stdin).get("Devices", [])))' 2>/dev/null ||

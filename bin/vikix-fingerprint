@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+# vikix-fingerprint — a fingerprint for sudo and the lock screen (`vikix fingerprint`).
+#
+#   vikix fingerprint        is there a reader? which fingers are enrolled?
+#                            and, the first time, enrol one
+#   vikix fingerprint enrol [FINGER]   enrol a finger (right-index-finger unless
+#                            named: left-thumb, right-middle-finger, ...)
+#   vikix fingerprint on     let sudo and the lock screen take a finger
+#   vikix fingerprint off    take that out again: the password only
+#
+# With it on, your password works exactly as before. To use the finger
+# instead, press Enter at the password prompt (sudo's, or the lock
+# screen's) with nothing typed, then touch the reader. Over SSH the reader
+# is never asked.
+#
+# fprintd does the work; it only knows the readers libfprint has a driver
+# for (fprint.freedesktop.org/supported-devices.html). With no such reader,
+# this says so and changes nothing.
+
+set -euo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+PAM=${VIKIX_PAM_DIR:-/etc/pam.d}              # a test can point this elsewhere
+SUDO=${VIKIX_PAM_SUDO-sudo}                   # and do without sudo
+# The files that get the block: sudo, and i3lock (the lock screen).
+SERVICES="sudo i3lock"
+START='# >>> vikix fingerprint >>>'
+END='# <<< vikix fingerprint <<<'
+# Password first, as always: when it's right, that's the end of it
+# (success=done). An empty or wrong one goes on to the reader; when that
+# fails too, the usual system-auth decides, and says no.
+BLOCK="$START
+# From \`vikix fingerprint on\`: your password as before, or press Enter
+# with none typed, then touch the reader. \`vikix fingerprint off\` takes it out.
+auth    [success=done default=ignore]  pam_unix.so  try_first_pass
+auth    sufficient                     pam_fprintd.so  max-tries=2 timeout=15
+$END"
+
+need_fprintd() {
+  command -v fprintd-list >/dev/null 2>&1 || die "fprintd isn't installed (it comes with part two: laptop.list)"
+}
+
+# The fingerprint readers lsusb shows, by maker, for when fprintd finds none.
+readers_seen() {
+  command -v lsusb >/dev/null 2>&1 || return 0
+  lsusb | grep -i -E '138a:|06cb:|27c6:|04f3:|1c7a:|2808:|10a5:|147e:|08ff:' || true
+}
+
+# What fprintd says about this user: "No devices available", or the
+# device and its enrolled fingers.
+listing() { fprintd-list "$USER" 2>&1 || true; }
+has_reader() { ! listing | grep -qi 'no devices available'; }
+enrolled() { listing | grep -qE '^ *- #[0-9]+: '; }
+
+explain_no_reader() {
+  warn "fprintd finds no fingerprint reader it can use"
+  local seen; seen=$(readers_seen)
+  if [ -n "$seen" ]; then
+    echo "   lsusb shows a reader, but libfprint has no driver for it:"
+    printf '     %s\n' "$seen"
+    case $seen in
+      *138a:*)
+        echo "   Validity (138a) readers, like the X1 Carbon 6th gen's 138a:0097, mostly"
+        echo "   aren't supported; python-validity is the only driver for some of them,"
+        echo "   and Void doesn't package it: https://github.com/uunicorn/python-validity" ;;
+    esac
+    echo "   Supported readers: https://fprint.freedesktop.org/supported-devices.html"
+  else
+    echo "   (and lsusb shows none by the usual makers)"
+  fi
+  echo "   Nothing was changed: sudo and the lock screen still take your password."
+}
+
+# pam_text FILE on|off — FILE's contents with the block in (just before its
+# first auth line) or out.
+pam_text() {
+  BLOCK=$BLOCK awk -v s="$START" -v e="$END" -v mode="$2" '
+    $0 == s { skip = 1; next }
+    skip && $0 == e { skip = 0; next }
+    skip { next }
+    mode == "on" && !done && $1 == "auth" { print ENVIRON["BLOCK"]; done = 1 }
+    { print }
+  ' "$1"
+}
+
+# set_pam on|off — write the block into, or out of, each service's file,
+# after a backup; as root (sudo), since these are /etc/pam.d files.
+set_pam() {
+  local svc file tmp
+  for svc in $SERVICES; do
+    file="$PAM/$svc"
+    [ -f "$file" ] || { warn "no $file; skipping it"; continue; }
+    tmp=$(mktemp)
+    pam_text "$file" "$1" > "$tmp"
+    if cmp -s "$tmp" "$file"; then rm -f "$tmp"; continue; fi
+    # Never leave a file without its auth lines: that would lock sudo out.
+    grep -q '^auth' "$tmp" || { rm -f "$tmp"; die "refusing to write $file without its auth lines"; }
+    $SUDO cp -p "$file" "$file.vikix-bak.$(timestamp)"
+    $SUDO cp "$tmp" "$file"
+    rm -f "$tmp"
+    say "$file: fingerprint $1"
+  done
+}
+
+cmd_status() {
+  need_fprintd
+  if ! has_reader; then explain_no_reader; return 0; fi
+  listing
+  if ! enrolled; then
+    say "no finger enrolled yet; enrolling your right index finger (vikix fingerprint enrol FINGER for another)"
+    cmd_enrol right-index-finger
+  fi
+  if grep -qxF "$START" "$PAM/sudo" 2>/dev/null; then
+    say "on: sudo and the lock screen take a finger (press Enter with no password, then touch the reader)"
+  else
+    say "off: turn it on with: vikix fingerprint on"
+  fi
+}
+
+cmd_enrol() {
+  need_fprintd
+  has_reader || { explain_no_reader; return 1; }
+  say "touch the reader again and again, until it says the enrolment is complete"
+  fprintd-enroll -f "${1:-right-index-finger}" "$USER"
+}
+
+cmd_on() {
+  need_fprintd
+  if [ -z "${VIKIX_FINGERPRINT_FORCE:-}" ]; then
+    has_reader || { explain_no_reader; return 1; }
+    enrolled || die "no finger enrolled yet: vikix fingerprint enrol"
+  fi
+  say "sudo and the lock screen will take a finger (your sudo password, once, to change their settings)"
+  set_pam on
+  say "done: at a password prompt, press Enter with nothing typed, then touch the reader"
+}
+
+cmd_off() {
+  set_pam off
+  say "off: sudo and the lock screen take your password only"
+}
+
+case ${1:-} in
+  ""|status) cmd_status ;;
+  enrol|enroll) shift; cmd_enrol "${1:-right-index-finger}" ;;
+  on)  cmd_on ;;
+  off) cmd_off ;;
+  help|-h|--help) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) die "unknown: vikix fingerprint $1 (try: vikix fingerprint help)" ;;
+esac

@@ -27,7 +27,10 @@ json=\${FWUPD_JSON:-}
 case "\$*" in *get-updates*--json*) echo "\$json" ;; esac
 EOF
 chmod +x "$t/bin/fwupdmgr"
-export PATH="$t/bin:$PATH" VIKIX_POWER_SUPPLY="$t/power" HOME="$t/home"
+# VIKIX_FWUPDMGR names the stand-in outright, so the real fwupdmgr (on a
+# machine that has it) can never be reached, not even by the "without
+# fwupd" case below: a stand-in on PATH alone once let it through.
+export PATH="$t/bin:$PATH" VIKIX_POWER_SUPPLY="$t/power" HOME="$t/home" VIKIX_FWUPDMGR="$t/bin/fwupdmgr"
 fail=0
 check() { "${@:2}" || { echo "FAIL: $1"; fail=1; }; }
 fw() { : > "$log"; bash "$t/vikix/bin/vikix-firmware" "$@"; }
@@ -61,7 +64,7 @@ check "vikix firmware should fetch the list, then show updates" \
 check "two devices with updates should count 2" test "$(fw count)" = 2
 check "none should count 0" test "$(FWUPD_JSON='{"Devices": []}' fw count)" = 0
 check "an answer it can't read should count ?" test "$(FWUPD_JSON='oops' fw count)" = '?'
-rm "$t/bin/fwupdmgr"
+export VIKIX_FWUPDMGR="$t/bin/no-such-fwupdmgr"
 check "without fwupd the count should be 0" test "$(fw count)" = 0
 if fw update >/dev/null 2>&1; then echo "FAIL: without fwupd, update should say it's missing"; fail=1; fi
 

@@ -361,7 +361,7 @@ A restore goes into `~/Restored/<time>/`, beside your files, never over them; mo
 | `fonts` | Iosevka, the terminal font. Every variant comes in one 862 MB package, so it waits for part two; until then the terminal uses a plain monospace font, and the bar Noto Sans Mono. Also fonttools, which `vikix-font` uses to take the one Iosevka the bar needs out of that package. |
 | `network` | NetworkManager (`nmtui` for Wi-Fi), with its connection editor |
 | `audio` | PipeWire, WirePlumber (with Bluetooth audio), pamixer, pavucontrol |
-| `laptop` | tlp, fwupd (firmware updates), acpid, brightnessctl, xprintidle (suspend when idle on battery), Bluetooth (bluez, blueman), autorandr, and the firmware a recent ThinkPad needs: sof-firmware (sound), intel-ucode (from the nonfree repo, enabled by `repos.list`), intel-video-accel |
+| `laptop` | tlp, fwupd (firmware updates), fprintd (fingerprint readers), acpid, brightnessctl, xprintidle (suspend when idle on battery), Bluetooth (bluez, blueman), autorandr, and the firmware a recent ThinkPad needs: sof-firmware (sound), intel-ucode (from the nonfree repo, enabled by `repos.list`), intel-video-accel |
 | `printing` | CUPS with its filters, system-config-printer (and cups-pk-helper, so it needs no root), avahi and nss-mdns (finding network printers), ipp-usb (driverless USB printers), and drivers for older printers: gutenprint, foomatic, brlaser |
 | `editors` | Emacs, Neovim, the pdf-tools build deps, the `tree-sitter` CLI (Neovim builds its parsers with it), and the language servers Void packages (ccls, lua-language-server, gopls, efm-langserver) plus nodejs for the npm ones |
 | `apps` | Firefox, PCManFM, USB drives that mount when plugged in (udisks2, udiskie; gvfs-mtp for Android phones), SpaceFM, mpv, nsxiv, zathura, Foliate (EPUB), LibreOffice (Writer, Calc, Impress, Draw, Math), Zeal (offline docs) |
@@ -396,6 +396,21 @@ vikix firmware devices    # what fwupd knows about, with each one's version
 - **The bar** says `firmware` (or `updates 12 + firmware`) when something is waiting: `vikix-updates` asks LVFS every 6 hours.
 - **Passwords:** none for the check. Signed firmware from LVFS, which is nearly all of it, installs without one; so does the laptop's own firmware (the BIOS), since you're in `wheel` at the machine itself (fwupd's polkit rules). Anything else asks for your password once.
 - **"UEFI ESP partition not detected"**: fwupd didn't find the EFI partition, which BIOS updates are staged on. If it's mounted somewhere unusual, set `EspLocation=` in `/etc/fwupd/fwupd.conf` to that folder.
+
+## Fingerprint
+
+Where the laptop has a reader that [libfprint supports](https://fprint.freedesktop.org/supported-devices.html), a finger can stand in for your password at sudo and on the lock screen.
+
+```sh
+vikix fingerprint          # is there a reader? enrols your right index finger the first time
+vikix fingerprint on       # let sudo and the lock screen take it
+vikix fingerprint off      # the password only, as before
+vikix fingerprint enrol left-index-finger   # another finger
+```
+
+- **How to use it:** at sudo's password prompt, or on the lock screen, press Enter with nothing typed, then touch the reader. Typing your password works exactly as before; over SSH the reader is never asked.
+- **What `on` changes:** a marked block in `/etc/pam.d/sudo` and `/etc/pam.d/i3lock`, just before their `auth` line, after a backup of each (`*.vikix-bak.<time>`). `off` takes it out again and leaves the files as they were.
+- **No usable reader, no change.** `vikix fingerprint` says so, and names the reader lsusb shows. The X1 Carbon 6th gen's Validity 138a:0097 is one libfprint doesn't support; [python-validity](https://github.com/uunicorn/python-validity) drives some Validity readers, but Void doesn't package it.
 
 ## USB drives
 
@@ -557,6 +572,7 @@ vikix agent        # Claude Code (Super+a)
 vikix snapshot / changes / history / undo   # the history of your files
 vikix backup       # back up your home folder (vikix backup help for the rest)
 vikix firmware     # firmware updates waiting (BIOS, Thunderbolt, ...); vikix firmware update installs them
+vikix fingerprint  # a finger for sudo and the lock screen, where the reader is supported
 ```
 
 ## Tests
@@ -584,6 +600,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `theme` | `vikix theme` writes every program's colours from one theme file and refuses a broken one; the migration hooks old starter configs up to it without touching your own settings |
 | `wallpaper` | `vikix-wallpaper` shows the theme's picture until you choose one, keeps your choice across theme changes, gives a theme without a picture a plain background in its colour, sets what the picker picked, and leaves the wallpaper alone when off or during `vikix update`; the migration turns it off where you had your own |
 | `rofi` | `vikix-rofi` opens the emoji picker and calculator with Vikix's keys, the calculator's Enter copies exactly the answer, and a missing plugin is named in a notification |
+| `fingerprint` | `vikix fingerprint on` puts its PAM block just before the first auth line and `off` leaves the files exactly as they were, never twice and always after a backup; nothing changes without a usable reader and an enrolled finger |
 | `firmware` | `vikix firmware update` refuses on battery and goes ahead on the charger or on a desktop, fetches the LVFS list first, and counts the waiting updates for the bar |
 | `drives` | `vikix-drives` finds the mounted drives (a space in a name too), ejects the one picked and says when it's safe or that it's in use, starts a backup on plug-in only for the backup drive and only when one is due, and gives udiskie your own settings when you have them |
 | `examples` | every example in `dev/*/examples/` builds and runs with its Makefile, where its compiler is installed, and every `wordfreq` prints the same `expected.txt` |
