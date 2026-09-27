@@ -316,26 +316,193 @@ fi
 
 # --- ~/dev/index.html ----------------------------------------------------------
 # Regenerated each time, from what is on disk now. Vikix's file, not yours.
+# It looks like vikix.dev, with no fonts or scripts fetched from anywhere:
+# the page is for reading offline. The site's fonts are used if installed,
+# Iosevka and Noto otherwise. It opens in the desktop's current theme; the
+# button switches it, and the browser remembers.
+
+# doc_label PATH — a readable name for a doc, from its path under docs/.
+doc_label() {
+  local f
+  case $1 in
+    python-*-docs-html/index.html) f=${1#python-}; printf 'Python %s documentation' "${f%%-*}" ;;
+    HyperSpec/Front/index.htm) printf 'Common Lisp HyperSpec' ;;
+    racket/index.html)         printf 'Racket documentation' ;;
+    ghc/index.html)            printf 'GHC User&rsquo;s Guide' ;;
+    manual.html)               printf 'Lua reference manual' ;;
+    langref-*.html)            f=${1#langref-}; printf 'Zig %s language reference' "${f%.html}" ;;
+    sqlite-doc-*/index.html)   printf 'SQLite documentation' ;;
+    rust/book/index.html)      printf 'The Rust Programming Language' ;;
+    rust/std/index.html)       printf 'The Rust standard library' ;;
+    *)                         printf '%s' "$1" ;;
+  esac
+}
+
 page() {
-  local l d f
+  local l d f n theme mode=dark
+  theme=$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/vikix/theme/current" 2>/dev/null || echo void)
+  [ "$theme" = paper ] && mode=light
+  printf '<!doctype html>\n<html lang="en" data-theme="%s" data-vikix="%s">\n' "$mode" "$theme"
   cat <<'EOF'
-<!doctype html><meta charset="utf-8"><title>~/dev — offline docs</title>
-<style>body{font:15px/1.5 sans-serif;max-width:46em;margin:2em auto;padding:0 1em}
-h2{margin-bottom:.2em}code{background:#eee;padding:0 .3em}li{margin:.15em 0}</style>
-<h1>Offline docs</h1>
-<p>Zeal searches every docset at once. In a shell: <code>docs</code> opens this page,
-<code>jlab</code> starts JupyterLab here.</p>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>~/dev — offline docs</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%231e1e2e'/%3E%3Ctext x='30' y='47' font-family='monospace' font-weight='800' font-size='44' text-anchor='middle' fill='%23cdd6f4'%3Ev%3C/text%3E%3Ccircle cx='50' cy='44' r='5' fill='%2389b4fa'/%3E%3C/svg%3E">
+<style>
+/* The two Vikix themes, as on vikix.dev: paper (light) and void (dark). */
+:root {
+  --bg: #eff1f5; --bg2: #e6e9ef; --bg3: #dce0e8;
+  --fg: #4c4f69; --subtle: #636679; --dim: #9ca0b0; --line: #ccd0da;
+  --accent: #1c5bd6; --green: #327a1f;
+  --display: "Martian Mono", "IBM Plex Mono", "Iosevka", ui-monospace, monospace;
+  --body: "Schibsted Grotesk", "Noto Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", "Iosevka", ui-monospace, monospace;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #1e1e2e; --bg2: #181825; --bg3: #11111b;
+  --fg: #cdd6f4; --subtle: #a6adc8; --dim: #585b70; --line: #313244;
+  --accent: #89b4fa; --green: #a6e3a1;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 400 16px/1.6 var(--body); -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 1180px; margin-inline: auto; padding-inline: 24px; }
+@media (max-width: 600px) { .wrap { padding-inline: 16px; } }
+a { color: var(--accent); text-underline-offset: 3px; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+code, kbd { font-family: var(--mono); }
+code { font-size: .88em; background: var(--bg2); border: 1px solid var(--line); padding: .05em .35em; border-radius: 4px; }
+kbd { font-size: .82em; padding: .1em .45em; border-radius: 5px; background: var(--bg2); border: 1px solid var(--line); border-bottom-width: 2px; white-space: nowrap; }
+h1, h2 { font-family: var(--display); letter-spacing: -.02em; line-height: 1.12; margin: 0; }
+p { margin: 0; }
+
+/* the top bar, styled like the StumpWM mode line */
+.top { position: sticky; top: 0; z-index: 2; background: color-mix(in srgb, var(--bg3) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); font: .86rem var(--mono); }
+.top .wrap { display: flex; align-items: center; gap: 20px; height: 46px; }
+.logo { font: 800 1rem var(--display); letter-spacing: -.03em; color: var(--fg); }
+.logo span { color: var(--accent); }
+.top nav { display: flex; gap: 14px; flex: 1; overflow-x: auto; scrollbar-width: none; }
+.top nav a { color: var(--subtle); text-decoration: none; white-space: nowrap; }
+.top nav a:hover { color: var(--fg); }
+.theme-btn { font: inherit; color: var(--subtle); background: none; border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer; white-space: nowrap; }
+.theme-btn:hover { color: var(--fg); border-color: var(--dim); }
+.theme-btn b { color: var(--accent); font-weight: 600; }
+@media (max-width: 520px) { .theme-btn .tb-cmd { display: none; } .top .wrap { gap: 12px; } }
+
+.hero { padding-block: 56px 36px; display: grid; gap: 18px; }
+.eyebrow { font: 500 .78rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--subtle); }
+.eyebrow b { color: var(--accent); font-weight: 600; }
+.hero h1 { font-size: clamp(1.9rem, 4.2vw, 3rem); font-weight: 800; letter-spacing: -.05em; }
+.hero h1 em { font-style: normal; color: var(--accent); }
+.lede { font-size: 1.1rem; color: var(--subtle); max-width: 62ch; }
+.keys { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: .92rem; color: var(--subtle); }
+.search { font: .95rem var(--mono); color: var(--fg); background: var(--bg2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; width: min(100%, 420px); }
+.search::placeholder { color: var(--dim); }
+.search:focus { outline: none; border-color: var(--accent); }
+
+.langs { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; padding-block: 8px 64px; }
+@media (max-width: 400px) { .langs { grid-template-columns: 1fr; } }
+.card { border: 1px solid var(--line); border-radius: 12px; padding: 22px 24px; display: grid; gap: 12px; align-content: start; background: var(--bg); scroll-margin-top: 62px; }
+.card:target { border-color: var(--accent); }
+.card header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.card h2 { font-size: 1.05rem; font-weight: 600; letter-spacing: -.01em; }
+.card header span { font: .76rem var(--mono); color: var(--dim); }
+.card ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: .94rem; color: var(--subtle); }
+.card li { padding-left: 14px; position: relative; }
+.card li::before { content: "›"; position: absolute; left: 0; color: var(--dim); }
+.card li.doc::before { color: var(--green); }
+.card li.doc a { font-weight: 500; }
+.card .none { color: var(--dim); font-size: .92rem; }
+.card[hidden] { display: none; }
+.empty { display: none; color: var(--subtle); padding-bottom: 64px; }
+
+footer { border-top: 1px solid var(--line); padding-block: 24px 40px; font: .8rem var(--mono); color: var(--dim); }
+</style>
+<header class="top">
+  <div class="wrap">
+    <span class="logo">vikix<span>.</span></span>
+    <nav aria-label="Languages">
+EOF
+  for l in "${langs[@]}"; do printf '      <a href="#%s">%s</a>\n' "$l" "$l"; done
+  cat <<'EOF'
+    </nav>
+    <button class="theme-btn" id="themeBtn" type="button" aria-label="Switch theme"><span class="tb-cmd">vikix theme </span><b id="themeName">void</b></button>
+  </div>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <p class="eyebrow"><b>~/dev</b> · offline docs</p>
+    <h1>Every doc, <em>offline</em>.</h1>
+    <p class="lede">Each language's own documentation, kept on this machine. Zeal searches every docset at once.</p>
+    <div class="keys">
+      <span><kbd>docs</kbd> opens this page</span>
+      <span><kbd>jlab</kbd> starts JupyterLab here</span>
+      <span><kbd>vikix docs</kbd> downloads what is missing</span>
+    </div>
+    <input class="search" id="q" type="search" placeholder="Filter: a language or a doc  ( / )" aria-label="Filter the docs" autocomplete="off">
+  </section>
+  <div class="langs" id="langs">
 EOF
   for l in "${langs[@]}"; do
     d="$DEV/$l/docs"
-    printf '<h2>%s</h2><ul>\n' "$l"
+    printf '  <article class="card" id="%s">\n    <header><h2>%s</h2><span>~/dev/%s</span></header>\n    <ul>\n' "$l" "$l" "$l"
+    n=0
     for f in "$d"/python-*-docs-html/index.html "$d"/HyperSpec/Front/index.htm "$d"/racket/index.html \
-             "$d"/ghc/index.html "$d"/manual.html "$d"/langref-*.html "$d"/sqlite-doc-*/index.html; do
-      [ -e "$f" ] && printf '<li><a href="file://%s">%s</a></li>\n' "$f" "${f#"$d"/}"
+             "$d"/ghc/index.html "$d"/manual.html "$d"/langref-*.html "$d"/sqlite-doc-*/index.html \
+             "$d"/rust/book/index.html "$d"/rust/std/index.html; do
+      [ -e "$f" ] || continue
+      printf '      <li class="doc"><a href="file://%s">%s</a></li>\n' "$f" "$(doc_label "${f#"$d"/}")"
+      n=$((n + 1))
     done
-    [ -f "$d/README.md" ] && sed -n 's/^- \(.*\)$/<li>\1<\/li>/p' "$d/README.md" | sed 's/`\([^`]*\)`/<code>\1<\/code>/g'
-    printf '</ul>\n'
+    # The README's list, as the page's: escaped first (it is yours to edit),
+    # then `code` and bare links.
+    if [ -f "$d/README.md" ]; then
+      f=$(sed -n 's/^- \(.*\)$/\1/p' "$d/README.md" |
+        sed -e 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' \
+            -e 's/`\([^`]*\)`/<code>\1<\/code>/g' \
+            -e 's#\(https\?://[^ <]*\)#<a href="\1">\1</a>#g' \
+            -e 's/^/      <li>/; s/$/<\/li>/')
+      [ -n "$f" ] && { printf '%s\n' "$f"; n=$((n + 1)); }
+    fi
+    printf '    </ul>\n'
+    [ "$n" = 0 ] && printf '    <p class="none">No offline docs here yet.</p>\n'
+    printf '  </article>\n'
   done
+  cat <<'EOF'
+  </div>
+  <p class="empty" id="empty">No language or doc matches that.</p>
+</main>
+<footer><div class="wrap">Written by <code>vikix update</code> from what is in ~/dev; changes here are overwritten.</div></footer>
+<script>
+(function () {
+  var root = document.documentElement, btn = document.getElementById("themeBtn"), name = document.getElementById("themeName");
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+  function paint() { name.textContent = root.getAttribute("data-theme") === "light" ? "paper" : "void"; }
+  var saved = store("vikix-dev-theme");
+  if (saved === "dark" || saved === "light") root.setAttribute("data-theme", saved);
+  paint();
+  btn.addEventListener("click", function () {
+    var mode = root.getAttribute("data-theme") === "light" ? "dark" : "light";
+    root.setAttribute("data-theme", mode); store("vikix-dev-theme", mode); paint();
+  });
+
+  var q = document.getElementById("q"), cards = document.querySelectorAll(".card"), empty = document.getElementById("empty");
+  q.addEventListener("input", function () {
+    var s = q.value.trim().toLowerCase(), shown = 0;
+    cards.forEach(function (c) {
+      var on = !s || c.textContent.toLowerCase().indexOf(s) >= 0;
+      c.hidden = !on; if (on) shown++;
+    });
+    empty.style.display = shown ? "none" : "block";
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "/" && document.activeElement !== q) { e.preventDefault(); q.focus(); }
+    if (e.key === "Escape" && document.activeElement === q) { q.value = ""; q.dispatchEvent(new Event("input")); q.blur(); }
+  });
+})();
+</script>
+EOF
 }
 if [ "$DRY_RUN" = 1 ]; then
   printf '   would write %s\n' "$DEV/index.html"
