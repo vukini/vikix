@@ -78,7 +78,7 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
     ("Keep awake on/off"   vikix-awake)
     ("Find a window, any workspace" global-windowlist)
     ("Gaps around windows on/off" toggle-gaps)
-    ("Screenshot: an area, to a file" (run-shell-command "vikix-screenshot file"))
+    ("Screenshot or record the screen" vikix-capture)
     ("Undo: my files back one snapshot" vikix-undo)
     ("Reload config"       vikix-reload)
     ("Theme"               vikix-pick-theme)
@@ -202,6 +202,61 @@ a talk. Every login starts with it off."
   (message (if *vikix-awake*
                "Keep awake: on, until you switch it off"
                "Keep awake: off")))
+
+;;; Recording the screen (bin/vikix-record), shown in the bar.
+
+(defparameter *vikix-recording-file*
+  (merge-pathnames ".local/state/vikix/recording" (user-homedir-pathname))
+  "Holds ffmpeg's process id while vikix-record records.")
+
+(defvar *vikix-recording* nil
+  "True while the screen is being recorded.")
+
+(defun vikix-recording-p ()
+  "True when the recording file names a running process. A file left
+behind by a crash names one that is gone."
+  (handler-case
+      (with-open-file (in *vikix-recording-file* :if-does-not-exist nil)
+        (let ((pid (and in (parse-integer (or (read-line in nil) "")
+                                          :junk-allowed t))))
+          (and pid (probe-file (format nil "/proc/~d/" pid)) t)))
+    (error () nil)))
+
+(defun vikix-record-refresh ()
+  "Read the recording state into *vikix-recording*; redraw the bar if it
+changed. vikix-record calls this when it starts and stops."
+  (let ((new (vikix-recording-p)))
+    (unless (eq new *vikix-recording*)
+      (setf *vikix-recording* new)
+      (update-all-mode-lines))))
+
+(defcommand vikix-record (what) ((:string "Record (area, screen): "))
+  "Start recording the screen, or stop if it is recording. WHAT is area
+(drag one out, or click a window) or screen (the whole monitor). The bar
+says rec while it records; the video goes to ~/Videos/Recordings."
+  (run-shell-command (format nil "vikix-record toggle ~a" what)))
+
+(defparameter *vikix-capture-menu*
+  '(("Screenshot: an area, to a file"    "vikix-screenshot area file")
+    ("Screenshot: this window, to a file" "vikix-screenshot window file")
+    ("Screenshot: the whole screen, to a file" "vikix-screenshot screen file")
+    ("Record an area or a window"        "vikix-record area")
+    ("Record the whole screen"           "vikix-record screen"))
+  "Each entry: a label and the shell command it runs.")
+
+(defcommand vikix-capture () ()
+  "Pick a screenshot or a recording. While recording, the only choice is
+to stop."
+  (vikix-record-refresh)
+  (let ((choice (select-from-menu
+                 (current-screen)
+                 (if *vikix-recording*
+                     '(("Stop recording" "vikix-record stop"))
+                     *vikix-capture-menu*)
+                 "Screenshot or record: ")))
+    ;; The menu closes first, so it isn't in the picture.
+    (when choice
+      (run-shell-command (second choice)))))
 
 ;;; Notifications (dunst): do not disturb, shown in the bar.
 

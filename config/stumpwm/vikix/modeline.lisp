@@ -4,6 +4,7 @@
 ;;;;   %J   workspaces in use, the current one in bold
 ;;;;   %W   the current workspace's windows
 ;;;;   ^>   everything after this goes on the right
+;;;;   %R   rec: the screen is being recorded (vikix-record)
 ;;;;   %K   awake: keep awake is on (no lock, dark screen or suspend)
 ;;;;   %Q   quiet: notifications paused (do not disturb), and how many wait
 ;;;;   %U   updates waiting (bin/vikix-updates checks every 6 hours)
@@ -63,6 +64,13 @@ colour; nothing when there are none."
       ""
       (format nil "^(:push)^(:fg \"~a\")~a^(:pop)  " (vikix-colour :alert) *vikix-quiet*)))
 
+(defun vikix-mode-line-recording (ml)
+  "\"rec\" while the screen is recorded, from *vikix-recording* (commands.lisp)."
+  (declare (ignore ml))
+  (if *vikix-recording*
+      (format nil "^(:push)^(:fg \"~a\")rec^(:pop)  " (vikix-colour :alert))
+      ""))
+
 (defun vikix-mode-line-awake (ml)
   "\"awake\" while keep awake is on, from *vikix-awake* (commands.lisp)."
   (declare (ignore ml))
@@ -70,20 +78,22 @@ colour; nothing when there are none."
       (format nil "^(:push)^(:fg \"~a\")awake^(:pop)  " (vikix-colour :accent))
       ""))
 
-;; %J, %V, %O, %U, %Q and %K are free: neither StumpWM nor its contrib modules use them.
+;; %J, %V, %O, %U, %Q, %K and %R are free: neither StumpWM nor its contrib modules use them.
 (add-screen-mode-line-formatter #\J 'vikix-mode-line-groups)
 (add-screen-mode-line-formatter #\V 'vikix-mode-line-volume)
 (add-screen-mode-line-formatter #\O 'vikix-mode-line-net)
 (add-screen-mode-line-formatter #\U 'vikix-mode-line-updates)
 (add-screen-mode-line-formatter #\Q 'vikix-mode-line-quiet)
 (add-screen-mode-line-formatter #\K 'vikix-mode-line-awake)
+(add-screen-mode-line-formatter #\R 'vikix-mode-line-recording)
 
 (defun vikix-bar-refresh ()
   (vikix-volume-refresh)
   (vikix-net-refresh)
   (vikix-updates-refresh)
   (vikix-quiet-refresh)
-  (vikix-awake-refresh))
+  (vikix-awake-refresh)
+  (vikix-record-refresh))
 
 ;; The volume keys update the bar at once (vikix-volume); this timer
 ;; catches everything else: pavucontrol, a new Wi-Fi network, a cable.
@@ -100,7 +110,7 @@ colour; nothing when there are none."
       *mode-line-pad-y*      4
       *time-modeline-string* "%a %d %b  %H:%M"
       *screen-mode-line-format*
-      (format nil "%J  %W^>%K%Q%U%O%V~a  %d" (if *vikix-battery* "%B " "")))
+      (format nil "%J  %W^>%R%K%Q%U%O%V~a  %d" (if *vikix-battery* "%B " "")))
 
 ;; Turn the bar on for every screen and head (monitor).
 (dolist (screen *screen-list*)

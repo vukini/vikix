@@ -17,6 +17,8 @@ noto-fonts-ttf  # everything else
 xss-lock        # locks the screen on suspend/idle
 i3lock          # the lock screen
 maim            # screenshots
+slop            # choosing an area to record (maim uses it too)
+ffmpeg6         # screen recording (vikix-record)
 xclip           # clipboard from the command line
 clipmenu        # clipboard history (Super+c); clipmenud records it
 xdotool

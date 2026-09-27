@@ -1,19 +1,82 @@
 #!/bin/sh
-# vikix-screenshot — drag out an area with the mouse and keep a picture of it.
+# vikix-screenshot — keep a picture of an area, a window or the whole screen.
 #
-#   vikix-screenshot clip   to the clipboard, ready to paste   (Print)
-#   vikix-screenshot file   to ~/Pictures/Screenshots/<date>.png (Shift+Print)
+#   vikix-screenshot [WHAT] [WHERE]
+#     WHAT    area     drag out an area, or click a window    (Print)
+#             window   the focused window                     (Ctrl+Print)
+#             screen   the whole monitor the pointer is on    (Super+Print)
+#     WHERE   clip     to the clipboard, ready to paste
+#             file     to ~/Pictures/Screenshots/<date>.png   (add Shift)
 #
-# Escape or a right-click while choosing cancels, and nothing is kept.
+#   vikix-screenshot --geometry area|screen
+#                      print the area as WxH+X+Y (vikix-record uses it)
+#
+# Both words are optional: plain vikix-screenshot is "area clip", and
+# "vikix-screenshot file" is "area file", as before there were three kinds.
+# Escape or a right-click while choosing an area cancels, and nothing is kept.
+
+# The monitor under the pointer, as WxH+X+Y; nothing if xrandr can't say.
+# xrandr --listactivemonitors prints lines like
+#   0: +*eDP-1 1920/344x1080/194+0+0  eDP-1
+monitor() {
+  eval "$(xdotool getmouselocation --shell 2>/dev/null)"
+  xrandr --listactivemonitors 2>/dev/null |
+    sed -n 's|.* \([0-9]*\)/[0-9]*x\([0-9]*\)/[0-9]*+\([0-9]*\)+\([0-9]*\).*|\1 \2 \3 \4|p' |
+    while read -r w h x y; do
+      if [ "${X:-0}" -ge "$x" ] && [ "${X:-0}" -lt $((x + w)) ] &&
+         [ "${Y:-0}" -ge "$y" ] && [ "${Y:-0}" -lt $((y + h)) ]; then
+        echo "${w}x${h}+${x}+${y}"
+        break
+      fi
+    done
+}
+
+if [ "${1:-}" = --geometry ]; then
+  case ${2:-} in
+    area)   slop -f '%wx%h+%x+%y' ;;          # fails when cancelled
+    screen) g=$(monitor); [ -n "$g" ] && echo "$g" ;;
+    *)      echo "usage: vikix-screenshot --geometry area|screen" >&2; exit 2 ;;
+  esac
+  exit
+fi
+
+what=area where=clip
+for word in "$@"; do
+  case $word in
+    area|window|screen) what=$word ;;
+    clip|file)          where=$word ;;
+    *) echo "usage: vikix-screenshot [area|window|screen] [clip|file]" >&2; exit 2 ;;
+  esac
+done
 
 shot=$(mktemp --suffix=.png) || exit 1
 trap 'rm -f "$shot"' EXIT
 
-maim -s "$shot" || exit 0          # cancelled
+case $what in
+  area)
+    maim -s "$shot" || exit 0          # cancelled
+    ;;
+  window)
+    # StumpWM keeps _NET_ACTIVE_WINDOW up to date, so this is the focused one.
+    win=$(xdotool getactivewindow 2>/dev/null) || {
+      notify-send -a Vikix "No window to take a picture of" "Focus a window first."
+      exit 1
+    }
+    maim -i "$win" "$shot" || exit 1
+    ;;
+  screen)
+    # One monitor, not every monitor side by side; maim alone takes them all.
+    g=$(monitor)
+    if [ -n "$g" ]; then maim -g "$g" "$shot"; else maim "$shot"; fi || exit 1
+    ;;
+esac
 
-case ${1:-clip} in
+case $where in
   clip)
     xclip -selection clipboard -t image/png < "$shot"
+    # An area shows itself being taken; a window or a screen doesn't.
+    [ "$what" = area ] ||
+      notify-send -a Vikix -t 2000 "Screenshot copied" "Paste it with Ctrl+v."
     ;;
   file)
     # xdg-user-dir answers ~/Pictures, or the folder you renamed it to.
@@ -24,11 +87,10 @@ case ${1:-clip} in
     dir="$pictures/Screenshots"
     mkdir -p "$dir"
     file="$dir/$(date +%Y-%m-%d_%H-%M-%S).png"
+    # Two in the same second get -2, -3 ..., never one over the other.
+    n=1 base=${file%.png}
+    while [ -e "$file" ]; do n=$((n + 1)); file="$base-$n.png"; done
     cp "$shot" "$file"
     notify-send -a Vikix "Screenshot saved" "$file"
-    ;;
-  *)
-    echo "usage: vikix-screenshot [clip|file]" >&2
-    exit 2
     ;;
 esac

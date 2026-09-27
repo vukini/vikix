@@ -183,7 +183,7 @@ Every config file belongs either to Vikix or to you:
   - `~/.stumpwm.d/init.lisp`
   - `~/.stumpwm.d/vikix/`
   - `~/.xinitrc`
-  - `~/.local/bin/vikix` and its helpers (`vikix-lock`, `vikix-osd`, `vikix-screenshot`, …)
+  - `~/.local/bin/vikix` and its helpers (`vikix-lock`, `vikix-osd`, `vikix-screenshot`, `vikix-record`, …)
   - `~/.config/vikix/vikix.bash`, the aliases and prompt
   - `~/.claude/skills/vikix`, which tells Claude Code how Vikix works
   - `~/.config/fontconfig/conf.d/50-vikix-iosevka.conf`, the monospace font
@@ -233,14 +233,19 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 | `s-F1` | Every key, searchable. Pick one to run it. |
 | `s-Escape` | Lock the screen |
 | `s-M-a` | Keep awake on/off: no lock, dark screen or suspend while you watch or present (the bar says `awake`) |
-| `Print` | Screenshot an area to the clipboard |
-| `Shift+Print` | Screenshot an area to `~/Pictures/Screenshots` |
+| `Print` | Screenshot an area (drag one out, or click a window) to the clipboard |
+| `C-Print` | Screenshot the focused window to the clipboard |
+| `s-Print` | Screenshot the whole screen (the monitor the pointer is on) to the clipboard |
+| `Shift` with any of those | The same, to a file in `~/Pictures/Screenshots` instead |
+| `s-R` | Record an area or a window, without sound; press again to stop. The bar says `rec`, and the video goes to `~/Videos/Recordings` |
+| `s-C-Print` | Screenshot or record: a menu of all of them, including recording the whole screen |
 | volume and brightness keys | Change the level and show a bar for it |
 
 ## The bar
 
 Along the top: on the left the workspaces in use (the current one in brackets) and this workspace's windows; on the right, from left to right:
 
+- **rec**, in the theme's alert colour, while the screen is being recorded (`s-R` stops it).
 - **awake**, in the theme's accent colour, while keep awake is on (`s-M-a`).
 - **quiet**, in the theme's alert colour, while do not disturb is on (`s-M-n`), with the number of notifications waiting: they show when you switch it off.
 - **updates**, in the theme's accent colour, when `vikix update` has something to bring: `updates 12` (Void packages), `updates 12 + Vikix`, or `Vikix update`. Checked a minute after you log in and then every 6 hours, in the background (`vikix-updates`); `vikix update` clears it. Nothing shows when there's nothing, or when it couldn't check (offline).
@@ -312,7 +317,7 @@ A snapshot is taken after every install or `vikix update`, and before every agen
 | List | Contents |
 |---|---|
 | `base` | dbus, elogind, polkit and its password box, openssh, chrony (clock), git, curl, rsync, zip, 7zip, man pages, xdg-utils, python3 (for `vikix eval`) |
-| `desktop` | X11, picom, dunst, rofi, alacritty, fonts (Noto, Nerd Font symbols), i3lock, screenshots, clipmenu (clipboard history) |
+| `desktop` | X11, picom, dunst, rofi, alacritty, fonts (Noto, Nerd Font symbols), i3lock, screenshots and screen recording (maim, slop, ffmpeg), clipmenu (clipboard history) |
 | `fonts` | Iosevka, the terminal font. Every variant comes in one 862 MB package, so it waits for part two; until then the terminal uses a plain monospace font. |
 | `network` | NetworkManager (`nmtui` for Wi-Fi), with its connection editor |
 | `audio` | PipeWire, WirePlumber (with Bluetooth audio), pamixer, pavucontrol |
@@ -473,6 +478,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `lisp` | Every Lisp file reads cleanly, so a missing paren shows up here, not at login (needs `sbcl`) |
 | `battery` | The low-battery warner warns once at 15%, once at 5%, and again only after charging |
 | `image` | `vikix-image` opens nsxiv on the image's whole folder, in name order, at the image you picked |
+| `capture` | `vikix-screenshot` takes an area, the focused window or the monitor under the pointer, to the clipboard or a file; `vikix-record` records the right part of the screen, stops, saves, and clears the bar |
 | `idle` | `vikix-idle` suspends only on battery, only after the idle time in its settings, and never while keep awake is on |
 | `notifications` | `vikix-notifications` lists dunst's history newest first, and shows again the one you pick |
 | `updates` | `vikix-updates` counts waiting Void packages and Vikix commits, and says `?` for a check that failed, not 0 |

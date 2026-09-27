@@ -52,6 +52,8 @@ jobs:
         run: tests/ci.sh notifications
       - name: idle
         run: tests/ci.sh idle
+      - name: capture
+        run: tests/ci.sh capture
       - name: update
         run: tests/ci.sh update
 

@@ -104,8 +104,12 @@ agent, Super+x an Emacs window, Super+c clipboard history (clipmenu), Super+n / 
 notification again / pick an earlier one, Super+Ctrl+n close all,
 Super+Alt+n do not disturb (dunstctl; the bar says quiet), Super+Alt+a keep
 awake (vikix-idle; no lock, dark screen or suspend; the bar says awake),
-Print / Shift+Print a screenshot of an area to the clipboard / to
-~/Pictures/Screenshots, Super+q close, Super+f fullscreen, Super+h/j/k/l focus (Shift to
+Print a screenshot of an area (or a clicked window), Ctrl+Print of the
+focused window, Super+Print of the monitor under the pointer, all to the
+clipboard (vikix-screenshot; add Shift for a file in
+~/Pictures/Screenshots), Super+Shift+r record an area or window and again
+to stop (vikix-record, ffmpeg, no sound; the bar says rec; videos in
+~/Videos/Recordings), Super+Ctrl+Print a menu of all of them, Super+q close, Super+f fullscreen, Super+h/j/k/l focus (Shift to
 move the window; the arrow keys do the same), Super+b / Super+v split,
 Super+r remove split, Super+u / Super+Shift+u undo / redo a layout
 change, Super+g gaps on/off, Super+Shift+a / Super+Ctrl+a any window on

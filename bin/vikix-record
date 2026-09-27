@@ -1,0 +1,91 @@
+#!/bin/sh
+# vikix-record — record the screen to a video, without sound.
+#
+#   vikix-record area     drag out an area, or click a window, and record it
+#   vikix-record screen   record the whole monitor the pointer is on
+#   vikix-record stop     stop, and save ~/Videos/Recordings/<date>.mp4
+#   vikix-record toggle [area|screen]
+#                         stop if recording, else start   (Super+Shift+r)
+#   vikix-record status   say whether it is recording
+#
+# While it records, the bar says rec. The file holding ffmpeg's process id
+# is also what the bar reads, so it is removed whenever ffmpeg ends, however
+# it ends.
+
+state="${XDG_STATE_HOME:-$HOME/.local/state}/vikix"
+pidfile="$state/recording"
+
+# The ffmpeg that is recording, or nothing. A file left behind by a crash
+# names a process that is gone, and doesn't count.
+recording() {
+  pid=$(cat "$pidfile" 2>/dev/null) || return 1
+  [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
+}
+
+# Tell StumpWM to look at the bar now, not at its next ten-second look.
+bar() { vikix eval '(vikix-record-refresh)' >/dev/null 2>&1 || true; }
+
+start() {
+  g=$(vikix-screenshot --geometry "$1") || exit 0      # cancelled
+  [ -n "$g" ] || { notify-send -a Vikix "Can't record" "Couldn't find the screen's size."; exit 1; }
+  # WxH+X+Y. The video encoder needs an even width and height.
+  w=${g%%x*}; rest=${g#*x}; h=${rest%%+*}; rest=${rest#*+}; x=${rest%%+*}; y=${rest#*+}
+  w=$((w / 2 * 2)); h=$((h / 2 * 2))
+  [ "$w" -gt 0 ] && [ "$h" -gt 0 ] || exit 0           # a click, not a drag
+
+  videos=$(xdg-user-dir VIDEOS 2>/dev/null)
+  if [ -z "$videos" ] || [ "$videos" = "$HOME" ]; then
+    videos="$HOME/Videos"
+  fi
+  dir="$videos/Recordings"
+  mkdir -p "$dir" "$state"
+  file="$dir/$(date +%Y-%m-%d_%H-%M-%S).mp4"
+  log="$state/recording.log"
+
+  # ffmpeg runs in the background; the part after it waits for it to end,
+  # so the bar and the notification follow ffmpeg whatever stops it.
+  (
+    ffmpeg -nostdin -loglevel error -y -f x11grab -framerate 30 \
+      -video_size "${w}x${h}" -i "${DISPLAY:-:0}+$x,$y" \
+      -c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p \
+      -movflags +faststart "$file" 2>"$log" &
+    echo $! > "$pidfile"
+    bar
+    wait $!
+    rm -f "$pidfile"
+    bar
+    if [ -s "$file" ]; then
+      notify-send -a Vikix "Recording saved" "$file"
+    else
+      rm -f "$file"
+      notify-send -a Vikix -u critical "Recording failed" "$(tail -n 3 "$log")"
+    fi
+  ) >/dev/null 2>&1 &
+}
+
+stop() {
+  recording || return 1
+  # ffmpeg finishes the file before it exits on TERM, as on Ctrl+c. Not INT:
+  # a program started in the background by sh has INT ignored.
+  kill -TERM "$pid"
+}
+
+case ${1:-toggle} in
+  area|screen)
+    if recording; then echo "already recording; vikix-record stop ends it" >&2; exit 1; fi
+    start "$1"
+    ;;
+  stop)
+    stop || { echo "not recording" >&2; exit 1; }
+    ;;
+  toggle)
+    stop || start "${2:-area}"
+    ;;
+  status)
+    if recording; then echo "recording"; else echo "not recording"; exit 1; fi
+    ;;
+  *)
+    echo "usage: vikix-record [area|screen|stop|toggle [area|screen]|status]" >&2
+    exit 2
+    ;;
+esac

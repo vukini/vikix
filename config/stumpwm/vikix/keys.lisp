@@ -69,8 +69,16 @@
     ("s-F1"   "vikix-keys"      "These keys")
     ("s-ESC"  "exec vikix-lock"  "Lock the screen")
     ("s-M-a"  "vikix-awake"      "Keep awake on/off: no lock, dark screen or suspend")
-    ("Print"   "exec vikix-screenshot clip" "Screenshot of an area, to the clipboard")
-    ("S-Print" "exec vikix-screenshot file" "Screenshot of an area, to ~/Pictures/Screenshots")
+    ;; Screenshots: the modifier picks what, Shift keeps it in a file
+    ;; (~/Pictures/Screenshots) instead of the clipboard.
+    ("Print"     "exec vikix-screenshot area clip"   "Screenshot of an area, to the clipboard")
+    ("S-Print"   "exec vikix-screenshot area file"   "Screenshot of an area, to a file")
+    ("C-Print"   "exec vikix-screenshot window clip" "Screenshot of this window, to the clipboard")
+    ("C-S-Print" "exec vikix-screenshot window file" "Screenshot of this window, to a file")
+    ("s-Print"   "exec vikix-screenshot screen clip" "Screenshot of the whole screen, to the clipboard")
+    ("s-S-Print" "exec vikix-screenshot screen file" "Screenshot of the whole screen, to a file")
+    ("s-R"       "vikix-record area" "Record an area or a window; again to stop")
+    ("s-C-Print" "vikix-capture"     "Screenshot or record: all the choices")
     ;; the laptop's function keys
     ;; vikix-osd changes the level and shows a bar for it (bin/vikix-osd);
     ;; the vikix-volume command also updates the volume in the mode line.
