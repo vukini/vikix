@@ -76,6 +76,7 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
     ("Notifications: close all" (run-shell-command "dunstctl close-all"))
     ("Do not disturb on/off" vikix-quiet)
     ("Keep awake on/off"   vikix-awake)
+    ("Night light on/off"  vikix-nightlight)
     ("Find a window, any workspace" global-windowlist)
     ("Gaps around windows on/off" toggle-gaps)
     ("Screenshot or record the screen" vikix-capture)
@@ -257,6 +258,16 @@ to stop."
     ;; The menu closes first, so it isn't in the picture.
     (when choice
       (run-shell-command (second choice)))))
+
+;;; Night light (bin/vikix-nightlight, gammastep).
+
+(defcommand vikix-nightlight () ()
+  "Night light, on or off: a warmer screen in the evening. The times and
+colours are in ~/.config/gammastep/config.ini. Switched off, it stays off
+at the next login too, until you switch it on."
+  (let ((said (string-trim '(#\Space #\Newline)
+                           (run-shell-command "vikix-nightlight toggle 2>&1" t))))
+    (message "~a" (if (string= said "") "Night light: no answer" said))))
 
 ;;; Notifications (dunst): do not disturb, shown in the bar.
 

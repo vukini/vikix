@@ -69,6 +69,7 @@
     ("s-F1"   "vikix-keys"      "These keys")
     ("s-ESC"  "exec vikix-lock"  "Lock the screen")
     ("s-M-a"  "vikix-awake"      "Keep awake on/off: no lock, dark screen or suspend")
+    ("s-M-l"  "vikix-nightlight" "Night light on/off: a warmer screen in the evening")
     ;; Screenshots: the modifier picks what, Shift keeps it in a file
     ;; (~/Pictures/Screenshots) instead of the clipboard.
     ("Print"     "exec vikix-screenshot area clip"   "Screenshot of an area, to the clipboard")

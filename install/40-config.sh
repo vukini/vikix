@@ -19,6 +19,7 @@
 #     ~/.stumpwm.d/user.lisp     your StumpWM changes; loaded last, so they win
 #     ~/.config/{alacritty,picom,dunst,rofi}/...
 #     ~/.config/vikix/keyboard   layout and options (e.g. ctrl:swapcaps)
+#     ~/.config/gammastep/config.ini   night light times and colours
 #     ~/.config/mimeapps.list      which program opens which kind of file
 #     ~/.Xresources              text size (Xft.dpi) for high-resolution screens
 #
@@ -77,6 +78,7 @@ copy_user "$C/picom/picom.conf"           "$HOME/.config/picom/picom.conf"
 copy_user "$C/dunst/dunstrc"              "$HOME/.config/dunst/dunstrc"
 copy_user "$C/rofi/config.rasi"           "$HOME/.config/rofi/config.rasi"
 copy_user "$C/keyboard/keyboard"          "$HOME/.config/vikix/keyboard"
+copy_user "$C/gammastep/config.ini"       "$HOME/.config/gammastep/config.ini"
 copy_user "$C/xdg/mimeapps.list"          "$HOME/.config/mimeapps.list"
 copy_user "$C/x11/Xresources"             "$HOME/.Xresources"
 

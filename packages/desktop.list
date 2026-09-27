@@ -15,6 +15,7 @@ rofi            # launcher
 alacritty       # terminal
 noto-fonts-ttf  # everything else
 xss-lock        # locks the screen on suspend/idle
+gammastep       # night light: a warmer screen in the evening (vikix-nightlight)
 i3lock          # the lock screen
 maim            # screenshots
 slop            # choosing an area to record (maim uses it too)

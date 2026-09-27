@@ -104,6 +104,8 @@ agent, Super+x an Emacs window, Super+c clipboard history (clipmenu), Super+n / 
 notification again / pick an earlier one, Super+Ctrl+n close all,
 Super+Alt+n do not disturb (dunstctl; the bar says quiet), Super+Alt+a keep
 awake (vikix-idle; no lock, dark screen or suspend; the bar says awake),
+Super+Alt+l night light on/off (vikix-nightlight, gammastep; times and
+colours in the user's ~/.config/gammastep/config.ini; off lasts across logins),
 Print a screenshot of an area (or a clicked window), Ctrl+Print of the
 focused window, Super+Print of the monitor under the pointer, all to the
 clipboard (vikix-screenshot; add Shift for a file in

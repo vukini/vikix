@@ -37,6 +37,7 @@ dunst &                                # notifications
 clipmenud &                            # remembers what you copy (Super+c)
 picom -b                               # compositor (forks itself)
 "$HOME/.local/bin/vikix-idle" apply    # lock and screen-off times (~/.config/vikix/idle)
+"$HOME/.local/bin/vikix-nightlight" start   # warmer in the evening, unless switched off
 xss-lock -- "$HOME/.local/bin/vikix-lock" --locker &   # locks then; also on suspend
 
 # Emacs as a daemon, so `e` (emacsclient) opens a frame at once. The first

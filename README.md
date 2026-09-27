@@ -56,7 +56,7 @@ Every stage checks before it changes anything, so re-running either part is safe
 | `20-services` | 1, 2 | Enables the runit services in `services.list`, and adds you to the `video` group. `vikix update` runs it again, so a service that comes with a new package is switched on. |
 | `25-network` | 1 | Starts NetworkManager, waits until it's running, then switches off dhcpcd and wpa_supplicant. Adds you to the `network` group. |
 | `30-lisp` | 1 | Installs Quicklisp (and adds it to `~/.sbclrc`), builds `~/.local/bin/stumpwm` with Swank inside, and clones `stumpwm-contrib`. |
-| `40-config` | 1 | Links Vikix's config files into place and copies starter files you then own (including the keyboard file). |
+| `40-config` | 1 | Links Vikix's config files into place and copies starter files you then own (including the keyboard file and the night light times). |
 | `45-editors` | 2 | Clones the Emacs config (`vukini/emacs-void`) to `~/.emacs.d` and the Neovim config (`vukini/nvim-void-linux`) to `~/.config/nvim`, installs the npm language servers into `~/.local`, and installs Neovim's plugins. Other repos: set `VIKIX_EMACS_REPO` / `VIKIX_NVIM_REPO`. |
 | `55-hardware` | 2 | Touchpad settings (tap to click, natural scrolling), the Intel microcode rebuilt into the initramfs, and the standard `~/Documents` … folders. |
 | `50-audio` | 2 | Sets up PipeWire, WirePlumber and the ALSA links, as the Void handbook describes. |
@@ -233,6 +233,7 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 | `s-F1` | Every key, searchable. Pick one to run it. |
 | `s-Escape` | Lock the screen |
 | `s-M-a` | Keep awake on/off: no lock, dark screen or suspend while you watch or present (the bar says `awake`) |
+| `s-M-l` | Night light on/off: a warmer screen in the evening |
 | `Print` | Screenshot an area (drag one out, or click a window) to the clipboard |
 | `C-Print` | Screenshot the focused window to the clipboard |
 | `s-Print` | Screenshot the whole screen (the monitor the pointer is on) to the clipboard |
@@ -317,7 +318,7 @@ A snapshot is taken after every install or `vikix update`, and before every agen
 | List | Contents |
 |---|---|
 | `base` | dbus, elogind, polkit and its password box, openssh, chrony (clock), git, curl, rsync, zip, 7zip, man pages, xdg-utils, python3 (for `vikix eval`) |
-| `desktop` | X11, picom, dunst, rofi, alacritty, fonts (Noto, Nerd Font symbols), i3lock, screenshots and screen recording (maim, slop, ffmpeg), clipmenu (clipboard history) |
+| `desktop` | X11, picom, dunst, rofi, alacritty, fonts (Noto, Nerd Font symbols), i3lock, gammastep (night light), screenshots and screen recording (maim, slop, ffmpeg), clipmenu (clipboard history) |
 | `fonts` | Iosevka, the terminal font. Every variant comes in one 862 MB package, so it waits for part two; until then the terminal uses a plain monospace font. |
 | `network` | NetworkManager (`nmtui` for Wi-Fi), with its connection editor |
 | `audio` | PipeWire, WirePlumber (with Bluetooth audio), pamixer, pavucontrol |
@@ -333,6 +334,7 @@ A snapshot is taken after every install or `vikix update`, and before every agen
 
 - **Docking.** Arrange the monitors once with `s-m` → *Screens: arrange*, then `s-m` → *Screens: save this layout* and call it `default` (or `desk`, `home` …). autorandr re-applies the matching layout whenever those monitors are plugged in, and at login.
 - **Away from the keyboard.** After 10 minutes the screen locks, after 11 it goes dark, and after 20, on battery only, the computer suspends. Change the minutes in `~/.config/vikix/idle` (`LOCK=10`, `SCREEN_OFF=11`, `SUSPEND=20`, and `SUSPEND=0` never suspends), then log in again. **Keep awake** (`s-M-a`, or `s-m` → Keep awake) stops all three for a film or a talk; the bar says `awake`, and every login starts with it off.
+- **Night light.** From 19:00 the screen warms over an hour, and from 6:00 it cools again (gammastep). The times and colours are in `~/.config/gammastep/config.ini`: by the clock, not the sun, so no location is needed. `s-M-l` (or `s-m` → Night light) switches it off, and it stays off at the next login until you switch it on.
 - **Suspend** from the `s-m` menu or by closing the lid; the screen locks first. **Reboot** and **Power off** are there too, through elogind, no sudo.
 - **Touchpad**: tap to click, natural scrolling, off while typing (`/etc/X11/xorg.conf.d/40-libinput.conf`, installed by `55-hardware`).
 - **Battery.** `vikix-battery` warns at 15% and again, urgently, at 5% (change them with `VIKIX_BATTERY_LOW` / `VIKIX_BATTERY_CRITICAL`). It only starts on a machine with a battery; `vikix-battery --once` shows the charge.
@@ -478,6 +480,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `lisp` | Every Lisp file reads cleanly, so a missing paren shows up here, not at login (needs `sbcl`) |
 | `battery` | The low-battery warner warns once at 15%, once at 5%, and again only after charging |
 | `image` | `vikix-image` opens nsxiv on the image's whole folder, in name order, at the image you picked |
+| `nightlight` | `vikix-nightlight` starts gammastep at login unless it was switched off, toggles it, remembers off, and stops it so the colours come back |
 | `capture` | `vikix-screenshot` takes an area, the focused window or the monitor under the pointer, to the clipboard or a file; `vikix-record` records the right part of the screen, stops, saves, and clears the bar |
 | `idle` | `vikix-idle` suspends only on battery, only after the idle time in its settings, and never while keep awake is on |
 | `notifications` | `vikix-notifications` lists dunst's history newest first, and shows again the one you pick |

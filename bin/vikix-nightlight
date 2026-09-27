@@ -1,0 +1,71 @@
+#!/bin/sh
+# vikix-nightlight — a warmer screen in the evening (gammastep).
+#
+#   vikix-nightlight start    at login: start it, unless you switched it off
+#   vikix-nightlight toggle   on or off, and remember that   (Super+Alt+l)
+#   vikix-nightlight on|off   the same, one way
+#   vikix-nightlight status   say whether it is on, and when it warms
+#
+# The times and colours are in ~/.config/gammastep/config.ini. Switched
+# off, gammastep ends and puts the screen's colours back; the choice lasts
+# across logins, until you switch it on again.
+
+state="${XDG_STATE_HOME:-$HOME/.local/state}/vikix"
+pidfile="$state/nightlight.pid"
+offflag="$state/nightlight-off"
+config="${XDG_CONFIG_HOME:-$HOME/.config}/gammastep/config.ini"
+
+running() {
+  pid=$(cat "$pidfile" 2>/dev/null) || return 1
+  [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
+}
+
+# "from 19:00 to 7:00", from the dusk and dawn times in the config.
+hours() {
+  dusk=$(sed -n 's/^dusk-time *= *\([0-9:]*\).*/\1/p' "$config" 2>/dev/null)
+  dawn=$(sed -n 's/^dawn-time *= *[0-9:]*-\([0-9:]*\).*/\1/p' "$config" 2>/dev/null)
+  [ -n "$dusk" ] && [ -n "$dawn" ] && echo " (warm from $dusk to $dawn)"
+}
+
+start() {
+  running && return 0
+  command -v gammastep >/dev/null 2>&1 || {
+    echo "night light: gammastep isn't installed (vikix update adds it)" >&2
+    return 1
+  }
+  mkdir -p "$state"
+  gammastep >/dev/null 2>"$state/nightlight.log" &
+  echo $! > "$pidfile"
+}
+
+stop() {
+  # TERM: gammastep puts the screen's colours back before it exits.
+  running && kill -TERM "$pid"
+  rm -f "$pidfile"
+}
+
+if [ "${1:-}" = toggle ]; then
+  if running; then set -- off; else set -- on; fi
+fi
+
+case ${1:-status} in
+  start)
+    [ -e "$offflag" ] || start
+    ;;
+  on)
+    rm -f "$offflag"
+    start && echo "Night light: on$(hours)"
+    ;;
+  off)
+    mkdir -p "$state" && touch "$offflag"
+    stop
+    echo "Night light: off, until you switch it on"
+    ;;
+  status)
+    if running; then echo "on$(hours)"; else echo "off"; exit 1; fi
+    ;;
+  *)
+    echo "usage: vikix-nightlight [start|on|off|toggle|status]" >&2
+    exit 2
+    ;;
+esac

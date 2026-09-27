@@ -54,6 +54,8 @@ jobs:
         run: tests/ci.sh idle
       - name: capture
         run: tests/ci.sh capture
+      - name: nightlight
+        run: tests/ci.sh nightlight
       - name: update
         run: tests/ci.sh update
 
