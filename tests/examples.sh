@@ -13,10 +13,12 @@ here=$(cd "$(dirname "$0")/.." && pwd)
 t=$(mktemp -d)
 fail=0 built=0 skipped=()
 
-# The command each language's examples need.
+# The commands each language's examples need (all of them, if several).
 declare -A needs=([c]=cc [rust]=cargo [go]=go [pascal]=fpc [python]=python3
                   [zig]=zig [haskell]=cabal [ocaml]=dune [java]=gradle [julia]=julia
-                  [lisp]=sbcl [scheme]=scheme [racket]=raco [picolisp]=pil [forth]=gforth)
+                  [lisp]=sbcl [scheme]=scheme [racket]=raco [picolisp]=pil [forth]=gforth
+                  [javascript]=node [ruby]=ruby [lua]=lua5.4 [sql]=sqlite3
+                  [wasm]="wasmtime wat2wasm zig")
 # pil is built into ~/.local/bin (65-languages), which a test's PATH may lack.
 export PATH="$HOME/.local/bin:$PATH"
 # The Java examples share one Gradle daemon (much faster than one each),
@@ -31,7 +33,9 @@ for dir in "$here"/dev/*/examples/*/; do
   if [ -z "$tool" ]; then
     echo "FAIL: dev/$lang/examples has no entry in tests/examples.sh"; fail=1; continue
   fi
-  if ! command -v "$tool" >/dev/null; then
+  missing=
+  for cmd in $tool; do command -v "$cmd" >/dev/null || missing=1; done
+  if [ -n "$missing" ]; then
     skipped+=("$lang/$name"); continue
   fi
   [ "$lang/$name" = pascal/clicker ] && { skipped+=("$lang/$name"); continue; }

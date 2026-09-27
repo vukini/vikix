@@ -1,3 +1,4 @@
 # lang-lua.list — Lua (lua-language-server is in editors.list)
 lua54
 LuaJIT
+luarocks        # Lua's package manager: luarocks install --local NAME

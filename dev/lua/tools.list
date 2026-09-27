@@ -1,0 +1,7 @@
+# tools.list — the tools ~/dev/lua/README.md lists, with their path and version.
+# command | how to ask its version | what it is for
+lua5.4              | lua5.4 -v                     | Lua: `lua5.4 x.lua`, or `lua5.4` for a prompt
+luac5.4             | -                             | the compiler to bytecode: `luac5.4 -p x.lua` checks the syntax
+luajit              | luajit -v                     | LuaJIT, a very fast Lua (the 5.1 language, which Neovim uses)
+luarocks            | luarocks --version            | packages: `luarocks install --local NAME`
+lua-language-server | lua-language-server --version | the language server the editors use

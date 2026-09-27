@@ -1,0 +1,6 @@
+# tools.list — the tools ~/dev/javascript/README.md lists, with their path and version.
+# command | how to ask its version | what it is for
+node                       | node --version                       | runs JavaScript outside the browser: `node x.js`, or `node` for a prompt
+npm                        | npm --version                        | packages: `npm init`, `npm install NAME` (into ./node_modules)
+npx                        | -                                    | runs a package's command without installing it for good
+typescript-language-server | typescript-language-server --version | the language server the editors use (JavaScript and TypeScript)

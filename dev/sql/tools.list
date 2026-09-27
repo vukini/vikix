@@ -1,0 +1,5 @@
+# tools.list — the tools ~/dev/sql/README.md lists, with their path and version.
+# command | how to ask its version | what it is for
+sqlite3       | sqlite3 --version | SQLite's prompt: `sqlite3 file.db`, then SQL, and .help
+litecli       | litecli --version | a friendlier prompt, with completion and colours
+sqlitebrowser | -                 | DB Browser for SQLite: tables, data and queries in a window

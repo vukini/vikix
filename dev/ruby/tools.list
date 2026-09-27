@@ -1,0 +1,7 @@
+# tools.list — the tools ~/dev/ruby/README.md lists, with their path and version.
+# command | how to ask its version | what it is for
+ruby   | ruby --version   | runs Ruby: `ruby x.rb`
+irb    | irb --version    | the interactive prompt
+ri     | ri --version     | the docs, offline: `ri String#split`
+gem    | gem --version    | packages (gems): `gem install --user-install NAME`
+bundle | bundle --version | a project's gems, from its Gemfile: `bundle install`, `bundle exec`

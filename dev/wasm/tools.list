@@ -1,0 +1,7 @@
+# tools.list — the tools ~/dev/wasm/README.md lists, with their path and version.
+# command | how to ask its version | what it is for
+wasmtime     | wasmtime --version     | runs WebAssembly: `wasmtime run --dir=. x.wasm`
+wat2wasm     | wat2wasm --version     | the text format to a module: `wat2wasm x.wat -o x.wasm`
+wasm2wat     | wasm2wat --version     | and back: `wasm2wat x.wasm`
+wasm-objdump | wasm-objdump --version | what's inside a module: `wasm-objdump -x x.wasm`, `-d` for the code
+zig          | zig version            | compiles C (`zig cc --target=wasm32-wasi`) and Zig to WebAssembly

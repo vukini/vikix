@@ -98,6 +98,7 @@ have gforth                    && langs+=(forth)
 have ruby                      && langs+=(ruby)
 have sqlite3                   && langs+=(sql)
 have wat2wasm                  && langs+=(wasm)
+have node                      && langs+=(javascript)
 have rustc                     && langs+=(rust)
 have javac                     && langs+=(java)
 have ocaml                     && langs+=(ocaml)
@@ -236,6 +237,15 @@ fi
 
 has wasm && docs_dir wasm >/dev/null
 
+if has javascript; then
+  docs_dir javascript >/dev/null
+  note javascript '# JavaScript docs
+
+- Zeal: the JavaScript docset (the MDN reference)
+- https://developer.mozilla.org/en-US/docs/Web/JavaScript — MDN, online
+- `node --help`; https://nodejs.org/en/learn for Node itself'
+fi
+
 if has rust; then
   docs_dir rust >/dev/null
   link_doc rust /usr/share/doc/rust/html rust        # the rust-doc package
@@ -356,7 +366,7 @@ done
 # slower than 200 KB/s for 15 seconds is dropped for the next one.
 declare -A docset=([c]=C [python]=Python [lisp]=Common_Lisp [racket]=Racket
                    [haskell]=Haskell [lua]=Lua [go]=Go [ruby]=Ruby [sql]=SQLite
-                   [rust]=Rust [java]=Java [julia]=Julia)
+                   [rust]=Rust [java]=Java [julia]=Julia [javascript]=JavaScript)
 run mkdir -p "$ZEAL"
 for lang in "${langs[@]}" bash; do
   if [ "$lang" = bash ]; then name=Bash; else name=${docset[$lang]:-}; fi
