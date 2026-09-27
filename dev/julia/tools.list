@@ -1,0 +1,4 @@
+# tools.list — the tools ~/dev/julia/README.md lists, with their path and version.
+# command | how to ask its version | what it is for
+julia   | julia --version   | the language: `julia x.jl`, or `julia` for a prompt (? help, ] packages)
+juliaup | juliaup --version | installs and switches Julia versions: `juliaup update`, `juliaup status`

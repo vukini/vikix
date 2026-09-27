@@ -1,0 +1,5 @@
+# tools.list — the tools ~/dev/zig/README.md lists, with their path and version.
+# command | how to ask its version | what it is for
+zig | zig version   | compiler, build system and test runner: `zig build`, `zig run x.zig`, `zig test x.zig`
+zls | zls --version | the language server the editors use
+gdb | gdb --version | the debugger: `gdb zig-out/bin/x`

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tests/run.sh — run the tests that fit this machine.
 #
-#   tests/run.sh          the quick ones (about a minute): lint, lisp (with
+#   tests/run.sh          the quick ones (about two minutes): lint, lisp (with
 #                         sbcl), battery, home, services, backup (with
 #                         restic), image, theme, bar, rofi,
 #                         wallpaper, examples, updates, notifications, idle, capture,

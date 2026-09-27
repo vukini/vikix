@@ -1,0 +1,7 @@
+# tools.list — the tools ~/dev/java/README.md lists, with their path and version.
+# command | how to ask its version | what it is for
+java   | java -version 2>&1 | runs programs; `java X.java` runs one file with no build
+javac  | javac -version     | the compiler (Gradle calls it for you)
+jshell | -                  | a prompt where each line of Java runs at once
+jdb    | jdb -version       | the command-line debugger
+gradle | -                  | the build tool: `gradle init`, `gradle run`, `gradle test`

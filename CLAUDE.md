@@ -15,7 +15,7 @@ This folder sits inside an Obsidian vault, but it is a code repo: the vault's no
 No build step. The tests are scripts in `tests/`, and `.github/workflows/test.yml` runs the same scripts on GitHub (on each push and weekly):
 
 ```sh
-tests/run.sh                  # about a minute: lint, lisp, battery, home, services, backup (with restic), image, theme, bar, rofi, wallpaper, examples, updates, notifications, idle, capture, nightlight, update, and on Void packages + dry-run
+tests/run.sh                  # about two minutes: lint, lisp, battery, home, services, backup (with restic), image, theme, bar, rofi, wallpaper, examples, updates, notifications, idle, capture, nightlight, update, and on Void packages + dry-run
 tests/run.sh --all            # plus editors: Emacs and Neovim configs from scratch (minutes, network)
 tests/lint.sh                 # bash -n, executable bits, shellcheck -S warning (must stay at zero)
 DRY_RUN=1 bash install/<stage>.sh     # one stage, printing instead of changing

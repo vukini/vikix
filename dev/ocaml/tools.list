@@ -1,0 +1,9 @@
+# tools.list — the tools ~/dev/ocaml/README.md lists, with their path and version.
+# command | how to ask its version | what it is for
+ocaml       | ocaml -version        | the interactive prompt (end each phrase with ;;)
+dune        | dune --version        | the build system: `dune build`, `dune exec ./x.exe`, `dune init proj x`
+ocamlfind   | -                     | finds installed libraries (dune uses it)
+opam        | opam --version        | the package manager: `opam init` once, then `opam install x`
+utop        | utop -version         | a much friendlier prompt: `opam install utop`
+ocamllsp    | ocamllsp --version    | the language server the editors use: `opam install ocaml-lsp-server`
+ocamlformat | ocamlformat --version | formats code: `opam install ocamlformat`

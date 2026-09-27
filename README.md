@@ -450,9 +450,9 @@ Every language also has a **Zeal** docset (Bash too): open Zeal (`s-m` → "Zeal
 
 - `hello` — the smallest program that builds
 - `wordfreq` — the ten most common words in the Gettysburg Address; every language prints exactly the same thing (`make check`), so two can be compared side by side
-- one showing what the language is known for: C a linked list with `make check` under valgrind, Rust errors as `Result`, Go goroutines, Free Pascal a Lazarus window, Python the Game of Life with generators
+- one showing what the language is known for: C a linked list with `make check` under valgrind, Rust errors as `Result`, Go goroutines, Free Pascal a Lazarus window, Python the Game of Life with generators, Zig `comptime` with its tests, Haskell infinite lazy lists, OCaml a calculator built on variants and pattern matching, Java records and sealed interfaces, Julia multiple dispatch
 
-They are copied once, so they are yours to change; an update adds new ones and never touches one you have. So far: C, Rust, Go, Free Pascal, Python; the other languages follow.
+They are copied once, so they are yours to change; an update adds new ones and never touches one you have. So far: C, Rust, Go, Free Pascal, Python, Zig, Haskell, OCaml, Java and Julia; the other languages follow. Each builds with the language's own tool: make, cargo, go, fpc and lazbuild, zig build, cabal, dune, Gradle; Python and Julia run as they are.
 
 **A README for each language**, `~/dev/<language>/README.md`: a table of its tools on this machine (compiler, build tool, debugger, language server, formatter, linter), each with where it is and which version, or "not installed"; where to start; and the official site, source code, package registry, and free books and tutorials, every link checked. Every update writes it again, so it stays true; keep notes of your own in another file. A `README.md` there that you wrote yourself is left alone.
 

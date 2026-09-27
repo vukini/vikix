@@ -1,0 +1,3 @@
+; dune — what dune builds: an executable from calc.ml
+(executable
+ (name calc))

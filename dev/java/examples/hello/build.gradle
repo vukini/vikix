@@ -1,0 +1,14 @@
+// build.gradle — what Gradle builds: a Java program (the application
+// plugin), whose main is in Hello. It needs nothing from the network.
+plugins {
+    id 'application'
+}
+
+// Java 17 code, compiled by whichever JDK is installed (17 or newer).
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17
+}
+
+application {
+    mainClass = 'Hello'
+}

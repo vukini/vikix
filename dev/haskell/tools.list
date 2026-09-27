@@ -1,0 +1,7 @@
+# tools.list — the tools ~/dev/haskell/README.md lists, with their path and version.
+# command | how to ask its version | what it is for
+ghc                             | ghc --numeric-version                     | the compiler (cabal calls it for you)
+ghci                            | -                                         | the interactive prompt: `ghci Main.hs`, then `:t`, `:r`
+cabal                           | cabal --numeric-version                   | builds, runs and fetches packages: `cabal init`, `cabal run`
+haskell-language-server-wrapper | haskell-language-server-wrapper --version | the language server the editors use
+hlint                           | hlint --version                           | suggests simpler code: `hlint Main.hs`

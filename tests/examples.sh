@@ -11,11 +11,14 @@
 set -euo pipefail
 here=$(cd "$(dirname "$0")/.." && pwd)
 t=$(mktemp -d)
-trap 'rm -rf "$t"' EXIT
 fail=0 built=0 skipped=()
 
 # The command each language's examples need.
-declare -A needs=([c]=cc [rust]=cargo [go]=go [pascal]=fpc [python]=python3)
+declare -A needs=([c]=cc [rust]=cargo [go]=go [pascal]=fpc [python]=python3
+                  [zig]=zig [haskell]=cabal [ocaml]=dune [java]=gradle [julia]=julia)
+# The Java examples share one Gradle daemon (much faster than one each),
+# stopped when the test ends, so none is left running.
+trap 'rm -rf "$t"; command -v gradle >/dev/null && gradle --quiet --stop >/dev/null 2>&1 || true' EXIT
 
 for dir in "$here"/dev/*/examples/*/; do
   dir=${dir%/}
