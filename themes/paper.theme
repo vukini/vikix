@@ -1,25 +1,29 @@
-# paper — light: Catppuccin Latte. (See void.theme for what each colour is for.)
+# paper — light: Catppuccin Latte, with the text colours darkened so each
+# reads at 4.5:1 or better on the background; Latte's own green, yellow
+# and magenta are nearer 2.5:1, too faint in daylight. (See void.theme for
+# what each colour is for.)
 
 bg=#eff1f5
-fg=#4c4f69
-subtle=#6c6f85
+fg=#4c4f69         # 7.06:1
+subtle=#636679     # 5.01:1
 dim=#9ca0b0
-accent=#1e66f5
-alert=#d20f39
+accent=#1c5bd6     # 5.28:1
+alert=#d20f39      # 4.80:1
+sel=#ccd0da        # fg on it 5.17:1
 
 color0=#5c5f77
 color1=#d20f39
-color2=#40a02b
-color3=#df8e1d
-color4=#1e66f5
-color5=#ea76cb
-color6=#179299
+color2=#327a1f     # 4.71:1
+color3=#8a5d06     # 5.09:1
+color4=#1c5bd6
+color5=#a33a91     # 5.20:1
+color6=#107077     # 5.15:1
 color7=#acb0be
-color8=#6c6f85
+color8=#636679
 color9=#d20f39
-color10=#40a02b
-color11=#df8e1d
-color12=#1e66f5
-color13=#ea76cb
-color14=#179299
+color10=#327a1f
+color11=#8a5d06
+color12=#1c5bd6
+color13=#a33a91
+color14=#107077
 color15=#bcc0cc

@@ -14,6 +14,13 @@
 ;; StumpWM itself, plus Swank for live editing from Emacs.
 (ql:quickload '(:stumpwm :swank) :silent t)
 
+;; clx-truetype, for the contrib module ttf-fonts (TrueType fonts in the
+;; bar and menus; see theme.lisp). It isn't in Quicklisp: 30-lisp clones it
+;; into ~/quicklisp/local-projects. Without it StumpWM still builds, and
+;; keeps its bitmap font.
+(handler-case (ql:quickload :clx-truetype :silent t)
+  (error (e) (format t "~&;; clx-truetype not built in (~a); bitmap font only~%" e)))
+
 (let ((output (sb-ext:posix-getenv "VIKIX_WM_OUTPUT")))
   (unless output
     (error "set VIKIX_WM_OUTPUT to the path of the executable to write"))

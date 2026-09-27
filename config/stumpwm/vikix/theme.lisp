@@ -10,7 +10,8 @@
 (in-package :stumpwm)
 
 (defparameter *vikix-themes*
-  '(:void (:bg "#1e1e2e" :fg "#cdd6f4" :dim "#585b70" :accent "#89b4fa" :alert "#f38ba8"))
+  '(:void (:bg "#1e1e2e" :fg "#cdd6f4" :subtle "#a6adc8" :dim "#585b70"
+          :accent "#89b4fa" :alert "#f38ba8" :sel "#45475a"))
   "Named palettes: NAME (a keyword) then its colours, :bg :fg :dim :accent
 :alert and more. Filled from the theme files; this one is only a fallback.")
 
@@ -85,7 +86,11 @@
   ;; The mode line (the bar).
   (setf *mode-line-background-color* (vikix-colour :bg)
         *mode-line-foreground-color* (vikix-colour :fg)
-        *mode-line-border-color*     (vikix-colour :bg))
+        *mode-line-border-color*     (vikix-colour :bg)
+        ;; The focused window's title in the accent colour. StumpWM's
+        ;; default swaps fg and bg, a bright block that glares at night.
+        *mode-line-highlight-template*
+        (format nil "^(:push)^(:fg \"~a\")~~A^(:pop)" (vikix-colour :accent)))
   ;; A mode line reads those three variables once, when it is created.
   ;; Bars that already exist have to be told to look again.
   (dolist (screen *screen-list*)
@@ -105,6 +110,44 @@
       *message-window-gravity* :center
       *input-window-gravity*   :center
       *startup-message*        nil)
+
+;; The font: Iosevka, like the terminal, rofi and dunst.
+;;
+;; StumpWM itself draws only X bitmap fonts (9x15 unless told otherwise),
+;; which look nothing like the rest and show "?" for anything beyond
+;; Latin-1. The contrib module ttf-fonts draws TrueType fonts through
+;; clx-truetype, which 30-lisp builds into the StumpWM image. It reads
+;; single .ttf files, so bin/vikix-font makes one: Iosevka Regular taken
+;; out of Void's collection, or Noto Sans Mono until Iosevka is installed.
+;; If any of that is missing, the bitmap font stays and nothing else breaks.
+(defparameter *vikix-font-size* 11
+  "Point size of the bar, menus and messages.")
+
+(defun vikix-set-font ()
+  "Draw StumpWM's text in the font bin/vikix-font provides."
+  (let ((file (string-trim '(#\Space #\Newline)
+                           (run-shell-command "vikix-font" t))))
+    (unless (probe-file file)
+      (error "vikix-font gave no font file"))
+    (load-module "ttf-fonts")
+    ;; The xft package only exists once the module is loaded, so its
+    ;; symbols are looked up now rather than read with the file.
+    (flet ((xft (name) (find-symbol name :xft)))
+      ;; Only our folder: caching every font on the system takes minutes
+      ;; and would stop the desktop meanwhile.
+      (setf (symbol-value (xft "*FONT-DIRS*"))
+            (list (directory-namestring file)))
+      (funcall (xft "CACHE-FONTS"))
+      (let ((family (first (funcall (xft "GET-FONT-FAMILIES")))))
+        (unless family
+          (error "~a is not a font clx-truetype can read" file))
+        (set-font (make-instance (xft "FONT")
+                                 :family family :subfamily "Regular"
+                                 :size *vikix-font-size* :antialias t))
+        family))))
+
+(handler-case (vikix-set-font)
+  (error (e) (message "^1Vikix: bar font not loaded, keeping 9x15:^n ~a" e)))
 
 ;; The saved theme, at startup and on every reload. (A theme applied from
 ;; user.lisp still wins: it runs after this.)

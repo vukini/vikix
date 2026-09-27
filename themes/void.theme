@@ -7,10 +7,11 @@
 # The desktop
 bg=#1e1e2e         # background
 fg=#cdd6f4         # text
-subtle=#a6adc8     # quieter text (low-priority notifications)
+subtle=#a6adc8     # quieter text (low-priority notifications, modes on the bar)
 dim=#585b70        # borders of windows that aren't focused
-accent=#89b4fa     # the focused window, selections, frames
-alert=#f38ba8      # urgent notifications
+accent=#89b4fa     # the focused window, frames, updates waiting
+alert=#f38ba8      # urgent notifications, recording
+sel=#45475a        # behind selected text and rows (optional; color0 if missing)
 
 # The terminal's 16 colours: black red green yellow blue magenta cyan white,
 # then the same eight, bright.
@@ -22,7 +23,7 @@ color4=#89b4fa
 color5=#f5c2e7
 color6=#94e2d5
 color7=#bac2de
-color8=#585b70
+color8=#7f849c     # comments and hints: 4.44:1 (dim, at 2.46:1, would be too faint)
 color9=#f38ba8
 color10=#a6e3a1
 color11=#f9e2af

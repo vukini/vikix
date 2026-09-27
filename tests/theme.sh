@@ -22,6 +22,9 @@ check "alacritty's file isn't valid TOML" python3 -c "import tomllib,sys; tomlli
 check "kitty doesn't get 16 colours" test "$(grep -c '^color[0-9]* #' "$out/kitty.conf")" = 16
 check "the lock screen doesn't get the background" test "$(cat "$out/lock")" = eff1f5
 check "dunst's drop-in is missing" grep -q '#eff1f5' "$t/home/.config/dunst/dunstrc.d/10-vikix-theme.conf"
+check "alacritty's selection isn't the sel colour" grep -A1 '^\[colors.selection\]' "$out/alacritty.toml" | grep -q '"#ccd0da"'
+check "rofi's selected row isn't sel" grep -q 'sel: #ccd0da' "$out/rofi.rasi"
+check "dunst's bars don't get the accent" grep -q 'highlight = "#1c5bd6"' "$t/home/.config/dunst/dunstrc.d/10-vikix-theme.conf"
 if command -v rofi >/dev/null; then
   check "rofi can't read its theme" sh -c "rofi -theme '$out/rofi.rasi' -dump-theme | grep -q 'accent:'"
 fi
@@ -37,6 +40,12 @@ mkdir -p "$t/home/.config/vikix/themes"
 sed 's/^bg=.*/bg=#123456   # mine/' "$here/themes/void.theme" > "$t/home/.config/vikix/themes/mine.theme"
 vikix mine >/dev/null
 check "your own theme isn't used" grep -q '"#123456"' "$out/alacritty.toml"
+# A theme from before sel existed still works, with color0 behind selections.
+grep -v '^sel=' "$here/themes/void.theme" | sed 's/^color0=.*/color0=#010203/' > "$t/home/.config/vikix/themes/older.theme"
+vikix older >/dev/null
+check "a theme without sel isn't accepted" test "$(cat "$out/current")" = older
+check "a theme without sel doesn't fall back to color0" grep -q 'selection_background #010203' "$out/kitty.conf"
+vikix mine >/dev/null
 grep -v '^accent=' "$here/themes/void.theme" > "$t/home/.config/vikix/themes/half.theme"
 if vikix half >/dev/null 2>&1; then echo "FAIL: a theme without an accent colour is accepted"; fail=1; fi
 check "an incomplete theme changed the files" grep -q '"#123456"' "$out/alacritty.toml"

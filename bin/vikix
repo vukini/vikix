@@ -291,6 +291,9 @@ USER_THEMES="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/themes"
 DUNST_DROPIN="${XDG_CONFIG_HOME:-$HOME/.config}/dunst/dunstrc.d/10-vikix-theme.conf"
 THEME_KEYS="bg fg subtle dim accent alert color0 color1 color2 color3 color4 color5
             color6 color7 color8 color9 color10 color11 color12 color13 color14 color15"
+# Keys a theme may leave out, with what stands in: themes made before
+# 0.23.0 have no sel, and keep working.
+THEME_OPTIONAL="sel"
 
 theme_file() {   # theme_file NAME — the file that defines NAME (yours first)
   local f
@@ -310,12 +313,12 @@ theme_names() {
 # theme_read FILE — sets c_KEY for each colour. The file is read, never run.
 theme_read() {
   local key value k missing=()
-  for k in $THEME_KEYS; do unset "c_$k"; done
+  for k in $THEME_KEYS $THEME_OPTIONAL; do unset "c_$k"; done
   while IFS='=' read -r key value; do
     key=${key//[[:space:]]/}
     [ -n "$key" ] || continue
     read -r value _ <<<"$value"             # the first word; the rest is a comment
-    [[ " $THEME_KEYS " == *[[:space:]]"$key"[[:space:]]* ]] || continue
+    [[ " $THEME_KEYS $THEME_OPTIONAL " == *[[:space:]]"$key"[[:space:]]* ]] || continue
     [[ $value =~ ^#[0-9A-Fa-f]{6}$ ]] || { warn "$1: $key=$value is not a #rrggbb colour"; continue; }
     printf -v "c_$key" '%s' "$value"
   done < "$1"
@@ -324,6 +327,7 @@ theme_read() {
     [ -n "${!var:-}" ] || missing+=("$k")
   done
   [ "${#missing[@]}" -eq 0 ] || { warn "$1 has no colour for: ${missing[*]}"; return 1; }
+  : "${c_sel:=$c_color0}"
 }
 
 # theme_write NAME — every program's theme file, from theme NAME.
@@ -343,8 +347,8 @@ background = "$c_bg"
 foreground = "$c_fg"
 
 [colors.selection]
-background = "$c_accent"
-text = "$c_bg"
+background = "$c_sel"
+text = "CellForeground"
 
 [colors.normal]
 black = "$c_color0"
@@ -370,8 +374,8 @@ EOF
   local i kitty="# $head
 background $c_bg
 foreground $c_fg
-selection_background $c_accent
-selection_foreground $c_bg
+selection_background $c_sel
+selection_foreground none
 cursor $c_fg
 active_border_color $c_accent
 inactive_border_color $c_dim"
@@ -384,7 +388,8 @@ inactive_border_color $c_dim"
   cat > "$THEME_OUT/rofi.rasi" <<EOF
 /* $head */
 * {
-    bg: $c_bg; fg: $c_fg; dim: $c_dim; accent: $c_accent; alert: $c_alert;
+    bg: $c_bg; fg: $c_fg; subtle: $c_subtle; dim: $c_dim; sel: $c_sel;
+    accent: $c_accent; alert: $c_alert;
     background-color: transparent;
     text-color: @fg;
 }
@@ -397,10 +402,10 @@ window {
 }
 inputbar { children: [ prompt, entry ]; spacing: 8px; padding: 0 0 8px 0; }
 prompt { text-color: @accent; }
-entry { placeholder: "Type to search"; placeholder-color: @dim; }
+entry { placeholder: "Type to search"; placeholder-color: @subtle; }
 listview { lines: 10; scrollbar: false; }
 element { padding: 4px 8px; }
-element selected.normal, element selected.active { background-color: @accent; text-color: @bg; }
+element selected.normal, element selected.active { background-color: @sel; text-color: @fg; }
 element-text, element-icon { background-color: inherit; text-color: inherit; }
 EOF
 
@@ -414,13 +419,16 @@ EOF
 [urgency_low]
     background = "$c_bg"
     foreground = "$c_subtle"
+    highlight = "$c_subtle"
 [urgency_normal]
     background = "$c_bg"
     foreground = "$c_fg"
+    highlight = "$c_accent"
 [urgency_critical]
     background = "$c_bg"
     foreground = "$c_fg"
     frame_color = "$c_alert"
+    highlight = "$c_alert"
 EOF
 
   printf '%s\n' "${c_bg#\#}" > "$THEME_OUT/lock"     # i3lock -c takes rrggbb

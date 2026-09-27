@@ -1,0 +1,52 @@
+#!/bin/sh
+# vikix-font — the one font file StumpWM draws its bar, menus and messages in.
+#
+# StumpWM's TrueType module (ttf-fonts) reads only single .ttf files, and
+# Void's font-iosevka ships Iosevka as .ttc collections of every weight.
+# So this takes Iosevka Regular out of the collection (with fontTools) into
+#   ~/.local/share/vikix/fonts/wm.ttf
+# which theme.lisp loads. Until Iosevka is installed (it comes in part two
+# of the install), wm.ttf is a link to Noto Sans Mono instead.
+# The folder is outside fontconfig's paths, so other programs don't see a
+# second Iosevka.
+#
+#   vikix-font          make wm.ttf if it's missing or a stand-in; print its path
+#   vikix-font --force  make it again
+
+DIR=${VIKIX_FONT_DIR:-$HOME/.local/share/vikix/fonts}
+OUT="$DIR/wm.ttf"
+TTC=${VIKIX_FONT_TTC:-/usr/share/fonts/TTF/Iosevka.ttc}
+STANDIN=${VIKIX_FONT_STANDIN:-/usr/share/fonts/noto/NotoSansMono-Regular.ttf}
+
+mkdir -p "$DIR"
+[ "${1:-}" = --force ] && rm -f "$OUT"
+
+# Iosevka already taken out: nothing to do. (A link is the stand-in.)
+if [ -f "$OUT" ] && [ ! -L "$OUT" ]; then
+  echo "$OUT"
+  exit 0
+fi
+
+if [ -r "$TTC" ] && python3 - "$TTC" "$OUT.new" 2>/dev/null <<'EOF'
+import sys
+from fontTools.ttLib import TTCollection
+# lazy: the collection is over 400 MB, and only one font of it is needed
+for font in TTCollection(sys.argv[1], lazy=True).fonts:
+    name = font["name"]
+    # name IDs 1 and 2: family and style, as the TrueType module reads them
+    if name.getDebugName(1) == "Iosevka" and name.getDebugName(2) == "Regular":
+        font.save(sys.argv[2])
+        sys.exit(0)
+sys.exit(1)
+EOF
+then
+  mv -f "$OUT.new" "$OUT"
+elif [ -r "$STANDIN" ]; then
+  rm -f "$OUT.new"
+  ln -sfn "$STANDIN" "$OUT"
+else
+  rm -f "$OUT.new"
+  echo "vikix-font: neither $TTC nor $STANDIN is there" >&2
+  exit 1
+fi
+echo "$OUT"

@@ -55,7 +55,7 @@ Every stage checks before it changes anything, so re-running either part is safe
 | `10-packages` | 1, 2 | Updates xbps itself, then installs what `packages/*.list` names, skipping anything already installed. Part one installs the core lists (base, desktop, network, lisp, cli); part two the rest. |
 | `20-services` | 1, 2 | Enables the runit services in `services.list`, and adds you to the `video` group. `vikix update` runs it again, so a service that comes with a new package is switched on. |
 | `25-network` | 1 | Starts NetworkManager, waits until it's running, then switches off dhcpcd and wpa_supplicant. Adds you to the `network` group. |
-| `30-lisp` | 1 | Installs Quicklisp (and adds it to `~/.sbclrc`), builds `~/.local/bin/stumpwm` with Swank inside, and clones `stumpwm-contrib`. |
+| `30-lisp` | 1 | Installs Quicklisp (and adds it to `~/.sbclrc`), clones clx-truetype (TrueType fonts for the bar, not in Quicklisp), builds `~/.local/bin/stumpwm` with Swank and clx-truetype inside, and clones `stumpwm-contrib`. |
 | `40-config` | 1 | Links Vikix's config files into place and copies starter files you then own (including the keyboard file and the night light times). |
 | `45-editors` | 2 | Clones the Emacs config (`vukini/emacs-void`) to `~/.emacs.d` and the Neovim config (`vukini/nvim-void-linux`) to `~/.config/nvim`, installs the npm language servers into `~/.local`, and installs Neovim's plugins. Other repos: set `VIKIX_EMACS_REPO` / `VIKIX_NVIM_REPO`. |
 | `55-hardware` | 2 | Touchpad settings (tap to click, natural scrolling), the Intel microcode rebuilt into the initramfs, and the standard `~/Documents` … folders. |
@@ -244,16 +244,18 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 
 ## The bar
 
-Along the top: on the left the workspaces in use (the current one in brackets) and this workspace's windows; on the right, from left to right:
+Along the top, in Iosevka like the terminal: on the left the workspaces in use (the current one in brackets) and this workspace's windows, numbered, the focused one in the accent colour; on the right, from left to right:
 
 - **rec**, in the theme's alert colour, while the screen is being recorded (`s-R` stops it).
-- **awake**, in the theme's accent colour, while keep awake is on (`s-M-a`).
-- **quiet**, in the theme's alert colour, while do not disturb is on (`s-M-n`), with the number of notifications waiting: they show when you switch it off.
+- **awake**, in the theme's quieter text colour, while keep awake is on (`s-M-a`).
+- **quiet**, in the quieter text colour, while do not disturb is on (`s-M-n`), with the number of notifications waiting: they show when you switch it off.
 - **updates**, in the theme's accent colour, when `vikix update` has something to bring: `updates 12` (Void packages), `updates 12 + Vikix`, or `Vikix update`. Checked a minute after you log in and then every 6 hours, in the background (`vikix-updates`); `vikix update` clears it. Nothing shows when there's nothing, or when it couldn't check (offline).
-- the network: the Wi-Fi name and signal, `wired`, or `offline`
-- the volume
-- the battery, on a laptop
+- the network: `wifi` and the network's name (and its signal when it is weak, under 60%), `wired`, or `offline`
+- the volume: `vol 40%`
+- the battery, on a laptop: `bat 84%`, with a `+` while charging; nothing when it is full on the charger
 - the date and time
+
+Each colour means one thing: alert (red in void) is something watching you, accent is something to act on, and the quieter colour is a mode you switched on yourself.
 
 ## Themes
 
@@ -266,7 +268,7 @@ vikix theme paper     # switch, everywhere, now; kept for the next start
 
 Or `s-m`, then Theme. Open alacritty windows change at once; rofi and the lock screen use the new colours from their next start.
 
-- **A theme is a file of colours:** `themes/void.theme` shows every name. Copy it to `~/.config/vikix/themes/mine.theme`, change the colours, and `vikix theme mine`.
+- **A theme is a file of colours:** `themes/void.theme` shows every name. `sel`, the colour behind selected text and rows, may be left out; `color0` stands in. Copy it to `~/.config/vikix/themes/mine.theme`, change the colours, and `vikix theme mine`.
 - **How the programs get them:** `vikix theme` writes each program's colours into `~/.config/vikix/theme/`, and your configs include those files. Your `alacritty.toml` imports `alacritty.toml` from there, and rofi's `config.rasi` names `rofi.rasi`; dunst reads `~/.config/dunst/dunstrc.d/10-vikix-theme.conf` by itself. For kitty, add `include ~/.config/vikix/theme/kitty.conf` to your `kitty.conf`.
 - **Keeping colours of your own** in one program: set them in its config (for dunst, in a drop-in that sorts after `10-vikix-theme.conf`, like `90-mine.conf`). Your own colours win there, and the rest still follows the theme.
 
@@ -319,7 +321,7 @@ A snapshot is taken after every install or `vikix update`, and before every agen
 |---|---|
 | `base` | dbus, elogind, polkit and its password box, openssh, chrony (clock), git, curl, rsync, zip, 7zip, man pages, xdg-utils, python3 (for `vikix eval`) |
 | `desktop` | X11, picom, dunst, rofi, alacritty, fonts (Noto, Nerd Font symbols), i3lock, gammastep (night light), screenshots and screen recording (maim, slop, ffmpeg), clipmenu (clipboard history) |
-| `fonts` | Iosevka, the terminal font. Every variant comes in one 862 MB package, so it waits for part two; until then the terminal uses a plain monospace font. |
+| `fonts` | Iosevka, the terminal font. Every variant comes in one 862 MB package, so it waits for part two; until then the terminal uses a plain monospace font, and the bar Noto Sans Mono. Also fonttools, which `vikix-font` uses to take the one Iosevka the bar needs out of that package. |
 | `network` | NetworkManager (`nmtui` for Wi-Fi), with its connection editor |
 | `audio` | PipeWire, WirePlumber (with Bluetooth audio), pamixer, pavucontrol |
 | `laptop` | tlp, acpid, brightnessctl, xprintidle (suspend when idle on battery), Bluetooth (bluez, blueman), autorandr, and the firmware a recent ThinkPad needs: sof-firmware (sound), intel-ucode (from the nonfree repo, enabled by `repos.list`), intel-video-accel |
@@ -486,6 +488,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `notifications` | `vikix-notifications` lists dunst's history newest first, and shows again the one you pick |
 | `updates` | `vikix-updates` counts waiting Void packages and Vikix commits, and says `?` for a check that failed, not 0 |
 | `theme` | `vikix theme` writes every program's colours from one theme file and refuses a broken one; the migration hooks old starter configs up to it without touching your own settings |
+| `bar` | `vikix-net` labels the link and shows the Wi-Fi signal only when it is weak; `vikix-font` gives StumpWM Iosevka Regular, or a stand-in until Iosevka is installed |
 | `home` | `40-config` and `60-login` change nothing when run again, and `vikix undo` puts your files back (and undoing again brings the change back) |
 | `update` | `vikix update` runs the new version's steps after it pulls, logs the whole run, and carries on past a failed stage, naming it at the end |
 | `packages` | Every name in `packages/*.list` is a real Void package |

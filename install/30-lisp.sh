@@ -2,7 +2,8 @@
 # 30-lisp — Quicklisp, the StumpWM executable, and the contrib modules.
 #
 # Void does not package StumpWM, so it is built here in three checkable steps:
-#   1. install Quicklisp into ~/quicklisp (skipped if already there)
+#   1. install Quicklisp into ~/quicklisp (skipped if already there),
+#      and clone clx-truetype (TrueType fonts for the bar) next to it
 #   2. build ~/.local/bin/stumpwm from Quicklisp with Swank inside
 #      (skipped if it exists; `VIKIX_REBUILD_WM=1` forces a rebuild)
 #   3. clone stumpwm-contrib into ~/.stumpwm.d/modules (battery etc.)
@@ -35,14 +36,30 @@ else
   run sbcl --non-interactive --load "$QL_DIR/setup.lisp" --eval '(ql:add-to-init-file)'
 fi
 
+# clx-truetype lets StumpWM draw TrueType fonts (the contrib module
+# ttf-fonts needs it). It isn't in Quicklisp; local-projects is where
+# Quicklisp looks for systems of your own.
+TRUETYPE="$QL_DIR/local-projects/clx-truetype"
+if [ -d "$TRUETYPE" ]; then
+  say "clx-truetype already in $TRUETYPE"
+else
+  say "cloning clx-truetype"
+  run git clone --depth 1 https://github.com/lihebi/clx-truetype.git "$TRUETYPE" ||
+    warn "no clx-truetype: StumpWM keeps its bitmap font"
+fi
+
 # 2. StumpWM executable
 if [ -x "$WM_BIN" ] && [ "${VIKIX_REBUILD_WM:-0}" != 1 ]; then
   say "StumpWM already built at $WM_BIN"
 else
   say "building StumpWM into $WM_BIN (a few minutes the first time)"
   run mkdir -p "$(dirname "$WM_BIN")"
-  run env VIKIX_WM_OUTPUT="$WM_BIN" \
+  # Built beside the old one, then moved over it: the running StumpWM is
+  # that file, and Linux won't let a running program's file be written.
+  # The move leaves it running from the old copy until the next login.
+  run env VIKIX_WM_OUTPUT="$WM_BIN.new" \
       sbcl --non-interactive --load "$VIKIX_DIR/lib/build-stumpwm.lisp"
+  run mv -f "$WM_BIN.new" "$WM_BIN"
 fi
 
 # 3. contrib modules

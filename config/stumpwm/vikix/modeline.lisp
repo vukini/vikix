@@ -1,8 +1,8 @@
 ;;;; modeline.lisp — the bar along the top of the screen.
 ;;;;
 ;;;; The format string is read left to right:
-;;;;   %J   workspaces in use, the current one in bold
-;;;;   %W   the current workspace's windows
+;;;;   %J   workspaces in use, the current one in [brackets]
+;;;;   %W   the current workspace's windows, the focused one in the accent colour
 ;;;;   ^>   everything after this goes on the right
 ;;;;   %R   rec: the screen is being recorded (vikix-record)
 ;;;;   %K   awake: keep awake is on (no lock, dark screen or suspend)
@@ -10,17 +10,33 @@
 ;;;;   %U   updates waiting (bin/vikix-updates checks every 6 hours)
 ;;;;   %O   network: Wi-Fi name and signal, wired, or offline
 ;;;;   %V   volume (only when there is a sound server)
-;;;;   %B   battery (only if the contrib module loaded)
+;;;;   %E   battery: "bat 84%", "+" while charging; nothing when full on the charger
 ;;;;   %d   date and time
+;;;;
+;;;; Colour carries one meaning each: alert for something watching you
+;;;; (rec), accent for something to act on (updates), subtle for a mode you
+;;;; switched on yourself (awake, quiet).
 
 (in-package :stumpwm)
 
-(defvar *vikix-battery*
-  ;; Only on machines that have a battery, and only if the module loads.
-  (and (directory #p"/sys/class/power_supply/BAT*")
-       (handler-case (progn (load-module "battery-portable") t)
-         (error () nil)))
-  "True when this machine has a battery and the contrib module loaded.")
+(defun vikix-battery-file (name)
+  "The first line of sysfs file NAME of the first battery, or nil."
+  (let ((battery (first (directory #p"/sys/class/power_supply/BAT*/"))))
+    (and battery
+         (ignore-errors
+          (with-open-file (in (merge-pathnames name battery))
+            (string-trim '(#\Space #\Newline) (read-line in nil "")))))))
+
+(defun vikix-mode-line-battery (ml)
+  "The battery's charge, labelled like vol; nothing without a battery, or
+when it is full on the charger, since that isn't news."
+  (declare (ignore ml))
+  (let ((level (vikix-battery-file "capacity"))
+        (status (vikix-battery-file "status")))
+    (cond ((or (null level) (string= level "")) "")
+          ((member status '("Full" "Not charging") :test #'string=) "")
+          (t (format nil "bat ~a%~a  " level
+                     (if (string= status "Charging") "+" ""))))))
 
 (defun vikix-mode-line-groups (ml)
   "The workspaces that have windows, plus the current one, in order.
@@ -30,7 +46,7 @@ All nine always exist, so listing them all would say nothing."
             (loop for group in (sort-groups (mode-line-screen ml))
                   when (or (eq group current) (group-windows group))
                     collect (if (eq group current)
-                                (format nil "^B[~a]^b" (group-name group))
+                                (format nil "[~a]" (group-name group))
                                 (group-name group))))))
 
 (defun vikix-mode-line-volume (ml)
@@ -62,7 +78,7 @@ colour; nothing when there are none."
   (declare (ignore ml))
   (if (string= *vikix-quiet* "")
       ""
-      (format nil "^(:push)^(:fg \"~a\")~a^(:pop)  " (vikix-colour :alert) *vikix-quiet*)))
+      (format nil "^(:push)^(:fg \"~a\")~a^(:pop)  " (vikix-colour :subtle) *vikix-quiet*)))
 
 (defun vikix-mode-line-recording (ml)
   "\"rec\" while the screen is recorded, from *vikix-recording* (commands.lisp)."
@@ -75,10 +91,11 @@ colour; nothing when there are none."
   "\"awake\" while keep awake is on, from *vikix-awake* (commands.lisp)."
   (declare (ignore ml))
   (if *vikix-awake*
-      (format nil "^(:push)^(:fg \"~a\")awake^(:pop)  " (vikix-colour :accent))
+      (format nil "^(:push)^(:fg \"~a\")awake^(:pop)  " (vikix-colour :subtle))
       ""))
 
-;; %J, %V, %O, %U, %Q, %K and %R are free: neither StumpWM nor its contrib modules use them.
+;; %J, %V, %O, %U, %Q, %K, %R and %E are free: neither StumpWM nor its
+;; contrib modules use them.
 (add-screen-mode-line-formatter #\J 'vikix-mode-line-groups)
 (add-screen-mode-line-formatter #\V 'vikix-mode-line-volume)
 (add-screen-mode-line-formatter #\O 'vikix-mode-line-net)
@@ -86,6 +103,7 @@ colour; nothing when there are none."
 (add-screen-mode-line-formatter #\Q 'vikix-mode-line-quiet)
 (add-screen-mode-line-formatter #\K 'vikix-mode-line-awake)
 (add-screen-mode-line-formatter #\R 'vikix-mode-line-recording)
+(add-screen-mode-line-formatter #\E 'vikix-mode-line-battery)
 
 (defun vikix-bar-refresh ()
   (vikix-volume-refresh)
@@ -109,8 +127,10 @@ colour; nothing when there are none."
       *mode-line-pad-x*      8
       *mode-line-pad-y*      4
       *time-modeline-string* "%a %d %b  %H:%M"
-      *screen-mode-line-format*
-      (format nil "%J  %W^>%R%K%Q%U%O%V~a  %d" (if *vikix-battery* "%B " "")))
+      ;; The window's number and title. StumpWM's default adds * + - marks,
+      ;; which say again what the accent colour already shows.
+      *window-format*        "%n %30t"
+      *screen-mode-line-format* "%J  %W^>%R%K%Q%U%O%V%E%d")
 
 ;; Turn the bar on for every screen and head (monitor).
 (dolist (screen *screen-list*)

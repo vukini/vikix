@@ -35,7 +35,15 @@ fi
 pipewire &                             # audio (starts WirePlumber and pipewire-pulse)
 dunst &                                # notifications
 clipmenud &                            # remembers what you copy (Super+c)
-picom -b                               # compositor (forks itself)
+# The compositor forks itself. glx is its fast backend on real graphics.
+# A virtual machine's OpenGL is drawn in software, where glx starts fine
+# but misses redraws (the bar's clock stops), so there it uses xrender.
+# And if glx won't start at all, xrender again.
+if grep -qw hypervisor /proc/cpuinfo 2>/dev/null; then
+  picom -b --backend xrender
+else
+  picom -b || picom -b --backend xrender
+fi
 "$HOME/.local/bin/vikix-idle" apply    # lock and screen-off times (~/.config/vikix/idle)
 "$HOME/.local/bin/vikix-nightlight" start   # warmer in the evening, unless switched off
 xss-lock -- "$HOME/.local/bin/vikix-lock" --locker &   # locks then; also on suspend
