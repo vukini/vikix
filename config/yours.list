@@ -12,6 +12,7 @@
 .config/dunst
 .config/rofi
 .config/vikix/keyboard
+.config/vikix/wallpaper      # the wallpaper you chose (a link to it)
 .config/gammastep            # night light times and colours
 .config/mimeapps.list
 .Xresources

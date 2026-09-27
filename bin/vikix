@@ -462,6 +462,8 @@ cmd_theme() {
     # kitty reads its config again on SIGUSR1: with kitty.conf including
     # ours, open kitty windows change too.
     pkill -USR1 -x kitty 2>/dev/null || true
+    # The theme's own wallpaper, unless you chose one (vikix-wallpaper).
+    "$VIKIX_DIR/bin/vikix-wallpaper" || warn "the wallpaper didn't change"
   fi
   say "theme: $name"
 }

@@ -1,0 +1,110 @@
+#!/bin/sh
+# vikix-wallpaper — the picture behind the windows.
+#
+#   vikix-wallpaper          show the wallpaper (vikix-session runs this at login)
+#   vikix-wallpaper pick     choose one in rofi, with pictures (Super+m, Wallpaper)
+#   vikix-wallpaper FILE     use FILE from now on
+#   vikix-wallpaper theme    follow the theme again
+#   vikix-wallpaper which    print the picture it would show
+#
+# Unless you choose one, the wallpaper follows the theme: each theme's own
+# is the picture next to its theme file with the same name (themes/void.jpg,
+# or ~/.config/vikix/themes/mine.jpg beside mine.theme), so `vikix theme`
+# changes it too. A theme without a picture gets a plain background in its
+# own colour. Your choice is ~/.config/vikix/wallpaper, a link to the file.
+#
+# The picker lists the themes' pictures, ~/Pictures/Wallpapers and
+# ~/wallpapers. Put yours in either folder.
+
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
+CONFIG=${XDG_CONFIG_HOME:-$HOME/.config}
+CHOICE="$CONFIG/vikix/wallpaper"
+USER_THEMES="$CONFIG/vikix/themes"
+CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/vikix
+
+theme() { cat "$CONFIG/vikix/theme/current" 2>/dev/null || echo void; }
+
+# picture_of NAME — the theme's own picture, if it has one (yours first)
+picture_of() {
+  for dir in "$USER_THEMES" "$VIKIX_DIR/themes"; do
+    for ext in jpg jpeg png webp; do
+      [ -f "$dir/$1.$ext" ] && { echo "$dir/$1.$ext"; return 0; }
+    done
+  done
+  return 1
+}
+
+# plain NAME — a one-pixel picture in the theme's background colour.
+# (A plain X background colour won't do: under picom it shows black.)
+plain() {
+  file=$(for dir in "$USER_THEMES" "$VIKIX_DIR/themes"; do
+           [ -f "$dir/$1.theme" ] && { echo "$dir/$1.theme"; break; }
+         done)
+  bg=$(sed -n 's/^bg=#\([0-9A-Fa-f]\{6\}\).*/\1/p' "$file" 2>/dev/null | head -n 1)
+  [ -n "$bg" ] || bg=1e1e2e
+  mkdir -p "$CACHE"
+  # PPM, the simplest picture format there is: size, then red green blue.
+  printf 'P3\n1 1\n255\n%d %d %d\n' "0x$(echo "$bg" | cut -c1-2)" \
+    "0x$(echo "$bg" | cut -c3-4)" "0x$(echo "$bg" | cut -c5-6)" > "$CACHE/plain-$bg.ppm"
+  echo "$CACHE/plain-$bg.ppm"
+}
+
+which_one() {
+  if [ -e "$CHOICE" ]; then
+    readlink -f "$CHOICE"
+  else
+    picture_of "$(theme)" || plain "$(theme)"
+  fi
+}
+
+show() {
+  [ -n "${DISPLAY:-}" ] || return 0
+  feh --no-fehbg --bg-fill "$(which_one)"
+}
+
+# choose FILE — remember FILE and show it
+choose() {
+  file=$(readlink -f "$1") && [ -f "$file" ] || { echo "vikix-wallpaper: no such file: $1" >&2; exit 1; }
+  mkdir -p "$(dirname "$CHOICE")"
+  ln -sfn "$file" "$CHOICE"
+  show
+}
+
+follow_theme() { rm -f "$CHOICE"; show; }
+
+pictures() {
+  for dir in "$VIKIX_DIR/themes" "$USER_THEMES" "$HOME/Pictures/Wallpapers" "$HOME/wallpapers"; do
+    [ -d "$dir" ] || continue
+    find "$dir" -maxdepth 1 -type f \( -iname '*.jpg' -o -iname '*.jpeg' \
+      -o -iname '*.png' -o -iname '*.webp' \) 2>/dev/null | sort -V
+  done
+}
+
+pick() {
+  list=$(pictures)
+  # rofi reads one entry per line: a label, then after \0 the picture to
+  # show as its icon. -format i gives back the line number picked.
+  n=$(
+    {
+      printf 'Follow the theme (%s)\0icon\037%s\n' "$(theme)" "$(picture_of "$(theme)" || plain "$(theme)")"
+      printf '%s\n' "$list" | while IFS= read -r f; do
+        [ -n "$f" ] && printf '%s\0icon\037%s\n' "$(basename "${f%.*}")" "$f"
+      done
+    } | rofi -dmenu -i -show-icons -format i -p wallpaper \
+          -theme-str 'window { width: 60%; } listview { columns: 3; lines: 3; flow: horizontal; } element { orientation: vertical; } element-icon { size: 8em; } element-text { horizontal-align: 0.5; }'
+  ) || exit 0
+  if [ "$n" = 0 ]; then
+    follow_theme
+  else
+    choose "$(printf '%s\n' "$list" | sed -n "${n}p")"
+  fi
+}
+
+case ${1:-} in
+  "")    show ;;
+  pick)  pick ;;
+  theme) follow_theme ;;
+  which) which_one ;;
+  -*)    echo "usage: vikix-wallpaper [pick | FILE | theme | which]" >&2; exit 2 ;;
+  *)     choose "$1" ;;
+esac

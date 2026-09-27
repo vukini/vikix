@@ -261,7 +261,7 @@ Each colour means one thing: alert (red in void) is something watching you, acce
 
 ## Themes
 
-One theme colours the whole desktop: StumpWM and its bar, the terminal (alacritty, and kitty if you want it), rofi, notifications and the lock screen. Two come with Vikix: **void** (dark, the default) and **paper** (light).
+One theme colours the whole desktop: StumpWM and its bar, the terminal (alacritty, and kitty if you want it), rofi, notifications, the lock screen and the wallpaper. Two come with Vikix: **void** (dark, the default) and **paper** (light).
 
 ```sh
 vikix theme           # the current theme, and the list
@@ -272,6 +272,7 @@ Or `s-m`, then Theme. Open alacritty windows change at once; rofi and the lock s
 
 - **A theme is a file of colours:** `themes/void.theme` shows every name. `sel`, the colour behind selected text and rows, may be left out; `color0` stands in. Copy it to `~/.config/vikix/themes/mine.theme`, change the colours, and `vikix theme mine`.
 - **How the programs get them:** `vikix theme` writes each program's colours into `~/.config/vikix/theme/`, and your configs include those files. Your `alacritty.toml` imports `alacritty.toml` from there, and rofi's `config.rasi` names `rofi.rasi`; dunst reads `~/.config/dunst/dunstrc.d/10-vikix-theme.conf` by itself. For kitty, add `include ~/.config/vikix/theme/kitty.conf` to your `kitty.conf`.
+- **The wallpaper** follows the theme until you choose one: `s-m` → Wallpaper shows a picker with pictures, from Vikix's themes, `~/Pictures/Wallpapers` and `~/wallpapers`. Its first entry goes back to following the theme. From a shell: `vikix-wallpaper FILE`, `vikix-wallpaper theme`. A theme's own wallpaper is the picture beside its theme file with the same name (`mine.jpg` next to `mine.theme`); a theme without one gets a plain background in its colour. Vikix's two were drawn by `lib/make-wallpaper.py`.
 - **Keeping colours of your own** in one program: set them in its config (for dunst, in a drop-in that sorts after `10-vikix-theme.conf`, like `90-mine.conf`). Your own colours win there, and the rest still follows the theme.
 
 ## Changing the window manager while it runs
@@ -490,6 +491,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `notifications` | `vikix-notifications` lists dunst's history newest first, and shows again the one you pick |
 | `updates` | `vikix-updates` counts waiting Void packages and Vikix commits, and says `?` for a check that failed, not 0 |
 | `theme` | `vikix theme` writes every program's colours from one theme file and refuses a broken one; the migration hooks old starter configs up to it without touching your own settings |
+| `wallpaper` | `vikix-wallpaper` shows the theme's picture until you choose one, keeps your choice across theme changes, gives a theme without a picture a plain background in its colour, and sets what the picker picked |
 | `rofi` | `vikix-rofi` opens the emoji picker and calculator with Vikix's keys, the calculator's Enter copies exactly the answer, and a missing plugin is named in a notification |
 | `bar` | `vikix-net` labels the link and shows the Wi-Fi signal only when it is weak; `vikix-font` gives StumpWM Iosevka Regular, or a stand-in until Iosevka is installed |
 | `home` | `40-config` and `60-login` change nothing when run again, and `vikix undo` puts your files back (and undoing again brings the change back) |

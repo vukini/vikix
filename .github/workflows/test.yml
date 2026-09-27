@@ -50,6 +50,8 @@ jobs:
         run: tests/ci.sh bar
       - name: rofi
         run: tests/ci.sh rofi
+      - name: wallpaper
+        run: tests/ci.sh wallpaper
       - name: updates
         run: tests/ci.sh updates
       - name: notifications

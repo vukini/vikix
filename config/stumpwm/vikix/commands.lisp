@@ -85,6 +85,7 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
     ("Undo: my files back one snapshot" vikix-undo)
     ("Reload config"       vikix-reload)
     ("Theme"               vikix-pick-theme)
+    ("Wallpaper"           (run-shell-command "vikix-wallpaper pick"))
     ("Apply keyboard settings" (run-shell-command "vikix-keyboard"))
     ("Network (nmtui)"     (run-shell-command
                             (format nil "~a -e nmtui" *vikix-terminal*)))
