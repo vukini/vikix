@@ -36,8 +36,8 @@ pipewire &                             # audio (starts WirePlumber and pipewire-
 dunst &                                # notifications
 clipmenud &                            # remembers what you copy (Super+c)
 picom -b                               # compositor (forks itself)
-xset s 600                             # idle after 10 minutes...
-xss-lock -- "$HOME/.local/bin/vikix-lock" --locker &   # ...then lock; also on suspend
+"$HOME/.local/bin/vikix-idle" apply    # lock and screen-off times (~/.config/vikix/idle)
+xss-lock -- "$HOME/.local/bin/vikix-lock" --locker &   # locks then; also on suspend
 
 # Emacs as a daemon, so `e` (emacsclient) opens a frame at once. The first
 # start on a new machine installs the config's packages; that happens here,
@@ -45,8 +45,11 @@ xss-lock -- "$HOME/.local/bin/vikix-lock" --locker &   # ...then lock; also on s
 command -v emacs >/dev/null 2>&1 && emacs --fg-daemon >/dev/null 2>&1 &
 
 # A warning when the battery runs low; only on machines that have one.
+# And, on battery, a suspend after a while with nobody there (vikix-idle).
 for battery in /sys/class/power_supply/BAT*; do
-  [ -e "$battery" ] && "$HOME/.local/bin/vikix-battery" &
+  [ -e "$battery" ] || break
+  "$HOME/.local/bin/vikix-battery" &
+  "$HOME/.local/bin/vikix-idle" --watch &
   break
 done
 

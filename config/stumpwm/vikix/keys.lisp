@@ -68,6 +68,7 @@
     ("s-m"    "vikix-menu"      "Vikix menu")
     ("s-F1"   "vikix-keys"      "These keys")
     ("s-ESC"  "exec vikix-lock"  "Lock the screen")
+    ("s-M-a"  "vikix-awake"      "Keep awake on/off: no lock, dark screen or suspend")
     ("Print"   "exec vikix-screenshot clip" "Screenshot of an area, to the clipboard")
     ("S-Print" "exec vikix-screenshot file" "Screenshot of an area, to ~/Pictures/Screenshots")
     ;; the laptop's function keys

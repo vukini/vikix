@@ -50,6 +50,8 @@ jobs:
         run: tests/ci.sh updates
       - name: notifications
         run: tests/ci.sh notifications
+      - name: idle
+        run: tests/ci.sh idle
       - name: update
         run: tests/ci.sh update
 

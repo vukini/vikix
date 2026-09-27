@@ -1,0 +1,87 @@
+#!/bin/sh
+# vikix-idle — what happens when you leave the computer alone.
+#
+#   after LOCK minutes       the screen locks (xss-lock runs vikix-lock)
+#   after SCREEN_OFF minutes the screen goes dark
+#   after SUSPEND minutes    on battery only, the computer suspends
+#
+#   vikix-idle apply          set the lock and screen-off times (the session
+#                             does this at login)
+#   vikix-idle awake [on|off|toggle]
+#                             keep awake: no lock, no dark screen, no suspend,
+#                             for a film or a talk; the bar says "awake".
+#                             Every login starts with it off.
+#   vikix-idle --watch        suspend on battery after SUSPEND minutes idle;
+#                             the session runs this on machines with a battery
+#
+# The times are minutes, from ~/.config/vikix/idle when it exists, e.g.
+#   LOCK=10
+#   SCREEN_OFF=11
+#   SUSPEND=20          # 0: never suspend by itself
+# Anything not set there keeps the value below.
+
+LOCK=10
+SCREEN_OFF=11
+SUSPEND=20
+settings="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/idle"
+# shellcheck disable=SC1090  # your own settings file
+[ -r "$settings" ] && . "$settings"
+
+state="${XDG_STATE_HOME:-$HOME/.local/state}/vikix"
+awake_flag="$state/awake"
+power=${VIKIX_POWER_SUPPLY:-/sys/class/power_supply}   # a test can point this elsewhere
+
+apply() {
+  # xss-lock locks when the screen saver starts, LOCK minutes after the last
+  # key or mouse move. DPMS then turns the screen off; the first two DPMS
+  # steps (standby, suspend) are skipped: most screens treat them as off.
+  xset s $((LOCK * 60)) $((LOCK * 60))
+  xset +dpms dpms 0 0 $((SCREEN_OFF * 60))
+}
+
+on_battery() {
+  # On battery: a battery is discharging, and no charger is plugged in.
+  for ac in "$power"/A[Cc]* "$power"/ADP*; do
+    [ "$(cat "$ac/online" 2>/dev/null)" = 1 ] && return 1
+  done
+  for bat in "$power"/BAT*; do
+    [ "$(cat "$bat/status" 2>/dev/null)" = Discharging ] && return 0
+  done
+  return 1
+}
+
+case ${1:-} in
+  apply)
+    rm -f "$awake_flag"
+    apply ;;
+  awake)
+    case ${2:-toggle} in
+      toggle) if [ -e "$awake_flag" ]; then set -- awake off; else set -- awake on; fi ;;
+    esac
+    if [ "$2" = on ]; then
+      mkdir -p "$state" && touch "$awake_flag"
+      xset s off -dpms
+      echo "keep awake: on"
+    else
+      rm -f "$awake_flag"
+      apply
+      echo "keep awake: off"
+    fi ;;
+  --watch)
+    [ "$SUSPEND" -gt 0 ] 2>/dev/null || exit 0
+    command -v xprintidle >/dev/null || { echo "vikix-idle: xprintidle is missing, so no suspend when idle" >&2; exit 1; }
+    while :; do
+      sleep 60
+      [ -e "$awake_flag" ] && continue
+      on_battery || continue
+      idle=$(xprintidle 2>/dev/null) || continue
+      if [ "$idle" -ge $((SUSPEND * 60000)) ]; then
+        # xss-lock locks the screen before the machine sleeps.
+        loginctl suspend
+        sleep 120       # after waking, the idle time starts again from 0
+      fi
+    done ;;
+  *)
+    sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'
+    exit 2 ;;
+esac

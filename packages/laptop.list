@@ -2,6 +2,7 @@
 tlp             # battery life
 acpid           # lid and power-button events
 brightnessctl   # brightness keys
+xprintidle      # idle time, for suspending on battery (vikix-idle)
 bluez           # Bluetooth
 blueman         # Bluetooth, with a GUI (blueman-manager)
 autorandr       # remembers a monitor layout per dock/desk and re-applies it on hotplug

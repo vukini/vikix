@@ -75,6 +75,7 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
     ("Notifications: earlier ones" (run-shell-command "vikix-notifications"))
     ("Notifications: close all" (run-shell-command "dunstctl close-all"))
     ("Do not disturb on/off" vikix-quiet)
+    ("Keep awake on/off"   vikix-awake)
     ("Find a window, any workspace" global-windowlist)
     ("Gaps around windows on/off" toggle-gaps)
     ("Screenshot: an area, to a file" (run-shell-command "vikix-screenshot file"))
@@ -175,6 +176,32 @@ changed. Reading a small file is cheap, so this runs with the others."
     (unless (string= new *vikix-updates*)
       (setf *vikix-updates* new)
       (update-all-mode-lines))))
+
+;;; Keep awake (bin/vikix-idle), shown in the bar.
+
+(defparameter *vikix-awake-file*
+  (merge-pathnames ".local/state/vikix/awake" (user-homedir-pathname))
+  "Present while keep awake is on; vikix-idle makes and removes it.")
+
+(defvar *vikix-awake* nil
+  "True while keep awake is on: no lock, no dark screen, no suspend.")
+
+(defun vikix-awake-refresh ()
+  "Read keep awake into *vikix-awake*; redraw the bar if it changed."
+  (let ((new (and (probe-file *vikix-awake-file*) t)))
+    (unless (eq new *vikix-awake*)
+      (setf *vikix-awake* new)
+      (update-all-mode-lines))))
+
+(defcommand vikix-awake () ()
+  "Keep awake, on or off: while on, the screen doesn't lock or go dark and
+the computer doesn't suspend by itself (the bar says awake). For a film or
+a talk. Every login starts with it off."
+  (run-shell-command "vikix-idle awake toggle" t)
+  (vikix-awake-refresh)
+  (message (if *vikix-awake*
+               "Keep awake: on, until you switch it off"
+               "Keep awake: off")))
 
 ;;; Notifications (dunst): do not disturb, shown in the bar.
 

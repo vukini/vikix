@@ -35,6 +35,7 @@ replaces them, so any edit there is lost, and it breaks the update
 | Anything in StumpWM: keys, theme, terminal, new commands, startup programs | `~/.stumpwm.d/user.lisp` (loads last, so it wins) |
 | Terminal look | `~/.config/alacritty/alacritty.toml` |
 | Compositor, notifications, launcher | `~/.config/picom/picom.conf`, `~/.config/dunst/dunstrc`, `~/.config/rofi/config.rasi` |
+| Minutes before lock, dark screen, suspend on battery | `~/.config/vikix/idle` (`LOCK=`, `SCREEN_OFF=`, `SUSPEND=`; 0 never suspends), then log in again |
 | Keyboard layout and options (e.g. `ctrl:swapcaps`) | `~/.config/vikix/keyboard`, then run `vikix-keyboard` |
 | Which program opens which file type | `~/.config/mimeapps.list` (images: `vikix-image.desktop`, nsxiv with the rest of the folder) |
 | Text size on a high-resolution screen | `~/.Xresources` (`Xft.dpi`, `Xcursor.size`); takes effect at the next login |
@@ -101,7 +102,8 @@ The keys as installed (Super+F1 shows the live list): Super+Return
 terminal, Super+d launcher, Super+w browser, Super+e files, Super+a this
 agent, Super+x an Emacs window, Super+c clipboard history (clipmenu), Super+n / Super+Shift+n the last
 notification again / pick an earlier one, Super+Ctrl+n close all,
-Super+Alt+n do not disturb (dunstctl; the bar says quiet),
+Super+Alt+n do not disturb (dunstctl; the bar says quiet), Super+Alt+a keep
+awake (vikix-idle; no lock, dark screen or suspend; the bar says awake),
 Print / Shift+Print a screenshot of an area to the clipboard / to
 ~/Pictures/Screenshots, Super+q close, Super+f fullscreen, Super+h/j/k/l focus (Shift to
 move the window; the arrow keys do the same), Super+b / Super+v split,

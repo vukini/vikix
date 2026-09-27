@@ -232,6 +232,7 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 | `s-m` | Vikix menu: key help, all commands, "what does a key do?", themes, network, screens, update, suspend / reboot / power off |
 | `s-F1` | Every key, searchable. Pick one to run it. |
 | `s-Escape` | Lock the screen |
+| `s-M-a` | Keep awake on/off: no lock, dark screen or suspend while you watch or present (the bar says `awake`) |
 | `Print` | Screenshot an area to the clipboard |
 | `Shift+Print` | Screenshot an area to `~/Pictures/Screenshots` |
 | volume and brightness keys | Change the level and show a bar for it |
@@ -240,6 +241,7 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 
 Along the top: on the left the workspaces in use (the current one in brackets) and this workspace's windows; on the right, from left to right:
 
+- **awake**, in the theme's accent colour, while keep awake is on (`s-M-a`).
 - **quiet**, in the theme's alert colour, while do not disturb is on (`s-M-n`), with the number of notifications waiting: they show when you switch it off.
 - **updates**, in the theme's accent colour, when `vikix update` has something to bring: `updates 12` (Void packages), `updates 12 + Vikix`, or `Vikix update`. Checked a minute after you log in and then every 6 hours, in the background (`vikix-updates`); `vikix update` clears it. Nothing shows when there's nothing, or when it couldn't check (offline).
 - the network: the Wi-Fi name and signal, `wired`, or `offline`
@@ -314,7 +316,7 @@ A snapshot is taken after every install or `vikix update`, and before every agen
 | `fonts` | Iosevka, the terminal font. Every variant comes in one 862 MB package, so it waits for part two; until then the terminal uses a plain monospace font. |
 | `network` | NetworkManager (`nmtui` for Wi-Fi), with its connection editor |
 | `audio` | PipeWire, WirePlumber (with Bluetooth audio), pamixer, pavucontrol |
-| `laptop` | tlp, acpid, brightnessctl, Bluetooth (bluez, blueman), autorandr, and the firmware a recent ThinkPad needs: sof-firmware (sound), intel-ucode (from the nonfree repo, enabled by `repos.list`), intel-video-accel |
+| `laptop` | tlp, acpid, brightnessctl, xprintidle (suspend when idle on battery), Bluetooth (bluez, blueman), autorandr, and the firmware a recent ThinkPad needs: sof-firmware (sound), intel-ucode (from the nonfree repo, enabled by `repos.list`), intel-video-accel |
 | `editors` | Emacs, Neovim, the pdf-tools build deps, the `tree-sitter` CLI (Neovim builds its parsers with it), and the language servers Void packages (ccls, lua-language-server, gopls, efm-langserver) plus nodejs for the npm ones |
 | `apps` | Firefox, PCManFM with USB mounting, SpaceFM, mpv, nsxiv, zathura, Foliate (EPUB), LibreOffice (Writer, Calc, Impress, Draw, Math), Zeal (offline docs) |
 | `dev` | base-devel (gcc, make), gdb, valgrind, rlwrap |
@@ -325,6 +327,7 @@ A snapshot is taken after every install or `vikix update`, and before every agen
 ## Laptop
 
 - **Docking.** Arrange the monitors once with `s-m` → *Screens: arrange*, then `s-m` → *Screens: save this layout* and call it `default` (or `desk`, `home` …). autorandr re-applies the matching layout whenever those monitors are plugged in, and at login.
+- **Away from the keyboard.** After 10 minutes the screen locks, after 11 it goes dark, and after 20, on battery only, the computer suspends. Change the minutes in `~/.config/vikix/idle` (`LOCK=10`, `SCREEN_OFF=11`, `SUSPEND=20`, and `SUSPEND=0` never suspends), then log in again. **Keep awake** (`s-M-a`, or `s-m` → Keep awake) stops all three for a film or a talk; the bar says `awake`, and every login starts with it off.
 - **Suspend** from the `s-m` menu or by closing the lid; the screen locks first. **Reboot** and **Power off** are there too, through elogind, no sudo.
 - **Touchpad**: tap to click, natural scrolling, off while typing (`/etc/X11/xorg.conf.d/40-libinput.conf`, installed by `55-hardware`).
 - **Battery.** `vikix-battery` warns at 15% and again, urgently, at 5% (change them with `VIKIX_BATTERY_LOW` / `VIKIX_BATTERY_CRITICAL`). It only starts on a machine with a battery; `vikix-battery --once` shows the charge.
@@ -470,6 +473,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `lisp` | Every Lisp file reads cleanly, so a missing paren shows up here, not at login (needs `sbcl`) |
 | `battery` | The low-battery warner warns once at 15%, once at 5%, and again only after charging |
 | `image` | `vikix-image` opens nsxiv on the image's whole folder, in name order, at the image you picked |
+| `idle` | `vikix-idle` suspends only on battery, only after the idle time in its settings, and never while keep awake is on |
 | `notifications` | `vikix-notifications` lists dunst's history newest first, and shows again the one you pick |
 | `updates` | `vikix-updates` counts waiting Void packages and Vikix commits, and says `?` for a check that failed, not 0 |
 | `theme` | `vikix theme` writes every program's colours from one theme file and refuses a broken one; the migration hooks old starter configs up to it without touching your own settings |
