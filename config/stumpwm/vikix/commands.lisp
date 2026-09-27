@@ -92,6 +92,7 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
                             (format nil "~a -e nmtui" *vikix-terminal*)))
     ("Bluetooth"           (run-shell-command "blueman-manager"))
     ("Printers"            (run-shell-command "system-config-printer"))
+    ("Eject a drive"       (run-shell-command "vikix-drives eject"))
     ("Screens: arrange (arandr)" (run-shell-command "arandr"))
     ("Screens: save this layout" vikix-screens-save)
     ("Sound (pavucontrol)" (run-shell-command "pavucontrol"))
@@ -167,6 +168,17 @@ when there is none or it's off.")
   (let ((new (vikix-shell-line "vikix-net")))
     (unless (string= new *vikix-net*)
       (setf *vikix-net* new)
+      (update-all-mode-lines))))
+
+(defvar *vikix-usb* ""
+  "\"usb\" while a drive is mounted under /run/media (bin/vikix-drives), or \"\".")
+
+(defun vikix-usb-refresh ()
+  "Read whether a drive is mounted into *vikix-usb*, and redraw the bar if
+it changed. vikix-drives also calls this when a drive comes or goes."
+  (let ((new (vikix-shell-line "vikix-drives bar")))
+    (unless (string= new *vikix-usb*)
+      (setf *vikix-usb* new)
       (update-all-mode-lines))))
 
 (defun vikix-bt-refresh ()

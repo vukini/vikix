@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+# vikix-drives — USB drives: mounted when plugged in, ejected from a menu.
+#
+#   vikix-drives start      run udiskie (vikix-session does, at login): it
+#                           mounts a drive when it's plugged in, says so with
+#                           an "Open" button (PCManFM), and asks for an
+#                           encrypted drive's passphrase in rofi
+#   vikix-drives eject      pick a mounted drive in rofi (Super+Ctrl+e, or
+#                           Super+m, Eject a drive); it is unmounted and
+#                           powered off, and a notification says when it's
+#                           safe to pull out
+#   vikix-drives list       the mounted drives, one mount folder per line
+#   vikix-drives bar        "usb" while a drive is mounted, for the bar
+#
+# udiskie calls back for two things: `password DEVICE` (the rofi prompt)
+# and `event EVENT MOUNT_PATH`. On a mount, if it's the drive `vikix backup
+# setup` chose and a backup is due, the backup starts by itself.
+#
+# Drives are what udisks mounts for you, under /run/media/$USER.
+
+set -euo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+MOUNTS=${VIKIX_MOUNTS:-/proc/mounts}              # a test can point these elsewhere
+MEDIA=${VIKIX_MEDIA:-/run/media/$USER}
+BACKUP=${VIKIX_DRIVES_BACKUP:-$VIKIX_DIR/bin/vikix-backup}
+config="${XDG_CONFIG_HOME:-$HOME/.config}/vikix"
+state="${XDG_STATE_HOME:-$HOME/.local/state}/vikix"
+
+notify() { command -v notify-send >/dev/null 2>&1 && notify-send -a Vikix "$@" || true; }
+
+# The mount folders under $MEDIA. /proc/mounts writes a space in a name as
+# \040 (and a tab as \011); printf %b turns those back.
+list() {
+  local mnt rest
+  while read -r _ mnt rest; do     # the device, then where it is mounted
+    mnt=$(printf '%b' "$mnt")
+    case $mnt in "$MEDIA"/*) printf '%s\n' "$mnt" ;; esac
+  done < "$MOUNTS"
+}
+
+# The bar reads this every 10 seconds; an event also asks it to look now.
+bar() { [ -n "$(list)" ] && echo usb || true; }
+nudge_bar() {
+  ( python3 "$VIKIX_DIR/bin/vikix-eval" '(vikix-usb-refresh)' >/dev/null 2>&1 & ) || true
+}
+
+eject() {
+  local drives pick
+  drives=$(list)
+  if [ -z "$drives" ]; then
+    notify "No drive to eject" "Nothing is mounted under $MEDIA."
+    return 0
+  fi
+  # rofi shows the drives' names; the answer is its line number.
+  pick=$(printf '%s\n' "$drives" | sed 's|.*/||' |
+         rofi -dmenu -i -p eject -format i -no-custom) || return 0
+  pick=$(printf '%s\n' "$drives" | sed -n "$((pick + 1))p")
+  [ -n "$pick" ] || return 0
+  # --detach powers the drive off after unmounting, so it can be pulled out.
+  if udiskie-umount --detach "$pick" >/dev/null 2>&1; then
+    notify "Safe to remove ${pick##*/}" "It's unmounted and powered off."
+  else
+    notify -u critical "${pick##*/} is still in use" \
+      "Close the files and windows open on it (a terminal in it counts), then eject again."
+  fi
+  nudge_bar
+}
+
+# rofi as udiskie's passphrase prompt; what it prints is the passphrase.
+password() {
+  rofi -dmenu -password -p "Passphrase for ${1:-the drive}" \
+    -theme-str 'listview { enabled: false; } entry { placeholder: ""; }' </dev/null
+}
+
+# The backup drive plugged in: back up if one is due. Due means none yet, or
+# the last is DAYS or more old (the bar's "backup 9d" reminder, the same test).
+maybe_backup() {
+  local mnt=$1 repo last days
+  # No backup set up is the usual case: sed failing must not stop the script.
+  repo=$(sed -n 's/^REPO=//p' "$config/backup" 2>/dev/null | tail -n 1 || true)
+  case $repo in "$mnt"|"$mnt"/*) ;; *) return 0 ;; esac
+  read -r last days 2>/dev/null < "$state/backup" || { last=0; days=7; }
+  case ${last:-0}${days:-7} in *[!0-9]*) last=0 days=7 ;; esac
+  if [ "${last:-0}" -gt 0 ] && [ $(( $(date +%s) - last )) -lt $(( ${days:-7} * 86400 )) ]; then
+    return 0
+  fi
+  mkdir -p "$state/logs"
+  setsid -f "$BACKUP" now --notify >>"$state/logs/backup-on-plug.log" 2>&1 < /dev/null
+}
+
+event() {
+  local what=${1:-} mnt=${2:-}
+  case $what in
+    device_mounted)
+      [ -n "$mnt" ] && maybe_backup "$mnt"
+      nudge_bar ;;
+    device_unmounted|device_removed)
+      nudge_bar ;;
+  esac
+}
+
+start() {
+  command -v udiskie >/dev/null 2>&1 || exit 0     # comes with part two (apps.list)
+  pgrep -x udiskie >/dev/null 2>&1 && exit 0       # one per session
+  # Vikix's settings (which notifications), unless you have your own.
+  local config=()
+  [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/udiskie/config.yml" ] ||
+    config=(--config "$VIKIX_DIR/config/udiskie/config.yml")
+  exec udiskie "${config[@]}" --automount --notify --no-tray --file-manager pcmanfm \
+    --password-prompt "vikix-drives password {device_presentation}" \
+    --event-hook "vikix-drives event {event} {mount_path}"
+}
+
+case ${1:-} in
+  start)    start ;;
+  eject)    eject ;;
+  list)     list ;;
+  bar)      bar ;;
+  password) shift; password "$@" ;;
+  event)    shift; event "$@" ;;
+  *) echo "usage: vikix-drives start | eject | list | bar" >&2; exit 2 ;;
+esac

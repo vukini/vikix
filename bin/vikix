@@ -139,6 +139,11 @@ cmd_doctor() {
     say "claude is not installed (optional: Super+a or 'vikix agent' offers to install it)"
   fi
   if [ -n "${DISPLAY:-}" ]; then
+    if pgrep -x udiskie >/dev/null 2>&1; then
+      say "udiskie is running: USB drives mount when plugged in"
+    else
+      warn "udiskie isn't running, so USB drives won't mount by themselves (log in again, or: setsid -f vikix-drives start)"; ok=0
+    fi
     if python3 "$VIKIX_DIR/bin/vikix-eval" '(+ 1 1)' >/dev/null 2>&1; then
       say "vikix eval reaches the running StumpWM"
     else

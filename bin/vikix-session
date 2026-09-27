@@ -35,6 +35,7 @@ fi
 pipewire &                             # audio (starts WirePlumber and pipewire-pulse)
 dunst &                                # notifications
 clipmenud &                            # remembers what you copy (Super+c)
+"$HOME/.local/bin/vikix-drives" start &   # USB drives mount when plugged in (udiskie)
 # The compositor forks itself. glx is its fast backend on real graphics.
 # A virtual machine's OpenGL is drawn in software, where glx starts fine
 # but misses redraws (the bar's clock stops), so there it uses xrender.

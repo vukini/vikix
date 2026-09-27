@@ -1,0 +1,19 @@
+# Vikix's udiskie settings, used by `vikix-drives start` unless you have
+# ~/.config/udiskie/config.yml of your own. (The rest of udiskie's options
+# are on its command line, in bin/vikix-drives.)
+#
+# One notification per drive: when it's mounted, with a button to open it
+# in the file manager; and when something goes wrong. Ejecting has its own
+# ("Safe to remove"), from vikix-drives.
+notifications:
+  timeout: 4
+  device_mounted: 6
+  device_unmounted: false
+  device_added: false
+  device_removed: false
+  device_unlocked: false
+  device_locked: false
+  job_failed: -1
+
+notification_actions:
+  device_mounted: [browse]

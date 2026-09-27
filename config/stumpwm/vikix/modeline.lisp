@@ -9,6 +9,7 @@
 ;;;;   %Q   quiet: notifications paused (do not disturb), and how many wait
 ;;;;   %U   updates waiting (bin/vikix-updates checks every 6 hours)
 ;;;;   %A   backup 9d: the last backup is older than the reminder's days
+;;;;   %D   usb: a drive is mounted; eject it (Super+Ctrl+e) before pulling it out
 ;;;;   %O   network: Wi-Fi name and signal, wired, or offline
 ;;;;   %T   Bluetooth: bt when on, and the connected device (bin/vikix-bt)
 ;;;;   %V   volume (only when there is a sound server)
@@ -16,7 +17,7 @@
 ;;;;   %d   date and time
 ;;;;
 ;;;; Colour carries one meaning each: alert for something watching you
-;;;; (rec), accent for something to act on (updates, backup), subtle for a mode you
+;;;; (rec), accent for something to act on (updates, backup, usb), subtle for a mode you
 ;;;; switched on yourself (awake, quiet).
 
 (in-package :stumpwm)
@@ -73,6 +74,14 @@ NetworkManager."
       ""
       (format nil "~a  " *vikix-bt*)))
 
+(defun vikix-mode-line-usb (ml)
+  "\"usb\" in the accent colour while a drive is mounted: something to do
+(eject it) before pulling it out. From *vikix-usb* (commands.lisp)."
+  (declare (ignore ml))
+  (if (string= *vikix-usb* "")
+      ""
+      (format nil "^(:push)^(:fg \"~a\")~a^(:pop)  " (vikix-colour :accent) *vikix-usb*)))
+
 (defun vikix-mode-line-updates (ml)
   "Waiting updates, from *vikix-updates* (commands.lisp), in the accent
 colour; nothing when there are none."
@@ -112,7 +121,7 @@ colour; nothing while backups are recent, or not set up."
       (format nil "^(:push)^(:fg \"~a\")awake^(:pop)  " (vikix-colour :subtle))
       ""))
 
-;; %J, %V, %O, %T, %U, %A, %Q, %K, %R and %E are free: neither StumpWM nor its
+;; %J, %V, %O, %T, %U, %A, %D, %Q, %K, %R and %E are free: neither StumpWM nor its
 ;; contrib modules use them.
 (add-screen-mode-line-formatter #\J 'vikix-mode-line-groups)
 (add-screen-mode-line-formatter #\V 'vikix-mode-line-volume)
@@ -120,6 +129,7 @@ colour; nothing while backups are recent, or not set up."
 (add-screen-mode-line-formatter #\T 'vikix-mode-line-bt)
 (add-screen-mode-line-formatter #\U 'vikix-mode-line-updates)
 (add-screen-mode-line-formatter #\A 'vikix-mode-line-backup)
+(add-screen-mode-line-formatter #\D 'vikix-mode-line-usb)
 (add-screen-mode-line-formatter #\Q 'vikix-mode-line-quiet)
 (add-screen-mode-line-formatter #\K 'vikix-mode-line-awake)
 (add-screen-mode-line-formatter #\R 'vikix-mode-line-recording)
@@ -131,6 +141,7 @@ colour; nothing while backups are recent, or not set up."
   (vikix-bt-refresh)
   (vikix-updates-refresh)
   (vikix-backup-refresh)
+  (vikix-usb-refresh)
   (vikix-quiet-refresh)
   (vikix-awake-refresh)
   (vikix-record-refresh))
@@ -152,7 +163,7 @@ colour; nothing while backups are recent, or not set up."
       ;; The window's number and title. StumpWM's default adds * + - marks,
       ;; which say again what the accent colour already shows.
       *window-format*        "%n %30t"
-      *screen-mode-line-format* "%J  %W^>%R%K%Q%U%A%O%T%V%E%d")
+      *screen-mode-line-format* "%J  %W^>%R%K%Q%U%A%D%O%T%V%E%d")
 
 ;; Turn the bar on for every screen and head (monitor).
 (dolist (screen *screen-list*)

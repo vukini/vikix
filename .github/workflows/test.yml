@@ -54,6 +54,8 @@ jobs:
         run: tests/ci.sh bar
       - name: examples
         run: tests/ci.sh examples
+      - name: drives
+        run: tests/ci.sh drives
       - name: rofi
         run: tests/ci.sh rofi
       - name: wallpaper

@@ -64,7 +64,7 @@ cmd_setup() {
   [ -n "$place" ] || die "where to? vikix backup setup PLACE, e.g. /run/media/$(id -un)/DRIVE"
   need_restic
   if is_local "$place"; then
-    [ -d "$place" ] || die "$place isn't there; plug in the drive, open it in the file manager so it's mounted, and try again"
+    [ -d "$place" ] || die "$place isn't there; plug in the drive (it mounts by itself) and try again"
     place=$(cd "$place" && pwd)
     # A restic repository already, or a drive to make one on.
     if [ -f "$place/config" ] && [ -d "$place/data" ]; then repo=$place
@@ -119,7 +119,7 @@ cmd_now() {
   local repo; repo=$(setting REPO)
   if is_local "$repo" && [ ! -d "$repo" ]; then
     notify -u normal "Backup" "The backup drive isn't plugged in."
-    die "the backup drive isn't there ($repo); plug it in, open it in the file manager, and try again"
+    die "the backup drive isn't there ($repo); plug it in (it mounts by itself) and try again"
   fi
   mkdir -p "$state/logs"
   # One at a time: a second run waits for nothing, it just stops.

@@ -209,6 +209,7 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 | `s-w` | Browser (Firefox) |
 | `s-e` | Files (PCManFM) |
 | `s-E` | Files in SpaceFM (tabs, split panes) |
+| `s-C-e` | Eject a USB drive: pick it, and a notification says when it's safe to pull out |
 | `s-a` | AI agent: Claude Code in a terminal |
 | `s-x` | Emacs: a new window (the Emacs server is already running) |
 | `s-c` | Clipboard history: pick something copied earlier, then paste it |
@@ -254,6 +255,7 @@ Along the top, in Iosevka like the terminal: on the left the workspaces in use (
 - **awake**, in the theme's quieter text colour, while keep awake is on (`s-M-a`).
 - **quiet**, in the quieter text colour, while do not disturb is on (`s-M-n`), with the number of notifications waiting: they show when you switch it off.
 - **updates**, in the theme's accent colour, when `vikix update` has something to bring: `updates 12` (Void packages), `updates 12 + Vikix`, or `Vikix update`. Checked a minute after you log in and then every 6 hours, in the background (`vikix-updates`); `vikix update` clears it. Nothing shows when there's nothing, or when it couldn't check (offline).
+- **usb**, in the accent colour, while a USB drive is mounted: eject it (`s-C-e`) before pulling it out.
 - **backup 9d**, in the accent colour, once backups are set up and the last one is older than a week (`backup` alone: set up, but none yet). See [Backups](#backups).
 - the network: `wifi` and the network's name (and its signal when it is weak, under 60%), `wired`, or `offline`
 - Bluetooth, when it's on: `bt`, or the connected device and its battery, `bt WH-1000XM4 80%` (`+1` for another); nothing when it's off or there is none (`vikix-bt`). `s-m` → Bluetooth pairs and connects
@@ -328,7 +330,7 @@ This history is for your settings, on this machine. For everything else, and for
 
 `vikix backup` backs up your whole home folder with [restic](https://restic.net): encrypted, and only what changed since the last time, so after the first one a backup takes minutes. It leaves out what can be downloaded or rebuilt again: caches, the bin, the languages' package caches, node_modules, what Vikix installs (Emacs and Neovim plugins, the offline docs, the StumpWM build) and virtual machine disks. The list is `~/.config/vikix/backup-exclude`, yours to edit.
 
-**Once: set up a drive.** Plug in a USB drive and open it in the file manager, so it is mounted, then:
+**Once: set up a drive.** Plug in a USB drive (it mounts by itself, under `/run/media/$USER`), then:
 
 ```sh
 vikix backup setup /run/media/$USER/DRIVE
@@ -346,7 +348,7 @@ vikix backup restore ~/Documents/letter.odt   # bring it back from the latest ba
 vikix backup restore ~/Pictures 3f2a1bc       # ... or from an earlier one
 ```
 
-A restore goes into `~/Restored/<time>/`, beside your files, never over them; move back what you want. Nothing runs by itself: the bar says `backup 9d` once the last backup is more than a week old, as a reminder to plug the drive in. Change the days with `DAYS=` in `~/.config/vikix/backup`, or stop the reminder with `vikix backup off` (the backups stay on the drive). Old backups thin out as new ones come: one a day for a week, one a week for a month, one a month for a year. `vikix backup check` reads them back to make sure they are sound.
+A restore goes into `~/Restored/<time>/`, beside your files, never over them; move back what you want. **Plug in to back up:** when the backup drive is plugged in and a backup is due (none yet, or the last is older than the reminder's days), it starts by itself and says when it's done. Otherwise nothing runs by itself: the bar says `backup 9d` once the last backup is more than a week old, as a reminder to plug the drive in. Change the days with `DAYS=` in `~/.config/vikix/backup`, or stop the reminder with `vikix backup off` (the backups stay on the drive). Old backups thin out as new ones come: one a day for a week, one a week for a month, one a month for a year. `vikix backup check` reads them back to make sure they are sound.
 
 ## What gets installed
 
@@ -360,7 +362,7 @@ A restore goes into `~/Restored/<time>/`, beside your files, never over them; mo
 | `laptop` | tlp, acpid, brightnessctl, xprintidle (suspend when idle on battery), Bluetooth (bluez, blueman), autorandr, and the firmware a recent ThinkPad needs: sof-firmware (sound), intel-ucode (from the nonfree repo, enabled by `repos.list`), intel-video-accel |
 | `printing` | CUPS with its filters, system-config-printer (and cups-pk-helper, so it needs no root), avahi and nss-mdns (finding network printers), ipp-usb (driverless USB printers), and drivers for older printers: gutenprint, foomatic, brlaser |
 | `editors` | Emacs, Neovim, the pdf-tools build deps, the `tree-sitter` CLI (Neovim builds its parsers with it), and the language servers Void packages (ccls, lua-language-server, gopls, efm-langserver) plus nodejs for the npm ones |
-| `apps` | Firefox, PCManFM with USB mounting, SpaceFM, mpv, nsxiv, zathura, Foliate (EPUB), LibreOffice (Writer, Calc, Impress, Draw, Math), Zeal (offline docs) |
+| `apps` | Firefox, PCManFM, USB drives that mount when plugged in (udisks2, udiskie; gvfs-mtp for Android phones), SpaceFM, mpv, nsxiv, zathura, Foliate (EPUB), LibreOffice (Writer, Calc, Impress, Draw, Math), Zeal (offline docs) |
 | `dev` | base-devel (gcc, make), gdb, valgrind, rlwrap |
 | `cli` | htop, ripgrep, fd, fzf, bat, eza, tmux, tree, jq, zoxide, yazi, lazygit, gh (GitHub CLI), restic (for `vikix backup`), atuin (with bash-preexec) |
 | `lisp` | SBCL |
@@ -376,6 +378,16 @@ A restore goes into `~/Restored/<time>/`, beside your files, never over them; mo
 - **Battery.** `vikix-battery` warns at 15% and again, urgently, at 5% (change them with `VIKIX_BATTERY_LOW` / `VIKIX_BATTERY_CRITICAL`). It only starts on a machine with a battery; `vikix-battery --once` shows the charge.
 - **High-resolution screen.** Set `Xft.dpi` in `~/.Xresources` (see the file for values), then log in again.
 - **Which program opens what** is `~/.config/mimeapps.list`, yours after the first copy: Firefox for links, zathura for PDFs, nsxiv for images (through `vikix-image`, so the rest of the folder is a key press away: `n` / `p`, or Enter for thumbnails), mpv for video and audio.
+
+## USB drives
+
+A USB drive mounts by itself when it's plugged in, under `/run/media/$USER/NAME`, and a notification says so, with a button to open it in PCManFM. `vikix-drives start` runs udiskie at every login; nothing needs a password.
+
+- **Eject** with `s-C-e` (or `s-m` → *Eject a drive*): pick the drive, and it's unmounted and powered off; a notification says when it's safe to pull out, or which drive is still in use.
+- **Encrypted (LUKS) drives** ask for their passphrase in a rofi prompt, then mount like any other; ejecting locks them again.
+- **The bar** says `usb` while a drive is mounted.
+- **Android phones** show in PCManFM (gvfs-mtp); on the phone, choose "File transfer" when it asks.
+- **Your own udiskie settings:** write `~/.config/udiskie/config.yml` and Vikix's (`config/udiskie/config.yml`, which only chooses the notifications) is no longer used.
 
 ## Printing
 
@@ -553,6 +565,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `theme` | `vikix theme` writes every program's colours from one theme file and refuses a broken one; the migration hooks old starter configs up to it without touching your own settings |
 | `wallpaper` | `vikix-wallpaper` shows the theme's picture until you choose one, keeps your choice across theme changes, gives a theme without a picture a plain background in its colour, sets what the picker picked, and leaves the wallpaper alone when off or during `vikix update`; the migration turns it off where you had your own |
 | `rofi` | `vikix-rofi` opens the emoji picker and calculator with Vikix's keys, the calculator's Enter copies exactly the answer, and a missing plugin is named in a notification |
+| `drives` | `vikix-drives` finds the mounted drives (a space in a name too), ejects the one picked and says when it's safe or that it's in use, starts a backup on plug-in only for the backup drive and only when one is due, and gives udiskie your own settings when you have them |
 | `examples` | every example in `dev/*/examples/` builds and runs with its Makefile, where its compiler is installed, and every `wordfreq` prints the same `expected.txt` |
 | `bar` | `vikix-net` labels the link and shows the Wi-Fi signal only when it is weak; `vikix-bt` shows Bluetooth only when it is on, with the device and its battery, and never waits on a hung bluetoothd; `vikix-font` gives StumpWM Iosevka Regular, or a stand-in until Iosevka is installed |
 | `home` | `40-config` and `60-login` change nothing when run again, and `vikix undo` puts your files back (and undoing again brings the change back) |
