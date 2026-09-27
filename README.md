@@ -211,6 +211,8 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 | `s-a` | AI agent: Claude Code in a terminal |
 | `s-x` | Emacs: a new window (the Emacs server is already running) |
 | `s-c` | Clipboard history: pick something copied earlier, then paste it |
+| `s-n` / `s-N` | Notifications: the last one again / pick an earlier one (rofi) |
+| `s-C-n` / `s-M-n` | Notifications: close all / do not disturb on and off (the bar says `quiet`, and how many are waiting) |
 | `s-q` | Close window |
 | `s-f` | Fullscreen |
 | `s-h` `s-j` `s-k` `s-l` | Move focus left, down, up, right |
@@ -238,6 +240,7 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 
 Along the top: on the left the workspaces in use (the current one in brackets) and this workspace's windows; on the right, from left to right:
 
+- **quiet**, in the theme's alert colour, while do not disturb is on (`s-M-n`), with the number of notifications waiting: they show when you switch it off.
 - **updates**, in the theme's accent colour, when `vikix update` has something to bring: `updates 12` (Void packages), `updates 12 + Vikix`, or `Vikix update`. Checked a minute after you log in and then every 6 hours, in the background (`vikix-updates`); `vikix update` clears it. Nothing shows when there's nothing, or when it couldn't check (offline).
 - the network: the Wi-Fi name and signal, `wired`, or `offline`
 - the volume
@@ -467,6 +470,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `lisp` | Every Lisp file reads cleanly, so a missing paren shows up here, not at login (needs `sbcl`) |
 | `battery` | The low-battery warner warns once at 15%, once at 5%, and again only after charging |
 | `image` | `vikix-image` opens nsxiv on the image's whole folder, in name order, at the image you picked |
+| `notifications` | `vikix-notifications` lists dunst's history newest first, and shows again the one you pick |
 | `updates` | `vikix-updates` counts waiting Void packages and Vikix commits, and says `?` for a check that failed, not 0 |
 | `theme` | `vikix theme` writes every program's colours from one theme file and refuses a broken one; the migration hooks old starter configs up to it without touching your own settings |
 | `home` | `40-config` and `60-login` change nothing when run again, and `vikix undo` puts your files back (and undoing again brings the change back) |

@@ -4,6 +4,7 @@
 ;;;;   %J   workspaces in use, the current one in bold
 ;;;;   %W   the current workspace's windows
 ;;;;   ^>   everything after this goes on the right
+;;;;   %Q   quiet: notifications paused (do not disturb), and how many wait
 ;;;;   %U   updates waiting (bin/vikix-updates checks every 6 hours)
 ;;;;   %O   network: Wi-Fi name and signal, wired, or offline
 ;;;;   %V   volume (only when there is a sound server)
@@ -54,16 +55,25 @@ colour; nothing when there are none."
       (format nil "^(:push)^(:fg \"~a\")~a^(:pop)  "
               (vikix-colour :accent) *vikix-updates*)))
 
-;; %J, %V, %O and %U are free: neither StumpWM nor its contrib modules use them.
+(defun vikix-mode-line-quiet (ml)
+  "\"quiet\" while notifications are paused, from *vikix-quiet* (commands.lisp)."
+  (declare (ignore ml))
+  (if (string= *vikix-quiet* "")
+      ""
+      (format nil "^(:push)^(:fg \"~a\")~a^(:pop)  " (vikix-colour :alert) *vikix-quiet*)))
+
+;; %J, %V, %O, %U and %Q are free: neither StumpWM nor its contrib modules use them.
 (add-screen-mode-line-formatter #\J 'vikix-mode-line-groups)
 (add-screen-mode-line-formatter #\V 'vikix-mode-line-volume)
 (add-screen-mode-line-formatter #\O 'vikix-mode-line-net)
 (add-screen-mode-line-formatter #\U 'vikix-mode-line-updates)
+(add-screen-mode-line-formatter #\Q 'vikix-mode-line-quiet)
 
 (defun vikix-bar-refresh ()
   (vikix-volume-refresh)
   (vikix-net-refresh)
-  (vikix-updates-refresh))
+  (vikix-updates-refresh)
+  (vikix-quiet-refresh))
 
 ;; The volume keys update the bar at once (vikix-volume); this timer
 ;; catches everything else: pavucontrol, a new Wi-Fi network, a cable.
@@ -80,7 +90,7 @@ colour; nothing when there are none."
       *mode-line-pad-y*      4
       *time-modeline-string* "%a %d %b  %H:%M"
       *screen-mode-line-format*
-      (format nil "%J  %W^>%U%O%V~a  %d" (if *vikix-battery* "%B " "")))
+      (format nil "%J  %W^>%Q%U%O%V~a  %d" (if *vikix-battery* "%B " "")))
 
 ;; Turn the bar on for every screen and head (monitor).
 (dolist (screen *screen-list*)

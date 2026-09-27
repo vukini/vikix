@@ -25,6 +25,11 @@
     ("s-a"    "vikix-agent"       "AI agent: Claude Code in a terminal")
     ("s-x"    "exec emacsclient -c -a ''" "Emacs: a new window")
     ("s-c"    "exec env CM_LAUNCHER=rofi clipmenu" "Clipboard history: pick to paste again")
+    ;; notifications
+    ("s-n"    "exec dunstctl history-pop"  "Notifications: the last one again")
+    ("s-N"    "exec vikix-notifications"   "Notifications: pick an earlier one")
+    ("s-C-n"  "exec dunstctl close-all"    "Notifications: close all")
+    ("s-M-n"  "vikix-quiet"                "Do not disturb on/off")
     ;; windows
     ("s-q"    "delete"            "Close window")
     ("s-f"    "fullscreen"        "Fullscreen on/off")

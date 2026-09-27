@@ -48,6 +48,8 @@ jobs:
         run: tests/ci.sh theme
       - name: updates
         run: tests/ci.sh updates
+      - name: notifications
+        run: tests/ci.sh notifications
       - name: update
         run: tests/ci.sh update
 

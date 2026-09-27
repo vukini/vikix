@@ -1,0 +1,45 @@
+#!/bin/sh
+# vikix-notifications — the notifications dunst has put away, in rofi,
+# newest first. Pick one and it shows again. (s-N, or s-m then
+# "Notifications: earlier ones".)
+
+command -v dunstctl >/dev/null || { echo "vikix-notifications: dunst isn't installed" >&2; exit 1; }
+
+# One line per notification: its id, a tab, then what rofi shows.
+# dunst stamps each with microseconds since boot, so ages come from
+# /proc/uptime.
+list=$(dunstctl history 2>/dev/null | python3 -c '
+import json, sys
+try:
+    history = json.load(sys.stdin)["data"][0]
+except (ValueError, KeyError, IndexError):
+    sys.exit(0)
+with open("/proc/uptime") as f:
+    now = float(f.read().split()[0])
+
+def ago(stamp):
+    s = max(0, now - stamp / 1e6)
+    for size, unit in ((86400, "d"), (3600, "h"), (60, "min")):
+        if s >= size:
+            return f"{int(s // size)} {unit} ago"
+    return "just now"
+
+def flat(text):
+    return " ".join(text.split())
+
+for n in sorted(history, key=lambda n: -n["timestamp"]["data"]):
+    when = ago(n["timestamp"]["data"])
+    app, summary, body = (flat(n[k]["data"]) for k in ("appname", "summary", "body"))
+    line = f"{when:>10}  {app}: {summary}" + (f" — {body}" if body else "")
+    print(n["id"]["data"], line[:160], sep="\t")
+')
+
+if [ -z "$list" ]; then
+  notify-send -a Vikix "No earlier notifications"
+  exit 0
+fi
+
+# -format i: rofi answers with the line's number, so no text is matched back.
+choice=$(printf '%s\n' "$list" | cut -f2 | rofi -dmenu -i -p "Notifications" -format i) || exit 0
+id=$(printf '%s\n' "$list" | sed -n "$((choice + 1))p" | cut -f1)
+[ -n "$id" ] && dunstctl history-pop "$id"

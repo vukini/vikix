@@ -71,6 +71,10 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
     ("Programming docs (offline)" (run-shell-command "xdg-open ~/dev/index.html"))
     ("Zeal: search the docs" (run-shell-command "zeal"))
     ("Clipboard history"   (run-shell-command "env CM_LAUNCHER=rofi clipmenu"))
+    ("Notifications: the last one again" (run-shell-command "dunstctl history-pop"))
+    ("Notifications: earlier ones" (run-shell-command "vikix-notifications"))
+    ("Notifications: close all" (run-shell-command "dunstctl close-all"))
+    ("Do not disturb on/off" vikix-quiet)
     ("Find a window, any workspace" global-windowlist)
     ("Gaps around windows on/off" toggle-gaps)
     ("Screenshot: an area, to a file" (run-shell-command "vikix-screenshot file"))
@@ -171,6 +175,33 @@ changed. Reading a small file is cheap, so this runs with the others."
     (unless (string= new *vikix-updates*)
       (setf *vikix-updates* new)
       (update-all-mode-lines))))
+
+;;; Notifications (dunst): do not disturb, shown in the bar.
+
+(defvar *vikix-quiet* ""
+  "\"\" while notifications show; while they are paused (do not disturb),
+\"quiet\", or \"quiet 3\" with three waiting.")
+
+(defun vikix-quiet-refresh ()
+  "Read dunst's pause into *vikix-quiet*; redraw the bar if it changed."
+  (let ((new (if (string= (vikix-shell-line "dunstctl is-paused") "true")
+                 (let ((waiting (vikix-shell-line "dunstctl count waiting")))
+                   (if (member waiting '("" "0") :test #'string=)
+                       "quiet"
+                       (format nil "quiet ~a" waiting)))
+                 "")))
+    (unless (string= new *vikix-quiet*)
+      (setf *vikix-quiet* new)
+      (update-all-mode-lines))))
+
+(defcommand vikix-quiet () ()
+  "Do not disturb, on or off. While it is on, notifications wait (the bar
+says quiet, and how many are waiting); switching it off shows them."
+  (run-shell-command "dunstctl set-paused toggle" t)
+  (vikix-quiet-refresh)
+  (message (if (string= *vikix-quiet* "")
+               "Notifications on"
+               "Do not disturb: notifications wait until you switch it off")))
 
 (defcommand vikix-volume (change) ((:string "Volume (up, down, mute, mic): "))
   "Change the volume with vikix-osd, which shows a bar for it, then show

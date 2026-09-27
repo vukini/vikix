@@ -99,7 +99,9 @@ let the user see it, then write the same form into `user.lisp`.
 
 The keys as installed (Super+F1 shows the live list): Super+Return
 terminal, Super+d launcher, Super+w browser, Super+e files, Super+a this
-agent, Super+x an Emacs window, Super+c clipboard history (clipmenu),
+agent, Super+x an Emacs window, Super+c clipboard history (clipmenu), Super+n / Super+Shift+n the last
+notification again / pick an earlier one, Super+Ctrl+n close all,
+Super+Alt+n do not disturb (dunstctl; the bar says quiet),
 Print / Shift+Print a screenshot of an area to the clipboard / to
 ~/Pictures/Screenshots, Super+q close, Super+f fullscreen, Super+h/j/k/l focus (Shift to
 move the window; the arrow keys do the same), Super+b / Super+v split,

@@ -133,7 +133,8 @@ else
 fi
 
 # On the desktop, say so where it will be seen after walking away.
-if [ -n "${DISPLAY:-}" ] && command -v notify-send >/dev/null; then
+# Not in a dry run: nothing was installed, and the tests run dry runs.
+if [ "$DRY_RUN" != 1 ] && [ -n "${DISPLAY:-}" ] && command -v notify-send >/dev/null; then
   notify-send -a Vikix "Vikix install, part $phase: $result" "Log: $log" || true
 fi
 [ "${#failed[@]}" -eq 0 ]
