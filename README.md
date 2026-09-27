@@ -167,7 +167,7 @@ sudo reboot
 
 Log in on tty1, then run part two from a terminal (Super+Return): `~/vikix/install-2.sh`.
 
-**Later versions** arrive with `vikix update`, which pulls from GitHub.
+**Later versions** arrive with `vikix update`, which pulls from GitHub and then reloads StumpWM, so new keys, bar and menu work at once.
 
 | Symptom | Likely cause |
 |---|---|

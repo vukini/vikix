@@ -50,7 +50,8 @@ for s in 20-services 40-config 45-editors 65-languages 67-dev; do
   grep -q "STUB $s" <<<"$out" || { echo "FAIL: stage $s didn't run after a failed one"; fail=1; }
 done
 grep -q 'new migration(s)' <<<"$out" || { echo "FAIL: the migrations didn't run after a failed stage"; fail=1; }
+grep -q "would run: vikix eval '(loadrc)'" <<<"$out" || { echo "FAIL: update doesn't reload StumpWM, so the old keys, bar and menu stay"; fail=1; }
 grep -q 'these stages failed: 10-packages' <<<"$out" || { echo "FAIL: the failed stage isn't named at the end"; fail=1; }
 [ "$status" != 0 ] || { echo "FAIL: update exits 0 although a stage failed"; fail=1; }
-[ "$fail" = 0 ] && echo "update: a failed stage is reported, and the rest still run"
+[ "$fail" = 0 ] && echo "update: a failed stage is reported, and the rest still run; StumpWM is reloaded"
 exit "$fail"

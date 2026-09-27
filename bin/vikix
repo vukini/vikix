@@ -3,7 +3,7 @@
 #
 #   vikix update        pull Vikix, update Void, add new packages and their
 #                         services, refresh config links, pull the editor
-#                         configs, run new migrations
+#                         configs, run new migrations, reload StumpWM
 #   vikix migrate       run only the migrations not yet applied
 #   vikix rebuild-wm    rebuild the StumpWM executable (after a Quicklisp update)
 #   vikix docs          download the offline programming docs into ~/dev
@@ -83,6 +83,16 @@ cmd_update() {
   cmd_migrate
   # So the bar stops showing the updates that were just installed.
   [ "$DRY_RUN" = 1 ] || "$VIKIX_DIR/bin/vikix-updates" >/dev/null 2>&1 || true
+  # StumpWM keeps its config in memory, so the new files on disk (keys, the
+  # bar, the menu) change nothing until it loads them again. Reload it now;
+  # if it can't be reached, the next login loads them.
+  if [ "$DRY_RUN" = 1 ]; then
+    printf '   would run: %s\n' "vikix eval '(loadrc)'  # reload StumpWM"
+  elif python3 "$VIKIX_DIR/bin/vikix-eval" '(loadrc)' >/dev/null 2>&1; then
+    say "StumpWM reloaded: the new keys, bar and menu are in use"
+  else
+    warn "couldn't reach StumpWM to reload it; the new keys, bar and menu start at the next login (or Super+m, Reload config)"
+  fi
   if [ "${#failed[@]}" -gt 0 ]; then
     warn "these stages failed: ${failed[*]}. Fix them, then: vikix update (log: $VIKIX_UPDATE_LOG)"
     return 1
