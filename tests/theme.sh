@@ -6,6 +6,8 @@
 # All in a made-up home. No display, so nothing running is repainted.
 
 set -euo pipefail
+# Keep everything in the made-up home, even with XDG_* set (see run.sh).
+unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME
 here=$(cd "$(dirname "$0")/.." && pwd)
 t=$(mktemp -d)
 trap 'rm -rf "$t"' EXIT

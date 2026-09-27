@@ -10,6 +10,8 @@
 # folder that starts with a StumpWM config and a .bashrc of its own.
 
 set -euo pipefail
+# Keep everything in the made-up home, even with XDG_* set (see run.sh).
+unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME
 here=$(cd "$(dirname "$0")/.." && pwd)
 t=$(mktemp -d)
 trap 'rm -rf "$t"' EXIT

@@ -8,6 +8,10 @@
 #   https://api.github.com/repos/vukini/vikix/check-runs/<job id>/annotations
 
 set -uo pipefail
+# The tests make up a home folder, and Vikix follows the XDG variables
+# where they are set; GitHub's runners set XDG_CONFIG_HOME, which would
+# send a test's files into the runner's real config instead.
+unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME
 cd "$(dirname "$0")" || exit 1
 name=$1; shift
 out=$(mktemp)
