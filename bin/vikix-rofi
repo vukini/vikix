@@ -1,0 +1,48 @@
+#!/bin/sh
+# vikix-rofi — rofi's plugin modes, set up the Vikix way.
+#
+#   vikix-rofi emoji   pick an emoji: Enter types it into the window you were
+#                      in (and copies it too), Ctrl+c only copies it.
+#                      Search by name or keyword: heart, cat, thumbs up.
+#   vikix-rofi calc    a calculator that answers as you type (qalculate):
+#                      340 * 12%, 5 ft to cm, 100 USD to EUR, today + 30 days.
+#                      (Not "12% of 340": qalculate reads that % as a remainder.)
+#                      Enter copies the answer to the clipboard; Ctrl+Enter
+#                      keeps it in the list below instead.
+#
+# Both are rofi plugins (rofi-emoji, rofi-calc in packages/desktop.list).
+# Without one, a notification says what to install instead of rofi
+# failing silently.
+
+PLUGINS=${VIKIX_ROFI_PLUGINS:-/usr/lib/rofi}   # a test can point this elsewhere
+
+need() {   # need FILE PACKAGE — is the plugin there? if not, say so
+  [ -e "$PLUGINS/$1" ] && return 0
+  notify-send -a Vikix "$2 isn't installed" "sudo xbps-install $2 (or vikix update)"
+  exit 1
+}
+
+case ${1:-} in
+  emoji)
+    need emoji.so rofi-emoji
+    # Alt+1 copies by default; Ctrl+c is where hands expect it. Ctrl+c is
+    # rofi's own copy key otherwise, so that is moved out of the way.
+    exec rofi -modi emoji -show emoji \
+      -kb-secondary-copy "" -kb-custom-1 Control+c
+    ;;
+  calc)
+    need libcalc.so rofi-calc
+    # {result} is filled in by rofi-calc. -no-show-match and -no-sort keep
+    # the answer where it is while the sum changes. rofi-calc runs the
+    # command on Ctrl+Enter and only saves to its history on Enter; copying
+    # is what you want nearly every time, so the two keys swap.
+    exec rofi -modi calc -show calc -no-show-match -no-sort \
+      -hint-welcome "A sum or a conversion: 340 * 12%, 5 ft to cm, 100 USD to EUR" \
+      -kb-accept-entry Control+Return -kb-accept-custom Return,KP_Enter \
+      -calc-command "printf %s '{result}' | xclip -selection clipboard"
+    ;;
+  *)
+    echo "usage: vikix-rofi emoji|calc" >&2
+    exit 2
+    ;;
+esac

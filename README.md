@@ -211,6 +211,8 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 | `s-a` | AI agent: Claude Code in a terminal |
 | `s-x` | Emacs: a new window (the Emacs server is already running) |
 | `s-c` | Clipboard history: pick something copied earlier, then paste it |
+| `s-.` | Emoji: search by name (heart, cat, thumbs up); Enter types it into your window and copies it, `Ctrl+c` only copies |
+| `s-=` | Calculator that answers as you type: `340 * 12%`, `5 ft to cm`, `100 USD to EUR`, `today + 30 days`. Enter copies the answer |
 | `s-n` / `s-N` | Notifications: the last one again / pick an earlier one (rofi) |
 | `s-C-n` / `s-M-n` | Notifications: close all / do not disturb on and off (the bar says `quiet`, and how many are waiting) |
 | `s-q` | Close window |
@@ -320,7 +322,7 @@ A snapshot is taken after every install or `vikix update`, and before every agen
 | List | Contents |
 |---|---|
 | `base` | dbus, elogind, polkit and its password box, openssh, chrony (clock), git, curl, rsync, zip, 7zip, man pages, xdg-utils, python3 (for `vikix eval`) |
-| `desktop` | X11, picom, dunst, rofi, alacritty, fonts (Noto, Nerd Font symbols), i3lock, gammastep (night light), screenshots and screen recording (maim, slop, ffmpeg), clipmenu (clipboard history) |
+| `desktop` | X11, picom, dunst, rofi (with its emoji picker and calculator), alacritty, fonts (Noto, colour emoji, Nerd Font symbols), i3lock, gammastep (night light), screenshots and screen recording (maim, slop, ffmpeg), clipmenu (clipboard history) |
 | `fonts` | Iosevka, the terminal font. Every variant comes in one 862 MB package, so it waits for part two; until then the terminal uses a plain monospace font, and the bar Noto Sans Mono. Also fonttools, which `vikix-font` uses to take the one Iosevka the bar needs out of that package. |
 | `network` | NetworkManager (`nmtui` for Wi-Fi), with its connection editor |
 | `audio` | PipeWire, WirePlumber (with Bluetooth audio), pamixer, pavucontrol |
@@ -488,6 +490,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `notifications` | `vikix-notifications` lists dunst's history newest first, and shows again the one you pick |
 | `updates` | `vikix-updates` counts waiting Void packages and Vikix commits, and says `?` for a check that failed, not 0 |
 | `theme` | `vikix theme` writes every program's colours from one theme file and refuses a broken one; the migration hooks old starter configs up to it without touching your own settings |
+| `rofi` | `vikix-rofi` opens the emoji picker and calculator with Vikix's keys, the calculator's Enter copies exactly the answer, and a missing plugin is named in a notification |
 | `bar` | `vikix-net` labels the link and shows the Wi-Fi signal only when it is weak; `vikix-font` gives StumpWM Iosevka Regular, or a stand-in until Iosevka is installed |
 | `home` | `40-config` and `60-login` change nothing when run again, and `vikix undo` puts your files back (and undoing again brings the change back) |
 | `update` | `vikix update` runs the new version's steps after it pulls, logs the whole run, and carries on past a failed stage, naming it at the end |

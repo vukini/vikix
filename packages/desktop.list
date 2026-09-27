@@ -12,6 +12,9 @@ picom           # compositor: no tearing
 dunst           # notifications
 libnotify       # notify-send
 rofi            # launcher
+rofi-emoji      # emoji picker (Super+.)
+rofi-calc       # calculator (Super+=); brings qalculate
+noto-fonts-emoji  # colour emoji, for the picker and everywhere else
 alacritty       # terminal
 noto-fonts-ttf  # everything else
 xss-lock        # locks the screen on suspend/idle

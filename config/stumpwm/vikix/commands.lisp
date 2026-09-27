@@ -71,6 +71,8 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
     ("Programming docs (offline)" (run-shell-command "xdg-open ~/dev/index.html"))
     ("Zeal: search the docs" (run-shell-command "zeal"))
     ("Clipboard history"   (run-shell-command "env CM_LAUNCHER=rofi clipmenu"))
+    ("Emoji"               (run-shell-command "vikix-rofi emoji"))
+    ("Calculator"          (run-shell-command "vikix-rofi calc"))
     ("Notifications: the last one again" (run-shell-command "dunstctl history-pop"))
     ("Notifications: earlier ones" (run-shell-command "vikix-notifications"))
     ("Notifications: close all" (run-shell-command "dunstctl close-all"))
