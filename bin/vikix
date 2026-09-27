@@ -19,6 +19,9 @@
 #   vikix changes [ID]  what changed since the last snapshot (or in snapshot ID)
 #   vikix history       the snapshots, newest first
 #   vikix undo [ID]     put your files back as they were one snapshot ago (or at ID)
+#
+#   vikix backup [now]  back up your home folder with restic (vikix backup help:
+#                         setup, status, list, restore, check, off)
 
 set -euo pipefail
 
@@ -105,7 +108,7 @@ cmd_doctor() {
   # pam_elogind creates this at login; pipewire and dbus-run-session need it.
   if [ -n "${XDG_RUNTIME_DIR:-}" ]; then say "XDG_RUNTIME_DIR is set"
   else warn "XDG_RUNTIME_DIR is not set (pam_elogind isn't creating sessions)"; ok=0; fi
-  for c in sbcl stumpwm alacritty rofi picom dunst pipewire i3lock firefox emacs nvim nmtui clipmenu maim; do
+  for c in sbcl stumpwm alacritty rofi picom dunst pipewire i3lock firefox emacs nvim nmtui clipmenu maim restic; do
     if command -v "$c" >/dev/null 2>&1 || [ -x "$HOME/.local/bin/$c" ]; then
       say "found $c"
     else
@@ -493,7 +496,8 @@ main() {
     history)     cmd_history ;;
     undo)        cmd_undo "${2:-}" ;;
     theme)       cmd_theme "${2:-}" ;;
-    help|-h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//' ;;
+    backup)      shift; exec "$VIKIX_DIR/bin/vikix-backup" "$@" ;;
+    help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
     *)           die "unknown command: $1 (try: vikix help)" ;;
   esac
 }

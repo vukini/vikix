@@ -23,6 +23,7 @@
 #     ~/.config/gammastep/config.ini   night light times and colours
 #     ~/.config/mimeapps.list      which program opens which kind of file
 #     ~/.Xresources              text size (Xft.dpi) for high-resolution screens
+#     ~/.config/vikix/backup-exclude   what vikix backup leaves out
 #
 # Last, a snapshot of your files (config/yours.list), so from here on
 # every change to them can be seen and undone: vikix changes, vikix undo.
@@ -82,6 +83,7 @@ copy_user "$C/keyboard/keyboard"          "$HOME/.config/vikix/keyboard"
 copy_user "$C/gammastep/config.ini"       "$HOME/.config/gammastep/config.ini"
 copy_user "$C/xdg/mimeapps.list"          "$HOME/.config/mimeapps.list"
 copy_user "$C/x11/Xresources"             "$HOME/.Xresources"
+copy_user "$C/backup/exclude"             "$HOME/.config/vikix/backup-exclude"
 
 # The theme's files for the terminals, rofi, dunst and the lock screen,
 # written again from the saved theme, so a Vikix update reaches them.

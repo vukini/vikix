@@ -191,6 +191,7 @@ Every config file belongs either to Vikix or to you:
   - `~/.stumpwm.d/user.lisp`, which loads last, so anything in it wins
   - the configs under `~/.config` for alacritty, picom, dunst and rofi
   - `~/.config/vikix/keyboard`: layout and XKB options, applied at every login. The starter swaps Caps Lock and Left Ctrl (`ctrl:swapcaps`); edit it, then `s-m` → "Apply keyboard settings". For Esperanto, it explains the options that put ĉ ĝ ĥ ĵ ŝ ŭ on Right Alt + c g h j s u, leaving every other key alone
+  - `~/.config/vikix/backup-exclude`: what `vikix backup` leaves out
   - `~/.Xresources`: text size. Raise `Xft.dpi` on a high-resolution screen (144 for a 14" 2.8K panel), then log in again
 
 `config/yours.list` names your files, and Vikix keeps a history of them (see [Undo](#undo-for-your-files)).
@@ -231,7 +232,7 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 | `s-p` | Move the mouse pointer to the focused window |
 | `s-1`…`s-9` | Go to a workspace |
 | `s-C-1`…`s-C-9` | Send the window to a workspace |
-| `s-m` | Vikix menu: key help, all commands, "what does a key do?", themes, network, printers, screens, update, suspend / reboot / power off |
+| `s-m` | Vikix menu: key help, all commands, "what does a key do?", themes, network, printers, backup now, screens, update, suspend / reboot / power off |
 | `s-F1` | Every key, searchable. Pick one to run it. |
 | `s-Escape` | Lock the screen |
 | `s-M-a` | Keep awake on/off: no lock, dark screen or suspend while you watch or present (the bar says `awake`) |
@@ -252,6 +253,7 @@ Along the top, in Iosevka like the terminal: on the left the workspaces in use (
 - **awake**, in the theme's quieter text colour, while keep awake is on (`s-M-a`).
 - **quiet**, in the quieter text colour, while do not disturb is on (`s-M-n`), with the number of notifications waiting: they show when you switch it off.
 - **updates**, in the theme's accent colour, when `vikix update` has something to bring: `updates 12` (Void packages), `updates 12 + Vikix`, or `Vikix update`. Checked a minute after you log in and then every 6 hours, in the background (`vikix-updates`); `vikix update` clears it. Nothing shows when there's nothing, or when it couldn't check (offline).
+- **backup 9d**, in the accent colour, once backups are set up and the last one is older than a week (`backup` alone: set up, but none yet). See [Backups](#backups).
 - the network: `wifi` and the network's name (and its signal when it is weak, under 60%), `wired`, or `offline`
 - the volume: `vol 40%`
 - the battery, on a laptop: `bat 84%`, with a `+` while charging; nothing when it is full on the charger
@@ -318,6 +320,32 @@ vikix undo 3f2a1bc                    # back to a given snapshot
 
 A snapshot is taken after every install or `vikix update`, and before every agent session. An undo is a snapshot too, so running `vikix undo` twice puts things back. After an undo, reload StumpWM (`s-m` → *Reload config*) to use the old settings.
 
+This history is for your settings, on this machine. For everything else, and for a lost laptop, see [Backups](#backups).
+
+## Backups
+
+`vikix backup` backs up your whole home folder with [restic](https://restic.net): encrypted, and only what changed since the last time, so after the first one a backup takes minutes. It leaves out what can be downloaded or rebuilt again: caches, the bin, the languages' package caches, node_modules, what Vikix installs (Emacs and Neovim plugins, the offline docs, the StumpWM build) and virtual machine disks. The list is `~/.config/vikix/backup-exclude`, yours to edit.
+
+**Once: set up a drive.** Plug in a USB drive and open it in the file manager, so it is mounted, then:
+
+```sh
+vikix backup setup /run/media/$USER/DRIVE
+```
+
+It makes a `vikix-backup` folder on the drive and a password for the backups, and shows the password once. **Write it down, away from the laptop:** the backups can't be read without it, and the copy in `~/.config/vikix/backup-password` is lost with the laptop. Any place restic knows works too, like `sftp:you@server:/backups` or a cloud bucket.
+
+**Then, now and then:**
+
+```sh
+vikix backup                     # back up now (or s-m → Backup now, which tells you when it's done)
+vikix backup status              # where, and when the last one was
+vikix backup list                # the backups
+vikix backup restore ~/Documents/letter.odt   # bring it back from the latest backup
+vikix backup restore ~/Pictures 3f2a1bc       # ... or from an earlier one
+```
+
+A restore goes into `~/Restored/<time>/`, beside your files, never over them; move back what you want. Nothing runs by itself: the bar says `backup 9d` once the last backup is more than a week old, as a reminder to plug the drive in. Change the days with `DAYS=` in `~/.config/vikix/backup`, or stop the reminder with `vikix backup off` (the backups stay on the drive). Old backups thin out as new ones come: one a day for a week, one a week for a month, one a month for a year. `vikix backup check` reads them back to make sure they are sound.
+
 ## What gets installed
 
 | List | Contents |
@@ -332,7 +360,7 @@ A snapshot is taken after every install or `vikix update`, and before every agen
 | `editors` | Emacs, Neovim, the pdf-tools build deps, the `tree-sitter` CLI (Neovim builds its parsers with it), and the language servers Void packages (ccls, lua-language-server, gopls, efm-langserver) plus nodejs for the npm ones |
 | `apps` | Firefox, PCManFM with USB mounting, SpaceFM, mpv, nsxiv, zathura, Foliate (EPUB), LibreOffice (Writer, Calc, Impress, Draw, Math), Zeal (offline docs) |
 | `dev` | base-devel (gcc, make), gdb, valgrind, rlwrap |
-| `cli` | htop, ripgrep, fd, fzf, bat, eza, tmux, tree, jq, zoxide, yazi, lazygit, gh (GitHub CLI), atuin (with bash-preexec) |
+| `cli` | htop, ripgrep, fd, fzf, bat, eza, tmux, tree, jq, zoxide, yazi, lazygit, gh (GitHub CLI), restic (for `vikix backup`), atuin (with bash-preexec) |
 | `lisp` | SBCL |
 | `lang-*` | One file per language, so a language is one file to keep or delete: C extras (tcc, rr, cmake, meson, ninja, shellcheck, shfmt, the C and POSIX man pages), Python (pip, ipython, pipx, uv), Lisp and Scheme (ccl, racket and its docs, chez-scheme, guile), Haskell (ghc and its docs, cabal, HLS, hlint), Forth (gforth), WebAssembly (wabt, wasmtime), Ruby (with `ri` docs), SQLite (sqlite, litecli, sqlitebrowser), Lua (lua54, LuaJIT), Go, Zig (zig, zls), Rust (with rust-analyzer and the docs), Java (openjdk21, gradle), OCaml (dune, ocamlfind, opam), Julia (juliaup), Pascal (fpc, Lazarus), and `lang-tools` (ctags, entr, hyperfine, tokei, just) |
 
@@ -485,6 +513,7 @@ vikix doctor       # check everything is in place (programs, services, XDG_RUNTI
 vikix eval FORM    # run Lisp in the running StumpWM
 vikix agent        # Claude Code (Super+a)
 vikix snapshot / changes / history / undo   # the history of your files
+vikix backup       # back up your home folder (vikix backup help for the rest)
 ```
 
 ## Tests
@@ -501,6 +530,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `lint` | Every script parses (shell and Python), the ones you run are executable, and shellcheck has no warnings |
 | `lisp` | Every Lisp file reads cleanly, so a missing paren shows up here, not at login (needs `sbcl`) |
 | `battery` | The low-battery warner warns once at 15%, once at 5%, and again only after charging |
+| `backup` | With restic: `vikix backup setup` makes an encrypted store and a password only you can read, a backup leaves out what `backup-exclude` names, a restore comes back beside the original, an unplugged drive or a wrong password stops with a message, and the bar's reminder says the right thing (needs `restic`) |
 | `services` | `20-services` switches on only services whose package is there, has D-Bus reread its config once before the first new one, adds you to `lpadmin` and installs the Printers app's polkit rule once CUPS is installed, and changes nothing when run again |
 | `image` | `vikix-image` opens nsxiv on the image's whole folder, in name order, at the image you picked |
 | `nightlight` | `vikix-nightlight` starts gammastep at login unless it was switched off, toggles it, remembers off, and stops it so the colours come back |

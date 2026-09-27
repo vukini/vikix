@@ -1,0 +1,47 @@
+# backup-exclude — what `vikix backup` leaves out of your home folder.
+#
+# Yours: copied once, then never touched by Vikix. One pattern a line;
+# $HOME is your home folder. A name without a slash (node_modules) is
+# left out wherever it is. Everything here can be downloaded or rebuilt,
+# so leaving it out keeps backups small and fast. Folders marked as
+# caches (with a CACHEDIR.TAG file, like Rust's target/) are left out too.
+
+# Caches and the bin
+$HOME/.cache
+$HOME/.local/share/Trash
+
+# Package and build caches for the languages
+$HOME/.npm
+$HOME/.cargo/registry
+$HOME/.cargo/git
+$HOME/.rustup
+$HOME/go/pkg
+$HOME/.cabal/packages
+$HOME/.ghcup
+$HOME/.stack
+$HOME/.m2/repository
+$HOME/.gradle/caches
+$HOME/.julia/packages
+$HOME/.julia/artifacts
+$HOME/.julia/compiled
+$HOME/.opam
+$HOME/quicklisp
+node_modules
+__pycache__
+
+# What Vikix installs or builds, and puts back with vikix update / vikix docs
+$HOME/.local/bin/stumpwm
+$HOME/.stumpwm.d/modules
+$HOME/.local/opt
+$HOME/.emacs.d/elpa
+$HOME/.emacs.d/eln-cache
+$HOME/.local/share/nvim/lazy
+$HOME/.local/share/nvim/mason
+$HOME/.local/share/Zeal
+$HOME/dev/*/docs
+$HOME/dev/python/.venv
+
+# Virtual machines and containers: large, and better backed up their own way
+$HOME/.local/share/libvirt/images
+$HOME/VirtualBox VMs
+$HOME/.local/share/containers

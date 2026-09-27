@@ -4,9 +4,8 @@ What's left to add or clean up, most valuable first within each section. Delete 
 
 ## Features
 
-1. **Backups beyond config files.** For example restic to a USB drive; `vikix snapshot` only covers `config/yours.list`.
-2. **A short power menu on its own key.** Suspend, reboot and power off sit at the bottom of a 25-entry menu.
-3. **Bluetooth in the bar.**
+1. **A short power menu on its own key.** Suspend, reboot and power off sit at the bottom of a 25-entry menu.
+2. **Bluetooth in the bar.**
 
 ## To look into
 

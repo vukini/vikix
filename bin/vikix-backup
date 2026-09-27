@@ -1,0 +1,208 @@
+#!/usr/bin/env bash
+# vikix-backup — your home folder, backed up with restic (`vikix backup`).
+#
+#   vikix backup setup PLACE   once: where backups go, usually a USB drive
+#                                (/run/media/you/DRIVE), or any restic place
+#                                (sftp:host:/path, b2:bucket:path, ...)
+#   vikix backup [now]         back up now: all of ~, minus what
+#                                ~/.config/vikix/backup-exclude leaves out
+#   vikix backup status        where, when the last one was, what is left out
+#   vikix backup list          the backups, newest last
+#   vikix backup restore PATH [ID]   bring back PATH (a file or folder) from
+#                                the latest backup, or backup ID, into
+#                                ~/Restored/<time>/; nothing is overwritten
+#   vikix backup check         make sure the backups can be read back
+#   vikix backup off           stop the reminder; the backups stay where they are
+#
+# Every backup is encrypted with the password in ~/.config/vikix/backup-password,
+# made at setup and readable only by you. Keep a copy somewhere else: without
+# it, a lost laptop means backups nobody can read. Old backups thin out
+# after each run: one a day for a week, one a week for a month, one a month
+# for a year. The bar says "backup 9d" once the last backup is older than
+# DAYS (7) in ~/.config/vikix/backup; nothing runs by itself.
+
+set -euo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+
+config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/vikix"
+settings="$config_dir/backup"
+password="$config_dir/backup-password"
+exclude="$config_dir/backup-exclude"
+state="${XDG_STATE_HOME:-$HOME/.local/state}/vikix"
+# "LAST DAYS" for the bar: the time of the last backup (0 for none yet),
+# and after how many days it starts reminding.
+bar_file="$state/backup"
+
+setting() { sed -n "s/^$1=//p" "$settings" 2>/dev/null | tail -1; }
+days() { local d; d=$(setting DAYS); case $d in ''|*[!0-9]*) echo 7 ;; *) echo "$d" ;; esac; }
+
+need_restic() {
+  command -v restic >/dev/null 2>&1 || die "restic isn't installed (vikix update adds it)"
+}
+
+need_setup() {
+  [ -f "$settings" ] && [ -n "$(setting REPO)" ] ||
+    die "backups aren't set up yet: vikix backup setup PLACE (a USB drive's folder, usually)"
+  [ -r "$password" ] || die "the backup password is missing ($password); restore your copy of it there"
+}
+
+# restic, with this machine's repository and password.
+r() { restic -r "$(setting REPO)" --password-file "$password" "$@"; }
+
+# A place on this machine (a USB drive) rather than a remote one: no
+# "scheme:" in front.
+is_local() { case $1 in /*) return 0 ;; *) return 1 ;; esac; }
+
+notify() { [ -n "${notify:-}" ] && command -v notify-send >/dev/null 2>&1 && notify-send "$@" || true; }
+
+write_bar() { mkdir -p "$state"; echo "$1 $(days)" > "$bar_file"; }
+
+cmd_setup() {
+  local place=${1:-} repo
+  [ -n "$place" ] || die "where to? vikix backup setup PLACE, e.g. /run/media/$(id -un)/DRIVE"
+  need_restic
+  if is_local "$place"; then
+    [ -d "$place" ] || die "$place isn't there; plug in the drive, open it in the file manager so it's mounted, and try again"
+    place=$(cd "$place" && pwd)
+    # A restic repository already, or a drive to make one on.
+    if [ -f "$place/config" ] && [ -d "$place/data" ]; then repo=$place
+    else repo="$place/vikix-backup"; fi
+  else
+    repo=$place
+  fi
+
+  mkdir -p "$config_dir"
+  local new_password=
+  if [ ! -s "$password" ]; then
+    (umask 077; head -c 32 /dev/urandom | base64 | tr -d '/+=\n' | cut -c1-32 > "$password")
+    new_password=1
+  fi
+  chmod 600 "$password"
+
+  if restic -r "$repo" --password-file "$password" cat config >/dev/null 2>&1; then
+    say "using the backups already at $repo"
+  elif is_local "$repo" && [ -f "$repo/config" ]; then
+    die "$repo holds backups made with another password; put that password in $password and run this again"
+  else
+    say "making a new backup store at $repo"
+    restic -r "$repo" --password-file "$password" init >/dev/null
+  fi
+
+  { echo "# Where vikix backup puts your backups, and after how many days"
+    echo "# without one the bar starts reminding you. Written by vikix backup setup."
+    echo "REPO=$repo"
+    echo "DAYS=$(days)"; } > "$settings.new"
+  mv "$settings.new" "$settings"
+  [ -f "$exclude" ] || cp "$VIKIX_DIR/config/backup/exclude" "$exclude"
+  [ -f "$bar_file" ] || write_bar 0
+
+  say "backups go to $repo"
+  if [ -n "$new_password" ]; then
+    echo
+    echo "  The password for your backups is:"
+    echo
+    echo "      $(cat "$password")"
+    echo
+    echo "  Write it down, or keep it in a password manager, away from this laptop."
+    echo "  It is also in $password,"
+    echo "  but if the laptop is lost, that copy goes with it."
+    echo
+  fi
+  say "back up now with: vikix backup"
+}
+
+cmd_now() {
+  need_restic
+  need_setup
+  local repo; repo=$(setting REPO)
+  if is_local "$repo" && [ ! -d "$repo" ]; then
+    notify -u normal "Backup" "The backup drive isn't plugged in."
+    die "the backup drive isn't there ($repo); plug it in, open it in the file manager, and try again"
+  fi
+  mkdir -p "$state/logs"
+  # One at a time: a second run waits for nothing, it just stops.
+  exec 9>"$state/backup.lock"
+  flock -n 9 || die "a backup is already running"
+
+  [ -f "$exclude" ] || cp "$VIKIX_DIR/config/backup/exclude" "$exclude"
+  local log started
+  log="$state/logs/backup-$(timestamp).log"
+  started=$(date +%s)
+  say "backing up $HOME to $repo (the log: $log)"
+  notify -u low "Backup" "Started. You can keep working."
+  # --one-file-system: not into drives mounted under ~. --exclude-caches:
+  # not into folders marked as caches (CACHEDIR.TAG, e.g. Rust's target/).
+  if ! r backup "$HOME" --exclude-file "$exclude" --exclude-caches --one-file-system \
+         --tag vikix 2>&1 | tee "$log"; then
+    notify -u critical "Backup failed" "See $log"
+    die "the backup failed; the log is $log"
+  fi
+  say "thinning out old backups"
+  r forget --tag vikix --keep-daily 7 --keep-weekly 4 --keep-monthly 12 --prune >>"$log" 2>&1 ||
+    warn "couldn't thin out old backups (the new one is fine); see $log"
+  write_bar "$(date +%s)"
+  local secs=$(( $(date +%s) - started )) took
+  if [ "$secs" -lt 60 ]; then took="$secs s"; else took="$(( (secs + 30) / 60 )) min"; fi
+  notify -u low "Backup done" "Took $took."
+  say "done in $took"
+}
+
+cmd_status() {
+  if [ ! -f "$settings" ]; then
+    echo "backups: not set up (vikix backup setup PLACE)"
+    return 0
+  fi
+  local last age
+  echo "backups go to: $(setting REPO)"
+  last=$(cut -d' ' -f1 "$bar_file" 2>/dev/null || echo 0)
+  if [ "${last:-0}" -gt 0 ] 2>/dev/null; then
+    age=$(( ($(date +%s) - last) / 86400 ))
+    echo "last backup:   $(date -d "@$last" '+%a %d %b %Y, %H:%M') ($age days ago)"
+  else
+    echo "last backup:   none yet (vikix backup)"
+  fi
+  echo "reminder:      after $(days) days (DAYS= in $settings)"
+  echo "left out:      what $exclude names"
+  [ -r "$password" ] || echo "!! the password file is missing: $password"
+}
+
+cmd_list() { need_restic; need_setup; r snapshots; }
+cmd_check() { need_restic; need_setup; r check; }
+
+cmd_restore() {
+  local path=${1:-} id=${2:-latest} target
+  [ -n "$path" ] || die "what to bring back? vikix backup restore PATH [ID]  (vikix backup list shows the IDs)"
+  need_restic
+  need_setup
+  path=$(realpath -m "$path")
+  # A folder of its own each time, even for two restores in one second.
+  mkdir -p "$HOME/Restored"
+  target=$(mktemp -d "$HOME/Restored/$(timestamp)-XXXX")
+  say "bringing back $path from backup $id"
+  r restore "$id" --target "$target" --include "$path" || true
+  if [ ! -e "$target$path" ]; then
+    rm -rf "$target"
+    die "$path isn't in backup $id (vikix backup list shows them)"
+  fi
+  say "it's in $target$path"
+}
+
+cmd_off() {
+  rm -f "$settings" "$bar_file"
+  say "no more reminders. The backups stay at their place, and the password in $password"
+}
+
+case ${1:-now} in
+  setup)   shift; cmd_setup "$@" ;;
+  now)     shift || true; [ "${1:-}" = --notify ] && notify=1; cmd_now ;;
+  --notify) notify=1; cmd_now ;;
+  status)  cmd_status ;;
+  list)    cmd_list ;;
+  restore) shift; cmd_restore "$@" ;;
+  check)   cmd_check ;;
+  off)     cmd_off ;;
+  help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *)       die "unknown: vikix backup $1 (try: vikix backup help)" ;;
+esac

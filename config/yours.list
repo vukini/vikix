@@ -15,6 +15,8 @@
 .config/vikix/wallpaper      # the wallpaper you chose (a link to it)
 .config/gammastep            # night light times and colours
 .config/mimeapps.list
+.config/vikix/backup          # where backups go (not the password: that stays out of here)
+.config/vikix/backup-exclude  # what they leave out
 .Xresources
 .bashrc
 .bash_profile

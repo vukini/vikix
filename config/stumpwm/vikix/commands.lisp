@@ -83,6 +83,7 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
     ("Gaps around windows on/off" toggle-gaps)
     ("Screenshot or record the screen" vikix-capture)
     ("Undo: my files back one snapshot" vikix-undo)
+    ("Backup now"          (run-shell-command "vikix-backup now --notify"))
     ("Reload config"       vikix-reload)
     ("Theme"               vikix-pick-theme)
     ("Wallpaper"           (run-shell-command "vikix-wallpaper pick"))
@@ -207,6 +208,39 @@ a talk. Every login starts with it off."
   (message (if *vikix-awake*
                "Keep awake: on, until you switch it off"
                "Keep awake: off")))
+
+;;; The backup reminder (bin/vikix-backup), shown in the bar.
+
+(defparameter *vikix-backup-file*
+  (merge-pathnames ".local/state/vikix/backup" (user-homedir-pathname))
+  "\"LAST DAYS\": when the last backup ran (Unix time, 0 for none yet) and
+after how many days to remind. vikix-backup writes it; no file, no backups
+set up.")
+
+(defvar *vikix-backup* ""
+  "The bar's reminder: \"backup 9d\", \"backup\" (set up, none yet), or \"\".")
+
+(defun vikix-backup-text (last days now)
+  "The reminder for a last backup at LAST, reminding after DAYS days, at
+NOW (all Unix times but DAYS). NIL LAST means backups aren't set up."
+  (cond ((null last) "")
+        ((zerop last) "backup")
+        (t (let ((age (floor (- now last) 86400)))
+             (if (>= age days) (format nil "backup ~ad" age) "")))))
+
+(defun vikix-backup-refresh ()
+  "Read vikix-backup's file into *vikix-backup*; redraw the bar if it changed."
+  (let* ((line (ignore-errors
+                (with-open-file (in *vikix-backup-file*) (read-line in nil ""))))
+         (words (and line (split-string line " ")))
+         (last (ignore-errors (parse-integer (first words))))
+         (days (or (ignore-errors (parse-integer (second words))) 7))
+         ;; Lisp counts from 1900, Unix from 1970.
+         (now (- (get-universal-time) 2208988800))
+         (new (vikix-backup-text last days now)))
+    (unless (string= new *vikix-backup*)
+      (setf *vikix-backup* new)
+      (update-all-mode-lines))))
 
 ;;; Recording the screen (bin/vikix-record), shown in the bar.
 

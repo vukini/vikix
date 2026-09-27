@@ -2,7 +2,8 @@
 # tests/run.sh — run the tests that fit this machine.
 #
 #   tests/run.sh          the quick ones (about a minute): lint, lisp (with
-#                         sbcl), battery, home, services, image, theme, bar, rofi,
+#                         sbcl), battery, home, services, backup (with
+#                         restic), image, theme, bar, rofi,
 #                         wallpaper, updates, notifications, idle, capture,
 #                         nightlight, update,
 #                         and on Void also packages and dry-run
@@ -20,6 +21,7 @@ cd "$(dirname "$0")" || exit 1
 tests=(lint)
 if command -v sbcl >/dev/null; then tests+=(lisp); else echo "(lisp needs sbcl; skipped here)"; fi
 tests+=(battery home services image theme bar rofi wallpaper updates notifications idle capture nightlight update)
+if command -v restic >/dev/null; then tests+=(backup); else echo "(backup needs restic; skipped here)"; fi
 if command -v xbps-query >/dev/null && [ "$(id -u)" -ne 0 ]; then
   tests+=(packages dry-run)
 else
