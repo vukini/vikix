@@ -351,7 +351,15 @@ print(json.dumps({"model": "ollama/" + m, "provider": {"ollama": {
       aider)        say "ask it: $ASK" ;;
     esac
   fi
-  [ -n "$REPORT" ] && [ "$name" = aider ] && args+=(--read "$REPORT")
+  # Given a report (vikix diagnose), it starts by reading and proposing,
+  # where the agent can be told so: its logs are other programs' words.
+  if [ -n "$REPORT" ]; then
+    case $name in
+      claude) args+=(--permission-mode plan) ;;
+      codex)  args+=(--sandbox read-only) ;;
+      aider)  args+=(--read "$REPORT" --no-git) ;;   # not making a git repository where it starts
+    esac
+  fi
   if [ "$name" = opencode ]; then
     # Its config is merged with yours; this adds only what isn't there.
     opencode_asks && oc=$(python3 -c '
@@ -391,8 +399,8 @@ main() {
   local use='' local=0 model=''
   while [ $# -gt 0 ]; do
     case $1 in
-      --ask)       ASK=${2:-}; shift 2 ;;
-      --report)    REPORT=${2:-}; shift 2 ;;
+      --ask)       ASK=${2:-}; [ -n "$ASK" ] || die "--ask needs the question"; shift 2 ;;
+      --report)    REPORT=${2:-}; [ -n "$REPORT" ] || die "--report needs a file"; shift 2 ;;
       --use)       need_agent "${2:-}"; use=$2; shift 2 ;;
       --local)     local=1; shift ;;
       --model)     model=${2:-}; [ -n "$model" ] || die "--model needs a name (vikix ai list)"; shift 2 ;;

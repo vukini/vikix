@@ -24,8 +24,9 @@
 #   vikix version
 #
 #   vikix eval FORM     run Lisp in the running StumpWM, print the result
-#   vikix debug         one file saying what's going on, keys taken out, to
-#                         attach to an issue (vikix diagnose: and ask the agent)
+#   vikix debug         one file saying what's going on, secrets taken out, to
+#                         attach to an issue
+#   vikix diagnose      that report, handed to your AI agent: what's wrong?
 #   vikix agent         the AI agent, after a snapshot of your files (alias: a):
 #                         Claude Code, or --use opencode|codex|gemini|aider,
 #                         --local on this laptop, --default NAME, --list
@@ -218,6 +219,7 @@ cmd_update() {
   fi
   if [ "${#failed[@]}" -gt 0 ]; then
     warn "these stages failed: ${failed[*]}. Fix them, then: vikix update (log: $VIKIX_UPDATE_LOG)"
+    echo "   Not sure how? vikix diagnose asks your AI agent; vikix debug writes a report to attach to an issue."
     return 1
   fi
   say "Vikix $(cat "$VIKIX_DIR/VERSION") is up to date; log: $VIKIX_UPDATE_LOG"
@@ -290,7 +292,12 @@ cmd_doctor() {
       warn "vikix eval can't reach StumpWM (is it running? reload it: Super+m, Reload config)"; ok=0
     fi
   fi
-  if [ "$ok" = 1 ]; then say "all good"; else warn "see above"; return 1; fi
+  if [ "$ok" = 1 ]; then say "all good"
+  else
+    warn "see above"
+    echo "   Stuck? vikix diagnose asks your AI agent; vikix debug writes a report to attach to an issue."
+    return 1
+  fi
 }
 
 # --- Snapshots of your files -----------------------------------------------

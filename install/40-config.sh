@@ -74,6 +74,10 @@ for app in "$C"/applications/*.desktop; do
 done
 link_managed "$C/bash/vikix.bash"   "$HOME/.config/vikix/vikix.bash"
 link_managed "$C/claude/skills/vikix" "$HOME/.claude/skills/vikix"
+# Vikix's state folder (logs, the snapshot history, the debug reports) is
+# yours alone: the session log carries the pages a browser had open.
+run mkdir -p "$VIKIX_STATE"
+run chmod 700 "$VIKIX_STATE"
 # The same guide for the other agents (Codex, Gemini, Aider), as AGENTS.md:
 # made from the skill, so it changes with it.
 bash "$VIKIX_DIR/bin/vikix-agent" --write-guide

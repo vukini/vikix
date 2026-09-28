@@ -9,9 +9,13 @@
 # Everything this session prints (StumpWM's messages, errors from the
 # programs below) goes to a log, so a desktop that won't start can be
 # looked into from another console. The previous session's log is kept.
+# Yours alone: the logs carry the pages a browser had open, file names,
+# and whatever the programs you ran printed (40-config does this too).
 log_dir="${XDG_STATE_HOME:-$HOME/.local/state}/vikix"
 mkdir -p "$log_dir"
+chmod 700 "$log_dir"
 [ -f "$log_dir/session.log" ] && mv "$log_dir/session.log" "$log_dir/session.log.old"
+(umask 077; : > "$log_dir/session.log")
 exec >"$log_dir/session.log" 2>&1
 echo "vikix-session started $(date)"
 set -x    # each command is written to the log before it runs

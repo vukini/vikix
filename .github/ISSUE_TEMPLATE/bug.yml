@@ -43,13 +43,13 @@ body:
         - A VM (VirtualBox)
         - A VM (something else)
   - type: textarea
-    id: log
+    id: report
     attributes:
-      label: Log
+      label: Debug report
       description: |
-        Installs and updates keep a log in `~/.local/state/vikix/logs/`. Paste the end of the newest one:
+        Run `vikix debug`: it writes `~/vikix-debug-<date>.txt`, with your keys, passwords and names taken out. Read it, then drag the file into this box (it's too long to paste).
+        Can't run it? Paste the end of the newest log in `~/.local/state/vikix/logs/` instead:
         `tail -n 50 "$(ls -t ~/.local/state/vikix/logs/* | head -1)"`
-      render: text
   - type: textarea
     id: more
     attributes:

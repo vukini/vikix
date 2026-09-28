@@ -80,7 +80,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │
 ├── dev/                       yours, with parts written for you (see below)
 ├── .ollama/models/            local AI models (vikix ai models): big, not backed up
-├── vikix-debug-*.txt           the reports vikix debug writes (yours to delete)
+├── vikix-debug-*.txt           the reports vikix debug writes (yours to delete; vikix diagnose's are in ~/.local/state/vikix/diagnose/)
 ├── .config/io.datasette.llm/  llm's settings and its log of everything asked (vikix ai llm)
 ├── Pictures/Screenshots/      Shift+Print and friends
 ├── Videos/Recordings/         Super+Shift+r

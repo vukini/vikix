@@ -98,7 +98,7 @@ To run one install stage again on its own (each is safe to re-run):
 
 ## Asking for help
 
-Ask the agent first. `vikix diagnose` (or Super+m → *Something's wrong? Ask the agent*) writes a report of what's going on and hands it to your AI agent, asking what's wrong and how to fix it. The agent asks before it changes anything, and a snapshot is taken first, so `vikix undo` takes its changes back.
+Ask the agent first. `vikix diagnose` (or Super+m → *Something's wrong? Ask the agent*) writes a report of what's going on and hands it to your AI agent, asking what's wrong and how to fix it. The agent starts by reading and proposing (Claude Code in its plan mode, Codex read-only), asks before it changes anything, and a snapshot is taken first, so `vikix undo` takes its changes back. Its reports are kept in `~/.local/state/vikix/diagnose/` (the last five).
 
 To ask a person, open an issue at github.com/vukini/vikix and attach the report `vikix debug` writes:
 
@@ -107,4 +107,8 @@ vikix debug            # writes ~/vikix-debug-<date>.txt, readable only by you
 less ~/vikix-debug-*.txt
 ```
 
-It has Vikix's version and checkout, the system, the hardware and screens, your features, what `vikix doctor` says, the services, and the ends of the logs: the session's (`~/.local/state/vikix/session.log`), the last install and update (`~/.local/state/vikix/logs/`), and X's errors. Your API keys, passwords, home folder, user name and machine name are taken out before anything is written, and the finished file is searched for keys once more. Still, read it before you share it: nothing is sent anywhere by itself.
+It starts with the problems at a glance (the lines in the logs that say something failed), then Vikix's version and checkout, your last snapshots, the system, the hardware and screens, your features, what `vikix doctor` says, the services, and Vikix's own lines from the logs: the session's start and end (`~/.local/state/vikix/session.log`), the last install and update (`~/.local/state/vikix/logs/`), and X's errors.
+
+What's left out: other programs' log lines (a browser's carry the pages you had open), web addresses' paths (the site stays), secrets of every kind (API keys, tokens, passwords, private keys, whatever their shape), your home folder, user name, full name and machine name. The finished file is checked once more, and the command fails if anything secret-looking is left. Still, read it before you share it: nothing is sent anywhere by itself.
+
+On GitHub, open a new issue and drag the file into the "Debug report" box: it's too long to paste.
