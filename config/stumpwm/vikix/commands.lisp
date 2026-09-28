@@ -350,6 +350,8 @@ says rec while it records; the video goes to ~/Videos/Recordings."
   '(("Screenshot: an area, to a file"    "vikix-screenshot area file")
     ("Screenshot: this window, to a file" "vikix-screenshot window file")
     ("Screenshot: the whole screen, to a file" "vikix-screenshot screen file")
+    ("Text from an area, to the clipboard (OCR)" "vikix-screenshot text")
+    ("Pick a colour: its #rrggbb to the clipboard" "vikix-screenshot colour")
     ("Record an area or a window"        "vikix-record area")
     ("Record the whole screen"           "vikix-record screen"))
   "Each entry: a label and the shell command it runs.")

@@ -246,7 +246,7 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 | `s-Print` | Screenshot the whole screen (the monitor the pointer is on) to the clipboard |
 | `Shift` with any of those | The same, to a file in `~/Pictures/Screenshots` instead |
 | `s-R` | Record an area or a window, without sound; press again to stop. The bar says `rec`, and the video goes to `~/Videos/Recordings` |
-| `s-C-Print` | Screenshot or record: a menu of all of them, including recording the whole screen |
+| `s-C-Print` | Screenshot or record: a menu of all of them, including recording the whole screen. Also **Text from an area** (drag over any text, even in a picture or a dialog, and it's on the clipboard, read by tesseract; other languages with `VIKIX_OCR_LANG=deu+eng` and their `tesseract-ocr-*` package) and **Pick a colour** (click anywhere: its `#rrggbb` on the clipboard, with a swatch in the notification) |
 | volume and brightness keys | Change the level and show a bar for it |
 
 ## The bar
@@ -358,7 +358,7 @@ A restore goes into `~/Restored/<time>/`, beside your files, never over them; mo
 | List | Contents |
 |---|---|
 | `base` | dbus, elogind, polkit and its password box, openssh, chrony (clock), git, curl, rsync, zip, 7zip, man pages, xdg-utils, texinfo (`info`, and makeinfo for the Vikix manual), python3 (for `vikix eval`) |
-| `desktop` | X11, picom, dunst, rofi (with its emoji picker and calculator), alacritty, fonts (Noto, colour emoji, Nerd Font symbols), i3lock, gammastep (night light), screenshots and screen recording (maim, slop, ffmpeg), clipmenu (clipboard history) |
+| `desktop` | X11, picom, dunst, rofi (with its emoji picker and calculator), alacritty, fonts (Noto, colour emoji, Nerd Font symbols), i3lock, gammastep (night light), screenshots and screen recording (maim, slop, ffmpeg), the text in a screenshot (tesseract-ocr, with English) and a colour picker (xcolor), clipmenu (clipboard history) |
 | `fonts` | Iosevka, the terminal font. Every variant comes in one 862 MB package, so it waits for part two; until then the terminal uses a plain monospace font, and the bar Noto Sans Mono. Also fonttools, which `vikix-font` uses to take the one Iosevka the bar needs out of that package. |
 | `network` | NetworkManager (`nmtui` for Wi-Fi), with its connection editor |
 | `audio` | PipeWire, WirePlumber (with Bluetooth audio), pamixer, pavucontrol |
@@ -615,7 +615,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `services` | `20-services` switches on only services whose package is there, has D-Bus reread its config once before the first new one, adds you to `lpadmin` and installs the Printers app's polkit rule once CUPS is installed, and changes nothing when run again |
 | `image` | `vikix-image` opens nsxiv on the image's whole folder, in name order, at the image you picked |
 | `nightlight` | `vikix-nightlight` starts gammastep at login unless it was switched off, toggles it, remembers off, and stops it so the colours come back |
-| `capture` | `vikix-screenshot` takes an area, the focused window or the monitor under the pointer, to the clipboard or a file; `vikix-record` records the right part of the screen, stops, saves, and clears the bar |
+| `capture` | `vikix-screenshot` takes an area, the focused window or the monitor under the pointer, to the clipboard or a file; `vikix-record` records the right part of the screen, stops, saves, and clears the bar; `text` puts an area's text on the clipboard (tesseract, on the picture made 3× bigger) and `colour` a picked `#rrggbb`, and neither touches the clipboard when cancelled; with picom running, an area waits for the picker's fade before it's taken, so a blurring picom can't blur it |
 | `idle` | `vikix-idle` suspends only on battery, only after the idle time in its settings, and never while keep awake is on |
 | `notifications` | `vikix-notifications` lists dunst's history newest first, and shows again the one you pick |
 | `updates` | `vikix-updates` counts waiting Void packages and Vikix commits, says `?` for a check that failed, not 0, and fetches a checkout with an SSH remote over HTTPS |

@@ -8,6 +8,13 @@
 #     WHERE   clip     to the clipboard, ready to paste
 #             file     to ~/Pictures/Screenshots/<date>.png   (add Shift)
 #
+#   vikix-screenshot text     drag out an area: the text in it, read by
+#                             tesseract (OCR), to the clipboard
+#   vikix-screenshot colour   click anywhere: that colour, as #rrggbb, to
+#                             the clipboard (xcolor)
+#   Both are in the Super+Ctrl+Print menu. The OCR language is English;
+#   VIKIX_OCR_LANG=deu+eng (with tesseract-ocr-deu installed) reads others.
+#
 #   vikix-screenshot --geometry area|screen
 #                      print the area as WxH+X+Y (vikix-record uses it)
 #
@@ -31,6 +38,23 @@ monitor() {
     done
 }
 
+# area_shot FILE — drag out an area (or click a window) and take it; false
+# when cancelled. Not maim -s: slop's own window must be off the screen
+# first. Under picom it fades out for a moment after the pick, and a picom
+# that blurs what's behind translucent windows (a config of your own,
+# without Vikix's blur-background-exclude for slop) blurs the very area
+# being taken. So pick with slop, wait for the fade, then take it.
+# VIKIX_SHOT_SETTLE sets the wait (tests use 0).
+area_shot() {
+  g=$(slop -f '%wx%h+%x+%y') || return 1
+  settle=${VIKIX_SHOT_SETTLE:-}
+  if [ -z "$settle" ]; then
+    if pgrep -x picom >/dev/null 2>&1; then settle=0.5; else settle=0; fi
+  fi
+  [ "$settle" = 0 ] || sleep "$settle"
+  maim -g "$g" "$1"
+}
+
 if [ "${1:-}" = --geometry ]; then
   case ${2:-} in
     area)   slop -f '%wx%h+%x+%y' ;;          # fails when cancelled
@@ -40,12 +64,63 @@ if [ "${1:-}" = --geometry ]; then
   exit
 fi
 
+# --- colour -----------------------------------------------------------------
+if [ "${1:-}" = colour ] || [ "${1:-}" = color ]; then
+  command -v xcolor >/dev/null 2>&1 || {
+    notify-send -a Vikix "No colour picker" "xcolor isn't installed (desktop.list; vikix update installs it)."
+    exit 1
+  }
+  hex=$(xcolor 2>/dev/null) || exit 0    # Escape cancels
+  case $hex in \#[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]) ;; *) exit 0 ;; esac
+  printf '%s' "$hex" | xclip -selection clipboard
+  # A swatch of it in the notification.
+  swatch=$(mktemp --suffix=.png) || exit 1
+  ffmpeg -loglevel error -y -f lavfi -i "color=c=0x${hex#\#}:s=64x64" -frames:v 1 "$swatch" 2>/dev/null
+  notify-send -a Vikix -t 4000 -i "$swatch" "Colour $hex copied" "Paste it with Ctrl+v."
+  ( sleep 10; rm -f "$swatch" ) &
+  exit 0
+fi
+
+# --- text (OCR) --------------------------------------------------------------
+if [ "${1:-}" = text ]; then
+  # Void names it tesseract-ocr (tesseract is a game there); elsewhere it's tesseract.
+  ocr=$(command -v tesseract-ocr || command -v tesseract) || {
+    notify-send -a Vikix "No OCR" "tesseract-ocr isn't installed (desktop.list; vikix update installs it)."
+    exit 1
+  }
+  shot=$(mktemp --suffix=.png) || exit 1
+  big=$(mktemp --suffix=.png) || exit 1
+  trap 'rm -f "$shot" "$big"' EXIT
+  area_shot "$shot" || exit 0        # cancelled
+  # Screen text is small, and tesseract reads it far better three times
+  # the size; without ffmpeg, it reads the picture as it is.
+  if ! ffmpeg -loglevel error -y -i "$shot" -vf 'scale=iw*3:ih*3:flags=lanczos,format=gray' "$big" 2>/dev/null; then
+    cp "$shot" "$big"
+  fi
+  # --psm 6: one block of text, which is what an area on a screen mostly is.
+  # Spaces at line ends and the blank lines around the text go (tesseract
+  # ends with a form feed); blank lines inside it stay.
+  text=$("$ocr" "$big" stdout -l "${VIKIX_OCR_LANG:-eng}" --psm 6 2>/dev/null |
+         sed 's/[[:space:]]*$//' |
+         awk 'NF { while (seen && gap) { print ""; gap-- } gap = 0; seen = 1; print; next } seen { gap++ }')
+  if [ -z "$(printf '%s' "$text" | tr -d '[:space:]')" ]; then
+    notify-send -a Vikix "No text found" "Try a bigger area, or one with plainer background."
+    exit 0
+  fi
+  printf '%s' "$text" | xclip -selection clipboard
+  first=$(printf '%s\n' "$text" | head -n 1 | cut -c1-60)
+  lines=$(printf '%s\n' "$text" | wc -l)
+  more=; [ "$lines" -gt 1 ] && more=" (and $((lines - 1)) more lines)"
+  notify-send -a Vikix -t 4000 "Text copied" "$first$more"
+  exit 0
+fi
+
 what=area where=clip
 for word in "$@"; do
   case $word in
     area|window|screen) what=$word ;;
     clip|file)          where=$word ;;
-    *) echo "usage: vikix-screenshot [area|window|screen] [clip|file]" >&2; exit 2 ;;
+    *) echo "usage: vikix-screenshot [area|window|screen] [clip|file] | text | colour" >&2; exit 2 ;;
   esac
 done
 
@@ -54,7 +129,7 @@ trap 'rm -f "$shot"' EXIT
 
 case $what in
   area)
-    maim -s "$shot" || exit 0          # cancelled
+    area_shot "$shot" || exit 0        # cancelled
     ;;
   window)
     # StumpWM keeps _NET_ACTIVE_WINDOW up to date, so this is the focused one.

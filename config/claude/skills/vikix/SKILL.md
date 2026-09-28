@@ -116,7 +116,7 @@ focused window, Super+Print of the monitor under the pointer, all to the
 clipboard (vikix-screenshot; add Shift for a file in
 ~/Pictures/Screenshots), Super+Shift+r record an area or window and again
 to stop (vikix-record, ffmpeg, no sound; the bar says rec; videos in
-~/Videos/Recordings), Super+Ctrl+Print a menu of all of them, Super+q close, Super+f fullscreen, Super+h/j/k/l focus (Shift to
+~/Videos/Recordings), Super+Ctrl+Print a menu of all of them (also `vikix-screenshot text`: an area's text by OCR, tesseract, to the clipboard, VIKIX_OCR_LANG for other languages; `vikix-screenshot colour`: xcolor, the #rrggbb to the clipboard), Super+q close, Super+f fullscreen, Super+h/j/k/l focus (Shift to
 move the window; the arrow keys do the same), Super+b / Super+v split,
 Super+r remove split, Super+u / Super+Shift+u undo / redo a layout
 change, Super+g gaps on/off, Super+Shift+a / Super+Ctrl+a any window on

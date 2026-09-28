@@ -24,6 +24,9 @@ maim            # screenshots
 slop            # choosing an area to record (maim uses it too)
 ffmpeg6         # screen recording (vikix-record)
 xclip           # clipboard from the command line
+tesseract-ocr   # the text in a screenshot (Super+Ctrl+Print, Text from an area)
+tesseract-ocr-eng   # ...its English (other languages: tesseract-ocr-deu, -fra, ...)
+xcolor          # the colour under the pointer (Super+Ctrl+Print, Pick a colour)
 clipmenu        # clipboard history (Super+c); clipmenud records it
 xdotool
 feh             # wallpaper
