@@ -1,18 +1,17 @@
 #!/bin/sh
 # vikix-jupyter — JupyterLab in ~/dev, with the Python that 67-dev set up.
 #
-# Started by `jlab`, the launcher (s-d) or the menu (s-m). If a JupyterLab
-# is already running, its page is opened again rather than a second one
-# started. The server's messages go to ~/.local/state/vikix/jupyter.log.
+# Started by `jlab`, the launcher (s-d: type JupyterLab, or jlab) or the
+# menu (s-m). If a JupyterLab is already running, its page is opened again
+# rather than a second one started. The server's messages go to ~/.local/state/vikix/jupyter.log.
 
 dev=${VIKIX_DEV_DIR:-$HOME/dev}
 jupyter="$dev/python/.venv/bin/jupyter"
 log="${XDG_STATE_HOME:-$HOME/.local/state}/vikix/jupyter.log"
 
 if [ ! -x "$jupyter" ]; then
-  # This file is a link in ~/.local/bin; the checkout is where it points.
-  vikix_dir=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
-  msg="JupyterLab isn't set up yet: run $vikix_dir/install.sh --only 67-dev"
+  # JupyterLab comes with the feature python (67-dev makes its Python).
+  msg="JupyterLab isn't here yet: vikix add python (in a terminal) sets it up"
   echo "$msg" >&2
   command -v notify-send >/dev/null && notify-send "Vikix" "$msg"
   exit 1

@@ -51,5 +51,15 @@ while IFS= read -r need; do
 done < <(awk '/^\(defparameter \*vikix-menu\*/,/^  "Each entry/' "$lisp" |
          grep -oE '\) "(~/[^"]+|[a-z-]+)"\)$' | sed -E 's/^\) "//; s/"\)$//')
 
-[ "$fail" = 0 ] && echo "menu: entries whose program or file isn't here are left out, the rest shown, and every need is real"
+# The launcher (Super+d) lists config/applications/*.desktop: each runs a
+# command Vikix has, and JupyterLab answers to what people type, jlab too.
+for f in "$here"/config/applications/*.desktop; do
+  exe=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$f")
+  [ -e "$here/bin/$exe" ] || command -v "$exe" >/dev/null ||
+    { echo "FAIL: ${f##*/} runs '$exe', which isn't in bin/"; fail=1; }
+done
+grep -q '^Keywords=.*jlab;' "$here/config/applications/vikix-jupyterlab.desktop" ||
+  { echo "FAIL: typing jlab in the launcher wouldn't find JupyterLab (no Keywords=jlab)"; fail=1; }
+
+[ "$fail" = 0 ] && echo "menu: entries whose program or file isn't here are left out, the rest shown, every need is real, and the launcher entries run and are found (jlab)"
 exit "$fail"

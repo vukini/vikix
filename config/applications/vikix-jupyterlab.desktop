@@ -1,7 +1,9 @@
 [Desktop Entry]
 Type=Application
 Name=JupyterLab
-Comment=Python notebooks in ~/dev
+GenericName=Python notebooks
+Comment=Python notebooks in ~/dev (jlab in a terminal)
+Keywords=jlab;jupyter;notebook;ipynb;python;
 Exec=vikix-jupyter
 Icon=applications-science
 Terminal=false
