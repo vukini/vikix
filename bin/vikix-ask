@@ -1,0 +1,220 @@
+#!/usr/bin/env bash
+# vikix-ask — AI on the text you selected, anywhere on the desktop (Super+i).
+#
+#   vikix-ask             a menu: Ask, Proofread, Rewrite, Translate, Explain
+#   vikix-ask ACTION      one of those straight away (ask, proofread,
+#                         rewrite, translate, explain): for keys of your own
+#                         in user.lisp
+#
+# The text is the selection (what you last highlighted), else the
+# clipboard. Proofread, Rewrite and Translate put their result on the
+# clipboard, to paste where you want it; Ask and Explain show the answer,
+# in a notification when it's short, else in a terminal. Everything goes
+# through llm (vikix ai llm), so it's all in llm logs too.
+#
+# Which model answers is yours to choose, in ~/.config/vikix/ai (made on
+# first use): a local one (free, offline, the text stays on this laptop),
+# or Claude (better, paid, the text goes to Anthropic). It never falls back
+# from local to Claude by itself.
+
+set -uo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+CONF="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/ai"
+LLM=${VIKIX_LLM:-$HOME/.local/bin/llm}   # tests name their stand-in
+TERMINAL=${VIKIX_TERMINAL:-alacritty}
+API=http://127.0.0.1:11434/api
+CLAUDE_DEFAULT=claude-sonnet-5
+MAX=12000     # characters of the selection sent: a small model's context is short
+RUN="${XDG_RUNTIME_DIR:-/tmp}"
+
+note() {   # note TITLE [BODY] — a notification (it replaces "working" once there is one)
+  notify-send -a Vikix ${NOTE_ID:+-r "$NOTE_ID"} "$1" "${2:-}" 2>/dev/null || true
+}
+fail() { note "$1" "${2:-}"; exit 1; }
+# Notification bodies are markup: an & or < in the text would hide it.
+escape() { sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'; }
+
+make_conf() {
+  [ -e "$CONF" ] && return 0
+  mkdir -p "$(dirname "$CONF")"
+  cat > "$CONF" <<'EOF'
+# Vikix AI on keys (Super+i): which model answers.
+#
+#   use=local    a model on this laptop: free, offline, the text stays here
+#                (vikix ai models gets one)
+#   use=claude   Claude: better, paid, the text goes to Anthropic
+#                (vikix ai key set anthropic first)
+use=local
+
+# A model by name (llm models lists them). Empty: llama3.2:3b, or your
+# first local model; claude-sonnet-5 for Claude.
+model=
+
+# The languages Translate offers, first to last (you can also type another).
+languages=English Esperanto French Spanish Arabic Hindi
+EOF
+}
+
+conf() {   # conf KEY — its value in the file, without comments or spaces
+  sed -n "s/^[[:space:]]*$1[[:space:]]*=//p" "$CONF" 2>/dev/null | tail -1 |
+    sed -e 's/#.*//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+}
+
+# The model, from the file; says what's missing, instead of guessing.
+pick_model() {
+  local use model names
+  use=$(conf use); model=$(conf model)
+  [ -x "$LLM" ] || fail "AI keys need llm" "In a terminal: vikix ai llm"
+  case $model in [!A-Za-z0-9]*|*[!A-Za-z0-9._:/-]*) fail "The model in ~/.config/vikix/ai looks wrong" "$(escape <<<"$model")" ;; esac
+  case ${use:-local} in
+    local)
+      names=$(curl -fsS --max-time 3 "$API/tags" 2>/dev/null |
+        python3 -c 'import json,sys; [print(m["name"]) for m in json.load(sys.stdin).get("models", [])]' 2>/dev/null)
+      [ -n "$names" ] || {
+        curl -fsS --max-time 2 "$API/version" >/dev/null 2>&1 ||
+          fail "Local AI isn't running" "In a terminal: vikix ai setup. Or use=claude in ~/.config/vikix/ai"
+        fail "No local model yet" "Super+m, Local AI: choose a model. Or use=claude in ~/.config/vikix/ai"
+      }
+      if [ -n "$model" ]; then
+        grep -qxF -- "$model" <<<"$names" ||
+          fail "You don't have the model $model" "vikix ai models gets it, or change model= in ~/.config/vikix/ai"
+      elif grep -qx 'llama3.2:3b' <<<"$names"; then model=llama3.2:3b
+      else model=$(head -1 <<<"$names")
+      fi
+      WHERE="on this laptop" ;;
+    claude)
+      # A key set since login isn't in the desktop's environment yet.
+      if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -r "$VIKIX_DIR/lib/secrets.sh" ]; then
+        # shellcheck source=../lib/secrets.sh
+        . "$VIKIX_DIR/lib/secrets.sh"; vikix_export_secrets
+      fi
+      [ -n "${ANTHROPIC_API_KEY:-}" ] ||
+        fail "Claude needs your Anthropic key" "In a terminal: vikix ai key set anthropic. Or use=local in ~/.config/vikix/ai"
+      model=${model:-$CLAUDE_DEFAULT}
+      WHERE="sent to Anthropic" ;;
+    *) fail "use= in ~/.config/vikix/ai should be local or claude" "$(escape <<<"$use")" ;;
+  esac
+  MODEL=$model
+}
+
+selection() {
+  local s
+  s=$(timeout 2 xclip -o -selection primary 2>/dev/null || true)
+  [ -n "${s//[[:space:]]/}" ] || s=$(timeout 2 xclip -o -selection clipboard 2>/dev/null || true)
+  [ -n "${s//[[:space:]]/}" ] || s=''
+  printf '%s' "$s"
+}
+
+# Small models like to open with "Here is the corrected text:", and to
+# wrap the answer in quotes; the clipboard should get the text alone.
+tidy() {
+  python3 -c '
+import re, sys
+t = sys.stdin.read().strip()
+lines = t.split("\n")
+if len(lines) > 1 and re.match(r"(here|sure|certainly|of course|okay|ok)\b.*:\s*$", lines[0], re.I):
+    t = "\n".join(lines[1:]).strip()
+if len(t) > 1 and t[0] == t[-1] and t[0] in "\"“" and t.count(t[0]) == 2:
+    t = t[1:-1].strip()
+if t.startswith("```") and t.endswith("```") and t.count("```") == 2:
+    t = re.sub(r"^```[^\n]*\n", "", t)[:-3].strip()
+print(t, end="")
+'
+}
+
+make_conf
+pick_model
+TEXT=$(selection)
+if [ "${#TEXT}" -gt "$MAX" ]; then TEXT=${TEXT:0:$MAX}; CUT=1; else CUT=0; fi
+
+preview() {   # the selection's start, on one line, for rofi's message
+  if [ -z "$TEXT" ]; then echo "Nothing selected: Ask works on its own; select text for the rest."
+  else
+    local one=${TEXT//[$'\n\t']/ }
+    printf '%s' "${one:0:90}" | escape; [ "${#one}" -gt 90 ] && printf '…'
+  fi
+  return 0
+}
+
+ACTION=${1:-}
+if [ -z "$ACTION" ]; then
+  menu=$'Ask about it\nProofread\nRewrite: clearer\nTranslate\nExplain'
+  pick=$(rofi -dmenu -i -no-custom -p "AI ($MODEL, $WHERE)" -mesg "$(preview)" <<<"$menu") || exit 0
+  case $pick in
+    Ask*) ACTION=ask ;; Proofread*) ACTION=proofread ;; Rewrite*) ACTION=rewrite ;;
+    Translate*) ACTION=translate ;; Explain*) ACTION=explain ;; *) exit 0 ;;
+  esac
+fi
+
+case $ACTION in
+  ask)
+    question=$(rofi -dmenu -p "Ask $MODEL" -mesg "$(preview)" </dev/null) || exit 0
+    [ -n "${question//[[:space:]]/}" ] || exit 0
+    system="Answer plainly, in at most five short sentences. If text is given before the question, the question is about it."
+    title="AI: $question" ;;
+  proofread)
+    system="Correct the spelling, grammar and punctuation of the text. Keep its meaning, tone, language and formatting. Reply with the corrected text only: no introduction, no comments, no quotes around it."
+    title="Proofread" ;;
+  rewrite)
+    system="Rewrite the text to be clearer and more concise, in the same language, keeping its meaning. Reply with the rewritten text only: no introduction, no comments, no quotes around it."
+    title="Rewritten" ;;
+  translate)
+    langs=$(conf languages); langs=${langs:-English Esperanto}
+    lang=$(tr ' ' '\n' <<<"$langs" | grep -v '^$' | rofi -dmenu -i -p "Translate into" -mesg "$(preview)") || exit 0
+    case $lang in ''|*[!A-Za-z\ -]*) exit 0 ;; esac
+    system="Translate the text into $lang. Reply with the translation only: no introduction, no notes, no quotes around it."
+    title="In $lang" ;;
+  explain)
+    system="Explain the text in plain language, in at most five short sentences, without headings. If it is code, a command or an error message, say what it does or means, and how to fix it if something is wrong."
+    title="Explained" ;;
+  *) echo "usage: vikix-ask [ask|proofread|rewrite|translate|explain]" >&2; exit 2 ;;
+esac
+if [ -z "$TEXT" ] && [ "$ACTION" != ask ]; then
+  fail "Select some text first" "Highlight it (or copy it), then Super+i again"
+fi
+
+# One at a time: a second press while the model works would only queue up.
+exec 9>"$RUN/vikix-ask.lock"
+flock -n 9 || fail "AI is still working on the last one" ""
+
+NOTE_ID=$(notify-send -p -a Vikix -t 300000 "AI is working…" "$MODEL, $WHERE" 2>/dev/null || true)
+[[ $NOTE_ID =~ ^[0-9]+$ ]] || NOTE_ID=''
+err="$RUN/vikix-ask.err"
+args=(-m "$MODEL" -s "$system")
+[ "$ACTION" = ask ] && args+=("$question")
+if [ -n "$TEXT" ]; then
+  out=$(printf '%s\n' "$TEXT" | timeout 300 "$LLM" "${args[@]}" 2>"$err")
+else
+  out=$(timeout 300 "$LLM" "${args[@]}" </dev/null 2>"$err")
+fi
+rc=$?
+if [ "$rc" != 0 ] || [ -z "${out//[[:space:]]/}" ]; then
+  why=$(grep -v '^\s*$' "$err" 2>/dev/null | tail -1); why=$(printf '%s' "${why:0:200}" | escape)
+  [ "$rc" = 124 ] && why="It took over 5 minutes; a smaller model answers faster (vikix ai models)"
+  case $why in *"No key found"*) why="Your Anthropic key: vikix ai key set anthropic" ;; esac
+  fail "AI didn't answer" "${why:-no answer from $MODEL}"
+fi
+rm -f "$err"
+out=$(tidy <<<"$out")
+[ "$CUT" = 1 ] && cut_note=" (only the first $MAX characters were sent)" || cut_note=''
+
+case $ACTION in
+  proofread|rewrite|translate)
+    printf '%s' "$out" | xclip -selection clipboard
+    if [ "$ACTION" = proofread ] && [ "$out" = "$(tidy <<<"$TEXT")" ]; then
+      note "Proofread: nothing to correct" "$MODEL$cut_note"
+    else
+      body=$(printf '%s' "${out:0:300}" | head -8 | escape)
+      note "$title: copied, paste with Ctrl+v$cut_note" "$body"
+    fi ;;
+  ask|explain)
+    # Short: a notification. Long: a terminal to read it in.
+    if [ "${#out}" -le 280 ] && [ "$(wc -l <<<"$out")" -le 4 ]; then
+      note "$(printf '%s' "${title:0:80}" | escape)" "$(printf '%s' "$out" | escape)"
+    else
+      note "AI answered" "In a terminal: q closes it"
+      answer="$RUN/vikix-ask-answer.txt"
+      { printf '%s (%s, %s)%s\n\n' "$title" "$MODEL" "$WHERE" "$cut_note"; printf '%s\n' "$out"; } > "$answer"
+      exec "$TERMINAL" -e less -P "AI answer: q closes, /word searches, llm logs keeps it" "$answer"
+    fi ;;
+esac

@@ -36,6 +36,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── backup-exclude     yours     what backups leave out
 │   │   ├── backup-password    yours     the backup password (never in snapshots)
 │   │   ├── secrets/           yours     API keys, one file each (vikix ai key); never in snapshots
+│   │   ├── ai                 yours     which model Super+i uses: use=local or claude, model=, languages=
 │   │   ├── optional           yours     optional features you chose, such as windows (vikix windows setup)
 │   │   ├── windows            yours     where the Windows VM's disk is
 │   │   ├── webapps            yours     your web apps: NAME URL [KEY] (vikix webapp)

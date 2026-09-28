@@ -70,6 +70,7 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
                                        *vikix-terminal*)))
     ("Update Vikix"      vikix-update)
     ("AI agent (Claude Code)" vikix-agent)
+    ("AI on the selected text" (run-shell-command "vikix-ask"))
     ("JupyterLab (in ~/dev)" (run-shell-command "vikix-jupyter"))
     ("Programming docs (offline)" (run-shell-command "xdg-open ~/dev/index.html"))
     ("Zeal: search the docs" (run-shell-command "zeal"))

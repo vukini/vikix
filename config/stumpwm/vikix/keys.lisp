@@ -24,6 +24,7 @@
     ("s-E"    "exec spacefm"      "Files in SpaceFM: tabs and split panes")
     ("s-C-e"  "exec vikix-drives eject" "Eject a USB drive: pick it, then pull it out safely")
     ("s-a"    "vikix-agent"       "AI agent: Claude Code in a terminal")
+    ("s-i"    "exec vikix-ask"    "AI on the selected text: ask, proofread, rewrite, translate, explain")
     ("s-x"    "exec emacsclient -c -a ''" "Emacs: a new window")
     ("s-c"    "exec env CM_LAUNCHER=rofi clipmenu" "Clipboard history: pick to paste again")
     ("s-period" "exec vikix-rofi emoji" "Emoji: pick one to type it (Ctrl+c copies)")

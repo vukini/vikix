@@ -20,6 +20,7 @@
 .config/vikix/optional        # optional features you chose (vikix windows setup)
 .config/vikix/windows         # where the Windows VM's disk is
 .config/vikix/webapps         # your web apps (vikix webapp)
+.config/vikix/ai              # which model AI on keys uses (Super+i)
 .Xresources
 .bashrc
 .bash_profile

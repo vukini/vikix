@@ -7,6 +7,7 @@ Vikix gives you three ways to use AI, from the most capable to the most private:
 | **The agent** | Claude Code, in a terminal, able to change the desktop for you | A Claude account (Pro or Max), or an Anthropic API key | Anthropic |
 | **Local models** | A model that runs on this laptop, to chat with | `vikix ai setup`, and a few GB of disk | Nowhere: it all stays here |
 | **`llm`** | One command for any model, fed from a pipe | `vikix ai llm`, and a local model or a key | Here, or to the model's company |
+| **Super+i** | Proofread, rewrite, translate, explain or ask about the text you selected, in any program | `vikix ai llm`, and a local model (or Claude, if you choose) | Here, unless you choose Claude |
 
 You can use any of them, all of them, or none. Nothing AI runs until you start it.
 
@@ -136,6 +137,34 @@ Its default model is a local one if you have one, otherwise Claude if you've set
 
 Everything you ask is logged: `llm logs -n 5` shows the last five, and `llm logs off` stops the logging.
 
+## AI on the selected text
+
+Select some text anywhere, in a web page, an email, a terminal, and press **Super+i**. A menu asks what to do with it:
+
+| Choice | What you get |
+|---|---|
+| Ask about it | Type a question about the text (or select nothing, and ask anything) |
+| Proofread | The text with its mistakes fixed, on the clipboard |
+| Rewrite: clearer | The same thing said more clearly, on the clipboard |
+| Translate | Into the language you pick, on the clipboard |
+| Explain | What it means; for an error message, how to fix it |
+
+What goes on the clipboard is also shown in a notification; paste it with Ctrl+v where you want it. A short answer comes as a notification, a longer one in a terminal (`q` closes it). If nothing is highlighted, it uses what you last copied.
+
+It needs `llm` (`vikix ai llm`) and a local model. A small one takes some seconds: about 10 for a sentence to proofread, 20 to explain an error.
+
+### Local or Claude
+
+The file `~/.config/vikix/ai` says which model answers. It starts as:
+
+```sh
+use=local          # free, offline, the text stays on this laptop
+model=             # empty: llama3.2:3b, or your first local model
+languages=English Esperanto French Spanish Arabic Hindi
+```
+
+For better answers, above all translations into Esperanto, which small models get wrong, write `use=claude`. Then each use costs a little and the text you selected goes to Anthropic, so it needs your key first: `vikix ai key set anthropic`. Super+i never switches to Claude by itself, and its menu always names the model and where the text goes.
+
 ## When AI doesn't work
 
 | What happens | What to do |
@@ -145,4 +174,6 @@ Everything you ask is logged: `llm logs -n 5` shows the last five, and `llm logs
 | The agent says it can't reach the desktop | `vikix doctor`: it checks that `vikix eval` works |
 | A local model doesn't answer, or is slow | See [Local AI doesn't answer](fixing.md#local-ai-doesnt-answer) |
 | `llm` has no model, asks for a key, or can't connect | See [`llm` doesn't answer](fixing.md#llm-doesnt-answer) |
+| Super+i says "AI keys need llm", "No local model yet" or "isn't running" | Do what it says: `vikix ai llm`, a model with Super+m → *Local AI: choose a model*, or `vikix ai setup` |
+| Super+i says "Select some text first" | Highlight the text (or copy it), then press Super+i again |
 | You don't like what the agent changed | `vikix changes`, then `vikix undo` |

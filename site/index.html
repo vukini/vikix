@@ -110,14 +110,14 @@
           <li><h3>A snapshot before every session.</h3><p>Your settings are saved first. <code>vikix changes</code> shows what the agent did; <code>vikix undo</code> takes it back.</p></li>
           <li><h3>It knows the desktop.</h3><p>A guide installed with Vikix tells it where everything is, and which files are yours to change.</p></li>
           <li><h3>Or keep it all on your laptop.</h3><p><code>vikix ai setup</code> runs AI models on the machine itself, offline, with a picker that only offers what your laptop can run.</p></li>
+          <li><h3>AI on a key, anywhere.</h3><p>Select text in any program and press <kbd>Super</kbd>+<kbd>i</kbd>: proofread it, rewrite it, translate it, explain it, or ask about it. A local model by default.</p></li>
+          <li><h3>And on the command line.</h3><p><code>git diff | llm "write the commit message"</code>, with a local model or Claude, and every answer kept.</p></li>
         </ul>
       </div>
 
       <div class="coming">
         <p class="eyebrow">Coming next, in this order</p>
         <ul>
-          <li><b>AI on the command line.</b> <code>git diff | llm "write the commit message"</code>, with your models, local or not.</li>
-          <li><b>AI on a key, anywhere.</b> Select text in any program, then proofread it, rewrite it, translate it or explain it.</li>
           <li><b>Any agent.</b> OpenCode, Codex, Gemini CLI and Aider, not only Claude Code, with the same snapshot first.</li>
           <li><b>"What's wrong?"</b> <code>vikix diagnose</code> gathers the logs and asks the agent how to fix it.</li>
           <li><b>Dictation.</b> Hold a key, speak, and it types what you said, all on your laptop.</li>
@@ -686,7 +686,7 @@ exec /usr/bin/sshd -D $OPTS
   /* ---------- keys ---------- */
   var KEYS = [
     [["s-Return"], "Terminal"], [["s-d"], "Launcher"], [["s-w"], "Browser (Firefox)"], [["s-e"], "Files"],
-    [["s-a"], "AI agent: Claude Code in a terminal"], [["s-x"], "Emacs, in a new window"],
+    [["s-a"], "AI agent: Claude Code in a terminal"], [["s-i"], "AI on the selected text: proofread, translate, explain"], [["s-x"], "Emacs, in a new window"],
     [["s-c"], "Clipboard history: pick something copied earlier"], [["s-."], "Emoji picker: search by name"],
     [["s-="], "Calculator that answers as you type: 5 ft to cm, today + 30 days"],
     [["s-n", "s-N"], "Notifications: the last one again, or pick an earlier one"],
