@@ -91,6 +91,8 @@ p { margin: 0; }
 .hero h1 em { font-style: normal; color: var(--accent); }
 .hero h1 .v { color: var(--green); }
 .hero-side { display: grid; gap: 18px; }
+.hero-logo { margin-bottom: 18px; }
+.hero-logo img { width: min(360px, 85%); height: auto; }
 .cta { display: flex; gap: 12px; flex-wrap: wrap; }
 .btn {
   display: inline-flex; align-items: center; gap: 8px;
