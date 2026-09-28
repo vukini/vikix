@@ -152,9 +152,9 @@ Don't edit between the `# >>> vikix … >>>` and `# <<< vikix … <<<` lines; Vi
 
 ## Programs and services
 
-- **Install a program:** `xi NAME` (search with `xs WORD`). It stays installed, and `vikix update` keeps it current along with everything else.
+- **Install a program:** `vikix pkg add NAME`, or `vikix pkg add` alone to search every package in Void with a description beside each (Super+m → *Install a program*). `xi NAME` works too. It stays installed, and `vikix update` keeps it current along with everything else.
 - **Add or remove a feature:** a language, an editor, LibreOffice, printing, Windows, local AI. `vikix features` lists them and marks the ones you have; `vikix add rust` installs one, and every update keeps it; `vikix remove rust` uninstalls what only it needed, after showing you the list. Bundles add several at once: `vikix add essentials` (Emacs, C, Python, Lisp), `developer`, `everything`. Your choices are `~/.config/vikix/features`. Windows (`vikix windows setup`, see [Windows in a window](windows.md)) and web apps (the first `vikix webapp add`) choose their feature by themselves.
-- **Remove one package Vikix installed:** `xr NAME` removes it, but the next `vikix update` installs it again if a list you have names it. Remove its feature instead, if it has one (`vikix features`); for a base package there's no way to opt out yet.
+- **Remove a program:** `vikix pkg drop NAME`, or `vikix pkg drop` alone to pick from what's installed (Super+m → *Remove a program*). One that Vikix's lists name goes on your skip list, `~/.config/vikix/packages-skip`, so `vikix update` doesn't bring it back; `vikix pkg list` shows it, and `vikix pkg add NAME` takes one off. For a whole language or editor, `vikix remove` is the better way: it says so. (`xr NAME` removes a package too, but an update would install it again.)
 - **Switch on a service:** `sv-on NAME` (the services are in `/etc/sv/`), `sv-off NAME`, `svls` to list. These are system services. A program for your desktop session goes in `user.lisp` instead ([above](#start-a-program-with-the-desktop)).
 
 ## Web apps

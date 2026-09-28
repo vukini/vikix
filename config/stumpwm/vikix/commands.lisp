@@ -86,6 +86,8 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
 (defparameter *vikix-menu*
   '(("Welcome: first steps" vikix-welcome)
     ("Add software: languages, editors, office ..." vikix-add-software)
+    ("Install a program"   (vikix-in-terminal "vikix pkg add"))
+    ("Remove a program"    (vikix-in-terminal "vikix pkg drop"))
     ("Keyboard shortcuts"  vikix-keys)
     ("All commands"        vikix-commands)
     ("What does a key do?" describe-key)

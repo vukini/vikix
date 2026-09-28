@@ -98,6 +98,8 @@ jobs:
         run: tests/ci.sh welcome
       - name: menu
         run: tests/ci.sh menu
+      - name: pkg
+        run: tests/ci.sh pkg
       - name: info
         run: tests/ci.sh info
 

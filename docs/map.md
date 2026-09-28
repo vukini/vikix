@@ -39,6 +39,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── ai                 yours     which model Super+i uses: use=local or claude, model=, languages=
 │   │   ├── agent              yours     which agent Super+a starts (vikix agent --default NAME)
 │   │   ├── features           yours     the features you chose (vikix add, vikix remove, vikix features)
+│   │   ├── packages-skip      yours     packages you dropped (vikix pkg drop); updates leave them out
 │   │   ├── windows            yours     where the Windows VM's disk is
 │   │   ├── webapps            yours     your web apps: NAME URL [KEY] (vikix webapp)
 │   │   ├── wallpaper          yours     a link to the picture you chose

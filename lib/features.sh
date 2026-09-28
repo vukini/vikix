@@ -11,6 +11,9 @@
 
 FEATURES_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/features"
 OLD_OPTIONAL_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/optional"
+# Packages Vikix's lists name that you dropped (vikix pkg drop): 10-packages
+# leaves them out.
+SKIP_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/packages-skip"
 
 # features_rows — features.list as NAME|LISTS|NEEDS|ADD|REMOVE|ABOUT, trimmed.
 features_rows() {

@@ -10,6 +10,9 @@
 # VIKIX_LISTS names the lists to install instead (vikix add sets it to the
 # new feature's lists). A name is a list in packages/ or packages/optional/.
 #
+# Packages on your skip list (~/.config/vikix/packages-skip, from vikix pkg
+# drop) are left out.
+#
 # Only packages that are not installed yet are passed to xbps-install,
 # so the output shows exactly what is new. Add a package by adding a line
 # to the right list; `vikix update` runs this stage again.
@@ -53,11 +56,18 @@ if [ "${#repos[@]}" -gt 0 ]; then
   if [ -n "$mirror" ]; then use_mirror "$mirror"; fi
 fi
 
-wanted=()
+# Your skip list (vikix pkg drop): packages you uninstalled, left out.
+skipped=" "
+[ -f "$SKIP_FILE" ] && skipped=" $(read_list "$SKIP_FILE" | tr '\n' ' ')"
+wanted=() left_out=()
 for list in "${lists[@]}"; do
   [ "$(basename "$list" .list)" = repos ] && continue
-  while IFS= read -r pkg; do wanted+=("$pkg"); done < <(read_list "$list")
+  while IFS= read -r pkg; do
+    case $skipped in *" $pkg "*) left_out+=("$pkg"); continue ;; esac
+    wanted+=("$pkg")
+  done < <(read_list "$list")
 done
+[ "${#left_out[@]}" -eq 0 ] || say "left out, on your skip list (vikix pkg list): ${left_out[*]}"
 
 # Sync the repository index, once from here on (twice in all when
 # repositories were just added: they bring new indexes). The sync lets

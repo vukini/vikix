@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+# vikix-pkg — single programs, beyond the features (`vikix pkg`).
+#
+#   vikix pkg add [NAME...]  install these; without names (or with words
+#                            that aren't one), search Void's packages and pick
+#   vikix pkg drop [NAME...] uninstall these, or pick from what's installed
+#                            by name. One that Vikix's lists name goes on
+#                            your skip list, so vikix update doesn't bring
+#                            it back
+#   vikix pkg list           the packages you dropped (your skip list)
+#
+# A whole language, an editor or LibreOffice is a feature: vikix add and
+# vikix remove. This is for one program: GIMP, a game, a font.
+#
+# Your skip list is ~/.config/vikix/packages-skip, one package a line;
+# 10-packages leaves those out. Adding a package again takes it off.
+
+set -euo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+export VIKIX_DIR
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+# shellcheck source=../lib/features.sh
+. "$VIKIX_DIR/lib/features.sh"
+
+pick() { fzf --reverse --height=100% --border=rounded --info=hidden --multi --exact "$@"; }
+need_fzf() { command -v fzf >/dev/null 2>&1 || die "this needs fzf (packages/cli.list): vikix update installs it"; }
+
+# name_of PKGVER — ripgrep-15.2.0_1 -> ripgrep
+name_of() { sed -E 's/-[^-]+_[0-9]+$//'; }
+
+# which_list PKG — the package lists (wanted here or not) that name PKG.
+which_list() {
+  local l
+  for l in "$VIKIX_DIR"/packages/*.list "$VIKIX_DIR"/packages/optional/*.list; do
+    [ -f "$l" ] || continue
+    if read_list "$l" | grep -qx -- "$1"; then printf '%s\n' "${l#"$VIKIX_DIR"/packages/}"; fi
+  done | sed 's/\.list$//'
+}
+
+# The feature a list belongs to, or nothing for the base.
+feature_of_list() {
+  features_rows | awk -F'|' -v l="$1" '{ n = split($2, a, " "); for (i = 1; i <= n; i++) if (a[i] == l) { print $1; exit } }'
+}
+
+cmd_preview() {
+  local name=$1 lists
+  xbps-query -R "$name" 2>/dev/null | grep -E '^(short_desc|homepage|installed_size|pkgver):' |
+    sed -E 's/^short_desc: //; s/^homepage: /Home: /; s/^installed_size: /Size: /; s/^pkgver: /Version: /' || true
+  lists=$(which_list "$name" | tr '\n' ' ')
+  if [ -n "$lists" ]; then
+    echo
+    echo "In Vikix's lists: $lists"
+  fi
+  if read_list "$SKIP_FILE" 2>/dev/null | grep -qx -- "$name"; then
+    echo "On your skip list: adding it takes it off."
+  fi
+}
+
+cmd_add() {
+  local picked=() p exact=1
+  for p in "$@"; do xbps-query -R "$p" >/dev/null 2>&1 || exact=0; done
+  if [ $# -gt 0 ] && [ "$exact" = 1 ]; then
+    picked=("$@")                           # package names: install those
+  else
+    need_fzf
+    mapfile -t picked < <(xbps-query -Rs '' 2>/dev/null |
+      awk '{ here = ($1 == "[*]"); name = $2; sub(/-[^-]+_[0-9]+$/, "", name); $1 = ""; $2 = ""; sub(/^ +/, "")
+             printf "%-30s %s%s\n", name, $0, (here ? "   (installed)" : "") }' |
+      pick --query "$*" --prompt 'Install: ' \
+        --header 'Programs in the Void repositories. Tab picks several, Enter installs, Esc leaves.' \
+        --preview "bash '$VIKIX_DIR/bin/vikix-pkg' preview {1}" --preview-window 'right,45%,wrap' |
+      grep -v '(installed)$' | awk '{ print $1 }') || true
+  fi
+  [ "${#picked[@]}" -gt 0 ] || { say "nothing picked"; return 0; }
+  unskip "${picked[@]}"
+  sudo_keepalive
+  say "installing: ${picked[*]}"
+  run sudo xbps-install -Sy "${picked[@]}"
+  say "installed: ${picked[*]}. vikix update keeps them current."
+}
+
+cmd_drop() {
+  local yes=0 args=() picked=() p a
+  for a in "$@"; do case $a in --yes|-y) yes=1 ;; *) args+=("$a") ;; esac; done
+  local exact=1
+  for p in "${args[@]}"; do pkg_installed "$p" || exact=0; done
+  if [ "${#args[@]}" -gt 0 ] && [ "$exact" = 1 ]; then
+    picked=("${args[@]}")                   # installed packages, by name
+  else
+    need_fzf
+    mapfile -t picked < <(xbps-query -m 2>/dev/null | name_of |
+      pick --query "${args[*]}" --prompt 'Uninstall: ' \
+        --header 'Programs installed by name. Tab picks several, Enter uninstalls (it asks first), Esc leaves.' \
+        --preview "bash '$VIKIX_DIR/bin/vikix-pkg' preview {}" --preview-window 'right,45%,wrap') || true
+  fi
+  [ "${#picked[@]}" -gt 0 ] || { say "nothing picked"; return 0; }
+
+  # Which ones Vikix would install again, and whether a feature is the
+  # better way to drop them.
+  local skip=() l f wanted
+  wanted=" $(wanted_lists | tr '\n' ' ') "
+  for p in "${picked[@]}"; do
+    while IFS= read -r l; do
+      case $wanted in *" $l "*) ;; *) continue ;; esac
+      skip+=("$p")
+      f=$(feature_of_list "$l")
+      if [ -n "$f" ]; then
+        say "  $p comes with the feature $f: vikix remove $f takes the whole of it away"
+      else
+        say "  $p is part of Vikix's base ($l.list): Vikix may need it; it goes on your skip list"
+      fi
+      break
+    done < <(which_list "$p")
+  done
+  say "uninstalling: ${picked[*]}, and what only they needed"
+  [ "${#skip[@]}" -eq 0 ] || say "  on your skip list, so vikix update leaves them out: ${skip[*]}"
+  if [ "$yes" != 1 ] && [ "$DRY_RUN" != 1 ]; then
+    [ -t 0 ] || die "not asked: run it in a terminal, or add --yes"
+    local answer
+    read -r -p "Go ahead? [y/N] " answer
+    case $answer in y|Y|yes) ;; *) say "nothing uninstalled"; return 0 ;; esac
+  fi
+  sudo_keepalive
+  run sudo xbps-remove -Ry "${picked[@]}"
+  [ "${#skip[@]}" -eq 0 ] || addskip "${skip[@]}"
+  say "uninstalled: ${picked[*]}. vikix pkg add brings one back."
+}
+
+# --- the skip list --------------------------------------------------------
+addskip() {
+  local p
+  if [ "$DRY_RUN" = 1 ]; then printf '   would add to %s: %s\n' "$SKIP_FILE" "$*"; return 0; fi
+  mkdir -p "$(dirname "$SKIP_FILE")"
+  [ -f "$SKIP_FILE" ] || printf '%s\n' "# Packages Vikix's lists name that you dropped (vikix pkg drop); vikix update" \
+    "# leaves them out. vikix pkg add NAME, or deleting its line, brings one back." > "$SKIP_FILE"
+  for p in "$@"; do read_list "$SKIP_FILE" | grep -qx -- "$p" || printf '%s\n' "$p" >> "$SKIP_FILE"; done
+}
+
+# unskip PKG... — off the skip list, in place (a linked file stays a link).
+unskip() {
+  local p kept
+  [ -f "$SKIP_FILE" ] || return 0
+  for p in "$@"; do
+    read_list "$SKIP_FILE" | grep -qx -- "$p" || continue
+    if [ "$DRY_RUN" = 1 ]; then printf '   would take %s off %s\n' "$p" "$SKIP_FILE"; continue; fi
+    kept=$(awk -v n="$p" '{ line = $0; sub(/#.*/, "", line); gsub(/[ \t]/, "", line) } line != n' "$SKIP_FILE")
+    printf '%s\n' "$kept" > "$SKIP_FILE"
+    say "  $p is off your skip list"
+  done
+}
+
+cmd_list() {
+  if [ -f "$SKIP_FILE" ] && [ -n "$(read_list "$SKIP_FILE")" ]; then
+    echo "Dropped, and left out by vikix update ($SKIP_FILE):"
+    read_list "$SKIP_FILE" | sed 's/^/  /'
+  else
+    echo "Nothing dropped. (vikix pkg drop NAME uninstalls one and keeps it out.)"
+  fi
+}
+
+case ${1:-help} in
+  add)     shift; cmd_add "$@" ;;
+  drop)    shift; cmd_drop "$@" ;;
+  list)    cmd_list ;;
+  preview) shift; cmd_preview "$1" ;;
+  help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) die "unknown: vikix pkg $1 (try: vikix pkg help)" ;;
+esac
