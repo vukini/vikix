@@ -136,6 +136,13 @@ check "removing lisp from essentials should leave its other features: $(grep -v 
   test "$(grep -v '^#' "$choices" | sort | tr '\n' ' ')" = "c emacs python "
 : > "$t/rdeps"
 
+# Features without a package list (llm, local-ai, an agent) staying: remove
+# once failed without a word, on the empty list names they give.
+reset llm local-ai python
+out=$(vx remove python --yes 2>&1) || { echo "FAIL: remove with llm and local-ai staying failed: $out"; fail=1; }
+check "remove with llm and local-ai staying should remove python: $(cat "$t/calls")" grep -q 'xbps-remove -Ry .*uv' "$t/calls"
+check "remove with llm and local-ai staying should keep them" grep -qx llm "$choices"
+
 reset python
 out=$(vx remove python </dev/null 2>&1) && { echo "FAIL: remove without --yes and no terminal went ahead"; fail=1; }
 check "remove without a terminal should ask for --yes: $out" has -- '--yes' "$out"

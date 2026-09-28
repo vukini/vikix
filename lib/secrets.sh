@@ -14,6 +14,9 @@
 # can't make it read a file from somewhere else.
 
 vikix_export_secrets() {
+  # Not in an AI agent's shells: vikix agent starts it without the keys,
+  # and a bash it opens would read them back here.
+  if [ -n "${VIKIX_AGENT:-}" ] && [ "${VIKIX_AGENT_API_KEY:-}" != 1 ]; then return 0; fi
   _vikix_dir="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/secrets"
   if [ ! -d "$_vikix_dir" ] || [ -L "$_vikix_dir" ] || [ ! -O "$_vikix_dir" ]; then
     unset _vikix_dir; return 0

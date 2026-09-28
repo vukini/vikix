@@ -9,7 +9,13 @@
 #   starts; a snapshot comes first; API keys are dropped (Aider keeps the
 #   model companies', VIKIX_AGENT_API_KEY=1 keeps all); --local starts
 #   opencode, codex and aider on an Ollama model, and refuses the others;
-#   --uninstall takes the program, keeps your settings, and the guide link
+#   --uninstall takes the program, keeps your settings, and the guide link,
+#   forgets the feature, leaves a link that isn't Vikix's; installers run
+#   whole (downloaded first), without keys, and not at all in a dry run;
+#   agents get neither the SSH agent nor other secrets, and VIKIX_AGENT
+#   (so their shells don't read the keys back); OpenCode asks before
+#   commands unless your config says; --model needs --local; a small local
+#   model isn't sent the guide; Gemini's GEMINI.md imports the guide
 #
 # curl, npm, uv, node and the agents are stand-ins: nothing is downloaded.
 
@@ -33,7 +39,7 @@ fake_agent() {   # fake_agent PATH
   mkdir -p "$(dirname "$1")"
   cat > "$1" <<EOF
 #!/bin/sh
-{ echo "ran \$0 \$*"; env | grep -E '_API_KEY|_TOKEN|OLLAMA_API_BASE|OPENCODE_CONFIG_CONTENT' | sort; } > "$t/started"
+{ echo "ran \$0 \$*"; env | grep -E '_API_KEY|_TOKEN|_PASSWORD|SSH_AUTH_SOCK|VIKIX_AGENT=|OLLAMA_API_BASE|OPENCODE_CONFIG_CONTENT' | sort; } > "$t/started"
 EOF
   chmod +x "$1"
 }
@@ -42,13 +48,16 @@ EOF
 cat > "$t/bin/curl" <<EOF
 #!/bin/sh
 echo "curl \$*" >> "$calls"
+out=/dev/stdout
+prev=; for a in "\$@"; do [ "\$prev" = -o ] && out=\$a; prev=\$a; done
+{ case "\$*" in *install*) env | grep -q 'API_KEY' && echo 'echo "installer saw a key" >> "$calls"' ;; esac
 case "\$*" in
   *claude.ai/install.sh*)  echo 'echo "install claude \$*" >> "$calls"; mkdir -p "$HOME/.local/bin"; cp "$t/agent" "$HOME/.local/bin/claude"' ;;
   *opencode.ai/install*)   echo 'echo "install opencode \$*" >> "$calls"; mkdir -p "$HOME/.opencode/bin"; cp "$t/agent" "$HOME/.opencode/bin/opencode"' ;;
   *codex/install.sh*)      echo 'echo "install codex CODEX_NON_INTERACTIVE=\$CODEX_NON_INTERACTIVE" >> "$calls"; mkdir -p "$HOME/.codex/packages/standalone"; cp "$t/agent" "$HOME/.codex/packages/standalone/codex"; ln -sfn "$HOME/.codex/packages/standalone/codex" "$HOME/.local/bin/codex"' ;;
   *aider.chat/install.sh*) echo 'echo "install aider UV_NO_MODIFY_PATH=\$UV_NO_MODIFY_PATH" >> "$calls"; cp "$t/agent" "$HOME/.local/bin/aider"' ;;
   *api/tags*) cat "$t/tags" 2>/dev/null ;;
-esac
+esac; } > "\$out"
 EOF
 cat > "$t/bin/npm" <<EOF
 #!/bin/sh
@@ -75,8 +84,14 @@ check "the guide shouldn't keep the skill's header" test -z "$(grep -m1 '^name: 
 check "the guide should have the skill's text" grep -q 'This machine runs \*\*Vikix\*\*' "$guide"
 check "the guide should call itself a guide, not a skill" grep -q 'this guide' "$guide"
 
-# Install each; each the way its project says.
-for a in opencode codex aider; do agent --install "$a" >/dev/null 2>&1 || { echo "FAIL: --install $a"; fail=1; }; done
+# A dry run installs nothing.
+DRY_RUN=1 agent --install opencode >/dev/null 2>&1
+check "a dry run shouldn't run an installer: $(cat "$calls")" test ! -s "$calls"
+
+# Install each; each the way its project says, without your keys.
+for a in opencode codex aider; do ANTHROPIC_API_KEY=sk-ant-x agent --install "$a" >/dev/null 2>&1 || { echo "FAIL: --install $a"; fail=1; }; done
+check "an installer saw an API key" test -z "$(grep 'installer saw a key' "$calls" || true)"
+check "installers should be downloaded to a file, then run: $(grep '^curl' "$calls" | head -1)" grep -q '^curl -fsSL https://opencode.ai/install -o ' "$calls"
 check "opencode's installer should be told not to edit .bashrc: $(grep 'install opencode' "$calls")" grep -q 'install opencode --no-modify-path' "$calls"
 check "opencode should be linked into ~/.local/bin" test -L "$HOME/.local/bin/opencode"
 check "codex's installer should run without questions: $(grep 'install codex' "$calls")" grep -q 'install codex CODEX_NON_INTERACTIVE=1' "$calls"
@@ -92,13 +107,36 @@ out=$(agent --install gemini 2>&1) || true
 check "gemini should install into ~/.local with npm: $(grep '^npm' "$calls")" grep -q "^npm install -g --prefix $HOME/.local @google/gemini-cli" "$calls"
 check "your GEMINI.md should be kept" grep -qx 'my own rules' "$HOME/.gemini/GEMINI.md"
 check "it should say how to add the guide to your GEMINI.md: $out" grep -q "@$guide" <<<"$out"
+rm "$HOME/.gemini/GEMINI.md"; ln -s "$guide" "$HOME/.gemini/GEMINI.md"     # as 0.49.0 made it
+agent --use gemini --version >/dev/null 2>&1 || true
+check "GEMINI.md should become a file importing the guide (not a link Gemini's memory would write into): $(ls -l "$HOME/.gemini/GEMINI.md")" \
+  test ! -L "$HOME/.gemini/GEMINI.md" -a "$(cat "$HOME/.gemini/GEMINI.md" 2>/dev/null)" = "@$guide"
+check "the guide should be intact" grep -q 'This machine runs' "$guide"
+echo "my own rules" > "$HOME/.gemini/GEMINI.md"
 
 # Starting: the default (claude, installed on the spot here), a snapshot first, no keys.
 fake_agent "$HOME/.local/bin/claude"
-ANTHROPIC_API_KEY=sk-ant-x OPENAI_API_KEY=sk-x GITHUB_TOKEN=gh-x agent --print hello >/dev/null 2>&1 || true
+ANTHROPIC_API_KEY=sk-ant-x OPENAI_API_KEY=sk-x GITHUB_TOKEN=gh-x DB_PASSWORD=pw SSH_AUTH_SOCK=/tmp/agent.sock agent --print hello >/dev/null 2>&1 || true
 check "the default should be claude, with its arguments: $(cat "$t/started" 2>/dev/null)" grep -q "^ran $HOME/.local/bin/claude --print hello" "$t/started"
-check "claude shouldn't get API keys: $(cat "$t/started" 2>/dev/null)" test -z "$(grep -E 'API_KEY|TOKEN' "$t/started" || true)"
-check "a snapshot should come first" test -n "$(git --git-dir="$VIKIX_STATE/yours.git" log --oneline -1 --grep='before an agent session (claude)' 2>/dev/null)"
+check "claude shouldn't get API keys or passwords: $(cat "$t/started" 2>/dev/null)" test -z "$(grep -E 'API_KEY|TOKEN|PASSWORD' "$t/started" || true)"
+check "claude shouldn't get the SSH agent (it could push as you)" test -z "$(grep SSH_AUTH_SOCK "$t/started" || true)"
+check "the agent should know it's one (VIKIX_AGENT), so its shells don't read the keys back" grep -qx 'VIKIX_AGENT=claude' "$t/started"
+SSH_AUTH_SOCK=/tmp/agent.sock VIKIX_AGENT_SSH=1 agent >/dev/null 2>&1 || true
+check "VIKIX_AGENT_SSH=1 should keep the SSH agent" grep -q 'SSH_AUTH_SOCK=/tmp/agent.sock' "$t/started"
+# In an agent's shell, secrets.sh exports nothing.
+mkdir -p "$HOME/.config/vikix/secrets"; chmod 700 "$HOME/.config/vikix/secrets"
+echo sk-ant-y > "$HOME/.config/vikix/secrets/ANTHROPIC_API_KEY"; chmod 600 "$HOME/.config/vikix/secrets/ANTHROPIC_API_KEY"
+got=$(VIKIX_AGENT=claude sh -c ". '$here/lib/secrets.sh'; echo \${ANTHROPIC_API_KEY:-none}")
+check "an agent's shell read the keys back: $got" test "$got" = none
+got=$(sh -c ". '$here/lib/secrets.sh'; echo \${ANTHROPIC_API_KEY:-none}")
+check "outside an agent, secrets.sh should still export the keys: $got" test "$got" = sk-ant-y
+rm -rf "$HOME/.config/vikix/secrets"
+check "a snapshot should come first" test -n "$(git --git-dir="$VIKIX_STATE/yours.git" log --oneline -1 --grep='before an agent session' 2>/dev/null)"
+# With no files of yours to record, the snapshot fails: the agent starts all the same.
+rm -f "$t/started"
+( export HOME="$t/empty" VIKIX_STATE="$t/empty-state"; mkdir -p "$HOME/.local/bin"; cp "$t/agent" "$HOME/.local/bin/claude"
+  bash "$here/bin/vikix-agent" >/dev/null 2>&1 || true )
+check "a failed snapshot kept the agent from starting" test -e "$t/started"
 ANTHROPIC_API_KEY=sk-ant-x VIKIX_AGENT_API_KEY=1 agent >/dev/null 2>&1 || true
 check "VIKIX_AGENT_API_KEY=1 should keep the keys: $(cat "$t/started")" grep -q 'ANTHROPIC_API_KEY=sk-ant-x' "$t/started"
 
@@ -125,7 +163,19 @@ check "codex --local --model should use --oss with it: $(head -1 "$t/started")" 
 agent --use opencode --local >/dev/null 2>&1 || true
 check "opencode --local should get an Ollama provider: $(cat "$t/started")" \
   grep -q 'OPENCODE_CONFIG_CONTENT=.*"model": "ollama/qwen2.5-coder:3b".*"baseURL": "http://127.0.0.1:11434/v1"' "$t/started"
+check "opencode should ask before commands and edits: $(cat "$t/started")" grep -q '"permission": {"bash": "ask", "edit": "ask", "webfetch": "ask"}' "$t/started"
+mkdir -p "$HOME/.config/opencode"; echo '{"permission": {"bash": "allow"}}' > "$HOME/.config/opencode/opencode.json"
+agent --use opencode >/dev/null 2>&1 || true
+check "your own opencode permissions should be left alone: $(cat "$t/started")" test -z "$(grep '"ask"' "$t/started" || true)"
+rm -rf "$HOME/.config/opencode"
+# A small local model isn't sent the guide (most of what it would read).
+ANTHROPIC_API_KEY=sk-ant-x agent --use aider --local >/dev/null 2>&1 || true
+check "aider --local on a 3b model shouldn't get the guide: $(head -1 "$t/started")" test -z "$(grep -- '--read' "$t/started" || true)"
 rm -f "$t/started"
+agent --use aider --model llama3.2:3b >/dev/null 2>&1 && { echo "FAIL: --model without --local started"; fail=1; }
+check "--model without --local shouldn't start anything" test ! -e "$t/started"
+out=$(agent --use gemini --local </dev/null 2>&1) || true
+check "gemini --local should be refused first, not offered an install: $out" grep -q 'gemini has no local models' <<<"$out"
 agent --use claude --local >/dev/null 2>&1 && { echo "FAIL: claude --local started"; fail=1; }
 check "claude --local shouldn't start anything" test ! -e "$t/started"
 agent --use aider --local --model mistral:7b >/dev/null 2>&1 && { echo "FAIL: a model you don't have started"; fail=1; }
@@ -138,6 +188,11 @@ check "codex should be gone" test ! -e "$HOME/.local/bin/codex"
 check "codex's settings should stay" test -f "$HOME/.codex/config.toml"
 check "codex's guide link should go" test ! -e "$HOME/.codex/AGENTS.md"
 check "the default should go back to claude: $(agent --list | grep '^\*')" grep -q '^\* claude' <<<"$(agent --list)"
+check "codex should be taken out of your features: $(cat "$HOME/.config/vikix/features")" test -z "$(grep -x codex "$HOME/.config/vikix/features" || true)"
+ln -s /usr/bin/true "$HOME/.local/bin/codex"      # a codex link of your own
+agent --uninstall codex >/dev/null 2>&1
+check "a codex link that isn't Vikix's should stay" test -L "$HOME/.local/bin/codex"
+rm "$HOME/.local/bin/codex"
 agent --uninstall gemini >/dev/null 2>&1
 check "your GEMINI.md should stay after gemini goes" grep -qx 'my own rules' "$HOME/.gemini/GEMINI.md"
 

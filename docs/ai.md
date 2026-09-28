@@ -17,7 +17,7 @@ An agent is an AI that does things, not only talks about them. Claude Code reads
 
 ### Starting it
 
-Press **Super+a**, or type `a` in a terminal. A terminal opens with Claude Code in it.
+Press **Super+a**, or type `a` in a terminal. A terminal opens with your agent in it: Claude Code, unless you chose another ([Another agent](#another-agent), below).
 
 The first time, it offers to install Claude Code (with Anthropic's installer, into `~/.local/bin`), then asks you to log in. Log in with your Claude account: the agent then uses your plan. If you'd rather pay per use with an API key, see [API keys](#api-keys) below.
 
@@ -81,11 +81,20 @@ vikix agent --default claude      # back to Claude Code
 vikix add codex                   # or install one as a feature (vikix remove codex takes it away)
 ```
 
-**Offline**, on a local model: `vikix agent --use opencode --local` (or codex, or aider). It picks the best of your models for code. Be warned: the small models a laptop runs can answer questions about the desktop, but rarely carry out a change on their own. A bigger model (`vikix ai models`) does better, slowly.
+**Which one?** Claude Code is the one Vikix is made with and tested with. OpenCode or Aider if you want to work offline.
 
-**Keys:** an agent doesn't get your API keys: it signs in its own way, so a key isn't billed without you knowing. Aider can't sign in, so it gets the keys of the model companies (Anthropic, OpenAI, Google), and no others.
+**Always through Vikix:** start them with `vikix agent --use NAME` (or Super+a), not by typing `codex` or `opencode`: that skips the snapshot, and the protections below.
 
-**How they know Vikix:** OpenCode reads the same skill as Claude Code. Codex and Gemini read `~/.local/share/vikix/AGENTS.md`, the same text, which Vikix links as `~/.codex/AGENTS.md` and `~/.gemini/GEMINI.md`. If you have one of those files already, it's yours and stays; Vikix says how to add the guide to it.
+**Offline**, on a local model: `vikix agent --use opencode --local` (or codex, or aider; `--model NAME` picks one). It picks the best of your models for code. Be warned: on a laptop's CPU each answer takes minutes (Aider on llama3.2:3b took over four minutes for one sentence), and a small model rarely carries out a change on its own. A bigger model (`vikix ai models`) does more, more slowly still.
+
+**What an agent doesn't get**, so that a trick hidden in a web page or a file it reads can't use it:
+
+- **Your API keys**, and other secrets in the environment (passwords, tokens): each agent signs in its own way, so a key isn't billed without you knowing. Aider can't sign in, so it gets the model companies' keys (Anthropic, OpenAI, Google, OpenRouter, DeepSeek, Mistral, Groq, xAI), and no others. A shell the agent opens doesn't read them back either.
+- **Your SSH agent.** After your first `git push` of the day, it holds your unlocked key: an agent with it could push, as you, to anything you can. If you want the agent to push for you: `VIKIX_AGENT_SSH=1 vikix agent`.
+
+This prevents accidents; it isn't a wall. The agent runs as you, and can read your files. OpenCode is set to ask before it runs a command or edits a file, as Claude Code does, unless your own OpenCode settings say otherwise.
+
+**How they know Vikix:** OpenCode reads the same skill as Claude Code. Codex, Gemini and Aider read `~/.local/share/vikix/AGENTS.md`, the same text: Vikix links it as `~/.codex/AGENTS.md`, writes a one-line `~/.gemini/GEMINI.md` that imports it, and hands it to Aider (not to a small local model, for which it's too long). If you have one of those files already, it's yours and stays; Vikix says how to add the guide to it.
 
 ## API keys
 
@@ -194,6 +203,7 @@ For better answers, above all translations into Esperanto, which small models ge
 
 | What happens | What to do |
 |---|---|
+| Super+a shows a message and "Enter closes this window" | It says what's missing: an agent to install, a key, a local model |
 | Super+a opens a terminal that closes at once | Run `vikix agent` in a terminal to see the message |
 | The agent asks you to log in every time | Run `claude` once in a terminal and finish the login there |
 | The agent says it can't reach the desktop | `vikix doctor`: it checks that `vikix eval` works |

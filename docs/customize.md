@@ -13,7 +13,7 @@ vikix undo                                 # changed your mind: back to the snap
 
 After an undo, `Super+m` → *Reload config* makes StumpWM use the old settings again.
 
-Or ask the AI agent: `Super+a` starts Claude Code, which knows these rules (from `~/.claude/skills/vikix`) and takes a snapshot before it starts. [Working with AI](ai.md) says how.
+Or ask the AI agent: `Super+a` starts Claude Code (or the agent you chose), which knows these rules (from `~/.claude/skills/vikix`) and takes a snapshot before it starts. [Working with AI](ai.md) says how.
 
 ## The desktop: `~/.stumpwm.d/user.lisp`
 

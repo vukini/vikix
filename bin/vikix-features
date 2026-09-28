@@ -79,7 +79,9 @@ cmd_add() {
     case $(feature_field "$f" 2) in *lang-*) langs=1 ;; esac
   done
   say "adding: ${new[*]}"
-  sudo_keepalive
+  # Your password only for packages: an agent, llm or local AI goes in
+  # your home (a setup command asks for it itself, if it needs it).
+  [ "${#lists[@]}" -eq 0 ] && [ "$editors" = 0 ] && [ "$langs" = 0 ] || sudo_keepalive
   # Recorded first: if a stage fails, vikix update finishes the job. Not the
   # ones with their own setup, which may refuse (Windows without KVM): those
   # are recorded once it succeeds.
@@ -155,12 +157,17 @@ cmd_remove() {
   # a staying feature names, and only the ones installed.
   local stay_pkgs pkgs=() p
   stay_pkgs=$({ base_lists; [ "${#stay[@]}" -eq 0 ] || lists_of "${stay[@]}"; } |
-    while IFS= read -r l; do [ -f "$VIKIX_DIR/packages/$l.list" ] && read_list "$VIKIX_DIR/packages/$l.list"; done | sort -u)
+    while IFS= read -r l; do
+      # if, not &&: a feature without a list (an agent, llm) gives an empty
+      # name, and a false test ending the loop failed it, and under
+      # pipefail and set -e, vikix remove, without a word.
+      if [ -f "$VIKIX_DIR/packages/$l.list" ]; then read_list "$VIKIX_DIR/packages/$l.list"; fi
+    done | sort -u)
   while IFS= read -r p; do
     grep -qxF -- "$p" <<<"$stay_pkgs" && continue
     pkg_installed "$p" && pkgs+=("$p")
   done < <(lists_of "${really[@]}" | while IFS= read -r l; do
-             [ -f "$VIKIX_DIR/packages/$l.list" ] && read_list "$VIKIX_DIR/packages/$l.list"; done | awk '!seen[$0]++')
+             if [ -f "$VIKIX_DIR/packages/$l.list" ]; then read_list "$VIKIX_DIR/packages/$l.list"; fi; done | awk '!seen[$0]++')
 
   # One that another installed package still needs stays (clang needs llvm,
   # which only lisp names): xbps would refuse the whole removal for it.
@@ -186,7 +193,14 @@ cmd_remove() {
   else
     say "  no packages to uninstall"
   fi
-  say "  your files stay: ~/dev, ~/.emacs.d, ~/.config/nvim, ~/Windows"
+  local stays=''
+  for f in "${really[@]}"; do
+    case $f in
+      emacs) stays+=" ~/.emacs.d" ;; neovim) stays+=" ~/.config/nvim" ;; windows) stays+=" ~/Windows" ;;
+      *) case $(feature_field "$f" 2) in *lang-*) case $stays in *"~/dev"*) ;; *) stays+=" ~/dev" ;; esac ;; esac ;;
+    esac
+  done
+  [ -z "$stays" ] || say "  your files stay:${stays}"
   if [ "$yes" != 1 ] && [ "$DRY_RUN" != 1 ]; then
     [ -t 0 ] || die "not asked: run it in a terminal, or add --yes"
     local answer
@@ -194,7 +208,7 @@ cmd_remove() {
     case $answer in y|Y|yes) ;; *) say "nothing removed"; return 0 ;; esac
   fi
 
-  sudo_keepalive
+  [ "${#pkgs[@]}" -eq 0 ] || sudo_keepalive
   for f in "${really[@]}"; do
     [ -n "$(feature_field "$f" 5)" ] || continue
     feature_cmd "$f" 5 ||

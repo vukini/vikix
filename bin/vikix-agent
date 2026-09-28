@@ -8,8 +8,9 @@
 #   vikix agent --use NAME [ARGS] another one, this time: claude, opencode,
 #                                 codex, gemini, aider
 #   vikix agent --local [--model M]   on a model on this laptop (Ollama):
-#                                 opencode, codex and aider can; small
-#                                 models do little as agents
+#                                 opencode, codex and aider can. Small models
+#                                 do little as agents, and a laptop CPU takes
+#                                 minutes per answer
 #   vikix agent --default NAME    the one Super+a starts
 #   vikix agent --list            the agents, which are here, and yours
 #   vikix agent --install NAME    install one (its official installer; also
@@ -18,20 +19,28 @@
 # Every agent is told how Vikix works by the same guide: Claude Code and
 # OpenCode read the Vikix skill (~/.claude/skills/vikix); the others read
 # ~/.local/share/vikix/AGENTS.md, made from that skill at each update and
-# each start, and linked where each looks (~/.codex/AGENTS.md,
-# ~/.gemini/GEMINI.md; Aider gets --read), never over a file of yours.
+# each start: linked as ~/.codex/AGENTS.md, imported by a one-line
+# ~/.gemini/GEMINI.md, given to Aider with --read; never over a file of yours.
 #
-# Keys: an agent starts without your API keys (vikix ai key), on its own
-# login, so a key isn't billed by surprise or shown by `env`. Aider has no
-# login, so it keeps the model companies' keys. VIKIX_AGENT_API_KEY=1 keeps
-# them all, for any agent.
+# What an agent doesn't get, so a prompt injection (a web page, a README it
+# reads) can't use it: your API keys and other secrets from the environment
+# (each agent signs in its own way; Aider has no login, so it keeps the
+# model companies' keys; VIKIX_AGENT_API_KEY=1 keeps them all), and your SSH
+# agent, which after your first push would let it push as you
+# (VIKIX_AGENT_SSH=1 keeps it). This prevents accidents; it isn't a sandbox:
+# the agent runs as you and can read your files.
 
 set -euo pipefail
 VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 # shellcheck source=../lib/common.sh
 . "$VIKIX_DIR/lib/common.sh"
+# shellcheck source=../lib/features.sh
+. "$VIKIX_DIR/lib/features.sh"
 
 AGENTS=(claude opencode codex gemini aider)
+LOCAL_OK=" opencode codex aider "
+# Aider's keys: the model companies it can use. Every other secret goes.
+AIDER_KEYS=" ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY OPENROUTER_API_KEY DEEPSEEK_API_KEY MISTRAL_API_KEY GROQ_API_KEY XAI_API_KEY "
 CONF="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/agent"
 GUIDE="${XDG_DATA_HOME:-$HOME/.local/share}/vikix/AGENTS.md"
 SKILL="$VIKIX_DIR/config/claude/skills/vikix/SKILL.md"
@@ -43,6 +52,27 @@ NPM=${VIKIX_NPM:-npm}
 UV=${VIKIX_UV:-uv}
 API=http://127.0.0.1:11434
 PATH="$BIN:$PATH"    # the installers put them here; codex's leaves .bashrc alone when it's on PATH
+
+# Codex's home, from the environment only when it's a folder of yours
+# under $HOME (uninstall deletes a folder in it).
+codex_home() {
+  local h=${CODEX_HOME:-}
+  case $h in "$HOME"/?*) [ -d "$h" ] && [ ! -L "$h" ] && { echo "$h"; return; } ;; esac
+  echo "$HOME/.codex"
+}
+
+# Started by Super+a, the terminal closes when this ends: an error would
+# vanish before it's read. So in a terminal window of its own, wait.
+own_window() {
+  [ -t 0 ] || return 1
+  case $(ps -o comm= -p "$PPID" 2>/dev/null) in alacritty|kitty|xterm|foot|st|urxvt|wezterm-gui) return 0 ;; esac
+  return 1
+}
+pause_on_error() {
+  local rc=$?
+  if [ "$rc" != 0 ] && own_window; then printf '\nEnter closes this window. '; read -r _ || true; fi
+}
+trap pause_on_error EXIT
 
 about() {
   case $1 in
@@ -61,7 +91,10 @@ agent_bin() {
   esac
 }
 is_agent() { printf '%s\n' "${AGENTS[@]}" | grep -qx -- "${1:-}"; }
-need_agent() { is_agent "${1:-}" || die "no agent called '${1:-}': ${AGENTS[*]}"; }
+need_agent() {
+  [ -n "${1:-}" ] || die "which agent? ${AGENTS[*]} (vikix agent --list)"
+  is_agent "$1" || die "no agent called '$1': ${AGENTS[*]}"
+}
 installed() { [ -x "$(agent_bin "$1")" ] || command -v "$1" >/dev/null 2>&1; }
 
 chosen() {
@@ -74,7 +107,7 @@ chosen() {
 # The skill without its header, as AGENTS.md. Rewritten only when it changes.
 write_guide() {
   [ -r "$SKILL" ] || return 0
-  local new
+  local new tmp
   new=$({
     echo "<!-- Made from $SKILL by Vikix (vikix update, vikix agent); edits here are replaced. -->"
     echo
@@ -82,37 +115,50 @@ write_guide() {
       sed 's/this skill/this guide/g'
   })
   if [ "$DRY_RUN" = 1 ]; then printf '   would write %s\n' "$GUIDE"; return 0; fi
-  [ -f "$GUIDE" ] && [ "$(cat "$GUIDE")" = "$new" ] && return 0
+  [ -f "$GUIDE" ] && [ ! -L "$GUIDE" ] && [ "$(cat "$GUIDE")" = "$new" ] && return 0
   mkdir -p "$(dirname "$GUIDE")"
-  printf '%s\n' "$new" > "$GUIDE.new" && mv "$GUIDE.new" "$GUIDE"
+  tmp=$(mktemp "$GUIDE.XXXXXX")
+  printf '%s\n' "$new" > "$tmp" && mv -f "$tmp" "$GUIDE"
 }
 
-# Where an agent looks for instructions of its own; empty when it reads the
-# skill (claude, opencode) or is told on the command line (aider).
-guide_link() {
+# Where each agent looks. Codex: a link to the guide. Gemini: a one-line
+# GEMINI.md that imports it; a link would let Gemini's save_memory write
+# into the guide the others read (and the next start wipe it).
+gemini_md() { echo "${GEMINI_CLI_HOME:-$HOME}/.gemini/GEMINI.md"; }
+gemini_line() { echo "@$GUIDE"; }
+link_guide() {
+  local to
   case $1 in
-    codex)  echo "${CODEX_HOME:-$HOME/.codex}/AGENTS.md" ;;
-    gemini) echo "${GEMINI_CLI_HOME:-$HOME}/.gemini/GEMINI.md" ;;
+    codex)
+      to="$(codex_home)/AGENTS.md"
+      [ -L "$to" ] && [ "$(readlink "$to")" = "$GUIDE" ] && return 0
+      if [ -e "$to" ] || [ -L "$to" ]; then
+        say "your $to is kept; the Vikix guide for agents is $GUIDE (copy what you want from it)"; return 0
+      fi
+      run mkdir -p "$(dirname "$to")"
+      run ln -sT "$GUIDE" "$to" ;;
+    gemini)
+      to=$(gemini_md)
+      # 0.49.0 made it a link: now the import line.
+      if [ -L "$to" ] && [ "$(readlink "$to")" = "$GUIDE" ]; then run rm -f "$to"; fi
+      [ -f "$to" ] && [ "$(cat "$to")" = "$(gemini_line)" ] && return 0
+      if [ -e "$to" ] || [ -L "$to" ]; then
+        grep -qxF -- "$(gemini_line)" "$to" 2>/dev/null ||
+          say "your $to is kept; to give Gemini the Vikix guide too, add this line to it: $(gemini_line)"
+        return 0
+      fi
+      run mkdir -p "$(dirname "$to")"
+      if [ "$DRY_RUN" = 1 ]; then printf '   would write %s\n' "$to"; else gemini_line > "$to"; fi ;;
   esac
 }
-link_guide() {
-  local to; to=$(guide_link "$1")
-  [ -n "$to" ] || return 0
-  if [ -L "$to" ] && [ "$(readlink "$to")" = "$GUIDE" ]; then return 0; fi
-  if [ -e "$to" ] || [ -L "$to" ]; then
-    # Yours: kept. Gemini can import a file; Codex can't.
-    case $1 in
-      gemini) say "your $to is kept; to give Gemini the Vikix guide too, add this line to it: @$GUIDE" ;;
-      *)      say "your $to is kept; the Vikix guide for agents is $GUIDE (copy what you want from it)" ;;
-    esac
-    return 0
-  fi
-  run mkdir -p "$(dirname "$to")"
-  run ln -s "$GUIDE" "$to"
-}
 unlink_guide() {
-  local to; to=$(guide_link "$1")
-  [ -n "$to" ] && [ -L "$to" ] && [ "$(readlink "$to")" = "$GUIDE" ] && run rm -f "$to"
+  local to
+  case $1 in
+    codex)  to="$(codex_home)/AGENTS.md"
+            [ -L "$to" ] && [ "$(readlink "$to")" = "$GUIDE" ] && run rm -f "$to" ;;
+    gemini) to=$(gemini_md)
+            [ -f "$to" ] && [ ! -L "$to" ] && [ "$(cat "$to")" = "$(gemini_line)" ] && run rm -f "$to" ;;
+  esac
   return 0
 }
 
@@ -120,69 +166,98 @@ unlink_guide() {
 
 node_major() { node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0; }
 
+# fetch URL — an installer script, whole, into a temp file: piping curl
+# into a shell would run half a script if the download broke off.
+fetch() {
+  local f; f=$(mktemp)
+  "$CURL" -fsSL "$1" -o "$f" || { rm -f "$f"; die "couldn't download $1"; }
+  [ -s "$f" ] || { rm -f "$f"; die "$1 was empty"; }
+  echo "$f"
+}
+
 install_agent() {
-  local name=$1
+  local name=$1 script=''
   say "installing $name: $(about "$name")"
-  case $name in
-    claude)
-      "$CURL" -fsSL https://claude.ai/install.sh | bash ;;
-    opencode)
-      # --no-modify-path: its installer would add ~/.opencode/bin to your
-      # .bashrc; a link in ~/.local/bin does the same, and is Vikix's.
-      "$CURL" -fsSL https://opencode.ai/install | bash -s -- --no-modify-path
-      if [ -x "$HOME/.opencode/bin/opencode" ] && { [ ! -e "$BIN/opencode" ] || [ -L "$BIN/opencode" ]; }; then
-        run mkdir -p "$BIN"; run ln -sfn "$HOME/.opencode/bin/opencode" "$BIN/opencode"
-      fi ;;
-    codex)
-      # With ~/.local/bin on PATH, its installer leaves your .bashrc alone.
-      "$CURL" -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh ;;
-    gemini)
-      command -v node >/dev/null 2>&1 || die "Gemini CLI runs on Node, which isn't here: vikix add javascript"
-      [ "$(node_major)" -ge 20 ] || die "Gemini CLI needs Node 20 or newer; this is $(node --version)"
-      # --prefix: into ~/.local, as you, not the system's node_modules.
-      "$NPM" install -g --prefix "$HOME/.local" @google/gemini-cli ;;
-    aider)
-      # Aider runs on Python 3.10-3.12, not Void's 3.14: uv brings 3.12
-      # along. The same command its official installer runs.
-      if command -v "$UV" >/dev/null 2>&1; then
-        "$UV" tool install --force --python python3.12 --with pip aider-chat@latest
-      else
-        "$CURL" -LsSf https://aider.chat/install.sh | UV_NO_MODIFY_PATH=1 sh
-      fi ;;
-  esac
+  if [ "$DRY_RUN" = 1 ]; then
+    printf '   would install %s with its official installer\n' "$name"; return 0
+  fi
+  # The installers run without your keys (as the install stages do).
+  (
+    drop_keys
+    case $name in
+      claude)
+        script=$(fetch https://claude.ai/install.sh); bash "$script"; rm -f "$script" ;;
+      opencode)
+        # --no-modify-path: its installer would add ~/.opencode/bin to your
+        # .bashrc; a link in ~/.local/bin does the same, and is Vikix's.
+        script=$(fetch https://opencode.ai/install); bash "$script" --no-modify-path; rm -f "$script"
+        if [ -x "$HOME/.opencode/bin/opencode" ] && { [ ! -e "$BIN/opencode" ] || [ -L "$BIN/opencode" ]; }; then
+          mkdir -p "$BIN"; ln -sfn "$HOME/.opencode/bin/opencode" "$BIN/opencode"
+        fi ;;
+      codex)
+        # With ~/.local/bin on PATH, its installer leaves your .bashrc alone.
+        script=$(fetch https://chatgpt.com/codex/install.sh); CODEX_NON_INTERACTIVE=1 sh "$script"; rm -f "$script" ;;
+      gemini)
+        command -v node >/dev/null 2>&1 || die "Gemini CLI runs on Node, which isn't here: vikix add javascript"
+        [ "$(node_major)" -ge 20 ] || die "Gemini CLI needs Node 20 or newer; this is $(node --version)"
+        # --prefix: into ~/.local, as you, not the system's node_modules.
+        "$NPM" install -g --prefix "$HOME/.local" @google/gemini-cli ;;
+      aider)
+        # Aider runs on Python 3.10-3.12, not Void's 3.14: uv brings 3.12
+        # along. The same command its official installer runs.
+        if command -v "$UV" >/dev/null 2>&1; then
+          "$UV" tool install --force --python python3.12 --with pip aider-chat@latest
+        else
+          script=$(fetch https://aider.chat/install.sh); UV_NO_MODIFY_PATH=1 sh "$script"; rm -f "$script"
+        fi ;;
+    esac
+  )
   installed "$name" || die "$name didn't install (above)"
   write_guide
   link_guide "$name"
   # So vikix features shows it, and vikix remove can take it away.
-  [ "$name" = claude ] || "$VIKIX_DIR/bin/vikix-features" record "$name" >/dev/null 2>&1 || true
-  say "$name is installed: vikix agent --use $name (or --default $name for Super+a)"
+  [ "$name" = claude ] || record_features "$name"
+  say "$name is installed: start it with vikix agent --use $name (not plain $name: that skips the snapshot); vikix agent --default $name makes it Super+a's"
 }
 
 uninstall_agent() {
-  local name=$1
+  local name=$1 link target
+  [ "$name" = claude ] && die "Claude Code has its own uninstall: https://docs.claude.com/en/docs/claude-code"
+  installed "$name" || say "$name isn't installed"
   case $name in
-    claude)   die "Claude Code: see https://docs.claude.com/en/docs/claude-code (its own uninstall)" ;;
-    opencode) [ -L "$BIN/opencode" ] && run rm -f "$BIN/opencode"
-              run rm -rf "$HOME/.opencode"
-              say "its settings and sessions stay: ~/.config/opencode, ~/.local/share/opencode" ;;
-    codex)    [ -L "$BIN/codex" ] && run rm -f "$BIN/codex"
-              run rm -rf "${CODEX_HOME:-$HOME/.codex}/packages/standalone"
-              say "its settings, login and sessions stay: ${CODEX_HOME:-~/.codex}" ;;
-    gemini)   command -v "$NPM" >/dev/null 2>&1 && run "$NPM" uninstall -g --prefix "$HOME/.local" @google/gemini-cli
-              say "its settings and login stay: ~/.gemini" ;;
-    aider)    command -v "$UV" >/dev/null 2>&1 && run "$UV" tool uninstall aider-chat
-              say "its settings and history stay: ~/.aider*, .aider* in your projects" ;;
+    opencode)
+      link="$BIN/opencode"; target="$HOME/.opencode/bin/opencode"
+      [ -L "$link" ] && [ "$(readlink "$link")" = "$target" ] && run rm -f "$link"
+      [ -d "$HOME/.opencode" ] && [ ! -L "$HOME/.opencode" ] && run rm -rf "$HOME/.opencode" && say "removed ~/.opencode (the program, and plugins installed there)"
+      say "its settings and sessions stay: ~/.config/opencode, ~/.local/share/opencode" ;;
+    codex)
+      link="$BIN/codex"
+      case $(readlink "$link" 2>/dev/null) in "$(codex_home)"/packages/standalone/*) run rm -f "$link" ;; esac
+      [ -d "$(codex_home)/packages/standalone" ] && run rm -rf "$(codex_home)/packages/standalone" && say "removed $(codex_home)/packages/standalone"
+      say "its settings, login and sessions stay: $(codex_home)" ;;
+    gemini)
+      command -v "$NPM" >/dev/null 2>&1 && [ -e "$BIN/gemini" ] && run "$NPM" uninstall -g --prefix "$HOME/.local" @google/gemini-cli
+      say "its settings and login stay: ~/.gemini" ;;
+    aider)
+      command -v "$UV" >/dev/null 2>&1 && [ -e "$BIN/aider" ] && run "$UV" tool uninstall aider-chat
+      say "its settings and history stay: ~/.aider*, and .aider* in your projects" ;;
   esac
   unlink_guide "$name"
-  if [ "$(chosen)" = "$name" ]; then set_default claude; fi
+  forget_features "$name"
+  if [ "$(chosen)" = "$name" ]; then
+    set_default claude
+    installed claude || say "Claude Code isn't installed either: Super+a offers to install it"
+  fi
+  installed "$name" && warn "$name is still found: $(command -v "$name")" || say "$name is gone"
 }
 
 set_default() {
-  need_agent "$1"
+  need_agent "${1:-}"
   run mkdir -p "$(dirname "$CONF")"
   if [ "$DRY_RUN" = 1 ]; then printf '   would write %s: agent=%s\n' "$CONF" "$1"; return 0; fi
   printf '# The AI agent Super+a starts: %s\nagent=%s\n' "${AGENTS[*]}" "$1" > "$CONF"
   say "Super+a starts $1 from now on: $(about "$1")"
+  installed "$1" || say "it isn't installed yet: the first Super+a offers to"
 }
 
 list_agents() {
@@ -192,6 +267,7 @@ list_agents() {
       "$(installed "$a" && echo installed || echo -)" "$(about "$a")"
   done
   echo "* starts with Super+a (vikix agent --default NAME changes it)"
+  echo "New to this? Claude Code is the one Vikix is made with; OpenCode or Aider to work offline (--local)."
 }
 
 # --- Local models -------------------------------------------------------------
@@ -211,18 +287,31 @@ local_model() {   # local_model [WANTED] — a model Ollama has, better coders f
   head -1 <<<"$names"
 }
 
+# OpenCode runs commands and edits without asking, unless told: ask first,
+# as Claude Code does, when your own config says nothing about it.
+opencode_asks() {
+  local f
+  for f in "${XDG_CONFIG_HOME:-$HOME/.config}"/opencode/opencode.json{,c}; do
+    [ -f "$f" ] && grep -q '"permission"' "$f" && return 1
+  done
+  return 0
+}
+
 # --- Starting ------------------------------------------------------------------
 
 start() {
   local name=$1 local=$2 model=$3; shift 3
+  if [ "$local" = 1 ]; then
+    case $LOCAL_OK in *" $name "*) ;; *) die "$name has no local models; opencode, codex and aider do (vikix agent --use NAME --local)" ;; esac
+  fi
   if ! installed "$name"; then
     say "$name isn't installed: $(about "$name")"
-    [ -t 0 ] || die "vikix agent --install $name"
+    [ -t 0 ] || die "to install it: vikix agent --install $name"
     local answer
     read -r -p "Install it now, with its official installer? [y/N] " answer
     case $answer in
       y|Y|yes) install_agent "$name" ;;
-      *) say "not installed. Press Enter to close."; read -r _; return 1 ;;
+      *) say "not installed"; own_window && { printf 'Enter closes this window. '; read -r _ || true; }; return 1 ;;
     esac
   fi
   local exe; exe=$(agent_bin "$name"); [ -x "$exe" ] || exe=$name
@@ -230,40 +319,58 @@ start() {
   # What it needs: the guide, and where to look for it.
   write_guide
   link_guide "$name"
-  local args=() setenv=()
-  [ "$name" = aider ] && args+=(--read "$GUIDE")
-
+  local args=() setenv=("VIKIX_AGENT=$name") oc='{}'
   if [ "$local" = 1 ]; then
-    case $name in claude|gemini) die "$name has no local models; opencode, codex and aider do (--use NAME --local)" ;; esac
     model=$(local_model "$model")
-    say "on $model, on this laptop (small models do little as agents: a bigger one, vikix ai models, does more)"
+    say "on $model, on this laptop: expect minutes per answer on a laptop's CPU, and little done on its own by a small model (vikix ai models has bigger ones)"
     case $name in
       codex)  args+=(--oss --local-provider ollama -m "$model") ;;
       aider)  args+=(--model "ollama_chat/$model"); setenv+=("OLLAMA_API_BASE=$API") ;;
       opencode)
-        # Its config is merged with yours; this only adds Ollama.
-        setenv+=("OPENCODE_CONFIG_CONTENT=$(python3 -c '
+        oc=$(python3 -c '
 import json, sys
 m = sys.argv[1]
 print(json.dumps({"model": "ollama/" + m, "provider": {"ollama": {
   "npm": "@ai-sdk/openai-compatible", "name": "Ollama (this laptop)",
-  "options": {"baseURL": sys.argv[2] + "/v1"}, "models": {m: {"name": m}}}}}))' "$model" "$API")") ;;
+  "options": {"baseURL": sys.argv[2] + "/v1"}, "models": {m: {"name": m}}}}}))' "$model" "$API") ;;
     esac
   fi
+  # Aider reads the guide; a local model gets it only when it's big enough
+  # to use it (it's most of what a small model would be sent).
+  if [ "$name" = aider ]; then
+    case $model in ''|*:1[4-9]b|*:[2-9][0-9]b|*:[7-9]b) args+=(--read "$GUIDE") ;; esac
+  fi
+  if [ "$name" = opencode ]; then
+    # Its config is merged with yours; this adds only what isn't there.
+    opencode_asks && oc=$(python3 -c '
+import json, sys
+c = json.loads(sys.argv[1])
+c["permission"] = {"bash": "ask", "edit": "ask", "webfetch": "ask"}
+print(json.dumps(c))' "$oc")
+    [ "$oc" = '{}' ] || setenv+=("OPENCODE_CONFIG_CONTENT=$oc")
+  fi
 
-  # Keys: none, unless asked (see the top); Aider keeps the model companies'.
+  # What it doesn't get (see the top).
   local unset=() v keep=''
-  [ "$name" = aider ] && [ "$local" != 1 ] && keep=' ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY OPENROUTER_API_KEY DEEPSEEK_API_KEY '
+  [ "$name" = aider ] && [ "$local" != 1 ] && keep=$AIDER_KEYS
   if [ "${VIKIX_AGENT_API_KEY:-}" != 1 ]; then
     for v in $(compgen -e); do
-      case $v in *_API_KEY|*_KEY|*_TOKEN|*_SECRET) ;; *) continue ;; esac
+      case $v in
+        *_API_KEY|*_KEY|*_KEY_ID|*_TOKEN|*_SECRET|*_PASSWORD|*_PASSWD|*_CREDENTIALS|DATABASE_URL) ;;
+        *) continue ;;
+      esac
       case $keep in *" $v "*) continue ;; esac
       unset+=(-u "$v")
     done
   fi
+  if [ "${VIKIX_AGENT_SSH:-}" != 1 ]; then unset+=(-u SSH_AUTH_SOCK -u SSH_AGENT_PID); fi
 
-  "$VIKIX_DIR/bin/vikix" snapshot "before an agent session ($name)"
-  say "to see what the agent changed: vikix changes    to take it back: vikix undo"
+  if "$VIKIX_DIR/bin/vikix" snapshot "before an agent session ($name)"; then
+    say "to see what the agent changed: vikix changes    to take it back: vikix undo"
+  else
+    warn "no snapshot of your files this time (above), so vikix undo can't take this session back"
+  fi
+  trap - EXIT
   exec env "${unset[@]}" "${setenv[@]}" "$exe" "${args[@]}" "$@"
 }
 
@@ -284,6 +391,9 @@ main() {
       *)           break ;;
     esac
   done
+  # --model is for --local: without it, the agent would quietly use its
+  # own model, which may be a paid one.
+  [ -z "$model" ] || [ "$local" = 1 ] || die "--model is for --local (a model on this laptop); for the agent's own models, its option after --"
   start "${use:-$(chosen)}" "$local" "$model" "$@"
 }
 
