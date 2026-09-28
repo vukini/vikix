@@ -17,6 +17,11 @@
 #                         5 minutes unused)
 #   vikix ai uninstall [--models]   take Ollama away; --models deletes the
 #                         downloaded models too
+#   vikix ai llm [--default MODEL]   Simon Willison's llm on the command line
+#                         (with its Ollama and Anthropic plugins), so that
+#                         cat notes.md | llm "summarise" works. Its default
+#                         is a local model if you have one, else Claude
+#                         when ANTHROPIC_API_KEY is set (vikix ai key)
 #
 # Its API is on http://127.0.0.1:11434 (only this machine; the Windows VM
 # can't reach it). The bar says "ai" while a model is loaded in memory.
@@ -363,6 +368,57 @@ cmd_uninstall() {
   fi
 }
 
+# --- llm, on the command line ----------------------------------------------------------
+# Pinned, like Ollama: a new version is a new line here. uv installs them
+# as you, in their own environment, with `llm` in ~/.local/bin.
+LLM_PINS=(llm==0.36 llm-ollama==0.17.1 llm-anthropic==0.29)
+CLAUDE_DEFAULT=claude-sonnet-5
+LLM="$HOME/.local/bin/llm"
+UV=${VIKIX_UV:-uv}                  # tests name their stand-in (or a missing one)
+# llm writes default_model.txt in its folder only when someone chooses a
+# default; without it, the default is llm's own (an OpenAI model).
+LLM_DIR=${LLM_USER_PATH:-$HOME/.config/io.datasette.llm}
+
+cmd_llm() {
+  local wanted=''
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --default) wanted=${2:-}; [ -n "$wanted" ] || die "--default needs a model: llama3.2:3b, $CLAUDE_DEFAULT ..."; shift 2 ;;
+      *) die "vikix ai llm [--default MODEL]" ;;
+    esac
+  done
+  command -v "$UV" >/dev/null 2>&1 || die "uv installs llm, and it isn't here: it comes with Python's list (vikix update installs it)"
+  local with=() p
+  for p in "${LLM_PINS[@]:1}"; do with+=(--with "$p"); done
+  say "installing llm ${LLM_PINS[0]#llm==}, with its Ollama and Anthropic plugins (uv, as you)"
+  "$UV" tool install --quiet --force "${LLM_PINS[0]}" "${with[@]}" || die "uv couldn't install llm (above)"
+  [ -x "$LLM" ] || die "llm didn't land in ~/.local/bin"
+  # The default model. Yours, if you chose one; else a local model (free,
+  # offline, nothing leaves the laptop); else Claude, with a key.
+  local choice=''
+  if [ -n "$wanted" ]; then
+    choice=$wanted
+  elif [ -s "$LLM_DIR/default_model.txt" ]; then
+    say "llm's default stays $(cat "$LLM_DIR/default_model.txt") (chosen before; vikix ai llm --default MODEL changes it)"
+  else
+    local local_models=''
+    running && local_models=$(have_names)
+    if grep -qx 'llama3.2:3b' <<<"$local_models"; then choice=llama3.2:3b
+    elif [ -n "$local_models" ]; then choice=$(head -1 <<<"$local_models")
+    elif [ -n "${ANTHROPIC_API_KEY:-}" ]; then choice=$CLAUDE_DEFAULT
+    else
+      warn "no model for llm yet: a local one (vikix ai models), or Claude with a key (vikix ai key set anthropic); then vikix ai llm again"
+    fi
+  fi
+  if [ -n "$choice" ]; then
+    "$LLM" models default "$choice" || die "llm doesn't know the model $choice (llm models lists them)"
+    say "llm's default model: $choice"
+  fi
+  echo "   Try: echo 'Vikix is a desktop for Void Linux.' | llm 'say it shorter'"
+  echo "        git diff | llm 'write the commit message'     llm -m $CLAUDE_DEFAULT '...' (with a key)"
+  echo "   Everything asked is kept, to search later: llm logs -n 3, llm logs -q WORD (llm logs off stops it)"
+}
+
 # For vikix doctor: quiet when local AI isn't set up.
 cmd_check() {
   installed || return 0
@@ -383,6 +439,7 @@ case ${1:-help} in
   chat)   shift; cmd_chat "$@" ;;
   uninstall) shift; cmd_uninstall "${1:-}" ;;
   check)  cmd_check ;;
+  llm)    shift; cmd_llm "$@" ;;
   help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
   *) die "vikix ai: unknown command $1 (vikix ai help)" ;;
 esac

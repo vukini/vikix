@@ -356,6 +356,21 @@ vikix ai uninstall     # take Ollama away (--models deletes the models too)
 - **Only this machine** can use it: it listens on 127.0.0.1, which the Windows VM can't reach.
 - **Just the parts it needs:** Ollama's release is 1.4 GB, mostly NVIDIA's libraries; setup checks the download against its published checksum, keeps the CPU's and Vulkan's (for Intel graphics, later), about 100 MB, and deletes the rest. Its log is `~/.local/state/vikix/ollama.log` (one old one kept, not a growing one); `vikix doctor` checks it's running.
 
+### `llm` on the command line
+
+[llm](https://llm.datasette.io), Simon Willison's command-line tool for language models, with its Ollama and Anthropic plugins: the same command for a local model and for Claude, fed from a pipe.
+
+```sh
+vikix ai llm                                   # once: installs it (uv, as you), pinned
+cat notes.md | llm "summarise"
+git diff | llm "write the commit message"
+llm -m llama3.2:3b "..."                       # a local model, by name
+llm -m claude-sonnet-5 "..."                   # Claude, with your key (vikix ai key set anthropic)
+```
+
+- **Its default model** is a local one when you have one (free, offline, nothing leaves the laptop), else Claude when `ANTHROPIC_API_KEY` is set. A default you chose (`llm models default …`) is never changed; `vikix ai llm --default MODEL` sets one. It reads the keys `vikix ai key` keeps, so there's no second copy.
+- **Everything asked is logged**, in a SQLite database: `llm logs -n 5` shows the last five, `llm logs -q WORD` searches them, `llm logs off` stops the logging. For your own queries, `sqlite3 "$(llm logs path)" "select datetime_utc, model, duration_ms from turns order by datetime_utc desc limit 5"`. The log is in `~/.config/io.datasette.llm/`, and backups keep it.
+
 ## Undo for your files
 
 Vikix keeps a history of your files (the ones in `config/yours.list`: `~/.stumpwm.d/`, the configs under `~/.config`, `~/.bashrc`, `~/.bash_profile`). It is a git repository in `~/.local/state/vikix/yours.git`, so no `.git` folder appears in your home.
@@ -661,6 +676,7 @@ vikix windows      # Windows in a VM: setup, create ISO, then open, stop, status
 vikix ai key set anthropic   # an API key, kept out of your dotfiles and their history
 vikix webapp add superhuman  # a website as a program: presets superhuman, fastmail, gmail, outlook
 vikix ai setup               # local AI models (Ollama); then vikix ai models to choose one
+vikix ai llm                 # the llm command: cat notes.md | llm "summarise"
 vikix fingerprint  # a finger for sudo and the lock screen, where the reader is supported
 ```
 
@@ -695,6 +711,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `examples` | every example in `dev/*/examples/` builds and runs with its Makefile, where its compiler is installed, and every `wordfreq` prints the same `expected.txt` |
 | `bar` | `vikix-net` labels the link and shows the Wi-Fi signal only when it is weak; `vikix-bt` shows Bluetooth only when it is on, with the device and its battery, and never waits on a hung bluetoothd; `vikix-font` gives StumpWM Iosevka Regular, or a stand-in until Iosevka is installed |
 | `windows` | `vikix windows setup` refuses without KVM or space before changing anything, opts in once, and deletes a download with the wrong checksum; `10-packages` installs an optional list only once chosen; `create`'s answer file is valid XML in the ISO's language, and the password stays off the command line and out of reach of other users; `virt-install` gets the TPM, Secure Boot, the private bridge (never passt), virtiofs and TRIM; `vikix windows network` sets up the system libvirt, its network and bridge.conf, moves a passt VM onto `virbr0`, says plainly when libvirt won't start, asks for no password when all is ready, and tells a Windows still running on the old network to restart; the migration runs it only where Windows was chosen, and never fails the update; `vikix doctor` checks the VM's network; the discs come out and the answer disc goes only once Windows is ready; power off shuts a running Windows down and leaves libvirt alone otherwise |
+| `llm` | `vikix ai llm` installs llm and its Ollama and Anthropic plugins with uv, pinned; its default becomes a local model (llama3.2:3b first) when there is one, else Claude with a key, else it says what to do; a default you chose stays (llm's `default_model.txt`); `--default` sets one; without uv, a plain message |
 | `ai-local` | `vikix ai setup` refuses a download with the wrong checksum, installs only the CPU's and Vulkan's parts (no NVIDIA libraries), puts `ollama` on PATH, deletes the download, keeps models out of backups, and a second run downloads nothing; the picker offers 7–8B models only where they fit (16 GB, not 8 GB), marks what you have, and a choice (by number, with a ✓, or in rofi) downloads the right model; `status` says the loaded model's memory and when it unloads; `stop` unloads through the API and says so (a notification from `s-m`); `chat` runs the model; `remove` says plainly what's missing; the bar's note comes and goes with the model; a big log is moved aside; `uninstall` stops only its own processes (a decoy `ollama` survives) and keeps the models unless `--models` (needs Python 3.14's zstd) |
 | `webapp` | `vikix webapp add` gives a preset its address and the first mail one `s-M`, keeps an app's key when it's added again, makes a launcher entry with its window class, opts in to Chromium, suggests `https://` for a bare address, and refuses a bad name, an address that isn't https (but localhost), Vikix's own keys (the workspace keys too) and another web app's (saying how to free it); `key` moves or drops a key; `open` starts a Chromium app window with its own class and profile (700); `list` says keys as spoken, points out lines it can't use and logins left behind; `remove` keeps your comments and the logins unless `--forget`; `webapps.lisp` binds the keys, names each as its launcher entry does, adds key help and `s-m` entries (before Power), skips a bad line and loads the rest, and a reload drops what went; the migration adds the web apps' caches to an existing backup-exclude once |
 | `info` | The guides in `docs/` make an Info manual with no makeinfo warnings and a node for every heading; a broken link or a page missing from the table stops the build; `40-config` installs it once and lists it in the info `dir`; Emacs opens it and follows a link (needs makeinfo) |

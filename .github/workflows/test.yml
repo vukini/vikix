@@ -82,6 +82,8 @@ jobs:
         run: tests/ci.sh ai
       - name: ai-local
         run: tests/ci.sh ai-local
+      - name: llm
+        run: tests/ci.sh llm
       - name: swank
         run: tests/ci.sh swank
       - name: webapp

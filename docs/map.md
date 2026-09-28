@@ -76,6 +76,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │
 ├── dev/                       yours, with parts written for you (see below)
 ├── .ollama/models/            local AI models (vikix ai models): big, not backed up
+├── .config/io.datasette.llm/  llm's settings and its log of everything asked (vikix ai llm)
 ├── Pictures/Screenshots/      Shift+Print and friends
 ├── Videos/Recordings/         Super+Shift+r
 ├── Windows/                   yours     drive Z: in the Windows VM (vikix windows)

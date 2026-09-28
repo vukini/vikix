@@ -4,6 +4,8 @@
 #   vikix ai setup | models | chat | list | remove | status | stop | uninstall
 #                             models that run on this machine, with Ollama
 #                             (vikix ai help-local tells more)
+#   vikix ai llm [--default MODEL]   the llm command, with your local models
+#                             and your keys: cat notes.md | llm "summarise"
 #
 #   vikix ai key set NAME     ask for a key (it isn't shown as you paste it)
 #                             and keep it. NAME is a service (anthropic,
@@ -302,7 +304,7 @@ case ${1:-help} in
       check)  cmd_check ;;
       *) die "vikix ai key: set NAME, list, remove NAME or check (vikix ai help)" ;;
     esac ;;
-  setup|serve|models|pull|chat|list|remove|rm|status|stop|uninstall)
+  setup|serve|models|pull|chat|list|remove|rm|status|stop|uninstall|llm)
     exec "$VIKIX_DIR/bin/vikix-local-ai" "$@" ;;
   help-local) exec "$VIKIX_DIR/bin/vikix-local-ai" help ;;
   help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
