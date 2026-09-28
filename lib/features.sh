@@ -72,8 +72,13 @@ expand_features() {
 # chosen_names — the names in your choices file, as written (bundles too).
 # No file yet: everything, as before 0.46, and the optional features named
 # in the old ~/.config/vikix/optional.
+#
+# A dry run writes nothing, so what it would have written is kept in
+# VIKIX_DRY_CHOICES (exported, so the stages it starts see it too).
 chosen_names() {
-  if [ -f "$FEATURES_FILE" ]; then
+  if [ "${DRY_RUN:-0}" = 1 ] && [ -n "${VIKIX_DRY_CHOICES+set}" ]; then
+    printf '%s\n' $VIKIX_DRY_CHOICES
+  elif [ -f "$FEATURES_FILE" ]; then
     read_list "$FEATURES_FILE"
   else
     echo everything
@@ -137,6 +142,10 @@ record_features() {
         printf '%s\n' "$seed"
       } > "$FEATURES_FILE"
     fi
+  fi
+  if [ "$DRY_RUN" = 1 ]; then
+    VIKIX_DRY_CHOICES="$(chosen_names | tr '\n' ' ')$*"
+    export VIKIX_DRY_CHOICES
   fi
   for name in "$@"; do
     [ "$DRY_RUN" = 1 ] && { printf '   would add %s to %s\n' "$name" "$FEATURES_FILE"; continue; }

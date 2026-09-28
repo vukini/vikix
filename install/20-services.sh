@@ -24,7 +24,7 @@ set -euo pipefail
 reloaded=
 while IFS= read -r sv; do
   if [ ! -d "$VIKIX_SV_DIR/$sv" ]; then
-    say "service $sv: its package isn't installed yet; skipped (part two or vikix update switches it on)"
+    say "service $sv: its package isn't installed; skipped (vikix add or vikix update switches it on once it is)"
     continue
   fi
   if [ ! -e "$VIKIX_SERVICE_DIR/$sv" ] && [ -z "$reloaded" ] && [ -S "$VIKIX_DBUS_SOCKET" ]; then
@@ -37,7 +37,7 @@ while IFS= read -r sv; do
 done < <(read_list "$VIKIX_DIR/services.list")
 
 ensure_group video "for screen brightness"
-# cups makes the lpadmin group; before part two installs it, there is none.
+# cups makes the lpadmin group; without the feature printing, there is none.
 if getent group lpadmin >/dev/null; then
   ensure_group lpadmin "to add and manage printers"
   # CUPS already lets lpadmin manage printers; this lets the Printers app

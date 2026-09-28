@@ -26,8 +26,8 @@ body:
     attributes:
       label: Where did it happen?
       options:
-        - Install, part one
-        - Install, part two
+        - Install (install.sh)
+        - Adding or removing a feature (vikix add, vikix remove)
         - vikix update
         - On the desktop (StumpWM, keys, bar, themes)
         - Something else

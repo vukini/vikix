@@ -7,9 +7,8 @@
 # packages/optional/*.list are only ever there through a feature (windows,
 # webapps).
 #
-# VIKIX_LISTS names the lists to install instead (install.sh's part one sets
-# it to the core ones: base desktop network lisp cli; vikix add to the new
-# feature's lists). A name is a list in packages/ or packages/optional/.
+# VIKIX_LISTS names the lists to install instead (vikix add sets it to the
+# new feature's lists). A name is a list in packages/ or packages/optional/.
 #
 # Only packages that are not installed yet are passed to xbps-install,
 # so the output shows exactly what is new. Add a package by adding a line

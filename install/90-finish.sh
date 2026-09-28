@@ -25,24 +25,17 @@ else
   done
 fi
 
-if [ "${VIKIX_PHASE:-2}" = 1 ]; then
-  cat <<EOF
+# What to say depends on what came with the base.
+added=${VIKIX_ADDED:-}
+if [ -n "$added" ]; then
+  more="  Added: $added. vikix features shows the rest."
+else
+  more="  The base is in. Next, add what you want, from a terminal:
 
-  Part one is done: the desktop is installed.
-
-  Next:
-    1. Reboot:  sudo reboot
-    2. Log in on tty1. The desktop starts by itself.
-    3. Super+Return opens a terminal. In it, run part two:
-
-         $VIKIX_DIR/install-2.sh
-
-       Editors, languages, apps, sound, laptop hardware. It is the long
-       part: it asks for your password once, then runs by itself, and a
-       notification says when it has finished.
-
-EOF
-  exit 0
+         vikix features          what there is
+         vikix add essentials    Emacs, and C, Python and Lisp
+         vikix add everything    every editor and language, LibreOffice,
+                                 printing (a few GB)"
 fi
 
 cat <<EOF
@@ -50,17 +43,16 @@ cat <<EOF
   Vikix is installed.
 
   Next:
-    1. Log out, then log back in on tty1 (Ctrl+Alt+F1).
-       The desktop starts by itself.
-    2. Super+Return opens a terminal. Super+F1 lists the Vikix keys.
-    3. Your own StumpWM changes go in ~/.stumpwm.d/user.lisp.
-    4. From Emacs: M-x slime-connect RET 127.0.0.1 RET 4004
-       reaches the running window manager.
-    5. Super+a opens Claude Code (it offers to install it the first
-       time). Whatever it changes: vikix changes, then vikix undo.
-    6. When you have an hour and a good connection: vikix docs
-       downloads the offline programming docs into ~/dev (a few GB).
+    1. Reboot:  sudo reboot   (or, if Vikix was already running here,
+       log out and back in on tty1)
+    2. Log in on tty1. The desktop starts by itself.
+    3. Super+Return opens a terminal. Super+F1 lists the Vikix keys,
+       and Super+m is the menu for everything else.
+    4. Super+a opens Claude Code, the AI agent (it offers to install it
+       the first time). Whatever it changes: vikix changes, then vikix undo.
 
-  Later: 'vikix update' pulls changes and applies new migrations.
+$more
+
+  Later: 'vikix update' keeps all of it current.
 
 EOF

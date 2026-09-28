@@ -12,61 +12,60 @@ Installed it already? [docs/](docs/README.md) is the map: where everything is, h
 
 ## Install
 
-On a glibc Void install, logged in as your normal user. The install comes in two parts, so the long part never stands between you and a working desktop.
-
-**Part one: the desktop.** The base system, the network, StumpWM and its config, and the login.
+On a glibc Void install, logged in as your normal user:
 
 ```sh
 git clone https://github.com/vukini/vikix.git ~/vikix
 cd ~/vikix
-./install-1.sh --dry-run    # read what it would do
-./install-1.sh              # do it
+./install.sh --dry-run      # read what it would do
+./install.sh                # do it
 sudo reboot
 ```
 
-Log in on tty1 and the desktop starts.
-
-**Part two: everything else.** Editors, languages, apps, sound, laptop hardware. This is the long part. Run it from a terminal on the new desktop (Super+Return):
+Log in on tty1 and the desktop starts. That's **the base**: StumpWM, the bar, a terminal, Firefox and a file manager, sound, Wi-Fi and Bluetooth, the laptop's hardware, screenshots, themes, backups, and the AI agent on Super+a. Everything else is a **feature** you add when you want it, from a terminal on the new desktop:
 
 ```sh
-~/vikix/install-2.sh
+vikix features              # what there is
+vikix add essentials        # Emacs, and C, Python and Lisp
+vikix add rust windows      # any features, by name
+vikix add everything        # every editor and language, LibreOffice, printing (a few GB)
 ```
 
-Each part asks for your password **once**, at the start, and then runs by itself, so you can walk away. Part two says when it has finished with a notification. Everything each part prints is also kept in `~/.local/state/vikix/logs/`, and so is each `vikix update`.
+To have them in the same run, for a machine you just want to leave to it: `./install.sh --with essentials,windows`. See [What gets installed](#what-gets-installed) for the features and bundles.
 
-`./install.sh` runs both parts one after the other, for a machine you just want to leave to it.
+The install asks for your password **once**, at the start, and then runs by itself, so you can walk away. Everything it prints is also kept in `~/.local/state/vikix/logs/`, and so is each `vikix update`. (Before 0.47 the install came in two parts: `install-1.sh` is now the same as `install.sh`, and `install-2.sh` runs `vikix add everything`.)
 
-**Mirrors.** The install downloads 1–2 GB, and Void's default mirror is slow in much of the world. Part one first times the mirrors in `mirrors.list` and uses the fastest. To pick one yourself instead, name it:
+**Mirrors.** The install downloads a gigabyte or two, and Void's default mirror is slow in much of the world. So it first times the mirrors in `mirrors.list` and uses the fastest. To pick one yourself instead, name it:
 
 ```sh
-VIKIX_MIRROR=https://mirror.accum.se/mirror/voidlinux ./install-1.sh
+VIKIX_MIRROR=https://mirror.accum.se/mirror/voidlinux ./install.sh
 ```
 
-**If a stage fails.** Part one stops at the first stage that fails, because each of its stages needs the one before. Part two carries on with the rest and lists at the end what failed. Either way, the error names the stage. Fix the problem, then run just that stage:
+**If a stage fails.** The stages up to the login stop at the first one that fails, because each needs the one before. Sound, laptop hardware, a VM's guest tools and the features carry on, and the end lists what failed. Either way, the error names the stage. Fix the problem, then run just that stage:
 
 ```sh
 ./install.sh --only 30-lisp
 ```
 
-Every stage checks before it changes anything, so re-running either part is safe. `./install.sh --list` shows which stage is in which part.
+Every stage checks before it changes anything, so re-running the install is safe. `./install.sh --list` shows the stages. The editors', languages' and `~/dev` stages (45, 65, 67) run when a feature needs them, from `vikix add`.
 
-| Stage | Part | What it does |
-|---|---|---|
-| `00-preflight` | 1 | Checks this is glibc Void, and that you are not root. Notes any existing StumpWM config. |
-| `05-mirror` | 1 | Downloads from each mirror in `mirrors.list` for six seconds and points xbps at the fastest (about a minute). Skipped if you set `VIKIX_MIRROR`, or already chose a mirror in `/etc/xbps.d/`. |
-| `10-packages` | 1, 2 | Updates xbps itself, then installs what `packages/*.list` names, skipping anything already installed. Part one installs the core lists (base, desktop, network, lisp, cli); part two the rest. |
-| `20-services` | 1, 2 | Enables the runit services in `services.list`, and adds you to the `video` group, and to `lpadmin` once CUPS is installed (with a polkit rule, so the Printers app needs no password). Before switching on a new service it has D-Bus reread its config, since Void's D-Bus only reads a new package's policy at boot, and a service started before that can't use it. `vikix update` runs it again, so a service that comes with a new package is switched on. |
-| `25-network` | 1 | Starts NetworkManager, waits until it's running, then switches off dhcpcd and wpa_supplicant. Adds you to the `network` group. |
-| `30-lisp` | 1 | Installs Quicklisp (and adds it to `~/.sbclrc`), clones clx-truetype (TrueType fonts for the bar, not in Quicklisp), builds `~/.local/bin/stumpwm` with Swank and clx-truetype inside, and clones `stumpwm-contrib`. |
-| `40-config` | 1 | Links Vikix's config files into place and copies starter files you then own (including the keyboard file and the night light times). Makes the guides in `docs/` an Info manual, `~/.local/share/info/vikix.info`. |
-| `45-editors` | 2 | Clones the Emacs config (`vukini/emacs-void`) to `~/.emacs.d` and the Neovim config (`vukini/nvim-void-linux`) to `~/.config/nvim`, installs the npm language servers into `~/.local`, and installs Neovim's plugins. Other repos: set `VIKIX_EMACS_REPO` / `VIKIX_NVIM_REPO`. |
-| `55-hardware` | 2 | Touchpad settings (tap to click, natural scrolling), the Intel microcode rebuilt into the initramfs, and the standard `~/Documents` … folders. |
-| `50-audio` | 2 | Sets up PipeWire, WirePlumber and the ALSA links, as the Void handbook describes. |
-| `60-login` | 1 | Adds `~/.local/bin` to PATH, loads the aliases in every shell, and makes X start after login on tty1. |
-| `65-languages` | 2 | Builds the languages Void doesn't package (PicoLisp), builds Lazarus's docked IDE into `~/.lazarus`, and fetches the current Julia with juliaup. The packaged ones are lines in `packages/lang-*.list`. |
-| `67-dev` | 2 | Makes `~/dev`: a folder per installed language, the docs page, and the Python environment JupyterLab runs on. It downloads the offline docs and Zeal docsets only when run by `vikix docs`; otherwise it lists what is missing. `vikix update` runs it again. |
-| `70-vm` | 1 | Inside a VM only (VirtualBox, or KVM/QEMU such as virt-manager): installs the guest tools (shared clipboard, screen resizing). Does nothing on real hardware. |
-| `90-finish` | 1, 2 | Marks existing migrations as applied, and prints what to do next. |
+| Stage | What it does |
+|---|---|
+| `00-preflight` | Checks this is glibc Void, and that you are not root. Notes any existing StumpWM config. |
+| `05-mirror` | Downloads from each mirror in `mirrors.list` for six seconds and points xbps at the fastest (about a minute). Skipped if you set `VIKIX_MIRROR`, or already chose a mirror in `/etc/xbps.d/`. |
+| `10-packages` | Updates xbps itself, then installs the base lists and those of the features you chose (see [What gets installed](#what-gets-installed)), skipping anything already installed. |
+| `20-services` | Enables the runit services in `services.list`, and adds you to the `video` group, and to `lpadmin` once CUPS is installed (with a polkit rule, so the Printers app needs no password). Before switching on a new service it has D-Bus reread its config, since Void's D-Bus only reads a new package's policy at boot, and a service started before that can't use it. `vikix update` runs it again, so a service that comes with a new package is switched on. |
+| `25-network` | Starts NetworkManager, waits until it's running, then switches off dhcpcd and wpa_supplicant. Adds you to the `network` group. |
+| `30-lisp` | Installs Quicklisp (and adds it to `~/.sbclrc`), clones clx-truetype (TrueType fonts for the bar, not in Quicklisp), builds `~/.local/bin/stumpwm` with Swank and clx-truetype inside, and clones `stumpwm-contrib`. |
+| `40-config` | Links Vikix's config files into place and copies starter files you then own (including the keyboard file and the night light times). Makes the guides in `docs/` an Info manual, `~/.local/share/info/vikix.info`. |
+| `45-editors` | With the features `emacs` and `neovim` only. Clones the Emacs config (`vukini/emacs-void`) to `~/.emacs.d` and the Neovim config (`vukini/nvim-void-linux`) to `~/.config/nvim`, installs the npm language servers into `~/.local`, and installs Neovim's plugins. Other repos: set `VIKIX_EMACS_REPO` / `VIKIX_NVIM_REPO`. |
+| `55-hardware` | Touchpad settings (tap to click, natural scrolling), the Intel microcode rebuilt into the initramfs, and the standard `~/Documents` … folders. |
+| `50-audio` | Sets up PipeWire, WirePlumber and the ALSA links, as the Void handbook describes. |
+| `60-login` | Adds `~/.local/bin` to PATH, loads the aliases in every shell, and makes X start after login on tty1. |
+| `65-languages` | For the language features you chose. Builds the languages Void doesn't package (PicoLisp), builds Lazarus's docked IDE into `~/.lazarus`, and fetches the current Julia with juliaup. The packaged ones are lines in `packages/lang-*.list`. |
+| `67-dev` | Makes `~/dev`: a folder per installed language, the docs page, and the Python environment JupyterLab runs on. It downloads the offline docs and Zeal docsets only when run by `vikix docs`; otherwise it lists what is missing. `vikix update` runs it again. |
+| `70-vm` | Inside a VM only (VirtualBox, or KVM/QEMU such as virt-manager): installs the guest tools (shared clipboard, screen resizing). Does nothing on real hardware. |
+| `90-finish` | Marks existing migrations as applied, and prints what to do next. |
 
 ## Trying it in VirtualBox (from Windows)
 
@@ -113,17 +112,13 @@ The `ssh` session is a terminal into the VM in which paste works. In it:
 ```sh
 unzip ~/vikix-0.9.0.zip -d ~
 cd ~/vikix
-./install-1.sh
+./install.sh               # the base; add --with essentials (or everything) for more
 sudo reboot
 ```
 
-Then log in on **tty1 in the VirtualBox window itself**. The desktop starts there; the SSH session has no screen. Open a terminal (Super+Return) and run part two:
+Then log in on **tty1 in the VirtualBox window itself**. The desktop starts there; the SSH session has no screen. Open a terminal (Super+Return) to add features: `vikix add essentials`.
 
-```sh
-~/vikix/install-2.sh
-```
-
-**Snapshot after part one.** Power off and take a snapshot then, so a later round can start from a working desktop.
+**Snapshot after the install.** Power off and take a snapshot then, so a later round can start from a working desktop.
 
 ### Upgrading a VM that already has Vikix
 
@@ -163,11 +158,11 @@ sudo xbps-install -Syu xbps
 sudo xbps-install -S git
 git clone https://github.com/vukini/vikix.git ~/vikix
 cd ~/vikix
-./install-1.sh
+./install.sh               # the base; add --with essentials (or everything) for more
 sudo reboot
 ```
 
-Log in on tty1, then run part two from a terminal (Super+Return): `~/vikix/install-2.sh`.
+Log in on tty1, then add features from a terminal (Super+Return): `vikix add essentials`.
 
 **Later versions** arrive with `vikix update`, which pulls from GitHub and then reloads StumpWM, so new keys, bar and menu work at once. The only password it asks for is your own, for sudo: it reads GitHub over HTTPS, which needs no login, even when a checkout's remote is SSH (`git@github.com:`, as in a clone you push from), so no key passphrase is asked either. The remote itself is left as it is. Changes made in the checkout itself (an edit, by hand or by another program) would stop the pull, so they're set aside first, not deleted: in a patch file to read (`~/.local/state/vikix/checkout-changes/`) and a named `git stash`. The update says so at the start and again at the end. Editors' leftovers are ignored; a commit made in the checkout stops the update, with the commands to keep it and go on.
 
@@ -446,7 +441,7 @@ vikix remove julia         # stop keeping it, and uninstall what only it needed
 |---|---|
 | `base` | dbus, elogind, polkit and its password box, openssh, chrony (clock), git, curl, rsync, zip, 7zip, man pages, xdg-utils, texinfo (`info`, and makeinfo for the Vikix manual), python3 (for `vikix eval`) |
 | `desktop` | X11, picom, dunst, rofi (with its emoji picker and calculator), alacritty, fonts (Noto, colour emoji, Nerd Font symbols), i3lock, gammastep (night light), screenshots and screen recording (maim, slop, ffmpeg), the text in a screenshot (tesseract-ocr, with English) and a colour picker (xcolor), clipmenu (clipboard history) |
-| `fonts` | Iosevka, the terminal font. Every variant comes in one 862 MB package, so it waits for part two; until then the terminal uses a plain monospace font, and the bar Noto Sans Mono. Also fonttools, which `vikix-font` uses to take the one Iosevka the bar needs out of that package. |
+| `fonts` | Iosevka, the terminal font. Every variant comes in one 862 MB package, the biggest single download of the install. Also fonttools, which `vikix-font` uses to take the one Iosevka the bar needs out of that package. |
 | `network` | NetworkManager (`nmtui` for Wi-Fi), with its connection editor |
 | `audio` | PipeWire, WirePlumber (with Bluetooth audio), pamixer, pavucontrol |
 | `laptop` | tlp, fwupd (firmware updates), fprintd (fingerprint readers), acpid, brightnessctl, xprintidle (suspend when idle on battery), Bluetooth (bluez, blueman), autorandr, and the firmware a recent ThinkPad needs: sof-firmware (sound), intel-ucode (from the nonfree repo, enabled by `repos.list`), intel-video-accel |
@@ -517,7 +512,7 @@ A USB drive mounts by itself when it's plugged in, under `/run/media/$USER/NAME`
 
 ## Printing
 
-Part two installs CUPS and switches it on, with avahi to find printers on the network.
+Printing is a feature: `vikix add printing` installs CUPS and switches it on, with avahi to find printers on the network (`everything` includes it).
 
 - **Add a printer:** `s-m` → *Printers*. A printer on your network shows up by itself, and so does a USB printer that works with AirPrint (through ipp-usb). When it offers a driver, pick the driverless one ("IPP Everywhere"). From your next login you are in the `lpadmin` group, so neither it nor `lpadmin` asks for a password (a polkit rule, `/etc/polkit-1/rules.d/50-vikix-printers.rules`, lets that group manage printers at the machine itself).
 - **Print** from any program's Print dialog, or from a terminal: `lp file.pdf`. `lpstat -p` lists the printers, `cancel` stops a job.
@@ -762,7 +757,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 
 | Path | Contents |
 |---|---|
-| `install.sh` | Runs the stages in order; `install-1.sh` and `install-2.sh` run one part each |
+| `install.sh` | Runs the stages in order: the base, then `--with` features. `install-1.sh` and `install-2.sh` are from before 0.47 |
 | `install/` | The stages |
 | `lib/` | Shared shell helpers, and the StumpWM build script |
 | `packages/` | Package lists, one per concern |

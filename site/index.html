@@ -206,7 +206,7 @@
           <ul>
             <li>want an AI that does things on your computer, not only talks about them</li>
             <li>spend your day in a browser, an editor and a terminal</li>
-            <li>want to learn how a computer works, or learn to program: twenty languages come ready</li>
+            <li>want to learn how a computer works, or learn to program: twenty languages are a command away</li>
             <li>have a spare laptop, or are happy to try it in a virtual machine first</li>
             <li>like a fast machine that does only what you asked</li>
           </ul>
@@ -310,7 +310,7 @@
         <div class="card full">
           <p class="eyebrow">Made for playing with languages</p>
           <h3>Twenty languages, their docs offline, and a folder each in <code style="font-size:.95em">~/dev</code>.</h3>
-          <p>Each language is a small list file: delete it to drop the language. <code>vikix docs</code> downloads the documentation for each one, and Zeal searches it all with no network. Every one also comes with a guide to its tools and free books, and small examples to build and change, <code>make run</code> in each.</p>
+          <p>Add the ones you want, <code>vikix add rust</code>, or all of them, <code>vikix add developer</code>; <code>vikix remove</code> drops one again. <code>vikix docs</code> downloads the documentation for each one, and Zeal searches it all with no network. Every one also comes with a guide to its tools and free books, and small examples to build and change, <code>make run</code> in each.</p>
           <div class="langs">
             <span>C<em>tcc -run</em></span><span>Python<em>JupyterLab</em></span><span>Common Lisp<em>sbcl, ccl</em></span>
             <span>Scheme<em>chez, guile</em></span><span>Racket</span><span>PicoLisp</span><span>Haskell<em>ghci</em></span>
@@ -359,22 +359,23 @@
       <div class="install">
         <ol class="steps">
           <li><div><h3>Install glibc Void</h3><p>A plain base install from the <a href="https://voidlinux.org/download/">Void download page</a>, with a normal user who can use sudo. The <a href="https://docs.voidlinux.org">Void handbook</a> walks you through it.</p></div></li>
-          <li><div><h3>Run part one, and reboot</h3><p>Read what it would do with <code>--dry-run</code> first, if you like. It downloads 1–2 GB from the fastest mirror it finds.</p></div></li>
+          <li><div><h3>Run the install, and reboot</h3><p>Read what it would do with <code>--dry-run</code> first, if you like. It asks for your password once, then runs by itself, from the fastest mirror it finds.</p></div></li>
           <li><div><h3>Log in on tty1</h3><p>The desktop starts. Open a terminal with <kbd>Super</kbd>+<kbd>Return</kbd>.</p></div></li>
-          <li><div><h3>Run part two, and walk away</h3><p>A notification tells you when it's done. From then on, <code>vikix update</code> keeps everything current.</p></div></li>
+          <li><div><h3>Add what you want</h3><p>Languages, editors, LibreOffice, Windows, local AI: <code>vikix features</code> lists them, and <code>vikix add</code> installs them. From then on, <code>vikix update</code> keeps everything current.</p></div></li>
         </ol>
         <div style="display:grid;gap:16px">
           <div class="term">
-            <header><span>part one · on the fresh Void install</span><button class="copy" type="button" data-copy="p1">Copy</button></header>
+            <header><span>on the fresh Void install</span><button class="copy" type="button" data-copy="p1">Copy</button></header>
 <pre id="p1"><span class="t-p">$</span> git clone https://github.com/vukini/vikix.git ~/vikix
 <span class="t-p">$</span> cd ~/vikix
-<span class="t-p">$</span> ./install-1.sh --dry-run   <span class="t-d"># read what it would do</span>
-<span class="t-p">$</span> ./install-1.sh             <span class="t-d"># do it</span>
+<span class="t-p">$</span> ./install.sh --dry-run   <span class="t-d"># read what it would do</span>
+<span class="t-p">$</span> ./install.sh             <span class="t-d"># do it</span>
 <span class="t-p">$</span> sudo reboot</pre>
           </div>
           <div class="term">
-            <header><span>part two · in a terminal on the new desktop</span><button class="copy" type="button" data-copy="p2">Copy</button></header>
-<pre id="p2"><span class="t-p">$</span> ~/vikix/install-2.sh</pre>
+            <header><span>then, in a terminal on the new desktop</span><button class="copy" type="button" data-copy="p2">Copy</button></header>
+<pre id="p2"><span class="t-p">$</span> vikix features            <span class="t-d"># what there is</span>
+<span class="t-p">$</span> vikix add essentials      <span class="t-d"># Emacs, C, Python, Lisp</span></pre>
           </div>
           <p style="color:var(--subtle);font-size:.95rem">Trying it first? It runs well in a VM. The README has step-by-step notes for <a href="https://github.com/vukini/vikix#trying-it-in-virt-manager-kvm-from-linux">virt-manager</a> and <a href="https://github.com/vukini/vikix#trying-it-in-virtualbox-from-windows">VirtualBox</a>.</p>
         </div>
@@ -382,35 +383,38 @@
 
       <div class="sec-head" style="margin-top:72px">
         <p class="eyebrow">Under the hood</p>
-        <h3 style="font-size:clamp(1.3rem,2.4vw,1.7rem);font-weight:800">What the two parts do.</h3>
+        <h3 style="font-size:clamp(1.3rem,2.4vw,1.7rem);font-weight:800">The base, then features.</h3>
         <p class="lede">Vikix is not a distribution. It is a set of bash scripts you run on an ordinary glibc Void install, plus the config they put in place. Every stage checks before it changes anything, so running it twice is safe, and <code>--dry-run</code> prints every change instead of making it.</p>
       </div>
       <div class="parts">
         <div class="part one">
-          <header><h3>Part one: the desktop</h3><span>./install-1.sh · then reboot</span></header>
-          <p>The base system, the network, StumpWM and the login. When it is done, you log in on tty1 and the desktop starts.</p>
+          <header><h3>The base: the desktop</h3><span>./install.sh · then reboot</span></header>
+          <p>Everything a working desktop needs. When it is done, you log in on tty1 and the desktop starts.</p>
           <ol class="stages">
             <li><code>00-preflight</code><span>checks this is glibc Void, and that you are not root</span></li>
             <li><code>05-mirror</code><span>times the mirrors and uses the fastest</span></li>
-            <li><code>10-packages</code><span>the core package lists</span></li>
+            <li><code>10-packages</code><span>the base lists: desktop, apps, fonts, sound, laptop</span></li>
             <li><code>20-services</code><span>links the runit services</span></li>
             <li><code>25-network</code><span>NetworkManager, then switches off dhcpcd</span></li>
             <li><code>30-lisp</code><span>Quicklisp, and builds StumpWM with Swank inside</span></li>
             <li><code>40-config</code><span>links Vikix's files, copies yours</span></li>
+            <li><code>50-audio</code><span>PipeWire and WirePlumber</span></li>
+            <li><code>55-hardware</code><span>touchpad, microcode, the usual folders</span></li>
             <li><code>60-login</code><span>X starts after login on tty1</span></li>
           </ol>
         </div>
         <div class="part">
-          <header><h3>Part two: everything else</h3><span>~/vikix/install-2.sh · from the new desktop</span></header>
-          <p>The long part: editors, languages, apps, sound and laptop hardware. It runs from a terminal on the working desktop, so it never stands between you and a usable machine. It tells you with a notification when it has finished.</p>
+          <header><h3>Features: what you add</h3><span>vikix add NAME · any time</span></header>
+          <p>Each is a package list, and sometimes a setup step. Add them from the desktop, or in the same run with <code>./install.sh --with essentials</code>. <code>vikix remove</code> takes one away again, with everything only it needed.</p>
           <ol class="stages">
-            <li><code>45-editors</code><span>Emacs and Neovim configs, language servers</span></li>
-            <li><code>50-audio</code><span>PipeWire and WirePlumber</span></li>
-            <li><code>55-hardware</code><span>touchpad, microcode, the usual folders</span></li>
-            <li><code>65-languages</code><span>what Void doesn't package</span></li>
-            <li><code>67-dev</code><span>~/dev, a folder per language, JupyterLab</span></li>
+            <li><code>essentials</code><span>Emacs, C, Python, Lisp</span></li>
+            <li><code>developer</code><span>both editors and every language, ~/dev</span></li>
+            <li><code>everything</code><span>developer, LibreOffice and printing</span></li>
+            <li><code>rust</code><span>or any other language, one by one</span></li>
+            <li><code>windows</code><span>Windows 11 in a window</span></li>
+            <li><code>local-ai</code><span>AI models on the laptop (Ollama)</span></li>
           </ol>
-          <p style="font-size:.92rem">Each part asks for your password once, at the start, then runs by itself. Everything it prints is kept in <code>~/.local/state/vikix/logs/</code>.</p>
+          <p style="font-size:.92rem">It asks for your password once, at the start, then runs by itself. Everything it prints is kept in <code>~/.local/state/vikix/logs/</code>.</p>
         </div>
       </div>
 
