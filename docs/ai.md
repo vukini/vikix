@@ -144,5 +144,5 @@ Everything you ask is logged: `llm logs -n 5` shows the last five, and `llm logs
 | The agent asks you to log in every time | Run `claude` once in a terminal and finish the login there |
 | The agent says it can't reach the desktop | `vikix doctor`: it checks that `vikix eval` works |
 | A local model doesn't answer, or is slow | See [Local AI doesn't answer](fixing.md#local-ai-doesnt-answer) |
-| `llm` says there's no model | `vikix ai models` for a local one, or `vikix ai key set anthropic` for Claude |
+| `llm` has no model, asks for a key, or can't connect | See [`llm` doesn't answer](fixing.md#llm-doesnt-answer) |
 | You don't like what the agent changed | `vikix changes`, then `vikix undo` |
