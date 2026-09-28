@@ -50,6 +50,27 @@ saves the choice for the next start)."
 first, so whatever it changes can be undone with `vikix undo`."
   (run-shell-command (format nil "~a -e vikix agent" *vikix-terminal*)))
 
+(defcommand vikix-welcome () ()
+  "The welcome: add software, the keys that matter, a theme, the keyboard
+layout, the guide (`vikix welcome`, in a terminal)."
+  (run-shell-command (format nil "~a -e vikix welcome" *vikix-terminal*)))
+
+(defcommand vikix-add-software () ()
+  "Pick languages, editors, LibreOffice, Windows ... to add (`vikix welcome add`)."
+  (run-shell-command (format nil "~a -e vikix welcome add" *vikix-terminal*)))
+
+(defvar *vikix-welcome-checked* nil
+  "Whether this StumpWM has looked yet for the first-login welcome; a
+reload (loadrc) doesn't look again.")
+
+;; The first login on a new desktop opens the welcome, once: vikix-welcome
+;; writes ~/.local/state/vikix/welcome the moment it starts. A few seconds
+;; later, so user.lisp (loaded after this file) can name another terminal.
+(unless *vikix-welcome-checked*
+  (setf *vikix-welcome-checked* t)
+  (unless (probe-file (merge-pathnames ".local/state/vikix/welcome" (user-homedir-pathname)))
+    (run-with-timer 3 nil (lambda () (vikix-welcome)))))
+
 (defcommand vikix-undo () ()
   "Put your files back as they were one snapshot ago, in a terminal
 that shows what happened. Reload afterwards to use the old settings."
@@ -62,7 +83,9 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
   (message "Screen layout saved as ~a" name))
 
 (defparameter *vikix-menu*
-  '(("Keyboard shortcuts"  vikix-keys)
+  '(("Welcome: first steps" vikix-welcome)
+    ("Add software: languages, editors, office ..." vikix-add-software)
+    ("Keyboard shortcuts"  vikix-keys)
     ("All commands"        vikix-commands)
     ("What does a key do?" describe-key)
     ("Vikix guide (in Emacs)" (run-shell-command

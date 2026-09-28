@@ -15,6 +15,8 @@
 #                         everything); every update keeps them
 #   vikix remove NAME...  stop keeping them, and uninstall what only they
 #                         needed (it shows the list and asks first)
+#   vikix welcome [add] the first steps (it opens by itself at the first
+#                         login): add software, keys, theme, keyboard, guide
 #   vikix theme [NAME]  the colour theme, everywhere: the current one and
 #                         the list, or switch to NAME
 #   vikix version
@@ -644,6 +646,7 @@ main() {
     doctor)      cmd_doctor ;;
     features)    exec "$VIKIX_DIR/bin/vikix-features" list ;;
     add|remove)  exec "$VIKIX_DIR/bin/vikix-features" "$@" ;;
+    welcome)     shift; exec "$VIKIX_DIR/bin/vikix-welcome" "$@" ;;
     version)     cat "$VIKIX_DIR/VERSION" ;;
     eval)        shift; exec python3 "$VIKIX_DIR/bin/vikix-eval" "$@" ;;
     agent)       shift; cmd_agent "$@" ;;

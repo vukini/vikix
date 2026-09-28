@@ -1,0 +1,217 @@
+#!/usr/bin/env bash
+# vikix-welcome — the welcome (`vikix welcome`): first steps on a new
+# desktop, in a terminal, each ticked off once done.
+#
+#   vikix welcome         the steps: add software, the keys that matter,
+#                         a theme, the keyboard layout, the guide
+#   vikix welcome add     only the software picker (Super+m, Add software)
+#
+# StumpWM opens it by itself at the first login (commands.lisp), and
+# Super+m, Welcome brings it back. What's done is kept in
+# ~/.local/state/vikix/welcome, one step a line; that it exists means the
+# welcome has been shown.
+#
+# The pickers are fzf, which the base installs: type to narrow the list,
+# Tab to pick several, Enter to go, Esc to go back.
+
+set -euo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+export VIKIX_DIR
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+# shellcheck source=../lib/features.sh
+. "$VIKIX_DIR/lib/features.sh"
+
+STATE="$VIKIX_STATE/welcome"
+KEYBOARD="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/keyboard"
+XKB_RULES=${VIKIX_XKB_RULES:-/usr/share/X11/xkb/rules/evdev.lst}   # tests point it elsewhere
+
+seen()   { mkdir -p "$(dirname "$STATE")"; [ -e "$STATE" ] || : > "$STATE"; }
+tick()   { seen; grep -qx -- "$1" "$STATE" || echo "$1" >> "$STATE"; }
+ticked() { [ -f "$STATE" ] && grep -qx -- "$1" "$STATE"; }
+pause()  { echo; read -r -p "Enter goes back. " _ || true; }
+pick()   { fzf --reverse --height=100% --border=rounded --info=hidden "$@"; }
+
+# --- software ------------------------------------------------------------------
+# preview NAME — what the picker shows beside a line: what it is, what it adds.
+cmd_preview() {
+  local name=$1 f
+  if is_bundle "$name"; then
+    bundles_rows | awk -F'|' -v n="$name" '$1 == n { print $3 }'
+    echo
+    echo "It adds these features:"
+    expand_features "$name" 2>/dev/null | sed 's/^/  /'
+    return 0
+  fi
+  feature_field "$name" 6
+  echo
+  f=$(feature_field "$name" 4)
+  [ -n "$f" ] && echo "Set up by: $f"
+  [ -n "$(feature_field "$name" 3)" ] && echo "Brings along: $(feature_field "$name" 3)"
+  local l
+  for l in $(feature_field "$name" 2); do
+    [ -f "$VIKIX_DIR/packages/$l.list" ] || continue
+    echo
+    echo "Packages ($l):"
+    read_list "$VIKIX_DIR/packages/$l.list" | sed 's/^/  /'
+  done
+}
+
+cmd_add() {
+  local chosen lines=() picked=() name about
+  chosen=" $(chosen_features 2>/dev/null | tr '\n' ' ') "
+  while IFS='|' read -r name _ about; do
+    lines+=("$(printf 'bundle   %-11s %s' "$name" "$about")")
+  done < <(bundles_rows)
+  while IFS='|' read -r name _ _ _ _ about; do
+    case $chosen in
+      *" $name "*) lines+=("$(printf 'have     %-11s %s' "$name" "$about")") ;;
+      *)           lines+=("$(printf 'add      %-11s %s' "$name" "$about")") ;;
+    esac
+  done < <(features_rows)
+  mapfile -t picked < <(printf '%s\n' "${lines[@]}" |
+    pick --multi --exact --prompt 'Add: ' \
+      --header 'Software to add. Tab picks several, Enter adds them, Esc goes back.' \
+      --preview "bash '$VIKIX_DIR/bin/vikix-welcome' preview {2}" --preview-window 'right,45%,wrap' |
+    awk '$1 != "have" { print $2 }') || true
+  if [ "${#picked[@]}" -eq 0 ]; then
+    return 0
+  fi
+  echo
+  say "adding: ${picked[*]}"
+  echo "   It downloads the packages and asks for your password once. You can"
+  echo "   leave this window open and carry on; a notification says when it's done."
+  echo
+  if bash "$VIKIX_DIR/bin/vikix-features" add "${picked[@]}"; then
+    tick add
+    notify-send -a Vikix "Added: ${picked[*]}" "vikix features shows what you have." 2>/dev/null || true
+  else
+    notify-send -a Vikix -u critical "Adding ${picked[*]} didn't finish" "The terminal says why; vikix update tries again." 2>/dev/null || true
+  fi
+  pause
+}
+
+# --- the keys that matter ---------------------------------------------------------
+cmd_keys() {
+  clear 2>/dev/null || true
+  cat <<'EOF'
+
+  The keys that matter. Super is the key with the Windows logo.
+
+    Super+Return       a terminal
+    Super+d            start any program: type a few letters of its name
+    Super+q            close the window
+    Super+1 ... 9      go to another workspace (a screen of its own)
+    Super+b, Super+v   split the screen side by side, or one above the other
+    Super+h j k l      move between windows (or Super and the arrow keys)
+    Super+m            the Vikix menu: everything that isn't a key
+    Super+F1           every key, searchable: pick one to run it
+    Super+a            the AI agent: ask it to change something for you
+
+  The bar along the top shows your workspaces on the left, and on the
+  right the network, the sound, the battery and the time.
+EOF
+  tick keys
+  pause
+}
+
+# --- a theme ------------------------------------------------------------------------------
+cmd_theme() {
+  local themes choice
+  themes=$(for f in "$VIKIX_DIR"/themes/*.theme "${XDG_CONFIG_HOME:-$HOME/.config}"/vikix/themes/*.theme; do
+             [ -e "$f" ] && basename "$f" .theme; done | sort -u)
+  choice=$(printf '%s\n' "$themes" |
+    pick --prompt 'Theme: ' --header 'The colours of the whole desktop. Enter switches, Esc goes back.') || return 0
+  [ -n "$choice" ] || return 0
+  "$VIKIX_DIR/bin/vikix" theme "$choice" || true
+  tick theme
+}
+
+# --- the keyboard layout ----------------------------------------------------------
+# The layouts X knows, "code  name", from xkeyboard-config's list.
+layouts() {
+  awk '/^! layout/ { on = 1; next } /^!/ { on = 0 } on && NF { code = $1; $1 = ""; sub(/^ +/, ""); printf "%-8s %s\n", code, $0 }' "$XKB_RULES"
+}
+
+cmd_keyboard() {
+  local now choice code
+  # shellcheck source=/dev/null  # your file, not one in this repo
+  now=$( { [ -f "$KEYBOARD" ] && . "$KEYBOARD"; printf '%s' "${VIKIX_KB_LAYOUT:-}"; } 2>/dev/null || true)
+  choice=$(layouts | pick --prompt 'Layout: ' \
+    --header "The keyboard layout${now:+ (now: $now)}. Type a language or country, Enter sets it, Esc goes back.") || return 0
+  code=${choice%% *}
+  [ -n "$code" ] || return 0
+  set_layout "$code"
+  "$VIKIX_DIR/bin/vikix-keyboard" || warn "setxkbmap didn't take it; the layout is saved for the next login"
+  say "keyboard layout: $code (saved in $KEYBOARD; variants and options go there too)"
+  tick keyboard
+  pause
+}
+
+# set_layout CODE — VIKIX_KB_LAYOUT in your keyboard file, the rest as it was.
+# Written in place, so a file that is a link stays a link.
+set_layout() {
+  local rest
+  if [ -f "$KEYBOARD" ]; then
+    if grep -q '^VIKIX_KB_LAYOUT=' "$KEYBOARD"; then
+      rest=$(awk -v c="$1" '/^VIKIX_KB_LAYOUT=/ { print "VIKIX_KB_LAYOUT=\"" c "\""; next } { print }' "$KEYBOARD")
+      printf '%s\n' "$rest" > "$KEYBOARD"
+    else
+      printf 'VIKIX_KB_LAYOUT="%s"\n' "$1" >> "$KEYBOARD"
+    fi
+  else
+    mkdir -p "$(dirname "$KEYBOARD")"
+    printf '# ~/.config/vikix/keyboard — yours. See vikix-keyboard.\nVIKIX_KB_LAYOUT="%s"\nVIKIX_KB_OPTIONS=""\n' "$1" > "$KEYBOARD"
+  fi
+}
+
+# --- the guide -------------------------------------------------------------------------
+cmd_guide() {
+  local manual="$HOME/.local/share/info/vikix.info"
+  if [ -f "$manual" ]; then
+    info -f "$manual" || true
+  else
+    warn "the guide isn't built yet ($manual); vikix update makes it"
+    pause
+  fi
+  tick guide
+}
+
+# --- the steps --------------------------------------------------------------------------
+cmd_welcome() {
+  seen
+  local step choice
+  while true; do
+    choice=$(
+      for step in "add|Add software: languages, editors, LibreOffice, Windows, local AI" \
+                  "keys|The keys that matter" \
+                  "theme|Choose a theme: dark or light" \
+                  "keyboard|Set your keyboard layout" \
+                  "guide|Read the guide: where things are, how to change them" \
+                  "close|Close. Super+m, Welcome brings this back"; do
+        if [ "${step%%|*}" = close ]; then printf '        %s\n' "${step#*|}"
+        elif ticked "${step%%|*}"; then printf '  done  %s\n' "${step#*|}"
+        else printf '        %s\n' "${step#*|}"; fi
+      done | pick --no-sort --prompt '> ' \
+        --header "$(printf 'Welcome to Vikix.\nA few first steps, in any order. Enter picks one.')"
+    ) || exit 0
+    case $choice in
+      *"Add software"*)  cmd_add ;;
+      *"keys that matter"*) cmd_keys ;;
+      *"Choose a theme"*) cmd_theme ;;
+      *"keyboard layout"*) cmd_keyboard ;;
+      *"Read the guide"*) cmd_guide ;;
+      *) exit 0 ;;
+    esac
+  done
+}
+
+need_fzf() { command -v fzf >/dev/null 2>&1 || die "the welcome needs fzf (packages/cli.list): vikix update installs it"; }
+case ${1:-} in
+  "")      need_fzf; cmd_welcome ;;
+  add)     need_fzf; seen; cmd_add ;;
+  preview) shift; cmd_preview "$1" ;;
+  seen)    seen ;;                 # mark it shown, without showing it (migrations, tests)
+  help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) die "unknown: vikix welcome $1 (try: vikix welcome help)" ;;
+esac

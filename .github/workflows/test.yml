@@ -92,6 +92,8 @@ jobs:
         run: tests/ci.sh webapp
       - name: features
         run: tests/ci.sh features
+      - name: welcome
+        run: tests/ci.sh welcome
       - name: info
         run: tests/ci.sh info
 
