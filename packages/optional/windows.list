@@ -1,0 +1,12 @@
+# windows.list — the Windows VM (`vikix windows`). Optional: installed only
+# after `vikix windows setup` names it in ~/.config/vikix/optional.
+libvirt             # manages the VM; run as you (qemu:///session), no system service needed
+virt-manager        # virt-install, which makes the VM, and a window for changing it by hand
+qemu-system-amd64   # the VM itself
+qemu-img            # makes its disk
+edk2-ovmf           # UEFI firmware with Secure Boot, which Windows 11 needs
+swtpm               # the TPM 2.0 Windows 11 needs, emulated
+passt               # the VM's network, with no root setup
+virtiofsd           # the shared folder, ~/Windows (drive Z: in Windows)
+virt-viewer         # the window the Windows desktop shows in
+xorriso             # makes the answer-file disc for the unattended install

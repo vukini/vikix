@@ -17,6 +17,8 @@
 .config/mimeapps.list
 .config/vikix/backup          # where backups go (not the password: that stays out of here)
 .config/vikix/backup-exclude  # what they leave out
+.config/vikix/optional        # optional features you chose (vikix windows setup)
+.config/vikix/windows         # where the Windows VM's disk is
 .Xresources
 .bashrc
 .bash_profile

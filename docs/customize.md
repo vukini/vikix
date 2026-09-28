@@ -73,22 +73,22 @@ Each entry is a label and either a command or a Lisp form:
 The bar is one format string. Vikix sets it in `modeline.lisp`:
 
 ```lisp
-"%J  %W^>%R%K%Q%U%A%D%O%T%V%E%d"
+"%J  %W^>%R%K%X%Q%U%A%D%O%T%V%E%d"
 ```
 
-`%J` the workspaces, `%W` the windows, `^>` right-aligns the rest: `%R` rec, `%K` awake, `%Q` quiet, `%U` updates, `%A` backup, `%D` usb, `%O` network, `%T` Bluetooth, `%V` volume, `%E` battery, `%d` date and time. Set your own in `user.lisp` to drop or reorder fields:
+`%J` the workspaces, `%W` the windows, `^>` right-aligns the rest: `%R` rec, `%K` awake, `%X` win (the Windows VM), `%Q` quiet, `%U` updates, `%A` backup, `%D` usb, `%O` network, `%T` Bluetooth, `%V` volume, `%E` battery, `%d` date and time. Set your own in `user.lisp` to drop or reorder fields:
 
 ```lisp
 ;; no Bluetooth, and the time without the date
 (setf *time-modeline-string* "%H:%M"
-      *screen-mode-line-format* "%J  %W^>%R%K%Q%U%A%D%O%V%E%d")
+      *screen-mode-line-format* "%J  %W^>%R%K%X%Q%U%A%D%O%V%E%d")
 ```
 
 A field of your own can be a list entry `(:eval FORM)`, run each time the bar redraws (every 10 seconds). Keep the form quick, since the whole desktop waits while it runs:
 
 ```lisp
 (setf *screen-mode-line-format*
-      (list "%J  %W^>%R%K%Q%U%A%D%O%T%V%E"
+      (list "%J  %W^>%R%K%X%Q%U%A%D%O%T%V%E"
             '(:eval (format nil "load ~a  " (first (uiop:split-string (uiop:read-file-string "/proc/loadavg")))))
             "%d"))
 ```
@@ -144,6 +144,7 @@ Don't edit between the `# >>> vikix … >>>` and `# <<< vikix … <<<` lines; Vi
 
 - **Install a program:** `xi NAME` (search with `xs WORD`). It stays installed, and `vikix update` keeps it current along with everything else.
 - **Remove one Vikix installed:** `xr NAME` removes it, but the next `vikix update` installs it again, because it's in Vikix's package lists. There's no way to opt out of one yet.
+- **Optional features** come with their own setup command, which adds them to `~/.config/vikix/optional`; from then on `vikix update` keeps their packages. So far there is one: the Windows VM (`vikix windows setup`, see the [README](../README.md#windows-in-a-vm)).
 - **Switch on a service:** `sv-on NAME` (the services are in `/etc/sv/`), `sv-off NAME`, `svls` to list. These are system services. A program for your desktop session goes in `user.lisp` instead ([above](#start-a-program-with-the-desktop)).
 
 ## The editors

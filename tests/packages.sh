@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/packages.sh — every name in packages/*.list is a package in the
+# tests/packages.sh — every name in packages/*.list (and optional/) is a package in the
 # Void repositories (a typo would only be skipped with a warning at install).
 #
 # Needs xbps and a synced repository index (xbps-install -S). The nonfree
@@ -22,7 +22,7 @@ while read -r pkgver; do
 done < <(xbps-query -Rs '' | awk '{print $2}')
 
 fail=0 n=0
-for list in packages/*.list; do
+for list in packages/*.list packages/optional/*.list; do
   while IFS= read -r pkg; do
     n=$((n + 1))
     [ -n "${avail[$pkg]:-}" ] && continue

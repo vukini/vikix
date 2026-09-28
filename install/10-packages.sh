@@ -4,6 +4,11 @@
 # VIKIX_LISTS narrows it to some lists (install.sh's part one sets it to
 # the core ones: base desktop network lisp cli); empty means every list.
 #
+# packages/optional/*.list are for features not everyone wants (the Windows
+# VM): one is installed only once its name is a line in your
+# ~/.config/vikix/optional, which the feature's own setup command writes
+# (`vikix windows setup`). From then on every update keeps it.
+#
 # Only packages that are not installed yet are passed to xbps-install,
 # so the output shows exactly what is new. Add a package by adding a line
 # to the right list; `vikix update` runs this stage again.
@@ -37,6 +42,14 @@ wanted=()
 for list in "$VIKIX_DIR"/packages/*.list; do
   name=$(basename "$list" .list)
   [ "$name" = repos ] && continue
+  wanted_list "$name" || continue
+  while IFS= read -r pkg; do wanted+=("$pkg"); done < <(read_list "$list")
+done
+optional="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/optional"
+for list in "$VIKIX_DIR"/packages/optional/*.list; do
+  [ -e "$list" ] || continue
+  name=$(basename "$list" .list)
+  [ -f "$optional" ] && read_list "$optional" | grep -qx "$name" || continue
   wanted_list "$name" || continue
   while IFS= read -r pkg; do wanted+=("$pkg"); done < <(read_list "$list")
 done

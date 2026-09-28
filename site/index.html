@@ -661,6 +661,15 @@ exec /usr/bin/sshd -D $OPTS
             <span>Rust<em>cargo run</em></span><span>Java<em>jshell</em></span><span>OCaml<em>dune</em></span><span>Julia<em>juliaup</em></span><span>Free Pascal<em>Lazarus</em></span>
           </div>
         </div>
+
+        <div class="card full">
+          <p class="eyebrow">When work needs Windows</p>
+          <h3>Windows 11 in a window, installed by itself.</h3>
+          <p>Optional, for the programs that only run there. Point <code>vikix windows create</code> at the ISO from Microsoft and walk away: an answer file does the whole install, with drivers, a local account and no Microsoft account, in about 25 minutes. Its desktop tiles like any other window, the clipboard is shared, and <code>~/Windows</code> is drive <code>Z:</code>. It all runs as you, with no system service and no open port.</p>
+<pre><span class="t-p">$</span> vikix windows setup                <span class="t-d"># once: the packages and drivers</span>
+<span class="t-p">$</span> vikix windows create Win11_x64.iso <span class="t-d"># a notification when it's ready</span>
+<span class="t-p">$</span> vikix windows                      <span class="t-d"># start it, and open its desktop</span></pre>
+        </div>
       </div>
     </div>
   </section>

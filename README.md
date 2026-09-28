@@ -255,6 +255,7 @@ Along the top, in Iosevka like the terminal: on the left the workspaces in use (
 
 - **rec**, in the theme's alert colour, while the screen is being recorded (`s-R` stops it).
 - **awake**, in the theme's quieter text colour, while keep awake is on (`s-M-a`).
+- **win**, in the quieter colour, while the Windows VM runs (`vikix windows stop` ends it): it holds 6 GB of memory and costs battery.
 - **quiet**, in the quieter text colour, while do not disturb is on (`s-M-n`), with the number of notifications waiting: they show when you switch it off.
 - **updates**, in the theme's accent colour, when `vikix update` has something to bring: `updates 12` (Void packages), `updates 12 + Vikix`, or `Vikix update`; and `+ firmware` (or `firmware` alone) when a firmware update is waiting (see [Firmware updates](#firmware-updates)). Checked a minute after you log in and then every 6 hours, in the background (`vikix-updates`); `vikix update` clears it. Nothing shows when there's nothing, or when it couldn't check (offline).
 - **usb**, in the accent colour, while a USB drive is mounted: eject it (`s-C-e`) before pulling it out.
@@ -369,6 +370,7 @@ A restore goes into `~/Restored/<time>/`, beside your files, never over them; mo
 | `cli` | htop, ripgrep, fd, fzf, bat, eza, tmux, tree, jq, zoxide, yazi, lazygit, gh (GitHub CLI), restic (for `vikix backup`), atuin (with bash-preexec) |
 | `lisp` | SBCL |
 | `lang-*` | One file per language, so a language is one file to keep or delete: C extras (tcc, rr, cmake, meson, ninja, shellcheck, shfmt, the C and POSIX man pages), Python (pip, ipython, pipx, uv), Lisp and Scheme (ccl, racket and its docs, chez-scheme, guile), Haskell (ghc and its docs, cabal, HLS, hlint), Forth (gforth), WebAssembly (wabt, wasmtime), Ruby (with `ri` docs), SQLite (sqlite, litecli, sqlitebrowser), Lua (lua54, LuaJIT), Go, Zig (zig, zls), Rust (with rust-analyzer and the docs), Java (openjdk21, gradle), OCaml (dune, ocamlfind, opam), Julia (juliaup), Pascal (fpc, Lazarus), and `lang-tools` (ctags, entr, hyperfine, tokei, just) |
+| `optional/windows` | Only after `vikix windows setup`: libvirt, QEMU, UEFI firmware (edk2-ovmf), swtpm, passt, virtiofsd, virt-viewer, xorriso. See [Windows](#windows-in-a-vm) |
 
 ## Laptop
 
@@ -430,6 +432,25 @@ Part two installs CUPS and switches it on, with avahi to find printers on the ne
 - **Print** from any program's Print dialog, or from a terminal: `lp file.pdf`. `lpstat -p` lists the printers, `cancel` stops a job.
 - **An older printer** may need a driver. gutenprint, foomatic and brlaser (Brother lasers) are installed. For HP, `xi hplip`, then `hp-setup -i`; for Epson inkjets, `xi epson-inkjet-printer-escpr`.
 - **CUPS's own page**, http://localhost:631, shows every printer and its queue.
+
+## Windows, in a VM
+
+For work software that only runs on Windows. Windows 11 runs in a VM with its desktop in a window that StumpWM tiles like any other: the clipboard is shared, the screen resizes with the window, and `~/Windows` is drive `Z:` in Windows. It's optional, since most people won't want its 250 MB of packages:
+
+```sh
+vikix windows setup                # once: the packages, the drivers disc, ~/Windows
+vikix windows create ~/Downloads/Win11_English_x64.iso   # Windows installs itself
+vikix windows                      # start it, and open its desktop (or s-m → Windows)
+vikix windows stop                 # shut it down (also: status, remove)
+```
+
+- **The ISO** comes from [microsoft.com/software-download/windows11](https://www.microsoft.com/software-download/windows11). `create` asks for the password of your Windows account, which is named after your Linux one; add `--key` with a product key, or Windows 11 Pro installs unactivated (it works, with a reminder to activate).
+- **By itself.** An answer file does the whole install: the drivers, the disk, a local account (no Microsoft account), and at the first login the guest tools, the shared folder and no sleep. A notification says when Windows is ready, about 25 minutes later. The answer disc holds your password, so it's deleted then, and so are the copies Windows keeps.
+- **An older CPU is fine.** Setup's CPU check is skipped; the VM has the TPM 2.0 and Secure Boot Windows 11 wants.
+- **It all runs as you** (libvirt's `qemu:///session`): the disk in `~/.local/share/libvirt/images/` (or `setup --disk DIR`, which needs 40 GB free), no system service, and no network port for the display. The network is passt: Windows reaches the internet, nothing reaches Windows.
+- **Your files** go in `~/Windows` (drive `Z:`), which `vikix backup` covers. The VM's disk it leaves out: it's big, and changes all the time.
+- **Reboot and Power off** in the power menu shut Windows down properly first. Logging out leaves it running.
+- **To change the VM** (memory, CPUs, a USB device), `virt-manager -c qemu:///session`.
 
 ## Editors
 
@@ -572,6 +593,7 @@ vikix agent        # Claude Code (Super+a)
 vikix snapshot / changes / history / undo   # the history of your files
 vikix backup       # back up your home folder (vikix backup help for the rest)
 vikix firmware     # firmware updates waiting (BIOS, Thunderbolt, ...); vikix firmware update installs them
+vikix windows      # Windows in a VM: setup, create ISO, then open, stop, status
 vikix fingerprint  # a finger for sudo and the lock screen, where the reader is supported
 ```
 
@@ -605,6 +627,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `drives` | `vikix-drives` finds the mounted drives (a space in a name too), ejects the one picked and says when it's safe or that it's in use, starts a backup on plug-in only for the backup drive and only when one is due, and gives udiskie your own settings when you have them |
 | `examples` | every example in `dev/*/examples/` builds and runs with its Makefile, where its compiler is installed, and every `wordfreq` prints the same `expected.txt` |
 | `bar` | `vikix-net` labels the link and shows the Wi-Fi signal only when it is weak; `vikix-bt` shows Bluetooth only when it is on, with the device and its battery, and never waits on a hung bluetoothd; `vikix-font` gives StumpWM Iosevka Regular, or a stand-in until Iosevka is installed |
+| `windows` | `vikix windows setup` refuses without KVM or space before changing anything, opts in once, and deletes a download with the wrong checksum; `10-packages` installs an optional list only once chosen; `create`'s answer file is valid XML in the ISO's language, and the password stays off the command line and out of reach of other users; `virt-install` gets the TPM, Secure Boot, passt, virtiofs and TRIM; the discs come out and the answer disc goes only once Windows is ready; power off shuts a running Windows down and leaves libvirt alone otherwise |
 | `info` | The guides in `docs/` make an Info manual with no makeinfo warnings and a node for every heading; a broken link or a page missing from the table stops the build; `40-config` installs it once and lists it in the info `dir`; Emacs opens it and follows a link (needs makeinfo) |
 | `home` | `40-config` and `60-login` change nothing when run again, and `vikix undo` puts your files back (and undoing again brings the change back) |
 | `update` | `vikix update` runs the new version's steps after it pulls, logs the whole run, carries on past a failed stage, naming it at the end, and pulls a checkout with an SSH remote over HTTPS |

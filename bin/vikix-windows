@@ -1,0 +1,410 @@
+#!/usr/bin/env bash
+# vikix-windows — Windows in a VM, for the programs that only run there (`vikix windows`).
+#
+#   vikix windows setup [--disk DIR]   once: the packages, the drivers disc, the
+#                         shared folder. The disk goes in DIR (default
+#                         ~/.local/share/libvirt/images), which needs 40 GB free
+#   vikix windows create ISO [--key KEY]   install Windows from ISO, by itself:
+#                         about 25 minutes, and a notification when it's ready.
+#                         Asks for the password of your Windows account.
+#                         Without a key, Windows 11 Pro installs unactivated.
+#   vikix windows [open]  start it if it's off, and show its desktop in a window
+#   vikix windows stop [--force]   shut Windows down (--force: switch it off)
+#   vikix windows status  is it running, is it installed, where things are
+#   vikix windows remove  delete the VM and its disk (asks first)
+#
+# The VM runs as you (libvirt's qemu:///session), so its disk, its TPM
+# and its shared folder are all yours, in your home. ~/Windows is drive Z:
+# in Windows, and `vikix backup` covers it; the VM's disk it leaves out.
+# The display is SPICE with no network port: only this user can open it.
+
+set -euo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+
+URI=${VIKIX_WINDOWS_URI:-qemu:///session}
+NAME=windows
+CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/windows"
+OPTIONAL="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/optional"
+SHARED="$HOME/Windows"
+KVM=${VIKIX_KVM:-/dev/kvm}                      # tests point these elsewhere
+MIN_GB=${VIKIX_WINDOWS_MIN_GB:-40}
+LOG="$VIKIX_STATE/windows-install.log"
+
+# Pinned downloads. Fedora publishes no checksum for the virtio-win ISO, so
+# this one is from an HTTPS download when it was pinned; WinFsp's is the
+# one on its GitHub release. A new version means a new line here. (The
+# VIKIX_WINDOWS_* variables are for tests/windows.sh.)
+VIRTIO_ISO=virtio-win-0.1.302.iso
+VIRTIO_URL=https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.302-1/virtio-win-0.1.302.iso
+VIRTIO_SHA256=${VIKIX_WINDOWS_VIRTIO_SHA256:-303f7ae40dad495d6ae474fdc571df58958a4dbc5c37a522d80f9a203867949d}
+WINFSP_MSI=winfsp-2.1.25156.msi
+WINFSP_URL=https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi
+WINFSP_SHA256=${VIKIX_WINDOWS_WINFSP_SHA256:-073a70e00f77423e34bed98b86e600def93393ba5822204fac57a29324db9f7a}
+
+virsh() { command virsh -q -c "$URI" "$@"; }
+notify() { command -v notify-send >/dev/null 2>&1 && notify-send -a Vikix "$@" || true; }
+
+vm_dir() {   # where the disk and discs are, from setup
+  local d=
+  [ -f "$CONFIG" ] && d=$(sed -n 's/^DIR=//p' "$CONFIG" | tail -1)
+  printf '%s\n' "${d:-$HOME/.local/share/libvirt/images}"
+}
+defined() { virsh dominfo "$NAME" >/dev/null 2>&1; }
+state() { virsh domstate "$NAME" 2>/dev/null || echo "not made"; }
+# Running, from the process list: quick, and doesn't start libvirtd.
+running() { pgrep -u "$(id -u)" -f "qemu-system-x86_64 -name guest=$NAME," >/dev/null 2>&1; }
+
+need_setup() {
+  [ -f "$OPTIONAL" ] && read_list "$OPTIONAL" | grep -qx windows ||
+    die "the Windows VM isn't set up yet: vikix windows setup"
+  local c
+  for c in virsh virt-install virt-viewer qemu-img xorriso 7z; do
+    command -v "$c" >/dev/null || die "$c is missing; run vikix windows setup again"
+  done
+}
+
+kvm_ok() {
+  [ -e "$KVM" ] || die "no $KVM: this CPU's virtualisation (Intel VT-x or AMD-V) is off or missing. Switch it on in the BIOS/UEFI settings, then try again."
+}
+
+# download URL FILE SHA256 — into FILE, checked; kept when already right.
+download() {
+  local url=$1 file=$2 sum=$3
+  if [ -f "$file" ] && [ "$(sha256sum "$file" | cut -d' ' -f1)" = "$sum" ]; then
+    say "${file##*/}: already here"
+    return 0
+  fi
+  say "downloading ${file##*/}"
+  curl -fL --retry 3 -C - -o "$file.part" "$url" || die "couldn't download $url"
+  if [ "$(sha256sum "$file.part" | cut -d' ' -f1)" != "$sum" ]; then
+    rm -f "$file.part"
+    die "${file##*/} isn't what it should be (its checksum doesn't match); deleted it. Try again later."
+  fi
+  mv "$file.part" "$file"
+}
+
+free_gb() { df -P -B1G "$1" | awk 'NR == 2 { print $4 }'; }
+
+# ---------------------------------------------------------------------------
+cmd_setup() {
+  local d
+  d=$(vm_dir)
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --disk) d=${2:?--disk needs a folder}; shift 2 ;;
+      *) die "vikix windows setup: unknown option $1" ;;
+    esac
+  done
+  d=$(realpath -m "$d")
+  kvm_ok
+  mkdir -p "$d"
+  local free
+  free=$(free_gb "$d")
+  [ "$free" -ge "$MIN_GB" ] ||
+    die "$d has $free GB free; Windows needs $MIN_GB. Choose a roomier place: vikix windows setup --disk DIR"
+
+  # Opt in: from now on 10-packages installs the list, now and at every update.
+  mkdir -p "$(dirname "$OPTIONAL")"
+  if [ ! -f "$OPTIONAL" ]; then
+    printf '%s\n' "# Optional Vikix features you chose; each name is a list in packages/optional/." \
+      "# vikix update keeps their packages. Remove a line to stop that." > "$OPTIONAL"
+  fi
+  read_list "$OPTIONAL" | grep -qx windows || echo windows >> "$OPTIONAL"
+  VIKIX_LISTS=windows bash "$VIKIX_DIR/install/10-packages.sh"
+
+  # /dev/kvm belongs to the kvm group; everything else runs as you.
+  [ -w "$KVM" ] || ensure_group kvm "to run virtual machines"
+
+  printf 'DIR=%s\n' "$d" > "$CONFIG"
+
+  download "$VIRTIO_URL" "$d/$VIRTIO_ISO" "$VIRTIO_SHA256"
+  download "$WINFSP_URL" "$d/$WINFSP_MSI" "$WINFSP_SHA256"
+  mkdir -p "$SHARED"
+
+  say "set up. Next, with a Windows 11 ISO from microsoft.com/software-download/windows11:"
+  echo "   vikix windows create ~/Downloads/Win11_English_x64.iso"
+  [ -w "$KVM" ] || echo "   (first log out and in again, for the kvm group)"
+}
+
+# ---------------------------------------------------------------------------
+# The ISO's language (Windows setup has to be told the one it has), from
+# sources/lang.ini: "en-us = 3" becomes en-US. 7z, not xorriso: a Windows
+# ISO keeps its files in UDF, and its ISO 9660 part holds only a README.
+iso_language() {
+  local lang
+  lang=$(7z e -so "$1" sources/lang.ini 2>/dev/null | tr -d '\r' |
+         awk -F' *= *' '/^\[Available UI Languages\]/ { on = 1; next } /^\[/ { on = 0 }
+                        on && NF == 2 { print $1; exit }' | tr -d ' ') || true
+  [ -n "$lang" ] || return 1
+  printf '%s-%s\n' "${lang%%-*}" "$(printf '%s' "${lang#*-}" | tr '[:lower:]' '[:upper:]')"
+}
+
+# en_GB.UTF-8 -> en-GB
+host_locale() {
+  local l=${LC_ALL:-${LC_TIME:-${LANG:-}}}
+  l=${l%%.*}
+  case $l in [a-z][a-z]_[A-Z][A-Z]) printf '%s\n' "${l/_/-}" ;; esac
+}
+
+# The keyboard layout from ~/.config/vikix/keyboard, as a Windows locale.
+host_input() {
+  local f="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/keyboard" layout=
+  # shellcheck disable=SC1090  # the user's keyboard file
+  [ -f "$f" ] && layout=$(VIKIX_KB_LAYOUT=; . "$f" 2>/dev/null; printf '%s' "${VIKIX_KB_LAYOUT%%,*}")
+  case $layout in
+    us) echo en-US ;; gb|uk) echo en-GB ;; de) echo de-DE ;; fr) echo fr-FR ;;
+    es) echo es-ES ;; it) echo it-IT ;; pt) echo pt-PT ;; br) echo pt-BR ;;
+    nl) echo nl-NL ;; se) echo sv-SE ;; no) echo nb-NO ;; dk) echo da-DK ;;
+    fi) echo fi-FI ;; pl) echo pl-PL ;; ch) echo de-CH ;; ru) echo ru-RU ;;
+    ara) echo ar-SA ;; in) echo hi-IN ;; *) ;;
+  esac
+}
+
+# The host's time zone, by its Windows name (lib/windows-zones.tsv).
+host_timezone() {
+  local tz
+  tz=${TZ:-$(readlink -f /etc/localtime 2>/dev/null | sed -n 's|.*/zoneinfo/||p')}
+  [ -n "$tz" ] || return 0
+  awk -F'\t' -v tz="$tz" '$1 == tz { print $2; exit }' "$VIKIX_DIR/lib/windows-zones.tsv"
+}
+
+read_password() {
+  local p1 p2
+  if [ -t 0 ]; then
+    read -r -s -p "Password for your Windows account ($USER): " p1; echo >&2
+    read -r -s -p "Again: " p2; echo >&2
+    [ "$p1" = "$p2" ] || die "the two passwords differ"
+  else
+    read -r p1 || true
+  fi
+  [ -n "$p1" ] || die "Windows needs a password for the account"
+  printf '%s\n' "$p1"
+}
+
+cmd_create() {
+  local iso='' key=''
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --key) key=${2:?--key needs a product key}; shift 2 ;;
+      -*) die "vikix windows create: unknown option $1" ;;
+      *) iso=$1; shift ;;
+    esac
+  done
+  [ -n "$iso" ] || die "which ISO? vikix windows create ~/Downloads/Win11_English_x64.iso"
+  [ -r "$iso" ] || die "can't read $iso"
+  iso=$(realpath "$iso")
+  need_setup
+  kvm_ok
+  defined && die "there is already a VM called $NAME. To start again: vikix windows remove"
+
+  local d disk answers lang
+  d=$(vm_dir)
+  disk="$d/$NAME.qcow2"
+  answers="$d/$NAME-answers.iso"
+  [ -f "$d/$VIRTIO_ISO" ] && [ -f "$d/$WINFSP_MSI" ] || die "the drivers aren't downloaded; run vikix windows setup again"
+  [ -e "$disk" ] && die "$disk is already there (from an earlier VM?). Move it away or delete it first."
+  lang=$(iso_language "$iso") || die "$iso doesn't look like a Windows install disc (no sources/lang.ini)"
+
+  # Half the host's threads (at least 2), and 6 GB on a 16 GB machine.
+  local cpus mem_kb ram
+  cpus=$(( $(nproc) / 2 )); [ "$cpus" -ge 2 ] || cpus=2
+  mem_kb=$(awk '/^MemTotal:/ { print $2 }' /proc/meminfo)
+  if [ "$mem_kb" -ge $((14 * 1024 * 1024)) ]; then ram=6144
+  elif [ "$mem_kb" -ge $((7 * 1024 * 1024)) ]; then ram=4096
+  else die "Windows 11 in a VM needs a machine with 8 GB of memory or more"
+  fi
+
+  # The answer disc: autounattend.xml, the first-login script, WinFsp.
+  local password locale input tz tmp
+  password=$(read_password)
+  # Global, so the EXIT trap still has it after this function returns.
+  ANSWER_TMP=$(mktemp -d)
+  trap 'rm -rf "${ANSWER_TMP:-}"' EXIT
+  tmp=$ANSWER_TMP
+  locale=$(host_locale); input=$(host_input); tz=$(host_timezone)
+  mkdir "$tmp/disc"
+  printf '%s\n' "$password" | python3 "$VIKIX_DIR/lib/windows-unattend.py" \
+    --user "$USER" --ui-lang "$lang" ${locale:+--locale "$locale"} \
+    ${input:+--input "$input"} ${tz:+--timezone "$tz"} ${key:+--key "$key"} \
+    > "$tmp/disc/autounattend.xml"
+  sed 's/$/\r/' "$VIKIX_DIR/lib/windows-firstlogon.cmd" > "$tmp/disc/vikix-firstlogon.cmd"
+  cp "$d/$WINFSP_MSI" "$tmp/disc/winfsp.msi"
+  # The disk driver, where Windows setup looks on every disc by itself: it
+  # loads it, and adds it to the installed Windows (lib/windows-unattend.py
+  # says why not the other ways).
+  mkdir -p "$tmp/disc/\$WinPEDriver\$/vioscsi"
+  7z e -y -o"$tmp/disc/\$WinPEDriver\$/vioscsi" "$d/$VIRTIO_ISO" 'vioscsi/w11/amd64/*' >/dev/null ||
+    die "couldn't take the disk driver off $VIRTIO_ISO"
+  echo "The Vikix answer disc: vikix-windows made it, and deletes it once Windows is installed." \
+    > "$tmp/disc/vikix-answers.txt"
+  # xorriso prints its banner even with -quiet; its words only matter when it fails.
+  ( umask 077; xorriso -as mkisofs -quiet -J -r -V VIKIX -o "$answers" "$tmp/disc" 2>"$tmp/xorriso.log" ) ||
+    { cat "$tmp/xorriso.log" >&2; die "couldn't make the answer disc"; }
+
+  say "making the VM: $cpus CPUs, $((ram / 1024)) GB memory, a 64 GB disk in $d (it grows as Windows fills it)"
+  qemu-img create -q -f qcow2 "$disk" 64G
+  mkdir -p "$SHARED" "$VIKIX_STATE"
+  virt-install --connect "$URI" --name "$NAME" --osinfo win11 \
+    --memory "$ram" --vcpus "$cpus" --cpu host-passthrough \
+    --boot firmware=efi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=yes \
+    --features smm.state=on \
+    --tpm emulator,model=tpm-crb,version=2.0 \
+    --controller type=scsi,model=virtio-scsi \
+    --disk "path=$disk,format=qcow2,bus=scsi,discard=unmap,boot.order=2" \
+    --disk "path=$iso,device=cdrom,bus=sata,readonly=on,boot.order=1" \
+    --disk "path=$d/$VIRTIO_ISO,device=cdrom,bus=sata,readonly=on" \
+    --disk "path=$answers,device=cdrom,bus=sata,readonly=on" \
+    --network type=user,backend.type=passt,model=virtio \
+    --graphics spice,listen=none --video qxl \
+    --channel spicevmc \
+    --channel unix,target.type=virtio,name=org.qemu.guest_agent.0 \
+    --sound ich9 \
+    --redirdev usb,type=spicevmc --redirdev usb,type=spicevmc \
+    --memorybacking source.type=memfd,access.mode=shared \
+    --filesystem "type=mount,source.dir=$SHARED,target.dir=vikix-shared,driver.type=virtiofs" \
+    --import --noautoconsole >/dev/null
+
+  # The Windows disc waits a few seconds for "any key" before it boots,
+  # and nobody is at the VM's keyboard yet. The key is Down, not Enter:
+  # the presses go on after the disc has booted, and in Windows setup an
+  # Enter clicks whatever has the focus (a link, Cancel), where Down only
+  # moves the focus. Later restarts boot from the disk, as they should,
+  # since nobody presses a key then.
+  for _ in $(seq 20); do virsh send-key "$NAME" KEY_DOWN >/dev/null 2>&1 || true; sleep 1; done
+
+  # Watch for the end in the background: eject the discs, delete the answer
+  # disc (it holds the password), and say so.
+  setsid "$0" watch-install >> "$LOG" 2>&1 < /dev/null &
+  say "Windows is installing by itself: about 25 minutes, and a notification when it's ready."
+  echo "   To watch: vikix windows (or Super+m, Windows). Log: $LOG"
+}
+
+# ---------------------------------------------------------------------------
+# The install is done when the first-login script has left its file. The
+# guest agent (installed by that script) reads it for us.
+ready() {
+  local h
+  h=$(virsh qemu-agent-command "$NAME" \
+        '{"execute":"guest-file-open","arguments":{"path":"C:\\ProgramData\\vikix\\ready","mode":"r"}}' 2>/dev/null |
+      sed -n 's/.*"return": *\([0-9][0-9]*\).*/\1/p') || true
+  [ -n "$h" ] || return 1
+  virsh qemu-agent-command "$NAME" "{\"execute\":\"guest-file-close\",\"arguments\":{\"handle\":$h}}" >/dev/null 2>&1 || true
+}
+
+installing() { [ -f "$(vm_dir)/$NAME-answers.iso" ]; }
+
+# Once ready: out with the discs, away with the answer disc.
+finish_install() {
+  installing || return 0
+  ready || return 0
+  local target
+  for target in $(virsh domblklist "$NAME" --details | awk '$2 == "cdrom" { print $3 }'); do
+    virsh change-media "$NAME" "$target" --eject --live --config >/dev/null 2>&1 || true
+  done
+  rm -f "$(vm_dir)/$NAME-answers.iso"
+  say "Windows is installed"
+  notify "Windows is ready" "Open it with Super+m, Windows. Your files: ~/Windows is drive Z: there."
+}
+
+cmd_watch_install() {
+  echo "watching the install, $(date)"
+  local waited=0
+  while installing && [ "$waited" -lt $((4 * 3600)) ]; do
+    finish_install
+    installing || break
+    sleep 30; waited=$((waited + 30))
+  done
+  if installing; then
+    notify -u critical "Windows didn't finish installing" "After 4 hours. Have a look: vikix windows"
+    echo "gave up after 4 hours, $(date)"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+cmd_open() {
+  need_setup
+  defined || die "no Windows VM yet: vikix windows create ISO"
+  if [ "$(state)" != running ]; then
+    say "starting Windows"
+    virsh start "$NAME" >/dev/null
+  fi
+  finish_install
+  setsid virt-viewer --connect "$URI" --attach --auto-resize=always "$NAME" >/dev/null 2>&1 < /dev/null &
+}
+
+cmd_stop() {
+  local force=
+  [ "${1:-}" = --force ] && force=1
+  defined || die "no Windows VM"
+  [ "$(state)" = running ] || { say "Windows isn't running"; return 0; }
+  if [ -n "$force" ]; then
+    virsh destroy "$NAME" >/dev/null
+    say "Windows switched off"
+    return 0
+  fi
+  say "shutting Windows down"
+  virsh shutdown "$NAME" >/dev/null
+  for _ in $(seq 90); do
+    [ "$(state)" = running ] || { say "Windows is off"; return 0; }
+    sleep 1
+  done
+  die "Windows is still running after 90 seconds (an update installing?). Wait, or: vikix windows stop --force"
+}
+
+# Before the laptop reboots or powers off: Windows gets to shut down
+# properly, not killed with everything else. Quick when it isn't running.
+cmd_power() {
+  running || return 0
+  notify "Shutting Windows down first" "Up to a minute and a half."
+  ( cmd_stop ) || virsh destroy "$NAME" >/dev/null 2>&1 || true
+}
+
+cmd_status() {
+  if ! { [ -f "$OPTIONAL" ] && read_list "$OPTIONAL" | grep -qx windows; }; then
+    echo "not set up (vikix windows setup)"; return 0
+  fi
+  local d s
+  d=$(vm_dir); s=$(state)
+  echo "VM:            $NAME ($s)"
+  if defined; then
+    if installing; then echo "install:       in progress (log: $LOG)"; else echo "install:       done"; fi
+    [ -f "$d/$NAME.qcow2" ] && echo "disk:          $d/$NAME.qcow2, $(du -h "$d/$NAME.qcow2" | cut -f1) used of 64 GB"
+    echo "memory, CPUs:  $(virsh dominfo "$NAME" | awk '/^Max memory/ { m = $3 } /^CPU\(s\)/ { c = $2 }
+                                                 END { printf "%d GB, %s CPUs", m / 1048576, c }')"
+  fi
+  echo "shared folder: $SHARED (drive Z: in Windows)"
+}
+
+cmd_remove() {
+  defined || { say "there is no Windows VM"; return 0; }
+  local d
+  d=$(vm_dir)
+  if [ "${1:-}" != --yes ]; then
+    [ -t 0 ] || die "vikix windows remove asks first; without a terminal, use --yes"
+    echo "This deletes the Windows VM and its disk, $d/$NAME.qcow2: everything in"
+    echo "Windows that isn't in ~/Windows is gone. ~/Windows itself stays."
+    local answer
+    read -r -p "Type 'remove' to go ahead: " answer
+    [ "$answer" = remove ] || { say "nothing removed"; return 0; }
+  fi
+  pkill -u "$(id -u)" -f "vikix-windows watch-install$" 2>/dev/null || true
+  virsh destroy "$NAME" >/dev/null 2>&1 || true
+  virsh undefine "$NAME" --nvram --tpm >/dev/null
+  rm -f "$d/$NAME.qcow2" "$d/$NAME-answers.iso"
+  say "the Windows VM is removed; ~/Windows is still there"
+}
+
+case ${1:-open} in
+  setup)         shift; cmd_setup "$@" ;;
+  create)        shift; cmd_create "$@" ;;
+  open)          cmd_open ;;
+  stop)          shift; cmd_stop "$@" ;;
+  power)         cmd_power ;;
+  status)        cmd_status ;;
+  remove)        shift; cmd_remove "$@" ;;
+  watch-install) cmd_watch_install ;;
+  help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) die "vikix windows: unknown command $1 (vikix windows help)" ;;
+esac

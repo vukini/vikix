@@ -76,6 +76,8 @@ jobs:
         run: tests/ci.sh nightlight
       - name: update
         run: tests/ci.sh update
+      - name: windows
+        run: tests/ci.sh windows
       - name: info
         run: tests/ci.sh info
 

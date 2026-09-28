@@ -95,6 +95,9 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
                             (format nil "~a -e nmtui" *vikix-terminal*)))
     ("Bluetooth"           (run-shell-command "blueman-manager"))
     ("Printers"            (run-shell-command "system-config-printer"))
+    ("Windows (the VM)"    (run-shell-command
+                            (format nil "vikix-windows open || ~a -e sh -c 'vikix windows status; printf \"\\nEnter closes this window. \"; read x'"
+                                    *vikix-terminal*)))
     ("Eject a drive"       (run-shell-command "vikix-drives eject"))
     ("Firmware updates"    (run-shell-command
                             (format nil "~a -e sh -c 'vikix firmware update; printf \"\\nEnter closes this window. \"; read x'"
@@ -111,8 +114,10 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
     ;; Through elogind, so no sudo. xss-lock locks the screen before a suspend.
     ("Suspend"             (run-shell-command "loginctl suspend"))
     ("Log out"             quit)
-    ("Reboot"              (run-shell-command "loginctl reboot"))
-    ("Power off"           (run-shell-command "loginctl poweroff")))
+    ;; A running Windows VM shuts down properly first (vikix-windows power
+    ;; does nothing, quickly, when there isn't one).
+    ("Reboot"              (run-shell-command "vikix-windows power; loginctl reboot"))
+    ("Power off"           (run-shell-command "vikix-windows power; loginctl poweroff")))
   "The power menu (Super+Shift+Escape), in the same form as *vikix-menu*.")
 
 (defun vikix-run-menu (entries prompt)
@@ -245,6 +250,24 @@ changed. Reading a small file is cheap, so this runs with the others."
   (let ((new (and (probe-file *vikix-awake-file*) t)))
     (unless (eq new *vikix-awake*)
       (setf *vikix-awake* new)
+      (update-all-mode-lines))))
+
+(defparameter *vikix-windows-pidfile*
+  (concatenate 'string
+               (or (uiop:getenv "XDG_RUNTIME_DIR")
+                   (format nil "/run/user/~a" (sb-posix:getuid)))
+               "/libvirt/qemu/run/windows.pid")
+  "Present while the Windows VM runs: libvirt (qemu:///session) makes it.")
+
+(defvar *vikix-windows* nil
+  "True while the Windows VM (vikix windows) is running.")
+
+(defun vikix-windows-refresh ()
+  "Read whether Windows runs into *vikix-windows*; redraw the bar if it changed.
+A file test, so no program starts every 10 seconds."
+  (let ((new (and (probe-file *vikix-windows-pidfile*) t)))
+    (unless (eq new *vikix-windows*)
+      (setf *vikix-windows* new)
       (update-all-mode-lines))))
 
 (defcommand vikix-awake () ()
