@@ -207,7 +207,7 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 | `s-e` | Files (PCManFM) |
 | `s-E` | Files in SpaceFM (tabs, split panes) |
 | `s-C-e` | Eject a USB drive: pick it, and a notification says when it's safe to pull out |
-| `s-a` | AI agent: Claude Code in a terminal |
+| `s-a` | AI agent in a terminal: Claude Code, or the one you chose |
 | `s-i` | AI on the selected text: ask, proofread, rewrite, translate, explain |
 | `s-M` | Mail: your mail web app to the front, or opened (the first mail one `vikix webapp add` makes; see [Web apps](#web-apps)) |
 | `s-x` | Emacs: a new window (the Emacs server is already running) |
@@ -312,6 +312,30 @@ Vikix is set up for an AI agent to work on the desktop with you, the way Omarchy
 
   It talks to Swank on port 4004. Errors come back as `error: ...`; they never leave it hanging. A menu or prompt that is open makes it give up after 10 seconds.
 - **Undo.** Before each agent session, Vikix takes a snapshot of your files. See below.
+
+### Any agent, not just Claude Code
+
+```sh
+vikix agent --list                 # the agents, which are here, and which s-a starts
+vikix agent --use opencode         # another one, this time (installs it first, if you say so)
+vikix agent --default codex        # the one s-a and `a` start from now on
+vikix agent --use aider --local    # on a model on this laptop (Ollama), offline
+vikix add gemini                   # install one as a feature; vikix remove gemini takes it away
+```
+
+| Agent | Installed by | Signs in with | Local (`--local`) |
+|---|---|---|---|
+| `claude`, Claude Code | Anthropic's installer, into `~/.local/bin` | your Claude login | no |
+| `opencode`, [OpenCode](https://opencode.ai) | its installer, told not to edit `.bashrc` (linked into `~/.local/bin`) | any model company (`opencode auth login`) | yes |
+| `codex`, [Codex](https://github.com/openai/codex) | OpenAI's installer, into `~/.local/bin` | your ChatGPT login | yes (`--oss`) |
+| `gemini`, [Gemini CLI](https://github.com/google-gemini/gemini-cli) | npm, into `~/.local`; needs Node 20+ (`vikix add javascript`, which `vikix add gemini` brings) | your Google login | no |
+| `aider`, [Aider](https://aider.chat) | uv, on Python 3.12 (Aider doesn't run on Void's 3.14) | an API key (`vikix ai key set anthropic`) | yes |
+
+- **One guide for all of them.** Claude Code and OpenCode read the Vikix skill (OpenCode reads `~/.claude/skills` too). For the others, Vikix writes the same text as `~/.local/share/vikix/AGENTS.md`, at every update and every start, and links it where each looks: `~/.codex/AGENTS.md`, `~/.gemini/GEMINI.md`; Aider gets `--read`. A file of your own there is kept, and Vikix says how to add the guide to it.
+- **The same snapshot first**, whichever agent: `vikix changes`, `vikix undo`.
+- **No API keys, unless needed.** An agent starts without the keys `vikix ai key` keeps (on its own login, so a key isn't billed by surprise, or shown by `env`). Aider has no login, so it keeps the model companies' keys (not others, such as `GITHUB_TOKEN`). `VIKIX_AGENT_API_KEY=1 vikix agent` keeps them all.
+- **Local** (`--local`, `--model NAME`): the best coder among your models (qwen2.5-coder first). Small models do little as agents: a 3B one can answer, not work through a task; `vikix ai models` has bigger ones if the memory allows.
+- **Taking one away:** `vikix remove NAME` (or `vikix agent --uninstall NAME`) removes the program and keeps its settings, logins and history.
 
 ## API keys
 
@@ -741,6 +765,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `bar` | `vikix-net` labels the link and shows the Wi-Fi signal only when it is weak; `vikix-bt` shows Bluetooth only when it is on, with the device and its battery, and never waits on a hung bluetoothd; `vikix-font` gives StumpWM Iosevka Regular, or a stand-in until Iosevka is installed |
 | `windows` | `vikix windows setup` refuses without KVM or space before changing anything, opts in once, and deletes a download with the wrong checksum; `10-packages` installs an optional list only once chosen; `create`'s answer file is valid XML in the ISO's language, and the password stays off the command line and out of reach of other users; `virt-install` gets the TPM, Secure Boot, the private bridge (never passt), virtiofs and TRIM; `vikix windows network` sets up the system libvirt, its network and bridge.conf, moves a passt VM onto `virbr0`, says plainly when libvirt won't start, asks for no password when all is ready, and tells a Windows still running on the old network to restart; the migration runs it only where Windows was chosen, and never fails the update; `vikix doctor` checks the VM's network; the discs come out and the answer disc goes only once Windows is ready; power off shuts a running Windows down and leaves libvirt alone otherwise |
 | `llm` | `vikix ai llm` installs llm and its Ollama and Anthropic plugins with uv, pinned; its default becomes a local model (llama3.2:3b first) when there is one, else Claude with a key, else it says what to do and warns that a plain `llm` would go to OpenAI; the default it picked is picked again (a local model later wins over Claude), a default you chose stays; `--default` sets one; `--refresh` (from `vikix update`) reinstalls only an llm that isn't the pinned version; without uv, a plain message |
+| `agents` | the guide is the skill without its header and calls itself a guide; each agent installs as its project says (OpenCode without editing `.bashrc`, Codex without questions, Aider on Python 3.12 with uv, Gemini with npm into `~/.local` and only on Node 20+) and is recorded as a feature; the guide is linked for Codex and Gemini, never over your own file (which it says how to extend), and given to Aider with `--read`; the default starts, with its arguments, after a snapshot, and without API keys (Aider keeps the model companies', `VIKIX_AGENT_API_KEY=1` all); `--default`, `--list`; `--local` picks the best coder model for aider, codex (`--oss`) and opencode (an Ollama provider), and refuses claude and a model you don't have; `--uninstall` keeps settings and your GEMINI.md, drops the link, and the default goes back to claude |
 | `ai-keys` | `vikix-ask` (`s-i`) writes `~/.config/vikix/ai` on first use and takes the model from it: llama3.2:3b first, else your first local model, the one named there (a name with anything odd in it refused), or Claude only with `use=claude` and a key, never by itself; the menu's choice leads to its action; Proofread/Rewrite/Translate copy the answer without the model's "Here is…"; Ask sends the question with the selection; a short answer is a notification, a long one a terminal; nothing selected, the clipboard, then a plain message; llm's key error points to `vikix ai key`; Proofread lists its changes; the answer's terminal doesn't keep the lock; `vikix ai use` (and the menu) switch, Claude only with a key; any typed language; `use=Local`; a misspelt action is said |
 | `ai-local` | `vikix ai setup` refuses a download with the wrong checksum, installs only the CPU's and Vulkan's parts (no NVIDIA libraries), puts `ollama` on PATH, deletes the download, keeps models out of backups, and a second run downloads nothing; the picker offers 7–8B models only where they fit (16 GB, not 8 GB), marks what you have, and a choice (by number, with a ✓, or in rofi) downloads the right model; `status` says the loaded model's memory and when it unloads; `stop` unloads through the API and says so (a notification from `s-m`); `chat` runs the model; `remove` says plainly what's missing; the bar's note comes and goes with the model; a big log is moved aside; `uninstall` stops only its own processes (a decoy `ollama` survives) and keeps the models unless `--models` (needs Python 3.14's zstd) |
 | `webapp` | `vikix webapp add` gives a preset its address and the first mail one `s-M`, keeps an app's key when it's added again, makes a launcher entry with its window class, opts in to Chromium, suggests `https://` for a bare address, and refuses a bad name, an address that isn't https (but localhost), Vikix's own keys (the workspace keys too) and another web app's (saying how to free it); `key` moves or drops a key; `open` starts a Chromium app window with its own class and profile (700); `list` says keys as spoken, points out lines it can't use and logins left behind; `remove` keeps your comments and the logins unless `--forget`; `webapps.lisp` binds the keys, names each as its launcher entry does, adds key help and `s-m` entries (before Power), skips a bad line and loads the rest, and a reload drops what went; the migration adds the web apps' caches to an existing backup-exclude once |

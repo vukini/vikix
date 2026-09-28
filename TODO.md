@@ -8,11 +8,10 @@ Built in this order: AI first, then newcomers, then the rest. Package facts were
 
 ### AI
 
-1. **Any agent, not just Claude Code.** The skill's content also as AGENTS.md, linked to ~/.config/AGENTS.md and wherever Codex, Gemini CLI and OpenCode look: one source file, the rest generated or linked. `vikix agent --use claude|opencode|codex|gemini|aider` takes the same snapshot first, and installs the agent on first use from its official installer. OpenCode and Aider can use local Ollama, for offline work.
-2. **`vikix debug`, then `vikix diagnose`.** debug writes one file to attach to an issue: the session and install logs, doctor's output, VERSION, the checkout's git status, uname, lspci/lsusb and xrandr, with keys scrubbed (the patterns `vikix ai key check` uses). diagnose hands that file to the chosen agent: "what's wrong, and how do I fix it?".
-3. **Dictation.** Hold a key (Super+F9, say) and speak; on release, whisper.cpp (built from source, base.en or small, on the CPU) writes it down and xdotool types it into the focused window. The bar shows it while recording, like `rec`, in the alert colour. Maybe also: read a selection aloud with espeak-ng.
-4. **A Vikix MCP server.** So any MCP agent can drive the desktop through a fixed, safe set of tools: vikix eval (maybe read-only by default), snapshot, changes and undo, doctor, the windows and workspaces, a notification, the theme. Local only (stdio), registered for Claude Code, documented for others. The dangerous ones (eval with side effects, undo) need a clear flag or a confirmation.
-5. **~/dev/ai.** A folder like the languages' (README, tools line, examples copied once): the Claude API from Python and from the shell; a local model through Ollama's API; embeddings in SQLite with sqlite-vec; and "ask my notes", a small search over a folder of Markdown (an Obsidian vault, say), local by default.
+1. **`vikix debug`, then `vikix diagnose`.** debug writes one file to attach to an issue: the session and install logs, doctor's output, VERSION, the checkout's git status, uname, lspci/lsusb and xrandr, with keys scrubbed (the patterns `vikix ai key check` uses). diagnose hands that file to the chosen agent: "what's wrong, and how do I fix it?".
+2. **Dictation.** Hold a key (Super+F9, say) and speak; on release, whisper.cpp (built from source, base.en or small, on the CPU) writes it down and xdotool types it into the focused window. The bar shows it while recording, like `rec`, in the alert colour. Maybe also: read a selection aloud with espeak-ng.
+3. **A Vikix MCP server.** So any MCP agent can drive the desktop through a fixed, safe set of tools: vikix eval (maybe read-only by default), snapshot, changes and undo, doctor, the windows and workspaces, a notification, the theme. Local only (stdio), registered for Claude Code, documented for others. The dangerous ones (eval with side effects, undo) need a clear flag or a confirmation.
+4. **~/dev/ai.** A folder like the languages' (README, tools line, examples copied once): the Claude API from Python and from the shell; a local model through Ollama's API; embeddings in SQLite with sqlite-vec; and "ask my notes", a small search over a folder of Markdown (an Obsidian vault, say), local by default.
 
 ### Newcomers
 
@@ -21,16 +20,16 @@ The install rework, agreed 2026-09-28: `install.sh` installs the base, and every
 - **R3. `vikix pkg add` and `vikix pkg drop`.** Single packages outside the features: a fuzzy search over `xbps-query -Rs` with a preview, installing or removing with xi or xr, and a Super+m entry. A base package dropped must stay dropped: `~/.config/vikix/packages-skip`, read by `10-packages` and in `yours.list`; then update docs/customize.md, which says there's no way yet.
 - **R4. A one-line install.** `curl -fsSL https://vikix.dev/install | bash` checks it's glibc Void and not root, installs git if needed, clones to ~/vikix and starts install.sh. The script lives in site/, short enough to read before running it, and the site shows it with a "read it first" link.
 
-6. **A key overlay.** Super+/ (and maybe holding Super for a second) shows a card of the Super keys, grouped, from *vikix-bindings*. And StumpWM's which-key-mode on, for the Ctrl+t keys.
-7. **A mouse fallback, and familiar keys.** Clicking a workspace in the bar goes there; volume opens pavucontrol, Wi-Fi nmtui, Bluetooth blueman. Super+Space as a second launcher key.
-8. **"Installing Void for Vikix", and "Your first hour".** A docs page with screenshots of void-installer: the glibc image, partitioning, a user in wheel, the network. Then a short one: the keys, part two, themes, update. Both linked from the site (the guides on vikix.dev, below).
+5. **A key overlay.** Super+/ (and maybe holding Super for a second) shows a card of the Super keys, grouped, from *vikix-bindings*. And StumpWM's which-key-mode on, for the Ctrl+t keys.
+6. **A mouse fallback, and familiar keys.** Clicking a workspace in the bar goes there; volume opens pavucontrol, Wi-Fi nmtui, Bluetooth blueman. Super+Space as a second launcher key.
+7. **"Installing Void for Vikix", and "Your first hour".** A docs page with screenshots of void-installer: the glibc image, partitioning, a user in wheel, the network. Then a short one: the keys, part two, themes, update. Both linked from the site (the guides on vikix.dev, below).
 
 ### And then
 
-9. **A firewall (ufw).** Deny incoming, allow outgoing, allow SSH. A runit service, and a Super+m entry that shows the status.
-10. **More themes.** Three or four more (Gruvbox, Nord, Tokyo Night, a high-contrast one), each with a wallpaper. Then make Emacs and Neovim follow `vikix theme`.
-11. **Whole-system undo.** When / is btrfs: snapper snapshots before each `vikix update`, and `vikix rollback` notes. Skip cleanly on ext4.
-12. **The guides on vikix.dev.** A Docs link on the site to `docs/` on GitHub, or the four pages built into the site. Same words either way: `docs/` stays the source.
+8. **A firewall (ufw).** Deny incoming, allow outgoing, allow SSH. A runit service, and a Super+m entry that shows the status.
+9. **More themes.** Three or four more (Gruvbox, Nord, Tokyo Night, a high-contrast one), each with a wallpaper. Then make Emacs and Neovim follow `vikix theme`.
+10. **Whole-system undo.** When / is btrfs: snapper snapshots before each `vikix update`, and `vikix rollback` notes. Skip cleanly on ext4.
+11. **The guides on vikix.dev.** A Docs link on the site to `docs/` on GitHub, or the four pages built into the site. Same words either way: `docs/` stays the source.
 
 ## To look into
 

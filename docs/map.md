@@ -37,6 +37,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── backup-password    yours     the backup password (never in snapshots)
 │   │   ├── secrets/           yours     API keys, one file each (vikix ai key); never in snapshots
 │   │   ├── ai                 yours     which model Super+i uses: use=local or claude, model=, languages=
+│   │   ├── agent              yours     which agent Super+a starts (vikix agent --default NAME)
 │   │   ├── features           yours     the features you chose (vikix add, vikix remove, vikix features)
 │   │   ├── windows            yours     where the Windows VM's disk is
 │   │   ├── webapps            yours     your web apps: NAME URL [KEY] (vikix webapp)
@@ -66,6 +67,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   ├── share/applications/*.desktop   Vikix's   JupyterLab, vikix-image, Lazarus in the launcher
 │   ├── share/vikix/fonts/wm.ttf       built     the bar's font, made by vikix-font
 │   ├── share/info/vikix.info          written   these guides as an Info manual (`info vikix`)
+│   ├── share/vikix/AGENTS.md          written   the skill as a guide for Codex, Gemini, Aider (linked as ~/.codex/AGENTS.md, ~/.gemini/GEMINI.md)
 │   ├── opt/picolisp/          built     PicoLisp, from source
 │   ├── opt/ollama/            built     Ollama, for local AI models (vikix ai setup)
 │   ├── share/libvirt/images/  the Windows VM's disk and its driver disc (not backed up)

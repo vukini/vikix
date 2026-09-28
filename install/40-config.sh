@@ -74,6 +74,9 @@ for app in "$C"/applications/*.desktop; do
 done
 link_managed "$C/bash/vikix.bash"   "$HOME/.config/vikix/vikix.bash"
 link_managed "$C/claude/skills/vikix" "$HOME/.claude/skills/vikix"
+# The same guide for the other agents (Codex, Gemini, Aider), as AGENTS.md:
+# made from the skill, so it changes with it.
+bash "$VIKIX_DIR/bin/vikix-agent" --write-guide
 link_managed "$C/fontconfig/50-vikix-iosevka.conf" "$HOME/.config/fontconfig/conf.d/50-vikix-iosevka.conf"
 
 # --- Your files -----------------------------------------------------------

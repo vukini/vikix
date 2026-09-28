@@ -17,7 +17,7 @@ This folder sits inside an Obsidian vault, but it is a code repo: the vault's no
 No build step. The tests are scripts in `tests/`, and `.github/workflows/test.yml` runs the same scripts on GitHub (on each push and weekly):
 
 ```sh
-tests/run.sh                  # about two minutes: lint, lisp, battery, home, services, backup (with restic), image, theme, bar, rofi, wallpaper, examples, drives, firmware, fingerprint, updates, notifications, idle, capture, nightlight, update, windows, ai, ai-local, llm, ai-keys, swank (with Quicklisp), webapp, features, welcome, info, and on Void packages + dry-run
+tests/run.sh                  # about two minutes: lint, lisp, battery, home, services, backup (with restic), image, theme, bar, rofi, wallpaper, examples, drives, firmware, fingerprint, updates, notifications, idle, capture, nightlight, update, windows, ai, ai-local, llm, ai-keys, agents, swank (with Quicklisp), webapp, features, welcome, info, and on Void packages + dry-run
 tests/run.sh --all            # plus editors: Emacs and Neovim configs from scratch (minutes, network)
 tests/lint.sh                 # bash -n, executable bits, shellcheck -S warning (must stay at zero)
 DRY_RUN=1 bash install/<stage>.sh     # one stage, printing instead of changing
@@ -51,7 +51,7 @@ Real testing happens in a VM. The dev machine has a libvirt VM `void-vm` (`virsh
 
 **Snapshots of the user's files.** `vikix snapshot/changes/history/undo` keep a separate git repo at `~/.local/state/vikix/yours.git` whose work tree is `$HOME`, limited to `config/yours.list`. `vikix agent` snapshots before starting Claude Code.
 
-**The installed agent's skill.** `config/claude/skills/vikix/SKILL.md` is linked to `~/.claude/skills/vikix` on installed machines and guides Claude Code running *on* a Vikix desktop. Update it when commands, keys or file ownership change.
+**The installed agent's skill.** `config/claude/skills/vikix/SKILL.md` is linked to `~/.claude/skills/vikix` on installed machines and guides Claude Code running *on* a Vikix desktop (OpenCode reads it there too). `bin/vikix-agent --write-guide` (40-config, and every `vikix agent`) turns it into `~/.local/share/vikix/AGENTS.md` for the other agents (Codex, Gemini, Aider), so it stays the one source. Update it when commands, keys or file ownership change.
 
 ## Conventions
 

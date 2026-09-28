@@ -22,7 +22,9 @@
 #   vikix version
 #
 #   vikix eval FORM     run Lisp in the running StumpWM, print the result
-#   vikix agent         Claude Code, after a snapshot of your files (alias: a)
+#   vikix agent         the AI agent, after a snapshot of your files (alias: a):
+#                         Claude Code, or --use opencode|codex|gemini|aider,
+#                         --local on this laptop, --default NAME, --list
 #   vikix snapshot [MESSAGE]   record your files as they are now
 #   vikix changes [ID]  what changed since the last snapshot (or in snapshot ID)
 #   vikix history       the snapshots, newest first
@@ -270,6 +272,8 @@ cmd_doctor() {
   else
     say "claude is not installed (optional: Super+a or 'vikix agent' offers to install it)"
   fi
+  if [ -f "${XDG_DATA_HOME:-$HOME/.local/share}/vikix/AGENTS.md" ]; then say "the Vikix guide for other agents is in ~/.local/share/vikix/AGENTS.md"
+  else warn "the Vikix guide for other agents, ~/.local/share/vikix/AGENTS.md, is missing (40-config writes it; vikix agent too)"; ok=0; fi
   if [ -n "${DISPLAY:-}" ]; then
     if pgrep -x udiskie >/dev/null 2>&1; then
       say "udiskie is running: USB drives mount when plugged in"
@@ -408,33 +412,7 @@ cmd_undo() {
 }
 
 # --- The agent --------------------------------------------------------------
-# Claude Code, started after a snapshot, so whatever it changes in your
-# files can be seen (vikix changes) and undone (vikix undo). The Vikix
-# skill (config/claude/skills/vikix) tells it how this desktop is put together.
-
-cmd_agent() {
-  PATH="$HOME/.local/bin:$PATH"
-  if ! command -v claude >/dev/null 2>&1; then
-    say "Claude Code isn't installed."
-    printf 'Install it now with Anthropic'"'"'s installer (curl -fsSL https://claude.ai/install.sh | bash)? [y/N] '
-    local answer
-    read -r answer
-    case $answer in
-      y|Y|yes) curl -fsSL https://claude.ai/install.sh | bash ;;
-      *) say "not installed. Press Enter to close."; read -r _; return 1 ;;
-    esac
-    command -v claude >/dev/null 2>&1 || { warn "claude still isn't on PATH. Press Enter to close."; read -r _; return 1; }
-  fi
-  cmd_snapshot "before an agent session"
-  say "to see what the agent changed: vikix changes    to take it back: vikix undo"
-  # With ANTHROPIC_API_KEY set (vikix ai key), Claude Code would use it and
-  # bill the key's API account, and the agent could print it with `env`.
-  # So it starts without it, on your Claude login, unless you ask.
-  if [ "${VIKIX_AGENT_API_KEY:-}" = 1 ]; then
-    exec claude "$@"
-  fi
-  exec env -u ANTHROPIC_API_KEY claude "$@"
-}
+# bin/vikix-agent: Claude Code or another agent, after a snapshot.
 
 # --- Themes ------------------------------------------------------------------
 # A theme is a file of named colours: themes/NAME.theme in Vikix, or your own
@@ -649,7 +627,7 @@ main() {
     welcome)     shift; exec "$VIKIX_DIR/bin/vikix-welcome" "$@" ;;
     version)     cat "$VIKIX_DIR/VERSION" ;;
     eval)        shift; exec python3 "$VIKIX_DIR/bin/vikix-eval" "$@" ;;
-    agent)       shift; cmd_agent "$@" ;;
+    agent)       shift; exec "$VIKIX_DIR/bin/vikix-agent" "$@" ;;
     snapshot)    cmd_snapshot "${2:-snapshot}" ;;
     changes)     cmd_changes "${2:-}" ;;
     history)     cmd_history ;;

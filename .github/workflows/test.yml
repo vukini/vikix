@@ -86,6 +86,8 @@ jobs:
         run: tests/ci.sh llm
       - name: ai-keys
         run: tests/ci.sh ai-keys
+      - name: agents
+        run: tests/ci.sh agents
       - name: swank
         run: tests/ci.sh swank
       - name: webapp

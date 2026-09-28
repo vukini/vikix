@@ -4,7 +4,7 @@ Vikix gives you three ways to use AI, from the most capable to the most private:
 
 | | What it is | What it needs | Where your words go |
 |---|---|---|---|
-| **The agent** | Claude Code, in a terminal, able to change the desktop for you | A Claude account (Pro or Max), or an Anthropic API key | Anthropic |
+| **The agent** | Claude Code (or another agent), in a terminal, able to change the desktop for you | A Claude account (Pro or Max), or an Anthropic API key; others need their own | Anthropic, or the agent's company; nowhere with `--local` |
 | **Local models** | A model that runs on this laptop, to chat with | `vikix ai setup`, and a few GB of disk | Nowhere: it all stays here |
 | **`llm`** | One command for any model, fed from a pipe | `vikix ai llm`, and a local model or a key | Here, or to the model's company |
 | **Super+i** | Proofread, rewrite, translate, explain or ask about the text you selected, in any program | `vikix ai llm`, and a local model (or Claude, if you choose) | Here, unless you choose Claude |
@@ -47,7 +47,7 @@ It isn't limited to the desktop: it can write and run code in `~/dev`, explain a
 Before every session, Vikix saves a snapshot of your settings. The terminal says so in its first lines:
 
 ```
-:: snapshot 99e03a6: before an agent session
+:: snapshot 99e03a6: before an agent session (claude)
 :: to see what the agent changed: vikix changes    to take it back: vikix undo
 ```
 
@@ -61,6 +61,31 @@ vikix history      # every snapshot, newest first
 ```
 
 This covers your settings (the files in `~/vikix/config/yours.list`), not everything in your home folder. For your work, keep backups: [README: Backups](../README.md#backups).
+
+### Another agent
+
+Claude Code isn't the only one. Four others work the same way, with the same snapshot first and the same guide:
+
+| Agent | Signs in with | Can run on this laptop |
+|---|---|---|
+| **OpenCode** | Any model company you have an account with | Yes |
+| **Codex** (OpenAI) | Your ChatGPT account | Yes |
+| **Gemini CLI** (Google) | Your Google account | No |
+| **Aider** | An API key (`vikix ai key set anthropic`) | Yes |
+
+```sh
+vikix agent --list                # which are installed, and which Super+a starts
+vikix agent --use opencode        # try one: it offers to install it first
+vikix agent --default opencode    # make Super+a start it
+vikix agent --default claude      # back to Claude Code
+vikix add codex                   # or install one as a feature (vikix remove codex takes it away)
+```
+
+**Offline**, on a local model: `vikix agent --use opencode --local` (or codex, or aider). It picks the best of your models for code. Be warned: the small models a laptop runs can answer questions about the desktop, but rarely carry out a change on their own. A bigger model (`vikix ai models`) does better, slowly.
+
+**Keys:** an agent doesn't get your API keys: it signs in its own way, so a key isn't billed without you knowing. Aider can't sign in, so it gets the keys of the model companies (Anthropic, OpenAI, Google), and no others.
+
+**How they know Vikix:** OpenCode reads the same skill as Claude Code. Codex and Gemini read `~/.local/share/vikix/AGENTS.md`, the same text, which Vikix links as `~/.codex/AGENTS.md` and `~/.gemini/GEMINI.md`. If you have one of those files already, it's yours and stays; Vikix says how to add the guide to it.
 
 ## API keys
 

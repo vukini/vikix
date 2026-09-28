@@ -46,8 +46,9 @@ saves the choice for the next start)."
   (vikix-in-terminal "vikix update"))
 
 (defcommand vikix-agent () ()
-  "Open Claude Code in a terminal. `vikix agent` snapshots your files
-first, so whatever it changes can be undone with `vikix undo`."
+  "Open the AI agent in a terminal: Claude Code, or the one chosen with
+`vikix agent --default NAME`. `vikix agent` snapshots your files first,
+so whatever it changes can be undone with `vikix undo`."
   (run-shell-command (format nil "~a -e vikix agent" *vikix-terminal*)))
 
 (defcommand vikix-welcome () ()
@@ -92,7 +93,7 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
                                (format nil "emacsclient -c -a '' -e '(info \"~~/.local/share/info/vikix.info\")' || ~a -e info -f ~~/.local/share/info/vikix.info"
                                        *vikix-terminal*)))
     ("Update Vikix"      vikix-update)
-    ("AI agent (Claude Code)" vikix-agent)
+    ("AI agent"            vikix-agent)
     ("AI on the selected text" (run-shell-command "vikix-ask"))
     ("JupyterLab (in ~/dev)" (run-shell-command "vikix-jupyter"))
     ("Programming docs (offline)" (run-shell-command "xdg-open ~/dev/index.html"))
