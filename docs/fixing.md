@@ -61,12 +61,17 @@ find ~ -name '*.vikix-bak.*' 2>/dev/null
 
 The end of the run names the stages that failed, and the whole run is in `~/.local/state/vikix/logs/update-<time>.log`. The other stages still ran. Most failures are the network; run `vikix update` again.
 
-If it stops at **pulling Vikix**, the checkout has changes of its own:
+**Changes made in the checkout** (`~/vikix`: an edit, an editor's backup file) would stop the pull, so the update sets them aside first, in a stash named after the update, and says so. Nothing is deleted:
 
 ```sh
-git -C ~/vikix status     # what's changed
-git -C ~/vikix stash      # set them aside, then vikix update again
+git -C ~/vikix stash list                           # what was set aside, and when
+git -C ~/vikix stash show -p --include-untracked    # the changes themselves
+git -C ~/vikix stash pop                            # back into the checkout
 ```
+
+A change you want to keep belongs in your own files (`~/.stumpwm.d/user.lisp` …; see [Making it yours](customize.md)): the checkout is replaced by every update.
+
+If it still stops at **pulling Vikix**, it's usually the network: run `vikix update` again.
 
 To run one install stage again on its own (each is safe to re-run):
 

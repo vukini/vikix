@@ -35,6 +35,25 @@ else
 fi
 [ "$fail" = 0 ] && echo "update: restarts into the new version, and logs the whole run"
 
+# Changes made in the checkout (another program edited TODO.md; an editor
+# left a backup file) would stop the pull. They're set aside in a named
+# stash, and the update goes on.
+( cd "$t/upstream" && echo "upstream's change" >> TODO.md && git_q commit -qam "newer still" )
+echo "an edit made in the installed checkout" >> "$t/machine/TODO.md"
+echo "(an editor's autosave)" > "$t/machine/#theme.lisp#"
+out=$(HOME="$t/home" VIKIX_STATE="$t/state" VIKIX_SUDO_KEPT=1 bash "$t/machine/bin/vikix" update 2>&1) || true
+grep -q 'NEW VERSION STEPS' <<<"$out" || { echo "FAIL: local changes stopped the update:"; echo "$out" | tail -5 | sed 's/^/  /'; fail=1; }
+grep -q "upstream's change" "$t/machine/TODO.md" || { echo "FAIL: the pull didn't bring upstream's TODO.md"; fail=1; }
+stash=$(git -C "$t/machine" stash list)
+grep -q 'vikix update .*: changes made in the checkout' <<<"$stash" || { echo "FAIL: no named stash: $stash"; fail=1; }
+git -C "$t/machine" stash show -p --include-untracked 2>/dev/null | grep -q 'an edit made in the installed checkout' ||
+  { echo "FAIL: the stash doesn't hold the edit"; fail=1; }
+grep -q 'git -C .* stash pop' <<<"$out" || { echo "FAIL: the update didn't say how to get the changes back"; fail=1; }
+: > /dev/null
+out=$(HOME="$t/home" VIKIX_STATE="$t/state" VIKIX_SUDO_KEPT=1 bash "$t/machine/bin/vikix" update 2>&1) || true
+grep -q 'changes of its own' <<<"$out" && { echo "FAIL: a clean checkout was said to have changes"; fail=1; }
+[ "$fail" = 0 ] && echo "update: changes made in the checkout are set aside in a named stash, and the update goes on"
+
 # A checkout whose remote is SSH (its owner pushes from it) still pulls
 # over HTTPS: vikix update may ask for nothing but sudo's password, and SSH
 # would ask for the key's passphrase even though the repo is public.

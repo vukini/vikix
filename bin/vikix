@@ -62,6 +62,25 @@ cmd_migrate() {
   say "$applied new migration(s)"
 }
 
+# Changes made in the checkout itself (an edit, an editor's backup file)
+# stop the pull: git won't overwrite them. Vikix's files are replaced by
+# every update anyway, so they're set aside in a named stash, not deleted,
+# and the update goes on. (Ignored files, like old release zips, stay.)
+set_aside_local_changes() {
+  local dir=$1 changes name
+  changes=$(git -C "$dir" status --porcelain 2>/dev/null) || return 0
+  [ -n "$changes" ] || return 0
+  name="vikix update $(date '+%Y-%m-%d %H:%M'): changes made in the checkout"
+  warn "the Vikix checkout ($dir) has changes of its own, which would stop the update:"
+  printf '%s\n' "$changes" | head -10 | sed 's/^/     /'
+  echo "   They're set aside, not deleted (Vikix's files are replaced by every update):"
+  run git -C "$dir" -c user.name=Vikix -c user.email=vikix@localhost \
+    stash push --include-untracked --quiet --message "$name"
+  echo "   See them: git -C $dir stash show -p --include-untracked"
+  echo "   Get them back (to keep a note, or move it): git -C $dir stash pop"
+  echo "   A change of yours belongs in your own files (~/.stumpwm.d/user.lisp ...): see docs/customize.md"
+}
+
 cmd_update() {
   drop_keys
   # Everything it prints also goes to a log, like the installer's. Set up
@@ -75,6 +94,7 @@ cmd_update() {
   fi
   sudo_keepalive
   if [ "${1:-}" != --pulled ]; then
+    set_aside_local_changes "$VIKIX_DIR"
     say "pulling Vikix"
     git_pull "$VIKIX_DIR"
     # The pull may have replaced this very script, but bash goes on running
