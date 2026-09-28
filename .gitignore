@@ -1,1 +1,6 @@
 *.zip
+# Editors' leftovers: they must not stop an update (vikix update sets
+# aside only changes that matter)
+\#*#
+.#*
+*~

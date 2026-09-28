@@ -22,8 +22,9 @@ Void is not a systemd distribution. Remember:
 Every config file belongs either to Vikix or to the user.
 
 **Vikix's files** are symlinks into the Vikix checkout. `vikix update`
-replaces them, so any edit there is lost, and it breaks the update
-(`git pull --ff-only`). **Do not edit them**:
+replaces them, so any edit there is lost: the next update sets it aside
+in a patch file (~/.local/state/vikix/checkout-changes/) and a stash, and a
+commit made there stops the update altogether. **Do not edit them**:
 
 - `~/.stumpwm.d/init.lisp`, `~/.stumpwm.d/vikix/` (theme, groups, commands, windows, keys, help, modeline, swank)
 - `~/.xinitrc`, `~/.local/bin/vikix*`, `~/.config/vikix/vikix.bash`
@@ -44,8 +45,11 @@ replaces them, so any edit there is lost, and it breaks the update
 
 If the user asks for a change that can only be made in Vikix's own files
 (a bug in Vikix, a new default for everyone), say so, and offer to write
-it as a change to the checkout that they can review and commit. Don't
-make it silently.
+it as a patch file in their home (~/vikix-fix-NAME.patch, made from a
+copy of the checkout) to send upstream as an issue or pull request, or,
+for a fork of their own, follow ~/vikix/docs/customize.md ("Changing
+Vikix itself"). Never edit or commit in ~/vikix: updates set edits aside,
+and a commit there stops them. Don't make it silently.
 
 ## Before and after changing files
 
@@ -133,7 +137,7 @@ keys follow the prefix Ctrl+t. Focus follows the mouse (sloppy focus).
 - Windows VM (optional, opt-in): `vikix windows setup` once (adds `windows` to `~/.config/vikix/optional`, so 10-packages installs `packages/optional/windows.list` now and at every update), `vikix windows create ISO [--key KEY]` (unattended: answer file from lib/windows-unattend.py on a disc it deletes when done), then `vikix windows` / `stop` / `status` / `remove`. It is libvirt's qemu:///session, so always `virsh -c qemu:///session` (the system libvirt won't see it); its network is the system libvirt's NAT bridge virbr0 (through qemu-bridge-helper and /etc/qemu/bridge.conf), so Windows can't reach this machine's 127.0.0.1 services; `vikix windows network` fixes a VM still on passt, `vikix windows status` or `vikix doctor` show which network it's on (a VM moved while running needs a restart); the VM is named `windows`, its disk in `~/.local/share/libvirt/images/`, `~/Windows` is drive Z: (virtiofs). Never read or print the answer disc (it holds the Windows password); `remove` deletes the VM's disk, so only when the user asks.
 - `vikix doctor` checks programs, services, links, the snapshot history and that `vikix eval` works. Start here when something is broken.
 - The bar shows `updates N` / `Vikix update` when `vikix update` has something to bring; `vikix-updates` checks (every 6 hours, from the session) and saves the counts in `~/.local/state/vikix/updates`.
-- `vikix update` sets aside changes made in the checkout (a named `git stash`; never edit the checkout, see the rule above), then pulls Vikix, updates Void, adds new packages and switches on their services, re-links the config, and reloads the running StumpWM so new keys, bar and menu take effect; a failed step is named at the end, and the rest still run; `vikix migrate` runs one-off fixes; `vikix rebuild-wm` rebuilds the StumpWM binary after a Quicklisp update; `vikix docs` downloads the offline programming docs into `~/dev` (a few GB, slow, so `vikix update` and the installer skip it). `~/dev/<language>/README.md` lists that language's tools (paths, versions) and where to learn it, rewritten by every update; `~/dev/<language>/examples/<name>/` are small programs, each with `make`, `make run`, `make clean` (yours: copied once).
+- `vikix update` sets aside changes made in the checkout (a patch file in ~/.local/state/vikix/checkout-changes/ and a named `git stash`; never edit the checkout, see the rule above; a commit there stops the update, and it says how to keep it and go on), then pulls Vikix, updates Void, adds new packages and switches on their services, re-links the config, and reloads the running StumpWM so new keys, bar and menu take effect; a failed step is named at the end, and the rest still run; `vikix migrate` runs one-off fixes; `vikix rebuild-wm` rebuilds the StumpWM binary after a Quicklisp update; `vikix docs` downloads the offline programming docs into `~/dev` (a few GB, slow, so `vikix update` and the installer skip it). `~/dev/<language>/README.md` lists that language's tools (paths, versions) and where to learn it, rewritten by every update; `~/dev/<language>/examples/<name>/` are small programs, each with `make`, `make run`, `make clean` (yours: copied once).
 - Languages are `packages/lang-*.list` in the checkout, one per language (C, Python, Lisps, Haskell, Forth, WebAssembly, JavaScript, Ruby, SQL, Lua, Go, Zig, Rust, Java, OCaml, Julia, Free Pascal); `65-languages` builds PicoLisp, builds Lazarus's docked IDE into `~/.lazarus` (start it with `vikix-lazarus`, not `startlazarus`, which picks Void's undocked one), and fetches Julia with juliaup. In StumpWM (windows.lisp) the docked Lazarus window tiles and every other Lazarus window floats.
 - Installer stages are `<checkout>/install/NN-name.sh`; re-run one with `<checkout>/install.sh --only NN-name`. Each checks before it changes anything, so re-running is safe.
 - The session starts from tty1: `~/.bash_profile` runs `startx`, `~/.xinitrc` runs `vikix-session`, which starts pipewire, dunst, picom, the Emacs daemon, then StumpWM (`~/.local/bin/stumpwm`).

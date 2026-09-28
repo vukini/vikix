@@ -61,17 +61,18 @@ find ~ -name '*.vikix-bak.*' 2>/dev/null
 
 The end of the run names the stages that failed, and the whole run is in `~/.local/state/vikix/logs/update-<time>.log`. The other stages still ran. Most failures are the network; run `vikix update` again.
 
-**Changes made in the checkout** (`~/vikix`: an edit, an editor's backup file) would stop the pull, so the update sets them aside first, in a stash named after the update, and says so. Nothing is deleted:
+**Changes made in the checkout** (`~/vikix`: an edit by hand, or by another program) would stop the pull, so the update sets them aside first, and says so, at the start and again at the end. Nothing is deleted. They're in a patch file you can read:
 
 ```sh
-git -C ~/vikix stash list                           # what was set aside, and when
-git -C ~/vikix stash show -p --include-untracked    # the changes themselves
-git -C ~/vikix stash pop                            # back into the checkout
+ls ~/.local/state/vikix/checkout-changes/        # one file per update that set something aside
+less ~/.local/state/vikix/checkout-changes/<date>.patch
 ```
 
-A change you want to keep belongs in your own files (`~/.stumpwm.d/user.lisp` …; see [Making it yours](customize.md)): the checkout is replaced by every update.
+A change you want to keep belongs in your own files (`~/.stumpwm.d/user.lisp` …; see [Making it yours](customize.md)): the checkout is replaced by every update. Editors' leftovers (`#file#`, `file~`) are ignored, so they never stop it.
 
-If it still stops at **pulling Vikix**, it's usually the network: run `vikix update` again.
+**Commits made in the checkout** do stop the update: Vikix can't update over them. It says so, with the commands to keep them as patch files and put the checkout back as released. **A clash left in the checkout** (Vikix's files with `<<<<<<<` marks, from putting set-aside changes back by hand) stops it too, with the commands to fix it; the desktop may not start until then.
+
+Otherwise, if it stops at **pulling Vikix**, it's the network or GitHub: run `vikix update` again.
 
 To run one install stage again on its own (each is safe to re-run):
 

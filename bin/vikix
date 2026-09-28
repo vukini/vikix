@@ -62,23 +62,71 @@ cmd_migrate() {
   say "$applied new migration(s)"
 }
 
-# Changes made in the checkout itself (an edit, an editor's backup file)
-# stop the pull: git won't overwrite them. Vikix's files are replaced by
-# every update anyway, so they're set aside in a named stash, not deleted,
-# and the update goes on. (Ignored files, like old release zips, stay.)
+# Changes made in the checkout itself (an edit by hand or by another
+# program) stop the pull: git won't overwrite them. Vikix's files are
+# replaced by every update anyway, so they're set aside, not deleted: in a
+# patch file to read (it can't clash with anything, unlike putting them
+# back), and in a git stash, named after the update and its files.
+# Editors' leftovers (#file#, file~) are in .gitignore, so they don't count.
 set_aside_local_changes() {
-  local dir=$1 changes name
+  local dir=$1 changes unmerged name files patch hash when
+  # A stash put back earlier that clashed with Vikix's files leaves them
+  # half merged, with <<<<<<< marks in them: the desktop may not even
+  # start like that. That needs a person, not another stash.
+  unmerged=$(git -C "$dir" ls-files -u 2>/dev/null | awk '{ print $4 }' | sort -u) || unmerged=''
+  if [ -n "$unmerged" ]; then
+    warn "Vikix's own files have changes put back into them that clash (<<<<<<< marks):"
+    printf '     %s\n' $unmerged
+    echo "   The desktop may not start like that. Keep what was there in a file, and put"
+    echo "   Vikix's files back as released, then update again:"
+    echo "     git -C $dir diff > ~/vikix-clash-$(date +%Y%m%d-%H%M).patch"
+    echo "     git -C $dir reset --hard"
+    echo "     vikix update"
+    exit 1
+  fi
   changes=$(git -C "$dir" status --porcelain 2>/dev/null) || return 0
   [ -n "$changes" ] || return 0
-  name="vikix update $(date '+%Y-%m-%d %H:%M'): changes made in the checkout"
-  warn "the Vikix checkout ($dir) has changes of its own, which would stop the update:"
-  printf '%s\n' "$changes" | head -10 | sed 's/^/     /'
-  echo "   They're set aside, not deleted (Vikix's files are replaced by every update):"
-  run git -C "$dir" -c user.name=Vikix -c user.email=vikix@localhost \
-    stash push --include-untracked --quiet --message "$name"
-  echo "   See them: git -C $dir stash show -p --include-untracked"
-  echo "   Get them back (to keep a note, or move it): git -C $dir stash pop"
-  echo "   A change of yours belongs in your own files (~/.stumpwm.d/user.lisp ...): see docs/customize.md"
+  when=$(date +%Y%m%d-%H%M%S)
+  files=$(awk '{ print $2 }' <<<"$changes" | head -3 | paste -sd' ')
+  name="vikix update $(date '+%Y-%m-%d %H:%M'): $files"
+  patch="$VIKIX_STATE/checkout-changes/$when.patch"
+  warn "the Vikix checkout, $dir, has changes of its own, which would stop the update:"
+  awk -v d="$dir" '{ what = ($1 == "??") ? "new" : "changed"; printf "     %-8s %s/%s\n", what, d, $2 }' <<<"$changes" | head -10
+  if [ "$DRY_RUN" = 1 ]; then
+    echo "   would set them aside in $patch (and a git stash), then update"
+    return 0
+  fi
+  git -C "$dir" -c user.name=Vikix -c user.email=vikix@localhost \
+    stash push --include-untracked --quiet --message "$name" ||
+    die "couldn't set them aside (git stash failed, above); nothing was changed. See: git -C $dir status"
+  hash=$(git -C "$dir" rev-parse --short refs/stash)
+  mkdir -p "$(dirname "$patch")"
+  git -C "$dir" stash show -p --include-untracked "$hash" > "$patch" 2>/dev/null || true
+  echo "   Set aside, not deleted (Vikix's files are replaced by every update anyway):"
+  echo "     read them:  less $patch"
+  echo "     the same, in git: git -C $dir stash show -p --include-untracked $hash"
+  echo "   A change of your own belongs in your own files (~/.stumpwm.d/user.lisp and the"
+  echo "   like): see ~/vikix/docs/customize.md, or ask the agent (Super+a) to move it there."
+  VIKIX_SET_ASIDE=$patch
+  export VIKIX_SET_ASIDE
+}
+
+# The pull failed: commits made in the checkout, which Vikix can't update
+# over, or (most often) the network. Say which, and what to do.
+pull_failed() {
+  local dir=$1 ahead
+  ahead=$(git -C "$dir" rev-list --count '@{u}..HEAD' 2>/dev/null || echo 0)
+  if [ "${ahead:-0}" -gt 0 ]; then
+    warn "the Vikix checkout, $dir, has $ahead commit(s) of its own, and Vikix can't update over them."
+    echo "   Keep them as patch files, then put the checkout back as released, and update:"
+    echo "     git -C $dir format-patch '@{u}' -o ~/vikix-commits-$(date +%Y%m%d-%H%M)"
+    echo "     git -C $dir reset --hard '@{u}'"
+    echo "     vikix update"
+    echo "   (Changing Vikix itself, for good: ~/vikix/docs/customize.md, Changing Vikix itself.)"
+  else
+    warn "couldn't pull Vikix (the network? GitHub?); nothing was changed. Try again: vikix update"
+  fi
+  exit 1
 }
 
 cmd_update() {
@@ -96,7 +144,7 @@ cmd_update() {
   if [ "${1:-}" != --pulled ]; then
     set_aside_local_changes "$VIKIX_DIR"
     say "pulling Vikix"
-    git_pull "$VIKIX_DIR"
+    git_pull "$VIKIX_DIR" || pull_failed "$VIKIX_DIR"
     # The pull may have replaced this very script, but bash goes on running
     # the copy it already opened: the steps below would be the OLD version's,
     # and a stage new in this version would be skipped. So start again from
@@ -127,6 +175,10 @@ cmd_update() {
     say "StumpWM reloaded: the new keys, bar and menu are in use"
   else
     warn "couldn't reach StumpWM to reload it; the new keys, bar and menu start at the next login (or Super+m, Reload config)"
+  fi
+  # Said again at the end, where it's seen: the warning was 400 lines up.
+  if [ -n "${VIKIX_SET_ASIDE:-}" ]; then
+    warn "changes made in the checkout were set aside before this update: less $VIKIX_SET_ASIDE"
   fi
   if [ "${#failed[@]}" -gt 0 ]; then
     warn "these stages failed: ${failed[*]}. Fix them, then: vikix update (log: $VIKIX_UPDATE_LOG)"

@@ -35,24 +35,52 @@ else
 fi
 [ "$fail" = 0 ] && echo "update: restarts into the new version, and logs the whole run"
 
-# Changes made in the checkout (another program edited TODO.md; an editor
-# left a backup file) would stop the pull. They're set aside in a named
-# stash, and the update goes on.
+# Changes made in the checkout (another program edited TODO.md) would stop
+# the pull. They're set aside, in a patch file and a stash, and the update
+# goes on; an editor's leftover isn't a change (.gitignore).
+upd() { HOME="$t/home" VIKIX_STATE="$t/state" VIKIX_SUDO_KEPT=1 bash "$t/machine/bin/vikix" update 2>&1; }
 ( cd "$t/upstream" && echo "upstream's change" >> TODO.md && git_q commit -qam "newer still" )
-echo "an edit made in the installed checkout" >> "$t/machine/TODO.md"
+echo "an edit made in the installed checkout" >> "$t/machine/README.md"
 echo "(an editor's autosave)" > "$t/machine/#theme.lisp#"
-out=$(HOME="$t/home" VIKIX_STATE="$t/state" VIKIX_SUDO_KEPT=1 bash "$t/machine/bin/vikix" update 2>&1) || true
+out=$(DRY_RUN=1 upd) || true
+grep -q 'would set them aside' <<<"$out" || { echo "FAIL: a dry run should say it would set them aside: $out"; fail=1; }
+[ -z "$(git -C "$t/machine" stash list)" ] || { echo "FAIL: a dry run made a stash"; fail=1; }
+out=$(upd) || true
 grep -q 'NEW VERSION STEPS' <<<"$out" || { echo "FAIL: local changes stopped the update:"; echo "$out" | tail -5 | sed 's/^/  /'; fail=1; }
 grep -q "upstream's change" "$t/machine/TODO.md" || { echo "FAIL: the pull didn't bring upstream's TODO.md"; fail=1; }
-stash=$(git -C "$t/machine" stash list)
-grep -q 'vikix update .*: changes made in the checkout' <<<"$stash" || { echo "FAIL: no named stash: $stash"; fail=1; }
-git -C "$t/machine" stash show -p --include-untracked 2>/dev/null | grep -q 'an edit made in the installed checkout' ||
-  { echo "FAIL: the stash doesn't hold the edit"; fail=1; }
-grep -q 'git -C .* stash pop' <<<"$out" || { echo "FAIL: the update didn't say how to get the changes back"; fail=1; }
-: > /dev/null
-out=$(HOME="$t/home" VIKIX_STATE="$t/state" VIKIX_SUDO_KEPT=1 bash "$t/machine/bin/vikix" update 2>&1) || true
+grep -qE 'changed +.*/README.md' <<<"$out" || { echo "FAIL: the changes should be listed in words (changed ...): $out"; fail=1; }
+grep -q 'theme.lisp#' <<<"$out" && { echo "FAIL: an editor's leftover was treated as a change"; fail=1; }
+patch=$(ls "$t"/state/checkout-changes/*.patch 2>/dev/null | head -1)
+[ -n "$patch" ] && grep -q 'an edit made in the installed checkout' "$patch" ||
+  { echo "FAIL: no patch file holding the edit in \$VIKIX_STATE/checkout-changes"; fail=1; }
+grep -q 'vikix update .*: README.md' <<<"$(git -C "$t/machine" stash list)" || { echo "FAIL: the stash should be named after the update and its files"; fail=1; }
+grep -q 'stash pop' <<<"$out" && { echo "FAIL: stash pop is suggested (it can clash with Vikix's files)"; fail=1; }
+# (The fake newer version stops after the pull, so the end of a run isn't
+# seen here: the reminder must be in cmd_update, after the stages.)
+sed -n '/^cmd_update()/,/^}/p' "$here/bin/vikix" | awk '/for stage in/ { s = 1 } s && /were set aside before this update/ { ok = 1 } END { exit !ok }' ||
+  { echo "FAIL: the end of an update should repeat that changes were set aside"; fail=1; }
+out=$(upd) || true
 grep -q 'changes of its own' <<<"$out" && { echo "FAIL: a clean checkout was said to have changes"; fail=1; }
-[ "$fail" = 0 ] && echo "update: changes made in the checkout are set aside in a named stash, and the update goes on"
+git -C "$t/machine" stash clear
+
+# Set-aside changes put back by hand, clashing: stop, and say how to fix it.
+( cd "$t/upstream" && sed -i '1s/.*/# upstream heading/' TODO.md && git_q commit -qam "clash upstream" )
+sed -i '1s/.*/# my own heading/' "$t/machine/TODO.md"
+git -C "$t/machine" -c user.name=t -c user.email=t@t stash push -q
+git -C "$t/machine" pull -q --ff-only 2>/dev/null
+git -C "$t/machine" stash pop -q >/dev/null 2>&1 || true
+out=$(upd) && { echo "FAIL: the update went on over a clash"; fail=1; }
+grep -q 'clash' <<<"$out" && grep -q 'reset --hard' <<<"$out" || { echo "FAIL: a clash should be named, with how to fix it: $out"; fail=1; }
+git -C "$t/machine" reset -q --hard; git -C "$t/machine" stash clear
+
+# A commit made in the checkout: Vikix can't update over it; it says how to keep it.
+echo "committed here" >> "$t/machine/README.md"; git_q -C "$t/machine" commit -qam "mine"
+( cd "$t/upstream" && echo "more" >> TODO.md && git_q commit -qam "newer again" )
+out=$(upd) && { echo "FAIL: the update went on over a commit of its own"; fail=1; }
+grep -q 'commit(s) of its own' <<<"$out" && grep -q 'format-patch' <<<"$out" ||
+  { echo "FAIL: a commit in the checkout should be named, with how to keep it: $out"; fail=1; }
+git -C "$t/machine" reset -q --hard '@{u}'
+[ "$fail" = 0 ] && echo "update: changes made in the checkout are set aside in a patch file and a stash, a clash or a commit there is explained, and the update goes on"
 
 # A checkout whose remote is SSH (its owner pushes from it) still pulls
 # over HTTPS: vikix update may ask for nothing but sudo's password, and SSH
