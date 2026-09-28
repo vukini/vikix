@@ -5,9 +5,10 @@
 #   vikix-ask ACTION      one of those straight away (ask, proofread,
 #                         rewrite, translate, explain): for keys of your own
 #                         in user.lisp
+#   vikix-ask use local|claude   which model answers (vikix ai use)
 #
-# The text is the selection (what you last highlighted), else the
-# clipboard. Proofread, Rewrite and Translate put their result on the
+# The text is what you last highlighted (X keeps it after the highlight
+# is gone), else the clipboard: the notification while it works shows it. Proofread, Rewrite and Translate put their result on the
 # clipboard, to paste where you want it; Ask and Explain show the answer,
 # in a notification when it's short, else in a terminal. Everything goes
 # through llm (vikix ai llm), so it's all in llm logs too.
@@ -38,7 +39,8 @@ make_conf() {
   [ -e "$CONF" ] && return 0
   mkdir -p "$(dirname "$CONF")"
   cat > "$CONF" <<'EOF'
-# Vikix AI on keys (Super+i): which model answers.
+# Vikix AI on the selected text (Super+i): which model answers.
+# vikix ai use local|claude switches, or edit it here.
 #
 #   use=local    a model on this laptop: free, offline, the text stays here
 #                (vikix ai models gets one)
@@ -63,8 +65,8 @@ conf() {   # conf KEY — its value in the file, without comments or spaces
 # The model, from the file; says what's missing, instead of guessing.
 pick_model() {
   local use model names
-  use=$(conf use); model=$(conf model)
-  [ -x "$LLM" ] || fail "AI keys need llm" "In a terminal: vikix ai llm"
+  use=$(conf use); use=${use,,}; model=$(conf model)
+  [ -x "$LLM" ] || fail "Super+i needs llm" "In a terminal: vikix ai llm"
   case $model in [!A-Za-z0-9]*|*[!A-Za-z0-9._:/-]*) fail "The model in ~/.config/vikix/ai looks wrong" "$(escape <<<"$model")" ;; esac
   case ${use:-local} in
     local)
@@ -72,8 +74,8 @@ pick_model() {
         python3 -c 'import json,sys; [print(m["name"]) for m in json.load(sys.stdin).get("models", [])]' 2>/dev/null)
       [ -n "$names" ] || {
         curl -fsS --max-time 2 "$API/version" >/dev/null 2>&1 ||
-          fail "Local AI isn't running" "In a terminal: vikix ai setup. Or use=claude in ~/.config/vikix/ai"
-        fail "No local model yet" "Super+m, Local AI: choose a model. Or use=claude in ~/.config/vikix/ai"
+          fail "Local AI isn't running" "In a terminal: vikix ai setup. Or Claude: vikix ai use claude"
+        fail "No local model yet" "Super+m, Local AI: choose a model. Or Claude: vikix ai use claude"
       }
       if [ -n "$model" ]; then
         grep -qxF -- "$model" <<<"$names" ||
@@ -83,18 +85,56 @@ pick_model() {
       fi
       WHERE="on this laptop" ;;
     claude)
-      # A key set since login isn't in the desktop's environment yet.
-      if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -r "$VIKIX_DIR/lib/secrets.sh" ]; then
-        # shellcheck source=../lib/secrets.sh
-        . "$VIKIX_DIR/lib/secrets.sh"; vikix_export_secrets
-      fi
-      [ -n "${ANTHROPIC_API_KEY:-}" ] ||
-        fail "Claude needs your Anthropic key" "In a terminal: vikix ai key set anthropic. Or use=local in ~/.config/vikix/ai"
+      have_key ||
+        fail "Claude needs your Anthropic key" "In a terminal: vikix ai key set anthropic. Or back to local: vikix ai use local"
       model=${model:-$CLAUDE_DEFAULT}
       WHERE="sent to Anthropic" ;;
     *) fail "use= in ~/.config/vikix/ai should be local or claude" "$(escape <<<"$use")" ;;
   esac
   MODEL=$model
+}
+
+have_key() {
+  # A key set since login isn't in the desktop's environment yet.
+  if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -r "$VIKIX_DIR/lib/secrets.sh" ]; then
+    # shellcheck source=../lib/secrets.sh
+    . "$VIKIX_DIR/lib/secrets.sh"; vikix_export_secrets
+  fi
+  [ -n "${ANTHROPIC_API_KEY:-}" ]
+}
+
+# use local|claude: rewrite use= in the file (and only that line).
+set_use() {
+  local to=${1:-}
+  case $to in local|claude) ;; *) echo "usage: vikix ai use local|claude" >&2; exit 2 ;; esac
+  if [ "$to" = claude ] && ! have_key; then
+    echo "Claude needs your Anthropic key first: vikix ai key set anthropic" >&2
+    note "Claude needs your Anthropic key" "In a terminal: vikix ai key set anthropic"; exit 1
+  fi
+  if grep -q '^[[:space:]]*use[[:space:]]*=' "$CONF"; then
+    sed --follow-symlinks -i "s/^[[:space:]]*use[[:space:]]*=.*/use=$to/" "$CONF"
+  else
+    echo "use=$to" >> "$CONF"
+  fi
+  local what="a model on this laptop: free, offline, the text stays here"
+  [ "$to" = claude ] && what="Claude: better, paid, the text you select goes to Anthropic"
+  echo "Super+i now uses $what"
+  note "Super+i now uses $to" "$what"
+}
+
+# Proofread: what changed, word by word, so a change for the worse shows.
+changes() {   # changes BEFORE AFTER
+  python3 - "$1" "$2" <<'PY'
+import difflib, sys
+a, b = sys.argv[1].split(), sys.argv[2].split()
+out = []
+for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b).get_opcodes():
+    if op != "equal":
+        out.append((" ".join(a[i1:i2]) or "+") + " → " + (" ".join(b[j1:j2]) or "(gone)"))
+n = len(out)
+if n:
+    print(f"{n} change{'s' if n > 1 else ''}: " + "; ".join(x[:40] for x in out[:5]) + ("; …" if n > 5 else ""))
+PY
 }
 
 selection() {
@@ -123,6 +163,7 @@ print(t, end="")
 }
 
 make_conf
+if [ "${1:-}" = use ]; then set_use "${2:-}"; exit; fi
 pick_model
 TEXT=$(selection)
 if [ "${#TEXT}" -gt "$MAX" ]; then TEXT=${TEXT:0:$MAX}; CUT=1; else CUT=0; fi
@@ -139,10 +180,14 @@ preview() {   # the selection's start, on one line, for rofi's message
 ACTION=${1:-}
 if [ -z "$ACTION" ]; then
   menu=$'Ask about it\nProofread\nRewrite: clearer\nTranslate\nExplain'
+  if [ "$WHERE" = "on this laptop" ]; then menu+=$'\nUse Claude instead (paid; the text goes to Anthropic)'
+  else menu+=$'\nUse the local model instead (free; the text stays here)'; fi
   pick=$(rofi -dmenu -i -no-custom -p "AI ($MODEL, $WHERE)" -mesg "$(preview)" <<<"$menu") || exit 0
   case $pick in
     Ask*) ACTION=ask ;; Proofread*) ACTION=proofread ;; Rewrite*) ACTION=rewrite ;;
-    Translate*) ACTION=translate ;; Explain*) ACTION=explain ;; *) exit 0 ;;
+    Translate*) ACTION=translate ;; Explain*) ACTION=explain ;;
+    "Use Claude"*) set_use claude; exit ;; "Use the local"*) set_use local; exit ;;
+    *) exit 0 ;;
   esac
 fi
 
@@ -150,24 +195,27 @@ case $ACTION in
   ask)
     question=$(rofi -dmenu -p "Ask $MODEL" -mesg "$(preview)" </dev/null) || exit 0
     [ -n "${question//[[:space:]]/}" ] || exit 0
-    system="Answer plainly, in at most five short sentences. If text is given before the question, the question is about it."
+    system="Answer plainly, in at most three short sentences, without lists, headings or Markdown. If text is given before the question, the question is about it."
     title="AI: $question" ;;
   proofread)
-    system="Correct the spelling, grammar and punctuation of the text. Keep its meaning, tone, language and formatting. Reply with the corrected text only: no introduction, no comments, no quotes around it."
+    system="Correct the spelling, grammar and punctuation of the text. Keep its meaning, tone, language, paragraphs and line breaks, and change nothing that is already correct. Reply with the corrected text only: no introduction, no comments, no quotes around it."
     title="Proofread" ;;
   rewrite)
-    system="Rewrite the text to be clearer and more concise, in the same language, keeping its meaning. Reply with the rewritten text only: no introduction, no comments, no quotes around it."
+    system="Rewrite the text to be clearer and more concise, in the same language, keeping its meaning, its paragraphs and line breaks. Reply with the rewritten text only: no introduction, no comments, no quotes around it."
     title="Rewritten" ;;
   translate)
     langs=$(conf languages); langs=${langs:-English Esperanto}
     lang=$(tr ' ' '\n' <<<"$langs" | grep -v '^$' | rofi -dmenu -i -p "Translate into" -mesg "$(preview)") || exit 0
-    case $lang in ''|*[!A-Za-z\ -]*) exit 0 ;; esac
+    # Any language you type (Português, 日本語); only one line of it.
+    lang=${lang//[$'\r\t']/ }; lang=${lang%%$'\n'*}; lang=${lang:0:40}
+    [ -n "${lang//[[:space:]]/}" ] || exit 0
     system="Translate the text into $lang. Reply with the translation only: no introduction, no notes, no quotes around it."
     title="In $lang" ;;
   explain)
-    system="Explain the text in plain language, in at most five short sentences, without headings. If it is code, a command or an error message, say what it does or means, and how to fix it if something is wrong."
+    system="Explain the text in plain language, in at most three short sentences, without lists, headings or Markdown. If it is code or a command, say what it does. If it is an error message, say what it means and how to fix it. Don't suggest fixes for anything that isn't wrong."
     title="Explained" ;;
-  *) echo "usage: vikix-ask [ask|proofread|rewrite|translate|explain]" >&2; exit 2 ;;
+  *) echo "usage: vikix-ask [ask|proofread|rewrite|translate|explain] | use local|claude" >&2
+     fail "vikix-ask doesn't know \"$(escape <<<"${ACTION:0:40}")\"" "It knows ask, proofread, rewrite, translate, explain" ;;
 esac
 if [ -z "$TEXT" ] && [ "$ACTION" != ask ]; then
   fail "Select some text first" "Highlight it (or copy it), then Super+i again"
@@ -177,7 +225,8 @@ fi
 exec 9>"$RUN/vikix-ask.lock"
 flock -n 9 || fail "AI is still working on the last one" ""
 
-NOTE_ID=$(notify-send -p -a Vikix -t 300000 "AI is working…" "$MODEL, $WHERE" 2>/dev/null || true)
+NOTE_ID=$(notify-send -p -a Vikix -t 300000 "AI is working…" "$MODEL, $WHERE
+$(if [ -n "$TEXT" ]; then printf '“'; preview; printf '”'; fi)" 2>/dev/null || true)
 [[ $NOTE_ID =~ ^[0-9]+$ ]] || NOTE_ID=''
 err="$RUN/vikix-ask.err"
 args=(-m "$MODEL" -s "$system")
@@ -201,20 +250,26 @@ out=$(tidy <<<"$out")
 case $ACTION in
   proofread|rewrite|translate)
     printf '%s' "$out" | xclip -selection clipboard
-    if [ "$ACTION" = proofread ] && [ "$out" = "$(tidy <<<"$TEXT")" ]; then
-      note "Proofread: nothing to correct" "$MODEL$cut_note"
+    body=$(printf '%s' "${out:0:300}" | head -8 | escape)
+    [ "${#out}" -gt 300 ] || [ "$(wc -l <<<"$out")" -gt 8 ] && body+='…'
+    if [ "$ACTION" = proofread ]; then
+      what=$(changes "$TEXT" "$out")
+      if [ -z "$what" ]; then note "Proofread: nothing to correct" "$MODEL$cut_note"
+      else note "Proofread, on the clipboard$cut_note" "$(escape <<<"$what")"$'\n\n'"$body"
+      fi
     else
-      body=$(printf '%s' "${out:0:300}" | head -8 | escape)
-      note "$title: copied, paste with Ctrl+v$cut_note" "$body"
+      note "$title, on the clipboard$cut_note" "$body"
     fi ;;
   ask|explain)
     # Short: a notification. Long: a terminal to read it in.
-    if [ "${#out}" -le 280 ] && [ "$(wc -l <<<"$out")" -le 4 ]; then
+    if [ "${#out}" -le 450 ] && [ "$(wc -l <<<"$out")" -le 6 ]; then
       note "$(printf '%s' "${title:0:80}" | escape)" "$(printf '%s' "$out" | escape)"
     else
       note "AI answered" "In a terminal: q closes it"
       answer="$RUN/vikix-ask-answer.txt"
       { printf '%s (%s, %s)%s\n\n' "$title" "$MODEL" "$WHERE" "$cut_note"; printf '%s\n' "$out"; } > "$answer"
-      exec "$TERMINAL" -e less -P "AI answer: q closes, /word searches, llm logs keeps it" "$answer"
+      # 9>&-: the terminal mustn't keep the lock, or Super+i would say
+      # "still working" for as long as the answer is open.
+      exec "$TERMINAL" -e less -P "AI answer: q closes, /word searches, llm logs keeps it" "$answer" 9>&-
     fi ;;
 esac

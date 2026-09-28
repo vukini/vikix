@@ -6,6 +6,7 @@
 #                             (vikix ai help-local tells more)
 #   vikix ai llm [--default MODEL]   the llm command, with your local models
 #                             and your keys: cat notes.md | llm "summarise"
+#   vikix ai use local|claude  which model Super+i (AI on the selected text) uses
 #
 #   vikix ai key set NAME     ask for a key (it isn't shown as you paste it)
 #                             and keep it. NAME is a service (anthropic,
@@ -306,6 +307,7 @@ case ${1:-help} in
     esac ;;
   setup|serve|models|pull|chat|list|remove|rm|status|stop|uninstall|llm)
     exec "$VIKIX_DIR/bin/vikix-local-ai" "$@" ;;
+  use)    shift; exec "$VIKIX_DIR/bin/vikix-ask" use "$@" ;;
   help-local) exec "$VIKIX_DIR/bin/vikix-local-ai" help ;;
   help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
   *) die "vikix ai: unknown command ${1} (vikix ai help)" ;;

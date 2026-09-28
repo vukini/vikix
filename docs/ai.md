@@ -149,13 +149,13 @@ Select some text anywhere, in a web page, an email, a terminal, and press **Supe
 | Translate | Into the language you pick, on the clipboard |
 | Explain | What it means; for an error message, how to fix it |
 
-What goes on the clipboard is also shown in a notification; paste it with Ctrl+v where you want it. A short answer comes as a notification, a longer one in a terminal (`q` closes it). If nothing is highlighted, it uses what you last copied.
+What goes on the clipboard is also shown in a notification; paste it where you want it. Proofread also lists what it changed: small models sometimes "correct" what was right. A short answer comes as a notification, a longer one in a terminal (`q` closes it). The text is what you last highlighted, even if it's no longer highlighted on screen; only when there's none does it use what you copied. The notification while it works shows the start of the text it took.
 
-It needs `llm` (`vikix ai llm`) and a local model. A small one takes some seconds: about 10 for a sentence to proofread, 20 to explain an error.
+It needs `llm` (`vikix ai llm`) and a local model. A small one takes some seconds: about 10 for a sentence to proofread or explain.
 
 ### Local or Claude
 
-The file `~/.config/vikix/ai` says which model answers. It starts as:
+To switch, pick *Use Claude instead* (or *Use the local model instead*) at the end of the Super+i menu, or type `vikix ai use claude` or `vikix ai use local`. The choice is kept in `~/.config/vikix/ai`, which starts as:
 
 ```sh
 use=local          # free, offline, the text stays on this laptop
@@ -163,7 +163,7 @@ model=             # empty: llama3.2:3b, or your first local model
 languages=English Esperanto French Spanish Arabic Hindi
 ```
 
-For better answers, above all translations into Esperanto, which small models get wrong, write `use=claude`. Then each use costs a little and the text you selected goes to Anthropic, so it needs your key first: `vikix ai key set anthropic`. Super+i never switches to Claude by itself, and its menu always names the model and where the text goes.
+For better answers, above all translations into Esperanto, which small models get wrong, use Claude. Then each use costs a little and the text you selected goes to Anthropic, so it needs your key first: `vikix ai key set anthropic`. Super+i never switches to Claude by itself, and its menu always names the model and where the text goes.
 
 ## When AI doesn't work
 
@@ -174,6 +174,12 @@ For better answers, above all translations into Esperanto, which small models ge
 | The agent says it can't reach the desktop | `vikix doctor`: it checks that `vikix eval` works |
 | A local model doesn't answer, or is slow | See [Local AI doesn't answer](fixing.md#local-ai-doesnt-answer) |
 | `llm` has no model, asks for a key, or can't connect | See [`llm` doesn't answer](fixing.md#llm-doesnt-answer) |
-| Super+i says "AI keys need llm", "No local model yet" or "isn't running" | Do what it says: `vikix ai llm`, a model with Super+m → *Local AI: choose a model*, or `vikix ai setup` |
+| Super+i says "Super+i needs llm", "No local model yet" or "Local AI isn't running" | Do what it says: `vikix ai llm`, a model with Super+m → *Local AI: choose a model*, or `vikix ai setup` |
 | Super+i says "Select some text first" | Highlight the text (or copy it), then press Super+i again |
+| Super+i says "AI is still working on the last one" | Wait for its answer: one at a time |
+| Super+i says "You don't have the model …" | `vikix ai models` gets it, or empty `model=` in `~/.config/vikix/ai` |
+| Super+i says "Claude needs your Anthropic key" | `vikix ai key set anthropic`, or back to local: `vikix ai use local` |
+| Super+i says "AI didn't answer" | The notification says why; a local model: `vikix ai status` |
+| Super+i says something in `~/.config/vikix/ai` looks wrong | Fix that line (`use=local` or `use=claude`; `model=` a name from `llm models`), or delete the file: the next Super+i writes it afresh |
+| Super+i took the wrong text | It takes the last highlight before the clipboard: highlight the text you mean |
 | You don't like what the agent changed | `vikix changes`, then `vikix undo` |

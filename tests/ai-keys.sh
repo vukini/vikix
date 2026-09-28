@@ -8,7 +8,10 @@
 #   Proofread/Rewrite/Translate put the tidied answer on the clipboard;
 #   Ask sends the question with the selection, a short answer is a
 #   notification, a long one a terminal; no selection, a plain message;
-#   llm's failure is said; the selection falls back to the clipboard
+#   llm's failure is said; the selection falls back to the clipboard;
+#   Proofread says what it changed; the answer's terminal doesn't keep the
+#   lock; vikix ai use (and the menu) switch local/claude, Claude only with
+#   a key; any typed language; use=Local; a misspelt action is said
 #
 # xclip, rofi, notify-send, curl, llm and the terminal are stand-ins.
 
@@ -63,9 +66,11 @@ cat > "$t/llm.in"
 [ -e "$t/llm.fail" ] && { echo "Error: No key found - add one using 'llm keys set anthropic'" >&2; exit 1; }
 cat "$t/answer"
 EOF
+# The terminal says whether Super+i's lock is free while it's open.
 cat > "$t/term" <<EOF
 #!/bin/sh
 echo "\$*" > "$t/term.args"
+if flock -n "$t/run/vikix-ask.lock" true; then echo free; else echo held; fi > "$t/term.lock"
 EOF
 chmod +x "$t/bin/"* "$t/llm" "$t/term"
 export PATH="$t/bin:$PATH" VIKIX_LLM="$t/llm" VIKIX_TERMINAL="$t/term"
@@ -98,8 +103,14 @@ check "the menu should name the model and where the text goes: $(cat "$t/rofi.lo
 check "proofread should use llama3.2:3b: $(cat "$t/llm.args" 2>/dev/null)" grep -q -- '-m llama3.2:3b -s Correct the spelling' "$t/llm.args"
 check "proofread should send the selection: $(cat "$t/llm.in" 2>/dev/null)" grep -qx 'teh cat sat' "$t/llm.in"
 check "proofread should copy the answer alone, is: $(cat "$t/copied" 2>/dev/null)" test "$(cat "$t/copied" 2>/dev/null)" = "The cat sat."
-check "proofread should say it's copied: $(notes)" grep -q 'Proofread: copied' <<<"$(notes)"
+check "proofread should say it's on the clipboard: $(notes)" grep -q 'Proofread, on the clipboard' <<<"$(notes)"
+check "proofread should say what changed: $(notes)" grep -q '2 changes: teh → The; sat → sat.' <<<"$(notes)"
 check "the result should replace the working notification: $(notes)" grep -q -- '-r 7 Proofread' <<<"$(notes)"
+check "the working notification should show the text: $(notes)" grep -q 'on this laptop “teh cat sat”' <<<"$(tr '\n' ' ' < "$t/notes")"
+echo "teh cat sat" > "$t/answer"
+try
+check "proofread with no change should say so: $(notes)" grep -q 'Proofread: nothing to correct' <<<"$(notes)"
+printf 'Proofread\n' > "$t/rofi"; printf 'The cat sat.' > "$t/answer"
 
 # Translate: the language picked, in the prompt; the model named in the file.
 sed -i 's/^model=$/model=gemma3:1b/' "$conf"
@@ -109,6 +120,9 @@ check "translate should ask into Esperanto with gemma3:1b: $(cat "$t/llm.args" 2
   grep -q -- '-m gemma3:1b -s Translate the text into Esperanto' "$t/llm.args"
 check "translate should offer your languages: $(cat "$t/rofi.log")" grep -q 'Translate into' "$t/rofi.log"
 check "translate should copy it" test "$(cat "$t/copied" 2>/dev/null)" = "La kato sidis."
+printf 'Translate\nPortuguês\n' > "$t/rofi"
+try
+check "a typed language with an accent should work: $(cat "$t/llm.args" 2>/dev/null)" grep -q 'into Português' "$t/llm.args"
 sed -i 's/^model=.*/model=qwen9:9b/' "$conf"
 try
 check "a model you don't have should be said: $(notes)" grep -q "You don't have the model qwen9:9b" <<<"$(notes)"
@@ -132,6 +146,7 @@ printf 'Explain\n' > "$t/rofi"
 try
 check "a long answer should open a terminal: $(cat "$t/term.args" 2>/dev/null)" grep -q -- '-e less' "$t/term.args"
 check "the terminal's file should hold the answer" grep -q 'line 40' "$t/run/vikix-ask-answer.txt"
+check "the answer's terminal kept Super+i's lock: $(cat "$t/term.lock" 2>/dev/null)" grep -qx free "$t/term.lock"
 
 # Straight to an action (for your own keys); nothing selected; the clipboard.
 : > "$t/rofi"; rm -f "$t/sel/primary"; echo "x" > "$t/answer"
@@ -142,6 +157,24 @@ printf 'from the clipboard' > "$t/sel/clipboard"
 try rewrite
 check "rewrite should skip the menu and use the clipboard: $(cat "$t/llm.in" 2>/dev/null)" grep -qx 'from the clipboard' "$t/llm.in"
 check "a named action shouldn't open the menu" test ! -e "$t/rofi.log"
+try proofraed
+check "a misspelt action should be said: $(notes)" grep -q "doesn't know" <<<"$(notes)"
+check "a misspelt action shouldn't ask llm" test ! -e "$t/llm.args"
+sed -i 's/^use=.*/use=Local/' "$conf"
+try rewrite
+check "use=Local should count as local: $(cat "$t/llm.args" 2>/dev/null) $(notes)" grep -q -- '-m llama3.2:3b' "$t/llm.args"
+
+# Switching: vikix ai use claude needs a key; the menu switches back.
+bash "$here/bin/vikix-ai" use claude >/dev/null 2>&1 && { echo "FAIL: vikix ai use claude worked without a key"; fail=1; }
+check "use claude without a key changed the file: $(grep '^use' "$conf")" grep -qx 'use=Local' "$conf"
+ANTHROPIC_API_KEY=sk-ant-test bash "$here/bin/vikix-ai" use claude >/dev/null 2>&1
+check "vikix ai use claude should write use=claude: $(grep '^use' "$conf")" grep -qx 'use=claude' "$conf"
+check "switching should keep the rest of the file" grep -q '^languages=English' "$conf"
+printf 'Use the local model instead (free; the text stays here)\n' > "$t/rofi"
+ANTHROPIC_API_KEY=sk-ant-test try
+check "the menu's switch should write use=local: $(grep '^use' "$conf")" grep -qx 'use=local' "$conf"
+check "the switch shouldn't ask llm" test ! -e "$t/llm.args"
+: > "$t/rofi"
 
 # Claude: only with use=claude, and a key; llm's error is said, with the fix.
 sed -i 's/^use=.*/use=claude/' "$conf"
