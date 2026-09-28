@@ -138,7 +138,9 @@ PS1='\w \$ '                   # your own prompt
 export EDITOR=nvim
 ```
 
-Don't edit between the `# >>> vikix … >>>` and `# <<< vikix … <<<` lines; Vikix rewrites those. `alias` lists every alias, and the [README](../README.md#shell-aliases) explains them.
+Don't edit between the `# >>> vikix … >>>` and `# <<< vikix … <<<` lines; Vikix rewrites those.
+
+**API keys don't go here.** An `export ANTHROPIC_API_KEY=...` line in `~/.bashrc` is kept for ever in your files' history. Use `vikix ai key set anthropic` instead: every shell still gets the variable (see the [README](../README.md#api-keys)). `alias` lists every alias, and the [README](../README.md#shell-aliases) explains them.
 
 ## Programs and services
 

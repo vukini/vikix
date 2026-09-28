@@ -26,6 +26,8 @@
 #                         what's waiting, or install it (on AC power)
 #   vikix fingerprint [on|off|enrol]   a finger for sudo and the lock screen,
 #                         where fprintd supports the reader
+#   vikix ai key set|list|remove|check   API keys (ANTHROPIC_API_KEY ...)
+#                         kept safely, out of your dotfiles and their history
 #   vikix windows [setup|create ISO|stop|status|remove]   Windows in a VM:
 #                         set it up once, install it by itself, then open its
 #                         desktop in a window (vikix windows help)
@@ -138,6 +140,9 @@ cmd_doctor() {
   # The AI side. Claude Code itself is optional: Super+a offers to install it.
   if [ -d "$YOURS_GIT" ]; then say "your files have a snapshot history"
   else warn "no snapshot history of your files yet (40-config starts it)"; ok=0; fi
+  # API keys belong in ~/.config/vikix/secrets (vikix ai key), not in your
+  # files, where the snapshot history keeps them for ever.
+  bash "$VIKIX_DIR/bin/vikix-ai" key check || ok=0
   if [ -L "$HOME/.claude/skills/vikix" ]; then say "the Vikix skill is linked for Claude Code"
   else warn "the Vikix skill isn't in ~/.claude/skills (40-config links it)"; ok=0; fi
   if command -v claude >/dev/null 2>&1 || [ -x "$HOME/.local/bin/claude" ]; then
@@ -182,13 +187,22 @@ yours_init() {
   run yours_git config user.email "vikix@localhost"
   # `git status` in this repo would otherwise list every file in ~.
   run yours_git config status.showUntrackedFiles no
-  # Vikix's own links, and things that change by themselves, stay out.
-  [ "$DRY_RUN" = 1 ] || cat > "$YOURS_GIT/info/exclude" <<'EXCLUDE'
+  yours_exclude
+}
+
+# What the history never keeps, whatever yours.list says: Vikix's own links,
+# things that change by themselves, and your API keys (vikix ai key). Written
+# at every snapshot, so a machine whose history began before a line was
+# added gets it too.
+yours_exclude() {
+  [ "$DRY_RUN" = 1 ] && return 0
+  cat > "$YOURS_GIT/info/exclude" <<'EXCLUDE'
 /.stumpwm.d/init.lisp
 /.stumpwm.d/vikix
 /.stumpwm.d/modules/
 /.stumpwm.d/*.log*
 /.stumpwm.d/history
+/.config/vikix/secrets/
 *.vikix-bak.*
 *.fasl
 *~
@@ -198,7 +212,11 @@ EXCLUDE
 # Stage every file of yours as it is now: changed, new and deleted ones.
 yours_stage() {
   local p
+  yours_exclude
   while IFS= read -r p; do
+    # A line naming the keys' folder, or a file in it, is skipped outright
+    # (git would refuse an excluded path named on its own).
+    case /${p%/}/ in /.config/vikix/secrets/*) warn "yours.list names $p; API keys are never kept in the history"; continue ;; esac
     if [ -e "$HOME/$p" ]; then yours_git add -A -- "$HOME/$p"; fi
   done < <(read_list "$VIKIX_DIR/config/yours.list")
   yours_git add -u    # files that were recorded and are now gone
@@ -511,6 +529,7 @@ main() {
     backup)      shift; exec "$VIKIX_DIR/bin/vikix-backup" "$@" ;;
     firmware)    shift; exec "$VIKIX_DIR/bin/vikix-firmware" "$@" ;;
     windows)     shift; exec "$VIKIX_DIR/bin/vikix-windows" "$@" ;;
+    ai)          shift; exec "$VIKIX_DIR/bin/vikix-ai" "$@" ;;
     fingerprint) shift; exec "$VIKIX_DIR/bin/vikix-fingerprint" "$@" ;;
     help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
     *)           die "unknown command: $1 (try: vikix help)" ;;

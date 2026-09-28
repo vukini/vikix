@@ -594,7 +594,7 @@ exec /usr/bin/sshd -D $OPTS
         <div class="card wide">
           <p class="eyebrow">The AI agent</p>
           <h3>Claude Code, set up to work on the desktop with you.</h3>
-          <p><kbd>Super</kbd>+<kbd>a</kbd> starts Claude Code. A skill tells it how Vikix is put together and which files are yours to change. With <code>vikix eval</code> it can run Lisp in the live window manager and try a key or a theme before writing it down. Your files are snapshotted before every session.</p>
+          <p><kbd>Super</kbd>+<kbd>a</kbd> starts Claude Code. A skill tells it how Vikix is put together and which files are yours to change. With <code>vikix eval</code> it can run Lisp in the live window manager and try a key or a theme before writing it down. Your files are snapshotted before every session. API keys have a place of their own, <code>vikix ai key set anthropic</code>: every shell gets them, and your dotfiles' history never does.</p>
 <pre><span class="t-p">$</span> vikix eval '(vikix-apply-theme :paper)'
 <span class="t-p">$</span> vikix eval '(loadrc)'   <span class="t-d"># reload after editing user.lisp</span></pre>
         </div>

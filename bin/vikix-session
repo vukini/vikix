@@ -16,6 +16,15 @@ exec >"$log_dir/session.log" 2>&1
 echo "vikix-session started $(date)"
 set -x    # each command is written to the log before it runs
 
+# API keys from `vikix ai key set`, for everything the desktop starts
+# (Emacs, a terminal, an agent). lib/secrets.sh never prints them, but the
+# trace above would write each export, key and all, into session.log: so
+# the trace is off while they load.
+{ set +x; } 2>/dev/null
+# shellcheck source=../lib/secrets.sh
+. "$(dirname "$(readlink -f "$0")")/../lib/secrets.sh"
+set -x
+
 # The Vikix manual (the guides in docs/, made by 40-config), for Emacs's
 # C-h i and `info vikix`. The empty entry at the end keeps the system's.
 case ":${INFOPATH:-}:" in

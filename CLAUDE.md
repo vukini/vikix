@@ -17,7 +17,7 @@ This folder sits inside an Obsidian vault, but it is a code repo: the vault's no
 No build step. The tests are scripts in `tests/`, and `.github/workflows/test.yml` runs the same scripts on GitHub (on each push and weekly):
 
 ```sh
-tests/run.sh                  # about two minutes: lint, lisp, battery, home, services, backup (with restic), image, theme, bar, rofi, wallpaper, examples, drives, firmware, fingerprint, updates, notifications, idle, capture, nightlight, update, info, and on Void packages + dry-run
+tests/run.sh                  # about two minutes: lint, lisp, battery, home, services, backup (with restic), image, theme, bar, rofi, wallpaper, examples, drives, firmware, fingerprint, updates, notifications, idle, capture, nightlight, update, windows, ai, info, and on Void packages + dry-run
 tests/run.sh --all            # plus editors: Emacs and Neovim configs from scratch (minutes, network)
 tests/lint.sh                 # bash -n, executable bits, shellcheck -S warning (must stay at zero)
 DRY_RUN=1 bash install/<stage>.sh     # one stage, printing instead of changing
@@ -43,6 +43,7 @@ Real testing happens in a VM. The dev machine has a libvirt VM `void-vm` (`virsh
 - *Vikix's files* are symlinked into this checkout with `link_managed` (StumpWM `init.lisp` and `vikix/` layer, `.xinitrc`, `vikix.bash`, `bin/*` into `~/.local/bin`, the fontconfig alias, the Claude skill). Editing them here changes every install on the next `vikix update`.
 - *The user's files* are copied once with `copy_user` and never overwritten (`user.lisp`, alacritty/picom/dunst/rofi configs, keyboard file, `.Xresources`). Changing a starter file in `config/` only affects new installs.
 - Anything in the way is moved to `<name>.vikix-bak.<time>`, never deleted. Blocks in shared files like `~/.bashrc` go through `ensure_block`.
+- *API keys* are neither: `vikix ai key set` keeps them in `~/.config/vikix/secrets/` (700, files 600), `lib/secrets.sh` exports them (the session and every shell), and the snapshot history never records that folder, whatever `yours.list` says (`yours_exclude` in `bin/vikix`, rewritten at every snapshot). Never print a key, and never let `set -x` run where one is read.
 
 **Session and window manager.** Void has no StumpWM package: `30-lisp` installs Quicklisp and `lib/build-stumpwm.lisp` builds `~/.local/bin/stumpwm` with Swank inside. Login on tty1 starts X; `.xinitrc` runs `bin/vikix-session` under `dbus-run-session`, which starts the background programs (pipewire, dunst, picom, guest agents, …) and then StumpWM. `config/stumpwm/init.lisp` loads the layer files in `config/stumpwm/vikix/` in a fixed order (theme → groups → commands → windows → keys → help → modeline → swank), each wrapped so one broken file doesn't kill the desktop, then the user's `user.lisp` last.
 

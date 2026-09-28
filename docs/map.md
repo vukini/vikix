@@ -34,6 +34,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── backup             yours     where backups go, and the reminder's days
 │   │   ├── backup-exclude     yours     what backups leave out
 │   │   ├── backup-password    yours     the backup password (never in snapshots)
+│   │   ├── secrets/           yours     API keys, one file each (vikix ai key); never in snapshots
 │   │   ├── optional           yours     optional features you chose, such as windows (vikix windows setup)
 │   │   ├── windows            yours     where the Windows VM's disk is
 │   │   ├── wallpaper          yours     a link to the picture you chose

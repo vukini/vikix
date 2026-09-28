@@ -38,6 +38,15 @@ _vikix_new_command() {
 }
 bind -x '"\es": _vikix_new_command'
 
+# --- API keys ------------------------------------------------------------------
+# The ones `vikix ai key set` keeps, exported (lib/secrets.sh, beside this
+# file's target in the checkout). Put a key there, never in ~/.bashrc: your
+# files' history would keep it for ever.
+_vikix_secrets="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../lib/secrets.sh"
+# shellcheck source=../../lib/secrets.sh
+[ -f "$_vikix_secrets" ] && . "$_vikix_secrets"
+unset _vikix_secrets
+
 # --- the Vikix manual --------------------------------------------------------
 # `info vikix` (and Emacs's C-h i) read the guides from here. The empty
 # entry at the end keeps the system's manuals.

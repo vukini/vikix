@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+# vikix-ai — AI services on Vikix (`vikix ai`). For now: a safe place for keys.
+#
+#   vikix ai key set NAME     ask for a key (without showing it) and keep it
+#                             in ~/.config/vikix/secrets/. NAME is a service
+#                             (anthropic, openai, gemini, ...: it becomes
+#                             ANTHROPIC_API_KEY and so on) or the variable
+#                             itself (OPENROUTER_API_KEY). Piped in, it reads
+#                             the key from stdin: pass show x | vikix ai key set openai
+#   vikix ai key list         the keys kept: names only, never the values
+#   vikix ai key remove NAME  forget one
+#   vikix ai key check        look for keys left in your files, or in their
+#                             history (vikix doctor runs this)
+#
+# Every new shell and the desktop session export the keys (lib/secrets.sh),
+# so programs find ANTHROPIC_API_KEY as they expect. The folder is 700 and
+# each key 600, and it is never in a snapshot of your files: a key in
+# ~/.bashrc would be kept for ever in their history.
+
+set -euo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+
+SECRETS="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/secrets"
+YOURS_GIT="$VIKIX_STATE/yours.git"
+
+# What a key looks like, for check: Anthropic's and OpenAI's (sk-... at the
+# start of a word, so disk-usage-of-... isn't one), and any *_API_KEY= given
+# a literal value (not $(...) or $VAR). One ERE, for grep and git log -G alike.
+KEY_PATTERN='((^|[^A-Za-z0-9_-])(sk-ant-[A-Za-z0-9_-]{16,}|sk-(proj-)?[A-Za-z0-9_-]{20,})|[A-Z][A-Z0-9_]*_API_KEY=["'"'"']?[A-Za-z0-9_-]{8,})'
+
+# anthropic -> ANTHROPIC_API_KEY, open-router -> OPEN_ROUTER_API_KEY;
+# a variable's own name (OPENROUTER_API_KEY) stays as it is.
+var_name() {
+  local n=$1
+  [ -n "$n" ] || die "which key? For example: vikix ai key set anthropic"
+  case $n in *[!A-Za-z0-9_-]*) die "a key's name is letters, digits, - and _: anthropic, openai, OPENROUTER_API_KEY" ;; esac
+  case $n in
+    [A-Z]*) if [ "$n" = "${n^^}" ] && [ "${n//-/}" = "$n" ]; then printf '%s\n' "$n"; return; fi ;;
+  esac
+  n=${n^^}; n=${n//-/_}
+  case $n in *_API_KEY) ;; *) n=${n}_API_KEY ;; esac
+  printf '%s\n' "$n"
+}
+
+secure_folder() {
+  mkdir -p "$SECRETS"
+  chmod 700 "$SECRETS"
+}
+
+cmd_set() {
+  local name value
+  name=$(var_name "${1:-}")
+  if [ -t 0 ]; then
+    read -r -s -p "$name (it won't show as you paste it): " value; echo >&2
+  else
+    IFS= read -r value || true
+  fi
+  # A key is one word; spaces or a newline at the ends are from copying it.
+  value=$(printf '%s' "$value" | tr -d '[:space:]')
+  [ -n "$value" ] || die "no key given; nothing kept"
+  case $name:$value in
+    ANTHROPIC_API_KEY:sk-ant-*|OPENAI_API_KEY:sk-*) ;;
+    ANTHROPIC_API_KEY:*) warn "that doesn't start with sk-ant-, as Anthropic's keys do; kept anyway" ;;
+    OPENAI_API_KEY:*) warn "that doesn't start with sk-, as OpenAI's keys do; kept anyway" ;;
+  esac
+  secure_folder
+  local tmp
+  tmp=$(umask 077; mktemp "$SECRETS/.new.XXXXXX")
+  printf '%s' "$value" > "$tmp"
+  chmod 600 "$tmp"
+  mv -f "$tmp" "$SECRETS/$name"
+  say "kept $name in $SECRETS/"
+  echo "   New terminals have it. This one: exec bash. The desktop's programs (Emacs), from the next login."
+  if [ "$name" = ANTHROPIC_API_KEY ]; then
+    echo "   Claude Code sees it too, and asks once whether to use it instead of your login;"
+    echo "   using it bills the key's account (API use), not your Claude plan."
+  fi
+}
+
+cmd_list() {
+  local f any=''
+  if [ -d "$SECRETS" ]; then
+    for f in "$SECRETS"/*; do
+      [ -f "$f" ] || continue
+      printf '%-24s set %s\n' "${f##*/}" "$(date -r "$f" +%Y-%m-%d)"
+      any=1
+    done
+  fi
+  [ -n "$any" ] || echo "no keys kept (vikix ai key set anthropic)"
+}
+
+cmd_remove() {
+  local name
+  name=$(var_name "${1:-}")
+  [ -f "$SECRETS/$name" ] || die "there's no $name kept (vikix ai key list)"
+  rm -f "$SECRETS/$name"
+  say "forgot $name. Shells and programs started before now still have it until they end."
+}
+
+# The files a snapshot keeps, one path per line (relative to ~): those the
+# history has, and new ones in yours.list's places that its excludes allow
+# (not ~/.stumpwm.d/modules, say). Before there's a history, all of them.
+yours_files() {
+  local places=() p
+  while IFS= read -r p; do
+    case /${p%/}/ in /.config/vikix/secrets/*) continue ;; esac
+    [ -e "$HOME/$p" ] && places+=("$p")
+  done < <(read_list "$VIKIX_DIR/config/yours.list")
+  [ "${#places[@]}" -gt 0 ] || return 0
+  if [ -d "$YOURS_GIT" ]; then
+    { git --git-dir="$YOURS_GIT" --work-tree="$HOME" -C "$HOME" ls-files -- "${places[@]}"
+      git --git-dir="$YOURS_GIT" --work-tree="$HOME" -C "$HOME" ls-files --others --exclude-standard -- "${places[@]}"
+    } 2>/dev/null | sort -u
+  else
+    (cd "$HOME" && find "${places[@]}" -type f -not -path '.config/vikix/secrets/*' 2>/dev/null)
+  fi
+}
+
+# Keys in your files, or in their history. Places and commits only: never
+# the key itself.
+cmd_check() {
+  local found=0 f n commits
+  # One file at a time, keeping only grep's line numbers: the match itself
+  # (the key) is cut off before anything is printed. (With several files,
+  # grep's "file:line:match" can't be split safely: a name may hold a colon.)
+  while IFS= read -r f; do
+    for n in $(grep -InoE -- "$KEY_PATTERN" "$HOME/$f" 2>/dev/null | cut -d: -f1 | sort -un); do
+      found=1
+      warn "what looks like an API key, in ~/$f, line $n"
+    done
+  done < <(yours_files)
+  if [ "$found" = 1 ]; then
+    echo "   Move it: vikix ai key set anthropic (or openai, ...), paste it there, then"
+    echo "   delete that line from the file, and take a snapshot: vikix snapshot 'key moved'"
+  fi
+  if [ -d "$YOURS_GIT" ]; then
+    commits=$(git --git-dir="$YOURS_GIT" log --all -E -G "$KEY_PATTERN" --format=%h 2>/dev/null | tr '\n' ' ') || true
+    if [ -n "${commits// /}" ]; then
+      found=1
+      warn "a key is in the history of your files, in the snapshots ${commits% }"
+      echo "   Taking it out of a file doesn't take it out of the history. Once the key is"
+      echo "   moved (above), start the history again (the old one goes aside, not away):"
+      echo "     mv $YOURS_GIT $YOURS_GIT.with-key && vikix snapshot 'a fresh start, without the key'"
+      echo "   Check the new one is right (vikix history), then: rm -rf $YOURS_GIT.with-key"
+      echo "   It may be in a backup too (vikix backup): to be sure, replace the key itself."
+    fi
+  fi
+  if [ -d "$SECRETS" ] && [ -n "$(find "$SECRETS" -mindepth 1 \( -perm /077 \) 2>/dev/null; find "$SECRETS" -maxdepth 0 -perm /077 2>/dev/null)" ]; then
+    found=1
+    warn "others can read $SECRETS; fix it: chmod 700 $SECRETS && chmod 600 $SECRETS/*"
+  fi
+  if [ "$found" = 0 ]; then say "no API keys in your files or their history"; fi
+  [ "$found" = 0 ]
+}
+
+case ${1:-help} in
+  key)
+    case ${2:-} in
+      set)    cmd_set "${3:-}" ;;
+      list)   cmd_list ;;
+      remove) cmd_remove "${3:-}" ;;
+      check)  cmd_check ;;
+      *) die "vikix ai key: set NAME, list, remove NAME or check (vikix ai help)" ;;
+    esac ;;
+  help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) die "vikix ai: unknown command ${1} (vikix ai help)" ;;
+esac

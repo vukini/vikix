@@ -313,6 +313,23 @@ Vikix is set up for an AI agent to work on the desktop with you, the way Omarchy
   It talks to Swank on port 4004. Errors come back as `error: ...`; they never leave it hanging. A menu or prompt that is open makes it give up after 10 seconds.
 - **Undo.** Before each agent session, Vikix takes a snapshot of your files. See below.
 
+## API keys
+
+An API key (Anthropic's, OpenAI's) has to be somewhere programs can find it, and the obvious place, an `export` line in `~/.bashrc`, is the wrong one: `~/.bashrc` is one of your files, and its history keeps every version for ever (see [Undo](#undo-for-your-files)). So Vikix has a place for them:
+
+```sh
+vikix ai key set anthropic       # paste it; it isn't shown. Becomes ANTHROPIC_API_KEY
+vikix ai key set openai          # OPENAI_API_KEY; any name works: open-router, OPENROUTER_API_KEY
+pass show api/openai | vikix ai key set openai    # or piped in, from a password manager
+vikix ai key list                # names only, never the values
+vikix ai key remove openai
+```
+
+- **Where:** `~/.config/vikix/secrets/`, one file per key, only yours to read (the folder 700, each key 600). The history of your files never records it, whatever `config/yours.list` says. Encrypted backups (`vikix backup`) do keep it, so a restored machine has its keys back.
+- **Who sees them:** every new terminal, and every program the desktop starts from the next login, as environment variables. A terminal open before `set` gets it after `exec bash`.
+- **Claude Code** sees `ANTHROPIC_API_KEY` too, and asks once whether to use it instead of your Claude login. Using it bills the key's account (API use), not your plan.
+- **`vikix doctor`** looks for keys left where they shouldn't be: in any of your files, and in their history. It names the file and line, never the key, and says how to move it, and how to start the history afresh (the old one set aside, not deleted) so the key is gone from it. Once a key has been in a file, it may also be in a backup: to be sure, replace the key itself.
+
 ## Undo for your files
 
 Vikix keeps a history of your files (the ones in `config/yours.list`: `~/.stumpwm.d/`, the configs under `~/.config`, `~/.bashrc`, `~/.bash_profile`). It is a git repository in `~/.local/state/vikix/yours.git`, so no `.git` folder appears in your home.
@@ -594,6 +611,7 @@ vikix snapshot / changes / history / undo   # the history of your files
 vikix backup       # back up your home folder (vikix backup help for the rest)
 vikix firmware     # firmware updates waiting (BIOS, Thunderbolt, ...); vikix firmware update installs them
 vikix windows      # Windows in a VM: setup, create ISO, then open, stop, status
+vikix ai key set anthropic   # an API key, kept out of your dotfiles and their history
 vikix fingerprint  # a finger for sudo and the lock screen, where the reader is supported
 ```
 
@@ -629,7 +647,8 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `bar` | `vikix-net` labels the link and shows the Wi-Fi signal only when it is weak; `vikix-bt` shows Bluetooth only when it is on, with the device and its battery, and never waits on a hung bluetoothd; `vikix-font` gives StumpWM Iosevka Regular, or a stand-in until Iosevka is installed |
 | `windows` | `vikix windows setup` refuses without KVM or space before changing anything, opts in once, and deletes a download with the wrong checksum; `10-packages` installs an optional list only once chosen; `create`'s answer file is valid XML in the ISO's language, and the password stays off the command line and out of reach of other users; `virt-install` gets the TPM, Secure Boot, passt, virtiofs and TRIM; the discs come out and the answer disc goes only once Windows is ready; power off shuts a running Windows down and leaves libvirt alone otherwise |
 | `info` | The guides in `docs/` make an Info manual with no makeinfo warnings and a node for every heading; a broken link or a page missing from the table stops the build; `40-config` installs it once and lists it in the info `dir`; Emacs opens it and follows a link (needs makeinfo) |
-| `home` | `40-config` and `60-login` change nothing when run again, and `vikix undo` puts your files back (and undoing again brings the change back) |
+| `home` | `40-config` and `60-login` change nothing when run again, and `vikix undo` puts your files back (and undoing again brings the change back); API keys never reach the history, even when `yours.list` names their folder, and on a history older than that rule |
+| `ai` | `vikix ai key set` keeps a key 600 in a 700 folder and never prints it; `list` shows names only; the keys are exported in shells and the session, whose log's trace is off while they load; `check` finds a key in your files and their history by file and line, never printing it, and is quiet once it's moved and the history started again, and `vikix doctor` runs it |
 | `update` | `vikix update` runs the new version's steps after it pulls, logs the whole run, carries on past a failed stage, naming it at the end, and pulls a checkout with an SSH remote over HTTPS |
 | `packages` | Every name in `packages/*.list` is a real Void package |
 | `dry-run` | Both install parts run through with `--dry-run`, and leave the offline docs to `vikix docs` |

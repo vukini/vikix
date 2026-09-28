@@ -5,6 +5,10 @@
 #      time, change nothing: no new backups, no doubled blocks.
 #   2. Undo works. snapshot → change your files → vikix undo puts them
 #      back, and a second vikix undo brings the change back again.
+#   3. API keys are never in the history: ~/.config/vikix/secrets stays out
+#      even when yours.list names it, or a folder above it (a copy of the
+#      checkout with such a yours.list proves it), and on a history that
+#      began before the exclude existed.
 #
 # Both stages only touch $HOME, so they run for real, in a made-up home
 # folder that starts with a StumpWM config and a .bashrc of its own.
@@ -67,4 +71,30 @@ check "a second undo didn't bring the new file back" test -e "$HOME/.config/rofi
 check "files outside yours.list are in the snapshots" \
   test -z "$(git --git-dir="$VIKIX_STATE/yours.git" ls-files | grep -v -e '^\.stumpwm\.d/' -e '^\.config/' -e '^\.bash' -e '^\.Xresources')"
 [ "$fail" = 0 ] && echo "home: undo puts your files back, and undo again brings the change back"
+
+# --- 3. API keys never in the history -------------------------------------------
+# Every file any snapshot ever recorded.
+ever() { git --git-dir="$VIKIX_STATE/yours.git" log --all --name-only --format= | sort -u; }
+no_secrets() { ! ever | grep -q '^\.config/vikix/secrets'; }
+recorded() { ever | grep -qx "$1"; }
+mkdir -p "$HOME/.config/vikix/secrets"
+printf 'sk-ant-api03-HOMETESTKEY0123456789abcdef' > "$HOME/.config/vikix/secrets/ANTHROPIC_API_KEY"
+vikix snapshot "with a key kept"
+check "a kept key is in the history (the real yours.list)" no_secrets
+# A yours.list that asks for it outright, and for the folder above it.
+copy="$t/checkout"
+mkdir -p "$copy"
+(cd "$here" && tar --exclude=.git -cf - bin lib config install packages services.list VERSION) | tar -xf - -C "$copy"
+printf '.config/vikix\n.config/vikix/secrets\n.config/vikix/secrets/ANTHROPIC_API_KEY\n' >> "$copy/config/yours.list"
+out=$(bash "$copy/bin/vikix" snapshot "yours.list asks for the keys" 2>&1) ||
+  { echo "FAIL: a snapshot failed when yours.list names the keys' folder:"; echo "$out" | tail -3 | sed 's/^/  /'; fail=1; }
+check "the key is in the history when yours.list names its folder" no_secrets
+check "the rest of .config/vikix, named by that yours.list, isn't in the history" recorded .config/vikix/keyboard
+check "a yours.list naming the keys should get a warning: $out" grep -q 'API keys are never kept' <<<"$out"
+# A history from before the exclude: its exclude file is rewritten at the next snapshot.
+printf '*~\n' > "$VIKIX_STATE/yours.git/info/exclude"
+bash "$copy/bin/vikix" snapshot "an old history" >/dev/null 2>&1
+check "an old history's exclude didn't get the keys' folder" grep -qx '/.config/vikix/secrets/' "$VIKIX_STATE/yours.git/info/exclude"
+check "the key reached an old history" no_secrets
+[ "$fail" = 0 ] && echo "home: API keys stay out of the history, whatever yours.list says"
 exit "$fail"
