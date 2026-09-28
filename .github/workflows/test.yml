@@ -96,6 +96,8 @@ jobs:
         run: tests/ci.sh features
       - name: welcome
         run: tests/ci.sh welcome
+      - name: menu
+        run: tests/ci.sh menu
       - name: info
         run: tests/ci.sh info
 

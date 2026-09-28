@@ -89,15 +89,15 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
     ("Keyboard shortcuts"  vikix-keys)
     ("All commands"        vikix-commands)
     ("What does a key do?" describe-key)
-    ("Vikix guide (in Emacs)" (run-shell-command
+    ("Vikix guide" (run-shell-command
                                (format nil "emacsclient -c -a '' -e '(info \"~~/.local/share/info/vikix.info\")' || ~a -e info -f ~~/.local/share/info/vikix.info"
                                        *vikix-terminal*)))
     ("Update Vikix"      vikix-update)
     ("AI agent"            vikix-agent)
     ("AI on the selected text" (run-shell-command "vikix-ask"))
-    ("JupyterLab (in ~/dev)" (run-shell-command "vikix-jupyter"))
-    ("Programming docs (offline)" (run-shell-command "xdg-open ~/dev/index.html"))
-    ("Zeal: search the docs" (run-shell-command "zeal"))
+    ("JupyterLab (in ~/dev)" (run-shell-command "vikix-jupyter") "~/dev/python/.venv/bin/jupyter")
+    ("Programming docs (offline)" (run-shell-command "xdg-open ~/dev/index.html") "~/dev/index.html")
+    ("Zeal: search the docs" (run-shell-command "zeal") "zeal")
     ("Clipboard history"   (run-shell-command "env CM_LAUNCHER=rofi clipmenu"))
     ("Emoji"               (run-shell-command "vikix-rofi emoji"))
     ("Calculator"          (run-shell-command "vikix-rofi calc"))
@@ -119,14 +119,15 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
     ("Network (nmtui)"     (run-shell-command
                             (format nil "~a -e nmtui" *vikix-terminal*)))
     ("Bluetooth"           (run-shell-command "blueman-manager"))
-    ("Printers"            (run-shell-command "system-config-printer"))
+    ("Printers"            (run-shell-command "system-config-printer") "system-config-printer")
     ("Windows (the VM)"    (run-shell-command
                             (format nil "vikix-windows open || ~a -e sh -c 'vikix windows status; printf \"\\nEnter closes this window. \"; read x'"
-                                    *vikix-terminal*)))
+                                    *vikix-terminal*))
+                           "virt-viewer")
     ("Eject a drive"       (run-shell-command "vikix-drives eject"))
-    ("Local AI: talk to a model" (run-shell-command "vikix-local-ai chat --rofi"))
-    ("Local AI: choose a model" (run-shell-command "vikix-local-ai models --rofi"))
-    ("Local AI: unload the model" (run-shell-command "vikix-local-ai stop --notify"))
+    ("Local AI: talk to a model" (run-shell-command "vikix-local-ai chat --rofi") "~/.local/opt/ollama/bin/ollama")
+    ("Local AI: choose a model" (run-shell-command "vikix-local-ai models --rofi") "~/.local/opt/ollama/bin/ollama")
+    ("Local AI: unload the model" (run-shell-command "vikix-local-ai stop --notify") "~/.local/opt/ollama/bin/ollama")
     ("Firmware updates"    (run-shell-command
                             (format nil "~a -e sh -c 'vikix firmware update; printf \"\\nEnter closes this window. \"; read x'"
                                     *vikix-terminal*)))
@@ -134,7 +135,10 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
     ("Screens: save this layout" vikix-screens-save)
     ("Sound (pavucontrol)" (run-shell-command "pavucontrol"))
     ("Power: lock, suspend, log out, reboot, power off" vikix-power))
-  "Each entry: a label, then what to do — a command name, or a Lisp form.")
+  "Each entry: a label, then what to do — a command name, or a Lisp form —
+and, for some, what it needs: a program on PATH, or a file (\"~/...\"). An
+entry whose need isn't there is left out of the menu (vikix-menu-entry-here-p):
+JupyterLab without the feature python, Printers without printing ...")
 
 (defparameter *vikix-power-menu*
   ;; Lock first: the harmless one is where an Enter pressed by mistake lands.
@@ -148,9 +152,31 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
     ("Power off"           (run-shell-command "vikix-windows power; loginctl poweroff")))
   "The power menu (Super+Shift+Escape), in the same form as *vikix-menu*.")
 
+(defun vikix-program-p (name)
+  "True when a program called NAME is in a folder on PATH."
+  (let ((path (or (uiop:getenv "PATH") "")))
+    (loop for start = 0 then (1+ end)
+          for end = (position #\: path :start start)
+          for dir = (subseq path start end)
+            thereis (and (plusp (length dir))
+                         (probe-file (concatenate 'string dir "/" name)))
+          while end)))
+
+(defun vikix-menu-entry-here-p (entry)
+  "True unless ENTRY names what it needs (its third element) and that isn't
+here: a program on PATH, or a file when it starts with ~/."
+  (let ((needs (third entry)))
+    (or (not (stringp needs))
+        (if (and (> (length needs) 1) (string= (subseq needs 0 2) "~/"))
+            (probe-file (merge-pathnames (subseq needs 2) (user-homedir-pathname)))
+            (vikix-program-p needs)))))
+
 (defun vikix-run-menu (entries prompt)
-  "Pick from ENTRIES, a menu like *vikix-menu*, and do what the choice says."
-  (let ((choice (select-from-menu (current-screen) entries prompt)))
+  "Pick from ENTRIES, a menu like *vikix-menu*, and do what the choice says.
+Entries whose program or file isn't here are left out."
+  (let ((choice (select-from-menu (current-screen)
+                                  (remove-if-not #'vikix-menu-entry-here-p entries)
+                                  prompt)))
     (when choice
       (let ((action (second choice)))
         (if (symbolp action)
