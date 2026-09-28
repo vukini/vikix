@@ -428,6 +428,20 @@ A restore goes into `~/Restored/<time>/`, beside your files, never over them; mo
 
 ## What gets installed
 
+What Vikix installs comes in two parts: **the base**, which every Vikix has, and **features**, which you choose. Each is one or more package lists in `packages/`. `features.list` says which lists each feature brings; a list no feature names is part of the base.
+
+```sh
+vikix features             # what there is, and what you have: [x]
+vikix add python rust      # add features: their packages now, and every update keeps them
+vikix add essentials       # or a bundle: essentials, developer, everything
+vikix remove julia         # stop keeping it, and uninstall what only it needed
+```
+
+- **Features:** each language (`c`, `python`, `lisp`, `rust` …, with `devtools`, the tools every language uses, coming along), `emacs`, `neovim`, `office` (LibreOffice), `printing`, `webapps`, `windows`, `local-ai` and `llm`. The last three run their own setup (`vikix windows setup`, `vikix ai setup`, `vikix ai llm`).
+- **Bundles** (`bundles.list`): `essentials` is Emacs, C, Python and Lisp; `developer` both editors and every language; `everything` is developer, LibreOffice and printing, which is what a full install had before 0.46.
+- **Your choices** are the lines of `~/.config/vikix/features`, yours to edit. A machine installed before 0.46 had every list, so its file says `everything`, plus what it set up since (Windows, local AI). With no file at all, everything is kept.
+- **`vikix remove`** shows what it would uninstall and asks first (`--yes` skips the question). A package the base or another feature of yours names stays, and so does one that another installed package needs. A feature only there for the one removed goes too: `devtools`, once no language is left. Your own files are never touched: `~/dev`, `~/.emacs.d`, `~/.config/nvim`, `~/Windows`.
+
 | List | Contents |
 |---|---|
 | `base` | dbus, elogind, polkit and its password box, openssh, chrony (clock), git, curl, rsync, zip, 7zip, man pages, xdg-utils, texinfo (`info`, and makeinfo for the Vikix manual), python3 (for `vikix eval`) |
@@ -436,15 +450,18 @@ A restore goes into `~/Restored/<time>/`, beside your files, never over them; mo
 | `network` | NetworkManager (`nmtui` for Wi-Fi), with its connection editor |
 | `audio` | PipeWire, WirePlumber (with Bluetooth audio), pamixer, pavucontrol |
 | `laptop` | tlp, fwupd (firmware updates), fprintd (fingerprint readers), acpid, brightnessctl, xprintidle (suspend when idle on battery), Bluetooth (bluez, blueman), autorandr, and the firmware a recent ThinkPad needs: sof-firmware (sound), intel-ucode (from the nonfree repo, enabled by `repos.list`), intel-video-accel |
-| `printing` | CUPS with its filters, system-config-printer (and cups-pk-helper, so it needs no root), avahi and nss-mdns (finding network printers), ipp-usb (driverless USB printers), and drivers for older printers: gutenprint, foomatic, brlaser |
-| `editors` | Emacs, Neovim, the pdf-tools build deps, the `tree-sitter` CLI (Neovim builds its parsers with it), and the language servers Void packages (ccls, lua-language-server, gopls, efm-langserver) plus nodejs for the npm ones |
-| `apps` | Firefox, PCManFM, USB drives that mount when plugged in (udisks2, udiskie; gvfs-mtp for Android phones), SpaceFM, mpv, nsxiv, zathura, Foliate (EPUB), LibreOffice (Writer, Calc, Impress, Draw, Math), Zeal (offline docs) |
+| `printing` | Feature `printing`. CUPS with its filters, system-config-printer (and cups-pk-helper, so it needs no root), avahi and nss-mdns (finding network printers), ipp-usb (driverless USB printers), and drivers for older printers: gutenprint, foomatic, brlaser |
+| `emacs` | Feature `emacs`. Emacs, and the pdf-tools build deps |
+| `neovim` | Feature `neovim`. Neovim, efm-langserver, and the `tree-sitter` CLI (Neovim builds its parsers with it) |
+| `editor-tools` | With either editor: nodejs, for the npm language servers (`45-editors`). Each language's own server is in its `lang-*` list |
+| `apps` | Firefox, PCManFM, USB drives that mount when plugged in (udisks2, udiskie; gvfs-mtp for Android phones), SpaceFM, mpv, nsxiv, zathura, Foliate (EPUB) |
+| `office` | Feature `office`. LibreOffice: Writer, Calc, Impress, Draw, Math |
 | `dev` | base-devel (gcc, make), gdb, valgrind, rlwrap |
 | `cli` | htop, ripgrep, fd, fzf, bat, eza, tmux, tree, jq, zoxide, yazi, lazygit, gh (GitHub CLI), restic (for `vikix backup`), atuin (with bash-preexec) |
 | `lisp` | SBCL |
-| `lang-*` | One file per language, so a language is one file to keep or delete: C extras (tcc, rr, cmake, meson, ninja, shellcheck, shfmt, the C and POSIX man pages), Python (pip, ipython, pipx, uv), Lisp and Scheme (ccl, racket and its docs, chez-scheme, guile), Haskell (ghc and its docs, cabal, HLS, hlint), Forth (gforth), WebAssembly (wabt, wasmtime), Ruby (with `ri` docs), SQLite (sqlite, litecli, sqlitebrowser), Lua (lua54, LuaJIT), Go, Zig (zig, zls), Rust (with rust-analyzer and the docs), Java (openjdk21, gradle), OCaml (dune, ocamlfind, opam), Julia (juliaup), Pascal (fpc, Lazarus), and `lang-tools` (ctags, entr, hyperfine, tokei, just) |
-| `optional/windows` | Only after `vikix windows setup`: libvirt (with dnsmasq, for the VM's network), QEMU, UEFI firmware (edk2-ovmf), swtpm, virtiofsd, virt-viewer, xorriso. See [Windows](#windows-in-a-vm) |
-| `optional/webapps` | Only after the first `vikix webapp add`: Chromium, which runs the web apps. See [Web apps](#web-apps) |
+| `lang-*` | One file per language, each the feature of that name (`lang-lisp` is `lisp`): C extras (tcc, clang, ccls, rr, cmake, meson, ninja, shellcheck, shfmt, the C and POSIX man pages), Python (pip, ipython, pipx, uv), Lisp and Scheme (ccl, racket and its docs, chez-scheme, guile), Haskell (ghc and its docs, cabal, HLS, hlint), Forth (gforth), WebAssembly (wabt, wasmtime), Ruby (with `ri` docs), SQLite (sqlite, litecli, sqlitebrowser), Lua (lua54, LuaJIT, lua-language-server), Go (with gopls), JavaScript (nodejs), Zig (zig, zls), Rust (with rust-analyzer and the docs), Java (openjdk21, gradle), OCaml (dune, ocamlfind, opam), Julia (juliaup), Pascal (fpc, Lazarus), and `lang-tools`, the feature `devtools` (ctags, entr, hyperfine, tokei, just, Zeal for offline docs) |
+| `optional/windows` | Feature `windows` (`vikix windows setup`, or `vikix add windows`): libvirt (with dnsmasq, for the VM's network), QEMU, UEFI firmware (edk2-ovmf), swtpm, virtiofsd, virt-viewer, xorriso. See [Windows](#windows-in-a-vm) |
+| `optional/webapps` | Feature `webapps`, chosen by the first `vikix webapp add`: Chromium, which runs the web apps. See [Web apps](#web-apps) |
 
 ## Laptop
 
@@ -544,7 +561,7 @@ vikix webapp list                 # and remove NAME: its logins are kept; --forg
 - **Logins kept apart.** Each web app has its own Chromium profile (`~/.local/share/vikix/webapps/NAME`), so a work login never mixes with a personal one or with Firefox. Backups keep the logins and leave out the caches.
 - **Notifications** come through dunst, like everything else: allow them in the web app when it asks. They come only while its window is open (on any workspace), and web apps don't start by themselves at login: to have mail open from the start, put `(run-shell-command "vikix-webapp launch superhuman")` in `~/.stumpwm.d/user.lisp`.
 - **Your list** is `~/.config/vikix/webapps`, one `NAME URL [KEY]` per line; editing it by hand is fine, your own `#` comments stay, and `vikix webapp list` points out a line it can't use.
-- **Chromium** is installed the first time you add a web app (an optional package list, so `vikix update` then keeps it).
+- **Chromium** is installed the first time you add a web app (the feature `webapps`, so `vikix update` then keeps it; `vikix remove webapps` takes it away).
 
 ## Editors
 
@@ -580,7 +597,7 @@ Vikix is for playing with languages, so it installs them. Each is a small file i
 | Julia | juliaup, and the current Julia it fetches | `julia` |
 | Free Pascal | fpc and its sources; Lazarus, built with the docked IDE: one window that StumpWM tiles, with its dialogs floating | `fpc hello.pas`, `vikix-lazarus` |
 
-Language servers for the editors are in `editors.list` and `45-editors`.
+Each language's server for the editors is in its `lang-*.list` (ccls with C, gopls with Go, lua-language-server with Lua); the npm ones (pyright, typescript-language-server, bash-language-server) come from `45-editors`.
 
 ### `~/dev`: your projects, the docs offline, and examples
 
@@ -682,6 +699,7 @@ vikix migrate      # only the migrations not yet applied
 vikix rebuild-wm   # rebuild the StumpWM executable
 vikix docs         # download the offline programming docs into ~/dev (slow; update skips them)
 vikix doctor       # check everything is in place (programs, services, XDG_RUNTIME_DIR, the agent's pieces)
+vikix features     # what you can add, and what you have; vikix add NAME, vikix remove NAME
 vikix eval FORM    # run Lisp in the running StumpWM
 vikix agent        # Claude Code (Super+a)
 vikix snapshot / changes / history / undo   # the history of your files
@@ -730,6 +748,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `ai-keys` | `vikix-ask` (`s-i`) writes `~/.config/vikix/ai` on first use and takes the model from it: llama3.2:3b first, else your first local model, the one named there (a name with anything odd in it refused), or Claude only with `use=claude` and a key, never by itself; the menu's choice leads to its action; Proofread/Rewrite/Translate copy the answer without the model's "Here is…"; Ask sends the question with the selection; a short answer is a notification, a long one a terminal; nothing selected, the clipboard, then a plain message; llm's key error points to `vikix ai key`; Proofread lists its changes; the answer's terminal doesn't keep the lock; `vikix ai use` (and the menu) switch, Claude only with a key; any typed language; `use=Local`; a misspelt action is said |
 | `ai-local` | `vikix ai setup` refuses a download with the wrong checksum, installs only the CPU's and Vulkan's parts (no NVIDIA libraries), puts `ollama` on PATH, deletes the download, keeps models out of backups, and a second run downloads nothing; the picker offers 7–8B models only where they fit (16 GB, not 8 GB), marks what you have, and a choice (by number, with a ✓, or in rofi) downloads the right model; `status` says the loaded model's memory and when it unloads; `stop` unloads through the API and says so (a notification from `s-m`); `chat` runs the model; `remove` says plainly what's missing; the bar's note comes and goes with the model; a big log is moved aside; `uninstall` stops only its own processes (a decoy `ollama` survives) and keeps the models unless `--models` (needs Python 3.14's zstd) |
 | `webapp` | `vikix webapp add` gives a preset its address and the first mail one `s-M`, keeps an app's key when it's added again, makes a launcher entry with its window class, opts in to Chromium, suggests `https://` for a bare address, and refuses a bad name, an address that isn't https (but localhost), Vikix's own keys (the workspace keys too) and another web app's (saying how to free it); `key` moves or drops a key; `open` starts a Chromium app window with its own class and profile (700); `list` says keys as spoken, points out lines it can't use and logins left behind; `remove` keeps your comments and the logins unless `--forget`; `webapps.lisp` binds the keys, names each as its launcher entry does, adds key help and `s-m` entries (before Power), skips a bad line and loads the rest, and a reload drops what went; the migration adds the web apps' caches to an existing backup-exclude once |
+| `features` | `features.list` and `bundles.list` name only lists, features and bundles that exist, and no language list is in the base by mistake; everything and the base together are every list; with no choices file every list is wanted, plus the old optional ones; `vikix add` installs only the new feature's lists, runs the editors' and languages' stages only when one comes, refuses an unknown name, and records a feature with its own setup (Windows) only once that succeeds; `vikix remove` takes the features only the removed one needed (devtools), keeps one you chose by name or another needs, keeps packages the base, another feature (nodejs for Emacs) or another installed package needs, asks without `--yes`, keeps your comments and a linked choices file; the migration writes an older machine's choices once |
 | `info` | The guides in `docs/` make an Info manual with no makeinfo warnings and a node for every heading; a broken link or a page missing from the table stops the build; `40-config` installs it once and lists it in the info `dir`; Emacs opens it and follows a link (needs makeinfo) |
 | `home` | `40-config` and `60-login` change nothing when run again, and `vikix undo` puts your files back (and undoing again brings the change back); API keys never reach the history, even when `yours.list` names their folder, and on a history older than that rule |
 | `ai` | `vikix ai key set` keeps a key 600 in a 700 folder and never prints it (a fingerprint instead), refuses names that aren't keys' (`PATH`, `LD_PRELOAD`, `ANTHROPIC_BASE_URL`), typos and a key typed on the command line; only keys' names from real files of yours are exported, in shells and the session (whose log's trace is off while they load); `check` finds a key in your files, `~/.profile` and the like, and their history, by file and line, names a dotfile linked into a git repo and anything odd in the folder, and is quiet once all's fixed; `vikix agent` and `vikix update` run without the keys |

@@ -89,7 +89,7 @@ export VIKIX_SV_DIR="$t/sv" VIKIX_SERVICE_DIR="$t/service" VIKIX_BRIDGE_CONF="$t
 export VIKIX_LIBVIRT_NETS="$t/nets" VIKIX_SYS_NET="$t/sysnet"
 touch "$t/kvm"
 win() { bash "$here/bin/vikix-windows" "$@"; }
-optional="$HOME/.config/vikix/optional"
+optional="$HOME/.config/vikix/features"   # your choices: the feature windows
 images="$HOME/.local/share/libvirt/images"
 
 # --- setup ---------------------------------------------------------------------
@@ -100,7 +100,9 @@ check "too little space should suggest --disk: $out" grep -q -- '--disk' <<<"$ou
 check "a refused setup still opted in" test ! -e "$optional"
 
 out=$(DRY_RUN=1 VIKIX_WINDOWS_MIN_GB=0 win setup 2>&1) || { echo "FAIL: setup failed:"; echo "$out" | tail -5; fail=1; }
-check "setup didn't opt in to the windows list" grep -qx windows "$optional"
+check "setup didn't say it would record the feature windows" grep -q "would add windows to $optional" <<<"$out"
+check "a dry run recorded the feature" test ! -e "$optional"
+echo windows > "$optional"      # as the real setup records it
 check "setup didn't install the list (libvirt, virtiofsd): $(grep xbps-install <<<"$out")" \
   grep -q 'would run: sudo xbps-install -y .*libvirt.*virtiofsd' <<<"$out"
 check "setup still installs passt, the network that reached this machine's 127.0.0.1" lacks ' passt' "$(grep xbps-install <<<"$out")"
@@ -113,11 +115,13 @@ check "setup didn't start the default network" grep -q 'would run: sudo virsh -q
 DRY_RUN=1 VIKIX_WINDOWS_MIN_GB=0 win setup >/dev/null 2>&1
 check "a second setup named windows twice" test "$(grep -cx windows "$optional")" = 1
 
-# Without the opt-in, 10-packages leaves the list alone.
+# Not chosen, 10-packages leaves the list alone.
 mv "$optional" "$t/optional.saved"
-out=$(DRY_RUN=1 VIKIX_LISTS=windows bash "$here/install/10-packages.sh" 2>&1)
-check "10-packages installed an optional list nobody chose" lacks passt "$out"
+out=$(DRY_RUN=1 bash "$here/install/10-packages.sh" 2>&1)
+check "10-packages installed the windows list nobody chose" lacks virtiofsd "$out"
 mv "$t/optional.saved" "$optional"
+out=$(DRY_RUN=1 bash "$here/install/10-packages.sh" 2>&1)
+check "10-packages left out the windows list that was chosen" grep -q 'would run: sudo xbps-install -y .*virtiofsd' <<<"$out"
 
 # A download that isn't what it should be is deleted, and setup stops.
 rm "$images/virtio-win-0.1.302.iso"

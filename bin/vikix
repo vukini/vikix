@@ -9,6 +9,12 @@
 #   vikix docs          download the offline programming docs into ~/dev
 #                         (a few GB, slow; update and the installer skip them)
 #   vikix doctor        check the pieces are all there
+#   vikix features      what you can add (languages, editors, LibreOffice,
+#                         printing, Windows, local AI ...), and what you have
+#   vikix add NAME...   add features, or a bundle (essentials, developer,
+#                         everything); every update keeps them
+#   vikix remove NAME...  stop keeping them, and uninstall what only they
+#                         needed (it shows the list and asks first)
 #   vikix theme [NAME]  the colour theme, everywhere: the current one and
 #                         the list, or switch to NAME
 #   vikix version
@@ -45,6 +51,8 @@ VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 export VIKIX_DIR
 # shellcheck source=../lib/common.sh
 . "$VIKIX_DIR/lib/common.sh"
+# shellcheck source=../lib/features.sh
+. "$VIKIX_DIR/lib/features.sh"
 
 cmd_migrate() {
   run mkdir -p "$VIKIX_STATE/migrations"
@@ -212,7 +220,11 @@ cmd_doctor() {
   # pam_elogind creates this at login; pipewire and dbus-run-session need it.
   if [ -n "${XDG_RUNTIME_DIR:-}" ]; then say "XDG_RUNTIME_DIR is set"
   else warn "XDG_RUNTIME_DIR is not set (pam_elogind isn't creating sessions)"; ok=0; fi
-  for c in sbcl stumpwm alacritty rofi picom dunst pipewire i3lock firefox emacs nvim nmtui clipmenu maim restic; do
+  # The editors only when chosen (vikix add emacs); the rest is the base.
+  local progs=(sbcl stumpwm alacritty rofi picom dunst pipewire i3lock firefox nmtui clipmenu maim restic) dirs=()
+  is_chosen emacs  && { progs+=(emacs); dirs+=("$HOME/.emacs.d"); }
+  is_chosen neovim && { progs+=(nvim);  dirs+=("$HOME/.config/nvim"); }
+  for c in "${progs[@]}"; do
     if command -v "$c" >/dev/null 2>&1 || [ -x "$HOME/.local/bin/$c" ]; then
       say "found $c"
     else
@@ -225,7 +237,7 @@ cmd_doctor() {
   done < <(read_list "$VIKIX_DIR/services.list")
   if [ -e /var/service/NetworkManager ]; then say "service NetworkManager enabled"
   else warn "service NetworkManager not enabled"; ok=0; fi
-  for d in "$HOME/.emacs.d" "$HOME/.config/nvim"; do
+  for d in "${dirs[@]}"; do
     if [ -d "$d/.git" ]; then say "$d is a git clone"
     else warn "$d is not a git clone (45-editors did not set it up)"; ok=0; fi
   done
@@ -630,6 +642,8 @@ main() {
     rebuild-wm)  VIKIX_REBUILD_WM=1 bash "$VIKIX_DIR/install/30-lisp.sh" ;;
     docs)        VIKIX_DOCS=1 bash "$VIKIX_DIR/install/67-dev.sh" ;;
     doctor)      cmd_doctor ;;
+    features)    exec "$VIKIX_DIR/bin/vikix-features" list ;;
+    add|remove)  exec "$VIKIX_DIR/bin/vikix-features" "$@" ;;
     version)     cat "$VIKIX_DIR/VERSION" ;;
     eval)        shift; exec python3 "$VIKIX_DIR/bin/vikix-eval" "$@" ;;
     agent)       shift; cmd_agent "$@" ;;

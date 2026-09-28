@@ -1,0 +1,7 @@
+# neovim.list — Neovim, and what its config assumes is installed
+# (install/45-editors.sh clones the config and installs its plugins).
+# The feature `neovim`.
+neovim
+efm-langserver          # linters and formatters
+tree-sitter-cli         # `tree-sitter`: nvim-treesitter builds its parsers with it.
+                        # (Void's plain tree-sitter package is only the library.)

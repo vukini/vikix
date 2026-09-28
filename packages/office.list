@@ -1,0 +1,10 @@
+# office.list — LibreOffice (the feature `office`): the parts, not the
+# libreoffice meta package, which adds Base, a PostgreSQL driver and seven
+# more interface languages.
+libreoffice-writer   # documents (.odt, .docx)
+libreoffice-calc     # spreadsheets (.ods, .xlsx)
+libreoffice-impress  # presentations (.odp, .pptx)
+libreoffice-draw     # drawings, and editing PDFs
+libreoffice-math     # formulas
+libreoffice-fonts
+libreoffice-i18n-en-US

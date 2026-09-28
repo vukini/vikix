@@ -30,6 +30,8 @@ set -euo pipefail
 VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 # shellcheck source=../lib/common.sh
 . "$VIKIX_DIR/lib/common.sh"
+# shellcheck source=../lib/features.sh
+. "$VIKIX_DIR/lib/features.sh"
 
 URI=${VIKIX_WINDOWS_URI:-qemu:///session}
 SYSTEM_URI=qemu:///system
@@ -37,7 +39,6 @@ BRIDGE=virbr0
 BRIDGE_CONF=${VIKIX_BRIDGE_CONF:-/etc/qemu/bridge.conf}
 NAME=windows
 CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/windows"
-OPTIONAL="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/optional"
 SHARED="$HOME/Windows"
 KVM=${VIKIX_KVM:-/dev/kvm}                      # tests point these elsewhere
 MIN_GB=${VIKIX_WINDOWS_MIN_GB:-40}
@@ -65,10 +66,12 @@ vm_dir() {   # where the disk and discs are, from setup
 defined() { virsh dominfo "$NAME" >/dev/null 2>&1; }
 state() { virsh domstate "$NAME" 2>/dev/null || echo "not made"; }
 # Running, from the process list: quick, and doesn't start libvirtd.
+# The feature windows is chosen (vikix windows setup, or vikix add windows).
+chosen() { is_chosen windows; }
 running() { pgrep -u "$(id -u)" -f "qemu-system-x86_64 -name guest=$NAME," >/dev/null 2>&1; }
 
 need_setup() {
-  [ -f "$OPTIONAL" ] && read_list "$OPTIONAL" | grep -qx windows ||
+  chosen ||
     die "the Windows VM isn't set up yet: vikix windows setup"
   local c
   for c in virsh virt-install virt-viewer qemu-img xorriso 7z; do
@@ -116,19 +119,16 @@ cmd_setup() {
   [ "$free" -ge "$MIN_GB" ] ||
     die "$d has $free GB free; Windows needs $MIN_GB. Choose a roomier place: vikix windows setup --disk DIR"
 
-  # Opt in: from now on 10-packages installs the list, now and at every update.
-  mkdir -p "$(dirname "$OPTIONAL")"
-  if [ ! -f "$OPTIONAL" ]; then
-    printf '%s\n' "# Optional Vikix features you chose; each name is a list in packages/optional/." \
-      "# vikix update keeps their packages. Remove a line to stop that." > "$OPTIONAL"
-  fi
-  read_list "$OPTIONAL" | grep -qx windows || echo windows >> "$OPTIONAL"
+  # The feature windows: from now on 10-packages installs its list, now and
+  # at every update (vikix remove windows undoes it).
+  record_features windows
   VIKIX_LISTS=windows bash "$VIKIX_DIR/install/10-packages.sh"
 
   # /dev/kvm belongs to the kvm group; everything else runs as you.
   [ -w "$KVM" ] || ensure_group kvm "to run virtual machines"
   cmd_network
 
+  mkdir -p "$(dirname "$CONFIG")"
   printf 'DIR=%s\n' "$d" > "$CONFIG"
 
   download "$VIRTIO_URL" "$d/$VIRTIO_ISO" "$VIRTIO_SHA256"
@@ -449,7 +449,7 @@ network_line() {
 
 # For vikix doctor: nothing to say when there's no Windows VM.
 cmd_check() {
-  { [ -f "$OPTIONAL" ] && read_list "$OPTIONAL" | grep -qx windows && defined; } || return 0
+  { chosen && defined; } || return 0
   local line
   if line=$(network_line); then say "the Windows VM's network is $line"
   else warn "the Windows VM's network is $line"; return 1; fi
@@ -495,7 +495,7 @@ cmd_power() {
 }
 
 cmd_status() {
-  if ! { [ -f "$OPTIONAL" ] && read_list "$OPTIONAL" | grep -qx windows; }; then
+  if ! chosen; then
     echo "not set up (vikix windows setup)"; return 0
   fi
   local d s

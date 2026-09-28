@@ -7,12 +7,13 @@
 #   ~/.emacs.d       VIKIX_EMACS_REPO  (default: vukini/emacs-void)
 #   ~/.config/nvim   VIKIX_NVIM_REPO   (default: vukini/nvim-void-linux)
 #
-# Anything already at those paths that is not a git clone is left alone.
+# Only for the editors you chose (the features emacs and neovim: vikix add
+# emacs). Anything already at those paths that is not a git clone is left alone.
 # Set the two variables in the environment to use other repositories.
 #
 # Then the pieces the configs assume are on the machine:
-#   - language servers that Void packages (10-packages: ccls,
-#     lua-language-server, gopls, efm-langserver) plus the npm ones, put in
+#   - language servers: Void's come with each language's list (ccls in
+#     lang-c, gopls in lang-go, ...; efm-langserver with Neovim), and the npm ones, put in
 #     ~/.local so no sudo is needed: typescript-language-server, pyright,
 #     bash-language-server
 #   - Neovim's plugins, installed now to the versions in lazy-lock.json,
@@ -23,6 +24,8 @@
 set -euo pipefail
 # shellcheck source=../lib/common.sh
 . "$(dirname "$0")/../lib/common.sh"
+# shellcheck source=../lib/features.sh
+. "$(dirname "$0")/../lib/features.sh"
 
 : "${VIKIX_EMACS_REPO:=https://github.com/vukini/emacs-void}"
 : "${VIKIX_NVIM_REPO:=https://github.com/vukini/nvim-void-linux}"
@@ -43,8 +46,15 @@ clone_or_pull() {
   fi
 }
 
-clone_or_pull "$VIKIX_EMACS_REPO" "$HOME/.emacs.d"
-clone_or_pull "$VIKIX_NVIM_REPO"  "$HOME/.config/nvim"
+emacs=0 nvim=0
+is_chosen emacs  && emacs=1
+is_chosen neovim && nvim=1
+if [ "$emacs$nvim" = 00 ]; then
+  say "no editor chosen; nothing to do (vikix add emacs, or vikix add neovim)"
+  exit 0
+fi
+[ "$emacs" = 1 ] && clone_or_pull "$VIKIX_EMACS_REPO" "$HOME/.emacs.d"
+[ "$nvim" = 1 ]  && clone_or_pull "$VIKIX_NVIM_REPO"  "$HOME/.config/nvim"
 
 # --- npm language servers, into ~/.local/bin ------------------------------
 if command -v npm >/dev/null; then
@@ -63,10 +73,13 @@ else
 fi
 
 # --- Neovim plugins, now rather than at first start -----------------------
-if command -v nvim >/dev/null && [ -f "$HOME/.config/nvim/lazy-lock.json" ]; then
+if [ "$nvim" = 1 ] && command -v nvim >/dev/null && [ -f "$HOME/.config/nvim/lazy-lock.json" ]; then
   say "installing Neovim plugins to lazy-lock.json (a minute or two)"
   # Lazy! = no UI; restore = the locked versions; the treesitter build runs too.
   run nvim --headless "+Lazy! restore" +qa
 fi
 
-say "editors ready: e (Emacs frame), v (Neovim)"
+ready=()
+[ "$emacs" = 1 ] && ready+=("e (Emacs frame)")
+[ "$nvim" = 1 ]  && ready+=("v (Neovim)")
+say "editors ready: ${ready[*]}"

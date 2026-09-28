@@ -1,0 +1,10 @@
+# emacs.list — Emacs, and what its config assumes is installed
+# (install/45-editors.sh clones the config). The feature `emacs`.
+emacs-x11       # Emacs with its own window; SLIME reaches StumpWM on port 4004
+# pdf-tools (Emacs) builds its epdfinfo helper the first time:
+pkg-config
+autoconf
+automake
+poppler-glib-devel
+libpng-devel
+zlib-devel

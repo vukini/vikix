@@ -16,20 +16,23 @@ Built in this order: AI first, then newcomers, then the rest. Package facts were
 
 ### Newcomers
 
-6. **A welcome on first login.** A small window, opened once, in the Vikix look: the five keys that matter; "Run part two now", if it hasn't run; "Choose a theme", "Set your keyboard layout", "Open the guide". Each ticks off when done. Super+m → Welcome brings it back.
-7. **Questions at the start, then silence.** install-1.sh asks everything first: keyboard layout, time zone, languages, the Windows VM, local AI. The answers go in ~/.config/vikix/install.conf, so part two runs unattended; flags or an existing file skip the questions. Profiles: Essentials (C, Python, Lisp), Polyglot (everything), or Pick (a checklist). Later, `vikix lang add rust` and `vikix lang drop julia`; a dropped list stays dropped through updates (with the install menu's packages-skip, below).
-8. **A one-line install.** `curl -fsSL https://vikix.dev/install | bash` checks it's glibc Void and not root, installs git if needed, clones to ~/vikix and starts install-1.sh. The script lives in site/, short enough to read before running it, and the site shows it with a "read it first" link.
-9. **A key overlay.** Super+/ (and maybe holding Super for a second) shows a card of the Super keys, grouped, from *vikix-bindings*. And StumpWM's which-key-mode on, for the Ctrl+t keys.
-10. **A mouse fallback, and familiar keys.** Clicking a workspace in the bar goes there; volume opens pavucontrol, Wi-Fi nmtui, Bluetooth blueman. Super+Space as a second launcher key.
-11. **"Installing Void for Vikix", and "Your first hour".** A docs page with screenshots of void-installer: the glibc image, partitioning, a user in wheel, the network. Then a short one: the keys, part two, themes, update. Both linked from the site (the guides on vikix.dev, below).
+The install rework, agreed 2026-09-28: `install.sh` installs the base, and everything else is a feature (`vikix add`, `vikix remove`, `vikix features`; features.list and bundles.list, shipped in 0.46.0). Still to do, in this order:
+
+- **R1. `install.sh` installs the base.** Today's part one, plus sound, laptop hardware, fonts and the apps (Firefox, files). It ends with "reboot, then log in". `install.sh --with essentials,windows` also adds features, for an unattended install. `install-1.sh` becomes the same as `install.sh`; `install-2.sh` says "now: vikix add everything" and runs it, for a release or two. From then on a machine without a choices file has the base only (0.46's migration wrote one for every machine before it). README, docs, the site's install section and the skill follow.
+- **R2. The welcome on first login.** A small window, opened once, in the Vikix look: choose a bundle (essentials, developer, everything) or tick features, then `vikix add` runs in a terminal with a notification when it's done. Also the five keys that matter, "Choose a theme", "Set your keyboard layout", "Open the guide", each ticked off when done. Super+m → Add software brings the picker back, and Super+m → Welcome the rest. The keyboard layout, time zone and the rest of the old "questions at the start" belong here too, or in `install.sh --with`.
+- **R3. `vikix pkg add` and `vikix pkg drop`.** Single packages outside the features: a fuzzy search over `xbps-query -Rs` with a preview, installing or removing with xi or xr, and a Super+m entry. A base package dropped must stay dropped: `~/.config/vikix/packages-skip`, read by `10-packages` and in `yours.list`; then update docs/customize.md, which says there's no way yet.
+- **R4. A one-line install.** `curl -fsSL https://vikix.dev/install | bash` checks it's glibc Void and not root, installs git if needed, clones to ~/vikix and starts install.sh. The script lives in site/, short enough to read before running it, and the site shows it with a "read it first" link.
+
+6. **A key overlay.** Super+/ (and maybe holding Super for a second) shows a card of the Super keys, grouped, from *vikix-bindings*. And StumpWM's which-key-mode on, for the Ctrl+t keys.
+7. **A mouse fallback, and familiar keys.** Clicking a workspace in the bar goes there; volume opens pavucontrol, Wi-Fi nmtui, Bluetooth blueman. Super+Space as a second launcher key.
+8. **"Installing Void for Vikix", and "Your first hour".** A docs page with screenshots of void-installer: the glibc image, partitioning, a user in wheel, the network. Then a short one: the keys, part two, themes, update. Both linked from the site (the guides on vikix.dev, below).
 
 ### And then
 
-12. **A firewall (ufw).** Deny incoming, allow outgoing, allow SSH. A runit service, and a Super+m entry that shows the status.
-13. **More themes.** Three or four more (Gruvbox, Nord, Tokyo Night, a high-contrast one), each with a wallpaper. Then make Emacs and Neovim follow `vikix theme`.
-14. **Whole-system undo.** When / is btrfs: snapper snapshots before each `vikix update`, and `vikix rollback` notes. Skip cleanly on ext4.
-15. **An install menu.** `vikix pkg add` and `vikix pkg drop`: a fuzzy search over `xbps-query -Rs` with a preview, installing or removing with xi or xr. Also a Super+m entry. Dropping a package Vikix's lists name must stick: today `vikix update` installs it again (docs/customize.md says so). A list of your own, `~/.config/vikix/packages-skip`, read by `10-packages`, and in `yours.list`; then update the docs.
-16. **The guides on vikix.dev.** A Docs link on the site to `docs/` on GitHub, or the four pages built into the site. Same words either way: `docs/` stays the source.
+9. **A firewall (ufw).** Deny incoming, allow outgoing, allow SSH. A runit service, and a Super+m entry that shows the status.
+10. **More themes.** Three or four more (Gruvbox, Nord, Tokyo Night, a high-contrast one), each with a wallpaper. Then make Emacs and Neovim follow `vikix theme`.
+11. **Whole-system undo.** When / is btrfs: snapper snapshots before each `vikix update`, and `vikix rollback` notes. Skip cleanly on ext4.
+12. **The guides on vikix.dev.** A Docs link on the site to `docs/` on GitHub, or the four pages built into the site. Same words either way: `docs/` stays the source.
 
 ## To look into
 

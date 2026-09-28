@@ -4,3 +4,4 @@ entr            # run a command when files change: ls *.c | entr make
 hyperfine       # benchmark a command properly
 tokei           # count lines per language in a tree
 just            # a command runner: a Makefile for tasks, not builds
+zeal            # offline docs for every language, searchable (docsets from 67-dev)

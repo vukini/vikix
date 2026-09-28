@@ -10,9 +10,10 @@
 # fails the update: if it can't be done now, doctor says so until it is.
 set -euo pipefail
 . "$VIKIX_DIR/lib/common.sh"
+. "$VIKIX_DIR/lib/features.sh"
 
-optional="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/optional"
-if [ -f "$optional" ] && read_list "$optional" | grep -qx windows; then
+# Chosen: in ~/.config/vikix/features from 0.46, in .../optional before.
+if is_chosen windows; then
   # A failure here mustn't stop the update (a failed migration would stop
   # every later one too). vikix doctor keeps saying so until it's fixed.
   "$VIKIX_DIR/bin/vikix-windows" network ||

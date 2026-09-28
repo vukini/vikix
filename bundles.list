@@ -1,0 +1,9 @@
+# bundles.list — several features under one name: vikix add essentials.
+# Fields split by |: name, its features (or other bundles), one line about it.
+# Adding a bundle records its features one by one, so any of them can be
+# removed later on its own.
+
+# name      | features                                                   | about
+essentials  | emacs c python lisp                                        | Emacs, and C, Python and Lisp to start with
+developer   | emacs neovim c python lisp haskell lua go zig forth ruby sql wasm javascript rust java ocaml julia pascal | Both editors and every language
+everything  | developer office printing                                  | All of it, as a full install had before 0.46: developer, LibreOffice and printing

@@ -1,0 +1,3 @@
+# lang-javascript.list — JavaScript, with Node (the feature `javascript`).
+# typescript-language-server comes from npm, in 45-editors.
+nodejs

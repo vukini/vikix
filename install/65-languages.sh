@@ -18,6 +18,9 @@
 #              Julia itself; this gets the current release now, not at the
 #              first `julia`.
 #
+# Each one only for the features you chose: PicoLisp with `lisp`; Lazarus
+# and Julia once their packages are here (the features pascal and julia).
+#
 # Not automated (see README, "Languages"): Cuis Smalltalk (a VM download
 # that changes shape between releases) and Odin (prebuilt binaries).
 # Everything here is skipped when already present; VIKIX_REBUILD_LANGS=1
@@ -26,6 +29,8 @@
 set -euo pipefail
 # shellcheck source=../lib/common.sh
 . "$(dirname "$0")/../lib/common.sh"
+# shellcheck source=../lib/features.sh
+. "$(dirname "$0")/../lib/features.sh"
 
 OPT="$HOME/.local/opt"
 BIN="$HOME/.local/bin"
@@ -33,7 +38,9 @@ run mkdir -p "$OPT" "$BIN"
 
 # --- PicoLisp ---------------------------------------------------------------
 pil_dir="$OPT/picolisp"
-if [ -x "$pil_dir/bin/picolisp" ] && [ "${VIKIX_REBUILD_LANGS:-0}" != 1 ]; then
+if ! is_chosen lisp; then
+  say "PicoLisp comes with the feature lisp (vikix add lisp); skipping it"
+elif [ -x "$pil_dir/bin/picolisp" ] && [ "${VIKIX_REBUILD_LANGS:-0}" != 1 ]; then
   say "PicoLisp already built in $pil_dir"
 elif missing=$(for t in clang llvm-config opt llc llvm-link pkg-config; do
                   command -v "$t" >/dev/null || printf '%s ' "$t"; done) &&
@@ -56,7 +63,7 @@ fi
 # ~/.local/bin/pil: a two-line script, not a symlink. PicoLisp's own `pil`
 # finds its files next to itself (${0%/*}), so a symlink to it would look
 # for them in ~/.local/bin instead.
-if [ -x "$pil_dir/bin/picolisp" ] || [ "$DRY_RUN" = 1 ]; then
+if is_chosen lisp && { [ -x "$pil_dir/bin/picolisp" ] || [ "$DRY_RUN" = 1 ]; }; then
   if [ -L "$BIN/pil" ] || [ ! -e "$BIN/pil" ]; then
     say "adding the pil command to $BIN"
     run rm -f "$BIN/pil"

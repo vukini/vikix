@@ -17,7 +17,8 @@
 .config/mimeapps.list
 .config/vikix/backup          # where backups go (not the password: that stays out of here)
 .config/vikix/backup-exclude  # what they leave out
-.config/vikix/optional        # optional features you chose (vikix windows setup)
+.config/vikix/features        # the features you chose (vikix add, vikix remove)
+.config/vikix/optional        # before 0.46: the optional ones (now in features)
 .config/vikix/windows         # where the Windows VM's disk is
 .config/vikix/webapps         # your web apps (vikix webapp)
 .config/vikix/ai              # which model AI on keys uses (Super+i)

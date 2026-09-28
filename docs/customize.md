@@ -145,8 +145,8 @@ Don't edit between the `# >>> vikix … >>>` and `# <<< vikix … <<<` lines; Vi
 ## Programs and services
 
 - **Install a program:** `xi NAME` (search with `xs WORD`). It stays installed, and `vikix update` keeps it current along with everything else.
-- **Remove one Vikix installed:** `xr NAME` removes it, but the next `vikix update` installs it again, because it's in Vikix's package lists. There's no way to opt out of one yet.
-- **Optional features** come with their own setup command, which adds them to `~/.config/vikix/optional`; from then on `vikix update` keeps their packages. So far there are two: the Windows VM (`vikix windows setup`, see [Windows in a window](windows.md)), and web apps (Chromium comes with the first `vikix webapp add`, see the [README](../README.md#web-apps)).
+- **Add or remove a feature:** a language, an editor, LibreOffice, printing, Windows, local AI. `vikix features` lists them and marks the ones you have; `vikix add rust` installs one, and every update keeps it; `vikix remove rust` uninstalls what only it needed, after showing you the list. Bundles add several at once: `vikix add essentials` (Emacs, C, Python, Lisp), `developer`, `everything`. Your choices are `~/.config/vikix/features`. Windows (`vikix windows setup`, see [Windows in a window](windows.md)) and web apps (the first `vikix webapp add`) choose their feature by themselves.
+- **Remove one package Vikix installed:** `xr NAME` removes it, but the next `vikix update` installs it again if a list you have names it. Remove its feature instead, if it has one (`vikix features`); for a base package there's no way to opt out yet.
 - **Switch on a service:** `sv-on NAME` (the services are in `/etc/sv/`), `sv-off NAME`, `svls` to list. These are system services. A program for your desktop session goes in `user.lisp` instead ([above](#start-a-program-with-the-desktop)).
 
 ## Web apps

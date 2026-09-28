@@ -37,7 +37,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── backup-password    yours     the backup password (never in snapshots)
 │   │   ├── secrets/           yours     API keys, one file each (vikix ai key); never in snapshots
 │   │   ├── ai                 yours     which model Super+i uses: use=local or claude, model=, languages=
-│   │   ├── optional           yours     optional features you chose, such as windows (vikix windows setup)
+│   │   ├── features           yours     the features you chose (vikix add, vikix remove, vikix features)
 │   │   ├── windows            yours     where the Windows VM's disk is
 │   │   ├── webapps            yours     your web apps: NAME URL [KEY] (vikix webapp)
 │   │   ├── wallpaper          yours     a link to the picture you chose
@@ -112,7 +112,8 @@ Everything Vikix is. `readlink -f ~/.local/bin/vikix` finds it if you cloned it 
 | `config/` | Everything that ends up in your home: the files linked there, and the starters copied once |
 | `config/stumpwm/vikix/` | The StumpWM layer. Read it to see how a key, the bar or the menu is made, then change it from `user.lisp` |
 | `config/yours.list` | The files the snapshot history covers |
-| `packages/*.list` | What gets installed, one list per concern, `lang-*.list` one per language. `packages/optional/` holds lists for features you choose, like the Windows VM |
+| `packages/*.list` | What gets installed, one list per concern, `lang-*.list` one per language. `packages/optional/` holds lists only a feature brings, like the Windows VM |
+| `features.list`, `bundles.list` | What `vikix add` offers: each feature's lists, and the bundles (essentials, developer, everything). A list no feature names is the base |
 | `services.list` | The runit services Vikix switches on |
 | `themes/` | The themes that come with Vikix (`void`, `paper`) and their wallpapers |
 | `dev/` | The READMEs and examples `~/dev` is made from |

@@ -29,9 +29,10 @@ set -euo pipefail
 VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 # shellcheck source=../lib/common.sh
 . "$VIKIX_DIR/lib/common.sh"
+# shellcheck source=../lib/features.sh
+. "$VIKIX_DIR/lib/features.sh"
 
 LIST="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/webapps"
-OPTIONAL="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/optional"
 APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 PROFILES="${XDG_DATA_HOME:-$HOME/.local/share}/vikix/webapps"
 MAIL_KEY=s-M
@@ -140,11 +141,8 @@ reload_wm() {
 }
 
 need_chromium() {
-  # Opt in first, so vikix update keeps Chromium from now on.
-  mkdir -p "$(dirname "$OPTIONAL")"
-  [ -f "$OPTIONAL" ] || printf '%s\n' "# Optional Vikix features you chose; each name is a list in packages/optional/." \
-    "# vikix update keeps their packages. Remove a line to stop that." > "$OPTIONAL"
-  read_list "$OPTIONAL" | grep -qx webapps || echo webapps >> "$OPTIONAL"
+  # The feature webapps first, so vikix update keeps Chromium from now on.
+  is_chosen webapps || record_features webapps
   command -v chromium >/dev/null 2>&1 && return 0
   say "web apps run in Chromium, which isn't installed yet: installing it (sudo)"
   VIKIX_LISTS=webapps bash "$VIKIX_DIR/install/10-packages.sh"

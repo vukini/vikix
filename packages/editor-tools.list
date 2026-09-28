@@ -1,0 +1,4 @@
+# editor-tools.list — what either editor needs (features emacs and neovim).
+# Each language's own server is in its lang-*.list (ccls in lang-c, gopls in
+# lang-go, ...); the npm ones come from 45-editors.
+nodejs                  # npm, for typescript-language-server, pyright, bash-language-server

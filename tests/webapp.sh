@@ -41,7 +41,7 @@ check "the launcher entry should open it and name its window class" \
   grep -q '^Exec=vikix-webapp open superhuman$' "$apps/vikix-webapp-superhuman.desktop"
 check "the launcher entry's window class" grep -q '^StartupWMClass=vikix-superhuman$' "$apps/vikix-webapp-superhuman.desktop"
 check "the launcher entry should be called Superhuman" grep -q '^Name=Superhuman$' "$apps/vikix-webapp-superhuman.desktop"
-check "add didn't opt in to Chromium (so updates keep it)" grep -qx webapps "$HOME/.config/vikix/optional"
+check "add didn't choose the feature webapps (so updates keep Chromium)" grep -qx webapps "$HOME/.config/vikix/features"
 wa add fastmail >/dev/null 2>&1
 check "a second mail web app took s-M too: $(cat "$list")" grep -qx 'fastmail https://app.fastmail.com/' "$list"
 wa add fastmail --key s-F >/dev/null 2>&1

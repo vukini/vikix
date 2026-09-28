@@ -1,0 +1,47 @@
+# features.list — what you can add to Vikix, and remove again:
+#   vikix add NAME, vikix remove NAME, vikix features
+#
+# One feature a line, fields split by |:
+#   name     what you type
+#   lists    its package lists in packages/ (optional/ ones with the prefix)
+#   needs    other features it brings along
+#   add      a command that sets it up instead of just its lists (it records
+#            the feature itself, through vikix-features record)
+#   remove   a command to run before its packages go (it asks, if it deletes
+#            anything of yours)
+#   about    one line, for vikix features and the welcome
+#
+# A package list that no feature names is part of the base: install.sh
+# installs it and every update keeps it. So a new list is for everyone
+# until a line here makes it a choice.
+#
+# Your choices are ~/.config/vikix/features (lib/features.sh reads them).
+# Bundles of features, such as essentials, are in bundles.list.
+
+# name      | lists              | needs    | add                 | remove                | about
+emacs       | emacs editor-tools |          |                     |                       | Emacs, with Vikix's config; SLIME reaches the running window manager
+neovim      | neovim editor-tools|          |                     |                       | Neovim, with Vikix's config and its plugins
+devtools    | lang-tools         |          |                     |                       | Tools for any language: ctags, entr, hyperfine, tokei, just, Zeal for offline docs
+c           | lang-c             | devtools |                     |                       | C: clang, tcc, cmake, meson, rr, the C language server
+python      | lang-python        | devtools |                     |                       | Python: uv, ruff, IPython, pytest, and JupyterLab in ~/dev/python
+lisp        | lang-lisp          | devtools |                     |                       | More Lisps: Clozure CL, Racket, Chez Scheme, Guile, PicoLisp (SBCL is always here)
+haskell     | lang-haskell       | devtools |                     |                       | Haskell: GHC, cabal, the language server, hlint
+lua         | lang-lua           | devtools |                     |                       | Lua 5.4, LuaJIT, luarocks, the language server
+go          | lang-go            | devtools |                     |                       | Go, the delve debugger, gopls
+zig         | lang-zig           | devtools |                     |                       | Zig and zls
+forth       | lang-forth         | devtools |                     |                       | Forth: Gforth
+ruby        | lang-ruby          | devtools |                     |                       | Ruby, with ri for its docs
+sql         | lang-sql           | devtools |                     |                       | SQL: SQLite, litecli, DB Browser for SQLite
+wasm        | lang-wasm          | devtools |                     |                       | WebAssembly: wabt and wasmtime
+javascript  | lang-javascript    | devtools |                     |                       | JavaScript, with Node
+rust        | lang-rust          | devtools |                     |                       | Rust: cargo, rust-analyzer, the book offline
+java        | lang-java          | devtools |                     |                       | Java: OpenJDK 21 and Gradle
+ocaml       | lang-ocaml         | devtools |                     |                       | OCaml: dune, opam
+julia       | lang-julia         | devtools |                     |                       | Julia, through juliaup
+pascal      | lang-pascal        | devtools |                     |                       | Free Pascal and the Lazarus IDE
+office      | office             |          |                     |                       | LibreOffice: documents, spreadsheets, presentations
+printing    | printing           |          |                     |                       | Printers: CUPS, finding printers on the network, drivers
+webapps     | optional/webapps   |          |                     |                       | Chromium, for web apps (vikix webapp add)
+windows     | optional/windows   |          | vikix windows setup | vikix windows remove  | Windows 11 in a window (8 GB of memory, 40 GB of disk)
+local-ai    |                    |          | vikix ai setup      | vikix ai uninstall    | AI models on this laptop, with Ollama
+llm         |                    |          | vikix ai llm        | uv tool uninstall llm | llm: AI on the command line, local or Claude

@@ -1,4 +1,5 @@
-# lang-lua.list — Lua (lua-language-server is in editors.list)
+# lang-lua.list — Lua
 lua54
+lua-language-server   # for both editors (Neovim's own config is Lua, too)
 LuaJIT
 luarocks        # Lua's package manager: luarocks install --local NAME

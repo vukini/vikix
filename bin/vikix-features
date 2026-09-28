@@ -1,0 +1,224 @@
+#!/usr/bin/env bash
+# vikix-features — what you add to Vikix beyond the base (`vikix add`,
+# `vikix remove`, `vikix features`).
+#
+#   vikix features             what there is, and what you have ([x])
+#   vikix add NAME...          add features or bundles: their packages now,
+#                              and every update keeps them
+#   vikix remove NAME... [--yes]   stop keeping them, and uninstall their
+#                              packages: only those nothing else you have
+#                              needs. It shows the list and asks first.
+#
+# A feature is a line in features.list (a language, an editor, LibreOffice,
+# printing, Windows, local AI ...); a bundle, in bundles.list, is several
+# (essentials, developer, everything). Your choices are the lines of
+# ~/.config/vikix/features. Your own files are never touched: ~/dev, your
+# editor configs, a Windows VM's disk (vikix windows remove asks for that).
+
+set -euo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+export VIKIX_DIR
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+# shellcheck source=../lib/features.sh
+. "$VIKIX_DIR/lib/features.sh"
+
+# feature_cmd FEATURE FIELD — run its add (4) or remove (5) command. A
+# `vikix ...` one runs through this checkout's vikix (~/.local/bin may not
+# be on PATH yet, during the install), and does its own dry run; any other
+# goes through run.
+feature_cmd() {
+  local words
+  read -r -a words <<<"$(feature_field "$1" "$2")"
+  if [ "${words[0]}" = vikix ]; then
+    "$VIKIX_DIR/bin/vikix" "${words[@]:1}"
+  else
+    run "${words[@]}"
+  fi
+}
+
+# stage NAME [VAR=VALUE ...] — run one install stage, as vikix update does.
+stage() {
+  local name=$1; shift
+  say "stage $name"
+  env "$@" bash "$VIKIX_DIR/install/$name.sh"
+}
+
+cmd_list() {
+  local chosen name lists about mark
+  chosen=" $(chosen_features 2>/dev/null | tr '\n' ' ') "
+  echo "Features (vikix add NAME, vikix remove NAME); [x] you have it:"
+  while IFS='|' read -r name lists _ _ _ about; do
+    case $chosen in *" $name "*) mark='[x]' ;; *) mark='[ ]' ;; esac
+    printf '  %s %-11s %s\n' "$mark" "$name" "$about"
+  done < <(features_rows)
+  echo
+  echo "Bundles (vikix add NAME adds each of their features):"
+  while IFS='|' read -r name lists about; do
+    printf '      %-11s %s\n' "$name" "$about"
+  done < <(bundles_rows)
+  echo
+  [ -f "$FEATURES_FILE" ] && echo "Your choices: $FEATURES_FILE" ||
+    echo "No choices file yet: everything is kept, as before 0.46 (vikix add or remove makes one)."
+}
+
+cmd_add() {
+  [ $# -gt 0 ] || die "vikix add NAME... (vikix features lists them)"
+  local new=() lists=() cmds=() editors=0 langs=0 f
+  mapfile -t new < <(expand_features "$@")
+  expand_features "$@" >/dev/null 2>&1 || die "nothing added"
+  for f in "${new[@]}"; do
+    # A chosen feature is added again all the same: it puts back what's
+    # missing (a package removed by hand), and says there's nothing to do.
+    if [ -n "$(feature_field "$f" 4)" ]; then
+      cmds+=("$f")
+    else
+      mapfile -t -O "${#lists[@]}" lists < <(lists_of "$f")
+    fi
+    case $f in emacs|neovim) editors=1 ;; esac
+    case $(feature_field "$f" 2) in *lang-*) langs=1 ;; esac
+  done
+  say "adding: ${new[*]}"
+  sudo_keepalive
+  # Recorded first: if a stage fails, vikix update finishes the job. Not the
+  # ones with their own setup, which may refuse (Windows without KVM): those
+  # are recorded once it succeeds.
+  local plain=()
+  for f in "${new[@]}"; do
+    printf '%s\n' "${cmds[@]}" | grep -qx -- "$f" || plain+=("$f")
+  done
+  [ "${#plain[@]}" -eq 0 ] || record_features "${plain[@]}"
+  local failed=()
+  if [ "${#lists[@]}" -gt 0 ]; then
+    stage 10-packages VIKIX_LISTS="${lists[*]}" || failed+=(10-packages)
+    stage 20-services || failed+=(20-services)
+  fi
+  [ "$editors" = 1 ] && { stage 45-editors || failed+=(45-editors); }
+  if [ "$langs" = 1 ]; then
+    stage 65-languages || failed+=(65-languages)
+    stage 67-dev || failed+=(67-dev)
+  fi
+  # Features with their own setup (Windows, local AI, llm): that command
+  # does the work, and asks what it needs to.
+  for f in "${cmds[@]}"; do
+    say "$f: $(feature_field "$f" 4)"
+    if feature_cmd "$f" 4; then record_features "$f"; else failed+=("$f"); fi
+  done
+  if [ "${#failed[@]}" -gt 0 ]; then
+    warn "added, but these didn't finish: ${failed[*]}. vikix update tries again."
+    return 1
+  fi
+  say "added: ${new[*]}"
+}
+
+cmd_remove() {
+  local yes=0 names=() a
+  for a in "$@"; do
+    case $a in --yes|-y) yes=1 ;; *) names+=("$a") ;; esac
+  done
+  [ "${#names[@]}" -gt 0 ] || die "vikix remove NAME... (vikix features shows what you have)"
+
+  # The names to take out: features, and bundles opened into theirs.
+  local targets=() n
+  for n in "${names[@]}"; do
+    if is_bundle "$n"; then
+      mapfile -t -O "${#targets[@]}" targets < <(bundle_features "$n")
+    elif is_feature "$n"; then
+      targets+=("$n")
+    else
+      die "no feature or bundle called '$n' (see: vikix features)"
+    fi
+  done
+  # Your choices, bundles opened, without those names; what they still mean
+  # stays. The rest of what you have goes: the targets, and anything only
+  # they needed (devtools, once no language is left).
+  local before=() names_left=() stay=() really=() f by
+  mapfile -t before < <(chosen_features 2>/dev/null)
+  mapfile -t names_left < <(chosen_names | while IFS= read -r n; do
+      if is_bundle "$n"; then bundle_features "$n"; else printf '%s\n' "$n"; fi
+    done | grep -vxF -f <(printf '%s\n' "${targets[@]}") || true)
+  [ "${#names_left[@]}" -eq 0 ] || mapfile -t stay < <(expand_features "${names_left[@]}" 2>/dev/null)
+  for f in "${before[@]}"; do
+    printf '%s\n' "${stay[@]}" | grep -qx -- "$f" || really+=("$f")
+  done
+  for f in "${targets[@]}"; do
+    printf '%s\n' "${before[@]}" | grep -qx -- "$f" || { say "$f isn't here"; continue; }
+    if printf '%s\n' "${stay[@]}" | grep -qx -- "$f"; then
+      by=$(for n in "${stay[@]}"; do case " $(feature_field "$n" 3) " in *" $f "*) printf '%s ' "$n" ;; esac; done)
+      by=${by% }
+      warn "$f stays, needed by: ${by:-another feature you chose}"
+    fi
+  done
+  [ "${#really[@]}" -gt 0 ] || { say "nothing to remove"; return 0; }
+
+  # The packages: those of the going features' lists, minus any the base or
+  # a staying feature names, and only the ones installed.
+  local stay_pkgs pkgs=() p
+  stay_pkgs=$({ base_lists; [ "${#stay[@]}" -eq 0 ] || lists_of "${stay[@]}"; } |
+    while IFS= read -r l; do [ -f "$VIKIX_DIR/packages/$l.list" ] && read_list "$VIKIX_DIR/packages/$l.list"; done | sort -u)
+  while IFS= read -r p; do
+    grep -qxF -- "$p" <<<"$stay_pkgs" && continue
+    pkg_installed "$p" && pkgs+=("$p")
+  done < <(lists_of "${really[@]}" | while IFS= read -r l; do
+             [ -f "$VIKIX_DIR/packages/$l.list" ] && read_list "$VIKIX_DIR/packages/$l.list"; done | awk '!seen[$0]++')
+
+  # One that another installed package still needs stays (clang needs llvm,
+  # which only lisp names): xbps would refuse the whole removal for it.
+  local keep_pkgs=() rdeps r users
+  for p in "${pkgs[@]}"; do
+    rdeps=$(xbps-query -X "$p" 2>/dev/null || true)
+    users=""
+    for r in $rdeps; do
+      r=${r%-*}                                  # pkgver: name-1.2_1 -> name
+      printf '%s\n' "${pkgs[@]}" | grep -qxF -- "$r" || users="$users $r"
+    done
+    [ -n "$users" ] && { keep_pkgs+=("$p"); say "  $p stays, needed by:$users"; }
+  done
+  [ "${#keep_pkgs[@]}" -eq 0 ] ||
+    mapfile -t pkgs < <(printf '%s\n' "${pkgs[@]}" | grep -vxF -f <(printf '%s\n' "${keep_pkgs[@]}") || true)
+
+  say "removing: ${really[*]}"
+  for f in "${really[@]}"; do
+    [ -n "$(feature_field "$f" 5)" ] && say "  $f: first $(feature_field "$f" 5)"
+  done
+  if [ "${#pkgs[@]}" -gt 0 ]; then
+    say "  uninstalling ${#pkgs[@]} package(s), and what only they needed: ${pkgs[*]}"
+  else
+    say "  no packages to uninstall"
+  fi
+  say "  your files stay: ~/dev, ~/.emacs.d, ~/.config/nvim, ~/Windows"
+  if [ "$yes" != 1 ] && [ "$DRY_RUN" != 1 ]; then
+    [ -t 0 ] || die "not asked: run it in a terminal, or add --yes"
+    local answer
+    read -r -p "Go ahead? [y/N] " answer
+    case $answer in y|Y|yes) ;; *) say "nothing removed"; return 0 ;; esac
+  fi
+
+  sudo_keepalive
+  for f in "${really[@]}"; do
+    [ -n "$(feature_field "$f" 5)" ] || continue
+    feature_cmd "$f" 5 ||
+      die "$f: '$(feature_field "$f" 5)' didn't finish; nothing else was removed"
+  done
+  [ "${#pkgs[@]}" -eq 0 ] || run sudo xbps-remove -Ry "${pkgs[@]}"
+  # Services whose package just went: runit would keep a dead link.
+  local sv
+  while IFS= read -r sv; do
+    if [ -L "$VIKIX_SERVICE_DIR/$sv" ] && [ ! -d "$VIKIX_SV_DIR/$sv" ]; then
+      run sudo rm "$VIKIX_SERVICE_DIR/$sv"
+    fi
+  done < <(read_list "$VIKIX_DIR/services.list")
+  record_features               # makes the file, when there is none yet
+  open_bundles
+  forget_features "${really[@]}"
+  say "removed: ${really[*]}. vikix add brings any of them back."
+}
+
+case ${1:-list} in
+  list|features) cmd_list ;;
+  add)    shift; cmd_add "$@" ;;
+  remove) shift; cmd_remove "$@" ;;
+  record) shift; record_features "$@" ;;     # for setup commands: vikix windows setup
+  help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) die "unknown: vikix-features $1 (try: vikix features)" ;;
+esac

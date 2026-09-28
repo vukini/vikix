@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-# 10-packages — install everything named in packages/*.list.
+# 10-packages — install the package lists in packages/ that are wanted here.
 #
-# VIKIX_LISTS narrows it to some lists (install.sh's part one sets it to
-# the core ones: base desktop network lisp cli); empty means every list.
+# Wanted: the base (every list no feature names) and the lists of the
+# features you chose (features.list; your choices in ~/.config/vikix/features,
+# which vikix add and vikix remove keep; lib/features.sh reads them).
+# packages/optional/*.list are only ever there through a feature (windows,
+# webapps).
 #
-# packages/optional/*.list are for features not everyone wants (the Windows
-# VM): one is installed only once its name is a line in your
-# ~/.config/vikix/optional, which the feature's own setup command writes
-# (`vikix windows setup`). From then on every update keeps it.
+# VIKIX_LISTS names the lists to install instead (install.sh's part one sets
+# it to the core ones: base desktop network lisp cli; vikix add to the new
+# feature's lists). A name is a list in packages/ or packages/optional/.
 #
 # Only packages that are not installed yet are passed to xbps-install,
 # so the output shows exactly what is new. Add a package by adding a line
@@ -16,10 +18,24 @@
 set -euo pipefail
 # shellcheck source=../lib/common.sh
 . "$(dirname "$0")/../lib/common.sh"
+# shellcheck source=../lib/features.sh
+. "$(dirname "$0")/../lib/features.sh"
 
-wanted_list() {   # is this list (by name, without .list) wanted this time?
-  [ -z "${VIKIX_LISTS:-}" ] && return 0
-  case " $VIKIX_LISTS " in *" $1 "*) return 0 ;; esac
+# The lists this run installs, as paths.
+lists=()
+if [ -n "${VIKIX_LISTS:-}" ]; then
+  for name in $VIKIX_LISTS; do
+    if [ -f "$VIKIX_DIR/packages/$name.list" ]; then lists+=("$VIKIX_DIR/packages/$name.list")
+    elif [ -f "$VIKIX_DIR/packages/optional/$name.list" ]; then lists+=("$VIKIX_DIR/packages/optional/$name.list")
+    else warn "no package list called '$name'"; fi
+  done
+else
+  while IFS= read -r name; do
+    [ -f "$VIKIX_DIR/packages/$name.list" ] && lists+=("$VIKIX_DIR/packages/$name.list")
+  done < <(wanted_lists)
+fi
+wanted_list() {   # is this list (by name, without .list) in this run?
+  case " ${lists[*]##*/} " in *" $1.list "*) return 0 ;; esac
   return 1
 }
 
@@ -39,18 +55,8 @@ if [ "${#repos[@]}" -gt 0 ]; then
 fi
 
 wanted=()
-for list in "$VIKIX_DIR"/packages/*.list; do
-  name=$(basename "$list" .list)
-  [ "$name" = repos ] && continue
-  wanted_list "$name" || continue
-  while IFS= read -r pkg; do wanted+=("$pkg"); done < <(read_list "$list")
-done
-optional="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/optional"
-for list in "$VIKIX_DIR"/packages/optional/*.list; do
-  [ -e "$list" ] || continue
-  name=$(basename "$list" .list)
-  [ -f "$optional" ] && read_list "$optional" | grep -qx "$name" || continue
-  wanted_list "$name" || continue
+for list in "${lists[@]}"; do
+  [ "$(basename "$list" .list)" = repos ] && continue
   while IFS= read -r pkg; do wanted+=("$pkg"); done < <(read_list "$list")
 done
 
