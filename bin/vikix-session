@@ -70,6 +70,10 @@ xss-lock -- "$HOME/.local/bin/vikix-lock" --locker &   # locks then; also on sus
 # in the background, not while you wait.
 command -v emacs >/dev/null 2>&1 && emacs --fg-daemon >/dev/null 2>&1 &
 
+# Local AI models (vikix ai setup): Ollama, as you, on 127.0.0.1 only, and
+# a note for the bar of which model is loaded. Only once it's installed.
+[ -x "$HOME/.local/opt/ollama/bin/ollama" ] && "$HOME/.local/bin/vikix-local-ai" serve >/dev/null 2>&1 &
+
 # A warning when the battery runs low; only on machines that have one.
 # And, on battery, a suspend after a while with nobody there (vikix-idle).
 for battery in /sys/class/power_supply/BAT*; do

@@ -66,6 +66,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   ├── share/vikix/fonts/wm.ttf       built     the bar's font, made by vikix-font
 │   ├── share/info/vikix.info          written   these guides as an Info manual (`info vikix`)
 │   ├── opt/picolisp/          built     PicoLisp, from source
+│   ├── opt/ollama/            built     Ollama, for local AI models (vikix ai setup)
 │   ├── share/libvirt/images/  the Windows VM's disk and its driver disc (not backed up)
 │   ├── share/vikix/webapps/   each web app's own Chromium profile: its logins (caches not backed up)
 │   └── state/vikix/           Vikix's record of this machine (see below)
@@ -74,6 +75,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 ├── .lazarus/                  Lazarus with the docked IDE, built by 65-languages
 │
 ├── dev/                       yours, with parts written for you (see below)
+├── .ollama/models/            local AI models (vikix ai models): big, not backed up
 ├── Pictures/Screenshots/      Shift+Print and friends
 ├── Videos/Recordings/         Super+Shift+r
 ├── Windows/                   yours     drive Z: in the Windows VM (vikix windows)

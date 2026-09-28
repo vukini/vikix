@@ -16,6 +16,7 @@ login on tty1
               ├─ pipewire, dunst, clipmenud, udiskie (USB drives), picom
               ├─ idle times, night light, the locker (xss-lock → vikix-lock)
               ├─ the Emacs daemon, the battery warner, the update checker, the polkit password box
+              ├─ Ollama, for local AI models, once `vikix ai setup` installed it
               └─ ~/.local/bin/stumpwm             the last line; when it exits, the session ends
                   └─ ~/.stumpwm.d/init.lisp
                       ├─ vikix/theme.lisp        colours and fonts

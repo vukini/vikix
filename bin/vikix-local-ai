@@ -1,0 +1,271 @@
+#!/usr/bin/env bash
+# vikix-local-ai — AI models that run on this machine, with Ollama.
+# (`vikix ai setup | models | list | remove | status | stop`)
+#
+#   vikix ai setup        install Ollama (its CPU parts, as you, in
+#                         ~/.local/opt/ollama; no sudo) and start it. It
+#                         starts with the desktop from then on
+#   vikix ai models       pick a model to download: each says what it's
+#                         for, its size, and how it runs on this machine
+#                         (fast, well, slowly); ones too big aren't offered
+#   vikix ai list         the models you have, and their sizes
+#   vikix ai remove MODEL delete one (it can be downloaded again)
+#   vikix ai status       installed? running? which model is loaded, and
+#                         how much room the models take
+#   vikix ai stop         unload the model now (it unloads by itself after
+#                         5 minutes unused)
+#
+# Then: ollama run llama3.2:3b, or its API on http://127.0.0.1:11434 (only
+# this machine; the Windows VM can't reach it). The bar says "ai" while a
+# model is loaded in memory. Models are big: they're in ~/.ollama/models,
+# and backups leave them out.
+#
+# Honest about a laptop without a graphics card: models of 1-2 billion
+# parameters answer fast, 3-4 billion well, 7-8 billion slowly; bigger
+# ones don't fit.
+
+set -euo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+
+# Pinned: a new version means a new line here. The checksum is the one
+# GitHub publishes for the release asset. (The VIKIX_OLLAMA_* variables are
+# for tests/ai-local.sh.)
+OLLAMA_VERSION=0.34.4
+OLLAMA_URL=${VIKIX_OLLAMA_URL:-https://github.com/ollama/ollama/releases/download/v$OLLAMA_VERSION/ollama-linux-amd64.tar.zst}
+OLLAMA_SHA256=${VIKIX_OLLAMA_SHA256:-c238986e61d40c0cc5f4a9b9e40b9eea104350b77efa34741fc134e105cb9533}
+
+OPT="${VIKIX_OLLAMA_OPT:-$HOME/.local/opt/ollama}"
+OLLAMA="$OPT/bin/ollama"
+CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/vikix"
+HOST=127.0.0.1:11434
+LOADED="$VIKIX_STATE/ai-loaded"         # the bar's "ai": the loaded models, one a line
+MODELS_TABLE="$VIKIX_DIR/lib/ai-models.tsv"
+API="http://$HOST/api"
+
+installed() { [ -x "$OLLAMA" ]; }
+running() { curl -fsS --max-time 2 "$API/version" >/dev/null 2>&1; }
+need_installed() { installed || die "Ollama isn't installed: vikix ai setup"; }
+
+# Ollama's commands talk to its server: start one if it isn't there (the
+# desktop starts it at login; this is for a shell outside it, or before).
+need_running() {
+  need_installed
+  running && return 0
+  setsid "$0" serve >/dev/null 2>&1 < /dev/null &
+  local _
+  for _ in $(seq 30); do running && return 0; sleep 0.5; done
+  die "Ollama didn't start; see $VIKIX_STATE/ollama.log"
+}
+
+ollama() { OLLAMA_HOST=$HOST "$OLLAMA" "$@"; }
+
+# --- setup -------------------------------------------------------------------------
+cmd_setup() {
+  if installed && [ "$(cat "$OPT/VERSION" 2>/dev/null)" = "$OLLAMA_VERSION" ]; then
+    say "Ollama $OLLAMA_VERSION is installed"
+  else
+    local archive="$CACHE/ollama-linux-amd64-v$OLLAMA_VERSION.tar.zst"
+    mkdir -p "$CACHE"
+    if [ -f "$archive" ] && [ "$(sha256sum "$archive" | cut -d' ' -f1)" = "$OLLAMA_SHA256" ]; then
+      say "Ollama $OLLAMA_VERSION: already downloaded"
+    else
+      say "downloading Ollama $OLLAMA_VERSION (1.4 GB; most of it is for graphics cards, and isn't kept)"
+      curl -fL --retry 3 -C - -o "$archive.part" "$OLLAMA_URL" || die "couldn't download $OLLAMA_URL"
+      if [ "$(sha256sum "$archive.part" | cut -d' ' -f1)" != "$OLLAMA_SHA256" ]; then
+        rm -f "$archive.part"
+        die "the download isn't what it should be (its checksum doesn't match); deleted it. Try again later."
+      fi
+      mv "$archive.part" "$archive"
+    fi
+    say "unpacking the parts this machine uses (the CPU's, and Vulkan's for later)"
+    rm -rf "$OPT.new"
+    mkdir -p "$OPT.new"
+    # Python unpacks zstd (3.14) and refuses paths that leave the folder
+    # (filter="data"). NVIDIA's and AMD's libraries (2 GB) stay out.
+    python3 - "$archive" "$OPT.new" <<'PY' || { rm -rf "$OPT.new"; die "couldn't unpack Ollama"; }
+import sys, tarfile
+from compression import zstd
+archive, dest = sys.argv[1:]
+skip = ("lib/ollama/cuda_", "lib/ollama/rocm", "lib/ollama/mlx")
+with zstd.open(archive) as f, tarfile.open(fileobj=f, mode="r|") as t:
+    for m in t:
+        name = m.name.lstrip("./")
+        if name.startswith(skip):
+            continue
+        t.extract(m, dest, filter="data")
+PY
+    [ -x "$OPT.new/bin/ollama" ] || { rm -rf "$OPT.new"; die "the download had no bin/ollama"; }
+    echo "$OLLAMA_VERSION" > "$OPT.new/VERSION"
+    # A running one keeps its old files open; it gets the new ones at the next start.
+    rm -rf "$OPT.old"; [ -d "$OPT" ] && mv "$OPT" "$OPT.old"
+    mv "$OPT.new" "$OPT"; rm -rf "$OPT.old"
+    rm -f "$archive"                    # 1.4 GB, not needed now
+    say "installed Ollama $OLLAMA_VERSION in $OPT ($(du -sh "$OPT" | cut -f1))"
+  fi
+  # `ollama` on PATH, for ollama run and the like.
+  mkdir -p "$HOME/.local/bin"
+  ln -sfn "$OLLAMA" "$HOME/.local/bin/ollama"
+  # Models are big, and can be downloaded again: backups leave them out.
+  local exclude="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/backup-exclude"
+  if [ -f "$exclude" ] && ! grep -qF '.ollama/models' "$exclude"; then
+    ensure_block "$exclude" ollama-models \
+'# Local AI models (vikix ai): big, and they download again
+$HOME/.ollama/models'
+  fi
+  if running; then
+    say "Ollama is running on $HOST"
+  else
+    setsid "$0" serve >/dev/null 2>&1 < /dev/null &
+    say "Ollama is starting (from now on, with the desktop)"
+  fi
+  echo "   Next, choose a model: vikix ai models (or Super+m, Local AI: choose a model)"
+}
+
+# --- serving, for the session --------------------------------------------------------
+# Runs Ollama, and every 15 s notes which models are loaded, for the bar.
+# vikix-session starts it; it ends with Ollama.
+cmd_serve() {
+  need_installed
+  running && exit 0                    # one is enough
+  mkdir -p "$VIKIX_STATE"
+  OLLAMA_HOST=$HOST "$OLLAMA" serve >> "$VIKIX_STATE/ollama.log" 2>&1 &
+  # Global, not local: the EXIT trap runs after this function has returned.
+  SERVE_PID=$!
+  trap 'kill "${SERVE_PID:-}" 2>/dev/null || true; rm -f "$LOADED"' EXIT INT TERM
+  while kill -0 "$SERVE_PID" 2>/dev/null; do
+    note_loaded
+    sleep 15
+  done
+}
+
+note_loaded() {
+  local names
+  names=$(curl -fsS --max-time 2 "$API/ps" 2>/dev/null |
+          python3 -c 'import json,sys; [print(m["name"]) for m in json.load(sys.stdin).get("models", [])]' 2>/dev/null) || names=''
+  if [ -n "$names" ]; then printf '%s\n' "$names" > "$LOADED"; else rm -f "$LOADED"; fi
+}
+
+# --- models -------------------------------------------------------------------------
+# The table, for this machine: MODEL GB SPEED WHAT, with SPEED one of
+# fast, well, slowly, or "too big" when it wouldn't fit in memory.
+mem_gb() { awk '/^MemTotal:/ { printf "%.0f", $2 / 1048576 }' "${VIKIX_MEMINFO:-/proc/meminfo}"; }
+offer() {
+  local mem
+  mem=$(mem_gb)
+  read_list "$MODELS_TABLE" | awk -F'\t' -v mem="$mem" '
+    { b = $2 + 0; gb = $3 + 0
+      # In memory it takes a little more than its download, and the
+      # desktop needs room too.
+      if (gb * 1.3 + 3 > mem) speed = "too big"
+      else if (b <= 2) speed = "fast"
+      else if (b <= 4) speed = "well"
+      else if (b <= 8) speed = "slowly"
+      else speed = "too big"
+      printf "%s\t%s\t%s\t%s\n", $1, $3, speed, $4 }'
+}
+
+have_models() { running && ollama list 2>/dev/null | awk 'NR > 1 { print $1 }' || true; }
+
+cmd_models() {
+  local how=${1:-}
+  if [ "$how" = --rofi ] && ! installed; then
+    notify-send -a Vikix "Local AI isn't set up" "In a terminal: vikix ai setup (no password needed)" 2>/dev/null || true
+    exit 0
+  fi
+  need_installed
+  local have rows line model
+  have=$(have_models)
+  rows=$(offer | awk -F'\t' '$3 != "too big"')
+  [ -n "$rows" ] || die "this machine hasn't the memory for any of the models ($(mem_gb) GB)"
+  menu() {
+    printf '%s\n' "$rows" | while IFS=$'\t' read -r m gb speed what; do
+      mark=' '; grep -qx -- "$m" <<<"$have" && mark='✓'
+      printf '%s %-20s %5s GB  runs %-7s %s\n' "$mark" "$m" "$gb" "$speed" "$what"
+    done
+  }
+  if [ "$how" = --print ]; then menu; return 0; fi
+  if [ "$how" = --rofi ]; then
+    # The list first, then rofi: a pipe into it, with pipefail, reads as
+    # "cancelled" whenever rofi returns before reading all of it.
+    local choices; choices=$(menu)
+    line=$(rofi -dmenu -i -p "Model to download ($(mem_gb) GB of memory here)" -no-custom <<<"$choices") || exit 0
+  else
+    echo "Models for this machine ($(mem_gb) GB of memory, $(nproc) CPU threads, no graphics card used):"
+    echo "✓ = you have it. Bigger answers better, and slower."
+    menu | nl -w2 -s') '
+    local n
+    read -r -p "Number to download (Enter for none): " n
+    [ -n "$n" ] || exit 0
+    line=$(menu | sed -n "${n}p")
+    [ -n "$line" ] || die "no model number $n"
+  fi
+  # The first word with a colon (llama3.2:3b): the line may start with a
+  # ✓ or with nothing, so no fixed column.
+  model=$(awk '{ for (i = 1; i <= NF; i++) if ($i ~ /:/) { print $i; exit } }' <<<"$line")
+  [ -n "$model" ] || die "couldn't tell which model that was: $line"
+  if [ "$how" = --rofi ]; then
+    # A download takes minutes, and shows its progress: in a terminal.
+    exec "${VIKIX_TERMINAL:-alacritty}" -e sh -c "\"$0\" pull '$model'; printf '\\nEnter closes this window. '; read x"
+  fi
+  cmd_pull "$model"
+}
+
+cmd_pull() {
+  local model=${1:?which model? vikix ai models}
+  need_running
+  say "downloading $model (it's kept in ~/.ollama/models)"
+  ollama pull "$model"
+  say "ready. Try it: ollama run $model"
+}
+
+cmd_list() {
+  need_running
+  ollama list
+  echo "(in ~/.ollama/models; vikix ai remove MODEL deletes one)"
+}
+
+cmd_remove() {
+  local model=${1:?which model? vikix ai list}
+  need_running
+  ollama rm "$model"
+}
+
+cmd_status() {
+  if ! installed; then echo "Ollama: not installed (vikix ai setup)"; return 0; fi
+  local v; v=$(cat "$OPT/VERSION" 2>/dev/null || echo "?")
+  echo "Ollama:  $v in $OPT$([ "$v" != "$OLLAMA_VERSION" ] && echo "; $OLLAMA_VERSION is out: vikix ai setup")"
+  if running; then
+    echo "running: yes, on $HOST (this machine only)"
+    local loaded; loaded=$(curl -fsS --max-time 2 "$API/ps" | python3 -c 'import json,sys; print(", ".join(m["name"] for m in json.load(sys.stdin).get("models", [])) or "none")' 2>/dev/null || echo "?")
+    echo "loaded:  $loaded"
+  else
+    echo "running: no (it starts with the desktop; vikix ai setup starts it now)"
+  fi
+  [ -d "$HOME/.ollama/models" ] && echo "models:  $(du -sh "$HOME/.ollama/models" 2>/dev/null | cut -f1) in ~/.ollama/models (not backed up)"
+  return 0
+}
+
+cmd_stop() {
+  need_installed
+  running || { say "Ollama isn't running"; return 0; }
+  local m
+  for m in $(curl -fsS --max-time 2 "$API/ps" | python3 -c 'import json,sys; [print(m["name"]) for m in json.load(sys.stdin).get("models", [])]' 2>/dev/null); do
+    ollama stop "$m" && say "unloaded $m"
+  done
+  note_loaded
+}
+
+case ${1:-help} in
+  setup)  cmd_setup ;;
+  serve)  cmd_serve ;;
+  models) shift; cmd_models "${1:-}" ;;
+  pull)   shift; cmd_pull "${1:-}" ;;
+  list)   cmd_list ;;
+  remove|rm) shift; cmd_remove "${1:-}" ;;
+  status) cmd_status ;;
+  stop)   cmd_stop ;;
+  help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) die "vikix ai: unknown command $1 (vikix ai help)" ;;
+esac

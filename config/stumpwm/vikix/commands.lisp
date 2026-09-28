@@ -99,6 +99,8 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
                             (format nil "vikix-windows open || ~a -e sh -c 'vikix windows status; printf \"\\nEnter closes this window. \"; read x'"
                                     *vikix-terminal*)))
     ("Eject a drive"       (run-shell-command "vikix-drives eject"))
+    ("Local AI: choose a model" (run-shell-command "vikix-local-ai models --rofi"))
+    ("Local AI: unload the model" (run-shell-command "vikix-local-ai stop"))
     ("Firmware updates"    (run-shell-command
                             (format nil "~a -e sh -c 'vikix firmware update; printf \"\\nEnter closes this window. \"; read x'"
                                     *vikix-terminal*)))
@@ -268,6 +270,20 @@ A file test, so no program starts every 10 seconds."
   (let ((new (and (probe-file *vikix-windows-pidfile*) t)))
     (unless (eq new *vikix-windows*)
       (setf *vikix-windows* new)
+      (update-all-mode-lines))))
+
+(defparameter *vikix-ai-file*
+  (merge-pathnames ".local/state/vikix/ai-loaded" (user-homedir-pathname))
+  "Present while a local model is loaded: vikix-local-ai serve writes it.")
+
+(defvar *vikix-ai* nil
+  "True while a local AI model (Ollama) is loaded in memory.")
+
+(defun vikix-ai-refresh ()
+  "Read whether a local model is loaded; redraw the bar if it changed."
+  (let ((new (and (probe-file *vikix-ai-file*) t)))
+    (unless (eq new *vikix-ai*)
+      (setf *vikix-ai* new)
       (update-all-mode-lines))))
 
 (defcommand vikix-awake () ()

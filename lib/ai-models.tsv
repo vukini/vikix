@@ -1,0 +1,16 @@
+# ai-models.tsv — the local models `vikix ai models` offers (Ollama names).
+# MODEL<TAB>BILLIONS<TAB>GB<TAB>WHAT IT'S FOR
+# GB is the download (Ollama's registry, 2026-09-28); memory in use is a
+# little more. BILLIONS decides how it runs on a CPU: up to 2 fast, up to
+# 4 well, up to 8 slowly; bigger isn't offered. A line is a model: add or
+# remove one here, and the picker follows.
+gemma3:1b	1	0.82	tiny and fast: short answers, quick rewrites
+qwen2.5-coder:1.5b	1.5	0.99	code, fastest: completions, small fixes
+llama3.2:1b	1	1.32	tiny and fast: summaries, simple questions
+llama3.2:3b	3	2.02	a good all-rounder: questions, writing, summaries
+qwen2.5-coder:3b	3	1.93	code: explaining and writing small programs
+qwen3:4b	4	2.50	all-round, and thinks step by step (slower to answer)
+gemma3:4b	4	3.34	all-round, good at other languages; reads images
+qwen2.5:7b	7	4.68	better answers, slowly: long writing, harder questions
+llama3.1:8b	8	4.92	better answers, slowly: general knowledge
+qwen3:8b	8	5.23	the best here, slowly: reasoning, harder questions

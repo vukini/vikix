@@ -256,6 +256,7 @@ Along the top, in Iosevka like the terminal: on the left the workspaces in use (
 
 - **rec**, in the theme's alert colour, while the screen is being recorded (`s-R` stops it).
 - **awake**, in the theme's quieter text colour, while keep awake is on (`s-M-a`).
+- **ai**, in the quieter colour, while a local AI model is loaded in memory (`vikix ai stop` unloads it).
 - **win**, in the quieter colour, while the Windows VM runs (`vikix windows stop` ends it): it holds 6 GB of memory and costs battery.
 - **quiet**, in the quieter text colour, while do not disturb is on (`s-M-n`), with the number of notifications waiting: they show when you switch it off.
 - **updates**, in the theme's accent colour, when `vikix update` has something to bring: `updates 12` (Void packages), `updates 12 + Vikix`, or `Vikix update`; and `+ firmware` (or `firmware` alone) when a firmware update is waiting (see [Firmware updates](#firmware-updates)). Checked a minute after you log in and then every 6 hours, in the background (`vikix-updates`); `vikix update` clears it. Nothing shows when there's nothing, or when it couldn't check (offline).
@@ -335,6 +336,24 @@ vikix ai key remove openai
 - **Don't type a key on the command line** (`vikix ai key set sk-ant-...`): it lands in your shell history. `set` refuses it and says how to take it out.
 - **Claude Code.** `vikix agent` (`Super+a`) starts it without `ANTHROPIC_API_KEY`, so it uses your Claude login and plan, and an agent can't print the key from its environment. `VIKIX_AGENT_API_KEY=1 vikix agent` gives it the key, billed as API use. Plain `claude` in a terminal sees the key and asks once; answer No to keep your plan.
 - **`vikix doctor`** looks for keys left where they shouldn't be: in your files and their history, and in the files a shell reads at start (`~/.profile`, `~/.zshrc` …). It names the file and line, never the key, gives the exact `vikix ai key set` command, and says how to start the history afresh (the old one set aside, not deleted, though undo's older snapshots go with it). A dotfile that's a link into a git repository gets a warning of its own: that repository's history has the key too. Once a key has been in a file, it may also be in a backup or on a remote: to be sure, replace the key itself.
+
+## Local AI models
+
+Models that run on this machine, with [Ollama](https://ollama.com): offline, and nothing leaves the laptop.
+
+```sh
+vikix ai setup         # once: Ollama, as you, in ~/.local/opt/ollama (no password); it starts with the desktop
+vikix ai models        # choose one to download (or s-m → Local AI: choose a model)
+ollama run llama3.2:3b # talk to it; its API is http://127.0.0.1:11434
+vikix ai list          # what you have; vikix ai remove MODEL deletes one
+vikix ai status        # running? which model is loaded? how much room they take
+```
+
+- **Honest about a laptop without a graphics card.** The picker reads this machine's memory and says how each model runs here: 1–2 billion parameters fast, 3–4 billion well, 7–8 billion slowly, and bigger ones aren't offered. A good start is `llama3.2:3b` (2 GB) for questions and writing, `qwen2.5-coder:3b` (1.9 GB) for code. The list is `lib/ai-models.tsv`.
+- **The bar says `ai`** while a model is loaded in memory (it takes a few GB); it unloads after 5 minutes unused, or at once with `vikix ai stop` (`s-m` → Local AI: unload the model).
+- **Where they are:** `~/.ollama/models`. They're big, so backups leave them out; they download again.
+- **Only this machine** can use it: it listens on 127.0.0.1, which the Windows VM can't reach.
+- **Just the parts it needs:** Ollama's release is 1.4 GB, mostly NVIDIA's libraries; setup checks the download against its published checksum, keeps the CPU's and Vulkan's (for Intel graphics, later), about 115 MB, and deletes the rest.
 
 ## Undo for your files
 
@@ -640,6 +659,7 @@ vikix firmware     # firmware updates waiting (BIOS, Thunderbolt, ...); vikix fi
 vikix windows      # Windows in a VM: setup, create ISO, then open, stop, status
 vikix ai key set anthropic   # an API key, kept out of your dotfiles and their history
 vikix webapp add superhuman  # a website as a program: presets superhuman, fastmail, gmail, outlook
+vikix ai setup               # local AI models (Ollama); then vikix ai models to choose one
 vikix fingerprint  # a finger for sudo and the lock screen, where the reader is supported
 ```
 
@@ -674,6 +694,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `examples` | every example in `dev/*/examples/` builds and runs with its Makefile, where its compiler is installed, and every `wordfreq` prints the same `expected.txt` |
 | `bar` | `vikix-net` labels the link and shows the Wi-Fi signal only when it is weak; `vikix-bt` shows Bluetooth only when it is on, with the device and its battery, and never waits on a hung bluetoothd; `vikix-font` gives StumpWM Iosevka Regular, or a stand-in until Iosevka is installed |
 | `windows` | `vikix windows setup` refuses without KVM or space before changing anything, opts in once, and deletes a download with the wrong checksum; `10-packages` installs an optional list only once chosen; `create`'s answer file is valid XML in the ISO's language, and the password stays off the command line and out of reach of other users; `virt-install` gets the TPM, Secure Boot, the private bridge (never passt), virtiofs and TRIM; `vikix windows network` sets up the system libvirt, its network and bridge.conf, moves a passt VM onto `virbr0`, says plainly when libvirt won't start, asks for no password when all is ready, and tells a Windows still running on the old network to restart; the migration runs it only where Windows was chosen, and never fails the update; `vikix doctor` checks the VM's network; the discs come out and the answer disc goes only once Windows is ready; power off shuts a running Windows down and leaves libvirt alone otherwise |
+| `ai-local` | `vikix ai setup` refuses a download with the wrong checksum, installs only the CPU's and Vulkan's parts (no NVIDIA libraries), puts `ollama` on PATH, deletes the download, keeps models out of backups, and a second run downloads nothing; the picker offers 7–8B models only where they fit (16 GB, not 8 GB) and marks what you have; the bar's note comes and goes with the model; `stop` unloads it (needs Python 3.14's zstd) |
 | `webapp` | `vikix webapp add` gives a preset its address and the first mail one `s-M`, keeps an app's key when it's added again, makes a launcher entry with its window class, opts in to Chromium, suggests `https://` for a bare address, and refuses a bad name, an address that isn't https (but localhost), Vikix's own keys (the workspace keys too) and another web app's (saying how to free it); `key` moves or drops a key; `open` starts a Chromium app window with its own class and profile (700); `list` says keys as spoken, points out lines it can't use and logins left behind; `remove` keeps your comments and the logins unless `--forget`; `webapps.lisp` binds the keys, names each as its launcher entry does, adds key help and `s-m` entries (before Power), skips a bad line and loads the rest, and a reload drops what went; the migration adds the web apps' caches to an existing backup-exclude once |
 | `info` | The guides in `docs/` make an Info manual with no makeinfo warnings and a node for every heading; a broken link or a page missing from the table stops the build; `40-config` installs it once and lists it in the info `dir`; Emacs opens it and follows a link (needs makeinfo) |
 | `home` | `40-config` and `60-login` change nothing when run again, and `vikix undo` puts your files back (and undoing again brings the change back); API keys never reach the history, even when `yours.list` names their folder, and on a history older than that rule |

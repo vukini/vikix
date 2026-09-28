@@ -42,6 +42,7 @@ upd() { HOME="$t/home" VIKIX_STATE="$t/state" VIKIX_SUDO_KEPT=1 bash "$t/machine
 ( cd "$t/upstream" && echo "upstream's change" >> TODO.md && git_q commit -qam "newer still" )
 echo "an edit made in the installed checkout" >> "$t/machine/README.md"
 echo "(an editor's autosave)" > "$t/machine/#theme.lisp#"
+echo "a note of my own" > "$t/machine/my-note.txt"
 out=$(DRY_RUN=1 upd) || true
 grep -q 'would set them aside' <<<"$out" || { echo "FAIL: a dry run should say it would set them aside: $out"; fail=1; }
 [ -z "$(git -C "$t/machine" stash list)" ] || { echo "FAIL: a dry run made a stash"; fail=1; }
@@ -51,8 +52,10 @@ grep -q "upstream's change" "$t/machine/TODO.md" || { echo "FAIL: the pull didn'
 grep -qE 'changed +.*/README.md' <<<"$out" || { echo "FAIL: the changes should be listed in words (changed ...): $out"; fail=1; }
 grep -q 'theme.lisp#' <<<"$out" && { echo "FAIL: an editor's leftover was treated as a change"; fail=1; }
 patch=$(ls "$t"/state/checkout-changes/*.patch 2>/dev/null | head -1)
-[ -n "$patch" ] && grep -q 'an edit made in the installed checkout' "$patch" ||
-  { echo "FAIL: no patch file holding the edit in \$VIKIX_STATE/checkout-changes"; fail=1; }
+[ -n "$patch" ] && grep -q 'an edit made in the installed checkout' "$patch" && grep -q 'a note of my own' "$patch" ||
+  { echo "FAIL: no patch file holding the edit in \$VIKIX_STATE/checkout-changes:"
+    ls -la "$t"/state/checkout-changes/ 2>&1 | sed 's/^/  /'; head -5 "$patch" 2>/dev/null | sed 's/^/  patch: /'
+    grep -iE 'set aside|stash|patch|changed' <<<"$out" | sed 's/^/  said: /'; fail=1; }
 grep -q 'vikix update .*: README.md' <<<"$(git -C "$t/machine" stash list)" || { echo "FAIL: the stash should be named after the update and its files"; fail=1; }
 grep -q 'stash pop' <<<"$out" && { echo "FAIL: stash pop is suggested (it can clash with Vikix's files)"; fail=1; }
 # (The fake newer version stops after the pull, so the end of a run isn't

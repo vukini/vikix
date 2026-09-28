@@ -96,12 +96,21 @@ set_aside_local_changes() {
     echo "   would set them aside in $patch (and a git stash), then update"
     return 0
   fi
+  # The patch first, from the files themselves (git stash show on the new
+  # stash sometimes printed a summary instead, and the patch came out empty).
+  mkdir -p "$(dirname "$patch")"
+  {
+    git -C "$dir" diff HEAD
+    local f
+    while IFS= read -r f; do
+      git -C "$dir" diff --no-index -- /dev/null "$f" || true    # 1 means "they differ"
+    done < <(git -C "$dir" ls-files --others --exclude-standard)
+  } > "$patch" 2>/dev/null
+  [ -s "$patch" ] || die "couldn't write the changes to $patch; nothing was changed. See: git -C $dir status"
   git -C "$dir" -c user.name=Vikix -c user.email=vikix@localhost \
     stash push --include-untracked --quiet --message "$name" ||
     die "couldn't set them aside (git stash failed, above); nothing was changed. See: git -C $dir status"
   hash=$(git -C "$dir" rev-parse --short refs/stash)
-  mkdir -p "$(dirname "$patch")"
-  git -C "$dir" stash show -p --include-untracked "$hash" > "$patch" 2>/dev/null || true
   echo "   Set aside, not deleted (Vikix's files are replaced by every update anyway):"
   echo "     read them:  less $patch"
   echo "     the same, in git: git -C $dir stash show -p --include-untracked $hash"

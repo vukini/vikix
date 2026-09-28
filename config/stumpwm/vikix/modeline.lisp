@@ -7,6 +7,7 @@
 ;;;;   %R   rec: the screen is being recorded (vikix-record)
 ;;;;   %K   awake: keep awake is on (no lock, dark screen or suspend)
 ;;;;   %X   win: the Windows VM is running (vikix windows); it uses memory and battery
+;;;;   %Y   ai: a local AI model is loaded in memory (vikix ai); it unloads after 5 idle minutes
 ;;;;   %Q   quiet: notifications paused (do not disturb), and how many wait
 ;;;;   %U   updates waiting (bin/vikix-updates checks every 6 hours)
 ;;;;   %A   backup 9d: the last backup is older than the reminder's days
@@ -19,7 +20,7 @@
 ;;;;
 ;;;; Colour carries one meaning each: alert for something watching you
 ;;;; (rec), accent for something to act on (updates, backup, usb), subtle for a mode you
-;;;; switched on yourself (awake, win, quiet).
+;;;; switched on yourself (awake, win, ai, quiet).
 
 (in-package :stumpwm)
 
@@ -129,7 +130,14 @@ colour; nothing while backups are recent, or not set up."
       (format nil "^(:push)^(:fg \"~a\")win^(:pop)  " (vikix-colour :subtle))
       ""))
 
-;; %J, %V, %O, %T, %U, %A, %D, %Q, %K, %X, %R and %E are free: neither StumpWM nor its
+(defun vikix-mode-line-ai (ml)
+  "\"ai\" while a local model is loaded, from *vikix-ai* (commands.lisp)."
+  (declare (ignore ml))
+  (if *vikix-ai*
+      (format nil "^(:push)^(:fg \"~a\")ai^(:pop)  " (vikix-colour :subtle))
+      ""))
+
+;; %J, %V, %O, %T, %U, %A, %D, %Q, %K, %X, %Y, %R and %E are free: neither StumpWM nor its
 ;; contrib modules use them.
 (add-screen-mode-line-formatter #\J 'vikix-mode-line-groups)
 (add-screen-mode-line-formatter #\V 'vikix-mode-line-volume)
@@ -141,6 +149,7 @@ colour; nothing while backups are recent, or not set up."
 (add-screen-mode-line-formatter #\Q 'vikix-mode-line-quiet)
 (add-screen-mode-line-formatter #\K 'vikix-mode-line-awake)
 (add-screen-mode-line-formatter #\X 'vikix-mode-line-windows)
+(add-screen-mode-line-formatter #\Y 'vikix-mode-line-ai)
 (add-screen-mode-line-formatter #\R 'vikix-mode-line-recording)
 (add-screen-mode-line-formatter #\E 'vikix-mode-line-battery)
 
@@ -154,6 +163,7 @@ colour; nothing while backups are recent, or not set up."
   (vikix-quiet-refresh)
   (vikix-awake-refresh)
   (vikix-windows-refresh)
+  (vikix-ai-refresh)
   (vikix-record-refresh))
 
 ;; The volume keys update the bar at once (vikix-volume); this timer
@@ -173,7 +183,7 @@ colour; nothing while backups are recent, or not set up."
       ;; The window's number and title. StumpWM's default adds * + - marks,
       ;; which say again what the accent colour already shows.
       *window-format*        "%n %30t"
-      *screen-mode-line-format* "%J  %W^>%R%K%X%Q%U%A%D%O%T%V%E%d")
+      *screen-mode-line-format* "%J  %W^>%R%K%X%Y%Q%U%A%D%O%T%V%E%d")
 
 ;; Turn the bar on for every screen and head (monitor).
 (dolist (screen *screen-list*)
