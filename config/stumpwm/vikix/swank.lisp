@@ -20,18 +20,31 @@
 (defparameter *vikix-swank-port* 4004)
 
 (defvar *vikix-swank-started* nil
-  "True once the server is running, so reloading the config never starts a second one.")
+  "Non-nil once the server is running, so reloading the config never starts
+a second one: :GUARDED when swank-guard.lisp was in place at its start.")
+
+(defun vikix-swank-call (name &rest args)
+  "Call Swank's NAME. Its symbols are looked up at run time, so this file
+still loads in a StumpWM built without Swank."
+  (apply (find-symbol name :swank) args))
 
 (defun vikix-start-swank ()
-  (cond (*vikix-swank-started*)            ; already running: nothing to do
-        ((not (find-package :swank))
+  (cond ((not (find-package :swank))
          (message "Swank is not in this StumpWM build; run: vikix rebuild-wm"))
+        ((eq *vikix-swank-started* :guarded))   ; running, and guarded: nothing to do
+        (*vikix-swank-started*
+         ;; Started before swank-guard.lisp existed (a StumpWM from before
+         ;; 0.41.2, now reloading the new files). A wrong password may
+         ;; already have left its accept thread stuck in the debugger, which
+         ;; no wrapper can undo: so start it again, once, guarded. A request
+         ;; that is running now (this reload, if vikix eval sent it) goes on;
+         ;; only the listening part is replaced.
+         (ignore-errors (vikix-swank-call "STOP-SERVER" *vikix-swank-port*))
+         (vikix-swank-call "CREATE-SERVER" :port *vikix-swank-port* :dont-close t)
+         (setf *vikix-swank-started* :guarded))
         (t
-         ;; Swank's symbols are looked up at run time, so this file still
-         ;; loads in a StumpWM built without Swank.
-         (funcall (find-symbol "CREATE-SERVER" :swank)
-                  :port *vikix-swank-port* :dont-close t)
-         (setf *vikix-swank-started* t))))
+         (vikix-swank-call "CREATE-SERVER" :port *vikix-swank-port* :dont-close t)
+         (setf *vikix-swank-started* (if *vikix-swank-guarded* :guarded t)))))
 
 (vikix-start-swank)
 

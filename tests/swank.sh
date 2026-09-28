@@ -6,13 +6,15 @@
 #   passt's gateway), not a wrong password. vikix eval sends it, and works.
 #   40-config makes the file once (random, 600) and keeps one you have.
 #   And the wrong clients don't take Swank down (swank-guard.lisp): after
-#   them, vikix eval still gets in.
+#   them, vikix eval still gets in. A Swank started before the guard (an
+#   older StumpWM) is restarted, guarded, by the next reload of swank.lisp.
 #
 # A stand-in StumpWM: plain SBCL with Quicklisp's Swank and a
 # vikix-eval-for-agent that writes a file when it runs, so "nothing ran"
 # can be seen. Needs sbcl and Quicklisp (VIKIX_QUICKLISP, default ~/quicklisp).
 
 set -euo pipefail
+export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
 unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME
 here=$(cd "$(dirname "$0")/.." && pwd)
 ql=${VIKIX_QUICKLISP:-$HOME/quicklisp}/setup.lisp
@@ -36,19 +38,30 @@ check "a second 40-config changed the password" test "$(sha1sum < "$HOME/.slime-
 # --- a real Swank that asks for it ---------------------------------------------------
 port=$((40000 + RANDOM % 20000))
 marker="$t/ran"
+# The real swank.lisp, on this test's port (never 4004, the desktop's).
+sed "s/(defparameter \*vikix-swank-port\* 4004)/(defparameter *vikix-swank-port* $port)/" \
+  "$here/config/stumpwm/vikix/swank.lisp" > "$t/swank.lisp"
+grep -q "vikix-swank-port\* $port" "$t/swank.lisp" || { echo "FAIL: couldn't move swank.lisp off port 4004"; exit 1; }
 cat > "$t/server.lisp" <<EOF
 (load "$ql")
 (let ((*standard-output* (make-broadcast-stream))) (ql:quickload :swank :silent t))
+(setf swank::*log-output* (make-broadcast-stream))
 (defpackage :stumpwm (:use :cl))
-(load "$here/config/stumpwm/vikix/swank-guard.lisp")
 (in-package :stumpwm)
+(defun message (&rest args) (declare (ignore args)))
+;; An old StumpWM: its Swank started before swank-guard.lisp existed.
+(swank:create-server :port $port :dont-close t)
+(defvar *vikix-swank-started* t)
+(defvar *listener-before* (third (first swank::*servers*)))
+;; Then a reload loads the new files: the guard, and swank.lisp.
+(load "$here/config/stumpwm/vikix/swank-guard.lisp")
+(load "$t/swank.lisp")
+;; A stand-in for the evaluator: it notes the text, and runs it.
 (defun vikix-eval-for-agent (text)
   (with-open-file (o "$marker" :direction :output :if-exists :append :if-does-not-exist :create)
     (write-line text o))
-  (format t "=> ran~%")
+  (format t "=> ~s~%" (eval (read-from-string text)))
   :ok)
-(setf swank::*log-output* (make-broadcast-stream))
-(swank:create-server :port $port :dont-close t)
 (loop (sleep 1))
 EOF
 # --non-interactive: no debugger, as a crash would be. A wrong password
@@ -81,6 +94,10 @@ check "a wrong password got code run" test ! -e "$marker"
 
 out=$(evalw '(+ 1 2)' 2>&1) || { echo "FAIL: vikix eval with the password didn't work: $out"; tail -5 "$t/server.log"; fail=1; }
 check "vikix eval with the password didn't run the form" grep -qF '(+ 1 2)' "$marker"
+# The reload restarted the old, unguarded server once: a stuck accept
+# thread (a wrong password before the guard) is replaced.
+out=$(evalw '(list *vikix-swank-started* (eq (third (first swank::*servers*)) *listener-before*))' 2>&1)
+check "a reload should restart an unguarded Swank once, guarded: $out" grep -q '=> (:GUARDED NIL)' <<<"$out"
 
 [ "$fail" = 0 ] && echo "swank: without ~/.slime-secret's password nothing runs; vikix eval sends it; 40-config makes it once, 600"
 exit "$fail"

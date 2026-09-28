@@ -7,6 +7,7 @@
 # behind a local "upstream" stands in for Vikix.
 
 set -euo pipefail
+export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
 here=$(cd "$(dirname "$0")/.." && pwd)
 t=$(mktemp -d)
 trap 'rm -rf "$t"' EXIT

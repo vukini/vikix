@@ -9,6 +9,7 @@
 # through vikix-eval to the running StumpWM). The backup is a stand-in too.
 
 set -euo pipefail
+export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
 here=$(cd "$(dirname "$0")/.." && pwd)
 t=$(mktemp -d)
 trap 'rm -rf "$t"' EXIT

@@ -8,6 +8,7 @@
 #   https://api.github.com/repos/vukini/vikix/check-runs/<job id>/annotations
 
 set -uo pipefail
+export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
 # The tests make up a home folder, and Vikix follows the XDG variables
 # where they are set; GitHub's runners set XDG_CONFIG_HOME, which would
 # send a test's files into the runner's real config instead.

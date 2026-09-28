@@ -17,6 +17,7 @@
 #   tests/editors.sh emacs      one of them
 
 set -euo pipefail
+export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
 : "${VIKIX_EMACS_REPO:=https://github.com/vukini/emacs-void}"
 : "${VIKIX_NVIM_REPO:=https://github.com/vukini/nvim-void-linux}"
 which=${1:-both}

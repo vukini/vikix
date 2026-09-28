@@ -12,6 +12,7 @@
 #   tests/lisp.sh [FILE...]    the given files, or every Lisp file Vikix ships
 
 set -euo pipefail
+export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
 cd "$(dirname "$0")/.."
 command -v sbcl >/dev/null || { echo "FAIL no sbcl (xbps-install sbcl, or apt install sbcl)"; exit 1; }
 

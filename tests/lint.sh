@@ -6,6 +6,7 @@
 # uvx (uv's runner) when it isn't installed.
 
 set -euo pipefail
+export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
 cd "$(dirname "$0")/.."
 
 mapfile -t scripts < <(grep -lE '^#!.*(ba)?sh' install.sh install-*.sh install/*.sh \
@@ -44,6 +45,17 @@ if "${sc[@]}" -x -S warning "${scripts[@]}"; then
   echo "shellcheck: no warnings"
 else
   fail=1
+fi
+
+# A test must never reach the live desktop's Swank (127.0.0.1:4004): it
+# once sent test passwords there, and the running StumpWM's Swank stopped.
+# So every test points vikix eval at a port nothing listens on.
+missing=$(grep -L '^export VIKIX_SWANK_PORT=9 ' tests/*.sh | grep -v 'tests/lint.sh' || true)
+if [ -n "$missing" ]; then
+  echo "FAIL isolation: these tests could reach the live desktop's Swank; add export VIKIX_SWANK_PORT=9:"
+  echo "$missing" | sed 's/^/  /'; fail=1
+else
+  echo "isolation: every test keeps off the live desktop's Swank"
 fi
 
 exit "$fail"

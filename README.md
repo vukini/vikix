@@ -632,7 +632,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 
 | Test | Checks |
 |---|---|
-| `lint` | Every script parses (shell and Python), the ones you run are executable, and shellcheck has no warnings |
+| `lint` | Every script parses (shell and Python), the ones you run are executable, and shellcheck has no warnings; and every test keeps off the running desktop's Swank (`VIKIX_SWANK_PORT=9`) |
 | `lisp` | Every Lisp file reads cleanly, so a missing paren shows up here, not at login (needs `sbcl`) |
 | `battery` | The low-battery warner warns once at 15%, once at 5%, and again only after charging |
 | `backup` | With restic: `vikix backup setup` makes an encrypted store and a password only you can read, a backup leaves out what `backup-exclude` names, a restore comes back beside the original, an unplugged drive or a wrong password stops with a message, and the bar's reminder says the right thing (needs `restic`) |
@@ -655,7 +655,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `info` | The guides in `docs/` make an Info manual with no makeinfo warnings and a node for every heading; a broken link or a page missing from the table stops the build; `40-config` installs it once and lists it in the info `dir`; Emacs opens it and follows a link (needs makeinfo) |
 | `home` | `40-config` and `60-login` change nothing when run again, and `vikix undo` puts your files back (and undoing again brings the change back); API keys never reach the history, even when `yours.list` names their folder, and on a history older than that rule |
 | `ai` | `vikix ai key set` keeps a key 600 in a 700 folder and never prints it (a fingerprint instead), refuses names that aren't keys' (`PATH`, `LD_PRELOAD`, `ANTHROPIC_BASE_URL`), typos and a key typed on the command line; only keys' names from real files of yours are exported, in shells and the session (whose log's trace is off while they load); `check` finds a key in your files, `~/.profile` and the like, and their history, by file and line, names a dotfile linked into a git repo and anything odd in the folder, and is quiet once all's fixed; `vikix agent` and `vikix update` run without the keys |
-| `swank` | With a real Swank: without `~/.slime-secret`'s password, or with a wrong one, nothing runs, and Swank goes on; `vikix eval` sends it and works; `40-config` makes it once, 600 (needs sbcl and Quicklisp) |
+| `swank` | With a real Swank: without `~/.slime-secret`'s password, or with a wrong one, nothing runs, and Swank goes on; a Swank started before the guard is restarted, guarded, by the next reload; `vikix eval` sends it and works; `40-config` makes it once, 600 (needs sbcl and Quicklisp) |
 | `update` | `vikix update` runs the new version's steps after it pulls, logs the whole run, carries on past a failed stage, naming it at the end, and pulls a checkout with an SSH remote over HTTPS |
 | `packages` | Every name in `packages/*.list` is a real Void package |
 | `dry-run` | Both install parts run through with `--dry-run`, and leave the offline docs to `vikix docs` |
