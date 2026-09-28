@@ -13,7 +13,7 @@ vikix undo                                 # changed your mind: back to the snap
 
 After an undo, `Super+m` → *Reload config* makes StumpWM use the old settings again.
 
-Or ask the AI agent: `Super+a` starts Claude Code, which knows these rules (from `~/.claude/skills/vikix`) and takes a snapshot before it starts.
+Or ask the AI agent: `Super+a` starts Claude Code, which knows these rules (from `~/.claude/skills/vikix`) and takes a snapshot before it starts. [Working with AI](ai.md) says how.
 
 ## The desktop: `~/.stumpwm.d/user.lisp`
 
@@ -146,7 +146,7 @@ Don't edit between the `# >>> vikix … >>>` and `# <<< vikix … <<<` lines; Vi
 
 - **Install a program:** `xi NAME` (search with `xs WORD`). It stays installed, and `vikix update` keeps it current along with everything else.
 - **Remove one Vikix installed:** `xr NAME` removes it, but the next `vikix update` installs it again, because it's in Vikix's package lists. There's no way to opt out of one yet.
-- **Optional features** come with their own setup command, which adds them to `~/.config/vikix/optional`; from then on `vikix update` keeps their packages. So far there is one: the Windows VM (`vikix windows setup`, see the [README](../README.md#windows-in-a-vm)).
+- **Optional features** come with their own setup command, which adds them to `~/.config/vikix/optional`; from then on `vikix update` keeps their packages. So far there are two: the Windows VM (`vikix windows setup`, see [Windows in a window](windows.md)), and web apps (Chromium comes with the first `vikix webapp add`, see the [README](../README.md#web-apps)).
 - **Switch on a service:** `sv-on NAME` (the services are in `/etc/sv/`), `sv-off NAME`, `svls` to list. These are system services. A program for your desktop session goes in `user.lisp` instead ([above](#start-a-program-with-the-desktop)).
 
 ## Web apps

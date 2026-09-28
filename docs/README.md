@@ -9,6 +9,8 @@ They are on your machine too, in two forms: as these files in `~/vikix/docs/`, a
 | [Where everything is](map.md) | You want to find a file: what Vikix put where, and whose it is |
 | [How it fits together](how-it-works.md) | You want to know what happens between logging in and the desktop, or what `vikix update` does |
 | [Making it yours](customize.md) | You want to change something: keys, startup programs, the bar, the theme, the terminal, packages |
+| [Working with AI](ai.md) | You want the agent to change something for you, a model on the laptop, or `llm` in a pipe |
+| [Windows in a window](windows.md) | You need a program that only runs on Windows |
 | [When something breaks](fixing.md) | The desktop didn't start, a key stopped working, an update failed |
 
 ## Five things to know first

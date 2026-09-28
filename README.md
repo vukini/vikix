@@ -8,7 +8,7 @@ Think of it as Void, supercharged: inspired by Omarchy, but its own thing. It is
 - a small set of programs that work together
 - one command, `vikix update`, that keeps it all current
 
-Installed it already? [docs/](docs/README.md) is the map: where everything is, how it fits together, how to make it yours, and what to do when something breaks.
+Installed it already? [docs/](docs/README.md) is the map: where everything is, how it fits together, how to make it yours, working with AI, Windows in a window, and what to do when something breaks.
 
 ## Install
 
