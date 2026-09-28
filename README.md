@@ -749,3 +749,9 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 - **System tray.** StumpWM has no tray, so the network and Bluetooth applets aren't started. Use `nmtui` and `blueman-manager` instead; both are in the `s-m` menu.
 - **Themes for GTK and Qt programs** (Firefox, PCManFM, LibreOffice). They keep their own look.
 - **Installer ISO.** None yet. For now it's a script on top of a plain Void install.
+
+## Contact
+
+Questions and ideas: [Discussions](https://github.com/vukini/vikix/discussions). Bugs: [Issues](https://github.com/vukini/vikix/issues). Anything else, or a security problem you'd rather not post in public: **vikid@vikix.dev**.
+
+Vikix is made by The Vikid Truth and owned by The Living Studios FZE LLC, Ajman, UAE. MIT licence: see [LICENSE](LICENSE).

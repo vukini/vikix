@@ -6,3 +6,6 @@ contact_links:
   - name: Suggest an idea
     url: https://github.com/vukini/vikix/discussions/categories/ideas
     about: Things you'd like Vikix to do.
+  - name: Report a security problem privately
+    url: https://github.com/vukini/vikix#contact
+    about: Something that could put Vikix users at risk? Email vikid@vikix.dev rather than opening a public issue.
