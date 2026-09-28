@@ -380,42 +380,62 @@ UV=${VIKIX_UV:-uv}                  # tests name their stand-in (or a missing on
 LLM_DIR=${LLM_USER_PATH:-$HOME/.config/io.datasette.llm}
 
 cmd_llm() {
-  local wanted=''
+  local wanted='' refresh=0
   while [ $# -gt 0 ]; do
     case $1 in
       --default) wanted=${2:-}; [ -n "$wanted" ] || die "--default needs a model: llama3.2:3b, $CLAUDE_DEFAULT ..."; shift 2 ;;
+      --refresh) refresh=1; shift ;;
       *) die "vikix ai llm [--default MODEL]" ;;
     esac
   done
+  # vikix update: only when llm is here and not the pinned version.
+  if [ "$refresh" = 1 ]; then
+    [ -x "$LLM" ] || return 0
+    local have
+    have=$("$LLM" --version 2>/dev/null || true)
+    [ "${have##* }" = "${LLM_PINS[0]#llm==}" ] && return 0
+  fi
   command -v "$UV" >/dev/null 2>&1 || die "uv installs llm, and it isn't here: it comes with Python's list (vikix update installs it)"
   local with=() p
   for p in "${LLM_PINS[@]:1}"; do with+=(--with "$p"); done
-  say "installing llm ${LLM_PINS[0]#llm==}, with its Ollama and Anthropic plugins (uv, as you)"
+  say "installing llm ${LLM_PINS[0]#llm==}, with its Ollama and Anthropic plugins (uv, as you; a minute the first time)"
   "$UV" tool install --quiet --force "${LLM_PINS[0]}" "${with[@]}" || die "uv couldn't install llm (above)"
   [ -x "$LLM" ] || die "llm didn't land in ~/.local/bin"
   # The default model. Yours, if you chose one; else a local model (free,
-  # offline, nothing leaves the laptop); else Claude, with a key.
-  local choice=''
+  # offline, nothing leaves the laptop); else Claude, with a key. The one
+  # Vikix picked is remembered, so it's picked again next time (a local
+  # model downloaded later wins over Claude) and never taken for yours.
+  local current='' picked='' ours="$VIKIX_STATE/llm-default" choice='' local_models=''
+  [ -s "$LLM_DIR/default_model.txt" ] && current=$(cat "$LLM_DIR/default_model.txt")
+  [ -s "$ours" ] && picked=$(cat "$ours")
+  running && local_models=$(have_names)
+  if grep -qx 'llama3.2:3b' <<<"$local_models"; then choice=llama3.2:3b
+  elif [ -n "$local_models" ]; then choice=$(head -1 <<<"$local_models")
+  elif [ -n "${ANTHROPIC_API_KEY:-}" ]; then choice=$CLAUDE_DEFAULT
+  fi
   if [ -n "$wanted" ]; then
-    choice=$wanted
-  elif [ -s "$LLM_DIR/default_model.txt" ]; then
-    say "llm's default stays $(cat "$LLM_DIR/default_model.txt") (chosen before; vikix ai llm --default MODEL changes it)"
-  else
-    local local_models=''
-    running && local_models=$(have_names)
-    if grep -qx 'llama3.2:3b' <<<"$local_models"; then choice=llama3.2:3b
-    elif [ -n "$local_models" ]; then choice=$(head -1 <<<"$local_models")
-    elif [ -n "${ANTHROPIC_API_KEY:-}" ]; then choice=$CLAUDE_DEFAULT
-    else
-      warn "no model for llm yet: a local one (vikix ai models), or Claude with a key (vikix ai key set anthropic); then vikix ai llm again"
-    fi
-  fi
-  if [ -n "$choice" ]; then
+    "$LLM" models default "$wanted" || die "llm doesn't know the model $wanted (llm models lists them)"
+    rm -f "$ours"
+    say "llm's default model: $wanted (yours: vikix ai llm won't change it)"
+  elif [ -n "$current" ] && [ "$current" != "$picked" ] && [ "$current" != "$choice" ]; then
+    say "llm's default stays $current (yours; vikix ai llm --default MODEL changes it)"
+  elif [ -n "$choice" ]; then
     "$LLM" models default "$choice" || die "llm doesn't know the model $choice (llm models lists them)"
+    mkdir -p "$VIKIX_STATE"; echo "$choice" > "$ours"
     say "llm's default model: $choice"
+  elif [ -n "$current" ]; then
+    say "llm's default stays $current (no local model or Anthropic key now to pick instead)"
+  else
+    # llm's own default is an OpenAI model: with an OpenAI key, a plain
+    # llm would send your text there, and bill it. So no "Try:" with it.
+    warn "no model for llm yet: a local one (vikix ai models), or Claude with a key (vikix ai key set anthropic); then vikix ai llm again"
+    warn "until then a plain llm uses llm's own default, $("$LLM" models default 2>/dev/null || echo 'an OpenAI model'), from OpenAI (paid, with an OpenAI key)"
+    return 0
   fi
+  [ "$refresh" = 1 ] && return 0
   echo "   Try: echo 'Vikix is a desktop for Void Linux.' | llm 'say it shorter'"
-  echo "        git diff | llm 'write the commit message'     llm -m $CLAUDE_DEFAULT '...' (with a key)"
+  echo "        git diff | llm 'write the commit message'     llm models -q ollama (your local models)"
+  echo "        llm -m $CLAUDE_DEFAULT '...' with the key from vikix ai key set anthropic (not llm keys set; new terminals get it)"
   echo "   Everything asked is kept, to search later: llm logs -n 3, llm logs -q WORD (llm logs off stops it)"
 }
 

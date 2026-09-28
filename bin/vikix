@@ -176,6 +176,13 @@ cmd_update() {
     bash "$VIKIX_DIR/install/$stage.sh" || { warn "stage $stage failed; carrying on"; failed+=("$stage"); }
   done
   cmd_migrate
+  # llm (vikix ai llm) is installed with uv, outside the stages: bring it
+  # to the pinned version when it's here and isn't.
+  if [ "$DRY_RUN" = 1 ]; then
+    printf '   would run: %s\n' "vikix ai llm --refresh  # llm to its pinned version, if installed"
+  else
+    bash "$VIKIX_DIR/bin/vikix-local-ai" llm --refresh || warn "couldn't update llm; vikix ai llm tries again"
+  fi
   # So the bar stops showing the updates that were just installed.
   [ "$DRY_RUN" = 1 ] || "$VIKIX_DIR/bin/vikix-updates" >/dev/null 2>&1 || true
   # StumpWM keeps its config in memory, so the new files on disk (keys, the

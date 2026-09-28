@@ -85,6 +85,12 @@ To run one install stage again on its own (each is safe to re-run):
 
 `vikix ai status` says whether Ollama is running and which model is loaded. Not running: `vikix ai setup` starts it (it starts with the desktop from then on), and its log is `~/.local/state/vikix/ollama.log`. Slow: that's the CPU; a smaller model (`vikix ai models`) answers faster, and `vikix ai stop` frees the memory a big one holds.
 
+## `llm` doesn't answer
+
+- **`No key found - add one using 'llm keys set anthropic'`**: don't; that makes a second copy of the key. Use `vikix ai key set anthropic`, then open a new terminal (keys reach new shells, not the one already open).
+- **A connection error** with a local model: Ollama isn't running; `vikix ai status`, then `vikix ai setup`.
+- **Not sure which model it uses**: `llm models default`. `vikix ai llm` explains its choice; `vikix ai llm --default MODEL` sets yours.
+
 ## `vikix eval` fails
 
 - **Exit 2** means it couldn't reach StumpWM: it isn't running, or a menu or prompt is open. Close it and try again.
