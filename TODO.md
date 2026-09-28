@@ -32,6 +32,7 @@ Built in this order: AI first, then newcomers, then the rest. Package facts were
     - **Package it:** an xbps-src template, after Hype's `pkgbuild/PKGBUILD`, built in the style of 65-languages (pinned) until it's in void-packages; then a feature, `vikix add hype`.
     - **The AI side:** `hype skill install` puts a skill in `~/.claude/skills/`, so the agent can write the slides; a good example of an AI workflow for the site and the docs.
     - Prior art for running it outside Omarchy, with screenshots: the Mac port, https://github.com/gscalzo/HypeX.
+13. **Tutorials: `vikix learn c`.** A hands-on C course in the terminal, lessons checked on save, twelve tracks well past the basics, on a language-neutral runner. The plan, and the decisions it waits on, are in `TUTORIALS.md`.
 
 ## To look into
 
