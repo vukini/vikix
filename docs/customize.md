@@ -156,9 +156,10 @@ A website you use like a program (mail, a CRM, a calendar) can have a window, a 
 ```sh
 vikix webapp add superhuman            # presets: superhuman, fastmail, gmail, outlook, outlook-live
 vikix webapp add crm https://crm.example.com --key s-C-c
+vikix webapp key crm none              # change its key, or drop it
 ```
 
-Your list is `~/.config/vikix/webapps`, one `NAME URL [KEY]` per line; editing it by hand works too, then `Super+m` → *Reload config*. See the [README](../README.md#web-apps).
+Your list is `~/.config/vikix/webapps`, one `NAME URL [KEY]` per line; editing it by hand works too (your comments stay), then `Super+m` → *Reload config*; `vikix webapp list` points out a line it can't use. To start one at login, add `(run-shell-command "vikix-webapp launch NAME")` to `user.lisp`. See the [README](../README.md#web-apps).
 
 ## The editors
 

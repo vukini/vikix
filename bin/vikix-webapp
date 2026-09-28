@@ -1,25 +1,29 @@
 #!/usr/bin/env bash
 # vikix-webapp — a website as a program of its own (`vikix webapp`).
 #
-#   vikix webapp add NAME [URL] [--key KEY]   make one. Without a URL, NAME is
-#                     a preset: superhuman, fastmail, gmail, outlook (work or
-#                     school Microsoft 365), outlook-live (outlook.com).
-#                     KEY is a Super key, as in the key help: s-M is
-#                     Super+Shift+m, which the first mail web app gets
+#   vikix webapp add NAME [URL] [--key KEY]   make one (or change its address).
+#                     Without a URL, NAME is a preset: fastmail, gmail,
+#                     outlook (work or school Microsoft 365), outlook-live
+#                     (outlook.com), superhuman. KEY is a Super key as the key
+#                     help writes it: s-M is Super+Shift+m, which the first
+#                     mail web app gets; --key none for no key. Adding one
+#                     again keeps its key unless you give another
+#   vikix webapp key NAME KEY|none   give it another key, or none
 #   vikix webapp open NAME     bring it to the front, or start it (its key,
 #                     the launcher, and Super+m all do this)
-#   vikix webapp list          the web apps you have
-#   vikix webapp remove NAME [--forget]   take it away; --forget also deletes
-#                     what it kept (its logins and cookies)
+#   vikix webapp list          the web apps you have, and any logins left over
+#   vikix webapp remove NAME [--forget]   take it away (rm works too); --forget
+#                     also deletes what it kept: its logins and cookies
 #
 # Each one is a Chromium window with no tabs and no address bar, with its
 # own window class (vikix-NAME), so StumpWM can find it on any workspace,
 # and its own profile in ~/.local/share/vikix/webapps/NAME: work logins
-# stay apart from personal ones, and from your everyday Firefox. Their
-# notifications come through dunst like everything else.
+# stay apart from personal ones, and from your everyday Firefox. Its
+# notifications come through dunst while its window is open.
 #
-# Your list is ~/.config/vikix/webapps (one "NAME URL [KEY]" per line);
-# StumpWM reads it (webapps.lisp) for the keys, the key help and Super+m.
+# Your list is ~/.config/vikix/webapps (one "NAME URL [KEY]" per line;
+# your own # comments are kept). StumpWM reads it (webapps.lisp) for the
+# keys, the key help and Super+m.
 
 set -euo pipefail
 VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
@@ -31,8 +35,10 @@ OPTIONAL="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/optional"
 APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 PROFILES="${XDG_DATA_HOME:-$HOME/.local/share}/vikix/webapps"
 MAIL_KEY=s-M
+HEADER1="# Your web apps (vikix webapp add/remove writes this; editing it by hand is fine)."
+HEADER2="# NAME URL [KEY]: KEY is a Super key, as StumpWM names it (s-M: Super+Shift+m)."
 
-# Presets: the address, the name shown, and whether it's mail (for s-M).
+# Presets: the address and the name shown. All mail, so far (for s-M).
 declare -A PRESET_URL=(
   [superhuman]=https://mail.superhuman.com/
   [fastmail]=https://app.fastmail.com/
@@ -44,26 +50,68 @@ declare -A PRESET_TITLE=(
   [superhuman]=Superhuman [fastmail]=Fastmail [gmail]=Gmail
   [outlook]=Outlook [outlook-live]="Outlook.com"
 )
-
+presets() { printf '%s\n' "${!PRESET_URL[@]}" | sort | paste -sd' ' | sed 's/ /, /g'; }
 title_of() { printf '%s\n' "${PRESET_TITLE[$1]:-${1^}}"; }
-is_mail() { [ -n "${PRESET_TITLE[$1]:-}" ]; }    # every preset so far is mail
+is_mail() { [ -n "${PRESET_TITLE[$1]:-}" ]; }
 
-# The list, one "NAME URL KEY" per line (KEY may be missing).
+# s-M -> Super+Shift+m, s-C-g -> Super+Ctrl+g: as people say it.
+say_key() {
+  local k=${1#s-} out=Super
+  while [ "${k#*-}" != "$k" ]; do
+    case ${k%%-*} in C) out+=+Ctrl ;; M) out+=+Alt ;; S) out+=+Shift ;; esac
+    k=${k#*-}
+  done
+  if [[ $k =~ ^[A-Z]$ ]]; then out+="+Shift+${k,,}"; else out+="+$k"; fi
+  printf '%s\n' "$out"
+}
+
+# A line of the list is good when it has a name, an address and, if any, a
+# key of the right form. Hand-made lines that aren't are skipped (and shown).
+KEY_RE='^s-([CM]-)?([A-Za-z0-9]|F[0-9]{1,2})$'
+NAME_RE='^[a-z][a-z0-9-]{0,30}$'
+URL_RE='^(https://[^[:space:]]+|http://(localhost|127\.0\.0\.1)(:[0-9]+)?(/[^[:space:]]*)?)$'
+good_line() {   # good_line NAME URL [KEY] -> reason on stdout if bad
+  [[ $1 =~ $NAME_RE ]] || { echo "a name of small letters, digits and -"; return; }
+  [[ ${2:-} =~ $URL_RE ]] || { echo "an address starting https://"; return; }
+  [ -z "${3:-}" ] || [[ $3 =~ $KEY_RE ]] || { echo "a key like s-M (Super+Shift+m)"; return; }
+  if [ -n "${3:-}" ] && is_vikix_key "$3"; then echo "a key that isn't one of Vikix's own"; fi
+}
+
+# The list's app lines, "NAME URL KEY" (KEY may be missing), good or not.
 entries() { [ -f "$LIST" ] && read_list "$LIST" || true; }
 entry() { entries | awk -v n="$1" '$1 == n' | head -1; }
 url_of() { entry "$1" | awk '{ print $2 }'; }
+key_of() { entry "$1" | awk '{ print $3 }'; }
 
-# Keys Vikix binds itself (keys.lisp), which a web app mustn't take.
-vikix_keys() { grep -oE '^\s*\("s-[^"]+"' "$VIKIX_DIR/config/stumpwm/vikix/keys.lisp" | grep -oE 's-[^"]+'; }
+# Keys Vikix binds itself, which a web app mustn't take: the list in
+# keys.lisp, and the workspace keys it binds in a loop (s-1 .. s-C-9).
+vikix_keys() {
+  grep -oE '^\s*\("s-[^"]+"' "$VIKIX_DIR/config/stumpwm/vikix/keys.lisp" | grep -oE 's-[^"]+'
+  local n; for n in 1 2 3 4 5 6 7 8 9; do printf 's-%s\ns-C-%s\n' "$n" "$n"; done
+}
 
-write_list() {   # write_list < lines: the list, with its header, atomically
-  local tmp
+# Kept, then searched: grep -q on a pipe can stop it early, and with
+# pipefail that reads as "not found".
+is_vikix_key() { grep -qx -- "$1" <<<"$(vikix_keys)"; }
+
+# set_line NAME [LINE]: put NAME's line in place (where it was, or at the
+# end), or take it out with no LINE. Everything else, your comments too,
+# stays as it was. Written through a temp file, then moved into place.
+set_line() {
+  local name=$1 line=${2:-} tmp
   mkdir -p "$(dirname "$LIST")"
   tmp=$(mktemp "$LIST.XXXXXX")
   {
-    echo "# Your web apps (vikix webapp add/remove writes this; editing it by hand is fine)."
-    echo "# NAME URL [KEY]: KEY is a Super key, as StumpWM names it (s-M: Super+Shift+m)."
-    cat
+    [ -s "$LIST" ] || printf '%s\n%s\n' "$HEADER1" "$HEADER2"
+    if [ -f "$LIST" ]; then
+      NAME=$name LINE=$line awk '
+        { split($0, w, /[ \t]+/); first = ($0 ~ /^[ \t]/) ? w[2] : w[1] }
+        first == ENVIRON["NAME"] { if (!done && ENVIRON["LINE"] != "") print ENVIRON["LINE"]; done = 1; next }
+        { print }
+        END { if (!done && ENVIRON["LINE"] != "") print ENVIRON["LINE"] }' "$LIST"
+    else
+      [ -z "$line" ] || printf '%s\n' "$line"
+    fi
   } > "$tmp"
   mv "$tmp" "$LIST"
 }
@@ -84,8 +132,8 @@ Categories=Network;
 EOF
 }
 
-# StumpWM reads the list again, for keys, key help and Super+m. Quiet when
-# it isn't there to ask: its next reload does it anyway.
+# StumpWM reads the list again, for keys, key help and Super+m. When it
+# isn't there to ask, its next reload does it.
 reload_wm() {
   python3 "$VIKIX_DIR/bin/vikix-eval" '(vikix-load-webapps)' >/dev/null 2>&1 ||
     echo "   StumpWM takes it at its next reload (Super+m, Reload config)."
@@ -103,42 +151,74 @@ need_chromium() {
   [ "$DRY_RUN" = 1 ] || command -v chromium >/dev/null 2>&1 || die "Chromium didn't install; see above"
 }
 
+# check_key NAME KEY: die, saying what to do, unless NAME may have KEY.
+check_key() {
+  local name=$1 key=$2 other
+  [[ $key =~ $KEY_RE ]] ||
+    die "a web app's key is Super and a letter, digit or F-key, as StumpWM names it: s-M (Super+Shift+m), s-C-g (Super+Ctrl+g), s-F5; or none"
+  is_vikix_key "$key" &&
+    die "$key ($(say_key "$key")) is one of Vikix's own keys (Super+F1 lists them); choose another"
+  other=$(entries | awk -v k="$key" -v n="$name" '$3 == k && $1 != n { print $1 }' | head -1)
+  [ -z "$other" ] ||
+    die "$key ($(say_key "$key")) is already $other's key. To move it: vikix webapp key $other none, then try again"
+  return 0
+}
+
 cmd_add() {
   local name='' url='' key='' key_given=''
   while [ $# -gt 0 ]; do
     case $1 in
-      --key) key=${2:?--key needs a key, like s-M}; key_given=1; shift 2 ;;
+      --key) [ $# -ge 2 ] || die "--key needs a key, like s-M, or none"; key=$2; key_given=1; shift 2 ;;
+      --key=*) key=${1#--key=}; key_given=1; shift ;;
       -*) die "vikix webapp add: unknown option $1" ;;
       *) if [ -z "$name" ]; then name=$1; elif [ -z "$url" ]; then url=$1; else die "too many words: vikix webapp add NAME [URL] [--key KEY]"; fi; shift ;;
     esac
   done
-  [ -n "$name" ] || die "which one? For example: vikix webapp add superhuman (presets: ${!PRESET_URL[*]})"
-  [[ $name =~ ^[a-z][a-z0-9-]{0,30}$ ]] || die "a web app's name is small letters, digits and -: fastmail, my-crm"
+  [ -n "$name" ] || die "which one? For example: vikix webapp add superhuman (presets: $(presets))"
+  [[ $name =~ $NAME_RE ]] || die "a web app's name is small letters, digits and -: fastmail, my-crm"
   if [ -z "$url" ]; then
-    url=${PRESET_URL[$name]:-}
-    [ -n "$url" ] || die "$name isn't a preset (${!PRESET_URL[*]}); give its address: vikix webapp add $name https://..."
+    url=${PRESET_URL[$name]:-$(url_of "$name")}
+    [ -n "$url" ] || die "$name isn't a preset ($(presets)); give its address: vikix webapp add $name https://..."
   fi
-  # https only (a login page over http is readable on the way), except this machine's own.
-  [[ $url =~ ^https://[^[:space:]]+$ || $url =~ ^http://(localhost|127\.0\.0\.1)(:[0-9]+)?(/[^[:space:]]*)?$ ]] ||
+  if [[ ! $url =~ $URL_RE ]]; then
+    if [[ $url =~ ^[A-Za-z0-9.-]+\.[A-Za-z]{2,}(/.*)?$ ]]; then
+      die "an address starts with https://: did you mean vikix webapp add $name https://$url ?"
+    fi
     die "the address must start with https:// (or be http://localhost): $url"
-  if [ -n "$key" ]; then
-    [[ $key =~ ^s-[A-Za-z0-9]$ || $key =~ ^s-[CM]-[A-Za-z0-9]$ || $key =~ ^s-F[0-9]{1,2}$ ]] ||
-      die "a web app's key is Super and a letter, digit or F-key, as StumpWM names it: s-M (Super+Shift+m), s-C-g, s-F5"
-    vikix_keys | grep -qx -- "$key" && die "$key is one of Vikix's own keys (Super+F1 lists them); choose another"
-    local other
-    other=$(entries | awk -v k="$key" -v n="$name" '$3 == k && $1 != n { print $1 }' | head -1)
-    [ -z "$other" ] || die "$key is already the key of your web app $other"
-  elif [ -z "$key_given" ] && is_mail "$name" && ! entries | awk '{ print $3 }' | grep -qx "$MAIL_KEY"; then
-    key=$MAIL_KEY            # the first mail web app gets Super+Shift+m
+  fi
+  local old_key
+  old_key=$(key_of "$name")
+  if [ -n "$key_given" ]; then
+    [ "$key" = none ] || [ -z "$key" ] && key=''
+    [ -z "$key" ] || check_key "$name" "$key"
+  elif [ -n "$old_key" ]; then
+    key=$old_key                           # added again: it keeps its key
+  elif is_mail "$name" && ! entries | awk -v n="$name" '$1 != n { print $3 }' | grep -qx "$MAIL_KEY"; then
+    key=$MAIL_KEY                          # the first mail web app gets Super+Shift+m
   fi
   need_chromium
   local what=made
   [ -n "$(entry "$name")" ] && what=changed
-  { entries | awk -v n="$name" '$1 != n'; printf '%s %s%s\n' "$name" "$url" "${key:+ $key}"; } | write_list
+  set_line "$name" "$name $url${key:+ $key}"
   desktop_file "$name"
-  say "$what the web app $(title_of "$name"): $url${key:+, on $key}"
-  echo "   Open it with its key, from the launcher (Super+d, $(title_of "$name")), or Super+m."
-  echo "   The first time, log in: it keeps its own login, apart from Firefox and your other web apps."
+  say "$what the web app $(title_of "$name"): $url${key:+, on $(say_key "$key")}"
+  if [ -n "$key" ]; then
+    echo "   Open it with $(say_key "$key"), from the launcher (Super+d, $(title_of "$name")), or Super+m."
+  else
+    echo "   Open it from the launcher (Super+d, $(title_of "$name")) or Super+m; a key of its own: vikix webapp key $name s-X"
+  fi
+  [ "$what" = made ] && echo "   The first time, log in: it keeps its own login, apart from Firefox and your other web apps."
+  reload_wm
+}
+
+cmd_key() {
+  local name=${1:-} key=${2:-}
+  [ -n "$name" ] && [ -n "$key" ] || die "vikix webapp key NAME KEY (s-M, Super+Shift+m), or: vikix webapp key NAME none"
+  [ -n "$(entry "$name")" ] || die "there's no web app called $name (vikix webapp list)"
+  [ "$key" = none ] && key=''
+  [ -z "$key" ] || check_key "$name" "$key"
+  set_line "$name" "$name $(url_of "$name")${key:+ $key}"
+  if [ -n "$key" ]; then say "$(title_of "$name") is on $(say_key "$key") now"; else say "$(title_of "$name") has no key now"; fi
   reload_wm
 }
 
@@ -163,12 +243,28 @@ cmd_open() {
 }
 
 cmd_list() {
-  local any='' name url key
+  local any='' name url key why d
   while read -r name url key; do
-    printf '%-14s %-40s %s\n' "$name" "$url" "${key:-no key}"
+    why=$(good_line "$name" "$url" "$key")
+    if [ -n "$why" ]; then
+      printf '%-14s %-40s ignored: needs %s (edit %s)\n' "$name" "${url:-(no address)}" "$why" "$LIST"
+    else
+      if [ -n "$key" ]; then key="$key ($(say_key "$key"))"; else key="no key"; fi
+      printf '%-14s %-40s %s\n' "$name" "$url" "$key"
+    fi
     any=1
   done < <(entries)
-  [ -n "$any" ] || echo "no web apps yet (vikix webapp add superhuman; presets: ${!PRESET_URL[*]})"
+  [ -n "$any" ] || echo "no web apps yet (vikix webapp add superhuman; presets: $(presets))"
+  # Logins kept by a plain remove.
+  if [ -d "$PROFILES" ]; then
+    for d in "$PROFILES"/*/; do
+      [ -d "$d" ] || continue
+      name=$(basename "$d")
+      [ -z "$(entry "$name")" ] &&
+        printf '(logins kept for %s, a web app you removed: vikix webapp remove %s --forget deletes them)\n' "$name" "$name"
+    done
+  fi
+  return 0
 }
 
 cmd_remove() {
@@ -178,24 +274,33 @@ cmd_remove() {
     shift
   done
   [ -n "$name" ] || die "which one? vikix webapp remove NAME (vikix webapp list)"
-  [ -n "$(entry "$name")" ] || die "there's no web app called $name (vikix webapp list)"
-  entries | awk -v n="$name" '$1 != n' | write_list
+  [[ $name =~ $NAME_RE ]] || die "there's no web app called $name (vikix webapp list)"
+  if [ -z "$(entry "$name")" ]; then
+    # Only its logins left (a remove without --forget, earlier)?
+    if [ -n "$forget" ] && [ -d "$PROFILES/$name" ]; then
+      rm -rf "${PROFILES:?}/$name"
+      say "deleted the logins $name kept"; return 0
+    fi
+    die "there's no web app called $name (vikix webapp list)"
+  fi
+  set_line "$name"
   rm -f "$APPS/vikix-webapp-$name.desktop"
   if [ -n "$forget" ]; then
     rm -rf "${PROFILES:?}/$name"
     say "removed $name, and what it kept (its logins)"
   else
-    say "removed $name. Its logins are kept in $PROFILES/$name, for if it comes back (--forget deletes them)"
+    say "removed $name. Its logins are kept, for if it comes back (vikix webapp remove $name --forget deletes them)"
   fi
   reload_wm
 }
 
 case ${1:-help} in
-  add)    shift; cmd_add "$@" ;;
-  open)   shift; cmd_open "$@" ;;
-  launch) shift; cmd_launch "${1:?which web app?}" ;;
-  list)   cmd_list ;;
-  remove) shift; cmd_remove "$@" ;;
+  add)       shift; cmd_add "$@" ;;
+  key)       shift; cmd_key "$@" ;;
+  open)      shift; cmd_open "$@" ;;
+  launch)    shift; cmd_launch "${1:?which web app?}" ;;
+  list|ls)   cmd_list ;;
+  remove|rm) shift; cmd_remove "$@" ;;
   help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
   *) die "vikix webapp: unknown command $1 (vikix webapp help)" ;;
 esac

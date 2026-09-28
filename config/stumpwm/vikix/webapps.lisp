@@ -28,7 +28,20 @@
               collect (list (first words) (second words) (third words))))))
 
 (defun vikix-webapp-title (name)
-  (string-capitalize name))
+  "The name its launcher entry shows (Outlook.com), else NAME capitalized."
+  (with-open-file (in (merge-pathnames (format nil ".local/share/applications/vikix-webapp-~a.desktop" name)
+                                       (user-homedir-pathname))
+                      :if-does-not-exist nil)
+    (or (and in (loop for line = (read-line in nil)
+                      while line
+                      when (and (> (length line) 5) (string= "Name=" line :end2 5))
+                        return (subseq line 5)))
+        (string-capitalize name))))
+
+(defun vikix-webapp-key-ok (key)
+  "A Super key of the form vikix-webapp allows: s-M, s-C-g, s-F5."
+  (and (stringp key) (> (length key) 2) (string= "s-" key :end2 2)
+       (every (lambda (c) (or (alphanumericp c) (char= c #\-))) key)))
 
 (defcommand vikix-webapp (name) ((:string "Web app: "))
   "Bring the web app NAME to the front, on whatever workspace it is, or start it."
@@ -49,18 +62,22 @@
         *vikix-menu* (remove-if (lambda (e) (vikix-webapp-entry-p (first e) "Web app: "))
                                 *vikix-menu*))
   (let ((entries '()))
+    ;; One at a time, each in its own handler: a line made by hand that's
+    ;; wrong (a key StumpWM can't read) is skipped, and the rest still load.
     (dolist (app (vikix-read-webapps))
-      (destructuring-bind (name url &optional key) app
-        (declare (ignore url))
-        (let ((command (format nil "vikix-webapp ~a" name))
-              (title (vikix-webapp-title name)))
-          (when key
-            (vikix-bind key command)
-            (push key *vikix-webapp-keys*)
-            (setf *vikix-bindings*
-                  (append *vikix-bindings*
-                          (list (list key command (format nil "~a (web app)" title))))))
-          (push (list (format nil "Web app: ~a" title) (list 'vikix-webapp name)) entries))))
+      (handler-case
+          (destructuring-bind (name url &optional key) app
+            (when url                       ; a line with no address is skipped
+              (let ((command (format nil "vikix-webapp ~a" name))
+                    (title (vikix-webapp-title name)))
+                (when (vikix-webapp-key-ok key)
+                  (vikix-bind key command)
+                  (push key *vikix-webapp-keys*)
+                  (setf *vikix-bindings*
+                        (append *vikix-bindings*
+                                (list (list key command (format nil "~a (web app)" title))))))
+                (push (list (format nil "Web app: ~a" title) (list 'vikix-webapp name)) entries))))
+        (error () nil)))
     ;; Before the last entry, Power, so that one stays at the bottom.
     (let ((power (last *vikix-menu*)))
       (setf *vikix-menu* (append (butlast *vikix-menu*) (nreverse entries) power))))

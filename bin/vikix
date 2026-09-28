@@ -27,7 +27,7 @@
 #   vikix fingerprint [on|off|enrol]   a finger for sudo and the lock screen,
 #                         where fprintd supports the reader
 #   vikix webapp add|open|list|remove    a website as a program of its own
-#                         (presets: superhuman, fastmail, gmail, outlook)
+#                         (presets: fastmail, gmail, outlook, outlook-live, superhuman)
 #   vikix ai key set|list|remove|check   API keys (ANTHROPIC_API_KEY ...)
 #                         kept safely, out of your dotfiles and their history
 #   vikix windows [setup|create ISO|stop|status|network|remove]   Windows in a VM:
