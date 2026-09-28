@@ -8,6 +8,12 @@
 ;;;;
 ;;;; and you are at a REPL inside StumpWM: redefine a command, re-bind a
 ;;;; key, try a theme — it takes effect immediately, no restart.
+;;;;
+;;;; Swank runs whatever it's sent, as you, and 127.0.0.1 isn't only yours
+;;;; (the Windows VM reaches it through passt's gateway address). So it has
+;;;; a password: Swank itself reads ~/.slime-secret (40-config makes it) at
+;;;; each connection, and lets in only a client that sends its first line.
+;;;; Emacs's SLIME and vikix eval send it by themselves.
 
 (in-package :stumpwm)
 

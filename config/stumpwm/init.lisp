@@ -20,7 +20,8 @@
     "keys"       ; Super-key bindings
     "help"       ; key help (s-F1) and the list of all commands
     "modeline"   ; the bar at the top
-    "swank")     ; the door for Emacs
+    "swank-guard" ; a wrong Swank password can't take Swank down
+    "swank")     ; the door for Emacs, with a password
   "Loaded in this order. Each file only uses what the files before it define.")
 
 (defun vikix-load (name)

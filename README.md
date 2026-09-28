@@ -294,6 +294,8 @@ M-x slime-connect RET 127.0.0.1 RET 4004
 
 That puts you at a REPL inside the running window manager. Anything you redefine there takes effect at once.
 
+Swank runs whatever it's sent, as you, so it has a password: `~/.slime-secret`, made by the install (or `vikix update`), readable only by you. Emacs sends it by itself, and so does `vikix eval`; anything else that reaches 127.0.0.1:4004 (another local program, or the Windows VM, below) gets nothing. A wrong password closes that one connection and Swank goes on.
+
 If Emacs says the SLIME and Swank versions differ, answer `y`. It still works. The two come from different places: Emacs's package manager for SLIME, and Quicklisp for Swank.
 
 ## The AI agent
@@ -319,16 +321,19 @@ An API key (Anthropic's, OpenAI's) has to be somewhere programs can find it, and
 
 ```sh
 vikix ai key set anthropic       # paste it; it isn't shown. Becomes ANTHROPIC_API_KEY
-vikix ai key set openai          # OPENAI_API_KEY; any name works: open-router, OPENROUTER_API_KEY
+vikix ai key set openai          # OPENAI_API_KEY. Also gemini, perplexity, openrouter, groq,
+                                 # mistral, deepseek, xai, huggingface (HF_TOKEN), github (GITHUB_TOKEN)
+vikix ai key set MY_SERVICE_API_KEY   # any other: a name ending in _API_KEY, _KEY, _TOKEN or _SECRET
 pass show api/openai | vikix ai key set openai    # or piped in, from a password manager
-vikix ai key list                # names only, never the values
+vikix ai key list                # names and a fingerprint (sk-a…cdef), never the keys
 vikix ai key remove openai
 ```
 
 - **Where:** `~/.config/vikix/secrets/`, one file per key, only yours to read (the folder 700, each key 600). The history of your files never records it, whatever `config/yours.list` says. Encrypted backups (`vikix backup`) do keep it, so a restored machine has its keys back.
-- **Who sees them:** every new terminal, and every program the desktop starts from the next login, as environment variables. A terminal open before `set` gets it after `exec bash`.
-- **Claude Code** sees `ANTHROPIC_API_KEY` too, and asks once whether to use it instead of your Claude login. Using it bills the key's account (API use), not your plan.
-- **`vikix doctor`** looks for keys left where they shouldn't be: in any of your files, and in their history. It names the file and line, never the key, and says how to move it, and how to start the history afresh (the old one set aside, not deleted) so the key is gone from it. Once a key has been in a file, it may also be in a backup: to be sure, replace the key itself.
+- **Who sees them:** every new terminal, and every program the desktop starts from the next login, as environment variables. A terminal open before `set` gets it after `exec bash`. Only names like a key's are ever exported, so nothing dropped in that folder can set `PATH` or send your key to another address (`ANTHROPIC_BASE_URL`). `vikix update` and the installer run without them: they run other people's code (npm, uv, Quicklisp).
+- **Don't type a key on the command line** (`vikix ai key set sk-ant-...`): it lands in your shell history. `set` refuses it and says how to take it out.
+- **Claude Code.** `vikix agent` (`Super+a`) starts it without `ANTHROPIC_API_KEY`, so it uses your Claude login and plan, and an agent can't print the key from its environment. `VIKIX_AGENT_API_KEY=1 vikix agent` gives it the key, billed as API use. Plain `claude` in a terminal sees the key and asks once; answer No to keep your plan.
+- **`vikix doctor`** looks for keys left where they shouldn't be: in your files and their history, and in the files a shell reads at start (`~/.profile`, `~/.zshrc` …). It names the file and line, never the key, gives the exact `vikix ai key set` command, and says how to start the history afresh (the old one set aside, not deleted, though undo's older snapshots go with it). A dotfile that's a link into a git repository gets a warning of its own: that repository's history has the key too. Once a key has been in a file, it may also be in a backup or on a remote: to be sure, replace the key itself.
 
 ## Undo for your files
 
@@ -467,6 +472,7 @@ vikix windows stop                 # shut it down (also: status, remove)
 - **It all runs as you** (libvirt's `qemu:///session`): the disk in `~/.local/share/libvirt/images/` (or `setup --disk DIR`, which needs 40 GB free), no system service, and no network port for the display. The network is passt: Windows reaches the internet, nothing reaches Windows.
 - **Your files** go in `~/Windows` (drive `Z:`), which `vikix backup` covers. The VM's disk it leaves out: it's big, and changes all the time.
 - **Reboot and Power off** in the power menu shut Windows down properly first. Logging out leaves it running.
+- **What Windows can reach on this machine.** passt gives Windows your machine's services on 127.0.0.1 (as the gateway address). So everything listening there must ask for a password: Swank does (`~/.slime-secret`). CUPS shows up as a network printer. Isolating the VM from them entirely is on the to-do list.
 - **To change the VM** (memory, CPUs, a USB device), `virt-manager -c qemu:///session`.
 
 ## Editors
@@ -648,7 +654,8 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `windows` | `vikix windows setup` refuses without KVM or space before changing anything, opts in once, and deletes a download with the wrong checksum; `10-packages` installs an optional list only once chosen; `create`'s answer file is valid XML in the ISO's language, and the password stays off the command line and out of reach of other users; `virt-install` gets the TPM, Secure Boot, passt, virtiofs and TRIM; the discs come out and the answer disc goes only once Windows is ready; power off shuts a running Windows down and leaves libvirt alone otherwise |
 | `info` | The guides in `docs/` make an Info manual with no makeinfo warnings and a node for every heading; a broken link or a page missing from the table stops the build; `40-config` installs it once and lists it in the info `dir`; Emacs opens it and follows a link (needs makeinfo) |
 | `home` | `40-config` and `60-login` change nothing when run again, and `vikix undo` puts your files back (and undoing again brings the change back); API keys never reach the history, even when `yours.list` names their folder, and on a history older than that rule |
-| `ai` | `vikix ai key set` keeps a key 600 in a 700 folder and never prints it; `list` shows names only; the keys are exported in shells and the session, whose log's trace is off while they load; `check` finds a key in your files and their history by file and line, never printing it, and is quiet once it's moved and the history started again, and `vikix doctor` runs it |
+| `ai` | `vikix ai key set` keeps a key 600 in a 700 folder and never prints it (a fingerprint instead), refuses names that aren't keys' (`PATH`, `LD_PRELOAD`, `ANTHROPIC_BASE_URL`), typos and a key typed on the command line; only keys' names from real files of yours are exported, in shells and the session (whose log's trace is off while they load); `check` finds a key in your files, `~/.profile` and the like, and their history, by file and line, names a dotfile linked into a git repo and anything odd in the folder, and is quiet once all's fixed; `vikix agent` and `vikix update` run without the keys |
+| `swank` | With a real Swank: without `~/.slime-secret`'s password, or with a wrong one, nothing runs, and Swank goes on; `vikix eval` sends it and works; `40-config` makes it once, 600 (needs sbcl and Quicklisp) |
 | `update` | `vikix update` runs the new version's steps after it pulls, logs the whole run, carries on past a failed stage, naming it at the end, and pulls a checkout with an SSH remote over HTTPS |
 | `packages` | Every name in `packages/*.list` is a real Void package |
 | `dry-run` | Both install parts run through with `--dry-run`, and leave the offline docs to `vikix docs` |

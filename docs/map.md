@@ -25,6 +25,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 ├── .bashrc                    yours     with one marked block at the top that reads vikix.bash
 ├── .Xresources                yours     text size (Xft.dpi) and cursor size
 ├── .sbclrc                    yours     loads Quicklisp (added by 30-lisp)
+├── .slime-secret              yours     Swank's password (600): Emacs and vikix eval send it
 │
 ├── .config/
 │   ├── vikix/

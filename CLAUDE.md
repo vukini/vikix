@@ -17,7 +17,7 @@ This folder sits inside an Obsidian vault, but it is a code repo: the vault's no
 No build step. The tests are scripts in `tests/`, and `.github/workflows/test.yml` runs the same scripts on GitHub (on each push and weekly):
 
 ```sh
-tests/run.sh                  # about two minutes: lint, lisp, battery, home, services, backup (with restic), image, theme, bar, rofi, wallpaper, examples, drives, firmware, fingerprint, updates, notifications, idle, capture, nightlight, update, windows, ai, info, and on Void packages + dry-run
+tests/run.sh                  # about two minutes: lint, lisp, battery, home, services, backup (with restic), image, theme, bar, rofi, wallpaper, examples, drives, firmware, fingerprint, updates, notifications, idle, capture, nightlight, update, windows, ai, swank (with Quicklisp), info, and on Void packages + dry-run
 tests/run.sh --all            # plus editors: Emacs and Neovim configs from scratch (minutes, network)
 tests/lint.sh                 # bash -n, executable bits, shellcheck -S warning (must stay at zero)
 DRY_RUN=1 bash install/<stage>.sh     # one stage, printing instead of changing
@@ -47,7 +47,7 @@ Real testing happens in a VM. The dev machine has a libvirt VM `void-vm` (`virsh
 
 **Session and window manager.** Void has no StumpWM package: `30-lisp` installs Quicklisp and `lib/build-stumpwm.lisp` builds `~/.local/bin/stumpwm` with Swank inside. Login on tty1 starts X; `.xinitrc` runs `bin/vikix-session` under `dbus-run-session`, which starts the background programs (pipewire, dunst, picom, guest agents, …) and then StumpWM. `config/stumpwm/init.lisp` loads the layer files in `config/stumpwm/vikix/` in a fixed order (theme → groups → commands → windows → keys → help → modeline → swank), each wrapped so one broken file doesn't kill the desktop, then the user's `user.lisp` last.
 
-**Live WM access.** Swank listens on `127.0.0.1:4004`; `vikix eval '(form)'` (`bin/vikix-eval`, Python) runs Lisp in the running StumpWM, in the `STUMPWM` package.
+**Live WM access.** Swank listens on `127.0.0.1:4004`; `vikix eval '(form)'` (`bin/vikix-eval`, Python) runs Lisp in the running StumpWM, in the `STUMPWM` package. It has a password, `~/.slime-secret` (made by `40-config`), sent raw as the first packet, as SLIME does; `swank-guard.lisp` keeps a wrong password from killing Swank's accept thread. 127.0.0.1 is reachable from the Windows VM (passt maps its gateway there), so any new local service must authenticate too. `drop_keys` (lib/common.sh) clears API keys from the environment in the installer and `vikix update`.
 
 **Snapshots of the user's files.** `vikix snapshot/changes/history/undo` keep a separate git repo at `~/.local/state/vikix/yours.git` whose work tree is `$HOME`, limited to `config/yours.list`. `vikix agent` snapshots before starting Claude Code.
 

@@ -7,16 +7,24 @@
 #
 # That folder is never in a snapshot of your files (bin/vikix excludes it
 # explicitly) and is only yours to read (700, its files 600).
+#
+# Only names a key has are exported (..._API_KEY, _KEY, _TOKEN, _SECRET),
+# from real files of yours: so a file dropped there can't set PATH,
+# LD_PRELOAD or ANTHROPIC_BASE_URL (sending your key elsewhere), and a link
+# can't make it read a file from somewhere else.
 
 vikix_export_secrets() {
   _vikix_dir="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/secrets"
-  [ -d "$_vikix_dir" ] || { unset _vikix_dir; return 0; }
+  if [ ! -d "$_vikix_dir" ] || [ -L "$_vikix_dir" ] || [ ! -O "$_vikix_dir" ]; then
+    unset _vikix_dir; return 0
+  fi
   for _vikix_f in "$_vikix_dir"/*; do
-    [ -f "$_vikix_f" ] || continue
+    [ -f "$_vikix_f" ] && [ ! -L "$_vikix_f" ] && [ -O "$_vikix_f" ] || continue
     _vikix_n=${_vikix_f##*/}
-    # Only names a variable can have; anything else in the folder is skipped.
     case $_vikix_n in
-      ''|[0-9]*|*[!A-Za-z0-9_]*) continue ;;
+      [!A-Z]*|*[!A-Z0-9_]*) continue ;;
+      *_API_KEY|*_KEY|*_TOKEN|*_SECRET) ;;
+      *) continue ;;
     esac
     export "$_vikix_n=$(cat "$_vikix_f")"
   done

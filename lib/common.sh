@@ -159,6 +159,16 @@ ensure_block() {
 # minute in the background for as long as this script runs. Without it,
 # sudo forgets the password after five minutes and a long install stops
 # half way to ask again, with nobody there to answer.
+# Drop the API keys (vikix ai key) from this process and what it starts:
+# an install or an update runs other people's code (npm, uv, Quicklisp,
+# build scripts), and none of it needs them.
+drop_keys() {
+  local v
+  for v in $(compgen -e); do
+    case $v in *_API_KEY|*_KEY|*_TOKEN|*_SECRET) unset "$v" ;; esac
+  done
+}
+
 sudo_keepalive() {
   [ "$DRY_RUN" = 1 ] && return 0
   [ -n "${VIKIX_SUDO_KEPT:-}" ] && return 0     # a parent script already did it

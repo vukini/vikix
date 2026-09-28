@@ -68,6 +68,7 @@ DRY_RUN=$dry
 export DRY_RUN
 # shellcheck source=lib/common.sh
 . "$VIKIX_DIR/lib/common.sh"
+drop_keys    # the stages run others' code (npm, uv, Quicklisp); none needs your API keys
 
 say "Vikix $(cat "$VIKIX_DIR/VERSION"), part $phase; log: $log"
 [ "$DRY_RUN" = 1 ] && say "dry run: nothing will be changed"

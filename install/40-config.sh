@@ -92,6 +92,21 @@ copy_user "$C/backup/exclude"             "$HOME/.config/vikix/backup-exclude"
 # written again from the saved theme, so a Vikix update reaches them.
 "$VIKIX_DIR/bin/vikix" theme --refresh
 
+# --- Swank's password ---------------------------------------------------------
+# Swank, in StumpWM on 127.0.0.1:4004, runs any Lisp it's sent, as you, and
+# 127.0.0.1 isn't only yours: the Windows VM reaches it through passt's
+# gateway address. With ~/.slime-secret, Swank lets in only a client that
+# sends it first: Emacs's SLIME and vikix eval both do, by themselves.
+# Made once, random, only yours to read; one you have already is kept.
+secret="$HOME/.slime-secret"
+if [ "$DRY_RUN" = 1 ]; then
+  [ -s "$secret" ] || printf '   would run: %s\n' "make $secret (random, 600)"
+elif [ ! -s "$secret" ]; then
+  ( umask 077; od -An -N32 -tx1 /dev/urandom | tr -d ' \n' > "$secret"; echo >> "$secret" )
+  say "made $secret: Swank now asks for it (Emacs and vikix eval send it by themselves)"
+fi
+[ "$DRY_RUN" = 1 ] || [ ! -e "$secret" ] || chmod 600 "$secret"
+
 # --- The guides as an Info manual -------------------------------------------
 # docs/ as ~/.local/share/info/vikix.info, for Emacs (C-h i) and `info vikix`,
 # which find it through INFOPATH (set by vikix-session and vikix.bash).

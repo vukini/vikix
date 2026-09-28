@@ -80,6 +80,8 @@ jobs:
         run: tests/ci.sh windows
       - name: ai
         run: tests/ci.sh ai
+      - name: swank
+        run: tests/ci.sh swank
       - name: info
         run: tests/ci.sh info
 

@@ -10,7 +10,9 @@ names work without a prefix. For each form it prints what the form
 printed, then "=> " and the value.
 
 It talks to the Swank server that config/stumpwm/vikix/swank.lisp starts
-on 127.0.0.1:4004 (VIKIX_SWANK_PORT changes the port). The Lisp side,
+on 127.0.0.1:4004 (VIKIX_SWANK_PORT changes the port). When ~/.slime-secret
+exists (40-config makes it), Swank lets in only a client that sends its
+first line first, as Emacs's SLIME does; so does this. The Lisp side,
 vikix-eval-for-agent, catches errors, so a bad form prints "error: ..."
 instead of leaving this command waiting.
 
@@ -76,6 +78,15 @@ def lisp_strings(text):
     return found
 
 
+def slime_secret():
+    """The first line of ~/.slime-secret, or None. Swank checks it the same way."""
+    try:
+        with open(os.path.expanduser("~/.slime-secret"), encoding="utf-8") as f:
+            return f.readline().rstrip("\n")
+    except OSError:
+        return None
+
+
 def main():
     args = sys.argv[1:]
     if args and args[0] in ("-h", "--help"):
@@ -94,6 +105,15 @@ def main():
               file=sys.stderr)
         return 2
     sock.settimeout(TIMEOUT)
+
+    # The password, before anything else: a Swank with ~/.slime-secret drops
+    # a client that doesn't send it (anything that can reach the port,
+    # such as a VM through passt's gateway, would otherwise run code here).
+    # Sent as it is, not as a Lisp string: Swank compares the packet's raw
+    # text (swank/rpc.lisp read-packet), as SLIME's slime-send-secret sends it.
+    secret = slime_secret()
+    if secret is not None:
+        send(sock, secret)
 
     # Ask Swank to call our safe evaluator, and to hand back what it printed.
     # The fboundp check keeps Swank out of its debugger when StumpWM is

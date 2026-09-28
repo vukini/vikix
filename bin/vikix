@@ -61,6 +61,7 @@ cmd_migrate() {
 }
 
 cmd_update() {
+  drop_keys
   # Everything it prints also goes to a log, like the installer's. Set up
   # once: the run restarted after the pull (below) inherits it.
   if [ -z "${VIKIX_UPDATE_LOG:-}" ]; then
@@ -140,6 +141,13 @@ cmd_doctor() {
   # The AI side. Claude Code itself is optional: Super+a offers to install it.
   if [ -d "$YOURS_GIT" ]; then say "your files have a snapshot history"
   else warn "no snapshot history of your files yet (40-config starts it)"; ok=0; fi
+  # Without it, anything that reaches 127.0.0.1:4004 (the Windows VM, too)
+  # runs code in StumpWM as you.
+  if [ -s "$HOME/.slime-secret" ] && [ "$(stat -c %a "$HOME/.slime-secret")" = 600 ]; then
+    say "Swank asks for a password (~/.slime-secret)"
+  else
+    warn "Swank lets anyone on 127.0.0.1 in: no ~/.slime-secret, or others can read it (vikix update makes it)"; ok=0
+  fi
   # API keys belong in ~/.config/vikix/secrets (vikix ai key), not in your
   # files, where the snapshot history keeps them for ever.
   bash "$VIKIX_DIR/bin/vikix-ai" key check || ok=0
@@ -307,7 +315,13 @@ cmd_agent() {
   fi
   cmd_snapshot "before an agent session"
   say "to see what the agent changed: vikix changes    to take it back: vikix undo"
-  exec claude "$@"
+  # With ANTHROPIC_API_KEY set (vikix ai key), Claude Code would use it and
+  # bill the key's API account, and the agent could print it with `env`.
+  # So it starts without it, on your Claude login, unless you ask.
+  if [ "${VIKIX_AGENT_API_KEY:-}" = 1 ]; then
+    exec claude "$@"
+  fi
+  exec env -u ANTHROPIC_API_KEY claude "$@"
 }
 
 # --- Themes ------------------------------------------------------------------
