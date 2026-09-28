@@ -15,6 +15,13 @@ Installed it already? [docs/](docs/README.md) is the map: where everything is, h
 On a glibc Void install, logged in as your normal user:
 
 ```sh
+curl -fsSL https://vikix.dev/install | bash
+sudo reboot
+```
+
+That's [`site/install`](site/install), short enough to read first: it checks this is glibc Void and that you're not root, installs git if it's missing, clones Vikix into `~/vikix` and runs `~/vikix/install.sh`. What you put after `bash -s --` goes to the install: `curl -fsSL https://vikix.dev/install | bash -s -- --with essentials`. Or do the same by hand:
+
+```sh
 git clone https://github.com/vukini/vikix.git ~/vikix
 cd ~/vikix
 ./install.sh --dry-run      # read what it would do
@@ -777,6 +784,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `pkg` | `vikix pkg add NAME` installs a package by its name at once, and other words open a search that leaves out what's installed; `drop` asks unless `--yes`, and a package a wanted list names goes on the skip list (the feature's `vikix remove` named when it has one); `10-packages` leaves the skip list out and says so; adding again takes a package off, keeping your comments and a linked file |
 | `info` | The guides in `docs/` make an Info manual with no makeinfo warnings and a node for every heading; a broken link or a page missing from the table stops the build; `40-config` installs it once and lists it in the info `dir`; Emacs opens it and follows a link (needs makeinfo) |
 | `home` | `40-config` and `60-login` change nothing when run again, and `vikix undo` puts your files back (and undoing again brings the change back); API keys never reach the history, even when `yours.list` names their folder, and on a history older than that rule |
+| `oneline` | `site/install`, piped into bash as `curl … \| bash -s -- ARGS` would: it clones Vikix and runs `install.sh` with the arguments, refuses another system, musl and root before changing anything, installs git first when it's missing, updates a clone already there and leaves alone a folder that isn't one, and a download cut off halfway runs nothing |
 | `ai` | `vikix ai key set` keeps a key 600 in a 700 folder and never prints it (a fingerprint instead), refuses names that aren't keys' (`PATH`, `LD_PRELOAD`, `ANTHROPIC_BASE_URL`), typos and a key typed on the command line; only keys' names from real files of yours are exported, in shells and the session (whose log's trace is off while they load); `check` finds a key in your files, `~/.profile` and the like, and their history, by file and line, names a dotfile linked into a git repo and anything odd in the folder, and is quiet once all's fixed; `vikix agent` and `vikix update` run without the keys |
 | `swank` | With a real Swank: without `~/.slime-secret`'s password, or with a wrong one, nothing runs, and Swank goes on; a Swank started before the guard is restarted, guarded, by the next reload; `vikix eval` sends it and works; `40-config` makes it once, 600 (needs sbcl and Quicklisp) |
 | `update` | `vikix update` runs the new version's steps after it pulls, logs the whole run, carries on past a failed stage, naming it at the end, and pulls a checkout with an SSH remote over HTTPS; changes made in the checkout are set aside in a patch file and a named stash (a dry run only says so), editors' leftovers are ignored, and the update goes on; a clash left in the checkout, or a commit made there, stops it with the commands to fix it |

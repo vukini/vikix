@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# vikix.dev/install — install Vikix with one line, on a fresh glibc Void:
+#
+#   curl -fsSL https://vikix.dev/install | bash
+#   curl -fsSL https://vikix.dev/install | bash -s -- --with essentials
+#
+# It checks this is glibc Void and that you're not root, installs git if
+# it's missing, clones Vikix into ~/vikix (or updates the clone that's
+# there), and runs ~/vikix/install.sh with what you put after "--". That
+# asks for your password once, installs the base, and says what's next.
+#
+# Read it first: it's this file, and nothing else is fetched but Void's
+# packages and github.com/vukini/vikix. The whole of it is one function,
+# called on the last line, so a download cut off halfway runs nothing.
+
+set -euo pipefail
+
+vikix_install() {
+  local repo=${VIKIX_REPO:-https://github.com/vukini/vikix.git}
+  local dir=${VIKIX_INSTALL_DIR:-$HOME/vikix}
+  local os_release=${VIKIX_OS_RELEASE:-/etc/os-release}
+  say() { printf ':: %s\n' "$*"; }
+  # A terminal to read from: piped in, this script's stdin is the download.
+  have_tty() { [ -z "${VIKIX_NO_TTY:-}" ] && { : </dev/tty; } 2>/dev/null; }
+  die() { printf 'xx %s\n' "$*" >&2; exit 1; }
+
+  local id
+  # shellcheck source=/dev/null  # the system's os-release
+  id=$( . "$os_release" 2>/dev/null && echo "${ID:-}" ) || true
+  [ "$id" = void ] || die "this isn't Void Linux (${os_release}: ID='${id}'). Vikix goes on top of a glibc Void install: https://voidlinux.org/download/"
+  if command -v xbps-uhelper >/dev/null 2>&1 && xbps-uhelper arch | grep -q musl; then
+    die "this is Void with musl; Vikix needs the glibc one"
+  fi
+  [ "$(id -u)" -ne 0 ] || die "run this as your normal user, not root: Vikix asks for sudo when it needs it"
+  command -v sudo >/dev/null 2>&1 || die "sudo isn't installed; as root: xbps-install -S sudo, and add your user to the wheel group"
+
+  if ! command -v git >/dev/null 2>&1; then
+    say "installing git (your password, for sudo)"
+    if have_tty; then
+      sudo xbps-install -Syu xbps </dev/tty && sudo xbps-install -Sy git </dev/tty
+    else
+      sudo xbps-install -Syu xbps && sudo xbps-install -Sy git
+    fi
+  fi
+
+  if [ -d "$dir/.git" ]; then
+    say "$dir is already a clone; updating it"
+    git -C "$dir" pull --ff-only
+  elif [ -e "$dir" ]; then
+    die "$dir is there but isn't a clone of Vikix; move it aside and run this again"
+  else
+    say "cloning Vikix into $dir"
+    git clone --quiet "$repo" "$dir"
+  fi
+
+  say "starting the install: $dir/install.sh $*"
+  # Piped in, this script's stdin is the download; the install gets the
+  # terminal instead, for sudo's password and anything it asks.
+  if have_tty; then exec "$dir/install.sh" "$@" </dev/tty; fi
+  exec "$dir/install.sh" "$@"
+}
+
+vikix_install "$@"

@@ -15,10 +15,6 @@ Built in this order: AI first, then newcomers, then the rest. Package facts were
 
 ### Newcomers
 
-The install rework, agreed 2026-09-28: `install.sh` installs the base, and everything else is a feature (`vikix add`, `vikix remove`, `vikix features` in 0.46.0; `install.sh` installs the base, with `--with`, in 0.47.0; the welcome in 0.48.0; `vikix pkg` in 0.50.0). Still to do:
-
-- **R4. A one-line install.** `curl -fsSL https://vikix.dev/install | bash` checks it's glibc Void and not root, installs git if needed, clones to ~/vikix and starts install.sh. The script lives in site/, short enough to read before running it, and the site shows it with a "read it first" link.
-
 5. **A key overlay.** Super+/ (and maybe holding Super for a second) shows a card of the Super keys, grouped, from *vikix-bindings*. And StumpWM's which-key-mode on, for the Ctrl+t keys.
 6. **A mouse fallback, and familiar keys.** Clicking a workspace in the bar goes there; volume opens pavucontrol, Wi-Fi nmtui, Bluetooth blueman. Super+Space as a second launcher key.
 7. **"Installing Void for Vikix", and "Your first hour".** A docs page with screenshots of void-installer: the glibc image, partitioning, a user in wheel, the network. Then a short one: the keys, part two, themes, update. Both linked from the site (the guides on vikix.dev, below).

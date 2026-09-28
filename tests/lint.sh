@@ -10,7 +10,7 @@ export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a 
 cd "$(dirname "$0")/.."
 
 mapfile -t scripts < <(grep -lE '^#!.*(ba)?sh' install.sh install-*.sh install/*.sh \
-                         lib/common.sh migrations/*.sh bin/* tests/*.sh)
+                         lib/common.sh migrations/*.sh bin/* tests/*.sh site/install)
 fail=0
 
 for f in "${scripts[@]}"; do
