@@ -28,7 +28,7 @@
 #                         where fprintd supports the reader
 #   vikix ai key set|list|remove|check   API keys (ANTHROPIC_API_KEY ...)
 #                         kept safely, out of your dotfiles and their history
-#   vikix windows [setup|create ISO|stop|status|remove]   Windows in a VM:
+#   vikix windows [setup|create ISO|stop|status|network|remove]   Windows in a VM:
 #                         set it up once, install it by itself, then open its
 #                         desktop in a window (vikix windows help)
 
@@ -148,6 +148,8 @@ cmd_doctor() {
   else
     warn "Swank lets anyone on 127.0.0.1 in: no ~/.slime-secret, or others can read it (vikix update makes it)"; ok=0
   fi
+  # The Windows VM, if there is one, on its private network.
+  bash "$VIKIX_DIR/bin/vikix-windows" check || ok=0
   # API keys belong in ~/.config/vikix/secrets (vikix ai key), not in your
   # files, where the snapshot history keeps them for ever.
   bash "$VIKIX_DIR/bin/vikix-ai" key check || ok=0

@@ -6,13 +6,17 @@
 # 0.40.1), CUPS, and later a local model. `vikix windows network` sets up
 # the bridge (the system libvirt, its default network, one line in
 # /etc/qemu/bridge.conf) and moves the VM onto it. Only machines that
-# chose the Windows VM (`vikix windows setup`); safe to run twice.
+# chose the Windows VM (`vikix windows setup`); safe to run twice. Never
+# fails the update: if it can't be done now, doctor says so until it is.
 set -euo pipefail
 . "$VIKIX_DIR/lib/common.sh"
 
 optional="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/optional"
 if [ -f "$optional" ] && read_list "$optional" | grep -qx windows; then
-  "$VIKIX_DIR/bin/vikix-windows" network
+  # A failure here mustn't stop the update (a failed migration would stop
+  # every later one too). vikix doctor keeps saying so until it's fixed.
+  "$VIKIX_DIR/bin/vikix-windows" network ||
+    warn "the Windows VM's network wasn't changed (above); vikix doctor reminds you, and vikix windows network tries again"
 else
   say "no Windows VM chosen here; nothing to do"
 fi

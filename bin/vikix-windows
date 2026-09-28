@@ -11,8 +11,8 @@
 #   vikix windows [open]  start it if it's off, and show its desktop in a window
 #   vikix windows stop [--force]   shut Windows down (--force: switch it off)
 #   vikix windows status  is it running, is it installed, where things are
-#   vikix windows network put the VM on the isolated network (setup and
-#                         vikix update do it; asks for sudo once)
+#   vikix windows network put the VM on its private network (setup and
+#                         vikix update do it; asks for sudo only to change something)
 #   vikix windows remove  delete the VM and its disk (asks first)
 #
 # The VM runs as you (libvirt's qemu:///session), so its disk, its TPM
@@ -20,7 +20,7 @@
 # in Windows, and `vikix backup` covers it; the VM's disk it leaves out.
 # The display is SPICE with no network port: only this user can open it.
 #
-# Its network is libvirt's NAT bridge, virbr0 (through qemu-bridge-helper):
+# Its network is private: libvirt's NAT bridge, virbr0 (through qemu-bridge-helper):
 # Windows reaches the internet, and sees this machine only as
 # 192.168.122.1, where nothing that listens on 127.0.0.1 alone can be
 # reached: Swank, CUPS, a local model. (passt, the first network, handed
@@ -335,51 +335,62 @@ cmd_watch_install() {
 }
 
 # ---------------------------------------------------------------------------
-# The isolated network, made ready, and the VM moved onto it. Safe to run
-# again: each part is checked first. Needs sudo for the system's side.
-# The system libvirt, for looking only: with sudo, or in a dry run
-# without it (it answers you when you're in the libvirt group).
-sysvirsh() {
-  # shellcheck disable=SC2033  # sudo runs the real virsh, not the session wrapper above
-  if [ "$DRY_RUN" = 1 ]; then command virsh -q -c "$SYSTEM_URI" "$@"; else sudo virsh -q -c "$SYSTEM_URI" "$@"; fi
+# The VM's private network: libvirt's NAT bridge, virbr0. Each part is
+# checked without sudo (files anyone can read), so nothing asks for your
+# password when all's in place; sudo only for what has to change.
+SYS_NET=${VIKIX_SYS_NET:-/sys/class/net}                 # tests point these elsewhere
+LIBVIRT_NETS=${VIKIX_LIBVIRT_NETS:-/etc/libvirt/qemu/networks}
+net_up()        { [ -e "$SYS_NET/$BRIDGE" ]; }            # libvirt makes virbr0 when it starts the network
+net_defined()   { [ -e "$LIBVIRT_NETS/default.xml" ]; }
+net_autostart() { [ -e "$LIBVIRT_NETS/autostart/default.xml" ]; }
+bridge_allowed(){ grep -qx "allow $BRIDGE" "$BRIDGE_CONF" 2>/dev/null; }
+service_on()    { [ -e "$VIKIX_SERVICE_DIR/$1" ]; }
+network_ready() {
+  service_on virtlogd && service_on libvirtd && net_defined && net_autostart && net_up && bridge_allowed
 }
 
-# A change to the system libvirt (with sudo; printed in a dry run).
+# A change to the system libvirt, with sudo (printed in a dry run).
 sudo_virsh() {
   # shellcheck disable=SC2033  # sudo runs the real virsh, not the session wrapper above
   run sudo virsh -q -c "$SYSTEM_URI" "$@"
 }
 
-# The default network's state, as text. Kept, then searched: grep -q on a
-# pipe can close it early, and with pipefail that reads as a failure.
-net_info() { sysvirsh net-info default 2>/dev/null || true; }
-
-network_ready() {
-  [ -e "$VIKIX_SERVICE_DIR/libvirtd" ] && grep -qx "allow $BRIDGE" "$BRIDGE_CONF" 2>/dev/null &&
-    grep -q '^Active: *yes' <<<"$(net_info)"
-}
-
-vm_on_bridge() {
-  grep -q "<source bridge='$BRIDGE'/>" <<<"$(virsh dumpxml --inactive "$NAME" 2>/dev/null || true)"
-}
+# The VM's network as saved, and as the running Windows has it now: a VM
+# moved while running keeps the old one until it starts again.
+on_bridge() { grep -q "<source bridge='$BRIDGE'/>" <<<"$1"; }
+saved_xml()   { virsh dumpxml --inactive "$NAME" 2>/dev/null || true; }
+running_xml() { [ "$(state)" = running ] && virsh dumpxml "$NAME" 2>/dev/null || true; }
+vm_on_bridge() { on_bridge "$(saved_xml)"; }
+# Running, but still on the network it had before it was moved.
+running_on_old() { local x; x=$(running_xml); [ -n "$x" ] && ! on_bridge "$x"; }
 
 cmd_network() {
-  if [ "$DRY_RUN" != 1 ] && network_ready; then
-    say "the isolated network ($BRIDGE) is ready"
+  if network_ready; then
+    say "the VM's private network is ready; nothing to change there"
   else
-    say "setting up the isolated network ($BRIDGE): libvirt's NAT, for the VM"
-    # The system libvirt runs the default network (dnsmasq hands out
-    # addresses, NAT to the internet); virtlogd keeps its logs.
+    say "setting up the Windows VM's private network (libvirt's, virbr0), so programs"
+    echo "   in Windows can't reach what this machine keeps to itself. It needs your"
+    echo "   password (sudo) for the system's side."
+    # The system libvirt runs the network (dnsmasq hands out addresses,
+    # NAT to the internet); virtlogd keeps its logs. Both from each boot.
     enable_service virtlogd
     enable_service libvirtd
-    local _
     if [ "$DRY_RUN" != 1 ]; then
-      for _ in $(seq 20); do sysvirsh version >/dev/null 2>&1 && break; sleep 1; done
+      local up='' _
+      for _ in $(seq 20); do
+        # shellcheck disable=SC2033  # sudo runs the real virsh, not the session wrapper
+        sudo virsh -q -c "$SYSTEM_URI" version >/dev/null 2>&1 && { up=1; break; }
+        sleep 1
+      done
+      if [ -z "$up" ]; then
+        warn "the system's libvirt service didn't start, so the VM's network can't be set up now."
+        echo "   The VM keeps the network it has. See why: sudo sv status libvirtd"
+        echo "   Then try again: vikix windows network"
+        return 1
+      fi
     fi
-    local info
-    info=$(net_info)
-    if [ -z "$info" ]; then
-      # Void's libvirt comes with it defined; this is for one removed since.
+    if ! net_defined; then
+      # Void's libvirt comes with it; this is for one removed since.
       # libvirt's own default: NAT, virbr0, 192.168.122.0/24.
       local xml
       xml=$(mktemp --suffix=.xml)
@@ -396,24 +407,52 @@ NET
       sudo_virsh net-define "$xml"
       rm -f "$xml"
     fi
-    grep -q '^Autostart: *yes' <<<"$info" || sudo_virsh net-autostart default
-    grep -q '^Active: *yes' <<<"$info" || sudo_virsh net-start default
+    net_autostart || sudo_virsh net-autostart default
+    net_up || sudo_virsh net-start default
     # qemu-bridge-helper lets a VM of yours (qemu:///session) join the
     # bridge only when this file allows it by name.
-    if ! grep -qx "allow $BRIDGE" "$BRIDGE_CONF" 2>/dev/null; then
+    if ! bridge_allowed; then
       run sudo mkdir -p "$(dirname "$BRIDGE_CONF")"
       run sudo sh -c "echo 'allow $BRIDGE' >> '$BRIDGE_CONF'"
       run sudo chmod 644 "$BRIDGE_CONF"
     fi
-  fi
-  # A VM made before this was on passt: move it over.
-  if defined && ! vm_on_bridge; then
-    say "moving the Windows VM onto $BRIDGE (from passt, which let it reach this machine's 127.0.0.1)"
-    run virt-xml --connect "$URI" "$NAME" --edit --network "clearxml=yes,type=bridge,source=$BRIDGE,model=virtio"
-    if [ "$(state)" = running ]; then
-      say "Windows uses it from its next start (vikix windows stop, then vikix windows)"
+    if [ "$DRY_RUN" != 1 ] && ! net_up; then
+      warn "libvirt's default network didn't come up ($BRIDGE is missing). See: sudo virsh net-start default"
+      return 1
     fi
   fi
+  # A VM made before 0.41.0 was on passt: move it over. Windows sees a new
+  # network card (a new MAC address); settings made on the old one don't carry over.
+  if defined && ! vm_on_bridge; then
+    say "moving the Windows VM onto its private network (from passt, which let"
+    echo "   programs in Windows reach this machine's own services)"
+    run virt-xml --connect "$URI" "$NAME" --edit --network "clearxml=yes,type=bridge,source=$BRIDGE,model=virtio"
+  fi
+  if defined && running_on_old; then
+    say "Windows is running on the old network until it starts again: vikix windows stop, then vikix windows"
+    notify -u critical "Restart Windows once" "Its safer network starts with it: vikix windows stop, then vikix windows."
+  fi
+  return 0
+}
+
+# One line on the VM's network, for status and vikix doctor; true when safe.
+network_line() {
+  if ! vm_on_bridge; then
+    echo "the old one (passt): programs in Windows can reach this machine's own services; fix it: vikix windows network"
+    return 1
+  elif running_on_old; then
+    echo "private from Windows's next start; it's still on the old one now: restart it (vikix windows stop, then vikix windows)"
+    return 1
+  fi
+  echo "private: Windows reaches the internet, not what this machine keeps to itself"
+}
+
+# For vikix doctor: nothing to say when there's no Windows VM.
+cmd_check() {
+  { [ -f "$OPTIONAL" ] && read_list "$OPTIONAL" | grep -qx windows && defined; } || return 0
+  local line
+  if line=$(network_line); then say "the Windows VM's network is $line"
+  else warn "the Windows VM's network is $line"; return 1; fi
 }
 
 cmd_open() {
@@ -424,6 +463,7 @@ cmd_open() {
     virsh start "$NAME" >/dev/null
   fi
   finish_install
+  running_on_old && notify -u critical "Restart Windows once" "It's still on its old network, which could reach this machine's own services: vikix windows stop, then vikix windows."
   setsid virt-viewer --connect "$URI" --attach --auto-resize=always "$NAME" >/dev/null 2>&1 < /dev/null &
 }
 
@@ -468,10 +508,7 @@ cmd_status() {
                                                  END { printf "%d GB, %s CPUs", m / 1048576, c }')"
   fi
   echo "shared folder: $SHARED (drive Z: in Windows)"
-  if defined; then
-    if vm_on_bridge; then echo "network:       isolated ($BRIDGE): this machine's 127.0.0.1 is out of Windows's reach"
-    else echo "network:       passt: Windows can reach this machine's 127.0.0.1 services; fix it: vikix windows network"; fi
-  fi
+  if defined; then echo "network:       $(network_line || true)"; fi
 }
 
 cmd_remove() {
@@ -501,6 +538,7 @@ case ${1:-open} in
   power)         cmd_power ;;
   status)        cmd_status ;;
   network)       cmd_network ;;
+  check)         cmd_check ;;
   remove)        shift; cmd_remove "$@" ;;
   watch-install) cmd_watch_install ;;
   help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;

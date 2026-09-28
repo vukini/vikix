@@ -65,22 +65,27 @@ case \$1 in
   qemu-agent-command) [ -e $t/ready ] || exit 1; case \$3 in *guest-file-open*) echo '{\"return\": 5}' ;; *) echo '{\"return\": {}}' ;; esac ;;
   domblklist) printf 'file disk sda /x/windows.qcow2\nfile cdrom sdb /x/win.iso\nfile cdrom sdc /x/virtio.iso\nfile cdrom sdd /x/answers.iso\n' ;;
   undefine) rm -f $t/defined ;;
-  dumpxml) cat $t/domxml 2>/dev/null ;;
+  dumpxml) if [ \"\$2\" = --inactive ] || [ ! -e $t/domxml-live ]; then cat $t/domxml 2>/dev/null; else cat $t/domxml-live; fi ;;
+  version) [ ! -e $t/libvirt-down ] ;;
+  net-define) touch $t/nets/default.xml ;;
+  net-autostart) touch $t/nets/autostart/default.xml ;;
+  net-start) mkdir -p $t/sysnet/virbr0 ;;
 esac"
 stub virt-xml "echo \"<source bridge='virbr0'/>\" > $t/domxml"
 printf "<interface type='user'><backend type='passt'/></interface>" > "$t/domxml"   # a VM made before 0.41.0
 stub pkill
 stub pgrep "[ -e $t/qemu-running ]"
 # sudo: never the real one in a test; it runs the command (on made-up paths).
-stub sudo '"$@"'
+stub sudo '"$@"'   # logs "sudo ...", then runs it
 stub xbps-query 'exit 1'
 export PATH="$t/bin:$PATH"
 
 sum=$(echo download | sha256sum | cut -d' ' -f1)
 export VIKIX_WINDOWS_VIRTIO_SHA256=$sum VIKIX_WINDOWS_WINFSP_SHA256=$sum VIKIX_KVM="$t/kvm"
 # The system's side, in the made-up place: runit's folders and bridge.conf.
-mkdir -p "$t/sv/libvirtd" "$t/sv/virtlogd" "$t/service"
+mkdir -p "$t/sv/libvirtd" "$t/sv/virtlogd" "$t/service" "$t/nets/autostart" "$t/sysnet"
 export VIKIX_SV_DIR="$t/sv" VIKIX_SERVICE_DIR="$t/service" VIKIX_BRIDGE_CONF="$t/qemu/bridge.conf"
+export VIKIX_LIBVIRT_NETS="$t/nets" VIKIX_SYS_NET="$t/sysnet"
 touch "$t/kvm"
 win() { bash "$here/bin/vikix-windows" "$@"; }
 optional="$HOME/.config/vikix/optional"
@@ -172,23 +177,53 @@ check "no notification that Windows is ready" grep -q 'notify-send .*Windows is 
 out=$(win status)
 check "status should show memory and CPUs as '6 GB, 2 CPUs': $(grep memory <<<"$out")" grep -q 'memory, CPUs:  6 GB, 2 CPUs' <<<"$out"
 
-# --- the isolated network -------------------------------------------------------------
-# A VM on passt (made before 0.41.0) is moved to virbr0; one on virbr0 is left alone.
+# --- the private network ------------------------------------------------------------------
+# libvirt that won't start: said plainly, the VM left as it is, and a failure
+# (so setup stops); but the migration never fails the update.
 printf "<interface type='user'><backend type='passt'/></interface>" > "$t/domxml"
-out=$(win status)
-check "status should say a passt VM can reach this machine: $(grep network <<<"$out")" grep -q 'network: *passt: Windows can reach' <<<"$out"
+touch "$t/libvirt-down"
 : > "$calls"
-touch "$t/service/libvirtd"; mkdir -p "$t/qemu"; echo 'allow virbr0' > "$t/qemu/bridge.conf"
-out=$(win network 2>&1)
-check "network didn't move a passt VM onto virbr0: $out" grep -q 'virt-xml .*--edit --network clearxml=yes,type=bridge,source=virbr0' "$calls"
-out=$(win status)
-check "status should say the VM is isolated: $(grep network <<<"$out")" grep -q 'network: *isolated (virbr0)' <<<"$out"
-: > "$calls"
-win network >/dev/null 2>&1
-check "network edited a VM already on virbr0" bash -c "! grep -q virt-xml '$calls'"
-# The migration: only where the Windows VM was chosen.
+out=$(win network 2>&1) && { echo "FAIL: network said all's well with libvirt not starting"; fail=1; }
+check "a libvirt that won't start should be said plainly: $out" grep -q "libvirt service didn't start" <<<"$out"
+check "the VM was moved with no network to move it to" bash -c "! grep -q virt-xml '$calls'"
 mig=$(grep -l 'vikix-windows" network' "$here"/migrations/*.sh | head -1)
 check "no migration moves existing VMs onto virbr0" test -n "$mig"
+VIKIX_DIR="$here" bash "$mig" >/dev/null 2>&1 || { echo "FAIL: the migration failed the update when libvirt wouldn't start"; fail=1; }
+rm "$t/libvirt-down"
+out=$(win check 2>&1) && { echo "FAIL: vikix doctor's check passed a VM on passt"; fail=1; }
+check "doctor should say a passt VM's programs can reach this machine: $out" grep -q 'the old one (passt)' <<<"$out"
+
+# A VM on passt is moved; from nothing, the network is made.
+: > "$calls"
+out=$(win network 2>&1) || { echo "FAIL: network failed: $out"; fail=1; }
+check "network didn't move a passt VM onto virbr0: $out" grep -q 'virt-xml .*--edit --network clearxml=yes,type=bridge,source=virbr0' "$calls"
+check "network didn't define, autostart and start the default network" \
+  test -e "$t/nets/default.xml" -a -e "$t/nets/autostart/default.xml" -a -e "$t/sysnet/virbr0"
+check "network didn't let VMs of yours join virbr0" grep -qx 'allow virbr0' "$t/qemu/bridge.conf"
+out=$(win status)
+check "status should say the VM's network is private: $(grep network <<<"$out")" grep -q 'network: *private:' <<<"$out"
+check "status still says isolated, which in libvirt means no internet" lacks 'isolated' "$out"
+win check >/dev/null 2>&1 || { echo "FAIL: vikix doctor's check failed a VM on its private network"; fail=1; }
+
+# Moved while running: until Windows restarts, it isn't safe yet, and says so.
+printf "<interface type='user'><backend type='passt'/></interface>" > "$t/domxml-live"
+out=$(win status)
+check "status should say the running Windows is still on the old network: $(grep network <<<"$out")" grep -q "still on the old one now: restart it" <<<"$out"
+: > "$calls"
+win network >/dev/null 2>&1 || true
+check "network should ask for a restart of a Windows still on the old network" grep -q 'notify-send .*Restart Windows once' "$calls"
+rm "$t/domxml-live"
+
+# All in place: nothing to change, and no password asked.
+: > "$calls"
+out=$(win network 2>&1)
+check "with everything ready, network should say so: $out" grep -q 'nothing to change' <<<"$out"
+check "with everything ready, network used sudo (a password prompt for nothing)" bash -c "! grep -q '^sudo' '$calls'"
+check "network edited a VM already on virbr0" bash -c "! grep -q virt-xml '$calls'"
+out=$(DRY_RUN=1 win network 2>&1)
+check "a dry run with everything ready should say nothing to change: $out" grep -q 'nothing to change' <<<"$out"
+
+# The migration: only where the Windows VM was chosen.
 : > "$calls"
 mv "$optional" "$t/optional.aside"
 VIKIX_DIR="$here" bash "$mig" >/dev/null 2>&1
