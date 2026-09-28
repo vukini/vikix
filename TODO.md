@@ -31,7 +31,41 @@ Built in this order: AI first, then newcomers, then the rest. Package facts were
     - **Package it:** an xbps-src template, after Hype's `pkgbuild/PKGBUILD`, built in the style of 65-languages (pinned) until it's in void-packages; then a feature, `vikix add hype`.
     - **The AI side:** `hype skill install` puts a skill in `~/.claude/skills/`, so the agent can write the slides; a good example of an AI workflow for the site and the docs.
     - Prior art for running it outside Omarchy, with screenshots: the Mac port, https://github.com/gscalzo/HypeX.
-12. **Tutorials: `vikix learn c`.** A hands-on C course in the terminal, lessons checked on save, twelve tracks well past the basics, on a language-neutral runner. The plan, and the decisions it waits on, are in `TUTORIALS.md`.
+12. **Tutorials: `vikix learn c`.** A hands-on C course in the terminal, lessons checked on save, twelve tracks well past the basics, on a language-neutral runner. The plan, and the decisions it waits on, are in `TUTORIALS.md`. The steps: [C tutorials](#c-tutorials-vikix-learn-c), below.
+
+## C tutorials: `vikix learn c`
+
+Plan: Learning To Code project → "Vikix — C Tutorials Plan"
+Standard: C23 (ISO/IEC 9899:2024). Free draft N3220:
+https://www.open-std.org/jtc1/sc22/wg14/www/docs/n3220.pdf
+
+### Decide first
+- [ ] Lesson style: working example first, then a small exercise? (or examples only)
+- [ ] Audience: me first, or Vikix newcomers too? (sets where track 1 starts)
+- [ ] Editors: terminal only, or an Emacs/Neovim key that runs the check?
+- [ ] Put ~/learn/c/ in yours.list so `vikix undo` covers exercise work?
+- [ ] Switch the plan from -std=c17 to -std=c23 (check the gcc/clang versions on Void)
+
+### Phase 0: prove the feel
+- [ ] bin/vikix-learn runner (language-neutral: each course folder carries its own compile/check)
+- [ ] Commands: learn c | list | go NN | hint | reset NN | check
+- [ ] Watch mode with entr; build with -Wall -Wextra -pedantic -g -fsanitize=address,undefined
+- [ ] Design-recipe checks run one step at a time; show only the first failure
+- [ ] Three sample lessons: one from track 1 (toolchain), 3 (functions), 4 (pointers)
+- [ ] `make check` in learn/c/ regenerates every quoted output and diffs it (evidence rule)
+- [ ] Lessons cite C23 sections (e.g. §6.5.7) against N3220
+- [ ] Test in the container, then in the VM
+
+### Later
+- [ ] Phase 1: tracks 1–4
+- [ ] Phase 2: tracks 5–8 + vikix-tutor skill (Super+a in a lesson folder)
+- [ ] Phase 3: tracks 9–12 + capstones (Forth in C, tiny Lisp in C, vikix-battery in C)
+- [ ] Reuse the runner for other languages: learn lisp / forth / haskell / sql
+
+### Reference
+- N3220 (C23), N1570 (C11), N1256 (C99): open-std.org/jtc1/sc22/wg14/www/docs/
+- cppreference.com, C section: topic by topic, marks what changed in each version
+- Bottom-Up C findings (14 measured surprises) → lesson material
 
 ## To look into
 
