@@ -25,6 +25,13 @@ Built in this order: AI first, then newcomers, then the rest. Package facts were
 9. **More themes.** Three or four more (Gruvbox, Nord, Tokyo Night, a high-contrast one), each with a wallpaper. Then make Emacs and Neovim follow `vikix theme`.
 10. **Whole-system undo.** When / is btrfs: snapper snapshots before each `vikix update`, and `vikix rollback` notes. Skip cleanly on ext4.
 11. **The guides on vikix.dev.** A Docs link on the site to `docs/` on GitHub, or the four pages built into the site. Same words either way: `docs/` stays the source.
+12. **Hype, DHH's Markdown presentation app, as a feature.** https://github.com/omacom/hype (MIT, Qt 6 and C++). Hype's code needs no change: its Omarchy ties are handled on Vikix's side. Checked in Void on 2026-09-28: every dependency is packaged (qt6-base, -declarative, -multimedia, -imageformats, -svg and their -devel; ffmpeg6-devel, libwebp-devel, source-highlight 3.1.9; gcc and make are in dev.list), and so are xdg-desktop-portal and xdg-desktop-portal-gtk. Steps:
+    - **Build it** in the VM: `git clone https://github.com/omacom/hype && cd hype && ./bin/build`, then without a window `./build/hype render examples/welcome.md -o slides/`, then the editor, `./build/hype open examples/welcome.md`. Video may stutter in a VM: judge playback on real hardware.
+    - **File dialogs:** Hype has no fallback, so Open and Save fail without a portal. Install and start xdg-desktop-portal and xdg-desktop-portal-gtk from the session. The session already runs under D-Bus (`dbus-run-session` in `.xinitrc`), which the portal needs.
+    - **Its themes follow Vikix's:** `vikix theme` also writes each theme as `~/.config/omarchy/themes/<name>/colors.toml` (lines like `background = "#1a1b26"`), or sets OMARCHY_PATH, and keeps `~/.local/state/omarchy/current/theme/colors.toml` pointing at the current one, so the editor follows the desktop.
+    - **Package it:** an xbps-src template, after Hype's `pkgbuild/PKGBUILD`, built in the style of 65-languages (pinned) until it's in void-packages; then a feature, `vikix add hype`.
+    - **The AI side:** `hype skill install` puts a skill in `~/.claude/skills/`, so the agent can write the slides; a good example of an AI workflow for the site and the docs.
+    - Prior art for running it outside Omarchy, with screenshots: the Mac port, https://github.com/gscalzo/HypeX.
 
 ## To look into
 
