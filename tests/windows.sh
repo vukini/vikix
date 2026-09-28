@@ -65,14 +65,22 @@ case \$1 in
   qemu-agent-command) [ -e $t/ready ] || exit 1; case \$3 in *guest-file-open*) echo '{\"return\": 5}' ;; *) echo '{\"return\": {}}' ;; esac ;;
   domblklist) printf 'file disk sda /x/windows.qcow2\nfile cdrom sdb /x/win.iso\nfile cdrom sdc /x/virtio.iso\nfile cdrom sdd /x/answers.iso\n' ;;
   undefine) rm -f $t/defined ;;
+  dumpxml) cat $t/domxml 2>/dev/null ;;
 esac"
+stub virt-xml "echo \"<source bridge='virbr0'/>\" > $t/domxml"
+printf "<interface type='user'><backend type='passt'/></interface>" > "$t/domxml"   # a VM made before 0.41.0
 stub pkill
 stub pgrep "[ -e $t/qemu-running ]"
+# sudo: never the real one in a test; it runs the command (on made-up paths).
+stub sudo '"$@"'
 stub xbps-query 'exit 1'
 export PATH="$t/bin:$PATH"
 
 sum=$(echo download | sha256sum | cut -d' ' -f1)
 export VIKIX_WINDOWS_VIRTIO_SHA256=$sum VIKIX_WINDOWS_WINFSP_SHA256=$sum VIKIX_KVM="$t/kvm"
+# The system's side, in the made-up place: runit's folders and bridge.conf.
+mkdir -p "$t/sv/libvirtd" "$t/sv/virtlogd" "$t/service"
+export VIKIX_SV_DIR="$t/sv" VIKIX_SERVICE_DIR="$t/service" VIKIX_BRIDGE_CONF="$t/qemu/bridge.conf"
 touch "$t/kvm"
 win() { bash "$here/bin/vikix-windows" "$@"; }
 optional="$HOME/.config/vikix/optional"
@@ -87,11 +95,15 @@ check "a refused setup still opted in" test ! -e "$optional"
 
 out=$(DRY_RUN=1 VIKIX_WINDOWS_MIN_GB=0 win setup 2>&1) || { echo "FAIL: setup failed:"; echo "$out" | tail -5; fail=1; }
 check "setup didn't opt in to the windows list" grep -qx windows "$optional"
-check "setup didn't install the list (libvirt, passt): $(grep xbps-install <<<"$out")" \
-  grep -q 'would run: sudo xbps-install -y .*libvirt.*passt' <<<"$out"
+check "setup didn't install the list (libvirt, virtiofsd): $(grep xbps-install <<<"$out")" \
+  grep -q 'would run: sudo xbps-install -y .*libvirt.*virtiofsd' <<<"$out"
+check "setup still installs passt, the network that reached this machine's 127.0.0.1" lacks ' passt' "$(grep xbps-install <<<"$out")"
 check "setup didn't download the drivers" test -s "$images/virtio-win-0.1.302.iso"
 check "setup didn't download WinFsp" test -s "$images/winfsp-2.1.25156.msi"
 check "setup didn't make ~/Windows" test -d "$HOME/Windows"
+check "setup didn't switch on the system libvirt: $(grep -c 'ln -s' <<<"$out")" grep -q "would run: sudo ln -s $t/sv/libvirtd $t/service/" <<<"$out"
+check "setup didn't let VMs of yours join virbr0 (bridge.conf)" grep -q "allow virbr0.*$t/qemu/bridge.conf" <<<"$out"
+check "setup didn't start the default network" grep -q 'would run: sudo virsh -q -c qemu:///system net-start default' <<<"$out"
 DRY_RUN=1 VIKIX_WINDOWS_MIN_GB=0 win setup >/dev/null 2>&1
 check "a second setup named windows twice" test "$(grep -cx windows "$optional")" = 1
 
@@ -132,11 +144,12 @@ check "the password showed in create's output" lacks S3cret "$out"
 check "the password is in virt-install's arguments" bash -c "! grep -qF 'S3cret' '$t/virt-install.args'"
 check "the answer disc can be read by others" test "$(stat -c %a "$images/windows-answers.iso")" = 600
 args=$(cat "$t/virt-install.args")
-for want in 'emulator,model=tpm-crb,version=2.0' 'secure-boot' 'backend.type=passt' \
+for want in 'emulator,model=tpm-crb,version=2.0' 'secure-boot' 'bridge=virbr0,model=virtio' \
             'driver.type=virtiofs' 'discard=unmap' 'spice,listen=none' 'qemu:///session' \
             'source.type=memfd,access.mode=shared'; do
   check "virt-install wasn't asked for $want" grep -qF -- "$want" <<<"$args"
 done
+check "a new VM is on passt, which hands Windows this machine's 127.0.0.1" bash -c "! grep -q 'backend.type=passt' '$t/virt-install.args'"
 check "nobody pressed a key for the Windows disc" grep -q 'virsh.*send-key windows KEY_DOWN' "$calls"
 check "Enter was pressed, which clicks buttons in Windows setup" bash -c "! grep -q 'send-key.*KEY_ENTER' '$calls'"
 check "the install isn't watched" grep -q 'setsid .*watch-install' "$calls"
@@ -158,6 +171,29 @@ check "no notification that Windows is ready" grep -q 'notify-send .*Windows is 
 
 out=$(win status)
 check "status should show memory and CPUs as '6 GB, 2 CPUs': $(grep memory <<<"$out")" grep -q 'memory, CPUs:  6 GB, 2 CPUs' <<<"$out"
+
+# --- the isolated network -------------------------------------------------------------
+# A VM on passt (made before 0.41.0) is moved to virbr0; one on virbr0 is left alone.
+printf "<interface type='user'><backend type='passt'/></interface>" > "$t/domxml"
+out=$(win status)
+check "status should say a passt VM can reach this machine: $(grep network <<<"$out")" grep -q 'network: *passt: Windows can reach' <<<"$out"
+: > "$calls"
+touch "$t/service/libvirtd"; mkdir -p "$t/qemu"; echo 'allow virbr0' > "$t/qemu/bridge.conf"
+out=$(win network 2>&1)
+check "network didn't move a passt VM onto virbr0: $out" grep -q 'virt-xml .*--edit --network clearxml=yes,type=bridge,source=virbr0' "$calls"
+out=$(win status)
+check "status should say the VM is isolated: $(grep network <<<"$out")" grep -q 'network: *isolated (virbr0)' <<<"$out"
+: > "$calls"
+win network >/dev/null 2>&1
+check "network edited a VM already on virbr0" bash -c "! grep -q virt-xml '$calls'"
+# The migration: only where the Windows VM was chosen.
+mig=$(grep -l 'vikix-windows" network' "$here"/migrations/*.sh | head -1)
+check "no migration moves existing VMs onto virbr0" test -n "$mig"
+: > "$calls"
+mv "$optional" "$t/optional.aside"
+VIKIX_DIR="$here" bash "$mig" >/dev/null 2>&1
+check "the migration touched the network where Windows wasn't chosen" bash -c "! grep -qE 'virt-xml|virsh' '$calls'"
+mv "$t/optional.aside" "$optional"
 
 # --- power, stop, remove ------------------------------------------------------------------
 : > "$calls"

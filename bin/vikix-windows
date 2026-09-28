@@ -11,12 +11,20 @@
 #   vikix windows [open]  start it if it's off, and show its desktop in a window
 #   vikix windows stop [--force]   shut Windows down (--force: switch it off)
 #   vikix windows status  is it running, is it installed, where things are
+#   vikix windows network put the VM on the isolated network (setup and
+#                         vikix update do it; asks for sudo once)
 #   vikix windows remove  delete the VM and its disk (asks first)
 #
 # The VM runs as you (libvirt's qemu:///session), so its disk, its TPM
 # and its shared folder are all yours, in your home. ~/Windows is drive Z:
 # in Windows, and `vikix backup` covers it; the VM's disk it leaves out.
 # The display is SPICE with no network port: only this user can open it.
+#
+# Its network is libvirt's NAT bridge, virbr0 (through qemu-bridge-helper):
+# Windows reaches the internet, and sees this machine only as
+# 192.168.122.1, where nothing that listens on 127.0.0.1 alone can be
+# reached: Swank, CUPS, a local model. (passt, the first network, handed
+# Windows this machine's 127.0.0.1 as its gateway address.)
 
 set -euo pipefail
 VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
@@ -24,6 +32,9 @@ VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 . "$VIKIX_DIR/lib/common.sh"
 
 URI=${VIKIX_WINDOWS_URI:-qemu:///session}
+SYSTEM_URI=qemu:///system
+BRIDGE=virbr0
+BRIDGE_CONF=${VIKIX_BRIDGE_CONF:-/etc/qemu/bridge.conf}
 NAME=windows
 CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/windows"
 OPTIONAL="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/optional"
@@ -116,6 +127,7 @@ cmd_setup() {
 
   # /dev/kvm belongs to the kvm group; everything else runs as you.
   [ -w "$KVM" ] || ensure_group kvm "to run virtual machines"
+  cmd_network
 
   printf 'DIR=%s\n' "$d" > "$CONFIG"
 
@@ -256,7 +268,7 @@ cmd_create() {
     --disk "path=$iso,device=cdrom,bus=sata,readonly=on,boot.order=1" \
     --disk "path=$d/$VIRTIO_ISO,device=cdrom,bus=sata,readonly=on" \
     --disk "path=$answers,device=cdrom,bus=sata,readonly=on" \
-    --network type=user,backend.type=passt,model=virtio \
+    --network "bridge=$BRIDGE,model=virtio" \
     --graphics spice,listen=none --video qxl \
     --channel spicevmc \
     --channel unix,target.type=virtio,name=org.qemu.guest_agent.0 \
@@ -323,6 +335,87 @@ cmd_watch_install() {
 }
 
 # ---------------------------------------------------------------------------
+# The isolated network, made ready, and the VM moved onto it. Safe to run
+# again: each part is checked first. Needs sudo for the system's side.
+# The system libvirt, for looking only: with sudo, or in a dry run
+# without it (it answers you when you're in the libvirt group).
+sysvirsh() {
+  # shellcheck disable=SC2033  # sudo runs the real virsh, not the session wrapper above
+  if [ "$DRY_RUN" = 1 ]; then command virsh -q -c "$SYSTEM_URI" "$@"; else sudo virsh -q -c "$SYSTEM_URI" "$@"; fi
+}
+
+# A change to the system libvirt (with sudo; printed in a dry run).
+sudo_virsh() {
+  # shellcheck disable=SC2033  # sudo runs the real virsh, not the session wrapper above
+  run sudo virsh -q -c "$SYSTEM_URI" "$@"
+}
+
+# The default network's state, as text. Kept, then searched: grep -q on a
+# pipe can close it early, and with pipefail that reads as a failure.
+net_info() { sysvirsh net-info default 2>/dev/null || true; }
+
+network_ready() {
+  [ -e "$VIKIX_SERVICE_DIR/libvirtd" ] && grep -qx "allow $BRIDGE" "$BRIDGE_CONF" 2>/dev/null &&
+    grep -q '^Active: *yes' <<<"$(net_info)"
+}
+
+vm_on_bridge() {
+  grep -q "<source bridge='$BRIDGE'/>" <<<"$(virsh dumpxml --inactive "$NAME" 2>/dev/null || true)"
+}
+
+cmd_network() {
+  if [ "$DRY_RUN" != 1 ] && network_ready; then
+    say "the isolated network ($BRIDGE) is ready"
+  else
+    say "setting up the isolated network ($BRIDGE): libvirt's NAT, for the VM"
+    # The system libvirt runs the default network (dnsmasq hands out
+    # addresses, NAT to the internet); virtlogd keeps its logs.
+    enable_service virtlogd
+    enable_service libvirtd
+    local _
+    if [ "$DRY_RUN" != 1 ]; then
+      for _ in $(seq 20); do sysvirsh version >/dev/null 2>&1 && break; sleep 1; done
+    fi
+    local info
+    info=$(net_info)
+    if [ -z "$info" ]; then
+      # Void's libvirt comes with it defined; this is for one removed since.
+      # libvirt's own default: NAT, virbr0, 192.168.122.0/24.
+      local xml
+      xml=$(mktemp --suffix=.xml)
+      cat > "$xml" <<'NET'
+<network>
+  <name>default</name>
+  <forward mode='nat'/>
+  <bridge name='virbr0' stp='on' delay='0'/>
+  <ip address='192.168.122.1' netmask='255.255.255.0'>
+    <dhcp><range start='192.168.122.2' end='192.168.122.254'/></dhcp>
+  </ip>
+</network>
+NET
+      sudo_virsh net-define "$xml"
+      rm -f "$xml"
+    fi
+    grep -q '^Autostart: *yes' <<<"$info" || sudo_virsh net-autostart default
+    grep -q '^Active: *yes' <<<"$info" || sudo_virsh net-start default
+    # qemu-bridge-helper lets a VM of yours (qemu:///session) join the
+    # bridge only when this file allows it by name.
+    if ! grep -qx "allow $BRIDGE" "$BRIDGE_CONF" 2>/dev/null; then
+      run sudo mkdir -p "$(dirname "$BRIDGE_CONF")"
+      run sudo sh -c "echo 'allow $BRIDGE' >> '$BRIDGE_CONF'"
+      run sudo chmod 644 "$BRIDGE_CONF"
+    fi
+  fi
+  # A VM made before this was on passt: move it over.
+  if defined && ! vm_on_bridge; then
+    say "moving the Windows VM onto $BRIDGE (from passt, which let it reach this machine's 127.0.0.1)"
+    run virt-xml --connect "$URI" "$NAME" --edit --network "clearxml=yes,type=bridge,source=$BRIDGE,model=virtio"
+    if [ "$(state)" = running ]; then
+      say "Windows uses it from its next start (vikix windows stop, then vikix windows)"
+    fi
+  fi
+}
+
 cmd_open() {
   need_setup
   defined || die "no Windows VM yet: vikix windows create ISO"
@@ -375,6 +468,10 @@ cmd_status() {
                                                  END { printf "%d GB, %s CPUs", m / 1048576, c }')"
   fi
   echo "shared folder: $SHARED (drive Z: in Windows)"
+  if defined; then
+    if vm_on_bridge; then echo "network:       isolated ($BRIDGE): this machine's 127.0.0.1 is out of Windows's reach"
+    else echo "network:       passt: Windows can reach this machine's 127.0.0.1 services; fix it: vikix windows network"; fi
+  fi
 }
 
 cmd_remove() {
@@ -403,6 +500,7 @@ case ${1:-open} in
   stop)          shift; cmd_stop "$@" ;;
   power)         cmd_power ;;
   status)        cmd_status ;;
+  network)       cmd_network ;;
   remove)        shift; cmd_remove "$@" ;;
   watch-install) cmd_watch_install ;;
   help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
