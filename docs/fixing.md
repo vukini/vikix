@@ -98,8 +98,13 @@ To run one install stage again on its own (each is safe to re-run):
 
 ## Asking for help
 
-Open an issue at github.com/vukini/vikix with:
+Ask the agent first. `vikix diagnose` (or Super+m → *Something's wrong? Ask the agent*) writes a report of what's going on and hands it to your AI agent, asking what's wrong and how to fix it. The agent asks before it changes anything, and a snapshot is taken first, so `vikix undo` takes its changes back.
 
-- `vikix version`
-- what `vikix doctor` says
-- the relevant log: `~/.local/state/vikix/session.log` for the desktop, `~/.local/state/vikix/logs/` for an install or update
+To ask a person, open an issue at github.com/vukini/vikix and attach the report `vikix debug` writes:
+
+```sh
+vikix debug            # writes ~/vikix-debug-<date>.txt, readable only by you
+less ~/vikix-debug-*.txt
+```
+
+It has Vikix's version and checkout, the system, the hardware and screens, your features, what `vikix doctor` says, the services, and the ends of the logs: the session's (`~/.local/state/vikix/session.log`), the last install and update (`~/.local/state/vikix/logs/`), and X's errors. Your API keys, passwords, home folder, user name and machine name are taken out before anything is written, and the finished file is searched for keys once more. Still, read it before you share it: nothing is sent anywhere by itself.

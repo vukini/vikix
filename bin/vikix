@@ -24,6 +24,8 @@
 #   vikix version
 #
 #   vikix eval FORM     run Lisp in the running StumpWM, print the result
+#   vikix debug         one file saying what's going on, keys taken out, to
+#                         attach to an issue (vikix diagnose: and ask the agent)
 #   vikix agent         the AI agent, after a snapshot of your files (alias: a):
 #                         Claude Code, or --use opencode|codex|gemini|aider,
 #                         --local on this laptop, --default NAME, --list
@@ -631,6 +633,7 @@ main() {
     version)     cat "$VIKIX_DIR/VERSION" ;;
     eval)        shift; exec python3 "$VIKIX_DIR/bin/vikix-eval" "$@" ;;
     agent)       shift; exec "$VIKIX_DIR/bin/vikix-agent" "$@" ;;
+    debug|diagnose) exec "$VIKIX_DIR/bin/vikix-debug" "$@" ;;
     snapshot)    cmd_snapshot "${2:-snapshot}" ;;
     changes)     cmd_changes "${2:-}" ;;
     history)     cmd_history ;;

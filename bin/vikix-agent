@@ -13,6 +13,7 @@
 #                                 minutes per answer
 #   vikix agent --default NAME    the one Super+a starts
 #   vikix agent --list            the agents, which are here, and yours
+#   vikix agent --ask TEXT        start with this question (vikix diagnose)
 #   vikix agent --install NAME    install one (its official installer; also
 #   vikix agent --uninstall NAME  vikix add/remove NAME), or take it away
 #
@@ -340,6 +341,17 @@ print(json.dumps({"model": "ollama/" + m, "provider": {"ollama": {
   if [ "$name" = aider ]; then
     case $model in ''|*:1[4-9]b|*:[2-9][0-9]b|*:[7-9]b) args+=(--read "$GUIDE") ;; esac
   fi
+  # A first question, in each agent's own way. Aider only has one-shot
+  # messages: it gets the report to read, and you ask.
+  if [ -n "$ASK" ]; then
+    case $name in
+      claude|codex) set -- "$@" "$ASK" ;;
+      opencode)     args+=(--prompt "$ASK") ;;
+      gemini)       args+=(-i "$ASK") ;;
+      aider)        say "ask it: $ASK" ;;
+    esac
+  fi
+  [ -n "$REPORT" ] && [ "$name" = aider ] && args+=(--read "$REPORT")
   if [ "$name" = opencode ]; then
     # Its config is merged with yours; this adds only what isn't there.
     opencode_asks && oc=$(python3 -c '
@@ -374,10 +386,13 @@ print(json.dumps(c))' "$oc")
   exec env "${unset[@]}" "${setenv[@]}" "$exe" "${args[@]}" "$@"
 }
 
+ASK='' REPORT=''
 main() {
   local use='' local=0 model=''
   while [ $# -gt 0 ]; do
     case $1 in
+      --ask)       ASK=${2:-}; shift 2 ;;
+      --report)    REPORT=${2:-}; shift 2 ;;
       --use)       need_agent "${2:-}"; use=$2; shift 2 ;;
       --local)     local=1; shift ;;
       --model)     model=${2:-}; [ -n "$model" ] || die "--model needs a name (vikix ai list)"; shift 2 ;;

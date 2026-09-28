@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+# vikix-debug — one file that says what's going on, to attach to an issue
+# or hand to an agent.
+#
+#   vikix debug [--out FILE]     write it (default ~/vikix-debug-<time>.txt),
+#                                readable only by you; read it before you
+#                                share it: nothing is sent anywhere
+#   vikix diagnose [--use NAME] [--local]
+#                                write it, then ask your AI agent (or NAME)
+#                                "what's wrong, and how do I fix it?"
+#
+# In it: Vikix's version and checkout, the system, the hardware and
+# screens, your features, what vikix doctor says, the services, and the
+# ends of the logs (the session's, the last install and update, X's
+# errors). Out of it (lib/debug-scrub.py): your keys (their values, and
+# anything shaped like one), passwords, your home path, user and machine
+# names. The finished file is searched for keys once more.
+
+set -uo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+
+LOGS="$VIKIX_STATE/logs"
+
+# section TITLE COMMAND... — a heading, the command, and what it printed
+# (its errors too); a missing program is said, not an error.
+section() {
+  local title=$1; shift
+  printf '\n## %s\n$ %s\n' "$title" "$*"
+  if ! command -v "$1" >/dev/null 2>&1; then echo "($1 isn't installed)"; return 0; fi
+  timeout 20 "$@" 2>&1 || echo "(exit $?)"
+}
+# tail_of TITLE FILE N — the last N lines of a file, if it's there.
+tail_of() {
+  printf '\n## %s\n$ tail -n %s %s\n' "$1" "$3" "$2"
+  if [ -r "$2" ]; then tail -n "$3" "$2"; else echo "(not there)"; fi
+}
+newest() { ls -1t "$LOGS"/$1 2>/dev/null | head -1; }
+
+report() {
+  echo "# Vikix debug report, $(date -u '+%Y-%m-%d %H:%M UTC')"
+  echo "# Keys, passwords, your home path, user and machine names are taken out."
+  section "Vikix" cat "$VIKIX_DIR/VERSION"
+  section "The checkout: last commit" git -C "$VIKIX_DIR" log -1 --format='%h %ci %s'
+  section "The checkout: branch" git -C "$VIKIX_DIR" rev-parse --abbrev-ref HEAD
+  section "The checkout: changes in it" git -C "$VIKIX_DIR" status --short
+  section "The checkout: where it pulls from" git -C "$VIKIX_DIR" remote -v
+  section "System" uname -a
+  section "Void" cat /etc/os-release
+  section "xbps" xbps-query --version
+  section "Uptime and load" uptime
+  section "Memory" free -h
+  section "Disk" df -h / "$HOME"
+  section "CPU" lscpu
+  section "PCI devices" lspci -nn
+  section "USB devices" lsusb
+  if [ -n "${DISPLAY:-}" ]; then
+    section "Screens" xrandr --query
+    section "Screen layouts (autorandr)" autorandr
+  else
+    printf '\n## Screens\n(no DISPLAY: not run from the desktop)\n'
+  fi
+  section "Your features" cat "${XDG_CONFIG_HOME:-$HOME/.config}/vikix/features"
+  section "Services" ls /var/service
+  section "vikix doctor" bash "$VIKIX_DIR/bin/vikix" doctor
+  tail_of "The session's log" "$VIKIX_STATE/session.log" 300
+  tail_of "The session's log, the time before" "$VIKIX_STATE/session.log.old" 80
+  tail_of "The last install" "$(newest 'install-*.log')" 200
+  tail_of "The last update" "$(newest 'update-*.log')" 200
+  printf '\n## X: errors and warnings\n$ grep -E "\\((EE|WW)\\)" /var/log/Xorg.0.log\n'
+  grep -E '\((EE|WW)\)' /var/log/Xorg.0.log 2>/dev/null | tail -n 60 || echo "(none, or no log)"
+}
+
+# The same pattern `vikix ai key check` searches with.
+KEY_SHAPES='sk-ant-[A-Za-z0-9_-]{16,}|sk-(proj-)?[A-Za-z0-9_-]{20,}|pplx-[A-Za-z0-9]{20,}|AIza[A-Za-z0-9_-]{30,}|gsk_[A-Za-z0-9]{20,}|xai-[A-Za-z0-9]{20,}|hf_[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|AKIA[A-Z0-9]{16}'
+
+cmd_debug() {
+  local out=''
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --out) out=${2:-}; [ -n "$out" ] || die "--out needs a file name"; shift 2 ;;
+      *) die "vikix debug [--out FILE]" ;;
+    esac
+  done
+  out=${out:-$HOME/vikix-debug-$(date +%Y%m%d-%H%M%S).txt}
+  say "gathering what's going on (a few seconds: vikix doctor runs too)" >&2
+  # Written only by you, only for you, from the first byte.
+  ( umask 077; report | python3 "$VIKIX_DIR/lib/debug-scrub.py" > "$out" ) ||
+    die "couldn't write $out"
+  chmod 600 "$out"
+  # Once more, over the finished file: a key that slipped through is said
+  # (its line number only), and the file is kept back.
+  local lines
+  lines=$(grep -anoE -- "(^|[^A-Za-z0-9_-])($KEY_SHAPES)" "$out" | cut -d: -f1 | sort -un | tr '\n' ' ') || true
+  if [ -n "${lines// /}" ]; then
+    warn "something shaped like a key is still in it, on line ${lines% }: don't share it until you've looked (less +${lines%% *}g $out)"
+    return 1
+  fi
+  say "written: $out ($(wc -l < "$out") lines), readable only by you" >&2
+  echo "   Read it before you share it (keys, passwords and names are taken out; nothing is sent):  less $out" >&2
+  echo "   To report a problem: github.com/vukini/vikix/issues, with this file attached." >&2
+  printf '%s\n' "$out"
+}
+
+cmd_diagnose() {
+  local pass=() file
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --use) pass+=(--use "${2:-}"); shift 2 ;;
+      --local) pass+=(--local); shift ;;
+      --model) pass+=(--model "${2:-}"); shift 2 ;;
+      *) die "vikix diagnose [--use NAME] [--local [--model M]]" ;;
+    esac
+  done
+  file=$(cmd_debug) || die "the report isn't safe to hand over as it is (above)"
+  exec "$VIKIX_DIR/bin/vikix-agent" "${pass[@]}" --report "$file" \
+    --ask "Something is wrong on my Vikix desktop. The debug report in $file says what's going on (the system, vikix doctor, the logs). Read it, tell me what's wrong and how to fix it, and ask me before you change anything."
+}
+
+case ${1:-} in
+  debug)    shift; cmd_debug "$@" >/dev/null ;;
+  diagnose) shift; cmd_diagnose "$@" ;;
+  -h|--help|'') sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) die "vikix-debug debug|diagnose" ;;
+esac

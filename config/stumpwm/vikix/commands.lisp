@@ -96,6 +96,8 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
                                        *vikix-terminal*)))
     ("Update Vikix"      vikix-update)
     ("AI agent"            vikix-agent)
+    ("Something's wrong? Ask the agent" (vikix-in-terminal "vikix diagnose"))
+    ("A report of what's going on (vikix debug)" (vikix-in-terminal "vikix debug"))
     ("AI on the selected text" (run-shell-command "vikix-ask"))
     ("JupyterLab (in ~/dev)" (run-shell-command "vikix-jupyter") "~/dev/python/.venv/bin/jupyter")
     ("Programming docs (offline)" (run-shell-command "xdg-open ~/dev/index.html") "~/dev/index.html")

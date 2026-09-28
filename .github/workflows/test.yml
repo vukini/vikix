@@ -88,6 +88,8 @@ jobs:
         run: tests/ci.sh ai-keys
       - name: agents
         run: tests/ci.sh agents
+      - name: debug
+        run: tests/ci.sh debug
       - name: swank
         run: tests/ci.sh swank
       - name: webapp
