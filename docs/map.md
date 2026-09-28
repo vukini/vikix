@@ -90,6 +90,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 | `session.log`, `session.log.old` | Everything the desktop session printed, this login and the one before. The first place to look when the desktop won't start. |
 | `yours.git` | The history of your files (`vikix snapshot`, `changes`, `history`, `undo`). A git repository whose work tree is `~`, limited to the files in `~/vikix/config/yours.list` |
 | `migrations/` | Which one-off fixes this machine has had |
+| `ollama.log` | Local AI's log (vikix ai); one old one is kept as `ollama.log.old` |
 | `updates` | What the bar's `updates` field shows, written by `vikix-updates` every 6 hours |
 | `initramfs-*` | Marks that the initramfs was rebuilt with this microcode |
 

@@ -39,6 +39,7 @@ cat > "$t/rel/bin/ollama" <<EOF
 echo "ollama \$*" >> "$calls"
 case \$1 in
   serve) sleep 2 ;;
+  run) : ;;
   list) printf 'NAME ID SIZE MODIFIED\nllama3.2:3b abc 2.0GB now\n' ;;
 esac
 EOF
@@ -63,6 +64,8 @@ out=; for a; do [ "\$prev" = -o ] && out=\$a; prev=\$a; done
 case "\$*" in
   *api/version*) [ -e "$t/running" ] ;;
   *api/ps*) cat "$t/ps" 2>/dev/null || echo '{"models": []}' ;;
+  *api/tags*) echo '{"models": [{"name": "llama3.2:3b"}]}' ;;
+  *api/generate*) rm -f "$t/ps" ;;
   *) cp "$t/release.tar.zst" "\$out" ;;
 esac
 EOF
@@ -130,13 +133,56 @@ check "serve didn't note the loaded model for the bar" grep -qx 'llama3.2:3b' "$
 wait
 check "serve left the note behind when Ollama ended" test ! -e "$VIKIX_STATE/ai-loaded"
 
-# --- stop, and before setup --------------------------------------------------------
-touch "$t/running"; : > "$calls"
-ai stop >/dev/null 2>&1
-check "stop didn't unload the loaded model" grep -q 'ollama stop llama3.2:3b' "$calls"
+# --- status, stop, chat, remove ----------------------------------------------------
+touch "$t/running"
+echo '{"models": [{"name": "llama3.2:3b", "size": 2560000000, "expires_at": "2099-01-01T12:05:00+00:00"}]}' > "$t/ps"
+out=$(ai status)
+check "status should say how much memory the loaded model holds, and until when: $out" \
+  grep -qE 'loaded: +llama3.2:3b, holding 2.6 GB of memory, until [0-9]{2}:[0-9]{2}' <<<"$out"
+: > "$calls"
+out=$(ai stop 2>&1)
+check "stop should unload through the API (keep_alive 0): $(grep generate "$calls")" grep -q 'api/generate .*"keep_alive": 0' "$calls"
+check "stop should say what it freed: $out" grep -q 'unloaded llama3.2:3b' <<<"$out"
+: > "$calls"
+ai stop --notify >/dev/null 2>&1
+check "stop from Super+m should notify" grep -q 'notify-send .*Local AI' "$calls"
+: > "$calls"
+ai chat >/dev/null 2>&1 || true
+check "chat with one model should run it: $(grep 'ollama run' "$calls")" grep -qx 'ollama run llama3.2:3b' "$calls"
+out=$(ai remove 2>&1) && { echo "FAIL: remove with no model worked"; fail=1; }
+check "remove with no model should say so plainly: $out" grep -q 'which model?' <<<"$out"
+check "remove with no model showed a bash error: $out" bash -c "! grep -q 'line [0-9]' <<<'$out'"
+out=$(ai remove nosuch:1b 2>&1) && { echo "FAIL: removing a model you don't have worked"; fail=1; }
+check "removing a model you don't have should say so: $out" grep -q "you don't have nosuch:1b" <<<"$out"
+
+# --- the log doesn't grow for ever -------------------------------------------------
+rm -f "$t/running"; rm -f "$t/ps"
+head -c 1100000 /dev/zero > "$VIKIX_STATE/ollama.log"
+ai serve >/dev/null 2>&1 &
+for _ in $(seq 20); do [ -e "$VIKIX_STATE/ollama.log.old" ] && break; sleep 0.1; done
+check "a big ollama.log should be moved aside at the next start" test -e "$VIKIX_STATE/ollama.log.old"
+wait
+
+# --- uninstall, and before setup -------------------------------------------------------
+mkdir -p "$HOME/.ollama/models"; touch "$HOME/.ollama/models/blob"
+# A decoy: another "ollama serve", not this install's (as the real one on
+# the machine running the tests is). uninstall must leave it alone.
+mkdir -p "$t/decoy"; printf '#!/bin/sh\nexec sleep 30\n' > "$t/decoy/ollama"; chmod +x "$t/decoy/ollama"
+"$t/decoy/ollama" serve & decoy=$!
+ai uninstall >/dev/null 2>&1
+check "uninstall killed another ollama, not its own (it once stopped the tester's real Ollama)" kill -0 "$decoy"
+kill "$decoy" 2>/dev/null || true
+check "uninstall left Ollama" test ! -e "$opt"
+check "uninstall left the ollama link" test ! -e "$HOME/.local/bin/ollama"
+check "uninstall without --models deleted the models" test -e "$HOME/.ollama/models/blob"
+ai uninstall --models >/dev/null 2>&1
+check "uninstall --models kept the models" test ! -e "$HOME/.ollama"
 rm -rf "$opt"; : > "$calls"
 ai models --rofi >/dev/null 2>&1 || true
 check "the Super+m entry, before setup, should say how to set it up" grep -q 'notify-send .*vikix ai setup' "$calls"
+: > "$calls"
+ai chat --rofi >/dev/null 2>&1 || true
+check "talk to a model from Super+m, before setup, should say how to set it up" grep -q 'notify-send .*vikix ai setup' "$calls"
 
 [ "$fail" = 0 ] && echo "ai-local: setup installs only what this machine uses, checked; models fit the memory; the bar's note; stop"
 exit "$fail"

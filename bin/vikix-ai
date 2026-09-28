@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # vikix-ai — AI services on Vikix (`vikix ai`): keys, and local models.
 #
-#   vikix ai setup | models | list | remove | status | stop
+#   vikix ai setup | models | chat | list | remove | status | stop | uninstall
 #                             models that run on this machine, with Ollama
-#                             (bin/vikix-local-ai: vikix ai help-local)
+#                             (vikix ai help-local tells more)
 #
 #   vikix ai key set NAME     ask for a key (it isn't shown as you paste it)
 #                             and keep it. NAME is a service (anthropic,
@@ -302,7 +302,7 @@ case ${1:-help} in
       check)  cmd_check ;;
       *) die "vikix ai key: set NAME, list, remove NAME or check (vikix ai help)" ;;
     esac ;;
-  setup|serve|models|pull|list|remove|rm|status|stop)
+  setup|serve|models|pull|chat|list|remove|rm|status|stop|uninstall)
     exec "$VIKIX_DIR/bin/vikix-local-ai" "$@" ;;
   help-local) exec "$VIKIX_DIR/bin/vikix-local-ai" help ;;
   help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;

@@ -99,8 +99,9 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
                             (format nil "vikix-windows open || ~a -e sh -c 'vikix windows status; printf \"\\nEnter closes this window. \"; read x'"
                                     *vikix-terminal*)))
     ("Eject a drive"       (run-shell-command "vikix-drives eject"))
+    ("Local AI: talk to a model" (run-shell-command "vikix-local-ai chat --rofi"))
     ("Local AI: choose a model" (run-shell-command "vikix-local-ai models --rofi"))
-    ("Local AI: unload the model" (run-shell-command "vikix-local-ai stop"))
+    ("Local AI: unload the model" (run-shell-command "vikix-local-ai stop --notify"))
     ("Firmware updates"    (run-shell-command
                             (format nil "~a -e sh -c 'vikix firmware update; printf \"\\nEnter closes this window. \"; read x'"
                                     *vikix-terminal*)))

@@ -28,6 +28,8 @@
 #                         where fprintd supports the reader
 #   vikix webapp add|open|list|remove    a website as a program of its own
 #                         (presets: fastmail, gmail, outlook, outlook-live, superhuman)
+#   vikix ai setup|models|chat|list|remove|status|stop|uninstall
+#                         AI models that run on this laptop (Ollama)
 #   vikix ai key set|list|remove|check   API keys (ANTHROPIC_API_KEY ...)
 #                         kept safely, out of your dotfiles and their history
 #   vikix windows [setup|create ISO|stop|status|network|remove]   Windows in a VM:
@@ -231,6 +233,8 @@ cmd_doctor() {
   else
     warn "Swank lets anyone on 127.0.0.1 in: no ~/.slime-secret, or others can read it (vikix update makes it)"; ok=0
   fi
+  # Local AI, if it's set up: running?
+  bash "$VIKIX_DIR/bin/vikix-local-ai" check || ok=0
   # The Windows VM, if there is one, on its private network.
   bash "$VIKIX_DIR/bin/vikix-windows" check || ok=0
   # API keys belong in ~/.config/vikix/secrets (vikix ai key), not in your
