@@ -57,6 +57,14 @@ To see a new key in the key help (`Super+F1`), add it to the list the help is bu
 (vikix-set-font)
 ```
 
+Gaps between windows (Super+g) are 10px, 9px at the screen edge. The inner gap is on every side of each window, so two windows are twice it apart. To change them, or have them on from login:
+
+```lisp
+(setf swm-gaps:*inner-gaps-size* 3         ; 6px between windows
+      swm-gaps:*outer-gaps-size* 3)        ; plus this at the screen edge
+(swm-gaps:toggle-gaps-on)                  ; gaps from login on
+```
+
 ### The Super+m menu
 
 Each entry is a label and either a command or a Lisp form:

@@ -34,9 +34,11 @@ the package doesn't exist when the module failed to load."
   (apply (find-symbol name :swm-gaps) args))
 
 (when *vikix-gaps*
+  ;; The inner gap is on every side of every window, so two windows are
+  ;; 2 x 5 = 10px apart; at the screen edge it's 5 + 4 = 9px.
   (setf (symbol-value (find-symbol "*HEAD-GAPS-SIZE*"  :swm-gaps)) 0    ; along the monitor edges
-        (symbol-value (find-symbol "*INNER-GAPS-SIZE*" :swm-gaps)) 2    ; around every window
-        (symbol-value (find-symbol "*OUTER-GAPS-SIZE*" :swm-gaps)) 2))  ; extra at the screen edge
+        (symbol-value (find-symbol "*INNER-GAPS-SIZE*" :swm-gaps)) 5    ; around every window
+        (symbol-value (find-symbol "*OUTER-GAPS-SIZE*" :swm-gaps)) 4))  ; extra at the screen edge
 
 (defun vikix-maximize-window (win)
   "swm-gaps' gaps-aware maximize-window, with the sizes it sets clamped.

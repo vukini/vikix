@@ -21,7 +21,9 @@ ql=${VIKIX_QUICKLISP:-$HOME/quicklisp}/setup.lisp
 command -v sbcl >/dev/null && [ -f "$ql" ] || { echo "swank: needs sbcl and Quicklisp; skipped"; exit 0; }
 t=$(mktemp -d)
 server=
-trap '[ -n "$server" ] && kill "$server" 2>/dev/null; rm -rf "$t"' EXIT
+# SBCL with Swank's threads can outlive a TERM: KILL after it, or the
+# server stays on after the test (one did, for minutes).
+trap '[ -n "$server" ] && { kill "$server"; sleep 0.2; kill -9 "$server"; } 2>/dev/null || true; rm -rf "$t"' EXIT
 export HOME="$t/home"
 mkdir -p "$HOME"
 fail=0
@@ -62,13 +64,19 @@ cat > "$t/server.lisp" <<EOF
     (write-line text o))
   (format t "=> ~s~%" (eval (read-from-string text)))
   :ok)
+(with-open-file (o "$t/ready" :direction :output :if-exists :supersede) (write-line "ready" o))
 (loop (sleep 1))
 EOF
 # --non-interactive: no debugger, as a crash would be. A wrong password
 # that took this Lisp down would leave vikix eval below with nothing to reach.
 sbcl --non-interactive --no-userinit --load "$t/server.lisp" >"$t/server.log" 2>&1 &
 server=$!
-for _ in $(seq 100); do (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null && break; sleep 0.2; done
+# Ready once all of server.lisp has run, not when the port first answers:
+# that's the old server, whose accept thread the no-password client below
+# stops (the bug the guard is for); on a busy machine, swank.lisp hadn't
+# replaced it yet, and vikix eval timed out on it.
+for _ in $(seq 300); do [ -e "$t/ready" ] && break; kill -0 "$server" 2>/dev/null || break; sleep 0.2; done
+[ -e "$t/ready" ] || { echo "FAIL: the test's Swank didn't start:"; tail -20 "$t/server.log"; exit 1; }
 
 evalw() { VIKIX_SWANK_PORT=$port python3 "$here/bin/vikix-eval" "$@"; }
 
