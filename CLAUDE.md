@@ -6,7 +6,7 @@ Vikix is an opinionated desktop layer for **glibc Void Linux** built around **St
 
 This folder sits inside an Obsidian vault, but it is a code repo: the vault's note conventions (frontmatter, tags, `_Index_of_*`) don't apply here. The `vikix-*.zip` files are old releases and are gitignored.
 
-`site/index.html` is the website, vikix.dev: one static page, no build, published by `.github/workflows/pages.yml` on each push that touches `site/` or `VERSION` (the workflow writes `VERSION` into the page). When a release adds something a visitor would care about (a key, a feature card), update the page in the same commit.
+`site/` is the website, vikix.dev: static pages (`index.html`, `gallery.html`) sharing `site.css`, screenshots in `site/shots/` (each scene as `NAME-void.webp` and `NAME-paper.webp`, 960px copies in `small/`), no build, published by `.github/workflows/pages.yml` on each push that touches `site/` or `VERSION` (the workflow writes `VERSION` into the page). When a release adds something a visitor would care about (a key, a feature card), update the page in the same commit.
 
 `docs/` holds the user's guides (the map of files, how it fits together, customizing, fixing). They name real paths, keys, variables and commands: when a change moves or renames one, update the guide in the same commit. `40-config` also makes them an Info manual, `~/.local/share/info/vikix.info` (`info vikix`, Emacs `C-h i`), through `lib/md2texi.py`, which knows only the Markdown the guides use; `tests/info.sh` fails on a broken link, a page missing from `docs/README.md`'s table, or a makeinfo warning.
 

@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vikix gallery</title>
+<meta name="description" content="Real screenshots of Vikix, the agentic desktop: the AI agent at work, tiled windows, the launcher, the menu, notifications, in its dark and light themes.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%231e1e2e'/%3E%3Ctext x='30' y='47' font-family='monospace' font-weight='800' font-size='44' text-anchor='middle' fill='%23cdd6f4'%3Ev%3C/text%3E%3Ccircle cx='50' cy='44' r='5' fill='%2389b4fa'/%3E%3C/svg%3E">
+<link rel="canonical" href="https://vikix.dev/gallery.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Vikix">
+<meta property="og:url" content="https://vikix.dev/gallery.html">
+<meta property="og:title" content="Vikix gallery: the agentic desktop, in pictures">
+<meta property="og:description" content="Real screenshots of Vikix: the AI agent at work, tiled windows, the launcher and the menu, in both themes.">
+<meta property="og:image" content="https://vikix.dev/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@vukini">
+<meta name="twitter:creator" content="@vukini">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;600;800&family=Schibsted+Grotesk:ital,wght@0,400;0,500;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="site.css">
+<style>
+/* The gallery's own parts; the rest is site.css. */
+.gal-head { display: grid; grid-template-columns: 1.3fr 1fr; gap: 32px; align-items: end; padding-block: 64px 40px; }
+.gal-head h1 { font-size: clamp(2rem, 4.4vw, 3.2rem); font-weight: 800; letter-spacing: -.05em; }
+.gal-head h1 em { font-style: normal; color: var(--accent); }
+@media (max-width: 860px) { .gal-head { grid-template-columns: 1fr; gap: 20px; padding-top: 40px; } }
+.gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 40px 28px; padding-bottom: 88px; }
+.gallery figure { margin: 0; display: grid; gap: 14px; align-content: start; scroll-margin-top: 70px; }
+.gallery figure.wide { grid-column: 1 / -1; }
+.gallery button.shot { padding: 0; cursor: zoom-in; width: 100%; font: inherit; color: inherit; }
+.gallery button.shot:hover { border-color: var(--accent); }
+.gallery figcaption { display: grid; gap: 6px; }
+.gallery figcaption p { color: var(--subtle); font-size: .96rem; max-width: 70ch; }
+@media (max-width: 760px) { .gallery { grid-template-columns: 1fr; } }
+
+.video { padding-block: 0 72px; }
+.video .frame16 { position: relative; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: var(--bg3); }
+.video .frame16 img, .video .frame16 iframe { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border: 0; }
+.video .play {
+  position: absolute; inset: 0; display: grid; place-items: center; cursor: pointer;
+  background: color-mix(in srgb, var(--bg3) 35%, transparent); border: 0; font: 600 1rem var(--mono); color: var(--fg);
+}
+.video .play span { background: var(--accent); color: var(--bg); padding: 12px 20px; border-radius: 8px; }
+.video .fine { margin-top: 10px; }
+
+dialog.lb { padding: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--fg); width: min(96vw, 1600px); max-height: 96vh; }
+dialog.lb::backdrop { background: rgba(10, 10, 18, .82); }
+.lb img { display: block; width: 100%; height: auto; max-height: calc(96vh - 64px); object-fit: contain; background: var(--bg3); }
+.lb .bar2 { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 10px 14px; font-family: var(--mono); font-size: .85rem; }
+.lb .bar2 span { color: var(--subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb .bar2 div { display: flex; gap: 8px; flex: none; }
+.lb button { font: 500 .8rem var(--mono); color: var(--fg); background: var(--bg2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+.lb button:hover { border-color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="logo" href="./">vikix<span>.</span></a>
+    <nav aria-label="Sections">
+      <a href="./#agent">Agentic</a>
+      <a href="./#newhere">New here?</a>
+      <a href="gallery.html" aria-current="page" style="color:var(--fg)">Gallery</a>
+      <a href="./#vikix" class="opt">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#faq" class="opt">FAQ</a>
+      <a href="https://github.com/vukini/vikix" class="opt">GitHub</a>
+    </nav>
+    <button class="theme-btn" id="themeBtn" type="button" aria-label="Switch theme"><span class="tb-cmd">vikix theme </span><b id="themeName">void</b></button>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <div class="gal-head">
+      <div style="display:grid;gap:18px">
+        <p class="eyebrow">Gallery · <b>real screenshots</b></p>
+        <h1>See it.<br><em>Then try it.</em></h1>
+      </div>
+      <div style="display:grid;gap:16px">
+        <p class="lede">Vikix as it is, taken in a virtual machine at 1920×1080. Each picture comes in both themes: <b>void</b> (dark) and <b>paper</b> (light). Switch them all here, or with the button at the top.</p>
+        <div class="theme-pick">
+          <button type="button" data-set="dark" aria-pressed="false">vikix theme void</button>
+          <button type="button" data-set="light" aria-pressed="false">vikix theme paper</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- A video goes here: put its YouTube id in data-youtube and the section shows itself.
+         Only the still picture comes from YouTube until the visitor presses play. -->
+    <section class="video" id="video" data-youtube="" hidden style="border-top:0">
+      <div class="frame16" id="videoFrame">
+        <img id="videoThumb" alt="" loading="lazy">
+        <button class="play" type="button" id="videoPlay"><span>Play the video</span></button>
+      </div>
+      <p class="fine">The picture comes from YouTube; the video itself loads (from youtube-nocookie.com) only when you press play.</p>
+    </section>
+
+    <div class="gallery" id="gallery">
+      <figure id="agent" class="wide">
+        <button class="shot" type="button" data-full="shots/agent.webp" aria-label="Enlarge: the agent at work">
+          <img src="shots/agent.webp" width="1920" height="1080" loading="lazy" alt="Claude Code in a terminal filling the screen. It loaded the Vikix skill, bound Super+t live, saved it to user.lisp, switched the theme to void, and says vikix undo will reverse it.">
+        </button>
+        <figcaption>
+          <h3>The agent at work. <kbd>Super</kbd>+<kbd>a</kbd></h3>
+          <p>Asked to switch to the dark theme and make Super+t open a second terminal, Claude Code loaded the Vikix skill, tried the key on the running desktop, saved it to <code>user.lisp</code>, and pointed to <code>vikix undo</code>. Your settings were saved before it started, in the first two lines.</p>
+        </figcaption>
+      </figure>
+
+      <figure id="work" class="wide">
+        <button class="shot" type="button" data-full="work" aria-label="Enlarge: tiled windows">
+          <img class="on-light" src="shots/work-paper.webp" width="1920" height="1080" loading="lazy" alt="Light theme: Emacs with a Python program on the left; on the right the program's output above, and the htop system monitor below.">
+          <img class="on-dark" src="shots/work-void.webp" width="1920" height="1080" loading="lazy" alt="Dark theme: Emacs with a Python program on the left; on the right the program's output above, and the htop system monitor below.">
+        </button>
+        <figcaption>
+          <h3>Three windows, none overlapping.</h3>
+          <p>Emacs with one of the Python examples from <code>~/dev</code>, the program running, and a system monitor. The bar along the top shows the workspaces, the windows on this one, the network, the volume and the time. Emacs keeps its own colours for now.</p>
+        </figcaption>
+      </figure>
+
+      <figure id="launcher">
+        <button class="shot" type="button" data-full="launcher" aria-label="Enlarge: the launcher">
+          <img class="on-light" src="shots/small/launcher-paper.webp" width="960" height="540" loading="lazy" alt="The launcher open over the desktop, listing programs.">
+          <img class="on-dark" src="shots/small/launcher-void.webp" width="960" height="540" loading="lazy" alt="The launcher open over the desktop, listing programs.">
+        </button>
+        <figcaption>
+          <h3>Start anything. <kbd>Super</kbd>+<kbd>d</kbd></h3>
+          <p>Type a few letters of a program's name, then Return.</p>
+        </figcaption>
+      </figure>
+
+      <figure id="keys">
+        <button class="shot" type="button" data-full="keys" aria-label="Enlarge: every key">
+          <img class="on-light" src="shots/small/keys-paper.webp" width="960" height="540" loading="lazy" alt="A long list of keys and what they do, over the desktop.">
+          <img class="on-dark" src="shots/small/keys-void.webp" width="960" height="540" loading="lazy" alt="A long list of keys and what they do, over the desktop.">
+        </button>
+        <figcaption>
+          <h3>Every key, searchable. <kbd>Super</kbd>+<kbd>F1</kbd></h3>
+          <p>Type to search, and Return runs the key you picked. At the top: the one the agent just added.</p>
+        </figcaption>
+      </figure>
+
+      <figure id="menu">
+        <button class="shot" type="button" data-full="menu" aria-label="Enlarge: the Vikix menu">
+          <img class="on-light" src="shots/small/menu-paper.webp" width="960" height="540" loading="lazy" alt="The Vikix menu: keyboard shortcuts, the guide, update, the AI agent, Wi-Fi, Bluetooth, themes, screens, power and more.">
+          <img class="on-dark" src="shots/small/menu-void.webp" width="960" height="540" loading="lazy" alt="The Vikix menu: keyboard shortcuts, the guide, update, the AI agent, Wi-Fi, Bluetooth, themes, screens, power and more.">
+        </button>
+        <figcaption>
+          <h3>Everything else, in one menu. <kbd>Super</kbd>+<kbd>m</kbd></h3>
+          <p>Wi-Fi, Bluetooth, screens, themes, backups, updates, local AI and power, without remembering a command.</p>
+        </figcaption>
+      </figure>
+
+      <figure id="web">
+        <button class="shot" type="button" data-full="web" aria-label="Enlarge: Firefox and a terminal">
+          <img class="on-light" src="shots/small/web-paper.webp" width="960" height="540" loading="lazy" alt="Firefox showing a Wikipedia article on the left, and a terminal running a small Common Lisp program on the right.">
+          <img class="on-dark" src="shots/small/web-void.webp" width="960" height="540" loading="lazy" alt="Firefox showing a Wikipedia article on the left, and a terminal running a small Common Lisp program on the right.">
+        </button>
+        <figcaption>
+          <h3>A browser next to your work.</h3>
+          <p>Firefox beside a terminal running a Lisp example. Twenty languages come with examples like it, <code>make run</code> in each.</p>
+        </figcaption>
+      </figure>
+
+      <figure id="calc">
+        <button class="shot" type="button" data-full="calc" aria-label="Enlarge: the calculator">
+          <img class="on-light" src="shots/small/calc-paper.webp" width="960" height="540" loading="lazy" alt="The calculator: 5 ft to cm, answered as 152.4 cm.">
+          <img class="on-dark" src="shots/small/calc-void.webp" width="960" height="540" loading="lazy" alt="The calculator: 5 ft to cm, answered as 152.4 cm.">
+        </button>
+        <figcaption>
+          <h3>A calculator that answers as you type. <kbd>Super</kbd>+<kbd>=</kbd></h3>
+          <p>Units, percentages, dates: <code>5 ft to cm</code>, <code>today + 30 days</code>. Return copies the answer.</p>
+        </figcaption>
+      </figure>
+
+      <figure id="emoji">
+        <button class="shot" type="button" data-full="emoji" aria-label="Enlarge: the emoji picker">
+          <img class="on-light" src="shots/small/emoji-paper.webp" width="960" height="540" loading="lazy" alt="The emoji picker, searching for rocket.">
+          <img class="on-dark" src="shots/small/emoji-void.webp" width="960" height="540" loading="lazy" alt="The emoji picker, searching for rocket.">
+        </button>
+        <figcaption>
+          <h3>Emoji, by name. <kbd>Super</kbd>+<kbd>.</kbd></h3>
+          <p>Pick one and it's typed into the window you were in.</p>
+        </figcaption>
+      </figure>
+
+      <figure id="notes">
+        <button class="shot" type="button" data-full="notes" aria-label="Enlarge: notifications">
+          <img class="on-light" src="shots/small/notes-paper.webp" width="960" height="540" loading="lazy" alt="Two notifications in the top right corner: Vikix is up to date, and Screenshot copied.">
+          <img class="on-dark" src="shots/small/notes-void.webp" width="960" height="540" loading="lazy" alt="Two notifications in the top right corner: Vikix is up to date, and Screenshot copied.">
+        </button>
+        <figcaption>
+          <h3>Notifications that match. <kbd>Super</kbd>+<kbd>n</kbd></h3>
+          <p>In the theme's colours, top right. Super+n brings back the last one; Super+Alt+n is do not disturb.</p>
+        </figcaption>
+      </figure>
+    </div>
+
+    <div class="cta" style="padding-bottom:88px">
+      <a class="btn primary" href="./#install">Install it</a>
+      <a class="btn" href="./#faq">Questions first</a>
+      <a class="btn" href="./#try">Try tiling in the browser</a>
+    </div>
+  </div>
+</main>
+
+<dialog class="lb" id="lb" aria-label="Screenshot">
+  <img id="lbImg" alt="">
+  <div class="bar2">
+    <span id="lbCap"></span>
+    <div>
+      <button type="button" id="lbPrev" aria-label="Previous picture">←</button>
+      <button type="button" id="lbNext" aria-label="Next picture">→</button>
+      <button type="button" id="lbClose">Close</button>
+    </div>
+  </div>
+</dialog>
+
+<footer>
+  <div class="wrap">
+    <span>Vikix · made by <a href="https://thevikidtruth.substack.com/">The Vikid Truth</a> · MIT licence · built on <a href="https://voidlinux.org">Void Linux</a> and <a href="https://stumpwm.github.io">StumpWM</a> · inspired by <a href="https://omarchy.org">Omarchy</a></span>
+    <nav><a href="./">Home</a><a href="https://github.com/vukini/vikix">Source</a><a href="https://github.com/vukini/vikix/discussions">Discussions</a><a href="https://github.com/vukini/vikix/issues">Issues</a><a href="https://x.com/vukini">X</a></nav>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+  var root = document.documentElement;
+
+  /* ---------- theme: the same switch, and the same saved choice, as the home page ---------- */
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+  function isDark() {
+    var t = root.getAttribute("data-theme");
+    if (t) return t === "dark";
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+  function paintTheme() {
+    document.getElementById("themeName").textContent = isDark() ? "void" : "paper";
+    document.querySelectorAll(".theme-pick button").forEach(function (b) {
+      b.setAttribute("aria-pressed", String((b.dataset.set === "dark") === isDark()));
+    });
+  }
+  function setTheme(mode) { root.setAttribute("data-theme", mode); store("vikix-theme", mode); paintTheme(); }
+  var saved = store("vikix-theme");
+  if (saved === "dark" || saved === "light") root.setAttribute("data-theme", saved);
+  document.getElementById("themeBtn").addEventListener("click", function () { setTheme(isDark() ? "light" : "dark"); });
+  document.querySelectorAll(".theme-pick button").forEach(function (b) {
+    b.addEventListener("click", function () { setTheme(b.dataset.set); });
+  });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", paintTheme);
+  paintTheme();
+
+  /* ---------- the big view: full size, in the theme showing now ---------- */
+  var shots = Array.prototype.slice.call(document.querySelectorAll("#gallery button.shot"));
+  var lb = document.getElementById("lb"), lbImg = document.getElementById("lbImg"), lbCap = document.getElementById("lbCap");
+  var at = 0;
+  function fullSrc(btn) {
+    var f = btn.dataset.full;
+    return f.indexOf("/") !== -1 ? f : "shots/" + f + "-" + (isDark() ? "void" : "paper") + ".webp";
+  }
+  function show(i) {
+    at = (i + shots.length) % shots.length;
+    var btn = shots[at], fig = btn.closest("figure");
+    lbImg.src = fullSrc(btn);
+    lbImg.alt = btn.querySelector("img").alt;
+    lbCap.textContent = fig.querySelector("h3").textContent;
+    if (history.replaceState) history.replaceState(null, "", "#" + fig.id);
+  }
+  shots.forEach(function (btn, i) {
+    btn.addEventListener("click", function () {
+      show(i);
+      if (lb.showModal) lb.showModal(); else window.open(fullSrc(btn));
+    });
+  });
+  document.getElementById("lbPrev").addEventListener("click", function () { show(at - 1); });
+  document.getElementById("lbNext").addEventListener("click", function () { show(at + 1); });
+  document.getElementById("lbClose").addEventListener("click", function () { lb.close(); });
+  lb.addEventListener("click", function (e) { if (e.target === lb) lb.close(); });
+  lb.addEventListener("keydown", function (e) {
+    if (e.key === "ArrowLeft") { show(at - 1); e.preventDefault(); }
+    if (e.key === "ArrowRight") { show(at + 1); e.preventDefault(); }
+  });
+  new MutationObserver(function () { paintTheme(); if (lb.open) show(at); }).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+
+  /* ---------- the video: shown only once it has an id, loaded only on play ---------- */
+  var video = document.getElementById("video"), id = video.dataset.youtube;
+  if (/^[A-Za-z0-9_-]{11}$/.test(id)) {
+    video.hidden = false;
+    document.getElementById("videoThumb").src = "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg";
+    document.getElementById("videoPlay").addEventListener("click", function () {
+      var f = document.createElement("iframe");
+      f.src = "https://www.youtube-nocookie.com/embed/" + id + "?autoplay=1&rel=0";
+      f.title = "Vikix, the video";
+      f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+      f.allowFullscreen = true;
+      document.getElementById("videoFrame").replaceChildren(f);
+    });
+  }
+})();
+</script>
+</body>
+</html>
