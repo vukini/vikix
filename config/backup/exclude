@@ -45,3 +45,12 @@ $HOME/dev/python/.venv
 $HOME/.local/share/libvirt/images
 $HOME/VirtualBox VMs
 $HOME/.local/share/containers
+
+# Web apps (vikix webapp): their logins stay in the backup, their caches don't
+$HOME/.local/share/vikix/webapps/*/Default/Cache
+$HOME/.local/share/vikix/webapps/*/Default/Code Cache
+$HOME/.local/share/vikix/webapps/*/Default/Service Worker/CacheStorage
+$HOME/.local/share/vikix/webapps/*/Default/GPUCache
+$HOME/.local/share/vikix/webapps/*/GraphiteDawnCache
+$HOME/.local/share/vikix/webapps/*/GrShaderCache
+$HOME/.local/share/vikix/webapps/*/ShaderCache

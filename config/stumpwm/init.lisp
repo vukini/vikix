@@ -19,6 +19,7 @@
     "windows"    ; focus, gaps, layout undo, finding windows
     "keys"       ; Super-key bindings
     "help"       ; key help (s-F1) and the list of all commands
+    "webapps"    ; your web apps (vikix webapp): keys and Super+m
     "modeline"   ; the bar at the top
     "swank-guard" ; a wrong Swank password can't take Swank down
     "swank")     ; the door for Emacs, with a password

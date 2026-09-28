@@ -213,6 +213,7 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 | `s-E` | Files in SpaceFM (tabs, split panes) |
 | `s-C-e` | Eject a USB drive: pick it, and a notification says when it's safe to pull out |
 | `s-a` | AI agent: Claude Code in a terminal |
+| `s-M` | Mail: your mail web app to the front, or opened (the first mail one `vikix webapp add` makes; see [Web apps](#web-apps)) |
 | `s-x` | Emacs: a new window (the Emacs server is already running) |
 | `s-c` | Clipboard history: pick something copied earlier, then paste it |
 | `s-.` | Emoji: search by name (heart, cat, thumbs up); Enter types it into your window and copies it, `Ctrl+c` only copies |
@@ -393,6 +394,7 @@ A restore goes into `~/Restored/<time>/`, beside your files, never over them; mo
 | `lisp` | SBCL |
 | `lang-*` | One file per language, so a language is one file to keep or delete: C extras (tcc, rr, cmake, meson, ninja, shellcheck, shfmt, the C and POSIX man pages), Python (pip, ipython, pipx, uv), Lisp and Scheme (ccl, racket and its docs, chez-scheme, guile), Haskell (ghc and its docs, cabal, HLS, hlint), Forth (gforth), WebAssembly (wabt, wasmtime), Ruby (with `ri` docs), SQLite (sqlite, litecli, sqlitebrowser), Lua (lua54, LuaJIT), Go, Zig (zig, zls), Rust (with rust-analyzer and the docs), Java (openjdk21, gradle), OCaml (dune, ocamlfind, opam), Julia (juliaup), Pascal (fpc, Lazarus), and `lang-tools` (ctags, entr, hyperfine, tokei, just) |
 | `optional/windows` | Only after `vikix windows setup`: libvirt (with dnsmasq, for the VM's network), QEMU, UEFI firmware (edk2-ovmf), swtpm, virtiofsd, virt-viewer, xorriso. See [Windows](#windows-in-a-vm) |
+| `optional/webapps` | Only after the first `vikix webapp add`: Chromium, which runs the web apps. See [Web apps](#web-apps) |
 
 ## Laptop
 
@@ -474,6 +476,23 @@ vikix windows stop                 # shut it down (also: status, remove)
 - **Reboot and Power off** in the power menu shut Windows down properly first. Logging out leaves it running.
 - **Its network is kept apart from this machine.** A program in Windows (a bad download, say) can't reach what this machine keeps to itself: the window manager's Lisp door (which could run commands as you), the printers, a local AI model. Windows still reaches the internet and your network; it sees this machine as just another computer, at 192.168.122.1. There's nothing to do for it: `vikix windows setup`, or `vikix update` for a VM made before 0.41.0, sets it up and asks for your password (sudo) once. A VM moved while it was running keeps its old network until Windows restarts; `vikix windows status` says so, and so does a notification. How it works: libvirt's NAT network (`virbr0`, run by the system libvirt service, with dnsmasq, from each boot) and one line in `/etc/qemu/bridge.conf`. The move gives Windows a new network card, so settings made on the old one (a fixed address) don't carry over. To reach a program on this machine from Windows on purpose, run it on 192.168.122.1 (or all addresses), not 127.0.0.1.
 - **To change the VM** (memory, CPUs, a USB device), `virt-manager -c qemu:///session`.
+
+## Web apps
+
+Some programs are really websites: mail most of all. A web app opens one in a window of its own, with no tabs and no address bar, that StumpWM tiles and finds like any program:
+
+```sh
+vikix webapp add superhuman       # a preset: superhuman, fastmail, gmail, outlook (work), outlook-live
+vikix webapp add fastmail --key s-F   # with a key of its own (Super+Shift+f)
+vikix webapp add crm https://crm.example.com   # any site
+vikix webapp list                 # remove NAME takes one away; --forget also deletes its logins
+```
+
+- **Mail on a key.** The first mail web app gets `s-M` (Super+Shift+m): it brings the mail window to the front from any workspace, or opens it. Every web app is also in the launcher (`s-d`) and in `s-m`, and its key in the key help.
+- **Superhuman, Gmail and work Outlook** can all be one window: Superhuman handles Gmail and Microsoft 365 accounts. Fastmail's own web app is the one for Fastmail. Outlook on the web is what a work account's sign-in rules least often block; the desktop Outlook needs the Windows VM.
+- **Logins kept apart.** Each web app has its own Chromium profile (`~/.local/share/vikix/webapps/NAME`), so a work login never mixes with a personal one or with Firefox. Backups keep the logins and leave out the caches.
+- **Notifications** come through dunst, like everything else: allow them in the web app when it asks.
+- **Chromium** is installed the first time you add a web app (an optional package list, so `vikix update` then keeps it).
 
 ## Editors
 
@@ -618,6 +637,7 @@ vikix backup       # back up your home folder (vikix backup help for the rest)
 vikix firmware     # firmware updates waiting (BIOS, Thunderbolt, ...); vikix firmware update installs them
 vikix windows      # Windows in a VM: setup, create ISO, then open, stop, status
 vikix ai key set anthropic   # an API key, kept out of your dotfiles and their history
+vikix webapp add superhuman  # a website as a program: presets superhuman, fastmail, gmail, outlook
 vikix fingerprint  # a finger for sudo and the lock screen, where the reader is supported
 ```
 
@@ -652,6 +672,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `examples` | every example in `dev/*/examples/` builds and runs with its Makefile, where its compiler is installed, and every `wordfreq` prints the same `expected.txt` |
 | `bar` | `vikix-net` labels the link and shows the Wi-Fi signal only when it is weak; `vikix-bt` shows Bluetooth only when it is on, with the device and its battery, and never waits on a hung bluetoothd; `vikix-font` gives StumpWM Iosevka Regular, or a stand-in until Iosevka is installed |
 | `windows` | `vikix windows setup` refuses without KVM or space before changing anything, opts in once, and deletes a download with the wrong checksum; `10-packages` installs an optional list only once chosen; `create`'s answer file is valid XML in the ISO's language, and the password stays off the command line and out of reach of other users; `virt-install` gets the TPM, Secure Boot, the private bridge (never passt), virtiofs and TRIM; `vikix windows network` sets up the system libvirt, its network and bridge.conf, moves a passt VM onto `virbr0`, says plainly when libvirt won't start, asks for no password when all is ready, and tells a Windows still running on the old network to restart; the migration runs it only where Windows was chosen, and never fails the update; `vikix doctor` checks the VM's network; the discs come out and the answer disc goes only once Windows is ready; power off shuts a running Windows down and leaves libvirt alone otherwise |
+| `webapp` | `vikix webapp add` gives a preset its address and the first mail one `s-M`, makes a launcher entry with its window class, opts in to Chromium, and refuses a bad name, an address that isn't https (but localhost), Vikix's own keys and another web app's; `open` starts a Chromium app window with its own class and profile (700); `remove` keeps the logins unless `--forget`; `webapps.lisp` binds the keys, adds key help and `s-m` entries (before Power), and a reload drops what went without doubling anything (with sbcl) |
 | `info` | The guides in `docs/` make an Info manual with no makeinfo warnings and a node for every heading; a broken link or a page missing from the table stops the build; `40-config` installs it once and lists it in the info `dir`; Emacs opens it and follows a link (needs makeinfo) |
 | `home` | `40-config` and `60-login` change nothing when run again, and `vikix undo` puts your files back (and undoing again brings the change back); API keys never reach the history, even when `yours.list` names their folder, and on a history older than that rule |
 | `ai` | `vikix ai key set` keeps a key 600 in a 700 folder and never prints it (a fingerprint instead), refuses names that aren't keys' (`PATH`, `LD_PRELOAD`, `ANTHROPIC_BASE_URL`), typos and a key typed on the command line; only keys' names from real files of yours are exported, in shells and the session (whose log's trace is off while they load); `check` finds a key in your files, `~/.profile` and the like, and their history, by file and line, names a dotfile linked into a git repo and anything odd in the folder, and is quiet once all's fixed; `vikix agent` and `vikix update` run without the keys |

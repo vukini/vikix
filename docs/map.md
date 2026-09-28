@@ -38,6 +38,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── secrets/           yours     API keys, one file each (vikix ai key); never in snapshots
 │   │   ├── optional           yours     optional features you chose, such as windows (vikix windows setup)
 │   │   ├── windows            yours     where the Windows VM's disk is
+│   │   ├── webapps            yours     your web apps: NAME URL [KEY] (vikix webapp)
 │   │   ├── wallpaper          yours     a link to the picture you chose
 │   │   ├── wallpaper-off      yours     exists if you set the wallpaper with your own tool
 │   │   ├── themes/            yours     your own themes (NAME.theme, NAME.jpg)
@@ -66,6 +67,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   ├── share/info/vikix.info          written   these guides as an Info manual (`info vikix`)
 │   ├── opt/picolisp/          built     PicoLisp, from source
 │   ├── share/libvirt/images/  the Windows VM's disk and its driver disc (not backed up)
+│   ├── share/vikix/webapps/   each web app's own Chromium profile: its logins (caches not backed up)
 │   └── state/vikix/           Vikix's record of this machine (see below)
 │
 ├── quicklisp/                 Common Lisp libraries; StumpWM is built from here

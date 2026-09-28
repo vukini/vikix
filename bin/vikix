@@ -26,6 +26,8 @@
 #                         what's waiting, or install it (on AC power)
 #   vikix fingerprint [on|off|enrol]   a finger for sudo and the lock screen,
 #                         where fprintd supports the reader
+#   vikix webapp add|open|list|remove    a website as a program of its own
+#                         (presets: superhuman, fastmail, gmail, outlook)
 #   vikix ai key set|list|remove|check   API keys (ANTHROPIC_API_KEY ...)
 #                         kept safely, out of your dotfiles and their history
 #   vikix windows [setup|create ISO|stop|status|network|remove]   Windows in a VM:
@@ -546,6 +548,7 @@ main() {
     firmware)    shift; exec "$VIKIX_DIR/bin/vikix-firmware" "$@" ;;
     windows)     shift; exec "$VIKIX_DIR/bin/vikix-windows" "$@" ;;
     ai)          shift; exec "$VIKIX_DIR/bin/vikix-ai" "$@" ;;
+    webapp|webapps) shift; exec "$VIKIX_DIR/bin/vikix-webapp" "$@" ;;
     fingerprint) shift; exec "$VIKIX_DIR/bin/vikix-fingerprint" "$@" ;;
     help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
     *)           die "unknown command: $1 (try: vikix help)" ;;

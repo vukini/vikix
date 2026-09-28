@@ -19,6 +19,7 @@
 .config/vikix/backup-exclude  # what they leave out
 .config/vikix/optional        # optional features you chose (vikix windows setup)
 .config/vikix/windows         # where the Windows VM's disk is
+.config/vikix/webapps         # your web apps (vikix webapp)
 .Xresources
 .bashrc
 .bash_profile

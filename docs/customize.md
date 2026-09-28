@@ -149,6 +149,17 @@ Don't edit between the `# >>> vikix … >>>` and `# <<< vikix … <<<` lines; Vi
 - **Optional features** come with their own setup command, which adds them to `~/.config/vikix/optional`; from then on `vikix update` keeps their packages. So far there is one: the Windows VM (`vikix windows setup`, see the [README](../README.md#windows-in-a-vm)).
 - **Switch on a service:** `sv-on NAME` (the services are in `/etc/sv/`), `sv-off NAME`, `svls` to list. These are system services. A program for your desktop session goes in `user.lisp` instead ([above](#start-a-program-with-the-desktop)).
 
+## Web apps
+
+A website you use like a program (mail, a CRM, a calendar) can have a window, a launcher entry and a key of its own:
+
+```sh
+vikix webapp add superhuman            # presets: superhuman, fastmail, gmail, outlook, outlook-live
+vikix webapp add crm https://crm.example.com --key s-C-c
+```
+
+Your list is `~/.config/vikix/webapps`, one `NAME URL [KEY]` per line; editing it by hand works too, then `Super+m` → *Reload config*. See the [README](../README.md#web-apps).
+
 ## The editors
 
 `~/.emacs.d` and `~/.config/nvim` are git clones of the author's configs, and `vikix update` pulls them. To use your own, install Vikix with `VIKIX_EMACS_REPO=` or `VIKIX_NVIM_REPO=` set to your repository, or replace the folder with your own. A folder that isn't a git clone is left alone. Edits to the clones can stop the pull; the update says so and carries on.

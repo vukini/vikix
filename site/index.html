@@ -834,7 +834,8 @@ exec /usr/bin/sshd -D $OPTS
     [["s-M-l"], "Night light on and off"], [["Print"], "Screenshot an area to the clipboard"],
     [["C-Print"], "Screenshot the focused window"], [["s-Print"], "Screenshot the whole screen"],
     [["s-R"], "Record an area or a window; press again to stop"],
-    [["s-C-Print"], "Screenshot or record, the text in an area (OCR), or pick a colour"]
+    [["s-C-Print"], "Screenshot or record, the text in an area (OCR), or pick a colour"],
+    [["s-M"], "Mail: your mail web app (Superhuman, Fastmail, Outlook, Gmail) to the front"]
   ];
   function kbd(k) {
     return k.split("-").map(function (p, i, a) {

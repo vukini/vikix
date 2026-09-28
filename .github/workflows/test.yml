@@ -82,6 +82,8 @@ jobs:
         run: tests/ci.sh ai
       - name: swank
         run: tests/ci.sh swank
+      - name: webapp
+        run: tests/ci.sh webapp
       - name: info
         run: tests/ci.sh info
 

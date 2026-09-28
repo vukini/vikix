@@ -1,0 +1,3 @@
+# webapps.list — Chromium, for web apps (`vikix webapp`). Optional: installed
+# only after `vikix webapp add` names it in ~/.config/vikix/optional.
+chromium            # each web app is a Chromium window of its own
