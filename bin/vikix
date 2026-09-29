@@ -237,7 +237,7 @@ cmd_doctor() {
   # The editors only when chosen (vikix add emacs); the rest is the base.
   local progs=(sbcl stumpwm alacritty rofi picom dunst pipewire i3lock firefox nmtui clipmenu maim restic) dirs=()
   is_chosen emacs  && { progs+=(emacs); dirs+=("$HOME/.emacs.d"); }
-  is_chosen neovim && { progs+=(nvim);  dirs+=("$HOME/.config/nvim"); }
+  is_chosen neovim && progs+=(nvim)
   for c in "${progs[@]}"; do
     if command -v "$c" >/dev/null 2>&1 || [ -x "$HOME/.local/bin/$c" ]; then
       say "found $c"
@@ -255,6 +255,16 @@ cmd_doctor() {
     if [ -d "$d/.git" ]; then say "$d is a git clone"
     else warn "$d is not a git clone (45-editors did not set it up)"; ok=0; fi
   done
+  # Neovim: Vikix's starter with Vikix's part, or a config of your own.
+  if is_chosen neovim; then
+    local nv="$HOME/.config/nvim" layer="${XDG_DATA_HOME:-$HOME/.local/share}/vikix/nvim"
+    if grep -qsF 'require, "vikix"' "$nv/init.lua"; then
+      if [ -f "$layer/lua/vikix/init.lua" ]; then say "Neovim is Vikix's, with your part in $nv"
+      else warn "$layer, Vikix's part of Neovim, is missing (vikix update links it)"; ok=0; fi
+    elif [ -d "$nv/.git" ]; then say "$nv is a git clone (a Neovim config of your own)"
+    elif [ -e "$nv/init.lua" ] || [ -e "$nv/init.vim" ]; then say "$nv is a Neovim config of your own"
+    else warn "$nv has no Neovim config (vikix update puts Vikix's starter there)"; ok=0; fi
+  fi
   if [ ! -L "$HOME/.stumpwm.d/init.lisp" ]; then
     warn "$HOME/.stumpwm.d/init.lisp is not Vikix's"; ok=0
   fi
@@ -356,6 +366,9 @@ yours_stage() {
     # A line naming the keys' folder, or a file in it, is skipped outright
     # (git would refuse an excluded path named on its own).
     case /${p%/}/ in /.config/vikix/secrets/*) warn "yours.list names $p; API keys are never kept in the history"; continue ;; esac
+    # A git clone (a Neovim config of your own) keeps its own history, and
+    # git can't take it in: it would record a pointer, or fail the snapshot.
+    [ -e "$HOME/$p/.git" ] && continue
     if [ -e "$HOME/$p" ]; then yours_git add -A -- "$HOME/$p"; fi
   done < <(read_list "$VIKIX_DIR/config/yours.list")
   yours_git add -u    # files that were recorded and are now gone

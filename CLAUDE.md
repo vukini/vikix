@@ -17,8 +17,8 @@ This folder sits inside an Obsidian vault, but it is a code repo: the vault's no
 No build step. The tests are scripts in `tests/`, and `.github/workflows/test.yml` runs the same scripts on GitHub (on each push and weekly):
 
 ```sh
-tests/run.sh                  # about two minutes: lint, lisp, battery, home, services, backup (with restic), image, theme, bar, rofi, wallpaper, examples, drives, firmware, fingerprint, updates, notifications, idle, capture, nightlight, update, windows, ai, ai-local, llm, ai-keys, agents, debug, dictate, mcp, swank (with Quicklisp), webapp, features, welcome, menu, pkg, oneline, info, and on Void packages + dry-run
-tests/run.sh --all            # plus editors: Emacs and Neovim configs from scratch (minutes, network)
+tests/run.sh                  # about two minutes: lint, lisp, battery, home, services, backup (with restic), image, theme, bar, rofi, wallpaper, examples, drives, firmware, fingerprint, updates, notifications, idle, capture, nightlight, update, windows, ai, ai-local, llm, ai-keys, agents, debug, dictate, mcp, swank (with Quicklisp), webapp, features, nvim, welcome, menu, pkg, oneline, info, and on Void packages + dry-run
+tests/run.sh --all            # plus editors: Emacs's config and Vikix's Neovim config from scratch (minutes, network)
 tests/lint.sh                 # bash -n, executable bits, shellcheck -S warning (must stay at zero)
 DRY_RUN=1 bash install/<stage>.sh     # one stage, printing instead of changing
 ```
@@ -40,8 +40,8 @@ Real testing happens in a VM. The dev machine has a libvirt VM `void-vm` (`virsh
 **Migrations** (`migrations/<unix-time>.sh`, see `migrations/README.md`). A fresh install gets changes from the stages; machines already installed only get them through a migration, which `vikix update` runs once each, oldest first, and records in `~/.local/state/vikix/migrations/`. `90-finish` marks all existing migrations as applied on a fresh install. So: if a change to a stage must reach existing machines and `vikix update` doesn't already re-run that stage, add a migration. Start it with a `# Why:` comment, and make it safe to run twice.
 
 **File ownership** (the central rule, enforced by `40-config`):
-- *Vikix's files* are symlinked into this checkout with `link_managed` (StumpWM `init.lisp` and `vikix/` layer, `.xinitrc`, `vikix.bash`, `bin/*` into `~/.local/bin`, the fontconfig alias, the Claude skill). Editing them here changes every install on the next `vikix update`.
-- *The user's files* are copied once with `copy_user` and never overwritten (`user.lisp`, alacritty/picom/dunst/rofi configs, keyboard file, `.Xresources`). Changing a starter file in `config/` only affects new installs.
+- *Vikix's files* are symlinked into this checkout with `link_managed` (StumpWM `init.lisp` and `vikix/` layer, `.xinitrc`, `vikix.bash`, `bin/*` into `~/.local/bin`, the fontconfig alias, the Claude skill; `45-editors` links Neovim's part, `config/nvim`, to `~/.local/share/vikix/nvim`). Editing them here changes every install on the next `vikix update`.
+- *The user's files* are copied once with `copy_user` and never overwritten (`user.lisp`, alacritty/picom/dunst/rofi configs, keyboard file, `.Xresources`; `45-editors` copies Neovim's starter, `config/nvim/starter`, to `~/.config/nvim`, and its tested `lazy-lock.json`, which it moves on only while the user's is still the one it left, recorded in `~/.local/state/vikix/nvim-lock`). Changing a starter file in `config/` only affects new installs.
 - Anything in the way is moved to `<name>.vikix-bak.<time>`, never deleted. Blocks in shared files like `~/.bashrc` go through `ensure_block`.
 - *API keys* are neither: `vikix ai key set` keeps them in `~/.config/vikix/secrets/` (700, files 600), `lib/secrets.sh` exports them (the session and every shell), and the snapshot history never records that folder, whatever `yours.list` says (`yours_exclude` in `bin/vikix`, rewritten at every snapshot). Never print a key, and never let `set -x` run where one is read.
 

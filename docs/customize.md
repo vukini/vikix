@@ -172,7 +172,13 @@ Your list is `~/.config/vikix/webapps`, one `NAME URL [KEY]` per line; editing i
 
 ## The editors
 
-Emacs and Neovim are features: `vikix add emacs`, `vikix add neovim` (`essentials` brings Emacs). Each comes with a config: `~/.emacs.d` and `~/.config/nvim` are git clones of the author's configs, and `vikix update` pulls them. To use your own, install Vikix with `VIKIX_EMACS_REPO=` or `VIKIX_NVIM_REPO=` set to your repository, or replace the folder with your own. A folder that isn't a git clone is left alone. Edits to the clones can stop the pull; the update says so and carries on.
+Emacs and Neovim are features: `vikix add emacs`, `vikix add neovim` (`essentials` brings Emacs).
+
+**Neovim** is AstroNvim with a few plugins of Vikix's, and it's split like StumpWM: Vikix's part is `~/.local/share/vikix/nvim` (don't edit it; updates keep it current), and `~/.config/nvim` is yours. Your own plugins and settings go in `~/.config/nvim/lua/plugins/`, one or more files that each return plugin specs; they load after Vikix's, so yours win, and `example.lua` there shows a plugin more, an AstroNvim setting, one of Vikix's plugins switched off, and another colour scheme. The plugins' versions are in `~/.config/nvim/lazy-lock.json`: Vikix installs the ones it tested, and moves them on when it tests newer ones. After a `:Lazy update` of yours, the lock is yours: updates leave it alone and say how to take Vikix's again.
+
+**Emacs** comes with a config too: `~/.emacs.d` is a git clone of the author's, and `vikix update` pulls it.
+
+To use a config of your own for either, install Vikix with `VIKIX_EMACS_REPO=` or `VIKIX_NVIM_REPO=` set to your repository, or put your own in the folder: a git clone there is pulled by updates, and any other folder of yours is left alone. Edits to a clone can stop the pull; the update says so and carries on.
 
 ## Changing Vikix itself
 

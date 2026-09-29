@@ -60,7 +60,7 @@ At the very first login, StumpWM also opens the welcome (`vikix welcome`, in a t
    - `10-packages`: installs anything new in the base's lists and your features' lists, leaving out your skip list
    - `20-services`: switches on services new packages brought
    - `40-config`: links Vikix's files again, copies starters you don't have yet, writes the theme files again, makes these guides into the Info manual, and takes a snapshot of your files
-   - `45-editors`: pulls the configs of the editors you chose (Emacs, Neovim)
+   - `45-editors`: for the editors you chose, pulls Emacs's config, and moves Neovim's plugins on when Vikix tested newer ones
    - `65-languages`: for the languages you chose: PicoLisp, Lazarus, Julia
    - `67-dev`: the `~/dev` READMEs, new examples
 4. **Runs migrations**: one-off fixes for machines installed before some change, each run once (recorded in `~/.local/state/vikix/migrations/`).

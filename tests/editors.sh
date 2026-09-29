@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # tests/editors.sh — the Emacs and Neovim configs work on a machine that has
-# never seen them: cloned into an empty HOME, every package installs, and
-# they start without errors.
+# never seen them: in an empty HOME (Emacs's cloned, Neovim's from this
+# checkout, set up as 45-editors does), every package installs, and they
+# start without errors.
 #
 # This is where fresh installs broke before: an Emacs config loading
 # hand-made clones (paredit, the Haskell input method), a MELPA package
 # that broke every later install (SLIME's xterm-color), and nvim-treesitter's
-# archived branch on Neovim 0.12. Those failures come from the configs'
-# own repositories and from upstream packages, not from this repo, so the
+# archived branch on Neovim 0.12. Those failures come from upstream
+# packages (and Emacs's config repository), not only from this repo, so the
 # workflow also runs this every week.
 #
 # Needs emacs, nvim, git, a C compiler, tree-sitter (tree-sitter-cli) and
@@ -19,7 +20,9 @@
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
 : "${VIKIX_EMACS_REPO:=https://github.com/vukini/emacs-void}"
-: "${VIKIX_NVIM_REPO:=https://github.com/vukini/nvim-void-linux}"
+# Neovim: this checkout's config/nvim, or a repository of yours if set.
+VIKIX_NVIM_REPO=${VIKIX_NVIM_REPO:-}
+here=$(cd "$(dirname "$0")/.." && pwd)
 which=${1:-both}
 t=$(mktemp -d)
 trap 'rm -rf "$t"' EXIT
@@ -47,14 +50,27 @@ if [ "$which" = both ] || [ "$which" = emacs ]; then
 fi
 
 if [ "$which" = both ] || [ "$which" = nvim ]; then
-  git clone -q --depth 1 "$VIKIX_NVIM_REPO" "$HOME/.config/nvim"
+  if [ -n "$VIKIX_NVIM_REPO" ]; then
+    git clone -q --depth 1 "$VIKIX_NVIM_REPO" "$HOME/.config/nvim"
+  else
+    # As 45-editors does: Vikix's part linked, the starter and the lock copied.
+    mkdir -p "$XDG_DATA_HOME/vikix" "$HOME/.config/nvim"
+    ln -s "$here/config/nvim" "$XDG_DATA_HOME/vikix/nvim"
+    cp -R "$here/config/nvim/starter/." "$HOME/.config/nvim/"
+    cp "$here/config/nvim/lazy-lock.json" "$HOME/.config/nvim/"
+  fi
   echo "nvim: installing the plugins in lazy-lock.json"
   nvim --headless "+Lazy! restore" +qa >"$t/nvim1.log" 2>&1 || { echo "FAIL nvim: Lazy restore exited $?"; fail=1; }
+  if [ -z "$VIKIX_NVIM_REPO" ]; then
+    out=$(nvim --headless -c 'lua local p = require("lazy.core.config").plugins; io.stderr:write("VIKIX=" .. tostring(p.vikix ~= nil) .. " TYPST=" .. tostring(p["typst-preview.nvim"] ~= nil) .. "\n")' -c 'qa!' 2>&1 || true)
+    grep -q 'VIKIX=true TYPST=true' <<<"$out" || { echo "FAIL nvim: Vikix's part didn't load: $(grep -o 'VIKIX.*' <<<"$out" || tail -3 <<<"$out")"; fail=1; }
+  fi
   # Open files of a few languages; the Markdown one is where 0.12 broke.
   printf '# Title\n\nSome `code` and a list:\n\n- one\n\n```lua\nprint(1)\n```\n' > "$t/test.md"
   printf 'local x = { 1, 2 }\nprint(#x)\n' > "$t/test.lua"
   printf 'def f(x):\n    return x + 1\n' > "$t/test.py"
-  for f in test.md test.lua test.py; do
+  printf '= Title\n\nSome *strong* text and $x^2$.\n' > "$t/test.typ"   # Vikix's Typst pack
+  for f in test.md test.lua test.py test.typ; do
     # Parsers are fetched and built on first use, so give it time.
     nvim --headless "$t/$f" -c 'sleep 30' \
       -c "lua local ok, p = pcall(vim.treesitter.get_parser, 0); local hl = vim.treesitter.highlighter.active[vim.api.nvim_get_current_buf()] ~= nil; if ok then p:parse(true) end; io.stderr:write(string.format('RESULT parser=%s highlight=%s\\n', ok and p:lang() or 'none', tostring(hl)))" \

@@ -4,10 +4,10 @@ The plan for Vikix's two editors, drawn up on 2026-09-29 from Vikix 0.52.1. The 
 
 The goal: Vikix supports two editors, Neovim and Emacs, and both work well with AI: a model for chat and edits, and an agent working in your project, using what Vikix already knows (your keys, your chosen agent, local models) and keeping its safety rules (a snapshot first, no keys in the agent's environment).
 
-## Where things stand (0.52.1)
+## Where things stood (0.52.1; Neovim's config moved into Vikix in 0.55.0)
 
 - **The editors are features:** `vikix add emacs` / `vikix add neovim`, with the lists `emacs`, `neovim` and `editor-tools` (nodejs, for the npm language servers). `essentials` brings Emacs, `developer` and `everything` both.
-- **Their configs are sister repos**, cloned by `install/45-editors.sh` and pulled by every `vikix update`: `~/.emacs.d` from `VIKIX_EMACS_REPO` (vukini/emacs-void), `~/.config/nvim` from `VIKIX_NVIM_REPO` (vukini/nvim-void-linux). Neovim's plugins are restored to `lazy-lock.json` at install; Emacs installs its packages in the daemon `vikix-session` starts.
+- **Their configs were sister repos** (Emacs's still is), cloned by `install/45-editors.sh` and pulled by every `vikix update`: `~/.emacs.d` from `VIKIX_EMACS_REPO` (vukini/emacs-void), `~/.config/nvim` from `VIKIX_NVIM_REPO` (vukini/nvim-void-linux). Neovim's plugins are restored to `lazy-lock.json` at install; Emacs installs its packages in the daemon `vikix-session` starts.
 - **Language servers:** Void's come with each `lang-*` list (ccls, gopls, ...), and `45-editors` puts typescript-language-server, pyright and bash-language-server in `~/.local` with npm.
 - **Terminal agents are done:** `vikix agent --use claude|opencode|codex|gemini|aider`, `--local` through Ollama, one guide (`~/.local/share/vikix/AGENTS.md` and the skill), a snapshot first, and no API keys or SSH agent in the agent's environment.
 - **The editors know none of it.** Neovim has no AI plugins. Emacs has gptel with OpenAI and Perplexity, defaulting to Perplexity's `sonar-pro`, so a Vikix user without that key gets an error, and neither the Claude key (`vikix ai key`) nor local Ollama is offered.
@@ -24,24 +24,10 @@ The goal: Vikix supports two editors, Neovim and Emacs, and both work well with 
 
 ## 1. Neovim into Vikix
 
-Why: `nvim-void-linux` is AstroNvim's template. Of its 515 lines in 15 files (6 commits), six files are switched off by the template's `if true then return {} end` line, and `astrocore.lua`, `none-ls.lua` and `README.md` are still template examples. What was chosen is about 40 lines: the Typst pack, `lsp_signature.nvim`, `better-escape`, a LuaSnip rule (JSX in JavaScript files), an autopairs rule (`$…$` in TeX), the dashboard header, `presence.nvim`. Owning it in Vikix makes every later step here one commit, and `EDITOR=nvim` already makes Neovim Vikix's default editor.
+Shipped in 0.55.0: Vikix's part in `config/nvim` (linked to `~/.local/share/vikix/nvim`), the starter copied to `~/.config/nvim`, the tested lock moved on only while it's untouched, an unchanged clone of `nvim-void-linux` set aside by `45-editors` (which every update runs, so no migration was needed), `tests/nvim.sh`, the editors test on the checkout's config, doctor, `yours.list`, the docs. The Lua is compiled by `tests/nvim.sh`; selene or stylua weren't added. Left:
 
-It is the StumpWM split again: Vikix's layer, updated; the user's file, copied once and never overwritten.
-
-- [ ] **Vikix's layer:** `config/nvim/lua/vikix/`: the AstroNvim import, the Typst pack, lsp_signature, better-escape, the LuaSnip and autopairs rules. Reached through the checkout (runtimepath), so `vikix update` keeps it current.
-- [ ] **Leave out:** `presence.nvim` (tells Discord which file you're editing: not a default for everyone), the template's leftovers (the `fooscript` filetypes, empty none-ls sources, the switched-off files, the template README).
-- [ ] **A Vikix dashboard header** instead of ASTRO NVIM.
-- [ ] **The starter:** `config/nvim/starter/`, copied to `~/.config/nvim` with `copy_user`: an `init.lua` that bootstraps Lazy, imports `vikix`, then the user's `lua/plugins/` (loaded last, so theirs win), and an empty `lua/plugins/` with a short example comment.
-- [ ] **The lock:** Vikix's tested `lazy-lock.json` in `config/nvim/`, copied with the starter and restored with `Lazy! restore` (as now). Can't be a link into the checkout: Lazy rewrites it and the checkout would be dirty, which stops `vikix update`. When a new lock ships, move the plugins forward only if the user's lock is one Vikix shipped (decision 1).
-- [ ] **`install/45-editors.sh`:** for Neovim, copy the starter and restore the lock instead of cloning. `VIKIX_NVIM_REPO` still works, as "bring your own config": when it's set, clone that and skip the starter.
-- [ ] **A migration** (`# Why:`, safe twice): a clone of `nvim-void-linux` with no local changes is moved to `~/.config/nvim.vikix-bak.<time>` and replaced with the starter; a clone with changes, or of another repo, is left alone, with a line saying how to switch.
-- [ ] **`tests/editors.sh`:** test the checkout's config (starter + layer) instead of cloning, so a broken config is caught in the commit that breaks it. Keep the treesitter check.
-- [ ] **Lint the Lua** (optional): selene (the repo has a `selene.toml`) or stylua in `tests/lint.sh`, through uvx or cargo if not installed.
-- [ ] **`bin/vikix` doctor:** it checks `~/.config/nvim` as a clone (line ~236); check the starter and the layer instead.
-- [ ] **`config/yours.list`:** add `~/.config/nvim/` (minus the lock?), so the user's Neovim files are in the snapshot history.
-- [ ] **Docs:** `docs/map.md` (`.config/nvim/` is yours, the layer is Vikix's), `docs/customize.md` "The editors", README (the 45-editors row), the skill, CLAUDE.md if file ownership's list changes.
-- [ ] **Archive `nvim-void-linux`** (decision 2): a README pointing to Vikix, then archive it on GitHub.
-- [ ] **Later, AstroNvim's major versions are Vikix's work** (v5 → v6 needed nvim-treesitter's main branch for Neovim 0.12): check Void's `neovim` version against AstroNvim's needs in the test.
+- [ ] **Archive `nvim-void-linux`** (decision 2): a README pointing to Vikix, then archive it on GitHub. Only after machines have updated past 0.55.0: until then their `vikix update` pulls it.
+- [ ] **AstroNvim's major versions are Vikix's work now** (v5 → v6 needed nvim-treesitter's main branch for Neovim 0.12): when v7 comes, move `version = "^6"` in `config/nvim/lua/vikix/init.lua` and the lock together, after `tests/editors.sh nvim`.
 
 ## 2. A safe way for an editor to start an agent
 
@@ -81,8 +67,8 @@ In `vikix-ai.el`, which Vikix keeps current and `emacs-void` loads when it is th
 - [ ] **`docs/editors.md`:** the two editors (Neovim is Vikix's and yours to extend; Emacs is a sister repo), how the configs are owned and updated, their keys and aliases (`v`, `e`, `eg`, `ec`, `eq`, `emacs-restart`, Super+x), language servers per feature, AI in each (chat, agents, local), bring your own config. A row in `docs/README.md`'s table (`tests/info.sh` checks it), only the Markdown `lib/md2texi.py` knows.
 - [ ] **The skill** (`config/claude/skills/vikix/SKILL.md`) and so `AGENTS.md`: where the editors' configs live and which part is the user's.
 - [ ] **vikix.dev:** a feature card, "AI in your editor", with a screenshot of each editor (void and paper).
-- [ ] **The editors follow `vikix theme`** (TODO.md item 8): easy for Neovim once it's in Vikix (the layer reads the palette `vikix theme` writes); for Emacs, a theme file written the same way.
-- [ ] **The Vikix MCP server** (TODO.md item 2), when it comes: registered for the agents the editors start too.
+- [ ] **The editors follow `vikix theme`** (TODO.md item 6): easy for Neovim now that it's in Vikix (the layer reads the palette `vikix theme` writes); for Emacs, a theme file written the same way.
+- [ ] **The Vikix MCP server** (`vikix mcp`, since 0.54.0): registered for the agents the editors start too.
 
 ## Other agentic editors (for the docs, not for Vikix to install)
 
