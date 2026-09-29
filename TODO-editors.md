@@ -49,15 +49,13 @@ Shipped in 0.59.0 and 0.60.0, in `config/emacs/vikix-ai.el` (linked to `~/.local
 
 ## 5. Afterwards, in Vikix
 
-- [ ] **`docs/editors.md`:** the two editors (Neovim is Vikix's and yours to extend; Emacs is a sister repo), how the configs are owned and updated, their keys and aliases (`v`, `e`, `eg`, `ec`, `eq`, `emacs-restart`, Super+x), language servers per feature, AI in each (chat, agents, local), bring your own config. A row in `docs/README.md`'s table (`tests/info.sh` checks it), only the Markdown `lib/md2texi.py` knows.
-- [ ] **The skill** (`config/claude/skills/vikix/SKILL.md`) and so `AGENTS.md`: where the editors' configs live and which part is the user's.
-- [ ] **vikix.dev:** a feature card, "AI in your editor", with a screenshot of each editor (void and paper).
+- [ ] **vikix.dev: screenshots of AI in each editor** (void and paper), for the gallery. The page has a line for it, "AI in your editor", since 0.61.0.
 - [ ] **The editors follow `vikix theme`** (TODO.md item 6): easy for Neovim now that it's in Vikix (the layer reads the palette `vikix theme` writes); for Emacs, a theme file written the same way.
 - [ ] **The Vikix MCP server** (`vikix mcp`, since 0.54.0): registered for the agents the editors start too.
 
 ## Other agentic editors (for the docs, not for Vikix to install)
 
-Worth a line in `docs/editors.md`; none of them a feature for now. Recheck before writing it: this is from mid-2026.
+Worth a line in `docs/editors.md` (the guide, since 0.61.0); none of them a feature for now. Recheck before writing it: this is from mid-2026.
 
 - **Zed:** official Linux builds, a script that installs into `~/.local`; runs ACP agents (Claude Code, Gemini) itself. Needs Vulkan: may struggle on old GPUs and in the VM. The one GUI editor that might one day be a feature.
 - **VS Code:** Void's `vscode` is the open-source build, with Open VSX rather than Microsoft's marketplace, so some extensions (Copilot) aren't there.

@@ -10,6 +10,7 @@ Vikix gives you these ways to use AI, from the most capable to the most private:
 | **Super+i** | Proofread, rewrite, translate, explain or ask about the text you selected, in any program | `vikix ai llm`, and a local model (or Claude, if you choose) | Here, unless you choose Claude |
 | **Super+F9** | Speak, and it types what you said, in any program | `vikix add dictation` (a few minutes, once) | Nowhere: it all stays here |
 | **In Neovim** | A chat about your code, and your agent in a side window (`Space A`) | `vikix add neovim`, and a local model, a key or an agent | As Super+i's, or the agent's |
+| **In Emacs** | The same, with gptel (`C-c g`) and agent-shell (`C-c a`) | `vikix add emacs`, and a local model, a key or an agent | As Super+i's, or the agent's |
 
 You can use any of them, all of them, or none. Nothing AI runs until you start it.
 
@@ -223,6 +224,19 @@ The chat follows `vikix ai use`: `local` (a model on this laptop, `vikix ai setu
 The agent in `Space A g` is started by `vikix agent --acp`, so it's the same as Super+a's: the guide, no API keys, and a snapshot first, so `vikix changes` shows what it did and `vikix undo` takes it back. It signs in with its own login, the one it uses in a terminal. Claude Code and Codex need their adapter, which `vikix agent --install claude` adds (running it again for an agent you have only adds what's missing). `Space A t` runs `vikix agent` itself, so Aider works there too.
 
 Nothing starts or connects until you press a key. When something's missing (a key, Ollama, the agent or its adapter), the key says what to type, and does nothing else.
+
+## AI in Emacs
+
+Emacs's config has [gptel](https://github.com/karthink/gptel) for the chat and [agent-shell](https://github.com/xenodium/agent-shell) for your agent, and Vikix sets both up:
+
+| Keys | What they do |
+|---|---|
+| `C-c g` | A chat, on the model Super+i uses: a local one, or Claude. With a selection, the chat starts from it |
+| `C-c G` | gptel's menu: another model for this chat (Claude, your local ones, and the config's own), and what to send |
+| `C-c a` | A chat with your agent (the one Super+a starts), which can read and change your files |
+| `C-c A` | Your agent in a terminal inside Emacs |
+
+The chat follows `vikix ai use` and `model=`, as Neovim's does, and Emacs reads them again at each `C-c g`, so a change reaches an Emacs that's already open. A model you pick in the menu stays until you change that file. The agent starts through `vikix agent --acp`, with the same rules as in Neovim, above; `C-c A` runs `vikix agent` itself, so Aider works there too. When something's missing, the key says what to type. [Neovim and Emacs](editors.md) compares the two.
 
 ## The desktop as tools (MCP)
 
