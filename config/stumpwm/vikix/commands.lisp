@@ -133,6 +133,7 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
     ("Local AI: talk to a model" (run-shell-command "vikix-local-ai chat --rofi") "~/.local/opt/ollama/bin/ollama")
     ("Local AI: choose a model" (run-shell-command "vikix-local-ai models --rofi") "~/.local/opt/ollama/bin/ollama")
     ("Local AI: unload the model" (run-shell-command "vikix-local-ai stop --notify") "~/.local/opt/ollama/bin/ollama")
+    ("Dictation: start, or stop and type it" (run-shell-command "vikix-dictate toggle") "~/.local/opt/whisper.cpp/build/bin/whisper-cli")
     ("Firmware updates"    (run-shell-command
                             (format nil "~a -e sh -c 'vikix firmware update; printf \"\\nEnter closes this window. \"; read x'"
                                     *vikix-terminal*)))
@@ -419,11 +420,18 @@ NOW (all Unix times but DAYS). NIL LAST means backups aren't set up."
 (defvar *vikix-recording* nil
   "True while the screen is being recorded.")
 
-(defun vikix-recording-p ()
-  "True when the recording file names a running process. A file left
-behind by a crash names one that is gone."
+(defparameter *vikix-dictating-file*
+  (merge-pathnames ".local/state/vikix/dictating" (user-homedir-pathname))
+  "Holds the recorder's process id while vikix-dictate listens.")
+
+(defvar *vikix-dictating* nil
+  "True while vikix-dictate listens (the bar says mic).")
+
+(defun vikix-recording-p (&optional (file *vikix-recording-file*))
+  "True when FILE (the recording file) names a running process. A file
+left behind by a crash names one that is gone."
   (handler-case
-      (with-open-file (in *vikix-recording-file* :if-does-not-exist nil)
+      (with-open-file (in file :if-does-not-exist nil)
         (let ((pid (and in (parse-integer (or (read-line in nil) "")
                                           :junk-allowed t))))
           (and pid (probe-file (format nil "/proc/~d/" pid)) t)))
@@ -432,9 +440,11 @@ behind by a crash names one that is gone."
 (defun vikix-record-refresh ()
   "Read the recording state into *vikix-recording*; redraw the bar if it
 changed. vikix-record calls this when it starts and stops."
-  (let ((new (vikix-recording-p)))
-    (unless (eq new *vikix-recording*)
-      (setf *vikix-recording* new)
+  (let ((new (vikix-recording-p))
+        (mic (vikix-recording-p *vikix-dictating-file*)))
+    (unless (and (eq new *vikix-recording*) (eq mic *vikix-dictating*))
+      (setf *vikix-recording* new
+            *vikix-dictating* mic)
       (update-all-mode-lines))))
 
 (defcommand vikix-record (what) ((:string "Record (area, screen): "))

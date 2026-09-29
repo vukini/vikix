@@ -1,6 +1,6 @@
 # Working with AI
 
-Vikix gives you three ways to use AI, from the most capable to the most private:
+Vikix gives you these ways to use AI, from the most capable to the most private:
 
 | | What it is | What it needs | Where your words go |
 |---|---|---|---|
@@ -8,6 +8,7 @@ Vikix gives you three ways to use AI, from the most capable to the most private:
 | **Local models** | A model that runs on this laptop, to chat with | `vikix ai setup`, and a few GB of disk | Nowhere: it all stays here |
 | **`llm`** | One command for any model, fed from a pipe | `vikix ai llm`, and a local model or a key | Here, or to the model's company |
 | **Super+i** | Proofread, rewrite, translate, explain or ask about the text you selected, in any program | `vikix ai llm`, and a local model (or Claude, if you choose) | Here, unless you choose Claude |
+| **Super+F9** | Speak, and it types what you said, in any program | `vikix add dictation` (a few minutes, once) | Nowhere: it all stays here |
 
 You can use any of them, all of them, or none. Nothing AI runs until you start it.
 
@@ -201,6 +202,32 @@ languages=English Esperanto French Spanish Arabic Hindi
 
 For better answers, above all translations into Esperanto, which small models get wrong, use Claude. Then each use costs a little and the text you selected goes to Anthropic, so it needs your key first: `vikix ai key set anthropic`. Super+i never switches to Claude by itself, and its menu always names the model and where the text goes.
 
+## Dictation
+
+Press **Super+F9** and speak. Press **Super+F9** again, and what you said is typed into the window you're in, a second or two later. It's also put on the clipboard, in case that window didn't take it. **Super+Shift+F9** stops without typing anything. While it listens, the bar says **mic**, in red.
+
+It's a press, speak, press: StumpWM sees a key go down, not come up, so holding the key while you speak isn't possible.
+
+To set it up, once (a few minutes, no password):
+
+```sh
+vikix add dictation          # or: vikix dictate setup
+```
+
+That builds [whisper.cpp](https://github.com/ggml-org/whisper.cpp) for this computer, into `~/.local/opt/whisper.cpp`, and downloads its model (150 MB) and a voice detector (1 MB) into `~/.local/share/vikix/whisper/`, each checked against its published checksum. Everything runs on the laptop: your voice never leaves it, and the recording is deleted once it's written down.
+
+**English, or many languages.** The model it starts with, `base.en`, knows English only, and writes down a sentence in about a second. `small` knows many languages (French, Spanish, Arabic, Hindi and more; not Esperanto) and takes a few seconds:
+
+```sh
+vikix dictate models          # which is used
+vikix dictate models small    # many languages (490 MB)
+vikix dictate models base.en  # back to English
+```
+
+**Silence and noise aren't typed.** The voice detector passes only speech to whisper, and whisper's notes about sounds, such as "(music)", are left out.
+
+To take it away: `vikix remove dictation` (the models stay; `vikix dictate uninstall --models` removes them too).
+
 ## When AI doesn't work
 
 | What happens | What to do |
@@ -213,6 +240,9 @@ For better answers, above all translations into Esperanto, which small models ge
 | `llm` has no model, asks for a key, or can't connect | See [`llm` doesn't answer](fixing.md#llm-doesnt-answer) |
 | Super+i says "Super+i needs llm", "No local model yet" or "Local AI isn't running" | Do what it says: `vikix ai llm`, a model with Super+m → *Local AI: choose a model*, or `vikix ai setup` |
 | Super+i says "Select some text first" | Highlight the text (or copy it), then press Super+i again |
+| Super+F9 says "Dictation isn't set up" | `vikix add dictation`, once |
+| Super+F9 says "Heard nothing" | The microphone: `pavucontrol`, *Input devices*, check it isn't muted and moves when you speak |
+| Super+F9 types in the wrong place | It types where the focus is when you press the second Super+F9; the text is on the clipboard too |
 | Super+i says "AI is still working on the last one" | Wait for its answer: one at a time |
 | Super+i says "You don't have the model …" | `vikix ai models` gets it, or empty `model=` in `~/.config/vikix/ai` |
 | Super+i says "Claude needs your Anthropic key" | `vikix ai key set anthropic`, or back to local: `vikix ai use local` |

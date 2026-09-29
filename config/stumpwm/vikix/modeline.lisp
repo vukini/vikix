@@ -4,7 +4,7 @@
 ;;;;   %J   workspaces in use, the current one in [brackets]
 ;;;;   %W   the current workspace's windows, the focused one in the accent colour
 ;;;;   ^>   everything after this goes on the right
-;;;;   %R   rec: the screen is being recorded (vikix-record)
+;;;;   %R   rec: the screen is being recorded (vikix-record); mic: dictation listens
 ;;;;   %K   awake: keep awake is on (no lock, dark screen or suspend)
 ;;;;   %X   win: the Windows VM is running (vikix windows); it uses memory and battery
 ;;;;   %Y   ai: a local AI model is loaded in memory (vikix ai); it unloads after 5 idle minutes
@@ -124,11 +124,14 @@ colour; nothing while backups are recent, or not set up."
       (format nil "^(:push)^(:fg \"~a\")~a^(:pop)  " (vikix-colour :subtle) *vikix-quiet*)))
 
 (defun vikix-mode-line-recording (ml)
-  "\"rec\" while the screen is recorded, from *vikix-recording* (commands.lisp)."
+  "\"rec\" while the screen is recorded, \"mic\" while dictation listens,
+from *vikix-recording* and *vikix-dictating* (commands.lisp)."
   (declare (ignore ml))
-  (if *vikix-recording*
-      (format nil "^(:push)^(:fg \"~a\")rec^(:pop)  " (vikix-colour :alert))
-      ""))
+  (format nil "~@[~a~]~@[~a~]"
+          (and *vikix-recording*
+               (format nil "^(:push)^(:fg \"~a\")rec^(:pop)  " (vikix-colour :alert)))
+          (and *vikix-dictating*
+               (format nil "^(:push)^(:fg \"~a\")mic^(:pop)  " (vikix-colour :alert)))))
 
 (defun vikix-mode-line-awake (ml)
   "\"awake\" while keep awake is on, from *vikix-awake* (commands.lisp)."

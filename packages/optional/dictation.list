@@ -1,0 +1,4 @@
+# dictation.list — building whisper.cpp for vikix dictate (the feature dictation)
+cmake
+gcc
+make

@@ -90,6 +90,8 @@ jobs:
         run: tests/ci.sh agents
       - name: debug
         run: tests/ci.sh debug
+      - name: dictate
+        run: tests/ci.sh dictate
       - name: swank
         run: tests/ci.sh swank
       - name: webapp

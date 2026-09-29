@@ -24,6 +24,7 @@
 .config/vikix/webapps         # your web apps (vikix webapp)
 .config/vikix/ai              # which model AI on keys uses (Super+i)
 .config/vikix/agent           # which AI agent Super+a starts (vikix agent --default)
+.config/vikix/dictation       # dictation's model (vikix dictate models)
 # The agents' own settings, file by file (their folders also hold logins):
 # an agent could change its own permissions or hooks, and this shows it.
 .claude/settings.json

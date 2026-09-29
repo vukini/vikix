@@ -46,6 +46,7 @@ dropbox     | optional/dropbox   |          |                     |             
 windows     | optional/windows   |          | vikix windows setup | vikix windows remove  | Windows 11 in a window (8 GB of memory, 40 GB of disk)
 local-ai    |                    |          | vikix ai setup      | vikix ai uninstall    | AI models on this laptop, with Ollama
 llm         |                    |          | vikix ai llm        | uv tool uninstall llm | llm: AI on the command line, local or Claude
+dictation   | optional/dictation |          | vikix dictate setup | vikix dictate uninstall | Dictation: speak, and it types what you said (Super+F9), on this laptop
 opencode    |                    |          | vikix agent --install opencode | vikix agent --uninstall opencode | OpenCode: an AI agent for any model company, or local (vikix agent --use opencode)
 codex       |                    |          | vikix agent --install codex | vikix agent --uninstall codex | Codex: OpenAI's AI agent, with your ChatGPT login, or local (vikix agent --use codex)
 gemini      |                    | javascript | vikix agent --install gemini | vikix agent --uninstall gemini | Gemini CLI: Google's AI agent, with your Google login (vikix agent --use gemini)
