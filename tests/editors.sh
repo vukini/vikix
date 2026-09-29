@@ -36,6 +36,9 @@ bad='^Error|Failed to install|Cannot open load file|Overwrite previous checkout|
 
 if [ "$which" = both ] || [ "$which" = emacs ]; then
   git clone -q --depth 1 "$VIKIX_EMACS_REPO" "$HOME/.emacs.d"
+  # Vikix's part, as 45-editors links it: the config loads it when it's there.
+  mkdir -p "$HOME/.local/share/vikix"
+  ln -s "$here/config/emacs" "$HOME/.local/share/vikix/emacs"
   echo "emacs: first start, installing every package (minutes)"
   emacs --batch -l "$HOME/.emacs.d/init.el" </dev/null >"$t/emacs1.log" 2>&1 || { echo "FAIL emacs: first start exited $?"; fail=1; }
   if grep -Eq "$bad" "$t/emacs1.log"; then

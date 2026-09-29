@@ -29,6 +29,7 @@ commit made there stops the update altogether. **Do not edit them**:
 - `~/.stumpwm.d/init.lisp`, `~/.stumpwm.d/vikix/` (theme, groups, commands, windows, keys, help, modeline, swank)
 - `~/.xinitrc`, `~/.local/bin/vikix*`, `~/.config/vikix/vikix.bash`
 - `~/.local/share/vikix/nvim` (Vikix's part of Neovim: AstroNvim and Vikix's plugins)
+- `~/.local/share/vikix/emacs` (Vikix's part of Emacs: `vikix-ai.el`, gptel on `vikix ai use`'s model; `~/.emacs.d` loads it)
 - this skill, and everything else in the checkout. Find the checkout with `readlink -f ~/.local/bin/vikix` (it is `<checkout>/bin/vikix`); normally `~/vikix`.
 
 **The user's files** are copies they own. Make changes here:

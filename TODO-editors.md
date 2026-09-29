@@ -47,7 +47,8 @@ Shipped in 0.57.0, in `config/nvim/lua/vikix/plugins/ai.lua`: AstroCommunity's C
 
 In `vikix-ai.el`, which Vikix keeps current and `emacs-void` loads when it is there (decision 3).
 
-- [ ] **gptel: add Claude and Ollama.** Claude with the key from the session (the daemon has it: no need for `exec-path-from-shell` here), Ollama at `127.0.0.1:11434` with the models `vikix ai models` lists. The default follows `vikix ai use`, not Perplexity. Keep OpenAI and Perplexity as extras (decision 6).
+Shipped in 0.59.0, in `config/emacs/vikix-ai.el` (linked to `~/.local/share/vikix/emacs` by `45-editors`): gptel's backends "Claude" (the session's key, or `~/.config/vikix/secrets`) and "Local" (Ollama's models as they are at each `C-c g`), the default following `vikix ai use` and `model=` (read again at each `C-c g` / `C-c G`; a pick of yours stays until the file changes), and `C-c g` saying what's missing before gptel asks for a key. `tests/emacs.sh`. Tried for real: Claude and llama3.2:3b answered through gptel. Left:
+
 - [ ] **Agents: agent-shell (ACP),** each agent started with `vikix agent --exec`. Check that its command can be set.
 - [ ] **Second choice: claude-code-ide.el** (or claude-code.el), with its CLI path set to the Vikix command.
 - [ ] **Aider: aidermacs,** if Aider is the chosen agent, through the same command.

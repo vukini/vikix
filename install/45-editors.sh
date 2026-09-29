@@ -12,6 +12,9 @@
 #
 # Emacs's config is a sister repository, cloned and then pulled:
 #   ~/.emacs.d       VIKIX_EMACS_REPO  (default: vukini/emacs-void)
+# and Vikix's AI setup for it (gptel on `vikix ai use`'s model), which the
+# config loads when it is there:
+#   ~/.local/share/vikix/emacs   a link to config/emacs (vikix-ai.el)
 #
 # Then the pieces the configs assume are on the machine:
 #   - language servers: Void's come with each language's list (ccls in
@@ -36,6 +39,7 @@ OLD_NVIM_REPO=vukini/nvim-void-linux
 NV="$VIKIX_DIR/config/nvim"
 NVIM_DIR="$HOME/.config/nvim"
 NVIM_LAYER="${XDG_DATA_HOME:-$HOME/.local/share}/vikix/nvim"
+EMACS_LAYER="${XDG_DATA_HOME:-$HOME/.local/share}/vikix/emacs"
 NVIM_LAZY="${XDG_DATA_HOME:-$HOME/.local/share}/nvim/lazy/lazy.nvim"
 # The lock Vikix last left in ~/.config/nvim, to tell its plugins' versions
 # from yours; and the last lock of Vikix's that yours was said to differ from.
@@ -198,7 +202,10 @@ if [ "$emacs$nvim" = 00 ]; then
   say "no editor chosen; nothing to do (vikix add emacs, or vikix add neovim)"
   exit 0
 fi
-[ "$emacs" = 1 ] && clone_or_pull "$VIKIX_EMACS_REPO" "$HOME/.emacs.d"
+if [ "$emacs" = 1 ]; then
+  clone_or_pull "$VIKIX_EMACS_REPO" "$HOME/.emacs.d"
+  link_managed "$VIKIX_DIR/config/emacs" "$EMACS_LAYER"
+fi
 
 # --- npm language servers, into ~/.local/bin ------------------------------
 if command -v npm >/dev/null; then
