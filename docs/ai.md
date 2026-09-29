@@ -204,10 +204,13 @@ For better answers, above all translations into Esperanto, which small models ge
 
 ## The desktop as tools (MCP)
 
-MCP is how an AI agent is given tools of its own. `vikix mcp register` gives your agent a fixed set of them for this desktop, so it can look at it and make small changes without writing commands:
+MCP is how an AI agent is given tools of its own. `vikix mcp register` gives your agent a fixed set of them for this desktop, so it can look at it and make small changes without writing commands.
+
+Why, when the agent can run commands anyway? Each command needs your yes. These tools are few, checked, and easy to take back, so you can allow them once: in Claude Code, answer "always allow" for a vikix tool (or allow `mcp__vikix__*`). Then the agent looks at the desktop and switches a theme or a window without asking each time, while every other command still asks.
 
 ```sh
-vikix mcp register     # for Claude Code; it prints the lines for Codex, Gemini CLI and OpenCode
+vikix mcp register     # for Claude Code, then restart it; it prints the lines for Codex, Gemini CLI and OpenCode
+vikix mcp status       # is it on, with which tools, and the last calls
 vikix mcp tools        # what it offers
 vikix mcp unregister   # take it away
 ```
@@ -221,9 +224,9 @@ vikix mcp unregister   # take it away
 | snapshot | Records your settings before a change |
 | set_theme, switch_workspace, focus_window | Small changes, easily undone |
 
-Two more are off unless you turn them on, because they can change a lot: `vikix mcp register --allow-eval` adds **eval** (any Lisp in the window manager) and `--allow-undo` adds **undo** (your settings back one snapshot). The agent still asks you before it uses a tool, unless you've told it not to.
+Two more are off unless you turn them on, because they can change a lot: `vikix mcp register --allow-eval` adds **eval** (any Lisp in the window manager) and `--allow-undo` adds **undo** (your settings back one snapshot). `vikix mcp register` again, without them, takes them away. They're a convenience, not a lock: an agent that may run commands could run `vikix eval` itself.
 
-It works only for the agent that starts it: nothing listens on the network. Everything the agent asks of it is checked first (a workspace that exists, a theme you have), and every call is written in `~/.local/state/vikix/mcp.log`.
+It works only for the agent that starts it: nothing listens on the network. Everything the agent asks of it is checked first (a workspace that exists, a theme you have). Secrets are taken out of what it hands back (`changes` shows your files' differences). Every call, refused ones too, is written in `~/.local/state/vikix/mcp.log`, yours alone: the tool, whether it worked, and its arguments. Its notifications start "Agent:".
 
 ## Dictation
 

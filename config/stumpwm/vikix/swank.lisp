@@ -96,18 +96,23 @@ Return :OK, or :ERROR after printing the error."
       (vikix-eval-forms text)
       (let ((done (sb-thread:make-semaphore))
             (output "")
-            (status :error))
+            (status :error)
+            ;; A form given up on must not run later: once a menu closes,
+            ;; every retry an agent made would run at once.
+            (cancelled nil))
         (call-in-main-thread
          (lambda ()
            (unwind-protect
-                (setf output (with-output-to-string (*standard-output*)
-                               (setf status (vikix-eval-forms text))))
+                (unless cancelled
+                  (setf output (with-output-to-string (*standard-output*)
+                                 (setf status (vikix-eval-forms text)))))
              (sb-thread:signal-semaphore done))))
         (cond ((sb-thread:wait-on-semaphore done :timeout *vikix-eval-timeout*)
                (write-string output)
                status)
               (t
+               (setf cancelled t)
                (format t "error: StumpWM's main thread did not answer within ~a s.~%~
-                          Is a menu or a prompt open? Close it and try again.~%"
+                          Is a menu or a prompt open? Close it and try again (nothing will run later).~%"
                        *vikix-eval-timeout*)
                :error)))))

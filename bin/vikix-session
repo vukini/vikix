@@ -17,6 +17,11 @@ chmod 700 "$log_dir"
 [ -f "$log_dir/session.log" ] && mv "$log_dir/session.log" "$log_dir/session.log.old"
 (umask 077; : > "$log_dir/session.log")
 exec >"$log_dir/session.log" 2>&1
+# Where this session's display and D-Bus are, for what starts outside it:
+# an agent's MCP server (vikix-mcp) gets a trimmed environment from some
+# agents (Codex), and reads what's missing from here.
+(umask 077; printf 'DISPLAY=%s\nDBUS_SESSION_BUS_ADDRESS=%s\nXDG_RUNTIME_DIR=%s\n' \
+  "${DISPLAY:-}" "${DBUS_SESSION_BUS_ADDRESS:-}" "${XDG_RUNTIME_DIR:-}" > "$log_dir/session.env")
 echo "vikix-session started $(date)"
 set -x    # each command is written to the log before it runs
 

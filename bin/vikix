@@ -447,8 +447,14 @@ THEME_KEYS="bg fg subtle dim accent alert color0 color1 color2 color3 color4 col
 # 0.23.0 have no sel, and keep working.
 THEME_OPTIONAL="sel"
 
+# A theme's name is its file's name, and it goes to StumpWM as a Lisp
+# keyword: letters, digits, - and _ only, or a file named to be Lisp would
+# run as you (at vikix theme, and at every update's refresh).
+theme_name_ok() { [[ $1 =~ ^[A-Za-z0-9_-]{1,40}$ ]]; }
+
 theme_file() {   # theme_file NAME — the file that defines NAME (yours first)
   local f
+  theme_name_ok "$1" || return 1
   for f in "$USER_THEMES/$1.theme" "$VIKIX_DIR/themes/$1.theme"; do
     [ -f "$f" ] && { echo "$f"; return 0; }
   done
@@ -457,8 +463,11 @@ theme_file() {   # theme_file NAME — the file that defines NAME (yours first)
 
 theme_names() {
   local f
+  local n
   for f in "$VIKIX_DIR"/themes/*.theme "$USER_THEMES"/*.theme; do
-    [ -f "$f" ] && basename "$f" .theme
+    [ -f "$f" ] || continue
+    n=$(basename "$f" .theme)
+    theme_name_ok "$n" && echo "$n"
   done | sort -u
 }
 
@@ -486,6 +495,7 @@ theme_read() {
 # shellcheck disable=SC2154  # the c_* colours are set by theme_read, with printf -v
 theme_write() {
   local file
+  theme_name_ok "$1" || die "a theme's name is letters, digits, - and _ only"
   file=$(theme_file "$1") || die "no theme called '$1' (vikix theme lists them)"
   theme_read "$file" || die "theme '$1' is incomplete; nothing was changed"
   [ "$DRY_RUN" = 1 ] && { printf '   would write the %s theme into %s\n' "$1" "$THEME_OUT"; return 0; }
@@ -587,7 +597,10 @@ EOF
   printf '%s\n' "$1" > "$THEME_OUT/current"
 }
 
-theme_current() { cat "$THEME_OUT/current" 2>/dev/null || echo void; }
+theme_current() {
+  local n; n=$(cat "$THEME_OUT/current" 2>/dev/null) || n=void
+  theme_name_ok "$n" && echo "$n" || echo void
+}
 
 # vikix theme            the current theme, and the ones there are
 # vikix theme NAME       switch to NAME, everywhere, now

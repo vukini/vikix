@@ -33,11 +33,16 @@ t = os.environ["T"]
 open(t + "/forms", "a").write(form.replace("\n", " ") + "\n")
 def lisp(s): return '=> "' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
 if "workspaces" in form:
+    print("=> a title printed first, with => in it")
     print(lisp(json.dumps({"workspaces": [
         {"name": "1", "number": 1, "current": True, "windows": [
-            {"number": 0, "title": 'a "quoted" \\ title', "class": "Alacritty", "focused": True}]},
+            {"number": 0, "title": 'a "quoted" \\ title => not the end', "class": "Alacritty", "focused": True}]},
         {"name": "web", "number": 2, "current": False, "windows": []}],
         "screens": [{"number": 0, "x": 0, "y": 0, "width": 1920, "height": 1080}]})))
+elif "(+ 1 2)" in form:
+    print("=> 3")
+elif "(car nil nil)" in form:
+    print("error: invalid number of arguments")
 elif "*vikix-bindings*" in form:
     print(lisp(json.dumps([{"key": "s-RET", "command": "vikix-terminal", "does": "Terminal"}])))
 else:
@@ -46,6 +51,7 @@ EOF
 cat > "$t/bin/notify-send" <<EOF
 #!/bin/sh
 printf '%s\n' "\$@" > "$t/notified"
+echo "DISPLAY=\$DISPLAY" >> "$t/notified"
 EOF
 cat > "$t/bin/claude" <<EOF
 #!/bin/sh
@@ -128,7 +134,7 @@ check "notify should show it: $out" test "$out" = shown
 check "the notification should be marked as the agent's: $(head -2 "$t/notified")" grep -qx 'Vikix (agent)' "$t/notified"
 check "its markup should be escaped" grep -qF 'a &lt;b>bold&lt;/b> &amp; more' "$t/notified"
 out=$(call notify '{"body":"no title"}')
-check "notify without a title should say so: $out" grep -q '^ERROR: title' <<<"$out"
+check "notify without a title should say so: $out" grep -q '^ERROR: notify needs a title' <<<"$out"
 out=$(call snapshot '{"message":"before $(touch pwned2); x"}')
 check "a snapshot's message shouldn't run anything" test ! -e "$t/pwned2"
 out=$(call changes '{"snapshot":"HEAD; rm -rf ~"}')
@@ -140,13 +146,51 @@ check "eval, switched on, should run the form: $out" grep -q '(+ 1 2)' "$t/forms
 out=$(call undo '{"snapshot":"x y"}' --allow-undo)
 check "undo with a bad id should be refused: $out" grep -q '^ERROR: snapshot' <<<"$out"
 
+# Malformed input: an error answer, and the server lives on (a ping after).
+alive() { rpc -- "$1" '{"jsonrpc":"2.0","id":99,"method":"ping"}' | tail -1 | field '["id"]'; }
+check "params as a list shouldn't stop it" test "$(alive '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":[1]}')" = 99
+check "a list as the tool's name shouldn't stop it" test "$(alive '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":["x"]}}')" = 99
+check "a lone surrogate in an argument shouldn't stop it" test "$(alive '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"notify","arguments":{"title":"\ud800"}}}')" = 99
+deep=$(python3 -c 'print("["*100000 + "]"*100000)')
+check "deep nesting shouldn't stop it" test "$(alive "$deep")" = 99
+out=$(printf '\xff\xfe{bad}\n{"jsonrpc":"2.0","id":99,"method":"ping"}\n' | python3 "$here/bin/vikix-mcp" serve | tail -1)
+check "bytes that aren't UTF-8 shouldn't stop it: $out" test "$(field '["id"]' <<<"$out")" = 99
+out=$(rpc -- '[{"jsonrpc":"2.0","id":1,"method":"ping"}]')
+check "a batch should get -32600: $out" test "$(field '["error"]["code"]' <<<"$out")" = -32600
+
+# Answers that aren't what they seem, and failures that are failures.
+out=$(call desktop '{}')
+check "a title with => in it shouldn't cut the answer short: $out" grep -qF 'not the end' <<<"$out"
+out=$(call changes '{"snapshot":"abcdef1"}')
+check "changes for a snapshot that isn't there should be an error: $out" grep -q '^ERROR' <<<"$out"
+out=$(call eval '{"form":"(car nil nil)"}' --allow-eval)
+check "a Lisp error should be an error: $out" grep -q '^ERROR: error:' <<<"$out"
+out=$(call notify '{"title":"Hi <there>"}')
+check "the title should start Agent:, escaped: $(head -4 "$t/notified")" grep -qx 'Agent: Hi &lt;there>' "$t/notified"
+mkdir -p "$VIKIX_STATE"; printf 'DISPLAY=:7\nDBUS_SESSION_BUS_ADDRESS=unix:path=/x\nXDG_RUNTIME_DIR=/run/user/1\n' > "$VIKIX_STATE/session.env"
+call notify '{"title":"x"}' >/dev/null
+check "without DISPLAY, it should take the session's: $(tail -1 "$t/notified")" grep -qx 'DISPLAY=:7' "$t/notified"
+mkdir -p "$HOME/.config/vikix/themes"; cp "$here/themes/void.theme" "$HOME/.config/vikix/themes/x) (run-shell-command \"touch pwned\") (list.theme"
+out=$(call themes '{}')
+check "a theme file named like Lisp shouldn't be offered: $out" test -z "$(grep -F 'pwned' <<<"$out" || true)"
+out=$(call set_theme '{"name":"x) (run-shell-command \"touch pwned\") (list"}')
+check "a theme named like Lisp should be refused: $out" grep -q '^ERROR: no theme' <<<"$out"
+
+# At a terminal, on its own, it shows its help rather than wait; a wrong flag is refused.
+out=$(timeout 10 script -qec "python3 '$here/bin/vikix-mcp'" /dev/null </dev/null 2>&1) || true
+check "vikix mcp at a terminal should show its help: ${out:0:80}" grep -q 'register' <<<"$out"
+python3 "$here/bin/vikix-mcp" register --allow-evl >/dev/null 2>&1 && { echo "FAIL: a misspelt flag was taken"; fail=1; }
+
 # The log.
-check "calls should be logged: $(tail -2 "$VIKIX_STATE/mcp.log" 2>/dev/null)" grep -q ' set_theme {"name": "paper"}' "$VIKIX_STATE/mcp.log"
+out=$(call eval '{"form":"(+ 1 1)"}')
+check "a refused call should be logged: $(tail -1 "$VIKIX_STATE/mcp.log")" grep -q ' refused eval ' "$VIKIX_STATE/mcp.log"
+check "the log should be yours alone, is $(stat -c %a "$VIKIX_STATE/mcp.log")" test "$(stat -c %a "$VIKIX_STATE/mcp.log")" = 600
+check "calls should be logged, with how they went: $(tail -2 "$VIKIX_STATE/mcp.log" 2>/dev/null)" grep -q ' ok set_theme {"name": "paper"}' "$VIKIX_STATE/mcp.log"
 
 # Registering with Claude Code.
 python3 "$here/bin/vikix-mcp" register --allow-eval >/dev/null
 check "register should add it to Claude Code, for you, with the flags: $(cat "$t/claude.calls")" \
-  grep -qE '^claude mcp add --scope user vikix -- .*vikix-mcp --allow-eval$' "$t/claude.calls"
+  grep -qE '^claude mcp add --scope user vikix -- .*vikix-mcp serve --allow-eval$' "$t/claude.calls"
 
 [ "$fail" = 0 ] && echo "mcp: the protocol, read-only tools, checked acts, eval and undo only when switched on, a log, register"
 exit "$fail"

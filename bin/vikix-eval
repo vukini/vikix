@@ -87,6 +87,22 @@ def slime_secret():
         return None
 
 
+def listener_uid(port):
+    """The user owning the socket listening on PORT on 127.0.0.1 (or on
+    every address), from /proc/net/tcp; None when there's none to read."""
+    try:
+        with open("/proc/net/tcp") as f:
+            next(f)
+            for line in f:
+                cols = line.split()
+                addr, hexport = cols[1].split(":")
+                if int(hexport, 16) == port and cols[3] == "0A" and addr in ("0100007F", "00000000"):
+                    return int(cols[7])
+    except (OSError, ValueError, IndexError, StopIteration):
+        pass
+    return None
+
+
 def main():
     args = sys.argv[1:]
     if args and args[0] in ("-h", "--help"):
@@ -105,6 +121,16 @@ def main():
               file=sys.stderr)
         return 2
     sock.settimeout(TIMEOUT)
+
+    # The port must be yours: when StumpWM's Swank isn't up (a text
+    # console, StumpWM stopped), another user could listen there and be
+    # sent the password.
+    owner = listener_uid(PORT)
+    if owner is not None and owner != os.getuid():
+        sock.close()
+        print(f"vikix eval: {HOST}:{PORT} is another user's (uid {owner}), not StumpWM's: "
+              "the password isn't sent", file=sys.stderr)
+        return 2
 
     # The password, before anything else: a Swank with ~/.slime-secret drops
     # a client that doesn't send it (anything that can reach the port,

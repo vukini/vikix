@@ -109,5 +109,14 @@ check "your own colours were removed" grep -q '#000000' "$h/.config/alacritty/al
 check "the import didn't go into the [general] table there" \
   test "$(toml "$h/.config/alacritty/alacritty.toml")" = "['colors', 'general'] {'import': $imp, 'live_config_reload': True}"
 check "your own rofi theme was replaced" grep -qx '@theme "gruvbox-dark"' "$h/.config/rofi/config.rasi"
+# A theme's name goes to StumpWM as a Lisp keyword: a file named like Lisp
+# is neither listed nor used.
+mkdir -p "$t/home/.config/vikix/themes"
+cp "$here/themes/void.theme" "$t/home/.config/vikix/themes/x) (run-shell-command \"touch pwned\") (list.theme"
+out=$(vikix 2>&1)
+check "a theme named like Lisp shouldn't be listed: $out" test -z "$(grep -F pwned <<<"$out" || true)"
+out=$(vikix 'x) (run-shell-command "touch pwned") (list' 2>&1) && { echo "FAIL: a theme named like Lisp was used"; fail=1; }
+check "a theme named like Lisp should be refused: $out" grep -q "letters, digits" <<<"$out"
+
 [ "$fail" = 0 ] && echo "theme: the migration hooks old starters up, and leaves your own settings alone"
 exit "$fail"
