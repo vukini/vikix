@@ -100,7 +100,7 @@ event() {
 }
 
 start() {
-  command -v udiskie >/dev/null 2>&1 || exit 0     # comes with part two (apps.list)
+  command -v udiskie >/dev/null 2>&1 || exit 0     # in the base (apps.list)
   pgrep -x udiskie >/dev/null 2>&1 && exit 0       # one per session
   # Vikix's settings (which notifications), unless you have your own.
   local config=()

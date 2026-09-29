@@ -20,7 +20,7 @@ POWER=${VIKIX_POWER_SUPPLY:-/sys/class/power_supply}   # a test can point this e
 FWUPDMGR=${VIKIX_FWUPDMGR:-fwupdmgr}                  # ... and this at a stand-in
 
 need_fwupd() {
-  command -v "$FWUPDMGR" >/dev/null 2>&1 || die "fwupd isn't installed (it comes with part two: laptop.list)"
+  command -v "$FWUPDMGR" >/dev/null 2>&1 || die "fwupd isn't installed (it's in the base, laptop.list): vikix update installs it"
 }
 
 # On mains power: a charger that is online, or no battery at all (a desktop).

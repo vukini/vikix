@@ -5,8 +5,8 @@
 # Void's font-iosevka ships Iosevka as .ttc collections of every weight.
 # So this takes Iosevka Regular out of the collection (with fontTools) into
 #   ~/.local/share/vikix/fonts/wm.ttf
-# which theme.lisp loads. Until Iosevka is installed (it comes in part two
-# of the install), wm.ttf is a link to Noto Sans Mono instead.
+# which theme.lisp loads. Until Iosevka is installed (fonts.list, in the
+# base), wm.ttf is a link to Noto Sans Mono instead.
 # The folder is outside fontconfig's paths, so other programs don't see a
 # second Iosevka.
 #

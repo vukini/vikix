@@ -1,5 +1,16 @@
 # How it fits together
 
+## The base and the features
+
+`install.sh` (or the one line, `curl -fsSL https://vikix.dev/install | bash`) installs **the base**: StumpWM and the bar, a terminal, Firefox and a file manager, sound, Wi-Fi and Bluetooth, the laptop's hardware, screenshots, themes, backups, and the AI agent. Then you reboot, and the desktop starts.
+
+Everything else is a **feature**, added when you want it:
+
+- **What there is:** `features.list` in the checkout names each feature and the package lists it brings; `bundles.list` groups them (`essentials`, `developer`, `everything`). A package list no feature names is part of the base. `vikix features` shows them all, with the ones you have marked.
+- **What you chose:** `~/.config/vikix/features`, one name a line. `vikix add` and `vikix remove` keep it; it's one of your files, so it has an undo too. `./install.sh --with essentials` adds them in the same run as the install.
+- **Single programs:** `vikix pkg add NAME` and `vikix pkg drop NAME`, for what isn't a feature. A package Vikix's lists name that you drop goes on `~/.config/vikix/packages-skip`, so updates leave it out.
+- **Where they show:** Super+m leaves out entries for features you don't have (JupyterLab, Printers, Windows, local AI …), and the welcome at your first login (`vikix welcome`) has a picker for them.
+
 ## From login to desktop
 
 There is no login screen. You log in on the text console, and on tty1 the desktop starts by itself. The other consoles (Ctrl+Alt+F2 …) stay plain text, so if the desktop ever won't start, you can still log in there and fix it.
@@ -15,7 +26,8 @@ login on tty1
               ├─ ssh-agent, one for the whole session
               ├─ pipewire, dunst, clipmenud, udiskie (USB drives), picom
               ├─ idle times, night light, the locker (xss-lock → vikix-lock)
-              ├─ the Emacs daemon, the battery warner, the update checker, the polkit password box
+              ├─ the Emacs daemon (with the feature emacs), the battery warner, the update checker,
+              │  the polkit password box
               ├─ Ollama, for local AI models, once `vikix ai setup` installed it
               └─ ~/.local/bin/stumpwm             the last line; when it exits, the session ends
                   └─ ~/.stumpwm.d/init.lisp
@@ -25,12 +37,16 @@ login on tty1
                       ├─ vikix/windows.lisp      focus, gaps, layout undo
                       ├─ vikix/keys.lisp         the Super keys
                       ├─ vikix/help.lisp         Super+F1
+                      ├─ vikix/webapps.lisp      your web apps: their keys and Super+m entries
                       ├─ vikix/modeline.lisp     the bar
-                      ├─ vikix/swank.lisp        Swank on 127.0.0.1:4004, for Emacs and `vikix eval`
+                      ├─ vikix/swank-guard.lisp  a wrong password can't take Swank down
+                      ├─ vikix/swank.lisp        Swank on 127.0.0.1:4004 (with a password), for Emacs and `vikix eval`
                       └─ user.lisp               yours, last
 ```
 
 Each file in that list is loaded on its own. If one has a mistake, StumpWM shows the error on screen and loads the rest, so a typo in `user.lisp` never leaves you without a desktop.
+
+At the very first login, StumpWM also opens the welcome (`vikix welcome`, in a terminal): add software, the keys that matter, a theme, the keyboard layout, the guide. Once it has been shown, it only comes back from `Super+m` → *Welcome*.
 
 **Why no systemd user services:** Void uses runit, which runs system services only. Programs that belong to your desktop session are started by `vikix-session` and end with it. To start one of your own with the desktop, see [startup programs](customize.md#start-a-program-with-the-desktop).
 
@@ -41,14 +57,15 @@ Each file in that list is loaded on its own. If one has a mistake, StumpWM shows
 1. **Pulls Vikix** into `~/vikix` (`git pull --ff-only`), then starts again from the new version of itself.
 2. **Updates Void**: `xbps-install -Su`, xbps itself first.
 3. **Runs six install stages again**, each safe to repeat:
-   - `10-packages`: installs anything new in `packages/*.list`
+   - `10-packages`: installs anything new in the base's lists and your features' lists, leaving out your skip list
    - `20-services`: switches on services new packages brought
    - `40-config`: links Vikix's files again, copies starters you don't have yet, writes the theme files again, makes these guides into the Info manual, and takes a snapshot of your files
-   - `45-editors`: pulls the Emacs and Neovim configs
-   - `65-languages`: PicoLisp, Lazarus, Julia
+   - `45-editors`: pulls the configs of the editors you chose (Emacs, Neovim)
+   - `65-languages`: for the languages you chose: PicoLisp, Lazarus, Julia
    - `67-dev`: the `~/dev` READMEs, new examples
 4. **Runs migrations**: one-off fixes for machines installed before some change, each run once (recorded in `~/.local/state/vikix/migrations/`).
-5. **Reloads StumpWM**, so new keys, the bar and the menu work at once.
+5. **Brings `llm` to its pinned version**, if you have it (`vikix ai llm`).
+6. **Reloads StumpWM**, so new keys, the bar and the menu work at once.
 
 A stage that fails doesn't stop the rest; they are named at the end. The whole run is logged in `~/.local/state/vikix/logs/update-<time>.log`.
 

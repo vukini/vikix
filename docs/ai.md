@@ -126,6 +126,8 @@ vikix ai setup       # once: installs Ollama, about 100 MB, no password needed
 vikix ai models      # choose a model to download
 ```
 
+`vikix add local-ai` does the same as `vikix ai setup`, and `vikix remove local-ai` the same as `vikix ai uninstall`: local AI is one of the features.
+
 `vikix ai models` (or **Super+m** → *Local AI: choose a model*) looks at this laptop's memory and says how each model will run here: fast, well, or slowly. Bigger ones it doesn't offer. Good first choices:
 
 - `llama3.2:3b` (2 GB), for questions and writing
@@ -159,7 +161,7 @@ The models are in `~/.ollama/models`. They're big, so backups leave them out; yo
 `llm` sends text to a model and prints the answer, so it fits in a pipe with other commands. The same command works with a local model and with Claude.
 
 ```sh
-vikix ai llm                               # once: install it
+vikix ai llm                               # once: install it (or vikix add llm)
 cat notes.md | llm "summarise this"
 git diff | llm "write the commit message"
 llm "what does chmod 750 mean?"

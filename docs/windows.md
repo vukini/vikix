@@ -24,7 +24,7 @@ Four commands, in a terminal.
    vikix windows setup
    ```
 
-   It asks for your password (sudo) once, for the packages and the VM's network. To put the VM's disk somewhere else, such as a bigger drive: `vikix windows setup --disk /path/to/folder`.
+   It asks for your password (sudo) once, for the packages and the VM's network. To put the VM's disk somewhere else, such as a bigger drive: `vikix windows setup --disk /path/to/folder`. (`vikix add windows` runs the same setup: Windows is one of the features.)
 
 2. **Install Windows** from the ISO you downloaded:
 

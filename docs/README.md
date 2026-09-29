@@ -2,21 +2,22 @@
 
 These pages are for someone who has installed Vikix and wants to know where things are and how to make it their own. The main [README](../README.md) is the full reference: every key, every package list, every test. These pages are the map.
 
-They are on your machine too, in two forms: as these files in `~/vikix/docs/`, and as an Info manual. Read that with `Super+m` → *Vikix guide* (it opens in Emacs), `C-h i` then *Vikix* in Emacs, or `info vikix` in a terminal.
+They are on your machine too, in two forms: as these files in `~/vikix/docs/`, and as an Info manual. Read that with `Super+m` → *Vikix guide* (in Emacs if you have it, otherwise in a terminal), `C-h i` then *Vikix* in Emacs, or `info vikix` in a terminal.
 
 | Page | Read it when |
 |---|---|
 | [Where everything is](map.md) | You want to find a file: what Vikix put where, and whose it is |
-| [How it fits together](how-it-works.md) | You want to know what happens between logging in and the desktop, or what `vikix update` does |
-| [Making it yours](customize.md) | You want to change something: keys, startup programs, the bar, the theme, the terminal, packages |
+| [How it fits together](how-it-works.md) | You want to know what the base and the features are, what happens between logging in and the desktop, or what `vikix update` does |
+| [Making it yours](customize.md) | You want to change something: keys, startup programs, the bar, the theme, the terminal, what's installed |
 | [Working with AI](ai.md) | You want the agent to change something for you, a model on the laptop, or `llm` in a pipe |
 | [Windows in a window](windows.md) | You need a program that only runs on Windows |
-| [When something breaks](fixing.md) | The desktop didn't start, a key stopped working, an update failed |
+| [When something breaks](fixing.md) | The install or the desktop didn't start, a key or a menu entry is missing, an update failed |
 
-## Five things to know first
+## Six things to know first
 
 1. **Vikix sits on top of Void.** Underneath is an ordinary Void Linux: xbps for packages, runit for services, no systemd. Vikix adds a desktop (StumpWM), a set of programs, their config, and the `vikix` command. It doesn't replace anything of Void's.
-2. **Every config file is either Vikix's or yours.** Vikix's files are symlinks into `~/vikix`, and `vikix update` replaces them. Your files are copies Vikix made once and never touches again. Change your files, not Vikix's. [Where everything is](map.md) says which is which.
-3. **`~/.stumpwm.d/user.lisp` is where the desktop is yours.** It loads last, so anything in it wins over Vikix's defaults: keys, startup programs, the terminal, the menu, the bar.
-4. **Your files have an undo.** `vikix snapshot` before a change, `vikix changes` after it, `vikix undo` to take it back.
-5. **`Super+m` and `Super+F1` are the way in.** The welcome that opened at your first login is there too (`Super+m` → *Welcome*), and so is *Add software*, for the languages, editors and the rest. `Super+m` is the Vikix menu; `Super+F1` lists every key, and you can search it and run one from there. `vikix doctor` checks that everything is in place.
+2. **The install is the base; the rest you add.** The base is a whole desktop: terminal, browser, files, sound, Wi-Fi, Bluetooth, the AI agent. Languages, editors, LibreOffice, printing, Windows and local AI are **features**: `vikix features` lists them, `vikix add NAME` installs one, `vikix remove NAME` takes it away again, and `vikix update` keeps what you chose.
+3. **Every config file is either Vikix's or yours.** Vikix's files are symlinks into `~/vikix`, and `vikix update` replaces them. Your files are copies Vikix made once and never touches again. Change your files, not Vikix's. [Where everything is](map.md) says which is which.
+4. **`~/.stumpwm.d/user.lisp` is where the desktop is yours.** It loads last, so anything in it wins over Vikix's defaults: keys, startup programs, the terminal, the menu, the bar.
+5. **Your files have an undo.** `vikix snapshot` before a change, `vikix changes` after it, `vikix undo` to take it back.
+6. **`Super+m` and `Super+F1` are the way in.** The welcome that opened at your first login is there too (`Super+m` → *Welcome*), and so is *Add software*, for the languages, editors and the rest. `Super+m` is the Vikix menu (an entry for a feature you don't have is left out until you add it); `Super+F1` lists every key, and you can search it and run one from there. `vikix doctor` checks that everything is in place.

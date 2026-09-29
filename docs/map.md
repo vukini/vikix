@@ -16,7 +16,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │
 ├── .stumpwm.d/
 │   ├── init.lisp              Vikix's   loads Vikix's layer, then user.lisp
-│   ├── vikix/                 Vikix's   the layer: theme, groups, commands, windows, keys, help, modeline, swank
+│   ├── vikix/                 Vikix's   the layer: theme, groups, commands, windows, keys, help, webapps, modeline, swank
 │   ├── user.lisp              yours     your StumpWM settings; loaded last, so they win
 │   └── modules/               stumpwm-contrib, cloned by 30-lisp (swm-gaps, ttf-fonts, ...)
 │
@@ -55,9 +55,9 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   ├── mimeapps.list              yours  which program opens which kind of file
 │   ├── fontconfig/conf.d/50-vikix-iosevka.conf   Vikix's   monospace means Iosevka
 │   ├── udiskie/config.yml         yours, if you make it: replaces Vikix's udiskie settings
-│   └── nvim/                      a git clone of the Neovim config (vukini/nvim-void-linux)
+│   └── nvim/                      with the feature neovim: a git clone of the Neovim config (vukini/nvim-void-linux)
 │
-├── .emacs.d/                  a git clone of the Emacs config (vukini/emacs-void)
+├── .emacs.d/                  with the feature emacs: a git clone of the Emacs config (vukini/emacs-void)
 ├── .claude/skills/vikix       Vikix's   tells Claude Code how Vikix works
 │
 ├── .local/
@@ -65,11 +65,11 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── vikix, vikix-*     Vikix's   the command and its helpers
 │   │   ├── stumpwm            built     the window manager, built by 30-lisp (`vikix rebuild-wm`)
 │   │   └── pil, claude, ...   installed by 65-languages, the npm language servers, Claude Code
-│   ├── share/applications/*.desktop   Vikix's   JupyterLab, vikix-image, Lazarus in the launcher
+│   ├── share/applications/*.desktop   Vikix's   JupyterLab, vikix-image, Lazarus in the launcher (Super+d); your web apps' too
 │   ├── share/vikix/fonts/wm.ttf       built     the bar's font, made by vikix-font
 │   ├── share/info/vikix.info          written   these guides as an Info manual (`info vikix`)
 │   ├── share/vikix/AGENTS.md          written   the skill as a guide for Codex, Gemini, Aider (linked as ~/.codex/AGENTS.md, ~/.gemini/GEMINI.md)
-│   ├── opt/picolisp/          built     PicoLisp, from source
+│   ├── opt/picolisp/          built     PicoLisp, from source (with the feature lisp)
 │   ├── opt/ollama/            built     Ollama, for local AI models (vikix ai setup)
 │   ├── share/libvirt/images/  the Windows VM's disk and its driver disc (not backed up)
 │   ├── share/vikix/webapps/   each web app's own Chromium profile: its logins (caches not backed up)
@@ -78,7 +78,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 ├── quicklisp/                 Common Lisp libraries; StumpWM is built from here
 ├── .lazarus/                  Lazarus with the docked IDE, built by 65-languages
 │
-├── dev/                       yours, with parts written for you (see below)
+├── dev/                       yours, with parts written for you (see below); a folder per language you added
 ├── .ollama/models/            local AI models (vikix ai models): big, not backed up
 ├── vikix-debug-*.txt           the reports vikix debug writes (yours to delete; vikix diagnose's are in ~/.local/state/vikix/diagnose/)
 ├── .config/io.datasette.llm/  llm's settings and its log of everything asked (vikix ai llm)
@@ -92,17 +92,21 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 
 | Path | What |
 |---|---|
-| `logs/` | One log per install part and per `vikix update`, named by date |
+| `logs/` | One log per install and per `vikix update`, named by date |
 | `session.log`, `session.log.old` | Everything the desktop session printed, this login and the one before. The first place to look when the desktop won't start. |
 | `yours.git` | The history of your files (`vikix snapshot`, `changes`, `history`, `undo`). A git repository whose work tree is `~`, limited to the files in `~/vikix/config/yours.list` |
 | `migrations/` | Which one-off fixes this machine has had |
+| `welcome` | The welcome's steps you've done (`vikix welcome`); that it exists means the welcome has been shown, so it doesn't open at login again |
+| `checkout-changes/` | Changes someone made in `~/vikix`, set aside by `vikix update` as patch files (see [When something breaks](fixing.md#an-update-failed)) |
+| `diagnose/` | The last five reports `vikix diagnose` gave your agent |
+| `jupyter.log` | JupyterLab's messages (`jlab`) |
 | `ollama.log` | Local AI's log (vikix ai); one old one is kept as `ollama.log.old` |
 | `updates` | What the bar's `updates` field shows, written by `vikix-updates` every 6 hours |
 | `initramfs-*` | Marks that the initramfs was rebuilt with this microcode |
 
 ### `~/dev`
 
-A folder per installed language, made by `67-dev`: `~/dev/<language>/README.md` (the tools on this machine, and where to learn; **written again by every update**, so keep your notes in another file), `examples/` (copied once, yours), and `docs/` (filled by `vikix docs`). `~/dev/index.html` links every offline doc. Anything else you put in `~/dev` is left alone.
+A folder per language you added (`vikix add python` …), made by `67-dev`: `~/dev/<language>/README.md` (the tools on this machine, and where to learn; **written again by every update**, so keep your notes in another file), `examples/` (copied once, yours), and `docs/` (filled by `vikix docs`). `~/dev/index.html` links every offline doc. Anything else you put in `~/dev` is left alone.
 
 ## The checkout: `~/vikix`
 
@@ -111,7 +115,7 @@ Everything Vikix is. `readlink -f ~/.local/bin/vikix` finds it if you cloned it 
 | Path | What |
 |---|---|
 | `VERSION` | The version you have (`vikix version`) |
-| `install.sh`, `install/` | The installer and its stages, `NN-name.sh`. Each is safe to run again: `./install.sh --only 40-config` |
+| `install.sh`, `install/` | The installer (the base, then `--with` features) and its stages, `NN-name.sh`. Each is safe to run again: `./install.sh --only 40-config` |
 | `bin/` | `vikix` and its helpers, linked into `~/.local/bin`. Each starts with a comment saying what it does. |
 | `config/` | Everything that ends up in your home: the files linked there, and the starters copied once |
 | `config/stumpwm/vikix/` | The StumpWM layer. Read it to see how a key, the bar or the menu is made, then change it from `user.lisp` |
@@ -124,6 +128,7 @@ Everything Vikix is. `readlink -f ~/.local/bin/vikix` finds it if you cloned it 
 | `migrations/` | One-off fixes for machines installed before a change |
 | `lib/` | Shared shell helpers, and the script that builds StumpWM |
 | `docs/` | These pages |
+| `site/` | The website, vikix.dev, and `site/install`, the one-line install |
 | `tests/` | The tests: `tests/run.sh` |
 
 The checkout is a git repository. `git -C ~/vikix log` shows what each version changed.
@@ -136,7 +141,7 @@ What Vikix changes on the system itself. Everything else under `/` is as Void le
 |---|---|---|
 | `/etc/xbps.d/*-repository-*.conf` | The mirror, the fastest one found at install | `05-mirror` |
 | `/var/service/*` | Links that switch on the services in `services.list`, and NetworkManager | `20-services`, `25-network` |
-| `/etc/polkit-1/rules.d/50-vikix-printers.rules` | The `lpadmin` group manages printers without a password | `20-services` |
+| `/etc/polkit-1/rules.d/50-vikix-printers.rules` | With the feature printing: the `lpadmin` group manages printers without a password | `20-services` |
 | `/etc/alsa/conf.d/` | Links that send ALSA programs to PipeWire | `50-audio` |
 | `/etc/X11/xorg.conf.d/40-libinput.conf` | Touchpad: tap to click, natural scrolling | `55-hardware` |
 | `/boot/initramfs-*` | Rebuilt with the Intel microcode | `55-hardware` |

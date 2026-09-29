@@ -38,7 +38,7 @@ auth    sufficient                     pam_fprintd.so  max-tries=2 timeout=15
 $END"
 
 need_fprintd() {
-  command -v fprintd-list >/dev/null 2>&1 || die "fprintd isn't installed (it comes with part two: laptop.list)"
+  command -v fprintd-list >/dev/null 2>&1 || die "fprintd isn't installed (it's in the base, laptop.list): vikix update installs it"
 }
 
 # The fingerprint readers lsusb shows, by maker, for when fprintd finds none.

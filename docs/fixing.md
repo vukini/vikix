@@ -8,6 +8,23 @@ vikix doctor
 
 It checks the programs, services, links, the snapshot history and `vikix eval`, and says what's missing.
 
+## The install stopped
+
+The one-line install (`curl -fsSL https://vikix.dev/install | bash`) checks the machine first, and stops before changing anything when:
+
+- **it isn't Void**, or it's Void with musl: Vikix needs the glibc Void (voidlinux.org/download)
+- **you're root**: run it as your normal user; it asks for sudo when it needs it
+- **`~/vikix` is there but isn't a clone of Vikix**: move it aside and run it again
+
+Once it's running, the stages up to the login stop at the first one that fails, since each needs the one before. It says which, and the whole run is in `~/.local/state/vikix/logs/install-<time>.log`. Fix what it says, then run that stage alone, and the install again; finished steps are skipped:
+
+```sh
+~/vikix/install.sh --only 30-lisp
+~/vikix/install.sh
+```
+
+Sound, laptop hardware, a VM's guest tools and the features carry on past a failure, and the end of the run lists what failed.
+
 ## The desktop didn't start
 
 You'll be left at the text console, or with a black screen.
@@ -31,6 +48,16 @@ You'll be left at the text console, or with a black screen.
 - `Super+m` → *What does a key do?*, then press the key. It says what the key is bound to, if anything.
 - `Super+F1` lists every key Vikix binds.
 - In a VM, the host may take the key before the guest sees it: on Windows, Super+L locks Windows.
+
+## Something's missing from the menu or the launcher
+
+- **An entry isn't in Super+m** (JupyterLab, Zeal, Printers, Windows, Local AI): it's left out until its feature is here. `vikix features` shows what you have; `vikix add python` (or `printing`, `windows`, `local-ai` …) brings it, and the entry with it.
+- **A program isn't in the launcher (Super+d)**: the launcher lists programs that come with a `.desktop` file. Type its name as the file gives it: JupyterLab also answers to `jlab`. A program without one (most command-line tools) runs from a terminal, or from Super+m if Vikix has an entry for it.
+- **The welcome didn't open, or you closed it**: `Super+m` → *Welcome*, or `vikix welcome` in a terminal.
+
+## Adding a feature failed
+
+`vikix add` names what didn't finish (a download, most often). The feature is recorded all the same, so `vikix add NAME` again, or the next `vikix update`, finishes the job. A feature with its own setup, like `windows`, is recorded only once its setup succeeds: it says what it needs first (KVM switched on in the BIOS, 40 GB free).
 
 ## Something on screen stopped updating
 

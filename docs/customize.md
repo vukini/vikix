@@ -67,12 +67,12 @@ Gaps between windows (Super+g) are 10px, 9px at the screen edge. The inner gap i
 
 ### The Super+m menu
 
-Each entry is a label and either a command or a Lisp form:
+Each entry is a label and either a command or a Lisp form, and, if you like, what it needs: a program on PATH, or a file (`"~/..."`). An entry whose need isn't there is left out of the menu, which is how Vikix hides JupyterLab or Printers until you add their features:
 
 ```lisp
 (setf *vikix-menu*
       (append *vikix-menu*
-              '(("Obsidian" (run-shell-command "obsidian"))
+              '(("Obsidian" (run-shell-command "obsidian") "obsidian")   ; shown only with obsidian installed
                 ("Keys"     vikix-keys))))
 ```
 
@@ -129,7 +129,7 @@ That lasts until the next reload or login. When it does what you want, put the s
 
 | To change | Do |
 |---|---|
-| Keyboard layout, Caps Lock | `~/.config/vikix/keyboard` (`VIKIX_KB_LAYOUT`, options such as `ctrl:nocaps`), then `Super+m` → *Apply keyboard settings*. The starter swaps Caps Lock and Left Ctrl. |
+| Keyboard layout, Caps Lock | `Super+m` → *Welcome* → *Set your keyboard layout* picks one from a list and applies it. Or edit `~/.config/vikix/keyboard` (`VIKIX_KB_LAYOUT`, options such as `ctrl:nocaps`), then `Super+m` → *Apply keyboard settings*. The starter swaps Caps Lock and Left Ctrl. |
 | When the screen locks, goes dark, suspends | Make `~/.config/vikix/idle` with any of `LOCK=10`, `SCREEN_OFF=11`, `SUSPEND=20` (minutes; `SUSPEND=0` never suspends; suspend is on battery only), then log in again |
 | Night light hours and warmth | `~/.config/gammastep/config.ini`. `Super+Alt+l` switches it off and on. |
 | Which program opens a kind of file | `~/.config/mimeapps.list`, or `xdg-mime default org.pwmt.zathura.desktop application/pdf` |
@@ -155,6 +155,7 @@ Don't edit between the `# >>> vikix … >>>` and `# <<< vikix … <<<` lines; Vi
 - **Install a program:** `vikix pkg add NAME`, or `vikix pkg add` alone to search every package in Void with a description beside each (Super+m → *Install a program*). `xi NAME` works too. It stays installed, and `vikix update` keeps it current along with everything else.
 - **Add or remove a feature:** a language, an editor, LibreOffice, printing, Windows, local AI. `vikix features` lists them and marks the ones you have; `vikix add rust` installs one, and every update keeps it; `vikix remove rust` uninstalls what only it needed, after showing you the list. Bundles add several at once: `vikix add essentials` (Emacs, C, Python, Lisp), `developer`, `everything`. Your choices are `~/.config/vikix/features`. Windows (`vikix windows setup`, see [Windows in a window](windows.md)) and web apps (the first `vikix webapp add`) choose their feature by themselves.
 - **Remove a program:** `vikix pkg drop NAME`, or `vikix pkg drop` alone to pick from what's installed (Super+m → *Remove a program*). One that Vikix's lists name goes on your skip list, `~/.config/vikix/packages-skip`, so `vikix update` doesn't bring it back; `vikix pkg list` shows it, and `vikix pkg add NAME` takes one off. For a whole language or editor, `vikix remove` is the better way: it says so. (`xr NAME` removes a package too, but an update would install it again.)
+- **A launcher entry of your own:** the launcher (Super+d) lists the `.desktop` files in `~/.local/share/applications`. Put yours there, with a `Name=` and an `Exec=`; a `Keywords=` line (`Keywords=jlab;notebook;`) makes it come up for other words you might type, as `jlab` finds JupyterLab.
 - **Switch on a service:** `sv-on NAME` (the services are in `/etc/sv/`), `sv-off NAME`, `svls` to list. These are system services. A program for your desktop session goes in `user.lisp` instead ([above](#start-a-program-with-the-desktop)).
 
 ## Web apps
@@ -171,7 +172,7 @@ Your list is `~/.config/vikix/webapps`, one `NAME URL [KEY]` per line; editing i
 
 ## The editors
 
-`~/.emacs.d` and `~/.config/nvim` are git clones of the author's configs, and `vikix update` pulls them. To use your own, install Vikix with `VIKIX_EMACS_REPO=` or `VIKIX_NVIM_REPO=` set to your repository, or replace the folder with your own. A folder that isn't a git clone is left alone. Edits to the clones can stop the pull; the update says so and carries on.
+Emacs and Neovim are features: `vikix add emacs`, `vikix add neovim` (`essentials` brings Emacs). Each comes with a config: `~/.emacs.d` and `~/.config/nvim` are git clones of the author's configs, and `vikix update` pulls them. To use your own, install Vikix with `VIKIX_EMACS_REPO=` or `VIKIX_NVIM_REPO=` set to your repository, or replace the folder with your own. A folder that isn't a git clone is left alone. Edits to the clones can stop the pull; the update says so and carries on.
 
 ## Changing Vikix itself
 
