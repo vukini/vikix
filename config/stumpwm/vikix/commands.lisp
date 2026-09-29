@@ -123,6 +123,7 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
     ("Network (nmtui)"     (run-shell-command
                             (format nil "~a -e nmtui" *vikix-terminal*)))
     ("Bluetooth"           (run-shell-command "blueman-manager"))
+    ("Dropbox"             vikix-dropbox "dropbox")
     ("Printers"            (run-shell-command "system-config-printer") "system-config-printer")
     ("Windows (the VM)"    (run-shell-command
                             (format nil "vikix-windows open || ~a -e sh -c 'vikix windows status; printf \"\\nEnter closes this window. \"; read x'"
@@ -195,6 +196,19 @@ Entries whose program or file isn't here are left out."
   "Lock, suspend, log out, reboot or power off."
   (vikix-run-menu *vikix-power-menu* "Power: "))
 
+(defparameter *vikix-dropbox-menu*
+  '(("Status"      (message "Dropbox:~%~a" (vikix-shell-line "timeout 3 dropbox status")))
+    ("Open ~/Dropbox" (run-shell-command "xdg-open ~/Dropbox"))
+    ;; Started by hand, not by the session: some want it running only
+    ;; when they ask. The bar says dbx off meanwhile.
+    ("Start"       (progn (run-shell-command "dropbox start") (message "Dropbox is starting")))
+    ("Stop"        (progn (run-shell-command "dropbox stop") (message "Dropbox is stopping"))))
+  "The Dropbox menu (Super+m, then Dropbox), in the same form as *vikix-menu*.")
+
+(defcommand vikix-dropbox () ()
+  "Dropbox: its status, the folder, start or stop it."
+  (vikix-run-menu *vikix-dropbox-menu* "Dropbox: "))
+
 ;;; Volume and network, for the bar (modeline.lisp). Each is read into a
 ;;; variable by a timer rather than on every redraw, because reading it
 ;;; runs a program and the window manager waits while it does.
@@ -255,6 +269,17 @@ it changed. vikix-drives also calls this when a drive comes or goes."
   (let ((new (vikix-shell-line "vikix-bt")))
     (unless (string= new *vikix-bt*)
       (setf *vikix-bt* new)
+      (update-all-mode-lines))))
+
+(defvar *vikix-dropbox* ""
+  "Dropbox as bin/vikix-dropbox puts it (\"dbx ↓1,204\", \"dbx off\"), or \"\"
+when it's up to date, not installed, or never set up.")
+
+(defun vikix-dropbox-refresh ()
+  "Read Dropbox's state into *vikix-dropbox*, and redraw the bar if it changed."
+  (let ((new (vikix-shell-line "vikix-dropbox")))
+    (unless (string= new *vikix-dropbox*)
+      (setf *vikix-dropbox* new)
       (update-all-mode-lines))))
 
 (defvar *vikix-updates* ""

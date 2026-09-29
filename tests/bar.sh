@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # tests/bar.sh — what the bar shows and draws with: vikix-net labels the
 # link (and hides a strong signal), vikix-bt shows Bluetooth only when it's
-# on, and vikix-font gives StumpWM one font file, Iosevka when it can be
-# had, a stand-in until then.
+# on, vikix-dropbox counts what Dropbox has left to sync, and vikix-font
+# gives StumpWM one font file, Iosevka when it can be had, a stand-in until
+# then.
 #
-# nmcli, bluetoothctl and the fonts are stand-ins in a made-up folder;
+# nmcli, bluetoothctl, dropbox and the fonts are stand-ins in a made-up folder;
 # nothing real is asked or written.
 
 set -euo pipefail
@@ -74,6 +75,40 @@ start=$(date +%s)
 check "a hung bluetoothd should show nothing" test -z "$(bt hang)"
 check "a hung bluetoothd should not hold the bar up" test $(($(date +%s) - start)) -lt 6
 [ "$fail" = 0 ] && echo "bar: vikix-bt shows Bluetooth when it's on, the device and its battery; nothing when off"
+
+# --- vikix-dropbox ----------------------------------------------------------------
+# dbx STATUS — what vikix-dropbox prints when `dropbox status` says STATUS
+# (a literal \n between lines), with ~/.dropbox there. STATUS "hang" is a
+# daemon that never answers.
+mkdir -p "$t/home/.dropbox"
+dbx() {
+  if [ "$1" = hang ]; then
+    printf '#!/bin/sh\nexec sleep 30\n' > "$t/bin/dropbox"
+  else
+    printf '#!/bin/sh\nprintf "%s\\n"\n' "$1" > "$t/bin/dropbox"
+  fi
+  chmod +x "$t/bin/dropbox"
+  HOME="$t/home" PATH="$t/bin:$PATH" sh "$here/bin/vikix-dropbox"
+}
+check "up to date should show nothing" test -z "$(dbx 'Up to date')"
+check "not running should say off" test "$(dbx "Dropbox isn't running!")" = "dbx off"
+check "downloads should show what's left" \
+  test "$(dbx 'Syncing 104,865 files • 2+ days\nDownloading 104,865 files (2,426 KB/sec, 2+ days)')" = "dbx ↓104,865"
+check "both ways should show both" \
+  test "$(dbx 'Syncing 5 files\nDownloading 2 files (1 KB/sec)\nUploading 1 file (3 KB/sec)')" = "dbx ↓2 ↑1"
+check "syncing without a count should say sync" test "$(dbx 'Syncing "notes.txt"')" = "dbx sync"
+check "paused should say so" test "$(dbx 'Syncing paused')" = "dbx paused"
+check "a problem should show !" test "$(dbx "Can't sync \"x\" (access denied)")" = "dbx !"
+check "starting should show dots" test "$(dbx 'Starting...')" = "dbx …"
+start=$(date +%s)
+check "a hung daemon should not say off" test "$(dbx hang)" = "dbx …"
+check "a hung daemon should not hold the bar up" test $(($(date +%s) - start)) -lt 6
+rm -r "$t/home/.dropbox"
+check "never set up should show nothing" test -z "$(dbx "Dropbox isn't running!")"
+rm "$t/bin/dropbox"
+mkdir -p "$t/home/.dropbox"
+check "no Dropbox should show nothing" test -z "$(HOME="$t/home" PATH="$t/bin" /bin/sh "$here/bin/vikix-dropbox")"
+[ "$fail" = 0 ] && echo "bar: vikix-dropbox shows what's left to sync, off, paused or a problem; nothing when up to date"
 
 # --- vikix-font -----------------------------------------------------------------
 font() {

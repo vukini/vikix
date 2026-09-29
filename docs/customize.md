@@ -81,22 +81,22 @@ Each entry is a label and either a command or a Lisp form:
 The bar is one format string. Vikix sets it in `modeline.lisp`:
 
 ```lisp
-"%J  %W^>%R%K%X%Q%U%A%D%O%T%V%E%d"
+"%J  %W^>%R%K%X%Y%Q%U%A%D%Z%O%T%V%E%d"
 ```
 
-`%J` the workspaces, `%W` the windows, `^>` right-aligns the rest: `%R` rec, `%K` awake, `%X` win (the Windows VM), `%Q` quiet, `%U` updates, `%A` backup, `%D` usb, `%O` network, `%T` Bluetooth, `%V` volume, `%E` battery, `%d` date and time. Set your own in `user.lisp` to drop or reorder fields:
+`%J` the workspaces, `%W` the windows, `^>` right-aligns the rest: `%R` rec, `%K` awake, `%X` win (the Windows VM), `%Y` ai (a local model loaded), `%Q` quiet, `%U` updates, `%A` backup, `%D` usb, `%Z` Dropbox, `%O` network, `%T` Bluetooth, `%V` volume, `%E` battery, `%d` date and time. Set your own in `user.lisp` to drop or reorder fields:
 
 ```lisp
 ;; no Bluetooth, and the time without the date
 (setf *time-modeline-string* "%H:%M"
-      *screen-mode-line-format* "%J  %W^>%R%K%X%Q%U%A%D%O%V%E%d")
+      *screen-mode-line-format* "%J  %W^>%R%K%X%Y%Q%U%A%D%Z%O%V%E%d")
 ```
 
 A field of your own can be a list entry `(:eval FORM)`, run each time the bar redraws (every 10 seconds). Keep the form quick, since the whole desktop waits while it runs:
 
 ```lisp
 (setf *screen-mode-line-format*
-      (list "%J  %W^>%R%K%X%Q%U%A%D%O%T%V%E"
+      (list "%J  %W^>%R%K%X%Y%Q%U%A%D%Z%O%T%V%E"
             '(:eval (format nil "load ~a  " (first (uiop:split-string (uiop:read-file-string "/proc/loadavg")))))
             "%d"))
 ```

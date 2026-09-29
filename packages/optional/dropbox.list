@@ -1,0 +1,3 @@
+# dropbox.list — Dropbox (the feature dropbox). From the nonfree repo,
+# which repos.list enables for everyone.
+dropbox             # the command-line client; `dropbox start -i` fetches the daemon into ~/.dropbox-dist

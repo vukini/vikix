@@ -1,0 +1,37 @@
+#!/bin/sh
+# vikix-dropbox — Dropbox as one short line, for the mode line.
+#
+#   dbx ↓1,204 ↑3   syncing: files left to download, and to upload
+#   dbx sync        syncing, with no count to show
+#   dbx paused      syncing is paused
+#   dbx …           starting, connecting or indexing
+#   dbx !           it can't sync, and says why in `dropbox status`
+#   dbx off         set up on this machine, but not running
+#
+# Prints nothing while it's up to date, when Dropbox isn't installed, or
+# before it was ever set up here (no ~/.dropbox), so the bar leaves the
+# field out. `dropbox status` asks the daemon over a socket, with a time
+# limit: a stuck daemon must not hold up the bar.
+
+command -v dropbox >/dev/null 2>&1 || exit 0
+[ -d "$HOME/.dropbox" ] || exit 0
+
+status=$(timeout 3 dropbox status 2>/dev/null)
+case $status in
+  *"isn't running"*) echo "dbx off"; exit 0 ;;
+  "Up to date"*) exit 0 ;;
+  *[Pp]aused*) echo "dbx paused"; exit 0 ;;
+  "Can't"*) echo "dbx !"; exit 0 ;;
+  Syncing*) ;;
+  *) echo "dbx …"; exit 0 ;;
+esac
+
+# "Downloading 104,865 files (2,426 KB/sec, 2+ days)" -> 104,865
+count() { printf '%s\n' "$status" | sed -n "s/^$1 \([0-9,][0-9,]*\) file.*/\1/p" | head -n 1; }
+down=$(count Downloading)
+up=$(count Uploading)
+line=dbx
+[ -n "$down" ] && line="$line ↓$down"
+[ -n "$up" ] && line="$line ↑$up"
+[ "$line" = dbx ] && line="dbx sync"
+printf '%s\n' "$line"

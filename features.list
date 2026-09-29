@@ -42,6 +42,7 @@ pascal      | lang-pascal        | devtools |                     |             
 office      | office             |          |                     |                       | LibreOffice: documents, spreadsheets, presentations
 printing    | printing           |          |                     |                       | Printers: CUPS, finding printers on the network, drivers
 webapps     | optional/webapps   |          |                     |                       | Chromium, for web apps (vikix webapp add)
+dropbox     | optional/dropbox   |          |                     |                       | Dropbox: ~/Dropbox kept in sync, and the bar shows what's left (dropbox start -i the first time)
 windows     | optional/windows   |          | vikix windows setup | vikix windows remove  | Windows 11 in a window (8 GB of memory, 40 GB of disk)
 local-ai    |                    |          | vikix ai setup      | vikix ai uninstall    | AI models on this laptop, with Ollama
 llm         |                    |          | vikix ai llm        | uv tool uninstall llm | llm: AI on the command line, local or Claude
