@@ -37,9 +37,14 @@ NV="$VIKIX_DIR/config/nvim"
 NVIM_DIR="$HOME/.config/nvim"
 NVIM_LAYER="${XDG_DATA_HOME:-$HOME/.local/share}/vikix/nvim"
 NVIM_LAZY="${XDG_DATA_HOME:-$HOME/.local/share}/nvim/lazy/lazy.nvim"
-# "VIKIX-LOCK YOUR-LOCK": the checksums of the lock Vikix last shipped and
-# of the one it left in ~/.config/nvim ("-" when that one was yours).
-NVIM_LOCK_STATE="$VIKIX_STATE/nvim-lock"
+# The lock Vikix last left in ~/.config/nvim, to tell its plugins' versions
+# from yours; and the last lock of Vikix's that yours was said to differ from.
+NVIM_SAVED="$VIKIX_STATE/nvim-lock.json"
+NVIM_TOLD="$VIKIX_STATE/nvim-lock.told"
+NVIM_OLD_STATE="$VIKIX_STATE/nvim-lock"        # 0.55.0's: two checksums
+NVIM_LOG="$VIKIX_STATE/logs/nvim-plugins.log"
+NVIM_NOTE=''       # said again last, so it isn't lost in the update's output
+NVIM_CHANGED=0     # Neovim's files changed: a snapshot after, so they aren't "yours"
 
 # clone_or_pull URL DIR — a clone gets pulled; anything else is left alone.
 clone_or_pull() {
@@ -77,46 +82,70 @@ old_clone_unchanged() {
   [ -z "$edits" ] && [ -z "$ahead" ]
 }
 
-# nvim_restore [clean] — the plugins, to the versions in the lock.
+# nvim_restore [clean] — the plugins, to the versions in the lock. Lazy's
+# progress (hundreds of lines) goes to a log of its own, not the update's.
 nvim_restore() {
   command -v nvim >/dev/null || { warn "nvim not found; Neovim's plugins come at its first start"; return 1; }
-  say "installing Neovim's plugins to lazy-lock.json (a minute or two the first time)"
+  say "installing Neovim's plugins to lazy-lock.json (a minute or two the first time; log: $NVIM_LOG)"
   # Lazy! = no UI; restore = the locked versions; the treesitter build runs
-  # too. clean drops plugins nothing asks for (presence.nvim, after 0.55).
-  if [ "${1:-}" = clean ]; then run nvim --headless "+Lazy! restore" "+Lazy! clean" +qa
-  else run nvim --headless "+Lazy! restore" +qa; fi
+  # too. clean drops plugins nothing asks for any more.
+  local cmd=(nvim --headless "+Lazy! restore")
+  [ "${1:-}" = clean ] && cmd+=("+Lazy! clean")
+  cmd+=(+qa)
+  if [ "$DRY_RUN" = 1 ]; then run "${cmd[@]}"; return 0; fi
+  mkdir -p "$(dirname "$NVIM_LOG")"
+  "${cmd[@]}" > "$NVIM_LOG" 2>&1 || { warn "Neovim's plugins didn't all install (log: $NVIM_LOG)"; return 1; }
 }
 
-# The plugins' versions. The lock is yours (Lazy rewrites it, :Lazy update
-# moves it), so it's copied, not linked. When Vikix ships a newer one,
-# yours moves with it only if it's still the one Vikix left there.
+save_state() {   # save_state FILE CONTENT-FROM
+  [ "$DRY_RUN" = 1 ] && return 0
+  mkdir -p "$VIKIX_STATE"
+  cp "$2" "$1"
+}
+
+# The plugins' versions. The lock is yours (Lazy rewrites it whenever a
+# plugin comes or goes, :Lazy update moves it on), so it's copied, not
+# linked. When Vikix tests newer versions, yours move with them only while
+# Vikix's plugins are still at the versions it left: plugins you added
+# don't count, and are kept (lib/nvim-lock.py).
 nvim_lock() {
-  local lock="$NVIM_DIR/lazy-lock.json" ship="$NV/lazy-lock.json"
-  local now_ship now_user="" last_ship="" last_user=""
-  now_ship=$(sha "$ship")
-  [ -f "$lock" ] && now_user=$(sha "$lock")
-  [ -f "$NVIM_LOCK_STATE" ] && read -r last_ship last_user < "$NVIM_LOCK_STATE" || true
+  local lock="$NVIM_DIR/lazy-lock.json" ship="$NV/lazy-lock.json" helper="$VIKIX_DIR/lib/nvim-lock.py"
+  # 0.55.0 kept two checksums: its lock, if still the same, is the saved one.
+  if [ ! -f "$NVIM_SAVED" ] && [ -f "$NVIM_OLD_STATE" ] && [ -f "$lock" ]; then
+    local last_user=''
+    read -r _ last_user < "$NVIM_OLD_STATE" || true    # "VIKIX-LOCK YOURS"
+    [ "$(sha "$lock")" = "$last_user" ] && save_state "$NVIM_SAVED" "$lock"
+  fi
+  [ "$DRY_RUN" = 1 ] || rm -f "$NVIM_OLD_STATE"
+
   if [ ! -f "$lock" ]; then
     say "Neovim's plugins: the versions Vikix tested"
     run cp "$ship" "$lock"
-  elif [ "$now_user" = "$last_user" ]; then
-    if [ "$now_ship" = "$last_ship" ]; then
-      [ -d "$NVIM_LAZY" ] && return 0     # nothing new, and the plugins are there
+  elif [ -f "$NVIM_SAVED" ] && cmp -s "$ship" "$NVIM_SAVED"; then
+    [ -d "$NVIM_LAZY" ] && return 0     # nothing new from Vikix, and the plugins are there
+    nvim_restore clean || true
+    return 0
+  elif [ -f "$NVIM_SAVED" ] && python3 "$helper" untouched "$NVIM_SAVED" "$lock"; then
+    say "Neovim's plugins move on to the versions Vikix tested last (plugins you added keep theirs)"
+    if [ "$DRY_RUN" = 1 ]; then printf '   would merge %s into %s\n' "$ship" "$lock"
     else
-      say "Neovim's plugins move on to the versions Vikix tested last"
-      run cp "$ship" "$lock"
+      local merged; merged=$(mktemp)
+      python3 "$helper" merge "$ship" "$NVIM_SAVED" "$lock" > "$merged" && mv -f "$merged" "$lock" ||
+        { rm -f "$merged"; warn "couldn't merge Neovim's lock; yours stays"; return 0; }
     fi
-  elif [ "$now_user" != "$now_ship" ]; then
-    # Yours: said once for each lock Vikix ships.
-    if [ "$now_ship" != "$last_ship" ]; then
-      say "your ~/.config/nvim/lazy-lock.json has plugin versions of your own, so it stays."
+  elif ! cmp -s "$ship" "$lock"; then
+    # Vikix's plugins at versions of yours (:Lazy update): said once for
+    # each lock Vikix ships.
+    if ! cmp -s "$ship" "$NVIM_TOLD" 2>/dev/null; then
+      say "your Neovim plugins are at versions of your own (:Lazy update), so they stay."
       echo "   For the ones Vikix tested: cp $ship $lock; vikix update"
-      [ "$DRY_RUN" = 1 ] || { mkdir -p "$VIKIX_STATE"; echo "$now_ship -" > "$NVIM_LOCK_STATE"; }
+      save_state "$NVIM_TOLD" "$ship"
     fi
     return 0
   fi
+  NVIM_CHANGED=1
   nvim_restore clean || return 0
-  [ "$DRY_RUN" = 1 ] || { mkdir -p "$VIKIX_STATE"; echo "$now_ship $(sha "$lock")" > "$NVIM_LOCK_STATE"; }
+  save_state "$NVIM_SAVED" "$ship"
 }
 
 nvim_config() {
@@ -130,13 +159,14 @@ nvim_config() {
     if old_clone_unchanged "$NVIM_DIR"; then
       local bak
       bak="$NVIM_DIR.vikix-bak.$(timestamp)"
-      say "Neovim's config is now Vikix's own; your clone of nvim-void-linux, unchanged, goes to $bak"
+      say "Neovim's config now comes with Vikix. Your old one (nvim-void-linux, with no changes of yours) is kept in $bak"
       run mv "$NVIM_DIR" "$bak"
+      NVIM_NOTE="Neovim: your old config is kept in $bak; the new one is ~/.config/nvim (your plugins go in its lua/plugins/)"
       moved=1
     else
       clone_or_pull "" "$NVIM_DIR"
       say "your ~/.config/nvim (nvim-void-linux) has changes of yours, so it stays."
-      echo "   Neovim's config is now Vikix's own. To switch: move ~/.config/nvim away, vikix update,"
+      echo "   Neovim's config now comes with Vikix. To switch: move ~/.config/nvim away, vikix update,"
       echo "   then put your changes in ~/.config/nvim/lua/plugins/."
       [ -f "$NVIM_DIR/lazy-lock.json" ] && nvim_restore
       return 0
@@ -151,9 +181,10 @@ nvim_config() {
   fi
   link_managed "$NV" "$NVIM_LAYER"
   if [ ! -e "$NVIM_DIR" ] || [ "$moved" = 1 ]; then
-    say "copying Vikix's Neovim starter to $NVIM_DIR (yours from now on)"
+    say "Neovim: your config is $NVIM_DIR, copied from Vikix's starter (yours to change); Vikix's part is $NVIM_LAYER"
     run mkdir -p "$NVIM_DIR"
     run cp -R "$NV/starter/." "$NVIM_DIR/"
+    NVIM_CHANGED=1
   fi
   # A dry run has moved nothing: the lock it would find is the old clone's.
   [ "$DRY_RUN" = 1 ] && [ "$moved" = 1 ] && return 0
@@ -187,8 +218,16 @@ fi
 
 # --- Neovim: its config, and its plugins now rather than at first start ---
 [ "$nvim" = 1 ] && nvim_config
+# The update's snapshot (40-config) came before this: take one now, or
+# vikix changes would show Vikix's starter and lock as changes of yours,
+# and vikix undo would take them away.
+if [ "$NVIM_CHANGED" = 1 ]; then
+  "$VIKIX_DIR/bin/vikix" snapshot "Neovim, set up by Vikix $(cat "$VIKIX_DIR/VERSION")" ||
+    warn "no snapshot after setting up Neovim (above)"
+fi
 
 ready=()
 [ "$emacs" = 1 ] && ready+=("e (Emacs frame)")
 [ "$nvim" = 1 ]  && ready+=("v (Neovim)")
 say "editors ready: ${ready[*]}"
+[ -z "$NVIM_NOTE" ] || say "$NVIM_NOTE"

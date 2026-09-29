@@ -260,8 +260,23 @@ cmd_doctor() {
   if is_chosen neovim; then
     local nv="$HOME/.config/nvim" layer="${XDG_DATA_HOME:-$HOME/.local/share}/vikix/nvim"
     if grep -qsF 'require, "vikix"' "$nv/init.lua"; then
-      if [ -f "$layer/lua/vikix/init.lua" ]; then say "Neovim is Vikix's, with your part in $nv"
-      else warn "$layer, Vikix's part of Neovim, is missing (vikix update links it)"; ok=0; fi
+      local saved="$VIKIX_STATE/nvim-lock.json" whose="versions of your own (:Lazy update)"
+      if [ -f "$saved" ]; then
+        python3 "$VIKIX_DIR/lib/nvim-lock.py" untouched "$saved" "$nv/lazy-lock.json" 2>/dev/null && whose="the versions Vikix tested"
+      elif [ -f "$VIKIX_STATE/nvim-lock" ] && [ -f "$nv/lazy-lock.json" ]; then
+        # 0.55.0's two checksums, until the next update replaces them.
+        local sums; sums=$(cat "$VIKIX_STATE/nvim-lock")
+        [ "${sums#* }" = "$(sha256sum < "$nv/lazy-lock.json" | cut -d' ' -f1)" ] && whose="the versions Vikix tested"
+      fi
+      if [ ! -f "$layer/lua/vikix/init.lua" ]; then
+        warn "$layer, Vikix's part of Neovim, is missing (vikix update links it)"; ok=0
+      elif [ ! -d "${XDG_DATA_HOME:-$HOME/.local/share}/nvim/lazy/lazy.nvim" ]; then
+        warn "Neovim's plugins aren't installed (vikix update installs them)"; ok=0
+      else say "Neovim is Vikix's, with your part in $nv; its plugins are at $whose"; fi
+      local old
+      for old in "$nv".vikix-bak.*; do
+        if [ -d "$old" ]; then say "your Neovim config from before is kept in $old"; fi
+      done
     elif [ -d "$nv/.git" ]; then say "$nv is a git clone (a Neovim config of your own)"
     elif [ -e "$nv/init.lua" ] || [ -e "$nv/init.vim" ]; then say "$nv is a Neovim config of your own"
     else warn "$nv has no Neovim config (vikix update puts Vikix's starter there)"; ok=0; fi

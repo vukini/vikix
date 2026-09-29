@@ -16,3 +16,8 @@ if not ok then
   return
 end
 layer.setup { spec = { { import = "plugins" } } }
+
+-- Plain settings and keys of your own can go here, below: they come after
+-- AstroNvim's, so they win. For example:
+-- vim.opt.relativenumber = false
+-- vim.keymap.set("n", "<Leader>W", "<cmd>w<cr>", { desc = "Save" })

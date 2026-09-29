@@ -42,7 +42,7 @@ commit made there stops the update altogether. **Do not edit them**:
 | Keyboard layout and options (e.g. `ctrl:swapcaps`) | `~/.config/vikix/keyboard`, then run `vikix-keyboard` |
 | Which program opens which file type | `~/.config/mimeapps.list` (images: `vikix-image.desktop`, nsxiv with the rest of the folder) |
 | Text size on a high-resolution screen | `~/.Xresources` (`Xft.dpi`, `Xcursor.size`); takes effect at the next login |
-| Neovim: plugins, settings, keys | `~/.config/nvim/lua/plugins/*.lua`, each returning lazy.nvim specs; they load after Vikix's, so they win (`example.lua` there shows how). `~/.config/nvim/init.lua` only loads Vikix's part, then these. Plugin versions: `~/.config/nvim/lazy-lock.json`; a `:Lazy update` makes it the user's, and updates then leave it alone. |
+| Neovim: plugins, settings, keys | `~/.config/nvim/lua/plugins/*.lua`, each returning lazy.nvim specs; they load after Vikix's, so they win (`example.lua` there shows how). `~/.config/nvim/init.lua` only loads Vikix's part, then these. Plain `vim.opt` settings and `vim.keymap.set` keys: at the end of `~/.config/nvim/init.lua`. Plugin versions: `~/.config/nvim/lazy-lock.json`; updates move Vikix's plugins on to versions Vikix tested, unless the user moved them (`:Lazy update`), and plugins the user added keep theirs. |
 | Shell aliases, PATH additions | `~/.bashrc`, **after** the `# <<< vikix ... <<<` blocks. Never edit inside a `# >>> vikix NAME >>>` block; Vikix rewrites those. |
 
 If the user asks for a change that can only be made in Vikix's own files

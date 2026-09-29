@@ -56,7 +56,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   ├── mimeapps.list              yours  which program opens which kind of file
 │   ├── fontconfig/conf.d/50-vikix-iosevka.conf   Vikix's   monospace means Iosevka
 │   ├── udiskie/config.yml         yours, if you make it: replaces Vikix's udiskie settings
-│   └── nvim/                      yours     with the feature neovim: init.lua, your plugins in lua/plugins/, lazy-lock.json
+│   └── nvim/                      yours     with the feature neovim: init.lua (your settings at its end), your plugins in lua/plugins/, lazy-lock.json
 │
 ├── .emacs.d/                  with the feature emacs: a git clone of the Emacs config (vukini/emacs-void)
 ├── .claude/skills/vikix       Vikix's   tells Claude Code how Vikix works
@@ -68,7 +68,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   └── pil, claude, ...   installed by 65-languages, the npm language servers, Claude Code
 │   ├── share/applications/*.desktop   Vikix's   JupyterLab, vikix-image, Lazarus in the launcher (Super+d); your web apps' too
 │   ├── share/vikix/fonts/wm.ttf       built     the bar's font, made by vikix-font
-│   ├── share/vikix/nvim               Vikix's   Neovim's part that's Vikix's: AstroNvim and Vikix's plugins (a link to config/nvim)
+│   ├── share/vikix/nvim               Vikix's   Vikix's part of Neovim: AstroNvim and Vikix's plugins (a link to config/nvim)
 │   ├── share/info/vikix.info          written   these guides as an Info manual (`info vikix`)
 │   ├── state/vikix/mcp.log            written   every call an agent made to vikix mcp (600)
 │   ├── state/vikix/session.env        written   the session's display and D-Bus, for vikix mcp under Codex (600)

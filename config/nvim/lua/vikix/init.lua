@@ -38,7 +38,7 @@ function M.setup(opts)
         mapleader = " ",
         maplocalleader = ",",
         icons_enabled = true, -- the glyphs come from nerd-fonts-symbols-ttf (desktop.list)
-        update_notifications = true,
+        update_notification = true,
       },
     },
     { dir = M.dir, name = "vikix", import = "vikix.plugins" },

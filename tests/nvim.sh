@@ -2,13 +2,15 @@
 # tests/nvim.sh — 45-editors and Neovim's config, without the network.
 #
 #   a new machine gets the starter (yours), a link to Vikix's part and the
-#   lock Vikix tested, with the plugins restored; an update with nothing new
-#   restores nothing; a new lock from Vikix moves an untouched one on, and
-#   leaves one you changed (said once); an unchanged clone of the old sister
-#   repo (nvim-void-linux) is set aside for the starter, and one with your
-#   changes stays and is pulled; VIKIX_NVIM_REPO, a clone of your own and a
-#   folder of your own are left to you; a dry run changes nothing; and the
-#   Lua in config/nvim compiles.
+#   lock Vikix tested, with the plugins restored (Lazy's output in its own
+#   log) and a snapshot after; an update with nothing new restores nothing;
+#   a new lock from Vikix moves Vikix's plugins on and keeps the ones you
+#   added, and leaves versions you moved (said once); 0.55.0's checksums
+#   carry over; an unchanged clone of the old sister repo (nvim-void-linux)
+#   is set aside for the starter, said last, and one with your changes
+#   stays and is pulled; VIKIX_NVIM_REPO, a clone of your own and a folder
+#   of your own are left to you, a clone stays out of the snapshots; a dry
+#   run changes nothing; and the Lua in config/nvim compiles.
 #
 # nvim is a stand-in that records what it was asked; the whole config,
 # with its plugins, is tests/editors.sh's (--all, network).
@@ -61,13 +63,19 @@ check "Vikix's part should be a link into the checkout: $(readlink "$HOME/.local
   test "$(readlink "$HOME/.local/share/vikix/nvim")" = "$t/vikix/config/nvim"
 check "the lock should be Vikix's" cmp -s "$HOME/.config/nvim/lazy-lock.json" "$t/vikix/config/nvim/lazy-lock.json"
 check "the plugins should be restored (and the unused cleaned): $(calls)" has 'Lazy! restore.*Lazy! clean' "$(calls)"
-check "the lock's state should be recorded" test -s "$HOME/.local/state/vikix/nvim-lock"
+check "Vikix's lock should be saved, to tell its plugins from yours" cmp -s "$HOME/.local/state/vikix/nvim-lock.json" "$t/vikix/config/nvim/lazy-lock.json"
+check "Lazy's progress should go to its own log, and the stage say where: $out" has 'nvim-plugins.log' "$out"
+# The update's snapshot came before this stage: without one after it, Vikix's
+# starter would show as your change, and vikix undo would take it away.
+recorded=$(git --git-dir="$HOME/.local/state/vikix/yours.git" ls-tree -r --name-only HEAD 2>/dev/null || true)
+check "a snapshot should record the starter as it came: $recorded" has '.config/nvim/init.lua' "$recorded"
 
-# An update with nothing new: no restore.
+# An update with nothing new: no restore, no snapshot.
 : > "$HOME/nvim.calls"
 out=$(stage)
 check "an update with nothing new shouldn't restore: $(calls)" test -z "$(calls)"
 check "the starter shouldn't be copied again: $out" lacks 'starter' "$out"
+check "nor take a snapshot: $out" lacks 'snapshot' "$out"
 
 # Your own plugin file stays through updates, and is in the snapshot history.
 echo 'return {}' > "$HOME/.config/nvim/lua/plugins/mine.lua"
@@ -77,29 +85,54 @@ out=$(bash "$t/vikix/bin/vikix" snapshot test 2>&1 || true)
 recorded=$(git --git-dir="$HOME/.local/state/vikix/yours.git" ls-files 2>/dev/null || true)
 check "your Neovim files should be in the snapshot history: $out" has '.config/nvim/lua/plugins/mine.lua' "$recorded"
 
-# Vikix ships a new lock: an untouched one moves on.
-python3 - "$t/vikix/config/nvim/lazy-lock.json" <<'EOF'
-import sys; p = sys.argv[1]; s = open(p).read()
-open(p, "w").write(s.replace('"lazy.nvim": { "branch": "main", "commit": "', '"lazy.nvim": { "branch": "main", "commit": "0', 1))
-EOF
-: > "$HOME/nvim.calls"
-out=$(stage)
-check "an untouched lock should move on to Vikix's new one: $out" cmp -s "$HOME/.config/nvim/lazy-lock.json" "$t/vikix/config/nvim/lazy-lock.json"
-check "and the plugins be restored: $(calls)" has 'Lazy! restore' "$(calls)"
+# ship SUFFIX — Vikix tests a newer lazy.nvim.
+ship() { sed -i "s/\(\"lazy.nvim\": { \"branch\": \"main\", \"commit\": \"[0-9a-f]*\)\"/\1$1\"/" "$t/vikix/config/nvim/lazy-lock.json"; }
+lazy_commit() { grep -o '"lazy.nvim": {[^}]*}' "$1"; }
 
-# A lock of your own stays, and is mentioned once for each new one Vikix ships.
-echo '{ "mine": { "branch": "main", "commit": "1" } }' > "$HOME/.config/nvim/lazy-lock.json"
-sed -i 's/"commit": "0/"commit": "00/' "$t/vikix/config/nvim/lazy-lock.json"
+# A plugin you added (Lazy writes it into the lock) doesn't make the lock
+# yours: Vikix's plugins move on, and yours keeps its version.
+python3 - "$HOME/.config/nvim/lazy-lock.json" <<'EOF'
+import json, sys; p = sys.argv[1]; d = json.load(open(p))
+d["zen-mode.nvim"] = {"branch": "main", "commit": "abc"}
+json.dump(d, open(p, "w"))
+EOF
+ship 1
 : > "$HOME/nvim.calls"
 out=$(stage)
-check "a lock of your own should stay" grep -q '"mine"' "$HOME/.config/nvim/lazy-lock.json"
-check "it should say how to take Vikix's: $out" has 'plugin versions of your own' "$out"
+check "Vikix's plugins should move on to its new versions: $out" test "$(lazy_commit "$HOME/.config/nvim/lazy-lock.json")" = "$(lazy_commit "$t/vikix/config/nvim/lazy-lock.json")"
+check "a plugin you added should keep its version" grep -q '"zen-mode.nvim": { "branch": "main", "commit": "abc" }' "$HOME/.config/nvim/lazy-lock.json"
+check "and the plugins be restored: $(calls)" has 'Lazy! restore' "$(calls)"
+check "and a snapshot taken: $out" has 'snapshot' "$out"
+
+# Vikix's plugins at versions of yours (:Lazy update) stay, said once for
+# each new lock Vikix ships.
+sed -i 's/\("lazy.nvim": { "branch": "main", "commit": "\)/\1f/' "$HOME/.config/nvim/lazy-lock.json"
+mine=$(lazy_commit "$HOME/.config/nvim/lazy-lock.json")
+ship 2
+: > "$HOME/nvim.calls"
+out=$(stage)
+check "versions of yours should stay" test "$(lazy_commit "$HOME/.config/nvim/lazy-lock.json")" = "$mine"
+check "it should say how to take Vikix's: $out" has 'versions of your own' "$out"
 check "and not restore: $(calls)" test -z "$(calls)"
 out=$(stage)
 check "it should say so only once: $out" lacks 'of your own' "$out"
-sed -i 's/"commit": "00/"commit": "000/' "$t/vikix/config/nvim/lazy-lock.json"
+ship 3
 out=$(stage)
-check "a lock of yours should stay when Vikix ships yet another" grep -q '"mine"' "$HOME/.config/nvim/lazy-lock.json"
+check "versions of yours should stay when Vikix ships yet another" test "$(lazy_commit "$HOME/.config/nvim/lazy-lock.json")" = "$mine"
+check "and it says so again, once: $out" has 'versions of your own' "$out"
+cp "$here/config/nvim/lazy-lock.json" "$t/vikix/config/nvim/lazy-lock.json"
+
+# A machine on 0.55.0's state (two checksums) with its lock untouched moves on.
+fresh from055
+mkdir -p "$HOME/.config/nvim/lua/plugins" "$HOME/.local/state/vikix"
+cp -R "$t/vikix/config/nvim/starter/." "$HOME/.config/nvim/"
+cp "$t/vikix/config/nvim/lazy-lock.json" "$HOME/.config/nvim/"
+s=$(sha256sum < "$HOME/.config/nvim/lazy-lock.json"); s=${s%% *}
+echo "$s $s" > "$HOME/.local/state/vikix/nvim-lock"
+ship 4
+out=$(stage)
+check "a 0.55.0 lock left untouched should move on: $out" test "$(lazy_commit "$HOME/.config/nvim/lazy-lock.json")" = "$(lazy_commit "$t/vikix/config/nvim/lazy-lock.json")"
+check "0.55.0's checksums should be gone" test ! -e "$HOME/.local/state/vikix/nvim-lock"
 cp "$here/config/nvim/lazy-lock.json" "$t/vikix/config/nvim/lazy-lock.json"
 
 # --- a dry run changes nothing --------------------------------------------
@@ -123,6 +156,7 @@ git clone -q "$t/remote/vukini/nvim-void-linux.git" "$HOME/.config/nvim"
 echo '{ "changed": {} }' > "$HOME/.config/nvim/lazy-lock.json"    # :Lazy update did this: not a change of yours
 out=$(stage)
 check "an unchanged old clone should give way to the starter: $out" grep -qF 'require, "vikix"' "$HOME/.config/nvim/init.lua"
+check "the last line should say where the old config went: $(tail -1 <<<"$out")" grep -q 'old config is kept in' <<<"$(tail -1 <<<"$out")"
 bak=$(ls -d "$HOME/.config/nvim.vikix-bak."* 2>/dev/null | head -1)
 check "the old clone should be kept aside, not deleted" test -f "$bak/init.lua"
 check "the lock should be Vikix's now" cmp -s "$HOME/.config/nvim/lazy-lock.json" "$here/config/nvim/lazy-lock.json"
