@@ -5,7 +5,7 @@
 #                         sbcl), battery, home, services, backup (with
 #                         restic), image, theme, bar, rofi,
 #                         wallpaper, examples, drives, firmware, fingerprint, updates, notifications, idle, capture,
-#                         nightlight, update, windows, ai, ai-local, llm, ai-keys, agents, debug, dictate, swank (with Quicklisp), webapp, features, welcome, menu (with sbcl), pkg, oneline, info (with makeinfo),
+#                         nightlight, update, windows, ai, ai-local, llm, ai-keys, agents, debug, dictate, mcp, swank (with Quicklisp), webapp, features, welcome, menu (with sbcl), pkg, oneline, info (with makeinfo),
 #                         and on Void also packages and dry-run
 #   tests/run.sh --all    those, plus editors (several minutes, network)
 #
@@ -21,7 +21,7 @@ unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME
 cd "$(dirname "$0")" || exit 1
 tests=(lint)
 if command -v sbcl >/dev/null; then tests+=(lisp); else echo "(lisp needs sbcl; skipped here)"; fi
-tests+=(battery home services image theme bar rofi wallpaper examples drives firmware fingerprint updates notifications idle capture nightlight update windows ai ai-local llm ai-keys agents debug dictate swank webapp features welcome menu pkg oneline)
+tests+=(battery home services image theme bar rofi wallpaper examples drives firmware fingerprint updates notifications idle capture nightlight update windows ai ai-local llm ai-keys agents debug dictate mcp swank webapp features welcome menu pkg oneline)
 if command -v restic >/dev/null; then tests+=(backup); else echo "(backup needs restic; skipped here)"; fi
 if command -v makeinfo >/dev/null; then tests+=(info); else echo "(info needs makeinfo; skipped here)"; fi
 if command -v xbps-query >/dev/null && [ "$(id -u)" -ne 0 ]; then

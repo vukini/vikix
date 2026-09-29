@@ -8,29 +8,28 @@ Built in this order: AI first, then newcomers, then the rest. Package facts were
 
 ### AI
 
-1. **A Vikix MCP server.** So any MCP agent can drive the desktop through a fixed, safe set of tools: vikix eval (maybe read-only by default), snapshot, changes and undo, doctor, the windows and workspaces, a notification, the theme. Local only (stdio), registered for Claude Code, documented for others. The dangerous ones (eval with side effects, undo) need a clear flag or a confirmation.
-2. **~/dev/ai.** A folder like the languages' (README, tools line, examples copied once): the Claude API from Python and from the shell; a local model through Ollama's API; embeddings in SQLite with sqlite-vec; and "ask my notes", a small search over a folder of Markdown (an Obsidian vault, say), local by default.
+1. **~/dev/ai.** A folder like the languages' (README, tools line, examples copied once): the Claude API from Python and from the shell; a local model through Ollama's API; embeddings in SQLite with sqlite-vec; and "ask my notes", a small search over a folder of Markdown (an Obsidian vault, say), local by default.
 
 ### Newcomers
 
-3. **A key overlay.** Super+/ (and maybe holding Super for a second) shows a card of the Super keys, grouped, from *vikix-bindings*. And StumpWM's which-key-mode on, for the Ctrl+t keys.
-4. **A mouse fallback, and familiar keys.** Clicking a workspace in the bar goes there; volume opens pavucontrol, Wi-Fi nmtui, Bluetooth blueman. Super+Space as a second launcher key.
-5. **"Installing Void for Vikix", and "Your first hour".** A docs page with screenshots of void-installer: the glibc image, partitioning, a user in wheel, the network. Then a short one: the keys, part two, themes, update. Both linked from the site (the guides on vikix.dev, below).
+2. **A key overlay.** Super+/ (and maybe holding Super for a second) shows a card of the Super keys, grouped, from *vikix-bindings*. And StumpWM's which-key-mode on, for the Ctrl+t keys.
+3. **A mouse fallback, and familiar keys.** Clicking a workspace in the bar goes there; volume opens pavucontrol, Wi-Fi nmtui, Bluetooth blueman. Super+Space as a second launcher key.
+4. **"Installing Void for Vikix", and "Your first hour".** A docs page with screenshots of void-installer: the glibc image, partitioning, a user in wheel, the network. Then a short one: the keys, part two, themes, update. Both linked from the site (the guides on vikix.dev, below).
 
 ### And then
 
-6. **A firewall (ufw).** Deny incoming, allow outgoing, allow SSH. A runit service, and a Super+m entry that shows the status.
-7. **More themes.** Three or four more (Gruvbox, Nord, Tokyo Night, a high-contrast one), each with a wallpaper. Then make Emacs and Neovim follow `vikix theme`.
-8. **Whole-system undo.** When / is btrfs: snapper snapshots before each `vikix update`, and `vikix rollback` notes. Skip cleanly on ext4.
-9. **The guides on vikix.dev.** A Docs link on the site to `docs/` on GitHub, or the four pages built into the site. Same words either way: `docs/` stays the source.
-10. **Hype, DHH's Markdown presentation app, as a feature.** https://github.com/omacom/hype (MIT, Qt 6 and C++). Hype's code needs no change: its Omarchy ties are handled on Vikix's side. Checked in Void on 2026-09-28: every dependency is packaged (qt6-base, -declarative, -multimedia, -imageformats, -svg and their -devel; ffmpeg6-devel, libwebp-devel, source-highlight 3.1.9; gcc and make are in dev.list), and so are xdg-desktop-portal and xdg-desktop-portal-gtk. Steps:
+5. **A firewall (ufw).** Deny incoming, allow outgoing, allow SSH. A runit service, and a Super+m entry that shows the status.
+6. **More themes.** Three or four more (Gruvbox, Nord, Tokyo Night, a high-contrast one), each with a wallpaper. Then make Emacs and Neovim follow `vikix theme`.
+7. **Whole-system undo.** When / is btrfs: snapper snapshots before each `vikix update`, and `vikix rollback` notes. Skip cleanly on ext4.
+8. **The guides on vikix.dev.** A Docs link on the site to `docs/` on GitHub, or the four pages built into the site. Same words either way: `docs/` stays the source.
+9. **Hype, DHH's Markdown presentation app, as a feature.** https://github.com/omacom/hype (MIT, Qt 6 and C++). Hype's code needs no change: its Omarchy ties are handled on Vikix's side. Checked in Void on 2026-09-28: every dependency is packaged (qt6-base, -declarative, -multimedia, -imageformats, -svg and their -devel; ffmpeg6-devel, libwebp-devel, source-highlight 3.1.9; gcc and make are in dev.list), and so are xdg-desktop-portal and xdg-desktop-portal-gtk. Steps:
     - **Build it** in the VM: `git clone https://github.com/omacom/hype && cd hype && ./bin/build`, then without a window `./build/hype render examples/welcome.md -o slides/`, then the editor, `./build/hype open examples/welcome.md`. Video may stutter in a VM: judge playback on real hardware.
     - **File dialogs:** Hype has no fallback, so Open and Save fail without a portal. Install and start xdg-desktop-portal and xdg-desktop-portal-gtk from the session. The session already runs under D-Bus (`dbus-run-session` in `.xinitrc`), which the portal needs.
     - **Its themes follow Vikix's:** `vikix theme` also writes each theme as `~/.config/omarchy/themes/<name>/colors.toml` (lines like `background = "#1a1b26"`), or sets OMARCHY_PATH, and keeps `~/.local/state/omarchy/current/theme/colors.toml` pointing at the current one, so the editor follows the desktop.
     - **Package it:** an xbps-src template, after Hype's `pkgbuild/PKGBUILD`, built in the style of 65-languages (pinned) until it's in void-packages; then a feature, `vikix add hype`.
     - **The AI side:** `hype skill install` puts a skill in `~/.claude/skills/`, so the agent can write the slides; a good example of an AI workflow for the site and the docs.
     - Prior art for running it outside Omarchy, with screenshots: the Mac port, https://github.com/gscalzo/HypeX.
-11. **Tutorials: `vikix learn c`.** A hands-on C course in the terminal, lessons checked on save, twelve tracks well past the basics, on a language-neutral runner. The plan, and the decisions it waits on, are in `TUTORIALS.md`. The steps: [C tutorials](#c-tutorials-vikix-learn-c), below.
+10. **Tutorials: `vikix learn c`.** A hands-on C course in the terminal, lessons checked on save, twelve tracks well past the basics, on a language-neutral runner. The plan, and the decisions it waits on, are in `TUTORIALS.md`. The steps: [C tutorials](#c-tutorials-vikix-learn-c), below.
 
 ## C tutorials: `vikix learn c`
 

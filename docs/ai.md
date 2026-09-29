@@ -202,6 +202,29 @@ languages=English Esperanto French Spanish Arabic Hindi
 
 For better answers, above all translations into Esperanto, which small models get wrong, use Claude. Then each use costs a little and the text you selected goes to Anthropic, so it needs your key first: `vikix ai key set anthropic`. Super+i never switches to Claude by itself, and its menu always names the model and where the text goes.
 
+## The desktop as tools (MCP)
+
+MCP is how an AI agent is given tools of its own. `vikix mcp register` gives your agent a fixed set of them for this desktop, so it can look at it and make small changes without writing commands:
+
+```sh
+vikix mcp register     # for Claude Code; it prints the lines for Codex, Gemini CLI and OpenCode
+vikix mcp tools        # what it offers
+vikix mcp unregister   # take it away
+```
+
+| Tool | What it does |
+|---|---|
+| desktop | The workspaces and their windows, the screens, the theme |
+| keys | Every key Vikix binds, and what it does |
+| doctor, history, changes, themes, version | What `vikix doctor`, `vikix history`, `vikix changes`, `vikix theme` and `vikix version` say |
+| notify | Shows a notification, marked as the agent's |
+| snapshot | Records your settings before a change |
+| set_theme, switch_workspace, focus_window | Small changes, easily undone |
+
+Two more are off unless you turn them on, because they can change a lot: `vikix mcp register --allow-eval` adds **eval** (any Lisp in the window manager) and `--allow-undo` adds **undo** (your settings back one snapshot). The agent still asks you before it uses a tool, unless you've told it not to.
+
+It works only for the agent that starts it: nothing listens on the network. Everything the agent asks of it is checked first (a workspace that exists, a theme you have), and every call is written in `~/.local/state/vikix/mcp.log`.
+
 ## Dictation
 
 Press **Super+F9** and speak. Press **Super+F9** again, and a moment later what you said is typed into the window you were in: two or three seconds for a sentence, about ten seconds for a minute of speech. It's also put on the clipboard, in case that window didn't take it. If you move to another window while it's written down, it isn't typed there: it's only put on the clipboard, and a notification says so. **Super+Shift+F9** stops without typing anything. While it listens, the bar says **mic**, in red.

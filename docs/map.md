@@ -69,6 +69,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   ├── share/applications/*.desktop   Vikix's   JupyterLab, vikix-image, Lazarus in the launcher (Super+d); your web apps' too
 │   ├── share/vikix/fonts/wm.ttf       built     the bar's font, made by vikix-font
 │   ├── share/info/vikix.info          written   these guides as an Info manual (`info vikix`)
+│   ├── state/vikix/mcp.log            written   every call an agent made to vikix mcp
 │   ├── share/vikix/whisper/           fetched   dictation's model and voice detector (vikix dictate)
 │   ├── share/vikix/AGENTS.md          written   the skill as a guide for Codex, Gemini, Aider (linked as ~/.codex/AGENTS.md, ~/.gemini/GEMINI.md)
 │   ├── opt/picolisp/          built     PicoLisp, from source (with the feature lisp)
