@@ -39,7 +39,7 @@ login on tty1
                       ├─ vikix/help.lisp         Super+F1
                       ├─ vikix/webapps.lisp      your web apps: their keys and Super+m entries
                       ├─ vikix/modeline.lisp     the bar
-                      ├─ vikix/swank-guard.lisp  a wrong password can't take Swank down
+                      ├─ vikix/swank-guard.lisp  a wrong or missing password can't take Swank down
                       ├─ vikix/swank.lisp        Swank on 127.0.0.1:4004 (with a password), for Emacs and `vikix eval`
                       └─ user.lisp               yours, last
 ```

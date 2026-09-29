@@ -100,6 +100,23 @@ echo wrong > "$t/other/.slime-secret"
 HOME="$t/other" evalw '(+ 1 2)' >/dev/null 2>&1 && { echo "FAIL: vikix eval with a wrong password worked"; fail=1; }
 check "a wrong password got code run" test ! -e "$marker"
 
+# A client that connects and says nothing, and stays: Swank reads the
+# password in its one accept thread, so without a time limit on that
+# (SBCL has none of its own) nobody else got in until it left.
+python3 - "$port" <<'PY' &
+import socket, sys, time
+s = socket.create_connection(("127.0.0.1", int(sys.argv[1])))
+time.sleep(30)
+PY
+silent=$!
+sleep 0.5
+start=$SECONDS
+out=$(timeout 20 bash -c "$(declare -f evalw); here='$here' port=$port evalw '(+ 1 2)'" 2>&1) \
+  || { echo "FAIL: a silent client kept vikix eval out: $out"; fail=1; }
+check "vikix eval waited $((SECONDS - start)) s behind a silent client" test $((SECONDS - start)) -le 10
+kill "$silent" 2>/dev/null || true
+rm -f "$marker"
+
 out=$(evalw '(+ 1 2)' 2>&1) || { echo "FAIL: vikix eval with the password didn't work: $out"; tail -5 "$t/server.log"; fail=1; }
 check "vikix eval with the password didn't run the form" grep -qF '(+ 1 2)' "$marker"
 # The reload restarted the old, unguarded server once: a stuck accept
