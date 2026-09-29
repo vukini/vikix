@@ -64,6 +64,23 @@ if [ "$which" = both ] || [ "$which" = nvim ]; then
   if [ -z "$VIKIX_NVIM_REPO" ]; then
     out=$(nvim --headless -c 'lua local p = require("lazy.core.config").plugins; io.stderr:write("VIKIX=" .. tostring(p.vikix ~= nil) .. " TYPST=" .. tostring(p["typst-preview.nvim"] ~= nil) .. "\n")' -c 'qa!' 2>&1 || true)
     grep -q 'VIKIX=true TYPST=true' <<<"$out" || { echo "FAIL nvim: Vikix's part didn't load: $(grep -o 'VIKIX.*' <<<"$out" || tail -3 <<<"$out")"; fail=1; }
+    # AI, with no key and no agent: the keys say what's missing, and start
+    # nothing; the agents would start through vikix agent --acp.
+    mkdir -p "$HOME/.config/vikix"; echo use=claude > "$HOME/.config/vikix/ai"
+    cat > "$t/ai.lua" <<'EOF'
+local said = {}
+vim.notify = function(m) table.insert(said, m) end
+require("lazy").load { plugins = { "codecompanion.nvim" } }
+for _, k in ipairs { " Ac", " Ag" } do vim.fn.maparg(k, "n", false, true).callback() end
+local cmd = require("codecompanion.adapters.acp").resolve("claude_code").commands
+io.stderr:write("AI said=" .. table.concat(said, " | "):gsub("\n", " ") .. " cmd=" .. table.concat(cmd.default, " ")
+  .. " others=" .. tostring(vim.tbl_count(cmd) - 2) .. "\n")
+EOF
+    out=$(env -u ANTHROPIC_API_KEY PATH="$here/bin:$PATH" nvim --headless -c "luafile $t/ai.lua" -c 'qa!' 2>&1 || true)
+    for want in 'vikix ai key set anthropic' 'vikix agent --install claude' 'cmd=vikix agent --acp claude ' 'others=0'; do
+      grep -q -- "$want" <<<"$out" || { echo "FAIL nvim: AI should have said '$want': $(grep -o 'AI said.*' <<<"$out" || tail -3 <<<"$out")"; fail=1; }
+    done
+    rm "$HOME/.config/vikix/ai"
   fi
   # Open files of a few languages; the Markdown one is where 0.12 broke.
   printf '# Title\n\nSome `code` and a list:\n\n- one\n\n```lua\nprint(1)\n```\n' > "$t/test.md"

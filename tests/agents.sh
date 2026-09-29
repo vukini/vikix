@@ -18,13 +18,19 @@
 #   model isn't sent the guide; Gemini's GEMINI.md imports the guide;
 #   --exec (for editors) keeps stdout the agent's alone, drops the keys and
 #   takes the snapshot the same way, starts yours without a name, and never
-#   asks, even at a terminal; --which says which agent is yours
+#   asks, even at a terminal; --which says which agent is yours; --acp
+#   starts each as an ACP agent (gemini --acp, codex through its adapter,
+#   pinned and installed with it on Node 22+, pointed at your codex), and
+#   refuses aider, --local, and an adapter that isn't there
 #
 # curl, npm, uv, node and the agents are stand-ins: nothing is downloaded.
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
 unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME CODEX_HOME GEMINI_CLI_HOME VIKIX_AGENT_API_KEY
+# Your own keys, if the shell running this has them: a check that failed
+# would print them, and they'd change what a check sees.
+for v in $(compgen -e); do case $v in *_API_KEY|*_KEY|*_TOKEN|*_SECRET) unset "$v" ;; esac; done
 here=$(cd "$(dirname "$0")/.." && pwd)
 t=$(mktemp -d)
 trap 'rm -rf "$t"' EXIT
@@ -42,7 +48,7 @@ fake_agent() {   # fake_agent PATH
   mkdir -p "$(dirname "$1")"
   cat > "$1" <<EOF
 #!/bin/sh
-{ echo "ran \$0 \$*"; env | grep -E '_API_KEY|_TOKEN|_PASSWORD|SSH_AUTH_SOCK|VIKIX_AGENT=|OLLAMA_API_BASE|OPENCODE_CONFIG_CONTENT' | sort; } > "$t/started"
+{ echo "ran \$0 \$*"; env | grep -E '_API_KEY|_TOKEN|_PASSWORD|SSH_AUTH_SOCK|VIKIX_AGENT=|OLLAMA_API_BASE|OPENCODE_CONFIG_CONTENT|CLAUDE_CODE_EXECUTABLE|CODEX_PATH' | sort; } > "$t/started"
 EOF
   chmod +x "$1"
 }
@@ -65,7 +71,15 @@ EOF
 cat > "$t/bin/npm" <<EOF
 #!/bin/sh
 echo "npm \$*" >> "$calls"
-case "\$*" in install*) cp "$t/agent" "$HOME/.local/bin/gemini" ;; uninstall*) rm -f "$HOME/.local/bin/gemini" ;; esac
+case "\$*" in
+  install*codex-acp*)  cp "$t/agent" "$HOME/.local/bin/codex-acp"
+                       v=\${*##*@}; mkdir -p "$HOME/.local/lib/node_modules/@agentclientprotocol/codex-acp"
+                       printf '{\\n  "version": "%s",\\n}\\n' "\$v" > "$HOME/.local/lib/node_modules/@agentclientprotocol/codex-acp/package.json" ;;
+  install*claude-agent-acp*) cp "$t/agent" "$HOME/.local/bin/claude-agent-acp" ;;
+  install*) cp "$t/agent" "$HOME/.local/bin/gemini" ;;
+  uninstall*codex-acp*) rm -f "$HOME/.local/bin/codex-acp" ;;
+  uninstall*) rm -f "$HOME/.local/bin/gemini" ;;
+esac
 EOF
 cat > "$t/bin/uv" <<EOF
 #!/bin/sh
@@ -100,11 +114,14 @@ check "opencode should be linked into ~/.local/bin" test -L "$HOME/.local/bin/op
 check "codex's installer should run without questions: $(grep 'install codex' "$calls")" grep -q 'install codex CODEX_NON_INTERACTIVE=1' "$calls"
 check "aider should install with uv on Python 3.12: $(grep '^uv' "$calls")" grep -q '^uv tool install --force --python python3.12 --with pip aider-chat@latest' "$calls"
 check "codex should find the guide in ~/.codex/AGENTS.md" test "$(readlink "$HOME/.codex/AGENTS.md")" = "$guide"
+check "codex's ACP adapter (for editors) should come with it, pinned, without its own codex: $(grep '^npm' "$calls")" \
+  grep -q "^npm install -g --prefix $HOME/.local --omit=optional --os=none --no-fund --no-audit @agentclientprotocol/codex-acp@[0-9]" "$calls"
+check "only claude and codex need an adapter: $(grep '^npm' "$calls")" test "$(grep -c '^npm' "$calls")" = 1
 check "installed agents should be recorded as features: $(cat "$HOME/.config/vikix/features" 2>/dev/null)" \
   grep -qx codex "$HOME/.config/vikix/features"
 # Gemini: only with Node 20 or newer; a GEMINI.md of yours is kept.
 NODE_MAJOR=18 agent --install gemini >/dev/null 2>&1 && { echo "FAIL: gemini installed on Node 18"; fail=1; }
-check "gemini on Node 18 shouldn't run npm" test -z "$(grep '^npm' "$calls" || true)"
+check "gemini on Node 18 shouldn't run npm" test -z "$(grep '^npm.*gemini' "$calls" || true)"
 mkdir -p "$HOME/.gemini"; echo "my own rules" > "$HOME/.gemini/GEMINI.md"
 out=$(agent --install gemini 2>&1) || true
 check "gemini should install into ~/.local with npm: $(grep '^npm' "$calls")" grep -q "^npm install -g --prefix $HOME/.local @google/gemini-cli" "$calls"
@@ -130,9 +147,9 @@ check "VIKIX_AGENT_SSH=1 should keep the SSH agent" grep -q 'SSH_AUTH_SOCK=/tmp/
 mkdir -p "$HOME/.config/vikix/secrets"; chmod 700 "$HOME/.config/vikix/secrets"
 echo sk-ant-y > "$HOME/.config/vikix/secrets/ANTHROPIC_API_KEY"; chmod 600 "$HOME/.config/vikix/secrets/ANTHROPIC_API_KEY"
 got=$(VIKIX_AGENT=claude sh -c ". '$here/lib/secrets.sh'; echo \${ANTHROPIC_API_KEY:-none}")
-check "an agent's shell read the keys back: $got" test "$got" = none
+check "an agent's shell read the keys back" test "$got" = none
 got=$(sh -c ". '$here/lib/secrets.sh'; echo \${ANTHROPIC_API_KEY:-none}")
-check "outside an agent, secrets.sh should still export the keys: $got" test "$got" = sk-ant-y
+check "outside an agent, secrets.sh should still export the keys" test "$got" = sk-ant-y
 rm -rf "$HOME/.config/vikix/secrets"
 check "a snapshot should come first" test -n "$(git --git-dir="$VIKIX_STATE/yours.git" log --oneline -1 --grep='before an agent session' 2>/dev/null)"
 # With no files of yours to record, the snapshot fails: the agent starts all the same.
@@ -219,6 +236,39 @@ rm -f "$t/started"
 out=$(agent --exec --experimental-acp 2>/dev/null) || true
 check "--exec without a name should start yours: $(cat "$t/started" 2>/dev/null)" grep -q "^ran $HOME/.local/bin/gemini --experimental-acp$" "$t/started"
 agent --default claude >/dev/null 2>&1
+# --acp: each agent as an ACP agent, with the same start.
+rm -f "$t/started"
+out=$(ANTHROPIC_API_KEY=sk-ant-x agent --acp gemini 2>"$t/err") || true
+check "--acp gemini: stdout the agent's alone, got: $out" test "$out" = ACP-HELLO
+check "--acp gemini: its own ACP mode: $(cat "$t/started" 2>/dev/null)" grep -q "^ran $HOME/.local/bin/gemini --acp$" "$t/started"
+check "--acp: no keys: $(cat "$t/started" 2>/dev/null)" test -z "$(grep -E 'API_KEY|TOKEN' "$t/started" || true)"
+agent --install codex >/dev/null 2>&1
+: > "$calls"
+out=$(agent --install codex 2>&1) || true
+check "--install of one you have shouldn't run its installer again: $(cat "$calls")" test ! -s "$calls"
+check "... and should say it's there: $out" grep -q 'already installed' <<<"$out"
+rm "$HOME/.local/bin/codex-acp"
+agent --install codex >/dev/null 2>&1 || true
+check "--install of one you have should add a missing adapter: $(cat "$calls")" grep -q 'codex-acp@' "$calls"
+check "... and only that" test -z "$(grep 'install codex' "$calls" || true)"
+rm -f "$t/started"
+agent --acp codex >/dev/null 2>&1 || true
+check "--acp codex: the adapter, pointed at your codex: $(cat "$t/started" 2>/dev/null)" \
+  grep -q "^ran $HOME/.local/bin/codex-acp *$" "$t/started"
+check "--acp codex: CODEX_PATH is yours" grep -qx "CODEX_PATH=$HOME/.local/bin/codex" "$t/started"
+out=$(agent --acp claude 2>&1 >/dev/null) && { echo "FAIL: --acp claude started without its adapter"; fail=1; }
+check "--acp claude without its adapter should say how to get it: $out" grep -q 'vikix agent --install claude' <<<"$out"
+out=$(agent --acp aider 2>&1 >/dev/null) && { echo "FAIL: --acp aider started"; fail=1; }
+check "--acp aider should say it has no ACP: $out" grep -q "doesn't speak ACP" <<<"$out"
+out=$(agent --acp opencode --local 2>&1 >/dev/null) && { echo "FAIL: --acp --local started"; fail=1; }
+agent --uninstall codex >/dev/null 2>&1
+check "--uninstall codex should take its adapter too" test ! -e "$HOME/.local/bin/codex-acp"
+: > "$calls"
+out=$(NODE_MAJOR=20 agent --install codex 2>&1) || { echo "FAIL: codex didn't install on Node 20: $out"; fail=1; }
+check "on Node 20, codex installs without the adapter, and says so: $out" grep -q 'Node 22' <<<"$out"
+check "on Node 20, no npm: $(grep '^npm' "$calls" || true)" test -z "$(grep '^npm' "$calls" || true)"
+agent --uninstall codex >/dev/null 2>&1
+
 # Not installed: an error, never a question, even at a terminal.
 out=$(HOME="$t/nothing" script -qec "bash '$here/bin/vikix-agent' --exec codex" /dev/null </dev/null 2>&1) && { echo "FAIL: --exec started an agent that isn't installed"; fail=1; }
 check "--exec: not installed should say how to install it: $out" grep -q 'vikix agent --install codex' <<<"$out"

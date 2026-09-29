@@ -10,7 +10,7 @@ The goal: Vikix supports two editors, Neovim and Emacs, and both work well with 
 - **Their configs were sister repos** (Emacs's still is), cloned by `install/45-editors.sh` and pulled by every `vikix update`: `~/.emacs.d` from `VIKIX_EMACS_REPO` (vukini/emacs-void), `~/.config/nvim` from `VIKIX_NVIM_REPO` (vukini/nvim-void-linux). Neovim's plugins are restored to `lazy-lock.json` at install; Emacs installs its packages in the daemon `vikix-session` starts.
 - **Language servers:** Void's come with each `lang-*` list (ccls, gopls, ...), and `45-editors` puts typescript-language-server, pyright and bash-language-server in `~/.local` with npm.
 - **Terminal agents are done:** `vikix agent --use claude|opencode|codex|gemini|aider`, `--local` through Ollama, one guide (`~/.local/share/vikix/AGENTS.md` and the skill), a snapshot first, and no API keys or SSH agent in the agent's environment.
-- **The editors know none of it.** Neovim has no AI plugins. Emacs has gptel with OpenAI and Perplexity, defaulting to Perplexity's `sonar-pro`, so a Vikix user without that key gets an error, and neither the Claude key (`vikix ai key`) nor local Ollama is offered.
+- **The editors knew none of it** (Neovim's AI came in 0.57.0, part 3). Emacs has gptel with OpenAI and Perplexity, defaulting to Perplexity's `sonar-pro`, so a Vikix user without that key gets an error, and neither the Claude key (`vikix ai key`) nor local Ollama is offered.
 - **A gap in the agent rules:** the Emacs daemon starts in the session, so it has every exported API key. An agent started from inside Emacs (or from a Neovim terminal, in a shell with the keys) inherits them all and skips the snapshot.
 
 ## Decisions (settled by Vid, 2026-09-29: the suggested answer each time)
@@ -31,20 +31,17 @@ Shipped in 0.55.0: Vikix's part in `config/nvim` (linked to `~/.local/share/viki
 
 ## 2. A safe way for an editor to start an agent
 
-Shipped in 0.56.0: `vikix agent --exec [NAME] [ARGS]` (the same start as `--use`: the guide, no keys or SSH agent, a snapshot, skipped when nothing changed; stdout left to the agent, Vikix's words on stderr, no questions, an error when it isn't installed), `vikix agent --which`, and `vikix ai use` alone printing Super+i's model; tests in `tests/agents.sh` and `tests/ai-keys.sh`; README, `docs/ai.md`, the skill. Left, for parts 3 and 4, once the editors' packages are chosen:
+Shipped in 0.56.0: `vikix agent --exec [NAME] [ARGS]` (the same start as `--use`: the guide, no keys or SSH agent, a snapshot, skipped when nothing changed; stdout left to the agent, Vikix's words on stderr, no questions, an error when it isn't installed), `vikix agent --which`, and `vikix ai use` alone printing Super+i's model. In 0.57.0: `vikix agent --acp [NAME]`, with the ACP adapters for Claude Code and Codex (`@agentclientprotocol/claude-agent-acp`, `codex-acp`, pinned in `bin/vikix-agent`) installed by `--install` with `npm --os=none` (no bundled copy of the agent: 56 MB, not 290), pointed at the installed agent. Gemini (`--acp`; `--experimental-acp` is deprecated) and OpenCode (`acp`) speak it themselves. Left:
 
-- [ ] **ACP adapters** where an agent needs one: install them with the agent (`vikix agent --install`), npm into `~/.local` (nodejs comes with `editor-tools`). Check which agents speak ACP themselves and which need an adapter (Claude Code and Codex needed one as of mid-2026; Gemini CLI had it built in; OpenCode had support).
+- [ ] **Moving the adapters on:** a new pin reaches a machine only through `vikix agent --install NAME` (which adds or moves the adapter, and leaves the agent alone). `vikix update` could do it for installed agents, or a migration when a pin moves.
+- [ ] **codex-acp and the installed Codex:** the adapter talks to `codex app-server`; an old Codex against a newer adapter wasn't tried (Codex isn't installed here).
 
 ## 3. AI in Neovim
 
-In Vikix's layer, once part 1 has shipped.
+Shipped in 0.57.0, in `config/nvim/lua/vikix/plugins/ai.lua`: AstroCommunity's CodeCompanion pack (keys under `<Leader>A`), the chat on `vikix ai use`'s model (Anthropic with the key from the session or `~/.config/vikix/secrets`, or Ollama; `model=` too), the four ACP agents started by `vikix agent --acp` (the presets' other commands, `--yolo`, removed), CodeCompanion's CLI agents as `vikix agent [--use NAME]` (so Aider too), and keys that say what's missing. Tried for real: Claude Code over ACP from Neovim answered; a local chat reached Ollama. `tests/editors.sh` checks the keys with no key and no agent. claudecode.nvim wasn't needed. Left:
 
-- [ ] **Chat and edits: CodeCompanion.nvim,** with two adapters: Claude (the `ANTHROPIC_API_KEY` from `vikix ai key`) and Ollama; the default follows `vikix ai use`. Check whether astrocommunity has a pack for it.
-- [ ] **Agents: CodeCompanion's ACP support,** each agent started with `vikix agent --exec`. Check that its command can be set to that.
-- [ ] **Second choice: claudecode.nvim** (Claude Code's IDE protocol, as its VS Code extension uses: the open file, the selection, diffs in Neovim), with its terminal command set to `vikix agent --exec claude`.
-- [ ] **Keys** under one leader group (`<Leader>a`?), shown by which-key.
-- [ ] **No key, no Ollama, no agent:** Neovim starts quietly, and the AI keys say what to do (`vikix ai key set`, `vikix ai setup`, `vikix agent --install`).
-- [ ] **Test:** a start with no keys and no network shows no errors.
+- [ ] **A local model is slow in CodeCompanion's chat:** its instructions plus the project's rules (`CLAUDE.md`) are about 3,600 tokens, which llama3.2:3b on this X1's CPU reads at about 10 a second (six minutes before the first answer). For `use=local`: a shorter system prompt, and rules off?
+- [ ] **The Vikix MCP server** for the agents CodeCompanion starts (part 5).
 
 ## 4. AI in Emacs
 

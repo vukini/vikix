@@ -9,6 +9,7 @@ Vikix gives you these ways to use AI, from the most capable to the most private:
 | **`llm`** | One command for any model, fed from a pipe | `vikix ai llm`, and a local model or a key | Here, or to the model's company |
 | **Super+i** | Proofread, rewrite, translate, explain or ask about the text you selected, in any program | `vikix ai llm`, and a local model (or Claude, if you choose) | Here, unless you choose Claude |
 | **Super+F9** | Speak, and it types what you said, in any program | `vikix add dictation` (a few minutes, once) | Nowhere: it all stays here |
+| **In Neovim** | A chat about your code, and your agent in a side window (`Space A`) | `vikix add neovim`, and a local model, a key or an agent | As Super+i's, or the agent's |
 
 You can use any of them, all of them, or none. Nothing AI runs until you start it.
 
@@ -86,7 +87,7 @@ vikix add codex                   # or install one as a feature (vikix remove co
 
 **Always through Vikix:** start them with `vikix agent --use NAME` (or Super+a), not by typing `codex` or `opencode`: that skips the snapshot, and the protections below.
 
-**From an editor:** an editor that starts an agent itself should run `vikix agent --exec NAME` and the agent's own options after it (for example `vikix agent --exec gemini --experimental-acp`), or `vikix agent --exec` for yours. It's the same start, with the same protections, but quiet: nothing of Vikix's in the agent's output, and no questions. `vikix agent --which` says which agent is yours, and `vikix ai use` which model Super+i uses.
+**From an editor:** an editor that starts an agent itself should run `vikix agent --exec NAME` and the agent's own options after it, or `vikix agent --exec` for yours. It's the same start, with the same protections, but quiet: nothing of Vikix's in the agent's output, and no questions. Editors that speak ACP, the Agent Client Protocol (Neovim's CodeCompanion, below; Emacs's agent-shell; Zed), run `vikix agent --acp NAME`: Gemini CLI and OpenCode speak it themselves, and Claude Code and Codex need a small adapter, which `vikix agent --install claude` (or `codex`) puts next to them. It uses the agent you have, and your login. It needs Node 22 or newer, which `vikix add neovim` brings. Aider doesn't speak ACP. `vikix agent --which` says which agent is yours, and `vikix ai use` which model Super+i uses.
 
 **Offline**, on a local model: `vikix agent --use opencode --local` (or codex, or aider; `--model NAME` picks one). It picks the best of your models for code. Be warned: on a laptop's CPU each answer takes minutes (Aider on llama3.2:3b took over four minutes for one sentence), and a small model rarely carries out a change on its own. A bigger model (`vikix ai models`) does more, more slowly still.
 
@@ -203,6 +204,25 @@ languages=English Esperanto French Spanish Arabic Hindi
 ```
 
 For better answers, above all translations into Esperanto, which small models get wrong, use Claude. Then each use costs a little and the text you selected goes to Anthropic, so it needs your key first: `vikix ai key set anthropic`. Super+i never switches to Claude by itself, and its menu always names the model and where the text goes.
+
+## AI in Neovim
+
+Vikix's Neovim has [CodeCompanion](https://codecompanion.olimorris.dev), under **Space A**:
+
+| Keys | What they do |
+|---|---|
+| `Space A c` | A chat beside your code, on the model Super+i uses: a local one, or Claude |
+| `Space A q` | Ask about the selection (or the file), or ask for a change to it |
+| `Space A a` | Add the selection to the chat |
+| `Space A g` | A chat with your agent (the one Super+a starts), which can read and change your files |
+| `Space A t` | Your agent in a terminal inside Neovim |
+| `Space A p` | Everything else CodeCompanion does |
+
+The chat follows `vikix ai use`: `local` (a model on this laptop, `vikix ai setup` first) or `claude` (your key: `vikix ai key set anthropic`). A model set with `model=` in `~/.config/vikix/ai` is used here too. On a laptop's CPU, a local model's first answer takes minutes, because it reads CodeCompanion's instructions first; Claude answers in seconds. In the chat, `ga` changes the model or the agent for that chat.
+
+The agent in `Space A g` is started by `vikix agent --acp`, so it's the same as Super+a's: the guide, no API keys, and a snapshot first, so `vikix changes` shows what it did and `vikix undo` takes it back. It signs in with its own login, the one it uses in a terminal. Claude Code and Codex need their adapter, which `vikix agent --install claude` adds (running it again for an agent you have only adds what's missing). `Space A t` runs `vikix agent` itself, so Aider works there too.
+
+Nothing starts or connects until you press a key. When something's missing (a key, Ollama, the agent or its adapter), the key says what to type, and does nothing else.
 
 ## The desktop as tools (MCP)
 

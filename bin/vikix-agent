@@ -21,6 +21,11 @@
 #                                 error if it isn't installed. NAME: yours
 #                                 when left out. Editors run e.g.
 #                                 vikix agent --exec gemini --experimental-acp
+#   vikix agent --acp [NAME] [ARGS]   the same, as an ACP agent (Agent
+#                                 Client Protocol: Neovim's CodeCompanion,
+#                                 Emacs's agent-shell, Zed): claude and codex
+#                                 through their adapters (installed with
+#                                 them), gemini and opencode as they are
 #   vikix agent --which           the agent Super+a starts, one word
 #   vikix agent --install NAME    install one (its official installer; also
 #   vikix agent --uninstall NAME  vikix add/remove NAME), or take it away
@@ -60,6 +65,23 @@ CURL=${VIKIX_CURL:-curl}
 NPM=${VIKIX_NPM:-npm}
 UV=${VIKIX_UV:-uv}
 API=http://127.0.0.1:11434
+# ACP adapters for the agents that don't speak it themselves, pinned: a
+# new version is Vikix's to test (vikix agent --acp NAME in Neovim).
+# Without their per-platform packages (--os=none; --omit=optional isn't
+# enough for a global install): each would bring its own copy of the agent
+# (Claude's is 230 MB), and they're pointed at yours (CLAUDE_CODE_EXECUTABLE,
+# CODEX_PATH).
+acp_package() {
+  case $1 in
+    claude) echo @agentclientprotocol/claude-agent-acp@0.84.0 ;;
+    codex)  echo @agentclientprotocol/codex-acp@2.0.0 ;;
+  esac
+}
+acp_version() {   # the adapter's installed version, if it's there
+  local pkg; pkg=$(acp_package "$1")
+  sed -n 's/^  "version": "\(.*\)",$/\1/p' "$HOME/.local/lib/node_modules/${pkg%@*}/package.json" 2>/dev/null | head -1
+}
+acp_bin() { case $1 in claude) echo "$BIN/claude-agent-acp" ;; *) echo "$BIN/$1-acp" ;; esac; }
 PATH="$BIN:$PATH"    # the installers put them here; codex's leaves .bashrc alone when it's on PATH
 
 # Codex's home, from the environment only when it's a folder of yours
@@ -186,6 +208,14 @@ fetch() {
 
 install_agent() {
   local name=$1 script=''
+  # One you have is left as it is (each updates itself): only what's
+  # missing is added, its ACP adapter, say, after an update of Vikix's.
+  if installed "$name"; then
+    say "$name is already installed"
+    install_acp "$name"; write_guide; link_guide "$name"
+    [ "$name" = claude ] || record_features "$name"
+    return 0
+  fi
   say "installing $name: $(about "$name")"
   if [ "$DRY_RUN" = 1 ]; then
     printf '   would install %s with its official installer\n' "$name"; return 0
@@ -222,11 +252,28 @@ install_agent() {
     esac
   )
   installed "$name" || die "$name didn't install (above)"
+  install_acp "$name"
   write_guide
   link_guide "$name"
   # So vikix features shows it, and vikix remove can take it away.
   [ "$name" = claude ] || record_features "$name"
   say "$name is installed: start it with vikix agent --use $name (not plain $name: that skips the snapshot); vikix agent --default $name makes it Super+a's"
+}
+
+# install_acp NAME — its ACP adapter, for editors, where it needs one. Not
+# having Node isn't a failure: the agent works in a terminal all the same.
+install_acp() {
+  local pkg; pkg=$(acp_package "$1")
+  [ -n "$pkg" ] || return 0
+  [ "$(acp_version "$1")" = "${pkg##*@}" ] && [ -x "$(acp_bin "$1")" ] && return 0
+  if [ "$DRY_RUN" = 1 ]; then printf '   would install %s (for editors) with npm\n' "$pkg"; return 0; fi
+  if ! command -v "$NPM" >/dev/null 2>&1 || [ "$(node_major)" -lt 22 ]; then
+    say "for editors (ACP), $1 needs an adapter that runs on Node 22 or newer: vikix add neovim (or javascript), then vikix agent --install $1"
+    return 0
+  fi
+  ( drop_keys; "$NPM" install -g --prefix "$HOME/.local" --omit=optional --os=none --no-fund --no-audit "$pkg" ) ||
+    { warn "$1's ACP adapter didn't install (above); $1 itself did"; return 0; }
+  say "$1 can also run in editors: vikix agent --acp $1"
 }
 
 uninstall_agent() {
@@ -251,6 +298,10 @@ uninstall_agent() {
       command -v "$UV" >/dev/null 2>&1 && [ -e "$BIN/aider" ] && run "$UV" tool uninstall aider-chat
       say "its settings and history stay: ~/.aider*, and .aider* in your projects" ;;
   esac
+  local pkg; pkg=$(acp_package "$name")
+  if [ -n "$pkg" ] && [ -e "$(acp_bin "$name")" ] && command -v "$NPM" >/dev/null 2>&1; then
+    run "$NPM" uninstall -g --prefix "$HOME/.local" "${pkg%@*}"
+  fi
   unlink_guide "$name"
   forget_features "$name"
   if [ "$(chosen)" = "$name" ]; then
@@ -317,6 +368,10 @@ start() {
     exec 3>&1 1>&2
     trap - EXIT
   fi
+  if [ "$ACP" = 1 ]; then
+    [ "$name" = aider ] && die "Aider doesn't speak ACP: in an editor, run it in a terminal (vikix agent --use aider)"
+    [ "$local" = 1 ] && die "--local is for the terminal; as an ACP agent, $name uses its own models"
+  fi
   if [ "$local" = 1 ]; then
     case $LOCAL_OK in *" $name "*) ;; *) die "$name has no local models; opencode, codex and aider do (vikix agent --use NAME --local)" ;; esac
   fi
@@ -330,12 +385,23 @@ start() {
       *) say "not installed"; own_window && { printf 'Enter closes this window. '; read -r _ || true; }; return 1 ;;
     esac
   fi
-  local exe; exe=$(agent_bin "$name"); [ -x "$exe" ] || exe=$name
+  local exe; exe=$(agent_bin "$name"); [ -x "$exe" ] || exe=$(command -v "$name" || echo "$name")
 
   # What it needs: the guide, and where to look for it.
   write_guide
   link_guide "$name"
   local args=() setenv=("VIKIX_AGENT=$name") oc='{}'
+  # As an ACP agent: the adapter runs your agent, or the agent's own ACP mode.
+  if [ "$ACP" = 1 ]; then
+    case $name in
+      claude|codex)
+        [ -x "$(acp_bin "$name")" ] || die "$name's ACP adapter isn't installed: vikix agent --install $name"
+        if [ "$name" = claude ]; then setenv+=("CLAUDE_CODE_EXECUTABLE=$exe"); else setenv+=("CODEX_PATH=$exe"); fi
+        exe=$(acp_bin "$name") ;;
+      gemini)   args+=(--acp) ;;
+      opencode) args+=(acp) ;;
+    esac
+  fi
   if [ "$local" = 1 ]; then
     model=$(local_model "$model")
     say "on $model, on this laptop: expect minutes per answer on a laptop's CPU, and little done on its own by a small model (vikix ai models has bigger ones)"
@@ -410,7 +476,7 @@ print(json.dumps(c))' "$oc")
   exec env "${unset[@]}" "${setenv[@]}" "$exe" "${args[@]}" "$@"
 }
 
-ASK='' REPORT='' EXEC=0
+ASK='' REPORT='' EXEC=0 ACP=0
 main() {
   local use='' local=0 model=''
   while [ $# -gt 0 ]; do
@@ -418,7 +484,7 @@ main() {
       --ask)       ASK=${2:-}; [ -n "$ASK" ] || die "--ask needs the question"; shift 2 ;;
       --report)    REPORT=${2:-}; [ -n "$REPORT" ] || die "--report needs a file"; shift 2 ;;
       --use)       need_agent "${2:-}"; use=$2; shift 2 ;;
-      --exec)      EXEC=1
+      --exec|--acp) EXEC=1; [ "$1" = --acp ] && ACP=1
                    if is_agent "${2:-}"; then use=$2; shift 2; else shift; fi ;;
       --which)     chosen; return ;;
       --local)     local=1; shift ;;
