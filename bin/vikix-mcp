@@ -442,7 +442,7 @@ def handle(msg, table):
     if method == "initialize":
         asked = params.get("protocolVersion")
         return {"protocolVersion": asked if asked in VERSIONS else VERSIONS[0],
-                "capabilities": {"tools": {"listChanged": False}},
+                "capabilities": {"tools": {"listChanged": True}},
                 "serverInfo": {"name": "vikix", "title": "Vikix desktop", "version": version()},
                 "instructions": INSTRUCTIONS}
     if method == "ping":
@@ -474,17 +474,102 @@ def answer(line, table):
         return {"jsonrpc": "2.0", "id": mid, "error": {"code": -32603, "message": type(e).__name__}}
 
 
+# --- Staying current -------------------------------------------------------------
+#
+# An agent starts the server once and keeps it for its whole session, so
+# after vikix update it would go on running the old code (0.54.2's
+# focus_window kept failing until the server was reconnected). So, when a
+# request is waiting and none of it has been read yet, the server looks at
+# its own files; if they changed, it runs itself again in the same process
+# (exec: the same stdin and stdout, the request still in the pipe), and the
+# agent sees no break. It keeps nothing between requests, so the new one
+# just answers the next. New code that doesn't compile is left alone.
+
+SELF = os.path.realpath(__file__)
+WATCHED = [SELF, os.path.join(VIKIX_DIR, "lib", "debug-report.py"), os.path.join(VIKIX_DIR, "VERSION")]
+SETTLE = 2      # seconds a changed file must have been left alone (an update half written)
+
+
+def stamp():
+    out = []
+    for path in WATCHED:
+        try:
+            st = os.stat(path)
+            out.append((st.st_ino, st.st_mtime_ns, st.st_size))
+        except OSError:
+            out.append(None)
+    return out
+
+
+def compiles(path):
+    try:
+        with open(path, "rb") as f:
+            compile(f.read(), path, "exec")
+        return True
+    except (OSError, SyntaxError, ValueError):
+        return False
+
+
+def restart_if_changed(started, state):
+    """exec the server again if its files changed since STARTED; STATE keeps
+    the stamp of new code already refused, so it's tried once, not each time."""
+    now = stamp()
+    if now == started or now == state.get("refused"):
+        return
+    newest = max((s[1] for s, was in zip(now, started) if s and s != was), default=0) / 1e9
+    if datetime.datetime.now().timestamp() - newest < SETTLE:
+        return
+    if not all(compiles(p) for p in WATCHED[:2]):
+        log("restart", {"to": version()}, "refused")
+        state["refused"] = now
+        return
+    log("restart", {"from": state["version"], "to": version()}, "ok")
+    sys.stdout.flush()
+    os.environ["VIKIX_MCP_RESTARTED"] = state["version"]
+    os.execv(sys.executable, [sys.executable, SELF] + sys.argv[1:])
+
+
+def lines(started):
+    """The request lines on stdin, as bytes (None for one too long). Read
+    straight from the file descriptor, so nothing unread is lost to exec."""
+    import select
+    state = {"version": version()}
+    buf, skipping = b"", False
+    while True:
+        if b"\n" not in buf:
+            if not buf and not skipping:
+                select.select([0], [], [])        # a request is waiting, still unread
+                restart_if_changed(started, state)
+            chunk = os.read(0, 65536)
+            if not chunk:
+                return
+            buf += chunk
+            if b"\n" not in buf and len(buf) > MAX_LINE:   # skip the rest of it
+                buf, skipping = b"", True
+            continue
+        line, buf = buf.split(b"\n", 1)
+        if skipping or len(line) > MAX_LINE:
+            skipping = False
+            yield None
+        else:
+            yield line
+
+
+def send(msg):
+    sys.stdout.write(json.dumps(msg, ensure_ascii=True) + "\n")
+    sys.stdout.flush()
+
+
 def serve(allow_eval, allow_undo):
+    started = stamp()
     session_env()
     table = tools(allow_eval, allow_undo)
-    stdin = sys.stdin.buffer
-    while True:
-        raw = stdin.readline(MAX_LINE + 1)
-        if not raw:
-            break
-        if len(raw) > MAX_LINE and not raw.endswith(b"\n"):
-            while raw and not raw.endswith(b"\n"):      # skip the rest of it
-                raw = stdin.readline(MAX_LINE)
+    # Started again after an update: the tools may have changed, so the
+    # agent asks for them again.
+    if os.environ.pop("VIKIX_MCP_RESTARTED", None) is not None:
+        send({"jsonrpc": "2.0", "method": "notifications/tools/list_changed"})
+    for raw in lines(started):
+        if raw is None:
             reply = {"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "request too long"}}
         else:
             line = raw.decode("utf-8", errors="replace").strip()
@@ -493,8 +578,7 @@ def serve(allow_eval, allow_undo):
             reply = answer(line, table)
             if reply is None:
                 continue
-        sys.stdout.write(json.dumps(reply, ensure_ascii=True) + "\n")
-        sys.stdout.flush()
+        send(reply)
 
 
 # --- Registering ----------------------------------------------------------------

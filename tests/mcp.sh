@@ -85,7 +85,7 @@ field() { python3 -c "import json,sys; print(json.loads(sys.stdin.readline())$1)
 # The protocol.
 out=$(rpc -- '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{}}}')
 check "initialize should answer the client's version: $out" test "$(field '["result"]["protocolVersion"]' <<<"$out")" = 2025-06-18
-check "initialize should say it has tools" test "$(field '["result"]["capabilities"]["tools"]["listChanged"]' <<<"$out")" = False
+check "initialize should say it has tools, which can change" test "$(field '["result"]["capabilities"]["tools"]["listChanged"]' <<<"$out")" = True
 out=$(rpc -- '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1999-01-01"}}')
 check "an unknown version should get the server's newest: $out" test "$(field '["result"]["protocolVersion"]' <<<"$out")" = 2025-11-25
 out=$(rpc -- '{"jsonrpc":"2.0","method":"notifications/initialized"}' '{"jsonrpc":"2.0","id":7,"method":"ping"}')
@@ -241,6 +241,50 @@ if command -v sbcl >/dev/null && [ -f "$ql" ]; then
 else
   echo "mcp: no sbcl or Quicklisp; the forms weren't compiled against StumpWM"
 fi
+
+# Staying current: an update changes the server's files while an agent
+# holds it. The next request is answered by the new code, in the same
+# process, with nothing lost; new code that doesn't compile is left alone.
+mkdir -p "$t/co/bin" "$t/co/lib"
+cp "$here/bin/vikix-mcp" "$t/co/bin/"; cp "$here/lib/debug-report.py" "$t/co/lib/"; echo 1.0.0 > "$t/co/VERSION"
+out=$(python3 - "$t/co" <<'PY' 2>&1
+import json, os, subprocess, sys, time
+co = sys.argv[1]
+p = subprocess.Popen([sys.executable, co + "/bin/vikix-mcp", "serve"], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+def req(i):
+    return json.dumps({"jsonrpc": "2.0", "id": i, "method": "tools/call", "params": {"name": "version", "arguments": {}}}) + "\n"
+def version_answer():
+    while True:
+        m = json.loads(p.stdout.readline())
+        if "id" in m:
+            return m["result"]["content"][0]["text"], seen
+        seen.append(m["method"])
+def settle(path):
+    t = time.time() - 10
+    os.utime(path, (t, t))
+seen = []
+p.stdin.write(req(1).encode()); p.stdin.flush()
+print("before", version_answer()[0])
+with open(co + "/VERSION", "w") as f: f.write("2.0.0\n")
+settle(co + "/VERSION")
+time.sleep(0.2)
+p.stdin.write((req(2) + req(3)).encode()); p.stdin.flush()      # two at once: neither lost
+print("after", version_answer()[0], version_answer()[0], ",".join(seen))
+with open(co + "/bin/vikix-mcp", "a") as f: f.write("\ndef broken(:\n")
+with open(co + "/VERSION", "w") as f: f.write("3.0.0\n")
+settle(co + "/bin/vikix-mcp"); settle(co + "/VERSION")
+p.stdin.write(req(4).encode()); p.stdin.flush()
+seen.clear()
+print("broken", version_answer()[0], ",".join(seen) or "no-restart")
+p.stdin.close(); p.wait(5)
+PY
+)
+check "an unchanged server should answer as itself: $out" grep -qx "before 1.0.0" <<<"$out"
+check "after an update the new code should answer both requests, and say the tools changed: $out" \
+  grep -qx "after 2.0.0 2.0.0 notifications/tools/list_changed" <<<"$out"
+check "new code that doesn't compile should be left alone: $out" grep -qx "broken 3.0.0 no-restart" <<<"$out"
+check "the restart should be logged" grep -q "ok restart.*2.0.0" "$VIKIX_STATE/mcp.log"
+check "the refused restart should be logged" grep -q "refused restart" "$VIKIX_STATE/mcp.log"
 
 # Registering with Claude Code.
 python3 "$here/bin/vikix-mcp" register --allow-eval >/dev/null

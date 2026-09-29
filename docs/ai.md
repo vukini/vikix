@@ -248,7 +248,7 @@ vikix mcp unregister   # take it away
 
 Two more are off unless you turn them on, because they can change a lot: `vikix mcp register --allow-eval` adds **eval** (any Lisp in the window manager) and `--allow-undo` adds **undo** (your settings back one snapshot). `vikix mcp register` again, without them, takes them away. They're a convenience, not a lock: an agent that may run commands could run `vikix eval` itself.
 
-It works only for the agent that starts it: nothing listens on the network. Everything the agent asks of it is checked first (a workspace that exists, a theme you have). Secrets are taken out of what it hands back (`changes` shows your files' differences). Every call, refused ones too, is written in `~/.local/state/vikix/mcp.log`, yours alone: the tool, whether it worked, and its arguments. Its notifications start "Agent:".
+It works only for the agent that starts it: nothing listens on the network. Everything the agent asks of it is checked first (a workspace that exists, a theme you have). Secrets are taken out of what it hands back (`changes` shows your files' differences). Every call, refused ones too, is written in `~/.local/state/vikix/mcp.log`, yours alone: the tool, whether it worked, and its arguments. Its notifications start "Agent:". After `vikix update` it runs the new version by itself, without the agent reconnecting.
 
 ## Dictation
 
