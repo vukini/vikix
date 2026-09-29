@@ -13,14 +13,14 @@ The goal: Vikix supports two editors, Neovim and Emacs, and both work well with 
 - **The editors know none of it.** Neovim has no AI plugins. Emacs has gptel with OpenAI and Perplexity, defaulting to Perplexity's `sonar-pro`, so a Vikix user without that key gets an error, and neither the Claude key (`vikix ai key`) nor local Ollama is offered.
 - **A gap in the agent rules:** the Emacs daemon starts in the session, so it has every exported API key. An agent started from inside Emacs (or from a Neovim terminal, in a shell with the keys) inherits them all and skips the snapshot.
 
-## Decisions to make first
+## Decisions (settled by Vid, 2026-09-29: the suggested answer each time)
 
-1. **Neovim's lock file.** When `vikix update` ships a newer `lazy-lock.json`: move the user's plugins forward only when their lock is still exactly one Vikix shipped (suggested), always, or never.
-2. **The sister repo `nvim-void-linux`** once Neovim is in Vikix: archive it with a README pointing to Vikix, or keep it as a personal config, used with `VIKIX_NVIM_REPO`.
-3. **Emacs's AI setup:** in `emacs-void` itself (the repo knows about Vikix), or in a small `vikix-ai.el` that Vikix keeps current and the config loads when it's there (the repo stays personal). The second is suggested.
-4. **Agents in the editors: ACP first or Claude first.** ACP (Agent Client Protocol) is one package per editor for every agent, which matches `vikix agent --use`. The Claude-only bridges (claude-code-ide.el, claudecode.nvim) go deeper: diagnostics, and the agent's diffs in ediff or Neovim's diff view. Suggested: ACP first, the Claude bridges as a second choice.
-5. **A snapshot for every agent an editor starts.** Suggested yes, as for Super+a; the cost is more snapshots (skip one when nothing changed since the last).
-6. **gptel's backends in `emacs-void`:** keep OpenAI and Perplexity as extras, with Claude and local added and the default following `vikix ai use`.
+1. **Neovim's lock file.** When `vikix update` ships a newer `lazy-lock.json`, the user's plugins move forward only when their lock is still exactly one Vikix shipped. A lock the user changed is left alone, with a line saying how to take Vikix's.
+2. **The sister repo `nvim-void-linux`:** archived once Neovim is in Vikix, with a README pointing to Vikix. `VIKIX_NVIM_REPO` stays, for anyone bringing their own config.
+3. **Emacs's AI setup:** a small `vikix-ai.el` that Vikix keeps current and the config loads when it's there. `emacs-void` stays personal.
+4. **Agents in the editors: ACP first.** One package per editor for every agent, matching `vikix agent --use`. The Claude-only bridges (claude-code-ide.el, claudecode.nvim) are the second choice.
+5. **A snapshot for every agent an editor starts:** yes, as for Super+a, skipped when nothing changed since the last one.
+6. **gptel's backends:** Claude and local added, the default following `vikix ai use`; OpenAI and Perplexity kept as extras.
 
 ## 1. Neovim into Vikix
 
@@ -32,7 +32,7 @@ It is the StumpWM split again: Vikix's layer, updated; the user's file, copied o
 - [ ] **Leave out:** `presence.nvim` (tells Discord which file you're editing: not a default for everyone), the template's leftovers (the `fooscript` filetypes, empty none-ls sources, the switched-off files, the template README).
 - [ ] **A Vikix dashboard header** instead of ASTRO NVIM.
 - [ ] **The starter:** `config/nvim/starter/`, copied to `~/.config/nvim` with `copy_user`: an `init.lua` that bootstraps Lazy, imports `vikix`, then the user's `lua/plugins/` (loaded last, so theirs win), and an empty `lua/plugins/` with a short example comment.
-- [ ] **The lock:** Vikix's tested `lazy-lock.json` in `config/nvim/`, copied with the starter and restored with `Lazy! restore` (as now). Can't be a link into the checkout: Lazy rewrites it and the checkout would be dirty, which stops `vikix update`. Then decision 1.
+- [ ] **The lock:** Vikix's tested `lazy-lock.json` in `config/nvim/`, copied with the starter and restored with `Lazy! restore` (as now). Can't be a link into the checkout: Lazy rewrites it and the checkout would be dirty, which stops `vikix update`. When a new lock ships, move the plugins forward only if the user's lock is one Vikix shipped (decision 1).
 - [ ] **`install/45-editors.sh`:** for Neovim, copy the starter and restore the lock instead of cloning. `VIKIX_NVIM_REPO` still works, as "bring your own config": when it's set, clone that and skip the starter.
 - [ ] **A migration** (`# Why:`, safe twice): a clone of `nvim-void-linux` with no local changes is moved to `~/.config/nvim.vikix-bak.<time>` and replaced with the starter; a clone with changes, or of another repo, is left alone, with a line saying how to switch.
 - [ ] **`tests/editors.sh`:** test the checkout's config (starter + layer) instead of cloning, so a broken config is caught in the commit that breaks it. Keep the treesitter check.
@@ -40,7 +40,7 @@ It is the StumpWM split again: Vikix's layer, updated; the user's file, copied o
 - [ ] **`bin/vikix` doctor:** it checks `~/.config/nvim` as a clone (line ~236); check the starter and the layer instead.
 - [ ] **`config/yours.list`:** add `~/.config/nvim/` (minus the lock?), so the user's Neovim files are in the snapshot history.
 - [ ] **Docs:** `docs/map.md` (`.config/nvim/` is yours, the layer is Vikix's), `docs/customize.md` "The editors", README (the 45-editors row), the skill, CLAUDE.md if file ownership's list changes.
-- [ ] **Decision 2**, then act on the sister repo.
+- [ ] **Archive `nvim-void-linux`** (decision 2): a README pointing to Vikix, then archive it on GitHub.
 - [ ] **Later, AstroNvim's major versions are Vikix's work** (v5 → v6 needed nvim-treesitter's main branch for Neovim 0.12): check Void's `neovim` version against AstroNvim's needs in the test.
 
 ## 2. A safe way for an editor to start an agent
@@ -66,7 +66,7 @@ In Vikix's layer, once part 1 has shipped.
 
 ## 4. AI in Emacs
 
-In `emacs-void` or `vikix-ai.el` (decision 3).
+In `vikix-ai.el`, which Vikix keeps current and `emacs-void` loads when it is there (decision 3).
 
 - [ ] **gptel: add Claude and Ollama.** Claude with the key from the session (the daemon has it: no need for `exec-path-from-shell` here), Ollama at `127.0.0.1:11434` with the models `vikix ai models` lists. The default follows `vikix ai use`, not Perplexity. Keep OpenAI and Perplexity as extras (decision 6).
 - [ ] **Agents: agent-shell (ACP),** each agent started with `vikix agent --exec`. Check that its command can be set.
