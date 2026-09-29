@@ -10,7 +10,7 @@ This folder sits inside an Obsidian vault, but it is a code repo: the vault's no
 
 `docs/` holds the user's guides (the map of files, how it fits together, customizing, fixing). They name real paths, keys, variables and commands: when a change moves or renames one, update the guide in the same commit. `40-config` also makes them an Info manual, `~/.local/share/info/vikix.info` (`info vikix`, Emacs `C-h i`), through `lib/md2texi.py`, which knows only the Markdown the guides use; `tests/info.sh` fails on a broken link, a page missing from `docs/README.md`'s table, or a makeinfo warning.
 
-`TODO.md` lists planned features and cleanups. Read it when asked what's next, and remove an item in the commit that ships it. `TUTORIALS.md` is the plan for `vikix learn` (a C course first).
+`TODO.md` lists planned features and cleanups. Read it when asked what's next, and remove an item in the commit that ships it. `TUTORIALS.md` is the plan for `vikix learn` (a C course first). `TODO-editors.md` is the plan for the editors: Neovim's config into Vikix, and AI in Neovim and Emacs.
 
 ## Checking changes
 
