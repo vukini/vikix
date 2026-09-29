@@ -13,6 +13,11 @@
 ;; running Emacs. A backend you pick in the menu stays until that file
 ;; changes. Nothing connects until you ask, and a chat that can't answer
 ;; says what's missing instead of asking for a key.
+;;
+;; And your agent (Super+a's): `vikix-ai-agent', a chat with it in
+;; agent-shell, and `vikix-ai-agent-terminal', in a terminal; both
+;; started by `vikix agent'. Your config binds them (emacs-void: C-c a,
+;; C-c A).
 
 ;;; Code:
 
@@ -29,7 +34,7 @@
 
 (defvar vikix-ai-config
   (expand-file-name "vikix" (or (getenv "XDG_CONFIG_HOME") "~/.config"))
-  "Vikix's settings: ai (use=, model=) and secrets/.")
+  "Vikix's settings: ai (use=, model=), agent (agent=) and secrets/.")
 
 (defvar vikix-ai-ollama "127.0.0.1:11434"
   "Where Ollama listens (`vikix ai setup' starts it).")
@@ -50,9 +55,9 @@
       (let ((s (string-trim (buffer-string))))
         (unless (string-empty-p s) s)))))
 
-(defun vikix-ai--setting (key)
-  "KEY's value in ~/.config/vikix/ai (the last line for it), or nil."
-  (let ((file (expand-file-name "ai" vikix-ai-config)) value)
+(defun vikix-ai--setting (key &optional file)
+  "KEY's value in ~/.config/vikix/FILE (ai when nil; the last line for it), or nil."
+  (let ((file (expand-file-name (or file "ai") vikix-ai-config)) value)
     (when (file-readable-p file)
       (with-temp-buffer
         (insert-file-contents file)
@@ -180,6 +185,83 @@ backends are checked: one of yours is yours."
 
 (advice-add 'gptel :before #'vikix-ai--before-chat)
 (advice-add 'gptel-menu :before #'vikix-ai--before-menu)
+
+;;; Agents: your agent (Super+a's) in Emacs, started by `vikix agent'.
+
+;; `vikix-ai-agent' is a chat with it in agent-shell, over ACP; and
+;; `vikix-ai-agent-terminal' runs it in a terminal (vterm when you have it).
+;; Both start it through `vikix agent', as Super+a does: the guide, no API
+;; keys or SSH agent in its environment (this Emacs has them all), and a
+;; snapshot first, so `vikix changes' shows what it did. agent-shell's list
+;; is Vikix's four, each started that way; set `agent-shell-agent-configs'
+;; after this file to have others (they start without Vikix's rules).
+
+(defvar agent-shell-preferred-agent-config)
+(defvar agent-shell-agent-configs)
+(defvar agent-shell-anthropic-claude-acp-command)
+(defvar agent-shell-openai-codex-acp-command)
+(defvar agent-shell-google-gemini-acp-command)
+(defvar agent-shell-opencode-acp-command)
+(defvar vterm-shell)
+(declare-function vterm "vterm")
+(declare-function term-char-mode "term")
+
+(defconst vikix-ai-agents
+  '((claude   claude-code agent-shell-anthropic-make-claude-code-config "claude-agent-acp")
+    (codex    codex       agent-shell-openai-make-codex-config          "codex-acp")
+    (gemini   gemini-cli  agent-shell-google-make-gemini-config         "gemini")
+    (opencode opencode    agent-shell-opencode-make-agent-config        "opencode"))
+  "The agents that speak ACP: Vikix's name, agent-shell's, its config, the program.")
+
+(defun vikix-ai--agent ()
+  "Your agent: agent= in ~/.config/vikix/agent (`vikix agent --default'), or claude."
+  (intern (or (vikix-ai--setting "agent" "agent") "claude")))
+
+(defun vikix-ai--agent-ready (name)
+  "Stop, saying what to do, unless NAME can start over ACP."
+  (let ((entry (assq name vikix-ai-agents)))
+    (cond
+     ((not (executable-find "vikix"))
+      (user-error "vikix isn't on PATH: agents start through it"))
+     ((not entry)
+      (user-error "%s doesn't speak ACP: M-x vikix-ai-agent-terminal runs it in a terminal" name))
+     ((not (or (file-executable-p (expand-file-name (nth 3 entry) "~/.local/bin"))
+               (and (eq name 'opencode) (file-executable-p "~/.opencode/bin/opencode"))
+               (executable-find (nth 3 entry))))
+      (user-error "%s%s: in a terminal, vikix agent --install %s"
+                  name (if (member (nth 3 entry) '("gemini" "opencode"))
+                           " isn't installed"
+                         "'s ACP adapter isn't installed")
+                  name)))))
+
+(defun vikix-ai-agent ()
+  "A chat with your agent (Super+a's), over ACP, in agent-shell.
+Started by `vikix agent --acp'; the one this project has already, if any."
+  (interactive)
+  (let ((name (vikix-ai--agent)))
+    (vikix-ai--agent-ready name)
+    (unless (require 'agent-shell nil t)
+      (user-error "agent-shell isn't installed: M-x package-install RET agent-shell"))
+    (let ((agent-shell-preferred-agent-config (nth 1 (assq name vikix-ai-agents))))
+      (call-interactively #'agent-shell))))
+
+(defun vikix-ai-agent-terminal ()
+  "Your agent (Super+a's) in a terminal, as `vikix agent' starts it."
+  (interactive)
+  (unless (executable-find "vikix")
+    (user-error "vikix isn't on PATH: agents start through it"))
+  (if (require 'vterm nil t)
+      (let ((vterm-shell "vikix agent"))
+        (vterm "*vikix agent*"))
+    (switch-to-buffer (make-term "vikix agent" "vikix" nil "agent"))
+    (term-char-mode)))
+
+(with-eval-after-load 'agent-shell
+  (setq agent-shell-anthropic-claude-acp-command '("vikix" "agent" "--acp" "claude")
+        agent-shell-openai-codex-acp-command     '("vikix" "agent" "--acp" "codex")
+        agent-shell-google-gemini-acp-command    '("vikix" "agent" "--acp" "gemini")
+        agent-shell-opencode-acp-command         '("vikix" "agent" "--acp" "opencode")
+        agent-shell-agent-configs (mapcar #'caddr vikix-ai-agents)))
 
 (provide 'vikix-ai)
 ;;; vikix-ai.el ends here

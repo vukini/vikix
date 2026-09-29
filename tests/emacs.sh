@@ -6,18 +6,28 @@
 #   default follows ~/.config/vikix/ai (local: llama3.2:3b or your first
 #   model, or model=; claude: claude-sonnet-5, or model=), a change reaches a
 #   running Emacs but a pick of yours stays until then, and C-c g says what's
-#   missing (the key, Ollama, a model) instead of asking for a key.
+#   missing (the key, Ollama, a model) instead of asking for a key; and,
+#   when agent-shell is here, its agents are Vikix's four, each started by
+#   vikix agent --acp, and C-c a says what's missing (vikix, the agent or
+#   its adapter, ACP for Aider), with your agent from ~/.config/vikix/agent.
 #
 # curl is a stand-in answering as Ollama would ($HOME/ollama: the JSON, or
-# absent for "not running"). gptel comes from VIKIX_TEST_GPTEL, or the
-# emacs-void packages in ~/.emacs.d; the real chat with its packages is
-# tests/editors.sh's (--all, network).
+# absent for "not running"). gptel and agent-shell come from the package
+# folder VIKIX_TEST_ELPA, or emacs-void's in ~/.emacs.d, each part skipped
+# without them; the real config with its packages is tests/editors.sh's
+# (--all, network).
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
 unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME VIKIX_EMACS_REPO VIKIX_STATE ANTHROPIC_API_KEY
 here=$(cd "$(dirname "$0")/.." && pwd)
-gptel=${VIKIX_TEST_GPTEL:-$(find "$HOME/.emacs.d/elpa" -maxdepth 1 -type d -name 'gptel-[0-9]*' 2>/dev/null | sort | tail -1)}
+elpa=${VIKIX_TEST_ELPA:-$HOME/.emacs.d/elpa}
+pkg() { find "$elpa" -maxdepth 1 -type d -name "$1-[0-9]*" 2>/dev/null | sort | tail -1; }
+gptel=$(pkg gptel)
+ashell=''
+if [ -n "$(pkg agent-shell)" ] && [ -n "$(pkg acp)" ] && [ -n "$(pkg shell-maker)" ]; then
+  ashell="$(pkg agent-shell) $(pkg acp) $(pkg shell-maker)"
+fi
 t=$(mktemp -d)
 trap 'rm -rf "$t"' EXIT
 fail=0
@@ -64,10 +74,8 @@ out=$(emacs -Q --batch -l "$here/config/emacs/vikix-ai.el" 2>&1)
 check "vikix-ai.el should load clean without gptel: $out" test -z "$out"
 
 if [ -z "$gptel" ]; then
-  echo "(gptel isn't here: set VIKIX_TEST_GPTEL to its folder; the rest skipped)"
-  [ "$fail" = 0 ] && echo "emacs: Vikix's part is linked and loads"
-  exit "$fail"
-fi
+  echo "(gptel isn't here: set VIKIX_TEST_ELPA to a package folder with it; the chat skipped)"
+else
 
 ai() { printf '%b' "$1" > "$HOME/.config/vikix/ai"; }
 models() { printf '{"models":[%s]}' "$1" > "$HOME/ollama"; }
@@ -129,5 +137,52 @@ ai 'use=claude\n'
 out=$(el '(condition-case e (progn (require (quote gptel)) (call-interactively (quote gptel))) (user-error (say "stopped: %s" (cadr e))))' </dev/null)
 check "gptel itself should stop with Vikix's words, not ask for a key: $out" has 'stopped: Claude needs your Anthropic key' "$out"
 
-[ "$fail" = 0 ] && echo "emacs: Vikix's part is linked, and gptel follows vikix ai use"
+fi
+
+# --- agents -----------------------------------------------------------------
+if [ -z "$ashell" ]; then
+  echo "(agent-shell isn't here: set VIKIX_TEST_ELPA to a package folder with it; the agents skipped)"
+else
+  # vikix and the adapters are stand-ins: only whether they're there
+  # counts. The PATH has only them (and the system's), not your agents.
+  mkdir -p "$t/agents" "$HOME/.local/bin"
+  printf '#!/bin/sh\n' > "$t/agents/vikix"; chmod +x "$t/agents/vikix"
+  emacs=$(command -v emacs)
+  apath="$t/agents:/usr/bin:/bin"
+  # ag FORMS — as el, with agent-shell (and no autoloads: it's required).
+  ag() {
+    local l=() d
+    for d in $ashell; do l+=(-L "$d"); done
+    PATH=$apath "$emacs" -Q --batch "${l[@]}" -l "$here/config/emacs/vikix-ai.el" \
+      --eval "(progn (defun say (&rest a) (princ (concat (apply #'format a) \"\\n\"))) $1)" 2>&1 || true
+  }
+  ready='(condition-case e (progn (vikix-ai--agent-ready (vikix-ai--agent)) (say "ready %s" (vikix-ai--agent))) (user-error (say "stopped: %s" (cadr e))))'
+  out=$(ag "(progn (require 'agent-shell)
+    (say \"agents %S\" (mapcar (lambda (m) (map-elt (funcall m) :identifier)) agent-shell-agent-configs))
+    (with-temp-buffer (let ((c (agent-shell-anthropic-make-claude-client :buffer (current-buffer))))
+      (say \"claude %s %S\" (map-elt c :command) (map-elt c :command-params))))
+    (say \"codex %S\" agent-shell-openai-codex-acp-command)
+    (say \"gemini %S\" agent-shell-google-gemini-acp-command)
+    (say \"opencode %S\" agent-shell-opencode-acp-command))")
+  check "agent-shell should offer Vikix's four agents: $out" has '^agents (claude-code codex gemini-cli opencode)' "$out"
+  check "Claude Code should start through vikix agent --acp: $out" has '^claude vikix ("agent" "--acp" "claude")' "$out"
+  for a in codex gemini opencode; do
+    check "$a should start through vikix agent --acp: $out" has "^$a (\"vikix\" \"agent\" \"--acp\" \"$a\")" "$out"
+  done
+  out=$(ag "$ready")
+  check "your agent should be claude when none is chosen, and its adapter missing said: $out" has "stopped: claude's ACP adapter isn't installed: in a terminal, vikix agent --install claude" "$out"
+  printf '#!/bin/sh\n' > "$HOME/.local/bin/claude-agent-acp"; chmod +x "$HOME/.local/bin/claude-agent-acp"
+  out=$(ag "$ready")
+  check "with the adapter, claude should be ready: $out" has '^ready claude' "$out"
+  printf 'agent=aider\n' > "$HOME/.config/vikix/agent"
+  out=$(ag "$ready")
+  check "Aider (no ACP) should point to the terminal: $out" has "stopped: aider doesn’t speak ACP: M-x vikix-ai-agent-terminal" "$out"
+  printf 'agent=gemini  # mine\n' > "$HOME/.config/vikix/agent"
+  out=$(ag "$ready")
+  check "your agent= should be used, and a missing agent said: $out" has "stopped: gemini isn't installed: in a terminal, vikix agent --install gemini" "$out"
+  out=$(apath=/usr/bin:/bin ag "$ready")
+  check "without vikix, agents should say they start through it: $out" has "stopped: vikix isn’t on PATH" "$out"
+fi
+
+[ "$fail" = 0 ] && echo "emacs: Vikix's part is linked, gptel follows vikix ai use, and agents start through vikix agent"
 exit "$fail"

@@ -12,8 +12,9 @@
 #
 # Emacs's config is a sister repository, cloned and then pulled:
 #   ~/.emacs.d       VIKIX_EMACS_REPO  (default: vukini/emacs-void)
-# and Vikix's AI setup for it (gptel on `vikix ai use`'s model), which the
-# config loads when it is there:
+# and Vikix's AI setup for it (gptel on `vikix ai use`'s model, agents in
+# agent-shell through `vikix agent --acp`), which the config loads when it
+# is there:
 #   ~/.local/share/vikix/emacs   a link to config/emacs (vikix-ai.el)
 #
 # Then the pieces the configs assume are on the machine:

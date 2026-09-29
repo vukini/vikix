@@ -45,16 +45,7 @@ Shipped in 0.57.0, in `config/nvim/lua/vikix/plugins/ai.lua`: AstroCommunity's C
 
 ## 4. AI in Emacs
 
-In `vikix-ai.el`, which Vikix keeps current and `emacs-void` loads when it is there (decision 3).
-
-Shipped in 0.59.0, in `config/emacs/vikix-ai.el` (linked to `~/.local/share/vikix/emacs` by `45-editors`): gptel's backends "Claude" (the session's key, or `~/.config/vikix/secrets`) and "Local" (Ollama's models as they are at each `C-c g`), the default following `vikix ai use` and `model=` (read again at each `C-c g` / `C-c G`; a pick of yours stays until the file changes), and `C-c g` saying what's missing before gptel asks for a key. `tests/emacs.sh`. Tried for real: Claude and llama3.2:3b answered through gptel. Left:
-
-- [ ] **Agents: agent-shell (ACP),** each agent started with `vikix agent --exec`. Check that its command can be set.
-- [ ] **Second choice: claude-code-ide.el** (or claude-code.el), with its CLI path set to the Vikix command.
-- [ ] **Aider: aidermacs,** if Aider is the chosen agent, through the same command.
-- [ ] **Keys:** next to gptel's `C-c g` / `C-c G`.
-- [ ] **Everything guarded:** the Vikix parts do nothing when Vikix isn't there (no `vikix` on PATH), so the config still works on another machine.
-- [ ] **`tests/editors.sh`:** a first start with no keys and no network shows no errors (it already fails on errors at first start).
+Shipped in 0.59.0 and 0.60.0, in `config/emacs/vikix-ai.el` (linked to `~/.local/share/vikix/emacs` by `45-editors`), which `emacs-void` loads when it is there (decision 3). gptel: the backends "Claude" (the session's key, or `~/.config/vikix/secrets`) and "Local" (Ollama's models as they are at each `C-c g`), the default following `vikix ai use` and `model=` (read again at each `C-c g` / `C-c G`; a pick of yours stays until the file changes), and `C-c g` saying what's missing before gptel asks for a key. Agents: agent-shell with Vikix's four ACP agents, each started by `vikix agent --acp`; `C-c a` a chat with your agent, `C-c A` your agent in a terminal (vterm, `vikix agent`, so Aider too); each says what's missing. Everything is guarded: without the file nothing changes, and the agents check for `vikix` on PATH. `tests/emacs.sh`, and `tests/editors.sh` loads the checkout's part. Tried for real: Claude and llama3.2:3b answered through gptel, Claude Code over ACP through agent-shell's client. claude-code-ide.el and aidermacs weren't needed.
 
 ## 5. Afterwards, in Vikix
 
