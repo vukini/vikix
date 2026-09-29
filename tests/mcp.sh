@@ -10,11 +10,16 @@
 #   is logged; register adds it to Claude Code with the flags asked for
 #
 # The window manager (vikix-eval), notify-send and claude are stand-ins.
+# So the forms the tools send are also compiled against the real StumpWM,
+# from Quicklisp, when it's there: a stand-in answers anything, and 0.54.1
+# shipped a focus_window that the real one refused (a group given to
+# gselect, a command that takes its argument as typed text).
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
 unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME DISPLAY
 here=$(cd "$(dirname "$0")/.." && pwd)
+ql=${VIKIX_QUICKLISP:-$HOME/quicklisp}/setup.lisp   # before HOME moves
 t=$(mktemp -d)
 trap 'rm -rf "$t"' EXIT
 export HOME="$t/home" VIKIX_STATE="$t/home/.local/state/vikix"
@@ -31,6 +36,10 @@ import sys, os, json
 form = sys.argv[1]
 t = os.environ["T"]
 open(t + "/forms", "a").write(form.replace("\n", " ") + "\n")
+# Whole, too, one file each, for compiling against the real StumpWM below.
+d = t + "/forms.d"
+os.makedirs(d, exist_ok=True)
+open("%s/%03d.lisp" % (d, len(os.listdir(d))), "w").write(form)
 def lisp(s): return '=> "' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
 if "workspaces" in form:
     print("=> a title printed first, with => in it")
@@ -116,7 +125,7 @@ check "a workspace that isn't there should be refused: $out" grep -q '^ERROR: no
 check "a refused workspace shouldn't reach Lisp: $(cat "$t/forms")" test -z "$(grep -v 'workspaces' "$t/forms" || true)"
 out=$(call switch_workspace '{"name":"web"}')
 check "an existing workspace should be shown: $out" grep -q 'on workspace web' <<<"$out"
-check "it should be selected by name, as a Lisp string: $(tail -1 "$t/forms")" grep -q '(gselect (find-group (current-screen) "web"))' "$t/forms"
+check "it should be selected by name, as a Lisp string: $(tail -1 "$t/forms")" grep -q '(switch-to-group (find-group (current-screen) "web"))' "$t/forms"
 out=$(call focus_window '{"workspace":"1","number":"0) (run-shell-command 1"}')
 check "a number that isn't one should be refused: $out" grep -q '^ERROR: number' <<<"$out"
 out=$(call focus_window '{"workspace":"1","number":true}')
@@ -186,6 +195,52 @@ out=$(call eval '{"form":"(+ 1 1)"}')
 check "a refused call should be logged: $(tail -1 "$VIKIX_STATE/mcp.log")" grep -q ' refused eval ' "$VIKIX_STATE/mcp.log"
 check "the log should be yours alone, is $(stat -c %a "$VIKIX_STATE/mcp.log")" test "$(stat -c %a "$VIKIX_STATE/mcp.log")" = 600
 check "calls should be logged, with how they went: $(tail -2 "$VIKIX_STATE/mcp.log" 2>/dev/null)" grep -q ' ok set_theme {"name": "paper"}' "$VIKIX_STATE/mcp.log"
+
+# The forms, against the real StumpWM: each compiles without a warning
+# (an unknown function, a wrong number of arguments), and calls no
+# command (a command's arguments are typed text, not Lisp values).
+if command -v sbcl >/dev/null && [ -f "$ql" ]; then
+  rm -rf "$t/forms.d"
+  call desktop '{}' >/dev/null
+  call keys '{}' >/dev/null
+  call switch_workspace '{"name":"web"}' >/dev/null
+  call focus_window '{"workspace":"1","number":0}' >/dev/null
+  set +e
+  out=$(FORMS="$t/forms.d/" sbcl --noinform --no-sysinit --no-userinit --non-interactive --load "$ql" \
+    --eval '(handler-case (ql:quickload :stumpwm :silent t) (error () (sb-ext:exit :code 2)))' \
+    --eval '
+(let ((failed 0))
+  (dolist (file (directory (concatenate (quote string) (sb-ext:posix-getenv "FORMS") "*.lisp")))
+      (let* ((*package* (find-package :stumpwm))
+             (form (with-open-file (in file) (read in)))
+             (line (substitute #\Space #\Newline (string-trim " " (with-open-file (in file) (read-line in)))))
+             (problems (list)))
+        (labels ((walk (x)
+                   (when (consp x)
+                     (when (and (car x) (symbolp (car x)) (stumpwm::get-command-structure (car x) nil))
+                       (push (format nil "calls the command ~(~a~); call a function" (car x)) problems))
+                     (loop for y on x do (walk (car y))))))
+          (walk form))
+        ;; *vikix-bindings* is from the Vikix layer, not StumpWM.
+        (handler-bind ((warning (lambda (w)
+                                  (let ((s (remove #\Newline (princ-to-string w))))
+                                    (unless (search "*VIKIX-" s) (push s problems)))
+                                  (muffle-warning w))))
+          (with-compilation-unit () (compile nil (list (quote lambda) nil form))))
+        (when problems
+          (incf failed)
+          (format t "~a...: ~{~a~^; ~}~%" (subseq line 0 (min 60 (length line))) problems))))
+  (sb-ext:exit :code (if (zerop failed) 0 1)))' 2>&1)
+  rc=$?
+  set -e
+  case $rc in
+    0) ;;
+    2) echo "mcp: StumpWM isn't in Quicklisp here; its forms weren't compiled" ;;
+    *) echo "FAIL: a form the tools send doesn't fit the real StumpWM:"; grep -v -e "^;" -e "^$" <<<"$out" | head -12; fail=1 ;;
+  esac
+else
+  echo "mcp: no sbcl or Quicklisp; the forms weren't compiled against StumpWM"
+fi
 
 # Registering with Claude Code.
 python3 "$here/bin/vikix-mcp" register --allow-eval >/dev/null

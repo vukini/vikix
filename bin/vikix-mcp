@@ -300,7 +300,9 @@ def t_switch_workspace(a):
     names = workspace_names()
     if name not in names:
         raise ToolError(f"no workspace called {name[:40]!r}: {', '.join(names)}")
-    evaluate(f"(gselect (find-group (current-screen) {lisp_string(name)}))")
+    # switch-to-group, not gselect: gselect is a command, whose argument is
+    # text as typed after Super+m (a group object made it fail).
+    evaluate(f"(switch-to-group (find-group (current-screen) {lisp_string(name)}))")
     return f"on workspace {name}"
 
 
@@ -317,7 +319,7 @@ def t_focus_window(a):
         raise ToolError(f"workspace {name} has no window {number}; it has: {', '.join(map(str, there)) or 'none'}")
     evaluate(f"(let* ((g (find-group (current-screen) {lisp_string(name)})) "
              f"(w (find {number} (group-windows g) :key #'window-number))) "
-             f"(gselect g) (when w (focus-all w)) t)")
+             f"(switch-to-group g) (when w (focus-all w)) t)")
     return f"window {number} on workspace {name} has the focus"
 
 
