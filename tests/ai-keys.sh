@@ -165,10 +165,12 @@ try rewrite
 check "use=Local should count as local: $(cat "$t/llm.args" 2>/dev/null) $(notes)" grep -q -- '-m llama3.2:3b' "$t/llm.args"
 
 # Switching: vikix ai use claude needs a key; the menu switches back.
+check "vikix ai use alone should say which, one word: $(bash "$here/bin/vikix-ai" use 2>&1)" test "$(bash "$here/bin/vikix-ai" use 2>&1)" = local
 bash "$here/bin/vikix-ai" use claude >/dev/null 2>&1 && { echo "FAIL: vikix ai use claude worked without a key"; fail=1; }
 check "use claude without a key changed the file: $(grep '^use' "$conf")" grep -qx 'use=Local' "$conf"
 ANTHROPIC_API_KEY=sk-ant-test bash "$here/bin/vikix-ai" use claude >/dev/null 2>&1
 check "vikix ai use claude should write use=claude: $(grep '^use' "$conf")" grep -qx 'use=claude' "$conf"
+check "vikix ai use alone should now say claude: $(bash "$here/bin/vikix-ai" use 2>&1)" test "$(bash "$here/bin/vikix-ai" use 2>&1)" = claude
 check "switching should keep the rest of the file" grep -q '^languages=English' "$conf"
 printf 'Use the local model instead (free; the text stays here)\n' > "$t/rofi"
 ANTHROPIC_API_KEY=sk-ant-test try

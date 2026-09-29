@@ -33,7 +33,8 @@
 #                         the desktop as an MCP server, for Claude Code and other agents
 #   vikix agent         the AI agent, after a snapshot of your files (alias: a):
 #                         Claude Code, or --use opencode|codex|gemini|aider,
-#                         --local on this laptop, --default NAME, --list
+#                         --local on this laptop, --default NAME, --list;
+#                         --exec [NAME] for editors (stdout is the agent's), --which
 #   vikix snapshot [MESSAGE]   record your files as they are now
 #   vikix changes [ID]  what changed since the last snapshot (or in snapshot ID)
 #   vikix history       the snapshots, newest first
@@ -50,7 +51,7 @@
 #   vikix ai setup|models|chat|list|remove|status|stop|uninstall
 #                         AI models that run on this laptop (Ollama)
 #   vikix ai llm          the llm command, with those models and your keys
-#   vikix ai use local|claude   the model for Super+i, AI on the selected text
+#   vikix ai use [local|claude] the model for Super+i, AI on the selected text
 #   vikix ai key set|list|remove|check   API keys (ANTHROPIC_API_KEY ...)
 #                         kept safely, out of your dotfiles and their history
 #   vikix windows [setup|create ISO|stop|status|network|remove]   Windows in a VM:

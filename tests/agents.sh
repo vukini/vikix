@@ -15,7 +15,10 @@
 #   agents get neither the SSH agent nor other secrets, and VIKIX_AGENT
 #   (so their shells don't read the keys back); OpenCode asks before
 #   commands unless your config says; --model needs --local; a small local
-#   model isn't sent the guide; Gemini's GEMINI.md imports the guide
+#   model isn't sent the guide; Gemini's GEMINI.md imports the guide;
+#   --exec (for editors) keeps stdout the agent's alone, drops the keys and
+#   takes the snapshot the same way, starts yours without a name, and never
+#   asks, even at a terminal; --which says which agent is yours
 #
 # curl, npm, uv, node and the agents are stand-ins: nothing is downloaded.
 
@@ -198,6 +201,28 @@ check "your GEMINI.md should stay after gemini goes" grep -qx 'my own rules' "$H
 
 # Unknown names.
 agent --use vscode >/dev/null 2>&1 && { echo "FAIL: an unknown agent started"; fail=1; }
+
+# --exec, for editors: stdout is the agent's alone (ACP talks over it).
+printf '#!/bin/sh\n{ echo "ran $0 $*"; env | grep -E "_API_KEY|_TOKEN|SSH_AUTH_SOCK|VIKIX_AGENT=" | sort; } > "%s"\necho ACP-HELLO\n' "$t/started" > "$HOME/.local/bin/gemini"
+chmod +x "$HOME/.local/bin/gemini"
+rm -f "$t/started"
+out=$(ANTHROPIC_API_KEY=sk-ant-x GITHUB_TOKEN=gh-x SSH_AUTH_SOCK=/tmp/agent.sock agent --exec gemini --experimental-acp 2>"$t/err") || true
+check "--exec: stdout should be the agent's alone, got: $out" test "$out" = ACP-HELLO
+check "--exec: Vikix's words should go to stderr: $(cat "$t/err")" grep -qE 'snapshot|haven.t changed' "$t/err"
+check "--exec: the agent should get its arguments: $(cat "$t/started" 2>/dev/null)" grep -q "^ran $HOME/.local/bin/gemini --experimental-acp$" "$t/started"
+check "--exec: no keys or tokens: $(cat "$t/started" 2>/dev/null)" test -z "$(grep -E 'API_KEY|TOKEN' "$t/started" || true)"
+check "--exec: no SSH agent" test -z "$(grep SSH_AUTH_SOCK "$t/started" || true)"
+check "--exec: VIKIX_AGENT set, as for --use" grep -qx 'VIKIX_AGENT=gemini' "$t/started"
+agent --default gemini >/dev/null 2>&1
+check "--which should say yours, one word: $(agent --which 2>&1)" test "$(agent --which 2>&1)" = gemini
+rm -f "$t/started"
+out=$(agent --exec --experimental-acp 2>/dev/null) || true
+check "--exec without a name should start yours: $(cat "$t/started" 2>/dev/null)" grep -q "^ran $HOME/.local/bin/gemini --experimental-acp$" "$t/started"
+agent --default claude >/dev/null 2>&1
+# Not installed: an error, never a question, even at a terminal.
+out=$(HOME="$t/nothing" script -qec "bash '$here/bin/vikix-agent' --exec codex" /dev/null </dev/null 2>&1) && { echo "FAIL: --exec started an agent that isn't installed"; fail=1; }
+check "--exec: not installed should say how to install it: $out" grep -q 'vikix agent --install codex' <<<"$out"
+check "--exec should never ask: $out" test -z "$(grep 'Install it now' <<<"$out" || true)"
 
 [ "$fail" = 0 ] && echo "agents: five agents, one guide, a snapshot first, no keys unless needed, local where they can"
 exit "$fail"

@@ -31,13 +31,9 @@ Shipped in 0.55.0: Vikix's part in `config/nvim` (linked to `~/.local/share/viki
 
 ## 2. A safe way for an editor to start an agent
 
-Why: the gap above. Editors should start agents through Vikix, not directly.
+Shipped in 0.56.0: `vikix agent --exec [NAME] [ARGS]` (the same start as `--use`: the guide, no keys or SSH agent, a snapshot, skipped when nothing changed; stdout left to the agent, Vikix's words on stderr, no questions, an error when it isn't installed), `vikix agent --which`, and `vikix ai use` alone printing Super+i's model; tests in `tests/agents.sh` and `tests/ai-keys.sh`; README, `docs/ai.md`, the skill. Left, for parts 3 and 4, once the editors' packages are chosen:
 
-- [ ] **`vikix agent --exec NAME [ARGS]`** (name to be settled): non-interactive, for editors. Takes the snapshot (decision 5), drops the keys and the SSH agent, points the agent at the guide as `--use` does, then `exec`s it. No prompts, no "press Enter", nothing on stdout but the agent's (ACP talks over stdin/stdout).
 - [ ] **ACP adapters** where an agent needs one: install them with the agent (`vikix agent --install`), npm into `~/.local` (nodejs comes with `editor-tools`). Check which agents speak ACP themselves and which need an adapter (Claude Code and Codex needed one as of mid-2026; Gemini CLI had it built in; OpenCode had support).
-- [ ] **What the editors read,** documented and stable: the chosen agent (`~/.config/vikix/agent`), the model for `vikix ai use`, Ollama at `127.0.0.1:11434`. Maybe one command that prints them (`vikix agent --which`, `vikix ai use` with no argument), so the editors don't parse Vikix's files.
-- [ ] **`tests/agents.sh`:** `--exec` drops the keys, takes a snapshot, prints nothing of its own, and works with the stand-in agents the test already uses.
-- [ ] **Docs:** `docs/ai.md` (agents from the editors), the skill.
 
 ## 3. AI in Neovim
 

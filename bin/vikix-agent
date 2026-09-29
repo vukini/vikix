@@ -14,6 +14,14 @@
 #   vikix agent --default NAME    the one Super+a starts
 #   vikix agent --list            the agents, which are here, and yours
 #   vikix agent --ask TEXT        start with this question (vikix diagnose)
+#   vikix agent --exec [NAME] [ARGS]   for editors: the same start (the
+#                                 guide, no keys, a snapshot), but nothing
+#                                 of Vikix's on stdout (it's the agent's:
+#                                 ACP talks over it), no questions, and an
+#                                 error if it isn't installed. NAME: yours
+#                                 when left out. Editors run e.g.
+#                                 vikix agent --exec gemini --experimental-acp
+#   vikix agent --which           the agent Super+a starts, one word
 #   vikix agent --install NAME    install one (its official installer; also
 #   vikix agent --uninstall NAME  vikix add/remove NAME), or take it away
 #
@@ -302,12 +310,19 @@ opencode_asks() {
 
 start() {
   local name=$1 local=$2 model=$3; shift 3
+  if [ "$EXEC" = 1 ]; then
+    # stdout is the agent's alone: Vikix's words go to stderr, and the
+    # agent gets the real stdout back (fd 3) when it starts. No window to
+    # keep open on an error: the editor shows stderr.
+    exec 3>&1 1>&2
+    trap - EXIT
+  fi
   if [ "$local" = 1 ]; then
     case $LOCAL_OK in *" $name "*) ;; *) die "$name has no local models; opencode, codex and aider do (vikix agent --use NAME --local)" ;; esac
   fi
   if ! installed "$name"; then
     say "$name isn't installed: $(about "$name")"
-    [ -t 0 ] || die "to install it: vikix agent --install $name"
+    { [ "$EXEC" = 0 ] && [ -t 0 ]; } || die "to install it: vikix agent --install $name"
     local answer
     read -r -p "Install it now, with its official installer? [y/N] " answer
     case $answer in
@@ -391,10 +406,11 @@ print(json.dumps(c))' "$oc")
     warn "no snapshot of your files this time (above), so vikix undo can't take this session back"
   fi
   trap - EXIT
+  [ "$EXEC" = 1 ] && exec env "${unset[@]}" "${setenv[@]}" "$exe" "${args[@]}" "$@" 1>&3 3>&-
   exec env "${unset[@]}" "${setenv[@]}" "$exe" "${args[@]}" "$@"
 }
 
-ASK='' REPORT=''
+ASK='' REPORT='' EXEC=0
 main() {
   local use='' local=0 model=''
   while [ $# -gt 0 ]; do
@@ -402,6 +418,9 @@ main() {
       --ask)       ASK=${2:-}; [ -n "$ASK" ] || die "--ask needs the question"; shift 2 ;;
       --report)    REPORT=${2:-}; [ -n "$REPORT" ] || die "--report needs a file"; shift 2 ;;
       --use)       need_agent "${2:-}"; use=$2; shift 2 ;;
+      --exec)      EXEC=1
+                   if is_agent "${2:-}"; then use=$2; shift 2; else shift; fi ;;
+      --which)     chosen; return ;;
       --local)     local=1; shift ;;
       --model)     model=${2:-}; [ -n "$model" ] || die "--model needs a name (vikix ai list)"; shift 2 ;;
       --default)   set_default "${2:-}"; return ;;

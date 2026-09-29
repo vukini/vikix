@@ -5,7 +5,7 @@
 #   vikix-ask ACTION      one of those straight away (ask, proofread,
 #                         rewrite, translate, explain): for keys of your own
 #                         in user.lisp
-#   vikix-ask use local|claude   which model answers (vikix ai use)
+#   vikix-ask use [local|claude] which model answers (vikix ai use); alone, says which
 #
 # The text is what you last highlighted (X keeps it after the highlight
 # is gone), else the clipboard: the notification while it works shows it. Proofread, Rewrite and Translate put their result on the
@@ -106,6 +106,8 @@ have_key() {
 # use local|claude: rewrite use= in the file (and only that line).
 set_use() {
   local to=${1:-}
+  # Without one: which it is now, one word (editors read it).
+  if [ -z "$to" ]; then local use; use=$(conf use); use=${use,,}; echo "${use:-local}"; exit 0; fi
   case $to in local|claude) ;; *) echo "usage: vikix ai use local|claude" >&2; exit 2 ;; esac
   if [ "$to" = claude ] && ! have_key; then
     echo "Claude needs your Anthropic key first: vikix ai key set anthropic" >&2

@@ -86,6 +86,8 @@ vikix add codex                   # or install one as a feature (vikix remove co
 
 **Always through Vikix:** start them with `vikix agent --use NAME` (or Super+a), not by typing `codex` or `opencode`: that skips the snapshot, and the protections below.
 
+**From an editor:** an editor that starts an agent itself should run `vikix agent --exec NAME` and the agent's own options after it (for example `vikix agent --exec gemini --experimental-acp`), or `vikix agent --exec` for yours. It's the same start, with the same protections, but quiet: nothing of Vikix's in the agent's output, and no questions. `vikix agent --which` says which agent is yours, and `vikix ai use` which model Super+i uses.
+
 **Offline**, on a local model: `vikix agent --use opencode --local` (or codex, or aider; `--model NAME` picks one). It picks the best of your models for code. Be warned: on a laptop's CPU each answer takes minutes (Aider on llama3.2:3b took over four minutes for one sentence), and a small model rarely carries out a change on its own. A bigger model (`vikix ai models`) does more, more slowly still.
 
 **What an agent doesn't get**, so that a trick hidden in a web page or a file it reads can't use it:
