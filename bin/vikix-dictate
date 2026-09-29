@@ -4,8 +4,11 @@
 #
 #   vikix dictate setup      build whisper.cpp (pinned) and fetch its model
 #                            (checked); a few minutes, once; no password
-#   vikix dictate toggle     start listening, or stop and type it (Super+F9)
-#   vikix dictate start | stop | cancel
+#   vikix dictate toggle     start listening, or stop and type it (Super+F9);
+#                            a recording that stopped by itself (after 5
+#                            minutes) is typed by the next press
+#   vikix dictate start | stop
+#   vikix dictate cancel     stop listening, type nothing (Super+Shift+F9)
 #   vikix dictate models [base.en|small]
 #                            which model: base.en, English (150 MB, a second
 #                            or two a sentence), or small, many languages
@@ -15,8 +18,9 @@
 #   vikix dictate uninstall [--models]
 #
 # While it listens, the bar says mic. On stop, the text is typed into the
-# window you're in (and put on the clipboard, in case that window didn't
-# take it). The recording is kept only until it's written down, in your
+# window you were in when you pressed the key, once it's written down (and
+# put on the clipboard, in case that window didn't take it; if you've
+# moved to another window meanwhile, it's only put on the clipboard). The recording is kept only until it's written down, in your
 # runtime folder (memory, yours alone); nothing leaves the laptop.
 
 set -uo pipefail
@@ -49,6 +53,7 @@ PIDFILE="$VIKIX_STATE/dictating"
 RUN="${XDG_RUNTIME_DIR:-/tmp}"
 WAV="$RUN/vikix-dictation.wav"
 MAX_SECONDS=300          # a forgotten microphone stops itself
+LAST_PRESS="$RUN/vikix-dictation.last"
 # Tests name their stand-ins (these reach the network or build for minutes).
 CURL=${VIKIX_CURL:-curl}
 GIT=${VIKIX_GIT:-git}
@@ -60,7 +65,7 @@ bar() { python3 "$VIKIX_DIR/bin/vikix-eval" '(vikix-record-refresh)' >/dev/null 
 model_name() {
   local m=''
   [ -r "$CONF" ] && m=$(sed -n 's/^[[:space:]]*model[[:space:]]*=[[:space:]]*\([a-z.]*\).*/\1/p' "$CONF" | tail -1)
-  [ -n "${MODEL_SHA[$m]:-}" ] && echo "$m" || echo base.en
+  [ -n "$m" ] && [ -n "${MODEL_SHA[$m]:-}" ] && echo "$m" || echo base.en
 }
 model_file() { echo "$MODELS/ggml-$1.bin"; }
 vad_file() { echo "$MODELS/ggml-silero-v6.2.0.bin"; }
@@ -102,21 +107,22 @@ build_whisper() {
   command -v "$CMAKE" >/dev/null 2>&1 || die "cmake isn't here: vikix add dictation installs it"
   say "fetching whisper.cpp $WHISPER_VERSION"
   if [ -d "$OPT/.git" ]; then
-    "$GIT" -C "$OPT" fetch --depth 1 origin "tag" "$WHISPER_VERSION" || die "couldn't fetch whisper.cpp"
-    "$GIT" -C "$OPT" checkout -q --force "$WHISPER_VERSION" || die "couldn't check out $WHISPER_VERSION"
+    "$GIT" -C "$OPT" fetch -q --depth 1 origin "refs/tags/$WHISPER_VERSION:refs/tags/$WHISPER_VERSION" || die "couldn't fetch whisper.cpp"
+    "$GIT" -c advice.detachedHead=false -C "$OPT" checkout -q --force "$WHISPER_VERSION" || die "couldn't check out $WHISPER_VERSION"
   else
     mkdir -p "$(dirname "$OPT")"
-    "$GIT" clone -q --depth 1 --branch "$WHISPER_VERSION" "$WHISPER_REPO" "$OPT" || die "couldn't fetch whisper.cpp"
+    "$GIT" -c advice.detachedHead=false clone -q --depth 1 --branch "$WHISPER_VERSION" "$WHISPER_REPO" "$OPT" || die "couldn't fetch whisper.cpp"
   fi
   # The tag's commit, as pinned: a tag moved on GitHub isn't built.
   [ "$("$GIT" -C "$OPT" rev-parse HEAD)" = "$WHISPER_COMMIT" ] ||
     die "whisper.cpp's $WHISPER_VERSION isn't the commit expected: not built"
-  say "building it (a few minutes; for this computer's CPU)"
-  "$CMAKE" -S "$OPT" -B "$OPT/build" -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=ON \
-    -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=ON -DBUILD_SHARED_LIBS=OFF >/dev/null ||
-    die "whisper.cpp didn't configure (above)"
-  "$CMAKE" --build "$OPT/build" -j "$(nproc)" --config Release --target whisper-cli >/dev/null ||
-    die "whisper.cpp didn't build (above)"
+  local log="$VIKIX_STATE/logs/whisper-build.log"
+  mkdir -p "$(dirname "$log")"
+  say "building it (a few minutes; for this computer's CPU; log: $log)"
+  { "$CMAKE" -S "$OPT" -B "$OPT/build" -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=ON \
+      -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=ON -DBUILD_SHARED_LIBS=OFF &&
+    "$CMAKE" --build "$OPT/build" -j "$(nproc)" --config Release --target whisper-cli; } > "$log" 2>&1 ||
+    { tail -n 20 "$log"; die "whisper.cpp didn't build (the end of $log is above)"; }
   [ -x "$OPT/build/bin/whisper-cli" ] || die "whisper-cli isn't where it should be"
 }
 
@@ -168,14 +174,21 @@ cmd_uninstall() {
 
 cmd_start() {
   if ! ready; then
-    note "Dictation isn't set up" "In a terminal: vikix dictate setup (a few minutes, once)"; return 1
+    note "Dictation isn't set up" "In a terminal: vikix add dictation (a few minutes, once)"; return 1
   fi
   listening && { note "Already listening" "Super+F9 stops and types it"; return 0; }
   command -v pw-record >/dev/null 2>&1 || { note "Can't listen" "pw-record (PipeWire) isn't here"; return 1; }
   (umask 077; : > "$WAV")
   # 16 kHz mono, as whisper wants it. timeout: a forgotten microphone stops.
   timeout "$MAX_SECONDS" pw-record --rate 16000 --channels 1 --format s16 "$WAV" >/dev/null 2>&1 &
-  echo $! > "$PIDFILE"
+  local pid=$!
+  echo "$pid" > "$PIDFILE"
+  # When the limit stops it, say so: the recording waits for Super+F9.
+  ( sleep $((MAX_SECONDS + 1))
+    if [ "$(cat "$PIDFILE" 2>/dev/null)" = "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
+      rm -f "$PIDFILE"; bar
+      notify-send -a Vikix -u critical "Dictation stopped after $((MAX_SECONDS / 60)) minutes" "Super+F9 types what you said" 2>/dev/null || true
+    fi ) >/dev/null 2>&1 &
   bar
   note "Listening…" "Super+F9 again types what you said (Super+Shift+F9 cancels)"
 }
@@ -205,18 +218,29 @@ transcribe() {   # transcribe WAV
 
 cmd_stop() {
   listening || [ -s "$WAV" ] || { note "Not listening" "Super+F9 starts"; return 0; }
+  # The window you were in: the text goes there, and only there.
+  local win now text work
+  win=$(xdotool getactivewindow 2>/dev/null || true)
   stop_recording
-  NOTE_ID=$(notify-send -p -a Vikix -t 60000 "Writing it down…" "on this laptop ($(model_name))" 2>/dev/null || true)
+  # Moved aside at once: a new Super+F9 records into a fresh file while
+  # this one is written down.
+  work=$(mktemp "$RUN/vikix-dictation.XXXXXX") && mv -f "$WAV" "$work" || { note "Couldn't read the recording" ""; return 1; }
+  NOTE_ID=$(notify-send -p -a Vikix -t 0 "Writing it down…" "on this laptop ($(model_name))" 2>/dev/null || true)
   [[ ${NOTE_ID:-} =~ ^[0-9]+$ ]] || NOTE_ID=''
-  local text
-  text=$(transcribe "$WAV")
-  rm -f "$WAV"
+  text=$(transcribe "$work")
+  rm -f "$work"
   if [ -z "$text" ]; then note "Heard nothing" "Is the microphone on? (pavucontrol, Input devices)"; return 0; fi
+  # A space after it, so the next dictation doesn't run into this one.
+  case $text in *[.?!,:\;]) text="$text " ;; esac
   printf '%s' "$text" | xclip -selection clipboard 2>/dev/null || true
+  now=$(xdotool getactivewindow 2>/dev/null || true)
+  if [ -n "$win" ] && [ "$now" != "$win" ]; then
+    note "On the clipboard" "You moved to another window while it was written down: paste it where you want it"; return 0
+  fi
   # --clearmodifiers: Super may still be down from the key.
-  xdotool type --clearmodifiers --delay 8 -- "$text" 2>/dev/null ||
+  xdotool type --clearmodifiers --delay 3 -- "$text" 2>/dev/null ||
     { note "Couldn't type it" "It's on the clipboard: paste it with Ctrl+v"; return 0; }
-  note "Typed" "$(printf '%s' "${text:0:200}" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g')"
+  note "Typed" "$(printf '%s' "${text:0:120}" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g')"
 }
 
 cmd_cancel() {
@@ -230,12 +254,25 @@ cmd_status() {
 
 case ${1:-} in
   setup)     cmd_setup ;;
-  toggle)    if listening; then cmd_stop; else cmd_start; fi ;;
+  toggle)
+    # A held key repeats, and a double tap is quick: presses within 0.7 s
+    # of the last are one press.
+    now=$(date +%s%N); last=$(cat "$LAST_PRESS" 2>/dev/null || echo 0)
+    [ $(( (now - last) / 1000000 )) -ge 700 ] || exit 0
+    echo "$now" > "$LAST_PRESS"
+    # Listening, or a recording the 5-minute limit stopped: type it.
+    if listening || [ -s "$WAV" ]; then cmd_stop; else cmd_start; fi ;;
   start)     cmd_start ;;
   stop)      cmd_stop ;;
   cancel)    cmd_cancel ;;
   models)    shift; cmd_models "${1:-}" ;;
-  file)      shift; [ -r "${1:-}" ] || die "vikix dictate file WAV"; ready || die "not set up: vikix dictate setup"; transcribe "$1"; echo ;;
+  file)
+    shift; [ -n "${1:-}" ] || die "vikix dictate file WAV"
+    [ -r "$1" ] || die "no file $1"
+    ready || die "not set up: vikix add dictation"
+    text=$(transcribe "$1")
+    [ -n "$text" ] || die "no speech found in $1 (or it isn't audio)"
+    printf '%s\n' "$text" ;;
   status)    cmd_status ;;
   uninstall) shift; cmd_uninstall "${1:-}" ;;
   -h|--help|'') sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;

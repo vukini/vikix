@@ -204,9 +204,11 @@ For better answers, above all translations into Esperanto, which small models ge
 
 ## Dictation
 
-Press **Super+F9** and speak. Press **Super+F9** again, and what you said is typed into the window you're in, a second or two later. It's also put on the clipboard, in case that window didn't take it. **Super+Shift+F9** stops without typing anything. While it listens, the bar says **mic**, in red.
+Press **Super+F9** and speak. Press **Super+F9** again, and a moment later what you said is typed into the window you were in: two or three seconds for a sentence, about ten seconds for a minute of speech. It's also put on the clipboard, in case that window didn't take it. If you move to another window while it's written down, it isn't typed there: it's only put on the clipboard, and a notification says so. **Super+Shift+F9** stops without typing anything. While it listens, the bar says **mic**, in red.
 
-It's a press, speak, press: StumpWM sees a key go down, not come up, so holding the key while you speak isn't possible.
+It's a press, speak, press: StumpWM sees a key go down, not come up, so holding the key while you speak isn't possible (a held key's repeats count as one press).
+
+It listens for five minutes at most. Then it stops, says so, and the next **Super+F9** types what it heard. A space follows each dictation, so the next one doesn't run into it.
 
 To set it up, once (a few minutes, no password):
 
@@ -224,7 +226,9 @@ vikix dictate models small    # many languages (490 MB)
 vikix dictate models base.en  # back to English
 ```
 
-**Silence and noise aren't typed.** The voice detector passes only speech to whisper, and whisper's notes about sounds, such as "(music)", are left out.
+**Silence and noise aren't typed.** The voice detector passes only speech to whisper, and whisper's notes about sounds, such as "(music)", are left out: anything it writes in brackets goes, so a spoken aside in brackets would too. A very short clip (a second or so) can come out as a word or two nobody said.
+
+**What stays afterwards:** the recording is deleted once it's written down. The text stays where it was typed, on the clipboard (so in its history, Super+c), and in the "Typed" notification (Super+Shift+n shows earlier ones).
 
 To take it away: `vikix remove dictation` (the models stay; `vikix dictate uninstall --models` removes them too).
 
