@@ -4,32 +4,28 @@ What's left to add or clean up, most valuable first within each section. Delete 
 
 ## Features
 
-Built in this order: AI first, then newcomers, then the rest. Package facts were checked against void-packages on 2026-09-28. In Void: uv, espeak-ng, podman, tesseract-ocr, xcolor. Not in Void: ollama, llama.cpp, whisper.cpp, aichat, llm, piper-tts ("piper" in Void is a gaming-mouse tool). Those come from their official releases, uv, or a source build in the style of 65-languages: pinned, checksummed where the project publishes checksums, and in ~/.local.
-
-### AI
-
-1. **~/dev/ai.** A folder like the languages' (README, tools line, examples copied once): the Claude API from Python and from the shell; a local model through Ollama's API; embeddings in SQLite with sqlite-vec; and "ask my notes", a small search over a folder of Markdown (an Obsidian vault, say), local by default.
+Built in this order: newcomers first, then the rest (the AI items have shipped; more are in the wish list). Package facts were checked against void-packages on 2026-09-28. In Void: uv, espeak-ng, podman, tesseract-ocr, xcolor. Not in Void: ollama, llama.cpp, whisper.cpp, aichat, llm, piper-tts ("piper" in Void is a gaming-mouse tool). Those come from their official releases, uv, or a source build in the style of 65-languages: pinned, checksummed where the project publishes checksums, and in ~/.local.
 
 ### Newcomers
 
-2. **A key overlay.** Super+/ (and maybe holding Super for a second) shows a card of the Super keys, grouped, from *vikix-bindings*. And StumpWM's which-key-mode on, for the Ctrl+t keys.
-3. **A mouse fallback, and familiar keys.** Clicking a workspace in the bar goes there; volume opens pavucontrol, Wi-Fi nmtui, Bluetooth blueman. Super+Space as a second launcher key.
-4. **"Installing Void for Vikix", and "Your first hour".** A docs page with screenshots of void-installer: the glibc image, partitioning, a user in wheel, the network. Then a short one: the keys, part two, themes, update. Both linked from the site (the guides on vikix.dev, below).
+1. **A key overlay.** Super+/ (and maybe holding Super for a second) shows a card of the Super keys, grouped, from *vikix-bindings*. And StumpWM's which-key-mode on, for the Ctrl+t keys.
+2. **A mouse fallback, and familiar keys.** Clicking a workspace in the bar goes there; volume opens pavucontrol, Wi-Fi nmtui, Bluetooth blueman. Super+Space as a second launcher key.
+3. **"Installing Void for Vikix", and "Your first hour".** A docs page with screenshots of void-installer: the glibc image, partitioning, a user in wheel, the network. Then a short one: the keys, part two, themes, update. Both linked from the site (the guides on vikix.dev, below).
 
 ### And then
 
-5. **A firewall (ufw).** Deny incoming, allow outgoing, allow SSH. A runit service, and a Super+m entry that shows the status.
-6. **More themes.** Three or four more (Gruvbox, Nord, Tokyo Night, a high-contrast one), each with a wallpaper. Then make Emacs and Neovim follow `vikix theme`.
-7. **Whole-system undo.** When / is btrfs: snapper snapshots before each `vikix update`, and `vikix rollback` notes. Skip cleanly on ext4.
-8. **The guides on vikix.dev.** A Docs link on the site to `docs/` on GitHub, or the four pages built into the site. Same words either way: `docs/` stays the source.
-9. **Hype, DHH's Markdown presentation app, as a feature.** https://github.com/omacom/hype (MIT, Qt 6 and C++). Hype's code needs no change: its Omarchy ties are handled on Vikix's side. Checked in Void on 2026-09-28: every dependency is packaged (qt6-base, -declarative, -multimedia, -imageformats, -svg and their -devel; ffmpeg6-devel, libwebp-devel, source-highlight 3.1.9; gcc and make are in dev.list), and so are xdg-desktop-portal and xdg-desktop-portal-gtk. Steps:
+4. **A firewall (ufw).** Deny incoming, allow outgoing, allow SSH. A runit service, and a Super+m entry that shows the status.
+5. **More themes.** Three or four more (Gruvbox, Nord, Tokyo Night, a high-contrast one), each with a wallpaper. Then make Emacs and Neovim follow `vikix theme`.
+6. **Whole-system undo.** When / is btrfs: snapper snapshots before each `vikix update`, and `vikix rollback` notes. Skip cleanly on ext4.
+7. **The guides on vikix.dev.** A Docs link on the site to `docs/` on GitHub, or the four pages built into the site. Same words either way: `docs/` stays the source.
+8. **Hype, DHH's Markdown presentation app, as a feature.** https://github.com/omacom/hype (MIT, Qt 6 and C++). Hype's code needs no change: its Omarchy ties are handled on Vikix's side. Checked in Void on 2026-09-28: every dependency is packaged (qt6-base, -declarative, -multimedia, -imageformats, -svg and their -devel; ffmpeg6-devel, libwebp-devel, source-highlight 3.1.9; gcc and make are in dev.list), and so are xdg-desktop-portal and xdg-desktop-portal-gtk. Steps:
     - **Build it** in the VM: `git clone https://github.com/omacom/hype && cd hype && ./bin/build`, then without a window `./build/hype render examples/welcome.md -o slides/`, then the editor, `./build/hype open examples/welcome.md`. Video may stutter in a VM: judge playback on real hardware.
     - **File dialogs:** Hype has no fallback, so Open and Save fail without a portal. Install and start xdg-desktop-portal and xdg-desktop-portal-gtk from the session. The session already runs under D-Bus (`dbus-run-session` in `.xinitrc`), which the portal needs.
     - **Its themes follow Vikix's:** `vikix theme` also writes each theme as `~/.config/omarchy/themes/<name>/colors.toml` (lines like `background = "#1a1b26"`), or sets OMARCHY_PATH, and keeps `~/.local/state/omarchy/current/theme/colors.toml` pointing at the current one, so the editor follows the desktop.
     - **Package it:** an xbps-src template, after Hype's `pkgbuild/PKGBUILD`, built in the style of 65-languages (pinned) until it's in void-packages; then a feature, `vikix add hype`.
     - **The AI side:** `hype skill install` puts a skill in `~/.claude/skills/`, so the agent can write the slides; a good example of an AI workflow for the site and the docs.
     - Prior art for running it outside Omarchy, with screenshots: the Mac port, https://github.com/gscalzo/HypeX.
-10. **Tutorials: `vikix learn c`.** A hands-on C course in the terminal, lessons checked on save, twelve tracks well past the basics, on a language-neutral runner. The plan, and the decisions it waits on, are in `TUTORIALS.md`. The steps: [C tutorials](#c-tutorials-vikix-learn-c), below.
+9. **Tutorials: `vikix learn c`.** A hands-on C course in the terminal, lessons checked on save, twelve tracks well past the basics, on a language-neutral runner. The plan, and the decisions it waits on, are in `TUTORIALS.md`. The steps: [C tutorials](#c-tutorials-vikix-learn-c), below.
 
 ## Wish list
 
@@ -37,27 +33,27 @@ Added 2026-09-30, from a conversation with Vid about 0.52-0.65. Not yet ordered 
 
 ### Updates and packages
 
-11. **A granular update.** `vikix update` stays as everything. Beside it: `vikix update core` (Vikix only: pull, then `10-packages` for packages new to the lists but without `xbps-install -Su`, `20-services`, `40-config`, migrations, the MCP server and a StumpWM reload: seconds, not minutes); `vikix update system` (Void's packages only, the two `xbps-install` lines); `vikix update tools` (`45-editors`, `65-languages`, `67-dev`, llm, and item 12's upgrades). Core must still install new list entries, or a release needing a new program (xcolor, say) breaks. To decide: whether the bar's `updates` note says which part is waiting (`Vikix update` = core, `updates 12` = system).
-12. **Programs from pipx, uv, cargo and go.** Put `~/.cargo/bin` and `~/go/bin` on PATH, in the 60-login block that adds `~/.local/bin` (today `cargo install` and `go install` programs aren't found). `update tools` (item 11) runs `pipx upgrade-all`, `uv tool upgrade --all`, and `cargo install-update -a` when that helper is installed. Go has no upgrade-all: say so in the docs rather than guess.
+10. **A granular update.** `vikix update` stays as everything. Beside it: `vikix update core` (Vikix only: pull, then `10-packages` for packages new to the lists but without `xbps-install -Su`, `20-services`, `40-config`, migrations, the MCP server and a StumpWM reload: seconds, not minutes); `vikix update system` (Void's packages only, the two `xbps-install` lines); `vikix update tools` (`45-editors`, `65-languages`, `67-dev`, llm, and item 11's upgrades). Core must still install new list entries, or a release needing a new program (xcolor, say) breaks. To decide: whether the bar's `updates` note says which part is waiting (`Vikix update` = core, `updates 12` = system).
+11. **Programs from pipx, uv, cargo and go.** Put `~/.cargo/bin` and `~/go/bin` on PATH, in the 60-login block that adds `~/.local/bin` (today `cargo install` and `go install` programs aren't found). `update tools` (item 10) runs `pipx upgrade-all`, `uv tool upgrade --all`, and `cargo install-update -a` when that helper is installed. Go has no upgrade-all: say so in the docs rather than guess.
 
 ### AI, more
 
-13. **A cloud model for `vikix ai use`.** Beside `local` and `claude`, `cloud`: any OpenAI-compatible address, a key from `vikix ai key`, and a model name, with OpenRouter as the ready-made default (one key, hundreds of models, pay per use). `s-i`, `llm`, gptel, Neovim's AI and the agents' `--local`-style switch all follow it. The docs say plainly that the text goes to that service and its model host.
-14. **Hermes Agent (Nous Research), as an agent.** `vikix agent --use hermes`, a feature, installed from the official https://hermes-agent.nousresearch.com (hermes-agent.org is a third party), into `~/.hermes` with uv. It reads `AGENTS.md`, so the guide works as it is. The same rules as the other agents: the snapshot first, no SSH agent, installers downloaded whole. To solve: Hermes keeps its keys in `~/.hermes/.env`; give it only the one it needs. Its terminal agent adds little beside the five; the value is item 15.
-15. **Hermes's gateway, later.** Talking to the agent from Telegram, WhatsApp or Signal, and its scheduled jobs. A door into the machine, so: an allow-list of senders, Hermes's Docker backend for commands, a bar note while it runs (`hermes`), and a snapshot on a timer instead of per session. On a laptop it stops when the lid closes; the always-on version is Hermes on a small cloud server reaching the laptop over Tailscale (item 17). Needs a design first.
-16. **Your own model in the cloud: a guide.** Serverless GPUs (RunPod, Modal: pay per second, a minute or two to wake), a GPU rented by the hour (RunPod, Vast.ai, Lambda), and OpenRouter, compared on cost and privacy; which model sizes fit which cards at Hermes's 64k context; then pointing `vikix ai use cloud` at your own endpoint. Probably a docs page, not code.
+12. **A cloud model for `vikix ai use`.** Beside `local` and `claude`, `cloud`: any OpenAI-compatible address, a key from `vikix ai key`, and a model name, with OpenRouter as the ready-made default (one key, hundreds of models, pay per use). `s-i`, `llm`, gptel, Neovim's AI and the agents' `--local`-style switch all follow it. The docs say plainly that the text goes to that service and its model host.
+13. **Hermes Agent (Nous Research), as an agent.** `vikix agent --use hermes`, a feature, installed from the official https://hermes-agent.nousresearch.com (hermes-agent.org is a third party), into `~/.hermes` with uv. It reads `AGENTS.md`, so the guide works as it is. The same rules as the other agents: the snapshot first, no SSH agent, installers downloaded whole. To solve: Hermes keeps its keys in `~/.hermes/.env`; give it only the one it needs. Its terminal agent adds little beside the five; the value is item 14.
+14. **Hermes's gateway, later.** Talking to the agent from Telegram, WhatsApp or Signal, and its scheduled jobs. A door into the machine, so: an allow-list of senders, Hermes's Docker backend for commands, a bar note while it runs (`hermes`), and a snapshot on a timer instead of per session. On a laptop it stops when the lid closes; the always-on version is Hermes on a small cloud server reaching the laptop over Tailscale (item 16). Needs a design first.
+15. **Your own model in the cloud: a guide.** Serverless GPUs (RunPod, Modal: pay per second, a minute or two to wake), a GPU rented by the hour (RunPod, Vast.ai, Lambda), and OpenRouter, compared on cost and privacy; which model sizes fit which cards at Hermes's 64k context; then pointing `vikix ai use cloud` at your own endpoint. Probably a docs page, not code.
 
 ### Your machines and your phone
 
-17. **Tailscale as a feature.** A private network between your own devices: the safe way for a phone or a server to reach the laptop, never SSH open to the internet.
-18. **Syncthing as a feature.** Folders (an Obsidian vault, say) kept in step between machines directly, no cloud; a bar note while it syncs.
-19. **KDE Connect.** Phone notifications on the desktop, files both ways, the phone as a remote.
-20. **`vikix export` / `vikix import`.** One file with your features, theme, keyboard, web apps and settings (no secrets), so a new machine becomes yours in one step.
-21. **A Vikix installer image.** A USB stick that installs Void and Vikix in one go (void-mklive).
+16. **Tailscale as a feature.** A private network between your own devices: the safe way for a phone or a server to reach the laptop, never SSH open to the internet.
+17. **Syncthing as a feature.** Folders (an Obsidian vault, say) kept in step between machines directly, no cloud; a bar note while it syncs.
+18. **KDE Connect.** Phone notifications on the desktop, files both ways, the phone as a remote.
+19. **`vikix export` / `vikix import`.** One file with your features, theme, keyboard, web apps and settings (no secrets), so a new machine becomes yours in one step.
+20. **A Vikix installer image.** A USB stick that installs Void and Vikix in one go (void-mklive).
 
 ### The desk: mail, documents, investing
 
-22. **The desk.** Business mail and paperwork, sorted by AI, for someone who gets hundreds of emails a day across more than one company. Parts, in order:
+21. **The desk.** Business mail and paperwork, sorted by AI, for someone who gets hundreds of emails a day across more than one company. Parts, in order:
     - **Mail on the machine:** isync into a Maildir, indexed by notmuch; searchable offline, readable in Emacs. Microsoft 365 may block this (IMAP needs OAuth, and IT may refuse); then the brief works from the web app or Superhuman instead.
     - **`vikix mail brief`:** the day's mail in groups (needs your reply, waiting on others, invoices and payments, investor and bank updates, newsletters, skip), a line each. Draft replies for the first group, into a drafts folder: nothing ever sends itself.
     - **Documents:** an inbox folder for scans, downloads and attachments (pulled from mail); OCR, dated, tagged by company, type and counterparty, filed (Paperless-ngx, locally). Questions across them ("the notice period in the lease"), and reminders for dates found in them.
@@ -68,30 +64,30 @@ Added 2026-09-30, from a conversation with Vid about 0.52-0.65. Not yet ordered 
 
 ### Music
 
-23. **Music production as a feature.** Low-latency audio: PipeWire's JACK side, realtime priority (rtkit or limits), Ardour, Carla and a plugin set; a setting that trades battery for lower latency while recording.
+22. **Music production as a feature.** Low-latency audio: PipeWire's JACK side, realtime priority (rtkit or limits), Ardour, Carla and a plugin set; a setting that trades battery for lower latency while recording.
 
 ### Languages and reading
 
-24. **Keyboard layouts on a key.** English, Arabic and others, switched with a key, the current one in the bar; Esperanto keeps its Right Alt option.
-25. **Spell checking in Esperanto and Arabic,** in Emacs, LibreOffice and Firefox (hunspell dictionaries).
-26. **Read aloud.** An `s-i` action that speaks the selection with a local voice (piper, from its release: not in Void).
-27. **E-books to an e-reader.** Calibre as a feature: send an EPUB or PDF to a BOOX or Kindle, converting first when needed.
+23. **Keyboard layouts on a key.** English, Arabic and others, switched with a key, the current one in the bar; Esperanto keeps its Right Alt option.
+24. **Spell checking in Esperanto and Arabic,** in Emacs, LibreOffice and Firefox (hunspell dictionaries).
+25. **Read aloud.** An `s-i` action that speaks the selection with a local voice (piper, from its release: not in Void).
+26. **E-books to an e-reader.** Calibre as a feature: send an EPUB or PDF to a BOOX or Kindle, converting first when needed.
 
 ### Work
 
-28. **Remote desktop.** Remmina or FreeRDP, for work servers, lighter than the Windows VM.
-29. **Teams and Zoom as web app presets,** beside the mail ones.
+27. **Remote desktop.** Remmina or FreeRDP, for work servers, lighter than the Windows VM.
+28. **Teams and Zoom as web app presets,** beside the mail ones.
 
 ### The desktop
 
-30. **Save and restore layouts.** `vikix layout save writing`: which windows sit where on a workspace; restoring brings the workspace back for a project.
-31. **A drop-down terminal** on Super+`, over whatever is open.
-32. **Find any file.** A rofi search over the home folder (plocate or fd), as fast as typing.
-33. **Battery care on ThinkPads.** tlp's charge thresholds: stop at 80% while docked; a Super+m entry to charge to 100% before a trip.
+29. **Save and restore layouts.** `vikix layout save writing`: which windows sit where on a workspace; restoring brings the workspace back for a project.
+30. **A drop-down terminal** on Super+`, over whatever is open.
+31. **Find any file.** A rofi search over the home folder (plocate or fd), as fast as typing.
+32. **Battery care on ThinkPads.** tlp's charge thresholds: stop at 80% while docked; a Super+m entry to charge to 100% before a trip.
 
 ### Family
 
-34. **A children's account.** A second login with a simpler desktop and apps chosen by the parent, where nothing of the parent's can be broken; a home for a child's programming course.
+33. **A children's account.** A second login with a simpler desktop and apps chosen by the parent, where nothing of the parent's can be broken; a home for a child's programming course.
 
 ## C tutorials: `vikix learn c`
 

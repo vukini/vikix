@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # tests/examples.sh — every example in dev/*/examples/ builds and runs with its
 # Makefile, every wordfreq prints exactly expected.txt, and every language
-# folder has its README and tools.list in the right shape.
+# folder has its README and tools.list in the right shape. The AI examples
+# are only built here: tests/dev-ai.sh runs them, against made-up servers.
 #
 # Each example is copied to a made-up folder first, so nothing is built in
 # the checkout. A language whose compiler isn't installed is skipped, and
@@ -20,7 +21,7 @@ declare -A needs=([c]=cc [rust]=cargo [go]=go [pascal]=fpc [python]=python3
                   [zig]=zig [haskell]=cabal [ocaml]=dune [java]=gradle [julia]=julia
                   [lisp]=sbcl [scheme]=scheme [racket]=raco [picolisp]=pil [forth]=gforth
                   [javascript]=node [ruby]=ruby [lua]=lua5.4 [sql]=sqlite3
-                  [wasm]="wasmtime wat2wasm zig")
+                  [wasm]="wasmtime wat2wasm zig" [ai]=python3)
 # pil is built into ~/.local/bin (65-languages), which a test's PATH may lack.
 export PATH="$HOME/.local/bin:$PATH"
 # The Java examples share one Gradle daemon (much faster than one each),
@@ -49,7 +50,9 @@ for dir in "$here"/dev/*/examples/*/; do
   (
     cd "$t/$lang-$name"
     make -s >/dev/null 2>&1 || { echo "FAIL: $lang/$name doesn't build"; exit 1; }
-    if [ "$name" = wordfreq ]; then
+    if [ "$lang" = ai ]; then
+      :   # make run would reach Claude or Ollama: tests/dev-ai.sh runs them against fakes
+    elif [ "$name" = wordfreq ]; then
       make -s check >/dev/null 2>&1 || { echo "FAIL: $lang/$name doesn't print expected.txt"; exit 1; }
       cmp -s expected.txt "$here/dev/c/examples/wordfreq/expected.txt" ||
         { echo "FAIL: $lang/$name has its own expected.txt"; exit 1; }

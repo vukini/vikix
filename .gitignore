@@ -12,3 +12,6 @@ __pycache__/
 dev/c/examples/hello/hello
 dev/c/examples/linkedlist/list
 dev/c/examples/wordfreq/wordfreq
+# What make run builds in the AI examples (make clean removes it; it holds
+# passages of whichever notes were indexed)
+dev/ai/examples/ask-notes/notes.db

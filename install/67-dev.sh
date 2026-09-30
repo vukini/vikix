@@ -104,6 +104,9 @@ have javac                     && langs+=(java)
 have ocaml                     && langs+=(ocaml)
 have julia                     && langs+=(julia)
 have fpc                       && langs+=(pascal)
+# Not a language: talking to Claude and to local models, in Python and the
+# shell. Its examples run with uv, which fetches what each one names.
+have uv                        && langs+=(ai)
 # shellcheck disable=SC2088  # messages: the ~ is for reading, not expanding
 say "~/dev for: ${langs[*]}"
 has() { case " ${langs[*]} " in *" $1 "*) return 0 ;; esac; return 1; }
@@ -291,6 +294,16 @@ if has pascal; then
 - `vikix-lazarus` — the Lazarus IDE; F1 on a word opens its help
 - https://www.freepascal.org/docs.html — the language and library reference
 - `man fpc` — the compiler'
+fi
+
+if has ai; then
+  docs_dir ai >/dev/null
+  note ai '# AI docs
+
+- https://docs.claude.com/en/api/overview — the Claude API
+- https://github.com/ollama/ollama/blob/main/docs/api.md — the Ollama API, for the local models
+- https://alexgarcia.xyz/sqlite-vec/ — sqlite-vec, the embeddings in SQLite
+- `llm --help` — AI on the command line (`vikix add llm`)'
 fi
 
 # --- examples -------------------------------------------------------------------

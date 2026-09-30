@@ -54,6 +54,10 @@ jobs:
         run: tests/ci.sh bar
       - name: examples
         run: tests/ci.sh examples
+      - name: uv, which the AI examples run with (pipx is on the runner)
+        run: command -v uv || pipx install uv
+      - name: dev-ai
+        run: tests/ci.sh dev-ai
       - name: drives
         run: tests/ci.sh drives
       - name: firmware

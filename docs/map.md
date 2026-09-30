@@ -116,7 +116,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 
 ### `~/dev`
 
-A folder per language you added (`vikix add python` …), made by `67-dev`: `~/dev/<language>/README.md` (the tools on this machine, and where to learn; **written again by every update**, so keep your notes in another file), `examples/` (copied once, yours), and `docs/` (filled by `vikix docs`). `~/dev/index.html` links every offline doc. Anything else you put in `~/dev` is left alone.
+A folder per language you added (`vikix add python` …), made by `67-dev`: `~/dev/<language>/README.md` (the tools on this machine, and where to learn; **written again by every update**, so keep your notes in another file), `examples/` (copied once, yours), and `docs/` (filled by `vikix docs`). `~/dev/index.html` links every offline doc. `~/dev/ai` is the same without a language of its own: small programs that call Claude and the local models ([AI](ai.md#your-own-programs-devai)). Anything else you put in `~/dev` is left alone.
 
 ## The checkout: `~/vikix`
 

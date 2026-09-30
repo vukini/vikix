@@ -12,6 +12,7 @@ Vikix gives you these ways to use AI, from the most capable to the most private:
 | **Super+F10, Super+F11** | Talk to the AI or the agent, and it answers aloud | `vikix add voice` (a minute, once) | As Super+i's, or the agent's; the listening and the voice stay here |
 | **In Neovim** | A chat about your code, and your agent in a side window (`Space A`) | `vikix add neovim`, and a local model, a key or an agent | As Super+i's, or the agent's |
 | **In Emacs** | The same, with gptel (`C-c g`) and agent-shell (`C-c a`) | `vikix add emacs`, and a local model, a key or an agent | As Super+i's, or the agent's |
+| **`~/dev/ai`** | Small programs of your own that call Claude or a local model, and one that answers from your notes | `vikix add python`, and a key or a local model | Here, or to Anthropic when you run the Claude ones |
 
 You can use any of them, all of them, or none. Nothing AI runs until you start it.
 
@@ -178,6 +179,33 @@ llm -m claude-sonnet-5 "..."               # Claude, with your API key
 Its default model is a local one if you have one, otherwise Claude if you've set an Anthropic key. To choose: `vikix ai llm --default MODEL`.
 
 Everything you ask is logged: `llm logs -n 5` shows the last five, and `llm logs off` stops the logging.
+
+## Your own programs: `~/dev/ai`
+
+To see how the rest works, or to build something of your own, `~/dev/ai` has four small programs to read, run and change. Each has a README and `make run`:
+
+| Example | What it shows | What it needs |
+|---|---|---|
+| `claude` | One question to Claude: `ask.py` with Anthropic's Python library, `ask.sh` with curl and jq, one HTTP request | An Anthropic key (`vikix ai key set anthropic`) |
+| `local` | The same question to a model on the laptop, through Ollama's API | `vikix add local-ai` and a model |
+| `embeddings` | Sentences turned into numbers, kept in SQLite (sqlite-vec), the nearest to a question found by meaning | Ollama, and `make setup` (all-minilm, 46 MB) |
+| `ask-notes` | A folder of Markdown notes, searched and answered from | The same, and a model to answer (or a key) |
+
+`ask-notes` works on your own notes, an Obsidian vault say:
+
+```sh
+cd ~/dev/ai/examples/ask-notes
+make setup                                          # once
+make index NOTES=~/General SKIP=Admin,Readwise      # about five minutes a thousand notes; later, only what changed
+make ask QUESTION="What did I write about runit?"   # the local model answers, naming the notes
+make ask QUESTION="..." CLAUDE=1                    # Claude answers: those six passages go to Anthropic
+```
+
+The index, `notes.db`, stays in that folder and holds passages from your notes: `make clean` deletes it. Hidden folders (`.obsidian`) are never read, and `SKIP` leaves out the ones you'd never send anywhere.
+
+The small models are quick but miss things: all-minilm sometimes ranks the wrong note first, and a 3B model answers from whatever it's given. Each answer lists the notes it was given, so you can check. `EMBED_MODEL=nomic-embed-text` (after `ollama pull nomic-embed-text`, then index again) finds better passages, and `CLAUDE=1` answers better.
+
+The Python ones name their libraries at their top, pinned (`# /// script`), and `uv run` fetches them the first time, so nothing is installed for the whole machine.
 
 ## AI on the selected text
 
