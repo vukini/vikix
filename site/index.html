@@ -91,6 +91,7 @@
       </div>
 
       <div class="agent">
+        <div class="agent-left">
         <div class="term">
           <header><span>Super+a · Claude Code on the desktop</span><span>a real session, shortened</span></header>
 <pre><span class="t-d">:: snapshot 99e03a6: before an agent session</span>
@@ -112,6 +113,19 @@
     It also shows up in the Super+F1 key help.
   <span class="t-y">vikix changes</span> shows the new lines. If you want either change
   back, <span class="t-y">vikix undo</span> will reverse it.</pre>
+        </div>
+        <div class="term">
+          <header><span>A terminal · llm, on a model on the laptop</span><span>a real run</span></header>
+<pre><span class="t-a">$</span> git show HEAD | llm "write the commit message"
+Here is the commit message:
+
+"Added new section to site/index.html explaining the
+Super+F10/F11 key combinations for talking to the AI
+and accessing the guides"
+
+<span class="t-d">:: llama3.2:3b, offline: nothing left the laptop.</span>
+<span class="t-d">:: the diff was this page's own change; llm logs keeps it.</span></pre>
+        </div>
         </div>
         <ul class="safe">
           <li><h3>You decide how far it goes.</h3><p>By default the agent shows each command and each edit, and waits for your yes.</p></li>
