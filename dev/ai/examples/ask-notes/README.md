@@ -19,7 +19,8 @@ How it works, in `notes.py`:
 
 1. **index** cuts each note into passages at its headings, turns each
    passage into an embedding (`../embeddings`) and keeps it in `notes.db`
-   with sqlite-vec. Hidden folders (`.obsidian`, `.git`) are left out, and
+   with sqlite-vec. Hidden files and folders (`.obsidian`, `.git`, Emacs's
+   `.#note.md` locks) are left out, and
    so are the ones `SKIP` names.
 2. **ask** turns the question into an embedding too, takes the six
    passages nearest it, and gives them to a model with the question and

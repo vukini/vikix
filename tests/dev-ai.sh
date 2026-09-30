@@ -193,9 +193,12 @@ v="$t/vault"; mkdir -p "$v/Admin" "$v/.obsidian" "$v/Work"
 printf '# Bank\nThe account number is secret.\n' > "$v/Admin/bank.md"
 printf '# Settings\nhidden\n' > "$v/.obsidian/app.md"
 printf -- '---\ntags: [x]\n---\n# Meetings\nThe budget meeting is on Tuesday.\n' > "$v/Work/meetings.md"
+# What Emacs leaves while a note has unsaved changes: a link to nowhere.
+ln -s "user@host.1234:1700000000" "$v/Work/.#meetings.md"
+printf '# Hidden\nhidden\n' > "$v/Work/.hidden.md"
 out=$(run ask-notes make -s index NOTES="$v" SKIP=Admin)
 check "another folder should start again: $out" has "starting again" "$out"
-check "only the one note should be read (not Admin, not .obsidian): $out" has "1 notes read" "$out"
+check "only the one note should be read (not Admin, .obsidian, an Emacs lock or a hidden note): $out" has "1 notes read" "$out"
 out=$(run ask-notes make -s ask QUESTION="When is the budget meeting?")
 check "the front matter shouldn't be in a passage" lacks "tags:" "$(jq -r '.body.messages[1].content' <<<"$(last)")"
 check "the skipped folder shouldn't be in the answer's notes" lacks "account number" "$(jq -r '.body.messages[1].content' <<<"$(last)")"

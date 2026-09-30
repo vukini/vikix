@@ -151,10 +151,15 @@ def index(folder, skip):
     notes = {}
     for p in folder.rglob("*.md"):
         rel = p.relative_to(folder)
-        # Hidden folders (.obsidian, .git, .trash) and the ones --skip names.
-        if any(part.startswith(".") or part in skip for part in rel.parts[:-1]):
+        # Hidden files and folders (.obsidian, .git, and Emacs's .#note.md, a
+        # link to nowhere while a note has unsaved changes), and --skip's.
+        if rel.name.startswith(".") or any(part.startswith(".") or part in skip for part in rel.parts[:-1]):
             continue
-        notes[str(rel)] = p.stat().st_mtime
+        try:
+            if p.is_file():
+                notes[str(rel)] = p.stat().st_mtime
+        except OSError:                          # gone since the folder was listed
+            continue
     known = dict(db.execute("SELECT path, mtime FROM files"))
     for gone in known.keys() - notes.keys():
         forget(db, gone)
@@ -182,7 +187,11 @@ def index(folder, skip):
     for note in todo:
         if note in known:
             forget(db, note)
-        text = (folder / note).read_text(errors="replace")
+        try:
+            text = (folder / note).read_text(errors="replace")
+        except OSError as e:                     # gone, or unreadable: the next index tries again
+            print(f"  skipped {note}: {e.strerror}", file=sys.stderr)
+            continue
         batch.extend((note, h, t) for h, t in passages(text))
         if len(batch) >= 32:
             store()

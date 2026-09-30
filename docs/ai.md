@@ -201,7 +201,7 @@ make ask QUESTION="What did I write about runit?"   # the local model answers, n
 make ask QUESTION="..." CLAUDE=1                    # Claude answers: those six passages go to Anthropic
 ```
 
-The index, `notes.db`, stays in that folder and holds passages from your notes: `make clean` deletes it. Hidden folders (`.obsidian`) are never read, and `SKIP` leaves out the ones you'd never send anywhere.
+The index, `notes.db`, stays in that folder and holds passages from your notes: `make clean` deletes it. Hidden files and folders (`.obsidian`, the `.#note.md` Emacs leaves while a note is unsaved) are never read, and `SKIP` leaves out the ones you'd never send anywhere.
 
 The small models are quick but miss things: all-minilm sometimes ranks the wrong note first, and a 3B model answers from whatever it's given. Each answer lists the notes it was given, so you can check. `EMBED_MODEL=nomic-embed-text` (after `ollama pull nomic-embed-text`, then index again) finds better passages, and `CLAUDE=1` answers better.
 
