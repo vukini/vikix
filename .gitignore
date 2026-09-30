@@ -5,3 +5,10 @@
 .#*
 *~
 __pycache__/
+# The review agents' screenshots: working evidence, kept out of the repo
+# (they can show the user's own windows)
+.claude/reports/shots/
+# What make builds in the C examples (make clean removes them)
+dev/c/examples/hello/hello
+dev/c/examples/linkedlist/list
+dev/c/examples/wordfreq/wordfreq
