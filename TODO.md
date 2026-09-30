@@ -31,6 +31,68 @@ Built in this order: AI first, then newcomers, then the rest. Package facts were
     - Prior art for running it outside Omarchy, with screenshots: the Mac port, https://github.com/gscalzo/HypeX.
 10. **Tutorials: `vikix learn c`.** A hands-on C course in the terminal, lessons checked on save, twelve tracks well past the basics, on a language-neutral runner. The plan, and the decisions it waits on, are in `TUTORIALS.md`. The steps: [C tutorials](#c-tutorials-vikix-learn-c), below.
 
+## Wish list
+
+Added 2026-09-30, from a conversation with Vid about 0.52-0.65. Not yet ordered against the list above, and no package names checked against void-packages yet: check each before building, as for the features above. Numbered on from 10.
+
+### Updates and packages
+
+11. **A granular update.** `vikix update` stays as everything. Beside it: `vikix update core` (Vikix only: pull, then `10-packages` for packages new to the lists but without `xbps-install -Su`, `20-services`, `40-config`, migrations, the MCP server and a StumpWM reload: seconds, not minutes); `vikix update system` (Void's packages only, the two `xbps-install` lines); `vikix update tools` (`45-editors`, `65-languages`, `67-dev`, llm, and item 12's upgrades). Core must still install new list entries, or a release needing a new program (xcolor, say) breaks. To decide: whether the bar's `updates` note says which part is waiting (`Vikix update` = core, `updates 12` = system).
+12. **Programs from pipx, uv, cargo and go.** Put `~/.cargo/bin` and `~/go/bin` on PATH, in the 60-login block that adds `~/.local/bin` (today `cargo install` and `go install` programs aren't found). `update tools` (item 11) runs `pipx upgrade-all`, `uv tool upgrade --all`, and `cargo install-update -a` when that helper is installed. Go has no upgrade-all: say so in the docs rather than guess.
+
+### AI, more
+
+13. **A cloud model for `vikix ai use`.** Beside `local` and `claude`, `cloud`: any OpenAI-compatible address, a key from `vikix ai key`, and a model name, with OpenRouter as the ready-made default (one key, hundreds of models, pay per use). `s-i`, `llm`, gptel, Neovim's AI and the agents' `--local`-style switch all follow it. The docs say plainly that the text goes to that service and its model host.
+14. **Hermes Agent (Nous Research), as an agent.** `vikix agent --use hermes`, a feature, installed from the official https://hermes-agent.nousresearch.com (hermes-agent.org is a third party), into `~/.hermes` with uv. It reads `AGENTS.md`, so the guide works as it is. The same rules as the other agents: the snapshot first, no SSH agent, installers downloaded whole. To solve: Hermes keeps its keys in `~/.hermes/.env`; give it only the one it needs. Its terminal agent adds little beside the five; the value is item 15.
+15. **Hermes's gateway, later.** Talking to the agent from Telegram, WhatsApp or Signal, and its scheduled jobs. A door into the machine, so: an allow-list of senders, Hermes's Docker backend for commands, a bar note while it runs (`hermes`), and a snapshot on a timer instead of per session. On a laptop it stops when the lid closes; the always-on version is Hermes on a small cloud server reaching the laptop over Tailscale (item 17). Needs a design first.
+16. **Your own model in the cloud: a guide.** Serverless GPUs (RunPod, Modal: pay per second, a minute or two to wake), a GPU rented by the hour (RunPod, Vast.ai, Lambda), and OpenRouter, compared on cost and privacy; which model sizes fit which cards at Hermes's 64k context; then pointing `vikix ai use cloud` at your own endpoint. Probably a docs page, not code.
+
+### Your machines and your phone
+
+17. **Tailscale as a feature.** A private network between your own devices: the safe way for a phone or a server to reach the laptop, never SSH open to the internet.
+18. **Syncthing as a feature.** Folders (an Obsidian vault, say) kept in step between machines directly, no cloud; a bar note while it syncs.
+19. **KDE Connect.** Phone notifications on the desktop, files both ways, the phone as a remote.
+20. **`vikix export` / `vikix import`.** One file with your features, theme, keyboard, web apps and settings (no secrets), so a new machine becomes yours in one step.
+21. **A Vikix installer image.** A USB stick that installs Void and Vikix in one go (void-mklive).
+
+### The desk: mail, documents, investing
+
+22. **The desk.** Business mail and paperwork, sorted by AI, for someone who gets hundreds of emails a day across more than one company. Parts, in order:
+    - **Mail on the machine:** isync into a Maildir, indexed by notmuch; searchable offline, readable in Emacs. Microsoft 365 may block this (IMAP needs OAuth, and IT may refuse); then the brief works from the web app or Superhuman instead.
+    - **`vikix mail brief`:** the day's mail in groups (needs your reply, waiting on others, invoices and payments, investor and bank updates, newsletters, skip), a line each. Draft replies for the first group, into a drafts folder: nothing ever sends itself.
+    - **Documents:** an inbox folder for scans, downloads and attachments (pulled from mail); OCR, dated, tagged by company, type and counterparty, filed (Paperless-ngx, locally). Questions across them ("the notice period in the lease"), and reminders for dates found in them.
+    - **Investing:** holdings as plain-text accounts (hledger or Beancount) or Ghostfolio, fed from broker statements the AI turns into entries you check; prices and news for what you hold. Numbers, not advice.
+    - **The morning brief:** mail, today's calendar, dates coming up in documents, the portfolio, on one page.
+    - **Rules:** the step that reads mail can do nothing else (no sending, no web, no commands), because any email may carry a prompt injection; business folders go to a local model by default, Claude only where chosen; `llm`'s log off for this (it keeps every prompt); one key for this job only; companies kept apart (tags, folders, accounts); everything in `vikix backup`. Check the laptop's disk is encrypted.
+    - To ask Vid first: which mail systems, where documents live now, which brokers, and whether Claude may read business mail.
+
+### Music
+
+23. **Music production as a feature.** Low-latency audio: PipeWire's JACK side, realtime priority (rtkit or limits), Ardour, Carla and a plugin set; a setting that trades battery for lower latency while recording.
+
+### Languages and reading
+
+24. **Keyboard layouts on a key.** English, Arabic and others, switched with a key, the current one in the bar; Esperanto keeps its Right Alt option.
+25. **Spell checking in Esperanto and Arabic,** in Emacs, LibreOffice and Firefox (hunspell dictionaries).
+26. **Read aloud.** An `s-i` action that speaks the selection with a local voice (piper, from its release: not in Void).
+27. **E-books to an e-reader.** Calibre as a feature: send an EPUB or PDF to a BOOX or Kindle, converting first when needed.
+
+### Work
+
+28. **Remote desktop.** Remmina or FreeRDP, for work servers, lighter than the Windows VM.
+29. **Teams and Zoom as web app presets,** beside the mail ones.
+
+### The desktop
+
+30. **Save and restore layouts.** `vikix layout save writing`: which windows sit where on a workspace; restoring brings the workspace back for a project.
+31. **A drop-down terminal** on Super+`, over whatever is open.
+32. **Find any file.** A rofi search over the home folder (plocate or fd), as fast as typing.
+33. **Battery care on ThinkPads.** tlp's charge thresholds: stop at 80% while docked; a Super+m entry to charge to 100% before a trip.
+
+### Family
+
+34. **A children's account.** A second login with a simpler desktop and apps chosen by the parent, where nothing of the parent's can be broken; a home for a child's programming course.
+
 ## C tutorials: `vikix learn c`
 
 Plan: Learning To Code project → "Vikix — C Tutorials Plan"
