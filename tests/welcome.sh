@@ -29,7 +29,7 @@ mkdir -p "$HOME/.config/vikix" "$t/bin"
 cat > "$t/bin/fzf" <<'EOF'
 #!/bin/sh
 # Picks the lines matching $PICK; none picked is Esc (130), as fzf does.
-out=$(grep -E -- "${PICK:-^$^}") || exit 130
+out=$(tee "${FZF_IN:-/dev/null}" | grep -E -- "${PICK:-^$^}") || exit 130
 printf '%s\n' "$out"
 EOF
 printf '#!/bin/sh\necho "setxkbmap $*" >> %q\n' "$t/calls" > "$t/bin/setxkbmap"
@@ -87,6 +87,11 @@ check "the keyboard step should be ticked" grep -qx keyboard "$state"
 out=$(PICK='keys that matter' bash -c "set -- seen; . '$here/bin/vikix-welcome'; cmd_keys" </dev/null 2>&1)
 check "the keys card should name Super+m: $out" has 'Super+m' "$out"
 check "the keys step should be ticked" grep -qx keys "$state"
+# No themes of your own (no ~/.config/vikix/themes): the list still opens.
+out=$(FZF_IN="$t/themes" bash -c "set -- seen; . '$here/bin/vikix-welcome'; cmd_theme; echo back" </dev/null 2>&1 || true)
+check "the theme step should come back after Esc: $out" has '^back$' "$out"
+check "the theme step should offer Vikix's themes: $(tr '\n' ' ' < "$t/themes" 2>/dev/null)" \
+  bash -c "grep -qx void '$t/themes' && grep -qx paper '$t/themes'"
 out=$(PICK='Close' w)
 check "Close should end the welcome: $out" test -z "$(grep -v '^$' <<<"$out" || true)"
 rm "$state"
