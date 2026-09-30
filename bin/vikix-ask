@@ -6,6 +6,8 @@
 #                         rewrite, translate, explain): for keys of your own
 #                         in user.lisp
 #   vikix-ask use [local|claude] which model answers (vikix ai use); alone, says which
+#   vikix-ask which       the model and where the text goes, tab-separated
+#                         (for vikix-voice: Super+F10 asks the same model)
 #
 # The text is what you last highlighted (X keeps it after the highlight
 # is gone), else the clipboard: the notification while it works shows it. Proofread, Rewrite and Translate put their result on the
@@ -167,6 +169,8 @@ print(t, end="")
 make_conf
 if [ "${1:-}" = use ]; then set_use "${2:-}"; exit; fi
 pick_model
+# The model and where the words go, tab-separated (vikix-voice asks the same one).
+if [ "${1:-}" = which ]; then printf '%s\t%s\n' "$MODEL" "$WHERE"; exit 0; fi
 TEXT=$(selection)
 if [ "${#TEXT}" -gt "$MAX" ]; then TEXT=${TEXT:0:$MAX}; CUT=1; else CUT=0; fi
 

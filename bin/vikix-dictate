@@ -7,7 +7,11 @@
 #   vikix dictate toggle     start listening, or stop and type it (Super+F9);
 #                            a recording that stopped by itself (after 5
 #                            minutes) is typed by the next press
-#   vikix dictate start | stop
+#   vikix dictate toggle ask | agent
+#                            the same, but what you said goes to the AI,
+#                            which answers aloud (vikix voice: Super+F10 the
+#                            chat model, Super+F11 the agent)
+#   vikix dictate start [ask|agent] | stop
 #   vikix dictate cancel     stop listening, type nothing (Super+Shift+F9)
 #   vikix dictate models [base.en|small]
 #                            which model: base.en, English (150 MB, a second
@@ -54,6 +58,7 @@ RUN="${XDG_RUNTIME_DIR:-/tmp}"
 WAV="$RUN/vikix-dictation.wav"
 MAX_SECONDS=300          # a forgotten microphone stops itself
 LAST_PRESS="$RUN/vikix-dictation.last"
+TO="$RUN/vikix-dictation.to"   # where it goes: typed (empty), ask or agent
 # Tests name their stand-ins (these reach the network or build for minutes).
 CURL=${VIKIX_CURL:-curl}
 GIT=${VIKIX_GIT:-git}
@@ -173,12 +178,19 @@ cmd_uninstall() {
 # --- Listening ------------------------------------------------------------------
 
 cmd_start() {
+  local to=${1:-}
   if ! ready; then
     note "Dictation isn't set up" "In a terminal: vikix add dictation (a few minutes, once)"; return 1
   fi
   listening && { note "Already listening" "Super+F9 stops and types it"; return 0; }
   command -v pw-record >/dev/null 2>&1 || { note "Can't listen" "pw-record (PipeWire) isn't here"; return 1; }
+  if [ -n "$to" ]; then
+    [ -x "$VIKIX_DIR/bin/vikix-voice" ] || { note "Can't send it to the AI" "vikix-voice isn't here"; return 1; }
+    # The microphone mustn't hear the AI talking.
+    "$VIKIX_DIR/bin/vikix-voice" quiet
+  fi
   (umask 077; : > "$WAV")
+  printf '%s' "$to" > "$TO"
   # 16 kHz mono, as whisper wants it. timeout: a forgotten microphone stops.
   timeout "$MAX_SECONDS" pw-record --rate 16000 --channels 1 --format s16 "$WAV" >/dev/null 2>&1 &
   local pid=$!
@@ -190,7 +202,11 @@ cmd_start() {
       notify-send -a Vikix -u critical "Dictation stopped after $((MAX_SECONDS / 60)) minutes" "Super+F9 types what you said" 2>/dev/null || true
     fi ) >/dev/null 2>&1 &
   bar
-  note "Listening…" "Super+F9 again types what you said (Super+Shift+F9 cancels)"
+  case $to in
+    ask)   note "Listening, for the AI…" "Super+F10 again sends it (Super+Shift+F9 cancels)" ;;
+    agent) note "Listening, for the agent…" "Super+F11 again sends it (Super+Shift+F9 cancels)" ;;
+    *)     note "Listening…" "Super+F9 again types what you said (Super+Shift+F9 cancels)" ;;
+  esac
 }
 
 # The recording stops: pw-record writes its file's end on INT.
@@ -219,8 +235,9 @@ transcribe() {   # transcribe WAV
 cmd_stop() {
   listening || [ -s "$WAV" ] || { note "Not listening" "Super+F9 starts"; return 0; }
   # The window you were in: the text goes there, and only there.
-  local win now text work
+  local win now text work to
   win=$(xdotool getactivewindow 2>/dev/null || true)
+  to=$(cat "$TO" 2>/dev/null || true); rm -f "$TO"
   stop_recording
   # Moved aside at once: a new Super+F9 records into a fresh file while
   # this one is written down.
@@ -230,6 +247,13 @@ cmd_stop() {
   text=$(transcribe "$work")
   rm -f "$work"
   if [ -z "$text" ]; then note "Heard nothing" "Is the microphone on? (pavucontrol, Input devices)"; return 0; fi
+  # For the AI: it goes there, not into a window.
+  case $to in
+    ask)   export NOTE_ID   # "Writing it down…" becomes "Thinking…"
+           exec "$VIKIX_DIR/bin/vikix-voice" ask "$text" ;;
+    agent) note "To the agent" "$(printf '%s' "${text:0:200}" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g')"
+           exec "$VIKIX_DIR/bin/vikix-voice" agent "$text" ;;
+  esac
   # A space after it, so the next dictation doesn't run into this one.
   case $text in *[.?!,:\;]) text="$text " ;; esac
   printf '%s' "$text" | xclip -selection clipboard 2>/dev/null || true
@@ -244,7 +268,7 @@ cmd_stop() {
 }
 
 cmd_cancel() {
-  stop_recording; rm -f "$WAV"
+  stop_recording; rm -f "$WAV" "$TO"
   note "Dictation cancelled" ""
 }
 
@@ -255,14 +279,15 @@ cmd_status() {
 case ${1:-} in
   setup)     cmd_setup ;;
   toggle)
+    case ${2:-} in ''|ask|agent) ;; *) die "vikix dictate toggle [ask|agent]" ;; esac
     # A held key repeats, and a double tap is quick: presses within 0.7 s
     # of the last are one press.
     now=$(date +%s%N); last=$(cat "$LAST_PRESS" 2>/dev/null || echo 0)
     [ $(( (now - last) / 1000000 )) -ge 700 ] || exit 0
     echo "$now" > "$LAST_PRESS"
     # Listening, or a recording the 5-minute limit stopped: type it.
-    if listening || [ -s "$WAV" ]; then cmd_stop; else cmd_start; fi ;;
-  start)     cmd_start ;;
+    if listening || [ -s "$WAV" ]; then cmd_stop; else cmd_start "${2:-}"; fi ;;
+  start)     cmd_start "${2:-}" ;;
   stop)      cmd_stop ;;
   cancel)    cmd_cancel ;;
   models)    shift; cmd_models "${1:-}" ;;

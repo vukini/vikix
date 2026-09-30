@@ -9,6 +9,7 @@ Vikix gives you these ways to use AI, from the most capable to the most private:
 | **`llm`** | One command for any model, fed from a pipe | `vikix ai llm`, and a local model or a key | Here, or to the model's company |
 | **Super+i** | Proofread, rewrite, translate, explain or ask about the text you selected, in any program | `vikix ai llm`, and a local model (or Claude, if you choose) | Here, unless you choose Claude |
 | **Super+F9** | Speak, and it types what you said, in any program | `vikix add dictation` (a few minutes, once) | Nowhere: it all stays here |
+| **Super+F10, Super+F11** | Talk to the AI or the agent, and it answers aloud | `vikix add voice` (a minute, once) | As Super+i's, or the agent's; the listening and the voice stay here |
 | **In Neovim** | A chat about your code, and your agent in a side window (`Space A`) | `vikix add neovim`, and a local model, a key or an agent | As Super+i's, or the agent's |
 | **In Emacs** | The same, with gptel (`C-c g`) and agent-shell (`C-c a`) | `vikix add emacs`, and a local model, a key or an agent | As Super+i's, or the agent's |
 
@@ -294,6 +295,43 @@ vikix dictate models base.en  # back to English
 
 To take it away: `vikix remove dictation` (the models stay; `vikix dictate uninstall --models` removes them too).
 
+## Talking with the AI
+
+Dictation types what you say. Voice sends it to the AI instead, and the answer comes back aloud.
+
+| Key | What happens |
+|---|---|
+| **Super+F10**, speak, **Super+F10** | The chat model answers: the one Super+i uses (local, or Claude). You hear the answer and see it in a notification (a long one opens in a terminal) |
+| **Super+F11**, speak, **Super+F11** | It goes to the agent, Claude Code, in a terminal of its own. Claude's replies are read aloud |
+| **Super+Shift+F10** | Stop the talking |
+
+**It remembers the conversation.** Ask "What's the capital of France?", then "And how many people live there?", and it knows you mean Paris. After five quiet minutes the next question starts afresh; Super+m → *Voice: a new conversation* does it at once. With the agent, every question after the first goes to the same terminal, so it carries on there too; close that terminal to start over.
+
+**It stops talking when you start.** Pressing Super+F10 or Super+F11 to speak stops it at once, so the microphone doesn't hear it.
+
+To set it up, once (a minute, no password):
+
+```sh
+vikix add voice            # brings dictation and llm, if they aren't here
+```
+
+That installs [Piper](https://github.com/OHF-Voice/piper1-gpl), a voice that runs on this laptop, and downloads a voice for it (60 MB, checked against its published checksum).
+
+**Where your words go.** The listening is dictation's: on this laptop. A question to Super+F10 goes where Super+i's text does (nowhere, with a local model; to Anthropic, with Claude: `vikix ai use`). A question to Super+F11 goes to the agent's company, as with Super+a. The answer is spoken on this laptop.
+
+**Your choices** are in `~/.config/vikix/voice`:
+
+```sh
+vikix voice voices          # which voice: lessac, amy (American), alan (British)
+vikix voice voices alan     # switch (it downloads the voice)
+```
+
+Set `speak=no` there to only see the answers, or `idle=` to change the five minutes. `vikix voice say "any text"` reads anything aloud.
+
+Only Claude Code's replies are read aloud: with another agent (`vikix agent --default`), Super+F11 still sends your question, and the answer stays on the screen.
+
+To take it away: `vikix remove voice` (the voices stay; `vikix voice uninstall --voices` removes them too).
+
 ## When AI doesn't work
 
 | What happens | What to do |
@@ -307,6 +345,8 @@ To take it away: `vikix remove dictation` (the models stay; `vikix dictate unins
 | Super+i says "Super+i needs llm", "No local model yet" or "Local AI isn't running" | Do what it says: `vikix ai llm`, a model with Super+m → *Local AI: choose a model*, or `vikix ai setup` |
 | Super+i says "Select some text first" | Highlight the text (or copy it), then press Super+i again |
 | Super+F9 says "Dictation isn't set up" | `vikix add dictation`, once |
+| Super+F10 answers, but nothing is heard | `vikix voice status`; `speak=no` in `~/.config/vikix/voice` turns the voice off; check the volume and the output in pavucontrol |
+| "Voice isn't set up" | `vikix add voice`, once |
 | Super+F9 says "Heard nothing" | The microphone: `pavucontrol`, *Input devices*, check it isn't muted and moves when you speak |
 | Super+F9 types in the wrong place | It types where the focus is when you press the second Super+F9; the text is on the clipboard too |
 | Super+i says "AI is still working on the last one" | Wait for its answer: one at a time |

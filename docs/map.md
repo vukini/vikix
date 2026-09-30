@@ -39,6 +39,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── ai                 yours     which model Super+i uses: use=local or claude, model=, languages=
 │   │   ├── agent              yours     which agent Super+a starts (vikix agent --default NAME)
 │   │   ├── dictation          yours     dictation's model: base.en or small (vikix dictate models)
+│   │   ├── voice              yours     how the AI talks back: voice=, speak=, idle= (vikix voice)
 │   │   ├── features           yours     the features you chose (vikix add, vikix remove, vikix features)
 │   │   ├── packages-skip      yours     packages you dropped (vikix pkg drop); updates leave them out
 │   │   ├── windows            yours     where the Windows VM's disk is
@@ -75,6 +76,8 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   ├── state/vikix/mcp.log            written   every call an agent made to vikix mcp (600)
 │   ├── state/vikix/session.env        written   the session's display and D-Bus, for vikix mcp under Codex (600)
 │   ├── share/vikix/whisper/           fetched   dictation's model and voice detector (vikix dictate)
+│   ├── share/vikix/piper/             fetched   the voice the AI talks with (vikix voice)
+│   ├── state/vikix/voice-chat         written   Super+F10's conversation: llm's id, and when it was last used
 │   ├── share/vikix/AGENTS.md          written   the skill as a guide for Codex, Gemini, Aider (linked as ~/.codex/AGENTS.md, ~/.gemini/GEMINI.md)
 │   ├── opt/picolisp/          built     PicoLisp, from source (with the feature lisp)
 │   ├── opt/ollama/            built     Ollama, for local AI models (vikix ai setup)

@@ -137,6 +137,10 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
     ("Local AI: choose a model" (run-shell-command "vikix-local-ai models --rofi") "~/.local/opt/ollama/bin/ollama")
     ("Local AI: unload the model" (run-shell-command "vikix-local-ai stop --notify") "~/.local/opt/ollama/bin/ollama")
     ("Dictation: start, or stop and type it" (run-shell-command "vikix-dictate toggle") "~/.local/opt/whisper.cpp/build/bin/whisper-cli")
+    ("Voice: talk to the AI (Super+F10)" (run-shell-command "vikix-dictate toggle ask") "~/.local/bin/piper")
+    ("Voice: talk to the agent (Super+F11)" (run-shell-command "vikix-dictate toggle agent") "~/.local/bin/piper")
+    ("Voice: stop talking"  (run-shell-command "vikix-voice quiet") "~/.local/bin/piper")
+    ("Voice: a new conversation" (run-shell-command "vikix-voice new") "~/.local/bin/piper")
     ("Firmware updates"    (run-shell-command
                             (format nil "~a -e sh -c 'vikix firmware update; printf \"\\nEnter closes this window. \"; read x'"
                                     *vikix-terminal*)))

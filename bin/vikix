@@ -29,6 +29,9 @@
 #   vikix diagnose      that report, handed to your AI agent: what's wrong?
 #   vikix dictate setup|models|file|status|uninstall
 #                         speak, and it types what you said (Super+F9), on this laptop
+#   vikix voice setup|say|quiet|new|voices|status|uninstall
+#                         talk to the AI (Super+F10) or the agent (Super+F11),
+#                         and it answers aloud (Piper, on this laptop)
 #   vikix mcp register|unregister|tools
 #                         the desktop as an MCP server, for Claude Code and other agents
 #   vikix agent         the AI agent, after a snapshot of your files (alias: a):
@@ -725,6 +728,7 @@ main() {
     agent)       shift; exec "$VIKIX_DIR/bin/vikix-agent" "$@" ;;
     debug|diagnose) exec "$VIKIX_DIR/bin/vikix-debug" "$@" ;;
     dictate)     shift; exec "$VIKIX_DIR/bin/vikix-dictate" "$@" ;;
+    voice)       shift; exec "$VIKIX_DIR/bin/vikix-voice" "$@" ;;
     mcp)         shift; exec "$VIKIX_DIR/bin/vikix-mcp" "$@" ;;
     snapshot|changes|history|undo)
       case ${2:-} in -h|--help) history_help; exit 0 ;; esac

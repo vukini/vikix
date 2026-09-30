@@ -1,0 +1,378 @@
+#!/usr/bin/env bash
+# vikix-voice — talk to the AI, and it talks back. Dictation writes down
+# what you said (on this laptop, whisper.cpp); this sends it on, and Piper
+# reads the answer aloud (a neural voice, on this laptop too).
+#
+#   Super+F10         speak, Super+F10 again: the chat model answers
+#                     (Super+i's: local, or Claude), shown and spoken.
+#                     Follow-ups carry on the conversation; after 5 quiet
+#                     minutes (idle= below) the next one starts afresh
+#   Super+F11         speak, Super+F11 again: it goes to the agent (Claude
+#                     Code) in its own terminal; follow-ups go to the same
+#                     one, and Claude's replies are read aloud
+#   Super+Shift+F10   stop talking
+#
+#   vikix voice setup        install Piper (pinned, with uv) and its voice
+#                            (checked); a minute, once; no password
+#   vikix voice ask TEXT     what Super+F10 does with what you said
+#   vikix voice agent TEXT   what Super+F11 does
+#   vikix voice say TEXT     read TEXT aloud (- reads it from stdin)
+#   vikix voice quiet        stop talking
+#   vikix voice new          forget the conversation: the next question starts afresh
+#   vikix voice voices [NAME]  which voice: lessac, amy (American), alan (British)
+#   vikix voice status
+#   vikix voice uninstall [--voices]
+#
+# The choices are yours, in ~/.config/vikix/voice (made on first use):
+# the voice, speak=no to only show answers, idle= minutes. The chat's
+# words go where Super+i's do (vikix ai use local|claude); the agent's go
+# to Anthropic, as with Super+a. What's said aloud stays on this laptop.
+
+set -uo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+# shellcheck source=../lib/features.sh
+. "$VIKIX_DIR/lib/features.sh"
+
+# Pinned, like llm: a new version is a new line here. uv installs it as
+# you, in its own environment, with `piper` in ~/.local/bin.
+PIPER_PIN=piper-tts==1.8.0
+# The voices, from one commit of rhasspy/piper-voices, each file checked.
+VOICES_URL=https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en
+declare -A VOICE_PATH=(
+  [lessac]=en_US/lessac/medium/en_US-lessac-medium
+  [amy]=en_US/amy/medium/en_US-amy-medium
+  [alan]=en_GB/alan/medium/en_GB-alan-medium
+)
+declare -A VOICE_SHA=(
+  [lessac]=5efe09e69902187827af646e1a6e9d269dee769f9877d17b16b1b46eeaaf019f
+  [amy]=b3a6e47b57b8c7fbe6a0ce2518161a50f59a9cdd8a50835c02cb02bdd6206c18
+  [alan]=0a309668932205e762801f1efc2736cd4b0120329622adf62be09e56339d3330
+)
+declare -A VOICE_JSON_SHA=(
+  [lessac]=efe19c417bed055f2d69908248c6ba650fa135bc868b0e6abb3da181dab690a0
+  [amy]=95a23eb4d42909d38df73bb9ac7f45f597dbfcde2d1bf9526fdeaf5466977d77
+  [alan]=c0f0d124e5895c00e7c03b35dcc8287f319a6998a365b182deb5c8e752ee8c1e
+)
+# tests/voice.sh's stand-in downloads can't match the real checksums.
+if [ -n "${VIKIX_TEST_SHA:-}" ]; then
+  for v in "${!VOICE_SHA[@]}"; do VOICE_SHA[$v]=$VIKIX_TEST_SHA; VOICE_JSON_SHA[$v]=$VIKIX_TEST_SHA; done
+fi
+PIPER=${VIKIX_PIPER:-$HOME/.local/bin/piper}
+LLM=${VIKIX_LLM:-$HOME/.local/bin/llm}
+UV=${VIKIX_UV:-uv}
+CURL=${VIKIX_CURL:-curl}
+TERMINAL=${VIKIX_TERMINAL:-alacritty}
+VOICES="${XDG_DATA_HOME:-$HOME/.local/share}/vikix/piper"
+CONF="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/voice"
+RUN="${XDG_RUNTIME_DIR:-/tmp}"
+SPEAKING="$RUN/vikix-voice.speaking"      # the speaking pipeline's process group
+CHAT="$VIKIX_STATE/voice-chat"            # llm's conversation id, and when it was last used
+AGENT_CLASS=vikix-voice-agent             # the agent's terminal, to find it again
+
+note() { notify-send -a Vikix ${NOTE_ID:+-r "$NOTE_ID"} "$1" "${2:-}" 2>/dev/null || true; }
+escape() { sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'; }
+
+make_conf() {
+  [ -e "$CONF" ] && return 0
+  mkdir -p "$(dirname "$CONF")"
+  cat > "$CONF" <<'EOF'
+# Vikix voice (Super+F10, Super+F11): how the AI talks back.
+#
+# The voice: lessac or amy (American English), alan (British English).
+# vikix voice voices NAME downloads another and switches to it.
+voice=lessac
+
+# speak=no only shows the answers.
+speak=yes
+
+# Minutes of quiet after which Super+F10 starts a new conversation.
+idle=5
+EOF
+}
+
+conf() {   # conf KEY — its value, without comments or spaces
+  sed -n "s/^[[:space:]]*$1[[:space:]]*=//p" "$CONF" 2>/dev/null | tail -1 |
+    sed -e 's/#.*//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+}
+
+voice_name() { local v; v=$(conf voice); [ -n "$v" ] && [ -n "${VOICE_PATH[$v]:-}" ] && echo "$v" || echo lessac; }
+voice_file() { echo "$VOICES/$(basename "${VOICE_PATH[$1]}").onnx"; }
+ready() { [ -x "$PIPER" ] && [ -s "$(voice_file "$(voice_name)")" ] && [ -s "$(voice_file "$(voice_name)").json" ]; }
+
+# --- Setting up ---------------------------------------------------------------
+
+fetch() {   # fetch URL FILE SHA — download, check, then put in place
+  local url=$1 file=$2 sha=$3 tmp
+  if [ -s "$file" ] && [ "$(sha256sum < "$file" | cut -d' ' -f1)" = "$sha" ]; then return 0; fi
+  mkdir -p "$(dirname "$file")"
+  tmp=$(mktemp "$(dirname "$file")/.download.XXXXXX")
+  "$CURL" -fsSL -o "$tmp" "$url" || { rm -f "$tmp"; die "couldn't download $(basename "$file")"; }
+  if [ "$(sha256sum < "$tmp" | cut -d' ' -f1)" != "$sha" ]; then
+    rm -f "$tmp"; die "$(basename "$file") isn't the one expected (its checksum differs): not used"
+  fi
+  mv -f "$tmp" "$file"
+}
+
+fetch_voice() {   # fetch_voice NAME
+  local name=$1 file
+  file=$(voice_file "$name")
+  if [ "$DRY_RUN" = 1 ]; then printf '   would download the voice %s into %s\n' "$name" "$VOICES"; return 0; fi
+  say "the voice $name (60 MB, checked)"
+  fetch "$VOICES_URL/${VOICE_PATH[$name]}.onnx" "$file" "${VOICE_SHA[$name]}"
+  fetch "$VOICES_URL/${VOICE_PATH[$name]}.onnx.json" "$file.json" "${VOICE_JSON_SHA[$name]}"
+}
+
+install_piper() {
+  local have=''
+  [ -x "$PIPER" ] && have=$("$UV" tool list 2>/dev/null | sed -n 's/^piper-tts v//p' | head -1)
+  if [ "$have" = "${PIPER_PIN#piper-tts==}" ]; then say "Piper $have is here"; return 0; fi
+  if [ "$DRY_RUN" = 1 ]; then printf '   would install %s with uv\n' "$PIPER_PIN"; return 0; fi
+  command -v "$UV" >/dev/null 2>&1 || die "uv installs Piper, and it isn't here: it comes with Python's list (vikix update installs it)"
+  say "installing Piper ${PIPER_PIN#piper-tts==} (uv, as you; a minute the first time)"
+  "$UV" tool install --quiet --force "$PIPER_PIN" || die "uv couldn't install Piper (above)"
+  [ -x "$PIPER" ] || die "piper didn't land in ~/.local/bin"
+}
+
+cmd_setup() {
+  make_conf
+  # Voice rides on dictation (the listening) and llm (the chat).
+  record_features voice
+  [ -x "$VIKIX_DIR/bin/vikix-dictate" ] && ! "$VIKIX_DIR/bin/vikix-dictate" status | grep -q '^ready\|^listening' &&
+    warn "dictation isn't set up yet: vikix add dictation (Super+F10 and Super+F11 listen through it)"
+  [ -x "$LLM" ] || warn "llm isn't here yet: vikix ai llm (Super+F10's chat goes through it)"
+  install_piper
+  fetch_voice "$(voice_name)"
+  say "voice is ready: Super+F10 talks to the chat model, Super+F11 to the agent; Super+Shift+F10 stops the talking"
+}
+
+cmd_voices() {
+  local want=${1:-} v
+  make_conf
+  if [ -z "$want" ]; then
+    for v in lessac amy alan; do
+      printf '%s %-7s %s\n' "$([ "$v" = "$(voice_name)" ] && echo '*' || echo ' ')" "$v" \
+        "$([ -s "$(voice_file "$v")" ] && echo here || echo '(downloads when chosen)')"
+    done
+    echo "* is used. lessac, amy: American English. alan: British English. vikix voice voices NAME"
+    return
+  fi
+  [ -n "${VOICE_PATH[$want]:-}" ] || die "no voice called $want: lessac, amy or alan"
+  fetch_voice "$want"
+  if grep -q '^[[:space:]]*voice[[:space:]]*=' "$CONF"; then
+    sed --follow-symlinks -i "s/^[[:space:]]*voice[[:space:]]*=.*/voice=$want/" "$CONF"
+  else
+    echo "voice=$want" >> "$CONF"
+  fi
+  say "the voice is $want from now on"
+  cmd_say "This is how I sound now."
+}
+
+cmd_uninstall() {
+  cmd_quiet
+  "$UV" tool uninstall piper-tts >/dev/null 2>&1 && say "removed Piper"
+  if [ "${1:-}" = --voices ]; then rm -rf "$VOICES" && say "removed the voices"
+  else say "the voices stay in $VOICES (--voices removes them)"; fi
+  rm -f "$CHAT"
+  forget_features voice
+}
+
+# --- Talking ------------------------------------------------------------------
+
+# Text for the ear: code, Markdown and links don't read aloud well.
+for_speech() {
+  python3 -c '
+import re, sys
+t = sys.stdin.read()
+t = re.sub(r"```.*?(```|$)", " (the code is on the screen) ", t, flags=re.S)
+t = re.sub(r"\[([^]]*)\]\([^)]*\)", r"\1", t)          # [text](url): the text
+t = re.sub(r"https?://\S+", "a link", t)
+t = re.sub(r"`([^`]*)`", r"\1", t)
+t = re.sub(r"^\s{0,3}(#+|[-*+]|\d+\.)\s+", "", t, flags=re.M)   # headings, bullets
+t = re.sub(r"[*_]{1,3}([^*_]+)[*_]{1,3}", r"\1", t)             # emphasis
+t = re.sub(r"\|", " ", t)
+t = re.sub(r"\s+", " ", t).strip()
+cap = int(sys.argv[1])
+if len(t) > cap:   # a long reply: its start, then where the rest is
+    cut = t.rfind(". ", 0, cap)
+    t = t[: cut + 1 if cut > cap // 3 else cap] + " The rest is on the screen."
+print(t)
+' "${1:-1200}"
+}
+
+cmd_quiet() {
+  local pg
+  pg=$(cat "$SPEAKING" 2>/dev/null) || return 0
+  [[ $pg =~ ^[0-9]+$ ]] && kill -TERM -- "-$pg" 2>/dev/null
+  rm -f "$SPEAKING"
+  return 0
+}
+
+# Read aloud, in the background: sentence by sentence as Piper makes them
+# (--output-raw), so the start is heard before the end is made. A new one
+# stops the last.
+cmd_say() {
+  local text=${1:-} rate
+  [ "$text" = - ] && text=$(cat)
+  [ "$(conf speak)" = no ] && return 0
+  [ -n "${text//[[:space:]]/}" ] || return 0
+  if ! ready; then note "Voice isn't set up" "In a terminal: vikix add voice"; return 1; fi
+  cmd_quiet
+  local v; v=$(voice_file "$(voice_name)")
+  rate=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["audio"]["sample_rate"])' "$v.json" 2>/dev/null || echo 22050)
+  # setsid: its own process group, which quiet stops as a whole.
+  printf '%s\n' "$text" | setsid bash -c '
+    "$1" -m "$2" --output-raw 2>/dev/null | pw-play --rate "$3" --channels 1 --format s16 - 2>/dev/null
+    rm -f "$4"' _ "$PIPER" "$v" "$rate" "$SPEAKING" >/dev/null 2>&1 &
+  echo "$!" > "$SPEAKING"
+}
+
+# --- The chat model (Super+F10) -----------------------------------------------
+
+cmd_ask() {
+  local question=${1:-} model where cid='' last=0 idle out rc err answer
+  [ -n "${question//[[:space:]]/}" ] || { note "Heard nothing to ask" ""; return 0; }
+  make_conf
+  # The model Super+i uses: it says what's missing, if anything.
+  IFS=$'\t' read -r model where < <("$VIKIX_DIR/bin/vikix-ask" which) || return 1
+  [ -n "$model" ] || return 1
+  # One at a time: a second question while it thinks would only queue up.
+  exec 9>"$RUN/vikix-voice.lock"
+  flock -n 9 || { note "AI is still answering the last one" ""; return 0; }
+  # The conversation, unless it's been quiet for a while.
+  idle=$(conf idle); [[ $idle =~ ^[0-9]+$ ]] || idle=5
+  [ -r "$CHAT" ] && read -r cid last < "$CHAT"
+  [[ ${last:-0} =~ ^[0-9]+$ ]] || last=0
+  [ $(( $(date +%s) - last )) -lt $(( idle * 60 )) ] || cid=''
+
+  local asked; asked=$(printf '%s' "${question:0:200}" | escape)
+  NOTE_ID=$(notify-send -p -a Vikix ${NOTE_ID:+-r "$NOTE_ID"} -t 300000 "Thinking…" "$(printf '“%s”\n%s, %s' "$asked" "$model" "$where")" 2>/dev/null || true)
+  [[ $NOTE_ID =~ ^[0-9]+$ ]] || NOTE_ID=''
+  local system="You are answering by voice: your answer is read aloud. Answer plainly and briefly, in one to four short sentences, as you would say it, without lists, headings, tables, code or Markdown. If asked for code or a long text, give a short spoken answer and say it's better asked with Super+a."
+  local args=(-m "$model" -s "$system")
+  [ -n "$cid" ] && args+=(--cid "$cid")
+  err="$RUN/vikix-voice.err"
+  out=$(timeout 300 "$LLM" "${args[@]}" "$question" </dev/null 2>"$err"); rc=$?
+  if [ "$rc" != 0 ] || [ -z "${out//[[:space:]]/}" ]; then
+    local why; why=$(grep -v '^\s*$' "$err" 2>/dev/null | tail -1); why=$(printf '%s' "${why:0:200}" | escape)
+    [ "$rc" = 124 ] && why="It took over 5 minutes; a smaller model answers faster (vikix ai models)"
+    case $why in *"No key found"*) why="Your Anthropic key: vikix ai key set anthropic" ;; esac
+    # A conversation llm no longer has: the next question starts afresh.
+    case $why in *onversation*) rm -f "$CHAT" ;; esac
+    note "AI didn't answer" "${why:-no answer from $model}"; return 1
+  fi
+  rm -f "$err"
+  # The conversation to carry on: the one given, or the new one llm just logged.
+  [ -n "$cid" ] || cid=$("$LLM" logs list -n 1 --json 2>/dev/null |
+    python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["conversation_id"])' 2>/dev/null || true)
+  [ -n "$cid" ] && printf '%s %s\n' "$cid" "$(date +%s)" > "$CHAT"
+
+  cmd_say "$(for_speech 1200 <<<"$out")"
+  # Short: a notification. Long: a terminal to read it in.
+  if [ "${#out}" -le 450 ] && [ "$(wc -l <<<"$out")" -le 6 ]; then
+    note "$(printf '%s' "${question:0:80}" | escape)" "$(printf '%s' "$out" | escape)"
+  else
+    note "AI answered" "In a terminal: q closes it"
+    answer="$RUN/vikix-voice-answer.txt"
+    { printf 'You: %s\n\n%s\n\n(%s, %s. Super+F10 asks a follow-up; Super+Shift+F10 stops the talking.)\n' \
+        "$question" "$out" "$model" "$where"; } > "$answer"
+    # 9>&-: the terminal mustn't keep the lock.
+    "$TERMINAL" -e less -P "AI answer: q closes" "$answer" 9>&- >/dev/null 2>&1 &
+  fi
+}
+
+cmd_new() { rm -f "$CHAT"; note "A new conversation" "Super+F10's next question starts afresh"; }
+
+# --- The agent (Super+F11) ----------------------------------------------------
+
+# Its terminal, focused, if it's still open (StumpWM finds it by class).
+focus_agent() {
+  local r
+  r=$(python3 "$VIKIX_DIR/bin/vikix-eval" "(let ((w (find-if (lambda (w) (or (string= (window-res w) \"$AGENT_CLASS\") (string= (window-class w) \"$AGENT_CLASS\"))) (all-windows)))) (when w (switch-to-group (window-group w)) (focus-all w) :found))" 2>/dev/null)
+  [[ $r == *FOUND* ]]
+}
+
+cmd_agent() {
+  local text=${1:-} name json
+  [ -n "${text//[[:space:]]/}" ] || { note "Heard nothing for the agent" ""; return 0; }
+  if focus_agent; then
+    sleep 0.2
+    # Claude Code takes a message typed while it works as the next one.
+    xdotool type --clearmodifiers --delay 3 -- "$text" 2>/dev/null &&
+      xdotool key --clearmodifiers Return 2>/dev/null ||
+      { printf '%s' "$text" | xclip -selection clipboard 2>/dev/null; note "Couldn't type it" "It's on the clipboard: paste it with Ctrl+Shift+v"; }
+    return 0
+  fi
+  name=$("$VIKIX_DIR/bin/vikix-agent" --which 2>/dev/null || echo claude)
+  local extra=()
+  if [ "$name" = claude ]; then
+    # Claude's replies read aloud: a hook for this session only, not in
+    # your settings. The agent's reply is the hook's input.
+    json=$(python3 -c 'import json,sys; print(json.dumps({"hooks": {"Stop": [{"hooks": [{"type": "command", "command": sys.argv[1] + " agent-said"}]}]}}))' "$VIKIX_DIR/bin/vikix-voice")
+    extra=(-- --settings "$json")
+  else
+    note "The agent is $name" "Its replies are shown, not spoken: only Claude Code's are read aloud"
+  fi
+  "$TERMINAL" --class "$AGENT_CLASS" -e "$VIKIX_DIR/bin/vikix" agent --ask "$text" "${extra[@]}" >/dev/null 2>&1 &
+}
+
+# Claude Code's Stop hook: its last reply, read aloud. Its input is JSON:
+# the reply itself (last_assistant_message, in newer versions), or the
+# transcript to find it in. Always exits 0: a hook that fails would show
+# an error in the agent's window.
+cmd_agent_said() {
+  local reply
+  reply=$(python3 -c '
+import json, sys
+try:
+    h = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+t = h.get("last_assistant_message")
+if isinstance(t, dict):
+    t = " ".join(c.get("text", "") for c in t.get("content", []) if isinstance(c, dict))
+if not t and h.get("transcript_path"):
+    try:
+        lines = open(h["transcript_path"]).read().splitlines()
+    except OSError:
+        lines = []
+    for line in reversed(lines):
+        try:
+            e = json.loads(line)
+        except ValueError:
+            continue
+        if e.get("type") == "user" and not isinstance(e.get("message", {}).get("content"), list):
+            break   # the question: nothing after it said anything
+        if e.get("type") != "assistant":
+            continue
+        c = e.get("message", {}).get("content", [])
+        texts = [x.get("text", "") for x in c if isinstance(x, dict) and x.get("type") == "text"] if isinstance(c, list) else [c]
+        if any(s.strip() for s in texts):
+            t = "\n".join(texts)
+            break
+print(t or "", end="")
+' 2>/dev/null)
+  [ -n "${reply//[[:space:]]/}" ] && cmd_say "$(for_speech 700 <<<"$reply")"
+  return 0
+}
+
+cmd_status() {
+  if ready; then echo "ready ($(voice_name)$([ "$(conf speak)" = no ] && echo ', speak=no: shown only'))"
+  else echo "not set up (vikix voice setup)"; fi
+}
+
+case ${1:-} in
+  setup)      cmd_setup ;;
+  ask)        shift; cmd_ask "$*" ;;
+  agent)      shift; cmd_agent "$*" ;;
+  agent-said) cmd_agent_said || true; exit 0 ;;
+  say)        shift; make_conf; cmd_say "$*" ;;
+  quiet|stop) cmd_quiet ;;
+  new)        cmd_new ;;
+  voices)     shift; cmd_voices "${1:-}" ;;
+  status)     cmd_status ;;
+  uninstall)  shift; cmd_uninstall "${1:-}" ;;
+  -h|--help|'') sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) die "vikix voice: setup, ask, agent, say, quiet, new, voices, status, uninstall" ;;
+esac
