@@ -49,6 +49,8 @@ Shipped in 0.59.0 and 0.60.0, in `config/emacs/vikix-ai.el` (linked to `~/.local
 
 ## 5. Afterwards, in Vikix
 
+- [ ] **The rest of the everyday-user review of AI in the editors** (`.claude/reports/everyday-user-2026-09-29-editors-ai.md`, findings 6 to 10 and "Smaller things"; 1 to 5, 11 and 12 shipped in 0.62.0). Emacs: the first `C-c a` shows native-compiler warnings, then agent-shell's "Start shell" question, unexplained; ispell backtraces in gptel chats (no word list); gptel's menu offers 37 models, most without a key here (offer only backends that can answer); a missing `model=` leaves gptel's default on it. Neovim: `Space A c` and `Space A g` look alike; `Space A t` opens in normal mode.
+
 - [ ] **vikix.dev: screenshots of AI in each editor** (void and paper), for the gallery. The page has a line for it, "AI in your editor", since 0.61.0.
 - [ ] **The editors follow `vikix theme`** (TODO.md item 6): easy for Neovim now that it's in Vikix (the layer reads the palette `vikix theme` writes); for Emacs, a theme file written the same way.
 - [ ] **The Vikix MCP server** (`vikix mcp`, since 0.54.0): registered for the agents the editors start too.

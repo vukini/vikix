@@ -14,6 +14,7 @@
 
 set -uo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
+export EMACS_SOCKET_NAME=/nonexistent/emacs-server   # never the live desktop's Emacs: emacsclient from a test goes nowhere
 # The tests make up a home folder, and Vikix follows the XDG variables
 # where they are set; GitHub's runners set XDG_CONFIG_HOME, which would
 # send a test's files into the runner's real config instead.

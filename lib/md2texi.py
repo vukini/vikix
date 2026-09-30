@@ -161,13 +161,16 @@ class Manual:
 
     def table(self, rows, page):
         """A two-column table reads best in Info as a list of terms, each
-        with its text below; further columns follow as "Header: value"."""
+        with its text below. With more columns, each follows as "Header:
+        value", the second too, or a row wouldn't say which is which."""
         cells = [[c.strip() for c in r.strip().strip("|").split("|")] for r in rows]
         head, body = cells[0], cells[2:]
         out = ["@table @asis"]
         for r in body:
             out.append("@item " + self.inline(r[0], page))
             text = self.inline(r[1], page) if len(r) > 1 else ""
+            if len(head) > 2 and head[1] and text:
+                text = f"{self.inline(head[1], page)}: {text}"
             for h, c in zip(head[2:], r[2:]):
                 text += f"@*\n{self.inline(h, page)}: {self.inline(c, page)}"
             out.append(text)

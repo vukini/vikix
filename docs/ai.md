@@ -63,7 +63,7 @@ vikix undo         # again: take the undo back
 vikix history      # every snapshot, newest first
 ```
 
-This covers your settings (the files in `~/vikix/config/yours.list`), not everything in your home folder. For your work, keep backups: [README: Backups](../README.md#backups).
+In a terminal, `vikix undo` first lists the files it would change and asks. Answer no when the snapshot one back isn't the one you meant (an agent started from an editor takes one too), and pick one from `vikix history` with `vikix undo ID`. This covers your settings (the files in `~/vikix/config/yours.list`), not everything in your home folder. For your work, keep backups: [README: Backups](../README.md#backups).
 
 ### Another agent
 
@@ -246,7 +246,7 @@ Why, when the agent can run commands anyway? Each command needs your yes. These 
 
 ```sh
 vikix mcp register     # for Claude Code, then restart it; it prints the lines for Codex, Gemini CLI and OpenCode
-vikix mcp status       # is it on, with which tools, and the last calls
+vikix mcp status       # is it on, with which tools, the servers running (and their version), the last calls
 vikix mcp tools        # what it offers
 vikix mcp unregister   # take it away
 ```

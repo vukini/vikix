@@ -120,8 +120,8 @@ set_use() {
   fi
   local what="a model on this laptop: free, offline, the text stays here"
   [ "$to" = claude ] && what="Claude: better, paid, the text you select goes to Anthropic"
-  echo "Super+i now uses $what"
-  note "Super+i now uses $to" "$what"
+  echo "Super+i and the editors' chats now use $what"
+  note "Super+i and the editors' chats now use $to" "$what"
 }
 
 # Proofread: what changed, word by word, so a change for the worse shows.

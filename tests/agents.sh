@@ -27,6 +27,7 @@
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
+export EMACS_SOCKET_NAME=/nonexistent/emacs-server   # never the live desktop's Emacs: emacsclient from a test goes nowhere
 unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME CODEX_HOME GEMINI_CLI_HOME VIKIX_AGENT_API_KEY
 # Your own keys, if the shell running this has them: a check that failed
 # would print them, and they'd change what a check sees.
@@ -235,6 +236,10 @@ check "--which should say yours, one word: $(agent --which 2>&1)" test "$(agent 
 rm -f "$t/started"
 out=$(agent --exec --experimental-acp 2>/dev/null) || true
 check "--exec without a name should start yours: $(cat "$t/started" 2>/dev/null)" grep -q "^ran $HOME/.local/bin/gemini --experimental-acp$" "$t/started"
+rm -f "$t/started"
+out=$(agent --acp gemeni </dev/null 2>&1) && { echo "FAIL: --acp with a misspelt name succeeded"; fail=1; }
+check "--acp with a misspelt name should say so: $out" grep -q "no agent called 'gemeni'" <<<"$out"
+check "and start nothing, not yours with the typo: $(cat "$t/started" 2>/dev/null)" test ! -e "$t/started"
 agent --default claude >/dev/null 2>&1
 # --acp: each agent as an ACP agent, with the same start.
 rm -f "$t/started"

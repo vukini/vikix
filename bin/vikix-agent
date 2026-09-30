@@ -28,7 +28,9 @@
 #                                 them), gemini and opencode as they are
 #   vikix agent --which           the agent Super+a starts, one word
 #   vikix agent --install NAME    install one (its official installer; also
-#   vikix agent --uninstall NAME  vikix add/remove NAME), or take it away
+#   vikix agent --uninstall NAME  vikix add/remove NAME), or take it away.
+#                                 For one you have, --install adds only
+#                                 what's missing (its ACP adapter, say)
 #
 # Every agent is told how Vikix works by the same guide: Claude Code and
 # OpenCode read the Vikix skill (~/.claude/skills/vikix); the others read
@@ -211,7 +213,12 @@ install_agent() {
   # One you have is left as it is (each updates itself): only what's
   # missing is added, its ACP adapter, say, after an update of Vikix's.
   if installed "$name"; then
-    say "$name is already installed"
+    local pkg; pkg=$(acp_package "$name")
+    if [ -n "$pkg" ] && [ "$(acp_version "$name")" = "${pkg##*@}" ] && [ -x "$(acp_bin "$name")" ]; then
+      say "$name is already installed, with its ACP adapter for editors (vikix agent --acp $name)"
+    else
+      say "$name is already installed"
+    fi
     install_acp "$name"; write_guide; link_guide "$name"
     [ "$name" = claude ] || record_features "$name"
     return 0
@@ -485,7 +492,10 @@ main() {
       --report)    REPORT=${2:-}; [ -n "$REPORT" ] || die "--report needs a file"; shift 2 ;;
       --use)       need_agent "${2:-}"; use=$2; shift 2 ;;
       --exec|--acp) EXEC=1; [ "$1" = --acp ] && ACP=1
-                   if is_agent "${2:-}"; then use=$2; shift 2; else shift; fi ;;
+                   # A word that isn't an agent is a typo, not an argument
+                   # for yours: it would start the default (maybe paid) one.
+                   # The agent's own options start with -, or follow --.
+                   case ${2:-} in ''|-*) shift ;; *) need_agent "$2"; use=$2; shift 2 ;; esac ;;
       --which)     chosen; return ;;
       --local)     local=1; shift ;;
       --model)     model=${2:-}; [ -n "$model" ] || die "--model needs a name (vikix ai list)"; shift 2 ;;

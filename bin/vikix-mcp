@@ -52,6 +52,10 @@ EVAL = os.environ.get("VIKIX_EVAL") or os.path.join(VIKIX_DIR, "bin", "vikix-eva
 STATE = os.environ.get("VIKIX_STATE") or os.path.join(
     os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "vikix")
 LOG = os.path.join(STATE, "mcp.log")
+# One file per running server, named by its pid, saying the version it
+# runs: an update's new version starts only at each one's next call, and
+# `vikix mcp status` shows where they are.
+RUNNING = os.path.join(STATE, "mcp-servers")
 VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"]
 MAX_OUT = 20000
 MAX_LINE = 1 << 20          # a request longer than 1 MB isn't one
@@ -560,8 +564,51 @@ def send(msg):
     sys.stdout.flush()
 
 
+def note_running():
+    try:
+        os.makedirs(RUNNING, mode=0o700, exist_ok=True)
+        with open(os.path.join(RUNNING, str(os.getpid())), "w") as f:
+            f.write(f"{version()} {datetime.datetime.now():%Y-%m-%d %H:%M}\n")
+    except OSError:
+        pass
+
+
+def forget_running():
+    try:
+        os.remove(os.path.join(RUNNING, str(os.getpid())))
+    except OSError:
+        pass
+
+
+def running():
+    """[(pid, version, since)] of the servers still running; the files of
+    ones that ended without saying (killed) are cleared on the way."""
+    out = []
+    try:
+        names = os.listdir(RUNNING)
+    except OSError:
+        return out
+    for name in names:
+        path = os.path.join(RUNNING, name)
+        try:
+            pid = int(name)
+            os.kill(pid, 0)
+            with open(path) as f:
+                ver, since = (f.read().split(None, 1) + ["?"])[:2]
+            out.append((pid, ver, since.strip()))
+        except ProcessLookupError:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+        except (ValueError, OSError):
+            continue
+    return sorted(out)
+
+
 def serve(allow_eval, allow_undo):
     started = stamp()
+    note_running()
     session_env()
     table = tools(allow_eval, allow_undo)
     # Started again after an update: the tools may have changed, so the
@@ -579,6 +626,7 @@ def serve(allow_eval, allow_undo):
             if reply is None:
                 continue
         send(reply)
+    forget_running()
 
 
 # --- Registering ----------------------------------------------------------------
@@ -649,6 +697,16 @@ def status():
             print("Claude Code doesn't have it: vikix mcp register")
     else:
         print("Claude Code isn't installed")
+    servers, now = running(), version()
+    if servers:
+        old = [s for s in servers if s[1] != now]
+        print(f"{len(servers)} running (one for each agent session that has it), "
+              + (f"all on {now}" if not old else
+                 f"{len(servers) - len(old)} on {now}, {len(old)} on an older one: "
+                 + ", ".join(f"{v} since {t}" for _, v, t in old)
+                 + f"; those run {now} from their next call"))
+    else:
+        print("None running now (each agent session starts its own)")
     try:
         with open(LOG) as f:
             last = f.readlines()[-5:]

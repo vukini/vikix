@@ -256,6 +256,21 @@ cmd_doctor() {
     if [ -d "$d/.git" ]; then say "$d is a git clone"
     else warn "$d is not a git clone (45-editors did not set it up)"; ok=0; fi
   done
+  # Emacs: Vikix's AI setup, in the running Emacs too.
+  if is_chosen emacs; then
+    local el="${XDG_DATA_HOME:-$HOME/.local/share}/vikix/emacs/vikix-ai.el" live
+    if [ ! -f "$el" ]; then
+      warn "$el, Vikix's AI setup for Emacs, is missing (vikix update links it)"; ok=0
+    else
+      live=$(emacs_ai)
+      case $live in
+        '')  say "Emacs's AI setup is there (the next Emacs loads it)" ;;
+        old) warn "the running Emacs doesn't have Vikix's AI setup (C-c g, C-c a): emacs-restart when your chats are done" ;;
+        "$(sha256sum < "$el" | cut -d' ' -f1)") say "Emacs has Vikix's AI setup loaded" ;;
+        *)   warn "the running Emacs has an older AI setup: vikix update reloads it, or emacs-restart" ;;
+      esac
+    fi
+  fi
   # Neovim: Vikix's starter with Vikix's part, or a config of your own.
   if is_chosen neovim; then
     local nv="$HOME/.config/nvim" layer="${XDG_DATA_HOME:-$HOME/.local/share}/vikix/nvim"
@@ -427,12 +442,18 @@ cmd_history() {
   yours_git log --date=format:'%Y-%m-%d %H:%M' --format='%h  %ad  %s'
 }
 
+# The help for the four commands of the history, from the top of this file.
+history_help() {
+  sed -n 's/^#   \(vikix \(snapshot\|changes\|history\|undo\) .*\)/\1/p' "$0"
+  echo "An agent's start (Super+a, vikix agent, an editor's) takes a snapshot too: vikix history lists them all."
+}
+
 cmd_undo() {
   local target=${1:-} f
   has_snapshot || die "no snapshots yet, so nothing to undo"
   [ "$DRY_RUN" = 1 ] && { printf '   would put your files back to %s\n' "${target:-the previous snapshot}"; return 0; }
-  # Record the files as they are first, so the undo can itself be undone.
-  cmd_snapshot "before undo"
+  # The target is checked before the snapshot below, so a mistyped one
+  # leaves no "before undo" in the history.
   if [ -z "$target" ]; then
     yours_git rev-parse -q --verify HEAD~1 >/dev/null ||
       die "there is only one snapshot, so there is nothing before it to go back to"
@@ -440,8 +461,24 @@ cmd_undo() {
   fi
   yours_git rev-parse -q --verify "$target^{commit}" >/dev/null ||
     die "no snapshot called $target (vikix history lists them)"
-  local label
+  local label changed
   label="$(yours_git rev-parse --short "$target") ($(yours_git log -1 --format=%s "$target"))"
+  # In a terminal, say what it will change, and ask: the snapshot one back
+  # may be an agent's start, not the one you had in mind.
+  yours_stage
+  changed=$(yours_git diff --cached --name-only "$target" || true)
+  if [ -t 0 ] && [ -t 1 ]; then
+    if [ -z "$changed" ]; then
+      say "your files are already as they were at snapshot $label"; return 0
+    fi
+    say "back to snapshot $label, from $(yours_git log -1 --date=format:'%Y-%m-%d %H:%M' --format=%ad "$target"). It changes:"
+    sed 's/^/     ~\//' <<<"$changed"
+    local answer
+    read -r -p "Put these back? [y/N] " answer
+    case $answer in y|Y|yes) ;; *) say "nothing changed (vikix history lists the snapshots; vikix undo ID goes to one)"; return 0 ;; esac
+  fi
+  # Record the files as they are first, so the undo can itself be undone.
+  cmd_snapshot "before undo"
   # Files that were added after the target snapshot are removed; they
   # stay in the history, so `vikix undo` again brings them back.
   while IFS= read -r -d '' f; do
@@ -689,10 +726,15 @@ main() {
     debug|diagnose) exec "$VIKIX_DIR/bin/vikix-debug" "$@" ;;
     dictate)     shift; exec "$VIKIX_DIR/bin/vikix-dictate" "$@" ;;
     mcp)         shift; exec "$VIKIX_DIR/bin/vikix-mcp" "$@" ;;
-    snapshot)    cmd_snapshot "${2:-snapshot}" ;;
-    changes)     cmd_changes "${2:-}" ;;
-    history)     cmd_history ;;
-    undo)        cmd_undo "${2:-}" ;;
+    snapshot|changes|history|undo)
+      case ${2:-} in -h|--help) history_help; exit 0 ;; esac
+      case $1 in
+        snapshot) case ${2:-} in -*) die "a snapshot's message can't start with - (vikix snapshot --help)" ;; esac
+                  cmd_snapshot "${2:-snapshot}" ;;
+        changes)  cmd_changes "${2:-}" ;;
+        history)  cmd_history ;;
+        undo)     cmd_undo "${2:-}" ;;
+      esac ;;
     theme)       cmd_theme "${2:-}" ;;
     backup)      shift; exec "$VIKIX_DIR/bin/vikix-backup" "$@" ;;
     firmware)    shift; exec "$VIKIX_DIR/bin/vikix-firmware" "$@" ;;

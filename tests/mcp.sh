@@ -17,6 +17,7 @@
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
+export EMACS_SOCKET_NAME=/nonexistent/emacs-server   # never the live desktop's Emacs: emacsclient from a test goes nowhere
 unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME DISPLAY
 here=$(cd "$(dirname "$0")/.." && pwd)
 ql=${VIKIX_QUICKLISP:-$HOME/quicklisp}/setup.lisp   # before HOME moves
@@ -247,7 +248,7 @@ fi
 # process, with nothing lost; new code that doesn't compile is left alone.
 mkdir -p "$t/co/bin" "$t/co/lib"
 cp "$here/bin/vikix-mcp" "$t/co/bin/"; cp "$here/lib/debug-report.py" "$t/co/lib/"; echo 1.0.0 > "$t/co/VERSION"
-out=$(python3 - "$t/co" <<'PY' 2>&1
+out=$(python3 - "$t/co" "$here/bin/vikix-mcp" <<'PY' 2>&1
 import json, os, subprocess, sys, time
 co = sys.argv[1]
 p = subprocess.Popen([sys.executable, co + "/bin/vikix-mcp", "serve"], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
@@ -262,14 +263,20 @@ def version_answer():
 def settle(path):
     t = time.time() - 10
     os.utime(path, (t, t))
+def status(server=co + "/bin/vikix-mcp"):
+    out = subprocess.run([sys.executable, server, "status"], capture_output=True, text=True).stdout
+    return out.splitlines()[1]
 seen = []
 p.stdin.write(req(1).encode()); p.stdin.flush()
 print("before", version_answer()[0])
+print("status1", status())
 with open(co + "/VERSION", "w") as f: f.write("2.0.0\n")
 settle(co + "/VERSION")
+print("status2", status())
 time.sleep(0.2)
 p.stdin.write((req(2) + req(3)).encode()); p.stdin.flush()      # two at once: neither lost
 print("after", version_answer()[0], version_answer()[0], ",".join(seen))
+print("status3", status())
 with open(co + "/bin/vikix-mcp", "a") as f: f.write("\ndef broken(:\n")
 with open(co + "/VERSION", "w") as f: f.write("3.0.0\n")
 settle(co + "/bin/vikix-mcp"); settle(co + "/VERSION")
@@ -277,6 +284,7 @@ p.stdin.write(req(4).encode()); p.stdin.flush()
 seen.clear()
 print("broken", version_answer()[0], ",".join(seen) or "no-restart")
 p.stdin.close(); p.wait(5)
+print("status4", status(sys.argv[2]))      # this copy is broken by now: the checkout's
 PY
 )
 check "an unchanged server should answer as itself: $out" grep -qx "before 1.0.0" <<<"$out"
@@ -284,6 +292,11 @@ check "after an update the new code should answer both requests, and say the too
   grep -qx "after 2.0.0 2.0.0 notifications/tools/list_changed" <<<"$out"
 check "new code that doesn't compile should be left alone: $out" grep -qx "broken 3.0.0 no-restart" <<<"$out"
 check "the restart should be logged" grep -q "ok restart.*2.0.0" "$VIKIX_STATE/mcp.log"
+check "status should show a running server and its version: $out" grep -q "^status1 1 running .*all on 1.0.0" <<<"$out"
+check "after an update, one still on the old version until its next call: $out" \
+  grep -q "^status2 1 running .*0 on 2.0.0, 1 on an older one: 1.0.0 since .*; those run 2.0.0 from their next call" <<<"$out"
+check "and after that call, on the new one: $out" grep -q "^status3 1 running .*all on 2.0.0" <<<"$out"
+check "a server that ended shouldn't be listed: $out" grep -q "^status4 None running" <<<"$out"
 check "the refused restart should be logged" grep -q "refused restart" "$VIKIX_STATE/mcp.log"
 
 # Registering with Claude Code.

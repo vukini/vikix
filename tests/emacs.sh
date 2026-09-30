@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
 # tests/emacs.sh — Emacs's AI setup (config/emacs/vikix-ai.el), without the network.
 #
-#   45-editors links Vikix's part for Emacs (and not for Neovim alone);
+#   45-editors links Vikix's part for Emacs (and not for Neovim alone), and
+#   in a running Emacs reloads it when it changed, or says to restart when
+#   that Emacs has none;
 #   vikix-ai.el loads clean in a bare Emacs; and, when gptel is here, gptel's
 #   default follows ~/.config/vikix/ai (local: llama3.2:3b or your first
 #   model, or model=; claude: claude-sonnet-5, or model=), a change reaches a
 #   running Emacs but a pick of yours stays until then, and C-c g says what's
 #   missing (the key, Ollama, a model) instead of asking for a key; and,
 #   when agent-shell is here, its agents are Vikix's four, each started by
-#   vikix agent --acp, and C-c a says what's missing (vikix, the agent or
-#   its adapter, ACP for Aider), with your agent from ~/.config/vikix/agent.
+#   vikix agent --acp, its transcripts are kept out of the project, and C-c a
+#   says what's missing as the terminal does (vikix, the agent, then its
+#   adapter; Aider to C-c A), with your agent from ~/.config/vikix/agent.
 #
 # curl is a stand-in answering as Ollama would ($HOME/ollama: the JSON, or
 # absent for "not running"). gptel and agent-shell come from the package
@@ -19,6 +22,7 @@
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
+export EMACS_SOCKET_NAME=/nonexistent/emacs-server   # never the live desktop's Emacs: emacsclient from a test goes nowhere
 unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME VIKIX_EMACS_REPO VIKIX_STATE ANTHROPIC_API_KEY
 here=$(cd "$(dirname "$0")/.." && pwd)
 elpa=${VIKIX_TEST_ELPA:-$HOME/.emacs.d/elpa}
@@ -66,6 +70,26 @@ mkdir -p "$HOME/.config/vikix"
 echo neovim > "$HOME/.config/vikix/features"
 bash "$here/install/45-editors.sh" >/dev/null 2>&1 || true
 check "Neovim alone shouldn't bring Emacs's part" test ! -e "$HOME/.local/share/vikix/emacs"
+
+# --- 45-editors and a running Emacs (a private one, on its own socket) ------
+export HOME="$t/emacs-home"
+sock="$t/emacs-sock"
+if emacs -Q --daemon="$sock" >/dev/null 2>&1; then
+  trap 'emacsclient -s "$sock" -e "(kill-emacs)" >/dev/null 2>&1 || true; rm -rf "$t"' EXIT
+  live() { EMACS_SOCKET_NAME=$sock emacsclient -e "$1" 2>/dev/null; }
+  out=$(EMACS_SOCKET_NAME=$sock bash "$here/install/45-editors.sh" 2>&1)
+  check "an Emacs without the AI setup should be told to restart: $out" has "Emacs is running without Vikix's AI setup.*emacs-restart" "$out"
+  live "(progn (load \"$HOME/.local/share/vikix/emacs/vikix-ai\" nil t) (setq vikix-ai--sum \"a-checksum-of-before\"))" >/dev/null
+  out=$(EMACS_SOCKET_NAME=$sock bash "$here/install/45-editors.sh" 2>&1)
+  check "an Emacs with an older AI setup should get the new one at once: $out" has "the new AI setup is in use" "$out"
+  check "and then have it: $(live vikix-ai--sum)" test "$(live vikix-ai--sum)" = "\"$(sha256sum < "$here/config/emacs/vikix-ai.el" | cut -d' ' -f1)\""
+  out=$(EMACS_SOCKET_NAME=$sock bash "$here/install/45-editors.sh" 2>&1)
+  check "an Emacs with the current one should be left alone, quietly: $out" test -z "$(grep -i 'emacs.*ai setup' <<<"$out" || true)"
+  emacsclient -s "$sock" -e "(kill-emacs)" >/dev/null 2>&1 || true
+  trap 'rm -rf "$t"' EXIT
+else
+  echo "(no Emacs daemon could start here; the running Emacs part skipped)"
+fi
 
 # --- vikix-ai.el ------------------------------------------------------------
 export HOME="$t/home"
@@ -146,7 +170,14 @@ else
   # vikix and the adapters are stand-ins: only whether they're there
   # counts. The PATH has only them (and the system's), not your agents.
   mkdir -p "$t/agents" "$HOME/.local/bin"
-  printf '#!/bin/sh\n' > "$t/agents/vikix"; chmod +x "$t/agents/vikix"
+  cat > "$t/agents/vikix" <<'EOF2'
+#!/bin/sh
+[ "$*" = "agent --list" ] && printf '%s\n' \
+  '* claude    -             Claude Code (Anthropic): your Claude login' \
+  '  gemini    -             Gemini CLI (Google): your Google login; needs Node (vikix add javascript)'
+exit 0
+EOF2
+  chmod +x "$t/agents/vikix"
   emacs=$(command -v emacs)
   apath="$t/agents:/usr/bin:/bin"
   # ag FORMS — as el, with agent-shell (and no autoloads: it's required).
@@ -163,23 +194,32 @@ else
       (say \"claude %s %S\" (map-elt c :command) (map-elt c :command-params))))
     (say \"codex %S\" agent-shell-openai-codex-acp-command)
     (say \"gemini %S\" agent-shell-google-gemini-acp-command)
-    (say \"opencode %S\" agent-shell-opencode-acp-command))")
+    (say \"opencode %S\" agent-shell-opencode-acp-command)
+    (cl-letf (((symbol-function (quote agent-shell-cwd)) (lambda () \"/home/me/proj/\")))
+      (let ((f (funcall agent-shell-transcript-file-path-function)))
+        (say \"transcript %s %o\" (file-relative-name f (expand-file-name \"~\")) (file-modes (file-name-directory f))))))")
   check "agent-shell should offer Vikix's four agents: $out" has '^agents (claude-code codex gemini-cli opencode)' "$out"
+  check "transcripts should go to Vikix's folder, yours alone, not the project: $out" has '^transcript .local/state/vikix/agent-shell/proj-[0-9-]*\.md 700' "$out"
   check "Claude Code should start through vikix agent --acp: $out" has '^claude vikix ("agent" "--acp" "claude")' "$out"
   for a in codex gemini opencode; do
     check "$a should start through vikix agent --acp: $out" has "^$a (\"vikix\" \"agent\" \"--acp\" \"$a\")" "$out"
   done
   out=$(ag "$ready")
-  check "your agent should be claude when none is chosen, and its adapter missing said: $out" has "stopped: claude's ACP adapter isn't installed: in a terminal, vikix agent --install claude" "$out"
+  check "your agent should be claude when none is chosen, and said missing as the terminal says it: $out" \
+    has "stopped: claude isn’t installed: Claude Code (Anthropic): your Claude login.  To install it, in a terminal: vikix agent --install claude" "$out"
+  printf '#!/bin/sh\n' > "$HOME/.local/bin/claude"; chmod +x "$HOME/.local/bin/claude"
+  out=$(ag "$ready")
+  check "with the agent but not its adapter, the adapter should be named: $out" \
+    has "stopped: claude is installed, but not its ACP adapter, for editors.  In a terminal: vikix agent --install claude (adds only the adapter)" "$out"
   printf '#!/bin/sh\n' > "$HOME/.local/bin/claude-agent-acp"; chmod +x "$HOME/.local/bin/claude-agent-acp"
   out=$(ag "$ready")
   check "with the adapter, claude should be ready: $out" has '^ready claude' "$out"
   printf 'agent=aider\n' > "$HOME/.config/vikix/agent"
-  out=$(ag "$ready")
-  check "Aider (no ACP) should point to the terminal: $out" has "stopped: aider doesn’t speak ACP: M-x vikix-ai-agent-terminal" "$out"
+  out=$(ag "(progn (keymap-global-set \"C-c A\" (quote vikix-ai-agent-terminal)) $ready)")
+  check "Aider (no ACP) should point to the terminal's key: $out" has "stopped: Aider doesn’t speak ACP: C-c A runs it in a terminal" "$out"
   printf 'agent=gemini  # mine\n' > "$HOME/.config/vikix/agent"
   out=$(ag "$ready")
-  check "your agent= should be used, and a missing agent said: $out" has "stopped: gemini isn't installed: in a terminal, vikix agent --install gemini" "$out"
+  check "your agent= should be used, and a missing agent said: $out" has "stopped: gemini isn’t installed: Gemini CLI (Google)" "$out"
   out=$(apath=/usr/bin:/bin ag "$ready")
   check "without vikix, agents should say they start through it: $out" has "stopped: vikix isn’t on PATH" "$out"
 fi

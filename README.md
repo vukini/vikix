@@ -726,7 +726,7 @@ These come from `~/.config/vikix/vikix.bash`. Type `alias` to see them all.
 | `v` / `e` | Neovim / Emacs (starting an Emacs server if none is running) |
 | `eg` / `ec` | Emacs in a new window, leaving the terminal free / Emacs inside the terminal |
 | `nvd A B` | Neovim diff of two files |
-| `eq`, `ekill`, `emacs-restart` | Emacs with no config (for debugging it), stop the daemon, restart it (refuses with unsaved buffers) |
+| `eq`, `ekill`, `emacs-restart` | Emacs with no config (for debugging it), stop the daemon, restart it (refuses with unsaved buffers, asks before ending open chats) |
 | `b` | bat: `cat` with colour. Plain `cat` is left alone. |
 | `mkd` `cpr` `chx` `xo` | `mkdir -p`, `cp -r`, `chmod +x`, open with the usual program |
 | `psg NAME` / `hg WORD` | find a running process / a line in your history |

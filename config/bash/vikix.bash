@@ -74,7 +74,8 @@ alias r='source ~/.bashrc'               # reload after editing it
 have bb || alias bb='${EDITOR:-nvim} ~/.bashrc'
 
 # emacs-restart: stop the Emacs daemon and start a new one, e.g. after
-# changing the config. Refuses while a buffer has unsaved changes.
+# changing the config. Refuses while a buffer has unsaved changes, and
+# asks first when chats are open (agent-shell, gptel): a restart ends them.
 # (The new daemon is not part of the login session, so it outlives a
 # logout; logging out and in restarts Emacs too.)
 emacs-restart() {
@@ -86,6 +87,20 @@ emacs-restart() {
   if [ -n "$unsaved" ] && [ "$unsaved" != nil ]; then
     echo "unsaved buffers, not restarting: $unsaved" >&2
     return 1
+  fi
+  local chats answer
+  chats=$(emacsclient -e '(mapconcat (function buffer-name)
+                            (seq-filter (lambda (b)
+                                          (with-current-buffer b
+                                            (or (derived-mode-p (quote agent-shell-mode))
+                                                (bound-and-true-p gptel-mode))))
+                                        (buffer-list))
+                            ", ")' 2>/dev/null)
+  chats=${chats#\"}; chats=${chats%\"}
+  if [ -n "$chats" ]; then
+    echo "a restart ends these chats: $chats"
+    read -r -p "Restart anyway? [y/N] " answer
+    case $answer in y|Y|yes) ;; *) echo "not restarting"; return 1 ;; esac
   fi
   emacsclient -e '(kill-emacs)' >/dev/null 2>&1
   while pgrep -u "$USER" -f 'emacs.*--(fg-)?daemon' >/dev/null; do

@@ -7,6 +7,7 @@
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
+export EMACS_SOCKET_NAME=/nonexistent/emacs-server   # never the live desktop's Emacs: emacsclient from a test goes nowhere
 cd "$(dirname "$0")/.."
 
 mapfile -t scripts < <(grep -lE '^#!.*(ba)?sh' install.sh install-*.sh install/*.sh \
@@ -56,6 +57,15 @@ if [ -n "$missing" ]; then
   echo "$missing" | sed 's/^/  /'; fail=1
 else
   echo "isolation: every test keeps off the live desktop's Swank"
+fi
+# Nor the live Emacs: emacsclient finds it by its socket, whatever HOME is,
+# and 45-editors reloads Vikix's AI setup in a running Emacs.
+missing=$(grep -L '^export EMACS_SOCKET_NAME=/nonexistent/' tests/*.sh || true)
+if [ -n "$missing" ]; then
+  echo "FAIL isolation: these tests could reach the live desktop's Emacs; add export EMACS_SOCKET_NAME=/nonexistent/emacs-server:"
+  echo "$missing" | sed 's/^/  /'; fail=1
+else
+  echo "isolation: every test keeps off the live desktop's Emacs"
 fi
 
 exit "$fail"

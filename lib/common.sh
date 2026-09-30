@@ -91,6 +91,18 @@ ensure_group() {
 
 timestamp() { date +%Y%m%d-%H%M%S; }
 
+# emacs_ai — the running Emacs and Vikix's AI setup (vikix-ai.el): prints
+# the checksum of the file it loaded, "old" when it runs without it, or
+# nothing when no Emacs is running (or it doesn't answer in 5 seconds).
+# Tests point EMACS_SOCKET_NAME nowhere, so they never reach yours.
+emacs_ai() {
+  command -v emacsclient >/dev/null || return 0
+  local r
+  r=$(timeout 5 emacsclient -a false -e \
+      "(if (featurep 'vikix-ai) (or (bound-and-true-p vikix-ai--sum) \"unknown\") \"old\")" 2>/dev/null) || return 0
+  r=${r#\"}; echo "${r%\"}"
+}
+
 # link_managed SRC DEST
 # Vikix owns SRC. DEST becomes a symlink to it, so `vikix update`
 # changes it in place. Anything already at DEST that is not our link is

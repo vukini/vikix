@@ -69,6 +69,26 @@ clone_or_pull() {
 
 sha() { local s; s=$(sha256sum < "$1"); echo "${s%% *}"; }
 
+# emacs_live — a running Emacs gets the new AI setup at once when it has
+# the old one (the file is safe to load again; your chats stay), and is
+# told to restart when it started without it (older than 0.59, say).
+emacs_live() {
+  local loaded new
+  loaded=$(emacs_ai)
+  [ -f "$EMACS_LAYER/vikix-ai.el" ] || return 0
+  new=$(sha "$EMACS_LAYER/vikix-ai.el")
+  case $loaded in
+    '') ;;                                  # no Emacs running: it loads at start
+    old) say "Emacs is running without Vikix's AI setup (C-c g, C-c a): emacs-restart when your chats are done" ;;
+    "$new") ;;
+    *) if run timeout 5 emacsclient -e "(load \"$EMACS_LAYER/vikix-ai\" nil t)" >/dev/null 2>&1; then
+         say "Emacs: the new AI setup is in use (reloaded in the running Emacs)"
+       else
+         warn "couldn't reload Emacs's AI setup: emacs-restart when your chats are done"
+       fi ;;
+  esac
+}
+
 # The starter Vikix copied: its init.lua loads Vikix's part.
 is_vikix_starter() { grep -qsF 'require, "vikix"' "$1/init.lua"; }
 
@@ -206,6 +226,7 @@ fi
 if [ "$emacs" = 1 ]; then
   clone_or_pull "$VIKIX_EMACS_REPO" "$HOME/.emacs.d"
   link_managed "$VIKIX_DIR/config/emacs" "$EMACS_LAYER"
+  emacs_live
 fi
 
 # --- npm language servers, into ~/.local/bin ------------------------------

@@ -5,6 +5,8 @@
 #      time, change nothing: no new backups, no doubled blocks.
 #   2. Undo works. snapshot → change your files → vikix undo puts them
 #      back, and a second vikix undo brings the change back again.
+#   3. --help is help, not a snapshot called "--help"; a mistyped undo
+#      leaves no snapshot; in a terminal, undo lists the files and asks.
 #   3. API keys are never in the history: ~/.config/vikix/secrets stays out
 #      even when yours.list names it, or a folder above it (a copy of the
 #      checkout with such a yours.list proves it), and on a history that
@@ -15,6 +17,7 @@
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
+export EMACS_SOCKET_NAME=/nonexistent/emacs-server   # never the live desktop's Emacs: emacsclient from a test goes nowhere
 # Keep everything in the made-up home, even with XDG_* set (see run.sh).
 unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME
 here=$(cd "$(dirname "$0")/.." && pwd)
@@ -72,6 +75,25 @@ check "a second undo didn't bring the new file back" test -e "$HOME/.config/rofi
 check "files outside yours.list are in the snapshots" \
   test -z "$(git --git-dir="$VIKIX_STATE/yours.git" ls-files | grep -v -e '^\.stumpwm\.d/' -e '^\.config/' -e '^\.bash' -e '^\.Xresources')"
 [ "$fail" = 0 ] && echo "home: undo puts your files back, and undo again brings the change back"
+
+# --- 3. help, and an undo that says what it will do ------------------------
+count() { git --git-dir="$VIKIX_STATE/yours.git" rev-list --count HEAD; }
+n=$(count)
+out=$(bash "$here/bin/vikix" snapshot --help 2>&1)
+check "snapshot --help should show the help: $out" grep -q 'vikix undo \[ID\]' <<<"$out"
+check "and make no snapshot" test "$(count)" = "$n"
+bash "$here/bin/vikix" undo nosuchsnapshot >/dev/null 2>&1 || true
+check "an undo to a snapshot that isn't there should leave no 'before undo'" test "$(count)" = "$n"
+echo '(setf *again* t)' >> "$user"
+now=$(cat "$user")
+out=$(echo n | script -qec "bash '$here/bin/vikix' undo" /dev/null 2>&1)
+check "in a terminal, undo should list what it will change: $out" grep -qF '.stumpwm.d/user.lisp' <<<"$out"
+check "and ask first: $out" grep -q 'Put these back? \[y/N\]' <<<"$out"
+check "a no should change nothing" test "$(cat "$user")" = "$now"
+check "and add nothing to the history" test "$(count)" = "$n"
+out=$(echo y | script -qec "bash '$here/bin/vikix' undo" /dev/null 2>&1)
+check "a yes should put it back: $out" test "$(cat "$user")" = "$changed"
+[ "$fail" = 0 ] && echo "home: --help is help, and in a terminal undo says what it will change and asks"
 
 # --- 3. API keys never in the history -------------------------------------------
 # Every file any snapshot ever recorded.

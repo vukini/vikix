@@ -19,7 +19,7 @@ vikix remove emacs      # takes it away again; your files stay
 | `eg FILE` | The same, with the terminal free at once |
 | `ec FILE` | Emacs inside this terminal |
 | `eq` | Emacs with no config at all: for finding out whether the config is the problem |
-| `emacs-restart` | A fresh Emacs, after you changed its config (it refuses while a file is unsaved) |
+| `emacs-restart` | A fresh Emacs, after you changed its config (it refuses while a file is unsaved, and asks before ending open chats) |
 
 Emacs runs as a server from the moment you log in, so `Super+x` and `e` open a window at once. The first time Emacs starts on a new machine, it downloads its packages in the background: give it a few minutes before the first `e`.
 
@@ -53,7 +53,7 @@ The plugins are installed at the versions Vikix tested, and `vikix update` moves
 
 Emacs's config is organised in `~/.emacs.d/config.org`, one section per concern (completion, Org, Lisp, languages, tools), and each section explains itself. Emacs reads it at start. SLIME in it talks to the running window manager on port 4004 (see [How it fits together](how-it-works.md)).
 
-To change it, edit `config.org` and run `emacs-restart`. The clone is yours to change, but a change there can stop `vikix update` from pulling the author's newer version: keep your changes in a commit of your own, or in a config of your own (below).
+To change it, edit `config.org` and run `emacs-restart`. `vikix update` brings Vikix's new AI setup into an Emacs that's running, with your chats left open; an Emacs started without it (before Vikix 0.59) is told to restart, and `vikix doctor` says which you have. The clone is yours to change, but a change there can stop `vikix update` from pulling the author's newer version: keep your changes in a commit of your own, or in a config of your own (below).
 
 ## Language servers
 
@@ -75,7 +75,7 @@ Neovim also gets `efm-langserver`, which runs linters and formatters. In Emacs, 
 
 ## AI in the editors
 
-Both editors do the same three things, each on the settings you already made for the desktop:
+Both editors do the same four things, each on the settings you already made for the desktop:
 
 | | Neovim | Emacs |
 |---|---|---|
@@ -87,6 +87,8 @@ Both editors do the same three things, each on the settings you already made for
 **The chat** follows `vikix ai use`: `local` for a model on this laptop (`vikix ai setup` first), or `claude` for Claude (with your key: `vikix ai key set anthropic`). A model set with `model=` in `~/.config/vikix/ai` is used here too. Emacs reads that file again at each `C-c g`, so a change reaches an Emacs that's already open; a model you pick in gptel's menu stays until the file changes. On a laptop's CPU a local model can take minutes to begin answering, because it first reads the chat's instructions (Neovim's are long); Claude answers in seconds.
 
 **Your agent** is the one Super+a starts (Claude Code unless you chose another: `vikix agent --default NAME`). The editors start it the same way, with `vikix agent`: it gets the guide to Vikix, no API keys or SSH agent (the editors have them, the agent doesn't need them), and a snapshot first, so `vikix changes` shows what it did and `vikix undo` takes it back. It signs in with its own login, the one it uses in a terminal. In a chat it talks over ACP (the Agent Client Protocol): Claude Code, Codex, Gemini CLI and OpenCode speak it, and `vikix agent --install NAME` adds one with what it needs (running it again for an agent you have adds only what's missing). Aider doesn't: its place is the terminal key.
+
+In Emacs, each agent chat's transcript is kept in `~/.local/state/vikix/agent-shell/`, one file per chat, named after the project, in a folder only you can read; not in the project, where agent-shell would put it. Screenshots and images you give the agent do go in the project's `.agent-shell/`, which agent-shell keeps out of git.
 
 Nothing starts or connects until you press a key. When something's missing (a key, the local model, the agent or its adapter), the key says what to type, and does nothing else. [Working with AI](ai.md) has the rest: keys, local models, and choosing an agent.
 

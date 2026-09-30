@@ -32,6 +32,13 @@
 (declare-function gptel-backend-name "gptel-openai")
 (declare-function gptel--process-models "gptel-openai")
 
+(defconst vikix-ai--sum
+  (when load-file-name
+    (with-temp-buffer
+      (insert-file-contents load-file-name)
+      (secure-hash 'sha256 (current-buffer))))
+  "This file's checksum as it was loaded: `vikix update' reloads it when it changed.")
+
 (defvar vikix-ai-config
   (expand-file-name "vikix" (or (getenv "XDG_CONFIG_HOME") "~/.config"))
   "Vikix's settings: ai (use=, model=), agent (agent=) and secrets/.")
@@ -205,34 +212,56 @@ backends are checked: one of yours is yours."
 (defvar vterm-shell)
 (declare-function vterm "vterm")
 (declare-function term-char-mode "term")
+(declare-function agent-shell-cwd "agent-shell")
 
 (defconst vikix-ai-agents
-  '((claude   claude-code agent-shell-anthropic-make-claude-code-config "claude-agent-acp")
-    (codex    codex       agent-shell-openai-make-codex-config          "codex-acp")
-    (gemini   gemini-cli  agent-shell-google-make-gemini-config         "gemini")
-    (opencode opencode    agent-shell-opencode-make-agent-config        "opencode"))
-  "The agents that speak ACP: Vikix's name, agent-shell's, its config, the program.")
+  '((claude   claude-code agent-shell-anthropic-make-claude-code-config "claude"   "claude-agent-acp")
+    (codex    codex       agent-shell-openai-make-codex-config          "codex"    "codex-acp")
+    (gemini   gemini-cli  agent-shell-google-make-gemini-config         "gemini"   nil)
+    (opencode opencode    agent-shell-opencode-make-agent-config        "opencode" nil))
+  "The agents that speak ACP: Vikix's name, agent-shell's, its config,
+the agent's program, and its ACP adapter (nil: it speaks ACP itself).")
 
 (defun vikix-ai--agent ()
   "Your agent: agent= in ~/.config/vikix/agent (`vikix agent --default'), or claude."
   (intern (or (vikix-ai--setting "agent" "agent") "claude")))
 
+(defun vikix-ai--installed-p (program)
+  "Is PROGRAM where `vikix agent --install' puts it, or on PATH?"
+  (or (file-executable-p (expand-file-name program "~/.local/bin"))
+      (and (equal program "opencode") (file-executable-p "~/.opencode/bin/opencode"))
+      (executable-find program)))
+
+(defun vikix-ai--about (name)
+  "What NAME is and how it signs in, as `vikix agent --list' says it."
+  (with-temp-buffer
+    (when (eq 0 (ignore-errors (call-process "vikix" nil t nil "agent" "--list")))
+      (goto-char (point-min))
+      (when (re-search-forward (format "^[* ] %s +[^ ]+ +\\(.+\\)$" name) nil t)
+        (match-string 1)))))
+
+(defun vikix-ai--terminal-key ()
+  "The key for `vikix-ai-agent-terminal' (C-c A in emacs-void), or its M-x."
+  (substitute-command-keys "\\[vikix-ai-agent-terminal]"))
+
 (defun vikix-ai--agent-ready (name)
-  "Stop, saying what to do, unless NAME can start over ACP."
+  "Stop, saying what to do, unless NAME can start over ACP.
+In the terminal's words (`vikix agent'): the agent first, then its adapter."
   (let ((entry (assq name vikix-ai-agents)))
     (cond
      ((not (executable-find "vikix"))
       (user-error "vikix isn't on PATH: agents start through it"))
+     ((eq name 'aider)
+      (user-error "Aider doesn't speak ACP: %s runs it in a terminal" (vikix-ai--terminal-key)))
      ((not entry)
-      (user-error "%s doesn't speak ACP: M-x vikix-ai-agent-terminal runs it in a terminal" name))
-     ((not (or (file-executable-p (expand-file-name (nth 3 entry) "~/.local/bin"))
-               (and (eq name 'opencode) (file-executable-p "~/.opencode/bin/opencode"))
-               (executable-find (nth 3 entry))))
-      (user-error "%s%s: in a terminal, vikix agent --install %s"
-                  name (if (member (nth 3 entry) '("gemini" "opencode"))
-                           " isn't installed"
-                         "'s ACP adapter isn't installed")
-                  name)))))
+      (user-error "no agent called %s: vikix agent --list shows them" name))
+     ((not (vikix-ai--installed-p (nth 3 entry)))
+      (let ((about (vikix-ai--about name)))
+        (user-error "%s isn't installed%s.  To install it, in a terminal: vikix agent --install %s"
+                    name (if about (concat ": " about) "") name)))
+     ((and (nth 4 entry) (not (vikix-ai--installed-p (nth 4 entry))))
+      (user-error "%s is installed, but not its ACP adapter, for editors.  In a terminal: vikix agent --install %s (adds only the adapter)"
+                  name name)))))
 
 (defun vikix-ai-agent ()
   "A chat with your agent (Super+a's), over ACP, in agent-shell.
@@ -256,7 +285,25 @@ Started by `vikix agent --acp'; the one this project has already, if any."
     (switch-to-buffer (make-term "vikix agent" "vikix" nil "agent"))
     (term-char-mode)))
 
+(defvar vikix-ai-transcripts
+  (expand-file-name "vikix/agent-shell"
+                    (or (getenv "XDG_STATE_HOME") "~/.local/state"))
+  "Where agent-shell keeps its transcripts: one folder, only yours to read.")
+
+(defun vikix-ai--transcript-file ()
+  "A new transcript's path: PROJECT-TIME.md in `vikix-ai-transcripts'.
+Not in the project, as agent-shell would: a transcript is the whole
+conversation, pasted secrets too, and it doesn't belong next to your code."
+  (let ((project (file-name-nondirectory (directory-file-name (agent-shell-cwd)))))
+    (unless (file-directory-p vikix-ai-transcripts)
+      (make-directory vikix-ai-transcripts t)
+      (set-file-modes vikix-ai-transcripts #o700))
+    (expand-file-name (format "%s-%s.md" (if (string-empty-p project) "home" project)
+                              (format-time-string "%F-%H-%M-%S"))
+                      vikix-ai-transcripts)))
+
 (with-eval-after-load 'agent-shell
+  (setq agent-shell-transcript-file-path-function #'vikix-ai--transcript-file)
   (setq agent-shell-anthropic-claude-acp-command '("vikix" "agent" "--acp" "claude")
         agent-shell-openai-codex-acp-command     '("vikix" "agent" "--acp" "codex")
         agent-shell-google-gemini-acp-command    '("vikix" "agent" "--acp" "gemini")
