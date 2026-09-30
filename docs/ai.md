@@ -340,6 +340,8 @@ vikix dictate models base.en  # back to English
 
 **What stays afterwards:** the recording is deleted once it's written down. The text stays where it was typed, on the clipboard (so in its history, Super+c), and in the "Typed" notification (Super+Shift+n shows earlier ones).
 
+`vikix dictate status` says whether it's set up, and with which model. `vikix dictate file talk.wav` prints what a recording you already have says, without typing it anywhere.
+
 To take it away: `vikix remove dictation` (the models stay; `vikix dictate uninstall --models` removes them too).
 
 ## Talking with the AI
@@ -402,4 +404,8 @@ To take it away: `vikix remove voice` (the voices stay; `vikix voice uninstall -
 | Super+i says "AI didn't answer" | The notification says why; a local model: `vikix ai status` |
 | Super+i says something in `~/.config/vikix/ai` looks wrong | Fix that line (`use=local` or `use=claude`; `model=` a name from `llm models`), or delete the file: the next Super+i writes it afresh |
 | Super+i took the wrong text | It takes the last highlight before the clipboard: highlight the text you mean |
+| `note` says "no folder yet" or "no index yet" | `note index ~/Notes` once (your folder; `--skip A,B` leaves folders out) |
+| `note` says the index needs local AI, or can't reach Ollama | The index is made on this laptop: `vikix add local-ai`, then `vikix ai status` |
+| `note ask` answers from the wrong note | The notes it was given are listed under the answer. `note ask --claude` answers better; `embed=nomic-embed-text` in `~/.config/vikix/notes` finds better passages (after `ollama pull nomic-embed-text`; the next `note index` reads every note again) |
+| The agent has no vikix tools | `vikix mcp register`, then restart the agent; `vikix mcp status` says whether it's on (see [When something breaks](fixing.md#the-agent-doesnt-have-the-desktops-tools)) |
 | You don't like what the agent changed | `vikix changes`, then `vikix undo` |

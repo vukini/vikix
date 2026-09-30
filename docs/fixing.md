@@ -6,7 +6,7 @@ Start with:
 vikix doctor
 ```
 
-It checks the programs, services, links, the snapshot history and `vikix eval`, and says what's missing.
+It checks the programs, services, links, the snapshot history, Swank's password and `vikix eval`, the agent's guide, USB drives, and the editors you chose (whether Emacs has Vikix's AI setup loaded, whether Neovim's plugins are installed and whose versions they are), and says what's missing.
 
 ## The install stopped
 
@@ -51,13 +51,16 @@ You'll be left at the text console, or with a black screen.
 
 ## Something's missing from the menu or the launcher
 
-- **An entry isn't in Super+m** (JupyterLab, Zeal, Printers, Windows, Local AI): it's left out until its feature is here. `vikix features` shows what you have; `vikix add python` (or `printing`, `windows`, `local-ai` …) brings it, and the entry with it.
+- **An entry isn't in Super+m** (JupyterLab, Zeal, Printers, Windows, Local AI, Dictation, Voice, Dropbox): it's left out until its feature is here. `vikix features` shows what you have; `vikix add python` (or `printing`, `windows`, `local-ai`, `dictation`, `voice` …) brings it, and the entry with it.
+- **Super+m → *Apps* says "No apps yet"**, or a program is missing from it: each entry shows once its program is installed. `vikix add video` (or `graphics`, `blender`, `study`, `passwords`, `phone`, `cli-extras`) brings them.
 - **A program isn't in the launcher (Super+d)**: the launcher lists programs that come with a `.desktop` file. Type its name as the file gives it: JupyterLab also answers to `jlab`. A program without one (most command-line tools) runs from a terminal, or from Super+m if Vikix has an entry for it.
 - **The welcome didn't open, or you closed it**: `Super+m` → *Welcome*, or `vikix welcome` in a terminal.
 
 ## Adding a feature failed
 
 `vikix add` names what didn't finish (a download, most often). The feature is recorded all the same, so `vikix add NAME` again, or the next `vikix update`, finishes the job. A feature with its own setup, like `windows`, is recorded only once its setup succeeds: it says what it needs first (KVM switched on in the BIOS, 40 GB free).
+
+Dictation and voice build or download their parts once, as you, with no password. If `vikix add dictation` stops at the build, the end of the build's output is shown, and all of it is in `~/.local/state/vikix/logs/whisper-build.log`. A download that fails its checksum is deleted, never used; run the setup again.
 
 ## Something on screen stopped updating
 
@@ -76,7 +79,7 @@ vikix undo           # back one snapshot
 vikix undo ID        # back to that snapshot
 ```
 
-Then `Super+m` → *Reload config*, or log in again for things read at login (`.Xresources`, the idle times).
+In a terminal, `vikix undo` lists the files it will put back and asks first, so you can say no and choose another snapshot. An undo takes a snapshot of its own first, so `vikix undo` again takes it back. Then `Super+m` → *Reload config*, or log in again for things read at login (`.Xresources`, the idle times).
 
 A file that was in the way of one of Vikix's links was moved aside, not deleted. To find those:
 
@@ -121,7 +124,16 @@ To run one install stage again on its own (each is safe to re-run):
 ## `vikix eval` fails
 
 - **Exit 2** means it couldn't reach StumpWM: it isn't running, or a menu or prompt is open. Close it and try again.
+- **`… is another user's (uid N), not StumpWM's: the password isn't sent`**: something of another user's is listening on port 4004, most likely because your StumpWM isn't running (you're on a text console). `vikix eval` won't send it your Swank password. Start the desktop, or find out what that is: `ss -ltnp 'sport = :4004'`.
 - **`error: …`** is an error in the Lisp you sent; the desktop is fine.
+
+## An editor doesn't work
+
+[Neovim and Emacs](editors.md#when-an-editor-doesnt-work) has what to try: the plugins' log, `eq` for Emacs without its config, and the language servers. `vikix doctor` says whether Emacs has Vikix's AI setup loaded and whether Neovim's plugins are in place. After `vikix update`, an Emacs that's running gets Vikix's new AI setup without a restart; one started before Vikix 0.59 is told to `emacs-restart`.
+
+## The agent doesn't have the desktop's tools
+
+After `vikix mcp register`, restart the agent: it reads its list of servers when it starts. Then `vikix mcp status` says whether Claude Code has it, which risky tools are on, how many servers are running and on which version, and the last calls. For Codex, Gemini CLI and OpenCode, `vikix mcp register` prints the lines to put in their settings yourself. A tool that says it was refused names what it would take (a workspace that exists, a theme you have); every call is in `~/.local/state/vikix/mcp.log`.
 
 ## Asking for help
 

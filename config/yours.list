@@ -25,6 +25,7 @@
 .config/vikix/ai              # which model AI on keys uses (Super+i)
 .config/vikix/agent           # which AI agent Super+a starts (vikix agent --default)
 .config/vikix/dictation       # dictation's model (vikix dictate models)
+.config/vikix/voice           # the voice, and when a new chat starts (vikix voice)
 .config/vikix/notes           # the folder note reads, and what it skips (note index)
 .config/nvim                  # Neovim: your plugins and settings, and the plugins' versions (not when it's a git clone: that has its own history)
 # The agents' own settings, file by file (their folders also hold logins):

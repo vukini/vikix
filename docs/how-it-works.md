@@ -9,7 +9,8 @@ Everything else is a **feature**, added when you want it:
 - **What there is:** `features.list` in the checkout names each feature and the package lists it brings; `bundles.list` groups them (`essentials`, `developer`, `everything`). A package list no feature names is part of the base. `vikix features` shows them all, with the ones you have marked.
 - **What you chose:** `~/.config/vikix/features`, one name a line. `vikix add` and `vikix remove` keep it; it's one of your files, so it has an undo too. `./install.sh --with essentials` adds them in the same run as the install.
 - **Single programs:** `vikix pkg add NAME` and `vikix pkg drop NAME`, for what isn't a feature. A package Vikix's lists name that you drop goes on `~/.config/vikix/packages-skip`, so updates leave it out.
-- **Where they show:** Super+m leaves out entries for features you don't have (JupyterLab, Printers, Windows, local AI …), and the welcome at your first login (`vikix welcome`) has a picker for them.
+- **Some set themselves up:** a feature can be a setup command rather than packages. `local-ai`, `llm`, `dictation`, `voice`, `notes`, `windows` and the other agents (`opencode`, `codex`, `gemini`, `aider`) each run one (`vikix ai setup`, `vikix dictate setup` …), which fetches what it needs as you, mostly into `~/.local`; `vikix remove` runs its uninstall. `features.list` names each one's commands.
+- **Where they show:** Super+m leaves out entries for features you don't have (JupyterLab, Printers, Windows, local AI, dictation …), Super+m → *Apps* shows the programs of the app features you added (video, graphics, study …), and the welcome at your first login (`vikix welcome`) has a picker for them.
 
 ## From login to desktop
 
@@ -58,7 +59,16 @@ For the curious: `vikix eval` is a small Python program that talks to StumpWM th
 
 ![vikix eval sends your Lisp to Swank, which runs it in StumpWM's main thread and sends back what it printed](diagrams/vikix-eval.svg)
 
-Two things keep it safe. The password in `~/.slime-secret` means only you can run code there, and `swank-guard.lisp` makes sure a client with a wrong or slow password is turned away without taking Swank down. And if StumpWM is busy (a menu is open, say), `vikix eval` gives up after 10 seconds with a message, and the code never runs later by surprise.
+Two things keep it safe. The password in `~/.slime-secret` means only you can run code there, and `swank-guard.lisp` makes sure a client with a wrong or slow password is turned away without taking Swank down. And if StumpWM is busy (a menu is open, say), `vikix eval` gives up after 10 seconds with a message, and the code never runs later by surprise. It also looks at who owns the port before it sends the password: if the listener on 4004 is another user's (your StumpWM isn't running, and someone else took the port), it stops there.
+
+### How `vikix mcp` reaches it
+
+For the curious: `vikix mcp register` gives your agent the desktop as tools ([Working with AI](ai.md#the-desktop-as-tools-mcp)). The server is `bin/vikix-mcp`, a Python program with nothing but the standard library. It doesn't listen on the network: the agent starts `vikix-mcp serve` itself and talks to it over its stdin and stdout, one JSON-RPC message a line, so only that agent can use it.
+
+- **Looking:** `desktop` and `keys` send fixed Lisp forms through `vikix eval`, the path above, and StumpWM answers in JSON. `doctor`, `history`, `changes` and `themes` run the `vikix` command, and what comes back goes through the same scrubber as `vikix debug` (`lib/debug-report.py`) before the agent sees it; `version` reads the checkout's `VERSION`.
+- **Acting:** `set_theme`, `switch_workspace` and `focus_window` check what the agent asked for against the desktop first (a theme there is, a workspace that exists, a window number on it). Only that checked value reaches Lisp, as an escaped string, or a command, as one argument; never a shell.
+- **Keeping a record:** every call, refused ones too, goes into `~/.local/state/vikix/mcp.log` (600), with long arguments cut and secrets taken out.
+- **Staying current:** before it reads each request, the server compares its own files (`bin/vikix-mcp`, `lib/debug-report.py`, `VERSION`) with how they were when it started. When `vikix update` has changed them, and they compile, it `exec`s the new version in the same process, with the request still waiting in the pipe, and tells the agent its tools may have changed.
 
 ## What `vikix update` does
 
@@ -67,10 +77,10 @@ Two things keep it safe. The password in `~/.slime-secret` means only you can ru
 3. **Runs six install stages again**, each safe to repeat:
    - `10-packages`: installs anything new in the base's lists and your features' lists, leaving out your skip list
    - `20-services`: switches on services new packages brought
-   - `40-config`: links Vikix's files again, copies starters you don't have yet, writes the theme files again, makes these guides into the Info manual, and takes a snapshot of your files
-   - `45-editors`: for the editors you chose, pulls Emacs's config, and moves Neovim's plugins on when Vikix tested newer ones
+   - `40-config`: links Vikix's files again, copies starters you don't have yet, writes the theme files again, makes these guides into the Info manual and the web pages, and takes a snapshot of your files
+   - `45-editors`: for the editors you chose, pulls Emacs's config and reloads Vikix's AI setup in an Emacs that's running (your chats stay open), and moves Neovim's plugins on when Vikix tested newer ones (unless you moved them yourself)
    - `65-languages`: for the languages you chose: PicoLisp, Lazarus, Julia
-   - `67-dev`: the `~/dev` READMEs, new examples
+   - `67-dev`: the `~/dev` READMEs, new examples, and `~/dev/ai` where `uv` is
 4. **Runs migrations**: one-off fixes for machines installed before some change, each run once (recorded in `~/.local/state/vikix/migrations/`).
 5. **Brings `llm` to its pinned version**, if you have it (`vikix ai llm`).
 6. **Upgrades your own programs**: what you installed with `pipx` (`pipx upgrade-all`), with `uv tool install` (each one but Vikix's pinned `llm` and Piper), and with `cargo install` (when `cargo install-update` is there: `cargo install cargo-update`, once). Go can't upgrade everything it installed; run `go install NAME@latest` again for each.
@@ -87,6 +97,8 @@ vikix update tools    # 45-editors, 65-languages, 67-dev, then steps 5 and 6
 ```
 
 Core still installs a package new to Vikix's lists (a release that needs a new program works), but updates nothing else of Void's. Programs from `cargo install` and `go install` are on your PATH (`~/.cargo/bin`, `~/go/bin`), from the block in `~/.bash_profile`.
+
+An agent's `vikix mcp` server that's already running notices the new version by itself and runs it from its next call, so the agent doesn't need to reconnect.
 
 A stage that fails doesn't stop the rest; they are named at the end. The whole run is logged in `~/.local/state/vikix/logs/update-<time>.log`.
 
@@ -117,6 +129,8 @@ Your own configs *include* those written files. So the theme's colours come in, 
 
 ## Snapshots
 
-Your files (listed in `~/vikix/config/yours.list`) have a history in `~/.local/state/vikix/yours.git`. A snapshot is taken after every install and update, before every AI agent session (`Super+a`), and whenever you run `vikix snapshot`. `vikix undo` puts your files back as they were one snapshot ago, and is itself a snapshot, so a second undo reverses it.
+Your files (listed in `~/vikix/config/yours.list`) have a history in `~/.local/state/vikix/yours.git`. A snapshot is taken after every install and update (and again once Neovim's starter is in place), before every AI agent session (`Super+a`, and an agent an editor starts), and whenever you run `vikix snapshot`. `vikix undo` puts your files back as they were one snapshot ago, and is itself a snapshot, so a second undo reverses it.
+
+A folder in the list that is a git clone of its own, such as a Neovim config you brought, is left out: it has its own history. API keys are never recorded, whatever the list says.
 
 It covers your settings, not your documents. For those, `vikix backup`.

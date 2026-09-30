@@ -16,7 +16,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │
 ├── .stumpwm.d/
 │   ├── init.lisp              Vikix's   loads Vikix's layer, then user.lisp
-│   ├── vikix/                 Vikix's   the layer: theme, groups, commands, windows, keys, help, webapps, modeline, swank
+│   ├── vikix/                 Vikix's   the layer: theme, groups, commands, windows, keys, help, webapps, modeline, swank-guard, swank
 │   ├── user.lisp              yours     your StumpWM settings; loaded last, so they win
 │   └── modules/               stumpwm-contrib, cloned by 30-lisp (swm-gaps, ttf-fonts, ...)
 │
@@ -74,17 +74,15 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   ├── share/vikix/emacs              Vikix's   Vikix's part of Emacs: vikix-ai.el, gptel on vikix ai use's model and your agent in agent-shell (a link to config/emacs)
 │   ├── share/info/vikix.info          written   these guides as an Info manual (`info vikix`)
 │   ├── share/vikix/guide/             written   these guides as web pages, with the diagrams (Super+m → Vikix guide in the browser)
-│   ├── state/vikix/mcp.log            written   every call an agent made to vikix mcp (600)
-│   ├── state/vikix/session.env        written   the session's display and D-Bus, for vikix mcp under Codex (600)
 │   ├── share/vikix/whisper/           fetched   dictation's model and voice detector (vikix dictate)
 │   ├── share/vikix/piper/             fetched   the voice the AI talks with (vikix voice)
 │   ├── share/vikix/notes/index.db     written   note's index: passages of your notes and their embeddings (folder 700; note index)
-│   ├── state/vikix/voice-chat         written   Super+F10's conversation: llm's id, and when it was last used
 │   ├── share/vikix/AGENTS.md          written   the skill as a guide for Codex, Gemini, Aider (linked as ~/.codex/AGENTS.md, ~/.gemini/GEMINI.md)
 │   ├── opt/picolisp/          built     PicoLisp, from source (with the feature lisp)
 │   ├── opt/lem/               built     Lem, the editor in Common Lisp (vikix add lisp-apps)
 │   ├── opt/mcclim/            built     McCLIM's Listener, with Clouseau (vikix add lisp-apps)
 │   ├── opt/ollama/            built     Ollama, for local AI models (vikix ai setup)
+│   ├── opt/whisper.cpp/       built     dictation's speech-to-text, built for this computer (vikix dictate setup)
 │   ├── share/libvirt/images/  the Windows VM's disk and its driver disc (not backed up)
 │   ├── share/vikix/webapps/   each web app's own Chromium profile: its logins (caches not backed up)
 │   └── state/vikix/           Vikix's record of this machine (see below)
@@ -106,13 +104,19 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 
 | Path | What |
 |---|---|
-| `logs/` | One log per install and per `vikix update`, named by date |
+| `logs/` | One log per install and per `vikix update`, named by date. Also the long output of a few builds, kept out of the update's own: `nvim-plugins.log` (Neovim's plugins), `whisper-build.log` (dictation), `lazarus-build.log` (the Lazarus IDE) |
 | `session.log`, `session.log.old` | Everything the desktop session printed, this login and the one before. The first place to look when the desktop won't start. |
 | `yours.git` | The history of your files (`vikix snapshot`, `changes`, `history`, `undo`). A git repository whose work tree is `~`, limited to the files in `~/vikix/config/yours.list` |
 | `migrations/` | Which one-off fixes this machine has had |
 | `welcome` | The welcome's steps you've done (`vikix welcome`); that it exists means the welcome has been shown, so it doesn't open at login again |
 | `checkout-changes/` | Changes someone made in `~/vikix`, set aside by `vikix update` as patch files (see [When something breaks](fixing.md#an-update-failed)) |
 | `diagnose/` | The last five reports `vikix diagnose` gave your agent |
+| `mcp.log`, `mcp-servers/` | Every call an agent made to `vikix mcp`, refused ones too (600), and the servers running now, with their version (`vikix mcp status` reads both) |
+| `session.env` | This session's display, D-Bus and runtime folder (600), for a `vikix mcp` started by an agent that doesn't pass them on (Codex) |
+| `agent-shell/` | Emacs's agent chats, one transcript per chat, named after the project (700) |
+| `nvim-lock.json` | The plugin versions Vikix last left in your `~/.config/nvim/lazy-lock.json`: how an update knows whether you moved them yourself |
+| `voice-chat` | Super+F10's conversation: llm's id for it, and when it was last used |
+| `dictating` | Only while dictation listens (Super+F9): the recorder's process, so the next press can stop it |
 | `jupyter.log` | JupyterLab's messages (`jlab`) |
 | `ollama.log` | Local AI's log (vikix ai); one old one is kept as `ollama.log.old` |
 | `updates` | What the bar's `updates` field shows, written by `vikix-updates` every 6 hours |

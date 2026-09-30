@@ -41,7 +41,7 @@
 #   vikix lisp-apps setup|status|uninstall
 #                         Nyxt, Lem and McCLIM's Listener: programs in Common
 #                         Lisp (vikix add lisp-apps)
-#   vikix mcp register|unregister|tools
+#   vikix mcp register|unregister|tools|status
 #                         the desktop as an MCP server, for Claude Code and other agents
 #   vikix agent         the AI agent, after a snapshot of your files (alias: a):
 #                         Claude Code, or --use opencode|codex|gemini|aider,

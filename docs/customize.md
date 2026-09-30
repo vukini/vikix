@@ -11,7 +11,7 @@ vikix changes                              # see exactly what changed
 vikix undo                                 # changed your mind: back to the snapshot
 ```
 
-After an undo, `Super+m` → *Reload config* makes StumpWM use the old settings again.
+In a terminal, `vikix undo` first lists the files it will put back and asks. Say no if that isn't the snapshot you meant (an AI agent takes one when it starts, so the one before may be the agent's), and pick another from `vikix history` with `vikix undo ID`. After an undo, `Super+m` → *Reload config* makes StumpWM use the old settings again. `vikix undo --help` shows the four commands together.
 
 Or ask the AI agent: `Super+a` starts Claude Code (or the agent you chose), which knows these rules (from `~/.claude/skills/vikix`) and takes a snapshot before it starts. [Working with AI](ai.md) says how.
 
@@ -84,7 +84,7 @@ The bar is one format string. Vikix sets it in `modeline.lisp`:
 "%J  %W^>%R%K%X%Y%Q%U%A%D%Z%O%T%V%E%d"
 ```
 
-`%J` the workspaces, `%W` the windows, `^>` right-aligns the rest: `%R` rec, `%K` awake, `%X` win (the Windows VM), `%Y` ai (a local model loaded), `%Q` quiet, `%U` updates, `%A` backup, `%D` usb, `%Z` Dropbox, `%O` network, `%T` Bluetooth, `%V` volume, `%E` battery, `%d` date and time. Set your own in `user.lisp` to drop or reorder fields:
+`%J` the workspaces, `%W` the windows, `^>` right-aligns the rest: `%R` rec (or mic, while dictation listens), `%K` awake, `%X` win (the Windows VM), `%Y` ai (a local model loaded), `%Q` quiet, `%U` updates, `%A` backup, `%D` usb, `%Z` Dropbox, `%O` network, `%T` Bluetooth, `%V` volume, `%E` battery, `%d` date and time. Set your own in `user.lisp` to drop or reorder fields:
 
 ```lisp
 ;; no Bluetooth, and the time without the date
@@ -116,7 +116,7 @@ That lasts until the next reload or login. When it does what you want, put the s
 | To change | Do |
 |---|---|
 | The whole theme | `vikix theme paper` (or `Super+m` → *Theme*). `vikix theme` lists them. |
-| A theme of your own | `cp ~/vikix/themes/void.theme ~/.config/vikix/themes/mine.theme`, change the colours, `vikix theme mine`. A picture beside it, `mine.jpg`, becomes its wallpaper. |
+| A theme of your own | `cp ~/vikix/themes/void.theme ~/.config/vikix/themes/mine.theme`, change the colours, `vikix theme mine`. A picture beside it, `mine.jpg`, becomes its wallpaper. The name is letters, digits, `-` and `_` only (`my-theme`, not `my theme`): a file named otherwise isn't listed or used. |
 | The wallpaper | `Super+m` → *Wallpaper*, or `vikix-wallpaper FILE`. Pictures in `~/Pictures/Wallpapers` show in the picker. *My own tool* in the picker stops Vikix touching it, for feh or nitrogen. |
 | Terminal font, size, padding | `~/.config/alacritty/alacritty.toml`. Open windows change at once. |
 | One program's colours, keeping the theme for the rest | Set them in that program's config, after the line that includes the theme. For dunst, a new file after the theme's: `~/.config/dunst/dunstrc.d/90-mine.conf`. |
@@ -153,7 +153,7 @@ Don't edit between the `# >>> vikix … >>>` and `# <<< vikix … <<<` lines; Vi
 ## Programs and services
 
 - **Install a program:** `vikix pkg add NAME`, or `vikix pkg add` alone to search every package in Void with a description beside each (Super+m → *Install a program*). `xi NAME` works too. It stays installed, and `vikix update` keeps it current along with everything else.
-- **Add or remove a feature:** a language, an editor, LibreOffice, printing, video and graphics apps, Windows, local AI. `vikix features` lists them and marks the ones you have; `vikix add rust` installs one, and every update keeps it; `vikix remove rust` uninstalls what only it needed, after showing you the list. Bundles add several at once: `vikix add essentials` (Emacs, C, Python, Lisp), `developer`, `creative` (video, graphics, Blender), `everything`. Your choices are `~/.config/vikix/features`. Windows (`vikix windows setup`, see [Windows in a window](windows.md)) and web apps (the first `vikix webapp add`) choose their feature by themselves.
+- **Add or remove a feature:** a language, an editor, LibreOffice, printing, video and graphics apps, Windows, local AI, dictation and voice, another AI agent. `vikix features` lists them and marks the ones you have; `vikix add rust` installs one, and every update keeps it; `vikix remove rust` uninstalls what only it needed, after showing you the list. Bundles add several at once: `vikix add essentials` (Emacs, C, Python, Lisp), `developer`, `creative` (video, graphics, Blender), `everything`. Your choices are `~/.config/vikix/features`. The programs of the app features (video, graphics, blender, study, passwords, phone, cli-extras) are in `Super+m` → *Apps*, each once it's installed. Windows (`vikix windows setup`, see [Windows in a window](windows.md)) and web apps (the first `vikix webapp add`) choose their feature by themselves.
 - **Remove a program:** `vikix pkg drop NAME`, or `vikix pkg drop` alone to pick from what's installed (Super+m → *Remove a program*). One that Vikix's lists name goes on your skip list, `~/.config/vikix/packages-skip`, so `vikix update` doesn't bring it back; `vikix pkg list` shows it, and `vikix pkg add NAME` takes one off. For a whole language or editor, `vikix remove` is the better way: it says so. (`xr NAME` removes a package too, but an update would install it again.)
 - **A launcher entry of your own:** the launcher (Super+d) lists the `.desktop` files in `~/.local/share/applications`. Put yours there, with a `Name=` and an `Exec=`; a `Keywords=` line (`Keywords=jlab;notebook;`) makes it come up for other words you might type, as `jlab` finds JupyterLab.
 - **Switch on a service:** `sv-on NAME` (the services are in `/etc/sv/`), `sv-off NAME`, `svls` to list. These are system services. A program for your desktop session goes in `user.lisp` instead ([above](#start-a-program-with-the-desktop)).
@@ -173,6 +173,19 @@ Your list is `~/.config/vikix/webapps`, one `NAME URL [KEY]` per line; editing i
 ## The editors
 
 Emacs and Neovim are features: `vikix add emacs`, `vikix add neovim`. Neovim's config is split like the desktop's: Vikix's part is `~/.local/share/vikix/nvim`, and `~/.config/nvim` is yours (your plugins go in its `lua/plugins/`, and win). Emacs's is a git clone of the author's at `~/.emacs.d`, which `vikix update` pulls, and Vikix's AI setup for it is `~/.local/share/vikix/emacs`. [Neovim and Emacs](editors.md) has the rest: keys, language servers, AI in each, and bringing a config of your own.
+
+## AI
+
+Each of these is one of your files, so it has an undo too. [Working with AI](ai.md) says what each does.
+
+| To change | Do |
+|---|---|
+| The model Super+i uses (and the editors' chats, Super+F10 and `note`) | `vikix ai use local` or `vikix ai use claude`; `vikix ai use` alone says which. The model and the languages to translate into are in `~/.config/vikix/ai` ([Local or Claude](ai.md#local-or-claude)) |
+| The agent Super+a starts (and the editors, and Super+F11) | `vikix agent --default opencode`; `vikix agent --which` says which ([Another agent](ai.md#another-agent)) |
+| Dictation's language | `vikix dictate models small` for many languages, `base.en` for English ([Dictation](ai.md#dictation)) |
+| The voice that answers, or no voice at all | `vikix voice voices alan`; `speak=no` or `idle=` in `~/.config/vikix/voice` ([Talking with the AI](ai.md#talking-with-the-ai)) |
+| The notes `note` reads | `note index FOLDER --skip A,B` once; `folder=`, `skip=`, `embed=` in `~/.config/vikix/notes` ([Asking your notes](ai.md#asking-your-notes-note)) |
+| What the agent may do on the desktop without asking | `vikix mcp register` gives it the desktop as tools; `--allow-eval` and `--allow-undo` add the two risky ones, and registering again without them takes them away ([The desktop as tools](ai.md#the-desktop-as-tools-mcp)) |
 
 ## Changing Vikix itself
 

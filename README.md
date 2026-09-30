@@ -70,7 +70,7 @@ Every stage checks before it changes anything, so re-running the install is safe
 | `50-audio` | Sets up PipeWire, WirePlumber and the ALSA links, as the Void handbook describes. |
 | `60-login` | Adds `~/.local/bin` to PATH, loads the aliases in every shell, and makes X start after login on tty1. |
 | `65-languages` | For the language features you chose. Builds the languages Void doesn't package (PicoLisp), builds Lazarus's docked IDE into `~/.lazarus` (a build that fails isn't tried again until Void's Lazarus or the recipe changes; `VIKIX_REBUILD_LANGS=1` tries now), and fetches the current Julia with juliaup. The packaged ones are lines in `packages/lang-*.list`. |
-| `67-dev` | Makes `~/dev`: a folder per installed language, the docs page, and the Python environment JupyterLab runs on. It downloads the offline docs and Zeal docsets only when run by `vikix docs`; otherwise it lists what is missing. `vikix update` runs it again. |
+| `67-dev` | Makes `~/dev`: a folder per installed language, the docs page, and the Python environment JupyterLab runs on. It downloads the offline docs and Zeal docsets only when run by `vikix docs`; otherwise it lists what is missing. Where `uv` is (the features `python` and `notes`), also `~/dev/ai`, the AI examples. `vikix update` runs it again. |
 | `70-vm` | Inside a VM only (VirtualBox, or KVM/QEMU such as virt-manager): installs the guest tools (shared clipboard, screen resizing). Does nothing on real hardware. |
 | `90-finish` | Marks existing migrations as applied, and prints what to do next. |
 
@@ -262,6 +262,7 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 Along the top, in Iosevka like the terminal: on the left the workspaces in use (the current one in brackets) and this workspace's windows, numbered, the focused one in the accent colour; on the right, from left to right:
 
 - **rec**, in the theme's alert colour, while the screen is being recorded (`s-R` stops it).
+- **mic**, in the alert colour, while dictation or voice listens (`s-F9`, `s-F10` or `s-F11` again writes it down; `s-S-F9` cancels).
 - **awake**, in the theme's quieter text colour, while keep awake is on (`s-M-a`).
 - **ai**, in the quieter colour, while a local AI model is loaded in memory (`vikix ai stop` unloads it).
 - **win**, in the quieter colour, while the Windows VM runs (`vikix windows stop` ends it): it holds 6 GB of memory and costs battery.
@@ -526,7 +527,7 @@ vikix add essentials       # or a bundle: essentials, developer, everything
 vikix remove julia         # stop keeping it, and uninstall what only it needed
 ```
 
-- **Features:** each language (`c`, `python`, `lisp`, `rust` …, with `devtools`, the tools every language uses, coming along), `emacs`, `neovim`, `office` (LibreOffice), `printing`, `webapps`, `dropbox`, `notes`, `video`, `graphics`, `blender`, `study`, `passwords`, `phone`, `cli-extras`, `lisp-apps`, `windows`, `local-ai` and `llm`. The last four run their own setup (`vikix lisp-apps setup`, `vikix windows setup`, `vikix ai setup`, `vikix ai llm`).
+- **Features:** each language (`c`, `python`, `lisp`, `rust` …, with `devtools`, the tools every language uses, coming along), `emacs`, `neovim`, `office` (LibreOffice), `printing`, `webapps`, `dropbox`, `video`, `graphics`, `blender`, `study`, `passwords`, `phone`, `cli-extras`, `lisp-apps`, `windows`, `local-ai`, `llm`, `dictation`, `voice`, `notes`, and the other agents `opencode`, `codex`, `gemini` and `aider`. From `lisp-apps` on, each runs its own setup (`vikix lisp-apps setup`, `vikix windows setup`, `vikix ai setup`, `vikix ai llm`, `vikix dictate setup`, `vikix voice setup`, `vikix notes setup`, `vikix agent --install NAME`), and `vikix remove` its uninstall; `voice` brings `dictation` and `llm`, and `notes` brings `local-ai`.
 - **Bundles** (`bundles.list`): `essentials` is Emacs, C, Python and Lisp; `developer` both editors and every language; `everything` is developer, LibreOffice and printing, which is what a full install had before 0.46. `creative` is video, graphics and Blender.
 - **Your choices** are the lines of `~/.config/vikix/features`, yours to edit. A machine installed before 0.46 had every list, so its file says `everything`, plus what it set up since (Windows, local AI). With no file at all, everything is kept.
 - **One program**, not a feature: `vikix pkg add NAME` (alone, a search of every package in Void), `vikix pkg drop NAME`. A package Vikix's lists name that you drop goes on `~/.config/vikix/packages-skip`, which `10-packages` leaves out; `vikix pkg list` shows it, and adding the package again takes it off.
@@ -561,6 +562,8 @@ vikix remove julia         # stop keeping it, and uninstall what only it needed
 | `optional/phone` | Feature `phone`: scrcpy and adb (android-tools), an Android phone's screen in a window. Switch on USB debugging on the phone first |
 | `optional/cli-extras` | Feature `cli-extras`: pandoc, ncdu |
 | `optional/lisp-apps` | Feature `lisp-apps`: Nyxt, and SDL2 with its fonts and images (and libvterm, for the terminal inside Lem), which Lem's window is built on. See [Lisp programs](#lisp-programs-vikix-add-lisp-apps) |
+| `optional/dictation` | Feature `dictation` (`vikix dictate setup`): cmake, gcc and make, to build whisper.cpp. See [Dictation](#dictation-s-f9) |
+| `optional/notes` | Feature `notes` (`vikix notes setup`): uv, which runs `note`'s Python with its pinned libraries. See [Ask your notes](#ask-your-notes-note) |
 
 ## Laptop
 
@@ -837,6 +840,10 @@ vikix ai setup               # local AI models (Ollama); then vikix ai models to
 vikix ai llm                 # the llm command: cat notes.md | llm "summarise"
 vikix add lisp-apps          # Nyxt, Lem and McCLIM's Listener: programs in Common Lisp
 vikix fingerprint  # a finger for sudo and the lock screen, where the reader is supported
+vikix dictate setup          # speak, and it types (s-F9); vikix add dictation does the same
+vikix voice setup            # talk to the AI (s-F10) or the agent (s-F11), and it answers aloud
+note ask "..."               # ask your notes (vikix add notes, then note index FOLDER once)
+vikix mcp register           # the desktop as tools for your agent; vikix mcp status
 ```
 
 ## Tests
@@ -916,7 +923,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `migrations/` | One-off changes for machines already installed (see its README) |
 | `tests/` | The tests (see [Tests](#tests)) |
 | `docs/` | The user's guides: where everything is, how it fits together, customizing, fixing. Installed as an Info manual too (`info vikix`, or `C-h i` in Emacs) and as web pages (Super+m → *Vikix guide in the browser*). `docs/diagrams/` holds the diagrams: Mermaid sources, the SVGs `render.sh` draws from them, and a text version of each for Info |
-| `site/` | The website, [vikix.dev](https://vikix.dev): one static page, published to GitHub Pages by `.github/workflows/pages.yml` |
+| `site/` | The website, [vikix.dev](https://vikix.dev): static pages (the front page and the gallery) and the one-line install, published to GitHub Pages by `.github/workflows/pages.yml` |
 
 ## Not done yet
 
