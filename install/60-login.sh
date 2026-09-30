@@ -7,7 +7,8 @@
 # there and fix it.
 #
 # Marked blocks (re-running replaces them, never duplicates):
-#   ~/.bash_profile  vikix path    puts ~/.local/bin on PATH
+#   ~/.bash_profile  vikix path    puts ~/.local/bin on PATH, and where
+#                                  cargo install and go install put programs
 #                    vikix bashrc  reads ~/.bashrc, if the profile doesn't already
 #                    vikix startx  starts X after login on tty1
 #   ~/.bashrc        vikix         reads ~/.config/vikix/vikix.bash (aliases, prompt);
@@ -20,8 +21,13 @@ set -euo pipefail
 profile="$HOME/.bash_profile"
 
 # shellcheck disable=SC2016  # the $ signs are for the profile, not for now
+# ~/.local/bin first (Vikix's commands, pipx and uv's programs), then
+# cargo's and go's, so `cargo install` and `go install` programs are found.
 ensure_block "$profile" path \
-'case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) PATH="$HOME/.local/bin:$PATH" ;; esac
+'for d in "$HOME/go/bin" "$HOME/.cargo/bin" "$HOME/.local/bin"; do
+  case ":$PATH:" in *":$d:"*) ;; *) PATH="$d:$PATH" ;; esac
+done
+unset d
 export PATH'
 
 # A login shell reads only ~/.bash_profile, so it has to pull in ~/.bashrc

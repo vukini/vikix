@@ -73,7 +73,20 @@ Two things keep it safe. The password in `~/.slime-secret` means only you can ru
    - `67-dev`: the `~/dev` READMEs, new examples
 4. **Runs migrations**: one-off fixes for machines installed before some change, each run once (recorded in `~/.local/state/vikix/migrations/`).
 5. **Brings `llm` to its pinned version**, if you have it (`vikix ai llm`).
-6. **Reloads StumpWM**, so new keys, the bar and the menu work at once.
+6. **Upgrades your own programs**: what you installed with `pipx` (`pipx upgrade-all`), with `uv tool install` (each one but Vikix's pinned `llm` and Piper), and with `cargo install` (when `cargo install-update` is there: `cargo install cargo-update`, once). Go can't upgrade everything it installed; run `go install NAME@latest` again for each.
+7. **Reloads StumpWM**, so new keys, the bar and the menu work at once.
+
+### One part at a time
+
+`vikix update` does all of the above. When you only want one part:
+
+```sh
+vikix update core     # Vikix only: steps 1, 3 (10-packages, 20-services, 40-config), 4 and 7. Seconds.
+vikix update system   # Void's packages only: step 2
+vikix update tools    # 45-editors, 65-languages, 67-dev, then steps 5 and 6
+```
+
+Core still installs a package new to Vikix's lists (a release that needs a new program works), but updates nothing else of Void's. Programs from `cargo install` and `go install` are on your PATH (`~/.cargo/bin`, `~/go/bin`), from the block in `~/.bash_profile`.
 
 A stage that fails doesn't stop the rest; they are named at the end. The whole run is logged in `~/.local/state/vikix/logs/update-<time>.log`.
 

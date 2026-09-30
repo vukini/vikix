@@ -20,7 +20,7 @@ mkdir "$t/upstream"
 ( cd "$here" && git ls-files -z | xargs -0 cp --parents -t "$t/upstream" )
 ( cd "$t/upstream" && git init -q && git_q add -A && git_q commit -qm current )
 git clone -q "$t/upstream" "$t/machine"
-sed -i 's/^  say "updating Void"$/  say "NEW VERSION STEPS"; exit 0/' "$t/upstream/bin/vikix"
+sed -i 's/^\( *\)say "updating Void"$/\1say "NEW VERSION STEPS"; exit 0/' "$t/upstream/bin/vikix"
 grep -q 'NEW VERSION STEPS' "$t/upstream/bin/vikix" || { echo "FAIL: test setup (no 'updating Void' line)"; exit 1; }
 ( cd "$t/upstream" && git_q commit -qam newer )
 
@@ -140,4 +140,58 @@ grep -q "would run: vikix eval '(loadrc)'" <<<"$out" || { echo "FAIL: update doe
 grep -q 'these stages failed: 10-packages' <<<"$out" || { echo "FAIL: the failed stage isn't named at the end"; fail=1; }
 [ "$status" != 0 ] || { echo "FAIL: update exits 0 although a stage failed"; fail=1; }
 [ "$fail" = 0 ] && echo "update: a failed stage is reported, and the rest still run; StumpWM is reloaded"
+
+# The parts: core is Vikix only, system Void's packages only, tools the
+# editors, languages and your own programs. Stubs as above; pipx, uv and
+# cargo are stand-ins that write down what they're asked.
+part() {  # part NAME — a dry run of vikix update NAME, after the pull
+  HOME="$t/home" VIKIX_STATE="$t/state3" VIKIX_SUDO_KEPT=1 DRY_RUN=1 PATH="$t/tools:$PATH" \
+    bash "$t/machine/bin/vikix" update --pulled "$1" 2>&1 || true
+}
+printf '#!/bin/sh\necho "STUB 10-packages"\n' > "$t/machine/install/10-packages.sh"
+mkdir -p "$t/tools"
+printf '#!/bin/sh\necho "pipx $*"\n' > "$t/tools/pipx"
+cat > "$t/tools/uv" <<'UV'
+#!/bin/sh
+case "$*" in
+  "tool list") printf 'llm v0.36\n- llm\npiper-tts v1.8.0\n- piper\nruff v0.9.0\n- ruff\n' ;;
+  *) echo "uv $*" ;;
+esac
+UV
+printf '#!/bin/sh\necho "cargo $*"\n' > "$t/tools/cargo"
+chmod +x "$t/tools/"*
+out=$(part core)
+for s in 10-packages 20-services 40-config; do
+  grep -q "STUB $s" <<<"$out" || { echo "FAIL: update core should run $s: $out"; fail=1; }
+done
+for s in 45-editors 65-languages 67-dev; do
+  grep -q "STUB $s" <<<"$out" && { echo "FAIL: update core shouldn't run $s"; fail=1; }
+done
+grep -q 'xbps-install -Su' <<<"$out" && { echo "FAIL: update core shouldn't update Void's packages"; fail=1; }
+grep -q 'new migration(s)' <<<"$out" || { echo "FAIL: update core should run the migrations"; fail=1; }
+grep -q "would run: vikix eval '(loadrc)'" <<<"$out" || { echo "FAIL: update core should reload StumpWM"; fail=1; }
+grep -q 'pipx' <<<"$out" && { echo "FAIL: update core shouldn't upgrade your programs"; fail=1; }
+out=$(part system)
+grep -q 'xbps-install -Su' <<<"$out" || { echo "FAIL: update system should update Void's packages: $out"; fail=1; }
+grep -q 'STUB' <<<"$out" && { echo "FAIL: update system shouldn't run stages: $out"; fail=1; }
+grep -q 'migration' <<<"$out" && { echo "FAIL: update system shouldn't run migrations"; fail=1; }
+out=$(HOME="$t/home" VIKIX_STATE="$t/state3" VIKIX_SUDO_KEPT=1 DRY_RUN=1 bash "$t/machine/bin/vikix" update system 2>&1) || true
+grep -q 'pulling Vikix' <<<"$out" && { echo "FAIL: update system shouldn't pull Vikix"; fail=1; }
+out=$(part tools)
+for s in 45-editors 65-languages 67-dev; do
+  grep -q "STUB $s" <<<"$out" || { echo "FAIL: update tools should run $s: $out"; fail=1; }
+done
+grep -q 'STUB 10-packages' <<<"$out" && { echo "FAIL: update tools shouldn't run 10-packages"; fail=1; }
+grep -q 'xbps-install -Su' <<<"$out" && { echo "FAIL: update tools shouldn't update Void's packages"; fail=1; }
+grep -q 'would run: pipx upgrade-all' <<<"$out" || { echo "FAIL: update tools should upgrade pipx's programs: $out"; fail=1; }
+grep -q 'would run: uv tool upgrade ruff' <<<"$out" || { echo "FAIL: update tools should upgrade your uv tools: $out"; fail=1; }
+grep -qE 'uv tool upgrade (llm|piper-tts)' <<<"$out" && { echo "FAIL: Vikix's pinned llm and Piper should be left alone: $out"; fail=1; }
+grep -q 'would run: cargo install-update -a' <<<"$out" || { echo "FAIL: update tools should upgrade cargo's programs: $out"; fail=1; }
+grep -q 'would run: vikix ai llm --refresh' <<<"$out" || { echo "FAIL: update tools should bring llm to its pin"; fail=1; }
+out=$(part everything)
+grep -q 'core|system|tools' <<<"$out" || { echo "FAIL: an unknown part should name the parts: $out"; fail=1; }
+out=$(part all)
+grep -q 'would run: pipx upgrade-all' <<<"$out" && grep -q 'xbps-install -Su' <<<"$out" && grep -q 'STUB 67-dev' <<<"$out" ||
+  { echo "FAIL: plain update should still do everything: $out"; fail=1; }
+[ "$fail" = 0 ] && echo "update: core, system and tools each do only their part; plain update does all three"
 exit "$fail"

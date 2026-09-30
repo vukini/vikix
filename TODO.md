@@ -31,11 +31,6 @@ Built in this order: newcomers first, then the rest (the AI items have shipped; 
 
 Added 2026-09-30, from a conversation with Vid about 0.52-0.65. Not yet ordered against the list above, and no package names checked against void-packages yet: check each before building, as for the features above. Numbered on from 10.
 
-### Updates and packages
-
-10. **A granular update.** `vikix update` stays as everything. Beside it: `vikix update core` (Vikix only: pull, then `10-packages` for packages new to the lists but without `xbps-install -Su`, `20-services`, `40-config`, migrations, the MCP server and a StumpWM reload: seconds, not minutes); `vikix update system` (Void's packages only, the two `xbps-install` lines); `vikix update tools` (`45-editors`, `65-languages`, `67-dev`, llm, and item 11's upgrades). Core must still install new list entries, or a release needing a new program (xcolor, say) breaks. To decide: whether the bar's `updates` note says which part is waiting (`Vikix update` = core, `updates 12` = system).
-11. **Programs from pipx, uv, cargo and go.** Put `~/.cargo/bin` and `~/go/bin` on PATH, in the 60-login block that adds `~/.local/bin` (today `cargo install` and `go install` programs aren't found). `update tools` (item 10) runs `pipx upgrade-all`, `uv tool upgrade --all`, and `cargo install-update -a` when that helper is installed. Go has no upgrade-all: say so in the docs rather than guess.
-
 ### AI, more
 
 12. **A cloud model for `vikix ai use`.** Beside `local` and `claude`, `cloud`: any OpenAI-compatible address, a key from `vikix ai key`, and a model name, with OpenRouter as the ready-made default (one key, hundreds of models, pay per use). `s-i`, `llm`, gptel, Neovim's AI and the agents' `--local`-style switch all follow it. The docs say plainly that the text goes to that service and its model host.

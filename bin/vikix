@@ -3,7 +3,10 @@
 #
 #   vikix update        pull Vikix, update Void, add new packages and their
 #                         services, refresh config links, pull the editor
-#                         configs, run new migrations, reload StumpWM
+#                         configs, run new migrations, reload StumpWM, and
+#                         upgrade your pipx, uv and cargo programs
+#   vikix update core|system|tools   one part: Vikix only (seconds), Void's
+#                         packages only, or the editors, languages and tools
 #   vikix migrate       run only the migrations not yet applied
 #   vikix rebuild-wm    rebuild the StumpWM executable (after a Quicklisp update)
 #   vikix docs          download the offline programming docs into ~/dev
@@ -173,7 +176,58 @@ pull_failed() {
   exit 1
 }
 
+# Programs you installed yourself with pipx, uv or cargo, brought up to date.
+# uv's llm and Piper are left alone: they're Vikix's, pinned, and brought
+# to their pins by vikix ai llm and vikix voice. Go has no way to upgrade
+# everything it installed: `go install NAME@latest` again, one at a time.
+upgrade_user_tools() {
+  local name
+  if command -v pipx >/dev/null 2>&1; then
+    say "your pipx programs"
+    run pipx upgrade-all || warn "pipx couldn't upgrade everything (above)"
+  fi
+  if command -v uv >/dev/null 2>&1; then
+    say "your uv tools"
+    while read -r name; do
+      case $name in ''|-*|llm|piper-tts) continue ;; esac
+      run uv tool upgrade "$name" || warn "uv couldn't upgrade $name (above)"
+    done < <(uv tool list 2>/dev/null | awk '{ print $1 }')
+  fi
+  if command -v cargo >/dev/null 2>&1; then
+    if cargo install-update --version >/dev/null 2>&1; then
+      say "your cargo programs"
+      run cargo install-update -a || warn "cargo couldn't upgrade everything (above)"
+    elif compgen -G "$HOME/.cargo/bin/*" >/dev/null; then
+      say "cargo programs aren't upgraded without cargo-update: cargo install cargo-update, once"
+    fi
+  fi
+}
+
+update_help() {
+  cat <<'EOF'
+vikix update          everything: core, then system, then tools
+vikix update core     Vikix only: pull it, install packages new to its lists
+                        (nothing else of Void's), services, config links,
+                        migrations, reload StumpWM. Seconds, not minutes.
+vikix update system   Void's packages only (xbps-install -Su)
+vikix update tools    the editors' plugins and servers, the languages built
+                        from source, ~/dev, llm, and your own pipx, uv and
+                        cargo programs
+EOF
+}
+
 cmd_update() {
+  local a pulled='' part=all
+  for a in "$@"; do
+    case $a in
+      --pulled) pulled=1 ;;
+      ''|all) ;;
+      core|system|tools) part=$a ;;
+      -h|--help|help) update_help; return 0 ;;
+      *) die "vikix update [core|system|tools] (vikix update help)" ;;
+    esac
+  done
+  local what="update"; [ "$part" = all ] || what="update $part"
   drop_keys
   # Everything it prints also goes to a log, like the installer's. Set up
   # once: the run restarted after the pull (below) inherits it.
@@ -182,61 +236,83 @@ cmd_update() {
     export VIKIX_UPDATE_LOG
     mkdir -p "$(dirname "$VIKIX_UPDATE_LOG")"
     exec > >(tee -a "$VIKIX_UPDATE_LOG") 2>&1
-    say "Vikix $(cat "$VIKIX_DIR/VERSION"): update; log: $VIKIX_UPDATE_LOG"
+    say "Vikix $(cat "$VIKIX_DIR/VERSION"): $what; log: $VIKIX_UPDATE_LOG"
   fi
   sudo_keepalive
-  if [ "${1:-}" != --pulled ]; then
-    set_aside_local_changes "$VIKIX_DIR"
-    say "pulling Vikix"
-    git_pull "$VIKIX_DIR" || pull_failed "$VIKIX_DIR"
-    # The pull may have replaced this very script, but bash goes on running
-    # the copy it already opened: the steps below would be the OLD version's,
-    # and a stage new in this version would be skipped. So start again from
-    # the new copy. (Same process, so sudo_keepalive carries on.)
-    exec "$VIKIX_DIR/bin/vikix" update --pulled
+  # Only core pulls: system and tools work from the checkout as it is.
+  if [ "$part" = all ] || [ "$part" = core ]; then
+    if [ -z "$pulled" ]; then
+      set_aside_local_changes "$VIKIX_DIR"
+      say "pulling Vikix"
+      git_pull "$VIKIX_DIR" || pull_failed "$VIKIX_DIR"
+      # The pull may have replaced this very script, but bash goes on running
+      # the copy it already opened: the steps below would be the OLD version's,
+      # and a stage new in this version would be skipped. So start again from
+      # the new copy. (Same process, so sudo_keepalive carries on.)
+      exec "$VIKIX_DIR/bin/vikix" update --pulled "$part"
+    fi
   fi
-  say "updating Void"
-  # xbps refuses every other install until xbps itself is current.
-  run sudo xbps-install -Syu xbps
-  run sudo xbps-install -Su
+  if [ "$part" = all ] || [ "$part" = system ]; then
+    say "updating Void"
+    # xbps refuses every other install until xbps itself is current.
+    run sudo xbps-install -Syu xbps
+    run sudo xbps-install -Su
+  fi
   # One failed stage (a network hiccup in 45-editors, say) must not keep
   # the rest, or the migrations, from running: carry on, and report at
-  # the end, as part two of the install does.
-  local stage failed=()
-  for stage in 10-packages 20-services 40-config 45-editors 65-languages 67-dev; do
+  # the end, as part two of the install does. Core's 10-packages installs
+  # only what's new to the lists (it updates nothing else of Void's), so a
+  # release that needs a new program still works after a core update.
+  local stage stages=() failed=()
+  case $part in
+    all)   stages=(10-packages 20-services 40-config 45-editors 65-languages 67-dev) ;;
+    core)  stages=(10-packages 20-services 40-config) ;;
+    tools) stages=(45-editors 65-languages 67-dev) ;;
+  esac
+  for stage in "${stages[@]}"; do
     say "stage $stage"
     bash "$VIKIX_DIR/install/$stage.sh" || { warn "stage $stage failed; carrying on"; failed+=("$stage"); }
   done
-  cmd_migrate
-  # llm (vikix ai llm) is installed with uv, outside the stages: bring it
-  # to the pinned version when it's here and isn't.
-  if [ "$DRY_RUN" = 1 ]; then
-    printf '   would run: %s\n' "vikix ai llm --refresh  # llm to its pinned version, if installed"
-  else
-    bash "$VIKIX_DIR/bin/vikix-local-ai" llm --refresh || warn "couldn't update llm; vikix ai llm tries again"
+  if [ "$part" = all ] || [ "$part" = core ]; then cmd_migrate; fi
+  if [ "$part" = all ] || [ "$part" = tools ]; then
+    # llm (vikix ai llm) is installed with uv, outside the stages: bring it
+    # to the pinned version when it's here and isn't.
+    if [ "$DRY_RUN" = 1 ]; then
+      printf '   would run: %s\n' "vikix ai llm --refresh  # llm to its pinned version, if installed"
+    else
+      bash "$VIKIX_DIR/bin/vikix-local-ai" llm --refresh || warn "couldn't update llm; vikix ai llm tries again"
+    fi
+    upgrade_user_tools
   fi
   # So the bar stops showing the updates that were just installed.
   [ "$DRY_RUN" = 1 ] || "$VIKIX_DIR/bin/vikix-updates" >/dev/null 2>&1 || true
   # StumpWM keeps its config in memory, so the new files on disk (keys, the
   # bar, the menu) change nothing until it loads them again. Reload it now;
   # if it can't be reached, the next login loads them.
-  if [ "$DRY_RUN" = 1 ]; then
-    printf '   would run: %s\n' "vikix eval '(loadrc)'  # reload StumpWM"
-  elif python3 "$VIKIX_DIR/bin/vikix-eval" '(loadrc)' >/dev/null 2>&1; then
-    say "StumpWM reloaded: the new keys, bar and menu are in use"
-  else
-    warn "couldn't reach StumpWM to reload it; the new keys, bar and menu start at the next login (or Super+m, Reload config)"
+  if [ "$part" = all ] || [ "$part" = core ]; then
+    if [ "$DRY_RUN" = 1 ]; then
+      printf '   would run: %s\n' "vikix eval '(loadrc)'  # reload StumpWM"
+    elif python3 "$VIKIX_DIR/bin/vikix-eval" '(loadrc)' >/dev/null 2>&1; then
+      say "StumpWM reloaded: the new keys, bar and menu are in use"
+    else
+      warn "couldn't reach StumpWM to reload it; the new keys, bar and menu start at the next login (or Super+m, Reload config)"
+    fi
   fi
   # Said again at the end, where it's seen: the warning was 400 lines up.
   if [ -n "${VIKIX_SET_ASIDE:-}" ]; then
     warn "changes made in the checkout were set aside before this update: less $VIKIX_SET_ASIDE"
   fi
   if [ "${#failed[@]}" -gt 0 ]; then
-    warn "these stages failed: ${failed[*]}. Fix them, then: vikix update (log: $VIKIX_UPDATE_LOG)"
+    warn "these stages failed: ${failed[*]}. Fix them, then: vikix $what (log: $VIKIX_UPDATE_LOG)"
     echo "   Not sure how? vikix diagnose asks your AI agent; vikix debug writes a report to attach to an issue."
     return 1
   fi
-  say "Vikix $(cat "$VIKIX_DIR/VERSION") is up to date; log: $VIKIX_UPDATE_LOG"
+  case $part in
+    all)    say "Vikix $(cat "$VIKIX_DIR/VERSION") is up to date; log: $VIKIX_UPDATE_LOG" ;;
+    core)   say "Vikix $(cat "$VIKIX_DIR/VERSION") is up to date (Void's packages and the tools weren't touched: vikix update system, vikix update tools); log: $VIKIX_UPDATE_LOG" ;;
+    system) say "Void's packages are up to date; log: $VIKIX_UPDATE_LOG" ;;
+    tools)  say "the tools are up to date; log: $VIKIX_UPDATE_LOG" ;;
+  esac
 }
 
 cmd_doctor() {
@@ -720,7 +796,7 @@ cmd_theme() {
 # reading whatever the pull put after it.
 main() {
   case ${1:-help} in
-    update)      cmd_update "${2:-}" ;;
+    update)      shift; cmd_update "$@" ;;
     migrate)     cmd_migrate ;;
     rebuild-wm)  VIKIX_REBUILD_WM=1 bash "$VIKIX_DIR/install/30-lisp.sh" ;;
     docs)        VIKIX_DOCS=1 bash "$VIKIX_DIR/install/67-dev.sh" ;;
