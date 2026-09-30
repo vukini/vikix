@@ -161,6 +161,33 @@ ai 'use=claude\n'
 out=$(el '(condition-case e (progn (require (quote gptel)) (call-interactively (quote gptel))) (user-error (say "stopped: %s" (cadr e))))' </dev/null)
 check "gptel itself should stop with Vikix's words, not ask for a key: $out" has 'stopped: Claude needs your Anthropic key' "$out"
 
+# The menu: Claude and Local first; the config's backends without a key
+# out of it (emacs-void's OpenAI, gptel's own ChatGPT) until there is one.
+ai 'use=local\n'; models '{"name":"llama3.2:3b"}'
+menu='(progn (require (quote gptel)) (require (quote gptel-openai))
+  (gptel-make-openai "OpenAI" :key (lambda () (getenv "OPENAI_API_KEY")) :models (quote (gpt-4o)))
+  (gptel-make-openai "Mine" :key (lambda () "sk-mine") :models (quote (m1)))
+  (vikix-ai-sync)
+  (say "menu %S" (mapcar (function car) gptel--known-backends))
+  (say "retired %S" (seq-filter (lambda (m) (string-prefix-p "claude-3" (symbol-name (if (consp m) (car m) m)))) (gptel-backend-models vikix-ai-claude))))'
+out=$(env -u OPENAI_API_KEY bash -c "$(declare -f el); here='$here' gptel='$gptel' el '$menu'")
+check "the menu should start with Claude and Local, and leave out what has no key: $out" has '^menu ("Claude" "Local" "Mine")' "$out"
+check "Claude's retired models shouldn't be offered: $out" has '^retired nil' "$out"
+out=$(OPENAI_API_KEY=sk-x bash -c "$(declare -f el); here='$here' gptel='$gptel' el '$menu'")
+check "with its key, a backend should be back in the menu: $out" has '^menu ("Claude" "Local" "Mine" "OpenAI" "ChatGPT")' "$out"
+
+# A check that fails leaves the default as it was.
+out=$(el "(progn (vikix-ai-sync) (say \"before %s\" gptel-model)
+  (with-temp-file (expand-file-name \"ai\" vikix-ai-config) (insert \"use=local\nmodel=llama3.1:8b\n\"))
+  (condition-case e (funcall (eval (cadr (interactive-form (quote vikix-ai--before-chat))) t) nil) (user-error (say \"stopped: %s\" (cadr e))))
+  (say \"after %s\" (default-value (quote gptel-model))))")
+check "a missing model should be said: $out" has "stopped: You don’t have the model llama3.1:8b" "$out"
+check "and gptel's default stay as it was: $out" has '^after llama3.2:3b' "$out"
+
+# The native compiler's warnings about agent-shell and gptel: quiet, unless you chose.
+out=$(emacs -Q --batch -l "$here/config/emacs/vikix-ai.el" --eval "(progn (require (quote comp-run) nil t) (require (quote comp) nil t) (princ (format \"native %S\" native-comp-async-report-warnings-errors)))" 2>&1 || true)
+check "the native compiler's warnings should be quiet: $out" has 'native silent' "$out"
+
 fi
 
 # --- agents -----------------------------------------------------------------

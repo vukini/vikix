@@ -89,6 +89,49 @@ end
 -- Each signs in its own way (its login, as in a terminal): no keys given.
 local own_login = function() return true end
 
+-- Who answers a chat, in its window's bar before you type: the two chats
+-- look alike, and one may be paid (Claude), the other free (local).
+local function where(adapter)
+  if adapter.type == "acp" then return "your agent, started by vikix agent" end
+  return adapter.name == "ollama" and "on this laptop" or "sent to " .. (adapter.formatted_name or adapter.name)
+end
+local function chat_bar(bufnr, model)
+  local ok, chat = pcall(function() return require("codecompanion").buf_get_chat(bufnr) end)
+  if not ok or not chat or not chat.adapter then return end
+  local a = chat.adapter
+  model = model or (chat.settings and chat.settings.model)
+  local text = (a.formatted_name or a.name) .. (model and model ~= "default" and ("  " .. model) or "") .. "  (" .. where(a) .. ")"
+  vim.b[bufnr].vikix_chat_bar = text:gsub("%%", "%%%%")
+  for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do vim.wo[win].winbar = vim.b[bufnr].vikix_chat_bar end
+end
+local group = vim.api.nvim_create_augroup("vikix_chat_bar", { clear = true })
+vim.api.nvim_create_autocmd("User", {
+  group = group,
+  pattern = { "CodeCompanionChatCreated", "CodeCompanionChatOpened", "CodeCompanionChatAdapter", "CodeCompanionChatModel" },
+  callback = function(ev)
+    local d = ev.data or {}
+    if d.bufnr then vim.schedule(function() chat_bar(d.bufnr, type(d.model) == "string" and d.model or nil) end) end
+  end,
+})
+-- auto_insert (below) acts when you come back to the agent's terminal;
+-- this, when it first opens.
+vim.api.nvim_create_autocmd("User", {
+  group = group,
+  pattern = "CodeCompanionCLIOpened",
+  callback = function(ev)
+    local bufnr = (ev.data or {}).bufnr
+    vim.schedule(function()
+      if bufnr and vim.api.nvim_get_current_buf() == bufnr then vim.cmd.startinsert() end
+    end)
+  end,
+})
+vim.api.nvim_create_autocmd("BufWinEnter", {
+  group = group,
+  callback = function(ev)
+    if vim.b[ev.buf].vikix_chat_bar then vim.wo.winbar = vim.b[ev.buf].vikix_chat_bar end
+  end,
+})
+
 return {
   "AstroNvim/astrocommunity",
   { import = "astrocommunity.ai.codecompanion-nvim" },
@@ -116,6 +159,9 @@ return {
             opencode = through_vikix("opencode", "opencode"),
           },
         },
+        -- Your agent's terminal (Space A t) is ready to type, without
+        -- line numbers down its side.
+        display = { cli = { window = { opts = { number = false, relativenumber = false, signcolumn = "no" } } } },
         interactions = {
           chat = { adapter = chat },
           inline = { adapter = chat },
@@ -123,6 +169,7 @@ return {
           background = { adapter = chat },
           -- In a terminal: `vikix agent` is yours (Super+a's); the others by name.
           cli = {
+            opts = { auto_insert = true },
             agent = "vikix",
             agents = {
               vikix = { cmd = "vikix", args = { "agent" }, description = "Your agent (vikix agent)" },

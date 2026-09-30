@@ -219,7 +219,7 @@ Vikix's Neovim has [CodeCompanion](https://codecompanion.olimorris.dev), under *
 | `Space A t` | Your agent in a terminal inside Neovim |
 | `Space A p` | Everything else CodeCompanion does |
 
-The chat follows `vikix ai use`: `local` (a model on this laptop, `vikix ai setup` first) or `claude` (your key: `vikix ai key set anthropic`). A model set with `model=` in `~/.config/vikix/ai` is used here too. On a laptop's CPU, a local model's first answer takes minutes, because it reads CodeCompanion's instructions first; Claude answers in seconds. In the chat, `ga` changes the model or the agent for that chat.
+The chat follows `vikix ai use`: `local` (a model on this laptop, `vikix ai setup` first) or `claude` (your key: `vikix ai key set anthropic`). A model set with `model=` in `~/.config/vikix/ai` is used here too. On a laptop's CPU, a local model's first answer takes minutes, because it reads CodeCompanion's instructions first; Claude answers in seconds. The chat's top line says who answers, before you type: the model, and whether it's on this laptop or sent to Anthropic (or which agent). In the chat, `ga` changes the model or the agent for that chat.
 
 The agent in `Space A g` is started by `vikix agent --acp`, so it's the same as Super+a's: the guide, no API keys, and a snapshot first, so `vikix changes` shows what it did and `vikix undo` takes it back. It signs in with its own login, the one it uses in a terminal. Claude Code and Codex need their adapter, which `vikix agent --install claude` adds (running it again for an agent you have only adds what's missing). `Space A t` runs `vikix agent` itself, so Aider works there too.
 
@@ -232,8 +232,8 @@ Emacs's config has [gptel](https://github.com/karthink/gptel) for the chat and [
 | Keys | What they do |
 |---|---|
 | `C-c g` | A chat, on the model Super+i uses: a local one, or Claude. With a selection, the chat starts from it |
-| `C-c G` | gptel's menu: another model for this chat (Claude, your local ones, and the config's own), and what to send |
-| `C-c a` | A chat with your agent (the one Super+a starts), which can read and change your files |
+| `C-c G` | gptel's menu: another model for this chat, and what to send. Claude and your local models come first; one of the config's own (OpenAI, Perplexity) shows only when its key is there |
+| `C-c a` | A chat with your agent (the one Super+a starts), which can read and change your files. It goes back to this project's chat when there is one; from a folder without one, it asks (*New shell* starts one here; the others go to a chat in another folder). `C-u C-c a` always starts a new one |
 | `C-c A` | Your agent in a terminal inside Emacs |
 
 The chat follows `vikix ai use` and `model=`, as Neovim's does, and Emacs reads them again at each `C-c g`, so a change reaches an Emacs that's already open. A model you pick in the menu stays until you change that file. The agent starts through `vikix agent --acp`, with the same rules as in Neovim, above; `C-c A` runs `vikix agent` itself, so Aider works there too. When something's missing, the key says what to type. [Neovim and Emacs](editors.md) compares the two.

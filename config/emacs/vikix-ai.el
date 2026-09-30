@@ -54,6 +54,17 @@
 (defvar vikix-ai--applied :none
   "The (use . model) last made the default, so a change is noticed.")
 
+;; agent-shell and gptel are compiled to native code when installed, and
+;; the compiler warns about functions from newer Emacsen they check for:
+;; harmless, but red, next to your first chat. They still go to
+;; *Async-native-compile-log*. Only while that setting is Emacs's default.
+(defvar native-comp-async-report-warnings-errors)
+(defun vikix-ai--quiet-native-comp ()
+  (when (eq (bound-and-true-p native-comp-async-report-warnings-errors) t)
+    (setq native-comp-async-report-warnings-errors 'silent)))
+(with-eval-after-load 'comp-run (vikix-ai--quiet-native-comp))
+(with-eval-after-load 'comp (vikix-ai--quiet-native-comp))
+
 (defun vikix-ai--read (file)
   "FILE's contents, trimmed, or nil when it's missing or empty."
   (when (file-readable-p file)
@@ -105,7 +116,11 @@ Asked each time (a second at most), so a model you just got is there."
                                       :mime-types (plist-get newest :mime-types)
                                       :context-window (plist-get newest :context-window)))))
                     first)
-            (seq-remove (lambda (m) (memq (car-safe m) first)) known))))
+            ;; Not the retired ones (Claude 2 and 3): they no longer answer.
+            (seq-remove (lambda (m)
+                          (or (memq (car-safe m) first)
+                              (string-match-p "\\`claude-\\(2\\|3\\|instant\\)" (symbol-name (car-safe m)))))
+                        known))))
 
 (defun vikix-ai--set-models (backend models)
   "BACKEND's models, now MODELS.
@@ -133,6 +148,45 @@ already on it stays on it."
             (gptel-make-ollama "Local"
               :host vikix-ai-ollama :stream t :models local)))))
 
+(defvar gptel--known-backends)
+(defvar gptel--openai)
+(declare-function gptel-backend-key "gptel-openai")
+
+(defvar vikix-ai--hidden nil
+  "Backends left out of gptel's menu, as (NAME . BACKEND): no key for them here.
+Back in the menu at the next C-c g or C-c G after their key is there.")
+
+(defun vikix-ai--can-answer-p (backend)
+  "Has BACKEND what it needs here, as far as can be told without asking?
+A key given as text or a function is tried. One from gptel's own
+`gptel-api-key' (auth-source: maybe an encrypted file, which would ask
+for its passphrase) is taken on trust, except for gptel's built-in
+ChatGPT, which counts only with OPENAI_API_KEY set."
+  (let ((key (gptel-backend-key backend))
+        (text (lambda (k) (and (stringp k) (not (string-empty-p (string-trim k)))))))
+    (cond ((memq backend (list vikix-ai-claude vikix-ai-local)) t)
+          ((and (boundp 'gptel--openai) (eq backend gptel--openai))
+           (funcall text (getenv "OPENAI_API_KEY")))
+          ((null key) t)                        ; Ollama's and the like need none
+          ((stringp key) (funcall text key))
+          ((functionp key) (funcall text (ignore-errors (funcall key))))
+          (t t))))
+
+(defun vikix-ai--menu ()
+  "gptel's menu: Claude and Local first, then the others that can answer here.
+The one in use stays, whatever its key."
+  (let ((ours (list (cons "Claude" vikix-ai-claude) (cons "Local" vikix-ai-local)))
+        (current (default-value 'gptel-backend))
+        seen shown hidden)
+    (dolist (e (append gptel--known-backends vikix-ai--hidden))
+      (unless (or (member (car e) seen) (assoc (car e) ours))
+        (push (car e) seen)
+        (if (or (eq (cdr e) current) (vikix-ai--can-answer-p (cdr e)))
+            (push e shown)
+          (push e hidden))))
+    (setq gptel--known-backends (append ours (nreverse shown))
+          vikix-ai--hidden (nreverse hidden))))
+
 (defun vikix-ai-sync (&optional force)
   "Make gptel's default the model `vikix ai use' names, if that changed.
 With FORCE (interactively), make it the default again anyway."
@@ -155,6 +209,7 @@ With FORCE (interactively), make it the default again anyway."
                                         ((and (listp models) (memq 'llama3.2:3b models)) 'llama3.2:3b)
                                         ((and (listp models) (car models)))
                                         (t 'llama3.2:3b)))))
+    (vikix-ai--menu)                     ; after the default: the one in use stays
     (when (called-interactively-p 'interactive)
       (message "gptel: %s on %s" gptel-model (gptel-backend-name gptel-backend)))
     models))
@@ -180,10 +235,21 @@ backends are checked: one of yours is yours."
 ;; explained rather than asked for. Your keys to gptel and gptel-menu stay
 ;; as they are.
 (defun vikix-ai--before-chat (&rest _)
-  "Follow `vikix ai use' before a chat starts, and check it can answer."
+  "Follow `vikix ai use' before a chat starts, and check it can answer.
+When it can't, the default stays what it was: the chat's header, and
+gptel's other commands, don't move to a model that isn't there."
   (interactive
    (lambda (spec)
-     (vikix-ai--check (vikix-ai-sync))
+     (require 'gptel)
+     (let ((backend (default-value 'gptel-backend))
+           (model (default-value 'gptel-model))
+           (applied vikix-ai--applied))
+       (condition-case err
+           (vikix-ai--check (vikix-ai-sync))
+         (user-error
+          (setq-default gptel-backend backend gptel-model model)
+          (setq vikix-ai--applied applied)
+          (signal (car err) (cdr err)))))
      (advice-eval-interactive-spec spec))))
 
 (defun vikix-ai--before-menu (&rest _)

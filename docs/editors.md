@@ -90,6 +90,8 @@ Both editors do the same four things, each on the settings you already made for 
 
 In Emacs, each agent chat's transcript is kept in `~/.local/state/vikix/agent-shell/`, one file per chat, named after the project, in a folder only you can read; not in the project, where agent-shell would put it. Screenshots and images you give the agent do go in the project's `.agent-shell/`, which agent-shell keeps out of git.
 
+`C-c a` goes back to the chat this project already has; in a folder without one it asks first (*New shell* starts one here), and `C-u C-c a` always starts another. In Neovim, a chat's top line says who answers before you type.
+
 Nothing starts or connects until you press a key. When something's missing (a key, the local model, the agent or its adapter), the key says what to type, and does nothing else. [Working with AI](ai.md) has the rest: keys, local models, and choosing an agent.
 
 ## A config of your own

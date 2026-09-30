@@ -80,10 +80,29 @@ local cmd = require("codecompanion.adapters.acp").resolve("claude_code").command
 io.stderr:write("AI said=" .. table.concat(said, " | "):gsub("\n", " ") .. " cmd=" .. table.concat(cmd.default, " ")
   .. " others=" .. tostring(vim.tbl_count(cmd) - 2) .. "\n")
 EOF
-    out=$(env -u ANTHROPIC_API_KEY PATH="$here/bin:$PATH" nvim --headless -c "luafile $t/ai.lua" -c 'qa!' 2>&1 || true)
+    # Without the agents and adapters of the machine running the test.
+    clean=$(tr ':' '\n' <<<"$PATH" | grep -v -e '/\.local/bin' -e '/\.opencode' -e '/\.npm' | paste -sd:)
+    out=$(env -u ANTHROPIC_API_KEY PATH="$here/bin:$clean" nvim --headless -c "luafile $t/ai.lua" -c 'qa!' 2>&1 || true)
     for want in 'vikix ai key set anthropic' 'vikix agent --install claude' 'cmd=vikix agent --acp claude ' 'others=0'; do
       grep -q -- "$want" <<<"$out" || { echo "FAIL nvim: AI should have said '$want': $(grep -o 'AI said.*' <<<"$out" || tail -3 <<<"$out")"; fail=1; }
     done
+    # Who answers, in the chat's bar; the agent's terminal ready to type.
+    mkdir -p "$t/stand-in"; printf '#!/bin/sh\nexec cat\n' > "$t/stand-in/vikix"; chmod +x "$t/stand-in/vikix"
+    cat > "$t/bar.lua" <<'EOF'
+require("lazy").load { plugins = { "codecompanion.nvim" } }
+vim.fn.maparg(" Ac", "n", false, true).callback()
+vim.wait(5000, function() return vim.wo.winbar ~= "" end)
+io.stderr:write("BAR " .. vim.wo.winbar .. "\n")
+vim.cmd "only"
+vim.fn.maparg(" At", "n", false, true).callback()
+vim.defer_fn(function()
+  io.stderr:write("CLI ft=" .. vim.bo.filetype .. " mode=" .. vim.api.nvim_get_mode().mode .. " number=" .. tostring(vim.wo.number) .. "\n")
+  vim.cmd "qa!"
+end, 3000)
+EOF
+    out=$(ANTHROPIC_API_KEY=sk-test PATH="$t/stand-in:$PATH" timeout 60 nvim --headless -c "luafile $t/bar.lua" 2>&1 || true)
+    grep -q 'BAR Anthropic .*(sent to Anthropic)' <<<"$out" || { echo "FAIL nvim: the chat's bar should say who answers: $(grep -o 'BAR.*' <<<"$out" || tail -3 <<<"$out")"; fail=1; }
+    grep -q 'CLI ft=codecompanion_cli mode=t number=false' <<<"$out" || { echo "FAIL nvim: the agent's terminal should be ready to type, no numbers: $(grep -o 'CLI.*' <<<"$out" || tail -3 <<<"$out")"; fail=1; }
     rm "$HOME/.config/vikix/ai"
   fi
   # Open files of a few languages; the Markdown one is where 0.12 broke.
