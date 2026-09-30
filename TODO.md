@@ -137,6 +137,17 @@ Obsidian is retired. Vid used it to view, organise and quickly capture notes, sy
 56. **The phones.** Android: Orgzly Revived, syncing `~/Dropbox/notes` over Dropbox. iPhone: beorg, the same over Dropbox. A short guide page in `docs/` for setting each up, with which files to sync (not the history repo), and what each app can and can't do (reading, capture, ticking tasks, the agenda: yes; org-roam's graph: laptop only).
 57. **Notes an agent can query.** Emacs reads Org as a tree (org-element; org-ql for queries), so an agent working through Emacs asks exact questions ("projects under 50%", "notes tagged vikix this week", "open TODOs for Link") instead of searching text. Exposed to the agents through the checked-Lisp route (IDEAS: Leaning into Lisp) and the MCP server; read-only by default, edits shown before they're made.
 
+## The ROG Flow Z13 (bought 2026-09-30)
+
+Vid's new laptop, bought for AI on the machine itself: an ASUS ROG Flow Z13 (2025), model GZ302EA-XS99. AMD Ryzen AI Max+ 395, 128 GB of memory shared by the processor and the graphics, a 13.4" 2560×1600 touch screen, a detachable keyboard. Most of this can only be finished with it in hand.
+
+58. **Void and Vikix on it.** Install from the glibc image and write down what works on Void's kernel: Wi-Fi 7 (MediaTek), the speakers (CS35L41 amplifiers, which need their firmware), the camera, the fingerprint reader, suspend, the battery. What needs a fix becomes item 59; the findings go in a hardware page in `docs/`.
+59. **A Z13 profile in `55-hardware`**, chosen by the model name (DMI: GZ302). The detachable keyboard wakes it from suspend when folded shut: switch off that USB device's wake-up, through an elogind sleep hook. `Xft.dpi` for its screen (about 225 pixels an inch). ASUS's fan and power modes and the keyboard light with asusctl, if Void packages it. Touch works in X; turning the screen round by hand from Super+m, and turning it by itself (iio-sensor-proxy) later.
+60. **Most of the memory for AI.** On this chip Linux lets the graphics use only part of the memory at first (about 96 of 128 GB). Kernel settings (the TTM page limit) raise it to about 120 GB, which Qwen3-235B needs. `vikix ai setup` offers it on any Ryzen AI Max machine, asking first, since it changes how the machine boots.
+61. **Ollama on its graphics.** Vulkan (the library `vikix ai setup` already keeps) against ROCm, measured with gpt-oss-120b. The picker in `vikix ai models` learns the 128 GB tier: gpt-oss-120b (about 63 GB, 34-56 tokens a second: the default), Nemotron 3 Super 120B for coding agents, Qwen3-235B after item 60. Its memory rule counts memory the graphics share.
+62. **Local by default for private work.** Notes (`note ask`), Super+i and the desk (item 21) on gpt-oss-120b, with nothing leaving the laptop; Claude for coding Vikix and the Living Series' core work (the explanations, code, measured findings). Try gpt-oss-120b on Esperanto and Toki Pona passages Vid knows well before using it on those books.
+63. **Quiet or full power.** A Super+m choice between quiet (battery, fans down) and full power for long AI jobs (asusctl's profiles, or the kernel's platform_profile), with the bar saying which.
+
 ## C tutorials: `vikix learn c`
 
 Plan: Learning To Code project → "Vikix — C Tutorials Plan"
