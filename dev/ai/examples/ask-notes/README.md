@@ -4,6 +4,10 @@ Ask a folder of Markdown notes a question, and get an answer from them,
 with the notes it came from. It works on four sample notes here, and on
 an Obsidian vault just the same.
 
+This is the idea made small, to read and change. For every day, `note`
+does the same from any terminal (`vikix add notes`, then
+`note index ~/Notes`, `note ask "..."`).
+
     vikix add local-ai          # once: Ollama, and a model (vikix ai models)
     make setup                  # once: the embedding model (46 MB)
     make run                    # the sample notes: "How do I switch on a service in Void?"

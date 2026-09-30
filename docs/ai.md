@@ -12,6 +12,7 @@ Vikix gives you these ways to use AI, from the most capable to the most private:
 | **Super+F10, Super+F11** | Talk to the AI or the agent, and it answers aloud | `vikix add voice` (a minute, once) | As Super+i's, or the agent's; the listening and the voice stay here |
 | **In Neovim** | A chat about your code, and your agent in a side window (`Space A`) | `vikix add neovim`, and a local model, a key or an agent | As Super+i's, or the agent's |
 | **In Emacs** | The same, with gptel (`C-c g`) and agent-shell (`C-c a`) | `vikix add emacs`, and a local model, a key or an agent | As Super+i's, or the agent's |
+| **`note`** | Questions answered from your own notes, an Obsidian vault say, in any terminal | `vikix add notes` (it brings local AI) | Nowhere with a local model; to Anthropic, only the passages found, with Claude |
 | **`~/dev/ai`** | Small programs of your own that call Claude or a local model, and one that answers from your notes | `vikix add python`, and a key or a local model | Here, or to Anthropic when you run the Claude ones |
 
 You can use any of them, all of them, or none. Nothing AI runs until you start it.
@@ -180,6 +181,24 @@ Its default model is a local one if you have one, otherwise Claude if you've set
 
 Everything you ask is logged: `llm logs -n 5` shows the last five, and `llm logs off` stops the logging.
 
+## Asking your notes: `note`
+
+`note` answers questions from a folder of Markdown, an Obsidian vault say, in any terminal. `vikix add notes` installs it (and local AI, which it needs), then:
+
+```sh
+note index ~/General --skip Admin,Readwise   # the first time: about five minutes a thousand notes
+note ask "what did I write about runit?"     # the answer, and the notes it came from
+note index                                   # after changes, from anywhere: only what changed
+```
+
+`note find "..."` lists the nearest notes without an answer, and `note status` shows the folder, the index and who answers.
+
+It works in two steps. `note index` cuts each note into passages at its headings and turns each into an embedding, a list of numbers standing for its meaning, with a small model on the laptop. `note ask` does the same with the question, takes the six nearest passages, and has a model answer from them alone, naming the notes. The list of notes printed under each answer lets you check it: a small local model sometimes answers from the wrong one.
+
+Who answers follows Super+i (`vikix ai use local` or `claude`); `note ask --claude` or `--local` chooses for one question. Locally, nothing leaves the laptop. With Claude, the six passages found, never the whole folder, go to Anthropic, and the answers are much better. Folders you'd never send anywhere, leave out with `--skip`: they're never even read. Hidden files and folders (`.obsidian`, the `.#note.md` Emacs leaves while a note is unsaved) never are either.
+
+Your choices are in `~/.config/vikix/notes`: `folder=`, `skip=`, and `embed=`, the embedding model. `nomic-embed-text` (after `ollama pull nomic-embed-text`) finds better passages than all-minilm but is slower; changing it reads every note again. The index is `~/.local/share/vikix/notes/index.db`, in a folder only you can read; `vikix notes uninstall --index` deletes it.
+
 ## Your own programs: `~/dev/ai`
 
 To see how the rest works, or to build something of your own, `~/dev/ai` has four small programs to read, run and change. Each has a README and `make run`:
@@ -191,7 +210,7 @@ To see how the rest works, or to build something of your own, `~/dev/ai` has fou
 | `embeddings` | Sentences turned into numbers, kept in SQLite (sqlite-vec), the nearest to a question found by meaning | Ollama, and `make setup` (all-minilm, 46 MB) |
 | `ask-notes` | A folder of Markdown notes, searched and answered from | The same, and a model to answer (or a key) |
 
-`ask-notes` works on your own notes, an Obsidian vault say:
+`ask-notes` is `note` made small, to read and change; for everyday use, `note` is the one. It works on your own notes too:
 
 ```sh
 cd ~/dev/ai/examples/ask-notes

@@ -54,6 +54,7 @@ windows     | optional/windows   |          | vikix windows setup | vikix window
 local-ai    |                    |          | vikix ai setup      | vikix ai uninstall    | AI models on this laptop, with Ollama
 llm         |                    |          | vikix ai llm        | uv tool uninstall llm | llm: AI on the command line, local or Claude
 dictation   | optional/dictation |          | vikix dictate setup | vikix dictate uninstall | Dictation: speak, and it types what you said (Super+F9), on this laptop
+notes       | optional/notes     | local-ai | vikix notes setup   | vikix notes uninstall | Ask your notes from any terminal: note ask "...", from a folder of Markdown (an Obsidian vault), on this laptop
 voice       |                    | dictation llm | vikix voice setup | vikix voice uninstall | Voice: talk to the AI and the agent, and they answer aloud (Super+F10, Super+F11)
 opencode    |                    |          | vikix agent --install opencode | vikix agent --uninstall opencode | OpenCode: an AI agent for any model company, or local (vikix agent --use opencode)
 codex       |                    |          | vikix agent --install codex | vikix agent --uninstall codex | Codex: OpenAI's AI agent, with your ChatGPT login, or local (vikix agent --use codex)

@@ -211,6 +211,7 @@ have rlwrap && have sbcl && alias sbcl='rlwrap sbcl'   # history and arrow keys 
 alias activate='. .venv/bin/activate'    # the Python virtual environment in this folder
 alias jlab='vikix-jupyter'                # JupyterLab in ~/dev, ready to use
 alias docs='xdg-open ~/dev/index.html'   # every offline doc on one page
+alias note='vikix-notes'                 # ask your notes: note index ~/Notes, note ask "..." (vikix add notes)
 alias dev='cd ~/dev'
 
 # --- fzf: Ctrl+T picks a file, Alt+C a folder ------------------------------

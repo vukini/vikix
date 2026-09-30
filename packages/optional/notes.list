@@ -1,0 +1,3 @@
+# notes.list — `note`, asking your notes (the feature notes). uv runs
+# lib/notes.py with the libraries it names; the python feature has it too.
+uv

@@ -40,6 +40,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── agent              yours     which agent Super+a starts (vikix agent --default NAME)
 │   │   ├── dictation          yours     dictation's model: base.en or small (vikix dictate models)
 │   │   ├── voice              yours     how the AI talks back: voice=, speak=, idle= (vikix voice)
+│   │   ├── notes              yours     the folder `note` reads: folder=, skip=, embed= (note index)
 │   │   ├── features           yours     the features you chose (vikix add, vikix remove, vikix features)
 │   │   ├── packages-skip      yours     packages you dropped (vikix pkg drop); updates leave them out
 │   │   ├── windows            yours     where the Windows VM's disk is
@@ -77,6 +78,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   ├── state/vikix/session.env        written   the session's display and D-Bus, for vikix mcp under Codex (600)
 │   ├── share/vikix/whisper/           fetched   dictation's model and voice detector (vikix dictate)
 │   ├── share/vikix/piper/             fetched   the voice the AI talks with (vikix voice)
+│   ├── share/vikix/notes/index.db     written   note's index: passages of your notes and their embeddings (folder 700; note index)
 │   ├── state/vikix/voice-chat         written   Super+F10's conversation: llm's id, and when it was last used
 │   ├── share/vikix/AGENTS.md          written   the skill as a guide for Codex, Gemini, Aider (linked as ~/.codex/AGENTS.md, ~/.gemini/GEMINI.md)
 │   ├── opt/picolisp/          built     PicoLisp, from source (with the feature lisp)

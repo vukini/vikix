@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# vikix-notes — ask your notes, from any terminal (`note` for short). A
+# folder of Markdown (an Obsidian vault) is read into an index on this
+# laptop; a question finds the passages nearest it, and a model answers
+# from those alone, naming the notes.
+#
+#   note index ~/Notes --skip Private   the first time: the folder, and folders to leave out
+#   note index                          again: only the notes that changed
+#   note ask "what did I write about runit?"
+#   note ask --claude "..."             Claude answers this one (--local: the laptop)
+#   note find "runit"                   the nearest notes, without an answer: quick
+#   note status                         the folder, the index, who answers
+#
+#   vikix notes setup                   the feature notes: uv's libraries and the
+#                                       embedding model (all-minilm, 46 MB), once
+#   vikix notes uninstall [--index]     --index deletes the index too
+#
+# Who answers follows Super+i: `vikix ai use local|claude`. Locally nothing
+# leaves the laptop; with Claude, the six passages found (never the whole
+# folder) go to Anthropic. The folder and skips are yours, in
+# ~/.config/vikix/notes; the index is ~/.local/share/vikix/notes/index.db.
+# lib/notes.py does the work, run by uv with its libraries pinned at its top.
+
+set -uo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+# shellcheck source=../lib/features.sh
+. "$VIKIX_DIR/lib/features.sh"
+
+UV=${VIKIX_UV:-uv}
+NOTES_PY="$VIKIX_DIR/lib/notes.py"
+DATA="${XDG_DATA_HOME:-$HOME/.local/share}/vikix/notes"
+EMBED=all-minilm
+
+usage() { sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'; }
+
+notes() {
+  command -v "$UV" >/dev/null 2>&1 || die "note needs uv: vikix add notes"
+  "$UV" run --quiet --script "$NOTES_PY" "$@"
+}
+
+cmd_setup() {
+  # uv: the feature's package list (vikix add leaves a feature with its own
+  # setup to install its list itself).
+  local p missing=0
+  while IFS= read -r p; do pkg_installed "$p" || missing=1; done < <(read_list "$VIKIX_DIR/packages/optional/notes.list")
+  if [ "$missing" = 1 ] && ! command -v "$UV" >/dev/null 2>&1; then
+    VIKIX_LISTS=notes bash "$VIKIX_DIR/install/10-packages.sh" || die "couldn't install uv"
+  fi
+  command -v "$UV" >/dev/null 2>&1 || die "uv isn't here, and couldn't be installed (above)"
+  command -v ollama >/dev/null 2>&1 || [ -x "$HOME/.local/bin/ollama" ] ||
+    die "the index is made by a model on this laptop: vikix add local-ai first"
+  say "fetching note's libraries (uv, as you; once)"
+  "$UV" run --quiet --script "$NOTES_PY" --help >/dev/null || die "uv couldn't fetch them (above)"
+  if curl -fsS --max-time 3 "http://${OLLAMA_HOST:-127.0.0.1:11434}/api/tags" 2>/dev/null | grep -q "\"$EMBED"; then
+    say "the embedding model $EMBED is here"
+  else
+    say "fetching the embedding model $EMBED (46 MB)"
+    PATH="$HOME/.local/bin:$PATH" ollama pull "$EMBED" || die "ollama couldn't fetch $EMBED: is local AI running? (vikix ai status)"
+  fi
+  record_features notes
+  say "ready: note index ~/Notes (your folder of Markdown; --skip A,B leaves folders out), then note ask \"...\""
+}
+
+cmd_uninstall() {
+  if [ "${1:-}" = --index ]; then rm -rf "$DATA" && say "removed the index"
+  else say "the index stays in $DATA (--index removes it); your ~/.config/vikix/notes stays"; fi
+  forget_features notes
+}
+
+case ${1:-help} in
+  index)
+    shift
+    mkdir -p "$DATA"
+    # One index at a time: two would read the same notes twice.
+    exec 9>"$DATA/.lock"
+    flock -n 9 || die "an index is already running"
+    notes index "$@" ;;
+  ask|find|status) notes "$@" ;;
+  setup)     cmd_setup ;;
+  uninstall) shift; cmd_uninstall "${1:-}" ;;
+  help|-h|--help) usage ;;
+  *) usage >&2; exit 2 ;;
+esac

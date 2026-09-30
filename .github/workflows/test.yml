@@ -58,6 +58,8 @@ jobs:
         run: command -v uv || pipx install uv
       - name: dev-ai
         run: tests/ci.sh dev-ai
+      - name: notes
+        run: tests/ci.sh notes
       - name: drives
         run: tests/ci.sh drives
       - name: firmware
