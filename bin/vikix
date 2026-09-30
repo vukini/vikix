@@ -24,6 +24,8 @@
 #                         login): add software, keys, theme, keyboard, guide
 #   vikix theme [NAME]  the colour theme, everywhere: the current one and
 #                         the list, or switch to NAME
+#   vikix theme import URL|OWNER/REPO [NAME]   an Omarchy theme as one of
+#                         yours, then switch to it (vikix theme --help)
 #   vikix version
 #
 #   vikix eval FORM     run Lisp in the running StumpWM, print the result
@@ -759,6 +761,10 @@ theme_current() {
 #                        does this, so a Vikix update reaches them)
 cmd_theme() {
   local name=${1:-}
+  case $name in
+    import)    shift; theme_import "$@"; return ;;
+    -h|--help) theme_help; return 0 ;;
+  esac
   if [ -z "$name" ]; then
     say "theme: $(theme_current)"
     say "themes: $(theme_names | tr '\n' ' ')"
@@ -787,6 +793,318 @@ cmd_theme() {
     fi
   fi
   say "theme: $name"
+}
+
+theme_help() {
+  cat <<HELP
+vikix theme                  the current theme, and the ones there are
+vikix theme NAME             switch to NAME, everywhere, now
+vikix theme import SOURCE [NAME] [--force] [--no-switch]
+                             an Omarchy theme, as a theme of yours, then switch to it.
+                             SOURCE is an https git URL, OWNER/REPO on GitHub, or a
+                             folder with a git repository. NAME is the repository's
+                             name without omarchy- and -theme, unless you give one.
+                             --force replaces a theme of yours with that name (the
+                             old files are kept as .vikix-bak); --no-switch only imports.
+vikix theme --refresh        write the current theme's files again
+
+Your own themes are in $USER_THEMES.
+HELP
+}
+
+# --- Importing an Omarchy theme ------------------------------------------------
+# Omarchy's themes (omarchy.org, and the community's at themes.omarchy.org)
+# are git repositories: colors.toml, flat key = "#rrggbb" lines, and the
+# wallpapers in backgrounds/. `vikix theme import` turns one into a Vikix
+# theme. The repository is someone else's, so nothing in it is ever run or
+# sourced: colors.toml is read line by line as text, only colour values
+# are kept, and one picture is copied, after its first bytes show it is one.
+
+THEME_IMPORT_TOML_MAX=65536                      # a real colors.toml is 1-3 KB
+THEME_IMPORT_PICTURE_MAX=$((50 * 1024 * 1024))   # a 4K wallpaper is 2-20 MB
+THEME_IMPORT_TMP=''
+# The names colors.toml may use. Omarchy's own (the semantic ones), its
+# older short ones (bg, fg, ...) and the ANSI color0..color15 that themes
+# from before the semantic names have; any other key is left alone.
+OMARCHY_KEYS="background foreground accent muted selection selection_background
+  dark_background darker_background lighter_background dark_foreground
+  light_foreground bright_foreground red green yellow blue magenta purple cyan
+  bright_red bright_green bright_yellow bright_blue bright_magenta bright_purple
+  bright_cyan black white bright_black bright_white bg fg dark_bg darker_bg
+  lighter_bg dark_fg light_fg bright_fg $(printf 'color%d ' $(seq 0 15))"
+
+# omarchy_hex VALUE — VALUE as #rrggbb in lower case: #rgb is widened and
+# the alpha of #rrggbbaa dropped. Anything else fails.
+omarchy_hex() {
+  local h=${1#\#}
+  [[ $1 == \#* && $h =~ ^[0-9A-Fa-f]+$ ]] || return 1
+  case ${#h} in
+    3) h="${h:0:1}${h:0:1}${h:1:1}${h:1:1}${h:2:1}${h:2:1}" ;;
+    6) ;;
+    8) h=${h:0:6} ;;
+    *) return 1 ;;
+  esac
+  printf '#%s\n' "${h,,}"
+}
+
+# omarchy_mix A B PERCENT — colour A, PERCENT of the way to colour B. It is
+# how Omarchy makes the bright colours a theme leaves out (20% to white).
+omarchy_mix() {
+  local a=${1#\#} b=${2#\#} p=$3 out='#' i x y
+  for i in 0 2 4; do
+    x=$((16#${a:i:2})) y=$((16#${b:i:2}))
+    printf -v out '%s%02x' "$out" $(( (x * (100 - p) + y * p + 50) / 100 ))
+  done
+  printf '%s\n' "$out"
+}
+
+# omarchy_read FILE — the colours in FILE into om[KEY], and src[KEY]=KEY
+# (the caller declares both). Only a line that is exactly  key = "#hex"
+# (a comment after it allowed) counts, and only before the first [table],
+# whose keys wouldn't be the palette in TOML. The first of a key wins.
+omarchy_read() {
+  local line key hex
+  local re="^[[:space:]]*([A-Za-z0-9_]+)[[:space:]]*=[[:space:]]*[\"'](#[0-9A-Fa-f]+)[\"'][[:space:]]*(#.*)?$"
+  while IFS= read -r line || [ -n "$line" ]; do
+    line=${line%$'\r'}
+    [[ $line =~ ^[[:space:]]*\[ ]] && break
+    [[ $line =~ ^[[:space:]]*([A-Za-z0-9_]+)[[:space:]]*= ]] || continue
+    key=${BASH_REMATCH[1]}
+    [[ " ${OMARCHY_KEYS//$'\n'/ } " == *" $key "* ]] || continue
+    [ -z "${om[$key]:-}" ] || continue
+    if ! [[ $line =~ $re ]] || ! hex=$(omarchy_hex "${BASH_REMATCH[2]}"); then
+      warn "colors.toml: $key isn't a colour (#rgb, #rrggbb or #rrggbbaa); left out"
+      continue
+    fi
+    om[$key]=$hex
+    src[$key]=$key
+  done < "$1"
+}
+
+# om_alias KEY FROM... — when the theme has no KEY, the first FROM it has.
+om_alias() {
+  local k=$1 f
+  shift
+  [ -z "${om[$k]:-}" ] || return 0
+  for f; do
+    [ -n "${om[$f]:-}" ] || continue
+    om[$k]=${om[$f]}
+    src[$k]=${src[$f]}
+    return 0
+  done
+  return 1
+}
+
+# om_derive KEY A B PERCENT — when the theme has no KEY, mix it from A and B.
+om_derive() {
+  [ -z "${om[$1]:-}" ] || return 0
+  om[$1]=$(omarchy_mix "${om[$2]}" "${om[$3]}" "$4")
+  src[$1]="made from ${src[$2]}, $4% towards ${src[$3]}"
+}
+
+# omarchy_resolve — every Omarchy name Vikix needs, filled in the way
+# Omarchy fills them (bin/omarchy-theme-color), so the colours are those
+# the theme shows there. Fails without a background or a foreground.
+omarchy_resolve() {
+  local hue missing=()
+  om_alias background bg color0 || true
+  om_alias foreground fg color7 || true
+  [ -n "${om[background]:-}" ] && [ -n "${om[foreground]:-}" ] || return 1
+  om[pure_white]='#ffffff'; src[pure_white]=white
+  om_alias dark_foreground dark_fg || true
+  om_alias lighter_background lighter_bg || true
+  om_alias bright_foreground bright_fg color15 foreground
+  om_alias red color1 || true
+  om_alias green color2 || true
+  om_alias yellow color3 || true
+  om_alias blue color4 || true
+  om_alias magenta purple color5 || true
+  om_alias cyan color6 || true
+  om_alias bright_red color9 || true
+  om_alias bright_green color10 || true
+  om_alias bright_yellow color11 || true
+  om_alias bright_blue color12 || true
+  om_alias bright_magenta bright_purple color13 || true
+  om_alias bright_cyan color14 || true
+  # Omarchy's palette always has the six; Vikix's must, so a theme that
+  # lacks one gets its foreground there rather than a colour from nowhere.
+  for hue in red green yellow blue magenta cyan; do
+    om_alias "$hue" foreground || true
+    [ "${src[$hue]}" = "${src[foreground]}" ] && [ "$hue" != foreground ] && missing+=("$hue")
+    om_derive "bright_$hue" "$hue" pure_white 20
+  done
+  [ "${#missing[@]}" -eq 0 ] || warn "colors.toml has no ${missing[*]}; the foreground stands in"
+  om_alias accent blue
+  om_alias muted color8 dark_foreground || om_derive muted foreground background 60
+  # Quieter text must stay readable: color8 is often too faint for it.
+  om_alias dark_foreground || om_derive dark_foreground foreground background 25
+  om_alias selection_background selection lighter_background color8 || om_derive selection_background background foreground 15
+  if [ "${om[selection_background]}" = "${om[background]}" ]; then
+    src[selection_background]=''
+    om[selection_background]=''
+    om_derive selection_background background foreground 15
+  fi
+}
+
+# omarchy_picture REPO — the first picture in REPO/backgrounds, by name,
+# that is a plain file under the size limit and really is a JPEG, PNG or
+# WebP (feh shows all three). Sets pic and pic_type; fails when none is.
+omarchy_picture() {
+  local dir=$1/backgrounds f magic shown
+  pic='' pic_type=''
+  [ -d "$dir" ] && [ ! -L "$dir" ] || return 1
+  while IFS= read -r -d '' f; do
+    shown=$(basename "$f"); shown=${shown//[^[:alnum:]._ -]/?}
+    [ -f "$f" ] && [ ! -L "$f" ] || continue
+    if [ "$(stat -c %s -- "$f")" -gt "$THEME_IMPORT_PICTURE_MAX" ]; then
+      warn "backgrounds/$shown is over 50 MB; skipped"; continue
+    fi
+    magic=$(head -c 12 -- "$f" | od -An -tx1 | tr -d ' \n')
+    case $magic in
+      ffd8ff*)                  pic_type=jpg ;;
+      89504e470d0a1a0a*)        pic_type=png ;;
+      52494646????????57454250) pic_type=webp ;;
+      *) warn "backgrounds/$shown isn't a JPEG, PNG or WebP inside; skipped"; continue ;;
+    esac
+    pic=$f
+    return 0
+  done < <(find "$dir" -maxdepth 1 -type f \( -iname '*.jpg' -o -iname '*.jpeg' \
+             -o -iname '*.png' -o -iname '*.webp' \) -print0 | LC_ALL=C sort -z)
+  return 1
+}
+
+# vikix theme import SOURCE [NAME] [--force] [--no-switch]
+theme_import() {
+  local source='' name='' force=0 switch=1 url proto
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --force)     force=1 ;;
+      --no-switch) switch=0 ;;
+      -h|--help)   theme_help; return 0 ;;
+      -*)          die "unknown option: $1 (vikix theme --help)" ;;
+      *) if [ -z "$source" ]; then source=$1
+         elif [ -z "$name" ]; then name=$1
+         else die "too many arguments (vikix theme --help)"; fi ;;
+    esac
+    shift
+  done
+  [ -n "$source" ] || die "which theme? vikix theme import URL|OWNER/REPO [NAME] (vikix theme --help)"
+
+  # Only https (and a folder here): git's other ways in include ext::,
+  # which runs a command, and plain http, which anyone on the way can change.
+  if [[ $source == /* || $source == ./* || $source == ../* ]] || [ -d "$source" ]; then
+    [ -d "$source" ] || die "no folder $source"
+    url="file://$(cd "$source" && pwd)" proto=file
+  elif [[ $source =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+    url="https://github.com/$source" proto=https
+  elif [[ $source =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?(/[A-Za-z0-9._~-]+)+/?$ ]]; then
+    url=${source%/} proto=https
+  else
+    die "not a theme's address: $source (an https:// git URL, OWNER/REPO on GitHub, or a folder)"
+  fi
+
+  # The name, from the repository's unless given: omarchy-ash-theme is ash.
+  # Lower case, since StumpWM's menu switches by the lower-case name.
+  if [ -z "$name" ]; then
+    name=${url##*/}; name=${name%.git}; name=${name#omarchy-}; name=${name%-theme}; name=${name,,}
+    theme_name_ok "$name" || die "no theme name comes out of $source; give one: vikix theme import $source NAME"
+  fi
+  theme_name_ok "$name" || die "a theme's name is letters, digits, - and _ only (up to 40)"
+  case $name in
+    -*|import) die "'$name' would read as part of the command; give the theme another name" ;;
+  esac
+  [ -f "$VIKIX_DIR/themes/$name.theme" ] &&
+    die "$name is one of Vikix's own themes; give yours another name: vikix theme import $source NAME"
+  local dest="$USER_THEMES/$name.theme" f existing=()
+  for f in "$dest" "$USER_THEMES/$name".{jpg,jpeg,png,webp}; do
+    { [ -e "$f" ] || [ -L "$f" ]; } && existing+=("$f")
+  done
+  [ "${#existing[@]}" -eq 0 ] || [ "$force" = 1 ] ||
+    die "you already have a theme called $name (${existing[*]}); --force replaces it, or give another NAME"
+
+  command -v git >/dev/null || die "importing a theme needs git"
+  THEME_IMPORT_TMP=$(mktemp -d "${TMPDIR:-/tmp}/vikix-theme.XXXXXX")
+  trap 'rm -rf -- "$THEME_IMPORT_TMP"' EXIT
+  local tmp=$THEME_IMPORT_TMP
+  say "fetching $url"
+  # One commit, no submodules, no tags. No hooks run (none come with a
+  # clone, and hooksPath keeps your own template's away), LFS files stay
+  # pointers, git never asks for a password, and symlinks come out as
+  # small text files, so nothing checked out points outside the folder.
+  if ! GIT_TERMINAL_PROMPT=0 GIT_LFS_SKIP_SMUDGE=1 GIT_ASKPASS='' SSH_ASKPASS='' \
+      timeout 300 git -c protocol.allow=never -c "protocol.$proto.allow=always" \
+        -c core.askPass= -c core.hooksPath=/dev/null -c core.symlinks=false \
+        clone --quiet --depth 1 --no-tags --no-recurse-submodules -- "$url" "$tmp/repo" 2> "$tmp/git.log"; then
+    # git's own words, minus anything the server sent to move the cursor.
+    tr -cd '[:print:]\n' < "$tmp/git.log" | tail -n 3 >&2
+    die "couldn't fetch $url (is the address right, and are you online?)"
+  fi
+  local commit
+  commit=$(git -C "$tmp/repo" rev-parse --short=12 HEAD 2>/dev/null) || commit=unknown
+  [[ $commit =~ ^[0-9a-f]+$ ]] || commit=unknown
+
+  local toml="$tmp/repo/colors.toml"
+  [ -e "$toml" ] || die "$source has no colors.toml, so Vikix can't read its colours (older Omarchy themes have only alacritty.toml)"
+  [ -f "$toml" ] || die "colors.toml in $source isn't a file"
+  [ "$(stat -c %s -- "$toml")" -le "$THEME_IMPORT_TOML_MAX" ] || die "colors.toml in $source is over 64 KB: not a palette"
+  local -A om=() src=()
+  omarchy_read "$toml"
+  omarchy_resolve || die "colors.toml in $source has no background or foreground colour (#rrggbb)"
+
+  # Vikix's names from Omarchy's. The terminal's 16 are those Omarchy's
+  # alacritty.toml gets: black is the background, bright black the muted
+  # colour, white the foreground (black and white keys win, where a theme
+  # has them).
+  om_alias black_ black background; om_alias white_ white foreground
+  om_alias bright_black_ bright_black muted; om_alias bright_white_ bright_white bright_foreground
+  local shown=${source//[^[:print:]]/?}
+  [ "$proto" = https ] && shown=$url
+  {
+    printf '# %s — imported by `vikix theme import` from an Omarchy theme.\n' "$name"
+    printf '#\n# From %s, commit %s, on %s.\n' "$shown" "$commit" "$(date +%F)"
+    echo "# Omarchy (omarchy.org) themes are made by their authors; this is theirs,"
+    echo "# in Vikix's names. Beside each colour, the colors.toml name it came from."
+    echo "# Change it as you like; importing again with --force replaces it."
+    echo
+    echo "# The desktop"
+    local pair k from
+    for pair in bg:background fg:foreground subtle:dark_foreground dim:muted \
+                accent:accent alert:red sel:selection_background; do
+      k=${pair%%:*} from=${pair#*:}
+      printf '%-18s # %s\n' "$k=${om[$from]}" "${src[$from]}"
+    done
+    echo
+    echo "# The terminal's 16 colours: black red green yellow blue magenta cyan white,"
+    echo "# then the same eight, bright."
+    local i=0
+    for from in black_ red green yellow blue magenta cyan white_ bright_black_ bright_red \
+                bright_green bright_yellow bright_blue bright_magenta bright_cyan bright_white_; do
+      printf '%-18s # %s\n' "color$i=${om[$from]}" "${src[$from]}"
+      i=$((i + 1))
+    done
+  } > "$tmp/theme"
+  # The same check as a switch: a file theme_read won't take isn't kept.
+  theme_read "$tmp/theme" || die "the imported colours don't make a whole theme; nothing was changed"
+
+  local pic='' pic_type=''
+  omarchy_picture "$tmp/repo" || warn "no picture in backgrounds/; the wallpaper will be plain, in the theme's background"
+
+  run mkdir -p "$USER_THEMES"
+  local stamp; stamp=$(timestamp)
+  for f in "${existing[@]}"; do
+    run mv -- "$f" "$f.vikix-bak.$stamp"
+  done
+  run cp -- "$tmp/theme" "$dest"
+  [ -z "$pic" ] || run cp -- "$pic" "$USER_THEMES/$name.$pic_type"
+  say "imported $name: $dest${pic:+, with its wallpaper}"
+
+  if [ "$switch" = 0 ]; then
+    say "switch to it with: vikix theme $name"
+  elif [ "$DRY_RUN" = 1 ]; then
+    printf '   would switch to %s\n' "$name"
+  else
+    cmd_theme "$name"
+  fi
 }
 
 # Everything runs inside main, and main is the last thing in the file.
@@ -823,7 +1141,7 @@ main() {
         history)  cmd_history ;;
         undo)     cmd_undo "${2:-}" ;;
       esac ;;
-    theme)       cmd_theme "${2:-}" ;;
+    theme)       shift; cmd_theme "$@" ;;
     backup)      shift; exec "$VIKIX_DIR/bin/vikix-backup" "$@" ;;
     firmware)    shift; exec "$VIKIX_DIR/bin/vikix-firmware" "$@" ;;
     windows)     shift; exec "$VIKIX_DIR/bin/vikix-windows" "$@" ;;

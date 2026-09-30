@@ -50,6 +50,8 @@ jobs:
         run: tests/ci.sh image
       - name: theme
         run: tests/ci.sh theme
+      - name: theme-import
+        run: tests/ci.sh theme-import
       - name: bar
         run: tests/ci.sh bar
       - name: examples
