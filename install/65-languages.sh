@@ -13,7 +13,8 @@
 #              IDE from it, in ~/.lazarus: menu, editor, object inspector
 #              and form designer in one window, which StumpWM tiles (the
 #              rules are in windows.lisp). Rebuilt when Void's Lazarus is
-#              newer than the build. vikix-lazarus starts it.
+#              newer than the build; a failed build is tried
+#              again only when Lazarus or the recipe changes. vikix-lazarus starts it.
 #   Julia      Void packages juliaup (lang-julia.list), which downloads
 #              Julia itself; this gets the current release now, not at the
 #              first `julia`.
@@ -73,34 +74,43 @@ if is_chosen lisp && { [ -x "$pil_dir/bin/picolisp" ] || [ "$DRY_RUN" = 1 ]; }; 
 fi
 
 # --- Lazarus, docked ----------------------------------------------------------
-LAZ=/usr/lib/lazarus
+LAZ=${VIKIX_LAZARUS_DIR:-/usr/lib/lazarus}   # tests name another
 IDE="$HOME/.lazarus/bin/lazarus"
+# A build that failed is remembered with what it was tried with (Void's
+# Lazarus and this recipe), so each update doesn't spend minutes failing
+# the same way again: it's tried once more when either changes.
+laz_failed="$VIKIX_STATE/lazarus-build-failed"
+# The widget set Void built the LCL for (Qt5 now; GTK2 in older builds).
+ws=
+for w in qt5 gtk2 qt6 gtk3; do
+  compgen -G "$LAZ/lcl/units/*-linux/$w" >/dev/null && { ws=$w; break; }
+done
+log="$VIKIX_STATE/logs/lazarus-build.log"
+# /usr/lib/lazarus isn't writable, so lazbuild puts the IDE and the
+# packages it compiles under ~/.lazarus instead.
+cmd=(lazbuild --lazarusdir="$LAZ/" ${ws:+--ws=$ws}
+     --add-package "$LAZ/components/anchordocking/design/anchordockingdsgn.lpk"
+                   "$LAZ/components/dockedformeditor/dockedformeditor.lpk"
+     --build-ide=)
+laz_tried="$(stat -c %Y "$LAZ/lazarus" 2>/dev/null || true) ${cmd[*]}"
 if ! command -v lazbuild >/dev/null || [ ! -d "$LAZ/lcl" ]; then
   say "no Lazarus (packages/lang-pascal.list); skipping its docked IDE"
 elif [ -x "$IDE" ] && [ "$IDE" -nt "$LAZ/lazarus" ] && [ "${VIKIX_REBUILD_LANGS:-0}" != 1 ]; then
   say "Lazarus: the docked IDE is already built in ~/.lazarus"
+elif [ "$(cat "$laz_failed" 2>/dev/null)" = "$laz_tried" ] && [ "${VIKIX_REBUILD_LANGS:-0}" != 1 ]; then
+  say "Lazarus: the docked IDE didn't build last time (see $log); not tried again until Lazarus or Vikix's recipe changes (VIKIX_REBUILD_LANGS=1 tries now). vikix-lazarus starts the plain one."
 else
-  # The widget set Void built the LCL for (Qt5 now; GTK2 in older builds).
-  ws=
-  for w in qt5 gtk2 qt6 gtk3; do
-    compgen -G "$LAZ/lcl/units/*-linux/$w" >/dev/null && { ws=$w; break; }
-  done
-  log="$VIKIX_STATE/logs/lazarus-build.log"
   say "building the docked Lazarus IDE ($ws) into ~/.lazarus (a minute or two; log: $log)"
-  # /usr/lib/lazarus isn't writable, so lazbuild puts the IDE and the
-  # packages it compiles under ~/.lazarus instead.
-  cmd=(lazbuild --lazarusdir="$LAZ/" ${ws:+--ws=$ws}
-       --add-package "$LAZ/components/anchordocking/design/anchordockingdsgn.lpk"
-                     "$LAZ/components/dockedformeditor/dockedformeditor.lpk"
-       --build-ide=)
   if [ "$DRY_RUN" = 1 ]; then
     printf '   would run: %s > %s\n' "${cmd[*]}" "$log"
   else
     mkdir -p "$(dirname "$log")"
     if "${cmd[@]}" > "$log" 2>&1 && [ -x "$IDE" ]; then
       touch "$IDE"          # newer than Void's, so the next run skips this
+      rm -f "$laz_failed"
     else
-      warn "the docked Lazarus IDE didn't build; see $log. vikix-lazarus starts the plain one."
+      printf '%s\n' "$laz_tried" > "$laz_failed"
+      warn "the docked Lazarus IDE didn't build; see $log. vikix-lazarus starts the plain one; the next update won't try again unless Lazarus or the recipe changes."
     fi
   fi
 fi

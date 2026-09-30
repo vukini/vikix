@@ -6,15 +6,35 @@
 # plain `vikix-lock`, which asks xss-lock to lock now: a second i3lock
 # started beside xss-lock's would need unlocking twice. Without xss-lock
 # (another session), it locks by itself.
+#
+# While the screen is locked, notifications wait: dunst draws its windows
+# above everything, i3lock's too, so a message could be read on a locked
+# screen. They are shown once it's unlocked, unless they were already
+# paused (Do not disturb), which is kept.
 
 # The theme's background (vikix theme writes it), or void's.
 colour=$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/vikix/theme/lock" 2>/dev/null)
 case $colour in [0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]) ;; *) colour=1e1e2e ;; esac
 
+# locked: i3lock in the foreground (-n), notifications paused till it exits.
+locked() {
+  paused=
+  if command -v dunstctl >/dev/null 2>&1; then
+    paused=$(dunstctl is-paused 2>/dev/null)
+    [ "$paused" = false ] && dunstctl set-paused true 2>/dev/null
+  fi
+  i3lock -n -c "$colour"
+  status=$?
+  [ "$paused" = false ] && dunstctl set-paused false 2>/dev/null
+  return "$status"
+}
+
 if [ "${1:-}" = --locker ]; then
-  exec i3lock -n -c "$colour"          # -n: xss-lock waits for it to exit
+  locked                               # xss-lock waits for this to exit
+  exit $?
 fi
 if pgrep -x -u "$(id -u)" xss-lock >/dev/null; then
   exec xset s activate
 fi
-exec i3lock -c "$colour"
+# Without xss-lock nothing waits for it, so it waits in the background.
+locked &
