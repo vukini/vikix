@@ -89,6 +89,27 @@ Added 2026-09-30, from a conversation with Vid about 0.52-0.65. Not yet ordered 
 
 33. **A children's account.** A second login with a simpler desktop and apps chosen by the parent, where nothing of the parent's can be broken; a home for a child's programming course.
 
+### Plugins, themes and wallpapers (decided with Vid 2026-09-30)
+
+Three new repos beside Vikix, each independent: `vukini/vikix-plugins`, `vukini/vikix-themes`, `vukini/vikix-wallpapers` (names to confirm). The core keeps what a fresh install needs offline: void and paper and their two wallpapers. Every plugin offered is Vid's own for now; opening the repo to others' plugins comes later.
+
+34. **A plugin system.** A plugin is a folder: a manifest (name, one-line description, kinds, packages it needs, the Vikix version it works with) and its code, Lisp with StumpWM's full power, and shell where that's simpler. Kinds to start: **bar** (a few words in the bar on a timer, with a click or key action), **menu** (entries in Super+m), **key** (bindings, through `vikix-bind`, in the key help), **service** (started at login). Commands: `vikix plugin list` (available, and yours), `vikix plugin add NAME` (shows what it runs and needs, asks, installs its packages), `remove`, and `vikix update` updates them. The code is Vikix's (`~/.local/share/vikix/plugins/NAME`, updated), the settings are yours (`~/.config/vikix/plugins/NAME`, copied once). Each plugin is pinned to a reviewed commit, so an update can't swap code in silently. Because Lisp plugins run inside StumpWM: load each wrapped, as the layer files are, so a broken one is reported and skipped; a hung one needs a way out, so `vikix plugin off NAME` works from a TTY and a safe-mode login loads none. `vikix doctor` lists them; `vikix debug` names them. A test in the plugins repo's CI: every manifest valid, every Lisp file reads, every shell script passes lint.
+35. **`vikix-themes`.** A folder per theme: the `.theme` file, its wallpaper, a preview in void and paper sizes. `vikix theme get NAME`, or `vikix add themes` for all; the picker lists them. Item 5's "more themes" (Gruvbox, Nord, Tokyo Night, a high-contrast one) are made here, not in the core.
+36. **`vikix-wallpapers`.** Vid's `~/wallpapers`, only pictures that are his (he is clearing out the rest first), with a `CREDITS` file anyway. A feature, `vikix add wallpapers`, cloned to `~/.local/share/vikix/wallpapers`, listed by the Super+m wallpaper picker beside the user's own folders. Big files: consider Git LFS or release archives if the clone gets slow.
+
+The first plugins, in order:
+
+37. **Agent waiting** (after Omarchy's `herdr`). When an agent in a background window stops for your answer, the bar says `agent waiting`, and a key jumps to that window. Claude Code's hooks can report it; the others by watching their terminals.
+38. **Notes from anywhere.** A key opens a small capture box over whatever you're doing: type, dictate (the Super+F9 dictation), or take the selection, with the window's title or the page's address added as the source. It lands at once in an inbox note in the Obsidian vault (Markdown, dated). Emacs users can have it as an org-capture frame instead. Then, only when asked: `vikix notes sort` has a model read the inbox and file each note by project or category (the vault's folders, or a list in the settings), showing its choices first; local model by default. Later: a note's to-dos into Todoist, and a daily digest of what was captured.
+39. **Flights** (after Omarchy's most-starred plugin, LetsFG Flights). Search from a prompt ("DXB to LHR, 12 Nov, back 20th"), cheapest and quickest in a rofi list, the chosen one opened in the browser; watched routes, with a notification when the price drops. LetsFG (MIT, CLI and MCP) does the search, but asks for a payment method even to search, and can book: the plugin searches only, and booking stays in the browser, never done by an agent. Check its terms, and look for a search source that needs no card.
+40. **AI usage.** How much of the Claude plan this session has used, and when it resets, in the bar.
+41. **Next meeting.** The next meeting and how long until it starts, in the bar; a key opens its call link; a rofi list for the week.
+42. **Unread mail.** A count in the bar: the first small piece of the desk (item 21).
+43. **Build status.** The last GitHub test run for chosen repos, Vikix's first; red in the bar when one fails.
+44. **A number of your choice.** Any figure refreshed on a timer (a portfolio's value, a sales total), from a command you give. Off unless set up.
+45. **Screen time for children.** Daily limits on the children's account (item 33), with a warning before time runs out.
+46. **Weather.** A small note for your city in the bar.
+
 ## C tutorials: `vikix learn c`
 
 Plan: Learning To Code project → "Vikix — C Tutorials Plan"
