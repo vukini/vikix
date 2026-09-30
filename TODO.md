@@ -110,6 +110,26 @@ The first plugins, in order:
 45. **Screen time for children.** Daily limits on the children's account (item 33), with a warning before time runs out.
 46. **Weather.** A small note for your city in the bar.
 
+## Vikix as the workshop for the Living Series (decided with Vid 2026-09-30)
+
+Vid's books, sites and apps (the Living Series: about 28 projects, 315 MB, today in the Obsidian vault's `Living-in-Life` folder, with Progress docs in a claude.ai project and the Work Log, Status Board and Living Shelf as claude.ai pages) move into one repo, and Vikix becomes the system they're made in. The general parts are Vikix features anyone could use; the Living Series is Vid's configuration of them. Once `vukini/living-series` exists, its own steps move into that repo's `TODO.md`.
+
+Decided: **one repo** for all the projects; **private**; the claude.ai pages kept as **online views generated from the repo**; editing in **Emacs**, Obsidian only as an optional viewer (mainly to read on the phone); work away from the laptop goes through **Claude sessions on the GitHub repo** (as on 2026-09-29/30), so the Windows PC needn't be on.
+
+47. **The repo, `vukini/living-series`.**
+    - A folder per project (kebab-case names, fixing `Living-in-Commor-Lisp`); `shared/` for what projects share (house styles, the Living Maths shell, build and check helpers); `log/YYYY-MM-DD.md`, the work log, one file a day; a `project.toml` in each folder (name, kind, % done, next step, artifact URL, its build, check and publish commands).
+    - A root `CLAUDE.md` (the series' house rules, the log rule, Working in parallel as in Vikix's), and one per project from its House-Rules/Plan; the skills in use (algorithms-in-python, living-in-javascript, interactive-learning-site, work-log) as the repo's own `.claude/skills/`.
+    - Built files (EPUBs, generated HTML, `out/`, `dist/`) not committed: `make` rebuilds them. The Esperanto art (241 MB) in Git LFS or its own repo: check LFS storage limits first.
+48. **Moving in, safely.** Nothing is deleted from the vault until each project is checked in its new home.
+    - An inventory first: per project, what is source, what is built, what is an asset, what is leftover (`_to_delete`, empty folders, `plenejo`), shown to Vid before anything moves.
+    - One commit per project. `living-in-the-image` keeps its history (git subtree). The Progress, Plan and Findings docs come from the claude.ai project into each folder; the Work Log and Status Board databases are exported into `log/` and the `project.toml` files.
+    - Then every project's build and check run on Vikix; a list of what fails, fixed project by project.
+    - Switch-over: the laptop clones to `~/living` (outside the vault); the vault's `Living-in-Life` becomes read-only, then archived once all is verified.
+49. **In Vikix: projects, generally.** `vikix project` for any folder with a `project.toml`: `list` (last log line, next step, % done), `open NAME` (its saved layout, the editor on its Progress doc, a terminal there, a preview, the agent: IDEAS' project switcher, made real), `log NAME "…"`, `check`, `build`, and `vikix today` (IDEAS) from the logs and commits. Plain files, so Claude sessions, Emacs and scripts all read and write the same log.
+50. **The `living` plugin (Vid's own).** The series-specific layer on item 49: `living` (the dashboard), `living open lambda`, `living log`, `living shelf` (the Living Shelf page built from the `project.toml` files), and a bar note for the project in hand. It uses the plugin system (item 34).
+51. **The online views.** The Work Log, Status Board and Living Shelf pages on claude.ai regenerated from the repo, not typed into by hand: at the end of a Claude session that changed the log, and by a daily scheduled cloud task reading the repo. The repo is the truth; the pages are for reading anywhere.
+52. **Reading on the phone.** Two ways, both kept simple: the GitHub app shows the private repo's Markdown as it is (nothing to set up, read-only); or Obsidian, opening `~/living` as its own vault on the laptop, with Obsidian Sync to the phone for reading and small edits, which then show up in git on the laptop to commit. Decide once the repo exists.
+
 ## C tutorials: `vikix learn c`
 
 Plan: Learning To Code project → "Vikix — C Tutorials Plan"
