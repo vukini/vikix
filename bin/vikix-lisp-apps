@@ -1,0 +1,184 @@
+#!/usr/bin/env bash
+# vikix-lisp-apps — programs written in Common Lisp, and programmable in it,
+# as StumpWM is: Nyxt (a web browser), Lem (an editor) and McCLIM's
+# Listener (a Lisp prompt whose output is live objects), with Clouseau, the
+# inspector.
+#
+#   vikix lisp-apps setup [--rebuild]
+#                           Nyxt from Void; Lem built from source (a pinned
+#                           commit, its libraries pinned by its qlfile.lock);
+#                           McCLIM, the Listener and Clouseau from Quicklisp,
+#                           saved as one program. A few minutes, once; no
+#                           password when the packages are there.
+#                           --rebuild builds Lem and the Listener again
+#   vikix lisp-apps status
+#   vikix lisp-apps uninstall
+#                           removes Lem and the Listener; Nyxt goes with
+#                           vikix remove lisp-apps
+#
+# Commands: nyxt, lem, clim-listener; all three are in the launcher (Super+d).
+
+set -uo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+# shellcheck source=../lib/features.sh
+. "$VIKIX_DIR/lib/features.sh"
+
+# Lem has no release tags that follow its main branch closely, so a commit
+# is pinned; the libraries it needs are pinned by its own qlfile.lock.
+LEM_REPO=https://github.com/lem-project/lem
+LEM_COMMIT=ef6c48eb56575bb3ffe648c30846321b2a5d7e2f   # 2026-09-24
+LEM_OPT="$HOME/.local/opt/lem"
+CLIM_OPT="$HOME/.local/opt/mcclim"
+QL="$HOME/quicklisp/setup.lisp"
+BIN="$HOME/.local/bin"
+APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+LOGS="$VIKIX_STATE/logs"
+# Tests name their stand-ins (these reach the network or build for minutes).
+GIT=${VIKIX_GIT:-git}
+SBCL=${VIKIX_SBCL:-sbcl}
+
+lem_built() {
+  [ -x "$LEM_OPT/lem" ] && [ "$(cat "$LEM_OPT/.vikix-built" 2>/dev/null)" = "$LEM_COMMIT" ]
+}
+listener_built() { [ -x "$CLIM_OPT/clim-listener" ]; }
+
+# --- Lem ------------------------------------------------------------------------
+
+fetch_lem() {
+  if [ -d "$LEM_OPT/.git" ] && [ "$("$GIT" -C "$LEM_OPT" rev-parse HEAD 2>/dev/null)" = "$LEM_COMMIT" ]; then
+    return 0
+  fi
+  say "fetching Lem (commit ${LEM_COMMIT:0:7})"
+  if [ ! -d "$LEM_OPT/.git" ]; then
+    mkdir -p "$LEM_OPT"
+    "$GIT" -C "$LEM_OPT" init -q || die "couldn't make $LEM_OPT"
+    "$GIT" -C "$LEM_OPT" remote add origin "$LEM_REPO" 2>/dev/null || true
+  fi
+  # A commit, fetched by its id: nothing a branch or tag moved to since.
+  "$GIT" -C "$LEM_OPT" fetch -q --depth 1 origin "$LEM_COMMIT" || die "couldn't fetch Lem"
+  "$GIT" -c advice.detachedHead=false -C "$LEM_OPT" checkout -q --force FETCH_HEAD || die "couldn't check out Lem"
+  [ "$("$GIT" -C "$LEM_OPT" rev-parse HEAD)" = "$LEM_COMMIT" ] ||
+    die "Lem isn't the commit expected: not built"
+}
+
+build_lem() {
+  if [ "${1:-}" != --rebuild ] && lem_built; then say "Lem is built"; return 0; fi
+  if [ "$DRY_RUN" = 1 ]; then printf '   would build Lem (%s) in %s\n' "${LEM_COMMIT:0:7}" "$LEM_OPT"; return 0; fi
+  fetch_lem
+  local log="$LOGS/lem-build.log"
+  mkdir -p "$LOGS"
+  say "building Lem: its libraries, then the editor (a few minutes; log: $log)"
+  (
+    cd "$LEM_OPT" || exit 1
+    # qlot reads qlfile.lock and puts exactly those libraries in .qlot/,
+    # apart from your own Quicklisp. qlot itself comes from Quicklisp.
+    "$SBCL" --noinform --non-interactive --load "$QL" \
+      --eval '(ql:quickload :qlot :silent t)' --eval '(qlot:install)' || exit 1
+    # The terminal inside Lem (libvterm): Lem turns it off by itself when
+    # this doesn't build, so a failure here isn't the build's.
+    "$SBCL" --noinform --non-interactive --load scripts/build-terminal.lisp || echo "(Lem's terminal didn't build; Lem works without it)"
+    # As Lem's Makefile does for `make sdl2`, without needing the qlot
+    # command: the SDL2 window, saved as one executable, ./lem.
+    "$SBCL" --dynamic-space-size 4GiB --noinform --no-sysinit --no-userinit --non-interactive \
+      --load .qlot/setup.lisp --load scripts/build-sdl2.lisp || exit 1
+  ) > "$log" 2>&1 || { tail -n 20 "$log"; die "Lem didn't build (the end of $log is above)"; }
+  [ -x "$LEM_OPT/lem" ] || die "Lem's program isn't where it should be ($LEM_OPT/lem)"
+  echo "$LEM_COMMIT" > "$LEM_OPT/.vikix-built"
+  say "Lem is built"
+}
+
+# --- McCLIM's Listener ------------------------------------------------------------
+
+build_listener() {
+  if [ "${1:-}" != --rebuild ] && listener_built; then say "the Listener is built"; return 0; fi
+  if [ "$DRY_RUN" = 1 ]; then printf '   would build the McCLIM Listener in %s\n' "$CLIM_OPT"; return 0; fi
+  local log="$LOGS/clim-listener-build.log" tmp
+  mkdir -p "$LOGS" "$CLIM_OPT"
+  tmp="$CLIM_OPT/.clim-listener.new"
+  say "building McCLIM's Listener, with Clouseau (a minute or two; log: $log)"
+  # Saved as one program, so it opens at once instead of loading McCLIM
+  # each time. Clouseau is in it: (clouseau:inspect obj) at its prompt.
+  "$SBCL" --noinform --non-interactive --load "$QL" \
+    --eval '(ql:quickload (list :mcclim :clim-listener :clouseau) :silent t)' \
+    --eval "(sb-ext:save-lisp-and-die \"$tmp\" :executable t
+              :toplevel (lambda () (clim-listener:run-listener) (sb-ext:exit)))" > "$log" 2>&1 ||
+    { rm -f "$tmp"; tail -n 20 "$log"; die "the Listener didn't build (the end of $log is above)"; }
+  [ -x "$tmp" ] || die "the Listener's program wasn't written"
+  mv -f "$tmp" "$CLIM_OPT/clim-listener"
+  say "the Listener is built"
+}
+
+# --- In the launcher --------------------------------------------------------------
+
+desktop_entry() {   # desktop_entry FILE NAME COMMENT EXEC ICON CATEGORIES
+  [ "$DRY_RUN" = 1 ] && { printf '   would write %s\n' "$1"; return 0; }
+  mkdir -p "$APPS"
+  cat > "$1" <<EOF
+[Desktop Entry]
+# Written by vikix lisp-apps setup; vikix lisp-apps uninstall removes it.
+Name=$2
+Comment=$3
+Exec=$4
+Icon=$5
+Terminal=false
+Type=Application
+Categories=$6
+EOF
+}
+
+cmd_setup() {
+  local rebuild=${1:-}
+  case $rebuild in ''|--rebuild) ;; *) die "vikix lisp-apps setup [--rebuild]" ;; esac
+  record_features lisp-apps
+  local p missing=0
+  while IFS= read -r p; do pkg_installed "$p" || missing=1; done < <(read_list "$VIKIX_DIR/packages/optional/lisp-apps.list")
+  if [ "$missing" = 1 ]; then
+    VIKIX_LISTS=lisp-apps bash "$VIKIX_DIR/install/10-packages.sh" || die "couldn't install Nyxt and the libraries Lem needs"
+  fi
+  [ -f "$QL" ] || [ "$DRY_RUN" = 1 ] || die "Quicklisp isn't here ($QL): ~/vikix/install.sh --only 30-lisp puts it there"
+  command -v "$SBCL" >/dev/null 2>&1 || [ "$DRY_RUN" = 1 ] || die "sbcl isn't here"
+  build_lem "$rebuild"
+  build_listener "$rebuild"
+  link_managed "$LEM_OPT/lem" "$BIN/lem"
+  link_managed "$CLIM_OPT/clim-listener" "$BIN/clim-listener"
+  desktop_entry "$APPS/vikix-lem.desktop" Lem "An editor written in Common Lisp, programmable in it" \
+    "$BIN/lem %F" accessories-text-editor "Development;TextEditor;"
+  desktop_entry "$APPS/vikix-clim-listener.desktop" "McCLIM Listener" \
+    "A Lisp prompt whose output is live objects; (clouseau:inspect x) inspects one" \
+    "$BIN/clim-listener" utilities-terminal "Development;"
+  say "ready: nyxt, lem and clim-listener (all three in Super+d)"
+}
+
+cmd_status() {
+  if command -v nyxt >/dev/null 2>&1; then echo "nyxt           installed (Void's package)"; else echo "nyxt           not installed"; fi
+  if lem_built; then echo "lem            built, commit ${LEM_COMMIT:0:7} ($LEM_OPT)"
+  elif [ -x "$LEM_OPT/lem" ]; then echo "lem            built from another commit: vikix lisp-apps setup --rebuild"
+  else echo "lem            not built"; fi
+  if listener_built; then echo "clim-listener  built ($CLIM_OPT)"; else echo "clim-listener  not built"; fi
+  lem_built && listener_built || echo "(vikix lisp-apps setup builds what's missing)"
+}
+
+# Only what setup made, and a link only while it's still setup's.
+unlink_ours() {   # unlink_ours LINK TARGET
+  [ -L "$1" ] && [ "$(readlink "$1")" = "$2" ] && run rm -f "$1"
+  return 0
+}
+
+cmd_uninstall() {
+  unlink_ours "$BIN/lem" "$LEM_OPT/lem"
+  unlink_ours "$BIN/clim-listener" "$CLIM_OPT/clim-listener"
+  run rm -f "$APPS/vikix-lem.desktop" "$APPS/vikix-clim-listener.desktop"
+  run rm -rf "$LEM_OPT" "$CLIM_OPT"
+  say "removed Lem and the Listener; McCLIM stays in your Quicklisp, and Nyxt goes with vikix remove lisp-apps"
+  forget_features lisp-apps
+}
+
+case ${1:-} in
+  setup)     shift; cmd_setup "${1:-}" ;;
+  status)    cmd_status ;;
+  uninstall) cmd_uninstall ;;
+  -h|--help|help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) die "vikix lisp-apps: setup, status, uninstall" ;;
+esac

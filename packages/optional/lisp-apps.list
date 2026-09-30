@@ -1,0 +1,15 @@
+# lisp-apps.list — programs written in Common Lisp (the feature lisp-apps).
+# Nyxt comes from Void; Lem and McCLIM's Listener are built by
+# vikix lisp-apps setup, and Lem's window needs SDL2 and its libraries
+# (the -devel packages carry the names its build loads). gcc and make are
+# in the base (dev.list).
+nyxt
+SDL2
+SDL2-devel
+SDL2_ttf
+SDL2_ttf-devel
+SDL2_image
+SDL2_image-devel
+# The terminal inside Lem (M-x terminal); Lem works without it.
+libvterm
+libvterm-devel

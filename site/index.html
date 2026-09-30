@@ -258,6 +258,7 @@
           <p class="eyebrow">StumpWM</p>
           <h3>A window manager you can reprogram while it runs.</h3>
           <p>StumpWM is written in Common Lisp. Vikix builds it with Swank inside, listening on <code>127.0.0.1:4004</code>, so Emacs can connect with SLIME and redefine anything in the running window manager. Your own settings go in <code>user.lisp</code>, which loads last, so it always wins.</p>
+          <p>And apps made the same way: <code>vikix add lisp-apps</code> brings Nyxt (a browser), Lem (an editor) and McCLIM's Listener, each written in Common Lisp and changeable in it.</p>
 <pre><span class="t-d">;; ~/.stumpwm.d/user.lisp</span>
 (<span class="t-k">define-key</span> *top-map* (kbd <span class="t-p">"s-t"</span>) <span class="t-p">"exec kitty"</span>)
 (<span class="t-k">setf</span> *mouse-focus-policy* <span class="t-a">:click</span>)</pre>

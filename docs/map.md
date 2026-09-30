@@ -68,7 +68,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── vikix, vikix-*     Vikix's   the command and its helpers
 │   │   ├── stumpwm            built     the window manager, built by 30-lisp (`vikix rebuild-wm`)
 │   │   └── pil, claude, ...   installed by 65-languages, the npm language servers, Claude Code
-│   ├── share/applications/*.desktop   Vikix's   JupyterLab, vikix-image, Lazarus in the launcher (Super+d); your web apps' too
+│   ├── share/applications/*.desktop   Vikix's   JupyterLab, vikix-image, Lazarus in the launcher (Super+d); your web apps' too, and Lem's and the Listener's (lisp-apps)
 │   ├── share/vikix/fonts/wm.ttf       built     the bar's font, made by vikix-font
 │   ├── share/vikix/nvim               Vikix's   Vikix's part of Neovim: AstroNvim and Vikix's plugins (a link to config/nvim)
 │   ├── share/vikix/emacs              Vikix's   Vikix's part of Emacs: vikix-ai.el, gptel on vikix ai use's model and your agent in agent-shell (a link to config/emacs)
@@ -82,6 +82,8 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   ├── state/vikix/voice-chat         written   Super+F10's conversation: llm's id, and when it was last used
 │   ├── share/vikix/AGENTS.md          written   the skill as a guide for Codex, Gemini, Aider (linked as ~/.codex/AGENTS.md, ~/.gemini/GEMINI.md)
 │   ├── opt/picolisp/          built     PicoLisp, from source (with the feature lisp)
+│   ├── opt/lem/               built     Lem, the editor in Common Lisp (vikix add lisp-apps)
+│   ├── opt/mcclim/            built     McCLIM's Listener, with Clouseau (vikix add lisp-apps)
 │   ├── opt/ollama/            built     Ollama, for local AI models (vikix ai setup)
 │   ├── share/libvirt/images/  the Windows VM's disk and its driver disc (not backed up)
 │   ├── share/vikix/webapps/   each web app's own Chromium profile: its logins (caches not backed up)
