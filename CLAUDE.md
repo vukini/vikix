@@ -14,6 +14,19 @@ This folder sits inside an Obsidian vault, but it is a code repo: the vault's no
 
 `TODO.md` lists planned features and cleanups. Read it when asked what's next, and remove an item in the commit that ships it. `TUTORIALS.md` is the plan for `vikix learn` (a C course first). `IDEAS.md` holds ideas not yet decided on; one moves to `TODO.md` when it is picked up. `TODO-editors.md` is the plan for the editors: Neovim's config into Vikix, and AI in Neovim and Emacs.
 
+## Working in parallel
+
+Vid often has several Claude sessions on Vikix at once. So that none disturbs another, **every session works in its own git worktree by default**, unless Vid says otherwise:
+
+- **Start** by making one, outside the Obsidian vault (the vault syncs to another PC, and a half-finished folder shouldn't): `git worktree add ~/work/vikix-TOPIC -b TOPIC` from this repo, then work only in `~/work/vikix-TOPIC`. A short topic name (`plugins`, `update-core`). If Claude Code's own worktree support is used instead, the same rules hold.
+- **This folder is for merging only.** Don't edit here while working on a change; its working tree stays clean, so merges into `main` are always possible.
+- **Commit only the files you changed,** by name. Never `git add -A` or `git commit -a`.
+- **Finishing:** `git fetch` and rebase the branch onto `main` (resolve conflicts; they show up most in `TODO.md`, `README.md` and `docs/`), run `tests/run.sh`, then in this folder `git merge --ff-only TOPIC`.
+- **`VERSION` is bumped at merge time, never earlier,** in the release commit made here after the merge, so two sessions can't both claim the same number. Then tell Vid to run `gup`.
+- **Clean up:** `git worktree remove ~/work/vikix-TOPIC` and `git branch -d TOPIC`.
+- **Never** force-push, rewrite `main`, or touch another session's worktree or branch. `git worktree list` shows what else is in progress.
+- **Cloud sessions** (a clone of their own, pushing straight to GitHub) are already apart: fetch and rebase before every push, never force, and bump `VERSION` only when nobody else's release is in flight (check `git log origin/main` first).
+
 ## Checking changes
 
 No build step. The tests are scripts in `tests/`, and `.github/workflows/test.yml` runs the same scripts on GitHub (on each push and weekly):
