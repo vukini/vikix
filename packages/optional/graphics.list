@@ -1,0 +1,7 @@
+# graphics.list — pictures (the feature graphics). Screenshots are in the
+# base (vikix-screenshot); these edit and draw.
+gimp                # photos and pixels: retouch, crop, layers
+inkscape            # vector drawing: thumbnails, titles, diagrams, SVG
+krita               # painting and drawing, with a pen tablet
+darktable           # RAW photos from a camera: develop, sort, export
+flameshot           # a screenshot to mark up: arrows, boxes, blur, text

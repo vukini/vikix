@@ -243,7 +243,7 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 | `s-p` | Move the mouse pointer to the focused window |
 | `s-1`…`s-9` | Go to a workspace |
 | `s-C-1`…`s-C-9` | Send the window to a workspace |
-| `s-m` | Vikix menu: the welcome and Add software, key help, all commands, the Vikix guide (in Info, or in the browser with its diagrams), "what does a key do?", themes, network, printers, backup now, screens, update, and Power (the same as `s-S-Escape`). An entry for a feature you don't have (JupyterLab, Zeal, Printers, Windows, local AI, Dropbox) is left out until you add it |
+| `s-m` | Vikix menu: the welcome and Add software, key help, all commands, the Vikix guide (in Info, or in the browser with its diagrams), "what does a key do?", themes, network, printers, backup now, screens, update, and Power (the same as `s-S-Escape`). An entry for a feature you don't have (JupyterLab, Zeal, Printers, Windows, local AI, Dropbox) is left out until you add it. *Apps* opens the programs of the features video, graphics, blender, study, passwords, phone and cli-extras, each once it's installed |
 | `s-F1` | Every key, searchable. Pick one to run it. |
 | `s-Escape` | Lock the screen |
 | `s-S-Escape` | Power: lock, suspend, log out, reboot, power off (Lock first, so a stray Enter is harmless) |
@@ -508,8 +508,8 @@ vikix add essentials       # or a bundle: essentials, developer, everything
 vikix remove julia         # stop keeping it, and uninstall what only it needed
 ```
 
-- **Features:** each language (`c`, `python`, `lisp`, `rust` …, with `devtools`, the tools every language uses, coming along), `emacs`, `neovim`, `office` (LibreOffice), `printing`, `webapps`, `dropbox`, `windows`, `local-ai` and `llm`. The last three run their own setup (`vikix windows setup`, `vikix ai setup`, `vikix ai llm`).
-- **Bundles** (`bundles.list`): `essentials` is Emacs, C, Python and Lisp; `developer` both editors and every language; `everything` is developer, LibreOffice and printing, which is what a full install had before 0.46.
+- **Features:** each language (`c`, `python`, `lisp`, `rust` …, with `devtools`, the tools every language uses, coming along), `emacs`, `neovim`, `office` (LibreOffice), `printing`, `webapps`, `dropbox`, `video`, `graphics`, `blender`, `study`, `passwords`, `phone`, `cli-extras`, `windows`, `local-ai` and `llm`. The last three run their own setup (`vikix windows setup`, `vikix ai setup`, `vikix ai llm`).
+- **Bundles** (`bundles.list`): `essentials` is Emacs, C, Python and Lisp; `developer` both editors and every language; `everything` is developer, LibreOffice and printing, which is what a full install had before 0.46. `creative` is video, graphics and Blender.
 - **Your choices** are the lines of `~/.config/vikix/features`, yours to edit. A machine installed before 0.46 had every list, so its file says `everything`, plus what it set up since (Windows, local AI). With no file at all, everything is kept.
 - **One program**, not a feature: `vikix pkg add NAME` (alone, a search of every package in Void), `vikix pkg drop NAME`. A package Vikix's lists name that you drop goes on `~/.config/vikix/packages-skip`, which `10-packages` leaves out; `vikix pkg list` shows it, and adding the package again takes it off.
 - **`vikix remove`** shows what it would uninstall and asks first (`--yes` skips the question). A package the base or another feature of yours names stays, and so does one that another installed package needs. A feature only there for the one removed goes too: `devtools`, once no language is left. Your own files are never touched: `~/dev`, `~/.emacs.d`, `~/.config/nvim`, `~/Windows`.
@@ -535,6 +535,13 @@ vikix remove julia         # stop keeping it, and uninstall what only it needed
 | `optional/windows` | Feature `windows` (`vikix windows setup`, or `vikix add windows`): libvirt (with dnsmasq, for the VM's network), QEMU, UEFI firmware (edk2-ovmf), swtpm, virtiofsd, virt-viewer, xorriso. See [Windows](#windows-in-a-vm) |
 | `optional/dropbox` | Feature `dropbox` (`vikix add dropbox`): Dropbox's command-line client, from the nonfree repo. `dropbox start -i` fetches the daemon into `~/.dropbox-dist` and signs you in the first time |
 | `optional/webapps` | Feature `webapps`, chosen by the first `vikix webapp add`: Chromium, which runs the web apps. See [Web apps](#web-apps) |
+| `optional/video` | Feature `video`: Shotcut (editing), OBS (recording with sound), HandBrake (re-encoding), yt-dlp (downloading) |
+| `optional/graphics` | Feature `graphics`: GIMP, Inkscape, Krita, darktable (RAW photos), Flameshot (screenshots to mark up) |
+| `optional/blender` | Feature `blender`: Blender, on its own because it's 230 MB |
+| `optional/study` | Feature `study`: Anki (flashcards), Xournal++ (writing on PDFs) |
+| `optional/passwords` | Feature `passwords`: KeePassXC |
+| `optional/phone` | Feature `phone`: scrcpy and adb (android-tools), an Android phone's screen in a window. Switch on USB debugging on the phone first |
+| `optional/cli-extras` | Feature `cli-extras`: pandoc, ncdu |
 
 ## Laptop
 

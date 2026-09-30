@@ -1,0 +1,4 @@
+# phone.list — an Android phone on the desktop (the feature phone). The
+# phone needs USB debugging on (Developer options) the first time.
+scrcpy              # the phone's screen in a window, with keyboard and mouse
+android-tools       # adb, which scrcpy talks to the phone through

@@ -1,0 +1,8 @@
+# video.list — making videos (the feature video). vikix-record already
+# records the screen; these edit, clean up and convert what it made.
+shotcut             # the video editor: timeline, cuts, titles, subtitles (.srt)
+obs                 # screen and camera recording with sound, scenes, streaming
+# audacity is left out for now: Void's 3.7.8_1 won't start against
+# wxWidgets 3.2.11 (undefined symbol wxWindowBase::RegisterHotKey). TODO.md.
+handbrake           # re-encode a video: smaller, or a format an editor likes
+yt-dlp              # download a video (a talk, your own upload) to watch offline

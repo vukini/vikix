@@ -43,6 +43,13 @@ office      | office             |          |                     |             
 printing    | printing           |          |                     |                       | Printers: CUPS, finding printers on the network, drivers
 webapps     | optional/webapps   |          |                     |                       | Chromium, for web apps (vikix webapp add)
 dropbox     | optional/dropbox   |          |                     |                       | Dropbox: ~/Dropbox kept in sync, and the bar shows what's left (dropbox start -i the first time)
+video       | optional/video     |          |                     |                       | Video: Shotcut to edit, OBS to record with sound, HandBrake, yt-dlp
+graphics    | optional/graphics  |          |                     |                       | Pictures: GIMP, Inkscape, Krita, darktable for RAW photos, Flameshot to mark up screenshots
+blender     | optional/blender   |          |                     |                       | Blender: 3D, animation and its own video editor (230 MB)
+study       | optional/study     |          |                     |                       | Study: Anki flashcards, and Xournal++ to write on PDFs
+passwords   | optional/passwords |          |                     |                       | KeePassXC: passwords and two-factor codes, offline in a file of your own
+phone       | optional/phone     |          |                     |                       | An Android phone's screen in a window (scrcpy, over adb)
+cli-extras  | optional/cli-extras|          |                     |                       | More terminal tools: pandoc converts documents, ncdu shows what fills the disk
 windows     | optional/windows   |          | vikix windows setup | vikix windows remove  | Windows 11 in a window (8 GB of memory, 40 GB of disk)
 local-ai    |                    |          | vikix ai setup      | vikix ai uninstall    | AI models on this laptop, with Ollama
 llm         |                    |          | vikix ai llm        | uv tool uninstall llm | llm: AI on the command line, local or Claude

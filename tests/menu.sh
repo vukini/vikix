@@ -46,11 +46,13 @@ while IFS= read -r need; do
   case $need in
     "~/"*) grep -rqF "${need##*/}" "$here/install" "$here/bin" ||      # its name, at least
              { echo "FAIL: the menu needs $need, which nothing makes"; fail=1; } ;;
+    ghb) grep -qx handbrake <(sed 's/[[:space:]]*#.*//' "$here"/packages/optional/video.list) ||  # HandBrake's program
+           { echo "FAIL: the menu needs ghb, but no list installs handbrake"; fail=1; } ;;
     *) grep -rqxE "$need( .*)?" <(cat "$here"/packages/*.list "$here"/packages/optional/*.list | sed 's/[[:space:]]*#.*//') ||
          { echo "FAIL: the menu needs the program $need, but no list installs a package of that name"; fail=1; } ;;
   esac
-done < <(awk '/^\(defparameter \*vikix-menu\*/,/^  "Each entry/' "$lisp" |
-         grep -oE '\) "(~/[^"]+|[a-z-]+)"\)$' | sed -E 's/^\) "//; s/"\)$//')
+done < <(awk '/^\(defparameter \*vikix-menu\*/,/^  "Each entry/; /^\(defparameter \*vikix-apps-menu\*/,/^  "The apps menu/' "$lisp" |
+         grep -oE '(\) |^ +)"(~/[^"]+|[a-z-]+)"\)+$' | sed -E 's/^(\) | +)"//; s/"\)+$//')
 
 # The launcher (Super+d) lists config/applications/*.desktop: each runs a
 # command Vikix has, and JupyterLab answers to what people type, jlab too.

@@ -126,6 +126,7 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
     ("Network (nmtui)"     (run-shell-command
                             (format nil "~a -e nmtui" *vikix-terminal*)))
     ("Bluetooth"           (run-shell-command "blueman-manager"))
+    ("Apps: video, pictures, study ..." vikix-apps)
     ("Dropbox"             vikix-dropbox "dropbox")
     ("Printers"            (run-shell-command "system-config-printer") "system-config-printer")
     ("Windows (the VM)"    (run-shell-command
@@ -216,6 +217,35 @@ Entries whose program or file isn't here are left out."
 (defcommand vikix-dropbox () ()
   "Dropbox: its status, the folder, start or stop it."
   (vikix-run-menu *vikix-dropbox-menu* "Dropbox: "))
+
+(defparameter *vikix-apps-menu*
+  '(("Video: edit (Shotcut)"        (run-shell-command "shotcut") "shotcut")
+    ("Video: record with sound (OBS)" (run-shell-command "obs") "obs")
+    ("Video: shrink or convert (HandBrake)" (run-shell-command "ghb") "ghb")
+    ("Video: download one (yt-dlp, into ~/Videos/Downloads)"
+     (vikix-in-terminal "mkdir -p ~/Videos/Downloads && cd ~/Videos/Downloads && printf \"Address: \" && read u && yt-dlp \"$u\"")
+     "yt-dlp")
+    ("Pictures: edit a photo (GIMP)" (run-shell-command "gimp") "gimp")
+    ("Pictures: vector drawing (Inkscape)" (run-shell-command "inkscape") "inkscape")
+    ("Pictures: paint (Krita)"      (run-shell-command "krita") "krita")
+    ("Pictures: RAW photos (darktable)" (run-shell-command "darktable") "darktable")
+    ("Pictures: a screenshot to mark up (Flameshot)" (run-shell-command "flameshot gui") "flameshot")
+    ("3D (Blender)"                 (run-shell-command "blender") "blender")
+    ("Study: flashcards (Anki)"     (run-shell-command "anki") "anki")
+    ("Study: write on a PDF (Xournal++)" (run-shell-command "xournalpp") "xournalpp")
+    ("Passwords (KeePassXC)"        (run-shell-command "keepassxc") "keepassxc")
+    ;; In a terminal, so "no device" (USB debugging off, cable out) is seen.
+    ("Phone: its screen in a window (scrcpy)" (vikix-in-terminal "scrcpy") "scrcpy")
+    ("Disk: what fills my home (ncdu)" (vikix-in-terminal "ncdu ~") "ncdu"))
+  "The apps menu (Super+m, then Apps), in the same form as *vikix-menu*: the
+programs of the features video, graphics, blender, study, passwords, phone
+and cli-extras. Each shows once its program is here.")
+
+(defcommand vikix-apps () ()
+  "Video, pictures, study and other apps that come with features."
+  (if (some #'vikix-menu-entry-here-p *vikix-apps-menu*)
+      (vikix-run-menu *vikix-apps-menu* "Apps: ")
+      (message "No apps yet. Add some: Super+m, then Add software (video, graphics, study ...)")))
 
 ;;; Volume and network, for the bar (modeline.lisp). Each is read into a
 ;;; variable by a timer rather than on every redraw, because reading it

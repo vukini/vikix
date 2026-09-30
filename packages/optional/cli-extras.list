@@ -1,0 +1,3 @@
+# cli-extras.list — more terminal tools (the feature cli-extras)
+pandoc              # convert documents: Markdown, docx, HTML, EPUB, PDF
+ncdu                # what fills the disk, folder by folder
