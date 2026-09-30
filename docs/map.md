@@ -71,6 +71,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   ├── share/vikix/nvim               Vikix's   Vikix's part of Neovim: AstroNvim and Vikix's plugins (a link to config/nvim)
 │   ├── share/vikix/emacs              Vikix's   Vikix's part of Emacs: vikix-ai.el, gptel on vikix ai use's model and your agent in agent-shell (a link to config/emacs)
 │   ├── share/info/vikix.info          written   these guides as an Info manual (`info vikix`)
+│   ├── share/vikix/guide/             written   these guides as web pages, with the diagrams (Super+m → Vikix guide in the browser)
 │   ├── state/vikix/mcp.log            written   every call an agent made to vikix mcp (600)
 │   ├── state/vikix/session.env        written   the session's display and D-Bus, for vikix mcp under Codex (600)
 │   ├── share/vikix/whisper/           fetched   dictation's model and voice detector (vikix dictate)

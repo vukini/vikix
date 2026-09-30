@@ -94,6 +94,9 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
     ("Vikix guide" (run-shell-command
                                (format nil "emacsclient -c -a '' -e '(info \"~~/.local/share/info/vikix.info\")' || ~a -e info -f ~~/.local/share/info/vikix.info"
                                        *vikix-terminal*)))
+    ("Vikix guide in the browser, with diagrams"
+     (run-shell-command "xdg-open ~/.local/share/vikix/guide/index.html")
+     "~/.local/share/vikix/guide/index.html")
     ("Update Vikix"      vikix-update)
     ("AI agent"            vikix-agent)
     ("Something's wrong? Ask the agent" (vikix-in-terminal "vikix diagnose"))

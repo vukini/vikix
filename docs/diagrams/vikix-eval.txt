@@ -1,0 +1,24 @@
+  You            vikix eval             Swank                  StumpWM's
+                 (bin/vikix-eval)       127.0.0.1:4004         main thread
+   |                   |                      |                      |
+   |-- vikix eval ---->|                      |                      |
+   |   '(message "hi")'|                      |                      |
+   |                   | is the port's listener yours?               |
+   |                   | (/proc/net/tcp)      |                      |
+   |                   |-- connect, then ---->|                      |
+   |                   |   the password       | swank-guard.lisp:    |
+   |                   |   (~/.slime-secret)  | a wrong or late (5 s)|
+   |                   |                      | password closes this |
+   |                   |                      | client only          |
+   |                   |-- eval-and-grab ---->|                      |
+   |                   |   -output            |-- vikix-eval-for --->|
+   |                   |                      |   -agent             | read and eval
+   |                   |                      |                      | each form in
+   |                   |                      |                      | STUMPWM
+   |                   |                      |<-- printed text, ----|
+   |                   |                      |    :OK or :ERROR     |
+   |                   |                      |    ("error: ..."     |
+   |                   |                      |    after 10 s)       |
+   |                   |<-- (:return ...) ----|                      |
+   |<-- output, then --|                      |                      |
+   |    "=> value"     |                      |                      |

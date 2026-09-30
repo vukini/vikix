@@ -27,6 +27,7 @@
 #
 #   Made from the checkout (again when it changes)
 #     ~/.local/share/info/vikix.info   the guides in docs/, as an Info manual
+#     ~/.local/share/vikix/guide/      the same guides as web pages, with diagrams
 #
 # Last, a snapshot of your files (config/yours.list), so from here on
 # every change to them can be seen and undone: vikix changes, vikix undo.
@@ -114,23 +115,41 @@ elif [ ! -s "$secret" ]; then
 fi
 [ "$DRY_RUN" = 1 ] || [ ! -e "$secret" ] || chmod 600 "$secret"
 
-# --- The guides as an Info manual -------------------------------------------
+# --- The guides as an Info manual and in the browser --------------------------
 # docs/ as ~/.local/share/info/vikix.info, for Emacs (C-h i) and `info vikix`,
-# which find it through INFOPATH (set by vikix-session and vikix.bash).
-# Written again only when the guides changed.
+# which find it through INFOPATH (set by vikix-session and vikix.bash), and
+# as web pages in ~/.local/share/vikix/guide/ (Super+m → Vikix guide in the
+# browser), which show the diagrams as pictures; Info shows their text
+# version (docs/diagrams/NAME.txt). Both are written again only when the
+# guides changed.
 info_dir="$HOME/.local/share/info"
+guide_dir="$HOME/.local/share/vikix/guide"
 if ! command -v makeinfo >/dev/null || ! command -v install-info >/dev/null; then
-  warn "makeinfo is missing (the texinfo package), so no Info manual of the guides"
+  warn "makeinfo is missing (the texinfo package), so no Info manual or web pages of the guides"
 elif [ "$DRY_RUN" = 1 ]; then
-  printf '   would run: %s\n' "build $info_dir/vikix.info from docs/ (lib/md2texi.py, makeinfo)"
+  printf '   would run: %s\n' "build $info_dir/vikix.info and $guide_dir/ from docs/ (lib/md2texi.py, makeinfo)"
 else
   tmp=$(mktemp -d)
   if python3 "$VIKIX_DIR/lib/md2texi.py" "$VIKIX_DIR/docs" > "$tmp/vikix.texi" &&
-     makeinfo --no-split -o "$tmp/vikix.info" "$tmp/vikix.texi" 2>"$tmp/errors"; then
+     makeinfo --no-split -I "$VIKIX_DIR/docs" -o "$tmp/vikix.info" "$tmp/vikix.texi" 2>"$tmp/errors"; then
     mkdir -p "$info_dir"
     cmp -s "$tmp/vikix.info" "$info_dir/vikix.info" || cp "$tmp/vikix.info" "$info_dir/vikix.info"
     install-info --info-dir="$info_dir" "$info_dir/vikix.info" 2>/dev/null ||
       warn "couldn't add the Vikix manual to $info_dir/dir"
+    # One page a chapter, no extra page a node: index.html is the start.
+    if makeinfo --html --split=chapter -c NODE_FILES=0 --css-ref=guide.css \
+         -I "$VIKIX_DIR/docs" -o "$tmp/guide" "$tmp/vikix.texi" 2>"$tmp/errors"; then
+      cp "$VIKIX_DIR/docs/guide.css" "$tmp/guide/"
+      mkdir -p "$tmp/guide/diagrams"
+      cp "$VIKIX_DIR"/docs/diagrams/*.svg "$tmp/guide/diagrams/" 2>/dev/null || true
+      if ! diff -rq "$tmp/guide" "$guide_dir" >/dev/null 2>&1; then
+        mkdir -p "${guide_dir%/*}"
+        rm -rf "$guide_dir"
+        mv "$tmp/guide" "$guide_dir"
+      fi
+    else
+      warn "couldn't build the guide's web pages: $(head -3 "$tmp/errors")"
+    fi
   else
     warn "couldn't build the Info manual of the guides: $(head -3 "$tmp/errors")"
   fi

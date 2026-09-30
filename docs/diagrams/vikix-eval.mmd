@@ -1,0 +1,16 @@
+sequenceDiagram
+  autonumber
+  actor You
+  participant E as vikix eval<br/>(bin/vikix-eval)
+  participant S as Swank<br/>127.0.0.1:4004
+  participant M as StumpWM's main thread
+  You->>E: vikix eval '(message "hi")'
+  E->>E: is the port's listener yours?<br/>(/proc/net/tcp)
+  E->>S: connect, then the password<br/>(first line of ~/.slime-secret)
+  Note over S: swank-guard.lisp: a wrong or late<br/>password (5 s) closes this client only
+  E->>S: (:emacs-rex (swank:eval-and-grab-output ...))
+  S->>M: vikix-eval-for-agent: run the forms<br/>in the main thread
+  M->>M: read and eval each form<br/>in the STUMPWM package
+  M-->>S: what they printed, and :OK or :ERROR<br/>(or "error: ..." after 10 s)
+  S-->>E: (:return (:ok (output ...)))
+  E-->>You: the output, then "=> value"

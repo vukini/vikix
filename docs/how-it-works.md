@@ -52,6 +52,14 @@ At the very first login, StumpWM also opens the welcome (`vikix welcome`, in a t
 
 **StumpWM is a running Lisp program.** Its settings aren't read from a config file once; they are Lisp code it runs. So after editing `user.lisp`, tell it to run the files again: `Super+m` → *Reload config*. You can also change it while it runs, without a file: `vikix eval '(message "hi")'` from a terminal, or a REPL from Emacs (`M-x slime-connect`, `127.0.0.1`, `4004`).
 
+### How `vikix eval` reaches StumpWM
+
+For the curious: `vikix eval` is a small Python program that talks to StumpWM the way Emacs does, over Swank. Your code never runs in the Python program; it's sent across and run inside StumpWM itself, in its main thread, so it can touch windows and the bar safely.
+
+![vikix eval sends your Lisp to Swank, which runs it in StumpWM's main thread and sends back what it printed](diagrams/vikix-eval.svg)
+
+Two things keep it safe. The password in `~/.slime-secret` means only you can run code there, and `swank-guard.lisp` makes sure a client with a wrong or slow password is turned away without taking Swank down. And if StumpWM is busy (a menu is open, say), `vikix eval` gives up after 10 seconds with a message, and the code never runs later by surprise.
+
 ## What `vikix update` does
 
 1. **Pulls Vikix** into `~/vikix` (`git pull --ff-only`), then starts again from the new version of itself.

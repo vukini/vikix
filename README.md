@@ -64,7 +64,7 @@ Every stage checks before it changes anything, so re-running the install is safe
 | `20-services` | Enables the runit services in `services.list`, and adds you to the `video` group, and to `lpadmin` once CUPS is installed (with a polkit rule, so the Printers app needs no password). Before switching on a new service it has D-Bus reread its config, since Void's D-Bus only reads a new package's policy at boot, and a service started before that can't use it. `vikix update` runs it again, so a service that comes with a new package is switched on. |
 | `25-network` | Starts NetworkManager, waits until it's running, then switches off dhcpcd and wpa_supplicant. Adds you to the `network` group. |
 | `30-lisp` | Installs Quicklisp (and adds it to `~/.sbclrc`), clones clx-truetype (TrueType fonts for the bar, not in Quicklisp), builds `~/.local/bin/stumpwm` with Swank and clx-truetype inside, and clones `stumpwm-contrib`. |
-| `40-config` | Links Vikix's config files into place and copies starter files you then own (including the keyboard file and the night light times). Makes the guides in `docs/` an Info manual, `~/.local/share/info/vikix.info`. |
+| `40-config` | Links Vikix's config files into place and copies starter files you then own (including the keyboard file and the night light times). Makes the guides in `docs/` an Info manual, `~/.local/share/info/vikix.info`, and web pages with the diagrams, `~/.local/share/vikix/guide/`. |
 | `45-editors` | With the features `emacs` and `neovim` only. Emacs: clones its config (`vukini/emacs-void`) to `~/.emacs.d`, and links Vikix's AI setup for it (`config/emacs`) to `~/.local/share/vikix/emacs`. Neovim: links Vikix's part (`config/nvim`) to `~/.local/share/vikix/nvim`, copies the starter to `~/.config/nvim` once, installs the plugins at the versions Vikix tested (Lazy's output goes to `~/.local/state/vikix/logs/nvim-plugins.log`), and takes a snapshot after; a clone of the old `vukini/nvim-void-linux` with no changes of yours is kept aside as `~/.config/nvim.vikix-bak.<time>`. Also installs the npm language servers into `~/.local`. Other repos: set `VIKIX_EMACS_REPO` / `VIKIX_NVIM_REPO`. |
 | `55-hardware` | Touchpad settings (tap to click, natural scrolling), the Intel microcode rebuilt into the initramfs, and the standard `~/Documents` … folders. |
 | `50-audio` | Sets up PipeWire, WirePlumber and the ALSA links, as the Void handbook describes. |
@@ -240,7 +240,7 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 | `s-p` | Move the mouse pointer to the focused window |
 | `s-1`…`s-9` | Go to a workspace |
 | `s-C-1`…`s-C-9` | Send the window to a workspace |
-| `s-m` | Vikix menu: the welcome and Add software, key help, all commands, the Vikix guide, "what does a key do?", themes, network, printers, backup now, screens, update, and Power (the same as `s-S-Escape`). An entry for a feature you don't have (JupyterLab, Zeal, Printers, Windows, local AI, Dropbox) is left out until you add it |
+| `s-m` | Vikix menu: the welcome and Add software, key help, all commands, the Vikix guide (in Info, or in the browser with its diagrams), "what does a key do?", themes, network, printers, backup now, screens, update, and Power (the same as `s-S-Escape`). An entry for a feature you don't have (JupyterLab, Zeal, Printers, Windows, local AI, Dropbox) is left out until you add it |
 | `s-F1` | Every key, searchable. Pick one to run it. |
 | `s-Escape` | Lock the screen |
 | `s-S-Escape` | Power: lock, suspend, log out, reboot, power off (Lock first, so a stray Enter is harmless) |
@@ -850,7 +850,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `dev/` | What `67-dev` puts in `~/dev` for each language: its README (with `tools.list`, the tools whose paths and versions it fills in) and its examples |
 | `migrations/` | One-off changes for machines already installed (see its README) |
 | `tests/` | The tests (see [Tests](#tests)) |
-| `docs/` | The user's guides: where everything is, how it fits together, customizing, fixing. Installed as an Info manual too: `info vikix`, or `C-h i` in Emacs |
+| `docs/` | The user's guides: where everything is, how it fits together, customizing, fixing. Installed as an Info manual too (`info vikix`, or `C-h i` in Emacs) and as web pages (Super+m → *Vikix guide in the browser*). `docs/diagrams/` holds the diagrams: Mermaid sources, the SVGs `render.sh` draws from them, and a text version of each for Info |
 | `site/` | The website, [vikix.dev](https://vikix.dev): one static page, published to GitHub Pages by `.github/workflows/pages.yml` |
 
 ## Not done yet

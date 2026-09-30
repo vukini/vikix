@@ -1,0 +1,52 @@
+/* The guides in the browser: 40-config turns docs/ into
+   ~/.local/share/vikix/guide/ with makeinfo --html, and this is its
+   stylesheet. The colours are the themes' (void at night, paper by day),
+   picked by the browser's light or dark preference. */
+
+:root {
+  --bg: #eff1f5; --fg: #4c4f69; --subtle: #636679; --accent: #1c5bd6;
+  --panel: #e6e9ef; --line: #ccd0da;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1e1e2e; --fg: #cdd6f4; --subtle: #a6adc8; --accent: #89b4fa;
+    --panel: #181825; --line: #45475a;
+  }
+}
+
+html { background: var(--bg); }
+body {
+  margin: 0 auto; padding: 1rem 16px 4rem; max-width: 46rem;
+  color: var(--fg); background: var(--bg);
+  font: 17px/1.6 system-ui, sans-serif;
+}
+h1, h2, h3, h4 { line-height: 1.25; margin: 2rem 0 .75rem; }
+h1 { font-size: 1.9rem; }
+h2 { font-size: 1.45rem; border-bottom: 1px solid var(--line); padding-bottom: .3rem; }
+h3 { font-size: 1.15rem; }
+a { color: var(--accent); }
+a.copiable-link { color: var(--subtle); }
+
+code, pre { font-family: ui-monospace, "JetBrains Mono", monospace; font-size: .9em; }
+code { background: var(--panel); padding: .1em .3em; border-radius: 4px; }
+pre {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  padding: .75rem 1rem; overflow-x: auto; line-height: 1.4;
+}
+pre code { background: none; padding: 0; }
+
+dl.table dt { font-weight: 600; margin-top: .75rem; }
+dl.table dd { margin: .2rem 0 0 1.25rem; }
+
+/* The diagrams are drawn on paper's background in either theme: a card. */
+img.image {
+  display: block; max-width: 100%; height: auto; margin: 1.25rem auto;
+  border: 1px solid var(--line); border-radius: 8px;
+}
+
+.nav-panel {
+  font-size: .9rem; color: var(--subtle);
+  border-bottom: 1px solid var(--line); padding-bottom: .5rem;
+}
+.nav-panel + h1, .nav-panel + h2 { margin-top: 1.25rem; }
+hr { border: 0; border-top: 1px solid var(--line); }
