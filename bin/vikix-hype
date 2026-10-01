@@ -1,0 +1,195 @@
+#!/usr/bin/env bash
+# vikix-hype — Hype, Markdown presentations with a visual slide editor
+# (https://github.com/omacom/hype, by DHH; MIT). Made for Omarchy; Vikix
+# gives it what it looks for there: the desktop's colours, themes to
+# choose for the slides, and the desktop portal for its file dialogs.
+#
+#   vikix hype setup [--rebuild]
+#                     the packages it needs, then Hype built from source (a
+#                     pinned release) into ~/.local/opt/hype: a minute or two,
+#                     once. Also the launcher entry, the portal's file
+#                     dialogs, and the skill that lets your agent write slides
+#   vikix hype status
+#   vikix hype uninstall
+#
+# Then: hype open talk.md (or Super+d, Hype), hype help for the rest.
+#
+# The colours: Hype's window follows `vikix theme` as it changes, and every
+# Vikix theme (yours too) is a theme to choose for the slides. `vikix theme`
+# writes them in Omarchy's form: ~/.local/state/omarchy/current/theme/
+# colors.toml (the current one, where Hype looks) and
+# ~/.local/share/vikix/omarchy/themes/NAME/colors.toml (the hype command
+# sets OMARCHY_PATH there).
+
+set -uo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+# shellcheck source=../lib/features.sh
+. "$VIKIX_DIR/lib/features.sh"
+
+# A release, and the commit its tag names: a tag can be moved, a commit can't.
+HYPE_REPO=https://github.com/omacom/hype
+HYPE_VERSION=0.4.3
+HYPE_COMMIT=f9eefda3ee267ad0c747c2456651084f780de02a
+HYPE_OPT="$HOME/.local/opt/hype"
+BIN="$HOME/.local/bin"
+DATA="${XDG_DATA_HOME:-$HOME/.local/share}"
+APPS="$DATA/applications"
+ICON="$DATA/icons/hicolor/scalable/apps/hype.svg"
+PORTALS="${XDG_CONFIG_HOME:-$HOME/.config}/xdg-desktop-portal/portals.conf"
+LOGS="$VIKIX_STATE/logs"
+MARK="# Written by vikix hype setup"
+# Tests name their stand-ins (these reach the network or build for minutes).
+GIT=${VIKIX_GIT:-git}
+# Void keeps qmake6 with Qt's own programs, off PATH.
+QMAKE=${VIKIX_QMAKE:-$(command -v qmake6 2>/dev/null || echo /usr/lib/qt6/bin/qmake6)}
+MAKE=${VIKIX_MAKE:-make}
+
+built() {
+  [ -x "$HYPE_OPT/build/hype" ] && [ "$(cat "$HYPE_OPT/.vikix-built" 2>/dev/null)" = "$HYPE_COMMIT" ]
+}
+
+fetch() {
+  if [ -d "$HYPE_OPT/.git" ] && [ "$("$GIT" -C "$HYPE_OPT" rev-parse HEAD 2>/dev/null)" = "$HYPE_COMMIT" ]; then
+    return 0
+  fi
+  say "fetching Hype $HYPE_VERSION"
+  if [ ! -d "$HYPE_OPT/.git" ]; then
+    mkdir -p "$HYPE_OPT"
+    "$GIT" -C "$HYPE_OPT" init -q || die "couldn't make $HYPE_OPT"
+    "$GIT" -C "$HYPE_OPT" remote add origin "$HYPE_REPO" 2>/dev/null || true
+  fi
+  "$GIT" -C "$HYPE_OPT" fetch -q --depth 1 origin "$HYPE_COMMIT" || die "couldn't fetch Hype"
+  "$GIT" -c advice.detachedHead=false -C "$HYPE_OPT" checkout -q --force FETCH_HEAD || die "couldn't check out Hype"
+  [ "$("$GIT" -C "$HYPE_OPT" rev-parse HEAD)" = "$HYPE_COMMIT" ] || die "Hype isn't the commit expected: not built"
+}
+
+build() {
+  if [ "${1:-}" != --rebuild ] && built; then say "Hype $HYPE_VERSION is built"; return 0; fi
+  if [ "$DRY_RUN" = 1 ]; then printf '   would build Hype %s in %s\n' "$HYPE_VERSION" "$HYPE_OPT"; return 0; fi
+  [ -x "$QMAKE" ] || command -v "$QMAKE" >/dev/null 2>&1 || die "qmake6 isn't here (qt6-base-devel): vikix add hype installs it"
+  fetch
+  local log="$LOGS/hype-build.log"
+  mkdir -p "$LOGS"
+  say "building Hype (a minute or two; log: $log)"
+  # As Hype's bin/build does, with Void's qmake6.
+  (
+    mkdir -p "$HYPE_OPT/build" && cd "$HYPE_OPT/build" || exit 1
+    "$QMAKE" ../hype.pro && "$MAKE" -j"$(nproc)"
+  ) > "$log" 2>&1 || { tail -n 20 "$log"; die "Hype didn't build (the end of $log is above)"; }
+  [ -x "$HYPE_OPT/build/hype" ] || die "Hype's program isn't where it should be ($HYPE_OPT/build/hype)"
+  echo "$HYPE_COMMIT" > "$HYPE_OPT/.vikix-built"
+  say "Hype $HYPE_VERSION is built"
+}
+
+# The hype command: Hype itself, looking for themes where vikix theme
+# writes them (unless you point OMARCHY_PATH somewhere yourself).
+write_command() {
+  [ "$DRY_RUN" = 1 ] && { printf '   would write %s\n' "$BIN/hype"; return 0; }
+  if [ -e "$BIN/hype" ] && ! grep -qF "$MARK" "$BIN/hype" 2>/dev/null; then
+    run mv "$BIN/hype" "$BIN/hype.vikix-bak.$(timestamp)"
+  fi
+  mkdir -p "$BIN"
+  cat > "$BIN/hype" <<EOF
+#!/bin/sh
+$MARK; vikix hype uninstall removes it.
+# Hype, with the themes vikix theme writes to choose from for the slides.
+: "\${OMARCHY_PATH:=\${XDG_DATA_HOME:-\$HOME/.local/share}/vikix/omarchy}"
+export OMARCHY_PATH
+exec "$HYPE_OPT/build/hype" "\$@"
+EOF
+  chmod +x "$BIN/hype"
+}
+
+write_launcher() {
+  [ "$DRY_RUN" = 1 ] && { printf '   would write %s\n' "$APPS/vikix-hype.desktop"; return 0; }
+  mkdir -p "$APPS" "$(dirname "$ICON")"
+  cp "$HYPE_OPT/pkgbuild/hype.svg" "$ICON" 2>/dev/null || true
+  cat > "$APPS/vikix-hype.desktop" <<EOF
+[Desktop Entry]
+$MARK; vikix hype uninstall removes it.
+Type=Application
+Name=Hype
+Comment=Markdown presentations, with a visual slide editor
+Exec=$BIN/hype open %f
+Icon=hype
+Terminal=false
+Categories=Office;Presentation;
+MimeType=text/markdown;
+EOF
+}
+
+# The portal draws Hype's Open and Save dialogs. With no desktop named
+# (StumpWM sets none), it reads portals.conf; without one it has no file
+# chooser at all. Yours is left alone.
+write_portals() {
+  [ -e "$PORTALS" ] && { say "the portal's settings are yours ($PORTALS); left as they are"; return 0; }
+  [ "$DRY_RUN" = 1 ] && { printf '   would write %s\n' "$PORTALS"; return 0; }
+  mkdir -p "$(dirname "$PORTALS")"
+  cat > "$PORTALS" <<EOF
+$MARK: the file dialogs of programs that ask the desktop
+# portal for one (Hype; Flatpak programs) come from xdg-desktop-portal-gtk.
+[preferred]
+default=gtk
+EOF
+  # A portal already running read its settings when it started: it's
+  # started again on the next request.
+  pkill -x xdg-desktop-portal 2>/dev/null || true
+  say "file dialogs: the portal uses gtk's ($PORTALS)"
+}
+
+cmd_setup() {
+  local rebuild=${1:-}
+  case $rebuild in ''|--rebuild) ;; *) die "vikix hype setup [--rebuild]" ;; esac
+  record_features hype
+  local p missing=0
+  while IFS= read -r p; do pkg_installed "$p" || missing=1; done < <(read_list "$VIKIX_DIR/packages/optional/hype.list")
+  if [ "$missing" = 1 ]; then
+    VIKIX_LISTS=hype bash "$VIKIX_DIR/install/10-packages.sh" || die "couldn't install the packages Hype needs"
+  fi
+  build "$rebuild"
+  write_command
+  write_launcher
+  write_portals
+  # The colours: the current theme where Hype's window looks, and every
+  # theme for the slides.
+  [ "$DRY_RUN" = 1 ] || bash "$VIKIX_DIR/bin/vikix" theme --refresh >/dev/null || warn "the themes weren't written for Hype; vikix theme --refresh tries again"
+  # A skill for your agent (Claude Code, Codex): it writes slides with
+  # hype's own help. In ~/.agents/skills/hype, linked into ~/.claude/skills.
+  if [ "$DRY_RUN" = 1 ]; then printf '   would run: hype skill install\n'
+  else "$BIN/hype" skill install >/dev/null 2>&1 || warn "the agent's skill wasn't installed (hype skill install)"; fi
+  say "ready: hype open talk.md, or Super+d, Hype (hype help for the rest)"
+}
+
+cmd_status() {
+  if built; then echo "hype   $HYPE_VERSION, built ($HYPE_OPT)"
+  elif [ -x "$HYPE_OPT/build/hype" ]; then echo "hype   built from another version: vikix hype setup --rebuild"
+  else echo "hype   not built (vikix hype setup)"; fi
+  if grep -qF "$MARK" "$BIN/hype" 2>/dev/null; then echo "command  $BIN/hype"; else echo "command  missing (vikix hype setup)"; fi
+  if [ -f "$PORTALS" ]; then echo "file dialogs  $PORTALS"; else echo "file dialogs  no portals.conf: Open and Save won't work (vikix hype setup)"; fi
+}
+
+cmd_uninstall() {
+  grep -qF "$MARK" "$BIN/hype" 2>/dev/null && run rm -f "$BIN/hype"
+  grep -qF "$MARK" "$APPS/vikix-hype.desktop" 2>/dev/null && run rm -f "$APPS/vikix-hype.desktop"
+  run rm -f "$ICON"
+  # The agent's skill, as hype skill install made it.
+  [ -L "$HOME/.claude/skills/hype" ] && [ "$(readlink "$HOME/.claude/skills/hype")" = ../../.agents/skills/hype ] &&
+    run rm -f "$HOME/.claude/skills/hype"
+  [ -d "$HOME/.agents/skills/hype" ] && run rm -rf "$HOME/.agents/skills/hype"
+  run rm -rf "$HYPE_OPT" "$DATA/vikix/omarchy"
+  # The current theme as Hype's window reads it, if vikix theme wrote it.
+  local current="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/current/theme/colors.toml"
+  grep -qF 'for Hype; changes here are overwritten' "$current" 2>/dev/null && run rm -f "$current"
+  say "removed Hype; your presentations, and the portal's settings ($PORTALS), are left"
+  forget_features hype
+}
+
+case ${1:-} in
+  setup)     shift; cmd_setup "${1:-}" ;;
+  status)    cmd_status ;;
+  uninstall) cmd_uninstall ;;
+  -h|--help|help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) die "vikix hype: setup, status, uninstall" ;;
+esac

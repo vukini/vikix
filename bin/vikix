@@ -40,6 +40,9 @@
 #   vikix notes setup|uninstall
 #                         ask your notes from any terminal: note index ~/Notes,
 #                         then note ask "..." (vikix-notes; on this laptop)
+#   vikix hype setup|status|uninstall
+#                         Hype: Markdown slides with a visual editor, in your
+#                         theme's colours (vikix add hype)
 #   vikix lisp-apps setup|status|uninstall
 #                         Nyxt, Lem and McCLIM's Listener: programs in Common
 #                         Lisp (vikix add lisp-apps)
@@ -759,6 +762,40 @@ EOF
     for k in $THEME_KEYS sel; do local var="c_$k"; printf '%s=%s\n' "$k" "${!var}"; done
   } > "$THEME_OUT/palette"
   printf '%s\n' "$1" > "$THEME_OUT/current"
+  theme_hype "$1"
+}
+
+# theme_omarchy — the colours theme_read set, in Omarchy's colors.toml form.
+# shellcheck disable=SC2154  # the c_* colours are set by theme_read, with printf -v
+theme_omarchy() {
+  local i var
+  printf '# %s\n' "$1"
+  printf 'background = "%s"\nforeground = "%s"\naccent = "%s"\ncursor = "%s"\n' "$c_bg" "$c_fg" "$c_accent" "$c_fg"
+  printf 'selection = "%s"\nselection_background = "%s"\nselection_foreground = "%s"\n' "$c_sel" "$c_sel" "$c_fg"
+  printf 'lighter_background = "%s"\nactive_border_color = "%s"\nred = "%s"\n' "$c_color0" "$c_accent" "$c_color1"
+  for i in $(seq 0 15); do var="c_color$i"; printf 'color%s = "%s"\n' "$i" "${!var}"; done
+}
+
+# Hype (vikix hype setup) is made for Omarchy: its window takes the
+# desktop's colours from Omarchy's current theme, and it offers Omarchy's
+# themes for the slides. Where it's built, the current theme goes where
+# its window looks (it notices the change), and every theme where the hype
+# command points it (OMARCHY_PATH).
+theme_hype() {
+  [ -x "$HOME/.local/opt/hype/build/hype" ] || return 0
+  local current="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/current/theme"
+  local themes="${XDG_DATA_HOME:-$HOME/.local/share}/vikix/omarchy/themes" n f
+  mkdir -p "$current"
+  theme_omarchy "Written by \`vikix theme\` ($1), for Hype; changes here are overwritten." > "$current/colors.toml"
+  rm -rf "$themes"
+  for n in $(theme_names); do
+    f=$(theme_file "$n") || continue
+    # Each in a subshell: theme_read sets the colours, and the current
+    # theme's must stay as they are.
+    ( theme_read "$f" 2>/dev/null || exit 0
+      mkdir -p "$themes/$n"
+      theme_omarchy "Written by \`vikix theme\` from $f, for Hype." > "$themes/$n/colors.toml" )
+  done
 }
 
 # The editors that are running change too: Emacs through its server, each
@@ -1177,6 +1214,7 @@ main() {
     ai)          shift; exec "$VIKIX_DIR/bin/vikix-ai" "$@" ;;
     webapp|webapps) shift; exec "$VIKIX_DIR/bin/vikix-webapp" "$@" ;;
     fingerprint) shift; exec "$VIKIX_DIR/bin/vikix-fingerprint" "$@" ;;
+    hype)        shift; exec "$VIKIX_DIR/bin/vikix-hype" "$@" ;;
     firewall)    shift; exec "$VIKIX_DIR/bin/vikix-firewall" "$@" ;;
     help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
     *)           die "unknown command: $1 (try: vikix help)" ;;

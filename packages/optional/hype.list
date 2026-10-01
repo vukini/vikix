@@ -1,0 +1,16 @@
+# hype.list — Hype, Markdown slides with a visual editor (the feature hype).
+# vikix hype setup builds it from source (a pinned release) with these;
+# gcc and make are in the base (dev.list). Qt 6.9 or newer.
+qt6-base-devel
+qt6-declarative-devel
+qt6-multimedia-devel
+qt6-imageformats    # WebP, TIFF and more in slides
+qt6-svg             # SVG pictures in slides
+libwebp-devel
+zlib-devel
+ffmpeg6             # /usr/bin/ffmpeg: video posters, animations, PowerPoint export
+source-highlight    # colours in code blocks
+# Hype opens and saves files only through the desktop portal; gtk draws
+# the dialog (vikix hype setup points the portal at it).
+xdg-desktop-portal
+xdg-desktop-portal-gtk

@@ -81,6 +81,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   ├── opt/picolisp/          built     PicoLisp, from source (with the feature lisp)
 │   ├── opt/lem/               built     Lem, the editor in Common Lisp (vikix add lisp-apps)
 │   ├── opt/mcclim/            built     McCLIM's Listener, with Clouseau (vikix add lisp-apps)
+│   ├── opt/hype/              built     Hype, Markdown slides (vikix add hype); ~/.local/bin/hype runs it
 │   ├── opt/ollama/            built     Ollama, for local AI models (vikix ai setup)
 │   ├── opt/whisper.cpp/       built     dictation's speech-to-text, built for this computer (vikix dictate setup)
 │   ├── share/libvirt/images/  the Windows VM's disk and its driver disc (not backed up)
