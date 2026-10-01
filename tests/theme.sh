@@ -120,5 +120,37 @@ check "a theme named like Lisp shouldn't be listed: $out" test -z "$(grep -F pwn
 out=$(vikix 'x) (run-shell-command "touch pwned") (list' 2>&1) && { echo "FAIL: a theme named like Lisp was used"; fail=1; }
 check "a theme named like Lisp should be refused: $out" grep -q "letters, digits" <<<"$out"
 
-[ "$fail" = 0 ] && echo "theme: the migration hooks old starters up, and leaves your own settings alone"
+# Every theme that comes with Vikix: text readable at 4.5:1 or better on
+# its background (WCAG AA) in each colour programs write text in, the
+# focused border at 3:1, text on a selection at 4.5:1, and a wallpaper.
+# Black and white (color0, color7, color15) are left out: on a dark theme
+# black is meant to be faint, and white on a light one.
+out=$(python3 - "$here"/themes/*.theme <<'PY'
+import sys, os
+def lum(h):
+    c = [int(h[i:i+2], 16) / 255 for i in (1, 3, 5)]
+    c = [x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4 for x in c]
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+def ratio(a, b):
+    x, y = sorted([lum(a), lum(b)], reverse=True)
+    return (x + 0.05) / (y + 0.05)
+text = ["fg", "subtle"] + ["color%d" % i for i in (1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14)]
+for f in sys.argv[1:]:
+    name = os.path.basename(f)[:-6]
+    t = {}
+    for line in open(f):
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line: continue
+        k, v = line.split("=", 1)
+        t[k.strip()] = v.split()[0]
+    for k in text:
+        if ratio(t[k], t["bg"]) < 4.5: print("%s: %s %s is %.2f:1 on %s" % (name, k, t[k], ratio(t[k], t["bg"]), t["bg"]))
+    if ratio(t["accent"], t["bg"]) < 3: print("%s: the accent is %.2f:1" % (name, ratio(t["accent"], t["bg"])))
+    if ratio(t["fg"], t.get("sel", t["color0"])) < 4.5: print("%s: text on a selection is %.2f:1" % (name, ratio(t["fg"], t.get("sel", t["color0"]))))
+    if not any(os.path.exists(f[:-6] + e) for e in (".jpg", ".png", ".webp")): print("%s: no wallpaper" % name)
+PY
+)
+check "every built-in theme should be readable, with a wallpaper: $out" test -z "$out"
+
+[ "$fail" = 0 ] && echo "theme: the migration hooks old starters up, and leaves your own settings alone; the built-in themes read well"
 exit "$fail"

@@ -800,7 +800,7 @@ exec /usr/bin/sshd -D $OPTS
       ["$", "vikix eval '(length (screen-windows (current-screen)))'"],
       ["o", function () { return String(countWindows()); }],
       ["$", "vikix theme"],
-      ["o", function () { return "<span class='t-a'>" + (isDark() ? "void" : "paper") + "</span> (current)\nvoid  paper"; }]
+      ["o", function () { return "<span class='t-a'>" + (isDark() ? "void" : "paper") + "</span> (current)\nvoid  paper  gruvbox  nord  tokyo-night  contrast"; }]
     ] },
     emacs: { name: "emacs", top: true, static:
       "<span class='t-d'>;;; user.lisp — loads last, so it wins</span>\n\n" +

@@ -1,0 +1,28 @@
+# contrast — high contrast: white on black, a yellow focus, and every
+# colour at 7:1 or better on the background (WCAG's AAA), for bright rooms,
+# tired eyes and low vision. (See void.theme for what each colour is for.)
+
+bg=#000000
+fg=#ffffff         # 21:1
+subtle=#d0d0d0     # 13.62:1
+dim=#9a9a9a        # unfocused borders, still plain to see: 7.46:1
+accent=#ffd700     # 14.97:1
+alert=#ff6b6b      # 7.57:1
+sel=#264f78        # fg on it 8.50:1
+
+color0=#3d3d3d
+color1=#ff6b6b
+color2=#5fff5f
+color3=#ffff5f
+color4=#7aa6ff     # 8.73:1
+color5=#ff8bff
+color6=#5fffff
+color7=#e0e0e0
+color8=#b0b0b0     # comments and hints: 9.68:1
+color9=#ff8080
+color10=#5fff5f
+color11=#ffff5f
+color12=#7aa6ff
+color13=#ff8bff
+color14=#5fffff
+color15=#ffffff

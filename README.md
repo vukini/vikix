@@ -285,7 +285,7 @@ Each colour means one thing: alert (red in void) is something watching you, acce
 
 ## Themes
 
-One theme colours the whole desktop: StumpWM and its bar, the terminal (alacritty, and kitty if you want it), rofi, notifications, the lock screen and the wallpaper. Two come with Vikix: **void** (dark, the default) and **paper** (light).
+One theme colours the whole desktop: StumpWM and its bar, the terminal (alacritty, and kitty if you want it), rofi, notifications, the lock screen and the wallpaper. Six come with Vikix, each with its own wallpaper: **void** (dark, the default; Catppuccin Mocha), **paper** (light; Catppuccin Latte), **gruvbox** (warm and retro), **nord** (cool arctic blues), **tokyo-night** (deep blue, neon colours) and **contrast** (white on black with a yellow focus, every colour at 7:1 or better, for bright rooms and low vision). Where a palette's own colours were too faint to read (Nord's red, the comment grays), they're lifted to 4.5:1 on the background; `tests/theme.sh` checks that for every built-in theme.
 
 ```sh
 vikix theme           # the current theme, and the list

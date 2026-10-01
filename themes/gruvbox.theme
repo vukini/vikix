@@ -1,0 +1,28 @@
+# gruvbox — dark: Gruvbox (medium), warm and retro, with its orange as the
+# accent. Its gray and red are lifted a little, so each reads at 4.5:1 or
+# better on the background. (See void.theme for what each colour is for.)
+
+bg=#282828
+fg=#ebdbb2         # 10.75:1
+subtle=#bdae93     # 6.77:1
+dim=#665c54
+accent=#fe8019     # 5.84:1
+alert=#fb4934
+sel=#504945
+
+color0=#504945
+color1=#fd6450     # 5.00:1 (Gruvbox's #fb4934 is 4.29:1)
+color2=#b8bb26
+color3=#fabd2f
+color4=#83a598
+color5=#d3869b
+color6=#8ec07c
+color7=#a89984
+color8=#a39484     # comments and hints: 5.00:1 (Gruvbox's gray, #928374, is 4.02:1)
+color9=#fd6450
+color10=#b8bb26
+color11=#fabd2f
+color12=#83a598
+color13=#d3869b
+color14=#8ec07c
+color15=#ebdbb2

@@ -1,0 +1,28 @@
+# nord — dark: Nord, cool arctic blues. Nord is soft by design; its red,
+# orange, purple and comment gray are lifted so each reads at 4.5:1 or
+# better on the background. (See void.theme for what each colour is for.)
+
+bg=#2e3440
+fg=#d8dee9         # 9.25:1
+subtle=#a3abbb     # 5.41:1
+dim=#4c566a
+accent=#88c0d0     # 6.24:1
+alert=#bf616a
+sel=#434c5e
+
+color0=#434c5e
+color1=#dc858d     # Nord's #bf616a is 3.05:1
+color2=#a3be8c
+color3=#ebcb8b
+color4=#81a1c1
+color5=#c29dbb     # Nord's #b48ead is 4.41:1
+color6=#88c0d0
+color7=#e5e9f0
+color8=#9aa3b5     # comments and hints: 4.92:1 (Nord's #4c566a is 1.69:1)
+color9=#dc858d
+color10=#a3be8c
+color11=#ebcb8b
+color12=#81a1c1
+color13=#c29dbb
+color14=#8fbcbb
+color15=#eceff4

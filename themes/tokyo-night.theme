@@ -1,0 +1,28 @@
+# tokyo-night — dark: Tokyo Night (night), deep blue with neon colours.
+# Its comment gray is lifted to read at 4.5:1 on the background. (See
+# void.theme for what each colour is for.)
+
+bg=#1a1b26
+fg=#c0caf5         # 10.59:1
+subtle=#a9b1d6     # 8.10:1
+dim=#3b4261
+accent=#7aa2f7     # 6.79:1
+alert=#f7768e
+sel=#283457
+
+color0=#414868
+color1=#f7768e
+color2=#9ece6a
+color3=#e0af68
+color4=#7aa2f7
+color5=#bb9af7
+color6=#7dcfff
+color7=#a9b1d6
+color8=#7f87ad     # comments and hints: 4.86:1 (Tokyo Night's #565f89 is 2.76:1)
+color9=#f7768e
+color10=#9ece6a
+color11=#e0af68
+color12=#7aa2f7
+color13=#bb9af7
+color14=#7dcfff
+color15=#c0caf5
