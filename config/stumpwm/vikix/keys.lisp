@@ -43,7 +43,12 @@
     ;; windows
     ("s-q"    "delete"            "Close window")
     ("s-f"    "fullscreen"        "Fullscreen on/off")
-    ("s-TAB"  "pull-hidden-other" "Previous window")
+    ("s-TAB"  "pull-hidden-other" "The last window again: flips between two")
+    ;; Super+` and Super+Shift+` go through every window on the workspace:
+    ;; to its frame when it's showing, into this frame when it's hidden.
+    ;; Shift+` is ~ on the keyboard, so StumpWM knows that key as asciitilde.
+    ("s-grave"      "next" "Next window on this workspace, through all of them")
+    ("s-asciitilde" "prev" "Previous window on this workspace")
     ("s-h"    "move-focus left"   "Focus left")
     ("s-j"    "move-focus down"   "Focus down")
     ("s-k"    "move-focus up"     "Focus up")
@@ -67,6 +72,7 @@
     ("s-b"    "hsplit"            "Split: side by side")
     ("s-v"    "vsplit"            "Split: one above the other")
     ("s-r"    "remove"            "Remove this split")
+    ("s-o"    "expose"            "Every window on this workspace in a grid; pick one (Super+u undoes it)")
     ;; windows.lisp: gaps, layout undo, finding windows
     ("s-g"    "toggle-gaps"       "Gaps around windows on/off")
     ("s-u"    "winner-undo"       "Undo the last layout change (splits, moves)")

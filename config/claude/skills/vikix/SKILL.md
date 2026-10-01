@@ -124,9 +124,9 @@ focused window, Super+Print of the monitor under the pointer, all to the
 clipboard (vikix-screenshot; add Shift for a file in
 ~/Pictures/Screenshots), Super+Shift+r record an area or window and again
 to stop (vikix-record, ffmpeg, no sound; the bar says rec; videos in
-~/Videos/Recordings), Super+Ctrl+Print a menu of all of them (also `vikix-screenshot text`: an area's text by OCR, tesseract, to the clipboard, VIKIX_OCR_LANG for other languages; `vikix-screenshot colour`: xcolor, the #rrggbb to the clipboard), Super+q close, Super+f fullscreen, Super+h/j/k/l focus (Shift to
+~/Videos/Recordings), Super+Ctrl+Print a menu of all of them (also `vikix-screenshot text`: an area's text by OCR, tesseract, to the clipboard, VIKIX_OCR_LANG for other languages; `vikix-screenshot colour`: xcolor, the #rrggbb to the clipboard), Super+q close, Super+f fullscreen, Super+Tab the last window again (flips between two), Super+` / Super+Shift+` the next / previous window on the workspace, through all of them, Super+h/j/k/l focus (Shift to
 move the window; the arrow keys do the same), Super+b / Super+v split,
-Super+r remove split, Super+u / Super+Shift+u undo / redo a layout
+Super+r remove split, Super+o every window on the workspace in a grid (StumpWM's expose; pick one, Super+u undoes it), Super+u / Super+Shift+u undo / redo a layout
 change, Super+g gaps on/off, Super+Shift+a / Super+Ctrl+a any window on
 any workspace (go there / bring it here), Super+p pointer to the focused
 window, Super+1..9 workspaces, Super+Ctrl+1..9 send the

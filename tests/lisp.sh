@@ -145,16 +145,23 @@ cat > "$t/check.lisp" <<EOF
   (fail "Super+/ should be in *vikix-bindings*, running vikix-keys-card"))
 (unless (string= (vikix-pretty-key "s-slash") "Super+/")
   (fail "s-slash should read Super+/, not ~s" (vikix-pretty-key "s-slash")))
+;; Shift+grave is the keysym asciitilde: the help should name the key on
+;; the keyboard. (code-char 96) is the grave, which this shell string can't hold.
+(let ((want (format nil "Super+Shift+~c" (code-char 96))))
+  (unless (string= (vikix-pretty-key "s-asciitilde") want)
+    (fail "s-asciitilde should read ~a, not ~s" want (vikix-pretty-key "s-asciitilde"))))
+(unless (equal (second (assoc "s-grave" *vikix-bindings* :test #'string=)) "next")
+  (fail "Super+grave should be in *vikix-bindings*, running next"))
 ;; Every one of Vikix's own keys is in a named group: Other is for yours.
 (dolist (e (vikix-key-entries))
   (when (string= (fourth e) "Other")
     (fail "~a (~a) is in no group: add its command to *vikix-key-groups*" (first e) (third e))))
 ;; Keys pushed from user.lisp land in a group too.
-(push '("s-o" "exec obsidian" "Obsidian") *vikix-bindings*)
+(push '("s-O" "exec obsidian" "Obsidian") *vikix-bindings*)
 (push '("s-y" "my-command" "Mine") *vikix-bindings*)
 (push '("s-z" "exec zotero" "Zotero" "Reading") *vikix-bindings*)
 (push '("s-C-p" "exec env FOO=1 vikix-screenshot area clip" "Shot") *vikix-bindings*)
-(loop for (key want) in '(("Super+o" "Apps") ("Super+y" "Other") ("Super+z" "Reading")
+(loop for (key want) in '(("Super+Shift+o" "Apps") ("Super+y" "Other") ("Super+z" "Reading")
                           ("Super+Ctrl+p" "Screenshots & recording"))
       for got = (fourth (find key (vikix-key-entries) :key #'first :test #'string=))
       unless (equal got want) do (fail "~a should be in ~a, is in ~s" key want got))

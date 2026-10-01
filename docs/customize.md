@@ -25,7 +25,7 @@ To see how Vikix does something before changing it, read its layer in `~/vikix/c
 
 ```lisp
 (vikix-bind "s-w" "exec chromium")         ; change what a key does
-(vikix-bind "s-o" "exec obsidian")         ; a new key
+(vikix-bind "s-O" "exec obsidian")         ; a new key
 (undefine-key *top-map* (kbd "s-E"))       ; drop one of Vikix's keys
 ```
 
@@ -34,11 +34,11 @@ To see how Vikix does something before changing it, read its layer in `~/vikix/c
 To see a new key on the key card (`Super+/`) and in the key help (`Super+F1`), add it to the list both are built from too:
 
 ```lisp
-(push '("s-o" "exec obsidian" "Obsidian") *vikix-bindings*)
-(vikix-bind "s-o" "exec obsidian")
+(push '("s-O" "exec obsidian" "Obsidian") *vikix-bindings*)
+(vikix-bind "s-O" "exec obsidian")
 ```
 
-The card puts each key in a group by what it runs: a program started with `exec` goes under *Apps* (or *AI & voice*, *Screenshots & recording* and so on, when Vikix knows the program), and anything else under *Other*. To choose the group yourself, give it as a fourth item: `'("s-o" "exec obsidian" "Obsidian" "Notes")`. A group of your own comes after Vikix's.
+The card puts each key in a group by what it runs: a program started with `exec` goes under *Apps* (or *AI & voice*, *Screenshots & recording* and so on, when Vikix knows the program), and anything else under *Other*. To choose the group yourself, give it as a fourth item: `'("s-O" "exec obsidian" "Obsidian" "Notes")`. A group of your own comes after Vikix's.
 
 After `Ctrl+t`, StumpWM's prefix, the keys that can follow appear if you wait (StumpWM's which-key-mode, which Vikix turns on). To have it off, put `(vikix-which-key nil)` in user.lisp. Don't call `(which-key-mode)` there: it switches on and off, so every reload would flip it.
 
@@ -112,7 +112,7 @@ A field of your own can be a list entry `(:eval FORM)`, run each time the bar re
 `vikix eval` runs Lisp in the running StumpWM, so you can try a change before writing it down:
 
 ```sh
-vikix eval '(vikix-bind "s-o" "exec obsidian")'
+vikix eval '(vikix-bind "s-O" "exec obsidian")'
 ```
 
 That lasts until the next reload or login. When it does what you want, put the same line in `user.lisp`.

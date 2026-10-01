@@ -19,6 +19,7 @@
 (defparameter *vikix-key-names*
   '(("RET" . "Return") ("TAB" . "Tab") ("ESC" . "Escape") ("Print" . "Print Screen")
     ("period" . ".") ("equal" . "=") ("slash" . "/") ("SPC" . "Space")
+    ("grave" . "`") ("asciitilde" . "Shift+`")
     ("XF86AudioRaiseVolume"  . "Volume-up key")
     ("XF86AudioLowerVolume"  . "Volume-down key")
     ("XF86AudioMute"         . "Mute key")
@@ -56,15 +57,15 @@ front, so a name like Brightness-up is never mistaken for one."
 ;;; program a command starts (exec firefox -> "firefox"), or the StumpWM
 ;;; command (move-focus left -> "move-focus"). An entry can also name its
 ;;; group itself, as a fourth element:
-;;;   ("s-o" "exec obsidian" "Obsidian" "Apps")
+;;;   ("s-O" "exec obsidian" "Obsidian" "Apps")
 ;;; Any other program started with exec is an app; anything else is Other.
 (defparameter *vikix-key-groups*
   '(("Apps" "vikix-terminal" "rofi" "firefox" "pcmanfm" "spacefm" "vikix-drives"
      "emacsclient" "clipmenu" "vikix-rofi" "vikix-webapp")
     ("AI & voice" "vikix-agent" "vikix-ask" "vikix-dictate" "vikix-voice")
-    ("Windows & frames" "delete" "fullscreen" "pull-hidden-other" "move-focus"
-     "move-window" "hsplit" "vsplit" "remove" "toggle-gaps" "winner-undo"
-     "winner-redo" "global-windowlist" "global-pull-windowlist" "beckon")
+    ("Windows & frames" "delete" "fullscreen" "pull-hidden-other" "next" "prev"
+     "move-focus" "move-window" "hsplit" "vsplit" "remove" "expose" "toggle-gaps"
+     "winner-undo" "winner-redo" "global-windowlist" "global-pull-windowlist" "beckon")
     ("Workspaces" "gselect" "gmove" "grouplist")
     ("Notifications" "dunstctl" "vikix-notifications" "vikix-quiet")
     ("Screenshots & recording" "vikix-screenshot" "vikix-record" "vikix-capture")
