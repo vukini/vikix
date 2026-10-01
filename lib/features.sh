@@ -230,5 +230,6 @@ open_bundles() {
 # Parsed here, in the shell that loads this file: the functions run in
 # pipelines and $( ), which are subshells, and only inherit what's
 # already set.
-features_rows >/dev/null
-bundles_rows >/dev/null
+# A checkout without them (a test's cut-down copy) loads all the same.
+if [ -f "$VIKIX_DIR/features.list" ]; then features_rows >/dev/null || true; fi
+if [ -f "$VIKIX_DIR/bundles.list" ]; then bundles_rows >/dev/null || true; fi
