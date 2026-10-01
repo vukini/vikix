@@ -37,6 +37,11 @@ for v in $(compgen -e); do case $v in *_API_KEY|*_KEY|*_TOKEN|*_SECRET) unset "$
 here=$(cd "$(dirname "$0")/.." && pwd)
 t=$(mktemp -d)
 trap 'rm -rf "$t"' EXIT
+# Only the system's programs, and the stand-ins put first below: with the
+# real ~/.local/bin on PATH, an opencode installed there was started for
+# real, and every run of this test (and tests/run.sh) waited on it.
+PATH=$(printf '%s' "$PATH" | tr ':' '\n' | grep -v "^$HOME/" | paste -sd: -)
+export PATH
 export HOME="$t/home" VIKIX_STATE="$t/state"
 mkdir -p "$HOME/.local/bin" "$t/bin"
 git -C "$HOME" init -q 2>/dev/null || true; rm -rf "$HOME/.git"   # (the snapshot repo is its own)
