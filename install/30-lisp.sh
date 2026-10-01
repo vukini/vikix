@@ -33,7 +33,22 @@ if grep -qs quicklisp "$HOME/.sbclrc"; then
   say "~/.sbclrc already loads Quicklisp"
 else
   say "adding Quicklisp to ~/.sbclrc"
-  run sbcl --non-interactive --load "$QL_DIR/setup.lisp" --eval '(ql:add-to-init-file)'
+  # The lines (ql:add-to-init-file) writes, written here: it stops to ask
+  # "Press Enter to continue" whenever it can reach the terminal, which
+  # left a fresh install (bash vikix-install) waiting for a key.
+  if [ "$DRY_RUN" = 1 ]; then
+    printf '   would add Quicklisp to %s\n' "$HOME/.sbclrc"
+  else
+    cat >> "$HOME/.sbclrc" <<'LISP'
+
+;;; The following lines added by ql:add-to-init-file:
+#-quicklisp
+(let ((quicklisp-init (merge-pathnames "quicklisp/setup.lisp"
+                                       (user-homedir-pathname))))
+  (when (probe-file quicklisp-init)
+    (load quicklisp-init)))
+LISP
+  fi
 fi
 
 # clx-truetype lets StumpWM draw TrueType fonts (the contrib module
