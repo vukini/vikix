@@ -107,11 +107,29 @@ check "a second 40-config wrote the web pages again" test "$first_guide" = "$(st
 got=$(HOME="$HOME" INFOPATH='' bash --norc -ic ". '$here/config/bash/vikix.bash' 2>/dev/null; . '$here/config/bash/vikix.bash' 2>/dev/null; echo \"\$INFOPATH\"" 2>/dev/null)
 check "INFOPATH after vikix.bash, twice, is '$got'" test "$got" = "$info:"
 
+# --- vikix.dev/guide/: the same pages, with a bar back to the site -----------------
+# lib/build-guide.sh, as the website's workflow runs it (pages.yml).
+bash "$here/lib/build-guide.sh" "$t/site-guide" --site
+for f in "$t"/site-guide/*.html; do
+  check "$(basename "$f") on the site should have the bar back to vikix.dev" grep -q 'class="site-bar"' "$f"
+done
+check "the machine's pages shouldn't have the site's bar" bash -c "! grep -lq 'site-bar' '$guide'/*.html"
+check "the site's guide should have the diagrams" test -f "$t/site-guide/diagrams/vikix-eval.svg"
+for f in index.html gallery.html; do
+  check "site/$f should link to the guide" grep -q 'href="guide/"' "$here/site/$f"
+done
+check "the website's workflow should build the guide" grep -q 'lib/build-guide.sh site/guide --site' "$here/.github/workflows/pages.yml"
+# A failed build leaves the old pages: md2texi can't read a missing docs/.
+mkdir -p "$t/fake/lib" "$t/fake/docs"; cp "$here/lib/build-guide.sh" "$here/lib/md2texi.py" "$t/fake/lib/"
+echo old > "$t/kept"; mkdir -p "$t/old-guide"; cp "$t/kept" "$t/old-guide/index.html"
+bash "$t/fake/lib/build-guide.sh" "$t/old-guide" >/dev/null 2>&1 && { echo "FAIL: a guide built from no guides"; fail=1; }
+check "a failed build should leave the old pages" cmp -s "$t/kept" "$t/old-guide/index.html"
+
 # --- Emacs reads it ---------------------------------------------------------------
 if command -v emacs >/dev/null; then
   got=$(INFOPATH="$info:" emacs -Q --batch --eval '(progn (info "vikix") (search-forward "Where everything is") (Info-follow-nearest-node) (princ Info-current-node))' 2>/dev/null)
   check "Emacs didn't open the manual and follow a link (got '$got')" test "$got" = "Where everything is"
 fi
 
-[ "$fail" = 0 ] && echo "info: the guides make a clean Info manual and web pages, the diagrams are drawn from their sources, 40-config installs both, and Emacs reads the manual"
+[ "$fail" = 0 ] && echo "info: the guides make a clean Info manual and web pages, the diagrams are drawn from their sources, 40-config installs both, vikix.dev/guide/ is the same pages with a bar back to the site, and Emacs reads the manual"
 exit "$fail"

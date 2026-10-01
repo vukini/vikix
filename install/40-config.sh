@@ -136,20 +136,9 @@ else
     cmp -s "$tmp/vikix.info" "$info_dir/vikix.info" || cp "$tmp/vikix.info" "$info_dir/vikix.info"
     install-info --info-dir="$info_dir" "$info_dir/vikix.info" 2>/dev/null ||
       warn "couldn't add the Vikix manual to $info_dir/dir"
-    # One page a chapter, no extra page a node: index.html is the start.
-    if makeinfo --html --split=chapter -c NODE_FILES=0 --css-ref=guide.css \
-         -I "$VIKIX_DIR/docs" -o "$tmp/guide" "$tmp/vikix.texi" 2>"$tmp/errors"; then
-      cp "$VIKIX_DIR/docs/guide.css" "$tmp/guide/"
-      mkdir -p "$tmp/guide/diagrams"
-      cp "$VIKIX_DIR"/docs/diagrams/*.svg "$tmp/guide/diagrams/" 2>/dev/null || true
-      if ! diff -rq "$tmp/guide" "$guide_dir" >/dev/null 2>&1; then
-        mkdir -p "${guide_dir%/*}"
-        rm -rf "$guide_dir"
-        mv "$tmp/guide" "$guide_dir"
-      fi
-    else
+    # The web pages: the same build as vikix.dev/guide/ (lib/build-guide.sh).
+    bash "$VIKIX_DIR/lib/build-guide.sh" "$guide_dir" 2>"$tmp/errors" ||
       warn "couldn't build the guide's web pages: $(head -3 "$tmp/errors")"
-    fi
   else
     warn "couldn't build the Info manual of the guides: $(head -3 "$tmp/errors")"
   fi

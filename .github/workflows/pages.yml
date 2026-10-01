@@ -1,8 +1,10 @@
 # The website, vikix.dev: publishes site/ to GitHub Pages.
 #
-# The page is one static file, so there is no build, only one step: the
-# version in the page is taken from VERSION, so the site never shows an
-# old release. The custom domain is set in the repo's Pages settings;
+# The pages are static files, with two steps before they go up: the version
+# in the page is taken from VERSION, so the site never shows an old
+# release; and the guides in docs/ become vikix.dev/guide/, built by
+# lib/build-guide.sh as 40-config builds them on every machine, so the
+# site's guide is always docs/ as it is on main. The custom domain is set in the repo's Pages settings;
 # site/CNAME records it too.
 
 name: pages
@@ -10,7 +12,7 @@ name: pages
 on:
   push:
     branches: [main]
-    paths: ["site/**", "VERSION", ".github/workflows/pages.yml"]
+    paths: ["site/**", "VERSION", "docs/**", "lib/md2texi.py", "lib/build-guide.sh", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -37,6 +39,11 @@ jobs:
           version=$(tr -d '[:space:]' < VERSION)
           sed -i "s|<span id=\"ver\">[^<]*</span>|<span id=\"ver\">$version</span>|" site/index.html
           grep -q "<span id=\"ver\">$version</span>" site/index.html
+      - name: The guides, as vikix.dev/guide/
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq --no-install-recommends texinfo
+          bash lib/build-guide.sh site/guide --site
+          test -f site/guide/index.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

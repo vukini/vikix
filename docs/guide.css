@@ -50,3 +50,13 @@ img.image {
 }
 .nav-panel + h1, .nav-panel + h2 { margin-top: 1.25rem; }
 hr { border: 0; border-top: 1px solid var(--line); }
+
+/* On vikix.dev only (lib/build-guide.sh --site): the bar back to the site. */
+.site-bar {
+  display: flex; flex-wrap: wrap; gap: .25rem 1.25rem; align-items: baseline;
+  padding: .5rem 0 .75rem; margin-bottom: 1rem; border-bottom: 1px solid var(--line);
+}
+.site-bar a { color: var(--subtle); text-decoration: none; }
+.site-bar a:hover { color: var(--accent); }
+.site-bar .site-home { color: var(--fg); font-weight: 700; font-size: 1.15rem; margin-right: auto; }
+.site-bar .site-home span { color: var(--accent); }
