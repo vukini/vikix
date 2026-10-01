@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+# vikix-firewall — the firewall, ufw (`vikix firewall`).
+#
+#   vikix firewall           on or off, and the rules (sudo, to read them)
+#   vikix firewall on        switch it on: nothing comes in unless a rule lets
+#                            it, everything goes out, SSH is let in; and the
+#                            programs below that are installed get their port
+#   vikix firewall off       switch it off (the rules are kept for next time)
+#   vikix firewall allow PORT[/tcp|/udp] [NAME]
+#                            let a port in (both tcp and udp unless one is named)
+#   vikix firewall close PORT[/tcp|/udp]   take that rule out again
+#
+# Replies to what this computer asked for always come back in: web pages,
+# updates, mail. A rule is only needed for a program others connect to.
+# Printers and other devices that announce themselves (mDNS, as avahi uses)
+# are let in by ufw's own rules, and the VMs on libvirt's network by
+# libvirt's. Ports opened by `on` when the program is there:
+#   LocalSend   53317 (tcp and udp), to send files to and from a phone
+#
+# ufw keeps everything in /etc/ufw, and its runit service puts the rules
+# back at boot. Every change asks for your sudo password.
+
+set -euo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+CONF=${VIKIX_UFW_CONF:-/etc/ufw/ufw.conf}     # a test points these elsewhere
+SUDO=${VIKIX_FIREWALL_SUDO-sudo}              # and does without sudo
+
+# Programs that others connect to, when they're installed: the command,
+# the port, and the name the rule gets.
+KNOWN="localsend 53317 LocalSend"
+
+need_ufw() {
+  command -v ufw >/dev/null 2>&1 || die "ufw isn't installed (it's in the base, network.list): vikix update installs it"
+}
+
+# ufw.conf is world-readable, so on or off needs no password; ufw's own
+# `status` does.
+is_on() { grep -qx 'ENABLED=yes' "$CONF" 2>/dev/null; }
+
+# A port as ufw takes it: 53317, 53317/tcp or 53317/udp; a range a:b too.
+check_port() {
+  [[ $1 =~ ^[0-9]{1,5}(:[0-9]{1,5})?(/(tcp|udp))?$ ]] || die "not a port: $1 (e.g. 53317, 53317/tcp, 6000:6010/udp)"
+  case $1 in *:*) case $1 in */*) ;; *) die "a range needs /tcp or /udp: $1/tcp" ;; esac ;; esac
+}
+
+cmd_status() {
+  need_ufw
+  if is_on; then
+    say "on: nothing comes in unless a rule below lets it (vikix firewall off switches it off)"
+    $SUDO ufw status verbose
+  else
+    say "off: everything may come in (vikix firewall on switches it on)"
+  fi
+}
+
+cmd_on() {
+  need_ufw
+  local name port cmd
+  say "switching the firewall on (your sudo password, to change it)"
+  run $SUDO ufw default deny incoming
+  run $SUDO ufw default allow outgoing
+  # SSH stays reachable, so turning this on over SSH never locks you out,
+  # and switching sshd on later just works.
+  run $SUDO ufw allow 22/tcp comment SSH
+  while read -r cmd port name; do
+    command -v "$cmd" >/dev/null 2>&1 || continue
+    say "$name is installed: letting its port $port in"
+    run $SUDO ufw allow "$port" comment "$name"
+  done <<<"$KNOWN"
+  # --force: ufw otherwise stops to ask whether SSH may be cut off; the
+  # rule above already keeps it.
+  run $SUDO ufw --force enable
+  # The runit service puts the rules back at boot (20-services links it on
+  # every update; this is for a machine where that hasn't run yet).
+  if [ -d "$VIKIX_SV_DIR/ufw" ] && [ ! -e "$VIKIX_SERVICE_DIR/ufw" ]; then
+    run $SUDO ln -s "$VIKIX_SV_DIR/ufw" "$VIKIX_SERVICE_DIR/"
+  fi
+  say "on: incoming connections are refused, except SSH and the rules above (vikix firewall)"
+}
+
+cmd_off() {
+  need_ufw
+  run $SUDO ufw disable
+  say "off: the rules are kept, and vikix firewall on brings them back"
+}
+
+cmd_allow() {
+  need_ufw
+  [ -n "${1:-}" ] || die "which port? vikix firewall allow PORT [NAME]"
+  check_port "$1"
+  if [ -n "${2:-}" ]; then run $SUDO ufw allow "$1" comment "$2"
+  else run $SUDO ufw allow "$1"; fi
+  is_on || warn "the firewall is off, so this rule waits until: vikix firewall on"
+}
+
+cmd_close() {
+  need_ufw
+  [ -n "${1:-}" ] || die "which port? vikix firewall close PORT"
+  check_port "$1"
+  run $SUDO ufw delete allow "$1"
+}
+
+case ${1:-} in
+  ""|status) cmd_status ;;
+  on)    cmd_on ;;
+  off)   cmd_off ;;
+  allow) shift; cmd_allow "$@" ;;
+  close|deny) shift; cmd_close "$@" ;;
+  help|-h|--help) sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) die "unknown: vikix firewall $1 (try: vikix firewall help)" ;;
+esac

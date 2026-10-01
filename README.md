@@ -62,7 +62,7 @@ Every stage checks before it changes anything, so re-running the install is safe
 | `05-mirror` | Downloads from each mirror in `mirrors.list` for six seconds and points xbps at the fastest (about a minute). Skipped if you set `VIKIX_MIRROR`, or already chose a mirror in `/etc/xbps.d/`. |
 | `10-packages` | Updates xbps itself, then installs the base lists and those of the features you chose (see [What gets installed](#what-gets-installed)), skipping anything already installed. |
 | `20-services` | Enables the runit services in `services.list`, and adds you to the `video` group, and to `lpadmin` once CUPS is installed (with a polkit rule, so the Printers app needs no password). Before switching on a new service it has D-Bus reread its config, since Void's D-Bus only reads a new package's policy at boot, and a service started before that can't use it. `vikix update` runs it again, so a service that comes with a new package is switched on. |
-| `25-network` | Starts NetworkManager, waits until it's running, then switches off dhcpcd and wpa_supplicant. Adds you to the `network` group. |
+| `25-network` | Starts NetworkManager, waits until it's running, then switches off dhcpcd and wpa_supplicant. Adds you to the `network` group. Switches the firewall on (`vikix firewall on`): once, here, so `vikix firewall off` stays off; machines installed before 0.71.7 got it from a migration. |
 | `30-lisp` | Installs Quicklisp (and adds it to `~/.sbclrc`), clones clx-truetype (TrueType fonts for the bar, not in Quicklisp), builds `~/.local/bin/stumpwm` with Swank and clx-truetype inside, and clones `stumpwm-contrib`. |
 | `40-config` | Links Vikix's config files into place and copies starter files you then own (including the keyboard file and the night light times). Makes the guides in `docs/` an Info manual, `~/.local/share/info/vikix.info`, and web pages with the diagrams, `~/.local/share/vikix/guide/`. |
 | `45-editors` | With the features `emacs` and `neovim` only. Emacs: clones its config (`vukini/emacs-void`) to `~/.emacs.d`, and links Vikix's AI setup for it (`config/emacs`) to `~/.local/share/vikix/emacs`. Neovim: links Vikix's part (`config/nvim`) to `~/.local/share/vikix/nvim`, copies the starter to `~/.config/nvim` once, installs the plugins at the versions Vikix tested (Lazy's output goes to `~/.local/state/vikix/logs/nvim-plugins.log`), and takes a snapshot after; a clone of the old `vukini/nvim-void-linux` with no changes of yours is kept aside as `~/.config/nvim.vikix-bak.<time>`. Also installs the npm language servers into `~/.local`. Other repos: set `VIKIX_EMACS_REPO` / `VIKIX_NVIM_REPO`. |
@@ -550,7 +550,7 @@ vikix remove julia         # stop keeping it, and uninstall what only it needed
 | `base` | dbus, elogind, polkit and its password box, openssh, chrony (clock), git, curl, rsync, zip, 7zip, man pages, xdg-utils, texinfo (`info`, and makeinfo for the Vikix manual), python3 (for `vikix eval`) |
 | `desktop` | X11, picom, dunst, rofi (with its emoji picker and calculator), alacritty, fonts (Noto, colour emoji, Nerd Font symbols), i3lock, gammastep (night light), screenshots and screen recording (maim, slop, ffmpeg), the text in a screenshot (tesseract-ocr, with English) and a colour picker (xcolor), clipmenu (clipboard history) |
 | `fonts` | Iosevka, the terminal font. Every variant comes in one 862 MB package, the biggest single download of the install. Also fonttools, which `vikix-font` uses to take the one Iosevka the bar needs out of that package. |
-| `network` | NetworkManager (`nmtui` for Wi-Fi), with its connection editor |
+| `network` | NetworkManager (`nmtui` for Wi-Fi), with its connection editor, and ufw, the firewall (`vikix firewall`) |
 | `audio` | PipeWire, WirePlumber (with Bluetooth audio), pamixer, pavucontrol |
 | `laptop` | tlp, fwupd (firmware updates), fprintd (fingerprint readers), acpid, brightnessctl, xprintidle (suspend when idle on battery), Bluetooth (bluez, blueman), autorandr, and the firmware a recent ThinkPad needs: sof-firmware (sound), intel-ucode (from the nonfree repo, enabled by `repos.list`), intel-video-accel |
 | `printing` | Feature `printing`. CUPS with its filters, system-config-printer (and cups-pk-helper, so it needs no root), avahi and nss-mdns (finding network printers), ipp-usb (driverless USB printers), and drivers for older printers: gutenprint, foomatic, brlaser |
@@ -618,6 +618,21 @@ vikix fingerprint enrol left-index-finger   # another finger
 - **How to use it:** at sudo's password prompt, or on the lock screen, press Enter with nothing typed, then touch the reader. Typing your password works exactly as before; over SSH the reader is never asked.
 - **What `on` changes:** a marked block in `/etc/pam.d/sudo` and `/etc/pam.d/i3lock`, just before their `auth` line, after a backup of each (`*.vikix-bak.<time>`). `off` takes it out again and leaves the files as they were.
 - **No usable reader, no change.** `vikix fingerprint` says so, and names the reader lsusb shows. The X1 Carbon 6th gen's Validity 138a:0097 is one libfprint doesn't support; [python-validity](https://github.com/uunicorn/python-validity) drives some Validity readers, but Void doesn't package it.
+
+## Firewall
+
+The firewall (ufw) is on from the install: nothing on the network can connect to this computer unless a rule lets it, and SSH is always let in. Everything it asks for itself (web pages, mail, updates) gets its answers back as usual.
+
+```sh
+vikix firewall             # on or off, and the rules (asks for your sudo password to read them)
+vikix firewall allow 8000/tcp web   # let a port in; both tcp and udp when neither is named
+vikix firewall close 8000/tcp       # take it out again
+vikix firewall off         # switch it off; vikix firewall on brings the same rules back
+```
+
+- **Programs others connect to** need a rule. `vikix firewall on` gives one to those Vikix knows about, when they're installed: LocalSend (53317, tcp and udp). Anything else, a server you're writing, a game, gets `vikix firewall allow PORT`.
+- **Already let in, without a rule:** printers and other devices that announce themselves on the network (mDNS, which avahi uses, and UPnP), by ufw's own rules; the VMs on libvirt's network (Windows, `void-vm`), by libvirt's.
+- **Where it lives:** `/etc/ufw` (ufw's own files; `sudo ufw ...` works too), and the runit service `ufw`, which puts the rules back at boot. `s-m` → *Firewall* shows the same as `vikix firewall`, and `vikix doctor` says whether it's on.
 
 ## USB drives
 
@@ -852,6 +867,7 @@ vikix ai setup               # local AI models (Ollama); then vikix ai models to
 vikix ai llm                 # the llm command: cat notes.md | llm "summarise"
 vikix add lisp-apps          # Nyxt, Lem and McCLIM's Listener: programs in Common Lisp
 vikix fingerprint  # a finger for sudo and the lock screen, where the reader is supported
+vikix firewall     # the firewall: on or off, its rules; vikix firewall allow PORT lets one in
 vikix dictate setup          # speak, and it types (s-F9); vikix add dictation does the same
 vikix voice setup            # talk to the AI (s-F10) or the agent (s-F11), and it answers aloud
 note ask "..."               # ask your notes (vikix add notes, then note index FOLDER once)
@@ -886,6 +902,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `theme-import` | `vikix theme import` makes a Vikix theme of a made-up Omarchy theme repo: Omarchy's colour names in Vikix's (the ANSI-only kind too), `#rgb` widened and alpha dropped, missing bright colours made 20% lighter, its first real picture beside it, the name from the repo's; nothing in the repo runs, and shell code, non-hex values, a `[table]`, a fake or linked picture, an `ext::` or `http://` address are all left out or refused; no overwrite without `--force` (the old files kept aside), never a built-in theme's name, and a dry run writes nothing |
 | `wallpaper` | `vikix-wallpaper` shows the theme's picture until you choose one, keeps your choice across theme changes, gives a theme without a picture a plain background in its colour, sets what the picker picked, and leaves the wallpaper alone when off or during `vikix update`; the migration turns it off where you had your own |
 | `rofi` | `vikix-rofi` opens the emoji picker and calculator with Vikix's keys, the calculator's Enter copies exactly the answer, and a missing plugin is named in a notification |
+| `firewall` | `vikix firewall on` refuses what comes in and lets everything out, always lets SSH in before switching on, opens LocalSend's port only where it's installed and links the runit service; `allow` and `close` take only ports, a dry run changes nothing, status while off asks no password, and the migration does nothing without ufw |
 | `fingerprint` | `vikix fingerprint on` puts its PAM block just before the first auth line and `off` leaves the files exactly as they were, never twice and always after a backup; nothing changes without a usable reader and an enrolled finger |
 | `firmware` | `vikix firmware update` refuses on battery and goes ahead on the charger or on a desktop, fetches the LVFS list first, and counts the waiting updates for the bar |
 | `drives` | `vikix-drives` finds the mounted drives (a space in a name too), ejects the one picked and says when it's safe or that it's in use, starts a backup on plug-in only for the backup drive and only when one is due, and gives udiskie your own settings when you have them |

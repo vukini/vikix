@@ -12,7 +12,6 @@ Built in this order: newcomers first, then the rest (the AI items have shipped; 
 
 ### And then
 
-4. **A firewall (ufw).** Deny incoming, allow outgoing, allow SSH. A runit service, and a Super+m entry that shows the status.
 5. **More themes.** Three or four more (Gruvbox, Nord, Tokyo Night, a high-contrast one), each with a wallpaper. Then make Emacs and Neovim follow `vikix theme`.
 6. **Whole-system undo.** When / is btrfs: snapper snapshots before each `vikix update`, and `vikix rollback` notes. Skip cleanly on ext4.
 7. **The guides on vikix.dev.** A Docs link on the site to `docs/` on GitHub, or the four pages built into the site. Same words either way: `docs/` stays the source.

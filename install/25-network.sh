@@ -7,6 +7,8 @@
 #   3. only then stop the old managers (dhcpcd, wpa_supplicant, wicd),
 #      because two managers fighting over one interface drops the link
 #   4. put you in the 'network' group, which NetworkManager requires
+#   5. switch the firewall on (vikix firewall): nothing comes in but SSH
+#      and the ports of programs others connect to, like LocalSend
 #
 # Over SSH the connection may pause for a few seconds at step 3 while
 # NetworkManager takes the interface over. If it does not come back,
@@ -43,3 +45,11 @@ done
 
 # 4: the network group
 ensure_group network "NetworkManager requires it"
+
+# 5: the firewall. Here, once, on a fresh install (machines installed before
+# got it from a migration), so `vikix firewall off` stays off through updates.
+if command -v ufw >/dev/null 2>&1; then
+  "$VIKIX_DIR/bin/vikix-firewall" on
+else
+  problem "ufw is not installed (network.list; run the 10-packages stage first)"
+fi

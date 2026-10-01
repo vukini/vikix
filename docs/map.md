@@ -159,6 +159,7 @@ What Vikix changes on the system itself. Everything else under `/` is as Void le
 |---|---|---|
 | `/etc/xbps.d/*-repository-*.conf` | The mirror, the fastest one found at install | `05-mirror` |
 | `/var/service/*` | Links that switch on the services in `services.list`, and NetworkManager | `20-services`, `25-network` |
+| `/etc/ufw/` | The firewall's settings and rules: on, nothing comes in but SSH and the ports allowed (`vikix firewall`) | `25-network`, `vikix firewall` |
 | `/etc/polkit-1/rules.d/50-vikix-printers.rules` | With the feature printing: the `lpadmin` group manages printers without a password | `20-services` |
 | `/etc/alsa/conf.d/` | Links that send ALSA programs to PipeWire | `50-audio` |
 | `/etc/X11/xorg.conf.d/40-libinput.conf` | Touchpad: tap to click, natural scrolling | `55-hardware` |

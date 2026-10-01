@@ -111,6 +111,10 @@ To run one install stage again on its own (each is safe to re-run):
 ~/vikix/install.sh --list      # all the stages
 ```
 
+## Something on the network can't reach this computer
+
+The firewall is on (`vikix firewall` shows it and its rules): only SSH, and the ports it was told about, are let in. A phone sending a file, another computer opening a server you started, a game: each needs its port let in, `vikix firewall allow PORT` (`53317` for LocalSend, if it was installed after the firewall went on). `vikix firewall close PORT` shuts it again. To check that the firewall is the cause, `vikix firewall off` for a minute, then `vikix firewall on`.
+
 ## Local AI doesn't answer
 
 `vikix ai status` says whether Ollama is running and which model is loaded. Not running: `vikix ai setup` starts it (it starts with the desktop from then on), and its log is `~/.local/state/vikix/ollama.log`. Slow: that's the CPU; a smaller model (`vikix ai models`) answers faster, and `vikix ai stop` frees the memory a big one holds.

@@ -12,3 +12,4 @@ bluetoothd      # from bluez
 cupsd           # printing, from cups
 avahi-daemon    # finds printers (and other devices) on the network
 ipp-usb         # driverless USB printers
+ufw             # puts the firewall's rules back at boot; does nothing while it's off

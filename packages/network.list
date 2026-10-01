@@ -2,3 +2,4 @@
 NetworkManager          # includes nmtui, a text interface for Wi-Fi
 wpa_supplicant          # NetworkManager drives Wi-Fi through it
 network-manager-applet  # nm-connection-editor, the GUI for connections
+ufw                     # the firewall (vikix firewall; switched on by 25-network)

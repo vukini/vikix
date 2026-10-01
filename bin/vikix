@@ -60,6 +60,8 @@
 #                         what's waiting, or install it (on AC power)
 #   vikix fingerprint [on|off|enrol]   a finger for sudo and the lock screen,
 #                         where fprintd supports the reader
+#   vikix firewall [on|off|allow PORT|close PORT]   the firewall (ufw): nothing
+#                         comes in but SSH and the ports you allow
 #   vikix webapp add|open|list|remove    a website as a program of its own
 #                         (presets: fastmail, gmail, outlook, outlook-live, superhuman)
 #   vikix ai setup|models|chat|list|remove|status|stop|uninstall
@@ -339,6 +341,9 @@ cmd_doctor() {
   done < <(read_list "$VIKIX_DIR/services.list")
   if [ -e /var/service/NetworkManager ]; then say "service NetworkManager enabled"
   else warn "service NetworkManager not enabled"; ok=0; fi
+  # Off can be your choice (vikix firewall off), so it's said, not counted.
+  if grep -qx 'ENABLED=yes' /etc/ufw/ufw.conf 2>/dev/null; then say "the firewall is on"
+  elif command -v ufw >/dev/null 2>&1; then warn "the firewall is off: anything may connect in (vikix firewall on)"; fi
   for d in "${dirs[@]}"; do
     if [ -d "$d/.git" ]; then say "$d is a git clone"
     else warn "$d is not a git clone (45-editors did not set it up)"; ok=0; fi
@@ -1148,6 +1153,7 @@ main() {
     ai)          shift; exec "$VIKIX_DIR/bin/vikix-ai" "$@" ;;
     webapp|webapps) shift; exec "$VIKIX_DIR/bin/vikix-webapp" "$@" ;;
     fingerprint) shift; exec "$VIKIX_DIR/bin/vikix-fingerprint" "$@" ;;
+    firewall)    shift; exec "$VIKIX_DIR/bin/vikix-firewall" "$@" ;;
     help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
     *)           die "unknown command: $1 (try: vikix help)" ;;
   esac
