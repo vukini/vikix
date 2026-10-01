@@ -15,7 +15,7 @@ Void is not a systemd distribution. Remember:
 - Packages: `xbps-install -S NAME` (with sudo), `xbps-query -Rs WORD` to search, `xbps-remove -R NAME`.
 - Services are runit: switch one on with `sudo ln -s /etc/sv/NAME /var/service/`, off by removing that link, status with `sudo sv status NAME`. There is no `systemctl` and no user services; session programs start in `bin/vikix-session`.
 - glibc Void. elogind runs through dbus, never as a runit service.
-- The network is NetworkManager (`nmtui`, `nmcli`).
+- The network is NetworkManager (`nmtui`, `nmcli`). `sudo nethogs` shows which program uses how much of it, like top (Super+m → Network use); try it when downloads, pushes or pulls feel slow.
 
 ## The one rule: change the user's files, never Vikix's
 

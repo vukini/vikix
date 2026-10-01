@@ -115,6 +115,10 @@ To run one install stage again on its own (each is safe to re-run):
 
 The firewall is on (`vikix firewall` shows it and its rules): only SSH, and the ports it was told about, are let in. A phone sending a file, another computer opening a server you started, a game: each needs its port let in, `vikix firewall allow PORT` (`53317` for LocalSend, if it was installed after the firewall went on). `vikix firewall close PORT` shuts it again. To check that the firewall is the cause, `vikix firewall off` for a minute, then `vikix firewall on`.
 
+## The network feels slow
+
+First see whether it's the connection or one program. `ping -c 5 1.1.1.1` should answer in tens of milliseconds with no loss; a speed test is `curl -o /dev/null -w '%{speed_download}\n' https://speed.cloudflare.com/__down?bytes=25000000` (bytes a second; times 8 for bits). Then Super+m → *Network use* (`sudo nethogs`) shows, like top, which program is sending and receiving how much: `m` switches between rates and totals, `q` leaves. If the connection is fast but a `git push` or `pull` is slow and nethogs shows `ssh` doing nothing, git is waiting, often for the SSH key's passphrase: `ssh-add -l` should list the key, and `ssh-add` adds it.
+
 ## Local AI doesn't answer
 
 `vikix ai status` says whether Ollama is running and which model is loaded. Not running: `vikix ai setup` starts it (it starts with the desktop from then on), and its log is `~/.local/state/vikix/ollama.log`. Slow: that's the CPU; a smaller model (`vikix ai models`) answers faster, and `vikix ai stop` frees the memory a big one holds.

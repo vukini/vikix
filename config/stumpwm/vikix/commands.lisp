@@ -125,6 +125,8 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
     ("Apply keyboard settings" (run-shell-command "vikix-keyboard"))
     ("Network (nmtui)"     (run-shell-command
                             (format nil "~a -e nmtui" *vikix-terminal*)))
+    ("Network use: which program is using it (nethogs)"
+     (run-shell-command (format nil "~a -e sudo nethogs" *vikix-terminal*)) "nethogs")
     ("Firewall: on or off, and what it lets in" (vikix-in-terminal "vikix firewall") "ufw")
     ("Bluetooth"           (run-shell-command "blueman-manager"))
     ("Apps: video, pictures, study ..." vikix-apps)
