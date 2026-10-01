@@ -105,6 +105,7 @@ cmd_keys() {
     Super+b, Super+v   split the screen side by side, or one above the other
     Super+h j k l      move between windows (or Super and the arrow keys)
     Super+m            the Vikix menu: everything that isn't a key
+    Super+/            every key at a glance (any key closes it)
     Super+F1           every key, searchable: pick one to run it
     Super+a            the AI agent: ask it to change something for you
 

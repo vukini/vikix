@@ -46,7 +46,7 @@ You'll be left at the text console, or with a black screen.
 ## A key doesn't work
 
 - `Super+m` → *What does a key do?*, then press the key. It says what the key is bound to, if anything.
-- `Super+F1` lists every key Vikix binds.
+- `Super+/` shows every key Vikix binds, grouped; `Super+F1` lists them, searchable. After `Ctrl+t`, wait a moment and StumpWM lists its own keys.
 - In a VM, the host may take the key before the guest sees it: on Windows, Super+L locks Windows.
 
 ## Something's missing from the menu or the launcher

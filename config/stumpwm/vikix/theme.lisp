@@ -90,7 +90,10 @@
         ;; The focused window's title in the accent colour. StumpWM's
         ;; default swaps fg and bg, a bright block that glares at night.
         *mode-line-highlight-template*
-        (format nil "^(:push)^(:fg \"~a\")~~A^(:pop)" (vikix-colour :accent)))
+        (format nil "^(:push)^(:fg \"~a\")~~A^(:pop)" (vikix-colour :accent))
+        ;; The keys which-key-mode lists after Ctrl+t (help.lisp turns it on).
+        *which-key-format*
+        (format nil "^(:fg \"~a\")~~5a^n ~~a" (vikix-colour :accent)))
   ;; A mode line reads those three variables once, when it is created.
   ;; Bars that already exist have to be told to look again.
   (dolist (screen *screen-list*)

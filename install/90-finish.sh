@@ -46,7 +46,7 @@ cat <<EOF
     1. Reboot:  sudo reboot   (or, if Vikix was already running here,
        log out and back in on tty1)
     2. Log in on tty1. The desktop starts by itself.
-    3. Super+Return opens a terminal. Super+F1 lists the Vikix keys,
+    3. Super+Return opens a terminal. Super+/ shows the Vikix keys,
        and Super+m is the menu for everything else.
     4. Super+a opens Claude Code, the AI agent (it offers to install it
        the first time). Whatever it changes: vikix changes, then vikix undo.

@@ -10,6 +10,12 @@
 # fail for a reason that has nothing to do with the file.
 #
 #   tests/lisp.sh [FILE...]    the given files, or every Lisp file Vikix ships
+#
+# With no files given, it then loads keys.lisp and help.lisp and checks the
+# key card (Super+/): every key in *vikix-bindings* is in a group and on
+# the card, at any screen size; and a reload sets which-key-mode rather
+# than toggling it. Against the real StumpWM when Quicklisp has it (the
+# layer must then compile without a warning), else against stand-ins.
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
@@ -25,6 +31,7 @@ else
 fi
 
 # --no-userinit: ~/.sbclrc may load Quicklisp and more, which this doesn't need.
+read_rc=0
 sbcl --noinform --no-sysinit --no-userinit --non-interactive --eval '
 (let ((failed 0) (forms 0))
   (labels ((line-at (file position)
@@ -71,4 +78,133 @@ sbcl --noinform --no-sysinit --no-userinit --non-interactive --eval '
       (mapc (function check) files)
       (format t "lisp: ~d files, ~d forms read~%" (length files) forms)
       (sb-ext:exit :code (if (zerop failed) 0 1)))))' \
-  --end-toplevel-options -- "${files[@]}"
+  --end-toplevel-options -- "${files[@]}" || read_rc=$?
+[ "$#" -gt 0 ] && exit "$read_rc"
+
+# --- the key card and which-key (help.lisp) ------------------------------------------------
+t=$(mktemp -d)
+trap 'rm -rf "$t"' EXIT
+ql=${VIKIX_QUICKLISP:-$HOME/quicklisp}/setup.lisp
+layer=config/stumpwm/vikix
+real=0
+if [ -f "$ql" ] && sbcl --noinform --no-sysinit --no-userinit --non-interactive --load "$ql" \
+     --eval '(handler-case (ql:quickload :stumpwm :silent t) (error () (sb-ext:exit :code 2)))' >/dev/null 2>&1; then
+  real=1
+fi
+if [ "$real" = 1 ]; then
+  against="the real StumpWM"
+  cat > "$t/prelude.lisp" <<EOF
+(load "$ql")
+(ql:quickload :stumpwm :silent t)
+(in-package :stumpwm)
+;; The layer compiles against the real StumpWM without a warning: no
+;; unknown function or variable, no wrong number of arguments.
+(let ((problems '()))
+  (handler-bind ((warning (lambda (w)
+                            (unless (typep w 'sb-kernel:redefinition-warning)
+                              (push (remove #\Newline (princ-to-string w)) problems))
+                            (muffle-warning w))))
+    (with-compilation-unit ()
+      (dolist (f '("config/stumpwm/init.lisp" "$layer/theme.lisp" "$layer/keys.lisp" "$layer/help.lisp"))
+        (compile-file f :output-file (format nil "$t/~a.fasl" (pathname-name f))))))
+  (dolist (p problems) (format t "FAIL compiling the layer: ~a~%" p)));; No X here: binding a key mustn't try to tell the X server.
+(setf (fdefinition 'sync-keys) (lambda () nil))
+EOF
+else
+  against="stand-ins for StumpWM (no StumpWM in Quicklisp here)"
+  # Stand-ins for the parts of StumpWM that keys.lisp and help.lisp use as they load.
+  cat > "$t/prelude.lisp" <<'EOF'
+(defpackage :xlib (:use :cl) (:export #:display-finish-output #:change-property #:delete-property))
+(defpackage :stumpwm (:use :cl))
+(in-package :stumpwm)
+(defvar *top-map* (make-hash-table :test 'equal))
+(defvar *key-press-hook* '())
+(defun kbd (k) k)
+(defun define-key (map key command) (setf (gethash key map) command))
+(defmacro add-hook (hook fn) `(setf ,hook (adjoin ,fn ,hook)))
+(defmacro remove-hook (hook fn) `(setf ,hook (remove ,fn ,hook)))
+(defmacro defcommand (name args prompts &body body)
+  (declare (ignore prompts))
+  `(defun ,name ,args ,@(if (stringp (first body)) (rest body) body)))
+EOF
+fi
+cat > "$t/check.lisp" <<EOF
+(in-package :stumpwm)
+(defvar *failed* 0)
+(defun fail (fmt &rest args) (incf *failed*) (format t "FAIL ~?~%" fmt args))
+(load "$layer/keys.lisp")
+(load "$layer/help.lisp")
+(load "$layer/help.lisp")             ; a reload
+(unless (= 1 (count 'which-key-mode-key-press-hook *key-press-hook*))
+  (fail "which-key-mode should be on, once, after a reload; hooks: ~s" *key-press-hook*))
+(vikix-which-key nil)
+(when (member 'which-key-mode-key-press-hook *key-press-hook*)
+  (fail "(vikix-which-key nil) should turn which-key-mode off"))
+(vikix-which-key t)
+(unless (equal (second (assoc "s-slash" *vikix-bindings* :test #'string=)) "vikix-keys-card")
+  (fail "Super+/ should be in *vikix-bindings*, running vikix-keys-card"))
+(unless (string= (vikix-pretty-key "s-slash") "Super+/")
+  (fail "s-slash should read Super+/, not ~s" (vikix-pretty-key "s-slash")))
+;; Every one of Vikix's own keys is in a named group: Other is for yours.
+(dolist (e (vikix-key-entries))
+  (when (string= (fourth e) "Other")
+    (fail "~a (~a) is in no group: add its command to *vikix-key-groups*" (first e) (third e))))
+;; Keys pushed from user.lisp land in a group too.
+(push '("s-o" "exec obsidian" "Obsidian") *vikix-bindings*)
+(push '("s-y" "my-command" "Mine") *vikix-bindings*)
+(push '("s-z" "exec zotero" "Zotero" "Reading") *vikix-bindings*)
+(push '("s-C-p" "exec env FOO=1 vikix-screenshot area clip" "Shot") *vikix-bindings*)
+(loop for (key want) in '(("Super+o" "Apps") ("Super+y" "Other") ("Super+z" "Reading")
+                          ("Super+Ctrl+p" "Screenshots & recording"))
+      for got = (fourth (find key (vikix-key-entries) :key #'first :test #'string=))
+      unless (equal got want) do (fail "~a should be in ~a, is in ~s" key want got))
+(let ((names (mapcar #'first (vikix-card-groups))))
+  (unless (equal (last names 2) '("Reading" "Other"))
+    (fail "a group of your own should come last but for Other: ~s" names)))
+;; No key lost: each on the card once, at any monitor size, in columns no
+;; taller than the monitor and, side by side, no wider (1366x768 and up;
+;; smaller monitors get cut descriptions, and may still run over).
+(let ((want (sort (mapcar (lambda (e) (list (first e) (second e))) (vikix-key-entries))
+                  #'string< :key #'first)))
+  (loop for (rows chars) in '((50 250) (32 175) (100 500) (25 140) (12 90) (5 40))
+        do (multiple-value-bind (columns key-width desc-width)
+               (vikix-card-layout (vikix-card-groups) rows chars)
+             (let ((got (loop for c in columns append
+                              (loop for line in c
+                                    when (and (consp line) (eq (first line) :key))
+                                      collect (rest line)))))
+               (unless (equal (sort got #'string< :key #'first) want)
+                 (fail "the card at ~dx~d lost or doubled keys: ~d of ~d"
+                       rows chars (length got) (length want))))
+             (when (find-if (lambda (c) (> (length c) (max 3 rows))) columns)
+               (fail "a column at ~dx~d is taller than ~d lines" rows chars rows))
+             (when (and (>= chars 170)          ; a laptop's 1366x768 and up
+                        (> (- (* (length columns) (+ key-width 2 desc-width 4)) 4) chars))
+               (fail "the card at ~dx~d is wider than the monitor: ~d columns of ~d"
+                     rows chars (length columns) (+ key-width 2 desc-width)))
+             (dolist (c columns)
+               (when (eq (car (last c)) :blank)
+                 (fail "a column ends in a blank line at ~dx~d" rows chars))
+               (unless (and (consp (first c)) (eq (first (first c)) :heading))
+                 (fail "a column at ~dx~d doesn't start with its group's name" rows chars))))))
+;; The lines themselves: no more than fit, and every key in them.
+(let ((lines (vikix-card-strings 45 240)))
+  (unless (<= (length lines) 45)
+    (fail "the card is ~d lines, more than the 45 that fit" (length lines)))
+  (dolist (e (vikix-key-entries))
+    (unless (find-if (lambda (l) (search (first e) l)) lines)
+      (fail "~a isn't on the card" (first e)))))
+(format t "key card: ~d keys in ~d groups, against $against~%"
+        (length (vikix-key-entries)) (length (vikix-card-groups)))
+(sb-ext:exit :code (if (zerop *failed*) 0 1))
+EOF
+card_rc=0
+out=$(sbcl --noinform --no-sysinit --no-userinit --non-interactive \
+        --load "$t/prelude.lisp" --load "$t/check.lisp" 2>&1) || card_rc=$?
+if grep -q -e '^FAIL' -e '^key card:' <<<"$out"; then
+  grep -e '^FAIL' -e '^key card:' <<<"$out"
+else
+  echo "FAIL the key card check didn't run:"; grep -v "^[0-9]*: " <<<"$out" | tail -15; card_rc=1
+fi
+grep -q '^FAIL' <<<"$out" && card_rc=1
+[ "$read_rc" = 0 ] && [ "$card_rc" = 0 ]

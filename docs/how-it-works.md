@@ -37,7 +37,7 @@ login on tty1
                       ├─ vikix/commands.lisp     Vikix's commands and the Super+m menu
                       ├─ vikix/windows.lisp      focus, gaps, layout undo
                       ├─ vikix/keys.lisp         the Super keys
-                      ├─ vikix/help.lisp         Super+F1
+                      ├─ vikix/help.lisp         Super+/ and Super+F1
                       ├─ vikix/webapps.lisp      your web apps: their keys and Super+m entries
                       ├─ vikix/modeline.lisp     the bar
                       ├─ vikix/swank-guard.lisp  a wrong or missing password can't take Swank down

@@ -148,7 +148,6 @@ and accessing the guides"
       <div class="coming">
         <p class="eyebrow">Coming next, in this order</p>
         <ul>
-          <li><b>Every key at a glance.</b> A key shows a card of all the others, grouped.</li>
           <li><b>A mouse, too.</b> Click a workspace in the bar to go there; volume, Wi-Fi and Bluetooth open their settings.</li>
           <li><b>Your first hour.</b> Installing Void for Vikix, then the first steps, with pictures.</li>
         </ul>
@@ -368,7 +367,7 @@ and accessing the guides"
       <div class="sec-head">
         <p class="eyebrow">The <b>keys</b></p>
         <h2>Everything is a key away.</h2>
-        <p class="lede">Super is the Vikix key. On the desktop, <kbd>Super</kbd>+<kbd>F1</kbd> lists every key and runs the one you pick; <kbd>Super</kbd>+<kbd>m</kbd> opens the menu for everything else.</p>
+        <p class="lede">Super is the Vikix key. On the desktop, <kbd>Super</kbd>+<kbd>/</kbd> shows every key at a glance, <kbd>Super</kbd>+<kbd>F1</kbd> searches them and runs the one you pick, and <kbd>Super</kbd>+<kbd>m</kbd> opens the menu for everything else.</p>
       </div>
       <div class="keys-tools">
         <label for="keySearch" class="eyebrow">Find a key</label>
@@ -488,7 +487,7 @@ and accessing the guides"
         </details>
         <details>
           <summary>Do I need to know Lisp, or Linux?</summary>
-          <p>No. Keys and menus cover the everyday things: <kbd>Super</kbd>+<kbd>F1</kbd> lists every key, and <kbd>Super</kbd>+<kbd>m</kbd> opens a menu for the rest. When you want something changed, you can ask the agent in plain words. Lisp is there when you're curious. And the guides come with it: <code>info vikix</code> in a terminal or in Emacs, or <kbd>Super</kbd>+<kbd>m</kbd> → <i>Vikix guide in the browser</i>, with diagrams.</p>
+          <p>No. Keys and menus cover the everyday things: <kbd>Super</kbd>+<kbd>/</kbd> shows every key, and <kbd>Super</kbd>+<kbd>m</kbd> opens a menu for the rest. When you want something changed, you can ask the agent in plain words. Lisp is there when you're curious. And the guides come with it: <code>info vikix</code> in a terminal or in Emacs, or <kbd>Super</kbd>+<kbd>m</kbd> → <i>Vikix guide in the browser</i>, with diagrams.</p>
         </details>
         <details>
           <summary>How is it different from Omarchy?</summary>
@@ -731,7 +730,7 @@ exec /usr/bin/sshd -D $OPTS
     [["s-g"], "Gaps around windows, on or off"], [["s-A"], "Any window on any workspace: go there"],
     [["s-C-a"], "Any window on any workspace: bring it here"],
     [["s-1…9"], "Go to a workspace"], [["s-C-1…9"], "Send the window to a workspace"],
-    [["s-m"], "Vikix menu: themes, network, screens, update, power"], [["s-F1"], "Every key, searchable"],
+    [["s-m"], "Vikix menu: themes, network, screens, update, power"], [["s-/"], "Every key at a glance, grouped"], [["s-F1"], "Every key, searchable"],
     [["s-Escape"], "Lock the screen"], [["s-S-Escape"], "Power: lock, suspend, log out, reboot, power off"], [["s-C-e"], "Eject a USB drive, safely"], [["s-M-a"], "Keep awake: no lock or suspend while you present"],
     [["s-M-l"], "Night light on and off"], [["Print"], "Screenshot an area to the clipboard"],
     [["C-Print"], "Screenshot the focused window"], [["s-Print"], "Screenshot the whole screen"],

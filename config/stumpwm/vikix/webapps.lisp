@@ -3,7 +3,7 @@
 ;;;; `vikix webapp add` writes ~/.config/vikix/webapps, one "NAME URL [KEY]"
 ;;;; per line. This reads it: each web app's key, if it has one, brings its
 ;;;; window to the front from any workspace, or starts it (run-or-raise, by
-;;;; its window class, vikix-NAME); it's in the key help (Super+F1) and in
+;;;; its window class, vikix-NAME); it's in the key help (Super+/, Super+F1) and in
 ;;;; Super+m. `vikix webapp` calls vikix-load-webapps after each change, so
 ;;;; nothing waits for a reload.
 

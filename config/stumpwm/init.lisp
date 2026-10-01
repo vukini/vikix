@@ -18,7 +18,7 @@
     "commands"   ; Vikix's own commands (menu, key help, reload)
     "windows"    ; focus, gaps, layout undo, finding windows
     "keys"       ; Super-key bindings
-    "help"       ; key help (s-F1) and the list of all commands
+    "help"       ; the key card (s-/), key help (s-F1), all commands, which-key
     "webapps"    ; your web apps (vikix webapp): keys and Super+m
     "modeline"   ; the bar at the top
     "swank-guard" ; a wrong Swank password can't take Swank down

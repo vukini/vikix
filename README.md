@@ -204,7 +204,7 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 
 ## Keys
 
-`s` means Super. StumpWM's own `Ctrl+t` prefix keys still work too. Focus follows the mouse: pointing at a window focuses it, without a click. To click instead, put `(setf *mouse-focus-policy* :click)` in `user.lisp`.
+`s` means Super. StumpWM's own `Ctrl+t` prefix keys still work too: press `Ctrl+t` and wait, and StumpWM lists the keys that can follow (its which-key-mode). Focus follows the mouse: pointing at a window focuses it, without a click. To click instead, put `(setf *mouse-focus-policy* :click)` in `user.lisp`.
 
 | Key | What it does |
 |---|---|
@@ -244,6 +244,7 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 | `s-1`…`s-9` | Go to a workspace |
 | `s-C-1`…`s-C-9` | Send the window to a workspace |
 | `s-m` | Vikix menu: the welcome and Add software, key help, all commands, the Vikix guide (in Info, or in the browser with its diagrams), "what does a key do?", themes, network, printers, backup now, screens, update, and Power (the same as `s-S-Escape`). An entry for a feature you don't have (JupyterLab, Zeal, Printers, Windows, local AI, Dropbox) is left out until you add it. *Apps* opens the programs of the features video, graphics, blender, study, passwords, phone and cli-extras, each once it's installed |
+| `s-/` | Every key at a glance: one card, grouped (apps, AI, windows, workspaces, notifications, screenshots, sound and screen, system, and yours). The next key closes it, and a key that does something does it too |
 | `s-F1` | Every key, searchable. Pick one to run it. |
 | `s-Escape` | Lock the screen |
 | `s-S-Escape` | Power: lock, suspend, log out, reboot, power off (Lock first, so a stray Enter is harmless) |

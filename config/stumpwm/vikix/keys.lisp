@@ -75,7 +75,8 @@
     ("s-p"    "beckon"            "Move the pointer to this window")
     ;; Vikix
     ("s-m"    "vikix-menu"      "Vikix menu")
-    ("s-F1"   "vikix-keys"      "These keys")
+    ("s-slash" "vikix-keys-card" "Every key at a glance, grouped; any key closes it")
+    ("s-F1"   "vikix-keys"      "Search the keys, and run one")
     ("s-ESC"  "exec vikix-lock"  "Lock the screen")
     ("s-S-ESC" "vikix-power"     "Power: lock, suspend, log out, reboot, power off")
     ("s-M-a"  "vikix-awake"      "Keep awake on/off: no lock, dark screen or suspend")
@@ -100,8 +101,10 @@
     ("XF86MonBrightnessUp"   "exec vikix-osd brightness up"  "Brightness up")
     ("XF86MonBrightnessDown" "exec vikix-osd brightness down" "Brightness down"))
   "Each entry: a key name, the StumpWM command it runs, and a description.
-The descriptions are what the key help (s-F1) shows, so this list is the
-one place a key is written down.")
+An optional fourth element names the group the key card (s-/) shows it
+in; without one, help.lisp works the group out from the command.
+The descriptions are what the key card (s-/) and the key help (s-F1)
+show, so this list is the one place a key is written down.")
 
 (dolist (binding *vikix-bindings*)
   (vikix-bind (first binding) (second binding)))
