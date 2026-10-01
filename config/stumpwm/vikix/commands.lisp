@@ -15,6 +15,110 @@ SHELL-COMMAND is wrapped in single quotes, so it must not contain one."
    (format nil "~a -e sh -c '~a; echo; echo Press Enter to close.; read x'"
            *vikix-terminal* shell-command)))
 
+;;; vikix learn: the lesson on one half of the screen, a shell in its folder
+;; on the other. vikix-learn-open takes the first empty workspace, splits it
+;; side by side and starts two terminals; as each window opens,
+;; vikix-learn-place puts it in its half by its class, whichever comes
+;; first. q in the lesson pane runs vikix-learn-close: the shell goes, the
+;; split with it, and you're back on the workspace you came from.
+
+(defparameter *vikix-learn-command* "vikix-learn"
+  "The program the two panes run: bin/vikix-learn, on PATH.")
+
+(defvar *vikix-learn-panes* nil
+  "While vikix learn is open: (GROUP LESSON-FRAME SHELL-FRAME FROM-GROUP).")
+
+(defun vikix-learn-window-p (window name)
+  (or (equal (window-class window) name) (equal (window-res window) name)))
+
+(defun vikix-learn-place (window)
+  "Put vikix learn's windows in their halves as they open."
+  (destructuring-bind (&optional group lesson shell from) *vikix-learn-panes*
+    (declare (ignore from))
+    (when (and group (eq (window-group window) group))
+      (let ((frame (cond ((vikix-learn-window-p window "vikix-learn-lesson") lesson)
+                         ((vikix-learn-window-p window "vikix-learn-shell") shell))))
+        (when (and frame (member frame (group-frames group)))
+          (pull-window window frame)
+          ;; The keys go to the lesson pane, whichever window opens last.
+          ;; StumpWM focuses a new window after this hook, so it's done a
+          ;; moment later (a whole second: a fractional delay in
+          ;; run-with-timer has stopped StumpWM's event loop before).
+          (run-with-timer 1 nil #'vikix-learn-focus-lesson))))))
+
+(defun vikix-learn-focus-lesson ()
+  (let ((w (vikix-learn-find-open)))
+    (when (and w (eq (window-group w) (current-group)))
+      (ignore-errors (focus-window w)))))
+
+(defun vikix-learn-find-open ()
+  "The lesson pane's window, on any workspace, if vikix learn is open."
+  (find-if (lambda (w) (vikix-learn-window-p w "vikix-learn-lesson"))
+           (screen-windows (current-screen))))
+
+(defun vikix-learn-empty-group ()
+  "The first workspace, by number, with no windows on it."
+  (find-if (lambda (g) (and (typep g 'tile-group) (null (group-windows g))))
+           (sort (copy-list (screen-groups (current-screen))) #'< :key #'group-number)))
+
+(defcommand vikix-learn-open (&optional (course "c")) ((:string "Course: "))
+  "vikix learn COURSE on a workspace of its own: the lesson on one half of
+the screen, and a shell in its folder on the other."
+  (let ((from (current-group))
+        (open (vikix-learn-find-open)))
+    (cond
+      ((not (every (lambda (c) (or (alphanumericp c) (char= c #\-))) course))
+       (message "No course called ~a" course))
+      ;; Open already: go to it rather than open a second pair.
+      (open
+       (switch-to-group (window-group open))
+       (focus-window open))
+      (t
+       (let ((group (or (vikix-learn-empty-group) from)))
+         (unless (eq group from)
+           (switch-to-group group))
+         (if (not (typep group 'tile-group))
+             (message "vikix learn needs a tiled workspace")
+             (progn
+               ;; On a workspace of your own windows (none was empty), the
+               ;; split is a layout change Super+u undoes.
+               (when (eq group from) (ignore-errors (vikix-record-layout)))
+               (when (and (not (eq group from)) (cdr (group-frames group)))
+                 (only))
+               (let* ((lesson (tile-group-current-frame group))
+                      (n (split-frame group :column)))
+                 (if (null n)
+                     (message "No room for two panes here")
+                     (let ((shell (frame-by-number group n)))
+                       (setf *vikix-learn-panes* (list group lesson shell from))
+                       (flet ((term (class args)
+                                (run-shell-command
+                                 (format nil "~a --class ~a -e env VIKIX_LEARN_PANES=1 ~a ~a ~a"
+                                         *vikix-terminal* class *vikix-learn-command* course args))))
+                         (term "vikix-learn-lesson" "view")
+                         (term "vikix-learn-shell" "shell"))))))))))))
+
+(defcommand vikix-learn-close () ()
+  "Go back to the workspace vikix learn was opened from, then close its
+shell pane and the split it had."
+  (destructuring-bind (&optional group lesson shell from) *vikix-learn-panes*
+    (declare (ignore lesson))
+    (setf *vikix-learn-panes* nil)
+    (when group
+      ;; Back first, while every window is still there: closing the shell
+      ;; first left StumpWM touching a window that was gone, in the
+      ;; middle of the switch (an X error, and you stayed behind).
+      (when (and from (not (eq from group)) (member from (screen-groups (current-screen))))
+        (ignore-errors (switch-to-group from)))
+      (dolist (w (group-windows group))
+        (when (vikix-learn-window-p w "vikix-learn-shell")
+          (ignore-errors (delete-window w))))
+      (when (and shell (member shell (group-frames group))
+                 (> (length (group-frames group)) 1))
+        (ignore-errors (remove-split group shell))))))
+
+(add-hook *new-window-hook* 'vikix-learn-place)
+
 (defcommand vikix-terminal () ()
   "Open a terminal: whichever program *vikix-terminal* names."
   (run-shell-command *vikix-terminal*))
@@ -102,7 +206,7 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
     ("Something's wrong? Ask the agent" (vikix-in-terminal "vikix diagnose"))
     ("A report of what's going on (vikix debug)" (vikix-in-terminal "vikix debug"))
     ("AI on the selected text" (run-shell-command "vikix-ask"))
-    ("Learn C: the course, in a terminal" (vikix-in-terminal "vikix learn c"))
+    ("Learn C: the lesson, and a shell beside it" (vikix-learn-open "c"))
     ("JupyterLab (in ~/dev)" (run-shell-command "vikix-jupyter") "~/dev/python/.venv/bin/jupyter")
     ("Programming docs (offline)" (run-shell-command "xdg-open ~/dev/index.html") "~/dev/index.html")
     ("Zeal: search the docs" (run-shell-command "zeal") "zeal")

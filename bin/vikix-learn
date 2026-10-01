@@ -3,13 +3,22 @@
 # real program you edit, save, and watch get checked.
 #
 #   vikix learn                  the courses there are
-#   vikix learn COURSE           the lesson you're on, then watch: each save
-#                                is checked, and passing moves you on
+#   vikix learn COURSE           two panes on the desktop: the lesson you're on,
+#                                from the top, and a shell in its folder; each
+#                                save is checked in the lesson pane (Super+m,
+#                                Learn C, is the same)
+#   vikix learn COURSE --here    the lesson pane in this terminal instead
+#   vikix learn COURSE next      on to the next lesson; prev goes back one
 #   vikix learn COURSE list      every lesson, ticked when done
 #   vikix learn COURSE go NN     go to lesson NN
 #   vikix learn COURSE hint      the next hint for this lesson
-#   vikix learn COURSE check     check once, without watching
+#   vikix learn COURSE check     check once (passing moves you on)
+#   vikix learn COURSE watch     the old way: check each save, in this terminal
 #   vikix learn COURSE reset NN  lesson NN's files as they came (after a snapshot)
+#
+# In the lesson pane: the arrows, PgUp/PgDn and Space scroll; n or Right
+# the next lesson, p or Left the one before; h a hint, c check now, r reset,
+# q quit. It remembers the lesson and where you were in it, and opens there.
 #
 # The course comes from Vikix (learn/COURSE/ in the checkout). Its lessons
 # are copied to ~/learn/COURSE/ the first time: those are your files, never
@@ -167,6 +176,54 @@ cmd_list() {
   done
 }
 
+# step +1|-1 — the next lesson, or the one before; stops at the ends.
+cmd_step() {
+  local l to
+  l=$(current)
+  if [ "$1" = +1 ]; then to=$(next_lesson "$l"); else to=$(lessons | grep -B1 -x "$l" | sed -n '1{/^'"$l"'$/!p}'); fi
+  if [ -z "$to" ]; then
+    if [ "$1" = +1 ]; then say "$l is the last lesson there is, for now"; else say "$l is the first lesson"; fi
+    return 1
+  fi
+  set_current "$to"
+  say "lesson $to"
+}
+
+# info [L] — the lesson pane's questions, as KEY=value lines.
+cmd_info() {
+  local l=${1:-$(current)} n total
+  n=$(lessons | grep -nx "$l" | cut -d: -f1)
+  total=$(lessons | wc -l)
+  printf 'title=%s\nlesson=%s\nnumber=%s\ntotal=%s\ndir=%s\nwork=%s\nstate=%s\ndone=%s\n' \
+    "$TITLE" "$l" "$n" "$total" "$WORKDIR/$l" "$WORK" "$STATE" "$(done_p "$l" && echo yes || echo no)"
+}
+
+# The shell pane: bash in the lesson's folder, which follows the lesson
+# pane: when it moves on, the shell goes there at its next prompt.
+cmd_shell() {
+  local rc="$STATE/shellrc" l
+  l=$(current)
+  # The lesson pane and this shell agree on one file: the lesson you're on.
+  set_current "$l"
+  cat > "$rc" <<RC
+# Written by vikix learn $COURSE shell, each time: the shell pane's settings.
+[ -f ~/.bashrc ] && . ~/.bashrc
+_vikix_learn_follow() {
+  local cur
+  cur=\$(cat '$STATE/current' 2>/dev/null) || return 0
+  [ -n "\$cur" ] && [ "\$cur" != "\${_vikix_learn_at:-}" ] || return 0
+  _vikix_learn_at=\$cur
+  cd '$WORKDIR'/"\$cur" 2>/dev/null || return 0
+  printf '\\n\\033[1m%s\\033[0m: edit %s here; the lesson pane checks every save.\\n' "\$cur" '$WORK'
+}
+_vikix_learn_at='$l'
+PROMPT_COMMAND="_vikix_learn_follow\${PROMPT_COMMAND:+;\$PROMPT_COMMAND}"
+RC
+  cd "$WORKDIR/$l" || die "no folder for the lesson"
+  printf '\033[1m%s\033[0m: edit %s here (nvim %s, or any editor); the lesson pane checks every save.\n' "$l" "$WORK" "$WORK"
+  exec bash --rcfile "$rc" -i
+}
+
 cmd_go() {
   local l
   l=$(lesson_named "${1:-}") || die "no lesson ${1:-}: vikix learn $COURSE list"
@@ -218,7 +275,25 @@ TITLE=$COURSE WORK=""
 . "$SRC/course.conf"
 copy_course
 
-case ${1:-watch} in
+# The two panes, through the running StumpWM; the lesson pane alone, here,
+# without a desktop (or with --here).
+cmd_open() {
+  if [ "${1:-}" != --here ] && [ -n "${DISPLAY:-}" ] &&
+     python3 "$VIKIX_DIR/bin/vikix-eval" "(vikix-learn-open \"$COURSE\")" >/dev/null 2>&1; then
+    say "the lesson and a shell, side by side (q in the lesson pane closes both)"
+    return 0
+  fi
+  exec python3 "$VIKIX_DIR/lib/learn-view.py" "$VIKIX_DIR/bin/vikix-learn" "$COURSE"
+}
+
+case ${1:-open} in
+  open|--here) cmd_open "${1:-}" ;;
+  view)  exec python3 "$VIKIX_DIR/lib/learn-view.py" "$VIKIX_DIR/bin/vikix-learn" "$COURSE" ;;
+  shell) cmd_shell ;;
+  next)  cmd_step +1 ;;
+  prev|back) cmd_step -1 ;;
+  info)  cmd_info "${2:-}" ;;
+  test)  l=$(lesson_named "${2:-}") || die "which lesson? vikix learn $COURSE test NN"; check_once "$l" ;;
   watch) cmd_watch ;;
   list)  cmd_list ;;
   go)    cmd_go "${2:-}" ;;

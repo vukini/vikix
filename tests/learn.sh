@@ -146,7 +146,7 @@ check "reset should bring the exercise back as it came" cmp -s "$course/$last/ex
 
 # watch: a save is checked, and passing moves on.
 vl c go "${second%%-*}" >/dev/null 2>&1
-vl c > "$t/watch" 2>&1 &
+vl c watch > "$t/watch" 2>&1 &
 watch_pid=$!
 for _ in $(seq 1 100); do grep -q 'watching' "$t/watch" && break; sleep 0.1; done
 cp "$course/$second/solution.c" "$work/$second/exercise.c"
@@ -155,5 +155,60 @@ kill "$watch_pid" 2>/dev/null || true
 check "watch should check a save and mark the lesson done: $(tail -5 "$t/watch")" grep -q "lesson $second: done" "$t/watch"
 check "and show the next lesson" grep -q "lesson 3 of" "$t/watch"
 
-[ "$fail" = 0 ] && echo "learn: every C lesson's example and quoted output hold, its exercise fails and its answer passes; the runner copies once, checks, hints, moves on, resets and watches"
+# --- next, prev, info, test, and the shell pane following the lesson --------------------
+rm -rf "$VIKIX_STATE/learn"
+vl c go 01 >/dev/null 2>&1
+vl c prev > "$t/out" 2>&1 && { echo "FAIL: prev from the first lesson should say there's none"; fail=1; }
+check "prev at the first lesson should say so" grep -q 'is the first lesson' "$t/out"
+vl c next >/dev/null 2>&1
+check "next should move to the second lesson" test "$(cat "$VIKIX_STATE/learn/c/current")" = "$second"
+vl c prev >/dev/null 2>&1
+check "prev should move back" test "$(cat "$VIKIX_STATE/learn/c/current")" = "$first"
+vl c go "${last%%-*}" >/dev/null 2>&1
+vl c next > "$t/out" 2>&1 && { echo "FAIL: next from the last lesson should say there's none"; fail=1; }
+check "and stay at the last" test "$(cat "$VIKIX_STATE/learn/c/current")" = "$last"
+out=$(vl c info 2>&1)
+check "info should say the lesson and where it is: $out" grep -qx "dir=$work/$last" <<<"$out"
+vl c test 01 >/dev/null 2>&1 || true
+check "test NN shouldn't move you" test "$(cat "$VIKIX_STATE/learn/c/current")" = "$last"
+# The shell pane: its settings follow the lesson pane at each prompt.
+vl c go 01 >/dev/null 2>&1
+timeout 5 bash -c "$(printf '%q ' bash "$here/bin/vikix-learn" c shell)" </dev/null >/dev/null 2>&1 || true
+rc="$VIKIX_STATE/learn/c/shellrc"
+check "the shell pane should write its settings" test -f "$rc"
+out=$(cd / && bash -c ". '$rc'; echo \"\$_vikix_learn_at\"; echo '$second' > '$VIKIX_STATE/learn/c/current'; _vikix_learn_follow >/dev/null; pwd" 2>&1)
+check "the shell should start on the lesson, and follow it to the next: $out" \
+  test "$(printf '%s\n' "$first" "$work/$second")" = "$out"
+
+# --- the lesson pane ------------------------------------------------------------------------
+vl c go 01 >/dev/null 2>&1
+out=$(python3 "$here/lib/learn-view.py" "$here/bin/vikix-learn" c --dump 70)
+check "the pane should show the lesson's heading first: $(head -1 <<<"$out")" grep -qx '# 01 · The four stages' <<<"$(head -1 <<<"$out")"
+check "headings without backticks" bash -c "! grep -q '^# .*\`' <<<\"\$1\"" _ "$out"
+check "and without the evidence markers" bash -c "! grep -q 'output:' <<<\"\$1\"" _ "$out"
+# A real run on a pseudo-terminal: n moves on, q quits, and the place is kept.
+python3 - "$here" <<'PY2' > "$t/out" 2>&1 || { echo "FAIL: the lesson pane didn't run on a terminal:"; cat "$t/out"; fail=1; }
+import os, pty, select, sys, time
+here = sys.argv[1]
+pid, fd = pty.fork()
+if pid == 0:
+    os.environ.update(TERM="xterm", LINES="30", COLUMNS="90")
+    os.execvp("python3", ["python3", f"{here}/lib/learn-view.py", f"{here}/bin/vikix-learn", "c"])
+def drain(seconds):
+    end = time.time() + seconds
+    while time.time() < end:
+        r, _, _ = select.select([fd], [], [], 0.1)
+        if r:
+            try:
+                os.read(fd, 65536)
+            except OSError:
+                return
+drain(2); os.write(fd, b"j"); drain(0.5); os.write(fd, b"n"); drain(2); os.write(fd, b"q"); drain(2)
+_, status = os.waitpid(pid, 0)
+sys.exit(os.waitstatus_to_exitcode(status))
+PY2
+check "n in the pane should move to the next lesson" test "$(cat "$VIKIX_STATE/learn/c/current")" = "$second"
+check "and the place in the lesson before should be kept" test -f "$VIKIX_STATE/learn/c/pos-$first"
+
+[ "$fail" = 0 ] && echo "learn: every C lesson's example and quoted output hold, its exercise fails and its answer passes; the runner copies once, checks, hints, moves on, resets and watches; next and prev stop at the ends, the shell pane follows the lesson, and the lesson pane renders, moves on and keeps your place"
 exit "$fail"

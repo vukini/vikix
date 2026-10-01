@@ -813,15 +813,20 @@ Only installed languages get a folder. `~/dev` is yours: Vikix only adds to it, 
 
 A course in the terminal, where every lesson is a real program you edit, save, and watch get checked. It starts past the basics: the toolchain, the machine, what C really does.
 
-```sh
-vikix learn c            # the lesson you're on; then each save is checked, and passing moves you on
-vikix learn c list       # every lesson, ticked when done
-vikix learn c hint       # the next hint, one at a time
-vikix learn c go 03      # another lesson
-vikix learn c reset 03   # a lesson's files as they came (after a snapshot: vikix undo brings yours back)
-```
+`vikix learn c`, or `s-m` → *Learn C*, opens the course on the first empty workspace, in two halves: the lesson on the left, from the top, and on the right a shell in that lesson's folder, to edit and run things in. Save `exercise.c` and the lesson pane checks it, below the lesson. In the lesson pane:
 
-- **Each lesson** is a folder in `~/learn/c/`: `lesson.md` to read, `example.c`, complete and commented, and `exercise.c`, which is yours to change. When the checks pass, delete the `// NOT DONE` line and the next lesson opens.
+| Key | |
+|---|---|
+| arrows, PgUp/PgDn, Space | scroll the lesson |
+| `n` or Right, `p` or Left | the next lesson, the one before (the shell follows at its next prompt) |
+| `h` | a hint, one at a time |
+| `c` | check now |
+| `r` | the lesson's files as they came (after a snapshot: `vikix undo` brings yours back) |
+| `q` | close both, and back to the workspace you were on |
+
+It remembers the lesson and where you were in it, and opens there next time. From a shell, the same: `vikix learn c next`, `prev`, `list`, `hint`, `go 03`, `reset 03`; `vikix learn c --here` puts the lesson pane in the terminal you're in.
+
+- **Each lesson** is a folder in `~/learn/c/`: `lesson.md` to read, `example.c`, complete and commented, and `exercise.c`, which is yours to change. When the checks pass, delete the `// NOT DONE` line, and `n` goes on.
 - **The checks** compile with `-std=c17 -Wall -Wextra -pedantic`, warnings as errors, and run everything under AddressSanitizer and UBSan: an answer that prints the right thing and reads past an array, or overflows an int, isn't done. They show only the first thing that failed. They stay Vikix's (`~/vikix/learn/c/`), so a fix reaches you with `vikix update`; your files in `~/learn` are yours, in your snapshot history.
 - **Every output a lesson quotes** came from running it, and `tests/learn.sh` runs it again: a gcc that behaves differently fails the test, not the reader.
 - **So far:** three lessons, one each from the plan's first tracks: the four stages of `cc`, the design recipe, pointers and `my_strlen`. [TUTORIALS.md](TUTORIALS.md) is the plan, twelve tracks. `vikix learn` itself knows nothing about C, so other languages can follow.
