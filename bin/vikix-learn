@@ -22,7 +22,7 @@
 #
 # The course comes from Vikix (learn/COURSE/ in the checkout). Its lessons
 # are copied to ~/learn/COURSE/ the first time: those are your files, never
-# overwritten, and in your snapshot history (vikix undo). The checks stay
+# overwritten (but lesson.md, the text, which follows Vikix's), and in your snapshot history (vikix undo). The checks stay
 # Vikix's, so a fix to one reaches you with vikix update. Your progress is
 # in ~/.local/state/vikix/learn/COURSE/.
 #
@@ -120,6 +120,11 @@ copy_lesson() {
     case " $NOT_COPIED " in *" $name "*) continue ;; esac
     case $name in solution*) continue ;; esac
     if [ "$force" = --force ] || [ ! -e "$WORKDIR/$l/$name" ]; then
+      cp "$f" "$WORKDIR/$l/$name"
+    elif [ "$name" = lesson.md ] && ! cmp -s "$f" "$WORKDIR/$l/$name"; then
+      # The lesson's text is Vikix's to keep current, not yours to change:
+      # a renamed lesson kept its old heading ("02" at lesson 08), and a
+      # fixed sentence would never have reached you.
       cp "$f" "$WORKDIR/$l/$name"
     fi
   done

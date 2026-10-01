@@ -829,7 +829,7 @@ A course in the terminal, where every lesson is a real program you edit, save, a
 
 It remembers the lesson and where you were in it, and opens there next time. From a shell, the same: `vikix learn c next`, `prev`, `list`, `hint`, `go 03`, `reset 03`; `vikix learn c --here` puts the lesson pane in the terminal you're in.
 
-- **Each lesson** is a folder in `~/learn/c/`: `lesson.md` to read, `example.c`, complete and commented, and `exercise.c`, which is yours to change. When the checks pass, delete the `// NOT DONE` line, and `n` goes on.
+- **Each lesson** is a folder in `~/learn/c/`: `lesson.md` to read (Vikix keeps it current, so a corrected lesson reaches you), `example.c`, complete and commented, and `exercise.c`, which is yours to change and never overwritten. When the checks pass, delete the `// NOT DONE` line, and `n` goes on.
 - **The checks** compile with `-std=c17 -Wall -Wextra -pedantic`, warnings as errors, and run everything under AddressSanitizer and UBSan: an answer that prints the right thing and reads past an array, or overflows an int, isn't done. They show only the first thing that failed. They stay Vikix's (`~/vikix/learn/c/`), so a fix reaches you with `vikix update`; your files in `~/learn` are yours, in your snapshot history.
 - **Every output a lesson quotes** came from running it, and `tests/learn.sh` runs it again: a gcc that behaves differently fails the test, not the reader.
 - **So far:** tracks 1 to 4 of the plan's twelve, fourteen lessons, each track ending in a small project. [TUTORIALS.md](TUTORIALS.md) is the plan. `vikix learn` itself knows nothing about C, so other languages can follow.

@@ -116,8 +116,10 @@ check "the lessons should be copied" test -f "$work/$first/exercise.c"
 check "the checks shouldn't be copied" test ! -e "$work/$first/check.sh"
 check "the answers shouldn't be copied" test ! -e "$work/$first/solution.c"
 echo '/* mine */' >> "$work/$first/exercise.c"
+echo "# an old heading" > "$work/$first/lesson.md"
 vl c list >/dev/null 2>&1
 check "a second run shouldn't overwrite your work" grep -qF '/* mine */' "$work/$first/exercise.c"
+check "but the lesson's text should follow Vikix's" cmp -s "$course/$first/lesson.md" "$work/$first/lesson.md"
 
 # Hints: one at a time, never past the last.
 out=$(vl c hint 2>&1)
@@ -196,12 +198,14 @@ check "the shell should start on the lesson, and follow it to the next: $out" \
 rm -rf "$VIKIX_STATE/learn" "$work"
 mkdir -p "$work/02-the-design-recipe" "$VIKIX_STATE/learn/c"
 echo "/* my digits */" > "$work/02-the-design-recipe/exercise.c"
+echo "# 02 · The design recipe" > "$work/02-the-design-recipe/lesson.md"
 printf '01-the-four-stages\n02-the-design-recipe\n' > "$VIKIX_STATE/learn/c/done"
 echo 03-pointers-and-strlen > "$VIKIX_STATE/learn/c/current"
 echo 12 > "$VIKIX_STATE/learn/c/pos-03-pointers-and-strlen"
 echo 2 > "$VIKIX_STATE/learn/c/hints-02-the-design-recipe"
 vl c list >/dev/null 2>&1
 check "the old 02 folder should move to its new name, your work in it" grep -qF '/* my digits */' "$work/08-the-design-recipe/exercise.c"
+check "with the new lesson's text (its heading 08, not 02)" grep -q '^# 08 ' "$work/08-the-design-recipe/lesson.md"
 check "and not be left behind" test ! -e "$work/02-the-design-recipe"
 check "done should name the new lesson" grep -qx '08-the-design-recipe' "$VIKIX_STATE/learn/c/done"
 check "the lesson you were on should be the new name" test "$(cat "$VIKIX_STATE/learn/c/current")" = 11-pointers-and-strlen
