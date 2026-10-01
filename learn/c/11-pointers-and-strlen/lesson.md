@@ -1,4 +1,4 @@
-# 03 · Pointers and my_strlen
+# 11 · Pointers and my_strlen
 
 A pointer is an address. `*p` is what's at that address; `p + 1` is the address of the next element, however many bytes an element takes. A string in C is chars in a row, ended by a `'\0'`, and a pointer walking along it is how most string code works.
 

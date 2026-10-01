@@ -1,0 +1,4 @@
+# renames — lessons that moved when the course grew (0.71.22): your folder
+# and progress move with them (bin/vikix-learn). OLD NEW, a line.
+02-the-design-recipe 08-the-design-recipe
+03-pointers-and-strlen 11-pointers-and-strlen

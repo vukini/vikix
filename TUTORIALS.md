@@ -1,6 +1,6 @@
 # Tutorials: `vikix learn`
 
-The plan for courses inside Vikix, starting with C. Drafted 2026-09-28. Status: **Phase 0 shipped in 0.71.18** (the runner and three lessons); the decisions are made (at the end); Phase 1 is next. `TODO.md` points here.
+The plan for courses inside Vikix, starting with C. Drafted 2026-09-28. Status: **Phase 0 shipped in 0.71.18** (the runner and three lessons), **Phase 1 in 0.71.22** (tracks 1 to 4, fourteen lessons); the decisions are made (at the end); Phase 2 is next. `TODO.md` points here.
 
 What's there now is very basic: the README's Languages section, with a "try it" column, and the examples in `~/dev/<language>/examples/`. C needs much better tutorials, and they should live inside Vikix.
 
@@ -25,7 +25,7 @@ So `vikix learn c` only needs `vikix add c` first, and can offer to run it.
 
 The Bottom-Up C work supplies the evidence. It has 14 measured findings, for example:
 
-- `-lm` is optional at `-O2`
+- `-lm` is optional at `-O2`. **Corrected when lesson 03 was written (gcc 14.2, 2026-10-01):** not as stated. `-lm` isn't needed when gcc can work `sqrt` out itself (a constant: `sqrt(2.0)`, at any `-O`, even `-O0`), and is needed when the program calls it while it runs, at any `-O`. Link order mattered for a static archive (`libarea.a` before the object failed) and not for the shared libm.
 - archive link order matters
 - `-Wall -Wextra` miss `signed char s = 200`, and `-pedantic` catches it
 - a megabyte of bss costs nothing in the file

@@ -1,4 +1,4 @@
-# 02 · The design recipe
+# 08 · The design recipe
 
 Most bugs in a function come from writing its body before knowing what it's for. The design recipe is six steps, in order, and each one is checked before the next, so you're never debugging a whole function at once.
 

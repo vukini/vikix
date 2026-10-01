@@ -2,7 +2,7 @@
 . "$LEARN_LIB"
 
 # 2. A purpose statement above the signature.
-grep -q 'write it here' exercise.c && fail "write the purpose statement: one sentence, in place of \"write it here\""
+grep -qF '/* 2. Purpose: write it here. */' exercise.c && fail "write the purpose statement: one sentence, in place of \"write it here\""
 grep -B3 '^int digits(int n);' exercise.c | grep -q '/\*\|//' || fail "a purpose statement goes just above int digits(int n);"
 pass "the signature has its purpose"
 

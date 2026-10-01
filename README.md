@@ -829,7 +829,14 @@ It remembers the lesson and where you were in it, and opens there next time. Fro
 - **Each lesson** is a folder in `~/learn/c/`: `lesson.md` to read, `example.c`, complete and commented, and `exercise.c`, which is yours to change. When the checks pass, delete the `// NOT DONE` line, and `n` goes on.
 - **The checks** compile with `-std=c17 -Wall -Wextra -pedantic`, warnings as errors, and run everything under AddressSanitizer and UBSan: an answer that prints the right thing and reads past an array, or overflows an int, isn't done. They show only the first thing that failed. They stay Vikix's (`~/vikix/learn/c/`), so a fix reaches you with `vikix update`; your files in `~/learn` are yours, in your snapshot history.
 - **Every output a lesson quotes** came from running it, and `tests/learn.sh` runs it again: a gcc that behaves differently fails the test, not the reader.
-- **So far:** three lessons, one each from the plan's first tracks: the four stages of `cc`, the design recipe, pointers and `my_strlen`. [TUTORIALS.md](TUTORIALS.md) is the plan, twelve tracks. `vikix learn` itself knows nothing about C, so other languages can follow.
+- **So far:** tracks 1 to 4 of the plan's twelve, fourteen lessons, each track ending in a small project. [TUTORIALS.md](TUTORIALS.md) is the plan. `vikix learn` itself knows nothing about C, so other languages can follow.
+
+| Track | Lessons |
+|---|---|
+| 1 · The toolchain | 01 the four stages of `cc` · 02 what the warnings catch (and that some need `-O2`) · 03 the linker: `nm`, `-lm`, archive order · 04 *project:* a Makefile that rebuilds only what changed |
+| 2 · Values and bits | 05 integers and overflow · 06 signed and unsigned · 07 *project:* bits and `printbits` |
+| 3 · Control and functions | 08 the design recipe · 09 loops, and finding a bug with `gdb` · 10 *project:* numbers with commas, `LLONG_MIN` included |
+| 4 · Pointers and arrays | 11 pointers and `my_strlen` · 12 out-parameters · 13 arrays in functions · 14 *project:* `my_memcpy`, `my_memset`, `my_strcmp` |
 
 ### Python and JupyterLab
 

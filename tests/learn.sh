@@ -30,59 +30,65 @@ course="$here/learn/c"
 # --- the course ------------------------------------------------------------------
 for dir in "$course"/[0-9][0-9]-*/; do
   l=$(basename "$dir")
-  for f in lesson.md example.c exercise.c check.sh hints.md solution.c; do
-    check "$l should have $f" test -f "$dir/$f"
+  # The files you work in (exercise.c, or the lesson's own list), and the
+  # worked answer for each: solution.c for exercise.c, solution.NAME else.
+  work=$(cat "$dir/work" 2>/dev/null || echo exercise.c)
+  for f in lesson.md check.sh hints.md; do check "$l should have $f" test -f "$dir/$f"; done
+  for wf in $work; do
+    sol=solution.c; [ "$wf" = exercise.c ] || sol="solution.$wf"
+    check "$l should have $wf and its answer $sol" test -f "$dir/$wf" -a -f "$dir/$sol"
+    check "$l's $wf should have the NOT DONE line" grep -qE '^(//|#) NOT DONE$' "$dir/$wf"
+    check "$l's answer shouldn't" bash -c "! grep -qE '^(//|#) NOT DONE$' '$dir/$sol'"
+    # The answer is the exercise as a learner leaves it: its instructions
+    # kept. (Lesson 08's check once refused any file with "write it here"
+    # in it, the instructions included, and an answer written from scratch
+    # hid that.)
+    check "$l's answer should keep $wf's instructions" python3 -c '
+import sys
+ex, sol = (open(f).read().split("\n") for f in sys.argv[1:3])
+head = []
+for line in ex[1:]:
+    if line.strip() in ("*/", "// NOT DONE", "# NOT DONE") or line.startswith("# NOT DONE"):
+        break
+    head.append(line)
+missing = [l for l in head if l not in sol]
+sys.exit(1 if missing else 0)' "$dir/$wf" "$dir/$sol"
   done
-  check "$l's exercise should have the NOT DONE line" grep -qx '// NOT DONE' "$dir/exercise.c"
-  check "$l's answer shouldn't" bash -c "! grep -qx '// NOT DONE' '$dir/solution.c'"
 
   w="$t/c-$l"; cp -r "$dir" "$w"
-  ( cd "$w" && cc -std=c17 -Wall -Wextra -pedantic -Werror -g -o example example.c ) > "$t/out" 2>&1 ||
-    { echo "FAIL: $l's example should compile without a warning:"; cat "$t/out"; fail=1; }
-  check "$l's example should run" bash -c "cd '$w' && ./example >/dev/null"
-  # The evidence rule: each quoted output, made again.
-  python3 - "$w" <<'PY' > "$t/out" 2>&1 || { echo "FAIL: $l's lesson.md quotes an output its command doesn't print now:"; cat "$t/out"; fail=1; }
-import re, subprocess, sys
-d = sys.argv[1]
-lines = open(f"{d}/lesson.md").read().split("\n")
-bad, seen = 0, 0
-for i, line in enumerate(lines):
-    m = re.fullmatch(r"<!-- output: (.+) -->", line.strip())
-    if not m:
-        continue
-    seen += 1
-    assert lines[i + 1].startswith("```"), f"no block after the marker on line {i + 1}"
-    end = next(j for j in range(i + 2, len(lines)) if lines[j].startswith("```"))
-    quoted = "\n".join(lines[i + 2:end])
-    got = subprocess.run(["bash", "-c", m.group(1)], cwd=d, capture_output=True, text=True).stdout.rstrip("\n")
-    if got != quoted:
-        bad += 1
-        print(f"  {m.group(1)}\n  quoted:\n{quoted}\n  now:\n{got}")
-assert seen, "no quoted outputs at all"
-sys.exit(bad)
-PY
+  if [ -f "$dir/example.c" ]; then
+    ( cd "$w" && cc -std=c17 -Wall -Wextra -pedantic -Werror -g -o example example.c ) > "$t/out" 2>&1 ||
+      { echo "FAIL: $l's example should compile without a warning:"; cat "$t/out"; fail=1; }
+    check "$l's example should run" bash -c "cd '$w' && ./example >/dev/null"
+  fi
+  # The evidence rule: each quoted output, made again (learn/outputs.py).
+  python3 "$here/learn/outputs.py" "$dir" > "$t/out" 2>&1 ||
+    { echo "FAIL: $l's lesson.md quotes an output its command doesn't print now:"; cat "$t/out"; fail=1; }
   # As shipped, the exercise isn't done; the answer is.
   check "$l as shipped shouldn't pass its check" \
     bash -c "! (cd '$w' && LEARN_LIB='$course/lib.sh' bash '$dir/check.sh') >/dev/null 2>&1"
-  cp "$dir/solution.c" "$w/exercise.c"
+  for wf in $work; do
+    sol=solution.c; [ "$wf" = exercise.c ] || sol="solution.$wf"
+    cp "$dir/$sol" "$w/$wf"
+  done
   ( cd "$w" && LEARN_LIB="$course/lib.sh" bash "$dir/check.sh" ) > "$t/out" 2>&1 ||
     { echo "FAIL: $l's answer should pass its check:"; cat "$t/out"; fail=1; }
 done
 
 # --- wrong answers the sanitizers catch (where they're installed) --------------------
 if printf 'int main(void){return 0;}\n' | cc -fsanitize=address,undefined -x c -o /dev/null - 2>/dev/null; then
-  w="$t/wrong-02"; cp -r "$course/02-the-design-recipe" "$w"
+  w="$t/wrong-08"; cp -r "$course/08-the-design-recipe" "$w"
   # Negating first: -INT_MIN overflows, which only UBSan sees.
-  sed 's|^    int count = 1;$|    if (n < 0)\n        n = -n;\n    int count = 1;|' "$course/02-the-design-recipe/solution.c" > "$w/exercise.c"
-  out=$(cd "$w" && LEARN_LIB="$course/lib.sh" bash "$course/02-the-design-recipe/check.sh" 2>&1) &&
+  sed 's|^    int count = 1;$|    if (n < 0)\n        n = -n;\n    int count = 1;|' "$course/08-the-design-recipe/solution.c" > "$w/exercise.c"
+  out=$(cd "$w" && LEARN_LIB="$course/lib.sh" bash "$course/08-the-design-recipe/check.sh" 2>&1) &&
     { echo "FAIL: digits that negates INT_MIN passed"; fail=1; }
   check "UBSan should name the overflow, briefly: $out" grep -q 'exercise.c:[0-9]*: runtime error: negation of -2147483648' <<<"$out"
   check "and leave out the C library's frames: $out" bash -c "! grep -q 'libc' <<<\"\$1\"" _ "$out"
-  w="$t/wrong-03"; cp -r "$course/03-pointers-and-strlen" "$w"
+  w="$t/wrong-11"; cp -r "$course/11-pointers-and-strlen" "$w"
   # Looking one char past the '\0': only ASan sees it.
-  sed "s|^    while (\*p != '\\\\0')$|    while (*p != '\\\\0' \|\| p[1] != '\\\\0')|" "$course/03-pointers-and-strlen/solution.c" > "$w/exercise.c"
+  sed "s|^    while (\*p != '\\\\0')$|    while (*p != '\\\\0' \|\| p[1] != '\\\\0')|" "$course/11-pointers-and-strlen/solution.c" > "$w/exercise.c"
   grep -q 'p\[1\]' "$w/exercise.c" || { echo "FAIL: the test couldn't make its wrong my_strlen"; fail=1; }
-  out=$(cd "$w" && LEARN_LIB="$course/lib.sh" bash "$course/03-pointers-and-strlen/check.sh" 2>&1) &&
+  out=$(cd "$w" && LEARN_LIB="$course/lib.sh" bash "$course/11-pointers-and-strlen/check.sh" 2>&1) &&
     { echo "FAIL: my_strlen reading past the end passed"; fail=1; }
   check "ASan should say where it read: $out" grep -q 'in my_strlen, exercise.c:[0-9]' <<<"$out"
   check "without the shadow-byte map: $out" bash -c "! grep -q 'Shadow' <<<\"\$1\"" _ "$out"
@@ -180,6 +186,31 @@ out=$(cd / && bash -c ". '$rc'; echo \"\$_vikix_learn_at\"; echo '$second' > '$V
 check "the shell should start on the lesson, and follow it to the next: $out" \
   test "$(printf '%s\n' "$first" "$work/$second")" = "$out"
 
+# --- renamed lessons keep your work, and a lesson can name its own files ----------------------
+# As someone who had done the old 02 and was on the old 03 (before 0.71.22):
+rm -rf "$VIKIX_STATE/learn" "$work"
+mkdir -p "$work/02-the-design-recipe" "$VIKIX_STATE/learn/c"
+echo "/* my digits */" > "$work/02-the-design-recipe/exercise.c"
+printf '01-the-four-stages\n02-the-design-recipe\n' > "$VIKIX_STATE/learn/c/done"
+echo 03-pointers-and-strlen > "$VIKIX_STATE/learn/c/current"
+echo 12 > "$VIKIX_STATE/learn/c/pos-03-pointers-and-strlen"
+echo 2 > "$VIKIX_STATE/learn/c/hints-02-the-design-recipe"
+vl c list >/dev/null 2>&1
+check "the old 02 folder should move to its new name, your work in it" grep -qF '/* my digits */' "$work/08-the-design-recipe/exercise.c"
+check "and not be left behind" test ! -e "$work/02-the-design-recipe"
+check "done should name the new lesson" grep -qx '08-the-design-recipe' "$VIKIX_STATE/learn/c/done"
+check "the lesson you were on should be the new name" test "$(cat "$VIKIX_STATE/learn/c/current")" = 11-pointers-and-strlen
+check "your place in it should move too" test "$(cat "$VIKIX_STATE/learn/c/pos-11-pointers-and-strlen" 2>/dev/null)" = 12
+check "and the hints you'd seen" test "$(cat "$VIKIX_STATE/learn/c/hints-08-the-design-recipe" 2>/dev/null)" = 2
+vl c list >/dev/null 2>&1
+check "a second run should change nothing" grep -qF '/* my digits */' "$work/08-the-design-recipe/exercise.c"
+vl c go 04 >/dev/null 2>&1
+out=$(vl c info 2>&1)
+check "a lesson's own work files should be what info names: $out" grep -qx 'work=Makefile' <<<"$out"
+check "its answer shouldn't be copied" test ! -e "$work/04-make/solution.Makefile"
+check "nor its list of work files" test ! -e "$work/04-make/work"
+check "but its Makefile should" test -f "$work/04-make/Makefile"
+
 # --- the lesson pane ------------------------------------------------------------------------
 vl c go 01 >/dev/null 2>&1
 out=$(python3 "$here/lib/learn-view.py" "$here/bin/vikix-learn" c --dump 70)
@@ -210,5 +241,5 @@ PY2
 check "n in the pane should move to the next lesson" test "$(cat "$VIKIX_STATE/learn/c/current")" = "$second"
 check "and the place in the lesson before should be kept" test -f "$VIKIX_STATE/learn/c/pos-$first"
 
-[ "$fail" = 0 ] && echo "learn: every C lesson's example and quoted output hold, its exercise fails and its answer passes; the runner copies once, checks, hints, moves on, resets and watches; next and prev stop at the ends, the shell pane follows the lesson, and the lesson pane renders, moves on and keeps your place"
+[ "$fail" = 0 ] && echo "learn: every C lesson's example and quoted output hold, its exercise fails and its answer passes; the runner copies once, checks, hints, moves on, resets and watches; next and prev stop at the ends, the shell pane follows the lesson, and the lesson pane renders, moves on and keeps your place; renamed lessons keep your work, and a lesson can name its own files"
 exit "$fail"

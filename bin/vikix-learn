@@ -28,7 +28,10 @@
 #
 # This knows nothing about any language: a course is a folder with a
 # course.conf (TITLE, and WORK, the files you work in) and lessons NN-name/,
-# each with lesson.md, the files to copy, a check.sh and hints.md.
+# each with lesson.md, the files to copy, a check.sh and hints.md; a lesson
+# whose work is in other files names them in its own file "work". A course
+# that renames lessons lists them in "renames" (OLD NEW a line): your
+# folders and progress move with them.
 
 set -uo pipefail
 VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
@@ -38,8 +41,9 @@ COURSES="$VIKIX_DIR/learn"
 LEARN_HOME=${VIKIX_LEARN_HOME:-$HOME/learn}
 LEARN_STATE="$VIKIX_STATE/learn"
 POLL=${VIKIX_LEARN_POLL:-0.5}   # seconds between looks at your file while watching
-# Files that stay Vikix's: the checks, and the worked answers.
-NOT_COPIED="check.sh solution.c"
+# Files that stay Vikix's: the checks, a lesson's list of work files, and
+# the worked answers (solution*).
+NOT_COPIED="check.sh work"
 
 courses() {
   local d
@@ -68,6 +72,34 @@ lesson_named() {
 
 done_p() { grep -qx "$1" "$STATE/done" 2>/dev/null; }
 
+# work_of L — the files you work in for lesson L: its own list, or the course's.
+work_of() {
+  if [ -f "$SRC/$1/work" ]; then tr '\n' ' ' < "$SRC/$1/work" | sed 's/ *$//'
+  else printf '%s' "$WORK"; fi
+}
+
+# A lesson that has a new name (the course put lessons in a new order):
+# your folder and your progress go with it, once. Never over a lesson of
+# the new name that you have already.
+apply_renames() {
+  local old new f
+  [ -f "$SRC/renames" ] || return 0
+  while read -r old new; do
+    [ -n "$old" ] && [ -n "$new" ] || continue
+    if [ -d "$WORKDIR/$old" ] && [ ! -e "$WORKDIR/$new" ]; then
+      mv "$WORKDIR/$old" "$WORKDIR/$new"
+    fi
+    [ -d "$STATE" ] || continue
+    for f in pos hints; do
+      if [ -f "$STATE/$f-$old" ] && [ ! -e "$STATE/$f-$new" ]; then mv "$STATE/$f-$old" "$STATE/$f-$new"; fi
+    done
+    if [ -f "$STATE/done" ] && grep -qx "$old" "$STATE/done"; then
+      sed -i "s/^$old\$/$new/" "$STATE/done"
+    fi
+    if [ "$(cat "$STATE/current" 2>/dev/null)" = "$old" ]; then echo "$new" > "$STATE/current"; fi
+  done < <(read_list "$SRC/renames")
+}
+
 current() {
   local l
   l=$(cat "$STATE/current" 2>/dev/null) && [ -n "$l" ] && [ -d "$SRC/$l" ] && { echo "$l"; return; }
@@ -86,6 +118,7 @@ copy_lesson() {
   for f in "$SRC/$l"/*; do
     name=$(basename "$f")
     case " $NOT_COPIED " in *" $name "*) continue ;; esac
+    case $name in solution*) continue ;; esac
     if [ "$force" = --force ] || [ ! -e "$WORKDIR/$l/$name" ]; then
       cp "$f" "$WORKDIR/$l/$name"
     fi
@@ -111,8 +144,8 @@ show_lesson() {
 # marked done; 1: a check failed; 2: passed, but NOT DONE is still there.
 check_once() {
   local l=$1 f
-  ( cd "$WORKDIR/$l" && LEARN_LIB="$SRC/lib.sh" bash "$SRC/$l/check.sh" ) || return 1
-  for f in $WORK; do
+  ( cd "$WORKDIR/$l" && LEARN_LIB="$SRC/lib.sh" LEARN_LESSON="$SRC/$l" bash "$SRC/$l/check.sh" ) || return 1
+  for f in $(work_of "$l"); do
     # The marker is a line of its own (a comment in the course's language);
     # the lesson's text may mention it.
     if grep -qE '^[[:space:]]*(//|#|;+|--)[[:space:]]*NOT DONE[[:space:]]*$' "$WORKDIR/$l/$f" 2>/dev/null; then
@@ -131,7 +164,7 @@ next_lesson() { lessons | grep -A1 -x "$1" | sed -n 2p; }
 
 stamp() {
   local f out=""
-  for f in $WORK; do out+=$(stat -c '%Y %s' "$WORKDIR/$1/$f" 2>/dev/null); done
+  for f in $(work_of "$1"); do out+=$(stat -c '%Y %s' "$WORKDIR/$1/$f" 2>/dev/null); done
   echo "$out"
 }
 
@@ -139,7 +172,7 @@ cmd_watch() {
   local l last now next
   l=$(current)
   show_lesson "$l"
-  say "watching $(for f in $WORK; do printf '%s ' "$l/$f"; done): save it in your editor and it's checked (Ctrl+C stops)"
+  say "watching $(for f in $(work_of "$l"); do printf '%s ' "$l/$f"; done): save it in your editor and it's checked (Ctrl+C stops)"
   last=""
   while :; do
     now=$(stamp "$l")
@@ -195,7 +228,7 @@ cmd_info() {
   n=$(lessons | grep -nx "$l" | cut -d: -f1)
   total=$(lessons | wc -l)
   printf 'title=%s\nlesson=%s\nnumber=%s\ntotal=%s\ndir=%s\nwork=%s\nstate=%s\ndone=%s\n' \
-    "$TITLE" "$l" "$n" "$total" "$WORKDIR/$l" "$WORK" "$STATE" "$(done_p "$l" && echo yes || echo no)"
+    "$TITLE" "$l" "$n" "$total" "$WORKDIR/$l" "$(work_of "$l")" "$STATE" "$(done_p "$l" && echo yes || echo no)"
 }
 
 # The shell pane: bash in the lesson's folder, which follows the lesson
@@ -214,13 +247,16 @@ _vikix_learn_follow() {
   [ -n "\$cur" ] && [ "\$cur" != "\${_vikix_learn_at:-}" ] || return 0
   _vikix_learn_at=\$cur
   cd '$WORKDIR'/"\$cur" 2>/dev/null || return 0
-  printf '\\n\\033[1m%s\\033[0m: edit %s here; the lesson pane checks every save.\\n' "\$cur" '$WORK'
+  local w
+  w='$WORK'
+  [ -f '$SRC'/"\$cur"/work ] && w=\$(tr '\\n' ' ' < '$SRC'/"\$cur"/work)
+  printf '\\n\\033[1m%s\\033[0m: edit %s here; the lesson pane checks every save.\\n' "\$cur" "\$w"
 }
 _vikix_learn_at='$l'
 PROMPT_COMMAND="_vikix_learn_follow\${PROMPT_COMMAND:+;\$PROMPT_COMMAND}"
 RC
   cd "$WORKDIR/$l" || die "no folder for the lesson"
-  printf '\033[1m%s\033[0m: edit %s here (nvim %s, or any editor); the lesson pane checks every save.\n' "$l" "$WORK" "$WORK"
+  printf '\033[1m%s\033[0m: edit %s here (nvim, or any editor); the lesson pane checks every save.\n' "$l" "$(work_of "$l")"
   exec bash --rcfile "$rc" -i
 }
 
@@ -273,6 +309,7 @@ STATE="$LEARN_STATE/$COURSE"
 TITLE=$COURSE WORK=""
 # shellcheck source=/dev/null  # the course's own settings: TITLE, WORK
 . "$SRC/course.conf"
+apply_renames
 copy_course
 
 # The two panes, through the running StumpWM; the lesson pane alone, here,

@@ -1,5 +1,18 @@
 /* solution.c: one way to finish exercise.c (Vikix's tests check it
- * passes; it isn't copied to ~/learn). */
+ * passes; it isn't copied to ~/learn). digits, by the design recipe.
+ *
+ * digits(n) is how many decimal digits n has, without the sign:
+ * digits(42) is 2, digits(-305) is 3, digits(0) is 1.
+ *
+ * The check goes through the steps in order and stops at the first
+ * that isn't done:
+ *   2. a purpose statement: replace the line that says "write it here"
+ *   3. examples: add asserts for 0, a negative number and INT_MIN
+ *   4. the template still compiles
+ *   5. the body: the examples pass (yours, and the check's own)
+ *   6. it runs clean under the sanitizers, INT_MIN included
+ * Then delete the NOT DONE line to go on.
+ */
 #include <assert.h>
 #include <limits.h>
 #include <stdio.h>
