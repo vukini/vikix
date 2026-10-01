@@ -724,6 +724,8 @@ hype export talk/talk.md talk.pdf   # or talk.pptx
 hype help                       # everything else, and hype help format for the Markdown
 ```
 
+A sample to start from, a short tour of Vikix with speaker notes, two screenshots, code and a table: `~/vikix/examples/hype/vikix-tour/presentation.md`. Copy the folder somewhere of your own before changing it (`cp -r ~/vikix/examples/hype/vikix-tour ~/talks/`), since `vikix update` keeps `~/vikix` as it is on GitHub.
+
 - **Built from source:** Void has no package, so `vikix hype setup` builds a pinned release into `~/.local/opt/hype` with Void's Qt 6 (a minute or two, once; the log is `~/.local/state/vikix/logs/hype-build.log`). `vikix hype status` says what's built; `vikix hype setup --rebuild` builds it again.
 - **Your theme's colours:** Hype's window follows `vikix theme` as it changes, and every Vikix theme, yours too, is one to choose for the slides (the palette icon, or `--theme`). `vikix theme` writes them in Omarchy's form: the current one to `~/.local/state/omarchy/current/theme/colors.toml`, all of them to `~/.local/share/vikix/omarchy/themes/`, where the `hype` command points `OMARCHY_PATH` unless you set it yourself.
 - **Open and Save** go through the desktop portal (xdg-desktop-portal, drawing gtk's dialog). Setup writes `~/.config/xdg-desktop-portal/portals.conf` to say so, unless you have one.
