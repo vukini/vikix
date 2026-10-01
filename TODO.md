@@ -8,7 +8,6 @@ Built in this order: newcomers first, then the rest (the AI items have shipped; 
 
 ### Newcomers
 
-3. **"Installing Void for Vikix", and "Your first hour".** A docs page with screenshots of void-installer: the glibc image, partitioning, a user in wheel, the network. Then a short one: the keys, part two, themes, update. Both on the site with the other guides (vikix.dev/guide/, built from docs/).
 
 ### And then
 

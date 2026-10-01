@@ -156,7 +156,10 @@ It asks for your password once, installs git, puts Vikix in `~/vikix`, and runs 
 
 ![Vikix's install starting, asking for the password](shots/vikix-install-start.png)
 
-When it says it's done, restart:
+When it says it's done, with what to do next, restart:
+
+![The end of Vikix's install: Vikix is installed, and what's next](shots/vikix-installed.png)
+
 
 ```sh
 sudo reboot

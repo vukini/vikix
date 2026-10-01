@@ -8,6 +8,8 @@ At the top is **the bar**: the workspaces on the left, then the windows on this 
 
 The rest of the screen is windows. There are no title bars and no overlapping: each window fills its part of the screen, and you split the screen to put two side by side. That's StumpWM, and the keys below are how you drive it.
 
+![The desktop at the first login: the bar at the top, and the welcome](shots/vikix-first-login.png)
+
 The first time, a terminal opens with **the welcome**. Follow it: it adds software, shows the keys, picks a theme and your keyboard layout, and ticks each step off once it's done. `Super+m` → *Welcome* brings it back.
 
 ## The keys that matter

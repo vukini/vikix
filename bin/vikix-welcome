@@ -188,7 +188,7 @@ cmd_welcome() {
     choice=$(
       for step in "add|Add software: languages, editors, LibreOffice, Windows, local AI" \
                   "keys|The keys that matter" \
-                  "theme|Choose a theme: dark or light" \
+                  "theme|Choose a theme: dark, light or high contrast" \
                   "keyboard|Set your keyboard layout" \
                   "guide|Read the guide: where things are, how to change them" \
                   "close|Close. Super+m, Welcome brings this back"; do
