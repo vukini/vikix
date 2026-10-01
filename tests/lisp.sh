@@ -157,11 +157,11 @@ cat > "$t/check.lisp" <<EOF
   (when (string= (fourth e) "Other")
     (fail "~a (~a) is in no group: add its command to *vikix-key-groups*" (first e) (third e))))
 ;; Keys pushed from user.lisp land in a group too.
-(push '("s-O" "exec obsidian" "Obsidian") *vikix-bindings*)
+(push '("s-t" "exec obsidian" "Obsidian") *vikix-bindings*)
 (push '("s-y" "my-command" "Mine") *vikix-bindings*)
 (push '("s-z" "exec zotero" "Zotero" "Reading") *vikix-bindings*)
 (push '("s-C-p" "exec env FOO=1 vikix-screenshot area clip" "Shot") *vikix-bindings*)
-(loop for (key want) in '(("Super+Shift+o" "Apps") ("Super+y" "Other") ("Super+z" "Reading")
+(loop for (key want) in '(("Super+t" "Apps") ("Super+y" "Other") ("Super+z" "Reading")
                           ("Super+Ctrl+p" "Screenshots & recording"))
       for got = (fourth (find key (vikix-key-entries) :key #'first :test #'string=))
       unless (equal got want) do (fail "~a should be in ~a, is in ~s" key want got))

@@ -3,6 +3,7 @@
 ;;;;   focus      follows the mouse (sloppy focus)
 ;;;;   gaps       space around windows, off at start (s-g toggles)
 ;;;;   undo       the last split or window move, per workspace (s-u, s-U)
+;;;;   grid       every window in a grid: once (s-o), or kept so (s-O)
 ;;;;   find       any window on any workspace (s-A goes there, s-C-a pulls it here)
 ;;;;   beckon     the pointer jumps to the focused window (s-p)
 ;;;;   lazarus    the docked IDE tiles; its dialogs float
@@ -100,7 +101,7 @@ below zero for a small window, and X then kills the window manager."
 
 (defun vikix-layout-command-p (command)
   (or (member command (symbol-value (find-symbol "*DEFAULT-COMMANDS*" :winner-mode)))
-      (member command '(gmove gmove-and-follow))))
+      (member command '(gmove gmove-and-follow expose vikix-grid))))
 
 (defun vikix-layout-ids (name)
   "winner-mode's table NAME: workspace number → layout step."
@@ -125,6 +126,71 @@ below zero for a small window, and X then kills the window manager."
 (when (vikix-load-module "winner-mode")
   (add-hook *pre-command-hook*  'vikix-record-first-layout)
   (add-hook *post-command-hook* 'vikix-record-changed-layout))
+
+;;; Grid
+
+;; s-o is StumpWM's expose: every window in a grid, then pick one.
+;; s-O is grid mode: the workspace's windows are tiled into the same grid,
+;; with nothing to pick, and again by themselves when a window opens or
+;; closes there (or, if that happened while you were elsewhere, when you
+;; come back). Off, the layout stays as it is and is yours again. s-u goes
+;; back a layout, but the next window opened re-tiles while grid mode is
+;; on. Floating windows and dialogs are left out of the grid.
+
+(defvar *vikix-grid-groups* nil "Workspaces in grid mode.")
+
+(defun vikix-grid-windows (group)
+  (remove-if (lambda (w) (typep w 'float-window)) (group-windows group)))
+
+(defun vikix-grid-retile (group &optional focus)
+  "Tile GROUP's windows into a grid if it is in grid mode, current, and
+not tiled already; then focus FOCUS, or the window that had focus."
+  (when (and (member group *vikix-grid-groups*)
+             (eq group (current-group))
+             (typep group 'tile-group))
+    (let ((n (min *expose-n-max* (length (vikix-grid-windows group))))
+          (win (or focus (group-current-window group))))
+      (unless (and (= n (length (group-frames group)))
+                   (every #'frame-window (group-frames group)))
+        (handler-case
+            (progn
+              (only)
+              ;; The focused window may be the one that just closed.
+              (unless (frame-window (tile-group-current-frame group))
+                (pull-hidden-next))
+              (recursive-tile n group)
+              (when (and win (window-frame win)
+                         (eq (window-group win) group))
+                (focus-frame group (window-frame win))))
+          (error (e) (message "Grid: ~a" e)))))))
+
+(defun vikix-grid-new-window (window)
+  (unless (or (window-transient-p window) (typep window 'float-window))
+    (vikix-grid-retile (window-group window) window)))
+
+(defun vikix-grid-destroy-window (window)
+  (vikix-grid-retile (window-group window)))
+
+(defun vikix-grid-focus-group (new old)
+  (declare (ignore old))
+  (vikix-grid-retile new))
+
+(add-hook *new-window-hook* 'vikix-grid-new-window)
+(add-hook *destroy-window-hook* 'vikix-grid-destroy-window)
+(add-hook *focus-group-hook* 'vikix-grid-focus-group)
+
+(defcommand vikix-grid () ()
+  "Grid mode on/off: keep this workspace's windows tiled in a grid."
+  (let ((group (current-group)))
+    (cond ((not (typep group 'tile-group))
+           (message "Grid mode is for tiling workspaces"))
+          ((member group *vikix-grid-groups*)
+           (setf *vikix-grid-groups* (remove group *vikix-grid-groups*))
+           (message "Grid mode off"))
+          (t
+           (push group *vikix-grid-groups*)
+           (vikix-grid-retile group)
+           (message "Grid mode on: windows re-tile as they open and close")))))
 
 ;;; Finding windows, and the pointer
 
