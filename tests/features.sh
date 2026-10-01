@@ -88,6 +88,17 @@ check "a dry run changed the choices" test "$(grep -vc '^#' "$choices")" = 1
 out=$(DRY_RUN=1 vx add neovim 2>&1)
 check "add neovim should run the editors' stage" has 'stage 45-editors' "$out"
 check "add neovim ran the languages' stages" lacks 'stage 65-languages' "$out"
+
+# --- installed by hand, never chosen -------------------------------------------------------
+pkgs_of optional/dropbox > "$t/installed"
+pkgs_of optional/notes >> "$t/installed"
+check "dropbox installed by hand should count as had: $(lib installed_features | tr '\n' ' ')" \
+  test "$(lib installed_features)" = dropbox
+check "vikix features should mark dropbox installed by hand" has '\[x\] dropbox' "$(vx features)"
+check "a feature with a setup command (notes) can't be told by its packages" lacks '\[x\] notes' "$(vx features)"
+cp "$choices" "$t/kept"; echo dropbox >> "$choices"
+check "a chosen feature isn't also found as installed" test -z "$(lib installed_features)"
+cp "$t/kept" "$choices"; : > "$t/installed"
 out=$(vx add nosuchthing 2>&1) && { echo "FAIL: add of an unknown name succeeded"; fail=1; }
 check "an unknown name should say so: $out" has "no feature or bundle called 'nosuchthing'" "$out"
 check "an unknown name changed the choices" test "$(grep -vc '^#' "$choices")" = 1

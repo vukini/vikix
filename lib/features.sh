@@ -105,6 +105,28 @@ chosen_features() {
 
 is_chosen() { chosen_features 2>/dev/null | grep -x -- "$1" >/dev/null; }
 
+# installed_features — features you have but never chose: installed by
+# hand (xi dropbox) or before Vikix had features for them. One counts when
+# every package on its lists is installed; one with a setup command
+# (vikix ai setup, say) or no lists can't be told this way, so never does.
+installed_features() {
+  local chosen name lists setup l p all
+  chosen=" $(chosen_features 2>/dev/null | tr '\n' ' ') "
+  while IFS='|' read -r name lists _ setup _ _; do
+    case $chosen in *" $name "*) continue ;; esac
+    [ -n "$lists" ] && [ -z "$setup" ] || continue
+    all=1
+    for l in $lists; do
+      [ -f "$VIKIX_DIR/packages/$l.list" ] || { all=0; break; }
+      for p in $(read_list "$VIKIX_DIR/packages/$l.list"); do
+        pkg_installed "$p" || { all=0; break 2; }
+      done
+    done
+    [ "$all" = 1 ] && printf '%s\n' "$name"
+  done < <(features_rows)
+  return 0
+}
+
 # lists_of FEATURE... — the package lists of these features, one a line.
 lists_of() {
   local f

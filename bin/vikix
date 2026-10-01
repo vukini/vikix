@@ -274,6 +274,16 @@ cmd_update() {
   # the end, as part two of the install does. Core's 10-packages installs
   # only what's new to the lists (it updates nothing else of Void's), so a
   # release that needs a new program still works after a core update.
+  # Features you have but never chose (installed by hand) become choices,
+  # so 10-packages keeps their packages and vikix remove knows them.
+  if [ "$part" = all ] || [ "$part" = core ]; then
+    local found=()
+    mapfile -t found < <(installed_features 2>/dev/null)
+    if [ "${#found[@]}" -gt 0 ]; then
+      say "already installed, now kept as your features: ${found[*]}"
+      record_features "${found[@]}"
+    fi
+  fi
   local stage stages=() failed=()
   case $part in
     all)   stages=(10-packages 20-services 40-config 45-editors 65-languages 67-dev) ;;

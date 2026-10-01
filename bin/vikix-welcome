@@ -59,7 +59,8 @@ cmd_preview() {
 
 cmd_add() {
   local chosen lines=() picked=() name about
-  chosen=" $(chosen_features 2>/dev/null | tr '\n' ' ') "
+  # Installed counts as had, chosen or not (dropbox put in by hand).
+  chosen=" $(chosen_features 2>/dev/null | tr '\n' ' ') $(installed_features 2>/dev/null | tr '\n' ' ') "
   while IFS='|' read -r name _ about; do
     lines+=("$(printf 'bundle   %-11s %s' "$name" "$about")")
   done < <(bundles_rows)

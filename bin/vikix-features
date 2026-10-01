@@ -46,7 +46,8 @@ stage() {
 
 cmd_list() {
   local chosen name lists about mark
-  chosen=" $(chosen_features 2>/dev/null | tr '\n' ' ') "
+  # Installed counts as had, chosen or not (vikix update records them).
+  chosen=" $(chosen_features 2>/dev/null | tr '\n' ' ') $(installed_features 2>/dev/null | tr '\n' ' ') "
   echo "Features (vikix add NAME, vikix remove NAME); [x] you have it:"
   while IFS='|' read -r name lists _ _ _ about; do
     case $chosen in *" $name "*) mark='[x]' ;; *) mark='[ ]' ;; esac

@@ -35,6 +35,9 @@ printf '%s\n' "$out"
 EOF
 printf '#!/bin/sh\necho "setxkbmap $*" >> %q\n' "$t/calls" > "$t/bin/setxkbmap"
 printf '#!/bin/sh\nexit 0\n' > "$t/bin/notify-send"
+# xbps-query: installed is a line of $t/installed, not this machine's packages.
+printf '#!/bin/sh\ngrep -qx "$1" %q 2>/dev/null\n' "$t/installed" > "$t/bin/xbps-query"
+: > "$t/installed"
 chmod +x "$t/bin/"*
 export PATH="$t/bin:$PATH"
 state="$t/state/welcome"
@@ -50,6 +53,11 @@ out=$(PICK='^have +python ' DRY_RUN=1 w add)
 check "picking only what's here should add nothing: $out" lacks 'adding' "$out"
 out=$(DRY_RUN=1 w add) || true
 check "Esc in the picker should add nothing" lacks 'adding' "$out"
+echo dropbox > "$t/installed"     # optional/dropbox.list: dropbox, installed by hand
+out=$(FZF_IN="$t/offered" PICK='^(add|have) +dropbox ' DRY_RUN=1 w add)
+check "dropbox installed by hand should be offered as had" grep -qE '^have +dropbox ' "$t/offered"
+check "picking dropbox installed by hand should add nothing: $out" lacks 'adding' "$out"
+: > "$t/installed"
 check "opening the picker marks the welcome as shown" test -e "$state"
 out=$(w preview python)
 check "the preview should say what python is and its packages: $out" has 'Packages (lang-python)' "$out"
