@@ -1,11 +1,13 @@
 # Finding your way around Vikix
 
-These pages are for someone who has installed Vikix and wants to know where things are and how to make it their own. The main [README](../README.md) is the full reference: every key, every package list, every test. These pages are the map.
+These pages are for someone who has installed Vikix and wants to know where things are and how to make it their own; the first two are for getting there, from a blank computer to the first hour on the desktop. The main [README](../README.md) is the full reference: every key, every package list, every test. These pages are the map.
 
 They are on your machine too, in three forms: as these files in `~/vikix/docs/`, as web pages with the diagrams drawn as pictures (`Super+m` → *Vikix guide in the browser*), and as an Info manual. Read that with `Super+m` → *Vikix guide* (in Emacs if you have it, otherwise in a terminal), `C-h i` then *Vikix* in Emacs, or `info vikix` in a terminal.
 
 | Page | Read it when |
 |---|---|
+| [Installing Void for Vikix](install-void.md) | You're starting from a blank computer: Void's installer, screen by screen, then Vikix's |
+| [Your first hour](first-hour.md) | You've just logged in: the keys that matter, adding software, a theme, staying current |
 | [Where everything is](map.md) | You want to find a file: what Vikix put where, and whose it is |
 | [How it fits together](how-it-works.md) | You want to know what the base and the features are, what happens between logging in and the desktop, or what `vikix update` does |
 | [Making it yours](customize.md) | You want to change something: keys, startup programs, the bar, the theme, the terminal, what's installed |

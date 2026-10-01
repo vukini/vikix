@@ -28,6 +28,10 @@ makeinfo --html --split=chapter -c NODE_FILES=0 --css-ref=guide.css \
 cp "$here/docs/guide.css" "$tmp/guide/"
 mkdir -p "$tmp/guide/diagrams"
 cp "$here"/docs/diagrams/*.svg "$tmp/guide/diagrams/" 2>/dev/null || true
+if [ -d "$here/docs/shots" ]; then
+  mkdir -p "$tmp/guide/shots"
+  cp "$here"/docs/shots/*.png "$tmp/guide/shots/" 2>/dev/null || true
+fi
 
 if [ "$site" = --site ]; then
   # The bar goes right after <body ...>, on every page.

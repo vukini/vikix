@@ -15,9 +15,12 @@ Installed it already? [docs/](docs/README.md) is the map: where everything is, h
 On a glibc Void install, logged in as your normal user:
 
 ```sh
-curl -fsSL https://vikix.dev/install | bash
+xbps-fetch -o vikix-install https://vikix.dev/install
+bash vikix-install
 sudo reboot
 ```
+
+A fresh Void has no `curl` (nor `git`), so this fetches the install with `xbps-fetch`, which is part of xbps. Where curl is there, `curl -fsSL https://vikix.dev/install | bash` does the same. New to Void? [Installing Void for Vikix](docs/install-void.md) goes through its installer screen by screen, with pictures, and [Your first hour](docs/first-hour.md) is the page after.
 
 That's [`site/install`](site/install), short enough to read first: it checks this is glibc Void and that you're not root, installs git if it's missing, clones Vikix into `~/vikix` and runs `~/vikix/install.sh`. What you put after `bash -s --` goes to the install: `curl -fsSL https://vikix.dev/install | bash -s -- --with essentials`. Or do the same by hand:
 

@@ -388,7 +388,7 @@ and accessing the guides"
       </div>
       <div class="install">
         <ol class="steps">
-          <li><div><h3>Install glibc Void</h3><p>A plain base install from the <a href="https://voidlinux.org/download/">Void download page</a>, with a normal user who can use sudo. The <a href="https://docs.voidlinux.org">Void handbook</a> walks you through it.</p></div></li>
+          <li><div><h3>Install glibc Void</h3><p>A plain base install from the <a href="https://voidlinux.org/download/">Void download page</a>, with a normal user who can use sudo. <a href="guide/Installing-Void-for-Vikix.html">Installing Void for Vikix</a> walks you through its installer, screen by screen.</p></div></li>
           <li><div><h3>Run the install, and reboot</h3><p>One line. It asks for your password once, then runs by itself, from the fastest mirror it finds.</p></div></li>
           <li><div><h3>Log in on tty1</h3><p>The desktop starts. Open a terminal with <kbd>Super</kbd>+<kbd>Return</kbd>.</p></div></li>
           <li><div><h3>Add what you want</h3><p>A welcome opens at your first login: pick languages, editors, LibreOffice, Windows or local AI from a list, set your keyboard and a theme. Or type it: <code>vikix features</code> lists them, and <code>vikix add</code> installs them. From then on, <code>vikix update</code> keeps everything current.</p></div></li>
@@ -396,10 +396,11 @@ and accessing the guides"
         <div style="display:grid;gap:16px">
           <div class="term">
             <header><span>on the fresh Void install</span><button class="copy" type="button" data-copy="p1">Copy</button></header>
-<pre id="p1"><span class="t-p">$</span> curl -fsSL https://vikix.dev/install | bash
+<pre id="p1"><span class="t-p">$</span> xbps-fetch -o vikix-install https://vikix.dev/install
+<span class="t-p">$</span> bash vikix-install
 <span class="t-p">$</span> sudo reboot</pre>
           </div>
-          <p style="color:var(--subtle);font-size:.95rem">It checks this is glibc Void, clones Vikix into <code>~/vikix</code> and runs its install. <a href="https://github.com/vukini/vikix/blob/main/site/install">Read it first</a>: it's short. Or by hand: <code>git clone https://github.com/vukini/vikix.git ~/vikix</code>, then <code>~/vikix/install.sh --dry-run</code> to see what it would do, and <code>~/vikix/install.sh</code>.</p>
+          <p style="color:var(--subtle);font-size:.95rem">A fresh Void has no <code>curl</code>, so this uses <code>xbps-fetch</code>, which comes with it; where curl is there, <code>curl -fsSL https://vikix.dev/install | bash</code> is the same. It checks this is glibc Void, clones Vikix into <code>~/vikix</code> and runs its install. <a href="https://github.com/vukini/vikix/blob/main/site/install">Read it first</a>: it's short. Then <a href="guide/Your-first-hour.html">Your first hour</a>. Or by hand: <code>git clone https://github.com/vukini/vikix.git ~/vikix</code>, then <code>~/vikix/install.sh --dry-run</code> to see what it would do, and <code>~/vikix/install.sh</code>.</p>
           <div class="term">
             <header><span>then, in a terminal on the new desktop</span><button class="copy" type="button" data-copy="p2">Copy</button></header>
 <pre id="p2"><span class="t-p">$</span> vikix features            <span class="t-d"># what there is</span>

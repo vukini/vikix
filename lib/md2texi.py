@@ -5,14 +5,18 @@
 in Emacs (C-h i, Vikix) and with `info vikix`. The Markdown stays the
 only source; this knows just the Markdown the guides use: headings,
 paragraphs, lists (one level of nesting), tables, fenced code, `code`,
-**strong**, *emphasis*, links, and diagrams: a line of its own that is
-just `![What it shows](diagrams/NAME.svg)`.
+**strong**, *emphasis*, links, diagrams: a line of its own that is
+just `![What it shows](diagrams/NAME.svg)`, and screenshots, the same with
+`shots/NAME.png`.
 
 A diagram is three files in docs/diagrams/: NAME.mmd (the Mermaid
 source), NAME.svg (drawn from it by docs/diagrams/render.sh, and what
 GitHub and the HTML guide show) and NAME.txt (the same picture in plain
 text, which makeinfo puts in the Info manual in its place). A missing
 .svg or .txt is an error.
+
+A screenshot is docs/shots/NAME.png: a picture in the web pages, and in
+the Info manual, which can't show it, the words in its brackets.
 
 The pages come in the order docs/README.md's table links them, and that
 page is the manual's Top node. A link to another guide, or to a heading
@@ -191,6 +195,13 @@ class Manual:
         alt = escape(plain(alt)).replace(",", "@comma{}")
         return [f"@image{{diagrams/{name},,,{alt},svg}}"]
 
+    def shot(self, name, alt, page):
+        if not os.path.exists(os.path.join(self.docs, "shots", f"{name}.png")):
+            die(f"docs/{page}: the screenshot docs/shots/{name}.png isn't there")
+        words = escape(plain(alt))
+        return ["@ifinfo", f"[Screenshot: {words}]", "@end ifinfo",
+                "@ifnotinfo", f"@image{{shots/{name},,,{words.replace(',', '@comma{}')},png}}", "@end ifnotinfo"]
+
     def lists(self, items, page):
         """items: (indent, ordered, text). Nested by indentation."""
         out, stack = [], []   # stack of (indent, kind)
@@ -237,6 +248,13 @@ class Manual:
             if m:
                 flush()
                 out += self.diagram(m.group(2), m.group(1), page)
+                out.append("")
+                i += 1
+                continue
+            m = re.fullmatch(r"!\[([^\]]+)\]\(shots/([\w-]+)\.png\)", line.strip())
+            if m:
+                flush()
+                out += self.shot(m.group(2), m.group(1), page)
                 out.append("")
                 i += 1
                 continue

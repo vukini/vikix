@@ -4,6 +4,11 @@
 #   curl -fsSL https://vikix.dev/install | bash
 #   curl -fsSL https://vikix.dev/install | bash -s -- --with essentials
 #
+# A fresh Void has no curl, but xbps-fetch, which is part of xbps:
+#
+#   xbps-fetch -o vikix-install https://vikix.dev/install
+#   bash vikix-install              # or: bash vikix-install --with essentials
+#
 # It checks this is glibc Void and that you're not root, installs git if
 # it's missing, clones Vikix into ~/vikix (or updates the clone that's
 # there), and runs ~/vikix/install.sh with what you put after "--". That

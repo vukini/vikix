@@ -56,6 +56,10 @@ rm -rf "$t/docs"; cp -r "$here/docs" "$t/docs"
 printf '\n![Nothing](diagrams/no-such-diagram.svg)\n' >> "$t/docs/fixing.md"
 check "a diagram with no files was let through" \
   bash -c "! python3 '$here/lib/md2texi.py' '$t/docs' >/dev/null 2>&1"
+rm -rf "$t/docs"; cp -r "$here/docs" "$t/docs"
+printf '\n![Nothing](shots/no-such-shot.png)\n' >> "$t/docs/fixing.md"
+check "a screenshot that isn't there was let through" \
+  bash -c "! python3 '$here/lib/md2texi.py' '$t/docs' >/dev/null 2>&1"
 rm -rf "$t/docs"
 
 # --- the diagrams -------------------------------------------------------------
@@ -115,8 +119,16 @@ for f in "$t"/site-guide/*.html; do
 done
 check "the machine's pages shouldn't have the site's bar" bash -c "! grep -lq 'site-bar' '$guide'/*.html"
 check "the site's guide should have the diagrams" test -f "$t/site-guide/diagrams/vikix-eval.svg"
+# Every screenshot a guide shows is in docs/shots/ and goes with the pages.
+for f in $(grep -oh 'shots/[a-z0-9-]*\.png' "$here"/docs/*.md | sort -u); do
+  check "the guides show $f, which should be in the pages" test -f "$t/site-guide/$f"
+  check "the web pages should show $f" grep -q "src=\"$f\"" "$t"/site-guide/*.html
+done
 for f in index.html gallery.html; do
   check "site/$f should link to the guide" grep -q 'href="guide/"' "$here/site/$f"
+done
+for f in $(grep -oh 'href="guide/[A-Za-z0-9-]*\.html' "$here"/site/*.html | sed 's/href="guide\///' | sort -u); do
+  check "the site links to guide/$f, which the guide should have" test -f "$t/site-guide/$f"
 done
 check "the website's workflow should build the guide" grep -q 'lib/build-guide.sh site/guide --site' "$here/.github/workflows/pages.yml"
 # A failed build leaves the old pages: md2texi can't read a missing docs/.
