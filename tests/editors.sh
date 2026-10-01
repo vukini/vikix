@@ -20,6 +20,7 @@
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
 export EMACS_SOCKET_NAME=/nonexistent/emacs-server   # never the live desktop's Emacs: emacsclient from a test goes nowhere
+unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE   # the desktop session's: from an agent's shell they'd point a test at the real ~/vikix and state, and hide the keys
 : "${VIKIX_EMACS_REPO:=https://github.com/vukini/emacs-void}"
 # Neovim: this checkout's config/nvim, or a repository of yours if set.
 VIKIX_NVIM_REPO=${VIKIX_NVIM_REPO:-}

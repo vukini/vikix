@@ -8,6 +8,7 @@
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
 export EMACS_SOCKET_NAME=/nonexistent/emacs-server   # never the live desktop's Emacs: emacsclient from a test goes nowhere
+unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE   # the desktop session's: from an agent's shell they'd point a test at the real ~/vikix and state, and hide the keys
 cd "$(dirname "$0")/.."
 
 mapfile -t scripts < <(grep -lE '^#!.*(ba)?sh' install.sh install-*.sh install/*.sh \
@@ -66,6 +67,17 @@ if [ -n "$missing" ]; then
   echo "$missing" | sed 's/^/  /'; fail=1
 else
   echo "isolation: every test keeps off the live desktop's Emacs"
+fi
+# Nor the desktop session's own settings: from an agent's shell (Super+a)
+# VIKIX_DIR and VIKIX_STATE point at the real ~/vikix and its state, and
+# VIKIX_AGENT makes secrets.sh export nothing, so tests failed there and
+# could have written to the real state.
+missing=$(grep -L '^unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE ' tests/*.sh || true)
+if [ -n "$missing" ]; then
+  echo "FAIL isolation: these tests could see the desktop session's settings; add unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE:"
+  echo "$missing" | sed 's/^/  /'; fail=1
+else
+  echo "isolation: every test starts without the desktop session's settings"
 fi
 
 exit "$fail"

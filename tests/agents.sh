@@ -28,7 +28,9 @@
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
 export EMACS_SOCKET_NAME=/nonexistent/emacs-server   # never the live desktop's Emacs: emacsclient from a test goes nowhere
+unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE   # the desktop session's: from an agent's shell they'd point a test at the real ~/vikix and state, and hide the keys
 unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME CODEX_HOME GEMINI_CLI_HOME VIKIX_AGENT_API_KEY
+unset VIKIX_AGENT_SSH
 # Your own keys, if the shell running this has them: a check that failed
 # would print them, and they'd change what a check sees.
 for v in $(compgen -e); do case $v in *_API_KEY|*_KEY|*_TOKEN|*_SECRET) unset "$v" ;; esac; done

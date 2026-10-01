@@ -38,7 +38,7 @@ tests/lint.sh                 # bash -n, executable bits, shellcheck -S warning 
 DRY_RUN=1 bash install/<stage>.sh     # one stage, printing instead of changing
 ```
 
-`lint.sh` uses `shellcheck` from PATH, or `uvx --from shellcheck-py shellcheck` when it isn't installed. A deliberate shellcheck exception gets a `# shellcheck disable=SCxxxx  # why` comment on the line before. A new kind of breakage found by hand should become a check in the matching test. Every test starts with `export VIKIX_SWANK_PORT=9`, so nothing it runs (a theme refresh, a doctor, an update's reload) reaches the live desktop's Swank; lint enforces it (it once sent test passwords to the real Swank and stopped it).
+`lint.sh` uses `shellcheck` from PATH, or `uvx --from shellcheck-py shellcheck` when it isn't installed. A deliberate shellcheck exception gets a `# shellcheck disable=SCxxxx  # why` comment on the line before. A new kind of breakage found by hand should become a check in the matching test. Every test starts with `export VIKIX_SWANK_PORT=9`, so nothing it runs (a theme refresh, a doctor, an update's reload) reaches the live desktop's Swank; lint enforces it (it once sent test passwords to the real Swank and stopped it). Every test also starts with `unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE`, the desktop session's own settings: from an agent's shell they pointed tests at the real `~/vikix` and state and hid the keys, so `ai`, `agents`, `dry-run` (and `home`, `nvim`, `emacs`) failed there; lint enforces that too.
 
 `DRY_RUN=1` works because every system change goes through `run` in `lib/common.sh`, which prints instead of executing. Any new change to the system must go through `run` (or check `DRY_RUN` itself, as `ensure_block` does), or dry runs lie.
 
