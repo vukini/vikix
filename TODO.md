@@ -9,7 +9,7 @@ Built in this order: newcomers first, then the rest (the AI items have shipped; 
 ### And then
 
 6. **Whole-system undo.** When / is btrfs: snapper snapshots before each `vikix update`, and `vikix rollback` notes. Skip cleanly on ext4.
-9. **Tutorials: `vikix learn c`.** A hands-on C course in the terminal, lessons checked on save, twelve tracks well past the basics, on a language-neutral runner. The plan, and the decisions it waits on, are in `TUTORIALS.md`. The steps: [C tutorials](#c-tutorials-vikix-learn-c), below.
+9. **Tutorials: `vikix learn c`, Phase 1.** Phase 0 (the runner, and a lesson each from tracks 1, 3 and 4) shipped in 0.71.16. Next: tracks 1 to 4 complete. The plan and the decisions are in `TUTORIALS.md`.
 
 ## Wish list
 

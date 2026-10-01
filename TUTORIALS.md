@@ -1,6 +1,6 @@
 # Tutorials: `vikix learn`
 
-The plan for courses inside Vikix, starting with C. Drafted 2026-09-28. Status: **a proposal, with decisions still to make** (at the end). `TODO.md` points here.
+The plan for courses inside Vikix, starting with C. Drafted 2026-09-28. Status: **Phase 0 shipped in 0.71.16** (the runner and three lessons); the decisions are made (at the end); Phase 1 is next. `TODO.md` points here.
 
 What's there now is very basic: the README's Languages section, with a "try it" column, and the examples in `~/dev/<language>/examples/`. C needs much better tutorials, and they should live inside Vikix.
 
@@ -147,14 +147,14 @@ Each track ends in a small project. Lesson counts are estimates.
 
 Phase 0 is small enough to judge the feel of the thing before writing a hundred lessons.
 
-## Decisions to make
+## Decisions (made by Vid, 2026-10-01: the proposed answer each time)
 
-1. **Lesson style.** For code lessons, working code with commentary is preferred over stubs to fill in. Proposed:
-   - every lesson opens with a complete, commented `example.c`
-   - then comes a small exercise that varies it
-
-   Or skip the exercises and just run the examples?
-2. **Who is it for?** The maker first, or newcomers to Vikix too? This decides where track 1 starts.
-3. **Terminal only,** or also a key in Emacs/Neovim that runs the check?
-4. **Is `~/learn/c/` the right place?** Should it go in `yours.list`, so `vikix undo` covers the exercise work?
-5. **Phase 0 go-ahead:** the runner plus three lessons.
+1. **Lesson style:** every lesson opens with a complete, commented `example.c`, then an exercise that varies it, checked on save.
+2. **Who it's for:** the maker first. Track 1 starts past the basics; newcomers can follow, but it doesn't teach the first program from zero.
+3. **Terminal only** for now: `vikix learn c` watches the file, so any editor works. Keys in Emacs and Neovim can come later.
+4. **`~/learn/c/`**, in `yours.list`, so `vikix undo` covers the exercise work; `reset` takes a snapshot first.
+5. **Phase 0:** done. What it taught, for Phase 1:
+   - The checks stay Vikix's (`learn/c/NN/check.sh`, run in the learner's copy), so a fixed check reaches everyone with `vikix update`; only the lesson's text, example and exercise are copied.
+   - A worked answer (`solution.c`) for every lesson, never copied, is what `tests/learn.sh` proves the check against, together with the shipped exercise failing it.
+   - The sanitizers need `libsanitizer-devel` (now in `dev.list`); without it the checks still run, and say so. A sanitizer's report is cut by `brief` (`learn/c/lib.sh`) to the error and the learner's own frames.
+   - The evidence rule is a marker: `<!-- output: COMMAND -->` before a text block, which `tests/learn.sh` runs again.

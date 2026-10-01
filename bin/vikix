@@ -40,6 +40,8 @@
 #   vikix notes setup|uninstall
 #                         ask your notes from any terminal: note index ~/Notes,
 #                         then note ask "..." (vikix-notes; on this laptop)
+#   vikix learn [c]       a course in the terminal: edit, save, it's checked
+#                         (vikix learn c list, hint, go NN, reset NN)
 #   vikix hype setup|status|uninstall
 #                         Hype: Markdown slides with a visual editor, in your
 #                         theme's colours (vikix add hype)
@@ -1225,6 +1227,7 @@ main() {
     webapp|webapps) shift; exec "$VIKIX_DIR/bin/vikix-webapp" "$@" ;;
     fingerprint) shift; exec "$VIKIX_DIR/bin/vikix-fingerprint" "$@" ;;
     hype)        shift; exec "$VIKIX_DIR/bin/vikix-hype" "$@" ;;
+    learn)       shift; exec "$VIKIX_DIR/bin/vikix-learn" "$@" ;;
     wallpapers)  shift; exec "$VIKIX_DIR/bin/vikix-wallpapers" "$@" ;;
     firewall)    shift; exec "$VIKIX_DIR/bin/vikix-firewall" "$@" ;;
     help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;

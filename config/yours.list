@@ -7,6 +7,7 @@
 # `vikix changes` and taken back with `vikix undo`.
 
 .stumpwm.d                  # user.lisp, and any Lisp files of your own
+learn                       # your work in vikix learn's courses (~/learn/c ...)
 .config/alacritty
 .config/picom
 .config/dunst

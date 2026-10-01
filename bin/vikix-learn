@@ -1,0 +1,232 @@
+#!/usr/bin/env bash
+# vikix-learn — courses in the terminal (`vikix learn`): every lesson is a
+# real program you edit, save, and watch get checked.
+#
+#   vikix learn                  the courses there are
+#   vikix learn COURSE           the lesson you're on, then watch: each save
+#                                is checked, and passing moves you on
+#   vikix learn COURSE list      every lesson, ticked when done
+#   vikix learn COURSE go NN     go to lesson NN
+#   vikix learn COURSE hint      the next hint for this lesson
+#   vikix learn COURSE check     check once, without watching
+#   vikix learn COURSE reset NN  lesson NN's files as they came (after a snapshot)
+#
+# The course comes from Vikix (learn/COURSE/ in the checkout). Its lessons
+# are copied to ~/learn/COURSE/ the first time: those are your files, never
+# overwritten, and in your snapshot history (vikix undo). The checks stay
+# Vikix's, so a fix to one reaches you with vikix update. Your progress is
+# in ~/.local/state/vikix/learn/COURSE/.
+#
+# This knows nothing about any language: a course is a folder with a
+# course.conf (TITLE, and WORK, the files you work in) and lessons NN-name/,
+# each with lesson.md, the files to copy, a check.sh and hints.md.
+
+set -uo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+COURSES="$VIKIX_DIR/learn"
+LEARN_HOME=${VIKIX_LEARN_HOME:-$HOME/learn}
+LEARN_STATE="$VIKIX_STATE/learn"
+POLL=${VIKIX_LEARN_POLL:-0.5}   # seconds between looks at your file while watching
+# Files that stay Vikix's: the checks, and the worked answers.
+NOT_COPIED="check.sh solution.c"
+
+courses() {
+  local d
+  for d in "$COURSES"/*/; do
+    [ -f "$d/course.conf" ] && basename "$d"
+  done
+}
+
+# lessons — the lesson folders' names, in order.
+lessons() {
+  local d
+  for d in "$SRC"/[0-9][0-9]-*/; do
+    [ -d "$d" ] && basename "$d"
+  done
+}
+
+# lesson_named NN — the lesson whose name starts with NN (01, 1, or 01-the...).
+lesson_named() {
+  local want=$1 l
+  [[ $want =~ ^[0-9]$ ]] && want="0$want"
+  for l in $(lessons); do
+    case $l in "$want"|"$want"-*) echo "$l"; return 0 ;; esac
+  done
+  return 1
+}
+
+done_p() { grep -qx "$1" "$STATE/done" 2>/dev/null; }
+
+current() {
+  local l
+  l=$(cat "$STATE/current" 2>/dev/null) && [ -n "$l" ] && [ -d "$SRC/$l" ] && { echo "$l"; return; }
+  # The first not done, else the first.
+  for l in $(lessons); do done_p "$l" || { echo "$l"; return; }; done
+  lessons | head -n 1
+}
+
+set_current() { mkdir -p "$STATE"; echo "$1" > "$STATE/current"; }
+
+# copy_lesson L [--force] — your copy of lesson L: copied once, file by file,
+# so a lesson Vikix adds later arrives too; --force for reset.
+copy_lesson() {
+  local l=$1 force=${2:-} f name
+  mkdir -p "$WORKDIR/$l"
+  for f in "$SRC/$l"/*; do
+    name=$(basename "$f")
+    case " $NOT_COPIED " in *" $name "*) continue ;; esac
+    if [ "$force" = --force ] || [ ! -e "$WORKDIR/$l/$name" ]; then
+      cp "$f" "$WORKDIR/$l/$name"
+    fi
+  done
+}
+
+copy_course() {
+  local l
+  for l in $(lessons); do copy_lesson "$l"; done
+}
+
+show_lesson() {
+  local l=$1 n total
+  n=$(lessons | grep -nx "$l" | cut -d: -f1)
+  total=$(lessons | wc -l)
+  say "$TITLE: lesson $n of $total, in $WORKDIR/$l"
+  echo
+  cat "$WORKDIR/$l/lesson.md"
+  echo
+}
+
+# check_once L — run lesson L's checks in your copy of it. 0: passed and
+# marked done; 1: a check failed; 2: passed, but NOT DONE is still there.
+check_once() {
+  local l=$1 f
+  ( cd "$WORKDIR/$l" && LEARN_LIB="$SRC/lib.sh" bash "$SRC/$l/check.sh" ) || return 1
+  for f in $WORK; do
+    # The marker is a line of its own (a comment in the course's language);
+    # the lesson's text may mention it.
+    if grep -qE '^[[:space:]]*(//|#|;+|--)[[:space:]]*NOT DONE[[:space:]]*$' "$WORKDIR/$l/$f" 2>/dev/null; then
+      say "every check passes: delete the NOT DONE line in $f to go on"
+      return 2
+    fi
+  done
+  mkdir -p "$STATE"
+  done_p "$l" || echo "$l" >> "$STATE/done"
+  say "lesson $l: done"
+  return 0
+}
+
+# next_lesson L — the lesson after L, or nothing at the end.
+next_lesson() { lessons | grep -A1 -x "$1" | sed -n 2p; }
+
+stamp() {
+  local f out=""
+  for f in $WORK; do out+=$(stat -c '%Y %s' "$WORKDIR/$1/$f" 2>/dev/null); done
+  echo "$out"
+}
+
+cmd_watch() {
+  local l last now next
+  l=$(current)
+  show_lesson "$l"
+  say "watching $(for f in $WORK; do printf '%s ' "$l/$f"; done): save it in your editor and it's checked (Ctrl+C stops)"
+  last=""
+  while :; do
+    now=$(stamp "$l")
+    if [ "$now" != "$last" ]; then
+      last=$now
+      echo
+      say "checking $l ($(date +%H:%M:%S))"
+      if check_once "$l"; then
+        next=$(next_lesson "$l")
+        if [ -z "$next" ]; then
+          say "that was the last lesson there is, for now: well done"
+          return 0
+        fi
+        l=$next
+        set_current "$l"
+        echo
+        show_lesson "$l"
+        last=$(stamp "$l")
+        say "watching $l: save to check"
+      fi
+    fi
+    sleep "$POLL"
+  done
+}
+
+cmd_list() {
+  local l mark cur
+  cur=$(current)
+  say "$TITLE ($WORKDIR)"
+  for l in $(lessons); do
+    if done_p "$l"; then mark="[x]"; else mark="[ ]"; fi
+    [ "$l" = "$cur" ] && mark="$mark >" || mark="$mark  "
+    printf '  %s %s\n' "$mark" "$l"
+  done
+}
+
+cmd_go() {
+  local l
+  l=$(lesson_named "${1:-}") || die "no lesson ${1:-}: vikix learn $COURSE list"
+  set_current "$l"
+  say "lesson $l: vikix learn $COURSE to start it"
+}
+
+# Hints come one at a time, from hints.md, split by lines of ---.
+cmd_hint() {
+  local l n total
+  l=$(current)
+  total=$(grep -c '^---$' "$SRC/$l/hints.md" 2>/dev/null); total=$((total + 1))
+  n=$(cat "$STATE/hints-$l" 2>/dev/null || echo 0)
+  n=$((n + 1))
+  [ "$n" -gt "$total" ] && n=$total
+  mkdir -p "$STATE"; echo "$n" > "$STATE/hints-$l"
+  say "hint $n of $total, lesson $l"
+  awk -v want="$n" 'BEGIN { n = 1 } /^---$/ { n++; next } n == want' "$SRC/$l/hints.md"
+}
+
+cmd_reset() {
+  local l
+  l=$(lesson_named "${1:-}") || die "which lesson? vikix learn $COURSE reset NN"
+  # Your work so far stays in the history: vikix undo brings it back.
+  if [ -z "${VIKIX_LEARN_NO_SNAPSHOT:-}" ]; then
+    "$VIKIX_DIR/bin/vikix" snapshot "before: vikix learn $COURSE reset $l" >/dev/null 2>&1 ||
+      warn "no snapshot taken; your files in $l are replaced all the same"
+  fi
+  copy_lesson "$l" --force
+  rm -f "$STATE/hints-$l"
+  say "lesson $l is as it came (vikix undo brings your version back)"
+}
+
+if [ -z "${1:-}" ]; then
+  say "courses: $(courses | tr '\n' ' ')"
+  say "start one with: vikix learn NAME (vikix learn help for the rest)"
+  exit 0
+fi
+case $1 in help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;; esac
+
+COURSE=$1; shift
+[[ $COURSE =~ ^[a-z0-9-]+$ ]] && [ -f "$COURSES/$COURSE/course.conf" ] ||
+  die "no course called '$COURSE' (vikix learn lists them)"
+SRC="$COURSES/$COURSE"
+WORKDIR="$LEARN_HOME/$COURSE"
+STATE="$LEARN_STATE/$COURSE"
+TITLE=$COURSE WORK=""
+# shellcheck source=/dev/null  # the course's own settings: TITLE, WORK
+. "$SRC/course.conf"
+copy_course
+
+case ${1:-watch} in
+  watch) cmd_watch ;;
+  list)  cmd_list ;;
+  go)    cmd_go "${2:-}" ;;
+  hint)  cmd_hint ;;
+  check) l=$(current); check_once "$l"; rc=$?
+         # Passing moves on, unless it was the last lesson: that stays current.
+         if [ "$rc" = 0 ]; then next=$(next_lesson "$l"); [ -n "$next" ] && set_current "$next"; fi
+         exit "$rc" ;;
+  reset) cmd_reset "${2:-}" ;;
+  *) die "unknown: vikix learn $COURSE $1 (vikix learn help)" ;;
+esac

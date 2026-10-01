@@ -95,6 +95,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 ├── .lazarus/                  Lazarus with the docked IDE, built by 65-languages
 │
 ├── dev/                       yours, with parts written for you (see below); a folder per language you added
+├── learn/c/                   yours: your work in vikix learn c, one folder a lesson (copied once; the checks stay in ~/vikix/learn)
 ├── .ollama/models/            local AI models (vikix ai models): big, not backed up
 ├── vikix-debug-*.txt           the reports vikix debug writes (yours to delete; vikix diagnose's are in ~/.local/state/vikix/diagnose/)
 ├── .config/io.datasette.llm/  llm's settings and its log of everything asked (vikix ai llm)
@@ -147,6 +148,7 @@ Everything Vikix is. `readlink -f ~/.local/bin/vikix` finds it if you cloned it 
 | `features.list`, `bundles.list` | What `vikix add` offers: each feature's lists, and the bundles (essentials, developer, everything). A list no feature names is the base |
 | `services.list` | The runit services Vikix switches on |
 | `examples/` | Samples to copy and change: `hype/vikix-tour/`, a Hype presentation (`vikix add hype`) |
+| `learn/` | The courses `vikix learn` runs (`learn/c/`): each lesson's text, example and exercise, copied once to your `~/learn/c/`, and its checks, which stay here |
 | `themes/` | The themes that come with Vikix (`void`, `paper`, `gruvbox`, `nord`, `tokyo-night`, `contrast`) and their wallpapers, drawn by `lib/make-wallpaper.py` |
 | `dev/` | The READMEs and examples `~/dev` is made from |
 | `migrations/` | One-off fixes for machines installed before a change |
