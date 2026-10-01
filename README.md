@@ -210,6 +210,7 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 |---|---|
 | `s-Return` | Terminal |
 | `s-d` | Launcher |
+| `s-SPC` | Launcher too: the key other desktops use for it |
 | `s-w` | Browser (Firefox) |
 | `s-e` | Files (PCManFM) |
 | `s-E` | Files in SpaceFM (tabs, split panes) |
@@ -259,6 +260,8 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 | volume and brightness keys | Change the level and show a bar for it |
 
 ## The bar
+
+It answers the mouse too: click a workspace's number to go there, or a window's title to focus it; click **vol** for the mixer (pavucontrol; the wheel turns it up and down, the middle button mutes), the network for `nmtui`, and **bt** for Bluetooth's settings (blueman).
 
 Along the top, in Iosevka like the terminal: on the left the workspaces in use (the current one in brackets) and this workspace's windows, numbered, the focused one in the accent colour; on the right, from left to right:
 

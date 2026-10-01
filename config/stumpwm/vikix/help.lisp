@@ -18,7 +18,7 @@
 
 (defparameter *vikix-key-names*
   '(("RET" . "Return") ("TAB" . "Tab") ("ESC" . "Escape") ("Print" . "Print Screen")
-    ("period" . ".") ("equal" . "=") ("slash" . "/")
+    ("period" . ".") ("equal" . "=") ("slash" . "/") ("SPC" . "Space")
     ("XF86AudioRaiseVolume"  . "Volume-up key")
     ("XF86AudioLowerVolume"  . "Volume-down key")
     ("XF86AudioMute"         . "Mute key")

@@ -19,6 +19,7 @@
   '(;; programs
     ("s-RET"  "vikix-terminal"  "Terminal")
     ("s-d"    "exec rofi -show drun" "Launcher: start any program")
+    ("s-SPC"  "exec rofi -show drun" "Launcher, the key other desktops use")
     ("s-w"    "exec firefox"      "Browser")
     ("s-e"    "exec pcmanfm"      "Files")
     ("s-E"    "exec spacefm"      "Files in SpaceFM: tabs and split panes")

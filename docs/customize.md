@@ -82,6 +82,8 @@ Each entry is a label and either a command or a Lisp form, and, if you like, wha
 
 ### The bar
 
+The mouse works on it too: a workspace's number goes there, a window's title focuses it, volume opens the mixer (the wheel turns it up and down, the middle button mutes), the network opens `nmtui`, and Bluetooth its settings. The clickable parts are `^(:on-click ...)` areas made by `vikix-ml-clickable` in `modeline.lisp`; when they overlap, as a long window title under the fields on the right, the narrowest wins.
+
 The bar is one format string. Vikix sets it in `modeline.lisp`:
 
 ```lisp

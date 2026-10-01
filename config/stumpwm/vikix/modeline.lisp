@@ -45,6 +45,54 @@ when it is full on the charger, since that isn't news."
           (t (format nil "bat ~a%~a  " level
                      (if (string= status "Charging") "+" ""))))))
 
+;;; The mouse, for when a key doesn't come to mind: a workspace's number
+;;; in the bar goes there, and volume, the network and Bluetooth open their
+;;; settings (the wheel on volume turns it up and down). StumpWM draws the
+;;; ^(:on-click ...) parts as areas of the bar and calls the function
+;;; registered for the id with the button: 1 left, 2 middle, 3 right, 4
+;;; and 5 the wheel.
+(defun vikix-ml-clickable (id arg text)
+  "TEXT in the bar, calling the function registered for ID with ARG when
+clicked. The caller doubles any ^ in TEXT already, as the fields do."
+  (format nil "^(:on-click ~s ~s)~a^(:on-click-end)" id arg text))
+
+(defun vikix-ml-click (button what &rest rest)
+  "A click on the volume, network or Bluetooth field. Never signals: it
+runs from the event loop, where an error would reach the top level."
+  (declare (ignore rest))
+  (handler-case
+      (ecase what
+        (:volume (case button
+                   (4 (run-commands "vikix-volume up"))
+                   (5 (run-commands "vikix-volume down"))
+                   (2 (run-commands "vikix-volume mute"))
+                   ((1 3) (run-shell-command "pavucontrol"))))
+        (:net (when (member button '(1 3))
+                (run-shell-command (format nil "~a -e nmtui" *vikix-terminal*))))
+        (:bt (when (member button '(1 3))
+               (run-shell-command "blueman-manager"))))
+    (error (e) (message "The bar: ~a" e))))
+
+(register-ml-on-click-id :vikix-ml-click 'vikix-ml-click)
+;; When the bar is full, the windows' titles run on under the fields on
+;; the right, and StumpWM's dispatcher takes the first area that holds the
+;; click: a click on volume focused a window. Here the narrowest one wins,
+;; which is the field drawn on top.
+(defun vikix-ml-click-dispatcher (ml code x y)
+  "StumpWM's mode-line-click-dispatcher, with the narrowest area winning."
+  (let ((best nil))
+    (loop for area in (mode-line-on-click-bounds ml)
+          for (xbeg xend ybeg yend) = area
+          when (and (< xbeg x xend) (< ybeg y yend)
+                    (or (null best) (< (- xend xbeg) (- (second best) (first best)))))
+            do (setf best area))
+    (when best
+      (let ((fn (assoc (fifth best) *mode-line-on-click-functions*)))
+        (when fn (apply (cdr fn) code (sixth best)))))))
+
+(remove-hook *mode-line-click-hook* 'mode-line-click-dispatcher)
+(add-hook *mode-line-click-hook* 'vikix-ml-click-dispatcher)
+
 (defun vikix-mode-line-groups (ml)
   "The workspaces that have windows, plus the current one, in order.
 All nine always exist, so listing them all would say nothing."
@@ -52,16 +100,18 @@ All nine always exist, so listing them all would say nothing."
     (format nil "~{~a~^ ~}"
             (loop for group in (sort-groups (mode-line-screen ml))
                   when (or (eq group current) (group-windows group))
-                    collect (if (eq group current)
-                                (format nil "[~a]" (group-name group))
-                                (group-name group))))))
+                    collect (vikix-ml-clickable
+                             :ml-on-click-switch-to-group (group-name group)
+                             (if (eq group current)
+                                 (format nil "[~a]" (group-name group))
+                                 (group-name group)))))))
 
 (defun vikix-mode-line-volume (ml)
   "The volume, from *vikix-volume* (commands.lisp); nothing without sound."
   (declare (ignore ml))
   (if (string= *vikix-volume* "")
       ""
-      (format nil "vol ~a  " *vikix-volume*)))
+      (vikix-ml-clickable :vikix-ml-click :volume (format nil "vol ~a  " *vikix-volume*))))
 
 (defun vikix-mode-line-net (ml)
   "The network link, from *vikix-net* (commands.lisp); nothing without
@@ -69,14 +119,14 @@ NetworkManager."
   (declare (ignore ml))
   (if (string= *vikix-net* "")
       ""
-      (format nil "~a  " *vikix-net*)))
+      (vikix-ml-clickable :vikix-ml-click :net (format nil "~a  " *vikix-net*))))
 
 (defun vikix-mode-line-bt (ml)
   "Bluetooth, from *vikix-bt* (commands.lisp); nothing when it's off or absent."
   (declare (ignore ml))
   (if (string= *vikix-bt* "")
       ""
-      (format nil "~a  " *vikix-bt*)))
+      (vikix-ml-clickable :vikix-ml-click :bt (format nil "~a  " *vikix-bt*))))
 
 (defun vikix-mode-line-dropbox (ml)
   "Dropbox, from *vikix-dropbox* (commands.lisp): in the accent colour when
