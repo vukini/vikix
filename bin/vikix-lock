@@ -11,10 +11,27 @@
 # above everything, i3lock's too, so a message could be read on a locked
 # screen. They are shown once it's unlocked, unless they were already
 # paused (Do not disturb), which is kept.
+#
+# A key that wakes the dark screen isn't kept as part of the password.
 
 # The theme's background (vikix theme writes it), or void's.
 colour=$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/vikix/theme/lock" 2>/dev/null)
 case $colour in [0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]) ;; *) colour=1e1e2e ;; esac
+
+# clear_on_wake: the key that wakes a dark screen also reaches i3lock, as
+# the first letter of the password, which then can't be right. So while
+# i3lock runs, when the monitor comes back on from DPMS, Escape (i3lock's
+# "clear what's typed") goes to it. Woken by the mouse, it clears nothing.
+clear_on_wake() {
+  command -v xdotool >/dev/null 2>&1 || return 0
+  was=on
+  while sleep 0.1; do
+    case $(xset q 2>/dev/null) in
+      *"Monitor is On"*) [ "$was" = off ] && xdotool key Escape 2>/dev/null; was=on ;;
+      *"Monitor is "*) was=off ;;
+    esac
+  done
+}
 
 # locked: i3lock in the foreground (-n), notifications paused till it exits.
 locked() {
@@ -23,8 +40,11 @@ locked() {
     paused=$(dunstctl is-paused 2>/dev/null)
     [ "$paused" = false ] && dunstctl set-paused true 2>/dev/null
   fi
+  clear_on_wake &
+  waker=$!
   i3lock -n -c "$colour"
   status=$?
+  kill "$waker" 2>/dev/null
   [ "$paused" = false ] && dunstctl set-paused false 2>/dev/null
   return "$status"
 }

@@ -5,9 +5,10 @@
 #   dunst while it runs and resumes it after; Do not disturb (already
 #   paused) stays paused; i3lock's failure is the locker's; with xss-lock
 #   running, plain vikix-lock asks it to lock; without, it locks by itself,
-#   pausing too; a bad colour falls back to void's.
+#   pausing too; a bad colour falls back to void's; when the monitor comes
+#   back on from DPMS while locked, Escape clears the key that woke it.
 #
-# i3lock, dunstctl, pgrep and xset are stand-ins.
+# i3lock, dunstctl, pgrep, xset and xdotool are stand-ins.
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
@@ -24,12 +25,21 @@ fail=0
 check() { "${@:2}" || { echo "FAIL: $1"; fail=1; }; }
 calls="$t/calls"
 
-# i3lock: notes whether dunst was paused while it ran; $t/i3lock-fails fails it.
+# i3lock: notes whether dunst was paused while it ran; $t/i3lock-fails fails
+# it; with $t/dark, the monitor goes off while it runs, then a key wakes it.
 cat > "$t/bin/i3lock" <<END
 #!/bin/sh
 echo "i3lock \$* paused=\$(cat "$t/paused")" >> "$calls"
 [ -e "$t/i3lock-fails" ] && exit 1
+if [ -e "$t/dark" ]; then
+  sleep 0.3; echo Off > "$t/monitor"; sleep 0.3; echo On > "$t/monitor"; sleep 0.4
+fi
 exit 0
+END
+echo On > "$t/monitor"
+cat > "$t/bin/xdotool" <<END
+#!/bin/sh
+echo "xdotool \$*" >> "$calls"
 END
 cat > "$t/bin/dunstctl" <<END
 #!/bin/sh
@@ -44,6 +54,7 @@ cat > "$t/bin/pgrep" <<END
 END
 cat > "$t/bin/xset" <<END
 #!/bin/sh
+[ "\$1" = q ] && { printf '  DPMS is Enabled\\n  Monitor is %s\\n' "\$(cat "$t/monitor")"; exit 0; }
 echo "xset \$*" >> "$calls"
 END
 chmod +x "$t/bin/"*
@@ -55,6 +66,15 @@ lock --locker || { echo "FAIL: the locker should succeed"; fail=1; }
 check "i3lock should run in the foreground, the theme's colour, dunst paused: $(cat "$calls")" \
   grep -qx "i3lock -n -c 282828 paused=true" "$calls"
 check "notifications should come back after unlocking" test "$(cat "$t/paused")" = false
+check "no Escape when the screen never went dark: $(cat "$calls")" test -z "$(grep xdotool "$calls" || true)"
+
+: > "$calls"; echo false > "$t/paused"; touch "$t/dark"
+lock --locker
+check "the key that wakes the dark screen should be cleared: $(cat "$calls")" \
+  test "$(grep -c "xdotool key Escape" "$calls")" = 1
+rm -f "$t/dark"
+sleep 0.2
+check "nothing should be left watching after unlocking" test "$(grep -c xdotool "$calls")" = 1
 
 : > "$calls"; echo true > "$t/paused"
 lock --locker
