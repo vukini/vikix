@@ -124,8 +124,28 @@ EOF
 # (StumpWM sets none), it reads portals.conf; without one it has no file
 # chooser at all. Yours is left alone.
 write_portals() {
-  [ -e "$PORTALS" ] && { say "the portal's settings are yours ($PORTALS); left as they are"; return 0; }
-  [ "$DRY_RUN" = 1 ] && { printf '   would write %s\n' "$PORTALS"; return 0; }
+  if [ -e "$PORTALS" ]; then
+    say "the portal's settings are yours ($PORTALS); left as they are"
+  elif [ "$DRY_RUN" = 1 ]; then
+    printf '   would write %s\n' "$PORTALS"
+  else
+    write_portals_conf
+  fi
+  restart_portal
+}
+
+# A portal already running read its settings, and found its backends, when
+# it started (often days ago): without a restart it has no file chooser.
+# D-Bus starts it again on the next request. By its path: Linux keeps only
+# 15 letters of a process's name ("xdg-desktop-por"), so pkill -x
+# xdg-desktop-portal matched nothing, and Hype said the file chooser was
+# missing.
+restart_portal() {
+  [ "$DRY_RUN" = 1 ] && { printf '   would restart xdg-desktop-portal\n'; return 0; }
+  pkill -f '^/usr/libexec/xdg-desktop-portal$' 2>/dev/null || true
+}
+
+write_portals_conf() {
   mkdir -p "$(dirname "$PORTALS")"
   cat > "$PORTALS" <<EOF
 $MARK: the file dialogs of programs that ask the desktop
@@ -133,9 +153,6 @@ $MARK: the file dialogs of programs that ask the desktop
 [preferred]
 default=gtk
 EOF
-  # A portal already running read its settings when it started: it's
-  # started again on the next request.
-  pkill -x xdg-desktop-portal 2>/dev/null || true
   say "file dialogs: the portal uses gtk's ($PORTALS)"
 }
 

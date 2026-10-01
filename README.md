@@ -728,7 +728,7 @@ A sample to start from, a short tour of Vikix with speaker notes, two screenshot
 
 - **Built from source:** Void has no package, so `vikix hype setup` builds a pinned release into `~/.local/opt/hype` with Void's Qt 6 (a minute or two, once; the log is `~/.local/state/vikix/logs/hype-build.log`). `vikix hype status` says what's built; `vikix hype setup --rebuild` builds it again.
 - **Your theme's colours:** Hype's window follows `vikix theme` as it changes, and every Vikix theme, yours too, is one to choose for the slides (the palette icon, or `--theme`). `vikix theme` writes them in Omarchy's form: the current one to `~/.local/state/omarchy/current/theme/colors.toml`, all of them to `~/.local/share/vikix/omarchy/themes/`, where the `hype` command points `OMARCHY_PATH` unless you set it yourself.
-- **Open and Save** go through the desktop portal (xdg-desktop-portal, drawing gtk's dialog). Setup writes `~/.config/xdg-desktop-portal/portals.conf` to say so, unless you have one.
+- **Open and Save** go through the desktop portal (xdg-desktop-portal, drawing gtk's dialog). Setup writes `~/.config/xdg-desktop-portal/portals.conf` to say so, unless you have one, and restarts a portal that was already running, which reads its settings only when it starts. If Hype ever says the file chooser is missing, `vikix hype setup` again (or logging in again) puts that right.
 - **Your agent can write the slides:** setup runs `hype skill install`, a skill in `~/.agents/skills/hype`, linked into `~/.claude/skills`. Ask Super+a for a talk, and it writes the Markdown with `hype help format` and checks it with `hype check`.
 - `vikix remove hype` removes Hype, its command, launcher entry, skill and theme files; your presentations and the portal's settings stay.
 

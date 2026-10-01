@@ -5,7 +5,8 @@
 #   with Void's qmake6, records the feature, asks for no sudo when the
 #   packages are there; writes the hype command (OMARCHY_PATH pointing at
 #   Vikix's themes, and yours if set), the launcher entry, and the portal's
-#   settings (never over yours), moves aside a hype that isn't its own,
+#   settings (never over yours) and restarts a running portal so it reads
+#   them (by its path: pkill -x can't see its whole name), moves aside a hype that isn't its own,
 #   installs the agent's skill; vikix theme then writes the current theme
 #   where Hype's window looks and every theme for the slides (and nothing
 #   without Hype); a second setup builds nothing; a failed build says where
@@ -61,6 +62,7 @@ IN
 chmod +x hype
 EOF
 printf '#!/bin/sh\nexit 0\n' > "$t/bin/xbps-query"
+printf '#!/bin/sh\necho "pkill $*" >> %s\n' "$calls" > "$t/bin/pkill"
 printf '#!/bin/sh\necho "sudo $*" >> %s\n' "$calls" > "$t/bin/sudo"
 chmod +x "$t/bin/"*
 export PATH="$t/bin:$PATH" VIKIX_GIT="$t/bin/git" VIKIX_QMAKE="$t/bin/qmake6" VIKIX_MAKE="$t/bin/make"
@@ -72,6 +74,7 @@ check "a dry run should call no make" test -z "$(grep '^make' "$calls" || true)"
 check "a dry run shouldn't write the command" test ! -e "$cmd"
 check "a dry run shouldn't record the feature" test ! -e "$HOME/.config/vikix/features"
 check "a dry run should say it would build Hype" grep -q "would build Hype" "$t/out"
+check "a dry run shouldn't restart the portal" test -z "$(grep '^pkill' "$calls" || true)"
 
 # --- Not the pinned commit: refused ---------------------------------------------
 echo 0000000000000000000000000000000000000000 > "$t/commit"
@@ -100,6 +103,9 @@ check "the command should be Vikix's" grep -q 'Written by vikix hype setup' "$cm
 check "the launcher entry should open with the command" grep -qx "Exec=$cmd open %f" "$HOME/.local/share/applications/vikix-hype.desktop"
 check "the icon should be there" test -f "$HOME/.local/share/icons/hicolor/scalable/apps/hype.svg"
 check "the portal should use gtk" grep -qx 'default=gtk' "$portals"
+# By its full path: Linux keeps 15 letters of a name, so pkill -x
+# xdg-desktop-portal never matched, and the old portal had no file chooser.
+check "the running portal should be restarted, by its path" grep -qxF 'pkill -f ^/usr/libexec/xdg-desktop-portal$' "$calls"
 check "the agent's skill should be installed" test -L "$HOME/.claude/skills/hype"
 check "the command should point OMARCHY_PATH at Vikix's themes" grep -q "skill install OMARCHY_PATH=$HOME/.local/share/vikix/omarchy" "$calls"
 : > "$calls"
@@ -119,6 +125,7 @@ echo mine > "$portals"; : > "$calls"
 hy setup > "$t/out" 2>&1
 check "a second setup should build nothing" test -z "$(grep '^make' "$calls" || true)"
 check "your portal settings should be left alone" grep -qx mine "$portals"
+check "but the portal restarted, to find gtk's file chooser" grep -qxF 'pkill -f ^/usr/libexec/xdg-desktop-portal$' "$calls"
 out=$(hy status); check "status should say it's built: $out" grep -q "0\.[0-9.]*, built" <<<"$out"
 
 # --- uninstall -------------------------------------------------------------------------
