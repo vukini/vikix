@@ -1,6 +1,6 @@
 # Tutorials: `vikix learn`
 
-The plan for courses inside Vikix, starting with C. Drafted 2026-09-28. Status: **Phase 0 shipped in 0.71.17** (the runner and three lessons); the decisions are made (at the end); Phase 1 is next. `TODO.md` points here.
+The plan for courses inside Vikix, starting with C. Drafted 2026-09-28. Status: **Phase 0 shipped in 0.71.18** (the runner and three lessons); the decisions are made (at the end); Phase 1 is next. `TODO.md` points here.
 
 What's there now is very basic: the README's Languages section, with a "try it" column, and the examples in `~/dev/<language>/examples/`. C needs much better tutorials, and they should live inside Vikix.
 

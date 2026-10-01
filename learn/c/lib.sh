@@ -9,7 +9,7 @@
 CFLAGS_LEARN="-std=c17 -Wall -Wextra -pedantic -g"
 SAN="-fsanitize=address,undefined -fno-omit-frame-pointer"
 # The sanitizers need gcc's libsanitizer (libsanitizer-devel, in the base
-# since 0.71.17): without it, the checks run without them and say so once.
+# since 0.71.18): without it, the checks run without them and say so once.
 _san_ok() {
   [ -n "${_LEARN_SAN+x}" ] && { [ "$_LEARN_SAN" = 1 ]; return; }
   if printf 'int main(void){return 0;}\n' | cc $SAN -x c -o /dev/null - 2>/dev/null; then _LEARN_SAN=1
