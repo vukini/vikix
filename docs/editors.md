@@ -37,7 +37,7 @@ Emacs's config is a separate repository, the author's own ([emacs-void](https://
 | Where | Whose | What |
 |---|---|---|
 | `~/.emacs.d` | a git clone | The config, `config.org`. `vikix update` pulls it; a change of yours there can stop the pull (the update says so and carries on) |
-| `~/.local/share/vikix/emacs` | Vikix's | `vikix-ai.el`, the AI setup. A link into `~/vikix`, kept current by `vikix update`; the config loads it when it's there |
+| `~/.local/share/vikix/emacs` | Vikix's | `vikix-ai.el`, the AI setup, and `vikix-theme.el`, which makes Emacs follow `vikix theme`. A link into `~/vikix`, kept current by `vikix update`; the config loads them when they're there |
 
 Both are in [Where everything is](map.md), with the rest of your files.
 

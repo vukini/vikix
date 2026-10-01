@@ -12,7 +12,6 @@ Built in this order: newcomers first, then the rest (the AI items have shipped; 
 
 ### And then
 
-5. **Emacs and Neovim follow `vikix theme`.** The four new themes (gruvbox, nord, tokyo-night, contrast) shipped in 0.71.8; the editors still keep their own colours.
 6. **Whole-system undo.** When / is btrfs: snapper snapshots before each `vikix update`, and `vikix rollback` notes. Skip cleanly on ext4.
 7. **The guides on vikix.dev.** A Docs link on the site to `docs/` on GitHub, or the four pages built into the site. Same words either way: `docs/` stays the source.
 8. **Hype, DHH's Markdown presentation app, as a feature.** https://github.com/omacom/hype (MIT, Qt 6 and C++). Hype's code needs no change: its Omarchy ties are handled on Vikix's side. Checked in Void on 2026-09-28: every dependency is packaged (qt6-base, -declarative, -multimedia, -imageformats, -svg and their -devel; ffmpeg6-devel, libwebp-devel, source-highlight 3.1.9; gcc and make are in dev.list), and so are xdg-desktop-portal and xdg-desktop-portal-gtk. Steps:

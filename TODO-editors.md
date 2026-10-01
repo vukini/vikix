@@ -51,7 +51,6 @@ Shipped in 0.59.0 and 0.60.0, in `config/emacs/vikix-ai.el` (linked to `~/.local
 
 
 - [ ] **vikix.dev: screenshots of AI in each editor** (void and paper), for the gallery. The page has a line for it, "AI in your editor", since 0.61.0.
-- [ ] **The editors follow `vikix theme`** (TODO.md item 5): easy for Neovim now that it's in Vikix (the layer reads the palette `vikix theme` writes); for Emacs, a theme file written the same way.
 - [ ] **The Vikix MCP server** (`vikix mcp`, since 0.54.0): registered for the agents the editors start too.
 
 ## Other agentic editors (for the docs, not for Vikix to install)

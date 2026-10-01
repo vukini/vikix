@@ -752,7 +752,30 @@ EOF
 EOF
 
   printf '%s\n' "${c_bg#\#}" > "$THEME_OUT/lock"     # i3lock -c takes rrggbb
+  # Every colour as KEY=#rrggbb, for the editors: Neovim and Emacs read it
+  # for a theme they have no colour scheme of their own for.
+  {
+    printf '# %s\n' "$head"
+    for k in $THEME_KEYS sel; do local var="c_$k"; printf '%s=%s\n' "$k" "${!var}"; done
+  } > "$THEME_OUT/palette"
   printf '%s\n' "$1" > "$THEME_OUT/current"
+}
+
+# The editors that are running change too: Emacs through its server, each
+# Neovim through its own (every nvim listens on a socket in the runtime
+# folder). Each gets 3 seconds, and one that doesn't answer is left as it
+# is: it follows at its next start.
+theme_editors() {
+  local sock
+  if command -v emacsclient >/dev/null 2>&1; then
+    timeout 3 emacsclient -a false -e "(when (fboundp 'vikix-theme-apply) (vikix-theme-apply))" >/dev/null 2>&1 || true
+  fi
+  command -v nvim >/dev/null 2>&1 || return 0
+  for sock in "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"/nvim.*; do
+    [ -S "$sock" ] || continue
+    timeout 3 nvim --server "$sock" --remote-expr \
+      'luaeval("pcall(function() require(\"vikix.theme\").apply() end)")' >/dev/null 2>&1 || true
+  done
 }
 
 theme_current() {
@@ -790,6 +813,7 @@ cmd_theme() {
     # kitty reads its config again on SIGUSR1: with kitty.conf including
     # ours, open kitty windows change too.
     pkill -USR1 -x kitty 2>/dev/null || true
+    theme_editors
     # The theme's own wallpaper, unless you chose one (vikix-wallpaper).
     # Not on --refresh: that is `vikix update` rewriting the same theme,
     # and must not replace a picture set some other way.

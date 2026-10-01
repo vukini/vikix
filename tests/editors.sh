@@ -52,6 +52,16 @@ if [ "$which" = both ] || [ "$which" = emacs ]; then
     echo "FAIL emacs: the second start still had errors or downloads:"; grep -E "$bad|Contacting host" "$t/emacs2.log" | head -10; fail=1
   fi
   [ "$fail" = 0 ] && echo "emacs: installs from scratch and starts clean"
+  # Every built-in theme, with its package from MELPA (vikix-theme.el
+  # installs it the first time): Emacs ends up in the theme made for it.
+  for want in void:catppuccin paper:catppuccin gruvbox:doom-gruvbox nord:doom-nord \
+              tokyo-night:doom-tokyo-night contrast:modus-vivendi; do
+    DISPLAY='' bash "$here/bin/vikix" theme "${want%%:*}" >/dev/null
+    out=$(emacs --batch -l "$HOME/.emacs.d/init.el" -l "$HOME/.local/share/vikix/emacs/vikix-theme" \
+            --eval '(princ (format "THEME=%s" (cdr vikix-theme--applied)))' </dev/null 2>&1 | grep -o 'THEME=.*' || true)
+    [ "$out" = "THEME=${want#*:}" ] || { echo "FAIL emacs: theme ${want%%:*} should be ${want#*:}, got: ${out:-nothing}"; fail=1; }
+  done
+  [ "$fail" = 0 ] && echo "emacs: follows every built-in theme"
 fi
 
 if [ "$which" = both ] || [ "$which" = nvim ]; then
@@ -66,6 +76,15 @@ if [ "$which" = both ] || [ "$which" = nvim ]; then
   fi
   echo "nvim: installing the plugins in lazy-lock.json"
   nvim --headless "+Lazy! restore" +qa >"$t/nvim1.log" 2>&1 || { echo "FAIL nvim: Lazy restore exited $?"; fail=1; }
+  # Every built-in theme: Neovim starts in the scheme made for it, and
+  # contrast in "vikix", built from its palette.
+  for want in void:catppuccin-mocha paper:catppuccin-latte gruvbox:gruvbox nord:nord \
+              tokyo-night:tokyonight-night contrast:vikix; do
+    DISPLAY='' bash "$here/bin/vikix" theme "${want%%:*}" >/dev/null
+    out=$(nvim --headless -c 'lua io.stderr:write("SCHEME=" .. (vim.g.colors_name or "none") .. "\n")' -c 'qa!' 2>&1 | grep -o 'SCHEME=.*' || true)
+    [ "$out" = "SCHEME=${want#*:}" ] || { echo "FAIL nvim: theme ${want%%:*} should be ${want#*:}, got: ${out:-nothing}"; fail=1; }
+  done
+  DISPLAY='' bash "$here/bin/vikix" theme void >/dev/null
   if [ -z "$VIKIX_NVIM_REPO" ]; then
     out=$(nvim --headless -c 'lua local p = require("lazy.core.config").plugins; io.stderr:write("VIKIX=" .. tostring(p.vikix ~= nil) .. " TYPST=" .. tostring(p["typst-preview.nvim"] ~= nil) .. "\n")' -c 'qa!' 2>&1 || true)
     grep -q 'VIKIX=true TYPST=true' <<<"$out" || { echo "FAIL nvim: Vikix's part didn't load: $(grep -o 'VIKIX.*' <<<"$out" || tail -3 <<<"$out")"; fail=1; }
