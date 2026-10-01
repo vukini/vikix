@@ -16,17 +16,25 @@ OLD_OPTIONAL_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/optional"
 SKIP_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/packages-skip"
 
 # features_rows — features.list as NAME|LISTS|NEEDS|ADD|REMOVE|ABOUT, trimmed.
+# Read once a shell, then kept: the functions below ask for every name,
+# and parsing the file each time took seconds of every update.
 features_rows() {
-  read_list "$VIKIX_DIR/features.list" |
-    awk -F'|' '{ for (i = 1; i <= NF; i++) { gsub(/^[ \t]+|[ \t]+$/, "", $i) }
-                 print $1 "|" $2 "|" $3 "|" $4 "|" $5 "|" $6 }'
+  if [ -z "${_VIKIX_FEATURE_ROWS:-}" ]; then
+    _VIKIX_FEATURE_ROWS=$(read_list "$VIKIX_DIR/features.list" |
+      awk -F'|' '{ for (i = 1; i <= NF; i++) { gsub(/^[ \t]+|[ \t]+$/, "", $i) }
+                   print $1 "|" $2 "|" $3 "|" $4 "|" $5 "|" $6 }')
+  fi
+  printf '%s\n' "$_VIKIX_FEATURE_ROWS"
 }
 
 # bundles_rows — bundles.list as NAME|FEATURES|ABOUT, trimmed.
 bundles_rows() {
-  read_list "$VIKIX_DIR/bundles.list" |
-    awk -F'|' '{ for (i = 1; i <= NF; i++) { gsub(/^[ \t]+|[ \t]+$/, "", $i) }
-                 print $1 "|" $2 "|" $3 }'
+  if [ -z "${_VIKIX_BUNDLE_ROWS:-}" ]; then
+    _VIKIX_BUNDLE_ROWS=$(read_list "$VIKIX_DIR/bundles.list" |
+      awk -F'|' '{ for (i = 1; i <= NF; i++) { gsub(/^[ \t]+|[ \t]+$/, "", $i) }
+                   print $1 "|" $2 "|" $3 }')
+  fi
+  printf '%s\n' "$_VIKIX_BUNDLE_ROWS"
 }
 
 # These read features.list to the end. Stopping at the first match (grep
@@ -218,3 +226,9 @@ open_bundles() {
     done
   done
 }
+
+# Parsed here, in the shell that loads this file: the functions run in
+# pipelines and $( ), which are subshells, and only inherit what's
+# already set.
+features_rows >/dev/null
+bundles_rows >/dev/null

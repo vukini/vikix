@@ -69,25 +69,34 @@ for list in "${lists[@]}"; do
 done
 [ "${#left_out[@]}" -eq 0 ] || say "left out, on your skip list (vikix pkg list): ${left_out[*]}"
 
-# Sync the repository index, once from here on (twice in all when
-# repositories were just added: they bring new indexes). The sync lets
-# unknown names be spotted before the install, where one bad line would
-# fail the whole batch.
-run sudo xbps-install -Sy >/dev/null </dev/null ||
-  warn "could not sync the package index; installing from the last one"
-
+# What isn't installed yet, from one listing of what is (pkg_installed).
 missing=()
 for pkg in "${wanted[@]}"; do
-  pkg_installed "$pkg" && continue
+  pkg_installed "$pkg" || missing+=("$pkg")
+done
+if [ "${#missing[@]}" -eq 0 ]; then
+  say "all ${#wanted[@]} packages already installed"
+  exit 0
+fi
+
+# Sync the repository index, only now that something is to be installed
+# (it's a download, every time: an update with nothing new skips it), and
+# twice in all when repositories were just added: they bring new indexes.
+# The sync lets unknown names be spotted before the install, where one bad
+# line would fail the whole batch.
+run sudo xbps-install -Sy >/dev/null </dev/null ||
+  warn "could not sync the package index; installing from the last one"
+known=()
+for pkg in "${missing[@]}"; do
   if [ "$DRY_RUN" != 1 ] && command -v xbps-query >/dev/null && ! xbps-query -R "$pkg" >/dev/null 2>&1; then
     warn "no package called '$pkg' in the repositories; skipping it (check the spelling in packages/)"
     continue
   fi
-  missing+=("$pkg")
+  known+=("$pkg")
 done
-
+missing=("${known[@]}")
 if [ "${#missing[@]}" -eq 0 ]; then
-  say "all ${#wanted[@]} packages already installed"
+  say "nothing to install: the new names aren't in the repositories"
   exit 0
 fi
 

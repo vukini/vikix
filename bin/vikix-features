@@ -216,6 +216,7 @@ cmd_remove() {
       die "$f: '$(feature_field "$f" 5)' didn't finish; nothing else was removed"
   done
   [ "${#pkgs[@]}" -eq 0 ] || run sudo xbps-remove -Ry "${pkgs[@]}"
+  pkg_cache_reset
   # Services whose package just went: runit would keep a dead link.
   local sv
   while IFS= read -r sv; do

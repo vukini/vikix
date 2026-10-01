@@ -57,9 +57,24 @@ read_list() {
   sed -e 's/#.*//' -e 's/[[:space:]]*$//' -e '/^[[:space:]]*$/d' "$1"
 }
 
+# The installed packages' names, listed once for the whole run: a query
+# for each one took half a second, and 10-packages asks about some 200
+# (a minute and a half for every update, with nothing new). A name not in
+# the list is still asked about on its own, so one installed since, or
+# found another way (a virtual package), is answered right.
+_VIKIX_PKGS=""
 pkg_installed() {
-  command -v xbps-query >/dev/null 2>&1 && xbps-query "$1" >/dev/null 2>&1
+  command -v xbps-query >/dev/null 2>&1 || return 1
+  if [ -z "$_VIKIX_PKGS" ]; then
+    _VIKIX_PKGS=" $(xbps-query -l </dev/null 2>/dev/null | awk '{ sub(/-[^-]*_[0-9]+$/, "", $2); printf "%s ", $2 }')"
+  fi
+  case $_VIKIX_PKGS in *" $1 "*) return 0 ;; esac
+  # </dev/null: called in `while read` loops, nothing here may take their input.
+  xbps-query "$1" </dev/null >/dev/null 2>&1
 }
+
+# After removing packages, so the list is made again.
+pkg_cache_reset() { _VIKIX_PKGS=""; }
 
 # enable_service SV
 # Void uses runit, not systemd: a service is switched on by linking its

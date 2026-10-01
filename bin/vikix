@@ -220,6 +220,10 @@ vikix update          everything: core, then system, then tools
 vikix update core     Vikix only: pull it, install packages new to its lists
                         (nothing else of Void's), services, config links,
                         migrations, reload StumpWM. Seconds, not minutes.
+vikix update core --from DIR
+                      the same, pulling from the Vikix repository in DIR (its
+                        main) instead of GitHub: for trying your own commits
+                        before you push them; only ever a fast-forward
 vikix update system   Void's packages only (xbps-install -Su)
 vikix update tools    the editors' plugins and servers, the languages built
                         from source, ~/dev, llm, and your own pipx, uv and
@@ -228,16 +232,25 @@ EOF
 }
 
 cmd_update() {
-  local a pulled='' part=all
-  for a in "$@"; do
+  local a pulled='' part=all from=''
+  while [ "$#" -gt 0 ]; do
+    a=$1; shift
     case $a in
       --pulled) pulled=1 ;;
+      --from) from=${1:-}; [ "$#" -gt 0 ] && shift; [ -n "$from" ] || die "--from needs a folder: vikix update core --from ~/src/vikix" ;;
+      --from=*) from=${a#--from=} ;;
       ''|all) ;;
       core|system|tools) part=$a ;;
       -h|--help|help) update_help; return 0 ;;
-      *) die "vikix update [core|system|tools] (vikix update help)" ;;
+      *) die "vikix update [core|system|tools] [--from DIR] (vikix update help)" ;;
     esac
   done
+  if [ -n "$from" ]; then
+    [ "$part" = core ] || die "--from goes with core: vikix update core --from $from"
+    git -C "$from" rev-parse --verify -q main >/dev/null 2>&1 ||
+      die "$from isn't a Vikix repository with a main branch"
+    from=$(cd "$from" && pwd)
+  fi
   local what="update"; [ "$part" = all ] || what="update $part"
   drop_keys
   # Everything it prints also goes to a log, like the installer's. Set up
@@ -254,8 +267,18 @@ cmd_update() {
   if [ "$part" = all ] || [ "$part" = core ]; then
     if [ -z "$pulled" ]; then
       set_aside_local_changes "$VIKIX_DIR"
-      say "pulling Vikix"
-      git_pull "$VIKIX_DIR" || pull_failed "$VIKIX_DIR"
+      if [ -n "$from" ]; then
+        # Your own repository's main, without GitHub: commits you haven't
+        # pushed yet. Only a fast-forward, so ~/vikix stays a step of the
+        # same history GitHub will have once you push, and the next plain
+        # update carries on from there.
+        say "pulling Vikix from $from (main), not GitHub"
+        run git -C "$VIKIX_DIR" pull --ff-only -q "$from" main ||
+          die "$VIKIX_DIR can't fast-forward to $from's main (was main rewritten?); a plain vikix update core pulls from GitHub"
+      else
+        say "pulling Vikix"
+        git_pull "$VIKIX_DIR" || pull_failed "$VIKIX_DIR"
+      fi
       # The pull may have replaced this very script, but bash goes on running
       # the copy it already opened: the steps below would be the OLD version's,
       # and a stage new in this version would be skipped. So start again from

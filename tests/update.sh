@@ -194,5 +194,31 @@ grep -q 'core|system|tools' <<<"$out" || { echo "FAIL: an unknown part should na
 out=$(part all)
 grep -q 'would run: pipx upgrade-all' <<<"$out" && grep -q 'xbps-install -Su' <<<"$out" && grep -q 'STUB 67-dev' <<<"$out" ||
   { echo "FAIL: plain update should still do everything: $out"; fail=1; }
-[ "$fail" = 0 ] && echo "update: core, system and tools each do only their part; plain update does all three"
+# --from: your own repository's main, without GitHub. A commit not pushed
+# anywhere arrives; a checkout that has gone another way is refused, not
+# merged; and only core takes it.
+git clone -q "$t/upstream" "$t/dev"
+# The dev repository's newer bin/vikix stops right after the pull, so the
+# test pulls for real and installs nothing.
+( cd "$t/dev" && git checkout -q -B main && echo "not pushed yet" >> TODO.md &&
+  sed -i 's/^cmd_update() {$/cmd_update() {\n  [ "${1:-}" = --pulled ] \&\& { echo "NEW CORE STEPS"; exit 0; }/' bin/vikix &&
+  grep -q 'NEW CORE STEPS' bin/vikix && git_q commit -qam "a commit only here" )
+git clone -q "$t/upstream" "$t/m2"
+out=$(HOME="$t/home" VIKIX_STATE="$t/state4" VIKIX_SUDO_KEPT=1 \
+  bash "$t/m2/bin/vikix" update core --from "$t/dev" 2>&1) || true
+grep -q 'NEW CORE STEPS' <<<"$out" || { echo "FAIL: --from should go on with the new version's steps: $out"; fail=1; }
+grep -q "pulling Vikix from $t/dev (main), not GitHub" <<<"$out" || { echo "FAIL: --from should say where it pulls from: $out"; fail=1; }
+[ "$(git -C "$t/m2" rev-parse HEAD)" = "$(git -C "$t/dev" rev-parse main)" ] ||
+  { echo "FAIL: --from should bring the commit only the dev repository has"; fail=1; }
+( cd "$t/m2" && git reset -q --hard HEAD~1 && echo "another way" >> README.md && git_q commit -qam "diverged" )
+before=$(git -C "$t/m2" rev-parse HEAD)
+out=$(HOME="$t/home" VIKIX_STATE="$t/state4" VIKIX_SUDO_KEPT=1 \
+  bash "$t/m2/bin/vikix" update core --from "$t/dev" 2>&1) && { echo "FAIL: a checkout that went another way should be refused"; fail=1; }
+grep -q "can't fast-forward" <<<"$out" || { echo "FAIL: the refusal should say why: $out"; fail=1; }
+[ "$(git -C "$t/m2" rev-parse HEAD)" = "$before" ] || { echo "FAIL: a refused --from changed the checkout"; fail=1; }
+out=$(HOME="$t/home" VIKIX_STATE="$t/state4" bash "$t/m2/bin/vikix" update --from "$t/dev" 2>&1) &&
+  { echo "FAIL: --from without core should be refused"; fail=1; }
+grep -q 'goes with core' <<<"$out" || { echo "FAIL: --from without core should say so: $out"; fail=1; }
+
+[ "$fail" = 0 ] && echo "update: core, system and tools each do only their part; plain update does all three; core --from pulls a local main, fast-forward only"
 exit "$fail"

@@ -125,6 +125,7 @@ cmd_drop() {
   fi
   sudo_keepalive
   run sudo xbps-remove -Ry "${picked[@]}"
+  pkg_cache_reset
   [ "${#skip[@]}" -eq 0 ] || addskip "${skip[@]}"
   say "uninstalled: ${picked[*]}. vikix pkg add brings one back."
 }

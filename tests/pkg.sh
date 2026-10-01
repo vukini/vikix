@@ -97,5 +97,31 @@ check "gforth should stay on the skip list" grep -qx gforth "$t/skip-real"
 check "your comment on the skip list went" grep -qx '# mine' "$t/skip-real"
 check "the linked skip list was replaced by a plain file" test -L "$skip"
 
+# pkg_installed asks xbps once for the whole run (xbps-query -l), not once a
+# package (half a second each: 94 seconds of every update); a name not in
+# that list is still asked about on its own; and nothing it runs takes the
+# input of a while-read loop it's called in.
+mkdir -p "$t/once"
+cat > "$t/once/xbps-query" <<'Q'
+#!/bin/sh
+echo "$*" >> "$CALLS"
+cat >/dev/null   # as a stand-in that reads its input would
+case "$1" in
+  -l) printf 'ii bash-5.3.3_1  The GNU shell\nii gcc-14.2.1_4  GNU compilers\nii xbps-0.60.7_1  XBPS\n' ;;
+  virtual-one) exit 0 ;;
+  *) exit 1 ;;
+esac
+Q
+chmod +x "$t/once/xbps-query"
+out=$(CALLS="$t/once/calls" PATH="$t/once:$PATH" bash -c '. "$1/lib/common.sh"
+  printf "bash\ngcc\nnot-here\nxbps\nvirtual-one\n" | while read -r p; do
+    if pkg_installed "$p"; then echo "$p yes"; else echo "$p no"; fi
+  done' _ "$here")
+[ "$out" = "$(printf 'bash yes\ngcc yes\nnot-here no\nxbps yes\nvirtual-one yes')" ] ||
+  { echo "FAIL: pkg_installed should answer every package of a while-read loop: $out"; fail=1; }
+[ "$(grep -c '^-l$' "$t/once/calls")" = 1 ] || { echo "FAIL: xbps should list the packages once: $(cat "$t/once/calls")"; fail=1; }
+grep -qx 'bash' "$t/once/calls" && { echo "FAIL: a package in the list shouldn't be asked about again"; fail=1; }
+grep -qx 'virtual-one' "$t/once/calls" || { echo "FAIL: a name not in the list should be asked about"; fail=1; }
+
 [ "$fail" = 0 ] && echo "pkg: add by name or search, drop with a skip list that update leaves out, and add takes one off"
 exit "$fail"
