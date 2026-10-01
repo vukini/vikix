@@ -21,7 +21,7 @@ Vid often has several Claude sessions on Vikix at once. So that none disturbs an
 - **Start** by making one, outside the Obsidian vault (the vault syncs to another PC, and a half-finished folder shouldn't): `git worktree add ~/work/vikix-TOPIC -b TOPIC` from this repo, then work only in `~/work/vikix-TOPIC`. A short topic name (`plugins`, `update-core`). If Claude Code's own worktree support is used instead, the same rules hold.
 - **This folder is for merging only.** Don't edit here while working on a change; its working tree stays clean, so merges into `main` are always possible.
 - **Commit only the files you changed,** by name. Never `git add -A` or `git commit -a`.
-- **Finishing:** `git fetch` and rebase the branch onto `main` (resolve conflicts; they show up most in `TODO.md`, `README.md` and `docs/`), run `tests/run.sh`, then in this folder `git merge --ff-only TOPIC`.
+- **Finishing:** `git fetch` and rebase the branch onto `main` (resolve conflicts; they show up most in `TODO.md`, `README.md` and `docs/`), run `tests/run.sh --quick` (the full `tests/run.sh` when the change touches `install/`, `packages/`, `features.list` or `dev/`; GitHub runs everything on each push anyway), then in this folder `git merge --ff-only TOPIC`.
 - **`VERSION` is bumped at merge time, never earlier,** in the release commit made here after the merge, so two sessions can't both claim the same number. Then tell Vid to run `gup`.
 - **Clean up:** `git worktree remove ~/work/vikix-TOPIC` and `git branch -d TOPIC`.
 - **Never** force-push, rewrite `main`, or touch another session's worktree or branch. `git worktree list` shows what else is in progress.
@@ -33,6 +33,7 @@ No build step. The tests are scripts in `tests/`, and `.github/workflows/test.ym
 
 ```sh
 tests/run.sh                  # about two minutes: lint, lisp, battery, home, services, backup (with restic), image, theme, theme-import, bar, rofi, wallpaper, examples, dev-ai, notes, drives, firmware, fingerprint, updates, notifications, idle, lock, lazarus, capture, nightlight, update, windows, ai, ai-local, llm, ai-keys, agents, debug, dictate, voice, lisp-apps, mcp, swank (with Quicklisp), webapp, features, nvim, welcome, menu, pkg, oneline, info, and on Void packages + dry-run
+tests/run.sh --quick          # the same without packages, dry-run (Void's mirror), examples and lazarus (minutes each): for changes outside install/, packages/, features.list and dev/
 tests/run.sh --all            # plus editors: Emacs's config and Vikix's Neovim config from scratch (minutes, network)
 tests/lint.sh                 # bash -n, executable bits, shellcheck -S warning (must stay at zero)
 DRY_RUN=1 bash install/<stage>.sh     # one stage, printing instead of changing
