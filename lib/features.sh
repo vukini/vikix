@@ -29,13 +29,17 @@ bundles_rows() {
                  print $1 "|" $2 "|" $3 }'
 }
 
+# These read features.list to the end. Stopping at the first match (grep
+# -q, awk's exit) leaves the writer writing to a closed pipe: SIGPIPE, which
+# pipefail turns into "no such feature", now and then, as the list grows.
+
 # feature_field NAME N — field N (1 name, 2 lists, 3 needs, 4 add, 5 remove, 6 about).
 feature_field() {
-  features_rows | awk -F'|' -v n="$1" -v f="$2" '$1 == n { print $f; exit }'
+  features_rows | awk -F'|' -v n="$1" -v f="$2" '$1 == n && !done { print $f; done = 1 }'
 }
 
-is_feature() { features_rows | cut -d'|' -f1 | grep -qx -- "$1"; }
-is_bundle()  { bundles_rows  | cut -d'|' -f1 | grep -qx -- "$1"; }
+is_feature() { features_rows | cut -d'|' -f1 | grep -x -- "$1" >/dev/null; }
+is_bundle()  { bundles_rows  | cut -d'|' -f1 | grep -x -- "$1" >/dev/null; }
 
 # bundle_features BUNDLE — the names a bundle holds, bundles in it opened,
 # without the features they need.
@@ -99,7 +103,7 @@ chosen_features() {
   expand_features "${names[@]}" || true
 }
 
-is_chosen() { chosen_features 2>/dev/null | grep -qx -- "$1"; }
+is_chosen() { chosen_features 2>/dev/null | grep -x -- "$1" >/dev/null; }
 
 # lists_of FEATURE... — the package lists of these features, one a line.
 lists_of() {
@@ -152,7 +156,7 @@ record_features() {
   fi
   for name in "$@"; do
     [ "$DRY_RUN" = 1 ] && { printf '   would add %s to %s\n' "$name" "$FEATURES_FILE"; continue; }
-    read_list "$FEATURES_FILE" | grep -qx -- "$name" || printf '%s\n' "$name" >> "$FEATURES_FILE"
+    read_list "$FEATURES_FILE" | grep -x -- "$name" >/dev/null || printf '%s\n' "$name" >> "$FEATURES_FILE"
   done
 }
 
@@ -188,7 +192,7 @@ open_bundles() {
     kept=$(awk -v n="$name" '{ line = $0; sub(/#.*/, "", line); gsub(/[ \t]/, "", line) } line != n' "$FEATURES_FILE")
     printf '%s\n' "$kept" > "$FEATURES_FILE"
     for name in "${out[@]}"; do
-      read_list "$FEATURES_FILE" | grep -qx -- "$name" || printf '%s\n' "$name" >> "$FEATURES_FILE"
+      read_list "$FEATURES_FILE" | grep -x -- "$name" >/dev/null || printf '%s\n' "$name" >> "$FEATURES_FILE"
     done
   done
 }
