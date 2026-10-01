@@ -152,12 +152,17 @@ check "reset should bring the exercise back as it came" cmp -s "$course/$last/ex
 
 # watch: a save is checked, and passing moves on.
 vl c go "${second%%-*}" >/dev/null 2>&1
-vl c watch > "$t/watch" 2>&1 &
+# The runner itself, not the vl function: a function in the background is
+# a subshell, and stopping it left the runner checking on its own, for
+# hours, after every run of this test.
+bash "$here/bin/vikix-learn" c watch > "$t/watch" 2>&1 &
 watch_pid=$!
 for _ in $(seq 1 100); do grep -q 'watching' "$t/watch" && break; sleep 0.1; done
 cp "$course/$second/solution.c" "$work/$second/exercise.c"
 for _ in $(seq 1 200); do grep -q "lesson 3 of" "$t/watch" && break; sleep 0.1; done
 kill "$watch_pid" 2>/dev/null || true
+sleep 0.3
+check "the watching runner should be gone once stopped" bash -c "! kill -0 $watch_pid 2>/dev/null"
 check "watch should check a save and mark the lesson done: $(tail -5 "$t/watch")" grep -q "lesson $second: done" "$t/watch"
 check "and show the next lesson" grep -q "lesson 3 of" "$t/watch"
 
