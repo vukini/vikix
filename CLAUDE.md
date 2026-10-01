@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Vikix is an opinionated desktop layer for **glibc Void Linux** built around **StumpWM**: Void, supercharged. It was inspired by Omarchy but is its own thing: credit Omarchy as the inspiration, but don't call Vikix "Omarchy for Void". It is not a distribution; it's a set of bash install stages run on top of a plain Void install, plus the config it puts in place and a `vikix` command that keeps it current. Repo: github.com/vukini/vikix (MIT).
 
-This folder sits inside an Obsidian vault, but it is a code repo: the vault's note conventions (frontmatter, tags, `_Index_of_*`) don't apply here. The `vikix-*.zip` files are old releases and are gitignored.
+This repo lives in `~/src/vikix` on the dev machine (until 2026-10-01 it was inside the Obsidian vault, `~/General/Living-in-Life/vikix`). The `vikix-*.zip` files are old releases and are gitignored.
 
 **Edit in this repo (in a worktree of it: see Working in parallel), never in `~/vikix`.** This repo is where Vikix is developed. `~/vikix` on the dev machine is the installed checkout: it only pulls from GitHub, to see Vikix the way a user does. Don't edit, commit or stash there; `vikix update` sets edits aside and stops on commits. To try a change on the desktop, commit it here, push, and run `vikix update` (the `gup` alias does both).
 
@@ -18,12 +18,12 @@ This folder sits inside an Obsidian vault, but it is a code repo: the vault's no
 
 Vid often has several Claude sessions on Vikix at once. So that none disturbs another, **every session works in its own git worktree by default**, unless Vid says otherwise:
 
-- **Start** by making one, outside the Obsidian vault (the vault syncs to another PC, and a half-finished folder shouldn't): `git worktree add ~/work/vikix-TOPIC -b TOPIC` from this repo, then work only in `~/work/vikix-TOPIC`. A short topic name (`plugins`, `update-core`). If Claude Code's own worktree support is used instead, the same rules hold.
+- **Start** by making one beside this repo: `git worktree add ~/src/vikix-TOPIC -b TOPIC` from it, then work only in `~/src/vikix-TOPIC`. A short topic name (`plugins`, `update-core`). If Claude Code's own worktree support is used instead, the same rules hold.
 - **This folder is for merging only.** Don't edit here while working on a change; its working tree stays clean, so merges into `main` are always possible.
 - **Commit only the files you changed,** by name. Never `git add -A` or `git commit -a`.
 - **Finishing:** `git fetch` and rebase the branch onto `main` (resolve conflicts; they show up most in `TODO.md`, `README.md` and `docs/`), run `tests/run.sh --quick` (the full `tests/run.sh` when the change touches `install/`, `packages/`, `features.list` or `dev/`; GitHub runs everything on each push anyway), then in this folder `git merge --ff-only TOPIC`.
 - **`VERSION` is bumped at merge time, never earlier,** in the release commit made here after the merge, so two sessions can't both claim the same number. Then tell Vid to run `gup`.
-- **Clean up:** `git worktree remove ~/work/vikix-TOPIC` and `git branch -d TOPIC`.
+- **Clean up:** `git worktree remove ~/src/vikix-TOPIC` and `git branch -d TOPIC`.
 - **Never** force-push, rewrite `main`, or touch another session's worktree or branch. `git worktree list` shows what else is in progress.
 - **Cloud sessions** (a clone of their own, pushing straight to GitHub) are already apart: fetch and rebase before every push, never force, and bump `VERSION` only when nobody else's release is in flight (check `git log origin/main` first).
 
