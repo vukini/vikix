@@ -47,6 +47,8 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── webapps            yours     your web apps: NAME URL [KEY] (vikix webapp)
 │   │   ├── wallpaper          yours     a link to the picture you chose
 │   │   ├── wallpaper-off      yours     exists if you set the wallpaper with your own tool
+│   │   ├── wallpaper-theme    yours     exists if the wallpaper follows the theme instead of cycling
+│   │   ├── wallpaper-minutes  yours     how often the wallpaper changes when cycling (vikix-wallpaper cycle MINUTES; 30 without it)
 │   │   ├── themes/            yours     your own themes (NAME.theme, NAME.jpg)
 │   │   └── theme/             written   each program's colours, and `current`, the theme you chose (`vikix theme`)
 │   ├── alacritty/alacritty.toml   yours  imports ../vikix/theme/alacritty.toml
@@ -122,6 +124,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 | `jupyter.log` | JupyterLab's messages (`jlab`) |
 | `ollama.log` | Local AI's log (vikix ai); one old one is kept as `ollama.log.old` |
 | `updates` | What the bar's `updates` field shows, written by `vikix-updates` every 6 hours |
+| `wallpaper-now`, `wallpaper.lock` | The picture the cycling wallpaper shows, and the lock that keeps its watcher (`vikix-wallpaper --watch`) to one |
 | `initramfs-*` | Marks that the initramfs was rebuilt with this microcode |
 
 ### `~/dev`

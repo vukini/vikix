@@ -124,13 +124,20 @@ else
         "# vikix update keeps their packages. See: vikix features" > "$FEATURES_FILE"
     fi
   fi
+  # A fresh machine's wallpaper cycles through Vid's collection, so it
+  # comes with the base (vikix remove wallpapers takes it away). Not one
+  # of the features you asked for: 90-finish names only those.
+  adding=("${features[@]}")
+  if [ ! -d "$VIKIX_STATE/migrations" ] && [[ " ${features[*]} " != *" wallpapers "* ]]; then
+    adding+=(wallpapers)
+  fi
   for name in "${STAGES[@]}"; do
     [ "$name" = 90-finish ] && continue
     run_stage "$name"
   done
-  if [ "${#features[@]}" -gt 0 ]; then
-    say "adding: ${features[*]}"
-    bash "$VIKIX_DIR/bin/vikix-features" add "${features[@]}" || failed+=("vikix add ${features[*]}")
+  if [ "${#adding[@]}" -gt 0 ]; then
+    say "adding: ${adding[*]}"
+    bash "$VIKIX_DIR/bin/vikix-features" add "${adding[@]}" || failed+=("vikix add ${adding[*]}")
   fi
   VIKIX_ADDED="${features[*]}"
   export VIKIX_ADDED            # 90-finish says what was added

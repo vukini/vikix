@@ -123,7 +123,7 @@ A theme is a small file of named colours (`~/vikix/themes/void.theme`). `vikix t
 
 1. saves the name to `~/.config/vikix/theme/current`
 2. writes each program's colours into `~/.config/vikix/theme/` (alacritty, kitty, rofi, the lock screen) and `~/.config/dunst/dunstrc.d/10-vikix-theme.conf`
-3. repaints StumpWM, reloads dunst, and sets the theme's wallpaper, unless you chose your own
+3. repaints StumpWM, reloads dunst, and sets the theme's wallpaper, if you chose to follow the theme (the wallpaper cycles otherwise)
 
 Your own configs *include* those written files. So the theme's colours come in, and anything you set after the include wins. That's how the theme reaches your files without Vikix editing them.
 

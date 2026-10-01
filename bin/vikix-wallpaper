@@ -4,27 +4,42 @@
 #   vikix-wallpaper          show the wallpaper (vikix-session runs this at login)
 #   vikix-wallpaper pick     choose one in rofi, with pictures (Super+m, Wallpaper)
 #   vikix-wallpaper FILE     use FILE from now on
-#   vikix-wallpaper theme    follow the theme again
+#   vikix-wallpaper cycle [MINUTES]
+#                            a new picture every MINUTES (30 unless set), and
+#                            one at once: the default
+#   vikix-wallpaper next     the next picture now, when cycling
+#   vikix-wallpaper theme    follow the theme
 #   vikix-wallpaper off      leave the wallpaper alone: for your own tool
 #                            (feh, nitrogen, a script that rotates them)
 #   vikix-wallpaper which    print the picture it would show
+#   vikix-wallpaper --watch  change it on time; vikix-session runs this
 #
-# Unless you choose one, the wallpaper follows the theme: each theme's own
-# is the picture next to its theme file with the same name (themes/void.jpg,
-# or ~/.config/vikix/themes/mine.jpg beside mine.theme), so `vikix theme`
+# Unless you choose otherwise, the wallpaper cycles: a picture at random,
+# never the same twice running, from Vid's collection (the feature
+# wallpapers, in ~/.local/share/vikix/wallpapers, which a fresh install
+# has), ~/Pictures/Wallpapers and ~/wallpapers (put yours in either). The
+# one showing is remembered in ~/.local/state/vikix/wallpaper-now, the
+# minutes in ~/.config/vikix/wallpaper-minutes.
+#
+# Following the theme (~/.config/vikix/wallpaper-theme), its own picture is
+# the one next to its theme file with the same name (themes/void.jpg, or
+# ~/.config/vikix/themes/mine.jpg beside mine.theme), so `vikix theme`
 # changes it too. A theme without a picture gets a plain background in its
-# own colour. Your choice is ~/.config/vikix/wallpaper, a link to the file;
-# off is ~/.config/vikix/wallpaper-off. Choosing a picture, or theme, ends off.
+# own colour; so does cycling with no pictures to cycle. Your choice is
+# ~/.config/vikix/wallpaper, a link to the file; off is
+# ~/.config/vikix/wallpaper-off. Each choice ends the others.
 #
-# The picker lists the themes' pictures, ~/Pictures/Wallpapers and
-# ~/wallpapers (put yours in either folder), and with the feature wallpapers
-# (vikix add wallpapers) Vid's collection in ~/.local/share/vikix/wallpapers;
-# its last entry is off.
+# The picker lists the theme's, Cycle, then all the pictures; its last
+# entry is off.
 
 VIKIX_DIR=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
 CONFIG=${XDG_CONFIG_HOME:-$HOME/.config}
 CHOICE="$CONFIG/vikix/wallpaper"
 OFF="$CONFIG/vikix/wallpaper-off"
+THEME="$CONFIG/vikix/wallpaper-theme"
+MINUTES="$CONFIG/vikix/wallpaper-minutes"
+STATE=${XDG_STATE_HOME:-$HOME/.local/state}/vikix
+NOW="$STATE/wallpaper-now"
 USER_THEMES="$CONFIG/vikix/themes"
 CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/vikix
 COLLECTION=${XDG_DATA_HOME:-$HOME/.local/share}/vikix/wallpapers
@@ -56,12 +71,37 @@ plain() {
   echo "$CACHE/plain-$bg.ppm"
 }
 
-which_one() {
-  if [ -e "$CHOICE" ]; then
-    readlink -f "$CHOICE"
-  else
-    picture_of "$(theme)" || plain "$(theme)"
+# mode — off, chosen, theme or cycle (the default)
+mode() {
+  if [ -e "$OFF" ]; then echo off
+  elif [ -e "$CHOICE" ]; then echo chosen
+  elif [ -e "$THEME" ]; then echo theme
+  else echo cycle
   fi
+}
+
+# now — the picture cycling shows, if it's still there
+now() {
+  f=$(cat "$NOW" 2>/dev/null) && [ -f "$f" ] && echo "$f"
+}
+
+# next — a new picture to cycle to, at random, never the one showing
+next() {
+  current=$(cat "$NOW" 2>/dev/null)
+  f=$(pool | grep -vxF -- "${current:-/}" | shuf -n 1)
+  [ -n "$f" ] || f=$(pool | head -n 1)   # only one picture: that one again
+  [ -n "$f" ] || return 1
+  mkdir -p "$STATE"
+  echo "$f" > "$NOW"
+  echo "$f"
+}
+
+which_one() {
+  case $(mode) in
+    chosen) readlink -f "$CHOICE" ;;
+    cycle)  now || next || picture_of "$(theme)" || plain "$(theme)" ;;
+    *)      picture_of "$(theme)" || plain "$(theme)" ;;
+  esac
 }
 
 show() {
@@ -75,12 +115,55 @@ choose() {
   file=$(readlink -f "$1") && [ -f "$file" ] || { echo "vikix-wallpaper: no such file: $1" >&2; exit 1; }
   mkdir -p "$(dirname "$CHOICE")"
   ln -sfn "$file" "$CHOICE"
-  rm -f "$OFF"
+  rm -f "$OFF" "$THEME"
   show
 }
 
-follow_theme() { rm -f "$CHOICE" "$OFF"; show; }
+follow_theme() { rm -f "$CHOICE" "$OFF"; mkdir -p "$(dirname "$THEME")"; : > "$THEME"; show; }
 off() { mkdir -p "$(dirname "$OFF")"; : > "$OFF"; }
+
+# cycle [MINUTES] — cycle from now on, starting with a new picture
+cycle() {
+  if [ -n "${1:-}" ]; then
+    case $1 in
+      *[!0-9]*|0*) echo "vikix-wallpaper: minutes are a whole number from 1: $1" >&2; exit 2 ;;
+    esac
+    mkdir -p "$(dirname "$MINUTES")"
+    echo "$1" > "$MINUTES"
+  fi
+  rm -f "$CHOICE" "$OFF" "$THEME"
+  next >/dev/null
+  show
+}
+
+minutes() {
+  m=$(cat "$MINUTES" 2>/dev/null)
+  case $m in ''|*[!0-9]*|0*) echo 30 ;; *) echo "$m" ;; esac
+}
+
+# watch — a new picture every few minutes while cycling. A minute at a
+# time, so a change of minutes or of mode counts from the next one.
+watch() {
+  mkdir -p "$STATE"
+  exec 9>"$STATE/wallpaper.lock"
+  flock -n 9 || exit 0          # one watcher, however often the session restarts
+  waited=0
+  while :; do
+    sleep 60
+    waited=$((waited + 1))
+    if [ "$(mode)" != cycle ]; then waited=0; continue; fi
+    if [ "$waited" -ge "$(minutes)" ]; then
+      next >/dev/null && show
+      waited=0
+    fi
+  done
+}
+
+# pool — the pictures cycling chooses from: everything but the themes'
+pool() {
+  pictures | grep -vF -e "$(readlink -f "$VIKIX_DIR/themes")/" \
+    -e "$(readlink -f "$USER_THEMES" 2>/dev/null || echo /nonexistent)/"
+}
 
 pictures() {
   seen=' '
@@ -102,6 +185,7 @@ pick() {
   n=$(
     {
       printf 'Theme: %s\0icon\037%s\n' "$(theme)" "$(picture_of "$(theme)" || plain "$(theme)")"
+      printf 'Cycle: every %s minutes\0icon\037%s\n' "$(minutes)" "$(now || pool | head -n 1)"
       printf '%s\n' "$list" | while IFS= read -r f; do
         [ -n "$f" ] && printf '%s\0icon\037%s\n' "$(basename "${f%.*}")" "$f"
       done
@@ -112,19 +196,25 @@ pick() {
   count=$(printf '%s\n' "$list" | grep -c .)
   if [ "$n" = 0 ]; then
     follow_theme
-  elif [ "$n" -gt "$count" ]; then
+  elif [ "$n" = 1 ]; then
+    cycle                      # already cycling: the next picture
+  elif [ "$n" -gt $((count + 1)) ]; then
     off
   else
-    choose "$(printf '%s\n' "$list" | sed -n "${n}p")"
+    choose "$(printf '%s\n' "$list" | sed -n "$((n - 1))p")"
   fi
 }
 
 case ${1:-} in
-  "")    show ;;
-  pick)  pick ;;
-  theme) follow_theme ;;
-  off)   off ;;
-  which) which_one ;;
-  -*)    echo "usage: vikix-wallpaper [pick | FILE | theme | off | which]" >&2; exit 2 ;;
+  "")      show ;;
+  pick)    pick ;;
+  cycle)   cycle "${2:-}" ;;
+  next)    [ "$(mode)" = cycle ] || { echo "vikix-wallpaper: not cycling (vikix-wallpaper cycle)" >&2; exit 1; }
+           next >/dev/null && show ;;
+  theme)   follow_theme ;;
+  off)     off ;;
+  which)   which_one ;;
+  --watch) watch ;;
+  -*)      echo "usage: vikix-wallpaper [pick | FILE | cycle [MINUTES] | next | theme | off | which | --watch]" >&2; exit 2 ;;
   *)     choose "$1" ;;
 esac

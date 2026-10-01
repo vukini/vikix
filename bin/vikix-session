@@ -45,7 +45,8 @@ esac
 xsetroot -cursor_name left_ptr
 "$HOME/.local/bin/vikix-keyboard"    # layout and options from ~/.config/vikix/keyboard
 command -v autorandr >/dev/null 2>&1 && autorandr --change --default default 2>/dev/null
-"$HOME/.local/bin/vikix-wallpaper"     # yours, or the theme's (Super+m, Wallpaper)
+"$HOME/.local/bin/vikix-wallpaper"     # cycling, yours, or the theme's (Super+m, Wallpaper)
+"$HOME/.local/bin/vikix-wallpaper" --watch &   # a new one every 30 minutes, when cycling
 
 # One ssh-agent for the whole session, started before anything that may
 # use it (Emacs pushing with Magit, every terminal), so a key's passphrase

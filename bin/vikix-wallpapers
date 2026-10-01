@@ -9,8 +9,9 @@
 #   vikix wallpapers status
 #   vikix wallpapers uninstall  delete the clone (vikix remove wallpapers)
 #
-# The pictures show in the wallpaper picker (Super+m, Wallpaper) beside
-# ~/Pictures/Wallpapers and ~/wallpapers. VIKIX_WALLPAPERS_REPO names another
+# The wallpaper cycles through them (vikix-wallpaper), and they show in the
+# picker (Super+m, Wallpaper) beside ~/Pictures/Wallpapers and ~/wallpapers.
+# A fresh install adds them. VIKIX_WALLPAPERS_REPO names another
 # repository. If ~/wallpapers is already a clone of it (your own working
 # copy), the folder is a link to that, and Vikix never pulls into it.
 
@@ -85,11 +86,13 @@ uninstall() {
   elif [ -e "$DIR" ]; then
     run rm -rf "$DIR"
   fi
-  # The chosen wallpaper may have been one of them: follow the theme again.
+  # The chosen wallpaper may have been one of them: back to the default,
+  # cycling what's left (or the theme's, with nothing left).
   local choice="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/wallpaper"
   if [ -L "$choice" ] && [ ! -e "$choice" ]; then
-    run "$VIKIX_DIR/bin/vikix-wallpaper" theme
+    run rm -f "$choice"
   fi
+  run "$VIKIX_DIR/bin/vikix-wallpaper"
   forget_features wallpapers
   say "the wallpapers are gone"
 }

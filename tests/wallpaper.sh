@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# tests/wallpaper.sh — vikix-wallpaper shows the theme's picture until you
-# choose one, keeps your choice across theme changes, gives a theme without
-# a picture a plain background in its own colour, and its picker sets what
-# was picked.
+# tests/wallpaper.sh — vikix-wallpaper cycles through the pictures unless
+# you choose otherwise, shows the theme's when you ask, keeps your choice
+# across theme changes, gives a theme without a picture a plain background
+# in its own colour, and its picker sets what was picked.
 #
 # feh, rofi and everything vikix theme reaches for are stand-ins, in a
 # made-up home; nothing is drawn, and the desktop running the tests is
@@ -22,7 +22,7 @@ stub() { printf '#!/bin/sh\n%s\n' "$2" > "$t/bin/$1"; chmod +x "$t/bin/$1"; }
 stub feh "echo \"feh \$*\" >> $log"
 # rofi: keep what it was offered; answer with $ROFI_ANSWER, or cancel.
 stub rofi "cat > $t/offered; [ -n \"\${ROFI_ANSWER:-}\" ] || exit 1; echo \"\$ROFI_ANSWER\""
-export PATH="$t/bin:$PATH" HOME="$H" XDG_CONFIG_HOME="$H/.config" XDG_CACHE_HOME="$H/.cache" DISPLAY=:7
+export PATH="$t/bin:$PATH" HOME="$H" XDG_CONFIG_HOME="$H/.config" XDG_CACHE_HOME="$H/.cache" XDG_STATE_HOME="$H/.local/state" DISPLAY=:7
 fail=0
 check() { "${@:2}" || { echo "FAIL: $1"; fail=1; }; }
 wp() { : > "$log"; sh "$here/bin/vikix-wallpaper" "$@"; }
@@ -30,8 +30,40 @@ use_theme() { echo "$1" > "$H/.config/vikix/theme/current"; }
 
 touch "$H/wallpapers/b2.jpg" "$H/wallpapers/b10.jpg" "$H/Pictures/Wallpapers/mine.png"
 
-# --- following the theme ------------------------------------------------------
+# --- cycling, the default ---------------------------------------------------------
 use_theme void
+first=$(wp which)
+case $first in
+  "$H/wallpapers/"*|"$H/Pictures/Wallpapers/"*) ;;
+  *) echo "FAIL: with nothing chosen it should cycle your pictures, not show $first"; fail=1 ;;
+esac
+check "cycling should keep the picture until it's time" test "$(wp which)" = "$first"
+wp next
+check "next should show a new picture" grep -q "bg-fill" "$log"
+check "next should never repeat the one showing" test "$(wp which)" != "$first"
+wp cycle 5
+check "cycle MINUTES should be kept" test "$(cat "$H/.config/vikix/wallpaper-minutes")" = 5
+if wp cycle 0 2>/dev/null; then echo "FAIL: 0 minutes should be refused"; fail=1; fi
+if wp cycle soon 2>/dev/null; then echo "FAIL: minutes that aren't a number should be refused"; fail=1; fi
+for _ in 1 2 3 4 5 6; do
+  case $(wp next; wp which) in "$here/themes/"*) echo "FAIL: cycling shouldn't show the themes' own"; fail=1 ;; esac
+done
+gone=$(wp which); mv "$gone" "$gone.away"
+check "a picture that's gone should give way to another" test -f "$(wp which)"
+mv "$gone.away" "$gone"
+# Nothing to cycle: the theme's picture.
+mkdir -p "$t/away"; mv "$H/wallpapers"/* "$H/Pictures/Wallpapers"/* "$t/away/"
+rm -f "$H/.local/state/vikix/wallpaper-now"
+check "with nothing to cycle it should show the theme's" test "$(wp which)" = "$here/themes/void.jpg"
+mv "$t/away/b2.jpg" "$t/away/b10.jpg" "$H/wallpapers/"; mv "$t/away/mine.png" "$H/Pictures/Wallpapers/"
+# The watcher: one at a time.
+mkdir -p "$H/.local/state/vikix"
+exec 8>"$H/.local/state/vikix/wallpaper.lock"; flock -n 8
+check "a second watcher should leave at once" timeout 5 sh "$here/bin/vikix-wallpaper" --watch
+exec 8>&-
+
+# --- following the theme ------------------------------------------------------
+wp theme
 check "void should show its own picture" test "$(wp which)" = "$here/themes/void.jpg"
 wp
 check "feh isn't asked to show it" grep -qx "feh --no-fehbg --bg-fill $here/themes/void.jpg" "$log"
@@ -66,11 +98,16 @@ check "the picker should sort b2 before b10" \
   test "$(grep -an '^b2' "$t/offered" | cut -d: -f1)" -lt "$(grep -an '^b10' "$t/offered" | cut -d: -f1)"
 check "each entry should carry its picture as the icon" grep -qa "mine.icon.$H/Pictures/Wallpapers/mine.png" "$t/offered"
 # The answer is a line number, 0 being the theme's own.
+check "the picker's second entry should be Cycle" test "$(sed -n 2p "$t/offered" | cut -d: -f1)" = Cycle
 n=$(grep -an '^b10' "$t/offered" | cut -d: -f1)
 ROFI_ANSWER=$((n - 1)) wp pick 2>/dev/null || true
 check "the picked line should become the wallpaper" test "$(wp which)" = "$H/wallpapers/b10.jpg"
 ROFI_ANSWER=0 wp pick
 check "picking the theme's own should drop the choice" test "$(wp which)" = "$here/themes/void.jpg"
+ROFI_ANSWER=1 wp pick
+case $(wp which) in "$here/themes/"*) echo "FAIL: picking Cycle should cycle"; fail=1 ;; esac
+check "picking Cycle should end following the theme" test ! -e "$H/.config/vikix/wallpaper-theme"
+wp theme
 
 # --- off: your own tool sets it -------------------------------------------------------
 wp off
@@ -141,7 +178,7 @@ wp "$coll/second.jpg"
 wps uninstall >/dev/null 2>&1
 check "uninstall should delete the clone" test ! -e "$coll"
 check "uninstall should forget the feature" test -z "$(grep -x wallpapers "$H/.config/vikix/features")"
-check "a chosen picture from the collection should give way to the theme's" test ! -L "$H/.config/vikix/wallpaper"
+check "a chosen picture from the collection should give way" test ! -L "$H/.config/vikix/wallpaper"
 # ~/wallpapers already a clone of the same repository (Vid's working copy):
 # linked to, listed once, never pulled into, never deleted.
 rm -rf "$H/wallpapers"; git clone -q "file://$src" "$H/wallpapers"
@@ -152,5 +189,5 @@ check "your own clone should be listed once" test "$(grep -ac '^first' "$t/offer
 wps uninstall >/dev/null 2>&1
 check "uninstall should leave your own clone" test -f "$H/wallpapers/first.jpg"
 
-[ "$fail" = 0 ] && echo "wallpaper: follows the theme until you choose or turn it off; update leaves it; the migration spots your own; the collection clones, pulls, lists and goes"
+[ "$fail" = 0 ] && echo "wallpaper: cycles until you choose a picture, the theme's or off; update leaves it; the migration spots your own; the collection clones, pulls, lists and goes"
 exit "$fail"
