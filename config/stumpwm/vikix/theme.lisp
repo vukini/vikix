@@ -103,6 +103,9 @@
             (refresh-colors-for-modeline screen head)
             (progn (enable-mode-line screen head nil)   ; older StumpWM: off and on
                    (enable-mode-line screen head t))))))
+  ;; The title bars (windows.lisp) take the new colours.
+  (when (fboundp 'vikix-titlebars-relayout)
+    (funcall 'vikix-titlebars-relayout))
   name)
 
 ;; Shape, not colour.

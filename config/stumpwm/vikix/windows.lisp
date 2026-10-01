@@ -7,6 +7,8 @@
 ;;;;   find       any window on any workspace (s-A goes there, s-C-a pulls it here)
 ;;;;   beckon     the pointer jumps to the focused window (s-p)
 ;;;;   lazarus    the docked IDE tiles; its dialogs float
+;;;;   titles     a title bar on each tiled window (s-y), renaming (s-"),
+;;;;              and floating a window or tiling it again (s-t)
 ;;;;
 ;;;; Gaps, undo, find and beckon come from stumpwm-contrib, cloned into
 ;;;; ~/.stumpwm.d/modules by install/30-lisp. The keys are in keys.lisp.
@@ -226,3 +228,174 @@ StumpWM sees it before that: the Qt5 build (Void's) first calls it
     (float-window win (window-group win))))
 
 (add-hook *new-window-hook* 'vikix-float-lazarus-window)
+
+;;; Title bars, and floating
+
+;; A strip at the top of each tiled window with its number and name, in the
+;; theme's accent when focused. StumpWM draws none of its own: after it lays
+;; a window out, the window is moved down inside its frame (StumpWM's
+;; "parent" X window) and the bar is a child window in the space above it.
+;; The bar's text is its background picture, so X redraws it whenever it is
+;; uncovered; StumpWM, which ignores exposure of windows not its own, never
+;; has to. Floating windows have StumpWM's own title strip; fullscreen ones
+;; and dialogs StumpWM keeps at their own size go without. s-y turns the
+;; bars off and on, remembered in ~/.config/vikix/titlebars-off.
+
+(defvar *vikix-titlebars-off-file*
+  (merge-pathnames ".config/vikix/titlebars-off" (user-homedir-pathname)))
+
+(defvar *vikix-titlebars* (not (probe-file *vikix-titlebars-off-file*))
+  "True while tiled windows have title bars.")
+(defvar *vikix-titlebar-windows* (make-hash-table :test 'eq)
+  "Each StumpWM window's title bar (an X window), while it has one.")
+(defvar *vikix-plain-maximize-window* nil
+  "The maximize-window the title bars wrap: StumpWM's, or the gaps-safe one above.")
+
+(defun vikix-titlebar-height ()
+  (+ 4 (font-height (screen-font (current-screen)))))
+
+(defun vikix-titlebar-draw (win)
+  "Paint WIN's title bar: its number and name."
+  (let ((bar (gethash win *vikix-titlebar-windows*)))
+    (when bar
+      (let* ((screen (window-screen win))
+             (font (screen-font screen))
+             (focused (eq win (screen-focus screen)))
+             (bg (if focused (screen-focus-color screen) (screen-unfocus-color screen)))
+             (fg (if focused (screen-bg-color screen) (screen-fg-color screen)))
+             (w (max 1 (xlib:drawable-width bar)))
+             (h (max 1 (xlib:drawable-height bar)))
+             (pm (xlib:create-pixmap :width w :height h :drawable bar
+                                     :depth (xlib:drawable-depth bar)))
+             (gc (xlib:create-gcontext :drawable pm :foreground bg :background bg)))
+        (unwind-protect
+             (progn
+               (xlib:draw-rectangle pm gc 0 0 w h t)
+               (setf (xlib:gcontext-foreground gc) fg)
+               (draw-image-glyphs pm gc font 6 (+ 2 (font-ascent font))
+                                  (format nil "~d  ~a" (window-number win) (window-name win))
+                                  :translate #'translate-id :size 16))
+          (xlib:free-gcontext gc))
+        ;; X keeps the picture while it is the background.
+        (setf (xlib:window-background bar) pm)
+        (xlib:free-pixmap pm)
+        (xlib:clear-area bar)))))
+
+(defun vikix-titlebar-remove (win)
+  (let ((bar (gethash win *vikix-titlebar-windows*)))
+    (when bar
+      (remhash win *vikix-titlebar-windows*)
+      (ignore-errors (xlib:destroy-window bar)))))
+
+(defun vikix-titlebar-place (win)
+  "After StumpWM has laid WIN out: make room at its top and put its bar there."
+  (let ((parent (window-parent win))
+        (h (vikix-titlebar-height)))
+    (if (and *vikix-titlebars*
+             (typep win 'tile-window)
+             (not (window-fullscreen win))
+             ;; :tight and :none fit the parent to the window: no room.
+             (not (find *window-border-style* '(:tight :none)))
+             (not (nth-value 7 (geometry-hints win)))   ; kept at its own size
+             (> (xlib:drawable-height parent) (* 3 h)))
+        (let ((pw (xlib:drawable-width parent))
+              (ph (xlib:drawable-height parent))
+              (bar (gethash win *vikix-titlebar-windows*))
+              (y (max h (xlib:drawable-y (window-xwin win)))))
+          (set-window-geometry win :y y :height (max 1 (min (window-height win) (- ph y))))
+          (unless bar
+            ;; The screen's own visual, not the parent's: a terminal with
+            ;; transparency gives its parent 32 bits, and smoothed text
+            ;; then comes out with coloured fringes.
+            (let ((root (screen-root (window-screen win))))
+              (setf bar (xlib:create-window
+                         :parent parent :x 0 :y 0 :width pw :height h
+                         :depth (xlib:drawable-depth root)
+                         :visual (xlib:window-visual-info root)
+                         :colormap (xlib:screen-default-colormap
+                                    (screen-number (window-screen win)))
+                         :border 0 :border-width 0 :event-mask '())
+                    (gethash win *vikix-titlebar-windows*) bar)))
+          (xlib:with-state (bar)
+            (setf (xlib:drawable-x bar) 0 (xlib:drawable-y bar) 0
+                  (xlib:drawable-width bar) pw (xlib:drawable-height bar) h))
+          (xlib:map-window bar)
+          (vikix-titlebar-draw win)
+          (update-configuration win))
+        (vikix-titlebar-remove win))))
+
+(defun vikix-titled-maximize-window (win)
+  "maximize-window, then the title bar. A fault in the bar never stops the layout."
+  (funcall *vikix-plain-maximize-window* win)
+  (handler-case (vikix-titlebar-place win)
+    (error (e) (message "^1Vikix: title bar:^n ~a" e))))
+
+;; Wrap whatever maximize-window is now (the gaps section set its own). On
+;; a reload that section sets it again, and this wraps that, never itself.
+(let ((current (symbol-function 'maximize-window)))
+  (unless (eq (sb-kernel:%fun-name current) 'vikix-titled-maximize-window)
+    (setf *vikix-plain-maximize-window* current))
+  (setf (symbol-function 'maximize-window) #'vikix-titled-maximize-window))
+
+(defun vikix-titlebar-redraw (&rest windows)
+  (dolist (w windows)
+    (when w (ignore-errors (vikix-titlebar-draw w)))))
+
+(defun vikix-titlebar-forget (win)
+  ;; X destroys the bar with the window's parent; only forget it here.
+  (remhash win *vikix-titlebar-windows*))
+
+(remove-hook *focus-window-hook* 'vikix-titlebar-redraw)
+(add-hook *focus-window-hook* 'vikix-titlebar-redraw)
+(remove-hook *destroy-window-hook* 'vikix-titlebar-forget)
+(add-hook *destroy-window-hook* 'vikix-titlebar-forget)
+
+;; A window that renames itself (a terminal's title following its directory).
+(sb-int:unencapsulate 'update-window-properties 'vikix-titlebar)
+(sb-int:encapsulate 'update-window-properties 'vikix-titlebar
+                    (lambda (f window atom)
+                      (prog1 (funcall f window atom)
+                        (when (eq atom :wm_name)
+                          (vikix-titlebar-redraw window)))))
+
+(defun vikix-titlebars-relayout ()
+  "Lay every tiled window out again, so each gets, loses or repaints its bar.
+theme.lisp calls it after a theme change."
+  (dolist (screen *screen-list*)
+    (dolist (win (screen-windows screen))
+      (when (typep win 'tile-window)
+        (maximize-window win)))))
+
+(defcommand vikix-titlebars () ()
+  "Title bars on tiled windows on or off."
+  (setf *vikix-titlebars* (not *vikix-titlebars*))
+  (handler-case
+      (if *vikix-titlebars*
+          (when (probe-file *vikix-titlebars-off-file*)
+            (delete-file *vikix-titlebars-off-file*))
+          (progn (ensure-directories-exist *vikix-titlebars-off-file*)
+                 (with-open-file (out *vikix-titlebars-off-file* :direction :output
+                                                                  :if-exists :supersede)
+                   (write-line "Title bars off (Super+y turns them on)." out))))
+    (error () nil))   ; not remembered, but still switched
+  (vikix-titlebars-relayout)
+  (message "Title bars ~:[off~;on~]" *vikix-titlebars*))
+
+(defcommand vikix-title (title) ((:rest "Name this window: "))
+  "Rename the focused window; its title bar and the bar show the new name."
+  (let ((win (current-window)))
+    (if win
+        (progn (setf (window-user-title win) title)
+               (vikix-titlebar-redraw win)
+               (update-all-mode-lines))
+        (message "No window to name."))))
+
+(defcommand vikix-float () ()
+  "Float the focused window, or put a floating one back in the tiles."
+  (let ((win (current-window)))
+    (cond ((null win) (message "No window to float."))
+          ((typep win 'float-window) (unfloat-this))
+          (t (vikix-titlebar-remove win)
+             (float-this)))))
+
+(vikix-titlebars-relayout)

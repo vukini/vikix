@@ -57,7 +57,7 @@ front, so a name like Brightness-up is never mistaken for one."
 ;;; program a command starts (exec firefox -> "firefox"), or the StumpWM
 ;;; command (move-focus left -> "move-focus"). An entry can also name its
 ;;; group itself, as a fourth element:
-;;;   ("s-t" "exec obsidian" "Obsidian" "Apps")
+;;;   ("s-z" "exec obsidian" "Obsidian" "Apps")
 ;;; Any other program started with exec is an app; anything else is Other.
 (defparameter *vikix-key-groups*
   '(("Apps" "vikix-terminal" "rofi" "firefox" "pcmanfm" "spacefm" "vikix-drives"
@@ -66,7 +66,7 @@ front, so a name like Brightness-up is never mistaken for one."
     ("Windows & frames" "delete" "fullscreen" "pull-hidden-other" "next" "prev"
      "move-focus" "move-window" "hsplit" "vsplit" "remove" "expose" "vikix-grid"
      "toggle-gaps" "winner-undo" "winner-redo" "global-windowlist"
-     "global-pull-windowlist" "beckon")
+     "global-pull-windowlist" "beckon" "vikix-float" "vikix-titlebars" "vikix-title")
     ("Workspaces" "gselect" "gmove" "grouplist")
     ("Notifications" "dunstctl" "vikix-notifications" "vikix-quiet")
     ("Screenshots & recording" "vikix-screenshot" "vikix-record" "vikix-capture")

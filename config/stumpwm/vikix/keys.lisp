@@ -81,6 +81,9 @@
     ("s-A"    "global-windowlist" "Any window, on any workspace: go there")
     ("s-C-a"  "global-pull-windowlist" "Any window, on any workspace: bring it here")
     ("s-p"    "beckon"            "Move the pointer to this window")
+    ("s-t"    "vikix-float"       "Float this window, or tile it again (Super+drag moves it)")
+    ("s-y"    "vikix-titlebars"   "Title bars on/off")
+    ("s-\""   "vikix-title"       "Rename this window")
     ;; Vikix
     ("s-m"    "vikix-menu"      "Vikix menu")
     ("s-slash" "vikix-keys-card" "Every key at a glance, grouped; any key closes it")

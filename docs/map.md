@@ -47,6 +47,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── webapps            yours     your web apps: NAME URL [KEY] (vikix webapp)
 │   │   ├── wallpaper          yours     a link to the picture you chose
 │   │   ├── wallpaper-off      yours     exists if you set the wallpaper with your own tool
+│   │   ├── titlebars-off      yours     exists if you turned the title bars off (Super+y)
 │   │   ├── wallpaper-theme    yours     exists if the wallpaper follows the theme instead of cycling
 │   │   ├── wallpaper-minutes  yours     how often the wallpaper changes when cycling (vikix-wallpaper cycle MINUTES; 30 without it)
 │   │   ├── themes/            yours     your own themes (NAME.theme, NAME.jpg)

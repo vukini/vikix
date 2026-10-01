@@ -245,6 +245,9 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 | `s-A` | Any window on any workspace: pick one and go there |
 | `s-C-a` | Any window on any workspace: pick one and bring it here |
 | `s-p` | Move the mouse pointer to the focused window |
+| `s-t` | Float the focused window, or put it back in the tiles; a floating window moves with Super + left-drag and resizes with Super + right-drag |
+| `s-y` | Title bars on or off: a strip at the top of each tiled window with its number and name, the focused one in the theme's accent (on unless you turned them off; remembered in `~/.config/vikix/titlebars-off`) |
+| `s-"` | Rename the focused window: its title bar and the bar show the new name |
 | `s-1`…`s-9` | Go to a workspace |
 | `s-C-1`…`s-C-9` | Send the window to a workspace |
 | `s-m` | Vikix menu: the welcome and Add software, key help, all commands, the Vikix guide (in Info, or in the browser with its diagrams), "what does a key do?", themes, network, printers, backup now, screens, update, and Power (the same as `s-S-Escape`). An entry for a feature you don't have (JupyterLab, Zeal, Printers, Windows, local AI, Dropbox) is left out until you add it. *Apps* opens the programs of the features video, graphics, blender, study, passwords, phone and cli-extras, each once it's installed |
