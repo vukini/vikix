@@ -21,7 +21,7 @@ name=$(basename -- "$1")
 list=$(find "$dir" -maxdepth 1 -type f -iregex '.*\.\(jpe?g\|png\|gif\|webp\|bmp\|tiff?\|svg\|avif\|heic\|heif\|jxl\|ppm\|pgm\|pbm\|pnm\|xpm\|tga\|jp2\)' \
          -printf '%f\n' 2>/dev/null | sort -V)
 # The file's place in that list; empty when its name isn't one of the above.
-n=$(printf '%s\n' "$list" | awk -v f="$name" '$0 == f { print NR; exit }')
+n=$(printf '%s\n' "$list" | awk -v f="$name" '!done && $0 == f { print NR; done = 1 }')
 
 if [ -z "$n" ]; then
   exec nsxiv -a -- "$1"

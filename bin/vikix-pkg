@@ -38,9 +38,11 @@ which_list() {
   done | sed 's/\.list$//'
 }
 
-# The feature a list belongs to, or nothing for the base.
+# The feature a list belongs to, or nothing for the base. awk reads to the
+# end: stopping at the match (exit) left features_rows writing to a closed
+# pipe, and the SIGPIPE stopped vikix pkg drop now and then.
 feature_of_list() {
-  features_rows | awk -F'|' -v l="$1" '{ n = split($2, a, " "); for (i = 1; i <= n; i++) if (a[i] == l) { print $1; exit } }'
+  features_rows | awk -F'|' -v l="$1" '!done { n = split($2, a, " "); for (i = 1; i <= n; i++) if (a[i] == l) { print $1; done = 1; break } }'
 }
 
 cmd_preview() {
