@@ -17,7 +17,9 @@
 # off is ~/.config/vikix/wallpaper-off. Choosing a picture, or theme, ends off.
 #
 # The picker lists the themes' pictures, ~/Pictures/Wallpapers and
-# ~/wallpapers (put yours in either folder); its last entry is off.
+# ~/wallpapers (put yours in either folder), and with the feature wallpapers
+# (vikix add wallpapers) Vid's collection in ~/.local/share/vikix/wallpapers;
+# its last entry is off.
 
 VIKIX_DIR=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
 CONFIG=${XDG_CONFIG_HOME:-$HOME/.config}
@@ -25,6 +27,7 @@ CHOICE="$CONFIG/vikix/wallpaper"
 OFF="$CONFIG/vikix/wallpaper-off"
 USER_THEMES="$CONFIG/vikix/themes"
 CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/vikix
+COLLECTION=${XDG_DATA_HOME:-$HOME/.local/share}/vikix/wallpapers
 
 theme() { cat "$CONFIG/vikix/theme/current" 2>/dev/null || echo void; }
 
@@ -80,9 +83,14 @@ follow_theme() { rm -f "$CHOICE" "$OFF"; show; }
 off() { mkdir -p "$(dirname "$OFF")"; : > "$OFF"; }
 
 pictures() {
-  for dir in "$VIKIX_DIR/themes" "$USER_THEMES" "$HOME/Pictures/Wallpapers" "$HOME/wallpapers"; do
+  seen=' '
+  for dir in "$VIKIX_DIR/themes" "$USER_THEMES" "$HOME/Pictures/Wallpapers" "$HOME/wallpapers" "$COLLECTION"; do
     [ -d "$dir" ] || continue
-    find "$dir" -maxdepth 1 -type f \( -iname '*.jpg' -o -iname '*.jpeg' \
+    # The collection may be a link to ~/wallpapers (vikix-wallpapers): once.
+    real=$(readlink -f "$dir")
+    case $seen in *" $real "*) continue ;; esac
+    seen="$seen$real "
+    find "$real" -maxdepth 1 -type f \( -iname '*.jpg' -o -iname '*.jpeg' \
       -o -iname '*.png' -o -iname '*.webp' \) 2>/dev/null | sort -V
   done
 }

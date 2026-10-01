@@ -43,6 +43,8 @@
 #   vikix hype setup|status|uninstall
 #                         Hype: Markdown slides with a visual editor, in your
 #                         theme's colours (vikix add hype)
+#   vikix wallpapers setup|update|status|uninstall
+#                         Vid's wallpapers, in the Super+m picker (vikix add wallpapers)
 #   vikix lisp-apps setup|status|uninstall
 #                         Nyxt, Lem and McCLIM's Listener: programs in Common
 #                         Lisp (vikix add lisp-apps)
@@ -280,7 +282,15 @@ cmd_update() {
     say "stage $stage"
     bash "$VIKIX_DIR/install/$stage.sh" || { warn "stage $stage failed; carrying on"; failed+=("$stage"); }
   done
-  if [ "$part" = all ] || [ "$part" = core ]; then cmd_migrate; fi
+  if [ "$part" = all ] || [ "$part" = core ]; then
+    cmd_migrate
+    # The wallpapers (vikix add wallpapers) are a clone of their own, beside
+    # the checkout: new pictures come with Vikix's own pull. A failed pull
+    # only warns; the pictures already here stay.
+    if is_chosen wallpapers; then
+      bash "$VIKIX_DIR/bin/vikix-wallpapers" update || true
+    fi
+  fi
   if [ "$part" = all ] || [ "$part" = tools ]; then
     # llm (vikix ai llm) is installed with uv, outside the stages: bring it
     # to the pinned version when it's here and isn't.
@@ -1215,6 +1225,7 @@ main() {
     webapp|webapps) shift; exec "$VIKIX_DIR/bin/vikix-webapp" "$@" ;;
     fingerprint) shift; exec "$VIKIX_DIR/bin/vikix-fingerprint" "$@" ;;
     hype)        shift; exec "$VIKIX_DIR/bin/vikix-hype" "$@" ;;
+    wallpapers)  shift; exec "$VIKIX_DIR/bin/vikix-wallpapers" "$@" ;;
     firewall)    shift; exec "$VIKIX_DIR/bin/vikix-firewall" "$@" ;;
     help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
     *)           die "unknown command: $1 (try: vikix help)" ;;

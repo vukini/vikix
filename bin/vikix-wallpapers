@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# vikix-wallpapers — more wallpapers: Vid's collection, a git repository
+# (github.com/vukini/wallpapers), kept beside Vikix rather than in it, so the
+# checkout stays small and a fresh install needs no pictures from the network.
+#
+#   vikix wallpapers setup      clone it into ~/.local/share/vikix/wallpapers
+#                               (vikix add wallpapers runs this)
+#   vikix wallpapers update     pull new pictures (vikix update runs this)
+#   vikix wallpapers status
+#   vikix wallpapers uninstall  delete the clone (vikix remove wallpapers)
+#
+# The pictures show in the wallpaper picker (Super+m, Wallpaper) beside
+# ~/Pictures/Wallpapers and ~/wallpapers. VIKIX_WALLPAPERS_REPO names another
+# repository. If ~/wallpapers is already a clone of it (your own working
+# copy), the folder is a link to that, and Vikix never pulls into it.
+
+set -uo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+# shellcheck source=../lib/features.sh
+. "$VIKIX_DIR/lib/features.sh"
+
+REPO=${VIKIX_WALLPAPERS_REPO:-https://github.com/vukini/wallpapers}
+DIR="${XDG_DATA_HOME:-$HOME/.local/share}/vikix/wallpapers"
+MINE="$HOME/wallpapers"
+# Tests name a stand-in (git reaches the network).
+GIT=${VIKIX_GIT:-git}
+
+# slug URL — OWNER/REPO, whichever way the URL is written (https or ssh, .git or not)
+slug() { echo "$1" | sed -e 's#\.git$##' -e 's#/*$##' | awk -F'[/:]' '{ print $(NF-1) "/" $NF }'; }
+
+# yours — is ~/wallpapers a clone of the same repository?
+yours() {
+  local url
+  url=$("$GIT" -C "$MINE" remote get-url origin 2>/dev/null) || return 1
+  [ "$(slug "$url")" = "$(slug "$REPO")" ]
+}
+
+count() { find -L "$DIR" -maxdepth 1 -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) 2>/dev/null | wc -l; }
+
+setup() {
+  if [ -L "$DIR" ] || [ -d "$DIR/.git" ]; then
+    say "the wallpapers are already here: $DIR"
+  elif yours; then
+    say "$MINE is a clone of $(slug "$REPO"): linking to it, never pulling into it"
+    run mkdir -p "$(dirname "$DIR")"
+    run ln -sfn "$MINE" "$DIR"
+  elif [ -e "$DIR" ]; then
+    die "$DIR is in the way (not a clone); move it, then: vikix wallpapers setup"
+  else
+    say "fetching the wallpapers from $REPO"
+    run mkdir -p "$(dirname "$DIR")"
+    # Only the latest pictures: their history would double the download.
+    run "$GIT" clone -q --depth 1 "$REPO" "$DIR" || die "couldn't clone $REPO"
+  fi
+  record_features wallpapers
+  [ "$DRY_RUN" = 1 ] || say "$(count) wallpapers; choose one with Super+m, Wallpaper"
+}
+
+update() {
+  # A link is your own clone: yours to pull.
+  [ -L "$DIR" ] && return 0
+  [ -d "$DIR/.git" ] || return 0
+  say "pulling the wallpapers"
+  # Not --depth 1 here: that cuts the new commit from the one we have, and
+  # --ff-only then sees two unrelated histories.
+  run "$GIT" -C "$DIR" "${GIT_HTTPS_GITHUB[@]}" pull -q --ff-only ||
+    { warn "couldn't update the wallpapers; vikix wallpapers update tries again"; return 1; }
+}
+
+status() {
+  if [ -L "$DIR" ]; then
+    echo "wallpapers: $(count), your own clone ($(readlink "$DIR"))"
+  elif [ -d "$DIR/.git" ]; then
+    echo "wallpapers: $(count), from $REPO, in $DIR"
+  else
+    echo "wallpapers: not here (vikix add wallpapers)"
+  fi
+}
+
+uninstall() {
+  if [ -L "$DIR" ]; then
+    run rm -f "$DIR"   # only the link: the clone is yours
+  elif [ -e "$DIR" ]; then
+    run rm -rf "$DIR"
+  fi
+  # The chosen wallpaper may have been one of them: follow the theme again.
+  local choice="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/wallpaper"
+  if [ -L "$choice" ] && [ ! -e "$choice" ]; then
+    run "$VIKIX_DIR/bin/vikix-wallpaper" theme
+  fi
+  forget_features wallpapers
+  say "the wallpapers are gone"
+}
+
+case ${1:-} in
+  setup)     setup ;;
+  update)    update ;;
+  status)    status ;;
+  uninstall) uninstall ;;
+  *)         sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'; [ -z "${1:-}" ] || exit 2 ;;
+esac

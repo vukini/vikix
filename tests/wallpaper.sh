@@ -120,5 +120,37 @@ check "a wallpaper command in user.lisp should turn it off" test "$(migrate user
 check "with nothing of your own it should follow the theme" test "$(migrate none)" = follows
 check "a picture chosen in Vikix should be kept" test "$(migrate chosen)" = follows
 
-[ "$fail" = 0 ] && echo "wallpaper: follows the theme until you choose or turn it off; update leaves it; the migration spots your own"
+# --- the feature wallpapers: Vid's collection, a clone of its own ----------------------
+# A local repository stands in for GitHub's.
+src="$t/src"; git init -q -b main "$src"
+cp "$here/themes/void.jpg" "$src/first.jpg"
+git -C "$src" add first.jpg; git -C "$src" -c user.name=t -c user.email=t@t commit -qm first
+export VIKIX_WALLPAPERS_REPO="file://$src" XDG_DATA_HOME="$H/.local/share"
+coll="$H/.local/share/vikix/wallpapers"
+wps() { bash "$here/bin/vikix-wallpapers" "$@"; }
+wps setup >/dev/null 2>&1
+check "setup should clone the collection" test -f "$coll/first.jpg"
+check "setup should record the feature" grep -qx wallpapers "$H/.config/vikix/features"
+ROFI_ANSWER='' wp pick
+check "the picker should list the collection" grep -qa "first.icon.$coll/first.jpg" "$t/offered"
+cp "$here/themes/paper.jpg" "$src/second.jpg"
+git -C "$src" add second.jpg; git -C "$src" -c user.name=t -c user.email=t@t commit -qm second
+wps update >/dev/null 2>&1
+check "update should bring the new picture" test -f "$coll/second.jpg"
+wp "$coll/second.jpg"
+wps uninstall >/dev/null 2>&1
+check "uninstall should delete the clone" test ! -e "$coll"
+check "uninstall should forget the feature" test -z "$(grep -x wallpapers "$H/.config/vikix/features")"
+check "a chosen picture from the collection should give way to the theme's" test ! -L "$H/.config/vikix/wallpaper"
+# ~/wallpapers already a clone of the same repository (Vid's working copy):
+# linked to, listed once, never pulled into, never deleted.
+rm -rf "$H/wallpapers"; git clone -q "file://$src" "$H/wallpapers"
+wps setup >/dev/null 2>&1
+check "your own clone should be linked, not cloned again" test "$(readlink "$coll")" = "$H/wallpapers"
+ROFI_ANSWER='' wp pick
+check "your own clone should be listed once" test "$(grep -ac '^first' "$t/offered")" = 1
+wps uninstall >/dev/null 2>&1
+check "uninstall should leave your own clone" test -f "$H/wallpapers/first.jpg"
+
+[ "$fail" = 0 ] && echo "wallpaper: follows the theme until you choose or turn it off; update leaves it; the migration spots your own; the collection clones, pulls, lists and goes"
 exit "$fail"

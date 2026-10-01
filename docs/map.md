@@ -74,6 +74,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   ├── share/vikix/emacs              Vikix's   Vikix's part of Emacs: vikix-ai.el, gptel on vikix ai use's model and your agent in agent-shell; vikix-theme.el, the theme following vikix theme (a link to config/emacs)
 │   ├── share/info/vikix.info          written   these guides as an Info manual (`info vikix`)
 │   ├── share/vikix/guide/             written   these guides as web pages, with the diagrams (Super+m → Vikix guide in the browser)
+│   ├── share/vikix/wallpapers/        fetched   Vid's wallpapers, a git clone (vikix add wallpapers; a link to ~/wallpapers if that's a clone of it)
 │   ├── share/vikix/whisper/           fetched   dictation's model and voice detector (vikix dictate)
 │   ├── share/vikix/piper/             fetched   the voice the AI talks with (vikix voice)
 │   ├── share/vikix/notes/index.db     written   note's index: passages of your notes and their embeddings (folder 700; note index)
