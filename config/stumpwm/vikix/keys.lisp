@@ -11,9 +11,25 @@
 
 (in-package :stumpwm)
 
+(defvar *vikix-bind-later* nil
+  "True inside vikix-binding-keys: X hears of the keys once, at its end.")
+
 (defun vikix-bind (key command)
   "Bind KEY (a key name like \"s-RET\") to COMMAND (a command string)."
-  (define-key *top-map* (kbd key) command))
+  (if *vikix-bind-later*
+      ;; define-key tells X when the map is *top-map*: not this time.
+      (let ((map *top-map*))
+        (let ((*top-map* nil))
+          (define-key map (kbd key) command)))
+      (define-key *top-map* (kbd key) command)))
+
+(defmacro vikix-binding-keys (&body body)
+  "Run BODY, which binds keys with vikix-bind, and tell X about them once.
+Each change to *top-map* makes StumpWM grab every key again on every
+window (sync-keys): 117 keys, one at a time, over a dozen windows took 10
+of a reload's 15 seconds, and the desktop stood still meanwhile."
+  `(unwind-protect (let ((*vikix-bind-later* t)) ,@body)
+     (sync-keys)))
 
 (defparameter *vikix-bindings*
   '(;; programs
@@ -123,10 +139,11 @@ in; without one, help.lisp works the group out from the command.
 The descriptions are what the key card (s-/) and the key help (s-F1)
 show, so this list is the one place a key is written down.")
 
-(dolist (binding *vikix-bindings*)
-  (vikix-bind (first binding) (second binding)))
+(vikix-binding-keys
+  (dolist (binding *vikix-bindings*)
+    (vikix-bind (first binding) (second binding)))
 
-;; Workspaces: s-1 goes to workspace 1, s-C-1 sends the window there.
-(loop for n from 1 to 9
-      do (vikix-bind (format nil "s-~d" n)   (format nil "gselect ~d" n))
-         (vikix-bind (format nil "s-C-~d" n) (format nil "gmove ~d" n)))
+  ;; Workspaces: s-1 goes to workspace 1, s-C-1 sends the window there.
+  (loop for n from 1 to 9
+        do (vikix-bind (format nil "s-~d" n)   (format nil "gselect ~d" n))
+           (vikix-bind (format nil "s-C-~d" n) (format nil "gmove ~d" n))))
