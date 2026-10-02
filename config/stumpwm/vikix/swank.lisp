@@ -28,6 +28,26 @@ a second one: :GUARDED when swank-guard.lisp was in place at its start.")
 still loads in a StumpWM built without Swank."
   (apply (find-symbol name :swank) args))
 
+(defun vikix-swank-restart (port)
+  "Stop Swank's server on PORT and start it again on the same port.
+Stopping closes the listening socket, but its accept thread is still in
+accept() on it, and Linux keeps the port bound until that thread is
+interrupted: on a busy machine the new server's bind then failed with
+EADDRINUSE (tests/swank.sh, about one run in three under load; Swank's own
+restart-server just sleeps 5 s). So wait for the old thread to end, then
+try the bind for up to 5 s."
+  (let ((old-thread (third (find port (symbol-value (find-symbol "*SERVERS*" :swank))
+                                 :key #'second))))
+    (ignore-errors (vikix-swank-call "STOP-SERVER" port))
+    (when (and old-thread (not (eq old-thread sb-thread:*current-thread*)))
+      (sb-thread:join-thread old-thread :timeout 5 :default nil))
+    (loop for tries from 1
+          do (handler-case
+                 (return (vikix-swank-call "CREATE-SERVER" :port port :dont-close t))
+               (error (e)
+                 (when (>= tries 50) (error e))
+                 (sleep 0.1))))))
+
 (defun vikix-start-swank ()
   (cond ((not (find-package :swank))
          (message "Swank is not in this StumpWM build; run: vikix rebuild-wm"))
@@ -39,8 +59,7 @@ still loads in a StumpWM built without Swank."
          ;; no wrapper can undo: so start it again, once, guarded. A request
          ;; that is running now (this reload, if vikix eval sent it) goes on;
          ;; only the listening part is replaced.
-         (ignore-errors (vikix-swank-call "STOP-SERVER" *vikix-swank-port*))
-         (vikix-swank-call "CREATE-SERVER" :port *vikix-swank-port* :dont-close t)
+         (vikix-swank-restart *vikix-swank-port*)
          (setf *vikix-swank-started* :guarded))
         (t
          (vikix-swank-call "CREATE-SERVER" :port *vikix-swank-port* :dont-close t)

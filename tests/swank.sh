@@ -59,7 +59,11 @@ cat > "$t/server.lisp" <<EOF
 (defvar *listener-before* (third (first swank::*servers*)))
 ;; Then a reload loads the new files: the guard, and swank.lisp.
 (load "$here/config/stumpwm/vikix/swank-guard.lisp")
-(load "$t/swank.lisp")
+;; The condition itself, by name, before SBCL's backtrace: the frames alone
+;; (all the failure used to show) never said it was EADDRINUSE.
+(handler-bind ((serious-condition
+                 (lambda (c) (format *error-output* "~&condition: ~a: ~a~%" (type-of c) c) (finish-output *error-output*))))
+  (load "$t/swank.lisp"))
 ;; A stand-in for the evaluator: it notes the text, and runs it.
 (defun vikix-eval-for-agent (text)
   (with-open-file (o "$marker" :direction :output :if-exists :append :if-does-not-exist :create)
@@ -78,7 +82,7 @@ server=$!
 # stops (the bug the guard is for); on a busy machine, swank.lisp hadn't
 # replaced it yet, and vikix eval timed out on it.
 for _ in $(seq 300); do [ -e "$t/ready" ] && break; kill -0 "$server" 2>/dev/null || break; sleep 0.2; done
-[ -e "$t/ready" ] || { echo "FAIL: the test's Swank didn't start:"; tail -20 "$t/server.log"; exit 1; }
+[ -e "$t/ready" ] || { echo "FAIL: the test's Swank didn't start:"; grep -m3 "^condition: " "$t/server.log"; tail -20 "$t/server.log"; exit 1; }
 
 evalw() { VIKIX_SWANK_PORT=$port python3 "$here/bin/vikix-eval" "$@"; }
 
