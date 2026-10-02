@@ -26,15 +26,21 @@ VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 . "$VIKIX_DIR/lib/common.sh"
 # shellcheck source=../lib/features.sh
 . "$VIKIX_DIR/lib/features.sh"
+# shellcheck source=../lib/mimeapps.sh
+. "$VIKIX_DIR/lib/mimeapps.sh"
 
 # A commit, not a branch: an update brings a new Esploro only when Vikix
 # moves this pin, after trying it.
 ESPLORO_REPO=https://github.com/vukini/esploro
-ESPLORO_COMMIT=95832c203faa7e21e3796a347d238f789acac9ba   # 2026-10-02: a preview beside the folder (F11)
+ESPLORO_COMMIT=6eecd36bd51a0ee9a6c0356cdffcb54a090c4865   # 2026-10-02: Show in folder (FileManager1), esploro FILE
 OPT="$HOME/.local/opt/esploro"
 BIN="$HOME/.local/bin"
 APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 INFO="$HOME/.local/share/info"   # beside vikix.info: info esploro, Emacs's C-h i
+# The browsers' "Show in folder": the session bus runs esploro --dbus the
+# first time it's asked, which makes the running Emacs answer.
+DBUS_SERVICE="${XDG_DATA_HOME:-$HOME/.local/share}/dbus-1/services/org.freedesktop.FileManager1.service"
+MIMEAPPS="${XDG_CONFIG_HOME:-$HOME/.config}/mimeapps.list"
 LOGS="$VIKIX_STATE/logs"
 # Tests name their stand-ins (these reach the network or build for minutes).
 GIT=${VIKIX_GIT:-git}
@@ -143,8 +149,20 @@ DESKTOP
       run install-info --info-dir="$INFO" "$INFO/esploro.info" >/dev/null 2>&1 || warn "the manual isn't in Info's list: info esploro still finds it"
     fi
   fi
+  # Esploro, the file manager: folders open in it (and so drives, since
+  # vikix-drives opens them with xdg-open), and the browsers' "Show in
+  # folder" reaches it. Only over Vikix's own earlier choice, PCManFM.
+  set_mime_default "$MIMEAPPS" inode/directory vikix-esploro.desktop pcmanfm.desktop ||
+    say "folders keep opening in the program you chose (inode/directory in $MIMEAPPS)"
+  if [ "$DRY_RUN" = 1 ]; then
+    printf '   would write %s\n' "$DBUS_SERVICE"
+  else
+    mkdir -p "$(dirname "$DBUS_SERVICE")"
+    printf '%s\n' "[D-BUS Service]" "# Written by vikix esploro setup: the browsers' \"Show in folder\" opens Esploro." \
+      "Name=org.freedesktop.FileManager1" "Exec=$BIN/esploro --dbus" > "$DBUS_SERVICE"
+  fi
   reload_in_emacs
-  say "ready: Super+e, or esploro [FOLDER] (also in Super+d); its manual: ? in it, or info esploro"
+  say "ready: Super+e, or esploro [FOLDER] (also in Super+d); folders and Show in folder open in it; its manual: ? in it, or info esploro"
 }
 
 cmd_status() {
@@ -159,6 +177,9 @@ cmd_uninstall() {
     run rm -f "$BIN/esploro"
   fi
   run rm -f "$APPS/vikix-esploro.desktop"
+  # Folders back to PCManFM, when they went to Esploro; Show in folder goes.
+  set_mime_default "$MIMEAPPS" inode/directory pcmanfm.desktop vikix-esploro.desktop || true
+  grep -q "esploro --dbus" "$DBUS_SERVICE" 2>/dev/null && run rm -f "$DBUS_SERVICE"
   if [ -L "$INFO/esploro.info" ]; then
     command -v install-info >/dev/null 2>&1 && run install-info --delete --info-dir="$INFO" "$INFO/esploro.info" >/dev/null 2>&1
     run rm -f "$INFO/esploro.info"

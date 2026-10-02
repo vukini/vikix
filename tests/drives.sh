@@ -84,7 +84,7 @@ check "a mount should ask the bar to look now" grep -q 'eval .*(vikix-usb-refres
 # --- udiskie's settings ---------------------------------------------------------
 drives start
 check "udiskie should get Vikix's settings" grep -q "udiskie --config $here/config/udiskie/config.yml --automount" "$log"
-check "udiskie should use PCManFM and the rofi prompt" grep -q -- '--file-manager pcmanfm --password-prompt vikix-drives password' "$log"
+check "udiskie should open drives with xdg-open (the folder default) and the rofi prompt" grep -q -- '--file-manager xdg-open --password-prompt vikix-drives password' "$log"
 mkdir -p "$t/home/.config/udiskie"; : > "$t/home/.config/udiskie/config.yml"
 drives start
 check "your own udiskie config should be used instead" test -z "$(grep -- '--config' "$log" || true)"

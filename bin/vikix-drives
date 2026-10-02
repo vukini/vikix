@@ -106,7 +106,8 @@ start() {
   local config=()
   [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/udiskie/config.yml" ] ||
     config=(--config "$VIKIX_DIR/config/udiskie/config.yml")
-  exec udiskie "${config[@]}" --automount --notify --no-tray --file-manager pcmanfm \
+  # xdg-open: the program you open folders with (Esploro, with the feature).
+  exec udiskie "${config[@]}" --automount --notify --no-tray --file-manager xdg-open \
     --password-prompt "vikix-drives password {device_presentation}" \
     --event-hook "vikix-drives event {event} {mount_path}"
 }

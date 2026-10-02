@@ -69,3 +69,37 @@ fill_mime_defaults() {
     printf '%s\n' "${seen[@]}" >> "$offered"
   fi
 }
+
+# set_mime_default FILE TYPE APP [WAS...] — make APP FILE's default for TYPE,
+# when its default is one of WAS (Vikix's own earlier choices) or none: a
+# choice of your own is kept. In place, so a link stays a link. Returns 1
+# when it left yours.
+set_mime_default() {
+  local file=$1 type=$2 app=$3; shift 3
+  [ -f "$file" ] || return 0
+  local now
+  now=$(mime_defaults "$file" | awk -F= -v t="$type" '$1 == t { sub(/^[^=]*=/, ""); print; exit }')
+  [ "$now" = "$app" ] && return 0
+  if [ -n "$now" ] && ! printf '%s\n' "$@" | grep -qxF -- "$now"; then
+    return 1                                   # yours: left as it is
+  fi
+  if [ "$DRY_RUN" = 1 ]; then
+    printf '   would make %s the default for %s in %s\n' "$app" "$type" "$file"
+    return 0
+  fi
+  local tmp
+  tmp=$(mktemp)
+  if [ -n "$now" ]; then
+    awk -v t="$type" -v line="$type=$app" '
+      /^\[/ { in_defaults = ($0 == "[Default Applications]") }
+      in_defaults && index($0, t "=") == 1 { print line; next }
+      { print }' "$file" > "$tmp"
+  else
+    awk -v line="$type=$app" '
+      { print }
+      $0 == "[Default Applications]" && !done { print line; done = 1 }
+      END { if (!done) printf "\n[Default Applications]\n%s\n", line }' "$file" > "$tmp"
+  fi
+  cat "$tmp" > "$file"
+  rm -f "$tmp"
+}

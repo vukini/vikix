@@ -76,7 +76,13 @@ check "nothing should be linked after a refusal" test ! -e "$HOME/.local/bin/esp
 echo "$pinned" > "$t/commit"; : > "$calls"
 
 # --- Setup ------------------------------------------------------------------------
+mkdir -p "$HOME/.config"
+printf '[Default Applications]\ninode/directory=pcmanfm.desktop\n' > "$HOME/.config/mimeapps.list"
 es setup > "$t/out" 2>&1 || { cat "$t/out"; echo "FAIL: setup should work"; fail=1; }
+dbus_service="$HOME/.local/share/dbus-1/services/org.freedesktop.FileManager1.service"
+check "folders should open in Esploro (over PCManFM, Vikix's own earlier choice)" \
+  grep -qx 'inode/directory=vikix-esploro.desktop' "$HOME/.config/mimeapps.list"
+check "the browsers' Show in folder should reach Esploro" grep -qx "Exec=$HOME/.local/bin/esploro --dbus" "$dbus_service"
 check "the build should run build.lisp in Esploro's folder: $(grep sbcl "$calls")" \
   grep -q "sbcl (in $opt) .*--no-userinit --load build.lisp" "$calls"
 check "the build shouldn't need Quicklisp (the window is Emacs)" test -z "$(grep -i quicklisp "$calls" || true)"
@@ -123,8 +129,16 @@ check "esploro's link should be gone" test ! -e "$HOME/.local/bin/esploro"
 check "Esploro's folder should be gone" test ! -e "$opt"
 check "the launcher entry should be gone" test ! -e "$apps/vikix-esploro.desktop"
 check "the manual should be gone from where Info looks" test ! -e "$HOME/.local/share/info/esploro.info"
+check "folders should go back to PCManFM" grep -qx 'inode/directory=pcmanfm.desktop' "$HOME/.config/mimeapps.list"
+check "Show in folder should be Esploro's no more" test ! -e "$dbus_service"
 check "and from Info's list" grep -q "install-info --delete" "$calls"
 check "uninstall should forget the feature" test -z "$(grep -x esploro "$HOME/.config/vikix/features" || true)"
+# A folder program of your own is never replaced.
+printf '[Default Applications]\ninode/directory=thunar.desktop\n' > "$HOME/.config/mimeapps.list"
+es setup > /dev/null 2>&1 || true
+check "your own folder program should stay" grep -qx 'inode/directory=thunar.desktop' "$HOME/.config/mimeapps.list"
+es uninstall > /dev/null 2>&1 || true
+check "and stay after uninstall" grep -qx 'inode/directory=thunar.desktop' "$HOME/.config/mimeapps.list"
 # Your own esploro (make install in your clone) is never touched.
 mkdir -p "$HOME/.local/bin"; printf '#!/bin/sh\n' > "$HOME/.local/bin/esploro"
 es uninstall > /dev/null 2>&1 || true

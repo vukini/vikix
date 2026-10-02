@@ -84,6 +84,23 @@ fill
 check "no section of defaults: one should be made" grep -qx '\[Default Applications\]' "$mine"
 check "and the default put in it" grep -qx 'video/webm=mpv.desktop' <(defaults)
 
+# set_mime_default: over Vikix's own earlier choice, never over yours.
+m2="$t/m2.list"
+printf '[Default Applications]\ninode/directory=pcmanfm.desktop\ntext/plain=emacs.desktop\n\n[Added Associations]\nx/y=z.desktop\n' > "$m2"
+set_mime_default "$m2" inode/directory vikix-esploro.desktop pcmanfm.desktop
+check "Vikix's own earlier default should be replaced" grep -qx 'inode/directory=vikix-esploro.desktop' "$m2"
+check "only that line should change" test "$(grep -c . "$m2")" = 5
+printf '[Default Applications]\ninode/directory=thunar.desktop\n' > "$m2"
+if set_mime_default "$m2" inode/directory vikix-esploro.desktop pcmanfm.desktop; then echo "FAIL: a choice of yours should be kept, and said so"; fail=1; fi
+check "your own default should stay" grep -qx 'inode/directory=thunar.desktop' "$m2"
+printf '[Default Applications]\ntext/plain=emacs.desktop\n' > "$m2"
+ln -sf "$m2" "$t/m2-link.list"
+set_mime_default "$t/m2-link.list" inode/directory vikix-esploro.desktop pcmanfm.desktop
+check "a type with no default should get one" grep -qx 'inode/directory=vikix-esploro.desktop' "$m2"
+check "a linked file should stay a link" test -L "$t/m2-link.list"
+DRY_RUN=1 set_mime_default "$m2" inode/directory pcmanfm.desktop vikix-esploro.desktop >/dev/null
+check "a dry run shouldn't change it" grep -qx 'inode/directory=vikix-esploro.desktop' "$m2"
+
 # The real starter: every default it names has a program some list installs or Vikix writes.
 while IFS= read -r line; do
   app=${line#*=}; app=${app%%;*}
