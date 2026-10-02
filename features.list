@@ -56,6 +56,7 @@ local-ai    |                    |          | vikix ai setup      | vikix ai uni
 llm         |                    |          | vikix ai llm        | uv tool uninstall llm | llm: AI on the command line, local or Claude
 dictation   | optional/dictation |          | vikix dictate setup | vikix dictate uninstall | Dictation: speak, and it types what you said (Super+F9), on this laptop
 lisp-apps   | optional/lisp-apps |          | vikix lisp-apps setup | vikix lisp-apps uninstall | Lisp programs, changeable in Lisp as StumpWM is: Nyxt (a browser), Lem (an editor), McCLIM's Listener
+esploro     | optional/esploro   |          | vikix esploro setup | vikix esploro uninstall | Esploro: a file explorer in Common Lisp that knows which window has each file open, with undo (Super+Alt+e)
 hype        | optional/hype      |          | vikix hype setup    | vikix hype uninstall  | Hype: Markdown slides with a visual editor, in your theme's colours, export to PDF and PowerPoint
 notes       | optional/notes     | local-ai | vikix notes setup   | vikix notes uninstall | Ask your notes from any terminal: note ask "...", from a folder of Markdown (an Obsidian vault), on this laptop
 voice       |                    | dictation llm | vikix voice setup | vikix voice uninstall | Voice: talk to the AI and the agent, and they answer aloud (Super+F10, Super+F11)

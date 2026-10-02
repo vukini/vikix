@@ -24,6 +24,7 @@
     ("s-e"    "exec pcmanfm"      "Files")
     ("s-E"    "exec spacefm"      "Files in SpaceFM: tabs and split panes")
     ("s-C-e"  "exec vikix-drives eject" "Eject a USB drive: pick it, then pull it out safely")
+    ("s-M-e"  "vikix-esploro"     "Files in Esploro, the Lisp file explorer (vikix add esploro)")
     ("s-a"    "vikix-agent"       "AI agent in a terminal: Claude Code, or the one you chose")
     ("s-F9"   "exec vikix-dictate toggle" "Dictation: speak, then Super+F9 again types it")
     ("s-S-F9" "exec vikix-dictate cancel" "Dictation: stop listening, type nothing")

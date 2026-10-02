@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+# vikix-esploro — Esploro, Vid's file explorer in Common Lisp
+# (github.com/vukini/esploro): it knows which window has each file open,
+# and plans moves, copies, renames and deletions first, with undo.
+#
+#   vikix esploro setup [--rebuild]
+#                           build it from a pinned commit into
+#                           ~/.local/opt/esploro, as one program (McCLIM
+#                           from Quicklisp, the first time); a minute or
+#                           two. --rebuild builds it again
+#                           (vikix add esploro runs this; vikix update runs
+#                           it too, and it builds only when the pin moved)
+#   vikix esploro status
+#   vikix esploro uninstall
+#                           removes it (vikix remove esploro)
+#
+# Command: esploro [FOLDER]; Super+Alt+e opens it, or goes to its window;
+# it's in the launcher (Super+d) and Super+m, Apps.
+
+set -uo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+# shellcheck source=../lib/features.sh
+. "$VIKIX_DIR/lib/features.sh"
+
+# A commit, not a branch: an update brings a new Esploro only when Vikix
+# moves this pin, after trying it.
+ESPLORO_REPO=https://github.com/vukini/esploro
+ESPLORO_COMMIT=fa1e7160825edaa3b4a3c67cc8f281f330d55c69   # 2026-10-01
+OPT="$HOME/.local/opt/esploro"
+QL="$HOME/quicklisp/setup.lisp"
+BIN="$HOME/.local/bin"
+APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+LOGS="$VIKIX_STATE/logs"
+# Tests name their stand-ins (these reach the network or build for minutes).
+GIT=${VIKIX_GIT:-git}
+SBCL=${VIKIX_SBCL:-sbcl}
+
+built() {
+  [ -x "$OPT/esploro" ] && [ "$(cat "$OPT/.vikix-built" 2>/dev/null)" = "$ESPLORO_COMMIT" ]
+}
+
+fetch() {
+  if [ -d "$OPT/.git" ] && [ "$("$GIT" -C "$OPT" rev-parse HEAD 2>/dev/null)" = "$ESPLORO_COMMIT" ]; then
+    return 0
+  fi
+  say "fetching Esploro (commit ${ESPLORO_COMMIT:0:7})"
+  if [ ! -d "$OPT/.git" ]; then
+    mkdir -p "$OPT"
+    "$GIT" -C "$OPT" init -q || die "couldn't make $OPT"
+    "$GIT" -C "$OPT" remote add origin "$ESPLORO_REPO" 2>/dev/null || true
+  fi
+  # Fetched by its id: nothing a branch moved to since.
+  "$GIT" -C "$OPT" "${GIT_HTTPS_GITHUB[@]}" fetch -q --depth 1 origin "$ESPLORO_COMMIT" || die "couldn't fetch Esploro"
+  "$GIT" -c advice.detachedHead=false -C "$OPT" checkout -q --force FETCH_HEAD || die "couldn't check out Esploro"
+  [ "$("$GIT" -C "$OPT" rev-parse HEAD)" = "$ESPLORO_COMMIT" ] ||
+    die "Esploro isn't the commit expected: not built"
+}
+
+build() {
+  if [ "${1:-}" != --rebuild ] && built; then say "Esploro is built"; return 0; fi
+  if [ "$DRY_RUN" = 1 ]; then printf '   would build Esploro (%s) in %s\n' "${ESPLORO_COMMIT:0:7}" "$OPT"; return 0; fi
+  fetch
+  local log="$LOGS/esploro-build.log"
+  mkdir -p "$LOGS"
+  # Nothing shows while SBCL compiles McCLIM the first time: say how long,
+  # so a quiet terminal isn't taken for a stuck one.
+  say "building Esploro: McCLIM the first time, then the program (a minute or two, quietly; log: $log)"
+  # As its Makefile does, without needing make: build.lisp writes
+  # ./esploro.new, one program that opens at once.
+  ( cd "$OPT" && "$SBCL" --noinform --non-interactive --load "$QL" --load build.lisp ) > "$log" 2>&1 &&
+    mv -f "$OPT/esploro.new" "$OPT/esploro" ||
+    { tail -n 20 "$log"; die "Esploro didn't build (the end of $log is above)"; }
+  [ -x "$OPT/esploro" ] || die "Esploro's program isn't where it should be ($OPT/esploro)"
+  echo "$ESPLORO_COMMIT" > "$OPT/.vikix-built"
+  say "Esploro is built"
+}
+
+cmd_setup() {
+  local rebuild=${1:-}
+  case $rebuild in ''|--rebuild) ;; *) die "vikix esploro setup [--rebuild]" ;; esac
+  record_features esploro
+  local p missing=0
+  while IFS= read -r p; do pkg_installed "$p" || missing=1; done < <(read_list "$VIKIX_DIR/packages/optional/esploro.list")
+  if [ "$missing" = 1 ]; then
+    VIKIX_LISTS=esploro bash "$VIKIX_DIR/install/10-packages.sh" || warn "the programs for previews didn't install; Esploro works without them"
+  fi
+  [ -f "$QL" ] || [ "$DRY_RUN" = 1 ] || die "Quicklisp isn't here ($QL): ~/vikix/install.sh --only 30-lisp puts it there"
+  command -v "$SBCL" >/dev/null 2>&1 || [ "$DRY_RUN" = 1 ] || die "sbcl isn't here"
+  build "$rebuild"
+  link_managed "$OPT/esploro" "$BIN/esploro"
+  if [ "$DRY_RUN" = 1 ]; then
+    printf '   would write %s\n' "$APPS/vikix-esploro.desktop"
+  else
+    mkdir -p "$APPS"
+    cat > "$APPS/vikix-esploro.desktop" <<DESKTOP
+[Desktop Entry]
+# Written by vikix esploro setup; vikix esploro uninstall removes it.
+Name=Esploro
+Comment=A file explorer in Common Lisp: which window has each file, plans with undo
+Exec=$BIN/esploro %F
+Icon=system-file-manager
+Terminal=false
+Type=Application
+Categories=System;FileManager;
+StartupWMClass=Esploro
+DESKTOP
+  fi
+  say "ready: Super+Alt+e, or esploro [FOLDER] (also in Super+d)"
+}
+
+cmd_status() {
+  if built; then echo "esploro  built, commit ${ESPLORO_COMMIT:0:7} ($OPT)"
+  elif [ -x "$OPT/esploro" ]; then echo "esploro  built from another commit: vikix esploro setup builds this one"
+  else echo "esploro  not built (vikix add esploro)"; fi
+}
+
+cmd_uninstall() {
+  # The link only while it's still ours: never your own esploro (make install).
+  if [ -L "$BIN/esploro" ] && [ "$(readlink "$BIN/esploro")" = "$OPT/esploro" ]; then
+    run rm -f "$BIN/esploro"
+  fi
+  run rm -f "$APPS/vikix-esploro.desktop"
+  run rm -rf "$OPT"
+  forget_features esploro
+  say "removed Esploro; McCLIM stays in your Quicklisp"
+}
+
+case ${1:-} in
+  setup)     shift; cmd_setup "${1:-}" ;;
+  status)    cmd_status ;;
+  uninstall) cmd_uninstall ;;
+  -h|--help|help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) die "vikix esploro: setup, status, uninstall" ;;
+esac

@@ -50,6 +50,9 @@
 #   vikix lisp-apps setup|status|uninstall
 #                         Nyxt, Lem and McCLIM's Listener: programs in Common
 #                         Lisp (vikix add lisp-apps)
+#   vikix esploro setup|status|uninstall
+#                         Esploro, a file explorer in Common Lisp (vikix add
+#                         esploro; Super+Alt+e)
 #   vikix mcp register|unregister|tools|status
 #                         the desktop as an MCP server, for Claude Code and other agents
 #   vikix agent         the AI agent, after a snapshot of your files (alias: a):
@@ -324,6 +327,11 @@ cmd_update() {
     # only warns; the pictures already here stay.
     if is_chosen wallpapers; then
       bash "$VIKIX_DIR/bin/vikix-wallpapers" update || true
+    fi
+    # Esploro (vikix add esploro) is built from a pinned commit: a release
+    # that moves the pin builds the new one here; otherwise nothing to do.
+    if is_chosen esploro; then
+      bash "$VIKIX_DIR/bin/vikix-esploro" setup || failed+=("esploro")
     fi
   fi
   if [ "$part" = all ] || [ "$part" = tools ]; then
@@ -1240,6 +1248,7 @@ main() {
     debug|diagnose) exec "$VIKIX_DIR/bin/vikix-debug" "$@" ;;
     dictate)     shift; exec "$VIKIX_DIR/bin/vikix-dictate" "$@" ;;
     lisp-apps)   shift; exec "$VIKIX_DIR/bin/vikix-lisp-apps" "$@" ;;
+    esploro)     shift; exec "$VIKIX_DIR/bin/vikix-esploro" "$@" ;;
     voice)       shift; exec "$VIKIX_DIR/bin/vikix-voice" "$@" ;;
     notes)       shift; exec "$VIKIX_DIR/bin/vikix-notes" "$@" ;;
     mcp)         shift; exec "$VIKIX_DIR/bin/vikix-mcp" "$@" ;;

@@ -71,7 +71,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── vikix, vikix-*     Vikix's   the command and its helpers
 │   │   ├── stumpwm            built     the window manager, built by 30-lisp (`vikix rebuild-wm`)
 │   │   └── pil, claude, ...   installed by 65-languages, the npm language servers, Claude Code
-│   ├── share/applications/*.desktop   Vikix's   JupyterLab, vikix-image, Lazarus in the launcher (Super+d); your web apps' too, and Lem's and the Listener's (lisp-apps)
+│   ├── share/applications/*.desktop   Vikix's   JupyterLab, vikix-image, Lazarus in the launcher (Super+d); your web apps' too, Lem's and the Listener's (lisp-apps), and Esploro's
 │   ├── share/vikix/fonts/wm.ttf       built     the bar's font, made by vikix-font
 │   ├── share/vikix/nvim               Vikix's   Vikix's part of Neovim: AstroNvim and Vikix's plugins (a link to config/nvim)
 │   ├── share/vikix/emacs              Vikix's   Vikix's part of Emacs: vikix-ai.el, gptel on vikix ai use's model and your agent in agent-shell; vikix-theme.el, the theme following vikix theme (a link to config/emacs)
@@ -85,6 +85,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   ├── opt/picolisp/          built     PicoLisp, from source (with the feature lisp)
 │   ├── opt/lem/               built     Lem, the editor in Common Lisp (vikix add lisp-apps)
 │   ├── opt/mcclim/            built     McCLIM's Listener, with Clouseau (vikix add lisp-apps)
+│   ├── opt/esploro/           built     Esploro, the file explorer in Common Lisp (vikix add esploro)
 │   ├── opt/hype/              built     Hype, Markdown slides (vikix add hype); ~/.local/bin/hype runs it
 │   ├── opt/ollama/            built     Ollama, for local AI models (vikix ai setup)
 │   ├── opt/whisper.cpp/       built     dictation's speech-to-text, built for this computer (vikix dictate setup)

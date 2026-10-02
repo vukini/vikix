@@ -344,10 +344,17 @@ Entries whose program or file isn't here are left out."
     ("Passwords (KeePassXC)"        (run-shell-command "keepassxc") "keepassxc")
     ;; In a terminal, so "no device" (USB debugging off, cable out) is seen.
     ("Phone: its screen in a window (scrcpy)" (vikix-in-terminal "scrcpy") "scrcpy")
-    ("Disk: what fills my home (ncdu)" (vikix-in-terminal "ncdu ~") "ncdu"))
+    ("Disk: what fills my home (ncdu)" (vikix-in-terminal "ncdu ~") "ncdu")
+    ("Files: Esploro, the Lisp file explorer" (run-shell-command "esploro") "~/.local/bin/esploro"))
   "The apps menu (Super+m, then Apps), in the same form as *vikix-menu*: the
-programs of the features video, graphics, blender, study, passwords, phone
-and cli-extras. Each shows once its program is here.")
+programs of the features video, graphics, blender, study, passwords, phone,
+cli-extras and esploro. Each shows once its program is here.")
+
+(defcommand vikix-esploro () ()
+  "Esploro, the Lisp file explorer: its window if it's open, else a new one."
+  (if (probe-file (merge-pathnames ".local/bin/esploro" (user-homedir-pathname)))
+      (run-or-raise "esploro" '(:class "Esploro"))
+      (message "Esploro isn't installed. Add it: vikix add esploro (Super+m, then Add software)")))
 
 (defcommand vikix-apps () ()
   "Video, pictures, study and other apps that come with features."

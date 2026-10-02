@@ -61,7 +61,7 @@ front, so a name like Brightness-up is never mistaken for one."
 ;;; Any other program started with exec is an app; anything else is Other.
 (defparameter *vikix-key-groups*
   '(("Apps" "vikix-terminal" "rofi" "firefox" "pcmanfm" "spacefm" "vikix-drives"
-     "emacsclient" "clipmenu" "vikix-rofi" "vikix-webapp")
+     "emacsclient" "clipmenu" "vikix-rofi" "vikix-webapp" "vikix-esploro")
     ("AI & voice" "vikix-agent" "vikix-ask" "vikix-dictate" "vikix-voice")
     ("Windows & frames" "delete" "fullscreen" "pull-hidden-other" "next" "prev"
      "move-focus" "move-window" "hsplit" "vsplit" "remove" "expose" "vikix-grid"
