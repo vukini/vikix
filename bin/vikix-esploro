@@ -30,10 +30,11 @@ VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 # A commit, not a branch: an update brings a new Esploro only when Vikix
 # moves this pin, after trying it.
 ESPLORO_REPO=https://github.com/vukini/esploro
-ESPLORO_COMMIT=aeb395f8be7bfb0fd275343e746bbb2ecda50534   # 2026-10-02: a window per workspace, and two panes
+ESPLORO_COMMIT=57e350f793ab23909adf5b5815f9daa97a6d3fa9   # 2026-10-02: a file manager's menus, and a manual in Info
 OPT="$HOME/.local/opt/esploro"
 BIN="$HOME/.local/bin"
 APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+INFO="$HOME/.local/share/info"   # beside vikix.info: info esploro, Emacs's C-h i
 LOGS="$VIKIX_STATE/logs"
 # Tests name their stand-ins (these reach the network or build for minutes).
 GIT=${VIKIX_GIT:-git}
@@ -90,7 +91,7 @@ reload_in_emacs() {
   # own (buffer-local), and an older Esploro's global values would become
   # every new view's. Its one buffer, *Esploro*, is then made a view.
   form="(when (featurep 'esploro)
-          (dolist (v '(esploro-mode-map esploro-places-mode-map esploro-tool-bar-map
+          (dolist (v '(esploro-mode-map esploro-places-mode-map esploro-tool-bar-map esploro-manual-mode-map
                        esploro--back esploro--forward esploro--sort esploro--reverse
                        esploro--hidden esploro--filter))
             (makunbound v))
@@ -129,8 +130,15 @@ Categories=System;FileManager;
 MimeType=inode/directory;
 DESKTOP
   fi
+  # Its manual, where Info looks (40-config puts vikix.info there too).
+  if [ -f "$OPT/doc/esploro.info" ]; then
+    link_managed "$OPT/doc/esploro.info" "$INFO/esploro.info"
+    if command -v install-info >/dev/null 2>&1; then
+      run install-info --info-dir="$INFO" "$INFO/esploro.info" >/dev/null 2>&1 || warn "the manual isn't in Info's list: info esploro still finds it"
+    fi
+  fi
   reload_in_emacs
-  say "ready: Super+e, or esploro [FOLDER] (also in Super+d)"
+  say "ready: Super+e, or esploro [FOLDER] (also in Super+d); its manual: ? in it, or info esploro"
 }
 
 cmd_status() {
@@ -145,6 +153,10 @@ cmd_uninstall() {
     run rm -f "$BIN/esploro"
   fi
   run rm -f "$APPS/vikix-esploro.desktop"
+  if [ -L "$INFO/esploro.info" ]; then
+    command -v install-info >/dev/null 2>&1 && run install-info --delete --info-dir="$INFO" "$INFO/esploro.info" >/dev/null 2>&1
+    run rm -f "$INFO/esploro.info"
+  fi
   run rm -rf "$OPT"
   forget_features esploro
   say "removed Esploro"

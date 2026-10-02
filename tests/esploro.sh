@@ -47,10 +47,12 @@ cat > "$t/bin/sbcl" <<EOF
 echo "sbcl (in \$(pwd)) \$*" >> "$calls"
 case "\$*" in
   *build.lisp*) [ -e "$t/break" ] && { echo "a compile error"; exit 1; }
-    printf '#!/bin/sh\n' > esploro.new; chmod +x esploro.new ;;
+    printf '#!/bin/sh\n' > esploro.new; chmod +x esploro.new
+    mkdir -p doc; echo "the manual" > doc/esploro.info ;;
 esac
 EOF
 printf '#!/bin/sh\nexit 0\n' > "$t/bin/xbps-query"
+printf '#!/bin/sh\necho "install-info $*" >> %q\n' "$calls" > "$t/bin/install-info"
 printf '#!/bin/sh\necho "sudo $*" >> %q\n' "$calls" > "$t/bin/sudo"
 chmod +x "$t/bin/"*
 export PATH="$t/bin:$PATH" VIKIX_GIT="$t/bin/git" VIKIX_SBCL="$t/bin/sbcl"
@@ -88,6 +90,8 @@ check "setup should record the feature" grep -qx esploro "$HOME/.config/vikix/fe
 check "setup shouldn't ask for sudo when the packages are there: $(grep sudo "$calls")" test -z "$(grep '^sudo' "$calls" || true)"
 check "setup should say how long the build takes" grep -q "a few seconds" "$t/out"
 check "the build log should be kept" test -e "$VIKIX_STATE/logs/esploro-build.log"
+check "the manual should be where Info looks" test "$(readlink "$HOME/.local/share/info/esploro.info")" = "$opt/doc/esploro.info"
+check "the manual should be in Info's list: $(grep install-info "$calls")" grep -q "install-info --info-dir=$HOME/.local/share/info $HOME/.local/share/info/esploro.info" "$calls"
 
 # --- Again: nothing to build; --rebuild builds ----------------------------------
 : > "$calls"
@@ -118,6 +122,8 @@ es uninstall > "$t/out" 2>&1 || { cat "$t/out"; echo "FAIL: uninstall should wor
 check "esploro's link should be gone" test ! -e "$HOME/.local/bin/esploro"
 check "Esploro's folder should be gone" test ! -e "$opt"
 check "the launcher entry should be gone" test ! -e "$apps/vikix-esploro.desktop"
+check "the manual should be gone from where Info looks" test ! -e "$HOME/.local/share/info/esploro.info"
+check "and from Info's list" grep -q "install-info --delete" "$calls"
 check "uninstall should forget the feature" test -z "$(grep -x esploro "$HOME/.config/vikix/features" || true)"
 # Your own esploro (make install in your clone) is never touched.
 mkdir -p "$HOME/.local/bin"; printf '#!/bin/sh\n' > "$HOME/.local/bin/esploro"
