@@ -1,6 +1,41 @@
 # Nyxt guide: notes for a future guide
 
-Material for a guide to Nyxt on Vikix (a `docs/nyxt.md` some day, written by the `explainer` agent in the guides' style). Gathered with Vid on 2026-10-02, while Nyxt became Vikix's docs browser, took the desktop's colours and got a Swank for Emacs (0.71.47 to 0.71.61). **Tested** marks what was run against Nyxt 3.11.8 (Void's package), on a hidden display with Vid's settings; the rest are ideas, not yet tried.
+Material for a guide to Nyxt on Vikix (a `docs/nyxt.md` some day, written by the `explainer` agent in the guides' style). Gathered with Vid on 2026-10-02, while Nyxt became Vikix's docs browser, took the desktop's colours and got a Swank for Emacs (0.71.47 to 0.71.66). **Tested** marks what was run against Nyxt 3.11.8 (Void's package), on a hidden display with Vid's settings; the rest are ideas, not yet tried.
+
+## The features, in plain words
+
+What Nyxt does for you on Vikix, and how to use each part. The sections after this one say how they work.
+
+**Why Nyxt at all.** Nyxt is a web browser written in Common Lisp, the language StumpWM is written in. Everything in it (its keys, its commands, how pages load) can be changed in Lisp, while it runs, the way the desktop can. Firefox stays your browser for the web at large; Nyxt is the one for reading and for anything you want to shape yourself.
+
+**Guides and docs open in it.** Super+m → *Vikix guide in the browser* and *Programming docs*, and `docs` in a terminal, open in Nyxt. If Nyxt is already open, the page joins it as a new tab and its window comes forward, from whatever workspace it's on. To send them to another browser instead, put its name (`firefox`) in `~/.config/vikix/docs-browser`.
+
+**It wears the desktop's colours.** Nyxt's bar, prompts and messages take the theme's colours, and change with it: `vikix theme NAME` repaints a running Nyxt at once. Pages keep their own colours, unless Nyxt's dark mode is on; the Vikix guide and `~/dev`'s docs are left out of dark mode by a rule in `config.lisp` (below).
+
+**Emacs can reach into it.** With Emacs, `M-x slime-connect RET 127.0.0.1 RET 4006` gives a Lisp prompt inside the browser. Define a command there and it's in Ctrl+Space at once; change it and evaluate again to replace it. It's protected by the same password as the desktop's (`~/.slime-secret`), and only answers on your own machine.
+
+**Your own config.** `~/.config/nyxt/config.lisp` is yours. Its first line loads Vikix's part; what you write below it wins. On the laptop it also holds two things made with Vid: `open-in-firefox` (a command) and the dark-mode rule for the guides, and it loads the page tools. The snapshot history keeps all of `~/.config/nyxt`, so `vikix changes` shows what changed and `vikix undo` takes it back.
+
+**The page tools.** Commands for what's on a page. Each is in Ctrl+Space; type a few letters of its name.
+
+| Command | What you get | Where it goes |
+|---|---|---|
+| `save-page-images` | every picture on the page, in the page's order, each once | `~/Pictures/Nyxt/<page title>/` |
+| `page-to-markdown` | the page's article (no menus or footers, when the page marks its article) as Markdown, links still working | `~/Documents/Nyxt/<page title>.md`, and the clipboard |
+| `page-to-epub` | the page as an e-book, pictures inside, for an e-reader | `~/Documents/Nyxt/<page title>.epub` |
+| `tabs-to-epub` | every open tab as one e-book, a chapter each: a reading list | `~/Documents/Nyxt/Reading list <date>.epub` |
+| `clip-selection` | the selected text as a quote, with the date, the page's title and its link | added to the end of `~/Documents/Nyxt/clips.md`, and the clipboard |
+| `summarize-page` | a short summary in bullet points, and who the page is for, in a page of its own | a `nyxt:` page (kept until Nyxt quits) |
+| `show-url-qrcode` | the page's address as a QR code, to open it on the phone | a `nyxt:` page (Nyxt's own command) |
+
+Things to know about them:
+
+- **The summary goes to Claude.** `summarize-page` sends the page's text to Anthropic through `llm`, with the key from `vikix ai key set anthropic`. It takes seconds. To keep pages on the machine, `(setf *summary-model* nil)` in `config.lisp` after the page tools' line uses `llm`'s default (a local model): free and private, but minutes on a long page, and vaguer.
+- **Pictures behind a login don't come.** `save-page-images` fetches pictures itself, without the browser's cookies.
+- **Pages that mark no article** (`<article>` or `<main>`) come whole, menus and all, to Markdown and e-books.
+- **Where things go** can be changed: `*page-tools-folder*` (Markdown, e-books, clips) and `*clips-file*`, set in `config.lisp` after the page tools' line.
+
+**When something seems off.** Most fixes are a Nyxt restart: Vikix's part, and your config, are read when Nyxt starts (`pkill -x nyxt`, then start it again; the tabs come back). "Things learned the hard way" at the end of this file has the rest.
 
 ## What Vikix sets up
 
@@ -380,5 +415,5 @@ Ideas from the same conversation (2026-10-02), in the vein of the page tools abo
 - **Changes to Vikix's part need a Nyxt restart.** The theme follows `vikix theme` live, but a new `vikix.lisp` (after `vikix update`) is read when Nyxt starts. Quitting and starting Nyxt brings the tabs back.
 - **A Nyxt process that isn't a browser.** A `nyxt URL` started while another Nyxt was closing can be left behind: a process, but no window StumpWM lists and no socket. It holds nothing useful; `pkill -x nyxt`, then start Nyxt.
 - **Nothing on 4006?** Nyxt isn't running, or started without `~/.slime-secret` (its log says "Swank not started"), or something else held the port (also in the log).
-- **A config.lisp copied before 0.71.58** guards the load with `probe-file`, which passes a link whose file has gone (SBCL), so a moved checkout stops the rest of the file. The starter now catches `load`'s `file-error` instead: `(handler-case (load ...) (file-error () nil))`.
+- **A config.lisp copied before 0.71.58** guards the load with `probe-file`, which passes a link whose file has gone (SBCL), so a moved checkout stops the rest of the file. The starter now catches `load`'s `file-error` instead: `(handler-case (load ...) (file-error () nil))`. The laptop's own copy was changed to that on 2026-10-02.
 - **Remote eval and Swank output** go to Nyxt's log or the REPL, never to the shell that sent them.
