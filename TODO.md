@@ -87,6 +87,14 @@ The first plugins, in order:
 44. **A number of your choice.** Any figure refreshed on a timer (a portfolio's value, a sales total), from a command you give. Off unless set up.
 45. **Screen time for children.** Daily limits on the children's account (item 33), with a warning before time runs out.
 46. **Weather.** A small note for your city in the bar.
+65. **A record store for plugins' results** (decided with Vid 2026-10-02). One local SQLite database, `~/.local/share/vikix/records.db`, where every plugin keeps what it found, so it can be searched and driven programmatically instead of vanishing with a menu.
+    - **Why one, shared:** cross-plugin questions ("what was on Thursday": meetings, flights, Claude usage side by side); later the desk (item 21) and `vikix today` read from it. One file: `vikix backup` takes it; SQLite (WAL) takes several plugins writing at once; no server.
+    - **The record:** `plugin`, `kind`, `at` (Unix time), `key` (the same key updates rather than duplicates), `title`, `body` (the text indexed, with FTS5), `data` (JSON: everything), `link`. Indexes on plugin, kind, at.
+    - **`vikix records`** (`bin/vikix-records`, Python's sqlite3): `add` (JSON on stdin: the one contract plugins use, whatever their language), `search TEXT` (full text, newest first), `list PLUGIN [--kind K] [--since 30d] [--json]`, `get ID [--json]`, `export [--org|--jsonl|--csv]` (Org to read in Emacs, or on the phone through Dropbox), `forget PLUGIN [--kind K] [--older 1y]`. A Lisp helper for plugins' Lisp, through the command.
+    - **First users:** flights (every search with all its results, kind `search`; for watched routes a price point at each check, kind `price`, so each route has a price history, not just "it dropped"); next-meeting (meetings joined); ai-usage (plan use over days and weeks).
+    - **Agents:** a read-only `records_search` tool in `vikix mcp`; nothing an agent sends can write or delete.
+    - **Kept:** everything, until `forget` (no automatic tidying).
+    - Touches: `bin/vikix-records`, `bin/vikix` (dispatch), `bin/vikix-mcp`, the backup's list, the plugins README's "What a plugin is" (how to write records), each plugin that writes; a test (`tests/records.sh`); `docs/map.md`.
 
 ## Vikix as the workshop for the Living Series (decided with Vid 2026-09-30)
 
