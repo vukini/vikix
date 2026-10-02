@@ -18,6 +18,7 @@ Gathered on 2026-09-30, in a conversation with Vid.
 - **Ask about the screen.** Drag over any area (a chart, an error dialog, a PDF page) and ask about it: `s-i` for pictures, with a vision model.
 - **Voice commands.** Hold a key and say "put Firefox on workspace 3" or "open the Vikix project": the dictation already there, then the agent acting through the MCP server.
 - **Meeting notes.** Record a call, transcribe it locally, then a summary and action items. Only with everyone's consent, and the screen says a recording is running.
+- **Jev (TypeSafe AI), for typed decisions.** A cloud API that answers with one of a fixed set of choices and how sure it is (not text), claimed in 70-500 ms and nearly free: https://typesafe.ai/blog/introducing-system-one-models-and-jev. Compare it with a local model held to a JSON schema (Ollama's structured outputs) when the desk's mail groups (TODO item 21), `vikix notes sort` (item 38) or voice commands are built. Against it, as seen 2026-10-02: cloud only and closed, early access, its own benchmarks, and business mail is local by default; "can't hallucinate" only means the answer is always an allowed choice, not the right one.
 
 ## Everyday business
 
