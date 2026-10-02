@@ -5,7 +5,7 @@ dbus
 # elogind is deliberately NOT here: dbus starts it on demand. Enabling its
 # runit service as well races with that and loops forever printing
 # "elogind is already running" on the console.
-# acpid is deliberately NOT here either (from 0.71.30): its handler.sh
+# acpid is deliberately NOT here either (from 0.71.31): its handler.sh
 # suspends on the lid itself (zzz) while elogind does too, and two
 # suspends at once collide (blank screen on opening it, sleeping twice),
 # and the first skips the lock screen. elogind handles the lid and the

@@ -198,7 +198,7 @@ grep -r "" /sys/power/suspend_stats/          # successes, failures, and the ste
 
 Note the numbers, close and open the lid once, and look again: one more `success` is right; a new `fail` with `last_failed_step:freeze` and `last_failed_errno:-16` ("busy") means something asked to sleep while sleep was already on its way.
 
-**A worked case: the lid** (fixed in 0.71.30). Opening the lid left the screen blank for a while, then it woke. `suspend_stats` showed 15 successes and 5 failures, busy at the freeze step. `handler.sh` ran `zzz` on the lid, and elogind's `HandleLidSwitch` said `suspend`: two programs suspending on one lid. `sudo dmesg -T | grep -E "PM: suspend (entry|exit)"` showed it as two entries for one close. The fix was to keep one: elogind, which locks the screen first.
+**A worked case: the lid** (fixed in 0.71.31). Opening the lid left the screen blank for a while, then it woke. `suspend_stats` showed 15 successes and 5 failures, busy at the freeze step. `handler.sh` ran `zzz` on the lid, and elogind's `HandleLidSwitch` said `suspend`: two programs suspending on one lid. `sudo dmesg -T | grep -E "PM: suspend (entry|exit)"` showed it as two entries for one close. The fix was to keep one: elogind, which locks the screen first.
 
 **The rest of what was written down**, by Vikix and the desktop: `~/.local/state/vikix/session.log` (the session), `~/.local/state/vikix/errors/` (errors in the desktop), `/var/log/Xorg.0.log` (the display), and `vikix debug`, which gathers them. Void has no system log by default; `sudo xbps-install socklog-void` and `sudo ln -s /etc/sv/socklog-unix /etc/sv/nanoklogd /var/service/` keep the services' and the kernel's messages in `/var/log/socklog/`, across reboots.
 
