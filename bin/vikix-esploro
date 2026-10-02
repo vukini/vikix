@@ -27,7 +27,7 @@ VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 # A commit, not a branch: an update brings a new Esploro only when Vikix
 # moves this pin, after trying it.
 ESPLORO_REPO=https://github.com/vukini/esploro
-ESPLORO_COMMIT=86b4c6cc68f3df8146ab6dc58c389bd6db968535   # 2026-10-02: the ".." row with the keyboard
+ESPLORO_COMMIT=fa8b97b6b0b52a0a460b163bc300d6ed4445b517   # 2026-10-02: arrow keys redraw only what changed
 OPT="$HOME/.local/opt/esploro"
 QL="$HOME/quicklisp/setup.lisp"
 BIN="$HOME/.local/bin"
