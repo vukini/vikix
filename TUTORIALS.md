@@ -136,6 +136,30 @@ Each track ends in a small project. Lesson counts are estimates.
 
 `bin/vikix-learn` knows nothing about C. Each course folder carries its own compile and check commands. The same runner can later host `vikix learn lisp`, `forth`, `haskell` and `sql`, matching the language features.
 
+## Where it stands (2026-10-02)
+
+**Paused after Phase 1, on purpose.** Tracks 1 to 4 are done: fourteen lessons, 0.71.22 to 0.71.24, each track ending in a project. The tests prove each lesson's check (the exercise as shipped fails, the worked answer passes, every quoted output is real); what they can't prove is whether the steps read well and the hints come at the right moment. So the next step is **Vid working through the lessons**, and noting what's unclear, too easy or too hard. Phase 2 starts from those notes.
+
+**When Phase 2 starts** (Vid says "Phase 2"):
+
+- Tracks 5 to 8, in the plan's table: where everything lives (text, data, bss, heap, stack, measured with `size`, `nm`, `/proc/self/maps`), the heap (`malloc`/`free`, leaks, use-after-free; valgrind, ASan, rr), strings and text (`string.h`'s traps), structs and data (linked lists, a hash map). About 15 lessons, each track ending in a project.
+- The tutor: a `vikix-tutor` skill beside the Vikix skill, so Super+a in a lesson's folder explains the failing step and gives the next hint, and a full answer only when asked.
+- Ship a track at a time, so each can be tried on the desktop with `gtry` as it lands.
+- Then Phase 3: tracks 9 to 12 and the capstones (a Forth in C, a tiny Lisp, a Vikix tool rewritten in C).
+
+**Ideas for later,** not decided: keys in Emacs and Neovim that run the check (decision 3 left them for later); a `vikix learn` course for another language on the same runner (Lisp, Forth, SQL); the lesson pane following the shell's edits in more than one file at once.
+
+## Writing a lesson (what Phases 0 and 1 settled)
+
+- **A lesson is a folder** `learn/c/NN-name/`: `lesson.md`, `example.c` (complete, commented, compiles clean under `-std=c17 -Wall -Wextra -pedantic -Werror`), `exercise.c` with a `// NOT DONE` line, `check.sh`, `hints.md` (hints split by `---`), and `solution.c`. Other files the lesson needs (sources, a demo file with warnings) go beside them and are copied too.
+- **Another work file:** a lesson whose exercise isn't `exercise.c` lists its files in `work` (04's is `Makefile`); the answer for a work file `W` is `solution.W`, and its `NOT DONE` line uses the file's own comment (`# NOT DONE`).
+- **What's copied, what isn't:** `bin/vikix-learn` copies the lesson to `~/learn/c/` once; your work files are never overwritten. `check.sh`, `work` and `solution*` stay Vikix's; `lesson.md` is refreshed from Vikix whenever it differs (0.71.24), so a corrected text reaches everyone.
+- **Renumbering:** add `OLD NEW` lines to `learn/c/renames`; the runner moves the learner's folder, `done`, `current`, `pos-` and `hints-` with it.
+- **The evidence rule:** before a quoted output, a line `<!-- output: COMMAND -->` and an empty fenced block; `python3 learn/outputs.py learn/c/NN-name --fill` runs each command in a copy of the lesson (after compiling `example.c`) and writes what it printed. `tests/learn.sh` re-runs them. Run every claim before writing it: Phase 1 found the plan's "`-lm` is optional at `-O2`" wrong, and that an unset variable is only reported at `-O2`.
+- **Checks** source `learn/c/lib.sh`: `build` (warnings as errors, sanitizers when installed), `runs`, `brief` (a sanitizer's report cut to the error and the learner's own frames), `pass` and `fail` (only the first failure is shown). The check's own examples go in a `.check-main.c`, linked against the learner's file compiled with `-Dmain=learner_main`, on buffers of exactly the right size so ASan sees one byte too far. `LEARN_LESSON` is Vikix's copy, for checking a shipped file wasn't changed.
+- **Keep the answer realistic:** `solution.c` is the exercise as a learner leaves it, instructions and all (the test checks). Lesson 08's check once matched words in the instructions and could never pass; an answer written from scratch had hidden it. Match placeholders exactly (`/* 2. Purpose: write it here. */`), never words that the instructions also use.
+- **Try each lesson three ways** before committing: as shipped (fails, at the right step), half-fixed (fails at the next step), the answer (passes). Then `tests/learn.sh`.
+
 ## Build order
 
 | Phase | Deliverable | How it's tested |

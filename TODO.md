@@ -9,7 +9,7 @@ Built in this order: newcomers first, then the rest (the AI items have shipped; 
 ### And then
 
 6. **Whole-system undo.** When / is btrfs: snapper snapshots before each `vikix update`, and `vikix rollback` notes. Skip cleanly on ext4.
-9. **Tutorials: `vikix learn c`, Phase 2.** Tracks 1 to 4 (fourteen lessons) shipped in 0.71.22. Next: tracks 5 to 8 (where everything lives, the heap, strings, structs) and the tutor skill. The plan and the decisions are in `TUTORIALS.md`; `learn/outputs.py --fill` writes a lesson's quoted outputs from real runs.
+9. **Tutorials: `vikix learn c`, Phase 2.** Paused until Vid has worked through some lessons (see TUTORIALS.md, "Where it stands"). Tracks 1 to 4 (fourteen lessons) shipped in 0.71.22. Next: tracks 5 to 8 (where everything lives, the heap, strings, structs) and the tutor skill. The plan and the decisions are in `TUTORIALS.md`; `learn/outputs.py --fill` writes a lesson's quoted outputs from real runs.
 
 ## Wish list
 
