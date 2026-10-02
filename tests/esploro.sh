@@ -204,6 +204,13 @@ printf 'compress\tCompress: Into a .zip\n' > "$t/picked"
 check "a command's error should be a notification" grep -q "notify-send Esploro zip isn't installed" "$calls"
 : > "$t/picked"; : > "$calls"; es menu
 check "Escape in rofi should run nothing" sh -c "! grep -q 'esploro run' '$calls'"
+# rofi's message is markup: an & in the name would blank it.
+echo "$HOME/notes/Tom & Jerry <1>.md" > "$t/revealed"
+: > "$calls"; es menu
+check "rofi's message should escape the file's name: $(grep '^rofi' "$calls")" grep -qF -- "-mesg ~/notes/Tom &amp; Jerry &lt;1&gt;.md" "$calls"
+printf 'copy-path\tCopy path: Copy its path\n' > "$t/picked"
+: > "$calls"; es menu
+check "the command should still get the file as it is" grep -qxF "esploro run copy-path $HOME/notes/Tom & Jerry <1>.md" "$calls"
 
 [ "$fail" = 0 ] && echo "esploro: fetched at its pin, its command built in its folder with SBCL alone, linked and in the launcher for folders, only what setup made goes, Emacs comes with it, Super+e"
 exit "$fail"

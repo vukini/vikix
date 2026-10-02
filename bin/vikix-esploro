@@ -208,23 +208,33 @@ cmd_doctor() {
   [ "$ok" = 1 ]
 }
 
+# rofi's -mesg and notification bodies are markup: an & or < in a file's
+# name would hide the whole line.
+# (The replacements quoted: bash 5.2 reads a bare & in one as the match.)
+markup_escape() {
+  local s=${1//&/"&amp;"}
+  s=${s//</"&lt;"}
+  printf '%s' "${s//>/"&gt;"}"
+}
+
 cmd_menu() {
-  local es file lines pick name answer
+  local es file lines pick name answer shown
   es=$(command -v esploro) || { notify-send "Esploro" "Esploro isn't installed: vikix add esploro"; return 1; }
   file=$("$es" reveal --print 2>/dev/null | head -n1)
   if [ -z "$file" ]; then
     notify-send "Esploro" "No file behind this window: Esploro's commands are for a file another window has"
     return 0
   fi
+  shown=$(markup_escape "${file/#$HOME/\~}")
   lines=$("$es" commands --lines "$file" 2>/dev/null)
-  [ -n "$lines" ] || { notify-send "Esploro" "No commands for ${file/#$HOME/\~}"; return 0; }
-  pick=$(printf '%s\n' "$lines" | rofi -dmenu -i -no-custom -p "${file##*/}" -mesg "${file/#$HOME/\~}" \
+  [ -n "$lines" ] || { notify-send "Esploro" "No commands for $shown"; return 0; }
+  pick=$(printf '%s\n' "$lines" | rofi -dmenu -i -no-custom -p "${file##*/}" -mesg "$shown" \
            -display-columns 2 -display-column-separator $'\t') || return 0
   [ -n "$pick" ] || return 0
   name=${pick%%$'\t'*}
   answer=$("$es" run "$name" "$file" 2>&1)
   case $answer in
-    "(:error "*) notify-send "Esploro" "$(sed 's/^(:error "\(.*\)")$/\1/' <<<"$answer")" ;;
+    "(:error "*) notify-send "Esploro" "$(markup_escape "$(sed 's/^(:error "\(.*\)")$/\1/' <<<"$answer")")" ;;
   esac
   return 0
 }
