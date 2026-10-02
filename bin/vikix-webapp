@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
 # vikix-webapp — a website as a program of its own (`vikix webapp`).
 #
-#   vikix webapp add NAME [URL] [--key KEY]   make one (or change its address).
-#                     Without a URL, NAME is a preset: fastmail, gmail,
-#                     outlook (work or school Microsoft 365), outlook-live
-#                     (outlook.com), superhuman. KEY is a Super key as the key
-#                     help writes it: s-M is Super+Shift+m, which the first
-#                     mail web app gets; --key none for no key. Adding one
-#                     again keeps its key unless you give another
+#   vikix webapp add NAME [URL] [--key KEY] [--media|--no-media]
+#                     make one (or change its address). Without a URL, NAME
+#                     is a preset: mail (fastmail, gmail, outlook for work
+#                     or school Microsoft 365, outlook-live for outlook.com,
+#                     superhuman) or meetings (teams, meet for Google Meet,
+#                     zoom). KEY is a Super key as the key help writes it:
+#                     s-M is Super+Shift+m, which the first mail web app
+#                     gets; --key none for no key. Adding one again keeps
+#                     its key unless you give another. --media lets the site
+#                     use the camera and microphone (the meeting presets do
+#                     by themselves; --no-media for one that shouldn't)
 #   vikix webapp key NAME KEY|none   give it another key, or none
+#   vikix webapp media NAME on|off   let it use the camera and microphone,
+#                     or not (from its next start)
 #   vikix webapp open NAME     bring it to the front, or start it (its key,
 #                     the launcher, and Super+m all do this)
 #   vikix webapp list          the web apps you have, and any logins left over
@@ -20,6 +26,13 @@
 # and its own profile in ~/.local/share/vikix/webapps/NAME: work logins
 # stay apart from personal ones, and from your everyday Firefox. Its
 # notifications come through dunst while its window is open.
+#
+# The camera and microphone: a web app's window has no address bar, so
+# Chromium's "allow camera and microphone?" is easily missed, and a
+# meeting's settings then show every device greyed out. A web app with
+# media on (a .vikix-media file in its profile) has both allowed for its
+# own site, written into its profile as it starts (Chromium rewrites that
+# file while it runs, so never before).
 #
 # Your list is ~/.config/vikix/webapps (one "NAME URL [KEY]" per line;
 # your own # comments are kept). StumpWM reads it (webapps.lisp) for the
@@ -39,21 +52,64 @@ MAIL_KEY=s-M
 HEADER1="# Your web apps (vikix webapp add/remove writes this; editing it by hand is fine)."
 HEADER2="# NAME URL [KEY]: KEY is a Super key, as StumpWM names it (s-M: Super+Shift+m)."
 
-# Presets: the address and the name shown. All mail, so far (for s-M).
+# Presets: the address and the name shown; mail ones (for s-M), and
+# meeting ones (camera and microphone allowed).
 declare -A PRESET_URL=(
   [superhuman]=https://mail.superhuman.com/
   [fastmail]=https://app.fastmail.com/
   [gmail]=https://mail.google.com/
   [outlook]=https://outlook.office.com/mail/
   [outlook-live]=https://outlook.live.com/mail/
+  [teams]=https://teams.microsoft.com/v2/
+  [meet]=https://meet.google.com/
+  [zoom]=https://app.zoom.us/wc/
 )
 declare -A PRESET_TITLE=(
   [superhuman]=Superhuman [fastmail]=Fastmail [gmail]=Gmail
   [outlook]=Outlook [outlook-live]="Outlook.com"
+  [teams]=Teams [meet]="Google Meet" [zoom]=Zoom
 )
+MAIL_PRESETS=" superhuman fastmail gmail outlook outlook-live "
+MEETING_PRESETS=" teams meet zoom "
 presets() { printf '%s\n' "${!PRESET_URL[@]}" | sort | paste -sd' ' | sed 's/ /, /g'; }
 title_of() { printf '%s\n' "${PRESET_TITLE[$1]:-${1^}}"; }
-is_mail() { [ -n "${PRESET_TITLE[$1]:-}" ]; }
+is_mail() { [[ $MAIL_PRESETS == *" $1 "* ]]; }
+is_meeting() { [[ $MEETING_PRESETS == *" $1 "* ]]; }
+
+media_mark() { echo "$PROFILES/$1/.vikix-media"; }
+has_media() { [ -e "$(media_mark "$1")" ]; }
+set_media() {   # set_media NAME on|off
+  mkdir -p "$PROFILES/$1"
+  chmod 700 "$PROFILES/$1"
+  if [ "$2" = on ]; then : > "$(media_mark "$1")"; else rm -f "$(media_mark "$1")"; fi
+}
+running() { pgrep -f -- "--user-data-dir=$PROFILES/$1 " >/dev/null 2>&1; }
+
+# allow_media NAME URL — camera and microphone allowed for URL's site, in
+# the profile's Preferences (made if it isn't there yet: Chromium fills in
+# the rest at its first start).
+allow_media() {
+  python3 - "$PROFILES/$1/Default/Preferences" "$2" <<'PY'
+import json, os, sys, urllib.parse
+path, url = sys.argv[1], sys.argv[2]
+u = urllib.parse.urlsplit(url)
+port = u.port or (443 if u.scheme == "https" else 80)
+site = f"{u.scheme}://{u.hostname}:{port},*"
+try:
+    with open(path) as f:
+        prefs = json.load(f)
+except (OSError, ValueError):
+    prefs = {}
+ex = prefs.setdefault("profile", {}).setdefault("content_settings", {}).setdefault("exceptions", {})
+for kind in ("media_stream_camera", "media_stream_mic"):
+    ex.setdefault(kind, {})[site] = {"last_modified": "13435405355195324", "setting": 1}
+os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
+tmp = path + ".vikix-new"
+with open(tmp, "w") as f:
+    json.dump(prefs, f)
+os.replace(tmp, path)
+PY
+}
 
 # s-M -> Super+Shift+m, s-C-g -> Super+Ctrl+g: as people say it.
 say_key() {
@@ -163,13 +219,15 @@ check_key() {
 }
 
 cmd_add() {
-  local name='' url='' key='' key_given=''
+  local name='' url='' key='' key_given='' media=''
   while [ $# -gt 0 ]; do
     case $1 in
+      --media) media=on; shift ;;
+      --no-media) media=off; shift ;;
       --key) [ $# -ge 2 ] || die "--key needs a key, like s-M, or none"; key=$2; key_given=1; shift 2 ;;
       --key=*) key=${1#--key=}; key_given=1; shift ;;
       -*) die "vikix webapp add: unknown option $1" ;;
-      *) if [ -z "$name" ]; then name=$1; elif [ -z "$url" ]; then url=$1; else die "too many words: vikix webapp add NAME [URL] [--key KEY]"; fi; shift ;;
+      *) if [ -z "$name" ]; then name=$1; elif [ -z "$url" ]; then url=$1; else die "too many words: vikix webapp add NAME [URL] [--key KEY] [--media]"; fi; shift ;;
     esac
   done
   [ -n "$name" ] || die "which one? For example: vikix webapp add superhuman (presets: $(presets))"
@@ -199,7 +257,14 @@ cmd_add() {
   [ -n "$(entry "$name")" ] && what=changed
   set_line "$name" "$name $url${key:+ $key}"
   desktop_file "$name"
+  # A meeting preset uses the camera and microphone unless told not to;
+  # anything else only when asked. Added again, it keeps what it had.
+  if [ -z "$media" ] && [ "$what" = made ] && is_meeting "$name"; then media=on; fi
+  [ -z "$media" ] || set_media "$name" "$media"
   say "$what the web app $(title_of "$name"): $url${key:+, on $(say_key "$key")}"
+  if has_media "$name"; then
+    echo "   It may use the camera and microphone (vikix webapp media $name off takes that away)."
+  fi
   if [ -n "$key" ]; then
     echo "   Open it with $(say_key "$key"), from the launcher (Super+d, $(title_of "$name")), or Super+m."
   else
@@ -220,6 +285,24 @@ cmd_key() {
   reload_wm
 }
 
+cmd_media() {
+  local name=${1:-} how=${2:-}
+  [ -n "$name" ] && { [ "$how" = on ] || [ "$how" = off ]; } ||
+    die "vikix webapp media NAME on|off (the camera and microphone)"
+  [ -n "$(entry "$name")" ] || die "there's no web app called $name (vikix webapp list)"
+  set_media "$name" "$how"
+  if [ "$how" = on ]; then
+    say "$(title_of "$name") may use the camera and microphone"
+  else
+    # Off takes the mark away; what Chromium already allowed is undone in
+    # its own settings (the lock beside a site's name, or chrome://settings).
+    say "$(title_of "$name") won't be allowed them again; to take back what it has: open it, then Chromium's site settings"
+  fi
+  if running "$name"; then
+    echo "   It's open now: close its window, and open it again, for this to count."
+  fi
+}
+
 # Start it: a Chromium app window, its own class and profile.
 cmd_launch() {
   local name=$1 url
@@ -227,6 +310,10 @@ cmd_launch() {
   [ -n "$url" ] || die "there's no web app called $name (vikix webapp list)"
   mkdir -p "$PROFILES/$name"
   chmod 700 "$PROFILES/$name"
+  # Before Chromium starts: once it runs, it writes the file over.
+  if has_media "$name" && ! running "$name"; then
+    allow_media "$name" "$url" || warn "couldn't allow the camera and microphone"
+  fi
   exec chromium --user-data-dir="$PROFILES/$name" --class="vikix-$name" \
     --no-first-run --no-default-browser-check --app="$url"
 }
@@ -248,6 +335,7 @@ cmd_list() {
       printf '%-14s %-40s ignored: needs %s (edit %s)\n' "$name" "${url:-(no address)}" "$why" "$LIST"
     else
       if [ -n "$key" ]; then key="$key ($(say_key "$key"))"; else key="no key"; fi
+      has_media "$name" && key="$key, camera and microphone"
       printf '%-14s %-40s %s\n' "$name" "$url" "$key"
     fi
     any=1
@@ -295,6 +383,7 @@ cmd_remove() {
 case ${1:-help} in
   add)       shift; cmd_add "$@" ;;
   key)       shift; cmd_key "$@" ;;
+  media)     shift; cmd_media "$@" ;;
   open)      shift; cmd_open "$@" ;;
   launch)    shift; cmd_launch "${1:?which web app?}" ;;
   list|ls)   cmd_list ;;

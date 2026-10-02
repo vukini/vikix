@@ -15,13 +15,3 @@ Noted 2026-10-02. Minor.
 **Suspect.** `virt-viewer` on the Windows VM shares the clipboard over SPICE, and may grab the host clipboard at the same moment when the guest echoes a copy. Not confirmed: Alacritty's log times are its running time on the monotonic clock, which stops during suspend, so they can't be matched to when the VM was open.
 
 **Next step.** Note whether the VM window is open when it happens; or run a small logger (clipnotify, then the selection owner's window and its client, via `vikix eval` and `xlib:selection-owner`) until the next warning names the client. If it's SPICE: switch off clipboard sharing in the viewer, or accept a rare second copy.
-
-## A meeting web app can't choose its camera or microphone
-
-Noted 2026-10-02. Minor.
-
-**What happens.** In a web app made with `vikix webapp add` (Teams, here), the meeting settings show the camera, microphone and speaker lists greyed out. The web app's window has no address bar, so Chromium's question "allow camera and microphone?" is easily missed, and the site never gets them.
-
-**The fix used by hand.** With the web app closed, `~/.local/share/vikix/webapps/NAME/Default/Preferences` got `profile.content_settings.exceptions.media_stream_camera` and `media_stream_mic` set to `{"https://SITE:443,*": {"setting": 1}}` (allow, for that site only); then it worked: devices, a test call, sharing the screen.
-
-**Next step.** `vikix webapp add` could ask "a meeting app? allow its camera and microphone" (or a `--media` flag, and a Teams preset with it on), writing that before the first start; Chromium rewrites Preferences while it runs, so only when the web app is closed.

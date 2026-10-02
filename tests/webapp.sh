@@ -9,6 +9,10 @@
 #            Vikix's own keys, a key another web app has, a non-Super key
 #   open     without StumpWM to ask, starts Chromium as an app window with
 #            its own class and profile (700)
+#   media    a meeting preset (teams) starts with the camera and microphone
+#            allowed for its own site; another only after media on (its
+#            profile's other settings kept), and not after off; --no-media,
+#            and adding again keeps what it had
 #   remove   takes the line and launcher entry away and keeps the logins;
 #            --forget deletes them
 #   Lisp     webapps.lisp reads the list, binds the keys, adds key help and
@@ -97,6 +101,30 @@ out=$(wa list)
 check "list should show superhuman and its key, as said: $out" grep -qE '^superhuman +https://mail.superhuman.com/ +s-M \(Super\+Shift\+m\)$' <<<"$out"
 check "list should say an app has no key: $out" grep -qE '^crm +https://crm.example.com +no key$' <<<"$out"
 touch "$HOME/.local/share/vikix/webapps/superhuman/Cookies"
+# The camera and microphone: a meeting preset has them, allowed for its own
+# site as it starts; others only when asked; your other settings kept.
+prefs() { cat "$HOME/.local/share/vikix/webapps/$1/Default/Preferences" 2>/dev/null; }
+allowed() { prefs "$1" | python3 -c "import json,sys; e=json.load(sys.stdin)['profile']['content_settings']['exceptions']; sys.exit(0 if all(e.get(k,{}).get('$2',{}).get('setting')==1 for k in ('media_stream_camera','media_stream_mic')) else 1)" 2>/dev/null; }
+check "superhuman shouldn't have the camera unasked" bash -c "! grep -q media_stream \"\$HOME/.local/share/vikix/webapps/superhuman/Default/Preferences\" 2>/dev/null"
+wa add teams --key none >/dev/null 2>&1
+check "the teams preset should have Teams' address" grep -qx 'teams https://teams.microsoft.com/v2/' "$list"
+wa open teams >/dev/null 2>&1
+check "teams should start with the camera and microphone allowed for its site" allowed teams 'https://teams.microsoft.com:443,*'
+out=$(wa list)
+check "list should say teams has the camera and microphone: $out" grep -qE '^teams .*no key, camera and microphone$' <<<"$out"
+mkdir -p "$HOME/.local/share/vikix/webapps/superhuman/Default"
+echo '{"browser": {"mine": 1}}' > "$HOME/.local/share/vikix/webapps/superhuman/Default/Preferences"
+wa media superhuman on >/dev/null 2>&1; wa open superhuman >/dev/null 2>&1
+check "media on should allow them at the next start" allowed superhuman 'https://mail.superhuman.com:443,*'
+check "allowing them should keep the profile's other settings" bash -c "grep -q '\"mine\": 1' \"\$HOME/.local/share/vikix/webapps/superhuman/Default/Preferences\""
+wa media superhuman off >/dev/null 2>&1
+check "media off should take the mark away" test ! -e "$HOME/.local/share/vikix/webapps/superhuman/.vikix-media"
+wa add teams >/dev/null 2>&1
+check "teams added again should keep the camera and microphone" test -e "$HOME/.local/share/vikix/webapps/teams/.vikix-media"
+wa add zoom --no-media --key none >/dev/null 2>&1
+check "--no-media should leave a meeting preset without them" test ! -e "$HOME/.local/share/vikix/webapps/zoom/.vikix-media"
+wa media nosuchthing on >/dev/null 2>&1 && { echo "FAIL: media for a web app that isn't there worked"; fail=1; }
+wa remove teams --forget >/dev/null 2>&1; wa remove zoom --forget >/dev/null 2>&1
 # Hand edits: your comment kept through rewrites, bad lines named, not hidden.
 printf '# my own note\nbroken https://x.example Super+Shift+o\nnourl\n' >> "$list"
 wa remove outlook-live >/dev/null 2>&1

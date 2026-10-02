@@ -700,12 +700,14 @@ vikix windows stop                 # shut it down (also: status, remove)
 
 ## Web apps
 
-Some programs are really websites: mail most of all. A web app opens one in a window of its own, with no tabs and no address bar, that StumpWM tiles and finds like any program:
+Some programs are really websites: mail and meetings most of all. A web app opens one in a window of its own, with no tabs and no address bar, that StumpWM tiles and finds like any program:
 
 ```sh
 vikix webapp add superhuman       # a preset: superhuman, fastmail, gmail, outlook (work), outlook-live
 vikix webapp add fastmail --key s-F   # with a key of its own (Super+Shift+f)
-vikix webapp add crm https://crm.example.com   # any site
+vikix webapp add teams --key s-M-t   # a meeting preset: teams, meet (Google Meet), zoom
+vikix webapp add crm https://crm.example.com   # any site (--media: with the camera and microphone)
+vikix webapp media crm on         # let one use the camera and microphone, or off
 vikix webapp key fastmail none    # another key, or none (vikix webapp key NAME s-X)
 vikix webapp list                 # and remove NAME: its logins are kept; --forget deletes them
 ```
@@ -713,6 +715,7 @@ vikix webapp list                 # and remove NAME: its logins are kept; --forg
 - **Mail on a key.** The first mail web app gets `s-M` (Super+Shift+m): it brings the mail window to the front from any workspace, or opens it. Every web app is also in the launcher (`s-d`) and in `s-m`, and its key in the key help.
 - **Superhuman, Gmail and work Outlook** can all be one window: Superhuman handles Gmail and Microsoft 365 accounts. Fastmail's own web app is the one for Fastmail. Outlook on the web is what a work account's sign-in rules least often block; the desktop Outlook needs the Windows VM.
 - **Logins kept apart.** Each web app has its own Chromium profile (`~/.local/share/vikix/webapps/NAME`), so a work login never mixes with a personal one or with Firefox. Backups keep the logins and leave out the caches.
+- **Meetings** (Teams, Google Meet, Zoom) work in their web apps: the camera, the microphone, and sharing your screen (share the *entire screen*: StumpWM swaps windows in a frame, which a shared window doesn't follow). A web app's window has no address bar, so Chromium's question "allow camera and microphone?" is easily missed, and the meeting's settings then show every device greyed out: the meeting presets have both allowed for their own site from the start, and `vikix webapp media NAME on` (or `--media` when adding) does it for any other, from its next start.
 - **Notifications** come through dunst, like everything else: allow them in the web app when it asks. They come only while its window is open (on any workspace), and web apps don't start by themselves at login: to have mail open from the start, put `(run-shell-command "vikix-webapp launch superhuman")` in `~/.stumpwm.d/user.lisp`.
 - **Your list** is `~/.config/vikix/webapps`, one `NAME URL [KEY]` per line; editing it by hand is fine, your own `#` comments stay, and `vikix webapp list` points out a line it can't use.
 - **Chromium** is installed the first time you add a web app (the feature `webapps`, so `vikix update` then keeps it; `vikix remove webapps` takes it away).
