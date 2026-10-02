@@ -1,0 +1,377 @@
+#!/usr/bin/env python3
+"""vikix-records — where plugins keep what they found, to search and use later.
+
+  vikix records search TEXT [--plugin P] [--limit N] [--json]
+                                  full text (title and body), newest first;
+                                  words as in a search box: dubai emirates,
+                                  "exact words", dxb OR sin
+  vikix records list [PLUGIN] [--kind K] [--since 30d] [--limit N] [--json]
+                                  newest first; --since takes 2h, 30d, 6w, 1y
+  vikix records get ID [--json]   one record, with all its data
+  vikix records add               a record (or a list of them) as JSON on
+                                  stdin: plugin, kind, title (needed); key,
+                                  body, data, link, at (Unix time) as wanted.
+                                  The same plugin, kind and key again updates
+                                  that record rather than adding another
+  vikix records export [--org|--jsonl|--csv] [PLUGIN]
+                                  everything, to read in Emacs (Org) or to
+                                  give a program
+  vikix records forget PLUGIN [--kind K] [--older 1y]
+                                  remove records (asks, unless --yes)
+  vikix records stats             how many, by plugin and kind
+
+The store is one SQLite file, ~/.local/share/vikix/records.db, kept by
+vikix backup. Any program can read it with SQL: the table is records (id,
+plugin, kind, key, at, title, body, data, link), and records_fts is its
+full-text index.
+"""
+import csv
+import json
+import os
+import re
+import sqlite3
+import sys
+import time
+
+DB = os.environ.get("VIKIX_RECORDS_DB") or os.path.join(
+    os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share"),
+    "vikix", "records.db")
+NAME = re.compile(r"^[a-z][a-z0-9-]{0,40}$")
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS records (
+  id     INTEGER PRIMARY KEY,
+  plugin TEXT NOT NULL,
+  kind   TEXT NOT NULL,
+  key    TEXT,
+  at     INTEGER NOT NULL,
+  title  TEXT NOT NULL,
+  body   TEXT NOT NULL DEFAULT '',
+  data   TEXT NOT NULL DEFAULT '{}',
+  link   TEXT NOT NULL DEFAULT ''
+);
+CREATE UNIQUE INDEX IF NOT EXISTS records_key ON records(plugin, kind, key) WHERE key IS NOT NULL;
+CREATE INDEX IF NOT EXISTS records_when ON records(plugin, kind, at);
+CREATE INDEX IF NOT EXISTS records_at ON records(at);
+CREATE VIRTUAL TABLE IF NOT EXISTS records_fts USING fts5(
+  title, body, content='records', content_rowid='id', tokenize='unicode61 remove_diacritics 2');
+CREATE TRIGGER IF NOT EXISTS records_ai AFTER INSERT ON records BEGIN
+  INSERT INTO records_fts(rowid, title, body) VALUES (new.id, new.title, new.body);
+END;
+CREATE TRIGGER IF NOT EXISTS records_ad AFTER DELETE ON records BEGIN
+  INSERT INTO records_fts(records_fts, rowid, title, body) VALUES ('delete', old.id, old.title, old.body);
+END;
+CREATE TRIGGER IF NOT EXISTS records_au AFTER UPDATE ON records BEGIN
+  INSERT INTO records_fts(records_fts, rowid, title, body) VALUES ('delete', old.id, old.title, old.body);
+  INSERT INTO records_fts(rowid, title, body) VALUES (new.id, new.title, new.body);
+END;
+"""
+
+
+class Problem(Exception):
+    pass
+
+
+def connect(write=False):
+    if not write and not os.path.exists(DB):
+        return None
+    os.makedirs(os.path.dirname(DB), exist_ok=True)
+    fresh = not os.path.exists(DB)
+    db = sqlite3.connect(DB, timeout=15)
+    if fresh:
+        os.chmod(DB, 0o600)            # what plugins found can be personal
+    db.row_factory = sqlite3.Row
+    db.execute("PRAGMA journal_mode=WAL")     # several plugins writing at once
+    db.execute("PRAGMA busy_timeout=15000")
+    db.executescript(SCHEMA)
+    return db
+
+
+def since(text):
+    """'30d' as the Unix time that long ago."""
+    m = re.fullmatch(r"(\d+)\s*([hdwmy])", text.strip())
+    if not m:
+        raise Problem(f"a time like 2h, 30d, 6w, 3m, 1y, not {text!r}")
+    n, unit = int(m.group(1)), m.group(2)
+    return int(time.time()) - n * {"h": 3600, "d": 86400, "w": 7 * 86400, "m": 30 * 86400, "y": 365 * 86400}[unit]
+
+
+def when(at):
+    return time.strftime("%Y-%m-%d %H:%M", time.localtime(at))
+
+
+def as_dict(r):
+    d = dict(r)
+    try:
+        d["data"] = json.loads(d["data"])
+    except ValueError:
+        pass
+    return d
+
+
+# --- Adding --------------------------------------------------------------------
+
+def add(record, db):
+    """Add one record (a dict); with a key, update the one that has it. Returns its id."""
+    if not isinstance(record, dict):
+        raise Problem("a record is a JSON object")
+    plugin, kind, title = record.get("plugin"), record.get("kind"), record.get("title")
+    for name, value in (("plugin", plugin), ("kind", kind)):
+        if not isinstance(value, str) or not NAME.match(value):
+            raise Problem(f"{name}: small letters, digits and -, like flights (got {value!r})")
+    if not isinstance(title, str) or not title.strip():
+        raise Problem("title: a line of text")
+    key = record.get("key")
+    if key is not None and not isinstance(key, str):
+        key = json.dumps(key, sort_keys=True)
+    at = record.get("at") or int(time.time())
+    if not isinstance(at, (int, float)):
+        raise Problem("at: a Unix time (seconds)")
+    body = record.get("body") or ""
+    data = record.get("data", {})
+    link = record.get("link") or ""
+    if not isinstance(body, str) or not isinstance(link, str):
+        raise Problem("body and link are text")
+    values = (plugin, kind, key, int(at), title.strip()[:500], body[:20000], json.dumps(data), link[:2000])
+    if key is not None:
+        row = db.execute("SELECT id FROM records WHERE plugin=? AND kind=? AND key=?", (plugin, kind, key)).fetchone()
+        if row:
+            db.execute("UPDATE records SET at=?, title=?, body=?, data=?, link=? WHERE id=?",
+                       (values[3], values[4], values[5], values[6], values[7], row["id"]))
+            return row["id"]
+    return db.execute("INSERT INTO records (plugin, kind, key, at, title, body, data, link) VALUES (?,?,?,?,?,?,?,?)",
+                      values).lastrowid
+
+
+def cmd_add():
+    text = sys.stdin.read()
+    try:
+        got = json.loads(text)
+    except ValueError as e:
+        raise Problem(f"not JSON: {e}")
+    items = got if isinstance(got, list) else [got]
+    db = connect(write=True)
+    with db:
+        ids = [add(r, db) for r in items]
+    db.close()
+    print(" ".join(map(str, ids)))
+
+
+# --- Reading -------------------------------------------------------------------------
+
+def fts_query(text):
+    """Words as typed in a search box, made safe for FTS5: each word a
+    prefix match, quoted phrases kept, OR kept."""
+    parts = re.findall(r'"[^"]+"|\S+', text)
+    out = []
+    for p in parts:
+        if p.startswith('"') and p.endswith('"') and len(p) > 2:
+            out.append('"' + p[1:-1].replace('"', "") + '"')
+        elif p.upper() in ("OR", "AND", "NOT"):
+            out.append(p.upper())
+        else:
+            w = re.sub(r"[^\w-]", "", p)
+            if w:
+                out.append('"' + w.replace('"', "") + '"*')
+    return " ".join(out)
+
+
+def search(text, plugin=None, limit=20):
+    db = connect()
+    if db is None:
+        return []
+    q = fts_query(text)
+    if not q:
+        return []
+    sql = ("SELECT r.* FROM records_fts f JOIN records r ON r.id = f.rowid WHERE records_fts MATCH ?"
+           + (" AND r.plugin = ?" if plugin else "") + " ORDER BY r.at DESC LIMIT ?")
+    args = [q] + ([plugin] if plugin else []) + [limit]
+    try:
+        rows = [as_dict(r) for r in db.execute(sql, args)]
+    except sqlite3.OperationalError as e:
+        raise Problem(f"that search can't be read: {e}")
+    db.close()
+    return rows
+
+
+def listing(plugin=None, kind=None, after=None, limit=50):
+    db = connect()
+    if db is None:
+        return []
+    sql, args = "SELECT * FROM records WHERE 1=1", []
+    for col, val in (("plugin", plugin), ("kind", kind)):
+        if val:
+            sql += f" AND {col} = ?"
+            args.append(val)
+    if after:
+        sql += " AND at >= ?"
+        args.append(after)
+    sql += " ORDER BY at DESC LIMIT ?"
+    args.append(limit)
+    rows = [as_dict(r) for r in db.execute(sql, args)]
+    db.close()
+    return rows
+
+
+def show(rows, as_json):
+    if as_json:
+        print(json.dumps(rows, indent=1, ensure_ascii=False))
+        return
+    if not rows:
+        print("no records")
+    for r in rows:
+        print(f"{r['id']:>6}  {when(r['at'])}  {r['plugin']}/{r['kind']}  {r['title']}")
+
+
+def cmd_get(rid, as_json):
+    db = connect()
+    row = db and db.execute("SELECT * FROM records WHERE id = ?", (rid,)).fetchone()
+    if not row:
+        raise Problem(f"there's no record {rid}")
+    r = as_dict(row)
+    if as_json:
+        print(json.dumps(r, indent=1, ensure_ascii=False))
+        return
+    print(f"{r['title']}\n{r['plugin']}/{r['kind']}, {when(r['at'])}" + (f", key {r['key']}" if r["key"] else ""))
+    if r["link"]:
+        print(r["link"])
+    if r["body"]:
+        print("\n" + r["body"])
+
+
+def cmd_export(fmt, plugin):
+    rows = listing(plugin=plugin, limit=10 ** 9)
+    rows.reverse()                             # oldest first, as a log reads
+    if fmt == "jsonl":
+        for r in rows:
+            print(json.dumps(r, ensure_ascii=False))
+    elif fmt == "csv":
+        w = csv.writer(sys.stdout)
+        w.writerow(["id", "plugin", "kind", "key", "at", "title", "body", "link", "data"])
+        for r in rows:
+            w.writerow([r["id"], r["plugin"], r["kind"], r["key"] or "", when(r["at"]), r["title"],
+                        r["body"], r["link"], json.dumps(r["data"], ensure_ascii=False)])
+    else:                                      # Org: a heading a plugin, a heading a record
+        print("#+title: Vikix records\n")
+        last = None
+        for r in rows:
+            if r["plugin"] != last:
+                print(f"* {r['plugin']}")
+                last = r["plugin"]
+            stamp = time.strftime("[%Y-%m-%d %a %H:%M]", time.localtime(r["at"]))
+            print(f"** {r['title']}\n:PROPERTIES:\n:ID_RECORD: {r['id']}\n:KIND: {r['kind']}\n:END:\n{stamp}")
+            if r["link"]:
+                print(f"[[{r['link']}][open]]")
+            if r["body"]:
+                print(r["body"])
+
+
+def cmd_forget(plugin, kind, older, yes):
+    db = connect()
+    if db is None:
+        print("no records")
+        return
+    sql, args = "FROM records WHERE plugin = ?", [plugin]
+    if kind:
+        sql += " AND kind = ?"
+        args.append(kind)
+    if older:
+        sql += " AND at < ?"
+        args.append(since(older))
+    n = db.execute("SELECT count(*) " + sql, args).fetchone()[0]
+    if n == 0:
+        print("nothing to forget")
+        return
+    if not yes:
+        if not sys.stdin.isatty():
+            raise Problem(f"{n} record(s) would go: add --yes, or run it in a terminal")
+        if input(f"   forget {n} record(s) of {plugin}{'/' + kind if kind else ''}? [y/N] ").strip().lower() not in ("y", "yes"):
+            print("kept")
+            return
+    with db:
+        db.execute("DELETE " + sql, args)
+    db.execute("VACUUM")
+    db.close()
+    print(f"forgot {n} record(s)")
+
+
+def cmd_stats():
+    db = connect()
+    if db is None:
+        print("no records yet")
+        return
+    for r in db.execute("SELECT plugin, kind, count(*) n, max(at) last FROM records GROUP BY plugin, kind ORDER BY plugin, kind"):
+        print(f"{r['plugin'] + '/' + r['kind']:<28} {r['n']:>7}   last {when(r['last'])}")
+    print(f"({DB}, {os.path.getsize(DB) // 1024} KB)")
+
+
+# --- The command line --------------------------------------------------------------------
+
+def options(argv, flags, valued):
+    words, opts = [], {}
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a in flags:
+            opts[a] = True
+        elif a in valued:
+            if i + 1 >= len(argv):
+                raise Problem(f"{a} needs a value")
+            opts[a] = argv[i + 1]
+            i += 1
+        elif a.startswith("--"):
+            raise Problem(f"what's {a}?")
+        else:
+            words.append(a)
+        i += 1
+    return words, opts
+
+
+def limit_of(opts, default):
+    v = opts.get("--limit", default)
+    if not str(v).isdigit() or int(v) < 1:
+        raise Problem("--limit takes a number")
+    return int(v)
+
+
+def main(argv):
+    cmd, rest = (argv[0], argv[1:]) if argv else ("help", [])
+    if cmd == "add":
+        cmd_add()
+    elif cmd == "search":
+        words, o = options(rest, {"--json"}, {"--plugin", "--limit"})
+        if not words:
+            raise Problem("search what? vikix records search emirates")
+        show(search(" ".join(words), o.get("--plugin"), limit_of(o, 20)), o.get("--json"))
+    elif cmd == "list":
+        words, o = options(rest, {"--json"}, {"--kind", "--since", "--limit"})
+        show(listing(words[0] if words else None, o.get("--kind"),
+                     since(o["--since"]) if "--since" in o else None, limit_of(o, 50)), o.get("--json"))
+    elif cmd == "get":
+        words, o = options(rest, {"--json"}, set())
+        if len(words) != 1 or not words[0].isdigit():
+            raise Problem("vikix records get ID")
+        cmd_get(int(words[0]), o.get("--json"))
+    elif cmd == "export":
+        words, o = options(rest, {"--org", "--jsonl", "--csv"}, set())
+        fmt = "jsonl" if o.get("--jsonl") else "csv" if o.get("--csv") else "org"
+        cmd_export(fmt, words[0] if words else None)
+    elif cmd == "forget":
+        words, o = options(rest, {"--yes"}, {"--kind", "--older"})
+        if len(words) != 1:
+            raise Problem("forget which plugin's? vikix records forget flights [--kind K] [--older 1y]")
+        cmd_forget(words[0], o.get("--kind"), o.get("--older"), o.get("--yes"))
+    elif cmd == "stats":
+        cmd_stats()
+    else:
+        print(__doc__.strip())
+
+
+if __name__ == "__main__":
+    try:
+        main(sys.argv[1:])
+    except Problem as e:
+        print(f"vikix records: {e}", file=sys.stderr)
+        sys.exit(1)
+    except BrokenPipeError:
+        pass

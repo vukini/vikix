@@ -276,6 +276,40 @@ def t_version(a):
     return version()
 
 
+# The record store (vikix records): what plugins found, read here, never
+# written: the tools below only search and read it.
+def records_module():
+    spec = importlib.util.spec_from_loader("vikix_records", loader=None)
+    mod = importlib.util.module_from_spec(spec)
+    with open(os.path.join(VIKIX_DIR, "bin", "vikix-records")) as f:
+        exec(compile(f.read(), "vikix-records", "exec"), mod.__dict__)
+    return mod
+
+
+def t_records_search(a):
+    rec = records_module()
+    text = str(a.get("query", "")).strip()
+    limit = min(int(a.get("limit") or 10), 25)
+    plugin = a.get("plugin") or None
+    try:
+        rows = rec.search(text, plugin, limit) if text else rec.listing(plugin, a.get("kind"), None, limit)
+    except rec.Problem as e:
+        raise ToolError(str(e))
+    return json.dumps([{"id": r["id"], "plugin": r["plugin"], "kind": r["kind"], "at": rec.when(r["at"]),
+                        "title": r["title"], "body": r["body"][:600], "link": r["link"]} for r in rows],
+                      ensure_ascii=False)
+
+
+def t_records_get(a):
+    rec = records_module()
+    db = rec.connect()
+    row = db and db.execute("SELECT * FROM records WHERE id = ?", (int(a["id"]),)).fetchone()
+    if not row:
+        raise ToolError(f"there's no record {a['id']}")
+    text = json.dumps(rec.as_dict(row), ensure_ascii=False)
+    return text[:30000] + (" [cut short]" if len(text) > 30000 else "")
+
+
 def esc(s):
     return s.replace("&", "&amp;").replace("<", "&lt;")
 
@@ -433,6 +467,17 @@ TOOLS = [
      READ, t_changes),
     ("themes", "Themes", "The current colour theme and the ones there are.", schema(), READ, t_themes),
     ("version", "Vikix's version", "The installed Vikix version.", schema(), READ, t_version),
+    ("records_search", "Search the record store",
+     "What the user's Vikix plugins found and kept (vikix records): flight searches and prices, meetings, Claude "
+     "plan use ... Full text over titles and bodies, newest first; without a query, the newest (of a plugin, "
+     "a kind). Read only." + DATA,
+     schema({"query": {"type": "string", "maxLength": 200, "description": "words, \"a phrase\", or OR"},
+             "plugin": {"type": "string", "maxLength": 40}, "kind": {"type": "string", "maxLength": 40},
+             "limit": {"type": "integer", "minimum": 1, "maximum": 25}}),
+     READ, t_records_search),
+    ("records_get", "One record, all of it",
+     "A record of the store by its id (records_search gives them), with all its data (JSON). Read only." + DATA,
+     schema({"id": {"type": "integer", "minimum": 1}}, ["id"]), READ, t_records_get),
     ("notify", "Show a notification", "A desktop notification, its title starting \"Agent:\".",
      schema({"title": {"type": "string", "maxLength": 80}, "body": {"type": "string", "maxLength": 400}}, ["title"]),
      ONCE, t_notify),

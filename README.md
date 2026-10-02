@@ -725,6 +725,22 @@ vikix plugin safe                 # the next login loads none
 - **Safe to try.** A plugin's Lisp runs inside StumpWM with all its power, so a plugin is code you trust, like your `user.lisp`. It loads a piece at a time, as Vikix's own files do: a mistake costs only that piece, and the menu asks what to do. One that stops the desktop from starting: `vikix plugin safe` (from a text console: Ctrl+Alt+F2) and log in again, then `vikix plugin off NAME`.
 - **Writing one:** a folder with a `manifest` and its code; the plugins repo's README says how.
 
+## The record store (`vikix records`)
+
+What plugins find is kept, to search and use later, rather than gone when a menu closes: every flight search with all its results, a watched route's price at each check, the meetings you joined, your Claude plan's use over time. It's one local file, `~/.local/share/vikix/records.db` (readable only by you, and in `vikix backup`):
+
+```sh
+vikix records search singapore          # full text, newest first: words, "a phrase", OR
+vikix records list flights --kind price --since 30d
+vikix records get 42                    # one record; --json for all its data
+vikix records list flights --json | jq ...   # for scripts
+vikix records export --org > records.org     # to read in Emacs (or --jsonl, --csv)
+vikix records forget flights --older 1y      # tidy up (asks first)
+vikix records stats
+```
+
+It's SQLite: anything can read it with SQL (`sqlite3 ~/.local/share/vikix/records.db`; the table is `records`: plugin, kind, key, at, title, body, data as JSON, link). An agent can read it through `vikix mcp` (`records_search`, `records_get`), never write to it. Nothing is tidied away by itself.
+
 ## Web apps
 
 Some programs are really websites: mail and meetings most of all. A web app opens one in a window of its own, with no tabs and no address bar, that StumpWM tiles and finds like any program:

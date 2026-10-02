@@ -55,6 +55,9 @@
 #                         theme's colours (vikix add hype)
 #   vikix wallpapers setup|update|status|uninstall
 #                         Vid's wallpapers, in the Super+m picker (vikix add wallpapers)
+#   vikix records search|list|get|export|forget|stats
+#                         what plugins found and kept (flights, meetings,
+#                         plan use ...), searchable (vikix records help)
 #   vikix plugin list|add|remove|off|on|safe|status
 #                         small additions from the vikix-plugins repo: bar
 #                         words, Super+m entries, keys (vikix plugin help)
@@ -1280,6 +1283,7 @@ main() {
     lisp-apps)   shift; exec "$VIKIX_DIR/bin/vikix-lisp-apps" "$@" ;;
     esploro)     shift; exec "$VIKIX_DIR/bin/vikix-esploro" "$@" ;;
     plugin|plugins) shift; exec "$VIKIX_DIR/bin/vikix-plugin" "$@" ;;
+    records)     shift; exec "$VIKIX_DIR/bin/vikix-records" "$@" ;;
     bitwarden)   shift; exec "$VIKIX_DIR/bin/vikix-bitwarden" "$@" ;;
     voice)       shift; exec "$VIKIX_DIR/bin/vikix-voice" "$@" ;;
     notes)       shift; exec "$VIKIX_DIR/bin/vikix-notes" "$@" ;;

@@ -91,6 +91,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   ├── share/vikix/AGENTS.md          written   the skill as a guide for Codex, Gemini, Aider (linked as ~/.codex/AGENTS.md, ~/.gemini/GEMINI.md)
 │   ├── opt/picolisp/          built     PicoLisp, from source (with the feature lisp)
 │   ├── share/vikix/plugins/   Vikix's   the plugins repo at its pinned commit (vikix plugin sync)
+│   ├── share/vikix/records.db made       what plugins found and kept (vikix records; SQLite, 600)
 │   ├── opt/lem/               built     Lem, the editor in Common Lisp (vikix add lisp-apps)
 │   ├── opt/mcclim/            built     McCLIM's Listener, with Clouseau (vikix add lisp-apps)
 │   ├── opt/esploro/           built     Esploro, the file explorer: its command, and emacs/esploro.el, its window in Emacs (vikix add esploro)

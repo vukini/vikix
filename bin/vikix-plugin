@@ -32,7 +32,7 @@ VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 # VIKIX_PLUGINS_REPO and VIKIX_PLUGINS_COMMIT name others (tests, or trying
 # your own work on the repo: a folder works as well as an address).
 PLUGINS_REPO=${VIKIX_PLUGINS_REPO:-https://github.com/vukini/vikix-plugins}
-PLUGINS_COMMIT=${VIKIX_PLUGINS_COMMIT:-94be081e49556e6c1be70f19f6be6447be38a0ec}   # 2026-10-02: repos opens Vikix's terminal
+PLUGINS_COMMIT=${VIKIX_PLUGINS_COMMIT:-f07552498ab14516007898e56d50a1fe3ed32029}   # 2026-10-02: plugins keep what they find in the record store
 DIR="$HOME/.local/share/vikix/plugins"
 LIST="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/plugins.list"
 SETTINGS="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/plugins"
