@@ -7,6 +7,7 @@
 ;;;;   find       any window on any workspace (s-A goes there, s-C-a pulls it here)
 ;;;;   beckon     the pointer jumps to the focused window (s-p)
 ;;;;   lazarus    the docked IDE tiles; its dialogs float
+;;;;   dialogs    float, centred, and stay in front of the tiles
 ;;;;   titles     a title bar on each tiled window (s-y), renaming (s-"),
 ;;;;              and floating a window or tiling it again (s-t)
 ;;;;
@@ -228,6 +229,78 @@ StumpWM sees it before that: the Qt5 build (Void's) first calls it
     (float-window win (window-group win))))
 
 (add-hook *new-window-hook* 'vikix-float-lazarus-window)
+
+;;; Dialogs stay in front
+
+;; A dialog nobody is waiting on can't be found: tiled, it takes its frame
+;; like any window, and the next window focused or raised goes over it (a
+;; sudo password box from a terminal, polkit's, a file chooser). So
+;; dialogs float, centred on their screen, and stay above the tiles: each
+;; time another window takes the focus, they're raised again. Clicking
+;; elsewhere leaves a dialog unfocused but in sight. Super+t tiles one
+;; that should be an ordinary window after all.
+
+(defparameter *vikix-dialog-classes*
+  '("zenity" "Zenity" "yad" "Yad" "Ssh-askpass" "ssh-askpass" "Gcr-prompter"
+    "Pinentry" "pinentry" "Pinentry-gtk-2" "Polkit-gnome-authentication-agent-1"
+    "Polkit-mate-authentication-agent-1" "Lxpolkit")
+  "Window classes that are always dialogs, whatever their window type says
+(zenity calls its boxes normal windows). Add your own in user.lisp:
+(push \"Class\" *vikix-dialog-classes*); `xprop WM_CLASS` gives a
+window's class, its second word.")
+
+(defun vikix-dialog-p (win)
+  "A window that asks something and waits: a dialog by its type, a modal
+or transient one, or one of *vikix-dialog-classes*."
+  (or (window-transient-p win)
+      (ignore-errors (window-modal-p win))
+      (member (window-class win) *vikix-dialog-classes* :test #'equal)))
+
+(defun vikix-dialog-size (win head)
+  "The size a dialog asked for. Tiled first, it was stretched to its frame
+and its own size is lost, but its smallest size (WM_NORMAL_HINTS) is what
+GTK and Qt dialogs are drawn at; without one, a modest box."
+  (let* ((hints (window-normal-hints win))
+         (w (and hints (xlib:wm-size-hints-min-width hints)))
+         (h (and hints (xlib:wm-size-hints-min-height hints))))
+    (values (min (if (and w (> w 50)) w 480) (- (head-width head) 40))
+            (min (if (and h (> h 50)) h 240) (- (head-height head) 40)))))
+
+(defun vikix-centre-window (win)
+  "Give a floating dialog its own size, in the middle of its screen."
+  (let ((head (window-head win)))
+    (when head
+      (multiple-value-bind (w h) (vikix-dialog-size win head)
+        (float-window-move-resize
+         win
+         :width w :height h
+         :x (+ (head-x head) (max 0 (floor (- (head-width head) w) 2)))
+         :y (+ (head-y head) (max 0 (floor (- (head-height head) h) 2))))))))
+
+(defun vikix-raise-dialogs (&rest ignore)
+  "Put the current workspace's floating dialogs back above everything."
+  (declare (ignore ignore))
+  (ignore-errors
+   (let ((group (current-group)))
+     (when (typep group 'tile-group)
+       (dolist (win (group-windows group))
+         (when (and (typep win 'float-window) (vikix-dialog-p win) (window-visible-p win))
+           (setf (xlib:window-priority (window-parent win)) :above)))))))
+
+(defun vikix-float-dialog (win)
+  ;; Lazarus floats its own windows (above); never float one twice.
+  (when (and (vikix-dialog-p win)
+             (not (vikix-lazarus-window-p win))
+             (typep win 'tile-window)
+             (typep (window-group win) 'tile-group))
+    (float-window win (window-group win))
+    (vikix-centre-window win)
+    (focus-window win)
+    (vikix-raise-dialogs)))
+
+(add-hook *new-window-hook* 'vikix-float-dialog)
+(add-hook *focus-window-hook* 'vikix-raise-dialogs)
+(add-hook *focus-group-hook* 'vikix-raise-dialogs)
 
 ;;; Title bars, and floating
 

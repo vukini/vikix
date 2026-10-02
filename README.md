@@ -248,7 +248,7 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 | `s-A` | Any window on any workspace: pick one and go there |
 | `s-C-a` | Any window on any workspace: pick one and bring it here |
 | `s-p` | Move the mouse pointer to the focused window |
-| `s-t` | Float the focused window, or put it back in the tiles; a floating window moves with Super + left-drag and resizes with Super + right-drag |
+| `s-t` | Float the focused window, or put it back in the tiles; a floating window moves with Super + left-drag and resizes with Super + right-drag. Dialogs (password boxes, file choosers, zenity's) float by themselves, centred, and stay in front when you click elsewhere; `s-t` tiles one that should be an ordinary window |
 | `s-y` | Title bars on or off: a strip at the top of each tiled window with its number and name, the focused one in the theme's accent (on unless you turned them off; remembered in `~/.config/vikix/titlebars-off`) |
 | `s-"` | Rename the focused window: its title bar and the bar show the new name |
 | `s-1`…`s-9` | Go to a workspace |

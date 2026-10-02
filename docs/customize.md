@@ -128,6 +128,7 @@ That lasts until the next reload or login. When it does what you want, put the s
 | Terminal font, size, padding | `~/.config/alacritty/alacritty.toml`. Open windows change at once. |
 | One program's colours, keeping the theme for the rest | Set them in that program's config, after the line that includes the theme. For dunst, a new file after the theme's: `~/.config/dunst/dunstrc.d/90-mine.conf`. |
 | Text size on a high-resolution screen | `Xft.dpi` in `~/.Xresources` (the file suggests values), then log in again |
+| A program whose boxes should float in front, like dialogs | `(push "Class" *vikix-dialog-classes*)` in `user.lisp`, the class being the second word `xprop WM_CLASS` prints when you click the window. Dialogs, password boxes (zenity, polkit, ssh-askpass, pinentry) already do |
 | Shadows, fading, transparency | `~/.config/picom/picom.conf`. picom rereads the file when it changes. To change `backend`, `pkill picom` first, then edit, then `picom -b`: changing it while picom runs can freeze the screen. |
 | Notifications: where, how long, how big | `~/.config/dunst/dunstrc`, then `dunstctl reload` |
 | The launcher and menus | `~/.config/rofi/config.rasi` |
