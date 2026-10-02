@@ -61,6 +61,9 @@ check "a dry run should build nothing" test ! -e "$opt"
 check "a dry run should call no sbcl: $(cat "$calls")" test -z "$(grep sbcl "$calls" || true)"
 check "a dry run shouldn't record the feature" test ! -e "$HOME/.config/vikix/features"
 check "a dry run should say it would build Esploro" grep -q "would build Esploro" "$t/out"
+check "a dry run should say it would reload Esploro in a running Emacs" grep -q "would reload Esploro" "$t/out"
+check "the reload should unbind Esploro's keymaps first, so new keys take" \
+  grep -q "makunbound" "$here/bin/vikix-esploro"
 
 # --- Not the pinned commit: refused ---------------------------------------------
 echo 0000000000000000000000000000000000000000 > "$t/commit"
