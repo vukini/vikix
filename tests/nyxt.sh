@@ -202,7 +202,7 @@ check "the call is vikix-theme-apply, only where it's defined" grep -q 'VIKIX-TH
 check "40-config links vikix.lisp where config.lisp looks" grep -q 'vikix/nyxt/vikix.lisp"$' "$here/install/40-config.sh"
 check "lisp-apps setup links it there too" grep -q 'vikix/nyxt/vikix.lisp"$' "$here/bin/vikix-lisp-apps"
 check "the starter config.lisp loads it" grep -q '"vikix/nyxt/vikix.lisp" (uiop:xdg-data-home)' "$here/config/nyxt/config.lisp"
-check "the snapshots keep your Nyxt config" grep -q '^\.config/nyxt/config.lisp' "$here/config/yours.list"
+check "the snapshots keep your Nyxt config" grep -q '^\.config/nyxt ' "$here/config/yours.list"
 
 [ "$fail" = 0 ] && echo "nyxt: ok"
 exit "$fail"

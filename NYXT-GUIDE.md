@@ -69,17 +69,56 @@ Nyxt's settings (its auto-config) may turn dark mode on for every page; Vikix's 
 - Rules apply as a page loads: reload (`r`) or open the page fresh to see one.
 - `match-regex` takes several patterns. `~/dev`'s docs too: add `,(format nil "^file://~adev/" (namestring (user-homedir-pathname)))`. Python's and Rust's docs have dark themes of their own, which dark mode would turn back to light.
 
-### Saving a page's images, and the page as Markdown (tested)
+### Page tools: images, Markdown, e-books, clips, a summary (tested)
 
-Two commands, `save-page-images` and `page-to-markdown`, with three small helpers. Tried on a test page (relative, absolute, duplicated and lazy-loaded images, an article between a menu and a footer), on a Vikix guide page (`file://`, with a diagram) and on the Common Lisp Cookbook over HTTPS.
+Six commands in one file, built with Vid on 2026-10-02 and installed on the laptop as `~/.config/nyxt/page-tools.lisp`, loaded from `config.lisp` by `(load (merge-pathnames "page-tools.lisp" (uiop:xdg-config-home "nyxt/")))`. Tried on a test page (relative, absolute, duplicated and lazy-loaded images, an article between a menu and a footer), a Vikix guide page (`file://`, with a diagram) and the Common Lisp Cookbook over HTTPS.
 
-- `save-page-images`: every picture into `~/Pictures/Nyxt/<page title>/`, numbered in the page's order (`001-red.png` ...), each once. Lazy-loading pages keep the picture in `data-src` and a placeholder in `src`; the real one is taken. `file://` pictures are copied from disk; the rest are fetched with dexador, which Nyxt carries (without the page's cookies: a picture behind a login won't come).
-- `page-to-markdown`: the page's `<article>` (else `<main>`, else everything) through pandoc (`gfm-raw_html`), with a title line and the source address, into `~/Documents/Nyxt/<page title>.md`, and onto the clipboard. Links and pictures are made absolute, so they still work from the file.
-- How: `(document-model buffer)` is Nyxt's parsed copy of the page (plump); `clss:select` finds elements with CSS selectors; `plump:clone-node` copies a part, so the page's own copy isn't changed.
-- Mistakes made on the way, worth a line in the guide: `remove-duplicates` keeps the *last* copy unless given `:from-end t` (the pictures came out of order); an empty search result from `clss:select` is a vector, not nil, so `(or (clss:select "main" dom) ...)` never falls through.
+| Command | What it does |
+|---|---|
+| `save-page-images` | every picture into `~/Pictures/Nyxt/<page title>/`, numbered in page order, each once; lazy-loaded ones by their real address (`data-src`); `file://` ones copied from disk, the rest fetched with dexador (without the page's cookies: pictures behind a login won't come) |
+| `page-to-markdown` | the page's `<article>` (else `<main>`, else everything) through pandoc into `~/Documents/Nyxt/<page title>.md`, with a title line and the source; also onto the clipboard |
+| `page-to-epub` | the same as an EPUB, pictures inside (pandoc fetches web pictures itself; local ones are given as paths) |
+| `tabs-to-epub` | every open web page as one book, a chapter each, `Reading list <date>.epub` |
+| `clip-selection` | the selection as a Markdown quote under `## <date>, [title](url)`, appended to `~/Documents/Nyxt/clips.md` and copied; "Select some text first" when nothing is |
+| `summarize-page` | the page's Markdown through `llm` (Claude, `claude-sonnet-5`), shown in a `nyxt:` page of its own (`define-internal-page`; the summary is kept in a table and the page gets only its id, as a summary is too long for an address) |
+| `show-url-qrcode` | Nyxt's own (in `nyxt/mode/document`): the page's address as a QR code, for the phone. Nothing to build |
+
+How it works: `(document-model buffer)` is Nyxt's parsed copy of the page (plump); `clss:select` finds elements with CSS selectors; `plump:clone-node` copies a part, so the page itself isn't changed; `make-addresses-whole` makes links and pictures absolute so they work away from the page; `ps-eval` runs JavaScript written in Lisp (Parenscript) in the page, here to read the selection's HTML.
+
+Settings at the top of the file, to `setf` in `config.lisp` after the load line: `*page-tools-folder*`, `*clips-file*`, `*summary-model*`, `*summary-max-chars*`.
+
+Mistakes made on the way, worth a line in the guide:
+
+- `remove-duplicates` keeps the *last* copy unless given `:from-end t`: the pictures came out of order.
+- An empty result from `clss:select` is a vector, not nil, so `(or (clss:select "main" dom) ...)` never falls through.
+- The local model (`llama3.2:3b`) took 9 minutes on the Cookbook page (12 tokens a second to read it, 2 to write) and Ollama's default context cut the page short anyway; the summary was generic. Claude took 13 seconds and wrote a specific one. A local model wants `*summary-max-chars*` near 6000.
+- `show-url-qrcode` isn't in `nyxt-user`: from Lisp it's `nyxt/mode/document:show-url-qrcode`; from Ctrl+Space just its name.
+- `llm` takes the Anthropic key from the environment: Nyxt started in the session has it (`vikix ai key set anthropic`).
 
 ```lisp
-;;; Saving a page's images, and the page as Markdown.
+(in-package #:nyxt-user)
+
+;;; Page tools: a page's images, the page as Markdown or an e-book (or all
+;;; open pages as one), the selection clipped to a notes file, and a summary
+;;; by llm. The QR code of a page is Nyxt's own: show-url-qrcode.
+
+(defvar *page-tools-folder* (merge-pathnames "Documents/Nyxt/" (user-homedir-pathname))
+  "Where Markdown, e-books and clips go.")
+
+(defvar *clips-file* (merge-pathnames "clips.md" *page-tools-folder*)
+  "The notes file clip-selection adds to.")
+
+(defvar *summary-model* "claude-sonnet-5"
+  "The llm model summarize-page asks: Claude, through llm-anthropic and your
+key (vikix ai key set anthropic). \"llama3.2:3b\" for the local one (slow on
+the CPU: minutes a page, and less sharp); nil for llm's default.")
+
+(defvar *summary-max-chars* 50000
+  "How much of a page summarize-page sends: about 12,000 tokens, which
+Claude reads in seconds. For a local model, 6000: Ollama's default context
+cut a 4,000-token page short, and the CPU took five minutes to read it.")
+
+;;; --- Helpers ----------------------------------------------------------------
 
 (defun page-file-name (title)
   "TITLE as a file name: no slashes, no leading dot, not too long."
@@ -95,6 +134,57 @@ Two commands, `save-page-images` and `page-to-markdown`, with three small helper
 data-src, with a placeholder (a data: URI) in src."
   (find-if (lambda (s) (and s (plusp (length s)) (not (str:starts-with-p "data:" s))))
            (list (plump:attribute img "src") (plump:attribute img "data-src"))))
+
+(defun local-path (address)
+  "The file behind a file:// ADDRESS, or ADDRESS as it is."
+  (let ((uri (quri:uri address)))
+    (if (string= "file" (quri:uri-scheme uri))
+        (quri:url-decode (quri:uri-path uri))
+        address)))
+
+(defun pandoc (input &rest args)
+  "Run pandoc on the string INPUT with ARGS; its output as a string."
+  (with-input-from-string (in input)
+    (uiop:run-program (cons "pandoc" args) :input in :output :string)))
+
+(defun make-addresses-whole (buffer node &key local-images)
+  "In NODE (a part of BUFFER's page, copied), links and pictures made whole,
+so they still work away from the page. LOCAL-IMAGES: file:// pictures as
+plain paths, which pandoc reads when it makes an e-book."
+  (loop for a across (clss:select "a[href]" node)
+        do (ignore-errors
+            (setf (plump:attribute a "href") (page-url buffer (plump:attribute a "href")))))
+  (loop for img across (clss:select "img" node)
+        for src = (image-address img)
+        when src do (ignore-errors
+                     (let ((whole (page-url buffer src)))
+                       (setf (plump:attribute img "src")
+                             (if local-images (local-path whole) whole)))))
+  node)
+
+(defun page-html (buffer &key local-images)
+  "BUFFER's article (else its main part, else all of it) as HTML, with
+make-addresses-whole. A copy: the page isn't changed."
+  (let* ((dom (document-model buffer))
+         (part (or (loop for selector in '("article" "main" "body")
+                         for found = (clss:select selector dom)
+                         when (plusp (length found)) return (elt found 0))
+                   dom))
+         (node (plump:clone-node part t)))
+    (plump:serialize (make-addresses-whole buffer node :local-images local-images) nil)))
+
+(defun page-markdown (buffer &key local-images (shift 0))
+  "BUFFER's article as Markdown. SHIFT moves its headings down that many levels."
+  (pandoc (page-html buffer :local-images local-images)
+          "-f" "html" "-t" "gfm-raw_html" "--wrap=none"
+          (format nil "--shift-heading-level-by=~d" shift)))
+
+(defun today ()
+  (multiple-value-bind (s m h day month year) (get-decoded-time)
+    (declare (ignore s))
+    (format nil "~d-~2,'0d-~2,'0d ~2,'0d:~2,'0d" year month day h m)))
+
+;;; --- Images -----------------------------------------------------------------
 
 (define-command-global save-page-images ()
   "Save every image on the page into ~/Pictures/Nyxt/<page title>/."
@@ -114,49 +204,141 @@ data-src, with a placeholder (a data: URI) in src."
           for name = (or (car (last (str:split "/" (quri:uri-path (quri:uri address)))))
                          "image")
           do (handler-case
-                 (progn
-                   ;; Numbered, so they keep the page's order, and two
-                   ;; pictures with the same name don't overwrite each other.
-                   (let ((to (merge-pathnames (format nil "~3,'0d-~a" n name) folder)))
-                     (if (string= "file" (quri:uri-scheme (quri:uri address)))
-                         ;; A local page (the Vikix guide): copied from disk.
-                         (uiop:copy-file (quri:url-decode (quri:uri-path (quri:uri address))) to)
-                         (alexandria:write-byte-vector-into-file
-                          (dex:get address :force-binary t) to :if-exists :supersede)))
+                 ;; Numbered, so they keep the page's order, and two
+                 ;; pictures with the same name don't overwrite each other.
+                 (let ((to (merge-pathnames (format nil "~3,'0d-~a" n name) folder)))
+                   (if (string= "file" (quri:uri-scheme (quri:uri address)))
+                       (uiop:copy-file (local-path address) to)   ; a local page
+                       (alexandria:write-byte-vector-into-file
+                        (dex:get address :force-binary t) to :if-exists :supersede))
                    (incf saved))
                (error (e) (log:warn "Couldn't save ~a: ~a" address e))))
     (echo "Saved ~d of ~d images to ~a" saved (length addresses) (namestring folder))))
+
+;;; --- Markdown and e-books ---------------------------------------------------
 
 (define-command-global page-to-markdown ()
   "Save the page's article (or the whole page) as Markdown, in
 ~/Documents/Nyxt/<page title>.md, and copy it to the clipboard."
   (let* ((buffer (current-buffer))
-         (dom (document-model buffer))
-         ;; The article when the page marks one (no menus or footers), else
-         ;; its main part, else all of it.
-         (part (or (loop for selector in '("article" "main" "body")
-                         for found = (clss:select selector dom)
-                         when (plusp (length found)) return (elt found 0))
-                   dom))
-         (node (plump:clone-node part t))
-         (file (merge-pathnames (format nil "Documents/Nyxt/~a.md" (page-file-name (title buffer)))
-                                (user-homedir-pathname))))
-    ;; Links and pictures made whole, so they still work from the file.
-    (loop for a across (clss:select "a[href]" node)
-          do (ignore-errors
-              (setf (plump:attribute a "href") (page-url buffer (plump:attribute a "href")))))
-    (loop for img across (clss:select "img" node)
-          for src = (image-address img)
-          when src do (ignore-errors (setf (plump:attribute img "src") (page-url buffer src))))
-    (let ((markdown (with-input-from-string (in (plump:serialize node nil))
-                      (uiop:run-program '("pandoc" "-f" "html" "-t" "gfm-raw_html" "--wrap=none")
-                                        :input in :output :string))))
-      (setf markdown (format nil "# ~a~%~%Source: <~a>~%~%~a"
-                             (title buffer) (render-url (url buffer)) markdown))
-      (ensure-directories-exist file)
-      (alexandria:write-string-into-file markdown file :if-exists :supersede)
-      (copy-to-clipboard markdown)
-      (echo "Markdown saved to ~a (and copied)" (namestring file)))))
+         (file (merge-pathnames (format nil "~a.md" (page-file-name (title buffer)))
+                                *page-tools-folder*))
+         (markdown (format nil "# ~a~%~%Source: <~a>~%~%~a"
+                           (title buffer) (render-url (url buffer)) (page-markdown buffer))))
+    (ensure-directories-exist file)
+    (alexandria:write-string-into-file markdown file :if-exists :supersede)
+    (copy-to-clipboard markdown)
+    (echo "Markdown saved to ~a (and copied)" (namestring file))))
+
+(defun write-epub (title chapters file)
+  "An EPUB at FILE called TITLE, from CHAPTERS: a list of (title url buffer)."
+  (let ((markdown
+          (with-output-to-string (out)
+            (dolist (chapter chapters)
+              (destructuring-bind (name address buffer) chapter
+                ;; Each page a chapter: its title the top heading, its own
+                ;; headings one level down.
+                (format out "# ~a~%~%Source: <~a>~%~%~a~%~%"
+                        name address (page-markdown buffer :local-images t :shift 1)))))))
+    (ensure-directories-exist file)
+    ;; Pandoc fetches the web pictures itself and puts them in the book.
+    (pandoc markdown "-f" "gfm" "-t" "epub3" "-o" (namestring file)
+            "--metadata" (format nil "title=~a" title)
+            "--metadata" "lang=en")
+    file))
+
+(define-command-global page-to-epub ()
+  "Save the page as an e-book, ~/Documents/Nyxt/<page title>.epub, pictures
+included."
+  (let* ((buffer (current-buffer))
+         (file (merge-pathnames (format nil "~a.epub" (page-file-name (title buffer)))
+                                *page-tools-folder*)))
+    (echo "Making an e-book of ~a..." (title buffer))
+    (write-epub (title buffer) (list (list (title buffer) (render-url (url buffer)) buffer)) file)
+    (echo "E-book saved to ~a" (namestring file))))
+
+(define-command-global tabs-to-epub ()
+  "Save every open web page as one e-book, a chapter each:
+~/Documents/Nyxt/Reading list <date>.epub."
+  (let* ((buffers (remove-if-not (lambda (b) (and (typep b 'web-buffer)
+                                                  (member (quri:uri-scheme (url b))
+                                                          '("http" "https" "file")
+                                                          :test #'equal)))
+                                 (buffer-list)))
+         (title (format nil "Reading list ~a" (subseq (today) 0 10)))
+         (file (merge-pathnames (format nil "~a.epub" title) *page-tools-folder*)))
+    (if (null buffers)
+        (echo "No web pages open")
+        (progn
+          (echo "Making an e-book of ~d pages..." (length buffers))
+          (write-epub title
+                      (mapcar (lambda (b) (list (title b) (render-url (url b)) b)) buffers)
+                      file)
+          (echo "E-book of ~d pages saved to ~a" (length buffers) (namestring file))))))
+
+;;; --- Clipping the selection -------------------------------------------------
+
+(define-command-global clip-selection ()
+  "Add the selected text, as a Markdown quote with the page's title and
+address, to ~/Documents/Nyxt/clips.md, and copy it."
+  (let* ((buffer (current-buffer))
+         (html (ps-eval :buffer buffer
+                 (let ((selection (ps:chain window (get-selection))))
+                   (if (> (ps:@ selection range-count) 0)
+                       (let ((div (ps:chain document (create-element "div"))))
+                         (ps:chain div (append-child (ps:chain selection (get-range-at 0)
+                                                               (clone-contents))))
+                         (ps:@ div inner-h-t-m-l))
+                       "")))))
+    (if (or (null html) (string= (string-trim '(#\Space #\Newline) html) ""))
+        (echo "Select some text first")
+        (let* ((html (plump:serialize (make-addresses-whole buffer (plump:parse html)) nil))
+               (markdown (string-trim '(#\Newline #\Space)
+                                      (pandoc html "-f" "html" "-t" "gfm-raw_html" "--wrap=none")))
+               (quote (format nil "~{> ~a~^~%~}" (str:lines markdown)))
+               (clip (format nil "## ~a, [~a](~a)~%~%~a~%~%"
+                             (today) (title buffer) (render-url (url buffer)) quote)))
+          (ensure-directories-exist *clips-file*)
+          (with-open-file (out *clips-file* :direction :output
+                                            :if-exists :append :if-does-not-exist :create)
+            (write-string clip out))
+          (copy-to-clipboard clip)
+          (echo "Clipped to ~a" (namestring *clips-file*))))))
+
+;;; --- A summary by llm -------------------------------------------------------
+
+(defvar *page-summaries* (make-hash-table :test #'equal)
+  "Summaries made this session, by id: (title url markdown model).")
+
+(define-internal-page page-summary (&key id)
+    (:title "*Summary*")
+  "A summary summarize-page made."
+  (destructuring-bind (&optional title address markdown model) (gethash id *page-summaries*)
+    (spinneret:with-html-string
+      (:h1 (or title "Summary"))
+      (:p (:a :href address address))
+      (:raw (if markdown (pandoc markdown "-f" "gfm" "-t" "html") "<p>Gone: summarize the page again.</p>"))
+      (:p (:small (format nil "By llm~@[ (~a)~]: a model's summary; check what matters." model))))))
+
+(define-command-global summarize-page ()
+  "Summarize the page with llm (your default model, or *summary-model*), in
+a page of its own."
+  (let* ((buffer (current-buffer))
+         (text (page-markdown buffer))
+         ;; Of a long page, the start (see *summary-max-chars*).
+         (text (subseq text 0 (min (length text) *summary-max-chars*)))
+         (id (princ-to-string (get-universal-time))))
+    (echo "Summarizing ~a with llm..." (title buffer))
+    (let ((summary
+            (with-input-from-string (in text)
+              (uiop:run-program
+               (append (list "llm")
+                       (when *summary-model* (list "-m" *summary-model*))
+                       (list "-s" "Summarize this web page for a busy reader: 5 to 8 Markdown bullet points with the key facts, then one sentence on who it is for. Use only what the page says."))
+               :input in :output :string :error-output :string))))
+      (setf (gethash id *page-summaries*)
+            (list (title buffer) (render-url (url buffer)) summary *summary-model*))
+      (buffer-load-internal-page-focus 'page-summary :id id))))
 ```
 
 ### Small things to try (tested)
@@ -171,10 +353,26 @@ From small to big:
 
 1. **Commands that join Nyxt to the desktop**: add the page to a project's log (`vikix project log NAME "read: <title> <url>"`); open the site as a web app (`vikix webapp`); show a file in Esploro; send the window to a workspace (`vikix eval`).
 2. **How pages load**: rewrite addresses (reddit → old.reddit, YouTube → a lighter front end); block domains (Nyxt's request hook); per-site rules (scripts off on one site).
-3. **The page itself**: JavaScript run from Lisp, or the page's parsed copy (see the Markdown command), to gather a page's code blocks, strip it to its text, or fill in a form. "Send this code block to a terminal" would be built this way.
+3. **The page itself**: JavaScript run from Lisp, or the page's parsed copy (see the page tools), to fill in a form, or anything in "To do" below.
 4. **Your own Ctrl+Space sources**: every doc under `~/dev`; `vikix project` folders; links from Obsidian notes.
 5. **Your own `nyxt:` pages** (Spinneret, HTML written as Lisp, built when opened): a start page with the projects and their next steps, `vikix today`, the key card made from StumpWM.
 6. **A `vikix learn c` lesson page** with a **Check** button that runs the checker and shows the result beside the lesson.
+
+## To do: page tools not yet built
+
+Ideas from the same conversation (2026-10-02), in the vein of the page tools above. Build each as the others were: on a hidden display, then into `page-tools.lisp` and this file.
+
+1. **Tables → CSV.** Each `<table>` on the page into a CSV file, for a spreadsheet: `clss:select "table"`, rows and cells from the parsed copy.
+2. **Save the page's code blocks.** Every `<pre><code>` to files, or a prompt to pick one and copy it (the "send a block to a terminal" idea, done properly).
+3. **Download every link of a kind**, e.g. every PDF on a course page (`a[href$=".pdf"]`), into one folder, as save-page-images does.
+4. **All open tabs as a Markdown list** of titles and links, to keep a research session.
+5. **Ask a question about the page**: summarize-page's route, with a prompt for the question.
+6. **Add the page to `note`'s index**, so `note ask` finds it beside your notes.
+7. **Reader view**: the page's Markdown rendered back as a clean `nyxt:` page in the guide's style.
+8. **Jump to a heading**: the page's headings as a Ctrl+Space source; pick one to scroll there.
+9. **Play the page's video in mpv** (with `yt-dlp`).
+10. **Clip into a project's log**: clip-selection's quote through `vikix project log NAME`, with a prompt for the project.
+11. **A QR code of a link or of the selection**, not only the page: `cl-qrencode` as `show-url-qrcode` uses it.
 
 ## Things learned the hard way (for the guide's "when it goes wrong")
 
