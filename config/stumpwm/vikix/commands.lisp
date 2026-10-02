@@ -353,11 +353,16 @@ programs of the features video, graphics, blender, study, passwords, bitwarden, 
 cli-extras and esploro. Each shows once its program is here.")
 
 (defcommand vikix-esploro () ()
-  "Esploro, the file explorer: its frame if it's open, else a new one.
-The frame is Emacs's, so it's found by its title; the esploro command opens
-it through Emacs's server."
+  "Esploro, the file explorer: the one on this workspace, else a new one here.
+Each workspace can have its own (an Emacs frame titled Esploro); one on
+another workspace is left there. The esploro command opens a new one
+through Emacs's server, and asks StumpWM which workspace it's for."
   (if (probe-file (merge-pathnames ".local/bin/esploro" (user-homedir-pathname)))
-      (run-or-raise "esploro" '(:title "Esploro"))
+      (let ((here (find "Esploro" (group-windows (current-group))
+                        :key #'window-title :test #'string=)))
+        (if here
+            (group-focus-window (current-group) here)
+            (run-shell-command "esploro")))
       (message "Esploro isn't installed. Add it: vikix add esploro (Super+m, then Add software)")))
 
 (defcommand vikix-apps () ()

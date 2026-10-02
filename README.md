@@ -219,7 +219,7 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 | `s-e` | Files (PCManFM) |
 | `s-E` | Files in SpaceFM (tabs, split panes) |
 | `s-C-e` | Eject a USB drive: pick it, and a notification says when it's safe to pull out |
-| `s-M-e` | Files in Esploro, the file explorer in Emacs: its frame if it's open (`vikix add esploro`) |
+| `s-M-e` | Files in Esploro, the file explorer in Emacs: the one on this workspace, or a new one here (`vikix add esploro`); F3 in it, two panes |
 | `s-P` | Projects: pick one with rofi; a terminal opens in its folder and its `log.md` in Emacs (see [Projects](#projects-vikix-project)) |
 | `s-V` | Passwords (Bitwarden): pick a login, Enter types it into the window you were in (`vikix add bitwarden`; see [Passwords](#passwords)) |
 | `s-a` | AI agent in a terminal: Claude Code, or the one you chose |
@@ -740,7 +740,7 @@ StumpWM is a program written in Common Lisp that you can change, while it runs, 
 
 [Esploro](https://github.com/vukini/esploro) is Vid's file explorer: a frame of Emacs, built on dired, with what a file manager is expected to have, for the mouse as much as the keys: a menu bar and a tool bar, right-click menus, click to select and double-click to open, Ctrl+click and Shift+click, dragging files out to other programs and dropping them in, places down the side (home, your folders, plugged-in drives, GTK's bookmarks, the Trash), back and forward, sorting, a filter, finding below, the Trash to look in and restore from, and copy and paste that other file managers understand. Its core is Common Lisp: every change (copy, move, paste, rename, a new folder, the Trash, a drop) is checked whole first, done in the background and kept in a journal, so undo puts it back; and beside each file, the windows that have it open.
 
-- `s-M-e` (Super+Alt+e) opens it, or goes to its frame; it's also `esploro [FOLDER]`, in the launcher (`s-d`) and in `s-m` → Apps. In it, `?` shows the keys and the mouse.
+- `s-M-e` (Super+Alt+e) goes to the Esploro window on this workspace, or opens one here: each workspace can have its own, at its own folder (`esploro --new FOLDER` makes another anywhere; File → New Window too). In a window, F3 (View → Two Panes) shows two folders side by side, with Copy and Move to Other Pane on the menus; a file dropped on a pane goes into its folder. It's also `esploro [FOLDER]`, in the launcher (`s-d`) and in `s-m` → Apps. In it, `?` shows the keys and the mouse.
 - `vikix esploro setup` (which `vikix add esploro` runs, with Emacs if you haven't it) builds its command into `~/.local/opt/esploro` from a pinned commit, with SBCL alone, in seconds; the window's code is `emacs/esploro.el` beside it, which the command loads into the running Emacs the first time, so your Emacs config needs nothing.
 - `vikix update` builds it again only when a release moves the pin; `vikix esploro status` says what's built; `vikix remove esploro` removes it (an `esploro` of your own in `~/.local/bin` is left alone). Its first window, in McCLIM, is kept on Esploro's `mcclim` branch.
 - Dragging a file out of Emacs (Esploro, dired) to another program works under StumpWM because `windows.lisp` takes `_NET_CLIENT_LIST_STACKING` out of what StumpWM says it supports: Emacs otherwise trusts that list, counts windows StumpWM has hidden as visible, and drops back onto itself. An Emacs started before 0.71.38 sees the change after a restart.

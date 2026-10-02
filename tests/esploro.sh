@@ -126,8 +126,10 @@ check "an esploro that isn't setup's should stay" test -f "$HOME/.local/bin/espl
 
 # --- The key and the menu -------------------------------------------------------
 check "Super+Alt+e should run vikix-esploro" grep -q '("s-M-e" *"vikix-esploro"' "$here/config/stumpwm/vikix/keys.lisp"
-check "vikix-esploro should go to Esploro's frame by its title (an Emacs frame)" \
-  grep -q "run-or-raise \"esploro\" '(:title \"Esploro\")" "$here/config/stumpwm/vikix/commands.lisp"
+check "vikix-esploro should go to the Esploro frame on this workspace only (by its title, an Emacs frame)" \
+  grep -q '(find "Esploro" (group-windows (current-group))' "$here/config/stumpwm/vikix/commands.lisp"
+check "the reload should reset the old one-buffer state, and make its buffer a view" \
+  grep -q 'esploro--view t' "$here/bin/vikix-esploro"
 check "the feature should bring Emacs, where the window is" grep -qE '^esploro +\| +\| emacs +\|' "$here/features.list"
 check "the Apps menu should offer Esploro once it's here" \
   grep -q '(run-shell-command "esploro") "~/.local/bin/esploro")' "$here/config/stumpwm/vikix/commands.lisp"

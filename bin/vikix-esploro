@@ -30,7 +30,7 @@ VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 # A commit, not a branch: an update brings a new Esploro only when Vikix
 # moves this pin, after trying it.
 ESPLORO_REPO=https://github.com/vukini/esploro
-ESPLORO_COMMIT=24a866ecbeb75ec14f3e91fe5a8f01510cd5ceca   # 2026-10-02: opening works, dragging out reaches Alacritty, quitting keeps Emacs
+ESPLORO_COMMIT=aeb395f8be7bfb0fd275343e746bbb2ecda50534   # 2026-10-02: a window per workspace, and two panes
 OPT="$HOME/.local/opt/esploro"
 BIN="$HOME/.local/bin"
 APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
@@ -86,9 +86,17 @@ reload_in_emacs() {
   [ "$DRY_RUN" = 1 ] && { printf '   would reload Esploro in a running Emacs\n'; return 0; }
   [ -f "$OPT/emacs/esploro.el" ] && command -v emacsclient >/dev/null 2>&1 || return 0
   local form
+  # The state variables are unbound too: from 0.71.39 each view keeps its
+  # own (buffer-local), and an older Esploro's global values would become
+  # every new view's. Its one buffer, *Esploro*, is then made a view.
   form="(when (featurep 'esploro)
-          (dolist (v '(esploro-mode-map esploro-places-mode-map esploro-tool-bar-map)) (makunbound v))
+          (dolist (v '(esploro-mode-map esploro-places-mode-map esploro-tool-bar-map
+                       esploro--back esploro--forward esploro--sort esploro--reverse
+                       esploro--hidden esploro--filter))
+            (makunbound v))
           (load \"$OPT/emacs/esploro\" nil t)
+          (when (get-buffer \"*Esploro*\")
+            (with-current-buffer \"*Esploro*\" (setq esploro--view t)))
           'reloaded)"
   case $(timeout 5 emacsclient -e "$form" 2>/dev/null) in
     reloaded) say "Esploro reloaded in the running Emacs" ;;
