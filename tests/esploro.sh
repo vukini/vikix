@@ -174,5 +174,36 @@ check "the Apps menu should offer Esploro once it's here" \
   grep -q '(run-shell-command "esploro") "~/.local/bin/esploro")' "$here/config/stumpwm/vikix/commands.lisp"
 check "vikix update should build a moved pin" grep -q 'is_chosen esploro' "$here/bin/vikix"
 
+# --- The rofi door: Super+Alt+c -----------------------------------------------------
+check "Super+Alt+c should open Esploro's commands in rofi" grep -q '("s-M-c" *"exec vikix-esploro menu"' "$here/config/stumpwm/vikix/keys.lisp"
+check "a new keymap (closing a project) should be reset on reload" grep -q 'esploro-project-mode-map' "$here/bin/vikix-esploro"
+cat > "$t/bin/esploro" <<EOF
+#!/bin/sh
+echo "esploro \$*" >> "$calls"
+case "\$1" in
+  reveal) cat "$t/revealed" 2>/dev/null ;;
+  commands) printf 'copy-path\tCopy path: Copy its path\ncompress\tCompress: Into a .zip\n' ;;
+  run) [ "\$2" = compress ] && echo '(:error "zip isn'"'"'t installed")' ;;
+esac
+EOF
+# rofi: prints what $t/picked says was picked; nothing there is Escape (exit 1).
+printf '#!/bin/sh\necho "rofi $*" >> %q\ncat > /dev/null\n[ -s %q ] || exit 1\ncat %q\n' "$calls" "$t/picked" "$t/picked" > "$t/bin/rofi"
+printf '#!/bin/sh\necho "notify-send $*" >> %q\n' "$calls" > "$t/bin/notify-send"
+chmod +x "$t/bin/esploro" "$t/bin/rofi" "$t/bin/notify-send"
+: > "$calls"; : > "$t/revealed"
+es menu
+check "with no file behind the window, it should say so, and open no rofi" \
+  sh -c "grep -q 'No file behind this window' '$calls' && ! grep -q '^rofi' '$calls'"
+echo "$HOME/notes/today.md" > "$t/revealed"
+printf 'copy-path\tCopy path: Copy its path\n' > "$t/picked"
+: > "$calls"; es menu
+check "it should run the command picked on the window's file: $(cat "$calls")" grep -qx "esploro run copy-path $HOME/notes/today.md" "$calls"
+check "rofi should show the labels, not the names" grep -q -- "-display-columns 2" "$calls"
+printf 'compress\tCompress: Into a .zip\n' > "$t/picked"
+: > "$calls"; es menu
+check "a command's error should be a notification" grep -q "notify-send Esploro zip isn't installed" "$calls"
+: > "$t/picked"; : > "$calls"; es menu
+check "Escape in rofi should run nothing" sh -c "! grep -q 'esploro run' '$calls'"
+
 [ "$fail" = 0 ] && echo "esploro: fetched at its pin, its command built in its folder with SBCL alone, linked and in the launcher for folders, only what setup made goes, Emacs comes with it, Super+e"
 exit "$fail"

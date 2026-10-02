@@ -43,6 +43,7 @@ of a reload's 15 seconds, and the desktop stood still meanwhile."
     ("s-M-e"  "exec pcmanfm"      "Files in PCManFM")
     ("s-M-E"  "exec esploro --new" "Files in a new Esploro window, beside the others")
     ("s-M-r"  "exec esploro reveal" "Reveal the file behind this window, in Esploro")
+    ("s-M-c"  "exec vikix-esploro menu" "Esploro's commands for the file behind this window, in rofi")
     ("s-P"    "exec vikix-project pick" "Projects: pick one; a terminal in its folder, its log in the editor")
     ("s-V"    "exec vikix-bitwarden pick" "Passwords (Bitwarden): pick a login, Enter types it (vikix add bitwarden)")
     ("s-a"    "vikix-agent"       "AI agent in a terminal: Claude Code, or the one you chose")
