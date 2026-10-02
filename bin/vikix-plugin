@@ -32,7 +32,7 @@ VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 # VIKIX_PLUGINS_REPO and VIKIX_PLUGINS_COMMIT name others (tests, or trying
 # your own work on the repo: a folder works as well as an address).
 PLUGINS_REPO=${VIKIX_PLUGINS_REPO:-https://github.com/vukini/vikix-plugins}
-PLUGINS_COMMIT=${VIKIX_PLUGINS_COMMIT:-507c2bbe8cd339918ef28545d0d512402a9597e7}   #  2026-10-02: inbox, one box with a read-only Emacs config
+PLUGINS_COMMIT=${VIKIX_PLUGINS_COMMIT:-bc9fd8ba1f44d4140d0e8569970dfe749fea0147}   # 2026-10-02: inbox sorts the inbox, to-dos to Todoist
 DIR="$HOME/.local/share/vikix/plugins"
 LIST="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/plugins.list"
 SETTINGS="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/plugins"

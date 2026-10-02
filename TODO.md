@@ -77,7 +77,7 @@ Three new repos beside Vikix, each independent: `vukini/vikix-plugins`, `vukini/
 The first plugins, in order:
 
 37. ~~**Agent waiting**~~ The first plugin, `agent-waiting` (Claude Code through its hooks). Still to do: the other agents, by watching their terminals.
-38. ~~**Notes from anywhere.**~~ The plugin `inbox` (Super+Alt+i, Super+Alt+Shift+i quoting the selection; org-capture in a floated Emacs frame, Super+F9 dictating into it; `~/Dropbox/notes/inbox.org`, the source as a property). Still to do: the page's address as the source (only the window's title now); `vikix notes sort`, a model reading the inbox and refiling each note under a project or category (the notes' Org files and headings, or a list in the settings), showing its choices first, local model by default; later a note's to-dos into Todoist, and a daily digest.
+38. ~~**Notes from anywhere.**~~ The plugin `inbox`: the box (Super+Alt+i, Super+Alt+Shift+i quoting the selection), the page's address (Firefox, Nyxt), `inbox sort` (Super+Alt+Shift+s: the model suggests, you choose, `--undo`) and to-dos to Todoist. Still to do, later: a daily digest of what was captured; the web apps' (Chromium's) page addresses.
 39. ~~**Flights**~~ The plugin `flights` (search from a line, watched routes): prices from Google Flights through fast-flights (no card, unofficial), never booking; LetsFG wasn't used (it asks for a card to search, and can book).
 40. ~~**AI usage.**~~ The plugin `ai-usage`.
 41. ~~**Next meeting.**~~ The plugin `next-meeting` (calendars by their private ICS links). Still to do: Microsoft 365 by its sign-in, for when IT forbids publishing a calendar.
