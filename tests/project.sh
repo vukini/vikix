@@ -18,6 +18,13 @@
 #   - build: the log's Build line, build.sh (bash or sh), Makefile,
 #     src/build.sh, package.json, none; runs in the folder, passes on the
 #     exit status
+#   - check: the log's Check line, check.sh (run itself when executable),
+#     tests/run.sh, make check / make test (only a target that's there),
+#     npm test, none; runs in the folder, passes on the exit status
+#   - new: a folder and log listed at once, --in a collection, --private
+#     (the log kept apart), ".", and it refuses a log or a worktree
+#   - today: the day's entries, commits (not the day before's) and next;
+#     yesterday, a date, --no-git; vikix today
 #   - open: a terminal in the folder and Emacs on the log, both left
 #     running; refuses without a desktop
 #   - vikix project reaches it; the starter config is copied once, in
@@ -211,6 +218,87 @@ expect "build: the Build line runs in the folder" grep -qx built-by-line "$src/s
 set +e; bo=$(vp build b-fail 2>&1); rc=$?; set -e
 expect "build passes on the exit status (got $rc)" test "$rc" = 3
 expect "build says it failed: $bo" has "the build failed (exit status 3)" "$bo"
+
+# --- check ----------------------------------------------------------------
+mkdir -p "$src/c-line" "$src/c-exec" "$src/c-tests/tests" "$src/c-make" "$src/c-maketest" "$src/c-npm" "$src/c-none"
+for d in c-line c-exec c-tests c-make c-maketest c-npm c-none; do printf '# Log: %s\n\n## 2026-09-01\n\nx\n' "$d" > "$src/$d/log.md"; done
+printf '# Log: c-line\n\n**Status**, as of 2026-09-01: 1%% complete.\n\n- Check: echo checked-by-line > out.txt\n\n## 2026-09-01\n\nx\n' > "$src/c-line/log.md"
+printf '#!/bin/sh\necho "checked in $PWD" > out.txt; exit 4\n' > "$src/c-exec/check.sh"; chmod +x "$src/c-exec/check.sh"
+printf 'echo t\n' > "$src/c-tests/tests/run.sh"
+printf 'all:\n\techo a\ncheck:\n\techo c\n' > "$src/c-make/Makefile"
+printf 'all:\n\techo a\ntest: all\n\techo t\n' > "$src/c-maketest/Makefile"
+printf '{"scripts":{"test":"true"}}\n' > "$src/c-npm/package.json"
+printf 'all:\n\techo a\n' > "$src/c-none/Makefile"
+expect "check: the log's Check line first" has "echo checked-by-line > out.txt  (the log's Check line)" "$(vp check c-line -n)"
+expect "check: an executable check.sh" has "c-exec: ./check.sh" "$(vp check c-exec -n)"
+expect "check: tests/run.sh, not executable, with bash" has "c-tests: bash tests/run.sh" "$(vp check c-tests -n)"
+expect "check: make check" has "c-make: make check" "$(vp check c-make -n)"
+expect "check: make test" has "c-maketest: make test" "$(vp check c-maketest -n)"
+expect "check: npm test" has "c-npm: npm test" "$(vp check c-npm -n)"
+expect "check: a Makefile without check or test is nothing to run" bash -c '! python3 "$1" check c-none 2>/dev/null' _ "$here/bin/vikix-project"
+expect "show: the check line" has "check:   echo checked-by-line" "$(vp show c-line)"
+vp check c-line >/dev/null
+expect "check: the Check line runs in the folder" grep -qx checked-by-line "$src/c-line/out.txt"
+set +e; co=$( (cd "$t" && vp check c-exec) 2>&1); rc=$?; set -e
+expect "check passes on the exit status (got $rc)" test "$rc" = 4
+expect "check runs in the project's folder" grep -qx "checked in $src/c-exec" "$src/c-exec/out.txt"
+expect "check says it failed: $co" has "the checks failed (exit status 4)" "$co"
+
+# --- new ------------------------------------------------------------------
+n=$(vp new fresh-book --title "A Fresh Book" --next "an outline")
+expect "new: says what it made: $n" has "made $src/fresh-book/log.md (and the folder" "$n"
+expect "new: the title" grep -qx '# Log: A Fresh Book' "$src/fresh-book/log.md"
+expect "new: a Status with today's date" grep -qx '\*\*Status\*\*, as of 2026-10-02: 0% complete.' "$src/fresh-book/log.md"
+expect "new: the Next" grep -qx -- '- Next: an outline' "$src/fresh-book/log.md"
+expect "new: a first entry, so list has it" has "fresh-book" "$(vp list)"
+expect "new: list shows its Next" has "an outline" "$(vp list | grep '^fresh-book')"
+expect "new: a default title from the name" bash -c 'python3 "$1" new other-thing >/dev/null && grep -qx "# Log: Other thing" "$2/other-thing/log.md"' _ "$here/bin/vikix-project" "$src"
+expect "new: refuses a folder that has a log" bash -c '! python3 "$1" new alpha 2>/dev/null' _ "$here/bin/vikix-project"
+expect "new: alpha's log untouched" grep -q '^Wrote chapter four.$' "$src/alpha/log.md"
+vp new chapter-x --in series >/dev/null
+expect "new --in: inside the collection" test -f "$src/series/chapter-x/log.md"
+expect "new --in: listed as the collection's" has "series/chapter-x" "$(vp list)"
+mkdir -p "$src/secret/.git"
+p=$(vp new secret --private)
+expect "new --private: the log in the logs folder" test -f "$src/project-logs/secret/log.md"
+expect "new --private: none in the repo" test ! -e "$src/secret/log.md"
+expect "new --private: says it is kept apart: $p" has "kept apart from the repo $src/secret" "$p"
+expect "new --private: listed with the repo's folder" test "$(vp path secret)" = "$src/secret"
+expect "new --private: no repo yet, it says so" has "is a git repo" "$(vp new later-repo --private)"
+mkdir -p "$src/existing"
+(cd "$src/existing" && vp new . >/dev/null)
+expect "new .: the folder it is run in" test -f "$src/existing/log.md"
+mkdir -p "$src/wt2"; echo "gitdir: $src/alpha/.git/worktrees/wt2" > "$src/wt2/.git"
+set +e; wo=$(vp new "$src/wt2" 2>&1); set -e
+expect "new: refuses a git worktree: $wo" has "is a git worktree" "$wo"
+expect "new: no log in the worktree" test ! -e "$src/wt2/log.md"
+expect "new: a folder outside the roots, it says so" has "doesn't see it" "$(vp new "$t/elsewhere")"
+expect "new without a name fails" bash -c '! python3 "$1" new 2>/dev/null' _ "$here/bin/vikix-project"
+expect "new --in and --private together fail" bash -c '! python3 "$1" new x --in series --private 2>/dev/null' _ "$here/bin/vikix-project"
+
+# --- today ----------------------------------------------------------------
+g() { git -C "$src/gitproj" -c user.name=T -c user.email=t@t -c commit.gpgsign=false "$@"; }
+mkdir -p "$src/gitproj"
+git -C "$src/gitproj" init -q
+printf '# Log: Gitproj\n\n**Status**, as of 2026-09-01: 5%% complete.\n\n- Next: from the status\n\n## 2026-10-01 · yesterday words\n\nDid yesterday.\n\nNext: yesterday next\n' > "$src/gitproj/log.md"
+g add log.md
+GIT_AUTHOR_DATE=2026-10-01T15:00 GIT_COMMITTER_DATE=2026-10-01T15:00 g commit -qm "Yesterday's commit"
+echo x > "$src/gitproj/f"; g add f
+GIT_AUTHOR_DATE=2026-10-02T09:00 GIT_COMMITTER_DATE=2026-10-02T09:00 g commit -qm "Today's commit"
+td=$(vp today)
+expect "today: the heading" has "Today 2026-10-02" "$td"
+expect "today: alpha's entries of today: $td" has "four of ten (Vid): Wrote chapter four." "$td"
+expect "today: alpha's next" has "next: chapter five" "$td"
+expect "today: the commits of the day" has "Today's commit" "$td"
+expect "today: not yesterday's commit" lacks "Yesterday's commit" "$td"
+expect "today: a project with nothing that day is left out" lacks "lambda-book" "$td"
+expect "today --no-git: no commits" lacks "Today's commit" "$(vp today --no-git)"
+y=$(vp today yesterday)
+expect "today yesterday: that day" has "On 2026-10-01 (yesterday)" "$y"
+expect "today yesterday: its entry and commit" bash -c 'grep -qF "yesterday words: Did yesterday." <<<"$1" && grep -qF "Yesterday'"'"'s commit" <<<"$1"' _ "$y"
+expect "today DATE: an empty day says so" has "nothing logged or committed" "$(vp today 2020-01-01)"
+expect "today: a bad date fails" bash -c '! python3 "$1" today someday 2>/dev/null' _ "$here/bin/vikix-project"
+expect "vikix today reaches it" test "$(bash "$here/bin/vikix" today --no-git)" = "$(vp today --no-git)"
 
 # --- open -----------------------------------------------------------------
 mkdir -p "$t/bin"

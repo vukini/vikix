@@ -12,6 +12,17 @@
                       committed: it says how
   vikix project open NAME        a terminal in the folder, the editor on its log
   vikix project build NAME [-n]  run its build in its folder (-n: only say which)
+  vikix project check NAME [-n]  run its checks in its folder: the log's Check
+                      line, check.sh, check, tests/run.sh, test.sh, make
+                      check or test, npm test (-n: only say which)
+  vikix project new NAME [--in COLLECTION | --private] [--title "..."] [--next "..."]
+                      a new project: ~/src/NAME (the first root) with a log.md
+                      (a Status and a first entry); --in: inside a collection;
+                      --private: the repo ~/src/NAME's log in the logs folder;
+                      a FOLDER (with a /, or .) gives that folder a log.md
+  vikix project today [yesterday|DATE] [--no-git]   (also: vikix today)
+                      what was done that day, project by project: the log
+                      entries and the commits (any branch), then what's next
   vikix project pick             choose one with rofi and open it (Super+Shift+p)
 
 What a project is: a folder under a root (~/src unless ~/.config/vikix/projects
@@ -29,6 +40,7 @@ A log, newest first:
   - Standing: where it is
   - Next: what comes next
   - Build: make site          (optional: overrides the build found)
+  - Check: make test          (optional: overrides the checks found)
 
   ## 2026-09-18 · status words (Vid)
   What was done.
@@ -194,9 +206,10 @@ def parse_log(text):
         pct = int(m.group(1)) if m else None
         m = STATUS_DATE.search(first[0])
         sdate = m.group(1) if m else None
-    build = None
+    build = check = None
     for s in statuses:
         build = build or point(s, "Build")
+        check = check or point(s, "Check")
 
     entries = []
     cur = None
@@ -223,7 +236,7 @@ def parse_log(text):
         "title": title, "intro": intro, "first_entry": first_entry,
         "statuses": statuses, "percent": pct, "status_date": sdate,
         "status_next": point(first, "Next") if first else None,
-        "build": build, "entries": entries,
+        "build": build, "check": check, "entries": entries,
     }
 
 
@@ -340,6 +353,8 @@ def cmd_show(args):
     print(f"  log:     {where_log(p)}")
     if d["build"]:
         print(f"  build:   {d['build']}")
+    if d["check"]:
+        print(f"  check:   {d['check']}")
     for s in d["statuses"]:
         print()
         print("\n".join(s))
@@ -485,6 +500,220 @@ def cmd_build(args):
     sys.exit(rc)
 
 
+def make_target(d, names):
+    """The first of these targets the folder's Makefile has, or None."""
+    for m in ("Makefile", "makefile", "GNUmakefile"):
+        try:
+            text = (d / m).read_text(errors="replace")
+        except OSError:
+            continue
+        for t in names:
+            if re.search(rf"^{t}\s*:", text, re.M):
+                return t
+    return None
+
+
+def check_command(p):
+    """(the command as words, how to show it), or (None, None)."""
+    d = p.path
+    if p.parsed["check"]:
+        return ["bash", "-c", p.parsed["check"]], f"{p.parsed['check']}  (the log's Check line)"
+    for script in ("check.sh", "check", "tests/run.sh", "test.sh"):
+        f = d / script
+        if f.is_file():
+            if os.access(f, os.X_OK):
+                return [f"./{script}"], f"./{script}"
+            return ["bash", script], f"bash {script}"
+    t = make_target(d, ("check", "test"))
+    if t:
+        return ["make", t], f"make {t}"
+    try:
+        import json
+        if "test" in json.loads((d / "package.json").read_text()).get("scripts", {}):
+            return ["npm", "test"], "npm test"
+    except (OSError, ValueError, AttributeError):
+        pass
+    return None, None
+
+
+def cmd_check(args):
+    dry = any(a in ("-n", "--dry-run") for a in args)
+    p = one_name([a for a in args if a not in ("-n", "--dry-run")], "check")
+    cmd, shown = check_command(p)
+    if not cmd:
+        die(f"{p.full}: no check.sh, check, tests/run.sh, test.sh, make check/test or npm test "
+            f"in {p.path}; a '- Check: COMMAND' line in the log's Status says how")
+    print(f"{p.full}: {shown}  (in {p.path})", flush=True)
+    if dry:
+        return
+    try:
+        rc = subprocess.run(cmd, cwd=p.path).returncode
+    except (FileNotFoundError, PermissionError):
+        die(f"{cmd[0]} can't be run")
+    print(f"{p.full}: {'the checks passed' if rc == 0 else 'the checks failed'} (exit status {rc})")
+    sys.exit(rc)
+
+
+def cmd_new(args):
+    usage = ('usage: vikix project new NAME|FOLDER [--in COLLECTION | --private] '
+             '[--title "..."] [--next "..."]')
+    pos, opts = [], {}
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a in ("--in", "--title", "--next"):
+            if i + 1 >= len(args) or not args[i + 1].strip():
+                die(usage, 2)
+            opts[a] = args[i + 1].strip()
+            i += 2
+            continue
+        if a == "--private":
+            opts[a] = True
+        elif a.startswith("--"):
+            die(usage, 2)
+        else:
+            pos.append(a)
+        i += 1
+    if len(pos) != 1 or ("--in" in opts and "--private" in opts):
+        die(usage, 2)
+    arg = pos[0]
+    roots, logs, depth = read_config()
+    projects = discover()
+
+    if "--private" in opts:
+        name = Path(arg).name if ("/" in arg or arg == ".") else arg
+        repo = (Path(arg).resolve() if ("/" in arg or arg == ".") else roots[0] / name)
+        folder, log = repo, logs / name / "log.md"
+    elif "--in" in opts:
+        if "/" in arg:
+            die("with --in, NAME is a name, not a folder", 2)
+        coll = match(opts["--in"], projects)
+        folder = coll.path / arg
+        log = folder / "log.md"
+    elif "/" in arg or arg == ".":
+        folder = Path(arg).expanduser().resolve()
+        log = folder / "log.md"
+    else:
+        folder = roots[0] / arg
+        log = folder / "log.md"
+    name = folder.name
+
+    if log.exists() or (find_log(folder) and "--private" not in opts):
+        die(f"{folder} already has a log: {log if log.exists() else find_log(folder)}")
+    if "--private" not in opts and (folder / ".git").is_file():
+        die(f"{folder} is a git worktree, which vikix project skips; make it in the repo itself")
+
+    title = opts.get("--title") or name.replace("-", " ").replace("_", " ")
+    title = title[:1].upper() + title[1:]
+    d = today().isoformat()
+    text = (f"# Log: {title}\n\n"
+            f"**Status**, as of {d}: 0% complete.\n\n"
+            f"- Standing: just begun\n"
+            f"- Next: {opts.get('--next') or 'the first step'}\n\n"
+            f"## {d} · started (Vid)\n\nThe project begun.\n")
+    made = not folder.exists()
+    if "--private" not in opts:
+        folder.mkdir(parents=True, exist_ok=True)
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text(text)
+
+    print(f"made {log}" + (f" (and the folder {folder})" if made and "--private" not in opts else ""))
+    if "--private" in opts:
+        print(f"the log is kept apart from the repo {folder}")
+        if not (folder / ".git").is_dir():
+            print(f"it is listed once {folder} is a git repo (git init {folder})")
+    found = any(p.log.resolve() == log.resolve() for p in discover())
+    if not found:
+        print(f"note: vikix project doesn't see it: {folder} isn't within {depth} levels of a root "
+              f"in {CONFIG} ({', '.join(map(str, roots))})")
+    top = git_top(log.parent)
+    if top:
+        print(f"not committed; when you want to: git -C {top} add -- {os.path.relpath(log, top)}")
+    print(f"edit the Status by hand; add entries with: vikix project log {name} \"what was done\"")
+
+
+def git_today(top, day):
+    """This day's commits in the repo at top, on any branch: [(hash, subject)]."""
+    nxt = day + datetime.timedelta(days=1)
+    try:
+        r = subprocess.run(["git", "-C", str(top), "log", "--all", "--no-merges",
+                            f"--since={day.isoformat()} 00:00", f"--until={nxt.isoformat()} 00:00",
+                            "--format=%h %s"],
+                           capture_output=True, text=True, timeout=20)
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    return [(line.split(" ", 1) + [""])[:2] for line in r.stdout.splitlines() if line.strip()]
+
+
+def cmd_today(args):
+    """What was done on a day (today unless DATE or yesterday) and what is next."""
+    use_git = "--no-git" not in args
+    rest = [a for a in args if a != "--no-git"]
+    if len(rest) > 1 or (rest and rest[0].startswith("-")):
+        die("usage: vikix today [yesterday|YYYY-MM-DD] [--no-git]", 2)
+    day = today()
+    if rest:
+        if rest[0] == "yesterday":
+            day -= datetime.timedelta(days=1)
+        else:
+            try:
+                day = datetime.date.fromisoformat(rest[0])
+            except ValueError:
+                die(f"not a date: {rest[0]} (YYYY-MM-DD, or yesterday)", 2)
+    iso = day.isoformat()
+    projects = sorted(discover(), key=lambda p: p.full)
+    w = width()
+
+    def cut(s, indent):
+        s = " " * indent + s
+        return s if not w or len(s) <= w else s[:max(w - 1, 0)] + "…"
+
+    # Commits, by repo; a repo that is a project's folder goes with that project.
+    by_top = {}
+    if use_git:
+        for p in projects:
+            top = git_top(p.path)
+            if top and top not in by_top:
+                by_top[top] = git_today(top, day)
+    own = {p.path: p for p in projects}
+
+    shown = 0
+    print(f"{'Today' if day == today() else 'On'} {iso}" + ("" if day == today() else f" ({ago(iso)})"))
+    for p in projects:
+        entries = [e for e in p.parsed["entries"] if e["date"] == iso]
+        commits = by_top.get(p.path, []) if p.path in by_top else []
+        if not entries and not commits:
+            continue
+        shown += 1
+        print()
+        print(cut(p.full + (f"  ({p.parsed['percent']}%)" if p.parsed["percent"] is not None else ""), 0))
+        for e in entries:
+            body = " ".join(line.strip() for line in e["lines"][1:]
+                            if line.strip() and not line.startswith("Next:"))
+            words = e["words"] + (" (Vid)" if e["vid"] else "")
+            print(cut(f"- {words}: {body}" if words else f"- {body}", 2))
+        if commits:
+            print(cut(f"{len(commits)} commit{'s' if len(commits) > 1 else ''}:", 2))
+            for h, s in commits[:8]:
+                print(cut(f"{h} {s}", 4))
+            if len(commits) > 8:
+                print(cut(f"… and {len(commits) - 8} more (git -C {p.path} log --since={iso})", 4))
+        nxt = next_step(p)
+        if nxt:
+            print(cut(f"next: {nxt}", 2))
+    # Repos with commits that no project's folder is (a collection's repo without its own log).
+    for top, commits in sorted(by_top.items()):
+        if commits and top not in own:
+            shown += 1
+            print()
+            print(cut(f"{top}: {len(commits)} commit{'s' if len(commits) > 1 else ''}", 0))
+            for h, s in commits[:8]:
+                print(cut(f"{h} {s}", 4))
+    if not shown:
+        print()
+        print("nothing logged" + (" or committed" if use_git else "") + " that day")
+
+
 def cmd_pick(args):
     table = rows(discover(), True)
     if not table:
@@ -506,7 +735,8 @@ def main(argv):
     if cmd.startswith("--") and cmd != "--help":
         cmd, args = "list", argv
     table = {"list": cmd_list, "show": cmd_show, "path": cmd_path, "log": cmd_log,
-             "open": cmd_open, "build": cmd_build, "pick": cmd_pick}
+             "open": cmd_open, "build": cmd_build, "check": cmd_check, "new": cmd_new,
+             "today": cmd_today, "pick": cmd_pick}
     if cmd in ("help", "-h", "--help"):
         print(__doc__.strip())
         return
