@@ -1,7 +1,8 @@
 ;;;; config.lisp — your Nyxt config: yours, copied once, never overwritten.
 ;;;;
 ;;;; Nyxt's keys, commands and modes are Lisp, and this file is where yours
-;;;; go. Nyxt's manual (M-x manual, or nyxt:manual) shows how.
+;;;; go. Nyxt's manual shows how: Ctrl+Space, then manual (M-x is Emacs's
+;;;; keys, not Nyxt's usual ones), or the address nyxt:manual.
 
 (in-package #:nyxt-user)
 
