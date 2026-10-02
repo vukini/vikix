@@ -134,11 +134,14 @@ def add(record, db):
         raise Problem("body and link are text")
     values = (plugin, kind, key, int(at), title.strip()[:500], body[:20000], json.dumps(data), link[:2000])
     if key is not None:
-        row = db.execute("SELECT id FROM records WHERE plugin=? AND kind=? AND key=?", (plugin, kind, key)).fetchone()
-        if row:
-            db.execute("UPDATE records SET at=?, title=?, body=?, data=?, link=? WHERE id=?",
-                       (values[3], values[4], values[5], values[6], values[7], row["id"]))
-            return row["id"]
+        # One statement, not a look then an insert: two writers with the
+        # same key (a daemon and a search) would both see none, and the
+        # second insert would fail on the unique index.
+        return db.execute(
+            "INSERT INTO records (plugin, kind, key, at, title, body, data, link) VALUES (?,?,?,?,?,?,?,?) "
+            "ON CONFLICT (plugin, kind, key) WHERE key IS NOT NULL DO UPDATE SET at = excluded.at, "
+            "title = excluded.title, body = excluded.body, data = excluded.data, link = excluded.link "
+            "RETURNING id", values).fetchone()[0]
     return db.execute("INSERT INTO records (plugin, kind, key, at, title, body, data, link) VALUES (?,?,?,?,?,?,?,?)",
                       values).lastrowid
 

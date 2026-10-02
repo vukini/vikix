@@ -70,6 +70,12 @@ check "a refused add should add nothing (a list, not half of it)" \
 # Two at once.
 for i in $(seq 1 20); do echo '{"plugin": "a", "kind": "x", "title": "a'"$i"'"}' | r add >/dev/null & echo '{"plugin": "b", "kind": "x", "title": "b'"$i"'"}' | r add >/dev/null & done; wait
 check "writes at the same time should all land" test "$(r list --limit 100 | grep -cE ' (a|b)/x ')" = 40
+# The same key at the same time: one record, no writer failing on the
+# unique index (a look, then an insert, let two both insert).
+errs="$t/same-key.err"; : > "$errs"
+for i in $(seq 1 12); do echo '{"plugin": "c", "kind": "x", "key": "k", "title": "c'"$i"'"}' | r add >/dev/null 2>>"$errs" & done; wait
+check "the same key at once should fail no writer: $(head -3 "$errs")" test ! -s "$errs"
+check "the same key at once should leave one record" test "$(r list c | grep -c ' c/x ')" = 1
 
 # Export.
 check "Org export: a heading a plugin" grep -qx '\* flights' <<<"$(r export --org)"
