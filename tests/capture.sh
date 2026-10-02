@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # tests/capture.sh — vikix-screenshot takes what it was asked for (an area,
 # the focused window, the monitor under the pointer) and puts it where it
-# was asked (clipboard or file); vikix-record starts ffmpeg on the right
+# was asked (clipboard, saying how Shift keeps it as a file; or a file,
+# whose notification's action shows the folder in Esploro); vikix-record starts ffmpeg on the right
 # part of the screen, stops it with TERM, and cleans up after it;
 # "text" puts an area's text (tesseract, on the picture made 3x bigger) on
 # the clipboard without the blank lines around it, and "colour" the
@@ -25,7 +26,10 @@ stub() { printf '#!/bin/sh\n%s\n' "$2" > "$t/bin/$1"; chmod +x "$t/bin/$1"; }
 stub maim        "echo \"maim \$*\" >> $log; for a; do f=\$a; done; echo png > \"\$f\""
 stub slop        "echo 301x201+10+20"
 stub xclip       "echo \"xclip \$*\" >> $log; cat > $t/clip"
-stub notify-send "echo \"notify \$*\" >> $log"
+# notify-send: note it; with a button (-A), answer with $ACT.
+stub notify-send "echo \"notify \$*\" >> $log; case \"\$*\" in *-A*) echo \"\$ACT\" ;; esac"
+stub esploro     "echo \"esploro \$*\" >> $log"
+stub xdg-open    "echo \"xdg-open \$*\" >> $log"
 stub xdg-user-dir "echo $t/home/\$1"
 ln -s "$here/bin/vikix-screenshot" "$t/bin/"   # vikix-record asks it for the area
 stub vikix       "echo \"vikix \$*\" >> $log"
@@ -56,9 +60,19 @@ has() { grep -q -- "$1" "$log" || { echo "FAIL: $2"; sed 's/^/  /' "$log"; fail=
 shot clip
 has "^maim -g 301x201+10+20 " "a plain 'clip' should still drag out an area (slop, then maim)"
 has "^xclip -selection clipboard -t image/png" "an area should go to the clipboard"
+has "^notify -a Vikix -t 4000 Screenshot copied Paste it with Ctrl+v. To keep it as a file, add Shift (Shift+Print): it goes to PICTURES/Screenshots." \
+  "an area to the clipboard should say so, and how to keep it as a file"
 shot window clip
 has "^maim -i 4242 " "window should take the focused window"
-has "^notify -a Vikix -t 2000 Screenshot copied" "a window to the clipboard should say so"
+has "^notify -a Vikix -t 4000 Screenshot copied" "a window to the clipboard should say so"
+shot area file; sleep 0.3
+has "^notify -a Vikix -A open=Show folder Screenshot saved $t/home/PICTURES/Screenshots/" "a file should say where, with a Show folder button"
+grep -q "^esploro\|^xdg-open" "$log" && { echo "FAIL: the folder opened without the button"; fail=1; }
+ACT=open; export ACT
+shot area file; sleep 0.3
+has "^esploro $t/home/PICTURES/Screenshots" "Show folder should open the folder in Esploro"
+unset ACT
+rm -f "$t/home/PICTURES/Screenshots/"*
 shot screen file
 has "^maim -g 2560x1440+1920+0 " "screen should take the monitor under the pointer"
 shot area file; shot window file

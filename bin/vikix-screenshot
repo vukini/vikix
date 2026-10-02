@@ -146,26 +146,46 @@ case $what in
     ;;
 esac
 
+# The folder files go to: ~/Pictures/Screenshots, or Screenshots in the
+# pictures folder you named (xdg-user-dir answers ~/Pictures, or yours).
+shots_dir() {
+  pictures=$(xdg-user-dir PICTURES 2>/dev/null)
+  if [ -z "$pictures" ] || [ "$pictures" = "$HOME" ]; then
+    pictures="$HOME/Pictures"
+  fi
+  echo "$pictures/Screenshots"
+}
+
+# open_folder DIR — Esploro when it's installed, else the usual file manager.
+open_folder() {
+  if command -v esploro >/dev/null 2>&1; then esploro "$1"; else xdg-open "$1"; fi
+}
+
 case $where in
   clip)
     xclip -selection clipboard -t image/png < "$shot"
-    # An area shows itself being taken; a window or a screen doesn't.
-    [ "$what" = area ] ||
-      notify-send -a Vikix -t 2000 "Screenshot copied" "Paste it with Ctrl+v."
+    # Said every time, an area too: a picture that's only in the clipboard
+    # is easily lost, and Shift is the way to keep it.
+    dir=$(shots_dir)
+    notify-send -a Vikix -t 4000 "Screenshot copied" \
+      "Paste it with Ctrl+v. To keep it as a file, add Shift (Shift+Print): it goes to ${dir#"$HOME/"}."
     ;;
   file)
-    # xdg-user-dir answers ~/Pictures, or the folder you renamed it to.
-    pictures=$(xdg-user-dir PICTURES 2>/dev/null)
-    if [ -z "$pictures" ] || [ "$pictures" = "$HOME" ]; then
-      pictures="$HOME/Pictures"
-    fi
-    dir="$pictures/Screenshots"
+    dir=$(shots_dir)
     mkdir -p "$dir"
     file="$dir/$(date +%Y-%m-%d_%H-%M-%S).png"
     # Two in the same second get -2, -3 ..., never one over the other.
     n=1 base=${file%.png}
     while [ -e "$file" ]; do n=$((n + 1)); file="$base-$n.png"; done
     cp "$shot" "$file"
-    notify-send -a Vikix "Screenshot saved" "$file"
+    # With an action: notify-send waits for the answer, so in the
+    # background, and this script ends at once. Dunst runs an action on a
+    # middle click (a left click closes), so the text says so.
+    (
+      action=$(notify-send -a Vikix -A open="Show folder" "Screenshot saved" \
+                 "$file
+Middle-click to show the folder." 2>/dev/null)
+      [ "$action" = open ] && open_folder "$dir"
+    ) >/dev/null 2>&1 &
     ;;
 esac

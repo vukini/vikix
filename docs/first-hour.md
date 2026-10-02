@@ -37,7 +37,7 @@ Then, when you have two windows:
 | `Super+u` | undo the last layout change |
 | `Super+1` … `Super+9` | workspaces; `Super+Ctrl+1` … sends the window there |
 
-And a few for everyday things: `Super+w` the browser, `Super+e` your files, `Print` a screenshot of an area (to the clipboard), `Super+c` the clipboard's history, `Super+Escape` lock, `Super+Shift+Escape` suspend, log out or power off.
+And a few for everyday things: `Super+w` the browser, `Super+e` your files, `Print` a screenshot of an area (to the clipboard, to paste with `Ctrl+v`; `Shift+Print` keeps it as a file in `~/Pictures/Screenshots` instead), `Super+c` the clipboard's history, `Super+Escape` lock, `Super+Shift+Escape` suspend, log out or power off.
 
 `Super+F1` lists every key with what it does, to search and run from there. Mouse focus is on: a window takes your typing when the pointer is over it.
 
