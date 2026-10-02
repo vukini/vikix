@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# tests/esploro.sh — vikix esploro: Vid's file explorer in Common Lisp.
+# tests/esploro.sh — vikix esploro: Vid's file explorer (its window in Emacs,
+# its core in Common Lisp).
 #
 #   setup fetches Esploro at the pinned commit and refuses another, builds
-#   it with build.lisp in its folder as one program, links esploro into
+#   its command with build.lisp in its folder (SBCL alone), links esploro into
 #   ~/.local/bin and puts it in the launcher; records the feature; asks for
 #   no sudo when the packages are there; a second setup builds nothing,
 #   --rebuild builds again; a failed build says where its log is and links
@@ -21,8 +22,7 @@ here=$(cd "$(dirname "$0")/.." && pwd)
 t=$(mktemp -d)
 trap 'rm -rf "$t"' EXIT
 export HOME="$t/home" VIKIX_STATE="$t/home/.local/state/vikix"
-mkdir -p "$HOME/quicklisp" "$t/bin" "$VIKIX_STATE"
-touch "$HOME/quicklisp/setup.lisp"
+mkdir -p "$t/bin" "$VIKIX_STATE"
 fail=0
 check() { "${@:2}" || { echo "FAIL: $1"; fail=1; }; }
 calls="$t/calls"; : > "$calls"
@@ -72,17 +72,18 @@ echo "$pinned" > "$t/commit"; : > "$calls"
 
 # --- Setup ------------------------------------------------------------------------
 es setup > "$t/out" 2>&1 || { cat "$t/out"; echo "FAIL: setup should work"; fail=1; }
-check "the build should run build.lisp in Esploro's folder, with Quicklisp: $(grep sbcl "$calls")" \
-  grep -q "sbcl (in $opt) .*--load $HOME/quicklisp/setup.lisp --load build.lisp" "$calls"
+check "the build should run build.lisp in Esploro's folder: $(grep sbcl "$calls")" \
+  grep -q "sbcl (in $opt) .*--no-userinit --load build.lisp" "$calls"
+check "the build shouldn't need Quicklisp (the window is Emacs)" test -z "$(grep -i quicklisp "$calls" || true)"
 check "the program should be in place" test -x "$opt/esploro"
 check "no half-written program should be left" test ! -e "$opt/esploro.new"
 check "Esploro should record the commit it was built from" test "$(cat "$opt/.vikix-built" 2>/dev/null)" = "$pinned"
 check "esploro should be linked" test "$(readlink "$HOME/.local/bin/esploro")" = "$opt/esploro"
 check "Esploro should be in the launcher" grep -q "^Exec=$HOME/.local/bin/esploro %F" "$apps/vikix-esploro.desktop"
-check "the launcher should know its window" grep -q "^StartupWMClass=Esploro" "$apps/vikix-esploro.desktop"
+check "the launcher entry should offer it for folders" grep -q "^MimeType=inode/directory;" "$apps/vikix-esploro.desktop"
 check "setup should record the feature" grep -qx esploro "$HOME/.config/vikix/features"
 check "setup shouldn't ask for sudo when the packages are there: $(grep sudo "$calls")" test -z "$(grep '^sudo' "$calls" || true)"
-check "setup should say the build is quiet and how long" grep -q "a minute or two, quietly" "$t/out"
+check "setup should say how long the build takes" grep -q "a few seconds" "$t/out"
 check "the build log should be kept" test -e "$VIKIX_STATE/logs/esploro-build.log"
 
 # --- Again: nothing to build; --rebuild builds ----------------------------------
@@ -122,11 +123,12 @@ check "an esploro that isn't setup's should stay" test -f "$HOME/.local/bin/espl
 
 # --- The key and the menu -------------------------------------------------------
 check "Super+Alt+e should run vikix-esploro" grep -q '("s-M-e" *"vikix-esploro"' "$here/config/stumpwm/vikix/keys.lisp"
-check "vikix-esploro should go to Esploro's window by its class" \
-  grep -q "run-or-raise \"esploro\" '(:class \"Esploro\")" "$here/config/stumpwm/vikix/commands.lisp"
+check "vikix-esploro should go to Esploro's frame by its title (an Emacs frame)" \
+  grep -q "run-or-raise \"esploro\" '(:title \"Esploro\")" "$here/config/stumpwm/vikix/commands.lisp"
+check "the feature should bring Emacs, where the window is" grep -qE '^esploro +\| +\| emacs +\|' "$here/features.list"
 check "the Apps menu should offer Esploro once it's here" \
   grep -q '(run-shell-command "esploro") "~/.local/bin/esploro")' "$here/config/stumpwm/vikix/commands.lisp"
 check "vikix update should build a moved pin" grep -q 'is_chosen esploro' "$here/bin/vikix"
 
-[ "$fail" = 0 ] && echo "esploro: fetched at its pin, built in its folder, linked and in the launcher, quiet builds explained, only what setup made goes, Super+Alt+e"
+[ "$fail" = 0 ] && echo "esploro: fetched at its pin, its command built in its folder with SBCL alone, linked and in the launcher for folders, only what setup made goes, Emacs comes with it, Super+Alt+e"
 exit "$fail"

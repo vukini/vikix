@@ -1,21 +1,24 @@
 #!/usr/bin/env bash
-# vikix-esploro — Esploro, Vid's file explorer in Common Lisp
-# (github.com/vukini/esploro): it knows which window has each file open,
-# and plans moves, copies, renames and deletions first, with undo.
+# vikix-esploro — Esploro, Vid's file explorer (github.com/vukini/esploro):
+# a frame of Emacs, on dired, with menus, a tool bar, the mouse and drag
+# and drop; its core, which does every change to files (journaled, so it
+# can be undone), is Common Lisp, and knows which window has each file open.
 #
 #   vikix esploro setup [--rebuild]
-#                           build it from a pinned commit into
-#                           ~/.local/opt/esploro, as one program (McCLIM
-#                           from Quicklisp, the first time); a minute or
-#                           two. --rebuild builds it again
+#                           build its command from a pinned commit into
+#                           ~/.local/opt/esploro (SBCL alone, seconds); the
+#                           window's code is emacs/esploro.el beside it,
+#                           which the command loads into Emacs the first
+#                           time. --rebuild builds it again
 #                           (vikix add esploro runs this; vikix update runs
 #                           it too, and it builds only when the pin moved)
 #   vikix esploro status
 #   vikix esploro uninstall
 #                           removes it (vikix remove esploro)
 #
-# Command: esploro [FOLDER]; Super+Alt+e opens it, or goes to its window;
-# it's in the launcher (Super+d) and Super+m, Apps.
+# Command: esploro [FOLDER] (through Emacs's server: Vikix runs Emacs as a
+# daemon); Super+Alt+e opens it, or goes to its frame; it's in the launcher
+# (Super+d) and Super+m, Apps; M-x esploro in Emacs once it's been opened.
 
 set -uo pipefail
 VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
@@ -27,9 +30,8 @@ VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 # A commit, not a branch: an update brings a new Esploro only when Vikix
 # moves this pin, after trying it.
 ESPLORO_REPO=https://github.com/vukini/esploro
-ESPLORO_COMMIT=fa8b97b6b0b52a0a460b163bc300d6ed4445b517   # 2026-10-02: arrow keys redraw only what changed
+ESPLORO_COMMIT=b48b84cd1749d783ba575796432019dfe6f6ee42   # 2026-10-02: the window in Emacs
 OPT="$HOME/.local/opt/esploro"
-QL="$HOME/quicklisp/setup.lisp"
 BIN="$HOME/.local/bin"
 APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 LOGS="$VIKIX_STATE/logs"
@@ -64,12 +66,11 @@ build() {
   fetch
   local log="$LOGS/esploro-build.log"
   mkdir -p "$LOGS"
-  # Nothing shows while SBCL compiles McCLIM the first time: say how long,
-  # so a quiet terminal isn't taken for a stuck one.
-  say "building Esploro: McCLIM the first time, then the program (a minute or two, quietly; log: $log)"
+  say "building Esploro's command (a few seconds; log: $log)"
   # As its Makefile does, without needing make: build.lisp writes
-  # ./esploro.new, one program that opens at once.
-  ( cd "$OPT" && "$SBCL" --noinform --non-interactive --load "$QL" --load build.lisp ) > "$log" 2>&1 &&
+  # ./esploro.new, one program that starts at once. SBCL alone: the
+  # window is Emacs.
+  ( cd "$OPT" && "$SBCL" --noinform --non-interactive --no-userinit --load build.lisp ) > "$log" 2>&1 &&
     mv -f "$OPT/esploro.new" "$OPT/esploro" ||
     { tail -n 20 "$log"; die "Esploro didn't build (the end of $log is above)"; }
   [ -x "$OPT/esploro" ] || die "Esploro's program isn't where it should be ($OPT/esploro)"
@@ -81,12 +82,7 @@ cmd_setup() {
   local rebuild=${1:-}
   case $rebuild in ''|--rebuild) ;; *) die "vikix esploro setup [--rebuild]" ;; esac
   record_features esploro
-  local p missing=0
-  while IFS= read -r p; do pkg_installed "$p" || missing=1; done < <(read_list "$VIKIX_DIR/packages/optional/esploro.list")
-  if [ "$missing" = 1 ]; then
-    VIKIX_LISTS=esploro bash "$VIKIX_DIR/install/10-packages.sh" || warn "the programs for previews didn't install; Esploro works without them"
-  fi
-  [ -f "$QL" ] || [ "$DRY_RUN" = 1 ] || die "Quicklisp isn't here ($QL): ~/vikix/install.sh --only 30-lisp puts it there"
+  command -v emacs >/dev/null 2>&1 || [ "$DRY_RUN" = 1 ] || warn "Emacs isn't here, and Esploro's window is in Emacs: vikix add emacs"
   command -v "$SBCL" >/dev/null 2>&1 || [ "$DRY_RUN" = 1 ] || die "sbcl isn't here"
   build "$rebuild"
   link_managed "$OPT/esploro" "$BIN/esploro"
@@ -98,13 +94,13 @@ cmd_setup() {
 [Desktop Entry]
 # Written by vikix esploro setup; vikix esploro uninstall removes it.
 Name=Esploro
-Comment=A file explorer in Common Lisp: which window has each file, plans with undo
+Comment=A file explorer in Emacs: menus, the mouse, drag and drop, undo, and which window has each file
 Exec=$BIN/esploro %F
 Icon=system-file-manager
 Terminal=false
 Type=Application
 Categories=System;FileManager;
-StartupWMClass=Esploro
+MimeType=inode/directory;
 DESKTOP
   fi
   say "ready: Super+Alt+e, or esploro [FOLDER] (also in Super+d)"
@@ -124,7 +120,7 @@ cmd_uninstall() {
   run rm -f "$APPS/vikix-esploro.desktop"
   run rm -rf "$OPT"
   forget_features esploro
-  say "removed Esploro; McCLIM stays in your Quicklisp"
+  say "removed Esploro"
 }
 
 case ${1:-} in

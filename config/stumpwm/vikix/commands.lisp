@@ -352,9 +352,11 @@ programs of the features video, graphics, blender, study, passwords, phone,
 cli-extras and esploro. Each shows once its program is here.")
 
 (defcommand vikix-esploro () ()
-  "Esploro, the Lisp file explorer: its window if it's open, else a new one."
+  "Esploro, the file explorer: its frame if it's open, else a new one.
+The frame is Emacs's, so it's found by its title; the esploro command opens
+it through Emacs's server."
   (if (probe-file (merge-pathnames ".local/bin/esploro" (user-homedir-pathname)))
-      (run-or-raise "esploro" '(:class "Esploro"))
+      (run-or-raise "esploro" '(:title "Esploro"))
       (message "Esploro isn't installed. Add it: vikix add esploro (Super+m, then Add software)")))
 
 (defcommand vikix-apps () ()
