@@ -13,7 +13,8 @@
 # In it: the problems at a glance, Vikix's version and checkout, what
 # changed lately, the system, the hardware and screens, your features,
 # what vikix doctor says, the services, and Vikix's own lines from the logs
-# (the session's start and end, the last install and update), X's errors.
+# (the session's start and end, the last install and update), the
+# desktop's latest errors (~/.local/state/vikix/errors/), X's errors.
 # Left out: other programs' log lines (a browser's carry the pages you had
 # open, and text a web page chose), web addresses' paths, and (by
 # lib/debug-report.py) your secrets, whatever their shape, your home path,
@@ -41,6 +42,21 @@ newest() { local f; f=$(ls -1t "$LOGS"/$1 2>/dev/null | head -1); echo "${f:-non
 logs_of() {   # logs_of TITLE MODE FILE [N] — Vikix's own lines of a log
   printf '\n## %s\n(%s, Vikix'"'"'s own lines)\n' "$1" "$3"
   if [ -r "$3" ]; then python3 "$PY" "$2" "$3" ${4:+"$4"}; else echo "(not there)"; fi
+}
+
+# stumpwm_errors — the newest errors errors.lisp wrote down (what failed and
+# where, not the backtraces: the reports themselves have those).
+stumpwm_errors() {
+  local f n=0
+  printf '\n## Errors in the desktop, lately\n(%s, the newest 5)\n' "$VIKIX_STATE/errors/"
+  # shellcheck disable=SC2012  # the names are dates made by errors.lisp: no odd characters
+  for f in $(ls -1t "$VIKIX_STATE"/errors/*.txt 2>/dev/null | head -5); do
+    n=$((n + 1))
+    printf -- '- %s: ' "$(basename "$f" .txt)"
+    sed -n '1p;3p' "$f" | tr '\n' ' '
+    echo
+  done
+  [ "$n" -gt 0 ] || echo "(none)"
 }
 
 report() {
@@ -81,6 +97,7 @@ report() {
   logs_of "The session's log, the time before" --vikix-log "$VIKIX_STATE/session.log.old" 60
   logs_of "The last install" --vikix-log "$install" 120
   logs_of "The last update" --vikix-log "$update" 120
+  stumpwm_errors
   printf '\n## X: errors and warnings\n$ grep -E "\\((EE|WW)\\)" /var/log/Xorg.0.log\n'
   grep -E '\((EE|WW)\)' /var/log/Xorg.0.log 2>/dev/null | tail -n 60 || echo "(none, or no log)"
 }

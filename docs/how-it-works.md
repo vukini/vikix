@@ -32,6 +32,7 @@ login on tty1
               ├─ Ollama, for local AI models, once `vikix ai setup` installed it
               └─ ~/.local/bin/stumpwm             the last line; when it exits, the session ends
                   └─ ~/.stumpwm.d/init.lisp
+                      ├─ vikix/errors.lisp       when something fails, ask what to do
                       ├─ vikix/theme.lisp        colours and fonts
                       ├─ vikix/groups.lisp       workspaces 1–9
                       ├─ vikix/commands.lisp     Vikix's commands and the Super+m menu
@@ -45,7 +46,7 @@ login on tty1
                       └─ user.lisp               yours, last
 ```
 
-Each file in that list is loaded on its own. If one has a mistake, StumpWM shows the error on screen and loads the rest, so a typo in `user.lisp` never leaves you without a desktop.
+Each file in that list is loaded on its own, a piece (a form) at a time. If one piece has a mistake, a small menu asks what to do: skip that piece and load the rest, open the file at that line in Emacs, or, for `user.lisp`, load your last snapshot of it instead. So a typo in `user.lisp` costs only that line, never your desktop. Errors StumpWM itself doesn't catch (in a timer, say) used to restart the whole desktop; now the menu offers to carry on first. See [When the desktop asks what to do](fixing.md#when-the-desktop-asks-what-to-do).
 
 At the very first login, StumpWM also opens the welcome (`vikix welcome`, in a terminal): add software, the keys that matter, a theme, the keyboard layout, the guide. Once it has been shown, it only comes back from `Super+m` → *Welcome*.
 

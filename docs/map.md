@@ -16,7 +16,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │
 ├── .stumpwm.d/
 │   ├── init.lisp              Vikix's   loads Vikix's layer, then user.lisp
-│   ├── vikix/                 Vikix's   the layer: theme, groups, commands, windows, keys, help, webapps, modeline, swank-guard, swank
+│   ├── vikix/                 Vikix's   the layer: errors, theme, groups, commands, windows, keys, help, webapps, modeline, swank-guard, swank
 │   ├── user.lisp              yours     your StumpWM settings; loaded last, so they win
 │   └── modules/               stumpwm-contrib, cloned by 30-lisp (swm-gaps, ttf-fonts, ...)
 │
@@ -114,6 +114,8 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 | `logs/` | One log per install and per `vikix update`, named by date. Also the long output of a few builds, kept out of the update's own: `nvim-plugins.log` (Neovim's plugins), `whisper-build.log` (dictation), `lazarus-build.log` (the Lazarus IDE) |
 | `session.log`, `session.log.old` | Everything the desktop session printed, this login and the one before. The first place to look when the desktop won't start. |
 | `yours.git` | The history of your files (`vikix snapshot`, `changes`, `history`, `undo`). A git repository whose work tree is `~`, limited to the files in `~/vikix/config/yours.list` |
+| `errors/` | Every error the desktop met, one file each, with its backtrace: a mistake in `user.lisp` or a Vikix file, or one StumpWM didn't catch ([When something breaks](fixing.md#when-the-desktop-asks-what-to-do)). The newest 50 are kept |
+| `user-last-snapshot.lisp` | The copy of your last snapshot of `user.lisp`, written when you chose to load it instead of a broken one |
 | `migrations/` | Which one-off fixes this machine has had |
 | `welcome` | The welcome's steps you've done (`vikix welcome`); that it exists means the welcome has been shown, so it doesn't open at login again |
 | `checkout-changes/` | Changes someone made in `~/vikix`, set aside by `vikix update` as patch files (see [When something breaks](fixing.md#an-update-failed)) |

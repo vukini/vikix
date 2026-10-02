@@ -13,7 +13,8 @@
   "Where Vikix's StumpWM files live.")
 
 (defparameter *vikix-files*
-  '("theme"      ; colours and borders, as one palette
+  '("errors"     ; when something fails, ask what to do (loaded first, plainly)
+    "theme"      ; colours and borders, as one palette
     "groups"     ; workspaces 1-9
     "commands"   ; Vikix's own commands (menu, key help, reload)
     "windows"    ; focus, gaps, layout undo, finding windows
@@ -25,19 +26,25 @@
     "swank")     ; the door for Emacs, with a password
   "Loaded in this order. Each file only uses what the files before it define.")
 
+(defun vikix-load-file (file name)
+  "Load FILE. A mistake in it never leaves you with a dead desktop: with
+errors.lisp loaded, the file goes a form at a time and you're asked what
+to do about the one that failed (the rest still load); without it (a
+mistake in errors.lisp itself), the error is shown and the next file loads."
+  (if (and (fboundp 'vikix-load-forms) (not (equal name "errors.lisp")))
+      (funcall 'vikix-load-forms file name)
+      (handler-case (load file)
+        (error (e)
+          (message "^1Vikix: error in ~a:^n~%~a" name e)))))
+
 (defun vikix-load (name)
-  "Load one Vikix file. A mistake in one file is reported on screen and
-the rest still load, so a typo never leaves you with a dead desktop."
-  (let ((file (merge-pathnames (concatenate 'string name ".lisp") *vikix-dir*)))
-    (handler-case (load file)
-      (error (e)
-        (message "^1Vikix: error in ~a.lisp:^n~%~a" name e)))))
+  "Load one Vikix file."
+  (vikix-load-file (merge-pathnames (concatenate 'string name ".lisp") *vikix-dir*)
+                   (concatenate 'string name ".lisp")))
 
 (mapc #'vikix-load *vikix-files*)
 
 ;; Your file, last.
 (let ((user (merge-pathnames ".stumpwm.d/user.lisp" (user-homedir-pathname))))
   (when (probe-file user)
-    (handler-case (load user)
-      (error (e)
-        (message "^1Vikix: error in user.lisp:^n~%~a" e)))))
+    (vikix-load-file user "user.lisp")))

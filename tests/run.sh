@@ -5,7 +5,7 @@
 #                         sbcl), battery, home, services, backup (with
 #                         restic), image, theme, theme-import, bar, rofi,
 #                         wallpaper, examples, dev-ai, notes, drives, firmware, fingerprint, firewall, updates, notifications, idle, lock, lazarus, capture,
-#                         nightlight, update, windows, ai, ai-local, llm, ai-keys, agents, debug, dictate, voice, lisp-apps, esploro, mcp, swank (with Quicklisp), webapp, features, nvim, emacs, welcome, menu (with sbcl), pkg, oneline, info (with makeinfo),
+#                         nightlight, update, windows, ai, ai-local, llm, ai-keys, agents, debug, dictate, voice, lisp-apps, esploro, mcp, swank (with Quicklisp), errors (with Quicklisp's StumpWM), webapp, features, nvim, emacs, welcome, menu (with sbcl), pkg, oneline, info (with makeinfo),
 #                         and on Void also packages and dry-run
 #   tests/run.sh --quick  the same without the slow ones that check only
 #                         one corner: packages and dry-run (Void's mirror,
@@ -30,7 +30,7 @@ mode=${1:-}
 case $mode in ''|--quick|--all) ;; *) echo "usage: tests/run.sh [--quick|--all]" >&2; exit 2 ;; esac
 tests=(lint)
 if command -v sbcl >/dev/null; then tests+=(lisp); else echo "(lisp needs sbcl; skipped here)"; fi
-tests+=(battery home services lisp-stage image theme theme-import bar rofi wallpaper examples dev-ai notes drives firmware fingerprint firewall updates notifications idle lock lazarus capture nightlight update windows ai ai-local llm ai-keys agents debug dictate voice lisp-apps esploro hype learn mcp swank webapp features nvim emacs editor-theme welcome menu pkg oneline)
+tests+=(battery home services lisp-stage image theme theme-import bar rofi wallpaper examples dev-ai notes drives firmware fingerprint firewall updates notifications idle lock lazarus capture nightlight update windows ai ai-local llm ai-keys agents debug dictate voice lisp-apps esploro hype learn mcp swank errors webapp features nvim emacs editor-theme welcome menu pkg oneline)
 if command -v restic >/dev/null; then tests+=(backup); else echo "(backup needs restic; skipped here)"; fi
 if command -v makeinfo >/dev/null; then tests+=(info); else echo "(info needs makeinfo; skipped here)"; fi
 # --quick leaves these out (the run says so); the full run and GitHub keep them.

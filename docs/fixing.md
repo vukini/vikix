@@ -37,11 +37,30 @@ You'll be left at the text console, or with a black screen.
    - **X itself failed**: its log is `/var/log/Xorg.0.log` (look for lines starting `(EE)`).
 4. Log out of this console (`exit`), go back with **Ctrl+Alt+F1**, and log in there again.
 
-## A red error after a reload or login
+## When the desktop asks what to do
 
-`Vikix: error in user.lisp:` followed by the error means StumpWM couldn't run something in your `user.lisp`. Everything else loaded, so the desktop works. Fix the line and reload (`Super+m` → *Reload config*), or take the file back with `vikix undo`.
+StumpWM is a Lisp program, and Lisp doesn't have to give up when something fails: it can offer ways to go on. Vikix shows them in a small menu (arrows and Enter pick; Escape goes on without what failed).
 
-`Vikix: error in keys.lisp` (or another of Vikix's files) is a bug in Vikix. `vikix update` may already have the fix. If not, please report it.
+**A mistake in `user.lisp`** (or in one of Vikix's files), at login or after *Reload config*. The menu says which file, which line, and what went wrong, and offers:
+
+- *Skip this part, and load the rest of the file*: the rest of your settings still apply.
+- *Open user.lisp at line N in Emacs*: fix it there, save, and `Super+m` → *Reload config*.
+- *Load your last snapshot of user.lisp instead*: the version from your last `vikix snapshot` (or `vikix agent` start) runs this time; your file stays as it is, still to be fixed (`vikix changes` shows what changed since; `vikix undo` takes it back).
+- *Skip the rest of user.lisp*.
+
+When a `(` is never closed, the file can't be read past it, so only the last three are offered.
+
+An error in one of Vikix's own files (`keys.lisp` …) is a bug in Vikix. `vikix update` may already have the fix. If not, please report it.
+
+**Something failed that StumpWM doesn't catch** (an error in a timer, or while handling a window). StumpWM's answer used to be to restart: set everything up again and reload every file. The menu offers first:
+
+- *Carry on*: a fresh start of StumpWM's event loop, nothing reloaded; your windows and settings stay. When the error came from a timer that repeats, carrying on stops that timer, or it would fail again. A timer given a delay with a decimal point (`0.3`, which StumpWM can't take: write `3/10`) is mended.
+- *Carry on, and show what happened in Emacs*.
+- *Restart the desktop*, as before. Your windows stay open either way. (Before this menu, that restart could itself kill the desktop: StumpWM kept the old bar, and its first redraw failed. Vikix now takes the bar down first, and puts it back as it loads.)
+
+If errors keep coming (three in 20 seconds), Vikix stops asking and restarts, as StumpWM would.
+
+Every error is written down, with its backtrace, in `~/.local/state/vikix/errors/` (`vikix debug` includes the latest; an agent can read them too). To have errors reported without being asked, put `(setf *vikix-errors-ask* nil)` in `user.lisp`.
 
 ## A key doesn't work
 
