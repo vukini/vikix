@@ -80,8 +80,8 @@ The first plugins, in order:
 37. ~~**Agent waiting**~~ The first plugin, `agent-waiting` (Claude Code through its hooks). Still to do: the other agents, by watching their terminals.
 38. **Notes from anywhere.** A key opens a small capture box over whatever you're doing: type, dictate (the Super+F9 dictation), or take the selection, with the window's title or the page's address added as the source. It lands at once as a dated heading in the Org inbox, `~/Dropbox/notes/inbox.org` (item 54), through org-capture, so the phones see it too. Then, only when asked: `vikix notes sort` has a model read the inbox and refile each note under a project or category (the notes' Org files and headings, or a list in the settings), showing its choices first; local model by default. Later: a note's to-dos into Todoist, and a daily digest of what was captured.
 39. **Flights** (after Omarchy's most-starred plugin, LetsFG Flights). Search from a prompt ("DXB to LHR, 12 Nov, back 20th"), cheapest and quickest in a rofi list, the chosen one opened in the browser; watched routes, with a notification when the price drops. LetsFG (MIT, CLI and MCP) does the search, but asks for a payment method even to search, and can book: the plugin searches only, and booking stays in the browser, never done by an agent. Check its terms, and look for a search source that needs no card.
-40. **AI usage.** How much of the Claude plan this session has used, and when it resets, in the bar.
-41. **Next meeting.** The next meeting and how long until it starts, in the bar; a key opens its call link; a rofi list for the week.
+40. ~~**AI usage.**~~ The plugin `ai-usage`.
+41. ~~**Next meeting.**~~ The plugin `next-meeting` (calendars by their private ICS links). Still to do: Microsoft 365 by its sign-in, for when IT forbids publishing a calendar.
 42. **Unread mail.** A count in the bar: the first small piece of the desk (item 21).
 43. **Build status.** The last GitHub test run for chosen repos, Vikix's first; red in the bar when one fails.
 44. **A number of your choice.** Any figure refreshed on a timer (a portfolio's value, a sales total), from a command you give. Off unless set up.
