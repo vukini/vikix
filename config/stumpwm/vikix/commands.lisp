@@ -353,7 +353,8 @@ programs of the features video, graphics, blender, study, passwords, bitwarden, 
 cli-extras and esploro. Each shows once its program is here.")
 
 (defcommand vikix-esploro () ()
-  "Esploro, the file explorer: the one on this workspace, else a new one here.
+  "Esploro, the file explorer (Super+e): the one on this workspace, else a new
+one here; PCManFM where Esploro isn't installed (vikix add esploro).
 Each workspace can have its own (an Emacs frame titled Esploro); one on
 another workspace is left there. The esploro command opens a new one
 through Emacs's server, and asks StumpWM which workspace it's for."
@@ -363,7 +364,8 @@ through Emacs's server, and asks StumpWM which workspace it's for."
         (if here
             (group-focus-window (current-group) here)
             (run-shell-command "esploro")))
-      (message "Esploro isn't installed. Add it: vikix add esploro (Super+m, then Add software)")))
+      ;; Without Esploro, Super+e is still the files.
+      (run-shell-command "pcmanfm")))
 
 (defcommand vikix-apps () ()
   "Video, pictures, study and other apps that come with features."

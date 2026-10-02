@@ -125,7 +125,9 @@ es uninstall > /dev/null 2>&1 || true
 check "an esploro that isn't setup's should stay" test -f "$HOME/.local/bin/esploro" -a ! -L "$HOME/.local/bin/esploro"
 
 # --- The key and the menu -------------------------------------------------------
-check "Super+Alt+e should run vikix-esploro" grep -q '("s-M-e" *"vikix-esploro"' "$here/config/stumpwm/vikix/keys.lisp"
+check "Super+e should run vikix-esploro" grep -q '("s-e" *"vikix-esploro"' "$here/config/stumpwm/vikix/keys.lisp"
+check "Super+Alt+e should be PCManFM" grep -q '("s-M-e" *"exec pcmanfm"' "$here/config/stumpwm/vikix/keys.lisp"
+check "without Esploro, Super+e should still open files (PCManFM)" grep -q '(run-shell-command "pcmanfm")' "$here/config/stumpwm/vikix/commands.lisp"
 check "vikix-esploro should go to the Esploro frame on this workspace only (by its title, an Emacs frame)" \
   grep -q '(find "Esploro" (group-windows (current-group))' "$here/config/stumpwm/vikix/commands.lisp"
 check "the reload should reset the old one-buffer state, and make its buffer a view" \
@@ -135,5 +137,5 @@ check "the Apps menu should offer Esploro once it's here" \
   grep -q '(run-shell-command "esploro") "~/.local/bin/esploro")' "$here/config/stumpwm/vikix/commands.lisp"
 check "vikix update should build a moved pin" grep -q 'is_chosen esploro' "$here/bin/vikix"
 
-[ "$fail" = 0 ] && echo "esploro: fetched at its pin, its command built in its folder with SBCL alone, linked and in the launcher for folders, only what setup made goes, Emacs comes with it, Super+Alt+e"
+[ "$fail" = 0 ] && echo "esploro: fetched at its pin, its command built in its folder with SBCL alone, linked and in the launcher for folders, only what setup made goes, Emacs comes with it, Super+e"
 exit "$fail"

@@ -63,7 +63,7 @@
 #                         Lisp (vikix add lisp-apps)
 #   vikix esploro setup|status|uninstall
 #                         Esploro, a file explorer in Common Lisp (vikix add
-#                         esploro; Super+Alt+e)
+#                         esploro; Super+e)
 #   vikix mcp register|unregister|tools|status
 #                         the desktop as an MCP server, for Claude Code and other agents
 #   vikix agent         the AI agent, after a snapshot of your files (alias: a):

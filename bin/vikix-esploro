@@ -17,7 +17,7 @@
 #                           removes it (vikix remove esploro)
 #
 # Command: esploro [FOLDER] (through Emacs's server: Vikix runs Emacs as a
-# daemon); Super+Alt+e opens it, or goes to its frame; it's in the launcher
+# daemon); Super+e opens it, or goes to its frame; it's in the launcher
 # (Super+d) and Super+m, Apps; M-x esploro in Emacs once it's been opened.
 
 set -uo pipefail
@@ -130,7 +130,7 @@ MimeType=inode/directory;
 DESKTOP
   fi
   reload_in_emacs
-  say "ready: Super+Alt+e, or esploro [FOLDER] (also in Super+d)"
+  say "ready: Super+e, or esploro [FOLDER] (also in Super+d)"
 }
 
 cmd_status() {
