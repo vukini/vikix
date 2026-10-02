@@ -146,6 +146,23 @@ else
   echo "nyxt: no sbcl, the Lisp part skipped"
 fi
 
+# --- The starter config.lisp: Vikix's part when it's there, and on without it
+if command -v sbcl >/dev/null 2>&1; then
+  starter() {   # starter DATA-HOME: load the starter, then say whether it got to its end
+    XDG_DATA_HOME="$1" sbcl --noinform --no-sysinit --no-userinit --non-interactive \
+      --eval '(require :asdf)' --eval '(defpackage :nyxt-user (:use :cl))' \
+      --eval "(load \"$here/config/nyxt/config.lisp\")" \
+      --eval '(format t "end ~a~%" (and (find-symbol "VIKIX-LOADED" :nyxt-user) t))' 2>&1 | grep '^end ' || true
+  }
+  mkdir -p "$t/data-ok/vikix/nyxt" "$t/data-gone/vikix/nyxt"
+  echo '(defvar nyxt-user::vikix-loaded t)' > "$t/vikix-part.lisp"
+  ln -s "$t/vikix-part.lisp" "$t/data-ok/vikix/nyxt/vikix.lisp"
+  ln -s "$t/no-such-checkout/vikix.lisp" "$t/data-gone/vikix/nyxt/vikix.lisp"
+  check "the starter loads Vikix's part" test "$(starter "$t/data-ok")" = "end T"
+  check "a link to a file that's gone doesn't stop it" test "$(starter "$t/data-gone")" = "end NIL"
+  check "nor does no link at all" test "$(starter "$t/data-none")" = "end NIL"
+fi
+
 # --- vikix theme asks a running Nyxt ----------------------------------------
 mkdir -p "$t/bin"
 printf '#!/bin/sh\nfor a in "$@"; do echo "$a"; done >> "%s/calls"\n' "$t" > "$t/bin/nyxt"
