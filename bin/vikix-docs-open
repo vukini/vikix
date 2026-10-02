@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# vikix-docs-open — open guides, tutorials and offline docs in the docs browser.
+#
+#   vikix-docs-open FILE|URL...
+#
+# The docs browser is Nyxt when it's installed (the feature lisp-apps): a
+# browser written in Common Lisp, changeable in Lisp as StumpWM is, so the
+# guides can grow keys and pages of their own there. The rest of the web
+# stays with your default browser (xdg-open, ~/.config/mimeapps.list).
+# Without Nyxt, this is xdg-open.
+#
+# ~/.config/vikix/docs-browser, if you make it, names another program to
+# use instead: one word on a line, such as firefox, chromium or xdg-open.
+#
+# A running Nyxt takes the pages as new buffers in its window (Nyxt hands
+# them over through its socket), and StumpWM then brings that window
+# forward, from whichever workspace it's on.
+
+set -uo pipefail
+
+[ "$#" -gt 0 ] || { echo "usage: vikix-docs-open FILE|URL..." >&2; exit 2; }
+
+CHOICE="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/docs-browser"
+
+# A file becomes a file:// URL: Nyxt would take a bare path for a search.
+urls=()
+for a in "$@"; do
+  case $a in
+    *://*|about:*|nyxt:*) urls+=("$a") ;;
+    *) if [ -e "$a" ]; then
+         p=$(readlink -f -- "$a")
+         p=${p//%/%25}; p=${p// /%20}; p=${p//#/%23}; p=${p//\?/%3F}
+         urls+=("file://$p")
+       else
+         urls+=("$a")
+       fi ;;
+  esac
+done
+
+browser=
+[ -r "$CHOICE" ] && browser=$(sed -n '/^[[:space:]]*[^#[:space:]]/{s/^[[:space:]]*//;s/[[:space:]].*//;p;q}' "$CHOICE")
+if [ -z "$browser" ]; then
+  if command -v nyxt >/dev/null 2>&1; then browser=nyxt; else browser=xdg-open; fi
+fi
+command -v "$browser" >/dev/null 2>&1 || { echo "vikix-docs-open: $browser is not installed" >&2; exit 1; }
+
+case $browser in
+  xdg-open)
+    # xdg-open takes one at a time.
+    for u in "${urls[@]}"; do setsid -f xdg-open "$u" >/dev/null 2>&1; done ;;
+  nyxt)
+    running=0
+    pgrep -u "$(id -u)" -x nyxt >/dev/null 2>&1 && running=1
+    setsid -f nyxt "${urls[@]}" >/dev/null 2>&1
+    # A new Nyxt opens where you are; a running one may be elsewhere.
+    if [ "$running" = 1 ]; then
+      vikix-eval '(vikix-raise-class "Nyxt")' >/dev/null 2>&1 || true
+    fi ;;
+  *)
+    setsid -f "$browser" "${urls[@]}" >/dev/null 2>&1 ;;
+esac

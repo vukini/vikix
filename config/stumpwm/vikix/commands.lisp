@@ -187,6 +187,17 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
   (run-shell-command (format nil "autorandr --save ~a --force" name))
   (message "Screen layout saved as ~a" name))
 
+;; vikix-docs-open (bin/) opens guides and docs in Nyxt; when Nyxt is
+;; already running, the page goes to its window, which may be on another
+;; workspace, so it asks for this.
+(defun vikix-raise-class (class)
+  "Bring the first window of CLASS (\"Nyxt\") forward, from any workspace.
+Returns the window, or nil when there's none."
+  (let ((win (find class (screen-windows (current-screen))
+                   :key 'window-class :test 'equal)))
+    (when win (focus-all win))
+    win))
+
 (defparameter *vikix-menu*
   '(("Welcome: first steps" vikix-welcome)
     ("Add software: languages, editors, office ..." vikix-add-software)
@@ -199,7 +210,7 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
                                (format nil "emacsclient -c -a '' -e '(info \"~~/.local/share/info/vikix.info\")' || ~a -e info -f ~~/.local/share/info/vikix.info"
                                        *vikix-terminal*)))
     ("Vikix guide in the browser, with diagrams"
-     (run-shell-command "xdg-open ~/.local/share/vikix/guide/index.html")
+     (run-shell-command "vikix-docs-open ~/.local/share/vikix/guide/index.html")
      "~/.local/share/vikix/guide/index.html")
     ("Update Vikix"      vikix-update)
     ("AI agent"            vikix-agent)
@@ -209,7 +220,7 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
     ("AI on the selected text" (run-shell-command "vikix-ask"))
     ("Learn C: the lesson, and a shell beside it" (vikix-learn-open "c"))
     ("JupyterLab (in ~/dev)" (run-shell-command "vikix-jupyter") "~/dev/python/.venv/bin/jupyter")
-    ("Programming docs (offline)" (run-shell-command "xdg-open ~/dev/index.html") "~/dev/index.html")
+    ("Programming docs (offline)" (run-shell-command "vikix-docs-open ~/dev/index.html") "~/dev/index.html")
     ("Zeal: search the docs" (run-shell-command "zeal") "zeal")
     ("Clipboard history"   (run-shell-command "env CM_LAUNCHER=rofi clipmenu"))
     ("Emoji"               (run-shell-command "vikix-rofi emoji"))

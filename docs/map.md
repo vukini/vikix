@@ -48,6 +48,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── packages-skip      yours     packages you dropped (vikix pkg drop); updates leave them out
 │   │   ├── windows            yours     where the Windows VM's disk is
 │   │   ├── webapps            yours     your web apps: NAME URL [KEY] (vikix webapp)
+│   │   ├── docs-browser       yours     the browser for guides and docs, one word (make it; Nyxt without it, when installed)
 │   │   ├── wallpaper          yours     a link to the picture you chose
 │   │   ├── wallpaper-off      yours     exists if you set the wallpaper with your own tool
 │   │   ├── titlebars-off      yours     exists if you turned the title bars off (Super+y)
@@ -79,7 +80,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   ├── share/vikix/nvim               Vikix's   Vikix's part of Neovim: AstroNvim and Vikix's plugins (a link to config/nvim)
 │   ├── share/vikix/emacs              Vikix's   Vikix's part of Emacs: vikix-ai.el, gptel on vikix ai use's model and your agent in agent-shell; vikix-theme.el, the theme following vikix theme (a link to config/emacs)
 │   ├── share/info/vikix.info          written   these guides as an Info manual (`info vikix`)
-│   ├── share/vikix/guide/             written   these guides as web pages, with the diagrams (Super+m → Vikix guide in the browser)
+│   ├── share/vikix/guide/             written   these guides as web pages, with the diagrams (Super+m → Vikix guide in the browser: in Nyxt when it's installed, through vikix-docs-open)
 │   ├── share/vikix/wallpapers/        fetched   Vid's wallpapers, a git clone (vikix add wallpapers; a link to ~/wallpapers if that's a clone of it)
 │   ├── share/vikix/whisper/           fetched   dictation's model and voice detector (vikix dictate)
 │   ├── share/vikix/piper/             fetched   the voice the AI talks with (vikix voice)
