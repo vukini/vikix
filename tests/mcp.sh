@@ -174,6 +174,19 @@ mv "$t/bin/esploro" "$t/esploro.off"
 out=$(PATH="$t/bin:/usr/bin:/bin" call propose_file_changes '{"steps":[{"op":"mkdir","path":"/home/u/x"}]}')
 check "without Esploro it should say so: $out" grep -q "Esploro isn't installed" <<<"$out"
 mv "$t/esploro.off" "$t/bin/esploro"
+# The user's sorting rules go with propose_file_changes, to every agent.
+described() { rpc -- '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python3 -c 'import json,sys; print(next(t["description"] for t in json.loads(sys.stdin.readline())["result"]["tools"] if t["name"] == "propose_file_changes"))'; }
+out=$(described)
+check "without rules it should say where they'd go: $out" grep -qF "$HOME/.config/esploro/sorting.md: when they correct a plan" <<<"$out"
+mkdir -p "$HOME/.config/esploro"
+printf '# Where my files go\n\n- A work zip goes in Work, not in Archives.\n' >"$HOME/.config/esploro/sorting.md"
+out=$(described)
+check "the rules should be in the description: $out" grep -qF -- "- A work zip goes in Work, not in Archives." <<<"$out"
+check "and said to be followed: $out" grep -qF "follow the user's rules for where their files go" <<<"$out"
+head -c 6000 /dev/zero | tr '\0' x >>"$HOME/.config/esploro/sorting.md"
+out=$(described)
+check "long rules should be cut, and say so: ${#out}" grep -qF "[cut short: read the whole file]" <<<"$out"
+rm -r "$HOME/.config/esploro"
 
 out=$(call notify '{"body":"no title"}')
 check "notify without a title should say so: $out" grep -q '^ERROR: notify needs a title' <<<"$out"

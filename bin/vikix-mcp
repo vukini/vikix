@@ -57,6 +57,11 @@ LOG = os.path.join(STATE, "mcp.log")
 # runs: an update's new version starts only at each one's next call, and
 # `vikix mcp status` shows where they are.
 RUNNING = os.path.join(STATE, "mcp-servers")
+# The user's rules for where their files go, given to every agent with
+# propose_file_changes, so a correction made once holds for all of them.
+SORTING = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"),
+                       "esploro", "sorting.md")
+SORTING_MAX = 4000
 VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"]
 MAX_OUT = 20000
 MAX_LINE = 1 << 20          # a request longer than 1 MB isn't one
@@ -463,8 +468,25 @@ UNDO_TOOL = ("undo", "Undo: your files back a snapshot",
              schema({"snapshot": {"type": "string"}}), RISK, t_undo)
 
 
+def sorting_rules():
+    """The user's sorting rules, as they wrote them (cut at SORTING_MAX), or ''."""
+    try:
+        with open(SORTING, encoding="utf-8", errors="replace") as f:
+            text = f.read(SORTING_MAX + 1).strip()
+    except OSError:
+        return ""
+    return text[:SORTING_MAX] + (" [cut short: read the whole file]" if len(text) > SORTING_MAX else "")
+
+
 def tools(allow_eval, allow_undo):
     ts = list(TOOLS)
+    rules = sorting_rules()
+    ts = [(t[0], t[1], t[2] + (f" Before planning, follow the user's rules for where their files go, "
+                               f"from {SORTING} (theirs; when they correct a plan, offer to add the "
+                               f"correction there):\n\n{rules}" if rules else
+                               f" The user can keep rules for where their files go in {SORTING}: "
+                               f"when they correct a plan, offer to write the correction there."))
+           + t[3:] if t[0] == "propose_file_changes" else t for t in ts]
     if allow_eval:
         ts.append(EVAL_TOOL)
     if allow_undo:
