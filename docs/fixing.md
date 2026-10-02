@@ -162,6 +162,46 @@ First see whether it's the connection or one program. `ping -c 5 1.1.1.1` should
 
 After `vikix mcp register`, restart the agent: it reads its list of servers when it starts. Then `vikix mcp status` says whether Claude Code has it, which risky tools are on, how many servers are running and on which version, and the last calls. For Codex, Gemini CLI and OpenCode, `vikix mcp register` prints the lines to put in their settings yourself. A tool that says it was refused names what it would take (a workspace that exists, a theme you have); every call is in `~/.local/state/vikix/mcp.log`.
 
+## Looking for yourself: what the kernel and the system did
+
+When something happens below the desktop (the laptop sleeps oddly, a device comes and goes, the screen flickers), the kernel usually wrote it down. The way to find out is always the same: make it happen once, then look at what was written at that moment.
+
+**The kernel's messages.** The kernel keeps its recent messages in memory, from the last boot on. Void lets only root read them:
+
+```sh
+sudo dmesg -T | less          # all of them, with the time of day (-T); / searches, q quits
+sudo dmesg -T | tail -40      # the newest 40: right after something happened, that's it
+sudo dmesg -Tw                # live: leave it open, make it happen, watch (Ctrl+c stops)
+sudo dmesg -T --level=err,warn    # only errors and warnings
+sudo dmesg -T | grep -i usb   # only the lines about one thing
+```
+
+Read them by their time (`-T`) and by the words at the start: `PM:` is power management (sleep and waking), `usb`, `ACPI`, `i915` or `amdgpu` (the graphics), `wlan`/`iwlwifi` (wi-fi). A line with `error`, `failed` or `timeout` near the moment you care about is the thread to pull. They are gone after a reboot; `/var/log/dmesg.log` keeps the last boot's first messages.
+
+**Who answers an event.** Often two programs answer the same thing, or none does. For the lid, the power button and sleep:
+
+```sh
+ls /var/service                    # the services runit runs
+cat /etc/acpi/handler.sh           # what acpid does with the lid and buttons (when it runs)
+busctl get-property org.freedesktop.login1 /org/freedesktop/login1 \
+  org.freedesktop.login1.Manager HandleLidSwitch      # what elogind does with the lid
+elogind-inhibit --list             # who may hold off sleep, and why (the lock screen does)
+ls /etc/zzz.d/*/                   # what runs before sleeping and after waking
+```
+
+**Sleep's own counters.** The kernel counts every attempt to sleep:
+
+```sh
+cat /sys/power/mem_sleep                      # [deep] is real sleep (S3); s2idle is lighter
+grep -r "" /sys/power/suspend_stats/          # successes, failures, and the step that failed
+```
+
+Note the numbers, close and open the lid once, and look again: one more `success` is right; a new `fail` with `last_failed_step:freeze` and `last_failed_errno:-16` ("busy") means something asked to sleep while sleep was already on its way.
+
+**A worked case: the lid** (fixed in 0.71.30). Opening the lid left the screen blank for a while, then it woke. `suspend_stats` showed 15 successes and 5 failures, busy at the freeze step. `handler.sh` ran `zzz` on the lid, and elogind's `HandleLidSwitch` said `suspend`: two programs suspending on one lid. `sudo dmesg -T | grep -E "PM: suspend (entry|exit)"` showed it as two entries for one close. The fix was to keep one: elogind, which locks the screen first.
+
+**The rest of what was written down**, by Vikix and the desktop: `~/.local/state/vikix/session.log` (the session), `~/.local/state/vikix/errors/` (errors in the desktop), `/var/log/Xorg.0.log` (the display), and `vikix debug`, which gathers them. Void has no system log by default; `sudo xbps-install socklog-void` and `sudo ln -s /etc/sv/socklog-unix /etc/sv/nanoklogd /var/service/` keep the services' and the kernel's messages in `/var/log/socklog/`, across reboots.
+
 ## Asking for help
 
 Ask the agent first. `vikix diagnose` (or Super+m → *Something's wrong? Ask the agent*) writes a report of what's going on and hands it to your AI agent, asking what's wrong and how to fix it. The agent starts by reading and proposing (Claude Code in its plan mode, Codex read-only), asks before it changes anything, and a snapshot is taken first, so `vikix undo` takes its changes back. Its reports are kept in `~/.local/state/vikix/diagnose/` (the last five).

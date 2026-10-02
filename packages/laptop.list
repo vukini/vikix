@@ -2,7 +2,6 @@
 tlp             # battery life
 fwupd           # firmware updates from LVFS: BIOS, Thunderbolt, docks (vikix firmware)
 fprintd         # fingerprint readers libfprint supports (vikix fingerprint)
-acpid           # lid and power-button events
 brightnessctl   # brightness keys
 xprintidle      # idle time, for suspending on battery (vikix-idle)
 bluez           # Bluetooth
