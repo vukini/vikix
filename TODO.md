@@ -56,7 +56,6 @@ Added 2026-09-30, from a conversation with Vid about 0.52-0.65. Not yet ordered 
 ### Work
 
 27. **Remote desktop.** Remmina or FreeRDP, for work servers, lighter than the Windows VM.
-28. **Teams and Zoom as web app presets,** beside the mail ones.
 
 ### The desktop
 
