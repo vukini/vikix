@@ -54,7 +54,7 @@ case $browser in
     setsid -f nyxt "${urls[@]}" >/dev/null 2>&1
     # A new Nyxt opens where you are; a running one may be elsewhere.
     if [ "$running" = 1 ]; then
-      vikix-eval '(vikix-raise-class "Nyxt")' >/dev/null 2>&1 || true
+      vikix eval '(vikix-raise-class "Nyxt")' >/dev/null 2>&1 || true
     fi ;;
   *)
     setsid -f "$browser" "${urls[@]}" >/dev/null 2>&1 ;;

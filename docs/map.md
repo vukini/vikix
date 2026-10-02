@@ -65,6 +65,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   ├── mimeapps.list              yours  which program opens which kind of file
 │   ├── fontconfig/conf.d/50-vikix-iosevka.conf   Vikix's   monospace means Iosevka
 │   ├── udiskie/config.yml         yours, if you make it: replaces Vikix's udiskie settings
+│   ├── nyxt/config.lisp           yours     with the feature lisp-apps: Nyxt's settings, in Lisp; loads Vikix's part first (the desktop's colours)
 │   └── nvim/                      yours     with the feature neovim: init.lua (your settings at its end), your plugins in lua/plugins/, lazy-lock.json
 │
 ├── .emacs.d/                  with the feature emacs: a git clone of the Emacs config (vukini/emacs-void)
@@ -78,6 +79,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   ├── share/applications/*.desktop   Vikix's   JupyterLab, vikix-image, Lazarus in the launcher (Super+d); your web apps' too, Lem's and the Listener's (lisp-apps), and Esploro's
 │   ├── share/vikix/fonts/wm.ttf       built     the bar's font, made by vikix-font
 │   ├── share/vikix/nvim               Vikix's   Vikix's part of Neovim: AstroNvim and Vikix's plugins (a link to config/nvim)
+│   ├── share/vikix/nyxt/vikix.lisp    Vikix's   Vikix's part of Nyxt: its colours from vikix theme's palette, followed live (a link to config/nyxt)
 │   ├── share/vikix/emacs              Vikix's   Vikix's part of Emacs: vikix-ai.el, gptel on vikix ai use's model and your agent in agent-shell; vikix-theme.el, the theme following vikix theme (a link to config/emacs)
 │   ├── share/info/vikix.info          written   these guides as an Info manual (`info vikix`)
 │   ├── share/vikix/guide/             written   these guides as web pages, with the diagrams (Super+m → Vikix guide in the browser: in Nyxt when it's installed, through vikix-docs-open)

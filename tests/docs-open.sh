@@ -21,7 +21,7 @@ fail=0
 check() { "${@:2}" || { echo "FAIL: $1"; fail=1; }; }
 
 # Stand-ins: each writes what it was given, a line an argument.
-for p in nyxt xdg-open firefox vikix-eval; do
+for p in nyxt xdg-open firefox vikix; do
   printf '#!/bin/sh\nfor a in "$@"; do echo "%s $a"; done >> "%s/calls"\n' "$p" "$t" > "$t/bin/$p"
   chmod +x "$t/bin/$p"
 done
@@ -39,12 +39,13 @@ out=$(calls)
 check "a file goes to Nyxt as a file:// URL" grep -qx "nyxt file://$t/docs/index.html" <<<"$out"
 check "spaces and # are escaped" grep -qx "nyxt file://$t/docs/a%20dir/c%231.html" <<<"$out"
 check "a URL goes as it is" grep -qx "nyxt https://vikix.dev" <<<"$out"
-check "no raise when Nyxt wasn't running" bash -c "! grep -q vikix-eval <<<'$out'"
+check "no raise when Nyxt wasn't running" bash -c "! grep -q raise-class <<<'$out'"
 
 touch "$t/running"
 open "$t/docs/index.html"
 out=$(calls)
-check "a running Nyxt's window is asked forward" grep -qx 'vikix-eval (vikix-raise-class "Nyxt")' <<<"$out"
+# Through `vikix eval`: vikix-eval itself isn't on PATH (40-config leaves it out).
+check "a running Nyxt's window is asked forward" grep -qx 'vikix (vikix-raise-class "Nyxt")' <<<"$out"
 rm "$t/running"
 
 rm "$t/bin/nyxt"

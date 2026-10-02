@@ -885,6 +885,18 @@ theme_editors() {
   done
 }
 
+# Nyxt, when it's running with Vikix's part of its config
+# (config/nyxt/vikix.lisp), which lets its socket take Lisp: the socket is
+# in the runtime folder, so only yours. Without that part, or not answering
+# in 3 seconds, it's left as it is, and reads the colours at its next start.
+theme_nyxt() {
+  command -v nyxt >/dev/null 2>&1 || return 0
+  pgrep -u "$(id -u)" -x nyxt >/dev/null 2>&1 || return 0
+  timeout 3 nyxt --remote --quit --eval \
+    '(let ((f (and (find-package :nyxt-user) (find-symbol "VIKIX-THEME-APPLY" :nyxt-user)))) (when (and f (fboundp f)) (funcall f)))' \
+    </dev/null >/dev/null 2>&1 || true
+}
+
 theme_current() {
   local n; n=$(cat "$THEME_OUT/current" 2>/dev/null) || n=void
   theme_name_ok "$n" && echo "$n" || echo void
@@ -921,6 +933,7 @@ cmd_theme() {
     # ours, open kitty windows change too.
     pkill -USR1 -x kitty 2>/dev/null || true
     theme_editors
+    theme_nyxt
     # The theme's own wallpaper, unless you chose one (vikix-wallpaper).
     # Not on --refresh: that is `vikix update` rewriting the same theme,
     # and must not replace a picture set some other way.

@@ -85,6 +85,10 @@ run chmod 700 "$VIKIX_STATE"
 # made from the skill, so it changes with it.
 bash "$VIKIX_DIR/bin/vikix-agent" --write-guide
 link_managed "$C/fontconfig/50-vikix-iosevka.conf" "$HOME/.config/fontconfig/conf.d/50-vikix-iosevka.conf"
+# Vikix's part of Nyxt's config (the desktop's colours), where your
+# config.lisp loads it from. Linked whether or not Nyxt is here: it's only
+# read by Nyxt, and is then in place when Nyxt comes.
+link_managed "$C/nyxt/vikix.lisp" "${XDG_DATA_HOME:-$HOME/.local/share}/vikix/nyxt/vikix.lisp"
 
 # --- Your files -----------------------------------------------------------
 copy_user "$C/stumpwm/user.lisp"          "$SD/user.lisp"
@@ -101,6 +105,11 @@ fill_mime_defaults "$C/xdg/mimeapps.list" "${XDG_CONFIG_HOME:-$HOME/.config}/mim
 copy_user "$C/x11/Xresources"             "$HOME/.Xresources"
 copy_user "$C/backup/exclude"             "$HOME/.config/vikix/backup-exclude"
 copy_user "$C/projects/projects"          "$HOME/.config/vikix/projects"
+# Nyxt's config, once Nyxt is installed (the feature lisp-apps; its setup
+# copies it too, as `vikix add` doesn't run this stage).
+if command -v nyxt >/dev/null 2>&1; then
+  copy_user "$C/nyxt/config.lisp"         "$HOME/.config/nyxt/config.lisp"
+fi
 
 # The theme's files for the terminals, rofi, dunst and the lock screen,
 # written again from the saved theme, so a Vikix update reaches them.

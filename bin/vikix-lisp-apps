@@ -139,6 +139,10 @@ cmd_setup() {
   fi
   [ -f "$QL" ] || [ "$DRY_RUN" = 1 ] || die "Quicklisp isn't here ($QL): ~/vikix/install.sh --only 30-lisp puts it there"
   command -v "$SBCL" >/dev/null 2>&1 || [ "$DRY_RUN" = 1 ] || die "sbcl isn't here"
+  # Nyxt's config: Vikix's part (the desktop's colours, following
+  # `vikix theme`), and yours that loads it, once (40-config does the same).
+  link_managed "$VIKIX_DIR/config/nyxt/vikix.lisp" "${XDG_DATA_HOME:-$HOME/.local/share}/vikix/nyxt/vikix.lisp"
+  copy_user "$VIKIX_DIR/config/nyxt/config.lisp" "$HOME/.config/nyxt/config.lisp"
   build_lem "$rebuild"
   build_listener "$rebuild"
   link_managed "$LEM_OPT/lem" "$BIN/lem"
@@ -153,6 +157,12 @@ cmd_setup() {
 
 cmd_status() {
   if command -v nyxt >/dev/null 2>&1; then echo "nyxt           installed (Void's package)"; else echo "nyxt           not installed"; fi
+  if grep -qs 'vikix/nyxt/vikix.lisp' "$HOME/.config/nyxt/config.lisp"; then
+    echo "nyxt's colours follow vikix theme (~/.config/nyxt/config.lisp loads Vikix's part)"
+  elif [ -e "$HOME/.config/nyxt/config.lisp" ]; then
+    echo "nyxt's colours are its own: to follow vikix theme, add to ~/.config/nyxt/config.lisp:"
+    echo "  (load (merge-pathnames \"vikix/nyxt/vikix.lisp\" (uiop:xdg-data-home)))"
+  fi
   if lem_built; then echo "lem            built, commit ${LEM_COMMIT:0:7} ($LEM_OPT)"
   elif [ -x "$LEM_OPT/lem" ]; then echo "lem            built from another commit: vikix lisp-apps setup --rebuild"
   else echo "lem            not built"; fi
