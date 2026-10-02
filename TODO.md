@@ -105,7 +105,12 @@ Decided: **one repo** for all the projects; **private**; the claude.ai pages kep
     - Then every project's build and check run on Vikix; a list of what fails, fixed project by project.
     - Switch-over: the laptop clones to `~/living` (outside the vault); the vault's `Living-in-Life` becomes read-only, then archived once all is verified.
 50. **The `living` plugin (Vid's own).** The series-specific layer on `vikix project` (item 49, shipped): `living` (the dashboard), `living open lambda`, `living log`, `living shelf` (the Living Shelf page built from the projects' `log.md` files: the log is Markdown now, `log.md` per project with a Status block and dated entries, not the `project.org` first planned), and a bar note for the project in hand. It uses the plugin system (item 34).
-51. **The online views.** The Work Log, Status Board and Living Shelf pages on claude.ai regenerated from the repo, not typed into by hand: at the end of a Claude session that changed the log, and by a daily scheduled cloud task reading the repo. The repo is the truth; the pages are for reading anywhere.
+50a. **`vikix project`, the rest.** What item 49 planned beyond what shipped in 0.71.30:
+    - `vikix project new NAME [--in COLLECTION | --private]`: makes the folder (or `~/src/project-logs/NAME/` for a public repo) and a `log.md` with its heading and a Status block, so a project appears in the list without writing the file by hand.
+    - `vikix project check NAME`: runs the project's checks (its `check` script, `make check`, or a `- Check:` line in its log), as `build` does for builds.
+    - `vikix today`: what was done today and what is next, across every project, from the logs' entries dated today and their Next lines (and the commits made today in each repo).
+    - `open` with a saved window layout: the project's terminal, editor, a preview of its built page and the agent, placed the way they were left last time (StumpWM's dump-group / restore-group, saved per project), instead of a fresh terminal and editor.
+51. ~~**The online views.**~~ Dropped (Vid, 2026-10-02): the series is made on the laptop and claude.ai is no longer used, so there are no pages there to regenerate. `vikix project list` and the logs are the views.
 52. **Reading on the phone.** The GitHub app shows the private repo as it is (Markdown and Org both render; nothing to set up, read-only); the online views (item 51) for status at a glance. Notes and quick capture on the phones go through the Org notes in Dropbox (item 54), not the repo. Obsidian is no longer part of this (item 53).
 
 ## Org instead of Obsidian (decided with Vid 2026-09-30)
