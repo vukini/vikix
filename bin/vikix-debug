@@ -74,6 +74,7 @@ report() {
   section "The checkout: changes in it" git -C "$VIKIX_DIR" status --short --untracked-files=no
   section "The checkout: where it pulls from" git -C "$VIKIX_DIR" remote -v
   section "Your files: the last snapshots" git --git-dir="$VIKIX_STATE/yours.git" log -5 --format='%h %ci %s'
+  section "Plugins" bash "$VIKIX_DIR/bin/vikix-plugin" status
   section "Migrations run lately" bash -c "ls -1t '$VIKIX_STATE/migrations' 2>/dev/null | head -5"
   section "System" uname -a
   section "Void" cat /etc/os-release

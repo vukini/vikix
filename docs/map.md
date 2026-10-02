@@ -31,6 +31,8 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   ├── vikix/
 │   │   ├── vikix.bash         Vikix's   aliases, prompt, fzf/zoxide/atuin setup
 │   │   ├── keyboard           yours     layout and XKB options
+│   │   ├── plugins.list       yours     the plugins you added (vikix plugin add); "#off NAME" is one switched off
+│   │   ├── plugins/NAME/      yours     your settings for plugin NAME (copied once)
 │   │   ├── idle               yours     minutes before lock, dark screen, suspend (make it; see customize.md)
 │   │   ├── backup             yours     where backups go, and the reminder's days
 │   │   ├── backup-exclude     yours     what backups leave out
@@ -84,6 +86,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   ├── share/vikix/notes/index.db     written   note's index: passages of your notes and their embeddings (folder 700; note index)
 │   ├── share/vikix/AGENTS.md          written   the skill as a guide for Codex, Gemini, Aider (linked as ~/.codex/AGENTS.md, ~/.gemini/GEMINI.md)
 │   ├── opt/picolisp/          built     PicoLisp, from source (with the feature lisp)
+│   ├── share/vikix/plugins/   Vikix's   the plugins repo at its pinned commit (vikix plugin sync)
 │   ├── opt/lem/               built     Lem, the editor in Common Lisp (vikix add lisp-apps)
 │   ├── opt/mcclim/            built     McCLIM's Listener, with Clouseau (vikix add lisp-apps)
 │   ├── opt/esploro/           built     Esploro, the file explorer: its command, and emacs/esploro.el, its window in Emacs (vikix add esploro)

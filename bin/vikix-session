@@ -61,6 +61,7 @@ fi
 pipewire &                             # audio (starts WirePlumber and pipewire-pulse)
 dunst &                                # notifications
 clipmenud &                            # remembers what you copy (Super+c)
+"$HOME/.local/bin/vikix-plugin" services &   # programs of the plugins you added (vikix plugin add)
 "$HOME/.local/bin/vikix-drives" start &   # USB drives mount when plugged in (udiskie)
 # The compositor forks itself. glx is its fast backend on real graphics.
 # A virtual machine's OpenGL is drawn in software, where glx starts fine

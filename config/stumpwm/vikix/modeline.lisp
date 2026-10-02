@@ -4,6 +4,7 @@
 ;;;;   %J   workspaces in use, the current one in [brackets]
 ;;;;   %W   the current workspace's windows, the focused one in the accent colour
 ;;;;   ^>   everything after this goes on the right
+;;;;   %P   the plugins' few words (plugins.lisp; vikix plugin add)
 ;;;;   %R   rec: the screen is being recorded (vikix-record); mic: dictation listens
 ;;;;   %K   awake: keep awake is on (no lock, dark screen or suspend)
 ;;;;   %X   win: the Windows VM is running (vikix windows); it uses memory and battery
@@ -204,7 +205,7 @@ from *vikix-recording* and *vikix-dictating* (commands.lisp)."
       (format nil "^(:push)^(:fg \"~a\")ai^(:pop)  " (vikix-colour :subtle))
       ""))
 
-;; %J, %V, %O, %T, %U, %A, %D, %Q, %K, %X, %Y, %R, %E and %Z are free: neither StumpWM nor its
+;; %J, %V, %O, %T, %U, %A, %D, %Q, %K, %X, %Y, %R, %E, %Z and %P (plugins.lisp) are free: neither StumpWM nor its
 ;; contrib modules use them.
 (add-screen-mode-line-formatter #\J 'vikix-mode-line-groups)
 (add-screen-mode-line-formatter #\V 'vikix-mode-line-volume)
@@ -252,7 +253,7 @@ from *vikix-recording* and *vikix-dictating* (commands.lisp)."
       ;; The window's number and title. StumpWM's default adds * + - marks,
       ;; which say again what the accent colour already shows.
       *window-format*        "%n %30t"
-      *screen-mode-line-format* "%J  %W^>%R%K%X%Y%Q%U%A%D%Z%O%T%V%E%d")
+      *screen-mode-line-format* "%J  %W^>%P%R%K%X%Y%Q%U%A%D%Z%O%T%V%E%d")
 
 ;; Turn the bar on for every screen and head (monitor).
 (dolist (screen *screen-list*)

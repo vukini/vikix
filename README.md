@@ -699,6 +699,24 @@ vikix windows stop                 # shut it down (also: status, remove)
 - **Its network is kept apart from this machine.** A program in Windows (a bad download, say) can't reach what this machine keeps to itself: the window manager's Lisp door (which could run commands as you), the printers, a local AI model. Windows still reaches the internet and your network; it sees this machine as just another computer, at 192.168.122.1. There's nothing to do for it: `vikix windows setup`, or `vikix update` for a VM made before 0.41.0, sets it up and asks for your password (sudo) once. A VM moved while it was running keeps its old network until Windows restarts; `vikix windows status` says so, and so does a notification. How it works: libvirt's NAT network (`virbr0`, run by the system libvirt service, with dnsmasq, from each boot) and one line in `/etc/qemu/bridge.conf`. The move gives Windows a new network card, so settings made on the old one (a fixed address) don't carry over. To reach a program on this machine from Windows on purpose, run it on 192.168.122.1 (or all addresses), not 127.0.0.1.
 - **To change the VM** (memory, CPUs, a USB device), `virt-manager -c qemu:///session`.
 
+## Plugins
+
+Small additions that aren't part of Vikix's core, from their own repo ([vikix-plugins](https://github.com/vukini/vikix-plugins)): a few words in the bar, Super+m entries, keys, a program started with the desktop. You add the ones you want:
+
+```sh
+vikix plugin list                 # the plugins there are; yours marked
+vikix plugin add agent-waiting    # shows what it runs, needs and changes, asks, then adds it
+vikix plugin remove agent-waiting # runs its remove; your settings for it stay
+vikix plugin off NAME             # stop loading one (vikix plugin on NAME brings it back)
+vikix plugin safe                 # the next login loads none
+```
+
+- **The first one, `agent-waiting`.** When a Claude Code session in another window asks for your answer (a permission, a question), the bar says `agent asks`; when sessions have finished, `agents done 2`. **Super+Alt+w** (or a click on it) goes to the window, asking ones first; looking at a window clears its note. It works through three hooks it adds to `~/.claude/settings.json` (a copy is kept first; `remove` takes them out again); sessions started before pick them up when restarted.
+- **Pinned, so checked.** Vikix keeps the repo at a commit it pins (`~/.local/share/vikix/plugins`), moved only by a Vikix release, so an update can't swap a plugin's code in silently. `vikix update` fetches a moved pin when you have plugins.
+- **What's yours:** the list of your plugins (`~/.config/vikix/plugins.list`) and each one's settings (`~/.config/vikix/plugins/NAME`, copied once). A plugin's programs are linked into `~/.local/bin` while it's added.
+- **Safe to try.** A plugin's Lisp runs inside StumpWM with all its power, so a plugin is code you trust, like your `user.lisp`. It loads a piece at a time, as Vikix's own files do: a mistake costs only that piece, and the menu asks what to do. One that stops the desktop from starting: `vikix plugin safe` (from a text console: Ctrl+Alt+F2) and log in again, then `vikix plugin off NAME`.
+- **Writing one:** a folder with a `manifest` and its code; the plugins repo's README says how.
+
 ## Web apps
 
 Some programs are really websites: mail and meetings most of all. A web app opens one in a window of its own, with no tabs and no address bar, that StumpWM tiles and finds like any program:

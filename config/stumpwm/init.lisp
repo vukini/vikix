@@ -22,6 +22,7 @@
     "help"       ; the key card (s-/), key help (s-F1), all commands, which-key
     "webapps"    ; your web apps (vikix webapp): keys and Super+m
     "modeline"   ; the bar at the top
+    "plugins"    ; the plugins you added (vikix plugin add), and their part of the bar
     "swank-guard" ; a wrong Swank password can't take Swank down
     "swank")     ; the door for Emacs, with a password
   "Loaded in this order. Each file only uses what the files before it define.")

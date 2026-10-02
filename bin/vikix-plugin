@@ -1,0 +1,235 @@
+#!/usr/bin/env bash
+# vikix-plugin — small additions to Vikix, from the vikix-plugins repo
+# (github.com/vukini/vikix-plugins): a few words in the bar, Super+m
+# entries, keys, a program started with the desktop.
+#
+#   vikix plugin list             the plugins there are; yours marked
+#   vikix plugin add NAME [--yes] shows what it runs, needs and changes, asks,
+#                                 then adds it (its packages, its setup)
+#   vikix plugin remove NAME      runs its remove, and takes it away; your
+#                                 settings for it stay
+#   vikix plugin off NAME         stop loading it, nothing else changed (from a
+#                                 text console too, for one that hangs the
+#                                 desktop); vikix plugin on NAME brings it back
+#   vikix plugin safe             the next login loads no plugin, once
+#   vikix plugin status           the pinned commit, and yours
+#   vikix plugin sync             the repo to its pinned commit (vikix update
+#                                 does this when you have plugins)
+#
+# Vikix keeps the repo in ~/.local/share/vikix/plugins at the commit pinned
+# below, one it has checked: an update can't swap a plugin's code in
+# silently. Your plugins are named in ~/.config/vikix/plugins.list, your
+# settings for each in ~/.config/vikix/plugins/NAME (copied once, yours).
+# A plugin's programs (its bin/) are linked into ~/.local/bin while it's
+# added. Its Lisp runs inside StumpWM (plugins.lisp loads it).
+
+set -uo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+
+# The pin: moved by a Vikix release, after trying the new plugins.
+# VIKIX_PLUGINS_REPO and VIKIX_PLUGINS_COMMIT name others (tests, or trying
+# your own work on the repo: a folder works as well as an address).
+PLUGINS_REPO=${VIKIX_PLUGINS_REPO:-https://github.com/vukini/vikix-plugins}
+PLUGINS_COMMIT=${VIKIX_PLUGINS_COMMIT:-686c2c04a6409e448f4d39cb253b87b7d107d469}   # 2026-10-02: agent-waiting
+DIR="$HOME/.local/share/vikix/plugins"
+LIST="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/plugins.list"
+SETTINGS="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/plugins"
+SAFE="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/plugins-safe"
+BIN="$HOME/.local/bin"
+GIT=${VIKIX_GIT:-git}
+
+field() { sed -n "s/^$2: *//p" "$DIR/$1/manifest" 2>/dev/null | head -1; }
+exists() { [[ $1 =~ ^[a-z][a-z0-9-]*$ ]] && [ -f "$DIR/$1/manifest" ]; }
+added() { [ -f "$LIST" ] && grep -qx -- "$1" "$LIST"; }
+off() { [ -f "$LIST" ] && grep -qx -- "#off $1" "$LIST"; }
+mine() { [ -f "$LIST" ] && sed -n 's/^#off //p; /^[a-z]/p' "$LIST"; }
+
+# The repo at the pinned commit; fetched only when it isn't that already.
+sync() {
+  if [ -d "$DIR/.git" ] && [ "$("$GIT" -C "$DIR" rev-parse HEAD 2>/dev/null)" = "$PLUGINS_COMMIT" ]; then
+    return 0
+  fi
+  [ "$DRY_RUN" = 1 ] && { printf '   would fetch the plugins (%s) into %s\n' "${PLUGINS_COMMIT:0:7}" "$DIR"; return 0; }
+  say "fetching the plugins (commit ${PLUGINS_COMMIT:0:7})"
+  if [ ! -d "$DIR/.git" ]; then
+    mkdir -p "$DIR"
+    "$GIT" -C "$DIR" init -q || die "couldn't make $DIR"
+  fi
+  "$GIT" -C "$DIR" fetch -q --depth 1 "$PLUGINS_REPO" "$PLUGINS_COMMIT" || die "couldn't fetch the plugins from $PLUGINS_REPO"
+  "$GIT" -c advice.detachedHead=false -C "$DIR" checkout -q --force FETCH_HEAD || die "couldn't check out the plugins"
+  [ "$("$GIT" -C "$DIR" rev-parse HEAD)" = "$PLUGINS_COMMIT" ] || die "the plugins aren't the commit expected"
+  # Programs of plugins added, linked again: a new pin may bring new ones.
+  local name
+  while IFS= read -r name; do link_bins "$name"; done < <(mine)
+}
+
+link_bins() {
+  local f
+  for f in "$DIR/$1"/bin/*; do
+    [ -f "$f" ] && link_managed "$f" "$BIN/$(basename "$f")"
+  done
+  return 0
+}
+
+unlink_bins() {
+  local f
+  for f in "$DIR/$1"/bin/*; do
+    [ -f "$f" ] || continue
+    [ -L "$BIN/$(basename "$f")" ] && [ "$(readlink "$BIN/$(basename "$f")")" = "$f" ] && run rm -f "$BIN/$(basename "$f")"
+  done
+  return 0
+}
+
+# version_ok WANTED — this Vikix is WANTED or newer.
+version_ok() {
+  local have; have=$(cat "$VIKIX_DIR/VERSION" 2>/dev/null)
+  [ -n "$1" ] && [ "$(printf '%s\n%s\n' "$1" "$have" | sort -V | head -1)" = "$1" ]
+}
+
+set_line() {   # set_line NAME LINE|"" — the list with NAME's line (on or off) replaced
+  local tmp
+  mkdir -p "$(dirname "$LIST")"
+  [ -f "$LIST" ] || printf '# Your Vikix plugins (vikix plugin add/remove/off/on writes this).\n' > "$LIST"
+  tmp=$(mktemp "$LIST.XXXXXX")
+  grep -vx -e "$1" -e "#off $1" "$LIST" > "$tmp" || true
+  [ -z "$2" ] || echo "$2" >> "$tmp"
+  mv -f "$tmp" "$LIST"
+}
+
+reload_wm() {
+  [ -n "${DISPLAY:-}" ] || return 0
+  python3 "$VIKIX_DIR/bin/vikix-eval" '(vikix-load-plugins)' >/dev/null 2>&1 ||
+    echo "   (StumpWM didn't answer: it loads the plugins at the next login)"
+}
+
+start_service() {
+  local cmd; cmd=$(field "$1" service)
+  [ -n "$cmd" ] && [ -n "${DISPLAY:-}" ] || return 0
+  run setsid -f sh -c "$cmd" >/dev/null 2>&1 </dev/null
+}
+
+cmd_list() {
+  sync
+  local d name mark
+  for d in "$DIR"/*/; do
+    name=$(basename "$d")
+    exists "$name" || continue
+    if added "$name"; then mark="added"; elif off "$name"; then mark="off"; else mark=""; fi
+    printf '%-18s %-6s %s\n' "$name" "$mark" "$(field "$name" about)"
+  done
+}
+
+cmd_add() {
+  local name='' yes=''
+  while [ $# -gt 0 ]; do
+    case $1 in --yes|-y) yes=1 ;; -*) die "vikix plugin add: unknown option $1" ;; *) name=$1 ;; esac
+    shift
+  done
+  [ -n "$name" ] || die "which one? vikix plugin list"
+  sync
+  exists "$name" || die "there's no plugin called $name (vikix plugin list)"
+  version_ok "$(field "$name" vikix)" || die "$name needs Vikix $(field "$name" vikix) or newer: vikix update first"
+  local packages setup changes service
+  packages=$(field "$name" packages); setup=$(field "$name" setup)
+  changes=$(field "$name" changes); service=$(field "$name" service)
+  echo "   $name: $(field "$name" about)"
+  echo "   kinds: $(field "$name" kinds)"
+  [ -z "$packages" ] || echo "   installs: $packages"
+  [ -z "$changes" ] || echo "   changes: $changes"
+  [ -z "$service" ] || echo "   starts with the desktop: $service"
+  [ -z "$(field "$name" lisp)" ] ||
+    echo "   Its Lisp runs inside your desktop, with all of StumpWM's power (commit ${PLUGINS_COMMIT:0:7}, checked by Vikix)."
+  if [ -z "$yes" ] && [ "$DRY_RUN" != 1 ]; then
+    [ -t 0 ] || die "add it from a terminal (it asks first), or with --yes"
+    local answer
+    read -r -p "   Add $name? [y/N] " answer
+    case $answer in y|Y|yes) ;; *) say "not added"; return 0 ;; esac
+  fi
+  if [ -n "$packages" ]; then
+    local p missing=()
+    for p in $packages; do pkg_installed "$p" || missing+=("$p"); done
+    [ ${#missing[@]} -eq 0 ] || run sudo xbps-install -y "${missing[@]}" || die "couldn't install ${missing[*]}"
+  fi
+  link_bins "$name"
+  if [ -d "$DIR/$name/settings" ] && [ ! -e "$SETTINGS/$name" ]; then
+    run mkdir -p "$SETTINGS"
+    run cp -r "$DIR/$name/settings" "$SETTINGS/$name"
+  fi
+  if [ -n "$setup" ]; then
+    if [ "$DRY_RUN" = 1 ]; then echo "   would run its setup"
+    else "$DIR/$name/$setup" || die "$name's setup failed: not added"
+    fi
+  fi
+  [ "$DRY_RUN" = 1 ] || set_line "$name" "$name"
+  start_service "$name"
+  say "added $name"
+  reload_wm
+}
+
+cmd_remove() {
+  local name=${1:-}
+  [ -n "$name" ] || die "which one? vikix plugin list"
+  added "$name" || off "$name" || die "$name isn't one of yours (vikix plugin list)"
+  local remove; remove=$(field "$name" remove)
+  if [ -n "$remove" ] && [ -x "$DIR/$name/$remove" ]; then
+    if [ "$DRY_RUN" = 1 ]; then echo "   would run its remove"
+    else "$DIR/$name/$remove" || warn "$name's remove failed; taking it away anyway"
+    fi
+  fi
+  local service; service=$(field "$name" service)
+  [ -z "$service" ] || run pkill -f -- "$service" 2>/dev/null || true
+  unlink_bins "$name"
+  [ "$DRY_RUN" = 1 ] || set_line "$name" ""
+  say "removed $name"
+  [ ! -d "$SETTINGS/$name" ] || echo "   Your settings for it stay: $SETTINGS/$name"
+  echo "   Its bar words, keys and menu entries go now; anything else it hooked into StumpWM, at the next login."
+  reload_wm
+}
+
+cmd_off() {
+  local name=${1:-}
+  added "$name" || die "$name isn't one of yours, or is off already (vikix plugin list)"
+  set_line "$name" "#off $name"
+  say "$name is off: not loaded from the next login (vikix plugin on $name brings it back)"
+  reload_wm
+}
+
+cmd_on() {
+  local name=${1:-}
+  off "$name" || die "$name isn't off (vikix plugin list)"
+  set_line "$name" "$name"
+  say "$name is on again"
+  reload_wm
+}
+
+cmd_status() {
+  echo "pinned     ${PLUGINS_COMMIT:0:7} ($PLUGINS_REPO)"
+  if [ -d "$DIR/.git" ]; then echo "here       $("$GIT" -C "$DIR" rev-parse --short HEAD 2>/dev/null)"; else echo "here       not fetched yet"; fi
+  echo "yours      $(mine | tr '\n' ' ')"
+  [ -e "$SAFE" ] && echo "safe       the next login loads no plugin"
+  return 0
+}
+
+# Plugins' programs started with the desktop (vikix-session runs this).
+cmd_services() {
+  local name
+  while IFS= read -r name; do
+    added "$name" && start_service "$name"
+  done < <(mine)
+}
+
+case ${1:-} in
+  list|ls)   cmd_list ;;
+  add)       shift; cmd_add "$@" ;;
+  remove|rm) shift; cmd_remove "$@" ;;
+  off)       shift; cmd_off "$@" ;;
+  on)        shift; cmd_on "$@" ;;
+  safe)      mkdir -p "$(dirname "$SAFE")"; touch "$SAFE"; say "the next login loads no plugin (once)" ;;
+  status)    cmd_status ;;
+  sync)      if mine | grep -q .; then sync; else say "no plugins: nothing to fetch"; fi ;;
+  services)  cmd_services ;;
+  -h|--help|help|'') sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) die "vikix plugin: list, add, remove, off, on, safe, status, sync" ;;
+esac

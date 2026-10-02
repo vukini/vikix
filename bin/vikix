@@ -55,6 +55,9 @@
 #                         theme's colours (vikix add hype)
 #   vikix wallpapers setup|update|status|uninstall
 #                         Vid's wallpapers, in the Super+m picker (vikix add wallpapers)
+#   vikix plugin list|add|remove|off|on|safe|status
+#                         small additions from the vikix-plugins repo: bar
+#                         words, Super+m entries, keys (vikix plugin help)
 #   vikix bitwarden setup|pick|lock|sync|status|uninstall
 #                         your Bitwarden vault: Super+Shift+v types a
 #                         password into any window (vikix add bitwarden)
@@ -339,6 +342,9 @@ cmd_update() {
     if is_chosen wallpapers; then
       bash "$VIKIX_DIR/bin/vikix-wallpapers" update || true
     fi
+    # Plugins (vikix plugin add) live at a pinned commit too: a release that
+    # moves the pin fetches it here. Nothing to do without plugins.
+    bash "$VIKIX_DIR/bin/vikix-plugin" sync >/dev/null || failed+=("plugins")
     # Esploro (vikix add esploro) is built from a pinned commit: a release
     # that moves the pin builds the new one here; otherwise nothing to do.
     if is_chosen esploro; then
@@ -1260,6 +1266,7 @@ main() {
     dictate)     shift; exec "$VIKIX_DIR/bin/vikix-dictate" "$@" ;;
     lisp-apps)   shift; exec "$VIKIX_DIR/bin/vikix-lisp-apps" "$@" ;;
     esploro)     shift; exec "$VIKIX_DIR/bin/vikix-esploro" "$@" ;;
+    plugin|plugins) shift; exec "$VIKIX_DIR/bin/vikix-plugin" "$@" ;;
     bitwarden)   shift; exec "$VIKIX_DIR/bin/vikix-bitwarden" "$@" ;;
     voice)       shift; exec "$VIKIX_DIR/bin/vikix-voice" "$@" ;;
     notes)       shift; exec "$VIKIX_DIR/bin/vikix-notes" "$@" ;;
