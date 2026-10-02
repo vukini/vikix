@@ -11,9 +11,7 @@ Gathered on 2026-09-30, in a conversation with Vid.
 
 ## Working on projects
 
-- **A project switcher** on Super+p. Pick a project (from `~/dev`, or the vault's projects) and Vikix opens its saved layout (wish list: save and restore layouts), the editor, a terminal in its folder, and optionally the agent.
 - **Per-project settings with direnv.** Entering a project's folder sets its tools and settings; leaving undoes them.
-- **`vikix today`.** An end-of-day summary from the day's commits, captured notes (the notes plugin) and time per project: a work log written by the machine.
 
 ## AI
 
@@ -23,7 +21,6 @@ Gathered on 2026-09-30, in a conversation with Vid.
 
 ## Everyday business
 
-- **A password manager.** KeePassXC or `pass`, with a rofi picker that types the password, and one-time 2FA codes.
 - **Text snippets.** `;addr` becomes your address, `;thanks` a standard reply (espanso or similar), for the email you write over and over.
 - **A scanner.** SANE and simple-scan, scanning straight into the desk's documents inbox (wish list: the desk), with the text read by OCR on the way in.
 
@@ -82,4 +79,4 @@ Small programs (an image viewer, a file explorer, a launcher, a video player) wr
 - **Where Lisp adds something: presentations.** In McCLIM, what is on screen is still the Lisp object behind it: a file shown in an explorer *is* the file object, its right-click offers the commands that apply to it, and the same object can be handed to StumpWM, a rule or an agent. That is what would make these apps new rather than copies.
 - **Where it doesn't:** decoding video, rendering the web, reading every image format are years of others' work. Lisp for the interface and the behaviour, proven engines underneath: the video player is a Lisp app controlling mpv over its socket, not a decoder.
 - **How they fit:** each app its own Lisp process (a crash takes down the app, never the desktop), registered with Vikix and taking commands as StumpWM does through `vikix eval`; one shared command language, so a rule (`(when-window (:class "vikix-view") …)`) or an agent can drive any of them, checked by the allow-list (Leaning into Lisp); one look, following `vikix theme`.
-- **An order, smallest and most useful first:** 1. install Lem, Nyxt, McCLIM (done, 0.69.0); 2. an **image viewer** (thumbnails, zoom, tags, renaming, all scriptable; could replace nsxiv); 3. a **file explorer** built on presentations, the showcase; 4. a **launcher and menu** in Lisp, replacing rofi and joining the key help and the plugins; 5. a **video player**, a Lisp front-end on mpv; 6. the text editor stays Lem or Emacs, extended rather than rewritten.
+- **An order, smallest and most useful first:** 1. install Lem, Nyxt, McCLIM (done, 0.69.0); 2. an **image viewer** (thumbnails, zoom, tags, renaming, all scriptable; could replace nsxiv); 3. a **file explorer** built on presentations, the showcase (became Esploro, its own project, now an Emacs window over a Lisp core: TODO 64); 4. a **launcher and menu** in Lisp, replacing rofi and joining the key help and the plugins; 5. a **video player**, a Lisp front-end on mpv; 6. the text editor stays Lem or Emacs, extended rather than rewritten.
