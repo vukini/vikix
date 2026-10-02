@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+# vikix-bitwarden — your Bitwarden vault on the desktop: Super+Shift+v opens
+# a picker of your logins, and Enter types the password into the window
+# you were in. rbw reads the vault (an agent keeps it unlocked for an hour,
+# as ssh-agent does); rofi-rbw is the picker; your master password is only
+# ever typed into pinentry's box, never seen by Vikix.
+#
+#   vikix bitwarden setup [--eu|--server URL]
+#                           install rbw and the picker (vikix add bitwarden
+#                           runs this), ask your account's email, then sign
+#                           in: your master password and two-factor code go
+#                           into pinentry's box. --eu for an account made on
+#                           bitwarden.eu; --server for your own (Vaultwarden)
+#   vikix bitwarden pick    the picker (Super+Shift+v): asks for the master
+#                           password first when the vault is locked
+#   vikix bitwarden lock    lock the vault now
+#   vikix bitwarden sync    fetch changes made on your other devices now
+#                           (the picker syncs by itself every hour)
+#   vikix bitwarden status
+#   vikix bitwarden uninstall
+#                           sign out and forget the vault's copy on this
+#                           machine (vikix remove bitwarden)
+#
+# In the picker (rofi-rbw's keys): Enter types the username, Tab, then the
+# password, for a sign-in form; Alt+3 types the password alone (a password
+# box), Alt+2 the username, Alt+4 the two-factor code (a Premium
+# account's); Alt+c copies the password, Alt+u the username, Alt+t the
+# code (gone from the clipboard after 45 seconds); Alt+m shows every field
+# of the login; Alt+s syncs. Its settings are yours: ~/.config/rofi-rbw.rc.
+
+set -uo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+# shellcheck source=../lib/features.sh
+. "$VIKIX_DIR/lib/features.sh"
+
+# Tests name their stand-ins.
+RBW=${VIKIX_RBW:-rbw}
+ROFI_RBW=${VIKIX_ROFI_RBW:-rofi-rbw}
+PICKER_RC="${XDG_CONFIG_HOME:-$HOME/.config}/rofi-rbw.rc"
+
+note() { notify-send -a Vikix "$@" 2>/dev/null || true; }
+
+configured() { [ -n "$("$RBW" config show 2>/dev/null | sed -n 's/.*"email": *"\(.\+\)".*/\1/p')" ]; }
+
+# The picker's settings, written once; after that they're yours.
+picker_settings() {
+  [ -e "$PICKER_RC" ] && return 0
+  if [ "$DRY_RUN" = 1 ]; then printf '   would write %s\n' "$PICKER_RC"; return 0; fi
+  mkdir -p "$(dirname "$PICKER_RC")"
+  cat > "$PICKER_RC" <<'EOF'
+# rofi-rbw.rc — the Bitwarden picker (Super+Shift+v). Written once by
+# vikix bitwarden setup; yours to change. Options: rofi-rbw --help.
+
+# Enter types the login into the window you were in (username, Tab,
+# password); Alt+3 the password alone; Alt+c copies instead.
+action = type
+typer = xdotool
+clipboarder = xclip
+# A copied password leaves the clipboard after this many seconds.
+clear-after = 45
+EOF
+}
+
+cmd_setup() {
+  local server=""
+  case ${1:-} in
+    '') ;;
+    --eu) server=https://vault.bitwarden.eu ;;
+    --server) server=${2:-}; [ -n "$server" ] || die "vikix bitwarden setup --server URL" ;;
+    *) die "vikix bitwarden setup [--eu|--server URL]" ;;
+  esac
+  record_features bitwarden
+  local p missing=0
+  while IFS= read -r p; do pkg_installed "$p" || missing=1; done < <(read_list "$VIKIX_DIR/packages/optional/bitwarden.list")
+  if [ "$missing" = 1 ]; then
+    VIKIX_LISTS=bitwarden bash "$VIKIX_DIR/install/10-packages.sh" || die "couldn't install rbw and its picker"
+  fi
+  picker_settings
+  [ "$DRY_RUN" = 1 ] && { say "would ask your email and sign you in"; return 0; }
+
+  if ! configured; then
+    local email=${VIKIX_BITWARDEN_EMAIL:-}
+    if [ -z "$email" ]; then
+      [ -t 0 ] || die "run it in a terminal: it asks your Bitwarden account's email"
+      read -r -p "   Your Bitwarden account's email: " email
+    fi
+    [ -n "$email" ] || die "no email given"
+    "$RBW" config set email "$email" || die "rbw couldn't save the email"
+  fi
+  "$RBW" config set pinentry pinentry-gtk-2 >/dev/null
+  # An hour unlocked, then the master password again.
+  "$RBW" config set lock_timeout 3600 >/dev/null
+  if [ -n "$server" ]; then
+    "$RBW" config set base_url "$server" >/dev/null || die "rbw couldn't save the server"
+  fi
+
+  say "signing in: your master password (and two-factor code) go into the box that opens"
+  if ! "$RBW" login; then
+    warn "Bitwarden refused the sign-in from a new device."
+    echo "   Bitwarden asks a new program to be registered once, with your account's API key:"
+    echo "   bitwarden.com (or .eu) -> Settings -> Security -> Keys -> View API key; then"
+    echo "     rbw register        (it asks the client_id and client_secret)"
+    echo "     vikix bitwarden setup"
+    return 1
+  fi
+  "$RBW" sync || warn "signed in, but the first sync failed: vikix bitwarden sync"
+  say "ready: Super+Shift+v, type a few letters, Enter types the password where you were"
+}
+
+cmd_pick() {
+  if ! command -v "$RBW" >/dev/null 2>&1; then
+    note "Bitwarden isn't installed" "Add it: vikix add bitwarden (Super+m, Add software)"
+    return 1
+  fi
+  if ! configured; then
+    note "Bitwarden isn't set up" "Run vikix bitwarden setup in a terminal."
+    return 1
+  fi
+  # Locked: the master password box first; Escape there leaves it locked.
+  if ! "$RBW" unlocked >/dev/null 2>&1; then
+    "$RBW" unlock || return 0
+  fi
+  exec "$ROFI_RBW"
+}
+
+cmd_status() {
+  if ! command -v "$RBW" >/dev/null 2>&1; then echo "rbw          not installed (vikix add bitwarden)"; return 0; fi
+  if configured; then
+    echo "account      $("$RBW" config show | sed -n 's/.*"email": *"\(.*\)".*/\1/p')"
+    echo "server       $("$RBW" config show | sed -n 's/.*"base_url": *"\(.*\)".*/\1/p' | grep . || echo bitwarden.com)"
+  else
+    echo "account      none yet: vikix bitwarden setup"
+  fi
+  if "$RBW" unlocked >/dev/null 2>&1; then echo "vault        unlocked"; else echo "vault        locked"; fi
+  [ -e "$PICKER_RC" ] && echo "picker       $PICKER_RC"
+}
+
+cmd_uninstall() {
+  if command -v "$RBW" >/dev/null 2>&1; then
+    run "$RBW" purge 2>/dev/null || true      # the vault's copy on this machine
+    run "$RBW" stop-agent 2>/dev/null || true
+  fi
+  say "signed out; your vault is still in your Bitwarden account. Your picker settings stay: $PICKER_RC"
+  forget_features bitwarden
+}
+
+case ${1:-} in
+  setup)     shift; cmd_setup "$@" ;;
+  pick)      cmd_pick ;;
+  lock)      "$RBW" lock ;;
+  sync)      "$RBW" sync && say "synced" ;;
+  status)    cmd_status ;;
+  uninstall) cmd_uninstall ;;
+  -h|--help|help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) die "vikix bitwarden: setup, pick, lock, sync, status, uninstall" ;;
+esac

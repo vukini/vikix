@@ -55,6 +55,9 @@
 #                         theme's colours (vikix add hype)
 #   vikix wallpapers setup|update|status|uninstall
 #                         Vid's wallpapers, in the Super+m picker (vikix add wallpapers)
+#   vikix bitwarden setup|pick|lock|sync|status|uninstall
+#                         your Bitwarden vault: Super+Shift+v types a
+#                         password into any window (vikix add bitwarden)
 #   vikix lisp-apps setup|status|uninstall
 #                         Nyxt, Lem and McCLIM's Listener: programs in Common
 #                         Lisp (vikix add lisp-apps)
@@ -1257,6 +1260,7 @@ main() {
     dictate)     shift; exec "$VIKIX_DIR/bin/vikix-dictate" "$@" ;;
     lisp-apps)   shift; exec "$VIKIX_DIR/bin/vikix-lisp-apps" "$@" ;;
     esploro)     shift; exec "$VIKIX_DIR/bin/vikix-esploro" "$@" ;;
+    bitwarden)   shift; exec "$VIKIX_DIR/bin/vikix-bitwarden" "$@" ;;
     voice)       shift; exec "$VIKIX_DIR/bin/vikix-voice" "$@" ;;
     notes)       shift; exec "$VIKIX_DIR/bin/vikix-notes" "$@" ;;
     project|projects) shift; exec "$VIKIX_DIR/bin/vikix-project" "$@" ;;

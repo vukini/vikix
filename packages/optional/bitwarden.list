@@ -1,0 +1,5 @@
+# bitwarden.list — your Bitwarden passwords on the desktop (the feature
+# bitwarden). The vault stays Bitwarden's; these read it.
+rbw                 # Bitwarden client: an agent keeps the vault unlocked for a while, as ssh-agent does
+rofi-rbw            # the picker: type a few letters, Enter types the password into the window
+pinentry-gtk        # the master-password box rbw asks with (pinentry-gtk-2)

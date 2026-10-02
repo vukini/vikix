@@ -343,12 +343,13 @@ Entries whose program or file isn't here are left out."
     ("Study: flashcards (Anki)"     (run-shell-command "anki") "anki")
     ("Study: write on a PDF (Xournal++)" (run-shell-command "xournalpp") "xournalpp")
     ("Passwords (KeePassXC)"        (run-shell-command "keepassxc") "keepassxc")
+    ("Passwords (Bitwarden): pick a login" (run-shell-command "vikix-bitwarden pick") "rbw")
     ;; In a terminal, so "no device" (USB debugging off, cable out) is seen.
     ("Phone: its screen in a window (scrcpy)" (vikix-in-terminal "scrcpy") "scrcpy")
     ("Disk: what fills my home (ncdu)" (vikix-in-terminal "ncdu ~") "ncdu")
     ("Files: Esploro, the Lisp file explorer" (run-shell-command "esploro") "~/.local/bin/esploro"))
   "The apps menu (Super+m, then Apps), in the same form as *vikix-menu*: the
-programs of the features video, graphics, blender, study, passwords, phone,
+programs of the features video, graphics, blender, study, passwords, bitwarden, phone,
 cli-extras and esploro. Each shows once its program is here.")
 
 (defcommand vikix-esploro () ()
