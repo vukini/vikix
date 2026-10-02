@@ -69,6 +69,96 @@ Nyxt's settings (its auto-config) may turn dark mode on for every page; Vikix's 
 - Rules apply as a page loads: reload (`r`) or open the page fresh to see one.
 - `match-regex` takes several patterns. `~/dev`'s docs too: add `,(format nil "^file://~adev/" (namestring (user-homedir-pathname)))`. Python's and Rust's docs have dark themes of their own, which dark mode would turn back to light.
 
+### Saving a page's images, and the page as Markdown (tested)
+
+Two commands, `save-page-images` and `page-to-markdown`, with three small helpers. Tried on a test page (relative, absolute, duplicated and lazy-loaded images, an article between a menu and a footer), on a Vikix guide page (`file://`, with a diagram) and on the Common Lisp Cookbook over HTTPS.
+
+- `save-page-images`: every picture into `~/Pictures/Nyxt/<page title>/`, numbered in the page's order (`001-red.png` ...), each once. Lazy-loading pages keep the picture in `data-src` and a placeholder in `src`; the real one is taken. `file://` pictures are copied from disk; the rest are fetched with dexador, which Nyxt carries (without the page's cookies: a picture behind a login won't come).
+- `page-to-markdown`: the page's `<article>` (else `<main>`, else everything) through pandoc (`gfm-raw_html`), with a title line and the source address, into `~/Documents/Nyxt/<page title>.md`, and onto the clipboard. Links and pictures are made absolute, so they still work from the file.
+- How: `(document-model buffer)` is Nyxt's parsed copy of the page (plump); `clss:select` finds elements with CSS selectors; `plump:clone-node` copies a part, so the page's own copy isn't changed.
+- Mistakes made on the way, worth a line in the guide: `remove-duplicates` keeps the *last* copy unless given `:from-end t` (the pictures came out of order); an empty search result from `clss:select` is a vector, not nil, so `(or (clss:select "main" dom) ...)` never falls through.
+
+```lisp
+;;; Saving a page's images, and the page as Markdown.
+
+(defun page-file-name (title)
+  "TITLE as a file name: no slashes, no leading dot, not too long."
+  (let ((name (string-trim " ." (substitute-if #\- (lambda (c) (find c "/\\:*?\"<>|")) title))))
+    (subseq name 0 (min 80 (length name)))))
+
+(defun page-url (buffer address)
+  "ADDRESS (as written in the page, maybe relative) made whole against BUFFER's URL."
+  (quri:render-uri (quri:merge-uris (quri:uri address) (url buffer))))
+
+(defun image-address (img)
+  "IMG's picture, as written in the page. Lazy-loading pages keep it in
+data-src, with a placeholder (a data: URI) in src."
+  (find-if (lambda (s) (and s (plusp (length s)) (not (str:starts-with-p "data:" s))))
+           (list (plump:attribute img "src") (plump:attribute img "data-src"))))
+
+(define-command-global save-page-images ()
+  "Save every image on the page into ~/Pictures/Nyxt/<page title>/."
+  (let* ((buffer (current-buffer))
+         (folder (merge-pathnames (format nil "Pictures/Nyxt/~a/" (page-file-name (title buffer)))
+                                  (user-homedir-pathname)))
+         (addresses
+           (remove-duplicates
+            (loop for img across (clss:select "img" (document-model buffer))
+                  for src = (image-address img)
+                  when src collect (page-url buffer src))
+            :test #'string= :from-end t))
+         (saved 0))
+    (ensure-directories-exist folder)
+    (loop for address in addresses
+          for n from 1
+          for name = (or (car (last (str:split "/" (quri:uri-path (quri:uri address)))))
+                         "image")
+          do (handler-case
+                 (progn
+                   ;; Numbered, so they keep the page's order, and two
+                   ;; pictures with the same name don't overwrite each other.
+                   (let ((to (merge-pathnames (format nil "~3,'0d-~a" n name) folder)))
+                     (if (string= "file" (quri:uri-scheme (quri:uri address)))
+                         ;; A local page (the Vikix guide): copied from disk.
+                         (uiop:copy-file (quri:url-decode (quri:uri-path (quri:uri address))) to)
+                         (alexandria:write-byte-vector-into-file
+                          (dex:get address :force-binary t) to :if-exists :supersede)))
+                   (incf saved))
+               (error (e) (log:warn "Couldn't save ~a: ~a" address e))))
+    (echo "Saved ~d of ~d images to ~a" saved (length addresses) (namestring folder))))
+
+(define-command-global page-to-markdown ()
+  "Save the page's article (or the whole page) as Markdown, in
+~/Documents/Nyxt/<page title>.md, and copy it to the clipboard."
+  (let* ((buffer (current-buffer))
+         (dom (document-model buffer))
+         ;; The article when the page marks one (no menus or footers), else
+         ;; its main part, else all of it.
+         (part (or (loop for selector in '("article" "main" "body")
+                         for found = (clss:select selector dom)
+                         when (plusp (length found)) return (elt found 0))
+                   dom))
+         (node (plump:clone-node part t))
+         (file (merge-pathnames (format nil "Documents/Nyxt/~a.md" (page-file-name (title buffer)))
+                                (user-homedir-pathname))))
+    ;; Links and pictures made whole, so they still work from the file.
+    (loop for a across (clss:select "a[href]" node)
+          do (ignore-errors
+              (setf (plump:attribute a "href") (page-url buffer (plump:attribute a "href")))))
+    (loop for img across (clss:select "img" node)
+          for src = (image-address img)
+          when src do (ignore-errors (setf (plump:attribute img "src") (page-url buffer src))))
+    (let ((markdown (with-input-from-string (in (plump:serialize node nil))
+                      (uiop:run-program '("pandoc" "-f" "html" "-t" "gfm-raw_html" "--wrap=none")
+                                        :input in :output :string))))
+      (setf markdown (format nil "# ~a~%~%Source: <~a>~%~%~a"
+                             (title buffer) (render-url (url buffer)) markdown))
+      (ensure-directories-exist file)
+      (alexandria:write-string-into-file markdown file :if-exists :supersede)
+      (copy-to-clipboard markdown)
+      (echo "Markdown saved to ~a (and copied)" (namestring file)))))
+```
+
 ### Small things to try (tested)
 
 - `(mapcar #'title (buffer-list))` with `C-x C-e`: your open pages.
@@ -81,7 +171,7 @@ From small to big:
 
 1. **Commands that join Nyxt to the desktop**: add the page to a project's log (`vikix project log NAME "read: <title> <url>"`); open the site as a web app (`vikix webapp`); show a file in Esploro; send the window to a workspace (`vikix eval`).
 2. **How pages load**: rewrite addresses (reddit → old.reddit, YouTube → a lighter front end); block domains (Nyxt's request hook); per-site rules (scripts off on one site).
-3. **The page itself**: JavaScript run from Lisp to gather a page's code blocks, strip it to its text, or fill in a form. "Send this code block to a terminal" would be built this way.
+3. **The page itself**: JavaScript run from Lisp, or the page's parsed copy (see the Markdown command), to gather a page's code blocks, strip it to its text, or fill in a form. "Send this code block to a terminal" would be built this way.
 4. **Your own Ctrl+Space sources**: every doc under `~/dev`; `vikix project` folders; links from Obsidian notes.
 5. **Your own `nyxt:` pages** (Spinneret, HTML written as Lisp, built when opened): a start page with the projects and their next steps, `vikix today`, the key card made from StumpWM.
 6. **A `vikix learn c` lesson page** with a **Check** button that runs the checker and shows the result beside the lesson.
