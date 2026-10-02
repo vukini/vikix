@@ -43,6 +43,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import sys
 
 VIKIX_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -342,6 +343,61 @@ def t_undo(a):
     return checked(*run([VIKIX, "undo"] + ([snap] if snap else [])), "vikix undo")
 
 
+PLAN_OPS = {"copy": 2, "move": 2, "rename": 2, "mkdir": 1, "trash": 1}
+
+
+def esploro_program():
+    mine = os.path.expanduser("~/.local/bin/esploro")
+    return mine if os.access(mine, os.X_OK) else shutil.which("esploro")
+
+
+def t_propose(a):
+    """An agent never changes files itself: its plan goes to Esploro, checked,
+    and waits there for the user's Apply (journaled, so undo takes it back)."""
+    prog = esploro_program()
+    if not prog:
+        raise ToolError("Esploro isn't installed, so there's nowhere to show a plan: the user can add it (vikix add esploro)")
+    steps = a.get("steps")
+    if not isinstance(steps, list) or not steps:
+        raise ToolError("propose_file_changes needs steps: [{op, path, to}], op one of " + ", ".join(PLAN_OPS))
+    if len(steps) > 200:
+        raise ToolError("at most 200 steps in a plan")
+    lines = []
+    for i, step in enumerate(steps, 1):
+        if not isinstance(step, dict):
+            raise ToolError(f"step {i}: an object {{op, path, to}}")
+        op, path, to = step.get("op"), step.get("path"), step.get("to")
+        if op not in PLAN_OPS:
+            raise ToolError(f"step {i}: op is one of {', '.join(PLAN_OPS)}")
+        if not isinstance(path, str) or not path.startswith("/"):
+            raise ToolError(f"step {i}: path must be a whole path, starting with /")
+        line = f"(:{op} {lisp_string(path)}"
+        if PLAN_OPS[op] == 2:
+            if not isinstance(to, str) or not to:
+                raise ToolError(f"step {i}: {op} needs to: " + ("the new name" if op == "rename" else "a whole path"))
+            if op == "rename" and "/" in to:
+                raise ToolError(f"step {i}: rename's to is a name, without /")
+            if op != "rename" and not to.startswith("/"):
+                raise ToolError(f"step {i}: to must be a whole path, starting with /")
+            line += " " + lisp_string(to)
+        lines.append(line + ")")
+    why = re.sub(r"[\x00-\x1f]", " ", str(a.get("why", "")))[:300]
+    fd, plan = tempfile.mkstemp(prefix="vikix-plan-", suffix=".lisp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write("\n".join(lines) + "\n")
+        out, ok = run([prog, "propose", plan, why], timeout=30)
+    finally:
+        os.unlink(plan)
+    if ":proposed" in out:
+        n = len(lines)
+        return (f"proposed {n} step{'s' if n != 1 else ''}: the user reviews them in Esploro, on their workspace; "
+                "nothing changes until they choose Apply, and undo takes it back after")
+    if ":refused" in out:
+        raise ToolError("not proposed, nothing changed; the plan has problems: " + scrub(out))
+    raise ToolError(scrub(out) or "esploro propose failed")
+
+
 def schema(props=None, required=None):
     s = {"type": "object", "properties": props or {}, "additionalProperties": False}
     if required:
@@ -381,6 +437,18 @@ TOOLS = [
      schema({"name": {"type": "string"}}, ["name"]), ACT, t_set_theme),
     ("switch_workspace", "Go to a workspace", "Show a workspace, by its name as desktop gives it.",
      schema({"name": {"type": "string"}}, ["name"]), ACT, t_switch_workspace),
+    ("propose_file_changes", "Propose file changes (the user applies them)",
+     "Copy, move, rename, make folders or put files in the Trash: never done here. The plan is checked whole "
+     "(one with a problem comes back, nothing changed), then shown to the user in Esploro, their file manager, "
+     "with why; only their Apply makes the changes, and undo takes them back. Paths are whole (from /); "
+     "rename's to is the new name alone.",
+     schema({"steps": {"type": "array", "minItems": 1, "maxItems": 200,
+                       "items": {"type": "object", "additionalProperties": False, "required": ["op", "path"],
+                                 "properties": {"op": {"type": "string", "enum": list(PLAN_OPS)},
+                                                "path": {"type": "string"}, "to": {"type": "string"}}}},
+             "why": {"type": "string", "maxLength": 300, "description": "what it's for, shown to the user"}},
+            ["steps"]),
+     ONCE, t_propose),
     ("focus_window", "Focus a window", "Go to a window: its workspace's name and its number, as desktop gives them.",
      schema({"workspace": {"type": "string"}, "number": {"type": "integer", "minimum": 0}}, ["workspace", "number"]),
      ACT, t_focus_window),

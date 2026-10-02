@@ -64,6 +64,16 @@ cat > "$t/bin/notify-send" <<EOF
 printf '%s\n' "\$@" > "$t/notified"
 echo "DISPLAY=\$DISPLAY" >> "$t/notified"
 EOF
+# esploro: keeps the plan it was given, and answers as the core would;
+# $t/refuse makes it refuse.
+cat > "$t/bin/esploro" <<EOF
+#!/bin/sh
+[ "\$1" = propose ] || exit 2
+cp "\$2" "$t/proposed.lisp"; echo "\$3" > "$t/proposed.why"
+if [ -e "$t/refuse" ]; then echo '(:refused ("step 1: /no/such is not there"))'; exit 1; fi
+echo "(:proposed \$(grep -c . "\$2"))"
+EOF
+chmod +x "$t/bin/esploro"
 cat > "$t/bin/claude" <<EOF
 #!/bin/sh
 echo "claude \$*" >> "$t/claude.calls"
@@ -144,6 +154,27 @@ out=$(call notify '{"title":"Hi","body":"a <b>bold</b> & more"}')
 check "notify should show it: $out" test "$out" = shown
 check "the notification should be marked as the agent's: $(head -2 "$t/notified")" grep -qx 'Vikix (agent)' "$t/notified"
 check "its markup should be escaped" grep -qF 'a &lt;b>bold&lt;/b> &amp; more' "$t/notified"
+# propose_file_changes: never done there, only proposed to Esploro.
+out=$(call propose_file_changes '{"steps":[{"op":"mkdir","path":"/home/u/archive"},{"op":"move","path":"/home/u/a \"b\".txt","to":"/home/u/archive/a.txt"},{"op":"rename","path":"/home/u/c","to":"d"}],"why":"tidy up"}')
+check "a plan should be proposed, nothing done: $out" grep -q '^proposed 3 steps: the user reviews them in Esploro' <<<"$out"
+want=$(printf '%s\n' '(:mkdir "/home/u/archive")' '(:move "/home/u/a \"b\".txt" "/home/u/archive/a.txt")' '(:rename "/home/u/c" "d")')
+check "the plan should reach esploro as Lisp steps, quotes kept: $(cat "$t/proposed.lisp")" test "$(cat "$t/proposed.lisp")" = "$want"
+check "why should go with it" grep -qx 'tidy up' "$t/proposed.why"
+out=$(call propose_file_changes '{"steps":[{"op":"delete","path":"/home/u/a"}]}')
+check "an op that isn't a plan's should be refused here: $out" grep -q '^ERROR: step 1: op is one of' <<<"$out"
+out=$(call propose_file_changes '{"steps":[{"op":"trash","path":"a.txt"}]}')
+check "a relative path should be refused: $out" grep -q 'whole path' <<<"$out"
+out=$(call propose_file_changes '{"steps":[{"op":"rename","path":"/home/u/a","to":"x/y"}]}')
+check "a rename into another folder should be refused: $out" grep -q "rename's to is a name" <<<"$out"
+touch "$t/refuse"
+out=$(call propose_file_changes '{"steps":[{"op":"trash","path":"/no/such"}]}')
+check "a plan the core refuses should come back with why: $out" grep -q '^ERROR: not proposed, nothing changed' <<<"$out"
+rm -f "$t/refuse"
+mv "$t/bin/esploro" "$t/esploro.off"
+out=$(PATH="$t/bin:/usr/bin:/bin" call propose_file_changes '{"steps":[{"op":"mkdir","path":"/home/u/x"}]}')
+check "without Esploro it should say so: $out" grep -q "Esploro isn't installed" <<<"$out"
+mv "$t/esploro.off" "$t/bin/esploro"
+
 out=$(call notify '{"body":"no title"}')
 check "notify without a title should say so: $out" grep -q '^ERROR: notify needs a title' <<<"$out"
 out=$(call snapshot '{"message":"before $(touch pwned2); x"}')

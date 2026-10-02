@@ -146,6 +146,7 @@ check "an esploro that isn't setup's should stay" test -f "$HOME/.local/bin/espl
 
 # --- The key and the menu -------------------------------------------------------
 check "Super+e should run vikix-esploro" grep -q '("s-e" *"vikix-esploro"' "$here/config/stumpwm/vikix/keys.lisp"
+check "Super+Alt+r should reveal the window's file" grep -q '("s-M-r" *"exec esploro reveal"' "$here/config/stumpwm/vikix/keys.lisp"
 check "Super+Alt+e should be PCManFM" grep -q '("s-M-e" *"exec pcmanfm"' "$here/config/stumpwm/vikix/keys.lisp"
 check "without Esploro, Super+e should still open files (PCManFM)" grep -q '(run-shell-command "pcmanfm")' "$here/config/stumpwm/vikix/commands.lisp"
 check "vikix-esploro should go to the Esploro frame on this workspace only (by its title, an Emacs frame)" \
