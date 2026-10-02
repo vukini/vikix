@@ -42,9 +42,14 @@ GIT=${VIKIX_GIT:-git}
 
 field() { sed -n "s/^$2: *//p" "$DIR/$1/manifest" 2>/dev/null | head -1; }
 exists() { [[ $1 =~ ^[a-z][a-z0-9-]*$ ]] && [ -f "$DIR/$1/manifest" ]; }
-added() { [ -f "$LIST" ] && grep -qx -- "$1" "$LIST"; }
-off() { [ -f "$LIST" ] && grep -qx -- "#off $1" "$LIST"; }
-mine() { [ -f "$LIST" ] && sed -n 's/^#off //p; /^[a-z]/p' "$LIST"; }
+# Fixed strings: a name is never a pattern (remove 'r.*' once matched repos).
+added() { [ -f "$LIST" ] && grep -qxF -- "$1" "$LIST"; }
+off() { [ -f "$LIST" ] && grep -qxF -- "#off $1" "$LIST"; }
+# Each plugin once: an off one's line, once its "#off " is gone, starts
+# with a letter, so the second test mustn't see it again.
+mine() { [ -f "$LIST" ] && sed -n '/^[a-z]/p; s/^#off //p' "$LIST"; }
+# named NAME — a plugin's name, as exists() takes it: '' isn't one.
+named() { [[ ${1:-} =~ ^[a-z][a-z0-9-]*$ ]] || die "which one? vikix plugin list"; }
 
 # The repo at the pinned commit; fetched only when it isn't that already.
 sync() {
@@ -93,7 +98,7 @@ set_line() {   # set_line NAME LINE|"" — the list with NAME's line (on or off)
   mkdir -p "$(dirname "$LIST")"
   [ -f "$LIST" ] || printf '# Your Vikix plugins (vikix plugin add/remove/off/on writes this).\n' > "$LIST"
   tmp=$(mktemp "$LIST.XXXXXX")
-  grep -vx -e "$1" -e "#off $1" "$LIST" > "$tmp" || true
+  grep -vxF -e "$1" -e "#off $1" "$LIST" > "$tmp" || true
   [ -z "$2" ] || echo "$2" >> "$tmp"
   mv -f "$tmp" "$LIST"
 }
@@ -170,7 +175,7 @@ cmd_add() {
 
 cmd_remove() {
   local name=${1:-}
-  [ -n "$name" ] || die "which one? vikix plugin list"
+  named "$name"
   added "$name" || off "$name" || die "$name isn't one of yours (vikix plugin list)"
   local remove; remove=$(field "$name" remove)
   if [ -n "$remove" ] && [ -x "$DIR/$name/$remove" ]; then
@@ -190,6 +195,7 @@ cmd_remove() {
 
 cmd_off() {
   local name=${1:-}
+  named "$name"
   added "$name" || die "$name isn't one of yours, or is off already (vikix plugin list)"
   set_line "$name" "#off $name"
   say "$name is off: not loaded from the next login (vikix plugin on $name brings it back)"
@@ -198,6 +204,7 @@ cmd_off() {
 
 cmd_on() {
   local name=${1:-}
+  named "$name"
   off "$name" || die "$name isn't off (vikix plugin list)"
   set_line "$name" "$name"
   say "$name is on again"

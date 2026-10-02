@@ -84,6 +84,15 @@ check "off should keep it, switched off" grep -qx "#off demo" "$list"
 check "off should keep its programs" test -L "$HOME/.local/bin/demo-tool"
 pl on demo >/dev/null 2>&1
 check "on should bring it back" grep -qx demo "$list"
+pl off demo >/dev/null 2>&1
+out=$(pl status)
+check "status should name an off plugin once: $out" grep -qx "yours      demo " <<<"$out"
+pl on demo >/dev/null 2>&1
+# A name is a name, never a pattern: 'd.*' once matched demo and took it
+# off the list without its remove; '' matched a blank line.
+pl remove 'd.*' >/dev/null 2>&1 && { echo "FAIL: remove of a pattern should refuse"; fail=1; }
+pl off '' >/dev/null 2>&1 && { echo "FAIL: off without a name should refuse"; fail=1; }
+check "a pattern or no name should leave the list as it was" test "$(grep -v '^#' "$list")" = demo
 
 # What StumpWM loads: plugins.lisp reads the list the same way.
 if command -v sbcl >/dev/null; then
