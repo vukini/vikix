@@ -30,7 +30,7 @@ VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 # A commit, not a branch: an update brings a new Esploro only when Vikix
 # moves this pin, after trying it.
 ESPLORO_REPO=https://github.com/vukini/esploro
-ESPLORO_COMMIT=57e350f793ab23909adf5b5815f9daa97a6d3fa9   # 2026-10-02: a file manager's menus, and a manual in Info
+ESPLORO_COMMIT=95832c203faa7e21e3796a347d238f789acac9ba   # 2026-10-02: a preview beside the folder (F11)
 OPT="$HOME/.local/opt/esploro"
 BIN="$HOME/.local/bin"
 APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
@@ -91,7 +91,7 @@ reload_in_emacs() {
   # own (buffer-local), and an older Esploro's global values would become
   # every new view's. Its one buffer, *Esploro*, is then made a view.
   form="(when (featurep 'esploro)
-          (dolist (v '(esploro-mode-map esploro-places-mode-map esploro-tool-bar-map esploro-manual-mode-map
+          (dolist (v '(esploro-mode-map esploro-places-mode-map esploro-tool-bar-map esploro-manual-mode-map esploro-preview-mode-map
                        esploro--back esploro--forward esploro--sort esploro--reverse
                        esploro--hidden esploro--filter))
             (makunbound v))
@@ -110,6 +110,12 @@ cmd_setup() {
   case $rebuild in ''|--rebuild) ;; *) die "vikix esploro setup [--rebuild]" ;; esac
   record_features esploro
   command -v emacs >/dev/null 2>&1 || [ "$DRY_RUN" = 1 ] || warn "Emacs isn't here, and Esploro's window is in Emacs: vikix add emacs"
+  # The programs its preview makes thumbnails with.
+  local p missing=0
+  while IFS= read -r p; do pkg_installed "$p" || missing=1; done < <(read_list "$VIKIX_DIR/packages/optional/esploro.list")
+  if [ "$missing" = 1 ]; then
+    VIKIX_LISTS=esploro bash "$VIKIX_DIR/install/10-packages.sh" || warn "the programs for previews didn't install; Esploro works without them"
+  fi
   command -v "$SBCL" >/dev/null 2>&1 || [ "$DRY_RUN" = 1 ] || die "sbcl isn't here"
   build "$rebuild"
   link_managed "$OPT/esploro" "$BIN/esploro"

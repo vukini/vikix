@@ -138,7 +138,7 @@ check "vikix-esploro should go to the Esploro frame on this workspace only (by i
   grep -q '(find "Esploro" (group-windows (current-group))' "$here/config/stumpwm/vikix/commands.lisp"
 check "the reload should reset the old one-buffer state, and make its buffer a view" \
   grep -q 'esploro--view t' "$here/bin/vikix-esploro"
-check "the feature should bring Emacs, where the window is" grep -qE '^esploro +\| +\| emacs +\|' "$here/features.list"
+check "the feature should bring Emacs, where the window is" grep -qE '^esploro +\| optional/esploro +\| emacs +\|' "$here/features.list"
 check "the Apps menu should offer Esploro once it's here" \
   grep -q '(run-shell-command "esploro") "~/.local/bin/esploro")' "$here/config/stumpwm/vikix/commands.lisp"
 check "vikix update should build a moved pin" grep -q 'is_chosen esploro' "$here/bin/vikix"
