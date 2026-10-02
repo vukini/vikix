@@ -96,11 +96,92 @@ nil when the palette isn't usable (Nyxt is then left as it was)."
           (nyxt::print-status window))))
     theme))
 
-;; As Nyxt starts. :after, so a customize-instance of your own (Nyxt's
-;; auto-config writes one) still runs, and this comes after it.
+;;; Swank: Emacs inside the running Nyxt, as with StumpWM. From Emacs:
+;;;
+;;;   M-x slime-connect RET 127.0.0.1 RET 4006
+;;;
+;;; and you are at a REPL in Nyxt (package nyxt-user): define a command,
+;;; bind a key, inspect a buffer, M-. into Nyxt's source; it takes effect
+;;; at once. StumpWM's Swank is 4004; 4005 is left for your own SLIME.
+;;;
+;;; Swank runs whatever it's sent, as you, with your logins and cookies at
+;;; hand, and 127.0.0.1 isn't only yours. So it starts only with a password:
+;;; Swank itself checks ~/.slime-secret (40-config makes it) at each
+;;; connection, and SLIME sends it by itself. Without the file it doesn't
+;;; start at all. The guard below is StumpWM's (swank-guard.lisp): a wrong
+;;; password, or a client that sends none, would otherwise stop Swank's one
+;;; accepting thread, and with it every later connection.
+;;;
+;;; No Swank in Nyxt: (setf *vikix-swank-port* nil) in your config.lisp,
+;;; after the line that loads this file.
+
+(defvar *vikix-swank-port* 4006
+  "The port Nyxt's Swank listens on, on 127.0.0.1; nil for none.")
+
+(defparameter *vikix-swank-auth-seconds* 5
+  "Seconds a Swank client has to send the password. SLIME sends it at once.")
+
+(defvar *vikix-swank-started* nil
+  "The port, once Swank listens on it: loading this file again (Nyxt's
+load-config-file) never starts a second one.")
+
+(defvar *vikix-swank-guarded* nil)
+
+(defun vikix-swank-secret-p ()
+  "Whether ~/.slime-secret has a password: Swank checks its first line."
+  (with-open-file (in (merge-pathnames ".slime-secret" (user-homedir-pathname))
+                      :if-does-not-exist nil)
+    (let ((line (and in (read-line in nil))))
+      (and line (plusp (length (string-trim '(#\Space #\Tab #\Return) line)))))))
+
+(defun vikix-guard-swank ()
+  "Wrap Swank's password check in a time limit, and its accept loop so a
+refused client ends only itself."
+  (let* ((auth (find-symbol "AUTHENTICATE-CLIENT" :swank))
+         (accept (find-symbol "ACCEPT-CONNECTIONS" :swank)))
+    (when (and auth accept (fboundp auth) (fboundp accept)
+               (not *vikix-swank-guarded*))
+      (let ((original-auth (fdefinition auth))
+            (original-accept (fdefinition accept)))
+        (setf (fdefinition auth)
+              (lambda (stream)
+                ;; SERIOUS-CONDITION: a deadline passing isn't an ERROR.
+                (handler-case
+                    (sb-sys:with-deadline (:seconds *vikix-swank-auth-seconds*)
+                      (funcall original-auth stream))
+                  (serious-condition (e)
+                    (ignore-errors (close stream :abort t))
+                    (error "Swank client refused: ~a" e)))))
+        (setf (fdefinition accept)
+              (lambda (&rest args)
+                (handler-case (apply original-accept args)
+                  (error () nil))))
+        (setf *vikix-swank-guarded* t)))))
+
+(defun vikix-start-swank ()
+  "Start Swank on *vikix-swank-port*, once, guarded, and only with a password."
+  (cond ((or (null *vikix-swank-port*) *vikix-swank-started*))
+        ((not (vikix-swank-secret-p))
+         (log:warn "Swank not started: ~~/.slime-secret has no password (vikix update core makes one)"))
+        (t
+         (vikix-guard-swank)
+         (handler-case
+             (let ((swank::*loopback-interface* "127.0.0.1"))
+               (uiop:symbol-call :swank :create-server
+                                 :port *vikix-swank-port* :dont-close t)
+               (setf *vikix-swank-started* *vikix-swank-port*))
+           ;; A port taken by something else mustn't stop Nyxt starting.
+           (error (e)
+             (log:warn "Swank not started on port ~a: ~a" *vikix-swank-port* e))))))
+
+;; As Nyxt starts, once the whole config has loaded (so a setf of
+;; *vikix-swank-port* there counts). :after, so a customize-instance of
+;; your own (Nyxt's auto-config writes one) still runs, and this comes
+;; after it.
 (defmethod customize-instance :after ((browser browser) &key)
   (let ((theme (vikix-make-theme (vikix-palette))))
-    (when theme (setf (theme browser) theme))))
+    (when theme (setf (theme browser) theme)))
+  (vikix-start-swank))
 
 ;; So that `vikix theme' can reach a running Nyxt.
 (define-configuration browser
