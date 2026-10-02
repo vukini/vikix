@@ -32,7 +32,7 @@ VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 # A commit, not a branch: an update brings a new Esploro only when Vikix
 # moves this pin, after trying it.
 ESPLORO_REPO=https://github.com/vukini/esploro
-ESPLORO_COMMIT=2bfeb441b91f21bb71ee3bc5ffe1009482c4ee6a   # 2026-10-02: reveal, the workspace's project, plans from agents
+ESPLORO_COMMIT=0c81c408aa49059b2a86362c2ac367e68e62a396   # 2026-10-02: edit a plan under review
 OPT="$HOME/.local/opt/esploro"
 BIN="$HOME/.local/bin"
 APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
@@ -98,6 +98,7 @@ reload_in_emacs() {
   # every new view's. Its one buffer, *Esploro*, is then made a view.
   form="(when (featurep 'esploro)
           (dolist (v '(esploro-mode-map esploro-places-mode-map esploro-tool-bar-map esploro-manual-mode-map esploro-preview-mode-map
+                       esploro-review-mode-map esploro-plan-edit-mode-map
                        esploro--back esploro--forward esploro--sort esploro--reverse
                        esploro--hidden esploro--filter))
             (makunbound v))
