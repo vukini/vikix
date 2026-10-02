@@ -13,6 +13,9 @@
 #                           (vikix add esploro runs this; vikix update runs
 #                           it too, and it builds only when the pin moved)
 #   vikix esploro status
+#   vikix esploro doctor   is it built at the pin, linked, the folder program,
+#                          answering Show in folder, loaded in Emacs (vikix
+#                          doctor runs this when you have the feature)
 #   vikix esploro uninstall
 #                           removes it (vikix remove esploro)
 #
@@ -172,6 +175,35 @@ cmd_status() {
   else echo "esploro  not built (vikix add esploro)"; fi
 }
 
+cmd_doctor() {
+  local ok=1 now
+  if built; then say "Esploro is built at Vikix's pin (${ESPLORO_COMMIT:0:7})"
+  elif [ -x "$OPT/esploro" ]; then warn "Esploro is built from another commit: vikix esploro setup builds Vikix's"; ok=0
+  else warn "Esploro isn't built: vikix esploro setup"; ok=0; fi
+  if [ -L "$BIN/esploro" ] && [ "$(readlink "$BIN/esploro")" = "$OPT/esploro" ]; then say "esploro is the command"
+  elif [ -e "$BIN/esploro" ]; then say "esploro in $BIN is one of your own"
+  else warn "esploro isn't in $BIN: vikix esploro setup links it"; ok=0; fi
+  # Your choice, when it isn't Esploro: said, not counted.
+  now=$(xdg-mime query default inode/directory 2>/dev/null)
+  if [ "$now" = vikix-esploro.desktop ]; then say "folders open in Esploro"
+  else say "folders open in ${now:-nothing set} (inode/directory in $MIMEAPPS)"; fi
+  if grep -q "esploro --dbus" "$DBUS_SERVICE" 2>/dev/null; then
+    case $(timeout 3 gdbus call --session --dest org.freedesktop.DBus --object-path /org/freedesktop/DBus \
+             --method org.freedesktop.DBus.NameHasOwner org.freedesktop.FileManager1 2>/dev/null) in
+      "(true,)") say "Show in folder reaches Esploro (it's answering now)" ;;
+      *)         say "Show in folder reaches Esploro (the session bus starts it when first asked)" ;;
+    esac
+  else
+    warn "Show in folder doesn't reach Esploro ($DBUS_SERVICE is missing): vikix esploro setup"; ok=0
+  fi
+  case $(timeout 3 emacsclient -e "(and (featurep 'esploro) (fboundp 'esploro-review-plan) 'loaded)" 2>/dev/null) in
+    loaded) say "the running Emacs has Esploro loaded" ;;
+    nil)    say "the running Emacs hasn't loaded Esploro yet (Super+e does)" ;;
+    *)      say "no Emacs is answering (Esploro's window is in Emacs: it opens with Emacs's server)" ;;
+  esac
+  [ "$ok" = 1 ]
+}
+
 cmd_uninstall() {
   # The link only while it's still ours: never your own esploro (make install).
   if [ -L "$BIN/esploro" ] && [ "$(readlink "$BIN/esploro")" = "$OPT/esploro" ]; then
@@ -193,7 +225,8 @@ cmd_uninstall() {
 case ${1:-} in
   setup)     shift; cmd_setup "${1:-}" ;;
   status)    cmd_status ;;
+  doctor)    cmd_doctor ;;
   uninstall) cmd_uninstall ;;
   -h|--help|help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
-  *) die "vikix esploro: setup, status, uninstall" ;;
+  *) die "vikix esploro: setup, status, doctor, uninstall" ;;
 esac

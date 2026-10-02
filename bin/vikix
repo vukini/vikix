@@ -67,7 +67,7 @@
 #   vikix lisp-apps setup|status|uninstall
 #                         Nyxt, Lem and McCLIM's Listener: programs in Common
 #                         Lisp (vikix add lisp-apps)
-#   vikix esploro setup|status|uninstall
+#   vikix esploro setup|status|doctor|uninstall
 #                         Esploro, a file explorer in Common Lisp (vikix add
 #                         esploro; Super+e)
 #   vikix mcp register|unregister|tools|status
@@ -463,6 +463,10 @@ cmd_doctor() {
     elif [ -d "$nv/.git" ]; then say "$nv is a git clone (a Neovim config of your own)"
     elif [ -e "$nv/init.lua" ] || [ -e "$nv/init.vim" ]; then say "$nv is a Neovim config of your own"
     else warn "$nv has no Neovim config (vikix update puts Vikix's starter there)"; ok=0; fi
+  fi
+  # Esploro, the file manager (vikix add esploro): built, answering.
+  if is_chosen esploro; then
+    bash "$VIKIX_DIR/bin/vikix-esploro" doctor || ok=0
   fi
   if [ ! -L "$HOME/.stumpwm.d/init.lisp" ]; then
     warn "$HOME/.stumpwm.d/init.lisp is not Vikix's"; ok=0

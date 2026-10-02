@@ -99,6 +99,20 @@ check "the build log should be kept" test -e "$VIKIX_STATE/logs/esploro-build.lo
 check "the manual should be where Info looks" test "$(readlink "$HOME/.local/share/info/esploro.info")" = "$opt/doc/esploro.info"
 check "the manual should be in Info's list: $(grep install-info "$calls")" grep -q "install-info --info-dir=$HOME/.local/share/info $HOME/.local/share/info/esploro.info" "$calls"
 
+# --- The doctor ----------------------------------------------------------------------
+printf '#!/bin/sh\necho vikix-esploro.desktop\n' > "$t/bin/xdg-mime"; chmod +x "$t/bin/xdg-mime"
+es doctor > "$t/out" 2>&1 || { cat "$t/out"; echo "FAIL: the doctor should pass after setup"; fail=1; }
+check "the doctor should say it's built at the pin" grep -q "built at Vikix's pin" "$t/out"
+check "the doctor should say Show in folder reaches it" grep -q "Show in folder reaches Esploro" "$t/out"
+check "the doctor should say folders open in it" grep -q "folders open in Esploro" "$t/out"
+printf '#!/bin/sh\necho thunar.desktop\n' > "$t/bin/xdg-mime"
+es doctor > "$t/out" 2>&1 || { cat "$t/out"; echo "FAIL: a folder program of your own isn't a problem"; fail=1; }
+check "a folder program of yours should be said, not counted" grep -q "folders open in thunar.desktop" "$t/out"
+echo other > "$opt/.vikix-built"
+if es doctor > "$t/out" 2>&1; then echo "FAIL: built from another commit should count"; fail=1; fi
+check "the doctor should say how to build the pinned one" grep -q "built from another commit: vikix esploro setup" "$t/out"
+echo "$pinned" > "$opt/.vikix-built"
+
 # --- Again: nothing to build; --rebuild builds ----------------------------------
 : > "$calls"
 es setup > "$t/out" 2>&1 || { cat "$t/out"; echo "FAIL: a second setup should work"; fail=1; }
@@ -131,6 +145,8 @@ check "the launcher entry should be gone" test ! -e "$apps/vikix-esploro.desktop
 check "the manual should be gone from where Info looks" test ! -e "$HOME/.local/share/info/esploro.info"
 check "folders should go back to PCManFM" grep -qx 'inode/directory=pcmanfm.desktop' "$HOME/.config/mimeapps.list"
 check "Show in folder should be Esploro's no more" test ! -e "$dbus_service"
+if es doctor > "$t/out" 2>&1; then echo "FAIL: the doctor should fail once Esploro is gone"; fail=1; fi
+check "the doctor should say it isn't built" grep -q "Esploro isn't built" "$t/out"
 check "and from Info's list" grep -q "install-info --delete" "$calls"
 check "uninstall should forget the feature" test -z "$(grep -x esploro "$HOME/.config/vikix/features" || true)"
 # A folder program of your own is never replaced.
