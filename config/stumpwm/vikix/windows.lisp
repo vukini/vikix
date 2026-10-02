@@ -9,6 +9,7 @@
 ;;;;   lazarus    the docked IDE tiles; its dialogs float
 ;;;;   solo       only this window, then the layout back (s-z)
 ;;;;   dialogs    float, centred, and stay in front of the tiles
+;;;;   dragging   files dragged out of Emacs reach the program under the pointer
 ;;;;   titles     a title bar on each tiled window (s-y), renaming (s-"),
 ;;;;              and floating a window or tiling it again (s-t)
 ;;;;
@@ -350,6 +351,35 @@ GTK and Qt dialogs are drawn at; without one, a modest box."
 (add-hook *new-window-hook* 'vikix-float-dialog)
 (add-hook *focus-window-hook* 'vikix-raise-dialogs)
 (add-hook *focus-group-hook* 'vikix-raise-dialogs)
+
+;;; Dragging files between programs
+
+;; Emacs, dragging a file out (dired, Esploro), finds the window under the
+;; pointer from the window manager's _NET_CLIENT_LIST_STACKING when the
+;; manager says it keeps one, and counts every listed window whose own X
+;; window is mapped. StumpWM hides a window (another workspace, another in
+;; the same frame) by unmapping the frame around it, not the window, so
+;; Emacs took hidden windows, often one of its own frames, for what was
+;; under the pointer: the drop came back to Emacs ("dropped in"), and the
+;; program meant to get it got nothing. Not offered, Emacs asks the X
+;; server what's under the pointer, as GTK does, and the drop arrives.
+;; StumpWM still keeps the list; only Emacs's drag reads the offer. An
+;; Emacs started before this sees it after a restart (it remembers the
+;; offer until the window manager changes).
+
+(defun vikix-hide-stacking-offer ()
+  "Take _NET_CLIENT_LIST_STACKING out of the root window's _NET_SUPPORTED."
+  (let ((stacking (xlib:find-atom *display* :_NET_CLIENT_LIST_STACKING)))
+    (when stacking
+      (dolist (screen *screen-list*)
+        (let* ((root (screen-root screen))
+               (supported (xlib:get-property root :_NET_SUPPORTED)))
+          (when (member stacking supported)
+            (xlib:change-property root :_NET_SUPPORTED (remove stacking supported)
+                                  :atom 32)))))))
+
+(handler-case (vikix-hide-stacking-offer)
+  (error (e) (message "^1Vikix: the drag-and-drop fix:^n ~a" e)))
 
 ;;; Title bars, and floating
 

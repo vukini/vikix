@@ -743,6 +743,7 @@ StumpWM is a program written in Common Lisp that you can change, while it runs, 
 - `s-M-e` (Super+Alt+e) opens it, or goes to its frame; it's also `esploro [FOLDER]`, in the launcher (`s-d`) and in `s-m` → Apps. In it, `?` shows the keys and the mouse.
 - `vikix esploro setup` (which `vikix add esploro` runs, with Emacs if you haven't it) builds its command into `~/.local/opt/esploro` from a pinned commit, with SBCL alone, in seconds; the window's code is `emacs/esploro.el` beside it, which the command loads into the running Emacs the first time, so your Emacs config needs nothing.
 - `vikix update` builds it again only when a release moves the pin; `vikix esploro status` says what's built; `vikix remove esploro` removes it (an `esploro` of your own in `~/.local/bin` is left alone). Its first window, in McCLIM, is kept on Esploro's `mcclim` branch.
+- Dragging a file out of Emacs (Esploro, dired) to another program works under StumpWM because `windows.lisp` takes `_NET_CLIENT_LIST_STACKING` out of what StumpWM says it supports: Emacs otherwise trusts that list, counts windows StumpWM has hidden as visible, and drops back onto itself. An Emacs started before 0.71.37 sees the change after a restart.
 
 ### Slides (`vikix add hype`)
 
