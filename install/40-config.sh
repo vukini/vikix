@@ -38,6 +38,8 @@
 set -euo pipefail
 # shellcheck source=../lib/common.sh
 . "$(dirname "$0")/../lib/common.sh"
+# shellcheck source=../lib/mimeapps.sh
+. "$(dirname "$0")/../lib/mimeapps.sh"
 
 C="$VIKIX_DIR/config"
 SD="$HOME/.stumpwm.d"
@@ -93,6 +95,9 @@ copy_user "$C/rofi/config.rasi"           "$HOME/.config/rofi/config.rasi"
 copy_user "$C/keyboard/keyboard"          "$HOME/.config/vikix/keyboard"
 copy_user "$C/gammastep/config.ini"       "$HOME/.config/gammastep/config.ini"
 copy_user "$C/xdg/mimeapps.list"          "$HOME/.config/mimeapps.list"
+# Defaults the starter gained after yours was copied, once their program
+# is here; never one you set (lib/mimeapps.sh).
+fill_mime_defaults "$C/xdg/mimeapps.list" "${XDG_CONFIG_HOME:-$HOME/.config}/mimeapps.list" "$VIKIX_STATE/mimeapps-offered"
 copy_user "$C/x11/Xresources"             "$HOME/.Xresources"
 copy_user "$C/backup/exclude"             "$HOME/.config/vikix/backup-exclude"
 copy_user "$C/projects/projects"          "$HOME/.config/vikix/projects"

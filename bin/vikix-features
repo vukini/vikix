@@ -22,6 +22,8 @@ export VIKIX_DIR
 . "$VIKIX_DIR/lib/common.sh"
 # shellcheck source=../lib/features.sh
 . "$VIKIX_DIR/lib/features.sh"
+# shellcheck source=../lib/mimeapps.sh
+. "$VIKIX_DIR/lib/mimeapps.sh"
 
 # feature_cmd FEATURE FIELD — run its add (4) or remove (5) command. A
 # `vikix ...` one runs through this checkout's vikix (~/.local/bin may not
@@ -107,6 +109,10 @@ cmd_add() {
     say "$f: $(feature_field "$f" 4)"
     if feature_cmd "$f" 4; then record_features "$f"; else failed+=("$f"); fi
   done
+  # A program just installed (LibreOffice, mpv) gets the starter's defaults
+  # for its files now, not at the next update.
+  fill_mime_defaults "$VIKIX_DIR/config/xdg/mimeapps.list" "${XDG_CONFIG_HOME:-$HOME/.config}/mimeapps.list" \
+    "$VIKIX_STATE/mimeapps-offered"
   if [ "${#failed[@]}" -gt 0 ]; then
     warn "added, but these didn't finish: ${failed[*]}. vikix update tries again."
     return 1
