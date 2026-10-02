@@ -76,6 +76,7 @@
     ("s-r"    "remove"            "Remove this split")
     ("s-o"    "expose"            "Every window on this workspace in a grid; pick one (Super+u undoes it)")
     ("s-O"    "vikix-grid"        "Grid mode on/off: windows stay tiled in a grid as they open and close")
+    ("s-z"    "vikix-solo"        "Focus: only this window; again puts the others back")
     ;; windows.lisp: gaps, layout undo, finding windows
     ("s-g"    "toggle-gaps"       "Gaps around windows on/off")
     ("s-u"    "winner-undo"       "Undo the last layout change (splits, moves)")

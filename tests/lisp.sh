@@ -159,9 +159,9 @@ cat > "$t/check.lisp" <<EOF
 ;; Keys pushed from user.lisp land in a group too.
 (push '("s-F2" "exec obsidian" "Obsidian") *vikix-bindings*)
 (push '("s-F3" "my-command" "Mine") *vikix-bindings*)
-(push '("s-z" "exec zotero" "Zotero" "Reading") *vikix-bindings*)
+(push '("s-F4" "exec zotero" "Zotero" "Reading") *vikix-bindings*)
 (push '("s-C-p" "exec env FOO=1 vikix-screenshot area clip" "Shot") *vikix-bindings*)
-(loop for (key want) in '(("Super+F2" "Apps") ("Super+F3" "Other") ("Super+z" "Reading")
+(loop for (key want) in '(("Super+F2" "Apps") ("Super+F3" "Other") ("Super+F4" "Reading")
                           ("Super+Ctrl+p" "Screenshots & recording"))
       for got = (fourth (find key (vikix-key-entries) :key #'first :test #'string=))
       unless (equal got want) do (fail "~a should be in ~a, is in ~s" key want got))

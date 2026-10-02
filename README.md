@@ -244,6 +244,7 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 | `s-v` | Split one above the other |
 | `s-r` | Remove the split |
 | `s-u` / `s-U` | Undo / redo the last layout change on this workspace (splits, moves, closes) |
+| `s-z` | Focus: only this window on the workspace, the others out of sight (the bar stays); `s-z` again puts the layout back exactly as it was, whatever you changed meanwhile. Each workspace has its own. `s-f` fills the whole screen instead |
 | `s-g` | Gaps around windows, on or off (off at login; 10px between windows, 9px at the edge) |
 | `s-A` | Any window on any workspace: pick one and go there |
 | `s-C-a` | Any window on any workspace: pick one and bring it here |

@@ -7,6 +7,7 @@
 ;;;;   find       any window on any workspace (s-A goes there, s-C-a pulls it here)
 ;;;;   beckon     the pointer jumps to the focused window (s-p)
 ;;;;   lazarus    the docked IDE tiles; its dialogs float
+;;;;   solo       only this window, then the layout back (s-z)
 ;;;;   dialogs    float, centred, and stay in front of the tiles
 ;;;;   titles     a title bar on each tiled window (s-y), renaming (s-"),
 ;;;;              and floating a window or tiling it again (s-t)
@@ -229,6 +230,54 @@ StumpWM sees it before that: the Qt5 build (Void's) first calls it
     (float-window win (window-group win))))
 
 (add-hook *new-window-hook* 'vikix-float-lazarus-window)
+
+;;; Focus on one window (s-z)
+
+;; Super+z keeps only the focused window on its workspace, the bar still
+;; there; Super+z again puts the workspace's layout back as it was, however
+;; the splits were changed in between (windows opened meanwhile join the
+;; frame that's current then). Each workspace keeps its own. Unlike
+;; Super+u, which steps back through every change, this goes straight back.
+;; StumpWM's dump-group / restore-group do the saving.
+
+(defvar *vikix-solo-layouts* (make-hash-table :test 'eq :weakness :key)
+  "Each workspace in focus mode, and the layout it had before.")
+
+(defun vikix-solo-p (&optional (group (current-group)))
+  (and (gethash group *vikix-solo-layouts*) t))
+
+(defun vikix-restore-layout (group dump)
+  ;; restore-group gives every window of the group a frame, and hides those
+  ;; it doesn't show: floating windows (dialogs) are kept out of it, and
+  ;; stay as they were.
+  (let* ((all (group-windows group))
+         (floats (remove-if-not (lambda (w) (typep w 'float-window)) all)))
+    (setf (group-windows group) (set-difference all floats))
+    (unwind-protect (restore-group group dump)
+      (setf (group-windows group) all))))
+
+(defcommand vikix-solo () ()
+  "Keep only the focused window on this workspace; again, put the layout
+back as it was."
+  (let ((group (current-group)))
+    (cond ((not (typep group 'tile-group))
+           (message "Focus mode is for tiled workspaces."))
+          ((vikix-solo-p group)
+           (let ((dump (gethash group *vikix-solo-layouts*))
+                 (win (current-window)))
+             (remhash group *vikix-solo-layouts*)
+             (vikix-restore-layout group dump)
+             ;; Back to the window you were in, wherever it is now.
+             (when (and win (member win (group-windows group)) (typep win 'tile-window))
+               (focus-all win))
+             (vikix-raise-dialogs)
+             (message "The other windows are back.")))
+          ((null (rest (group-frames group)))
+           (message "This window has the workspace already. (Super+f fills the whole screen.)"))
+          (t
+           (setf (gethash group *vikix-solo-layouts*) (dump-group group))
+           (only)
+           (message "Focus: only this window. Super+z puts the others back.")))))
 
 ;;; Dialogs stay in front
 
