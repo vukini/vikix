@@ -40,6 +40,7 @@ P
   printf 'fg=#cdd6f4\n' > "$t/half"
   cat > "$t/stubs.lisp" <<'L'
 (require :asdf)
+(require :sb-introspect)
 (defpackage :theme (:use :cl) (:export #:theme))
 (in-package :theme)
 (defclass theme () ((initargs :initform nil :accessor initargs)))
@@ -74,6 +75,10 @@ P
   (when *fail* (error "Address in use"))
   (push (list* :interface *loopback-interface* args) *calls*))
 (defun authenticate-client (stream) (declare (ignore stream)) (sleep 30))
+;; As old as Nyxt's: one argument where newer SLIME sends three.
+(defun interactive-eval (string) (list :evaluated string))
+(defun swank-macroexpand-1 (string) (list :expanded string))
+(defun eval-string-in-frame (&rest args) (list :any args))
 (defun accept-connections (&rest args) (declare (ignore args)) (error "boom"))
 (defpackage :log (:use) (:export #:warn))
 (defvar log::*said* nil)
@@ -96,6 +101,7 @@ L
   (format t "half ~a~%" (vikix-make-theme (vikix-palette #p"$t/half")))
   (format t "none ~a~%" (vikix-palette #p"$t/no-such-file")))
 ;; Swank. HOME is $t/home, without .slime-secret at first.
+(format t "old swank refuses ~a~%" (handler-case (progn (swank::interactive-eval "(+ 1 2)" 10 80) :took-it) (error () :refused)))
 (vikix-start-swank)
 (format t "nosecret calls ~a~%" (length swank::*calls*))
 (format t "nosecret warned ~a~%" (and (search "slime-secret" (first log::*said*)) t))
@@ -106,6 +112,12 @@ L
 (vikix-start-swank)
 (format t "started calls ~a~%" (length swank::*calls*))
 (format t "started args ~s~%" (first swank::*calls*))
+(format t "newer slime eval ~s~%" (swank::interactive-eval "(+ 1 2)" 10 80))
+(format t "older call too ~s~%" (swank::interactive-eval "(+ 1 2)"))
+(format t "newer slime expand ~s~%" (swank::swank-macroexpand-1 "(when a b)" nil))
+(format t "rest left alone ~a~%" (null (get 'swank::eval-string-in-frame 'vikix-wrapped)))
+(vikix-swank-accept-newer-calls)
+(format t "wrapped once ~s~%" (swank::interactive-eval "x" 1 2))
 (let ((start (get-internal-real-time)))
   (setf *vikix-swank-auth-seconds* 1)
   (format t "silent client ~a~%"
@@ -136,6 +148,12 @@ L
   check "and Nyxt's log says why" grep -qx 'nosecret warned T' <<<"$out"
   check "Swank starts once with the password, however often it's asked" grep -qx 'started calls 1' <<<"$out"
   check "on 127.0.0.1, port 4006, kept open" grep -qx 'started args (:INTERFACE "127.0.0.1" :PORT 4006 :DONT-CLOSE T)' <<<"$out"
+  check "(the stand-in Swank is old: it refuses newer SLIME's calls)" grep -qx 'old swank refuses REFUSED' <<<"$out"
+  check "newer SLIME's eval (C-x C-e) reaches an older Swank" grep -qx 'newer slime eval (:EVALUATED "(+ 1 2)")' <<<"$out"
+  check "and the older one-argument call still works" grep -qx 'older call too (:EVALUATED "(+ 1 2)")' <<<"$out"
+  check "newer SLIME's macroexpand too" grep -qx 'newer slime expand (:EXPANDED "(when a b)")' <<<"$out"
+  check "a function that takes any number isn't wrapped" grep -qx 'rest left alone T' <<<"$out"
+  check "wrapping twice changes nothing" grep -qx 'wrapped once (:EVALUATED "x")' <<<"$out"
   check "a client that sends no password is refused" grep -qx 'silent client REFUSED' <<<"$out"
   check "after the time limit, not Swank's endless wait" grep -qx 'silent seconds 1' <<<"$out"
   check "a refused client doesn't end the accept loop" grep -qx 'accept loop survives OK' <<<"$out"

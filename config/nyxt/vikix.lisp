@@ -158,6 +158,41 @@ refused client ends only itself."
                   (error () nil))))
         (setf *vikix-swank-guarded* t)))))
 
+;; Nyxt's Swank is built into it, and older than the SLIME Emacs gets from
+;; MELPA (and the Swank StumpWM gets from Quicklisp), which sends a few
+;; calls more arguments: lines and width (how much of a result to show) to
+;; the evaluating ones, a macro environment to the expanding ones. The old
+;; Swank refuses those ("invalid number of arguments"), so C-x C-e and
+;; C-M-x stop in the debugger. Each of these then takes what it's sent, and
+;; passes on as many arguments as it has room for. Both kinds are hints:
+;; without them a result shows in full.
+(defparameter *vikix-swank-newer-calls*
+  '("INTERACTIVE-EVAL" "INTERACTIVE-EVAL-REGION" "EVAL-STRING-IN-FRAME"
+    "SWANK-EXPAND" "SWANK-EXPAND-1" "SWANK-MACROEXPAND" "SWANK-MACROEXPAND-1"
+    "SWANK-MACROEXPAND-ALL" "SWANK-COMPILER-MACROEXPAND"
+    "SWANK-COMPILER-MACROEXPAND-1" "SWANK-FORMAT-STRING-EXPAND"))
+
+(defun vikix-positional-count (function)
+  "How many arguments FUNCTION takes at most, or nil when it takes any
+number (&rest or &key): those need no help."
+  (let ((list (sb-introspect:function-lambda-list function)))
+    (unless (intersection list '(&rest &key &body))
+      (count-if-not (lambda (x) (member x lambda-list-keywords)) list))))
+
+(defun vikix-swank-accept-newer-calls ()
+  "Let newer SLIME's calls through to Nyxt's older Swank (see above). Wraps
+each function once, and only one that has fewer places than SLIME sends."
+  (dolist (name *vikix-swank-newer-calls*)
+    (let ((symbol (find-symbol name :swank)))
+      (when (and symbol (fboundp symbol) (not (get symbol 'vikix-wrapped)))
+        (let* ((original (fdefinition symbol))
+               (most (vikix-positional-count original)))
+          (when most
+            (setf (fdefinition symbol)
+                  (lambda (&rest args)
+                    (apply original (subseq args 0 (min most (length args))))))
+            (setf (get symbol 'vikix-wrapped) t)))))))
+
 (defun vikix-start-swank ()
   "Start Swank on *vikix-swank-port*, once, guarded, and only with a password."
   (cond ((or (null *vikix-swank-port*) *vikix-swank-started*))
@@ -165,6 +200,7 @@ refused client ends only itself."
          (log:warn "Swank not started: ~~/.slime-secret has no password (vikix update core makes one)"))
         (t
          (vikix-guard-swank)
+         (vikix-swank-accept-newer-calls)
          (handler-case
              (let ((swank::*loopback-interface* "127.0.0.1"))
                (uiop:symbol-call :swank :create-server
