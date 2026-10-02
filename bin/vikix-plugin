@@ -32,7 +32,7 @@ VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 # VIKIX_PLUGINS_REPO and VIKIX_PLUGINS_COMMIT name others (tests, or trying
 # your own work on the repo: a folder works as well as an address).
 PLUGINS_REPO=${VIKIX_PLUGINS_REPO:-https://github.com/vukini/vikix-plugins}
-PLUGINS_COMMIT=${VIKIX_PLUGINS_COMMIT:-29e2ad49d6330b80e6a22f376563ad7076952fa1}   # 2026-10-02: agent-waiting, ai-usage, next-meeting, flights
+PLUGINS_COMMIT=${VIKIX_PLUGINS_COMMIT:-145f3714e32f8dac155ff40355206155f1085e98}   # 2026-10-02: flights asks for direct flights too
 DIR="$HOME/.local/share/vikix/plugins"
 LIST="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/plugins.list"
 SETTINGS="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/plugins"
