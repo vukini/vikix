@@ -28,6 +28,7 @@ learn                       # your work in vikix learn's courses (~/learn/c ...)
 .config/vikix/dictation       # dictation's model (vikix dictate models)
 .config/vikix/voice           # the voice, and when a new chat starts (vikix voice)
 .config/vikix/notes           # the folder note reads, and what it skips (note index)
+.config/vikix/projects        # where vikix project looks for projects (root=, logs=, depth=)
 .config/nvim                  # Neovim: your plugins and settings, and the plugins' versions (not when it's a git clone: that has its own history)
 # The agents' own settings, file by file (their folders also hold logins):
 # an agent could change its own permissions or hooks, and this shows it.

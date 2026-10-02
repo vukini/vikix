@@ -62,6 +62,8 @@ jobs:
         run: tests/ci.sh dev-ai
       - name: notes
         run: tests/ci.sh notes
+      - name: project
+        run: tests/ci.sh project
       - name: drives
         run: tests/ci.sh drives
       - name: firmware

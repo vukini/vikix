@@ -40,6 +40,10 @@
 #   vikix notes setup|uninstall
 #                         ask your notes from any terminal: note index ~/Notes,
 #                         then note ask "..." (vikix-notes; on this laptop)
+#   vikix project [list|show|path|log|open|build] [NAME]
+#                         your projects, each a folder with a log.md (in ~/src):
+#                         where each is and what's next; log NAME "what was
+#                         done" adds today's entry (vikix project help)
 #   vikix learn [c]       a course in the terminal: edit, save, it's checked
 #                         (vikix learn c list, hint, go NN, reset NN)
 #   vikix hype setup|status|uninstall
@@ -1251,6 +1255,7 @@ main() {
     esploro)     shift; exec "$VIKIX_DIR/bin/vikix-esploro" "$@" ;;
     voice)       shift; exec "$VIKIX_DIR/bin/vikix-voice" "$@" ;;
     notes)       shift; exec "$VIKIX_DIR/bin/vikix-notes" "$@" ;;
+    project|projects) shift; exec "$VIKIX_DIR/bin/vikix-project" "$@" ;;
     mcp)         shift; exec "$VIKIX_DIR/bin/vikix-mcp" "$@" ;;
     snapshot|changes|history|undo)
       case ${2:-} in -h|--help) history_help; exit 0 ;; esac

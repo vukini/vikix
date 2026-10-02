@@ -95,6 +95,7 @@ copy_user "$C/gammastep/config.ini"       "$HOME/.config/gammastep/config.ini"
 copy_user "$C/xdg/mimeapps.list"          "$HOME/.config/mimeapps.list"
 copy_user "$C/x11/Xresources"             "$HOME/.Xresources"
 copy_user "$C/backup/exclude"             "$HOME/.config/vikix/backup-exclude"
+copy_user "$C/projects/projects"          "$HOME/.config/vikix/projects"
 
 # The theme's files for the terminals, rofi, dunst and the lock screen,
 # written again from the saved theme, so a Vikix update reaches them.

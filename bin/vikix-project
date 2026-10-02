@@ -1,0 +1,522 @@
+#!/usr/bin/env python3
+"""vikix-project — your projects, each a folder with a log.md (`vikix project`).
+
+  vikix project [list] [--all]   one line each, most recently logged first:
+                      name, % done, the last entry's date, the next step
+                      (--all: projects with no entries yet, too)
+  vikix project show NAME        title, folder, log, its Status, the last 3 entries
+  vikix project path NAME        the folder: cd "$(vikix project path lambda)"
+  vikix project log NAME "what was done" [--next "..."] [--status "few words"] [--agent]
+                      a new entry for today at the top of the log, marked
+                      (Vid) unless --agent (or run from Claude Code); never
+                      committed: it says how
+  vikix project open NAME        a terminal in the folder, the editor on its log
+  vikix project build NAME [-n]  run its build in its folder (-n: only say which)
+  vikix project pick             choose one with rofi and open it (Super+Shift+p)
+
+What a project is: a folder under a root (~/src unless ~/.config/vikix/projects
+says otherwise), at most `depth` levels down (2), with a log.md in it. A
+folder inside a project folder is a project of that collection
+(living-series/living-in-lambda). Hidden folders, node_modules and git
+worktrees (their .git is a file: they'd count a project twice) are skipped.
+A public repo keeps its log apart: a repo with no log.md whose name has
+<logs>/NAME/log.md (logs=~/src/project-logs) is a project with that log.
+
+A log, newest first:
+
+  # Log: Title
+  **Status** (...), as of 2026-09-12: 93% complete.
+  - Standing: where it is
+  - Next: what comes next
+  - Build: make site          (optional: overrides the build found)
+
+  ## 2026-09-18 · status words (Vid)
+  What was done.
+  Next: what comes next.
+
+Names match exactly, then by a prefix or a part of the name that only one
+project has; a collection's project also answers to collection/name.
+"""
+import datetime
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+HOME = Path.home()
+CONFIG = Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config") / "vikix" / "projects"
+LOG_NAMES = ("log.md", "LOG.md")   # LOG.md: a collection's own log (living-series/LOG.md)
+SKIP = {"node_modules"}
+DATED = re.compile(r"^## (\d{4}-\d{2}-\d{2})\b(.*)$")
+STATUS_DATE = re.compile(r"as of (\d{4}-\d{2}-\d{2})")
+PERCENT = re.compile(r"(\d{1,3})% complete")
+
+
+def die(msg, code=1):
+    print(f"vikix project: {msg}", file=sys.stderr)
+    sys.exit(code)
+
+
+def today():
+    # VIKIX_TODAY: for the tests, so "3 days ago" stays true.
+    t = os.environ.get("VIKIX_TODAY")
+    return datetime.date.fromisoformat(t) if t else datetime.date.today()
+
+
+def expand(p):
+    return Path(os.path.expandvars(os.path.expanduser(p.strip())))
+
+
+def read_config():
+    roots, logs, depth = [], HOME / "src" / "project-logs", 2
+    try:
+        lines = CONFIG.read_text().splitlines()
+    except OSError:
+        lines = []
+    for line in lines:
+        line = line.split("#", 1)[0].strip()
+        if "=" not in line:
+            continue
+        key, val = (s.strip() for s in line.split("=", 1))
+        if key == "root" and val:
+            roots.append(expand(val))
+        elif key == "logs" and val:
+            logs = expand(val)
+        elif key == "depth" and val.isdigit():
+            depth = max(1, int(val))
+    return roots or [HOME / "src"], logs, depth
+
+
+class Project:
+    def __init__(self, path, log, collection=None, external=False):
+        self.path, self.log, self.collection, self.external = path, log, collection, external
+        self.name = path.name
+        self._parsed = None
+
+    @property
+    def full(self):
+        return f"{self.collection}/{self.name}" if self.collection else self.name
+
+    @property
+    def parsed(self):
+        if self._parsed is None:
+            self._parsed = parse_log(self.log.read_text(errors="replace"))
+        return self._parsed
+
+
+def find_log(folder):
+    for n in LOG_NAMES:
+        if (folder / n).is_file():
+            return folder / n
+    return None
+
+
+def discover():
+    roots, logs, depth = read_config()
+    logs_real = logs.resolve() if logs.exists() else None
+    found, seen = [], set()
+
+    def walk(folder, level, rel):
+        try:
+            subs = sorted(p for p in folder.iterdir() if p.is_dir())
+        except OSError:
+            return
+        for sub in subs:
+            if sub.name.startswith(".") or sub.name in SKIP:
+                continue
+            if (sub / ".git").is_file():          # a git worktree: the same project again
+                continue
+            real = sub.resolve()
+            if logs_real and real == logs_real:   # the logs repo is not a project
+                continue
+            log = find_log(sub)
+            external = False
+            if log is None and level == 1 and (sub / ".git").is_dir() and logs_real:
+                other = logs_real / sub.name / "log.md"
+                if other.is_file():
+                    log, external = other, True
+            if log is not None and real not in seen:
+                seen.add(real)
+                found.append(Project(sub, log, "/".join(rel) or None, external))
+            if level < depth:
+                walk(sub, level + 1, rel + [sub.name])
+
+    for root in roots:
+        if root.is_dir():
+            walk(root, 1, [])
+    return found
+
+
+def parse_log(text):
+    lines = text.splitlines()
+    title = None
+    first_entry = len(lines)
+    for i, line in enumerate(lines):
+        if title is None and line.startswith("# "):
+            title = line[2:].strip()
+            if title.lower().startswith("log:"):
+                title = title[4:].strip()
+        if DATED.match(line):
+            first_entry = i
+            break
+    intro = lines[:first_entry]
+
+    # Status blocks: a **Status** line and the lines after it up to the
+    # first one that is neither blank nor a "- " point.
+    statuses, cur = [], None
+    for line in intro:
+        if line.startswith("**Status**"):
+            cur = [line]
+            statuses.append(cur)
+        elif cur is not None:
+            if line.strip() == "" or line.startswith(("- ", "  ")):
+                cur.append(line)
+            else:
+                cur = None
+    for s in statuses:
+        while s and not s[-1].strip():
+            s.pop()
+
+    def point(block, key):
+        for line in block:
+            m = re.match(rf"^- {key}:\s*(.*)$", line)
+            if m:
+                return m.group(1).strip()
+        return None
+
+    first = statuses[0] if statuses else []
+    pct = None
+    sdate = None
+    if first:
+        m = PERCENT.search(first[0])
+        pct = int(m.group(1)) if m else None
+        m = STATUS_DATE.search(first[0])
+        sdate = m.group(1) if m else None
+    build = None
+    for s in statuses:
+        build = build or point(s, "Build")
+
+    entries = []
+    cur = None
+    for line in lines[first_entry:]:
+        m = DATED.match(line)
+        if m:
+            rest = m.group(2).strip()
+            vid = rest.endswith("(Vid)")
+            if vid:
+                rest = rest[:-5].strip()
+            rest = rest.lstrip("·").strip()
+            cur = {"date": m.group(1), "words": rest, "vid": vid, "lines": [line], "next": None}
+            entries.append(cur)
+        elif cur is not None:
+            cur["lines"].append(line)
+            n = re.match(r"^Next:\s*(.*)$", line)
+            if n and cur["next"] is None:
+                cur["next"] = n.group(1).strip()
+    for e in entries:
+        while e["lines"] and not e["lines"][-1].strip():
+            e["lines"].pop()
+
+    return {
+        "title": title, "intro": intro, "first_entry": first_entry,
+        "statuses": statuses, "percent": pct, "status_date": sdate,
+        "status_next": point(first, "Next") if first else None,
+        "build": build, "entries": entries,
+    }
+
+
+def last_date(p):
+    dates = [e["date"] for e in p.parsed["entries"]]
+    return max(dates) if dates else None
+
+
+def next_step(p):
+    """The newer of the Status' Next and the newest entry that has one."""
+    d = p.parsed
+    entry = next((e for e in d["entries"] if e["next"]), None)
+    if d["status_next"] and (not entry or not d["status_date"] or d["status_date"] >= entry["date"]):
+        return d["status_next"]
+    return entry["next"] if entry else (d["status_next"] or "")
+
+
+def ago(date):
+    days = (today() - datetime.date.fromisoformat(date)).days
+    if days <= 0:
+        return "today"
+    if days == 1:
+        return "yesterday"
+    if days < 14:
+        return f"{days} days ago"
+    if days < 60:
+        return f"{days // 7} weeks ago"
+    if days < 730:
+        return f"{days // 30} months ago"
+    return f"{days // 365} years ago"
+
+
+def width():
+    if os.environ.get("COLUMNS", "").isdigit():
+        return int(os.environ["COLUMNS"])
+    if sys.stdout.isatty():
+        return shutil.get_terminal_size().columns
+    return 0   # piped: whole lines
+
+
+def rows(projects, everything):
+    keep = [p for p in projects if everything or p.parsed["entries"]]
+    keep.sort(key=lambda p: p.full)
+    # Newest first; sort is stable, so names stay A to Z within a day.
+    keep.sort(key=lambda p: last_date(p) or "", reverse=True)
+    out = []
+    for p in keep:
+        pct = p.parsed["percent"]
+        date = last_date(p)
+        out.append((p, p.full, f"{pct}%" if pct is not None else "",
+                    f"{date} ({ago(date)})" if date else "no entries yet", next_step(p)))
+    return out
+
+
+def cmd_list(args):
+    everything = "--all" in args
+    bad = [a for a in args if a != "--all"]
+    if bad:
+        die(f"list takes only --all, not {bad[0]}", 2)
+    projects = discover()
+    if not projects:
+        roots, _, _ = read_config()
+        die(f"no projects (folders with a log.md) under {', '.join(map(str, roots))}; "
+            f"the folders searched are in {CONFIG}")
+    table = rows(projects, everything)
+    if not table:
+        print("no project has a log entry yet (vikix project list --all shows them)")
+        return
+    nw = max(len(r[1]) for r in table)
+    dw = max(len(r[3]) for r in table)
+    w = width()
+    for _, name, pct, date, nxt in table:
+        line = f"{name:<{nw}}  {pct:>4}  {date:<{dw}}  {nxt}".rstrip()
+        if w and len(line) > w:
+            line = line[:max(w - 1, 0)] + "…"
+        print(line)
+
+
+def match(name, projects=None):
+    projects = discover() if projects is None else projects
+    if not projects:
+        die("no projects found (vikix project list says where it looks)")
+    low = name.lower()
+    for test in (lambda p: low in (p.name.lower(), p.full.lower()),
+                 lambda p: p.name.lower().startswith(low) or p.full.lower().startswith(low),
+                 lambda p: low in p.full.lower()):
+        hits = [p for p in projects if test(p)]
+        if len(hits) == 1:
+            return hits[0]
+        if len(hits) > 1:
+            names = "\n".join(f"  {p.full}" for p in sorted(hits, key=lambda p: p.full))
+            die(f"'{name}' could be any of these; say which:\n{names}", 2)
+    die(f"no project called '{name}' (vikix project list --all)")
+
+
+def one_name(args, what):
+    if len(args) != 1:
+        die(f"usage: vikix project {what} NAME", 2)
+    return match(args[0])
+
+
+def where_log(p):
+    if p.external:
+        return f"{p.log} (kept apart from the repo)"
+    return str(p.log)
+
+
+def cmd_show(args):
+    p = one_name(args, "show")
+    d = p.parsed
+    print(d["title"] or p.name)
+    print(f"  project: {p.full}")
+    print(f"  folder:  {p.path}")
+    print(f"  log:     {where_log(p)}")
+    if d["build"]:
+        print(f"  build:   {d['build']}")
+    for s in d["statuses"]:
+        print()
+        print("\n".join(s))
+    entries = d["entries"][:3]
+    if entries:
+        print()
+        print(f"The last {len(entries)} of {len(d['entries'])} entries:" if len(d["entries"]) > 3
+              else "Entries:")
+        for e in entries:
+            print()
+            print("\n".join(e["lines"]))
+    else:
+        print("\nNo entries yet: vikix project log " + p.name + ' "what was done"')
+
+
+def cmd_path(args):
+    print(one_name(args, "path").path)
+
+
+def git_top(path):
+    for d in [path, *path.parents]:
+        if (d / ".git").exists():
+            return d
+    return None
+
+
+def cmd_log(args):
+    usage = 'usage: vikix project log NAME "what was done" [--next "..."] [--status "few words"] [--agent]'
+    pos, nxt, status = [], None, None
+    agent = bool(os.environ.get("CLAUDECODE"))
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a in ("--next", "--status"):
+            if i + 1 >= len(args):
+                die(usage, 2)
+            if a == "--next":
+                nxt = args[i + 1].strip()
+            else:
+                status = args[i + 1].strip()
+            i += 2
+            continue
+        if a == "--agent":
+            agent = True
+        elif a == "--vid":
+            agent = False
+        elif a.startswith("--"):
+            die(usage, 2)
+        else:
+            pos.append(a)
+        i += 1
+    if len(pos) != 2 or not pos[1].strip():
+        die(usage, 2)
+    p = match(pos[0])
+    text = p.log.read_text(errors="replace")
+    lines = text.splitlines()
+    first = parse_log(text)["first_entry"]
+
+    head = f"## {today().isoformat()}"
+    if status:
+        head += f" · {status}"
+    if not agent:
+        head += " (Vid)"
+    entry = [head, "", pos[1].strip()]
+    if nxt:
+        entry += ["", f"Next: {nxt}"]
+
+    before, after = lines[:first], lines[first:]
+    while before and not before[-1].strip():
+        before.pop()
+    new = before + ([""] if before else []) + entry + ([""] + after if after else [])
+    p.log.write_text("\n".join(new) + "\n")
+
+    print(f"wrote today's entry at the top of {p.log}")
+    top = git_top(p.log.parent)
+    if top:
+        rel = os.path.relpath(p.log, top)
+        print(f"not committed; when you want to: git -C {top} commit -m 'log: {p.name}' -- {rel}")
+    else:
+        print("(the log isn't in a git repo, so there's nothing to commit)")
+
+
+def spawn(cmd, cwd):
+    subprocess.Popen(cmd, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL, start_new_session=True)
+
+
+def cmd_open(args):
+    p = one_name(args, "open")
+    if not os.environ.get("DISPLAY"):
+        die(f'open needs the desktop; here: cd "$(vikix project path {p.name})"')
+    term = os.environ.get("VIKIX_TERMINAL") or "alacritty"
+    if not shutil.which(term):
+        die(f"no terminal: {term} isn't installed (VIKIX_TERMINAL names another)")
+    # The terminal starts in the folder (cwd), so any terminal does.
+    spawn([term], p.path)
+    if shutil.which("emacsclient"):
+        # -a '': starts the Emacs server if it isn't running; -n: don't wait.
+        spawn(["emacsclient", "-n", "-c", "-a", "", str(p.log)], p.path)
+    else:
+        spawn([term, "-e", os.environ.get("EDITOR") or "nvim", str(p.log)], p.path)
+    print(f"opened {p.full}: a terminal in {p.path}, the editor on {p.log}")
+
+
+def build_command(p):
+    """(the command as words, how to show it), or (None, None)."""
+    d = p.path
+    if p.parsed["build"]:
+        return ["bash", "-c", p.parsed["build"]], f"{p.parsed['build']}  (the log's Build line)"
+    for script in (d / "build.sh", None, d / "src" / "build.sh"):
+        if script is None:
+            if any((d / m).is_file() for m in ("Makefile", "makefile", "GNUmakefile")):
+                return ["make"], "make"
+            continue
+        if script.is_file():
+            rel = os.path.relpath(script, d)
+            try:
+                shebang = script.open(errors="replace").readline()
+            except OSError:
+                shebang = ""
+            shell = "bash" if "bash" in shebang else "sh"
+            return [shell, rel], f"{shell} {rel}"
+    if (d / "package.json").is_file():
+        return ["npm", "run", "build"], "npm run build"
+    return None, None
+
+
+def cmd_build(args):
+    dry = any(a in ("-n", "--dry-run") for a in args)
+    p = one_name([a for a in args if a not in ("-n", "--dry-run")], "build")
+    cmd, shown = build_command(p)
+    if not cmd:
+        die(f"{p.full}: no build.sh, Makefile, src/build.sh or package.json in {p.path}; "
+            f"a '- Build: COMMAND' line in the log's Status says how")
+    print(f"{p.full}: {shown}  (in {p.path})", flush=True)
+    if dry:
+        return
+    try:
+        rc = subprocess.run(cmd, cwd=p.path).returncode
+    except FileNotFoundError:
+        die(f"{cmd[0]} isn't installed")
+    print(f"{p.full}: {'built' if rc == 0 else 'the build failed'} (exit status {rc})")
+    sys.exit(rc)
+
+
+def cmd_pick(args):
+    table = rows(discover(), True)
+    if not table:
+        subprocess.run(["notify-send", "-a", "Vikix", "No projects",
+                        f"No folder with a log.md under the roots in {CONFIG}"])
+        return
+    nw = max(len(r[1]) for r in table)
+    menu = "\n".join(f"{name:<{nw}}  {pct:>4}  {nxt}"[:160] for _, name, pct, _, nxt in table)
+    r = subprocess.run(["rofi", "-dmenu", "-i", "-p", "Project", "-format", "i", "-no-custom"],
+                       input=menu, capture_output=True, text=True)
+    if r.returncode != 0 or not r.stdout.strip().isdigit():
+        return
+    p = table[int(r.stdout.strip())][0]
+    cmd_open([p.full])
+
+
+def main(argv):
+    cmd, args = (argv[0], argv[1:]) if argv else ("list", [])
+    if cmd.startswith("--") and cmd != "--help":
+        cmd, args = "list", argv
+    table = {"list": cmd_list, "show": cmd_show, "path": cmd_path, "log": cmd_log,
+             "open": cmd_open, "build": cmd_build, "pick": cmd_pick}
+    if cmd in ("help", "-h", "--help"):
+        print(__doc__.strip())
+        return
+    if cmd not in table:
+        die(f"unknown command: {cmd} (vikix project help)", 2)
+    table[cmd](args)
+
+
+if __name__ == "__main__":
+    try:
+        main(sys.argv[1:])
+    except BrokenPipeError:
+        pass

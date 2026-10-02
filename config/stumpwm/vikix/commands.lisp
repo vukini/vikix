@@ -203,6 +203,7 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
      "~/.local/share/vikix/guide/index.html")
     ("Update Vikix"      vikix-update)
     ("AI agent"            vikix-agent)
+    ("Projects: open one (a terminal there, its log in the editor)" (run-shell-command "vikix-project pick"))
     ("Something's wrong? Ask the agent" (vikix-in-terminal "vikix diagnose"))
     ("A report of what's going on (vikix debug)" (vikix-in-terminal "vikix debug"))
     ("AI on the selected text" (run-shell-command "vikix-ask"))

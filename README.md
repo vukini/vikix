@@ -199,6 +199,7 @@ Every config file belongs either to Vikix or to you:
   - the configs under `~/.config` for alacritty, picom, dunst and rofi
   - `~/.config/vikix/keyboard`: layout and XKB options, applied at every login. The starter swaps Caps Lock and Left Ctrl (`ctrl:swapcaps`); edit it, then `s-m` → "Apply keyboard settings". For Esperanto, it explains the options that put ĉ ĝ ĥ ĵ ŝ ŭ on Right Alt + c g h j s u, leaving every other key alone
   - `~/.config/vikix/backup-exclude`: what `vikix backup` leaves out
+  - `~/.config/vikix/projects`: where `vikix project` looks for your projects (`root=`, `depth=`, `logs=`); all comments at first, so the defaults stand
   - `~/.Xresources`: text size. Raise `Xft.dpi` on a high-resolution screen (144 for a 14" 2.8K panel), then log in again
 
 `config/yours.list` names your files, and Vikix keeps a history of them (see [Undo](#undo-for-your-files)).
@@ -219,6 +220,7 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 | `s-E` | Files in SpaceFM (tabs, split panes) |
 | `s-C-e` | Eject a USB drive: pick it, and a notification says when it's safe to pull out |
 | `s-M-e` | Files in Esploro, the Lisp file explorer: its window if it's open (`vikix add esploro`) |
+| `s-P` | Projects: pick one with rofi; a terminal opens in its folder and its `log.md` in Emacs (see [Projects](#projects-vikix-project)) |
 | `s-a` | AI agent in a terminal: Claude Code, or the one you chose |
 | `s-i` | AI on the selected text: ask, proofread, rewrite, translate, explain |
 | `s-F9` | Dictation: speak, then `s-F9` again types it (`s-S-F9` cancels) |
@@ -868,6 +870,42 @@ It is a separate environment because Void's own Python won't take `pip install`.
 - **Cuis Smalltalk** — download a release bundle from the Cuis-Smalltalk-Dev GitHub page into `~/apps/`, and keep your `cuis` launcher script from `vukini/dotfiles` (it pins `-ud` so user files stay out of `$PWD`).
 - **Odin** — prebuilt binaries into `~/bin/odin-bin`, on PATH from `.bashrc`. `ols` is its language server; the Emacs config already maps it.
 
+## Projects (`vikix project`)
+
+A project is a folder with a `log.md`: a book, a site, a program. `vikix project` finds them in `~/src` (two levels down, so a collection repo's folders are projects too: `living-series/living-in-lambda`), and tells you where each one stands. The log is plain Markdown, newest first, so you, Emacs, scripts and Claude sessions all read and write the same file:
+
+```markdown
+# Log: Living in Lambda
+
+**Status** (Living in Lambda), as of 2026-09-12: 60% complete.
+
+- Standing: Tracks 0 to III of 6 published
+- Next: Track IV, types
+- Build: ./build.sh --all
+
+## 2026-09-12 · Track III published (Vid)
+
+What was done.
+
+Next: Track IV.
+```
+
+```sh
+vikix project                 # one line each, most recently logged first: % done, the last entry and how long ago, the next step
+vikix project list --all      # with the projects that have no entries yet
+vikix project show lambda     # the title, folder, log, Status and the last three entries
+vikix project path lambda     # the folder: cd "$(vikix project path lambda)"
+vikix project log lambda "Track IV's step list agreed." --next "write step 1" --status "track IV started"
+vikix project open lambda     # a terminal in its folder, its log in Emacs (Super+Shift+p picks one with rofi; Super+m → Projects)
+vikix project build lambda    # its build, in its folder: the log's Build line, build.sh, a Makefile, src/build.sh or package.json (-n only says which)
+```
+
+The `- Build:` line is optional: it is for a project whose build isn't the usual one. The next step is the newer of the Status' `- Next:` and the newest entry's `Next:` line. A name can be part of one (`lambda`), as long as only one project has it; otherwise it lists the ones it could be. `log` puts the new entry just above the newest one, marked `(Vid)` as the logs mark entries written by hand; from an agent (`--agent`, or anything run inside Claude Code) it leaves the mark off. It never commits: it says the `git` line that would.
+
+- **Skipped:** hidden folders, `node_modules`, and git worktrees (a folder whose `.git` is a file), which would show a project twice.
+- **Public repos** keep their log out of the repo: a repo in `~/src` with no `log.md` uses `~/src/project-logs/NAME/log.md` when there is one. That folder is not a project itself.
+- **Where it looks** is yours, in `~/.config/vikix/projects`: `root=` (as many as you like), `depth=`, `logs=`.
+
 ## Shell aliases
 
 These come from `~/.config/vikix/vikix.bash`. Type `alias` to see them all.
@@ -943,6 +981,9 @@ vikix fingerprint  # a finger for sudo and the lock screen, where the reader is 
 vikix firewall     # the firewall: on or off, its rules; vikix firewall allow PORT lets one in
 vikix dictate setup          # speak, and it types (s-F9); vikix add dictation does the same
 vikix voice setup            # talk to the AI (s-F10) or the agent (s-F11), and it answers aloud
+vikix project                # your projects (folders with a log.md in ~/src): newest first, % done, what's next
+vikix project log NAME "..." # today's entry at the top of its log.md (--next "...", --status "few words")
+cd "$(vikix project path lambda)"   # a project's folder; also show, open, build NAME
 note ask "..."               # ask your notes (vikix add notes, then note index FOLDER once)
 vikix mcp register           # the desktop as tools for your agent; vikix mcp status
 ```
@@ -988,6 +1029,7 @@ tests/run.sh --all    # plus the editors: several minutes, needs the network
 | `debug` | `vikix debug` writes a 600 report through a temp file (refusing a link; an old 644 file ends 600): the problems at a glance (a Lisp error, a failed stage), the sections, only Vikix's own log lines (a browser's, with the pages and a web page's text, left out and counted), the session's start and end, repeats collapsed; it keeps out stored secrets whatever their shape, Swank's, git's and the backup password, key shapes (Slack, Stripe, JWTs, AWS, Google...), JSON and lowercase names, `--password` flags, private key blocks, Bearer, `curl -u`, URL passwords and paths, random-looking strings, home, user and machine names; a bad byte or control code doesn't stop it; `--help`; `vikix diagnose` needs a terminal, starts in Vikix's state folder, Claude in plan mode, Aider with `--read` and `--no-git`, and says the logs are data |
 | `dictate` | setup clones whisper.cpp at the pinned tag and refuses another commit, builds for this CPU, downloads the model and the voice detector and refuses a wrong checksum (keeping nothing), writes the choice, records the feature, asks for no sudo when the build tools are there, and a second setup does nothing; toggle listens (16 kHz mono, 600, the bar's file), then writes it down with voice detection and types it, on the clipboard too, without whisper's descriptions of sounds; nothing heard, nothing typed; cancel types nothing; not set up, it says so; `models small` lets whisper find the language; uninstall keeps the models unless asked; presses within 0.7 s are one; a recording the 5-minute limit stopped is typed by the next press; a new dictation while one is written down keeps its own file; moved to another window, only the clipboard; a space after each; `models` and `status` clean before setup; `file` fails on no speech |
 | `notes` | `note` against a made-up Claude and Ollama in a made-up home: ask and index say what to do first; the first index remembers the folder and skips in a file that explains itself, keeps the index in a folder of your own (700), and leaves out hidden files and folders, Emacs's lock links and skipped folders; again from anywhere, only changes, and what's gone goes; `--skip` alone, another folder starting afresh, one index at a time; find, and ask giving the model the rule and the nearest passages; who answers following `~/.config/vikix/ai`, `--local`/`--claude`, no key; status; setup (records the feature, pulls the model only when missing); uninstall keeping the index unless `--index` |
+| `project` | `vikix project` in a made-up home with made-up projects: a repo with `log.md`, a collection with its own `LOG.md` and two projects, a public repo whose log is in `~/src/project-logs` (that folder no project), and a git worktree, hidden folders, `node_modules` and too-deep folders skipped; `~/.config/vikix/projects`'s `root=`, `depth=`, `logs=`; `list` newest first with the %, how long ago and the newer Next, cut to the terminal's width, `--all`; `show`, `path`, names by prefix, part or `collection/name`, an ambiguous one listing the candidates; `log` puts today's entry after the Status and before the newest (with `--next`, `--status`, `(Vid)` unless `--agent` or Claude Code), into a log kept apart too, and says how to commit; `build` finds the log's `Build:` line, `build.sh` (bash or sh), `Makefile`, `src/build.sh`, `package.json`, runs in the folder and passes on the exit status; `open` starts a terminal there and Emacs on the log, and refuses without a desktop |
 | `voice` | setup installs the pinned Piper with uv and downloads the voice, refusing a wrong checksum (keeping nothing), writes the choices, records the feature, and a second setup does nothing; `say` streams Piper into the player at the voice's rate, `quiet` stops the whole group, `speak=no` stays silent; `ask` uses Super+i's model with a spoken-style prompt, speaks the answer without Markdown or links and shows it, carries the conversation on, starts afresh after the idle minutes or `new`, and says why when it fails (speaking nothing); `agent` starts Claude Code in a terminal it can find again, with a Stop hook for that session only; `agent-said` speaks the reply from the hook's field or the transcript, without code, and exits 0 on junk; `dictate toggle ask`/`agent` quiet the voice, then send what was said there, typing nothing; `voices` switches; uninstall keeps the voices unless asked |
 | `lisp-apps` | setup fetches Lem at the pinned commit and refuses another, installs its libraries with qlot in its folder, then builds the SDL2 window with 4 GiB; builds the Listener with Clouseau as one program, leaving no half-written one; links `lem` and `clim-listener`, puts both in the launcher, records the feature, asks for no sudo when the packages are there; a second setup builds nothing, `--rebuild` builds again; a failed build shows its end and names its log; `status` says what's built and from which commit; uninstall removes only what setup made and forgets the feature; a dry run changes nothing |
 | `esploro` | setup fetches Esploro at the pinned commit and refuses another, builds it with `build.lisp` in its folder, links `esploro` and puts it in the launcher with its window class, records the feature, needs no sudo when the packages are there, builds nothing a second time and again with `--rebuild`; a failed build names its log; uninstall removes only what setup made; Super+Alt+e and the Apps menu name it, and `vikix update` builds a moved pin |

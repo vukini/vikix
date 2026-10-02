@@ -181,6 +181,19 @@ Your list is `~/.config/vikix/webapps`, one `NAME URL [KEY]` per line; editing i
 
 Emacs and Neovim are features: `vikix add emacs`, `vikix add neovim`. Neovim's config is split like the desktop's: Vikix's part is `~/.local/share/vikix/nvim`, and `~/.config/nvim` is yours (your plugins go in its `lua/plugins/`, and win). Emacs's is a git clone of the author's at `~/.emacs.d`, which `vikix update` pulls, and Vikix's AI setup for it is `~/.local/share/vikix/emacs`. [Neovim and Emacs](editors.md) has the rest: keys, language servers, AI in each, and bringing a config of your own.
 
+## Projects
+
+`vikix project` lists the folders under `~/src` that have a `log.md`, and adds to their logs ([the README](../README.md#projects-vikix-project) has the commands and the log's layout). Where it looks is `~/.config/vikix/projects`, yours; it starts as comments only, so the defaults stand until you uncomment a line:
+
+```sh
+root=~/src            # a folder your projects are in; one line each, as many as you like
+root=~/work
+depth=2               # how far down: 2 makes ~/src/series/book a project of the collection "series"
+logs=~/src/project-logs   # a public repo ~/src/NAME with no log.md of its own uses logs/NAME/log.md
+```
+
+The change takes effect at once: each `vikix project` reads it again. A project whose build isn't `build.sh`, `make`, `src/build.sh` or `npm run build` says so in its log's Status, with a `- Build: COMMAND` line. `Super+Shift+p` (or `Super+m` → *Projects*) picks one with rofi and opens a terminal in its folder and its log in Emacs (in `$EDITOR`, Neovim by default, without Emacs); the terminal is `$VIKIX_TERMINAL`, `alacritty` unless you set it.
+
 ## AI
 
 Each of these is one of your files, so it has an undo too. [Working with AI](ai.md) says what each does.

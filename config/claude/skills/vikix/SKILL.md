@@ -45,6 +45,7 @@ commit made there stops the update altogether. **Do not edit them**:
 | Text size on a high-resolution screen | `~/.Xresources` (`Xft.dpi`, `Xcursor.size`); takes effect at the next login |
 | Neovim: plugins, settings, keys | `~/.config/nvim/lua/plugins/*.lua`, each returning lazy.nvim specs; they load after Vikix's, so they win (`example.lua` there shows how). `~/.config/nvim/init.lua` only loads Vikix's part, then these. Plain `vim.opt` settings and `vim.keymap.set` keys: at the end of `~/.config/nvim/init.lua`. AI (Vikix's `lua/vikix/plugins/ai.lua`): CodeCompanion under `<Leader>A` (c chat on `vikix ai use`'s model, q inline, g chat with the user's agent over ACP via `vikix agent --acp`, t the agent in a terminal via `vikix agent`); change it with a spec for `olimorris/codecompanion.nvim` in their plugins folder. Plugin versions: `~/.config/nvim/lazy-lock.json`; updates move Vikix's plugins on to versions Vikix tested, unless the user moved them (`:Lazy update`), and plugins the user added keep theirs. |
 | Emacs: its config | `~/.emacs.d` is a git clone of the author's config (emacs-void, `config.org`), pulled by `vikix update`: a change there can stop the pull, so suggest a commit of their own or `VIKIX_EMACS_REPO`. `emacs-restart` after a change. AI (Vikix's `~/.local/share/vikix/emacs/vikix-ai.el`, loaded by the config; `vikix update` reloads it in a running Emacs, `vikix doctor` says whether it's loaded): gptel (`C-c g` chat on `vikix ai use`'s model, `C-c G` menu), agent-shell (`C-c a` the user's agent over ACP via `vikix agent --acp`; transcripts in `~/.local/state/vikix/agent-shell/`), `C-c A` the agent in a terminal via `vikix agent`. `emacs-restart` asks before ending open chats. |
+| Where `vikix project` looks for projects | `~/.config/vikix/projects` (`root=`, repeatable; `depth=`; `logs=`), all comments at first |
 | Shell aliases, PATH additions | `~/.bashrc`, **after** the `# <<< vikix ... <<<` blocks. Never edit inside a `# >>> vikix NAME >>>` block; Vikix rewrites those. |
 
 If the user asks for a change that can only be made in Vikix's own files
@@ -110,7 +111,7 @@ let the user see it, then write the same form into `user.lisp`.
 - Commands are defined with `(defcommand name (args) (prompts) "doc" body)`; `(documentation 'name 'function)` shows a command's description.
 
 The keys as installed (Super+/ shows the live list on one card, the next key closes it; Super+F1 searches it): Super+Return
-terminal, Super+d (or Super+Space) launcher, Super+w browser, Super+e files, Super+Alt+e Esploro (the feature `esploro`: Vid's file explorer in Common Lisp, github.com/vukini/esploro, built from a pinned commit into ~/.local/opt/esploro by `vikix esploro setup|status|uninstall`; it knows which window has each file open, over this Swank; run-or-raise by class Esploro), Super+a this
+terminal, Super+d (or Super+Space) launcher, Super+w browser, Super+e files, Super+Alt+e Esploro (the feature `esploro`: Vid's file explorer in Common Lisp, github.com/vukini/esploro, built from a pinned commit into ~/.local/opt/esploro by `vikix esploro setup|status|uninstall`; it knows which window has each file open, over this Swank; run-or-raise by class Esploro), Super+Shift+p a project (vikix-project pick: rofi, then a terminal in its folder and its log.md in Emacs), Super+a this
 agent, Super+Shift+m the mail web app (vikix webapp), Super+x an Emacs window, Super+c clipboard history (clipmenu),
 Super+. emoji picker and Super+= calculator (vikix-rofi: rofi-emoji,
 rofi-calc with qalculate; Enter copies the answer), Super+n / Super+Shift+n the last
@@ -132,6 +133,32 @@ any workspace (go there / bring it here), Super+t float the focused window or ti
 window, Super+1..9 workspaces, Super+Ctrl+1..9 send the
 window there, Super+m the Vikix menu, Super+Escape lock, Super+Shift+Escape the power menu (lock, suspend, log out, reboot, power off). Fingerprint: `vikix fingerprint` (fprintd) enrols a finger; `vikix fingerprint on|off` adds or removes a marked block in /etc/pam.d/sudo and /etc/pam.d/i3lock (password first; an empty password then the reader); nothing changes without a reader libfprint supports (this X1 Carbon's Validity 138a:0097 isn't). Firewall: ufw, on from the install (25-network; machines from before 0.71.7 by a migration): deny incoming, allow outgoing, SSH (22/tcp) always allowed; `vikix firewall` (on/off without a password from /etc/ufw/ufw.conf, then `sudo ufw status verbose`), `on` (also opens LocalSend's 53317 when `localsend` is on PATH), `off` (rules kept), `allow PORT[/tcp|/udp] [NAME]`, `close PORT`; Super+m → Firewall; the runit service `ufw` restores the rules at boot; mDNS (avahi, printers) is let in by ufw's before.rules and the VMs on virbr0 by libvirt's own rules. When something can't connect in, check the firewall before anything else, and ask before opening a port. Firmware: `vikix firmware` (fwupd, LVFS) shows waiting updates, `vikix firmware update` installs them and refuses on battery; the bar's updates field adds `firmware`. USB drives: udiskie (started by vikix-session through `vikix-drives start`) mounts them under /run/media/$USER when plugged in; Super+Ctrl+e (`vikix-drives eject`) unmounts and powers one off; the bar says `usb` while one is mounted; plugging in the backup drive runs a due backup. Mounting needs the process to be in the desktop session (polkit): run udisksctl/udiskie from a terminal on the desktop, not over ssh. The bar takes clicks: a workspace's number goes there, a window's title focuses it, vol opens pavucontrol (wheel up/down, middle mutes), the network nmtui, bt blueman (modeline.lisp, vikix-ml-clickable; the narrowest overlapping area wins). StumpWM's own
 keys follow the prefix Ctrl+t; which-key-mode is on (help.lisp sets it with `(vikix-which-key t)`, `nil` turns it off; never call the toggle `(which-key-mode)` from user.lisp, as each reload would flip it). Focus follows the mouse (sloppy focus).
+
+## Projects and their logs: `vikix project`
+
+The user's projects are the folders under `~/src` (two levels down) with a
+`log.md`: newest entry first, `## YYYY-MM-DD · status words`, the body, an
+optional `Next: ...` line; above the entries an optional `**Status**`
+paragraph (`..., as of DATE: N% complete.`, then `- Standing:`, `- Next:`,
+`- Build:` lines). A collection's folders are projects too
+(`living-series/living-in-lambda`); a public repo with no log.md of its own
+has it in `~/src/project-logs/NAME/log.md`. Git worktrees are skipped.
+
+- `vikix project` lists them (most recently logged first, % done, next
+  step); `show NAME` gives the Status and the last three entries: read it
+  before working on a project. `path NAME` is the folder; names may be
+  any unique part (`lambda`).
+- **At the end of a session that changed a project**, add one entry:
+  `vikix project log NAME "what was done, in a sentence or three" --next "the next step" [--status "few words"]`.
+  Run from Claude Code (or with `--agent`) it is the agent's entry,
+  unmarked; the user's own are marked `(Vid)`. It goes just above the
+  newest entry, into the right file (the one kept apart too), and is not
+  committed: commit it with the project's other changes when you commit
+  those, never on your own. Don't edit older entries or the Status unless asked.
+- `vikix project build NAME` runs the project's build in its folder (the
+  log's `- Build:` line, else build.sh, Makefile, src/build.sh,
+  package.json; `-n` only says which) and passes on its exit status.
+- `vikix project open NAME` opens a terminal there and the log in Emacs.
 
 ## Checking and fixing
 

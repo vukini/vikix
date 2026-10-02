@@ -1,0 +1,19 @@
+# ~/.config/vikix/projects — where `vikix project` looks for your projects.
+# Yours; Vikix copied it once and won't touch it again.
+#
+# A project is a folder with a log.md in it (newest entry first, under
+# "## YYYY-MM-DD" headings): vikix project list, show, log, open, build.
+#
+# root=FOLDER   a folder your projects are in; one line each, as many as you
+#               like. None given: ~/src.
+#root=~/src
+#root=~/work
+#
+# depth=N       how far down a root to look (2: ~/src/series/book counts,
+#               as a project of the collection "series").
+#depth=2
+#
+# logs=FOLDER   where public repos keep their logs, out of the repo: a repo
+#               ~/src/NAME with no log.md of its own uses FOLDER/NAME/log.md.
+#               This folder itself is not a project.
+#logs=~/src/project-logs

@@ -41,6 +41,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── dictation          yours     dictation's model: base.en or small (vikix dictate models)
 │   │   ├── voice              yours     how the AI talks back: voice=, speak=, idle= (vikix voice)
 │   │   ├── notes              yours     the folder `note` reads: folder=, skip=, embed= (note index)
+│   │   ├── projects           yours     where `vikix project` looks: root=, depth=, logs= (copied once, all comments)
 │   │   ├── features           yours     the features you chose (vikix add, vikix remove, vikix features)
 │   │   ├── packages-skip      yours     packages you dropped (vikix pkg drop); updates leave them out
 │   │   ├── windows            yours     where the Windows VM's disk is
