@@ -81,3 +81,20 @@ Small programs (an image viewer, a file explorer, a launcher, a video player) wr
 - **Where it doesn't:** decoding video, rendering the web, reading every image format are years of others' work. Lisp for the interface and the behaviour, proven engines underneath: the video player is a Lisp app controlling mpv over its socket, not a decoder.
 - **How they fit:** each app its own Lisp process (a crash takes down the app, never the desktop), registered with Vikix and taking commands as StumpWM does through `vikix eval`; one shared command language, so a rule (`(when-window (:class "vikix-view") …)`) or an agent can drive any of them, checked by the allow-list (Leaning into Lisp); one look, following `vikix theme`.
 - **An order, smallest and most useful first:** 1. install Lem, Nyxt, McCLIM (done, 0.69.0); 2. an **image viewer** (thumbnails, zoom, tags, renaming, all scriptable; could replace nsxiv); 3. a **file explorer** built on presentations, the showcase (became Esploro, its own project, now an Emacs window over a Lisp core: TODO 64); 4. a **launcher and menu** in Lisp, replacing rofi and joining the key help and the plugins; 5. a **video player**, a Lisp front-end on mpv; 6. the text editor stays Lem or Emacs, extended rather than rewritten.
+
+## Nyxt: commands still to build
+
+From the Nyxt work of 2026-10-02 (the guide is `docs/nyxt.md`; the page tools there are built and tested). Build each as those were: on a hidden display, then into `~/.config/nyxt/page-tools.lisp` and the guide.
+
+- **Tables → CSV.** Each `<table>` on the page into a CSV file, for a spreadsheet: `clss:select "table"`, rows and cells from the parsed copy.
+- **Save the page's code blocks.** Every `<pre><code>` to files, or a prompt to pick one and copy it (the "send a block to a terminal" idea, done properly).
+- **Download every link of a kind**, e.g. every PDF on a course page (`a[href$=".pdf"]`), into one folder, as save-page-images does.
+- **All open tabs as a Markdown list** of titles and links, to keep a research session.
+- **Ask a question about the page**: summarize-page's route, with a prompt for the question.
+- **Add the page to `note`'s index**, so `note ask` finds it beside your notes.
+- **Reader view**: the page's Markdown rendered back as a clean `nyxt:` page in the guide's style.
+- **Jump to a heading**: the page's headings as a Ctrl+Space source; pick one to scroll there.
+- **Play the page's video in mpv** (with `yt-dlp`).
+- **Clip into a project's log**: clip-selection's quote through `vikix project log NAME`, with a prompt for the project.
+- **A QR code of a link or of the selection**, not only the page: `cl-qrencode` as `show-url-qrcode` uses it.
+- **Bigger:** commands joining Nyxt to the desktop (a page into a project's log, a site as a web app, show a file in Esploro, the window to a workspace); address rewrites and blocked domains (Nyxt's request hook); Ctrl+Space sources for `~/dev`'s docs, `vikix project` folders and links from notes; Lisp-made `nyxt:` pages (a start page with the projects, `vikix today`, the key card from StumpWM); a `vikix learn c` lesson page with a **Check** button that runs the checker beside the lesson.

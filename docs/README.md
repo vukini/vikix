@@ -12,6 +12,7 @@ They are on your machine too, in three forms: as these files in `~/vikix/docs/`,
 | [How it fits together](how-it-works.md) | You want to know what the base and the features are, what happens between logging in and the desktop, or what `vikix update` does |
 | [Making it yours](customize.md) | You want to change something: keys, startup programs, the bar, the theme, the terminal, what's installed |
 | [Neovim and Emacs](editors.md) | You write code or text in Neovim or Emacs: which files are yours, the language servers, AI beside your code |
+| [Nyxt, the browser you change in Lisp](nyxt.md) | You have Nyxt (the feature `lisp-apps`): guides opening in it, its colours, your config, Emacs connected to it, commands of your own |
 | [Working with AI](ai.md) | You want the agent to change something for you, a model on the laptop, `llm` in a pipe, dictation, to talk with the AI, to ask your notes, or to give the agent the desktop as tools |
 | [Windows in a window](windows.md) | You need a program that only runs on Windows |
 | [When something breaks](fixing.md) | The install or the desktop didn't start, a key or a menu entry is missing, an update failed, you want a report to ask the agent or a person |
