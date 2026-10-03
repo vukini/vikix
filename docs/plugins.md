@@ -199,7 +199,7 @@ A key over whatever you're doing opens a small box; what you write, or say, land
 - **Super+Alt+Shift+s:** sort the inbox. A model suggests where each note goes and which are to-dos; you change what you like (`3` to move note 3, `t 3` to-do or not, `d 3` delete), Enter does it. `inbox sort --undo` puts it all back.
 - `inbox add "call the bank"` from a terminal.
 
-**Where things are:** the notes in `~/Dropbox/notes/` (the inbox is `inbox.org`; another file in `~/.config/vikix/plugins/inbox/settings`); the copies each sort keeps in `~/.local/state/vikix/inbox/sorts/`.
+**Where things are:** the notes in `~/Dropbox/notes/`; the inbox is `inbox.org` (another file: `file = ~/notes/inbox.org` in `~/.config/vikix/plugins/inbox/settings`); the copies each sort keeps in `~/.local/state/vikix/inbox/sorts/`.
 
 **When it doesn't work:**
 

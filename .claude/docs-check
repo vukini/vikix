@@ -1,0 +1,181 @@
+#!/usr/bin/env python3
+"""docs-check — are Vikix's guides still true? (Vid's dev machine; run weekly by cron)
+
+  .claude/docs-check            what it finds, in the terminal
+  .claude/docs-check --notify   the same as a question in a dialog:
+                                "Update the guides" opens Claude Code in
+                                ~/src/vikix with what was found, to update
+                                them with the explainer agent (it shows the
+                                changes before committing); "Not now" asks
+                                again next week
+  .claude/docs-check --reviewed the commits so far are looked at: next time
+                                only newer ones count
+
+What it looks at, without AI:
+  - the plugins guide (docs/plugins.md) against the plugins repo: a section
+    for every plugin, every key a plugin binds and every setting it has
+  - commits since the guides were last reviewed that changed what users see
+    (bin/, config/, install/, features.list; a plugin) without touching the
+    guides (docs/, README.md) in the same commit
+
+It changes nothing itself: the guides are only updated after you say so,
+and the agent shows what it changed before anything is committed.
+"""
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+
+HOME = os.path.expanduser("~")
+VIKIX = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), ".."))
+PLUGINS = os.environ.get("VIKIX_PLUGINS_SRC", os.path.join(HOME, "src", "vikix-plugins"))
+STATE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.join(HOME, ".local", "state"),
+                     "vikix", "docs-check.json")
+USER_FACING = ("bin/", "config/", "install/", "features.list", "packages/")
+DOCS = ("docs/", "README.md")
+
+
+def git(repo, *args):
+    r = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else ""
+
+
+def key_words(key):
+    """s-M-I → Super+Alt+Shift+i, as the guides write keys."""
+    mods, _, last = key.rpartition("-")
+    words = {"s": "Super", "M": "Alt", "C": "Ctrl", "S": "Shift"}
+    out = [words[m] for m in mods.split("-") if m in words]
+    if len(last) == 1 and last.isupper():
+        out.append("Shift")
+        last = last.lower()
+    return "+".join(out + [last])
+
+
+def plugin_findings():
+    found = []
+    guide_path = os.path.join(VIKIX, "docs", "plugins.md")
+    if not os.path.isdir(PLUGINS):
+        return [f"the plugins repo isn't at {PLUGINS}"]
+    with open(guide_path) as f:
+        guide = f.read()
+    sections = dict(re.findall(r"^## (\S+): .*?\n(.*?)(?=^## |\Z)", guide, re.S | re.M))
+    for name in sorted(os.listdir(PLUGINS)):
+        if not os.path.isfile(os.path.join(PLUGINS, name, "manifest")):
+            continue
+        if name not in sections:
+            found.append(f"plugins.md has no section for the plugin {name}")
+            continue
+        text = sections[name] + guide.split("\n## ", 2)[1]     # its section, and the keys table at the top
+        lisp = os.path.join(PLUGINS, name, "plugin.lisp")
+        if os.path.exists(lisp):
+            for key in re.findall(r'\(vikix-plugin-key\s+"([^"]+)"', open(lisp).read()):
+                if key_words(key) not in text:
+                    found.append(f"plugins.md doesn't mention {name}'s key {key_words(key)}")
+        settings = os.path.join(PLUGINS, name, "settings", "settings")
+        if os.path.exists(settings):
+            for k in re.findall(r"^#?\s*([a-z][a-z_-]*)\s*=", open(settings).read(), re.M):
+                if not re.search(rf"\b{re.escape(k)}\s*=", sections[name]):
+                    found.append(f"plugins.md doesn't mention {name}'s setting {k} =")
+    return found
+
+
+def undocumented_commits(state):
+    """Commits since the last review that changed what users see, without the guides."""
+    found = []
+    repos = ((VIKIX, "vikix", lambda f: f.startswith(USER_FACING), lambda f: f.startswith(DOCS)),
+             (PLUGINS, "vikix-plugins", lambda f: not f.startswith(("tests/", ".")) and not f.endswith("/test"),
+              lambda f: f == "README.md"))
+    for repo, label, user_facing, is_doc in repos:
+        if not git(repo, "rev-parse", "--git-dir"):
+            continue
+        since = state.get(label)
+        rng = f"{since}..main" if since and git(repo, "cat-file", "-t", since) else "main~30..main"
+        for line in git(repo, "log", "--no-merges", "--format=%h%x09%s", rng).splitlines():
+            sha, _, subject = line.partition("\t")
+            files = git(repo, "show", "--name-only", "--format=", sha).splitlines()
+            if any(map(user_facing, files)) and not any(map(is_doc, files)):
+                found.append(f"{label} {sha} {subject}")
+    return found
+
+
+def load_state():
+    try:
+        with open(STATE) as f:
+            return json.load(f)
+    except (FileNotFoundError, ValueError):
+        return {}
+
+
+def save_state(state):
+    os.makedirs(os.path.dirname(STATE), exist_ok=True)
+    with open(STATE, "w") as f:
+        json.dump(state, f, indent=1)
+
+
+def session_env():
+    """The desktop's display and D-Bus, for a notification from cron."""
+    try:
+        with open(os.path.join(HOME, ".local/state/vikix/session.env")) as f:
+            for line in f:
+                k, _, v = line.strip().partition("=")
+                if k and v:
+                    os.environ.setdefault(k, v.strip("'\""))
+    except FileNotFoundError:
+        pass
+
+
+def prompt_for(findings, commits):
+    lines = ["The weekly guides check (.claude/docs-check) found these. Please update Vikix's guides",
+             "(docs/, README.md, and the plugins repo's README if needed) with the explainer agent,",
+             "in a worktree as CLAUDE.md says. Show me what changed before committing anything.", ""]
+    if findings:
+        lines += ["Found in the plugins guide:"] + [f"- {x}" for x in findings] + [""]
+    if commits:
+        lines += ["Commits since the last review that changed what users see without touching the guides",
+                  "(check each: many need nothing):"] + [f"- {x}" for x in commits] + [""]
+    lines += ["When it's merged (or nothing needed changing), run .claude/docs-check --reviewed."]
+    return "\n".join(lines)
+
+
+def main(argv):
+    state = load_state()
+    if "--reviewed" in argv:
+        state["vikix"] = git(VIKIX, "rev-parse", "main")
+        if os.path.isdir(PLUGINS):
+            state["vikix-plugins"] = git(PLUGINS, "rev-parse", "main")
+        save_state(state)
+        print("Reviewed: next time only newer commits count.")
+        return 0
+    findings, commits = plugin_findings(), undocumented_commits(state)
+    if not findings and not commits:
+        if "--notify" not in argv:
+            print("The guides look up to date.")
+        return 0
+    if "--notify" not in argv:
+        print(prompt_for(findings, commits))
+        return 1
+    session_env()
+    n = len(findings) + len(commits)
+    # A dialog, not a notification: dunst only offers a notification's
+    # choices on a middle click, and this is a question to answer.
+    r = subprocess.run(["zenity", "--question", "--title", "Vikix guides", "--width", "460",
+                        "--ok-label", "Update the guides", "--cancel-label", "Not now",
+                        "--text", f"The guides may be out of date: {n} thing(s) to look at, "
+                                  f"{len(findings)} in the plugins guide and {len(commits)} change(s) "
+                                  "since the last review.\n\nUpdate the guides now? Claude Code opens with "
+                                  "what was found, and shows you every change before it's committed."],
+                       capture_output=True, text=True)
+    if r.returncode == 0:
+        prompt = prompt_for(findings, commits)
+        term = shutil.which("alacritty") or "xterm"
+        subprocess.Popen(["setsid", "-f", term, "--working-directory", VIKIX, "-e", "claude", prompt]
+                         if term.endswith("alacritty") else
+                         ["setsid", "-f", term, "-e", "sh", "-c", f'cd "{VIKIX}" && claude "$0"', prompt],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
