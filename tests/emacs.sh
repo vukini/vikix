@@ -12,7 +12,10 @@
 #   when agent-shell is here, its agents are Vikix's four, each started by
 #   vikix agent --acp, its transcripts are kept out of the project, and C-c a
 #   says what's missing as the terminal does (vikix, the agent, then its
-#   adapter; Aider to C-c A), with your agent from ~/.config/vikix/agent.
+#   adapter; Aider to C-c A), with your agent from ~/.config/vikix/agent;
+#   vikix-notes.el's C-c n: the agenda over the notes and their journal
+#   (your own org-agenda-files kept), C-c n c into the inbox plugin's file,
+#   and no notes folder said plainly.
 #
 # curl is a stand-in answering as Ollama would ($HOME/ollama: the JSON, or
 # absent for "not running"). gptel and agent-shell come from the package
@@ -252,5 +255,29 @@ EOF2
   check "without vikix, agents should say they start through it: $out" has "stopped: vikix isn’t on PATH" "$out"
 fi
 
-[ "$fail" = 0 ] && echo "emacs: Vikix's part is linked, gptel follows vikix ai use, and agents start through vikix agent"
+# vikix-notes.el, in a bare Emacs (org-roam's part needs MELPA: tried by hand).
+n="$t/notes-home"
+mkdir -p "$n/Dropbox/notes" "$n/.config/vikix/plugins/inbox" "$n/mine"
+printf '#+title: Work\n\n* TODO Send the report\n* Plain heading\n' > "$n/Dropbox/notes/work.org"
+printf '#+title: Mine\n\n* TODO Not a note\n' > "$n/mine/elsewhere.org"
+echo "file = $n/Dropbox/notes/in.org" > "$n/.config/vikix/plugins/inbox/settings"
+notes() { HOME=$n emacs --batch -Q -l "$here/config/emacs/vikix-notes.el" --eval "$1" 2>&1 | grep -v '^Loading\|^Clipboard\|^Org mode\|^$' || true; }
+out=$(notes '(progn (require (quote org-agenda)) (princ (format "key %S\n" (key-binding (kbd "C-c n a")))) (vikix-notes-agenda) (princ (with-current-buffer org-agenda-buffer-name (buffer-string))))')
+check "C-c n a should be the notes' agenda: $out" has '^key vikix-notes-agenda' "$out"
+check "the agenda should list the notes' TODOs: $out" has 'TODO Send the report' "$out"
+check "and only the notes': $out" bash -c "! grep -q 'Not a note' <<<\"\$1\"" _ "$out"
+out=$(notes "(progn (require (quote org)) (setq org-agenda-files (list \"$n/mine/\")) (vikix-notes-todos) (princ (with-current-buffer org-agenda-buffer-name (buffer-string))))")
+check "your own org-agenda-files should be kept: $out" has 'Not a note' "$out"
+mkdir -p "$n/Dropbox/notes/journal"
+printf '#+title: 2026-10-03\n\n* TODO From the journal\n' > "$n/Dropbox/notes/journal/2026-10-03.org"
+out=$(notes '(progn (require (quote org-agenda)) (vikix-notes-todos) (princ (with-current-buffer org-agenda-buffer-name (buffer-string))))')
+check "the journal's TODOs should be in it too: $out" has 'TODO From the journal' "$out"
+notes '(progn (vikix-notes-capture) (insert "Captured in Emacs") (org-capture-finalize))' >/dev/null
+check "C-c n c should write to the inbox plugin's file" grep -qx '\* Captured in Emacs' "$n/Dropbox/notes/in.org"
+check "with when it was written" grep -qE '^:CREATED: +\[' "$n/Dropbox/notes/in.org"
+rm -rf "$n/Dropbox"
+out=$(notes '(progn (princ (format "key %S\n" (key-binding (kbd "C-c n a")))) (condition-case e (vikix-notes-agenda) (user-error (princ (cadr e)))))')
+check "without the notes folder, C-c n a should say so: $out" has 'No notes yet in' "$out"
+
+[ "$fail" = 0 ] && echo "emacs: Vikix's part is linked, gptel follows vikix ai use, agents start through vikix agent, and the notes' agenda and capture"
 exit "$fail"
