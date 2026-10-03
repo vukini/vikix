@@ -13,13 +13,28 @@
 #   third; :once has one window; :on :focus and :close; a verb of your own;
 #   a plugin's rules go with it; rules setting each other off are stopped.
 #
+#   The rules with no window, the clock and the battery being the test's
+#   own: at runs at its time and once, on its days, not again after a
+#   reload or a restart (what ran is written down), up to an hour late after
+#   a sleep (:late t however late, :late nil never), and a rule written
+#   after its time waits for the next; each counts from when it last ran,
+#   once after a long sleep; when-battery-below once as the charge goes
+#   under its mark, again after the charger or a charge above it;
+#   when-charging and when-on-battery at the change; at-login once a login,
+#   one added later once too, one that fails not retried; when-workspace by
+#   number, name or list; their mistakes found as the file loads.
+#
 #   On a hidden screen, in a real StumpWM (as tests/viri.sh): workspace puts
 #   a window on its workspace before it shows, and :follow goes along; float
 #   sizes and places it by shares of the monitor; tile, title, fullscreen,
 #   sticky (floating first, and a change of workspace afterwards is safe),
 #   dialog; a reload keeps one of each rule and moves nothing; a rule in
 #   ~/.stumpwm.d/rules.lisp is loaded, a mistake there asks nothing here
-#   and costs only its form; windows there before StumpWM stay put.
+#   and costs only its form; windows there before StumpWM stay put; the
+#   ticker runs, one of it; at-login runs once, not at a reload nor when
+#   StumpWM starts again in the same login; when-workspace on arriving.
+#
+# RULES_SKIP_SCREEN=1 leaves the part on a screen out (a quick run).
 #
 # The first part needs sbcl and Quicklisp with StumpWM; the second Xvfb,
 # alacritty and Vikix's own StumpWM. Each says what it lacks and
@@ -253,6 +268,168 @@ LISP
 
 no_screen
 
+# --- Without a screen: the clock, the battery, login, workspaces ---------------
+
+no_screen_timed() {
+  command -v sbcl >/dev/null && [ -f "$ql/setup.lisp" ] || return 0
+  sbcl --noinform --non-interactive --load "$ql/setup.lisp" --eval '(ql:quickload :stumpwm :silent t)' >/dev/null 2>&1 || return 0
+  mkdir -p "$t/home2" "$t/state2"
+
+  cat > "$t/timed.lisp" <<'LISP'
+(in-package :stumpwm)
+(at "09:00" (push :nine *ran*))
+(at "10:00" :weekdays (push :weekday *ran*))
+(at "11:00" :weekends (push :weekend *ran*))
+(at "11:30" :on (:mon :thu) (push :mon-thu *ran*))
+(at "12:00" :late t (push :late-t *ran*))
+(at "13:00" :late nil (push :late-nil *ran*))
+(at ("15:00" "16:30") :name "twice a day" (push :twice *ran*))
+(each 30 :minutes (push :each *ran*))
+(when-battery-below 20 (push :low *ran*))
+(when-charging (push :charging *ran*))
+(when-on-battery (push :on-battery *ran*))
+(at-login (push :login *ran*))
+(when-workspace 3 (push :three *ran*))
+(when-workspace ("mail" 5) (push :mail-or-five *ran*))
+(at "18:00" (workspace 2))
+
+;; Eight mistakes, each found as the file loads.
+(at "25:00" (push :never *ran*))
+(at "09:00" :on (:monday) (push :never *ran*))
+(at "09:00" :sometimes (push :never *ran*))
+(each 0 :minutes (push :never *ran*))
+(each 5 :days (push :never *ran*))
+(when-battery-below 150 (push :never *ran*))
+(at-login)
+(when-workspace 3.5 (push :never *ran*))
+LISP
+
+  cat > "$t/timed-test.lisp" <<'LISP'
+(in-package :stumpwm)
+(defvar *fails* 0)
+(defmacro check (name form)
+  `(unless (ignore-errors ,form) (incf *fails*) (format t "FAIL: ~a~%" ,name)))
+(defvar *ran* '())
+(defvar *clock* 0)
+(defvar *battery* nil)                    ; (LEVEL CHARGER), or nil: no battery
+(setf *vikix-rules-now* (lambda () *clock*)
+      *vikix-rules-battery* (lambda () (and *battery* (values (first *battery*) (second *battery*)))))
+;; October 2026: the 5th is a Monday, the 10th a Saturday.
+(defun clock (day hour minute &optional (second 0))
+  (setf *clock* (encode-universal-time second minute hour day 10 2026)))
+(defun tick () (setf *ran* '()) (vikix-rules-tick) (reverse *ran*))
+(defun ran (what) (and (member what (tick)) t))
+(defun file () (uiop:getenv "RULES_TEST_FILE"))
+(defun load-rules () (handler-bind ((warning #'muffle-warning)) (vikix-load-forms (file) "timed.lisp")))
+(defun reports () (format nil "~{~a~%~}" (mapcar #'uiop:read-file-string
+                                                 (directory (merge-pathnames "errors/*.txt" (vikix-state-dir))))))
+(defun rule-of (text) (find text *vikix-rules* :key #'vikix-rule-text :test #'search))
+(defun group-like (number name) (make-instance 'group :number number :name name))
+(defun goes-to (number name) (setf *ran* '()) (vikix-rules-focus-group (group-like number name) nil) (reverse *ran*))
+
+(clock 5 8 0)
+(load-rules)
+(check "fifteen rules, the eight mistakes left out" (= 15 (length *vikix-rules*)))
+(check "each mistake is said in plain words"
+       (every (lambda (words) (search words (reports)))
+              '("A rule's time is written" "A rule's :on is a day" ":SOMETIMES isn't an option of an at rule"
+                "A rule repeats each whole number" "so many :minutes or :hours" "A battery rule's mark"
+                "This rule does nothing" "A workspace rule names a workspace")))
+
+;; Login
+(check "at-login runs at the first tick" (equal (tick) '(:login)))
+(check "and not at the next" (null (tick)))
+(check "nor after a reload" (progn (load-rules) (null (tick))))
+(eval '(at-login (push :login-2 *ran*)))
+(check "one added during the login runs once, at the next tick" (and (equal (tick) '(:login-2)) (null (tick))))
+(eval '(at-login :name "fails" (error "an at-login rule that fails")))
+(check "one that fails isn't tried again at every tick"
+       (progn (tick) (tick) (= 1 (vikix-rule-failures (find "fails" *vikix-rules* :key #'vikix-rule-key :test #'equal)))))
+
+;; The clock: at
+(check "nothing before its time" (progn (clock 5 8 59 40) (not (ran :nine))))
+(check "at its time" (progn (clock 5 9 0 10) (ran :nine)))
+(check "once" (progn (clock 5 9 0 40) (not (ran :nine))))
+(check "not after a reload" (progn (load-rules) (clock 5 9 1 10) (not (ran :nine))))
+(check "what ran is written down" (probe-file (merge-pathnames "rules/ran" (vikix-state-dir))))
+(check "nor after StumpWM starts again (it reads what was written)"
+       (progn (clrhash *vikix-rules-ran*) (setf *vikix-rules-ran-read* nil) (load-rules)
+              (clock 5 9 2 10) (not (ran :nine))))
+(check ":weekdays on a Monday" (progn (clock 5 10 0 5) (ran :weekday)))
+(check ":weekends not on a Monday" (progn (clock 5 11 0 5) (not (ran :weekend))))
+(check ":on (:mon :thu) on a Monday" (progn (clock 5 11 30 5) (ran :mon-thu)))
+(check "a list of times: each of them" (and (progn (clock 5 15 0 5) (ran :twice)) (progn (clock 5 16 30 5) (ran :twice))
+                                            (progn (clock 5 16 31 5) (not (ran :twice)))))
+(check "the next day again" (progn (clock 6 9 0 20) (ran :nine)))
+(check ":on (:mon :thu) not on a Tuesday" (progn (clock 6 11 30 5) (not (ran :mon-thu))))
+(check ":weekends on a Saturday, :weekdays not" (and (progn (clock 10 10 0 5) (not (ran :weekday)))
+                                                     (progn (clock 10 11 0 5) (ran :weekend))))
+;; Asleep over its time
+(check "40 minutes late after a sleep: it runs" (progn (clock 7 8 50) (tick) (clock 7 9 40) (ran :nine)))
+(check "90 minutes late: it doesn't, that day" (progn (clock 8 8 50) (tick) (clock 8 10 30) (and (not (ran :nine)) (not (ran :nine)))))
+(check "and runs the day after, on time" (progn (clock 9 9 0 5) (ran :nine)))
+(check ":late t runs however late, that day" (progn (clock 7 11 50) (tick) (clock 7 20 0) (ran :late-t)))
+(check ":late nil doesn't run ten minutes late" (progn (clock 7 12 59) (tick) (clock 7 13 10) (not (ran :late-nil))))
+(check "and runs on time" (progn (clock 8 13 0 20) (ran :late-nil)))
+;; A new rule
+(clock 12 14 0)
+(eval '(at "09:30" :late t (push :new *ran*)))
+(check "a rule written after its time doesn't run for the time gone by" (and (not (ran :new)) (not (ran :new))))
+(check "and runs the next day" (progn (clock 13 9 30 10) (ran :new)))
+
+;; each
+(clock 14 8 0)
+(eval '(each 10 :minutes :name "ten" (push :ten *ran*)))
+(check "each: not when first seen" (not (ran :ten)))
+(check "nor a moment early" (progn (clock 14 8 9 50) (not (ran :ten))))
+(check "after its time" (progn (clock 14 8 10 0) (ran :ten)))
+(check "then counted from when it ran" (and (progn (clock 14 8 19 50) (not (ran :ten))) (progn (clock 14 8 20 10) (ran :ten))))
+(check "after a long sleep: once" (progn (clock 14 13 0) (and (ran :ten) (not (ran :ten)))))
+(check "a reload doesn't start the count again"
+       (progn (eval '(each 10 :minutes :name "ten" (push :ten *ran*))) (clock 14 13 10 5) (ran :ten)))
+
+;; The battery and the charger
+(check "no battery: nothing" (progn (setf *battery* nil) (null (intersection (tick) '(:low :charging :on-battery)))))
+(check "the first look sets nothing off" (progn (setf *battery* '(60 nil)) (null (intersection (tick) '(:charging :on-battery)))))
+(check "under the mark, off the charger: once" (progn (setf *battery* '(19 nil)) (and (ran :low) (not (ran :low)))))
+(check "lower still: not again" (progn (setf *battery* '(12 nil)) (not (ran :low))))
+(check "the charger in: when-charging" (progn (setf *battery* '(12 t)) (equal (intersection (tick) '(:low :charging :on-battery)) '(:charging))))
+(check "the charger out, still under: when-on-battery, and the warning again"
+       (progn (setf *battery* '(12 nil)) (let ((r (tick))) (and (member :on-battery r) (member :low r)))))
+(check "charged above it and down again: again"
+       (progn (setf *battery* '(50 nil)) (tick) (setf *battery* '(19 nil)) (ran :low)))
+(check "on the charger under the mark: nothing" (progn (setf *battery* '(50 t)) (tick) (setf *battery* '(10 t)) (not (ran :low))))
+
+;; Workspaces
+(check "when-workspace by number" (and (equal (goes-to 3 "3") '(:three)) (null (goes-to 4 "4"))))
+(check "by name, and by a list" (and (equal (goes-to 7 "mail") '(:mail-or-five)) (equal (goes-to 5 "5") '(:mail-or-five))))
+
+;; Care
+(check "a window's verb in a rule with no window fails cleanly"
+       (progn (clock 15 18 0 5) (tick) (= 1 (vikix-rule-failures (rule-of "18:00")))))
+(check "a rule switched off doesn't run"
+       (progn (setf (vikix-rule-on-p (rule-of "\"09:00\"")) nil) (clock 16 9 0 5) (not (ran :nine))))
+(check "they are in the list with the others" (= (length (vikix-rules-lines)) (length *vikix-rules*)))
+(check "no ticker without a screen" (null *vikix-rules-timer*))
+(format t "~a~%" (if (zerop *fails*) "timed: ok" "timed: failed"))
+LISP
+
+  local out
+  out=$(HOME="$t/home2" VIKIX_STATE="$t/state2" RULES_TEST_FILE="$t/timed.lisp" DISPLAY='' sbcl --noinform --non-interactive --load "$ql/setup.lisp" \
+    --eval '(ql:quickload :stumpwm :silent t)' \
+    --eval '(in-package :stumpwm)' \
+    --eval "(handler-bind ((warning #'muffle-warning)) (load \"$here/config/stumpwm/vikix/errors.lisp\") (load \"$here/config/stumpwm/vikix/rules.lisp\") (load \"$t/timed-test.lisp\"))" 2>&1) || true
+  if grep -q '^timed: ok$' <<<"$out"; then
+    said+=("the clock (at, its days, late after a sleep, a new rule, each), the battery and the charger, at-login once, when-workspace")
+  else
+    echo "$out" | grep -v '^;\|^$' | tail -25
+    echo "FAIL: the timed rules without a screen"
+    fail=1
+  fi
+}
+
+no_screen_timed
+
 # --- On a hidden screen ---------------------------------------------------------
 
 on_screen() {
@@ -294,7 +471,11 @@ on_screen() {
 (when-window (:class "Retile") (float) (tile))
 (when-window (:class "Broken") (workspace 42))
 (when-window (:class "ToTwo" :title "twice") (workspace 2) (workspace 4))
+(defvar *rules-test-three* 0)
+(when-workspace 3 (incf *rules-test-three*))
 LISP
+  # Once a login: a line in a file each time it runs.
+  echo "(at-login (run \"echo login >> $t/login.txt\"))" >> "$home/.stumpwm.d/rules.lisp"
   cat > "$home/.stumpwm.d/user.lisp" <<'LISP'
 (in-package :stumpwm)
 ;; Which windows StumpWM itself put on a workspace as they opened (it runs
@@ -351,8 +532,15 @@ LISP
   local wm_pid
   start_wm || { echo "FAIL: the test StumpWM didn't start"; diagnose; fail=1; return 0; }
 
-  check "rules.lisp and user.lisp both gave their rules: $(ask '(princ (length *vikix-rules*))')" test "$(ask '(princ (length *vikix-rules*))')" = 12
+  check "rules.lisp and user.lisp both gave their rules: $(ask '(princ (length *vikix-rules*))')" test "$(ask '(princ (length *vikix-rules*))')" = 14
   check "each knows whose it is" yes '(equal (remove-duplicates (mapcar (function vikix-rule-owner) *vikix-rules*) :test (function equal)) (list "rules.lisp" "user.lisp"))'
+
+  logins() { sleep 0.5; wc -l < "$t/login.txt" 2>/dev/null || echo 0; }
+  check "the ticker is running, in whole seconds" yes '(and *vikix-rules-timer* (member *vikix-rules-timer* *timer-list*) (every (lambda (tm) (integerp (timer-time tm))) *timer-list*))'
+  ask '(vikix-rules-tick)' >/dev/null
+  check "at-login ran at the first tick: $(logins)" test "$(logins)" = 1
+  ask '(vikix-rules-tick)' >/dev/null
+  check "and once: $(logins)" test "$(logins)" = 1
 
   win Plain
   check "a window no rule is about opens where you are, tiled" yes "(and (eql 1 (group-number (window-group $(the Plain)))) (typep $(the Plain) (quote tile-window)))"
@@ -366,6 +554,7 @@ LISP
   win Follow
   check ":follow goes along: $(here_is)" test "$(here_is)" = 3
   check "with the window focused" yes '(equal (window-class (current-window)) "Follow")'
+  check "when-workspace ran on arriving at 3: $(ask '(princ *rules-test-three*)')" test "$(ask '(princ *rules-test-three*)')" = 1
   go 1
 
   win Corner
@@ -416,13 +605,16 @@ LISP
   # A mistake in a file of rules, with nobody asked: only its form is lost.
   printf '(in-package :stumpwm)\n(when-window (:class "Late") (title "late"))\n(when-window (:class "Late") (flaot))\n' > "$t/late.lisp"
   ask "(let ((*vikix-errors-ask* nil)) (vikix-load-forms \"$t/late.lisp\" \"late.lisp\"))" >/dev/null
-  check "a mistake costs only its own rule: $(ask '(princ (length *vikix-rules*))')" test "$(ask '(princ (length *vikix-rules*))')" = 13
+  check "a mistake costs only its own rule: $(ask '(princ (length *vikix-rules*))')" test "$(ask '(princ (length *vikix-rules*))')" = 15
 
   # A reload: exactly what the files say, and no window moved.
   ask "(move-window-to-group $(the Named) (find 5 (screen-groups (current-screen)) :key (function group-number)))" >/dev/null
   ask '(loadrc)' >/dev/null
   answers 60 || true
-  check "after a reload: the files' rules, one of each: $(ask '(princ (length *vikix-rules*))')" test "$(ask '(princ (length *vikix-rules*))')" = 12
+  check "after a reload: the files' rules, one of each: $(ask '(princ (length *vikix-rules*))')" test "$(ask '(princ (length *vikix-rules*))')" = 14
+  ask '(vikix-rules-tick)' >/dev/null
+  check "at-login doesn't run again at a reload: $(logins)" test "$(logins)" = 1
+  check "one ticker after a reload, not two" yes "(= 1 (count (quote vikix-rules-tick) *timer-list* :key (function timer-function)))"
   check "and no window was moved: $(group_of Named) $(group_of ToTwo)" test "$(group_of Named) $(group_of ToTwo)" = "5 2"
   check "and the failures counted start again" yes '(zerop (reduce (function +) (mapcar (function vikix-rule-failures) *vikix-rules*)))'
 
@@ -433,13 +625,15 @@ LISP
   sleep 1
   check "StumpWM started again: the windows that were there set no rule off: $(ask '(princ (list (length (screen-windows (current-screen))) (reduce (function +) (mapcar (function vikix-rule-runs) *vikix-rules*))))')" \
     yes '(and (> (length (screen-windows (current-screen))) 5) (zerop (reduce (function +) (mapcar (function vikix-rule-runs) *vikix-rules*))))'
+  ask '(vikix-rules-tick)' >/dev/null
+  check "nor does at-login run again when StumpWM alone starts again, in the same login: $(logins)" test "$(logins)" = 1
   check "nothing asked, nothing failed, in the whole run" test -z "$(grep -il 'debugger\|unhandled' "$t/wm.log" 2>/dev/null)"
   [ "$fail" = 0 ] || diagnose
-  [ "$fail" = 0 ] && said+=("and on a screen: workspace before the window shows, float by shares of the monitor, tile, title, fullscreen, sticky, dialog, a failing rule, a reload, a restart")
+  [ "$fail" = 0 ] && said+=("and on a screen: workspace before the window shows, float by shares of the monitor, tile, title, fullscreen, sticky, dialog, a failing rule, a reload, a restart, the ticker, at-login once")
   return 0
 }
 
-on_screen
+[ -n "${RULES_SKIP_SCREEN:-}" ] || on_screen
 
 [ "$fail" = 0 ] || exit 1
 echo "rules: ${said[*]:-nothing could be tested here}"

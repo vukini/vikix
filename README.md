@@ -340,9 +340,9 @@ If Emacs says the SLIME and Swank versions differ, answer `y`. It still works. T
 
 Nyxt, the browser of the feature `lisp-apps`, has a Swank of its own on `127.0.0.1:4006`, with the same password and the same guard (`~/.local/share/vikix/nyxt/vikix.lisp` starts it as Nyxt starts; without `~/.slime-secret` it doesn't start at all). `M-x slime-connect RET 127.0.0.1 RET 4006` puts you at a REPL in the browser, in the package `nyxt-user`: define a command and it's in Ctrl+Space at once, inspect a buffer, or `M-.` into Nyxt's own source in `/usr/share/nyxt/source/`. `(setf *vikix-swank-port* nil)` in `~/.config/nyxt/config.lisp`, after the line that loads Vikix's part, keeps it closed.
 
-## Rules for windows
+## Rules
 
-What happens to a window as it opens, said in a line of Lisp, in `~/.stumpwm.d/rules.lisp` or `user.lisp`:
+What happens to a window as it opens, at a time of day, when the battery runs low or when you log in, said in a line of Lisp, in `~/.stumpwm.d/rules.lisp` or `user.lisp`:
 
 ```lisp
 (when-window (:class "Firefox") (workspace 2))
@@ -355,7 +355,8 @@ What happens to a window as it opens, said in a line of Lisp, in `~/.stumpwm.d/r
 - **Verbs:** `workspace` (the window opens there, without showing here first; `:follow t` goes along), `float` (pixels or shares of the monitor, the middle or a corner), `tile`, `fullscreen`, `sticky`, `dialog`, `title`, `focus`, `run`, `command`, `notify`, `say`, `open-project`, `theme`; `layout` (puts a saved layout back: `vikix layout save NAME`), on a strip (Viri) `width` (the column's share of the screen: `1/3`, `2/3`, `"40%"`) and `join :left|:right` (under the column beside), which do nothing elsewhere; and any Lisp of your own, with `(window)` the window. `(define-rule-verb NAME (ARGS) "what it does" ...)` adds one.
 - **Options:** `:once t`, `:on :focus`, `:on :close`, `:name "..."`.
 - **Safe:** a misspelt verb or matcher is found when the file loads, with its line. A rule that fails at a window never stops the desktop: the error is written down, and the third failure switches the rule off until the next reload. A reload moves no window.
-- The command `vikix-rules` (Super+m, *All commands*) lists them. [Making it yours](docs/customize.md) has the tables. Still to come (`TODO.md`): rules for the time of day, the battery and login, a `vikix rules` command, and a key that writes the rule for the window you're in.
+- **Without a window,** with the verbs that need none: `(at "09:00" :weekdays (open-project "vikix"))` (once a day; `:weekends`, `:on (:mon :thu)`; up to an hour late after a sleep, `:late t` however late, `:late nil` never), `(each 30 :minutes ...)` (or `:hours`), `(when-battery-below 20 ...)` (once as the charge goes under it), `(when-charging ...)`, `(when-on-battery ...)`, `(at-login ...)` (once a login, not at a reload: where startup programs go) and `(when-workspace 3 ...)`. One ticker checks them every 30 seconds; what ran is kept in `~/.local/state/vikix/rules/`, so a reload or a restart doesn't run a time twice.
+- The command `vikix-rules` (Super+m, *All commands*) lists them. [Making it yours](docs/customize.md) has the tables. Still to come (`TODO.md`): a `vikix rules` command, and a key that writes the rule for the window you're in.
 
 ## The AI agent
 
@@ -1090,7 +1091,7 @@ They run side by side, as many at once as the machine has cores (`VIKIX_TEST_JOB
 |---|---|
 | `lint` | Every script parses (shell and Python), the ones you run are executable, and shellcheck has no warnings; and every test keeps off the running desktop's Swank (`VIKIX_SWANK_PORT=9`) |
 | `lisp` | Every Lisp file reads cleanly, so a missing paren shows up here, not at login (needs `sbcl`) |
-| `rules` | `rules.lisp`. Without a screen: matching (exact strings, `:has`, `:like`, lists, variables, `:type`, `:workspace`, `:not`, `:where`); mistakes found as the file loads, each with its line; one of each rule after a second load; a failing rule written down and switched off at the third failure; `:once`, `:on :focus`, `:on :close`; a plugin's rules going with it. In a real StumpWM on a hidden screen (as `viri`; skipped without it): a window on its workspace before it shows, `float` by shares of the monitor, `tile`, `title`, `fullscreen`, `sticky`, `dialog`, a failing rule, a reload that moves nothing, and a restart that leaves the windows where they are |
+| `rules` | `rules.lisp`. Without a screen: matching (exact strings, `:has`, `:like`, lists, variables, `:type`, `:workspace`, `:not`, `:where`); mistakes found as the file loads, each with its line; one of each rule after a second load; a failing rule written down and switched off at the third failure; `:once`, `:on :focus`, `:on :close`; a plugin's rules going with it. With a clock and a battery of the test's own: `at` (its days, once, not again after a reload or a restart, late after a sleep, a rule written after its time), `each`, `when-battery-below`, `when-charging` and `when-on-battery`, `at-login` once, `when-workspace`, and their mistakes found at load. In a real StumpWM on a hidden screen (as `viri`; skipped without it): a window on its workspace before it shows, `float` by shares of the monitor, `tile`, `title`, `fullscreen`, `sticky`, `dialog`, a failing rule, a reload that moves nothing, a restart that leaves the windows where they are, one ticker, and `at-login` once across a reload and a restart |
 | `viri` | In a real StumpWM on a hidden screen (needs Xvfb, xdotool, alacritty and Vikix's StumpWM; skipped without): a workspace becomes a strip and back with its windows in order, Super+h/l walk and scroll it, Super+Shift+l moves a column, new and closed windows, a dialog, another workspace, `vikix viri` from a shell |
 | `battery` | The low-battery warner warns once at 15%, once at 5%, and again only after charging |
 | `backup` | With restic: `vikix backup setup` makes an encrypted store and a password only you can read, a backup leaves out what `backup-exclude` names, a restore comes back beside the original, an unplugged drive or a wrong password stops with a message, and the bar's reminder says the right thing (needs `restic`) |

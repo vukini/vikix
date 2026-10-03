@@ -5,7 +5,7 @@
 ;;;;
 ;;;;   (setf *vikix-terminal* "xterm")             ; another terminal
 ;;;;   (vikix-bind "s-w" "exec firefox")           ; a new key
-;;;;   (run-shell-command "nm-applet")               ; start a program with the session
+;;;;   (at-login (run "nm-applet"))                ; start a program with the session, once a login
 ;;;;
 ;;;; Reload after editing: s-m, then "Reload config".
 ;;;; Themes are chosen with `vikix theme NAME` (or s-m, Theme), not here.

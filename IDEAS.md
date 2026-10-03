@@ -61,7 +61,7 @@ Vikix can try these because the whole desktop is a live Lisp program, it already
 
 ## Leaning into Lisp
 
-Ideas that work only because the desktop is a running Lisp program you can inspect, change and question while it runs. Vid's favourites to start with were three, which make Vikix safer and easier to shape, each a real reason for Lisp rather than a novelty: the first, errors that ask instead of crash, is built (`errors.lisp`); the second, a little language for desktop rules, is being built (`rules.lisp`; the rest in `TODO.md`, items 67 to 71); the third is the first below.
+Ideas that work only because the desktop is a running Lisp program you can inspect, change and question while it runs. Vid's favourites to start with were three, which make Vikix safer and easier to shape, each a real reason for Lisp rather than a novelty: the first, errors that ask instead of crash, is built (`errors.lisp`); the second, a little language for desktop rules, is being built (`rules.lisp`; the rest in `TODO.md`, items 68 to 71); the third is the first below.
 
 - **Agents that act through code you can check first.** Code is data: an agent sends a Lisp form for the desktop (through `vikix eval` or the MCP server), and before it runs Vikix walks the form and checks every function it calls against an allow-list. Moving a window passes; running a shell command or reading the secrets folder is refused or needs your OK. A check that's hard to make in other languages.
 - **A time machine for functions.** Each live redefinition (from Emacs, `vikix eval` or an agent) keeps the previous version and its source. `vikix lisp undo move-window` puts the old one back; a history says what changed and when. Snapshots do this for files; this does it for the running code.

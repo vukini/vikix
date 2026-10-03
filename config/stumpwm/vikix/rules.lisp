@@ -15,6 +15,16 @@
 ;;;; Write them in ~/.stumpwm.d/rules.lisp (loaded just before user.lisp)
 ;;;; or in user.lisp; a plugin's Lisp may use them too.
 ;;;;
+;;;; Rules without a window, further down, with the same verbs (those that
+;;;; need no window) and the same care:
+;;;;
+;;;;   (at "09:00" :weekdays (open-project "vikix"))
+;;;;   (each 30 :minutes (run "vikix-wallpaper next"))
+;;;;   (when-battery-below 20 (notify "Battery at 20%: charger?"))
+;;;;   (when-charging ...)  (when-on-battery ...)
+;;;;   (at-login (run "syncthing --no-browser"))
+;;;;   (when-workspace 3 (command "vikix-grid"))
+;;;;
 ;;;; (when-window (MATCH...) [OPTION...] VERB...)
 ;;;;
 ;;;;   MATCH   :class :instance :title :role  a string: exactly that;
@@ -635,6 +645,360 @@ corner and that edge.")
 (define-rule-verb theme (name)
   "Switch the theme (vikix theme NAME)."
   (run-shell-command (format nil "vikix theme ~a" (vikix-shell-quote (princ-to-string name)))))
+
+;;; --- Rules for the time, the battery, login and workspaces --------------------------------------
+;;;
+;;;   (at "09:00" :weekdays (open-project "vikix"))
+;;;   (each 30 :minutes (run "vikix-wallpaper next"))
+;;;   (when-battery-below 20 (notify "Battery at 20%: charger?"))
+;;;   (when-charging (say "On the charger"))      (when-on-battery ...)
+;;;   (at-login (run "syncthing --no-browser"))
+;;;   (when-workspace 3 (command "vikix-grid"))
+;;;
+;;; They are rules like the others, in the same table: listed, wrapped,
+;;; switched off at the third failure. They have no window. One ticker runs
+;;; them all, every 30 seconds (whole numbers: a float as a timer's delay
+;;; stops StumpWM's event loop), never a timer a rule.
+;;;
+;;; No new slot in the structure for them: redefining a structure in a
+;;; running desktop asks questions at the reload that brings it. What sets
+;;; such a rule off is its `on` (:at, :each, :battery-below, :charging,
+;;; :on-battery, :login, :workspace), its settings are in `match`, and what
+;;; it remembers is kept in tables by its key, as :once is.
+
+(defvar *vikix-rules-now* 'get-universal-time
+  "The clock the rules read: a function returning a universal time. Tests
+put their own here, and step through a day in a second.")
+
+(defvar *vikix-rules-battery* 'vikix-rules-read-battery
+  "How the rules read the battery: a function returning the charge (0 to
+100) and, second, true when on the charger; nil without a battery.")
+
+(defparameter *vikix-rules-late* 3600
+  "An `at` rule whose time passed while the laptop slept still runs on
+waking when it is less than this many seconds late (:late t: however late,
+that day; :late nil: only on time).")
+
+(defvar *vikix-rules-ran* (make-hash-table :test 'equal)
+  "What timed rules remember, kept in ~/.local/state/vikix/rules/ran too:
+\"at HASH HH:MM\" to the day it last ran (YYYYMMDD, or \"seen\"), and
+\"each HASH\" to when it last ran (a universal time).")
+(defvar *vikix-rules-ran-read* nil "True once the file has been read.")
+(defvar *vikix-rules-battery-ran* (make-hash-table :test 'equal)
+  "The when-battery-below rules that have run and wait for the charge to
+be above their mark, or for the charger, before they can run again.")
+(defvar *vikix-rules-power* nil
+  "How the laptop was powered at the last tick: :charger or :battery.")
+(defvar *vikix-rules-login-ran* '()
+  "Without a screen (the tests): the at-login rules that have run. With
+one, the root window's property _VIKIX_LOGIN_RULES holds them: it lasts as
+long as the X server does, which is one login.")
+(defvar *vikix-rules-timer* nil "The ticker.")
+
+(defun vikix-rule-hash (text)
+  "A short, lasting name for a rule's key (FNV-1a, 64 bits, as hex)."
+  (let ((h #xcbf29ce484222325))
+    (loop for c across text
+          do (setf h (logand (* (logxor h (char-code c)) #x100000001b3) #xffffffffffffffff)))
+    (format nil "~(~16,'0x~)" h)))
+
+(defun vikix-rules-now () (funcall *vikix-rules-now*))
+
+;;; What they remember, on disk: a reload or a restart of StumpWM at 09:05
+;;; mustn't run the 09:00 rule again.
+
+(defun vikix-rules-ran-file ()
+  (merge-pathnames "rules/ran" (vikix-state-dir)))
+
+(defun vikix-rules-read-ran ()
+  (unless *vikix-rules-ran-read*
+    (setf *vikix-rules-ran-read* t)
+    (ignore-errors
+     (with-open-file (in (vikix-rules-ran-file) :if-does-not-exist nil :external-format :utf-8)
+       (when in
+         (loop for line = (read-line in nil)
+               while line
+               do (let ((tab (position #\Tab line)))
+                    (when tab
+                      (setf (gethash (subseq line 0 tab) *vikix-rules-ran*)
+                            (subseq line (1+ tab)))))))))))
+
+(defun vikix-rules-write-ran ()
+  "Write what the rules there are now remember; what a rule that has gone
+remembered goes with it."
+  (ignore-errors
+   (let ((file (vikix-rules-ran-file))
+         (hashes (mapcar (lambda (rule) (vikix-rule-hash (vikix-rule-key rule))) *vikix-rules*)))
+     (ensure-directories-exist file)
+     (with-open-file (out file :direction :output :if-exists :supersede :external-format :utf-8)
+       (maphash (lambda (key value)
+                  (let ((hash (second (ppcre:split " " key))))
+                    (if (member hash hashes :test #'equal)
+                        (format out "~a~c~a~%" key #\Tab value)
+                        (remhash key *vikix-rules-ran*))))
+                *vikix-rules-ran*)))))
+
+;;; Defining them
+
+(defun vikix-rule-timed-expansion (whole on settings body)
+  "The Lisp that adds a rule with no window: ON sets it off, SETTINGS (a
+list of keywords and values) say when, BODY is its options (:name) and verbs."
+  (multiple-value-bind (options forms) (vikix-rule-options body '(:name))
+    (let ((name (getf options :name)))
+      (unless (or (null name) (stringp name))
+        (error "A rule's :name is a string; this is ~s." name))
+      (when (null forms)
+        (error "This rule does nothing: after ~(~a~) and its settings come its verbs, like (notify \"...\")." (first whole)))
+      `(vikix-add-rule
+        :name ,name
+        :on ,on
+        :match ',settings
+        :body (lambda () ,@(mapcar #'vikix-rule-rewrite forms))
+        :verbs ',(remove nil (mapcar #'vikix-rule-form-verb forms))
+        :text ,(vikix-rules-print whole)))))
+
+(defun vikix-rule-parse-time (time)
+  "\"09:00\" as (9 0); an error for anything else."
+  (multiple-value-bind (match parts)
+      (and (stringp time) (ppcre:scan-to-strings "^([01]?\\d|2[0-3]):([0-5]\\d)$" time))
+    (unless match
+      (error "A rule's time is written \"09:00\" or \"17:30\", on the 24-hour clock; this is ~s." time))
+    (list (parse-integer (aref parts 0)) (parse-integer (aref parts 1)))))
+
+(defparameter *vikix-rule-days* '(:mon :tue :wed :thu :fri :sat :sun)
+  "The days, in the order Lisp counts them (Monday is 0).")
+
+(defmacro at (&whole whole time &body body)
+  "A rule for a time of day: (at \"09:00\" :weekdays (open-project \"vikix\")).
+TIME is \"HH:MM\", or a list of them. Then, in any order: :weekdays,
+:weekends or :on (:mon :thu); :late nil (never late) or :late t (however
+late, that day; else up to an hour late, after a sleep); :name \"...\"."
+  (let ((times (mapcar (lambda (time) (vikix-rule-parse-time time) time)
+                       (if (listp time) time (list time))))
+        (days nil) (late :default) (rest body) (kept '()))
+    (when (null times)
+      (error "This rule has no time: (at \"09:00\" ...)."))
+    (loop while (keywordp (first rest))
+          do (let ((key (pop rest)))
+               (case key
+                 (:weekdays (setf days '(:mon :tue :wed :thu :fri)))
+                 (:weekends (setf days '(:sat :sun)))
+                 (:on (let ((value (pop rest)))
+                        (setf days (if (listp value) value (list value)))
+                        (unless (and days (subsetp days *vikix-rule-days*))
+                          (error "A rule's :on is a day or a list of days, from :mon :tue :wed :thu :fri :sat :sun; this is ~s." value))))
+                 (:late (let ((value (pop rest)))
+                          (unless (member value '(nil t))
+                            (error "A rule's :late is t (however late, that day) or nil (never late); this is ~s." value))
+                          (setf late value)))
+                 (:name (setf kept (list :name (pop rest))))
+                 (t (error "~s isn't an option of an at rule. The options: :weekdays, :weekends, :on, :late, :name." key)))))
+    (vikix-rule-timed-expansion whole :at (list :times times :days days :late late)
+                                (append kept rest))))
+
+(defmacro each (&whole whole count unit &body body)
+  "A rule that repeats: (each 30 :minutes (run \"vikix-wallpaper next\")).
+UNIT is :minutes or :hours. It first runs that long after it is first
+seen, and afterwards that long after it last ran (once, after a sleep)."
+  (unless (and (integerp count) (plusp count))
+    (error "A rule repeats each whole number of minutes or hours, 1 or more; this is ~s." count))
+  (let ((seconds (case unit
+                   ((:minute :minutes) (* 60 count))
+                   ((:hour :hours) (* 3600 count))
+                   (t (error "A rule repeats each so many :minutes or :hours; this is ~s." unit)))))
+    (vikix-rule-timed-expansion whole :each (list :seconds seconds) body)))
+
+(defmacro when-battery-below (&whole whole percent &body body)
+  "A rule for a low battery: (when-battery-below 20 (notify \"Charger?\")).
+It runs once as the charge goes under PERCENT off the charger, and is
+ready again once the charge is back above it, or the charger is in."
+  (unless (and (integerp percent) (< 0 percent 100))
+    (error "A battery rule's mark is a whole number of percent, from 1 to 99; this is ~s." percent))
+  (vikix-rule-timed-expansion whole :battery-below (list :percent percent) body))
+
+(defmacro when-charging (&whole whole &body body)
+  "A rule for the charger going in: (when-charging (say \"Charging\"))."
+  (vikix-rule-timed-expansion whole :charging '() body))
+
+(defmacro when-on-battery (&whole whole &body body)
+  "A rule for the charger coming out: (when-on-battery (notify \"On battery\"))."
+  (vikix-rule-timed-expansion whole :on-battery '() body))
+
+(defmacro at-login (&whole whole &body body)
+  "A rule that runs once a login: (at-login (run \"syncthing --no-browser\")).
+Not at a reload, nor when StumpWM alone starts again. One added during a
+login runs at the reload that brings it, once."
+  (vikix-rule-timed-expansion whole :login '() body))
+
+(defmacro when-workspace (&whole whole workspace &body body)
+  "A rule for going to a workspace: (when-workspace 3 (command \"vikix-grid\")).
+WORKSPACE is a number, a name, or a list of them."
+  (unless (or (integerp workspace) (stringp workspace)
+              (and (consp workspace) (every (lambda (w) (or (integerp w) (stringp w))) workspace)))
+    (error "A workspace rule names a workspace by number or name, or a list of them; this is ~s." workspace))
+  (vikix-rule-timed-expansion whole :workspace (list :workspaces (if (listp workspace) workspace (list workspace)))
+                              body))
+
+;;; Running them
+
+(defun vikix-rules-on (on)
+  "The rules ON sets off that are switched on."
+  (remove-if-not (lambda (rule) (and (eq (vikix-rule-on rule) on) (vikix-rule-on-p rule)))
+                 *vikix-rules*))
+
+(defun vikix-rules-day (time)
+  "TIME's day as \"YYYYMMDD\", its day of the week (:mon ...), and the
+universal time of HOUR:MINUTE on it (a function of the two)."
+  (multiple-value-bind (s mi h d mo y dow) (decode-universal-time time)
+    (declare (ignore s mi h))
+    (values (format nil "~4,'0d~2,'0d~2,'0d" y mo d)
+            (nth dow *vikix-rule-days*)
+            (lambda (hour minute) (encode-universal-time 0 minute hour d mo y)))))
+
+(defun vikix-rules-run-clock ()
+  "The at and each rules that are due. True when something was remembered."
+  (vikix-rules-read-ran)
+  (let ((now (vikix-rules-now)) (changed nil))
+    (multiple-value-bind (today weekday at-time) (vikix-rules-day now)
+      (dolist (rule (vikix-rules-on :at))
+        (destructuring-bind (&key times days late) (vikix-rule-match rule)
+          (dolist (time times)
+            (let* ((key (format nil "at ~a ~a" (vikix-rule-hash (vikix-rule-key rule)) time))
+                   (last (gethash key *vikix-rules-ran*))
+                   (due (apply at-time (vikix-rule-parse-time time)))
+                   (passed (- now due)))
+              (cond
+                ;; A rule seen for the first time doesn't run for a time
+                ;; already gone by: only what it missed while it existed.
+                ((null last)
+                 (setf (gethash key *vikix-rules-ran*) (if (>= passed 0) today "seen")
+                       changed t))
+                ((or (equal last today) (minusp passed)))
+                ((and days (not (member weekday days))))
+                (t
+                 (setf (gethash key *vikix-rules-ran*) today
+                       changed t)
+                 (when (<= passed (case late ((t) 86400) ((nil) 90) (t *vikix-rules-late*)))
+                   (vikix-run-rule rule nil :at))))))))
+      (dolist (rule (vikix-rules-on :each))
+        (let* ((key (format nil "each ~a" (vikix-rule-hash (vikix-rule-key rule))))
+               (last (ignore-errors (parse-integer (gethash key *vikix-rules-ran* "")))))
+          (cond ((or (null last) (> last now))      ; new, or the clock went back
+                 (setf (gethash key *vikix-rules-ran*) (princ-to-string now)
+                       changed t))
+                ((>= (- now last) (getf (vikix-rule-match rule) :seconds))
+                 (setf (gethash key *vikix-rules-ran*) (princ-to-string now)
+                       changed t)
+                 (vikix-run-rule rule nil :each))))))
+    (when changed (vikix-rules-write-ran))
+    changed))
+
+(defun vikix-rules-read-battery ()
+  "The first battery's charge and whether the charger is in, from sysfs as
+the bar reads them; nil without a battery."
+  (let ((battery (first (directory #p"/sys/class/power_supply/BAT*/"))))
+    (when battery
+      (flet ((line (name)
+               (ignore-errors
+                (with-open-file (in (merge-pathnames name battery))
+                  (string-trim '(#\Space #\Newline) (read-line in nil ""))))))
+        (let ((level (ignore-errors (parse-integer (line "capacity"))))
+              (status (line "status")))
+          (and level
+               (values level (not (equal status "Discharging")))))))))
+
+(defun vikix-rules-run-power ()
+  "The battery and charger rules that are due. The battery isn't read
+when no rule asks about it."
+  (multiple-value-bind (level charger)
+      (and (some (lambda (rule) (member (vikix-rule-on rule) '(:battery-below :charging :on-battery)))
+                 *vikix-rules*)
+           (funcall *vikix-rules-battery*))
+    (when level
+      (let ((power (if charger :charger :battery))
+            (before *vikix-rules-power*))
+        (setf *vikix-rules-power* power)
+        ;; The first look only notes how it is; a change is what sets these off.
+        (when (and before (not (eq before power)))
+          (dolist (rule (vikix-rules-on (if charger :charging :on-battery)))
+            (vikix-run-rule rule nil (vikix-rule-on rule))))
+        (dolist (rule (vikix-rules-on :battery-below))
+          (let ((key (vikix-rule-key rule))
+                (mark (getf (vikix-rule-match rule) :percent)))
+            (cond ((or charger (>= level mark))
+                   (remhash key *vikix-rules-battery-ran*))
+                  ((not (gethash key *vikix-rules-battery-ran*))
+                   (setf (gethash key *vikix-rules-battery-ran*) t)
+                   (vikix-run-rule rule nil :battery-below)))))))))
+
+;;; Once a login. The X server lives exactly as long as a login does, so
+;;; what has run is noted on its root window: a reload, or StumpWM starting
+;;; again in the same login, finds the note; the next login doesn't.
+
+(defun vikix-rules-login-root ()
+  (and (boundp '*screen-list*) *screen-list*
+       (screen-root (first *screen-list*))))
+
+(defun vikix-rules-login-ran ()
+  "The hashes of the at-login rules that have run in this login."
+  (let ((root (vikix-rules-login-root)))
+    (if root
+        (ppcre:split " " (map 'string #'code-char
+                              (or (xlib:get-property root :_VIKIX_LOGIN_RULES) '())))
+        *vikix-rules-login-ran*)))
+
+(defun vikix-rules-login-note (hashes)
+  (let ((root (vikix-rules-login-root))
+        (hashes (last hashes 200)))
+    (if root
+        (xlib:change-property root :_VIKIX_LOGIN_RULES
+                              (map 'list #'char-code (format nil "~{~a~^ ~}" hashes))
+                              :string 8)
+        (setf *vikix-rules-login-ran* hashes))))
+
+(defun vikix-rules-run-login ()
+  "The at-login rules that haven't run in this login."
+  (let ((rules (vikix-rules-on :login)))
+    (when rules
+      (let ((ran (vikix-rules-login-ran)))
+        (dolist (rule rules)
+          (let ((hash (vikix-rule-hash (vikix-rule-key rule))))
+            (unless (member hash ran :test #'equal)
+              ;; Noted first: a rule that fails isn't tried at every tick.
+              (setf ran (append ran (list hash)))
+              (vikix-rules-login-note ran)
+              (vikix-run-rule rule nil :login))))))))
+
+(defun vikix-rules-tick ()
+  "What the ticker does: the rules for login, the clock and the battery
+that are due. Never an error: this runs in StumpWM's timer."
+  (ignore-errors (vikix-rules-run-login))
+  (ignore-errors (vikix-rules-run-clock))
+  (ignore-errors (vikix-rules-run-power))
+  nil)
+
+(defun vikix-rules-focus-group (new old)
+  (declare (ignore old))
+  (ignore-errors
+   (dolist (rule (vikix-rules-on :workspace))
+     (when (some (lambda (w) (if (integerp w)
+                                 (eql w (group-number new))
+                                 (equal w (group-name new))))
+                 (getf (vikix-rule-match rule) :workspaces))
+       (vikix-run-rule rule nil :workspace)))))
+
+(remove-hook *focus-group-hook* 'vikix-rules-focus-group)
+(add-hook *focus-group-hook* 'vikix-rules-focus-group)
+
+;; The ticker: 5 seconds after the files are loaded (so the rules of
+;; rules.lisp and user.lisp are there), then every 30. Only on a desktop:
+;; without a screen there is no event loop to run it.
+(ignore-errors
+ (when (and *vikix-rules-timer* (timer-p *vikix-rules-timer*))
+   (cancel-timer *vikix-rules-timer*)))
+(setf *vikix-rules-timer*
+      (and (boundp '*screen-list*) *screen-list*
+           (run-with-timer 5 30 'vikix-rules-tick)))
 
 ;;; --- Seeing them ---------------------------------------------------------------------------------
 

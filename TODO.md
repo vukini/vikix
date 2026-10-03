@@ -6,7 +6,7 @@ What's left to add or clean up, most valuable first within each section. Delete 
 
 From a review of 0.71.71 against one aim: the best desktop for a power user. Vikix has no users but Vid yet, so what only matters once others arrive (a promise about what won't change, opening the plugin repo, items 19 and 20) waits for the first of them. Until then, in this order:
 
-1. **The rules language** (the next section, items 67 to 71). Vid picked it first; its core, `when-window` and the verbs, is in (`rules.lisp`).
+1. **The rules language** (the next section, items 68 to 71). Vid picked it first; `when-window` and the verbs, and the rules for the time, the battery and login, are in (`rules.lisp`).
 2. **Saved layouts** (item 50a left): by hand (`vikix layout save NAME`, `vikix layout NAME`) and by a rule (`(layout "writing")`) are in (`layouts.lisp`, plain Lisp files as IDEAS' "Layouts as plain Lisp" had it). Next: `vikix project open` saving and putting back a project's layout (50a), then starting the programs a layout names that aren't open.
 3. **A desktop to trust for weeks.** Signed updates (To look into, 4). A soak test: a hidden StumpWM on Xvfb with windows opening and closing for an hour, the time its main thread takes to answer measured over Swank, failing above a limit, weekly on GitHub. And times written down and tested: login to a usable desktop, a reload, a key to its action, an Emacs frame. Neither test is worked out yet.
 4. **Agents that act through code you can check first** (IDEAS, Leaning into Lisp), then the time machine for functions. The rules language's verbs (`*vikix-rule-verbs*`, `rules.lisp`) are the first entries of its allow-list.
@@ -41,15 +41,8 @@ Rules for the desktop that read like sentences, in Lisp: what happens when a win
 
 **Built** (the core, item 66): `config/stumpwm/vikix/rules.lisp`, with `when-window`, its matchers, options and first verbs, `define-rule-verb`, the command `vikix-rules` (a plain list for now: item 68 is the real one), and `tests/rules.sh`. A window with a `workspace` rule is put on its workspace before it shows (`get-window-placement` is wrapped), so there is no flash to look for. On a Viri strip a window a rule floats is not a column. Left from it: `float` takes no window's own size (it is 60% of the monitor when no size is given); looking at a rule's first window on the laptop, since the tests only see a hidden screen.
 
-67. **Time, power and login.** The forms `at`, `each`, `when-battery-below`, `when-charging`, `when-on-battery`, `at-login` and `when-workspace`, on the same table.
-    - **One ticker** for all of them (every 30 seconds, whole numbers only), never a timer a rule.
-    - **`at "09:00"`** with `:weekdays`, `:weekends` or `:on (:mon :thu)`. A time missed while the laptop slept runs on waking when it is less than an hour late (`:late nil` never, `:late t` however late). What has run today is kept in `~/.local/state/vikix/rules/`, so a reload or a restart of StumpWM at 09:05 doesn't run it again.
-    - **`each N :minutes`** (or `:hours`), counted from when it last ran.
-    - **`when-battery-below N`** runs once as the charge goes under N, and is ready again once it is above or on the charger. It reads the same sysfs files as the bar (`vikix-battery-file`, `modeline.lisp`).
-    - **`at-login`** runs once a login, not at each reload. It replaces the `pgrep -x ... ||` in front of every startup program (docs/customize.md, "Start a program with the desktop"). To settle while building: what marks a login (a file in `$XDG_RUNTIME_DIR` named by `vikix-session`'s process, so a restart of StumpWM alone doesn't count as one).
-    - **`when-workspace 3`** runs on going to that workspace.
-    - **Later, not now:** a screen plugged in or taken away (with the screens work; StumpWM has `*new-head-hook*` but nothing for one removed), a Wi-Fi network joined, a drive plugged in, idle.
-    - **Tests:** in `tests/rules.sh`'s part without a screen. The clock and the battery are read through functions the tests replace, so a test steps through a day, a sleep and a discharge in a second.
+**Built too** (time, power and login, item 67): `at`, `each`, `when-battery-below`, `when-charging`, `when-on-battery`, `at-login` and `when-workspace`, on the same table, from one ticker. A login is marked on the X root window, which lasts exactly as long as one. Left from it, for later: a screen plugged in or taken away (with the screens work; StumpWM has `*new-head-hook*` but nothing for one removed), a Wi-Fi network joined, a drive plugged in, idle. And Vid's own startup programs in `user.lisp` are still plain `run-shell-command`s: moving them to `at-login` is part of item 70.
+
 68. **Seeing and steering them: `vikix rules`.** `bin/vikix-rules`, thin over `vikix eval`.
     - `vikix rules` lists them: a number, on or off, the rule as written, where it's from, how often it ran and when last, its last error.
     - `off N|NAME` and `on`; off lasts until the next reload, and the list says so.

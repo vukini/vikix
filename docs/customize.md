@@ -47,10 +47,10 @@ After `Ctrl+t`, StumpWM's prefix, the keys that can follow appear if you wait (S
 ### Start a program with the desktop
 
 ```lisp
-(run-shell-command "pgrep -x syncthing || syncthing --no-browser")
+(at-login (run "syncthing --no-browser"))
 ```
 
-`user.lisp` runs again on every reload, so the `pgrep -x … ||` keeps a second copy from starting.
+`at-login` runs once each time you log in. `user.lisp` runs again on every reload, and the rule doesn't: there's no need for a `pgrep -x … ||` in front to keep a second copy from starting. A rule you add while logged in runs at the reload that brings it, once. It goes in `user.lisp` or in `rules.lisp` (below).
 
 ### Rules for windows
 
@@ -98,6 +98,32 @@ Anything else in a rule is Lisp of your own, where `(window)` is the window. Bet
 `Super+m` → *All commands* → `vikix-rules` lists your rules: which are on, whose each is, and how often it ran. A misspelt verb is found when the file loads, with its line, like any mistake in `user.lisp`. A rule that fails when a window opens never stops the desktop: it says so, the error is kept in `~/.local/state/vikix/errors/`, and after three failures the rule is off until the next reload. Reloading doesn't move the windows you already have.
 
 Rules run in the order they're written, Vikix's first, then `rules.lisp`, then `user.lisp`; when two send a window to different workspaces, the last one wins.
+
+### Rules for the time, the battery and workspaces
+
+The same file, the same verbs (those that need no window: `run`, `command`, `notify`, `say`, `open-project`, `theme`), and any Lisp of your own:
+
+```lisp
+(at "09:00" :weekdays (open-project "vikix"))            ; each working day at nine
+(at ("12:30" "18:00") (notify "Stand up"))               ; more than one time
+(each 30 :minutes (run "vikix-wallpaper next"))
+(when-battery-below 20 (notify "Battery at 20%" "Where's the charger?"))
+(when-charging (say "On the charger"))
+(when-on-battery (run "brightnessctl set 40%"))
+(at-login (run "syncthing --no-browser"))
+(when-workspace 3 (command "vikix-grid"))                ; on arriving at workspace 3
+```
+
+| Rule | When it runs |
+|---|---|
+| `(at "09:00" ...)` | At that time, on the 24-hour clock, once a day. `:weekdays`, `:weekends` or `:on (:mon :thu)` keep it to those days. If the laptop was asleep at the time, it runs on waking when that's less than an hour later; `:late t` runs it however late that day, `:late nil` only on time. A reload or logging in again doesn't run it a second time, and a rule you write after its time waits for the next day |
+| `(each 30 :minutes ...)` | Every so many `:minutes` or `:hours`, counted from when it last ran, so not at once when you write it. After a long sleep it runs once, not once for each time missed |
+| `(when-battery-below 20 ...)` | Once, as the charge goes under 20% off the charger. It's ready again when the charge is back above that, or the charger has been in |
+| `(when-charging ...)`, `(when-on-battery ...)` | When the charger goes in, or comes out |
+| `(at-login ...)` | Once each login |
+| `(when-workspace 3 ...)` | Each time you go to that workspace: a number, a name, or a list of them |
+
+They're checked every 30 seconds, so a time is met within half a minute. They're listed with the others (`vikix-rules`), and a mistake or a failure is treated the same way.
 
 ### Saved layouts
 
