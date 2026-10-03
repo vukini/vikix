@@ -217,5 +217,27 @@ printf 'copy-path\tCopy path: Copy its path\n' > "$t/picked"
 : > "$calls"; es menu
 check "the command should still get the file as it is" grep -qxF "esploro run copy-path $HOME/notes/Tom & Jerry <1>.md" "$calls"
 
+# --- vikix esploro try: your clone's commit on the desktop, no GitHub ----------
+# Real git here: a clone with the pin and a commit after it; sbcl the stand-in.
+realgit=$(PATH=${PATH#"$t/bin:"} command -v git)
+clone="$t/clone"; mkdir -p "$clone"
+( cd "$clone" && "$realgit" init -q && "$realgit" config user.email t@t && "$realgit" config user.name t &&
+  echo one > build.lisp && "$realgit" add build.lisp && "$realgit" commit -qm pin &&
+  echo two > build.lisp && "$realgit" commit -qam after )
+pin=$("$realgit" -C "$clone" rev-parse HEAD~1); after=$("$realgit" -C "$clone" rev-parse HEAD)
+# A Vikix whose pin is $pin: its own bin/vikix-esploro, the rest Vikix's.
+mkdir -p "$t/vk/bin"
+for f in "$here"/*; do [ "${f##*/}" = bin ] || ln -s "$f" "$t/vk/"; done
+sed "s/^ESPLORO_COMMIT=[0-9a-f]*/ESPLORO_COMMIT=$pin/" "$here/bin/vikix-esploro" > "$t/vk/bin/vikix-esploro"
+rm -rf "$opt"; : > "$calls"
+VIKIX_GIT=$realgit bash "$t/vk/bin/vikix-esploro" try "$clone" > "$t/out" 2>&1 || true
+check "try should build the clone's commit: $(cat "$t/out")" test "$(cat "$opt/.vikix-built" 2>/dev/null)" = "$after"
+check "and link it" test "$(readlink "$HOME/.local/bin/esploro")" = "$opt/esploro"
+check "status should say it's tried, ahead of the pin" sh -c "VIKIX_GIT=$realgit bash '$t/vk/bin/vikix-esploro' status | grep -q 'tried, commit ${after:0:7}'"
+: > "$calls"
+VIKIX_GIT=$realgit bash "$t/vk/bin/vikix-esploro" setup > /dev/null 2>&1 || true
+check "an update should keep a tried commit newer than the pin" test "$(cat "$opt/.vikix-built")" = "$after"
+check "and build nothing" sh -c "! grep -q build.lisp '$calls'"
+
 [ "$fail" = 0 ] && echo "esploro: fetched at its pin, its command built in its folder with SBCL alone, linked and in the launcher for folders, only what setup made goes, Emacs comes with it, Super+e"
 exit "$fail"

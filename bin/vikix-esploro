@@ -20,6 +20,11 @@
 #                          focused window, in rofi (Super+Alt+x): open it,
 #                          copy its path, compress, extract, shrink, yours;
 #                          one that changes files is a plan to review first
+#   vikix esploro try [CLONE]
+#                          your clone's commit (~/src/esploro) on the desktop
+#                          now: built, linked, the running Emacs reloaded; no
+#                          GitHub. Kept by updates while it's newer than the
+#                          pin; a release whose pin passes it takes over
 #   vikix esploro uninstall
 #                           removes it (vikix remove esploro)
 #
@@ -54,7 +59,22 @@ GIT=${VIKIX_GIT:-git}
 SBCL=${VIKIX_SBCL:-sbcl}
 
 built() {
-  [ -x "$OPT/esploro" ] && [ "$(cat "$OPT/.vikix-built" 2>/dev/null)" = "$ESPLORO_COMMIT" ]
+  [ -x "$OPT/esploro" ] || return 1
+  local have
+  have=$(cat "$OPT/.vikix-built" 2>/dev/null)
+  [ "$have" = "$ESPLORO_COMMIT" ] && return 0
+  # A commit tried from your clone (vikix esploro try) stays while it's
+  # newer than the pin: an update doesn't take it back. A release whose
+  # pin passes it builds the pin again.
+  tried_ahead
+}
+
+tried_ahead() {
+  local have tried
+  have=$(cat "$OPT/.vikix-built" 2>/dev/null)
+  tried=$(cat "$OPT/.vikix-tried" 2>/dev/null)
+  [ -n "$tried" ] && [ "$tried" = "$have" ] && [ "$tried" != "$ESPLORO_COMMIT" ] && [ -d "$OPT/.git" ] &&
+    "$GIT" -C "$OPT" merge-base --is-ancestor "$ESPLORO_COMMIT" "$tried" 2>/dev/null
 }
 
 fetch() {
@@ -89,7 +109,43 @@ build() {
     { tail -n 20 "$log"; die "Esploro didn't build (the end of $log is above)"; }
   [ -x "$OPT/esploro" ] || die "Esploro's program isn't where it should be ($OPT/esploro)"
   echo "$ESPLORO_COMMIT" > "$OPT/.vikix-built"
+  rm -f "$OPT/.vikix-tried"
   say "Esploro is built"
+}
+
+# vikix esploro try [CLONE]: your clone's commit (~/src/esploro), built and
+# put on the desktop now, the running Emacs reloaded; no GitHub, no key.
+cmd_try() {
+  local clone=${1:-$HOME/src/esploro} commit log
+  "$GIT" -C "$clone" rev-parse --git-dir >/dev/null 2>&1 || die "$clone isn't a clone of Esploro"
+  commit=$("$GIT" -C "$clone" rev-parse HEAD) || die "no commit in $clone"
+  if [ -n "$("$GIT" -C "$clone" status --porcelain --untracked-files=no 2>/dev/null)" ]; then
+    warn "$clone has changes not committed: only what's committed (${commit:0:7}) is tried"
+  fi
+  if [ "$DRY_RUN" = 1 ]; then printf '   would build Esploro %s from %s\n' "${commit:0:7}" "$clone"; return 0; fi
+  if [ ! -d "$OPT/.git" ]; then
+    mkdir -p "$OPT"
+    "$GIT" -C "$OPT" init -q || die "couldn't make $OPT"
+    "$GIT" -C "$OPT" remote add origin "$ESPLORO_REPO" 2>/dev/null || true
+  fi
+  say "trying Esploro ${commit:0:7} from $clone"
+  "$GIT" -C "$OPT" fetch -q "$clone" "$commit" || die "couldn't take $commit from $clone"
+  "$GIT" -c advice.detachedHead=false -C "$OPT" checkout -q --force FETCH_HEAD || die "couldn't check it out"
+  log="$LOGS/esploro-build.log"
+  mkdir -p "$LOGS"
+  ( cd "$OPT" && "$SBCL" --noinform --non-interactive --no-userinit --load build.lisp ) > "$log" 2>&1 &&
+    mv -f "$OPT/esploro.new" "$OPT/esploro" ||
+    { tail -n 20 "$log"; die "Esploro didn't build (the end of $log is above)"; }
+  echo "$commit" > "$OPT/.vikix-built"
+  echo "$commit" > "$OPT/.vikix-tried"
+  if built; then
+    cmd_setup
+    say "Esploro ${commit:0:7} is on your desktop; Vikix's pin is ${ESPLORO_COMMIT:0:7}, and a release moving it on keeps this"
+  else
+    # Older than the pin, or beside it: kept until the next update builds the pin.
+    reload_in_emacs
+    warn "Esploro ${commit:0:7} isn't newer than Vikix's pin (${ESPLORO_COMMIT:0:7}): the next vikix update builds the pin again"
+  fi
 }
 
 # reload_in_emacs — a running Emacs that has Esploro loaded gets the new
@@ -177,14 +233,16 @@ DESKTOP
 }
 
 cmd_status() {
-  if built; then echo "esploro  built, commit ${ESPLORO_COMMIT:0:7} ($OPT)"
+  if tried_ahead; then echo "esploro  tried, commit $(head -c 7 "$OPT/.vikix-tried") from your clone, ahead of the pin ${ESPLORO_COMMIT:0:7} ($OPT)"
+  elif built; then echo "esploro  built, commit ${ESPLORO_COMMIT:0:7} ($OPT)"
   elif [ -x "$OPT/esploro" ]; then echo "esploro  built from another commit: vikix esploro setup builds this one"
   else echo "esploro  not built (vikix add esploro)"; fi
 }
 
 cmd_doctor() {
   local ok=1 now
-  if built; then say "Esploro is built at Vikix's pin (${ESPLORO_COMMIT:0:7})"
+  if tried_ahead; then say "Esploro is $(head -c 7 "$OPT/.vikix-tried"), tried from your clone, ahead of Vikix's pin (${ESPLORO_COMMIT:0:7}): a release catches up"
+  elif built; then say "Esploro is built at Vikix's pin (${ESPLORO_COMMIT:0:7})"
   elif [ -x "$OPT/esploro" ]; then warn "Esploro is built from another commit: vikix esploro setup builds Vikix's"; ok=0
   else warn "Esploro isn't built: vikix esploro setup"; ok=0; fi
   if [ -L "$BIN/esploro" ] && [ "$(readlink "$BIN/esploro")" = "$OPT/esploro" ]; then say "esploro is the command"
@@ -270,7 +328,8 @@ case ${1:-} in
   status)    cmd_status ;;
   doctor)    cmd_doctor ;;
   menu)      cmd_menu ;;
+  try)       shift; cmd_try "${1:-}" ;;
   uninstall) cmd_uninstall ;;
   -h|--help|help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
-  *) die "vikix esploro: setup, status, doctor, menu, uninstall" ;;
+  *) die "vikix esploro: setup, status, doctor, menu, try, uninstall" ;;
 esac
