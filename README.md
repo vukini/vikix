@@ -975,7 +975,8 @@ vikix project list --all      # with the projects that have no entries yet
 vikix project show lambda     # the title, folder, log, Status and the last three entries
 vikix project path lambda     # the folder: cd "$(vikix project path lambda)"
 vikix project log lambda "Track IV's step list agreed." --next "write step 1" --status "track IV started"
-vikix project open lambda     # a terminal in its folder, its log in Emacs (Super+Shift+p picks one with rofi; Super+m → Projects)
+vikix project open lambda     # on a workspace of its own: a terminal in its folder, its log in Emacs, placed as you left them (Super+Shift+p picks one with rofi; Super+m → Projects)
+vikix project save            # its workspace's layout, now (leaving the workspace saves it too; vikix layout project-lambda)
 vikix project build lambda    # its build, in its folder: the log's Build line, build.sh, a Makefile, src/build.sh or package.json (-n only says which)
 vikix project check lambda    # its checks, in its folder: the log's Check line, check.sh, check, tests/run.sh, test.sh, make check or test, npm test
 vikix project new my-book     # a new project: ~/src/my-book with a log.md (--in series: inside a collection; --private: the log in ~/src/project-logs)

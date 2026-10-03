@@ -2,6 +2,16 @@
 
 Small known problems, not yet fixed. Each says what happens, what is known, and the next step. A fix removes its entry in the commit that ships it. (Larger planned work is in `TODO.md`; ideas in `IDEAS.md`.)
 
+## tests/rules.sh fails when the machine is very busy
+
+Noted 2026-10-03, while the load average was 20 to 25 on four cores (other sessions' work).
+
+**What happens.** The part after a reload fails: "StumpWM's main thread did not answer within 10 s", or the window `Named` is gone (`window-group NIL`), then "StumpWM started again" counts too few windows. Alone it passes, in about a minute; on main it passed under the same load once and failed on this branch once, with no change to rules.
+
+**What's known.** Its windows are `alacritty -e sleep 300`, and a slow run reaches the reload near that mark, so they close themselves; `vikix eval` gives up after 10 s while the reload is still loading.
+
+**Next step.** Windows that live until the test ends (`sleep infinity`, killed by its cleanup), and a longer wait for the answer after `(loadrc)`.
+
 ## Alacritty sometimes fails to copy ("Failed to set new owner of XCB selection")
 
 Noted 2026-10-02. Minor.

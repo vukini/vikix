@@ -283,6 +283,8 @@ logs=~/src/project-logs   # a public repo ~/src/NAME with no log.md of its own u
 
 The change takes effect at once: each `vikix project` reads it again. A project whose build isn't `build.sh`, `make`, `src/build.sh` or `npm run build` says so in its log's Status, with a `- Build: COMMAND` line, and the same for its checks with `- Check: COMMAND`. `vikix project new NAME` adds a project (a folder in the first `root=` with its log); `vikix today` is the day across all of them. `Super+Shift+p` (or `Super+m` → *Projects*) picks one with rofi and opens a terminal in its folder and its log in Emacs (in `$EDITOR`, Neovim by default, without Emacs); the terminal is `$VIKIX_TERMINAL`, `alacritty` unless you set it.
 
+
+`vikix project open NAME` (or Super+Shift+p) puts a project on a workspace of its own, the first empty one, with a terminal in its folder and its log in the editor. Arrange them as you like: when you leave that workspace its layout is saved (as a layout called `project-NAME`, see *Saved layouts*), and the next time you open the project it comes back that way. While the project's workspace is still open, opening it again just goes there. `vikix project save` saves it at once. A window the saved layout names that isn't open, a browser say, is named when it comes back; starting such windows too is still to come.
 ## AI
 
 Each of these is one of your files, so it has an undo too. [Working with AI](ai.md) says what each does.

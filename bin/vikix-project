@@ -10,7 +10,12 @@
                       a new entry for today at the top of the log, marked
                       (Vid) unless --agent (or run from Claude Code); never
                       committed: it says how
-  vikix project open NAME        a terminal in the folder, the editor on its log
+  vikix project open NAME        the project on a workspace of its own: a terminal
+                      in the folder, the editor on its log, placed as you
+                      left them (its saved layout); the workspace it has
+                      still, if it's open
+  vikix project save [NAME]      save the layout of its workspace now (leaving
+                      the workspace saves it too): vikix layout project-NAME
   vikix project build NAME [-n]  run its build in its folder (-n: only say which)
   vikix project check NAME [-n]  run its checks in its folder: the log's Check
                       line, check.sh, check, tests/run.sh, test.sh, make
@@ -55,6 +60,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 HOME = Path.home()
@@ -442,10 +448,76 @@ def spawn(cmd, cwd):
                      stderr=subprocess.DEVNULL, start_new_session=True)
 
 
+EVAL = Path(__file__).resolve().parent / "vikix-eval"
+LAYOUTS = Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config") / "vikix" / "layouts"
+
+
+def lisp(form, timeout=20):
+    """Lisp in the running StumpWM (vikix eval): what it printed, or None
+    when there's no desktop to ask (then open works as it did)."""
+    try:
+        r = subprocess.run(["python3", str(EVAL), form], capture_output=True, text=True, timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if r.returncode != 0 or "error:" in r.stdout:
+        return None
+    return "\n".join(l for l in r.stdout.splitlines() if not l.startswith("=> ")).strip()
+
+
+def lisp_str(text):
+    return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def layout_name(full):
+    """The layout a project's workspace is saved as (layouts.lisp's own rule)."""
+    return "project-" + "".join("--" if c == "/" else c if (c.isalnum() or c in "-_.") else "_" for c in full)
+
+
+def arrange(p, before):
+    """Once the terminal and the editor have come (the workspace has two
+    more windows), put the project's saved layout back. Its windows that
+    aren't open are named."""
+    if not (LAYOUTS / (layout_name(p.full) + ".lisp")).is_file():
+        return
+    count = "(princ (length (group-windows (current-group))))"
+    for _ in range(60):
+        n = lisp(count)
+        if n is None or (n.isdigit() and int(n) >= before + 2):
+            break
+        time.sleep(0.25)
+    time.sleep(0.3)   # their titles settle
+    missing = lisp(f"(let ((m (vikix-layout-restore {lisp_str(layout_name(p.full))}))) "
+                   "(when m (princ (vikix-layout-missing-text m))))")
+    if missing:
+        print(f"   placed as you left it; not open: {missing}")
+    elif missing is not None:
+        print("   placed as you left it")
+
+
+def cmd_save(args):
+    if args:
+        p = one_name(args, "save")
+        full = p.full
+    else:
+        full = lisp("(let ((p (gethash (current-group) *vikix-project-groups*))) (when p (princ p)))")
+        if not full:
+            die("this workspace isn't a project's (vikix project open NAME gives it one); or name it")
+    out = lisp(f"(progn (vikix-project-save {lisp_str(full)}) (princ 1))")
+    if out != "1":
+        die("StumpWM didn't save it (vikix doctor)")
+    print(f"saved {full}'s layout: vikix layout {layout_name(full)} puts it back")
+
+
 def cmd_open(args):
     p = one_name(args, "open")
     if not os.environ.get("DISPLAY"):
         die(f'open needs the desktop; here: cd "$(vikix project path {p.name})"')
+    # A workspace of its own: the one it has still, or the first empty one.
+    claim = lisp(f"(princ (vikix-project-claim {lisp_str(p.full)}))")
+    if claim == "EXISTING":
+        print(f"{p.full} is open: its workspace")
+        return
+    before = lisp("(princ (length (group-windows (current-group))))")
     term = os.environ.get("VIKIX_TERMINAL") or "alacritty"
     if not shutil.which(term):
         die(f"no terminal: {term} isn't installed (VIKIX_TERMINAL names another)")
@@ -457,6 +529,8 @@ def cmd_open(args):
     else:
         spawn([term, "-e", os.environ.get("EDITOR") or "nvim", str(p.log)], p.path)
     print(f"opened {p.full}: a terminal in {p.path}, the editor on {p.log}")
+    if claim == "NEW" and before and before.isdigit():
+        arrange(p, int(before))
 
 
 def build_command(p):
@@ -735,7 +809,7 @@ def main(argv):
     if cmd.startswith("--") and cmd != "--help":
         cmd, args = "list", argv
     table = {"list": cmd_list, "show": cmd_show, "path": cmd_path, "log": cmd_log,
-             "open": cmd_open, "build": cmd_build, "check": cmd_check, "new": cmd_new,
+             "open": cmd_open, "save": cmd_save, "build": cmd_build, "check": cmd_check, "new": cmd_new,
              "today": cmd_today, "pick": cmd_pick}
     if cmd in ("help", "-h", "--help"):
         print(__doc__.strip())

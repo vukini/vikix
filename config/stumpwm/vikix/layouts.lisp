@@ -279,3 +279,71 @@ is where) under NAME, in ~/.config/vikix/layouts/."
     (when (eq group (current-group))
       (vikix-layout-restore name group))
     win))
+
+;;; --- Projects (vikix project open) ---------------------------------------------------
+;;;
+;;; A project opened with vikix project open has a workspace of its own: the
+;;; first empty one, or the one it has still. Leaving that workspace saves
+;;; its layout as project-NAME; the next open puts it back once the
+;;; project's terminal and editor have come.
+
+(defvar *vikix-project-groups* (make-hash-table :test 'eq :weakness :key)
+  "Each workspace a project was opened on, and the project's name.")
+
+(defun vikix-layout-project-name (project)
+  "The layout a project's workspace is saved as: project-NAME, a / in a
+collection's project as --."
+  (concatenate 'string "project-"
+               (with-output-to-string (o)
+                 (loop for c across project
+                       do (cond ((char= c #\/) (write-string "--" o))
+                                ((or (alphanumericp c) (find c "-_.")) (write-char c o))
+                                (t (write-char #\_ o)))))))
+
+(defun vikix-project-group (project)
+  "The workspace PROJECT is open on, while it has windows."
+  (loop for g being the hash-keys of *vikix-project-groups* using (hash-value p)
+        when (and (equal p project) (member g (screen-groups (current-screen))) (group-windows g))
+          return g))
+
+(defun vikix-project-claim (project)
+  "Go to PROJECT's workspace: :existing when it's still open there, else
+:new on the first empty workspace (or this one when none is empty)."
+  (let ((g (vikix-project-group project)))
+    (if g
+        (progn (switch-to-group g) :existing)
+        (let ((empty (or (find-if (lambda (g) (and (null (group-windows g))
+                                                   (plusp (group-number g))))
+                                  (sort-groups (current-screen)))
+                         (current-group))))
+          (switch-to-group empty)
+          ;; This workspace is no other project's any more.
+          (setf (gethash empty *vikix-project-groups*) project)
+          :new))))
+
+(defun vikix-project-save (project &optional (group (or (vikix-project-group project) (current-group))))
+  (vikix-layout-save (vikix-layout-project-name project) group))
+
+(defun vikix-project-left (new old)
+  "Leaving a project's workspace saves its layout, so the next open puts it back."
+  (declare (ignore new))
+  (let ((project (and old (gethash old *vikix-project-groups*))))
+    (when (and project (group-windows old)
+               (or (viri-group-p old) (typep old 'tile-group)))
+      (handler-case (vikix-project-save project old)
+        (error (e) (message "^1Vikix: the layout of ~a wasn't saved:^n ~a" project e))))))
+
+(remove-hook *focus-group-hook* 'vikix-project-left)
+(add-hook *focus-group-hook* 'vikix-project-left)
+
+;; A workspace made a strip (or tiles again) is a new group in its place:
+;; it stays the project's.
+(sb-int:unencapsulate 'viri-replace-group 'vikix-projects)
+(sb-int:encapsulate 'viri-replace-group 'vikix-projects
+                    (lambda (f group type)
+                      (let ((project (gethash group *vikix-project-groups*))
+                            (new (funcall f group type)))
+                        (when project
+                          (remhash group *vikix-project-groups*)
+                          (setf (gethash new *vikix-project-groups*) project))
+                        new)))

@@ -85,7 +85,38 @@ ask '(run-commands "only")' >/dev/null; sleep 0.3
 win Trigger other; sleep 0.5
 check "the rule verb (layout \"split\") puts it back: $(tiles)" test "$(tiles)" = "tiles frames=2 alpha-alone=T"
 
-check "vikix layout list: $(layout list | tr '\n' ' ')" test "$(layout list | tr '\n' ' ')" = "desk split "
+# --- Projects: vikix project open on a workspace of its own, placed as left.
+mkdir -p "$home/src/demo" "$t/bin"
+printf '# Log: Demo\n**Status** (demo), as of 2026-10-03: 10%% complete.\n- Next: a test\n\n## 2026-10-03 · start (Vid)\nBegun.\n' > "$home/src/demo/log.md"
+# The editor: a window of class Emacs, never the desktop's Emacs.
+printf '#!/bin/sh\nLIBGL_ALWAYS_SOFTWARE=1 exec alacritty --class Emacs --title log.md -e sleep 300\n' > "$t/bin/emacsclient"
+chmod +x "$t/bin/emacsclient"
+project() { HOME=$home VIKIX_SWANK_PORT=$port PATH="$t/bin:$PATH" VIKIX_TERMINAL=alacritty python3 "$here/bin/vikix-project" "$@" 2>&1; }
+ws() { ask '(progn (setf *print-pretty* nil) (format t "~a ~a" (group-name (current-group)) (length (group-windows (current-group)))))'; }
+wait_windows() { for _ in $(seq 1 40); do [ "$(ws | cut -d' ' -f2)" -ge "$1" ] && break; sleep 0.25; done; }
+key super+1
+out=$(project open demo); wait_windows 2
+check "vikix project open takes an empty workspace: $(ws) ($out)" grep -qE '^[2-9] 2$' <<<"$(ws)"
+pws=$(ws | cut -d' ' -f1)
+# The editor alone on the right, the terminal on the left.
+ask '(progn (run-commands "only") (run-commands "hsplit") (pull-window (find "Emacs" (group-windows (current-group)) :key (function window-class) :test (function equal)) (second (group-frames (current-group)))))' >/dev/null; sleep 0.4
+editor_right() { ask '(let* ((g (current-group)) (e (find "Emacs" (group-windows g) :key (function window-class) :test (function equal)))) (princ (if (and e (= 2 (length (group-frames g))) (eq (window-frame e) (second (group-frames g))) (eq (frame-window (window-frame e)) e)) 1 0)))'; }
+check "arranged: the editor on the right" test "$(editor_right)" = 1
+out=$(project open demo)
+check "open again while it's open goes to its workspace: $out" grep -q 'is open: its workspace' <<<"$out"
+key super+1
+check "leaving the workspace saves its layout" test -f "$home/.config/vikix/layouts/project-demo.lisp"
+# Closed, then opened again: placed as it was left.
+key "super+$pws"
+ask '(dolist (w (group-windows (current-group))) (kill-window w))' >/dev/null
+for _ in $(seq 1 20); do [ "$(ws | cut -d' ' -f2)" = 0 ] && break; sleep 0.25; done
+key super+1
+out=$(project open demo); wait_windows 2; sleep 1
+check "opened again, it's placed as it was left (the editor on the right): $out" test "$(editor_right)" = 1
+out=$(project save)
+check "vikix project save, on its workspace: $out" grep -q "saved demo's layout" <<<"$out"
+
+check "vikix layout list: $(layout list | tr '\n' ' ')" test "$(layout list | tr '\n' ' ')" = "desk project-demo split "
 layout rm desk >/dev/null
 check "vikix layout rm removes it" test ! -e "$file/desk.lisp"
 out=$(layout save '../x' || true)
@@ -93,5 +124,5 @@ check "a name with / is refused: $out" grep -q 'a name is' <<<"$out"
 out=$(layout nosuch || true)
 check "a layout that isn't there is said: $out" grep -qi 'no layout nosuch' <<<"$out"
 
-wm_report layouts "a split and a strip saved as plain Lisp and put back, either from the other, a window it doesn't know kept, a closed one named, a hand change followed, from a rule, list, rm, bad names refused"
+wm_report layouts "projects on a workspace of their own, saved on leaving and placed as left; a split and a strip saved as plain Lisp and put back, either from the other, a window it doesn't know kept, a closed one named, a hand change followed, from a rule, list, rm, bad names refused"
 exit "$fail"

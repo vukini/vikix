@@ -190,7 +190,7 @@ has it in `~/src/project-logs/NAME/log.md`. Git worktrees are skipped.
 - `vikix today [yesterday|DATE]`: what was done that day across all
   projects (log entries and commits) and what's next; a good first read
   when the user asks where they were.
-- `vikix project open NAME` opens a terminal there and the log in Emacs.
+- `vikix project open NAME` puts the project on a workspace of its own (the one it has still, else the first empty one), opens a terminal there and the log in Emacs, and once they've come puts its saved layout back (`project-NAME`, a collection's `/` as `--`; saved when you leave that workspace, or by `vikix project save [NAME]`). Saved windows that aren't open are named (not started yet).
 
 ## Checking and fixing
 
