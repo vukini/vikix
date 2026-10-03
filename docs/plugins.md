@@ -160,8 +160,13 @@ Which of your git projects have changes not committed, commits not pushed, commi
 - **Super+Alt+g**, or a click: a terminal with each project's state and the commands that do what it needs. The commands are in the terminal's history: press **Up** to bring each back, Enter to run it.
 - Super+m, *Projects: pick one*: the projects in a list; Enter offers push, pull, a terminal there, or Magit in Emacs.
 - `repos fetch` asks GitHub now what's new (it does every 30 minutes by itself).
+- `repos push` pushes every project that needs it, commits and tags (`repos push esploro` just that one). A project another pins goes first: Esploro and the plugins before Vikix, whose files name the commit of each it builds. It won't push Vikix while it pins a commit GitHub hasn't got, since every install that updated would then fail to fetch it. When GitHub has moved on, it brings those commits in first and pushes again.
+- `repos pull` brings in GitHub's new commits for every project, yours put on top of them. It asks over HTTPS, so no passphrase.
+- `repos ship` is `repos push`, then `vikix update core`: the desktop runs what you pushed. The step after a release.
+- `repos update` updates the whole system (`vikix update`: Void's packages, Vikix, your tools).
+- `repos` also says when a project is past the commit Vikix pins (`2 past vikix's pin`): it has work Vikix doesn't use yet.
 
-It never pushes, pulls or merges by itself, and asking GitHub never needs your SSH key's passphrase: it goes over HTTPS, through `gh`'s login when you have one.
+It never pushes, pulls or merges unless you ask, and asking GitHub never needs your SSH key's passphrase: it goes over HTTPS, through `gh`'s login when you have one.
 
 **Settings** (`~/.config/vikix/plugins/repos/settings`):
 
@@ -170,6 +175,8 @@ roots = ~/src                       # folders whose projects it looks at
 extra = ~/.emacs.d ~/.dotfiles      # single projects elsewhere
 skip =                              # projects to leave out, by folder name
 push = gpush {path}                 # the commands it suggests, if not git's own
+pins = esploro:~/src/vikix/bin/vikix-esploro vikix-plugins:~/src/vikix/bin/vikix-plugin
+                                    # PROJECT:FILE, the file holding NAME_COMMIT=<sha>
 ```
 
 **When it doesn't work:**
