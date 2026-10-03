@@ -115,7 +115,9 @@ def save_state(state):
 
 
 def session_env():
-    """The desktop's display and D-Bus, for a notification from cron."""
+    """The desktop's display and D-Bus, and your programs (claude is in
+    ~/.local/bin), for a dialog from cron, which gives none of them."""
+    os.environ["PATH"] = os.path.join(HOME, ".local", "bin") + os.pathsep + os.environ.get("PATH", "/usr/bin:/bin")
     try:
         with open(os.path.join(HOME, ".local/state/vikix/session.env")) as f:
             for line in f:
