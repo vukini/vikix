@@ -2,15 +2,13 @@
 
 Small known problems, not yet fixed. Each says what happens, what is known, and the next step. A fix removes its entry in the commit that ships it. (Larger planned work is in `TODO.md`; ideas in `IDEAS.md`.)
 
-## Super+Alt+c is both Esploro's commands and next-meeting's week
+## Removing a plugin leaves the key it took over doing nothing
 
 Noted 2026-10-03, in a review; not tried on the desktop.
 
-**What happens.** `keys.lisp` binds `s-M-c` to `vikix-esploro menu` (0.71.68), and the plugin next-meeting binds `s-M-c` to `next-meeting-week` (vikix-plugins, `next-meeting/plugin.lisp`). Plugins load after `keys.lisp`, so with next-meeting added the key lists the week, the key card shows only that, and Esploro's rofi menu has no key, though README, the skill and the site say Super+Alt+c.
+**What happens.** `vikix-unload-plugins` (`plugins.lisp`) undefines every plugin key. When a plugin's key had replaced a Vikix one, removing the plugin (`vikix plugin remove NAME`) leaves that key doing nothing (and still in `*vikix-bindings*`) until StumpWM loads its config again, since the Vikix binding isn't put back. No plugin collides with a Vikix key today: Super+Alt+c did (Esploro's commands and next-meeting's week) until Esploro's moved to Super+Alt+x in 0.71.72.
 
-**Also.** `vikix-unload-plugins` (`plugins.lisp`) undefines every plugin key: after `vikix plugin remove next-meeting`, `s-M-c` does nothing (and leaves `*vikix-bindings*`) until StumpWM loads its config again, since the Vikix binding the plugin replaced isn't put back.
-
-**Next step.** Vid chooses which moves: a new key for one of them (and the docs, the site and the test in `tests/esploro.sh` with it). Then make `vikix-plugin-key` remember the binding it replaces and `vikix-unload-plugins` restore it, and perhaps have the plugin test fail when a plugin key collides with one in `*vikix-bindings*`.
+**Next step.** Make `vikix-plugin-key` remember the binding it replaces and `vikix-unload-plugins` restore it, and perhaps have the plugin test fail when a plugin key collides with one in `*vikix-bindings*`.
 
 ## Alacritty sometimes fails to copy ("Failed to set new owner of XCB selection")
 

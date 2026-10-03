@@ -17,7 +17,7 @@
 #                          answering Show in folder, loaded in Emacs (vikix
 #                          doctor runs this when you have the feature)
 #   vikix esploro menu     Esploro's file commands for the file behind the
-#                          focused window, in rofi (Super+Alt+c): open it,
+#                          focused window, in rofi (Super+Alt+x): open it,
 #                          copy its path, compress, extract, shrink, yours;
 #                          one that changes files is a plan to review first
 #   vikix esploro uninstall

@@ -174,8 +174,8 @@ check "the Apps menu should offer Esploro once it's here" \
   grep -q '(run-shell-command "esploro") "~/.local/bin/esploro")' "$here/config/stumpwm/vikix/commands.lisp"
 check "vikix update should build a moved pin" grep -q 'is_chosen esploro' "$here/bin/vikix"
 
-# --- The rofi door: Super+Alt+c -----------------------------------------------------
-check "Super+Alt+c should open Esploro's commands in rofi" grep -q '("s-M-c" *"exec vikix-esploro menu"' "$here/config/stumpwm/vikix/keys.lisp"
+# --- The rofi door: Super+Alt+x -----------------------------------------------------
+check "Super+Alt+x should open Esploro's commands in rofi" grep -q '("s-M-x" *"exec vikix-esploro menu"' "$here/config/stumpwm/vikix/keys.lisp"
 check "a new keymap (closing a project) should be reset on reload" grep -q 'esploro-project-mode-map' "$here/bin/vikix-esploro"
 cat > "$t/bin/esploro" <<EOF
 #!/bin/sh
