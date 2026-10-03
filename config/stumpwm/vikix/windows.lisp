@@ -64,6 +64,17 @@ below zero for a small window, and X then kills the window manager."
         (setf height (- height oh)))
       (setf x (+ x ox)
             y (+ y oy))
+      ;; The title bar's room, taken here, in the one layout: made after it,
+      ;; the window was set to the full height and then to the shorter one
+      ;; each time, and a terminal sizing itself in whole rows (xterm)
+      ;; answered each change with new size hints, which lay it out again:
+      ;; round and round, the main thread never resting.
+      (let ((ph (- (frame-display-height (window-group win) frame) (* 2 border) oh)))
+        (when (and (not stick) (fboundp 'vikix-titlebar-wants-p)
+                   (funcall 'vikix-titlebar-wants-p win ph))
+          (let ((h (funcall 'vikix-titlebar-height)))
+            (setf wy (max h wy)
+                  height (funcall 'vikix-titlebar-fit win (min height (- ph wy)))))))
       (set-window-geometry win :x wx :y wy :width width :height height :border-width 0)
       (xlib:with-state ((window-parent win))
         (setf (xlib:drawable-x (window-parent win)) x
@@ -446,22 +457,41 @@ GTK and Qt dialogs are drawn at; without one, a modest box."
       (remhash win *vikix-titlebar-windows*)
       (ignore-errors (xlib:destroy-window bar)))))
 
+(defun vikix-titlebar-fit (win height)
+  "HEIGHT, or less, so that it's a height WIN asks for. A terminal (xterm,
+Emacs) asks for whole rows: a base and a step (WM_NORMAL_HINTS). Given a
+height between two, it fits itself to a row and says so again in its
+hints; StumpWM lays it out again on that, the bar takes its room again,
+and round it goes, the main thread never resting (bugs.md, 2026-10-02)."
+  (let* ((hints (window-normal-hints win))
+         (inc (and hints (xlib:wm-size-hints-height-inc hints)))
+         (base (and hints (or (xlib:wm-size-hints-base-height hints)
+                              (xlib:wm-size-hints-min-height hints)
+                              0))))
+    (max 1 (if (and inc (> inc 1) base (> height base))
+               (+ base (* inc (floor (- height base) inc)))
+               height))))
+
+(defun vikix-titlebar-wants-p (win parent-height)
+  "Whether WIN, its frame PARENT-HEIGHT high, has a title bar."
+  (and *vikix-titlebars*
+       (typep win 'tile-window)
+       (not (window-fullscreen win))
+       ;; :tight and :none fit the parent to the window: no room.
+       (not (find *window-border-style* '(:tight :none)))
+       (not (nth-value 7 (geometry-hints win)))   ; kept at its own size
+       (> parent-height (* 3 (vikix-titlebar-height)))))
+
 (defun vikix-titlebar-place (win)
   "After StumpWM has laid WIN out: make room at its top and put its bar there."
   (let ((parent (window-parent win))
         (h (vikix-titlebar-height)))
-    (if (and *vikix-titlebars*
-             (typep win 'tile-window)
-             (not (window-fullscreen win))
-             ;; :tight and :none fit the parent to the window: no room.
-             (not (find *window-border-style* '(:tight :none)))
-             (not (nth-value 7 (geometry-hints win)))   ; kept at its own size
-             (> (xlib:drawable-height parent) (* 3 h)))
+    (if (vikix-titlebar-wants-p win (xlib:drawable-height parent))
         (let ((pw (xlib:drawable-width parent))
               (ph (xlib:drawable-height parent))
               (bar (gethash win *vikix-titlebar-windows*))
               (y (max h (xlib:drawable-y (window-xwin win)))))
-          (set-window-geometry win :y y :height (max 1 (min (window-height win) (- ph y))))
+          (set-window-geometry win :y y :height (vikix-titlebar-fit win (min (window-height win) (- ph y))))
           (unless bar
             ;; The screen's own visual, not the parent's: a terminal with
             ;; transparency gives its parent 32 bits, and smoothed text

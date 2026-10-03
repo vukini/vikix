@@ -10,6 +10,8 @@
 #   emacs    an Emacs frame asked for (emacsclient -c) to its window on
 #            the screen, with StumpWM answering again (Emacs without your
 #            config: what's measured is the window manager's part)
+#   xterm    StumpWM answering with a tiled xterm open (the median of 3):
+#            an xterm once kept it busy laying the window out, over and over
 #   answer   StumpWM's main thread answering a question over Swank, after
 #            all that (the median of 5): a slow one means it's kept busy
 #
@@ -63,6 +65,28 @@ for _ in $(seq 1 120); do grep -q ' login ' "$log" 2>/dev/null && break; sleep 0
 grep -q ' login ' "$log" 2>/dev/null || { echo "times: the test StumpWM didn't get ready: $(tail -5 "$t/wm.log")" >&2; exit 1; }
 echo "start $(awk '$2 == "login" {print $3}' "$log" | tail -1)"
 for _ in $(seq 1 60); do [ "$(ask '(princ 1)')" = 1 ] && break; sleep 0.5; done
+
+# A tiled xterm, first, as after logging in: it sizes itself in whole rows,
+# and once kept StumpWM laying it out again and again (the title bar's
+# room against its rows). With it open, StumpWM must still answer quickly.
+if command -v xterm >/dev/null; then
+  HOME=$home xterm -T times-xterm -e sleep 300 >/dev/null 2>&1 &
+  pids+=($!)
+  # At most 30 s: a StumpWM kept busy answers no question, and that's the measure.
+  end=$((SECONDS + 30))
+  while [ "$SECONDS" -lt "$end" ]; do
+    [ "$(ask '(princ (if (find "times-xterm" (all-windows) :key (function window-title) :test (function equal)) 1 0))')" = 1 ] && break
+    sleep 0.25
+  done
+  sleep 1
+  xt=()
+  for _ in 1 2 3; do
+    t0=$(now); [ "$(ask '(princ 1)')" = 1 ] && xt+=("$(secs "$t0" "$(now)")") || xt+=(20)
+  done
+  echo "xterm $(median "${xt[@]}")"
+  # Kept busy, StumpWM answers nothing more: the rest can't be measured.
+  [ "$(ask '(princ 1)')" = 1 ] || exit 0
+fi
 
 # Reload: the command itself notes how long loadrc took.
 ask '(run-commands "vikix-reload")' >/dev/null

@@ -39,6 +39,7 @@ while read -r what limit; do
   got=$(awk -v w="$what" '$1 == w {print $2}' <<<"$out")
   if [ -z "$got" ]; then
     [ "$what" = emacs ] && ! command -v emacs >/dev/null && continue
+    [ "$what" = xterm ] && ! command -v xterm >/dev/null && continue
     echo "FAIL: no $what measured: $out"; fail=1
   elif python3 -c 'import sys; sys.exit(0 if float(sys.argv[1]) <= float(sys.argv[2]) else 1)' "$got" "$limit"; then :
   else echo "FAIL: $what took ${got}s, over its limit of ${limit}s"; fail=1
