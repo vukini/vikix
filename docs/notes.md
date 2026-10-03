@@ -94,8 +94,27 @@ beorg syncs the `.org` files in that folder. To see the journal's pages too, it 
 | Sorting the inbox with a model | Super+Alt+Shift+s | no | no |
 | Links between notes, backlinks, the graph | yes (org-roam) | links show as text | links show as text |
 
+## Bringing an Obsidian vault
+
+`vikix obsidian` converts an Obsidian vault into Org notes in `~/Dropbox/notes/vault/`, a folder at a time. The vault itself is only read: nothing in it changes, so Obsidian keeps working as before until you're happy with the Org copies.
+
+```sh
+vikix obsidian                     # the vault's folders, how many notes, which are converted
+vikix obsidian convert Books       # one folder (. for the notes at the vault's top)
+vikix obsidian report Books        # what didn't convert cleanly, note by note (in Emacs)
+vikix obsidian convert --all       # every folder not left out
+```
+
+- **Links stay links.** Each note gets an ID, and `[[Another note]]` becomes an org-roam link to it, so `C-c n f`, backlinks and the graph cover the vault. A link to a folder not converted yet works once that folder is.
+- **What comes along:** the title, aliases and tags (from the file's name and its front matter; other front matter becomes properties), headings, lists, tasks, tables, code, and the files a note shows or links (pictures, PDFs, sound), copied into `vault/attachments/`. Only those files, not every file in the vault.
+- **What the report lists:** a link to a note that isn't there or is in a folder left out (kept as text), two notes with the same name (the nearer one is taken, as Obsidian does), a note embedded in another (Org can't embed: it becomes a link), a link into a heading (it goes to the note), Excalidraw drawings (left as their name), ==highlights== (made bold) and callouts (a quote).
+- **Left out:** the folders named in `~/.config/vikix/obsidian` (`skip =`: imported ones like Readwise and Google Keep, the attachments folder, templates). Take one off the list to convert it. The same file says where the vault is (`vault =`) and where the notes go (`to =`).
+- **Converting a folder again** rewrites its notes, except any you've changed since, which the report names (`--force` rewrites those too).
+
+It needs pandoc (`vikix add cli-extras`).
+
 ## What travels, and what doesn't
 
 - **The whole folder travels,** while the Dropbox program runs on the laptop (`vikix add dropbox`). Dropbox only carries changes while it's running: a note taken with it stopped goes up when you start it.
-- **The laptop's own:** org-roam's index (`~/.cache/vikix/org-roam.db`), the graph, the copies each sort keeps for `--undo` (`~/.local/state/vikix/inbox/sorts/`), and the inbox plugin's settings.
+- **The laptop's own:** `vikix obsidian`'s settings and reports (`~/.local/state/vikix/obsidian/`), org-roam's index (`~/.cache/vikix/org-roam.db`), the graph, the copies each sort keeps for `--undo` (`~/.local/state/vikix/inbox/sorts/`), and the inbox plugin's settings.
 - **Two changes to the same file before either was synced** (the phone offline, say) can't both win. Dropbox keeps the other one beside it as `inbox (conflicted copy).org`: open both, copy across what's missing, then delete the copy. Orgzly asks whether to load the file again (**Force Load**) or keep the phone's version (**Force Save**); beorg warns you and keeps the version it replaced.

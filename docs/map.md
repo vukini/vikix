@@ -33,6 +33,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── keyboard           yours     layout and XKB options
 │   │   ├── plugins.list       yours     the plugins you added (vikix plugin add); "#off NAME" is one switched off
 │   │   ├── plugins/NAME/      yours     your settings for plugin NAME (copied once)
+│   │   ├── obsidian           yours     vikix obsidian's vault, where its notes go, and the folders it leaves out
 │   │   ├── idle               yours     minutes before lock, dark screen, suspend (make it; see customize.md)
 │   │   ├── backup             yours     where backups go, and the reminder's days
 │   │   ├── backup-exclude     yours     what backups leave out
@@ -141,6 +142,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 | `mimeapps-offered` | The starter's default programs already offered to your `~/.config/mimeapps.list` (added, or yours kept), so each is offered once |
 | `wallpaper-now`, `wallpaper.lock` | The picture the cycling wallpaper shows, and the lock that keeps its watcher (`vikix-wallpaper --watch`) to one |
 | `initramfs-*` | Marks that the initramfs was rebuilt with this microcode |
+| `obsidian/` | `vikix obsidian`'s record: which folders of the vault are converted, each note as it was written (so one you changed since is left alone), and each folder's report |
 
 ### `~/dev`
 

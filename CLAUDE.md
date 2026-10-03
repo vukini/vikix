@@ -32,7 +32,7 @@ Vid often has several Claude sessions on Vikix at once. So that none disturbs an
 No build step. The tests are scripts in `tests/`, and `.github/workflows/test.yml` runs the same scripts on GitHub (on each push and weekly):
 
 ```sh
-tests/run.sh                  # about two minutes: lint, lisp, battery, home, services, backup (with restic), image, theme, theme-import, bar, rofi, wallpaper, examples, dev-ai, notes, project, drives, firmware, fingerprint, updates, notifications, idle, lock, lazarus, capture, nightlight, update, windows, ai, ai-local, llm, ai-keys, agents, debug, dictate, voice, lisp-apps, mcp, swank (with Quicklisp), errors (with Quicklisp's StumpWM), bitwarden, plugin, records, webapp, features, nvim, welcome, menu, pkg, oneline, info, and on Void packages + dry-run
+tests/run.sh                  # about two minutes: lint, lisp, battery, home, services, backup (with restic), image, theme, theme-import, bar, rofi, wallpaper, examples, dev-ai, notes, project, drives, firmware, fingerprint, updates, notifications, idle, lock, lazarus, capture, nightlight, update, windows, ai, ai-local, llm, ai-keys, agents, debug, dictate, voice, lisp-apps, mcp, swank (with Quicklisp), errors (with Quicklisp's StumpWM), bitwarden, plugin, records, obsidian, webapp, features, nvim, welcome, menu, pkg, oneline, info, and on Void packages + dry-run
 tests/run.sh --quick          # the same without packages, dry-run (Void's mirror), examples and lazarus (minutes each): for changes outside install/, packages/, features.list and dev/
 tests/run.sh --all            # plus editors: Emacs's config and Vikix's Neovim config from scratch (minutes, network)
 tests/lint.sh                 # bash -n, executable bits, shellcheck -S warning (must stay at zero)

@@ -1,0 +1,518 @@
+#!/usr/bin/env python3
+"""vikix obsidian — an Obsidian vault, converted to Org notes, a folder at a time.
+
+  vikix obsidian                   what's in the vault, folder by folder, and
+                                   which are converted
+  vikix obsidian convert FOLDER... convert those folders of the vault ("."
+                                   for the notes at its top); a report of each
+  vikix obsidian convert --all     every folder not left out
+  vikix obsidian report [FOLDER]   the last conversion's report
+
+The vault is only read, never changed. Each note becomes an Org file in the
+same place under ~/Dropbox/notes/vault/, with an ID, so links between notes
+become org-roam links (C-c n f finds them, backlinks and the graph follow),
+even to a folder not converted yet: they work once it is. The note's title,
+aliases and tags come from its file name and front matter; pandoc does the
+rest of the Markdown.
+
+What Obsidian has and Org hasn't is said in the report: a link to a note
+that isn't there (or is in a folder left out), a note embedded in another
+(it becomes a link), ==highlights== (bold), callouts (a quote). Files a note
+embeds or links (pictures, PDFs, sound) are copied beside the notes, in
+vault/attachments/, as they are in the vault; only those, not every file in
+it.
+
+Converting a folder again rewrites its notes, except any you've changed since
+(the report names them; --force rewrites them too).
+
+Settings: ~/.config/vikix/obsidian (vault=, to=, skip=: folders left out).
+"""
+import datetime
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import uuid
+
+HOME = os.path.expanduser("~")
+CONFIG = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config"), "vikix", "obsidian")
+STATE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.join(HOME, ".local", "state"), "vikix", "obsidian")
+DEFAULTS = {"vault": "~/General", "to": "~/Dropbox/notes/vault",
+            "skip": "Readwise, Google Keep, chatGPT, AI-Chats, Excalidraw, Assets, Templates"}
+NEVER = {".obsidian", ".trash", ".git", "node_modules"}
+# The IDs are made from each note's place in the vault, the same every time:
+# a link to a note in a folder converted later already has its ID.
+NAMESPACE = uuid.UUID("6f1b8c1e-3a8e-4f43-9c1e-0b5a7e5d2a10")
+
+SETTINGS_TEXT = """# vikix obsidian's settings (yours; Vikix never overwrites this file).
+# The Obsidian vault it reads (never changes):
+vault = {vault}
+# Where the Org notes go:
+to = {to}
+# Folders of the vault left out, by name, commas between:
+skip = {skip}
+"""
+
+
+def die(msg):
+    sys.exit(f"vikix obsidian: {msg}")
+
+
+def settings():
+    s = dict(DEFAULTS)
+    if not os.path.exists(CONFIG):
+        os.makedirs(os.path.dirname(CONFIG), exist_ok=True)
+        with open(CONFIG, "w") as f:
+            f.write(SETTINGS_TEXT.format(**s))
+    with open(CONFIG) as f:
+        for line in f:
+            if "=" in line and not line.lstrip().startswith("#"):
+                k, v = line.split("=", 1)
+                s[k.strip()] = v.strip()
+    s["vault"] = os.path.abspath(os.path.expanduser(s["vault"]))
+    s["to"] = os.path.abspath(os.path.expanduser(s["to"]))
+    s["skip"] = {x.strip() for x in s["skip"].split(",") if x.strip()}
+    return s
+
+
+# --- The vault ---------------------------------------------------------------------------
+
+def walk(vault):
+    """Every file of the vault, as a path relative to it (hidden folders and
+    node_modules left out)."""
+    for root, dirs, files in os.walk(vault):
+        dirs[:] = sorted(d for d in dirs if not d.startswith(".") and d not in NEVER)
+        for f in sorted(files):
+            if not f.startswith(".") and not f.startswith("#"):     # Emacs's lock and autosave files
+                yield os.path.relpath(os.path.join(root, f), vault)
+
+
+def top(rel):
+    return rel.split(os.sep, 1)[0] if os.sep in rel else "."
+
+
+def is_note(rel):
+    return rel.endswith(".md") and not rel.endswith(".excalidraw.md")
+
+
+class Vault:
+    def __init__(self, s):
+        self.root, self.skip = s["vault"], s["skip"]
+        self.files = list(walk(self.root))
+        self.notes = [f for f in self.files if is_note(f)]
+        self.by_name, self.by_path, self.by_file = {}, {}, {}
+        for n in self.notes:
+            stem = os.path.basename(n)[:-3]
+            self.by_name.setdefault(stem.lower(), []).append(n)
+            self.by_path[n[:-3].lower()] = n
+        for f in self.files:
+            self.by_file.setdefault(os.path.basename(f).lower(), []).append(f)
+
+    def left_out(self, rel):
+        return top(rel) in self.skip
+
+    def note(self, target, here):
+        """The note a [[target]] in HERE points to: by its path, or by its
+        name (the one nearest HERE when two share it). (note, how) or (None, why)."""
+        t = target.strip().replace("\\", "/")
+        if t.lower().endswith(".md"):
+            t = t[:-3]
+        if "/" in t:
+            hit = self.by_path.get(t.lower().lstrip("/"))
+            if hit:
+                return hit, ""
+            t = t.rsplit("/", 1)[1]
+        hits = self.by_name.get(t.lower(), [])
+        if not hits:
+            return None, "no such note"
+        kept = [h for h in hits if not self.left_out(h)]
+        if len(kept) == 1:
+            return kept[0], ""        # the others are in folders left out: no question which
+        if len(hits) == 1:
+            return hits[0], ""
+        # As Obsidian: the one in the same folder, else the shallowest; and
+        # one that's converted before one in a folder left out.
+        near = sorted(hits, key=lambda h: (self.left_out(h), os.path.dirname(h) != os.path.dirname(here),
+                                           h.count(os.sep), h))
+        return near[0], f"took {near[0]}, not " + ", ".join(h for h in near[1:] if not self.left_out(h))
+
+    def file(self, target, here):
+        """A file (a picture, a PDF) named in a link or an embed."""
+        t = target.strip().lstrip("/")
+        if os.path.exists(os.path.join(self.root, t)):
+            return t
+        rel = os.path.normpath(os.path.join(os.path.dirname(here), t))
+        if os.path.exists(os.path.join(self.root, rel)):
+            return rel
+        hits = self.by_file.get(os.path.basename(t).lower(), [])
+        return sorted(hits, key=lambda h: (h.count(os.sep), h))[0] if hits else None
+
+
+def note_id(rel):
+    return str(uuid.uuid5(NAMESPACE, rel))
+
+
+# --- One note --------------------------------------------------------------------------
+
+FENCE = re.compile(r"^(```|~~~)")
+EMBED = re.compile(r"!\[\[([^\]\n]+?)\]\]")
+WIKI = re.compile(r"\[\[([^\]\n]+?)\]\]")
+MD_LINK = re.compile(r"(!?)\[([^\]\n]*)\]\((?!https?:|mailto:|#)([^)\n]+)\)")
+HIGHLIGHT = re.compile(r"==([^=\n]+)==")
+CALLOUT = re.compile(r"^(>\s*)\[!(\w+)\][-+]?\s*(.*)$")
+TAG = re.compile(r"(?:(?<=\s)|^)#([A-Za-z][\w/-]*)")
+INLINE_CODE = re.compile(r"`[^`\n]*`")
+TYPOGRAPHY = {"VKXRSQUOX": "’", "VKXLSQUOX": "‘", "VKXELLIPX": "…", "VKXENDASHX": "–", "VKXEMDASHX": "—"}
+IMAGE = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp"}
+
+
+def split_front(text):
+    """The YAML front matter (a dict) and the rest."""
+    if not text.startswith("---\n"):
+        return {}, text
+    end = text.find("\n---", 4)
+    if end < 0:
+        return {}, text
+    import yaml
+    try:
+        front = yaml.safe_load(text[4:end]) or {}
+    except yaml.YAMLError:
+        front = {}
+    rest = text[end + 4:]
+    return (front if isinstance(front, dict) else {}), rest.lstrip("\n")
+
+
+def as_list(v):
+    if v is None:
+        return []
+    if isinstance(v, str):
+        return [x.strip() for x in re.split(r"[,\s]+", v) if x.strip()]
+    if isinstance(v, (list, tuple)):
+        return [str(x).strip() for x in v if str(x).strip()]
+    return [str(v)]
+
+
+class Converter:
+    def __init__(self, s, vault):
+        self.s, self.v = s, vault
+        self.problems = []          # (note, what)
+        self.attachments = set()
+
+    def problem(self, rel, kind, what):
+        self.problems.append((rel, kind, what))
+
+    def org_path(self, rel):
+        return os.path.join(self.s["to"], rel[:-3] + ".org")
+
+    def attach(self, rel_file, here):
+        """Copy a file the note uses beside the notes; its link, from HERE's Org file."""
+        dest = os.path.join(self.s["to"], "attachments", rel_file)
+        src = os.path.join(self.v.root, rel_file)
+        if not os.path.exists(dest) or os.path.getmtime(dest) < os.path.getmtime(src):
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            shutil.copy2(src, dest)
+        self.attachments.add(rel_file)
+        return os.path.relpath(dest, os.path.dirname(self.org_path(here)))
+
+    def link(self, inner, here, embed, out):
+        """[[inner]] or ![[inner]] as a token pandoc leaves alone; its Org link in OUT."""
+        target, _, label = inner.partition("|")
+        target, _, anchor = target.partition("#")
+        target = target.strip()
+        token = f"VKXLINK{len(out):05d}X"
+        name = os.path.splitext(os.path.basename(target))[0] if target else anchor
+        ext = os.path.splitext(target)[1].lower()
+        if not target:                                  # [[#Heading]]: within the same note
+            out[token] = label.strip() or anchor.strip()
+            return token
+        if ext and ext != ".md" and not self.v.by_name.get(target.rsplit("/", 1)[-1].lower()):
+            if target.lower().endswith(".excalidraw"):
+                self.problem(here, "an Excalidraw drawing: left as its name", target)
+                out[token] = f"{name} (drawing)"
+                return token
+            f = self.v.file(target, here)
+            if not f:
+                self.problem(here, "a file that isn't in the vault", target)
+                out[token] = label.strip() or target
+                return token
+            path = self.attach(f, here)
+            if embed and ext in IMAGE:
+                out[token] = f"[[file:{path}]]"
+            else:
+                out[token] = f"[[file:{path}][{label.strip() or os.path.basename(f)}]]"
+            return token
+        note, why = self.v.note(target, here)
+        text = (label.strip() or target.rsplit("/", 1)[-1]).replace("[", "(").replace("]", ")")
+        if note is None:
+            self.problem(here, "a link to a note that isn't there: kept as text", f"[[{inner}]]")
+            out[token] = text
+        elif self.v.left_out(note):
+            self.problem(here, "a link into a folder left out: kept as text", note)
+            out[token] = text
+        else:
+            if why:
+                self.problem(here, "two notes share a name: the nearer one taken", f"[[{inner}]]: {why}")
+            if embed:
+                self.problem(here, "a note embedded in another: a link instead", note)
+            if anchor:
+                self.problem(here, "a link into a heading: it goes to the note", f"[[{inner}]]")
+            out[token] = f"[[id:{note_id(note)}][{text}]]"
+        return token
+
+    def prepare(self, body, here, out):
+        """Obsidian's own syntax as tokens and plain Markdown, outside code."""
+        lines, fenced, tags = [], False, []
+        for line in body.split("\n"):
+            if FENCE.match(line.lstrip()):
+                fenced = not fenced
+                lines.append(line)
+                continue
+            if fenced:
+                lines.append(line)
+                continue
+            codes = {}
+
+            def keep_code(m):
+                k = f"VKXCODE{len(codes):03d}X"
+                codes[k] = m.group(0)
+                return k
+            line = INLINE_CODE.sub(keep_code, line)
+            line = EMBED.sub(lambda m: self.link(m.group(1), here, True, out), line)
+            line = WIKI.sub(lambda m: self.link(m.group(1), here, False, out), line)
+            line = MD_LINK.sub(lambda m: self.md_link(m, here, out), line)
+            if HIGHLIGHT.search(line):
+                self.problem(here, "==highlights==: made bold", "")
+                line = HIGHLIGHT.sub(r"**\1**", line)
+            m = CALLOUT.match(line)
+            if m:
+                self.problem(here, "a callout: a quote, its kind in bold", m.group(2))
+                line = f"{m.group(1)}**{m.group(2).capitalize()}{': ' + m.group(3) if m.group(3) else ''}**"
+            tags += [t for t in TAG.findall(line) if not t.startswith("VKX")]
+            for k, v in codes.items():
+                line = line.replace(k, v)
+            lines.append(line)
+        return "\n".join(lines), tags
+
+    def md_link(self, m, here, out):
+        """A Markdown link or image to a file in the vault: copied, linked."""
+        bang, label, target = m.groups()
+        target = target.split(" ", 1)[0].strip("<>")
+        from urllib.parse import unquote
+        t = unquote(target)
+        if t.lower().endswith(".md"):
+            return self.link(f"{t}|{label}" if label else t, here, False, out)
+        f = self.v.file(t, here)
+        if not f:
+            return m.group(0)
+        token = f"VKXLINK{len(out):05d}X"
+        path = self.attach(f, here)
+        out[token] = f"[[file:{path}]]" if bang else f"[[file:{path}][{label or os.path.basename(f)}]]"
+        return token
+
+    def convert(self, rel, force=False, written=None):
+        """One note; False when it was left alone (changed since it was written)."""
+        dest = self.org_path(rel)
+        if os.path.exists(dest) and not force and written is not None:
+            last = written.get(rel)
+            if last and digest(dest) != last:
+                self.problem(rel, "changed since it was converted: left as it is (--force rewrites it)", "")
+                return False
+        with open(os.path.join(self.v.root, rel), encoding="utf-8", errors="replace") as f:
+            text = f.read()
+        front, body = split_front(text)
+        out = {}
+        md, tags = self.prepare(body, rel, out)
+        # Pandoc's Org writes ’ … – — as ' ... -- ---, which Org shows as
+        # typed: the note's own characters are kept instead.
+        for k, ch in TYPOGRAPHY.items():
+            md = md.replace(ch, k)
+        r = subprocess.run(["pandoc", "-f", "commonmark_x-smart-yaml_metadata_block-gfm_auto_identifiers", "-t", "org",
+                            "--wrap=preserve"], input=md, capture_output=True, text=True)
+        if r.returncode != 0:
+            self.problem(rel, "pandoc couldn't read it: kept as Markdown, in a block", r.stderr.strip()[:200])
+            org = "#+begin_src markdown\n" + body.replace("\n*", "\n,*") + "\n#+end_src\n"
+        else:
+            org = r.stdout
+        for token, link in out.items():
+            org = org.replace(token, link)
+        for k, ch in TYPOGRAPHY.items():
+            org = org.replace(k, ch)
+        # Pandoc ticks a box [x]; Org's own is [X].
+        org = re.sub(r"(?m)^(\s*(?:[-+]|\d+[.)])\s+)\[x\]", r"\1[X]", org)
+        if "VKXLINK" in org:
+            self.problem(rel, "a link pandoc moved: look for VKXLINK in it", "")
+        title = str(front.get("title") or os.path.basename(rel)[:-3])
+        aliases = as_list(front.get("aliases") or front.get("alias"))
+        filetags = []
+        for t in as_list(front.get("tags") or front.get("tag")) + tags:
+            t = re.sub(r"[^\w@#%]", "_", t.lstrip("#"))
+            if t and t not in filetags:
+                filetags.append(t)
+        props = [":PROPERTIES:", f":ID:       {note_id(rel)}"]
+        if aliases:
+            props.append(":ROAM_ALIASES: " + " ".join('"' + a.replace('"', "'") + '"' for a in aliases))
+        props.append(f":OBSIDIAN: {rel}")
+        for k, v in front.items():
+            if k in ("title", "aliases", "alias", "tags", "tag") or v in (None, "", []):
+                continue
+            v = ", ".join(as_list(v)) if isinstance(v, (list, tuple)) else str(v)
+            key = re.sub(r"[^\w-]", "_", str(k)).upper()
+            props.append(f":{key}: {' '.join(v.split())}")
+        props.append(":END:")
+        head = "\n".join(props) + f"\n#+title: {title}\n"
+        if filetags:
+            head += "#+filetags: :" + ":".join(filetags) + ":\n"
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        with open(dest + ".new", "w") as f:
+            f.write(head + "\n" + org.lstrip("\n"))
+        os.replace(dest + ".new", dest)
+        return True
+
+
+def digest(path):
+    with open(path, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
+# --- Commands ---------------------------------------------------------------------------
+
+def load_state():
+    try:
+        with open(os.path.join(STATE, "converted.json")) as f:
+            return json.load(f)
+    except (FileNotFoundError, ValueError):
+        return {"folders": {}, "written": {}}
+
+
+def save_state(state):
+    os.makedirs(STATE, exist_ok=True)
+    with open(os.path.join(STATE, "converted.json.new"), "w") as f:
+        json.dump(state, f, indent=1)
+    os.replace(os.path.join(STATE, "converted.json.new"), os.path.join(STATE, "converted.json"))
+
+
+def report_path(folder):
+    return os.path.join(STATE, "report-" + ("top" if folder == "." else folder.replace(os.sep, "_")) + ".org")
+
+
+def cmd_status(s):
+    v, state = Vault(s), load_state()
+    if not os.path.isdir(s["vault"]):
+        die(f"no vault at {s['vault']} (vault = in {CONFIG})")
+    folders = {}
+    for n in v.notes:
+        folders[top(n)] = folders.get(top(n), 0) + 1
+    print(f"{s['vault']} → {s['to']}\n")
+    for folder in sorted(folders, key=lambda f: (f != ".", f.lower())):
+        done = state["folders"].get(folder)
+        if folder in s["skip"]:
+            what = "left out"
+        elif done:
+            what = f"converted {done['when']}" + (f", {done['problems']} to look at" if done["problems"] else "")
+        else:
+            what = "not yet"
+        print(f"  {('(top)' if folder == '.' else folder):<28} {folders[folder]:>5} notes   {what}")
+    print("\nvikix obsidian convert FOLDER   (or --all); vikix obsidian report FOLDER")
+
+
+def cmd_convert(s, args):
+    if not shutil.which("pandoc"):
+        die("pandoc isn't installed: vikix add cli-extras (or vikix pkg add pandoc)")
+    try:
+        import yaml  # noqa: F401  (front matter)
+    except ImportError:
+        die("python3-yaml isn't installed: vikix pkg add python3-yaml")
+    force = "--force" in args
+    args = [a for a in args if a != "--force"]
+    v, state = Vault(s), load_state()
+    if not os.path.isdir(s["vault"]):
+        die(f"no vault at {s['vault']} (vault = in {CONFIG})")
+    present = {top(n) for n in v.notes}
+    if args == ["--all"]:
+        folders = sorted(f for f in present if f not in s["skip"])
+    else:
+        folders = [a.rstrip("/") for a in args]
+        for f in folders:
+            if f not in present:
+                die(f"no notes in a folder {f} of the vault (vikix obsidian lists them)")
+            if f in s["skip"]:
+                die(f"{f} is left out (skip = in {CONFIG}); take it out of the list to convert it")
+    if not folders:
+        die("which folders? vikix obsidian convert FOLDER... (or --all); vikix obsidian lists them")
+    for folder in folders:
+        c = Converter(s, v)
+        notes = [n for n in v.notes if top(n) == folder]
+        done = 0
+        for i, n in enumerate(notes, 1):
+            if c.convert(n, force, state["written"]):
+                state["written"][n] = digest(c.org_path(n))
+                done += 1
+            if sys.stdout.isatty():
+                print(f"\r{folder}: {i}/{len(notes)}", end="", flush=True)
+        when = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        write_report(folder, notes, done, c, when)
+        state["folders"][folder] = {"when": when, "notes": done, "problems": len(c.problems),
+                                    "attachments": len(c.attachments)}
+        save_state(state)
+        print(f"{chr(13) if sys.stdout.isatty() else ''}{folder}: {done} notes converted, {len(c.attachments)} attachments, "
+              f"{len(c.problems)} things to look at → vikix obsidian report {folder}")
+
+
+def write_report(folder, notes, done, c, when):
+    os.makedirs(STATE, exist_ok=True)
+    by_note, kinds = {}, {}
+    for n, kind, what in c.problems:
+        by_note.setdefault(n, []).append(f"{kind}{': ' + what if what else ''}")
+        kinds[kind] = kinds.get(kind, 0) + 1
+    with open(report_path(folder), "w") as f:
+        f.write(f"#+title: Converting {folder}, {when}\n\n"
+                f"{done} of {len(notes)} notes converted into {c.s['to']}, {len(c.attachments)} attachments copied.\n"
+                "The vault itself is unchanged. Each heading below is a note: open the Org copy with the link.\n\n"
+                "* What came up, by kind\n")
+        for k, n in sorted(kinds.items(), key=lambda kv: -kv[1]):
+            f.write(f"- {n} × {k}\n")
+        f.write("\n* Notes\n")
+        for n in sorted(by_note):
+            f.write(f"** [[file:{c.org_path(n)}][{n}]]\n")
+            for what in by_note[n]:
+                f.write(f"- {what}\n")
+
+
+def cmd_report(s, args):
+    folder = args[0].rstrip("/") if args else None
+    if folder is None:
+        state = load_state()
+        if not state["folders"]:
+            die("nothing converted yet")
+        folder = max(state["folders"], key=lambda f: state["folders"][f]["when"])
+    path = report_path(folder)
+    if not os.path.exists(path):
+        die(f"no report for {folder}: convert it first")
+    if sys.stdout.isatty() and shutil.which("emacsclient") and \
+            subprocess.run(["emacsclient", "-n", path], capture_output=True).returncode == 0:
+        print(f"In Emacs: {path}")
+        return
+    with open(path) as f:
+        print(f.read())
+
+
+def main(argv):
+    s = settings()
+    cmd = argv[0] if argv else "status"
+    if cmd in ("-h", "--help", "help"):
+        print(__doc__.strip())
+    elif cmd in ("status", "list"):
+        cmd_status(s)
+    elif cmd == "convert":
+        cmd_convert(s, argv[1:])
+    elif cmd == "report":
+        cmd_report(s, argv[1:])
+    else:
+        die(f"no command {cmd}: vikix obsidian help")
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
