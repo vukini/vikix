@@ -14,8 +14,8 @@ It fails when StumpWM:
     over 1 s)
   - grew: the Lisp heap after a full collection more than it may (the
     limit grows with the minutes)
-  - kept timers or hooks it didn't have at the start (one added at each
-    reload, say)
+  - kept repeating timers or hooks it didn't have at the start (one added
+    at each reload, say)
   - wrote an error (errors.lisp's ~/.local/state/vikix/errors/)
 
 The samples go to ~/.local/state/vikix/soak/DATE.csv; the last line
@@ -170,7 +170,10 @@ class Desktop:
 COUNTS = ("(progn (sb-ext:gc :full t) (setf *print-pretty* nil)"
           " (format t \"~d ~d ~d ~d ~d\""
           "  (floor (sb-kernel:dynamic-usage) 1048576)"
-          "  (length *timer-list*)"
+          # Timers that repeat: the kind a reload can pile up. A message's own
+          # timeout, a one-shot, was counted as a leak when one happened to be
+          # showing at the end.
+          "  (count-if (function timer-repeat) *timer-list*)"
           "  (+ (length *new-window-hook*) (length *destroy-window-hook*) (length *focus-window-hook*)"
           "     (length *focus-group-hook*) (length *key-press-hook*) (length *start-hook*))"
           "  (length (all-windows))"
