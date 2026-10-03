@@ -103,7 +103,10 @@ reload_in_emacs() {
   # The state variables are unbound too: from 0.71.39 each view keeps its
   # own (buffer-local), and an older Esploro's global values would become
   # every new view's. Its one buffer, *Esploro*, is then made a view.
-  form="(when (featurep 'esploro)
+  # Its loader first, loaded or not: M-x esploro and embark's , and J on
+  # file names, before Esploro is first opened (your config loads it at
+  # Emacs's start from then on).
+  form="(progn (load \"$OPT/emacs/esploro-loaddefs\" t t) (when (featurep 'esploro)
           (dolist (v '(esploro-mode-map esploro-places-mode-map esploro-tool-bar-map esploro-manual-mode-map esploro-preview-mode-map
                        esploro-review-mode-map esploro-plan-edit-mode-map esploro-project-mode-map esploro-habits-mode-map
                        esploro--back esploro--forward esploro--sort esploro--reverse
@@ -112,7 +115,7 @@ reload_in_emacs() {
           (load \"$OPT/emacs/esploro\" nil t)
           (when (get-buffer \"*Esploro*\")
             (with-current-buffer \"*Esploro*\" (setq esploro--view t)))
-          'reloaded)"
+          'reloaded))"
   case $(timeout 5 emacsclient -e "$form" 2>/dev/null) in
     reloaded) say "Esploro reloaded in the running Emacs" ;;
   esac

@@ -176,6 +176,7 @@ check "vikix update should build a moved pin" grep -q 'is_chosen esploro' "$here
 
 # --- The rofi door: Super+Alt+x -----------------------------------------------------
 check "Super+Alt+x should open Esploro's commands in rofi" grep -q '("s-M-x" *"exec vikix-esploro menu"' "$here/config/stumpwm/vikix/keys.lisp"
+check "the reload should load Esploro's loader (embark's , and J) even before Esploro is opened" grep -q 'esploro-loaddefs' "$here/bin/vikix-esploro"
 check "a new keymap (closing a project) should be reset on reload" grep -q 'esploro-project-mode-map' "$here/bin/vikix-esploro"
 cat > "$t/bin/esploro" <<EOF
 #!/bin/sh
