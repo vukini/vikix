@@ -705,7 +705,7 @@ vikix windows stop                 # shut it down (also: status, remove)
 
 ## Plugins
 
-Small additions that aren't part of Vikix's core, from their own repo ([vikix-plugins](https://github.com/vukini/vikix-plugins)): a few words in the bar, Super+m entries, keys, a program started with the desktop. You add the ones you want:
+Small additions that aren't part of Vikix's core, from their own repo ([vikix-plugins](https://github.com/vukini/vikix-plugins)): a few words in the bar, Super+m entries, keys, a program started with the desktop. You add the ones you want. Each has a guide, with its keys, settings and what to do when it doesn't work: [Plugins, one by one](docs/plugins.md).
 
 ```sh
 vikix plugin list                 # the plugins there are; yours marked
