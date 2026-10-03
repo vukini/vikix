@@ -508,6 +508,16 @@ cmd_doctor() {
     fi
     if python3 "$VIKIX_DIR/bin/vikix-eval" '(+ 1 1)' >/dev/null 2>&1; then
       say "vikix eval reaches the running StumpWM"
+      # Keys two owners wanted (a plugin or a web app over another's): the
+      # newer one has it, and the older is left with no key.
+      local clashes
+      clashes=$(python3 "$VIKIX_DIR/bin/vikix-eval" '(when (boundp (quote *vikix-key-clashes*)) (dolist (c (reverse *vikix-key-clashes*)) (format t "~a: ~a, and ~a~%" (vikix-pretty-key (first c)) (second c) (third c))))' 2>/dev/null | grep -v '^=> ' || true)
+      if [ -n "$clashes" ]; then
+        warn "a key with two owners (the second has it; give one another key):"
+        printf '%s\n' "$clashes" | sed 's/^/     /'; ok=0
+      else
+        say "no key has two owners"
+      fi
     else
       warn "vikix eval can't reach StumpWM (is it running? reload it: Super+m, Reload config)"; ok=0
     fi

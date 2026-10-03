@@ -57,6 +57,7 @@ the last two what the key had before, to put back when the plugin goes.")
   name)
 
 (defun vikix-plugin-key (key command description &optional group)
+  (vikix-note-clash key (format nil "plugin ~a" (or *vikix-plugin* "?")))
   (push (list (or *vikix-plugin* "") key
               (find key *vikix-bindings* :key #'first :test #'equal)
               (ignore-errors (lookup-key *top-map* (kbd key))))
@@ -145,6 +146,7 @@ plugin added stay until StumpWM starts again.)"
       (setf *vikix-bindings* (remove key *vikix-bindings* :key #'first :test #'equal))
       (when old-binding
         (setf *vikix-bindings* (append *vikix-bindings* (list old-binding))))))
+  (vikix-forget-clashes "plugin ")
   (setf *vikix-plugin-keys* '()
         *vikix-plugin-bars* '()
         *vikix-plugins-loaded* '()
@@ -160,19 +162,20 @@ many loaded."
          (message "^1Vikix: plugins not loaded this time^n (vikix plugin safe).~%vikix plugin off NAME switches one off.")
          0)
         (t
-         (dolist (name (vikix-plugin-names) (length *vikix-plugins-loaded*))
-           (let* ((lisp (vikix-plugin-manifest name "lisp"))
-                  (file (and lisp (probe-file (merge-pathnames (format nil "~a/~a" name lisp)
-                                                               *vikix-plugins-dir*)))))
-             (cond ((null (vikix-plugin-manifest name "name"))
-                    (message "^1Vikix: plugin ~a isn't there^n (vikix plugin sync fetches it)" name))
-                   ((null lisp))           ; a plugin with no Lisp: nothing to load here
-                   ((null file)
-                    (message "^1Vikix: plugin ~a: its ~a isn't there^n" name lisp))
-                   (t
-                    (let ((*vikix-plugin* name))
-                      (push (cons name (vikix-load-file file (format nil "~a/~a" name lisp)))
-                            *vikix-plugins-loaded*)))))))))
+         (prog1 (dolist (name (vikix-plugin-names) (length *vikix-plugins-loaded*))
+                  (let* ((lisp (vikix-plugin-manifest name "lisp"))
+                         (file (and lisp (probe-file (merge-pathnames (format nil "~a/~a" name lisp)
+                                                                      *vikix-plugins-dir*)))))
+                    (cond ((null (vikix-plugin-manifest name "name"))
+                           (message "^1Vikix: plugin ~a isn't there^n (vikix plugin sync fetches it)" name))
+                          ((null lisp))           ; a plugin with no Lisp: nothing to load here
+                          ((null file)
+                           (message "^1Vikix: plugin ~a: its ~a isn't there^n" name lisp))
+                          (t
+                           (let ((*vikix-plugin* name))
+                             (push (cons name (vikix-load-file file (format nil "~a/~a" name lisp)))
+                                   *vikix-plugins-loaded*)))))
+          (vikix-say-clashes "plugin "))))))
 
 (defcommand vikix-plugins-reload () ()
   "Load the plugins again (after vikix plugin add, remove or off)."

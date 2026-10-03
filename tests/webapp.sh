@@ -177,6 +177,8 @@ if command -v sbcl >/dev/null; then
 (defun run-or-raise (&rest args) args)
 (defvar *vikix-bindings* (list (list "s-RET" "vikix-terminal" "Terminal")))
 (defvar *vikix-menu* (list (list "Theme" 'vikix-pick-theme) (list "Power" 'vikix-power)))
+(defun message (&rest args) args)
+$(sed -n '/^(defvar \*vikix-key-clashes\*/,/^(vikix-binding-keys/p' "$here/config/stumpwm/vikix/keys.lisp" | sed '$d')
 (load "$here/config/stumpwm/vikix/webapps.lisp")
 (defun show ()
   (format t "keys ~s~%help ~s~%menu ~s~%"

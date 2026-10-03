@@ -56,6 +56,7 @@
   "Read the web apps again: their keys, key help and Super+m entries."
   (dolist (key *vikix-webapp-keys*)
     (undefine-key *top-map* (kbd key)))
+  (vikix-forget-clashes "web app ")
   (setf *vikix-webapp-keys* nil
         *vikix-bindings* (remove-if (lambda (b) (vikix-webapp-entry-p (second b) "vikix-webapp "))
                                     *vikix-bindings*)
@@ -71,6 +72,7 @@
               (let ((command (format nil "vikix-webapp ~a" name))
                     (title (vikix-webapp-title name)))
                 (when (vikix-webapp-key-ok key)
+                  (vikix-note-clash key (format nil "web app ~a" name))
                   (vikix-bind key command)
                   (push key *vikix-webapp-keys*)
                   (setf *vikix-bindings*
@@ -81,6 +83,7 @@
     ;; Before the last entry, Power, so that one stays at the bottom.
     (let ((power (last *vikix-menu*)))
       (setf *vikix-menu* (append (butlast *vikix-menu*) (nreverse entries) power))))
+  (vikix-say-clashes "web app ")
   (length *vikix-webapp-keys*))
 
 (vikix-load-webapps)

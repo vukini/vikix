@@ -140,6 +140,49 @@ in; without one, help.lisp works the group out from the command.
 The descriptions are what the key card (s-/) and the key help (s-F1)
 show, so this list is the one place a key is written down.")
 
+;;; Clashes: a plugin or a web app taking a key something else has. The
+;;; newer one wins (it's bound last), so the older one is left with no key
+;;; and nothing said: Super+Alt+c was Esploro's commands and next-meeting's
+;;; week at once (0.71.68). Now each is noted, said once, and listed by
+;;; vikix doctor.
+(defvar *vikix-key-clashes* '()
+  "Keys two owners wanted: (KEY HAD TAKEN-BY), HAD and TAKEN-BY in words
+(\"Vikix: Esploro's commands\", \"plugin next-meeting\"), newest first.")
+
+(defun vikix-key-had (key)
+  "Who has KEY now, in words, or NIL when no one: a plugin, a web app, or
+Vikix (yours from user.lisp count as Vikix's here: they load after)."
+  (let ((binding (find key *vikix-bindings* :key #'first :test #'equal))
+        (plugin (and (boundp '*vikix-plugin-keys*)
+                     (find key (symbol-value '*vikix-plugin-keys*) :key #'second :test #'equal))))
+    (cond (plugin (format nil "plugin ~a" (first plugin)))
+          ((null binding) nil)
+          ((eql 0 (search "vikix-webapp " (second binding)))
+           (format nil "web app ~a" (subseq (second binding) (length "vikix-webapp "))))
+          (t (format nil "Vikix: ~a" (third binding))))))
+
+(defun vikix-note-clash (key taken-by)
+  "Note that TAKEN-BY is taking KEY from whoever has it. True when it was a clash."
+  (let ((had (vikix-key-had key)))
+    (when (and had (string/= had taken-by))
+      (push (list key had taken-by) *vikix-key-clashes*)
+      t)))
+
+(defun vikix-forget-clashes (taken-by-prefix)
+  "Forget the clashes made by owners whose name starts so (\"plugin \"): they're loading again."
+  (setf *vikix-key-clashes*
+        (remove-if (lambda (c) (eql 0 (search taken-by-prefix (third c)))) *vikix-key-clashes*)))
+
+(defun vikix-say-clashes (taken-by-prefix)
+  "One message for the clashes those owners made, if any."
+  (let ((mine (remove-if-not (lambda (c) (eql 0 (search taken-by-prefix (third c)))) *vikix-key-clashes*)))
+    (when mine
+      (message "^1Vikix: a key with two owners^n~{~%~a~}~%The second has it; give one another key (vikix doctor lists them)."
+               (mapcar (lambda (c) (format nil "~a: ~a, and ~a"
+                                           (if (fboundp 'vikix-pretty-key) (funcall 'vikix-pretty-key (first c)) (first c))
+                                           (second c) (third c)))
+                       (reverse mine))))))
+
 (vikix-binding-keys
   (dolist (binding *vikix-bindings*)
     (vikix-bind (first binding) (second binding)))

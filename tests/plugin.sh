@@ -25,6 +25,7 @@ unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME DISPLAY
 here=$(cd "$(dirname "$0")/.." && pwd)
 t=$(mktemp -d)
 trap 'rm -rf "$t"' EXIT
+HOME_REAL=$HOME   # the plugins repository is looked for in the real one
 export HOME="$t/home" VIKIX_STATE="$t/state"
 mkdir -p "$HOME" "$VIKIX_STATE"
 fail=0
@@ -130,6 +131,7 @@ if command -v sbcl >/dev/null; then
 (defun vikix-plugin-menu-entry-p (e) (declare (ignore e)) nil)
 (defvar *vikix-bindings* (list (list "s-M-c" "vikix-mine" "Mine" "Apps")))
 (define-key *top-map* "s-M-c" "vikix-mine")
+$(sed -n '/^(defvar \*vikix-key-clashes\*/,/^(vikix-binding-keys/p' "$here/config/stumpwm/vikix/keys.lisp" | sed '$d')
 (defvar *vikix-plugin-keys* '())
 (defvar *vikix-plugin-bars* '())
 (defvar *vikix-plugins-loaded* '())
@@ -143,6 +145,59 @@ $(sed -n '/^(defun vikix-plugin-key/,/^$/p; /^(defun vikix-unload-plugins/,/^$/p
 LISP
 )
   check "a plugin's key should give back the one it took: $got" test "$got" = "two-c vikix-mine none (vikix-mine)"
+fi
+
+# Clashes: a plugin taking a key Vikix (or another plugin) has is noted,
+# once each, and a reload forgets them; a new key is no clash.
+if command -v sbcl >/dev/null; then
+  got=$(sbcl --script /dev/stdin <<LISP
+(defpackage :stumpwm (:use :cl))
+(in-package :stumpwm)
+(defvar *top-map* (make-hash-table :test #'equal))
+(defvar *vikix-bind-later* nil)
+(defvar *vikix-menu* '())
+(defvar *vikix-plugin* nil)
+(defvar *vikix-plugin-keys* '())
+(defvar *vikix-plugin-bars* '())
+(defvar *vikix-plugins-loaded* '())
+(defun kbd (k) k)
+(defun define-key (map key command) (setf (gethash key map) command))
+(defun undefine-key (map key) (remhash key map))
+(defun lookup-key (map key) (values (gethash key map)))
+(defun vikix-bind (key command) (define-key *top-map* key command))
+(defun vikix-plugin-menu-entry-p (e) (declare (ignore e)) nil)
+(defvar *vikix-bindings* (list (list "s-M-x" "exec vikix-esploro menu" "Esploro's commands")))
+$(sed -n '/^(defvar \*vikix-key-clashes\*/,/^(vikix-binding-keys/p' "$here/config/stumpwm/vikix/keys.lisp" | sed '$d')
+$(sed -n '/^(defun vikix-plugin-key/,/^$/p; /^(defun vikix-unload-plugins/,/^$/p' "$here/config/stumpwm/vikix/plugins.lisp")
+(let ((*vikix-plugin* "one")) (vikix-plugin-key "s-M-x" "one-x" "X") (vikix-plugin-key "s-M-q" "one-q" "Q"))
+(let ((*vikix-plugin* "two")) (vikix-plugin-key "s-M-x" "two-x" "X"))
+(setf *print-pretty* nil)
+(format t "~s|" (reverse *vikix-key-clashes*))
+(vikix-unload-plugins)
+(format t "~s" *vikix-key-clashes*)
+LISP
+)
+  check "a plugin's key over another's should be noted, and forgotten on reload: $got" test "$got" = \
+    '(("s-M-x" "Vikix: Esploro'"'"'s commands" "plugin one") ("s-M-x" "plugin one" "plugin two"))|NIL'
+fi
+
+# The plugins at Vikix's pin take no key Vikix has, nor one another's.
+# Needs a copy of the plugins repository (the dev machine's, or
+# VIKIX_TEST_PLUGINS_REPO); GitHub's runners have none, and say so.
+plugins_repo=${VIKIX_TEST_PLUGINS_REPO:-$HOME_REAL/src/vikix-plugins}
+pin=$(sed -n 's/^PLUGINS_COMMIT=\${VIKIX_PLUGINS_COMMIT:-\([0-9a-f]*\)}.*/\1/p' "$here/bin/vikix-plugin")
+if [ -d "$plugins_repo/.git" ] && git -C "$plugins_repo" cat-file -e "$pin^{commit}" 2>/dev/null; then
+  {
+    sed -n 's/^ *("\([^"]*\)" .*/\1 Vikix/p' "$here/config/stumpwm/vikix/keys.lisp"
+    for n in 1 2 3 4 5 6 7 8 9; do echo "s-$n Vikix"; echo "s-C-$n Vikix"; done
+    git -C "$plugins_repo" ls-tree --name-only -r "$pin" | grep '/plugin\.lisp$' | while read -r f; do
+      git -C "$plugins_repo" show "$pin:$f" | grep -o '(vikix-plugin-key "[^"]*"' | sed "s/.*\"\(.*\)\"/\1 plugin ${f%%/*}/"
+    done
+  } > "$t/owners"
+  clashes=$(awk '{n[$1]++; o[$1]=o[$1] " " $2 ($3 ? " " $3 : "")} END {for (k in n) if (n[k] > 1) print k ":" o[k]}' "$t/owners")
+  check "no key should have two owners at the plugins' pin: $clashes" test -z "$clashes"
+else
+  echo "(the plugins' keys against Vikix's: no copy of the plugins repository here at the pin; skipped)"
 fi
 
 pl remove demo >/dev/null 2>&1
