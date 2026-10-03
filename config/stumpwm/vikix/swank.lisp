@@ -111,8 +111,19 @@ Return :OK, or :ERROR after printing the error."
 (defun vikix-eval-for-agent (text)
   "Evaluate the forms in TEXT in StumpWM's main thread and return :OK or
 :ERROR. What they print goes to *standard-output*, which Swank sends back."
-  (if (in-main-thread-p)
-      (vikix-eval-forms text)
+  (cond
+    ((in-main-thread-p)
+     (vikix-eval-forms text))
+    ;; StumpWM hands work to its main thread through a channel it makes when
+    ;; its loop starts, after this file is loaded and the windows already
+    ;; there are taken in. Asked before that, call-in-main-thread fails in
+    ;; this thread; Swank shows the client its debugger, the client leaves,
+    ;; and Swank's thread for it dies on the closed socket and takes the
+    ;; next askers with it (found by tests/rules.sh starting StumpWM again).
+    ((null *request-channel*)
+     (format t "error: StumpWM is still starting. Try again in a moment.~%")
+     :error)
+    (t
       (let ((done (sb-thread:make-semaphore))
             (output "")
             (status :error)
@@ -134,4 +145,4 @@ Return :OK, or :ERROR after printing the error."
                (format t "error: StumpWM's main thread did not answer within ~a s.~%~
                           Is a menu or a prompt open? Close it and try again (nothing will run later).~%"
                        *vikix-eval-timeout*)
-               :error)))))
+               :error))))))

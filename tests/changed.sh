@@ -40,7 +40,7 @@ for f in "${files[@]}"; do
       if [ "${#hits[@]}" -eq 0 ] || [ "${#hits[@]}" -gt 12 ]; then all=1; else add "${hits[@]}"; fi ;;
   esac
   case $f in
-    config/stumpwm/*) add lisp errors menu ;;
+    config/stumpwm/*) add lisp errors menu rules viri ;;
   esac
   case $f in
     # The skill's list of keys is made from these (lib/skill-keys.sh).

@@ -66,8 +66,10 @@ vikix-viri off to put back.")))
 
 (defun viri-floats-p (window)
   "A window that floats over the strip instead of taking a column: a dialog
-(vikix-dialog-p, windows.lisp)."
-  (and (fboundp 'vikix-dialog-p) (funcall 'vikix-dialog-p window)))
+(vikix-dialog-p, windows.lisp), or one a rule floats (rules.lisp)."
+  (or (and (fboundp 'vikix-dialog-p) (funcall 'vikix-dialog-p window))
+      (and (fboundp 'vikix-rules-float-p)
+           (ignore-errors (funcall 'vikix-rules-float-p window)))))
 
 (defun viri-head (group)
   "The head the strip is on, or the screen's first when that one has gone."

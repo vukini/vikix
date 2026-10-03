@@ -15,8 +15,9 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 ├── vikix/                     the checkout: Vikix itself (see below)
 │
 ├── .stumpwm.d/
-│   ├── init.lisp              Vikix's   loads Vikix's layer, then user.lisp
-│   ├── vikix/                 Vikix's   the layer: errors, theme, groups, commands, windows, keys, help, webapps, modeline, swank-guard, swank
+│   ├── init.lisp              Vikix's   loads Vikix's layer, then rules.lisp and user.lisp
+│   ├── vikix/                 Vikix's   the layer: errors, theme, groups, commands, windows, rules, viri, keys, help, webapps, modeline, swank-guard, swank
+│   ├── rules.lisp             yours     your rules for windows, when you have any (customize: Rules for windows)
 │   ├── user.lisp              yours     your StumpWM settings; loaded last, so they win
 │   └── modules/               stumpwm-contrib, cloned by 30-lisp (swm-gaps, ttf-fonts, ...)
 │

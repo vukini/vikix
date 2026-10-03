@@ -18,6 +18,8 @@
 ;;;;       (a key Vikix had comes back when the plugin goes)
 ;;;;   (vikix-plugin-menu LABEL ACTION)
 ;;;;       an entry in Super+m, as *vikix-menu*'s are
+;;;;   (when-window (MATCH...) VERB...)
+;;;;       a rule for windows (rules.lisp): it goes when the plugin does
 ;;;; Loading them again (Reload config) first takes away what each gave.
 ;;;;
 ;;;; vikix plugin safe: the next login loads none, for a plugin that stops
@@ -134,8 +136,9 @@ shows nothing: the bar is redrawn every second, so it never asks."
                 return (string-trim '(#\Space #\Tab) (subseq line (length prefix))))))))
 
 (defun vikix-unload-plugins ()
-  "Take away what plugins gave: bar fields, keys, menu entries. (Hooks a
-plugin added stay until StumpWM starts again.)"
+  "Take away what plugins gave: bar fields, keys, menu entries, rules.
+(Hooks a plugin added by hand stay until StumpWM starts again: a rule,
+rules.lisp, is the way that leaves nothing behind.)"
   ;; Newest first, so a key two plugins took ends with what it had before both.
   (dolist (k *vikix-plugin-keys*)
     (destructuring-bind (plugin key &optional old-binding old-command) k
@@ -147,6 +150,8 @@ plugin added stay until StumpWM starts again.)"
       (when old-binding
         (setf *vikix-bindings* (append *vikix-bindings* (list old-binding))))))
   (vikix-forget-clashes "plugin ")
+  (when (fboundp 'vikix-remove-rules)
+    (funcall 'vikix-remove-rules :owner-prefix "plugin "))
   (setf *vikix-plugin-keys* '()
         *vikix-plugin-bars* '()
         *vikix-plugins-loaded* '()

@@ -37,6 +37,10 @@
 (defvar *vikix-asking* nil
   "True while the menu is open, so an error inside it isn't asked about.")
 
+(defvar *vikix-load-line* nil
+  "While a file loads a form at a time: the line the form being loaded
+starts on. rules.lisp notes it, so each rule knows where it was written.")
+
 (defparameter *vikix-errors-kept* 50
   "How many error reports to keep in ~/.local/state/vikix/errors/.")
 
@@ -227,7 +231,8 @@ loaded."
                               (invoke-restart (if *vikix-reading* 'vikix-skip-file 'vikix-skip-form)))))
                   (let ((form (let ((*vikix-reading* t)) (read in nil in))))
                     (when (eq form in) (return-from file))
-                    (vikix-eval-from file form)))
+                    (let ((*vikix-load-line* line))
+                      (vikix-eval-from file form))))
               (vikix-skip-form ()
                 :report "Skip this form and load the rest"
                 nil)

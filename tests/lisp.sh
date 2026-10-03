@@ -11,6 +11,10 @@
 #
 #   tests/lisp.sh [FILE...]    the given files, or every Lisp file Vikix ships
 #
+# A float written as a delay to run-with-timer fails here too: it stops
+# the event loop of StumpWM (errors.lisp mends such a timer when it meets
+# one; this keeps them from being written).
+#
 # With no files given, it then loads keys.lisp and help.lisp and checks the
 # key card (Super+/): every key in *vikix-bindings* is in a group and on
 # the card, at any screen size; and a reload sets which-key-mode rather
@@ -46,17 +50,35 @@ sbcl --noinform --no-sysinit --no-userinit --non-interactive --eval '
                (if (stringp pkg)
                    (make-package pkg :use nil)
                    (export (intern (first args) pkg) pkg))))
+           (float-delays (form file start)
+             ;; (run-with-timer 0.3 ...) stops the event loop of StumpWM: the
+             ;; time it makes is a float, where a whole number is declared.
+             ;; 3/10 is the way to write it.
+             (when (consp form)
+               (when (and (symbolp (first form))
+                          (string= (symbol-name (first form)) "RUN-WITH-TIMER")
+                          (consp (rest form))
+                          (or (floatp (second form))
+                              (and (consp (cddr form)) (floatp (third form)))))
+                 (format t "FAIL ~a, line ~d: (run-with-timer ~a ...): a float as a delay stops the event loop of StumpWM; write it as a fraction, 3/10 for 0.3~%"
+                         file (line-at file start) (second form))
+                 (incf failed))
+               (loop for rest on form
+                     do (float-delays (first rest) file start)
+                     while (consp (rest rest)))))
            (check (file)
              (with-open-file (in file)
                (let ((*package* (make-package (gensym "VIKIX-TEST") :use (list :cl)))
                      (*read-eval* nil)
                      (fixes 0))
                  (loop
+                   (peek-char t in nil nil)   ; past the blanks: the line given is the form'"'"'s
                    (let ((start (file-position in)))
                      (handler-case
-                         (if (eq (read in nil in) in)
-                             (return)
-                             (incf forms))
+                         (let ((form (read in nil in)))
+                           (when (eq form in) (return))
+                           (incf forms)
+                           (float-delays form file start))
                        (sb-int:simple-reader-package-error (c)
                          (when (> (incf fixes) 500) (error c))
                          (make-it-readable c)

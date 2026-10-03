@@ -305,10 +305,13 @@ window's class, its second word.")
 
 (defun vikix-dialog-p (win)
   "A window that asks something and waits: a dialog by its type, a modal
-or transient one, or one of *vikix-dialog-classes*."
+or transient one, one of *vikix-dialog-classes*, or one a rule made a
+dialog of (rules.lisp, the verb dialog)."
   (or (window-transient-p win)
       (ignore-errors (window-modal-p win))
-      (member (window-class win) *vikix-dialog-classes* :test #'equal)))
+      (member (window-class win) *vikix-dialog-classes* :test #'equal)
+      (and (boundp '*vikix-dialog-windows*)
+           (gethash win (symbol-value '*vikix-dialog-windows*)))))
 
 (defun vikix-dialog-size (win head)
   "The size a dialog asked for. Tiled first, it was stretched to its frame

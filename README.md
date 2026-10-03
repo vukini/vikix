@@ -196,6 +196,7 @@ Every config file belongs either to Vikix or to you:
   - `~/.config/fontconfig/conf.d/50-vikix-iosevka.conf`, the monospace font
 - **Your files** are copied once, then never touched again:
   - `~/.stumpwm.d/user.lisp`, which loads last, so anything in it wins
+  - `~/.stumpwm.d/rules.lisp`, your rules for windows, when you make one (it loads just before `user.lisp`)
   - the configs under `~/.config` for alacritty, picom, dunst and rofi
   - `~/.config/vikix/keyboard`: layout and XKB options, applied at every login. The starter swaps Caps Lock and Left Ctrl (`ctrl:swapcaps`); edit it, then `s-m` → "Apply keyboard settings". For Esperanto, it explains the options that put ĉ ĝ ĥ ĵ ŝ ŭ on Right Alt + c g h j s u, leaving every other key alone
   - `~/.config/vikix/backup-exclude`: what `vikix backup` leaves out
@@ -338,6 +339,23 @@ When something in it fails, it asks rather than falling over. A mistake in `user
 If Emacs says the SLIME and Swank versions differ, answer `y`. It still works. The two come from different places: Emacs's package manager for SLIME, and Quicklisp for Swank.
 
 Nyxt, the browser of the feature `lisp-apps`, has a Swank of its own on `127.0.0.1:4006`, with the same password and the same guard (`~/.local/share/vikix/nyxt/vikix.lisp` starts it as Nyxt starts; without `~/.slime-secret` it doesn't start at all). `M-x slime-connect RET 127.0.0.1 RET 4006` puts you at a REPL in the browser, in the package `nyxt-user`: define a command and it's in Ctrl+Space at once, inspect a buffer, or `M-.` into Nyxt's own source in `/usr/share/nyxt/source/`. `(setf *vikix-swank-port* nil)` in `~/.config/nyxt/config.lisp`, after the line that loads Vikix's part, keeps it closed.
+
+## Rules for windows
+
+What happens to a window as it opens, said in a line of Lisp, in `~/.stumpwm.d/rules.lisp` or `user.lisp`:
+
+```lisp
+(when-window (:class "Firefox") (workspace 2))
+(when-window (:instance "vikix-nmtui") (float :width "65%" :height "80%"))
+(when-window (:class "mpv" :title (:has "picture in picture"))
+  (float :width "30%" :height "30%" :corner :bottom-right) (sticky))
+```
+
+- **Matching:** `:class`, `:instance`, `:title`, `:role`, `:type`, `:workspace`, `:not (...)`, `:where FUNCTION`. A string matches exactly; `(:has "text")` anywhere in it and in any case; `(:like "^regex$")` a pattern; a list any of them.
+- **Verbs:** `workspace` (the window opens there, without showing here first; `:follow t` goes along), `float` (pixels or shares of the monitor, the middle or a corner), `tile`, `fullscreen`, `sticky`, `dialog`, `title`, `focus`, `run`, `command`, `notify`, `say`, `open-project`, `theme`; and any Lisp of your own, with `(window)` the window. `(define-rule-verb NAME (ARGS) "what it does" ...)` adds one.
+- **Options:** `:once t`, `:on :focus`, `:on :close`, `:name "..."`.
+- **Safe:** a misspelt verb or matcher is found when the file loads, with its line. A rule that fails at a window never stops the desktop: the error is written down, and the third failure switches the rule off until the next reload. A reload moves no window.
+- The command `vikix-rules` (Super+m, *All commands*) lists them. [Making it yours](docs/customize.md) has the tables. Still to come (`TODO.md`): rules for the time of day, the battery and login, a `vikix rules` command, and a key that writes the rule for the window you're in.
 
 ## The AI agent
 
@@ -1072,6 +1090,7 @@ They run side by side, as many at once as the machine has cores (`VIKIX_TEST_JOB
 |---|---|
 | `lint` | Every script parses (shell and Python), the ones you run are executable, and shellcheck has no warnings; and every test keeps off the running desktop's Swank (`VIKIX_SWANK_PORT=9`) |
 | `lisp` | Every Lisp file reads cleanly, so a missing paren shows up here, not at login (needs `sbcl`) |
+| `rules` | `rules.lisp`. Without a screen: matching (exact strings, `:has`, `:like`, lists, variables, `:type`, `:workspace`, `:not`, `:where`); mistakes found as the file loads, each with its line; one of each rule after a second load; a failing rule written down and switched off at the third failure; `:once`, `:on :focus`, `:on :close`; a plugin's rules going with it. In a real StumpWM on a hidden screen (as `viri`; skipped without it): a window on its workspace before it shows, `float` by shares of the monitor, `tile`, `title`, `fullscreen`, `sticky`, `dialog`, a failing rule, a reload that moves nothing, and a restart that leaves the windows where they are |
 | `viri` | In a real StumpWM on a hidden screen (needs Xvfb, xdotool, alacritty and Vikix's StumpWM; skipped without): a workspace becomes a strip and back with its windows in order, Super+h/l walk and scroll it, Super+Shift+l moves a column, new and closed windows, a dialog, another workspace, `vikix viri` from a shell |
 | `battery` | The low-battery warner warns once at 15%, once at 5%, and again only after charging |
 | `backup` | With restic: `vikix backup setup` makes an encrypted store and a password only you can read, a backup leaves out what `backup-exclude` names, a restore comes back beside the original, an unplugged drive or a wrong password stops with a message, and the bar's reminder says the right thing (needs `restic`) |

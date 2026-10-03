@@ -52,6 +52,52 @@ After `Ctrl+t`, StumpWM's prefix, the keys that can follow appear if you wait (S
 
 `user.lisp` runs again on every reload, so the `pgrep -x … ||` keeps a second copy from starting.
 
+### Rules for windows
+
+A rule says what happens to a window as it opens. Put rules in `user.lisp`, or in a file of their own beside it, `~/.stumpwm.d/rules.lisp` (make it; it starts with the line `(in-package :stumpwm)` and loads just before `user.lisp`):
+
+```lisp
+(when-window (:class "Firefox") (workspace 2))                 ; Firefox opens on workspace 2
+(when-window (:class "Slack") (workspace 4 :follow t))         ; and you go along
+(when-window (:instance "vikix-nmtui") (float :width "65%" :height "80%"))
+(when-window (:class "mpv" :title (:has "picture in picture"))
+  (float :width "30%" :height "30%" :corner :bottom-right) (sticky))
+(when-window (:class "Gcolor3") (dialog))                      ; float, centred, kept in front
+```
+
+First comes what the window must be, then what to do with it.
+
+| To match | Write |
+|---|---|
+| The window's class, or its instance (`xprop WM_CLASS` and a click on the window shows both: the instance first, the class second) | `:class "Firefox"`, `:instance "Navigator"` |
+| Its title, or its role | `:title "Calculator"`, `:role "pop-up"` |
+| Its type | `:type :dialog` |
+| The workspace it opens on | `:workspace 3` |
+| None of something | `:not (:title "Esploro")` |
+| Anything else | `:where #'my-test`, a function of the window |
+
+A plain string matches exactly that and nothing longer. `(:has "fox")` matches a text that contains it, in capitals or not; `(:like "^Mozilla .*")` is a pattern; a list, `("Chromium" "Brave")`, is any of them.
+
+| Verb | What it does |
+|---|---|
+| `(workspace 2)` | Sends the window to a workspace, by number or name: it opens there, without showing here first. `:follow t` takes you along |
+| `(float ...)` | Floats it. `:width` and `:height` are pixels (`400`) or a share of the monitor below the bar (`"65%"`), 60% when left out. It goes in the middle, or to a `:corner` (`:top-left`, `:top-right`, `:bottom-left`, `:bottom-right`, `:top`, `:bottom`, `:left`, `:right`), or to `:x` and `:y` |
+| `(tile)` | Puts a floating window back in the tiles |
+| `(fullscreen)` | Fills the screen with it |
+| `(sticky)` | Keeps it on every workspace (it floats) |
+| `(dialog)` | Floats it in the middle and keeps it in front of the tiles, as password boxes are |
+| `(title "name")` | Names it, in its title bar and the bar |
+| `(focus)` | Goes to it |
+| `(run "command")`, `(command "vikix-grid")` | Runs a shell command, or a StumpWM command |
+| `(notify "text")`, `(say "text")` | A notification, or a message in the middle of the screen |
+| `(open-project "name")`, `(theme "paper")` | Opens one of your projects; switches the theme |
+
+Anything else in a rule is Lisp of your own, where `(window)` is the window. Between the matcher and the verbs a rule can have options: `:once t` (only the first window that matches: Firefox to workspace 2 when you log in, later windows where you are), `:on :focus` or `:on :close` (when the window gets the focus, or goes, instead of when it opens), and `:name "..."`.
+
+`Super+m` → *All commands* → `vikix-rules` lists your rules: which are on, whose each is, and how often it ran. A misspelt verb is found when the file loads, with its line, like any mistake in `user.lisp`. A rule that fails when a window opens never stops the desktop: it says so, the error is kept in `~/.local/state/vikix/errors/`, and after three failures the rule is off until the next reload. Reloading doesn't move the windows you already have.
+
+Rules run in the order they're written, Vikix's first, then `rules.lisp`, then `user.lisp`; when two send a window to different workspaces, the last one wins.
+
 ### The terminal, focus, and fonts
 
 ```lisp

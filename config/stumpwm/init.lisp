@@ -18,6 +18,7 @@
     "groups"     ; workspaces 1-9
     "commands"   ; Vikix's own commands (menu, key help, reload)
     "windows"    ; focus, gaps, layout undo, finding windows
+    "rules"      ; rules that read like sentences: (when-window (:class "Firefox") (workspace 2))
     "viri"       ; a workspace that scrolls sideways (vikix-viri), and Super+h/l along it
     "keys"       ; Super-key bindings
     "help"       ; the key card (s-/), key help (s-F1), all commands, which-key
@@ -46,7 +47,10 @@ mistake in errors.lisp itself), the error is shown and the next file loads."
 
 (mapc #'vikix-load *vikix-files*)
 
-;; Your file, last.
-(let ((user (merge-pathnames ".stumpwm.d/user.lisp" (user-homedir-pathname))))
+;; Your rules (rules.lisp, when you have one), then your file, last.
+(let ((rules (merge-pathnames ".stumpwm.d/rules.lisp" (user-homedir-pathname)))
+      (user (merge-pathnames ".stumpwm.d/user.lisp" (user-homedir-pathname))))
+  (when (probe-file rules)
+    (vikix-load-file rules "rules.lisp"))
   (when (probe-file user)
     (vikix-load-file user "user.lisp")))
