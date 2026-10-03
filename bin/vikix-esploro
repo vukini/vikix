@@ -105,7 +105,7 @@ reload_in_emacs() {
   # every new view's. Its one buffer, *Esploro*, is then made a view.
   form="(when (featurep 'esploro)
           (dolist (v '(esploro-mode-map esploro-places-mode-map esploro-tool-bar-map esploro-manual-mode-map esploro-preview-mode-map
-                       esploro-review-mode-map esploro-plan-edit-mode-map esploro-project-mode-map
+                       esploro-review-mode-map esploro-plan-edit-mode-map esploro-project-mode-map esploro-habits-mode-map
                        esploro--back esploro--forward esploro--sort esploro--reverse
                        esploro--hidden esploro--filter))
             (makunbound v))
