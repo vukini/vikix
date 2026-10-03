@@ -143,6 +143,26 @@ split=$(ask "(let* ((g (current-group)) (a $(find_w A)) (f (current-window))) (f
 check "off puts the split back, A shown in its own frame: $split" test "$split" = "frames=2 A-alone-shown=T focused-elsewhere=T"
 check "and the window focused on the strip has the focus: $(state)" grep -q 'focus=' <<<"$(state)"
 
+# Stacking: Super+[ / ] take a window into the column beside, or out of a
+# shared one; Super+j/k go up and down it, with Shift they move the window.
+ask '(run-commands "vikix-viri on")' >/dev/null; sleep 0.5
+cols() { ask '(progn (setf *print-pretty* nil) (format t "~{~a~^|~} focus=~a" (mapcar (lambda (c) (format nil "~{~a~}" (mapcar (function window-title) (viri-col-windows c)))) (viri-cols (current-group))) (window-title (current-window))))'; }
+ask '(group-focus-window (current-group) (third (viri-columns (current-group))))' >/dev/null; sleep 0.3
+start=$(cols)
+key super+bracketleft
+check "Super+[ : the window joins the column on its left, below: $start -> $(cols)" grep -qE '^[A-Z]\|[A-Z]{2}\|[A-Z] focus=' <<<"$(cols)"
+joined=$(cols)
+heights=$(ask '(let ((c (viri-col-of (current-group) (current-window)))) (format t "~{~a~^ ~}" (mapcar (lambda (w) (xlib:drawable-height (window-parent w))) (viri-col-windows c))))')
+check "the two share the column's height, one above the other: $heights" bash -c 'set -- $0; [ $# = 2 ] && [ $(( $1 - $2 )) -le 2 ] && [ $(( $2 - $1 )) -le 2 ] && [ $1 -gt 300 ] && [ $1 -lt 400 ]' "$heights"
+key super+k
+check "Super+k goes up the column: $(cols)" test "${joined##*focus=}" != "$(cols | sed 's/.*focus=//')"
+key super+j
+check "Super+j comes back down: $(cols)" test "$(cols)" = "$joined"
+key super+shift+k
+check "Super+Shift+k moves it above: $(cols)" test "$(cols | cut -d'|' -f2 | cut -c1)" = "${joined##*focus=}"
+key super+bracketright
+check "Super+] takes it out, into a column of its own on the right: $(cols)" test "$(cols | tr -cd '|' | wc -c)" = 3
+
 # Widths: Super+r on a strip, a third, a half, two thirds, all of it. The
 # strip scrolls to show the focused column whole.
 ask '(run-commands "vikix-viri on")' >/dev/null; sleep 0.5
@@ -164,5 +184,5 @@ frames=$(ask '(princ (length (group-frames (current-group))))')
 key super+r
 check "on tiles Super+r still removes a split" test "$(ask '(princ (length (group-frames (current-group))))')" = $((frames - 1))
 
-[ "$fail" = 0 ] && echo "viri: a strip from tiles and back in order, walking and moving along it, widths, new and closed windows, a dialog, another workspace, off and on"
+[ "$fail" = 0 ] && echo "viri: a strip from tiles and back in order, walking and moving along it, stacking, widths, new and closed windows, a dialog, another workspace, off and on"
 exit "$fail"

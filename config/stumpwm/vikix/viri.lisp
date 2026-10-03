@@ -13,9 +13,12 @@
 ;;;;   Super+Shift+h / l move the column along it (move-window elsewhere)
 ;;;;   Super+r           the column's width: a third, a half, two thirds,
 ;;;;                     the whole screen (remove a split elsewhere)
+;;;;   Super+[ / ]       the window joins the column left / right of it, or,
+;;;;                     sharing one, leaves it for a column of its own
+;;;;   Super+j / k       up and down a column; with Shift, move the window
 ;;;;
-;;;; A column holds its windows top to bottom (one, until stacking comes),
-;;;; and has a width of its own; the strip scrolls just far enough to show
+;;;; A column holds its windows top to bottom, sharing its height, and has
+;;;; a width of its own; the strip scrolls just far enough to show
 ;;;; the focused column whole. No overview yet. A
 ;;;; Viri workspace is a float group whose windows Viri places itself, so
 ;;;; StumpWM's own floating code (focus, raising, fullscreen, dialogs) does
@@ -326,6 +329,40 @@ there instead."
                           (viri-scroll-to group window)
                           (viri-layout group))
                    (group-focus-window group (viri-col-window (nth j cols))))))))))
+
+(defun viri-stack (group dir)
+  "Take the focused window into the column on the DIR side (:left or
+:right), at its bottom; or, when it shares its column already, out of it
+into a column of its own on that side. Niri's consume-or-expel."
+  (let* ((window (group-current-window group))
+         (col (viri-col-of group window))
+         (cols (viri-cols group))
+         (i (and col (position col cols))))
+    (when col
+      (cond ((rest (viri-col-windows col))
+             ;; Out, into a new column beside, as wide as the one it left.
+             (setf (viri-col-windows col) (remove window (viri-col-windows col)))
+             (let ((new (make-viri-col (list window) (viri-col-width col)))
+                   (at (if (eq dir :left) i (1+ i))))
+               (setf (viri-cols group) (append (subseq cols 0 at) (list new) (nthcdr at cols)))))
+            (t
+             (let ((j (if (eq dir :left) (1- i) (1+ i))))
+               (if (not (< -1 j (length cols)))
+                   (return-from viri-stack (message "No column that side to join."))
+                   (let ((target (nth j cols)))
+                     (setf (viri-col-windows target) (append (viri-col-windows target) (list window))
+                           (viri-cols group) (remove col cols)))))))
+      (let ((target (viri-col-of group window)))
+        (setf (viri-col-focus target) window))
+      (viri-scroll-to group window)
+      (viri-layout group))))
+
+(defcommand vikix-stack (dir) ((:direction "Direction: "))
+  "On a strip: the window joins the column that way, below its windows; one
+that shares a column leaves it, for a column of its own that way."
+  (if (viri-group-p)
+      (viri-stack (current-group) dir)
+      (message "Stacking is for strips (vikix viri).")))
 
 (defun viri-cycle-width (group)
   "The focused column one step wider in *viri-widths*, and from the widest

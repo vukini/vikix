@@ -20,7 +20,8 @@ What building it settled, against the plan below:
 - **Tile-only code met a strip:** layout undo recorded after every command with `dump-group`, which fails off tiles and opened the error menu each time (now it records only on tiles); Vikix's title bars stayed on windows leaving tiles (removed as they join a strip; columns have none for now).
 - **Where you are** (0.71.95): the focused column has the tiles' accent border, and the bar's window list (%W) shows the strip in order with the columns on the screen in [brackets], each a click away.
 - **Widths** (0.71.96): a strip is a list of columns, each with its windows top to bottom and a width (a third, a half, two thirds, all), scrolled by pixels; Super+r on a strip cycles the width (`vikix-width-or-remove`: `remove` on tiles), and the strip scrolls only as far as it must to show the focused column whole, so a neighbour can show in part, as in Niri.
-- **Not done:** the drawn or menu overview, stacking, rules, `vikix project` saving a strip, the agent's `desktop` tool reporting columns.
+- **Stacking** (0.71.97): Niri's consume-or-expel on Super+[ and Super+] rather than the planned Super+Shift+j/k, which move a window up and down its column instead; a column's windows share its height evenly.
+- **Not done:** the drawn or menu overview, rules, `vikix project` saving a strip, the agent's `desktop` tool reporting columns.
 
 ## The problem
 
