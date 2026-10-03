@@ -20,6 +20,7 @@
     "windows"    ; focus, gaps, layout undo, finding windows
     "rules"      ; rules that read like sentences: (when-window (:class "Firefox") (workspace 2))
     "viri"       ; a workspace that scrolls sideways (vikix-viri), and Super+h/l along it
+    "layouts"    ; saved layouts: vikix layout save NAME, vikix layout NAME
     "keys"       ; Super-key bindings
     "help"       ; the key card (s-/), key help (s-F1), all commands, which-key
     "webapps"    ; your web apps (vikix webapp): keys and Super+m

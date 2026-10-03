@@ -12,7 +12,7 @@ unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE   # the desktop session's: from an agent
 cd "$(dirname "$0")/.."
 
 mapfile -t scripts < <(grep -lE '^#!.*(ba)?sh' install.sh install-*.sh install/*.sh \
-                         lib/common.sh migrations/*.sh bin/* tests/*.sh site/install)
+                         lib/common.sh migrations/*.sh bin/* tests/*.sh tests/lib/*.sh site/install)
 fail=0
 
 for f in "${scripts[@]}"; do

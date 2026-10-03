@@ -7,7 +7,7 @@ What's left to add or clean up, most valuable first within each section. Delete 
 From a review of 0.71.71 against one aim: the best desktop for a power user. Vikix has no users but Vid yet, so what only matters once others arrive (a promise about what won't change, opening the plugin repo, items 19 and 20) waits for the first of them. Until then, in this order:
 
 1. **The rules language** (the next section, items 67 to 71). Vid picked it first; its core, `when-window` and the verbs, is in (`rules.lisp`).
-2. **Saved layouts** (items 29 and 50a, with IDEAS' "Layouts as plain Lisp"): one feature, used by hand, by a rule (`(layout "writing")`) and by `vikix project open`.
+2. **Saved layouts** (item 50a left): by hand (`vikix layout save NAME`, `vikix layout NAME`) and by a rule (`(layout "writing")`) are in (`layouts.lisp`, plain Lisp files as IDEAS' "Layouts as plain Lisp" had it). Next: `vikix project open` saving and putting back a project's layout (50a), then starting the programs a layout names that aren't open.
 3. **A desktop to trust for weeks.** Signed updates (To look into, 4). A soak test: a hidden StumpWM on Xvfb with windows opening and closing for an hour, the time its main thread takes to answer measured over Swank, failing above a limit, weekly on GitHub. And times written down and tested: login to a usable desktop, a reload, a key to its action, an Emacs frame. Neither test is worked out yet.
 4. **Agents that act through code you can check first** (IDEAS, Leaning into Lisp), then the time machine for functions. The rules language's verbs (`*vikix-rule-verbs*`, `rules.lisp`) are the first entries of its allow-list.
 5. **In between, as polish:** `bugs.md`; a newly plugged screen (To look into, 2); GTK and Qt programs following `vikix theme`, and a tray that can be switched on (README, "Not done yet").
@@ -127,7 +127,6 @@ Added 2026-09-30, from a conversation with Vid about 0.52-0.65. Not yet ordered 
 
 ### The desktop
 
-29. **Save and restore layouts.** `vikix layout save writing`: which windows sit where on a workspace; restoring brings the workspace back for a project.
 30. **A drop-down terminal** on Super+`, over whatever is open.
 31. **Find any file.** A rofi search over the home folder (plocate or fd), as fast as typing.
 32. **Battery care on ThinkPads.** tlp's charge thresholds: stop at 80% while docked; a Super+m entry to charge to 100% before a trip.

@@ -32,6 +32,9 @@
 #                         yours, then switch to it (vikix theme --help)
 #   vikix version
 #
+#   vikix layout save NAME | NAME | list | rm NAME
+#                       this workspace's layout (its splits or its strip, and
+#                       which window is where) saved, put back, listed, removed
 #   vikix viri [on|off] this workspace as a strip that scrolls sideways
 #                       (Super+h/l along it), or tiled again; no word switches
 #   vikix eval FORM     run Lisp in the running StumpWM, print the result
@@ -401,6 +404,30 @@ cmd_update() {
     core)   say "Vikix $(cat "$VIKIX_DIR/VERSION") is up to date (Void's packages and the tools weren't touched: vikix update system, vikix update tools); log: $VIKIX_UPDATE_LOG" ;;
     system) say "Void's packages are up to date; log: $VIKIX_UPDATE_LOG" ;;
     tools)  say "the tools are up to date; log: $VIKIX_UPDATE_LOG" ;;
+  esac
+}
+
+# vikix layout: saved layouts (layouts.lisp), files in ~/.config/vikix/layouts.
+cmd_layout() {
+  local dir="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/layouts" what=${1:-list} name=${2:-}
+  name_ok() { [[ $1 =~ ^[A-Za-z0-9_-][A-Za-z0-9._-]{0,39}$ ]] || die "vikix layout: a name is letters, digits, - _ and ."; }
+  ask() {   # the Lisp's answer, its own words when it fails
+    local out
+    local ok=0
+    out=$(python3 "$VIKIX_DIR/bin/vikix-eval" "$1" 2>&1) || ok=$?
+    # The Lisp's own words when it said no (vikix eval fails then too).
+    case $out in *"error:"*) die "vikix layout: $(sed -n 's/.*error: //p' <<<"$out" | head -1)" ;; esac
+    [ "$ok" = 0 ] || die "vikix layout: StumpWM didn't answer (vikix doctor)"
+    printf '%s\n' "$out" | grep -v '^=> ' || true
+  }
+  case $what in
+    list)  [ -d "$dir" ] && find "$dir" -maxdepth 1 -name '*.lisp' -printf '%f\n' | sed 's/\.lisp$//' | sort ;;
+    save)  name_ok "$name"
+           ask "(progn (vikix-layout-save \"$name\") (format t \"saved ~a~%\" \"$name\"))" ;;
+    rm)    name_ok "$name"; [ -f "$dir/$name.lisp" ] || die "vikix layout: no layout $name"
+           rm -f "$dir/$name.lisp"; say "removed layout $name" ;;
+    *)     name_ok "$what"
+           ask "(let ((missing (vikix-layout-restore \"$what\"))) (format t \"layout ~a~@[; not open: ~a~]~%\" \"$what\" (and missing (vikix-layout-missing-text missing))))" ;;
   esac
 }
 
@@ -1300,6 +1327,7 @@ main() {
     pkg)         shift; exec "$VIKIX_DIR/bin/vikix-pkg" "$@" ;;
     version)     cat "$VIKIX_DIR/VERSION" ;;
     eval)        shift; exec python3 "$VIKIX_DIR/bin/vikix-eval" "$@" ;;
+    layout)      shift; cmd_layout "$@" ;;
     viri)        shift
                  case ${1:-} in ''|on|off) ;; *) die "vikix viri: on, off, or nothing to switch" ;; esac
                  python3 "$VIKIX_DIR/bin/vikix-eval" "(run-commands \"vikix-viri ${1:-}\")" >/dev/null ||

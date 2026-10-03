@@ -269,6 +269,8 @@ Returns the window, or nil when there's none."
     ("Find a window, any workspace" global-windowlist)
     ("Gaps around windows on/off" toggle-gaps)
     ("This workspace as a strip that scrolls sideways (Viri), or tiled again" vikix-viri)
+    ("Layout: save this workspace's, by name" vikix-layout-save-command)
+    ("Layout: put this workspace back as one you saved" vikix-layout-restore-command)
     ("Screenshot or record the screen" vikix-capture)
     ("Undo: my files back one snapshot" vikix-undo)
     ("Backup now"          (run-shell-command "vikix-backup now --notify"))

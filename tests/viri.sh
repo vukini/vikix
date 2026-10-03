@@ -22,60 +22,15 @@ export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a 
 export EMACS_SOCKET_NAME=/nonexistent/emacs-server   # never the live desktop's Emacs: emacsclient from a test goes nowhere
 unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE   # the desktop session's: from an agent's shell they'd point a test at the real ~/vikix and state, and hide the keys
 here=$(cd "$(dirname "$0")/.." && pwd)
-wm=${VIKIX_TEST_STUMPWM:-$HOME/.local/bin/stumpwm}
-ql=$HOME/quicklisp
-for need in Xvfb xdotool alacritty; do
-  command -v "$need" >/dev/null || { echo "viri: needs $need and an X server; skipped"; exit 0; }
-done
-[ -x "$wm" ] || { echo "viri: needs Vikix's StumpWM ($wm); skipped"; exit 0; }
-
-t=$(mktemp -d)
-pids=()
-cleanup() { for p in "${pids[@]}"; do kill "$p" 2>/dev/null || true; done; rm -rf "$t"; }
-trap cleanup EXIT
-fail=0
-check() { "${@:2}" || { echo "FAIL: $1"; fail=1; }; }
-
-# A free screen and a free port: tests run side by side.
-n=$(( 100 + RANDOM % 400 ))
-while [ -e "/tmp/.X$n-lock" ] || [ -e "/tmp/.X11-unix/X$n" ]; do n=$((n + 1)); done
-port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
-export DISPLAY=":$n"
-Xvfb "$DISPLAY" -screen 0 1280x800x24 -nolisten tcp >/dev/null 2>&1 &
-pids+=($!)
-
-home="$t/home"
-mkdir -p "$home/.stumpwm.d" "$home/.local/state/vikix" "$home/.config/vikix"
-cp "$here/config/stumpwm/init.lisp" "$home/.stumpwm.d/"
-cp -r "$here/config/stumpwm/vikix" "$home/.stumpwm.d/"
-sed -i "s/(defparameter \*vikix-swank-port\* 4004)/(defparameter *vikix-swank-port* $port)/" "$home/.stumpwm.d/vikix/swank.lisp"
-[ -d "$ql" ] && ln -s "$ql" "$home/quicklisp"
-echo "viri-test" > "$home/.slime-secret"; chmod 600 "$home/.slime-secret"
-touch "$home/.local/state/vikix/welcome"     # no welcome terminal
+# shellcheck source=tests/lib/wm.sh
+. "$here/tests/lib/wm.sh"
+wm_setup viri
 # Rules for strips (the verbs width and join): they act on a strip only.
 cat > "$home/.stumpwm.d/rules.lisp" <<'EOF'
 (when-window (:title "Wide") (width 2/3))
 (when-window (:title "Under") (join :left))
 EOF
-
-for _ in $(seq 1 30); do xdpyinfo >/dev/null 2>&1 && break; sleep 0.2; done
-HOME=$home VIKIX_SWANK_PORT=$port "$wm" >"$t/wm.log" 2>&1 &
-pids+=($!)
-
-ask() { HOME=$home VIKIX_SWANK_PORT=$port python3 "$here/bin/vikix-eval" "$1" 2>&1 | grep -v '^=> ' || true; }
-for _ in $(seq 1 60); do [ "$(ask '(princ 1)')" = 1 ] && break; sleep 0.5; done
-[ "$(ask '(princ 1)')" = 1 ] || { echo "FAIL: the test StumpWM didn't start: $(tail -5 "$t/wm.log")"; exit 1; }
-
-win() {   # win TITLE: a window, and wait till StumpWM has it
-  LIBGL_ALWAYS_SOFTWARE=1 alacritty --class viritest --title "$1" -e sleep 300 >/dev/null 2>&1 &
-  pids+=($!)
-  for _ in $(seq 1 40); do
-    [ "$(ask "(princ (if (find \"$1\" (group-windows (current-group)) :key (function window-title) :test (function equal)) 1 0))")" = 1 ] && break
-    sleep 0.25
-  done
-  sleep 0.3
-}
-key() { xdotool key "$1"; sleep 0.5; }
+wm_start
 # The strip as one line: its columns, the first shown, the focused window.
 state() { ask '(progn (setf *print-pretty* nil) (if (viri-group-p) (format t "~{~a~} left=~a focus=~a" (mapcar (function window-title) (viri-columns (current-group))) (viri-left (current-group)) (window-title (current-window))) (format t "tiles focus=~a" (and (current-window) (window-title (current-window))))))'; }
 xs() { ask '(progn (setf *print-pretty* nil) (format t "~{~a~^ ~}" (mapcar (lambda (w) (xlib:drawable-x (window-parent w))) (viri-columns (current-group)))))'; }
@@ -219,9 +174,5 @@ win Under
 check "a rule's (join :left) puts the new window under the column on its left: $(cols)" grep -q 'WideUnder' <<<"$(cols)"
 check "the rules ran without failing" test "$(ask '(princ (reduce (function +) (mapcar (function vikix-rule-failures) *vikix-rules*)))')" = 0
 
-if [ "$fail" != 0 ]; then
-  echo "--- the test StumpWM's last words ($( kill -0 "${pids[1]}" 2>/dev/null && echo running || echo gone)):"
-  tail -25 "$t/wm.log" | sed 's/^/    /'
-fi
-[ "$fail" = 0 ] && echo "viri: a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, the overview, the agents' desktop tool, new and closed windows, a dialog, another workspace, off and on"
+wm_report viri "a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, the overview, the agents' desktop tool, new and closed windows, a dialog, another workspace, off and on"
 exit "$fail"

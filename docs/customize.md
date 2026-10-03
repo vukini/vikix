@@ -99,6 +99,21 @@ Anything else in a rule is Lisp of your own, where `(window)` is the window. Bet
 
 Rules run in the order they're written, Vikix's first, then `rules.lisp`, then `user.lisp`; when two send a window to different workspaces, the last one wins.
 
+### Saved layouts
+
+A workspace's layout, the splits and which window sits in each (or a strip's columns, their widths and what's stacked), saved by name and put back later:
+
+```sh
+vikix layout save writing     # this workspace, as it is now
+vikix layout writing          # back as it was
+vikix layout list             # the ones saved
+vikix layout rm writing
+```
+
+Or Super+m, *Layout: save this workspace's* and *Layout: put this workspace back*. A rule can put one back too: `(when-window (:class "Emacs" :title (:has "novel")) (layout "writing"))`.
+
+Each is a file of plain Lisp in `~/.config/vikix/layouts/`, to read and change by hand: windows are described by their class and title, not remembered as the windows they were, and a split's place and size are parts of the screen, so a layout still fits after the windows have been closed and opened again, or on another screen. Putting one back matches the windows on the workspace to the saved ones (the same program first, then the closest title); a window it doesn't mention stays, and a saved one that isn't open is named. A strip's layout makes the workspace a strip, a tiled one tiles. Floating windows aren't saved.
+
 ### The terminal, focus, and fonts
 
 ```lisp
