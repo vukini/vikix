@@ -22,8 +22,9 @@
 ;;   C-c n g   the graph of your notes and their links, in the browser
 ;;             (org-roam-ui, on 127.0.0.1 only)
 ;;
-;; org-roam and org-roam-ui come from MELPA, installed the first time
-;; they're needed, after asking. org-roam's index of the notes is a
+;; org-roam and org-roam-ui are your config's to install (emacs-void
+;; does, with use-package); a config without them is asked the first
+;; time they're needed, from MELPA. org-roam's index of the notes is a
 ;; database kept out of Dropbox (~/.cache/vikix/org-roam.db): it's made
 ;; again from the files whenever needed. A notes file open in Emacs
 ;; follows what the phones change in it (auto-revert), until you edit

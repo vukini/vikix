@@ -50,7 +50,7 @@ Everything is under **C-c n**:
 | `C-c n l` | What links to this note |
 | `C-c n g` | The graph of your notes and their links, in the browser |
 
-The last five use org-roam (and the graph org-roam-ui), the add-ons for links between notes as Obsidian has them. Emacs asks before installing them from MELPA, the first time you use one. Their index of your notes is kept on the laptop (`~/.cache/vikix/org-roam.db`), never in Dropbox, and is made again from the files whenever needed; the graph is served to this laptop only.
+The last five use org-roam (and the graph org-roam-ui), the add-ons for links between notes as Obsidian has them. emacs-void installs them with its other packages (a config of your own without them is asked the first time one is needed). Their index of your notes is kept on the laptop (`~/.cache/vikix/org-roam.db`), never in Dropbox, and is made again from the files whenever needed; the graph is served to this laptop only.
 
 A notes file open in Emacs takes the changes the phones make to it, by itself, as long as you haven't changed it in Emacs too. Notes open ready to edit, though emacs-void opens other files read-only (its `my/editable-directories` says which folders are exempt).
 
