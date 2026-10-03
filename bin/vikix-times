@@ -5,6 +5,14 @@
                          session started to the desktop ready) and each
                          Reload config, the last and the usual (the median
                          of the last 10), against their limits
+  vikix times soak [MINUTES]   the desktop used hard for an hour (or MINUTES)
+                         on a hidden screen: windows opening, closing,
+                         moving, floating, splits, reloads; fails when
+                         StumpWM answers slowly, grows, keeps timers or
+                         hooks, or writes an error (lib/soak.py)
+  vikix times soak --ask  first asks in a dialog (cron, weekly), then runs
+                         at low priority and says how it went in a
+                         notification
   vikix times measure    measure now on a hidden screen, with this
                          checkout's config (a few seconds, nothing on your
                          screen): StumpWM's start, a reload, a key to its
@@ -100,8 +108,43 @@ def measure():
     return 1 if slow else 0
 
 
+def soak(args):
+    ask = "--ask" in args
+    args = [a for a in args if a != "--ask"]
+    minutes = args[0] if args else "60"
+    script = os.path.join(HERE, "lib", "soak.py")
+    if not ask:
+        return subprocess.run(["nice", sys.executable, script, minutes]).returncode
+    # From cron: the desktop's display and D-Bus, then a question first.
+    try:
+        with open(os.path.join(STATE, "session.env")) as f:
+            for line in f:
+                k, _, v = line.strip().partition("=")
+                if k and v:
+                    os.environ.setdefault(k, v)
+    except FileNotFoundError:
+        return 0                                   # no desktop to ask on
+    os.environ["PATH"] = os.path.expanduser("~/.local/bin") + os.pathsep + os.environ.get("PATH", "")
+    r = subprocess.run(["zenity", "--question", "--title", "Vikix soak test", "--width", "460",
+                        "--ok-label", "Run it now", "--cancel-label", "Not now",
+                        "--text", f"Run the weekly soak test? {minutes} minutes of a hidden desktop worked "
+                                  "hard (windows opening, closing, reloads), to catch StumpWM slowing down "
+                                  "or growing. Your screen isn't touched, but the laptop works harder "
+                                  "and the fans may run. A notification says how it went."],
+                       capture_output=True)
+    if r.returncode != 0:
+        return 0
+    out = subprocess.run(["nice", "-n", "15", sys.executable, script, minutes], capture_output=True, text=True)
+    last = (out.stdout.strip().splitlines() or [out.stderr.strip() or "soak: no result"])[-1]
+    subprocess.run(["notify-send", "-a", "Vikix soak test", "-u", "critical" if out.returncode == 1 else "normal",
+                    "Soak test " + ("failed" if out.returncode == 1 else "done"), last])
+    return out.returncode
+
+
 def main(argv):
     cmd = argv[0] if argv else "show"
+    if cmd == "soak":
+        return soak(argv[1:])
     if cmd in ("-h", "--help", "help"):
         print(__doc__.strip())
         return 0

@@ -95,6 +95,7 @@ pkill picom; picom -b
 
 - **One over its limit** (`SLOW`) when the machine is busy (an update, a VM starting) says little: measure again when it's quiet.
 - **Slow when quiet** is worth a report: `vikix debug` writes one, with the measures in it.
+- **Slower the longer it runs?** `vikix times soak` works a hidden desktop hard for an hour (windows opening, closing, moving, reloads) and says whether StumpWM slowed down, grew, kept timers or hooks it shouldn't, or wrote an error; the samples are kept in `~/.local/state/vikix/soak/`. Your screen isn't touched, but the laptop works harder meanwhile.
 - **StumpWM answering slowly** means its main thread is kept busy: keys still work, but `vikix eval` and the agents' tools wait. A window that keeps changing its size can do it (bugs.md has one, an xterm); close windows one at a time until it answers again.
 
 ## Settings went wrong

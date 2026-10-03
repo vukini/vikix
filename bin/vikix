@@ -12,9 +12,10 @@
 #   vikix docs          download the offline programming docs into ~/dev
 #                         (a few GB, slow; update and the installer skip them)
 #   vikix doctor        check the pieces are all there
-#   vikix times [measure] how long logging in and a reload take; measure
+#   vikix times [measure|soak] how long logging in and a reload take; measure
 #                         = on a hidden screen: start, reload, a key, an
-#                         Emacs frame, StumpWM answering, against limits
+#                         Emacs frame, StumpWM answering, against limits;
+#                         soak = an hour of it worked hard (vikix times help)
 #   vikix features      what you can add (languages, editors, LibreOffice,
 #                         printing, Windows, local AI ...), and what you have
 #   vikix add NAME...   add features, or a bundle (essentials, developer,
