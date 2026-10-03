@@ -2,6 +2,78 @@
 
 What's left to add or clean up, most valuable first within each section. Delete an item when it ships. The first list was drawn up on 2026-09-26, from a review of 0.15.0. The editors (Neovim into Vikix, AI in Neovim and Emacs) have their own list: `TODO-editors.md`.
 
+## What's next, in order (drawn up with Vid 2026-10-03)
+
+From a review of 0.71.71 against one aim: the best desktop for a power user. Vikix has no users but Vid yet, so what only matters once others arrive (a promise about what won't change, opening the plugin repo, items 19 and 20) waits for the first of them. Until then, in this order:
+
+1. **The rules language** (the next section, items 66 to 71). Vid picked it first.
+2. **Saved layouts** (items 29 and 50a, with IDEAS' "Layouts as plain Lisp"): one feature, used by hand, by a rule (`(layout "writing")`) and by `vikix project open`.
+3. **A desktop to trust for weeks.** Signed updates (To look into, 4). A soak test: a hidden StumpWM on Xvfb with windows opening and closing for an hour, the time its main thread takes to answer measured over Swank, failing above a limit, weekly on GitHub. And times written down and tested: login to a usable desktop, a reload, a key to its action, an Emacs frame. Neither test is worked out yet.
+4. **Agents that act through code you can check first** (IDEAS, Leaning into Lisp), then the time machine for functions. The rules language's verbs (item 66) are the first entries of its allow-list.
+5. **In between, as polish:** `bugs.md`; a newly plugged screen (To look into, 2); GTK and Qt programs following `vikix theme`, and a tray that can be switched on (README, "Not done yet").
+
+## The rules language (picked by Vid 2026-10-03)
+
+Rules for the desktop that read like sentences, in Lisp: what happens when a window opens, at a time of day, when the battery runs low.
+
+```lisp
+(when-window (:class "Firefox") (workspace 2))
+(when-window (:instance "vikix-nmtui") (float :width "65%" :height "80%"))
+(when-window (:class "mpv" :title (:has "picture in picture"))
+  (float :corner :bottom-right :width "30%") (sticky))
+(at "09:00" :weekdays (open-project "vikix"))
+(each 30 :minutes (run "vikix-wallpaper next"))
+(when-battery-below 20 (notify "Battery at 20%: charger?"))
+(at-login (run "syncthing --no-browser"))
+```
+
+**Why.** Today each rule is a function and a hook written by hand. Vikix has three (dialogs and Lazarus in `windows.lisp`, `vikix learn`'s panes in `commands.lisp`), Vid's `user.lisp` three more (nmtui, the drop-down terminal, Lazarus again), and two plugins one each (inbox's box, agent-waiting's change of focus): a dozen lines each, repeating the same guards, and each a place for the traps already met. Floating a window twice is an error. A tiled window kept on every workspace ends the desktop at the next workspace switch. A timer given `0.3` instead of `3/10` stops the event loop. A title matched as a pattern without `^...$` catches every window with the word in it. The language keeps those guards in one place. And since a rule is data (its own text is kept), the desktop can list its rules, say why a window went where it did, write one for you, and later let the apprentice (IDEAS) and the agents propose them in a form you can read before it runs.
+
+**Decisions.** Suggested by the review; Vid to confirm or change each before item 66 is built.
+
+- **Where rules live.** In `user.lisp`, or in a file of their own, `~/.stumpwm.d/rules.lisp`: the user's (`yours.list` already covers `.stumpwm.d`, so snapshots and `vikix undo` do too), loaded by `init.lisp` just before `user.lisp`, a form at a time as every file is, so `user.lisp` still wins. The desktop only ever writes to `rules.lisp` (item 69), never to `user.lisp`.
+- **A plain string matches exactly.** `(:has "text")` is "contains", in any case; `(:like "^regex$")` is a pattern; a list of them is any of them. StumpWM's own placement rules take every string as an unanchored pattern, which is the trap above.
+- **Verbs are looked up in a table, not called as functions.** They can't be functions of those names: in StumpWM's package `float` is Common Lisp's, `fullscreen` and `title` are StumpWM's commands (checked 2026-10-03), and `every` is Common Lisp's too, which is why the word for a repeat is `each`. So `when-window` reads the forms of its body: one whose first word is in the verbs table becomes a call to that verb, and any other is ordinary Lisp, left as it is. Only the body's own forms are read this way, not what's inside them. A misspelt verb or matcher is then an error when the file loads, with its file and line in the errors menu, not when the window opens three days later. The table is also the list `vikix rules verbs` prints, and the start of the allow-list for agents (What's next, 4).
+- **A rule that fails never asks.** Rules run inside StumpWM's handling of an X event or a timer, where an error that gets out means `errors.lisp`'s menu at best and a restart of StumpWM at worst, once for every window that opens. Each run is wrapped: the error is written to `~/.local/state/vikix/errors/` as any other, a message names the rule, and the third failure switches the rule off until the next reload (`vikix doctor` lists those).
+- **A reload gives exactly what the files say.** The table is emptied when the layer loads, and a rule is known by its `:name`, or without one by its own text, so loading a file again, or `C-x C-e` on a rule in Emacs, replaces it and never adds a second. A reload doesn't move windows already open; `vikix rules apply` does, when asked.
+- **Order.** Rules run in the order they were defined: Vikix's, the plugins', `rules.lisp`, `user.lisp`. The last verb to act wins.
+- **Not in the language:** keys (`vikix-bind` stays as it is), and conditions of its own (the body is Lisp: `when`, `unless`).
+
+66. **The core: `when-window` and its verbs.** A new layer file, `config/stumpwm/vikix/rules.lisp`, in `init.lisp`'s `*vikix-files*` after `windows` (it uses its floating and centring) and before `plugins` (so plugins can use it).
+    - **The table,** `*vikix-rules*`: for each rule its name, what sets it off, its matcher, its text as written, the file and line it came from and whose that is (Vikix, a plugin by `*vikix-plugin*`, `rules.lisp`, `user.lisp`), the compiled body, on or off, how often it ran, when last, and its last error. One named function a StumpWM hook (`*new-window-hook*`, `*focus-window-hook*`, `*destroy-window-hook*`), each going through the table: never a hook a rule. Taking a rule away is then taking its entry out, and unloading a plugin takes its rules with it, which hooks added by hand can't do ("Hooks a plugin added stay until StumpWM starts again", `plugins.lisp`).
+    - **Matchers:** `:class`, `:instance`, `:title`, `:role`, `:type` (`:dialog`, `:normal`), `:workspace` (where it opened), `:not (...)`, and `:where FUNCTION` for anything else. Before the body, options: `:name "..."`, `:on :open` (the default), `:on :focus`, `:on :close`, and `:once t` (the first window that matches only: Firefox to workspace 2 at login, later windows where you are).
+    - **The first verbs,** each safe to run twice and checking before it acts: `workspace` (a number or a name; `:follow t` goes along), `float` (`:width`, `:height`, `:x`, `:y`, `:corner`; centred when no place is given; a whole number is pixels, `"65%"` a share of the window's monitor), `tile`, `fullscreen`, `sticky` (on every workspace: it floats the window first, because of the trap above), `dialog` (float, centred, kept in front, as `*vikix-dialog-classes*` does), `title`, `focus`; and for any rule `run` (a shell command), `command` (a StumpWM command), `notify`, `say` (StumpWM's message), `open-project`, `theme`. `(window)` is the window, for Lisp of your own. `(define-rule-verb NAME (ARGS) "what it does" ...)` adds a verb, for plugins and `user.lisp`.
+    - **`workspace` without a flash.** StumpWM chooses a new window's workspace before showing it (`get-window-placement`, from its own `*window-placement-rules*`) and runs `*new-window-hook*` afterwards, so a window moved from the hook shows where you are for a moment first. Build it with the hook, look on Xvfb and on the laptop; if the flash shows, wrap `get-window-placement` (`sb-int:encapsulate`, as `windows.lisp` wraps `update-window-properties`) so rules with a `workspace` verb are asked there.
+    - **Tests,** `tests/rules.sh`, in two parts. Without a screen, as `tests/errors.sh` runs: StumpWM's window objects can be made without X (`(make-instance 'tile-window :class "Firefox" :res "Navigator" :title "...")`, checked 2026-10-03), so matching, the errors at load, one rule after a second load, and the switching off after three failures are all tested there. The verbs need real windows: a hidden StumpWM on Xvfb, as was done by hand for the errors menu on 2026-10-02, windows opened with a class of their choosing, then `vikix eval` asked where each ended up. That is the first Xvfb test in `tests/`, and the soak test (What's next, 3) grows from it. Not with xterm until `bugs.md`'s resize loop is fixed. And `tests/lisp.sh` fails on a float written as a delay to `run-with-timer` anywhere in the layer (`errors.lisp` already mends such a timer when it meets one; this keeps them from being written).
+67. **Time, power and login.** The forms `at`, `each`, `when-battery-below`, `when-charging`, `when-on-battery`, `at-login` and `when-workspace`, on the same table.
+    - **One ticker** for all of them (every 30 seconds, whole numbers only), never a timer a rule.
+    - **`at "09:00"`** with `:weekdays`, `:weekends` or `:on (:mon :thu)`. A time missed while the laptop slept runs on waking when it is less than an hour late (`:late nil` never, `:late t` however late). What has run today is kept in `~/.local/state/vikix/rules/`, so a reload or a restart of StumpWM at 09:05 doesn't run it again.
+    - **`each N :minutes`** (or `:hours`), counted from when it last ran.
+    - **`when-battery-below N`** runs once as the charge goes under N, and is ready again once it is above or on the charger. It reads the same sysfs files as the bar (`vikix-battery-file`, `modeline.lisp`).
+    - **`at-login`** runs once a login, not at each reload. It replaces the `pgrep -x ... ||` in front of every startup program (docs/customize.md, "Start a program with the desktop"). To settle while building: what marks a login (a file in `$XDG_RUNTIME_DIR` named by `vikix-session`'s process, so a restart of StumpWM alone doesn't count as one).
+    - **`when-workspace 3`** runs on going to that workspace.
+    - **Later, not now:** a screen plugged in or taken away (with the screens work; StumpWM has `*new-head-hook*` but nothing for one removed), a Wi-Fi network joined, a drive plugged in, idle.
+    - **Tests:** the clock and the battery are read through functions the tests replace, so a test steps through a day, a sleep and a discharge in a second, without a screen.
+68. **Seeing and steering them: `vikix rules`.** `bin/vikix-rules`, thin over `vikix eval`.
+    - `vikix rules` lists them: a number, on or off, the rule as written, where it's from, how often it ran and when last, its last error.
+    - `off N|NAME` and `on`; off lasts until the next reload, and the list says so.
+    - `why` for the focused window (or `why CLASS`): which rules matched it and what each did. Each window keeps a short note of the rules that ran on it.
+    - `test`: the open windows against the rules, saying what would happen, doing nothing. `apply`: do it, for windows already open.
+    - `verbs`: the verbs and matchers, each with its line of description.
+    - Super+m, Rules: the same list in a menu. `vikix doctor`: rules switched off after failures, and rules naming a workspace that isn't there. `vikix debug`: the list, scrubbed as the rest. The MCP server: a read-only `rules` tool (the list, and why).
+69. **"Remember this window here"** (Super+Ctrl+t, beside Super+t; free in `keys.lisp` and in Vid's `user.lisp` on 2026-10-03, Super+Shift+t being Vid's theme picker).
+    - It reads the focused window: what to know it by, its workspace, tiled or floating, and when floating its size and place as shares of the monitor.
+    - **What to know it by:** its class; its instance instead when other windows share the class (Alacritty started with `--class`, the web apps' `vikix-NAME`); its title, matched whole, for an Emacs frame with a name of its own, since every Emacs frame has the same class.
+    - It shows the rule it would write, in StumpWM's menu: write it, the workspace only, cancel. Then a snapshot ("before: a rule for Firefox"), the rule added to `~/.stumpwm.d/rules.lisp` under a dated comment, with `:name "remembered: Firefox"`, and loaded. Remembering the same window again replaces that rule. `vikix undo` takes it back, and `vikix rules forget` removes one by name.
+70. **Vikix and Vid move over.** The proof that the language is enough: if one of the eight rules written by hand today can't be said in it, it is short of something.
+    - In the layer: Lazarus's floating windows and `vikix learn`'s panes become rules. Dialogs keep `vikix-float-dialog` (it also raises them at every change of focus), with `*vikix-dialog-classes*` working as before and the verb `dialog` beside it.
+    - In Vid's `user.lisp`, by Vid or with Vid, since it's the user's file: nmtui, the drop-down terminal's window, and Lazarus (which the layer already does).
+    - In `vikix-plugins`: inbox's floating box (`*new-window-hook*`) and agent-waiting's clearing on focus (`*focus-window-hook*`, a rule with `:on :focus`) become rules, and the pin moves. Its test then fails on an `add-hook` in a plugin's Lisp, so a removed plugin leaves nothing behind.
+71. **The guide, and what follows.**
+    - A starter `config/stumpwm/rules.lisp`, copied once (`copy_user`) to `~/.stumpwm.d/rules.lisp`: all comments, with the examples above.
+    - `docs/rules.md` (the forms, the matchers, the verbs, how to see why a window moved), in `docs/README.md`'s table; `docs/customize.md`'s "Start a program with the desktop" becomes `at-login`; `docs/map.md` gets the new files; the skill (`SKILL.md`) tells agents to write a rule into `rules.lisp` after a snapshot, not a hook into `user.lisp`; the README's keys and the site's card.
+    - Then, each an item of its own when its turn comes: the verb `layout` (What's next, 2); the apprentice's suggestions written as rules (IDEAS); a `propose_rule` tool for agents, shown before it is applied as `propose_file_changes` is; and the verbs table as the allow-list's first entries (What's next, 4).
+
 ## Features
 
 Built in this order: newcomers first, then the rest (the AI items have shipped; more are in the wish list). Package facts were checked against void-packages on 2026-09-28. In Void: uv, espeak-ng, podman, tesseract-ocr, xcolor. Not in Void: ollama, llama.cpp, whisper.cpp, aichat, llm, piper-tts ("piper" in Void is a gaming-mouse tool). Those come from their official releases, uv, or a source build in the style of 65-languages: pinned, checksummed where the project publishes checksums, and in ~/.local.
