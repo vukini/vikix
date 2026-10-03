@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # tests/theme.sh — `vikix theme` writes every program's colours from one
-# theme file, and the 0.17.0 migration hooks old starter configs up to it
-# without touching what the user changed.
+# theme file (GTK and Qt too: dark or light by the background, GTK 4's
+# colours, Qt's palette), and the 0.17.0 migration hooks old starter
+# configs up to it without touching what the user changed.
 #
 # All in a made-up home. No display, so nothing running is repainted.
 
@@ -33,6 +34,22 @@ check "dunst's bars don't get the accent" grep -q 'highlight = "#1c5bd6"' "$t/ho
 if command -v rofi >/dev/null; then
   check "rofi can't read its theme" sh -c "rofi -theme '$out/rofi.rasi' -dump-theme | grep -q 'accent:'"
 fi
+
+# GTK and Qt: paper is light, void dark; their colours where they take them.
+check "paper should be light" test "$(cat "$out/mode")" = light
+check "paper: GTK 3's theme should be Adwaita" grep -qx 'Net/ThemeName "Adwaita"' "$out/xsettingsd.conf"
+check "GTK 4 should get the accent and the background" bash -c "grep -q -- '--accent-bg-color: #1c5bd6;' '$out/gtk4.css' && grep -q '@define-color window_bg_color #eff1f5;' '$out/gtk4.css'"
+check "Qt's palette should have its 22 roles, three times" python3 -c "
+import configparser, sys
+c = configparser.ConfigParser(); c.read(sys.argv[1])
+s = c['ColorScheme']
+assert all(len(s[k].split(',')) == 22 for k in ('active_colors', 'disabled_colors', 'inactive_colors'))
+assert s['active_colors'].split(',')[10] == '#ffeff1f5'      # Window: the background
+assert s['disabled_colors'].split(',')[0] == '#ff636679'    # WindowText, disabled: subtle" "$out/qt6ct-colors.conf"
+vikix void >/dev/null
+check "void should be dark" test "$(cat "$out/mode")" = dark
+check "void: GTK 3's theme should be Adwaita-dark" grep -qx 'Net/ThemeName "Adwaita-dark"' "$out/xsettingsd.conf"
+vikix paper >/dev/null
 
 vikix --refresh >/dev/null
 check "--refresh doesn't keep the saved theme" test "$(cat "$out/current")" = paper

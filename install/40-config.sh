@@ -115,6 +115,29 @@ fi
 # written again from the saved theme, so a Vikix update reaches them.
 "$VIKIX_DIR/bin/vikix" theme --refresh
 
+# GTK 4 and libadwaita programs take the theme's colours from a file
+# `vikix theme` writes; ~/.config/gtk-4.0/gtk.css (yours) imports it, first,
+# as CSS wants. Anything of yours in it stays, below, and wins.
+gtk4_css="${XDG_CONFIG_HOME:-$HOME/.config}/gtk-4.0/gtk.css"
+gtk4_import="@import url(\"file://${XDG_CONFIG_HOME:-$HOME/.config}/vikix/theme/gtk4.css\");  /* vikix theme's colours: keep this line first */"
+if [ "$DRY_RUN" = 1 ]; then
+  printf '   would import the theme into %s\n' "$gtk4_css"
+elif ! grep -qF "vikix/theme/gtk4.css" "$gtk4_css" 2>/dev/null; then
+  mkdir -p "$(dirname "$gtk4_css")"
+  { printf '%s\n' "$gtk4_import"; cat "$gtk4_css" 2>/dev/null || true; } > "$gtk4_css.vikix-new"
+  mv "$gtk4_css.vikix-new" "$gtk4_css"
+fi
+# Qt 6 programs, through qt6ct: the theme's palette, in Fusion's style.
+# Yours once copied; qt6ct (its own window) changes it.
+qt6ct_conf="${XDG_CONFIG_HOME:-$HOME/.config}/qt6ct/qt6ct.conf"
+if [ "$DRY_RUN" = 1 ]; then
+  printf '   would write %s once\n' "$qt6ct_conf"
+elif [ ! -e "$qt6ct_conf" ]; then
+  mkdir -p "$(dirname "$qt6ct_conf")"
+  printf '[Appearance]\ncolor_scheme_path=%s\ncustom_palette=true\nstyle=Fusion\nicon_theme=Adwaita\nstandard_dialogs=default\n' \
+    "${XDG_CONFIG_HOME:-$HOME/.config}/vikix/theme/qt6ct-colors.conf" > "$qt6ct_conf"
+fi
+
 # --- Swank's password ---------------------------------------------------------
 # Swank, in StumpWM on 127.0.0.1:4004, runs any Lisp it's sent, as you, and
 # 127.0.0.1 isn't only yours: the Windows VM reaches it through passt's

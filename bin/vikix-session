@@ -59,6 +59,14 @@ if [ -z "${SSH_AUTH_SOCK:-}" ] && command -v ssh-agent >/dev/null 2>&1; then
   vikix_ssh_agent=1
 fi
 
+# GTK 3 programs follow vikix theme (dark or light) through XSETTINGS, which
+# xsettingsd serves from the theme's file; `vikix theme` makes it read it
+# again. Qt 6 programs take the theme's palette through qt6ct.
+theme_dir="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/theme"
+command -v xsettingsd >/dev/null 2>&1 && [ -f "$theme_dir/xsettingsd.conf" ] &&
+  xsettingsd -c "$theme_dir/xsettingsd.conf" &
+export QT_QPA_PLATFORMTHEME=qt6ct
+
 pipewire &                             # audio (starts WirePlumber and pipewire-pulse)
 dunst &                                # notifications
 clipmenud &                            # remembers what you copy (Super+c)

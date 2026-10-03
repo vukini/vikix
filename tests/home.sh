@@ -43,7 +43,14 @@ stages() {
 }
 
 # --- 1. safe to re-run ------------------------------------------------------
+# A gtk.css of the user's own: it keeps its rules, below the theme's import.
+mkdir -p "$HOME/.config/gtk-4.0"
+echo 'label { color: red; }' > "$HOME/.config/gtk-4.0/gtk.css"
 stages
+check "GTK 4's gtk.css should import the theme on its first line" \
+  bash -c "head -1 '$HOME/.config/gtk-4.0/gtk.css' | grep -q '^@import url(\"file://.*/vikix/theme/gtk4.css\");'"
+check "and keep the user's own rule" grep -qx 'label { color: red; }' "$HOME/.config/gtk-4.0/gtk.css"
+check "qt6ct should be pointed at the theme's palette" grep -q '^color_scheme_path=.*/vikix/theme/qt6ct-colors.conf$' "$HOME/.config/qt6ct/qt6ct.conf"
 check "the old .stumpwmrc didn't become user.lisp" grep -q old-config "$HOME/.stumpwm.d/user.lisp"
 check ".stumpwmrc is still there, so StumpWM would skip Vikix" test ! -e "$HOME/.stumpwmrc"
 check "the existing .bashrc lost its own line" grep -q 'alias mine' "$HOME/.bashrc"

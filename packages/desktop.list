@@ -10,6 +10,9 @@ xrandr          # screens
 arandr          # screens, with a GUI
 picom           # compositor: no tearing
 dunst           # notifications
+xsettingsd      # tells GTK programs the theme (dark or light), live
+gnome-themes-extra  # Adwaita-dark for GTK 3 programs
+qt6ct           # Qt 6 programs in the theme's colours
 libnotify       # notify-send
 rofi            # launcher
 rofi-emoji      # emoji picker (Super+.)

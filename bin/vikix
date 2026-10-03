@@ -885,7 +885,97 @@ EOF
     for k in $THEME_KEYS sel; do local var="c_$k"; printf '%s=%s\n' "$k" "${!var}"; done
   } > "$THEME_OUT/palette"
   printf '%s\n' "$1" > "$THEME_OUT/current"
+  theme_toolkits "$head"
   theme_hype "$1"
+}
+
+# theme_dark — whether the theme just read is dark: its background's
+# relative luminance (WCAG) under a half.
+# shellcheck disable=SC2154  # c_bg is set by theme_read, with printf -v
+theme_dark() {
+  local hex=${c_bg#\#}
+  awk -v r=$((16#${hex:0:2})) -v g=$((16#${hex:2:2})) -v b=$((16#${hex:4:2})) \
+    'function lin(c) { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ^ 2.4 }
+     BEGIN { exit (0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b) < 0.5) ? 0 : 1 }'
+}
+
+# theme_toolkits HEAD — GTK and Qt programs (Firefox, PCManFM, LibreOffice,
+# zenity, Qt's): dark or light with the theme, in its colours where they
+# take them. GTK 3 follows its theme's name (Adwaita or Adwaita-dark) from
+# XSETTINGS, which xsettingsd (started by vikix-session) serves from
+# xsettingsd.conf; GTK 4 and libadwaita follow the colour scheme the portal
+# serves from gsettings, and take the theme's colours from gtk4.css, which
+# ~/.config/gtk-4.0/gtk.css imports; Qt 6 takes a palette, qt6ct-colors.conf,
+# through qt6ct. GTK 3's Adwaita has no colours to set from outside.
+# shellcheck disable=SC2154  # the c_* colours are set by theme_read, with printf -v
+theme_toolkits() {
+  local mode=light gtk=Adwaita
+  theme_dark && { mode=dark; gtk=Adwaita-dark; }
+  printf '%s\n' "$mode" > "$THEME_OUT/mode"
+  printf '# %s\nNet/ThemeName "%s"\nNet/IconThemeName "Adwaita"\n' "$1" "$gtk" > "$THEME_OUT/xsettingsd.conf"
+  # libadwaita 1.6 on reads the variables, older and plain GTK 4 the names.
+  local card="$c_sel" view="$c_bg" side="$c_bg"
+  cat > "$THEME_OUT/gtk4.css" <<EOF
+/* $1 */
+@define-color accent_bg_color $c_accent;
+@define-color accent_color $c_accent;
+@define-color window_bg_color $c_bg;
+@define-color window_fg_color $c_fg;
+@define-color view_bg_color $view;
+@define-color view_fg_color $c_fg;
+@define-color headerbar_bg_color $c_bg;
+@define-color headerbar_fg_color $c_fg;
+@define-color sidebar_bg_color $side;
+@define-color popover_bg_color $c_bg;
+@define-color dialog_bg_color $c_bg;
+@define-color card_bg_color $card;
+:root {
+  --accent-bg-color: $c_accent;
+  --accent-color: $c_accent;
+  --window-bg-color: $c_bg;
+  --window-fg-color: $c_fg;
+  --view-bg-color: $view;
+  --view-fg-color: $c_fg;
+  --headerbar-bg-color: $c_bg;
+  --headerbar-fg-color: $c_fg;
+  --sidebar-bg-color: $side;
+  --popover-bg-color: $c_bg;
+  --dialog-bg-color: $c_bg;
+  --card-bg-color: $card;
+}
+EOF
+  # Qt's palette, in QPalette's order: WindowText Button Light Midlight Dark
+  # Mid Text BrightText ButtonText Base Window Shadow Highlight
+  # HighlightedText Link LinkVisited AlternateBase NoRole ToolTipBase
+  # ToolTipText PlaceholderText Accent; #aarrggbb.
+  local roles=(fg sel bg sel dim dim fg fg fg bg bg black accent bg accent color5 sel black
+               sel fg subtle accent) r active=() disabled=()
+  for r in "${roles[@]}"; do
+    local var="c_$r" v
+    v=${!var:-#000000}; [ "$r" = black ] && v='#000000'
+    active+=("#ff${v#\#}")
+    [ "$r" = fg ] && v=$c_subtle     # disabled: the text quieter
+    disabled+=("#ff${v#\#}")
+  done
+  local IFS=,
+  local a="${active[*]}" d="${disabled[*]}"
+  unset IFS
+  printf '# %s\n[ColorScheme]\nactive_colors=%s\ndisabled_colors=%s\ninactive_colors=%s\n' \
+    "$1" "$a" "$d" "$a" > "$THEME_OUT/qt6ct-colors.conf"
+}
+
+# theme_toolkits_apply — running GTK programs change now: xsettingsd reads
+# its file again (GTK 3), and the colour scheme the portal tells GTK 4 about
+# changes. Qt programs take the palette when they next start.
+theme_toolkits_apply() {
+  local mode gtk
+  mode=$(cat "$THEME_OUT/mode" 2>/dev/null) || return 0
+  gtk=Adwaita; [ "$mode" = dark ] && gtk=Adwaita-dark
+  pkill -HUP -x xsettingsd 2>/dev/null || true
+  if command -v gsettings >/dev/null 2>&1; then
+    gsettings set org.gnome.desktop.interface color-scheme "$([ "$mode" = dark ] && echo prefer-dark || echo default)" 2>/dev/null || true
+    gsettings set org.gnome.desktop.interface gtk-theme "$gtk" 2>/dev/null || true
+  fi
 }
 
 # theme_omarchy — the colours theme_read set, in Omarchy's colors.toml form.
@@ -987,6 +1077,7 @@ cmd_theme() {
     pkill -USR1 -x kitty 2>/dev/null || true
     theme_editors
     theme_nyxt
+    theme_toolkits_apply
     # The theme's own wallpaper, unless you chose one (vikix-wallpaper).
     # Not on --refresh: that is `vikix update` rewriting the same theme,
     # and must not replace a picture set some other way.

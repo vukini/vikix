@@ -57,7 +57,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── wallpaper-theme    yours     exists if the wallpaper follows the theme instead of cycling
 │   │   ├── wallpaper-minutes  yours     how often the wallpaper changes when cycling (vikix-wallpaper cycle MINUTES; 30 without it)
 │   │   ├── themes/            yours     your own themes (NAME.theme, NAME.jpg)
-│   │   └── theme/             written   each program's colours, and `current`, the theme you chose (`vikix theme`)
+│   │   └── theme/             written   each program's colours, and `current`, the theme you chose (`vikix theme`); GTK's and Qt's too: `mode` (dark or light), xsettingsd.conf, gtk4.css, qt6ct-colors.conf
 │   ├── alacritty/alacritty.toml   yours  imports ../vikix/theme/alacritty.toml
 │   ├── picom/picom.conf           yours  the compositor: shadows, fading, backend
 │   ├── dunst/dunstrc              yours  notifications
