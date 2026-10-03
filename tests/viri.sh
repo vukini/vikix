@@ -126,5 +126,16 @@ check "vikix viri off from a shell: $(state)" grep -q '^tiles' <<<"$(state)"
 HOME=$home VIKIX_SWANK_PORT=$port VIKIX_DIR=$here bash "$here/bin/vikix" viri; sleep 0.5
 check "vikix viri switches it back: $(state)" grep -q '^BACD' <<<"$(state)"
 
+# Off puts back the splits the tiles had: two frames, A alone on the right.
+HOME=$home VIKIX_SWANK_PORT=$port VIKIX_DIR=$here bash "$here/bin/vikix" viri off; sleep 0.5
+find_w() { echo "(find \"$1\" (group-windows (current-group)) :key (function window-title) :test (function equal))"; }
+ask "(progn (run-commands \"only\") (run-commands \"hsplit\") (pull-window $(find_w A) (second (group-frames (current-group)))) (focus-all $(find_w D)))" >/dev/null; sleep 0.5
+ask '(run-commands "vikix-viri on")' >/dev/null; sleep 0.5
+key super+l; key super+h
+ask '(run-commands "vikix-viri off")' >/dev/null; sleep 0.5
+split=$(ask "(let* ((g (current-group)) (a $(find_w A)) (f (current-window))) (format t \"frames=~a A-alone-shown=~a focused-elsewhere=~a\" (length (group-frames g)) (eq (frame-window (window-frame a)) a) (or (eq f a) (not (eq (window-frame f) (window-frame a))))))")
+check "off puts the split back, A shown in its own frame: $split" test "$split" = "frames=2 A-alone-shown=T focused-elsewhere=T"
+check "and the window focused on the strip has the focus: $(state)" grep -q 'focus=' <<<"$(state)"
+
 [ "$fail" = 0 ] && echo "viri: a strip from tiles and back in order, walking and moving along it, new and closed windows, a dialog, another workspace, off and on"
 exit "$fail"

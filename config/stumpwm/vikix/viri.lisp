@@ -7,7 +7,8 @@
 ;;;; shrinks when a window opens. Niri's idea, as a StumpWM group type.
 ;;;;
 ;;;;   vikix-viri        this workspace becomes a strip (its windows kept,
-;;;;                     left to right as they were), or tiles again
+;;;;                     left to right as they were), or tiles again, split
+;;;;                     as they were before it was a strip
 ;;;;   Super+h / l       focus along the strip (move-focus elsewhere)
 ;;;;   Super+Shift+h / l move the column along it (move-window elsewhere)
 ;;;;
@@ -33,7 +34,10 @@ the order they stood, not each beside the focused one.")
    (left :initform 0 :accessor viri-left
          :documentation "The first column the screen shows.")
    (head :initform nil :accessor viri-group-head
-         :documentation "The screen the strip is on (one, for now).")))
+         :documentation "The screen the strip is on (one, for now).")
+   (tiles :initform nil :accessor viri-tiles
+          :documentation "The tiles' layout it was made from (dump-group), for
+vikix-viri off to put back.")))
 
 (defun viri-group-p (&optional (group (current-group)))
   (typep group 'viri-group))
@@ -255,7 +259,9 @@ windows, in the order they stood. GROUP must be the current one."
          (new (make-swm-class-instance type :screen screen :name (concat ".viri-" name)
                                             :number (find-free-hidden-group-number screen))))
     (when (typep new 'viri-group)
-      (setf (viri-group-head new) (current-head)))
+      (setf (viri-group-head new) (current-head)
+            ;; The splits and which window was in each, to go back to.
+            (viri-tiles new) (and (typep group 'tile-group) (ignore-errors (dump-group group)))))
     (setf (screen-groups screen) (append (screen-groups screen) (list new)))
     ;; Moved first, then shown: switching to it shows the windows it has.
     (let ((*viri-appending* t))
@@ -269,12 +275,18 @@ windows, in the order they stood. GROUP must be the current one."
           (unfloat-window w new))))
     (switch-to-group new)
     (kill-group group new)
+    ;; Off: the splits it had before it was a strip, each window back in its
+    ;; frame (one opened on the strip joins the current frame).
+    (when (and (typep new 'tile-group) (viri-group-p group) (viri-tiles group))
+      (if (fboundp 'vikix-restore-layout)
+          (funcall 'vikix-restore-layout new (viri-tiles group))
+          (restore-group new (viri-tiles group))))
     (setf (group-name new) name
           (group-number new) number)
     (netwm-set-group-properties screen)
     (netwm-update-groups screen)
     (when (and focused (member focused (group-windows new)))
-      (group-focus-window new focused))
+      (if (typep new 'tile-group) (focus-all focused) (group-focus-window new focused)))
     new))
 
 (defcommand vikix-viri (&optional what) ((:string nil))
