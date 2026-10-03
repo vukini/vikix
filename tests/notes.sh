@@ -39,7 +39,9 @@ port=$(cat "$t/port")
 [ -n "$port" ] || { echo "FAIL: the fake servers didn't start"; exit 1; }
 
 # A made-up home; uv keeps its real cache, so the libraries aren't fetched again.
-UV_CACHE_DIR=$(uv cache dir); export UV_CACHE_DIR
+# NO_COLOR: where colour is forced (FORCE_COLOR, as in an agent's shell), uv
+# prints the folder inside colour codes, and that was taken for its name.
+UV_CACHE_DIR=$(NO_COLOR=1 uv cache dir); export UV_CACHE_DIR
 export HOME="$t/home"; mkdir -p "$HOME/bin"
 unset XDG_CONFIG_HOME XDG_DATA_HOME ANTHROPIC_AUTH_TOKEN ANTHROPIC_PROFILE
 export ANTHROPIC_BASE_URL="http://127.0.0.1:$port" OLLAMA_HOST="127.0.0.1:$port" ANTHROPIC_API_KEY=test-key-123
