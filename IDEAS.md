@@ -133,6 +133,17 @@ Two of the day's ideas are already worked out as designs, so they go to `TODO.md
 
 Worked out as `DESIGN-cuis.md`: `vikix add cuis` from pinned packages, a `vikix eval --cuis` door with Swank's password and guard, the desktop drawn as objects in Morphic, the music sketchpad's second face, lessons that change the running image, and a docs adapter for class comments. One idea stays here: **the other living image, as a book.** The Common Lisp book is *Living in the Image*; Cuis is the other image one can live in, and one language against two images is a chapter nobody has written. For the Living Series file when the time comes.
 
+### PicoLisp
+
+Vikix already builds pil21 from the release tarball (`65-languages`, into `~/.local/opt/picolisp`; Void has no package, checked 2026-10-03) and gives it `~/dev/picolisp`. What its particular strengths buy beyond a working language: a database that is part of the language with Pilog to query it, its own HTTP server and form library, `native` for calling any C library without glue, and a debugger in `pil +`. Four uses, in order; none decided.
+
+- **The music catalogue, a book project and a feature at once.** Track X of *Living in PicoLisp* is "a music catalogue"; `DESIGN-music.md` has an inbox of captures and renders, and a later item for a sample library by detected key and tempo. The same artefact: a pil program that watches `~/music/inbox/` and `render/`, calls aubio and libkeyfinder through `native` for tempo and key, keeps each capture as a database object, answers Pilog questions ("every loop in E minor near 90 bpm, newest first") and serves the result as a page on loopback with pil's own server. The book writes it in public; Vikix ships it (`vikix add music-catalogue`, or inside `music`). What the Living Series workshop section of `TODO.md` is for.
+- **A docs adapter** (`DESIGN-docs.md`): pil21 ships its whole reference as HTML in `@doc/` (the function index, the tutorial, the FAQ; `(doc 'car)` opens an entry), and Zeal has no PicoLisp docset, so the catalogue is the only way these reach `Super+h`. An hour; the files are already in `~/.local/opt/picolisp/doc/`.
+- **A door, `vikix eval --pil`.** A listening task on loopback in about twenty lines of PicoLisp: the password file's first line within five seconds, then one expression a line and its value back; the same shape as Swank's and Cuis's. `vikix mcp` gets `pil_eval` behind `--allow-eval`, so the agent can read the catalogue's database and help build track X.
+- **`vikix learn picolisp`.** `TUTORIALS.md` lists the runner's next languages (lisp, forth, haskell, sql); PicoLisp joins them, with the site's ten tracks as the syllabus and the steps as shared files, rendered on the site and run by `vikix learn` on the laptop under the same evidence rule.
+
+Not: a fourth implementation language for Vikix itself (bash, Python and Common Lisp are three already; PicoLisp earns a place only where its database is the point); a replacement for SQLite in `vikix records` or the docs index; the music sketchpad's face (pil's forms are server-driven pages, wrong for a sequencer that changes on the next bar).
+
 ### Music, beyond the design
 
 - **Reaper as a second DAW feature.** `vikix add reaper`, from reaper.fm, pinned and checksummed as Ollama is; the same OSC transport commands behind it, so the Lisp side doesn't care which DAW is listening. Ardour stays the default of `vikix add music` because it's free and in Void.

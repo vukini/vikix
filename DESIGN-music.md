@@ -144,7 +144,7 @@ Under the grid, a strip shows the form that just changed, as text, as you click.
 
 ### Later (P2), designed for now
 
-16. Esploro recipe: sort a sample folder by detected key and tempo, plan-then-apply with undo.
+16. Esploro recipe: sort a sample folder by detected key and tempo, plan-then-apply with undo. The catalogue behind it may be the PicoLisp music catalogue (IDEAS, "PicoLisp": track X of *Living in PicoLisp*, a pil program with its database, Pilog and `native` calls to aubio and libkeyfinder, serving a page on loopback), so the inbox's captures and the renders are its first records.
 17. `vikix learn music`: the Music Theory syllabus as lessons whose steps are forms in this language. Shares the syllabus with the React app, not the code.
 18. The function time machine for patterns: a history of a pattern's versions beyond snapshots.
 19. Live performance mode: full-screen pads, no editing, a panic key.
