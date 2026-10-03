@@ -182,8 +182,23 @@ DESKTOP_FORM = JSON_HELPERS % r"""
   (let ((cw (current-window)))
     (format nil "{\"workspaces\":[~{~a~^,~}],\"screens\":[~{~a~^,~}]}"
       (mapcar (lambda (g)
-                (format nil "{\"name\":~a,\"number\":~d,\"current\":~a,\"windows\":[~{~a~^,~}]}"
+                (format nil "{\"name\":~a,\"number\":~d,\"current\":~a,\"kind\":~a,\"strip\":~a,\"windows\":[~{~a~^,~}]}"
                   (str (short (group-name g))) (group-number g) (bool (eq g (current-group)))
+                  ;; tiles, a strip (viri.lisp: its columns left to right, each
+                  ;; its share of the screen, its windows top to bottom by
+                  ;; number, and whether it's wholly on the screen), or floating.
+                  (str (cond ((and (fboundp 'viri-group-p) (funcall 'viri-group-p g)) "strip")
+                             ((typep g 'tile-group) "tiles")
+                             (t "floating")))
+                  (if (and (fboundp 'viri-group-p) (funcall 'viri-group-p g))
+                      (let ((shown (ignore-errors (funcall 'viri-visible g))))
+                        (format nil "{\"columns\":[~{~a~^,~}]}"
+                          (loop for c in (funcall 'viri-cols g)
+                                for i from 0
+                                collect (format nil "{\"width\":~a,\"on_screen\":~a,\"windows\":[~{~d~^,~}]}"
+                                          (str (funcall 'viri-col-width c)) (bool (member i shown))
+                                          (mapcar #'window-number (funcall 'viri-col-windows c))))))
+                      "null")
                   (mapcar (lambda (w)
                             (format nil "{\"number\":~d,\"title\":~a,\"class\":~a,\"focused\":~a}"
                               (window-number w) (str (short (window-title w))) (str (short (window-class w))) (bool (eq w cw))))

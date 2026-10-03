@@ -197,6 +197,19 @@ xdotool type "$first"; key Return
 check "Super+o's menu goes to the window picked ($first): $(state)" test "$(ask '(princ (window-title (current-window)))')" = "$first"
 check "and scrolls the strip to it" test "$(ask '(princ (if (member 0 (viri-visible (current-group))) 1 0))')" = 1
 
+# The agents' desktop tool (vikix mcp) sees a strip: its kind and columns.
+mcp=$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"desktop","arguments":{}}}' |
+      HOME=$home VIKIX_SWANK_PORT=$port VIKIX_DIR=$here python3 "$here/bin/vikix-mcp" 2>/dev/null)
+strip=$(python3 -c '
+import json, sys
+reply = json.loads(sys.stdin.read().splitlines()[-1])
+d = json.loads(reply["result"]["content"][0]["text"])
+w = [w for w in d["workspaces"] if w["current"]][0]
+cols = w["strip"]["columns"]
+print(w["kind"], len(cols), sum(len(c["windows"]) for c in cols) <= len(w["windows"]), any(c["on_screen"] for c in cols), all(c["width"] in ("1/3", "1/2", "2/3", "1") for c in cols))
+' <<<"$mcp" 2>&1)
+check "the desktop tool reports the strip, its columns, widths and what is on the screen: $strip" test "$strip" = "strip $(ask '(princ (length (viri-cols (current-group))))') True True True"
+
 # The rules: on a strip, "Wide" opens two thirds wide, "Under" joins the
 # column on its left; on tiles they do nothing (no error, no menu).
 ask '(run-commands "vikix-viri on")' >/dev/null; sleep 0.5
@@ -206,5 +219,9 @@ win Under
 check "a rule's (join :left) puts the new window under the column on its left: $(cols)" grep -q 'WideUnder' <<<"$(cols)"
 check "the rules ran without failing" test "$(ask '(princ (reduce (function +) (mapcar (function vikix-rule-failures) *vikix-rules*)))')" = 0
 
-[ "$fail" = 0 ] && echo "viri: a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, the overview, new and closed windows, a dialog, another workspace, off and on"
+if [ "$fail" != 0 ]; then
+  echo "--- the test StumpWM's last words ($( kill -0 "${pids[1]}" 2>/dev/null && echo running || echo gone)):"
+  tail -25 "$t/wm.log" | sed 's/^/    /'
+fi
+[ "$fail" = 0 ] && echo "viri: a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, the overview, the agents' desktop tool, new and closed windows, a dialog, another workspace, off and on"
 exit "$fail"

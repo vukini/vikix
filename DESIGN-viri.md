@@ -22,7 +22,8 @@ What building it settled, against the plan below:
 - **Widths** (0.71.96): a strip is a list of columns, each with its windows top to bottom and a width (a third, a half, two thirds, all), scrolled by pixels; Super+r on a strip cycles the width (`vikix-width-or-remove`: `remove` on tiles), and the strip scrolls only as far as it must to show the focused column whole, so a neighbour can show in part, as in Niri.
 - **Stacking** (0.71.97): Niri's consume-or-expel on Super+[ and Super+] rather than the planned Super+Shift+j/k, which move a window up and down its column instead; a column's windows share its height evenly.
 - **The overview** (a menu, 0.71.105) is Super+o on a strip, not Super+Tab: Super+o already means "every window on this workspace, pick one" (expose, tiles only), and Super+Tab's "the last window" works on a strip too. Rule verbs `width` and `join` came in 0.71.104.
-- **Not done:** the drawn overview, `vikix project` saving a strip, the agent's `desktop` tool reporting columns.
+- **The agents see strips** (0.71.106): the MCP `desktop` tool gives each workspace's kind, and a strip's columns with their widths, windows and which are on the screen.
+- **Not done:** the drawn overview, `vikix project` saving a strip.
 
 ## The problem
 
