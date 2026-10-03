@@ -11,6 +11,7 @@
 # looked into from another console. The previous session's log is kept.
 # Yours alone: the logs carry the pages a browser had open, file names,
 # and whatever the programs you ran printed (40-config does this too).
+session_start=$(date +%s.%N)
 log_dir="${XDG_STATE_HOME:-$HOME/.local/state}/vikix"
 mkdir -p "$log_dir"
 chmod 700 "$log_dir"
@@ -114,7 +115,8 @@ command -v spice-vdagent >/dev/null 2>&1 && spice-vdagent
 # programs with it, but pipewire is not an X program and would live on.
 set +x
 echo "starting StumpWM"
-"$HOME/.local/bin/stumpwm"
+# When the session began: StumpWM notes, once ready, how long it took (vikix times).
+VIKIX_SESSION_START=$session_start "$HOME/.local/bin/stumpwm"
 echo "StumpWM exited with status $?"
 [ -n "${vikix_ssh_agent:-}" ] && ssh-agent -k >/dev/null
 # shellcheck disable=SC2046  # split on purpose: one argument per job

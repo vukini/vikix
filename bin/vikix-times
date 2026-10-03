@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+"""vikix times — how long the desktop takes.
+
+  vikix times            this desktop's own measures: logging in (the
+                         session started to the desktop ready) and each
+                         Reload config, the last and the usual (the median
+                         of the last 10), against their limits
+  vikix times measure    measure now on a hidden screen, with this
+                         checkout's config (a few seconds, nothing on your
+                         screen): StumpWM's start, a reload, a key to its
+                         command, an Emacs frame, StumpWM answering; kept,
+                         so the next one says what changed
+
+The limits are lib/times.limits; tests/times.sh fails above them.
+"""
+import os
+import statistics
+import subprocess
+import sys
+
+HERE = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+STATE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "vikix")
+LOG = os.path.join(STATE, "times.log")
+MEASURED = os.path.join(STATE, "times-measured.log")
+NAMES = {"login": "logging in", "reload": "Reload config", "start": "StumpWM's start",
+         "key": "a key to its command", "emacs": "an Emacs frame", "answer": "StumpWM answering"}
+
+
+def limits():
+    out = {}
+    with open(os.path.join(HERE, "lib", "times.limits")) as f:
+        for line in f:
+            parts = line.split("#")[0].split()
+            if len(parts) == 2:
+                out[parts[0]] = float(parts[1])
+    return out
+
+
+def fmt(s):
+    return f"{s * 1000:.0f} ms" if s < 1 else f"{s:.1f} s"
+
+
+def read(path):
+    rows = []
+    try:
+        with open(path) as f:
+            for line in f:
+                p = line.split()
+                if len(p) == 3:
+                    rows.append((p[0], p[1], float(p[2])))
+    except (FileNotFoundError, ValueError):
+        pass
+    return rows
+
+
+def show():
+    lim, rows = limits(), read(LOG)
+    if not rows:
+        print("Nothing measured on this desktop yet: the next login and Reload config are.\n"
+              "vikix times measure measures now, on a hidden screen.")
+        return 0
+    slow = 0
+    for what in ("login", "reload"):
+        mine = [r for r in rows if r[1] == what]
+        if not mine:
+            continue
+        last, usual = mine[-1][2], statistics.median(r[2] for r in mine[-10:])
+        over = what in lim and last > lim[what]
+        slow += over
+        print(f"{NAMES[what]:<22} {fmt(last):>8}  (usual {fmt(usual)}, limit {fmt(lim.get(what, 0))})"
+              f"{'   SLOW' if over else ''}   {mine[-1][0].replace('T', ' ')}")
+    return 1 if slow else 0
+
+
+def measure():
+    lim = limits()
+    before = {}
+    for when, what, s in read(MEASURED):
+        before[what] = s
+    r = subprocess.run(["bash", os.path.join(HERE, "lib", "times-measure.sh")], capture_output=True, text=True)
+    if r.returncode != 0:
+        sys.exit(r.stderr.strip() or "vikix times: measuring failed")
+    from datetime import datetime
+    stamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+    slow = 0
+    os.makedirs(STATE, exist_ok=True)
+    with open(MEASURED, "a") as out:
+        for line in r.stdout.split("\n"):
+            p = line.split()
+            if len(p) != 2:
+                continue
+            what, s = p[0], float(p[1])
+            out.write(f"{stamp} {what} {s}\n")
+            over = what in lim and s > lim[what]
+            slow += over
+            was = f", was {fmt(before[what])}" if what in before else ""
+            print(f"{NAMES.get(what, what):<22} {fmt(s):>8}  (limit {fmt(lim.get(what, 0))}{was})"
+                  f"{'   SLOW' if over else ''}")
+    return 1 if slow else 0
+
+
+def main(argv):
+    cmd = argv[0] if argv else "show"
+    if cmd in ("-h", "--help", "help"):
+        print(__doc__.strip())
+        return 0
+    if cmd == "measure":
+        return measure()
+    if cmd == "show":
+        return show()
+    sys.exit(f"vikix times: no command {cmd} (vikix times help)")
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

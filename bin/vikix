@@ -12,6 +12,9 @@
 #   vikix docs          download the offline programming docs into ~/dev
 #                         (a few GB, slow; update and the installer skip them)
 #   vikix doctor        check the pieces are all there
+#   vikix times [measure] how long logging in and a reload take; measure
+#                         = on a hidden screen: start, reload, a key, an
+#                         Emacs frame, StumpWM answering, against limits
 #   vikix features      what you can add (languages, editors, LibreOffice,
 #                         printing, Windows, local AI ...), and what you have
 #   vikix add NAME...   add features, or a bundle (essentials, developer,
@@ -1307,6 +1310,7 @@ main() {
     esploro)     shift; exec "$VIKIX_DIR/bin/vikix-esploro" "$@" ;;
     plugin|plugins) shift; exec "$VIKIX_DIR/bin/vikix-plugin" "$@" ;;
     records)     shift; exec "$VIKIX_DIR/bin/vikix-records" "$@" ;;
+    times)       shift; exec "$VIKIX_DIR/bin/vikix-times" "$@" ;;
     obsidian)    shift; exec "$VIKIX_DIR/bin/vikix-obsidian" "$@" ;;
     bitwarden)   shift; exec "$VIKIX_DIR/bin/vikix-bitwarden" "$@" ;;
     voice)       shift; exec "$VIKIX_DIR/bin/vikix-voice" "$@" ;;

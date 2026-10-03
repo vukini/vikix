@@ -123,9 +123,44 @@ shell pane and the split it had."
   "Open a terminal: whichever program *vikix-terminal* names."
   (run-shell-command *vikix-terminal*))
 
+;;; How long things take (vikix times): each measure a line of
+;;; ~/.local/state/vikix/times.log, "2026-10-03T14:30:02 login 4.21".
+
+(defun vikix-now ()
+  "Seconds since 1970, to the microsecond."
+  (multiple-value-bind (s us) (sb-ext:get-time-of-day)
+    (+ s (/ us 1000000d0))))
+
+(defun vikix-time-note (what seconds)
+  (ignore-errors
+   (let ((file (merge-pathnames ".local/state/vikix/times.log" (user-homedir-pathname))))
+     (ensure-directories-exist file)
+     (with-open-file (out file :direction :output :if-exists :append :if-does-not-exist :create)
+       (multiple-value-bind (s mi h d mo y) (decode-universal-time (get-universal-time))
+         (format out "~d-~2,'0d-~2,'0dT~2,'0d:~2,'0d:~2,'0d ~a ~,2f~%" y mo d h mi s what seconds))))))
+
+(defun vikix-time-ready ()
+  "The desktop is ready: how long since vikix-session started (it sets
+VIKIX_SESSION_START), its config loaded."
+  (let ((start (getenv "VIKIX_SESSION_START")))
+    (when (and start (plusp (length start)))
+      ;; Read as a double: a single float can't hold the seconds since 1970.
+      (let* ((dot (or (position #\. start) (length start)))
+             (whole (ignore-errors (parse-integer start :end dot)))
+             (frac (subseq start (min (length start) (1+ dot))))
+             (s (and whole (+ whole (if (plusp (length frac))
+                                        (/ (or (ignore-errors (parse-integer frac)) 0)
+                                           (expt 10d0 (length frac)))
+                                        0d0)))))
+        (when s (vikix-time-note "login" (- (vikix-now) s)))))))
+
+(add-hook *start-hook* 'vikix-time-ready)
+
 (defcommand vikix-reload () ()
   "Reload the whole configuration (Vikix's files and user.lisp)."
-  (loadrc))   ; loadrc prints its own confirmation
+  (let ((t0 (vikix-now)))
+    (loadrc)    ; loadrc prints its own confirmation
+    (vikix-time-note "reload" (- (vikix-now) t0))))
 
 (defcommand vikix-theme (name) ((:string "Theme: "))
   "Switch to the theme called NAME everywhere: StumpWM, the terminals,

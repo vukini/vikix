@@ -1,0 +1,12 @@
+# The longest each measure may take, in seconds, before tests/times.sh
+# fails and `vikix times` says it's slow. Measured on the X1 Carbon
+# (2026-10-03), quiet: start 1.8, reload 1.0, key 0.01, emacs 0.7, answer
+# 0.05; with other sessions' tests running beside it, two to five times
+# that. The limits leave room for a busy machine, not for what they're
+# here to catch: a reload back at 15 s, a main thread kept busy by a loop.
+start   10
+reload  6
+key     0.5
+emacs   6
+answer  3
+login   20

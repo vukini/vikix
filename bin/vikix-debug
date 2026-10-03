@@ -80,6 +80,7 @@ report() {
   section "Void" cat /etc/os-release
   section "xbps" xbps-query --version
   section "Uptime and load" uptime
+  section "How long things took (vikix times)" bash -c "tail -n 20 '$VIKIX_STATE/times.log' 2>/dev/null; tail -n 12 '$VIKIX_STATE/times-measured.log' 2>/dev/null"
   section "Memory" free -h
   section "Disk" df -h / "$HOME"
   section "CPU" lscpu

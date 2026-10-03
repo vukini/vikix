@@ -142,6 +142,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 | `mimeapps-offered` | The starter's default programs already offered to your `~/.config/mimeapps.list` (added, or yours kept), so each is offered once |
 | `wallpaper-now`, `wallpaper.lock` | The picture the cycling wallpaper shows, and the lock that keeps its watcher (`vikix-wallpaper --watch`) to one |
 | `initramfs-*` | Marks that the initramfs was rebuilt with this microcode |
+| `times.log`, `times-measured.log` | How long things took: each login and Reload config on this desktop, and each `vikix times measure` ([When something breaks](fixing.md#the-desktop-feels-slow)) |
 | `obsidian/` | `vikix obsidian`'s record: which folders of the vault are converted, each note as it was written (so one you changed since is left alone), and each folder's report |
 
 ### `~/dev`
