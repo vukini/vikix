@@ -44,7 +44,7 @@ VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 # A commit, not a branch: an update brings a new Esploro only when Vikix
 # moves this pin, after trying it.
 ESPLORO_REPO=https://github.com/vukini/esploro
-ESPLORO_COMMIT=70a130be2df8b24209da0c6401066b08f052734c # menus: Esploro's alone; the grid (G)
+ESPLORO_COMMIT=786e63b0015598c6f590dcf5832f31c31661734b # Open on Workspace (M-o); menus Esploro's alone
 OPT="$HOME/.local/opt/esploro"
 BIN="$HOME/.local/bin"
 APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
