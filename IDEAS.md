@@ -98,3 +98,42 @@ From the Nyxt work of 2026-10-02 (the guide is `docs/nyxt.md`; the page tools th
 - **Clip into a project's log**: clip-selection's quote through `vikix project log NAME`, with a prompt for the project.
 - **A QR code of a link or of the selection**, not only the page: `cl-qrencode` as `show-url-qrcode` uses it.
 - **Bigger:** commands joining Nyxt to the desktop (a page into a project's log, a site as a web app, show a file in Esploro, the window to a workspace); address rewrites and blocked domains (Nyxt's request hook); Ctrl+Space sources for `~/dev`'s docs, `vikix project` folders and links from notes; Lisp-made `nyxt:` pages (a start page with the projects, `vikix today`, the key card from StumpWM); a `vikix learn c` lesson page with a **Check** button that runs the checker beside the lesson.
+
+## Gathered on 2026-10-03, in a conversation with Vid
+
+Two of the day's ideas are already worked out as designs, so they go to `TODO.md` instead when picked up: `DESIGN-music.md` (the musical sketchpad: patterns as Lisp, a codeless grid over them, the inbox, "send to Ardour") and `DESIGN-docs.md` (one catalogue over every document on the machine, `Super+h`, the agent's `docs_search`, and the `vk` alias, prefix matching and tab completion). The rest are here, none decided.
+
+### The desktop, from the inside
+
+- **"Why did that happen?"** `Super+?` after anything (a window jumped workspaces, a key did something odd, a notification came) shows the command, rule or line of `user.lisp` that caused it, with Edit and Undo beside it. StumpWM runs every action through `run-commands` already; a ring of the last fifty, each with its source, is small. Only a desktop that is a program can answer this.
+- **One command registry for Vikix itself.** Today the same commands are described three times by hand: `*vikix-bindings*` in `keys.lisp` (key, command, blurb), `*vikix-menu*` and friends in `commands.lisp` (label, action, what it needs) and the fixed tool list in `vikix-mcp`; the agents' `SKILL.md` is a fourth copy. A `define-vikix-command` with name, doc, key, menu group, needs and an `agent-safe` flag would generate the key map, Super+m, Super+F1, the MCP tool list and the command section of the skill from one place, so the agent is never offered a command the key map doesn't know. Esploro's `define-file-command` is the model.
+- **`vikix pick`, and rofi retired from the scripts.** Super+m and Super+F1 are already StumpWM's own `select-from-menu`; rofi is left doing the launcher, clipmenu, emoji, calc and seven `rofi -dmenu` pickers in `vikix-ask`, `-drives`, `-esploro`, `-local-ai`, `-notifications`, `-project` and `-wallpaper`. A `vikix pick` (lines in, choice out, through `vikix eval`) lets those seven drop rofi today and follow the theme for free; the launcher then needs only `.desktop` parsing and fuzzy matching in Lisp. Emoji and calc are the one thing rofi does that this wouldn't. This is item 4 of "Lisp apps for the Lisp desktop", found to be smaller than it sounds.
+
+### Trust you can check
+
+- **The outbound ledger.** One page: everything that left the laptop today, by program. Claude calls (`vikix mcp status` and `llm logs` already know), package fetches, Dropbox, the agents. The site says "nothing left the laptop" in several places; a ledger lets anyone check.
+- **Try before you trust.** `vikix try PROGRAM`: run anything in a bubblewrap sandbox (in Void) with a throwaway home, see what it wants to touch (the ledger reports it), then install for real or let it vanish.
+- **Guest.** `vikix guest`: a fresh login that sees none of your files, keys or sessions, wiped when it logs out. For lending the laptop to a visitor, or a child for ten minutes. On Void: a user, a tmpfs home, one StumpWM group.
+
+### Documentation that acts
+
+- **"Do it" buttons in the guides.** Every command on a guide page in Nyxt gets a button that sends the form to StumpWM through the checked route the agent uses, snapshot first. With the docs catalogue (`DESIGN-docs.md`), any Markdown on the machine gets the same: a README's install steps become buttons. Nyxt is Lisp, so this is a page hook, not a program.
+- **Show me how.** Ask the agent "how do I split the screen" and the desktop demonstrates instead of answering: `vikix-osd` shows the key, StumpWM performs it slowly, the bar names what changed. Teaching by doing, from the OSD and the eval route already there. The children's account would get a lot from this.
+
+### Files and care
+
+- **Any file, as it was.** `vikix backup` runs restic; Esploro gets a right-click "Versions…" listing a file's snapshots by date, restoring one as a plan with undo. Time Machine's best feature inside the file explorer, with Esploro's review in front of it.
+- **See better.** A Super+m entry that enlarges everything in one step (fonts, bar, rofi, Emacs, Firefox, through one scale in `vikix theme`), switches to a high-contrast theme and offers a dyslexia-friendly font, and back. One theme file for the whole desktop is what makes this possible to do properly.
+
+### Windows programs as native windows
+
+- **Office in its own windows, through RemoteApp.** RDP's RemoteApp mode exports one Windows program's window instead of the whole desktop, and FreeRDP shows it as an ordinary X window, so StumpWM tiles Excel beside Emacs like anything else (what the WinApps project does elsewhere). The pieces are in place: `vikix windows create` installs Windows 11 **Pro**, which has the RDP server (Home doesn't); the VM is on the private `virbr0`, so port 3389 is reachable only from this machine; `freerdp` 3.32.1 is in Void (checked 2026-10-03); `~/Windows` is `Z:`, so a file opened from Esploro has a path Windows can see. To add: Remote Desktop and the `fAllowUnlistedRemotePrograms` key in the install's answer file; `vikix windows app excel [FILE]`, which starts the VM if it's off and runs `xfreerdp /app:program:EXCEL.EXE /app:cmd:"Z:\…" /clipboard /sound /dynamic-resolution`, the password from the key store, never on the command line; `.desktop` files for Word, Excel, PowerPoint and Outlook so they're in the launcher and Super+m, and `mimeapps.list` entries so a `.xlsx` opens in Excel from Esploro with LibreOffice under "open with"; a scan of the VM's Start Menu over the share so new Windows programs appear on the Linux side by themselves. Limits: SPICE stays for the full desktop, RDP for apps (both can run); clipboard and files cross, drag-and-drop doesn't; the first launch waits for Windows to boot, so keeping the VM running is a setting worth having on the Z13 (memory) and off on the X1; what the Windows licence says about RDP use is Vid's to read.
+
+### Music, beyond the design
+
+- **Reaper as a second DAW feature.** `vikix add reaper`, from reaper.fm, pinned and checksummed as Ollama is; the same OSC transport commands behind it, so the Lisp side doesn't care which DAW is listening. Ardour stays the default of `vikix add music` because it's free and in Void.
+- **Carla is not in Void** (checked 2026-10-03): TODO item 22 names it; Ardour hosts LV2 itself, so drop Carla or build it from source.
+
+### Website notes (vikix.dev, reviewed 2026-10-03)
+
+Fixes agreed and briefed to an agent: the agent transcript and nav overflow on phones, the hero screenshot unreadable at phone width, the name repeated three times before the pitch; the AI feature list cut to three headline items with the rest folded; the Void material moved to its own page; the `llm` commit-message demo replaced or dropped; a FAQ entry on Swank that says what's true (localhost only, `~/.slime-secret`, the auth deadline in `swank-guard.lisp`), since the earlier draft of that entry wrongly said there was no authentication.
