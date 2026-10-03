@@ -93,7 +93,7 @@ of a reload's 15 seconds, and the desktop stood still meanwhile."
     ;; frames (StumpWM's splits)
     ("s-b"    "hsplit"            "Split: side by side")
     ("s-v"    "vsplit"            "Split: one above the other")
-    ("s-r"    "remove"            "Remove this split")
+    ("s-r"    "vikix-width-or-remove" "Remove this split (on a strip: the column's width)")
     ("s-o"    "expose"            "Every window on this workspace in a grid; pick one (Super+u undoes it)")
     ("s-O"    "vikix-grid"        "Grid mode on/off: windows stay tiled in a grid as they open and close")
     ("s-z"    "vikix-solo"        "Focus: only this window; again puts the others back")

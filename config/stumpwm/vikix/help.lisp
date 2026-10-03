@@ -65,7 +65,7 @@ front, so a name like Brightness-up is never mistaken for one."
      "vikix-project")
     ("AI & voice" "vikix-agent" "vikix-ask" "vikix-dictate" "vikix-voice")
     ("Windows & frames" "delete" "fullscreen" "pull-hidden-other" "next" "prev"
-     "move-focus" "move-window" "vikix-focus" "vikix-move" "vikix-viri" "hsplit" "vsplit" "remove" "expose" "vikix-grid" "vikix-solo"
+     "move-focus" "move-window" "vikix-focus" "vikix-move" "vikix-viri" "vikix-width-or-remove" "hsplit" "vsplit" "remove" "expose" "vikix-grid" "vikix-solo"
      "toggle-gaps" "winner-undo" "winner-redo" "global-windowlist"
      "global-pull-windowlist" "beckon" "vikix-float" "vikix-titlebars" "vikix-title")
     ("Workspaces" "gselect" "gmove" "grouplist")

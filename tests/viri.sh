@@ -143,5 +143,26 @@ split=$(ask "(let* ((g (current-group)) (a $(find_w A)) (f (current-window))) (f
 check "off puts the split back, A shown in its own frame: $split" test "$split" = "frames=2 A-alone-shown=T focused-elsewhere=T"
 check "and the window focused on the strip has the focus: $(state)" grep -q 'focus=' <<<"$(state)"
 
-[ "$fail" = 0 ] && echo "viri: a strip from tiles and back in order, walking and moving along it, new and closed windows, a dialog, another workspace, off and on"
+# Widths: Super+r on a strip, a third, a half, two thirds, all of it. The
+# strip scrolls to show the focused column whole.
+ask '(run-commands "vikix-viri on")' >/dev/null; sleep 0.5
+width() { ask '(let ((p (window-parent (current-window)))) (format t "~a ~a" (xlib:drawable-x p) (+ (xlib:drawable-width p) (* 2 (xlib:drawable-border-width p)))))'; }
+key super+r
+read -r x w <<<"$(width)"
+check "Super+r: two thirds of the screen, wholly on it: $x $w" test "$w" = 853 -a "$x" -ge 0 -a $((x + w)) -le 1280
+key super+r
+check "Super+r again: the whole screen: $(width)" test "$(width)" = "0 1280"
+key super+r
+read -r x w <<<"$(width)"
+check "and again: a third: $x $w" test "$w" = 426 -a "$x" -ge 0
+key super+r
+read -r x w <<<"$(width)"
+check "and round to a half: $x $w" test "$w" = 640
+ask '(run-commands "vikix-viri off")' >/dev/null; sleep 0.5
+ask '(run-commands "hsplit")' >/dev/null; sleep 0.3
+frames=$(ask '(princ (length (group-frames (current-group))))')
+key super+r
+check "on tiles Super+r still removes a split" test "$(ask '(princ (length (group-frames (current-group))))')" = $((frames - 1))
+
+[ "$fail" = 0 ] && echo "viri: a strip from tiles and back in order, walking and moving along it, widths, new and closed windows, a dialog, another workspace, off and on"
 exit "$fail"

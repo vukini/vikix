@@ -11,8 +11,12 @@
 ;;;;                     as they were before it was a strip
 ;;;;   Super+h / l       focus along the strip (move-focus elsewhere)
 ;;;;   Super+Shift+h / l move the column along it (move-window elsewhere)
+;;;;   Super+r           the column's width: a third, a half, two thirds,
+;;;;                     the whole screen (remove a split elsewhere)
 ;;;;
-;;;; Phase 0: one window a column, all half the screen, no overview. A
+;;;; A column holds its windows top to bottom (one, until stacking comes),
+;;;; and has a width of its own; the strip scrolls just far enough to show
+;;;; the focused column whole. No overview yet. A
 ;;;; Viri workspace is a float group whose windows Viri places itself, so
 ;;;; StumpWM's own floating code (focus, raising, fullscreen, dialogs) does
 ;;;; the rest. Columns off the screen are moved past its edge, not hidden:
@@ -20,24 +24,39 @@
 
 (in-package :stumpwm)
 
-(defparameter *viri-visible-columns* 2
-  "How many columns the screen shows at once: each is the screen's width
-divided by this.")
+;;; How wide a column is: a part of the screen. Super+r goes through these.
+(defparameter *viri-widths* '(1/3 1/2 2/3 1)
+  "The widths a column can have, as parts of the screen's width.")
+
+(defparameter *viri-default-width* 1/2
+  "A new column's width.")
 
 (defvar *viri-appending* nil
   "True while a workspace becomes a strip: its windows go in at the end, in
 the order they stood, not each beside the focused one.")
 
+(defstruct (viri-col (:constructor make-viri-col (windows &optional (width *viri-default-width*))))
+  (windows '())   ; top to bottom
+  (width 1/2)     ; a part of the screen's width
+  (focus nil))    ; the one of its windows focused last
+
 (define-swm-class viri-group (float-group)
-  ((columns :initform '() :accessor viri-columns
-            :documentation "The strip's windows, left to right, one a column.")
-   (left :initform 0 :accessor viri-left
-         :documentation "The first column the screen shows.")
+  ((cols :initform '() :accessor viri-cols
+         :documentation "The strip's columns, left to right (viri-col).")
+   (offset :initform 0 :accessor viri-offset
+           :documentation "How far the strip is scrolled, in pixels from its left end.")
    (head :initform nil :accessor viri-group-head
          :documentation "The screen the strip is on (one, for now).")
    (tiles :initform nil :accessor viri-tiles
           :documentation "The tiles' layout it was made from (dump-group), for
 vikix-viri off to put back.")))
+
+(defun viri-columns (group)
+  "The strip's windows in order: column by column, each top to bottom."
+  (loop for c in (viri-cols group) append (copy-list (viri-col-windows c))))
+
+(defun viri-col-of (group window)
+  (find-if (lambda (c) (member window (viri-col-windows c))) (viri-cols group)))
 
 (defun viri-group-p (&optional (group (current-group)))
   (typep group 'viri-group))
@@ -84,30 +103,63 @@ as theme.lisp sets it), and say how wide it is."
                     (screen-unfocus-color screen))))
         (call-next-method))))
 
-(defun viri-layout (group)
-  "Put every column where it belongs: those from LEFT on the screen, side
-by side, the rest past its edges."
-  (multiple-value-bind (ax ay aw ah) (viri-area group)
-    (let* ((cols (viri-columns group))
-           (n (max 1 *viri-visible-columns*))
-           (cw (floor aw n)))
-      (setf (viri-left group) (max 0 (min (viri-left group) (- (length cols) n))))
-      (loop for w in cols
+(defun viri-spans (group width)
+  "Each column's place along the strip: a list of (x . w) in pixels from its
+left end, for a screen WIDTH wide."
+  (let ((x 0))
+    (loop for c in (viri-cols group)
+          for w = (max 1 (floor (* (viri-col-width c) width)))
+          collect (prog1 (cons x w) (incf x w)))))
+
+(defun viri-clamp-offset (group width)
+  "Never scrolled past the strip's ends."
+  (let* ((spans (viri-spans group width))
+         (total (if spans (let ((l (car (last spans)))) (+ (car l) (cdr l))) 0)))
+    (setf (viri-offset group) (max 0 (min (viri-offset group) (- total width))))))
+
+(defun viri-left (group)
+  "The first column wholly on the screen."
+  (multiple-value-bind (ax ay aw) (viri-area group)
+    (declare (ignore ax ay))
+    (or (position-if (lambda (span) (>= (car span) (viri-offset group))) (viri-spans group aw)) 0)))
+
+(defun viri-visible (group)
+  "The columns wholly on the screen, as their positions in the strip."
+  (multiple-value-bind (ax ay aw) (viri-area group)
+    (declare (ignore ax ay))
+    (let ((off (viri-offset group)))
+      (loop for span in (viri-spans group aw)
             for i from 0
-            for x = (+ ax (* (- i (viri-left group)) cw))
-            ;; A strip shows every column: a window the tiles had hidden
-            ;; (iconic) is shown again, now, or when the workspace is.
-            when (window-hidden-p w)
-              do (unhide-window w)
-            unless (window-fullscreen w)
-              do (let ((border (* 2 (viri-border w))))
-                   (set-window-geometry w :x 0 :y 0)
-                   (float-window-move-resize w :x x :y ay
-                                               :width (max 1 (- cw border))
-                                               :height (max 1 (- ah border))
-                                               :border 0)))))
-    (viri-keep-pointer group)
-    (update-all-mode-lines))
+            when (and (>= (car span) off) (<= (+ (car span) (cdr span)) (+ off aw)))
+              collect i))))
+
+(defun viri-layout (group)
+  "Put every window where it belongs: the columns side by side from the
+strip's left end, scrolled by OFFSET, those off the screen past its edges;
+the windows of a column one above the other, sharing its height."
+  (multiple-value-bind (ax ay aw ah) (viri-area group)
+    (viri-clamp-offset group aw)
+    (loop for c in (viri-cols group)
+          for (x . cw) in (viri-spans group aw)
+          for n = (max 1 (length (viri-col-windows c)))
+          for each = (floor ah n)
+          do (loop for w in (viri-col-windows c)
+                   for k from 0
+                   for wy = (+ ay (* k each))
+                   for wh = (if (= k (1- n)) (- ah (* k each)) each)
+                   ;; A strip shows every column: a window the tiles had hidden
+                   ;; (iconic) is shown again, now, or when the workspace is.
+                   when (window-hidden-p w)
+                     do (unhide-window w)
+                   unless (window-fullscreen w)
+                     do (let ((border (* 2 (viri-border w))))
+                          (set-window-geometry w :x 0 :y 0)
+                          (float-window-move-resize w :x (+ ax (- x (viri-offset group))) :y wy
+                                                      :width (max 1 (- cw border))
+                                                      :height (max 1 (- wh border))
+                                                      :border 0)))))
+  (viri-keep-pointer group)
+  (update-all-mode-lines))
 
 (defun viri-drop-enter-events ()
   "Moving windows makes X say the pointer entered whichever lands under it,
@@ -137,15 +189,20 @@ focus. So a pointer over the strip goes along with the focused window."
       (viri-drop-enter-events))))
 
 (defun viri-scroll-to (group window)
-  "Scroll so WINDOW's column is on the screen; true when it moved."
-  (let ((i (position window (viri-columns group)))
-        (n (max 1 *viri-visible-columns*))
-        (left (viri-left group)))
+  "Scroll just far enough that WINDOW's column is wholly on the screen
+(its left edge first, when it's wider than the screen); true when it moved."
+  (let ((i (position (viri-col-of group window) (viri-cols group))))
     (when i
-      (setf (viri-left group) (cond ((< i left) i)
-                                    ((>= i (+ left n)) (1+ (- i n)))
-                                    (t left)))
-      (/= left (viri-left group)))))
+      (multiple-value-bind (ax ay aw) (viri-area group)
+        (declare (ignore ax ay))
+        (destructuring-bind (x . w) (nth i (viri-spans group aw))
+          (let ((old (viri-offset group)))
+            (setf (viri-offset group)
+                  (cond ((< x old) x)
+                        ((> (+ x w) (+ old aw)) (- (+ x w) aw))
+                        (t old)))
+            (viri-clamp-offset group aw)
+            (/= old (viri-offset group))))))))
 
 ;;; What StumpWM asks of a group, where a strip differs from a float group.
 
@@ -155,13 +212,15 @@ focus. So a pointer over the strip goes along with the focused window."
   (when (fboundp 'vikix-titlebar-remove)
     (funcall 'vikix-titlebar-remove window))
   ;; A new column goes right of the focused one, the way you're working.
-  (unless (or (viri-floats-p window) (member window (viri-columns group)))
-    (let* ((cols (viri-columns group))
-           (at (and (not *viri-appending*) (position (group-current-window group) cols))))
-      (setf (viri-columns group)
+  (unless (or (viri-floats-p window) (viri-col-of group window))
+    (let* ((cols (viri-cols group))
+           (new (make-viri-col (list window)))
+           (at (and (not *viri-appending*)
+                    (position (viri-col-of group (group-current-window group)) cols))))
+      (setf (viri-cols group)
             (if at
-                (append (subseq cols 0 (1+ at)) (list window) (nthcdr (1+ at) cols))
-                (append cols (list window))))))
+                (append (subseq cols 0 (1+ at)) (list new) (nthcdr (1+ at) cols))
+                (append cols (list new))))))
   (call-next-method)
   (when (viri-floats-p window)
     (viri-centre window group))
@@ -177,21 +236,37 @@ focus. So a pointer over the strip goes along with the focused window."
                                        :y (+ ay (max 0 (floor (- ah h) 2)))))))
 
 (defmethod group-delete-window ((group viri-group) (window float-window))
-  (let* ((cols (viri-columns group))
-         (i (position window cols)))
-    (cond ((null i) (call-next-method))
+  (let* ((col (viri-col-of group window))
+         (i (and col (position col (viri-cols group))))
+         (k (and col (position window (viri-col-windows col)))))
+    (cond ((null col) (call-next-method))
           (t
-           (setf (viri-columns group) (remove window cols))
-           (let ((left (viri-columns group)))
-             (viri-layout group)
-             (if left
-                 ;; The neighbour that took its place, or the last one.
-                 (group-focus-window group (nth (min i (1- (length left))) left))
-                 (call-next-method)))))))
+           (setf (viri-col-windows col) (remove window (viri-col-windows col)))
+           (when (eq (viri-col-focus col) window)
+             (setf (viri-col-focus col) nil))
+           (unless (viri-col-windows col)
+             (setf (viri-cols group) (remove col (viri-cols group))))
+           (viri-layout group)
+           (let ((cols (viri-cols group)))
+             (cond ((viri-col-windows col)
+                    ;; Its column's next window, or the one above.
+                    (group-focus-window group (nth (min k (1- (length (viri-col-windows col))))
+                                                   (viri-col-windows col))))
+                   (cols
+                    ;; The column that took its place, or the last one.
+                    (group-focus-window group (viri-col-window (nth (min i (1- (length cols))) cols))))
+                   (t (call-next-method))))))))
+
+(defun viri-col-window (col)
+  "The window to focus in COL: the one focused there last, else its first."
+  (let ((f (viri-col-focus col)))
+    (if (member f (viri-col-windows col)) f (first (viri-col-windows col)))))
 
 (defmethod group-focus-window ((group viri-group) window)
   ;; Focused first, then scrolled to: the layout brings the pointer along
   ;; to the window that has the focus now.
+  (let ((col (viri-col-of group window)))
+    (when col (setf (viri-col-focus col) window)))
   (call-next-method)
   (if (viri-scroll-to group window)
       (viri-layout group)
@@ -224,22 +299,52 @@ focus. So a pointer over the strip goes along with the focused window."
 ;;; Moving along the strip.
 
 (defun viri-step (dir move)
-  "Focus the column left or right of the focused one; with MOVE, take the
-focused column there instead. Up and down do nothing yet (Phase 0 has
-one window a column)."
+  "Focus the column left or right of the focused one, or the window above
+or below in its column; with MOVE, take the focused column (or window)
+there instead."
   (let* ((group (current-group))
-         (cols (viri-columns group))
+         (cols (viri-cols group))
          (window (group-current-window group))
-         (i (position window cols))
-         (j (and i (case dir (:left (1- i)) (:right (1+ i))))))
+         (col (viri-col-of group window))
+         (i (and col (position col cols))))
     (cond ((null cols))
-          ((null i) (group-focus-window group (first cols)))   ; on a dialog: back to the strip
-          ((or (null j) (< j 0) (>= j (length cols))))
-          (move
-           (rotatef (nth i (viri-columns group)) (nth j (viri-columns group)))
-           (viri-scroll-to group window)
-           (viri-layout group))
-          (t (group-focus-window group (nth j cols))))))
+          ((null col) (group-focus-window group (viri-col-window (first cols))))   ; on a dialog: back to the strip
+          ((member dir '(:up :down))
+           (let* ((ws (viri-col-windows col))
+                  (k (position window ws))
+                  (m (if (eq dir :up) (1- k) (1+ k))))
+             (when (< -1 m (length ws))
+               (if move
+                   (progn (rotatef (nth k (viri-col-windows col)) (nth m (viri-col-windows col)))
+                          (viri-layout group))
+                   (group-focus-window group (nth m ws))))))
+          (t
+           (let ((j (if (eq dir :left) (1- i) (1+ i))))
+             (when (< -1 j (length cols))
+               (if move
+                   (progn (rotatef (nth i (viri-cols group)) (nth j (viri-cols group)))
+                          (viri-scroll-to group window)
+                          (viri-layout group))
+                   (group-focus-window group (viri-col-window (nth j cols))))))))))
+
+(defun viri-cycle-width (group)
+  "The focused column one step wider in *viri-widths*, and from the widest
+back to the narrowest."
+  (let ((col (viri-col-of group (group-current-window group))))
+    (when col
+      (let ((next (or (find-if (lambda (w) (> w (viri-col-width col))) *viri-widths*)
+                      (first *viri-widths*))))
+        (setf (viri-col-width col) next)
+        (viri-scroll-to group (group-current-window group))
+        (viri-layout group)
+        (message "Column: ~a of the screen" (case next (1 "all") (1/2 "half") (1/3 "a third") (2/3 "two thirds") (t next)))))))
+
+(defcommand vikix-width-or-remove () ()
+  "On a strip, the focused column's width: a third, a half, two thirds, the
+whole screen, and round again. On tiles, remove this split (remove)."
+  (if (viri-group-p)
+      (viri-cycle-width (current-group))
+      (run-commands "remove")))
 
 (defcommand vikix-focus (dir) ((:direction "Direction: "))
   "Focus the window that way: along the strip on a Viri workspace, the
@@ -333,23 +438,22 @@ list. So you can see how far along the strip you are, and what's off it."
   (let ((group (mode-line-current-group ml)))
     (if (not (viri-group-p group))
         (fmt-head-window-list ml)
-        (let* ((cols (viri-columns group))
-               (left (viri-left group))
-               (n (max 1 *viri-visible-columns*))
-               (last (min (length cols) (+ left n)))
-               (floats (remove-if (lambda (w) (member w cols)) (group-windows group))))
+        (let* ((cols (viri-cols group))
+               (shown (viri-visible group))
+               (floats (remove-if (lambda (w) (viri-col-of group w)) (group-windows group))))
           (flet ((name (w)
                    (format-with-on-click-id
                     (let ((str (format-expand *window-formatters* *window-format* w)))
                       (if (eq w (group-current-window group)) (fmt-highlight str) str))
                     :ml-on-click-focus-window (window-id w))))
             (format nil "~{~a~^ ~}"
-                    (append (loop for w in cols
+                    (append (loop for c in cols
                                   for i from 0
+                                  ;; A column of several windows: joined by /.
                                   collect (concatenate 'string
-                                                       (if (= i left) "[" "")
-                                                       (name w)
-                                                       (if (= i (1- last)) "]" "")))
+                                                       (if (eql i (first shown)) "[" "")
+                                                       (format nil "~{~a~^/~}" (mapcar #'name (viri-col-windows c)))
+                                                       (if (eql i (car (last shown))) "]" "")))
                             (mapcar #'name floats))))))))
 
 (add-screen-mode-line-formatter #\W 'viri-mode-line-windows)
