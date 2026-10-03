@@ -28,7 +28,7 @@
   vikix project today [yesterday|DATE] [--no-git]   (also: vikix today)
                       what was done that day, project by project: the log
                       entries and the commits (any branch), then what's next
-  vikix project pick             choose one with rofi and open it (Super+Shift+p)
+  vikix project pick             choose one with rofi and open it (Super+Alt+p)
 
 What a project is: a folder under a root (~/src unless ~/.config/vikix/projects
 says otherwise), at most `depth` levels down (2), with a log.md in it. A

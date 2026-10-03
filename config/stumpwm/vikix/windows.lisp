@@ -1,16 +1,16 @@
 ;;;; windows.lisp — how windows are focused, spaced and found.
 ;;;;
 ;;;;   focus      follows the mouse (sloppy focus)
-;;;;   gaps       space around windows, off at start (s-g toggles)
+;;;;   gaps       space around windows, off at start (s-C-g toggles)
 ;;;;   undo       the last split or window move, per workspace (s-u, s-U)
 ;;;;   grid       every window in a grid: once (s-o), or kept so (s-O)
-;;;;   find       any window on any workspace (s-A goes there, s-C-a pulls it here)
+;;;;   find       any window on any workspace (s-g goes there, s-G brings it here)
 ;;;;   beckon     the pointer jumps to the focused window (s-p)
 ;;;;   lazarus    the docked IDE tiles; its dialogs float
 ;;;;   solo       only this window, then the layout back (s-z)
 ;;;;   dialogs    float, centred, and stay in front of the tiles
 ;;;;   dragging   files dragged out of Emacs reach the program under the pointer
-;;;;   titles     a title bar on each tiled window (s-y), renaming (s-"),
+;;;;   titles     a title bar on each tiled window (s-C-y), renaming (s-"),
 ;;;;              and floating a window or tiling it again (s-t)
 ;;;;
 ;;;; Gaps, undo, find and beckon come from stumpwm-contrib, cloned into
@@ -108,7 +108,7 @@ below zero for a small window, and X then kills the window manager."
 
 ;; winner-mode only records a layout when told to. It is told after each
 ;; command that changes one: its own list of StumpWM's layout commands,
-;; plus gmove (s-C-<digit>). Left to itself it has two gaps, filled here:
+;; plus gmove (Super+Shift+<digit>). Left to itself it has two gaps, filled here:
 ;;   - it never records the layout before the first change, so that
 ;;     change can't be undone; it is recorded just before it instead
 ;;   - after an undo, a new change leaves the old redo steps in place;
@@ -408,7 +408,7 @@ GTK and Qt dialogs are drawn at; without one, a modest box."
 ;; The bar's text is its background picture, so X redraws it whenever it is
 ;; uncovered; StumpWM, which ignores exposure of windows not its own, never
 ;; has to. Floating windows have StumpWM's own title strip; fullscreen ones
-;; and dialogs StumpWM keeps at their own size go without. s-y turns the
+;; and dialogs StumpWM keeps at their own size go without. s-C-y turns the
 ;; bars off and on, remembered in ~/.config/vikix/titlebars-off.
 
 (defvar *vikix-titlebars-off-file*
@@ -565,7 +565,7 @@ theme.lisp calls it after a theme change."
           (progn (ensure-directories-exist *vikix-titlebars-off-file*)
                  (with-open-file (out *vikix-titlebars-off-file* :direction :output
                                                                   :if-exists :supersede)
-                   (write-line "Title bars off (Super+y turns them on)." out))))
+                   (write-line "Title bars off (Super+Ctrl+y turns them on)." out))))
     (error () nil))   ; not remembered, but still switched
   (vikix-titlebars-relayout)
   (message "Title bars ~:[off~;on~]" *vikix-titlebars*))

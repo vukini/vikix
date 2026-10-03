@@ -43,7 +43,7 @@ Void Linux, supercharged
 
 ```lisp
 ;; ~/.stumpwm.d/user.lisp loads last, so it wins
-(vikix-bind "s-y" "exec xterm")
+(vikix-bind "s-M-y" "exec xterm")
 (setf *vikix-terminal* "kitty")
 ```
 

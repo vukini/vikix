@@ -35,7 +35,7 @@ Then, when you have two windows:
 | `Super+Tab` | the last window again |
 | `Super+o` | every window on the workspace in a grid; pick one |
 | `Super+u` | undo the last layout change |
-| `Super+1` … `Super+9` | workspaces; `Super+Ctrl+1` … sends the window there |
+| `Super+1` … `Super+9` | workspaces; `Super+Shift+1` … sends the window there |
 
 And a few for everyday things: `Super+w` the browser, `Super+e` your files, `Print` a screenshot of an area (to the clipboard, to paste with `Ctrl+v`; `Shift+Print` keeps it as a file in `~/Pictures/Screenshots` instead), `Super+c` the clipboard's history, `Super+Escape` lock, `Super+Shift+Escape` suspend, log out or power off.
 

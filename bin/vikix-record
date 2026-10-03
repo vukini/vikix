@@ -5,7 +5,7 @@
 #   vikix-record screen   record the whole monitor the pointer is on
 #   vikix-record stop     stop, and save ~/Videos/Recordings/<date>.mp4
 #   vikix-record toggle [area|screen]
-#                         stop if recording, else start   (Super+Shift+r)
+#                         stop if recording, else start   (Super+Ctrl+v)
 #   vikix-record status   say whether it is recording
 #
 # While it records, the bar says rec. The file holding ffmpeg's process id

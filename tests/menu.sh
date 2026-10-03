@@ -46,8 +46,8 @@ fns=$(awk '/^\(defun vikix-menu-entry-command/,/^$/; /^\(defun vikix-menu-entry-
 cat > "$t/keys.lisp" <<EOF
 (defpackage :stumpwm (:use :cl))
 (in-package :stumpwm)
-(defvar *vikix-bindings* '(("s-M-n" "vikix-quiet" "Do not disturb") ("s-F10" "exec vikix-dictate toggle ask" "Voice")))
-(defun vikix-pretty-key (k) (cond ((equal k "s-M-n") "Super+Alt+n") ((equal k "s-F10") "Super+F10") (t k)))
+(defvar *vikix-bindings* '(("s-C-d" "vikix-quiet" "Do not disturb") ("s-F10" "exec vikix-dictate toggle ask" "Voice")))
+(defun vikix-pretty-key (k) (cond ((equal k "s-C-d") "Super+Ctrl+d") ((equal k "s-F10") "Super+F10") (t k)))
 $fns
 (dolist (line (vikix-menu-lines '(("Do not disturb on/off" vikix-quiet)
                                   ("Voice: talk to the AI" (run-shell-command "vikix-dictate toggle ask"))
@@ -56,7 +56,7 @@ $fns
   (format t "[~a]~%" (first line)))
 EOF
 out=$("$sbcl" --script "$t/keys.lisp" 2>&1)
-for want in "[Do not disturb on/off  Super+Alt+n]" "[Voice: talk to the AI  Super+F10]" "[Install a program]" "[Theme]"; do
+for want in "[Do not disturb on/off  Super+Ctrl+d]" "[Voice: talk to the AI  Super+F10]" "[Install a program]" "[Theme]"; do
   grep -qxF "$want" <<<"$out" || { echo "FAIL: the menu should show $want, got: $(tr '\n' ' ' <<<"$out")"; fail=1; }
 done
 # So no label names a key itself: it would go stale when the key moves.

@@ -277,7 +277,10 @@ Returns the window, or nil when there's none."
     ("Reload config"       vikix-reload)
     ("Theme"               vikix-pick-theme)
     ("Wallpaper"           (run-shell-command "vikix-wallpaper pick"))
-    ("Apply keyboard settings" (run-shell-command "vikix-keyboard"))
+    ;; Then the keys that depend on the layout (Super+Shift+digit) again,
+    ;; a moment later: StumpWM must hear of the new layout first.
+    ("Apply keyboard settings" (progn (run-shell-command "vikix-keyboard")
+                                      (run-with-timer 2 nil 'vikix-bind-workspace-keys)))
     ("Network (nmtui)"     (run-shell-command
                             (format nil "~a -e nmtui" *vikix-terminal*)))
     ("Network use: which program is using it (nethogs)"
@@ -355,7 +358,7 @@ a form no key could be: vikix-quiet -> \"vikix-quiet\",
 
 (defun vikix-menu-entry-key (entry)
   "The key that does what ENTRY does, as the key help writes it
-(\"Super+Alt+n\"), or NIL: found in *vikix-bindings* when the menu opens,
+(\"Super+Ctrl+d\"), or NIL: found in *vikix-bindings* when the menu opens,
 so a menu label never names a key that has moved."
   (let* ((command (vikix-menu-entry-command entry))
          (binding (and command (boundp '*vikix-bindings*)

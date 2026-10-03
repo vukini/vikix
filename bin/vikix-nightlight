@@ -2,7 +2,7 @@
 # vikix-nightlight — a warmer screen in the evening (gammastep).
 #
 #   vikix-nightlight start    at login: start it, unless you switched it off
-#   vikix-nightlight toggle   on or off, and remember that   (Super+Alt+l)
+#   vikix-nightlight toggle   on or off, and remember that   (Super+Ctrl+l)
 #   vikix-nightlight on|off   the same, one way
 #   vikix-nightlight status   say whether it is on, and when it warms
 #

@@ -203,7 +203,7 @@ def act(desk, frames):
     elif what == "workspace":
         desk.key(f"super+{random.randint(1, 4)}")
     elif what == "move":
-        desk.key(f"super+ctrl+{random.randint(1, 4)}")
+        desk.key(f"super+shift+{random.randint(1, 4)}")
     elif what == "split":
         desk.key(random.choice(["super+b", "super+v"]))
     elif what == "join":

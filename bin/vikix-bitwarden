@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# vikix-bitwarden — your Bitwarden vault on the desktop: Super+Shift+v opens
+# vikix-bitwarden — your Bitwarden vault on the desktop: Super+Alt+v opens
 # a picker of your logins, and Enter types the password into the window
 # you were in. rbw reads the vault (an agent keeps it unlocked for an hour,
 # as ssh-agent does); rofi-rbw is the picker; your master password is only
@@ -11,7 +11,7 @@
 #                           in: your master password and two-factor code go
 #                           into pinentry's box. --eu for an account made on
 #                           bitwarden.eu; --server for your own (Vaultwarden)
-#   vikix bitwarden pick    the picker (Super+Shift+v): asks for the master
+#   vikix bitwarden pick    the picker (Super+Alt+v): asks for the master
 #                           password first when the vault is locked
 #   vikix bitwarden lock    lock the vault now
 #   vikix bitwarden sync    fetch changes made on your other devices now
@@ -50,7 +50,7 @@ picker_settings() {
   if [ "$DRY_RUN" = 1 ]; then printf '   would write %s\n' "$PICKER_RC"; return 0; fi
   mkdir -p "$(dirname "$PICKER_RC")"
   cat > "$PICKER_RC" <<'EOF'
-# rofi-rbw.rc — the Bitwarden picker (Super+Shift+v). Written once by
+# rofi-rbw.rc — the Bitwarden picker (Super+Alt+v). Written once by
 # vikix bitwarden setup; yours to change. Options: rofi-rbw --help.
 
 # Enter types the login into the window you were in (username, Tab,
@@ -106,7 +106,7 @@ cmd_setup() {
     return 1
   fi
   "$RBW" sync || warn "signed in, but the first sync failed: vikix bitwarden sync"
-  say "ready: Super+Shift+v, type a few letters, Enter types the password where you were"
+  say "ready: Super+Alt+v, type a few letters, Enter types the password where you were"
 }
 
 cmd_pick() {

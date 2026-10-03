@@ -10,5 +10,5 @@ mpv             # video and audio
 nsxiv           # images
 zathura         # PDFs (keyboard-driven)...
 zathura-pdf-mupdf  # ...with the MuPDF engine
-spacefm         # a second file manager: tabs, split panes, its own bookmarks (s-E)
+spacefm         # a second file manager: tabs, split panes, its own bookmarks (s-M-s)
 foliate         # EPUB (and MOBI, FB2, comics) reader, with a library

@@ -7,7 +7,7 @@
 #                     or school Microsoft 365, outlook-live for outlook.com,
 #                     superhuman) or meetings (teams, meet for Google Meet,
 #                     zoom). KEY is a Super key as the key help writes it:
-#                     s-M is Super+Shift+m, which the first mail web app
+#                     s-M-m is Super+Alt+m, which the first mail web app
 #                     gets; --key none for no key. Adding one again keeps
 #                     its key unless you give another. --media lets the site
 #                     use the camera and microphone (the meeting presets do
@@ -48,11 +48,11 @@ VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 LIST="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/webapps"
 APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 PROFILES="${XDG_DATA_HOME:-$HOME/.local/share}/vikix/webapps"
-MAIL_KEY=s-M
+MAIL_KEY=s-M-m
 HEADER1="# Your web apps (vikix webapp add/remove writes this; editing it by hand is fine)."
-HEADER2="# NAME URL [KEY]: KEY is a Super key, as StumpWM names it (s-M: Super+Shift+m)."
+HEADER2="# NAME URL [KEY]: KEY is Super+Alt and a key, as StumpWM names it (s-M-m: Super+Alt+m)."
 
-# Presets: the address and the name shown; mail ones (for s-M), and
+# Presets: the address and the name shown; mail ones (for s-M-m), and
 # meeting ones (camera and microphone allowed).
 declare -A PRESET_URL=(
   [superhuman]=https://mail.superhuman.com/
@@ -111,7 +111,7 @@ os.replace(tmp, path)
 PY
 }
 
-# s-M -> Super+Shift+m, s-C-g -> Super+Ctrl+g: as people say it.
+# s-M-m -> Super+Alt+m, s-M-G -> Super+Alt+Shift+g: as people say it.
 say_key() {
   local k=${1#s-} out=Super
   while [ "${k#*-}" != "$k" ]; do
@@ -124,13 +124,15 @@ say_key() {
 
 # A line of the list is good when it has a name, an address and, if any, a
 # key of the right form. Hand-made lines that aren't are skipped (and shown).
-KEY_RE='^s-([CM]-)?([A-Za-z0-9]|F[0-9]{1,2})$'
+# The rule for keys (keys.lisp): what opens something beyond the six main
+# apps is on Super+Alt. A web app is that.
+KEY_RE='^s-M-([A-Za-z0-9]|F[0-9]{1,2})$'
 NAME_RE='^[a-z][a-z0-9-]{0,30}$'
 URL_RE='^(https://[^[:space:]]+|http://(localhost|127\.0\.0\.1)(:[0-9]+)?(/[^[:space:]]*)?)$'
 good_line() {   # good_line NAME URL [KEY] -> reason on stdout if bad
   [[ $1 =~ $NAME_RE ]] || { echo "a name of small letters, digits and -"; return; }
   [[ ${2:-} =~ $URL_RE ]] || { echo "an address starting https://"; return; }
-  [ -z "${3:-}" ] || [[ $3 =~ $KEY_RE ]] || { echo "a key like s-M (Super+Shift+m)"; return; }
+  [ -z "${3:-}" ] || [[ $3 =~ $KEY_RE ]] || { echo "a key like s-M-m (Super+Alt+m)"; return; }
   if [ -n "${3:-}" ] && is_vikix_key "$3"; then echo "a key that isn't one of Vikix's own"; fi
 }
 
@@ -141,10 +143,10 @@ url_of() { entry "$1" | awk '{ print $2 }'; }
 key_of() { entry "$1" | awk '{ print $3 }'; }
 
 # Keys Vikix binds itself, which a web app mustn't take: the list in
-# keys.lisp, and the workspace keys it binds in a loop (s-1 .. s-C-9).
+# keys.lisp, and the workspace keys it binds in a loop (s-1 .. s-9).
 vikix_keys() {
   grep -oE '^\s*\("s-[^"]+"' "$VIKIX_DIR/config/stumpwm/vikix/keys.lisp" | grep -oE 's-[^"]+'
-  local n; for n in 1 2 3 4 5 6 7 8 9; do printf 's-%s\ns-C-%s\n' "$n" "$n"; done
+  local n; for n in 1 2 3 4 5 6 7 8 9; do printf 's-%s\n' "$n"; done
 }
 
 # Kept, then searched: grep -q on a pipe can stop it early, and with
@@ -209,7 +211,7 @@ need_chromium() {
 check_key() {
   local name=$1 key=$2 other
   [[ $key =~ $KEY_RE ]] ||
-    die "a web app's key is Super and a letter, digit or F-key, as StumpWM names it: s-M (Super+Shift+m), s-C-g (Super+Ctrl+g), s-F5; or none"
+    die "a web app's key is Super+Alt and a letter, digit or F-key, as StumpWM names it: s-M-m (Super+Alt+m), s-M-F5 (Super+Alt+F5); or none. (Super+Alt is where everything beyond the six main apps opens.)"
   is_vikix_key "$key" &&
     die "$key ($(say_key "$key")) is one of Vikix's own keys (Super+F1 lists them); choose another"
   other=$(entries | awk -v k="$key" -v n="$name" '$3 == k && $1 != n { print $1 }' | head -1)
@@ -224,7 +226,7 @@ cmd_add() {
     case $1 in
       --media) media=on; shift ;;
       --no-media) media=off; shift ;;
-      --key) [ $# -ge 2 ] || die "--key needs a key, like s-M, or none"; key=$2; key_given=1; shift 2 ;;
+      --key) [ $# -ge 2 ] || die "--key needs a key, like s-M-m, or none"; key=$2; key_given=1; shift 2 ;;
       --key=*) key=${1#--key=}; key_given=1; shift ;;
       -*) die "vikix webapp add: unknown option $1" ;;
       *) if [ -z "$name" ]; then name=$1; elif [ -z "$url" ]; then url=$1; else die "too many words: vikix webapp add NAME [URL] [--key KEY] [--media]"; fi; shift ;;
@@ -250,7 +252,7 @@ cmd_add() {
   elif [ -n "$old_key" ]; then
     key=$old_key                           # added again: it keeps its key
   elif is_mail "$name" && ! entries | awk -v n="$name" '$1 != n { print $3 }' | grep -qx "$MAIL_KEY"; then
-    key=$MAIL_KEY                          # the first mail web app gets Super+Shift+m
+    key=$MAIL_KEY                          # the first mail web app gets Super+Alt+m
   fi
   need_chromium
   local what=made
@@ -268,7 +270,7 @@ cmd_add() {
   if [ -n "$key" ]; then
     echo "   Open it with $(say_key "$key"), from the launcher (Super+d, $(title_of "$name")), or Super+m."
   else
-    echo "   Open it from the launcher (Super+d, $(title_of "$name")) or Super+m; a key of its own: vikix webapp key $name s-X"
+    echo "   Open it from the launcher (Super+d, $(title_of "$name")) or Super+m; a key of its own: vikix webapp key $name s-M-X (Super+Alt and a letter)"
   fi
   [ "$what" = made ] && echo "   The first time, log in: it keeps its own login, apart from Firefox and your other web apps."
   reload_wm
@@ -276,7 +278,7 @@ cmd_add() {
 
 cmd_key() {
   local name=${1:-} key=${2:-}
-  [ -n "$name" ] && [ -n "$key" ] || die "vikix webapp key NAME KEY (s-M, Super+Shift+m), or: vikix webapp key NAME none"
+  [ -n "$name" ] && [ -n "$key" ] || die "vikix webapp key NAME KEY (s-M-m, Super+Alt+m), or: vikix webapp key NAME none"
   [ -n "$(entry "$name")" ] || die "there's no web app called $name (vikix webapp list)"
   [ "$key" = none ] && key=''
   [ -z "$key" ] || check_key "$name" "$key"

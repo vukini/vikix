@@ -76,7 +76,7 @@
 #                         small additions from the vikix-plugins repo: bar
 #                         words, Super+m entries, keys (vikix plugin help)
 #   vikix bitwarden setup|pick|lock|sync|status|uninstall
-#                         your Bitwarden vault: Super+Shift+v types a
+#                         your Bitwarden vault: Super+Alt+v types a
 #                         password into any window (vikix add bitwarden)
 #   vikix lisp-apps setup|status|uninstall
 #                         Nyxt, Lem and McCLIM's Listener: programs in Common
@@ -557,6 +557,17 @@ cmd_doctor() {
         printf '%s\n' "$clashes" | sed 's/^/     /'; ok=0
       else
         say "no key has two owners"
+      fi
+      # The rule for keys (each modifier means one thing): a key of a
+      # plugin, a web app or yours that breaks it. Said, not counted as a
+      # fault: the key still works.
+      local offrule
+      offrule=$(python3 "$VIKIX_DIR/bin/vikix-eval" '(when (fboundp (quote vikix-key-problems)) (dolist (p (vikix-key-problems)) (format t "~a (~a): ~a~%" (first p) (second p) (third p))))' 2>/dev/null | grep -v '^=> ' || true)
+      if [ -n "$offrule" ]; then
+        warn "a key that breaks the rule for keys (Super: everyday, +Shift: move the window, +Alt: open something else, +Ctrl: switch something):"
+        printf '%s\n' "$offrule" | sed 's/^/     /'
+      else
+        say "every key keeps the rule for keys"
       fi
     else
       warn "vikix eval can't reach StumpWM (is it running? reload it: Super+m, Reload config)"; ok=0

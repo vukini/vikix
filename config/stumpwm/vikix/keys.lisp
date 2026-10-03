@@ -3,13 +3,54 @@
 ;;;; StumpWM's own bindings stay as they are: press the prefix key
 ;;;; (Ctrl+t) and then a key. Vikix adds direct bindings on the Super
 ;;;; key in *top-map*, the map that is active without any prefix.
-;;;; In key names "s-" means Super and "C-" means Ctrl.
+;;;; In key names "s-" means Super, "S-" Shift, "M-" Alt and "C-" Ctrl; a
+;;;; capital letter is Shift and that letter ("s-H" is Super+Shift+h).
 ;;;;
-;;;; Moving a window to a workspace is s-C-<digit>, not Super+Shift+<digit>:
-;;;; Shift+digit is a different key on every keyboard layout (! on US,
-;;;; " on UK for 2 ...), while Ctrl+digit is the same everywhere.
+;;;; The rule for keys: each modifier means one thing, for Vikix's keys,
+;;;; a plugin's and a web app's alike (docs/customize.md, "The rule for keys").
+;;;;
+;;;;   Super          everyday: the six main apps (terminal, launcher,
+;;;;                  browser, files, editor, agent), the small tools,
+;;;;                  focus, and what is done to the window you're in
+;;;;   Super+Shift    the same key, moving the window: move it, send it to
+;;;;                  a workspace, bring one here; or the key's other way
+;;;;                  (redo, previous, the bigger version)
+;;;;   Super+Alt      open something else: every other app, web app and
+;;;;                  plugin
+;;;;   Super+Ctrl     switch something on the desktop: keep awake, night
+;;;;                  light, do not disturb, gaps, title bars, recording
+;;;;
+;;;; Keys without Super keep their own ways: Print (Shift keeps a file,
+;;;; Ctrl is the window, Super the screen) and the laptop's own keys.
+;;;; vikix-key-problems (help.lisp) finds a key that breaks the rule, and
+;;;; tests/lisp.sh fails on one of Vikix's.
+;;;;
+;;;; Sending a window to a workspace is Super+Shift+<digit>. Shift+digit is
+;;;; a different key on every keyboard layout (! on US, " on UK for 2 ...),
+;;;; so the key's name is asked of the keyboard as it is laid out now
+;;;; (vikix-bind-workspace-keys, below), not written down here.
 
 (in-package :stumpwm)
+
+;;; What the rule goes by (vikix-key-problems, help.lisp, reads these). An
+;;; entry is a whole command ("exec dunstctl close-all") or what a command
+;;; is about (the program it starts, or the StumpWM command: "vikix-move").
+
+(defparameter *vikix-key-everyday*
+  '("vikix-terminal" "rofi" "firefox" "vikix-esploro" "emacsclient" "vikix-agent"  ; the six main apps
+    "vikix-ask" "clipmenu" "vikix-rofi" "vikix-dictate" "vikix-voice"
+    "exec dunstctl history-pop" "vikix-notifications" "vikix-lock" "vikix-screenshot" "vikix-osd")
+  "What may be opened with Super alone: the six main apps and the small
+tools. Every other program a key starts is on Super+Alt.")
+
+(defparameter *vikix-key-switches*
+  '("toggle-gaps" "vikix-titlebars" "vikix-awake" "vikix-nightlight" "vikix-quiet"
+    "vikix-record" "vikix-capture" "vikix-pick-theme" "exec dunstctl close-all" "exec vikix-drives eject")
+  "What switches something on the desktop: on Super+Ctrl, and nothing else is.")
+
+(defparameter *vikix-key-movers*
+  '("vikix-move" "move-window" "gmove" "global-pull-windowlist")
+  "What moves a window: on Super+Shift.")
 
 (defvar *vikix-bind-later* nil
   "True inside vikix-binding-keys: X hears of the keys once, at its end.")
@@ -38,14 +79,14 @@ of a reload's 15 seconds, and the desktop stood still meanwhile."
     ("s-SPC"  "exec rofi -show drun" "Launcher, the key other desktops use")
     ("s-w"    "exec firefox"      "Browser")
     ("s-e"    "vikix-esploro"     "Files in Esploro: the one on this workspace, or a new one here (PCManFM without Esploro)")
-    ("s-E"    "exec spacefm"      "Files in SpaceFM: tabs and split panes")
+    ("s-M-s"  "exec spacefm"      "Files in SpaceFM: tabs and split panes")
     ("s-C-e"  "exec vikix-drives eject" "Eject a USB drive: pick it, then pull it out safely")
     ("s-M-e"  "exec pcmanfm"      "Files in PCManFM")
     ("s-M-E"  "exec esploro --new" "Files in a new Esploro window, beside the others")
     ("s-M-r"  "exec esploro reveal" "Reveal the file behind this window, in Esploro")
     ("s-M-x"  "exec vikix-esploro menu" "Esploro's commands for the file behind this window, in rofi")
-    ("s-P"    "exec vikix-project pick" "Projects: pick one; a terminal in its folder, its log in the editor")
-    ("s-V"    "exec vikix-bitwarden pick" "Passwords (Bitwarden): pick a login, Enter types it (vikix add bitwarden)")
+    ("s-M-p"  "exec vikix-project pick" "Projects: pick one; a terminal in its folder, its log in the editor")
+    ("s-M-v"  "exec vikix-bitwarden pick" "Passwords (Bitwarden): pick a login, Enter types it (vikix add bitwarden)")
     ("s-a"    "vikix-agent"       "AI agent in a terminal: Claude Code, or the one you chose")
     ("s-F9"   "exec vikix-dictate toggle" "Dictation: speak, then Super+F9 again types it")
     ("s-S-F9" "exec vikix-dictate cancel" "Dictation: stop listening, type nothing")
@@ -61,7 +102,7 @@ of a reload's 15 seconds, and the desktop stood still meanwhile."
     ("s-n"    "exec dunstctl history-pop"  "Notifications: the last one again")
     ("s-N"    "exec vikix-notifications"   "Notifications: pick an earlier one")
     ("s-C-n"  "exec dunstctl close-all"    "Notifications: close all")
-    ("s-M-n"  "vikix-quiet"                "Do not disturb on/off")
+    ("s-C-d"  "vikix-quiet"                "Do not disturb on/off")
     ;; windows
     ("s-q"    "delete"            "Close window")
     ("s-f"    "fullscreen"        "Fullscreen on/off")
@@ -86,10 +127,10 @@ of a reload's 15 seconds, and the desktop stood still meanwhile."
     ("s-Down"    "vikix-focus down"   "Focus down (arrow)")
     ("s-Up"      "vikix-focus up"     "Focus up (arrow)")
     ("s-Right"   "vikix-focus right"  "Focus right (arrow)")
-    ("s-C-Left"  "vikix-move left"  "Move window left (arrow)")
-    ("s-C-Down"  "vikix-move down"  "Move window down (arrow)")
-    ("s-C-Up"    "vikix-move up"    "Move window up (arrow)")
-    ("s-C-Right" "vikix-move right" "Move window right (arrow)")
+    ("s-S-Left"  "vikix-move left"  "Move window left (arrow)")
+    ("s-S-Down"  "vikix-move down"  "Move window down (arrow)")
+    ("s-S-Up"    "vikix-move up"    "Move window up (arrow)")
+    ("s-S-Right" "vikix-move right" "Move window right (arrow)")
     ;; frames (StumpWM's splits)
     ("s-b"    "hsplit"            "Split: side by side")
     ("s-v"    "vsplit"            "Split: one above the other")
@@ -100,14 +141,14 @@ of a reload's 15 seconds, and the desktop stood still meanwhile."
     ("s-O"    "vikix-grid"        "Grid mode on/off: windows stay tiled in a grid as they open and close")
     ("s-z"    "vikix-solo"        "Focus: only this window; again puts the others back")
     ;; windows.lisp: gaps, layout undo, finding windows
-    ("s-g"    "toggle-gaps"       "Gaps around windows on/off")
+    ("s-C-g"  "toggle-gaps"       "Gaps around windows on/off")
     ("s-u"    "winner-undo"       "Undo the last layout change (splits, moves)")
     ("s-U"    "winner-redo"       "Redo the layout change")
-    ("s-A"    "global-windowlist" "Any window, on any workspace: go there")
-    ("s-C-a"  "global-pull-windowlist" "Any window, on any workspace: bring it here")
+    ("s-g"    "global-windowlist" "Go to any window, on any workspace")
+    ("s-G"    "global-pull-windowlist" "Bring any window here, from any workspace")
     ("s-p"    "beckon"            "Move the pointer to this window")
     ("s-t"    "vikix-float"       "Float this window, or tile it again (Super+drag moves it)")
-    ("s-y"    "vikix-titlebars"   "Title bars on/off")
+    ("s-C-y"  "vikix-titlebars"   "Title bars on/off")
     ("s-\""   "vikix-title"       "Rename this window")
     ;; Vikix
     ("s-m"    "vikix-menu"      "Vikix menu")
@@ -115,8 +156,8 @@ of a reload's 15 seconds, and the desktop stood still meanwhile."
     ("s-F1"   "vikix-keys"      "Search the keys, and run one")
     ("s-ESC"  "exec vikix-lock"  "Lock the screen")
     ("s-S-ESC" "vikix-power"     "Power: lock, suspend, log out, reboot, power off")
-    ("s-M-a"  "vikix-awake"      "Keep awake on/off: no lock, dark screen or suspend")
-    ("s-M-l"  "vikix-nightlight" "Night light on/off: a warmer screen in the evening")
+    ("s-C-a"  "vikix-awake"      "Keep awake on/off: no lock, dark screen or suspend")
+    ("s-C-l"  "vikix-nightlight" "Night light on/off: a warmer screen in the evening")
     ;; Screenshots: the modifier picks what, Shift keeps it in a file
     ;; (~/Pictures/Screenshots) instead of the clipboard.
     ("Print"     "exec vikix-screenshot area clip"   "Screenshot of an area, to the clipboard")
@@ -125,7 +166,7 @@ of a reload's 15 seconds, and the desktop stood still meanwhile."
     ("C-S-Print" "exec vikix-screenshot window file" "Screenshot of this window, to a file")
     ("s-Print"   "exec vikix-screenshot screen clip" "Screenshot of the whole screen, to the clipboard")
     ("s-S-Print" "exec vikix-screenshot screen file" "Screenshot of the whole screen, to a file")
-    ("s-R"       "vikix-record area" "Record an area or a window; again to stop")
+    ("s-C-v"     "vikix-record area" "Record a video of an area or a window; again to stop")
     ("s-C-Print" "vikix-capture"     "Screenshot or record: all the choices")
     ;; the laptop's function keys
     ;; vikix-osd changes the level and shows a bar for it (bin/vikix-osd);
@@ -141,6 +182,46 @@ An optional fourth element names the group the key card (s-/) shows it
 in; without one, help.lisp works the group out from the command.
 The descriptions are what the key card (s-/) and the key help (s-F1)
 show, so this list is the one place a key is written down.")
+
+;;; Super+Shift+<digit>: send the window to that workspace. StumpWM knows a
+;;; key by what it types, and Shift+1 types ! on a US keyboard, something
+;;; else on others. So the keyboard is asked what each Shift+digit is, now
+;;; and again when its layout changes (Super+m, Apply keyboard settings).
+
+(defparameter *vikix-us-shifted-digits*
+  '("exclam" "at" "numbersign" "dollar" "percent" "asciicircum" "ampersand" "asterisk" "parenleft")
+  "Shift+1 ... Shift+9 on a US keyboard, as StumpWM names those keys: used
+when the keyboard can't be asked (no screen yet).")
+
+(defvar *vikix-workspace-send-keys* '()
+  "The keys bound to send a window to workspaces 1 to 9, as bound last.")
+
+(defun vikix-shift-digit-key (n)
+  "The name of the key Super+Shift+N on the keyboard as it is laid out now.
+Where the digit itself needs Shift (French), Super+Ctrl+N instead."
+  (or (ignore-errors
+       (let* ((digit (+ (char-code #\0) n))
+              (code (first (multiple-value-list (xlib:keysym->keycodes *display* digit))))
+              (plain (and code (xlib:keycode->keysym *display* code 0)))
+              (shifted (and code (xlib:keycode->keysym *display* code 1)))
+              (name (and shifted (plusp shifted) (keysym->keysym-name shifted))))
+         (cond ((null code) nil)
+               ((/= plain digit) (format nil "s-C-~d" n))
+               ((or (null name) (= shifted digit)) (format nil "s-S-~d" n))
+               (t (format nil "s-~a" name)))))
+      (format nil "s-~a" (nth (1- n) *vikix-us-shifted-digits*))))
+
+(defun vikix-bind-workspace-keys ()
+  "Bind Super+Shift+1 ... 9 to send the window to that workspace, for the
+keyboard as it is now; the keys bound for another layout are let go."
+  (let ((keys (loop for n from 1 to 9 collect (vikix-shift-digit-key n))))
+    (dolist (old *vikix-workspace-send-keys*)
+      (unless (member old keys :test #'equal)
+        (ignore-errors (undefine-key *top-map* (kbd old)))))
+    (loop for key in keys
+          for n from 1
+          do (vikix-bind key (format nil "gmove ~d" n)))
+    (setf *vikix-workspace-send-keys* keys)))
 
 ;;; Clashes: a plugin or a web app taking a key something else has. The
 ;;; newer one wins (it's bound last), so the older one is left with no key
@@ -185,11 +266,36 @@ Vikix (yours from user.lisp count as Vikix's here: they load after)."
                                            (second c) (third c)))
                        (reverse mine))))))
 
+;;; Keys Vikix had before the rule (0.71.116). A desktop that is running
+;;; keeps a key until StumpWM starts again, so a reload lets these go: each
+;;; only while it still runs what Vikix bound it to, never one you, a
+;;; plugin or a web app have since given something else.
+(defparameter *vikix-retired-keys*
+  ;; Written flat, a key then its command: lines that begin ("s- are read
+  ;; as Vikix's keys by the scripts that list them (vikix-webapp, the tests).
+  '("s-E" "exec spacefm"   "s-P" "exec vikix-project pick"   "s-V" "exec vikix-bitwarden pick"
+    "s-M" "vikix-webapp "  "s-M-n" "vikix-quiet"             "s-A" "global-windowlist"
+    "s-y" "vikix-titlebars" "s-M-a" "vikix-awake"            "s-M-l" "vikix-nightlight"
+    "s-R" "vikix-record area"
+    "s-C-Left" "vikix-move" "s-C-Down" "vikix-move" "s-C-Up" "vikix-move" "s-C-Right" "vikix-move"
+    "s-C-1" "gmove" "s-C-2" "gmove" "s-C-3" "gmove" "s-C-4" "gmove" "s-C-5" "gmove"
+    "s-C-6" "gmove" "s-C-7" "gmove" "s-C-8" "gmove" "s-C-9" "gmove")
+  "A key, then how the command Vikix had on it began; and so on.")
+
+(defun vikix-retire-keys ()
+  "Let go of the keys Vikix no longer has, where they still run its command."
+  (loop for (key command) on *vikix-retired-keys* by #'cddr
+        do (let ((now (ignore-errors (lookup-key *top-map* (kbd key)))))
+             (when (and (stringp now) (eql 0 (search command now))
+                        (not (find key *vikix-bindings* :key #'first :test #'equal)))
+               (ignore-errors (undefine-key *top-map* (kbd key)))))))
+
 (vikix-binding-keys
+  (vikix-retire-keys)
   (dolist (binding *vikix-bindings*)
     (vikix-bind (first binding) (second binding)))
 
-  ;; Workspaces: s-1 goes to workspace 1, s-C-1 sends the window there.
+  ;; Workspaces: s-1 goes to workspace 1; Super+Shift+1 sends the window there.
   (loop for n from 1 to 9
-        do (vikix-bind (format nil "s-~d" n)   (format nil "gselect ~d" n))
-           (vikix-bind (format nil "s-C-~d" n) (format nil "gmove ~d" n))))
+        do (vikix-bind (format nil "s-~d" n) (format nil "gselect ~d" n)))
+  (vikix-bind-workspace-keys))

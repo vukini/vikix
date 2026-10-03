@@ -28,7 +28,7 @@
 #   - open: a terminal in the folder and Emacs on the log, both left
 #     running; refuses without a desktop
 #   - vikix project reaches it; the starter config is copied once, in
-#     yours.list; the s-m entry and Super+Shift+p are there
+#     yours.list; the s-m entry and Super+Alt+p are there
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
@@ -319,7 +319,7 @@ expect "the starter config is copied once" grep -q 'copy_user "$C/projects/proje
 expect "the starter config is in yours.list" grep -q '^\.config/vikix/projects ' "$here/config/yours.list"
 expect "the starter config's lines are all comments (the defaults stand)" bash -c '! grep -v "^#" "$1" | grep -q .' _ "$here/config/projects/projects"
 expect "Super+m has Projects" grep -q '"vikix-project pick"' "$here/config/stumpwm/vikix/commands.lisp"
-expect "Super+Shift+p picks a project" grep -q '("s-P" *"exec vikix-project pick"' "$here/config/stumpwm/vikix/keys.lisp"
+expect "Super+Alt+p picks a project" grep -q '("s-M-p" *"exec vikix-project pick"' "$here/config/stumpwm/vikix/keys.lisp"
 
 [ "$fail" = 0 ] && echo "project: all passed"
 exit "$fail"

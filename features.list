@@ -48,7 +48,7 @@ graphics    | optional/graphics  |          |                     |             
 blender     | optional/blender   |          |                     |                       | Blender: 3D, animation and its own video editor (230 MB)
 study       | optional/study     |          |                     |                       | Study: Anki flashcards, and Xournal++ to write on PDFs
 passwords   | optional/passwords |          |                     |                       | KeePassXC: passwords and two-factor codes, offline in a file of your own
-bitwarden   | optional/bitwarden |          | vikix bitwarden setup | vikix bitwarden uninstall | Bitwarden: your passwords and two-factor codes from your Bitwarden account, typed into any window (Super+Shift+v)
+bitwarden   | optional/bitwarden |          | vikix bitwarden setup | vikix bitwarden uninstall | Bitwarden: your passwords and two-factor codes from your Bitwarden account, typed into any window (Super+Alt+v)
 phone       | optional/phone     |          |                     |                       | An Android phone's screen in a window (scrcpy, over adb)
 wallpapers  |                    |          | vikix wallpapers setup | vikix wallpapers uninstall | Vid's wallpapers (about 40 MB): the wallpaper cycles through them, and they're in the Super+m picker; vikix update brings new ones
 cli-extras  | optional/cli-extras|          |                     |                       | More terminal tools: pandoc converts documents, ncdu shows what fills the disk

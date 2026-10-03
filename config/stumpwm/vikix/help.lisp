@@ -48,7 +48,7 @@ front, so a name like Brightness-up is never mistaken for one."
 ;; keys are bound in a loop in keys.lisp), as the help writes them.
 (defparameter *vikix-extra-keys*
   '(("Super+1 ... Super+9" "Go to workspace 1-9" "grouplist")
-    ("Super+Ctrl+1 ... 9" "Send window to workspace 1-9" "gmove")
+    ("Super+Shift+1 ... 9" "Send window to workspace 1-9" "gmove")
     ("Ctrl+t then ?" "StumpWM's own keys (after the prefix)" "vikix-prefix-keys"))
   "Each entry: the key as the help shows it, a description, the command.")
 
@@ -60,7 +60,7 @@ front, so a name like Brightness-up is never mistaken for one."
 ;;;   ("s-F12" "exec obsidian" "Obsidian" "Apps")
 ;;; Any other program started with exec is an app; anything else is Other.
 (defparameter *vikix-key-groups*
-  '(("Apps" "vikix-terminal" "rofi" "firefox" "pcmanfm" "spacefm" "vikix-drives"
+  '(("Apps" "vikix-terminal" "rofi" "firefox" "pcmanfm" "spacefm"
      "emacsclient" "clipmenu" "vikix-rofi" "vikix-webapp" "vikix-esploro"
      "vikix-project")
     ("AI & voice" "vikix-agent" "vikix-ask" "vikix-dictate" "vikix-voice")
@@ -73,7 +73,7 @@ front, so a name like Brightness-up is never mistaken for one."
     ("Screenshots & recording" "vikix-screenshot" "vikix-record" "vikix-capture")
     ("Sound & screen" "vikix-volume" "vikix-osd" "vikix-nightlight")
     ("System" "vikix-menu" "vikix-keys" "vikix-keys-card" "vikix-prefix-keys" "vikix-pick-theme"
-     "vikix-lock" "vikix-power" "vikix-awake"))
+     "vikix-lock" "vikix-power" "vikix-awake" "vikix-drives"))
   "The card's groups, in the order it shows them: a name, then the programs
 and commands whose keys go there. Keys that match none go in \"Apps\" when
 they start a program, else in \"Other\", shown last.")
@@ -100,6 +100,56 @@ they start a program, else in \"Other\", shown last.")
         (car (find-if (lambda (g) (member word (rest g) :test #'string=))
                       *vikix-key-groups*)))
       (if (eql 0 (search "exec " command)) "Apps" "Other")))
+
+;;; The rule for keys (keys.lisp has it in words): each modifier beside
+;;; Super means one thing. This finds the keys that break it.
+
+(defun vikix-key-layer (key)
+  "The modifier KEY has beside Super: :ctrl, :alt, :shift or :super; nil
+for a key without Super (Print, the laptop's own keys)."
+  (when (eql 0 (search "s-" key))
+    (let ((rest (subseq key 2)))
+      (cond ((search "C-" rest :end2 (min 2 (length rest))) :ctrl)
+            ((search "M-" rest :end2 (min 2 (length rest))) :alt)
+            ((or (search "S-" rest :end2 (min 2 (length rest)))
+                 (and (= (length rest) 1) (upper-case-p (char rest 0)))
+                 (member rest '("asciitilde" "\"") :test #'string=))
+             :shift)
+            (t :super)))))
+
+(defun vikix-key-problem (key command &optional owner)
+  "Why KEY running COMMAND breaks the rule for keys, in words; nil when it
+keeps it. OWNER is :plugin or :webapp for a key of theirs."
+  (let ((layer (vikix-key-layer key))
+        (word (vikix-command-word command)))
+    (flet ((is (list) (or (member command list :test #'string=)
+                          (member word list :test #'string=))))
+      (cond ((null layer) nil)
+            ((is *vikix-key-switches*)
+             (unless (eq layer :ctrl) "it switches something on the desktop, which is Super+Ctrl"))
+            ((is *vikix-key-movers*)
+             (unless (eq layer :shift) "it moves a window, which is Super+Shift"))
+            (owner
+             (unless (eq layer :alt)
+               (format nil "a ~(~a~)'s key is Super+Alt" (if (eq owner :webapp) "web app" owner))))
+            ((is *vikix-key-everyday*)
+             (when (eq layer :ctrl) "Super+Ctrl is for switching something on the desktop"))
+            ((eql 0 (search "exec " command))
+             (unless (eq layer :alt)
+               "it opens a program that isn't one of the six main apps, which is Super+Alt"))
+            ;; Anything else is a command the rule doesn't know (one of
+            ;; yours): it can't say.
+            ))))
+
+(defun vikix-key-problems (&optional (bindings *vikix-bindings*))
+  "The keys of BINDINGS that break the rule: (KEY-AS-SAID DESCRIPTION WHY)."
+  (loop for (key command description) in bindings
+        for owner = (cond ((and (boundp '*vikix-plugin-keys*)
+                                (find key (symbol-value '*vikix-plugin-keys*) :key #'second :test #'equal))
+                           :plugin)
+                          ((eql 0 (search "vikix-webapp " command)) :webapp))
+        for why = (vikix-key-problem key command owner)
+        when why collect (list (vikix-pretty-key key) description why)))
 
 (defun vikix-key-entries ()
   "Every key the help shows, as (label description command group): the
@@ -275,7 +325,7 @@ the columns, the key width and the description width."
 (defun vikix-card-strings (rows chars)
   "The card's lines, for a monitor ROWS lines tall and CHARS wide."
   (multiple-value-bind (columns key-width desc-width)
-      (vikix-card-layout (vikix-card-groups) (- rows 4) chars)
+      (vikix-card-layout (vikix-card-groups) (- rows 5) chars)
     (let ((width (+ key-width 2 desc-width))
           (accent (vikix-card-fg :accent))
           ;; Group names in the terminal's yellow; hints in its comment
@@ -291,6 +341,9 @@ the columns, the key width and the description width."
         (append
          (list (concatenate 'string accent "Vikix keys^n"
                             hint "   any key closes this; one that does something does it too^n")
+               ;; The rule for keys, in a line (keys.lisp).
+               (concatenate 'string hint "Super: everyday.  +Shift: move the window.  "
+                            "+Alt: open something else.  +Ctrl: switch something.^n")
                "")
          (loop for i below (reduce #'max columns :key #'length :initial-value 0)
                collect (format nil "~{~a~^    ~}"

@@ -2,7 +2,7 @@
 # tests/webapp.sh — `vikix webapp`: websites as programs of their own.
 #
 #   add      a preset (superhuman) gets its address and, as the first mail
-#            web app, Super+Shift+m; the next mail one gets no key unless
+#            web app, Super+Alt+m; the next mail one gets no key unless
 #            asked; a launcher entry with its window class; opts in to
 #            Chromium (installed by 10-packages only when missing). Refused:
 #            a bad name, an address that isn't https (but localhost), one of
@@ -41,7 +41,7 @@ apps="$HOME/.local/share/applications"
 
 # --- add ------------------------------------------------------------------------------
 out=$(wa add superhuman 2>&1) || { echo "FAIL: add superhuman failed: $out"; fail=1; }
-check "superhuman should be on the list with its address and s-M: $(cat "$list")" grep -qx 'superhuman https://mail.superhuman.com/ s-M' "$list"
+check "superhuman should be on the list with its address and s-M-m: $(cat "$list")" grep -qx 'superhuman https://mail.superhuman.com/ s-M-m' "$list"
 check "no launcher entry for superhuman" test -f "$apps/vikix-webapp-superhuman.desktop"
 check "the launcher entry should open it and name its window class" \
   grep -q '^Exec=vikix-webapp open superhuman$' "$apps/vikix-webapp-superhuman.desktop"
@@ -49,33 +49,33 @@ check "the launcher entry's window class" grep -q '^StartupWMClass=vikix-superhu
 check "the launcher entry should be called Superhuman" grep -q '^Name=Superhuman$' "$apps/vikix-webapp-superhuman.desktop"
 check "add didn't choose the feature webapps (so updates keep Chromium)" grep -qx webapps "$HOME/.config/vikix/features"
 wa add fastmail >/dev/null 2>&1
-check "a second mail web app took s-M too: $(cat "$list")" grep -qx 'fastmail https://app.fastmail.com/' "$list"
-wa add fastmail --key s-F >/dev/null 2>&1
-check "fastmail --key s-F should give it that key, once: $(cat "$list")" test "$(grep -c '^fastmail ' "$list")-$(grep '^fastmail ' "$list")" = "1-fastmail https://app.fastmail.com/ s-F"
+check "a second mail web app took s-M-m too: $(cat "$list")" grep -qx 'fastmail https://app.fastmail.com/' "$list"
+wa add fastmail --key s-M-f >/dev/null 2>&1
+check "fastmail --key s-M-f should give it that key, once: $(cat "$list")" test "$(grep -c '^fastmail ' "$list")-$(grep '^fastmail ' "$list")" = "1-fastmail https://app.fastmail.com/ s-M-f"
 wa add crm https://crm.example.com >/dev/null 2>&1
 check "an app of your own should be kept with no key" grep -qx 'crm https://crm.example.com' "$list"
 wa add dev http://localhost:3000/ >/dev/null 2>&1
 check "http://localhost should be allowed" grep -qx 'dev http://localhost:3000/' "$list"
 
-# Added again, an app keeps its key; another mail app doesn't get s-M then.
+# Added again, an app keeps its key; another mail app doesn't get s-M-m then.
 out=$(wa add superhuman 2>&1)
-check "adding superhuman again dropped its key: $(grep '^superhuman' "$list")" grep -qx 'superhuman https://mail.superhuman.com/ s-M' "$list"
-check "the message should say Super+Shift+m, not only s-M: $out" grep -q 'Super+Shift+m' <<<"$out"
+check "adding superhuman again dropped its key: $(grep '^superhuman' "$list")" grep -qx 'superhuman https://mail.superhuman.com/ s-M-m' "$list"
+check "the message should say Super+Alt+m, not only s-M-m: $out" grep -q 'Super+Alt+m' <<<"$out"
 wa add outlook-live >/dev/null 2>&1
-check "outlook-live took s-M from superhuman: $(grep '^outlook-live' "$list")" grep -qx 'outlook-live https://outlook.live.com/mail/' "$list"
+check "outlook-live took s-M-m from superhuman: $(grep '^outlook-live' "$list")" grep -qx 'outlook-live https://outlook.live.com/mail/' "$list"
 out=$(wa add outlook-live 2>&1)
-check "an app with no key should say how to give it one, not 'open it with its key': $out" grep -q 'vikix webapp key outlook-live s-X' <<<"$out"
+check "an app with no key should say how to give it one, not 'open it with its key': $out" grep -q 'vikix webapp key outlook-live s-M-X' <<<"$out"
 # Keys moved and dropped.
-out=$(wa add gmail --key s-M 2>&1) && { echo "FAIL: gmail took superhuman's s-M"; fail=1; }
+out=$(wa add gmail --key s-M-m 2>&1) && { echo "FAIL: gmail took superhuman's s-M-m"; fail=1; }
 check "a taken key should say how to free it: $out" grep -q 'vikix webapp key superhuman none' <<<"$out"
 wa key superhuman none >/dev/null 2>&1
 check "key NAME none should drop the key" grep -qx 'superhuman https://mail.superhuman.com/' "$list"
-wa add gmail --key=s-M >/dev/null 2>&1
-check "--key=s-M should work too" grep -qx 'gmail https://mail.google.com/ s-M' "$list"
+wa add gmail --key=s-M-m >/dev/null 2>&1
+check "--key=s-M-m should work too" grep -qx 'gmail https://mail.google.com/ s-M-m' "$list"
 wa add gmail --key none >/dev/null 2>&1
 check "--key none should leave gmail without a key" grep -qx 'gmail https://mail.google.com/' "$list"
-wa key superhuman s-M >/dev/null 2>&1
-check "key NAME KEY should set it" grep -qx 'superhuman https://mail.superhuman.com/ s-M' "$list"
+wa key superhuman s-M-m >/dev/null 2>&1
+check "key NAME KEY should set it" grep -qx 'superhuman https://mail.superhuman.com/ s-M-m' "$list"
 out=$(wa add crm crm.example.com 2>&1) || true
 check "an address without https:// should suggest it: $out" grep -q 'did you mean vikix webapp add crm https://crm.example.com' <<<"$out"
 
@@ -83,8 +83,10 @@ refuse() { local why=$1; shift; out=$(wa add "$@" 2>&1) && { echo "FAIL: add $* 
 refuse "not https" site http://example.com
 refuse "a bad name" 'My App' https://example.com
 refuse "not a preset, no address" nosuchthing
-refuse "Vikix's own key" gmail --key s-A
-refuse "another web app's key" gmail --key s-F
+refuse "Vikix's own key" gmail --key s-M-e
+refuse "not on Super+Alt, where web apps are (the rule for keys)" gmail --key s-G
+refuse "nor on Super+Ctrl" gmail --key s-C-g
+refuse "another web app's key" gmail --key s-M-f
 refuse "not a Super key" gmail --key C-g
 refuse "go to workspace 1" gmail --key s-1
 refuse "send a window to workspace 3" gmail --key s-C-3
@@ -98,7 +100,7 @@ check "open should start Chromium as an app window with its own class and profil
 check "the profile should be 700" test "$(stat -c %a "$HOME/.local/share/vikix/webapps/superhuman")" = 700
 wa open nosuchthing >/dev/null 2>&1 && { echo "FAIL: open of a web app that isn't there worked"; fail=1; }
 out=$(wa list)
-check "list should show superhuman and its key, as said: $out" grep -qE '^superhuman +https://mail.superhuman.com/ +s-M \(Super\+Shift\+m\)$' <<<"$out"
+check "list should show superhuman and its key, as said: $out" grep -qE '^superhuman +https://mail.superhuman.com/ +s-M-m \(Super\+Alt\+m\)$' <<<"$out"
 check "list should say an app has no key: $out" grep -qE '^crm +https://crm.example.com +no key$' <<<"$out"
 touch "$HOME/.local/share/vikix/webapps/superhuman/Cookies"
 # The camera and microphone: a meeting preset has them, allowed for its own
@@ -130,7 +132,7 @@ printf '# my own note\nbroken https://x.example Super+Shift+o\nnourl\n' >> "$lis
 wa remove outlook-live >/dev/null 2>&1
 check "a rewrite lost your own comment" grep -qx '# my own note' "$list"
 out=$(wa list)
-check "list should call a bad key ignored: $out" grep -qE '^broken .*ignored: needs a key like s-M' <<<"$out"
+check "list should call a bad key ignored: $out" grep -qE '^broken .*ignored: needs a key like s-M-m' <<<"$out"
 check "list should call a line with no address ignored: $out" grep -qE '^nourl .*ignored: needs an address' <<<"$out"
 wa rm superhuman >/dev/null 2>&1
 check "remove left superhuman on the list" bash -c "! grep -q '^superhuman ' '$list'"
@@ -153,9 +155,20 @@ check "the migration should add the cache lines once: $(grep -c 'webapps/\*' "$H
   test "$(grep -c 'webapps/\*/Default/Cache$' "$HOME/.config/vikix/backup-exclude")" = 1
 check "the migration lost your own lines" grep -qx '# mine' "$HOME/.config/vikix/backup-exclude"
 
+# The migration that moves web apps' keys to Super+Alt (the rule for keys).
+printf '# mine\nsuperhuman https://mail.superhuman.com/ s-M\ncrm https://crm.example.com/ s-C-g\nfiles https://files.example.com/ s-e\nteams https://teams.microsoft.com/ s-M-t\nplain https://plain.example.com/\n' > "$list"
+mig=$(grep -l 'rule-for-keys-webapps' "$here"/migrations/*.sh | head -1)
+check "no migration moves web apps' keys to Super+Alt" test -n "$mig"
+out=$(VIKIX_DIR="$here" bash "$mig" 2>&1); VIKIX_DIR="$here" bash "$mig" >/dev/null 2>&1
+check "the mail key should move from Super+Shift+m to Super+Alt+m: $(cat "$list")" grep -qx 'superhuman https://mail.superhuman.com/ s-M-m' "$list"
+check "a key on Super+Ctrl should move to Super+Alt, the same letter" grep -qx 'crm https://crm.example.com/ s-M-g' "$list"
+check "where Super+Alt and that letter is Vikix's, the web app is left without a key: $(grep '^files' "$list")" grep -qx 'files https://files.example.com/' "$list"
+check "and you're told how to give it one: $out" grep -q 'vikix webapp key files' <<<"$out"
+check "a key already on Super+Alt, an app without one and your comment stay as they are, run twice" bash -c "grep -qx 'teams https://teams.microsoft.com/ s-M-t' '$list' && grep -qx 'plain https://plain.example.com/' '$list' && grep -qx '# mine' '$list' && [ \$(wc -l < '$list') = 6 ]"
+
 # --- webapps.lisp -------------------------------------------------------------------------
 if command -v sbcl >/dev/null; then
-  printf '# mine\nsuperhuman https://mail.superhuman.com/ s-M\nbroken https://x.example Super+Shift+o\nnourl\nfastmail https://app.fastmail.com/\n' > "$list"
+  printf '# mine\nsuperhuman https://mail.superhuman.com/ s-M-m\nbroken https://x.example Super+Shift+o\nnourl\nfastmail https://app.fastmail.com/\n' > "$list"
   printf '[Desktop Entry]\nName=Fast Mail\n' > "$apps/vikix-webapp-fastmail.desktop"
   cat > "$t/check.lisp" <<EOF
 (defpackage :stumpwm (:use :cl))
@@ -187,19 +200,19 @@ $(sed -n '/^(defvar \*vikix-key-clashes\*/,/^(vikix-binding-keys/p' "$here/confi
           (mapcar #'first *vikix-menu*)))
 (show)
 (with-open-file (o *vikix-webapps-file* :direction :output :if-exists :supersede)
-  (write-line "fastmail https://app.fastmail.com/ s-F" o))
+  (write-line "fastmail https://app.fastmail.com/ s-M-f" o))
 (vikix-load-webapps)
 (show)
 (format t "run ~s~%" (vikix-webapp "fastmail"))
 EOF
   out=$(HOME="$HOME" sbcl --script "$t/check.lisp" 2>&1) || { echo "FAIL: webapps.lisp didn't load: $out"; fail=1; }
   first=$(sed -n 1,3p <<<"$out"); second=$(sed -n 4,6p <<<"$out")
-  check "webapps.lisp should bind s-M to superhuman: $first" grep -qF 'keys (("s-M" "vikix-webapp superhuman"))' <<<"$first"
-  check "the key help should list s-M after Vikix's own: $first" grep -qF 'help ("s-RET" "s-M")' <<<"$first"
+  check "webapps.lisp should bind s-M-m to superhuman: $first" grep -qF 'keys (("s-M-m" "vikix-webapp superhuman"))' <<<"$first"
+  check "the key help should list s-M-m after Vikix's own: $first" grep -qF 'help ("s-RET" "s-M-m")' <<<"$first"
   check "Super+m should list the good ones (a bad key and no address skipped, the rest loaded), named as the launcher names them, before Power: $first" \
     grep -qF 'menu ("Theme" "Web app: Superhuman" "Web app: Broken" "Web app: Fast Mail" "Power")' <<<"$first"
-  check "a reload should drop superhuman's key and add fastmail's: $second" grep -qF 'keys (("s-F" "vikix-webapp fastmail"))' <<<"$second"
-  check "a reload doubled or kept key help: $second" grep -qF 'help ("s-RET" "s-F")' <<<"$second"
+  check "a reload should drop superhuman's key and add fastmail's: $second" grep -qF 'keys (("s-M-f" "vikix-webapp fastmail"))' <<<"$second"
+  check "a reload doubled or kept key help: $second" grep -qF 'help ("s-RET" "s-M-f")' <<<"$second"
   check "a reload doubled or kept menu entries: $second" grep -qF 'menu ("Theme" "Web app: Fast Mail" "Power")' <<<"$second"
   check "the key should run-or-raise by the window class vikix-fastmail: $out" \
     grep -qF 'run ("vikix-webapp launch fastmail" (:CLASS "vikix-fastmail"))' <<<"$out"

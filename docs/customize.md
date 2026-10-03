@@ -25,17 +25,17 @@ To see how Vikix does something before changing it, read its layer in `~/vikix/c
 
 ```lisp
 (vikix-bind "s-w" "exec chromium")         ; change what a key does
-(vikix-bind "s-t" "exec obsidian")         ; a new key
-(undefine-key *top-map* (kbd "s-E"))       ; drop one of Vikix's keys
+(vikix-bind "s-M-o" "exec obsidian")       ; a new key: Super+Alt+o
+(undefine-key *top-map* (kbd "s-M-s"))     ; drop one of Vikix's keys
 ```
 
-`s-` is Super, `C-` Ctrl, `M-` Alt, and a capital letter means Shift: `s-O` is Super+Shift+o. The command is a StumpWM command: `exec PROGRAM` starts a program, and `Super+m` → *All commands* lists the others.
+`s-` is Super, `C-` Ctrl, `M-` Alt, `S-` Shift, and a capital letter means Shift too: `s-O` is Super+Shift+o, `s-M-o` Super+Alt+o. The command is a StumpWM command: `exec PROGRAM` starts a program, and `Super+m` → *All commands* lists the others.
 
 To see a new key on the key card (`Super+/`) and in the key help (`Super+F1`), add it to the list both are built from too:
 
 ```lisp
-(push '("s-t" "exec obsidian" "Obsidian") *vikix-bindings*)
-(vikix-bind "s-t" "exec obsidian")
+(push '("s-M-o" "exec obsidian" "Obsidian") *vikix-bindings*)
+(vikix-bind "s-M-o" "exec obsidian")
 ```
 
 The card puts each key in a group by what it runs: a program started with `exec` goes under *Apps* (or *AI & voice*, *Screenshots & recording* and so on, when Vikix knows the program), and anything else under *Other*. To choose the group yourself, give it as a fourth item: `'("s-t" "exec obsidian" "Obsidian" "Notes")`. A group of your own comes after Vikix's.
@@ -43,6 +43,23 @@ The card puts each key in a group by what it runs: a program started with `exec`
 After `Ctrl+t`, StumpWM's prefix, the keys that can follow appear if you wait (StumpWM's which-key-mode, which Vikix turns on). To have it off, put `(vikix-which-key nil)` in user.lisp. Don't call `(which-key-mode)` there: it switches on and off, so every reload would flip it.
 
 `Super+m` → *What does a key do?* tells you what any key is bound to now.
+
+### The rule for keys
+
+Each modifier beside Super means one thing. Vikix's keys keep to it, so do the plugins' and the web apps', and a key of yours is easiest to remember when it does too:
+
+| Keys | What they are for | Vikix's, for example |
+|---|---|---|
+| Super | Everyday: the six main apps (terminal, launcher, browser, files, editor, agent), the small tools, focus, and what is done to the window you're in | `Super+Return`, `Super+w`, `Super+h`, `Super+q`, `Super+f` |
+| Super+Shift | The same key, moving the window: move it, send it to a workspace, bring one here. Or the key's other way: redo, previous | `Super+Shift+h`, `Super+Shift+3`, `Super+Shift+g`, `Super+Shift+u` |
+| Super+Alt | Open something else: every other app, every web app and plugin | `Super+Alt+p` projects, `Super+Alt+v` passwords, `Super+Alt+m` mail |
+| Super+Ctrl | Switch something on the desktop | `Super+Ctrl+a` keep awake, `Super+Ctrl+l` night light, `Super+Ctrl+d` do not disturb, `Super+Ctrl+g` gaps |
+
+So a new app goes on Super+Alt and a letter, a switch of your own on Super+Ctrl. Keys without Super keep their own ways: Print (Shift keeps a file, Ctrl is the window, Super the screen) and the laptop's own keys.
+
+Sending a window to a workspace is Super+Shift and the digit on any keyboard: Vikix asks the keyboard what Shift+digit types (`!` on a US one) and binds that, again after `Super+m` → *Apply keyboard settings*. On a keyboard where the digits themselves need Shift (French), it is Super+Ctrl and the digit.
+
+`vikix doctor` names a key that breaks the rule: a plugin's or a web app's not on Super+Alt, a program of yours on plain Super, a switch somewhere else. The key still works; the doctor only says so. What Vikix counts as everyday, a switch or a move is three short lists at the top of `~/vikix/config/stumpwm/vikix/keys.lisp`; add a command of your own to one in `user.lisp`, `(push "my-toggle" *vikix-key-switches*)`, and the doctor knows it.
 
 ### Start a program with the desktop
 
@@ -149,7 +166,7 @@ Each is a file of plain Lisp in `~/.config/vikix/layouts/`, to read and change b
 (vikix-set-font)
 ```
 
-Gaps between windows (Super+g) are 10px, 9px at the screen edge. The inner gap is on every side of each window, so two windows are twice it apart. To change them, or have them on from login:
+Gaps between windows (Super+Ctrl+g) are 10px, 9px at the screen edge. The inner gap is on every side of each window, so two windows are twice it apart. To change them, or have them on from login:
 
 ```lisp
 (setf swm-gaps:*inner-gaps-size* 3         ; 6px between windows
@@ -228,7 +245,7 @@ That lasts until the next reload or login. When it does what you want, put the s
 |---|---|
 | Keyboard layout, Caps Lock | `Super+m` → *Welcome* → *Set your keyboard layout* picks one from a list and applies it. Or edit `~/.config/vikix/keyboard` (`VIKIX_KB_LAYOUT`, options such as `ctrl:nocaps`), then `Super+m` → *Apply keyboard settings*. The starter swaps Caps Lock and Left Ctrl. |
 | When the screen locks, goes dark, suspends | Make `~/.config/vikix/idle` with any of `LOCK=10`, `SCREEN_OFF=11`, `SUSPEND=20` (minutes; `SUSPEND=0` never suspends; suspend is on battery only), then log in again |
-| Night light hours and warmth | `~/.config/gammastep/config.ini`. `Super+Alt+l` switches it off and on. |
+| Night light hours and warmth | `~/.config/gammastep/config.ini`. `Super+Ctrl+l` switches it off and on. |
 | Which program opens a kind of file | `~/.config/mimeapps.list`, or `xdg-mime default org.pwmt.zathura.desktop application/pdf` |
 | Screens at a desk | Arrange them with `Super+m` → *Screens: arrange*, then *Screens: save this layout*. The layout comes back whenever the same screens are plugged in. |
 | What backups leave out | `~/.config/vikix/backup-exclude` |
@@ -261,7 +278,7 @@ A website you use like a program (mail, a CRM, a calendar) can have a window, a 
 
 ```sh
 vikix webapp add superhuman            # presets: superhuman, fastmail, gmail, outlook, outlook-live
-vikix webapp add crm https://crm.example.com --key s-C-c
+vikix webapp add crm https://crm.example.com --key s-M-k   # Super+Alt+k: web apps' keys are on Super+Alt
 vikix webapp key crm none              # change its key, or drop it
 ```
 
@@ -282,10 +299,10 @@ depth=2               # how far down: 2 makes ~/src/series/book a project of the
 logs=~/src/project-logs   # a public repo ~/src/NAME with no log.md of its own uses logs/NAME/log.md
 ```
 
-The change takes effect at once: each `vikix project` reads it again. A project whose build isn't `build.sh`, `make`, `src/build.sh` or `npm run build` says so in its log's Status, with a `- Build: COMMAND` line, and the same for its checks with `- Check: COMMAND`. `vikix project new NAME` adds a project (a folder in the first `root=` with its log); `vikix today` is the day across all of them. `Super+Shift+p` (or `Super+m` → *Projects*) picks one with rofi and opens a terminal in its folder and its log in Emacs (in `$EDITOR`, Neovim by default, without Emacs); the terminal is `$VIKIX_TERMINAL`, `alacritty` unless you set it.
+The change takes effect at once: each `vikix project` reads it again. A project whose build isn't `build.sh`, `make`, `src/build.sh` or `npm run build` says so in its log's Status, with a `- Build: COMMAND` line, and the same for its checks with `- Check: COMMAND`. `vikix project new NAME` adds a project (a folder in the first `root=` with its log); `vikix today` is the day across all of them. `Super+Alt+p` (or `Super+m` → *Projects*) picks one with rofi and opens a terminal in its folder and its log in Emacs (in `$EDITOR`, Neovim by default, without Emacs); the terminal is `$VIKIX_TERMINAL`, `alacritty` unless you set it.
 
 
-`vikix project open NAME` (or Super+Shift+p) puts a project on a workspace of its own, the first empty one, with a terminal in its folder and its log in the editor. Arrange them as you like: when you leave that workspace its layout is saved (as a layout called `project-NAME`, see *Saved layouts*), and the next time you open the project it comes back that way. While the project's workspace is still open, opening it again just goes there. `vikix project save` saves it at once. A window the saved layout names that isn't open, a browser say, is started again and put in its place.
+`vikix project open NAME` (or Super+Alt+p) puts a project on a workspace of its own, the first empty one, with a terminal in its folder and its log in the editor. Arrange them as you like: when you leave that workspace its layout is saved (as a layout called `project-NAME`, see *Saved layouts*), and the next time you open the project it comes back that way. While the project's workspace is still open, opening it again just goes there. `vikix project save` saves it at once. A window the saved layout names that isn't open, a browser say, is started again and put in its place.
 ## AI
 
 Each of these is one of your files, so it has an undo too. [Working with AI](ai.md) says what each does.

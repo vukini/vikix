@@ -39,9 +39,11 @@
         (string-capitalize name))))
 
 (defun vikix-webapp-key-ok (key)
-  "A Super key of the form vikix-webapp allows: s-M, s-C-g, s-F5."
-  (and (stringp key) (> (length key) 2) (string= "s-" key :end2 2)
-       (every (lambda (c) (or (alphanumericp c) (char= c #\-))) key)))
+  "A key of the form vikix-webapp allows: Super+Alt and a letter, digit or
+F-key (s-M-m, s-M-F5). The rule for keys (keys.lisp): a web app is something
+else opened, and that is Super+Alt."
+  (and (stringp key) (> (length key) 4) (string= "s-M-" key :end2 4)
+       (every #'alphanumericp (subseq key 4))))
 
 (defcommand vikix-webapp (name) ((:string "Web app: "))
   "Bring the web app NAME to the front, on whatever workspace it is, or start it."

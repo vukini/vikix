@@ -88,7 +88,7 @@ Under the grid, a strip shows the form that just changed, as text, as you click.
 
 ### The inbox
 
-`Super+Alt+m` starts recording the mic (and the engine's output, if playing) into `~/music/inbox/2026-10-03-0734.wav`; the bar shows the alert colour while it runs; the same key stops it. `Super+Alt+l` opens the last pattern running in the view. `vikix music inbox` lists captures with a waveform each; "loop this", "send to <song>", "file under…" as the notes inbox does. Captures are never deleted by Vikix; filing moves them.
+`Super+Ctrl+m` starts recording the mic (and the engine's output, if playing) into `~/music/inbox/2026-10-03-0734.wav`; the bar shows the alert colour while it runs; the same key stops it. `Super+Alt+l` opens the last pattern running in the view. `vikix music inbox` lists captures with a waveform each; "loop this", "send to <song>", "file under…" as the notes inbox does. Captures are never deleted by Vikix; filing moves them.
 
 ## User stories
 

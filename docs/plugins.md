@@ -16,7 +16,7 @@ A plugin's keys and bar take effect at once. If a plugin's key is one Vikix or a
 
 A plugin's code runs inside the desktop with all its power, like your `user.lisp`: add the ones you trust. If one ever stops the desktop from starting, log in on a text console (Ctrl+Alt+F2), run `vikix plugin safe`, log in again, and switch the culprit off.
 
-The keys at a glance:
+The keys at a glance. A plugin's keys are all on Super+Alt, with Shift for a second one on the same letter: that is where everything beyond the six main apps opens ([the rule for keys](customize.md)).
 
 | Key | Plugin | What it does |
 |---|---|---|

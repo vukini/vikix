@@ -16,6 +16,10 @@
 # one; this keeps them from being written).
 #
 # With no files given, it then loads keys.lisp and help.lisp and checks the
+# rule for keys (each modifier means one thing: keys.lisp): none of Vikix's
+# keys breaks it, it finds the ones that would, Super+Shift+digit sends a
+# window to a workspace, and the keys from before the rule go at a reload.
+# Then the
 # key card (Super+/): every key in *vikix-bindings* is in a group and on
 # the card, at any screen size; and a reload sets which-key-mode rather
 # than toggling it. Against the real StumpWM when Quicklisp has it (the
@@ -136,7 +140,7 @@ else
   against="stand-ins for StumpWM (no StumpWM in Quicklisp here)"
   # Stand-ins for the parts of StumpWM that keys.lisp and help.lisp use as they load.
   cat > "$t/prelude.lisp" <<'EOF'
-(defpackage :xlib (:use :cl) (:export #:display-finish-output #:change-property #:delete-property))
+(defpackage :xlib (:use :cl) (:export #:display-finish-output #:change-property #:delete-property #:keysym->keycodes #:keycode->keysym))
 (defpackage :stumpwm (:use :cl))
 (in-package :stumpwm)
 (defvar *top-map* (make-hash-table :test 'equal))
@@ -174,6 +178,55 @@ cat > "$t/check.lisp" <<EOF
     (fail "s-asciitilde should read ~a, not ~s" want (vikix-pretty-key "s-asciitilde"))))
 (unless (equal (second (assoc "s-grave" *vikix-bindings* :test #'string=)) "next")
   (fail "Super+grave should be in *vikix-bindings*, running next"))
+;; The rule for keys (keys.lisp): none of Vikix's own breaks it.
+(dolist (p (vikix-key-problems))
+  (fail "~a (~a) breaks the rule for keys: ~a" (first p) (second p) (third p)))
+;; And the rule finds the keys that would.
+(loop for (key command owner breaks) in
+      '(("s-w"      "exec firefox"            nil nil)      ; one of the six main apps
+        ("s-P"      "exec vikix-project pick" nil t)        ; another app on Super+Shift
+        ("s-M-p"    "exec vikix-project pick" nil nil)
+        ("s-M-E"    "exec esploro --new"      nil nil)
+        ("s-g"      "toggle-gaps"             nil t)        ; a switch on plain Super
+        ("s-C-g"    "toggle-gaps"             nil nil)
+        ("s-C-w"    "exec firefox"            nil t)        ; an app on Super+Ctrl
+        ("s-C-Left" "vikix-move left"         nil t)        ; moving a window with Ctrl
+        ("s-S-Left" "vikix-move left"         nil nil)
+        ("s-H"      "vikix-move left"         nil nil)
+        ("s-M"      "vikix-webapp mail"       :webapp t)
+        ("s-M-m"    "vikix-webapp mail"       :webapp nil)
+        ("s-j"      "next-meeting-join"       :plugin t)
+        ("s-M-j"    "next-meeting-join"       :plugin nil)
+        ("s-M-I"    "inbox-quote"             :plugin nil)
+        ("Print"    "exec vikix-screenshot area clip" nil nil)   ; no Super: its own ways
+        ("s-F3"     "my-command"              nil nil))     ; yours, and nothing the rule knows
+      unless (eq (and (vikix-key-problem key command owner) t) breaks)
+        do (fail "~a running ~a should ~:[keep~;break~] the rule for keys: ~s"
+                 key command breaks (vikix-key-problem key command owner)))
+(loop for (key layer) in '(("s-w" :super) ("s-H" :shift) ("s-S-Left" :shift) ("s-asciitilde" :shift)
+                           ("s-M-e" :alt) ("s-M-E" :alt) ("s-C-a" :ctrl) ("Print" nil) ("XF86AudioMute" nil))
+      unless (eq (vikix-key-layer key) layer)
+        do (fail "~a should be on ~s, is on ~s" key layer (vikix-key-layer key)))
+;; Super+Shift+digit sends the window to that workspace. With no keyboard
+;; to ask (here), the keys are a US keyboard's.
+(unless (equal *vikix-workspace-send-keys*
+               '("s-exclam" "s-at" "s-numbersign" "s-dollar" "s-percent" "s-asciicircum" "s-ampersand" "s-asterisk" "s-parenleft"))
+  (fail "Super+Shift+1 ... 9 should be bound for a US keyboard here: ~s" *vikix-workspace-send-keys*))
+;; A key Vikix had before the rule goes at a reload, while it still runs
+;; what Vikix gave it; one given something else since stays.
+(when (and (fboundp 'lookup-key) (fboundp 'undefine-key))
+  (define-key *top-map* (kbd "s-E") "exec spacefm")
+  (define-key *top-map* (kbd "s-P") "exec my-own-program")
+  (define-key *top-map* (kbd "s-C-3") "gmove 3")
+  (load "$layer/keys.lisp")
+  (when (lookup-key *top-map* (kbd "s-E")) (fail "the old key Super+Shift+e should be let go at a reload"))
+  (when (lookup-key *top-map* (kbd "s-C-3")) (fail "the old key Super+Ctrl+3 should be let go at a reload"))
+  (unless (equal (lookup-key *top-map* (kbd "s-P")) "exec my-own-program")
+    (fail "a key of yours on one of the old keys should stay"))
+  (unless (equal (lookup-key *top-map* (kbd "s-exclam")) "gmove 1")
+    (fail "Super+Shift+1 should send the window to workspace 1: ~s" (lookup-key *top-map* (kbd "s-exclam"))))
+  (unless (equal (lookup-key *top-map* (kbd "s-S-Left")) "vikix-move left")
+    (fail "Super+Shift+Left should move the window left")))
 ;; Every one of Vikix's own keys is in a named group: Other is for yours.
 (dolist (e (vikix-key-entries))
   (when (string= (fourth e) "Other")

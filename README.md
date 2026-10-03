@@ -209,7 +209,20 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 
 ## Keys
 
-`s` means Super. StumpWM's own `Ctrl+t` prefix keys still work too: press `Ctrl+t` and wait, and StumpWM lists the keys that can follow (its which-key-mode). Focus follows the mouse: pointing at a window focuses it, without a click. To click instead, put `(setf *mouse-focus-policy* :click)` in `user.lisp`.
+`s` means Super, `S` Shift, `M` Alt and `C` Ctrl; a capital letter is Shift and that letter (`s-H` is Super+Shift+h).
+
+**The rule for keys.** Each modifier beside Super means one thing, for Vikix's keys, a plugin's and a web app's alike:
+
+| Keys | What they are for |
+|---|---|
+| Super | Everyday: the six main apps (terminal, launcher, browser, files, editor, agent), the small tools, focus, and what is done to the window you're in |
+| Super+Shift | The same key, moving the window: move it, send it to a workspace, bring one here; or the key's other way (redo, previous) |
+| Super+Alt | Open something else: every other app, web app and plugin |
+| Super+Ctrl | Switch something on the desktop: keep awake, night light, do not disturb, gaps, title bars, recording |
+
+Keys without Super keep their own ways: Print (Shift keeps a file, Ctrl is the window, Super the screen) and the laptop's own keys. `vikix doctor` names a key that breaks the rule, and Vikix's tests fail on one of its own.
+
+StumpWM's own `Ctrl+t` prefix keys still work too: press `Ctrl+t` and wait, and StumpWM lists the keys that can follow (its which-key-mode). Focus follows the mouse: pointing at a window focuses it, without a click. To click instead, put `(setf *mouse-focus-policy* :click)` in `user.lisp`.
 
 | Key | What it does |
 |---|---|
@@ -218,58 +231,58 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 | `s-SPC` | Launcher too: the key other desktops use for it |
 | `s-w` | Browser (Firefox) |
 | `s-e` | Files in Esploro, the file explorer in Emacs: the one on this workspace, or a new one here; F3 in it, two panes (PCManFM where Esploro isn't installed: `vikix add esploro`) |
-| `s-E` | Files in SpaceFM (tabs, split panes) |
+| `s-M-s` | Files in SpaceFM (tabs, split panes) |
 | `s-C-e` | Eject a USB drive: pick it, and a notification says when it's safe to pull out |
 | `s-M-e` | Files in PCManFM |
 | `s-M-E` | Files in a new Esploro window, even where one is open (`esploro --new`) |
 | `s-M-r` | Reveal the file behind this window in Esploro: what an Emacs frame shows, a viewer's document, a terminal's folder |
-| `s-P` | Projects: pick one with rofi; a terminal opens in its folder and its `log.md` in Emacs (see [Projects](#projects-vikix-project)) |
-| `s-V` | Passwords (Bitwarden): pick a login, Enter types it into the window you were in (`vikix add bitwarden`; see [Passwords](#passwords)) |
+| `s-M-p` | Projects: pick one with rofi; a terminal opens in its folder and its `log.md` in Emacs (see [Projects](#projects-vikix-project)) |
+| `s-M-v` | Passwords (Bitwarden): pick a login, Enter types it into the window you were in (`vikix add bitwarden`; see [Passwords](#passwords)) |
 | `s-a` | AI agent in a terminal: Claude Code, or the one you chose |
 | `s-i` | AI on the selected text: ask, proofread, rewrite, translate, explain |
 | `s-F9` | Dictation: speak, then `s-F9` again types it (`s-S-F9` cancels) |
 | `s-F10` | Voice: speak, then `s-F10` again: the AI answers, shown and aloud; follow-ups carry on the conversation |
 | `s-F11` | Voice: speak, then `s-F11` again: it goes to the agent (Claude Code), whose replies are read aloud |
 | `s-S-F10` | Voice: stop the AI talking |
-| `s-M` | Mail: your mail web app to the front, or opened (the first mail one `vikix webapp add` makes; see [Web apps](#web-apps)) |
+| `s-M-m` | Mail: your mail web app to the front, or opened (the first mail one `vikix webapp add` makes; see [Web apps](#web-apps)) |
 | `s-x` | Emacs: a new window (the Emacs server is already running) |
 | `s-c` | Clipboard history: pick something copied earlier, then paste it |
 | `s-.` | Emoji: search by name (heart, cat, thumbs up); Enter types it into your window and copies it, `Ctrl+c` only copies |
 | `s-=` | Calculator that answers as you type: `340 * 12%`, `5 ft to cm`, `100 USD to EUR`, `today + 30 days`. Enter copies the answer |
 | `s-n` / `s-N` | Notifications: the last one again / pick an earlier one (rofi) |
-| `s-C-n` / `s-M-n` | Notifications: close all / do not disturb on and off (the bar says `quiet`, and how many are waiting) |
+| `s-C-n` / `s-C-d` | Notifications: close all / do not disturb on and off (the bar says `quiet`, and how many are waiting) |
 | `s-q` | Close window |
 | `s-f` | Fullscreen |
 | `s-h` `s-j` `s-k` `s-l` | Move focus left, down, up, right |
 | `s-H` `s-J` `s-K` `s-L` | Move the window |
 | `s-←` `s-↓` `s-↑` `s-→` | Focus, on the arrows (in a VM on Windows, Super+L locks the host instead of reaching the guest) |
-| `s-C-←` `s-C-↓` `s-C-↑` `s-C-→` | Move the window, on the arrows |
+| `s-S-←` `s-S-↓` `s-S-↑` `s-S-→` | Move the window, on the arrows (Super+Shift, as with the letters) |
 | `s-b` | Split side by side |
 | `s-v` | Split one above the other |
 | `s-r` | Remove the split |
 | `s-u` / `s-U` | Undo / redo the last layout change on this workspace (splits, moves, closes) |
 | `s-z` | Focus: only this window on the workspace, the others out of sight (the bar stays); `s-z` again puts the layout back exactly as it was, whatever you changed meanwhile. Each workspace has its own. `s-f` fills the whole screen instead |
-| `s-g` | Gaps around windows, on or off (off at login; 10px between windows, 9px at the edge) |
-| `s-A` | Any window on any workspace: pick one and go there |
-| `s-C-a` | Any window on any workspace: pick one and bring it here |
+| `s-C-g` | Gaps around windows, on or off (off at login; 10px between windows, 9px at the edge) |
+| `s-g` | Go to any window on any workspace: pick one |
+| `s-G` | Bring any window here from any workspace: pick one |
 | `s-p` | Move the mouse pointer to the focused window |
 | `s-t` | Float the focused window, or put it back in the tiles; a floating window moves with Super + left-drag and resizes with Super + right-drag. Dialogs (password boxes, file choosers, zenity's) float by themselves, centred, and stay in front when you click elsewhere; `s-t` tiles one that should be an ordinary window |
-| `s-y` | Title bars on or off: a strip at the top of each tiled window with its number and name, the focused one in the theme's accent (on unless you turned them off; remembered in `~/.config/vikix/titlebars-off`) |
+| `s-C-y` | Title bars on or off: a strip at the top of each tiled window with its number and name, the focused one in the theme's accent (on unless you turned them off; remembered in `~/.config/vikix/titlebars-off`) |
 | `s-"` | Rename the focused window: its title bar and the bar show the new name |
 | `s-1`…`s-9` | Go to a workspace |
-| `s-C-1`…`s-C-9` | Send the window to a workspace |
+| `s-S-1`…`s-S-9` | Send the window to a workspace (Super+Shift and the digit, whatever Shift+digit types on your keyboard) |
 | `s-m` | Vikix menu: the welcome and Add software, key help, all commands, the Vikix guide (in Info, or in the browser with its diagrams), "what does a key do?", themes, network, printers, backup now, screens, update, and Power (the same as `s-S-Escape`). An entry for a feature you don't have (JupyterLab, Zeal, Printers, Windows, local AI, Dropbox) is left out until you add it. *Apps* opens the programs of the features video, graphics, blender, study, passwords, phone and cli-extras, each once it's installed |
 | `s-/` | Every key at a glance: one card, grouped (apps, AI, windows, workspaces, notifications, screenshots, sound and screen, system, and yours). The next key closes it, and a key that does something does it too |
 | `s-F1` | Every key, searchable. Pick one to run it. |
 | `s-Escape` | Lock the screen |
 | `s-S-Escape` | Power: lock, suspend, log out, reboot, power off (Lock first, so a stray Enter is harmless) |
-| `s-M-a` | Keep awake on/off: no lock, dark screen or suspend while you watch or present (the bar says `awake`) |
-| `s-M-l` | Night light on/off: a warmer screen in the evening |
+| `s-C-a` | Keep awake on/off: no lock, dark screen or suspend while you watch or present (the bar says `awake`) |
+| `s-C-l` | Night light on/off: a warmer screen in the evening |
 | `Print` | Screenshot an area (drag one out, or click a window) to the clipboard |
 | `C-Print` | Screenshot the focused window to the clipboard |
 | `s-Print` | Screenshot the whole screen (the monitor the pointer is on) to the clipboard |
 | `Shift` with any of those | The same, to a file in `~/Pictures/Screenshots` instead; middle-clicking its notification shows the folder (in Esploro when it's installed) |
-| `s-R` | Record an area or a window, without sound; press again to stop. The bar says `rec`, and the video goes to `~/Videos/Recordings` |
+| `s-C-v` | Record a video of an area or a window, without sound; press again to stop. The bar says `rec`, and the video goes to `~/Videos/Recordings` |
 | `s-C-Print` | Screenshot or record: a menu of all of them, including recording the whole screen. Also **Text from an area** (drag over any text, even in a picture or a dialog, and it's on the clipboard, read by tesseract; other languages with `VIKIX_OCR_LANG=deu+eng` and their `tesseract-ocr-*` package) and **Pick a colour** (click anywhere: its `#rrggbb` on the clipboard, with a swatch in the notification) |
 | volume and brightness keys | Change the level and show a bar for it |
 
@@ -279,12 +292,12 @@ It answers the mouse too: click a workspace's number to go there, or a window's 
 
 Along the top, in Iosevka like the terminal: on the left the workspaces in use (the current one in brackets) and this workspace's windows, numbered, the focused one in the accent colour; on the right, from left to right:
 
-- **rec**, in the theme's alert colour, while the screen is being recorded (`s-R` stops it).
+- **rec**, in the theme's alert colour, while the screen is being recorded (`s-C-v` stops it).
 - **mic**, in the alert colour, while dictation or voice listens (`s-F9`, `s-F10` or `s-F11` again writes it down; `s-S-F9` cancels).
-- **awake**, in the theme's quieter text colour, while keep awake is on (`s-M-a`).
+- **awake**, in the theme's quieter text colour, while keep awake is on (`s-C-a`).
 - **ai**, in the quieter colour, while a local AI model is loaded in memory (`vikix ai stop` unloads it).
 - **win**, in the quieter colour, while the Windows VM runs (`vikix windows stop` ends it): it holds 6 GB of memory and costs battery.
-- **quiet**, in the quieter text colour, while do not disturb is on (`s-M-n`), with the number of notifications waiting: they show when you switch it off.
+- **quiet**, in the quieter text colour, while do not disturb is on (`s-C-d`), with the number of notifications waiting: they show when you switch it off.
 - **updates**, in the theme's accent colour, when `vikix update` has something to bring: `updates 12` (Void packages), `updates 12 + Vikix`, or `Vikix update`; and `+ firmware` (or `firmware` alone) when a firmware update is waiting (see [Firmware updates](#firmware-updates)). Checked a minute after you log in and then every 6 hours, in the background (`vikix-updates`); `vikix update` clears it. Nothing shows when there's nothing, or when it couldn't check (offline).
 - **usb**, in the accent colour, while a USB drive is mounted: eject it (`s-C-e`) before pulling it out.
 - **backup 9d**, in the accent colour, once backups are set up and the last one is older than a week (`backup` alone: set up, but none yet). See [Backups](#backups).
@@ -546,7 +559,7 @@ This history is for your settings, on this machine. For everything else, and for
 
 Two ways, as features:
 
-- **`vikix add bitwarden`**: your Bitwarden account, the same vault as on your phone and other computers. `Super+Shift+v` opens a picker of your logins: type a few letters, and Enter types the username, Tab, then the password into the window you were in (a sign-in form). Alt+3 types the password alone (a password box), Alt+4 the two-factor code; Alt+c copies the password, Alt+u the username, Alt+t the code, each gone from the clipboard after 45 seconds; Alt+m shows every field. The first time in a while, a box asks your master password; the vault then stays unlocked for an hour. `vikix bitwarden setup` asks your account's email and signs in (`--eu` for an account on bitwarden.eu, `--server URL` for your own Vaultwarden); if Bitwarden refuses a new device, it says how to register it once with your API key (`rbw register`). `vikix bitwarden sync` fetches changes made elsewhere (the picker does every hour), `lock` locks it now, `status` says how it stands. The picker's settings are yours: `~/.config/rofi-rbw.rc`. Web pages are easier with Bitwarden's browser extension.
+- **`vikix add bitwarden`**: your Bitwarden account, the same vault as on your phone and other computers. `Super+Alt+v` opens a picker of your logins: type a few letters, and Enter types the username, Tab, then the password into the window you were in (a sign-in form). Alt+3 types the password alone (a password box), Alt+4 the two-factor code; Alt+c copies the password, Alt+u the username, Alt+t the code, each gone from the clipboard after 45 seconds; Alt+m shows every field. The first time in a while, a box asks your master password; the vault then stays unlocked for an hour. `vikix bitwarden setup` asks your account's email and signs in (`--eu` for an account on bitwarden.eu, `--server URL` for your own Vaultwarden); if Bitwarden refuses a new device, it says how to register it once with your API key (`rbw register`). `vikix bitwarden sync` fetches changes made elsewhere (the picker does every hour), `lock` locks it now, `status` says how it stands. The picker's settings are yours: `~/.config/rofi-rbw.rc`. Web pages are easier with Bitwarden's browser extension.
 - **`vikix add passwords`**: KeePassXC, offline: one encrypted file of your own, to back up or sync yourself.
 
 **Coming from LastPass:** in LastPass, *Advanced Options → Export* (a CSV file); in Bitwarden's web vault, *Tools → Import data → LastPass (csv)*. Or import straight from your LastPass account there. Then delete the CSV: it holds every password in plain text.
@@ -630,8 +643,8 @@ vikix remove julia         # stop keeping it, and uninstall what only it needed
 ## Laptop
 
 - **Docking.** Arrange the monitors once with `s-m` → *Screens: arrange*, then `s-m` → *Screens: save this layout* and call it `default` (or `desk`, `home` …). autorandr re-applies the matching layout whenever those monitors are plugged in, and at login.
-- **Away from the keyboard.** After 10 minutes the screen locks, after 11 it goes dark, and after 20, on battery only, the computer suspends. Change the minutes in `~/.config/vikix/idle` (`LOCK=10`, `SCREEN_OFF=11`, `SUSPEND=20`, and `SUSPEND=0` never suspends), then log in again. **Keep awake** (`s-M-a`, or `s-m` → Keep awake) stops all three for a film or a talk; the bar says `awake`, and every login starts with it off. While the screen is locked, notifications wait, and show once you unlock (Do not disturb, if it was on, stays on).
-- **Night light.** From 19:00 the screen warms over an hour, and from 6:00 it cools again (gammastep). The times and colours are in `~/.config/gammastep/config.ini`: by the clock, not the sun, so no location is needed. `s-M-l` (or `s-m` → Night light) switches it off, and it stays off at the next login until you switch it on.
+- **Away from the keyboard.** After 10 minutes the screen locks, after 11 it goes dark, and after 20, on battery only, the computer suspends. Change the minutes in `~/.config/vikix/idle` (`LOCK=10`, `SCREEN_OFF=11`, `SUSPEND=20`, and `SUSPEND=0` never suspends), then log in again. **Keep awake** (`s-C-a`, or `s-m` → Keep awake) stops all three for a film or a talk; the bar says `awake`, and every login starts with it off. While the screen is locked, notifications wait, and show once you unlock (Do not disturb, if it was on, stays on).
+- **Night light.** From 19:00 the screen warms over an hour, and from 6:00 it cools again (gammastep). The times and colours are in `~/.config/gammastep/config.ini`: by the clock, not the sun, so no location is needed. `s-C-l` (or `s-m` → Night light) switches it off, and it stays off at the next login until you switch it on.
 - **Suspend** from the power menu (`s-S-Escape`, or `s-m` → Power) or by closing the lid; the screen locks first. elogind alone handles the lid and the power button (`HandleLidSwitch` in `/etc/elogind/logind.conf`); before 0.71.31 acpid suspended on the lid as well, and the two collided. **Log out**, **Reboot** and **Power off** are there too, through elogind, no sudo.
 - **Touchpad**: tap to click, natural scrolling, off while typing (`/etc/X11/xorg.conf.d/40-libinput.conf`, installed by `55-hardware`).
 - **Battery.** `vikix-battery` warns at 15% and again, urgently, at 5% (change them with `VIKIX_BATTERY_LOW` / `VIKIX_BATTERY_CRITICAL`). It only starts on a machine with a battery; `vikix-battery --once` shows the charge.
@@ -769,7 +782,7 @@ Some programs are really websites: mail and meetings most of all. A web app open
 
 ```sh
 vikix webapp add superhuman       # a preset: superhuman, fastmail, gmail, outlook (work), outlook-live
-vikix webapp add fastmail --key s-F   # with a key of its own (Super+Shift+f)
+vikix webapp add fastmail --key s-M-f # with a key of its own (Super+Alt+f)
 vikix webapp add teams --key s-M-t   # a meeting preset: teams, meet (Google Meet), zoom
 vikix webapp add crm https://crm.example.com   # any site (--media: with the camera and microphone)
 vikix webapp media crm on         # let one use the camera and microphone, or off
@@ -777,7 +790,7 @@ vikix webapp key fastmail none    # another key, or none (vikix webapp key NAME 
 vikix webapp list                 # and remove NAME: its logins are kept; --forget deletes them
 ```
 
-- **Mail on a key.** The first mail web app gets `s-M` (Super+Shift+m): it brings the mail window to the front from any workspace, or opens it. Every web app is also in the launcher (`s-d`) and in `s-m`, and its key in the key help.
+- **Mail on a key.** The first mail web app gets `s-M-m` (Super+Alt+m): it brings the mail window to the front from any workspace, or opens it. Every web app is also in the launcher (`s-d`) and in `s-m`, and its key in the key help.
 - **Superhuman, Gmail and work Outlook** can all be one window: Superhuman handles Gmail and Microsoft 365 accounts. Fastmail's own web app is the one for Fastmail. Outlook on the web is what a work account's sign-in rules least often block; the desktop Outlook needs the Windows VM.
 - **Logins kept apart.** Each web app has its own Chromium profile (`~/.local/share/vikix/webapps/NAME`), so a work login never mixes with a personal one or with Firefox. Backups keep the logins and leave out the caches.
 - **Meetings** (Teams, Google Meet, Zoom) work in their web apps: the camera, the microphone, and sharing your screen (share the *entire screen*: StumpWM swaps windows in a frame, which a shared window doesn't follow). A web app's window has no address bar, so Chromium's question "allow camera and microphone?" is easily missed, and the meeting's settings then show every device greyed out: the meeting presets have both allowed for their own site from the start, and `vikix webapp media NAME on` (or `--media` when adding) does it for any other, from its next start.
@@ -976,7 +989,7 @@ vikix project list --all      # with the projects that have no entries yet
 vikix project show lambda     # the title, folder, log, Status and the last three entries
 vikix project path lambda     # the folder: cd "$(vikix project path lambda)"
 vikix project log lambda "Track IV's step list agreed." --next "write step 1" --status "track IV started"
-vikix project open lambda     # on a workspace of its own: a terminal in its folder, its log in Emacs, placed as you left them (Super+Shift+p picks one with rofi; Super+m → Projects)
+vikix project open lambda     # on a workspace of its own: a terminal in its folder, its log in Emacs, placed as you left them (Super+Alt+p picks one with rofi; Super+m → Projects)
 vikix project save            # its workspace's layout, now (leaving the workspace saves it too; vikix layout project-lambda)
 vikix project build lambda    # its build, in its folder: the log's Build line, build.sh, a Makefile, src/build.sh or package.json (-n only says which)
 vikix project check lambda    # its checks, in its folder: the log's Check line, check.sh, check, tests/run.sh, test.sh, make check or test, npm test
@@ -1092,8 +1105,9 @@ They run side by side, as many at once as the machine has cores (`VIKIX_TEST_JOB
 | Test | Checks |
 |---|---|
 | `lint` | Every script parses (shell and Python), the ones you run are executable, and shellcheck has no warnings; and every test keeps off the running desktop's Swank (`VIKIX_SWANK_PORT=9`) |
-| `lisp` | Every Lisp file reads cleanly, so a missing paren shows up here, not at login (needs `sbcl`) |
+| `lisp` | Every Lisp file reads cleanly, so a missing paren shows up here, not at login (needs `sbcl`); no float is given to a timer as its delay; none of Vikix's keys breaks the rule for keys (each modifier means one thing), and the rule finds the ones that would |
 | `rules` | `rules.lisp`. Without a screen: matching (exact strings, `:has`, `:like`, lists, variables, `:type`, `:workspace`, `:not`, `:where`); mistakes found as the file loads, each with its line; one of each rule after a second load; a failing rule written down and switched off at the third failure; `:once`, `:on :focus`, `:on :close`; a plugin's rules going with it. With a clock and a battery of the test's own: `at` (its days, once, not again after a reload or a restart, late after a sleep, a rule written after its time), `each`, `when-battery-below`, `when-charging` and `when-on-battery`, `at-login` once, `when-workspace`, and their mistakes found at load. In a real StumpWM on a hidden screen (as `viri`; skipped without it): a window on its workspace before it shows, `float` by shares of the monitor, `tile`, `title`, `fullscreen`, `sticky`, `dialog`, a failing rule, a reload that moves nothing, a restart that leaves the windows where they are, one ticker, and `at-login` once across a reload and a restart |
+| `keys` | In a real StumpWM on a hidden screen (as `viri`; skipped without it): Super+Shift+digit sends the window to that workspace with the key asked of the keyboard, on a US layout, a British one (Shift+2 is `"`) and a French one (Super+Ctrl+digit there, the digits needing Shift); Super+Shift with an arrow or a letter moves the window; the keys from before the rule for keys are let go at a reload, but not one you gave something else; none of Vikix's keys breaks the rule |
 | `viri` | In a real StumpWM on a hidden screen (needs Xvfb, xdotool, alacritty and Vikix's StumpWM; skipped without): a workspace becomes a strip and back with its windows in order, Super+h/l walk and scroll it, Super+Shift+l moves a column, new and closed windows, a dialog, another workspace, `vikix viri` from a shell |
 | `battery` | The low-battery warner warns once at 15%, once at 5%, and again only after charging |
 | `backup` | With restic: `vikix backup setup` makes an encrypted store and a password only you can read, a backup leaves out what `backup-exclude` names, a restore comes back beside the original, an unplugged drive or a wrong password stops with a message, and the bar's reminder says the right thing (needs `restic`) |
@@ -1136,7 +1150,7 @@ They run side by side, as many at once as the machine has cores (`VIKIX_TEST_JOB
 | `ai-keys` | `vikix-ask` (`s-i`) writes `~/.config/vikix/ai` on first use and takes the model from it: llama3.2:3b first, else your first local model, the one named there (a name with anything odd in it refused), or Claude only with `use=claude` and a key, never by itself; the menu's choice leads to its action; Proofread/Rewrite/Translate copy the answer without the model's "Here is…"; Ask sends the question with the selection; a short answer is a notification, a long one a terminal; nothing selected, the clipboard, then a plain message; llm's key error points to `vikix ai key`; Proofread lists its changes; the answer's terminal doesn't keep the lock; `vikix ai use` (and the menu) switch, Claude only with a key; any typed language; `use=Local`; a misspelt action is said |
 | `ai-local` | `vikix ai setup` refuses a download with the wrong checksum, installs only the CPU's and Vulkan's parts (no NVIDIA libraries), puts `ollama` on PATH, deletes the download, keeps models out of backups, and a second run downloads nothing; the picker offers 7–8B models only where they fit (16 GB, not 8 GB), marks what you have, and a choice (by number, with a ✓, or in rofi) downloads the right model; `status` says the loaded model's memory and when it unloads; `stop` unloads through the API and says so (a notification from `s-m`); `chat` runs the model; `remove` says plainly what's missing; the bar's note comes and goes with the model; a big log is moved aside; `uninstall` stops only its own processes (a decoy `ollama` survives) and keeps the models unless `--models` (needs Python 3.14's zstd) |
 | `bitwarden` | `vikix bitwarden pick` says how to set it up when there's no account, asks the master password first when the vault is locked, and opens nothing when that's cancelled; setup saves the email, the password box, an hour's lock and (`--eu`) the EU server, signs in and syncs, writes the picker's settings once, and says how to register a refused device; uninstall forgets the local copy and keeps your settings |
-| `webapp` | `vikix webapp add` gives a preset its address and the first mail one `s-M`, keeps an app's key when it's added again, makes a launcher entry with its window class, opts in to Chromium, suggests `https://` for a bare address, and refuses a bad name, an address that isn't https (but localhost), Vikix's own keys (the workspace keys too) and another web app's (saying how to free it); `key` moves or drops a key; `open` starts a Chromium app window with its own class and profile (700); `list` says keys as spoken, points out lines it can't use and logins left behind; `remove` keeps your comments and the logins unless `--forget`; `webapps.lisp` binds the keys, names each as its launcher entry does, adds key help and `s-m` entries (before Power), skips a bad line and loads the rest, and a reload drops what went; the migration adds the web apps' caches to an existing backup-exclude once |
+| `webapp` | `vikix webapp add` gives a preset its address and the first mail one `s-M-m`, keeps an app's key when it's added again, makes a launcher entry with its window class, opts in to Chromium, suggests `https://` for a bare address, and refuses a bad name, an address that isn't https (but localhost), Vikix's own keys (the workspace keys too) and another web app's (saying how to free it); `key` moves or drops a key; `open` starts a Chromium app window with its own class and profile (700); `list` says keys as spoken, points out lines it can't use and logins left behind; `remove` keeps your comments and the logins unless `--forget`; `webapps.lisp` binds the keys, names each as its launcher entry does, adds key help and `s-m` entries (before Power), skips a bad line and loads the rest, and a reload drops what went; the migration adds the web apps' caches to an existing backup-exclude once |
 | `features` | `features.list` and `bundles.list` name only lists, features and bundles that exist, and no language list is in the base by mistake; a feature installed by hand counts as had, unless it has a setup command; everything and the base together are every list; with no choices file every list is wanted, plus the old optional ones; `vikix add` installs only the new feature's lists, runs the editors' and languages' stages only when one comes, refuses an unknown name, and records a feature with its own setup (Windows) only once that succeeds; `vikix remove` takes the features only the removed one needed (devtools), keeps one you chose by name or another needs, keeps packages the base, another feature (nodejs for Emacs) or another installed package needs, asks without `--yes`, keeps your comments and a linked choices file; the migration writes an older machine's choices once |
 | `welcome` | The software picker lists bundles and features, marks the ones you have (installed by hand too) and adds only what's new; its preview names a feature's packages and setup; the keyboard step offers X's layouts and sets yours in `~/.config/vikix/keyboard` without touching the rest (a linked file stays one) and applies it; each step is ticked; opening it marks it shown; StumpWM opens it at the first login only, and Super+m has Welcome and Add software; the migration marks it shown on a desktop in use |
 | `menu` | An `s-m` entry that names what it needs (a program on PATH, or a file under `~/`) is shown only when that is there, so JupyterLab, Zeal, Printers, Windows, local AI and Dropbox appear with their features; the rest always; every need named is a real package or file |

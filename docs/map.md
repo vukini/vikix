@@ -53,7 +53,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── docs-browser       yours     the browser for guides and docs, one word (make it; Nyxt without it, when installed)
 │   │   ├── wallpaper          yours     a link to the picture you chose
 │   │   ├── wallpaper-off      yours     exists if you set the wallpaper with your own tool
-│   │   ├── titlebars-off      yours     exists if you turned the title bars off (Super+y)
+│   │   ├── titlebars-off      yours     exists if you turned the title bars off (Super+Ctrl+y)
 │   │   ├── wallpaper-theme    yours     exists if the wallpaper follows the theme instead of cycling
 │   │   ├── wallpaper-minutes  yours     how often the wallpaper changes when cycling (vikix-wallpaper cycle MINUTES; 30 without it)
 │   │   ├── themes/            yours     your own themes (NAME.theme, NAME.jpg)
@@ -114,7 +114,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 ├── vikix-debug-*.txt           the reports vikix debug writes (yours to delete; vikix diagnose's are in ~/.local/state/vikix/diagnose/)
 ├── .config/io.datasette.llm/  llm's settings and its log of everything asked (vikix ai llm)
 ├── Pictures/Screenshots/      Shift+Print and friends
-├── Videos/Recordings/         Super+Shift+r
+├── Videos/Recordings/         Super+Ctrl+v
 ├── Windows/                   yours     drive Z: in the Windows VM (vikix windows)
 └── Restored/                  `vikix backup restore` puts files here, never over yours
 ```
