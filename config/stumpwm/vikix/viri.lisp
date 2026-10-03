@@ -332,16 +332,18 @@ there instead."
                           (viri-layout group))
                    (group-focus-window group (viri-col-window (nth j cols))))))))))
 
-(defun viri-stack (group dir)
-  "Take the focused window into the column on the DIR side (:left or
+(defun viri-stack (group dir &key (window (group-current-window group)) join-only)
+  "Take WINDOW (the focused one) into the column on the DIR side (:left or
 :right), at its bottom; or, when it shares its column already, out of it
-into a column of its own on that side. Niri's consume-or-expel."
-  (let* ((window (group-current-window group))
-         (col (viri-col-of group window))
+into a column of its own on that side (not with JOIN-ONLY). Niri's
+consume-or-expel."
+  (let* ((col (viri-col-of group window))
          (cols (viri-cols group))
          (i (and col (position col cols))))
     (when col
-      (cond ((rest (viri-col-windows col))
+      (cond ((and join-only (rest (viri-col-windows col)))
+             (return-from viri-stack nil))
+            ((rest (viri-col-windows col))
              ;; Out, into a new column beside, as wide as the one it left.
              (setf (viri-col-windows col) (remove window (viri-col-windows col)))
              (let ((new (make-viri-col (list window) (viri-col-width col)))
@@ -356,8 +358,10 @@ into a column of its own on that side. Niri's consume-or-expel."
                            (viri-cols group) (remove col cols)))))))
       (let ((target (viri-col-of group window)))
         (setf (viri-col-focus target) window))
-      (viri-scroll-to group window)
-      (viri-layout group))))
+      (when (eq window (group-current-window group))
+        (viri-scroll-to group window))
+      (viri-layout group)
+      t)))
 
 (defcommand vikix-stack (dir) ((:direction "Direction: "))
   "On a strip: the window joins the column that way, below its windows; one
@@ -496,3 +500,43 @@ list. So you can see how far along the strip you are, and what's off it."
                             (mapcar #'name floats))))))))
 
 (add-screen-mode-line-formatter #\W 'viri-mode-line-windows)
+
+;;; Rules for strips (rules.lisp loads first): two verbs.
+;;;
+;;;   (when-window (:class "firefox") (width 2/3))
+;;;   (when-window (:class "Alacritty" :title (:has "build")) (join :left))
+;;;
+;;; Off a strip they do nothing, so a rule can say how a window stands on
+;;; a strip and still hold everywhere.
+
+(defun viri-share (share)
+  "SHARE as a part of the screen: 1/3, 2/3, 0.4, or \"40%\"."
+  (let ((value (cond ((and (realp share) (< 0 share) (<= share 1)) share)
+                     ((and (stringp share) (ppcre:scan "^\\s*\\d+(\\.\\d+)?\\s*%\\s*$" share))
+                      (/ (let ((*read-eval* nil)) (read-from-string (string-trim " %" share))) 100)))))
+    (unless (and value (< 0 value) (<= value 1))
+      (error "A width is a part of the screen: 1/3, 1/2, 2/3, 1, or \"40%\"; this is ~s." share))
+    (rational value)))
+
+(define-rule-verb width (share)
+  "On a strip, the window's column is SHARE of the screen wide: 1/3, 1/2, 2/3, 1, or \"40%\". Off a strip, nothing."
+  (let* ((win (rule-window))
+         (group (window-group win))
+         (col (and (viri-group-p group) (viri-col-of group win)))
+         (share (viri-share share)))
+    (when col
+      (setf (viri-col-width col) share)
+      (when (eq win (group-current-window group))
+        (viri-scroll-to group win))
+      (viri-layout group))
+    win))
+
+(define-rule-verb join (side)
+  "On a strip, the window goes into the column on SIDE (:left or :right), below its windows, as Super+[ and Super+] do. Off a strip, nothing."
+  (unless (member side '(:left :right))
+    (error "join's side is :left or :right; this is ~s." side))
+  (let* ((win (rule-window))
+         (group (window-group win)))
+    (when (and (viri-group-p group) (viri-col-of group win))
+      (viri-stack group side :window win :join-only t))
+    win))

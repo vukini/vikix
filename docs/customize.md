@@ -91,6 +91,7 @@ A plain string matches exactly that and nothing longer. `(:has "fox")` matches a
 | `(run "command")`, `(command "vikix-grid")` | Runs a shell command, or a StumpWM command |
 | `(notify "text")`, `(say "text")` | A notification, or a message in the middle of the screen |
 | `(open-project "name")`, `(theme "paper")` | Opens one of your projects; switches the theme |
+| `(width 2/3)`, `(join :left)` | On a strip (`vikix viri`): the window's column is two thirds of the screen wide (`1/3`, `1/2`, `1`, `"40%"`); the window goes under the column on its left (or `:right`). Off a strip they do nothing |
 
 Anything else in a rule is Lisp of your own, where `(window)` is the window. Between the matcher and the verbs a rule can have options: `:once t` (only the first window that matches: Firefox to workspace 2 when you log in, later windows where you are), `:on :focus` or `:on :close` (when the window gets the focus, or goes, instead of when it opens), and `:name "..."`.
 

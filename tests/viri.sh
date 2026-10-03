@@ -52,6 +52,11 @@ sed -i "s/(defparameter \*vikix-swank-port\* 4004)/(defparameter *vikix-swank-po
 [ -d "$ql" ] && ln -s "$ql" "$home/quicklisp"
 echo "viri-test" > "$home/.slime-secret"; chmod 600 "$home/.slime-secret"
 touch "$home/.local/state/vikix/welcome"     # no welcome terminal
+# Rules for strips (the verbs width and join): they act on a strip only.
+cat > "$home/.stumpwm.d/rules.lisp" <<'EOF'
+(when-window (:title "Wide") (width 2/3))
+(when-window (:title "Under") (join :left))
+EOF
 
 for _ in $(seq 1 30); do xdpyinfo >/dev/null 2>&1 && break; sleep 0.2; done
 HOME=$home VIKIX_SWANK_PORT=$port "$wm" >"$t/wm.log" 2>&1 &
@@ -184,5 +189,14 @@ frames=$(ask '(princ (length (group-frames (current-group))))')
 key super+r
 check "on tiles Super+r still removes a split" test "$(ask '(princ (length (group-frames (current-group))))')" = $((frames - 1))
 
-[ "$fail" = 0 ] && echo "viri: a strip from tiles and back in order, walking and moving along it, stacking, widths, new and closed windows, a dialog, another workspace, off and on"
+# The rules: on a strip, "Wide" opens two thirds wide, "Under" joins the
+# column on its left; on tiles they do nothing (no error, no menu).
+ask '(run-commands "vikix-viri on")' >/dev/null; sleep 0.5
+win Wide
+check "a rule's (width 2/3) makes the new column two thirds wide: $(width)" test "$(width | cut -d' ' -f2)" = 853
+win Under
+check "a rule's (join :left) puts the new window under the column on its left: $(cols)" grep -q 'WideUnder' <<<"$(cols)"
+check "the rules ran without failing" test "$(ask '(princ (reduce (function +) (mapcar (function vikix-rule-failures) *vikix-rules*)))')" = 0
+
+[ "$fail" = 0 ] && echo "viri: a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, new and closed windows, a dialog, another workspace, off and on"
 exit "$fail"
