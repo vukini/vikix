@@ -115,6 +115,6 @@ It needs pandoc (`vikix add cli-extras`).
 
 ## What travels, and what doesn't
 
-- **The whole folder travels,** while the Dropbox program runs on the laptop (`vikix add dropbox`). Dropbox only carries changes while it's running: a note taken with it stopped goes up when you start it.
+- **The whole folder travels,** while the Dropbox program runs on the laptop (`vikix add dropbox`). Dropbox only carries changes while it's running: a note taken with it stopped goes up when you start it. `notes-sync` (Super+m, *Notes: sync with Dropbox*) starts it if needed and waits until your notes are up; `dropbox filestatus ~/Dropbox/notes` says whether they are.
 - **The laptop's own:** `vikix obsidian`'s settings and reports (`~/.local/state/vikix/obsidian/`), org-roam's index (`~/.cache/vikix/org-roam.db`), the graph, the copies each sort keeps for `--undo` (`~/.local/state/vikix/inbox/sorts/`), and the inbox plugin's settings.
 - **Two changes to the same file before either was synced** (the phone offline, say) can't both win. Dropbox keeps the other one beside it as `inbox (conflicted copy).org`: open both, copy across what's missing, then delete the copy. Orgzly asks whether to load the file again (**Force Load**) or keep the phone's version (**Force Save**); beorg warns you and keeps the version it replaced.
