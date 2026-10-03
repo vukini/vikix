@@ -275,6 +275,9 @@ check "the journal's TODOs should be in it too: $out" has 'TODO From the journal
 notes '(progn (vikix-notes-capture) (insert "Captured in Emacs") (org-capture-finalize))' >/dev/null
 check "C-c n c should write to the inbox plugin's file" grep -qx '\* Captured in Emacs' "$n/Dropbox/notes/in.org"
 check "with when it was written" grep -qE '^:CREATED: +\[' "$n/Dropbox/notes/in.org"
+out=$(notes "(progn (find-file \"$n/Dropbox/notes/work.org\") (princ (format \"notes %S\n\" auto-revert-mode)) (find-file \"$n/mine/elsewhere.org\") (princ (format \"mine %S\n\" auto-revert-mode)))")
+check "a notes file should follow the phones' changes (auto-revert), and only a notes file: $out" \
+  bash -c 'grep -q "^notes t" <<<"$1" && grep -q "^mine nil" <<<"$1"' _ "$out"
 rm -rf "$n/Dropbox"
 out=$(notes '(progn (princ (format "key %S\n" (key-binding (kbd "C-c n a")))) (condition-case e (vikix-notes-agenda) (user-error (princ (cadr e)))))')
 check "without the notes folder, C-c n a should say so: $out" has 'No notes yet in' "$out"

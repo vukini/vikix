@@ -25,9 +25,11 @@
 ;; org-roam and org-roam-ui come from MELPA, installed the first time
 ;; they're needed, after asking. org-roam's index of the notes is a
 ;; database kept out of Dropbox (~/.cache/vikix/org-roam.db): it's made
-;; again from the files whenever needed. The agenda's files are left
-;; alone when you've chosen your own (org-agenda-files); made the folder
-;; after Emacs started, the agenda finds it at the next C-c n a.
+;; again from the files whenever needed. A notes file open in Emacs
+;; follows what the phones change in it (auto-revert), until you edit
+;; it. The agenda's files are left alone when you've chosen your own
+;; (org-agenda-files); made the folder after Emacs started, the agenda
+;; finds it at the next C-c n a.
 
 ;;; Code:
 
@@ -202,6 +204,17 @@ they are now (a journal begun since counts)."
   (setq httpd-host "127.0.0.1")
   (vikix-notes--package 'org-roam-ui "The notes' graph")
   (org-roam-ui-open))
+
+;;; Changes from the phones
+
+(defun vikix-notes--follow-disk ()
+  "A notes file open here takes what the phones (or the inbox's box)
+wrote to it, through Dropbox, while it has no unsaved changes."
+  (when (and buffer-file-name
+             (file-in-directory-p buffer-file-name vikix-notes-directory))
+    (auto-revert-mode 1)))
+
+(add-hook 'find-file-hook #'vikix-notes--follow-disk)
 
 ;;; Keys
 

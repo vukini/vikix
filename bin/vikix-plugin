@@ -32,7 +32,7 @@ VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 # VIKIX_PLUGINS_REPO and VIKIX_PLUGINS_COMMIT name others (tests, or trying
 # your own work on the repo: a folder works as well as an address).
 PLUGINS_REPO=${VIKIX_PLUGINS_REPO:-https://github.com/vukini/vikix-plugins}
-PLUGINS_COMMIT=${VIKIX_PLUGINS_COMMIT:-81259686a66f82734653b6bc02168867902b47ce}   # 2026-10-03: inbox sort deletes a note with d N
+PLUGINS_COMMIT=${VIKIX_PLUGINS_COMMIT:-2b8d142885c2e08bacba468006223b35a904f978}   # 2026-10-03: inbox sort leaves beorg's init.org alone
 DIR="$HOME/.local/share/vikix/plugins"
 LIST="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/plugins.list"
 SETTINGS="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/plugins"
