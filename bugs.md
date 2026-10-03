@@ -2,14 +2,6 @@
 
 Small known problems, not yet fixed. Each says what happens, what is known, and the next step. A fix removes its entry in the commit that ships it. (Larger planned work is in `TODO.md`; ideas in `IDEAS.md`.)
 
-## Removing a plugin leaves the key it took over doing nothing
-
-Noted 2026-10-03, in a review; not tried on the desktop.
-
-**What happens.** `vikix-unload-plugins` (`plugins.lisp`) undefines every plugin key. When a plugin's key had replaced a Vikix one, removing the plugin (`vikix plugin remove NAME`) leaves that key doing nothing (and still in `*vikix-bindings*`) until StumpWM loads its config again, since the Vikix binding isn't put back. No plugin collides with a Vikix key today: Super+Alt+c did (Esploro's commands and next-meeting's week) until Esploro's moved to Super+Alt+x in 0.71.72.
-
-**Next step.** Make `vikix-plugin-key` remember the binding it replaces and `vikix-unload-plugins` restore it, and perhaps have the plugin test fail when a plugin key collides with one in `*vikix-bindings*`.
-
 ## Alacritty sometimes fails to copy ("Failed to set new owner of XCB selection")
 
 Noted 2026-10-02. Minor.

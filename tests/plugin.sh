@@ -111,6 +111,40 @@ LISP
   pl on demo >/dev/null 2>&1
 fi
 
+# A plugin's key over one of Vikix's: unloading puts Vikix's back, in the
+# map and in the key card, and a key no one had goes. (It once left the
+# key doing nothing until StumpWM loaded its config again.)
+if command -v sbcl >/dev/null; then
+  got=$(sbcl --script /dev/stdin <<LISP
+(defpackage :stumpwm (:use :cl))
+(in-package :stumpwm)
+(defvar *top-map* (make-hash-table :test #'equal))
+(defvar *vikix-bind-later* nil)
+(defvar *vikix-menu* '())
+(defvar *vikix-plugin* nil)
+(defun kbd (k) k)
+(defun define-key (map key command) (setf (gethash key map) command))
+(defun undefine-key (map key) (remhash key map))
+(defun lookup-key (map key) (values (gethash key map)))
+(defun vikix-bind (key command) (define-key *top-map* key command))
+(defun vikix-plugin-menu-entry-p (e) (declare (ignore e)) nil)
+(defvar *vikix-bindings* (list (list "s-M-c" "vikix-mine" "Mine" "Apps")))
+(define-key *top-map* "s-M-c" "vikix-mine")
+(defvar *vikix-plugin-keys* '())
+(defvar *vikix-plugin-bars* '())
+(defvar *vikix-plugins-loaded* '())
+$(sed -n '/^(defun vikix-plugin-key/,/^$/p; /^(defun vikix-unload-plugins/,/^$/p' "$here/config/stumpwm/vikix/plugins.lisp")
+(let ((*vikix-plugin* "one")) (vikix-plugin-key "s-M-c" "one-week" "Week") (vikix-plugin-key "s-M-q" "one-q" "Q"))
+(let ((*vikix-plugin* "two")) (vikix-plugin-key "s-M-c" "two-c" "C"))
+(format t "~a " (gethash "s-M-c" *top-map*))
+(vikix-unload-plugins)
+(format t "~a ~a ~a" (gethash "s-M-c" *top-map*) (gethash "s-M-q" *top-map* "none")
+        (mapcar #'second *vikix-bindings*))
+LISP
+)
+  check "a plugin's key should give back the one it took: $got" test "$got" = "two-c vikix-mine none (vikix-mine)"
+fi
+
 pl remove demo >/dev/null 2>&1
 check "remove should run its remove" test ! -e "$HOME/mark"
 check "remove should unlink its programs" test ! -e "$HOME/.local/bin/demo-tool"

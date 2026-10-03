@@ -15,6 +15,7 @@
 ;;;;       a StumpWM command run on a click on it.
 ;;;;   (vikix-plugin-key KEY COMMAND DESCRIPTION &optional GROUP)
 ;;;;       a key, in the key card under GROUP (the plugin's name if none)
+;;;;       (a key Vikix had comes back when the plugin goes)
 ;;;;   (vikix-plugin-menu LABEL ACTION)
 ;;;;       an entry in Super+m, as *vikix-menu*'s are
 ;;;; Loading them again (Reload config) first takes away what each gave.
@@ -42,7 +43,8 @@
 (defvar *vikix-plugin-bars* '()
   "The bar fields: (PLUGIN FUNCTION CLICK), in the order they came.")
 (defvar *vikix-plugin-keys* '()
-  "The keys plugins bound: (PLUGIN KEY).")
+  "The keys plugins bound, newest first: (PLUGIN KEY OLD-BINDING OLD-COMMAND),
+the last two what the key had before, to put back when the plugin goes.")
 (defvar *vikix-plugins-loaded* '()
   "The plugins loaded: (NAME . T if all of it loaded, else NIL).")
 
@@ -55,8 +57,11 @@
   name)
 
 (defun vikix-plugin-key (key command description &optional group)
+  (push (list (or *vikix-plugin* "") key
+              (find key *vikix-bindings* :key #'first :test #'equal)
+              (ignore-errors (lookup-key *top-map* (kbd key))))
+        *vikix-plugin-keys*)
   (vikix-bind key command)
-  (push (list (or *vikix-plugin* "") key) *vikix-plugin-keys*)
   (setf *vikix-bindings*
         (append (remove key *vikix-bindings* :key #'first :test #'equal)
                 (list (list key command description (or group *vikix-plugin* "Plugins")))))
@@ -130,9 +135,16 @@ shows nothing: the bar is redrawn every second, so it never asks."
 (defun vikix-unload-plugins ()
   "Take away what plugins gave: bar fields, keys, menu entries. (Hooks a
 plugin added stay until StumpWM starts again.)"
+  ;; Newest first, so a key two plugins took ends with what it had before both.
   (dolist (k *vikix-plugin-keys*)
-    (ignore-errors (undefine-key *top-map* (kbd (second k))))
-    (setf *vikix-bindings* (remove (second k) *vikix-bindings* :key #'first :test #'equal)))
+    (destructuring-bind (plugin key &optional old-binding old-command) k
+      (declare (ignore plugin))
+      (ignore-errors (if old-command
+                         (define-key *top-map* (kbd key) old-command)
+                         (undefine-key *top-map* (kbd key))))
+      (setf *vikix-bindings* (remove key *vikix-bindings* :key #'first :test #'equal))
+      (when old-binding
+        (setf *vikix-bindings* (append *vikix-bindings* (list old-binding))))))
   (setf *vikix-plugin-keys* '()
         *vikix-plugin-bars* '()
         *vikix-plugins-loaded* '()
