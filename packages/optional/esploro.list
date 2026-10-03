@@ -1,6 +1,8 @@
 # esploro.list — Esploro (the feature esploro), Vid's file explorer. Its
 # command is built by vikix esploro setup, with SBCL from the base; its
-# window is Emacs. These make the thumbnails its preview (F11) shows.
+# window is Emacs. These make the thumbnails its preview (F11) shows, and
+# open archives like folders.
 ImageMagick         # pictures too big, or in a form Emacs can't show
 poppler             # PDFs: the first page (pdftoppm)
 ffmpegthumbnailer   # videos: a frame
+fuse-archivemount   # archives: a zip or a tarball opened like a folder, read-only
