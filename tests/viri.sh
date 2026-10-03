@@ -79,12 +79,18 @@ for w in A B C D; do win "$w"; done
 ask '(run-commands "vikix-viri")' >/dev/null; sleep 0.5
 check "a strip keeps the windows in the order they stood, the focused one shown: $(state)" test "$(state)" = "ABCD left=2 focus=D"
 check "two columns of half the screen show, the rest past the edges: $(xs)" test "$(xs)" = "-1280 -640 0 640"
+bar() { ask '(princ (viri-mode-line-windows (head-mode-line (current-head))))' | head -1; }
+plain_bar() { bar | sed 's/\^([^)]*)//g; s/[0-9]* //g'; }
+check "the bar shows the strip, the two on the screen in brackets: $(plain_bar)" test "$(plain_bar)" = "AB[CD]"
+check "and the focused one picked out" grep -qE '\(:fg [^)]*\)[0-9]+ D' <<<"$(bar)"
+check "the focused column has the accent border, as a tile would" test "$(ask '(let ((w (current-window))) (princ (if (= (xlib:drawable-border-width (window-parent w)) *normal-border-width*) 1 0)))')" = 1
 check "every column is drawn (none left hidden by the tiles)" test "$(ask '(princ (count-if (function window-hidden-p) (viri-columns (current-group))))')" = 0
 
 key super+h; key super+h
 check "Super+h walks left and scrolls: $(state)" test "$(state)" = "ABCD left=1 focus=B"
 key super+h; key super+h
 check "and stops at the first: $(state)" test "$(state)" = "ABCD left=0 focus=A"
+check "the bar follows: $(plain_bar)" test "$(plain_bar)" = "[AB]CD"
 key super+shift+l
 check "Super+Shift+l moves the column right: $(state)" test "$(state)" = "BACD left=0 focus=A"
 

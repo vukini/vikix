@@ -63,6 +63,27 @@ vikix-viri off to put back.")))
             (head-width head)
             (- (head-height head) bar))))
 
+(defun viri-border (window)
+  "Give a column the tiles' border (the focused one in the accent colour,
+as theme.lisp sets it), and say how wide it is."
+  (let ((parent (window-parent window)))
+    (unless (= (xlib:drawable-border-width parent) *normal-border-width*)
+      (setf (xlib:drawable-border-width parent) *normal-border-width*))
+    (update-decoration window)
+    *normal-border-width*))
+
+(defmethod update-decoration :around ((window float-window))
+  ;; A column shows the focus as a tile does: by its border's colour. A
+  ;; float group's own way (the parent's background) shows nothing here.
+  (let ((group (window-group window)))
+    (if (and (viri-group-p group) (member window (viri-columns group)))
+        (let ((screen (group-screen group)))
+          (setf (xlib:window-border (window-parent window))
+                (if (eq (group-current-window group) window)
+                    (screen-focus-color screen)
+                    (screen-unfocus-color screen))))
+        (call-next-method))))
+
 (defun viri-layout (group)
   "Put every column where it belongs: those from LEFT on the screen, side
 by side, the rest past its edges."
@@ -79,13 +100,14 @@ by side, the rest past its edges."
             when (window-hidden-p w)
               do (unhide-window w)
             unless (window-fullscreen w)
-              do (let ((border (* 2 (xlib:drawable-border-width (window-parent w)))))
+              do (let ((border (* 2 (viri-border w))))
                    (set-window-geometry w :x 0 :y 0)
                    (float-window-move-resize w :x x :y ay
                                                :width (max 1 (- cw border))
                                                :height (max 1 (- ah border))
                                                :border 0)))))
-    (viri-keep-pointer group))
+    (viri-keep-pointer group)
+    (update-all-mode-lines))
 
 (defun viri-drop-enter-events ()
   "Moving windows makes X say the pointer entered whichever lands under it,
@@ -302,3 +324,32 @@ windows, in the order they stood. GROUP must be the current one."
               (message "Workspace ~a is a strip: Super+h and Super+l move along it." (group-name (current-group))))
           (t (viri-replace-group group 'tile-group)
              (message "Workspace ~a is tiled again." (group-name (current-group)))))))
+;;; Where you are: the bar's window list (%W) shows a strip as a strip.
+
+(defun viri-mode-line-windows (ml)
+  "On a strip, its windows in order, the two on the screen in [brackets]
+and the focused one picked out, each a click away; elsewhere StumpWM's own
+list. So you can see how far along the strip you are, and what's off it."
+  (let ((group (mode-line-current-group ml)))
+    (if (not (viri-group-p group))
+        (fmt-head-window-list ml)
+        (let* ((cols (viri-columns group))
+               (left (viri-left group))
+               (n (max 1 *viri-visible-columns*))
+               (last (min (length cols) (+ left n)))
+               (floats (remove-if (lambda (w) (member w cols)) (group-windows group))))
+          (flet ((name (w)
+                   (format-with-on-click-id
+                    (let ((str (format-expand *window-formatters* *window-format* w)))
+                      (if (eq w (group-current-window group)) (fmt-highlight str) str))
+                    :ml-on-click-focus-window (window-id w))))
+            (format nil "~{~a~^ ~}"
+                    (append (loop for w in cols
+                                  for i from 0
+                                  collect (concatenate 'string
+                                                       (if (= i left) "[" "")
+                                                       (name w)
+                                                       (if (= i (1- last)) "]" "")))
+                            (mapcar #'name floats))))))))
+
+(add-screen-mode-line-formatter #\W 'viri-mode-line-windows)

@@ -18,7 +18,8 @@ What building it settled, against the plan below:
 - **Off-screen columns are moved past the edge**, not unmapped: they keep drawing and come back at once. Firefox throttling there is still to be watched on the desktop.
 - **Sloppy focus (Vikix's) fights a moving strip.** When columns move under a still pointer, X says it entered whichever lands there, and that window took the focus back. The strip brings the pointer to the focused window after a layout, and drops the EnterNotify events its own moves caused.
 - **Tile-only code met a strip:** layout undo recorded after every command with `dump-group`, which fails off tiles and opened the error menu each time (now it records only on tiles); Vikix's title bars stayed on windows leaving tiles (removed as they join a strip; columns have none for now).
-- **Not done:** a focus border (nothing shows which column has the focus but the cursor), the drawn or menu overview, widths, stacking, rules, `vikix project` saving a strip, the agent's `desktop` tool reporting columns.
+- **Where you are** (0.71.95): the focused column has the tiles' accent border, and the bar's window list (%W) shows the strip in order with the columns on the screen in [brackets], each a click away.
+- **Not done:** the drawn or menu overview, widths, stacking, rules, `vikix project` saving a strip, the agent's `desktop` tool reporting columns.
 
 ## The problem
 
