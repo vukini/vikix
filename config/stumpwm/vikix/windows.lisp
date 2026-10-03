@@ -113,10 +113,14 @@ below zero for a small window, and X then kills the window manager."
   (symbol-value (find-symbol name :winner-mode)))
 
 (defun vikix-record-layout ()
-  (let ((n (group-number (current-group))))
-    (funcall (find-symbol "DUMP-GROUP-TO-FILE" :winner-mode))
-    (setf (gethash n (vikix-layout-ids "*MAX-IDS*"))
-          (gethash n (vikix-layout-ids "*CURRENT-IDS*")))))
+  ;; Only tiles have frames to save: winner-mode's dump-group fails on any
+  ;; other workspace (a strip, vikix-viri), and the failure asked after
+  ;; every command there.
+  (when (typep (current-group) 'tile-group)
+    (let ((n (group-number (current-group))))
+      (funcall (find-symbol "DUMP-GROUP-TO-FILE" :winner-mode))
+      (setf (gethash n (vikix-layout-ids "*MAX-IDS*"))
+            (gethash n (vikix-layout-ids "*CURRENT-IDS*"))))))
 
 (defun vikix-record-first-layout (command)
   (when (and (vikix-layout-command-p command)
