@@ -1059,9 +1059,14 @@ vikix mcp register           # the desktop as tools for your agent; vikix mcp st
 The tests are scripts in `tests/`. GitHub runs them on every push, and every Monday, since the editor configs can break when a package they pull in changes upstream (`.github/workflows/test.yml`). To run them yourself:
 
 ```sh
-tests/run.sh          # about a minute
-tests/run.sh --all    # plus the editors: several minutes, needs the network
+tests/run.sh            # all but the editors: a few minutes
+tests/run.sh --quick    # without the slow corners (Void's mirror, every language's examples): two or three minutes
+tests/run.sh --changed  # only the tests for what changed since origin/main: seconds, for a small change
+tests/run.sh lint lisp  # just those
+tests/run.sh --all      # plus the editors: several minutes, needs the network
 ```
+
+They run side by side, as many at once as the machine has cores (`VIKIX_TEST_JOBS=1` runs them one after another), and each one's output is printed whole when it ends. `tests/changed.sh` says how changed files map to tests: a file maps to the tests that name it, and one it can't place means the whole quick set.
 
 | Test | Checks |
 |---|---|
