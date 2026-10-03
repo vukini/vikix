@@ -33,6 +33,26 @@ Programs worth trying on Vikix, and what each would become if it earned a place.
 | **Cardinal** | not in Void; Linux release | VCV Rack as an LV2/VST plugin | Same, inside Ardour |
 | **Surge XT** | not in Void; Linux release | A serious free synthesizer | Same |
 
+## Languages (checked against void-packages 2026-10-03)
+
+Vikix has eighteen language lists (Lisp's covers Common Lisp, Racket, Scheme and PicoLisp). The gaps are ways of thinking, not popularity. Each addition is the established pattern: a `packages/lang-*.list`, a `~/dev/<lang>` with three examples, a `README.md` and a `tools.list`; about an hour apiece. Ranked by fit with the books in progress.
+
+| Language | Void | The way of thinking | Why for Vikix |
+|---|---|---|---|
+| **SWI-Prolog** | 10.0.2 | Logic programming: say what is true, let the machine search | The full Prolog beside Pilog, which Vid singled out as what makes PicoLisp special; a debugger, constraint libraries, *Learn Prolog Now!* free online. `lang-prolog` |
+| **Erlang** and **Elixir** (Gleam too) | 28.2, 1.19.5, 1.18.1 | Actors; systems that stay up and are changed while running | The third living system beside StumpWM and Cuis: hot code loading, a shell into a running program, the Observer showing every process. One list, `lang-erlang`, with `iex` as the friendly door |
+| **Assembly** (`nasm`, `gdb`, `objdump`) | in `developer` already or a package away | The machine itself | The evidence machine for *Build a Computer in Your Head* and the memory project: `make run` on forty lines, then `objdump -d` on the C example beside it. `lang-asm` |
+| **GNU APL** (kona, a K, too; BQN not in Void) | 2.0 | Arrays: a whole matrix is one symbol | Another way to think about numbers for the Living Maths line; `~/dev/apl` examples from the maths books |
+| **Janet** | 1.42.1 | A tiny Lisp that embeds in C | Into `lang-lisp`: the bridge between the C course and the Lisp ones |
+| **Clojure** with **babashka** | 1.12.5, 1.13 | The Lisp most people are paid to write; scripting that starts in milliseconds | Into `lang-lisp`; Java is already installed |
+| **Tcl/Tk** | 8.6.18 | A window on screen from any language in ten lines | If Pascal ever goes, the cheapest GUI maker; Python has Tk already |
+
+**Tools for the books, not languages** (a `maths` feature rather than a `lang-*`): **Maxima** 5.49 (a computer algebra system that runs on SBCL, so Common Lisp underneath: the symbolic engine for the physics and maths series, and `(load "maxima")` from your own Lisp is a chapter), **Octave** 11.1, **R** 4.6.1, **PARI/GP** 2.17.
+
+**Not in Void, so not now:** Lean 4, Idris 2, Agda, Coq (proofs; through `elan` or opam later, and Lean matters if the physics book goes formal), BQN, Crystal, Dart, Kotlin, Swift, Elm.
+
+**Pascal** stays as it is for now (decided 2026-10-03): Void's fpc 3.2.0 and Lazarus 2.2.0 are two major versions behind and Lazarus 3+ needs FPC 3.2.2, which may be why the docked IDE build fails (TODO "to look into" 6). The options when it's revisited: drop the feature (`vikix remove pascal` already covers installed machines; the site says "twenty languages" in two places), keep only Void's packages and delete the docked build, or build FPC 3.2.2 and Lazarus 4 from pinned source as StumpWM is built. The one thing only Pascal offers here is a drag-and-drop GUI builder for native programs; FPC also cross-compiles to Windows, which the VM could run through RemoteApp.
+
 ## Ideas rather than programs
 
 - **Niri's scrolling layout.** A Wayland compositor where a workspace scrolls sideways without end instead of tiling into a fixed grid; windows keep their size and you pan. Won't run on X, but StumpWM is programmable enough for it as a group type. Worked out as `DESIGN-viri.md`.
