@@ -1,6 +1,9 @@
 #!/bin/sh
 # vikix-image — open an image in nsxiv together with the rest of its folder.
 #
+#   vikix-image FILE      FILE, with the other images of its folder to move through
+#   vikix-image FILE...   just those
+#
 # Given one file, nsxiv shows only that file. This hands it every image in
 # the same folder, in name order, starting at the one asked for, so
 # n / p (or the arrow keys) move on through the folder and Enter shows

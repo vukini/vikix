@@ -1,6 +1,8 @@
 #!/bin/sh
 # vikix-bt — Bluetooth as one short line, for the mode line.
 #
+#   vikix-bt   print the line; it takes no arguments
+#
 #   bt                  on, nothing connected
 #   bt WH-1000XM4 80%   a device connected: its name, and its battery if it says
 #   bt Buds +1          and another one besides

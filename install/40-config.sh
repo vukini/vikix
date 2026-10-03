@@ -183,6 +183,21 @@ else
   rm -rf "$tmp"
 fi
 
+# --- A man page for every vikix command -------------------------------------
+# lib/man.py makes them from the scripts' own headers, what -h prints, so the
+# two can't differ. man finds them through MANPATH (set by vikix-session and
+# vikix.bash): Void's man is mandoc, which doesn't look beside ~/.local/bin
+# by itself. makewhatis is mandoc's index, for `man -k vikix` and apropos,
+# and what keeps man from saying its index is out of date.
+man_dir="$HOME/.local/share/man"
+if [ "$DRY_RUN" = 1 ]; then
+  printf '   would run: %s\n' "write the vikix man pages into $man_dir/man1 (lib/man.py)"
+else
+  python3 "$VIKIX_DIR/lib/man.py" "$man_dir/man1" >/dev/null ||
+    warn "not every vikix man page could be made (python3 $VIKIX_DIR/lib/man.py --check says why)"
+  if command -v makewhatis >/dev/null; then makewhatis "$man_dir" 2>/dev/null || true; fi
+fi
+
 say "config in place"
 
 # --- A snapshot of your files ---------------------------------------------

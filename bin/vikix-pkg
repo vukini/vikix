@@ -3,7 +3,7 @@
 #
 #   vikix pkg add [NAME...]  install these; without names (or with words
 #                            that aren't one), search Void's packages and pick
-#   vikix pkg drop [NAME...] uninstall these, or pick from what's installed
+#   vikix pkg drop [NAME...]  uninstall these, or pick from what's installed
 #                            by name. One that Vikix's lists name goes on
 #                            your skip list, so vikix update doesn't bring
 #                            it back

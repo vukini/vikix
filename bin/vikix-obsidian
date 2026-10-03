@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""vikix obsidian — an Obsidian vault, converted to Org notes, a folder at a time.
+"""vikix-obsidian — an Obsidian vault, converted to Org notes, a folder at a time.
 
   vikix obsidian                   what's in the vault, folder by folder, and
                                    which are converted
-  vikix obsidian convert FOLDER... convert those folders of the vault ("."
+  vikix obsidian convert FOLDER...  convert those folders of the vault ("."
                                    for the notes at its top); a report of each
   vikix obsidian convert --all     every folder not left out
   vikix obsidian report [FOLDER]   the last conversion's report

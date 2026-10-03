@@ -5,8 +5,10 @@
 # it reads the charge. While the battery is discharging it warns once at
 # 15% and again, urgently, at 5%. Plugging in resets both warnings.
 #
-#   VIKIX_BATTERY_LOW, VIKIX_BATTERY_CRITICAL   change the two levels
-#   vikix-battery --once                        check now, print, and stop
+#   vikix-battery          watch the battery until the session ends
+#   vikix-battery --once   check now, print, and stop
+#
+# VIKIX_BATTERY_LOW and VIKIX_BATTERY_CRITICAL change the two levels.
 
 LOW=${VIKIX_BATTERY_LOW:-15}
 CRITICAL=${VIKIX_BATTERY_CRITICAL:-5}

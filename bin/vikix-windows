@@ -11,7 +11,7 @@
 #   vikix windows [open]  start it if it's off, and show its desktop in a window
 #   vikix windows stop [--force]   shut Windows down (--force: switch it off)
 #   vikix windows status  is it running, is it installed, where things are
-#   vikix windows network put the VM on its private network (setup and
+#   vikix windows network  put the VM on its private network (setup and
 #                         vikix update do it; asks for sudo only to change something)
 #   vikix windows remove  delete the VM and its disk (asks first)
 #

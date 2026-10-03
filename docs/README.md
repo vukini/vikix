@@ -4,6 +4,8 @@ These pages are for someone who has installed Vikix and wants to know where thin
 
 They are on your machine too, in three forms: as these files in `~/vikix/docs/`, as web pages with the diagrams drawn as pictures (`Super+m` → *Vikix guide in the browser*), and as an Info manual. Read that with `Super+m` → *Vikix guide* (in Emacs if you have it, otherwise in a terminal), `C-h i` then *Vikix* in Emacs, or `info vikix` in a terminal.
 
+Every `vikix` command has a man page as well: `man vikix` lists the commands, `man vikix-backup` is the whole of one, and `man -k vikix` finds a page by a word. They say what each command's `-h` says, since both are made from the same lines.
+
 | Page | Read it when |
 |---|---|
 | [Installing Void for Vikix](install-void.md) | You're starting from a blank computer: Void's installer, screen by screen, then Vikix's |

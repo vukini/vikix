@@ -7,10 +7,10 @@
 #   vikix ai models       pick a model to download: each says what it's
 #                         for, its size, and how it runs on this machine
 #                         (fast, well, slowly); ones too big aren't offered
-#   vikix ai chat [MODEL] talk to one, in the terminal (/bye or Ctrl+D to
+#   vikix ai chat [MODEL]  talk to one, in the terminal (/bye or Ctrl+D to
 #                         leave); Super+m, Local AI: talk to a model
 #   vikix ai list         the models you have, and their sizes
-#   vikix ai remove MODEL delete one (it can be downloaded again)
+#   vikix ai remove MODEL  delete one (it can be downloaded again)
 #   vikix ai status       installed? running? which model is loaded, how
 #                         much memory it holds and until when
 #   vikix ai stop         unload the model now (it unloads by itself after

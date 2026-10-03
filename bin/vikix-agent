@@ -5,7 +5,7 @@
 #
 #   vikix agent [ARGS]            your agent (Claude Code, unless you chose
 #                                 another); ARGS go to it
-#   vikix agent --use NAME [ARGS] another one, this time: claude, opencode,
+#   vikix agent --use NAME [ARGS]  another one, this time: claude, opencode,
 #                                 codex, gemini, aider
 #   vikix agent --local [--model M]   on a model on this laptop (Ollama):
 #                                 opencode, codex and aider can. Small models

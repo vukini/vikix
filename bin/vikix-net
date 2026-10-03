@@ -1,6 +1,8 @@
 #!/bin/sh
 # vikix-net — the network link as one short line, for the mode line.
 #
+#   vikix-net   print the line; it takes no arguments
+#
 #   wifi VID       Wi-Fi: the network's name
 #   wifi VID 42%   and its signal, when it is weak (under 60%)
 #   wired      a cable, and no Wi-Fi

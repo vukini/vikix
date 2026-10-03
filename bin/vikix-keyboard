@@ -1,5 +1,8 @@
 #!/bin/sh
 # vikix-keyboard — apply the layout and options in ~/.config/vikix/keyboard.
+#
+#   vikix-keyboard   apply them now
+#
 # Run at login by vikix-session; run again after editing the file.
 kb="$HOME/.config/vikix/keyboard"
 # shellcheck source=/dev/null  # your file, not one in this repo

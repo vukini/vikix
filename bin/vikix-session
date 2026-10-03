@@ -1,6 +1,8 @@
 #!/bin/sh
 # vikix-session — everything that runs for the length of a desktop session.
 #
+#   vikix-session   the session; ~/.xinitrc runs it, nobody else should
+#
 # Started by ~/.xinitrc inside dbus-run-session, so every program here
 # shares one session bus. Without systemd there are no "user services":
 # the background programs are simply started here, and they end when
@@ -40,6 +42,12 @@ set -x
 case ":${INFOPATH:-}:" in
   *":$HOME/.local/share/info:"*) ;;
   *) INFOPATH="$HOME/.local/share/info:${INFOPATH:-}"; export INFOPATH ;;
+esac
+# And the vikix commands' man pages (40-config too), for Emacs's M-x man and
+# every terminal the desktop starts. The empty entry keeps the system's.
+case ":${MANPATH:-}:" in
+  *":$HOME/.local/share/man:"*) ;;
+  *) MANPATH="$HOME/.local/share/man:${MANPATH:-}"; export MANPATH ;;
 esac
 
 [ -f "$HOME/.Xresources" ] && xrdb -merge "$HOME/.Xresources"

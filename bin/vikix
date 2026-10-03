@@ -12,7 +12,7 @@
 #   vikix docs          download the offline programming docs into ~/dev
 #                         (a few GB, slow; update and the installer skip them)
 #   vikix doctor        check the pieces are all there
-#   vikix times [measure|soak] how long logging in and a reload take; measure
+#   vikix times [measure|soak]  how long logging in and a reload take; measure
 #                         = on a hidden screen: start, reload, a key, an
 #                         Emacs frame, StumpWM answering, against limits;
 #                         soak = an hour of it worked hard (vikix times help)
@@ -24,7 +24,7 @@
 #                         needed (it shows the list and asks first)
 #   vikix pkg add|drop|list   single programs: search and install, or
 #                         uninstall (and keep out); vikix pkg help
-#   vikix welcome [add] the first steps (it opens by itself at the first
+#   vikix welcome [add]  the first steps (it opens by itself at the first
 #                         login): add software, keys, theme, keyboard, guide
 #   vikix theme [NAME]  the colour theme, everywhere: the current one and
 #                         the list, or switch to NAME
@@ -37,7 +37,7 @@
 #                       which window is where) saved, put back (the windows it
 #                       had that aren't open started, unless --no-start),
 #                       listed, removed
-#   vikix viri [on|off] this workspace as a strip that scrolls sideways
+#   vikix viri [on|off]  this workspace as a strip that scrolls sideways
 #                       (Super+h/l along it), or tiled again; no word switches
 #   vikix eval FORM     run Lisp in the running StumpWM, print the result
 #   vikix debug         one file saying what's going on, secrets taken out, to
@@ -108,12 +108,15 @@
 #   vikix ai setup|models|chat|list|remove|status|stop|uninstall
 #                         AI models that run on this laptop (Ollama)
 #   vikix ai llm          the llm command, with those models and your keys
-#   vikix ai use [local|claude] the model for Super+i, AI on the selected text
+#   vikix ai use [local|claude]  the model for Super+i, AI on the selected text
 #   vikix ai key set|list|remove|check   API keys (ANTHROPIC_API_KEY ...)
 #                         kept safely, out of your dotfiles and their history
 #   vikix windows [setup|create ISO|stop|status|network|remove]   Windows in a VM:
 #                         set it up once, install it by itself, then open its
 #                         desktop in a window (vikix windows help)
+#
+# Each command has a man page with the whole of it: man vikix-NAME (man
+# vikix is this list; man -k vikix lists the pages).
 
 set -euo pipefail
 

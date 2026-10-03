@@ -55,6 +55,15 @@ case ":${INFOPATH:-}:" in
   *) export INFOPATH="$HOME/.local/share/info:${INFOPATH:-}" ;;
 esac
 
+# --- the man pages -----------------------------------------------------------
+# `man vikix-backup`: every vikix command has a page in ~/.local/share/man
+# (40-config makes them). Void's man reads only MANPATH and /etc/man.conf;
+# the empty entry keeps the system's pages.
+case ":${MANPATH:-}:" in
+  *":$HOME/.local/share/man:"*) ;;
+  *) export MANPATH="$HOME/.local/share/man:${MANPATH:-}" ;;
+esac
+
 # --- editors ---------------------------------------------------------------
 export EDITOR=${EDITOR:-nvim} VISUAL=${VISUAL:-nvim}
 if have nvim; then

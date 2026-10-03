@@ -2,6 +2,8 @@
 # vikix-notifications — the notifications dunst has put away, in rofi,
 # newest first. Pick one and it shows again. (s-N, or s-m then
 # "Notifications: earlier ones".)
+#
+#   vikix-notifications   the list, in rofi
 
 command -v dunstctl >/dev/null || { echo "vikix-notifications: dunst isn't installed" >&2; exit 1; }
 

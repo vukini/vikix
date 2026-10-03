@@ -5,7 +5,7 @@
 #   vikix-ask ACTION      one of those straight away (ask, proofread,
 #                         rewrite, translate, explain): for keys of your own
 #                         in user.lisp
-#   vikix-ask use [local|claude] which model answers (vikix ai use); alone, says which
+#   vikix-ask use [local|claude]  which model answers (vikix ai use); alone, says which
 #   vikix-ask which       the model and where the text goes, tab-separated
 #                         (for vikix-voice: Super+F10 asks the same model)
 #

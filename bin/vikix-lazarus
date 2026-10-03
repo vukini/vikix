@@ -4,6 +4,8 @@
 # build isn't there. Void's startlazarus would pick the plain one.
 # config/applications/lazarus.desktop runs this, so the launcher (Super+d)
 # and opening a .lpi file both come here.
+#
+#   vikix-lazarus [ARGS]   start it; ARGS (a project's .lpi file) go to the IDE
 ide="$HOME/.lazarus/bin/lazarus"
 [ -x "$ide" ] && exec "$ide" "$@"
 exec startlazarus "$@"

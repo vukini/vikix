@@ -173,7 +173,7 @@ The catalogue adds commands, so this is the moment to make every Vikix command s
 
 Blocking:
 - **Which renderer for repo Markdown.** (engineering) `lib/md2texi.py` exists for the guide; a direct Markdown-to-HTML step is simpler for a thousand READMEs. Python `markdown` is in Void; check whether it handles GitHub tables and fenced code well enough, else `cmark`.
-- **Is `groff`'s `man -Thtml` present on a base Void install,** or does `mandoc` provide man? (one command: `man -Thtml sv | head`) `mandoc -Thtml` is the alternative.
+- **Is `groff`'s `man -Thtml` present on a base Void install,** or does `mandoc` provide man? (Answered 2026-10-03, building the commands' man pages: mandoc. `base.list` installs `mdocml`, `man` is a link to `mandoc`, it reads only `MANPATH` and `/etc/man.conf`, and its index is `makewhatis`; so `mandoc -Thtml`.) (one command: `man -Thtml sv | head`) `mandoc -Thtml` is the alternative.
 
 Non-blocking:
 - `Super+h` is free in `*vikix-bindings*` today; confirm it isn't taken by a plugin.

@@ -1,6 +1,9 @@
 #!/bin/sh
 # vikix-lock — lock the screen, with only ever one locker.
 #
+#   vikix-lock            lock now
+#   vikix-lock --locker   the locker itself, for xss-lock to start
+#
 # The session runs xss-lock, which starts `vikix-lock --locker` after 10
 # idle minutes and before a suspend. The key (s-Escape) and the menu run
 # plain `vikix-lock`, which asks xss-lock to lock now: a second i3lock

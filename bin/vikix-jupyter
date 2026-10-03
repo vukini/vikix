@@ -1,6 +1,8 @@
 #!/bin/sh
 # vikix-jupyter — JupyterLab in ~/dev, with the Python that 67-dev set up.
 #
+#   vikix-jupyter   start it, or open the page of the one already running
+#
 # Started by `jlab`, the launcher (s-d: type JupyterLab, or jlab) or the
 # menu (s-m). If a JupyterLab is already running, its page is opened again
 # rather than a second one started. The server's messages go to ~/.local/state/vikix/jupyter.log.

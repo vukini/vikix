@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # tests/lint.sh — every script parses (shell and Python), the ones run
-# directly are executable, and shellcheck finds nothing at warning level.
+# directly are executable, shellcheck finds nothing at warning level, and
+# every vikix command's header is in the shape its man page is made from.
 #
 # Runs anywhere; no Void needed. shellcheck comes from PATH, or through
 # uvx (uv's runner) when it isn't installed.
@@ -47,6 +48,15 @@ if "${sc[@]}" -x -S warning "${scripts[@]}"; then
   echo "shellcheck: no warnings"
 else
   fail=1
+fi
+
+# Every bin/vikix* starts with a header in the standard shape (a title line,
+# usage lines, prose): -h prints it and lib/man.py makes its man page from
+# it, so one out of shape is a command without a page.
+if python3 lib/man.py --check; then
+  echo "headers: every vikix command's is in the shape its man page is made from"
+else
+  echo "FAIL headers: the scripts above (lib/man.py's own header describes the shape)"; fail=1
 fi
 
 # A test must never reach the live desktop's Swank (127.0.0.1:4004): it

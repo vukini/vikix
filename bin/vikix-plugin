@@ -4,7 +4,7 @@
 # entries, keys, a program started with the desktop.
 #
 #   vikix plugin list             the plugins there are; yours marked
-#   vikix plugin add NAME [--yes] shows what it runs, needs and changes, asks,
+#   vikix plugin add NAME [--yes]  shows what it runs, needs and changes, asks,
 #                                 then adds it (its packages, its setup)
 #   vikix plugin remove NAME      runs its remove, and takes it away; your
 #                                 settings for it stay

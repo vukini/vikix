@@ -12,11 +12,12 @@
 #                             tesseract (OCR), to the clipboard
 #   vikix-screenshot colour   click anywhere: that colour, as #rrggbb, to
 #                             the clipboard (xcolor)
-#   Both are in the Super+Ctrl+Print menu. The OCR language is English;
-#   VIKIX_OCR_LANG=deu+eng (with tesseract-ocr-deu installed) reads others.
-#
 #   vikix-screenshot --geometry area|screen
-#                      print the area as WxH+X+Y (vikix-record uses it)
+#                             print the area as WxH+X+Y (vikix-record uses it)
+#
+# Text and colour are both in the Super+Ctrl+Print menu. The OCR language is
+# English; VIKIX_OCR_LANG=deu+eng (with tesseract-ocr-deu installed) reads
+# others.
 #
 # Both words are optional: plain vikix-screenshot is "area clip", and
 # "vikix-screenshot file" is "area file", as before there were three kinds.

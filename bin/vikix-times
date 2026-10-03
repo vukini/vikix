@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""vikix times — how long the desktop takes.
+"""vikix-times — how long the desktop takes.
 
   vikix times            this desktop's own measures: logging in (the
                          session started to the desktop ready) and each

@@ -1,6 +1,8 @@
 #!/bin/sh
 # vikix-dropbox — Dropbox as one short line, for the mode line.
 #
+#   vikix-dropbox   print the line; it takes no arguments
+#
 #   dbx ↓1,204 ↑3   syncing: files left to download, and to upload
 #   dbx sync        syncing, with no count to show
 #   dbx paused      syncing is paused
