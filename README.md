@@ -1072,6 +1072,7 @@ They run side by side, as many at once as the machine has cores (`VIKIX_TEST_JOB
 |---|---|
 | `lint` | Every script parses (shell and Python), the ones you run are executable, and shellcheck has no warnings; and every test keeps off the running desktop's Swank (`VIKIX_SWANK_PORT=9`) |
 | `lisp` | Every Lisp file reads cleanly, so a missing paren shows up here, not at login (needs `sbcl`) |
+| `viri` | In a real StumpWM on a hidden screen (needs Xvfb, xdotool, alacritty and Vikix's StumpWM; skipped without): a workspace becomes a strip and back with its windows in order, Super+h/l walk and scroll it, Super+Shift+l moves a column, new and closed windows, a dialog, another workspace, `vikix viri` from a shell |
 | `battery` | The low-battery warner warns once at 15%, once at 5%, and again only after charging |
 | `backup` | With restic: `vikix backup setup` makes an encrypted store and a password only you can read, a backup leaves out what `backup-exclude` names, a restore comes back beside the original, an unplugged drive or a wrong password stops with a message, and the bar's reminder says the right thing (needs `restic`) |
 | `services` | `20-services` switches on only services whose package is there, has D-Bus reread its config once before the first new one, adds you to `lpadmin` and installs the Printers app's polkit rule once CUPS is installed, and changes nothing when run again |

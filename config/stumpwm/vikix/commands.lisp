@@ -233,6 +233,7 @@ Returns the window, or nil when there's none."
     ("Night light on/off"  vikix-nightlight)
     ("Find a window, any workspace" global-windowlist)
     ("Gaps around windows on/off" toggle-gaps)
+    ("This workspace as a strip that scrolls sideways (Viri), or tiled again" vikix-viri)
     ("Screenshot or record the screen" vikix-capture)
     ("Undo: my files back one snapshot" vikix-undo)
     ("Backup now"          (run-shell-command "vikix-backup now --notify"))

@@ -28,6 +28,8 @@
 #                         yours, then switch to it (vikix theme --help)
 #   vikix version
 #
+#   vikix viri [on|off] this workspace as a strip that scrolls sideways
+#                       (Super+h/l along it), or tiled again; no word switches
 #   vikix eval FORM     run Lisp in the running StumpWM, print the result
 #   vikix debug         one file saying what's going on, secrets taken out, to
 #                         attach to an issue
@@ -1294,6 +1296,10 @@ main() {
     pkg)         shift; exec "$VIKIX_DIR/bin/vikix-pkg" "$@" ;;
     version)     cat "$VIKIX_DIR/VERSION" ;;
     eval)        shift; exec python3 "$VIKIX_DIR/bin/vikix-eval" "$@" ;;
+    viri)        shift
+                 case ${1:-} in ''|on|off) ;; *) die "vikix viri: on, off, or nothing to switch" ;; esac
+                 python3 "$VIKIX_DIR/bin/vikix-eval" "(run-commands \"vikix-viri ${1:-}\")" >/dev/null ||
+                   die "vikix viri: StumpWM didn't answer (vikix doctor)" ;;
     agent)       shift; exec "$VIKIX_DIR/bin/vikix-agent" "$@" ;;
     debug|diagnose) exec "$VIKIX_DIR/bin/vikix-debug" "$@" ;;
     dictate)     shift; exec "$VIKIX_DIR/bin/vikix-dictate" "$@" ;;

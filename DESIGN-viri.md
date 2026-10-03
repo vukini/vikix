@@ -6,6 +6,19 @@ Drafted 2026-10-03 with Vid. Kept honest like Esploro's: what ships is deleted h
 
 ---
 
+## Where it stands (2026-10-03)
+
+**Phase 0 is built** (`config/stumpwm/vikix/viri.lisp`, `tests/viri.sh`): `vikix viri [on|off]` and the Super+m entry turn the current workspace into a strip and back, its windows kept in the order they stood (frames left to right in tiles; columns in a strip); columns are half the screen, two show; Super+h/l walk along it and scroll, Super+Shift+h/l move a column; a new window opens right of the focused one and takes the focus; closing one focuses the column that took its place; dialogs float in the middle; StumpWM's own focusing (Super+`, the window list) scrolls to the window too. Tried in a hidden StumpWM, not yet lived in on the desktop.
+
+What building it settled, against the plan below:
+
+- **Built on the float group, not `group` or `dynamic-group`.** A strip is a float group whose windows Viri places: StumpWM's floating code does focus, raising, fullscreen and dialogs, and Viri overrides only adding, removing, focusing and the requests to move or resize.
+- **Strip keys can't be a group keymap.** StumpWM searches `*top-map*` (where every Vikix key is) before any group's map, so a strip-only map would never be reached. Instead Super+h/j/k/l and the arrows run `vikix-focus` / `vikix-move`, which act on the strip there and are `move-focus` / `move-window` everywhere else. Super+r stays "remove split" and Super+Tab "last window" for now: width cycling and the overview get their keys when they're built.
+- **Off-screen columns are moved past the edge**, not unmapped: they keep drawing and come back at once. Firefox throttling there is still to be watched on the desktop.
+- **Sloppy focus (Vikix's) fights a moving strip.** When columns move under a still pointer, X says it entered whichever lands there, and that window took the focus back. The strip brings the pointer to the focused window after a layout, and drops the EnterNotify events its own moves caused.
+- **Tile-only code met a strip:** layout undo recorded after every command with `dump-group`, which fails off tiles and opened the error menu each time (now it records only on tiles); Vikix's title bars stayed on windows leaving tiles (removed as they join a strip; columns have none for now).
+- **Not done:** a focus border (nothing shows which column has the focus but the cursor), the drawn or menu overview, widths, stacking, rules, `vikix project` saving a strip, the agent's `desktop` tool reporting columns.
+
 ## The problem
 
 Tiling has one weakness, and everyone who tiles knows it: the fourth window. Three windows side by side are fine; the fourth makes all of them too narrow, so you either close something, start a new workspace, or begin stacking and lose the side-by-side that made tiling worth it. Workspaces 1 to 9 are the usual escape, and they cost a decision ("where did I put the browser?") every time.

@@ -18,6 +18,7 @@
     "groups"     ; workspaces 1-9
     "commands"   ; Vikix's own commands (menu, key help, reload)
     "windows"    ; focus, gaps, layout undo, finding windows
+    "viri"       ; a workspace that scrolls sideways (vikix-viri), and Super+h/l along it
     "keys"       ; Super-key bindings
     "help"       ; the key card (s-/), key help (s-F1), all commands, which-key
     "webapps"    ; your web apps (vikix webapp): keys and Super+m
