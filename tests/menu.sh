@@ -40,6 +40,30 @@ for want in Zeal=shown Printers=hidden JupyterLab=shown Docs=hidden Plain=shown;
   grep -qx "$want" <<<"$out" || { echo "FAIL: expected $want, got: $(tr '\n' ' ' <<<"$out")"; fail=1; }
 done
 
+# Each entry shows its key, found in *vikix-bindings*: a command, or a
+# program the key starts too; an entry no key does shows none.
+fns=$(awk '/^\(defun vikix-menu-entry-command/,/^$/; /^\(defun vikix-menu-entry-key/,/^$/; /^\(defun vikix-menu-lines/,/^$/' "$lisp")
+cat > "$t/keys.lisp" <<EOF
+(defpackage :stumpwm (:use :cl))
+(in-package :stumpwm)
+(defvar *vikix-bindings* '(("s-M-n" "vikix-quiet" "Do not disturb") ("s-F10" "exec vikix-dictate toggle ask" "Voice")))
+(defun vikix-pretty-key (k) (cond ((equal k "s-M-n") "Super+Alt+n") ((equal k "s-F10") "Super+F10") (t k)))
+$fns
+(dolist (line (vikix-menu-lines '(("Do not disturb on/off" vikix-quiet)
+                                  ("Voice: talk to the AI" (run-shell-command "vikix-dictate toggle ask"))
+                                  ("Install a program" (vikix-in-terminal "vikix pkg add"))
+                                  ("Theme" vikix-pick-theme))))
+  (format t "[~a]~%" (first line)))
+EOF
+out=$("$sbcl" --script "$t/keys.lisp" 2>&1)
+for want in "[Do not disturb on/off  Super+Alt+n]" "[Voice: talk to the AI  Super+F10]" "[Install a program]" "[Theme]"; do
+  grep -qxF "$want" <<<"$out" || { echo "FAIL: the menu should show $want, got: $(tr '\n' ' ' <<<"$out")"; fail=1; }
+done
+# So no label names a key itself: it would go stale when the key moves.
+if awk '/^\(defparameter \*vikix-menu\*/,/^  "Each entry/' "$lisp" | grep -qE '^ *\("[^"]*Super\+'; then
+  echo "FAIL: a Super+m label names its key; the menu shows keys by itself"; fail=1
+fi
+
 # Every need the menu names is a program some package list installs, or a
 # file Vikix makes: a typo would hide the entry for good.
 while IFS= read -r need; do

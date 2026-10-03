@@ -258,8 +258,8 @@ Returns the window, or nil when there's none."
     ("Local AI: choose a model" (run-shell-command "vikix-local-ai models --rofi") "~/.local/opt/ollama/bin/ollama")
     ("Local AI: unload the model" (run-shell-command "vikix-local-ai stop --notify") "~/.local/opt/ollama/bin/ollama")
     ("Dictation: start, or stop and type it" (run-shell-command "vikix-dictate toggle") "~/.local/opt/whisper.cpp/build/bin/whisper-cli")
-    ("Voice: talk to the AI (Super+F10)" (run-shell-command "vikix-dictate toggle ask") "~/.local/bin/piper")
-    ("Voice: talk to the agent (Super+F11)" (run-shell-command "vikix-dictate toggle agent") "~/.local/bin/piper")
+    ("Voice: talk to the AI" (run-shell-command "vikix-dictate toggle ask") "~/.local/bin/piper")
+    ("Voice: talk to the agent" (run-shell-command "vikix-dictate toggle agent") "~/.local/bin/piper")
     ("Voice: stop talking"  (run-shell-command "vikix-voice quiet") "~/.local/bin/piper")
     ("Voice: a new conversation" (run-shell-command "vikix-voice new") "~/.local/bin/piper")
     ("Firmware updates"    (run-shell-command
@@ -305,12 +305,43 @@ here: a program on PATH, or a file when it starts with ~/."
             (probe-file (merge-pathnames (subseq needs 2) (user-homedir-pathname)))
             (vikix-program-p needs)))))
 
+(defun vikix-menu-entry-command (entry)
+  "The StumpWM command ENTRY runs, as a key would write it, or NIL when it's
+a form no key could be: vikix-quiet -> \"vikix-quiet\",
+(run-shell-command \"vikix-ask\") -> \"exec vikix-ask\"."
+  (let ((action (second entry)))
+    (cond ((and action (symbolp action)) (string-downcase (symbol-name action)))
+          ((and (consp action) (eq (first action) 'run-shell-command) (stringp (second action))
+                (null (cddr action)))
+           (concatenate 'string "exec " (second action))))))
+
+(defun vikix-menu-entry-key (entry)
+  "The key that does what ENTRY does, as the key help writes it
+(\"Super+Alt+n\"), or NIL: found in *vikix-bindings* when the menu opens,
+so a menu label never names a key that has moved."
+  (let* ((command (vikix-menu-entry-command entry))
+         (binding (and command (boundp '*vikix-bindings*)
+                       (find command (symbol-value '*vikix-bindings*) :key #'second :test #'equal))))
+    (when binding
+      (if (fboundp 'vikix-pretty-key) (funcall 'vikix-pretty-key (first binding)) (first binding)))))
+
+(defun vikix-menu-lines (entries)
+  "ENTRIES as the menu shows them, (LINE ENTRY): each label, and its key in
+a column when it has one, so the menu teaches the keys (and typing F10
+finds what Super+F10 does)."
+  (let* ((keys (mapcar #'vikix-menu-entry-key entries))
+         (width (min 48 (reduce #'max (loop for e in entries for k in keys
+                                            when k collect (length (first e)))
+                                :initial-value 0))))
+    (loop for e in entries for k in keys
+          collect (list (if k (format nil "~va  ~a" width (first e) k) (first e)) e))))
+
 (defun vikix-run-menu (entries prompt)
   "Pick from ENTRIES, a menu like *vikix-menu*, and do what the choice says.
-Entries whose program or file isn't here are left out."
-  (let ((choice (select-from-menu (current-screen)
-                                  (remove-if-not #'vikix-menu-entry-here-p entries)
-                                  prompt)))
+Entries whose program or file isn't here are left out; each shows its key."
+  (let ((choice (second (select-from-menu (current-screen)
+                                          (vikix-menu-lines (remove-if-not #'vikix-menu-entry-here-p entries))
+                                          prompt))))
     (when choice
       (let ((action (second choice)))
         (if (symbolp action)
