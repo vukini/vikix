@@ -42,6 +42,7 @@ trap 'rm -rf "$t"' EXIT
 # real, and every run of this test (and tests/run.sh) waited on it.
 PATH=$(printf '%s' "$PATH" | tr ':' '\n' | grep -v "^$HOME/" | paste -sd: -)
 export PATH
+plugins_repo=${VIKIX_TEST_PLUGINS_REPO:-$HOME/src/vikix-plugins}   # the real home's, for the skill's plugin keys
 export HOME="$t/home" VIKIX_STATE="$t/state"
 mkdir -p "$HOME/.local/bin" "$t/bin"
 git -C "$HOME" init -q 2>/dev/null || true; rm -rf "$HOME/.git"   # (the snapshot repo is its own)
@@ -285,6 +286,22 @@ agent --uninstall codex >/dev/null 2>&1
 out=$(HOME="$t/nothing" script -qec "bash '$here/bin/vikix-agent' --exec codex" /dev/null </dev/null 2>&1) && { echo "FAIL: --exec started an agent that isn't installed"; fail=1; }
 check "--exec: not installed should say how to install it: $out" grep -q 'vikix agent --install codex' <<<"$out"
 check "--exec should never ask: $out" test -z "$(grep 'Install it now' <<<"$out" || true)"
+
+# The skill's keys are made from keys.lisp (and the plugins at the pin,
+# where a copy of their repository is here): never a hand-kept list.
+if command -v sbcl >/dev/null; then
+  out=$(VIKIX_PLUGINS_REPO="$plugins_repo" bash "$here/lib/skill-keys.sh" --check 2>&1 || true)
+  check "the skill's keys should be keys.lisp's: $out" test -z "$out"
+  # And every key its prose names is one of them, so none lingers after it moves.
+  skill="$here/config/claude/skills/vikix/SKILL.md"
+  known=$(awk '/^<!-- (plugin-)?keys:/,/^<!-- \/(plugin-)?keys -->/' "$skill" |
+          grep -oE '(Super|Ctrl|Shift)\+[A-Za-z0-9+./=`-]*[A-Za-z0-9/=`]( Screen)?' | sed 's/ Screen$//' | sort -u)
+  stale=$(awk '/^<!-- (plugin-)?keys:/,/^<!-- \/(plugin-)?keys -->/ {next} {print}' "$skill" |
+          grep -oE 'Super\+[A-Za-z0-9+./=`-]*[A-Za-z0-9/=`]' | grep -vE '\.\.|/[a-z]' | sort -u | grep -vxFf <(echo "$known") || true)
+  check "the skill names keys Vikix doesn't have: $(echo $stale)" test -z "$stale"
+else
+  echo "(the skill's keys need sbcl; skipped here)"
+fi
 
 [ "$fail" = 0 ] && echo "agents: five agents, one guide, a snapshot first, no keys unless needed, local where they can"
 exit "$fail"

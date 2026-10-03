@@ -43,6 +43,10 @@ for f in "${files[@]}"; do
     config/stumpwm/*) add lisp errors menu ;;
   esac
   case $f in
+    # The skill's list of keys is made from these (lib/skill-keys.sh).
+    config/stumpwm/vikix/keys.lisp|config/stumpwm/vikix/help.lisp|bin/vikix-plugin) add agents ;;
+  esac
+  case $f in
     bin/*|lib/*|tests/*|migrations/*|install/*|*.sh) add lint ;;
   esac
 done

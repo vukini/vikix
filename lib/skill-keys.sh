@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+# lib/skill-keys.sh — the agents' skill's list of keys, made from the keys
+# themselves, so it can't go stale as the hand-written one could.
+#
+#   lib/skill-keys.sh            print the two blocks: Vikix's keys (from
+#                                config/stumpwm/vikix/keys.lisp, grouped
+#                                as the key card groups them) and the
+#                                plugins' (from the plugins repository at
+#                                Vikix's pin)
+#   lib/skill-keys.sh --write    put them into config/claude/skills/vikix/SKILL.md,
+#                                between the <!-- keys --> and
+#                                <!-- plugin-keys --> markers
+#   lib/skill-keys.sh --check    exit 1 when SKILL.md's blocks aren't what
+#                                they'd be now (tests/agents.sh runs it);
+#                                the plugins' block only where a copy of the
+#                                plugins repository is at hand
+#
+# The plugins repository: VIKIX_PLUGINS_REPO, else ~/src/vikix-plugins.
+# Needs sbcl, which reads the key names and groups with help.lisp's own code.
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+skill="$root/config/claude/skills/vikix/SKILL.md"
+keys="$root/config/stumpwm/vikix/keys.lisp"
+help="$root/config/stumpwm/vikix/help.lisp"
+repo=${VIKIX_PLUGINS_REPO:-$HOME/src/vikix-plugins}
+pin=$(sed -n 's/^PLUGINS_COMMIT=\${VIKIX_PLUGINS_COMMIT:-\([0-9a-f]*\)}.*/\1/p' "$root/bin/vikix-plugin")
+command -v sbcl >/dev/null || { echo "skill-keys: needs sbcl" >&2; exit 2; }
+t=$(mktemp -d)
+trap 'rm -rf "$t"' EXIT
+
+have_plugins() { [ -d "$repo/.git" ] && git -C "$repo" cat-file -e "$pin^{commit}" 2>/dev/null; }
+
+# The plugins' keys, as Lisp: (("KEY" "description" "plugin") ...).
+plugin_keys() {
+  echo "("
+  if have_plugins; then
+    git -C "$repo" ls-tree --name-only -r "$pin" | grep '/plugin\.lisp$' | sort | while read -r f; do
+      git -C "$repo" show "$pin:$f" | tr '\n' ' ' |
+        grep -oE '\(vikix-plugin-key +"[^"]+" +"[^"]*" +"[^"]*"' |
+        sed -E "s/\(vikix-plugin-key +(\"[^\"]+\") +\"[^\"]*\" +(\"[^\"]*\")/(\1 \2 \"${f%%/*}\")/"
+    done
+  fi
+  echo ")"
+}
+
+# The forms needed, cut from the files as tests/menu.sh and tests/lisp.sh do
+# (help.lisp as a whole needs StumpWM's packages).
+{
+  echo '(defpackage :stumpwm (:use :cl)) (in-package :stumpwm)'
+  awk '/^\(defparameter \*vikix-bindings\*/,/^$/' "$keys"
+  awk '/^\(defparameter \*vikix-key-names\*/,/^$/; /^\(defun vikix-pretty-key/,/^$/;
+       /^\(defparameter \*vikix-extra-keys\*/,/^$/; /^\(defparameter \*vikix-key-groups\*/,/^$/;
+       /^\(defun vikix-command-word/,/^$/; /^\(defun vikix-key-group/,/^$/' "$help"
+  echo "(defparameter *plugin-keys* '$(plugin_keys))"
+  cat <<'LISP'
+(defun line (label description)
+  (format nil "~a: ~a" label (string-right-trim "." description)))
+(let ((groups '()))
+  (dolist (b *vikix-bindings*)
+    (destructuring-bind (key command description &optional group) b
+      (let ((g (vikix-key-group command group)))
+        (unless (assoc g groups :test #'string=) (setf groups (append groups (list (list g)))))
+        (push (line (vikix-pretty-key key) description) (cdr (assoc g groups :test #'string=))))))
+  (dolist (e *vikix-extra-keys*)
+    (destructuring-bind (label description command) e
+      (let ((g (vikix-key-group command)))
+        (unless (assoc g groups :test #'string=) (setf groups (append groups (list (list g)))))
+        (push (line label description) (cdr (assoc g groups :test #'string=))))))
+  ;; In the key card's order of groups, Other last.
+  (let ((order (append (mapcar #'first *vikix-key-groups*) '("Apps" "Other"))))
+    (setf groups (sort groups #'< :key (lambda (g) (or (position (first g) order :test #'string=) 99)))))
+  (format t "<!-- keys: made by lib/skill-keys.sh from keys.lisp; don't edit, run it with --write -->~%")
+  (format t "Every Vikix key, as installed (Super+/ shows them on one card, Super+F1 searches them and runs one):~%~%")
+  (dolist (g groups)
+    (format t "- **~a:** ~{~a~^; ~}.~%" (first g) (reverse (rest g))))
+  (format t "<!-- /keys -->~%")
+  (format t "~%<!-- plugin-keys: made by lib/skill-keys.sh from the plugins at Vikix's pin -->~%")
+  (format t "The plugins' keys, there only when the plugin is added (vikix plugin list): ~{~a~^; ~}.~%"
+          (mapcar (lambda (k) (format nil "~a: ~a (~a)" (vikix-pretty-key (first k))
+                                      (string-right-trim "." (second k)) (third k)))
+                  *plugin-keys*))
+  (format t "<!-- /plugin-keys -->~%"))
+LISP
+} > "$t/make.lisp"
+sbcl --script "$t/make.lisp" > "$t/blocks" || { echo "skill-keys: sbcl failed" >&2; exit 2; }
+
+block() {   # block NAME FILE: the lines from <!-- NAME... to <!-- /NAME -->
+  awk -v n="$1" 'index($0, "<!-- " n ":") == 1 {on=1} on {print} index($0, "<!-- /" n " -->") == 1 {on=0}' "$2"
+}
+
+case ${1:-} in
+  "") cat "$t/blocks" ;;
+  --write)
+    have_plugins || { echo "skill-keys: no copy of the plugins repository at the pin ($repo, ${pin:0:7}): the plugins' keys would be lost" >&2; exit 2; }
+    python3 - "$skill" "$t/blocks" <<'PY'
+import re, sys
+skill, blocks = sys.argv[1], open(sys.argv[2]).read()
+s = open(skill).read()
+for name in ("keys", "plugin-keys"):
+    new = re.search(r"<!-- %s:.*?<!-- /%s -->\n" % (name, name), blocks, re.S).group(0)
+    pat = re.compile(r"<!-- %s:.*?<!-- /%s -->\n" % (name, name), re.S)
+    if not pat.search(s):
+        sys.exit(f"skill-keys: SKILL.md has no <!-- {name}: ... <!-- /{name} --> block to fill")
+    s = pat.sub(lambda m: new, s, count=1)
+open(skill, "w").write(s)
+PY
+    ;;
+  --check)
+    fail=0
+    diff <(block keys "$skill") <(block keys "$t/blocks") >/dev/null ||
+      { echo "SKILL.md's keys aren't keys.lisp's: lib/skill-keys.sh --write"; fail=1; }
+    if have_plugins; then
+      diff <(block plugin-keys "$skill") <(block plugin-keys "$t/blocks") >/dev/null ||
+        { echo "SKILL.md's plugin keys aren't the plugins' at the pin: lib/skill-keys.sh --write"; fail=1; }
+    fi
+    exit "$fail" ;;
+  *) echo "usage: lib/skill-keys.sh [--write|--check]" >&2; exit 2 ;;
+esac

@@ -71,7 +71,7 @@ Real testing happens in a VM. The dev machine has a libvirt VM `void-vm` (`virsh
 
 **Snapshots of the user's files.** `vikix snapshot/changes/history/undo` keep a separate git repo at `~/.local/state/vikix/yours.git` whose work tree is `$HOME`, limited to `config/yours.list`. `vikix agent` snapshots before starting Claude Code.
 
-**The installed agent's skill.** `config/claude/skills/vikix/SKILL.md` is linked to `~/.claude/skills/vikix` on installed machines and guides Claude Code running *on* a Vikix desktop (OpenCode reads it there too). `bin/vikix-agent --write-guide` (40-config, and every `vikix agent`) turns it into `~/.local/share/vikix/AGENTS.md` for the other agents (Codex, Gemini, Aider), so it stays the one source. Update it when commands, keys or file ownership change.
+**The installed agent's skill.** `config/claude/skills/vikix/SKILL.md` is linked to `~/.claude/skills/vikix` on installed machines and guides Claude Code running *on* a Vikix desktop (OpenCode reads it there too). `bin/vikix-agent --write-guide` (40-config, and every `vikix agent`) turns it into `~/.local/share/vikix/AGENTS.md` for the other agents (Codex, Gemini, Aider), so it stays the one source. Update it when commands, keys or file ownership change. Its list of keys is not written by hand: `lib/skill-keys.sh --write` makes it from `keys.lisp` (grouped as the key card) and from the plugins at the pin, between the `<!-- keys -->` and `<!-- plugin-keys -->` markers; run it after changing a key or moving the plugins' pin. `tests/agents.sh` fails when the list is out of date, or when the skill's prose names a key that isn't in it. Super+m shows each entry's key by itself (from `*vikix-bindings*`), so a menu label never names a key.
 
 ## Conventions
 
