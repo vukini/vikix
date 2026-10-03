@@ -11,6 +11,7 @@
 #     a note embedded becomes a link; a note named like a file is a note
 #   - a folder left out can't be converted; another one shares a name and
 #     the nearer note is taken; the report says each, by kind
+#   - Emacs's local variables in a note (a saved gptel chat's) are left out
 #   - converting again leaves a note changed since alone, unless --force
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
@@ -50,7 +51,7 @@ See [[Nowhere]] and [[Notes/Deep/Arrakis]]. A #favourite.
 echo "[[not a link]] #notatag"
 ```
 MD
-printf '# Arrakis\n\nA planet.\n' > "$v/Notes/Deep/Arrakis.md"
+printf '# Arrakis\n\nA planet.\n\n<!-- Local Variables: -->\n<!-- gptel-model: sonar-pro -->\n<!-- End: -->\n' > "$v/Notes/Deep/Arrakis.md"
 printf 'Spice.\n' > "$v/Notes/Spice.md"
 printf 'A note named like a header file.\n' > "$v/Notes/C-stddef.h.md"
 printf 'From Readwise.\n' > "$v/Readwise/Highlights.md"
@@ -93,6 +94,8 @@ for k in "a link into a folder left out" "a link to a note that isn't there" "a 
 done
 ob convert Notes >/dev/null
 check "the linked note, converted later, has the ID the link uses" grep -qx ":ID:       $(id_of Notes/Deep/Arrakis.md)" "$t/notes/vault/Notes/Deep/Arrakis.org"
+check "Emacs's local variables (a saved chat's) left out, so Emacs reads the note" bash -c "! grep -qi 'local variables' '$t/notes/vault/Notes/Deep/Arrakis.org'"
+check "and reported" grep -q "Emacs's local variables" "$t/state/vikix/obsidian/report-Notes.org"
 
 # Converting again: a note changed since is left alone, unless --force.
 echo "* My own addition" >> "$o"

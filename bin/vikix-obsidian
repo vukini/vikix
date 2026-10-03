@@ -165,6 +165,8 @@ HIGHLIGHT = re.compile(r"==([^=\n]+)==")
 CALLOUT = re.compile(r"^(>\s*)\[!(\w+)\][-+]?\s*(.*)$")
 TAG = re.compile(r"(?:(?<=\s)|^)#([A-Za-z][\w/-]*)")
 INLINE_CODE = re.compile(r"`[^`\n]*`")
+LOCAL_VARS = re.compile(r"^[ \t]*<!--\s*Local Variables:\s*-->.*?<!--\s*End:\s*-->[ \t]*\n?",
+                        re.S | re.M | re.I)
 TYPOGRAPHY = {"VKXRSQUOX": "’", "VKXLSQUOX": "‘", "VKXELLIPX": "…", "VKXENDASHX": "–", "VKXEMDASHX": "—"}
 IMAGE = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp"}
 
@@ -323,6 +325,13 @@ class Converter:
         with open(os.path.join(self.v.root, rel), encoding="utf-8", errors="replace") as f:
             text = f.read()
         front, body = split_front(text)
+        # Emacs's file-local variables, in HTML comments (a gptel chat saved
+        # as Markdown keeps its settings so): they were the Markdown
+        # buffer's, and left in, Emacs reads them as the Org file's own and
+        # stops (org-roam skips the note).
+        body, n = LOCAL_VARS.subn("", body)
+        if n:
+            self.problem(rel, "Emacs's local variables (a saved chat's settings): left out", "")
         out = {}
         md, tags = self.prepare(body, rel, out)
         # Pandoc's Org writes ’ … – — as ' ... -- ---, which Org shows as
