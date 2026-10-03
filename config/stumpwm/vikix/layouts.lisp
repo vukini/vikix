@@ -45,10 +45,104 @@
 ;;; --- Windows as descriptions ----------------------------------------------------
 
 (defun vikix-layout-window (window)
-  "WINDOW as a layout describes it."
-  (list :class (or (window-class window) "")
-        :instance (or (window-res window) "")
-        :title (or (window-title window) "")))
+  "WINDOW as a layout describes it: what it is, and how to start it again
+(when that can be told)."
+  (append (list :class (or (window-class window) "")
+                :instance (or (window-res window) "")
+                :title (or (window-title window) ""))
+          (ignore-errors (vikix-layout-how window))))
+
+;;; --- How a window was started, to start it again ------------------------------------
+;;;
+;;; Saved with each window: :command (the program and its arguments) and
+;;; :directory. Read from the window's process (_NET_WM_PID, /proc), except:
+;;; a terminal is started again in its shell's folder, with what runs in it
+;;; when that isn't a shell (nvim notes.org); an Emacs frame belongs to the
+;;; one Emacs, so it's the file it shows (emacsclient -c FILE), or Esploro's
+;;; folder (esploro --new FOLDER).
+
+(defparameter *vikix-layout-terminals*
+  '("alacritty" "kitty" "foot" "xterm" "st" "urxvt" "wezterm" "wezterm-gui" "konsole" "xfce4-terminal")
+  "Programs that are terminals: what runs inside them is what matters.")
+
+(defparameter *vikix-layout-shells* '("bash" "zsh" "fish" "sh" "dash" "ksh" "tcsh" "nu")
+  "A terminal running one of these was only a shell: its folder is enough.")
+
+(defun vikix-window-pid (window)
+  (let ((pid (first (ignore-errors (xlib:get-property (window-xwin window) :_net_wm_pid)))))
+    (and (integerp pid) (plusp pid) pid)))
+
+(defun vikix-proc-file (pid name)
+  (format nil "/proc/~d/~a" pid name))
+
+(defun vikix-proc-cmdline (pid)
+  "PID's program and arguments, or NIL."
+  (ignore-errors
+   (with-open-file (in (vikix-proc-file pid "cmdline") :element-type '(unsigned-byte 8))
+     (let* ((bytes (let ((v (make-array 0 :element-type '(unsigned-byte 8) :adjustable t :fill-pointer 0)))
+                     (loop for b = (read-byte in nil) while b do (vector-push-extend b v))
+                     v))
+            (text (sb-ext:octets-to-string (coerce bytes '(vector (unsigned-byte 8))) :external-format :utf-8)))
+       (remove "" (split-seq text (string (code-char 0))) :test #'string=)))))
+
+(defun vikix-proc-cwd (pid)
+  (ignore-errors (sb-posix:readlink (vikix-proc-file pid "cwd"))))
+
+(defun vikix-proc-child (pid)
+  "PID's first child process, or NIL."
+  (or (ignore-errors
+       (with-open-file (in (format nil "/proc/~d/task/~d/children" pid pid))
+         (let ((line (read-line in nil "")))
+           (parse-integer line :junk-allowed t))))
+      ;; Without CONFIG_PROC_CHILDREN: whose parent it is, from each process.
+      (loop for dir in (directory "/proc/[0-9]*/")
+            for child = (ignore-errors (parse-integer (car (last (pathname-directory dir)))))
+            when (and child
+                      (ignore-errors
+                       (with-open-file (in (vikix-proc-file child "stat"))
+                         (let* ((line (read-line in nil ""))
+                                (rest (subseq line (1+ (position #\) line :from-end t))))
+                                (fields (remove "" (split-seq rest " ") :test #'string=)))
+                           (eql (parse-integer (second fields) :junk-allowed t) pid)))))
+              minimize child)))
+
+(defun vikix-layout-program (word)
+  "A program's own name: /usr/bin/bash -> bash, -bash (a login shell) -> bash."
+  (string-left-trim "-" (file-namestring word)))
+
+(defun vikix-layout-how (window)
+  "(:command (PROGRAM ARG...) :directory DIR) to start WINDOW again, or NIL."
+  (if (equal (window-class window) "Emacs")
+      (vikix-layout-emacs-how window)
+      (let* ((pid (vikix-window-pid window))
+             (cmd (and pid (vikix-proc-cmdline pid))))
+        (when cmd
+          (if (member (vikix-layout-program (first cmd)) *vikix-layout-terminals* :test #'string=)
+              (let* ((child (vikix-proc-child pid))
+                     (inner (and child (vikix-proc-cmdline child)))
+                     (shell (or (null inner)
+                                (member (vikix-layout-program (first inner)) *vikix-layout-shells* :test #'string=)))
+                     ;; Started with -e already: its own command line says it all.
+                     (own (or (member "-e" cmd :test #'string=) (member "--command" cmd :test #'string=))))
+                (list :command (if (or own shell) cmd (append cmd (list "-e") inner))
+                      :directory (or (and child (vikix-proc-cwd child)) (vikix-proc-cwd pid))))
+              (list :command cmd :directory (vikix-proc-cwd pid)))))))
+
+(defun vikix-layout-emacs-how (window)
+  "An Emacs frame: the file it shows, or Esploro's folder, asked of Emacs."
+  (let* ((elisp (format nil "(let ((f (seq-find (lambda (f) (equal (frame-parameter f 'outer-window-id) ~s)) (frame-list)))) (when f (let ((b (window-buffer (frame-selected-window f)))) (list (if (frame-parameter f 'esploro) \"esploro\" \"file\") (or (buffer-file-name b) (with-current-buffer b (expand-file-name default-directory)))))))"
+                        (princ-to-string (window-id window))))
+         (out (ignore-errors
+               (with-output-to-string (s)
+                 (sb-ext:run-program "timeout" (list "2" "emacsclient" "-e" elisp)
+                                     :search t :input nil :output s :error nil :wait t))))
+         (answer (and out (plusp (length out))
+                      (ignore-errors (let ((*read-eval* nil)) (read-from-string out))))))
+    (when (and (consp answer) (stringp (second answer)))
+      (if (equal (first answer) "esploro")
+          (list :command (list "esploro" "--new" (second answer)) :directory (second answer))
+          (list :command (list "emacsclient" "-c" "-n" "-a" "" (second answer))
+                :directory (directory-namestring (second answer)))))))
 
 (defun vikix-layout-score (spec window)
   "How well WINDOW fits SPEC: nil when not at all (another program), else
@@ -225,9 +319,55 @@ dialogs) matched to its saved ones. Returns the saved windows not found."
     (viri-layout group)
     (loop for spec in specs for w in found unless w collect spec)))
 
-(defun vikix-layout-restore (name &optional (group (current-group)))
-  "Put GROUP back as the layout NAME says. Returns the saved windows that
-aren't open (as their descriptions)."
+(defvar *vikix-layout-started* (make-hash-table :test 'equal)
+  "Saved windows started lately, and when: not started again within
+*vikix-layout-start-wait* seconds (a rule's layout would start them again as
+each of them opens).")
+
+(defparameter *vikix-layout-start-wait* 30
+  "Seconds a started window is given to appear before it may be started again.")
+
+(defun vikix-layout-start (spec)
+  "Start the window SPEC describes, by its :command in its :directory. True
+when it was started; NIL when it can't be (no command) or was just now."
+  (let ((cmd (getf spec :command))
+        (dir (getf spec :directory))
+        (key (prin1-to-string (list (getf spec :class) (getf spec :command))))
+        (now (get-universal-time)))
+    (when (and (consp cmd) (every #'stringp cmd) (plusp (length (first cmd)))
+               (< (+ (gethash key *vikix-layout-started* 0) *vikix-layout-start-wait*) now))
+      (setf (gethash key *vikix-layout-started*) now)
+      (sb-ext:run-program "setsid" (list* "-f" cmd)
+                          :search t :input nil :output nil :error nil :wait t
+                          :directory (and (stringp dir) (probe-file dir) dir))
+      t)))
+
+(defun vikix-layout-follow (name group started)
+  "The windows STARTED come one by one: each second for a while, while the
+workspace is NAME's still, put it back as NAME says again as more of them
+are there (nothing started this time). Whole seconds: a fractional delay
+once stopped StumpWM's timers."
+  (let ((tries 0) (timer nil) (left (length started)))
+    (setf timer
+          (run-with-timer 1 1
+                          (lambda ()
+                            (incf tries)
+                            (handler-case
+                                (let* ((windows (remove-if #'viri-floats-p (group-windows group)))
+                                       (still (count-if-not (lambda (s) (first (vikix-layout-match (list s) windows))) started)))
+                                  (when (< still left)
+                                    (setf left still)
+                                    (vikix-layout-restore name group :start nil))
+                                  (when (or (zerop still) (>= tries 20)
+                                            (not (member group (screen-groups (group-screen group)))))
+                                    (cancel-timer timer)))
+                              (error () (cancel-timer timer))))))))
+
+(defun vikix-layout-restore (name &optional (group (current-group)) &key (start t))
+  "Put GROUP back as the layout NAME says; with START, start the saved
+windows that aren't open (those it can), and place them as they come.
+Returns the saved windows that aren't open, and as a second value those of
+them being started."
   (let* ((layout (vikix-layout-read name))
          (kind (getf layout :kind)))
     (unless (member kind '(:tiles :strip))
@@ -237,10 +377,14 @@ aren't open (as their descriptions)."
       (setf group (viri-replace-group group 'viri-group)))
     (when (and (eq kind :tiles) (viri-group-p group))
       (setf group (viri-replace-group group 'tile-group)))
-    (let ((windows (remove-if #'viri-floats-p (group-windows group))))
-      (if (eq kind :strip)
-          (vikix-layout-restore-strip group layout windows)
-          (vikix-layout-restore-tiles group layout windows)))))
+    (let* ((windows (remove-if #'viri-floats-p (group-windows group)))
+           (missing (if (eq kind :strip)
+                        (vikix-layout-restore-strip group layout windows)
+                        (vikix-layout-restore-tiles group layout windows)))
+           (started (and start (remove-if-not #'vikix-layout-start missing))))
+      (when started
+        (vikix-layout-follow name group started))
+      (values missing started))))
 
 ;;; --- Commands, and the rule verb ------------------------------------------------------
 
@@ -267,10 +411,15 @@ is where) under NAME, in ~/.config/vikix/layouts/."
                         (first (select-from-menu (current-screen) (mapcar #'list names) "Layout: "))
                         (progn (message "No layouts saved yet (Super+m, Save this workspace's layout).") nil))))))
     (when name
-      (let ((missing (vikix-layout-restore name)))
-        (if missing
-            (message "Layout ~a; not open: ~a." name (vikix-layout-missing-text missing))
-            (message "Layout ~a." name))))))
+      (multiple-value-bind (missing started) (vikix-layout-restore name)
+        (message "~a" (vikix-layout-said name missing started))))))
+
+(defun vikix-layout-said (name missing started)
+  "What putting NAME back did, in a line."
+  (let ((not-started (set-difference missing started)))
+    (format nil "Layout ~a~@[; starting: ~a~]~@[; not open: ~a~]." name
+            (and started (vikix-layout-missing-text started))
+            (and not-started (vikix-layout-missing-text not-started)))))
 
 (define-rule-verb layout (name)
   "Put the window's workspace as the saved layout NAME says (vikix layout save NAME)."

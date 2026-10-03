@@ -32,9 +32,11 @@
 #                         yours, then switch to it (vikix theme --help)
 #   vikix version
 #
-#   vikix layout save NAME | NAME | list | rm NAME
+#   vikix layout save NAME | NAME [--no-start] | list | rm NAME
 #                       this workspace's layout (its splits or its strip, and
-#                       which window is where) saved, put back, listed, removed
+#                       which window is where) saved, put back (the windows it
+#                       had that aren't open started, unless --no-start),
+#                       listed, removed
 #   vikix viri [on|off] this workspace as a strip that scrolls sideways
 #                       (Super+h/l along it), or tiled again; no word switches
 #   vikix eval FORM     run Lisp in the running StumpWM, print the result
@@ -427,7 +429,9 @@ cmd_layout() {
     rm)    name_ok "$name"; [ -f "$dir/$name.lisp" ] || die "vikix layout: no layout $name"
            rm -f "$dir/$name.lisp"; say "removed layout $name" ;;
     *)     name_ok "$what"
-           ask "(let ((missing (vikix-layout-restore \"$what\"))) (format t \"layout ~a~@[; not open: ~a~]~%\" \"$what\" (and missing (vikix-layout-missing-text missing))))" ;;
+           local start=t
+           [ "$name" = --no-start ] && start=nil
+           ask "(multiple-value-bind (missing started) (vikix-layout-restore \"$what\" (current-group) :start $start) (format t \"~a~%\" (vikix-layout-said \"$what\" missing started)))" ;;
   esac
 }
 

@@ -24,7 +24,15 @@ wm_setup layouts
 cat > "$home/.stumpwm.d/rules.lisp" <<'EOF'
 (when-window (:title "Trigger") (layout "split"))
 EOF
-wm_start
+# A throwaway Emacs server of the test's own (emacs -Q, its own socket):
+# what StumpWM's emacsclient reaches, never the desktop's Emacs.
+sock="$t/emacs-server"
+if command -v emacs >/dev/null; then
+  HOME=$home emacs -Q --fg-daemon="$sock" >/dev/null 2>&1 &
+  pids+=($!)
+  for _ in $(seq 1 40); do HOME=$home EMACS_SOCKET_NAME="$sock" emacsclient -e t >/dev/null 2>&1 && break; sleep 0.25; done
+fi
+EMACS_SOCKET_NAME="$sock" wm_start
 
 layout() { HOME=$home VIKIX_SWANK_PORT=$port VIKIX_DIR=$here bash "$here/bin/vikix" layout "$@" 2>&1; }
 w() { echo "(find \"$1\" (group-windows (current-group)) :key (function window-title) :test (function equal))"; }
@@ -49,7 +57,7 @@ ask '(run-commands "only")' >/dev/null; sleep 0.3
 check "made one frame: $(tiles)" test "$(tiles)" = "tiles frames=1 alpha-alone=NIL"
 out=$(layout split)
 check "vikix layout split puts the split back, Alpha alone in its frame: $(tiles)" test "$(tiles)" = "tiles frames=2 alpha-alone=T"
-check "and says nothing is missing: $out" test "$out" = "layout split"
+check "and says nothing is missing: $out" test "$out" = "Layout split."
 
 # A strip: two columns, Gamma under Alpha, the first two thirds wide.
 ask '(run-commands "vikix-viri on")' >/dev/null; sleep 0.5
@@ -70,8 +78,10 @@ check "and the tiles' layout from the strip: tiles, split as saved: $(tiles)" te
 win Delta other
 ask "(kill-window $(w Beta))" >/dev/null
 for _ in $(seq 1 20); do [ "$(ask "(princ (if $(w Beta) 1 0))")" = 0 ] && break; sleep 0.25; done
+out=$(layout split --no-start)
+check "with --no-start, a closed window is only named: $out" grep -q 'not open: viritest (Beta)' <<<"$out"
 out=$(layout split)
-check "a closed window is named: $out" grep -q 'not open: viritest (Beta)' <<<"$out"
+check "without, it's started again: $out" grep -q 'starting: viritest (Beta)' <<<"$out"
 check "a window it doesn't know stays on the workspace" test "$(ask "(princ (if $(w Delta) 1 0))")" = 1
 
 # Changed by hand: the first column a third wide.
@@ -116,7 +126,41 @@ check "opened again, it's placed as it was left (the editor on the right): $out"
 out=$(project save)
 check "vikix project save, on its workspace: $out" grep -q "saved demo's layout" <<<"$out"
 
-check "vikix layout list: $(layout list | tr '\n' ' ')" test "$(layout list | tr '\n' ' ')" = "desk project-demo split "
+# --- Starting what's missing: a layout's windows that aren't open are
+# started again, as they were (a terminal in its folder, an Emacs frame on
+# its file), and placed as they come.
+ask '(run-commands "vikix-viri off")' >/dev/null 2>&1; sleep 0.3
+key super+3
+mkdir -p "$t/work"; echo notes > "$t/work/notes.txt"
+(cd "$t/work" && LIBGL_ALWAYS_SOFTWARE=1 setsid -f alacritty --class Term >/dev/null 2>&1)
+for _ in $(seq 1 40); do [ "$(ask '(princ (count "Term" (group-windows (current-group)) :key (function window-class) :test (function equal)))')" = 1 ] && break; sleep 0.25; done
+if command -v emacs >/dev/null; then
+  HOME=$home EMACS_SOCKET_NAME="$sock" emacsclient -c -n "$t/work/notes.txt" >/dev/null 2>&1
+  for _ in $(seq 1 40); do [ "$(ask '(princ (count "Emacs" (group-windows (current-group)) :key (function window-class) :test (function equal)))')" = 1 ] && break; sleep 0.25; done
+fi
+sleep 1
+layout save started >/dev/null
+check "a plain terminal is saved as itself, in its shell's folder" grep -q "(\"alacritty\" \"--class\" \"Term\") :directory \"$t/work\"" <<<"$(tr -s ' \n' ' ' < "$file/started.lisp" | sed 's/( /(/g')"
+if command -v emacs >/dev/null; then
+  check "an Emacs frame is saved as emacsclient on its file" grep -q "\"emacsclient\" \"-c\" \"-n\" \"-a\" \"\" \"$t/work/notes.txt\"" <<<"$(tr -s ' \n' ' ' < "$file/started.lisp")"
+fi
+want=$(ask '(princ (length (group-windows (current-group))))')
+ask '(dolist (w (group-windows (current-group))) (kill-window w))' >/dev/null
+for _ in $(seq 1 20); do [ "$(ask '(princ (length (group-windows (current-group))))')" = 0 ] && break; sleep 0.25; done
+out=$(layout started)
+check "vikix layout says it starts them: $out" grep -q 'starting: ' <<<"$out"
+for _ in $(seq 1 60); do [ "$(ask '(princ (length (group-windows (current-group))))')" = "$want" ] && break; sleep 0.25; done
+check "they're started again: $want windows" test "$(ask '(princ (length (group-windows (current-group))))')" = "$want"
+term_dir=$(ask '(let ((w (find "Term" (group-windows (current-group)) :key (function window-class) :test (function equal)))) (princ (and w (vikix-proc-cwd (vikix-proc-child (vikix-window-pid w))))))')
+check "the terminal in its folder: $term_dir" test "$term_dir" = "$t/work"
+if command -v emacs >/dev/null; then
+  shows=$(HOME=$home EMACS_SOCKET_NAME="$sock" emacsclient -e '(mapcar (lambda (f) (buffer-file-name (window-buffer (frame-selected-window f)))) (frame-list))' 2>/dev/null)
+  check "the Emacs frame on its file: $shows" grep -q "$t/work/notes.txt" <<<"$shows"
+fi
+out=$(layout started)
+check "put back again with them open, nothing is started twice: $out" test "$out" = "Layout started."
+
+check "vikix layout list: $(layout list | tr '\n' ' ')" test "$(layout list | tr '\n' ' ')" = "desk project-demo split started "
 layout rm desk >/dev/null
 check "vikix layout rm removes it" test ! -e "$file/desk.lisp"
 out=$(layout save '../x' || true)
@@ -124,5 +168,5 @@ check "a name with / is refused: $out" grep -q 'a name is' <<<"$out"
 out=$(layout nosuch || true)
 check "a layout that isn't there is said: $out" grep -qi 'no layout nosuch' <<<"$out"
 
-wm_report layouts "projects on a workspace of their own, saved on leaving and placed as left; a split and a strip saved as plain Lisp and put back, either from the other, a window it doesn't know kept, a closed one named, a hand change followed, from a rule, list, rm, bad names refused"
+wm_report layouts "windows a layout had started again (a terminal in its folder, an Emacs frame on its file) and placed; projects on a workspace of their own, saved on leaving and placed as left; a split and a strip saved as plain Lisp and put back, either from the other, a window it doesn't know kept, a closed one named, a hand change followed, from a rule, list, rm, bad names refused"
 exit "$fail"

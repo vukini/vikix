@@ -486,12 +486,10 @@ def arrange(p, before):
             break
         time.sleep(0.25)
     time.sleep(0.3)   # their titles settle
-    missing = lisp(f"(let ((m (vikix-layout-restore {lisp_str(layout_name(p.full))}))) "
-                   "(when m (princ (vikix-layout-missing-text m))))")
-    if missing:
-        print(f"   placed as you left it; not open: {missing}")
-    elif missing is not None:
-        print("   placed as you left it")
+    said = lisp(f"(multiple-value-bind (m s) (vikix-layout-restore {lisp_str(layout_name(p.full))}) "
+                f"(princ (vikix-layout-said {lisp_str(p.full)} m s)))")
+    if said:
+        print("   placed as you left it: " + said)
 
 
 def cmd_save(args):
