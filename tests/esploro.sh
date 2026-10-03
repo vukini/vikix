@@ -183,7 +183,8 @@ echo "esploro \$*" >> "$calls"
 case "\$1" in
   reveal) cat "$t/revealed" 2>/dev/null ;;
   commands) printf 'copy-path\tCopy path: Copy its path\ncompress\tCompress: Into a .zip\n' ;;
-  run) [ "\$2" = compress ] && echo '(:error "zip isn'"'"'t installed")' ;;
+  run) [ "\$2" = compress ] && echo '(:error "zip isn'"'"'t installed")'
+       [ "\$2" = shrink ] && echo '(:done 1 :made ("$HOME/notes/a & b small.png"))' ;;
 esac
 EOF
 # rofi: prints what $t/picked says was picked; nothing there is Escape (exit 1).
@@ -202,6 +203,9 @@ check "rofi should show the labels, not the names" grep -q -- "-display-columns 
 printf 'compress\tCompress: Into a .zip\n' > "$t/picked"
 : > "$calls"; es menu
 check "a command's error should be a notification" grep -q "notify-send Esploro zip isn't installed" "$calls"
+printf 'shrink\tShrink: A copy at half the size\n' > "$t/picked"
+: > "$calls"; es menu
+check "what a command made should be a notification: $(grep notify "$calls")" grep -qF "notify-send Esploro Shrink: made ~/notes/a &amp; b small.png" "$calls"
 : > "$t/picked"; : > "$calls"; es menu
 check "Escape in rofi should run nothing" sh -c "! grep -q 'esploro run' '$calls'"
 # rofi's message is markup: an & in the name would blank it.

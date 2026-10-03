@@ -218,7 +218,7 @@ markup_escape() {
 }
 
 cmd_menu() {
-  local es file lines pick name answer shown
+  local es file lines pick name answer shown label made
   es=$(command -v esploro) || { notify-send "Esploro" "Esploro isn't installed: vikix add esploro"; return 1; }
   file=$("$es" reveal --print 2>/dev/null | head -n1)
   if [ -z "$file" ]; then
@@ -235,6 +235,11 @@ cmd_menu() {
   answer=$("$es" run "$name" "$file" 2>&1)
   case $answer in
     "(:error "*) notify-send "Esploro" "$(markup_escape "$(sed 's/^(:error "\(.*\)")$/\1/' <<<"$answer")")" ;;
+    # Compress, Extract, Shrink: what it made, since nothing else shows it.
+    *":made ("*)
+      label=${pick#*$'\t'}
+      made=$(sed 's/.*:made (//; s/))$//' <<<"$answer" | grep -o '"[^"]*"' | tr -d '"' | sed "s|^$HOME|~|")
+      notify-send "Esploro" "$(markup_escape "${label%%:*}: made ${made//$'\n'/, }")" ;;
   esac
   return 0
 }
