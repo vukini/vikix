@@ -62,7 +62,7 @@ Three pieces, in three processes, as Esploro taught:
 
 - **`vikix-music`** is a Common Lisp program, not part of StumpWM: a crash stops the music, never the desktop. It watches `patterns.lisp`, holds the clock, schedules notes to the engine, and serves views over a local websocket (127.0.0.1, a secret as Swank has).
 - **The pattern language** is small by design: if a form can't be drawn, it doesn't belong in v1. See below.
-- **The web view** is a page served by `vikix-music`, opened in Nyxt as a `vikix:` page or in Firefox. It reuses what Living in Music already has: keyboards, fretboards, chord and scale logic. Every click is one message; the process rewrites one form; every view redraws.
+- **The web view** is a page served by `vikix-music`, opened in Nyxt as a `vikix:` page or in Firefox. A second face, in Cuis Smalltalk's Morphic, is the spike planned in `DESIGN-cuis.md` (`VikixMusic`): it speaks the same socket protocol, so the two can coexist and the protocol is settled once; the spike after Phase 0 decides which is kept. It reuses what Living in Music already has: keyboards, fretboards, chord and scale logic. Every click is one message; the process rewrites one form; every view redraws.
 - **Keys and the bar** go through StumpWM as everything else does: `define-vikix-command` entries for play, stop, record, fire-pattern N, so they are on keys, in Super+m, in the key help and offered to the agent from one definition.
 - **The DAW link** is `vikix music send`: MIDI files and rendered WAVs into `~/music/<song>/render/`, and OSC transport commands (play, stop, marker, arm) that Ardour and Reaper both answer. The Lisp side does not care which is listening.
 
