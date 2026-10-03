@@ -40,7 +40,9 @@ bash "$here/install/40-config.sh" >/dev/null 2>&1 || true
 check "a second 40-config changed the password" test "$(sha1sum < "$HOME/.slime-secret")" = "$first"
 
 # --- a real Swank that asks for it ---------------------------------------------------
-port=$((40000 + RANDOM % 20000))
+# A port the system says is free now: a random one could be held by another
+# test running beside this one (a listener, or a connection's own end).
+port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
 marker="$t/ran"
 # The real swank.lisp, on this test's port (never 4004, the desktop's).
 sed "s/(defparameter \*vikix-swank-port\* 4004)/(defparameter *vikix-swank-port* $port)/" \
