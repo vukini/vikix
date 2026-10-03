@@ -96,7 +96,7 @@ of a reload's 15 seconds, and the desktop stood still meanwhile."
     ("s-r"    "vikix-width-or-remove" "Remove this split (on a strip: the column's width)")
     ("s-bracketleft"  "vikix-stack left"  "On a strip: into the column on the left, or out of a shared one")
     ("s-bracketright" "vikix-stack right" "On a strip: into the column on the right, or out of a shared one")
-    ("s-o"    "expose"            "Every window on this workspace in a grid; pick one (Super+u undoes it)")
+    ("s-o"    "vikix-expose"      "Every window on this workspace in a grid (on a strip, a menu); pick one (Super+u undoes it)")
     ("s-O"    "vikix-grid"        "Grid mode on/off: windows stay tiled in a grid as they open and close")
     ("s-z"    "vikix-solo"        "Focus: only this window; again puts the others back")
     ;; windows.lisp: gaps, layout undo, finding windows

@@ -16,10 +16,11 @@
 ;;;;   Super+[ / ]       the window joins the column left / right of it, or,
 ;;;;                     sharing one, leaves it for a column of its own
 ;;;;   Super+j / k       up and down a column; with Shift, move the window
+;;;;   Super+o           every window on the strip in a menu, to go to one
 ;;;;
 ;;;; A column holds its windows top to bottom, sharing its height, and has
 ;;;; a width of its own; the strip scrolls just far enough to show
-;;;; the focused column whole. No overview yet. A
+;;;; the focused column whole. A
 ;;;; Viri workspace is a float group whose windows Viri places itself, so
 ;;;; StumpWM's own floating code (focus, raising, fullscreen, dialogs) does
 ;;;; the rest. Columns off the screen are moved past its edge, not hidden:
@@ -500,6 +501,42 @@ list. So you can see how far along the strip you are, and what's off it."
                             (mapcar #'name floats))))))))
 
 (add-screen-mode-line-formatter #\W 'viri-mode-line-windows)
+
+;;; The overview: every window on the strip in a menu (Super+o on a strip).
+
+(defun viri-overview-lines (group)
+  "The strip's windows as the menu shows them, in order, (LINE WINDOW):
+the column's place, the window, and whether it's on the screen now."
+  (let ((shown (viri-visible group)))
+    (loop for c in (viri-cols group)
+          for i from 0
+          append (loop for w in (viri-col-windows c)
+                       for k from 0
+                       collect (list (format nil "~a ~2d~a  ~a~a"
+                                             (if (eq w (group-current-window group)) "*" " ")
+                                             (1+ i)
+                                             (if (rest (viri-col-windows c)) (format nil ".~d" (1+ k)) "  ")
+                                             (window-name w)
+                                             (if (member i shown) "   (on the screen)" ""))
+                                     w)))))
+
+(defun viri-overview (group)
+  "Pick a window of the strip from a menu (type to narrow it); the strip
+goes there."
+  (let* ((lines (viri-overview-lines group))
+         (here (or (position (group-current-window group) lines :key #'second) 0))
+         (choice (select-from-menu (group-screen group) lines
+                                   (format nil "Strip ~a (type to search): " (group-name group))
+                                   here)))
+    (when choice
+      (group-focus-window group (second choice)))))
+
+(defcommand vikix-expose () ()
+  "Every window on this workspace, to pick one: on a strip, a menu of its
+columns in order; on tiles, StumpWM's grid (expose)."
+  (if (viri-group-p)
+      (viri-overview (current-group))
+      (run-commands "expose")))
 
 ;;; Rules for strips (rules.lisp loads first): two verbs.
 ;;;

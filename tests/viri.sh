@@ -189,6 +189,14 @@ frames=$(ask '(princ (length (group-frames (current-group))))')
 key super+r
 check "on tiles Super+r still removes a split" test "$(ask '(princ (length (group-frames (current-group))))')" = $((frames - 1))
 
+# Super+o on a strip: every window in a menu; typing narrows it, Enter goes there.
+ask '(run-commands "vikix-viri on")' >/dev/null; sleep 0.5
+first=$(ask '(princ (window-title (first (viri-columns (current-group)))))')
+key super+o
+xdotool type "$first"; key Return
+check "Super+o's menu goes to the window picked ($first): $(state)" test "$(ask '(princ (window-title (current-window)))')" = "$first"
+check "and scrolls the strip to it" test "$(ask '(princ (if (member 0 (viri-visible (current-group))) 1 0))')" = 1
+
 # The rules: on a strip, "Wide" opens two thirds wide, "Under" joins the
 # column on its left; on tiles they do nothing (no error, no menu).
 ask '(run-commands "vikix-viri on")' >/dev/null; sleep 0.5
@@ -198,5 +206,5 @@ win Under
 check "a rule's (join :left) puts the new window under the column on its left: $(cols)" grep -q 'WideUnder' <<<"$(cols)"
 check "the rules ran without failing" test "$(ask '(princ (reduce (function +) (mapcar (function vikix-rule-failures) *vikix-rules*)))')" = 0
 
-[ "$fail" = 0 ] && echo "viri: a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, new and closed windows, a dialog, another workspace, off and on"
+[ "$fail" = 0 ] && echo "viri: a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, the overview, new and closed windows, a dialog, another workspace, off and on"
 exit "$fail"
