@@ -144,6 +144,18 @@ Vikix already builds pil21 from the release tarball (`65-languages`, into `~/.lo
 
 Not: a fourth implementation language for Vikix itself (bash, Python and Common Lisp are three already; PicoLisp earns a place only where its database is the point); a replacement for SQLite in `vikix records` or the docs index; the music sketchpad's face (pil's forms are server-driven pages, wrong for a sequencer that changes on the next bar).
 
+### Areas still to look at (2026-10-03)
+
+Parts of Vikix that haven't had the code-first pass the sections above got. Each would become a section here or a `DESIGN-*.md`. In Vid's order of interest: publishing first, then the children's account, then security.
+
+- **Publishing.** Vid makes books, sites and EPUBs, and Vikix is the workshop for the Living Series, yet there is no `vikix add publish`: pandoc, Typst, Calibre, epubcheck, the EPUB-for-e-ink pipeline that exists as a Claude skill, Esperanto and Arabic fonts, a `make` shape every project shares. The highest-value gap for Vid himself.
+- **The children's account** (TODO 33). Several of today's ideas point at it: lessons in Cuis, Pascal, the education bundle, screen time, "show me how". Enough hangs off it that it deserves its own design: a second login, a simpler desktop, apps chosen by the parent, nothing of the parent's reachable, a home for the programming course.
+- **Security.** The pen-tester's open findings in TODO ("to look into" 4 and 5: signed tags for `vikix update`, a confirm-on-use SSH key, checksums from somewhere other than the download host, a rate limit on the MCP notify tool) matter most before anyone else installs Vikix; a pass to turn them into a dated plan, with the outbound ledger above.
+- **Your machines and your phone.** Tailscale, Syncthing, KDE Connect and `vikix export/import` (wish list 16–19) as one design rather than four items: how the X1, the Z13, the AI desktop and two phones become one Vikix.
+- **Backup and restore.** `vikix backup` runs restic; could someone get a file back without a man page? Ties to "any file, as it was" above.
+- **The Z13 as a tablet.** Touch, pen and the detachable keyboard (TODO 58–63): what a tablet mode of a tiling desktop is. Nobody on Linux has a good answer; Viri's strip may be part of one.
+- **A first visitor's path.** The site, the install line, the first hour, the release process and GitHub Actions, seen by someone who actually tries it for the first time; the everyday-user agent on a fresh VM, start to finish.
+
 ### Music, beyond the design
 
 - **Reaper as a second DAW feature.** `vikix add reaper`, from reaper.fm, pinned and checksummed as Ollama is; the same OSC transport commands behind it, so the Lisp side doesn't care which DAW is listening. Ardour stays the default of `vikix add music` because it's free and in Void.
