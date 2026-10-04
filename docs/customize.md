@@ -99,6 +99,26 @@ Or Super+m, *Layout: save this workspace's* and *Layout: put this workspace back
 
 Each is a file of plain Lisp in `~/.config/vikix/layouts/`, to read and change by hand: windows are described by their class and title, not remembered as the windows they were, and a split's place and size are parts of the screen, so a layout still fits after the windows have been closed and opened again, or on another screen. Putting one back matches the windows on the workspace to the saved ones (the same program first, then the closest title); a window it doesn't mention stays, and a saved one that isn't open is started again and placed as it comes (`vikix layout NAME --no-start` only names it). Each saved window says how: its `:command` and `:directory`, read from the program when the layout was saved; a terminal comes back in its shell's folder (with what ran in it, when that wasn't the shell), an Emacs window as `emacsclient -c` on the file it showed, Esploro on its folder. Since a layout can start programs, read one you were given before you put it back. A strip's layout makes the workspace a strip, a tiled one tiles. Floating windows aren't saved.
 
+### The drawer
+
+A few programs you want often and for a moment: a calculator, your files, a page of notes. `Super+Ctrl+b` slides them in from the right edge of the screen, one above the other, over your windows, on whatever workspace you're on; the key again slides them away. They keep running while they're away, so the calculator keeps its sums and the files their folder. The windows underneath are not moved or made smaller.
+
+As it comes, the drawer holds a terminal and PCManFM. Yours are a list in `user.lisp`, top to bottom, each a name and the command that starts it:
+
+```lisp
+(setf *vikix-drawer-apps*
+      '(("Calculator" "speedcrunch")
+        ("Files" "esploro --new ~" :class "Emacs" :title "Esploro")
+        ("Notes" "emacsclient -c -n -a '' -F '((name . \"Notes\"))' ~/notes.org"
+         :class "Emacs" :title "Notes")))
+(setf *vikix-drawer-side* :left)     ; the edge: :right as it comes
+(setf *vikix-drawer-width* "35%")    ; of the screen, or pixels: 500
+```
+
+A program is started the first time the drawer comes out, and again when you closed it. Its window goes into the drawer whatever your rules say of that program: a rule that sends SpeedCrunch to workspace 1 still holds for a SpeedCrunch you start yourself, not for the drawer's. The drawer knows a window by the program that made it. Where another program makes the window, say how to know it, the way a rule does (`:class`, `:instance`, `:title`, `:role`): an Emacs frame is made by Emacs's server, whatever started it, and a second PCManFM window by the first PCManFM. `xprop WM_CLASS WM_NAME` and a click on a window give its class (the second word) and its title.
+
+On another workspace the key brings the drawer there. A window of the drawer tiled with `Super+t` is an ordinary window from then on, and its program is started again for the drawer the next time. On a strip the drawer stands over the columns. It slides when a compositor runs, as a strip does (`*viri-animate*`).
+
 ### The terminal, focus, and fonts
 
 ```lisp

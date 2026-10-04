@@ -780,10 +780,13 @@ GTK and Qt dialogs are drawn at; without one, a modest box."
          :y (+ (head-y head) (max 0 (floor (- (head-height head) h) 2))))))))
 
 (defun vikix-raise-dialogs (&rest ignore)
-  "Put the current workspace's floating dialogs back above everything."
+  "Put the current workspace's floating dialogs back above everything, and
+the drawer (drawer.lisp) when it is out here, under them."
   (declare (ignore ignore))
   (ignore-errors
    (let ((group (current-group)))
+     (when (fboundp 'vikix-drawer-raise)
+       (funcall 'vikix-drawer-raise group))
      (when (typep group 'tile-group)
        (dolist (win (group-windows group))
          (when (and (typep win 'float-window) (vikix-dialog-p win) (window-visible-p win))

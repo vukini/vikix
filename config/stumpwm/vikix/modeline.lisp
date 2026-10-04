@@ -101,10 +101,11 @@ runs from the event loop, where an error would reach the top level."
 
 (defun vikix-mode-line-groups (ml)
   "The workspaces that have windows, plus the current one, in order.
-All nine always exist, so listing them all would say nothing."
+All nine always exist, so listing them all would say nothing. A hidden one
+(\".drawer\", where the drawer's windows wait) is never listed."
   (let ((current (mode-line-current-group ml)))
     (format nil "~{~a~^ ~}"
-            (loop for group in (sort-groups (mode-line-screen ml))
+            (loop for group in (non-hidden-groups (sort-groups (mode-line-screen ml)))
                   when (or (eq group current) (group-windows group))
                     collect (vikix-ml-clickable
                              :ml-on-click-switch-to-group (group-name group)

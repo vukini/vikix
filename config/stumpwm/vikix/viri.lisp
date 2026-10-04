@@ -67,8 +67,12 @@ vikix-viri off to put back.")))
 
 (defun viri-floats-p (window)
   "A window that floats over the strip instead of taking a column: a dialog
-(vikix-dialog-p, windows.lisp), or one a rule floats (rules.lisp)."
+(vikix-dialog-p, windows.lisp), one a rule floats (rules.lisp), or one of
+the drawer's (drawer.lisp)."
   (or (and (fboundp 'vikix-dialog-p) (funcall 'vikix-dialog-p window))
+      (and (fboundp 'vikix-drawer-window-p)
+           (or (funcall 'vikix-drawer-window-p window)
+               (ignore-errors (funcall 'vikix-drawer-wanted-p window))))
       (and (fboundp 'vikix-rules-float-p)
            (ignore-errors (funcall 'vikix-rules-float-p window)))))
 
@@ -443,7 +447,9 @@ true when it moved."
                 (append (subseq cols 0 (1+ at)) (list new) (nthcdr (1+ at) cols))
                 (append cols (list new))))))
   (call-next-method)
-  (when (viri-floats-p window)
+  ;; A dialog in the middle; the drawer's windows have their own place.
+  (when (and (viri-floats-p window)
+             (not (and (fboundp 'vikix-drawer-window-p) (funcall 'vikix-drawer-window-p window))))
     (viri-centre window group))
   (viri-layout group))
 

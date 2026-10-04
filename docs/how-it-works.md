@@ -39,6 +39,7 @@ login on tty1
                       ├─ vikix/windows.lisp      focus, gaps, layout undo
                       ├─ vikix/rules.lisp        rules for windows: (when-window ...)
                       ├─ vikix/viri.lisp         a workspace that scrolls sideways
+                      ├─ vikix/drawer.lisp       a few everyday programs at the screen's edge
                       ├─ vikix/layouts.lisp      saved layouts
                       ├─ vikix/overview.lisp     every workspace drawn small (Super+o)
                       ├─ vikix/day.lisp          what had the screen, noted for vikix day

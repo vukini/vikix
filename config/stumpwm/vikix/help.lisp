@@ -73,7 +73,10 @@ front, so a name like Brightness-up is never mistaken for one."
     ("Screenshots & recording" "vikix-screenshot" "vikix-record" "vikix-capture")
     ("Sound & screen" "vikix-volume" "vikix-osd" "vikix-nightlight" "vikix-screens-pick")
     ("System" "vikix-menu" "vikix-keys" "vikix-docs" "vikix-keys-card" "vikix-prefix-keys" "vikix-pick-theme"
-     "vikix-lock" "vikix-power" "vikix-awake" "vikix-drives"))
+     "vikix-lock" "vikix-power" "vikix-awake" "vikix-drives"
+     ;; The drawer is here, not with the windows: one key more there takes the
+     ;; card to a fifth column, too wide for a 1366x768 laptop (tests/lisp.sh).
+     "vikix-drawer"))
   "The card's groups, in the order it shows them: a name, then the programs
 and commands whose keys go there. Keys that match none go in \"Apps\" when
 they start a program, else in \"Other\", shown last.")

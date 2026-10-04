@@ -20,6 +20,7 @@
     "windows"    ; focus, gaps, layout undo, finding windows
     "rules"      ; rules that read like sentences: (when-window (:class "Firefox") (workspace 2))
     "viri"       ; a workspace that scrolls sideways (vikix-viri), and Super+h/l along it
+    "drawer"     ; a few everyday programs at the screen's edge, out and away (Super+Ctrl+b)
     "layouts"    ; saved layouts: vikix layout save NAME, vikix layout NAME
     "overview"   ; every workspace drawn small on a card, to pick a window (Super+o)
     "day"        ; what had the screen, written down for vikix day

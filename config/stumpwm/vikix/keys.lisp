@@ -45,7 +45,7 @@
 tools. Every other program a key starts is on Super+Alt.")
 
 (defparameter *vikix-key-switches*
-  '("toggle-gaps" "vikix-titlebars" "vikix-main" "vikix-layout-pick" "vikix-awake" "vikix-nightlight" "vikix-quiet"
+  '("toggle-gaps" "vikix-titlebars" "vikix-main" "vikix-layout-pick" "vikix-drawer" "vikix-awake" "vikix-nightlight" "vikix-quiet"
     "vikix-record" "vikix-capture" "vikix-pick-theme" "exec dunstctl close-all" "exec vikix-drives eject"
     "vikix-screens-pick")
   "What switches something on the desktop: on Super+Ctrl, and nothing else is.")
@@ -147,6 +147,8 @@ of a reload's 15 seconds, and the desktop stood still meanwhile."
     ("s-C-m"  "vikix-main"        "Main and stack (master and stack) on/off: this window on the left, the rest in a column beside it")
     ("s-C-SPC" "vikix-layout-pick" "Layout: pick this workspace's (tiles, main and stack, grid, strip, or one you saved)")
     ("s-z"    "vikix-solo"        "Focus: only this window; again puts the others back (on a strip: its column's windows as tabs)")
+    ;; drawer.lisp
+    ("s-C-b"  "vikix-drawer"      "The drawer: a few everyday programs at the screen's edge, here; again puts it away")
     ;; windows.lisp: gaps, layout undo, finding windows
     ("s-C-g"  "toggle-gaps"       "Gaps around windows on/off")
     ("s-u"    "vikix-layout-undo" "Undo the last layout change (splits, moves)")
