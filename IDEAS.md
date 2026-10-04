@@ -129,9 +129,9 @@ Not: a fourth implementation language for Vikix itself (bash, Python and Common 
 
 ### Areas still to look at (2026-10-03)
 
-Parts of Vikix that haven't had the code-first pass the sections above got. Each would become a section here or a `DESIGN-*.md`. In Vid's order of interest: publishing (TODO 79, worked out as `DESIGN-publish.md`), then security. The children's account is set aside for now (Vid, 2026-10-04): it stays at the end of this list, not to be picked up before the rest.
+Parts of Vikix that haven't had the code-first pass the sections above got. Each would become a section here or a `DESIGN-*.md`. In Vid's order of interest: publishing (TODO 79, worked out as `DESIGN-publish.md`), then security (now `DESIGN-security.md`). The children's account is set aside for now (Vid, 2026-10-04): it stays at the end of this list, not to be picked up before the rest.
 
-- **Security.** The pen-tester's open findings in TODO ("to look into" 4 and 5: signed tags for `vikix update`, a confirm-on-use SSH key, checksums from somewhere other than the download host, a rate limit on the MCP notify tool) matter most before anyone else installs Vikix; a pass to turn them into a dated plan, with the outbound ledger above.
+- **Security.** Worked out as `DESIGN-security.md` (2026-10-04): the four pen-test reports and TODO items 4 and 5 as one ordered plan.
 - **Your machines and your phone.** Tailscale, Syncthing, KDE Connect and `vikix export/import` (wish list 16–19) as one design rather than four items: how the X1, the Z13, the AI desktop and two phones become one Vikix.
 - **Backup and restore.** `vikix backup` runs restic; could someone get a file back without a man page? Ties to "any file, as it was" above.
 - **The Z13 as a tablet.** Touch, pen and the detachable keyboard (TODO 58–63): what a tablet mode of a tiling desktop is. Nobody on Linux has a good answer; Viri's strip may be part of one.
