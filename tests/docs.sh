@@ -125,6 +125,24 @@ if command -v Xvfb >/dev/null && command -v rofi >/dev/null && command -v xdotoo
   kill "$xvfb" 2>/dev/null || true
 fi
 
+# The page in Nyxt: the hits as id, source, title, excerpt; the page asked of
+# a running Nyxt (a stand-in), and said so when none answers (--remote exits
+# 0 then, saying only "No instance running").
+tsv=$(d find websocket --tsv)
+check "--tsv gives four fields a line: $tsv" test -n "$tsv" -a -z "$(awk -F'\t' 'NF != 4' <<<"$tsv")"
+printf '#!/bin/sh\necho "nyxt $*" >> %s/opened\n' "$t" > "$t/bin/nyxt"; chmod +x "$t/bin/nyxt"
+: > "$t/opened"; d page 'say "hi"'
+check "the page is asked for the words: $(cat "$t/opened")" grep -qF 'nyxt --remote --quit --eval (nyxt-user::vikix-docs-show "say \"hi\"")' "$t/opened"
+printf '#!/bin/sh\necho "<INFO> No instance running."\n' > "$t/bin/nyxt"  # as Nyxt's own: exit 0
+out=$(XDG_RUNTIME_DIR="$t/home" d page x 2>&1 || true)
+check "a Nyxt that doesn't answer is said: $out" grep -q "didn't answer" <<<"$out"
+rm "$t/bin/nyxt"
+# A file gone since the last index: said, not opened as nothing.
+printf '# Gone soon\n\nephemeral words\n' > "$HOME/src/music/docs/gone.md"
+d index >/dev/null; gone=$(d find ephemeral --source repo --tsv | cut -f1); rm "$HOME/src/music/docs/gone.md"
+out=$(d open "$gone" 2>&1 || true)
+check "a file gone since the index says so: $out" grep -q "gone since the last index" <<<"$out"
+
 # The agents: docs_search and docs_read, read only.
 python3 - "$here/bin/vikix-mcp" <<'PY' || fail=1
 import importlib.machinery, importlib.util, json, sys
@@ -138,5 +156,5 @@ tools = {t[0]: t for t in m.TOOLS}
 assert tools["docs_search"][4]["readOnlyHint"] and tools["docs_read"][4]["readOnlyHint"]
 PY
 
-[ "$fail" = 0 ] && echo "docs: guides, projects, ~/dev and notes found by words, phrases and OR, Vikix's first, only what changed read again, opened, man pages styled, and read-only tools for the agents"
+[ "$fail" = 0 ] && echo "docs: guides, projects, ~/dev and notes found by words, phrases and OR, Vikix's first, only what changed read again, opened, man pages styled, the page in Nyxt asked for, and read-only tools for the agents"
 exit "$fail"

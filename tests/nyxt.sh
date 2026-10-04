@@ -52,7 +52,9 @@ P
   (:export #:class-slots #:slot-definition-name #:slot-definition-initfunction))
 (defpackage :nyxt (:use :cl)
   (:export #:browser #:*browser* #:theme #:window-list #:status-buffer
-           #:customize-instance #:define-configuration #:remote-execution-p))
+           #:customize-instance #:define-configuration #:remote-execution-p
+           #:define-internal-page #:define-command-global #:run-thread #:echo-warning
+           #:buffer-load-internal-page-focus #:prompt1))
 (in-package :nyxt)
 (defclass browser () ())
 (defvar *browser* nil)
@@ -63,6 +65,32 @@ P
 (defun status-buffer (w) (declare (ignore w)) nil)
 (defun print-status (w) (declare (ignore w)) nil)
 (defgeneric theme (b))
+;; The docs page: run-thread runs at once, echo-warning is kept, the page and
+;; the command are only named.
+(defvar *echoed* nil)
+(defmacro run-thread (name &body body) (declare (ignore name)) `(progn ,@body))
+(defun echo-warning (fmt &rest args) (push (apply #'format nil fmt args) *echoed*))
+(defmacro define-internal-page (name &rest r) (declare (ignore r)) `',name)
+(defmacro define-command-global (name &rest r) (declare (ignore r)) `',name)
+(defun buffer-load-internal-page-focus (&rest r) r)
+(defun prompt1 (&rest r) (declare (ignore r)) "")
+(defpackage :prompter (:use) (:export #:raw-source))
+(defpackage :spinneret (:use :cl) (:export #:with-html-string))
+(defmacro spinneret:with-html-string (&body b) (declare (ignore b)) "")
+(defpackage :str (:use :cl) (:export #:blankp #:emptyp #:lines #:split #:trim))
+(in-package :str)
+(defun trim (s) (string-trim '(#\Space #\Tab #\Newline) s))
+(defun emptyp (s) (or (null s) (string= s "")))
+(defun blankp (s) (emptyp (and s (trim s))))
+(defun split (sep s &key omit-nulls)
+  (let ((sep (if (characterp sep) sep (char sep 0))))
+    (loop for start = 0 then (1+ end)
+          for end = (position sep s :start start)
+          for part = (subseq s start end)
+          unless (and omit-nulls (string= part "")) collect part
+          while end)))
+(defun lines (s) (split #\Newline s :omit-nulls t))
+(in-package :nyxt)
 (defpackage :nyxt-user (:use :cl :nyxt))
 ;; Swank: create-server records how it was called; the password check
 ;; waits for ever, as Swank's does for a client that sends nothing.
@@ -131,9 +159,22 @@ L
 (setf *vikix-swank-port* 4006 swank::*fail* t)
 (format t "taken port ~a~%" (handler-case (progn (vikix-start-swank) :nyxt-goes-on) (error () :crashed)))
 (format t "taken warned ~a~%" (and (search "Address in use" (first log::*said*)) t))
+;; The docs page: hits from vikix docs find --tsv (a stand-in), an open's error said.
+(let ((*print-pretty* nil)) (format t "hits ~s~%" (vikix-docs-hits "run it")))
+(format t "no words ~s~%" (vikix-docs-hits "  "))
+(vikix-docs-open-id "gone")
+(format t "echoed ~a~%" (first nyxt::*echoed*))
 L
-  mkdir -p "$t/home"
-  out=$(HOME="$t/home" sbcl --noinform --no-sysinit --no-userinit --non-interactive --load "$t/check.lisp" 2>&1) || {
+  mkdir -p "$t/home" "$t/bin"
+  cat > "$t/bin/vikix" <<'V'
+#!/bin/sh
+case "$*" in
+  "docs find --tsv --limit 80 run it") printf 'man:sv(8)\tman\tsv(8)\tcontrol a service\nnot a hit\nvikix:/g.md\tvikix\tGuide\t\n' ;;
+  "docs open gone") echo "vikix docs: /x is gone since the last index" >&2; exit 1 ;;
+esac
+V
+  chmod +x "$t/bin/vikix"
+  out=$(HOME="$t/home" PATH="$t/bin:$PATH" sbcl --noinform --no-sysinit --no-userinit --non-interactive --load "$t/check.lisp" 2>&1) || {
     echo "FAIL: vikix.lisp doesn't load against the stand-ins:"; echo "$out" | grep -vE "^ *[0-9]+: |^;" | tail -15; fail=1; }
   check "only key=#rrggbb lines are read" grep -qx 'keys bg fg dim sel accent alert color2 color5' <<<"$out"
   check "the background is bg" grep -qx 'bg #1e1e2e' <<<"$out"
@@ -158,6 +199,9 @@ L
   check "after the time limit, not Swank's endless wait" grep -qx 'silent seconds 1' <<<"$out"
   check "a refused client doesn't end the accept loop" grep -qx 'accept loop survives OK' <<<"$out"
   check "(setf *vikix-swank-port* nil) means no Swank" grep -qx 'off calls 0' <<<"$out"
+  check "the docs page reads vikix docs find's lines of four, the rest skipped: $(grep "^hits" <<<"$out")" grep -qx 'hits (("man:sv(8)" "man" "sv(8)" "control a service") ("vikix:/g.md" "vikix" "Guide" ""))' <<<"$out"
+  check "and asks nothing without words" grep -qx 'no words NIL' <<<"$out"
+  check "an Open that fails says why in Nyxt" grep -qx 'echoed vikix docs: /x is gone since the last index' <<<"$out"
   check "a taken port doesn't stop Nyxt" grep -qx 'taken port NYXT-GOES-ON' <<<"$out"
   check "and is logged" grep -qx 'taken warned T' <<<"$out"
 else

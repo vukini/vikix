@@ -28,7 +28,7 @@ check "an unknown command is still said" grep -q 'unknown command: zzz' <<<"$(vk
 # Completion's lists.
 cmds=$(vk __complete 1)
 check "commands, without help's dashes" bash -c '! grep -q -- "^-" <<<"$1" && grep -qx theme <<<"$1" && grep -qx docs <<<"$1"' _ "$cmds"
-check "docs' words, from its usage lines only" test "$(vk __complete 2 docs | tr '\n' ' ')" = "find get index open pick read status "
+check "docs' words, from its usage lines only" test "$(vk __complete 2 docs | tr '\n' ' ')" = "find get index open page pick read status "
 check "theme: import and the themes" bash -c 'grep -qx import <<<"$1" && grep -qx paper <<<"$1" && grep -qx void <<<"$1"' _ "$(vk __complete 2 th)"
 check "add: the features" bash -c 'grep -qx python <<<"$1" && grep -qx emacs <<<"$1"' _ "$(vk __complete 2 add)"
 check "screens' words" test "$(vk __complete 2 scr | tr '\n' ' ')" = "auto extend external laptop mirror pick "

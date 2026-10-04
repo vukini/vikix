@@ -222,3 +222,71 @@ each function once, and only one that has fewer places than SLIME sends."
 ;; So that `vikix theme' can reach a running Nyxt.
 (define-configuration browser
   ((remote-execution-p t)))
+;;; The docs catalogue (vikix docs) as a page: M-x vikix-docs here, or
+;;; vikix docs page (Super+m, "Docs catalogue in Nyxt"). The hits come from
+;;; vikix docs find, grouped by where they're from, and open as Super+F2's
+;;; do: a guide, a man page or a README as a page (here), a note in Emacs.
+
+(defparameter *vikix-docs-sources*
+  '(("vikix" . "Vikix's guides") ("repo" . "Your projects") ("dev" . "Your languages (~/dev)")
+    ("note" . "Your notes") ("man" . "Man pages") ("info" . "Manuals (Info)")
+    ("pkgdoc" . "Packages' READMEs") ("pkg" . "Packages"))
+  "Each source of the catalogue and its heading, in the order shown.")
+
+(defun vikix-docs-run (&rest args)
+  (uiop:run-program (cons "vikix" args) :output :string :error-output nil :ignore-error-status t))
+
+(defun vikix-docs-hits (query)
+  "(id source title excerpt) for each hit, best first."
+  (unless (str:blankp query)
+    (loop for line in (str:lines (apply #'vikix-docs-run "docs" "find" "--tsv" "--limit" "80"
+                                        (str:split " " query :omit-nulls t)))
+          for fields = (str:split #\Tab line)
+          when (= (length fields) 4) collect fields)))
+
+(defun vikix-docs-open-id (id &optional other)
+  "Open a hit as Super+F2 does (Ctrl+Enter there: OTHER)."
+  (run-thread "vikix docs open"
+    (let ((err (nth-value 1 (uiop:run-program
+                             (append (list "vikix" "docs" "open" id) (when other (list "--other")))
+                             :output nil :error-output :string :ignore-error-status t))))
+      (unless (str:emptyp (str:trim err))
+        (echo-warning "~a" (str:trim err))))))
+
+(define-internal-page vikix-docs-page (&key (query ""))
+    (:title "*Docs*")
+  "Every document on this machine, found: vikix docs as a page."
+  (let ((hits (vikix-docs-hits query)))
+    (spinneret:with-html-string
+      (:h1 "Docs")
+      (:p (:nbutton :text "Find…" '(nyxt-user::vikix-docs))
+          " Every document on this machine: Vikix's guides, your projects and notes, man pages, manuals, packages. "
+          "The start of a word is enough; \"exact words\", a OR b.")
+      (cond ((str:blankp query)
+             (:p "Press Find, or Super+F2 anywhere."))
+            ((null hits)
+             (:p (format nil "Nothing found for ~s." query)))
+            (t
+             (:p (format nil "~d found for ~s, Vikix's first, then yours, then the system's." (length hits) query))
+             (dolist (source *vikix-docs-sources*)
+               (let ((group (remove (car source) hits :key #'second :test-not #'string=)))
+                 (when group
+                   (:h2 (format nil "~a (~d)" (cdr source) (length group)))
+                   (:ul
+                    (dolist (hit group)
+                      (destructuring-bind (id src title excerpt) hit
+                        (declare (ignore src))
+                        (:li (:nbutton :text "Open" `(nyxt-user::vikix-docs-open-id ,id))
+                             (:nbutton :text "The other way" `(nyxt-user::vikix-docs-open-id ,id t))
+                             " " (:b title)
+                             (unless (or (str:blankp excerpt) (search excerpt title))
+                               (:br) (:small excerpt))))))))))))))
+
+(defun vikix-docs-show (query)
+  "The catalogue's page for QUERY, in front (vikix docs page)."
+  (buffer-load-internal-page-focus 'vikix-docs-page :query query))
+
+(define-command-global vikix-docs (&key (query (prompt1 :prompt "Find in every document"
+                                                        :sources 'prompter:raw-source)))
+  "Search every document on this machine (vikix docs), as a page."
+  (vikix-docs-show query))

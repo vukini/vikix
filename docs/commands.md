@@ -258,7 +258,8 @@ While it listens, the bar says mic. On stop, the text is typed into the window y
 
 Every document on the machine in one catalogue, found from one key.
 
-- `vikix docs find WORDS... [--source S] [--limit N] [--json]` — the documents that match, best first: words as in a search box (the start of a word is enough), "exact words", a OR b
+- `vikix docs find WORDS... [--source S] [--limit N] [--json|--tsv]` — the documents that match, best first: words as in a search box (the start of a word is enough), "exact words", a OR b
+- `vikix docs page [WORDS...]` — the catalogue as a page in Nyxt (when you have it): the hits by where they're from, each with buttons to open it either way
 - `vikix docs pick` — a search box, then the hits to open (Super+F2): Enter opens it, Ctrl+Enter in the other place (a terminal for a man page, Emacs for a page of Markdown)
 - `vikix docs open ID [--other]` — open one, by the id find shows
 - `vikix docs read ID` — one as plain text (what the agents read)

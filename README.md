@@ -808,7 +808,10 @@ vikix docs find runit            # the start of a word is enough; "exact words",
 vikix docs find xbps --source man
 vikix docs read 'man:sv(8)'      # as plain text
 vikix docs status                # how many from where, and when last read
+vikix docs page runit            # the hits as a page in Nyxt
 ```
+
+With Nyxt, the catalogue is also a page there: `vikix docs page WORDS`, or Super+m → *Every document as a page in Nyxt*, or `vikix-docs` in Nyxt's own command list. The hits are grouped by whose they are, with a count per group, and each has *Open* and *The other way*, the same as Enter and Ctrl+Enter in Super+F2; *Find…* searches again. Nyxt is started when it isn't running. A document deleted since the last index says so rather than opening nothing.
 
 It's one SQLite file, `~/.local/share/vikix/docs/index.db`, made in about a second and a half; it reads again what changed when a search finds it more than a day old, and `vikix update` reads the man pages and manuals again. Nothing in it leaves the machine. The agents search it too (`vikix mcp`'s read-only `docs_search` and `docs_read`), so they answer from the man page rather than from memory. What used to be `vikix docs`, downloading the offline programming docs into `~/dev`, is now `vikix docs get`.
 
