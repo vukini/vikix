@@ -242,5 +242,5 @@ check "uninstall takes the link, epubcheck and the dictionaries" test ! -e "$HOM
 check "and leaves your books" test -f "$HOME/src/books/mine/book.md" -a -f "$book/publish.yml"
 check "and the feature" bash -c '! grep -qx publish "$1"' _ "$HOME/.config/vikix/features"
 
-[ "$fail" = 0 ] && echo "publish: the test book as an EPUB with row cards for e-ink and its Arabic right to left, a PDF with Amiri, rejected ones kept apart, check leaving out/ alone, books found by name, epubcheck's checksum checked"
+[ "$fail" = 0 ] && echo "publish: the test book as an EPUB with row cards for e-ink and its Arabic right to left, a PDF with Amiri, rejected ones kept apart, check leaving out/ alone, books found by name, the spelling by language with words.txt and --keep, --send to a Kindle, a Kobo, a BOOX over MTP or adb, the downloads' checksums checked"
 exit "$fail"
