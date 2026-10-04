@@ -47,6 +47,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-pkg](#vikix-pkg): single programs, beyond the features
 - [vikix-plugin](#vikix-plugin): small additions to Vikix, from the vikix-plugins repo
 - [vikix-project](#vikix-project): your projects, each a folder with a log.md
+- [vikix-publish](#vikix-publish): books from Markdown
 - [vikix-record](#vikix-record): record the screen to a video, without sound
 - [vikix-records](#vikix-records): where plugins keep what they found, to search and use later
 - [vikix-rofi](#vikix-rofi): rofi's plugin modes, set up the Vikix way
@@ -100,6 +101,7 @@ The everyday command.
 - `vikix day [yesterday|DATE] [--week] [--for NAME]` — the day as the desktop saw it, kept as a diary in `~/journal`: how long each project had the screen, its entries and commits, files moved, agents' sessions; day log offers the missing log entries (vikix day help)
 - `vikix learn [c]` — a course in the terminal: edit, save, it's checked (vikix learn c list, hint, go NN, reset NN)
 - `vikix hype setup|status|uninstall` — Hype: Markdown slides with a visual editor, in your theme's colours (vikix add hype)
+- `vikix publish [NAME] [epub|pdf|check]` — a book from Markdown: an EPUB checked for e-ink readers, and a PDF (vikix add publish)
 - `vikix wallpapers setup|update|status|uninstall` — Vid's wallpapers, in the Super+m picker (vikix add wallpapers)
 - `vikix obsidian [convert FOLDER...|--all] [report FOLDER]` — an Obsidian vault into Org notes, a folder at a time, links kept (`~/Dropbox/notes/vault`)
 - `vikix records search|list|get|export|forget|stats` — what plugins found and kept (flights, meetings, plan use ...), searchable (vikix records help)
@@ -772,6 +774,25 @@ Next: what comes next.
 ```
 
 Names match exactly, then by a prefix or a part of the name that only one project has; a collection's project also answers to collection/name.
+
+## vikix-publish
+
+Books from Markdown.
+
+- `vikix publish [NAME|DIR] [epub|pdf|check]` — build the book in DIR, or the project called NAME in `~/src` (the folder's name, or the name in its publish.yml), or the folder you're in: an EPUB and a PDF into its out/ (both, without a format); check builds both into a scratch folder and keeps nothing
+- `vikix publish setup` — the packages, epubcheck (a pinned release, checked against its checksum) and the shared make targets
+- `vikix publish status` — which tools and fonts are here
+- `vikix publish uninstall`
+
+Books from Markdown: an EPUB and a PDF, built and checked the same way in every project (vikix add publish).
+
+A book is a folder with publish.yml (pandoc's metadata: title, author, lang; and Vikix's: name, chapters, mainfont) and its text in `chapters/*.md` (taken in name order) or book.md. The EPUB goes through pandoc, then the fix for e-ink readers (tables become row cards, one-cell boxes asides: what the doc-to-epub skill learned on a 7-inch screen), then epubcheck; one epubcheck rejects is kept as NAME.epub.rejected, not as the book. The PDF goes through pandoc's Typst writer, in IBM Plex Serif (Amiri when lang is Arabic, or mainfont in publish.yml), and one Typst warned about is NAME.pdf.rejected.
+
+In a project's Makefile, last, the same as make targets (epub, pdf, check):
+
+```
+-include $(HOME)/.local/share/vikix/publish/publish.mk
+```
 
 ## vikix-record
 

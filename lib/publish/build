@@ -1,0 +1,170 @@
+#!/usr/bin/env python3
+"""build — a book's EPUB and PDF from its Markdown, checked (vikix publish).
+
+Run in a project folder, by `vikix publish` or by a Makefile that includes
+publish.mk:
+
+  build epub     out/NAME.epub: pandoc, the e-ink table fix, epubcheck
+  build pdf      out/NAME.pdf: pandoc, then Typst
+  build check    both, into a scratch folder: nothing is written to out/
+
+The project has publish.yml, pandoc's metadata (title, author, lang, and
+anything else pandoc reads) plus Vikix's own keys:
+
+  name: living-in-sql      the files' name (default: the folder's)
+  chapters: [a.md, b.md]   the text, in order (default: chapters/*.md by
+                           name, else book.md)
+  mainfont: ...            the PDF's face (default: IBM Plex Serif; Amiri
+                           when lang is Arabic); Arabic in any book is set
+                           in Amiri
+
+An EPUB epubcheck rejects is not kept as NAME.epub: it is left as
+NAME.epub.rejected beside the report. A PDF Typst warned about is the same.
+"""
+import glob
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import zipfile
+
+import yaml
+
+HERE = os.path.dirname(os.path.realpath(__file__))
+DATA = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
+# The pinned epubcheck (vikix publish setup); tests name a stand-in.
+EPUBCHECK = os.environ.get("VIKIX_EPUBCHECK") or os.path.join(DATA, "vikix", "epubcheck", "epubcheck.jar")
+
+
+def die(msg):
+    sys.exit(f"publish: {msg}")
+
+
+def meta():
+    if not os.path.exists("publish.yml"):
+        die(f"no publish.yml in {os.getcwd()} (vikix publish new makes one)")
+    with open("publish.yml", encoding="utf-8") as f:
+        m = yaml.safe_load(f) or {}
+    if not m.get("title"):
+        die("publish.yml has no title")
+    return m
+
+
+def sources(m):
+    if m.get("chapters"):
+        files = list(m["chapters"])
+    else:
+        files = sorted(glob.glob("chapters/*.md")) or (["book.md"] if os.path.exists("book.md") else [])
+    missing = [f for f in files if not os.path.exists(f)]
+    if missing:
+        die(f"not there: {', '.join(missing)}")
+    if not files:
+        die("no text: chapters/*.md, book.md, or chapters: in publish.yml")
+    return files
+
+
+def name(m):
+    return m.get("name") or os.path.basename(os.getcwd())
+
+
+def run(argv, **kw):
+    r = subprocess.run(argv, capture_output=True, text=True, **kw)
+    return r.returncode, (r.stdout + r.stderr).strip()
+
+
+def rezip(src_dir, dest):
+    """An EPUB's zip: mimetype first and stored, the rest compressed."""
+    with zipfile.ZipFile(dest, "w") as z:
+        z.write(os.path.join(src_dir, "mimetype"), "mimetype", compress_type=zipfile.ZIP_STORED)
+        for root, _, files in os.walk(src_dir):
+            for f in sorted(files):
+                full = os.path.join(root, f)
+                rel = os.path.relpath(full, src_dir)
+                if rel != "mimetype":
+                    z.write(full, rel, compress_type=zipfile.ZIP_DEFLATED)
+
+
+def epubcheck(path):
+    if not os.path.exists(EPUBCHECK):
+        die(f"no epubcheck at {EPUBCHECK} (vikix publish setup)")
+    argv = [EPUBCHECK, path] if os.access(EPUBCHECK, os.X_OK) and not EPUBCHECK.endswith(".jar") \
+        else ["java", "-jar", EPUBCHECK, path]
+    return run(argv)
+
+
+def epub(m, files, outdir):
+    os.makedirs(outdir, exist_ok=True)
+    dest = os.path.join(outdir, name(m) + ".epub")
+    with tempfile.TemporaryDirectory() as tmp:
+        raw = os.path.join(tmp, "raw.epub")
+        rc, said = run(["pandoc", *files, "--metadata-file=publish.yml", "-o", raw,
+                        f"--css={os.path.join(HERE, 'epub.css')}", "--toc", "--toc-depth=2"])
+        if rc != 0:
+            die(f"pandoc: {said}")
+        unpacked = os.path.join(tmp, "book")
+        with zipfile.ZipFile(raw) as z:
+            z.extractall(unpacked)
+        # The e-ink fix: tables into row cards, one-cell boxes into asides.
+        rc, said = run([sys.executable, os.path.join(HERE, "fix-tables.py"), unpacked])
+        if rc != 0:
+            die(f"the table fix: {said}")
+        built = os.path.join(tmp, "built.epub")
+        rezip(unpacked, built)
+        rc, report = epubcheck(built)
+        if rc != 0:
+            shutil.copy(built, dest + ".rejected")
+            print(report)
+            die(f"epubcheck rejected it: kept as {dest}.rejected")
+        shutil.move(built, dest)
+    print(f"{dest}  ({os.path.getsize(dest) // 1024} KB, epubcheck: no errors)")
+    return dest
+
+
+def pdf(m, files, outdir):
+    os.makedirs(outdir, exist_ok=True)
+    dest = os.path.join(outdir, name(m) + ".pdf")
+    # The book's face, then Amiri for any Arabic in it (Typst takes the
+    # first face that has a letter). Arabic books are set in Amiri itself.
+    # pandoc's Typst template writes font: ("$mainfont$",), so the second
+    # face goes in through the quotes: the only way it takes a list.
+    arabic = str(m.get("lang", "")).startswith("ar")
+    face = m.get("mainfont") or ("Amiri" if arabic else "IBM Plex Serif")
+    font = ["-V", f'mainfont={face}' if face == "Amiri" else f'mainfont={face}", "Amiri']
+    with tempfile.TemporaryDirectory() as tmp:
+        built = os.path.join(tmp, "built.pdf")
+        rc, said = run(["pandoc", *files, "--metadata-file=publish.yml", "-o", built,
+                        "--pdf-engine=typst", "--toc", *font])
+        if rc != 0:
+            die(f"pandoc and Typst: {said}")
+        warned = [line for line in said.splitlines() if "warning" in line.lower()]
+        if warned:
+            shutil.copy(built, dest + ".rejected")
+            print("\n".join(warned))
+            die(f"Typst warned: kept as {dest}.rejected")
+        shutil.move(built, dest)
+    print(f"{dest}  ({os.path.getsize(dest) // 1024} KB, Typst: no warnings)")
+    return dest
+
+
+def main(argv):
+    what = argv[0] if argv else ""
+    if what not in ("epub", "pdf", "check"):
+        print(__doc__.strip())
+        return 0 if what in ("-h", "--help", "help") else 2
+    m = meta()
+    files = sources(m)
+    if what == "epub":
+        epub(m, files, "out")
+    elif what == "pdf":
+        pdf(m, files, "out")
+    else:
+        with tempfile.TemporaryDirectory() as tmp:
+            epub(m, files, tmp)
+            pdf(m, files, tmp)
+        print(f"check: {name(m)} builds, and passes epubcheck and Typst ({len(files)} files of text)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

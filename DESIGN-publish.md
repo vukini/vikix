@@ -150,6 +150,8 @@ Non-blocking:
 
 ## Phasing
 
+**Shipped 2026-10-04: Phase 0.** `vikix add publish` (needs `java`), `vikix publish [NAME|DIR] [epub|pdf|check]`, `setup`, `status`, `uninstall`; `lib/publish/build` does the work in Python, not in Make, because chapter names have spaces and dashes (`01 — A Database in Ten Minutes.md`), and `publish.mk` only calls it. Two changes from below: `publish.yml` is pandoc's own metadata file plus Vikix's `name`, `chapters` and `mainfont`, so pandoc reads it as it is; and Arabic goes in as Amiri after the book's face in every PDF, not only in Arabic books (pandoc's Typst template takes one face, so the list goes in through its quotes). Living in SQL (27 chapters, 9 with tables): EPUB 185 KB, epubcheck no errors and no warnings, every table now row cards; PDF 141 pages, no Typst warnings. epubcheck takes most of a build's time (Java starting, a minute on a busy machine). Not yet read on the BOOX.
+
 **Phase 0, a day:** `vikix add publish` with the Void packages and the epubcheck jar; `publish.mk` with `epub` and `check`; the SQLite book built end to end and read on the BOOX. If the EPUB is good there, the rest is plumbing.
 
 **Phase 1:** P0 items 1–6, the test book, the skill made to agree.

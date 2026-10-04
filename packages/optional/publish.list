@@ -1,0 +1,17 @@
+# publish.list — books from Markdown: EPUB and PDF (the feature publish,
+# vikix publish). epubcheck isn't in Void: vikix publish setup fetches the
+# release, and it runs on the java feature's OpenJDK.
+pandoc               # Markdown into EPUB, and into Typst for the PDF
+typst                # the PDF
+python3-BeautifulSoup4  # the e-ink table fix reads the EPUB's pages
+python3-lxml         # its XML parser
+python3-yaml         # publish.yml
+zip                  # opening and closing an EPUB by hand
+unzip                # and unpacking epubcheck's release
+font-ibm-plex-ttf    # the print face: IBM Plex Serif
+amiri-font           # Arabic
+noto-fonts-ttf       # everything else a book might quote
+calibre              # ebook-viewer to read one, ebook-convert for other formats
+sigil                # an EPUB opened and fixed by hand
+zathura              # the PDF, beside its source
+zathura-pdf-mupdf

@@ -1,0 +1,152 @@
+@charset "UTF-8";
+
+/* Tuned for legibility on small (7") e-reader/tablet screens */
+
+body {
+  font-family: "Bookerly", "Georgia", "Palatino", serif;
+  font-size: 130%;
+  line-height: 1.5;
+  margin: 0;
+  padding: 0 0.4em;
+  text-align: left;
+  orphans: 2;
+  widows: 2;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: "Helvetica", "Arial", sans-serif;
+  font-weight: bold;
+  line-height: 1.25;
+  page-break-after: avoid;
+  page-break-inside: avoid;
+  text-align: left;
+  margin-top: 1.2em;
+  margin-bottom: 0.5em;
+}
+
+h1 { font-size: 1.7em; page-break-before: always; }
+h2 { font-size: 1.4em; }
+h3 { font-size: 1.2em; }
+h4 { font-size: 1.05em; font-style: italic; }
+
+p {
+  margin: 0 0 0.9em 0;
+  text-indent: 0;
+  orphans: 2;
+  widows: 2;
+}
+
+ul, ol {
+  margin: 0 0 0.9em 0;
+  padding-left: 1.3em;
+}
+
+li {
+  margin-bottom: 0.45em;
+  line-height: 1.5;
+}
+
+li > ul, li > ol {
+  margin-top: 0.45em;
+}
+
+strong, b { font-weight: bold; }
+em, i { font-style: italic; }
+
+blockquote {
+  margin: 0.8em 0.6em;
+  padding: 0.4em 0.8em;
+  border-left: 3px solid #999;
+  font-style: italic;
+}
+
+/* tables: stack-friendly, readable on narrow screens */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+  font-size: 0.92em;
+}
+
+th, td {
+  border: 1px solid #999;
+  padding: 0.4em 0.5em;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  font-weight: bold;
+  background: #eee;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid #999;
+  margin: 1.5em 0;
+}
+
+a { color: inherit; text-decoration: underline; }
+
+code, pre {
+  font-family: "Courier New", monospace;
+  font-size: 0.85em;
+}
+
+pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  background: #f4f4f4;
+  padding: 0.6em;
+  border-radius: 4px;
+}
+
+nav#toc ol { list-style-type: none; padding-left: 0.6em; }
+nav#toc li { margin-bottom: 0.6em; }
+
+.title { font-size: 1.8em; }
+.author { font-size: 1.1em; }
+
+/* Aside / callout boxes (converted from single-cell docx boxes) */
+.aside {
+  display: block;
+  margin: 1em 0.1em;
+  padding: 0.7em 0.9em;
+  border: 2px solid #555;
+  border-radius: 4px;
+  background: #f2f2f2;
+  page-break-inside: avoid;
+}
+
+.aside p { margin: 0 0 0.6em 0; }
+.aside p:last-child { margin-bottom: 0; }
+.aside p:first-child strong {
+  font-family: "Helvetica", "Arial", sans-serif;
+  font-size: 1.05em;
+}
+
+/* Data tables rendered as stacked cards for e-readers that don't support
+   HTML table layout (e.g. many Android e-ink apps) */
+.table-cards { margin: 1em 0; }
+
+.row-card {
+  border: 1px solid #999;
+  border-radius: 4px;
+  padding: 0.5em 0.7em;
+  margin: 0 0 0.8em 0;
+  page-break-inside: avoid;
+  background: #fafafa;
+}
+
+.row-card .field { margin: 0 0 0.4em 0; line-height: 1.4; }
+.row-card .field:last-child { margin-bottom: 0; }
+
+.field-label {
+  display: block;
+  font-family: "Helvetica", "Arial", sans-serif;
+  font-weight: bold;
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #444;
+}

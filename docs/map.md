@@ -84,6 +84,8 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   ├── share/vikix/fonts/wm.ttf       built     the bar's font, made by vikix-font
 │   ├── share/vikix/nvim               Vikix's   Vikix's part of Neovim: AstroNvim and Vikix's plugins (a link to config/nvim)
 │   ├── share/vikix/nyxt/vikix.lisp    Vikix's   Vikix's part of Nyxt: its colours from vikix theme's palette, followed live, and Swank on 127.0.0.1:4006 with ~/.slime-secret (a link to config/nyxt)
+│   ├── share/vikix/epubcheck/         fetched   epubcheck, W3C's EPUB validator: a pinned release, checked against its checksum (vikix publish setup)
+│   ├── share/vikix/publish            Vikix's   the make targets a book's Makefile includes (epub, pdf, check), and the build behind them (a link to lib/publish)
 │   ├── share/vikix/emacs              Vikix's   Vikix's part of Emacs: vikix-ai.el, gptel on vikix ai use's model and your agent in agent-shell; vikix-theme.el, the theme following vikix theme; vikix-notes.el, the notes under C-c n (a link to config/emacs)
 │   ├── share/info/vikix.info          written   these guides as an Info manual (`info vikix`)
 │   ├── share/man/man1/*.1             written   a man page for every vikix command (`man vikix`, `man vikix-backup`) and for your plugins' commands (`man inbox`), made from what each -h prints; other programs' pages here are left alone

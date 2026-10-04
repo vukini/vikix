@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+# vikix-publish — books from Markdown: an EPUB and a PDF, built and checked
+# the same way in every project (vikix add publish).
+#
+#   vikix publish [NAME|DIR] [epub|pdf|check]
+#                     build the book in DIR, or the project called NAME in
+#                     ~/src (the folder's name, or the name in its
+#                     publish.yml), or the folder you're in: an EPUB and a
+#                     PDF into its out/ (both, without a format); check
+#                     builds both into a scratch folder and keeps nothing
+#   vikix publish setup
+#                     the packages, epubcheck (a pinned release, checked
+#                     against its checksum) and the shared make targets
+#   vikix publish status
+#                     which tools and fonts are here
+#   vikix publish uninstall
+#
+# A book is a folder with publish.yml (pandoc's metadata: title, author,
+# lang; and Vikix's: name, chapters, mainfont) and its text in
+# chapters/*.md (taken in name order) or book.md. The EPUB goes through
+# pandoc, then the fix for e-ink readers (tables become row cards, one-cell
+# boxes asides: what the doc-to-epub skill learned on a 7-inch screen),
+# then epubcheck; one epubcheck rejects is kept as NAME.epub.rejected, not
+# as the book. The PDF goes through pandoc's Typst writer, in IBM Plex
+# Serif (Amiri when lang is Arabic, or mainfont in publish.yml), and one
+# Typst warned about is NAME.pdf.rejected.
+#
+# In a project's Makefile, last, the same as make targets (epub, pdf,
+# check):
+#
+#   -include $(HOME)/.local/share/vikix/publish/publish.mk
+
+set -uo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+# shellcheck source=../lib/features.sh
+. "$VIKIX_DIR/lib/features.sh"
+
+# epubcheck: W3C's validator, the only one there is. Not in Void, so a
+# release, checked against the checksum GitHub publishes for it.
+EPUBCHECK_VERSION=5.4.0
+EPUBCHECK_SHA256=33350c61038e71dfb3d45a76aed04bf5481e6d5500cb780f6e98db8bbd15a28c
+EPUBCHECK_URL=https://github.com/w3c/epubcheck/releases/download/v$EPUBCHECK_VERSION/epubcheck-$EPUBCHECK_VERSION.zip
+DATA="${XDG_DATA_HOME:-$HOME/.local/share}"
+EPUBCHECK_DIR="$DATA/vikix/epubcheck"
+SHARED="$DATA/vikix/publish"
+BUILD="$VIKIX_DIR/lib/publish/build"
+# Tests name a stand-in (this one reaches the network).
+CURL=${VIKIX_CURL:-curl}
+
+epubcheck_ok() {
+  [ -f "$EPUBCHECK_DIR/epubcheck.jar" ] && [ "$(cat "$EPUBCHECK_DIR/.vikix-version" 2>/dev/null)" = "$EPUBCHECK_VERSION" ]
+}
+
+fetch_epubcheck() {
+  epubcheck_ok && return 0
+  say "fetching epubcheck $EPUBCHECK_VERSION"
+  if [ "$DRY_RUN" = 1 ]; then printf '   would fetch %s into %s\n' "$EPUBCHECK_URL" "$EPUBCHECK_DIR"; return 0; fi
+  local tmp
+  tmp=$(mktemp -d) || die "no temporary folder"
+  # shellcheck disable=SC2064  # the folder is known now
+  trap "rm -rf '$tmp'" RETURN
+  "$CURL" -fsSL -o "$tmp/epubcheck.zip" "$EPUBCHECK_URL" || die "couldn't download epubcheck ($EPUBCHECK_URL)"
+  [ "$(sha256sum "$tmp/epubcheck.zip" | cut -d' ' -f1)" = "$EPUBCHECK_SHA256" ] ||
+    die "epubcheck's download isn't the release it should be (checksum differs): not installed"
+  unzip -q "$tmp/epubcheck.zip" -d "$tmp" || die "couldn't unpack epubcheck"
+  rm -rf "$EPUBCHECK_DIR"
+  mkdir -p "$(dirname "$EPUBCHECK_DIR")"
+  mv "$tmp/epubcheck-$EPUBCHECK_VERSION" "$EPUBCHECK_DIR" || die "couldn't put epubcheck in $EPUBCHECK_DIR"
+  echo "$EPUBCHECK_VERSION" > "$EPUBCHECK_DIR/.vikix-version"
+}
+
+cmd_setup() {
+  record_features publish
+  local p missing=0
+  while IFS= read -r p; do pkg_installed "$p" || missing=1; done < <(read_list "$VIKIX_DIR/packages/optional/publish.list")
+  if [ "$missing" = 1 ]; then
+    VIKIX_LISTS=publish bash "$VIKIX_DIR/install/10-packages.sh" || die "couldn't install the packages publish needs"
+  fi
+  fetch_epubcheck
+  # The make targets, where a project's Makefile includes them from.
+  run mkdir -p "$(dirname "$SHARED")"
+  link_managed "$VIKIX_DIR/lib/publish" "$SHARED"
+  command -v java >/dev/null 2>&1 || warn "no java: epubcheck needs it (vikix add java)"
+  say "ready: vikix publish NAME (vikix publish -h)"
+}
+
+cmd_status() {
+  local t
+  for t in pandoc typst java; do
+    if command -v "$t" >/dev/null 2>&1; then printf '%-10s %s\n' "$t" "$("$t" --version 2>&1 | head -1)"
+    else printf '%-10s missing (vikix add publish)\n' "$t"; fi
+  done
+  if epubcheck_ok; then printf '%-10s %s (%s)\n' epubcheck "$EPUBCHECK_VERSION" "$EPUBCHECK_DIR"
+  else printf '%-10s missing (vikix publish setup)\n' epubcheck; fi
+  python3 -c 'import bs4, lxml, yaml' 2>/dev/null && printf '%-10s %s\n' python "bs4, lxml and yaml are here" ||
+    printf '%-10s %s\n' python "missing bs4, lxml or yaml (vikix add publish)"
+  local f
+  for f in "IBM Plex Serif" Amiri; do
+    if fc-list : family 2>/dev/null | grep -qF "$f"; then printf '%-10s %s\n' font "$f"
+    else printf '%-10s %s missing (vikix add publish)\n' font "$f"; fi
+  done
+  if [ -e "$SHARED/publish.mk" ]; then printf '%-10s %s\n' make "$SHARED/publish.mk"
+  else printf '%-10s %s\n' make "no shared targets (vikix publish setup)"; fi
+}
+
+cmd_uninstall() {
+  [ -L "$SHARED" ] && run rm -f "$SHARED"
+  run rm -rf "$EPUBCHECK_DIR"
+  say "removed epubcheck and the shared make targets; your books and their out/ folders are left"
+  forget_features publish
+}
+
+# The book's folder: a folder given, the project of that name in ~/src
+# (two levels down too: ~/src/living-series/living-in-sql), one whose
+# publish.yml has that name, or the folder you're in.
+find_book() {
+  local want=${1:-} d
+  if [ -z "$want" ]; then
+    [ -f publish.yml ] || die "no publish.yml here: vikix publish NAME, or cd into the book"
+    pwd; return
+  fi
+  if [ -f "$want/publish.yml" ]; then (cd "$want" && pwd); return; fi
+  for d in "$HOME"/src/"$want" "$HOME"/src/*/"$want"; do
+    [ -f "$d/publish.yml" ] && { echo "$d"; return; }
+  done
+  for d in "$HOME"/src/*/publish.yml "$HOME"/src/*/*/publish.yml; do
+    [ -f "$d" ] && grep -qxE "name: *[\"']?${want}[\"']?" "$d" && { dirname "$d"; return; }
+  done
+  die "no book called $want: a folder with publish.yml in ~/src, or a path"
+}
+
+cmd_build() {
+  local book="" formats=() a
+  for a in "$@"; do
+    case $a in
+      epub|pdf|check) formats+=("$a") ;;
+      -*) die "vikix publish: $a? (vikix publish -h)" ;;
+      *) [ -z "$book" ] || die "one book at a time"; book=$a ;;
+    esac
+  done
+  [ "${#formats[@]}" -gt 0 ] || formats=(epub pdf)
+  local dir
+  dir=$(find_book "$book") || exit 1
+  cd "$dir" || die "can't go into $dir"
+  local f
+  for f in "${formats[@]}"; do
+    python3 "$BUILD" "$f" || exit 1
+  done
+}
+
+case ${1:-} in
+  setup)     cmd_setup ;;
+  status)    cmd_status ;;
+  uninstall) cmd_uninstall ;;
+  -h|--help|help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) cmd_build "$@" ;;
+esac
