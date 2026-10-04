@@ -164,7 +164,7 @@ reload_in_emacs() {
   # Emacs's start from then on).
   form="(progn (load \"$OPT/emacs/esploro-loaddefs\" t t) (when (featurep 'esploro)
           (dolist (v '(esploro-mode-map esploro-places-mode-map esploro-tool-bar-map esploro-manual-mode-map esploro-preview-mode-map
-                       esploro-review-mode-map esploro-plan-edit-mode-map esploro-project-mode-map esploro-habits-mode-map esploro-grid-mode-map esploro-changes-mode-map
+                       esploro-review-mode-map esploro-plan-edit-mode-map esploro-project-mode-map esploro-habits-mode-map esploro-grid-mode-map esploro-changes-mode-map esploro-compare-mode-map
                        esploro--back esploro--forward esploro--sort esploro--reverse
                        esploro--hidden esploro--filter))
             (makunbound v))
