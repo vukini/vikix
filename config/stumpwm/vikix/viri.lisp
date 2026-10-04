@@ -161,12 +161,98 @@ left end, for a screen WIDTH wide."
             when (and (>= (car span) off) (<= (+ (car span) (cdr span)) (+ off aw)))
               collect i))))
 
+;; Scrolling slides. When the strip is laid out at another place than it
+;; was drawn at last, its windows first go there in a few steps, each a
+;; little nearer and slower (only moved: nothing is resized on the way),
+;; and then are laid out where they belong. The steps are made here, one
+;; after the other with a short sleep between, in a tenth of a second or
+;; so: never with a timer, which would want a fraction of a second for its
+;; delay (and that stops StumpWM's loop).
+;;
+;; Only with a compositor (picom): without one every step would have each
+;; program draw its window again, and the slide would flicker.
+
+(defparameter *viri-animate* t
+  "Whether the strip slides as it scrolls: t (when a compositor runs),
+:always, or nil (it jumps, as before).")
+
+(defparameter *viri-animate-frames* 8
+  "How many steps a slide takes.")
+
+(defparameter *viri-animate-seconds* 0.12
+  "How long a slide takes, about.")
+
+(defvar *viri-drawn* (make-hash-table :test 'eq :weakness :key)
+  "Each strip as it was last laid out: (OFFSET . what stood where).")
+
+(defun viri-compositor-p (screen)
+  "True when a compositor runs on SCREEN: it owns the selection _NET_WM_CM_Sn."
+  (ignore-errors
+   (and (xlib:selection-owner *display*
+                              (intern (format nil "_NET_WM_CM_S~d" (screen-id screen)) :keyword))
+        t)))
+
+(defun viri-animate-p (group)
+  (and *viri-animate*
+       (plusp *viri-animate-frames*)
+       (eq group (current-group))
+       (or (eq *viri-animate* :always) (viri-compositor-p (group-screen group)))))
+
+(defun viri-slide-offsets (from to)
+  "The places a slide from FROM to TO stops at on its way: quick at first,
+slower as it nears TO; neither end is among them."
+  (loop for i from 1 below *viri-animate-frames*
+        for u = (/ i *viri-animate-frames*)
+        collect (round (+ from (* (- to from) (- 1 (expt (- 1 u) 3)))))))
+
+(defun viri-slide (group from to)
+  "Move the strip's windows from where they stand at offset FROM towards
+TO, a step at a time."
+  (multiple-value-bind (ax ay aw) (viri-area group)
+    (declare (ignore ay))
+    (let ((spans (viri-spans group aw))
+          (pause (/ *viri-animate-seconds* *viri-animate-frames*)))
+      (dolist (offset (viri-slide-offsets from to))
+        (loop for c in (viri-cols group)
+              for (x . nil) in spans
+              do (dolist (w (viri-col-windows c))
+                   (unless (window-fullscreen w)
+                     (setf (xlib:drawable-x (window-parent w)) (+ ax (- x offset))))))
+        (xlib:display-finish-output *display*)
+        (sleep pause)))))
+
+(defun viri-standing (group width)
+  "What stands where on GROUP's strip: to tell whether only the scroll changed."
+  (loop for c in (viri-cols group)
+        for span in (viri-spans group width)
+        collect (cons span (copy-list (viri-col-windows c)))))
+
 (defun viri-layout (group)
-  "Put every window where it belongs: the columns side by side from the
-strip's left end, scrolled by OFFSET, those off the screen past its edges;
-the windows of a column one above the other, sharing its height."
-  (multiple-value-bind (ax ay aw ah) (viri-area group)
+  "Put every window where it belongs, sliding there when the strip has
+scrolled since it was last laid out."
+  (multiple-value-bind (ax ay aw) (viri-area group)
+    (declare (ignore ax ay))
     (viri-clamp-offset group aw)
+    (let* ((to (viri-offset group))
+           (standing (viri-standing group aw))
+           (drawn (gethash group *viri-drawn*))
+           (from (car drawn)))
+      (when (and from (/= from to) (viri-animate-p group))
+        ;; A window that came, went or changed its width takes its place
+        ;; first, at the old scroll; then all of it slides.
+        (unless (equal (cdr drawn) standing)
+          (viri-place group from))
+        (viri-slide group from to))
+      (viri-place group to)
+      (setf (gethash group *viri-drawn*) (cons to standing))))
+  (viri-keep-pointer group)
+  (update-all-mode-lines))
+
+(defun viri-place (group offset)
+  "Every window where it belongs with the strip scrolled by OFFSET: the
+columns side by side from the strip's left end, those off the screen past
+its edges; the windows of a column one above the other, sharing its height."
+  (multiple-value-bind (ax ay aw ah) (viri-area group)
     (loop for c in (viri-cols group)
           for (x . cw) in (viri-spans group aw)
           for n = (max 1 (length (viri-col-windows c)))
@@ -189,16 +275,14 @@ the windows of a column one above the other, sharing its height."
                                  (width (max 1 (- cw border)))
                                  (bar (viri-titlebar-height w (- wh border))))
                             (set-window-geometry w :x 0 :y bar)
-                            (float-window-move-resize w :x (+ ax (- x (viri-offset group))) :y wy
+                            (float-window-move-resize w :x (+ ax (- x offset)) :y wy
                                                         :width width
                                                         :height (max 1 (- wh border bar))
                                                         :border 0)
                             (if (plusp bar)
                                 (funcall 'vikix-titlebar-show w width)
                                 (when (fboundp 'vikix-titlebar-remove)
-                                  (funcall 'vikix-titlebar-remove w))))))))
-  (viri-keep-pointer group)
-  (update-all-mode-lines))
+                                  (funcall 'vikix-titlebar-remove w)))))))))
 
 (defun viri-drop-enter-events ()
   "Moving windows makes X say the pointer entered whichever lands under it,
@@ -227,9 +311,14 @@ focus. So a pointer over the strip goes along with the focused window."
               (warp-pointer (group-screen group) (+ x (floor w 2)) (+ y (floor h 2)))))))
       (viri-drop-enter-events))))
 
+(defparameter *viri-centre* nil
+  "True: the focused column is kept in the middle of the screen, as far as
+the strip's ends allow. NIL: the strip scrolls only as far as it must.")
+
 (defun viri-scroll-to (group window)
   "Scroll just far enough that WINDOW's column is wholly on the screen
-(its left edge first, when it's wider than the screen); true when it moved."
+(its left edge first, when it's wider than the screen), or with
+*viri-centre* so that it's in the middle; true when it moved."
   (let ((i (position (viri-col-of group window) (viri-cols group))))
     (when i
       (multiple-value-bind (ax ay aw) (viri-area group)
@@ -237,7 +326,8 @@ focus. So a pointer over the strip goes along with the focused window."
         (destructuring-bind (x . w) (nth i (viri-spans group aw))
           (let ((old (viri-offset group)))
             (setf (viri-offset group)
-                  (cond ((< x old) x)
+                  (cond (*viri-centre* (- (+ x (floor w 2)) (floor aw 2)))
+                        ((< x old) x)
                         ((> (+ x w) (+ old aw)) (- (+ x w) aw))
                         (t old)))
             (viri-clamp-offset group aw)

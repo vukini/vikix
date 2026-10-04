@@ -204,6 +204,23 @@ win Under
 check "a rule's (join :left) puts the new window under the column on its left: $(cols)" grep -q 'WideUnder' <<<"$(cols)"
 check "the rules ran without failing" test "$(ask '(princ (reduce (function +) (mapcar (function vikix-rule-failures) *vikix-rules*)))')" = 0
 
+# Scrolling slides: in steps, quick then slow, to the same places as a jump
+# (only with a compositor, so here it's told to, always); and with
+# *viri-centre* the focused column is kept in the middle.
+check "a slide's steps lie between its ends, each nearer, the first the longest: $(ask '(princ (viri-slide-offsets 0 640))')" test "$(ask '(let ((o (viri-slide-offsets 0 640))) (princ (if (and (= (length o) (1- *viri-animate-frames*)) (apply (function <) 0 (append o (list 640))) (> (first o) (- 640 (car (last o))))) 1 0)))')" = 1
+check "no compositor here, so no slide by itself" test "$(ask '(princ (if (viri-animate-p (current-group)) 1 0))')" = 0
+ask '(progn (defvar *slides* 0) (setf *viri-animate* :always) (sb-int:unencapsulate (quote viri-slide) (quote test)) (sb-int:encapsulate (quote viri-slide) (quote test) (lambda (f &rest args) (incf *slides*) (apply f args))))' >/dev/null
+inplace() { ask '(let ((g (current-group))) (multiple-value-bind (ax ay aw) (viri-area g) (declare (ignore ay)) (princ (if (and (= (viri-offset g) (car (gethash g *viri-drawn*))) (every (lambda (c span) (every (lambda (w) (= (xlib:drawable-x (window-parent w)) (+ ax (- (car span) (viri-offset g))))) (viri-col-windows c))) (viri-cols g) (viri-spans g aw))) 1 0))))'; }
+for _ in 1 2 3 4 5 6 7 8; do key super+h; done
+ask '(setf *slides* 0)' >/dev/null
+for _ in 1 2 3 4 5 6 7 8; do key super+l; done
+check "walking to the strip's other end slid it: $(ask '(princ *slides*)') slides" test "$(ask '(princ *slides*)')" -ge 1
+check "and every window stands where a jump would have put it" test "$(inplace)" = 1
+ask '(setf *viri-centre* t)' >/dev/null
+key super+h; key super+h
+check "with *viri-centre* the focused column is in the middle, as far as the strip's ends allow" test "$(ask '(let* ((g (current-group)) (i (position (viri-col-of g (current-window)) (viri-cols g)))) (multiple-value-bind (ax ay aw) (viri-area g) (declare (ignore ax ay)) (let* ((spans (viri-spans g aw)) (span (nth i spans)) (l (car (last spans))) (total (+ (car l) (cdr l)))) (princ (if (= (viri-offset g) (max 0 (min (- total aw) (- (+ (car span) (floor (cdr span) 2)) (floor aw 2))))) 1 0)))))') $(inplace)" = "1 1"
+ask '(progn (setf *viri-centre* nil *viri-animate* t) (sb-int:unencapsulate (quote viri-slide) (quote test)))' >/dev/null
+
 # Title bars: each column's window has the tiles' bar, as wide as the column,
 # the window below it; Super+Ctrl+y takes them away and brings them back; a
 # fullscreen window has none.
@@ -243,5 +260,5 @@ check "Super+Shift+g brings one off the strip, into a frame: $(focus)" test "$(a
 key super+1
 check "none of them was an error: $(msgs | grep -i 'Error In Command\|not found' | head -1)" test -z "$(msgs | sed '/the window keys/,$d' | grep -i 'Error In Command\|not found')"
 
-wm_report viri "a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, the drawn overview and its keys, the agents' desktop tool, new and closed windows, a dialog, another workspace, off and on, title bars, the window keys on a strip"
+wm_report viri "a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, the drawn overview and its keys, the agents' desktop tool, new and closed windows, a dialog, another workspace, off and on, sliding and centring, title bars, the window keys on a strip"
 exit "$fail"
