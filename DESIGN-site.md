@@ -154,8 +154,8 @@ Cloudflare in front of all three: DNS, certificates, cache, Pages for the static
 | `qpdf` | the server, Debian | PDF stamping |
 | restic | the server, Debian; the laptop has it already | two backups, two directions |
 | Paddle or Lemon Squeezy | outside | payout to a UAE bank account, and the Ajman licence accepted: both to confirm |
-| Amazon SES | outside | out of the sandbox needs a request; do it in Phase 0. Reached on port 587: test it from the server on day one (`nc -vz email-smtp.eu-central-1.amazonaws.com 587`) |
-| Hetzner Cloud | outside | the server, its firewall and its Primary IP. A new account may be asked to prove who it is: whether that is smooth from the UAE is to confirm; Vultr if not |
+| Amazon SES | outside | out of the sandbox needs a request; do it in Phase 0. Reached on port 587: open from the Hetzner server, tested 2026-10-04 |
+| Hetzner Cloud | outside | the server, its firewall and its Primary IP. The account and the server exist (2026-10-04: Debian 13, key login only; its address is kept out of this public repo) |
 | Cloudflare R2 | outside | the server's nightly restic repository (proposed) |
 | Cloudflare Pages, DNS, a Worker if ever | outside | the domains are already there |
 
