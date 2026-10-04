@@ -13,7 +13,9 @@
 #   e-ink fix is still the doc-to-epub skill's file when the skill is at
 #   hand; vikix publish NAME finds a book in ~/src by its folder or its
 #   publish.yml's name, and --send puts it on a Kindle, a Kobo, a BOOX
-#   over MTP or adb, or --to a folder (stand-ins for gio and adb); setup
+#   over MTP or adb, or --to a folder (stand-ins for gio and adb); new
+#   starts a book that builds at once, adds the make line to a Makefile
+#   already there, and never writes over a book; setup
 #   refuses an epubcheck or dictionary download whose checksum differs,
 #   asks for no sudo when the packages are there, and links the make
 #   targets; uninstall takes away only what setup made.
@@ -196,6 +198,26 @@ X
   check "--to puts it in that folder: $out" test -f "$t/reader/small-test-book.epub"
   rm -rf "$book/out"
 
+  # vikix publish new: a book that builds at once, the make line added to a
+  # Makefile already there (its own lines kept), out/ ignored, a title with
+  # quotes still YAML, and never over a book that's there.
+  fresh="$HOME/src/books/fresh"; mkdir -p "$fresh"
+  printf 'all:\n\techo mine\n' > "$fresh/Makefile"
+  out=$(bash "$here/bin/vikix-publish" new "$fresh" --title 'The "First" Book' 2>&1) || fail=1
+  check "new makes publish.yml: $out" test -f "$fresh/publish.yml"
+  check "with the title, quotes and all" test "$(python3 -c 'import sys, yaml; print(yaml.safe_load(open(sys.argv[1]))["title"])' "$fresh/publish.yml")" = 'The "First" Book'
+  check "the Makefile keeps its own lines" grep -q 'echo mine' "$fresh/Makefile"
+  check "and gets the make targets" grep -qxF -- '-include $(HOME)/.local/share/vikix/publish/publish.mk' "$fresh/Makefile"
+  check "out/ is ignored" grep -qx 'out/' "$fresh/.gitignore"
+  out=$(VIKIX_EPUBCHECK="$t/bin/epubcheck-ok" bash "$here/bin/vikix-publish" fresh epub 2>&1) || true
+  check "and it builds as it is: $out" test -f "$fresh/out/fresh.epub"
+  echo "mine" > "$fresh/chapters/01-start.md"
+  out=$(bash "$here/bin/vikix-publish" new "$fresh" 2>&1) && fail=1
+  check "new never writes over a book: $out" test "$(cat "$fresh/chapters/01-start.md")" = mine
+  bash "$here/bin/vikix-publish" new "$t/fresh2" >/dev/null 2>&1 || true
+  bash "$here/bin/vikix-publish" new "$t/fresh2" >/dev/null 2>&1 || true
+  check "nor adds the make line twice" test "$(grep -c 'publish.mk' "$t/fresh2/Makefile")" = 1
+
   out=$(bash "$here/bin/vikix-publish" no-such-book 2>&1) && fail=1
   check "a book that isn't there is said: $out" grep -q "no book called no-such-book" <<<"$out"
 else
@@ -242,5 +264,5 @@ check "uninstall takes the link, epubcheck and the dictionaries" test ! -e "$HOM
 check "and leaves your books" test -f "$HOME/src/books/mine/book.md" -a -f "$book/publish.yml"
 check "and the feature" bash -c '! grep -qx publish "$1"' _ "$HOME/.config/vikix/features"
 
-[ "$fail" = 0 ] && echo "publish: the test book as an EPUB with row cards for e-ink and its Arabic right to left, a PDF with Amiri, rejected ones kept apart, check leaving out/ alone, books found by name, the spelling by language with words.txt and --keep, --send to a Kindle, a Kobo, a BOOX over MTP or adb, the downloads' checksums checked"
+[ "$fail" = 0 ] && echo "publish: the test book as an EPUB with row cards for e-ink and its Arabic right to left, a PDF with Amiri, rejected ones kept apart, check leaving out/ alone, books found by name, the spelling by language with words.txt and --keep, --send to a Kindle, a Kobo, a BOOX over MTP or adb, new books started, the downloads' checksums checked"
 exit "$fail"

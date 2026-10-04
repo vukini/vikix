@@ -19,6 +19,12 @@
 #   vikix publish [NAME|DIR] spell [--keep]
 #                     the words the dictionary doesn't know, by chapter;
 #                     --keep adds them to the book's words.txt, to read
+#   vikix publish new DIR [--title TITLE] [--lang LANG]
+#                     start a book in DIR (made if it isn't there):
+#                     publish.yml, a first chapter, an empty words.txt,
+#                     out/ in .gitignore, and the make targets in its
+#                     Makefile (the line added to one already there);
+#                     never over a book that's there
 #   vikix publish setup
 #                     the packages, epubcheck (a pinned release, checked
 #                     against its checksum), the British English, Esperanto
@@ -274,7 +280,55 @@ cmd_build() {
   send_book "$dir/out/$(python3 "$BUILD" name).epub" "$to"
 }
 
+cmd_new() {
+  local dir="" title="" lang=en-GB a
+  while [ $# -gt 0 ]; do
+    a=$1; shift
+    case $a in
+      --title) title=${1:-}; shift || true ;;
+      --lang)  lang=${1:-}; shift || true ;;
+      -*) die "vikix publish new: $a? (vikix publish -h)" ;;
+      *) [ -z "$dir" ] || die "one book at a time"; dir=$a ;;
+    esac
+  done
+  [ -n "$dir" ] || die "vikix publish new DIR [--title TITLE] [--lang LANG]"
+  [ -e "$dir/publish.yml" ] && die "$dir has a book already ($dir/publish.yml): left as it is"
+  run mkdir -p "$dir/chapters"
+  local name author
+  name=$(basename -- "$(cd "$dir" 2>/dev/null && pwd || echo "$dir")")
+  # The title from the folder (living-toki-pona: "Living toki pona") until
+  # you say otherwise, here or in publish.yml.
+  [ -n "$title" ] || title=$(printf '%s' "$name" | tr '_-' '  ' | sed 's/^./\U&/')
+  author=$(git config user.name 2>/dev/null || true)
+  [ -n "$author" ] || author=$USER
+  # Inside YAML's double quotes, a quote or a backslash needs its own.
+  title=${title//\\/\\\\}; title=${title//\"/\\\"}
+  author=${author//\\/\\\\}; author=${author//\"/\\\"}
+  if [ "$DRY_RUN" = 1 ]; then printf '   would write %s/publish.yml, a chapter, words.txt, the Makefile line\n' "$dir"; return 0; fi
+  {
+    echo "# publish.yml: the book's metadata for vikix publish. pandoc reads it as"
+    echo "# it is (title, subtitle, author, lang, date, rights ...); name, chapters"
+    echo "# and mainfont are Vikix's (vikix publish -h)."
+    echo "title: \"$title\""
+    echo "author: \"$author\""
+    echo "lang: $lang"
+    echo "name: $name"
+  } > "$dir/publish.yml"
+  [ -e "$dir/chapters/01-start.md" ] ||
+    printf '# %s\n\nThe first chapter. Each file in chapters/ is one, taken in name order.\n' "$title" > "$dir/chapters/01-start.md"
+  [ -e "$dir/words.txt" ] || : > "$dir/words.txt"
+  grep -qxF 'out/' "$dir/.gitignore" 2>/dev/null || printf '# The book, built by vikix publish.\nout/\n' >> "$dir/.gitignore"
+  # shellcheck disable=SC2016  # make's $(HOME), written as it is
+  local line='-include $(HOME)/.local/share/vikix/publish/publish.mk'
+  if ! grep -qxF -- "$line" "$dir/Makefile" 2>/dev/null; then
+    [ -s "$dir/Makefile" ] && printf '\n' >> "$dir/Makefile"
+    printf '# The book: make epub, make pdf, make check (vikix publish -h).\n%s\n' "$line" >> "$dir/Makefile"
+  fi
+  say "a book in $dir: write in chapters/, then vikix publish $dir (or make epub there)"
+}
+
 case ${1:-} in
+  new)       shift; cmd_new "$@" ;;
   setup)     cmd_setup ;;
   status)    cmd_status ;;
   uninstall) cmd_uninstall ;;
