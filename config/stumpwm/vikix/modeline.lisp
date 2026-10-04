@@ -118,14 +118,14 @@ All nine always exist, so listing them all would say nothing."
   "The network link, from *vikix-net* (commands.lisp); nothing without
 NetworkManager."
   (declare (ignore ml))
-  (if (string= *vikix-net* "")
+  (if (or (string= *vikix-net* "") (and (fboundp (quote vikix-tray-shows-p)) (vikix-tray-shows-p "nm-applet")))
       ""
       (vikix-ml-clickable :vikix-ml-click :net (format nil "~a  " *vikix-net*))))
 
 (defun vikix-mode-line-bt (ml)
   "Bluetooth, from *vikix-bt* (commands.lisp); nothing when it's off or absent."
   (declare (ignore ml))
-  (if (string= *vikix-bt* "")
+  (if (or (string= *vikix-bt* "") (and (fboundp (quote vikix-tray-shows-p)) (vikix-tray-shows-p "blueman-applet")))
       ""
       (vikix-ml-clickable :vikix-ml-click :bt (format nil "~a  " *vikix-bt*))))
 
@@ -250,6 +250,15 @@ from *vikix-recording* and *vikix-dictating* (commands.lisp)."
                                                   :test #'string=)))))))))
     (list on applets set)))
 
+(defvar *vikix-tray-applets* '()
+  "The applets the tray started, while it's on: their icons say what the
+bar's own fields would (nm-applet the network, blueman-applet Bluetooth),
+so those fields step aside.")
+
+(defun vikix-tray-shows-p (applet)
+  "Whether the tray is on with APPLET among those it starts."
+  (and (member applet *vikix-tray-applets* :test #'string=) t))
+
 (defun vikix-tray-object ()
   "The screen's tray, when it's on."
   (let ((pkg (find-package :stumptray)))
@@ -264,7 +273,8 @@ from *vikix-recording* and *vikix-dictating* (commands.lisp)."
           (load-module "stumptray"))
         (unless (vikix-tray-object)
           (run-commands "stumptray"))
-        (dolist (a (second (vikix-tray-settings)))
+        (setf *vikix-tray-applets* (second (vikix-tray-settings)))
+        (dolist (a *vikix-tray-applets*)
           (when (every (lambda (c) (or (alphanumericp c) (find c "-_."))) a)
             (run-shell-command (format nil "pgrep -x ~a >/dev/null || exec ~a" a a))))
         t)
@@ -273,7 +283,8 @@ from *vikix-recording* and *vikix-dictating* (commands.lisp)."
       nil)))
 
 (defun vikix-tray-stop ()
-  "The tray off; its applets stopped."
+  "The tray off; its applets stopped, and the bar's own fields back."
+  (setf *vikix-tray-applets* '())
   (ignore-errors (when (vikix-tray-object) (run-commands "stumptray")))
   (dolist (a (second (vikix-tray-settings)))
     (when (every (lambda (c) (or (alphanumericp c) (find c "-_."))) a)
@@ -359,5 +370,8 @@ off, off if it's on, remembered for the next login."
     (enable-mode-line screen head t)))
 
 ;; The tray, when you switched it on (vikix tray on): after the bar it sits in.
-(when (and (first (vikix-tray-settings)) (not (vikix-tray-object)))
-  (vikix-tray-start))
+;; Already there (a reload), it's left as it is, its applets noted again.
+(if (vikix-tray-object)
+    (setf *vikix-tray-applets* (second (vikix-tray-settings)))
+    (when (first (vikix-tray-settings))
+      (vikix-tray-start)))

@@ -2,7 +2,8 @@
 # tests/tray.sh — the tray (vikix tray on), in a real StumpWM on a hidden
 # screen: on at the start when switched on, an icon (a GTK status icon)
 # embedded in it, the bar leaving it room; still there, once, after a
-# reload; vikix-tray-off and the toggle switch it and say so in the
+# reload; the bar's network and Bluetooth fields stepping aside while
+# their applets are in it; vikix-tray-off and the toggle switch it and say so in the
 # settings file, an applets line naming none staying empty.
 # Needs Xvfb, Vikix's StumpWM, StumpWM's contrib modules (stumptray) and
 # Quicklisp's xembed, and python3's GTK 3 for the icon; skipped without.
@@ -66,11 +67,18 @@ done
 check "the icon should be in the tray: $icons" test "$icons" = 1
 room=$(ask '(princ (length (vikix-mode-line-tray nil)))')
 check "the bar should leave the tray room: $room spaces" test "$room" -gt 2
+# The network's and Bluetooth's own fields step aside while their applets
+# are in the tray (set here: the test starts none on the hidden screen).
+fields='(progn (setf *vikix-net* "wifi Home" *vikix-bt* "bt") (format t "[~a][~a]" (vikix-mode-line-net nil) (vikix-mode-line-bt nil)))'
+check "without applets, the bar should show the network and Bluetooth: $(ask "$fields")" bash -c '[[ $1 == *"wifi Home"*"bt"* ]]' _ "$(ask "$fields")"
+ask '(setf *vikix-tray-applets* (list "nm-applet" "blueman-applet"))' >/dev/null
+check "with their applets in the tray, they should step aside: $(ask "$fields")" test "$(ask "$fields")" = "[][]"
 ask '(run-commands "vikix-reload")' >/dev/null; sleep 1
 check "a reload should keep the tray: $(state)" test "$(state)" = ON
 check "and not add its handler twice" test "$(ask '(princ (length *event-processing-hook*))')" = 1
 ask '(run-commands "vikix-tray-off")' >/dev/null
 check "vikix-tray-off should take it away" test "$(state)" = OFF
+check "and bring the bar's own network field back: $(ask "$fields")" bash -c '[[ $1 == *"wifi Home"* ]]' _ "$(ask "$fields")"
 check "and say so in the settings" grep -qx off "$home/.config/vikix/tray"
 check "an applets line naming none should stay empty" grep -qx 'applets = ' "$home/.config/vikix/tray"
 ask '(run-commands "vikix-tray")' >/dev/null
