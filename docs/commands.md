@@ -779,14 +779,16 @@ Names match exactly, then by a prefix or a part of the name that only one projec
 
 Books from Markdown.
 
-- `vikix publish [NAME|DIR] [epub|pdf|check]` — build the book in DIR, or the project called NAME in `~/src` (the folder's name, or the name in its publish.yml), or the folder you're in: an EPUB and a PDF into its out/ (both, without a format); check builds both into a scratch folder and keeps nothing
-- `vikix publish setup` — the packages, epubcheck (a pinned release, checked against its checksum) and the shared make targets
+- `vikix publish [NAME|DIR] [epub|pdf|check]` — build the book in DIR, or the project called NAME in `~/src` (the folder's name, or the name in its publish.yml), or the folder you're in: an EPUB and a PDF into its out/ (both, without a format); check builds both into a scratch folder, keeps nothing, and checks the spelling
+- `vikix publish [NAME|DIR] --send [--to FOLDER]` — build the EPUB, then put it on the reader plugged in: a Kindle or Kobo mounted as a drive (into documents/, or the top), any drive with a Books folder, an Android reader such as a BOOX in file transfer mode (its Books folder, over MTP), or one with USB debugging (adb, /sdcard/Books); --to names the folder
+- `vikix publish [NAME|DIR] spell [--keep]` — the words the dictionary doesn't know, by chapter; --keep adds them to the book's words.txt, to read
+- `vikix publish setup` — the packages, epubcheck (a pinned release, checked against its checksum), the British English, Esperanto and Arabic dictionaries (LibreOffice's, pinned and checked the same way) and the shared make targets
 - `vikix publish status` — which tools and fonts are here
 - `vikix publish uninstall`
 
 Books from Markdown: an EPUB and a PDF, built and checked the same way in every project (vikix add publish).
 
-A book is a folder with publish.yml (pandoc's metadata: title, author, lang; and Vikix's: name, chapters, mainfont) and its text in `chapters/*.md` (taken in name order) or book.md. The EPUB goes through pandoc, then the fix for e-ink readers (tables become row cards, one-cell boxes asides: what the doc-to-epub skill learned on a 7-inch screen), then epubcheck; one epubcheck rejects is kept as NAME.epub.rejected, not as the book. The PDF goes through pandoc's Typst writer, in IBM Plex Serif (Amiri when lang is Arabic, or mainfont in publish.yml), and one Typst warned about is NAME.pdf.rejected.
+A book is a folder with publish.yml (pandoc's metadata: title, author, lang; and Vikix's: name, chapters, mainfont) and its text in `chapters/*.md` (taken in name order) or book.md. The EPUB goes through pandoc, then the fix for e-ink readers (tables become row cards, one-cell boxes asides: what the doc-to-epub skill learned on a 7-inch screen), then epubcheck; one epubcheck rejects is kept as NAME.epub.rejected, not as the book. The PDF goes through pandoc's Typst writer, in IBM Plex Serif (Amiri when lang is Arabic, or mainfont in publish.yml), and one Typst warned about is NAME.pdf.rejected. The spelling is the book's lang (any English is checked as British), and a passage marked ::: {lang=eo} or [vorto]{lang=ar} in its own; code isn't prose. words.txt beside publish.yml holds the book's own words, one a line.
 
 In a project's Makefile, last, the same as make targets (epub, pdf, check):
 
