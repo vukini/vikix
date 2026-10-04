@@ -27,7 +27,6 @@ Gathered on 2026-09-30, in a conversation with Vid.
 
 ## Focus
 
-- **A focus timer in the bar.** 25 or 50 minutes with do not disturb on by itself, then a break.
 - **Where did my time go.** Time per app and per project, recorded automatically and kept only on this machine; the children's screen-time plugin could use the same record.
 
 ## Presenting
@@ -53,7 +52,6 @@ Vikix can try these because the whole desktop is a live Lisp program, it already
     - **From the desktop, which only Vikix can see:** StumpWM records which keys, commands and menu entries are used. "You open Firefox and move it to workspace 2 every morning" → a window rule. "You clicked the launcher 20 times this week" → Super+d. "These five keys are never used" → offered for things you do.
     - **How it offers:** a short weekly digest, not pop-ups. Each suggestion shows exactly what it would add (an alias, a function, a key in `user.lisp`) with a one-key yes; every yes is a snapshot first, so `vikix undo` takes it back.
     - **How it's built:** the patterns are plain counting, no AI; a model only names and explains a suggestion. History is private and holds secrets typed by accident: a local model only, and the secrets scrubbed first, as `vikix debug` does.
-- **"Where was I?"** Back at the laptop after a break, a lock or a meeting: a small card with the project you were in, the last commands, open files with unsaved changes, and the last note captured. For someone who juggles many projects.
 - **Learn Lisp by changing your own desktop.** A `vikix learn` course where each lesson changes the running desktop: a key that tells the time, the bar's colours, your first StumpWM command. The desktop is the teaching tool. A companion to the Common Lisp books.
 - **A readable history of your settings.** Each snapshot gets a one-line plain-English description ("added a key for the calculator"), written by a model from the diff, so `vikix history` reads like a diary of how the machine was shaped, and undoing the right thing is easy.
 - **"Find that thing I saw."** Optionally, a screenshot every few minutes, kept only on this machine and encrypted, its text made searchable ("the error this morning", "that price yesterday"): a private, local Recall. Off by default, paused with one key, never taking password windows or the lock screen, old ones deleted by themselves.
@@ -85,16 +83,10 @@ Small programs (an image viewer, a file explorer, a launcher, a video player) wr
 
 From the Nyxt work of 2026-10-02 (the guide is `docs/nyxt.md`; the page tools there are built and tested). Build each as those were: on a hidden display, then into `~/.config/nyxt/page-tools.lisp` and the guide.
 
-- **Tables → CSV.** Each `<table>` on the page into a CSV file, for a spreadsheet: `clss:select "table"`, rows and cells from the parsed copy.
-- **Save the page's code blocks.** Every `<pre><code>` to files, or a prompt to pick one and copy it (the "send a block to a terminal" idea, done properly).
 - **Download every link of a kind**, e.g. every PDF on a course page (`a[href$=".pdf"]`), into one folder, as save-page-images does.
 - **All open tabs as a Markdown list** of titles and links, to keep a research session.
 - **Ask a question about the page**: summarize-page's route, with a prompt for the question.
-- **Add the page to `note`'s index**, so `note ask` finds it beside your notes.
-- **Reader view**: the page's Markdown rendered back as a clean `nyxt:` page in the guide's style.
-- **Jump to a heading**: the page's headings as a Ctrl+Space source; pick one to scroll there.
 - **Play the page's video in mpv** (with `yt-dlp`).
-- **Clip into a project's log**: clip-selection's quote through `vikix project log NAME`, with a prompt for the project.
 - **A QR code of a link or of the selection**, not only the page: `cl-qrencode` as `show-url-qrcode` uses it.
 - **Bigger:** commands joining Nyxt to the desktop (a page into a project's log, a site as a web app, show a file in Esploro, the window to a workspace); address rewrites and blocked domains (Nyxt's request hook); Ctrl+Space sources for `~/dev`'s docs, `vikix project` folders and links from notes; Lisp-made `nyxt:` pages (a start page with the projects, `vikix today`, the key card from StumpWM); a `vikix learn c` lesson page with a **Check** button that runs the checker beside the lesson.
 
@@ -104,13 +96,10 @@ Two of the day's ideas are already worked out as designs, so they go to `TODO.md
 
 ### The desktop, from the inside
 
-- **"Why did that happen?"** `Super+?` after anything (a window jumped workspaces, a key did something odd, a notification came) shows the command, rule or line of `user.lisp` that caused it, with Edit and Undo beside it. StumpWM runs every action through `run-commands` already; a ring of the last fifty, each with its source, is small. Only a desktop that is a program can answer this.
-- **One command registry for Vikix itself.** Today the same commands are described three times by hand: `*vikix-bindings*` in `keys.lisp` (key, command, blurb), `*vikix-menu*` and friends in `commands.lisp` (label, action, what it needs) and the fixed tool list in `vikix-mcp`; the agents' `SKILL.md` is a fourth copy. A `define-vikix-command` with name, doc, key, menu group, needs and an `agent-safe` flag would generate the key map, Super+m, Super+F1, the MCP tool list and the command section of the skill from one place, so the agent is never offered a command the key map doesn't know. Esploro's `define-file-command` is the model.
 - **`vikix pick`, and rofi retired from the scripts.** Super+m and Super+F1 are already StumpWM's own `select-from-menu`; rofi is left doing the launcher, clipmenu, emoji, calc and seven `rofi -dmenu` pickers in `vikix-ask`, `-drives`, `-esploro`, `-local-ai`, `-notifications`, `-project` and `-wallpaper`. A `vikix pick` (lines in, choice out, through `vikix eval`) lets those seven drop rofi today and follow the theme for free; the launcher then needs only `.desktop` parsing and fuzzy matching in Lisp. Emoji and calc are the one thing rofi does that this wouldn't. This is item 4 of "Lisp apps for the Lisp desktop", found to be smaller than it sounds.
 
 ### Trust you can check
 
-- **The outbound ledger.** One page: everything that left the laptop today, by program. Claude calls (`vikix mcp status` and `llm logs` already know), package fetches, Dropbox, the agents. The site says "nothing left the laptop" in several places; a ledger lets anyone check.
 - **Try before you trust.** `vikix try PROGRAM`: run anything in a bubblewrap sandbox (in Void) with a throwaway home, see what it wants to touch (the ledger reports it), then install for real or let it vanish.
 - **Guest.** `vikix guest`: a fresh login that sees none of your files, keys or sessions, wiped when it logs out. For lending the laptop to a visitor, or a child for ten minutes. On Void: a user, a tmpfs home, one StumpWM group.
 
@@ -121,12 +110,7 @@ Two of the day's ideas are already worked out as designs, so they go to `TODO.md
 
 ### Files and care
 
-- **Any file, as it was.** `vikix backup` runs restic; Esploro gets a right-click "Versions…" listing a file's snapshots by date, restoring one as a plan with undo. Time Machine's best feature inside the file explorer, with Esploro's review in front of it.
 - **See better.** A Super+m entry that enlarges everything in one step (fonts, bar, rofi, Emacs, Firefox, through one scale in `vikix theme`), switches to a high-contrast theme and offers a dyslexia-friendly font, and back. One theme file for the whole desktop is what makes this possible to do properly.
-
-### Windows programs as native windows
-
-- **Office in its own windows, through RemoteApp.** RDP's RemoteApp mode exports one Windows program's window instead of the whole desktop, and FreeRDP shows it as an ordinary X window, so StumpWM tiles Excel beside Emacs like anything else (what the WinApps project does elsewhere). The pieces are in place: `vikix windows create` installs Windows 11 **Pro**, which has the RDP server (Home doesn't); the VM is on the private `virbr0`, so port 3389 is reachable only from this machine; `freerdp` 3.32.1 is in Void (checked 2026-10-03); `~/Windows` is `Z:`, so a file opened from Esploro has a path Windows can see. To add: Remote Desktop and the `fAllowUnlistedRemotePrograms` key in the install's answer file; `vikix windows app excel [FILE]`, which starts the VM if it's off and runs `xfreerdp /app:program:EXCEL.EXE /app:cmd:"Z:\…" /clipboard /sound /dynamic-resolution`, the password from the key store, never on the command line; `.desktop` files for Word, Excel, PowerPoint and Outlook so they're in the launcher and Super+m, and `mimeapps.list` entries so a `.xlsx` opens in Excel from Esploro with LibreOffice under "open with"; a scan of the VM's Start Menu over the share so new Windows programs appear on the Linux side by themselves. Limits: SPICE stays for the full desktop, RDP for apps (both can run); clipboard and files cross, drag-and-drop doesn't; the first launch waits for Windows to boot, so keeping the VM running is a setting worth having on the Z13 (memory) and off on the X1; what the Windows licence says about RDP use is Vid's to read.
 
 ### Cuis Smalltalk
 
@@ -145,9 +129,8 @@ Not: a fourth implementation language for Vikix itself (bash, Python and Common 
 
 ### Areas still to look at (2026-10-03)
 
-Parts of Vikix that haven't had the code-first pass the sections above got. Each would become a section here or a `DESIGN-*.md`. In Vid's order of interest: publishing first, then the children's account, then security.
+Parts of Vikix that haven't had the code-first pass the sections above got. Each would become a section here or a `DESIGN-*.md`. In Vid's order of interest: publishing first (now TODO 79), then the children's account, then security.
 
-- **Publishing.** Vid makes books, sites and EPUBs, and Vikix is the workshop for the Living Series, yet there is no `vikix add publish`: pandoc, Typst, Calibre, epubcheck, the EPUB-for-e-ink pipeline that exists as a Claude skill, Esperanto and Arabic fonts, a `make` shape every project shares. The highest-value gap for Vid himself.
 - **The children's account** (TODO 33). Several of today's ideas point at it: lessons in Cuis, Pascal, the education bundle, screen time, "show me how". Enough hangs off it that it deserves its own design: a second login, a simpler desktop, apps chosen by the parent, nothing of the parent's reachable, a home for the programming course.
 - **Security.** The pen-tester's open findings in TODO ("to look into" 4 and 5: signed tags for `vikix update`, a confirm-on-use SSH key, checksums from somewhere other than the download host, a rate limit on the MCP notify tool) matter most before anyone else installs Vikix; a pass to turn them into a dated plan, with the outbound ledger above.
 - **Your machines and your phone.** Tailscale, Syncthing, KDE Connect and `vikix export/import` (wish list 16–19) as one design rather than four items: how the X1, the Z13, the AI desktop and two phones become one Vikix.
