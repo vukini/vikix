@@ -223,6 +223,43 @@ key super+h; key super+h
 check "with *viri-centre* the focused column is in the middle, as far as the strip's ends allow" test "$(ask '(let* ((g (current-group)) (i (position (viri-col-of g (current-window)) (viri-cols g)))) (multiple-value-bind (ax ay aw) (viri-area g) (declare (ignore ax ay)) (let* ((spans (viri-spans g aw)) (span (nth i spans)) (l (car (last spans))) (total (+ (car l) (cdr l)))) (princ (if (= (viri-offset g) (max 0 (min (- total aw) (- (+ (car span) (floor (cdr span) 2)) (floor aw 2))))) 1 0)))))') $(inplace)" = "1 1"
 ask '(progn (setf *viri-centre* nil *viri-animate* t) (sb-int:unencapsulate (quote viri-slide) (quote test)))' >/dev/null
 
+# The ends: Super+Home and Super+End go to the strip's first and last column.
+# A pinned column (Super+\) stays at the screen's left edge while the others
+# scroll beside it: it's the strip's first, the bar marks it, Super+l from it
+# goes to the column standing beside it, nothing moves past it, a saved
+# layout keeps it, and Super+\ on it lets it go.
+order() { ask '(progn (setf *print-pretty* nil) (format t "~{~a~^ ~}" (mapcar (lambda (c) (window-title (first (viri-col-windows c)))) (viri-cols (current-group)))))'; }
+pinned() { ask '(let ((c (viri-pinned (current-group)))) (princ (and c (window-title (first (viri-col-windows c))))))'; }
+was=$(order)
+key super+End
+check "Super+End goes to the last column: $(focus)" test "$(focus)" = "${was##* }"
+key super+Home
+check "Super+Home to the first: $(focus)" test "$(focus)" = "${was%% *}"
+ask '(run-commands "vikix-move-end last")' >/dev/null; sleep 0.3
+check "vikix-move-end last takes this column to the end: $(order)" test "$(order | awk '{print $NF}') $(focus)" = "${was%% *} ${was%% *}"
+ask '(run-commands "vikix-move-end first")' >/dev/null; sleep 0.3
+check "and first brings it back: $(order)" test "$(order)" = "$was"
+key super+l; pin=$(focus)
+key super+backslash
+check "Super+\\ pins the column: it is the strip's first, at the screen's left edge: $(order)" test "$(pinned) $(order | cut -d' ' -f1) $(ask '(princ (xlib:drawable-x (window-parent (current-window))))') $(inplace)" = "$pin $pin 0 1"
+key super+End
+check "at the strip's other end it is still there, the last column whole beside it: $(focus)" test "$(focus) $(ask '(let* ((g (current-group)) (p (window-parent (current-window))) (pin (window-parent (first (viri-col-windows (viri-pinned g)))))) (princ (if (and (= (xlib:drawable-x pin) 0) (>= (xlib:drawable-x p) (xlib:drawable-width pin)) (<= (+ (xlib:drawable-x p) (xlib:drawable-width p)) 1280)) 1 0)))') $(inplace)" = "${was##* } 1 1"
+check "the bar marks it: $(plain_bar)" grep -q "^$pin|" <<<"$(plain_bar)"
+ask '(group-focus-window (current-group) (first (viri-col-windows (viri-pinned (current-group)))))' >/dev/null; sleep 0.3
+key super+l
+check "Super+l from it goes to the column standing beside it, not the strip's first" test "$(ask '(let* ((g (current-group)) (i (position (viri-col-of g (current-window)) (viri-cols g)))) (princ (if (member i (viri-visible g)) 1 0)))')" = 1
+key super+Home; before=$(order); key super+shift+h
+check "a column doesn't move past it: $(order)" test "$(order)" = "$before"
+ask '(vikix-layout-save "pin")' >/dev/null
+check "a saved layout says which column is pinned" grep -q ':pinned t' "$home/.config/vikix/layouts/pin.lisp"
+ask '(group-focus-window (current-group) (first (viri-col-windows (viri-pinned (current-group)))))' >/dev/null; sleep 0.3
+key super+backslash
+check "Super+\\ on it lets it go: every column scrolls again" test "$(pinned) $(inplace)" = "NIL 1"
+ask '(vikix-layout-restore "pin" (current-group) :start nil)' >/dev/null; sleep 0.5
+check "the layout put back, it is pinned again: $(pinned)" test "$(pinned) $(inplace)" = "$pin 1"
+ask '(run-commands "vikix-pin off")' >/dev/null; sleep 0.3
+check "vikix-pin off: none" test "$(pinned)" = NIL
+
 # Title bars: each column's window has the tiles' bar, as wide as the column,
 # the window below it; Super+Ctrl+y takes them away and brings them back; a
 # fullscreen window has none.
@@ -249,7 +286,6 @@ mouse() { xdotool "$@"; sleep 0.4; }
 # program's window is: what the pointer does before StumpWM has taken it is
 # lost. A hand is slower than that; on a busy machine a test isn't, so it waits.
 press() { xdotool mousedown "$1"; sleep 1.5; }
-order() { ask '(progn (setf *print-pretty* nil) (format t "~{~a~^ ~}" (mapcar (lambda (c) (window-title (first (viri-col-windows c)))) (viri-cols (current-group)))))'; }
 geo() { ask "(let ((p (window-parent $1))) (format t \"~a ~a ~a ~a ~a\" (xlib:drawable-x p) (xlib:drawable-y p) (xlib:drawable-width p) (xlib:drawable-height p) (xlib:drawable-border-width p)))"; }
 width() { ask '(princ (viri-col-width (viri-col-of (current-group) (current-window))))'; }
 for _ in 1 2 3 4 5 6 7 8; do key super+h; done
@@ -309,5 +345,5 @@ check "Super+Shift+g brings one off the strip, into a frame: $(focus)" test "$(a
 key super+1
 check "none of them was an error: $(msgs | grep -i 'Error In Command\|not found' | head -1)" test -z "$(msgs | sed '/the window keys/,$d' | grep -i 'Error In Command\|not found')"
 
-wm_report viri "a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, the drawn overview and its keys, the agents' desktop tool, new and closed windows, a dialog, another workspace, off and on, sliding and centring, title bars, the mouse, the window keys on a strip"
+wm_report viri "a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, the drawn overview and its keys, the agents' desktop tool, new and closed windows, a dialog, another workspace, off and on, sliding and centring, the ends and a pinned column, title bars, the mouse, the window keys on a strip"
 exit "$fail"

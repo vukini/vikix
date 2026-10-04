@@ -30,6 +30,7 @@ To have a workspace always start as a strip, a rule in `~/.stumpwm.d/rules.lisp`
 |---|---|
 | `Super+h`, `Super+l` (or the arrows) | the column on the left, on the right; the strip scrolls when it has to |
 | `Super+j`, `Super+k` | down and up, in a column of several windows |
+| `Super+Home`, `Super+End` | the strip's first column, and its last |
 | `Super+Shift+h`, `Super+Shift+l` | move this column left or right along the strip |
 | `Super+Shift+j`, `Super+Shift+k` | move this window down or up its column |
 | `Super+Tab` | back to the window you were in before; again flips between the two |
@@ -52,6 +53,20 @@ The strip scrolls only as far as it must to show the column you went to whole, s
 | `Super+Ctrl+y` | title bars off and on, as on tiles |
 
 A new column is half the screen wide. A column's windows share its height evenly: an editor with a terminal under it, say, is `Super+[` pressed on the terminal standing right of the editor.
+
+## Pinning a column
+
+Some windows you want in sight whatever else you're doing: a chat, a page you're reading from, a terminal with a log running. On a strip they'd scroll away with the rest. `Super+\` pins the column you're in: it goes to the screen's left edge and stays there, and the other columns scroll in the room beside it.
+
+| Key | What it does |
+|---|---|
+| `Super+\` | pin this column; on the pinned column, let it go again |
+| `Super+h` from the first of the others | into the pinned column |
+| `Super+l` from the pinned column | to the column standing beside it now |
+
+One column is pinned at a time: pin another and it takes the place. The bar shows it first, with a bar after it: `D | A [B C] E`. It keeps its width (`Super+r` and the mouse change it as for any column, though it never takes more than two thirds of the screen), it can hold several windows (`Super+[` from the column beside it), and nothing moves past it. A layout you save remembers which column was pinned.
+
+Two commands have no key of their own, for a key in `user.lisp` if you want one: `vikix-move-end first` and `vikix-move-end last` take the column you're in to the start or the end of the strip.
 
 ## The mouse
 
@@ -116,6 +131,8 @@ Three things in it are there because of how X and StumpWM work:
 - **The keys are not the strip's own.** StumpWM looks in its main key map before any workspace's, and every Vikix key is in the main one. So `Super+l` runs `vikix-focus`, which walks the strip on a strip and moves between splits everywhere else. `vikix-move`, `vikix-split` and the others are made the same way.
 - **The slide is a loop, not a timer.** `viri-slide` moves every column a little, eight times, with a short sleep between. A timer would want a fraction of a second as its delay, and StumpWM's timers stop working when given one.
 - **The pointer is taken along.** Vikix's focus follows the mouse. When the strip moves under a pointer that stays still, X reports that the pointer has entered whichever window landed under it, and that window would take the focus back. So `viri-keep-pointer` moves the pointer to the focused window and drops those reports.
+
+The pinned column is the strip's first column in that list, noted in a table beside it (`*viri-pinned*`); `viri-spans` gives it the screen's left edge wherever the strip is scrolled, and starts the others where it ends.
 
 The drawn overview (`Super+o`) is `overview.lisp`; the strip gives it its columns as boxes through `viri-overview-boxes`. An AI agent sees a strip through the `desktop` tool of `vikix mcp`, which lists its columns left to right with their widths and which are on the screen ([Working with AI](ai.md)).
 

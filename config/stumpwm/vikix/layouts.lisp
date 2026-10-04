@@ -213,8 +213,10 @@ strip included. (values x y width height)"
 (defun vikix-layout-of-strip (group)
   (list :kind :strip
         :columns (loop for c in (viri-cols group)
-                       collect (list :width (viri-col-width c)
-                                     :windows (mapcar #'vikix-layout-window (viri-col-windows c))))))
+                       collect (append (list :width (viri-col-width c))
+                                       ;; The pinned column says so, and is again.
+                                       (when (eq c (viri-pinned group)) (list :pinned t))
+                                       (list :windows (mapcar #'vikix-layout-window (viri-col-windows c)))))))
 
 (defun vikix-layout-save (name &optional (group (current-group)))
   "Save GROUP's layout as NAME; returns the file."
@@ -305,19 +307,24 @@ dialogs) matched to its saved ones. Returns the saved windows not found."
   (let* ((columns (getf layout :columns))
          (specs (loop for c in columns append (copy-list (getf c :windows))))
          (found (vikix-layout-match specs windows))
-         (cols '()) (k 0))
+         (cols '()) (k 0) (pinned nil))
     (dolist (c columns)
       (let ((ws (loop repeat (length (getf c :windows))
                       for w = (nth k found) do (incf k)
                       when w collect w)))
         (when ws
-          (push (make-viri-col ws (or (ignore-errors (viri-share (getf c :width))) *viri-default-width*)) cols))))
+          (push (make-viri-col ws (or (ignore-errors (viri-share (getf c :width))) *viri-default-width*)) cols)
+          (when (getf c :pinned)
+            (setf pinned (first cols))))))
     ;; Windows the layout doesn't mention: a column each, at the end.
     (dolist (w windows)
       (unless (member w found)
         (push (make-viri-col (list w)) cols)))
     (setf (viri-cols group) (nreverse cols)
           (viri-offset group) 0)
+    (if pinned
+        (setf (gethash group *viri-pinned*) pinned)
+        (remhash group *viri-pinned*))
     (when (group-current-window group)
       (viri-scroll-to group (group-current-window group)))
     (viri-layout group)

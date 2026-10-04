@@ -51,7 +51,7 @@ tools. Every other program a key starts is on Super+Alt.")
   "What switches something on the desktop: on Super+Ctrl, and nothing else is.")
 
 (defparameter *vikix-key-movers*
-  '("vikix-move" "move-window" "gmove" "vikix-bring-window" "global-pull-windowlist")
+  '("vikix-move" "vikix-move-end" "move-window" "gmove" "vikix-bring-window" "global-pull-windowlist")
   "What moves a window: on Super+Shift.")
 
 (defvar *vikix-bind-later* nil
@@ -137,6 +137,9 @@ of a reload's 15 seconds, and the desktop stood still meanwhile."
     ("s-b"    "vikix-split"       "Split: side by side")
     ("s-v"    "vikix-split below" "Split: one above the other")
     ("s-r"    "vikix-width-or-remove" "Remove this split (on a strip: the column's width; in main and stack: the main window's)")
+    ("s-Home"   "vikix-focus-end first" "On a strip: the first column")
+    ("s-End"    "vikix-focus-end last"  "On a strip: the last column")
+    ("s-backslash" "vikix-pin" "On a strip: pin this column to the left edge, the others scroll beside it; again unpins")
     ("s-bracketleft"  "vikix-stack left"  "On a strip: into the column on the left, or out of a shared one")
     ("s-bracketright" "vikix-stack right" "On a strip: into the column on the right, or out of a shared one")
     ("s-o"    "vikix-overview"    "Every workspace drawn small, each window a box: pick one (g there: this workspace in a real grid)")

@@ -131,34 +131,73 @@ with the bars off (Super+Ctrl+y), or in a slot too low for one."
                      (funcall 'vikix-titlebar-remove window)))
               ((eq group (current-group)) (viri-layout group)))))))
 
-(defun viri-spans (group width)
+;; A pinned column (s-\) stays at the screen's left edge while the rest of
+;; the strip scrolls beside it: a chat, a page you're reading from, a
+;; terminal with a log. It is the strip's first column, and the others
+;; start where it ends; only where it is drawn differs, always at the edge.
+;; One a strip. Kept in a table by the strip, not in the strip itself, so a
+;; desktop that is running needn't learn a new slot.
+
+(defvar *viri-pinned* (make-hash-table :test 'eq :weakness :key)
+  "Each strip's pinned column, when it has one.")
+
+(defun viri-pinned (group)
+  "GROUP's pinned column, or NIL: forgotten once it has left the strip."
+  (let ((col (gethash group *viri-pinned*)))
+    (cond ((null col) nil)
+          ((member col (viri-cols group)) col)
+          (t (remhash group *viri-pinned*) nil))))
+
+(defun viri-pin-width (group width)
+  "The pixels GROUP's pinned column takes of a screen WIDTH wide: none
+without one, and never more than two thirds, so the strip has room."
+  (let ((col (viri-pinned group)))
+    (if col
+        (min (max 1 (floor (* (viri-col-width col) width))) (floor (* width 2/3)))
+        0)))
+
+(defun viri-spans (group width &optional (offset (viri-offset group)))
   "Each column's place along the strip: a list of (x . w) in pixels from its
-left end, for a screen WIDTH wide."
-  (let ((x 0))
+left end, for a screen WIDTH wide. The pinned column's is where the screen
+starts with the strip scrolled by OFFSET; the others begin after it."
+  (let* ((pinned (viri-pinned group))
+         (x (viri-pin-width group width)))
     (loop for c in (viri-cols group)
-          for w = (max 1 (floor (* (viri-col-width c) width)))
-          collect (prog1 (cons x w) (incf x w)))))
+          collect (if (eq c pinned)
+                      (cons offset (viri-pin-width group width))
+                      (let ((w (max 1 (floor (* (viri-col-width c) width)))))
+                        (prog1 (cons x w) (incf x w)))))))
+
+(defun viri-length (group width)
+  "The strip's whole length in pixels: the pinned column, then the rest."
+  (let ((pinned (viri-pinned group)))
+    (loop for c in (viri-cols group)
+          for (x . w) in (viri-spans group width 0)
+          unless (eq c pinned) maximize (+ x w) into end
+          finally (return (max (or end 0) (viri-pin-width group width))))))
 
 (defun viri-clamp-offset (group width)
   "Never scrolled past the strip's ends."
-  (let* ((spans (viri-spans group width))
-         (total (if spans (let ((l (car (last spans)))) (+ (car l) (cdr l))) 0)))
-    (setf (viri-offset group) (max 0 (min (viri-offset group) (- total width))))))
+  (setf (viri-offset group)
+        (max 0 (min (viri-offset group) (- (viri-length group width) width)))))
 
 (defun viri-left (group)
-  "The first column wholly on the screen."
+  "The first column wholly on the screen, of those that scroll."
   (multiple-value-bind (ax ay aw) (viri-area group)
     (declare (ignore ax ay))
-    (or (position-if (lambda (span) (>= (car span) (viri-offset group))) (viri-spans group aw)) 0)))
+    (let ((from (+ (viri-offset group) (viri-pin-width group aw))))
+      (or (position-if (lambda (span) (>= (car span) from)) (viri-spans group aw)) 0))))
 
 (defun viri-visible (group)
-  "The columns wholly on the screen, as their positions in the strip."
+  "The columns wholly on the screen, of those that scroll, as their
+positions in the strip. (The pinned one always is.)"
   (multiple-value-bind (ax ay aw) (viri-area group)
     (declare (ignore ax ay))
-    (let ((off (viri-offset group)))
+    (let* ((off (viri-offset group))
+           (from (+ off (viri-pin-width group aw))))
       (loop for span in (viri-spans group aw)
             for i from 0
-            when (and (>= (car span) off) (<= (+ (car span) (cdr span)) (+ off aw)))
+            when (and (>= (car span) from) (<= (+ (car span) (cdr span)) (+ off aw)))
               collect i))))
 
 ;; Scrolling slides. When the strip is laid out at another place than it
@@ -211,25 +250,31 @@ TO, a step at a time."
   (multiple-value-bind (ax ay aw) (viri-area group)
     (declare (ignore ay))
     (let ((spans (viri-spans group aw))
+          (pinned (viri-pinned group))
           (pause (/ *viri-animate-seconds* *viri-animate-frames*)))
       (dolist (offset (viri-slide-offsets from to))
         (loop for c in (viri-cols group)
               for (x . nil) in spans
-              do (dolist (w (viri-col-windows c))
-                   (unless (window-fullscreen w)
-                     (setf (xlib:drawable-x (window-parent w)) (+ ax (- x offset))))))
+              unless (eq c pinned)    ; it stays where it is
+                do (dolist (w (viri-col-windows c))
+                     (unless (window-fullscreen w)
+                       (setf (xlib:drawable-x (window-parent w)) (+ ax (- x offset))))))
         (xlib:display-finish-output *display*)
         (sleep pause)))))
 
 (defun viri-standing (group width)
   "What stands where on GROUP's strip: to tell whether only the scroll changed."
   (loop for c in (viri-cols group)
-        for span in (viri-spans group width)
+        for span in (viri-spans group width 0)
         collect (cons span (copy-list (viri-col-windows c)))))
 
 (defun viri-layout (group)
   "Put every window where it belongs, sliding there when the strip has
 scrolled since it was last laid out."
+  ;; The pinned column is the first: put back there if it was moved.
+  (let ((pinned (viri-pinned group)))
+    (when (and pinned (not (eq pinned (first (viri-cols group)))))
+      (setf (viri-cols group) (cons pinned (remove pinned (viri-cols group))))))
   (multiple-value-bind (ax ay aw) (viri-area group)
     (declare (ignore ax ay))
     (viri-clamp-offset group aw)
@@ -254,7 +299,7 @@ columns side by side from the strip's left end, those off the screen past
 its edges; the windows of a column one above the other, sharing its height."
   (multiple-value-bind (ax ay aw ah) (viri-area group)
     (loop for c in (viri-cols group)
-          for (x . cw) in (viri-spans group aw)
+          for (x . cw) in (viri-spans group aw offset)
           for n = (max 1 (length (viri-col-windows c)))
           for each = (floor ah n)
           do (loop for w in (viri-col-windows c)
@@ -282,7 +327,16 @@ its edges; the windows of a column one above the other, sharing its height."
                             (if (plusp bar)
                                 (funcall 'vikix-titlebar-show w width)
                                 (when (fboundp 'vikix-titlebar-remove)
-                                  (funcall 'vikix-titlebar-remove w)))))))))
+                                  (funcall 'vikix-titlebar-remove w))))))))
+  ;; The pinned column over the ones that scroll under it, and a dialog
+  ;; over that.
+  (let ((pinned (viri-pinned group)))
+    (when pinned
+      (dolist (w (viri-col-windows pinned))
+        (setf (xlib:window-priority (window-parent w)) :above))
+      (dolist (w (group-windows group))
+        (unless (viri-col-of group w)
+          (setf (xlib:window-priority (window-parent w)) :above))))))
 
 (defun viri-drop-enter-events ()
   "Moving windows makes X say the pointer entered whichever lands under it,
@@ -321,16 +375,21 @@ the strip's ends allow. NIL: the strip scrolls only as far as it must.")
 (defun viri-scroll-to (group window)
   "Scroll just far enough that WINDOW's column is wholly on the screen
 (its left edge first, when it's wider than the screen), or with
-*viri-centre* so that it's in the middle; true when it moved."
-  (let ((i (position (viri-col-of group window) (viri-cols group))))
-    (when i
+*viri-centre* so that it's in the middle (of what the pinned column leaves);
+true when it moved."
+  (let* ((col (viri-col-of group window))
+         (i (position col (viri-cols group))))
+    ;; The pinned column is on the screen wherever the strip is.
+    (when (and i (not (eq col (viri-pinned group))))
       (multiple-value-bind (ax ay aw) (viri-area group)
         (declare (ignore ax ay))
         (destructuring-bind (x . w) (nth i (viri-spans group aw))
-          (let ((old (viri-offset group)))
+          (let ((old (viri-offset group))
+                ;; The others have the screen from where the pinned one ends.
+                (pin (viri-pin-width group aw)))
             (setf (viri-offset group)
-                  (cond (*viri-centre* (- (+ x (floor w 2)) (floor aw 2)))
-                        ((< x old) x)
+                  (cond (*viri-centre* (- (+ x (floor w 2)) pin (floor (- aw pin) 2)))
+                        ((< x (+ old pin)) (- x pin))
                         ((> (+ x w) (+ old aw)) (- (+ x w) aw))
                         (t old)))
             (viri-clamp-offset group aw)
@@ -470,13 +529,21 @@ there instead."
                           (viri-layout group))
                    (group-focus-window group (nth m ws))))))
           (t
-           (let ((j (if (eq dir :left) (1- i) (1+ i))))
+           (let* ((pinned (viri-pinned group))
+                  (j (cond ((eq dir :left) (1- i))
+                           ;; From the pinned column: the one standing beside
+                           ;; it on the screen, not the strip's first.
+                           ((and (eq col pinned) (not move)) (max 1 (viri-left group)))
+                           (t (1+ i)))))
              (when (< -1 j (length cols))
-               (if move
-                   (progn (rotatef (nth i (viri-cols group)) (nth j (viri-cols group)))
-                          (viri-scroll-to group window)
-                          (viri-layout group))
-                   (group-focus-window group (viri-col-window (nth j cols))))))))))
+               (cond ((not move)
+                      (group-focus-window group (viri-col-window (nth j cols))))
+                     ((or (eq col pinned) (eq (nth j cols) pinned))
+                      (message "The pinned column stays at the edge (Super+\\ unpins it)."))
+                     (t
+                      (rotatef (nth i (viri-cols group)) (nth j (viri-cols group)))
+                      (viri-scroll-to group window)
+                      (viri-layout group)))))))))
 
 (defun viri-stack (group dir &key (window (group-current-window group)) join-only)
   "Take WINDOW (the focused one) into the column on the DIR side (:left or
@@ -557,6 +624,71 @@ other. A strip has no splits to make."
          (message "A strip has no splits: a new window opens beside this one, and Super+[ or Super+] puts a window under its neighbour."))
         ((equal how "below") (run-commands "vsplit"))
         (t (run-commands "hsplit"))))
+
+(defun viri-pin (group col)
+  "Make COL GROUP's pinned column (NIL: none), and lay the strip out."
+  (if col
+      (setf (gethash group *viri-pinned*) col)
+      (remhash group *viri-pinned*))
+  (when (group-current-window group)
+    (viri-scroll-to group (group-current-window group)))
+  (viri-layout group))
+
+(defcommand vikix-pin (&optional what) ((:string nil))
+  "On a strip: pin this column to the screen's left edge, where it stays
+while the others scroll beside it; on the pinned column (or with \"off\"),
+unpin it. One column is pinned at a time."
+  (let* ((group (current-group))
+         (col (and (viri-group-p group) (viri-col-of group (group-current-window group))))
+         (pinned (and (viri-group-p group) (viri-pinned group))))
+    (cond ((not (viri-group-p group))
+           (message "Pinning is for strips (vikix viri)."))
+          ((equal what "off")
+           (viri-pin group nil)
+           (message "No column is pinned."))
+          ((null col)
+           (message "No column here to pin."))
+          ((and (eq col pinned) (not (equal what "on")))
+           (viri-pin group nil)
+           (message "Unpinned: it scrolls with the others again."))
+          ((null (rest (viri-cols group)))
+           (message "One column has nothing to stay beside."))
+          (t
+           (viri-pin group col)
+           (message "Pinned at the left edge: the others scroll beside it. Super+\\ here unpins it.")))))
+
+(defun viri-scrolling (group)
+  "GROUP's columns but the pinned one."
+  (remove (viri-pinned group) (viri-cols group)))
+
+(defcommand vikix-focus-end (which) ((:string "first or last: "))
+  "On a strip: go to its first column, or its last (of those that scroll)."
+  (let ((group (current-group)))
+    (if (not (viri-group-p group))
+        (message "The first and the last column are a strip's (vikix viri).")
+        (let ((cols (or (viri-scrolling group) (viri-cols group))))
+          (when cols
+            (group-focus-window group (viri-col-window (if (equal which "last")
+                                                           (first (last cols))
+                                                           (first cols)))))))))
+
+(defcommand vikix-move-end (which) ((:string "first or last: "))
+  "On a strip: move this column to the start, or to the end."
+  (let* ((group (current-group))
+         (window (and (viri-group-p group) (group-current-window group)))
+         (col (and window (viri-col-of group window))))
+    (cond ((not (viri-group-p group))
+           (message "Moving a column to the start or the end is a strip's (vikix viri)."))
+          ((null col))
+          ((eq col (viri-pinned group))
+           (message "The pinned column stays at the edge (Super+\\ unpins it)."))
+          (t
+           (let ((others (remove col (viri-cols group))))
+             ;; viri-layout puts the pinned column back in front of it.
+             (setf (viri-cols group)
+                   (if (equal which "last") (append others (list col)) (cons col others))))
+           (viri-scroll-to group window)
+           (viri-layout group)))))
 
 (defcommand vikix-focus (dir) ((:direction "Direction: "))
   "Focus the window that way: along the strip on a Viri workspace, the
@@ -663,11 +795,11 @@ button is down; let go, it takes the place it's over."
                  (dolist (w (viri-col-windows col))
                    (setf (xlib:drawable-x (window-parent w)) (+ x0 (- px px0))))
                  (xlib:display-finish-output *display*)))
-    (when moved
+    (when (and moved (not (eq col (viri-pinned group))))
       (multiple-value-bind (ax ay aw) (viri-area group)
         (declare (ignore ay))
         ;; Its new place: after every other column whose middle is left of
-        ;; the pointer.
+        ;; the pointer. (The pinned one, let go, is laid out where it was.)
         (let* ((at (+ (- (xlib:global-pointer-position *display*) ax) (viri-offset group)))
                (before (loop for c in (viri-cols group)
                              for (x . w) in (viri-spans group aw)
@@ -812,7 +944,9 @@ list. So you can see how far along the strip you are, and what's off it."
                                   collect (concatenate 'string
                                                        (if (eql i (first shown)) "[" "")
                                                        (format nil "~{~a~^/~}" (mapcar #'name (viri-col-windows c)))
-                                                       (if (eql i (car (last shown))) "]" "")))
+                                                       (if (eql i (car (last shown))) "]" "")
+                                                       ;; The pinned column: a bar after it.
+                                                       (if (eq c (viri-pinned group)) " |" "")))
                             (mapcar #'name floats))))))))
 
 (add-screen-mode-line-formatter #\W 'viri-mode-line-windows)
@@ -825,11 +959,13 @@ list. So you can see how far along the strip you are, and what's off it."
   "The strip in small, to fit ROOM pixels across and at MOST that scale: a
 list of (WINDOW X Y W H) from the picture's top left. More values: the
 picture's width and height, and where the part on the screen starts and
-how wide it is."
+how wide it is (of the columns that scroll: the pinned one, drawn first,
+is always on it)."
   (multiple-value-bind (ax ay aw ah) (viri-area group)
     (declare (ignore ax ay))
-    (let* ((spans (viri-spans group aw))
-           (total (max aw (if spans (let ((l (car (last spans)))) (+ (car l) (cdr l))) 0)))
+    (let* ((spans (viri-spans group aw 0))
+           (pin (viri-pin-width group aw))
+           (total (max aw (viri-length group aw)))
            (scale (min most (/ room total)))
            (height (max 1 (round (* ah scale)))))
       (values
@@ -842,7 +978,7 @@ how wide it is."
                                         (round (* x scale)) (round (* k (/ height n)))
                                         (max 1 (round (* w scale))) (max 1 (round (/ height n))))))
        (round (* total scale)) height
-       (round (* (viri-offset group) scale)) (round (* aw scale))))))
+       (round (* (+ (viri-offset group) pin) scale)) (round (* (- aw pin) scale))))))
 
 ;;; Rules for strips (rules.lisp loads first): two verbs.
 ;;;
