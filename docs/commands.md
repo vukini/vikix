@@ -89,7 +89,7 @@ The everyday command.
 - `vikix theme import URL|OWNER/REPO [NAME]` — an Omarchy theme as one of yours, then switch to it (vikix theme --help)
 - `vikix version`
 - `vikix layout save NAME | NAME [--no-start] | list | rm NAME` — this workspace's layout (its splits or its strip, and which window is where) saved, put back (the windows it had that aren't open started, unless --no-start), listed, removed
-- `vikix rules [off|on|forget N] [why [CLASS]] [test|apply [N]] [verbs]` — the desktop's rules: the list, one off or on, why a window is where it is, what they'd do with the windows open now, and doing it; forget takes one out of your rules.lisp (vikix rules help)
+- `vikix rules [off|on|forget N] [why [CLASS]] [test|apply [N]] [verbs|proposed]` — the desktop's rules: the list, one off or on, why a window is where it is, what they'd do with the windows open now, and doing it; forget takes one out of your rules.lisp (vikix rules help)
 - `vikix viri [on|off]` — this workspace as a strip that scrolls sideways (Super+h/l along it), or tiled again; no word switches
 - `vikix eval FORM` — run Lisp in the running StumpWM, print the result
 - `vikix debug` — one file saying what's going on, secrets taken out, to attach to an issue
@@ -616,13 +616,16 @@ small acts  notify, snapshot, set_theme, switch_workspace, focus_window,
             by name, and only those its registry marks for agents
             (registry.lisp, :agent t: do not disturb, night light, gaps,
             focus left ...); the desktop refuses any other
+proposals   propose_file_changes (a plan shown in Esploro) and
+            propose_rule (a rule shown under Super+m, Rules): checked
+            whole, and only your choice there changes anything
 off unless  eval (any Lisp in the window manager: --allow-eval) and
 switched on undo (your files back a snapshot: --allow-undo). These are a
             convenience, not a wall: an agent that can run commands can
             run vikix eval, or register the server again, itself.
 ```
 
-Nothing an agent sends reaches Lisp or a shell except as a value checked against the desktop (a workspace that exists, a theme there is, a number). Every call, refused ones too, is logged in `~/.local/state/vikix/mcp.log` (600): the tool, whether it worked, its arguments (secrets taken out, long ones cut, with their length and a hash).
+Nothing an agent sends reaches Lisp or a shell except as a value checked against the desktop (a workspace that exists, a theme there is, a number), or, for `propose_rule`, as text the window manager reads without running and holds until you decide. Every call, refused ones too, is logged in `~/.local/state/vikix/mcp.log` (600): the tool, whether it worked, its arguments (secrets taken out, long ones cut, with their length and a hash).
 
 ## vikix-memory
 
@@ -863,6 +866,7 @@ The desktop's rules, seen and steered.
 - `vikix rules apply [N|NAME]` — do it: run them on the windows open now. A reload never moves windows already open; this does
 - `vikix rules forget N|NAME` — take a rule out of `~/.stumpwm.d/rules.lisp` and off the desktop, after a snapshot (vikix undo puts the file back). Only a rule written in that file: one Super+Shift+t remembered, or one of yours
 - `vikix rules verbs` — what a rule can be, match and do: the rules, the matchers and the verbs, each with its line
+- `vikix rules proposed` — the rules an agent has proposed and you haven't decided on: each with its why, and what it would run. Super+m, Rules adds one or drops it
 
 The rules are written in `~/.stumpwm.d/rules.lisp` (or user.lisp):
 
@@ -872,6 +876,8 @@ The rules are written in `~/.stumpwm.d/rules.lisp` (or user.lisp):
 ```
 
 and live in the running StumpWM, which this asks (vikix eval): the counts are since the last reload, and off lasts until the next one, which reads the files again. Super+m, Rules is the same list in a menu.
+
+An agent doesn't write your rules: it proposes one (the MCP server's `propose_rule`), checked to be a rule made only of verbs and plain values, and the rule waits until you add it or drop it under Super+m, Rules.
 
 Super+Shift+t writes one for you: the rule that puts a window like the one in front where it is (its workspace, and when it floats its size and place), shown first, then added to rules.lisp as "remembered: ...".
 

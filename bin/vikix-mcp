@@ -30,13 +30,18 @@ The tools, a fixed set:
               by name, and only those its registry marks for agents
               (registry.lisp, :agent t: do not disturb, night light, gaps,
               focus left ...); the desktop refuses any other
+  proposals   propose_file_changes (a plan shown in Esploro) and
+              propose_rule (a rule shown under Super+m, Rules): checked
+              whole, and only your choice there changes anything
   off unless  eval (any Lisp in the window manager: --allow-eval) and
   switched on undo (your files back a snapshot: --allow-undo). These are a
               convenience, not a wall: an agent that can run commands can
               run vikix eval, or register the server again, itself.
 
 Nothing an agent sends reaches Lisp or a shell except as a value checked
-against the desktop (a workspace that exists, a theme there is, a number).
+against the desktop (a workspace that exists, a theme there is, a number),
+or, for propose_rule, as text the window manager reads without running
+and holds until you decide.
 Every call, refused ones too, is logged in ~/.local/state/vikix/mcp.log
 (600): the tool, whether it worked, its arguments (secrets taken out, long
 ones cut, with their length and a hash).
@@ -278,8 +283,16 @@ RULES_FORM = JSON_HELPERS % r"""
                                  (str (cdr (assoc (second e) (symbol-value '*vikix-rule-waiting-words*))))))
                              waiting)))))
         (let ((w %WINDOW%))
-          (format nil "{\"rules\":[~{~a~^,~}],\"why\":~a}"
+          (format nil "{\"rules\":[~{~a~^,~}],\"proposed\":[~{~a~^,~}],\"why\":~a}"
             (mapcar #'rule (funcall 'vikix-rules-list))
+            (mapcar (lambda (p)
+                      (format nil "{\"rule\":~a,\"state\":~a}"
+                        (str (long (getf p :text)))
+                        (str (case (getf p :state)
+                               (:waiting "waiting for the user")
+                               (:added "added by the user")
+                               (t "dropped by the user")))))
+                    (and (fboundp 'vikix-rule-proposals-list) (funcall 'vikix-rule-proposals-list)))
             (if w (why w) "null")))))
 """
 
@@ -520,6 +533,32 @@ def t_rules(a):
     return json.dumps(found, indent=1, ensure_ascii=False)
 
 
+def t_propose_rule(a):
+    """An agent never writes the user's rules: the rule goes to the window
+    manager as text, is checked there (a rule made only of verbs and plain
+    values), and waits for the user's choice under Super+m, Rules."""
+    rule = a.get("rule")
+    if not isinstance(rule, str) or not rule.strip():
+        raise ToolError('propose_rule needs rule: one rule as it would be written, like '
+                        '(when-window (:class "Firefox") (workspace 2))')
+    if len(rule) > 1000:
+        raise ToolError("a rule is at most 1000 characters")
+    if re.search(r"[\x00-\x08\x0b-\x1f\x7f]", rule):
+        raise ToolError("a rule is plain text, without control characters")
+    why = re.sub(r"\s+", " ", re.sub(r"[\x00-\x1f\x7f]", " ", str(a.get("why", "")))).strip()[:300]
+    out = evaluate("(if (fboundp 'vikix-rule-propose) (vikix-rule-propose "
+                   f"{lisp_string(' '.join(rule.split()))} {lisp_string(why)}) \"old\")")
+    if out.startswith("proposed "):
+        return (out + "\nThe user sees it under Super+m, Rules (a notification says so); nothing changes "
+                "until they add it there, and the rules tool shows what they chose.")
+    if out == "old":
+        raise ToolError("this desktop was started before rules could be proposed: the user reloads it "
+                        "(Super+m, Reload config)")
+    if out.startswith("refused: "):
+        raise ToolError("not proposed, nothing changed. " + out[len("refused: "):])
+    raise ToolError("the window manager's answer wasn't one: " + scrub(out)[:300])
+
+
 def t_focus_window(a):
     name, number = window_named(a)
     evaluate(f"(let* ((g (find-group (current-screen) {lisp_string(name)})) "
@@ -716,6 +755,23 @@ TOOLS = [
              "why": {"type": "string", "maxLength": 300, "description": "what it's for, shown to the user"}},
             ["steps"]),
      ONCE, t_propose),
+    ("propose_rule", "Propose a rule for the desktop (the user adds it)",
+     "A rule says what the desktop does by itself: (when-window (:class \"Gimp\") (workspace 5)), "
+     "(when-window (:class (:has \"pavucontrol\")) (float :width \"50%\" :height \"60%\")), "
+     "(at \"13:00\" :weekdays (notify \"Lunch\")), (each 2 :hours ...), (when-battery-below 20 ...), "
+     "(at-login ...), (when-workspace 3 ...). Never added here: the rule is checked whole (one rule, made only "
+     "of the desktop's verbs and plain values: strings, numbers, keywords; no :where, no variable, no Lisp of "
+     "its own; a refusal says what to change, and nothing changed), then shown to the user with why, under "
+     "Super+m, Rules; only their choice writes it into their rules.lisp (a snapshot first). Look at the rules "
+     "tool first: it lists the rules there are, why a window is where it is, and what became of earlier "
+     "proposals. Matchers: :class, :instance, :title, :role (a string: exactly that; (:has \"text\"); "
+     "(:like \"^regex$\"); a list: any of them), :type, :workspace, :not. Verbs: workspace, float, tile, "
+     "fullscreen, sticky, dialog, title, focus, layout, width, join, notify, say, open-project, theme, run, "
+     "command (run and command are shown to the user as what the rule would run).",
+     schema({"rule": {"type": "string", "maxLength": 1000, "description": "one rule, as it would be written"},
+             "why": {"type": "string", "maxLength": 300, "description": "what it's for, shown to the user"}},
+            ["rule"]),
+     ONCE, t_propose_rule),
     ("file_changes", "What changed in the user's files",
      "Every change made to the user's files through Esploro, their file manager (by the user, or an agent's "
      "plan they applied), newest first: when, what it did in words (\"moved 3 files into ~/Work\"), undone or "

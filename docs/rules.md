@@ -253,8 +253,27 @@ They're checked every 30 seconds, so a time is met within half a minute. `at-log
 | `vikix rules off 3` | Switch a rule off until the next reload, by its number, its `:name`, or words only it has. `vikix rules on 3` brings it back |
 | `vikix rules forget 3` | Take a rule out of `rules.lisp` for good, after a snapshot |
 | `vikix rules verbs` | Everything a rule can be, match and do, each with its line |
+| `vikix rules proposed` | The rules an agent has proposed that wait for you (below) |
 
 A good habit after writing a rule: reload, then `vikix rules test` to see which open windows it would take, before you trust it with new ones. [The commands](commands.md#vikix-rules) has the whole of `vikix rules`.
+
+## A rule an agent proposes
+
+An AI agent working on your desktop (Claude Code with Vikix's tools, [Vikix and AI](ai.md)) can suggest a rule, and can't add one. Ask it "make the calculator float in the corner", and it proposes:
+
+```lisp
+(when-window (:class "SpeedCrunch") (float :width "25%" :height "30%" :corner :bottom-right))
+```
+
+What happens then:
+
+1. **It is checked.** A proposal must be one rule, made only of what this page describes: the matchers, the verbs, and plain values (strings, numbers, keywords). `:where`, a variable, or any Lisp of its own is refused, and the agent is told why, so what you are shown is all the rule does.
+2. **It waits.** A notification says an agent proposes a rule, with the rule and the agent's reason. Nothing is written and nothing runs.
+3. **You decide.** `Super+m` → *Rules* lists proposals first. Choose one and you see the rule, why, and, when it has `run` or `command` in it, what it would run. The menu opens on the rule's own line, so pressing Enter straight away changes nothing: go down to *Add it to my rules.lisp* (a snapshot is taken first, and the rule is on at once) or *No: drop it*.
+
+An added rule is written at the end of your `rules.lisp` under a comment with the date and the reason, like one you wrote. `vikix rules forget` takes it out again.
+
+`vikix rules proposed`, in a terminal, lists the ones waiting. It only lists: adding is done in the menu, by you. Up to ten can wait; the agent can see which you added and which you dropped, and is refused a rule that is already there.
 
 ## When a rule goes wrong
 

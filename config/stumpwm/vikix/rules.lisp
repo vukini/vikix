@@ -1438,10 +1438,11 @@ failing, and the rules naming a workspace that isn't there."
             ((equal what "test") (say (vikix-rules-test-text (one))))
             ((equal what "apply") (say (vikix-rules-apply (one))))
             ((equal what "verbs") (say (vikix-rules-verbs-text)))
+            ((equal what "proposed") (say (vikix-rule-proposals-text)))
             ((equal what "forget")
              (say (format nil "Taken out of ~~/.stumpwm.d/rules.lisp, and off the desktop:~%  ~a~%vikix undo puts the file back."
                           (vikix-rules-forget (vikix-rule-called arg)))))
-            (t (error "vikix rules: list, off, on, why, test, apply, forget or verbs; not ~s." what)))
+            (t (error "vikix rules: list, off, on, why, test, apply, forget, verbs or proposed; not ~s." what)))
       (values))))
 
 ;;; Super+m, Rules
@@ -1491,11 +1492,14 @@ own carets (a pattern's \"^regex$\") written so they show."
 (defcommand vikix-rules () ()
   "The desktop's rules: which are on, how often each ran, why the window
 in front is where it is; switch one off or on, run them on the open windows."
-  (if (null *vikix-rules*)
+  (if (and (null *vikix-rules*) (null *vikix-rule-proposals*))
       (message "No rules yet. One looks like this, in ~~/.stumpwm.d/rules.lisp or user.lisp:~%(when-window (:class \"Firefox\") (workspace 2))")
       (let* ((window (current-window))
              (choice (vikix-ask "Rules"
                                 (append
+                                 (mapcar (lambda (proposal)
+                                           (list (vikix-rules-carets (vikix-rule-proposal-line proposal)) proposal))
+                                         *vikix-rule-proposals*)
                                  (and window
                                       (list (list (format nil "Why is this window where it is? (~a)" (window-class window)) :why)))
                                  '(("What the rules would do with the windows open now (nothing is done)" :test)
@@ -1506,7 +1510,8 @@ in front is where it is; switch one off or on, run them on the open windows."
               ((eq choice :test) (vikix-rules-show (vikix-rules-test-text)))
               ((eq choice :apply) (vikix-rules-show (vikix-rules-apply)))
               ((eq choice :verbs) (vikix-rules-show (vikix-rules-verbs-text)))
-              ((vikix-rule-p choice) (vikix-rules-menu-rule choice))))))
+              ((vikix-rule-p choice) (vikix-rules-menu-rule choice))
+              ((consp choice) (vikix-rules-menu-proposal choice))))))
 
 ;;; --- Remembering a window (Super+Shift+t) ---------------------------------------------------------
 ;;;
@@ -1778,6 +1783,229 @@ into ~/.stumpwm.d/rules.lisp. The rule is shown first."
               (error (e)
                 (vikix-error-report e "remembering a window" nil)
                 (message "^1Couldn't write the rule:^n ~a" (vikix-one-line e)))))))))
+
+;;; --- Rules an agent proposes ---------------------------------------------------------------------
+;;;
+;;; An agent doesn't write into your rules.lisp: it proposes a rule (the MCP
+;;; server's propose_rule), as text. The text is checked before anyone is
+;;; asked: it must be one rule of the forms there are, made of verbs from
+;;; the table and plain values, with no Lisp of its own (no :where, no
+;;; variable, no function), so what you are shown is all it does. Then it
+;;; waits: a notification says so, Super+m, Rules lists it first, and only
+;;; your choice there adds it to rules.lisp (a snapshot first) or drops it.
+
+(defvar *vikix-rule-proposals* '()
+  "The rules proposed and not decided yet, oldest first: each a list of
+:id, :text, :why, :runs (what it would run, in words) and :time.")
+(defvar *vikix-rule-proposals-decided* '()
+  "The last proposals decided, newest first: :text, :state (:added or :dropped), :time.")
+(defvar *vikix-rule-proposal-count* 0 "The last proposal's number.")
+(defparameter *vikix-rule-proposals-most* 10
+  "How many proposals wait at most: more than that are refused, not queued.")
+(defparameter *vikix-rule-proposal-heads*
+  '(("WHEN-WINDOW" 1) ("AT" 1) ("EACH" 2) ("WHEN-BATTERY-BELOW" 1) ("WHEN-CHARGING" 0)
+    ("WHEN-ON-BATTERY" 0) ("AT-LOGIN" 0) ("WHEN-WORKSPACE" 1))
+  "The rules that can be proposed, each with how many settings come before its options and verbs.")
+(defparameter *vikix-rule-proposal-runners* '("RUN" "COMMAND")
+  "The verbs that run a program or a command: a proposal with one says so where it is shown.")
+
+(defun vikix-rule-proposal-data-p (thing)
+  "Is THING plain data: a string, a whole number, a keyword, t, nil, or a list of those?"
+  (or (stringp thing) (integerp thing) (keywordp thing) (eq thing t) (null thing)
+      (and (consp thing) (listp (cdr (last thing)))
+           (or (keywordp (first thing)) (stringp (first thing)) (integerp (first thing)) (consp (first thing)))
+           (every #'vikix-rule-proposal-data-p thing))))
+
+(defun vikix-rule-proposal-has-where-p (match)
+  (and (consp match)
+       (or (member :where match)
+           (some #'vikix-rule-proposal-has-where-p match))))
+
+(defun vikix-rule-proposal-check (form)
+  "Signal an error, in words for the agent, unless FORM is a rule made only
+of what a rule is made of. Returns what it would run (its run and command
+verbs, as written), for showing."
+  (let* ((head (and (consp form) (symbolp (first form))
+                    (eq (symbol-package (first form)) (find-package :stumpwm))
+                    (assoc (symbol-name (first form)) *vikix-rule-proposal-heads* :test #'equal)))
+         (runs '()))
+    (unless (and head (listp (cdr (last form))))
+      (error "A proposal is one rule: ~{(~(~a~) ...)~^, ~}. vikix rules verbs shows each."
+             (mapcar #'first *vikix-rule-proposal-heads*)))
+    (let ((settings (subseq (rest form) 0 (min (second head) (length (rest form)))))
+          (body (nthcdr (second head) (rest form))))
+      (unless (= (length settings) (second head))
+        (error "This rule is cut short: ~a" (vikix-one-line (vikix-rules-print form) 120)))
+      (dolist (setting settings)
+        (unless (vikix-rule-proposal-data-p setting)
+          (error "~a can't be proposed: a proposed rule is made of plain values (strings, numbers, keywords, lists of them), with no variable and no Lisp of its own."
+                 (vikix-rules-print setting))))
+      (when (some #'vikix-rule-proposal-has-where-p settings)
+        (error "A proposed rule can't use :where: it runs Lisp of its own. Match by :class, :instance, :title, :role, :type, :workspace or :not."))
+      (let ((before nil))
+        (dolist (part body)
+          (cond ((vikix-rule-form-verb part)
+                 (unless (listp (cdr (last part)))
+                   (error "~a isn't a verb with its values." (vikix-rules-print part)))
+                 (dolist (value (rest part))
+                   (unless (or (stringp value) (realp value) (keywordp value) (eq value t) (null value))
+                     (error "In ~a, ~a can't be proposed: a verb's values are strings, numbers and keywords, with no variable and no Lisp of its own."
+                            (vikix-rules-print part) (vikix-rules-print value))))
+                 ;; The values fit the verb: (workspace) with nothing, or
+                 ;; (float :wide 3), would only fail when a window came.
+                 (handler-case
+                     (apply (handler-bind ((warning #'muffle-warning))
+                              (compile nil `(lambda ,(third (gethash (vikix-rule-form-verb part) *vikix-rule-verbs*)) t)))
+                            (rest part))
+                   (error ()
+                     (error "~a doesn't fit the verb: it is (~(~a~)~{ ~(~a~)~})."
+                            (vikix-rules-print part) (first part)
+                            (third (gethash (vikix-rule-form-verb part) *vikix-rule-verbs*)))))
+                 (when (member (vikix-rule-form-verb part) *vikix-rule-proposal-runners* :test #'equal)
+                   (push (vikix-rules-print part) runs)))
+                ;; A list that is no verb is an option's value, like
+                ;; :on (:mon :thu): plain data, straight after its keyword.
+                ((consp part)
+                 (unless (and (keywordp before) (vikix-rule-proposal-data-p part))
+                   (error "~a isn't a verb. A proposed rule does only what verbs do: ~{~a~^, ~}."
+                          (vikix-one-line (vikix-rules-print part) 80) (vikix-rule-verb-names))))
+                ((not (vikix-rule-proposal-data-p part))
+                 (error "~a can't be proposed: no variable and no Lisp of its own." (vikix-rules-print part))))
+          (setf before part)))
+      ;; What the rule's own macro refuses (an option there isn't, a time
+      ;; that isn't one, a matcher that can't work), it refuses now; and
+      ;; what is left must be Lisp that compiles, before it is ever written.
+      (macroexpand-1 form)
+      (when (nth-value 2 (let ((*error-output* (make-broadcast-stream)))
+                           (handler-bind ((warning #'muffle-warning))
+                             (compile nil `(lambda () ,form)))))
+        (error "This rule can't be made into Lisp: ~a" (vikix-one-line (vikix-rules-print form) 120)))
+      (nreverse runs))))
+
+(defun vikix-rule-proposal-read (text)
+  "TEXT as one Lisp form, read without running anything; an error in words otherwise."
+  (let ((*package* (find-package :stumpwm))
+        (*read-eval* nil))
+    (multiple-value-bind (form end)
+        (handler-case (read-from-string text)
+          (error () (error "That can't be read as a rule. One looks like this: (when-window (:class \"Firefox\") (workspace 2))")))
+      (when (find-if-not (lambda (c) (member c '(#\Space #\Tab #\Newline #\Return))) text :start end)
+        (error "One rule at a time: there is more after the first."))
+      form)))
+
+(defun vikix-rule-proposal-line (proposal)
+  "PROPOSAL as a line of the list."
+  (format nil "Proposed by an agent: ~a" (vikix-one-line (getf proposal :text) 110)))
+
+(defun vikix-rule-propose (text why)
+  "Check the rule TEXT an agent proposes (WHY, in its words) and keep it for
+you to decide. Returns what the agent is told: \"proposed N ...\", or
+\"refused: ...\" with the reason; nothing is added either way."
+  (handler-case
+      (let* ((form (vikix-rule-proposal-read (princ-to-string text)))
+             (runs (vikix-rule-proposal-check form))
+             (printed (vikix-rules-print form))
+             (name (let ((tail (member :name (rest form))))
+                     (and tail (stringp (second tail)) (second tail))))
+             (why (vikix-one-line (string-trim " " (princ-to-string (or why ""))) 300)))
+        (when (find printed *vikix-rules* :key #'vikix-rule-text :test #'equal)
+          (error "That rule is already one of the desktop's (the rules tool lists them)."))
+        (when (and (stringp name) (find name *vikix-rules* :key #'vikix-rule-name :test #'equal))
+          (error "A rule named ~s is there already: give this one another :name." name))
+        (setf *vikix-rule-proposals*
+              (remove printed *vikix-rule-proposals* :key (lambda (p) (getf p :text)) :test #'equal))
+        (when (>= (length *vikix-rule-proposals*) *vikix-rule-proposals-most*)
+          (error "~d proposed rules wait for the user already: no more until they have looked at those."
+                 *vikix-rule-proposals-most*))
+        (let ((proposal (list :id (incf *vikix-rule-proposal-count*) :text printed :why why
+                              :runs runs :time (get-universal-time))))
+          (setf *vikix-rule-proposals* (append *vikix-rule-proposals* (list proposal)))
+          (ignore-errors
+           (run-shell-command
+            (format nil "notify-send -a Vikix -- ~a ~a"
+                    (vikix-shell-quote "An agent proposes a rule")
+                    (vikix-shell-quote (format nil "~a~@[~%Why: ~a~]~%Super+m, Rules: add it or drop it there."
+                                               (vikix-one-line printed 200) (and (plusp (length why)) why))))))
+          (format nil "proposed ~d: ~a" (getf proposal :id) printed)))
+    (error (e) (format nil "refused: ~a" (vikix-one-line e 600)))))
+
+(defun vikix-rule-proposal-decided (proposal state)
+  (setf *vikix-rule-proposals* (remove proposal *vikix-rule-proposals*))
+  (push (list :text (getf proposal :text) :state state :time (get-universal-time))
+        *vikix-rule-proposals-decided*)
+  (when (> (length *vikix-rule-proposals-decided*) 10)
+    (setf *vikix-rule-proposals-decided* (subseq *vikix-rule-proposals-decided* 0 10))))
+
+(defun vikix-rule-proposal-add (proposal)
+  "Write PROPOSAL's rule at the end of your rules.lisp, under a dated
+comment with its why (a snapshot first), and load it. The rule, as the
+desktop has it. It is checked again first: the table of verbs may have changed."
+  (let* ((printed (getf proposal :text))
+         (form (vikix-rule-proposal-read printed)))
+    (vikix-rule-proposal-check form)
+    (let* ((text (vikix-rules-file-text))
+           (block (multiple-value-bind (s mi h d mo y) (get-decoded-time)
+                    (declare (ignore s mi h))
+                    (format nil ";; Proposed by an agent, ~4,'0d-~2,'0d-~2,'0d~@[: ~a~]~%~a~%"
+                            y mo d (and (plusp (length (getf proposal :why))) (getf proposal :why)) printed)))
+           (new (format nil "~a~%~%~a" (string-right-trim '(#\Newline #\Space) text) block))
+           (file (vikix-rules-file-write new (format nil "before: a rule an agent proposed, ~a" (vikix-one-line printed 60))))
+           (line (vikix-line-at new (search printed new :from-end t))))
+      (let ((*load-truename* (truename file))
+            (*load-pathname* (pathname file))
+            (*vikix-load-line* line)
+            (*package* (find-package :stumpwm)))
+        (vikix-eval-from file form))
+      (vikix-rule-proposal-decided proposal :added)
+      (find printed *vikix-rules* :key #'vikix-rule-text :test #'equal))))
+
+(defun vikix-rule-proposal-drop (proposal)
+  (vikix-rule-proposal-decided proposal :dropped))
+
+(defun vikix-rule-proposals-list ()
+  "The proposals as data, for the agents' rules tool: those waiting, then
+the last ones decided, each (:text :state :why)."
+  (append (mapcar (lambda (p) (list :text (getf p :text) :state :waiting :why (getf p :why)))
+                  *vikix-rule-proposals*)
+          (mapcar (lambda (p) (list :text (getf p :text) :state (getf p :state) :why nil))
+                  *vikix-rule-proposals-decided*)))
+
+(defun vikix-rule-proposals-text ()
+  "What `vikix rules proposed` prints."
+  (if (null *vikix-rule-proposals*)
+      "No rule is proposed. (An agent proposes one with the propose_rule tool; you add it or drop it under Super+m, Rules.)"
+      (format nil "~{~a~^~%~}~%Super+m, Rules: add one to your rules.lisp, or drop it."
+              (mapcar (lambda (p)
+                        (format nil "~a~@[~%    why: ~a~]~{~%    it runs: ~a~}"
+                                (getf p :text)
+                                (and (plusp (length (getf p :why))) (getf p :why))
+                                (getf p :runs)))
+                      *vikix-rule-proposals*))))
+
+(defun vikix-rules-menu-proposal (proposal)
+  "What to do with PROPOSAL, picked in the menu. Its first lines are the
+rule, its why and what it would run: the line the menu opens on changes
+nothing, so a hasty Enter adds no rule."
+  (let ((choice (vikix-ask "An agent proposes a rule"
+                           (append
+                            (mapcar (lambda (line) (list (vikix-rules-carets (vikix-one-line line 150)) nil))
+                                    (append (list (format nil "  ~a" (getf proposal :text)))
+                                            (and (plusp (length (getf proposal :why)))
+                                                 (list (format nil "  Why: ~a" (getf proposal :why))))
+                                            (mapcar (lambda (run) (format nil "  It runs: ~a" run))
+                                                    (getf proposal :runs))))
+                            '(("Add it to my rules.lisp (a snapshot of my files first)" :add)
+                              ("No: drop it" :drop)
+                              ("Later" nil))))))
+    (case choice
+      (:add (handler-case
+                (let ((rule (vikix-rule-proposal-add proposal)))
+                  (message "Added to ~~/.stumpwm.d/rules.lisp, and on:~%~a~%vikix rules forget ~d takes it out again."
+                           (vikix-rules-carets (vikix-one-line (getf proposal :text) 150))
+                           (if rule (vikix-rule-number rule) 0)))
+              (error (e) (message "^1Couldn't add it:^n ~a" (vikix-one-line e)))))
+      (:drop (vikix-rule-proposal-drop proposal)
+       (message "Dropped: ~a" (vikix-rules-carets (vikix-one-line (getf proposal :text) 150)))))))
 
 ;;; --- Vikix's own rules -------------------------------------------------------------------------
 ;;;

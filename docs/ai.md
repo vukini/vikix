@@ -310,6 +310,7 @@ vikix mcp unregister   # take it away
 | set_theme, switch_workspace, focus_window | Small changes, easily undone |
 | commands | The desktop's commands the agent may run by name: switches and moves put back as easily as done (do not disturb, night light, gaps, title bars, focus left ...) |
 | run_command | Runs one of those, as its key would. The desktop refuses any other command, and says why |
+| propose_rule | Proposes a rule for the desktop, which waits for you: checked first to be only a rule (verbs and plain values, no Lisp of its own), then shown under `Super+m` → *Rules*, where you add it to your `rules.lisp` or drop it ([Rules](rules.md#a-rule-an-agent-proposes)) |
 
 Two more are off unless you turn them on, because they can change a lot: `vikix mcp register --allow-eval` adds **eval** (any Lisp in the window manager) and `--allow-undo` adds **undo** (your settings back one snapshot). `vikix mcp register` again, without them, takes them away. They're a convenience, not a lock: an agent that may run commands could run `vikix eval` itself.
 

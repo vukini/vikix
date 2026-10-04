@@ -49,7 +49,7 @@
 #                       which window is where) saved, put back (the windows it
 #                       had that aren't open started, unless --no-start),
 #                       listed, removed
-#   vikix rules [off|on|forget N] [why [CLASS]] [test|apply [N]] [verbs]
+#   vikix rules [off|on|forget N] [why [CLASS]] [test|apply [N]] [verbs|proposed]
 #                       the desktop's rules: the list, one off or on, why a
 #                       window is where it is, what they'd do with the windows
 #                       open now, and doing it; forget takes one out of your

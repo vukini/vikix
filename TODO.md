@@ -18,8 +18,7 @@ From a review of 0.71.71 against one aim: the best desktop for a power user. Vik
 The rules language is in: `when-window` and the timed rules (`rules.lisp`), `vikix rules`, remembering a window (Super+Shift+t), every hand-written window hook moved over, the guide (`docs/rules.md`) and the starter `rules.lisp`. What it leads to, each an item of its own when its turn comes:
 
 - The apprentice's suggestions written as rules (IDEAS).
-- A `propose_rule` tool for agents, shown before it is applied, as `propose_file_changes` is.
-- The verbs table (`*vikix-rule-verbs*`) as the first entries of the allow-list for agents that act through code (What's next, 4).
+- The verbs table (`*vikix-rule-verbs*`) as the first entries of the allow-list for agents that act through code (What's next, 4). `propose_rule` (0.71.x) is its first use: `vikix-rule-proposal-check` in `rules.lisp` is the walker that lets through only rule forms, verbs and plain values.
 - Rules for a screen plugged in or taken away, a Wi-Fi network joined, a drive plugged in, idle.
 
 ## Picked from IDEAS (with Vid 2026-10-04)
