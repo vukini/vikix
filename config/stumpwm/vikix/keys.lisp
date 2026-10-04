@@ -152,6 +152,7 @@ of a reload's 15 seconds, and the desktop stood still meanwhile."
     ("s-G"    "vikix-bring-window" "Bring any window here, from any workspace")
     ("s-p"    "vikix-pointer"     "Move the pointer to this window")
     ("s-t"    "vikix-float"       "Float this window, or tile it again (Super+drag moves it)")
+    ("s-T"    "vikix-remember"    "Remember this window here: the rule for where it is, written for you (shown first)")
     ("s-C-y"  "vikix-titlebars"   "Title bars on/off")
     ("s-\""   "vikix-title"       "Rename this window")
     ;; Vikix

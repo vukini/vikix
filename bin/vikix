@@ -45,10 +45,11 @@
 #                       which window is where) saved, put back (the windows it
 #                       had that aren't open started, unless --no-start),
 #                       listed, removed
-#   vikix rules [off|on N] [why [CLASS]] [test|apply [N]] [verbs]
+#   vikix rules [off|on|forget N] [why [CLASS]] [test|apply [N]] [verbs]
 #                       the desktop's rules: the list, one off or on, why a
 #                       window is where it is, what they'd do with the windows
-#                       open now, and doing it (vikix rules help)
+#                       open now, and doing it; forget takes one out of your
+#                       rules.lisp (vikix rules help)
 #   vikix viri [on|off]  this workspace as a strip that scrolls sideways
 #                       (Super+h/l along it), or tiled again; no word switches
 #   vikix eval FORM     run Lisp in the running StumpWM, print the result

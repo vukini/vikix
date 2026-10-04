@@ -1396,7 +1396,10 @@ failing, and the rules naming a workspace that isn't there."
             ((equal what "test") (say (vikix-rules-test-text (one))))
             ((equal what "apply") (say (vikix-rules-apply (one))))
             ((equal what "verbs") (say (vikix-rules-verbs-text)))
-            (t (error "vikix rules: list, off, on, why, test, apply or verbs; not ~s." what)))
+            ((equal what "forget")
+             (say (format nil "Taken out of ~~/.stumpwm.d/rules.lisp, and off the desktop:~%  ~a~%vikix undo puts the file back."
+                          (vikix-rules-forget (vikix-rule-called arg)))))
+            (t (error "vikix rules: list, off, on, why, test, apply, forget or verbs; not ~s." what)))
       (values))))
 
 ;;; Super+m, Rules
@@ -1426,6 +1429,10 @@ own carets (a pattern's \"^regex$\") written so they show."
                                               '("Run it on the windows open now" :apply))
                                          (and (vikix-rule-file rule)
                                               '("Open it in Emacs, at its line" :edit))
+                                         (and (vikix-rule-file rule) (probe-file (vikix-rules-file))
+                                              (equal (ignore-errors (truename (vikix-rule-file rule)))
+                                                     (truename (vikix-rules-file)))
+                                              '("Forget it: take it out of rules.lisp" :forget))
                                          '("Nothing" nil))))))
     (case choice
       (:off (vikix-rule-switch rule nil)
@@ -1433,7 +1440,11 @@ own carets (a pattern's \"^regex$\") written so they show."
       (:on (vikix-rule-switch rule t)
        (message "On: ~a" (vikix-rules-carets (vikix-one-line (vikix-rule-text rule) 120))))
       (:apply (vikix-rules-show (vikix-rules-apply rule)))
-      (:edit (vikix-open-in-emacs (vikix-rule-file rule) (vikix-rule-line rule))))))
+      (:edit (vikix-open-in-emacs (vikix-rule-file rule) (vikix-rule-line rule)))
+      (:forget (handler-case
+                   (message "Taken out of ~~/.stumpwm.d/rules.lisp:~%~a~%vikix undo puts the file back."
+                            (vikix-rules-carets (vikix-one-line (vikix-rules-forget rule) 150)))
+                 (error (e) (message "^1Couldn't forget it:^n ~a" (vikix-one-line e))))))))
 
 (defcommand vikix-rules () ()
   "The desktop's rules: which are on, how often each ran, why the window
@@ -1454,3 +1465,274 @@ in front is where it is; switch one off or on, run them on the open windows."
               ((eq choice :apply) (vikix-rules-show (vikix-rules-apply)))
               ((eq choice :verbs) (vikix-rules-show (vikix-rules-verbs-text)))
               ((vikix-rule-p choice) (vikix-rules-menu-rule choice))))))
+
+;;; --- Remembering a window (Super+Shift+t) ---------------------------------------------------------
+;;;
+;;; The rule for the window in front, written for you: what to know it by,
+;;; its workspace, and when it floats its size and place as shares of the
+;;; monitor. It is shown first. On your yes a snapshot is taken, the rule
+;;; goes into ~/.stumpwm.d/rules.lisp under a dated comment, named
+;;; "remembered: ...", and is loaded. Remembering the same window again
+;;; replaces its rule where it stands; `vikix rules forget` takes a rule
+;;; out of the file again, and `vikix undo` puts the file back.
+;;;
+;;; The desktop only ever writes to rules.lisp, never to user.lisp.
+
+(defun vikix-rules-file ()
+  "Your file of rules."
+  (merge-pathnames ".stumpwm.d/rules.lisp" (user-homedir-pathname)))
+
+(defparameter *vikix-rules-file-head*
+  (format nil ";;;; rules.lisp — your rules for the desktop. vikix rules lists them,~%;;;; vikix rules verbs says what a rule can match and do.~%(in-package :stumpwm)~%")
+  "What a rules.lisp made here starts with.")
+
+(defparameter *vikix-remember-comment* ";; Remembered "
+  "How the comment above a remembered rule begins: it goes with its rule.")
+
+(defparameter *vikix-snapshot-command* "timeout 30 vikix snapshot"
+  "What takes a snapshot of your files before the desktop changes one; its
+message is added. The tests name another.")
+
+(defun vikix-remember-emacs-named-p (window)
+  "Has WINDOW, an Emacs frame, a name of its own (Esploro, a note's box)
+rather than its buffer's? Emacs is asked, with two seconds to answer; no
+answer is no."
+  (let* ((id (ignore-errors (xlib:window-id (window-xwin window))))
+         (lisp (and id (format nil "(let ((n 0)) (dolist (f (frame-list)) (when (and (equal (frame-parameter f 'outer-window-id) \"~d\") (frame-parameter f 'explicit-name)) (setq n 1))) n)" id)))
+         (out (and lisp (ignore-errors
+                         (run-shell-command (format nil "timeout 2 emacsclient -e ~a 2>/dev/null" (vikix-shell-quote lisp))
+                                            t)))))
+    (and out (equal (string-trim '(#\Space #\Newline) out) "1"))))
+
+(defun vikix-remember-instance-tells-p (window)
+  "Does WINDOW's instance say more than its class? It does when it is one
+of Vikix's own names (vikix-nmtui), or when another window open now has
+the class with another instance (an Alacritty started with --class)."
+  (let ((class (ignore-errors (window-class window)))
+        (instance (ignore-errors (window-res window))))
+    (and instance (plusp (length instance)) (not (equalp instance class))
+         (or (eql 0 (search "vikix-" instance))
+             (some (lambda (other)
+                     (and (not (eq other window))
+                          (equal (ignore-errors (window-class other)) class)
+                          (not (equal (ignore-errors (window-res other)) instance))))
+                   (ignore-errors (screen-windows (current-screen)))))
+         t)))
+
+(defun vikix-remember-ways (window)
+  "The ways a rule can know WINDOW, the one to offer first: :class,
+:instance, :title. An Emacs frame with a name of its own goes by its title,
+matched whole: every Emacs frame has the same class."
+  (let* ((class (or (ignore-errors (window-class window)) ""))
+         (instance (or (ignore-errors (window-res window)) ""))
+         (title (or (ignore-errors (window-title window)) ""))
+         (ways (remove nil (list (and (plusp (length class)) :class)
+                                 (and (plusp (length instance)) (not (equalp instance class)) :instance)
+                                 (and (plusp (length title)) :title))))
+         (first (cond ((and (equal class "Emacs") (member :title ways) (vikix-remember-emacs-named-p window)) :title)
+                      ((and (member :instance ways) (vikix-remember-instance-tells-p window)) :instance)
+                      ((member :class ways) :class)
+                      (t (first ways)))))
+    (and first (cons first (remove first ways)))))
+
+(defun vikix-remember-match (window way)
+  "(values MATCH WORDS): the matcher that knows WINDOW by WAY, and what to
+call it in the rule's name."
+  (let ((class (or (ignore-errors (window-class window)) ""))
+        (instance (or (ignore-errors (window-res window)) ""))
+        (title (or (ignore-errors (window-title window)) "")))
+    (ecase way
+      (:class (values (list :class class) class))
+      (:instance (values (list :instance instance) instance))
+      (:title (if (plusp (length class))
+                  (values (list :class class :title title) (format nil "~a ~s" class title))
+                  (values (list :title title) (format nil "~s" title)))))))
+
+(defun vikix-remember-share (part whole)
+  "PART of WHOLE as a rule writes it: \"65%\"."
+  (format nil "~d%" (max 0 (round (* 100 part) (max 1 whole)))))
+
+(defun vikix-remember-verbs (window &key workspace-only)
+  "The verbs that put a window like WINDOW where WINDOW is: its workspace,
+and when it floats its size and place as shares of the monitor below the
+bar (WORKSPACE-ONLY leaves those out). A window kept on every workspace
+has no workspace of its own: it is floated and kept everywhere."
+  (let* ((group (window-group window))
+         (workspace (if (equal (group-name group) (princ-to-string (group-number group)))
+                        (group-number group)
+                        (group-name group)))
+         (sticky (and (member window *always-show-windows*) t))
+         (float (and (typep window 'float-window)
+                     (multiple-value-bind (ax ay aw ah) (vikix-rule-area (window-head window))
+                       (let* ((parent (window-parent window))
+                              (w (xlib:drawable-width parent)) (h (xlib:drawable-height parent))
+                              (x (- (xlib:drawable-x parent) ax)) (y (- (xlib:drawable-y parent) ay))
+                              ;; In the middle, to a hundredth: float puts it there by itself.
+                              (middle (and (<= (abs (- x (floor (- aw w) 2))) (ceiling aw 100))
+                                           (<= (abs (- y (floor (- ah h) 2))) (ceiling ah 100)))))
+                         `(float :width ,(vikix-remember-share w aw) :height ,(vikix-remember-share h ah)
+                                 ,@(unless middle
+                                     (list :x (vikix-remember-share x aw) :y (vikix-remember-share y ah)))))))))
+    (cond (workspace-only `((workspace ,workspace)))
+          (sticky `(,(or float '(float)) (sticky)))
+          (float `((workspace ,workspace) ,float))
+          (t `((workspace ,workspace))))))
+
+(defun vikix-remember-rule (window &key way workspace-only)
+  "The rule that remembers WINDOW: (values FORM NAME). WAY is how to know
+it (the first of vikix-remember-ways when not given)."
+  (let ((way (or way (first (vikix-remember-ways window))
+                 (error "This window has no class, instance or title to know it by."))))
+    (multiple-value-bind (match words) (vikix-remember-match window way)
+      (let ((name (format nil "remembered: ~a" words)))
+        (values `(when-window ,match :name ,name ,@(vikix-remember-verbs window :workspace-only workspace-only))
+                name)))))
+
+;;; The file
+
+(defun vikix-rules-file-forms (text)
+  "The forms of TEXT, a file of rules, each with where it is: (FORM START
+END). An error when it can't be read."
+  (let ((*package* (find-package :stumpwm))
+        (*read-eval* nil)
+        (forms '()))
+    (with-input-from-string (in text)
+      (loop
+        (vikix-skip-comments in)
+        (let* ((start (file-position in))
+               (form (read in nil in)))
+          (when (eq form in) (return))
+          (push (list form start (file-position in)) forms))))
+    (nreverse forms)))
+
+(defun vikix-rules-file-span (text start end)
+  "What goes with the form from START to END in TEXT: from the start of
+its line, or of the ';; Remembered' comment on the line above, to the end
+of its last line. (values FROM TO)."
+  (flet ((line-start (position)
+           (1+ (or (position #\Newline text :end position :from-end t) -1))))
+    (let* ((from (line-start start))
+           (above (and (plusp from) (line-start (1- from))))
+           (to (let ((newline (position #\Newline text :start end)))
+                 (if newline (1+ newline) (length text)))))
+      (values (if (and above (eql above (search *vikix-remember-comment* text :start2 above)))
+                  above
+                  from)
+              to))))
+
+(defun vikix-rules-file-text ()
+  "Your rules.lisp as it is, or as a new one starts."
+  (let ((file (vikix-rules-file)))
+    (if (probe-file file)
+        (uiop:read-file-string file)
+        *vikix-rules-file-head*)))
+
+(defun vikix-rules-file-write (text why)
+  "A snapshot of your files (WHY, in words), then TEXT as your rules.lisp:
+written through a link to the file it names, never over the link."
+  (let ((file (vikix-rules-file)))
+    (ignore-errors
+     (run-shell-command (format nil "~a ~a >/dev/null 2>&1" *vikix-snapshot-command* (vikix-shell-quote why)) t))
+    (ensure-directories-exist file)
+    (with-open-file (out (or (probe-file file) file)
+                         :direction :output :if-exists :supersede :if-does-not-exist :create
+                         :external-format :utf-8)
+      (write-string text out))
+    file))
+
+(defun vikix-remember-named-p (form name)
+  "Is FORM a when-window rule whose :name is NAME?"
+  (and (consp form) (eq (first form) 'when-window)
+       (equal name (ignore-errors (getf (cddr form) :name)))))
+
+(defun vikix-remember-write (form name words)
+  "Write the rule FORM, named NAME, into your rules.lisp (in the place of
+the one of that name when there is one, else at its end, under a dated
+comment saying WORDS) and load it. Returns the rule, as the desktop has it."
+  (let* ((text (vikix-rules-file-text))
+         (printed (vikix-rules-print form))
+         (block (multiple-value-bind (s mi h d mo y) (get-decoded-time)
+                  (declare (ignore s mi h))
+                  (format nil "~a~4,'0d-~2,'0d-~2,'0d: ~a~%~a~%" *vikix-remember-comment* y mo d words printed)))
+         ;; A file that can't be read is only added to.
+         (old (find-if (lambda (entry) (vikix-remember-named-p (first entry) name))
+                       (ignore-errors (vikix-rules-file-forms text))))
+         (new (if old
+                  (multiple-value-bind (from to) (vikix-rules-file-span text (second old) (third old))
+                    (concatenate 'string (subseq text 0 from) block (subseq text to)))
+                  (format nil "~a~%~%~a" (string-right-trim '(#\Newline #\Space) text) block)))
+         (file (vikix-rules-file-write new (format nil "before: a rule for ~a" words)))
+         (line (vikix-line-at new (search printed new))))
+    (let ((*load-truename* (truename file))
+          (*load-pathname* (pathname file))
+          (*vikix-load-line* line)
+          (*package* (find-package :stumpwm)))
+      ;; What is in the file is what runs: read back from its own words.
+      (vikix-eval-from file (let ((*read-eval* nil)) (read-from-string printed))))
+    (find name *vikix-rules* :key #'vikix-rule-name :test #'equal)))
+
+(defun vikix-rules-forget (rule)
+  "Take RULE out of your rules.lisp, and out of the desktop. Its text. An
+error for a rule written anywhere else, or not found there as it was loaded."
+  (let ((file (vikix-rules-file))
+        (number (vikix-rule-number rule)))
+    (unless (and (vikix-rule-file rule) (probe-file file)
+                 (equal (ignore-errors (truename (vikix-rule-file rule))) (truename file)))
+      (error "Rule ~d is written in ~a, not in your rules.lisp: it can only be taken out there (vikix rules off ~d switches it off until the next reload)."
+             number (vikix-rule-from rule) number))
+    (let* ((text (uiop:read-file-string file))
+           (forms (handler-case (vikix-rules-file-forms text)
+                    (error (e) (error "rules.lisp can't be read (~a): take the rule out by hand." (vikix-one-line e)))))
+           (found (find (vikix-rule-text rule) forms
+                        :key (lambda (entry) (ignore-errors (vikix-rules-print (first entry))))
+                        :test #'equal)))
+      (unless found
+        (error "Rule ~d isn't in rules.lisp as it was loaded (was the file changed since?): reload the config, or take it out by hand."
+               number))
+      (multiple-value-bind (from to) (vikix-rules-file-span text (second found) (third found))
+        (let ((left (string-right-trim '(#\Newline) (subseq text 0 from)))
+              (right (string-left-trim '(#\Newline) (subseq text to))))
+          (vikix-rules-file-write (format nil "~a~%~:[~;~%~]~a" left (plusp (length right)) right)
+                                  (format nil "before: forgetting the rule ~a" (vikix-one-line (vikix-rule-text rule) 80)))))
+      (vikix-remove-rules :key (vikix-rule-key rule))
+      (vikix-rule-text rule))))
+
+;;; The key
+
+(defcommand vikix-remember () ()
+  "Remember this window here: write the rule that puts a window like it
+where this one is (its workspace, and when it floats its size and place)
+into ~/.stumpwm.d/rules.lisp. The rule is shown first."
+  (let ((window (current-window)))
+    (if (null window)
+        (message "No window to remember: go to one first.")
+        (let* ((ways (or (vikix-remember-ways window)
+                         (return-from vikix-remember
+                           (message "This window has no class, instance or title for a rule to know it by."))))
+               (placed (or (typep window 'float-window) (member window *always-show-windows*)))
+               (words (lambda (way)
+                        (ecase way (:class "its class") (:instance "its instance") (:title "its title, exactly"))))
+               (label (lambda (start &rest keys)
+                        (format nil "~a  ~a" start
+                                (vikix-rules-carets (vikix-one-line (vikix-rules-print (apply #'vikix-remember-rule window keys)) 140)))))
+               (choice (vikix-ask "Remember this window here? The rule goes into ~/.stumpwm.d/rules.lisp"
+                                  (append
+                                   (list (list (funcall label "Write it:") (list :way (first ways))))
+                                   (and placed
+                                        (list (list (funcall label "Its workspace only:" :workspace-only t)
+                                                    (list :way (first ways) :workspace-only t))))
+                                   (mapcar (lambda (way)
+                                             (list (funcall label (format nil "Known by ~a instead:" (funcall words way)) :way way)
+                                                   (list :way way)))
+                                           (rest ways))
+                                   '(("Cancel" nil))))))
+          (when choice
+            (handler-case
+                (multiple-value-bind (form name) (apply #'vikix-remember-rule window choice)
+                  (let ((rule (vikix-remember-write form name (subseq name (length "remembered: ")))))
+                    (message "Remembered, in ~~/.stumpwm.d/rules.lisp:~%~a~%vikix rules forget ~d takes it out again."
+                             (vikix-rules-carets (vikix-one-line (vikix-rules-print form) 150))
+                             (or (and rule (vikix-rule-number rule)) 0))))
+              (error (e)
+                (vikix-error-report e "remembering a window" nil)
+                (message "^1Couldn't write the rule:^n ~a" (vikix-one-line e)))))))))

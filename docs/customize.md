@@ -122,6 +122,8 @@ Anything else in a rule is Lisp of your own, where `(window)` is the window. Bet
 | `vikix rules off 3` | switch a rule off until the next reload, by its number, its `:name`, or words only it has; `vikix rules on 3` brings it back |
 | `vikix rules verbs` | everything a rule can be, match and do, each with its line |
 
+You don't have to write a rule to get one. Put a window where you want it (its workspace; floating, its size and place) and press `Super+Shift+t`: the rule that would put a window like it there is shown, and on your yes it is added to `~/.stumpwm.d/rules.lisp` under a dated comment, named `"remembered: ..."`, after a snapshot. The menu also offers the workspace alone, and another way to know the window (its instance or its title instead of its class). Remembering the same window again replaces its rule. `vikix rules forget 3` takes a rule out of `rules.lisp` again (by its number or name), and `vikix undo` puts the file back as it was. Only `rules.lisp` is ever written this way, never `user.lisp`.
+
 A misspelt verb is found when the file loads, with its line, like any mistake in `user.lisp`. A rule that fails when a window opens never stops the desktop: it says so, the error is kept in `~/.local/state/vikix/errors/`, and after three failures the rule is off until the next reload. Reloading doesn't move the windows you already have.
 
 Rules run in the order they're written, Vikix's first, then `rules.lisp`, then `user.lisp`; when two send a window to different workspaces, the last one wins.

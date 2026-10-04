@@ -84,7 +84,7 @@ The everyday command.
 - `vikix theme import URL|OWNER/REPO [NAME]` — an Omarchy theme as one of yours, then switch to it (vikix theme --help)
 - `vikix version`
 - `vikix layout save NAME | NAME [--no-start] | list | rm NAME` — this workspace's layout (its splits or its strip, and which window is where) saved, put back (the windows it had that aren't open started, unless --no-start), listed, removed
-- `vikix rules [off|on N] [why [CLASS]] [test|apply [N]] [verbs]` — the desktop's rules: the list, one off or on, why a window is where it is, what they'd do with the windows open now, and doing it (vikix rules help)
+- `vikix rules [off|on|forget N] [why [CLASS]] [test|apply [N]] [verbs]` — the desktop's rules: the list, one off or on, why a window is where it is, what they'd do with the windows open now, and doing it; forget takes one out of your rules.lisp (vikix rules help)
 - `vikix viri [on|off]` — this workspace as a strip that scrolls sideways (Super+h/l along it), or tiled again; no word switches
 - `vikix eval FORM` — run Lisp in the running StumpWM, print the result
 - `vikix debug` — one file saying what's going on, secrets taken out, to attach to an issue
@@ -770,6 +770,7 @@ The desktop's rules, seen and steered.
 - `vikix rules why [CLASS]` — why a window is where it is: the rules that ran for it, and those that match it but haven't run, each with the reason. The window in front, or those of that class (or with CLASS in their title)
 - `vikix rules test [N|NAME]` — what the rules for a window opening would do with the windows open now (or that rule alone); nothing is done
 - `vikix rules apply [N|NAME]` — do it: run them on the windows open now. A reload never moves windows already open; this does
+- `vikix rules forget N|NAME` — take a rule out of `~/.stumpwm.d/rules.lisp` and off the desktop, after a snapshot (vikix undo puts the file back). Only a rule written in that file: one Super+Shift+t remembered, or one of yours
 - `vikix rules verbs` — what a rule can be, match and do: the rules, the matchers and the verbs, each with its line
 
 The rules are written in `~/.stumpwm.d/rules.lisp` (or user.lisp):
@@ -780,6 +781,8 @@ The rules are written in `~/.stumpwm.d/rules.lisp` (or user.lisp):
 ```
 
 and live in the running StumpWM, which this asks (vikix eval): the counts are since the last reload, and off lasts until the next one, which reads the files again. Super+m, Rules is the same list in a menu.
+
+Super+Shift+t writes one for you: the rule that puts a window like the one in front where it is (its workspace, and when it floats its size and place), shown first, then added to rules.lisp as "remembered: ...".
 
 ## vikix-screens
 

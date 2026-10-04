@@ -209,8 +209,84 @@ LISP
          (search "isn't a rule for a window opening"
                  (princ-to-string (nth-value 1 (ignore-errors (vikix-rules-cli "test" "seen-at"))))))
   (check "a word vikix rules doesn't know is refused"
-         (search "list, off, on, why, test, apply or verbs"
+         (search "list, off, on, why, test, apply, forget or verbs"
                  (princ-to-string (nth-value 1 (ignore-errors (vikix-rules-cli "frobnicate")))))))
+LISP
+
+  # Remembering a window: how it is known, and your rules.lisp written,
+  # a rule replaced where it stands, one taken out. Loaded last too.
+  cat > "$t/remember.lisp" <<'LISP'
+(in-package :stumpwm)
+(defvar *named-frame* nil)
+(defun vikix-remember-emacs-named-p (window) (declare (ignore window)) *named-frame*)   ; Emacs isn't asked here
+(defun rules-file-text () (uiop:read-file-string (vikix-rules-file)))
+(defun count-of (part text) (loop with n = 0 for at = (search part text) then (search part text :start2 (1+ at)) while at do (incf n) finally (return n)))
+
+(check "a window is known by its class"
+       (equal (vikix-remember-ways (win "Firefox" :res "Navigator" :title "Mozilla Firefox")) '(:class :instance :title)))
+(check "by its instance when that is one of Vikix's own names"
+       (eq (first (vikix-remember-ways (win "Alacritty" :res "vikix-nmtui" :title "nmtui"))) :instance))
+(check "an Emacs frame by its class, and by its title when it has a name of its own"
+       (and (eq (first (vikix-remember-ways (win "Emacs" :res "emacs" :title "notes.org"))) :class)
+            (let ((*named-frame* t)) (eq (first (vikix-remember-ways (win "Emacs" :res "emacs" :title "Esploro"))) :title))))
+(check "known by its title: the class too, the title whole, and a name that says both"
+       (multiple-value-bind (match words) (vikix-remember-match (win "Emacs" :res "emacs" :title "Esploro") :title)
+         (and (equal match '(:class "Emacs" :title "Esploro")) (equal words "Emacs \"Esploro\""))))
+(check "a share of the monitor is a whole number of percent" (equal (vikix-remember-share 640 1280) "50%"))
+
+;; The file: made when it isn't there, with its first lines.
+(check "there is no rules.lisp yet" (not (probe-file (vikix-rules-file))))
+(let ((rule (vikix-remember-write '(when-window (:class "Kept") :name "remembered: Kept" (workspace 2))
+                                  "remembered: Kept" "Kept")))
+  (check "remembering writes rules.lisp, under a dated comment, after its first lines"
+         (let ((text (rules-file-text)))
+           (and (eql 0 (search ";;;; rules.lisp" text)) (search "(in-package :stumpwm)" text)
+                (ppcre:scan ";; Remembered \\d{4}-\\d\\d-\\d\\d: Kept\\n\\(when-window \\(:class \"Kept\"\\) :name \"remembered: Kept\" \\(workspace 2\\)\\)\\n" text))))
+  (check "and the rule is loaded, as one of rules.lisp's, with its line"
+         (and rule (equal (vikix-rule-owner rule) "rules.lisp")
+              (equal (vikix-rule-text rule) "(when-window (:class \"Kept\") :name \"remembered: Kept\" (workspace 2))")
+              (eql (vikix-rule-line rule) (vikix-line-at (rules-file-text) (search "(when-window (:class \"Kept\")" (rules-file-text)))))))
+;; Lines of your own around it, then the same window remembered again.
+(with-open-file (out (vikix-rules-file) :direction :output :if-exists :append)
+  (format out "~%;; Mine, by hand.~%(when-window (:class \"Mine\")~%  (title \"mine\"))~%"))
+(vikix-load-forms (vikix-rules-file) "rules.lisp")
+(vikix-remember-write '(when-window (:class "Kept") :name "remembered: Kept" (workspace 5))
+                      "remembered: Kept" "Kept")
+(check "remembering the same window again replaces its rule where it stood, and leaves your own lines alone"
+       (let ((text (rules-file-text)))
+         (and (= 1 (count-of "remembered: Kept" text)) (= 1 (count-of ";; Remembered " text))
+              (search "(workspace 5)" text) (not (search "(workspace 2)" text))
+              (< (search "remembered: Kept" text) (search ";; Mine, by hand." text))
+              (search (format nil "(when-window (:class \"Mine\")~%  (title \"mine\"))") text)
+              (= 1 (count "remembered: Kept" *vikix-rules* :key #'vikix-rule-name :test #'equal)))))
+;; Forgetting.
+(check "a rule written elsewhere can't be forgotten, and the refusal says where it is"
+       (search "not in your rules.lisp"
+               (princ-to-string (nth-value 1 (ignore-errors (vikix-rules-forget (vikix-rule-called "seen-rule")))))))
+(check "forgetting takes a rule of your own out of the file, lines and all, and off the desktop"
+       (and (vikix-rules-forget (rule-of "(title \"mine\")"))
+            (not (search "(:class \"Mine\")" (rules-file-text)))
+            (search ";; Mine, by hand." (rules-file-text))
+            (null (rule-of "(title \"mine\")"))
+            (search "remembered: Kept" (rules-file-text))))
+(check "and a remembered one with its comment"
+       (progn (with-output-to-string (*standard-output*) (vikix-rules-cli "forget" "remembered: Kept"))
+              (and (not (search "Kept" (rules-file-text)))
+                   (not (search ";; Remembered" (rules-file-text)))
+                   (null (find "remembered: Kept" *vikix-rules* :key #'vikix-rule-name :test #'equal))
+                   (search "(in-package :stumpwm)" (rules-file-text)))))
+;; A file that can't be read is only added to.
+(with-open-file (out (vikix-rules-file) :direction :output :if-exists :supersede)
+  (format out "(in-package :stumpwm)~%(when-window (:class \"Open\"~%"))
+(let ((rule (vikix-remember-write '(when-window (:class "Late") :name "remembered: Late" (workspace 1))
+                                  "remembered: Late" "Late")))
+  (check "a rules.lisp that can't be read is only added to, nothing of it lost"
+         (and (search "(when-window (:class \"Open\"" (rules-file-text))
+              (search "remembered: Late" (rules-file-text))))
+  (check "and forgetting says it can't read the file"
+         (search "can't be read"
+                 (princ-to-string (nth-value 1 (ignore-errors (vikix-rules-forget rule)))))))
+(defun remember-checks-ran () t)
 LISP
 
   local out
@@ -364,9 +440,12 @@ LISP
   (handler-bind ((warning #'muffle-warning))
     (vikix-load-forms \"$t/seeing.lisp\" \"seeing.lisp\"))
   (check \"the checks of seeing and steering ran to their end\" (fboundp 'refusal))
+  (handler-bind ((warning #'muffle-warning))
+    (vikix-load-forms \"$t/remember.lisp\" \"remember.lisp\"))
+  (check \"the checks of remembering ran to their end\" (fboundp 'remember-checks-ran))
   (format t \"~a~%\" (if (zerop *fails*) \"no-screen: ok\" \"no-screen: failed\")))" 2>&1) || true
   if grep -q '^no-screen: ok$' <<<"$out"; then
-    said+=("matching, mistakes found at load with their line, one rule after a second load, failing rules switched off at the third, :once, :focus and :close, plugins' rules, the list, off and on, why a window is where it is")
+    said+=("matching, mistakes found at load with their line, one rule after a second load, failing rules switched off at the third, :once, :focus and :close, plugins' rules, the list, off and on, why a window is where it is, a rule remembered, replaced and forgotten in rules.lisp")
   else
     echo "$out" | grep -v '^;\|^$' | tail -25
     echo "FAIL: the rules without a screen"
@@ -793,9 +872,71 @@ LISP
     echo "rules: no xdotool here; the menu's key left out"
   fi
 
+  # Remembering a window (Super+Shift+t): the rule for where it is, written
+  # into rules.lisp after a snapshot (a stand-in notes what it was told).
+  printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> "%s/snaps"\n' "$t" > "$t/snap"; chmod +x "$t/snap"
+  ask "(setf *vikix-snapshot-command* \"$t/snap\")" >/dev/null
+  remembered() { ask "(princ (vikix-rules-print (vikix-remember-rule $1 ${2:-})))"; }
+  check "Super+Shift+t is the key" yes '(equal (lookup-key *top-map* (kbd "s-T")) "vikix-remember")'
+  out=$(remembered "$(titled ToTwo)")
+  check "a tiled window is known by its class, and remembered on its workspace: $out" \
+    test "$out" = '(when-window (:class "ToTwo") :name "remembered: ToTwo" (workspace 2))'
+  go 1
+  win Kept
+  ask "(let ((*vikix-rule-window* $(the Kept))) (vikix-verb-float :width \"40%\" :height \"30%\" :x \"10%\" :y \"20%\"))" >/dev/null; sleep 0.5
+  out=$(remembered "$(the Kept)")
+  check "a floating window with its size and place, as shares of the monitor: $out" \
+    test "$out" = '(when-window (:class "Kept") :name "remembered: Kept" (workspace 1) (float :width "40%" :height "30%" :x "10%" :y "20%"))'
+  geometry() { ask "(let ((p (window-parent $1))) (princ (list (xlib:drawable-x p) (xlib:drawable-y p) (xlib:drawable-width p) (xlib:drawable-height p))))"; }
+  local before
+  before=$(geometry "$(the Kept)")
+  ask "(multiple-value-bind (form name) (vikix-remember-rule $(the Kept)) (vikix-remember-write form name \"Kept\"))" >/dev/null
+  check "it is written into rules.lisp, after a snapshot that says what for: $(cat "$t/snaps" 2>/dev/null)" \
+    bash -c "grep -q ':name \"remembered: Kept\"' '$home/.stumpwm.d/rules.lisp' && grep -qx 'before: a rule for Kept' '$t/snaps'"
+  check "and loaded, as one of rules.lisp's" yes '(equal (vikix-rule-owner (vikix-rule-called "remembered: Kept")) "rules.lisp")'
+  ask "(delete-window $(the Kept))" >/dev/null; sleep 0.7
+  win Kept kept-again
+  check "a window like it then opens floating, at the same size and place: $before, $(geometry "$(titled kept-again)")" \
+    bash -c "[ -n '$before' ] && [ '$before' = '$(geometry "$(titled kept-again)")' ]"
+  win Mid
+  ask "(let ((*vikix-rule-window* $(the Mid))) (vikix-verb-float :width \"50%\" :height \"50%\"))" >/dev/null; sleep 0.5
+  out=$(remembered "$(the Mid)")
+  check "one floating in the middle has no place written, float's own: $out" \
+    test "$out" = '(when-window (:class "Mid") :name "remembered: Mid" (workspace 1) (float :width "50%" :height "50%"))'
+  out=$(remembered "$(the Mid)" ":workspace-only t")
+  check "its workspace only, when asked: $out" test "$out" = '(when-window (:class "Mid") :name "remembered: Mid" (workspace 1))'
+  # Two windows of one class, each with an instance of its own (as an
+  # Alacritty started with --class): the instance tells them apart.
+  win "Shared,inst-a" share-a
+  win "Shared,inst-b" share-b
+  out=$(ask "(let ((a $(titled share-a)) (b $(titled share-b))) (princ (list (first (vikix-remember-ways a)) (equal (window-class a) (window-class b)) (equal (window-res a) (window-res b)))))")
+  check "two windows of a class with instances of their own are known by the instance (way, same class, same instance): $out" \
+    bash -c "case '$out' in '(INSTANCE T NIL)'|'(CLASS NIL T)') true ;; *) false ;; esac"
+  # The key itself, and the menu's first choice: write it.
+  if command -v xdotool >/dev/null; then
+    ask "(focus-all $(the Mid))" >/dev/null; sleep 0.5
+    xdotool key super+shift+t
+    sleep 2
+    xdotool key Return
+    sleep 1.5
+    check "the key shows the rule and, on yes, writes it: $(grep -c . "$home/.stumpwm.d/rules.lisp") lines, $(tail -1 "$home/.stumpwm.d/rules.lisp")" \
+      grep -qxF '(when-window (:class "Mid") :name "remembered: Mid" (workspace 1) (float :width "50%" :height "50%"))' "$home/.stumpwm.d/rules.lisp"
+    check "with its dated comment above it" bash -c "grep -B1 -F 'remembered: Mid' '$home/.stumpwm.d/rules.lisp' | grep -qE '^;; Remembered [0-9]{4}-[0-9]{2}-[0-9]{2}: Mid\$'"
+  else
+    echo "rules: no xdotool here; the key that remembers a window left out"
+  fi
+  out=$(rules forget "remembered: Kept")
+  check "vikix rules forget takes a rule out of rules.lisp and off the desktop: $out" \
+    bash -c "! grep -q 'remembered: Kept' '$home/.stumpwm.d/rules.lisp' && grep -q 'Taken out of' <<<'$out'"
+  check "the rules written by hand around it are still there" grep -q '(when-window (:class "Follow") (workspace 3 :follow t))' "$home/.stumpwm.d/rules.lisp"
+  check "and the desktop has let it go" yes '(null (find "remembered: Kept" *vikix-rules* :key (function vikix-rule-name) :test (function equal)))'
+  out=$(rules forget FromUser)
+  check "a rule of user.lisp isn't the desktop's to take out: $out" grep -q 'is written in user.lisp:[0-9]*, not in your rules.lisp' <<<"$out"
+  check "and user.lisp is as it was" grep -q 'FromUser' "$home/.stumpwm.d/user.lisp"
+
   check "nothing asked, nothing failed, in the whole run" test -z "$(grep -il 'debugger\|unhandled' "$t/wm.log" 2>/dev/null)"
   [ "$fail" = 0 ] || diagnose
-  [ "$fail" = 0 ] && said+=("and on a screen: workspace before the window shows, float by shares of the monitor, tile, title, fullscreen, sticky, dialog, vikix rules (the list, why, test, apply, off and on), a failing rule, a reload, a restart, the ticker, at-login once")
+  [ "$fail" = 0 ] && said+=("and on a screen: workspace before the window shows, float by shares of the monitor, tile, title, fullscreen, sticky, dialog, vikix rules (the list, why, test, apply, off and on, forget), a window remembered with its key and reopened where it was, a failing rule, a reload, a restart, the ticker, at-login once")
   return 0
 }
 

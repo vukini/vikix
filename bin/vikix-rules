@@ -20,6 +20,11 @@
 #   vikix rules apply [N|NAME]
 #                            do it: run them on the windows open now. A reload
 #                            never moves windows already open; this does
+#   vikix rules forget N|NAME
+#                            take a rule out of ~/.stumpwm.d/rules.lisp and off
+#                            the desktop, after a snapshot (vikix undo puts the
+#                            file back). Only a rule written in that file: one
+#                            Super+Shift+t remembered, or one of yours
 #   vikix rules verbs        what a rule can be, match and do: the rules, the
 #                            matchers and the verbs, each with its line
 #
@@ -31,6 +36,10 @@
 # and live in the running StumpWM, which this asks (vikix eval): the counts
 # are since the last reload, and off lasts until the next one, which reads
 # the files again. Super+m, Rules is the same list in a menu.
+#
+# Super+Shift+t writes one for you: the rule that puts a window like the
+# one in front where it is (its workspace, and when it floats its size and
+# place), shown first, then added to rules.lisp as "remembered: ...".
 
 set -euo pipefail
 VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
@@ -56,7 +65,7 @@ ask() {
 
 case ${1:-list} in
   list)       [ $# -le 1 ] || die "vikix rules list takes nothing more (vikix rules help)"; ask list ;;
-  off|on)     [ $# -eq 2 ] || die "which rule? vikix rules $1 N|NAME (vikix rules lists them)"; ask "$1" "$2" ;;
+  off|on|forget) [ $# -eq 2 ] || die "which rule? vikix rules $1 N|NAME (vikix rules lists them)"; ask "$1" "$2" ;;
   why)        [ $# -le 2 ] || die "vikix rules why [CLASS]: one class, in quotes if it has spaces"; ask why "${2:-}" ;;
   test|apply) [ $# -le 2 ] || die "vikix rules $1 [N|NAME]: one rule, or none for all of them"; ask "$1" "${2:-}" ;;
   verbs)      ask verbs ;;
