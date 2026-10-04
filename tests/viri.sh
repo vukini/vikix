@@ -40,6 +40,7 @@ mouse() { xdotool "$@"; sleep 0.4; }
 # program's window is: what the pointer does before StumpWM has taken it is
 # lost. A hand is slower than that; on a busy machine a test isn't, so it waits.
 press() { xdotool mousedown "$1"; sleep 1.5; }
+colwidth() { ask '(princ (viri-col-width (viri-col-of (current-group) (current-window))))'; }
 xs() { ask '(progn (setf *print-pretty* nil) (format t "~{~a~^ ~}" (mapcar (lambda (w) (xlib:drawable-x (window-parent w))) (viri-columns (current-group)))))'; }
 
 for w in A B C D; do win "$w"; done
@@ -321,6 +322,19 @@ check "and gives them back: $(share)" test "$(share) $(fills)" = "$tall 1"
 ask '(progn (viri-even-heights (viri-col-of (current-group) (current-window))) (viri-layout (current-group)))' >/dev/null
 key super+bracketright
 
+# Fill: Super+b on a strip makes this column as wide as the room the other
+# columns wholly on the screen leave, so that together they fill it; pressed
+# again it changes nothing.
+filled() { ask '(let* ((g (current-group)) (i (position (viri-col-of g (current-window)) (viri-cols g)))) (multiple-value-bind (ax ay aw) (viri-area g) (declare (ignore ax ay)) (let ((spans (viri-spans g aw)) (shown (viri-visible g))) (princ (if (and (member i shown) (= (- aw (viri-pin-width g aw)) (reduce (function +) (mapcar (lambda (j) (cdr (nth j spans))) shown)))) 1 0)))))'; }
+key super+Home
+ask '(let ((g (current-group))) (setf (viri-col-width (viri-col-of g (current-window))) 1/3) (viri-scroll-to g (current-window)) (viri-layout g))' >/dev/null; sleep 0.3
+check "a column a third wide leaves room on the screen" test "$(filled)" = 0
+key super+b
+check "Super+b: it takes the room the others on the screen leave, and they fill it: $(colwidth)" test "$(filled) $(inplace)" = "1 1"
+was=$(colwidth); key super+b
+check "again changes nothing: $(colwidth)" test "$(colwidth) $(filled)" = "$was 1"
+ask '(let ((g (current-group))) (setf (viri-col-width (viri-col-of g (current-window))) 1/2) (viri-layout g))' >/dev/null; sleep 0.3
+
 # Title bars: each column's window has the tiles' bar, as wide as the column,
 # the window below it; Super+Ctrl+y takes them away and brings them back; a
 # fullscreen window has none.
@@ -342,7 +356,6 @@ check "out of fullscreen it has its bar and its place again: $(bars)" test "$(ba
 # the column to where it's let go; a click on the title bar moves nothing.
 # On the bar the wheel walks too, and on the overview a click on a box goes
 # to its window, a click off the card closes it.
-width() { ask '(princ (viri-col-width (viri-col-of (current-group) (current-window))))'; }
 for _ in 1 2 3 4 5 6 7 8; do key super+h; done
 one=$(focus); read -r one two _ <<<"$(order)"
 read -r x y w h b <<<"$(geo '(current-window)')"
@@ -351,12 +364,12 @@ mouse keydown super click 5 keyup super
 check "Super and the wheel down walks to the next column: $(focus)" test "$(focus)" = "$two"
 mouse keydown super click 4 keyup super
 check "and the wheel up walks back: $(focus)" test "$(focus)" = "$one"
-was=$(width)
+was=$(colwidth)
 mouse mousemove $((x + w / 2)) $((y + h / 2)); mouse keydown super mousedown 3; mouse mousemove_relative 64 0; mouse mousemove_relative 64 0; mouse mouseup 3 keyup super
-check "Super and a drag with the right button makes the column a tenth of the screen wider: $was, then $(width)" test "$(ask "(princ (if (= (viri-col-width (viri-col-of (current-group) (current-window))) (+ $was 1/10)) 1 0))")" = 1
+check "Super and a drag with the right button makes the column a tenth of the screen wider: $was, then $(colwidth)" test "$(ask "(princ (if (= (viri-col-width (viri-col-of (current-group) (current-window))) (+ $was 1/10)) 1 0))")" = 1
 read -r x y w h b <<<"$(geo '(current-window)')"
 mouse mousemove $((x + b + w)) $((y + h / 2)); press 1; mouse mousemove_relative -- -64 0; mouse mousemove_relative -- -64 0; mouse mouseup 1
-check "a drag of its side edge brings it back: $(width)" test "$(width)" = "$was"
+check "a drag of its side edge brings it back: $(colwidth)" test "$(colwidth)" = "$was"
 check "the pointer stayed at the edge it pressed, not sent to the window's middle" test "$(ask '(princ (if (< (abs (- (xlib:global-pointer-position *display*) (let ((p (window-parent (current-window)))) (+ (xlib:drawable-x p) (xlib:drawable-width p))))) 12) 1 0))')" = 1
 before=$(order)
 read -r x y w h b <<<"$(geo '(current-window)')"
@@ -390,7 +403,7 @@ check "and again flips between the two: $(focus)" test "$(focus)" = "$now"
 xdotool mousemove 5 400; sleep 0.3; ask "(focus-all $(find_w "$now"))" >/dev/null; key super+p
 check "Super+p brings the pointer to the window" test "$(ask '(let ((p (window-parent (current-window)))) (multiple-value-bind (x y) (xlib:global-pointer-position *display*) (princ (if (and (<= (xlib:drawable-x p) x (+ (xlib:drawable-x p) (xlib:drawable-width p))) (<= (xlib:drawable-y p) y (+ (xlib:drawable-y p) (xlib:drawable-height p)))) 1 0))))')" = 1
 key super+u; key super+shift+u; key super+b; key super+v
-check "Super+u, Super+b and Super+v say a strip has none of that" test "$(msgs | grep -c 'A strip has no splits\|Layout undo is for tiled')" -ge 3
+check "Super+u and Super+Shift+u say a strip has no layout to undo; Super+b and Super+v have their own work there" test "$(msgs | grep -c 'Layout undo is for tiled')" -ge 2
 sent=$(focus); key super+shift+3
 check "a column sent to a tiled workspace is tiled there, in a frame: $sent" test "$(ask "(princ (type-of $(find_any "$sent")))")" = TILE-WINDOW
 key super+3; key super+g; sleep 1; key Return   # the list first, then Enter: a slow machine
@@ -400,5 +413,5 @@ check "Super+Shift+g brings one off the strip, into a frame: $(focus)" test "$(a
 key super+1
 check "none of them was an error: $(msgs | grep -i 'Error In Command\|not found' | head -1)" test -z "$(msgs | sed '/the window keys/,$d' | grep -i 'Error In Command\|not found')"
 
-wm_report viri "a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, the drawn overview and its keys, the agents' desktop tool, new and closed windows, a dialog, another workspace, off and on, sliding and centring, the ends and a pinned column, tabs, uneven heights, title bars, the mouse, the window keys on a strip"
+wm_report viri "a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, the drawn overview and its keys, the agents' desktop tool, new and closed windows, a dialog, another workspace, off and on, sliding and centring, the ends and a pinned column, tabs, uneven heights, filling the screen, title bars, the mouse, the window keys on a strip"
 exit "$fail"

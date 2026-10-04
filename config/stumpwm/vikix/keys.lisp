@@ -134,7 +134,7 @@ of a reload's 15 seconds, and the desktop stood still meanwhile."
     ("s-S-Up"    "vikix-move up"    "Move window up (arrow)")
     ("s-S-Right" "vikix-move right" "Move window right (arrow)")
     ;; frames (StumpWM's splits)
-    ("s-b"    "vikix-split"       "Split: side by side")
+    ("s-b"    "vikix-split"       "Split: side by side (on a strip: this column fills the room the others leave)")
     ("s-v"    "vikix-split below" "Split: one above the other (on a strip: this window taller in its column)")
     ("s-r"    "vikix-width-or-remove" "Remove this split (on a strip: the column's width; in main and stack: the main window's)")
     ("s-Home"   "vikix-focus-end first" "On a strip: the first column")

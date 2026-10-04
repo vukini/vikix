@@ -717,15 +717,59 @@ to it; on tiles it comes into this frame (pull-hidden-other)."
 (defcommand vikix-split (&optional how) ((:string nil))
   "Split this frame in two: side by side, or with \"below\" one above the
 other. A strip has no splits to make: there \"below\" makes this window
-taller in its column (vikix-height)."
+taller in its column (vikix-height), and side by side makes its column as
+wide as the others on the screen leave room for (vikix-fill)."
   (cond ((and (viri-group-p) (equal how "below"))
          ;; The key for one above the other: on a strip, where windows stand
          ;; so in a column, it is how much of the column this one has.
          (viri-cycle-height (current-group)))
         ((viri-group-p)
-         (message "A strip has no splits: a new window opens beside this one, and Super+[ or Super+] puts a window under its neighbour."))
+         ;; And the key for side by side, where columns stand so: how much of
+         ;; the screen this one has beside the others on it.
+         (viri-fill (current-group)))
         ((equal how "below") (run-commands "vsplit"))
         (t (run-commands "hsplit"))))
+
+(defun viri-fill (group)
+  "The focused column as wide as the room the other columns wholly on the
+screen leave: with it they fill the screen exactly, and none is cut."
+  (let* ((window (group-current-window group))
+         (col (viri-col-of group window)))
+    (cond ((null col)
+           (message "No column here."))
+          ((eq col (viri-pinned group))
+           (message "The pinned column keeps the width you gave it: Super+r changes it."))
+          (t
+           (multiple-value-bind (ax ay aw) (viri-area group)
+             (declare (ignore ax ay))
+             (let* ((pin (viri-pin-width group aw))
+                    (i (position col (viri-cols group)))
+                    (spans (viri-spans group aw))
+                    ;; The others wholly on the screen keep their widths.
+                    (others (remove i (viri-visible group)))
+                    (room (- aw pin (loop for j in others sum (cdr (nth j spans)))))
+                    (width (/ room aw)))
+               (cond ((< width *viri-width-least*)
+                      (message "The other columns on the screen leave no room: Super+r makes one of them narrower."))
+                     ((= room (cdr (nth i spans)))
+                      (message "This column has the room there is already."))
+                     (t
+                      (setf (viri-col-width col) width)
+                      ;; Scrolled so that the first of them stands at the
+                      ;; screen's edge (or the pinned column's): then they fit.
+                      (let ((first (reduce #'min (cons i others))))
+                        (setf (viri-offset group)
+                              (- (car (nth first (viri-spans group aw))) pin)))
+                      (viri-layout group)
+                      (message "This column fills the room the others leave: ~d% of the screen"
+                               (round (* 100 width)))))))))))
+
+(defcommand vikix-fill () ()
+  "On a strip: this column as wide as the room the other columns on the
+screen leave, so that together they fill it."
+  (if (viri-group-p)
+      (viri-fill (current-group))
+      (message "Filling the screen beside the other columns is a strip's (vikix viri).")))
 
 (defun viri-cycle-height (group)
   "The focused window taller in its column: the next of *viri-height-shares*

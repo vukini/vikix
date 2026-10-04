@@ -48,9 +48,12 @@ The strip scrolls only as far as it must to show the column you went to whole, s
 | Key | What it does |
 |---|---|
 | `Super+r` | this column wider: half the screen, two thirds, all of it, then a third, and round again |
+| `Super+b` | this column exactly as wide as the room the other columns on the screen leave |
 | `Super+[`, `Super+]` | this window into the column on its left or right, under what's there; pressed on a window that shares a column, out into a column of its own that way |
 | `Super+f` | this window on the whole screen, and back |
 | `Super+Ctrl+y` | title bars off and on, as on tiles |
+
+`Super+b` is for when the widths don't add up: a column two thirds wide beside one of a half cuts one of them off. Pressed on a column, it gives that column what the others wholly on the screen leave, so that together they fill it and none is cut. Beside a pinned column it takes the rest of the screen.
 
 A new column is half the screen wide. A column's windows share its height evenly: an editor with a terminal under it, say, is `Super+[` pressed on the terminal standing right of the editor.
 
@@ -107,7 +110,7 @@ Most keys do on a strip what they do everywhere. A few belong to tiles, and say 
 
 | Key | On a strip |
 |---|---|
-| `Super+b` | A strip has no splits: a new window gets a column, and `Super+[` and `Super+]` stack. |
+| `Super+b` | The key for side by side: on a strip it makes this column fill the room the others leave (above). A strip has no splits: a new window gets a column, and `Super+[` and `Super+]` stack. |
 | `Super+v` | The key for one above the other: on a strip it makes this window taller in its column (above). |
 | `Super+u`, `Super+Shift+u` | No layout undo: a strip keeps its order, and you move a column back. |
 | `Super+z` | This column's windows as tabs (above), where on tiles it keeps only one window on the workspace. |
