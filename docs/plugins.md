@@ -14,6 +14,8 @@ vikix plugin safe                 # the next login loads none
 
 A plugin's keys and bar take effect at once. If a plugin's key is one Vikix or a web app of yours already has, the plugin's wins, a message names both, and `vikix doctor` lists it until one moves; removing the plugin gives the key back. Vikix's tests check the plugins at its pinned version for such clashes before a release. Each one's settings are yours, in `~/.config/vikix/plugins/NAME/`, copied once and never overwritten. A plugin that keeps a record of what it found (a flight search, a meeting joined) puts it in the record store, `vikix records` ([README](../README.md#the-record-store-vikix-records)), where you can search it.
 
+A plugin's commands (`inbox`, `repos`, `flights` ...) are on your PATH while it's added, each with a man page made from what its `-h` prints: `man inbox`. `man vikix` lists them after Vikix's own, and removing the plugin takes its pages away.
+
 A plugin's code runs inside the desktop with all its power, like your `user.lisp`: add the ones you trust. If one ever stops the desktop from starting, log in on a text console (Ctrl+Alt+F2), run `vikix plugin safe`, log in again, and switch the culprit off.
 
 The keys at a glance. A plugin's keys are all on Super+Alt, with Shift for a second one on the same letter: that is where everything beyond the six main apps opens ([the rule for keys](customize.md)).

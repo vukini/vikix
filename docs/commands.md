@@ -1,0 +1,891 @@
+# The commands
+
+Every `vikix` command: its forms, what each does, and the files it keeps. This page is made from the header each command's script starts with (`lib/man.py --guide`): the lines its `-h` prints, and the ones its man page is made from (`man vikix-backup`), so the three always say the same. Nobody edits it by hand.
+
+`vikix` is the one you type, and most of the others are reached through it: `vikix backup` runs `vikix-backup`. A few are what the desktop itself runs: the bar's fields, the session, the lock.
+
+- [vikix](#vikix): the everyday command
+- [vikix-agent](#vikix-agent): an AI agent in this terminal, after a snapshot of your files
+- [vikix-ai](#vikix-ai): AI services on Vikix: keys, and local models
+- [vikix-ask](#vikix-ask): AI on the text you selected, anywhere on the desktop (Super+i)
+- [vikix-backup](#vikix-backup): your home folder, backed up with restic
+- [vikix-battery](#vikix-battery): a warning when the battery runs low
+- [vikix-bitwarden](#vikix-bitwarden): your Bitwarden vault on the desktop
+- [vikix-bt](#vikix-bt): Bluetooth as one short line, for the mode line
+- [vikix-debug](#vikix-debug): one file that says what's going on, to attach to an issue or hand to an agent
+- [vikix-dictate](#vikix-dictate): speak, and it types what you said
+- [vikix-docs-open](#vikix-docs-open): open guides, tutorials and offline docs in the docs browser
+- [vikix-drives](#vikix-drives): USB drives: mounted when plugged in, ejected from a menu
+- [vikix-dropbox](#vikix-dropbox): Dropbox as one short line, for the mode line
+- [vikix-esploro](#vikix-esploro): Esploro, Vid's file explorer
+- [vikix-eval](#vikix-eval): run Lisp inside the running StumpWM and print the result
+- [vikix-features](#vikix-features): what you add to Vikix beyond the base
+- [vikix-fingerprint](#vikix-fingerprint): a fingerprint for sudo and the lock screen
+- [vikix-firewall](#vikix-firewall): the firewall, ufw
+- [vikix-firmware](#vikix-firmware): firmware updates from LVFS, through fwupd
+- [vikix-font](#vikix-font): the one font file StumpWM draws its bar, menus and messages in
+- [vikix-hype](#vikix-hype): Hype, Markdown presentations with a visual slide editor
+- [vikix-idle](#vikix-idle): what happens when you leave the computer alone
+- [vikix-image](#vikix-image): open an image in nsxiv together with the rest of its folder
+- [vikix-jupyter](#vikix-jupyter): JupyterLab in `~/dev`, with the Python that 67-dev set up
+- [vikix-keyboard](#vikix-keyboard): apply the layout and options in `~/.config/vikix/keyboard`
+- [vikix-lazarus](#vikix-lazarus): start Lazarus: the docked IDE that 65-languages builds in `~/.lazarus`
+- [vikix-learn](#vikix-learn): courses in the terminal
+- [vikix-lisp-apps](#vikix-lisp-apps): programs written in Common Lisp, and programmable in it, as StumpWM is
+- [vikix-local-ai](#vikix-local-ai): AI models that run on this machine, with Ollama
+- [vikix-lock](#vikix-lock): lock the screen, with only ever one locker
+- [vikix-mcp](#vikix-mcp): the Vikix desktop as an MCP server, for any agent that speaks MCP
+- [vikix-net](#vikix-net): the network link as one short line, for the mode line
+- [vikix-nightlight](#vikix-nightlight): a warmer screen in the evening (gammastep)
+- [vikix-notes](#vikix-notes): ask your notes, from any terminal (`note` for short)
+- [vikix-notifications](#vikix-notifications): the notifications dunst has put away, in rofi, newest first
+- [vikix-obsidian](#vikix-obsidian): an Obsidian vault, converted to Org notes, a folder at a time
+- [vikix-osd](#vikix-osd): change volume or brightness and show a bar for it
+- [vikix-pkg](#vikix-pkg): single programs, beyond the features
+- [vikix-plugin](#vikix-plugin): small additions to Vikix, from the vikix-plugins repo
+- [vikix-project](#vikix-project): your projects, each a folder with a log.md
+- [vikix-record](#vikix-record): record the screen to a video, without sound
+- [vikix-records](#vikix-records): where plugins keep what they found, to search and use later
+- [vikix-rofi](#vikix-rofi): rofi's plugin modes, set up the Vikix way
+- [vikix-screenshot](#vikix-screenshot): keep a picture of an area, a window or the whole screen
+- [vikix-session](#vikix-session): everything that runs for the length of a desktop session
+- [vikix-times](#vikix-times): how long the desktop takes
+- [vikix-updates](#vikix-updates): what `vikix update` would bring
+- [vikix-voice](#vikix-voice): talk to the AI, and it talks back
+- [vikix-wallpaper](#vikix-wallpaper): the picture behind the windows
+- [vikix-wallpapers](#vikix-wallpapers): more wallpapers: Vid's collection, a git repository
+- [vikix-webapp](#vikix-webapp): a website as a program of its own
+- [vikix-welcome](#vikix-welcome): the welcome: first steps on a new desktop, in a terminal, each ticked off once done
+- [vikix-windows](#vikix-windows): Windows in a VM, for the programs that only run there
+
+## vikix
+
+The everyday command.
+
+- `vikix update` — pull Vikix, update Void, add new packages and their services, refresh config links, pull the editor configs, run new migrations, reload StumpWM, and upgrade your pipx, uv and cargo programs
+- `vikix update core|system|tools` — one part: Vikix only (seconds), Void's packages only, or the editors, languages and tools
+- `vikix migrate` — run only the migrations not yet applied
+- `vikix rebuild-wm` — rebuild the StumpWM executable (after a Quicklisp update)
+- `vikix docs` — download the offline programming docs into `~/dev` (a few GB, slow; update and the installer skip them)
+- `vikix doctor` — check the pieces are all there
+- `vikix tray on|off` — a tray at the bar's end: network and Bluetooth icons (nm-applet, blueman-applet; Super+m too)
+- `vikix times [measure|soak]` — how long logging in and a reload take; measure = on a hidden screen: start, reload, a key, an Emacs frame, StumpWM answering, against limits; soak = an hour of it worked hard (vikix times help)
+- `vikix features` — what you can add (languages, editors, LibreOffice, printing, Windows, local AI ...), and what you have
+- `vikix add NAME...` — add features, or a bundle (essentials, developer, everything); every update keeps them
+- `vikix remove NAME...` — stop keeping them, and uninstall what only they needed (it shows the list and asks first)
+- `vikix pkg add|drop|list` — single programs: search and install, or uninstall (and keep out); vikix pkg help
+- `vikix welcome [add]` — the first steps (it opens by itself at the first login): add software, keys, theme, keyboard, guide
+- `vikix theme [NAME]` — the colour theme, everywhere: the current one and the list, or switch to NAME
+- `vikix theme import URL|OWNER/REPO [NAME]` — an Omarchy theme as one of yours, then switch to it (vikix theme --help)
+- `vikix version`
+- `vikix layout save NAME | NAME [--no-start] | list | rm NAME` — this workspace's layout (its splits or its strip, and which window is where) saved, put back (the windows it had that aren't open started, unless --no-start), listed, removed
+- `vikix viri [on|off]` — this workspace as a strip that scrolls sideways (Super+h/l along it), or tiled again; no word switches
+- `vikix eval FORM` — run Lisp in the running StumpWM, print the result
+- `vikix debug` — one file saying what's going on, secrets taken out, to attach to an issue
+- `vikix diagnose` — that report, handed to your AI agent: what's wrong?
+- `vikix dictate setup|models|file|status|uninstall` — speak, and it types what you said (Super+F9), on this laptop
+- `vikix voice setup|say|quiet|new|voices|status|uninstall` — talk to the AI (Super+F10) or the agent (Super+F11), and it answers aloud (Piper, on this laptop)
+- `vikix notes setup|uninstall` — ask your notes from any terminal: note index `~/Notes`, then note ask "..." (vikix-notes; on this laptop)
+- `vikix project [list|show|path|log|open|build|check|new] [NAME]` — your projects, each a folder with a log.md (in `~/src`): where each is and what's next; log NAME "what was done" adds today's entry; new NAME makes one (vikix project help)
+- `vikix today [yesterday|DATE]` — what was done today across your projects (log entries and commits), and what's next
+- `vikix learn [c]` — a course in the terminal: edit, save, it's checked (vikix learn c list, hint, go NN, reset NN)
+- `vikix hype setup|status|uninstall` — Hype: Markdown slides with a visual editor, in your theme's colours (vikix add hype)
+- `vikix wallpapers setup|update|status|uninstall` — Vid's wallpapers, in the Super+m picker (vikix add wallpapers)
+- `vikix obsidian [convert FOLDER...|--all] [report FOLDER]` — an Obsidian vault into Org notes, a folder at a time, links kept (`~/Dropbox/notes/vault`)
+- `vikix records search|list|get|export|forget|stats` — what plugins found and kept (flights, meetings, plan use ...), searchable (vikix records help)
+- `vikix plugin list|add|remove|off|on|safe|status` — small additions from the vikix-plugins repo: bar words, Super+m entries, keys (vikix plugin help)
+- `vikix bitwarden setup|pick|lock|sync|status|uninstall` — your Bitwarden vault: Super+Alt+v types a password into any window (vikix add bitwarden)
+- `vikix lisp-apps setup|status|uninstall` — Nyxt, Lem and McCLIM's Listener: programs in Common Lisp (vikix add lisp-apps)
+- `vikix esploro setup|status|doctor|uninstall` — Esploro, a file explorer in Common Lisp (vikix add esploro; Super+e)
+- `vikix mcp register|unregister|tools|status` — the desktop as an MCP server, for Claude Code and other agents
+- `vikix agent` — the AI agent, after a snapshot of your files (alias: a): Claude Code, or --use opencode|codex|gemini|aider, --local on this laptop, --default NAME, --list; --exec [NAME] for editors (stdout is the agent's), --which
+- `vikix snapshot [MESSAGE]` — record your files as they are now
+- `vikix changes [ID]` — what changed since the last snapshot (or in snapshot ID)
+- `vikix history` — the snapshots, newest first
+- `vikix undo [ID]` — put your files back as they were one snapshot ago (or at ID)
+- `vikix backup [now]` — back up your home folder with restic (vikix backup help: setup, status, list, restore, check, off)
+- `vikix firmware [update]` — firmware updates from LVFS (BIOS, Thunderbolt, ...): what's waiting, or install it (on AC power)
+- `vikix fingerprint [on|off|enrol]` — a finger for sudo and the lock screen, where fprintd supports the reader
+- `vikix firewall [on|off|allow PORT|close PORT]` — the firewall (ufw): nothing comes in but SSH and the ports you allow
+- `vikix webapp add|open|list|remove` — a website as a program of its own (presets: fastmail, gmail, outlook, outlook-live, superhuman)
+- `vikix ai setup|models|chat|list|remove|status|stop|uninstall` — AI models that run on this laptop (Ollama)
+- `vikix ai llm` — the llm command, with those models and your keys
+- `vikix ai use [local|claude]` — the model for Super+i, AI on the selected text
+- `vikix ai key set|list|remove|check` — API keys (`ANTHROPIC_API_KEY` ...) kept safely, out of your dotfiles and their history
+- `vikix windows [setup|create ISO|stop|status|network|remove]` — Windows in a VM: set it up once, install it by itself, then open its desktop in a window (vikix windows help)
+
+Each command has a man page with the whole of it: man vikix-NAME (man vikix is this list; man -k vikix lists the pages).
+
+## vikix-agent
+
+An AI agent in this terminal, after a snapshot of your files.
+
+- `vikix agent [ARGS]` — your agent (Claude Code, unless you chose another); ARGS go to it
+- `vikix agent --use NAME [ARGS]` — another one, this time: claude, opencode, codex, gemini, aider
+- `vikix agent --local [--model M]` — on a model on this laptop (Ollama): opencode, codex and aider can. Small models do little as agents, and a laptop CPU takes minutes per answer
+- `vikix agent --default NAME` — the one Super+a starts
+- `vikix agent --list` — the agents, which are here, and yours
+- `vikix agent --ask TEXT` — start with this question (vikix diagnose)
+- `vikix agent --exec [NAME] [ARGS]` — for editors: the same start (the guide, no keys, a snapshot), but nothing of Vikix's on stdout (it's the agent's: ACP talks over it), no questions, and an error if it isn't installed. NAME: yours when left out. Editors run e.g. vikix agent --exec gemini --experimental-acp
+- `vikix agent --acp [NAME] [ARGS]` — the same, as an ACP agent (Agent Client Protocol: Neovim's CodeCompanion, Emacs's agent-shell, Zed): claude and codex through their adapters (installed with them), gemini and opencode as they are
+- `vikix agent --which` — the agent Super+a starts, one word
+- `vikix agent --install NAME` — install one (its official installer; also
+- `vikix agent --uninstall NAME` — vikix add/remove NAME), or take it away. For one you have, --install adds only what's missing (its ACP adapter, say)
+
+An AI agent in this terminal, after a snapshot of your files (so whatever it changes can be seen with vikix changes, and undone with vikix undo). Super+a and `vikix agent` (alias: a) start it.
+
+Every agent is told how Vikix works by the same guide: Claude Code and OpenCode read the Vikix skill (`~/.claude/skills/vikix`); the others read `~/.local/share/vikix/AGENTS.md`, made from that skill at each update and each start: linked as `~/.codex/AGENTS.md`, imported by a one-line `~/.gemini/GEMINI.md`, given to Aider with --read; never over a file of yours.
+
+What an agent doesn't get, so a prompt injection (a web page, a README it reads) can't use it: your API keys and other secrets from the environment (each agent signs in its own way; Aider has no login, so it keeps the model companies' keys; `VIKIX_AGENT_API_KEY=1` keeps them all), and your SSH agent, which after your first push would let it push as you (`VIKIX_AGENT_SSH=1` keeps it). This prevents accidents; it isn't a sandbox: the agent runs as you and can read your files.
+
+## vikix-ai
+
+AI services on Vikix: keys, and local models.
+
+- `vikix ai setup | models | chat | list | remove | status | stop | uninstall` — models that run on this machine, with Ollama (vikix ai help-local tells more)
+- `vikix ai llm [--default MODEL]` — the llm command, with your local models and your keys: cat notes.md | llm "summarise"
+- `vikix ai use [local|claude]` — which model Super+i (AI on the selected text) uses; alone, says which (one word)
+- `vikix ai key set NAME` — ask for a key (it isn't shown as you paste it) and keep it. NAME is a service (anthropic, openai, gemini, perplexity, openrouter, groq, mistral, deepseek, xai, huggingface, github ...) or the variable itself (`MY_SERVICE_API_KEY`). Piped in, the key comes from stdin: pass show api/openai | vikix ai key set openai
+- `vikix ai key list` — the keys kept: names and a fingerprint, never the key
+- `vikix ai key remove NAME` — forget one
+- `vikix ai key check` — look for keys left in your files (and dotfiles such as `~/.profile`), or in their history; vikix doctor runs this
+
+The keys are kept in `~/.config/vikix/secrets/`, only yours to read, and every new shell and the desktop session have them as variables (`ANTHROPIC_API_KEY` ...). They're never in the snapshot history of your files: a key in `~/.bashrc` would be kept there for ever.
+
+## vikix-ask
+
+AI on the text you selected, anywhere on the desktop (Super+i).
+
+- `vikix-ask` — a menu: Ask, Proofread, Rewrite, Translate, Explain
+- `vikix-ask ACTION` — one of those straight away (ask, proofread, rewrite, translate, explain): for keys of your own in user.lisp
+- `vikix-ask use [local|claude]` — which model answers (vikix ai use); alone, says which
+- `vikix-ask which` — the model and where the text goes, tab-separated (for vikix-voice: Super+F10 asks the same model)
+
+The text is what you last highlighted (X keeps it after the highlight is gone), else the clipboard: the notification while it works shows it. Proofread, Rewrite and Translate put their result on the clipboard, to paste where you want it; Ask and Explain show the answer, in a notification when it's short, else in a terminal. Everything goes through llm (vikix ai llm), so it's all in llm logs too.
+
+Which model answers is yours to choose, in `~/.config/vikix/ai` (made on first use): a local one (free, offline, the text stays on this laptop), or Claude (better, paid, the text goes to Anthropic). It never falls back from local to Claude by itself.
+
+## vikix-backup
+
+Your home folder, backed up with restic.
+
+- `vikix backup setup PLACE` — once: where backups go, usually a USB drive (/run/media/you/DRIVE), or any restic place (sftp:host:/path, b2:bucket:path, ...)
+- `vikix backup [now]` — back up now: all of ~, minus what `~/.config/vikix/backup-exclude` leaves out
+- `vikix backup status` — where, when the last one was, what is left out
+- `vikix backup list` — the backups, newest last
+- `vikix backup restore PATH [ID]` — bring back PATH (a file or folder) from the latest backup, or backup ID, into `~/Restored/<time>/`; nothing is overwritten
+- `vikix backup check` — make sure the backups can be read back
+- `vikix backup off` — stop the reminder; the backups stay where they are
+
+Every backup is encrypted with the password in `~/.config/vikix/backup-password`, made at setup and readable only by you. Keep a copy somewhere else: without it, a lost laptop means backups nobody can read. Old backups thin out after each run: one a day for a week, one a week for a month, one a month for a year. The bar says "backup 9d" once the last backup is older than DAYS (7) in `~/.config/vikix/backup`; nothing runs by itself.
+
+## vikix-battery
+
+A warning when the battery runs low.
+
+- `vikix-battery` — watch the battery until the session ends
+- `vikix-battery --once` — check now, print, and stop
+
+vikix-session starts it on machines that have a battery. Once a minute it reads the charge. While the battery is discharging it warns once at 15% and again, urgently, at 5%. Plugging in resets both warnings.
+
+`VIKIX_BATTERY_LOW` and `VIKIX_BATTERY_CRITICAL` change the two levels.
+
+## vikix-bitwarden
+
+Your Bitwarden vault on the desktop.
+
+- `vikix bitwarden setup [--eu|--server URL]` — install rbw and the picker (vikix add bitwarden runs this), ask your account's email, then sign in: your master password and two-factor code go into pinentry's box. --eu for an account made on bitwarden.eu; --server for your own (Vaultwarden)
+- `vikix bitwarden pick` — the picker (Super+Alt+v): asks for the master password first when the vault is locked
+- `vikix bitwarden lock` — lock the vault now
+- `vikix bitwarden sync` — fetch changes made on your other devices now (the picker syncs by itself every hour)
+- `vikix bitwarden status`
+- `vikix bitwarden uninstall` — sign out and forget the vault's copy on this machine (vikix remove bitwarden)
+
+Your Bitwarden vault on the desktop: Super+Alt+v opens a picker of your logins, and Enter types the password into the window you were in. rbw reads the vault (an agent keeps it unlocked for an hour, as ssh-agent does); rofi-rbw is the picker; your master password is only ever typed into pinentry's box, never seen by Vikix.
+
+In the picker (rofi-rbw's keys): Enter types the username, Tab, then the password, for a sign-in form; Alt+3 types the password alone (a password box), Alt+2 the username, Alt+4 the two-factor code (a Premium account's); Alt+c copies the password, Alt+u the username, Alt+t the code (gone from the clipboard after 45 seconds); Alt+m shows every field of the login; Alt+s syncs. Its settings are yours: `~/.config/rofi-rbw.rc`.
+
+## vikix-bt
+
+Bluetooth as one short line, for the mode line.
+
+- `vikix-bt` — print the line; it takes no arguments
+
+```
+bt                  on, nothing connected
+bt WH-1000XM4 80%   a device connected: its name, and its battery if it says
+bt Buds +1          and another one besides
+```
+
+Prints nothing when there is no Bluetooth, when it's switched off, or when bluetoothd isn't answering, so the bar leaves the field out. Asks bluez through bluetoothctl, each question with a time limit: a hung bluetoothd must not hold up the bar.
+
+## vikix-debug
+
+One file that says what's going on, to attach to an issue or hand to an agent.
+
+- `vikix debug [--out FILE]` — write it (default `~/vikix-debug-<time>.txt`), readable only by you; read it before you share it: nothing is sent anywhere
+- `vikix diagnose [--use NAME] [--local]` — write it, then ask your AI agent (or NAME) "what's wrong, and how do I fix it?"; the agent starts read-only where it can
+
+In it: the problems at a glance, Vikix's version and checkout, what changed lately, the system, the hardware and screens, your features, what vikix doctor says, the services, and Vikix's own lines from the logs (the session's start and end, the last install and update), the desktop's latest errors (`~/.local/state/vikix/errors/`), X's errors. Left out: other programs' log lines (a browser's carry the pages you had open, and text a web page chose), web addresses' paths, and (by lib/debug-report.py) your secrets, whatever their shape, your home path, user, full and machine names. The finished file is checked once more.
+
+## vikix-dictate
+
+Speak, and it types what you said.
+
+- `vikix dictate setup` — build whisper.cpp (pinned) and fetch its model (checked); a few minutes, once; no password
+- `vikix dictate toggle` — start listening, or stop and type it (Super+F9); a recording that stopped by itself (after 5 minutes) is typed by the next press
+- `vikix dictate toggle ask | agent` — the same, but what you said goes to the AI, which answers aloud (vikix voice: Super+F10 the chat model, Super+F11 the agent)
+- `vikix dictate start [ask|agent] | stop`
+- `vikix dictate cancel` — stop listening, type nothing (Super+Shift+F9)
+- `vikix dictate models [base.en|small]` — which model: base.en, English (150 MB, a second or two a sentence), or small, many languages (490 MB, a few seconds)
+- `vikix dictate file WAV` — print what a recording says
+- `vikix dictate status`
+- `vikix dictate uninstall [--models]`
+
+Speak, and it types what you said. On this laptop only: whisper.cpp, built from source, turns your voice into text on the CPU.
+
+While it listens, the bar says mic. On stop, the text is typed into the window you were in when you pressed the key, once it's written down (and put on the clipboard, in case that window didn't take it; if you've moved to another window meanwhile, it's only put on the clipboard). The recording is kept only until it's written down, in your runtime folder (memory, yours alone); nothing leaves the laptop.
+
+## vikix-docs-open
+
+Open guides, tutorials and offline docs in the docs browser.
+
+- `vikix-docs-open FILE|URL...`
+
+The docs browser is Nyxt when it's installed (the feature lisp-apps): a browser written in Common Lisp, changeable in Lisp as StumpWM is, so the guides can grow keys and pages of their own there. The rest of the web stays with your default browser (xdg-open, `~/.config/mimeapps.list`). Without Nyxt, this is xdg-open.
+
+`~/.config/vikix/docs-browser`, if you make it, names another program to use instead: one word on a line, such as firefox, chromium or xdg-open.
+
+A running Nyxt takes the pages as new buffers in its window (Nyxt hands them over through its socket), and StumpWM then brings that window forward, from whichever workspace it's on.
+
+## vikix-drives
+
+USB drives: mounted when plugged in, ejected from a menu.
+
+- `vikix-drives start` — run udiskie (vikix-session does, at login): it mounts a drive when it's plugged in, says so with an "Open" button (PCManFM), and asks for an encrypted drive's passphrase in rofi
+- `vikix-drives eject` — pick a mounted drive in rofi (Super+Ctrl+e, or Super+m, Eject a drive); it is unmounted and powered off, and a notification says when it's safe to pull out
+- `vikix-drives list` — the mounted drives, one mount folder per line
+- `vikix-drives bar` — "usb" while a drive is mounted, for the bar
+
+udiskie calls back for two things: `password DEVICE` (the rofi prompt) and `event EVENT MOUNT_PATH`. On a mount, if it's the drive `vikix backup setup` chose and a backup is due, the backup starts by itself.
+
+Drives are what udisks mounts for you, under /run/media/$USER.
+
+## vikix-dropbox
+
+Dropbox as one short line, for the mode line.
+
+- `vikix-dropbox` — print the line; it takes no arguments
+
+```
+dbx ↓1,204 ↑3   syncing: files left to download, and to upload
+dbx sync        syncing, with no count to show
+dbx paused      syncing is paused
+dbx …           starting, connecting or indexing
+dbx !           it can't sync, and says why in `dropbox status`
+dbx off         set up on this machine, but not running
+```
+
+Prints nothing while it's up to date, when Dropbox isn't installed, or before it was ever set up here (no `~/.dropbox`), so the bar leaves the field out. `dropbox status` asks the daemon over a socket, with a time limit: a stuck daemon must not hold up the bar.
+
+## vikix-esploro
+
+Esploro, Vid's file explorer.
+
+- `vikix esploro setup [--rebuild]` — build its command from a pinned commit into `~/.local/opt/esploro` (SBCL alone, seconds); the window's code is emacs/esploro.el beside it, which the command loads into Emacs the first time. --rebuild builds it again (vikix add esploro runs this; vikix update runs it too, and it builds only when the pin moved)
+- `vikix esploro status`
+- `vikix esploro doctor` — is it built at the pin, linked, the folder program, answering Show in folder, loaded in Emacs (vikix doctor runs this when you have the feature)
+- `vikix esploro menu` — Esploro's file commands for the file behind the focused window, in rofi (Super+Alt+x): open it, copy its path, compress, extract, shrink, yours; one that changes files is a plan to review first
+- `vikix esploro try [CLONE]` — your clone's commit (`~/src/esploro`) on the desktop now: built, linked, the running Emacs reloaded; no GitHub. Kept by updates while it's newer than the pin; a release whose pin passes it takes over
+- `vikix esploro uninstall` — removes it (vikix remove esploro)
+
+Esploro, Vid's file explorer (github.com/vukini/esploro): a frame of Emacs, on dired, with menus, a tool bar, the mouse and drag and drop; its core, which does every change to files (journaled, so it can be undone), is Common Lisp, and knows which window has each file open.
+
+Command: esploro [FOLDER] (through Emacs's server: Vikix runs Emacs as a daemon); Super+e opens it, or goes to its frame; it's in the launcher (Super+d) and Super+m, Apps; M-x esploro in Emacs once it's been opened.
+
+## vikix-eval
+
+Run Lisp inside the running StumpWM and print the result.
+
+- `vikix eval '(current-group)'` — one or more forms as an argument
+- `vikix eval < file.lisp` — or read them from standard input, a file or a pipe: echo '(vikix-apply-theme :paper)' | vikix eval
+
+The forms are read in the STUMPWM package, so Vikix's and StumpWM's own names work without a prefix. For each form it prints what the form printed, then "=> " and the value.
+
+It talks to the Swank server that config/stumpwm/vikix/swank.lisp starts on 127.0.0.1:4004 (`VIKIX_SWANK_PORT` changes the port). When `~/.slime-secret` exists (40-config makes it), Swank lets in only a client that sends its first line first, as Emacs's SLIME does; so does this. The Lisp side, vikix-eval-for-agent, catches errors, so a bad form prints "error: ..." instead of leaving this command waiting.
+
+Exit status: 0 when every form ran, 1 when one failed, 2 when StumpWM could not be reached.
+
+Changes made this way live in the running StumpWM only. They are gone after a restart or a reload; to keep one, put it in `~/.stumpwm.d/user.lisp`.
+
+## vikix-features
+
+What you add to Vikix beyond the base.
+
+- `vikix features` — what there is, and what you have ([x])
+- `vikix add NAME...` — add features or bundles: their packages now, and every update keeps them
+- `vikix remove NAME... [--yes]` — stop keeping them, and uninstall their packages: only those nothing else you have needs. It shows the list and asks first.
+
+What you add to Vikix beyond the base (`vikix add`, `vikix remove`, `vikix features`).
+
+A feature is a line in features.list (a language, an editor, LibreOffice, printing, Windows, local AI ...); a bundle, in bundles.list, is several (essentials, developer, everything). Your choices are the lines of `~/.config/vikix/features`. Your own files are never touched: `~/dev`, your editor configs, a Windows VM's disk (vikix windows remove asks for that).
+
+## vikix-fingerprint
+
+A fingerprint for sudo and the lock screen.
+
+- `vikix fingerprint` — is there a reader? which fingers are enrolled? and, the first time, enrol one
+- `vikix fingerprint enrol [FINGER]` — enrol a finger (right-index-finger unless named: left-thumb, right-middle-finger, ...)
+- `vikix fingerprint on` — let sudo and the lock screen take a finger
+- `vikix fingerprint off` — take that out again: the password only
+
+With it on, your password works exactly as before. To use the finger instead, press Enter at the password prompt (sudo's, or the lock screen's) with nothing typed, then touch the reader. Over SSH the reader is never asked.
+
+fprintd does the work; it only knows the readers libfprint has a driver for (fprint.freedesktop.org/supported-devices.html). With no such reader, this says so and changes nothing.
+
+## vikix-firewall
+
+The firewall, ufw.
+
+- `vikix firewall` — on or off, and the rules (sudo, to read them)
+- `vikix firewall on` — switch it on: nothing comes in unless a rule lets it, everything goes out, SSH is let in; and the programs below that are installed get their port
+- `vikix firewall off` — switch it off (the rules are kept for next time)
+- `vikix firewall allow PORT[/tcp|/udp] [NAME]` — let a port in (both tcp and udp unless one is named)
+- `vikix firewall close PORT[/tcp|/udp]` — take that rule out again
+
+Replies to what this computer asked for always come back in: web pages, updates, mail. A rule is only needed for a program others connect to. Printers and other devices that announce themselves (mDNS, as avahi uses) are let in by ufw's own rules, and the VMs on libvirt's network by libvirt's. Ports opened by `on` when the program is there:
+
+```
+LocalSend   53317 (tcp and udp), to send files to and from a phone
+```
+
+ufw keeps everything in /etc/ufw, and its runit service puts the rules back at boot. Every change asks for your sudo password.
+
+## vikix-firmware
+
+Firmware updates from LVFS, through fwupd.
+
+- `vikix firmware` — fetch the latest list from LVFS and show what's waiting
+- `vikix firmware update` — install it: on AC power only, and some of it (the BIOS, say) finishes during the next reboot
+- `vikix firmware devices` — what fwupd knows about, and each one's firmware version
+- `vikix firmware count` — how many devices have an update (for the bar), or ?
+
+Laptop makers, Lenovo among them, publish BIOS, Thunderbolt, dock and fingerprint-reader firmware on LVFS (fwupd.org). fwupd itself starts when asked (D-Bus); there is no service to switch on. The bar says "firmware" when an update is waiting: vikix-updates checks every 6 hours.
+
+## vikix-font
+
+The one font file StumpWM draws its bar, menus and messages in.
+
+- `vikix-font` — make wm.ttf if it's missing or a stand-in; print its path
+- `vikix-font --force` — make it again
+
+StumpWM's TrueType module (ttf-fonts) reads only single .ttf files, and Void's font-iosevka ships Iosevka as .ttc collections of every weight. So this takes Iosevka Regular out of the collection (with fontTools) into
+
+```
+~/.local/share/vikix/fonts/wm.ttf
+```
+
+which theme.lisp loads. Until Iosevka is installed (fonts.list, in the base), wm.ttf is a link to Noto Sans Mono instead. The folder is outside fontconfig's paths, so other programs don't see a second Iosevka.
+
+## vikix-hype
+
+Hype, Markdown presentations with a visual slide editor.
+
+- `vikix hype setup [--rebuild]` — the packages it needs, then Hype built from source (a pinned release) into `~/.local/opt/hype`: a minute or two, once. Also the launcher entry, the portal's file dialogs, and the skill that lets your agent write slides
+- `vikix hype status`
+- `vikix hype uninstall`
+
+Hype, Markdown presentations with a visual slide editor (https://github.com/omacom/hype, by DHH; MIT). Made for Omarchy; Vikix gives it what it looks for there: the desktop's colours, themes to choose for the slides, and the desktop portal for its file dialogs.
+
+Then: hype open talk.md (or Super+d, Hype), hype help for the rest.
+
+The colours: Hype's window follows `vikix theme` as it changes, and every Vikix theme (yours too) is a theme to choose for the slides. `vikix theme` writes them in Omarchy's form: `~/.local/state/omarchy/current/theme/` colors.toml (the current one, where Hype looks) and `~/.local/share/vikix/omarchy/themes/NAME/colors.toml` (the hype command sets `OMARCHY_PATH` there).
+
+## vikix-idle
+
+What happens when you leave the computer alone.
+
+- `vikix-idle apply` — set the lock and screen-off times (the session does this at login)
+- `vikix-idle awake [on|off|toggle]` — keep awake: no lock, no dark screen, no suspend, for a film or a talk; the bar says "awake". Every login starts with it off.
+- `vikix-idle --watch` — suspend on battery after SUSPEND minutes idle; the session runs this on machines with a battery
+
+```
+after LOCK minutes       the screen locks (xss-lock runs vikix-lock)
+after SCREEN_OFF minutes the screen goes dark
+after SUSPEND minutes    on battery only, the computer suspends
+```
+
+The times are minutes, from `~/.config/vikix/idle` when it exists, e.g.
+
+```
+LOCK=10
+SCREEN_OFF=11
+SUSPEND=20          # 0: never suspend by itself
+```
+
+Anything not set there keeps the value below.
+
+## vikix-image
+
+Open an image in nsxiv together with the rest of its folder.
+
+- `vikix-image FILE` — FILE, with the other images of its folder to move through
+- `vikix-image FILE...` — just those
+
+Given one file, nsxiv shows only that file. This hands it every image in the same folder, in name order, starting at the one asked for, so n / p (or the arrow keys) move on through the folder and Enter shows them all as thumbnails. Given several files, it opens just those.
+
+xdg-open and the file managers use it through vikix-image.desktop, which `~/.config/mimeapps.list` names for images.
+
+## vikix-jupyter
+
+JupyterLab in `~/dev`, with the Python that 67-dev set up.
+
+- `vikix-jupyter` — start it, or open the page of the one already running
+
+Started by `jlab`, the launcher (s-d: type JupyterLab, or jlab) or the menu (s-m). If a JupyterLab is already running, its page is opened again rather than a second one started. The server's messages go to `~/.local/state/vikix/jupyter.log`.
+
+## vikix-keyboard
+
+Apply the layout and options in `~/.config/vikix/keyboard`.
+
+- `vikix-keyboard` — apply them now
+
+Run at login by vikix-session; run again after editing the file.
+
+## vikix-lazarus
+
+Start Lazarus: the docked IDE that 65-languages builds in `~/.lazarus`.
+
+- `vikix-lazarus [ARGS]` — start it; ARGS (a project's .lpi file) go to the IDE
+
+Start Lazarus: the docked IDE that 65-languages builds in `~/.lazarus` (one window, which StumpWM tiles), or Void's plain one if that build isn't there. Void's startlazarus would pick the plain one. config/applications/lazarus.desktop runs this, so the launcher (Super+d) and opening a .lpi file both come here.
+
+## vikix-learn
+
+Courses in the terminal.
+
+- `vikix learn` — the courses there are
+- `vikix learn COURSE` — two panes on the desktop: the lesson you're on, from the top, and a shell in its folder; each save is checked in the lesson pane (Super+m, Learn C, is the same)
+- `vikix learn COURSE --here` — the lesson pane in this terminal instead
+- `vikix learn COURSE next` — on to the next lesson; prev goes back one
+- `vikix learn COURSE list` — every lesson, ticked when done
+- `vikix learn COURSE go NN` — go to lesson NN
+- `vikix learn COURSE hint` — the next hint for this lesson
+- `vikix learn COURSE check` — check once (passing moves you on)
+- `vikix learn COURSE watch` — the old way: check each save, in this terminal
+- `vikix learn COURSE reset NN` — lesson NN's files as they came (after a snapshot)
+
+Courses in the terminal (`vikix learn`): every lesson is a real program you edit, save, and watch get checked.
+
+In the lesson pane: the arrows, PgUp/PgDn and Space scroll; n or Right the next lesson, p or Left the one before; h a hint, c check now, r reset, q quit. It remembers the lesson and where you were in it, and opens there.
+
+The course comes from Vikix (learn/COURSE/ in the checkout). Its lessons are copied to `~/learn/COURSE/` the first time: those are your files, never overwritten (but lesson.md, the text, which follows Vikix's), and in your snapshot history (vikix undo). The checks stay Vikix's, so a fix to one reaches you with vikix update. Your progress is in `~/.local/state/vikix/learn/COURSE/`.
+
+This knows nothing about any language: a course is a folder with a course.conf (TITLE, and WORK, the files you work in) and lessons NN-name/, each with lesson.md, the files to copy, a check.sh and hints.md; a lesson whose work is in other files names them in its own file "work". A course that renames lessons lists them in "renames" (OLD NEW a line): your folders and progress move with them.
+
+## vikix-lisp-apps
+
+Programs written in Common Lisp, and programmable in it, as StumpWM is.
+
+- `vikix lisp-apps setup [--rebuild]` — Nyxt from Void; Lem built from source (a pinned commit, its libraries pinned by its qlfile.lock); McCLIM, the Listener and Clouseau from Quicklisp, saved as one program. A few minutes, once; no password when the packages are there. --rebuild builds Lem and the Listener again
+- `vikix lisp-apps status`
+- `vikix lisp-apps uninstall` — removes Lem and the Listener; Nyxt goes with vikix remove lisp-apps
+
+Programs written in Common Lisp, and programmable in it, as StumpWM is: Nyxt (a web browser), Lem (an editor) and McCLIM's Listener (a Lisp prompt whose output is live objects), with Clouseau, the inspector.
+
+Commands: nyxt, lem, clim-listener; all three are in the launcher (Super+d).
+
+## vikix-local-ai
+
+AI models that run on this machine, with Ollama.
+
+- `vikix ai setup` — install Ollama (its CPU and Vulkan parts, as you, in `~/.local/opt/ollama`; no password) and start it. It starts with the desktop from then on
+- `vikix ai models` — pick a model to download: each says what it's for, its size, and how it runs on this machine (fast, well, slowly); ones too big aren't offered
+- `vikix ai chat [MODEL]` — talk to one, in the terminal (/bye or Ctrl+D to leave); Super+m, Local AI: talk to a model
+- `vikix ai list` — the models you have, and their sizes
+- `vikix ai remove MODEL` — delete one (it can be downloaded again)
+- `vikix ai status` — installed? running? which model is loaded, how much memory it holds and until when
+- `vikix ai stop` — unload the model now (it unloads by itself after 5 minutes unused)
+- `vikix ai uninstall [--models]` — take Ollama away; --models deletes the downloaded models too
+- `vikix ai llm [--default MODEL]` — Simon Willison's llm on the command line (with its Ollama and Anthropic plugins), so that cat notes.md | llm "summarise" works. Its default is a local model if you have one, else Claude when `ANTHROPIC_API_KEY` is set (vikix ai key)
+
+Its API is on http://127.0.0.1:11434 (only this machine; the Windows VM can't reach it). The bar says "ai" while a model is loaded in memory. Models are big: they're in `~/.ollama/models`, and backups leave them out.
+
+Honest about a laptop without a graphics card. Measured on an i7-7500U with llama3.2:3b: about 4 s to load, then about 11 s for two sentences. Models of 1-2 billion parameters are about twice as quick, 7-8 billion about three times as slow; bigger ones don't fit.
+
+## vikix-lock
+
+Lock the screen, with only ever one locker.
+
+- `vikix-lock` — lock now
+- `vikix-lock --locker` — the locker itself, for xss-lock to start
+
+The session runs xss-lock, which starts `vikix-lock --locker` after 10 idle minutes and before a suspend. The key (s-Escape) and the menu run plain `vikix-lock`, which asks xss-lock to lock now: a second i3lock started beside xss-lock's would need unlocking twice. Without xss-lock (another session), it locks by itself.
+
+While the screen is locked, notifications wait: dunst draws its windows above everything, i3lock's too, so a message could be read on a locked screen. They are shown once it's unlocked, unless they were already paused (Do not disturb), which is kept.
+
+A key that wakes the dark screen isn't kept as part of the password.
+
+## vikix-mcp
+
+The Vikix desktop as an MCP server, for any agent that speaks MCP.
+
+- `vikix mcp register [--allow-eval] [--allow-undo]` — add it to Claude Code (claude mcp add, for you), and print the lines for Codex, Gemini CLI and OpenCode; register again without a flag to take that tool away
+- `vikix mcp status` — whether Claude Code has it, with which tools, and the last calls
+- `vikix mcp unregister`
+- `vikix mcp tools` — what it offers
+- `vikix-mcp serve [--allow-eval] [--allow-undo]` — the server itself, on stdin and stdout: what an agent starts (nothing listens on a port)
+
+The Vikix desktop as an MCP server, for any agent that speaks MCP (Claude Code, Codex, Gemini CLI, OpenCode).
+
+Why: your agent can already run commands, but each needs your yes. These tools are a small, checked set: allow them once (in Claude Code, "always allow" for vikix), and the agent can look at the desktop and make small, undoable changes without asking each time, while other commands still ask.
+
+The tools, a fixed set:
+
+```
+read only   desktop (workspaces, windows, screens, theme), keys, doctor,
+            history, changes, themes, version
+small acts  notify, snapshot, set_theme, switch_workspace, focus_window:
+            each checked against what's there, and easy to take back
+off unless  eval (any Lisp in the window manager: --allow-eval) and
+switched on undo (your files back a snapshot: --allow-undo). These are a
+            convenience, not a wall: an agent that can run commands can
+            run vikix eval, or register the server again, itself.
+```
+
+Nothing an agent sends reaches Lisp or a shell except as a value checked against the desktop (a workspace that exists, a theme there is, a number). Every call, refused ones too, is logged in `~/.local/state/vikix/mcp.log` (600): the tool, whether it worked, its arguments (secrets taken out, long ones cut, with their length and a hash).
+
+## vikix-net
+
+The network link as one short line, for the mode line.
+
+- `vikix-net` — print the line; it takes no arguments
+
+```
+wifi VID       Wi-Fi: the network's name
+wifi VID 42%   and its signal, when it is weak (under 60%)
+wired      a cable, and no Wi-Fi
+offline    neither
+```
+
+Asks NetworkManager. Prints nothing when it isn't running, so the bar leaves the field out instead of showing something wrong.
+
+## vikix-nightlight
+
+A warmer screen in the evening (gammastep).
+
+- `vikix-nightlight start` — at login: start it, unless you switched it off
+- `vikix-nightlight toggle` — on or off, and remember that (Super+Ctrl+l)
+- `vikix-nightlight on|off` — the same, one way
+- `vikix-nightlight status` — say whether it is on, and when it warms
+
+The times and colours are in `~/.config/gammastep/config.ini`. Switched off, gammastep ends and puts the screen's colours back; the choice lasts across logins, until you switch it on again.
+
+## vikix-notes
+
+Ask your notes, from any terminal (`note` for short).
+
+- `note index ~/Notes --skip Private` — the first time: the folder, and folders to leave out
+- `note index` — again: only the notes that changed
+- `note ask "what did I write about runit?"`
+- `note ask --claude "..."` — Claude answers this one (--local: the laptop)
+- `note find "runit"` — the nearest notes, without an answer: quick
+- `note status` — the folder, the index, who answers
+- `vikix notes setup` — the feature notes: uv's libraries and the embedding model (all-minilm, 46 MB), once
+- `vikix notes uninstall [--index]` — --index deletes the index too
+
+Ask your notes, from any terminal (`note` for short). A folder of Markdown (an Obsidian vault) is read into an index on this laptop; a question finds the passages nearest it, and a model answers from those alone, naming the notes.
+
+Who answers follows Super+i: `vikix ai use local|claude`. Locally nothing leaves the laptop; with Claude, the six passages found (never the whole folder) go to Anthropic. The folder and skips are yours, in `~/.config/vikix/notes`; the index is `~/.local/share/vikix/notes/index.db`. lib/notes.py does the work, run by uv with its libraries pinned at its top.
+
+## vikix-notifications
+
+The notifications dunst has put away, in rofi, newest first.
+
+- `vikix-notifications` — the list, in rofi
+
+The notifications dunst has put away, in rofi, newest first. Pick one and it shows again. (s-N, or s-m then "Notifications: earlier ones".)
+
+## vikix-obsidian
+
+An Obsidian vault, converted to Org notes, a folder at a time.
+
+- `vikix obsidian` — what's in the vault, folder by folder, and which are converted
+- `vikix obsidian convert FOLDER...` — convert those folders of the vault ("." for the notes at its top); a report of each
+- `vikix obsidian convert --all` — every folder not left out
+- `vikix obsidian report [FOLDER]` — the last conversion's report
+
+The vault is only read, never changed. Each note becomes an Org file in the same place under `~/Dropbox/notes/vault/`, with an ID, so links between notes become org-roam links (C-c n f finds them, backlinks and the graph follow), even to a folder not converted yet: they work once it is. The note's title, aliases and tags come from its file name and front matter; pandoc does the rest of the Markdown.
+
+What Obsidian has and Org hasn't is said in the report: a link to a note that isn't there (or is in a folder left out), a note embedded in another (it becomes a link), ==highlights== (bold), callouts (a quote). Files a note embeds or links (pictures, PDFs, sound) are copied beside the notes, in vault/attachments/, as they are in the vault; only those, not every file in it.
+
+Converting a folder again rewrites its notes, except any you've changed since (the report names them; --force rewrites them too).
+
+Settings: `~/.config/vikix/obsidian` (vault=, to=, skip=: folders left out).
+
+## vikix-osd
+
+Change volume or brightness and show a bar for it.
+
+- `vikix-osd volume up|down|mute|mic`
+- `vikix-osd brightness up|down`
+
+The bar is a dunst notification with a progress value. The stack tag makes each new press replace the last bar instead of piling up.
+
+## vikix-pkg
+
+Single programs, beyond the features.
+
+- `vikix pkg add [NAME...]` — install these; without names (or with words that aren't one), search Void's packages and pick
+- `vikix pkg drop [NAME...]` — uninstall these, or pick from what's installed by name. One that Vikix's lists name goes on your skip list, so vikix update doesn't bring it back
+- `vikix pkg list` — the packages you dropped (your skip list)
+
+A whole language, an editor or LibreOffice is a feature: vikix add and vikix remove. This is for one program: GIMP, a game, a font.
+
+Your skip list is `~/.config/vikix/packages-skip`, one package a line; 10-packages leaves those out. Adding a package again takes it off.
+
+## vikix-plugin
+
+Small additions to Vikix, from the vikix-plugins repo.
+
+- `vikix plugin list` — the plugins there are; yours marked
+- `vikix plugin add NAME [--yes]` — shows what it runs, needs and changes, asks, then adds it (its packages, its setup)
+- `vikix plugin remove NAME` — runs its remove, and takes it away; your settings for it stay
+- `vikix plugin off NAME` — stop loading it, nothing else changed (from a text console too, for one that hangs the desktop); vikix plugin on NAME brings it back
+- `vikix plugin safe` — the next login loads no plugin, once
+- `vikix plugin status` — the pinned commit, and yours
+- `vikix plugin sync` — the repo to its pinned commit (vikix update does this when you have plugins)
+
+Small additions to Vikix, from the vikix-plugins repo (github.com/vukini/vikix-plugins): a few words in the bar, Super+m entries, keys, a program started with the desktop.
+
+Vikix keeps the repo in `~/.local/share/vikix/plugins` at the commit pinned below, one it has checked: an update can't swap a plugin's code in silently. Your plugins are named in `~/.config/vikix/plugins.list`, your settings for each in `~/.config/vikix/plugins/NAME` (copied once, yours). A plugin's programs (its bin/) are linked into `~/.local/bin` while it's added, each with its man page (man inbox). Its Lisp runs inside StumpWM (plugins.lisp loads it).
+
+## vikix-project
+
+Your projects, each a folder with a log.md.
+
+- `vikix project [list] [--all]` — one line each, most recently logged first: name, % done, the last entry's date, the next step (--all: projects with no entries yet, too)
+- `vikix project show NAME` — title, folder, log, its Status, the last 3 entries
+- `vikix project path NAME` — the folder: cd "$(vikix project path lambda)"
+- `vikix project log NAME "what was done" [--next "..."] [--status "few words"] [--agent]` — a new entry for today at the top of the log, marked (Vid) unless --agent (or run from Claude Code); never committed: it says how
+- `vikix project open NAME` — the project on a workspace of its own: a terminal in the folder, the editor on its log, placed as you left them (its saved layout); the workspace it has still, if it's open
+- `vikix project save [NAME]` — save the layout of its workspace now (leaving the workspace saves it too): vikix layout project-NAME
+- `vikix project build NAME [-n]` — run its build in its folder (-n: only say which)
+- `vikix project check NAME [-n]` — run its checks in its folder: the log's Check line, check.sh, check, tests/run.sh, test.sh, make check or test, npm test (-n: only say which)
+- `vikix project new NAME [--in COLLECTION | --private] [--title "..."] [--next "..."]` — a new project: `~/src/NAME` (the first root) with a log.md (a Status and a first entry); --in: inside a collection; --private: the repo `~/src/NAME's` log in the logs folder; a FOLDER (with a /, or .) gives that folder a log.md
+- `vikix project today [yesterday|DATE] [--no-git]` — (also: vikix today) what was done that day, project by project: the log entries and the commits (any branch), then what's next
+- `vikix project pick` — choose one with rofi and open it (Super+Alt+p)
+
+What a project is: a folder under a root (`~/src` unless `~/.config/vikix/projects` says otherwise), at most `depth` levels down (2), with a log.md in it. A folder inside a project folder is a project of that collection (living-series/living-in-lambda). Hidden folders, `node_modules` and git worktrees (their .git is a file: they'd count a project twice) are skipped. A public repo keeps its log apart: a repo with no log.md whose name has `<logs>/NAME/log.md` (`logs=~/src/project-logs`) is a project with that log.
+
+A log, newest first:
+
+```
+# Log: Title
+**Status** (...), as of 2026-09-12: 93% complete.
+- Standing: where it is
+- Next: what comes next
+- Build: make site          (optional: overrides the build found)
+- Check: make test          (optional: overrides the checks found)
+```
+
+```
+## 2026-09-18 · status words (Vid)
+What was done.
+Next: what comes next.
+```
+
+Names match exactly, then by a prefix or a part of the name that only one project has; a collection's project also answers to collection/name.
+
+## vikix-record
+
+Record the screen to a video, without sound.
+
+- `vikix-record area` — drag out an area, or click a window, and record it
+- `vikix-record screen` — record the whole monitor the pointer is on
+- `vikix-record stop` — stop, and save `~/Videos/Recordings/<date>.mp4`
+- `vikix-record toggle [area|screen]` — stop if recording, else start (Super+Ctrl+v)
+- `vikix-record status` — say whether it is recording
+
+While it records, the bar says rec. The file holding ffmpeg's process id is also what the bar reads, so it is removed whenever ffmpeg ends, however it ends.
+
+## vikix-records
+
+Where plugins keep what they found, to search and use later.
+
+- `vikix records search TEXT [--plugin P] [--limit N] [--json]` — full text (title and body), newest first; words as in a search box: dubai emirates, "exact words", dxb OR sin
+- `vikix records list [PLUGIN] [--kind K] [--since 30d] [--limit N] [--json]` — newest first; --since takes 2h, 30d, 6w, 1y
+- `vikix records get ID [--json]` — one record, with all its data
+- `vikix records add` — a record (or a list of them) as JSON on stdin: plugin, kind, title (needed); key, body, data, link, at (Unix time) as wanted. The same plugin, kind and key again updates that record rather than adding another
+- `vikix records export [--org|--jsonl|--csv] [PLUGIN]` — everything, to read in Emacs (Org) or to give a program
+- `vikix records forget PLUGIN [--kind K] [--older 1y]` — remove records (asks, unless --yes)
+- `vikix records stats` — how many, by plugin and kind
+
+The store is one SQLite file, `~/.local/share/vikix/records.db`, kept by vikix backup. Any program can read it with SQL: the table is records (id, plugin, kind, key, at, title, body, data, link), and `records_fts` is its full-text index.
+
+## vikix-rofi
+
+Rofi's plugin modes, set up the Vikix way.
+
+- `vikix-rofi emoji` — pick an emoji: Enter types it into the window you were in (and copies it too), Ctrl+c only copies it. Search by name or keyword: heart, cat, thumbs up.
+- `vikix-rofi calc` — a calculator that answers as you type (qalculate): 340 `*` 12%, 5 ft to cm, 100 USD to EUR, today + 30 days. (Not "12% of 340": qalculate reads that % as a remainder.) Enter copies the answer to the clipboard; Ctrl+Enter keeps it in the list below instead.
+
+Both are rofi plugins (rofi-emoji, rofi-calc in packages/desktop.list). Without one, a notification says what to install instead of rofi failing silently.
+
+## vikix-screenshot
+
+Keep a picture of an area, a window or the whole screen.
+
+- `vikix-screenshot [WHAT] [WHERE]`
+
+```
+WHAT    area     drag out an area, or click a window    (Print)
+        window   the focused window                     (Ctrl+Print)
+        screen   the whole monitor the pointer is on    (Super+Print)
+WHERE   clip     to the clipboard, ready to paste
+        file     to ~/Pictures/Screenshots/<date>.png   (add Shift)
+```
+
+- `vikix-screenshot text` — drag out an area: the text in it, read by tesseract (OCR), to the clipboard
+- `vikix-screenshot colour` — click anywhere: that colour, as #rrggbb, to the clipboard (xcolor)
+- `vikix-screenshot --geometry area|screen` — print the area as WxH+X+Y (vikix-record uses it)
+
+Text and colour are both in the Super+Ctrl+Print menu. The OCR language is English; `VIKIX_OCR_LANG=deu+eng` (with tesseract-ocr-deu installed) reads others.
+
+Both words are optional: plain vikix-screenshot is "area clip", and "vikix-screenshot file" is "area file", as before there were three kinds. Escape or a right-click while choosing an area cancels, and nothing is kept.
+
+## vikix-session
+
+Everything that runs for the length of a desktop session.
+
+- `vikix-session` — the session; `~/.xinitrc` runs it, nobody else should
+
+Started by `~/.xinitrc` inside dbus-run-session, so every program here shares one session bus. Without systemd there are no "user services": the background programs are simply started here, and they end when StumpWM (the last line) exits.
+
+## vikix-times
+
+How long the desktop takes.
+
+- `vikix times` — this desktop's own measures: logging in (the session started to the desktop ready) and each Reload config, the last and the usual (the median of the last 10), against their limits
+- `vikix times soak [MINUTES]` — the desktop used hard for an hour (or MINUTES) on a hidden screen: windows opening, closing, moving, floating, splits, reloads; fails when StumpWM answers slowly, grows, keeps timers or hooks, or writes an error (lib/soak.py)
+- `vikix times soak --ask` — first asks in a dialog (cron, weekly), then runs at low priority and says how it went in a notification
+- `vikix times measure` — measure now on a hidden screen, with this checkout's config (a few seconds, nothing on your screen): StumpWM's start, a reload, a key to its command, an Emacs frame, StumpWM answering; kept, so the next one says what changed
+
+The limits are lib/times.limits; tests/times.sh fails above them.
+
+## vikix-updates
+
+What `vikix update` would bring.
+
+- `vikix-updates` — check now, print the result, and save it
+- `vikix-updates --watch` — check a minute from now, then every 6 hours; vikix-session runs this for the whole session
+
+What `vikix update` would bring: Void packages with a newer version, and new Vikix commits; and firmware updates waiting on LVFS (`vikix firmware update` installs those). The bar shows it (modeline.lisp).
+
+The result goes to `~/.local/state/vikix/updates` as "PACKAGES COMMITS FIRMWARE", with ? for a count that couldn't be checked (offline, say). Checking takes a few seconds of network, so it happens here, in the background, and the bar only reads the file.
+
+## vikix-voice
+
+Talk to the AI, and it talks back.
+
+- `vikix voice setup` — install Piper (pinned, with uv) and its voice (checked); a minute, once; no password
+- `vikix voice ask TEXT` — what Super+F10 does with what you said
+- `vikix voice agent TEXT` — what Super+F11 does
+- `vikix voice say TEXT` — read TEXT aloud (- reads it from stdin)
+- `vikix voice quiet` — stop talking
+- `vikix voice new` — forget the conversation: the next question starts afresh
+- `vikix voice voices [NAME]` — which voice: lessac, amy (American), alan (British)
+- `vikix voice status`
+- `vikix voice uninstall [--voices]`
+
+Talk to the AI, and it talks back. Dictation writes down what you said (on this laptop, whisper.cpp); this sends it on, and Piper reads the answer aloud (a neural voice, on this laptop too).
+
+```
+Super+F10         speak, Super+F10 again: the chat model answers
+                  (Super+i's: local, or Claude), shown and spoken.
+                  Follow-ups carry on the conversation; after 5 quiet
+                  minutes (idle= below) the next one starts afresh
+Super+F11         speak, Super+F11 again: it goes to the agent (Claude
+                  Code) in its own terminal; follow-ups go to the same
+                  one, and Claude's replies are read aloud
+Super+Shift+F10   stop talking
+```
+
+The choices are yours, in `~/.config/vikix/voice` (made on first use): the voice, speak=no to only show answers, idle= minutes. The chat's words go where Super+i's do (vikix ai use local|claude); the agent's go to Anthropic, as with Super+a. What's said aloud stays on this laptop.
+
+## vikix-wallpaper
+
+The picture behind the windows.
+
+- `vikix-wallpaper` — show the wallpaper (vikix-session runs this at login)
+- `vikix-wallpaper pick` — choose one in rofi, with pictures (Super+m, Wallpaper)
+- `vikix-wallpaper FILE` — use FILE from now on
+- `vikix-wallpaper cycle [MINUTES]` — a new picture every MINUTES (30 unless set), and one at once: the default
+- `vikix-wallpaper next` — the next picture now, when cycling
+- `vikix-wallpaper theme` — follow the theme
+- `vikix-wallpaper off` — leave the wallpaper alone: for your own tool (feh, nitrogen, a script that rotates them)
+- `vikix-wallpaper which` — print the picture it would show
+- `vikix-wallpaper --watch` — change it on time; vikix-session runs this
+
+Unless you choose otherwise, the wallpaper cycles: a picture at random, never the same twice running, from Vid's collection (the feature wallpapers, in `~/.local/share/vikix/wallpapers`, which a fresh install has), `~/Pictures/Wallpapers` and `~/wallpapers` (put yours in either). The one showing is remembered in `~/.local/state/vikix/wallpaper-now`, the minutes in `~/.config/vikix/wallpaper-minutes`.
+
+Following the theme (`~/.config/vikix/wallpaper-theme`), its own picture is the one next to its theme file with the same name (themes/void.jpg, or `~/.config/vikix/themes/mine.jpg` beside mine.theme), so `vikix theme` changes it too. A theme without a picture gets a plain background in its own colour; so does cycling with no pictures to cycle. Your choice is `~/.config/vikix/wallpaper`, a link to the file; off is `~/.config/vikix/wallpaper-off`. Each choice ends the others.
+
+The picker lists the theme's, Cycle, then all the pictures; its last entry is off.
+
+## vikix-wallpapers
+
+More wallpapers: Vid's collection, a git repository.
+
+- `vikix wallpapers setup` — clone it into `~/.local/share/vikix/wallpapers` (vikix add wallpapers runs this)
+- `vikix wallpapers update` — pull new pictures (vikix update runs this)
+- `vikix wallpapers status`
+- `vikix wallpapers uninstall` — delete the clone (vikix remove wallpapers)
+
+More wallpapers: Vid's collection, a git repository (github.com/vukini/wallpapers), kept beside Vikix rather than in it, so the checkout stays small and a fresh install needs no pictures from the network.
+
+The wallpaper cycles through them (vikix-wallpaper), and they show in the picker (Super+m, Wallpaper) beside `~/Pictures/Wallpapers` and `~/wallpapers`. A fresh install adds them. `VIKIX_WALLPAPERS_REPO` names another repository. If `~/wallpapers` is already a clone of it (your own working copy), the folder is a link to that, and Vikix never pulls into it.
+
+## vikix-webapp
+
+A website as a program of its own.
+
+- `vikix webapp add NAME [URL] [--key KEY] [--media|--no-media]` — make one (or change its address). Without a URL, NAME is a preset: mail (fastmail, gmail, outlook for work or school Microsoft 365, outlook-live for outlook.com, superhuman) or meetings (teams, meet for Google Meet, zoom). KEY is a Super key as the key help writes it: s-M-m is Super+Alt+m, which the first mail web app gets; --key none for no key. Adding one again keeps its key unless you give another. --media lets the site use the camera and microphone (the meeting presets do by themselves; --no-media for one that shouldn't)
+- `vikix webapp key NAME KEY|none` — give it another key, or none
+- `vikix webapp media NAME on|off` — let it use the camera and microphone, or not (from its next start)
+- `vikix webapp open NAME` — bring it to the front, or start it (its key, the launcher, and Super+m all do this)
+- `vikix webapp list` — the web apps you have, and any logins left over
+- `vikix webapp remove NAME [--forget]` — take it away (rm works too); --forget also deletes what it kept: its logins and cookies
+
+Each one is a Chromium window with no tabs and no address bar, with its own window class (vikix-NAME), so StumpWM can find it on any workspace, and its own profile in `~/.local/share/vikix/webapps/NAME`: work logins stay apart from personal ones, and from your everyday Firefox. Its notifications come through dunst while its window is open.
+
+The camera and microphone: a web app's window has no address bar, so Chromium's "allow camera and microphone?" is easily missed, and a meeting's settings then show every device greyed out. A web app with media on (a .vikix-media file in its profile) has both allowed for its own site, written into its profile as it starts (Chromium rewrites that file while it runs, so never before).
+
+Your list is `~/.config/vikix/webapps` (one "NAME URL [KEY]" per line; your own # comments are kept). StumpWM reads it (webapps.lisp) for the keys, the key help and Super+m.
+
+## vikix-welcome
+
+The welcome: first steps on a new desktop, in a terminal, each ticked off once done.
+
+- `vikix welcome` — the steps: add software, the keys that matter, a theme, the keyboard layout, the guide
+- `vikix welcome add` — only the software picker (Super+m, Add software)
+
+StumpWM opens it by itself at the first login (commands.lisp), and Super+m, Welcome brings it back. What's done is kept in `~/.local/state/vikix/welcome`, one step a line; that it exists means the welcome has been shown.
+
+The pickers are fzf, which the base installs: type to narrow the list, Tab to pick several, Enter to go, Esc to go back.
+
+## vikix-windows
+
+Windows in a VM, for the programs that only run there.
+
+- `vikix windows setup [--disk DIR]` — once: the packages, the drivers disc, the shared folder. The disk goes in DIR (default `~/.local/share/libvirt/images`), which needs 40 GB free
+- `vikix windows create ISO [--key KEY]` — install Windows from ISO, by itself: about 25 minutes, and a notification when it's ready. Asks for the password of your Windows account. Without a key, Windows 11 Pro installs unactivated.
+- `vikix windows [open]` — start it if it's off, and show its desktop in a window
+- `vikix windows stop [--force]` — shut Windows down (--force: switch it off)
+- `vikix windows status` — is it running, is it installed, where things are
+- `vikix windows network` — put the VM on its private network (setup and vikix update do it; asks for sudo only to change something)
+- `vikix windows remove` — delete the VM and its disk (asks first)
+
+The VM runs as you (libvirt's qemu:///session), so its disk, its TPM and its shared folder are all yours, in your home. `~/Windows` is drive Z: in Windows, and `vikix backup` covers it; the VM's disk it leaves out. The display is SPICE with no network port: only this user can open it.
+
+Its network is private: libvirt's NAT bridge, virbr0 (through qemu-bridge-helper): Windows reaches the internet, and sees this machine only as 192.168.122.1, where nothing that listens on 127.0.0.1 alone can be reached: Swank, CUPS, a local model. (passt, the first network, handed Windows this machine's 127.0.0.1 as its gateway address.)

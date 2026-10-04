@@ -4,7 +4,7 @@ These pages are for someone who has installed Vikix and wants to know where thin
 
 They are on your machine too, in three forms: as these files in `~/vikix/docs/`, as web pages with the diagrams drawn as pictures (`Super+m` → *Vikix guide in the browser*), and as an Info manual. Read that with `Super+m` → *Vikix guide* (in Emacs if you have it, otherwise in a terminal), `C-h i` then *Vikix* in Emacs, or `info vikix` in a terminal.
 
-Every `vikix` command has a man page as well: `man vikix` lists the commands, `man vikix-backup` is the whole of one, and `man -k vikix` finds a page by a word. They say what each command's `-h` says, since both are made from the same lines.
+Every `vikix` command has a man page as well, and so has each command of a plugin you've added: `man vikix` lists them, `man vikix-backup` or `man inbox` is the whole of one, and `man -k vikix` finds a page by a word. [The commands](commands.md) is the same in one page. They say what each command's `-h` says, since both are made from the same lines.
 
 | Page | Read it when |
 |---|---|
@@ -19,6 +19,7 @@ Every `vikix` command has a man page as well: `man vikix` lists the commands, `m
 | [Your notes](notes.md) | You take notes: a key from anywhere, sorting the inbox with a model, the agenda and links in Emacs, and the same notes on an Android phone or an iPhone |
 | [Working with AI](ai.md) | You want the agent to change something for you, a model on the laptop, `llm` in a pipe, dictation, to talk with the AI, to ask your notes, or to give the agent the desktop as tools |
 | [Windows in a window](windows.md) | You need a program that only runs on Windows |
+| [The commands](commands.md) | You want to know what a command takes: every `vikix` command, its forms and the files it keeps, as its `-h` and its man page say them |
 | [When something breaks](fixing.md) | The install or the desktop didn't start, a key or a menu entry is missing, an update failed, you want a report to ask the agent or a person |
 
 ## Six things to know first

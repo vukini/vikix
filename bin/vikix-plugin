@@ -21,7 +21,8 @@
 # silently. Your plugins are named in ~/.config/vikix/plugins.list, your
 # settings for each in ~/.config/vikix/plugins/NAME (copied once, yours).
 # A plugin's programs (its bin/) are linked into ~/.local/bin while it's
-# added. Its Lisp runs inside StumpWM (plugins.lisp loads it).
+# added, each with its man page (man inbox). Its Lisp runs inside StumpWM
+# (plugins.lisp loads it).
 
 set -uo pipefail
 VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
@@ -32,7 +33,7 @@ VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 # VIKIX_PLUGINS_REPO and VIKIX_PLUGINS_COMMIT name others (tests, or trying
 # your own work on the repo: a folder works as well as an address).
 PLUGINS_REPO=${VIKIX_PLUGINS_REPO:-https://github.com/vukini/vikix-plugins}
-PLUGINS_COMMIT=${VIKIX_PLUGINS_COMMIT:-4530b6c11fb3d30e624540c157b99343aca335cb}   # 2026-10-03: inbox sync (notes-sync), your notes up to Dropbox
+PLUGINS_COMMIT=${VIKIX_PLUGINS_COMMIT:-ea2b87f81997a73151ebd867d990f673ed4421e2}   # 2026-10-04: the commands' headers in the shape their man pages are made from
 DIR="$HOME/.local/share/vikix/plugins"
 LIST="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/plugins.list"
 SETTINGS="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/plugins"
@@ -68,6 +69,17 @@ sync() {
   # Programs of plugins added, linked again: a new pin may bring new ones.
   local name
   while IFS= read -r name; do link_bins "$name"; done < <(mine)
+  man_pages
+}
+
+# A man page for each command of the plugins in the list (man inbox), beside
+# Vikix's own: lib/man.py makes them from the commands' headers, as it does
+# Vikix's, and takes away those of a plugin that's gone.
+man_pages() {
+  [ "$DRY_RUN" = 1 ] && return 0
+  local man="$HOME/.local/share/man"
+  python3 "$VIKIX_DIR/lib/man.py" "$man/man1" >/dev/null 2>&1 || true
+  if command -v makewhatis >/dev/null; then makewhatis "$man" 2>/dev/null || true; fi
 }
 
 link_bins() {
@@ -168,6 +180,7 @@ cmd_add() {
     fi
   fi
   [ "$DRY_RUN" = 1 ] || set_line "$name" "$name"
+  man_pages
   start_service "$name"
   say "added $name"
   reload_wm
@@ -187,6 +200,7 @@ cmd_remove() {
   [ -z "$service" ] || run pkill -f -- "$service" 2>/dev/null || true
   unlink_bins "$name"
   [ "$DRY_RUN" = 1 ] || set_line "$name" ""
+  man_pages
   say "removed $name"
   [ ! -d "$SETTINGS/$name" ] || echo "   Your settings for it stay: $SETTINGS/$name"
   echo "   Its bar words, keys and menu entries go now; anything else it hooked into StumpWM, at the next login."

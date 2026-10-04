@@ -12,6 +12,13 @@
 #     page when the pages are written
 #   - a page made earlier for a command that's gone is removed; a page of
 #     the user's with a vikix name is not; a second run writes nothing
+#   - the commands of the plugins in the user's list get pages too, one
+#     switched off included; a command that only starts lib/NAME.py takes
+#     its forms from there; a plugin's header out of shape costs that
+#     page and nothing else; a plugin taken off the list loses its pages;
+#     a page that isn't Vikix's is never written over
+#   - docs/commands.md is what lib/man.py --guide prints: the same
+#     headers as a page of the guides (tests/info.sh makes the manual)
 #   - 40-config, in a made-up home, installs them where MANPATH points,
 #     man finds one there, and a dry run writes nothing
 #   - vikix.bash puts that folder on MANPATH, keeping the system's pages
@@ -29,6 +36,8 @@ check() { "${@:2}" || { echo "FAIL: $1"; fail=1; }; }
 has() { grep -qF -- "$2" "$1"; }
 
 # --- the real scripts ---------------------------------------------------------
+export HOME="$t/nobody"   # no plugins of the real home's: lib/man.py reads its list
+mkdir -p "$HOME"
 python3 "$here/lib/man.py" --check > "$t/check" 2>&1 || { echo "FAIL: headers out of shape:"; sed 's/^/  /' "$t/check"; fail=1; }
 python3 "$here/lib/man.py" "$t/real/man1" > "$t/out" 2>&1 || { echo "FAIL: lib/man.py failed:"; sed 's/^/  /' "$t/out"; exit 1; }
 for f in "$here"/bin/vikix*; do
@@ -161,6 +170,79 @@ python3 "$v/lib/man.py" "$t/broken/man1" > "$t/out" 2>&1 && { echo "FAIL: writin
 check "a broken header cost another script its page" test -s "$t/broken/man1/vikix-good.1"
 check "a broken header got a page" test ! -e "$t/broken/man1/vikix-title.1"
 check "writing doesn't say which pages are missing" grep -q 'no man page for .*vikix-title' "$t/out"
+
+# --- the plugins' commands -------------------------------------------------------
+ph="$t/phome"   # a home with plugins added: man.py reads its list and their folder
+w="$t/w"        # and a Vikix of three commands, all in shape
+mkdir -p "$w/bin" "$w/lib"
+cp "$here/lib/man.py" "$w/lib/"
+cp "$v/VERSION" "$w/"
+cp "$v/bin/vikix" "$v/bin/vikix-good" "$w/bin/"
+printf '#!/bin/sh\n# vikix-plugin — small additions.\n#\n#   vikix plugin list   the plugins\n' > "$w/bin/vikix-plugin"
+pl="$ph/.local/share/vikix/plugins"
+mkdir -p "$ph/.config/vikix" "$pl/notes/bin" "$pl/notes/lib" "$pl/off/bin" "$pl/unlisted/bin" "$pl/bad/bin"
+printf 'notes\n#off off\nbad\n# a comment\n' > "$ph/.config/vikix/plugins.list"
+cat > "$pl/notes/bin/jot" <<'EOF'
+#!/usr/bin/env python3
+"""jot — a note from anywhere.
+
+  jot add "TEXT, with a comma"   keep TEXT
+  jot open                       the notes, see jot-sync and vikix good
+
+Kept in ~/.config/vikix/plugins/notes/settings.
+"""
+EOF
+printf '#!/bin/sh\n# jot-sync — the notes up to the cloud.\n#\n#   jot-sync   what jot does, by another name\n' > "$pl/notes/bin/jot-sync"
+printf '#!/bin/sh\n# wrapped — starts the program beside it.\nexec python3 ../lib/wrapped.py\n' > "$pl/notes/bin/wrapped"
+printf '"""wrapped — a program with its forms in lib.\n\n  wrapped go   do it\n\nAnd a line about it.\n"""\n' > "$pl/notes/lib/wrapped.py"
+printf '#!/bin/sh\n# offcmd — of a plugin switched off.\n#\n#   offcmd   still linked, so still a page\n' > "$pl/off/bin/offcmd"
+printf '#!/bin/sh\n# stray — of a plugin not in the list.\n#\n#   stray   no page\n' > "$pl/unlisted/bin/stray"
+printf '#!/bin/sh\n# badcmd: no dash, no forms.\n' > "$pl/bad/bin/badcmd"
+# First into a folder where another program's page has one of the names.
+pw="$ph/taken/man1"
+mkdir -p "$pw"
+printf '.TH WRAPPED 1\n.SH NAME\nwrapped \\- another program of that name\n' > "$pw/wrapped.1"
+HOME="$ph" python3 "$w/lib/man.py" "$pw" > "$t/out" 2>&1 || { echo "FAIL: a plugin's broken header failed the lot (Vikix's own were fine):"; sed 's/^/  /' "$t/out"; fail=1; }
+check "a page that isn't Vikix's was written over" has "$pw/wrapped.1" 'another program of that name'
+check "nothing said about the page in the way" grep -q "wrapped.1 isn't Vikix's" "$t/out"
+# Then into an empty one.
+pm="$ph/man/man1"
+HOME="$ph" python3 "$w/lib/man.py" "$pm" >/dev/null 2>&1 || true
+check "no page for a plugin's command" test -s "$pm/jot.1"
+check "a plugin's page doesn't say which plugin" has "$pm/jot.1" '"Vikix plugin notes"'
+check "a plugin's page: its first line doesn't say where it's from" bash -c "head -1 '$pm/jot.1' | grep -qF 'plugins/notes/bin/jot'"
+check "a quoted argument with a comma was taken for prose" has "$pm/jot.1" 'jot add "'
+check "a plugin's page doesn't point to vikix-plugin, its plugin's other command and Vikix's" has "$pm/jot.1" '\fBvikix\fR(1), \fBjot\-sync\fR(1), \fBvikix\-good\fR(1), \fBvikix\-plugin\fR(1)'
+check "no page for a command of a plugin switched off" test -s "$pm/offcmd.1"
+check "a page for a plugin that isn't in the list" test ! -e "$pm/stray.1"
+check "a page from a plugin's broken header" test ! -e "$pm/badcmd.1"
+check "a command that starts lib/NAME.py didn't take its forms from there" has "$pm/wrapped.1" '\fBwrapped go\fR'
+check "vikix.1 doesn't list the plugins' commands" bash -c "sed -n '/commands of your plugins/,\$p' '$pm/vikix.1' | grep -qF 'jot\\-sync\\fR(1)'"
+check "Vikix's pages aren't beside the plugins'" test -s "$pm/vikix-good.1"
+if command -v mandoc >/dev/null; then
+  mandoc -T lint -W warning "$pm"/*.1 > "$t/lint" 2>&1 || true
+  [ -s "$t/lint" ] && { echo "FAIL: mandoc's lint warned about the plugins' pages:"; sed 's/^/  /' "$t/lint" | head; fail=1; }
+fi
+printf '#off off\n' > "$ph/.config/vikix/plugins.list"
+HOME="$ph" python3 "$w/lib/man.py" "$pm" >/dev/null 2>&1 || true
+check "a plugin off the list kept its pages" test ! -e "$pm/jot.1" -a ! -e "$pm/jot-sync.1"
+check "the plugin still listed lost its page" test -s "$pm/offcmd.1"
+python3 "$w/lib/man.py" --check "$pl/notes/bin" "$pl/off/bin" > "$t/check" 2>&1 || { echo "FAIL: --check refused good plugin headers:"; sed 's/^/  /' "$t/check"; fail=1; }
+python3 "$w/lib/man.py" --check "$pl/bad/bin" > "$t/check" 2>&1 && { echo "FAIL: --check passed a plugin's broken header"; fail=1; }
+check "--check doesn't name the plugin's script" grep -q "^plugins/bad/bin/badcmd: the header's first line isn't 'badcmd — one line'" "$t/check"
+
+# --- the same headers as a page of the guides ------------------------------------
+python3 "$here/lib/man.py" --guide > "$t/commands.md" 2>"$t/out" || { echo "FAIL: lib/man.py --guide failed:"; sed 's/^/  /' "$t/out"; fail=1; }
+cmp -s "$t/commands.md" "$here/docs/commands.md" ||
+  { echo "FAIL: docs/commands.md isn't what the headers say now: python3 lib/man.py --guide > docs/commands.md"; fail=1; }
+python3 "$v/lib/man.py" --guide > "$t/guide.md"
+check "the guide page has no section for a command" grep -qx '## vikix-good' "$t/guide.md"
+check "the guide page doesn't list the commands first" grep -qxF -- '- [vikix-good](#vikix-good): a good header: it has every part there is' "$t/guide.md"
+check "a form isn't code in the guide page" grep -qF -- '- `vikix good FILE [--force]` — read FILE, a second line of it' "$t/guide.md"
+check "a table under a form isn't a code block" bash -c "grep -B1 -xF 'ONE   the first   (a)' '$t/guide.md' | grep -qxF '\`\`\`'"
+check "a path in prose isn't code (Markdown would eat <this> and A_NAME)" grep -qF 'Prose about `~/.config/vikix/good` and `C:\path`, kept in `~/.local/state/vikix/good/`.' "$t/guide.md"
+check "the guide page has a broken header's command" bash -c "! grep -q 'vikix-title' '$t/guide.md'"
+check "a plugin's command is in Vikix's guide page" bash -c "! HOME='$ph' python3 '$w/lib/man.py' --guide | grep -q offcmd"
 
 # --- installed by 40-config -----------------------------------------------------
 export HOME="$t/home" VIKIX_STATE="$t/state" VIKIX_DIR="$here"   # this checkout, not the installed ~/vikix

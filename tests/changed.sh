@@ -44,7 +44,7 @@ for f in "${files[@]}"; do
   esac
   case $f in
     # A command's man page is made from its header (lib/man.py).
-    bin/vikix*|lib/man.py) add man ;;
+    bin/vikix*|lib/man.py|docs/commands.md) add man ;;
   esac
   case $f in
     # The skill's list of keys is made from these (lib/skill-keys.sh).

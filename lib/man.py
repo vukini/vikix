@@ -3,13 +3,20 @@
 
   lib/man.py DIR           write vikix.1 and a vikix-NAME.1 for every
                            bin/vikix-* into DIR (40-config: ~/.local/share/
-                           man/man1), and remove the pages it made earlier
+                           man/man1), a page for each command of the plugins
+                           you've added, and remove the pages it made earlier
                            for commands that are gone
   lib/man.py --page FILE   one script's page, on stdout
-  lib/man.py --check       say which headers aren't in the standard shape,
-                           and fail if any (tests/lint.sh runs this)
+  lib/man.py --guide       the same headers as a page of the guides, on
+                           stdout: docs/commands.md is this, and tests/man.sh
+                           fails when it isn't
+  lib/man.py --check [BIN...]
+                           say which headers aren't in the standard shape,
+                           and fail if any: bin/vikix* (tests/lint.sh runs
+                           this), or every script in the folders named (a
+                           plugin's bin)
 
-Nothing is written by hand: the header every bin/vikix-* starts with (the
+Nothing is written by hand: the header every command starts with (the
 comment under the #! line, or a Python script's docstring), which
 `vikix help` and each -h print, is the one source. Its standard shape:
 
@@ -25,8 +32,14 @@ comment under the #! line, or a Python script's docstring), which
 
 The first line gives NAME; the forms and their descriptions SYNOPSIS; the
 rest DESCRIPTION; the ~/ paths it names FILES; the other commands it names
-SEE ALSO. A form is known by its first word: vikix, vikix-NAME, or a short
-name the first paragraph gives in `backticks` (`note`).
+SEE ALSO. A form is known by its first word: the command's own name, vikix,
+vikix-NAME, or a short name the first paragraph gives in `backticks`
+(`note`). A command that only starts a program beside it (bin/flights, for
+lib/flights.py) may leave its forms to that program's docstring.
+
+The plugins' commands are those of ~/.config/vikix/plugins.list, in
+~/.local/share/vikix/plugins/NAME/bin: vikix plugin runs this again when
+one is added, removed, or the pin moves.
 """
 import ast
 import datetime
@@ -37,8 +50,12 @@ import sys
 
 HERE = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 BIN = os.path.join(HERE, "bin")
-MARK = '.\\" Made by Vikix (lib/man.py) from the header of bin/'
-TITLE = re.compile(r"^(vikix(?:-[a-z0-9-]+)?) — (\S.*)$")
+MARK = '.\\" Made by Vikix (lib/man.py) from the header of '
+TITLE = re.compile(r"^(\S+) — (\S.*)$")
+# The plugins: where vikix plugin keeps them, and the user's list of them.
+PLUGINS = os.path.join(os.path.expanduser("~"), ".local", "share", "vikix", "plugins")
+PLUGINS_LIST = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config"),
+                            "vikix", "plugins.list")
 GAP = re.compile(r" {2,}")
 PATH = re.compile(r"~/[\w.<>/+-]*[\w>/]")
 # A form that swallowed its description: these never belong in one.
@@ -50,12 +67,35 @@ def scripts():
     return sorted(f for f in os.listdir(BIN) if f == "vikix" or f.startswith("vikix-"))
 
 
+def folder(path):
+    """The scripts of a bin folder, by name."""
+    try:
+        return sorted(f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f)))
+    except OSError:
+        return []
+
+
+def plugins():
+    """The user's plugins, switched off or not (as vikix-plugin's own list
+    of them: their commands stay linked), each with its bin folder."""
+    out = []
+    try:
+        with open(PLUGINS_LIST, encoding="utf-8") as f:
+            for entry in f:
+                found = re.fullmatch(r"(?:#off )?([a-z][a-z0-9-]*)", entry.strip())
+                if found and found.group(1) not in [name for name, _ in out]:
+                    out.append((found.group(1), os.path.join(PLUGINS, found.group(1), "bin")))
+    except OSError:
+        pass
+    return out
+
+
 def header(path):
     """The header's lines: the comment block under the #! line, or the docstring."""
     with open(path, encoding="utf-8") as f:
         text = f.read()
     lines = text.split("\n")
-    if "python" in lines[0]:
+    if "python" in lines[0] or path.endswith(".py"):
         try:
             doc = ast.get_docstring(ast.parse(text))
         except SyntaxError:   # lint's to report; here it is a script without a header
@@ -101,13 +141,15 @@ def summary(title):
 class Page:
     """A header, read into the parts of a man page."""
 
-    def __init__(self, name, lines):
+    def __init__(self, name, lines, origin=None, plugin=None):
         self.name = name
+        self.origin = origin or "bin/" + name   # said in the page's first line, and by --check
+        self.plugin = plugin                    # the plugin a command comes with, or None: Vikix's own
         self.problems = []
         self.entries = []   # (form, its description's lines, lines of it kept as they are)
         self.body = []      # ("text", lines) or ("pre", lines), in order
         self.summary = ""
-        self.words = {"vikix"}   # what a form starts with, besides vikix-NAME
+        self.words = {"vikix", name}   # what a form starts with, besides vikix-NAME
         paragraphs, now = [], []
         for line in lines + [""]:
             line = line.rstrip()
@@ -117,7 +159,7 @@ class Page:
                 paragraphs.append(now)
                 now = []
         if not paragraphs:
-            self.problems.append("no header: a comment under the #! line (or a docstring) starting 'vikix-NAME — one line'")
+            self.problems.append(f"no header: a comment under the #! line (or a docstring) starting '{name} — one line'")
             return
         first = TITLE.match(paragraphs[0][0])
         if not first or first.group(1) != name:
@@ -136,7 +178,7 @@ class Page:
         for paragraph in ([rest] if rest else []) + paragraphs[1:]:
             self.paragraph(paragraph)
         if not self.entries:
-            self.problems.append("no usage line: an indented 'vikix NAME ...   what it does'")
+            self.problems.append(f"no usage line: an indented '{name.replace('vikix-', 'vikix ')} ...   what it does'")
 
     def command(self, line):
         """Does this line start with the command (so: a form)?"""
@@ -172,7 +214,8 @@ class Page:
                 self.problems.append(f"in a usage block, a line that is neither a form nor further in: '{line[:50]}'")
                 continue
             form, beside = (GAP.split(line, maxsplit=1) + [""])[:2]
-            if PROSE.search(form) or wordy(form):
+            bare = re.sub(r"\"[^\"]*\"|'[^']*'", "X", form)   # what's quoted is an argument, whatever it holds
+            if PROSE.search(bare) or wordy(bare):
                 self.problems.append(f"a form with its description run into it (two spaces between them): '{form[:60]}'")
             raw.append([form, beside, []])
         for form, beside, under in raw:
@@ -201,16 +244,22 @@ class Page:
                 seen.append(path)
         return seen
 
-    def see_also(self, names):
+    def see_also(self, pages):
+        """The other commands this one names: Vikix's as vikix-NAME or
+        vikix NAME, and for a plugin's command, the others of its plugin."""
         text = self.texts() + "\n" + "\n".join(entry[0] for entry in self.entries)
-        found = set()
-        for other in names:
-            if other in (self.name, "vikix"):
+        found = {"vikix-plugin"} if self.plugin else set()
+        for other in pages.values():
+            if other.name in (self.name, "vikix"):
                 continue
-            spaced = "vikix " + other[len("vikix-"):]
-            if re.search(rf"(?<![\w-]){re.escape(other)}(?![\w-])|(?<![\w-]){re.escape(spaced)}(?![\w-])", text):
-                found.add(other)
-        return sorted(found)
+            spellings = []
+            if not other.plugin:
+                spellings = [other.name, "vikix " + other.name[len("vikix-"):]]
+            elif other.plugin == self.plugin:
+                spellings = [other.name]
+            if any(re.search(rf"(?<![\w-]){re.escape(word)}(?![\w-])", text) for word in spellings):
+                found.add(other.name)
+        return sorted(found & set(pages))
 
 
 def esc(text):
@@ -238,9 +287,11 @@ def pre_roff(lines):
     return [".nf"] + [plain(text) for text in lines] + [".fi"]
 
 
-def roff(page, version, date, names, summaries):
-    out = [MARK + page.name,
-           f'.TH "{page.name.upper()}" 1 "{date}" "Vikix {version}" "Vikix"',
+def roff(page, pages, version, date):
+    """PAGE as a man page; PAGES, all of them by name, are what it may point to."""
+    source = f"Vikix plugin {page.plugin}" if page.plugin else f"Vikix {version}"
+    out = [MARK + page.origin,
+           f'.TH "{page.name.upper()}" 1 "{date}" "{source}" "Vikix"',
            ".SH NAME",
            f"{esc(page.name)} \\- {esc(page.summary)}",
            ".SH SYNOPSIS"]
@@ -267,92 +318,189 @@ def roff(page, version, date, names, summaries):
     out.append(".SH SEE ALSO")
     if page.name == "vikix":
         out.append("Each of these has a page of its own:")
-        for other in names:
-            if other != "vikix":
-                out += [".TP", f"\\fB{esc(other)}\\fR(1)", esc(summaries[other])]
+        own = [p for p in pages.values() if not p.plugin and p.name != "vikix"]
+        added = [p for p in pages.values() if p.plugin]
+        for other in sorted(own, key=lambda p: p.name):
+            out += [".TP", f"\\fB{esc(other.name)}\\fR(1)", esc(other.summary)]
+        if added:
+            out += [".PP", "And the commands of your plugins:"]
+            for other in sorted(added, key=lambda p: p.name):
+                out += [".TP", f"\\fB{esc(other.name)}\\fR(1)", esc(other.summary)]
     else:
-        out.append(", ".join(f"\\fB{esc(n)}\\fR(1)" for n in ["vikix"] + page.see_also(names)))
+        out.append(", ".join(f"\\fB{esc(n)}\\fR(1)" for n in ["vikix"] + page.see_also(pages)))
     return "\n".join(out) + "\n"
 
 
-def version_and_date():
-    with open(os.path.join(HERE, "VERSION")) as f:
-        version = f.read().strip()
-    # The date of the commit the checkout is at: the same pages from the same Vikix.
+def commit_date(repo):
+    """The date of the commit REPO is at: the same pages from the same commit."""
     try:
-        date = subprocess.run(["git", "-C", HERE, "log", "-1", "--format=%cs"], capture_output=True,
+        date = subprocess.run(["git", "-C", repo, "log", "-1", "--format=%cs"], capture_output=True,
                               text=True, timeout=10).stdout.strip()
     except (OSError, subprocess.SubprocessError):
         date = ""
-    return version, date or datetime.date.today().isoformat()
+    return date or datetime.date.today().isoformat()
+
+
+def version():
+    with open(os.path.join(HERE, "VERSION")) as f:
+        return f.read().strip()
+
+
+def read(name, path, origin=None, plugin=None):
+    """PATH's page. A command that only starts the program beside it
+    (bin/NAME for lib/NAME.py) may leave its forms to that program's header."""
+    page = Page(name, header(path), origin, plugin)
+    beside = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(path))), "lib", name + ".py")
+    if page.problems and not page.entries and os.path.isfile(beside):
+        other = Page(name, header(beside), origin, plugin)
+        if not other.problems:
+            return other
+    return page
 
 
 def pages():
-    return {name: Page(name, header(os.path.join(BIN, name))) for name in scripts()}
+    """Vikix's own commands, by name."""
+    return {name: read(name, os.path.join(BIN, name)) for name in scripts()}
 
 
-def check():
+def plugin_pages(folders):
+    """The commands in FOLDERS, (plugin, its bin folder) pairs, by name."""
+    out = {}
+    for plugin, path in folders:
+        for name in folder(path):
+            out.setdefault(name, read(name, os.path.join(path, name), f"plugins/{plugin}/bin/{name}", plugin))
+    return out
+
+
+def check(folders):
+    found = plugin_pages([(os.path.basename(os.path.dirname(os.path.abspath(f))), f) for f in folders]) if folders else pages()
     bad = 0
-    for name, page in pages().items():
+    for page in found.values():
         for problem in page.problems:
-            print(f"bin/{name}: {problem}")
+            print(f"{page.origin}: {problem}")
             bad += 1
     if bad:
         print(f"{bad} header(s) not in the standard shape (lib/man.py's own header says what it is)")
     return 1 if bad else 0
 
 
+def ours(path):
+    """Is the page at PATH one this made (and so one it may write over or remove)?"""
+    try:
+        with open(path, encoding="utf-8") as f:
+            return f.readline().startswith(MARK)
+    except (OSError, UnicodeDecodeError):
+        return False
+
+
 def write(directory):
-    all_pages = pages()
-    broken = [name for name, page in all_pages.items() if page.problems]
+    found = pages()
+    for name, page in plugin_pages(plugins()).items():
+        found.setdefault(name, page)   # a plugin's command never takes the place of Vikix's
+    # A header man can't be made from costs its own page, not the others. One
+    # of Vikix's is said, and fails; a plugin's is its own repo's to check
+    # (lib/man.py --check on its bin says why), and only goes without a page.
+    broken = sorted(name for name, page in found.items() if page.problems and not page.plugin)
     if broken:
-        # A header man can't be made from costs its own page, not the others.
         print("no man page for " + ", ".join(broken) + " (lib/man.py --check says why)", file=sys.stderr)
-    good = {name: page for name, page in all_pages.items() if not page.problems}
-    names = sorted(good)
-    summaries = {name: page.summary for name, page in good.items()}
-    version, date = version_and_date()
+    good = {name: page for name, page in found.items() if not page.problems}
+    dates = {None: commit_date(HERE), "plugin": commit_date(PLUGINS)}
     os.makedirs(directory, exist_ok=True)
     changed = 0
     for name, page in good.items():
-        text = roff(page, version, date, names, summaries)
+        text = roff(page, good, version(), dates["plugin" if page.plugin else None])
         path = os.path.join(directory, name + ".1")
+        if os.path.exists(path) and not ours(path):
+            # A page of the user's, or of another program with the same name: theirs.
+            print(f"{path} isn't Vikix's: left as it is", file=sys.stderr)
+            continue
         try:
             with open(path, encoding="utf-8") as f:
                 if f.read() == text:
                     continue
-        except (OSError, UnicodeDecodeError):
+        except OSError:
             pass
         with open(path, "w", encoding="utf-8") as f:
             f.write(text)
         changed += 1
     # Pages made here earlier for commands that are gone; never a page of yours.
     for file in os.listdir(directory):
-        if file.endswith(".1") and file[:-2] not in good and file.startswith("vikix"):
-            path = os.path.join(directory, file)
-            try:
-                with open(path, encoding="utf-8") as f:
-                    ours = f.readline().startswith(MARK)
-            except (OSError, UnicodeDecodeError):
-                ours = False
-            if ours:
-                os.remove(path)
-                changed += 1
+        path = os.path.join(directory, file)
+        if file.endswith(".1") and file[:-2] not in good and ours(path):
+            os.remove(path)
+            changed += 1
     print(f"{len(good)} man pages in {directory} ({changed} changed)")
     return 1 if broken else 0
 
 
+# --- the same headers as a page of the guides ---------------------------------
+
+def md(text):
+    """TEXT as Markdown that says what it said: outside the `code` it already
+    has, a word Markdown would read as markup (a path, <this>, A_NAME, a *) is
+    code too."""
+    def word(found):
+        token = found.group(0)
+        if not re.search(r"[*_\\]|~/|<[A-Za-z/]", token):
+            return token
+        core = token.rstrip(".,;:)")
+        opened = "(" if core.startswith("(") else ""
+        return f"{opened}`{core[len(opened):]}`{token[len(core):]}"
+    parts = text.split("`")
+    if len(parts) % 2 == 0:   # a ` without its pair: all of it plain words
+        return re.sub(r"\S+", word, text.replace("`", "'"))
+    return "`".join(part if i % 2 else re.sub(r"\S+", word, part) for i, part in enumerate(parts))
+
+
+def fenced(lines):
+    return ["```"] + lines + ["```", ""]
+
+
+def guide():
+    found = {name: page for name, page in pages().items() if not page.problems}
+    out = ["# The commands",
+           "",
+           "Every `vikix` command: its forms, what each does, and the files it keeps. "
+           "This page is made from the header each command's script starts with (`lib/man.py --guide`): "
+           "the lines its `-h` prints, and the ones its man page is made from (`man vikix-backup`), "
+           "so the three always say the same. Nobody edits it by hand.",
+           "",
+           "`vikix` is the one you type, and most of the others are reached through it: "
+           "`vikix backup` runs `vikix-backup`. A few are what the desktop itself runs: "
+           "the bar's fields, the session, the lock.",
+           ""]
+    out += [f"- [{name}](#{name}): {md(page.summary)}" for name, page in found.items()] + [""]
+    for name, page in found.items():
+        out += [f"## {name}", "", md(page.summary[0].upper() + page.summary[1:]) + ".", ""]
+        listed = False
+        for form, filled, pre in page.entries:
+            code = f"`{form}`" if "`" not in form else form
+            out.append(f"- {code}" + (" — " + md(" ".join(filled)) if filled else ""))
+            listed = True
+            if pre:
+                out += [""] + fenced(pre)
+                listed = False
+        if listed:
+            out.append("")
+        for kind, lines in page.body:
+            out += [md(" ".join(line.strip() for line in lines)), ""] if kind == "text" else fenced(lines)
+    return "\n".join(out).rstrip("\n") + "\n"
+
+
 def main(args):
-    if args == ["--check"]:
-        return check()
+    if args[:1] == ["--check"] and not any(arg.startswith("-") for arg in args[1:]):
+        return check(args[1:])
+    if args == ["--guide"]:
+        sys.stdout.write(guide())
+        return 0
     if len(args) == 2 and args[0] == "--page":
         name = os.path.basename(args[1])
-        page = Page(name, header(args[1]))
+        page = read(name, args[1])
         if page.problems:
             sys.exit("\n".join(f"{args[1]}: {p}" for p in page.problems))
-        all_pages = {n: p for n, p in pages().items() if not p.problems}
-        version, date = version_and_date()
-        sys.stdout.write(roff(page, version, date, sorted(all_pages), {n: p.summary for n, p in all_pages.items()}))
+        found = {n: p for n, p in pages().items() if not p.problems}
+        found.setdefault(name, page)
+        sys.stdout.write(roff(page, found, version(), commit_date(HERE)))
         return 0
     if len(args) == 1 and not args[0].startswith("-"):
         return write(args[0])

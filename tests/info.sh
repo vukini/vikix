@@ -41,7 +41,7 @@ nodes=$(grep -c '^@node ' "$t/vikix.texi")
 check "$nodes nodes for $headings headings and Top" test "$nodes" = $((headings + 1))
 # Outside code: a code block may hold "[~a](~a)" (a Lisp format string).
 check "Markdown links left in the manual" bash -c "! awk '/^@example/ { code = 1 } /^@end example/ { code = 0 } !code && /\\]\\(/' '$t/vikix.texi' | grep -q ."
-check "Markdown bold left in the manual" bash -c "! grep -n '\*\*' '$t/vikix.texi' | grep -v '^[0-9]*:     '"
+check "Markdown bold left in the manual" bash -c "! awk '/^@example/ { code = 1 } /^@end example/ { code = 0 } !code && /\\*\\*/' '$t/vikix.texi' | grep -q ."
 
 # --- broken guides stop the build ---------------------------------------------
 cp -r "$here/docs" "$t/docs"

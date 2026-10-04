@@ -5,12 +5,12 @@
 #   list     fetches the pinned commit, lists every plugin, marks yours
 #   add      shows what it runs and changes; refuses without a terminal
 #            unless --yes; refuses a name that isn't there, and a plugin
-#            for a newer Vikix; links its programs, copies its settings
-#            once, runs its setup, names it in plugins.list; a failed setup
-#            adds nothing
+#            for a newer Vikix; links its programs, writes their man
+#            pages, copies its settings once, runs its setup, names it in
+#            plugins.list; a failed setup adds nothing
 #   off/on   off keeps it (and its programs) but stops it loading; on undoes
-#   remove   runs its remove, unlinks its programs, takes it off the list,
-#            keeps your settings
+#   remove   runs its remove, unlinks its programs, takes their man pages
+#            away and it off the list, keeps your settings
 #   safe     the next login loads none
 #   sync     fetches nothing without plugins; a moved pin is fetched
 #   Lisp     plugins.lisp reads the list as StumpWM does (on, not off)
@@ -38,7 +38,7 @@ repo="$t/repo"
 mkdir -p "$repo/demo/bin" "$repo/demo/settings" "$repo/broken" "$repo/future"
 printf 'name: demo\nabout: A demo\nkinds: bar\nvikix: 0.1.0\nlisp: plugin.lisp\nsetup: setup\nremove: remove\nchanges: leaves a mark in ~/mark\n' > "$repo/demo/manifest"
 echo '(in-package :stumpwm)' > "$repo/demo/plugin.lisp"
-printf '#!/bin/sh\necho demo\n' > "$repo/demo/bin/demo-tool"
+printf '#!/bin/sh\n# demo-tool — a demo of a tool.\n#\n#   demo-tool   say demo\necho demo\n' > "$repo/demo/bin/demo-tool"
 echo "colour = blue" > "$repo/demo/settings/demo.conf"
 printf '#!/bin/sh\ntouch "$HOME/mark"\n' > "$repo/demo/setup"
 printf '#!/bin/sh\nrm -f "$HOME/mark"\n' > "$repo/demo/remove"
@@ -71,6 +71,8 @@ check "a failed setup shouldn't name it in the list" bash -c "! grep -qx broken 
 pl add demo --yes >/dev/null 2>&1
 check "add should run its setup" test -e "$HOME/mark"
 check "add should link its programs" test "$(readlink "$HOME/.local/bin/demo-tool")" = "$dir/demo/bin/demo-tool"
+check "add should write its programs' man pages" grep -q '^demo\\-tool \\- a demo of a tool$' "$HOME/.local/share/man/man1/demo-tool.1"
+check "add should leave Vikix's own man pages there" test -s "$HOME/.local/share/man/man1/vikix-plugin.1"
 check "add should copy its settings" grep -qx "colour = blue" "$HOME/.config/vikix/plugins/demo/demo.conf"
 check "add should name it in the list" grep -qx demo "$list"
 echo "colour = red" > "$HOME/.config/vikix/plugins/demo/demo.conf"
@@ -83,6 +85,7 @@ check "list should mark yours: $out" grep -qE '^demo +added +A demo$' <<<"$out"
 pl off demo >/dev/null 2>&1
 check "off should keep it, switched off" grep -qx "#off demo" "$list"
 check "off should keep its programs" test -L "$HOME/.local/bin/demo-tool"
+check "off should keep their man pages" test -s "$HOME/.local/share/man/man1/demo-tool.1"
 pl on demo >/dev/null 2>&1
 check "on should bring it back" grep -qx demo "$list"
 pl off demo >/dev/null 2>&1
@@ -203,6 +206,7 @@ fi
 pl remove demo >/dev/null 2>&1
 check "remove should run its remove" test ! -e "$HOME/mark"
 check "remove should unlink its programs" test ! -e "$HOME/.local/bin/demo-tool"
+check "remove should take away their man pages" test ! -e "$HOME/.local/share/man/man1/demo-tool.1"
 check "remove should take it off the list" bash -c "! grep -q demo '$list'"
 check "remove should keep your settings" test -e "$HOME/.config/vikix/plugins/demo/demo.conf"
 
