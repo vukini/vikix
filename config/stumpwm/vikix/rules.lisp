@@ -1290,9 +1290,14 @@ Nothing is done."
                    (dolist (rule rules)
                      (format out "    ~d  ~a~%" (vikix-rule-number rule)
                              (vikix-one-line (vikix-rule-text rule) 200)))))))
-      (format out "~d window~:p open; ~:[~d of them match~;none of them matches~*~] ~:[a rule for a window opening~;that rule~]. Nothing was done: vikix rules apply~@[ ~d~] does it."
-              (length windows) (= untouched (length windows)) (- (length windows) untouched)
-              only (and only (vikix-rule-number only))))))
+      (let ((matching (- (length windows) untouched)))
+        (format out "~d window~:p open; ~a ~:[a rule for a window opening~;that rule~]. Nothing was done: vikix rules apply~@[ ~d~] does it."
+                (length windows)
+                (case matching
+                  (0 "none of them matches")
+                  (1 "1 of them matches")
+                  (t (format nil "~d of them match" matching)))
+                only (and only (vikix-rule-number only)))))))
 
 (defun vikix-rules-apply (&optional only)
   "Run the rules for a window opening on the windows open now (ONLY: that

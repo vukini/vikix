@@ -25,6 +25,140 @@ The rule that would put a window like it there is shown first. Choose *Write it*
 
 Remembering the same window again replaces its rule. `vikix rules forget 3` takes a rule out of `rules.lisp` again, by its number or its name, and `vikix undo` puts the file back. Only `rules.lisp` is ever written this way, never `user.lisp`.
 
+## From an idea to a rule
+
+Four ideas, each taken from the wish to a rule that works. They all go the same way: say what you want in a sentence, find out what the desktop calls the window, write the line, and check it before you trust it.
+
+### Mail on a workspace of its own
+
+**The idea.** "My mail opens on workspace 7, and I go there with it."
+
+**What is the window called?** A rule knows a window by its class, the name its program gives it. Open your mail, then ask in a terminal about the window, by a word of its title:
+
+```
+$ vikix rules why fastmail
+vikix-fastmail "Fastmail" (workspace 1, window 0)
+  No rule has run for it.
+  No rule matches it either: it is where StumpWM, or you, put it.
+```
+
+The first word is the class, `vikix-fastmail`; then come its title and where it is now. No rule is about it yet, which is what we expected. (`Super+m` → *Rules* with the mail window in front shows the class too, in its first entry.)
+
+**The rule.** The sentence turns into one line, in two parts: what the window must be, then what to do with it.
+
+```lisp
+(when-window (:class "vikix-fastmail") (workspace 7 :follow t))
+```
+
+`(:class "vikix-fastmail")` is the window: exactly that class, nothing longer. `(workspace 7 :follow t)` sends it to workspace 7, and `:follow t` takes you along; without it you'd stay where you are. Put the line in `~/.stumpwm.d/rules.lisp` and reload (`Super+m` → *Reload config*).
+
+**Check it.** `vikix rules` lists it. Vikix's own two rules come first, so yours is number 3:
+
+```
+ 3  on     0×  never         (when-window (:class "vikix-fastmail") (workspace 7 :follow t))   rules.lisp:3
+```
+
+It is on, hasn't run yet, and is written on line 3 of your file. The mail window is still on workspace 1: a reload never moves the windows you have. Ask what the rule would do with them:
+
+```
+$ vikix rules test 3
+vikix-fastmail "Fastmail" (workspace 1, window 0)
+    3  (when-window (:class "vikix-fastmail") (workspace 7 :follow t))
+2 windows open; 1 of them matches that rule. Nothing was done: vikix rules apply 3 does it.
+```
+
+It found the right window and no other. Now do it:
+
+```
+$ vikix rules apply 3
+vikix-fastmail "Fastmail" (workspace 1, window 0)
+    ran     3  (when-window (:class "vikix-fastmail") (workspace 7 :follow t))
+1 run.
+```
+
+You're on workspace 7 with your mail. From now on it opens there by itself, and `vikix rules why fastmail` says what happened:
+
+```
+vikix-fastmail "Fastmail" (workspace 7, window 0)
+  Rules that ran for it:
+    15:36  on apply  3  (when-window (:class "vikix-fastmail") (workspace 7 :follow t))   rules.lisp:3
+```
+
+### A calculator in the corner
+
+**The idea.** "The calculator floats in the top right corner, a quarter of the screen wide, instead of taking half my screen as a tile."
+
+**The rule, by hand.**
+
+```lisp
+(when-window (:class "Gnome-calculator")
+  (float :width "25%" :height "40%" :corner :top-right))
+```
+
+`float` takes the window out of the tiles. `"25%"` and `"40%"` are shares of the monitor below the bar, so the rule fits any screen; a plain number, `400`, is pixels. `:corner :top-right` puts it there, a few pixels in from the edges. Leave the corner out and it floats in the middle.
+
+**Or let the desktop write it.** Float the calculator with `Super+t`, drag it where you want it (Super and the left button move it, Super and the right button resize it), and press `Super+Shift+t`. The rule it offers is the window as it stands:
+
+```lisp
+(when-window (:class "Gnome-calculator") :name "remembered: Gnome-calculator" (workspace 1) (float :width "25%" :height "40%" :x "74%" :y "1%"))
+```
+
+It wrote the place as `:x` and `:y`, shares of the screen from its left and top, since it can't know you meant "the corner". It also wrote the workspace the window is on. If the calculator should open wherever you are, take `(workspace 1)` out of the line afterwards; the file is yours to edit.
+
+**Check it.** `vikix rules apply 4` runs it on the calculator that is open, as in the first example. Close the calculator and open it again to see the rule work on a new window.
+
+### A reminder on working days
+
+**The idea.** "At eleven and at three, Monday to Friday, tell me to stand up."
+
+**The rule.** There is no window here, so no matcher: the rule starts with when.
+
+```lisp
+(at ("11:00" "15:00") :weekdays (notify "Stand up" "Two minutes away from the screen."))
+```
+
+`at` takes a time on the 24-hour clock, or a list of them. `:weekdays` keeps it to Monday to Friday. `notify` shows a notification: its title, then its text.
+
+**Check it.** `vikix rules` lists it as on, `0×`, `never`: its time has to come. To see it work without waiting until eleven, put a time two minutes from now in its place (and take `:weekdays` out if today is a weekend), reload, and wait: the notification comes within half a minute of the time, and `vikix rules` then shows `1×` and when. Put the real times back afterwards.
+
+Two things to know about times. A rule written after its time has passed waits for the next day; it doesn't run at once. And if the laptop was asleep at eleven, the reminder comes when it wakes, as long as that is within the hour.
+
+### A rule that doesn't work, and finding out why
+
+**The idea.** "Firefox on workspace 4." But the line has a slip in it:
+
+```lisp
+(when-window (:class "Firefox") (workspace 42))
+```
+
+**What happens.** Nothing breaks. Firefox opens where you are, a message says a rule failed, and the desktop carries on. `vikix rules` shows the failure under the rule:
+
+```
+ 6  on     0×  never         (when-window (:class "Firefox") (workspace 42))   rules.lisp:7
+        failed 1 time, last: There is no workspace 42.
+```
+
+And the window itself remembers:
+
+```
+$ vikix rules why Firefox
+Firefox "Mozilla Firefox" (workspace 1, window 0)
+  Rules that ran for it:
+    15:36  on open  6  (when-window (:class "Firefox") (workspace 42))   rules.lisp:7
+        FAILED: There is no workspace 42.
+```
+
+Change 42 to 4, reload, and `vikix rules apply 6` sends the open Firefox there. Had you left it, the third failure would have switched the rule off until the next reload.
+
+**A slip in a word, not a number,** is caught sooner, when the file loads. `(flaot)` for `(float)`:
+
+```
+Vikix: error in rules.lisp, line 8 (skipped):
+flaot isn't a verb, nor a function defined before this rule. The verbs: command, dialog, float, focus, fullscreen, join, layout, notify, open-project, run, say, sticky, theme, tile, title, width, workspace.
+```
+
+Only that rule is skipped. The others in the file load as if it weren't there.
+
 ## Rules for windows
 
 ```lisp

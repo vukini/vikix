@@ -920,6 +920,8 @@ LISP
   rc=0; out=$(HOME=$home VIKIX_SWANK_PORT=$port "$here/bin/vikix-rules" off 99 2>&1) || rc=$?
   check "a rule that isn't there is refused, in the desktop's own words, and the command fails: $rc $out" \
     bash -c "[ $rc != 0 ] && grep -q 'There is no rule 99: there are 16' <<<'$out'"
+  out=$(rules why TWICE)
+  check "why finds a window by a word of its title too, in any case, and says its class: $out" grep -q '^ToTwo "twice" (workspace' <<<"$out"
   out=$(rules why NoSuchClass)
   check "why for a class no window has names the classes there are: $out" grep -q 'No window has the class "NoSuchClass".*ToTwo' <<<"$out"
   out=$(rules off "\") (run-shell-command \"touch $t/pwned")
@@ -1057,6 +1059,20 @@ LISP
   [ "$fail" = 0 ] && said+=("and on a screen: workspace before the window shows, float by shares of the monitor, tile, title, fullscreen, sticky, dialog, vikix rules (the list, why, test, apply, off and on, forget), a window remembered with its key and reopened where it was, a failing rule, a reload, a restart, the ticker, at-login once")
   return 0
 }
+
+# The guide (docs/rules.md) shows what vikix rules prints, taken from a real
+# run. Its words are still the code's: a message reworded here is reworded
+# there too.
+for words in 'No rule has run for it.' 'No rule matches it either' 'Nothing was done: vikix rules apply' \
+             'Rules that ran for it:' "isn't a verb, nor a function defined before this rule" \
+             'There is no workspace' 'of them matches' 'failed 1 time, last:'; do
+  grep -qF -- "$words" "$here/docs/rules.md" || { echo "FAIL: the guide no longer shows: $words"; fail=1; }
+done
+for words in 'No rule has run for it.' 'No rule matches it either' 'Nothing was done: vikix rules apply' \
+             'Rules that ran for it:' "isn't a verb, nor a function defined before this rule" \
+             'There is no workspace' 'of them matches' 'failed ~d time~:p, last:'; do
+  grep -qF -- "$words" "$here/config/stumpwm/vikix/rules.lisp" || { echo "FAIL: rules.lisp no longer says what the guide shows: $words"; fail=1; }
+done
 
 [ -n "${RULES_SKIP_SCREEN:-}" ] || on_screen
 

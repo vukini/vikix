@@ -17,8 +17,9 @@
 ;;;;
 ;;;; A mistake here costs only its own rule: you're told its line, and the
 ;;;; rest still load. A rule that fails when a window opens never stops the
-;;;; desktop. The guide has the whole of it: Super+m, Vikix guide, "Rules
-;;;; for the desktop" (docs/rules.md in ~/vikix).
+;;;; desktop. The guide has the whole of it, and takes four ideas from the
+;;;; wish to a rule that works: Super+m, Vikix guide, "Rules for the
+;;;; desktop" (docs/rules.md in ~/vikix).
 
 (in-package :stumpwm)
 
