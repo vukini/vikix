@@ -47,6 +47,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-record](#vikix-record): record the screen to a video, without sound
 - [vikix-records](#vikix-records): where plugins keep what they found, to search and use later
 - [vikix-rofi](#vikix-rofi): rofi's plugin modes, set up the Vikix way
+- [vikix-screens](#vikix-screens): the screens: a new one lights up by itself, and a menu for the rest
 - [vikix-screenshot](#vikix-screenshot): keep a picture of an area, a window or the whole screen
 - [vikix-session](#vikix-session): everything that runs for the length of a desktop session
 - [vikix-times](#vikix-times): how long the desktop takes
@@ -68,6 +69,7 @@ The everyday command.
 - `vikix rebuild-wm` — rebuild the StumpWM executable (after a Quicklisp update)
 - `vikix docs` — download the offline programming docs into `~/dev` (a few GB, slow; update and the installer skip them)
 - `vikix doctor` — check the pieces are all there
+- `vikix screens [extend|mirror|external|laptop|pick]` — the screens: a plugged one lights up by itself; this lays them out otherwise (Super+Ctrl+p)
 - `vikix tray on|off` — a tray at the bar's end: network and Bluetooth icons (nm-applet, blueman-applet; Super+m too)
 - `vikix times [measure|soak]` — how long logging in and a reload take; measure = on a hidden screen: start, reload, a key, an Emacs frame, StumpWM answering, against limits; soak = an hour of it worked hard (vikix times help)
 - `vikix features` — what you can add (languages, editors, LibreOffice, printing, Windows, local AI ...), and what you have
@@ -731,6 +733,22 @@ Rofi's plugin modes, set up the Vikix way.
 - `vikix-rofi calc` — a calculator that answers as you type (qalculate): 340 `*` 12%, 5 ft to cm, 100 USD to EUR, today + 30 days. (Not "12% of 340": qalculate reads that % as a remainder.) Enter copies the answer to the clipboard; Ctrl+Enter keeps it in the list below instead.
 
 Both are rofi plugins (rofi-emoji, rofi-calc in packages/desktop.list). Without one, a notification says what to install instead of rofi failing silently.
+
+## vikix-screens
+
+The screens: a new one lights up by itself, and a menu for the rest.
+
+- `vikix screens` — what's connected: each screen, on or off, its mode
+- `vikix screens pick` — a menu (Super+Ctrl+p, or the laptop's display key): extend, mirror, the other screen only, the laptop only, arrange by hand (arandr), save as it is
+- `vikix screens extend` — every screen on, the others to the right of the laptop's, each at its best mode
+- `vikix screens mirror` — every screen showing the same, at the largest size all of them can
+- `vikix screens external` — the other screen(s) only, the laptop's off
+- `vikix screens laptop` — the laptop's screen only
+- `vikix screens auto` — as autorandr does on a plug (below), now
+
+When a screen is plugged in, autorandr (its udev rule) looks for a layout saved for these screens and puts it back. For screens it has never seen it did nothing: the screen stayed dark. Vikix's hook (predetect, which autorandr runs first) lays them out instead: the others to the right of the laptop's screen, each at the largest size it shows at 50 Hz or more (a 4K screen on an HDMI 1.4 port gets 2560x1440 at 60, not 4K at 30), and saves that, so next time it comes straight back. A screen unplugged: the laptop's alone again. Whatever you pick in the menu is saved the same way, for these screens. A notification says what was done. StumpWM follows by itself.
+
+The layouts are autorandr's, in `~/.config/autorandr` (yours): Vikix's are named auto-..., and one you save under a name of your own wins.
 
 ## vikix-screenshot
 
