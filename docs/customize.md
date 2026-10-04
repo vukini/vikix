@@ -247,7 +247,7 @@ That lasts until the next reload or login. When it does what you want, put the s
 | When the screen locks, goes dark, suspends | Make `~/.config/vikix/idle` with any of `LOCK=10`, `SCREEN_OFF=11`, `SUSPEND=20` (minutes; `SUSPEND=0` never suspends; suspend is on battery only), then log in again |
 | Night light hours and warmth | `~/.config/gammastep/config.ini`. `Super+Ctrl+l` switches it off and on. |
 | Which program opens a kind of file | `~/.config/mimeapps.list`, or `xdg-mime default org.pwmt.zathura.desktop application/pdf` |
-| Screens at a desk | Arrange them with `Super+m` → *Screens: arrange*, then *Screens: save this layout*. The layout comes back whenever the same screens are plugged in. |
+| Screens at a desk | A screen you plug in lights up by itself, to the right of the laptop's, and comes back the same way next time. `Super+Ctrl+p` (or the laptop's display key) for mirror, the other screen only, the laptop's only, or arranging them by hand; what you choose is remembered for those screens. |
 | What backups leave out | `~/.config/vikix/backup-exclude` |
 
 ## The shell

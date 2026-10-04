@@ -222,6 +222,38 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
   (run-shell-command (format nil "autorandr --save ~a --force" name))
   (message "Screen layout saved as ~a" name))
 
+;;; Screens plugged and unplugged. X doesn't light a new screen by itself:
+;;; autorandr (its udev rule) puts back a layout saved for those screens,
+;;; and Vikix's hook (vikix-screens) lays out ones it hasn't seen. StumpWM
+;;; then has to notice the screens changed, and on this hardware it didn't:
+;;; the root window's ConfigureNotify, its only way, never reached it
+;;; (2026-09-10). RANDR's own events do, once asked for; one change sends
+;;; several, and a passing one can have no screens at all, so a change is
+;;; taken only when it differs and isn't empty.
+
+(defun vikix-screens-refresh ()
+  "The screens (heads) as X has them now, when they changed."
+  (let* ((screen (current-screen))
+         (new (make-screen-heads screen (screen-root screen))))
+    (when (and new (not (equalp new (screen-heads screen))))
+      (head-force-refresh screen new)
+      (update-mode-lines screen)
+      t)))
+
+(setf (gethash :rr-screen-change-notify *event-fn-table*)
+      (lambda (&rest slots &key &allow-other-keys)
+        (declare (ignore slots))
+        (handler-case (vikix-screens-refresh)
+          (error (e) (message "^1Vikix: the screens changed, and:^n ~a" e)))))
+
+(dolist (screen *screen-list*)
+  (ignore-errors (xlib:rr-select-input (screen-root screen) '(:screen-change-notify-mask))))
+
+(defcommand vikix-screens-pick () ()
+  "Screens: extend, mirror, the other screen only, the laptop's only, arrange
+or save (vikix screens pick)."
+  (run-shell-command "vikix-screens pick"))
+
 ;; vikix-docs-open (bin/) opens guides and docs in Nyxt; when Nyxt is
 ;; already running, the page goes to its window, which may be on another
 ;; workspace, so it asks for this.
@@ -308,6 +340,7 @@ Returns the window, or nil when there's none."
     ("Firmware updates"    (run-shell-command
                             (format nil "~a -e sh -c 'vikix firmware update; printf \"\\nEnter closes this window. \"; read x'"
                                     *vikix-terminal*)))
+    ("Screens: extend, mirror, one only, arrange" vikix-screens-pick)
     ("Screens: arrange (arandr)" (run-shell-command "arandr"))
     ("Screens: save this layout" vikix-screens-save)
     ("Sound (pavucontrol)" (run-shell-command "pavucontrol"))

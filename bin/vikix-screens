@@ -1,0 +1,327 @@
+#!/usr/bin/env python3
+"""vikix-screens — the screens: a new one lights up by itself, and a menu for the rest.
+
+  vikix screens            what's connected: each screen, on or off, its mode
+  vikix screens pick       a menu (Super+Ctrl+p, or the laptop's display key):
+                           extend, mirror, the other screen only, the laptop
+                           only, arrange by hand (arandr), save as it is
+  vikix screens extend     every screen on, the others to the right of the
+                           laptop's, each at its best mode
+  vikix screens mirror     every screen showing the same, at the largest
+                           size all of them can
+  vikix screens external   the other screen(s) only, the laptop's off
+  vikix screens laptop     the laptop's screen only
+  vikix screens auto       as autorandr does on a plug (below), now
+
+When a screen is plugged in, autorandr (its udev rule) looks for a layout
+saved for these screens and puts it back. For screens it has never seen it
+did nothing: the screen stayed dark. Vikix's hook (predetect, which
+autorandr runs first) lays them out instead: the others to the right of the
+laptop's screen, each at the largest size it shows at 50 Hz or more (a 4K
+screen on an HDMI 1.4 port gets 2560x1440 at 60, not 4K at 30), and saves
+that, so next time it comes straight back. A screen unplugged: the laptop's
+alone again. Whatever you pick in the menu is saved the same way, for these
+screens. A notification says what was done. StumpWM follows by itself.
+
+The layouts are autorandr's, in ~/.config/autorandr (yours): Vikix's are
+named auto-..., and one you save under a name of your own wins.
+"""
+import hashlib
+import os
+import re
+import shutil
+import subprocess
+import sys
+
+HOME = os.path.expanduser("~")
+PROFILES = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config"), "autorandr")
+INTERNAL = re.compile(r"^(eDP|LVDS|DSI)", re.I)
+MIN_RATE = 50
+NESTED = "VIKIX_SCREENS_INSIDE"     # autorandr runs its hooks at every call, ours too
+
+
+def session_env():
+    """From a hook or cron: the desktop's display and D-Bus, for notify-send."""
+    try:
+        with open(os.path.join(HOME, ".local/state/vikix/session.env")) as f:
+            for line in f:
+                k, _, v = line.strip().partition("=")
+                if k and v:
+                    os.environ.setdefault(k, v)
+    except FileNotFoundError:
+        pass
+
+
+def run(argv, **kw):
+    env = dict(os.environ, **{NESTED: "1"})
+    return subprocess.run(argv, capture_output=True, text=True, env=env, **kw)
+
+
+# --- What X says -------------------------------------------------------------------------
+
+class Output:
+    def __init__(self, name, connected):
+        self.name, self.connected = name, connected
+        self.modes = []          # (width, height, [rates]), as xrandr lists them, largest first
+        self.current = None      # (width, height, rate) when on
+        self.pos = None
+        self.primary = False
+        self.preferred = None
+
+    @property
+    def internal(self):
+        return bool(INTERNAL.match(self.name))
+
+    def best(self):
+        """The largest mode it shows at MIN_RATE Hz or more (its fastest
+        rate there), else its largest."""
+        for w, h, rates in self.modes:
+            fast = [r for r in rates if r >= MIN_RATE]
+            if fast:
+                return w, h, max(fast)
+        if self.modes:
+            w, h, rates = self.modes[0]
+            return w, h, max(rates)
+        return None
+
+
+def parse(text):
+    outputs, cur = [], None
+    for line in text.splitlines():
+        m = re.match(r"^(\S+) (connected|disconnected)( primary)?(?: (\d+)x(\d+)\+(\d+)\+(\d+))?", line)
+        if m:
+            cur = Output(m.group(1), m.group(2) == "connected")
+            cur.primary = bool(m.group(3))
+            if m.group(4):
+                cur.pos = (int(m.group(6)), int(m.group(7)))
+            outputs.append(cur)
+            continue
+        m = re.match(r"^\s+(\d+)x(\d+)i?\s+(.*)$", line)
+        if m and cur is not None:
+            w, h = int(m.group(1)), int(m.group(2))
+            rates = []
+            for tok in re.findall(r"[\d.]+[*+ ]*", m.group(3)):
+                r = float(re.match(r"[\d.]+", tok).group(0))
+                rates.append(r)
+                if "*" in tok:
+                    cur.current = (w, h, r)
+                if "+" in tok:
+                    cur.preferred = (w, h, r)
+            if rates:
+                cur.modes.append((w, h, rates))
+    return outputs
+
+
+def screens():
+    return parse(run(["xrandr", "--query"]).stdout)
+
+
+def fingerprint():
+    """{output: EDID} for what's connected, as autorandr reads it."""
+    out = {}
+    for line in run(["autorandr", "--fingerprint"]).stdout.splitlines():
+        parts = line.split()
+        if len(parts) == 2:
+            out[parts[0]] = parts[1]
+    return out
+
+
+def saved_profile(fp):
+    """The name of a saved layout made for exactly these screens, or None."""
+    if not os.path.isdir(PROFILES) or not fp:
+        return None
+    for name in sorted(os.listdir(PROFILES)):
+        setup = os.path.join(PROFILES, name, "setup")
+        if not os.path.isfile(setup):
+            continue
+        want = {}
+        with open(setup) as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) == 2:
+                    want[parts[0]] = parts[1]
+        if set(want) == set(fp) and all(v == "*" or v == fp[k] for k, v in want.items()):
+            return name
+    return None
+
+
+def auto_name(fp):
+    return "auto-" + hashlib.sha1("\n".join(f"{k} {v}" for k, v in sorted(fp.items())).encode()).hexdigest()[:8]
+
+
+# --- Layouts -------------------------------------------------------------------------------
+
+def ordered(outs):
+    """The laptop's screen first, then the others in the order X lists them."""
+    on = [o for o in outs if o.connected]
+    return sorted(on, key=lambda o: (not o.internal,))
+
+
+def args_extend(outs, which=None):
+    """xrandr's arguments: the screens left to right, each at its best mode."""
+    args, x, first = [], 0, True
+    show = [o for o in ordered(outs) if which is None or which(o)]
+    for o in outs:
+        if o not in show:
+            args += ["--output", o.name, "--off"]
+    for o in show:
+        mode = o.best()
+        if not mode:
+            continue
+        w, h, r = mode
+        args += ["--output", o.name, "--mode", f"{w}x{h}", "--rate", f"{r:.2f}", "--pos", f"{x}x0", "--rotate", "normal"]
+        if first:
+            args += ["--primary"]
+            first = False
+        x += w
+    return args
+
+
+def args_mirror(outs):
+    on = ordered(outs)
+    common = None
+    for o in on:
+        sizes = {(w, h) for w, h, _ in o.modes}
+        common = sizes if common is None else common & sizes
+    if not common:
+        return args_extend(outs)
+    w, h = max(common, key=lambda s: s[0] * s[1])
+    args = []
+    for o in outs:
+        if not o.connected:
+            args += ["--output", o.name, "--off"]
+    for i, o in enumerate(on):
+        rates = [r for mw, mh, rs in o.modes if (mw, mh) == (w, h) for r in rs]
+        args += ["--output", o.name, "--mode", f"{w}x{h}", "--rate", f"{max(rates):.2f}", "--pos", "0x0", "--rotate", "normal"]
+        if i == 0:
+            args += ["--primary"]
+    return args
+
+
+def layout_args(how, outs):
+    if how == "extend":
+        return args_extend(outs)
+    if how == "mirror":
+        return args_mirror(outs)
+    if how == "external":
+        others = [o for o in outs if o.connected and not o.internal]
+        return args_extend(outs, (lambda o: not o.internal) if others else None)
+    if how == "laptop":
+        inside = [o for o in outs if o.connected and o.internal]
+        return args_extend(outs, (lambda o: o.internal) if inside else None)
+    raise ValueError(how)
+
+
+def describe(outs):
+    parts = []
+    for o in ordered(outs):
+        if o.current:
+            w, h, r = o.current
+            parts.append(f"{o.name} {w}x{h} at {r:.0f} Hz")
+        else:
+            parts.append(f"{o.name} off")
+    return ", ".join(parts)
+
+
+def notify(title, body):
+    session_env()
+    run(["notify-send", "-a", "Screens", title, body])
+
+
+def apply(how, save=True):
+    outs = screens()
+    args = layout_args(how, outs)
+    r = run(["xrandr", *args])
+    if r.returncode != 0:
+        notify("Screens: that didn't work", (r.stderr or r.stdout).strip()[:300])
+        return False
+    if save:
+        fp = fingerprint()
+        name = saved_profile(fp) or auto_name(fp)
+        run(["autorandr", "--save", name, "--force"])
+    return True
+
+
+# --- Commands ------------------------------------------------------------------------------
+
+def cmd_list():
+    for o in screens():
+        if not o.connected:
+            continue
+        kind = "the laptop's" if o.internal else "another"
+        now = f"{o.current[0]}x{o.current[1]} at {o.current[2]:.0f} Hz, at {o.pos[0]},{o.pos[1]}" if o.current and o.pos else "off"
+        best = o.best()
+        print(f"{o.name:<10} {kind:<12} {now}" + (f"   (best: {best[0]}x{best[1]} at {best[2]:.0f} Hz)" if best else ""))
+    fp = fingerprint()
+    name = saved_profile(fp)
+    print(f"\nSaved layout for these screens: {name or 'none yet'} (in {PROFILES})")
+
+
+def cmd_auto():
+    """A plug or an unplug: a saved layout is autorandr's to put back; else ours."""
+    if os.environ.get(NESTED):
+        return 0
+    fp = fingerprint()
+    if not fp or saved_profile(fp):
+        return 0
+    outs = screens()
+    externals = [o for o in outs if o.connected and not o.internal]
+    if not apply("extend"):
+        return 1
+    outs = screens()
+    if externals:
+        notify("A screen: lit up", describe(outs) + ".\nSuper+Ctrl+p for mirror, the other screen only, and the rest.")
+    return 0
+
+
+def cmd_pick():
+    session_env()
+    choices = [("Extend: the other screen beside the laptop's", "extend"),
+               ("Mirror: the same on every screen", "mirror"),
+               ("The other screen only", "external"),
+               ("The laptop's screen only", "laptop"),
+               ("Arrange by hand (arandr), then Save this layout", "arandr"),
+               ("Save this layout, as it is now", "save")]
+    r = subprocess.run(["rofi", "-dmenu", "-i", "-p", "screens", "-format", "i",
+                        "-mesg", describe(screens())],
+                       input="\n".join(c for c, _ in choices), capture_output=True, text=True)
+    if r.returncode != 0 or not r.stdout.strip().isdigit():
+        return 0
+    how = choices[int(r.stdout.strip())][1]
+    if how == "arandr":
+        subprocess.Popen(["arandr"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return 0
+    if how == "save":
+        fp = fingerprint()
+        name = saved_profile(fp) or auto_name(fp)
+        run(["autorandr", "--save", name, "--force"])
+        notify("Screens: saved", f"{describe(screens())}\nIt comes back when these screens are plugged in.")
+        return 0
+    if apply(how):
+        notify("Screens", describe(screens()))
+    return 0
+
+
+def main(argv):
+    cmd = argv[0] if argv else "list"
+    if cmd in ("-h", "--help", "help"):
+        print(__doc__.strip())
+        return 0
+    if not shutil.which("xrandr"):
+        sys.exit("vikix screens: xrandr isn't installed")
+    if cmd == "list":
+        cmd_list()
+    elif cmd in ("auto", "predetect"):
+        return cmd_auto()
+    elif cmd == "pick":
+        return cmd_pick()
+    elif cmd in ("extend", "mirror", "external", "laptop"):
+        if apply(cmd):
+            print(describe(screens()))
+    else:
+        sys.exit(f"vikix screens: no command {cmd} (vikix screens help)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

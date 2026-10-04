@@ -67,6 +67,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   ├── gammastep/config.ini       yours  night light times and colours
 │   ├── mimeapps.list              yours  which program opens which kind of file
 │   ├── fontconfig/conf.d/50-vikix-iosevka.conf   Vikix's   monospace means Iosevka
+│   ├── autorandr/                 yours     screen layouts, one folder each (Vikix's are auto-…); predetect.d/vikix, Vikix's, lays out a screen with none
 │   ├── udiskie/config.yml         yours, if you make it: replaces Vikix's udiskie settings
 │   ├── nyxt/config.lisp           yours     with the feature lisp-apps: Nyxt's settings, in Lisp; loads Vikix's part first (the desktop's colours)
 │   └── nvim/                      yours     with the feature neovim: init.lua (your settings at its end), your plugins in lua/plugins/, lazy-lock.json

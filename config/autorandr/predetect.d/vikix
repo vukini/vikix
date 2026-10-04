@@ -1,0 +1,4 @@
+#!/bin/sh
+# Vikix: autorandr runs this before it looks for a saved layout. Screens it
+# has none for are laid out here (vikix screens auto), and saved.
+exec "$HOME/.local/bin/vikix-screens" predetect

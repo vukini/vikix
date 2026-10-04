@@ -45,7 +45,8 @@ tools. Every other program a key starts is on Super+Alt.")
 
 (defparameter *vikix-key-switches*
   '("toggle-gaps" "vikix-titlebars" "vikix-main" "vikix-layout-pick" "vikix-awake" "vikix-nightlight" "vikix-quiet"
-    "vikix-record" "vikix-capture" "vikix-pick-theme" "exec dunstctl close-all" "exec vikix-drives eject")
+    "vikix-record" "vikix-capture" "vikix-pick-theme" "exec dunstctl close-all" "exec vikix-drives eject"
+    "vikix-screens-pick")
   "What switches something on the desktop: on Super+Ctrl, and nothing else is.")
 
 (defparameter *vikix-key-movers*
@@ -160,6 +161,7 @@ of a reload's 15 seconds, and the desktop stood still meanwhile."
     ("s-S-ESC" "vikix-power"     "Power: lock, suspend, log out, reboot, power off")
     ("s-C-a"  "vikix-awake"      "Keep awake on/off: no lock, dark screen or suspend")
     ("s-C-l"  "vikix-nightlight" "Night light on/off: a warmer screen in the evening")
+    ("s-C-p"  "vikix-screens-pick" "Screens: extend, mirror, one only, arrange (a newly plugged one lights up by itself)")
     ;; Screenshots: the modifier picks what, Shift keeps it in a file
     ;; (~/Pictures/Screenshots) instead of the clipboard.
     ("Print"     "exec vikix-screenshot area clip"   "Screenshot of an area, to the clipboard")
@@ -178,7 +180,8 @@ of a reload's 15 seconds, and the desktop stood still meanwhile."
     ("XF86AudioMute"         "vikix-volume mute"             "Mute")
     ("XF86AudioMicMute"      "vikix-volume mic"              "Microphone mute")
     ("XF86MonBrightnessUp"   "exec vikix-osd brightness up"  "Brightness up")
-    ("XF86MonBrightnessDown" "exec vikix-osd brightness down" "Brightness down"))
+    ("XF86MonBrightnessDown" "exec vikix-osd brightness down" "Brightness down")
+    ("XF86Display"           "vikix-screens-pick"            "Screens: extend, mirror, one only (the laptop's display key)"))
   "Each entry: a key name, the StumpWM command it runs, and a description.
 An optional fourth element names the group the key card (s-/) shows it
 in; without one, help.lisp works the group out from the command.

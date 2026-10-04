@@ -85,6 +85,9 @@ run chmod 700 "$VIKIX_STATE"
 # made from the skill, so it changes with it.
 bash "$VIKIX_DIR/bin/vikix-agent" --write-guide
 link_managed "$C/fontconfig/50-vikix-iosevka.conf" "$HOME/.config/fontconfig/conf.d/50-vikix-iosevka.conf"
+# A newly plugged screen: autorandr runs the hooks in predetect.d before it
+# looks for a saved layout; Vikix's lays out screens it has none for.
+link_managed "$C/autorandr/predetect.d/vikix" "${XDG_CONFIG_HOME:-$HOME/.config}/autorandr/predetect.d/vikix"
 # Vikix's part of Nyxt's config (the desktop's colours), where your
 # config.lisp loads it from. Linked whether or not Nyxt is here: it's only
 # read by Nyxt, and is then in place when Nyxt comes.
