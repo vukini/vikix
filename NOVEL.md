@@ -260,6 +260,69 @@ Why only Vikix: the snapshot history shows every change to your settings, `vikix
 
 First step: a user `doctor.d/` folder that `vikix doctor` reads; the offer after.
 
+## 21. The margin
+
+Every workspace has a margin to write in, the way a book does.
+
+- A thin column at the right edge of any workspace (or the end of a strip), summoned by a key and gone with it: a place for the sentence that occurs to you while doing something else. Not a notes app; a margin. What you write there carries the provenance of what you were looking at (6): the file, the page, the project, the window.
+- At the end of the day the diary (4) gathers the margin into `~/journal/`, each note beside what it was written against. The inbox plugin captures to a box; the margin captures to the place.
+- For a writer: `vikix margin week` is the raw material of the Substack post, in order, with the things it was about linked; the agent drafts from it only when asked.
+- For a reader: a margin note on a page of the docs catalogue or an EPUB stays with the page, so the book you're proofreading (14) and the manual you're learning both carry your marks.
+
+Why only Vikix: the strip has an edge to put it on, provenance tells it what it is about, and the diary knows where to gather it.
+
+First step: the column, a key, one file per day; provenance later.
+
+## 22. An office for agents
+
+Several agents on one desktop, and the desktop as their manager.
+
+- Vid runs several Claude sessions at once, and other agents beside them. Today they share the desktop by luck. Vikix can run the office: each agent gets a workspace of its own, a colour in the bar, its windows marked with its name (6), and a rule that it may not touch another agent's windows or files without the snapshot journal recording the crossing.
+- `vikix agents`: who is running, on what, since when, how many files each has changed (from the snapshots), which is waiting for a yes (the `agent-waiting` plugin already knows). `vikix agents stop NAME`, `vikix agents hand NAME z13` (7).
+- The door module (`DESIGN-security.md`) gives each agent its own audit line and its own allow-list; a cheaper model gets a shorter list.
+- When two agents want the same file, the second is told, and the journal shows both plans side by side for you to choose, as Esploro's review panel does for one.
+
+Why only Vikix: it starts the agents, keeps the journal, owns the workspaces and holds the door; no other desktop knows an agent from a terminal.
+
+First step: a workspace and a bar colour per `vikix agent`, and `vikix agents` listing them; the rules after.
+
+## 23. Feed the distro
+
+What Vikix builds because Void lacks it goes back to Void.
+
+- Vikix builds StumpWM, PicoLisp, Lazarus's docked IDE, and will pin epubcheck, Cuis and others, each with a version, a URL and a checksum already in the repo. `vikix pkg propose NAME` turns that pin into a void-packages template (the `srcpkgs/NAME/template` file in Void's own shape: version, distfiles, checksum, build style guessed from the build script) and a draft pull request, with the test build in a clean container as Void's `xbps-src` does it.
+- Over time, things Vikix had to build from source become `xbps-install` lines, for every Void user; and Vikix's own install gets simpler. The desktop that depends on its distro contributes to it by construction.
+- The same path for the hunspell dictionaries, the fonts and the tessdata languages.
+
+Why only Vikix: the pins are already data in one place, and Void's package format is a short template; the translation is mechanical.
+
+First step: `vikix pkg propose picolisp`, by hand to a PR, to learn what the template needs; then the generator.
+
+## 24. Hear the desktop
+
+The desktop usable with your eyes elsewhere.
+
+- One key: the bar read aloud by the local voice ("two updates; the backup is nine days old; Firefox on workspace two; it's twenty past nine"). Another: the key card read for the group you name. Notifications spoken at your choice, in the quiet voice for the quiet ones.
+- With voice commands (`IDEAS.md`) this is a desktop you can drive with the lid closed or from across the room, and a desktop a person who can't see the screen well can use, which Linux tiling desktops have never been.
+- In the language of idea 1 at your level, which makes it a listening exercise too.
+- Only local voices (piper, from its release, as TODO 25 already plans); nothing spoken ever leaves the machine.
+
+Why only Vikix: the bar's state is data in Lisp, the voice keys exist, and `vikix theme`'s one-file approach extends to one voice file.
+
+First step: `vikix say bar`, from the bar's Lisp state through piper; a key after.
+
+## 25. Notes on things
+
+A note left on a key, a program, a file or a device, that reappears when you next touch it.
+
+- `vikix note "lift the tray first" --on printer`; next time you print, the note is in Super+m's printing entry and on the OSD. `--on Super+F9` shows when you press it; `--on ~/src/vikix` when a terminal opens there; `--on z13` when you hand a window to it. Notes to your future self, anchored where your future self will be.
+- A note is a record (plugin `notes`, kind `on`, key the thing), so the agent can read it (`records_search`), the diary can list the notes you wrote, and a card (18) can carry one to another machine.
+- Vikix's own guides could leave the first notes: the one about the Lazarus build, the one about the lock screen in the VM.
+
+Why only Vikix: the things a note can be anchored to (keys, commands, projects, machines) are all named objects in Vikix, and the record store is already there to hold them.
+
+First step: `vikix note --on COMMAND`, shown by `vikix COMMAND -h` and in Super+m; the other anchors after.
+
 ---
 
 ## Not yet written up
