@@ -225,7 +225,8 @@ each function once, and only one that has fewer places than SLIME sends."
 ;;; The docs catalogue (vikix docs) as a page: M-x vikix-docs here, or
 ;;; vikix docs page (Super+m, "Docs catalogue in Nyxt"). The hits come from
 ;;; vikix docs find, grouped by where they're from, and open as Super+F2's
-;;; do: a guide, a man page or a README as a page (here), a note in Emacs.
+;;; do: a guide, a man page or a README as a page (here), a note in Emacs;
+;;; the second button, named for where it opens, is Ctrl+Enter there.
 
 (defparameter *vikix-docs-sources*
   '(("vikix" . "Vikix's guides") ("repo" . "Your projects") ("dev" . "Your languages (~/dev)")
@@ -252,6 +253,17 @@ each function once, and only one that has fewer places than SLIME sends."
                              :output nil :error-output :string :ignore-error-status t))))
       (unless (str:emptyp (str:trim err))
         (echo-warning "~a" (str:trim err))))))
+
+(defparameter *vikix-docs-other-ways*
+  '(("vikix" . "In Emacs") ("repo" . "In Emacs") ("dev" . "In Emacs") ("pkgdoc" . "In Emacs")
+    ("man" . "In a terminal") ("info" . "In a terminal") ("pkg" . "In a terminal"))
+  "What each source's second button says: where vikix docs open --other shows
+a document of it (open_doc in bin/vikix-docs). A source not named here opens
+one way only (a note: in Emacs), and has no second button.")
+
+(defun vikix-docs-other-way (source)
+  "The second button's words for a hit from SOURCE, or nil when it has none."
+  (cdr (assoc source *vikix-docs-other-ways* :test #'string=)))
 
 (defun vikix-docs-tsv (&rest args)
   "vikix docs ARGS' lines, split at tabs."
@@ -297,9 +309,10 @@ Without words: how many there are from each source, then the short lists
         (:ul
          (dolist (hit (cdr group))
            (destructuring-bind (id src title excerpt) hit
-             (declare (ignore src))
              (:li (:nbutton :text "Open" `(nyxt-user::vikix-docs-open-id ,id))
-                  (:nbutton :text "The other way" `(nyxt-user::vikix-docs-open-id ,id t))
+                  (let ((other (vikix-docs-other-way src)))
+                    (when other
+                      (:nbutton :text other `(nyxt-user::vikix-docs-open-id ,id t))))
                   " " (:b title)
                   (unless (or (str:blankp excerpt) (search excerpt title))
                     (:br) (:small excerpt))))))))))

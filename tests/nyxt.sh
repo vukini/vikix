@@ -165,6 +165,8 @@ L
 (let ((*print-pretty* nil))
   (multiple-value-bind (groups line) (vikix-docs-groups "")
     (format t "overview ~s~%overview line ~a~%" groups line)))
+(format t "other ways ~{~a: ~a~^, ~}~%"
+        (loop for s in '("vikix" "repo" "dev" "pkgdoc" "man" "info" "pkg" "note" "new") collect s collect (vikix-docs-other-way s)))
 (vikix-docs-open-id "gone")
 (format t "echoed ~a~%" (first nyxt::*echoed*))
 L
@@ -208,6 +210,7 @@ V
   check "and asks nothing without words" grep -qx 'no words NIL' <<<"$out"
   check "without words, the short lists in full" grep -qx 'overview (("Vikix.s guides (1)" ("vikix:/a.md" "vikix" "A guide" "")))' <<<"$out"
   check "and how many from each source" grep -qx "overview line Here: 12 Man pages, 2 Vikix's guides. Find searches them all; below, the short lists in full." <<<"$out"
+  check "the second button says where it opens; a note, opening one way, has none: $(grep "^other ways" <<<"$out")" grep -qx 'other ways vikix: In Emacs, repo: In Emacs, dev: In Emacs, pkgdoc: In Emacs, man: In a terminal, info: In a terminal, pkg: In a terminal, note: NIL, new: NIL' <<<"$out"
   check "an Open that fails says why in Nyxt" grep -qx 'echoed vikix docs: /x is gone since the last index' <<<"$out"
   check "a taken port doesn't stop Nyxt" grep -qx 'taken port NYXT-GOES-ON' <<<"$out"
   check "and is logged" grep -qx 'taken warned T' <<<"$out"
