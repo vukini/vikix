@@ -2,7 +2,7 @@
 
 Vid's own site in place of Substack: the writing, a landing page per subject, the books sold, the music app subscribed to, every post sent to the list and the feeds; published from the laptop by `vikix publish`, served from the edge, with one small service that knows who paid.
 
-Drafted 2026-10-04 from a conversation with Vid, for TODO item 84. Kept honest like the other designs: what ships is deleted here, what changes is dated. This is the Living Series repo's design as much as Vikix's: Vikix's part is `vikix publish` and the doors to the server; the rest lives in `~/src/living-series`.
+Drafted 2026-10-04 from a conversation with Vid, for TODO item 84. Changed the same day: the server is at Hetzner Cloud, not DigitalOcean (see "The server"). Kept honest like the other designs: what ships is deleted here, what changes is dated. This is the Living Series repo's design as much as Vikix's: Vikix's part is `vikix publish` and the doors to the server; the rest lives in `~/src/living-series`.
 
 ---
 
@@ -13,12 +13,12 @@ The Vikid Truth is on Substack, which owns the list, the look and the discovery,
 ## What it is
 
 - **Pages on the edge.** The hub, the writing, the subject pages, the books' pages, the interactive sites and the music app's free tier: static files built by `vikix publish` and served by Cloudflare. They stay up whatever else is down.
-- **A gate on a droplet.** One small service that knows who paid: webhooks from the merchant, login by magic link, "what do I own", stamped downloads of every version of a bought book, list membership. SQLite, one file. In Common Lisp, under conditions (below).
-- **Email that is yours.** Listmonk on the droplet, Amazon SES behind it, the Substack list imported, three lists: readers, buyers, studio subscribers.
+- **A gate on a server.** One small service that knows who paid: webhooks from the merchant, login by magic link, "what do I own", stamped downloads of every version of a bought book, list membership. SQLite, one file. In Common Lisp, under conditions (below).
+- **Email that is yours.** Listmonk on the server, Amazon SES behind it, the Substack list imported, three lists: readers, buyers, studio subscribers.
 - **A fan-out from the feed.** A new post makes a campaign to the readers and a post to X, Mastodon and Bluesky; Facebook by hand. The feed is the only input, so a channel breaking never stops a post.
 - **A merchant of record** (Paddle or Lemon Squeezy) for the till: checkout, EU and UK VAT, payouts to the Ajman company. Not raw Stripe at first: Stripe leaves the tax to the seller.
 
-**The rule that organises it:** everything a visitor may see without paying is a static file on the edge; everything that needs to know who you are goes to the droplet. The droplet going down stops buying, logging in and reading paid things, nothing else; and checkout is the merchant's, so even buying survives.
+**The rule that organises it:** everything a visitor may see without paying is a static file on the edge; everything that needs to know who you are goes to the server. The server going down stops buying, logging in and reading paid things, nothing else; and checkout is the merchant's, so even buying survives.
 
 ## How it is built
 
@@ -31,9 +31,10 @@ The Vikid Truth is on Substack, which owns the list, the look and the discovery,
  EDGE     Cloudflare               DNS, TLS, cache, Pages (the static files);
                                    one Worker only if paid pages ever exist
  ─────────────────────────────────────────────────────────────────────
- ORIGIN   the droplet (Debian)     Caddy → gate (SBCL, SQLite)
-          set up by infra/                → Listmonk
-          a tailnet member                → fan-out (feed → list, X, Mastodon, Bluesky)
+ ORIGIN   the server (Debian,      Caddy → gate (SBCL, SQLite)
+          Hetzner Cloud)                  → Listmonk
+          set up by infra/,               → fan-out (feed → list, X, Mastodon, Bluesky)
+          a tailnet member
  ─────────────────────────────────────────────────────────────────────
  OUTSIDE  Paddle / Lemon Squeezy   checkout, tax, payouts → webhook to the gate
           Amazon SES               Listmonk's sender; the gate's transactional mail
@@ -48,7 +49,7 @@ hub/      posts/ (Markdown or Org with front matter), pages/, books/<book>/ (pub
 codes/    one folder per interactive site, as now (single-file HTML)
 studio/   the music app made deployable; its landing page
 gate/     the Lisp service, its tests, its runbook
-infra/    the droplet's setup script (idempotent, cloud-init or shell), Caddyfile,
+infra/    the server's setup script (idempotent, cloud-init or shell), Caddyfile,
           systemd units, Listmonk config, the fan-out script, Cloudflare settings as a file
 ```
 
@@ -61,7 +62,7 @@ infra/    the droplet's setup script (idempotent, cloud-init or shell), Caddyfil
 - `theliving.studio`: the music app and its brand. Free tier without login; paid tier through the gate; its own landing page and list.
 - `vikix.dev` unchanged.
 
-Cloudflare in front of all three: DNS, certificates, cache, Pages for the static files. The droplet takes HTTPS from Cloudflare's address ranges only, and everything from the tailnet; nothing else is open.
+Cloudflare in front of all three: DNS, certificates, cache, Pages for the static files. The server takes HTTPS from Cloudflare's address ranges only, and everything from the tailnet; nothing else is open.
 
 **The gate.** One SBCL image (`save-lisp-and-die`, a systemd unit), Hunchentoot behind Caddy, one SQLite file, five jobs:
 
@@ -77,11 +78,13 @@ Cloudflare in front of all three: DNS, certificates, cache, Pages for the static
 
 **Where the paid check runs.** For the music app's paid tier the browser asks `/me` and the paid features need the gate's data anyway; for books the files are only on the gate. Paid *pages*, if they ever exist, can't be hidden by a static site (the HTML is readable), so they render on the gate or a Cloudflare Worker checks the cookie before serving the file. Decided when there is a paid page.
 
-**Email.** Listmonk on the droplet, SES as the sender, three lists (readers; buyers, by product; studio). Two writers: the fan-out (a new post is a campaign to the readers, from the post's own HTML, so the email and the page are the same words) and the gate (buyers). Day one: the Substack CSV imported, double opt-in on, unsubscribe in every footer, SPF, DKIM and DMARC for the sending domain at Cloudflare before the first send. A second transactional sender (Postmark, say) configured and the gate falling back to it, because SES suspends new senders over a bad import, and a login must never wait on marketing's reputation.
+**Email.** Listmonk on the server, SES as the sender (over SMTP on port 587, which the host must leave open: see "The server"), three lists (readers; buyers, by product; studio). Two writers: the fan-out (a new post is a campaign to the readers, from the post's own HTML, so the email and the page are the same words) and the gate (buyers). Day one: the Substack CSV imported, double opt-in on, unsubscribe in every footer, SPF, DKIM and DMARC for the sending domain at Cloudflare before the first send. A second transactional sender (Postmark, say) configured and the gate falling back to it, because SES suspends new senders over a bad import, and a login must never wait on marketing's reputation.
 
-**The fan-out.** A script on a timer on the droplet: read the feed, compare with what it has seen, and for each new entry make the Listmonk campaign and post to X, Mastodon and Bluesky (a title, a line, the link). Facebook by hand (the Pages API needs Meta's app review; personal profiles can't be posted to), or Buffer. What went where is written to a table the gate's admin page shows and sent to the laptop's record store, so "did Tuesday's post reach the list?" has an answer. X's free API tier is write-only with low limits: one post per article, nothing richer.
+**The fan-out.** A script on a timer on the server: read the feed, compare with what it has seen, and for each new entry make the Listmonk campaign and post to X, Mastodon and Bluesky (a title, a line, the link). Facebook by hand (the Pages API needs Meta's app review; personal profiles can't be posted to), or Buffer. What went where is written to a table the gate's admin page shows and sent to the laptop's record store, so "did Tuesday's post reach the list?" has an answer. X's free API tier is write-only with low limits: one post per article, nothing richer.
 
-**The droplet.** Debian stable (not Void: nobody lives on this box, and every Caddy, Listmonk and SES guide assumes Debian; Caddy, Listmonk and Tailscale publish apt repositories, so the versions that matter are current). Set up by `infra/`, idempotent like a Vikix stage: a fresh droplet from nothing in ten minutes is the test. `unattended-upgrades` on. Tailscale makes it a member of the tailnet (`DESIGN-machines.md`): `vikix machines` lists it, `vikix agent --on web` is `ssh` over the tailnet, `vikix doctor --on web` runs a small script there (certificate age, disk, last webhook, last backup, Listmonk alive) and shows the lines. Backups two ways: restic on the droplet nightly to a DO Spaces bucket (its own encrypted repository), and the laptop's `vikix backup` pulling the SQLite file and the book files over the tailnet. The merchant holds the canonical sales record besides.
+**The server.** One small Hetzner Cloud server (2 GB of memory is enough; Falkenstein or Nuremberg, beside SES's Frankfurt region), Debian stable (not Void: nobody lives on this box, and every Caddy, Listmonk and SES guide assumes Debian; Caddy, Listmonk and Tailscale publish apt repositories, so the versions that matter are current). Set up by `infra/`, idempotent like a Vikix stage: a fresh server from nothing in ten minutes is the test. Its address is a Primary IP of its own, kept when a server is deleted, so the rebuild needs no change at Cloudflare. Hetzner's Cloud Firewall, set in its panel, is the outer wall (HTTPS from Cloudflare's ranges; SSH only until the tailnet is up, then closed), so a mistake on the box can't lock Vid out, and the panel's console is the way in when SSH isn't. `unattended-upgrades` on. Tailscale makes it a member of the tailnet (`DESIGN-machines.md`): `vikix machines` lists it, `vikix agent --on web` is `ssh` over the tailnet, `vikix doctor --on web` runs a small script there (certificate age, disk, last webhook, last backup, Listmonk alive) and shows the lines. Backups two ways: restic on the server nightly to an S3-compatible bucket with another company than the server's (Cloudflare R2 proposed, since the domains are there already; its own encrypted repository), and the laptop's `vikix backup` pulling the SQLite file and the book files over the tailnet. The merchant holds the canonical sales record besides.
+
+*Why Hetzner (2026-10-04).* DigitalOcean was the first choice, and blocks outgoing mail on ports 25, 465 and 587 on every droplet, a Reserved IP included; Listmonk speaks SMTP to SES, so the list couldn't send. Hetzner blocks 25 and 465 on new accounts and leaves 587 open, which is the port SES is used on. Vultr does the same and is the fallback; Linode blocks all three until a support ticket lifts it. One lesson from the old droplet stays whatever the host: the laptop's SSH key goes in when the server is made, and SSH is closed to the internet once the tailnet works, so there are no failed logins to be banned for.
 
 ## Goals
 
@@ -89,18 +92,18 @@ Cloudflare in front of all three: DNS, certificates, cache, Pages for the static
 2. **A post is one command away from every reader.** `vikix publish post NAME`: the page, the email, the feeds, within minutes, without a hand on any dashboard.
 3. **A book bought once is owned for good.** Every revision downloadable, DRM-free, stamped.
 4. **The list is yours**, exportable, double opt-in, and never shares a queue with a login.
-5. **The droplet may die on a Sunday and nobody notices until Monday.** Pages, free app and checkout all survive it.
+5. **The server may die on a Sunday and nobody notices until Monday.** Pages, free app and checkout all survive it.
 6. **Nothing is spent on what the merchant already does**: tax, invoices, card handling, refunds.
 
 ## Non-goals (this version)
 
 - **Not a framework application.** No Rails, Django, or their Lisp equivalents; see above.
 - **Not paid pages or a paid newsletter yet.** Books and the app are the products; a paid tier of the writing is a product and a list away when wanted.
-- **Not comments.** Isso or Remark42 on the droplet later if wanted; the first version has none.
+- **Not comments.** Isso or Remark42 on the server later if wanted; the first version has none.
 - **Not Facebook automation.** By hand, or Buffer.
 - **Not Substack's network.** Recommendations and the app feed are lost and accepted; what readers come from them is checked before Substack is retired, and a teaser cross-posted there for a while.
 - **Not raw Stripe.** Later, if volume makes its smaller cut worth taking the tax on.
-- **Not a Vikix `server` bundle.** The droplet is Debian and plain software; Vikix reaches it, it doesn't run it.
+- **Not a Vikix `server` bundle.** The server is Debian and plain software; Vikix reaches it, it doesn't run it.
 
 ## User stories
 
@@ -118,14 +121,14 @@ Cloudflare in front of all three: DNS, certificates, cache, Pages for the static
 
 1. **The hub, static**: the repo laid out as above, the house style, `vikix publish hub` to Pages, the writing imported from Substack (its export is HTML; a one-time conversion), the Atom feed, a landing page per subject.
    - [ ] The whole hub rebuilds and deploys from a clean checkout in one command
-2. **Listmonk and the list**: on the droplet, SES, the Substack CSV imported, double opt-in, the fan-out making a campaign from each new feed entry.
+2. **Listmonk and the list**: on the server, SES, the Substack CSV imported, double opt-in, the fan-out making a campaign from each new feed entry.
    - [ ] A test post reaches a test subscriber with the page's own words and a working unsubscribe
 3. **The gate, Phase 1**: webhook, magic link, `/me`, stamped download of every version; its tests run without a server; its runbook.
    - [ ] A replayed webhook records one purchase, not two
    - [ ] A stamped EPUB passes epubcheck and names the buyer in the colophon
 4. **One book on sale** through the merchant, paid out to the Ajman company.
-5. **The droplet from `infra/`**: Debian, Caddy, Listmonk, the gate, Tailscale, firewall (Cloudflare ranges and the tailnet only), `unattended-upgrades`, restic to Spaces; `vikix machines` lists it.
-   - [ ] A new droplet from the script serves the gate within ten minutes
+5. **The server from `infra/`**: Debian, Caddy, Listmonk, the gate, Tailscale, firewall (Cloudflare ranges and the tailnet only), `unattended-upgrades`, restic to its bucket; `vikix machines` lists it.
+   - [ ] A new server from the script serves the gate within ten minutes
 
 ### Should have (P1)
 
@@ -146,12 +149,14 @@ Cloudflare in front of all three: DNS, certificates, cache, Pages for the static
 
 | Piece | Where | Note |
 |---|---|---|
-| Caddy, Listmonk, Tailscale | the droplet, from each project's apt repository | current versions; Debian's own are old or absent |
-| SBCL, Quicklisp | the droplet; Debian's `sbcl` or a pinned binary with its checksum, as `30-lisp` does | the gate's image is built on the droplet or copied from the laptop |
-| `qpdf` | the droplet, Debian | PDF stamping |
-| restic | the droplet, Debian; the laptop has it already | two backups, two directions |
+| Caddy, Listmonk, Tailscale | the server, from each project's apt repository | current versions; Debian's own are old or absent |
+| SBCL, Quicklisp | the server; Debian's `sbcl` or a pinned binary with its checksum, as `30-lisp` does | the gate's image is built on the server or copied from the laptop |
+| `qpdf` | the server, Debian | PDF stamping |
+| restic | the server, Debian; the laptop has it already | two backups, two directions |
 | Paddle or Lemon Squeezy | outside | payout to a UAE bank account, and the Ajman licence accepted: both to confirm |
-| Amazon SES | outside | out of the sandbox needs a request; do it in Phase 0 |
+| Amazon SES | outside | out of the sandbox needs a request; do it in Phase 0. Reached on port 587: test it from the server on day one (`nc -vz email-smtp.eu-central-1.amazonaws.com 587`) |
+| Hetzner Cloud | outside | the server, its firewall and its Primary IP. A new account may be asked to prove who it is: whether that is smooth from the UAE is to confirm; Vultr if not |
+| Cloudflare R2 | outside | the server's nightly restic repository (proposed) |
 | Cloudflare Pages, DNS, a Worker if ever | outside | the domains are already there |
 
 ## Open questions
@@ -169,7 +174,7 @@ Non-blocking:
 
 ## Phasing
 
-**Phase 0, a week of evenings:** the repo, the house style over the hub, `vikix publish hub`, Pages, the feed, the Substack writing imported; Listmonk on a droplet from `infra/` with the SES request in; the fan-out to Listmonk only. Substack stays up with a teaser pointing here.
+**Phase 0, a week of evenings:** the repo, the house style over the hub, `vikix publish hub`, Pages, the feed, the Substack writing imported; Listmonk on a server from `infra/` with the SES request in; the fan-out to Listmonk only. Substack stays up with a teaser pointing here.
 
 **Phase 1, two or three weeks, the book most of it:** the merchant account, the gate (webhook, magic link, `/me`, stamped download), one book on sale. P0 done.
 
