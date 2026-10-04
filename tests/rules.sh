@@ -234,7 +234,7 @@ LISP
          (search "isn't a rule for a window opening"
                  (princ-to-string (nth-value 1 (ignore-errors (vikix-rules-cli "test" "seen-at"))))))
   (check "a word vikix rules doesn't know is refused"
-         (search "list, off, on, why, test, apply, forget or verbs"
+         (search "list, off, on, why, test, apply, forget, verbs or proposed"
                  (princ-to-string (nth-value 1 (ignore-errors (vikix-rules-cli "frobnicate")))))))
 LISP
 
