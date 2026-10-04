@@ -98,7 +98,7 @@ A plain string matches exactly that and nothing longer. `(:has "fox")` matches a
 | Verb | What it does |
 |---|---|
 | `(workspace 2)` | Sends the window to a workspace, by number or name: it opens there, without showing here first. `:follow t` takes you along |
-| `(float ...)` | Floats it. `:width` and `:height` are pixels (`400`) or a share of the monitor below the bar (`"65%"`), 60% when left out. It goes in the middle, or to a `:corner` (`:top-left`, `:top-right`, `:bottom-left`, `:bottom-right`, `:top`, `:bottom`, `:left`, `:right`), or to `:x` and `:y` |
+| `(float ...)` | Floats it. `:width` and `:height` are pixels (`400`) or a share of the monitor below the bar (`"65%"`), 60% when left out. It goes in the middle, or to a `:corner` (`:top-left`, `:top-right`, `:bottom-left`, `:bottom-right`, `:top`, `:bottom`, `:left`, `:right`), or to `:x` and `:y` `(float :own t)` only floats it, at the size and place the window asks for itself |
 | `(tile)` | Puts a floating window back in the tiles |
 | `(fullscreen)` | Fills the screen with it |
 | `(sticky)` | Keeps it on every workspace (it floats) |
@@ -123,6 +123,8 @@ Anything else in a rule is Lisp of your own, where `(window)` is the window. Bet
 | `vikix rules verbs` | everything a rule can be, match and do, each with its line |
 
 You don't have to write a rule to get one. Put a window where you want it (its workspace; floating, its size and place) and press `Super+Shift+t`: the rule that would put a window like it there is shown, and on your yes it is added to `~/.stumpwm.d/rules.lisp` under a dated comment, named `"remembered: ..."`, after a snapshot. The menu also offers the workspace alone, and another way to know the window (its instance or its title instead of its class). Remembering the same window again replaces its rule. `vikix rules forget 3` takes a rule out of `rules.lisp` again (by its number or name), and `vikix undo` puts the file back as it was. Only `rules.lisp` is ever written this way, never `user.lisp`.
+
+Vikix says what it wants of windows in the same way: `vikix rules` lists two rules "from Vikix" first (Lazarus's dialogs float at their own size while its main window tiles; `vikix learn`'s lesson and shell each go into their half), and the plugins' after them (inbox's note box, agent-waiting's note cleared when you look at its window). Any of them can be switched off like your own, with `vikix rules off`.
 
 A misspelt verb is found when the file loads, with its line, like any mistake in `user.lisp`. A rule that fails when a window opens never stops the desktop: it says so, the error is kept in `~/.local/state/vikix/errors/`, and after three failures the rule is off until the next reload. Reloading doesn't move the windows you already have.
 

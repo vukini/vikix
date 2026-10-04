@@ -119,6 +119,27 @@ LISP
 (at "09:00" :name "seen-at" (say "x"))
 (when-window (:class "Elsewhere") (workspace 77))
 
+;; Vikix's own rules (the end of rules.lisp): what its hooks were, said as rules.
+(let ((lazarus (vikix-rule-called "Vikix: Lazarus's windows float, all but its main one"))
+      (learn (vikix-rule-called "Vikix: vikix learn's lesson and shell, each in its half")))
+  (check "Lazarus: a dialog, the welcome screen and anything undocked match; the main window, under each of its three titles, doesn't"
+         (and (vikix-rule-fits-p lazarus (win "lazarus" :title "Project Options"))
+              (vikix-rule-fits-p lazarus (win "Lazarus-ide" :title "Welcome to Lazarus IDE 3.6"))
+              (vikix-rule-fits-p lazarus (win "lazarus" :title ""))
+              (not (vikix-rule-fits-p lazarus (win "lazarus" :title "Lazarus")))
+              (not (vikix-rule-fits-p lazarus (win "lazarus" :title "MainIDE")))
+              (not (vikix-rule-fits-p lazarus (win "lazarus" :title "Lazarus IDE v3.6 - project1")))
+              (not (vikix-rule-fits-p lazarus (win "Firefox" :title "Lazarus")))))
+  (check "it floats them at their own size, and Viri is told so" (equal (vikix-rule-verbs lazarus) '("FLOAT")))
+  (check "vikix learn's two panes match, and no other terminal"
+         (and (vikix-rule-fits-p learn (win "vikix-learn-lesson")) (vikix-rule-fits-p learn (win "vikix-learn-shell"))
+              (not (vikix-rule-fits-p learn (win "Alacritty")))))
+  (check "the hooks they were are gone"
+         (not (or (member 'vikix-float-lazarus-window *new-window-hook*) (member 'vikix-learn-place *new-window-hook*)))))
+(check "float :own t takes no size or place"
+       (search "keeps the window's own size and place"
+               (princ-to-string (nth-value 1 (ignore-errors (let ((*vikix-rule-window* (win "X"))) (vikix-verb-float :own t :width 300)))))))
+
 (defun refusal (what)
   "The words vikix-rule-called refuses WHAT with."
   (princ-to-string (nth-value 1 (ignore-errors (vikix-rule-called what)))))
@@ -176,9 +197,13 @@ LISP
   (check "a window no rule is about: nothing ran, nothing matches"
          (search "No rule matches it either" (vikix-rules-why-text (win "NothingAboutThis" :title "x"))))
   (let ((busy (win "Seen")))
+    (opens busy)
     (dotimes (i 30) (vikix-rules-focus-window busy nil))
-    (check "a window keeps only its last few notes"
-           (= (length (gethash busy *vikix-rule-notes*)) *vikix-rule-notes-kept*)))
+    (check "a rule that runs at every look leaves one note, its latest, and what happened as the window opened is still there"
+           (let ((notes (gethash busy *vikix-rule-notes*)))
+             (and (= 1 (count :focus notes :key #'second))
+                  (plusp (count :open notes :key #'second))
+                  (<= (length notes) *vikix-rule-notes-kept*)))))
   (let ((breaks (rule-of "seen breaks")) (bw (win "SeenBreaks")))
     (dotimes (i 3) (opens bw))
     (check "why: a failure is noted on the window, with the error's words"
@@ -201,7 +226,7 @@ LISP
                 (search "since the last reload" text))))
   (check "the verbs, the matchers and the rules, each with its line"
          (let ((text (vikix-rules-verbs-text)))
-           (and (search "(float &key width height x y corner)" text)
+           (and (search "(float &key width height x y corner own)" text)
                 (search ":where FUNCTION" text) (search "(at-login VERB...)" text)
                 (search "(note what)" text)
                 (every (lambda (name) (search (format nil "  (~a" name) text)) (vikix-rule-verb-names)))))
@@ -349,7 +374,7 @@ LISP
               (search \"This rule does nothing\" (all-reports))
               (search \"A rule's :class is 12\" (all-reports))))
   (check \"none of the six became a rule, and the rest of the file loaded\"
-         (and (= 15 (length *vikix-rules*)) (rule-of \"After\")))
+         (and (= 17 (length *vikix-rules*)) (rule-of \"After\")))
 
   ;; What a rule knows about itself
   (check \"its text, file, line and owner\"
@@ -516,7 +541,7 @@ LISP
 
 (clock 5 8 0)
 (load-rules)
-(check "fifteen rules, the eight mistakes left out" (= 15 (length *vikix-rules*)))
+(check "fifteen rules and Vikix's own two, the eight mistakes left out" (= 17 (length *vikix-rules*)))
 (check "each mistake is said in plain words"
        (every (lambda (words) (search words (reports)))
               '("A rule's time is written" "A rule's :on is a day" ":SOMETIMES isn't an option of an at rule"
@@ -722,8 +747,8 @@ LISP
   local wm_pid
   start_wm || { echo "FAIL: the test StumpWM didn't start"; diagnose; fail=1; return 0; }
 
-  check "rules.lisp and user.lisp both gave their rules: $(ask '(princ (length *vikix-rules*))')" test "$(ask '(princ (length *vikix-rules*))')" = 14
-  check "each knows whose it is" yes '(equal (remove-duplicates (mapcar (function vikix-rule-owner) *vikix-rules*) :test (function equal)) (list "rules.lisp" "user.lisp"))'
+  check "Vikix, rules.lisp and user.lisp all gave their rules: $(ask '(princ (length *vikix-rules*))')" test "$(ask '(princ (length *vikix-rules*))')" = 16
+  check "each knows whose it is" yes '(equal (remove-duplicates (mapcar (function vikix-rule-owner) *vikix-rules*) :test (function equal)) (list "Vikix" "rules.lisp" "user.lisp"))'
 
   logins() { sleep 0.5; wc -l < "$t/login.txt" 2>/dev/null || echo 0; }
   check "the ticker is running, in whole seconds" yes '(and *vikix-rules-timer* (member *vikix-rules-timer* *timer-list*) (every (lambda (tm) (integerp (timer-time tm))) *timer-list*))'
@@ -735,11 +760,32 @@ LISP
   win Plain
   check "a window no rule is about opens where you are, tiled" yes "(and (eql 1 (group-number (window-group $(the Plain)))) (typep $(the Plain) (quote tile-window)))"
 
+  # Vikix's own rules, which were hooks: Lazarus's windows, vikix learn's panes.
+  by_title() { echo "(find \"$1\" (screen-windows (current-screen)) :key (function window-title) :test (function equal))"; }
+  win lazarus "Project Options"
+  check "Vikix's rule floats a Lazarus window that isn't the main one, at its own size" \
+    yes "(let ((w $(by_title "Project Options"))) (multiple-value-bind (ax ay aw ah) (vikix-rule-area (current-head)) (declare (ignore ax ay)) (and (typep w (quote float-window)) (not (and (= (xlib:drawable-width (window-parent w)) (floor (* 60 aw) 100)) (= (xlib:drawable-height (window-parent w)) (floor (* 60 ah) 100)))))))"
+  win lazarus "Lazarus IDE v3.6 - project1"
+  check "and leaves its main window in the tiles" yes "(typep $(by_title "Lazarus IDE v3.6 - project1") (quote tile-window))"
+  ask "(progn (delete-window $(by_title "Project Options")) (delete-window $(by_title "Lazarus IDE v3.6 - project1")))" >/dev/null; sleep 0.7
+  printf '#!/bin/sh\nsleep 300\n' > "$t/learn"; chmod +x "$t/learn"
+  ask "(setf *vikix-learn-command* \"$t/learn\" *vikix-terminal* \"env LIBGL_ALWAYS_SOFTWARE=1 alacritty\")" >/dev/null
+  ask '(run-commands "vikix-learn-open c")' >/dev/null
+  for _ in $(seq 1 40); do
+    yes '(= 2 (count-if (lambda (w) (member (window-class w) (list "vikix-learn-lesson" "vikix-learn-shell") :test (function equal))) (screen-windows (current-screen))))' && break
+    sleep 0.25
+  done
+  sleep 0.5
+  check "Vikix's rule puts vikix learn's lesson and its shell each in its half: $(ask '(princ (mapcar (lambda (w) (list (window-class w) (frame-number (window-frame w)))) (group-windows (first *vikix-learn-panes*))))')" \
+    yes '(destructuring-bind (group lesson shell from) *vikix-learn-panes* (declare (ignore from)) (flet ((pane (class) (find class (group-windows group) :key (function window-class) :test (function equal)))) (and (pane "vikix-learn-lesson") (pane "vikix-learn-shell") (eq (window-frame (pane "vikix-learn-lesson")) lesson) (eq (window-frame (pane "vikix-learn-shell")) shell))))'
+  ask '(progn (let ((lesson (vikix-learn-find-open))) (run-commands "vikix-learn-close") (when lesson (delete-window lesson))) (setf *vikix-terminal* "alacritty"))' >/dev/null; sleep 0.7
+  go 1
+
   win ToTwo
   check "workspace: the window is on workspace 2: $(group_of ToTwo)" test "$(group_of ToTwo)" = 2
   check "and you stay where you were: $(here_is)" test "$(here_is)" = 1
   check "StumpWM put it there as it opened, before it showed" yes '(member (list "ToTwo" 2) *rules-test-placed* :test (function equal))'
-  check "the rule ran once and noted the window" yes "(and (= 1 (vikix-rule-runs (first *vikix-rules*))) (gethash $(the ToTwo) *vikix-rule-notes*))"
+  check "the rule ran once and noted the window" yes "(and (= 1 (vikix-rule-runs (third *vikix-rules*))) (gethash $(the ToTwo) *vikix-rule-notes*))"
 
   win Follow
   check ":follow goes along: $(here_is)" test "$(here_is)" = 3
@@ -795,13 +841,13 @@ LISP
   # A mistake in a file of rules, with nobody asked: only its form is lost.
   printf '(in-package :stumpwm)\n(when-window (:class "Late") (title "late"))\n(when-window (:class "Late") (flaot))\n' > "$t/late.lisp"
   ask "(let ((*vikix-errors-ask* nil)) (vikix-load-forms \"$t/late.lisp\" \"late.lisp\"))" >/dev/null
-  check "a mistake costs only its own rule: $(ask '(princ (length *vikix-rules*))')" test "$(ask '(princ (length *vikix-rules*))')" = 15
+  check "a mistake costs only its own rule: $(ask '(princ (length *vikix-rules*))')" test "$(ask '(princ (length *vikix-rules*))')" = 17
 
   # A reload: exactly what the files say, and no window moved.
   ask "(move-window-to-group $(the Named) (find 5 (screen-groups (current-screen)) :key (function group-number)))" >/dev/null
   ask '(loadrc)' >/dev/null
   answers 60 || true
-  check "after a reload: the files' rules, one of each: $(ask '(princ (length *vikix-rules*))')" test "$(ask '(princ (length *vikix-rules*))')" = 14
+  check "after a reload: the files' rules, one of each: $(ask '(princ (length *vikix-rules*))')" test "$(ask '(princ (length *vikix-rules*))')" = 16
   ask '(vikix-rules-tick)' >/dev/null
   check "at-login doesn't run again at a reload: $(logins)" test "$(logins)" = 1
   check "one ticker after a reload, not two" yes "(= 1 (count (quote vikix-rules-tick) *timer-list* :key (function timer-function)))"
@@ -824,27 +870,27 @@ LISP
   local out rc
   out=$(rules)
   check "vikix rules lists them, numbered, each with where it is written: $(head -2 <<<"$out")" \
-    grep -q '^ 1  on .*(when-window (:class "ToTwo") (workspace 2))   rules.lisp:2$' <<<"$out"
+    grep -q '^ 3  on .*(when-window (:class "ToTwo") (workspace 2))   rules.lisp:2$' <<<"$out"
   ask "(move-window-to-group $(titled ToTwo) (find 1 (screen-groups (current-screen)) :key (function group-number)))" >/dev/null
   out=$(rules why ToTwo)
   check "why: a window that was there before the rule says so: $out" grep -q 'the window was here before the rule was' <<<"$out"
-  out=$(rules test 1)
+  out=$(rules test 3)
   check "test says what a rule would do with the windows open now: $out" \
-    bash -c "grep -q '^ToTwo \"ToTwo\" (workspace 1, window' <<<'$out' && grep -q 'Nothing was done: vikix rules apply 1 does it' <<<'$out'"
+    bash -c "grep -q '^ToTwo \"ToTwo\" (workspace 1, window' <<<'$out' && grep -q 'Nothing was done: vikix rules apply 3 does it' <<<'$out'"
   check "and does nothing: $(ask "(princ (group-number (window-group $(titled ToTwo))))")" yes "(eql 1 (group-number (window-group $(titled ToTwo))))"
-  out=$(rules apply 1)
-  check "apply runs the rule on the windows open now: $out" grep -q '^    ran     1  (when-window (:class "ToTwo") (workspace 2))' <<<"$out"
+  out=$(rules apply 3)
+  check "apply runs the rule on the windows open now: $out" grep -q '^    ran     3  (when-window (:class "ToTwo") (workspace 2))' <<<"$out"
   check "and the window went where the rule sends it" yes "(eql 2 (group-number (window-group $(titled ToTwo))))"
   out=$(rules why ToTwo)
-  check "why, afterwards: the rule ran for it, by apply: $out" grep -q 'on apply  1  (when-window (:class "ToTwo") (workspace 2))' <<<"$out"
-  out=$(rules off 1)
-  check "off switches a rule off: $out" yes '(not (vikix-rule-on-p (first *vikix-rules*)))'
-  check "and the list says by whom, and until when" grep -q 'switched off by you, until the next reload (vikix rules on 1)' <<<"$(rules)"
-  rules on 1 >/dev/null
-  check "on switches it on again" yes '(vikix-rule-on-p (first *vikix-rules*))'
+  check "why, afterwards: the rule ran for it, by apply: $out" grep -q 'on apply  3  (when-window (:class "ToTwo") (workspace 2))' <<<"$out"
+  out=$(rules off 3)
+  check "off switches a rule off: $out" yes '(not (vikix-rule-on-p (third *vikix-rules*)))'
+  check "and the list says by whom, and until when" grep -q 'switched off by you, until the next reload (vikix rules on 3)' <<<"$(rules)"
+  rules on 3 >/dev/null
+  check "on switches it on again" yes '(vikix-rule-on-p (third *vikix-rules*))'
   rc=0; out=$(HOME=$home VIKIX_SWANK_PORT=$port "$here/bin/vikix-rules" off 99 2>&1) || rc=$?
   check "a rule that isn't there is refused, in the desktop's own words, and the command fails: $rc $out" \
-    bash -c "[ $rc != 0 ] && grep -q 'There is no rule 99: there are 14' <<<'$out'"
+    bash -c "[ $rc != 0 ] && grep -q 'There is no rule 99: there are 16' <<<'$out'"
   out=$(rules why NoSuchClass)
   check "why for a class no window has names the classes there are: $out" grep -q 'No window has the class "NoSuchClass".*ToTwo' <<<"$out"
   out=$(rules off "\") (run-shell-command \"touch $t/pwned")
@@ -933,6 +979,49 @@ LISP
   out=$(rules forget FromUser)
   check "a rule of user.lisp isn't the desktop's to take out: $out" grep -q 'is written in user.lisp:[0-9]*, not in your rules.lisp' <<<"$out"
   check "and user.lisp is as it was" grep -q 'FromUser' "$home/.stumpwm.d/user.lisp"
+
+  # The plugins at Vikix's pin say what they want of windows as rules (they
+  # were hooks): inbox's note box, agent-waiting's note cleared by a look.
+  # Needs a copy of the plugins repository (the dev machine's, or
+  # VIKIX_TEST_PLUGINS_REPO); GitHub's runners have none.
+  local plugins_repo pin
+  plugins_repo=${VIKIX_TEST_PLUGINS_REPO:-$real_home/src/vikix-plugins}
+  pin=$(sed -n 's/^PLUGINS_COMMIT=\${VIKIX_PLUGINS_COMMIT:-\([0-9a-f]*\)}.*/\1/p' "$here/bin/vikix-plugin")
+  if [ -d "$plugins_repo/.git" ] && git -C "$plugins_repo" cat-file -e "$pin^{commit}" 2>/dev/null; then
+    mkdir -p "$t/plugins"
+    git -C "$plugins_repo" show "$pin:inbox/plugin.lisp" > "$t/plugins/inbox.lisp"
+    git -C "$plugins_repo" show "$pin:agent-waiting/plugin.lisp" > "$t/plugins/agent-waiting.lisp"
+    ask "(let ((*vikix-errors-ask* nil)) (let ((*vikix-plugin* \"inbox\")) (vikix-load-forms \"$t/plugins/inbox.lisp\" \"inbox/plugin.lisp\")) (let ((*vikix-plugin* \"agent-waiting\")) (vikix-load-forms \"$t/plugins/agent-waiting.lisp\" \"agent-waiting/plugin.lisp\")))" >/dev/null
+    check "the plugins' rules are in the list, as theirs: $(ask '(princ (remove-if-not (lambda (o) (eql 0 (search "plugin " o))) (mapcar (function vikix-rule-owner) *vikix-rules*)))')" \
+      yes '(equal (remove-if-not (lambda (o) (eql 0 (search "plugin " o))) (mapcar (function vikix-rule-owner) *vikix-rules*)) (list "plugin inbox" "plugin agent-waiting"))'
+    check "and no plugin hangs a function of its own on StumpWM's hooks" \
+      yes '(not (or (member (quote inbox-float-box) *new-window-hook*) (member (quote agent-waiting-clear) *focus-window-hook*)))'
+    go 1
+    win Emacs "Note to inbox"
+    check "inbox's rule floats the note's box, 760 by 360, a little above the middle: $(geometry "$(by_title "Note to inbox")")" \
+      yes "(let* ((w $(by_title "Note to inbox")) (p (window-parent w))) (multiple-value-bind (ax ay aw ah) (vikix-rule-area (current-head)) (and (typep w (quote float-window)) (= (xlib:drawable-width p) 760) (= (xlib:drawable-height p) 360) (= (xlib:drawable-x p) (+ ax (floor (- aw 760) 2))) (= (xlib:drawable-y p) (+ ay (floor (* 22 ah) 100))))))"
+    # The box closed before the focus is moved about: the pointer rests on
+    # it, and a floating window under the pointer with the focus given to
+    # a tile is a bug of its own (bugs.md, the focus bouncing).
+    ask "(delete-window $(by_title "Note to inbox"))" >/dev/null; sleep 0.7
+    win Waits
+    win Other
+    ask "(let ((file (merge-pathnames (princ-to-string (xlib:window-id (window-xwin $(the Waits)))) *agent-waiting-dir*))) (ensure-directories-exist file) (with-open-file (out file :direction :output :if-exists :supersede) (write-line \"ask\" out)))" >/dev/null
+    check "an agent's note is there while its window isn't looked at" yes "(probe-file (merge-pathnames (princ-to-string (xlib:window-id (window-xwin $(the Waits)))) *agent-waiting-dir*))"
+    ask "(focus-all $(the Waits))" >/dev/null; sleep 0.5
+    check "agent-waiting's rule: looking at the window clears its note" yes "(not (probe-file (merge-pathnames (princ-to-string (xlib:window-id (window-xwin $(the Waits)))) *agent-waiting-dir*)))"
+    for _ in 1 2 3; do
+      ask "(focus-all $(the Other))" >/dev/null; ask "(focus-all $(the Waits))" >/dev/null
+    done
+    sleep 0.4
+    check "a rule that runs at every look leaves one note on the window, not one a look: $(ask "(princ (mapcar (function second) (gethash $(the Waits) *vikix-rule-notes*)))")" \
+      yes "(= 1 (count :focus (gethash $(the Waits) *vikix-rule-notes*) :key (function second)))"
+    ask '(vikix-remove-rules :owner-prefix "plugin ")' >/dev/null
+    check "and they go when the plugins do: $(ask '(princ (remove-duplicates (mapcar (function vikix-rule-owner) *vikix-rules*) :test (function equal)))')" yes '(notany (lambda (o) (eql 0 (search "plugin " o))) (mapcar (function vikix-rule-owner) *vikix-rules*))'
+    said+=("the plugins' rules at the pin (inbox's box, agent-waiting's note)")
+  else
+    echo "(the plugins' rules: no copy of the plugins repository here at the pin; skipped)"
+  fi
 
   check "nothing asked, nothing failed, in the whole run" test -z "$(grep -il 'debugger\|unhandled' "$t/wm.log" 2>/dev/null)"
   [ "$fail" = 0 ] || diagnose

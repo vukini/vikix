@@ -17,9 +17,9 @@ SHELL-COMMAND is wrapped in single quotes, so it must not contain one."
 
 ;;; vikix learn: the lesson on one half of the screen, a shell in its folder
 ;; on the other. vikix-learn-open takes the first empty workspace, splits it
-;; side by side and starts two terminals; as each window opens,
-;; vikix-learn-place puts it in its half by its class, whichever comes
-;; first. q in the lesson pane runs vikix-learn-close: the shell goes, the
+;; side by side and starts two terminals; as each window opens, a rule
+;; (rules.lisp) has vikix-learn-place put it in its half by its class,
+;; whichever comes first. q in the lesson pane runs vikix-learn-close: the shell goes, the
 ;; split with it, and you're back on the workspace you came from.
 
 (defparameter *vikix-learn-command* "vikix-learn"
@@ -117,7 +117,7 @@ shell pane and the split it had."
                  (> (length (group-frames group)) 1))
         (ignore-errors (remove-split group shell))))))
 
-(add-hook *new-window-hook* 'vikix-learn-place)
+;; vikix-learn-place is called by a rule (rules.lisp, "Vikix's own rules").
 
 (defcommand vikix-terminal () ()
   "Open a terminal: whichever program *vikix-terminal* names."

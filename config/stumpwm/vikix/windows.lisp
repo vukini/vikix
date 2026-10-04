@@ -390,24 +390,8 @@ current frame on tiles, as a column on a strip."
 (defun vikix-lazarus-window-p (win)
   (search "lazarus" (string-downcase (or (window-class win) ""))))
 
-(defun vikix-lazarus-main-window-p (win)
-  "The IDE's main window. Its title settles as \"Lazarus IDE v...\", but
-StumpWM sees it before that: the Qt5 build (Void's) first calls it
-\"Lazarus\", or \"MainIDE\" (its form's name) with the docked IDE."
-  (let ((title (or (window-title win) "")))
-    (or (member title '("Lazarus" "MainIDE") :test #'string=)
-        (string= "Lazarus IDE v" title :end2 (min (length title) 13)))))
-
-(defun vikix-float-lazarus-window (win)
-  ;; Only a tiled window: floating one twice (another hook may do it too,
-  ;; as an older user.lisp does) would be an error.
-  (when (and (vikix-lazarus-window-p win)
-             (not (vikix-lazarus-main-window-p win))
-             (typep win 'tile-window)
-             (typep (window-group win) 'tile-group))
-    (float-window win (window-group win))))
-
-(add-hook *new-window-hook* 'vikix-float-lazarus-window)
+;; The floating is a rule (rules.lisp, "Vikix's own rules"): every Lazarus
+;; window but the main one, at its own size.
 
 ;;; Focus on one window (s-z)
 

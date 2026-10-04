@@ -33,7 +33,7 @@ VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 # VIKIX_PLUGINS_REPO and VIKIX_PLUGINS_COMMIT name others (tests, or trying
 # your own work on the repo: a folder works as well as an address).
 PLUGINS_REPO=${VIKIX_PLUGINS_REPO:-https://github.com/vukini/vikix-plugins}
-PLUGINS_COMMIT=${VIKIX_PLUGINS_COMMIT:-ea2b87f81997a73151ebd867d990f673ed4421e2}   # 2026-10-04: the commands' headers in the shape their man pages are made from
+PLUGINS_COMMIT=${VIKIX_PLUGINS_COMMIT:-8164f26e1f5a0d47d4aaae4c6867418f7517c77e}   # 2026-10-04: the plugins' window hooks become rules (inbox's box, agent-waiting's note)
 DIR="$HOME/.local/share/vikix/plugins"
 LIST="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/plugins.list"
 SETTINGS="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/plugins"

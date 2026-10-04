@@ -2,6 +2,16 @@
 
 Small known problems, not yet fixed. Each says what happens, what is known, and the next step. A fix removes its entry in the commit that ships it. (Larger planned work is in `TODO.md`; ideas in `IDEAS.md`.)
 
+## The desktop can freeze: focus bouncing between a floating window and the tile under it
+
+Noted 2026-10-04, on main at 0.71.139, on a hidden screen (Xvfb, no picom). Not seen on a real desktop yet, but nothing about it is the test's own.
+
+**What happens.** StumpWM's main thread never comes back: no key works, `vikix eval` says "StumpWM's main thread did not answer within 10 s", and Escape doesn't help. To see it: a tiled window filling the screen, a second window floated over the middle of it (`float-window`), the pointer resting on the floating one, then the tiled window given the focus by a command (`focus-all`, a few times back and forth). Within about half a minute it is stuck. With the pointer moved off the floating window first (`xdotool mousemove 3 790`), it never happens.
+
+**What's known.** The main thread is running, not waiting: its backtrace is `handle-event` for an `:enter-notify` on the floating window, in the handler at the top of `windows.lisp` (ours since 0.71.126; StumpWM's own would do the same), calling `focus-all` and the focus hooks (`vikix-rules-focus-window`, `vikix-titlebar-redraw`, `vikix-raise-dialogs`), with the tile as the window that had the focus; the X request numbers are in the tens of thousands. So each `focus-all` brings another EnterNotify for the other window, without the pointer moving, and the two take the focus from each other for ever. What gives it back to the tile each time isn't known: something in the focus hooks restacks (the title bars, or the dialogs kept in front) is the first guess. It doesn't need rules: a desktop with none does it.
+
+**Next step.** Log the EnterNotify events (window, detail, pointer position) during the bounce to see who restacks. The likely fix is in the handler: an EnterNotify with the pointer where it was at the last one comes from windows moving, not from the mouse, and changes no focus. Then a check in `tests/rules.sh` (or `tests/main.sh`): the windows above, the pointer on the floating one, and StumpWM still answering a minute later.
+
 ## tests/rules.sh fails when the machine is very busy
 
 Noted 2026-10-03, while the load average was 20 to 25 on four cores (other sessions' work).

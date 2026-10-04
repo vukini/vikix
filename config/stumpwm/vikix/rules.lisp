@@ -101,7 +101,7 @@
   "Each window, and the rules that ran for it, newest first: (KEY EVENT TIME
 FAILURE), FAILURE the error's words or nil. `vikix rules why` reads them.")
 (defparameter *vikix-rule-notes-kept* 12
-  "How many of them a window keeps: a rule on :focus runs at every look.")
+  "How many of them a window keeps.")
 (defvar *vikix-dialog-windows* (make-hash-table :test 'eq :weakness :key)
   "Windows a rule made dialogs of (the verb dialog): kept in front as
 *vikix-dialog-classes*' are. windows.lisp's vikix-dialog-p reads it.")
@@ -353,11 +353,16 @@ the rule's failure, and no match."
   nil)
 
 (defun vikix-rule-note (rule window event &optional failure)
-  "Note on WINDOW that RULE ran for it (or failed, with FAILURE's words)."
+  "Note on WINDOW that RULE ran for it (or failed, with FAILURE's words).
+One note a rule and what set it off, its latest: a rule on :focus runs at
+every look, and would push out what happened when the window opened."
   (when window
-    (let ((notes (cons (list (vikix-rule-key rule) event (get-universal-time)
-                             (and failure (vikix-one-line failure)))
-                       (gethash window *vikix-rule-notes*))))
+    (let* ((key (vikix-rule-key rule))
+           (notes (cons (list key event (get-universal-time)
+                              (and failure (vikix-one-line failure)))
+                        (remove-if (lambda (note)
+                                     (and (consp note) (equal (first note) key) (eq (second note) event)))
+                                   (gethash window *vikix-rule-notes*)))))
       (setf (gethash window *vikix-rule-notes*)
             (subseq notes 0 (min (length notes) *vikix-rule-notes-kept*))))))
 
@@ -548,13 +553,15 @@ answered the same for the window's whole life."
   "The space, in pixels, between a floating window put at an edge or a
 corner and that edge.")
 
-(define-rule-verb float (&key width height x y corner)
-  "Float the window: :width and :height (pixels, or \"65%\" of the monitor below the bar; 60% when not given), in the middle, or at a :corner, or at :x and :y."
+(define-rule-verb float (&key width height x y corner own)
+  "Float the window: :width and :height (pixels, or \"65%\" of the monitor below the bar; 60% when not given), in the middle, or at a :corner, or at :x and :y. :own t only floats it, at the size and place it asks for itself."
   (let ((win (rule-window)))
     (unless (member corner '(nil :centre :center :top-left :top-right :bottom-left :bottom-right
                              :top :bottom :left :right))
       (error "A float's :corner is one of :top-left, :top-right, :bottom-left, :bottom-right, :top, :bottom, :left, :right, :centre; this is ~s." corner))
-    (when (vikix-rule-float-it win)
+    (when (and own (or width height x y corner))
+      (error "A float with :own t keeps the window's own size and place: it takes no :width, :height, :x, :y or :corner."))
+    (when (and (vikix-rule-float-it win) (not own))
       (multiple-value-bind (ax ay aw ah) (vikix-rule-area (window-head win))
         ;; The sizes are the whole window's, StumpWM's strip at its top
         ;; and its border included.
@@ -1736,3 +1743,33 @@ into ~/.stumpwm.d/rules.lisp. The rule is shown first."
               (error (e)
                 (vikix-error-report e "remembering a window" nil)
                 (message "^1Couldn't write the rule:^n ~a" (vikix-one-line e)))))))))
+
+;;; --- Vikix's own rules -------------------------------------------------------------------------
+;;;
+;;; What the layer itself wants of windows, said as rules like anyone's:
+;;; `vikix rules` lists them (from Vikix), and one can be switched off.
+;;; They are here, not beside what they are about (windows.lisp,
+;;; commands.lisp), because those files load before this one empties the
+;;; table. The hooks these were until 0.71.139 are taken off, for a desktop
+;;; that was running then.
+
+(remove-hook *new-window-hook* 'vikix-float-lazarus-window)
+(remove-hook *new-window-hook* 'vikix-learn-place)
+
+;; Lazarus (windows.lisp): the docked IDE's main window tiles like any
+;; other; every other Lazarus window (dialogs, the welcome screen, anything
+;; undocked) floats at its own size. Tiled, StumpWM would stretch each to
+;; fill a frame and fight Lazarus over its size, which flickers. The main
+;; window's title settles as "Lazarus IDE v...", but StumpWM sees it before
+;; that, as "Lazarus" or "MainIDE".
+(when-window (:class (:has "lazarus")
+              :not (:title (:like "^(Lazarus|MainIDE)$|^Lazarus IDE v")))
+  :name "Vikix: Lazarus's windows float, all but its main one"
+  (float :own t))
+
+;; vikix learn (commands.lisp): its two terminals, each into its half of
+;; the workspace as it opens, whichever comes first.
+(when-window (:class ("vikix-learn-lesson" "vikix-learn-shell"))
+  :name "Vikix: vikix learn's lesson and shell, each in its half"
+  ;; By name: this file also loads where commands.lisp hasn't (the tests).
+  (funcall 'vikix-learn-place (window)))
