@@ -783,6 +783,7 @@ Books from Markdown.
 - `vikix publish [NAME|DIR] --send [--to FOLDER]` — build the EPUB, then put it on the reader plugged in: a Kindle or Kobo mounted as a drive (into documents/, or the top), any drive with a Books folder, an Android reader such as a BOOX in file transfer mode (its Books folder, over MTP), or one with USB debugging (adb, /sdcard/Books); --to names the folder
 - `vikix publish [NAME|DIR] spell [--keep]` — the words the dictionary doesn't know, by chapter; --keep adds them to the book's words.txt, to read
 - `vikix publish new DIR [--title TITLE] [--lang LANG]` — start a book in DIR (made if it isn't there): publish.yml, a first chapter, an empty words.txt, out/ in .gitignore, and the make targets in its Makefile (the line added to one already there); never over a book that's there
+- `vikix publish skill [ZIP]` — the doc-to-epub skill for claude.ai, made from this pipeline (its SKILL.md, fix-tables.py and epub.css), as a zip to upload (Settings, Capabilities, Skills); `~/Downloads/doc-to-epub.zip` without ZIP
 - `vikix publish setup` — the packages, epubcheck (a pinned release, checked against its checksum), the British English, Esperanto and Arabic dictionaries (LibreOffice's, pinned and checked the same way) and the shared make targets
 - `vikix publish status` — which tools and fonts are here
 - `vikix publish uninstall`
