@@ -131,6 +131,8 @@ vikix memory clean    # end the programs left over (hidden screens and tests nob
 
 When memory is nearly full, the watcher ends those left-over programs by itself. And if memory still runs out, earlyoom (a system service Vikix switches on) ends one program rather than letting everything stall: a test's or a build's first, an AI agent's session or a virtual machine last, never the desktop or your editor; a notification says which. `vikix memory` ends with whether it is on.
 
+If `vikix memory` says "Graphics and other shared memory ... That is a lot", a program is leaving pictures behind in the X server (they belong to no program's own memory, and go only when that program ends): logging out and in gives it all back.
+
 The usual causes: a virtual machine (the bar says `win`), several AI agents at once, a browser with many tabs, big files in `/tmp` (it is kept in memory), and programs left over by tests. If the screen is already frozen, switch to a text console with Ctrl+Alt+F2, log in, and run `vikix memory` there (`pkill` the biggest), then Ctrl+Alt+F1 to come back.
 
 ## Settings went wrong

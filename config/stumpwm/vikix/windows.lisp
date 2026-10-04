@@ -901,6 +901,21 @@ can't, only their input and urgency; nil when even that can't be read."
 (defvar *vikix-plain-maximize-window* nil
   "The maximize-window the title bars wrap: StumpWM's, or the gaps-safe one above.")
 
+(defun vikix-free-drawn-pixmap (pixmap)
+  "Free PIXMAP, and with it what the font renderer keeps for anything text
+was drawn on: clx-truetype leaves two pictures and a 1x1 pen pixmap in the
+drawable's plist and never frees them, and a picture keeps its pixmap alive
+in the X server after free-pixmap. A title bar's picture a second (a
+terminal's title changing) was a gigabyte an hour in Xorg."
+  (let ((plist (xlib:drawable-plist pixmap)))
+    (dolist (key '(:ttf-surface :ttf-pen))
+      (let ((picture (getf plist key)))
+        (when picture (ignore-errors (xlib:render-free-picture picture)))))
+    (let ((pen (getf plist :ttf-pen-surface)))
+      (when pen (ignore-errors (xlib:free-pixmap pen))))
+    (setf (xlib:drawable-plist pixmap) nil))
+  (xlib:free-pixmap pixmap))
+
 (defun vikix-titlebar-height ()
   (+ 4 (font-height (screen-font (current-screen)))))
 
@@ -951,7 +966,7 @@ can't, only their input and urgency; nil when even that can't be read."
           (xlib:free-gcontext gc))
         ;; X keeps the picture while it is the background.
         (setf (xlib:window-background bar) pm)
-        (xlib:free-pixmap pm)
+        (vikix-free-drawn-pixmap pm)
         (xlib:clear-area bar)))))
 
 (defun vikix-titlebar-remove (win)

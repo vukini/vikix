@@ -93,6 +93,10 @@ memory 25 4; mem watch --once > /dev/null
 check "swap all but full, with little free, is low: $(field)" grep -q '^low ' "$t/state/vikix/memory"
 out=$(memory 14; mem)
 check "vikix memory should say it all: $out" grep -q 'LOW' <<<"$out"
+echo "Shmem: 3400000 kB" >> "$t/proc/meminfo"
+out=$(mem)
+check "shared memory no program owns (graphics) should be said, and that it's a lot: $out" \
+  grep -q 'Graphics and other shared memory.*3.2 GB.  That is a lot' <<<"$out"
 check "the biggest programs, in order" grep -A2 'The biggest programs' <<<"$out" | grep -q 'firefox ×2'
 
 # --- Left over, told from in use --------------------------------------------------

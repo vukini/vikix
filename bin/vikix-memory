@@ -341,6 +341,22 @@ def print_leftovers(left):
 
 # --- The commands --------------------------------------------------------------------
 
+def graphics(m):
+    """Shared memory that isn't a file in /tmp or the like: on a machine whose
+    graphics share the main memory (Intel, AMD's built in), mostly the pictures
+    of windows the X server holds. No program shows it as its own."""
+    files = 0
+    for line in read(os.path.join(PROC, "mounts")).splitlines():
+        parts = line.split()
+        if len(parts) > 2 and parts[2] == "tmpfs":
+            try:
+                s = os.statvfs(parts[1])
+            except OSError:
+                continue
+            files += (s.f_blocks - s.f_bfree) * s.f_frsize
+    return max(0, m.get("Shmem", 0) - files)
+
+
 def tmpfs():
     """Files kept in memory: [(mount point, bytes used)] for /tmp and the like."""
     found = []
@@ -372,6 +388,10 @@ def cmd_status():
     print(summary(m) + {"ok": "", "low": "  LOW.", "critical": "  NEARLY FULL."}[state])
     for mount, used in tmpfs():
         print(f"Files kept in memory in {mount}: {size(used)}")
+    shared = graphics(m)
+    if shared >= 500 << 20:
+        much = "  That is a lot: a program may be leaving pictures behind in the X server." if shared >= m.get("MemTotal", 0) * 0.15 else ""
+        print(f"Graphics and other shared memory (window pictures in the X server; no program's own): {size(shared)}.{much}")
     print("\nThe biggest programs:")
     for name, mem, swap, count in biggest(procs):
         extra = f" (+{size(swap)} in swap)" if swap >= 50 << 20 else ""

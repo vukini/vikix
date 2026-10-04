@@ -324,7 +324,7 @@ colour without one."
         (xlib:free-gcontext gc))
       ;; X keeps the picture while it is the background.
       (setf (xlib:window-background card) pm)
-      (xlib:free-pixmap pm)
+      (vikix-free-drawn-pixmap pm)
       (xlib:clear-area card)
       (xlib:display-finish-output *display*))))
 
