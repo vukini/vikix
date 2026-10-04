@@ -17,6 +17,9 @@
 #   for a workspace not in view, it is shown there, with the focus, when
 #   that workspace is gone to. So is a floating window sent to another
 #   workspace (Super+Shift+digit): StumpWM never showed either again.
+#   A window whose WM_HINTS can't be read (a number that is no X id where
+#   its icon belongs): StumpWM goes on, and the window is raised and takes
+#   the focus like any other.
 #
 # Needs what tests/lib/wm.sh needs (Xvfb, xdotool, alacritty, Vikix's
 # StumpWM); skipped without.
@@ -151,7 +154,24 @@ check "sent back with the key, it is gone from here: $(shown Away)" test "$(show
 ask '(run-commands "gselect 3")' >/dev/null; sleep 0.7
 check "and shown there, with the focus: $(shown Away), $(focused)" test "$(shown Away) $(focused)" = "VIEWABLE Away"
 
+# --- a window whose WM_HINTS can't be read ----------------------------------------
+# One program wrote the letters "calc" (1668047203) where its icon's id
+# belongs. CLX refuses the number, and StumpWM reads the hints at every
+# raise and every change of them: an error it didn't catch.
+ask '(run-commands "gselect 4")' >/dev/null; sleep 0.4
+win Odd
+win Plain
+ask "(xlib:change-property (window-xwin $(w Odd)) :WM_HINTS (list (+ 7 256) 1 1 1668047203 0 0 0 0 0) :WM_HINTS 32)" >/dev/null; sleep 0.5
+check "StumpWM still answers when a window's hints can't be read: $(ask '(princ 1)')" test "$(ask '(princ 1)')" = 1
+out=$(ask "(princ (let ((h (xlib:wm-hints (window-xwin $(w Odd))))) (and h (list (xlib:wm-hints-flags h) (xlib:wm-hints-input h)))))")
+check "what it asks of them is kept, the keyboard and the urgency, and the icon left out: $out" test "$out" = "(257 ON)"
+ask "(focus-all $(w Odd))" >/dev/null; sleep 0.5
+check "and the window is raised and takes the focus like any other: $(focused)" test "$(focused)" = Odd
+ask "(xlib:change-property (window-xwin $(w Plain)) :WM_HINTS (list 3 1 1 0 0 0 0 0 0) :WM_HINTS 32)" >/dev/null; sleep 0.3
+out=$(ask "(princ (let ((h (xlib:wm-hints (window-xwin $(w Plain))))) (and h (list (xlib:wm-hints-input h) (xlib:wm-hints-initial-state h)))))")
+check "hints that can be read are read whole, as before: $out" test "$out" = "(ON NORMAL)"
+
 check "no rule failed" test "$(ask '(princ (reduce (function +) (mapcar (function vikix-rule-failures) *vikix-rules*)))')" = 0
 
-wm_report focus "the mouse gives the focus, four changes of focus in one go don't set a floating window and the tile under it taking it from each other for ever, a window gone to with a key keeps it under a still pointer, floating windows kept in front too, a window a rule floats has the focus as it opens, a floating window opened on or sent to a workspace that wasn't in view is shown there"
+wm_report focus "the mouse gives the focus, four changes of focus in one go don't set a floating window and the tile under it taking it from each other for ever, a window gone to with a key keeps it under a still pointer, floating windows kept in front too, a window a rule floats has the focus as it opens, a floating window opened on or sent to a workspace that wasn't in view is shown there, a window whose hints can't be read is raised like any other"
 exit "$fail"

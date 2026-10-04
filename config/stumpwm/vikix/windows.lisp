@@ -792,6 +792,29 @@ the drawer (drawer.lisp) when it is out here, under them."
          (when (and (typep win 'float-window) (vikix-dialog-p win) (window-visible-p win))
            (setf (xlib:window-priority (window-parent win)) :above)))))))
 
+;; A window's WM_HINTS can't always be read: one program wrote the letters
+;; "calc" where its icon's id belongs, CLX refused the number (an X id has
+;; 29 bits), and StumpWM, which reads the hints at every raise and every
+;; change of them (is the window urgent? does it take the keyboard?), met an
+;; error it doesn't catch. Read forgivingly: when the hints can't be
+;; decoded, the icon, the state and the group are left out, and what
+;; StumpWM asks for is kept, the keyboard and the urgency.
+(defun vikix-wm-hints (original window)
+  "WINDOW's WM_HINTS as ORIGINAL (xlib:wm-hints) reads them, or, when it
+can't, only their input and urgency; nil when even that can't be read."
+  (handler-case (funcall original window)
+    (error ()
+      (ignore-errors
+       (let ((raw (xlib:get-property window :WM_HINTS :type :WM_HINTS :result-type 'vector)))
+         (when (and raw (plusp (length raw)))
+           (let ((kept (copy-seq raw))
+                 (input (and (> (length raw) 1) (member (aref raw 1) '(0 1)))))
+             (setf (aref kept 0) (logand (aref raw 0) (if input #b100000001 #b100000000)))
+             (xlib::decode-wm-hints kept (xlib:window-display window)))))))))
+
+(sb-int:unencapsulate 'xlib:wm-hints 'vikix)
+(sb-int:encapsulate 'xlib:wm-hints 'vikix 'vikix-wm-hints)
+
 ;; StumpWM hides a window that goes to a workspace not in view, and shows a
 ;; tile again when its frame does; nothing shows a floating one. So a
 ;; floating window sent to another workspace (Super+Shift+digit), or one a

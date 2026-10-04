@@ -13,16 +13,6 @@ Noted 2026-10-04, twice the same day (`tests/run.sh` with other sessions' test r
 
 **Next step.** Run it under load (`stress-ng --cpu 16` beside it) to see which check fails, and give that wait a poll with a deadline; or add `main` to `alone` in `tests/run.sh` if it can't be made patient.
 
-## A window with a broken WM_HINTS can't be raised: "an error StumpWM didn't catch"
-
-Noted 2026-10-04, on Vid's desktop at 0.71.148 (`~/.local/state/vikix/errors/20261004-161317-00.txt`).
-
-**What happens.** A window titled "Calculator" opened, and StumpWM met an error it doesn't catch, in the handling of the window's map request: `The value 1668047203 is not of type (UNSIGNED-BYTE 29) when binding XLIB::ID`. Vikix's errors menu took it, so the desktop went on, but every raise of that window would do the same.
-
-**What's known.** The backtrace is `raise-window` → `window-urgent-p` → `xlib::decode-wm-hints` → `xlib::lookup-pixmap`. The window's `WM_HINTS` was `#(7 1 1 1668047203 0 0 0 0 0)`: its flags say it has an icon pixmap, and the pixmap's id is 1668047203, which is no X id (they are 29 bits) but the four letters "calc" read as a number (0x636c6163). So the program wrote text where an id belongs, and CLX, which StumpWM reads the hints with, is strict about it. Which program it was isn't known: the calculators tried that day aren't installed any more (SpeedCrunch, which is, doesn't do it).
-
-**Next step.** Reproduce it with any window: `xprop -id ID -f WM_HINTS 32c -set WM_HINTS "7, 1, 1, 1668047203, 0, 0, 0, 0, 0"`, then raise it. The likely fix is to read the hints forgivingly, `xlib:wm-hints` answering nothing for a window whose hints can't be read (an `sb-int:encapsulate` in `windows.lisp`, as `get-window-placement` is wrapped in `rules.lisp`), with a check for it in `tests/focus.sh`.
-
 ## tests/rules.sh fails when the machine is very busy
 
 Noted 2026-10-03, while the load average was 20 to 25 on four cores (other sessions' work).
