@@ -178,7 +178,7 @@ DISPLAY=$fake_display XDG_RUNTIME_DIR="$t/run4" d page x >/dev/null 2>&1 || true
 sleep 0.3
 check "a stuck Nyxt (no window, no socket) is closed" bash -c '! kill -0 "$1" 2>/dev/null' _ "$stuck"
 check "and said: $(cat "$t/notified")" grep -q "A stuck Nyxt was closed" "$t/notified"
-kill "$stuck" 2>/dev/null; wait "$stuck" 2>/dev/null || true
+kill "$stuck" 2>/dev/null || true; wait "$stuck" 2>/dev/null || true
 DISPLAY=$fake_display XDG_RUNTIME_DIR="$t/run4" "$t/stuck/nyxt" 300 &
 inuse=$!
 sleep 0.3
