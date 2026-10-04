@@ -264,6 +264,16 @@ key super+backslash
 check "Super+\\ on it lets it go: every column scrolls again" test "$(pinned) $(inplace)" = "NIL 1"
 ask '(vikix-layout-restore "pin" (current-group) :start nil)' >/dev/null; sleep 0.5
 check "the layout put back, it is pinned again: $(pinned)" test "$(pinned) $(inplace)" = "$pin 1"
+# A column wider than the room a wide pinned column leaves: it stands with
+# its left edge at the pinned one, and stays there as the focus moves in it
+# (it went from one edge to the other at each move).
+ask '(let* ((g (current-group)) (pin (viri-pinned g)) (other (second (viri-cols g)))) (setf (viri-col-width pin) 2/3 (viri-col-width other) 1/2) (group-focus-window g (viri-col-window other)))' >/dev/null; sleep 0.4
+off() { ask '(princ (viri-offset (current-group)))'; }
+at=$(off)
+ask '(let ((g (current-group))) (group-focus-window g (first (viri-col-windows (viri-pinned g)))) (group-focus-window g (viri-col-window (second (viri-cols g)))))' >/dev/null; sleep 0.4
+check "a column too wide for the room beside the pinned one stays put when focused again: $at, $(off)" test "$(off)" = "$at"
+check "its left edge where the pinned column ends" test "$(ask '(let* ((g (current-group)) (p (window-parent (current-window))) (pin (window-parent (first (viri-col-windows (viri-pinned g)))))) (princ (if (= (xlib:drawable-x p) (+ (xlib:drawable-width pin) (* 2 (xlib:drawable-border-width pin)))) 1 0)))')" = 1
+ask '(let* ((g (current-group))) (setf (viri-col-width (viri-pinned g)) 1/2) (viri-layout g))' >/dev/null
 ask '(run-commands "vikix-pin off")' >/dev/null; sleep 0.3
 check "vikix-pin off: none" test "$(pinned)" = NIL
 

@@ -483,6 +483,11 @@ true when it moved."
                 (pin (viri-pin-width group aw)))
             (setf (viri-offset group)
                   (cond (*viri-centre* (- (+ x (floor w 2)) pin (floor (- aw pin) 2)))
+                        ;; Wider than the room there is (beside a wide pinned
+                        ;; column): its left edge where the room starts,
+                        ;; always. Left to the two rules below it went from
+                        ;; one edge to the other at every change of focus in it.
+                        ((> w (- aw pin)) (- x pin))
                         ((< x (+ old pin)) (- x pin))
                         ((> (+ x w) (+ old aw)) (- (+ x w) aw))
                         (t old)))

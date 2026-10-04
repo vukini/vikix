@@ -87,7 +87,7 @@ Some windows you want in sight whatever else you're doing: a chat, a page you're
 | `Super+h` from the first of the others | into the pinned column |
 | `Super+l` from the pinned column | to the column standing beside it now |
 
-One column is pinned at a time: pin another and it takes the place. The bar shows it first, with a bar after it: `D | A [B C] E`. It keeps its width (`Super+r` and the mouse change it as for any column, though it never takes more than two thirds of the screen), it can hold several windows (`Super+[` from the column beside it), and nothing moves past it. A layout you save remembers which column was pinned.
+One column is pinned at a time: pin another and it takes the place. The bar shows it first, with a bar after it: `D | A [B C] E`. It keeps its width (`Super+r` and the mouse change it as for any column, though it never takes more than two thirds of the screen), it can hold several windows (`Super+[` from the column beside it), and nothing moves past it. A layout you save remembers which column was pinned. A column too wide for the room the pinned one leaves stands with its left edge at the pinned column and its right part past the screen's edge; `Super+b` on it makes it fit the room exactly.
 
 Two commands have no key of their own, for a key in `user.lisp` if you want one: `vikix-move-end first` and `vikix-move-end last` take the column you're in to the start or the end of the strip.
 
