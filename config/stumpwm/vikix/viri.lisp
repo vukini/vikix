@@ -596,7 +596,7 @@ the column's place, the window, and whether it's on the screen now."
                                              (if (member i shown) "   (on the screen)" ""))
                                      w)))))
 
-(defun viri-overview (group)
+(defun viri-overview-menu (group)
   "Pick a window of the strip from a menu (type to narrow it); the strip
 goes there."
   (let* ((lines (viri-overview-lines group))
@@ -607,12 +607,299 @@ goes there."
     (when choice
       (group-focus-window group (second choice)))))
 
+;;; The overview, drawn (s-o on a strip).
+;;;
+;;; The whole strip in small, on a card over the screen: each column a box
+;;; as wide as its share of the strip, its windows one above the other, each
+;;; with the title bar it has (its number and name, the focused one's in the
+;;; accent) and under it what it is (windows.lisp's vikix-window-about: a
+;;; terminal's folder and what runs in it); a line around the part that is
+;;; on the screen now. The arrows or h/j/k/l move a frame from window to
+;;; window, Enter goes to it, a digit goes straight to the window with that
+;;; number, / opens the list to type in, any other key closes.
+;;;
+;;; Titles, not pictures: X has no picture to give of a window past the
+;;; screen's edge, and a compositor's would be the work of another day.
+;;;
+;;; The card is a window of Vikix's own with the drawing as its background,
+;;; as a title bar is, so X repaints it. Its keys come through
+;;; *custom-key-event-handler* with the keyboard grabbed, as the key card's.
+
+(defparameter *viri-overview-scale* 1/4
+  "How small the overview draws the strip, at most: a strip too long for
+the screen at that is drawn smaller still.")
+
+(defparameter *viri-overview-timeout* 60
+  "Seconds the overview stays open with no key pressed.")
+
+(defvar *viri-overview* nil
+  "While the overview shows, a list: :group, :card (its X window), :at (the
+window the frame is on), :room, :pad, :line, :handler (the key handler
+before it) and :timer.")
+
+(defun viri-overview-boxes (group room)
+  "The strip in small, to fit ROOM pixels across: a list of (WINDOW X Y W H)
+from the picture's top left. More values: the picture's width and height,
+and where the part on the screen starts and how wide it is."
+  (multiple-value-bind (ax ay aw ah) (viri-area group)
+    (declare (ignore ax ay))
+    (let* ((spans (viri-spans group aw))
+           (total (max aw (if spans (let ((l (car (last spans)))) (+ (car l) (cdr l))) 0)))
+           (scale (min *viri-overview-scale* (/ room total)))
+           (height (max 1 (round (* ah scale)))))
+      (values
+       (loop for c in (viri-cols group)
+             for (x . w) in spans
+             for n = (max 1 (length (viri-col-windows c)))
+             append (loop for win in (viri-col-windows c)
+                          for k from 0
+                          collect (list win
+                                        (round (* x scale)) (round (* k (/ height n)))
+                                        (max 1 (round (* w scale))) (max 1 (round (/ height n))))))
+       (round (* total scale)) height
+       (round (* (viri-offset group) scale)) (round (* aw scale))))))
+
+(defun viri-overview-fit (text pixels char)
+  "TEXT, or its start and an ellipsis, to fit PIXELS in a font whose
+characters are CHAR wide."
+  (let ((room (floor pixels (max 1 char))))
+    (cond ((<= (length text) room) text)
+          ((< room 2) "")
+          (t (concat (subseq text 0 (1- room)) "…")))))
+
+(defun viri-overview-about (window)
+  "What WINDOW is, a part to a line: a terminal's folder, then what runs
+in it (vikix-window-about puts two spaces between them)."
+  (let* ((about (if (fboundp 'vikix-window-about)
+                    (funcall 'vikix-window-about window)
+                    (or (window-class window) "")))
+         (cut (search "  " about)))
+    (remove "" (if cut
+                   (list (subseq about 0 cut) (string-left-trim " " (subseq about cut)))
+                   (list about))
+            :test #'string=)))
+
+(defparameter *viri-overview-hint*
+  "arrows or h j k l: move    Enter: go there    a number: that window    /: type to find    Esc: close")
+
+(defun viri-overview-colour (screen &rest keys)
+  "The pixel of the first of the theme's colours KEYS it has; the text
+colour without one."
+  (let ((name (and (fboundp 'vikix-colour) (some (lambda (k) (funcall 'vikix-colour k)) keys))))
+    (or (and name (ignore-errors (alloc-color screen name)))
+        (screen-fg-color screen))))
+
+(defun viri-overview-draw ()
+  "Paint the card: the strip as it is now, the frame on the window chosen."
+  (let* ((state *viri-overview*)
+         (group (getf state :group))
+         (card (getf state :card))
+         (screen (group-screen group))
+         (font (screen-font screen))
+         (pad (getf state :pad))
+         (line (getf state :line))
+         (char (max 1 (round (text-line-width font "MMMMMMMMMM" :translate #'translate-id) 10)))
+         (ascent (font-ascent font))
+         (width (xlib:drawable-width card))
+         (height (xlib:drawable-height card))
+         (bg (screen-bg-color screen))
+         (fg (screen-fg-color screen))
+         (accent (screen-focus-color screen))
+         (edge (screen-unfocus-color screen))
+         (dim (viri-overview-colour screen :color8 :subtle))
+         (focused (group-current-window group))
+         (pm (xlib:create-pixmap :width width :height height :drawable card
+                                 :depth (xlib:drawable-depth card)))
+         (gc (xlib:create-gcontext :drawable pm :foreground bg :background bg)))
+    (multiple-value-bind (boxes pw ph vx vw) (viri-overview-boxes group (getf state :room))
+      (let ((x0 (floor (- width pw) 2))
+            (y0 (+ pad line 10)))
+        (flet ((colours (f b) (setf (xlib:gcontext-foreground gc) f (xlib:gcontext-background gc) b))
+               (text (x y string)
+                 (when (plusp (length string))
+                   (draw-image-glyphs pm gc font x (+ y 3 ascent) string
+                                      :translate #'translate-id :size 16))))
+          (unwind-protect
+               (progn
+                 (colours bg bg)
+                 (xlib:draw-rectangle pm gc 0 0 width height t)
+                 (colours accent bg)
+                 (text pad pad (viri-overview-fit
+                                (format nil "Strip ~a: ~d window~:p" (group-name group) (length boxes))
+                                (- width pad pad) char))
+                 (colours dim bg)
+                 (text pad (+ y0 ph 10) (viri-overview-fit *viri-overview-hint* (- width pad pad) char))
+                 ;; What is on the screen now: a line around that part.
+                 (colours fg bg)
+                 (xlib:draw-rectangle pm gc (+ x0 vx -3) (- y0 4) (+ vw 5) (+ ph 7))
+                 (loop for (win x y w h) in boxes
+                       for bx = (+ x0 x 2) for by = (+ y0 y 2)
+                       for bw = (max 1 (- w 4)) for bh = (max 1 (- h 4))
+                       for band = (min bh line)
+                       for here = (eq win focused)
+                       do (colours bg bg)                                   ; over the line behind it
+                          (xlib:draw-rectangle pm gc bx by bw bh t)
+                          (colours (if here accent edge) bg)
+                          (xlib:draw-rectangle pm gc bx by bw band t)       ; its title bar
+                          (xlib:draw-rectangle pm gc bx by (1- bw) (1- bh)) ; its edge
+                          (when (>= band line)
+                            (colours (if here bg fg) (if here accent edge))
+                            (text (+ bx 4) by
+                                  (viri-overview-fit (format nil "~d ~a" (window-number win) (window-name win))
+                                                     (- bw 8) char)))
+                          ;; What it is, a part to a line, as far as there's room.
+                          (colours dim bg)
+                          (loop for part in (viri-overview-about win)
+                                for ty from (+ by band 2) by line
+                                while (<= (+ ty line) (+ by bh))
+                                do (text (+ bx 4) ty (viri-overview-fit part (- bw 8) char)))
+                          (when (eq win (getf state :at))
+                            (colours accent bg)
+                            (xlib:draw-rectangle pm gc (- bx 2) (- by 2) (+ bw 3) (+ bh 3))
+                            (xlib:draw-rectangle pm gc (- bx 1) (- by 1) (+ bw 1) (+ bh 1)))))
+            (xlib:free-gcontext gc))
+          ;; X keeps the picture while it is the background.
+          (setf (xlib:window-background card) pm)
+          (xlib:free-pixmap pm)
+          (xlib:clear-area card)
+          (xlib:display-finish-output *display*))))))
+
+(defun viri-overview-close (&rest ignore)
+  "Close the overview and give the keyboard back. Safe when it's closed."
+  (declare (ignore ignore))
+  (let ((state *viri-overview*))
+    (when state
+      (setf *viri-overview* nil)
+      (when (eq *custom-key-event-handler* 'viri-overview-key)
+        (setf *custom-key-event-handler* (getf state :handler)))
+      (ungrab-keyboard)
+      (when (timer-p (getf state :timer))
+        (cancel-timer (getf state :timer)))
+      (ignore-errors (xlib:destroy-window (getf state :card)))
+      ;; The card gone, X says the pointer entered what was under it: not
+      ;; a reason for the focus to move.
+      (ignore-errors (viri-drop-enter-events)))))
+
+(defun viri-overview-move (dir)
+  "The frame to the window that way: along the columns, or up and down one."
+  (let* ((state *viri-overview*)
+         (group (getf state :group))
+         (cols (viri-cols group))
+         (at (getf state :at))
+         (col (or (viri-col-of group at) (first cols)))
+         (i (or (position col cols) 0))
+         (k (or (position at (viri-col-windows col)) 0))
+         (to (ecase dir
+               (:left (viri-col-window (nth (max 0 (1- i)) cols)))
+               (:right (viri-col-window (nth (min (1- (length cols)) (1+ i)) cols)))
+               (:up (nth (max 0 (1- k)) (viri-col-windows col)))
+               (:down (nth (min (1- (length (viri-col-windows col))) (1+ k)) (viri-col-windows col))))))
+    (when to
+      (setf (getf *viri-overview* :at) to)
+      (viri-overview-draw))))
+
+(defun viri-overview-go (window)
+  "Close the overview; the strip goes to WINDOW, when it's still there."
+  (let ((group (getf *viri-overview* :group)))
+    (viri-overview-close)
+    (when (and window (member window (group-windows group)))
+      (group-focus-window group window))))
+
+(defun viri-overview-key (code state)
+  "The key handler while the overview shows. True means the key is used up."
+  (if (is-modifier code)
+      t
+      (let ((pass nil))
+        (handler-case
+            (let* ((key (code-state->key code state))
+                   (name (print-key key))
+                   (group (getf *viri-overview* :group))
+                   (digit (and (= (length name) 1) (digit-char-p (char name 0)))))
+              (cond ((member name '("h" "Left") :test #'string=) (viri-overview-move :left))
+                    ((member name '("l" "Right") :test #'string=) (viri-overview-move :right))
+                    ((member name '("k" "Up") :test #'string=) (viri-overview-move :up))
+                    ((member name '("j" "Down") :test #'string=) (viri-overview-move :down))
+                    ((member name '("RET" "SPC") :test #'string=)
+                     (viri-overview-go (getf *viri-overview* :at)))
+                    (digit
+                     (let ((window (find digit (viri-columns group) :key #'window-number)))
+                       (if window (viri-overview-go window) (viri-overview-close))))
+                    ((string= name "/")
+                     (viri-overview-close)
+                     (viri-overview-menu group))
+                    (t
+                     ;; Any other key closes; one bound to something else
+                     ;; goes on to StumpWM, which runs it.
+                     (let ((command (find-if-not #'null
+                                                 (mapcar (lambda (map) (lookup-key map key))
+                                                         (dereference-kmaps (top-maps))))))
+                       (setf pass (and command (not (equal command "vikix-expose")))))
+                     (viri-overview-close))))
+          ;; Never left open with the keyboard grabbed.
+          (error () (viri-overview-close)))
+        (not pass))))
+
+(defun viri-overview (group)
+  "Show GROUP's strip in small; keys pick a window (viri-overview-key)."
+  (viri-overview-close)
+  (let* ((screen (group-screen group))
+         (font (screen-font screen))
+         (pad 16)
+         (line (+ 6 (font-height font)))
+         (char (max 1 (round (text-line-width font "MMMMMMMMMM" :translate #'translate-id) 10))))
+    (multiple-value-bind (ax ay aw ah) (viri-area group)
+      (let ((room (- (floor (* aw 95/100)) (* 2 pad))))
+        (multiple-value-bind (boxes pw ph) (viri-overview-boxes group room)
+          (declare (ignore boxes))
+          (let* ((width (min aw (+ (* 2 pad) (max pw (min room (* char (length *viri-overview-hint*)))))))
+                 (height (min ah (+ pad line 10 ph 10 line pad)))
+                 (card (xlib:create-window
+                        :parent (screen-root screen)
+                        :x (+ ax (floor (- aw width) 2)) :y (+ ay (floor (- ah height) 2))
+                        :width width :height height
+                        :override-redirect :on
+                        :background (screen-bg-color screen)
+                        :border (screen-focus-color screen) :border-width 1
+                        :event-mask '())))
+            ;; Solid, whatever picom makes of windows without the focus.
+            (xlib:change-property card :_net_wm_window_opacity (list #xffffffff) :cardinal 32)
+            (setf *viri-overview*
+                  (list :group group :card card
+                        :at (or (group-current-window group) (first (viri-columns group)))
+                        :room room :pad pad :line line
+                        :handler *custom-key-event-handler*
+                        :timer (run-with-timer *viri-overview-timeout* nil 'viri-overview-close))
+                  *custom-key-event-handler* 'viri-overview-key)
+            (xlib:map-window card)
+            (setf (xlib:window-priority card) :above)
+            (grab-keyboard (screen-key-window screen))
+            (handler-case (viri-overview-draw)
+              (error (e)
+                (viri-overview-close)
+                (message "The overview couldn't be drawn (~a): the list instead." e)
+                (viri-overview-menu group)))))))))
+
+;; The strip changed under the card (a window came or went), or you're on
+;; another workspace: the card would show what isn't so.
+(defun viri-overview-stale (&rest ignore)
+  (declare (ignore ignore))
+  (when *viri-overview*
+    (viri-overview-close)))
+
+(add-hook *new-window-hook* 'viri-overview-stale)
+(add-hook *destroy-window-hook* 'viri-overview-stale)
+(add-hook *focus-group-hook* 'viri-overview-stale)
+
 (defcommand vikix-expose () ()
-  "Every window on this workspace, to pick one: on a strip, a menu of its
-columns in order; on tiles, StumpWM's grid (expose)."
-  (if (viri-group-p)
-      (viri-overview (current-group))
-      (run-commands "expose")))
+  "Every window on this workspace, to pick one: on a strip, the strip drawn
+small (again closes it); on tiles, StumpWM's grid (expose)."
+  (cond ((and *viri-overview* (eq (getf *viri-overview* :group) (current-group)))
+         (viri-overview-close))
+        ((viri-group-p)
+         (if (viri-columns (current-group))
+             (viri-overview (current-group))
+             (message "No windows on this strip.")))
+        (t (run-commands "expose"))))
 
 ;;; Rules for strips (rules.lisp loads first): two verbs.
 ;;;

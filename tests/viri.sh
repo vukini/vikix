@@ -144,13 +144,43 @@ frames=$(ask '(princ (length (group-frames (current-group))))')
 key super+r
 check "on tiles Super+r still removes a split" test "$(ask '(princ (length (group-frames (current-group))))')" = $((frames - 1))
 
-# Super+o on a strip: every window in a menu; typing narrows it, Enter goes there.
+# Super+o on a strip: the strip drawn small on a card. The arrows or h/l
+# move a frame along it, Enter goes there, a digit goes to the window with
+# that number, / is the list to type in, any other key closes; one bound to
+# something else does that too.
 ask '(run-commands "vikix-viri on")' >/dev/null; sleep 0.5
+ov() { ask '(progn (setf *print-pretty* nil) (format t "~a ~a" (if *viri-overview* (xlib:window-map-state (getf *viri-overview* :card)) "closed") (and *viri-overview* (window-title (getf *viri-overview* :at)))))'; }
 first=$(ask '(princ (window-title (first (viri-columns (current-group)))))')
+second=$(ask '(princ (window-title (viri-col-window (second (viri-cols (current-group))))))')
+was_in=$(ask '(princ (window-title (current-window)))')
 key super+o
-xdotool type "$first"; key Return
-check "Super+o's menu goes to the window picked ($first): $(state)" test "$(ask '(princ (window-title (current-window)))')" = "$first"
+check "Super+o draws the strip on a card, the frame on the window you're in: $(ov)" test "$(ov)" = "VIEWABLE $was_in"
+check "a box for each window, all inside the picture" test "$(ask '(multiple-value-bind (boxes w h) (viri-overview-boxes (current-group) (getf *viri-overview* :room)) (princ (if (and (= (length boxes) (length (viri-columns (current-group)))) (every (lambda (b) (and (<= 0 (second b)) (<= (+ (second b) (fourth b)) (1+ w)) (<= (+ (third b) (fifth b)) (1+ h)))) boxes)) 1 0)))')" = 1
+for _ in 1 2 3 4 5 6 7 8; do key h; done
+check "h walks the frame to the first window, and stops there: $(ov)" test "$(ov)" = "VIEWABLE $first"
+key Right
+check "the right arrow moves it a column on: $(ov)" test "$(ov)" = "VIEWABLE $second"
+check "the strip hasn't moved yet: $(ask '(princ (window-title (current-window)))')" test "$(ask '(princ (window-title (current-window)))')" = "$was_in"
+key h; key Return
+check "Enter goes to the window in the frame ($first), the card gone: $(state)" test "$(ask '(princ (window-title (current-window)))') $(ov)" = "$first closed NIL"
 check "and scrolls the strip to it" test "$(ask '(princ (if (member 0 (viri-visible (current-group))) 1 0))')" = 1
+num=$(ask "(princ (window-number $(find_w "$second")))")
+key super+o; key "$num"
+check "a digit goes straight to the window with that number ($num, $second)" test "$(ask '(princ (window-title (current-window)))') $(ov)" = "$second closed NIL"
+key super+o; key Escape
+check "Escape closes it, nothing moved, the keyboard yours again" test "$(ask '(princ (window-title (current-window)))') $(ov) $(ask '(princ *custom-key-event-handler*)')" = "$second closed NIL NIL"
+key super+o; key super+o
+check "Super+o again closes it" test "$(ov)" = "closed NIL"
+key super+o; key super+h
+check "a key bound to something else closes it and does its thing: $(state)" test "$(ask '(princ (window-title (current-window)))') $(ov)" = "$first closed NIL"
+# The last one: its one-letter title is in no other line of the list.
+last=$(ask '(princ (window-title (first (last (viri-columns (current-group))))))')
+key super+o; key slash; sleep 0.5
+xdotool type "$last"; key Return
+check "/ is the list to type in ($last): $(state)" test "$(ask '(princ (window-title (current-window)))')" = "$last"
+key super+o; win Late
+check "a window opening closes the card: it would show what isn't so" test "$(ov)" = "closed NIL"
+ask "(delete-window $(find_w Late))" >/dev/null; sleep 1
 
 # The agents' desktop tool (vikix mcp) sees a strip: its kind and columns.
 mcp=$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"desktop","arguments":{}}}' |
@@ -213,5 +243,5 @@ check "Super+Shift+g brings one off the strip, into a frame: $(focus)" test "$(a
 key super+1
 check "none of them was an error: $(msgs | grep -i 'Error In Command\|not found' | head -1)" test -z "$(msgs | sed '/the window keys/,$d' | grep -i 'Error In Command\|not found')"
 
-wm_report viri "a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, the overview, the agents' desktop tool, new and closed windows, a dialog, another workspace, off and on, title bars, the window keys on a strip"
+wm_report viri "a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, the drawn overview and its keys, the agents' desktop tool, new and closed windows, a dialog, another workspace, off and on, title bars, the window keys on a strip"
 exit "$fail"
