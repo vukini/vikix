@@ -202,9 +202,13 @@ strip included. (values x y width height)"
                      (t (mapcar #'tree node)))))
       ;; Floating windows (dialogs) have no frame: they aren't saved.
       (let ((dump (dump-group group (lambda (w) (and (typep w 'tile-window) (vikix-layout-window w))))))
-        (list :kind :tiles
-              :current (gdump-current dump)
-              :tree (tree (gdump-tree dump)))))))
+        ;; A workspace kept in main and stack, or in a grid, says so, and
+        ;; is kept so again when the layout is put back.
+        (list* :kind :tiles
+               (append (cond ((vikix-main-p group) (list :mode :main))
+                             ((member group *vikix-grid-groups*) (list :mode :grid)))
+                       (list :current (gdump-current dump)
+                             :tree (tree (gdump-tree dump)))))))))
 
 (defun vikix-layout-of-strip (group)
   (list :kind :strip
@@ -377,11 +381,21 @@ them being started."
       (setf group (viri-replace-group group 'viri-group)))
     (when (and (eq kind :tiles) (viri-group-p group))
       (setf group (viri-replace-group group 'tile-group)))
+    ;; Tiles are as the layout says, not as a mode would keep them, unless
+    ;; the layout was saved in that mode.
+    (setf *vikix-grid-groups* (remove group *vikix-grid-groups*))
+    (remhash group *vikix-main*)
     (let* ((windows (remove-if #'viri-floats-p (group-windows group)))
            (missing (if (eq kind :strip)
                         (vikix-layout-restore-strip group layout windows)
                         (vikix-layout-restore-tiles group layout windows)))
            (started (and start (remove-if-not #'vikix-layout-start missing))))
+      (when (eq kind :tiles)
+        (case (getf layout :mode)
+          ;; The order and the main window's width are read from the frames.
+          (:main (setf (gethash group *vikix-main*) (list (first *vikix-main-shares*)))
+                 (vikix-main-retile group))
+          (:grid (push group *vikix-grid-groups*))))
       (when started
         (vikix-layout-follow name group started))
       (values missing started))))
@@ -428,6 +442,71 @@ is where) under NAME, in ~/.config/vikix/layouts/."
     (when (eq group (current-group))
       (vikix-layout-restore name group))
     win))
+
+;;; --- Picking a layout (s-C-SPC) -------------------------------------------------------
+;;;
+;;; The ways a workspace can be laid out, in one menu: tiles you split
+;;; yourself, main and stack, a grid, a strip; then the layouts you saved.
+
+(defparameter *vikix-layout-kinds*
+  '((:tiles "tiles" "Tiles: split it yourself")
+    (:main  "main and stack" "Main and stack: one main window, the others in a column beside it")
+    (:grid  "a grid" "Grid: every window, tiled again as they open and close")
+    (:strip "a strip" "Strip: columns side by side that scroll sideways"))
+  "Each kind of layout: what vikix-layout-pick calls it, how a sentence
+does, and its line in the menu.")
+
+(defun vikix-layout-now (&optional (group (current-group)))
+  "How GROUP is laid out: :tiles, :main, :grid or :strip; nil for a
+floating workspace."
+  (cond ((viri-group-p group) :strip)
+        ((not (typep group 'tile-group)) nil)
+        ((vikix-main-p group) :main)
+        ((member group *vikix-grid-groups*) :grid)
+        (t :tiles)))
+
+(defun vikix-layout-set (kind)
+  "Lay the current workspace out as KIND, its windows staying."
+  (let ((now (vikix-layout-now)))
+    (cond ((null now)
+           (message "A floating workspace has no layout to pick."))
+          ((eq kind now)
+           (message "This workspace is ~a already." (second (assoc kind *vikix-layout-kinds*))))
+          (t
+           ;; Off a strip first: it becomes a new group of tiles.
+           (when (eq now :strip)
+             (run-commands "vikix-viri off"))
+           (let ((group (current-group)))
+             (setf *vikix-grid-groups* (remove group *vikix-grid-groups*))
+             (remhash group *vikix-main*)
+             (ecase kind
+               (:tiles (unless (eq now :strip)
+                         (message "Tiles: the layout is yours again.")))
+               (:main (run-commands "vikix-main on"))
+               (:grid (run-commands "vikix-grid"))
+               (:strip (run-commands "vikix-viri on"))))))))
+
+(defcommand vikix-layout-pick (&optional kind) ((:string nil))
+  "Pick how this workspace is laid out: tiles, main (main and stack), grid
+or strip; without one, a menu of them and of the layouts you saved."
+  (let ((now (vikix-layout-now))
+        (asked (and kind (find kind *vikix-layout-kinds*
+                               :key (lambda (k) (string-downcase (symbol-name (first k))))
+                               :test #'string-equal))))
+    (cond (asked (vikix-layout-set (first asked)))
+          (kind (message "A layout is tiles, main, grid or strip; not ~a." kind))
+          ((null now) (message "A floating workspace has no layout to pick."))
+          (t
+           (let ((choice (select-from-menu
+                          (current-screen)
+                          (append (mapcar (lambda (k) (list (third k) (first k))) *vikix-layout-kinds*)
+                                  (mapcar (lambda (name) (list (format nil "Saved: ~a" name) name))
+                                          (vikix-layout-names)))
+                          (format nil "Layout (now ~a): " (second (assoc now *vikix-layout-kinds*)))
+                          (or (position now *vikix-layout-kinds* :key #'first) 0))))
+             (cond ((null choice))
+                   ((keywordp (second choice)) (vikix-layout-set (second choice)))
+                   (t (run-commands (format nil "vikix-layout-restore-command ~a" (second choice))))))))))
 
 ;;; --- Projects (vikix project open) ---------------------------------------------------
 ;;;

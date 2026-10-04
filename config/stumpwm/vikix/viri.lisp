@@ -385,10 +385,11 @@ back to the narrowest."
 
 (defcommand vikix-width-or-remove () ()
   "On a strip, the focused column's width: a third, a half, two thirds, the
-whole screen, and round again. On tiles, remove this split (remove)."
-  (if (viri-group-p)
-      (viri-cycle-width (current-group))
-      (run-commands "remove")))
+whole screen, and round again. In main and stack mode, the main window's
+width. On other tiles, remove this split (remove)."
+  (cond ((viri-group-p) (viri-cycle-width (current-group)))
+        ((vikix-main-p) (vikix-main-cycle-share (current-group)))
+        (t (run-commands "remove"))))
 
 (defcommand vikix-focus (dir) ((:direction "Direction: "))
   "Focus the window that way: along the strip on a Viri workspace, the
@@ -399,10 +400,11 @@ frame that way (move-focus) elsewhere."
 
 (defcommand vikix-move (dir) ((:direction "Direction: "))
   "Move the window that way: its column along the strip on a Viri
-workspace, into the frame that way (move-window) elsewhere."
-  (if (viri-group-p)
-      (viri-step dir t)
-      (run-commands (format nil "move-window ~(~a~)" dir))))
+workspace; in main and stack mode it changes places with the window that
+way (exchange-direction); into the frame that way (move-window) elsewhere."
+  (cond ((viri-group-p) (viri-step dir t))
+        ((vikix-main-p) (run-commands (format nil "exchange-direction ~(~a~)" dir)))
+        (t (run-commands (format nil "move-window ~(~a~)" dir)))))
 
 ;;; A workspace becomes a strip, and back.
 

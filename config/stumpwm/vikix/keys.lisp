@@ -44,7 +44,7 @@
 tools. Every other program a key starts is on Super+Alt.")
 
 (defparameter *vikix-key-switches*
-  '("toggle-gaps" "vikix-titlebars" "vikix-awake" "vikix-nightlight" "vikix-quiet"
+  '("toggle-gaps" "vikix-titlebars" "vikix-main" "vikix-layout-pick" "vikix-awake" "vikix-nightlight" "vikix-quiet"
     "vikix-record" "vikix-capture" "vikix-pick-theme" "exec dunstctl close-all" "exec vikix-drives eject")
   "What switches something on the desktop: on Super+Ctrl, and nothing else is.")
 
@@ -134,11 +134,13 @@ of a reload's 15 seconds, and the desktop stood still meanwhile."
     ;; frames (StumpWM's splits)
     ("s-b"    "hsplit"            "Split: side by side")
     ("s-v"    "vsplit"            "Split: one above the other")
-    ("s-r"    "vikix-width-or-remove" "Remove this split (on a strip: the column's width)")
+    ("s-r"    "vikix-width-or-remove" "Remove this split (on a strip: the column's width; in main and stack: the main window's)")
     ("s-bracketleft"  "vikix-stack left"  "On a strip: into the column on the left, or out of a shared one")
     ("s-bracketright" "vikix-stack right" "On a strip: into the column on the right, or out of a shared one")
     ("s-o"    "vikix-expose"      "Every window on this workspace in a grid (on a strip, a menu); pick one (Super+u undoes it)")
     ("s-O"    "vikix-grid"        "Grid mode on/off: windows stay tiled in a grid as they open and close")
+    ("s-C-m"  "vikix-main"        "Main and stack (master and stack) on/off: this window on the left, the rest in a column beside it")
+    ("s-C-SPC" "vikix-layout-pick" "Layout: pick this workspace's (tiles, main and stack, grid, strip, or one you saved)")
     ("s-z"    "vikix-solo"        "Focus: only this window; again puts the others back")
     ;; windows.lisp: gaps, layout undo, finding windows
     ("s-C-g"  "toggle-gaps"       "Gaps around windows on/off")

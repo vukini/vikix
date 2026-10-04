@@ -4,6 +4,7 @@
 ;;;;   gaps       space around windows, off at start (s-C-g toggles)
 ;;;;   undo       the last split or window move, per workspace (s-u, s-U)
 ;;;;   grid       every window in a grid: once (s-o), or kept so (s-O)
+;;;;   main       a main window and a stack beside it, kept so (s-C-m)
 ;;;;   find       any window on any workspace (s-g goes there, s-G brings it here)
 ;;;;   beckon     the pointer jumps to the focused window (s-p)
 ;;;;   lazarus    the docked IDE tiles; its dialogs float
@@ -117,7 +118,7 @@ below zero for a small window, and X then kills the window manager."
 
 (defun vikix-layout-command-p (command)
   (or (member command (symbol-value (find-symbol "*DEFAULT-COMMANDS*" :winner-mode)))
-      (member command '(gmove gmove-and-follow expose vikix-grid))))
+      (member command '(gmove gmove-and-follow expose vikix-grid vikix-main))))
 
 (defun vikix-layout-ids (name)
   "winner-mode's table NAME: workspace number → layout step."
@@ -208,6 +209,7 @@ not tiled already; then focus FOCUS, or the window that had focus."
            (setf *vikix-grid-groups* (remove group *vikix-grid-groups*))
            (message "Grid mode off"))
           (t
+           (remhash group *vikix-main*)   ; one mode a workspace
            (push group *vikix-grid-groups*)
            (vikix-grid-retile group)
            (message "Grid mode on: windows re-tile as they open and close")))))
@@ -294,6 +296,260 @@ back as it was."
            (setf (gethash group *vikix-solo-layouts*) (dump-group group))
            (only)
            (message "Focus: only this window. Super+z puts the others back.")))))
+
+;;; Main and stack (s-C-m)
+
+;; What dwm and xmonad call master and stack: one main window down the left
+;; of the screen, the others in a column on its right, sharing its height.
+;; The workspace is kept so as windows open and close, like grid mode (a
+;; workspace is in one of the two, never both). The window you were in when
+;; you switched it on is the main one; a new window opens at the top of the
+;; stack and takes the focus. Super+Shift+h/j/k/l swap the window with the
+;; one that way, so Super+Shift+h from the stack makes it the main one.
+;; Super+r goes through the main window's widths. Splits you make yourself
+;; are put back at once: the mode owns the layout until it's off. Each
+;; screen of the workspace has its own main window and stack. Floating
+;; windows and dialogs are left out.
+;;
+;; The frames are made as a saved layout is put back (restore-group): one
+;; tree of them per screen, built here.
+
+(defparameter *vikix-main-shares* '(3/5 2/3 1/2)
+  "The main window's share of the screen's width: a workspace starts with
+the first, and Super+r goes through them.")
+
+(defparameter *vikix-main-stack-max* 4
+  "The most windows the stack shows; any more wait behind the last (Super+`).")
+
+(defparameter *vikix-main-new* :stack
+  "Where a new window opens: :stack (the top of the stack) or :main (it
+becomes the main window, as in dwm).")
+
+(defvar *vikix-main* (make-hash-table :test 'eq :weakness :key)
+  "Each workspace in main and stack mode: (SHARE . WINDOWS), the main
+window first.")
+
+(defun vikix-main-p (&optional (group (current-group)))
+  (and (gethash group *vikix-main*) t))
+
+(defun vikix-main-windows (group)
+  "GROUP's tiled windows in the mode's order: those it knows, then any it
+hasn't met."
+  (let* ((tiled (remove-if-not (lambda (w) (typep w 'tile-window)) (group-windows group)))
+         (known (remove-if-not (lambda (w) (member w tiled)) (rest (gethash group *vikix-main*)))))
+    (append known (remove-if (lambda (w) (member w known)) tiled))))
+
+(defun vikix-main-head (window group)
+  (or (ignore-errors (window-head window)) (group-current-head group)))
+
+(defun vikix-main-standing (group)
+  "GROUP's tiled windows as they stand: the one each frame shows, the
+frames left to right and top to bottom, then the hidden ones."
+  (let* ((frames (sort (copy-list (group-frames group))
+                       (lambda (a b)
+                         (or (< (frame-x a) (frame-x b))
+                             (and (= (frame-x a) (frame-x b)) (< (frame-y a) (frame-y b)))))))
+         (shown (remove nil (mapcar #'frame-window frames))))
+    (append shown (remove-if (lambda (w) (member w shown)) (vikix-main-windows group)))))
+
+(defun vikix-main-frame (group head)
+  "HEAD's main frame: the one at its left edge."
+  (let ((x (tree-x (tile-group-frame-head group head))))
+    (find x (head-frames group head) :key #'frame-x)))
+
+(defun vikix-main-in-shape-p (group)
+  "True when every screen of GROUP stands as the mode lays it: a window in
+every frame, one frame the screen's height on the left, the rest in one
+column beside it."
+  (let ((order (vikix-main-windows group)))
+    (every (lambda (head)
+             (let* ((tree (tile-group-frame-head group head))
+                    (frames (head-frames group head))
+                    (n (count head order :key (lambda (w) (vikix-main-head w group))))
+                    (main (vikix-main-frame group head))
+                    (stack (remove main frames)))
+               (and (= (length frames) (max 1 (min n (1+ *vikix-main-stack-max*))))
+                    (or (zerop n) (every #'frame-window frames))
+                    main
+                    (= (frame-height main) (tree-height tree))
+                    (every (lambda (f)
+                             (and (= (frame-x f) (+ (frame-x main) (frame-width main)))
+                                  (= (frame-width f) (frame-width (first stack)))))
+                           stack))))
+           (group-heads group))))
+
+(defun vikix-main-note (group)
+  "Remember GROUP as it stands, when it stands in shape: two windows may
+have been swapped, or the main one resized."
+  (let* ((entry (gethash group *vikix-main*))
+         (head (group-current-head group))
+         (width (tree-width (tile-group-frame-head group head)))
+         (main (vikix-main-frame group head)))
+    (let ((standing (vikix-main-standing group)))
+      ;; Two windows swapped (Super+Shift+h): the pointer goes with the one moved.
+      (unless (equal standing (rest entry))
+        (setf (rest entry) standing)
+        (vikix-main-keep-pointer group)))
+    ;; Only a width the share doesn't give already: 2/3 of 1280 is 853
+    ;; points, and 853/1280 read back would be a share nobody chose.
+    (when (and main (rest (head-frames group head))
+               (/= (frame-width main) (round (* (first entry) width))))
+      (setf (first entry) (/ (frame-width main) width)))))
+
+(defun vikix-main-keep-pointer (group)
+  "Focus follows the mouse: when windows move under a pointer that stays
+still, the one that lands under it would take the focus the mode has just
+given. So a pointer on the focused window's screen goes along with it, and
+what X said of the moves is dropped (a strip does the same, viri.lisp)."
+  (let ((window (group-current-window group)))
+    (when (and window (typep window 'tile-window) (window-frame window))
+      (let* ((f (window-frame window))
+             (head (frame-head group f))
+             (x (frame-x f)) (y (frame-y f)) (w (frame-width f)) (h (frame-height f)))
+        (multiple-value-bind (px py) (xlib:global-pointer-position *display*)
+          (when (and head
+                     (<= (head-x head) px (+ (head-x head) (head-width head)))
+                     (<= (head-y head) py (+ (head-y head) (head-height head)))
+                     (not (and (<= x px (+ x w)) (<= y py (+ y h)))))
+            (warp-pointer (group-screen group) (+ x (floor w 2)) (+ y (floor h 2)))))))
+    (viri-drop-enter-events)))
+
+(defun vikix-main-lay (group &optional focus)
+  "Put GROUP's screens into main and stack, the windows in the mode's
+order; FOCUS, or the window that had the focus, keeps it."
+  (let* ((share (first (gethash group *vikix-main*)))
+         (order (vikix-main-windows group))
+         (focus (or focus (group-current-window group)))
+         (number -1) (current nil) (fallback 0))
+    (labels ((frame (x y w h windows)
+               (let ((n (incf number))
+                     (shown (if (member focus windows) focus (first windows))))
+                 (when (member focus windows) (setf current n))
+                 (make-fdump :number n :x x :y y :width w :height h
+                             :windows (mapcar #'window-id windows)
+                             :current (and shown (window-id shown)))))
+             (stack (x y w h parts)     ; PARTS: each frame's windows
+               (if (rest parts)
+                   (let ((fh (floor h (length parts))))
+                     (list (frame x y w fh (first parts))
+                           (stack x (+ y fh) w (- h fh) (rest parts))))
+                   (frame x y w h (first parts))))
+             (screen (head)
+               (let* ((old (tile-group-frame-head group head))
+                      (x (tree-x old)) (y (tree-y old))
+                      (w (tree-width old)) (h (tree-height old))
+                      (windows (remove-if-not (lambda (win) (eq (vikix-main-head win group) head))
+                                              order))
+                      (others (rest windows))
+                      (k (min (length others) *vikix-main-stack-max*)))
+                 (when (eq head (group-current-head group))
+                   (setf fallback (1+ number)))
+                 (if (zerop k)
+                     (frame x y w h windows)
+                     (let ((mw (round (* share w))))
+                       (list (frame x y mw h (list (first windows)))
+                             (stack (+ x mw) y (- w mw) h
+                                    (append (mapcar #'list (subseq others 0 (1- k)))
+                                            (list (subseq others (1- k)))))))))))
+      (let ((tree (mapcar #'screen (group-heads group))))
+        (vikix-restore-layout
+         group (make-gdump :number (group-number group) :name (group-name group)
+                           :tree tree :current (or current fallback)))
+        ;; A dialog that had the focus keeps it: the frames took it.
+        (when (and focus (typep focus 'float-window) (member focus (group-windows group)))
+          (group-focus-window group focus))
+        (vikix-raise-dialogs)
+        (vikix-main-keep-pointer group)))))
+
+(defun vikix-main-retile (group &optional focus force)
+  "Keep GROUP in main and stack, if it is in that mode, current, and not
+in focus mode (Super+z): laid out again when it has lost the shape (or
+FORCE), remembered as it stands when it hasn't."
+  (when (and (vikix-main-p group)
+             (eq group (current-group))
+             (typep group 'tile-group)
+             (not (vikix-solo-p group)))
+    (handler-case
+        (if (and (not force) (vikix-main-in-shape-p group))
+            (vikix-main-note group)
+            (vikix-main-lay group focus))
+      (error (e) (message "Main and stack: ~a" e)))))
+
+(defun vikix-main-new-window (window)
+  (let* ((group (window-group window))
+         (entry (gethash group *vikix-main*)))
+    (cond ((not entry))
+          ;; A dialog, floated out of the frame it opened in: the frame
+          ;; is filled again.
+          ((not (typep window 'tile-window))
+           (vikix-main-retile group))
+          (t
+           (let* ((order (remove window (vikix-main-windows group)))
+                  (head (vikix-main-head window group))
+                  ;; Its own screen's main window: the new one goes after it.
+                  (main (find head order :key (lambda (w) (vikix-main-head w group)))))
+             (setf (rest entry)
+                   (if (or (eq *vikix-main-new* :main) (null main))
+                       (cons window order)
+                       (loop for w in order
+                             collect w
+                             when (eq w main) collect window)))
+             (vikix-main-retile group window t))))))
+
+(defun vikix-main-destroy-window (window)
+  (vikix-main-retile (window-group window)))
+
+(defun vikix-main-focus-group (new old)
+  (declare (ignore old))
+  (vikix-main-retile new))
+
+(defun vikix-main-after-command (command)
+  ;; A split, a window floated or sent to another workspace, Super+z over:
+  ;; whatever the command did, the workspace is in shape after it.
+  (declare (ignore command))
+  (vikix-main-retile (current-group)))
+
+;; Last of the new-window hooks, after those that float a window (dialogs,
+;; Lazarus, a rule): a window they take out of the tiles never gets a frame.
+(setf *new-window-hook*
+      (append (remove 'vikix-main-new-window *new-window-hook*) '(vikix-main-new-window)))
+(add-hook *destroy-window-hook* 'vikix-main-destroy-window)
+(add-hook *focus-group-hook* 'vikix-main-focus-group)
+(add-hook *post-command-hook* 'vikix-main-after-command)
+
+(defun vikix-main-cycle-share (group)
+  "The main window's next width (Super+r)."
+  (let* ((entry (gethash group *vikix-main*))
+         (next (or (second (member (first entry) *vikix-main-shares*))
+                   (first *vikix-main-shares*))))
+    (setf (first entry) next)
+    (vikix-main-retile group nil t)
+    (message "Main window: ~a of the screen" next)))
+
+(defcommand vikix-main (&optional how) ((:string nil))
+  "Main and stack mode on/off (\"on\" or \"off\" to say which): this window
+down the left of the screen, the others in a column on its right, kept so
+as windows open and close."
+  (let* ((group (current-group))
+         (on (cond ((equal how "on") t)
+                   ((equal how "off") nil)
+                   (t (not (vikix-main-p group))))))
+    (cond ((not (typep group 'tile-group))
+           (message "Main and stack mode is for tiling workspaces"))
+          ((and on (vikix-main-p group)))
+          (on
+           (setf *vikix-grid-groups* (remove group *vikix-grid-groups*))
+           (remhash group *vikix-solo-layouts*)
+           (let ((win (group-current-window group))
+                 (standing (vikix-main-standing group)))
+             (setf (gethash group *vikix-main*)
+                   (cons (first *vikix-main-shares*)
+                         (if (member win standing) (cons win (remove win standing)) standing))))
+           (vikix-main-retile group nil t)
+           (message "Main and stack mode on: Super+Shift+h makes a window the main one, Super+r its width"))
+          ((vikix-main-p group)
+           (remhash group *vikix-main*)
+           (message "Main and stack mode off")))))
 
 ;;; Dialogs stay in front
 
