@@ -34,6 +34,7 @@ wm_start
 # The strip as one line: its columns, the first shown, the focused window.
 state() { ask '(progn (setf *print-pretty* nil) (if (viri-group-p) (format t "~{~a~} left=~a focus=~a" (mapcar (function window-title) (viri-columns (current-group))) (viri-left (current-group)) (window-title (current-window))) (format t "tiles focus=~a" (and (current-window) (window-title (current-window))))))'; }
 focus() { ask '(princ (window-title (current-window)))'; }
+geo() { ask "(let ((p (window-parent $1))) (format t \"~a ~a ~a ~a ~a\" (xlib:drawable-x p) (xlib:drawable-y p) (xlib:drawable-width p) (xlib:drawable-height p) (xlib:drawable-border-width p)))"; }
 xs() { ask '(progn (setf *print-pretty* nil) (format t "~{~a~^ ~}" (mapcar (lambda (w) (xlib:drawable-x (window-parent w))) (viri-columns (current-group)))))'; }
 
 for w in A B C D; do win "$w"; done
@@ -260,6 +261,34 @@ check "the layout put back, it is pinned again: $(pinned)" test "$(pinned) $(inp
 ask '(run-commands "vikix-pin off")' >/dev/null; sleep 0.3
 check "vikix-pin off: none" test "$(pinned)" = NIL
 
+# Tabs: Super+z on a strip makes the column's windows tabs, one shown as
+# high as the column and the others hidden behind it; Super+j and Super+k go
+# between them, a click on a tab in the title bar too; the bar joins them
+# with +; a saved layout keeps it; Super+z again stacks them.
+col() { ask '(let* ((g (current-group)) (c (viri-col-of g (current-window)))) (setf *print-pretty* nil) (format t "~a ~a ~a" (if (viri-tabbed-p c) "tabs" "stack") (length (viri-col-windows c)) (count-if (function window-hidden-p) (viri-col-windows c))))'; }
+key super+End; key super+bracketleft
+read -r _ n _ <<<"$(col)"
+key super+z
+check "Super+z: the column's windows are tabs, all but the one shown hidden: $(col)" test "$(col)" = "tabs $n $((n - 1))"
+check "the one shown is as high as the column" test "$(ask '(multiple-value-bind (ax ay aw ah) (viri-area (current-group)) (declare (ignore ax ay aw)) (let ((p (window-parent (current-window)))) (princ (if (= (+ (xlib:drawable-height p) (* 2 (xlib:drawable-border-width p))) ah) 1 0))))') $(inplace)" = "1 1"
+shown=$(focus); key super+k
+check "Super+k goes to the tab before: $shown, then $(focus), the first one hidden now" test "$(focus)" != "$shown" -a "$(col)" = "tabs $n $((n - 1))" -a "$(ask "(princ (if (window-hidden-p $(find_w "$shown")) 1 0))")" = 1
+check "the bar joins a tabbed column's windows with +: $(plain_bar)" grep -q '+' <<<"$(plain_bar)"
+read -r x y w _ b <<<"$(geo '(current-window)')"
+tab1=$(ask '(princ (window-title (first (viri-col-windows (viri-col-of (current-group) (current-window))))))')
+tabn=$(ask '(princ (window-title (first (last (viri-col-windows (viri-col-of (current-group) (current-window)))))))')
+xdotool mousemove $((x + b + w - 12)) $((y + b + 8)); sleep 0.4; xdotool click 1; sleep 0.6
+check "a click on the last tab in the title bar goes to it: $(focus)" test "$(focus)" = "$tabn"
+xdotool mousemove $((x + b + 12)) $((y + b + 8)); sleep 0.4; xdotool click 1; sleep 0.6
+check "and on the first: $(focus)" test "$(focus)" = "$tab1"
+ask '(vikix-layout-save "tabs")' >/dev/null
+check "a saved layout says the column is tabbed" grep -q ':tabbed t' "$home/.config/vikix/layouts/tabs.lisp"
+key super+2; key super+1
+check "another workspace and back: the others still behind: $(col)" test "$(col)" = "tabs $n $((n - 1))"
+key super+z
+check "Super+z again: stacked, every window showing: $(col)" test "$(col) $(inplace)" = "stack $n 0 1"
+key super+bracketright
+
 # Title bars: each column's window has the tiles' bar, as wide as the column,
 # the window below it; Super+Ctrl+y takes them away and brings them back; a
 # fullscreen window has none.
@@ -286,7 +315,6 @@ mouse() { xdotool "$@"; sleep 0.4; }
 # program's window is: what the pointer does before StumpWM has taken it is
 # lost. A hand is slower than that; on a busy machine a test isn't, so it waits.
 press() { xdotool mousedown "$1"; sleep 1.5; }
-geo() { ask "(let ((p (window-parent $1))) (format t \"~a ~a ~a ~a ~a\" (xlib:drawable-x p) (xlib:drawable-y p) (xlib:drawable-width p) (xlib:drawable-height p) (xlib:drawable-border-width p)))"; }
 width() { ask '(princ (viri-col-width (viri-col-of (current-group) (current-window))))'; }
 for _ in 1 2 3 4 5 6 7 8; do key super+h; done
 one=$(focus); read -r one two _ <<<"$(order)"
@@ -345,5 +373,5 @@ check "Super+Shift+g brings one off the strip, into a frame: $(focus)" test "$(a
 key super+1
 check "none of them was an error: $(msgs | grep -i 'Error In Command\|not found' | head -1)" test -z "$(msgs | sed '/the window keys/,$d' | grep -i 'Error In Command\|not found')"
 
-wm_report viri "a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, the drawn overview and its keys, the agents' desktop tool, new and closed windows, a dialog, another workspace, off and on, sliding and centring, the ends and a pinned column, title bars, the mouse, the window keys on a strip"
+wm_report viri "a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, the drawn overview and its keys, the agents' desktop tool, new and closed windows, a dialog, another workspace, off and on, sliding and centring, the ends and a pinned column, tabs, title bars, the mouse, the window keys on a strip"
 exit "$fail"

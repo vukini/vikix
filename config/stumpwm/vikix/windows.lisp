@@ -451,9 +451,12 @@ current frame on tiles, as a column on a strip."
 
 (defcommand vikix-solo () ()
   "Keep only the focused window on this workspace; again, put the layout
-back as it was."
+back as it was. On a strip: this column's windows as tabs, and stacked again."
   (let ((group (current-group)))
-    (cond ((not (typep group 'tile-group))
+    (cond ((and (fboundp 'viri-group-p) (funcall 'viri-group-p group))
+           ;; On a strip, only this window of its column: the others are tabs.
+           (funcall 'viri-toggle-tabs group))
+          ((not (typep group 'tile-group))
            (message "Focus mode is for tiled workspaces."))
           ((vikix-solo-p group)
            (let ((dump (gethash group *vikix-solo-layouts*))
@@ -890,12 +893,35 @@ GTK and Qt dialogs are drawn at; without one, a modest box."
                                      :depth (xlib:drawable-depth bar)))
              (gc (xlib:create-gcontext :drawable pm :foreground bg :background bg)))
         (unwind-protect
-             (progn
+             (let ((tabs (and (fboundp 'viri-titlebar-tabs) (funcall 'viri-titlebar-tabs win))))
                (xlib:draw-rectangle pm gc 0 0 w h t)
-               (setf (xlib:gcontext-foreground gc) fg)
-               (draw-image-glyphs pm gc font 6 (+ 2 (font-ascent font))
-                                  (format nil "~d  ~a" (window-number win) (window-name win))
-                                  :translate #'translate-id :size 16))
+               (if (null tabs)
+                   (progn
+                     (setf (xlib:gcontext-foreground gc) fg)
+                     (draw-image-glyphs pm gc font 6 (+ 2 (font-ascent font))
+                                        (format nil "~d  ~a" (window-number win) (window-name win))
+                                        :translate #'translate-id :size 16))
+                   ;; A tabbed column on a strip (viri.lisp): a cell for each
+                   ;; of its windows, this one's as a title bar is, the
+                   ;; others' in the screen's own colours.
+                   (let ((cell (floor w (length tabs)))
+                         (char (max 1 (round (text-line-width font "MMMMMMMMMM" :translate #'translate-id) 10))))
+                     (loop for tab in tabs
+                           for i from 0
+                           for x = (* i cell)
+                           for cw = (if (= i (1- (length tabs))) (- w x) cell)
+                           for mine = (eq tab win)
+                           for cell-bg = (if mine bg (screen-bg-color screen))
+                           for cell-fg = (if mine fg (screen-fg-color screen))
+                           for text = (format nil "~d  ~a" (window-number tab) (window-name tab))
+                           for room = (max 0 (floor (- cw 12) char))
+                           do (setf (xlib:gcontext-foreground gc) cell-bg
+                                    (xlib:gcontext-background gc) cell-bg)
+                              (xlib:draw-rectangle pm gc x 0 cw h t)
+                              (setf (xlib:gcontext-foreground gc) cell-fg)
+                              (draw-image-glyphs pm gc font (+ x 6) (+ 2 (font-ascent font))
+                                                 (if (> (length text) room) (subseq text 0 room) text)
+                                                 :translate #'translate-id :size 16)))))
           (xlib:free-gcontext gc))
         ;; X keeps the picture while it is the background.
         (setf (xlib:window-background bar) pm)

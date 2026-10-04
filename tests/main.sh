@@ -149,7 +149,8 @@ key Return
 check "Enter goes there, workspace and all: $(focus) on $(ask '(princ (group-name (current-group)))')" test "$(focus) $(ask '(princ (group-name (current-group)))')" = "$other 3"
 key super+o; xdotool mousemove 3 3; sleep 0.3; xdotool click 1; sleep 0.5
 check "a click off the card closes it" test "$(ov)" = "closed NIL"
-key super+1; key super+o; key g; sleep 1; key 0
+# The grid, then its question (which frame?), take a moment on a busy machine.
+key super+1; key super+o; key g; sleep 3; key 0; sleep 1
 check "g is the real grid: the frame picked there has the workspace to itself, as expose leaves it" test "$(frames) $(ov)" = "1 closed NIL"
 key super+o; key slash; sleep 0.7; key Escape
 check "/ is the list of every window, closed with Escape; the card is gone" test "$(ov)" = "closed NIL"

@@ -54,6 +54,20 @@ The strip scrolls only as far as it must to show the column you went to whole, s
 
 A new column is half the screen wide. A column's windows share its height evenly: an editor with a terminal under it, say, is `Super+[` pressed on the terminal standing right of the editor.
 
+### Tabs: one window at a time
+
+Windows stacked in a column each get a part of its height. When they each need all of it (three terminals, two documents), make them tabs instead: `Super+z` on a column of several windows shows one of them as high as the column, with the others behind it. Each is a tab in the title bar, the one showing picked out.
+
+| Key | What it does |
+|---|---|
+| `Super+z` | this column's windows as tabs; again, stacked one above the other |
+| `Super+j`, `Super+k` | the next tab, the one before |
+| `Super+Shift+j`, `Super+Shift+k` | move this tab along |
+| `Super+[`, `Super+]` | bring the window into the column beside it, as one more tab there; or take a tab out into a column of its own |
+
+A click on a tab goes to it. The bar joins a tabbed column's windows with `+`, as in `A [B D+E+C]`, where a stacked one's are joined with `/`. A layout you save remembers which columns were tabbed. With title bars off (`Super+Ctrl+y`) the tabs still work by the keys; there's just nothing to click.
+
+
 ## Pinning a column
 
 Some windows you want in sight whatever else you're doing: a chat, a page you're reading from, a terminal with a log running. On a strip they'd scroll away with the rest. `Super+\` pins the column you're in: it goes to the screen's left edge and stays there, and the other columns scroll in the room beside it.
@@ -88,7 +102,8 @@ Most keys do on a strip what they do everywhere. A few belong to tiles, and say 
 |---|---|
 | `Super+b`, `Super+v` | A strip has no splits: a new window gets a column, and `Super+[` and `Super+]` stack. |
 | `Super+u`, `Super+Shift+u` | No layout undo: a strip keeps its order, and you move a column back. |
-| `Super+z`, `Super+Shift+o`, `Super+Ctrl+m` | Focus mode, grid mode and main and stack are ways of tiling. |
+| `Super+z` | This column's windows as tabs (above), where on tiles it keeps only one window on the workspace. |
+| `Super+Shift+o`, `Super+Ctrl+m` | Grid mode and main and stack are ways of tiling. |
 | `Super+Shift+g` | The window you pick comes onto the strip, as a column beside the one you're in. |
 | `Super+Shift+1` … `9` | The window goes to that workspace, and is tiled there if that workspace is. |
 
@@ -132,7 +147,7 @@ Three things in it are there because of how X and StumpWM work:
 - **The slide is a loop, not a timer.** `viri-slide` moves every column a little, eight times, with a short sleep between. A timer would want a fraction of a second as its delay, and StumpWM's timers stop working when given one.
 - **The pointer is taken along.** Vikix's focus follows the mouse. When the strip moves under a pointer that stays still, X reports that the pointer has entered whichever window landed under it, and that window would take the focus back. So `viri-keep-pointer` moves the pointer to the focused window and drops those reports.
 
-The pinned column is the strip's first column in that list, noted in a table beside it (`*viri-pinned*`); `viri-spans` gives it the screen's left edge wherever the strip is scrolled, and starts the others where it ends.
+Which columns are tabbed is noted the same way (`*viri-tabbed*`): `viri-place` gives each of a tabbed column's windows the whole column and hides all but the one it shows, as a tile's windows behind the one in front are hidden, and the title bar (`vikix-titlebar-draw` in `windows.lisp`) draws a cell for each. The pinned column is the strip's first column in that list, noted in a table beside it (`*viri-pinned*`); `viri-spans` gives it the screen's left edge wherever the strip is scrolled, and starts the others where it ends.
 
 The drawn overview (`Super+o`) is `overview.lisp`; the strip gives it its columns as boxes through `viri-overview-boxes`. An AI agent sees a strip through the `desktop` tool of `vikix mcp`, which lists its columns left to right with their widths and which are on the screen ([Working with AI](ai.md)).
 

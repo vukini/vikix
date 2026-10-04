@@ -216,6 +216,7 @@ strip included. (values x y width height)"
                        collect (append (list :width (viri-col-width c))
                                        ;; The pinned column says so, and is again.
                                        (when (eq c (viri-pinned group)) (list :pinned t))
+                                       (when (viri-tabbed-p c) (list :tabbed t))
                                        (list :windows (mapcar #'vikix-layout-window (viri-col-windows c)))))))
 
 (defun vikix-layout-save (name &optional (group (current-group)))
@@ -315,7 +316,9 @@ dialogs) matched to its saved ones. Returns the saved windows not found."
         (when ws
           (push (make-viri-col ws (or (ignore-errors (viri-share (getf c :width))) *viri-default-width*)) cols)
           (when (getf c :pinned)
-            (setf pinned (first cols))))))
+            (setf pinned (first cols)))
+          (when (getf c :tabbed)
+            (setf (gethash (first cols) *viri-tabbed*) t)))))
     ;; Windows the layout doesn't mention: a column each, at the end.
     (dolist (w windows)
       (unless (member w found)

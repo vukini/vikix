@@ -138,6 +138,28 @@ with the bars off (Super+Ctrl+y), or in a slot too low for one."
 ;; One a strip. Kept in a table by the strip, not in the strip itself, so a
 ;; desktop that is running needn't learn a new slot.
 
+;; A column's windows stand one above the other, sharing its height, or as
+;; tabs (s-z): one of them shown, as high as the column, the others behind
+;; it, each a tab in its title bar. The others are hidden as a tile's
+;; windows behind the one it shows are, so nothing shows through a window
+;; that isn't solid. Which columns are tabbed is kept in a table by the
+;; column, not in the column: viri-col is a structure, and a structure
+;; that changes asks questions of a desktop that is running.
+
+(defvar *viri-tabbed* (make-hash-table :test 'eq :weakness :key)
+  "The columns whose windows are tabs.")
+
+(defun viri-tabbed-p (col)
+  (and col (gethash col *viri-tabbed*) t))
+
+(defun viri-titlebar-tabs (window)
+  "The windows to draw as tabs in WINDOW's title bar: its column's, when
+that is tabbed and has more than one; else NIL."
+  (let* ((group (window-group window))
+         (col (and (viri-group-p group) (viri-col-of group window))))
+    (and (viri-tabbed-p col) (rest (viri-col-windows col))
+         (viri-col-windows col))))
+
 (defvar *viri-pinned* (make-hash-table :test 'eq :weakness :key)
   "Each strip's pinned column, when it has one.")
 
@@ -300,16 +322,24 @@ its edges; the windows of a column one above the other, sharing its height."
   (multiple-value-bind (ax ay aw ah) (viri-area group)
     (loop for c in (viri-cols group)
           for (x . cw) in (viri-spans group aw offset)
+          for tabbed = (viri-tabbed-p c)
+          for shown = (viri-col-window c)
           for n = (max 1 (length (viri-col-windows c)))
           for each = (floor ah n)
           do (loop for w in (viri-col-windows c)
                    for k from 0
-                   for wy = (+ ay (* k each))
-                   for wh = (if (= k (1- n)) (- ah (* k each)) each)
+                   ;; Tabs each have the whole column; stacked windows share it.
+                   for wy = (if tabbed ay (+ ay (* k each)))
+                   for wh = (cond (tabbed ah)
+                                  ((= k (1- n)) (- ah (* k each)))
+                                  (t each))
                    ;; A strip shows every column: a window the tiles had hidden
                    ;; (iconic) is shown again, now, or when the workspace is.
-                   when (window-hidden-p w)
+                   ;; But for a tabbed column's windows behind the one it shows.
+                   when (and (window-hidden-p w) (or (not tabbed) (eq w shown)))
                      do (unhide-window w)
+                   when (and tabbed (not (eq w shown)) (not (window-hidden-p w)))
+                     do (hide-window w)
                    ;; A column's window has the tiles' title bar (windows.lisp):
                    ;; the window sits below it in its parent, the bar a child
                    ;; in the room above. None on a fullscreen window.
@@ -476,7 +506,12 @@ true when it moved."
   ;; Focused first, then scrolled to: the layout brings the pointer along
   ;; to the window that has the focus now.
   (let ((col (viri-col-of group window)))
-    (when col (setf (viri-col-focus col) window)))
+    (when col
+      (setf (viri-col-focus col) window)
+      ;; A tab that was behind: it's the one its column shows now.
+      (when (and (viri-tabbed-p col) (window-hidden-p window)
+                 (eq group (current-group)))
+        (viri-place group (viri-offset group)))))
   (call-next-method)
   (if (viri-scroll-to group window)
       (viri-layout group)
@@ -624,6 +659,22 @@ other. A strip has no splits to make."
          (message "A strip has no splits: a new window opens beside this one, and Super+[ or Super+] puts a window under its neighbour."))
         ((equal how "below") (run-commands "vsplit"))
         (t (run-commands "hsplit"))))
+
+(defun viri-toggle-tabs (group)
+  "The focused column's windows as tabs, or stacked again (Super+z on a strip)."
+  (let ((col (viri-col-of group (group-current-window group))))
+    (cond ((null col)
+           (message "No column here."))
+          ((viri-tabbed-p col)
+           (remhash col *viri-tabbed*)
+           (viri-layout group)
+           (message "Stacked again: the column's windows one above the other."))
+          ((null (rest (viri-col-windows col)))
+           (message "One window in this column: Super+[ or Super+] brings another in, then Super+z makes them tabs."))
+          (t
+           (setf (gethash col *viri-tabbed*) t)
+           (viri-layout group)
+           (message "Tabs: one window at a time, as high as the column. Super+j and Super+k go between them.")))))
 
 (defun viri-pin (group col)
   "Make COL GROUP's pinned column (NIL: none), and lay the strip out."
@@ -809,7 +860,18 @@ button is down; let go, it takes the place it's over."
           (setf (viri-cols group)
                 (append (subseq others 0 before) (list col) (nthcdr before others))))))
     (viri-scroll-to group window)
-    (viri-layout group)))
+    (viri-layout group)
+    moved))
+
+(defun viri-tab-click (group window px)
+  "A click on WINDOW's title bar PX pixels from its left: on a tabbed
+column, go to the tab there."
+  (let ((tabs (viri-titlebar-tabs window)))
+    (when tabs
+      (let* ((width (max 1 (xlib:drawable-width (window-parent window))))
+             (tab (nth (max 0 (min (1- (length tabs)) (floor (* px (length tabs)) width))) tabs)))
+        (unless (eq tab window)
+          (group-focus-window group tab))))))
 
 (defmethod group-button-press ((group viri-group) button x y (window float-window))
   (declare (ignore x y))
@@ -834,7 +896,10 @@ button is down; let go, it takes the place it's over."
                                 (and beside (eq button :left-button)))
                             (viri-drag-width group window))
                            ((and (eq button :left-button) (or super above))
-                            (viri-drag-column group window)))))))))
+                            ;; Not carried anywhere: a click, on a tab perhaps.
+                            (unless (viri-drag-column group window)
+                              (when above
+                                (viri-tab-click group window px)))))))))))
         (error (e) (message "The strip: ~a" e)))))
 
 ;;; A workspace becomes a strip, and back.
@@ -943,7 +1008,9 @@ list. So you can see how far along the strip you are, and what's off it."
                                   ;; A column of several windows: joined by /.
                                   collect (concatenate 'string
                                                        (if (eql i (first shown)) "[" "")
-                                                       (format nil "~{~a~^/~}" (mapcar #'name (viri-col-windows c)))
+                                                       ;; Stacked windows joined by /, tabs by +.
+                                                       (format nil (if (viri-tabbed-p c) "~{~a~^+~}" "~{~a~^/~}")
+                                                               (mapcar #'name (viri-col-windows c)))
                                                        (if (eql i (car (last shown))) "]" "")
                                                        ;; The pinned column: a bar after it.
                                                        (if (eq c (viri-pinned group)) " |" "")))

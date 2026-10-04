@@ -146,7 +146,7 @@ of a reload's 15 seconds, and the desktop stood still meanwhile."
     ("s-O"    "vikix-grid"        "Grid mode on/off: windows stay tiled in a grid as they open and close")
     ("s-C-m"  "vikix-main"        "Main and stack (master and stack) on/off: this window on the left, the rest in a column beside it")
     ("s-C-SPC" "vikix-layout-pick" "Layout: pick this workspace's (tiles, main and stack, grid, strip, or one you saved)")
-    ("s-z"    "vikix-solo"        "Focus: only this window; again puts the others back")
+    ("s-z"    "vikix-solo"        "Focus: only this window; again puts the others back (on a strip: its column's windows as tabs)")
     ;; windows.lisp: gaps, layout undo, finding windows
     ("s-C-g"  "toggle-gaps"       "Gaps around windows on/off")
     ("s-u"    "vikix-layout-undo" "Undo the last layout change (splits, moves)")
