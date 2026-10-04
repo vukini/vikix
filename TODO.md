@@ -94,10 +94,10 @@ Added 2026-09-30, from a conversation with Vid about 0.52-0.65. Not yet ordered 
 
 ### Your machines and your phone
 
-16. **Tailscale as a feature.** A private network between your own devices: the safe way for a phone or a server to reach the laptop, never SSH open to the internet.
-17. **Syncthing as a feature.** Folders (an Obsidian vault, say) kept in step between machines directly, no cloud; a bar note while it syncs.
-18. **KDE Connect.** Phone notifications on the desktop, files both ways, the phone as a remote.
-19. **`vikix export` / `vikix import`.** One file with your features, theme, keyboard, web apps and settings (no secrets), so a new machine becomes yours in one step.
+16. **Tailscale as a feature** (design: `DESIGN-machines.md`, 2026-10-04). A private network between your own devices: the safe way for a phone or a server to reach the laptop, never SSH open to the internet.
+17. **Syncthing as a feature** (design: `DESIGN-machines.md`, 2026-10-04). Folders (an Obsidian vault, say) kept in step between machines directly, no cloud; a bar note while it syncs.
+18. **KDE Connect** (design: `DESIGN-machines.md`, 2026-10-04). Phone notifications on the desktop, files both ways, the phone as a remote.
+19. **`vikix export` / `vikix import`** (design: `DESIGN-machines.md`, 2026-10-04). One file with your features, theme, keyboard, web apps and settings (no secrets), so a new machine becomes yours in one step.
 20. **A Vikix installer image.** A USB stick that installs Void and Vikix in one go (void-mklive).
 
 ### The desk: mail, documents, investing

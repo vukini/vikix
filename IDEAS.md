@@ -132,7 +132,7 @@ Not: a fourth implementation language for Vikix itself (bash, Python and Common 
 Parts of Vikix that haven't had the code-first pass the sections above got. Each would become a section here or a `DESIGN-*.md`. In Vid's order of interest: publishing (TODO 79, worked out as `DESIGN-publish.md`), then security (now `DESIGN-security.md`). The children's account is set aside for now (Vid, 2026-10-04): it stays at the end of this list, not to be picked up before the rest.
 
 - **Security.** Worked out as `DESIGN-security.md` (2026-10-04): the four pen-test reports and TODO items 4 and 5 as one ordered plan.
-- **Your machines and your phone.** Tailscale, Syncthing, KDE Connect and `vikix export/import` (wish list 16–19) as one design rather than four items: how the X1, the Z13, the AI desktop and two phones become one Vikix.
+- **Your machines and your phone.** Worked out as `DESIGN-machines.md` (2026-10-04): Tailscale, Syncthing, KDE Connect and `vikix export`/`import` as one design, with `--on NAME` for the doors.
 - **Backup and restore.** `vikix backup` runs restic; could someone get a file back without a man page? Ties to "any file, as it was" above.
 - **The Z13 as a tablet.** Touch, pen and the detachable keyboard (TODO 58–63): what a tablet mode of a tiling desktop is. Nobody on Linux has a good answer; Viri's strip may be part of one.
 - **A first visitor's path.** The site, the install line, the first hour, the release process and GitHub Actions, seen by someone who actually tries it for the first time; the everyday-user agent on a fresh VM, start to finish.
