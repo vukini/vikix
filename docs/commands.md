@@ -594,7 +594,7 @@ What uses the memory, what's left over, a warning when it runs low.
 - `vikix memory left` — only the programs left over, each with why
 - `vikix memory clean` — end the left-over ones: those that surely are, after a yes; the "maybe" ones one by one
 - `vikix memory clean --yes` — end those that surely are, without asking
-- `vikix memory watch` — what vikix-session starts: looks every 15 seconds, warns once when memory is low (under 15% free for programs) and again, urgently, when it's nearly full (under 7%, or the machine already stalls), says when left-over programs pile up, and writes the bar's field (mem 91%)
+- `vikix memory watch` — what vikix-session starts: looks every 15 seconds, warns once when memory is low (under 15% free for programs) and again, urgently, when it's nearly full (under 7%, or the machine already stalls), says when left-over programs pile up, and writes the bar's field (mem 91%); nearly full, it ends the programs surely left over by itself, and says so
 - `vikix memory watch --once` — one look, printed
 
 Left over means nobody can be using it:
@@ -609,7 +609,9 @@ maybe      a program an AI agent's command started and left behind, one
 
 and always: its starter has gone (it belongs to nobody), it has no terminal, no window on your screen, and it's older than 10 minutes, so a test that's running is left alone.
 
-`VIKIX_MEMORY_LOW` and `VIKIX_MEMORY_CRITICAL` change the two levels (percent free), `VIKIX_MEMORY_LEFT_AFTER` the minutes.
+The last resort is earlyoom, a system service Vikix switches on: when memory is all but gone (5% free, and a quarter of the swap used) it ends one program rather than letting everything stall: a test's or a build's first (Xvfb, sbcl, compilers), then the biggest of the rest, an AI agent's session, the browser itself and a virtual machine only when nothing else is left, and never the desktop (Xorg, StumpWM, Emacs, sound, a terminal). The watcher says what it ended. /etc/sv/earlyoom/conf is Vikix's (config/earlyoom/conf).
+
+`VIKIX_MEMORY_LOW` and `VIKIX_MEMORY_CRITICAL` change the two levels (percent free), `VIKIX_MEMORY_LEFT_AFTER` the minutes; `VIKIX_MEMORY_AUTOCLEAN=0` keeps the watcher from ending anything.
 
 ## vikix-net
 

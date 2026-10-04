@@ -1,0 +1,17 @@
+# /etc/sv/earlyoom/conf — written by Vikix (config/earlyoom/conf, install/20-services);
+# vikix update writes it again. The service's run script reads OPTS, unquoted:
+# no spaces inside an option, and no * ? [ in a pattern.
+#
+# earlyoom is the last resort when memory runs out (vikix memory warns long
+# before): rather than the whole desktop stalling, it ends one program.
+#   -m 5,2 -s 75,50   it acts with 5% of memory free for programs AND a
+#                     quarter of the swap used (SIGTERM); with 2% and half
+#                     the swap, it kills.
+#   --prefer          a test's or a build's programs go first: rerun, they're back.
+#   --avoid           an AI agent's session, the browser itself (its tabs go
+#                     first) and a virtual machine go only when nothing else is left.
+#   --ignore          never: the desktop, your editor, sound, a terminal (and
+#                     with it every shell and session inside).
+#   -N                tells Vikix what it ended, so the desktop can say so.
+#   -r 0              no memory report in the log every second.
+OPTS="-m 5,2 -s 75,50 -r 0 --prefer ^(Xvfb|Xephyr|sbcl|zig|cc1|cc1plus|rustc|ld|lld|clang|shellcheck)$ --avoid ^(claude|firefox|qemu-system-x86|opencode|codex|gemini|aider)$ --ignore ^(Xorg|stumpwm|emacs|pipewire|pipewire-pulse|wireplumber|dbus-daemon|alacritty|picom|dunst)$ -N /etc/sv/earlyoom/vikix-killed"

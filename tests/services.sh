@@ -69,6 +69,30 @@ check "D-Bus reread its config after the first new service, not before" test "${
 check "the user wasn't added to lpadmin" grep -q 'usermod -aG lpadmin tester' "$t/log"
 check "the polkit rule isn't installed" cmp -s "$here/config/polkit/50-vikix-printers.rules" "$rule"
 
+# --- earlyoom arrives: Vikix's settings first, then switched on -----------------
+mkdir -p "$t/sv/earlyoom"
+stub sv "echo \"sv \$*\" >> '$t/log'"
+stage
+check "earlyoom should get Vikix's settings" cmp -s "$here/config/earlyoom/conf" "$t/sv/earlyoom/conf"
+check "and the script that says what it ended, executable" test -x "$t/sv/earlyoom/vikix-killed"
+check "earlyoom should be switched on" test -L "$t/service/earlyoom"
+set_ln=$(grep -n 'install.*earlyoom/conf' "$t/log" | head -1 | cut -d: -f1)
+on_ln=$(grep -n 'ln -s.*earlyoom' "$t/log" | head -1 | cut -d: -f1)
+check "its settings should be there before it starts" test "${set_ln:-99}" -lt "${on_ln:-0}"
+check "not running yet, it shouldn't be restarted" test "$(grep -c 'sv restart' "$t/log")" = 0
+echo "# changed by hand" >> "$t/sv/earlyoom/conf"
+stage
+check "settings changed while it runs: written again, and restarted" grep -q 'sv restart earlyoom' "$t/log"
+# The run script expands OPTS unquoted: a space or a glob character inside a pattern would break it.
+opts=$(sed -n 's/^OPTS="\(.*\)"$/\1/p' "$here/config/earlyoom/conf")
+check "OPTS should be one line the run script can expand: $opts" test -n "$opts"
+check "no glob characters in OPTS" bash -c '! grep -q "[][*?]" <<<"$1"' _ "$opts"
+for name in Xorg stumpwm emacs alacritty; do
+  check "$name should never be ended" grep -Eq -- "--ignore \^\([^ ]*\b$name\b" <<<"$opts"
+done
+check "an agent's session and a virtual machine only last" grep -Eq -- '--avoid \^\(claude\|firefox\|qemu-system-x86\|' <<<"$opts"
+check "a test's programs first" grep -Eq -- '--prefer \^\(Xvfb\|' <<<"$opts"
+
 # --- again: nothing to do -----------------------------------------------------
 stage
 check "a second run reloaded D-Bus" test "$(grep -c "^sudo dbus-send.*ReloadConfig" "$t/log")" = 0

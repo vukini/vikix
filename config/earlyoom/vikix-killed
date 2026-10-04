@@ -1,0 +1,7 @@
+#!/bin/sh
+# /etc/sv/earlyoom/vikix-killed — written by Vikix (config/earlyoom/vikix-killed).
+# earlyoom runs this, as root, after it ended a program (-N): a line in a log
+# every user can read, which vikix-memory's watcher turns into a notification.
+# The name is the program's own word for itself: kept as data, never run.
+umask 022
+printf '%s %s %s\n' "$(date +%s)" "${EARLYOOM_PID:-?}" "${EARLYOOM_NAME:-?}" >> /run/vikix-earlyoom.log

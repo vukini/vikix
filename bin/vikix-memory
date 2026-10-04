@@ -13,7 +13,8 @@
                          programs) and again, urgently, when it's nearly
                          full (under 7%, or the machine already stalls),
                          says when left-over programs pile up, and writes
-                         the bar's field (mem 91%)
+                         the bar's field (mem 91%); nearly full, it ends
+                         the programs surely left over by itself, and says so
   vikix memory watch --once   one look, printed
 
 Left over means nobody can be using it:
@@ -26,8 +27,18 @@ and always: its starter has gone (it belongs to nobody), it has no
 terminal, no window on your screen, and it's older than 10 minutes, so a
 test that's running is left alone.
 
+The last resort is earlyoom, a system service Vikix switches on: when
+memory is all but gone (5% free, and a quarter of the swap used) it ends
+one program rather than letting everything stall: a test's or a build's
+first (Xvfb, sbcl, compilers), then the biggest of the rest, an AI agent's
+session, the browser itself and a virtual machine only when nothing else
+is left, and never the desktop (Xorg, StumpWM, Emacs, sound, a terminal).
+The watcher says what it ended. /etc/sv/earlyoom/conf is Vikix's
+(config/earlyoom/conf).
+
 VIKIX_MEMORY_LOW and VIKIX_MEMORY_CRITICAL change the two levels (percent
-free), VIKIX_MEMORY_LEFT_AFTER the minutes.
+free), VIKIX_MEMORY_LEFT_AFTER the minutes; VIKIX_MEMORY_AUTOCLEAN=0 keeps
+the watcher from ending anything.
 """
 import os
 import re
@@ -41,6 +52,8 @@ X11 = os.environ.get("VIKIX_X11_DIR", "/tmp/.X11-unix")
 STATE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "vikix")
 FIELD = os.path.join(STATE, "memory")                        # the bar reads it: LEVEL USED% LEFT-COUNT LEFT-MB TOLD
 HOME = os.path.expanduser("~")
+KILLS = os.environ.get("VIKIX_EARLYOOM_LOG", "/run/vikix-earlyoom.log")   # what earlyoom ended (config/earlyoom/vikix-killed)
+KILLS_READ = os.path.join(STATE, "memory-ended")             # how far the watcher has read it
 
 
 def number(name, default):
@@ -370,6 +383,7 @@ def cmd_status():
         print_leftovers(left)
     else:
         print("Nothing is left over.")
+    print("\n" + last_resort())
     return 0
 
 
@@ -384,6 +398,13 @@ def cmd_left():
 
 def end(pids):
     """SIGTERM, then SIGKILL after 3 seconds for those still there: how many went."""
+    dry = os.environ.get("VIKIX_MEMORY_DRY")
+    if dry or PROC != "/proc":
+        # A made-up /proc's numbers are other programs' here: never signalled.
+        if dry:
+            with open(dry, "a") as f:
+                f.write(" ".join(str(pid) for pid in pids) + "\n")
+        return len(pids)
     for pid in pids:
         try:
             os.kill(pid, signal.SIGTERM)
@@ -458,9 +479,21 @@ def step(quiet=False, scan=True):
         procs = processes()
         sure = [p for p, _, s in leftovers(procs) if s]
         left_n, left_mb = len(sure), sum(p.mem + p.swap for p in sure) >> 20
+    ended = ""
+    if (not quiet and now == "critical" and was_level != "critical" and left_n
+            and os.environ.get("VIKIX_MEMORY_AUTOCLEAN", "1") != "0"):
+        # Nearly full: what's surely left over goes, before anything in use has to.
+        gone = end([p.pid for p in sure])
+        if gone:
+            ended = f" Ended {gone} left-over program{'' if gone == 1 else 's'} ({left_mb} MB)."
+            if PROC == "/proc" and not os.environ.get("VIKIX_MEMORY_DRY"):
+                procs = processes()
+                sure = [p for p, _, s in leftovers(procs) if s]
+                left_n, left_mb = len(sure), sum(p.mem + p.swap for p in sure) >> 20
+                m = meminfo()
     if not quiet and worse[now] > worse[was_level]:
         top = ", ".join(f"{name}{' ×%d' % c if c > 1 else ''} {size(mem + swap)}" for name, mem, swap, c in biggest(procs, 3))
-        left = f" Left over: {left_n} program{'' if left_n == 1 else 's'}, {left_mb} MB (vikix memory clean)." if left_n else ""
+        left = ended or (f" Left over: {left_n} program{'' if left_n == 1 else 's'}, {left_mb} MB (vikix memory clean)." if left_n else "")
         free = size(m.get("MemAvailable", 0))
         if now == "critical":
             notify(f"Memory is nearly full ({used}%)",
@@ -468,6 +501,8 @@ def step(quiet=False, scan=True):
         else:
             notify(f"Memory is low ({used}%)",
                    f"{free} free. Biggest: {top}.{left} Super+m, Memory shows it all.")
+    if not quiet:
+        told_of_ended()
     # Left-over programs piling up: said once, until they're gone.
     piled = left_n and (left_mb >= 300 or left_n >= 5)
     if piled and not told and not quiet:
@@ -482,6 +517,46 @@ def step(quiet=False, scan=True):
             f.write(line + "\n")
         os.replace(FIELD + ".new", FIELD)
     return now, used, left_n, left_mb
+
+
+def told_of_ended():
+    """What earlyoom ended since the last look (its log, a line each: TIME PID
+    NAME), said in a notification."""
+    text = read(KILLS_READ).strip()
+    try:
+        there = os.path.getsize(KILLS)
+    except OSError:
+        # No log yet (it starts with the first program ended after a boot):
+        # read from its start when it comes.
+        if text != "0":
+            os.makedirs(STATE, exist_ok=True)
+            with open(KILLS_READ, "w") as f:
+                f.write("0\n")
+        return
+    upto = int(text) if text.isdigit() else there        # the first look: from now on
+    if upto > there:                                     # a new log (a reboot)
+        upto = 0
+    if there > upto:
+        with open(KILLS, "rb") as f:
+            f.seek(upto)
+            lines = f.read(4096).decode("utf-8", "replace").splitlines()
+        names = [re.sub(r"[^\w .+-]", "", " ".join(line.split()[2:]))[:40] for line in lines if len(line.split()) > 2]
+        if names:
+            notify("Memory ran out", f"{', '.join(names)} {'was' if len(names) == 1 else 'were'} ended to keep the desktop "
+                   "going (earlyoom). vikix memory shows what uses it.", urgent=True)
+    if there != upto or not text:
+        os.makedirs(STATE, exist_ok=True)
+        with open(KILLS_READ, "w") as f:
+            f.write(f"{there}\n")
+
+
+def last_resort():
+    """A line on earlyoom, for vikix memory."""
+    service = os.environ.get("VIKIX_SERVICE_DIR", "/var/service")
+    if os.path.exists(os.path.join(service, "earlyoom")):
+        return ("Last resort: earlyoom is on (memory all but gone, it ends one program: a test's or a build's first, "
+                "an agent's session or a virtual machine last, never the desktop).")
+    return "Last resort: earlyoom isn't on (vikix update switches it on); with memory gone, the desktop stalls."
 
 
 def cmd_watch(args):

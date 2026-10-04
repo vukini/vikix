@@ -5,6 +5,10 @@
 # service's folder into /var/service. `vikix update` runs this stage too,
 # so a service whose package arrives with an update is switched on.
 #
+# earlyoom gets Vikix's settings first (config/earlyoom/conf: which
+# program goes when memory runs out, and which never), so its first start
+# has them; changed later, it is restarted.
+#
 # Also adds you to the 'video' group so brightnessctl can change the
 # screen brightness without sudo, and, once cups is installed, to
 # 'lpadmin', so adding a printer asks for no root password. Both take
@@ -21,6 +25,24 @@ set -euo pipefail
 # D-Bus rereads its config once, before the first new service starts.
 : "${VIKIX_DBUS_SOCKET:=/run/dbus/system_bus_socket}"      # tests move these
 : "${VIKIX_POLKIT_RULES:=/etc/polkit-1/rules.d}"
+
+# earlyoom's settings, before it's switched on below. Its folder is there
+# once the package is; both files are readable, so comparing needs no sudo.
+oom=$VIKIX_SV_DIR/earlyoom
+if [ -d "$oom" ]; then
+  oom_changed=
+  for f in conf vikix-killed; do
+    cmp -s "$VIKIX_DIR/config/earlyoom/$f" "$oom/$f" && continue
+    mode=644; [ "$f" = vikix-killed ] && mode=755
+    say "earlyoom: Vikix's $f, which program goes when memory runs out ($oom/$f)"
+    run sudo install -m "$mode" "$VIKIX_DIR/config/earlyoom/$f" "$oom/$f"
+    oom_changed=1
+  done
+  # Already running with the old settings: started again with the new.
+  if [ -n "$oom_changed" ] && [ -e "$VIKIX_SERVICE_DIR/earlyoom" ]; then
+    run sudo sv restart earlyoom >/dev/null 2>&1 || warn "earlyoom didn't restart; its new settings hold from the next boot"
+  fi
+fi
 reloaded=
 while IFS= read -r sv; do
   if [ ! -d "$VIKIX_SV_DIR/$sv" ]; then

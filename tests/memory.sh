@@ -30,6 +30,7 @@ echo "\$urgent\$1 | \$2" >> "$t/warnings"
 EOF
 chmod +x "$t/bin/notify-send"
 export PATH="$t/bin:$PATH" VIKIX_PROC="$t/proc" VIKIX_X11_DIR="$t/x11" XDG_STATE_HOME="$t/state" DISPLAY=:0 VIKIX_MEMORY_WINDOWS=""
+export VIKIX_EARLYOOM_LOG="$t/kills" VIKIX_SERVICE_DIR="$t/service" VIKIX_MEMORY_DRY="$t/ended"   # nothing real is ever signalled from the made-up /proc
 mem() { python3 "$here/bin/vikix-memory" "$@"; }
 field() { cat "$t/state/vikix/memory" 2>/dev/null; }
 uid=$(id -u)
@@ -132,8 +133,36 @@ mem watch --once > /dev/null
 check "and not again while they're there" test "$(wc -l < "$t/warnings")" = 1
 check "the field should remember it said so: $(field)" grep -q ' 1$' "$t/state/vikix/memory"
 
+# --- Nearly full: the sure ones go by themselves, and it says so -------------------
+: > "$t/warnings"; : > "$t/ended"
+memory 5; VIKIX_MEMORY_AUTOCLEAN=0 mem watch --once > /dev/null
+check "switched off, the watcher should end nothing: $(cat "$t/ended")" test ! -s "$t/ended"
+memory 40; mem watch --once > /dev/null; : > "$t/warnings"
+memory 5; mem watch --once > /dev/null
+check "nearly full, the ones surely left over should be ended: $(cat "$t/ended")" \
+  test "$(tr ' ' '\n' < "$t/ended" | sort -n | tr '\n' ' ')" = "200 201 230 231 240 "
+check "and the warning should say so: $(cat "$t/warnings")" grep -q '^URGENT Memory is nearly full.*Ended 5 left-over programs (565 MB)' "$t/warnings"
+: > "$t/ended"; memory 4; mem watch --once > /dev/null
+check "still nearly full: not ended again" test ! -s "$t/ended"
+
+# --- earlyoom ended something: said, once -------------------------------------------
+memory 60; mem watch --once > /dev/null; : > "$t/warnings"
+printf '1791100000 4242 sbcl\n' >> "$t/kills"
+mem watch --once > /dev/null
+check "what earlyoom ended should be said: $(cat "$t/warnings")" grep -q '^URGENT Memory ran out | sbcl was ended to keep the desktop going' "$t/warnings"
+mem watch --once > /dev/null
+check "and only once" test "$(wc -l < "$t/warnings")" = 1
+printf '1791100060 4243 Xvfb\n1791100061 4244 $(touch pwned)`x`\n' >> "$t/kills"
+mem watch --once > /dev/null
+check "a second, and a name kept as data: $(tail -1 "$t/warnings")" grep -q 'Xvfb, touch pwnedx were ended' "$t/warnings"
+out=$(mem)
+check "vikix memory should say earlyoom isn't on: $out" grep -q "earlyoom isn't on" <<<"$out"
+mkdir -p "$t/service/earlyoom"
+out=$(mem)
+check "and that it is, once switched on" grep -q 'Last resort: earlyoom is on' <<<"$out"
+
 # --- clean: real processes of the test's own --------------------------------------
-unset VIKIX_PROC VIKIX_X11_DIR
+unset VIKIX_PROC VIKIX_X11_DIR VIKIX_MEMORY_DRY
 ( DISPLAY=:7431 setsid sleep 30731 > /dev/null 2>&1 & )      # a screen that isn't there
 ( DISPLAY=:0 setsid sleep 30732 > /dev/null 2>&1 & )          # your screen: in use
 stray=$(pgrep -n -f '^sleep 30731$'); kept=$(pgrep -n -f '^sleep 30732$'); strays=("$stray" "$kept")
