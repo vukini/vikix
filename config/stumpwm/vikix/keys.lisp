@@ -39,7 +39,8 @@
 (defparameter *vikix-key-everyday*
   '("vikix-terminal" "rofi" "firefox" "vikix-esploro" "emacsclient" "vikix-agent"  ; the six main apps
     "vikix-ask" "clipmenu" "vikix-rofi" "vikix-dictate" "vikix-voice"
-    "exec dunstctl history-pop" "vikix-notifications" "vikix-lock" "vikix-screenshot" "vikix-osd")
+    "exec dunstctl history-pop" "vikix-notifications" "vikix-lock" "vikix-screenshot" "vikix-osd"
+    "vikix-docs")
   "What may be opened with Super alone: the six main apps and the small
 tools. Every other program a key starts is on Super+Alt.")
 
@@ -157,6 +158,7 @@ of a reload's 15 seconds, and the desktop stood still meanwhile."
     ("s-m"    "vikix-menu"      "Vikix menu")
     ("s-slash" "vikix-keys-card" "Every key at a glance, grouped; any key closes it")
     ("s-F1"   "vikix-keys"      "Search the keys, and run one")
+    ("s-F2"   "exec vikix-docs pick" "Search every document: Vikix's guides, your projects and notes, man pages")
     ("s-ESC"  "exec vikix-lock"  "Lock the screen")
     ("s-S-ESC" "vikix-power"     "Power: lock, suspend, log out, reboot, power off")
     ("s-C-a"  "vikix-awake"      "Keep awake on/off: no lock, dark screen or suspend")

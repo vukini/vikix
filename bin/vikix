@@ -9,7 +9,10 @@
 #                         packages only, or the editors, languages and tools
 #   vikix migrate       run only the migrations not yet applied
 #   vikix rebuild-wm    rebuild the StumpWM executable (after a Quicklisp update)
-#   vikix docs          download the offline programming docs into ~/dev
+#   vikix docs find WORDS  every document on the machine, searched: Vikix's
+#                         guides, your projects and notes, man pages, manuals
+#                         (Super+F2; vikix docs help for the rest)
+#   vikix docs get      download the offline programming docs into ~/dev
 #                         (a few GB, slow; update and the installer skip them)
 #   vikix doctor        check the pieces are all there
 #   vikix screens [extend|mirror|external|laptop|pick]
@@ -404,6 +407,9 @@ cmd_update() {
   if [ -n "${VIKIX_SET_ASIDE:-}" ]; then
     warn "changes made in the checkout were set aside before this update: less $VIKIX_SET_ASIDE"
   fi
+  # The docs catalogue (vikix docs, Super+F2) reads again what changed: the
+  # man pages and manuals of the packages this update brought, the guides.
+  [ "$DRY_RUN" = 1 ] || python3 "$VIKIX_DIR/bin/vikix-docs" index --quiet >/dev/null 2>&1 || true
   if [ "${#failed[@]}" -gt 0 ]; then
     warn "these stages failed: ${failed[*]}. Fix them, then: vikix $what (log: $VIKIX_UPDATE_LOG)"
     echo "   Not sure how? vikix diagnose asks your AI agent; vikix debug writes a report to attach to an issue."
@@ -1433,7 +1439,7 @@ main() {
     update)      shift; cmd_update "$@" ;;
     migrate)     cmd_migrate ;;
     rebuild-wm)  VIKIX_REBUILD_WM=1 bash "$VIKIX_DIR/install/30-lisp.sh" ;;
-    docs)        VIKIX_DOCS=1 bash "$VIKIX_DIR/install/67-dev.sh" ;;
+    docs)        shift; exec python3 "$VIKIX_DIR/bin/vikix-docs" "$@" ;;
     doctor)      cmd_doctor ;;
     features)    exec "$VIKIX_DIR/bin/vikix-features" list ;;
     add|remove)  exec "$VIKIX_DIR/bin/vikix-features" "$@" ;;

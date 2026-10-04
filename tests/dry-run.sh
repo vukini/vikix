@@ -54,7 +54,7 @@ check "--with essentials cloned Neovim's, which it doesn't have" lacks 'nvim-voi
 check "--with essentials should run the languages' stages" has 'stage 67-dev' "$out"
 check "the finish should name what was added" has 'Added: essentials' "$out"
 # The docs are a few GB from slow sites: the installer (and so `vikix update`,
-# which runs the same stage) must leave them to `vikix docs`.
+# which runs the same stage) must leave them to `vikix docs get`.
 if grep -E 'would run: curl' <<<"$out" | grep -qE 'docs-html|HyperSpec|lua\.org|ziglang|sqlite-doc|kapeli'; then
   grep -E 'would run: curl' <<<"$out" | grep -E 'docs-html|HyperSpec|lua\.org|ziglang|sqlite-doc|kapeli' | head -3
   echo "FAIL: the install downloads the offline docs (only vikix docs should)"

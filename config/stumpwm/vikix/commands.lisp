@@ -276,6 +276,7 @@ Returns the window, or nil when there's none."
     ("Vikix guide" (run-shell-command
                                (format nil "emacsclient -c -a '' -e '(info \"~~/.local/share/info/vikix.info\")' || ~a -e info -f ~~/.local/share/info/vikix.info"
                                        *vikix-terminal*)))
+    ("Search every document (guides, projects, notes, man pages)" (run-shell-command "vikix-docs pick"))
     ("Vikix guide in the browser, with diagrams"
      (run-shell-command "vikix-docs-open ~/.local/share/vikix/guide/index.html")
      "~/.local/share/vikix/guide/index.html")

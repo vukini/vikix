@@ -118,7 +118,7 @@ out=$(call eval '{"form":"(run-shell-command \"touch pwned\")"}')
 check "eval without --allow-eval should be refused: $out" grep -q '^ERROR: no tool' <<<"$out"
 check "a refused eval ran something" test ! -e "$t/forms"
 ro=$(rpc -- '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python3 -c 'import json,sys; print(" ".join(t["name"] for t in json.loads(sys.stdin.readline())["result"]["tools"] if t["annotations"]["readOnlyHint"]))')
-check "the read tools should say they only read: $ro" test "$ro" = "desktop keys doctor history changes themes version records_search records_get"
+check "the read tools should say they only read: $ro" test "$ro" = "desktop keys doctor history changes themes version records_search records_get docs_search docs_read"
 
 # Reading the desktop.
 out=$(call desktop '{}')

@@ -325,6 +325,35 @@ def t_records_get(a):
     return text[:30000] + (" [cut short]" if len(text) > 30000 else "")
 
 
+def docs_module():
+    spec = importlib.util.spec_from_loader("vikix_docs", loader=None)
+    mod = importlib.util.module_from_spec(spec)
+    mod.__dict__["__file__"] = os.path.join(VIKIX_DIR, "bin", "vikix-docs")
+    with open(os.path.join(VIKIX_DIR, "bin", "vikix-docs")) as f:
+        exec(compile(f.read(), "vikix-docs", "exec"), mod.__dict__)
+    return mod
+
+
+def t_docs_search(a):
+    docs = docs_module()
+    query = str(a.get("query", "")).strip()
+    if not query:
+        raise ToolError("docs_search needs a query: the words to find")
+    docs.fresh_enough()
+    hits = docs.find(query.split(), a.get("source") or None, min(int(a.get("limit") or 10), 25))
+    return json.dumps([{"id": h["id"], "source": h["source"], "kind": h["kind"], "title": h["title"],
+                        "excerpt": h["excerpt"][:300]} for h in hits], ensure_ascii=False)
+
+
+def t_docs_read(a):
+    docs = docs_module()
+    doc = docs.get(str(a.get("id", "")))
+    if not doc:
+        raise ToolError(f"there's no document {a.get('id')} (docs_search gives the ids)")
+    text = docs.read(doc)
+    return text[:30000] + (" [cut short]" if len(text) > 30000 else "")
+
+
 def esc(s):
     return s.replace("&", "&amp;").replace("<", "&lt;")
 
@@ -493,6 +522,19 @@ TOOLS = [
     ("records_get", "One record, all of it",
      "A record of the store by its id (records_search gives them), with all its data (JSON). Read only." + DATA,
      schema({"id": {"type": "integer", "minimum": 1}}, ["id"]), READ, t_records_get),
+    ("docs_search", "Search the machine's documents",
+     "Every document on this machine (vikix docs): Vikix's guides (source vikix), the README, DESIGN, TODO and "
+     "docs of the user's projects in ~/src (repo), the language guides in ~/dev (dev), the user's Org notes "
+     "(note), man pages (man) and Info manuals (info). Use it before answering how something on this machine "
+     "works. Words, \"a phrase\", or OR; the start of a word is enough. Read only." + DATA,
+     schema({"query": {"type": "string", "maxLength": 200},
+             "source": {"type": "string", "enum": ["vikix", "repo", "dev", "note", "man", "info"]},
+             "limit": {"type": "integer", "minimum": 1, "maximum": 25}}, ["query"]),
+     READ, t_docs_search),
+    ("docs_read", "Read one document",
+     "A document by its id (docs_search gives them), as plain text: a man page, a guide, a README, a note. "
+     "Read only." + DATA,
+     schema({"id": {"type": "string", "maxLength": 300}}, ["id"]), READ, t_docs_read),
     ("notify", "Show a notification", "A desktop notification, its title starting \"Agent:\".",
      schema({"title": {"type": "string", "maxLength": 80}, "body": {"type": "string", "maxLength": 400}}, ["title"]),
      ONCE, t_notify),

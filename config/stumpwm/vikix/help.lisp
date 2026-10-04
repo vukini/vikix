@@ -72,7 +72,7 @@ front, so a name like Brightness-up is never mistaken for one."
     ("Notifications" "dunstctl" "vikix-notifications" "vikix-quiet")
     ("Screenshots & recording" "vikix-screenshot" "vikix-record" "vikix-capture")
     ("Sound & screen" "vikix-volume" "vikix-osd" "vikix-nightlight" "vikix-screens-pick")
-    ("System" "vikix-menu" "vikix-keys" "vikix-keys-card" "vikix-prefix-keys" "vikix-pick-theme"
+    ("System" "vikix-menu" "vikix-keys" "vikix-docs" "vikix-keys-card" "vikix-prefix-keys" "vikix-pick-theme"
      "vikix-lock" "vikix-power" "vikix-awake" "vikix-drives"))
   "The card's groups, in the order it shows them: a name, then the programs
 and commands whose keys go there. Keys that match none go in \"Apps\" when

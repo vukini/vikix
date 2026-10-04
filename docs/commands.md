@@ -14,6 +14,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-bt](#vikix-bt): Bluetooth as one short line, for the mode line
 - [vikix-debug](#vikix-debug): one file that says what's going on, to attach to an issue or hand to an agent
 - [vikix-dictate](#vikix-dictate): speak, and it types what you said
+- [vikix-docs](#vikix-docs): every document on the machine in one catalogue, found from one key
 - [vikix-docs-open](#vikix-docs-open): open guides, tutorials and offline docs in the docs browser
 - [vikix-drives](#vikix-drives): USB drives: mounted when plugged in, ejected from a menu
 - [vikix-dropbox](#vikix-dropbox): Dropbox as one short line, for the mode line
@@ -67,7 +68,8 @@ The everyday command.
 - `vikix update core|system|tools` — one part: Vikix only (seconds), Void's packages only, or the editors, languages and tools
 - `vikix migrate` — run only the migrations not yet applied
 - `vikix rebuild-wm` — rebuild the StumpWM executable (after a Quicklisp update)
-- `vikix docs` — download the offline programming docs into `~/dev` (a few GB, slow; update and the installer skip them)
+- `vikix docs find WORDS` — every document on the machine, searched: Vikix's guides, your projects and notes, man pages, manuals (Super+F2; vikix docs help for the rest)
+- `vikix docs get` — download the offline programming docs into `~/dev` (a few GB, slow; update and the installer skip them)
 - `vikix doctor` — check the pieces are all there
 - `vikix screens [extend|mirror|external|laptop|pick]` — the screens: a plugged one lights up by itself; this lays them out otherwise (Super+Ctrl+p)
 - `vikix tray on|off` — a tray at the bar's end: network and Bluetooth icons (nm-applet, blueman-applet; Super+m too)
@@ -247,6 +249,24 @@ Speak, and it types what you said.
 Speak, and it types what you said. On this laptop only: whisper.cpp, built from source, turns your voice into text on the CPU.
 
 While it listens, the bar says mic. On stop, the text is typed into the window you were in when you pressed the key, once it's written down (and put on the clipboard, in case that window didn't take it; if you've moved to another window meanwhile, it's only put on the clipboard). The recording is kept only until it's written down, in your runtime folder (memory, yours alone); nothing leaves the laptop.
+
+## vikix-docs
+
+Every document on the machine in one catalogue, found from one key.
+
+- `vikix docs find WORDS... [--source S] [--limit N] [--json]` — the documents that match, best first: words as in a search box (the start of a word is enough), "exact words", a OR b
+- `vikix docs pick` — a search box, then the hits to open (Super+F2): Enter opens it, Ctrl+Enter in the other place (a terminal for a man page, Emacs for a page of Markdown)
+- `vikix docs open ID [--other]` — open one, by the id find shows
+- `vikix docs read ID` — one as plain text (what the agents read)
+- `vikix docs index [--full] [--quiet]` — read again what changed (--full: all of it); vikix update does it
+- `vikix docs status` — how many from where, and when last read
+- `vikix docs get` — download the offline programming docs into `~/dev` (a few GB, slow; what plain vikix docs did before)
+
+What it covers, each with whose words they are: Vikix's guides (vikix); the README, DESIGN, TODO, CLAUDE and log files and docs/ of your projects in `~/src` (repo); the language guides in `~/dev` (dev); your Org notes in `~/Dropbox/notes` (note); every man page (man) and Info manual (info) on the machine. Vikix's guides rank first, then yours, then the system's.
+
+It reads again by itself what changed, when a search finds the catalogue more than a day old (a few seconds); vikix update reads the man pages and manuals again. A man page opens as a page in the docs browser, styled as the guide is (cached in `~/.cache/vikix/docs/`); an Info manual and your notes in Emacs, a Markdown file in Emacs too.
+
+The catalogue is one SQLite file, `~/.local/share/vikix/docs/index.db`: table docs (id, source, kind, title, path, excerpt, mtime) and `docs_fts`, its full-text index. Nothing in it leaves the machine.
 
 ## vikix-docs-open
 

@@ -97,6 +97,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   ├── opt/picolisp/          built     PicoLisp, from source (with the feature lisp)
 │   ├── share/vikix/plugins/   Vikix's   the plugins repo at its pinned commit (vikix plugin sync)
 │   ├── share/vikix/records.db made       what plugins found and kept (vikix records; SQLite, 600)
+│   ├── share/vikix/docs/index.db made    the docs catalogue (vikix docs, Super+F2): every document's title and words; made again from the files
 │   ├── opt/lem/               built     Lem, the editor in Common Lisp (vikix add lisp-apps)
 │   ├── opt/mcclim/            built     McCLIM's Listener, with Clouseau (vikix add lisp-apps)
 │   ├── opt/esploro/           built     Esploro, the file explorer: its command, and emacs/esploro.el, its window in Emacs (vikix add esploro)
@@ -152,7 +153,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 
 ### `~/dev`
 
-A folder per language you added (`vikix add python` …), made by `67-dev`: `~/dev/<language>/README.md` (the tools on this machine, and where to learn; **written again by every update**, so keep your notes in another file), `examples/` (copied once, yours), and `docs/` (filled by `vikix docs`). `~/dev/index.html` links every offline doc. `~/dev/ai` is the same without a language of its own: small programs that call Claude and the local models ([AI](ai.md#your-own-programs-devai)). Anything else you put in `~/dev` is left alone.
+A folder per language you added (`vikix add python` …), made by `67-dev`: `~/dev/<language>/README.md` (the tools on this machine, and where to learn; **written again by every update**, so keep your notes in another file), `examples/` (copied once, yours), and `docs/` (filled by `vikix docs get`). `~/dev/index.html` links every offline doc. `~/dev/ai` is the same without a language of its own: small programs that call Claude and the local models ([AI](ai.md#your-own-programs-devai)). Anything else you put in `~/dev` is left alone.
 
 ## The checkout: `~/vikix`
 

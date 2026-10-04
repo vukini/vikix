@@ -21,11 +21,11 @@
 #
 # The downloads (the HTML docs and the Zeal docsets, a few GB, from sites
 # that are sometimes very slow) happen only with VIKIX_DOCS=1, which is
-# what `vikix docs` sets. The installer and `vikix update` run this stage
+# what `vikix docs get` sets. The installer and `vikix update` run this stage
 # without it: they make the folders and the page, and say what is missing.
 #
 # ~/dev is yours: nothing here is ever deleted or overwritten. Downloads
-# already done are skipped, so `vikix docs` only adds what is new.
+# already done are skipped, so `vikix docs get` only adds what is new.
 # VIKIX_DEV_DIR moves the folder.
 
 set -euo pipefail
@@ -40,7 +40,7 @@ have() { command -v "$1" >/dev/null 2>&1; }
 # of the stage (one unreachable site shouldn't cost the other languages).
 # A download crawling below 10 KB/s for a minute is given up too: from some
 # places a site sends 5 KB/s, and a docs archive would then take an hour.
-# The next `vikix docs` tries again.
+# The next `vikix docs get` tries again.
 fetch() {
   # --continue-at -: a retry resumes the partial file instead of starting over.
   run curl -fL --retry 2 --continue-at - --connect-timeout 20 --speed-limit 10000 --speed-time 60 \
@@ -50,7 +50,7 @@ fetch() {
 }
 
 # want WHAT — true when downloads are on; otherwise count WHAT as missing,
-# so the end of the stage can say that `vikix docs` would add it.
+# so the end of the stage can say that `vikix docs get` would add it.
 DOCS=${VIKIX_DOCS:-0}
 missing=()
 want() {
@@ -550,7 +550,7 @@ EOF
     <div class="keys">
       <span><kbd>docs</kbd> opens this page</span>
       <span><kbd>jlab</kbd> starts JupyterLab here</span>
-      <span><kbd>vikix docs</kbd> downloads what is missing</span>
+      <span><kbd>vikix docs get</kbd> downloads what is missing</span>
     </div>
     <input class="search" id="q" type="search" placeholder="Filter: a language or a doc  ( / )" aria-label="Filter the docs" autocomplete="off">
   </section>

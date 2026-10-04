@@ -183,6 +183,8 @@ Non-blocking:
 
 ## Phasing
 
+**Shipped 2026-10-04: Phase 0, and of Phase 1 the man pages as styled pages (mandoc), the agents' `docs_search`/`docs_read`, reindexing at `vikix update`, `vikix docs status` and `vikix docs get`.** The key is Super+F2, not Super+h (Super+h moves the focus left now); the user's Org notes (`~/Dropbox/notes`, the converted vault) are a source of their own, `note`, read from the files, since `note`'s index covers Markdown. A first index of this laptop (12,000 man pages, 3,200 notes, 665 manuals) takes 1.3 s; nothing changed, 0.1 s. Left: TODO 73.
+
 **Phase 0, a day:** the `docs` table and FTS5 over `vikix`, `repo`, `dev`, `man` titles; `vikix docs find`; `Super+h` opening in the existing viewers. No rendering yet. Prove the hits are good.
 
 **Phase 1:** P0 items 1–7.

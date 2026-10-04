@@ -799,6 +799,19 @@ vikix webapp list                 # and remove NAME: its logins are kept; --forg
 - **Your list** is `~/.config/vikix/webapps`, one `NAME URL [KEY]` per line; editing it by hand is fine, your own `#` comments stay, and `vikix webapp list` points out a line it can't use.
 - **Chromium** is installed the first time you add a web app (the feature `webapps`, so `vikix update` then keeps it; `vikix remove webapps` takes it away).
 
+## Finding a document (`vikix docs`, Super+F2)
+
+Every document on the machine in one catalogue: Vikix's guides, the README, DESIGN, TODO, CLAUDE and log files and the `docs/` of your projects in `~/src`, the language guides in `~/dev`, your Org notes (`~/Dropbox/notes`, the converted vault too), every man page and every Info manual. **Super+F2** (or `s-m` → *Search every document*) asks for words, then lists what matches, best first, each with whose words they are (`vikix`, `repo`, `dev`, `note`, `man`, `info`): Vikix's guides rank first, then yours, then the system's. Enter opens it: a guide as its page in the docs browser, a man page as a page styled like the guide (made by mandoc, kept in `~/.cache/vikix/docs/`), an Info manual, a note or a Markdown file in Emacs; Ctrl+Enter the other way (a man page in a terminal).
+
+```sh
+vikix docs find runit            # the start of a word is enough; "exact words", a OR b
+vikix docs find xbps --source man
+vikix docs read 'man:sv(8)'      # as plain text
+vikix docs status                # how many from where, and when last read
+```
+
+It's one SQLite file, `~/.local/share/vikix/docs/index.db`, made in about a second and a half; it reads again what changed when a search finds it more than a day old, and `vikix update` reads the man pages and manuals again. Nothing in it leaves the machine. The agents search it too (`vikix mcp`'s read-only `docs_search` and `docs_read`), so they answer from the man page rather than from memory. What used to be `vikix docs`, downloading the offline programming docs into `~/dev`, is now `vikix docs get`.
+
 ## Editors
 
 Emacs's config is a separate repository, cloned by `45-editors` and pulled by `vikix update`. Neovim's is Vikix's own, in `config/nvim`, split like StumpWM's: Vikix's part, kept current, and yours, copied once.
@@ -876,7 +889,7 @@ Each language's server for the editors is in its `lang-*.list` (ccls with C, gop
 
 ### `~/dev`: your projects, the docs offline, and examples
 
-`67-dev` makes a folder for each installed language. `vikix docs` then downloads each one's documentation into it, so it works with no network. The installer and `vikix update` leave the downloads out, because they are a few GB from sites that are sometimes very slow; run `vikix docs` when you have the time, and again later to add a new language's docs.
+`67-dev` makes a folder for each installed language. `vikix docs get` then downloads each one's documentation into it, so it works with no network. The installer and `vikix update` leave the downloads out, because they are a few GB from sites that are sometimes very slow; run `vikix docs` when you have the time, and again later to add a new language's docs.
 
 ```
 ~/dev/
@@ -1057,7 +1070,8 @@ vikix debug        # one file that says what's going on (keys taken out), to att
 vikix diagnose     # that report, handed to your AI agent: what's wrong, and how to fix it
 vikix migrate      # only the migrations not yet applied
 vikix rebuild-wm   # rebuild the StumpWM executable
-vikix docs         # download the offline programming docs into ~/dev (slow; update skips them)
+vikix docs get     # download the offline programming docs into ~/dev (slow; update skips them)
+vikix docs find runit   # search every document on the machine (Super+F2)
 vikix doctor       # check everything is in place (programs, services, XDG_RUNTIME_DIR, the agent's pieces)
 vikix features     # what you can add, and what you have; vikix add NAME, vikix remove NAME
 vikix pkg add gimp # one program; vikix pkg add alone searches them all; vikix pkg drop NAME uninstalls one and keeps it out
@@ -1166,7 +1180,7 @@ They run side by side, as many at once as the machine has cores (`VIKIX_TEST_JOB
 | `errors` | `errors.lisp` loads a file a form at a time: a form that fails is skipped and the rest load, a `(` never closed skips the rest, the line given is the form's own; each error is written down (the newest kept), with the name of what it defined still pointing at its file; it makes a float timer's time whole and stops asking after three errors in 20 seconds (needs Quicklisp's StumpWM) |
 | `update` | `vikix update` runs the new version's steps after it pulls, logs the whole run, carries on past a failed stage, naming it at the end, and pulls a checkout with an SSH remote over HTTPS; changes made in the checkout are set aside in a patch file and a named stash (a dry run only says so), editors' leftovers are ignored, and the update goes on; a clash left in the checkout, or a commit made there, stops it with the commands to fix it; `update core` runs only 10-packages, 20-services, 40-config, the migrations and the reload (no Void upgrade, no editors or tools), and `--from DIR` pulls DIR's main instead of GitHub, a fast-forward only, refused when the checkout went another way, and only with core; `update system` only Void's packages (no pull, no stages), `update tools` only 45-editors, 65-languages, 67-dev, llm and your pipx, uv (never Vikix's pinned llm and Piper) and cargo programs; an unknown part is refused |
 | `packages` | Every name in `packages/*.list` is a real Void package |
-| `dry-run` | Both install parts run through with `--dry-run`, and leave the offline docs to `vikix docs` |
+| `dry-run` | Both install parts run through with `--dry-run`, and leave the offline docs to `vikix docs get` |
 | `nvim` | `45-editors` for Neovim, without the network: a new machine gets the starter, the link to Vikix's part and the tested lock, with the plugins restored (Lazy's output in a log of its own) and a snapshot after; an update with nothing new restores nothing; a newer lock from Vikix moves Vikix's plugins on and keeps the ones you added, and leaves versions you moved (said once per lock); 0.55.0's state carries over; an unchanged clone of `nvim-void-linux` is set aside for the starter, said last, and one with your changes or commits stays; `VIKIX_NVIM_REPO`, a clone and a folder of your own are left to you, and a clone stays out of the snapshots; a dry run changes nothing; the Lua compiles |
 | `editors` | The Emacs config and Vikix's Neovim config install from scratch into an empty home and start without errors, Neovim with Vikix's part and CodeCompanion loaded (its agents started by `vikix agent --acp`), its AI keys saying what's missing rather than failing, and treesitter highlighting Markdown, Lua, Python and Typst |
 
