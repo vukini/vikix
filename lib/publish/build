@@ -6,7 +6,11 @@ publish.mk:
 
   build epub     out/NAME.epub: pandoc, the e-ink table fix, epubcheck
   build pdf      out/NAME.pdf: pandoc, then Typst
-  build check    both, into a scratch folder: nothing is written to out/
+  build check    both, into a scratch folder, and the spelling: nothing
+                 is written to out/
+  build spell [--keep]
+                 the words hunspell doesn't know, by chapter; --keep adds
+                 them to words.txt (then read it: what's a real typo goes)
 
 The project has publish.yml, pandoc's metadata (title, author, lang, and
 anything else pandoc reads) plus Vikix's own keys:
@@ -17,6 +21,12 @@ anything else pandoc reads) plus Vikix's own keys:
   mainfont: ...            the PDF's face (default: IBM Plex Serif; Amiri
                            when lang is Arabic); Arabic in any book is set
                            in Amiri
+
+The spelling is checked in the book's lang against LibreOffice's
+dictionary (en_GB for any English, eo, ar: vikix publish setup fetches
+them), and a passage marked ::: {lang=eo} (or [vorto]{lang=eo}) against
+its own. Code, raw HTML and maths aren't prose. words.txt, one word a
+line, beside publish.yml, holds the book's own words.
 
 An EPUB epubcheck rejects is not kept as NAME.epub: it is left as
 NAME.epub.rejected beside the report. A PDF Typst warned about is the same.
@@ -36,6 +46,9 @@ HERE = os.path.dirname(os.path.realpath(__file__))
 DATA = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
 # The pinned epubcheck (vikix publish setup); tests name a stand-in.
 EPUBCHECK = os.environ.get("VIKIX_EPUBCHECK") or os.path.join(DATA, "vikix", "epubcheck", "epubcheck.jar")
+# LibreOffice's dictionaries, pinned (vikix publish setup).
+DICTS = os.environ.get("VIKIX_DICTS") or os.path.join(DATA, "vikix", "hunspell")
+WORDS = "words.txt"
 
 
 def die(msg):
@@ -169,22 +182,111 @@ def pdf(m, files, outdir):
     return dest
 
 
+def dict_name(lang):
+    lang = str(lang or "en").lower().replace("_", "-")
+    for prefix, d in (("en", "en_GB"), ("eo", "eo"), ("ar", "ar")):
+        if lang.startswith(prefix):
+            return d
+    return None
+
+
+def languages(m, files):
+    """The book's dictionary first, then any other a passage is marked in."""
+    own = dict_name(m.get("lang"))
+    marked = set()
+    for f in files:
+        with open(f, encoding="utf-8") as fh:
+            marked.update(re.findall(r"lang=[\"']?([A-Za-z_-]+)", fh.read()))
+    others = sorted({dict_name(x) or x for x in marked} - {own})
+    return own or m.get("lang", "?"), others
+
+
+def unknown_words(m, files):
+    """{dictionary: {word: [chapter, ...]}} of the words hunspell doesn't know."""
+    if not shutil.which("hunspell"):
+        die("no hunspell (vikix add publish)")
+    own, others = languages(m, files)
+    found = {}
+    for d in [own, *others]:
+        if not os.path.exists(os.path.join(DICTS, d + ".dic")):
+            print(f"spelling: no {d} dictionary, not checked (vikix publish setup fetches en_GB, eo and ar)")
+            continue
+        argv = ["hunspell", "-l", "-i", "utf-8", "-d", os.path.join(DICTS, d)]
+        if os.path.exists(WORDS):
+            argv += ["-p", os.path.abspath(WORDS)]
+        for f in files:
+            rc, prose = run(["pandoc", f, "--metadata-file=publish.yml", "-M", f"spell_lang={d}",
+                             f"--lua-filter={os.path.join(HERE, 'spell.lua')}", "-t", "plain", "--wrap=none"])
+            if rc != 0:
+                die(f"pandoc, reading {f}: {prose}")
+            # A curly apostrophe is the same word to the reader (CTE’s, CTE's).
+            r = subprocess.run(argv, input=prose.replace("\u2019", "'"), capture_output=True, text=True)
+            for word in r.stdout.split():
+                # Anything with a digit is a name or a number (0x1000, FTS5,
+                # chapter 10's), and one letter a letter (Part V, C, ĉ):
+                # never a misspelt word.
+                if any(c.isdigit() for c in word) or len(word) == 1:
+                    continue
+                if word.endswith("'s"):
+                    word = word[:-2]
+                found.setdefault(d, {}).setdefault(word, [])
+                chapter = os.path.splitext(os.path.basename(f))[0]
+                if chapter not in found[d][word]:
+                    found[d][word].append(chapter)
+    return found
+
+
+def spell(m, files, keep=False):
+    found = unknown_words(m, files)
+    total = sum(len(w) for w in found.values())
+    if not total:
+        own, others = languages(m, files)
+        print(f"spelling: every word is known ({', '.join([own, *others])}, and {WORDS})")
+        return True
+    for d, words in found.items():
+        print(f"spelling, {d}: {len(words)} words not in the dictionary or {WORDS}")
+        for word in sorted(words, key=str.lower):
+            where = words[word]
+            print(f"  {word:<24} {where[0]}" + (f" and {len(where) - 1} more" if len(where) > 1 else ""))
+    if keep:
+        have = set()
+        if os.path.exists(WORDS):
+            with open(WORDS, encoding="utf-8") as f:
+                have = {line.strip() for line in f if line.strip()}
+        new = sorted({w for words in found.values() for w in words} - have, key=str.lower)
+        with open(WORDS, "a", encoding="utf-8") as f:
+            f.writelines(w + "\n" for w in new)
+        print(f"kept: {len(new)} words added to {WORDS}; read it, and take out what's a typo")
+        return True
+    return False
+
+
 def main(argv):
     what = argv[0] if argv else ""
-    if what not in ("epub", "pdf", "check"):
+    if what == "name":
+        # The files' name, for vikix publish --send.
+        print(name(meta()))
+        return 0
+    if what not in ("epub", "pdf", "check", "spell"):
         print(__doc__.strip())
         return 0 if what in ("-h", "--help", "help") else 2
     m = meta()
     files = sources(m)
     if what == "epub":
         epub(m, files, "out")
+    elif what == "spell":
+        if not spell(m, files, keep="--keep" in argv):
+            return 1
     elif what == "pdf":
         pdf(m, files, "out")
     else:
         with tempfile.TemporaryDirectory() as tmp:
             epub(m, files, tmp)
             pdf(m, files, tmp)
-        print(f"check: {name(m)} builds, and passes epubcheck and Typst ({len(files)} files of text)")
+        if not spell(m, files):
+            die(f"check: {name(m)} builds, but the spelling above wants a look "
+                f"(fix it, or vikix publish spell --keep for the words that are right)")
+        print(f"check: {name(m)} builds, passes epubcheck and Typst, and its spelling ({len(files)} files of text)")
     return 0
 
 

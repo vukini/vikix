@@ -7,10 +7,23 @@
 #                     ~/src (the folder's name, or the name in its
 #                     publish.yml), or the folder you're in: an EPUB and a
 #                     PDF into its out/ (both, without a format); check
-#                     builds both into a scratch folder and keeps nothing
+#                     builds both into a scratch folder, keeps nothing, and
+#                     checks the spelling
+#   vikix publish [NAME|DIR] --send [--to FOLDER]
+#                     build the EPUB, then put it on the reader plugged in:
+#                     a Kindle or Kobo mounted as a drive (into documents/,
+#                     or the top), any drive with a Books folder, an
+#                     Android reader such as a BOOX in file transfer mode
+#                     (its Books folder, over MTP), or one with USB
+#                     debugging (adb, /sdcard/Books); --to names the folder
+#   vikix publish [NAME|DIR] spell [--keep]
+#                     the words the dictionary doesn't know, by chapter;
+#                     --keep adds them to the book's words.txt, to read
 #   vikix publish setup
 #                     the packages, epubcheck (a pinned release, checked
-#                     against its checksum) and the shared make targets
+#                     against its checksum), the British English, Esperanto
+#                     and Arabic dictionaries (LibreOffice's, pinned and
+#                     checked the same way) and the shared make targets
 #   vikix publish status
 #                     which tools and fonts are here
 #   vikix publish uninstall
@@ -23,7 +36,10 @@
 # then epubcheck; one epubcheck rejects is kept as NAME.epub.rejected, not
 # as the book. The PDF goes through pandoc's Typst writer, in IBM Plex
 # Serif (Amiri when lang is Arabic, or mainfont in publish.yml), and one
-# Typst warned about is NAME.pdf.rejected.
+# Typst warned about is NAME.pdf.rejected. The spelling is the book's lang
+# (any English is checked as British), and a passage marked ::: {lang=eo}
+# or [vorto]{lang=ar} in its own; code isn't prose. words.txt beside
+# publish.yml holds the book's own words, one a line.
 #
 # In a project's Makefile, last, the same as make targets (epub, pdf,
 # check):
@@ -42,7 +58,17 @@ VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 EPUBCHECK_VERSION=5.4.0
 EPUBCHECK_SHA256=33350c61038e71dfb3d45a76aed04bf5481e6d5500cb780f6e98db8bbd15a28c
 EPUBCHECK_URL=https://github.com/w3c/epubcheck/releases/download/v$EPUBCHECK_VERSION/epubcheck-$EPUBCHECK_VERSION.zip
+# The dictionaries: LibreOffice's, at a commit, each file's checksum here.
+DICTS_COMMIT=32b006a2c22a4ac7e8ed3f03346f7b3d85a970a4
+DICTS_URL=https://raw.githubusercontent.com/LibreOffice/dictionaries/$DICTS_COMMIT
+DICTS_FILES="en/en_GB.aff:0fd6ed120ef28957847d98ba5149b117e27116cf81b5aa36208453f6755a36fd
+en/en_GB.dic:04e90f34f5263bf26780e9c4a442e9ad16584e227af49ddd1b3b21b01df5b29c
+eo/eo.aff:28d48b2d17c9fd20ae9924f14dc2832c8277c9d03715f939957e2c93bcd767b1
+eo/eo.dic:d3d8f84c7b5d6fcb348ce8c11b07c70e007c4b0075350d6bd796196419d42ac4
+ar/ar.aff:cec30b8621001e49618feb05aec1984c5fcfbf7d2ec309901d5cbf66585217a3
+ar/ar.dic:2a3e5367f61c1583734db9d66734f5603e6be5c2d227cf5c5cd7e4ca586e34fe"
 DATA="${XDG_DATA_HOME:-$HOME/.local/share}"
+DICTS_DIR="$DATA/vikix/hunspell"
 EPUBCHECK_DIR="$DATA/vikix/epubcheck"
 SHARED="$DATA/vikix/publish"
 BUILD="$VIKIX_DIR/lib/publish/build"
@@ -71,6 +97,30 @@ fetch_epubcheck() {
   echo "$EPUBCHECK_VERSION" > "$EPUBCHECK_DIR/.vikix-version"
 }
 
+dicts_ok() {
+  [ "$(cat "$DICTS_DIR/.vikix-commit" 2>/dev/null)" = "$DICTS_COMMIT" ]
+}
+
+fetch_dicts() {
+  dicts_ok && return 0
+  say "fetching the dictionaries (British English, Esperanto, Arabic)"
+  if [ "$DRY_RUN" = 1 ]; then printf '   would fetch them into %s\n' "$DICTS_DIR"; return 0; fi
+  local tmp line path sum file
+  tmp=$(mktemp -d) || die "no temporary folder"
+  # shellcheck disable=SC2064  # the folder is known now
+  trap "rm -rf '$tmp'" RETURN
+  while IFS= read -r line; do
+    path=${line%%:*} sum=${line#*:} file=${path#*/}
+    "$CURL" -fsSL -o "$tmp/$file" "$DICTS_URL/$path" || die "couldn't download $file ($DICTS_URL/$path)"
+    [ "$(sha256sum "$tmp/$file" | cut -d' ' -f1)" = "$sum" ] ||
+      die "$file isn't the one it should be (checksum differs): the dictionaries aren't installed"
+  done <<<"$DICTS_FILES"
+  rm -rf "$DICTS_DIR"
+  mkdir -p "$DICTS_DIR"
+  mv "$tmp"/*.aff "$tmp"/*.dic "$DICTS_DIR"/ || die "couldn't put the dictionaries in $DICTS_DIR"
+  echo "$DICTS_COMMIT" > "$DICTS_DIR/.vikix-commit"
+}
+
 cmd_setup() {
   record_features publish
   local p missing=0
@@ -79,6 +129,7 @@ cmd_setup() {
     VIKIX_LISTS=publish bash "$VIKIX_DIR/install/10-packages.sh" || die "couldn't install the packages publish needs"
   fi
   fetch_epubcheck
+  fetch_dicts
   # The make targets, where a project's Makefile includes them from.
   run mkdir -p "$(dirname "$SHARED")"
   link_managed "$VIKIX_DIR/lib/publish" "$SHARED"
@@ -94,6 +145,12 @@ cmd_status() {
   done
   if epubcheck_ok; then printf '%-10s %s (%s)\n' epubcheck "$EPUBCHECK_VERSION" "$EPUBCHECK_DIR"
   else printf '%-10s missing (vikix publish setup)\n' epubcheck; fi
+  local d
+  for d in en_GB eo ar; do
+    if [ -f "$DICTS_DIR/$d.dic" ]; then printf '%-10s %s\n' spelling "$d ($DICTS_DIR)"
+    else printf '%-10s %s missing (vikix publish setup)\n' spelling "$d"; fi
+  done
+  command -v hunspell >/dev/null 2>&1 || printf '%-10s %s\n' hunspell "missing (vikix add publish)"
   python3 -c 'import bs4, lxml, yaml' 2>/dev/null && printf '%-10s %s\n' python "bs4, lxml and yaml are here" ||
     printf '%-10s %s\n' python "missing bs4, lxml or yaml (vikix add publish)"
   local f
@@ -107,8 +164,8 @@ cmd_status() {
 
 cmd_uninstall() {
   [ -L "$SHARED" ] && run rm -f "$SHARED"
-  run rm -rf "$EPUBCHECK_DIR"
-  say "removed epubcheck and the shared make targets; your books and their out/ folders are left"
+  run rm -rf "$EPUBCHECK_DIR" "$DICTS_DIR"
+  say "removed epubcheck, the dictionaries and the shared make targets; your books and their out/ folders are left"
   forget_features publish
 }
 
@@ -131,23 +188,90 @@ find_book() {
   die "no book called $want: a folder with publish.yml in ~/src, or a path"
 }
 
+# Where a reader plugged in takes books. Each way says the file it copied
+# to; none found is an error saying what to try.
+MEDIA=${VIKIX_MEDIA:-/run/media/$USER}
+GIO=${VIKIX_GIO:-gio}
+ADB=${VIKIX_ADB:-adb}
+
+send_to_drive() {
+  local epub=$1 d dest
+  for d in "$MEDIA"/*/ /media/"$USER"/*/; do
+    [ -d "$d" ] || continue
+    dest=""
+    if [ -d "$d/documents" ] && [ -d "$d/system" ]; then dest="$d/documents"   # a Kindle
+    elif [ -d "$d/.kobo" ]; then dest="$d"                                    # a Kobo
+    elif [ -d "$d/Books" ]; then dest="$d/Books"
+    elif [ -d "$d/books" ]; then dest="$d/books"
+    fi
+    [ -n "$dest" ] || continue
+    cp -- "$epub" "$dest/" && sync && { echo "${dest%/}/$(basename "$epub")"; return 0; }
+  done
+  return 1
+}
+
+send_over_mtp() {
+  local epub=$1 root storage
+  command -v "$GIO" >/dev/null 2>&1 || return 1
+  root=$("$GIO" mount -li 2>/dev/null | sed -n 's/.*activation_root=\(mtp:\/\/[^ ]*\).*/\1/p' | head -1)
+  [ -n "$root" ] || return 1
+  "$GIO" mount "$root" >/dev/null 2>&1 || true   # mounted already is fine
+  # The device's first storage (a BOOX has one: "Internal shared storage").
+  storage=$("$GIO" list "$root" 2>/dev/null | head -1)
+  [ -n "$storage" ] || return 1
+  "$GIO" mkdir -p "${root%/}/$storage/Books" >/dev/null 2>&1 || true
+  "$GIO" copy -- "$epub" "${root%/}/$storage/Books/" || return 1
+  echo "${root%/}/$storage/Books/$(basename "$epub")"
+}
+
+send_over_adb() {
+  local epub=$1 devices
+  command -v "$ADB" >/dev/null 2>&1 || return 1
+  devices=$("$ADB" devices 2>/dev/null | awk 'NR > 1 && $2 == "device"' | wc -l)
+  [ "$devices" = 1 ] || return 1
+  "$ADB" push "$epub" /sdcard/Books/ >/dev/null || return 1
+  echo "adb:/sdcard/Books/$(basename "$epub")"
+}
+
+send_book() {
+  local epub=$1 to=$2 where
+  [ -f "$epub" ] || die "no $epub to send"
+  if [ -n "$to" ]; then
+    [ -d "$to" ] || die "no folder $to"
+    cp -- "$epub" "$to/" && sync || die "couldn't copy it into $to"
+    where="${to%/}/$(basename "$epub")"
+  else
+    where=$(send_to_drive "$epub") || where=$(send_over_mtp "$epub") || where=$(send_over_adb "$epub") ||
+      die "no reader found: plug it in (on an Android reader, choose file transfer), or --to FOLDER"
+  fi
+  say "sent: $where"
+}
+
 cmd_build() {
-  local book="" formats=() a
-  for a in "$@"; do
+  local book="" formats=() keep=() send=0 to="" a
+  while [ $# -gt 0 ]; do
+    a=$1; shift
     case $a in
-      epub|pdf|check) formats+=("$a") ;;
+      epub|pdf|check|spell) formats+=("$a") ;;
+      --keep) keep=(--keep) ;;
+      --send) send=1 ;;
+      --to) send=1; to=${1:-}; [ -n "$to" ] || die "--to which folder?"; shift ;;
       -*) die "vikix publish: $a? (vikix publish -h)" ;;
       *) [ -z "$book" ] || die "one book at a time"; book=$a ;;
     esac
   done
-  [ "${#formats[@]}" -gt 0 ] || formats=(epub pdf)
+  if [ "${#formats[@]}" -eq 0 ]; then
+    if [ "$send" = 1 ]; then formats=(epub); else formats=(epub pdf); fi
+  fi
   local dir
   dir=$(find_book "$book") || exit 1
   cd "$dir" || die "can't go into $dir"
   local f
   for f in "${formats[@]}"; do
-    python3 "$BUILD" "$f" || exit 1
+    python3 "$BUILD" "$f" "${keep[@]}" || exit 1
   done
+  [ "$send" = 1 ] || return 0
+  send_book "$dir/out/$(python3 "$BUILD" name).epub" "$to"
 }
 
 case ${1:-} in

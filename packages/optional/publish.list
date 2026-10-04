@@ -6,6 +6,7 @@ typst                # the PDF
 python3-BeautifulSoup4  # the e-ink table fix reads the EPUB's pages
 python3-lxml         # its XML parser
 python3-yaml         # publish.yml
+hunspell             # the spelling (the dictionaries: vikix publish setup)
 zip                  # opening and closing an EPUB by hand
 unzip                # and unpacking epubcheck's release
 font-ibm-plex-ttf    # the print face: IBM Plex Serif

@@ -12,8 +12,8 @@ And a second, smaller one:
 
 | Word | Meaning |
 |---|---|
-| libro | book |
-| legi | to read |
+| [libro]{lang=eo} | book |
+| [legi]{lang=eo} | to read |
 
 A listing, whose indentation must survive every reader:
 
