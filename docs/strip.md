@@ -41,7 +41,7 @@ A new window opens as a column of its own, just right of the one you're in, and 
 
 The bar at the top shows where you are: the strip's windows in order, the ones on the screen in brackets, the one you're in picked out, as in `A [B C] D`. A column of two windows is written `D/C`. The window you're in has the coloured border and title bar, as on tiles.
 
-The strip scrolls only as far as it must to show the column you went to whole, so a neighbour may show in part. It slides there, in about a tenth of a second.
+The strip scrolls only as far as it must to show the column you went to whole, so a neighbour may show in part. It also keeps a sliver of the next column in sight at each edge of the screen that has one, a couple of dozen pixels: you can tell at a glance that the strip goes on that way. At the strip's ends there's none, and the first and last column stand at the screen's edge. It slides there, in about a tenth of a second.
 
 ## Columns: how wide, and what's in them
 
@@ -127,6 +127,7 @@ In `~/.stumpwm.d/user.lisp`, each a line; `vikix eval '(loadrc)'` applies the fi
 ```lisp
 (setf *viri-default-width* 2/3)   ; a new column's width: a part of the screen (1/2 as it comes)
 (setf *viri-centre* t)            ; keep the column you're in in the middle of the screen
+(setf *viri-peek* 0)              ; no sliver of the next column at the screen's edges (24 pixels as it comes)
 (setf *viri-animate* nil)         ; jump instead of sliding
 (setf *viri-animate-seconds* 0.2) ; or slide more slowly (0.12 as it comes)
 (setf *viri-width-step* 1/10)     ; dragging an edge goes a tenth of the screen at a time

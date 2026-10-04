@@ -466,31 +466,50 @@ focus. So a pointer over the strip goes along with the focused window."
   "True: the focused column is kept in the middle of the screen, as far as
 the strip's ends allow. NIL: the strip scrolls only as far as it must.")
 
+(defparameter *viri-peek* 24
+  "Pixels of the next column kept in sight at the screen's edge, on each
+side that has one, when the strip scrolls to a column: a sliver that says
+there is more that way. 0: none, and two half columns fill the screen
+exactly whatever stands beyond them.")
+
 (defun viri-scroll-to (group window)
   "Scroll just far enough that WINDOW's column is wholly on the screen
-(its left edge first, when it's wider than the screen), or with
-*viri-centre* so that it's in the middle (of what the pinned column leaves);
-true when it moved."
+with a sliver of its neighbours beside it (*viri-peek*), its left edge
+first when it's wider than the room there is; or with *viri-centre* so
+that it's in the middle (of what the pinned column leaves). True when the
+strip moved."
   (let* ((col (viri-col-of group window))
-         (i (position col (viri-cols group))))
+         (cols (viri-cols group))
+         (i (position col cols))
+         (pinned (viri-pinned group)))
     ;; The pinned column is on the screen wherever the strip is.
-    (when (and i (not (eq col (viri-pinned group))))
+    (when (and i (not (eq col pinned)))
       (multiple-value-bind (ax ay aw) (viri-area group)
         (declare (ignore ax ay))
         (destructuring-bind (x . w) (nth i (viri-spans group aw))
-          (let ((old (viri-offset group))
-                ;; The others have the screen from where the pinned one ends.
-                (pin (viri-pin-width group aw)))
+          (let* ((old (viri-offset group))
+                 ;; The others have the screen from where the pinned one ends.
+                 (pin (viri-pin-width group aw))
+                 ;; A sliver on each side that has a column to show.
+                 (before (if (> i (if pinned 1 0)) *viri-peek* 0))
+                 (after (if (< i (1- (length cols))) *viri-peek* 0))
+                 ;; The scrolls that show it whole: no less than LOW, no
+                 ;; more than HIGH; with the slivers, a little within those.
+                 (low (- (+ x w) aw))
+                 (high (- x pin)))
             (setf (viri-offset group)
                   (cond (*viri-centre* (- (+ x (floor w 2)) pin (floor (- aw pin) 2)))
                         ;; Wider than the room there is (beside a wide pinned
                         ;; column): its left edge where the room starts,
-                        ;; always. Left to the two rules below it went from
-                        ;; one edge to the other at every change of focus in it.
-                        ((> w (- aw pin)) (- x pin))
-                        ((< x (+ old pin)) (- x pin))
-                        ((> (+ x w) (+ old aw)) (- (+ x w) aw))
-                        (t old)))
+                        ;; always. Brought into view an edge at a time, it
+                        ;; went from one to the other at every change of
+                        ;; focus in it.
+                        ((> low high) high)
+                        ;; Room for it and the slivers: as little as moves it there.
+                        ((<= (+ low after) (- high before))
+                         (max (+ low after) (min old (- high before))))
+                        ;; Room for it alone.
+                        (t (max low (min old high)))))
             (viri-clamp-offset group aw)
             (/= old (viri-offset group))))))))
 

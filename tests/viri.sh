@@ -31,6 +31,9 @@ cat > "$home/.stumpwm.d/rules.lisp" <<'EOF'
 (when-window (:title "Under") (join :left))
 EOF
 wm_start
+# No sliver of the neighbours for most of this test, which counts in whole
+# columns; it has its own part below.
+ask '(setf *viri-peek* 0)' >/dev/null
 # The strip as one line: its columns, the first shown, the focused window.
 state() { ask '(progn (setf *print-pretty* nil) (if (viri-group-p) (format t "~{~a~} left=~a focus=~a" (mapcar (function window-title) (viri-columns (current-group))) (viri-left (current-group)) (window-title (current-window))) (format t "tiles focus=~a" (and (current-window) (window-title (current-window))))))'; }
 focus() { ask '(princ (window-title (current-window)))'; }
@@ -345,6 +348,23 @@ was=$(colwidth); key super+b
 check "again changes nothing: $(colwidth)" test "$(colwidth) $(filled)" = "$was 1"
 ask '(let ((g (current-group))) (setf (viri-col-width (viri-col-of g (current-window))) 1/2) (viri-layout g))' >/dev/null; sleep 0.3
 
+# The sliver: with *viri-peek*, going to a column in the middle of the strip
+# leaves a little of the column each side of it on the screen; at the
+# strip's ends there is none to leave on that side; and two columns that
+# fill the screen keep the room when nothing stands beyond them.
+peeks() { ask '(let* ((g (current-group)) (cols (viri-cols g)) (i (position (viri-col-of g (current-window)) cols))) (multiple-value-bind (ax ay aw) (viri-area g) (declare (ignore ay)) (flet ((shows (j) (if (< -1 j (length cols)) (let* ((p (window-parent (first (viri-col-windows (nth j cols))))) (x (- (xlib:drawable-x p) ax)) (w (+ (xlib:drawable-width p) (* 2 (xlib:drawable-border-width p))))) (max 0 (- (min aw (+ x w)) (max 0 x)))) (quote none)))) (setf *print-pretty* nil) (princ (list (shows (1- i)) (shows (1+ i)))))))'; }
+ask '(let ((g (current-group))) (dolist (c (viri-cols g)) (setf (viri-col-width c) 1/2)) (setf *viri-peek* 24) (viri-layout g))' >/dev/null
+key super+Home; key super+l; key super+l; key super+End; key super+h
+read -r pl pr <<<"$(peeks | tr -d '()')"
+check "going to a column in the middle leaves at least a sliver of the column each side of it in sight: $pl and $pr pixels" test "$pl" -ge 24 -a "$pr" -ge 24 -a "$(inplace)" = 1
+check "and the column itself is whole" test "$(ask '(let* ((g (current-group)) (i (position (viri-col-of g (current-window)) (viri-cols g)))) (princ (if (member i (viri-visible g)) 1 0)))')" = 1
+key super+End
+check "at the strip's end the last column stands at the screen's edge: $(peeks)" test "$(ask '(let ((g (current-group))) (multiple-value-bind (ax ay aw) (viri-area g) (declare (ignore ax ay)) (princ (if (= (viri-offset g) (- (viri-length g aw) aw)) 1 0))))')" = 1
+key super+Home
+check "and at its start the first" test "$(off)" = 0
+ask '(setf *viri-peek* 0)' >/dev/null; key super+l; key super+End; key super+h
+check "with *viri-peek* 0 the column before the last and the last fill the screen: $(peeks)" test "$(ask '(let ((g (current-group))) (princ (length (viri-visible g))))')" = 2
+
 # Title bars: each column's window has the tiles' bar, as wide as the column,
 # the window below it; Super+Ctrl+y takes them away and brings them back; a
 # fullscreen window has none.
@@ -444,5 +464,5 @@ single=$(focus); key super+shift+7
 check "a window with its column to itself goes alone, as before" test "$(ask "(princ (group-number (window-group $(find_any "$single"))))")" = 7
 check "none of it was an error: $(msgs | grep -i 'Error In Command\|not found' | head -1)" test -z "$(msgs | grep -i 'Error In Command\|not found' | head -3)"
 
-wm_report viri "a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, the drawn overview and its keys, the agents' desktop tool, new and closed windows, a dialog, another workspace, off and on, sliding and centring, the ends and a pinned column, tabs, uneven heights, filling the screen, title bars, the mouse, a whole column sent to another workspace, the window keys on a strip"
+wm_report viri "a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, the drawn overview and its keys, the agents' desktop tool, new and closed windows, a dialog, another workspace, off and on, sliding and centring, the ends and a pinned column, tabs, uneven heights, filling the screen, a sliver of the neighbours, title bars, the mouse, a whole column sent to another workspace, the window keys on a strip"
 exit "$fail"
