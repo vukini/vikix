@@ -100,6 +100,8 @@ Added 2026-09-30, from a conversation with Vid about 0.52-0.65. Not yet ordered 
     - **`vikix doctor`** checks the chosen terminal, not `alacritty` by name; Alacritty stays in `desktop.list` as the one that's always there.
     - Vid's `user.lisp` names Alacritty for the drop-down terminal and passes `--class` for nmtui: both move to the launcher, with Vid.
 
+84. **The Living Series site** (design: `DESIGN-site.md`, 2026-10-04; mostly the Living Series repo's work, Vikix's part is `vikix publish` and the doors). Substack's successor on thelivingseries.com, with theliving.codes and theliving.studio beside it: static pages from `vikix publish` on Cloudflare, a small Lisp gate on a Debian droplet for purchases, logins and stamped downloads, Listmonk for the list, a fan-out from the feed to the list and the social feeds, a merchant of record for the till. Vikix gains `vikix publish hub|post|book|--draft`, `vikix doctor --on web`, and the droplet as a tailnet machine (TODO 16).
+
 ### Family
 
 33. **A children's account.** A second login with a simpler desktop and apps chosen by the parent, where nothing of the parent's can be broken; a home for a child's programming course.
