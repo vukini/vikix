@@ -27,6 +27,16 @@ printf ':PROPERTIES:\n:ID: x\n:END:\n#+title: The service manager\n\nsv down NAM
 mkdir -p "$XDG_CONFIG_HOME/vikix/plugins/inbox"
 echo "file = $HOME/notes/inbox.org" > "$XDG_CONFIG_HOME/vikix/plugins/inbox/settings"
 printf '#!/bin/sh\necho "emacsclient $*" >> %s/opened\n' "$t" > "$t/bin/emacsclient"
+printf '#!/bin/sh\necho "browser $*" >> %s/opened\n' "$t" > "$t/bin/docs-open"
+export VIKIX_DOCS_OPEN="$t/bin/docs-open"
+# xbps-query, as Void's answers: two packages, one installed; and one's details.
+cat > "$t/bin/xbps-query" <<'X'
+#!/bin/sh
+case "$*" in
+  "-Rs ") printf '[-] ardour-9.7_1   Professional-grade digital audio workstation\n[*] ruff-0.6.9_1   An extremely fast Python linter\n' ;;
+  "-R -S ardour") printf 'pkgver: ardour-9.7_1\nshort_desc: Professional-grade digital audio workstation\nlicense: GPL-2.0-or-later\nhomepage: http://ardour.org\n' ;;
+esac
+X
 mkdir -p "$t/vikix/bin"; printf '#!/bin/sh\necho "browser $*" >> %s/opened\n' "$t" > "$t/bin/fake-docs-open"
 chmod +x "$t/bin/"*
 export PATH="$t/bin:$PATH"
@@ -60,9 +70,24 @@ rm "$HOME/src/music/docs/bridge.md"
 d index >/dev/null
 check "a file gone is gone" test "$(d find transport)" = "nothing found"
 
-# Opening: Markdown and notes in Emacs.
+# Opening: Markdown as a page styled like the guide; Ctrl+Enter (--other) in Emacs.
 d open "$id"; sleep 0.3
-check "a language guide opens in Emacs: $(cat "$t/opened" 2>/dev/null)" grep -q "emacsclient -c -n $HOME/dev/python/README.md" "$t/opened"
+page=$(awk '/^browser/ {print $2}' "$t/opened" | tail -1)
+if command -v pandoc >/dev/null || python3 -c 'import markdown' 2>/dev/null; then
+  check "Markdown opens as a page: $page" grep -q 'guide.css' "$page"
+  check "with its text" grep -q 'mypy' "$page"
+fi
+d open "$id" --other; sleep 0.3
+check "--other opens it in Emacs: $(cat "$t/opened")" grep -q "emacsclient -c -n $HOME/dev/python/README.md" "$t/opened"
+
+# Packages: every one there is, a page for one, installed or not.
+VIKIX_DOCS_SOURCES="pkg" d index >/dev/null
+check "a package is found" grep -q 'pkg .*ardour — Professional-grade' <<<"$(d find ardour)"
+check "an installed one says so" grep -q 'ruff — .*(installed)' <<<"$(d find linter)"
+: > "$t/opened"; d open pkg:ardour; sleep 0.3
+card=$(awk '/^browser/ {print $2}' "$t/opened" | tail -1)
+check "a package's page says how to add it: $card" grep -q 'vikix pkg add ardour' "$card"
+check "and its website" grep -q 'http://ardour.org' "$card"
 
 # A man page, when there is man: read as text, opened as a styled page.
 if command -v man >/dev/null && command -v mandoc >/dev/null && man -w 1 ls >/dev/null 2>&1; then
@@ -78,8 +103,8 @@ PY
 fi
 
 # Super+F2's menus, in a real rofi on a hidden screen: the words, then the
-# hits; Enter opens one, Ctrl+Enter the other way (once refused by rofi,
-# which had Ctrl+Enter bound already).
+# hits; Enter opens one as a page, Ctrl+Enter in Emacs (once refused by
+# rofi, which had Ctrl+Enter bound already).
 if command -v Xvfb >/dev/null && command -v rofi >/dev/null && command -v xdotool >/dev/null; then
   n=$(( 100 + RANDOM % 400 ))
   while [ -e "/tmp/.X$n-lock" ] || [ -e "/tmp/.X11-unix/X$n" ]; do n=$((n + 1)); done
@@ -94,7 +119,8 @@ if command -v Xvfb >/dev/null && command -v rofi >/dev/null && command -v xdotoo
     keys=$!
     DISPLAY=":$n" timeout 20 python3 "$here/bin/vikix-docs" pick || true
     wait "$keys" || true; sleep 0.5
-    check "Super+F2's menus: $way should open the hit: $(cat "$t/opened")" grep -q "dev/python/README.md" "$t/opened"
+    if [ "$way" = Return ]; then want='^browser .*/md/.*\.html'; else want="emacsclient -c -n .*dev/python/README.md"; fi
+    check "Super+F2's menus: $way should open the hit its way: $(cat "$t/opened")" grep -q "$want" "$t/opened"
   done
   kill "$xvfb" 2>/dev/null || true
 fi

@@ -266,9 +266,9 @@ Every document on the machine in one catalogue, found from one key.
 - `vikix docs status` — how many from where, and when last read
 - `vikix docs get` — download the offline programming docs into `~/dev` (a few GB, slow; what plain vikix docs did before)
 
-What it covers, each with whose words they are: Vikix's guides (vikix); the README, DESIGN, TODO, CLAUDE and log files and docs/ of your projects in `~/src` (repo); the language guides in `~/dev` (dev); your Org notes in `~/Dropbox/notes` (note); every man page (man) and Info manual (info) on the machine. Vikix's guides rank first, then yours, then the system's.
+What it covers, each with whose words they are: Vikix's guides (vikix); the README, DESIGN, TODO, CLAUDE and log files and docs/ of your projects in `~/src` (repo); the language guides in `~/dev` (dev); your Org notes in `~/Dropbox/notes` (note); every man page (man) and Info manual (info) on the machine; the READMEs and notes packages keep in /usr/share/doc (doc); and every package there is, installed or not (pkg). Vikix's guides rank first, then yours, then the system's.
 
-It reads again by itself what changed, when a search finds the catalogue more than a day old (a few seconds); vikix update reads the man pages and manuals again. A man page opens as a page in the docs browser, styled as the guide is (cached in `~/.cache/vikix/docs/`); an Info manual and your notes in Emacs, a Markdown file in Emacs too.
+It reads again by itself what changed, when a search finds the catalogue more than a day old (a few seconds); vikix update reads the man pages and manuals again. A man page or a Markdown file opens as a page in the docs browser, styled as the guide is (made by mandoc and pandoc, cached in `~/.cache/vikix/docs/`); a package as a short page (installed or not, how to add it, its website); an Info manual and your notes in Emacs. Ctrl+Enter (or --other) opens the other way: Emacs, or a terminal.
 
 The catalogue is one SQLite file, `~/.local/share/vikix/docs/index.db`: table docs (id, source, kind, title, path, excerpt, mtime) and `docs_fts`, its full-text index. Nothing in it leaves the machine.
 

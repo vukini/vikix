@@ -23,19 +23,24 @@ What it covers, each with whose words they are: Vikix's guides (vikix);
 the README, DESIGN, TODO, CLAUDE and log files and docs/ of your projects in
 ~/src (repo); the language guides in ~/dev (dev); your Org notes in
 ~/Dropbox/notes (note); every man page (man) and Info manual (info) on the
-machine. Vikix's guides rank first, then yours, then the system's.
+machine; the READMEs and notes packages keep in /usr/share/doc (doc); and
+every package there is, installed or not (pkg). Vikix's guides rank first,
+then yours, then the system's.
 
 It reads again by itself what changed, when a search finds the catalogue
 more than a day old (a few seconds); vikix update reads the man pages and
-manuals again. A man page opens as a page in the docs browser, styled as the
-guide is (cached in ~/.cache/vikix/docs/); an Info manual and your notes in
-Emacs, a Markdown file in Emacs too.
+manuals again. A man page or a Markdown file opens as a page in the docs
+browser, styled as the guide is (made by mandoc and pandoc, cached in
+~/.cache/vikix/docs/); a package as a short page (installed or not, how to
+add it, its website); an Info manual and your notes in Emacs. Ctrl+Enter (or
+--other) opens the other way: Emacs, or a terminal.
 
 The catalogue is one SQLite file, ~/.local/share/vikix/docs/index.db: table
 docs (id, source, kind, title, path, excerpt, mtime) and docs_fts, its
 full-text index. Nothing in it leaves the machine.
 """
 import glob
+import hashlib
 import html
 import json
 import os
@@ -58,8 +63,11 @@ SRC = os.environ.get("VIKIX_DOCS_SRC") or os.path.join(HOME, "src")
 DEV = os.environ.get("VIKIX_DOCS_DEV") or os.path.join(HOME, "dev")
 STALE = 24 * 3600                       # a search reads again what changed, after a day
 BODY = 200_000                          # characters of a document indexed
-BOOST = {"vikix": 3.0, "repo": 2.0, "dev": 2.0, "note": 2.0, "man": 1.0, "info": 1.0}
-BADGE = {"vikix": "vikix", "repo": "repo", "dev": "dev", "note": "note", "man": "man", "info": "info"}
+BOOST = {"vikix": 3.0, "repo": 2.0, "dev": 2.0, "note": 2.0, "man": 1.0, "info": 1.0, "pkgdoc": 0.9, "pkg": 0.8}
+BADGE = {"vikix": "vikix", "repo": "repo", "dev": "dev", "note": "note", "man": "man", "info": "info",
+         "pkgdoc": "doc", "pkg": "pkg"}
+PKGDOC = "/usr/share/doc"
+PKGDOC_FILES = re.compile(r"^(README|NEWS|CHANGES|ChangeLog|FAQ|INSTALL|USAGE|TODO)|\.(md|txt|html?|rst)$", re.I)
 REPO_FILES = ("README.md", "DESIGN.md", "TODO.md", "CLAUDE.md", "IDEAS.md", "bugs.md", "log.md")
 
 
@@ -306,6 +314,66 @@ def index_info(db, full):
     return n
 
 
+def xbps_stamp():
+    """When the packages (installed, or in the repositories) last changed."""
+    stamps = [os.path.getmtime(p) for p in glob.glob("/var/db/xbps/pkgdb-*.plist") +
+              glob.glob("/var/db/xbps/*/*-repodata")]
+    return str(max(stamps, default=0))
+
+
+def index_pkg(db, full):
+    """Every package there is, installed or not, with its one line."""
+    stamp = xbps_stamp()
+    if not full and meta(db, "pkg-stamp") == stamp:
+        return 0
+    if not shutil.which("xbps-query"):
+        return 0
+    r = subprocess.run(["xbps-query", "-Rs", ""], capture_output=True, text=True)
+    drop_source(db, "pkg")
+    n = 0
+    for line in r.stdout.splitlines():
+        m = re.match(r"^\[(.)\] (\S+?)-([^-\s]+_\d+)\s+(.*)$", line)
+        if not m:
+            continue
+        installed, name, version, desc = m.group(1) == "*", m.group(2), m.group(3), m.group(4).strip()
+        put(db, {"id": f"pkg:{name}", "source": "pkg", "kind": "installed" if installed else "package",
+                 "title": f"{name} — {desc}" + ("  (installed)" if installed else ""),
+                 "path": name, "excerpt": f"{version}", "mtime": 0}, f"{name} {desc}")
+        n += 1
+    meta(db, "pkg-stamp", stamp)
+    return n
+
+
+def index_pkgdoc(db, full):
+    """The READMEs and notes packages put in /usr/share/doc: their names and
+    first lines (bodies, mostly changelogs, would bury everything else)."""
+    stamp = xbps_stamp()
+    if not full and meta(db, "pkgdoc-stamp") == stamp:
+        return 0
+    drop_source(db, "pkgdoc")
+    n = 0
+    for pkg in sorted(os.listdir(PKGDOC)) if os.path.isdir(PKGDOC) else []:
+        # The package's own folder only: below it are whole HTML manuals
+        # (ImageMagick's alone has thousands of pages), which bury the rest.
+        top = os.path.join(PKGDOC, pkg)
+        if not os.path.isdir(top):
+            continue
+        for f in sorted(os.listdir(top)):
+            path = os.path.join(top, f)
+            if not os.path.isfile(path) or not PKGDOC_FILES.search(f):
+                continue
+            if f.lower().endswith((".html", ".htm")) and f.lower() not in ("index.html", "index.htm"):
+                continue
+            head = read_text(path)[:2000]
+            plain = md_plain(re.sub(r"<[^>]+>", " ", head))
+            body = read_text(path) if f.lower().startswith("readme") else plain
+            put(db, {"id": f"pkgdoc:{path}", "source": "pkgdoc", "kind": "doc", "title": f"{pkg}: {f}",
+                     "path": path, "excerpt": excerpt(plain), "mtime": 0}, f"{pkg} {body}")
+            n += 1
+    meta(db, "pkgdoc-stamp", stamp)
+    return n
+
+
 def index(full=False, quiet=False):
     t0 = time.time()
     db = connect()
@@ -316,11 +384,15 @@ def index(full=False, quiet=False):
         counts["dev"] = index_files(db, "dev", files_dev(), md_title, md_plain, full)
         counts["note"] = index_files(db, "note", files_note(), org_title, org_plain, full)
         # VIKIX_DOCS_SOURCES limits what's read (the tests leave the system's out).
-        only = os.environ.get("VIKIX_DOCS_SOURCES", "man info").split()
+        only = os.environ.get("VIKIX_DOCS_SOURCES", "man info pkg pkgdoc").split()
         if "man" in only:
             counts["man"] = index_man(db, full)
         if "info" in only:
             counts["info"] = index_info(db, full)
+        if "pkg" in only:
+            counts["pkg"] = index_pkg(db, full)
+        if "pkgdoc" in only:
+            counts["pkgdoc"] = index_pkgdoc(db, full)
         meta(db, "indexed", int(time.time()))
     if not quiet:
         read = ", ".join(f"{n} {s}" for s, n in counts.items() if n)
@@ -408,6 +480,9 @@ def read(doc):
     if doc["source"] == "info":
         r = subprocess.run(["info", "-o", "-", doc["path"]], capture_output=True, text=True)
         return r.stdout
+    if doc["source"] == "pkg":
+        r = subprocess.run(["xbps-query", "-R", "-S", doc["path"]], capture_output=True, text=True)
+        return r.stdout or doc["title"]
     return read_text(doc["path"])
 
 
@@ -441,6 +516,61 @@ def man_html(doc):
     return out
 
 
+def md_html(path, title):
+    """A Markdown file as a page styled as the guide is (pandoc, else Python's
+    markdown), cached; None when neither is here."""
+    key = hashlib.sha1(f"{path}:{os.path.getmtime(path)}".encode()).hexdigest()[:16]
+    out = os.path.join(CACHE, "md", f"{key}.html")
+    if os.path.exists(out):
+        return out
+    css = "file://" + os.path.join(vikix_dir(), "docs", "guide.css")
+    base = "file://" + os.path.dirname(os.path.abspath(path)) + "/"
+    text = read_text(path)
+    body = None
+    if shutil.which("pandoc"):
+        r = subprocess.run(["pandoc", "-f", "gfm", "-t", "html5"], input=text, capture_output=True, text=True)
+        body = r.stdout if r.returncode == 0 else None
+    if body is None:
+        try:
+            import markdown
+            body = markdown.markdown(text, extensions=["tables", "fenced_code"])
+        except ImportError:
+            return None
+    page = (f'<!doctype html><html><head><meta charset="utf-8"><base href="{html.escape(base)}">'
+            f'<title>{html.escape(title)}</title><link rel="stylesheet" href="{css}"></head>'
+            f'<body><p class="vikix-docs-from">{html.escape(path)}</p>{body}</body></html>')
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    with open(out, "w") as f:
+        f.write(page)
+    return out
+
+
+def pkg_card(doc):
+    """A package as a short page: what it is, installed or not, its website."""
+    name = doc["path"]
+    info = subprocess.run(["xbps-query", "-R", "-S", name], capture_output=True, text=True).stdout
+    fields = dict(re.findall(r"^(\w[\w-]*): (.*)$", info, re.M))
+    installed = doc["kind"] == "installed"
+    home = fields.get("homepage", "")
+    css = "file://" + os.path.join(vikix_dir(), "docs", "guide.css")
+    labels = (("pkgver", "Version"), ("license", "Licence"), ("installed_size", "Size, installed"),
+              ("maintainer", "Looked after by"))
+    rows = "".join(f"<tr><th>{label}</th><td>{html.escape(fields[k])}</td></tr>" for k, label in labels if k in fields)
+    page = (f'<!doctype html><html><head><meta charset="utf-8"><title>{html.escape(name)}</title>'
+            f'<link rel="stylesheet" href="{css}"></head><body><h1>{html.escape(name)}</h1>'
+            f'<p>{html.escape(fields.get("short_desc", doc["title"]))}</p>'
+            f'<p><b>{"Installed." if installed else "Not installed."}</b> '
+            f'{"" if installed else f"To install it: <code>vikix pkg add {html.escape(name)}</code>"}</p>'
+            f'<table>{rows}</table>'
+            + (f'<p>Its website (on the web, not this machine): <a href="{html.escape(home)}">{html.escape(home)}</a></p>'
+               if home else "") + "</body></html>")
+    out = os.path.join(CACHE, "pkg", f"{name}.html")
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    with open(out, "w") as f:
+        f.write(page)
+    return out
+
+
 def terminal(argv):
     term = (os.environ.get("VIKIX_TERMINAL") or "alacritty").split()
     subprocess.Popen(["setsid", "-f", *term, "-e", *argv], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -454,7 +584,9 @@ def emacs(args):
 
 
 def docs_open(paths):
-    subprocess.Popen([os.path.join(vikix_dir(), "bin", "vikix-docs-open"), *paths],
+    # VIKIX_DOCS_OPEN: another opener (the tests' stand-in).
+    opener = os.environ.get("VIKIX_DOCS_OPEN") or os.path.join(vikix_dir(), "bin", "vikix-docs-open")
+    subprocess.Popen([opener, *paths],
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
@@ -470,12 +602,21 @@ def open_doc(doc, other=False):
     elif src == "info":
         if other or not emacs(["-e", f'(info "{doc["path"]}")']):
             terminal(["info", doc["path"]])
-    elif src == "vikix" and not other:
-        page = guide_page(doc["path"])
-        docs_open([page]) if page else emacs([doc["path"]]) or docs_open([doc["path"]])
-    else:
+    elif src == "pkg":
+        if other:
+            terminal(["sh", "-c", f"xbps-query -R -S {doc['path']} | less"])
+        else:
+            docs_open([pkg_card(doc)])
+    elif src == "note" or other:
         if not emacs([doc["path"]]):
             docs_open([doc["path"]])
+    else:
+        # A guide as its own built page; any Markdown as a page styled as
+        # the guide; an HTML or text file as it is.
+        page = guide_page(doc["path"]) if src == "vikix" else None
+        if not page and doc["path"].endswith(".md"):
+            page = md_html(doc["path"], doc["title"])
+        docs_open([page or doc["path"]])
 
 
 def hit_line(h):
