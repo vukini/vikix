@@ -57,3 +57,35 @@ Vikix has eighteen language lists (Lisp's covers Common Lisp, Racket, Scheme and
 
 - **Niri's scrolling layout.** A Wayland compositor where a workspace scrolls sideways without end instead of tiling into a fixed grid; windows keep their size and you pan. Won't run on X, but StumpWM is programmable enough for it as a group type. Worked out as `DESIGN-viri.md`.
 - **Zed's collaboration.** Zed (not in Void; a Linux build exists) lets two people edit one buffer live. The idea for Vikix is not Zed but the feature: Emacs has `crdt.el`, which does the same between two Emacsen. A `vikix pair` over Tailscale (TODO 16) for teaching a child or a friend from another machine.
+
+## Beyond Vikix: Linux things worth doing (2026-10-04)
+
+Not features; things Vid could do with a Linux machine and isn't yet. He liked all of these; a spoken desktop was the one he turned down (`NOVEL.md`, 24). A line each; a design when one is picked up.
+
+**As a musician**
+
+- **LilyPond** (in Void): engrave the songs from the sketchpad (`DESIGN-music.md`) as real sheet music, from the same pattern file. Scores for the children, for a band, for the book.
+- **A MIDI keyboard or pad controller and a small audio interface**: the sketchpad's keys are a start; a real controller through ALSA/JACK (PipeWire carries both) makes the sketchpad an instrument. Check Void's `a2jmidid` and `qpwgraph` for the wiring.
+- **Record and film**: OBS Studio and Kdenlive (both in Void) for a song's video or a Vikix walkthrough; the capture keys (`vikix capture`) already make the stills.
+
+**As an author and teacher**
+
+- **Your own voice, locally**: train a piper voice on an hour of your reading (piper's training scripts, a GPU night on the AI desktop) and narrate the Living Series audiobooks with it, offline. The publish pipeline (`DESIGN-publish.md`) gains an `audiobook` target.
+- **LanguageTool, self-hosted** (Java; runs from its release): grammar and style for English and Esperanto in Emacs and Neovim, nothing sent anywhere. Esperanto is one of the languages it knows.
+- **Anki decks made from the textbooks**: `apy`/`genanki` from a book's vocabulary list straight to a deck; the children's Esperanto and Arabic from the same pipeline that makes the EPUB.
+
+**As an engineer**
+
+- **A fence-sensor prototype**: an ESP32 (ESPHome or MicroPython) on a line post, reporting over MQTT (`mosquitto`, in Void) to a Pi or the AI desktop, a Grafana panel over it. The business's product, tried for the cost of a weekend and €20.
+- **DuckDB + Grafana over the ERP's exports**: a nightly export from the Windows VM's ERP into DuckDB (in Void), Grafana (in Void) on top; the questions the ERP's own reports can't answer, with SQL the agent can write.
+- **OpenSCAD** (in Void): parts and jigs as code, printed where a printer is; the fence hardware, a laptop stand for the Z13 in book mode.
+
+**At home**
+
+- **A home server** (the AI desktop off-hours, or a small box): Immich for the family's photos instead of a cloud, Home Assistant for the house, AdGuard Home for every device's DNS, Jellyfin for the films, Vaultwarden behind `vikix bitwarden`. All reached only over the tailnet (`DESIGN-machines.md`); none in Void, each from its release or a container.
+- **A hardware key** (YubiKey or a Nitrokey): SSH and git signing from the key, so the release-signing question in `DESIGN-security.md` answers itself, and the passphrase prompts go away.
+
+**As a tinkerer**
+
+- **postmarketOS on an old phone**, or **KOReader on an e-reader**: Linux in the hand; the notes and the EPUBs from the publish pipeline read on them, synced over Syncthing.
+- **Buildroot**: a Linux of your own in an evening, from source to a boot, for the ESP32's bigger sibling or just to have done it once. Pairs with `vikix learn`'s C course (`TUTORIALS.md`).

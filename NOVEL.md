@@ -311,6 +311,8 @@ Why only Vikix: the bar's state is data in Lisp, the voice keys exist, and `viki
 
 First step: `vikix say bar`, from the bar's Lisp state through piper; a key after.
 
+*2026-10-04: set aside by Vid ("like them all except talking desktop"). Kept here as the file's rule says; not to be picked up unless he changes his mind. The spoken parts of idea 1 and the Esperanto partner below are a different thing (a tutor that talks, not a desktop that does) and stand.*
+
 ## 25. Notes on things
 
 A note left on a key, a program, a file or a device, that reappears when you next touch it.
