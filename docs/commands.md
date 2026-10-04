@@ -48,6 +48,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-record](#vikix-record): record the screen to a video, without sound
 - [vikix-records](#vikix-records): where plugins keep what they found, to search and use later
 - [vikix-rofi](#vikix-rofi): rofi's plugin modes, set up the Vikix way
+- [vikix-rules](#vikix-rules): the desktop's rules, seen and steered
 - [vikix-screens](#vikix-screens): the screens: a new one lights up by itself, and a menu for the rest
 - [vikix-screenshot](#vikix-screenshot): keep a picture of an area, a window or the whole screen
 - [vikix-session](#vikix-session): everything that runs for the length of a desktop session
@@ -83,6 +84,7 @@ The everyday command.
 - `vikix theme import URL|OWNER/REPO [NAME]` — an Omarchy theme as one of yours, then switch to it (vikix theme --help)
 - `vikix version`
 - `vikix layout save NAME | NAME [--no-start] | list | rm NAME` — this workspace's layout (its splits or its strip, and which window is where) saved, put back (the windows it had that aren't open started, unless --no-start), listed, removed
+- `vikix rules [off|on N] [why [CLASS]] [test|apply [N]] [verbs]` — the desktop's rules: the list, one off or on, why a window is where it is, what they'd do with the windows open now, and doing it (vikix rules help)
 - `vikix viri [on|off]` — this workspace as a strip that scrolls sideways (Super+h/l along it), or tiled again; no word switches
 - `vikix eval FORM` — run Lisp in the running StumpWM, print the result
 - `vikix debug` — one file saying what's going on, secrets taken out, to attach to an issue
@@ -565,8 +567,9 @@ Why: your agent can already run commands, but each needs your yes. These tools a
 The tools, a fixed set:
 
 ```
-read only   desktop (workspaces, windows, screens, theme), keys, doctor,
-            history, changes, themes, version
+read only   desktop (workspaces, windows, screens, theme), keys, rules
+            (the desktop's rules, and why a window is where it is),
+            doctor, history, changes, themes, version
 small acts  notify, snapshot, set_theme, switch_workspace, focus_window:
             each checked against what's there, and easy to take back
 off unless  eval (any Lisp in the window manager: --allow-eval) and
@@ -753,6 +756,27 @@ Rofi's plugin modes, set up the Vikix way.
 - `vikix-rofi calc` — a calculator that answers as you type (qalculate): 340 `*` 12%, 5 ft to cm, 100 USD to EUR, today + 30 days. (Not "12% of 340": qalculate reads that % as a remainder.) Enter copies the answer to the clipboard; Ctrl+Enter keeps it in the list below instead.
 
 Both are rofi plugins (rofi-emoji, rofi-calc in packages/desktop.list). Without one, a notification says what to install instead of rofi failing silently.
+
+## vikix-rules
+
+The desktop's rules, seen and steered.
+
+- `vikix rules` — the list: each rule's number, on or off, how often it ran and when last, the rule, where it's written; under one that is off or failed, why
+- `vikix rules off N|NAME` — switch a rule off, until the next reload: by its number in the list, its :name, or words only its text has
+- `vikix rules on N|NAME` — switch it on again (one switched off after three failures gets three more tries)
+- `vikix rules why [CLASS]` — why a window is where it is: the rules that ran for it, and those that match it but haven't run, each with the reason. The window in front, or those of that class (or with CLASS in their title)
+- `vikix rules test [N|NAME]` — what the rules for a window opening would do with the windows open now (or that rule alone); nothing is done
+- `vikix rules apply [N|NAME]` — do it: run them on the windows open now. A reload never moves windows already open; this does
+- `vikix rules verbs` — what a rule can be, match and do: the rules, the matchers and the verbs, each with its line
+
+The rules are written in `~/.stumpwm.d/rules.lisp` (or user.lisp):
+
+```
+(when-window (:class "Firefox") (workspace 2))
+(at "09:00" :weekdays (open-project "vikix"))
+```
+
+and live in the running StumpWM, which this asks (vikix eval): the counts are since the last reload, and off lasts until the next one, which reads the files again. Super+m, Rules is the same list in a menu.
 
 ## vikix-screens
 

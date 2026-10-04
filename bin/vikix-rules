@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# vikix-rules — the desktop's rules, seen and steered (`vikix rules`).
+#
+#   vikix rules              the list: each rule's number, on or off, how often
+#                            it ran and when last, the rule, where it's written;
+#                            under one that is off or failed, why
+#   vikix rules off N|NAME   switch a rule off, until the next reload: by its
+#                            number in the list, its :name, or words only its
+#                            text has
+#   vikix rules on N|NAME    switch it on again (one switched off after three
+#                            failures gets three more tries)
+#   vikix rules why [CLASS]  why a window is where it is: the rules that ran
+#                            for it, and those that match it but haven't run,
+#                            each with the reason. The window in front, or
+#                            those of that class (or with CLASS in their title)
+#   vikix rules test [N|NAME]
+#                            what the rules for a window opening would do with
+#                            the windows open now (or that rule alone);
+#                            nothing is done
+#   vikix rules apply [N|NAME]
+#                            do it: run them on the windows open now. A reload
+#                            never moves windows already open; this does
+#   vikix rules verbs        what a rule can be, match and do: the rules, the
+#                            matchers and the verbs, each with its line
+#
+# The rules are written in ~/.stumpwm.d/rules.lisp (or user.lisp):
+#
+#   (when-window (:class "Firefox") (workspace 2))
+#   (at "09:00" :weekdays (open-project "vikix"))
+#
+# and live in the running StumpWM, which this asks (vikix eval): the counts
+# are since the last reload, and off lasts until the next one, which reads
+# the files again. Super+m, Rules is the same list in a menu.
+
+set -euo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+
+# A word of yours as a Lisp string: nothing in it is read as Lisp.
+lisp_string() {
+  local s=${1//\\/\\\\}
+  printf '"%s"' "${s//\"/\\\"}"
+}
+
+# ask WHAT [ARG]: StumpWM's answer, or its own words when it says no.
+ask() {
+  local out ok=0
+  out=$(python3 "$VIKIX_DIR/bin/vikix-eval" "(if (fboundp 'vikix-rules-cli) (vikix-rules-cli $(lisp_string "$1") $(lisp_string "${2:-}")) (error \"this desktop is older than vikix rules: reload it (Super+m, Reload config)\"))" 2>&1) || ok=$?
+  case $out in
+    *"error: "*) die "$(sed -n 's/^.*error: //p' <<<"$out" | head -1)" ;;
+  esac
+  [ "$ok" = 0 ] || die "vikix rules: StumpWM didn't answer (is the desktop running? vikix doctor)"
+  printf '%s\n' "$out" | grep -v '^=> ' || true
+}
+
+case ${1:-list} in
+  list)       [ $# -le 1 ] || die "vikix rules list takes nothing more (vikix rules help)"; ask list ;;
+  off|on)     [ $# -eq 2 ] || die "which rule? vikix rules $1 N|NAME (vikix rules lists them)"; ask "$1" "$2" ;;
+  why)        [ $# -le 2 ] || die "vikix rules why [CLASS]: one class, in quotes if it has spaces"; ask why "${2:-}" ;;
+  test|apply) [ $# -le 2 ] || die "vikix rules $1 [N|NAME]: one rule, or none for all of them"; ask "$1" "${2:-}" ;;
+  verbs)      ask verbs ;;
+  help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) die "unknown: vikix rules $1 (try: vikix rules help)" ;;
+esac

@@ -98,7 +98,10 @@
 (defvar *vikix-rule-floaters* (make-hash-table :test 'eq :weakness :key)
   "Each window asked about, and whether a rule floats it (:yes or :no).")
 (defvar *vikix-rule-notes* (make-hash-table :test 'eq :weakness :key)
-  "Each window, and the rules that ran for it (their keys, newest first).")
+  "Each window, and the rules that ran for it, newest first: (KEY EVENT TIME
+FAILURE), FAILURE the error's words or nil. `vikix rules why` reads them.")
+(defparameter *vikix-rule-notes-kept* 12
+  "How many of them a window keeps: a rule on :focus runs at every look.")
 (defvar *vikix-dialog-windows* (make-hash-table :test 'eq :weakness :key)
   "Windows a rule made dialogs of (the verb dialog): kept in front as
 *vikix-dialog-classes*' are. windows.lisp's vikix-dialog-p reads it.")
@@ -349,6 +352,15 @@ the rule's failure, and no match."
                off (vikix-one-line (vikix-rule-text rule) 120) (vikix-one-line condition)))
   nil)
 
+(defun vikix-rule-note (rule window event &optional failure)
+  "Note on WINDOW that RULE ran for it (or failed, with FAILURE's words)."
+  (when window
+    (let ((notes (cons (list (vikix-rule-key rule) event (get-universal-time)
+                             (and failure (vikix-one-line failure)))
+                       (gethash window *vikix-rule-notes*))))
+      (setf (gethash window *vikix-rule-notes*)
+            (subseq notes 0 (min (length notes) *vikix-rule-notes-kept*))))))
+
 (defun vikix-run-rule (rule window event)
   "Run RULE's verbs for WINDOW. True when they all ran. Never an error."
   (if (> *vikix-rule-depth* 8)
@@ -363,12 +375,12 @@ the rule's failure, and no match."
           (handler-bind ((error (lambda (c)
                                   (setf backtrace (ignore-errors (backtrace-string)))
                                   (vikix-rule-failed rule c backtrace)
+                                  (ignore-errors (vikix-rule-note rule window event c))
                                   (return-from run nil))))
             (funcall (vikix-rule-body rule))
             (incf (vikix-rule-runs rule))
             (setf (vikix-rule-last-run rule) (get-universal-time))
-            (when window
-              (push (vikix-rule-key rule) (gethash window *vikix-rule-notes*)))
+            (vikix-rule-note rule window event)
             (when (vikix-rule-once rule)
               (setf (gethash (vikix-rule-key rule) *vikix-rules-once-done*) t))
             t)))))
@@ -1000,20 +1012,445 @@ that are due. Never an error: this runs in StumpWM's timer."
       (and (boundp '*screen-list*) *screen-list*
            (run-with-timer 5 30 'vikix-rules-tick)))
 
-;;; --- Seeing them ---------------------------------------------------------------------------------
+;;; --- Seeing and steering them ------------------------------------------------------------------
+;;;
+;;; `vikix rules` in a terminal (bin/vikix-rules, which only asks here) and
+;;; Super+m, Rules: the list, a rule off or on, why a window is where it
+;;; is, what the rules would do with the windows open now, and doing it.
+;;; vikix-rules-list and vikix-rules-why answer with data, for the MCP
+;;; server's read-only `rules` tool; the -text functions with lines to read.
 
-(defun vikix-rules-lines ()
-  "A line for each rule: its number, on or off, whose it is, how often it
-ran, and the rule."
+(defun vikix-rule-off-reason (rule)
+  "Why RULE is off: :failures (switched off at the third), :you, or nil: it's on."
+  (cond ((vikix-rule-on-p rule) nil)
+        ((>= (vikix-rule-failures rule) *vikix-rule-max-failures*) :failures)
+        (t :you)))
+
+(defun vikix-rule-from (rule)
+  "Where RULE was written: \"rules.lisp:3\", \"Vikix windows.lisp:40\",
+\"plugin inbox plugin.lisp:12\", \"live\" (typed into the running desktop)."
+  (let ((owner (vikix-rule-owner rule))
+        (file (and (vikix-rule-file rule) (file-namestring (vikix-rule-file rule))))
+        (line (vikix-rule-line rule)))
+    (cond ((null file) owner)
+          ((equal owner file) (format nil "~a~@[:~d~]" file line))
+          (t (format nil "~a ~a~@[:~d~]" owner file line)))))
+
+(defun vikix-rules-when (time)
+  "TIME for a person: \"09:14\" when it is today, \"3 Oct 09:14\" before, \"never\" for nil."
+  (if (null time)
+      "never"
+      (multiple-value-bind (s mi h d mo y) (decode-universal-time time)
+        (declare (ignore s))
+        (multiple-value-bind (s2 mi2 h2 d2 mo2 y2) (decode-universal-time (get-universal-time))
+          (declare (ignore s2 mi2 h2))
+          (if (and (= d d2) (= mo mo2) (= y y2))
+              (format nil "~2,'0d:~2,'0d" h mi)
+              (format nil "~d ~a ~2,'0d:~2,'0d" d
+                      (nth (1- mo) '("Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug" "Sep" "Oct" "Nov" "Dec"))
+                      h mi))))))
+
+(defun vikix-rules-list ()
+  "The rules as data, in order: a list of keywords and values for each."
   (loop for rule in *vikix-rules*
         for n from 1
-        collect (format nil "~2d ~:[off~;on ~] ~12a ~3d×  ~a~@[   ^1(~a)^n~]"
-                        n (vikix-rule-on-p rule) (vikix-rule-owner rule) (vikix-rule-runs rule)
-                        (vikix-one-line (vikix-rule-text rule) 110)
-                        (vikix-rule-last-error rule))))
+        collect (list :number n
+                      :on (and (vikix-rule-on-p rule) t)
+                      :off (vikix-rule-off-reason rule)
+                      :name (vikix-rule-name rule)
+                      :text (vikix-rule-text rule)
+                      :from (vikix-rule-from rule)
+                      :owner (vikix-rule-owner rule)
+                      :file (vikix-rule-file rule)
+                      :line (vikix-rule-line rule)
+                      :event (vikix-rule-on rule)
+                      :runs (vikix-rule-runs rule)
+                      :last-run (vikix-rule-last-run rule)
+                      :failures (vikix-rule-failures rule)
+                      :last-error (vikix-rule-last-error rule))))
+
+(defun vikix-rule-number (rule)
+  "RULE's number in the list, from 1; nil for one that isn't there any more."
+  (let ((at (position rule *vikix-rules*)))
+    (and at (1+ at))))
+
+(defun vikix-rule-called (what)
+  "The rule WHAT names: its number in the list, its :name, or words that
+only its text has. An error says what is wrong with WHAT."
+  (let* ((what (string-trim " " (princ-to-string (or what ""))))
+         (number (and (plusp (length what)) (every #'digit-char-p what)
+                      (parse-integer what))))
+    (cond ((zerop (length what))
+           (error "Which rule? Give its number in the list (vikix rules), or its name."))
+          (number
+           (or (and (plusp number) (nth (1- number) *vikix-rules*))
+               (error "There is no rule ~d: there are ~d (vikix rules lists them)."
+                      number (length *vikix-rules*))))
+          ((find what *vikix-rules* :key #'vikix-rule-name :test #'equal))
+          (t
+           (let ((found (remove-if-not (lambda (rule) (search what (vikix-rule-text rule) :test #'char-equal))
+                                       *vikix-rules*)))
+             (cond ((null found)
+                    (error "No rule is called ~s, or has it in its text (vikix rules lists them)." what))
+                   ((rest found)
+                    (error "~d rules have ~s in them (~{~d~^, ~}): say which by its number."
+                           (length found) what (mapcar #'vikix-rule-number found)))
+                   (t (first found))))))))
+
+(defun vikix-rule-switch (rule on)
+  "Switch RULE on or off. Off lasts until the next reload, which reads the
+files again; on gives a rule that failed its three tries back."
+  (setf (vikix-rule-on-p rule) (and on t))
+  (when on
+    (setf (vikix-rule-failures rule) 0
+          (vikix-rule-last-error rule) nil))
+  (clrhash *vikix-rule-floaters*)
+  rule)
+
+(defun vikix-rule-listed (rule &optional (width 110))
+  "RULE as a line of the list: its number, on or off, how often it ran and
+when last, the rule, where it's from."
+  (format nil "~2d  ~:[off~;on ~]  ~3d×  ~12a  ~a   ~a"
+          (or (vikix-rule-number rule) 0) (vikix-rule-on-p rule) (vikix-rule-runs rule)
+          (vikix-rules-when (vikix-rule-last-run rule))
+          (vikix-one-line (vikix-rule-text rule) width)
+          (vikix-rule-from rule)))
+
+(defun vikix-rule-state-line (rule)
+  "What there is to say under RULE's line: why it's off, its last failure; or nil."
+  (let ((off (vikix-rule-off-reason rule))
+        (failure (vikix-rule-last-error rule)))
+    (cond ((eq off :failures)
+           (format nil "switched off after ~d failures, until the next reload (vikix rules on ~d): ~a"
+                   (vikix-rule-failures rule) (vikix-rule-number rule) failure))
+          ((eq off :you)
+           (format nil "switched off by you, until the next reload (vikix rules on ~d)~@[; it last failed: ~a~]"
+                   (vikix-rule-number rule) failure))
+          (failure (format nil "failed ~d time~:p, last: ~a" (vikix-rule-failures rule) failure)))))
+
+(defun vikix-rules-text ()
+  "The list, for a terminal."
+  (if (null *vikix-rules*)
+      (format nil "No rules yet. One looks like this, in ~~/.stumpwm.d/rules.lisp or user.lisp:~%  (when-window (:class \"Firefox\") (workspace 2))~%vikix rules verbs lists what a rule can match and do.")
+      (with-output-to-string (out)
+        (format out " #  is   ran   last          the rule, and where it is written~%")
+        (dolist (rule *vikix-rules*)
+          (format out "~a~%" (vikix-rule-listed rule 200))
+          (let ((state (vikix-rule-state-line rule)))
+            (when state (format out "        ~a~%" state))))
+        (format out "How often and when: since the last reload."))))
+
+;;; Why a window is where it is
+
+(defun vikix-rule-for-windows-p (rule)
+  (and (member (vikix-rule-on rule) '(:open :focus :close)) t))
+
+(defun vikix-rule-fits-p (rule window)
+  "Does WINDOW match RULE, as it is now? Only looking: a matcher of yours
+that fails is no match here, and no failure of the rule."
+  (let ((*vikix-rule-event* :look)
+        (*vikix-rule-window* window))
+    (and (vikix-rule-for-windows-p rule)
+         (ignore-errors (funcall (vikix-rule-test rule) window))
+         t)))
+
+(defun vikix-rules-why (window)
+  "What the rules did with WINDOW, and what else matches it:
+ (values RAN WAITING). RAN, oldest first: (TIME EVENT RULE KEY FAILURE), RULE
+nil for one that isn't there any more. WAITING: (RULE REASON) for each rule
+that matches the window now and hasn't run for it; REASON is :off-you,
+:off-failures, :once-done, :on-focus, :on-close or :before (the window was
+here before the rule was)."
+  (let* ((notes (reverse (gethash window *vikix-rule-notes*)))
+         (ran (mapcar (lambda (note)
+                        ;; Before 0.71.125 a note was the rule's key alone.
+                        (destructuring-bind (key &optional event time failure)
+                            (if (consp note) note (list note))
+                          (list time event
+                                (find key *vikix-rules* :key #'vikix-rule-key :test #'equal)
+                                key failure)))
+                      notes))
+         (waiting (loop for rule in *vikix-rules*
+                        when (and (vikix-rule-fits-p rule window)
+                                  (not (find rule ran :key #'third)))
+                          collect (list rule
+                                        (case (vikix-rule-off-reason rule)
+                                          (:you :off-you)
+                                          (:failures :off-failures)
+                                          (t (cond ((and (vikix-rule-once rule)
+                                                         (gethash (vikix-rule-key rule) *vikix-rules-once-done*))
+                                                    :once-done)
+                                                   ((eq (vikix-rule-on rule) :focus) :on-focus)
+                                                   ((eq (vikix-rule-on rule) :close) :on-close)
+                                                   (t :before))))))))
+    (values ran waiting)))
+
+(defun vikix-rules-window-line (window)
+  "WINDOW for a person: its class, title, workspace and number."
+  (let ((group (ignore-errors (window-group window))))
+    (format nil "~a ~s~@[ (~a)~]"
+            (or (ignore-errors (window-class window)) "?")
+            (vikix-one-line (or (ignore-errors (window-title window)) "") 60)
+            (and group
+                 (format nil "workspace ~a, window ~d~:[~;, floating~]"
+                         (group-name group) (window-number window)
+                         (typep window 'float-window))))))
+
+(defparameter *vikix-rule-waiting-words*
+  '((:off-you . "it is switched off, by you")
+    (:off-failures . "it was switched off after failing")
+    (:once-done . "it is :once, and has had its window")
+    (:on-focus . "it runs when the window gets the focus")
+    (:on-close . "it runs when the window closes")
+    (:before . "the window was here before the rule was: vikix rules apply runs it now")))
+
+(defun vikix-rules-why-text (window)
+  "Why WINDOW is where it is, for a terminal or a message."
+  (multiple-value-bind (ran waiting) (vikix-rules-why window)
+    (with-output-to-string (out)
+      (format out "~a~%" (vikix-rules-window-line window))
+      (cond (ran
+             (format out "  Rules that ran for it:~%")
+             (dolist (entry ran)
+               (destructuring-bind (time event rule key failure) entry
+                 (format out "    ~a~@[  on ~(~a~)~]  ~a~@[~%        FAILED: ~a~]~%"
+                         (if time (vikix-rules-when time) "earlier") event
+                         (if rule
+                             (format nil "~d  ~a   ~a" (vikix-rule-number rule)
+                                     (vikix-one-line (vikix-rule-text rule) 200) (vikix-rule-from rule))
+                             (format nil "(a rule that isn't there any more)  ~a" (vikix-one-line key 200)))
+                         failure))))
+            (t (format out "  No rule has run for it.~%")))
+      (when waiting
+        (format out "  Rules that match it, and haven't run for it:~%")
+        (dolist (entry waiting)
+          (destructuring-bind (rule reason) entry
+            (format out "    ~d  ~a   ~a~%        ~a~%"
+                    (vikix-rule-number rule) (vikix-one-line (vikix-rule-text rule) 200)
+                    (vikix-rule-from rule)
+                    (cdr (assoc reason *vikix-rule-waiting-words*))))))
+      (unless (or ran waiting)
+        (format out "  No rule matches it either: it is where StumpWM, or you, put it.~%")))))
+
+(defun vikix-rules-open-windows ()
+  "Every window of the desktop, by workspace and number."
+  (sort (copy-list (screen-windows (current-screen)))
+        (lambda (a b)
+          (let ((ga (group-number (window-group a))) (gb (group-number (window-group b))))
+            (or (< ga gb) (and (= ga gb) (< (window-number a) (window-number b))))))))
+
+(defun vikix-rules-windows-called (what)
+  "The windows WHAT names: none given, the focused one; else those whose
+class or instance is WHAT (in any case), or, failing that, whose title has it."
+  (let ((what (string-trim " " (princ-to-string (or what "")))))
+    (if (zerop (length what))
+        (list (or (current-window)
+                  (error "No window has the focus: name one by its class (vikix rules why Firefox).")))
+        (let ((all (vikix-rules-open-windows)))
+          (or (remove-if-not (lambda (w) (or (equalp what (ignore-errors (window-class w)))
+                                             (equalp what (ignore-errors (window-res w)))))
+                             all)
+              (remove-if-not (lambda (w) (search what (or (ignore-errors (window-title w)) "") :test #'char-equal))
+                             all)
+              (error "No window has the class ~s, or has it in its title. The classes open now: ~{~a~^, ~}."
+                     what (remove-duplicates (mapcar #'window-class all) :test #'equal)))))))
+
+;;; What the rules would do with the windows open now, and doing it
+
+(defun vikix-rules-would (window &optional only)
+  "The rules that would run if WINDOW opened now, as it is (ONLY: that rule alone)."
+  (remove-if-not (lambda (rule)
+                   (and (vikix-rule-ready-p rule :open)
+                        (vikix-rule-fits-p rule window)))
+                 (if only (list only) *vikix-rules*)))
+
+(defun vikix-rules-test-text (&optional only)
+  "What the rules for a window opening would do with the windows open now.
+Nothing is done."
+  (let ((windows (vikix-rules-open-windows)) (untouched 0))
+    (with-output-to-string (out)
+      (dolist (window windows)
+        (let ((rules (vikix-rules-would window only)))
+          (cond ((null rules) (incf untouched))
+                (t (format out "~a~%" (vikix-rules-window-line window))
+                   (dolist (rule rules)
+                     (format out "    ~d  ~a~%" (vikix-rule-number rule)
+                             (vikix-one-line (vikix-rule-text rule) 200)))))))
+      (format out "~d window~:p open; ~:[~d of them match~;none of them matches~*~] ~:[a rule for a window opening~;that rule~]. Nothing was done: vikix rules apply~@[ ~d~] does it."
+              (length windows) (= untouched (length windows)) (- (length windows) untouched)
+              only (and only (vikix-rule-number only))))))
+
+(defun vikix-rules-apply (&optional only)
+  "Run the rules for a window opening on the windows open now (ONLY: that
+rule alone), each rule checked just before it runs, as when a window opens.
+What was done, as lines."
+  (let ((ran 0) (failed 0))
+    (with-output-to-string (out)
+      (dolist (window (vikix-rules-open-windows))
+        (let ((said nil))
+          (dolist (rule (if only (list only) (copy-list *vikix-rules*)))
+            (when (and (vikix-rule-ready-p rule :open)
+                       (vikix-rule-fits-p rule window))
+              (unless said
+                (format out "~a~%" (vikix-rules-window-line window))
+                (setf said t))
+              (let ((ok (vikix-run-rule rule window :apply)))
+                (if ok (incf ran) (incf failed))
+                (format out "    ~:[FAILED~;ran   ~]  ~d  ~a~@[~%        ~a~]~%"
+                        ok (vikix-rule-number rule) (vikix-one-line (vikix-rule-text rule) 200)
+                        (and (not ok) (vikix-rule-last-error rule))))))))
+      (format out "~d run~:p~[~:;, ~:*~d failed~]." ran failed))))
+
+;;; What a rule can match and do
+
+(defparameter *vikix-rule-forms*
+  '(("(when-window (MATCH...) [:name \"..\"] [:on :open|:focus|:close] [:once t] VERB...)"
+     "when a window opens (or gets the focus, or closes)")
+    ("(at \"09:00\" [:weekdays | :weekends | :on (:mon :thu)] [:late t|nil] VERB...)"
+     "at a time of day, or a list of times; up to an hour late after a sleep (:late t: however late that day, nil: never)")
+    ("(each 30 :minutes VERB...)" "again and again: :minutes or :hours, counted from when it last ran")
+    ("(when-battery-below 20 VERB...)" "once as the charge goes under that, off the charger")
+    ("(when-charging VERB...)  (when-on-battery VERB...)" "when the charger goes in, or comes out")
+    ("(at-login VERB...)" "once a login, not at a reload")
+    ("(when-workspace 3 VERB...)" "on going to a workspace: a number, a name, or a list of them"))
+  "The rules there are, each with its line, for `vikix rules verbs`.")
+
+(defparameter *vikix-rule-matchers*
+  '((":class :instance :title :role"
+     "the window's own words. A string: exactly that; (:has \"text\"): contains it, in any case; (:like \"^regex$\"): a pattern; a list: any of them; a variable: its value when a window comes")
+    (":type" ":normal, :dialog ..., or a list of them")
+    (":workspace" "where the window opened: a number, a name, or a list of them")
+    (":not (MATCH...)" "none of that")
+    (":where FUNCTION" "anything else: a function, called with the window"))
+  "What a when-window rule can match, each with its line.")
+
+(defun vikix-rules-verbs-text ()
+  "The rules, the matchers and the verbs, each with its line."
+  (with-output-to-string (out)
+    (format out "The rules:~%~:{  ~a~%      ~a~%~}" *vikix-rule-forms*)
+    (format out "What a when-window rule matches (MATCH):~%~:{  ~a~%      ~a~%~}" *vikix-rule-matchers*)
+    (format out "The verbs (VERB; any other Lisp works too, in which (window) is the window):~%")
+    (dolist (name (vikix-rule-verb-names))
+      (destructuring-bind (function description arguments) (gethash (string-upcase name) *vikix-rule-verbs*)
+        (declare (ignore function))
+        (format out "  (~a~{ ~a~})~%      ~a~%" name
+                (mapcar (lambda (a) (string-downcase (vikix-rules-print a))) arguments)
+                description)))
+    (format out "A verb of your own: (define-rule-verb NAME (ARGS) \"its line\" BODY...).")))
+
+;;; What vikix doctor says of them
+
+(defun vikix-rule-workspaces (rule)
+  "The workspaces RULE names: where its (workspace ...) sends a window, a
+:workspace it matches, a when-workspace's own."
+  (let ((match (vikix-rule-match rule)))
+    (labels ((named (value) (if (listp value) (copy-list value) (list value)))
+             (matched (match)
+               (loop for (key value) on match by #'cddr
+                     append (case key
+                              (:workspace (named value))
+                              (:not (and (listp value) (matched value)))))))
+      (remove-duplicates
+       (append (and (vikix-rule-place rule)
+                    (let ((target (first (ignore-errors (funcall (vikix-rule-place rule))))))
+                      (and target (list target))))
+               (cond ((eq (vikix-rule-on rule) :workspace) (named (getf match :workspaces)))
+                     ((vikix-rule-for-windows-p rule) (matched match))))
+       :test #'equal))))
+
+(defun vikix-rules-problems ()
+  "(values OFF MISSING), each a list of lines: the rules switched off after
+failing, and the rules naming a workspace that isn't there."
+  (values
+   (loop for rule in *vikix-rules*
+         when (eq (vikix-rule-off-reason rule) :failures)
+           collect (format nil "~d  ~a   ~a: ~a" (vikix-rule-number rule)
+                           (vikix-one-line (vikix-rule-text rule) 120) (vikix-rule-from rule)
+                           (vikix-rule-last-error rule)))
+   (loop for rule in *vikix-rules*
+         for missing = (remove-if (lambda (w) (ignore-errors (vikix-rule-find-workspace w)))
+                                  (remove-if-not (lambda (w) (or (integerp w) (stringp w)))
+                                                 (vikix-rule-workspaces rule)))
+         when missing
+           collect (format nil "~d  ~a   ~a: no workspace ~{~s~^, ~}" (vikix-rule-number rule)
+                           (vikix-one-line (vikix-rule-text rule) 120) (vikix-rule-from rule) missing))))
+
+;;; For bin/vikix-rules: one door, its words checked here
+
+(defun vikix-rules-cli (what &optional (arg ""))
+  "What `vikix rules WHAT ARG` prints. ARG is a string, as typed."
+  (let ((arg (string-trim " " (princ-to-string (or arg "")))))
+    (flet ((one ()
+             (let ((rule (and (plusp (length arg)) (vikix-rule-called arg))))
+               (when (and rule (not (eq (vikix-rule-on rule) :open)))
+                 (error "Rule ~d isn't a rule for a window opening, so there is nothing to try it on: ~a"
+                        (vikix-rule-number rule) (vikix-one-line (vikix-rule-text rule) 80)))
+               rule))
+           (say (text) (format t "~a~%" (string-right-trim '(#\Newline) text))))
+      (cond ((equal what "list") (say (vikix-rules-text)))
+            ((member what '("off" "on") :test #'equal)
+             (let ((rule (vikix-rule-switch (vikix-rule-called arg) (equal what "on"))))
+               (say (format nil "~a~@[~%        ~a~]" (vikix-rule-listed rule 200) (vikix-rule-state-line rule)))))
+            ((equal what "why")
+             (say (format nil "~{~a~^~%~}" (mapcar #'vikix-rules-why-text (vikix-rules-windows-called arg)))))
+            ((equal what "test") (say (vikix-rules-test-text (one))))
+            ((equal what "apply") (say (vikix-rules-apply (one))))
+            ((equal what "verbs") (say (vikix-rules-verbs-text)))
+            (t (error "vikix rules: list, off, on, why, test, apply or verbs; not ~s." what)))
+      (values))))
+
+;;; Super+m, Rules
+
+(defun vikix-rules-carets (text)
+  "TEXT for StumpWM's messages and menus, where ^ starts a colour: a rule's
+own carets (a pattern's \"^regex$\") written so they show."
+  (ppcre:regex-replace-all "\\^" text "^^"))
+
+(defun vikix-rules-show (text)
+  "TEXT as a message that stays until a key: its first lines, when it is long."
+  (let* ((lines (ppcre:split "\\n" text))
+         (shown (subseq lines 0 (min (length lines) 40)))
+         (*timeout-wait* 60))
+    (message "~{~a~^~%~}~:[~;~%... (the rest: vikix rules, in a terminal)~]"
+             (mapcar (lambda (line) (vikix-rules-carets (vikix-one-line line 150))) shown)
+             (> (length lines) 40))))
+
+(defun vikix-rules-menu-rule (rule)
+  "What to do with RULE, picked in the menu."
+  (let ((choice (vikix-ask (vikix-rules-carets (vikix-one-line (vikix-rule-text rule) 120))
+                           (remove nil
+                                   (list (if (vikix-rule-on-p rule)
+                                             '("Switch it off, until the next reload" :off)
+                                             '("Switch it on" :on))
+                                         (and (eq (vikix-rule-on rule) :open)
+                                              '("Run it on the windows open now" :apply))
+                                         (and (vikix-rule-file rule)
+                                              '("Open it in Emacs, at its line" :edit))
+                                         '("Nothing" nil))))))
+    (case choice
+      (:off (vikix-rule-switch rule nil)
+       (message "Off, until the next reload: ~a" (vikix-rules-carets (vikix-one-line (vikix-rule-text rule) 120))))
+      (:on (vikix-rule-switch rule t)
+       (message "On: ~a" (vikix-rules-carets (vikix-one-line (vikix-rule-text rule) 120))))
+      (:apply (vikix-rules-show (vikix-rules-apply rule)))
+      (:edit (vikix-open-in-emacs (vikix-rule-file rule) (vikix-rule-line rule))))))
 
 (defcommand vikix-rules () ()
-  "Show the desktop's rules: which are on, whose each is, how often it ran."
-  (if *vikix-rules*
-      (message "Rules (~~/.stumpwm.d/rules.lisp, user.lisp)~%~{~a~^~%~}" (vikix-rules-lines))
-      (message "No rules yet. One looks like this, in ~~/.stumpwm.d/rules.lisp or user.lisp:~%(when-window (:class \"Firefox\") (workspace 2))")))
+  "The desktop's rules: which are on, how often each ran, why the window
+in front is where it is; switch one off or on, run them on the open windows."
+  (if (null *vikix-rules*)
+      (message "No rules yet. One looks like this, in ~~/.stumpwm.d/rules.lisp or user.lisp:~%(when-window (:class \"Firefox\") (workspace 2))")
+      (let* ((window (current-window))
+             (choice (vikix-ask "Rules"
+                                (append
+                                 (and window
+                                      (list (list (format nil "Why is this window where it is? (~a)" (window-class window)) :why)))
+                                 '(("What the rules would do with the windows open now (nothing is done)" :test)
+                                   ("Run the rules on the windows open now" :apply)
+                                   ("What a rule can match and do" :verbs))
+                                 (mapcar (lambda (rule) (list (vikix-rules-carets (vikix-rule-listed rule 100)) rule)) *vikix-rules*)))))
+        (cond ((eq choice :why) (vikix-rules-show (vikix-rules-why-text window)))
+              ((eq choice :test) (vikix-rules-show (vikix-rules-test-text)))
+              ((eq choice :apply) (vikix-rules-show (vikix-rules-apply)))
+              ((eq choice :verbs) (vikix-rules-show (vikix-rules-verbs-text)))
+              ((vikix-rule-p choice) (vikix-rules-menu-rule choice))))))

@@ -112,7 +112,17 @@ A plain string matches exactly that and nothing longer. `(:has "fox")` matches a
 
 Anything else in a rule is Lisp of your own, where `(window)` is the window. Between the matcher and the verbs a rule can have options: `:once t` (only the first window that matches: Firefox to workspace 2 when you log in, later windows where you are), `:on :focus` or `:on :close` (when the window gets the focus, or goes, instead of when it opens), and `:name "..."`.
 
-`Super+m` → *All commands* → `vikix-rules` lists your rules: which are on, whose each is, and how often it ran. A misspelt verb is found when the file loads, with its line, like any mistake in `user.lisp`. A rule that fails when a window opens never stops the desktop: it says so, the error is kept in `~/.local/state/vikix/errors/`, and after three failures the rule is off until the next reload. Reloading doesn't move the windows you already have.
+`vikix rules`, in a terminal, lists your rules: each one's number, whether it's on, how often it ran and when last, and where it's written. `Super+m` → *Rules* is the same list in a menu. From either you can ask of them:
+
+| Command | What it does |
+|---|---|
+| `vikix rules why` | why the window in front is where it is: the rules that ran for it, and those that match it but haven't run, each with the reason (`vikix rules why Firefox` for the windows of a class) |
+| `vikix rules test` | what the rules would do with the windows open now, doing nothing (`vikix rules test 3` for one rule) |
+| `vikix rules apply` | do it. A reload never moves the windows you already have; this does (`vikix rules apply 3` for one rule) |
+| `vikix rules off 3` | switch a rule off until the next reload, by its number, its `:name`, or words only it has; `vikix rules on 3` brings it back |
+| `vikix rules verbs` | everything a rule can be, match and do, each with its line |
+
+A misspelt verb is found when the file loads, with its line, like any mistake in `user.lisp`. A rule that fails when a window opens never stops the desktop: it says so, the error is kept in `~/.local/state/vikix/errors/`, and after three failures the rule is off until the next reload. Reloading doesn't move the windows you already have.
 
 Rules run in the order they're written, Vikix's first, then `rules.lisp`, then `user.lisp`; when two send a window to different workspaces, the last one wins.
 
@@ -140,7 +150,7 @@ The same file, the same verbs (those that need no window: `run`, `command`, `not
 | `(at-login ...)` | Once each login |
 | `(when-workspace 3 ...)` | Each time you go to that workspace: a number, a name, or a list of them |
 
-They're checked every 30 seconds, so a time is met within half a minute. They're listed with the others (`vikix-rules`), and a mistake or a failure is treated the same way.
+They're checked every 30 seconds, so a time is met within half a minute. They're listed with the others (`vikix rules`), can be switched off and on the same way, and a mistake or a failure is treated the same way.
 
 ### Saved layouts
 

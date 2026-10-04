@@ -45,6 +45,10 @@
 #                       which window is where) saved, put back (the windows it
 #                       had that aren't open started, unless --no-start),
 #                       listed, removed
+#   vikix rules [off|on N] [why [CLASS]] [test|apply [N]] [verbs]
+#                       the desktop's rules: the list, one off or on, why a
+#                       window is where it is, what they'd do with the windows
+#                       open now, and doing it (vikix rules help)
 #   vikix viri [on|off]  this workspace as a strip that scrolls sideways
 #                       (Super+h/l along it), or tiled again; no word switches
 #   vikix eval FORM     run Lisp in the running StumpWM, print the result
@@ -579,6 +583,23 @@ cmd_doctor() {
         printf '%s\n' "$offrule" | sed 's/^/     /'
       else
         say "every key keeps the rule for keys"
+      fi
+      # The rules (rules.lisp): one that failed three times is switched off
+      # until the next reload, which is easy to miss. One naming a workspace
+      # that isn't there is said, not counted: a project's workspace is only
+      # there while the project is open.
+      local rules_off rules_nowhere
+      rules_off=$(python3 "$VIKIX_DIR/bin/vikix-eval" '(when (fboundp (quote vikix-rules-problems)) (dolist (l (vikix-rules-problems)) (format t "~a~%" l)))' 2>/dev/null | grep -v '^=> ' || true)
+      rules_nowhere=$(python3 "$VIKIX_DIR/bin/vikix-eval" '(when (fboundp (quote vikix-rules-problems)) (dolist (l (nth-value 1 (vikix-rules-problems))) (format t "~a~%" l)))' 2>/dev/null | grep -v '^=> ' || true)
+      if [ -n "$rules_off" ]; then
+        warn "a rule is switched off after failing three times (vikix rules on N tries it again; what failed: ~/.local/state/vikix/errors/):"
+        printf '%s\n' "$rules_off" | sed 's/^/     /'; ok=0
+      else
+        say "no rule is switched off after failing"
+      fi
+      if [ -n "$rules_nowhere" ]; then
+        warn "a rule names a workspace that isn't there now:"
+        printf '%s\n' "$rules_nowhere" | sed 's/^/     /'
       fi
     else
       warn "vikix eval can't reach StumpWM (is it running? reload it: Super+m, Reload config)"; ok=0
@@ -1448,6 +1469,7 @@ main() {
     version)     cat "$VIKIX_DIR/VERSION" ;;
     eval)        shift; exec python3 "$VIKIX_DIR/bin/vikix-eval" "$@" ;;
     layout)      shift; cmd_layout "$@" ;;
+    rules)       shift; exec "$VIKIX_DIR/bin/vikix-rules" "$@" ;;
     viri)        shift
                  case ${1:-} in ''|on|off) ;; *) die "vikix viri: on, off, or nothing to switch" ;; esac
                  python3 "$VIKIX_DIR/bin/vikix-eval" "(run-commands \"vikix-viri ${1:-}\")" >/dev/null ||

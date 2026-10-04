@@ -303,6 +303,7 @@ vikix mcp unregister   # take it away
 |---|---|
 | desktop | The workspaces and their windows, the screens, the theme |
 | keys | Every key Vikix binds, and what it does |
+| rules | The desktop's rules (each one's number, on or off, where it's written, how often it ran), and for a window you name, which rules ran for it and which match it but haven't. Nothing is switched or run |
 | doctor, history, changes, themes, version | What `vikix doctor`, `vikix history`, `vikix changes`, `vikix theme` and `vikix version` say |
 | notify | Shows a notification, marked as the agent's |
 | snapshot | Records your settings before a change |

@@ -20,8 +20,9 @@ allow" for vikix), and the agent can look at the desktop and make small,
 undoable changes without asking each time, while other commands still ask.
 
 The tools, a fixed set:
-  read only   desktop (workspaces, windows, screens, theme), keys, doctor,
-              history, changes, themes, version
+  read only   desktop (workspaces, windows, screens, theme), keys, rules
+              (the desktop's rules, and why a window is where it is),
+              doctor, history, changes, themes, version
   small acts  notify, snapshot, set_theme, switch_workspace, focus_window:
               each checked against what's there, and easy to take back
   off unless  eval (any Lisp in the window manager: --allow-eval) and
@@ -218,6 +219,50 @@ KEYS_FORM = JSON_HELPERS % r"""
 """
 
 
+RULES_FORM = JSON_HELPERS % r"""
+  (if (not (fboundp 'vikix-rules-list))
+      "null"
+      (labels ((long (s) (let ((s (princ-to-string (or s "")))) (subseq s 0 (min 600 (length s)))))
+               (word (k) (str (string-downcase (princ-to-string k))))
+               (or-null (x) (or x "null"))
+               (rule (r)
+                 (format nil "{\"number\":~d,\"on\":~a,\"off\":~a,\"rule\":~a,\"name\":~a,\"from\":~a,\"runs_on\":~a,\"runs\":~d,\"last_run\":~a,\"last_error\":~a}"
+                   (getf r :number) (bool (getf r :on))
+                   (case (getf r :off)
+                     (:you (str "by the user, until the next reload"))
+                     (:failures (str "after failing three times, until the next reload"))
+                     (t "null"))
+                   (str (long (getf r :text)))
+                   (or-null (and (getf r :name) (str (short (getf r :name)))))
+                   (str (getf r :from)) (word (getf r :event)) (getf r :runs)
+                   (or-null (and (getf r :last-run) (str (funcall 'vikix-rules-when (getf r :last-run)))))
+                   (or-null (and (getf r :last-error) (str (short (getf r :last-error)))))))
+               (why (w)
+                 (multiple-value-bind (ran waiting) (funcall 'vikix-rules-why w)
+                   (format nil "{\"window\":~a,\"ran\":[~{~a~^,~}],\"match_but_have_not_run\":[~{~a~^,~}]}"
+                     (str (short (funcall 'vikix-rules-window-line w)))
+                     (mapcar (lambda (e)
+                               (destructuring-bind (stamp event rule key failure) e
+                                 (format nil "{\"at\":~a,\"on\":~a,\"rule\":~a,\"text\":~a,\"failed\":~a}"
+                                   (or-null (and stamp (str (funcall 'vikix-rules-when stamp))))
+                                   (or-null (and event (word event)))
+                                   (or-null (and rule (format nil "~d" (funcall 'vikix-rule-number rule))))
+                                   (str (long (if rule (funcall 'vikix-rule-text rule) key)))
+                                   (or-null (and failure (str (short failure)))))))
+                             ran)
+                     (mapcar (lambda (e)
+                               (format nil "{\"rule\":~d,\"text\":~a,\"why_not\":~a}"
+                                 (funcall 'vikix-rule-number (first e))
+                                 (str (long (funcall 'vikix-rule-text (first e))))
+                                 (str (cdr (assoc (second e) (symbol-value '*vikix-rule-waiting-words*))))))
+                             waiting)))))
+        (let ((w %WINDOW%))
+          (format nil "{\"rules\":[~{~a~^,~}],\"why\":~a}"
+            (mapcar #'rule (funcall 'vikix-rules-list))
+            (if w (why w) "null")))))
+"""
+
+
 def desktop():
     try:
         return json.loads(evaluate(DESKTOP_FORM))
@@ -394,7 +439,9 @@ def t_switch_workspace(a):
     return f"on workspace {name}"
 
 
-def t_focus_window(a):
+def window_named(a):
+    """The window an agent names by its workspace's name and its number,
+    checked against the desktop: (NAME, NUMBER), both as the desktop has them."""
     name = str(a.get("workspace", ""))
     number = a.get("number")
     if not isinstance(number, int) or isinstance(number, bool) or not 0 <= number < 1000:
@@ -405,6 +452,31 @@ def t_focus_window(a):
     there = [w["number"] for w in ws[name]["windows"]]
     if number not in there:
         raise ToolError(f"workspace {name} has no window {number}; it has: {', '.join(map(str, there)) or 'none'}")
+    return name, number
+
+
+def t_rules(a):
+    window = "nil"
+    asked = a.get("workspace") is not None or a.get("number") is not None
+    if asked:
+        name, number = window_named(a)
+        window = (f"(let ((g (find-group (current-screen) {lisp_string(name)}))) "
+                  f"(and g (find {number} (group-windows g) :key #'window-number)))")
+    try:
+        found = json.loads(evaluate(RULES_FORM.replace("%WINDOW%", window)))
+    except ValueError:
+        raise ToolError("the window manager's answer wasn't the rules")
+    if found is None:
+        raise ToolError("this desktop was started before it could list its rules: reload it (Super+m, Reload config)")
+    if not asked:
+        del found["why"]
+    elif found["why"] is None:
+        raise ToolError("that window isn't there any more")
+    return json.dumps(found, indent=1, ensure_ascii=False)
+
+
+def t_focus_window(a):
+    name, number = window_named(a)
     evaluate(f"(let* ((g (find-group (current-screen) {lisp_string(name)})) "
              f"(w (find {number} (group-windows g) :key #'window-number))) "
              f"(switch-to-group g) (when w (focus-all w)) t)")
@@ -511,6 +583,15 @@ TOOLS = [
      READ, t_changes),
     ("themes", "Themes", "The current colour theme and the ones there are.", schema(), READ, t_themes),
     ("version", "Vikix's version", "The installed Vikix version.", schema(), READ, t_version),
+    ("rules", "The desktop's rules, and why a window is where it is",
+     "The rules of the desktop (when-window, at, each ... in the user's rules.lisp and user.lisp, Vikix's and "
+     "plugins'): each one's number, whether it is on (and why not), the rule as written, where it is written, "
+     "how often it ran since the last reload and when last, its last error. With a window (its workspace's name "
+     "and its number, as desktop gives them): the rules that ran for it, and those that match it but haven't "
+     "run, each with why. Read only: nothing is switched or run." + DATA,
+     schema({"workspace": {"type": "string", "description": "with number: the window to explain"},
+             "number": {"type": "integer", "minimum": 0}}),
+     READ, t_rules),
     ("records_search", "Search the record store",
      "What the user's Vikix plugins found and kept (vikix records): flight searches and prices, meetings, Claude "
      "plan use ... Full text over titles and bodies, newest first; without a query, the newest (of a plugin, "

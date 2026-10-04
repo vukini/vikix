@@ -4,7 +4,8 @@
 #   it answers initialize (the client's protocol version, or its own), ping,
 #   tools/list, tools/call, and no-method and not-JSON errors; notifications
 #   get no answer; the read-only tools read the window manager through fixed
-#   forms; eval and undo exist only when switched on; what an agent sends
+#   forms (the desktop, the keys, the rules and why a window is where it
+#   is); eval and undo exist only when switched on; what an agent sends
 #   is checked against the desktop (a workspace that exists, a theme there
 #   is, a number) and never reaches Lisp or a shell otherwise; every call
 #   is logged; register adds it to Claude Code with the flags asked for
@@ -50,6 +51,19 @@ if "workspaces" in form:
             {"number": 0, "title": 'a "quoted" \\ title => not the end', "class": "Alacritty", "focused": True}]},
         {"name": "web", "number": 2, "current": False, "windows": []}],
         "screens": [{"number": 0, "x": 0, "y": 0, "width": 1920, "height": 1080}]})))
+elif "vikix-rules-list" in form:
+    if os.path.exists(t + "/old-desktop"):   # one started before it could list its rules
+        print(lisp("null"))
+    else:
+        why = None
+        if "(find 0 (group-windows g)" in form:
+            why = {"window": 'Alacritty "a title" (workspace 1, window 0)',
+                   "ran": [{"at": "09:14", "on": "open", "rule": 1, "text": '(when-window (:class "Alacritty") (title "t"))', "failed": None}],
+                   "match_but_have_not_run": []}
+        print(lisp(json.dumps({"rules": [
+            {"number": 1, "on": True, "off": None, "rule": '(when-window (:class "Alacritty") (title "t"))', "name": None,
+             "from": "rules.lisp:2", "runs_on": "open", "runs": 3, "last_run": "09:14", "last_error": None}],
+            "why": why})))
 elif "(+ 1 2)" in form:
     print("=> 3")
 elif "(car nil nil)" in form:
@@ -110,7 +124,7 @@ check "not JSON should be -32700: $out" test "$(field '["error"]["code"]' <<<"$o
 # The tools: eval and undo only when switched on.
 names() { rpc "$@" -- '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python3 -c 'import json,sys; print(" ".join(t["name"] for t in json.loads(sys.stdin.readline())["result"]["tools"]))'; }
 list=$(names)
-check "the read-only tools should be there: $list" grep -q 'desktop keys doctor history changes themes version' <<<"$list"
+check "the read-only tools should be there: $list" grep -q 'desktop keys doctor history changes themes version rules' <<<"$list"
 check "eval shouldn't be there by default: $list" test -z "$(grep -ow 'eval\|undo' <<<"$list" || true)"
 check "--allow-eval should add eval: $(names --allow-eval)" grep -qw eval <<<"$(names --allow-eval)"
 check "--allow-undo should add undo: $(names --allow-undo)" grep -qw undo <<<"$(names --allow-undo)"
@@ -118,7 +132,7 @@ out=$(call eval '{"form":"(run-shell-command \"touch pwned\")"}')
 check "eval without --allow-eval should be refused: $out" grep -q '^ERROR: no tool' <<<"$out"
 check "a refused eval ran something" test ! -e "$t/forms"
 ro=$(rpc -- '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python3 -c 'import json,sys; print(" ".join(t["name"] for t in json.loads(sys.stdin.readline())["result"]["tools"] if t["annotations"]["readOnlyHint"]))')
-check "the read tools should say they only read: $ro" test "$ro" = "desktop keys doctor history changes themes version records_search records_get docs_search docs_read"
+check "the read tools should say they only read: $ro" test "$ro" = "desktop keys doctor history changes themes version rules records_search records_get docs_search docs_read"
 
 # Reading the desktop.
 out=$(call desktop '{}')
@@ -129,6 +143,26 @@ out=$(call keys '{}')
 check "keys should give the bindings: $out" grep -q 's-RET' <<<"$out"
 out=$(call themes '{}')
 check "themes should list them: $out" grep -q '"paper"' <<<"$out"
+# The rules: the list alone, or with why for a window that is there.
+out=$(call rules '{}')
+check "rules should give the list: $out" grep -q '"from": "rules.lisp:2"' <<<"$out"
+check "rules without a window shouldn't have a why: $out" bash -c "! grep -q '\"why\"' <<<'$out'"
+: > "$t/forms"
+out=$(call rules '{"workspace":"x\") (run-shell-command \"touch pwned","number":0}')
+check "rules for a workspace that isn't there should be refused: $out" grep -q '^ERROR: no workspace' <<<"$out"
+check "a refused workspace shouldn't reach Lisp: $(cat "$t/forms")" test -z "$(grep -v 'workspaces' "$t/forms" || true)"
+out=$(call rules '{"workspace":"1"}')
+check "rules for a window without its number should be refused: $out" grep -q '^ERROR: number' <<<"$out"
+out=$(call rules '{"workspace":"1","number":5}')
+check "rules for a window that isn't there should be refused: $out" grep -q '^ERROR: workspace 1 has no window 5' <<<"$out"
+out=$(call rules '{"workspace":"1","number":0}')
+check "rules for a window should say what ran for it: $out" grep -q '"at": "09:14"' <<<"$out"
+check "the window should be found by its workspace's name, as a Lisp string, and its number: $(tail -1 "$t/forms" | cut -c1-80)" \
+  grep -qF '(find-group (current-screen) "1"))) (and g (find 0 (group-windows g) :key' "$t/forms"
+touch "$t/old-desktop"
+out=$(call rules '{}')
+check "a desktop started before the rules tool should say to reload: $out" grep -q '^ERROR: .*reload it' <<<"$out"
+rm -f "$t/old-desktop"
 
 # Acting: checked against what's there.
 : > "$t/forms"
@@ -251,6 +285,7 @@ if command -v sbcl >/dev/null && [ -f "$ql" ]; then
   call keys '{}' >/dev/null
   call switch_workspace '{"name":"web"}' >/dev/null
   call focus_window '{"workspace":"1","number":0}' >/dev/null
+  call rules '{"workspace":"1","number":0}' >/dev/null
   set +e
   out=$(FORMS="$t/forms.d/" sbcl --noinform --no-sysinit --no-userinit --non-interactive --load "$ql" \
     --eval '(handler-case (ql:quickload :stumpwm :silent t) (error () (sb-ext:exit :code 2)))' \

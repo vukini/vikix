@@ -108,6 +108,111 @@ LISP
 (when-window (:class "Loops") (vikix-rules-for (window) :open))
 LISP
 
+  # Seeing and steering them (vikix rules): loaded last, by the checks below.
+  cat > "$t/seeing.lisp" <<'LISP'
+(in-package :stumpwm)
+(when-window (:class "Seen") :name "seen-rule" (note :seen))
+(when-window (:class "Seen") :on :focus (note :seen-focus))
+(when-window (:class "Seen" :title "never") (note :other))
+(when-window (:class "SeenBreaks") (error "seen breaks"))
+(when-window (:class "Seen") :once t :name "seen-once" (note :once))
+(at "09:00" :name "seen-at" (say "x"))
+(when-window (:class "Elsewhere") (workspace 77))
+
+(defun refusal (what)
+  "The words vikix-rule-called refuses WHAT with."
+  (princ-to-string (nth-value 1 (ignore-errors (vikix-rule-called what)))))
+
+(let* ((rule (vikix-rule-called "seen-rule"))
+       (n (vikix-rule-number rule))
+       (w (win "Seen")))
+  (check "a rule is found by its name, its number, and words only its text has"
+         (and (eq rule (vikix-rule-called (princ-to-string n)))
+              (eq (vikix-rule-called "seen breaks") (rule-of "seen breaks"))))
+  (check "a name no rule has, a number past the end, words two rules have and no word at all are refused, each saying why"
+         (and (search "No rule is called" (refusal "no such rule"))
+              (search "There is no rule 9999" (refusal "9999"))
+              (search "There is no rule 0" (refusal "0"))
+              (search "say which by its number" (refusal "Seen"))
+              (search "Which rule" (refusal ""))))
+  (check "the list has every rule, with its number, its name and where it is written"
+         (let ((listed (vikix-rules-list)))
+           (and (= (length listed) (length *vikix-rules*))
+                (equal (getf (nth (1- n) listed) :name) "seen-rule")
+                (eql (getf (nth (1- n) listed) :number) n)
+                (search "seeing.lisp:2" (getf (nth (1- n) listed) :from)))))
+  (opens w)
+  (check "it ran, and its line of the list says so"
+         (and (= 1 (vikix-rule-runs rule)) (search "  1×  " (vikix-rule-listed rule))
+              (not (search "never" (vikix-rule-listed rule)))))
+  (let ((failures (vikix-rule-failures (rule-of "the matcher breaks"))))
+    (multiple-value-bind (ran waiting) (vikix-rules-why w)
+      (check "why: the rules that ran for the window, oldest first, each with what set it off and when"
+             (and (equal (mapcar (lambda (e) (vikix-rule-name (third e))) ran) '("seen-rule" "seen-once"))
+                  (every (lambda (e) (and (eq (second e) :open) (integerp (first e)) (null (fifth e)))) ran)))
+      (check "why: a rule that matches it and runs on focus is waiting for that"
+             (eq (second (find (rule-of "(note :seen-focus)") waiting :key #'first)) :on-focus))
+      (check "why: a rule that doesn't match it isn't named"
+             (not (find (rule-of "(note :other)") waiting :key #'first))))
+    (check "looking is never a rule's failure, even with a matcher of yours that breaks"
+           (= failures (vikix-rule-failures (rule-of "the matcher breaks")))))
+  (check "why, in words: what ran, and what waits with its reason"
+         (let ((text (vikix-rules-why-text w)))
+           (and (search "Rules that ran for it" text) (search "on open" text)
+                (search "it runs when the window gets the focus" text))))
+  (let ((later (win "Seen")))
+    (vikix-rule-switch rule nil)
+    (multiple-value-bind (ran waiting) (vikix-rules-why later)
+      (check "why: for a window no rule ran for, each rule that matches says why not"
+             (and (null ran)
+                  (eq (second (find rule waiting :key #'first)) :off-you)
+                  (eq (second (find (vikix-rule-called "seen-once") waiting :key #'first)) :once-done))))
+    (check "off, it doesn't run, and the list says by whom and until when"
+           (and (null (member :seen (opens later)))
+                (eq (vikix-rule-off-reason rule) :you)
+                (search "switched off by you, until the next reload" (vikix-rule-state-line rule))))
+    (vikix-rule-switch rule t)
+    (check "on again, it runs" (member :seen (opens (win "Seen")))))
+  (check "a window no rule is about: nothing ran, nothing matches"
+         (search "No rule matches it either" (vikix-rules-why-text (win "NothingAboutThis" :title "x"))))
+  (let ((busy (win "Seen")))
+    (dotimes (i 30) (vikix-rules-focus-window busy nil))
+    (check "a window keeps only its last few notes"
+           (= (length (gethash busy *vikix-rule-notes*)) *vikix-rule-notes-kept*)))
+  (let ((breaks (rule-of "seen breaks")) (bw (win "SeenBreaks")))
+    (dotimes (i 3) (opens bw))
+    (check "why: a failure is noted on the window, with the error's words"
+           (search "seen breaks" (or (fifth (first (vikix-rules-why bw))) "")))
+    (check "a rule switched off after failing says so, and is named for vikix doctor"
+           (and (eq (vikix-rule-off-reason breaks) :failures)
+                (search "switched off after 3 failures" (vikix-rule-state-line breaks))
+                (find "seen breaks" (vikix-rules-problems) :test #'search)))
+    (vikix-rule-switch breaks t)
+    (check "switched on again, it has three more tries and vikix doctor lets it be"
+           (and (vikix-rule-on-p breaks) (zerop (vikix-rule-failures breaks))
+                (not (find "seen breaks" (vikix-rules-problems) :test #'search)))))
+  (check "a rule naming a workspace that isn't there is named for vikix doctor"
+         (find "no workspace 77" (nth-value 1 (vikix-rules-problems)) :test #'search))
+  (check "the list, in words: a header, a line a rule, and the reason under one that is off"
+         (let ((text (with-output-to-string (*standard-output*) (vikix-rules-cli "list"))))
+           (and (search "the rule, and where it is written" text)
+                (search "(at \"09:00\" :name \"seen-at\" (say \"x\"))" text)
+                (search "switched off after 3 failures" text)
+                (search "since the last reload" text))))
+  (check "the verbs, the matchers and the rules, each with its line"
+         (let ((text (vikix-rules-verbs-text)))
+           (and (search "(float &key width height x y corner)" text)
+                (search ":where FUNCTION" text) (search "(at-login VERB...)" text)
+                (search "(note what)" text)
+                (every (lambda (name) (search (format nil "  (~a" name) text)) (vikix-rule-verb-names)))))
+  (check "test and apply take a rule for a window opening, and say so of any other"
+         (search "isn't a rule for a window opening"
+                 (princ-to-string (nth-value 1 (ignore-errors (vikix-rules-cli "test" "seen-at"))))))
+  (check "a word vikix rules doesn't know is refused"
+         (search "list, off, on, why, test, apply or verbs"
+                 (princ-to-string (nth-value 1 (ignore-errors (vikix-rules-cli "frobnicate")))))))
+LISP
+
   local out
   out=$(HOME="$t/home" VIKIX_STATE="$t/state" DISPLAY='' sbcl --noinform --non-interactive --load "$ql/setup.lisp" \
     --eval '(ql:quickload :stumpwm :silent t)' \
@@ -255,10 +360,13 @@ LISP
               (= 160 (vikix-rule-length \" 12.5 % \" 1280 \"x\")) (null (vikix-rule-length nil 1280 \"x\"))
               (null (ignore-errors (vikix-rule-length \"65\" 1280 \"x\")))))
 
-  (check \"the list has a line a rule\" (= (length (vikix-rules-lines)) (length *vikix-rules*)))
+  ;; Seeing and steering them: its own rules and checks, in a file.
+  (handler-bind ((warning #'muffle-warning))
+    (vikix-load-forms \"$t/seeing.lisp\" \"seeing.lisp\"))
+  (check \"the checks of seeing and steering ran to their end\" (fboundp 'refusal))
   (format t \"~a~%\" (if (zerop *fails*) \"no-screen: ok\" \"no-screen: failed\")))" 2>&1) || true
   if grep -q '^no-screen: ok$' <<<"$out"; then
-    said+=("matching, mistakes found at load with their line, one rule after a second load, failing rules switched off at the third, :once, :focus and :close, plugins' rules")
+    said+=("matching, mistakes found at load with their line, one rule after a second load, failing rules switched off at the third, :once, :focus and :close, plugins' rules, the list, off and on, why a window is where it is")
   else
     echo "$out" | grep -v '^;\|^$' | tail -25
     echo "FAIL: the rules without a screen"
@@ -409,7 +517,10 @@ LISP
        (progn (clock 15 18 0 5) (tick) (= 1 (vikix-rule-failures (rule-of "18:00")))))
 (check "a rule switched off doesn't run"
        (progn (setf (vikix-rule-on-p (rule-of "\"09:00\"")) nil) (clock 16 9 0 5) (not (ran :nine))))
-(check "they are in the list with the others" (= (length (vikix-rules-lines)) (length *vikix-rules*)))
+(check "they are in the list with the others, each saying what sets it off"
+       (let ((listed (vikix-rules-list)))
+         (and (= (length listed) (length *vikix-rules*))
+              (subsetp '(:at :each :battery-below :login :workspace) (mapcar (lambda (r) (getf r :event)) listed)))))
 (check "no ticker without a screen" (null *vikix-rules-timer*))
 (format t "~a~%" (if (zerop *fails*) "timed: ok" "timed: failed"))
 LISP
@@ -627,9 +738,64 @@ LISP
     yes '(and (> (length (screen-windows (current-screen))) 5) (zerop (reduce (function +) (mapcar (function vikix-rule-runs) *vikix-rules*))))'
   ask '(vikix-rules-tick)' >/dev/null
   check "nor does at-login run again when StumpWM alone starts again, in the same login: $(logins)" test "$(logins)" = 1
+  # vikix rules, the command: it only asks the test StumpWM. The windows
+  # are there and no rule has run for them (StumpWM has just started again).
+  rules() { HOME=$home VIKIX_SWANK_PORT=$port "$here/bin/vikix-rules" "$@" 2>&1 || true; }
+  titled() { echo "(find \"$1\" (screen-windows (current-screen)) :key (function window-title) :test (function equal))"; }
+  local out rc
+  out=$(rules)
+  check "vikix rules lists them, numbered, each with where it is written: $(head -2 <<<"$out")" \
+    grep -q '^ 1  on .*(when-window (:class "ToTwo") (workspace 2))   rules.lisp:2$' <<<"$out"
+  ask "(move-window-to-group $(titled ToTwo) (find 1 (screen-groups (current-screen)) :key (function group-number)))" >/dev/null
+  out=$(rules why ToTwo)
+  check "why: a window that was there before the rule says so: $out" grep -q 'the window was here before the rule was' <<<"$out"
+  out=$(rules test 1)
+  check "test says what a rule would do with the windows open now: $out" \
+    bash -c "grep -q '^ToTwo \"ToTwo\" (workspace 1, window' <<<'$out' && grep -q 'Nothing was done: vikix rules apply 1 does it' <<<'$out'"
+  check "and does nothing: $(ask "(princ (group-number (window-group $(titled ToTwo))))")" yes "(eql 1 (group-number (window-group $(titled ToTwo))))"
+  out=$(rules apply 1)
+  check "apply runs the rule on the windows open now: $out" grep -q '^    ran     1  (when-window (:class "ToTwo") (workspace 2))' <<<"$out"
+  check "and the window went where the rule sends it" yes "(eql 2 (group-number (window-group $(titled ToTwo))))"
+  out=$(rules why ToTwo)
+  check "why, afterwards: the rule ran for it, by apply: $out" grep -q 'on apply  1  (when-window (:class "ToTwo") (workspace 2))' <<<"$out"
+  out=$(rules off 1)
+  check "off switches a rule off: $out" yes '(not (vikix-rule-on-p (first *vikix-rules*)))'
+  check "and the list says by whom, and until when" grep -q 'switched off by you, until the next reload (vikix rules on 1)' <<<"$(rules)"
+  rules on 1 >/dev/null
+  check "on switches it on again" yes '(vikix-rule-on-p (first *vikix-rules*))'
+  rc=0; out=$(HOME=$home VIKIX_SWANK_PORT=$port "$here/bin/vikix-rules" off 99 2>&1) || rc=$?
+  check "a rule that isn't there is refused, in the desktop's own words, and the command fails: $rc $out" \
+    bash -c "[ $rc != 0 ] && grep -q 'There is no rule 99: there are 14' <<<'$out'"
+  out=$(rules why NoSuchClass)
+  check "why for a class no window has names the classes there are: $out" grep -q 'No window has the class "NoSuchClass".*ToTwo' <<<"$out"
+  out=$(rules off "\") (run-shell-command \"touch $t/pwned")
+  sleep 0.3
+  check "a name with a quote and Lisp in it is only a name: $out" bash -c "[ ! -e '$t/pwned' ] && grep -q 'No rule is called' <<<'$out'"
+  check "verbs lists them with their arguments" grep -q '^  (workspace target &key follow)$' <<<"$(rules verbs)"
+  check "a word it doesn't know is refused" grep -q 'unknown: vikix rules frobnicate' <<<"$(rules frobnicate)"
+  check "vikix doctor would name the rule whose workspace isn't there" \
+    yes '(find "no workspace 42" (nth-value 1 (vikix-rules-problems)) :test (function search))'
+  check "Super+m has the rules, and the command behind it is there" \
+    yes '(and (find (quote vikix-rules) *vikix-menu* :key (function second)) (get-command-structure (quote vikix-rules) nil) t)'
+  check "a rule's own ^ shows in a message or a menu, where ^ starts a colour" yes '(equal (vikix-rules-carets "(:like \"^a$\")") "(:like \"^^a$\")")'
+  # The menu itself, its first entry picked with a key: why the window in
+  # front is where it is.
+  if command -v xdotool >/dev/null; then
+    ask "(focus-all $(titled ToTwo))" >/dev/null; sleep 0.5
+    ask '(run-commands "vikix-rules")' >/dev/null &   # waits in its menu
+    sleep 2
+    xdotool key Return
+    wait $! 2>/dev/null || true
+    sleep 0.5
+    check "the menu's first entry says why the window in front is where it is: $(ask '(princ (screen-last-msg (current-screen)))' | cut -c1-200)" \
+      yes '(search "Rules that ran for it" (princ-to-string (screen-last-msg (current-screen))))'
+  else
+    echo "rules: no xdotool here; the menu's key left out"
+  fi
+
   check "nothing asked, nothing failed, in the whole run" test -z "$(grep -il 'debugger\|unhandled' "$t/wm.log" 2>/dev/null)"
   [ "$fail" = 0 ] || diagnose
-  [ "$fail" = 0 ] && said+=("and on a screen: workspace before the window shows, float by shares of the monitor, tile, title, fullscreen, sticky, dialog, a failing rule, a reload, a restart, the ticker, at-login once")
+  [ "$fail" = 0 ] && said+=("and on a screen: workspace before the window shows, float by shares of the monitor, tile, title, fullscreen, sticky, dialog, vikix rules (the list, why, test, apply, off and on), a failing rule, a reload, a restart, the ticker, at-login once")
   return 0
 }
 

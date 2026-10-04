@@ -94,6 +94,7 @@ report() {
   fi
   section "Your features" cat "${XDG_CONFIG_HOME:-$HOME/.config}/vikix/features"
   section "Services" ls /var/service
+  section "The rules (vikix rules)" bash "$VIKIX_DIR/bin/vikix-rules"
   section "vikix doctor" bash "$VIKIX_DIR/bin/vikix" doctor
   logs_of "The session's log" --session "$session"
   logs_of "The session's log, the time before" --vikix-log "$VIKIX_STATE/session.log.old" 60

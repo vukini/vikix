@@ -302,6 +302,7 @@ Returns the window, or nil when there's none."
     ("Tray on/off: network and Bluetooth icons in the bar" vikix-tray)
     ("Find a window, any workspace" vikix-go-to-window)
     ("Gaps around windows on/off" toggle-gaps)
+    ("Rules: the list, one off or on, why this window is where it is" vikix-rules)
     ("Layout: pick this workspace's (tiles, main and stack, grid, strip)" vikix-layout-pick)
     ("This workspace as a strip that scrolls sideways (Viri), or tiled again" vikix-viri)
     ("Layout: save this workspace's, by name" vikix-layout-save-command)
