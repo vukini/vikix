@@ -204,6 +204,11 @@ out=$(call propose_file_changes '{"steps":[{"op":"trash","path":"a.txt"}]}')
 check "a relative path should be refused: $out" grep -q 'whole path' <<<"$out"
 out=$(call propose_file_changes '{"steps":[{"op":"rename","path":"/home/u/a","to":"x/y"}]}')
 check "a rename into another folder should be refused: $out" grep -q "rename's to is a name" <<<"$out"
+out=$(call propose_file_changes '{"steps":[{"op":"tag","path":"/home/u/a.pdf","to":"tender,to read"},{"op":"tag","path":"/home/u/b.pdf","to":""}]}')
+check "tags should be proposed as plan steps: $(cat "$t/proposed.lisp")" test "$(cat "$t/proposed.lisp")" = '(:tag "/home/u/a.pdf" "tender,to read")
+(:tag "/home/u/b.pdf" "")'
+out=$(call propose_file_changes '{"steps":[{"op":"tag","path":"/home/u/a.pdf"}]}')
+check "a tag step without its tags should be refused: $out" grep -q 'tag needs to' <<<"$out"
 touch "$t/refuse"
 out=$(call propose_file_changes '{"steps":[{"op":"trash","path":"/no/such"}]}')
 check "a plan the core refuses should come back with why: $out" grep -q '^ERROR: not proposed, nothing changed' <<<"$out"
