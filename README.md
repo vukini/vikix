@@ -1136,6 +1136,11 @@ The `- Build:` and `- Check:` lines are optional: they are for a project whose b
 - **Public repos** keep their log out of the repo: a repo in `~/src` with no `log.md` uses `~/src/project-logs/NAME/log.md` when there is one. That folder is not a project itself.
 - **Where it looks** is yours, in `~/.config/vikix/projects`: `root=` (as many as you like), `depth=`, `logs=`.
 
+
+### Where was I? (`vikix back`)
+
+Back at the laptop after ten minutes or more away (a break, a locked screen, a meeting), a notification says where you were: how long you were gone, the project you were on and its next step (from its log), the files with changes Emacs hasn't saved, your last command there and the last note you captured. `vikix back` in a terminal, or Super+m → *Where was I?*, says it at length, with the project's last commit and the last few commands. It is read from what's kept anyway (the screen log `vikix day` keeps, the project's log and git history, Emacs over its socket for two seconds at most, atuin's history for the project's folder or the end of `~/.bash_history`, the inbox plugin's file); nothing is written. When the last window wasn't a project's (a terminal in `~`), the project before it is the one shown. `(setf *vikix-back-after* 1800)` in `~/.stumpwm.d/user.lisp` waits half an hour instead; `nil`, never; with the screen log off (`*vikix-day-on*` nil) there's no card.
+
 ## Shell aliases
 
 **`vk` is `vikix`, shorter**, and both take less typing: a command by the start of its name when only one begins so (`vk upd`, `vk th paper`, `vk scr`), and the word after it the same way when it starts only one of that command's own (`vk docs f runit` is `vikix docs find runit`). A start that fits several says which (`vk d` → debug, diagnose, dictate, docs, doctor) and does nothing. **Tab** completes in bash: the commands, then each one's words, the themes after `theme`, the features after `add`, the plugins after `plugin add`. The guides and the agents keep saying `vikix`.

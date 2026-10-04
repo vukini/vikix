@@ -209,6 +209,7 @@ has it in `~/src/project-logs/NAME/log.md`. Git worktrees are skipped.
   "What did I do on Tuesday": `vikix day DATE --no-file`. `vikix day log`
   offers the user the log entries a day still lacks, each written on
   their yes: it's theirs to run, in a terminal.
+- Where was I: `vikix back` (bin/vikix-back) prints how long the user was away, the project they were on (or the one before a terminal in ~) with its next step and last commit, Emacs's unsaved files, their last commands there and the last inbox note; `--card` is the notification the desktop shows by itself after ten minutes away (`*vikix-back-after*`, day.lisp). Read-only.
 - `vikix project open NAME` puts the project on a workspace of its own (the one it has still, else the first empty one), opens a terminal there and the log in Emacs, and once they've come puts its saved layout back (`project-NAME`, a collection's `/` as `--`; saved when you leave that workspace, or by `vikix project save [NAME]`). Saved windows that aren't open are started again and placed.
 
 ## Checking and fixing

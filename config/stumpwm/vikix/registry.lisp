@@ -185,6 +185,9 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command project "Projects: pick one; a terminal in its folder, its log in the editor"
   :run "exec vikix-project pick" :key "s-M-p"
   :menu "Work" :label "Projects: open one (a terminal there, its log in the editor)")
+(define-vikix-command back "Where was I? The project you were on, its next step, what isn't saved"
+  :run "exec vikix-back --card" :menu "Work"
+  :label "Where was I? (the project, its next step, what isn't saved)")
 (define-vikix-command passwords "Passwords (Bitwarden): pick a login, Enter types it (vikix add bitwarden)"
   :run "exec vikix-bitwarden pick" :key "s-M-v")
 (define-vikix-command agent "AI agent in a terminal: Claude Code, or the one you chose"

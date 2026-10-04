@@ -76,6 +76,10 @@
 #   vikix today [yesterday|DATE]
 #                         what was done today across your projects (log
 #                         entries and commits), and what's next
+#   vikix back            where you were: how long away, the project and its
+#                         next step, Emacs's unsaved files, your last commands
+#                         there, the last note; shown by itself when you come
+#                         back after ten minutes away
 #   vikix day [yesterday|DATE] [--week] [--for NAME]
 #                         the day as the desktop saw it, kept as a diary in
 #                         ~/journal: how long each project had the screen,
@@ -1609,6 +1613,7 @@ main() {
     project|projects) shift; exec "$VIKIX_DIR/bin/vikix-project" "$@" ;;
     today)       shift; exec "$VIKIX_DIR/bin/vikix-project" today "$@" ;;
     day)         shift; exec "$VIKIX_DIR/bin/vikix-day" "$@" ;;
+    back)        shift; exec "$VIKIX_DIR/bin/vikix-back" "$@" ;;
     mcp)         shift; exec "$VIKIX_DIR/bin/vikix-mcp" "$@" ;;
     snapshot|changes|history|undo)
       case ${2:-} in -h|--help) history_help; exit 0 ;; esac

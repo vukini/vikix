@@ -8,6 +8,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-agent](#vikix-agent): an AI agent in this terminal, after a snapshot of your files
 - [vikix-ai](#vikix-ai): AI services on Vikix: keys, and local models
 - [vikix-ask](#vikix-ask): AI on the text you selected, anywhere on the desktop (Super+i)
+- [vikix-back](#vikix-back): where you were, when you come back to the laptop
 - [vikix-backup](#vikix-backup): your home folder, backed up with restic
 - [vikix-battery](#vikix-battery): a warning when the battery runs low
 - [vikix-bitwarden](#vikix-bitwarden): your Bitwarden vault on the desktop
@@ -98,6 +99,7 @@ The everyday command.
 - `vikix notes setup|uninstall` — ask your notes from any terminal: note index `~/Notes`, then note ask "..." (vikix-notes; on this laptop)
 - `vikix project [list|show|path|log|open|build|check|new] [NAME]` — your projects, each a folder with a log.md (in `~/src`): where each is and what's next; log NAME "what was done" adds today's entry; new NAME makes one (vikix project help)
 - `vikix today [yesterday|DATE]` — what was done today across your projects (log entries and commits), and what's next
+- `vikix back` — where you were: how long away, the project and its next step, Emacs's unsaved files, your last commands there, the last note; shown by itself when you come back after ten minutes away
 - `vikix day [yesterday|DATE] [--week] [--for NAME]` — the day as the desktop saw it, kept as a diary in `~/journal`: how long each project had the screen, its entries and commits, files moved, agents' sessions; day log offers the missing log entries (vikix day help)
 - `vikix learn [c]` — a course in the terminal: edit, save, it's checked (vikix learn c list, hint, go NN, reset NN)
 - `vikix hype setup|status|uninstall` — Hype: Markdown slides with a visual editor, in your theme's colours (vikix add hype)
@@ -178,6 +180,17 @@ AI on the text you selected, anywhere on the desktop (Super+i).
 The text is what you last highlighted (X keeps it after the highlight is gone), else the clipboard: the notification while it works shows it. Proofread, Rewrite and Translate put their result on the clipboard, to paste where you want it; Ask and Explain show the answer, in a notification when it's short, else in a terminal. Everything goes through llm (vikix ai llm), so it's all in llm logs too.
 
 Which model answers is yours to choose, in `~/.config/vikix/ai` (made on first use): a local one (free, offline, the text stays on this laptop), or Claude (better, paid, the text goes to Anthropic). It never falls back from local to Claude by itself.
+
+## vikix-back
+
+Where you were, when you come back to the laptop.
+
+- `vikix back` — how long you were away, the project you were in (its next step and last commit), the files with changes not yet saved in Emacs, your last commands there, and the last note you captured
+- `vikix back --card` — the same, short, as a notification: what the desktop shows by itself when you come back after ten minutes or more away (a break, a lock, a meeting)
+
+Everything is read from what is kept anyway: the desktop's screen log (vikix day: the workspace, project, program and folder that had the screen, and when nobody was at the keyboard), the project's log and its git history (vikix project), Emacs (asked over its socket, for two seconds at most), your shell history (atuin's, for the project's folder, when you use atuin; else the end of `~/.bash_history`) and the inbox's file (the inbox plugin). Nothing is written.
+
+The card comes when the desktop sees you back (day.lisp, every 30 seconds), so not when the screen log is off ((setf `*vikix-day-on*` nil)). Another wait: (setf `*vikix-back-after*` 1800) in `~/.stumpwm.d/user.lisp`, in seconds; nil, never.
 
 ## vikix-backup
 
