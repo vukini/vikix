@@ -77,6 +77,28 @@ assert page and "guide.css" in open(page).read(), page
 PY
 fi
 
+# Super+F2's menus, in a real rofi on a hidden screen: the words, then the
+# hits; Enter opens one, Ctrl+Enter the other way (once refused by rofi,
+# which had Ctrl+Enter bound already).
+if command -v Xvfb >/dev/null && command -v rofi >/dev/null && command -v xdotool >/dev/null; then
+  n=$(( 100 + RANDOM % 400 ))
+  while [ -e "/tmp/.X$n-lock" ] || [ -e "/tmp/.X11-unix/X$n" ]; do n=$((n + 1)); done
+  Xvfb ":$n" -screen 0 1024x768x24 -nolisten tcp >/dev/null 2>&1 &
+  xvfb=$!
+  sleep 1
+  printf '#!/bin/sh\necho "browser $*" >> %s/opened\n' "$t" > "$t/bin/notify-send"; chmod +x "$t/bin/notify-send"
+  for way in Return ctrl+Return; do
+    : > "$t/opened"
+    ( sleep 1.5; DISPLAY=":$n" xdotool type mypy; DISPLAY=":$n" xdotool key Return
+      sleep 1.5; DISPLAY=":$n" xdotool key "$way" ) &
+    keys=$!
+    DISPLAY=":$n" timeout 20 python3 "$here/bin/vikix-docs" pick || true
+    wait "$keys" || true; sleep 0.5
+    check "Super+F2's menus: $way should open the hit: $(cat "$t/opened")" grep -q "dev/python/README.md" "$t/opened"
+  done
+  kill "$xvfb" 2>/dev/null || true
+fi
+
 # The agents: docs_search and docs_read, read only.
 python3 - "$here/bin/vikix-mcp" <<'PY' || fail=1
 import importlib.machinery, importlib.util, json, sys

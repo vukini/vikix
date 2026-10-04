@@ -496,7 +496,10 @@ def pick():
     if not hits:
         subprocess.run(["notify-send", "-a", "Docs", "Nothing found", f"for: {words}"])
         return 0
-    r = subprocess.run(["rofi", "-dmenu", "-i", "-p", words, "-format", "i", "-kb-custom-1", "Control+Return",
+    # Ctrl+Enter is rofi's own (kb-accept-custom): freed first, or rofi
+    # refuses to start ("already bound").
+    r = subprocess.run(["rofi", "-dmenu", "-i", "-p", words, "-format", "i",
+                        "-kb-accept-custom", "", "-kb-custom-1", "Control+Return",
                         "-mesg", "Enter opens it · Ctrl+Enter opens it the other way (a terminal, Emacs)"],
                        input="\n".join(hit_line(h) for h in hits), capture_output=True, text=True)
     if r.stdout.strip().isdigit() and r.returncode in (0, 10):
