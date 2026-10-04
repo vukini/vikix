@@ -225,7 +225,7 @@ cat > "$t/check.lisp" <<EOF
   (when (lookup-key *top-map* (kbd "s-C-3")) (fail "the old key Super+Ctrl+3 should be let go at a reload"))
   (unless (equal (lookup-key *top-map* (kbd "s-P")) "exec my-own-program")
     (fail "a key of yours on one of the old keys should stay"))
-  (unless (equal (lookup-key *top-map* (kbd "s-exclam")) "gmove 1")
+  (unless (equal (lookup-key *top-map* (kbd "s-exclam")) "vikix-send 1")
     (fail "Super+Shift+1 should send the window to workspace 1: ~s" (lookup-key *top-map* (kbd "s-exclam"))))
   (unless (equal (lookup-key *top-map* (kbd "s-S-Left")) "vikix-move left")
     (fail "Super+Shift+Left should move the window left")))

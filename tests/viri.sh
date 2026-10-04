@@ -413,5 +413,26 @@ check "Super+Shift+g brings one off the strip, into a frame: $(focus)" test "$(a
 key super+1
 check "none of them was an error: $(msgs | grep -i 'Error In Command\|not found' | head -1)" test -z "$(msgs | sed '/the window keys/,$d' | grep -i 'Error In Command\|not found')"
 
-wm_report viri "a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, the drawn overview and its keys, the agents' desktop tool, new and closed windows, a dialog, another workspace, off and on, sliding and centring, the ends and a pinned column, tabs, uneven heights, filling the screen, title bars, the mouse, the window keys on a strip"
+# A whole column to another workspace: Super+Shift+digit on a window that
+# shares its column sends the column. On a tiled workspace its windows are
+# tiled; on another strip it is one column as it was, tabs and width and all.
+there() { ask "(let ((g (find $1 (screen-groups (current-screen)) :key (function group-number)))) (setf *print-pretty* nil) (princ (if (viri-group-p g) (mapcar (lambda (c) (list (length (viri-col-windows c)) (viri-col-width c) (if (viri-tabbed-p c) (quote tabs) (quote stack)))) (viri-cols g)) (list (length (group-windows g)) (count-if (lambda (w) (typep w (quote tile-window))) (group-windows g))))))"; }
+win P; win Q; win R; key super+bracketleft     # R under Q: a column of two
+read -r _ n _ <<<"$(col)"
+left=$(ask '(princ (length (viri-columns (current-group))))')
+key super+shift+7
+check "Super+Shift+7 on a window that shares its column sends the column's $n windows, tiled there: $(there 7)" test "$(there 7) $(ask '(princ (length (viri-columns (current-group))))')" = "($n $n) $((left - n))"
+key super+8; ask '(run-commands "vikix-viri on")' >/dev/null; sleep 0.5; key super+1
+win S; win T; key super+bracketleft; key super+z; key super+r   # T and S: tabs, a step wider
+read -r _ n _ <<<"$(col)"; w=$(colwidth)
+key super+shift+8
+check "to another strip it is one column as it was, its $n windows tabs, $w wide: $(there 8)" test "$(there 8)" = "(($n $w TABS))"
+key super+8
+check "there one of them shows and the others are behind it: $(col)" test "$(col)" = "tabs $n $((n - 1))"
+key super+1
+single=$(focus); key super+shift+7
+check "a window with its column to itself goes alone, as before" test "$(ask "(princ (group-number (window-group $(find_any "$single"))))")" = 7
+check "none of it was an error: $(msgs | grep -i 'Error In Command\|not found' | head -1)" test -z "$(msgs | grep -i 'Error In Command\|not found' | head -3)"
+
+wm_report viri "a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, the drawn overview and its keys, the agents' desktop tool, new and closed windows, a dialog, another workspace, off and on, sliding and centring, the ends and a pinned column, tabs, uneven heights, filling the screen, title bars, the mouse, a whole column sent to another workspace, the window keys on a strip"
 exit "$fail"

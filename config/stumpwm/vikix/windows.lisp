@@ -184,7 +184,7 @@ below zero for a small window, and X then kills the window manager."
 
 (defun vikix-layout-command-p (command)
   (or (member command (symbol-value (find-symbol "*DEFAULT-COMMANDS*" :winner-mode)))
-      (member command '(gmove gmove-and-follow expose vikix-grid vikix-main))))
+      (member command '(gmove gmove-and-follow vikix-send expose vikix-grid vikix-main))))
 
 (defun vikix-layout-ids (name)
   "winner-mode's table NAME: workspace number → layout step."

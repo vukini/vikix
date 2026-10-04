@@ -35,6 +35,10 @@
 (defparameter *viri-default-width* 1/2
   "A new column's width.")
 
+(defvar *viri-arriving* nil
+  "While a whole column is sent to another strip: the column made for it
+there, which its windows join as they arrive.")
+
 (defvar *viri-appending* nil
   "True while a workspace becomes a strip: its windows go in at the end, in
 the order they stood, not each beside the focused one.")
@@ -493,15 +497,23 @@ true when it moved."
   (when (fboundp 'vikix-titlebar-remove)
     (funcall 'vikix-titlebar-remove window))
   ;; A new column goes right of the focused one, the way you're working.
+  ;; The windows of a column sent here whole (viri-send-column) go into
+  ;; the one column made for them, each under the last.
   (unless (or (viri-floats-p window) (viri-col-of group window))
     (let* ((cols (viri-cols group))
-           (new (make-viri-col (list window)))
+           (arriving (and *viri-arriving* (member *viri-arriving* cols) *viri-arriving*))
+           (new (or *viri-arriving* (make-viri-col (list window))))
            (at (and (not *viri-appending*)
                     (position (viri-col-of group (group-current-window group)) cols))))
-      (setf (viri-cols group)
-            (if at
-                (append (subseq cols 0 (1+ at)) (list new) (nthcdr (1+ at) cols))
-                (append cols (list new))))))
+      (if arriving
+          (setf (viri-col-windows arriving) (append (viri-col-windows arriving) (list window)))
+          (progn
+            (when *viri-arriving*
+              (setf (viri-col-windows new) (list window)))
+            (setf (viri-cols group)
+                  (if at
+                      (append (subseq cols 0 (1+ at)) (list new) (nthcdr (1+ at) cols))
+                      (append cols (list new))))))))
   (call-next-method)
   ;; A dialog in the middle; the drawer's windows have their own place.
   (when (and (viri-floats-p window)
@@ -729,6 +741,36 @@ wide as the others on the screen leave room for (vikix-fill)."
          (viri-fill (current-group)))
         ((equal how "below") (run-commands "vsplit"))
         (t (run-commands "hsplit"))))
+
+(defun viri-send-column (group col to)
+  "COL of GROUP's strip to the workspace TO, with all its windows: on a
+strip, one column there as it was here (its width, tabs or stack, the
+heights); on tiles, each window tiled (as any window from a strip is)."
+  (let ((windows (copy-list (viri-col-windows col)))
+        (shown (viri-col-window col))
+        (*viri-arriving* (and (viri-group-p to)
+                              (make-viri-col '() (viri-col-width col)))))
+    (when (and *viri-arriving* (viri-tabbed-p col))
+      (setf (gethash *viri-arriving* *viri-tabbed*) t))
+    (dolist (w windows)
+      (move-window-to-group w to))
+    (when *viri-arriving*
+      (setf (viri-col-focus *viri-arriving*) shown))
+    (length windows)))
+
+(defcommand vikix-send (to-group) ((:group "To workspace: "))
+  "Send this window to another workspace (StumpWM's gmove); on a strip, the
+whole column it is in, which stays a column there."
+  (let* ((group (current-group))
+         (window (current-window))
+         (col (and window (viri-group-p group) (viri-col-of group window))))
+    (cond ((or (null to-group) (null window)))
+          ((eq to-group group)
+           (message "It is on workspace ~a already." (group-name group)))
+          ((and col (rest (viri-col-windows col)))
+           (let ((n (viri-send-column group col to-group)))
+             (message "The column's ~d windows are on workspace ~a." n (group-name to-group))))
+          (t (move-window-to-group window to-group)))))
 
 (defun viri-fill (group)
   "The focused column as wide as the room the other columns wholly on the

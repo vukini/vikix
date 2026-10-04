@@ -104,7 +104,7 @@ ask '(vikix-bind-workspace-keys)' >/dev/null
 check "on a French keyboard, Super+Ctrl+digit: $(sends)" test "$(sends)" = "s-C-1 s-C-2 s-C-3 s-C-4 s-C-5 s-C-6 s-C-7 s-C-8 s-C-9"
 setxkbmap us; sleep 1
 ask '(vikix-bind-workspace-keys)' >/dev/null
-check "and back on a US one: $(bound s-C-2), $(bound s-at)" test "$(bound s-C-2) $(bound s-at)" = "nothing gmove 2"
+check "and back on a US one: $(bound s-C-2), $(bound s-at)" test "$(bound s-C-2) $(bound s-at)" = "nothing vikix-send 2"
 
 # A desktop that ran the keys from before the rule: a reload lets them go.
 ask '(progn (define-key *top-map* (kbd "s-E") "exec spacefm") (define-key *top-map* (kbd "s-M-a") "vikix-awake") (define-key *top-map* (kbd "s-C-Left") "vikix-move left") (define-key *top-map* (kbd "s-C-4") "gmove 4") (define-key *top-map* (kbd "s-P") "exec my-own-program"))' >/dev/null

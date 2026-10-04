@@ -54,7 +54,7 @@ tools. Every other program a key starts is on Super+Alt.")
   "What switches something on the desktop: on Super+Ctrl, and nothing else is.")
 
 (defparameter *vikix-key-movers*
-  '("vikix-move" "vikix-move-end" "move-window" "gmove" "vikix-bring-window" "global-pull-windowlist")
+  '("vikix-move" "vikix-move-end" "move-window" "gmove" "vikix-send" "vikix-bring-window" "global-pull-windowlist")
   "What moves a window: on Super+Shift.")
 
 (defvar *vikix-bind-later* nil
@@ -123,7 +123,7 @@ keyboard as it is now; the keys bound for another layout are let go."
         (ignore-errors (undefine-key *top-map* (kbd old)))))
     (loop for key in keys
           for n from 1
-          do (vikix-bind key (format nil "gmove ~d" n)))
+          do (vikix-bind key (format nil "vikix-send ~d" n)))
     (setf *vikix-workspace-send-keys* keys)))
 
 ;;; Clashes: a plugin or a web app taking a key something else has. The

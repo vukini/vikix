@@ -48,7 +48,7 @@ front, so a name like Brightness-up is never mistaken for one."
 ;; keys are bound in a loop in keys.lisp), as the help writes them.
 (defparameter *vikix-extra-keys*
   '(("Super+1 ... Super+9" "Go to workspace 1-9" "grouplist")
-    ("Super+Shift+1 ... 9" "Send window to workspace 1-9" "gmove")
+    ("Super+Shift+1 ... 9" "Send window to workspace 1-9 (on a strip: its whole column)" "vikix-send")
     ("Ctrl+t then ?" "StumpWM's own keys (after the prefix)" "vikix-prefix-keys"))
   "Each entry: the key as the help shows it, a description, the command.")
 
@@ -68,7 +68,7 @@ front, so a name like Brightness-up is never mistaken for one."
      "move-focus" "move-window" "vikix-focus" "vikix-move" "vikix-focus-end" "vikix-move-end" "vikix-pin" "vikix-viri" "vikix-width-or-remove" "vikix-height" "vikix-fill" "vikix-stack" "vikix-expose" "vikix-overview" "vikix-split" "hsplit" "vsplit" "remove" "expose" "vikix-grid" "vikix-main" "vikix-layout-pick" "vikix-solo"
      "toggle-gaps" "winner-undo" "winner-redo" "vikix-layout-undo" "vikix-layout-redo" "global-windowlist" "vikix-go-to-window"
      "global-pull-windowlist" "vikix-bring-window" "beckon" "vikix-pointer" "vikix-float" "vikix-remember" "vikix-titlebars" "vikix-title")
-    ("Workspaces" "gselect" "gmove" "grouplist")
+    ("Workspaces" "gselect" "gmove" "vikix-send" "grouplist")
     ("Notifications" "dunstctl" "vikix-notifications" "vikix-quiet")
     ("Screenshots & recording" "vikix-screenshot" "vikix-record" "vikix-capture")
     ("Sound & screen" "vikix-volume" "vikix-osd" "vikix-nightlight" "vikix-screens-pick")
