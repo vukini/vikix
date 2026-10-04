@@ -2,6 +2,17 @@
 
 Small known problems, not yet fixed. Each says what happens, what is known, and the next step. A fix removes its entry in the commit that ships it. (Larger planned work is in `TODO.md`; ideas in `IDEAS.md`.)
 
+
+## `tests/main.sh` fails in a busy parallel run, and passes alone
+
+Noted 2026-10-04, twice the same day (`tests/run.sh` with other sessions' test runs beside it, load 15 to 25).
+
+**What happens.** In `tests/run.sh` (side by side) `main` is reported FAILED; run alone straight after (`bash tests/main.sh`), on the same commit, it passes. `times` does the same for the known reason (its limits), and is in `run.sh`'s `alone` list; `main` isn't.
+
+**What's known.** Nothing in the commits under test touched layouts or windows (a pin of Esploro; `vikix memory`). `main` drives a real StumpWM on a hidden screen, so it most likely waits a fixed time for a window or a layout that a loaded machine doesn't meet.
+
+**Next step.** Run it under load (`stress-ng --cpu 16` beside it) to see which check fails, and give that wait a poll with a deadline; or add `main` to `alone` in `tests/run.sh` if it can't be made patient.
+
 ## The desktop can freeze: focus bouncing between a floating window and the tile under it
 
 Noted 2026-10-04, on main at 0.71.139, on a hidden screen (Xvfb, no picom). Not seen on a real desktop yet, but nothing about it is the test's own.
