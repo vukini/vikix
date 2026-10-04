@@ -126,16 +126,26 @@ if command -v Xvfb >/dev/null && command -v rofi >/dev/null && command -v xdotoo
 fi
 
 # The page in Nyxt: the hits as id, source, title, excerpt; the page asked of
-# a running Nyxt (a stand-in), and said so when none answers (--remote exits
-# 0 then, saying only "No instance running").
+# a running Nyxt (a stand-in); with none (--remote exits 0 then, saying only
+# "No instance running"), Nyxt started with the page's address, so it opens
+# after the restored session rather than under it; and said when it can't.
 tsv=$(d find websocket --tsv)
 check "--tsv gives four fields a line: $tsv" test -n "$tsv" -a -z "$(awk -F'\t' 'NF != 4' <<<"$tsv")"
 printf '#!/bin/sh\necho "nyxt $*" >> %s/opened\n' "$t" > "$t/bin/nyxt"; chmod +x "$t/bin/nyxt"
 : > "$t/opened"; d page 'say "hi"'
 check "the page is asked for the words: $(cat "$t/opened")" grep -qF 'nyxt --remote --quit --eval (nyxt-user::vikix-docs-show "say \"hi\"")' "$t/opened"
-printf '#!/bin/sh\necho "<INFO> No instance running."\n' > "$t/bin/nyxt"  # as Nyxt's own: exit 0
+cat > "$t/bin/nyxt" <<X
+#!/bin/sh
+case "\$1" in
+  --remote) echo "<INFO> No instance running." ;;
+  *) echo "nyxt \$*" >> "$t/opened"; mkdir -p "$t/run/nyxt"; : > "$t/run/nyxt/nyxt.socket" ;;
+esac
+X
+: > "$t/opened"; XDG_RUNTIME_DIR="$t/run" d page 'say "hi"'
+check "none running: Nyxt is started on the page: $(cat "$t/opened")" grep -qxF 'nyxt nyxt:nyxt-user::vikix-docs-page?query=say%20%22hi%22' "$t/opened"
+printf '#!/bin/sh\necho "<INFO> No instance running."\n' > "$t/bin/nyxt"  # never starts
 out=$(XDG_RUNTIME_DIR="$t/home" d page x 2>&1 || true)
-check "a Nyxt that doesn't answer is said: $out" grep -q "didn't answer" <<<"$out"
+check "a Nyxt that doesn't start is said: $out" grep -q "didn't start" <<<"$out"
 rm "$t/bin/nyxt"
 # A file gone since the last index: said, not opened as nothing.
 printf '# Gone soon\n\nephemeral words\n' > "$HOME/src/music/docs/gone.md"

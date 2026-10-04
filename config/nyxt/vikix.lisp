@@ -265,9 +265,9 @@ each function once, and only one that has fewer places than SLIME sends."
       (cond ((str:blankp query)
              (:p "Press Find, or Super+F2 anywhere."))
             ((null hits)
-             (:p (format nil "Nothing found for ~s." query)))
+             (:p (format nil "Nothing found for “~a”." query)))
             (t
-             (:p (format nil "~d found for ~s, Vikix's first, then yours, then the system's." (length hits) query))
+             (:p (format nil "~d found for “~a”, Vikix's first, then yours, then the system's." (length hits) query))
              (dolist (source *vikix-docs-sources*)
                (let ((group (remove (car source) hits :key #'second :test-not #'string=)))
                  (when group

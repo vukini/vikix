@@ -53,6 +53,7 @@ import sqlite3
 import subprocess
 import sys
 import time
+import urllib.parse
 
 HOME = os.path.expanduser("~")
 # The checkout this runs from (vikix mcp loads it without a __file__).
@@ -641,18 +642,19 @@ def page(query):
         return r.returncode == 0 and "No instance running" not in said, said
     ok, said = ask()
     if not ok:
-        nyxt = subprocess.Popen(["nyxt"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        # Started with the page's address: Nyxt opens it after putting your
+        # last session back, so it ends up in front. (Asked by --eval
+        # instead, the page came first and the restored buffers covered it.)
+        url = "nyxt:nyxt-user::vikix-docs-page?query=" + urllib.parse.quote(query, safe="")
+        nyxt = subprocess.Popen(["nyxt", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                 start_new_session=True)
         sock = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "nyxt", "nyxt.socket")
         for _ in range(60):
             if os.path.exists(sock) or nyxt.poll() is not None:
                 break
             time.sleep(0.5)
-        if nyxt.poll() is None:
-            time.sleep(2)  # the socket comes before the config is loaded
-        ok, said = ask()
-    if not ok:
-        die(f"Nyxt didn't answer: {said.strip()[-300:]}")
+        if not os.path.exists(sock):
+            die("Nyxt didn't start (run nyxt in a terminal to see why)")
     # StumpWM brings Nyxt's window forward (vikix-docs-open does the same).
     subprocess.run(["vikix", "eval", '(vikix-raise-class "Nyxt")'], capture_output=True)
     return 0
