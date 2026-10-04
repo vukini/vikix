@@ -66,7 +66,7 @@ check "a language guide opens in Emacs: $(cat "$t/opened" 2>/dev/null)" grep -q 
 
 # A man page, when there is man: read as text, opened as a styled page.
 if command -v man >/dev/null && command -v mandoc >/dev/null && man -w 1 ls >/dev/null 2>&1; then
-  VIKIX_DOCS_SOURCES=man d index --full >/dev/null
+  VIKIX_DOCS_SOURCES="man" d index --full >/dev/null
   check "a man page is read as text" grep -qi 'list directory' <<<"$(d read 'man:ls(1)')"
   python3 - "$here/bin/vikix-docs" <<'PY' || fail=1
 import importlib.util, sys
