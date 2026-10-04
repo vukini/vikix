@@ -133,7 +133,7 @@ Parts of Vikix that haven't had the code-first pass the sections above got. Each
 
 - **Security.** Worked out as `DESIGN-security.md` (2026-10-04): the four pen-test reports and TODO items 4 and 5 as one ordered plan.
 - **Your machines and your phone.** Worked out as `DESIGN-machines.md` (2026-10-04): Tailscale, Syncthing, KDE Connect and `vikix export`/`import` as one design, with `--on NAME` for the doors.
-- **Backup and restore.** `vikix backup` runs restic; could someone get a file back without a man page? Ties to "any file, as it was" above.
+- **Backup and restore.** Worked out as `DESIGN-restore.md` (2026-10-04): `vikix versions` over both histories, Esploro's "Versions…" as a plan with undo, a guided setup.
 - **The Z13 as a tablet.** Touch, pen and the detachable keyboard (TODO 58–63): what a tablet mode of a tiling desktop is. Nobody on Linux has a good answer; Viri's strip may be part of one.
 - **A first visitor's path.** The site, the install line, the first hour, the release process and GitHub Actions, seen by someone who actually tries it for the first time; the everyday-user agent on a fresh VM, start to finish.
 - **The children's account** (TODO 33). Several of today's ideas point at it: lessons in Cuis, Pascal, the education bundle, screen time, "show me how". Enough hangs off it that it would deserve its own design, later: a second login, a simpler desktop, apps chosen by the parent, nothing of the parent's reachable, a home for the programming course.
