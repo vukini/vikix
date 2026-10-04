@@ -164,6 +164,62 @@ that is tabbed and has more than one; else NIL."
     (and (viri-tabbed-p col) (rest (viri-col-windows col))
          (viri-col-windows col))))
 
+;; A column's stacked windows share its height evenly, unless one was given
+;; more or less (s-v, or the edge between two dragged). A window's weight is
+;; its share against 1 for an even one, kept in a table by the window and
+;; only for those given another: a window that joins a column takes an
+;; even share of it.
+
+(defvar *viri-weights* (make-hash-table :test 'eq :weakness :key)
+  "A window's share of its column's height, against 1 for an even share.")
+
+(defparameter *viri-height-shares* '(1/3 1/2 2/3)
+  "The shares of its column's height Super+v gives a window, each
+larger than the last; after the largest, all are even again.")
+
+(defparameter *viri-height-least* 1/10
+  "The least of its column's height a window can be given.")
+
+(defun viri-weight (window)
+  (gethash window *viri-weights* 1))
+
+(defun viri-height-share (col window)
+  "WINDOW's part of COL's height, of 1."
+  (/ (viri-weight window) (reduce #'+ (viri-col-windows col) :key #'viri-weight)))
+
+(defun viri-heights (col total)
+  "The pixels of TOTAL each of COL's windows gets, top to bottom: by their
+weights, the last one taking what's left."
+  (let ((sum (reduce #'+ (viri-col-windows col) :key #'viri-weight))
+        (used 0))
+    (loop for (w . more) on (viri-col-windows col)
+          for h = (if more (round (* total (/ (viri-weight w) sum))) (- total used))
+          collect (max 1 h)
+          do (incf used h))))
+
+(defun viri-set-share (col window share)
+  "Give WINDOW SHARE of COL's height (of 1, kept within what leaves the
+others *viri-height-least* each); the others keep their proportions in
+the rest. Weights are kept so that an even share is 1."
+  (let* ((windows (viri-col-windows col))
+         (n (length windows)))
+    (when (> n 1)
+      (let* ((share (max *viri-height-least*
+                         (min share (- 1 (* (1- n) *viri-height-least*)))))
+             (old (viri-height-share col window))
+             (shares (mapcar (lambda (w)
+                               (if (eq w window)
+                                   share
+                                   (* (viri-height-share col w) (/ (- 1 share) (- 1 old)))))
+                             windows)))
+        (loop for w in windows
+              for s in shares
+              do (setf (gethash w *viri-weights*) (* s n)))))))
+
+(defun viri-even-heights (col)
+  (dolist (w (viri-col-windows col))
+    (remhash w *viri-weights*)))
+
 (defvar *viri-pinned* (make-hash-table :test 'eq :weakness :key)
   "Each strip's pinned column, when it has one.")
 
@@ -322,21 +378,21 @@ scrolled since it was last laid out."
 (defun viri-place (group offset)
   "Every window where it belongs with the strip scrolled by OFFSET: the
 columns side by side from the strip's left end, those off the screen past
-its edges; the windows of a column one above the other, sharing its height."
+its edges; the windows of a column one above the other, sharing its height
+(viri-heights), or as tabs."
   (multiple-value-bind (ax ay aw ah) (viri-area group)
     (loop for c in (viri-cols group)
           for (x . cw) in (viri-spans group aw offset)
           for tabbed = (viri-tabbed-p c)
           for shown = (viri-col-window c)
-          for n = (max 1 (length (viri-col-windows c)))
-          for each = (floor ah n)
           do (loop for w in (viri-col-windows c)
-                   for k from 0
-                   ;; Tabs each have the whole column; stacked windows share it.
-                   for wy = (if tabbed ay (+ ay (* k each)))
-                   for wh = (cond (tabbed ah)
-                                  ((= k (1- n)) (- ah (* k each)))
-                                  (t each))
+                   for height in (viri-heights c ah)
+                   for top = 0 then (+ top above)
+                   for above = height
+                   ;; Tabs each have the whole column; stacked windows share
+                   ;; it, evenly or by the weights they were given.
+                   for wy = (if tabbed ay (+ ay top))
+                   for wh = (if tabbed ah height)
                    ;; A strip shows every column: a window the tiles had hidden
                    ;; (iconic) is shown again, now, or when the workspace is.
                    ;; But for a tabbed column's windows behind the one it shows.
@@ -660,11 +716,46 @@ to it; on tiles it comes into this frame (pull-hidden-other)."
 
 (defcommand vikix-split (&optional how) ((:string nil))
   "Split this frame in two: side by side, or with \"below\" one above the
-other. A strip has no splits to make."
-  (cond ((viri-group-p)
+other. A strip has no splits to make: there \"below\" makes this window
+taller in its column (vikix-height)."
+  (cond ((and (viri-group-p) (equal how "below"))
+         ;; The key for one above the other: on a strip, where windows stand
+         ;; so in a column, it is how much of the column this one has.
+         (viri-cycle-height (current-group)))
+        ((viri-group-p)
          (message "A strip has no splits: a new window opens beside this one, and Super+[ or Super+] puts a window under its neighbour."))
         ((equal how "below") (run-commands "vsplit"))
         (t (run-commands "hsplit"))))
+
+(defun viri-cycle-height (group)
+  "The focused window taller in its column: the next of *viri-height-shares*
+above what it has; from the largest, every window of the column even again."
+  (let* ((window (group-current-window group))
+         (col (viri-col-of group window)))
+    (cond ((null col)
+           (message "No column here."))
+          ((null (rest (viri-col-windows col)))
+           (message "This window has its column to itself: Super+[ or Super+] brings another in."))
+          ((viri-tabbed-p col)
+           (message "Tabs each have the whole column: Super+z stacks them again."))
+          (t
+           (let* ((now (viri-height-share col window))
+                  ;; Not past what leaves the others their least.
+                  (most (- 1 (* (1- (length (viri-col-windows col))) *viri-height-least*)))
+                  (next (find-if (lambda (s) (and (> s now) (<= s most))) *viri-height-shares*)))
+             (if next
+                 (viri-set-share col window next)
+                 (viri-even-heights col))
+             (viri-layout group)
+             (message "~:[The column's windows share its height evenly again~;This window: ~:*~a of its column's height~]"
+                      (and next (case next (1/3 "a third") (1/2 "half") (2/3 "two thirds") (t next)))))))))
+
+(defcommand vikix-height () ()
+  "On a strip: this window taller in its column, a third of it, half, two
+thirds, then every window of the column even again."
+  (if (viri-group-p)
+      (viri-cycle-height (current-group))
+      (message "A window's height in its column is a strip's (vikix viri).")))
 
 (defun viri-toggle-tabs (group)
   "The focused column's windows as tabs, or stacked again (Super+z on a strip)."
@@ -879,6 +970,33 @@ column, go to the tab there."
         (unless (eq tab window)
           (group-focus-window group tab))))))
 
+(defun viri-drag-height (group upper lower)
+  "The edge between UPPER and LOWER, two windows one above the other in a
+column, taken up or down with the pointer while the button is down: what
+one gains the other gives, a twentieth of the column at a time."
+  (let* ((col (viri-col-of group upper))
+         (py0 (nth-value 1 (xlib:global-pointer-position *display*)))
+         (sum (reduce #'+ (viri-col-windows col) :key #'viri-weight))
+         (both (+ (viri-weight upper) (viri-weight lower)))
+         (start (/ (viri-weight upper) sum))
+         (least *viri-height-least*)
+         (most (- (/ both sum) least)))
+    (multiple-value-bind (ax ay aw ah) (viri-area group)
+      (declare (ignore ax ay aw))
+      (viri-drag (group-screen group)
+                 (lambda (px py)
+                   (declare (ignore px))
+                   (let* ((share (max least
+                                      (min most (* *viri-width-step*
+                                                   (round (+ start (/ (- py py0) ah)) *viri-width-step*)))))
+                          (weight (* share sum)))
+                     (unless (= weight (viri-weight upper))
+                       (setf (gethash upper *viri-weights*) weight
+                             (gethash lower *viri-weights*) (- both weight))
+                       (viri-place group (viri-offset group))
+                       (xlib:display-finish-output *display*))))))
+    (viri-layout group)))
+
 (defmethod group-button-press ((group viri-group) button x y (window float-window))
   (declare (ignore x y))
   (if (not (viri-col-of group window))
@@ -895,10 +1013,23 @@ column, go to the tab there."
                  ;; window (its side edge), or above it (its title bar).
                  ;; Asked before the window is focused, which may move it.
                  (multiple-value-bind (px py) (xlib:query-pointer parent)
-                   (let ((beside (not (< -1 px (xlib:drawable-width parent))))
-                         (above (< py (xlib:drawable-y (window-xwin window)))))
+                   (let* ((beside (not (< -1 px (xlib:drawable-width parent))))
+                          (above (< py (xlib:drawable-y (window-xwin window))))
+                          ;; On its top or bottom edge, with a window of its
+                          ;; column the other side of it: the two that edge parts.
+                          (col (viri-col-of group window))
+                          (k (position window (viri-col-windows col)))
+                          (parted (and (eq button :left-button) (not super) (not beside)
+                                       (not (viri-tabbed-p col))
+                                       (cond ((and (< py 0) (plusp k))
+                                              (list (nth (1- k) (viri-col-windows col)) window))
+                                             ((and (>= py (xlib:drawable-height parent))
+                                                   (nth (1+ k) (viri-col-windows col)))
+                                              (list window (nth (1+ k) (viri-col-windows col))))))))
                      (group-focus-window group window)
-                     (cond ((or (and super (eq button :right-button))
+                     (cond (parted
+                            (viri-drag-height group (first parted) (second parted)))
+                           ((or (and super (eq button :right-button))
                                 (and beside (eq button :left-button)))
                             (viri-drag-width group window))
                            ((and (eq button :left-button) (or super above))
@@ -1044,12 +1175,13 @@ is always on it)."
       (values
        (loop for c in (viri-cols group)
              for (x . w) in spans
-             for n = (max 1 (length (viri-col-windows c)))
              append (loop for win in (viri-col-windows c)
-                          for k from 0
+                          for h in (viri-heights c height)
+                          for y = 0 then (+ y above)
+                          for above = h
                           collect (list win
-                                        (round (* x scale)) (round (* k (/ height n)))
-                                        (max 1 (round (* w scale))) (max 1 (round (/ height n))))))
+                                        (round (* x scale)) y
+                                        (max 1 (round (* w scale))) h)))
        (round (* total scale)) height
        (round (* (+ (viri-offset group) pin) scale)) (round (* (- aw pin) scale))))))
 

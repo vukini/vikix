@@ -35,6 +35,11 @@ wm_start
 state() { ask '(progn (setf *print-pretty* nil) (if (viri-group-p) (format t "~{~a~} left=~a focus=~a" (mapcar (function window-title) (viri-columns (current-group))) (viri-left (current-group)) (window-title (current-window))) (format t "tiles focus=~a" (and (current-window) (window-title (current-window))))))'; }
 focus() { ask '(princ (window-title (current-window)))'; }
 geo() { ask "(let ((p (window-parent $1))) (format t \"~a ~a ~a ~a ~a\" (xlib:drawable-x p) (xlib:drawable-y p) (xlib:drawable-width p) (xlib:drawable-height p) (xlib:drawable-border-width p)))"; }
+mouse() { xdotool "$@"; sleep 0.4; }
+# A press on a title bar or an edge isn't held back by a grab, as one on a
+# program's window is: what the pointer does before StumpWM has taken it is
+# lost. A hand is slower than that; on a busy machine a test isn't, so it waits.
+press() { xdotool mousedown "$1"; sleep 1.5; }
 xs() { ask '(progn (setf *print-pretty* nil) (format t "~{~a~^ ~}" (mapcar (lambda (w) (xlib:drawable-x (window-parent w))) (viri-columns (current-group)))))'; }
 
 for w in A B C D; do win "$w"; done
@@ -289,6 +294,33 @@ key super+z
 check "Super+z again: stacked, every window showing: $(col)" test "$(col) $(inplace)" = "stack $n 0 1"
 key super+bracketright
 
+# Heights: a column's stacked windows share its height evenly until one is
+# given more. Super+v on a strip makes this window taller in its column,
+# step by step, then all even again; the edge between two, dragged, moves
+# what one has to the other; the heights always fill the column; a saved
+# layout keeps them.
+share() { ask '(let ((g (current-group))) (princ (viri-height-share (viri-col-of g (current-window)) (current-window))))'; }
+fills() { ask '(let* ((g (current-group)) (c (viri-col-of g (current-window)))) (multiple-value-bind (ax ay aw ah) (viri-area g) (declare (ignore ax ay aw)) (princ (if (= ah (reduce (function +) (mapcar (lambda (w) (let ((p (window-parent w))) (+ (xlib:drawable-height p) (* 2 (xlib:drawable-border-width p))))) (viri-col-windows c)))) 1 0))))'; }
+key super+End; key super+bracketleft
+read -r _ n _ <<<"$(col)"
+even=$(share)
+check "stacked windows share their column evenly: $even of $n" test "$even" = "1/$n"
+key super+v
+check "Super+v makes this window taller in its column: $(share)" test "$(ask "(princ (if (> $(share) $even) 1 0))") $(fills) $(inplace)" = "1 1 1"
+for _ in 1 2 3; do [ "$(share)" = "$even" ] && break; key super+v; done
+check "and after the tallest, every window even again: $(share)" test "$(share) $(fills)" = "$even 1"
+read -r x y w _ b <<<"$(geo '(current-window)')"
+xdotool mousemove $((x + b + w / 2)) "$y"; sleep 0.4; press 1; mouse mousemove_relative -- 0 -40; mouse mousemove_relative -- 0 -40; mouse mouseup 1
+check "the edge above it, dragged up, gives it what the window above loses: $(share)" test "$(ask "(princ (if (> $(share) $even) 1 0))") $(fills) $(inplace)" = "1 1 1"
+tall=$(share)
+ask '(vikix-layout-save "heights")' >/dev/null
+check "a saved layout keeps the heights" grep -q ':heights' "$home/.config/vikix/layouts/heights.lisp"
+ask '(progn (viri-even-heights (viri-col-of (current-group) (current-window))) (viri-layout (current-group)))' >/dev/null
+ask '(vikix-layout-restore "heights" (current-group) :start nil)' >/dev/null; sleep 0.5
+check "and gives them back: $(share)" test "$(share) $(fills)" = "$tall 1"
+ask '(progn (viri-even-heights (viri-col-of (current-group) (current-window))) (viri-layout (current-group)))' >/dev/null
+key super+bracketright
+
 # Title bars: each column's window has the tiles' bar, as wide as the column,
 # the window below it; Super+Ctrl+y takes them away and brings them back; a
 # fullscreen window has none.
@@ -310,11 +342,6 @@ check "out of fullscreen it has its bar and its place again: $(bars)" test "$(ba
 # the column to where it's let go; a click on the title bar moves nothing.
 # On the bar the wheel walks too, and on the overview a click on a box goes
 # to its window, a click off the card closes it.
-mouse() { xdotool "$@"; sleep 0.4; }
-# A press on a title bar or an edge isn't held back by a grab, as one on a
-# program's window is: what the pointer does before StumpWM has taken it is
-# lost. A hand is slower than that; on a busy machine a test isn't, so it waits.
-press() { xdotool mousedown "$1"; sleep 1.5; }
 width() { ask '(princ (viri-col-width (viri-col-of (current-group) (current-window))))'; }
 for _ in 1 2 3 4 5 6 7 8; do key super+h; done
 one=$(focus); read -r one two _ <<<"$(order)"
@@ -373,5 +400,5 @@ check "Super+Shift+g brings one off the strip, into a frame: $(focus)" test "$(a
 key super+1
 check "none of them was an error: $(msgs | grep -i 'Error In Command\|not found' | head -1)" test -z "$(msgs | sed '/the window keys/,$d' | grep -i 'Error In Command\|not found')"
 
-wm_report viri "a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, the drawn overview and its keys, the agents' desktop tool, new and closed windows, a dialog, another workspace, off and on, sliding and centring, the ends and a pinned column, tabs, title bars, the mouse, the window keys on a strip"
+wm_report viri "a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, the drawn overview and its keys, the agents' desktop tool, new and closed windows, a dialog, another workspace, off and on, sliding and centring, the ends and a pinned column, tabs, uneven heights, title bars, the mouse, the window keys on a strip"
 exit "$fail"

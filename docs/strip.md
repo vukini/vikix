@@ -54,6 +54,12 @@ The strip scrolls only as far as it must to show the column you went to whole, s
 
 A new column is half the screen wide. A column's windows share its height evenly: an editor with a terminal under it, say, is `Super+[` pressed on the terminal standing right of the editor.
 
+### Heights: more for one, less for another
+
+Stacked windows share their column's height evenly to begin with. To give one more: `Super+v` on it makes it a third of the column, then half, then two thirds (the steps above what it has), and after the tallest every window of the column is even again. The others keep their proportions in what's left. With the mouse, drag the edge between two stacked windows up or down: what one gains the other gives, a twentieth of the column at a time.
+
+A window that joins the column takes an even share of it. A layout you save keeps the heights.
+
 ### Tabs: one window at a time
 
 Windows stacked in a column each get a part of its height. When they each need all of it (three terminals, two documents), make them tabs instead: `Super+z` on a column of several windows shows one of them as high as the column, with the others behind it. Each is a tab in the title bar, the one showing picked out.
@@ -90,6 +96,7 @@ Two commands have no key of their own, for a key in `user.lisp` if you want one:
 | Turn the wheel over the bar's window names | the same |
 | Drag a window's title bar (or hold `Super` and drag anywhere in it) | its column goes with the pointer, and stays where you let it go |
 | Drag a column's side edge (or hold `Super` and drag with the right button) | the column gets wider or narrower, a twentieth of the screen at a time |
+| Drag the edge between two windows stacked in a column | the one grows and the other shrinks |
 | Click a window's name in the bar | you go to it |
 
 A width set by dragging can be any twentieth of the screen; `Super+r` then takes the column to the next of its four widths.
@@ -100,7 +107,8 @@ Most keys do on a strip what they do everywhere. A few belong to tiles, and say 
 
 | Key | On a strip |
 |---|---|
-| `Super+b`, `Super+v` | A strip has no splits: a new window gets a column, and `Super+[` and `Super+]` stack. |
+| `Super+b` | A strip has no splits: a new window gets a column, and `Super+[` and `Super+]` stack. |
+| `Super+v` | The key for one above the other: on a strip it makes this window taller in its column (above). |
 | `Super+u`, `Super+Shift+u` | No layout undo: a strip keeps its order, and you move a column back. |
 | `Super+z` | This column's windows as tabs (above), where on tiles it keeps only one window on the workspace. |
 | `Super+Shift+o`, `Super+Ctrl+m` | Grid mode and main and stack are ways of tiling. |
@@ -147,7 +155,7 @@ Three things in it are there because of how X and StumpWM work:
 - **The slide is a loop, not a timer.** `viri-slide` moves every column a little, eight times, with a short sleep between. A timer would want a fraction of a second as its delay, and StumpWM's timers stop working when given one.
 - **The pointer is taken along.** Vikix's focus follows the mouse. When the strip moves under a pointer that stays still, X reports that the pointer has entered whichever window landed under it, and that window would take the focus back. So `viri-keep-pointer` moves the pointer to the focused window and drops those reports.
 
-Which columns are tabbed is noted the same way (`*viri-tabbed*`): `viri-place` gives each of a tabbed column's windows the whole column and hides all but the one it shows, as a tile's windows behind the one in front are hidden, and the title bar (`vikix-titlebar-draw` in `windows.lisp`) draws a cell for each. The pinned column is the strip's first column in that list, noted in a table beside it (`*viri-pinned*`); `viri-spans` gives it the screen's left edge wherever the strip is scrolled, and starts the others where it ends.
+A window's height in its column is a weight, 1 for an even share, kept by the window (`*viri-weights*`); `viri-heights` turns a column's weights into pixels. Which columns are tabbed is noted the same way (`*viri-tabbed*`): `viri-place` gives each of a tabbed column's windows the whole column and hides all but the one it shows, as a tile's windows behind the one in front are hidden, and the title bar (`vikix-titlebar-draw` in `windows.lisp`) draws a cell for each. The pinned column is the strip's first column in that list, noted in a table beside it (`*viri-pinned*`); `viri-spans` gives it the screen's left edge wherever the strip is scrolled, and starts the others where it ends.
 
 The drawn overview (`Super+o`) is `overview.lisp`; the strip gives it its columns as boxes through `viri-overview-boxes`. An AI agent sees a strip through the `desktop` tool of `vikix mcp`, which lists its columns left to right with their widths and which are on the screen ([Working with AI](ai.md)).
 

@@ -65,7 +65,7 @@ front, so a name like Brightness-up is never mistaken for one."
      "vikix-project")
     ("AI & voice" "vikix-agent" "vikix-ask" "vikix-dictate" "vikix-voice")
     ("Windows & frames" "delete" "fullscreen" "pull-hidden-other" "vikix-last-window" "next" "prev"
-     "move-focus" "move-window" "vikix-focus" "vikix-move" "vikix-focus-end" "vikix-move-end" "vikix-pin" "vikix-viri" "vikix-width-or-remove" "vikix-stack" "vikix-expose" "vikix-overview" "vikix-split" "hsplit" "vsplit" "remove" "expose" "vikix-grid" "vikix-main" "vikix-layout-pick" "vikix-solo"
+     "move-focus" "move-window" "vikix-focus" "vikix-move" "vikix-focus-end" "vikix-move-end" "vikix-pin" "vikix-viri" "vikix-width-or-remove" "vikix-height" "vikix-stack" "vikix-expose" "vikix-overview" "vikix-split" "hsplit" "vsplit" "remove" "expose" "vikix-grid" "vikix-main" "vikix-layout-pick" "vikix-solo"
      "toggle-gaps" "winner-undo" "winner-redo" "vikix-layout-undo" "vikix-layout-redo" "global-windowlist" "vikix-go-to-window"
      "global-pull-windowlist" "vikix-bring-window" "beckon" "vikix-pointer" "vikix-float" "vikix-remember" "vikix-titlebars" "vikix-title")
     ("Workspaces" "gselect" "gmove" "grouplist")

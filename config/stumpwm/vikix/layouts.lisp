@@ -217,6 +217,9 @@ strip included. (values x y width height)"
                                        ;; The pinned column says so, and is again.
                                        (when (eq c (viri-pinned group)) (list :pinned t))
                                        (when (viri-tabbed-p c) (list :tabbed t))
+                                       ;; Uneven heights: each window's weight, 1 an even share.
+                                       (when (some (lambda (w) (/= (viri-weight w) 1)) (viri-col-windows c))
+                                         (list :heights (mapcar #'viri-weight (viri-col-windows c))))
                                        (list :windows (mapcar #'vikix-layout-window (viri-col-windows c)))))))
 
 (defun vikix-layout-save (name &optional (group (current-group)))
@@ -311,8 +314,15 @@ dialogs) matched to its saved ones. Returns the saved windows not found."
          (cols '()) (k 0) (pinned nil))
     (dolist (c columns)
       (let ((ws (loop repeat (length (getf c :windows))
+                      for i from 0
                       for w = (nth k found) do (incf k)
-                      when w collect w)))
+                      when w
+                        collect w
+                        ;; Its weight, when the layout gave the column uneven heights.
+                        and do (let ((weight (nth i (getf c :heights))))
+                                 (if (and (rationalp weight) (plusp weight) (/= weight 1))
+                                     (setf (gethash w *viri-weights*) weight)
+                                     (remhash w *viri-weights*))))))
         (when ws
           (push (make-viri-col ws (or (ignore-errors (viri-share (getf c :width))) *viri-default-width*)) cols)
           (when (getf c :pinned)
