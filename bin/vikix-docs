@@ -599,7 +599,22 @@ def docs_open(paths):
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def note_opened(doc):
+    """A line for `vikix day`, which lists the documents opened each day:
+    when, which, its title. Yours alone (600); never a reason to fail."""
+    try:
+        state = os.environ.get("VIKIX_STATE") or os.path.join(os.path.expanduser("~"), ".local", "state", "vikix")
+        os.makedirs(os.path.join(state, "day"), exist_ok=True)
+        fd = os.open(os.path.join(state, "day", "docs.log"), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+        with os.fdopen(fd, "a") as out:
+            title = " ".join(str(doc.get("title") or doc.get("id") or "").split())
+            out.write(f"{int(time.time())}\t{doc.get('id', '')}\t{title}\n")
+    except OSError:
+        pass
+
+
 def open_doc(doc, other=False):
+    note_opened(doc)
     src = doc["source"]
     if src == "man":
         section, name = man_args(doc)

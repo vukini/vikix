@@ -1,0 +1,822 @@
+#!/usr/bin/env python3
+"""vikix-day — the day as the desktop saw it, kept as a diary (`vikix day`).
+
+  vikix day [yesterday|DATE] [--no-file]
+                      that day (today): how long you were at the screen, and
+                      for each project how long it had it, its log entries,
+                      its commits and what's next; then the rest of the
+                      screen's time, the files Esploro changed, the agents'
+                      sessions and what changed in your settings after each,
+                      Vikix's updates, the rules that ran, the documents
+                      opened from the catalogue and what the plugins recorded.
+                      Printed, and kept as ~/journal/DATE.org (--no-file:
+                      printed only)
+  vikix day --week [DATE]
+                      the seven days ending that day, project by project:
+                      hours, commits and log entries, a line a day
+  vikix day --for NAME [--week] [DATE]
+                      only that project
+  vikix day log [yesterday|DATE]
+                      for each project worked on that day that has no log
+                      entry for it: an entry drafted from its commits, the
+                      next step and the percentage, each written only on
+                      your yes (through vikix project log)
+  vikix day path [yesterday|DATE]
+                      the day's file
+
+Nothing is asked of you during the day. Everything here is read from
+records Vikix keeps anyway: the projects' logs and commits (vikix project),
+Esploro's journal of changes, the snapshot history of your settings (vikix
+history), the record store (vikix records), and one of its own:
+~/.local/state/vikix/day/screen-YYYY-MM.log, where the desktop notes every
+30 seconds which workspace, project, program and folder had the screen
+when that changed (day.lisp; never a window's title). Five minutes without
+a key or the pointer is time away, and so is a suspend. A window counts
+for a project when its workspace was opened for it (vikix project open) or
+its program is in the project's folder, or in a git worktree of it. A
+commit counts for the project whose folder holds a file it changed, so a
+repo of many projects (a collection) gives each its own.
+
+The file is yours and private: ~/journal is made 700 and each day 600, it
+is in vikix backup like the rest of your home, and nothing sends it
+anywhere. Each run writes the day again from the records, so yesterday can
+be asked for tomorrow; what you write under its last heading, Notes, is
+kept. Another folder: a line folder=~/Notes/journal in ~/.config/vikix/day.
+To record nothing about the screen: (setf *vikix-day-on* nil) in
+~/.stumpwm.d/user.lisp; the rest still works.
+
+An agent asked "what did I do on Tuesday" runs vikix day DATE --no-file, or
+reads the day's file.
+"""
+import datetime
+import importlib.util
+import os
+import re
+import shutil
+import sqlite3
+import subprocess
+import sys
+import time
+from collections import Counter
+from importlib.machinery import SourceFileLoader
+from pathlib import Path
+
+HOME = Path.home()
+HERE = Path(__file__).resolve().parent
+CONFIG = Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config") / "vikix" / "day"
+STATE = Path(os.environ.get("VIKIX_STATE") or HOME / ".local" / "state" / "vikix")
+RECORDS = Path(os.environ.get("VIKIX_RECORDS_DB") or
+               Path(os.environ.get("XDG_DATA_HOME") or HOME / ".local" / "share") / "vikix" / "records.db")
+GAP = 400        # seconds without a line: the desktop wasn't running (it writes one every 300)
+TICK = 30        # how often the desktop looks
+WORTH = 600      # seconds on the screen that make a project "worked on" without a commit
+NOTES = "* Notes"
+
+sys.dont_write_bytecode = True   # loading vikix-project must not leave a __pycache__ in bin/
+
+
+def load_project():
+    """vikix-project as a module: its projects, logs and dates are the ones used here."""
+    loader = SourceFileLoader("vikix_project", str(HERE / "vikix-project"))
+    spec = importlib.util.spec_from_loader("vikix_project", loader)
+    mod = importlib.util.module_from_spec(spec)
+    loader.exec_module(mod)
+    return mod
+
+
+vp = load_project()
+
+
+def die(msg, code=1):
+    print(f"vikix day: {msg}", file=sys.stderr)
+    sys.exit(code)
+
+
+def now():
+    # VIKIX_NOW: for the tests, as VIKIX_TODAY is.
+    return int(os.environ.get("VIKIX_NOW") or time.time())
+
+
+def journal():
+    folder = HOME / "journal"
+    try:
+        for line in CONFIG.read_text().splitlines():
+            line = line.split("#", 1)[0].strip()
+            if line.startswith("folder") and "=" in line and line.split("=", 1)[1].strip():
+                folder = vp.expand(line.split("=", 1)[1])
+    except OSError:
+        pass
+    return folder
+
+
+def tilde(path):
+    path = str(path)
+    home = str(HOME)
+    return "~" + path[len(home):] if path == home or path.startswith(home + "/") else path
+
+
+def bounds(day):
+    """The day's first second and the next day's, in seconds since 1970 (local time)."""
+    start = datetime.datetime.combine(day, datetime.time.min)
+    return int(start.timestamp()), int((start + datetime.timedelta(days=1)).timestamp())
+
+
+def clock(t):
+    return datetime.datetime.fromtimestamp(t).strftime("%H:%M")
+
+
+def length(seconds):
+    minutes = int(round(seconds / 60))
+    if minutes < 1:
+        return "under a minute"
+    h, m = divmod(minutes, 60)
+    if not h:
+        return f"{m} min"
+    return f"{h} h {m} min" if m else f"{h} h"
+
+
+def plural(n, word, many=None):
+    return f"1 {word}" if n == 1 else f"{n} {many or word + 's'}"
+
+
+# --- What had the screen ------------------------------------------------------
+
+def screen_lines(first, last):
+    """The desktop's lines from the months that hold FIRST to LAST: [(time, kind, fields)]."""
+    months, d = [], first.replace(day=1)
+    while d <= last:
+        months.append(d)
+        d = (d + datetime.timedelta(days=32)).replace(day=1)
+    out = []
+    for m in months:
+        try:
+            text = (STATE / "day" / f"screen-{m.year:04d}-{m.month:02d}.log").read_text(errors="replace")
+        except OSError:
+            continue
+        for line in text.splitlines():
+            parts = line.split("\t")
+            if len(parts) >= 2 and parts[0].isdigit():
+                out.append((int(parts[0]), parts[1], parts[2:]))
+    return out
+
+
+def spans(lines):
+    """The lines as stretches of time on one window: [[start, end, fields]]."""
+    out, cur, prev = [], None, None
+
+    def close(end):
+        nonlocal cur
+        if cur and end > cur[0]:
+            out.append([cur[0], end, cur[1]])
+        cur = None
+
+    for t, kind, fields in lines:
+        if prev is not None and t - prev > GAP:
+            close(prev + TICK)           # no line for too long: it stopped soon after the last
+        if kind == "focus":
+            close(t)
+            cur = (t, (fields + ["", "", "", ""])[:4])
+        elif kind == "away":
+            # Nobody there for IDLE seconds already: the time on the window ended then.
+            idle = int(fields[0]) if fields and fields[0].isdigit() else 0
+            cut = t - idle
+            close(cut)
+            while out and out[-1][1] > cut:
+                if out[-1][0] >= cut:
+                    out.pop()
+                else:
+                    out[-1][1] = cut
+        elif kind == "start":
+            close(t)
+        prev = t
+    if cur:
+        close(now() if now() - prev <= GAP else prev + TICK)
+    return out
+
+
+class Screen:
+    """What the screen showed between two days, to ask a day at a time."""
+
+    def __init__(self, first, last, projects):
+        one = datetime.timedelta(days=1)
+        self.lines = screen_lines(first - one, last + one)
+        self.spans = spans(self.lines)
+        self.by_path = {p.path.resolve(): p for p in projects}
+        self.by_name = {p.full: p for p in projects}
+        self.folders = {}
+
+    def project(self, fields):
+        """The project a line was about: the workspace's, else the folder's."""
+        _, claimed, _, folder = fields
+        if claimed in self.by_name:
+            return self.by_name[claimed]
+        if not folder:
+            return None
+        if folder not in self.folders:
+            self.folders[folder] = self.in_folder(Path(folder))
+        return self.folders[folder]
+
+    def in_folder(self, path):
+        for d in [path, *path.parents]:
+            if d in self.by_path:
+                return self.by_path[d]
+            git = d / ".git"
+            try:
+                if git.is_file():   # a git worktree: the project is the repo it belongs to
+                    m = re.match(r"gitdir:\s*(.+)/\.git/worktrees/", git.read_text(errors="replace"))
+                    if m and Path(m.group(1)) in self.by_path:
+                        return self.by_path[Path(m.group(1))]
+            except OSError:
+                pass
+        return None
+
+    def day(self, day):
+        """(seconds by project name, seconds by other label, first second, last second, rules that ran)."""
+        lo, hi = bounds(day)
+        mine, other = Counter(), Counter()
+        first = last = None
+        for start, end, fields in self.spans:
+            a, b = max(start, lo), min(end, hi)
+            if b <= a:
+                continue
+            first = a if first is None else min(first, a)
+            last = b if last is None else max(last, b)
+            p = self.project(fields)
+            if p:
+                mine[p.full] += b - a
+            else:
+                _, _, cls, folder = fields
+                label = cls or "an empty workspace"
+                if cls and folder and Path(folder) != HOME:
+                    label += f" in {tilde(folder)}"
+                other[label] += b - a
+        rules = Counter(f[0] for t, kind, f in self.lines if kind == "rule" and lo <= t < hi and f)
+        return mine, other, first, last, rules
+
+
+# --- The other records ----------------------------------------------------------
+
+def commits(top, first, last):
+    """The repo's commits from FIRST to LAST, on any branch (not the stash),
+    oldest first, each with the files it changed: [(date, hash, subject, [file])]."""
+    until = last + datetime.timedelta(days=1)
+    try:
+        r = subprocess.run(["git", "-C", str(top), "-c", "core.quotePath=false", "log",
+                            "--exclude=refs/stash", "--all", "--no-merges", "--reverse",
+                            f"--since={first.isoformat()} 00:00", f"--until={until.isoformat()} 00:00",
+                            "--date=short", "--format=%x01%cd%x09%h%x09%s", "--name-only"],
+                           capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    out = []
+    for block in r.stdout.split("\x01")[1:]:
+        lines = block.splitlines()
+        parts = lines[0].split("\t", 2) if lines else []
+        if len(parts) == 3:
+            out.append((parts[0], parts[1], parts[2], [f for f in lines[1:] if f.strip()]))
+    return out
+
+
+def read_lisp(text):
+    """A printed Lisp list of strings, symbols and lists, as Python lists (T True, NIL None)."""
+    pos = 0
+
+    def read():
+        nonlocal pos
+        while pos < len(text) and text[pos].isspace():
+            pos += 1
+        if pos >= len(text):
+            raise ValueError("ended early")
+        c = text[pos]
+        if c == "(":
+            pos += 1
+            out = []
+            while True:
+                while pos < len(text) and text[pos].isspace():
+                    pos += 1
+                if pos >= len(text):
+                    raise ValueError("ended early")
+                if text[pos] == ")":
+                    pos += 1
+                    return out
+                out.append(read())
+        if c == '"':
+            pos += 1
+            chars = []
+            while pos < len(text) and text[pos] != '"':
+                if text[pos] == "\\":
+                    pos += 1
+                chars.append(text[pos:pos + 1])
+                pos += 1
+            pos += 1
+            return "".join(chars)
+        start = pos
+        while pos < len(text) and not text[pos].isspace() and text[pos] not in "()":
+            pos += 1
+        word = text[start:pos]
+        return True if word.lower() == "t" else None if word.lower() == "nil" else word
+
+    return read()
+
+
+def esploro(day):
+    """What Esploro changed that day, oldest first: [(HH:MM, what, undone)]."""
+    if not shutil.which("esploro"):
+        return []
+    try:
+        r = subprocess.run(["esploro", "changes"], capture_output=True, text=True, timeout=30,
+                           stdin=subprocess.DEVNULL)
+        entries = read_lisp(r.stdout) if r.stdout.strip() else []
+    except (OSError, subprocess.TimeoutExpired, ValueError, IndexError):
+        return []
+    out = []
+    for e in entries if isinstance(entries, list) else []:
+        # (FILE "2026-10-04T06:15:59" "what, in words" UNDONE (STEPS) FOLDER)
+        if isinstance(e, list) and len(e) >= 4 and isinstance(e[1], str) and e[1].startswith(day.isoformat()):
+            out.append((e[1][11:16], str(e[2]), bool(e[3])))
+    return sorted(out)
+
+
+AGENT = re.compile(r"^before an agent session \((.+)\)$")
+UPDATE = re.compile(r"^after installing or updating Vikix (\S+)$")
+
+
+def snapshots(day):
+    """The day's snapshots of your settings: (agent sessions, Vikix's versions, the others)."""
+    git = ["git", "--no-optional-locks", f"--git-dir={STATE / 'yours.git'}"]
+    if not (STATE / "yours.git").exists():
+        return [], [], []
+    lo, hi = bounds(day)
+    try:
+        r = subprocess.run(git + ["log", "--reverse", f"--since={lo}", "--format=%H%x09%at%x09%s"],
+                           capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        return [], [], []
+    rows = [line.split("\t", 2) for line in r.stdout.splitlines() if line.count("\t") >= 2]
+    agents, versions, others = [], [], []
+    for i, (sha, at, subject) in enumerate(rows):
+        at = int(at)
+        if not lo <= at < hi:
+            continue
+        m = AGENT.match(subject)
+        if m:
+            # What changed in the settings from this snapshot to the next
+            # (or to now): by the agent or by you, the history can't say which.
+            other = [rows[i + 1][0]] if i + 1 < len(rows) else []
+            try:
+                d = subprocess.run(git + [f"--work-tree={HOME}", "diff", "--numstat", sha] + other,
+                                   capture_output=True, text=True, timeout=30, cwd=HOME)
+                files = [(f, a, b) for a, b, f in (line.split("\t", 2) for line in d.stdout.splitlines()
+                                                    if line.count("\t") >= 2)]
+            except (OSError, subprocess.TimeoutExpired):
+                files = []
+            agents.append((clock(at), m.group(1), files, bool(other)))
+            continue
+        m = UPDATE.match(subject)
+        if m:
+            versions.append(m.group(1))
+        else:
+            others.append((clock(at), subject))
+    return agents, versions, others
+
+
+def documents(day):
+    """The documents opened from the catalogue that day, each once: [(HH:MM, title)]."""
+    lo, hi = bounds(day)
+    seen, out = set(), []
+    try:
+        text = (STATE / "day" / "docs.log").read_text(errors="replace")
+    except OSError:
+        return []
+    for line in text.splitlines():
+        parts = line.split("\t", 2)
+        if len(parts) == 3 and parts[0].isdigit() and lo <= int(parts[0]) < hi and parts[1] not in seen:
+            seen.add(parts[1])
+            out.append((clock(int(parts[0])), parts[2]))
+    return out
+
+
+def records(day):
+    """What the plugins recorded that day: [(plugin, kind, how many, titles, newest last)]."""
+    if not RECORDS.exists():
+        return []
+    lo, hi = bounds(day)
+    try:
+        db = sqlite3.connect(f"file:{RECORDS}?mode=ro", uri=True, timeout=5)
+        rows = db.execute("SELECT plugin, kind, title FROM records WHERE at >= ? AND at < ? ORDER BY at",
+                          (lo, hi)).fetchall()
+        db.close()
+    except sqlite3.Error:
+        return []
+    groups = {}
+    for plugin, kind, title in rows:
+        groups.setdefault((plugin, kind), []).append(title)
+    return [(plugin, kind, len(titles), titles) for (plugin, kind), titles in sorted(groups.items())]
+
+
+# --- A day, gathered --------------------------------------------------------------
+
+class Gathered:
+    """Everything the projects and the screen say about the days FIRST to LAST."""
+
+    def __init__(self, first, last, only=None):
+        self.projects = sorted(vp.discover(), key=lambda p: p.full)
+        self.only = only
+        self.screen = Screen(first, last, self.projects)
+        # A commit is its project's when it changed a file in the project's
+        # folder: in a repo of many projects (a collection), the deepest
+        # folder that holds the file; a commit across two counts for both.
+        self.commits = {}       # a project's folder -> {date: [(hash, subject)]}
+        self.elsewhere = {}     # a repo -> the same, for commits in no project's folder
+        repos = {}
+        for p in self.projects:
+            top = vp.git_top(p.path)
+            if top:
+                repos.setdefault(top, []).append(p)
+        for top, inside in repos.items():
+            inside.sort(key=lambda p: -len(p.path.parts))
+            for date, h, subject, files in commits(top, first, last):
+                owners = []
+                for f in files or [""]:
+                    path = top / f if f else top
+                    owner = next((p for p in inside if path == p.path or p.path in path.parents), None)
+                    if owner not in owners:
+                        owners.append(owner)
+                for owner in owners:
+                    table = self.commits.setdefault(owner.path, {}) if owner else self.elsewhere.setdefault(top, {})
+                    table.setdefault(date, []).append((h, subject))
+
+    def of(self, p, day):
+        iso = day.isoformat()
+        return ([e for e in p.parsed["entries"] if e["date"] == iso],
+                self.commits.get(p.path, {}).get(iso, []))
+
+    def loose(self, day):
+        """Repos with commits that day in no project's folder: [(repo, commits)]."""
+        iso = day.isoformat()
+        return [(top, by_date[iso]) for top, by_date in sorted(self.elsewhere.items()) if by_date.get(iso)]
+
+
+def entry_line(e):
+    body = " ".join(line.strip() for line in e["lines"][1:]
+                    if line.strip() and not line.startswith("Next:"))
+    words = " ".join(w for w in (e["words"], "(Vid)" if e["vid"] else "") if w)
+    return f"{words}: {body}" if words else body
+
+
+def day_items(g, day):
+    """The day as lines to show: [(level, text)], level 1 a heading, 2 a
+    project's, 0 a point, -1 a point under a point."""
+    mine, other, first, last, rules = g.screen.day(day)
+    items, shown, n_commits, n_entries = [], 0, 0, 0
+
+    body = []
+    for p in sorted(g.projects, key=lambda p: (-mine.get(p.full, 0), p.full)):
+        if g.only and p.path != g.only.path:
+            continue
+        entries, done = g.of(p, day)
+        seconds = mine.get(p.full, 0)
+        if not entries and not done and seconds < 60:
+            continue
+        shown += 1
+        n_commits += len(done)
+        n_entries += len(entries)
+        head = p.full + (f" ({p.parsed['percent']}%)" if p.parsed["percent"] is not None else "")
+        body.append((2, head + (f" · {length(seconds)}" if seconds >= 60 else "")))
+        for e in entries:
+            body.append((0, "log: " + entry_line(e)))
+        if done:
+            body.append((0, plural(len(done), "commit")))
+            for h, s in done[-12:]:
+                body.append((-1, f"{h} {s}"))
+            if len(done) > 12:
+                body.append((-1, f"and {len(done) - 12} before those (git -C {tilde(p.path)} log --since={day})"))
+        nxt = vp.next_step(p)
+        if nxt:
+            body.append((0, f"next: {nxt}"))
+
+    items.append((1, "The day"))
+    if first is None:
+        items.append((0, "the screen wasn't recorded that day"))
+    else:
+        total = sum(mine.values()) + sum(other.values())
+        items.append((0, f"at the desk {clock(first)} to {clock(last)}, {length(total)} with the screen"))
+    if not g.only:
+        counted = [plural(shown, "project"), plural(n_commits, "commit"), plural(n_entries, "log entry", "log entries")]
+        items.append((0, ", ".join(counted)))
+    if body:
+        items.append((1, "Projects" if not g.only else "The project"))
+        items += body
+    if g.only:
+        return items
+
+    loose = g.loose(day)
+    if loose:
+        items.append((1, "Commits elsewhere"))
+        for top, done in loose:
+            items.append((0, f"{tilde(top)}: {plural(len(done), 'commit')}"))
+            items += [(-1, f"{h} {s}") for h, s in done[-12:]]
+
+    if other:
+        items.append((1, "The rest of the screen"))
+        rest = other.most_common()
+        for label, seconds in rest[:8]:
+            if seconds >= 60:
+                items.append((0, f"{label}: {length(seconds)}"))
+        if len(rest) > 8 and sum(s for _, s in rest[8:]) >= 60:
+            items.append((0, f"{len(rest) - 8} more: {length(sum(s for _, s in rest[8:]))}"))
+
+    moved = esploro(day)
+    if moved:
+        items.append((1, "Files (Esploro)"))
+        items += [(0, f"{at} {what}" + (" (undone)" if undone else "")) for at, what, undone in moved]
+
+    agents, versions, others = snapshots(day)
+    if agents:
+        items.append((1, "Agents"))
+        for at, name, files, closed in agents:
+            till = "before the next snapshot" if closed else "since"
+            if files:
+                items.append((0, f"{at} {name}; in your settings, changed {till}:"))
+                items += [(-1, f"{f} (+{a} -{b})") for f, a, b in files[:10]]
+                if len(files) > 10:
+                    items.append((-1, f"and {len(files) - 10} more (vikix history)"))
+            else:
+                items.append((0, f"{at} {name}; nothing in your settings changed {till}"))
+
+    if versions or others or rules:
+        items.append((1, "The desktop"))
+        if versions:
+            items.append((0, f"Vikix updated {plural(len(versions), 'time')}, to {versions[-1]}"
+                          if len(versions) > 1 else f"Vikix updated to {versions[0]}"))
+        for at, subject in others:
+            items.append((0, f"{at} snapshot: {subject}"))
+        if rules:
+            items.append((0, "rules that ran: " + ", ".join(
+                f"{name} ×{n}" if n > 1 else name for name, n in rules.most_common(12))))
+
+    read = documents(day)
+    if read:
+        items.append((1, "Documents opened"))
+        items += [(0, f"{at} {title}") for at, title in read[:20]]
+        if len(read) > 20:
+            items.append((0, f"and {len(read) - 20} more"))
+
+    kept = records(day)
+    if kept:
+        items.append((1, "Records"))
+        for plugin, kind, n, titles in kept:
+            if n <= 3:
+                items += [(0, f"{plugin} {kind}: {t}") for t in titles]
+            else:
+                items.append((0, f"{plugin} {kind}: {n}, the last: {titles[-1]}"))
+    return items
+
+
+def title(day):
+    return f"{day.strftime('%A')} {day.day} {day.strftime('%B %Y')}"
+
+
+def as_text(head, items):
+    w = vp.width()
+
+    def cut(s):
+        return s if not w or len(s) <= w else s[:max(w - 1, 0)] + "…"
+
+    out = [head]
+    for level, text in items:
+        if level == 1:
+            out += ["", text]
+        elif level == 2:
+            out += [cut("  " + text)]
+        else:
+            out.append(cut(("  - " if level == 0 else "      ") + text))
+    return "\n".join(out)
+
+
+def as_org(day, items, notes):
+    out = [f"#+title: {title(day)}", f"#+date: {day.isoformat()}", "",
+           "# Written by vikix day from what the desktop recorded, and written again each",
+           f"# time it runs for this day. What you write under \"{NOTES[2:]}\" is kept.", ""]
+    for level, text in items:
+        out.append({1: "* ", 2: "** ", 0: "- ", -1: "  - "}[level] + text)
+    return "\n".join(out) + "\n" + notes
+
+
+def day_file(day):
+    return journal() / f"{day.isoformat()}.org"
+
+
+def write_file(day, items):
+    """The day's file, written again; what's under Notes stays. The file, or None."""
+    file = day_file(day)
+    notes = NOTES + "\n"
+    try:
+        old = file.read_text(errors="replace")
+        m = re.search(r"^\* Notes[ \t]*$", old, re.M)
+        if m:
+            notes = old[m.start():]
+    except OSError:
+        pass
+    try:
+        if not file.parent.is_dir():
+            file.parent.mkdir(parents=True)
+            file.parent.chmod(0o700)
+        tmp = file.with_name(file.name + ".new")
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as out:
+            out.write(as_org(day, items, notes))
+        os.replace(tmp, file)
+    except OSError as e:
+        print(f"vikix day: {file} wasn't written: {e}", file=sys.stderr)
+        return None
+    return file
+
+
+# --- The commands -----------------------------------------------------------------
+
+def a_date(words):
+    day = vp.today()
+    if len(words) > 1:
+        die("one day at a time: yesterday, or YYYY-MM-DD", 2)
+    if words:
+        if words[0] == "yesterday":
+            day -= datetime.timedelta(days=1)
+        else:
+            try:
+                day = datetime.date.fromisoformat(words[0])
+            except ValueError:
+                die(f"not a date: {words[0]} (YYYY-MM-DD, or yesterday)", 2)
+    if day > vp.today():
+        die(f"{day} hasn't happened yet", 2)
+    return day
+
+
+def cmd_show(args):
+    week = no_file = False
+    only, rest, i = None, [], 0
+    while i < len(args):
+        a = args[i]
+        if a == "--week":
+            week = True
+        elif a == "--no-file":
+            no_file = True
+        elif a == "--for":
+            if i + 1 >= len(args):
+                die("usage: vikix day --for NAME [--week] [DATE]", 2)
+            only = vp.match(args[i + 1])
+            i += 1
+        elif a.startswith("-"):
+            die(f"unknown option: {a} (vikix day help)", 2)
+        else:
+            rest.append(a)
+        i += 1
+    day = a_date(rest)
+    if week:
+        return show_week(day, only)
+    g = Gathered(day, day, only)
+    items = day_items(g, day)
+    head = title(day) + (f": {only.full}" if only else "")
+    print(as_text(head, items))
+    if not only and not no_file:
+        file = write_file(day, items)
+        if file:
+            print(f"\nkept as {tilde(file)}")
+
+
+def show_week(last, only):
+    first = last - datetime.timedelta(days=6)
+    days = [first + datetime.timedelta(days=n) for n in range(7)]
+    g = Gathered(first, last, only)
+    per_day = {d: g.screen.day(d) for d in days}
+    print(f"The week to {title(last)}" + (f": {only.full}" if only else ""))
+    if not only:
+        print()
+        for d in days:
+            mine, other, start, end, _ = per_day[d]
+            total = sum(mine.values()) + sum(other.values())
+            print(f"  {d.strftime('%a')} {d.day:>2}  " +
+                  (f"{clock(start)} to {clock(end)}, {length(total)} with the screen" if start else "no record of the screen"))
+    rows = []
+    for p in g.projects:
+        if only and p.path != only.path:
+            continue
+        lines, seconds, n_commits, n_entries, active = [], 0, 0, 0, 0
+        for d in days:
+            entries, done = g.of(p, d)
+            s = per_day[d][0].get(p.full, 0)
+            if not entries and not done and s < 60:
+                continue
+            active += 1
+            seconds += s
+            n_commits += len(done)
+            n_entries += len(entries)
+            parts = ([length(s)] if s >= 60 else []) + ([plural(len(done), "commit")] if done else [])
+            parts += ["log: " + (e["words"] or entry_line(e)) for e in entries]
+            lines.append(f"    {d.strftime('%a')} {d.day:>2}  " + ", ".join(parts))
+        if active:
+            rows.append((seconds, n_commits, p, active, n_entries, lines))
+    w = vp.width()
+    for seconds, n_commits, p, active, n_entries, lines in sorted(rows, key=lambda r: (-r[0], -r[1], r[2].full)):
+        print()
+        head = p.full + (f" ({p.parsed['percent']}%)" if p.parsed["percent"] is not None else "")
+        parts = ([length(seconds)] if seconds >= 60 else []) + [plural(active, "day")]
+        parts += [plural(n_commits, "commit")] if n_commits else []
+        parts += [plural(n_entries, "log entry", "log entries")] if n_entries else []
+        print(f"  {head} · " + ", ".join(parts))
+        for line in lines:
+            print(line if not w or len(line) <= w else line[:max(w - 1, 0)] + "…")
+        nxt = vp.next_step(p)
+        if nxt:
+            line = f"    next: {nxt}"
+            print(line if not w or len(line) <= w else line[:max(w - 1, 0)] + "…")
+    if not rows:
+        print("\nnothing logged, committed or on the screen for a project that week")
+
+
+def draft(done):
+    """A first sentence or three for a log entry, from the day's commits."""
+    subjects = [s.rstrip(".") for _, s in done[-8:] if s.strip()]
+    return ". ".join(subjects) + "." if subjects else ""
+
+
+def ask(prompt):
+    try:
+        return input(prompt).strip()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        sys.exit(0)
+
+
+def cmd_log(args):
+    day = a_date(args)
+    g = Gathered(day, day)
+    mine = g.screen.day(day)[0]
+    todo = []
+    for p in g.projects:
+        entries, done = g.of(p, day)
+        seconds = mine.get(p.full, 0)
+        if not entries and (done or seconds >= WORTH):
+            todo.append((p, done, seconds))
+    if not todo:
+        print(f"every project worked on {'today' if day == vp.today() else 'on ' + day.isoformat()} has its log entry"
+              " (or none was: vikix day)")
+        return
+    talk = sys.stdin.isatty() and sys.stdout.isatty()
+    agent = bool(os.environ.get("CLAUDECODE"))
+    for p, done, seconds in todo:
+        pct = p.parsed["percent"]
+        facts = ([length(seconds)] if seconds >= 60 else []) + ([plural(len(done), "commit")] if done else [])
+        print(f"\n{p.full}" + (f" ({pct}%)" if pct is not None else "") + f": {', '.join(facts)}, no entry for {day}")
+        body = draft(done)
+        print(f"  draft: {body}" if body else "  nothing to draft from: no commits that day")
+        if not talk:
+            said = body or "what was done"
+            print(f"  to write one: vikix project log {p.full} \"{said}\"")
+            continue
+        choices = "[y] write it  [e] your own words  [n] skip  [q] stop: " if body else \
+                  "[e] your own words  [n] skip  [q] stop: "
+        answer = ask("  " + choices).lower()[:1]
+        if answer == "q":
+            return
+        if answer == "e":
+            body = ask("  what was done: ")
+        elif answer != "y":
+            continue
+        if not body:
+            continue
+        current = vp.next_step(p)
+        nxt = ask(f"  next step (Enter keeps: {current or 'none'}): ")
+        vp.add_entry(p, body, nxt or None, None, agent, day)
+        print(f"  wrote the entry for {day} in {tilde(p.log)} (not committed)")
+        if pct is not None:
+            new = ask(f"  percent complete (Enter keeps {pct}): ").rstrip("%")
+            if new.isdigit() and 0 <= int(new) <= 100 and int(new) != pct:
+                if vp.set_percent(p, int(new), day):
+                    print(f"  {pct}% is now {int(new)}%")
+            elif new and not new.isdigit():
+                print(f"  not a number: left at {pct}%")
+    if not talk:
+        print("\nnothing was written: run it in a terminal to be asked, entry by entry")
+
+
+def cmd_path(args):
+    print(day_file(a_date(args)))
+
+
+def main(argv):
+    if argv and argv[0] in ("help", "-h", "--help"):
+        print(__doc__.strip())
+        return
+    if argv and argv[0] == "log":
+        return cmd_log(argv[1:])
+    if argv and argv[0] == "path":
+        return cmd_path(argv[1:])
+    cmd_show(argv)
+
+
+if __name__ == "__main__":
+    try:
+        main(sys.argv[1:])
+    except BrokenPipeError:
+        pass

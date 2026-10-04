@@ -21,7 +21,7 @@ check "vk vers is vikix version" test "$(vk vers)" = "$(cat "$here/VERSION")"
 check "vk upd --help is vikix update's help" grep -q 'vikix update core' <<<"$(vk upd --help)"
 set +e; out=$(vk d 2>&1); code=$?; set -e
 check "an ambiguous start should exit 2: $code" test "$code" = 2
-check "and name the candidates: $out" grep -q 'could be: debug diagnose dictate docs doctor' <<<"$out"
+check "and name the candidates: $out" grep -q 'could be: day debug diagnose dictate docs doctor' <<<"$out"
 check "vk docs f is docs find" grep -q 'find what' <<<"$(vk docs f 2>&1 || true)"
 check "an unknown command is still said" grep -q 'unknown command: zzz' <<<"$(vk zzz 2>&1 || true)"
 

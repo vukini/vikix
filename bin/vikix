@@ -76,6 +76,12 @@
 #   vikix today [yesterday|DATE]
 #                         what was done today across your projects (log
 #                         entries and commits), and what's next
+#   vikix day [yesterday|DATE] [--week] [--for NAME]
+#                         the day as the desktop saw it, kept as a diary in
+#                         ~/journal: how long each project had the screen,
+#                         its entries and commits, files moved, agents'
+#                         sessions; day log offers the missing log entries
+#                         (vikix day help)
 #   vikix learn [c]       a course in the terminal: edit, save, it's checked
 #                         (vikix learn c list, hint, go NN, reset NN)
 #   vikix hype setup|status|uninstall
@@ -1599,6 +1605,7 @@ main() {
     notes)       shift; exec "$VIKIX_DIR/bin/vikix-notes" "$@" ;;
     project|projects) shift; exec "$VIKIX_DIR/bin/vikix-project" "$@" ;;
     today)       shift; exec "$VIKIX_DIR/bin/vikix-project" today "$@" ;;
+    day)         shift; exec "$VIKIX_DIR/bin/vikix-day" "$@" ;;
     mcp)         shift; exec "$VIKIX_DIR/bin/vikix-mcp" "$@" ;;
     snapshot|changes|history|undo)
       case ${2:-} in -h|--help) history_help; exit 0 ;; esac

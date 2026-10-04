@@ -386,6 +386,10 @@ every look, and would push out what happened when the window opened."
             (incf (vikix-rule-runs rule))
             (setf (vikix-rule-last-run rule) (get-universal-time))
             (vikix-rule-note rule window event)
+            ;; For `vikix day` (day.lisp, loaded later). Not at every change
+            ;; of focus: that would be most of the file.
+            (when (and (not (eq event :focus)) (fboundp 'vikix-day-rule-ran))
+              (ignore-errors (funcall 'vikix-day-rule-ran rule)))
             (when (vikix-rule-once rule)
               (setf (gethash (vikix-rule-key rule) *vikix-rules-once-done*) t))
             t)))))
@@ -994,6 +998,9 @@ that are due. Never an error: this runs in StumpWM's timer."
   (ignore-errors (vikix-rules-run-login))
   (ignore-errors (vikix-rules-run-clock))
   (ignore-errors (vikix-rules-run-power))
+  ;; The same ticker writes down what has the screen (day.lisp, loaded later).
+  (when (fboundp 'vikix-day-tick)
+    (ignore-errors (funcall 'vikix-day-tick)))
   nil)
 
 (defun vikix-rules-focus-group (new old)

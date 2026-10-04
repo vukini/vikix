@@ -387,6 +387,57 @@ def git_top(path):
     return None
 
 
+def add_entry(p, body, nxt=None, status=None, agent=False, date=None):
+    """A new entry in p's log, dated DATE (today): above the entries of that
+    day and before, so the log stays newest first (vikix day log writes
+    yesterday's too)."""
+    date = (date or today()).isoformat()
+    text = p.log.read_text(errors="replace")
+    lines = text.splitlines()
+    at = len(lines)
+    for i, line in enumerate(lines):
+        m = DATED.match(line)
+        if m and m.group(1) <= date:
+            at = i
+            break
+    else:
+        if not any(DATED.match(line) for line in lines):
+            at = parse_log(text)["first_entry"]
+
+    head = f"## {date}"
+    if status:
+        head += f" · {status}"
+    if not agent:
+        head += " (Vid)"
+    entry = [head, "", body.strip()]
+    if nxt:
+        entry += ["", f"Next: {nxt}"]
+
+    before, after = lines[:at], lines[at:]
+    while before and not before[-1].strip():
+        before.pop()
+    new = before + ([""] if before else []) + entry + ([""] + after if after else [])
+    p.log.write_text("\n".join(new) + "\n")
+    p._parsed = None
+
+
+def set_percent(p, percent, date=None):
+    """The Status' "N% complete" becomes PERCENT, and its "as of" date DATE
+    (today). False when the log's Status has no percentage to change."""
+    date = (date or today()).isoformat()
+    lines = p.log.read_text(errors="replace").splitlines()
+    for i, line in enumerate(lines):
+        if DATED.match(line):
+            break
+        if line.startswith("**Status**") and PERCENT.search(line):
+            line = PERCENT.sub(f"{int(percent)}% complete", line, count=1)
+            lines[i] = STATUS_DATE.sub(f"as of {date}", line, count=1)
+            p.log.write_text("\n".join(lines) + "\n")
+            p._parsed = None
+            return True
+    return False
+
+
 def cmd_log(args):
     usage = 'usage: vikix project log NAME "what was done" [--next "..."] [--status "few words"] [--agent]'
     pos, nxt, status = [], None, None
@@ -415,24 +466,7 @@ def cmd_log(args):
     if len(pos) != 2 or not pos[1].strip():
         die(usage, 2)
     p = match(pos[0])
-    text = p.log.read_text(errors="replace")
-    lines = text.splitlines()
-    first = parse_log(text)["first_entry"]
-
-    head = f"## {today().isoformat()}"
-    if status:
-        head += f" · {status}"
-    if not agent:
-        head += " (Vid)"
-    entry = [head, "", pos[1].strip()]
-    if nxt:
-        entry += ["", f"Next: {nxt}"]
-
-    before, after = lines[:first], lines[first:]
-    while before and not before[-1].strip():
-        before.pop()
-    new = before + ([""] if before else []) + entry + ([""] + after if after else [])
-    p.log.write_text("\n".join(new) + "\n")
+    add_entry(p, pos[1], nxt, status, agent)
 
     print(f"wrote today's entry at the top of {p.log}")
     top = git_top(p.log.parent)

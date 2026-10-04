@@ -59,6 +59,8 @@ Why only Vikix: the sources are all Vikix's own records, in files and SQLite; th
 
 First step: `vikix day` over projects, commits and the Esploro journal, printed to the terminal. If it is right about what the day was, the Work Log can trust it.
 
+> 2026-10-04, the diary session: built, as `vikix day` (`bin/vikix-day`, `day.lisp`; the README's Projects section says what it reads). In: the day as `~/journal/DATE.org` with Notes kept, how long each project had the screen (the desktop notes what is in front every 30 seconds, never a title), entries, commits, Esploro's changes, agents' sessions and the settings changed after each, updates, rules that ran, documents opened, the plugins' records; `--week`, `--for NAME`; `vikix day log` offering the missing log entries for a yes, with the next step and the percentage asked, not guessed. Not in: the music inbox's captures (not built yet), the ledger's view of who read the journal (`DESIGN-security.md`), and time for a project whose windows are neither on its workspace nor in its folder (an Emacs frame on another workspace, a browser tab), which idea 6 would give.
+
 ## 5. Desktop branches
 
 Trying a configuration should be free.

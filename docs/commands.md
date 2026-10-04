@@ -12,6 +12,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-battery](#vikix-battery): a warning when the battery runs low
 - [vikix-bitwarden](#vikix-bitwarden): your Bitwarden vault on the desktop
 - [vikix-bt](#vikix-bt): Bluetooth as one short line, for the mode line
+- [vikix-day](#vikix-day): the day as the desktop saw it, kept as a diary
 - [vikix-debug](#vikix-debug): one file that says what's going on, to attach to an issue or hand to an agent
 - [vikix-dictate](#vikix-dictate): speak, and it types what you said
 - [vikix-docs](#vikix-docs): every document on the machine in one catalogue, found from one key
@@ -96,6 +97,7 @@ The everyday command.
 - `vikix notes setup|uninstall` — ask your notes from any terminal: note index `~/Notes`, then note ask "..." (vikix-notes; on this laptop)
 - `vikix project [list|show|path|log|open|build|check|new] [NAME]` — your projects, each a folder with a log.md (in `~/src`): where each is and what's next; log NAME "what was done" adds today's entry; new NAME makes one (vikix project help)
 - `vikix today [yesterday|DATE]` — what was done today across your projects (log entries and commits), and what's next
+- `vikix day [yesterday|DATE] [--week] [--for NAME]` — the day as the desktop saw it, kept as a diary in `~/journal`: how long each project had the screen, its entries and commits, files moved, agents' sessions; day log offers the missing log entries (vikix day help)
 - `vikix learn [c]` — a course in the terminal: edit, save, it's checked (vikix learn c list, hint, go NN, reset NN)
 - `vikix hype setup|status|uninstall` — Hype: Markdown slides with a visual editor, in your theme's colours (vikix add hype)
 - `vikix wallpapers setup|update|status|uninstall` — Vid's wallpapers, in the Super+m picker (vikix add wallpapers)
@@ -228,6 +230,22 @@ bt Buds +1          and another one besides
 ```
 
 Prints nothing when there is no Bluetooth, when it's switched off, or when bluetoothd isn't answering, so the bar leaves the field out. Asks bluez through bluetoothctl, each question with a time limit: a hung bluetoothd must not hold up the bar.
+
+## vikix-day
+
+The day as the desktop saw it, kept as a diary.
+
+- `vikix day [yesterday|DATE] [--no-file]` — that day (today): how long you were at the screen, and for each project how long it had it, its log entries, its commits and what's next; then the rest of the screen's time, the files Esploro changed, the agents' sessions and what changed in your settings after each, Vikix's updates, the rules that ran, the documents opened from the catalogue and what the plugins recorded. Printed, and kept as `~/journal/DATE.org` (--no-file: printed only)
+- `vikix day --week [DATE]` — the seven days ending that day, project by project: hours, commits and log entries, a line a day
+- `vikix day --for NAME [--week] [DATE]` — only that project
+- `vikix day log [yesterday|DATE]` — for each project worked on that day that has no log entry for it: an entry drafted from its commits, the next step and the percentage, each written only on your yes (through vikix project log)
+- `vikix day path [yesterday|DATE]` — the day's file
+
+Nothing is asked of you during the day. Everything here is read from records Vikix keeps anyway: the projects' logs and commits (vikix project), Esploro's journal of changes, the snapshot history of your settings (vikix history), the record store (vikix records), and one of its own: `~/.local/state/vikix/day/screen-YYYY-MM.log`, where the desktop notes every 30 seconds which workspace, project, program and folder had the screen when that changed (day.lisp; never a window's title). Five minutes without a key or the pointer is time away, and so is a suspend. A window counts for a project when its workspace was opened for it (vikix project open) or its program is in the project's folder, or in a git worktree of it. A commit counts for the project whose folder holds a file it changed, so a repo of many projects (a collection) gives each its own.
+
+The file is yours and private: `~/journal` is made 700 and each day 600, it is in vikix backup like the rest of your home, and nothing sends it anywhere. Each run writes the day again from the records, so yesterday can be asked for tomorrow; what you write under its last heading, Notes, is kept. Another folder: a line `folder=~/Notes/journal` in `~/.config/vikix/day`. To record nothing about the screen: (setf `*vikix-day-on*` nil) in `~/.stumpwm.d/user.lisp`; the rest still works.
+
+An agent asked "what did I do on Tuesday" runs vikix day DATE --no-file, or reads the day's file.
 
 ## vikix-debug
 

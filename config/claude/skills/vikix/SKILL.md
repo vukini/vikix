@@ -194,6 +194,16 @@ has it in `~/src/project-logs/NAME/log.md`. Git worktrees are skipped.
 - `vikix today [yesterday|DATE]`: what was done that day across all
   projects (log entries and commits) and what's next; a good first read
   when the user asks where they were.
+- `vikix day [yesterday|DATE]`: the day as the desktop saw it, kept as
+  `~/journal/DATE.org` (the user's diary, private: read it when asked what
+  they did, never send it anywhere): how long each project had the screen
+  (noted every 30 seconds in `~/.local/state/vikix/day/`, by workspace,
+  project, program and folder, never a title), its entries and commits,
+  Esploro's changes, agents' sessions, the rules that ran. `--no-file`
+  only prints; `--week` the last seven days; `--for NAME` one project.
+  "What did I do on Tuesday": `vikix day DATE --no-file`. `vikix day log`
+  offers the user the log entries a day still lacks, each written on
+  their yes: it's theirs to run, in a terminal.
 - `vikix project open NAME` puts the project on a workspace of its own (the one it has still, else the first empty one), opens a terminal there and the log in Emacs, and once they've come puts its saved layout back (`project-NAME`, a collection's `/` as `--`; saved when you leave that workspace, or by `vikix project save [NAME]`). Saved windows that aren't open are started again and placed.
 
 ## Checking and fixing

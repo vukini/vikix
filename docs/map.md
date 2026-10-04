@@ -116,6 +116,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 ├── .ollama/models/            local AI models (vikix ai models): big, not backed up
 ├── vikix-debug-*.txt           the reports vikix debug writes (yours to delete; vikix diagnose's are in ~/.local/state/vikix/diagnose/)
 ├── .config/io.datasette.llm/  llm's settings and its log of everything asked (vikix ai llm)
+├── journal/                   yours     the diary: a day a file, written by vikix day (700; what you write under Notes is kept)
 ├── Pictures/Screenshots/      Shift+Print and friends
 ├── Videos/Recordings/         Super+Ctrl+v
 ├── Windows/                   yours     drive Z: in the Windows VM (vikix windows)
@@ -132,6 +133,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 | `errors/` | Every error the desktop met, one file each, with its backtrace: a mistake in `user.lisp` or a Vikix file, or one StumpWM didn't catch ([When something breaks](fixing.md#when-the-desktop-asks-what-to-do)). The newest 50 are kept |
 | `user-last-snapshot.lisp` | The copy of your last snapshot of `user.lisp`, written when you chose to load it instead of a broken one |
 | `migrations/` | Which one-off fixes this machine has had |
+| `day/` | What had the screen, for `vikix day`: `screen-YYYY-MM.log`, a line when the workspace, project, program or folder in front changed (never a window's title; 600), and `docs.log`, the documents opened from the catalogue. To keep none of the first: `(setf *vikix-day-on* nil)` in `user.lisp` |
 | `welcome` | The welcome's steps you've done (`vikix welcome`); that it exists means the welcome has been shown, so it doesn't open at login again |
 | `checkout-changes/` | Changes someone made in `~/vikix`, set aside by `vikix update` as patch files (see [When something breaks](fixing.md#an-update-failed)) |
 | `diagnose/` | The last five reports `vikix diagnose` gave your agent |

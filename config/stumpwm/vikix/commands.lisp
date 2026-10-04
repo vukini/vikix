@@ -284,6 +284,7 @@ Returns the window, or nil when there's none."
     ("Update Vikix"      vikix-update)
     ("AI agent"            vikix-agent)
     ("Projects: open one (a terminal there, its log in the editor)" (run-shell-command "vikix-project pick"))
+    ("My day: each project's time, entries and commits (kept in ~/journal)" (vikix-in-terminal "vikix day"))
     ("Something's wrong? Ask the agent" (vikix-in-terminal "vikix diagnose"))
     ("A report of what's going on (vikix debug)" (vikix-in-terminal "vikix debug"))
     ("Memory: what uses it, and what's left over" (vikix-in-terminal "vikix memory"))
