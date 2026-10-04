@@ -84,6 +84,68 @@ Why only Vikix: `vikix project`, the rules and the agent's door are the places w
 
 First step: the property and the grouped window list; see whether the grouping is what you reach for.
 
+## 7. Hand a window to another machine
+
+A running program moves from this laptop to that one without closing.
+
+- `vikix hand firefox z13`: the Firefox you have open, with its tabs and its form half filled, leaves the X1's screen and appears on the Z13's, still running where it was. `vikix hand --back`.
+- The trick is old and unused: xpra (6.4.4 in Void) can detach a program from one display and attach it to another; nobody has made it a desktop verb. Over the tailnet (`DESIGN-machines.md`) the other machine is a name.
+- Programs started by Vikix (Super+Return, the launcher, `vikix project open`) run under xpra's seamless mode from the start when the feature is on, so any of them can be handed; a program started otherwise is told it can't, with the reason.
+- Uses: the terminal you were in when you left the desk; the agent's session moved to the office machine with the big models while it keeps its state; a child's program handed to the parent's screen to look at.
+
+Why only Vikix: Vikix starts the programs, so it can start them handable; it knows the machines by name; and it has the door to tell the other side to take the window.
+
+First step: hand one terminal between the X1 and the VM, and measure what xpra costs in latency and memory when it is just sitting there.
+
+## 8. Vikix in your pocket
+
+Your desktop on a USB stick, bootable on any PC, with your settings and without your secrets.
+
+- `vikix stick /dev/sdX`: writes Void's live image with Vikix already installed (the base and the features you name), your `vikix export` applied (theme, keys, rules, web apps, projects list), and a persistence partition, so the stick remembers what you do on it. Encrypted persistence with a passphrase, so a lost stick is a lost stick.
+- On any x86-64 machine with a USB port, hold the boot key and you are at your own desk: your Super+m, your theme, `vikix project` with your repos cloned on first use. The local AI models are too big for a stick; `vikix ai use` points at the office over the tailnet, or Claude.
+- Also the way to try Vikix without touching a disk, which the site currently answers with "a virtual machine": a stick is the answer for people who don't know what a VM is. TODO 20 (an installer image) becomes a mode of the same tool: the stick can install itself to the machine's disk.
+
+Why only Vikix: `vikix export` and the feature lists already describe a machine as data; the stick is that data plus Void's live tooling (`void-mklive`, built from source as Void does it).
+
+First step: a stick with the base alone, no persistence, booted on one machine that isn't yours.
+
+## 9. Read any window
+
+Point at a window in a language you don't read and read it in yours.
+
+- `Super+Alt+r` on a window: its text is read from the pixels (tesseract 5.5, in Void; the language data fetched per language as `vikix docs get` fetches docsets), translated by the local model, and shown as an overlay in the same places, in the Vikix font; `Esc` takes it away. Nothing leaves the machine.
+- The other direction for a learner: a window you can read, shown in the language you're learning, with the original on hover. This is the sibling of idea 1 for programs Vikix doesn't control: a web page, a PDF, the Windows VM's Excel.
+- Living in the UAE, this is an everyday tool (a form, a notice, a message); for the books, it is a way to check a translation against the page.
+
+Why only Vikix: the local model, the overlay (the OSD already draws on any window), and the language work from idea 1 are all there; the join is an afternoon once tesseract's data is installed.
+
+First step: OCR one window into a text buffer in Emacs, no overlay; see whether the recognition is good enough on the screen's fonts to be worth the rest.
+
+## 10. Rehearse a change
+
+Any change to the machine itself can be tried on a copy first and shown as a diff.
+
+- `vikix rehearse vikix add music`: the command runs in a throwaway copy of this machine (the VM from a fresh snapshot, with your settings applied, or a bubblewrap copy of your home for changes that stay in it), and what comes back is not output but a diff: packages that would be installed, services linked, files written, keys bound, ports opened, with sizes and times. Then "do it for real" or not.
+- `DRY_RUN` already prints what a stage would do; this executes it where it can't hurt and reports what it actually did, which catches what a dry run can't (a package pulling in Qt, an installer touching `~/.bashrc`).
+- The agent proposes changes through the same door: an agent's "I'd like to run `vikix add tailscale`" becomes a rehearsal and a diff for your yes, which is Esploro's plan-then-apply for the whole machine.
+- Snapshots do this for your files after the fact; rehearsal does it for the system before.
+
+Why only Vikix: every system change already goes through `run` in `lib/common.sh`, the VM and its guest agent exist, and the file ownership rule means the diff is readable.
+
+First step: `vikix rehearse` for `vikix add NAME` alone, in the VM, printing the package and file diff.
+
+## 11. What's new, for you
+
+Every update tells you what changed in your desktop, in your words, and only what touches you.
+
+- After `vikix update`, a card: "Super+g now lists windows with their folders. Esploro opens archives like folders. Your theme gained a high-contrast variant." Three lines, from the release notes, filtered by the features you have and the keys you use (the apprentice's counts), with "show me" on each line running the lesson player (idea 3) or opening the guide page.
+- Read aloud on request, in the language of idea 1 at your level.
+- The release notes are written already (every `Vikix X.Y.Z:` commit); the new part is tagging each note with the feature and the keys it concerns, which `lib/man.py` and the key tables can mostly do by reading it.
+
+Why only Vikix: one repo holds the releases, the features list, the key tables and the guide, so "what changed for you" is a query over things that exist.
+
+First step: the card from the commit messages since the last update, unfiltered; then the filter.
+
 ---
 
 ## Not yet written up
