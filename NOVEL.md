@@ -146,6 +146,58 @@ Why only Vikix: one repo holds the releases, the features list, the key tables a
 
 First step: the card from the commit messages since the last update, unfiltered; then the filter.
 
+## The Z13 (touch, pen, a keyboard that comes off)
+
+A tablet mode for a tiling desktop is open ground: the tiling desktops ignore touch, and the touch desktops aren't tiling. The Z13 (TODO 58–63) makes it Vid's problem to solve, and Vikix has the parts. Checked in Void 2026-10-04: `iio-sensor-proxy` 3.9 (rotation), `touchegg` 2.0.17 and `libinput-gestures` 2.81 (gestures on X), `onboard` 1.4.4 (an on-screen keyboard), `xournalpp` 1.3.4 (pen on PDFs), `gromit-mpx` 1.9.0 (drawing on the screen).
+
+## 12. Take the keyboard off and the desktop becomes a strip
+
+Detaching the keyboard is a statement of intent, and the desktop should hear it.
+
+- A rule, `when-keyboard-detached`: the current workspace becomes a Viri strip (`DESIGN-viri.md`) with one column per screen, panned with two fingers; tap focuses; a long press on a window opens the window's menu (close, move, hand to another machine); the bar grows to finger height; notifications wait. Reattach, and the tiles come back as they were.
+- The key card becomes a touch card: `Super+/`'s groups as tappable tiles, so every key still exists without a key. The `onboard` keyboard appears only when a text field has the focus, as a column of its own at the strip's right edge, never over the window you're typing into.
+- A workspace switch is a three-finger swipe; the overview is a pinch. Each gesture is one entry in a table beside `*vikix-bindings*`, so the key card can print "or swipe left" beside "Super+l".
+
+Why only Vikix: the strip exists, the rules exist, the key tables are data; a tablet mode is a rule and a table, not a second desktop.
+
+First step: the rule and the strip alone, no gestures: detach, strip; attach, tiles. Live with it on the Z13 for a week.
+
+## 13. Draw a letter, press a key
+
+The pen and the finger get the key card for free: draw an `e` anywhere and Esploro opens, as Super+e does.
+
+- The rule for keys (`keys.lisp`: Super everyday, Super+Shift moves, Super+Alt opens something else, Super+Ctrl switches) maps onto strokes: a letter is Super+letter; a letter with a line under it is Super+Shift; a circled letter is Super+Alt; a letter with a dot is Super+Ctrl. Nothing to learn twice: the key card is the gesture card.
+- Drawn on the screen with the pen or a finger while a corner is held (so ordinary drawing in an app isn't a command), recognised by a small template matcher in Lisp (the strokes are few and simple; no model needed), shown on the OSD as the key it became.
+- The same strokes on the touch card (12) and on the lock screen's drawing area for a pattern unlock, if wanted.
+
+Why only Vikix: one rule for keys means one rule for strokes; a desktop with ad hoc bindings couldn't do this.
+
+First step: three letters (`e`, `t`, `w`) with the pen, in a hidden StumpWM on Xvfb with synthetic strokes, then on the Z13.
+
+## 14. Hold it like a book
+
+Turn the Z13 on its side and it is an e-reader for your own drafts.
+
+- Rotation (iio-sensor-proxy) into portrait becomes a rule, `when-portrait`: the bar hides, the strip turns vertical (columns become rows), the theme warms (the nightlight's colours), notifications wait, and the focused document fills the screen: a PDF in `xournalpp` so the pen writes in the margin, an EPUB in Foliate, Markdown rendered by the guide's CSS.
+- Tap at the edges turns pages; the pen's margin notes are saved beside the file (`chapter-3.md.notes.xopp`) and listed by Esploro's "Versions…" neighbour, "Notes…"; `vikix publish check` can list the pages with notes still unresolved.
+- This is the proofreading posture for the Living Series: build the EPUB (`DESIGN-publish.md`), pick up the Z13, read it as a reader would, mark it with the pen, put it down, and the marks are in the project.
+
+Why only Vikix: the publish pipeline, the strip, the rules and Esploro meet here; an e-reader app can't know what a project is.
+
+First step: the `when-portrait` rule hiding the bar and opening the focused PDF full-screen in xournalpp; the rest follows if that posture is used.
+
+## 15. The big laptop serves the small ones
+
+When the Z13 is on power and on the tailnet, its 128 GB is everyone's.
+
+- `vikix ai serve` as a rule, `when-charging` and `when-on-network home`: Ollama listens on the Tailscale address, and the X1, the office and the phones' Hermes gateway find it by name; off power or off the network, it stops, and the others fall back to what they had (`vikix ai use` keeps a list, first available wins).
+- The bar on the Z13 shows who is using it ("serving: x1, phone"), in the quiet colour; the ledger (`DESIGN-security.md`) shows what was asked, never the text.
+- The office machine (`ai-desktop.md`) is the same rule with `always`; the design is one and the hardware decides.
+
+Why only Vikix: the rules know power and network, the machines design gives the names, and `vikix ai use` already abstracts where the model is.
+
+First step: `vikix ai serve on|off` by hand between the Z13 and the X1 over the tailnet; then the rule.
+
 ---
 
 ## Not yet written up
@@ -153,4 +205,5 @@ First step: the card from the commit messages since the last update, unfiltered;
 A line each, for the next session with Vid:
 
 - **The desktop as a musical instrument** beyond the sketchpad: the bar's beat, keys as pads, is in `DESIGN-music.md`; what isn't is the other direction, the desktop's own events as sound: a quiet tick for a finished build, a chord for a passed test suite, so a long job can be heard from across the room.
+- **Draw a rhythm.** The music sketchpad's codeless face (`DESIGN-music.md`, `DESIGN-cuis.md`) could take ink on the Z13: a stroke per hit, a longer stroke a longer note, the row redrawn as cells; the pen as the first instrument.
 - **Teach the agent your desktop by showing it**: record (3) a few minutes of how you work, and the apprentice (`IDEAS.md`) reads that instead of the shell history alone.
