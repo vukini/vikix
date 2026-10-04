@@ -253,34 +253,56 @@ each function once, and only one that has fewer places than SLIME sends."
       (unless (str:emptyp (str:trim err))
         (echo-warning "~a" (str:trim err))))))
 
+(defun vikix-docs-tsv (&rest args)
+  "vikix docs ARGS' lines, split at tabs."
+  (mapcar (lambda (line) (str:split #\Tab line))
+          (str:lines (apply #'vikix-docs-run "docs" args))))
+
+(defun vikix-docs-groups (query)
+  "The page's sections, (heading . hits), and the line above them.
+Without words: how many there are from each source, then the short lists
+(Vikix's guides, your projects) in full; with words, the hits by source."
+  (flet ((source-name (source) (or (cdr (assoc source *vikix-docs-sources* :test #'string=)) source))
+         (source-docs (source) (remove-if-not (lambda (f) (= (length f) 4))
+                                         (vikix-docs-tsv "list" "--source" source))))
+    (if (str:blankp query)
+        (let ((counts (remove-if-not (lambda (f) (= (length f) 2)) (vikix-docs-tsv "list"))))
+          (values (loop for source in '("vikix" "repo")
+                        for hits = (source-docs source)
+                        when hits collect (cons (format nil "~a (~d)" (source-name source) (length hits)) hits))
+                  (if counts
+                      (format nil "Here: ~{~a~^, ~}. Find searches them all; below, the short lists in full."
+                              (mapcar (lambda (c) (format nil "~a ~a" (second c) (source-name (first c)))) counts))
+                      "Nothing is in the catalogue yet: vikix docs index reads it.")))
+        (let ((hits (vikix-docs-hits query)))
+          (values (loop for (source . name) in *vikix-docs-sources*
+                        for group = (remove source hits :key #'second :test-not #'string=)
+                        when group collect (cons (format nil "~a (~d)" name (length group)) group))
+                  (if hits
+                      (format nil "~d found for “~a”, Vikix's first, then yours, then the system's." (length hits) query)
+                      (format nil "Nothing found for “~a”." query)))))))
+
 (define-internal-page vikix-docs-page (&key (query ""))
     (:title "*Docs*")
   "Every document on this machine, found: vikix docs as a page."
-  (let ((hits (vikix-docs-hits query)))
+  (multiple-value-bind (groups line) (vikix-docs-groups query)
     (spinneret:with-html-string
       (:h1 "Docs")
       (:p (:nbutton :text "Find…" '(nyxt-user::vikix-docs))
           " Every document on this machine: Vikix's guides, your projects and notes, man pages, manuals, packages. "
           "The start of a word is enough; \"exact words\", a OR b.")
-      (cond ((str:blankp query)
-             (:p "Press Find, or Super+F2 anywhere."))
-            ((null hits)
-             (:p (format nil "Nothing found for “~a”." query)))
-            (t
-             (:p (format nil "~d found for “~a”, Vikix's first, then yours, then the system's." (length hits) query))
-             (dolist (source *vikix-docs-sources*)
-               (let ((group (remove (car source) hits :key #'second :test-not #'string=)))
-                 (when group
-                   (:h2 (format nil "~a (~d)" (cdr source) (length group)))
-                   (:ul
-                    (dolist (hit group)
-                      (destructuring-bind (id src title excerpt) hit
-                        (declare (ignore src))
-                        (:li (:nbutton :text "Open" `(nyxt-user::vikix-docs-open-id ,id))
-                             (:nbutton :text "The other way" `(nyxt-user::vikix-docs-open-id ,id t))
-                             " " (:b title)
-                             (unless (or (str:blankp excerpt) (search excerpt title))
-                               (:br) (:small excerpt))))))))))))))
+      (:p line)
+      (dolist (group groups)
+        (:h2 (car group))
+        (:ul
+         (dolist (hit (cdr group))
+           (destructuring-bind (id src title excerpt) hit
+             (declare (ignore src))
+             (:li (:nbutton :text "Open" `(nyxt-user::vikix-docs-open-id ,id))
+                  (:nbutton :text "The other way" `(nyxt-user::vikix-docs-open-id ,id t))
+                  " " (:b title)
+                  (unless (or (str:blankp excerpt) (search excerpt title))
+                    (:br) (:small excerpt))))))))))
 
 (defun vikix-docs-show (query)
   "The catalogue's page for QUERY, in front (vikix docs page)."

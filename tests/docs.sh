@@ -129,6 +129,8 @@ fi
 # a running Nyxt (a stand-in); with none (--remote exits 0 then, saying only
 # "No instance running"), Nyxt started with the page's address, so it opens
 # after the restored session rather than under it; and said when it can't.
+check "list: how many from each source" grep -qxP 'repo\t[0-9]+' <<<"$(d list)"
+check "list --source: its documents by title, four fields: $(d list --source repo)" grep -qP '^repo:.*\trepo\tMusic sketchpad.*\t$' <<<"$(d list --source repo)"
 tsv=$(d find websocket --tsv)
 check "--tsv gives four fields a line: $tsv" test -n "$tsv" -a -z "$(awk -F'\t' 'NF != 4' <<<"$tsv")"
 printf '#!/bin/sh\necho "nyxt $*" >> %s/opened\n' "$t" > "$t/bin/nyxt"; chmod +x "$t/bin/nyxt"

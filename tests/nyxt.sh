@@ -162,6 +162,9 @@ L
 ;; The docs page: hits from vikix docs find --tsv (a stand-in), an open's error said.
 (let ((*print-pretty* nil)) (format t "hits ~s~%" (vikix-docs-hits "run it")))
 (format t "no words ~s~%" (vikix-docs-hits "  "))
+(let ((*print-pretty* nil))
+  (multiple-value-bind (groups line) (vikix-docs-groups "")
+    (format t "overview ~s~%overview line ~a~%" groups line)))
 (vikix-docs-open-id "gone")
 (format t "echoed ~a~%" (first nyxt::*echoed*))
 L
@@ -170,6 +173,8 @@ L
 #!/bin/sh
 case "$*" in
   "docs find --tsv --limit 80 run it") printf 'man:sv(8)\tman\tsv(8)\tcontrol a service\nnot a hit\nvikix:/g.md\tvikix\tGuide\t\n' ;;
+  "docs list") printf 'man\t12\nvikix\t2\n' ;;
+  "docs list --source vikix") printf 'vikix:/a.md\tvikix\tA guide\t\n' ;;
   "docs open gone") echo "vikix docs: /x is gone since the last index" >&2; exit 1 ;;
 esac
 V
@@ -201,6 +206,8 @@ V
   check "(setf *vikix-swank-port* nil) means no Swank" grep -qx 'off calls 0' <<<"$out"
   check "the docs page reads vikix docs find's lines of four, the rest skipped: $(grep "^hits" <<<"$out")" grep -qx 'hits (("man:sv(8)" "man" "sv(8)" "control a service") ("vikix:/g.md" "vikix" "Guide" ""))' <<<"$out"
   check "and asks nothing without words" grep -qx 'no words NIL' <<<"$out"
+  check "without words, the short lists in full" grep -qx 'overview (("Vikix.s guides (1)" ("vikix:/a.md" "vikix" "A guide" "")))' <<<"$out"
+  check "and how many from each source" grep -qx "overview line Here: 12 Man pages, 2 Vikix's guides. Find searches them all; below, the short lists in full." <<<"$out"
   check "an Open that fails says why in Nyxt" grep -qx 'echoed vikix docs: /x is gone since the last index' <<<"$out"
   check "a taken port doesn't stop Nyxt" grep -qx 'taken port NYXT-GOES-ON' <<<"$out"
   check "and is logged" grep -qx 'taken warned T' <<<"$out"

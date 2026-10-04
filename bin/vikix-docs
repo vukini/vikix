@@ -18,6 +18,10 @@
                                   read again what changed (--full: all of
                                   it); vikix update does it
   vikix docs status               how many from where, and when last read
+  vikix docs list [--source S]    how many from each source, a line each
+                                  (source, count, tab between); with
+                                  --source, its documents by title, as
+                                  find --tsv prints them
   vikix docs get                  download the offline programming docs
                                   into ~/dev (a few GB, slow; what plain
                                   vikix docs did before)
@@ -697,6 +701,17 @@ def status():
         print("  empty: vikix docs index")
 
 
+def listing(source=None):
+    db = connect()
+    if not source:
+        for s_, n in db.execute("SELECT source, count(*) FROM docs GROUP BY source ORDER BY count(*) DESC"):
+            print(f"{s_}\t{n}")
+        return
+    for id_, title in db.execute("SELECT id, title FROM docs WHERE source = ? ORDER BY title COLLATE NOCASE",
+                                 (source,)):
+        print("\t".join([id_, source, " ".join(title.split()), ""]))
+
+
 def main(argv):
     cmd = argv[0] if argv else ""
     args = argv[1:]
@@ -738,6 +753,8 @@ def main(argv):
             for h in hits:
                 print(hit_line(h))
                 print(f"       {h['id']}")
+    elif cmd == "list":
+        listing(args[args.index("--source") + 1] if "--source" in args[:-1] else None)
     elif cmd == "pick":
         return pick()
     elif cmd == "page":

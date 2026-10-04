@@ -265,6 +265,7 @@ Every document on the machine in one catalogue, found from one key.
 - `vikix docs read ID` — one as plain text (what the agents read)
 - `vikix docs index [--full] [--quiet]` — read again what changed (--full: all of it); vikix update does it
 - `vikix docs status` — how many from where, and when last read
+- `vikix docs list [--source S]` — how many from each source, a line each (source, count, tab between); with --source, its documents by title, as find --tsv prints them
 - `vikix docs get` — download the offline programming docs into `~/dev` (a few GB, slow; what plain vikix docs did before)
 
 What it covers, each with whose words they are: Vikix's guides (vikix); the README, DESIGN, TODO, CLAUDE and log files and docs/ of your projects in `~/src` (repo); the language guides in `~/dev` (dev); your Org notes in `~/Dropbox/notes` (note); every man page (man) and Info manual (info) on the machine; the READMEs and notes packages keep in /usr/share/doc (doc); and every package there is, installed or not (pkg). Vikix's guides rank first, then yours, then the system's.
