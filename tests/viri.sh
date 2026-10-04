@@ -145,22 +145,24 @@ frames=$(ask '(princ (length (group-frames (current-group))))')
 key super+r
 check "on tiles Super+r still removes a split" test "$(ask '(princ (length (group-frames (current-group))))')" = $((frames - 1))
 
-# Super+o on a strip: the strip drawn small on a card. The arrows or h/l
-# move a frame along it, Enter goes there, a digit goes to the window with
-# that number, / is the list to type in, any other key closes; one bound to
-# something else does that too.
+# Super+o: every workspace drawn small on a card (overview.lisp); here the
+# strip is the only one with windows. The arrows or h/l move a frame along
+# it, Enter goes there, a digit goes to the window with that number, / is
+# the list to type in, any other key closes; one bound to something else
+# does that too.
 ask '(run-commands "vikix-viri on")' >/dev/null; sleep 0.5
-ov() { ask '(progn (setf *print-pretty* nil) (format t "~a ~a" (if *viri-overview* (xlib:window-map-state (getf *viri-overview* :card)) "closed") (and *viri-overview* (window-title (getf *viri-overview* :at)))))'; }
+ov() { ask '(progn (setf *print-pretty* nil) (format t "~a ~a" (if *vikix-overview* (xlib:window-map-state (getf *vikix-overview* :card)) "closed") (and *vikix-overview* (window-title (getf *vikix-overview* :at)))))'; }
 first=$(ask '(princ (window-title (first (viri-columns (current-group)))))')
-second=$(ask '(princ (window-title (viri-col-window (second (viri-cols (current-group))))))')
 was_in=$(ask '(princ (window-title (current-window)))')
 key super+o
 check "Super+o draws the strip on a card, the frame on the window you're in: $(ov)" test "$(ov)" = "VIEWABLE $was_in"
-check "a box for each window, all inside the picture" test "$(ask '(multiple-value-bind (boxes w h) (viri-overview-boxes (current-group) (getf *viri-overview* :room)) (princ (if (and (= (length boxes) (length (viri-columns (current-group)))) (every (lambda (b) (and (<= 0 (second b)) (<= (+ (second b) (fourth b)) (1+ w)) (<= (+ (third b) (fifth b)) (1+ h)))) boxes)) 1 0)))')" = 1
+check "a box for each window, all inside the plan" test "$(ask '(let* ((plan (getf *vikix-overview* :plan)) (boxes (vikix-overview-boxes plan))) (princ (if (and (= (length boxes) (length (viri-columns (current-group)))) (every (lambda (b) (and (<= 0 (getf b :x)) (<= (+ (getf b :x) (getf b :w)) (1+ (getf plan :width))) (<= (+ (getf b :y) (getf b :h)) (1+ (getf plan :height))))) boxes)) 1 0)))')" = 1
+check "the part of the strip on the screen is marked" test "$(ask '(princ (if (getf (first (getf (getf *vikix-overview* :plan) :panels)) :view) 1 0))')" = 1
 for _ in 1 2 3 4 5 6 7 8; do key h; done
 check "h walks the frame to the first window, and stops there: $(ov)" test "$(ov)" = "VIEWABLE $first"
 key Right
-check "the right arrow moves it a column on: $(ov)" test "$(ov)" = "VIEWABLE $second"
+check "the right arrow moves it a column on: $(ov)" test "$(ask '(princ (if (member (getf *vikix-overview* :at) (viri-col-windows (second (viri-cols (current-group))))) 1 0))')" = 1
+second=$(ask '(princ (window-title (getf *vikix-overview* :at)))')
 check "the strip hasn't moved yet: $(ask '(princ (window-title (current-window)))')" test "$(ask '(princ (window-title (current-window)))')" = "$was_in"
 key h; key Return
 check "Enter goes to the window in the frame ($first), the card gone: $(state)" test "$(ask '(princ (window-title (current-window)))') $(ov)" = "$first closed NIL"
@@ -174,11 +176,10 @@ key super+o; key super+o
 check "Super+o again closes it" test "$(ov)" = "closed NIL"
 key super+o; key super+h
 check "a key bound to something else closes it and does its thing: $(state)" test "$(ask '(princ (window-title (current-window)))') $(ov)" = "$first closed NIL"
-# The last one: its one-letter title is in no other line of the list.
-last=$(ask '(princ (window-title (first (last (viri-columns (current-group))))))')
-key super+o; key slash; sleep 0.5
-xdotool type "$last"; key Return
-check "/ is the list to type in ($last): $(state)" test "$(ask '(princ (window-title (current-window)))')" = "$last"
+key super+o; key g
+check "g says a strip has no grid to make, and closes the card" test "$(ov) $(ask '(princ (if (viri-group-p) 1 0))')" = "closed NIL 1"
+key super+o; key slash; sleep 0.7; key Escape
+check "/ is the list of every window (Super+g's), closed with Escape" test "$(ov)" = "closed NIL"
 key super+o; win Late
 check "a window opening closes the card: it would show what isn't so" test "$(ov)" = "closed NIL"
 ask "(delete-window $(find_w Late))" >/dev/null; sleep 1
@@ -277,13 +278,13 @@ ask "(viri-ml-click 4 (window-id (current-window)))" >/dev/null; sleep 0.3
 check "the wheel on the bar's window names walks along the strip: $(focus)" test "$(focus)" = "$two"
 key super+o
 target=$(ask '(princ (window-title (first (last (viri-columns (current-group))))))')
-read -r bx by <<<"$(ask '(let* ((st *viri-overview*) (card (getf st :card)) (g (getf st :group))) (multiple-value-bind (boxes pw) (viri-overview-boxes g (getf st :room)) (multiple-value-bind (x0 y0) (viri-overview-origin (xlib:drawable-width card) pw (getf st :pad) (getf st :line)) (let ((b (first (last boxes)))) (format t "~a ~a" (+ (xlib:drawable-x card) 1 x0 (second b) (floor (fourth b) 2)) (+ (xlib:drawable-y card) 1 y0 (third b) (floor (fifth b) 2)))))))')"
+read -r bx by <<<"$(ask '(let* ((st *vikix-overview*) (card (getf st :card)) (b (first (last (vikix-overview-boxes))))) (format t "~a ~a" (+ (xlib:drawable-x card) 1 (getf st :ox) (getf b :x) (floor (getf b :w) 2)) (+ (xlib:drawable-y card) 1 (getf st :oy) (getf b :y) (floor (getf b :h) 2))))')"
 mouse mousemove "$bx" "$by"; mouse click 1
-check "a click on a box of the overview goes to its window ($target), the card gone" test "$(focus) $(ask '(princ (if *viri-overview* 1 0))')" = "$target 0"
+check "a click on a box of the overview goes to its window ($target), the card gone" test "$(focus) $(ask '(princ (if *vikix-overview* 1 0))')" = "$target 0"
 # Off the card, on the window you're in: a click elsewhere would focus that.
 read -r x y w h b <<<"$(geo '(current-window)')"
 key super+o; mouse mousemove $((x + w / 2)) $((y + h - 20)); mouse click 1
-check "a click off the card closes it, nothing moved" test "$(focus) $(ask '(princ (if *viri-overview* 1 0))')" = "$target 0"
+check "a click off the card closes it, nothing moved" test "$(focus) $(ask '(princ (if *vikix-overview* 1 0))')" = "$target 0"
 
 # The window keys that only knew tiles: on a strip each does its thing, or
 # says why not; none is an error.

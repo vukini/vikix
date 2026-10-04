@@ -304,6 +304,7 @@ Returns the window, or nil when there's none."
     ("Keep awake on/off"   vikix-awake)
     ("Night light on/off"  vikix-nightlight)
     ("Tray on/off: network and Bluetooth icons in the bar" vikix-tray)
+    ("Overview: every workspace, drawn small" vikix-overview)
     ("Find a window, any workspace" vikix-go-to-window)
     ("Gaps around windows on/off" toggle-gaps)
     ("Rules: the list, one off or on, why this window is where it is" vikix-rules)

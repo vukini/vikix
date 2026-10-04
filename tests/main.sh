@@ -120,7 +120,40 @@ ask '(run-commands "vikix-layout-pick tiles")' >/dev/null; key super+b
 check "vikix-layout-pick tiles: the layout is yours: $(now)" test "$(now) $(on)" = "TILES 0"
 ask '(vikix-layout-restore "kept" (current-group) :start nil)' >/dev/null; sleep 0.5
 check "and put back, the workspace is in the mode again: $(now)" test "$(now) $(shape)" = "MAIN 1"
+
+# Super+o: every workspace that has windows, drawn small on one card
+# (overview.lisp). Tiles are their frames; a frame's windows behind the one
+# it shows are lines in its box, and can be picked; the frame goes from one
+# workspace's windows to another's; g is StumpWM's expose, the real grid.
+ov() { ask '(progn (setf *print-pretty* nil) (format t "~a ~a" (if *vikix-overview* (xlib:window-map-state (getf *vikix-overview* :card)) "closed") (and *vikix-overview* (getf *vikix-overview* :at) (window-title (getf *vikix-overview* :at)))))'; }
+focus() { ask '(princ (window-title (current-window)))'; }
+ask '(progn (run-commands "vikix-layout-pick tiles") (run-commands "only") (run-commands "hsplit"))' >/dev/null; sleep 0.5
+key super+shift+3
+# The frame the window left may be empty: a window in it, to start from.
+ask '(unless (current-window) (run-commands "pull-hidden-next"))' >/dev/null; sleep 0.3
+tiled=$(ask '(princ (length (remove-if-not (lambda (w) (typep w (quote tile-window))) (group-windows (current-group)))))')
+key super+o
+check "Super+o on tiles: the card, the frame on the window you're in: $(ov)" test "$(ov)" = "VIEWABLE $(focus)"
+check "a panel for each workspace with windows: $(ask '(princ (mapcar (lambda (p) (group-name (getf p :group))) (getf (getf *vikix-overview* :plan) :panels)))')" test "$(ask '(princ (mapcar (lambda (p) (group-name (getf p :group))) (getf (getf *vikix-overview* :plan) :panels)))')" = "(1 3)"
+check "every tiled window here is a box, a line behind its frame's, or counted in a line of more" test "$(ask '(let* ((panel (first (getf (getf *vikix-overview* :plan) :panels)))) (princ (+ (length (getf panel :boxes)) (reduce (function +) (getf panel :notes) :key (function first)))))')" = "$tiled"
+key j
+behind=$(ask '(princ (window-title (getf *vikix-overview* :at)))')
+check "down from a frame's window: one behind it: $behind" test "$(ask '(princ (getf (find (getf *vikix-overview* :at) (vikix-overview-boxes) :key (lambda (b) (getf b :window))) :kind))')" = HIDDEN
+key Return
+check "Enter brings it to the front of its frame: $(focus)" test "$(focus) $(ask '(princ (window-title (frame-window (window-frame (current-window)))))') $(ov)" = "$behind $behind closed NIL"
+key super+o
+other=$(ask '(princ (window-title (getf (first (getf (second (getf (getf *vikix-overview* :plan) :panels)) :boxes)) :window)))')
+for _ in 1 2 3 4 5 6; do [ "$(ov)" = "VIEWABLE $other" ] && break; key l; done
+check "the frame walks on to the other workspace's window ($other): $(ov)" test "$(ov)" = "VIEWABLE $other"
+key Return
+check "Enter goes there, workspace and all: $(focus) on $(ask '(princ (group-name (current-group)))')" test "$(focus) $(ask '(princ (group-name (current-group)))')" = "$other 3"
+key super+o; xdotool mousemove 3 3; sleep 0.3; xdotool click 1; sleep 0.5
+check "a click off the card closes it" test "$(ov)" = "closed NIL"
+key super+1; key super+o; key g; sleep 1; key 0
+check "g is the real grid: the frame picked there has the workspace to itself, as expose leaves it" test "$(frames) $(ov)" = "1 closed NIL"
+key super+o; key slash; sleep 0.7; key Escape
+check "/ is the list of every window, closed with Escape; the card is gone" test "$(ov)" = "closed NIL"
 check "nothing was written to the errors folder" test -z "$(ls "$home/.local/state/vikix/errors" 2>/dev/null)"
 
-wm_report main "main and stack from any layout, a new window at the top of the stack (or as the main one), swapping, widths, a closed window, a split put back, focus mode and back, a full stack, a dialog, another workspace, off and on, grid mode, the layout picker, a saved layout"
+wm_report main "main and stack from any layout, a new window at the top of the stack (or as the main one), swapping, widths, a closed window, a split put back, focus mode and back, a full stack, a dialog, another workspace, off and on, grid mode, the layout picker, a saved layout, the overview of every workspace"
 exit "$fail"

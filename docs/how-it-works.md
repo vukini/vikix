@@ -40,6 +40,7 @@ login on tty1
                       ├─ vikix/rules.lisp        rules for windows: (when-window ...)
                       ├─ vikix/viri.lisp         a workspace that scrolls sideways
                       ├─ vikix/layouts.lisp      saved layouts
+                      ├─ vikix/overview.lisp     every workspace drawn small (Super+o)
                       ├─ vikix/day.lisp          what had the screen, noted for vikix day
                       ├─ vikix/keys.lisp         the Super keys
                       ├─ vikix/help.lisp         Super+/ and Super+F1
