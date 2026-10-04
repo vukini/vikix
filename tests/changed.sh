@@ -49,7 +49,7 @@ for f in "${files[@]}"; do
   case $f in
     # The skill's list of keys is made from these (lib/skill-keys.sh).
     config/stumpwm/vikix/registry.lisp|lib/registry.sh) add agents registry menu mcp webapp plugin project screens esploro memory docs-open welcome ;;
-    config/stumpwm/vikix/keys.lisp|config/stumpwm/vikix/help.lisp|bin/vikix-plugin) add agents ;;
+    config/stumpwm/vikix/keys.lisp|config/stumpwm/vikix/help.lisp|bin/vikix-plugin|README.md|lib/skill-keys.sh) add agents ;;
   esac
   case $f in
     bin/*|lib/*|tests/*|migrations/*|install/*|*.sh) add lint ;;

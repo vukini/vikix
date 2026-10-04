@@ -287,11 +287,11 @@ out=$(HOME="$t/nothing" script -qec "bash '$here/bin/vikix-agent' --exec codex" 
 check "--exec: not installed should say how to install it: $out" grep -q 'vikix agent --install codex' <<<"$out"
 check "--exec should never ask: $out" test -z "$(grep 'Install it now' <<<"$out" || true)"
 
-# The skill's keys are made from keys.lisp (and the plugins at the pin,
+# The skill's keys are made from registry.lisp, and so is the README's table of them (and the plugins at the pin,
 # where a copy of their repository is here): never a hand-kept list.
 if command -v sbcl >/dev/null; then
   out=$(VIKIX_PLUGINS_REPO="$plugins_repo" bash "$here/lib/skill-keys.sh" --check 2>&1 || true)
-  check "the skill's keys should be keys.lisp's: $out" test -z "$out"
+  check "the skill's keys and the README's table should be registry.lisp's: $out" test -z "$out"
   # And every key its prose names is one of them, so none lingers after it moves.
   skill="$here/config/claude/skills/vikix/SKILL.md"
   known=$(awk '/^<!-- (plugin-)?keys:/,/^<!-- \/(plugin-)?keys -->/' "$skill" |

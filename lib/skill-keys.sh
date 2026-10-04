@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# lib/skill-keys.sh — the agents' skill's list of keys, made from the keys
-# themselves, so it can't go stale as the hand-written one could.
+# lib/skill-keys.sh — the agents' skill's list of keys and the README's
+# table of them, made from the keys themselves, so neither can go stale as
+# the hand-written ones could.
 #
 #   lib/skill-keys.sh            print the three blocks: Vikix's keys (from
 #                                its commands, config/stumpwm/vikix/registry.lisp,
@@ -10,9 +11,12 @@
 #                                plugins repository at Vikix's pin)
 #   lib/skill-keys.sh --write    put them into config/claude/skills/vikix/SKILL.md,
 #                                between the <!-- keys -->, <!-- commands -->
-#                                and <!-- plugin-keys --> markers
-#   lib/skill-keys.sh --check    exit 1 when SKILL.md's blocks aren't what
-#                                they'd be now (tests/agents.sh runs it);
+#                                and <!-- plugin-keys --> markers; and Vikix's
+#                                keys as a table, a row a key, into README.md
+#                                between its <!-- readme-keys --> markers
+#   lib/skill-keys.sh --check    exit 1 when SKILL.md's blocks or README.md's
+#                                table aren't what they'd be now
+#                                (tests/agents.sh runs it);
 #                                the plugins' block only where a copy of the
 #                                plugins repository is at hand
 #
@@ -21,6 +25,7 @@
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 skill="$root/config/claude/skills/vikix/SKILL.md"
+readme="$root/README.md"
 registry="$root/config/stumpwm/vikix/registry.lisp"
 help="$root/config/stumpwm/vikix/help.lisp"
 repo=${VIKIX_PLUGINS_REPO:-$HOME/src/vikix-plugins}
@@ -87,7 +92,23 @@ plugin_keys() {
           (mapcar (lambda (k) (format nil "~a: ~a (~a)" (vikix-pretty-key (first k))
                                       (string-right-trim "." (second k)) (third k)))
                   *plugin-keys*))
-  (format t "<!-- /plugin-keys -->~%"))
+  (format t "<!-- /plugin-keys -->~%")
+  ;; The README's table: a row a key, under its group. A cell's | ` * and _
+  ;; are Markdown's, so they are escaped.
+  (flet ((cell (text)
+           (with-output-to-string (out)
+             (loop for c across text
+                   do (when (find c "|`*_") (write-char #\\ out))
+                      (write-char c out)))))
+    (format t "~%<!-- readme-keys: made by lib/skill-keys.sh from registry.lisp; don't edit, run it with --write -->~%")
+    (format t "| Key | What it does |~%|---|---|~%")
+    (dolist (g groups)
+      (format t "| **~a** | |~%" (cell (first g)))
+      (dolist (row (reverse (rest g)))
+        ;; Each line was made as "KEY: words" above; a key's name has no ": ".
+        (let ((colon (search ": " row)))
+          (format t "| ~a | ~a |~%" (cell (subseq row 0 colon)) (cell (subseq row (+ colon 2)))))))
+    (format t "<!-- /readme-keys -->~%")))
 LISP
 } > "$t/make.lisp"
 sbcl --script "$t/make.lisp" > "$t/blocks" || { echo "skill-keys: sbcl failed" >&2; exit 2; }
@@ -112,6 +133,16 @@ for name in ("keys", "commands", "plugin-keys"):
     s = pat.sub(lambda m: new, s, count=1)
 open(skill, "w").write(s)
 PY
+    python3 - "$readme" "$t/blocks" <<'PY'
+import re, sys
+readme, blocks = sys.argv[1], open(sys.argv[2]).read()
+pat = re.compile(r"<!-- readme-keys:.*?<!-- /readme-keys -->\n", re.S)
+new = pat.search(blocks).group(0)
+s = open(readme).read()
+if not pat.search(s):
+    sys.exit("skill-keys: README.md has no <!-- readme-keys: ... <!-- /readme-keys --> block to fill")
+open(readme, "w").write(pat.sub(lambda m: new, s, count=1))
+PY
     ;;
   --check)
     fail=0
@@ -119,6 +150,8 @@ PY
       { echo "SKILL.md's keys aren't registry.lisp's: lib/skill-keys.sh --write"; fail=1; }
     diff <(block commands "$skill") <(block commands "$t/blocks") >/dev/null ||
       { echo "SKILL.md's commands for agents aren't registry.lisp's: lib/skill-keys.sh --write"; fail=1; }
+    diff <(block readme-keys "$readme") <(block readme-keys "$t/blocks") >/dev/null ||
+      { echo "README.md's table of keys isn't registry.lisp's: lib/skill-keys.sh --write"; fail=1; }
     if have_plugins; then
       diff <(block plugin-keys "$skill") <(block plugin-keys "$t/blocks") >/dev/null ||
         { echo "SKILL.md's plugin keys aren't the plugins' at the pin: lib/skill-keys.sh --write"; fail=1; }

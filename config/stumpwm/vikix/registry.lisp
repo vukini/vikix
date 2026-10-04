@@ -30,7 +30,7 @@
 ;;;;
 ;;;; From these: *vikix-bindings* and the keys bound (keys.lisp), *vikix-menu*
 ;;;; (commands.lisp), the agents' list (the end of this file), and the keys in
-;;;; the agents' skill (lib/skill-keys.sh). Those two lists are still lists,
+;;;; the agents' skill and in the README's table (lib/skill-keys.sh). Those two lists are still lists,
 ;;;; in the shape they had: user.lisp, plugins and web apps add to them as
 ;;;; before. In user.lisp a command of your own is one form too: written
 ;;;; there, its key is bound and its menu entry added at once.

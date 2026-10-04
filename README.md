@@ -224,69 +224,120 @@ Keys without Super keep their own ways: Print (Shift keeps a file, Ctrl is the w
 
 StumpWM's own `Ctrl+t` prefix keys still work too: press `Ctrl+t` and wait, and StumpWM lists the keys that can follow (its which-key-mode). Focus follows the mouse: pointing at a window focuses it, without a click. Only the mouse moving does that: a window that comes under a pointer you haven't moved (one raised over another) doesn't take the focus, so a window you went to with a key keeps it. To click instead, put `(setf *mouse-focus-policy* :click)` in `user.lisp`.
 
+<!-- readme-keys: made by lib/skill-keys.sh from registry.lisp; don't edit, run it with --write -->
 | Key | What it does |
 |---|---|
-| `s-Return` | Terminal |
-| `s-d` | Launcher |
-| `s-SPC` | Launcher too: the key other desktops use for it |
-| `s-w` | Browser (Firefox) |
-| `s-e` | Files in Esploro, the file explorer in Emacs: the one on this workspace, or a new one here; F3 in it, two panes (PCManFM where Esploro isn't installed: `vikix add esploro`) |
-| `s-M-s` | Files in SpaceFM (tabs, split panes) |
-| `s-C-e` | Eject a USB drive: pick it, and a notification says when it's safe to pull out |
-| `s-M-e` | Files in PCManFM |
-| `s-M-E` | Files in a new Esploro window, even where one is open (`esploro --new`) |
-| `s-M-r` | Reveal the file behind this window in Esploro: what an Emacs frame shows, a viewer's document, a terminal's folder |
-| `s-M-p` | Projects: pick one with rofi; a terminal opens in its folder and its `log.md` in Emacs (see [Projects](#projects-vikix-project)) |
-| `s-M-v` | Passwords (Bitwarden): pick a login, Enter types it into the window you were in (`vikix add bitwarden`; see [Passwords](#passwords)) |
-| `s-a` | AI agent in a terminal: Claude Code, or the one you chose |
-| `s-i` | AI on the selected text: ask, proofread, rewrite, translate, explain |
-| `s-F9` | Dictation: speak, then `s-F9` again types it (`s-S-F9` cancels) |
-| `s-F10` | Voice: speak, then `s-F10` again: the AI answers, shown and aloud; follow-ups carry on the conversation |
-| `s-F11` | Voice: speak, then `s-F11` again: it goes to the agent (Claude Code), whose replies are read aloud |
-| `s-S-F10` | Voice: stop the AI talking |
-| `s-M-m` | Mail: your mail web app to the front, or opened (the first mail one `vikix webapp add` makes; see [Web apps](#web-apps)) |
-| `s-x` | Emacs: a new window (the Emacs server is already running) |
-| `s-c` | Clipboard history: pick something copied earlier, then paste it |
-| `s-.` | Emoji: search by name (heart, cat, thumbs up); Enter types it into your window and copies it, `Ctrl+c` only copies |
-| `s-=` | Calculator that answers as you type: `340 * 12%`, `5 ft to cm`, `100 USD to EUR`, `today + 30 days`. Enter copies the answer |
-| `s-n` / `s-N` | Notifications: the last one again / pick an earlier one (rofi) |
-| `s-C-n` / `s-C-d` | Notifications: close all / do not disturb on and off (the bar says `quiet`, and how many are waiting) |
-| `s-q` | Close window |
-| `s-f` | Fullscreen |
-| `s-h` `s-j` `s-k` `s-l` | Move focus left, down, up, right |
-| `s-H` `s-J` `s-K` `s-L` | Move the window |
-| `s-←` `s-↓` `s-↑` `s-→` | Focus, on the arrows (in a VM on Windows, Super+L locks the host instead of reaching the guest) |
-| `s-S-←` `s-S-↓` `s-S-↑` `s-S-→` | Move the window, on the arrows (Super+Shift, as with the letters) |
-| `s-b` | Split side by side |
-| `s-v` | Split one above the other |
-| `s-r` | Remove the split |
-| `s-u` / `s-U` | Undo / redo the last layout change on this workspace (splits, moves, closes) |
-| `s-z` | Focus: only this window on the workspace, the others out of sight (the bar stays); `s-z` again puts the layout back exactly as it was, whatever you changed meanwhile. Each workspace has its own. `s-f` fills the whole screen instead |
-| `s-C-g` | Gaps around windows, on or off (off at login; 10px between windows, 9px at the edge) |
-| `s-C-b` | The drawer: a few everyday programs (a terminal and the files, or the ones `*vikix-drawer-apps*` names in `user.lisp`) slide in from the right edge, one above the other, over the windows, on whatever workspace you're on; again and they slide away, still running |
-| `s-g` | Go to any window on any workspace: pick one |
-| `s-G` | Bring any window here from any workspace: pick one |
-| `s-p` | Move the mouse pointer to the focused window |
-| `s-t` | Float the focused window, or put it back in the tiles; a floating window moves with Super + left-drag and resizes with Super + right-drag. Dialogs (password boxes, file choosers, zenity's) float by themselves, centred, and stay in front when you click elsewhere; `s-t` tiles one that should be an ordinary window |
-| `s-T` | Remember this window here: the rule that puts a window like it where this one is (its workspace, and when it floats its size and place) is shown, and on your yes written into `~/.stumpwm.d/rules.lisp` after a snapshot. `vikix rules forget N` takes it out again |
-| `s-C-y` | Title bars on or off: a strip at the top of each tiled window with its number and name, the focused one in the theme's accent (on unless you turned them off; remembered in `~/.config/vikix/titlebars-off`) |
-| `s-"` | Rename the focused window: its title bar and the bar show the new name |
-| `s-1`…`s-9` | Go to a workspace |
-| `s-S-1`…`s-S-9` | Send the window to a workspace (Super+Shift and the digit, whatever Shift+digit types on your keyboard) |
-| `s-m` | Vikix menu: the welcome and Add software, key help, all commands, the Vikix guide (in Info, or in the browser with its diagrams), "what does a key do?", themes, network, printers, backup now, screens, update, and Power (the same as `s-S-Escape`). An entry for a feature you don't have (JupyterLab, Zeal, Printers, Windows, local AI, Dropbox) is left out until you add it. *Apps* opens the programs of the features video, graphics, blender, study, passwords, phone and cli-extras, each once it's installed |
-| `s-/` | Every key at a glance: one card, grouped (apps, AI, windows, workspaces, notifications, screenshots, sound and screen, system, and yours). The next key closes it, and a key that does something does it too |
-| `s-F1` | Every key, searchable. Pick one to run it. |
-| `s-Escape` | Lock the screen |
-| `s-S-Escape` | Power: lock, suspend, log out, reboot, power off (Lock first, so a stray Enter is harmless) |
-| `s-C-a` | Keep awake on/off: no lock, dark screen or suspend while you watch or present (the bar says `awake`) |
-| `s-C-l` | Night light on/off: a warmer screen in the evening |
-| `Print` | Screenshot an area (drag one out, or click a window) to the clipboard |
-| `C-Print` | Screenshot the focused window to the clipboard |
-| `s-Print` | Screenshot the whole screen (the monitor the pointer is on) to the clipboard |
-| `Shift` with any of those | The same, to a file in `~/Pictures/Screenshots` instead; middle-clicking its notification shows the folder (in Esploro when it's installed) |
-| `s-C-v` | Record a video of an area or a window, without sound; press again to stop. The bar says `rec`, and the video goes to `~/Videos/Recordings` |
-| `s-C-Print` | Screenshot or record: a menu of all of them, including recording the whole screen. Also **Text from an area** (drag over any text, even in a picture or a dialog, and it's on the clipboard, read by tesseract; other languages with `VIKIX_OCR_LANG=deu+eng` and their `tesseract-ocr-*` package) and **Pick a colour** (click anywhere: its `#rrggbb` on the clipboard, with a swatch in the notification) |
-| volume and brightness keys | Change the level and show a bar for it |
+| **Apps** | |
+| Super+Return | Terminal |
+| Super+d | Launcher: start any program |
+| Super+Space | Launcher, the key other desktops use |
+| Super+w | Browser |
+| Super+e | Files in Esploro: the one on this workspace, or a new one here (PCManFM without Esploro) |
+| Super+Alt+s | Files in SpaceFM: tabs and split panes |
+| Super+Alt+e | Files in PCManFM |
+| Super+Alt+Shift+e | Files in a new Esploro window, beside the others |
+| Super+Alt+r | Reveal the file behind this window, in Esploro |
+| Super+Alt+x | Esploro's commands for the file behind this window, in rofi |
+| Super+Alt+p | Projects: pick one; a terminal in its folder, its log in the editor |
+| Super+Alt+v | Passwords (Bitwarden): pick a login, Enter types it (vikix add bitwarden) |
+| Super+x | Emacs: a new window |
+| Super+c | Clipboard history: pick to paste again |
+| Super+. | Emoji: pick one to type it (Ctrl+c copies) |
+| Super+= | Calculator: Enter copies the answer |
+| **AI & voice** | |
+| Super+a | AI agent in a terminal: Claude Code, or the one you chose |
+| Super+F9 | Dictation: speak, then Super+F9 again types it |
+| Super+Shift+F9 | Dictation: stop listening, type nothing |
+| Super+F10 | Voice: speak, then Super+F10 again: the AI answers aloud |
+| Super+F11 | Voice: speak, then Super+F11 again: it goes to the agent |
+| Super+Shift+F10 | Voice: stop the AI talking |
+| Super+i | AI on the selected text: ask, proofread, rewrite, translate, explain |
+| **Windows & frames** | |
+| Super+q | Close window |
+| Super+f | Fullscreen on/off |
+| Super+Tab | The last window again: flips between two |
+| Super+\` | Next window on this workspace, through all of them |
+| Super+Shift+\` | Previous window on this workspace |
+| Super+h | Focus left |
+| Super+j | Focus down |
+| Super+k | Focus up |
+| Super+l | Focus right |
+| Super+Shift+h | Move window left |
+| Super+Shift+j | Move window down |
+| Super+Shift+k | Move window up |
+| Super+Shift+l | Move window right |
+| Super+Left | Focus left (arrow) |
+| Super+Down | Focus down (arrow) |
+| Super+Up | Focus up (arrow) |
+| Super+Right | Focus right (arrow) |
+| Super+Shift+Left | Move window left (arrow) |
+| Super+Shift+Down | Move window down (arrow) |
+| Super+Shift+Up | Move window up (arrow) |
+| Super+Shift+Right | Move window right (arrow) |
+| Super+b | Split: side by side (on a strip: this column fills the room the others leave) |
+| Super+v | Split: one above the other (on a strip: this window taller in its column) |
+| Super+r | Remove this split (on a strip: the column's width; in main and stack: the main window's) |
+| Super+Home | On a strip: the first column |
+| Super+End | On a strip: the last column |
+| Super+\ | On a strip: pin this column to the left edge, the others scroll beside it; again unpins |
+| Super+[ | On a strip: into the column on the left, or out of a shared one |
+| Super+] | On a strip: into the column on the right, or out of a shared one |
+| Super+o | Every workspace drawn small, each window a box: pick one (g there: this workspace in a real grid) |
+| Super+Shift+o | Grid mode on/off: windows stay tiled in a grid as they open and close |
+| Super+Ctrl+m | Main and stack (master and stack) on/off: this window on the left, the rest in a column beside it |
+| Super+Ctrl+Space | Layout: pick this workspace's (tiles, main and stack, grid, strip, or one you saved) |
+| Super+z | Focus: only this window; again puts the others back (on a strip: its column's windows as tabs) |
+| Super+Ctrl+g | Gaps around windows on/off |
+| Super+u | Undo the last layout change (splits, moves) |
+| Super+Shift+u | Redo the layout change |
+| Super+g | Go to any window, on any workspace |
+| Super+Shift+g | Bring any window here, from any workspace |
+| Super+p | Move the pointer to this window |
+| Super+t | Float this window, or tile it again (Super+drag moves it) |
+| Super+Shift+t | Remember this window here: the rule for where it is, written for you (shown first) |
+| Super+Ctrl+y | Title bars on/off |
+| Super+" | Rename this window |
+| **Workspaces** | |
+| Super+1 ... Super+9 | Go to workspace 1-9 |
+| Super+Shift+1 ... 9 | Send window to workspace 1-9 |
+| **Notifications** | |
+| Super+n | Notifications: the last one again |
+| Super+Shift+n | Notifications: pick an earlier one |
+| Super+Ctrl+n | Notifications: close all |
+| Super+Ctrl+d | Do not disturb on/off |
+| **Screenshots & recording** | |
+| Print Screen | Screenshot of an area, to the clipboard |
+| Shift+Print Screen | Screenshot of an area, to a file |
+| Ctrl+Print Screen | Screenshot of this window, to the clipboard |
+| Ctrl+Shift+Print Screen | Screenshot of this window, to a file |
+| Super+Print Screen | Screenshot of the whole screen, to the clipboard |
+| Super+Shift+Print Screen | Screenshot of the whole screen, to a file |
+| Super+Ctrl+v | Record a video of an area or a window; again to stop |
+| Super+Ctrl+Print Screen | Screenshot or record: all the choices |
+| **Sound & screen** | |
+| Super+Ctrl+l | Night light on/off: a warmer screen in the evening |
+| Super+Ctrl+p | Screens: extend, mirror, one only, arrange (a newly plugged one lights up by itself) |
+| Volume-up key | Volume up |
+| Volume-down key | Volume down |
+| Mute key | Mute |
+| Mic-mute key | Microphone mute |
+| Brightness-up key | Brightness up |
+| Brightness-down key | Brightness down |
+| XF86Display | Screens: extend, mirror, one only (the laptop's display key) |
+| **System** | |
+| Super+Ctrl+e | Eject a USB drive: pick it, then pull it out safely |
+| Super+Ctrl+b | The drawer: a few everyday programs at the screen's edge, here; again puts it away |
+| Super+m | Vikix menu |
+| Super+/ | Every key at a glance, grouped; any key closes it |
+| Super+F1 | Search the keys, and run one |
+| Super+F2 | Search every document: Vikix's guides, your projects and notes, man pages |
+| Super+Escape | Lock the screen |
+| Super+Shift+Escape | Power: lock, suspend, log out, reboot, power off |
+| Super+Ctrl+a | Keep awake on/off: no lock, dark screen or suspend |
+| Ctrl+t then ? | StumpWM's own keys (after the prefix) |
+<!-- /readme-keys -->
+
+The table is made from Vikix's commands (`config/stumpwm/vikix/registry.lisp`, where each is written once, with its key), so it is what the keys are. `Shift` with a screenshot key keeps the picture in `~/Pictures/Screenshots` instead of the clipboard. A web app you add and a plugin bring keys of their own on Super+Alt (the first mail web app takes Super+Alt+m: see [Web apps](#web-apps)); `Super+F1` lists every key as it is on your machine, yours too. What each key's program does at length is in the guides: [the first hour](docs/first-hour.md), [every command](docs/commands.md).
 
 ## The bar
 
