@@ -279,6 +279,16 @@ and accessing the guides"
         </div>
 
         <div class="card wide">
+          <p class="eyebrow">Rules</p>
+          <h3>Say once where a window goes, and it goes there.</h3>
+          <p>A rule is one line: Firefox on workspace 2, the sound mixer floating, a program started when you log in, a reminder at one o'clock. <kbd>Super</kbd>+<kbd>Shift</kbd>+<kbd>t</kbd> writes one for the window in front of you, from where it is now. <code>vikix rules why</code> says why a window went where it did, and a rule that fails is switched off, never the desktop.</p>
+<pre><span class="t-d">;; ~/.stumpwm.d/rules.lisp</span>
+(<span class="t-k">when-window</span> (<span class="t-a">:class</span> <span class="t-p">"Firefox"</span>) (workspace 2))
+(<span class="t-k">when-window</span> (<span class="t-a">:class</span> (<span class="t-a">:has</span> <span class="t-p">"pavucontrol"</span>)) (float <span class="t-a">:width</span> <span class="t-p">"50%"</span>))
+(<span class="t-k">at</span> <span class="t-p">"13:00"</span> <span class="t-a">:weekdays</span> (notify <span class="t-p">"Lunch"</span>))</pre>
+        </div>
+
+        <div class="card wide">
           <p class="eyebrow">The AI agent</p>
           <h3>Claude Code, set up to work on the desktop with you.</h3>
           <p><kbd>Super</kbd>+<kbd>a</kbd> starts Claude Code. A skill tells it how Vikix is put together and which files are yours to change. With <code>vikix eval</code> it can run Lisp in the live window manager and try a key or a theme before writing it down. Your files are snapshotted before every session. API keys have a place of their own, <code>vikix ai key set anthropic</code>: every shell gets them, and your dotfiles' history never does. And for offline work, <code>vikix ai setup</code> runs models on the laptop itself (Ollama), with a picker that's honest about what a CPU can do.</p>

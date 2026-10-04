@@ -53,9 +53,13 @@ check "and keep the user's own rule" grep -qx 'label { color: red; }' "$HOME/.co
 check "qt6ct should be pointed at the theme's palette" grep -q '^color_scheme_path=.*/vikix/theme/qt6ct-colors.conf$' "$HOME/.config/qt6ct/qt6ct.conf"
 check "the old .stumpwmrc didn't become user.lisp" grep -q old-config "$HOME/.stumpwm.d/user.lisp"
 check ".stumpwmrc is still there, so StumpWM would skip Vikix" test ! -e "$HOME/.stumpwmrc"
+check "40-config didn't give you a rules.lisp of your own, a copy and not a link" \
+  bash -c "[ -f '$HOME/.stumpwm.d/rules.lisp' ] && [ ! -L '$HOME/.stumpwm.d/rules.lisp' ] && cmp -s '$here/config/stumpwm/rules.lisp' '$HOME/.stumpwm.d/rules.lisp'"
+echo '(when-window (:class "Mine") (workspace 2))' >> "$HOME/.stumpwm.d/rules.lisp"
 check "the existing .bashrc lost its own line" grep -q 'alias mine' "$HOME/.bashrc"
 first=$(picture)
 stages
+check "a second run wrote over your rules.lisp" grep -q '(when-window (:class "Mine") (workspace 2))' "$HOME/.stumpwm.d/rules.lisp"
 second=$(picture)
 if [ "$first" != "$second" ]; then
   echo "FAIL: the second run changed home:"

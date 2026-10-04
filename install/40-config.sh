@@ -97,6 +97,7 @@ link_managed "$C/nyxt/vikix.lisp" "${XDG_DATA_HOME:-$HOME/.local/share}/vikix/ny
 
 # --- Your files -----------------------------------------------------------
 copy_user "$C/stumpwm/user.lisp"          "$SD/user.lisp"
+copy_user "$C/stumpwm/rules.lisp"         "$SD/rules.lisp"     # your rules: every example switched off
 copy_user "$C/alacritty/alacritty.toml"   "$HOME/.config/alacritty/alacritty.toml"
 copy_user "$C/picom/picom.conf"           "$HOME/.config/picom/picom.conf"
 copy_user "$C/dunst/dunstrc"              "$HOME/.config/dunst/dunstrc"

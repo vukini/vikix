@@ -67,94 +67,22 @@ Sending a window to a workspace is Super+Shift and the digit on any keyboard: Vi
 (at-login (run "syncthing --no-browser"))
 ```
 
-`at-login` runs once each time you log in. `user.lisp` runs again on every reload, and the rule doesn't: there's no need for a `pgrep -x … ||` in front to keep a second copy from starting. A rule you add while logged in runs at the reload that brings it, once. It goes in `user.lisp` or in `rules.lisp` (below).
+`at-login` runs once each time you log in. `user.lisp` runs again on every reload, and the rule doesn't: there's no need for a `pgrep -x … ||` in front to keep a second copy from starting. A rule you add while logged in runs at the reload that brings it, once. It goes in `rules.lisp` or in `user.lisp` ([Rules for the desktop](rules.md)).
 
-### Rules for windows
+### Rules: what the desktop does by itself
 
-A rule says what happens to a window as it opens. Put rules in `user.lisp`, or in a file of their own beside it, `~/.stumpwm.d/rules.lisp` (make it; it starts with the line `(in-package :stumpwm)` and loads just before `user.lisp`):
+A rule is one line that says where a window goes as it opens, or what happens at a time of day, on a low battery, or when you log in:
 
 ```lisp
 (when-window (:class "Firefox") (workspace 2))                 ; Firefox opens on workspace 2
-(when-window (:class "Slack") (workspace 4 :follow t))         ; and you go along
 (when-window (:instance "vikix-nmtui") (float :width "65%" :height "80%"))
-(when-window (:class "mpv" :title (:has "picture in picture"))
-  (float :width "30%" :height "30%" :corner :bottom-right) (sticky))
-(when-window (:class "Gcolor3") (dialog))                      ; float, centred, kept in front
-```
-
-First comes what the window must be, then what to do with it.
-
-| To match | Write |
-|---|---|
-| The window's class, or its instance (`xprop WM_CLASS` and a click on the window shows both: the instance first, the class second) | `:class "Firefox"`, `:instance "Navigator"` |
-| Its title, or its role | `:title "Calculator"`, `:role "pop-up"` |
-| Its type | `:type :dialog` |
-| The workspace it opens on | `:workspace 3` |
-| None of something | `:not (:title "Esploro")` |
-| Anything else | `:where #'my-test`, a function of the window |
-
-A plain string matches exactly that and nothing longer. `(:has "fox")` matches a text that contains it, in capitals or not; `(:like "^Mozilla .*")` is a pattern; a list, `("Chromium" "Brave")`, is any of them.
-
-| Verb | What it does |
-|---|---|
-| `(workspace 2)` | Sends the window to a workspace, by number or name: it opens there, without showing here first. `:follow t` takes you along |
-| `(float ...)` | Floats it. `:width` and `:height` are pixels (`400`) or a share of the monitor below the bar (`"65%"`), 60% when left out. It goes in the middle, or to a `:corner` (`:top-left`, `:top-right`, `:bottom-left`, `:bottom-right`, `:top`, `:bottom`, `:left`, `:right`), or to `:x` and `:y` `(float :own t)` only floats it, at the size and place the window asks for itself |
-| `(tile)` | Puts a floating window back in the tiles |
-| `(fullscreen)` | Fills the screen with it |
-| `(sticky)` | Keeps it on every workspace (it floats) |
-| `(dialog)` | Floats it in the middle and keeps it in front of the tiles, as password boxes are |
-| `(title "name")` | Names it, in its title bar and the bar |
-| `(focus)` | Goes to it |
-| `(run "command")`, `(command "vikix-grid")` | Runs a shell command, or a StumpWM command |
-| `(notify "text")`, `(say "text")` | A notification, or a message in the middle of the screen |
-| `(open-project "name")`, `(theme "paper")` | Opens one of your projects; switches the theme |
-| `(width 2/3)`, `(join :left)` | On a strip (`vikix viri`): the window's column is two thirds of the screen wide (`1/3`, `1/2`, `1`, `"40%"`); the window goes under the column on its left (or `:right`). Off a strip they do nothing |
-
-Anything else in a rule is Lisp of your own, where `(window)` is the window. Between the matcher and the verbs a rule can have options: `:once t` (only the first window that matches: Firefox to workspace 2 when you log in, later windows where you are), `:on :focus` or `:on :close` (when the window gets the focus, or goes, instead of when it opens), and `:name "..."`.
-
-`vikix rules`, in a terminal, lists your rules: each one's number, whether it's on, how often it ran and when last, and where it's written. `Super+m` → *Rules* is the same list in a menu. From either you can ask of them:
-
-| Command | What it does |
-|---|---|
-| `vikix rules why` | why the window in front is where it is: the rules that ran for it, and those that match it but haven't run, each with the reason (`vikix rules why Firefox` for the windows of a class) |
-| `vikix rules test` | what the rules would do with the windows open now, doing nothing (`vikix rules test 3` for one rule) |
-| `vikix rules apply` | do it. A reload never moves the windows you already have; this does (`vikix rules apply 3` for one rule) |
-| `vikix rules off 3` | switch a rule off until the next reload, by its number, its `:name`, or words only it has; `vikix rules on 3` brings it back |
-| `vikix rules verbs` | everything a rule can be, match and do, each with its line |
-
-You don't have to write a rule to get one. Put a window where you want it (its workspace; floating, its size and place) and press `Super+Shift+t`: the rule that would put a window like it there is shown, and on your yes it is added to `~/.stumpwm.d/rules.lisp` under a dated comment, named `"remembered: ..."`, after a snapshot. The menu also offers the workspace alone, and another way to know the window (its instance or its title instead of its class). Remembering the same window again replaces its rule. `vikix rules forget 3` takes a rule out of `rules.lisp` again (by its number or name), and `vikix undo` puts the file back as it was. Only `rules.lisp` is ever written this way, never `user.lisp`.
-
-Vikix says what it wants of windows in the same way: `vikix rules` lists two rules "from Vikix" first (Lazarus's dialogs float at their own size while its main window tiles; `vikix learn`'s lesson and shell each go into their half), and the plugins' after them (inbox's note box, agent-waiting's note cleared when you look at its window). Any of them can be switched off like your own, with `vikix rules off`.
-
-A misspelt verb is found when the file loads, with its line, like any mistake in `user.lisp`. A rule that fails when a window opens never stops the desktop: it says so, the error is kept in `~/.local/state/vikix/errors/`, and after three failures the rule is off until the next reload. Reloading doesn't move the windows you already have.
-
-Rules run in the order they're written, Vikix's first, then `rules.lisp`, then `user.lisp`; when two send a window to different workspaces, the last one wins.
-
-### Rules for the time, the battery and workspaces
-
-The same file, the same verbs (those that need no window: `run`, `command`, `notify`, `say`, `open-project`, `theme`), and any Lisp of your own:
-
-```lisp
-(at "09:00" :weekdays (open-project "vikix"))            ; each working day at nine
-(at ("12:30" "18:00") (notify "Stand up"))               ; more than one time
-(each 30 :minutes (run "vikix-wallpaper next"))
+(at "09:00" :weekdays (open-project "vikix"))                  ; each working day at nine
 (when-battery-below 20 (notify "Battery at 20%" "Where's the charger?"))
-(when-charging (say "On the charger"))
-(when-on-battery (run "brightnessctl set 40%"))
-(at-login (run "syncthing --no-browser"))
-(when-workspace 3 (command "vikix-grid"))                ; on arriving at workspace 3
 ```
 
-| Rule | When it runs |
-|---|---|
-| `(at "09:00" ...)` | At that time, on the 24-hour clock, once a day. `:weekdays`, `:weekends` or `:on (:mon :thu)` keep it to those days. If the laptop was asleep at the time, it runs on waking when that's less than an hour later; `:late t` runs it however late that day, `:late nil` only on time. A reload or logging in again doesn't run it a second time, and a rule you write after its time waits for the next day |
-| `(each 30 :minutes ...)` | Every so many `:minutes` or `:hours`, counted from when it last ran, so not at once when you write it. After a long sleep it runs once, not once for each time missed |
-| `(when-battery-below 20 ...)` | Once, as the charge goes under 20% off the charger. It's ready again when the charge is back above that, or the charger has been in |
-| `(when-charging ...)`, `(when-on-battery ...)` | When the charger goes in, or comes out |
-| `(at-login ...)` | Once each login |
-| `(when-workspace 3 ...)` | Each time you go to that workspace: a number, a name, or a list of them |
+They live in a file of their own beside `user.lisp`, `~/.stumpwm.d/rules.lisp`, which comes with every example switched off. `Super+Shift+t` writes one for you, for the window in front, and `vikix rules` lists them, says why a window went where it did, and tries them on the windows open now.
 
-They're checked every 30 seconds, so a time is met within half a minute. They're listed with the others (`vikix rules`), can be switched off and on the same way, and a mistake or a failure is treated the same way.
+[Rules for the desktop](rules.md) is their page: everything a rule can match and do, how to see what your rules did, and what happens when one goes wrong.
 
 ### Saved layouts
 

@@ -311,8 +311,20 @@ LISP
   (check "and forgetting says it can't read the file"
          (search "can't be read"
                  (princ-to-string (nth-value 1 (ignore-errors (vikix-rules-forget rule)))))))
+;; The guide's own example of a verb of yours (docs/rules.md).
+(define-rule-verb quarter ()
+  "Float the window in the top right quarter of the screen."
+  (vikix-verb-float :width "50%" :height "50%" :corner :top-right))
+(when-window (:class "Gnome-calculator") (quarter))
+(check "the guide's example of a verb of your own is a verb, and in the list"
+       (and (rule-of "(quarter)") (search "(quarter)" (vikix-rules-verbs-text))))
 (defun remember-checks-ran () t)
 LISP
+  # The starter rules.lisp, with every example switched on: a ; and a
+  # space taken from the lines that aren't comments proper (;;).
+  sed -E '/^;;/!s/^; ?//' "$here/config/stumpwm/rules.lisp" > "$t/starter-on.lisp"
+  local examples
+  examples=$(grep -c '^; (' "$here/config/stumpwm/rules.lisp")
 
   local out
   out=$(HOME="$t/home" VIKIX_STATE="$t/state" DISPLAY='' sbcl --noinform --non-interactive --load "$ql/setup.lisp" \
@@ -468,6 +480,23 @@ LISP
   (handler-bind ((warning #'muffle-warning))
     (vikix-load-forms \"$t/remember.lisp\" \"remember.lisp\"))
   (check \"the checks of remembering ran to their end\" (fboundp 'remember-checks-ran))
+
+  ;; The starter rules.lisp (config/stumpwm/rules.lisp) and the guide.
+  (let ((before (length *vikix-rules*)))
+    (handler-bind ((warning #'muffle-warning))
+      (vikix-load-forms \"$here/config/stumpwm/rules.lisp\" \"rules.lisp\"))
+    (check \"the starter rules.lisp, as it comes, has no rule switched on\" (= before (length *vikix-rules*)))
+    (let ((written (length (reports))))
+      (handler-bind ((warning #'muffle-warning))
+        (vikix-load-forms \"$t/starter-on.lisp\" \"starter-on.lisp\"))
+      (check \"each of its $examples examples, switched on, is a rule, with no mistake\"
+             (and (> $examples 10)
+                  (= (+ before $examples) (length *vikix-rules*))
+                  (= written (length (reports)))))))
+  (check \"the guide (docs/rules.md) has every verb there is\"
+         (let ((guide (uiop:read-file-string \"$here/docs/rules.md\")))
+           (every (lambda (name) (search (format nil \"(~a\" name) guide))
+                  (remove \"note\" (vikix-rule-verb-names) :test #'equal))))
   (format t \"~a~%\" (if (zerop *fails*) \"no-screen: ok\" \"no-screen: failed\")))" 2>&1) || true
   if grep -q '^no-screen: ok$' <<<"$out"; then
     said+=("matching, mistakes found at load with their line, one rule after a second load, failing rules switched off at the third, :once, :focus and :close, plugins' rules, the list, off and on, why a window is where it is, a rule remembered, replaced and forgotten in rules.lisp")
