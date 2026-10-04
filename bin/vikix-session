@@ -111,6 +111,11 @@ for battery in /sys/class/power_supply/BAT*; do
   break
 done
 
+# A warning when memory runs low, before the desktop stalls, and a count of
+# the programs left over (hidden screens and tests nobody ended): looked at
+# every 15 seconds, two small files (bin/vikix-memory).
+"$HOME/.local/bin/vikix-memory" watch >/dev/null 2>&1 &
+
 # Updates waiting, for the bar: checked a minute after login and then every
 # 6 hours, in the background (bin/vikix-updates).
 "$HOME/.local/bin/vikix-updates" --watch &

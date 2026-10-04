@@ -1,0 +1,524 @@
+#!/usr/bin/env python3
+"""vikix-memory — what uses the memory, what's left over, a warning when it runs low.
+
+  vikix memory           memory and swap, the biggest programs (each with
+                         all its processes), files kept in memory (/tmp),
+                         and the programs left over
+  vikix memory left      only the programs left over, each with why
+  vikix memory clean     end the left-over ones: those that surely are,
+                         after a yes; the "maybe" ones one by one
+  vikix memory clean --yes   end those that surely are, without asking
+  vikix memory watch     what vikix-session starts: looks every 15 seconds,
+                         warns once when memory is low (under 15% free for
+                         programs) and again, urgently, when it's nearly
+                         full (under 7%, or the machine already stalls),
+                         says when left-over programs pile up, and writes
+                         the bar's field (mem 91%)
+  vikix memory watch --once   one look, printed
+
+Left over means nobody can be using it:
+  for sure   a program on a hidden screen (Xvfb) whose starter has gone, or
+             on a screen that no longer exists, or a test's program whose
+             home is a temporary folder
+  maybe      a program an AI agent's command started and left behind, one
+             whose folder was deleted, an editor with no window
+and always: its starter has gone (it belongs to nobody), it has no
+terminal, no window on your screen, and it's older than 10 minutes, so a
+test that's running is left alone.
+
+VIKIX_MEMORY_LOW and VIKIX_MEMORY_CRITICAL change the two levels (percent
+free), VIKIX_MEMORY_LEFT_AFTER the minutes.
+"""
+import os
+import re
+import signal
+import subprocess
+import sys
+import time
+
+PROC = os.environ.get("VIKIX_PROC", "/proc")                 # a test points these elsewhere
+X11 = os.environ.get("VIKIX_X11_DIR", "/tmp/.X11-unix")
+STATE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "vikix")
+FIELD = os.path.join(STATE, "memory")                        # the bar reads it: LEVEL USED% LEFT-COUNT LEFT-MB TOLD
+HOME = os.path.expanduser("~")
+
+
+def number(name, default):
+    try:
+        return float(os.environ.get(name, ""))
+    except ValueError:
+        return default
+
+
+LOW = number("VIKIX_MEMORY_LOW", 15)
+CRITICAL = number("VIKIX_MEMORY_CRITICAL", 7)
+LEFT_AFTER = number("VIKIX_MEMORY_LEFT_AFTER", 10) * 60
+SERVERS = ("Xvfb", "Xephyr", "Xnest", "Xvnc")
+INTERPRETERS = ("python", "python3", "bash", "sh", "node", "perl", "ruby", "sbcl", "emacs")
+
+
+def read(path, binary=False):
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+        return data if binary else data.decode("utf-8", "replace")
+    except OSError:
+        return b"" if binary else ""
+
+
+# --- Memory as a whole -------------------------------------------------------------
+
+def meminfo():
+    """/proc/meminfo, in bytes."""
+    m = {}
+    for line in read(os.path.join(PROC, "meminfo")).splitlines():
+        name, _, rest = line.partition(":")
+        value = rest.split()
+        if value and value[0].isdigit():
+            m[name] = int(value[0]) * 1024
+    return m
+
+
+def stalling():
+    """How much of the last 10 seconds everything waited for memory (percent)."""
+    for line in read(os.path.join(PROC, "pressure", "memory")).splitlines():
+        if line.startswith("full"):
+            found = re.search(r"avg10=([0-9.]+)", line)
+            return float(found.group(1)) if found else 0.0
+    return 0.0
+
+
+def free_percent(m):
+    total = m.get("MemTotal", 0)
+    return 100.0 * m.get("MemAvailable", 0) / total if total else 100.0
+
+
+def level(m, was="ok"):
+    """ok, low or critical. Once low, it stays low until 3 points above the level."""
+    free = free_percent(m)
+    swap_total = m.get("SwapTotal", 0)
+    swap_free = 100.0 * m.get("SwapFree", 0) / swap_total if swap_total else 100.0
+    if free < CRITICAL or (stalling() >= 10 and free < 30):
+        return "critical"
+    if free < LOW or (swap_total and swap_free < 10 and free < 30):
+        return "low"
+    if was != "ok" and free < LOW + 3:
+        return "low"
+    return "ok"
+
+
+def size(n):
+    for unit, scale in (("GB", 1 << 30), ("MB", 1 << 20)):
+        if n >= scale:
+            return f"{n / scale:.1f} {unit}" if n < 10 * scale else f"{n / scale:.0f} {unit}"
+    return f"{n // 1024} kB"
+
+
+# --- Processes ---------------------------------------------------------------------
+
+class Process:
+    __slots__ = ("pid", "ppid", "name", "argv", "uid", "tty", "age", "mem", "swap", "env", "cwd")
+
+
+def processes():
+    """Every process there is: {pid: Process}. Memory is its share (Pss) where
+    that can be read (your own), else what it holds (RSS)."""
+    try:
+        ticks = os.sysconf("SC_CLK_TCK")
+    except (ValueError, OSError):
+        ticks = 100
+    uptime = float((read(os.path.join(PROC, "uptime")).split() or ["0"])[0])
+    found = {}
+    try:
+        names = os.listdir(PROC)
+    except OSError:
+        return found
+    for entry in names:
+        if not entry.isdigit():
+            continue
+        base = os.path.join(PROC, entry)
+        stat = read(os.path.join(base, "stat"))
+        end = stat.rfind(")")
+        if end < 0:
+            continue
+        fields = stat[end + 2:].split()
+        if len(fields) < 20:
+            continue
+        p = Process()
+        p.pid = int(entry)
+        p.ppid = int(fields[1])
+        p.tty = int(fields[4])
+        p.age = max(0.0, uptime - int(fields[19]) / ticks)
+        p.name = stat[stat.find("(") + 1:end]
+        p.uid, rss, p.swap = -1, 0, 0
+        for line in read(os.path.join(base, "status")).splitlines():
+            if line.startswith("Uid:"):
+                p.uid = int(line.split()[1])
+            elif line.startswith("VmRSS:"):
+                rss = int(line.split()[1]) * 1024
+            elif line.startswith("VmSwap:"):
+                p.swap = int(line.split()[1]) * 1024
+        share = re.search(r"^Pss:\s+(\d+)", read(os.path.join(base, "smaps_rollup")), re.M)
+        p.mem = int(share.group(1)) * 1024 if share else rss
+        p.argv = [a for a in read(os.path.join(base, "cmdline")).split("\0") if a]
+        p.env = {}
+        for pair in read(os.path.join(base, "environ")).split("\0"):
+            key, eq, value = pair.partition("=")
+            if eq and key in ("DISPLAY", "HOME", "CLAUDE_PID", "CLAUDECODE", "VIKIX_AGENT"):
+                p.env[key] = value
+        try:
+            p.cwd = os.readlink(os.path.join(base, "cwd"))
+        except OSError:
+            p.cwd = ""
+        found[p.pid] = p
+    return found
+
+
+def program(p):
+    """What to call P's program: its command, or for an interpreter its script."""
+    if not p.argv:
+        return p.name
+    first = os.path.basename(p.argv[0].split(" ")[0]) or p.name
+    if first.startswith("qemu-system"):
+        guest = re.search(r"guest=([^,]+)", " ".join(p.argv))
+        return f"virtual machine {guest.group(1)}" if guest else "virtual machine"
+    if first in INTERPRETERS or re.fullmatch(r"python3\.\d+", first):
+        for arg in p.argv[1:]:
+            if not arg.startswith("-"):
+                script = os.path.basename(arg)
+                if script and len(script) < 40 and " " not in script:
+                    return script
+                break
+    return first
+
+
+def biggest(procs, count=10):
+    """Programs by the memory they hold, all their processes together:
+    [(name, memory, swap, processes)], biggest first."""
+    groups = {}
+    for p in procs.values():
+        if not p.argv:                       # the kernel's own threads
+            continue
+        g = groups.setdefault(program(p), [0, 0, 0])
+        g[0] += p.mem
+        g[1] += p.swap
+        g[2] += 1
+    ranked = sorted(groups.items(), key=lambda kv: -(kv[1][0] + kv[1][1]))
+    return [(name, g[0], g[1], g[2]) for name, g in ranked[:count]]
+
+
+# --- Left over -----------------------------------------------------------------------
+
+def display_number(text):
+    found = re.match(r":(\d+)", text or "")
+    return int(found.group(1)) if found else None
+
+
+def window_pids():
+    """The processes with a window on your screen (never left over)."""
+    listed = os.environ.get("VIKIX_MEMORY_WINDOWS")         # a test says which
+    if listed is not None:
+        return {int(x) for x in listed.split()}
+    pids = set()
+    try:
+        out = subprocess.run(["xprop", "-root", "_NET_CLIENT_LIST"], capture_output=True, text=True, timeout=3).stdout
+        for window in re.findall(r"0x[0-9a-f]+", out):
+            one = subprocess.run(["xprop", "-id", window, "_NET_WM_PID"], capture_output=True, text=True, timeout=3).stdout
+            found = re.search(r"= (\d+)", one)
+            if found:
+                pids.add(int(found.group(1)))
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return pids
+
+
+def leftovers(procs):
+    """The processes nobody can be using: [(Process, why, sure)], biggest first."""
+    me = os.getuid()
+    mine = display_number(os.environ.get("DISPLAY")) if os.environ.get("DISPLAY") else 0
+    ancestors, pid = set(), os.getpid()
+    while pid in procs and pid not in ancestors:
+        ancestors.add(pid)
+        pid = procs[pid].ppid
+    ancestors.add(os.getpid())
+
+    def orphan(p):
+        return p.ppid == 1
+
+    def old(p):
+        return p.age >= LEFT_AFTER
+
+    # Hidden screens: which are there, and which have lost their starter.
+    servers = {}
+    for p in procs.values():
+        if p.argv and os.path.basename(p.argv[0]) in SERVERS:
+            n = next((display_number(a) for a in p.argv[1:] if re.fullmatch(r":\d+", a)), None)
+            if n is not None:
+                servers[n] = p
+    stale = {n for n, p in servers.items() if n != mine and p.uid == me and orphan(p) and old(p)}
+
+    windows = None
+    found = []
+    for p in procs.values():
+        if p.uid != me or p.pid in ancestors or p.pid == 1 or p.tty or not p.argv or not old(p):
+            continue
+        n = display_number(p.env.get("DISPLAY"))
+        on_hidden = n is not None and n != mine
+        why, sure = None, False
+        if p in servers.values():
+            if on_hidden is False and servers.get(mine) is p:
+                continue
+            number_of = next(k for k, v in servers.items() if v is p)
+            if number_of in stale:
+                why, sure = f"a hidden screen (:{number_of}) whose starter has gone", True
+        elif on_hidden and n in stale:
+            why, sure = f"on the left-over hidden screen :{n}", True
+        elif on_hidden and n not in servers and not os.path.exists(os.path.join(X11, f"X{n}")):
+            why, sure = f"its screen (:{n}) no longer exists", True
+        elif orphan(p):
+            home = p.env.get("HOME", "")
+            agent = p.env.get("CLAUDE_PID", "")
+            if home and home != HOME and (home.startswith("/tmp/") or not os.path.isdir(home)):
+                why, sure = f"a test's program (its home, {home}, is temporary)", True
+            elif agent.isdigit() and int(agent) not in procs:
+                why = "started by an AI agent's session that has ended"
+            elif agent or p.env.get("CLAUDECODE") or p.env.get("VIKIX_AGENT"):
+                why = "started by an AI agent's command that has finished"
+            elif p.cwd.endswith(" (deleted)"):
+                why = "its folder was deleted"
+            elif os.path.basename(p.argv[0]) in ("nvim", "vim") and ("--embed" in p.argv or "--headless" in p.argv):
+                why = "an editor with no window"
+            if why and not sure:
+                # Something with a window on your screen is in use.
+                if windows is None:
+                    windows = window_pids()
+                if p.pid in windows:
+                    continue
+        if why:
+            found.append((p, why, sure))
+    only = os.environ.get("VIKIX_MEMORY_ONLY")              # a test keeps to its own processes
+    if only is not None:
+        keep = {int(x) for x in only.split()}
+        found = [f for f in found if f[0].pid in keep]
+    return sorted(found, key=lambda f: (not f[2], -(f[0].mem + f[0].swap)))
+
+
+def age_words(seconds):
+    for unit, scale in (("day", 86400), ("hour", 3600), ("minute", 60)):
+        if seconds >= scale:
+            n = int(seconds // scale)
+            return f"{n} {unit}{'' if n == 1 else 's'}"
+    return "under a minute"
+
+
+def command_words(p, width=60):
+    text = " ".join(p.argv)
+    return text if len(text) <= width else text[:width - 1] + "…"
+
+
+def print_leftovers(left):
+    for title, sure in (("Left over (vikix memory clean ends them):", True),
+                        ("Maybe left over (vikix memory clean asks about each):", False)):
+        rows = [f for f in left if f[2] == sure]
+        if rows:
+            print(title)
+            for p, why, _ in rows:
+                print(f"  {size(p.mem + p.swap):>8}  {command_words(p)}  [{p.pid}, {age_words(p.age)}]\n            {why}")
+
+
+# --- The commands --------------------------------------------------------------------
+
+def tmpfs():
+    """Files kept in memory: [(mount point, bytes used)] for /tmp and the like."""
+    found = []
+    for line in read(os.path.join(PROC, "mounts")).splitlines():
+        parts = line.split()
+        if len(parts) > 2 and parts[2] == "tmpfs":
+            try:
+                s = os.statvfs(parts[1])
+            except OSError:
+                continue
+            used = (s.f_blocks - s.f_bfree) * s.f_frsize
+            if used >= 50 << 20:
+                found.append((parts[1], used))
+    return sorted(found, key=lambda f: -f[1])
+
+
+def summary(m):
+    total, free = m.get("MemTotal", 0), m.get("MemAvailable", 0)
+    line = f"Memory: {size(total - free)} of {size(total)} in use ({100 - free_percent(m):.0f}%), {size(free)} free for programs."
+    if m.get("SwapTotal"):
+        line += f" Swap: {size(m['SwapTotal'] - m.get('SwapFree', 0))} of {size(m['SwapTotal'])}."
+    return line
+
+
+def cmd_status():
+    m = meminfo()
+    procs = processes()
+    state = level(m)
+    print(summary(m) + {"ok": "", "low": "  LOW.", "critical": "  NEARLY FULL."}[state])
+    for mount, used in tmpfs():
+        print(f"Files kept in memory in {mount}: {size(used)}")
+    print("\nThe biggest programs:")
+    for name, mem, swap, count in biggest(procs):
+        extra = f" (+{size(swap)} in swap)" if swap >= 50 << 20 else ""
+        times = f" ×{count}" if count > 1 else ""
+        print(f"  {size(mem):>8}  {name}{times}{extra}")
+    left = leftovers(procs)
+    print()
+    if left:
+        print_leftovers(left)
+    else:
+        print("Nothing is left over.")
+    return 0
+
+
+def cmd_left():
+    left = leftovers(processes())
+    if not left:
+        print("Nothing is left over.")
+        return 0
+    print_leftovers(left)
+    return 0
+
+
+def end(pids):
+    """SIGTERM, then SIGKILL after 3 seconds for those still there: how many went."""
+    for pid in pids:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            pass
+    deadline = time.time() + 3
+    waiting = set(pids)
+    while waiting and time.time() < deadline:
+        waiting = {pid for pid in waiting if os.path.exists(f"/proc/{pid}")}
+        if waiting:
+            time.sleep(0.1)
+    for pid in waiting:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
+            pass
+    time.sleep(0.2 if waiting else 0)
+    return sum(1 for pid in pids if not os.path.exists(f"/proc/{pid}"))
+
+
+def cmd_clean(args):
+    yes = "--yes" in args
+    left = leftovers(processes())
+    if not left:
+        print("Nothing is left over.")
+        return 0
+    print_leftovers(left)
+    sure = [f for f in left if f[2]]
+    maybe = [f for f in left if not f[2]]
+    asking = sys.stdin.isatty() and not yes
+    chosen = []
+    if sure:
+        held = size(sum(p.mem + p.swap for p, _, _ in sure))
+        if yes or (asking and input(f"\nEnd the {len(sure)} left over ({held})? [y/N] ").strip().lower() == "y"):
+            chosen += [p.pid for p, _, _ in sure]
+    if asking:
+        for p, why, _ in maybe:
+            if input(f"End {command_words(p, 50)} [{p.pid}] ({why})? [y/N] ").strip().lower() == "y":
+                chosen.append(p.pid)
+    elif maybe and yes:
+        print(f"\n{len(maybe)} maybe left over: not ended without asking (vikix memory clean, in a terminal).")
+    if not chosen:
+        if not asking and not yes:
+            print("\nNothing ended: vikix memory clean --yes ends the ones surely left over.")
+        return 0 if yes or asking else 1
+    gone = end(chosen)
+    print(f"\nEnded {gone} of {len(chosen)}.")
+    step(quiet=True)                          # the bar's count, now
+    return 0 if gone == len(chosen) else 1
+
+
+def notify(title, body, urgent=False):
+    try:
+        subprocess.run(["notify-send", "-a", "Vikix"] + (["-u", "critical"] if urgent else []) + [title, body],
+                       timeout=10, check=False)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+def step(quiet=False, scan=True):
+    """One look: warn when the level got worse, say when left-over programs pile
+    up, and write the bar's field. What was said before is in the field's file."""
+    was = (read(FIELD).split() + ["ok", "0", "0", "0", "0"])[:5]
+    was_level, told = was[0] if was[0] in ("ok", "low", "critical") else "ok", was[4] == "1"
+    m = meminfo()
+    now = level(m, was_level)
+    used = round(100 - free_percent(m))
+    worse = {"ok": 0, "low": 1, "critical": 2}
+    left_n, left_mb = int(was[2]) if was[2].isdigit() else 0, int(was[3]) if was[3].isdigit() else 0
+    procs = None
+    if scan or worse[now] > worse[was_level]:
+        procs = processes()
+        sure = [p for p, _, s in leftovers(procs) if s]
+        left_n, left_mb = len(sure), sum(p.mem + p.swap for p in sure) >> 20
+    if not quiet and worse[now] > worse[was_level]:
+        top = ", ".join(f"{name}{' ×%d' % c if c > 1 else ''} {size(mem + swap)}" for name, mem, swap, c in biggest(procs, 3))
+        left = f" Left over: {left_n} program{'' if left_n == 1 else 's'}, {left_mb} MB (vikix memory clean)." if left_n else ""
+        free = size(m.get("MemAvailable", 0))
+        if now == "critical":
+            notify(f"Memory is nearly full ({used}%)",
+                   f"Only {free} free: the desktop may freeze. Close something now. Biggest: {top}.{left}", urgent=True)
+        else:
+            notify(f"Memory is low ({used}%)",
+                   f"{free} free. Biggest: {top}.{left} Super+m, Memory shows it all.")
+    # Left-over programs piling up: said once, until they're gone.
+    piled = left_n and (left_mb >= 300 or left_n >= 5)
+    if piled and not told and not quiet:
+        notify("Left-over programs", f"{left_n} programs nobody uses hold {left_mb} MB. vikix memory clean ends them (Super+m, Memory).")
+        told = True
+    elif not left_n:
+        told = False
+    line = f"{now} {used} {left_n} {left_mb} {1 if told else 0}"
+    if line != " ".join(was):
+        os.makedirs(STATE, exist_ok=True)
+        with open(FIELD + ".new", "w") as f:
+            f.write(line + "\n")
+        os.replace(FIELD + ".new", FIELD)
+    return now, used, left_n, left_mb
+
+
+def cmd_watch(args):
+    if "--once" in args:
+        now, used, left_n, left_mb = step()
+        print(f"{now}: {used}% in use, {left_n} left over ({left_mb} MB)")
+        return 0
+    ticks = 0
+    while True:
+        # Memory every 15 seconds (two small files); the processes every 5 minutes.
+        try:
+            step(scan=ticks % 20 == 4)
+        except Exception as e:                # never the end of the watcher
+            print(f"vikix-memory: {e}", file=sys.stderr)
+        ticks += 1
+        time.sleep(15)
+
+
+def main(args):
+    what = args[0] if args else ""
+    if what in ("-h", "--help", "help"):
+        print(__doc__.strip())
+        return 0
+    if what == "":
+        return cmd_status()
+    if what == "left":
+        return cmd_left()
+    if what == "clean":
+        return cmd_clean(args[1:])
+    if what == "watch":
+        return cmd_watch(args[1:])
+    print("vikix memory: (nothing), left, clean [--yes], watch [--once]", file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except KeyboardInterrupt:
+        sys.exit(130)

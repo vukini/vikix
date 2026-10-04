@@ -2,7 +2,7 @@
 # tests/run.sh — run the tests that fit this machine.
 #
 #   tests/run.sh          the quick ones (about two minutes): lint, lisp (with
-#                         sbcl), battery, home, services, backup (with
+#                         sbcl), battery, memory, home, services, backup (with
 #                         restic), image, theme, theme-import, bar, rofi,
 #                         wallpaper, examples, dev-ai, notes, project, drives, firmware, fingerprint, firewall, updates, notifications, idle, lock, lazarus, capture,
 #                         mimeapps, nightlight, update, windows, ai, ai-local, llm, ai-keys, agents, debug, dictate, voice, lisp-apps, esploro, mcp, swank (with Quicklisp), errors (with Quicklisp's StumpWM), webapp, features, nvim, emacs, welcome, menu (with sbcl), docs-open, nyxt (with sbcl), pkg, oneline, man, info (with makeinfo),
@@ -43,7 +43,7 @@ case $mode in
 esac
 tests=(lint)
 if command -v sbcl >/dev/null; then tests+=(lisp); else echo "(lisp needs sbcl; skipped here)"; fi
-tests+=(battery home services lisp-stage image theme theme-import bar rofi wallpaper mimeapps examples dev-ai notes project drives firmware fingerprint firewall updates notifications idle lock lazarus capture nightlight update windows ai ai-local llm ai-keys agents debug dictate voice lisp-apps esploro hype learn mcp swank errors bitwarden plugin records obsidian docs-check screens docs vk webapp features nvim emacs editor-theme welcome menu docs-open nyxt pkg oneline man viri main layouts rules keys tray times soak)
+tests+=(battery memory home services lisp-stage image theme theme-import bar rofi wallpaper mimeapps examples dev-ai notes project drives firmware fingerprint firewall updates notifications idle lock lazarus capture nightlight update windows ai ai-local llm ai-keys agents debug dictate voice lisp-apps esploro hype learn mcp swank errors bitwarden plugin records obsidian docs-check screens docs vk webapp features nvim emacs editor-theme welcome menu docs-open nyxt pkg oneline man viri main layouts rules keys tray times soak)
 if command -v restic >/dev/null; then tests+=(backup); else echo "(backup needs restic; skipped here)"; fi
 if command -v makeinfo >/dev/null; then tests+=(info); else echo "(info needs makeinfo; skipped here)"; fi
 # --quick leaves these out (the run says so); the full run and GitHub keep them.

@@ -98,6 +98,17 @@ pkill picom; picom -b
 - **Slower the longer it runs?** `vikix times soak` works a hidden desktop hard for an hour (windows opening, closing, moving, reloads) and says whether StumpWM slowed down, grew, kept timers or hooks it shouldn't, or wrote an error; the samples are kept in `~/.local/state/vikix/soak/`. Your screen isn't touched, but the laptop works harder meanwhile.
 - **StumpWM answering slowly** means its main thread is kept busy: keys still work, but `vikix eval` and the agents' tools wait. A window that keeps changing its size can do it (bugs.md has one, an xterm); close windows one at a time until it answers again.
 
+## The desktop froze, or crawls for minutes
+
+Memory ran out: Linux is moving programs to the disk and back. The bar says `mem 91%` before it gets there, with a notification naming the biggest programs; when you see it, close something.
+
+```sh
+vikix memory          # what uses it, biggest first; files kept in memory (/tmp); what's left over
+vikix memory clean    # end the programs left over (hidden screens and tests nobody ended)
+```
+
+The usual causes: a virtual machine (the bar says `win`), several AI agents at once, a browser with many tabs, big files in `/tmp` (it is kept in memory), and programs left over by tests. If the screen is already frozen, switch to a text console with Ctrl+Alt+F2, log in, and run `vikix memory` there (`pkill` the biggest), then Ctrl+Alt+F1 to come back.
+
 ## Settings went wrong
 
 ```sh

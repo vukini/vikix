@@ -36,6 +36,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-local-ai](#vikix-local-ai): AI models that run on this machine, with Ollama
 - [vikix-lock](#vikix-lock): lock the screen, with only ever one locker
 - [vikix-mcp](#vikix-mcp): the Vikix desktop as an MCP server, for any agent that speaks MCP
+- [vikix-memory](#vikix-memory): what uses the memory, what's left over, a warning when it runs low
 - [vikix-net](#vikix-net): the network link as one short line, for the mode line
 - [vikix-nightlight](#vikix-nightlight): a warmer screen in the evening (gammastep)
 - [vikix-notes](#vikix-notes): ask your notes, from any terminal (`note` for short)
@@ -74,6 +75,7 @@ The everyday command.
 - `vikix doctor` — check the pieces are all there
 - `vikix screens [extend|mirror|external|laptop|pick]` — the screens: a plugged one lights up by itself; this lays them out otherwise (Super+Ctrl+p)
 - `vikix tray on|off` — a tray at the bar's end: network and Bluetooth icons (nm-applet, blueman-applet; Super+m too)
+- `vikix memory [left|clean]` — what uses the memory, biggest first, and the programs left over (hidden screens, tests nobody ended); clean ends those; a warning comes by itself when memory runs low (vikix memory help)
 - `vikix times [measure|soak]` — how long logging in and a reload take; measure = on a hidden screen: start, reload, a key, an Emacs frame, StumpWM answering, against limits; soak = an hour of it worked hard (vikix times help)
 - `vikix features` — what you can add (languages, editors, LibreOffice, printing, Windows, local AI ...), and what you have
 - `vikix add NAME...` — add features, or a bundle (essentials, developer, everything); every update keeps them
@@ -583,6 +585,31 @@ switched on undo (your files back a snapshot: --allow-undo). These are a
 ```
 
 Nothing an agent sends reaches Lisp or a shell except as a value checked against the desktop (a workspace that exists, a theme there is, a number). Every call, refused ones too, is logged in `~/.local/state/vikix/mcp.log` (600): the tool, whether it worked, its arguments (secrets taken out, long ones cut, with their length and a hash).
+
+## vikix-memory
+
+What uses the memory, what's left over, a warning when it runs low.
+
+- `vikix memory` — memory and swap, the biggest programs (each with all its processes), files kept in memory (/tmp), and the programs left over
+- `vikix memory left` — only the programs left over, each with why
+- `vikix memory clean` — end the left-over ones: those that surely are, after a yes; the "maybe" ones one by one
+- `vikix memory clean --yes` — end those that surely are, without asking
+- `vikix memory watch` — what vikix-session starts: looks every 15 seconds, warns once when memory is low (under 15% free for programs) and again, urgently, when it's nearly full (under 7%, or the machine already stalls), says when left-over programs pile up, and writes the bar's field (mem 91%)
+- `vikix memory watch --once` — one look, printed
+
+Left over means nobody can be using it:
+
+```
+for sure   a program on a hidden screen (Xvfb) whose starter has gone, or
+           on a screen that no longer exists, or a test's program whose
+           home is a temporary folder
+maybe      a program an AI agent's command started and left behind, one
+           whose folder was deleted, an editor with no window
+```
+
+and always: its starter has gone (it belongs to nobody), it has no terminal, no window on your screen, and it's older than 10 minutes, so a test that's running is left alone.
+
+`VIKIX_MEMORY_LOW` and `VIKIX_MEMORY_CRITICAL` change the two levels (percent free), `VIKIX_MEMORY_LEFT_AFTER` the minutes.
 
 ## vikix-net
 

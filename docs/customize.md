@@ -134,10 +134,10 @@ The mouse works on it too: a workspace's number goes there, a window's title foc
 The bar is one format string. Vikix sets it in `modeline.lisp`:
 
 ```lisp
-"%J  %W^>%R%K%X%Y%Q%U%A%D%Z%O%T%V%E%d"
+"%J  %W^>%R%K%X%Y%G%Q%U%A%D%Z%O%T%V%E%d"
 ```
 
-`%J` the workspaces, `%W` the windows, `^>` right-aligns the rest: `%R` rec (or mic, while dictation listens), `%K` awake, `%X` win (the Windows VM), `%Y` ai (a local model loaded), `%Q` quiet, `%U` updates, `%A` backup, `%D` usb, `%Z` Dropbox, `%O` network, `%T` Bluetooth, `%V` volume, `%E` battery, `%d` date and time. Set your own in `user.lisp` to drop or reorder fields:
+`%J` the workspaces, `%W` the windows, `^>` right-aligns the rest: `%R` rec (or mic, while dictation listens), `%K` awake, `%X` win (the Windows VM), `%Y` ai (a local model loaded), `%G` mem (memory low, and programs left over), `%Q` quiet, `%U` updates, `%A` backup, `%D` usb, `%Z` Dropbox, `%O` network, `%T` Bluetooth, `%V` volume, `%E` battery, `%d` date and time. Set your own in `user.lisp` to drop or reorder fields:
 
 ```lisp
 ;; no Bluetooth, and the time without the date

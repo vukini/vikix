@@ -286,6 +286,8 @@ Returns the window, or nil when there's none."
     ("Projects: open one (a terminal there, its log in the editor)" (run-shell-command "vikix-project pick"))
     ("Something's wrong? Ask the agent" (vikix-in-terminal "vikix diagnose"))
     ("A report of what's going on (vikix debug)" (vikix-in-terminal "vikix debug"))
+    ("Memory: what uses it, and what's left over" (vikix-in-terminal "vikix memory"))
+    ("Memory: end the left-over programs" (vikix-in-terminal "vikix memory clean"))
     ("AI on the selected text" (run-shell-command "vikix-ask"))
     ("Learn C: the lesson, and a shell beside it" (vikix-learn-open "c"))
     ("JupyterLab (in ~/dev)" (run-shell-command "vikix-jupyter") "~/dev/python/.venv/bin/jupyter")
@@ -630,6 +632,40 @@ changed. Reading a small file is cheap, so this runs with the others."
 
 (defvar *vikix-windows* nil
   "True while the Windows VM (vikix windows) is running.")
+
+;;; Memory (bin/vikix-memory), shown in the bar when it runs low.
+
+(defvar *vikix-memory* nil
+  "What bin/vikix-memory's watcher last wrote, as (LEVEL USED LEFT TOLD):
+LEVEL :low or :critical (NIL while there's enough), USED the percent of
+memory in use, LEFT how many programs are left over, TOLD whether they've
+piled up enough to be said.")
+
+(defparameter *vikix-memory-file*
+  (merge-pathnames ".local/state/vikix/memory" (user-homedir-pathname))
+  "Where bin/vikix-memory's watcher writes: \"LEVEL USED% LEFT LEFT-MB TOLD\".")
+
+(defun vikix-memory-read (line)
+  "LINE of the watcher's file as (LEVEL USED LEFT TOLD); NIL when there's
+nothing for the bar to say."
+  (let* ((words (and line (split-string line " ")))
+         (level (cond ((equal (first words) "low") :low)
+                      ((equal (first words) "critical") :critical)))
+         (used (ignore-errors (parse-integer (second words))))
+         (left (or (ignore-errors (parse-integer (third words))) 0))
+         (told (equal (fifth words) "1")))
+    (and (or level (and told (plusp left)))
+         (list level (or used 0) left told))))
+
+(defun vikix-memory-refresh ()
+  "Read the watcher's file into *vikix-memory*; redraw the bar if it changed.
+A small file, so this runs with the others."
+  (let ((new (vikix-memory-read
+              (ignore-errors
+               (with-open-file (in *vikix-memory-file*) (read-line in nil ""))))))
+    (unless (equal new *vikix-memory*)
+      (setf *vikix-memory* new)
+      (update-all-mode-lines))))
 
 (defun vikix-windows-refresh ()
   "Read whether Windows runs into *vikix-windows*; redraw the bar if it changed.

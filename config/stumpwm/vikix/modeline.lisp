@@ -9,6 +9,8 @@
 ;;;;   %K   awake: keep awake is on (no lock, dark screen or suspend)
 ;;;;   %X   win: the Windows VM is running (vikix windows); it uses memory and battery
 ;;;;   %Y   ai: a local AI model is loaded in memory (vikix ai); it unloads after 5 idle minutes
+;;;;   %G   mem 91%: memory is low, or nearly full (bin/vikix-memory watches); left 5:
+;;;;        programs nobody uses have piled up (vikix memory clean)
 ;;;;   %Q   quiet: notifications paused (do not disturb), and how many wait
 ;;;;   %U   updates waiting (bin/vikix-updates checks every 6 hours)
 ;;;;   %A   backup 9d: the last backup is older than the reminder's days
@@ -21,7 +23,8 @@
 ;;;;   %d   date and time
 ;;;;
 ;;;; Colour carries one meaning each: alert for something watching you
-;;;; (rec), accent for something to act on (updates, backup, usb, dbx off or !), subtle
+;;;; (rec) or about to stop you (mem, nearly full), accent for something to act on
+;;;; (updates, backup, usb, dbx off or !, mem when low, left), subtle
 ;;;; for a mode you switched on yourself (awake, win, ai, quiet), or work under way
 ;;;; (dbx syncing).
 
@@ -71,7 +74,9 @@ runs from the event loop, where an error would reach the top level."
         (:net (when (member button '(1 3))
                 (run-shell-command (format nil "~a -e nmtui" *vikix-terminal*))))
         (:bt (when (member button '(1 3))
-               (run-shell-command "blueman-manager"))))
+               (run-shell-command "blueman-manager")))
+        (:memory (when (member button '(1 3))
+                   (vikix-in-terminal "vikix memory"))))
     (error (e) (message "The bar: ~a" e))))
 
 (register-ml-on-click-id :vikix-ml-click 'vikix-ml-click)
@@ -198,6 +203,20 @@ from *vikix-recording* and *vikix-dictating* (commands.lisp)."
       (format nil "^(:push)^(:fg \"~a\")win^(:pop)  " (vikix-colour :subtle))
       ""))
 
+(defun vikix-mode-line-memory (ml)
+  "\"mem 91%\" while memory is low (accent) or nearly full (alert), and
+\"left 5\" once left-over programs have piled up, from *vikix-memory*
+(commands.lisp). A click opens vikix memory in a terminal."
+  (declare (ignore ml))
+  (destructuring-bind (&optional level (used 0) (left 0) told) *vikix-memory*
+    (let ((text (format nil "~@[mem ~d%~]~:[~; ~]~@[left ~d~]"
+                        (and level used) (and level told (plusp left)) (and told (plusp left) left))))
+      (if (string= text "")
+          ""
+          (format nil "^(:push)^(:fg \"~a\")~a^(:pop)"
+                  (vikix-colour (if (eq level :critical) :alert :accent))
+                  (vikix-ml-clickable :vikix-ml-click :memory (concatenate 'string text "  ")))))))
+
 (defun vikix-mode-line-ai (ml)
   "\"ai\" while a local model is loaded, from *vikix-ai* (commands.lisp)."
   (declare (ignore ml))
@@ -205,7 +224,7 @@ from *vikix-recording* and *vikix-dictating* (commands.lisp)."
       (format nil "^(:push)^(:fg \"~a\")ai^(:pop)  " (vikix-colour :subtle))
       ""))
 
-;; %J, %V, %O, %T, %U, %A, %D, %Q, %K, %X, %Y, %R, %E, %Z and %P (plugins.lisp) are free: neither StumpWM nor its
+;; %J, %V, %O, %T, %U, %A, %D, %Q, %K, %X, %Y, %G, %R, %E, %Z and %P (plugins.lisp) are free: neither StumpWM nor its
 ;; contrib modules use them.
 (add-screen-mode-line-formatter #\J 'vikix-mode-line-groups)
 (add-screen-mode-line-formatter #\V 'vikix-mode-line-volume)
@@ -219,6 +238,7 @@ from *vikix-recording* and *vikix-dictating* (commands.lisp)."
 (add-screen-mode-line-formatter #\K 'vikix-mode-line-awake)
 (add-screen-mode-line-formatter #\X 'vikix-mode-line-windows)
 (add-screen-mode-line-formatter #\Y 'vikix-mode-line-ai)
+(add-screen-mode-line-formatter #\G 'vikix-mode-line-memory)
 (add-screen-mode-line-formatter #\R 'vikix-mode-line-recording)
 (add-screen-mode-line-formatter #\E 'vikix-mode-line-battery)
 
@@ -343,6 +363,7 @@ off, off if it's on, remembered for the next login."
   (vikix-awake-refresh)
   (vikix-windows-refresh)
   (vikix-ai-refresh)
+  (vikix-memory-refresh)
   (vikix-record-refresh))
 
 ;; The volume keys update the bar at once (vikix-volume); this timer
@@ -362,7 +383,7 @@ off, off if it's on, remembered for the next login."
       ;; The window's number and title. StumpWM's default adds * + - marks,
       ;; which say again what the accent colour already shows.
       *window-format*        "%n %30t"
-      *screen-mode-line-format* "%J  %W^>%P%R%K%X%Y%Q%U%A%D%Z%O%T%V%E%d%S")
+      *screen-mode-line-format* "%J  %W^>%P%R%K%X%Y%G%Q%U%A%D%Z%O%T%V%E%d%S")
 
 ;; Turn the bar on for every screen and head (monitor).
 (dolist (screen *screen-list*)

@@ -20,6 +20,10 @@
 #                         this lays them out otherwise (Super+Ctrl+p)
 #   vikix tray on|off   a tray at the bar's end: network and Bluetooth
 #                         icons (nm-applet, blueman-applet; Super+m too)
+#   vikix memory [left|clean]  what uses the memory, biggest first, and the
+#                         programs left over (hidden screens, tests nobody
+#                         ended); clean ends those; a warning comes by itself
+#                         when memory runs low (vikix memory help)
 #   vikix times [measure|soak]  how long logging in and a reload take; measure
 #                         = on a hidden screen: start, reload, a key, an
 #                         Emacs frame, StumpWM answering, against limits;
@@ -1580,6 +1584,7 @@ main() {
     plugin|plugins) shift; exec "$VIKIX_DIR/bin/vikix-plugin" "$@" ;;
     records)     shift; exec "$VIKIX_DIR/bin/vikix-records" "$@" ;;
     screens)     shift; exec "$VIKIX_DIR/bin/vikix-screens" "$@" ;;
+    memory)      shift; exec "$VIKIX_DIR/bin/vikix-memory" "$@" ;;
     times)       shift; exec "$VIKIX_DIR/bin/vikix-times" "$@" ;;
     tray)        shift
                  case ${1:-} in
