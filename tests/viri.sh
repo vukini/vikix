@@ -33,6 +33,7 @@ EOF
 wm_start
 # The strip as one line: its columns, the first shown, the focused window.
 state() { ask '(progn (setf *print-pretty* nil) (if (viri-group-p) (format t "~{~a~} left=~a focus=~a" (mapcar (function window-title) (viri-columns (current-group))) (viri-left (current-group)) (window-title (current-window))) (format t "tiles focus=~a" (and (current-window) (window-title (current-window))))))'; }
+focus() { ask '(princ (window-title (current-window)))'; }
 xs() { ask '(progn (setf *print-pretty* nil) (format t "~{~a~^ ~}" (mapcar (lambda (w) (xlib:drawable-x (window-parent w))) (viri-columns (current-group)))))'; }
 
 for w in A B C D; do win "$w"; done
@@ -236,9 +237,56 @@ check "a fullscreen window has none: $(bars)" test "$(bars) $(ask '(princ (if (g
 key super+f
 check "out of fullscreen it has its bar and its place again: $(bars)" test "$(bars)" = "$n/$n"
 
+# The mouse on a strip: Super and the wheel walk along it; Super and a drag
+# with the right button, or a drag of a column's side edge, change its
+# width a twentieth of the screen at a time; a drag of its title bar carries
+# the column to where it's let go; a click on the title bar moves nothing.
+# On the bar the wheel walks too, and on the overview a click on a box goes
+# to its window, a click off the card closes it.
+mouse() { xdotool "$@"; sleep 0.4; }
+# A press on a title bar or an edge isn't held back by a grab, as one on a
+# program's window is: what the pointer does before StumpWM has taken it is
+# lost. A hand is slower than that; on a busy machine a test isn't, so it waits.
+press() { xdotool mousedown "$1"; sleep 1.5; }
+order() { ask '(progn (setf *print-pretty* nil) (format t "~{~a~^ ~}" (mapcar (lambda (c) (window-title (first (viri-col-windows c)))) (viri-cols (current-group)))))'; }
+geo() { ask "(let ((p (window-parent $1))) (format t \"~a ~a ~a ~a ~a\" (xlib:drawable-x p) (xlib:drawable-y p) (xlib:drawable-width p) (xlib:drawable-height p) (xlib:drawable-border-width p)))"; }
+width() { ask '(princ (viri-col-width (viri-col-of (current-group) (current-window))))'; }
+for _ in 1 2 3 4 5 6 7 8; do key super+h; done
+one=$(focus); read -r one two _ <<<"$(order)"
+read -r x y w h b <<<"$(geo '(current-window)')"
+mouse mousemove $((x + w / 2)) $((y + h / 2))
+mouse keydown super click 5 keyup super
+check "Super and the wheel down walks to the next column: $(focus)" test "$(focus)" = "$two"
+mouse keydown super click 4 keyup super
+check "and the wheel up walks back: $(focus)" test "$(focus)" = "$one"
+was=$(width)
+mouse mousemove $((x + w / 2)) $((y + h / 2)); mouse keydown super mousedown 3; mouse mousemove_relative 64 0; mouse mousemove_relative 64 0; mouse mouseup 3 keyup super
+check "Super and a drag with the right button makes the column a tenth of the screen wider: $was, then $(width)" test "$(ask "(princ (if (= (viri-col-width (viri-col-of (current-group) (current-window))) (+ $was 1/10)) 1 0))")" = 1
+read -r x y w h b <<<"$(geo '(current-window)')"
+mouse mousemove $((x + b + w)) $((y + h / 2)); press 1; mouse mousemove_relative -- -64 0; mouse mousemove_relative -- -64 0; mouse mouseup 1
+check "a drag of its side edge brings it back: $(width)" test "$(width)" = "$was"
+check "the pointer stayed at the edge it pressed, not sent to the window's middle" test "$(ask '(princ (if (< (abs (- (xlib:global-pointer-position *display*) (let ((p (window-parent (current-window)))) (+ (xlib:drawable-x p) (xlib:drawable-width p))))) 12) 1 0))')" = 1
+before=$(order)
+read -r x y w h b <<<"$(geo '(current-window)')"
+mouse mousemove $((x + 100)) $((y + b + 8)); mouse click 1; mouse click 1
+check "clicks on a title bar move nothing: $(order)" test "$(order) $(inplace) $(focus)" = "$before 1 $one"
+read -r x2 _ w2 _ _ <<<"$(geo "$(find_w "$two")")"
+mouse mousemove $((x + 100)) $((y + b + 8)); press 1; mouse mousemove $((x2 + w2 / 2 - 100)) $((y + b + 8)); mouse mousemove $((x2 + w2 / 2 + 60)) $((y + b + 8)); mouse mouseup 1
+check "a title bar dragged past the next column's middle: the column stays there: $(order)" test "$(order | cut -d' ' -f1-2) $(inplace) $(focus)" = "$two $one 1 $one"
+ask "(viri-ml-click 4 (window-id (current-window)))" >/dev/null; sleep 0.3
+check "the wheel on the bar's window names walks along the strip: $(focus)" test "$(focus)" = "$two"
+key super+o
+target=$(ask '(princ (window-title (first (last (viri-columns (current-group))))))')
+read -r bx by <<<"$(ask '(let* ((st *viri-overview*) (card (getf st :card)) (g (getf st :group))) (multiple-value-bind (boxes pw) (viri-overview-boxes g (getf st :room)) (multiple-value-bind (x0 y0) (viri-overview-origin (xlib:drawable-width card) pw (getf st :pad) (getf st :line)) (let ((b (first (last boxes)))) (format t "~a ~a" (+ (xlib:drawable-x card) 1 x0 (second b) (floor (fourth b) 2)) (+ (xlib:drawable-y card) 1 y0 (third b) (floor (fifth b) 2)))))))')"
+mouse mousemove "$bx" "$by"; mouse click 1
+check "a click on a box of the overview goes to its window ($target), the card gone" test "$(focus) $(ask '(princ (if *viri-overview* 1 0))')" = "$target 0"
+# Off the card, on the window you're in: a click elsewhere would focus that.
+read -r x y w h b <<<"$(geo '(current-window)')"
+key super+o; mouse mousemove $((x + w / 2)) $((y + h - 20)); mouse click 1
+check "a click off the card closes it, nothing moved" test "$(focus) $(ask '(princ (if *viri-overview* 1 0))')" = "$target 0"
+
 # The window keys that only knew tiles: on a strip each does its thing, or
 # says why not; none is an error.
-focus() { ask '(princ (window-title (current-window)))'; }
 find_any() { echo "(find \"$1\" (screen-windows (current-screen)) :key (function window-title) :test (function equal))"; }
 msgs() { ask '(progn (setf *print-pretty* nil) (format t "~{~a~%~}" (subseq (screen-last-msg (current-screen)) 0 (min 30 (length (screen-last-msg (current-screen)))))))'; }
 ask '(message "the window keys")' >/dev/null
@@ -260,5 +308,5 @@ check "Super+Shift+g brings one off the strip, into a frame: $(focus)" test "$(a
 key super+1
 check "none of them was an error: $(msgs | grep -i 'Error In Command\|not found' | head -1)" test -z "$(msgs | sed '/the window keys/,$d' | grep -i 'Error In Command\|not found')"
 
-wm_report viri "a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, the drawn overview and its keys, the agents' desktop tool, new and closed windows, a dialog, another workspace, off and on, sliding and centring, title bars, the window keys on a strip"
+wm_report viri "a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, the drawn overview and its keys, the agents' desktop tool, new and closed windows, a dialog, another workspace, off and on, sliding and centring, title bars, the mouse, the window keys on a strip"
 exit "$fail"

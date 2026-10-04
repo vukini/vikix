@@ -304,8 +304,11 @@ focus. So a pointer over the strip goes along with the focused window."
       (multiple-value-bind (px py) (xlib:global-pointer-position *display*)
         (multiple-value-bind (ax ay aw ah) (viri-area group)
           (let* ((p (window-parent window))
+                 ;; Its edges are part of it: a press on one (to drag the
+                 ;; column wider) mustn't send the pointer to its middle.
+                 (edge (* 2 (xlib:drawable-border-width p)))
                  (x (xlib:drawable-x p)) (y (xlib:drawable-y p))
-                 (w (xlib:drawable-width p)) (h (xlib:drawable-height p)))
+                 (w (+ edge (xlib:drawable-width p))) (h (+ edge (xlib:drawable-height p))))
             (when (and (< ax px (+ ax aw)) (< ay py (+ ay ah))
                        (not (and (<= x px (+ x w)) (<= y py (+ y h)))))
               (warp-pointer (group-screen group) (+ x (floor w 2)) (+ y (floor h 2)))))))
@@ -570,6 +573,138 @@ way (exchange-direction); into the frame that way (move-window) elsewhere."
         ((vikix-main-p) (run-commands (format nil "exchange-direction ~(~a~)" dir)))
         (t (run-commands (format nil "move-window ~(~a~)" dir)))))
 
+;;; The mouse on a strip.
+;;;
+;;; A column is a floating window to StumpWM, which lets the mouse carry one
+;;; anywhere and pull it to any size: on a strip that left a column lying
+;;; over its neighbours until the next layout. Here the mouse does what a
+;;; strip can keep:
+;;;
+;;;   Super + the wheel, over the strip    walk along it (so does the wheel
+;;;                                        on the bar's window names)
+;;;   drag a title bar, or Super + drag    carry the column along the strip:
+;;;                                        it stays where you let it go
+;;;   drag a column's side edge, or        its width, a twentieth of the
+;;;     Super + drag with the right button screen at a time
+;;;
+;;; A click still focuses the window and reaches its program, as before. A
+;;; dialog on a strip is StumpWM's to move and resize.
+
+(defparameter *viri-width-step* 1/20
+  "A column dragged wider or narrower goes by this much of the screen at a time.")
+
+(defparameter *viri-width-least* 1/5
+  "The narrowest a column can be dragged.")
+
+(defun viri-drag (screen moving)
+  "Follow the pointer until the button is let go, calling MOVING with its
+place on the screen each time it moves. Gives up after 20 seconds with no
+movement, so a button's release that never comes doesn't hold the desktop."
+  (let ((last (get-universal-time)))
+    (flet ((event (&rest slots &key event-key &allow-other-keys)
+             (case event-key
+               (:button-release :done)
+               (:motion-notify
+                (setf last (get-universal-time))
+                (funcall moving (getf slots :root-x) (getf slots :root-y))
+                t)
+               ;; Eaten, or they'd all come in afterwards.
+               ((:configure-notify :exposure) t)
+               (t nil))))
+      (xlib:grab-pointer (screen-root screen) '(:button-release :pointer-motion))
+      (unwind-protect
+           ;; A click, not a drag: the button is up again already, and its
+           ;; release went by before the pointer was ours. Nothing to wait for.
+           (when (intersection '(:button-1 :button-3)
+                               (xlib:make-state-keys
+                                (nth-value 4 (xlib:query-pointer (screen-root screen)))))
+             ;; process-event gives NIL for an event that isn't the drag's
+             ;; (the pointer "leaving" as it is grabbed) as well as for a
+             ;; second gone by: the clock says which.
+             (loop for ev = (xlib:process-event *display* :handler #'event :timeout 1 :discard-p t)
+                   until (or (eq ev :done) (> (- (get-universal-time) last) 20))))
+        (ungrab-pointer)))))
+
+(defun viri-drag-width (group window)
+  "WINDOW's column made as much wider or narrower as the pointer is taken
+right or left, while the button is down."
+  (let ((col (viri-col-of group window))
+        (px0 (xlib:global-pointer-position *display*)))
+    (multiple-value-bind (ax ay aw) (viri-area group)
+      (declare (ignore ax ay))
+      (let ((start (viri-col-width col)))
+        (viri-drag (group-screen group)
+                   (lambda (px py)
+                     (declare (ignore py))
+                     (let ((width (max *viri-width-least*
+                                       (min 1 (* *viri-width-step*
+                                                 (round (+ start (/ (- px px0) aw)) *viri-width-step*))))))
+                       (unless (= width (viri-col-width col))
+                         (setf (viri-col-width col) width)
+                         (viri-clamp-offset group aw)
+                         (viri-place group (viri-offset group))
+                         (xlib:display-finish-output *display*)))))))
+    (viri-scroll-to group window)
+    (viri-layout group)))
+
+(defun viri-drag-column (group window)
+  "WINDOW's column carried along the strip with the pointer while the
+button is down; let go, it takes the place it's over."
+  (let* ((col (viri-col-of group window))
+         (x0 (xlib:drawable-x (window-parent window)))
+         (px0 (xlib:global-pointer-position *display*))
+         (moved nil))
+    (dolist (w (viri-col-windows col))
+      (setf (xlib:window-priority (window-parent w)) :above))
+    (viri-drag (group-screen group)
+               (lambda (px py)
+                 (declare (ignore py))
+                 (setf moved t)
+                 (dolist (w (viri-col-windows col))
+                   (setf (xlib:drawable-x (window-parent w)) (+ x0 (- px px0))))
+                 (xlib:display-finish-output *display*)))
+    (when moved
+      (multiple-value-bind (ax ay aw) (viri-area group)
+        (declare (ignore ay))
+        ;; Its new place: after every other column whose middle is left of
+        ;; the pointer.
+        (let* ((at (+ (- (xlib:global-pointer-position *display*) ax) (viri-offset group)))
+               (before (loop for c in (viri-cols group)
+                             for (x . w) in (viri-spans group aw)
+                             unless (eq c col)
+                               count (< (+ x (floor w 2)) at)))
+               (others (remove col (viri-cols group))))
+          (setf (viri-cols group)
+                (append (subseq others 0 before) (list col) (nthcdr before others))))))
+    (viri-scroll-to group window)
+    (viri-layout group)))
+
+(defmethod group-button-press ((group viri-group) button x y (window float-window))
+  (declare (ignore x y))
+  (if (not (viri-col-of group window))
+      (call-next-method)               ; a dialog: StumpWM's own moving and resizing
+      ;; Never signals: it runs from the event loop.
+      (handler-case
+          (let ((super (intersection (float-window-modifier) *button-state*)))
+            (case button
+              (:wheel-up (when super (viri-step :left nil)))
+              (:wheel-down (when super (viri-step :right nil)))
+              ((:left-button :right-button)
+               (let ((parent (window-parent window)))
+                 ;; Where in the window's frame the pointer is: beside the
+                 ;; window (its side edge), or above it (its title bar).
+                 ;; Asked before the window is focused, which may move it.
+                 (multiple-value-bind (px py) (xlib:query-pointer parent)
+                   (let ((beside (not (< -1 px (xlib:drawable-width parent))))
+                         (above (< py (xlib:drawable-y (window-xwin window)))))
+                     (group-focus-window group window)
+                     (cond ((or (and super (eq button :right-button))
+                                (and beside (eq button :left-button)))
+                            (viri-drag-width group window))
+                           ((and (eq button :left-button) (or super above))
+                            (viri-drag-column group window)))))))))
+        (error (e) (message "The strip: ~a" e)))))
+
 ;;; A workspace becomes a strip, and back.
 
 (defun viri-left-to-right (group)
@@ -641,6 +776,20 @@ windows, in the order they stood. GROUP must be the current one."
              (message "Workspace ~a is tiled again." (group-name (current-group)))))))
 ;;; Where you are: the bar's window list (%W) shows a strip as a strip.
 
+(defun viri-ml-click (code id &rest rest)
+  "A click on a window's name in the bar goes to it; the wheel there walks
+along the strip, as Super+h and Super+l do. Never signals: it runs from
+the event loop."
+  (declare (ignore rest))
+  (handler-case
+      (let ((window (window-by-id id)))
+        (cond ((and (member code '(4 5)) (viri-group-p))
+               (viri-step (if (= code 4) :left :right) nil))
+              (window (focus-all window))))
+    (error (e) (message "The bar: ~a" e))))
+
+(register-ml-on-click-id :viri-ml-window 'viri-ml-click)
+
 (defun viri-mode-line-windows (ml)
   "On a strip, its windows in order, the two on the screen in [brackets]
 and the focused one picked out, each a click away; elsewhere StumpWM's own
@@ -655,7 +804,7 @@ list. So you can see how far along the strip you are, and what's off it."
                    (format-with-on-click-id
                     (let ((str (format-expand *window-formatters* *window-format* w)))
                       (if (eq w (group-current-window group)) (fmt-highlight str) str))
-                    :ml-on-click-focus-window (window-id w))))
+                    :viri-ml-window (window-id w))))
             (format nil "~{~a~^ ~}"
                     (append (loop for c in cols
                                   for i from 0
@@ -770,7 +919,7 @@ in it (vikix-window-about puts two spaces between them)."
             :test #'string=)))
 
 (defparameter *viri-overview-hint*
-  "arrows or h j k l: move    Enter: go there    a number: that window    /: type to find    Esc: close")
+  "arrows or h j k l: move    Enter or a click: go there    a number: that window    /: type to find    Esc: close")
 
 (defun viri-overview-colour (screen &rest keys)
   "The pixel of the first of the theme's colours KEYS it has; the text
@@ -778,6 +927,11 @@ colour without one."
   (let ((name (and (fboundp 'vikix-colour) (some (lambda (k) (funcall 'vikix-colour k)) keys))))
     (or (and name (ignore-errors (alloc-color screen name)))
         (screen-fg-color screen))))
+
+(defun viri-overview-origin (width picture pad line)
+  "Where the picture's top left is on a card WIDTH wide: in its middle,
+under the heading."
+  (values (floor (- width picture) 2) (+ pad line 10)))
 
 (defun viri-overview-draw ()
   "Paint the card: the strip as it is now, the frame on the window chosen."
@@ -802,8 +956,7 @@ colour without one."
                                  :depth (xlib:drawable-depth card)))
          (gc (xlib:create-gcontext :drawable pm :foreground bg :background bg)))
     (multiple-value-bind (boxes pw ph vx vw) (viri-overview-boxes group (getf state :room))
-      (let ((x0 (floor (- width pw) 2))
-            (y0 (+ pad line 10)))
+      (multiple-value-bind (x0 y0) (viri-overview-origin width pw pad line)
         (flet ((colours (f b) (setf (xlib:gcontext-foreground gc) f (xlib:gcontext-background gc) b))
                (text (x y string)
                  (when (plusp (length string))
@@ -950,7 +1103,7 @@ colour without one."
                         :override-redirect :on
                         :background (screen-bg-color screen)
                         :border (screen-focus-color screen) :border-width 1
-                        :event-mask '())))
+                        :event-mask '(:button-press))))
             ;; Solid, whatever picom makes of windows without the focus.
             (xlib:change-property card :_net_wm_window_opacity (list #xffffffff) :cardinal 32)
             (setf *viri-overview*
@@ -968,6 +1121,37 @@ colour without one."
                 (viri-overview-close)
                 (message "The overview couldn't be drawn (~a): the list instead." e)
                 (viri-overview-menu group)))))))))
+
+;; The mouse on the card: a click on a box goes to its window, the wheel
+;; moves the frame, a click anywhere else closes the card. StumpWM's click
+;; hook runs for every button it hears of, the card's among them.
+(defun viri-overview-click (screen code x y)
+  (declare (ignore screen x y))
+  (when *viri-overview*
+    (handler-case
+        (let* ((state *viri-overview*)
+               (card (getf state :card))
+               (group (getf state :group))
+               (width (xlib:drawable-width card))
+               (height (xlib:drawable-height card)))
+          (multiple-value-bind (px py) (xlib:query-pointer card)
+            (if (not (and (< -1 px width) (< -1 py height)))
+                (viri-overview-close)
+                (multiple-value-bind (boxes pw) (viri-overview-boxes group (getf state :room))
+                  (multiple-value-bind (x0 y0)
+                      (viri-overview-origin width pw (getf state :pad) (getf state :line))
+                    (let ((box (find-if (lambda (b)
+                                          (destructuring-bind (bx by bw bh) (rest b)
+                                            (and (<= (+ x0 bx) px (+ x0 bx bw))
+                                                 (<= (+ y0 by) py (+ y0 by bh)))))
+                                        boxes)))
+                      (cond ((member code '(4 5))
+                             (viri-overview-move (if (= code 4) :left :right)))
+                            ((and box (= code 1))
+                             (viri-overview-go (first box))))))))))
+      (error () (viri-overview-close)))))
+
+(add-hook *click-hook* 'viri-overview-click)
 
 ;; The strip changed under the card (a window came or went), or you're on
 ;; another workspace: the card would show what isn't so.
