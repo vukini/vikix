@@ -16,6 +16,7 @@
   '("errors"     ; when something fails, ask what to do (loaded first, plainly)
     "theme"      ; colours and borders, as one palette
     "groups"     ; workspaces 1-9
+    "registry"   ; every command once: its key, its place in Super+m, whether agents may run it
     "commands"   ; Vikix's own commands (menu, key help, reload)
     "windows"    ; focus, gaps, layout undo, finding windows
     "rules"      ; rules that read like sentences: (when-window (:class "Firefox") (workspace 2))

@@ -142,10 +142,12 @@ entry() { entries | awk -v n="$1" '$1 == n' | head -1; }
 url_of() { entry "$1" | awk '{ print $2 }'; }
 key_of() { entry "$1" | awk '{ print $3 }'; }
 
-# Keys Vikix binds itself, which a web app mustn't take: the list in
-# keys.lisp, and the workspace keys it binds in a loop (s-1 .. s-9).
+# Keys Vikix binds itself, which a web app mustn't take: each command's
+# :key in registry.lisp (comments left out), and the workspace keys
+# keys.lisp binds in a loop (s-1 .. s-9).
 vikix_keys() {
-  grep -oE '^\s*\("s-[^"]+"' "$VIKIX_DIR/config/stumpwm/vikix/keys.lisp" | grep -oE 's-[^"]+'
+  grep -v '^ *;' "$VIKIX_DIR/config/stumpwm/vikix/registry.lisp" | grep -oE ':key "(\\.|[^"\\])+"' |
+    sed -E 's/^:key "//; s/"$//; s/\\(.)/\1/g' | grep '^s-' || true
   local n; for n in 1 2 3 4 5 6 7 8 9; do printf 's-%s\n' "$n"; done
 }
 

@@ -115,8 +115,8 @@ seen in the code in this repository, not remembered or guessed.
 - Before explaining how something works, read the code that does it,
   and follow the calls to the end. For the internals, name the file and
   function, so the enthusiast can go and read it too.
-- Keys come from `config/stumpwm/vikix/keys.lisp`; menu entries from
-  `commands.lisp`; what gets installed from `packages/`,
+- Keys and `Super+m`'s entries come from `config/stumpwm/vikix/registry.lisp`
+  (each command once: `lib/registry.sh keys` and `menu` print them); what gets installed from `packages/`,
   `features.list` and `bundles.list`; what `vikix` does from `bin/vikix`.
 - The running desktop is installed from `~/vikix`, which may be a
   version behind this checkout (compare `VERSION`). Write about this

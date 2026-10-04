@@ -2,14 +2,15 @@
 # lib/skill-keys.sh — the agents' skill's list of keys, made from the keys
 # themselves, so it can't go stale as the hand-written one could.
 #
-#   lib/skill-keys.sh            print the two blocks: Vikix's keys (from
-#                                config/stumpwm/vikix/keys.lisp, grouped
-#                                as the key card groups them) and the
-#                                plugins' (from the plugins repository at
-#                                Vikix's pin)
+#   lib/skill-keys.sh            print the three blocks: Vikix's keys (from
+#                                its commands, config/stumpwm/vikix/registry.lisp,
+#                                grouped as the key card groups them), the
+#                                commands an agent may run (the same file's
+#                                :agent ones) and the plugins' keys (from the
+#                                plugins repository at Vikix's pin)
 #   lib/skill-keys.sh --write    put them into config/claude/skills/vikix/SKILL.md,
-#                                between the <!-- keys --> and
-#                                <!-- plugin-keys --> markers
+#                                between the <!-- keys -->, <!-- commands -->
+#                                and <!-- plugin-keys --> markers
 #   lib/skill-keys.sh --check    exit 1 when SKILL.md's blocks aren't what
 #                                they'd be now (tests/agents.sh runs it);
 #                                the plugins' block only where a copy of the
@@ -20,7 +21,7 @@
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 skill="$root/config/claude/skills/vikix/SKILL.md"
-keys="$root/config/stumpwm/vikix/keys.lisp"
+registry="$root/config/stumpwm/vikix/registry.lisp"
 help="$root/config/stumpwm/vikix/help.lisp"
 repo=${VIKIX_PLUGINS_REPO:-$HOME/src/vikix-plugins}
 pin=$(sed -n 's/^PLUGINS_COMMIT=\${VIKIX_PLUGINS_COMMIT:-\([0-9a-f]*\)}.*/\1/p' "$root/bin/vikix-plugin")
@@ -47,7 +48,8 @@ plugin_keys() {
 # (help.lisp as a whole needs StumpWM's packages).
 {
   echo '(defpackage :stumpwm (:use :cl)) (in-package :stumpwm)'
-  awk '/^\(defparameter \*vikix-bindings\*/,/^$/' "$keys"
+  echo "(load \"$registry\")"
+  echo '(defparameter *vikix-bindings* (vikix-registry-bindings))'
   awk '/^\(defparameter \*vikix-key-names\*/,/^$/; /^\(defun vikix-pretty-key/,/^$/;
        /^\(defparameter \*vikix-extra-keys\*/,/^$/; /^\(defparameter \*vikix-key-groups\*/,/^$/;
        /^\(defun vikix-command-word/,/^$/; /^\(defun vikix-key-group/,/^$/' "$help"
@@ -69,11 +71,17 @@ plugin_keys() {
   ;; In the key card's order of groups, Other last.
   (let ((order (append (mapcar #'first *vikix-key-groups*) '("Apps" "Other"))))
     (setf groups (sort groups #'< :key (lambda (g) (or (position (first g) order :test #'string=) 99)))))
-  (format t "<!-- keys: made by lib/skill-keys.sh from keys.lisp; don't edit, run it with --write -->~%")
+  (format t "<!-- keys: made by lib/skill-keys.sh from registry.lisp; don't edit, run it with --write -->~%")
   (format t "Every Vikix key, as installed (Super+/ shows them on one card, Super+F1 searches them and runs one):~%~%")
   (dolist (g groups)
     (format t "- **~a:** ~{~a~^; ~}.~%" (first g) (reverse (rest g))))
   (format t "<!-- /keys -->~%")
+  (format t "~%<!-- commands: made by lib/skill-keys.sh from registry.lisp; don't edit, run it with --write -->~%")
+  (format t "The commands an agent may run without Lisp, by name (the MCP tool run_command; commands lists them, with the user's own): ~{~a~^; ~}.~%"
+          (loop for c in *vikix-commands*
+                when (getf c :agent)
+                  collect (format nil "`~(~a~)`: ~a" (getf c :name) (string-right-trim "." (getf c :does)))))
+  (format t "<!-- /commands -->~%")
   (format t "~%<!-- plugin-keys: made by lib/skill-keys.sh from the plugins at Vikix's pin -->~%")
   (format t "The plugins' keys, there only when the plugin is added (vikix plugin list): ~{~a~^; ~}.~%"
           (mapcar (lambda (k) (format nil "~a: ~a (~a)" (vikix-pretty-key (first k))
@@ -96,7 +104,7 @@ case ${1:-} in
 import re, sys
 skill, blocks = sys.argv[1], open(sys.argv[2]).read()
 s = open(skill).read()
-for name in ("keys", "plugin-keys"):
+for name in ("keys", "commands", "plugin-keys"):
     new = re.search(r"<!-- %s:.*?<!-- /%s -->\n" % (name, name), blocks, re.S).group(0)
     pat = re.compile(r"<!-- %s:.*?<!-- /%s -->\n" % (name, name), re.S)
     if not pat.search(s):
@@ -108,7 +116,9 @@ PY
   --check)
     fail=0
     diff <(block keys "$skill") <(block keys "$t/blocks") >/dev/null ||
-      { echo "SKILL.md's keys aren't keys.lisp's: lib/skill-keys.sh --write"; fail=1; }
+      { echo "SKILL.md's keys aren't registry.lisp's: lib/skill-keys.sh --write"; fail=1; }
+    diff <(block commands "$skill") <(block commands "$t/blocks") >/dev/null ||
+      { echo "SKILL.md's commands for agents aren't registry.lisp's: lib/skill-keys.sh --write"; fail=1; }
     if have_plugins; then
       diff <(block plugin-keys "$skill") <(block plugin-keys "$t/blocks") >/dev/null ||
         { echo "SKILL.md's plugin keys aren't the plugins' at the pin: lib/skill-keys.sh --write"; fail=1; }

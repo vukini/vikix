@@ -318,8 +318,8 @@ expect "vikix help names it" has "vikix project" "$(bash "$here/bin/vikix" help)
 expect "the starter config is copied once" grep -q 'copy_user "$C/projects/projects" *"$HOME/.config/vikix/projects"' "$here/install/40-config.sh"
 expect "the starter config is in yours.list" grep -q '^\.config/vikix/projects ' "$here/config/yours.list"
 expect "the starter config's lines are all comments (the defaults stand)" bash -c '! grep -v "^#" "$1" | grep -q .' _ "$here/config/projects/projects"
-expect "Super+m has Projects" grep -q '"vikix-project pick"' "$here/config/stumpwm/vikix/commands.lisp"
-expect "Super+Alt+p picks a project" grep -q '("s-M-p" *"exec vikix-project pick"' "$here/config/stumpwm/vikix/keys.lisp"
+expect "Super+m has Projects" grep -q '^Projects: open one' <("$here/lib/registry.sh" menu)
+expect "Super+Alt+p picks a project" grep -q ':run "exec vikix-project pick" :key "s-M-p"' "$here/config/stumpwm/vikix/registry.lisp"
 
 [ "$fail" = 0 ] && echo "project: all passed"
 exit "$fail"

@@ -6,7 +6,8 @@
 # and every entry that needs something names a real program or file.
 #
 # vikix-program-p and vikix-menu-entry-here-p are read from commands.lisp
-# and run in sbcl, with a made-up PATH and home.
+# and run in sbcl, with a made-up PATH and home. The menu's own entries are
+# the registry's (lib/registry.sh menu).
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
@@ -60,7 +61,7 @@ for want in "[Do not disturb on/off  Super+Ctrl+d]" "[Voice: talk to the AI  Sup
   grep -qxF "$want" <<<"$out" || { echo "FAIL: the menu should show $want, got: $(tr '\n' ' ' <<<"$out")"; fail=1; }
 done
 # So no label names a key itself: it would go stale when the key moves.
-if awk '/^\(defparameter \*vikix-menu\*/,/^  "Each entry/' "$lisp" | grep -qE '^ *\("[^"]*Super\+'; then
+if "$here/lib/registry.sh" menu | cut -f1 | grep -q 'Super+'; then
   echo "FAIL: a Super+m label names its key; the menu shows keys by itself"; fail=1
 fi
 
@@ -76,8 +77,9 @@ while IFS= read -r need; do
     *) grep -rqxE "$need( .*)?" <(cat "$here"/packages/*.list "$here"/packages/optional/*.list | sed 's/[[:space:]]*#.*//') ||
          { echo "FAIL: the menu needs the program $need, but no list installs a package of that name"; fail=1; } ;;
   esac
-done < <(awk '/^\(defparameter \*vikix-menu\*/,/^  "Each entry/; /^\(defparameter \*vikix-apps-menu\*/,/^  "The apps menu/' "$lisp" |
-         grep -oE '(\) |^ +)"(~/[^"]+|[a-z-]+)"\)+$' | sed -E 's/^(\) | +)"//; s/"\)+$//')
+done < <("$here/lib/registry.sh" menu | cut -f2 | grep . | sort -u
+         awk '/^\(defparameter \*vikix-apps-menu\*/,/^  "The apps menu/' "$lisp" |
+           grep -oE '(\) |^ +)"(~/[^"]+|[a-z-]+)"\)+$' | sed -E 's/^(\) | +)"//; s/"\)+$//')
 
 # The launcher (Super+d) lists config/applications/*.desktop: each runs a
 # command Vikix has, and JupyterLab answers to what people type, jlab too.

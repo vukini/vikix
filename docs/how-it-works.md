@@ -35,6 +35,7 @@ login on tty1
                       ├─ vikix/errors.lisp       when something fails, ask what to do
                       ├─ vikix/theme.lisp        colours and fonts
                       ├─ vikix/groups.lisp       workspaces 1–9
+                      ├─ vikix/registry.lisp     every command once: its key, its place in Super+m
                       ├─ vikix/commands.lisp     Vikix's commands and the Super+m menu
                       ├─ vikix/windows.lisp      focus, gaps, layout undo
                       ├─ vikix/rules.lisp        rules for windows: (when-window ...)
@@ -43,7 +44,7 @@ login on tty1
                       ├─ vikix/layouts.lisp      saved layouts
                       ├─ vikix/overview.lisp     every workspace drawn small (Super+o)
                       ├─ vikix/day.lisp          what had the screen, noted for vikix day
-                      ├─ vikix/keys.lisp         the Super keys
+                      ├─ vikix/keys.lisp         binding the Super keys, and the rule they keep
                       ├─ vikix/help.lisp         Super+/ and Super+F1
                       ├─ vikix/webapps.lisp      your web apps: their keys and Super+m entries
                       ├─ vikix/modeline.lisp     the bar
@@ -74,7 +75,7 @@ Two things keep it safe. The password in `~/.slime-secret` means only you can ru
 For the curious: `vikix mcp register` gives your agent the desktop as tools ([Working with AI](ai.md#the-desktop-as-tools-mcp)). The server is `bin/vikix-mcp`, a Python program with nothing but the standard library. It doesn't listen on the network: the agent starts `vikix-mcp serve` itself and talks to it over its stdin and stdout, one JSON-RPC message a line, so only that agent can use it.
 
 - **Looking:** `desktop`, `keys` and `rules` send fixed Lisp forms through `vikix eval`, the path above, and StumpWM answers in JSON. `doctor`, `history`, `changes` and `themes` run the `vikix` command, and what comes back goes through the same scrubber as `vikix debug` (`lib/debug-report.py`) before the agent sees it; `version` reads the checkout's `VERSION`.
-- **Acting:** `set_theme`, `switch_workspace` and `focus_window` check what the agent asked for against the desktop first (a theme there is, a workspace that exists, a window number on it). Only that checked value reaches Lisp, as an escaped string, or a command, as one argument; never a shell.
+- **Acting:** `set_theme`, `switch_workspace` and `focus_window` check what the agent asked for against the desktop first (a theme there is, a workspace that exists, a window number on it). Only that checked value reaches Lisp, as an escaped string, or a command, as one argument; never a shell. `run_command` takes the name of one of the desktop's commands, and the desktop itself decides: `registry.lisp` holds every command with its key and its place in the menu, and runs for an agent only those marked `:agent t` there (`vikix-agent-run`); `commands` lists them. So an agent is never offered a command the desktop doesn't have.
 - **Keeping a record:** every call, refused ones too, goes into `~/.local/state/vikix/mcp.log` (600), with long arguments cut and secrets taken out.
 - **Staying current:** before it reads each request, the server compares its own files (`bin/vikix-mcp`, `lib/debug-report.py`, `VERSION`) with how they were when it started. When `vikix update` has changed them, and they compile, it `exec`s the new version in the same process, with the request still waiting in the pipe, and tells the agent its tools may have changed.
 

@@ -20,11 +20,16 @@ allow" for vikix), and the agent can look at the desktop and make small,
 undoable changes without asking each time, while other commands still ask.
 
 The tools, a fixed set:
-  read only   desktop (workspaces, windows, screens, theme), keys, rules
-              (the desktop's rules, and why a window is where it is),
-              doctor, history, changes, themes, version
-  small acts  notify, snapshot, set_theme, switch_workspace, focus_window:
-              each checked against what's there, and easy to take back
+  read only   desktop (workspaces, windows, screens, theme), keys, commands
+              (the desktop's commands an agent may run), rules (the
+              desktop's rules, and why a window is where it is), doctor,
+              history, changes, themes, version
+  small acts  notify, snapshot, set_theme, switch_workspace, focus_window,
+              run_command: each checked against what's there, and easy to
+              take back. run_command runs one of the desktop's own commands
+              by name, and only those its registry marks for agents
+              (registry.lisp, :agent t: do not disturb, night light, gaps,
+              focus left ...); the desktop refuses any other
   off unless  eval (any Lisp in the window manager: --allow-eval) and
   switched on undo (your files back a snapshot: --allow-undo). These are a
               convenience, not a wall: an agent that can run commands can
@@ -218,6 +223,22 @@ KEYS_FORM = JSON_HELPERS % r"""
             *vikix-bindings*))
 """
 
+# The commands an agent may run (registry.lisp); null from a desktop older
+# than the registry.
+COMMANDS_FORM = JSON_HELPERS % r"""
+  (if (not (fboundp 'vikix-agent-commands))
+      "null"
+      (format nil "[~{~a~^,~}]"
+        (mapcar (lambda (c)
+                  (format nil "{\"name\":~a,\"does\":~a,\"key\":~a}"
+                    (str (string-downcase (princ-to-string (getf c :name))))
+                    (str (getf c :does))
+                    (if (getf c :key)
+                        (str (if (fboundp 'vikix-pretty-key) (funcall 'vikix-pretty-key (getf c :key)) (getf c :key)))
+                        "null")))
+                (funcall 'vikix-agent-commands))))
+"""
+
 
 RULES_FORM = JSON_HELPERS % r"""
   (if (not (fboundp 'vikix-rules-list))
@@ -304,6 +325,30 @@ def t_keys(a):
         return json.dumps(json.loads(evaluate(KEYS_FORM)), indent=1, ensure_ascii=False)
     except ValueError:
         raise ToolError("the window manager's answer wasn't the keys")
+
+
+def t_commands(a):
+    try:
+        value = json.loads(evaluate(COMMANDS_FORM))
+    except ValueError:
+        raise ToolError("the window manager's answer wasn't the commands")
+    if value is None:
+        raise ToolError("this desktop is older than the commands list: vikix update brings it")
+    return json.dumps(value, indent=1, ensure_ascii=False)
+
+
+def t_run_command(a):
+    """One of the desktop's commands, by its name in the registry. The name
+    is checked here for its shape and by the desktop for the rest: it runs
+    only a command marked for agents, and says why not otherwise."""
+    name = str(a.get("name", ""))
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,40}", name):
+        raise ToolError("name: a command's name, as commands lists them (do-not-disturb is not one; quiet is)")
+    out = evaluate("(if (fboundp 'vikix-agent-run) (funcall 'vikix-agent-run %s) "
+                   "\"refused: this desktop is older than run_command: vikix update brings it\")" % lisp_string(name))
+    if not out.startswith("done:"):
+        raise ToolError(out[:300])
+    return out[:300]
 
 
 def t_doctor(a):
@@ -594,6 +639,12 @@ TOOLS = [
      schema(), READ, t_desktop),
     ("keys", "Vikix's keys", "Every key Vikix binds: the key, the StumpWM command, what it does." + DATA,
      schema(), READ, t_keys),
+    ("commands", "Commands you may run",
+     "The desktop's commands an agent may run by name with run_command: each one's name, what it does, and its "
+     "key if it has one. They are switches and moves put back as easily as they are done (do not disturb, night "
+     "light, gaps, focus left ...): none starts a program, asks a question or ends anything. A command the user "
+     "wrote and marked for agents is among them." + DATA,
+     schema(), READ, t_commands),
     ("doctor", "vikix doctor", "Check the desktop: programs, services, links, the snapshot history, vikix eval "
      "(a fixed test form)." + DATA, schema(), READ, t_doctor),
     ("history", "Snapshots of your files", "vikix history: the snapshots of the user's settings, newest first." + DATA,
@@ -647,6 +698,11 @@ TOOLS = [
      schema({"name": {"type": "string"}}, ["name"]), ACT, t_set_theme),
     ("switch_workspace", "Go to a workspace", "Show a workspace, by its name as desktop gives it.",
      schema({"name": {"type": "string"}}, ["name"]), ACT, t_switch_workspace),
+    ("run_command", "Run a desktop command",
+     "Run one of the desktop's commands by its name, as commands lists them: what the user's key for it would "
+     "do. Most are switches (on, then off again), so look first (desktop) and run it once. Any other name is "
+     "refused by the desktop, with why.",
+     schema({"name": {"type": "string", "maxLength": 41}}, ["name"]), ONCE, t_run_command),
     ("propose_file_changes", "Propose file changes (the user applies them)",
      "Copy, move, rename, make folders, put files in the Trash, or tag them: never done here. The plan is checked whole "
      "(one with a problem comes back, nothing changed), then shown to the user in Esploro, their file manager, "

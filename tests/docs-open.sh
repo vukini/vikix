@@ -65,8 +65,8 @@ check "a browser that isn't installed is an error" bash -c "! PATH='$t/bin:$t/sy
 check "no arguments is a usage error" bash -c "! PATH='$t/bin:$t/sys' '$here/bin/vikix-docs-open' 2>/dev/null"
 
 # The menu opens the guide and the docs through it, not xdg-open.
-check "the menu's guide entry uses vikix-docs-open" grep -q 'vikix-docs-open ~/.local/share/vikix/guide/index.html' "$here/config/stumpwm/vikix/commands.lisp"
-check "the menu's docs entry uses vikix-docs-open" grep -q 'vikix-docs-open ~/dev/index.html' "$here/config/stumpwm/vikix/commands.lisp"
+check "the menu's guide entry uses vikix-docs-open" grep -q ':run "exec vikix-docs-open ~/.local/share/vikix/guide/index.html"' "$here/config/stumpwm/vikix/registry.lisp"
+check "the menu's docs entry uses vikix-docs-open" grep -q ':run "exec vikix-docs-open ~/dev/index.html"' "$here/config/stumpwm/vikix/registry.lisp"
 check "the docs alias uses vikix-docs-open" grep -q "^alias docs='vikix-docs-open " "$here/config/bash/vikix.bash"
 
 [ "$fail" = 0 ] && echo "docs-open: ok"

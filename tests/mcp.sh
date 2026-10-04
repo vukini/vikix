@@ -64,6 +64,20 @@ elif "vikix-rules-list" in form:
             {"number": 1, "on": True, "off": None, "rule": '(when-window (:class "Alacritty") (title "t"))', "name": None,
              "from": "rules.lisp:2", "runs_on": "open", "runs": 3, "last_run": "09:14", "last_error": None}],
             "why": why})))
+elif "vikix-agent-commands" in form:
+    if os.path.exists(t + "/old-desktop"):   # one started before the registry
+        print(lisp("null"))
+    else:
+        print(lisp(json.dumps([{"name": "quiet", "does": "Do not disturb on/off", "key": "Super+Ctrl+d"},
+                               {"name": "tray", "does": "Tray on/off", "key": None}])))
+elif "vikix-agent-run" in form:
+    # As registry.lisp answers: done for one marked for agents, refused otherwise.
+    if '"quiet"' in form:
+        print(lisp("done: quiet (Do not disturb on/off)"))
+    elif '"terminal"' in form:
+        print(lisp("refused: terminal (Terminal) is not for agents to run; the user has it on Super+Return"))
+    else:
+        print(lisp("refused: there is no command called that (the commands tool lists them)"))
 elif "(+ 1 2)" in form:
     print("=> 3")
 elif "(car nil nil)" in form:
@@ -128,7 +142,7 @@ check "not JSON should be -32700: $out" test "$(field '["error"]["code"]' <<<"$o
 # The tools: eval and undo only when switched on.
 names() { rpc "$@" -- '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python3 -c 'import json,sys; print(" ".join(t["name"] for t in json.loads(sys.stdin.readline())["result"]["tools"]))'; }
 list=$(names)
-check "the read-only tools should be there: $list" grep -q 'desktop keys doctor history changes themes version rules' <<<"$list"
+check "the read-only tools should be there: $list" grep -q 'desktop keys commands doctor history changes themes version rules' <<<"$list"
 check "eval shouldn't be there by default: $list" test -z "$(grep -ow 'eval\|undo' <<<"$list" || true)"
 check "--allow-eval should add eval: $(names --allow-eval)" grep -qw eval <<<"$(names --allow-eval)"
 check "--allow-undo should add undo: $(names --allow-undo)" grep -qw undo <<<"$(names --allow-undo)"
@@ -136,7 +150,7 @@ out=$(call eval '{"form":"(run-shell-command \"touch pwned\")"}')
 check "eval without --allow-eval should be refused: $out" grep -q '^ERROR: no tool' <<<"$out"
 check "a refused eval ran something" test ! -e "$t/forms"
 ro=$(rpc -- '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python3 -c 'import json,sys; print(" ".join(t["name"] for t in json.loads(sys.stdin.readline())["result"]["tools"] if t["annotations"]["readOnlyHint"]))')
-check "the read tools should say they only read: $ro" test "$ro" = "desktop keys doctor history changes themes version rules records_search records_get docs_search docs_read file_changes"
+check "the read tools should say they only read: $ro" test "$ro" = "desktop keys commands doctor history changes themes version rules records_search records_get docs_search docs_read file_changes"
 
 # Reading the desktop.
 out=$(call desktop '{}')
@@ -166,6 +180,27 @@ check "the window should be found by its workspace's name, as a Lisp string, and
 touch "$t/old-desktop"
 out=$(call rules '{}')
 check "a desktop started before the rules tool should say to reload: $out" grep -q '^ERROR: .*reload it' <<<"$out"
+rm -f "$t/old-desktop"
+
+# The desktop's commands (registry.lisp): the ones marked for agents listed,
+# one run by name, any other refused by the desktop, a name out of shape
+# never sent.
+out=$(call commands '{}')
+check "commands should list what an agent may run, with what each does and its key: $out" \
+  grep -q '"name": "quiet"' <<<"$out"
+check "a command without a key says so" grep -q '"key": null' <<<"$out"
+out=$(call run_command '{"name":"quiet"}')
+check "run_command should run one marked for agents: $out" grep -q '^done: quiet' <<<"$out"
+check "by its name, as a Lisp string: $(tail -1 "$t/forms")" grep -q "(funcall 'vikix-agent-run \"quiet\")" "$t/forms"
+out=$(call run_command '{"name":"terminal"}')
+check "one not for agents should be refused, in the desktop's words: $out" grep -q '^ERROR: refused: terminal (Terminal) is not for agents' <<<"$out"
+: > "$t/forms"
+out=$(call run_command '{"name":"quiet\") (run-shell-command \"touch pwned"}')
+check "a name that isn't a command's shape should be refused: $out" grep -q '^ERROR: name' <<<"$out"
+check "and never reach Lisp: $(cat "$t/forms")" test ! -s "$t/forms"
+touch "$t/old-desktop"
+out=$(call commands '{}')
+check "a desktop older than the registry should say to update: $out" grep -q '^ERROR: .*vikix update' <<<"$out"
 rm -f "$t/old-desktop"
 
 # Acting: checked against what's there.

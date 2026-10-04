@@ -131,7 +131,7 @@ if [ "$real" = 1 ]; then
                               (push (remove #\Newline (princ-to-string w)) problems))
                             (muffle-warning w))))
     (with-compilation-unit ()
-      (dolist (f '("config/stumpwm/init.lisp" "$layer/theme.lisp" "$layer/keys.lisp" "$layer/help.lisp"))
+      (dolist (f '("config/stumpwm/init.lisp" "$layer/theme.lisp" "$layer/registry.lisp" "$layer/keys.lisp" "$layer/help.lisp"))
         (compile-file f :output-file (format nil "$t/~a.fasl" (pathname-name f))))))
   (dolist (p problems) (format t "FAIL compiling the layer: ~a~%" p)));; No X here: binding a key mustn't try to tell the X server.
 (setf (fdefinition 'sync-keys) (lambda () nil))
@@ -158,6 +158,7 @@ cat > "$t/check.lisp" <<EOF
 (in-package :stumpwm)
 (defvar *failed* 0)
 (defun fail (fmt &rest args) (incf *failed*) (format t "FAIL ~?~%" fmt args))
+(load "$layer/registry.lisp")
 (load "$layer/keys.lisp")
 (load "$layer/help.lisp")
 (load "$layer/help.lisp")             ; a reload
@@ -218,6 +219,7 @@ cat > "$t/check.lisp" <<EOF
   (define-key *top-map* (kbd "s-E") "exec spacefm")
   (define-key *top-map* (kbd "s-P") "exec my-own-program")
   (define-key *top-map* (kbd "s-C-3") "gmove 3")
+  (load "$layer/registry.lisp")
   (load "$layer/keys.lisp")
   (when (lookup-key *top-map* (kbd "s-E")) (fail "the old key Super+Shift+e should be let go at a reload"))
   (when (lookup-key *top-map* (kbd "s-C-3")) (fail "the old key Super+Ctrl+3 should be let go at a reload"))
@@ -231,6 +233,64 @@ cat > "$t/check.lisp" <<EOF
 (dolist (e (vikix-key-entries))
   (when (string= (fourth e) "Other")
     (fail "~a (~a) is in no group: add its command to *vikix-key-groups*" (first e) (third e))))
+;; The registry (registry.lisp): every command once, and the two lists made from it.
+(let ((names (mapcar (lambda (c) (getf c :name)) *vikix-commands*)))
+  (unless (= (length names) (length (remove-duplicates names)))
+    (fail "two commands of the registry have one name"))
+  (unless (equal *vikix-bindings* (vikix-registry-bindings))
+    (fail "after a reload *vikix-bindings* should be the registry's keys, each once"))
+  (unless (= (length *vikix-bindings*) (length (remove-duplicates (mapcar #'first *vikix-bindings*) :test #'equal)))
+    (fail "a key is written for two commands in registry.lisp")))
+(let ((menu (vikix-registry-menu)))
+  (unless (equal (first (first menu)) "Welcome: first steps")
+    (fail "the menu should start with the welcome: ~a" (first (first menu))))
+  (unless (equal (second (car (last menu))) 'vikix-power)
+    (fail "the menu should end with Power: ~s" (car (last menu))))
+  (unless (equal (assoc "Search every document (guides, projects, notes, man pages)" menu :test #'string=)
+                 '("Search every document (guides, projects, notes, man pages)" (run-shell-command "vikix-docs pick")))
+    (fail "a command that runs a program is (run-shell-command ...) in the menu, under its :label"))
+  (unless (equal (third (assoc "Printers" menu :test #'string=)) "system-config-printer")
+    (fail "a command's :needs is its menu entry's"))
+  (unless (member '("Install a program" (vikix-in-terminal "vikix pkg add")) menu :test #'equal)
+    (fail "a command with :do is that form in the menu")))
+;; A mistake in a command is an error as its file loads, saying what.
+(loop for (form want) in '(((define-vikix-command t1 "x" :rnu "exec x" :key "s-M-F12") ":rnu is no option")
+                           ((define-vikix-command t2 "x" :key "s-M-F12") "it does nothing")
+                           ((define-vikix-command t3 "x" :do (print 1) :key "s-M-F12") "a key runs a command")
+                           ((define-vikix-command t4 "x" :run "exec x" :menu "Nowhere") "is no part of the menu")
+                           ((define-vikix-command t5 "x" :run "exec x") "nothing would ever run it")
+                           ((define-vikix-command t6 :run "exec x" :key "s-M-F12") "its words"))
+      do (let ((said (handler-case (progn (eval form) "no error") (error (e) (princ-to-string e)))))
+           (unless (search want said)
+             (fail "~s should be refused, saying ~s: ~a" form want said))))
+(when (vikix-command 't1) (fail "a refused command is in the registry all the same"))
+;; One written in user.lisp (after keys.lisp) is bound and in the menu at
+;; once, before Power; written again, it is there once.
+(defvar *vikix-menu* (vikix-registry-menu))
+(dotimes (i 2)
+  (define-vikix-command my-notes "My notes"
+    :run "exec my-notes" :key "s-M-F12" :menu "Work" :label "Notes of mine"))
+(unless (equal (if (fboundp 'lookup-key) (lookup-key *top-map* (kbd "s-M-F12")) (gethash "s-M-F12" *top-map*))
+               "exec my-notes")
+  (fail "a command defined after the keys were bound should have its key bound"))
+(unless (= 1 (count "s-M-F12" *vikix-bindings* :key #'first :test #'equal))
+  (fail "its key should be in *vikix-bindings*, once"))
+(unless (and (= 1 (count "Notes of mine" *vikix-menu* :key #'first :test #'equal))
+             (equal (first (car (last *vikix-menu* 2))) "Notes of mine")
+             (equal (second (car (last *vikix-menu*))) 'vikix-power))
+  (fail "its menu entry should be there once, just before Power: ~s" (last *vikix-menu* 2)))
+;; (Taken out again: the key card below is measured with Vikix's keys alone.)
+(setf *vikix-bindings* (remove "s-M-F12" *vikix-bindings* :key #'first :test #'equal)
+      *vikix-commands* (remove 'my-notes *vikix-commands* :key (lambda (c) (getf c :name))))
+;; What agents are offered: only what is marked, and nothing that isn't refused.
+(unless (and (vikix-agent-commands) (every (lambda (c) (getf c :agent)) (vikix-agent-commands)))
+  (fail "agents should be offered the commands marked :agent, and no others"))
+(dolist (c (vikix-agent-commands))
+  (when (or (getf c :do) (eql 0 (search "exec " (getf c :run))))
+    (fail "~(~a~) is for agents, and starts a program or runs a form: only StumpWM commands are" (getf c :name))))
+(loop for (name want) in '(("terminal" "is not for agents") ("no-such-command" "there is no command") ("power" "is not for agents"))
+      do (unless (search want (vikix-agent-run name))
+           (fail "an agent asking for ~a should be refused (~a): ~a" name want (vikix-agent-run name))))
 ;; Keys pushed from user.lisp land in a group too.
 (push '("s-F2" "exec obsidian" "Obsidian") *vikix-bindings*)
 (push '("s-F3" "my-command" "Mine") *vikix-bindings*)
@@ -289,4 +349,13 @@ else
   echo "FAIL the key card check didn't run:"; grep -v "^[0-9]*: " <<<"$out" | tail -15; card_rc=1
 fi
 grep -q '^FAIL' <<<"$out" && card_rc=1
+# Scripts without sbcl at hand read Vikix's keys out of registry.lisp with
+# grep (vikix-webapp, one migration): what they find is what the registry has.
+here=$(pwd)   # the checkout: this script went there at its start
+found=$(VIKIX_DIR="$here" bash -c 'eval "$(sed -n "/^vikix_keys() {/,/^}/p" "$VIKIX_DIR/bin/vikix-webapp")"; vikix_keys' | grep -vxE 's-[1-9]' | sort)
+real=$("$here/lib/registry.sh" keys | cut -f1 | grep '^s-' | sort)
+if [ -z "$real" ] || [ "$found" != "$real" ]; then
+  echo "FAIL the keys vikix-webapp reads from registry.lisp aren't the registry's: $(diff <(echo "$found") <(echo "$real") | grep '^[<>]' | tr '\n' ' ')"
+  card_rc=1
+fi
 [ "$read_rc" = 0 ] && [ "$card_rc" = 0 ]

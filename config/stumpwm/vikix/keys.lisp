@@ -6,6 +6,9 @@
 ;;;; In key names "s-" means Super, "S-" Shift, "M-" Alt and "C-" Ctrl; a
 ;;;; capital letter is Shift and that letter ("s-H" is Super+Shift+h).
 ;;;;
+;;;; Which key runs what is written in registry.lisp, with each command;
+;;;; this file binds them, and holds what is about keys themselves.
+;;;;
 ;;;; The rule for keys: each modifier means one thing, for Vikix's keys,
 ;;;; a plugin's and a web app's alike (docs/customize.md, "The rule for keys").
 ;;;;
@@ -74,127 +77,14 @@ of a reload's 15 seconds, and the desktop stood still meanwhile."
   `(unwind-protect (let ((*vikix-bind-later* t)) ,@body)
      (sync-keys)))
 
-(defparameter *vikix-bindings*
-  '(;; programs
-    ("s-RET"  "vikix-terminal"  "Terminal")
-    ("s-d"    "exec rofi -show drun" "Launcher: start any program")
-    ("s-SPC"  "exec rofi -show drun" "Launcher, the key other desktops use")
-    ("s-w"    "exec firefox"      "Browser")
-    ("s-e"    "vikix-esploro"     "Files in Esploro: the one on this workspace, or a new one here (PCManFM without Esploro)")
-    ("s-M-s"  "exec spacefm"      "Files in SpaceFM: tabs and split panes")
-    ("s-C-e"  "exec vikix-drives eject" "Eject a USB drive: pick it, then pull it out safely")
-    ("s-M-e"  "exec pcmanfm"      "Files in PCManFM")
-    ("s-M-E"  "exec esploro --new" "Files in a new Esploro window, beside the others")
-    ("s-M-r"  "exec esploro reveal" "Reveal the file behind this window, in Esploro")
-    ("s-M-x"  "exec vikix-esploro menu" "Esploro's commands for the file behind this window, in rofi")
-    ("s-M-p"  "exec vikix-project pick" "Projects: pick one; a terminal in its folder, its log in the editor")
-    ("s-M-v"  "exec vikix-bitwarden pick" "Passwords (Bitwarden): pick a login, Enter types it (vikix add bitwarden)")
-    ("s-a"    "vikix-agent"       "AI agent in a terminal: Claude Code, or the one you chose")
-    ("s-F9"   "exec vikix-dictate toggle" "Dictation: speak, then Super+F9 again types it")
-    ("s-S-F9" "exec vikix-dictate cancel" "Dictation: stop listening, type nothing")
-    ("s-F10"  "exec vikix-dictate toggle ask"   "Voice: speak, then Super+F10 again: the AI answers aloud")
-    ("s-F11"  "exec vikix-dictate toggle agent" "Voice: speak, then Super+F11 again: it goes to the agent")
-    ("s-S-F10" "exec vikix-voice quiet"         "Voice: stop the AI talking")
-    ("s-i"    "exec vikix-ask"    "AI on the selected text: ask, proofread, rewrite, translate, explain")
-    ("s-x"    "exec emacsclient -c -a ''" "Emacs: a new window")
-    ("s-c"    "exec env CM_LAUNCHER=rofi clipmenu" "Clipboard history: pick to paste again")
-    ("s-period" "exec vikix-rofi emoji" "Emoji: pick one to type it (Ctrl+c copies)")
-    ("s-equal"  "exec vikix-rofi calc"  "Calculator: Enter copies the answer")
-    ;; notifications
-    ("s-n"    "exec dunstctl history-pop"  "Notifications: the last one again")
-    ("s-N"    "exec vikix-notifications"   "Notifications: pick an earlier one")
-    ("s-C-n"  "exec dunstctl close-all"    "Notifications: close all")
-    ("s-C-d"  "vikix-quiet"                "Do not disturb on/off")
-    ;; windows
-    ("s-q"    "delete"            "Close window")
-    ("s-f"    "fullscreen"        "Fullscreen on/off")
-    ("s-TAB"  "vikix-last-window" "The last window again: flips between two")
-    ;; Super+` and Super+Shift+` go through every window on the workspace:
-    ;; to its frame when it's showing, into this frame when it's hidden.
-    ;; Shift+` is ~ on the keyboard, so StumpWM knows that key as asciitilde.
-    ("s-grave"      "next" "Next window on this workspace, through all of them")
-    ("s-asciitilde" "prev" "Previous window on this workspace")
-    ("s-h"    "vikix-focus left"   "Focus left")
-    ("s-j"    "vikix-focus down"   "Focus down")
-    ("s-k"    "vikix-focus up"     "Focus up")
-    ("s-l"    "vikix-focus right"  "Focus right")
-    ("s-H"    "vikix-move left"  "Move window left")
-    ("s-J"    "vikix-move down"  "Move window down")
-    ("s-K"    "vikix-move up"    "Move window up")
-    ("s-L"    "vikix-move right" "Move window right")
-    ;; The same four directions on the arrow keys. In a VirtualBox VM on
-    ;; Windows, Super+L never reaches the guest (the host locks its screen
-    ;; instead), so s-l and s-L are dead there; the arrows always work.
-    ("s-Left"    "vikix-focus left"   "Focus left (arrow)")
-    ("s-Down"    "vikix-focus down"   "Focus down (arrow)")
-    ("s-Up"      "vikix-focus up"     "Focus up (arrow)")
-    ("s-Right"   "vikix-focus right"  "Focus right (arrow)")
-    ("s-S-Left"  "vikix-move left"  "Move window left (arrow)")
-    ("s-S-Down"  "vikix-move down"  "Move window down (arrow)")
-    ("s-S-Up"    "vikix-move up"    "Move window up (arrow)")
-    ("s-S-Right" "vikix-move right" "Move window right (arrow)")
-    ;; frames (StumpWM's splits)
-    ("s-b"    "vikix-split"       "Split: side by side (on a strip: this column fills the room the others leave)")
-    ("s-v"    "vikix-split below" "Split: one above the other (on a strip: this window taller in its column)")
-    ("s-r"    "vikix-width-or-remove" "Remove this split (on a strip: the column's width; in main and stack: the main window's)")
-    ("s-Home"   "vikix-focus-end first" "On a strip: the first column")
-    ("s-End"    "vikix-focus-end last"  "On a strip: the last column")
-    ("s-backslash" "vikix-pin" "On a strip: pin this column to the left edge, the others scroll beside it; again unpins")
-    ("s-bracketleft"  "vikix-stack left"  "On a strip: into the column on the left, or out of a shared one")
-    ("s-bracketright" "vikix-stack right" "On a strip: into the column on the right, or out of a shared one")
-    ("s-o"    "vikix-overview"    "Every workspace drawn small, each window a box: pick one (g there: this workspace in a real grid)")
-    ("s-O"    "vikix-grid"        "Grid mode on/off: windows stay tiled in a grid as they open and close")
-    ("s-C-m"  "vikix-main"        "Main and stack (master and stack) on/off: this window on the left, the rest in a column beside it")
-    ("s-C-SPC" "vikix-layout-pick" "Layout: pick this workspace's (tiles, main and stack, grid, strip, or one you saved)")
-    ("s-z"    "vikix-solo"        "Focus: only this window; again puts the others back (on a strip: its column's windows as tabs)")
-    ;; drawer.lisp
-    ("s-C-b"  "vikix-drawer"      "The drawer: a few everyday programs at the screen's edge, here; again puts it away")
-    ;; windows.lisp: gaps, layout undo, finding windows
-    ("s-C-g"  "toggle-gaps"       "Gaps around windows on/off")
-    ("s-u"    "vikix-layout-undo" "Undo the last layout change (splits, moves)")
-    ("s-U"    "vikix-layout-redo" "Redo the layout change")
-    ("s-g"    "vikix-go-to-window" "Go to any window, on any workspace")
-    ("s-G"    "vikix-bring-window" "Bring any window here, from any workspace")
-    ("s-p"    "vikix-pointer"     "Move the pointer to this window")
-    ("s-t"    "vikix-float"       "Float this window, or tile it again (Super+drag moves it)")
-    ("s-T"    "vikix-remember"    "Remember this window here: the rule for where it is, written for you (shown first)")
-    ("s-C-y"  "vikix-titlebars"   "Title bars on/off")
-    ("s-\""   "vikix-title"       "Rename this window")
-    ;; Vikix
-    ("s-m"    "vikix-menu"      "Vikix menu")
-    ("s-slash" "vikix-keys-card" "Every key at a glance, grouped; any key closes it")
-    ("s-F1"   "vikix-keys"      "Search the keys, and run one")
-    ("s-F2"   "exec vikix-docs pick" "Search every document: Vikix's guides, your projects and notes, man pages")
-    ("s-ESC"  "exec vikix-lock"  "Lock the screen")
-    ("s-S-ESC" "vikix-power"     "Power: lock, suspend, log out, reboot, power off")
-    ("s-C-a"  "vikix-awake"      "Keep awake on/off: no lock, dark screen or suspend")
-    ("s-C-l"  "vikix-nightlight" "Night light on/off: a warmer screen in the evening")
-    ("s-C-p"  "vikix-screens-pick" "Screens: extend, mirror, one only, arrange (a newly plugged one lights up by itself)")
-    ;; Screenshots: the modifier picks what, Shift keeps it in a file
-    ;; (~/Pictures/Screenshots) instead of the clipboard.
-    ("Print"     "exec vikix-screenshot area clip"   "Screenshot of an area, to the clipboard")
-    ("S-Print"   "exec vikix-screenshot area file"   "Screenshot of an area, to a file")
-    ("C-Print"   "exec vikix-screenshot window clip" "Screenshot of this window, to the clipboard")
-    ("C-S-Print" "exec vikix-screenshot window file" "Screenshot of this window, to a file")
-    ("s-Print"   "exec vikix-screenshot screen clip" "Screenshot of the whole screen, to the clipboard")
-    ("s-S-Print" "exec vikix-screenshot screen file" "Screenshot of the whole screen, to a file")
-    ("s-C-v"     "vikix-record area" "Record a video of an area or a window; again to stop")
-    ("s-C-Print" "vikix-capture"     "Screenshot or record: all the choices")
-    ;; the laptop's function keys
-    ;; vikix-osd changes the level and shows a bar for it (bin/vikix-osd);
-    ;; the vikix-volume command also updates the volume in the mode line.
-    ("XF86AudioRaiseVolume"  "vikix-volume up"               "Volume up")
-    ("XF86AudioLowerVolume"  "vikix-volume down"             "Volume down")
-    ("XF86AudioMute"         "vikix-volume mute"             "Mute")
-    ("XF86AudioMicMute"      "vikix-volume mic"              "Microphone mute")
-    ("XF86MonBrightnessUp"   "exec vikix-osd brightness up"  "Brightness up")
-    ("XF86MonBrightnessDown" "exec vikix-osd brightness down" "Brightness down")
-    ("XF86Display"           "vikix-screens-pick"            "Screens: extend, mirror, one only (the laptop's display key)"))
+(defparameter *vikix-bindings* (vikix-registry-bindings)
   "Each entry: a key name, the StumpWM command it runs, and a description.
 An optional fourth element names the group the key card (s-/) shows it
 in; without one, help.lisp works the group out from the command.
 The descriptions are what the key card (s-/) and the key help (s-F1)
-show, so this list is the one place a key is written down.")
+show. Vikix's own are made from its commands (registry.lisp: a key is
+written there, with what it runs); yours, a plugin's and a web app's are
+added to this list.")
 
 ;;; Super+Shift+<digit>: send the window to that workspace. StumpWM knows a
 ;;; key by what it types, and Shift+1 types ! on a US keyboard, something
@@ -284,8 +174,7 @@ Vikix (yours from user.lisp count as Vikix's here: they load after)."
 ;;; only while it still runs what Vikix bound it to, never one you, a
 ;;; plugin or a web app have since given something else.
 (defparameter *vikix-retired-keys*
-  ;; Written flat, a key then its command: lines that begin ("s- are read
-  ;; as Vikix's keys by the scripts that list them (vikix-webapp, the tests).
+  ;; A key, then how its command began: Vikix's keys now are registry.lisp's.
   '("s-E" "exec spacefm"   "s-P" "exec vikix-project pick"   "s-V" "exec vikix-bitwarden pick"
     "s-M" "vikix-webapp "  "s-M-n" "vikix-quiet"             "s-A" "global-windowlist"
     "s-y" "vikix-titlebars" "s-M-a" "vikix-awake"            "s-M-l" "vikix-nightlight"
@@ -312,3 +201,7 @@ Vikix (yours from user.lisp count as Vikix's here: they load after)."
   (loop for n from 1 to 9
         do (vikix-bind (format nil "s-~d" n) (format nil "gselect ~d" n)))
   (vikix-bind-workspace-keys))
+
+;; From here on a command defined with define-vikix-command (yours, in
+;; user.lisp) is bound and put in the menu as it is defined (registry.lisp).
+(setf *vikix-registry-live* t)

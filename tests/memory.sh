@@ -179,7 +179,7 @@ check "and leave the one on your screen" kill -0 "$kept"
 check "vikix-session should start the watcher" grep -q 'vikix-memory" watch' "$here/bin/vikix-session"
 check "vikix memory should reach it" grep -q 'memory) *shift; exec "$VIKIX_DIR/bin/vikix-memory"' "$here/bin/vikix"
 check "the bar should have its field" grep -q '%Y%G%Q' "$here/config/stumpwm/vikix/modeline.lisp"
-check "Super+m should have it" grep -q '(vikix-in-terminal "vikix memory clean")' "$here/config/stumpwm/vikix/commands.lisp"
+check "Super+m should have it" grep -q ':do (vikix-in-terminal "vikix memory clean")' "$here/config/stumpwm/vikix/registry.lisp"
 
 # The bar's words, from the watcher's line: the two Lisp functions alone, in
 # plain sbcl, with stand-ins for what they call.

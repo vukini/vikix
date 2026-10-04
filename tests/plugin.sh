@@ -191,7 +191,7 @@ plugins_repo=${VIKIX_TEST_PLUGINS_REPO:-$HOME_REAL/src/vikix-plugins}
 pin=$(sed -n 's/^PLUGINS_COMMIT=\${VIKIX_PLUGINS_COMMIT:-\([0-9a-f]*\)}.*/\1/p' "$here/bin/vikix-plugin")
 if [ -d "$plugins_repo/.git" ] && git -C "$plugins_repo" cat-file -e "$pin^{commit}" 2>/dev/null; then
   {
-    sed -n 's/^ *("\([^"]*\)" .*/\1 Vikix/p' "$here/config/stumpwm/vikix/keys.lisp"
+    "$here/lib/registry.sh" keys | cut -f1 | sed 's/$/ Vikix/'
     for n in 1 2 3 4 5 6 7 8 9; do echo "s-$n Vikix"; done
     git -C "$plugins_repo" ls-tree --name-only -r "$pin" | grep '/plugin\.lisp$' | while read -r f; do
       git -C "$plugins_repo" show "$pin:$f" | grep -o '(vikix-plugin-key "[^"]*"' | sed "s/.*\"\(.*\)\"/\1 plugin ${f%%/*}/"

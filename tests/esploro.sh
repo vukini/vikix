@@ -161,9 +161,9 @@ es uninstall > /dev/null 2>&1 || true
 check "an esploro that isn't setup's should stay" test -f "$HOME/.local/bin/esploro" -a ! -L "$HOME/.local/bin/esploro"
 
 # --- The key and the menu -------------------------------------------------------
-check "Super+e should run vikix-esploro" grep -q '("s-e" *"vikix-esploro"' "$here/config/stumpwm/vikix/keys.lisp"
-check "Super+Alt+r should reveal the window's file" grep -q '("s-M-r" *"exec esploro reveal"' "$here/config/stumpwm/vikix/keys.lisp"
-check "Super+Alt+e should be PCManFM" grep -q '("s-M-e" *"exec pcmanfm"' "$here/config/stumpwm/vikix/keys.lisp"
+check "Super+e should run vikix-esploro" grep -q ':run "vikix-esploro" :key "s-e"' "$here/config/stumpwm/vikix/registry.lisp"
+check "Super+Alt+r should reveal the window's file" grep -q ':run "exec esploro reveal" :key "s-M-r"' "$here/config/stumpwm/vikix/registry.lisp"
+check "Super+Alt+e should be PCManFM" grep -q ':run "exec pcmanfm" :key "s-M-e"' "$here/config/stumpwm/vikix/registry.lisp"
 check "without Esploro, Super+e should still open files (PCManFM)" grep -q '(run-shell-command "pcmanfm")' "$here/config/stumpwm/vikix/commands.lisp"
 check "vikix-esploro should go to the Esploro frame on this workspace only (by its title, an Emacs frame)" \
   grep -q '(find "Esploro" (group-windows (current-group))' "$here/config/stumpwm/vikix/commands.lisp"
@@ -175,7 +175,7 @@ check "the Apps menu should offer Esploro once it's here" \
 check "vikix update should build a moved pin" grep -q 'is_chosen esploro' "$here/bin/vikix"
 
 # --- The rofi door: Super+Alt+x -----------------------------------------------------
-check "Super+Alt+x should open Esploro's commands in rofi" grep -q '("s-M-x" *"exec vikix-esploro menu"' "$here/config/stumpwm/vikix/keys.lisp"
+check "Super+Alt+x should open Esploro's commands in rofi" grep -q ':run "exec vikix-esploro menu" :key "s-M-x"' "$here/config/stumpwm/vikix/registry.lisp"
 check "the reload should load Esploro's loader (embark's , and J) even before Esploro is opened" grep -q 'esploro-loaddefs' "$here/bin/vikix-esploro"
 check "a new keymap (closing a project) should be reset on reload" grep -q 'esploro-project-mode-map' "$here/bin/vikix-esploro"
 cat > "$t/bin/esploro" <<EOF

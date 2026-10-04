@@ -10,7 +10,13 @@ set -euo pipefail
 . "$VIKIX_DIR/lib/common.sh"
 
 list="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/webapps"
-keys="$VIKIX_DIR/config/stumpwm/vikix/keys.lisp"
+# Vikix's own keys: each command's :key in registry.lisp (since the registry;
+# keys.lisp's list before that).
+keys="$VIKIX_DIR/config/stumpwm/vikix/registry.lisp"
+vikix_has() {
+  grep -v '^ *;' "$keys" | grep -qF ":key \"$1\"" ||
+    grep -qF "(\"$1\"" "$VIKIX_DIR/config/stumpwm/vikix/keys.lisp"
+}
 [ -f "$list" ] || { say "no web apps"; exit 0; }
 
 new=$(mktemp)
@@ -30,7 +36,7 @@ while IFS= read -r line || [ -n "$line" ]; do
     *)     to='' ;;
   esac
   # Taken by Vikix, or by a web app (above in the new list, or further down in the old).
-  if [ -n "$to" ] && { grep -qF "(\"$to\"" "$keys" || awk -v k="$to" '$3 == k { f = 1 } END { exit !f }' "$new" "$list"; }; then
+  if [ -n "$to" ] && { vikix_has "$to" || awk -v k="$to" '$3 == k { f = 1 } END { exit !f }' "$new" "$list"; }; then
     to=''
   fi
   changed=1

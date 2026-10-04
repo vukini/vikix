@@ -31,7 +31,17 @@ To see how Vikix does something before changing it, read its layer in `~/vikix/c
 
 `s-` is Super, `C-` Ctrl, `M-` Alt, `S-` Shift, and a capital letter means Shift too: `s-O` is Super+Shift+o, `s-M-o` Super+Alt+o. The command is a StumpWM command: `exec PROGRAM` starts a program, and `Super+m` → *All commands* lists the others.
 
-To see a new key on the key card (`Super+/`) and in the key help (`Super+F1`), add it to the list both are built from too:
+A key bound like that works, and nothing else knows of it. To have it on the key card (`Super+/`), in the key help (`Super+F1`) and in `Super+m` too, write it as a command, the way Vikix writes its own:
+
+```lisp
+(define-vikix-command obsidian "Obsidian: my notes"
+  :run "exec obsidian" :key "s-M-o"
+  :menu "Apps" :needs "obsidian")
+```
+
+The name (`obsidian`) is yours to choose; the words after it are what the key card and the menu say. `:run` is the command and `:key` its key. `:menu` puts it in `Super+m`, in that part of it (Start, Help, Vikix, AI, Work, Notifications, Desktop, Windows, System, Apps); leave it out for a key alone. `:label` gives the menu other words than the key card's, and `:needs` names a program or a file (`"~/..."`) without which the menu leaves the entry out. Leave `:key` out for a menu entry with no key; then `:do` can take a Lisp form in place of `:run`. `:agent t` lets your AI agent run it by name, without asking you each time ([Working with AI](ai.md#the-desktop-as-tools-mcp)): only for something put back as easily as it is done. A mistake in the form is said when `user.lisp` loads, with what is wrong.
+
+Vikix's own commands are written the same way, all in one file, `registry.lisp` in Vikix's layer: its keys, its menu, and what agents may run all come from it. The older way still works, and is what a plugin or a web app does: add to the list the card and the help are built from, and bind the key.
 
 ```lisp
 (push '("s-M-o" "exec obsidian" "Obsidian") *vikix-bindings*)
@@ -138,7 +148,7 @@ Gaps between windows (Super+Ctrl+g) are 10px, 9px at the screen edge. The inner 
 
 ### The Super+m menu
 
-Each entry is a label and either a command or a Lisp form, and, if you like, what it needs: a program on PATH, or a file (`"~/..."`). An entry whose need isn't there is left out of the menu, which is how Vikix hides JupyterLab or Printers until you add their features (and, in `*vikix-apps-menu*`, Super+m → Apps, each video, graphics or study program until it is installed):
+A command written with `define-vikix-command` and `:menu` is in the menu already (Keys, above). The menu itself is a list you can change as a whole. Each entry is a label and either a command or a Lisp form, and, if you like, what it needs: a program on PATH, or a file (`"~/..."`). An entry whose need isn't there is left out of the menu, which is how Vikix hides JupyterLab or Printers until you add their features (and, in `*vikix-apps-menu*`, Super+m → Apps, each video, graphics or study program until it is installed):
 
 ```lisp
 (setf *vikix-menu*

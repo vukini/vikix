@@ -593,11 +593,16 @@ Why: your agent can already run commands, but each needs your yes. These tools a
 The tools, a fixed set:
 
 ```
-read only   desktop (workspaces, windows, screens, theme), keys, rules
-            (the desktop's rules, and why a window is where it is),
-            doctor, history, changes, themes, version
-small acts  notify, snapshot, set_theme, switch_workspace, focus_window:
-            each checked against what's there, and easy to take back
+read only   desktop (workspaces, windows, screens, theme), keys, commands
+            (the desktop's commands an agent may run), rules (the
+            desktop's rules, and why a window is where it is), doctor,
+            history, changes, themes, version
+small acts  notify, snapshot, set_theme, switch_workspace, focus_window,
+            run_command: each checked against what's there, and easy to
+            take back. run_command runs one of the desktop's own commands
+            by name, and only those its registry marks for agents
+            (registry.lisp, :agent t: do not disturb, night light, gaps,
+            focus left ...); the desktop refuses any other
 off unless  eval (any Lisp in the window manager: --allow-eval) and
 switched on undo (your files back a snapshot: --allow-undo). These are a
             convenience, not a wall: an agent that can run commands can

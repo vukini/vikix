@@ -265,98 +265,14 @@ Returns the window, or nil when there's none."
     (when win (focus-all win))
     win))
 
-(defparameter *vikix-menu*
-  '(("Welcome: first steps" vikix-welcome)
-    ("Add software: languages, editors, office ..." vikix-add-software)
-    ("Install a program"   (vikix-in-terminal "vikix pkg add"))
-    ("Remove a program"    (vikix-in-terminal "vikix pkg drop"))
-    ("Keyboard shortcuts"  vikix-keys)
-    ("All commands"        vikix-commands)
-    ("What does a key do?" describe-key)
-    ("Vikix guide" (run-shell-command
-                               (format nil "emacsclient -c -a '' -e '(info \"~~/.local/share/info/vikix.info\")' || ~a -e info -f ~~/.local/share/info/vikix.info"
-                                       *vikix-terminal*)))
-    ("Search every document (guides, projects, notes, man pages)" (run-shell-command "vikix-docs pick"))
-    ("Every document as a page in Nyxt" (run-shell-command "vikix-docs page") "nyxt")
-    ("Vikix guide in the browser, with diagrams"
-     (run-shell-command "vikix-docs-open ~/.local/share/vikix/guide/index.html")
-     "~/.local/share/vikix/guide/index.html")
-    ("Update Vikix"      vikix-update)
-    ("AI agent"            vikix-agent)
-    ("Projects: open one (a terminal there, its log in the editor)" (run-shell-command "vikix-project pick"))
-    ("My day: each project's time, entries and commits (kept in ~/journal)" (vikix-in-terminal "vikix day"))
-    ("Something's wrong? Ask the agent" (vikix-in-terminal "vikix diagnose"))
-    ("A report of what's going on (vikix debug)" (vikix-in-terminal "vikix debug"))
-    ("Memory: what uses it, and what's left over" (vikix-in-terminal "vikix memory"))
-    ("Memory: end the left-over programs" (vikix-in-terminal "vikix memory clean"))
-    ("AI on the selected text" (run-shell-command "vikix-ask"))
-    ("Learn C: the lesson, and a shell beside it" (vikix-learn-open "c"))
-    ("JupyterLab (in ~/dev)" (run-shell-command "vikix-jupyter") "~/dev/python/.venv/bin/jupyter")
-    ("Programming docs (offline)" (run-shell-command "vikix-docs-open ~/dev/index.html") "~/dev/index.html")
-    ("Zeal: search the docs" (run-shell-command "zeal") "zeal")
-    ("Clipboard history"   (run-shell-command "env CM_LAUNCHER=rofi clipmenu"))
-    ("Emoji"               (run-shell-command "vikix-rofi emoji"))
-    ("Calculator"          (run-shell-command "vikix-rofi calc"))
-    ("Notifications: the last one again" (run-shell-command "dunstctl history-pop"))
-    ("Notifications: earlier ones" (run-shell-command "vikix-notifications"))
-    ("Notifications: close all" (run-shell-command "dunstctl close-all"))
-    ("Do not disturb on/off" vikix-quiet)
-    ("Keep awake on/off"   vikix-awake)
-    ("Night light on/off"  vikix-nightlight)
-    ("Tray on/off: network and Bluetooth icons in the bar" vikix-tray)
-    ("Overview: every workspace, drawn small" vikix-overview)
-    ("Find a window, any workspace" vikix-go-to-window)
-    ("Gaps around windows on/off" toggle-gaps)
-    ("Rules: the list, one off or on, why this window is where it is" vikix-rules)
-    ("Remember this window here: write the rule for where it is" vikix-remember)
-    ("Layout: pick this workspace's (tiles, main and stack, grid, strip)" vikix-layout-pick)
-    ("This workspace as a strip that scrolls sideways (Viri), or tiled again" vikix-viri)
-    ("Layout: save this workspace's, by name" vikix-layout-save-command)
-    ("Layout: put this workspace back as one you saved" vikix-layout-restore-command)
-    ("Screenshot or record the screen" vikix-capture)
-    ("Undo: my files back one snapshot" vikix-undo)
-    ("Backup now"          (run-shell-command "vikix-backup now --notify"))
-    ("Reload config"       vikix-reload)
-    ("Theme"               vikix-pick-theme)
-    ("Wallpaper"           (run-shell-command "vikix-wallpaper pick"))
-    ;; Then the keys that depend on the layout (Super+Shift+digit) again,
-    ;; a moment later: StumpWM must hear of the new layout first.
-    ("Apply keyboard settings" (progn (run-shell-command "vikix-keyboard")
-                                      (run-with-timer 2 nil 'vikix-bind-workspace-keys)))
-    ("Network (nmtui)"     (run-shell-command
-                            (format nil "~a -e nmtui" *vikix-terminal*)))
-    ("Network use: which program is using it (nethogs)"
-     (run-shell-command (format nil "~a -e sudo nethogs" *vikix-terminal*)) "nethogs")
-    ("Firewall: on or off, and what it lets in" (vikix-in-terminal "vikix firewall") "ufw")
-    ("Bluetooth"           (run-shell-command "blueman-manager"))
-    ("Apps: video, pictures, study ..." vikix-apps)
-    ("Dropbox"             vikix-dropbox "dropbox")
-    ("Printers"            (run-shell-command "system-config-printer") "system-config-printer")
-    ("Windows (the VM)"    (run-shell-command
-                            (format nil "vikix-windows open || ~a -e sh -c 'vikix windows status; printf \"\\nEnter closes this window. \"; read x'"
-                                    *vikix-terminal*))
-                           "virt-viewer")
-    ("Eject a drive"       (run-shell-command "vikix-drives eject"))
-    ("Local AI: talk to a model" (run-shell-command "vikix-local-ai chat --rofi") "~/.local/opt/ollama/bin/ollama")
-    ("Local AI: choose a model" (run-shell-command "vikix-local-ai models --rofi") "~/.local/opt/ollama/bin/ollama")
-    ("Local AI: unload the model" (run-shell-command "vikix-local-ai stop --notify") "~/.local/opt/ollama/bin/ollama")
-    ("Dictation: start, or stop and type it" (run-shell-command "vikix-dictate toggle") "~/.local/opt/whisper.cpp/build/bin/whisper-cli")
-    ("Voice: talk to the AI" (run-shell-command "vikix-dictate toggle ask") "~/.local/bin/piper")
-    ("Voice: talk to the agent" (run-shell-command "vikix-dictate toggle agent") "~/.local/bin/piper")
-    ("Voice: stop talking"  (run-shell-command "vikix-voice quiet") "~/.local/bin/piper")
-    ("Voice: a new conversation" (run-shell-command "vikix-voice new") "~/.local/bin/piper")
-    ("Firmware updates"    (run-shell-command
-                            (format nil "~a -e sh -c 'vikix firmware update; printf \"\\nEnter closes this window. \"; read x'"
-                                    *vikix-terminal*)))
-    ("Screens: extend, mirror, one only, arrange" vikix-screens-pick)
-    ("Screens: arrange (arandr)" (run-shell-command "arandr"))
-    ("Screens: save this layout" vikix-screens-save)
-    ("Sound (pavucontrol)" (run-shell-command "pavucontrol"))
-    ("Power: lock, suspend, log out, reboot, power off" vikix-power))
+(defparameter *vikix-menu* (vikix-registry-menu)
   "Each entry: a label, then what to do — a command name, or a Lisp form —
 and, for some, what it needs: a program on PATH, or a file (\"~/...\"). An
 entry whose need isn't there is left out of the menu (vikix-menu-entry-here-p):
-JupyterLab without the feature python, Printers without printing ...")
+JupyterLab without the feature python, Printers without printing ...
+Vikix's own are made from its commands (registry.lisp: a command with
+:menu is in it, under its group); yours, a plugin's and a web app's are
+added to this list.")
 
 (defparameter *vikix-power-menu*
   ;; Lock first: the harmless one is where an Enter pressed by mistake lands.

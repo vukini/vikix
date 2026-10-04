@@ -112,7 +112,7 @@ lisp="$here/config/stumpwm/vikix/commands.lisp"
 check "StumpWM should open the welcome only when it hasn't been shown" \
   grep -q 'probe-file (merge-pathnames ".local/state/vikix/welcome"' "$lisp"
 check "Super+m should have Welcome and Add software" \
-  bash -c "grep -q '(\"Welcome: first steps\" vikix-welcome)' '$lisp' && grep -q 'vikix-add-software)' '$lisp'"
+  bash -c "grep -q -A1 'define-vikix-command welcome \"Welcome: first steps\"' '$here/config/stumpwm/vikix/registry.lisp' && grep -q ':run \"vikix-add-software\"' '$here/config/stumpwm/vikix/registry.lisp'"
 mig=$(grep -l 'opens the welcome (vikix welcome)' "$here"/migrations/*.sh)
 rm -f "$state"
 bash "$mig" >/dev/null 2>&1

@@ -102,8 +102,8 @@ check "laptop: the other off: $call" grep -q -- '--output HDMI1 --off' <<<"$call
 check "the hook should run vikix-screens predetect" grep -q 'vikix-screens" predetect' "$here/config/autorandr/predetect.d/vikix"
 check "the hook should be executable" test -x "$here/config/autorandr/predetect.d/vikix"
 check "40-config should link the hook" grep -q 'autorandr/predetect.d/vikix' "$here/install/40-config.sh"
-check "Super+Ctrl+p should be the screens menu" grep -q '("s-C-p"  "vikix-screens-pick"' "$here/config/stumpwm/vikix/keys.lisp"
-check "and the laptop's display key" grep -q '("XF86Display" *"vikix-screens-pick"' "$here/config/stumpwm/vikix/keys.lisp"
+check "Super+Ctrl+p should be the screens menu" grep -q ':run "vikix-screens-pick" :key "s-C-p"' "$here/config/stumpwm/vikix/registry.lisp"
+check "and the laptop's display key" grep -q ':run "vikix-screens-pick" :key "XF86Display"' "$here/config/stumpwm/vikix/registry.lisp"
 
 [ "$fail" = 0 ] && echo "screens: a new screen extended at its best fast mode and saved, a saved one left to autorandr, unplugged back to the laptop, mirror, one only, the hook and the keys"
 exit "$fail"
