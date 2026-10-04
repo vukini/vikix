@@ -11,7 +11,7 @@
 #   focus back where it was, the bar not listing that workspace; again and
 #   they are back, the same windows; on another workspace the key brings the
 #   drawer there; a closed program is started again; on a strip the drawer's
-#   windows are no columns; it slides in and away; a restart's tiles are the
+#   windows are no columns and stay in front of the columns; it slides in and away; a restart's tiles are the
 #   drawer's again; the left edge and another width; a window tiled
 #   with Super+t leaves the drawer; a reload keeps it; no programs, said.
 #
@@ -116,6 +116,15 @@ key super+ctrl+b
 check "away from a strip: '$(names)', the strip keeps its window" test "$(names)$(ask '(progn (setf *print-pretty* nil) (princ (mapcar (function window-title) (viri-columns (current-group)))))')" = "(C)"
 key super+ctrl+b
 check "and out on it again: $(names)" test "$(names)" = "One Two"
+# In front of the columns, and still so when a column takes the focus (a
+# strip's columns are floating windows too: the focused one is raised).
+in_front() { ask '(princ (let* ((tree (xlib:query-tree (screen-root (current-screen)))) (place (lambda (w) (position (window-parent w) tree :test (function xlib:window-equal)))) (here (remove (current-group) (vikix-drawer-windows) :key (function window-group) :test-not (function eq)))) (if (and here (> (reduce (function min) (mapcar place here)) (reduce (function max) (mapcar place (viri-columns (current-group)))))) 1 0)))'; }
+win D
+check "on a strip the drawer is in front of the columns, a new one too" test "$(in_front)" = 1
+key super+h
+check "and stays in front when a column takes the focus: $(state)" test "$(in_front) $(ask '(princ (window-title (current-window)))')" = "1 C"
+key super+l
+check "and when the strip is walked back" test "$(in_front)" = 1
 key super+ctrl+b
 ask '(vikix-viri "off")' >/dev/null; sleep 0.5
 
