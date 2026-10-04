@@ -44,7 +44,7 @@ VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 # A commit, not a branch: an update brings a new Esploro only when Vikix
 # moves this pin, after trying it.
 ESPLORO_REPO=https://github.com/vukini/esploro
-ESPLORO_COMMIT=2ad121c959b569ffaddbbe790bf2b8eddb212daf # files open on this workspace; menus no longer wait on Emacs
+ESPLORO_COMMIT=b3b116327ec3b85c24ac439b5069aab61d416b32 # the biggest anywhere below (C-c S), what's marked adds up, the Trash's size; Recent, What's Taking Space, Duplicates
 OPT="$HOME/.local/opt/esploro"
 BIN="$HOME/.local/bin"
 APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
