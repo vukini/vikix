@@ -701,6 +701,12 @@ on_screen() {
   [ -d "$ql" ] && ln -s "$ql" "$home/quicklisp"
   echo "rules-test" > "$home/.slime-secret"; chmod 600 "$home/.slime-secret"
   touch "$home/.local/state/vikix/welcome"     # no welcome terminal
+  # Notifications never reach the real desktop: a notify-send of the
+  # test's own, first on the test StumpWM's PATH, that writes them down.
+  mkdir -p "$t/stub"
+  printf '#!/bin/sh\nprintf "%%s|" "$@" >> "%s/notified"; echo >> "%s/notified"\n' "$t" "$t" > "$t/stub/notify-send"
+  chmod +x "$t/stub/notify-send"
+  local PATH="$t/stub:$PATH"; export PATH
 
   cat > "$home/.stumpwm.d/rules.lisp" <<'LISP'
 (in-package :stumpwm)
@@ -1039,6 +1045,10 @@ LISP
     win Other
     ask "(let ((file (merge-pathnames (princ-to-string (xlib:window-id (window-xwin $(the Waits)))) *agent-waiting-dir*))) (ensure-directories-exist file) (with-open-file (out file :direction :output :if-exists :supersede) (write-line \"ask\" out)))" >/dev/null
     check "an agent's note is there while its window isn't looked at" yes "(probe-file (merge-pathnames (princ-to-string (xlib:window-id (window-xwin $(the Waits)))) *agent-waiting-dir*))"
+    check "the bar names the session that asks, and its workspace: $(ask '(princ (multiple-value-list (agent-waiting-bar)))')" \
+      yes '(equal (multiple-value-list (agent-waiting-bar)) (list "asks: Waits (1)" :accent))'
+    sleep 0.5
+    check "and a notification says so, once: $(cat "$t/notified" 2>/dev/null)" test "$(grep -c 'Waits asks (workspace 1)' "$t/notified" 2>/dev/null)" = 1
     ask "(focus-all $(the Waits))" >/dev/null; sleep 0.5
     check "agent-waiting's rule: looking at the window clears its note" yes "(not (probe-file (merge-pathnames (princ-to-string (xlib:window-id (window-xwin $(the Waits)))) *agent-waiting-dir*)))"
     for _ in 1 2 3; do
@@ -1049,7 +1059,7 @@ LISP
       yes "(= 1 (count :focus (gethash $(the Waits) *vikix-rule-notes*) :key (function second)))"
     ask '(vikix-remove-rules :owner-prefix "plugin ")' >/dev/null
     check "and they go when the plugins do: $(ask '(princ (remove-duplicates (mapcar (function vikix-rule-owner) *vikix-rules*) :test (function equal)))')" yes '(notany (lambda (o) (eql 0 (search "plugin " o))) (mapcar (function vikix-rule-owner) *vikix-rules*))'
-    said+=("the plugins' rules at the pin (inbox's box, agent-waiting's note)")
+    said+=("the plugins' rules at the pin (inbox's box, agent-waiting's note, named in the bar and a notification)")
   else
     echo "(the plugins' rules: no copy of the plugins repository here at the pin; skipped)"
   fi

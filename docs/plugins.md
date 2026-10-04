@@ -22,7 +22,7 @@ The keys at a glance. A plugin's keys are all on Super+Alt, with Shift for a sec
 
 | Key | Plugin | What it does |
 |---|---|---|
-| Super+Alt+w | agent-waiting | Go to the agent waiting for you |
+| Super+Alt+w | agent-waiting | Go to the agent waiting for you, or pick among several |
 | Super+Alt+u | ai-usage | How much of your Claude plan is used |
 | Super+Alt+j | next-meeting | Join the meeting on now, or the next |
 | Super+Alt+c | next-meeting | The coming week's meetings |
@@ -34,22 +34,34 @@ The keys at a glance. A plugin's keys are all on Super+Alt, with Shift for a sec
 
 ## agent-waiting: an agent waiting for you
 
-You start Claude Code on a task in one window and get on with something else in another. When it needs you (a permission, a question), the bar says so, and one key takes you there.
+You start Claude Code on a task in one window and get on with something else in another. When it needs you, or has finished, the bar says which session, where it is and whether it asks something of you; a notification says what; and one key takes you there.
 
-**Add it:** `vikix plugin add agent-waiting`. It adds three hooks to Claude Code's settings, `~/.claude/settings.json` (a copy of the file is kept first). A Claude Code session already running takes them once you type `/hooks` in it (it asks you to look them over), or when it starts again.
+**Add it:** `vikix plugin add agent-waiting`. It adds five hooks to Claude Code's settings, `~/.claude/settings.json` (a copy of the file is kept first). A Claude Code session already running takes them once you type `/hooks` in it (it asks you to look them over), or when it starts again. After an update that brings new hooks, add it again: it shows what it changes, asks, and adds only what isn't there.
 
 **Use it:**
 
-- `agent asks` in the bar, in the accent colour: a session is waiting for your answer. `agents ask 2` for two.
-- `agent done`, quieter: a session finished and waits for your next request.
-- **Super+Alt+w**, or a click on the bar, goes to the window, asking ones first. Looking at a window clears its note.
+- `asks: Esploro tags (3)` in the bar, in the accent colour: the session called *Esploro tags*, on workspace 3, wants something of you. Either a dialog is open (a permission, a question with choices) and its work stands still, or it finished and its last words ask something: a question, or a step that is yours (a line that starts `You:`).
+- `done: Fix the bar (1)`, quieter: that session finished and asks nothing.
+- With several: `asks: Esploro tags (3) +1, done 2` is two that ask and two that finished. The one named is the one to go to first: an open dialog before a question, the oldest first.
+- A session is called by its window's title, which Claude Code sets to what the session is about; a window with no title of its own, by the folder the session works in.
+- **A notification** comes the moment a session asks: `Esploro tags asks (workspace 3)`, and under it what it asks (`Bash: Install the build`, or its question). Finished sessions stay in the bar only. To have a notification for those too, or none at all, put one of these in `~/.stumpwm.d/user.lisp`:
 
-**Where things are:** a small file per terminal window in `~/.local/state/vikix/agents/`.
+  ```lisp
+  (setf *agent-waiting-notify* :all)   ; finished sessions too
+  (setf *agent-waiting-notify* nil)    ; the bar only
+  ```
+
+- **Super+Alt+w**, or a click on the bar, goes to the window. When several wait it lists them first, each with its workspace, its name, how long it has waited and what it said; Enter goes to the one chosen. Looking at a window clears its note.
+- A session that stops while work of its own still runs in the background (a test run it waits for) isn't done, and leaves no note unless it asks something.
+
+**Where things are:** a small file per terminal window in `~/.local/state/vikix/agents/`: the state and the time, the folder, and the line of what was said.
 
 **When it doesn't work:**
 
 - *Nothing in the bar:* the session started before the plugin was added. Type `/hooks` in it, or start it again.
-- *It says asks, but nothing asks:* Claude Code calls an idle "waiting for your input" a notification too; the plugin counts that as done, not asks. If a note stays wrong, look at the window: that clears it.
+- *It tells you of a permission some seconds late:* the hook that says a dialog opened (`PermissionRequest`) isn't in your settings. `vikix plugin add agent-waiting` again adds it.
+- *It says asks, but nothing asks:* it read a question in the session's last words that wasn't one for you. Look at the window: that clears it.
+- *It says done for a session that asked you something:* its last three lines had no question mark and no line starting `You:`. That is all it goes by.
 - It knows Claude Code only. Codex, Gemini CLI, OpenCode and Aider don't tell it.
 
 **Remove it:** `vikix plugin remove agent-waiting` takes the hooks out of `~/.claude/settings.json` again, and leaves your other settings as they were.

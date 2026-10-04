@@ -33,7 +33,7 @@ VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 # VIKIX_PLUGINS_REPO and VIKIX_PLUGINS_COMMIT name others (tests, or trying
 # your own work on the repo: a folder works as well as an address).
 PLUGINS_REPO=${VIKIX_PLUGINS_REPO:-https://github.com/vukini/vikix-plugins}
-PLUGINS_COMMIT=${VIKIX_PLUGINS_COMMIT:-8164f26e1f5a0d47d4aaae4c6867418f7517c77e}   # 2026-10-04: the plugins' window hooks become rules (inbox's box, agent-waiting's note)
+PLUGINS_COMMIT=${VIKIX_PLUGINS_COMMIT:-1ba1d09912a1ea7220e313b11a05021462799e77}   # 2026-10-04: agent-waiting names the session that waits and what for, and says it at once
 DIR="$HOME/.local/share/vikix/plugins"
 LIST="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/plugins.list"
 SETTINGS="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/plugins"
