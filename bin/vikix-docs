@@ -53,6 +53,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import socket
 import sqlite3
 import subprocess
@@ -665,6 +666,67 @@ def nyxt_listens(sock):
         s.close()
 
 
+def window_pids():
+    """The processes owning the windows the window manager has, on every
+    workspace (_NET_CLIENT_LIST, then each one's _NET_WM_PID)."""
+    r = subprocess.run(["xprop", "-root", "_NET_CLIENT_LIST"], capture_output=True, text=True)
+    pids = set()
+    for wid in re.findall(r"0x[0-9a-fA-F]+", r.stdout):
+        w = subprocess.run(["xprop", "-id", wid, "_NET_WM_PID"], capture_output=True, text=True)
+        m = re.search(r"= (\d+)", w.stdout)
+        if m:
+            pids.add(int(m.group(1)))
+    return pids
+
+
+def stuck_nyxts():
+    """Your Nyxts on this screen whose socket would be ours, now gone: the
+    ones without a window (stuck: closing the last window can leave Nyxt
+    running with nothing open, and no other Nyxt can reach it), and the ones
+    still with windows (in use, only unreachable)."""
+    r = subprocess.run(["pgrep", "-u", str(os.getuid()), "-x", "nyxt"], capture_output=True, text=True)
+    mine = []
+    for pid in map(int, r.stdout.split()):
+        try:
+            with open(f"/proc/{pid}/environ", "rb") as f:
+                env = dict(kv.split(b"=", 1) for kv in f.read().split(b"\0") if b"=" in kv)
+        except OSError:
+            continue
+        same = all(env.get(k.encode(), b"").decode(errors="replace") == os.environ.get(k, "")
+                   for k in ("DISPLAY", "XDG_RUNTIME_DIR"))
+        if same:
+            mine.append(pid)
+    if not mine:
+        return [], []
+    shown = window_pids()
+    return [p for p in mine if p not in shown], [p for p in mine if p in shown]
+
+
+def stop_stuck_nyxt():
+    """Close a Nyxt that can't answer and has nothing open, and say so; one
+    that still has windows is the user's to close."""
+    stuck, open_ = stuck_nyxts()
+    for pid in stuck:
+        for sig, wait in ((signal.SIGTERM, 3), (signal.SIGKILL, 1)):
+            try:
+                os.kill(pid, sig)
+            except ProcessLookupError:
+                break
+            for _ in range(wait * 10):
+                if not os.path.exists(f"/proc/{pid}"):
+                    break
+                time.sleep(0.1)
+            if not os.path.exists(f"/proc/{pid}"):
+                break
+    if stuck:
+        subprocess.run(["notify-send", "-a", "Docs", "A stuck Nyxt was closed",
+                        "It had no window open and wasn't answering; a new one opens."])
+    elif open_:
+        subprocess.run(["notify-send", "-a", "Docs", "Nyxt isn't answering",
+                        "The one open can't be reached (its socket is gone), so a second one opens. "
+                        "Close the old one to have one again."])
+
+
 def page(query):
     """The catalogue as a page in Nyxt (started first when it isn't running)."""
     if not shutil.which("nyxt"):
@@ -684,6 +746,8 @@ def page(query):
         # instead, the page came first and the restored buffers covered it.)
         # A running Nyxt that didn't take the form takes the address.
         url = "nyxt:nyxt-user::vikix-docs-page?query=" + urllib.parse.quote(query, safe="")
+        if not nyxt_listens(sock):
+            stop_stuck_nyxt()
         nyxt = subprocess.Popen(["nyxt", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                 start_new_session=True)
         for _ in range(60):

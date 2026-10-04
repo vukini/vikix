@@ -130,7 +130,8 @@ fi
 # exits 0 then, and says "No instance running" only on the terminal: from the
 # desktop's menu nothing reaches the pipe, so the socket is what's asked),
 # Nyxt started with the page's address, so it opens after the restored
-# session rather than under it; and said when it can't.
+# session rather than under it; and said when it can't. A Nyxt left
+# running with no window and no socket is closed first, and said.
 check "list: how many from each source" grep -qxP 'repo\t[0-9]+' <<<"$(d list)"
 check "list --source: its documents by title, four fields: $(d list --source repo)" grep -qP '^repo:.*\trepo\tMusic sketchpad.*\t$' <<<"$(d list --source repo)"
 tsv=$(d find websocket --tsv)
@@ -160,6 +161,41 @@ check "a socket left behind isn't a Nyxt: one is started: $(cat "$t/opened")" gr
 printf '#!/bin/sh\n:\n' > "$t/bin/nyxt"  # never starts
 out=$(XDG_RUNTIME_DIR="$t/home" d page x 2>&1 || true)
 check "a Nyxt that doesn't start is said: $out" grep -q "didn't start" <<<"$out"
+# A Nyxt left running with no window and no socket is stuck: closed, and
+# said. One with a window is left, and said. The "Nyxt" is a copy of sleep
+# by that name, on a made-up screen and runtime folder, so the guard can't
+# match a real one (it only takes yours on this screen, with this socket).
+mkdir -p "$t/stuck" "$t/run4"; cp "$(command -v sleep)" "$t/stuck/nyxt"
+fake_display=":$((7000 + RANDOM % 900))"
+printf '#!/bin/sh\necho "notify $*" >> %s/notified\n' "$t" > "$t/bin/notify-send"
+printf '#!/bin/sh\n[ "$1" = -root ] && echo "_NET_CLIENT_LIST(WINDOW): window id # 0x1"\n[ "$1" = -id ] && echo "_NET_WM_PID(CARDINAL) = $(cat %s/windowpid 2>/dev/null || echo 1)"\nexit 0\n' "$t" > "$t/bin/xprop"
+chmod +x "$t/bin/notify-send" "$t/bin/xprop"
+DISPLAY=$fake_display XDG_RUNTIME_DIR="$t/run4" "$t/stuck/nyxt" 300 &
+stuck=$!
+sleep 0.3
+: > "$t/notified"
+DISPLAY=$fake_display XDG_RUNTIME_DIR="$t/run4" d page x >/dev/null 2>&1 || true
+sleep 0.3
+check "a stuck Nyxt (no window, no socket) is closed" bash -c '! kill -0 "$1" 2>/dev/null' _ "$stuck"
+check "and said: $(cat "$t/notified")" grep -q "A stuck Nyxt was closed" "$t/notified"
+wait "$stuck" 2>/dev/null || true
+DISPLAY=$fake_display XDG_RUNTIME_DIR="$t/run4" "$t/stuck/nyxt" 300 &
+inuse=$!
+sleep 0.3
+echo "$inuse" > "$t/windowpid"
+: > "$t/notified"
+DISPLAY=$fake_display XDG_RUNTIME_DIR="$t/run4" d page x >/dev/null 2>&1 || true
+check "one with a window open is left running" kill -0 "$inuse"
+check "and why a second opens is said: $(cat "$t/notified")" grep -q "Nyxt isn't answering" "$t/notified"
+kill "$inuse" 2>/dev/null; wait "$inuse" 2>/dev/null || true
+: > "$t/notified"
+DISPLAY=:1 XDG_RUNTIME_DIR="$t/run4" "$t/stuck/nyxt" 300 &
+other=$!
+sleep 0.3
+DISPLAY=$fake_display XDG_RUNTIME_DIR="$t/run4" d page x >/dev/null 2>&1 || true
+check "one on another screen is never touched" kill -0 "$other"
+kill "$other" 2>/dev/null; wait "$other" 2>/dev/null || true
+rm -f "$t/bin/xprop" "$t/windowpid"
 rm "$t/bin/nyxt"
 # A file gone since the last index: said, not opened as nothing.
 printf '# Gone soon\n\nephemeral words\n' > "$HOME/src/music/docs/gone.md"
