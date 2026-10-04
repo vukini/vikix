@@ -129,6 +129,10 @@
 #
 # Each command has a man page with the whole of it: man vikix-NAME (man
 # vikix is this list; man -k vikix lists the pages).
+#
+# vk is the same command, shorter. A command can be given by the start of its
+# name when only one begins so (vk upd), and so can the word after it (vk
+# docs f runit); a start that fits several says which. Tab completes them.
 
 set -euo pipefail
 
@@ -1455,8 +1459,96 @@ theme_import() {
 # of this very file while it runs. Parsed whole before it starts, main
 # can't be changed under our feet; the final `exit` keeps bash from
 # reading whatever the pull put after it.
+# --- Less typing: vk, prefixes, completion --------------------------------------
+# `vk` is a second name for this command (40-config links it). A command can
+# be given by the start of its name when only one begins so (vk upd is vikix
+# update), and so can a subcommand of the scripts it hands over to (vk doc f
+# runit is vikix docs find runit); the lists come from this file's own
+# dispatch and from each script's header, so they can't drift. Tab
+# completion (vikix.bash) asks `vikix __complete` for the same lists.
+
+vikix_commands() {   # every command main knows, one a line
+  awk '/^main\(\) \{/ {on = 1; next} on && /^\}/ {exit}
+       on && match($0, /^    [a-z][a-z|-]*\)/) {
+         s = substr($0, 5, RLENGTH - 5); n = split(s, w, "|"); for (i = 1; i <= n; i++) print w[i] }' \
+    "$VIKIX_DIR/bin/vikix" | grep -vx -e help -e __complete -e '-.*' | sort -u
+}
+
+vikix_script_of() {   # the bin/ script a command hands over to, if any
+  awk -v c="$1" '/^main\(\) \{/ {on = 1; next} on && /^\}/ {exit}
+       on && match($0, /^    [a-z][a-z|-]*\)/) {
+         s = substr($0, 5, RLENGTH - 5); n = split(s, w, "|")
+         for (i = 1; i <= n; i++) if (w[i] == c) { if (match($0, /bin\/vikix-[a-z-]+/)) print substr($0, RSTART, RLENGTH); exit } }' \
+    "$VIKIX_DIR/bin/vikix"
+}
+
+vikix_subcommands() {   # the words a command takes next, from the headers' usage lines
+  local cmd=$1 script f
+  script=$(vikix_script_of "$cmd")
+  for f in "$VIKIX_DIR/bin/vikix" ${script:+"$VIKIX_DIR/$script"}; do
+    head -n 80 "$f"
+  # A usage line, not prose: vikix CMD a few spaces in, at most.
+  done | grep -oE "^#? {1,4}vikix $cmd [^ ]+" | awk '{print $NF}' | tr -d '[]' | tr '|' '\n' |
+    grep -E '^[a-z][a-z0-9-]*$' | sort -u
+}
+
+vikix_resolve() {   # vikix_resolve WORD CANDIDATES...: the one WORD names, or why not
+  local word=$1 c hits=()
+  shift
+  for c in "$@"; do [ "$c" = "$word" ] && { echo "$word"; return 0; }; done
+  for c in "$@"; do [[ $c == "$word"* ]] && hits+=("$c"); done
+  if [ "${#hits[@]}" -eq 1 ]; then echo "${hits[0]}"; return 0; fi
+  [ "${#hits[@]}" -gt 1 ] && { echo "${hits[*]}"; return 2; }
+  return 1
+}
+
+vikix_complete() {   # vikix __complete INDEX WORDS-BEFORE...: what may come at INDEX
+  local index=$1 cmd sub
+  shift
+  if [ "$index" -le 1 ]; then vikix_commands; return; fi
+  cmd=$(vikix_resolve "$1" $(vikix_commands)) || return 0
+  sub=${2:-}
+  [ -n "$sub" ] && [ "$index" -ge 3 ] && sub=$(vikix_resolve "$sub" $(vikix_subcommands "$cmd")) || true
+  case $cmd:$index in
+    theme:2)            vikix_subcommands theme; theme_names ;;
+    add:2|remove:2)     awk -F'|' '!/^[[:space:]]*#/ && NF > 1 {gsub(/ /, "", $1); print $1}' "$VIKIX_DIR/features.list" ;;
+    plugin:3|plugins:3) [ "$sub" = add ] || [ "$sub" = remove ] || [ "$sub" = off ] || [ "$sub" = on ] &&
+                          for d in "${XDG_DATA_HOME:-$HOME/.local/share}"/vikix/plugins/*/manifest; do
+                            [ -e "$d" ] && basename "$(dirname "$d")"; done ;;
+    project:3|projects:3) ls "$HOME/src" 2>/dev/null ;;
+    *:2)                vikix_subcommands "$cmd" ;;
+  esac
+}
+
+vikix_expand() {   # the arguments, a command's and a subcommand's names made whole
+  local word whole cmd script
+  [ "$#" -gt 0 ] || return 0
+  case $1 in -*|__complete) printf '%s\0' "$@"; return ;; esac
+  if whole=$(vikix_resolve "$1" $(vikix_commands)); then
+    cmd=$whole
+  elif [ $? = 2 ]; then
+    echo "vikix: \"$1\" could be: $whole" >&2; exit 2
+  else
+    cmd=$1                                  # unknown: main says so
+  fi
+  shift
+  printf '%s\0' "$cmd"
+  # The next word, when it starts exactly one of the command's own words. A
+  # word that starts none, or several, is left as it is: it may be a name
+  # (a theme, a feature, a message).
+  if [ "$#" -gt 0 ] && [[ $1 != -* ]]; then
+    word=$1
+    if whole=$(vikix_resolve "$word" $(vikix_subcommands "$cmd")); then word=$whole; fi
+    shift
+    printf '%s\0' "$word"
+  fi
+  [ "$#" -gt 0 ] && printf '%s\0' "$@"
+  return 0
+}
+
 main() {
   case ${1:-help} in
+    __complete)  shift; vikix_complete "$@" ;;
     update)      shift; cmd_update "$@" ;;
     migrate)     cmd_migrate ;;
     rebuild-wm)  VIKIX_REBUILD_WM=1 bash "$VIKIX_DIR/install/30-lisp.sh" ;;
@@ -1521,5 +1613,7 @@ main() {
     *)           die "unknown command: $1 (try: vikix help)" ;;
   esac
 }
-main "$@"
+mapfile -d '' -t vikix_args < <(vikix_expand "$@") || exit 2
+[ "$#" -gt 0 ] && [ "${#vikix_args[@]}" -eq 0 ] && exit 2   # an ambiguous start, said above
+main "${vikix_args[@]}"
 exit

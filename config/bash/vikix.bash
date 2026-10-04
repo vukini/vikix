@@ -245,3 +245,13 @@ __vikix_branch() {
   b=$(git symbolic-ref --short HEAD 2>/dev/null) && printf ' (%s)' "$b"
 }
 PS1='\[\e[36m\]\w\[\e[33m\]$(__vikix_branch)\[\e[0m\] \$ '
+
+# Tab completion for vikix and vk (its short name): commands, then each
+# one's words (from the scripts' own usage lines), themes, features,
+# plugins and projects. The lists come from `vikix __complete`, which the
+# dispatcher uses too, so they can't drift apart.
+_vikix_complete() {
+  local cur=${COMP_WORDS[COMP_CWORD]}
+  mapfile -t COMPREPLY < <(compgen -W "$(vikix __complete "$COMP_CWORD" "${COMP_WORDS[@]:1:COMP_CWORD-1}" 2>/dev/null)" -- "$cur")
+}
+complete -F _vikix_complete vikix vk

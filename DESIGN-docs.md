@@ -108,6 +108,8 @@ A full first index of a `developer` install should finish in under two minutes; 
 
 ## Less typing (decided with Vid 2026-10-03)
 
+**Shipped 2026-10-04:** `vk`, prefixes for commands and their next word (from the dispatch and the scripts' usage lines), and bash completion. One change from below: `vk doc` is ambiguous (docs, doctor), so it's `vk docs f runit`. Subcommands are expanded once, by the dispatcher, not by a helper in each script.
+
 The catalogue adds commands, so this is the moment to make every Vikix command shorter to type. Three changes, in `bin/vikix` and `config/bash/vikix.bash`, independent of the rest of this design:
 
 1. **`vk` as a second name for `vikix`.** A symlink in `~/.local/bin`, never a rename: the site, the guides, the agents' skill and every transcript keep saying `vikix`, because `vikix undo` reads better to someone learning. Checked against void-packages: nothing common starts with `vk` except Vulkan's `vkcube` and the game `vkquake`, so there is no clash. StumpWM's `vikix-*` commands stay as they are; a second prefix there would be one more thing to remember.

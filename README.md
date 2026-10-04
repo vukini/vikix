@@ -1021,6 +1021,8 @@ The `- Build:` and `- Check:` lines are optional: they are for a project whose b
 
 ## Shell aliases
 
+**`vk` is `vikix`, shorter**, and both take less typing: a command by the start of its name when only one begins so (`vk upd`, `vk th paper`, `vk scr`), and the word after it the same way when it starts only one of that command's own (`vk docs f runit` is `vikix docs find runit`). A start that fits several says which (`vk d` → debug, diagnose, dictate, docs, doctor) and does nothing. **Tab** completes in bash: the commands, then each one's words, the themes after `theme`, the features after `add`, the plugins after `plugin add`. The guides and the agents keep saying `vikix`.
+
 These come from `~/.config/vikix/vikix.bash`. Type `alias` to see them all.
 
 | Alias | Does |

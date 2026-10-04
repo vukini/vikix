@@ -72,6 +72,8 @@ for cmd in "$VIKIX_DIR"/bin/vikix*; do
   case "${cmd##*/}" in vikix-eval|vikix-session) continue ;; esac
   link_managed "$cmd" "$HOME/.local/bin/${cmd##*/}"
 done
+# vk, a second name for vikix: less to type (vk upd, vk docs f runit, Tab).
+link_managed "$VIKIX_DIR/bin/vikix" "$HOME/.local/bin/vk"
 for app in "$C"/applications/*.desktop; do
   link_managed "$app" "$HOME/.local/share/applications/${app##*/}"
 done

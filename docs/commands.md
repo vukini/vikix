@@ -122,6 +122,8 @@ The everyday command.
 
 Each command has a man page with the whole of it: man vikix-NAME (man vikix is this list; man -k vikix lists the pages).
 
+vk is the same command, shorter. A command can be given by the start of its name when only one begins so (vk upd), and so can the word after it (vk docs f runit); a start that fits several says which. Tab completes them.
+
 ## vikix-agent
 
 An AI agent in this terminal, after a snapshot of your files.
