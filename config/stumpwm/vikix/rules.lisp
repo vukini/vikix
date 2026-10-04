@@ -386,6 +386,9 @@ every look, and would push out what happened when the window opened."
             (incf (vikix-rule-runs rule))
             (setf (vikix-rule-last-run rule) (get-universal-time))
             (vikix-rule-note rule window event)
+            ;; For "why did that happen?" (why.lisp, loaded later).
+            (when (fboundp 'vikix-why-rule-ran)
+              (ignore-errors (funcall 'vikix-why-rule-ran rule window event)))
             ;; For `vikix day` (day.lisp, loaded later). Not at every change
             ;; of focus: that would be most of the file.
             (when (and (not (eq event :focus)) (fboundp 'vikix-day-rule-ran))

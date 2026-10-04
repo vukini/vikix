@@ -72,7 +72,7 @@ front, so a name like Brightness-up is never mistaken for one."
     ("Notifications" "dunstctl" "vikix-notifications" "vikix-quiet")
     ("Screenshots & recording" "vikix-screenshot" "vikix-record" "vikix-capture")
     ("Sound & screen" "vikix-volume" "vikix-osd" "vikix-nightlight" "vikix-screens-pick")
-    ("System" "vikix-menu" "vikix-keys" "vikix-docs" "vikix-keys-card" "vikix-prefix-keys" "vikix-pick-theme"
+    ("System" "vikix-menu" "vikix-keys" "vikix-why" "vikix-docs" "vikix-keys-card" "vikix-prefix-keys" "vikix-pick-theme"
      "vikix-lock" "vikix-power" "vikix-awake" "vikix-drives"
      ;; The drawer is here, not with the windows: one key more there takes the
      ;; card to a fifth column, too wide for a 1366x768 laptop (tests/lisp.sh).
@@ -116,7 +116,7 @@ for a key without Super (Print, the laptop's own keys)."
             ((search "M-" rest :end2 (min 2 (length rest))) :alt)
             ((or (search "S-" rest :end2 (min 2 (length rest)))
                  (and (= (length rest) 1) (upper-case-p (char rest 0)))
-                 (member rest '("asciitilde" "\"") :test #'string=))
+                 (member rest '("asciitilde" "\"" "?") :test #'string=))
              :shift)
             (t :super)))))
 

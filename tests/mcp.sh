@@ -70,6 +70,12 @@ elif "vikix-agent-commands" in form:
     else:
         print(lisp(json.dumps([{"name": "quiet", "does": "Do not disturb on/off", "key": "Super+Ctrl+d"},
                                {"name": "tray", "does": "Tray on/off", "key": None}])))
+elif "vikix-why-entries" in form:
+    if os.path.exists(t + "/old-desktop"):
+        print(lisp("null"))
+    else:
+        print(lisp(json.dumps(['21:04:10  Super+Ctrl+d ran vikix-quiet (Do not disturb on/off)  ·  Vikix\'s key: registry.lisp, line 83',
+                               '21:03:59  A rule, as a window opened ran (when-window (:class "Firefox") (workspace 2))  ·  rules.lisp:3, for Firefox "a \\ title"'])))
 elif "vikix-agent-run" in form:
     # As registry.lisp answers: done for one marked for agents, refused otherwise.
     if '"quiet"' in form:
@@ -142,7 +148,7 @@ check "not JSON should be -32700: $out" test "$(field '["error"]["code"]' <<<"$o
 # The tools: eval and undo only when switched on.
 names() { rpc "$@" -- '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python3 -c 'import json,sys; print(" ".join(t["name"] for t in json.loads(sys.stdin.readline())["result"]["tools"]))'; }
 list=$(names)
-check "the read-only tools should be there: $list" grep -q 'desktop keys commands doctor history changes themes version rules' <<<"$list"
+check "the read-only tools should be there: $list" grep -q 'desktop keys commands why doctor history changes themes version rules' <<<"$list"
 check "eval shouldn't be there by default: $list" test -z "$(grep -ow 'eval\|undo' <<<"$list" || true)"
 check "--allow-eval should add eval: $(names --allow-eval)" grep -qw eval <<<"$(names --allow-eval)"
 check "--allow-undo should add undo: $(names --allow-undo)" grep -qw undo <<<"$(names --allow-undo)"
@@ -150,7 +156,7 @@ out=$(call eval '{"form":"(run-shell-command \"touch pwned\")"}')
 check "eval without --allow-eval should be refused: $out" grep -q '^ERROR: no tool' <<<"$out"
 check "a refused eval ran something" test ! -e "$t/forms"
 ro=$(rpc -- '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python3 -c 'import json,sys; print(" ".join(t["name"] for t in json.loads(sys.stdin.readline())["result"]["tools"] if t["annotations"]["readOnlyHint"]))')
-check "the read tools should say they only read: $ro" test "$ro" = "desktop keys commands doctor history changes themes version rules records_search records_get docs_search docs_read file_changes"
+check "the read tools should say they only read: $ro" test "$ro" = "desktop keys commands why doctor history changes themes version rules records_search records_get docs_search docs_read file_changes"
 
 # Reading the desktop.
 out=$(call desktop '{}')
@@ -198,7 +204,14 @@ check "one not for agents should be refused, in the desktop's words: $out" grep 
 out=$(call run_command '{"name":"quiet\") (run-shell-command \"touch pwned"}')
 check "a name that isn't a command's shape should be refused: $out" grep -q '^ERROR: name' <<<"$out"
 check "and never reach Lisp: $(cat "$t/forms")" test ! -s "$t/forms"
+out=$(call why '{}')
+check "why should say what the desktop did, a line each: $out" test "$(grep -c -e 'Super+Ctrl+d ran vikix-quiet' -e 'A rule, as a window opened' <<<"$out")" = 2
+check "with how many asked for, a number: $(grep 'vikix-why-entries' "$t/forms" | tail -1 | cut -c1-60)" grep -q "(funcall 'vikix-why-entries 20)" "$t/forms"
+out=$(call why '{"limit":"5) (run-shell-command \"touch pwned"}')
+check "a limit that isn't a number should be refused: $out" grep -q '^ERROR: limit' <<<"$out"
 touch "$t/old-desktop"
+out=$(call why '{}')
+check "a desktop older than why should say to update: $out" grep -q '^ERROR: .*vikix update' <<<"$out"
 out=$(call commands '{}')
 check "a desktop older than the registry should say to update: $out" grep -q '^ERROR: .*vikix update' <<<"$out"
 rm -f "$t/old-desktop"

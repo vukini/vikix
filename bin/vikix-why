@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# vikix-why — why did that happen? What the desktop did lately, and what
+# made it (`vikix why`).
+#
+#   vikix why [N]   the last N things the desktop did (20), newest first:
+#                   when, what it was (a key, a rule, an entry of the menu,
+#                   an agent, a notification, a command something asked
+#                   for), what it did, and where that is written
+#
+# A window jumped to another workspace, a key did something odd, the layout
+# changed under you: the desktop notes the key pressed and the command it
+# ran, each rule that runs and the window it ran for, the menu's entries,
+# what an agent or a script asked for. The same thing again is one line,
+# counted (×3). It is kept in the running desktop only, fifty at most,
+# until StumpWM starts again; nothing is written down.
+#
+# Super+? shows the same list on the desktop. Pick a line there and it
+# offers what can be done: edit it where it is written (user.lisp, line 42,
+# in Emacs), take it back when it is a switch or changed the layout, bring
+# a window a rule moved here, switch the rule off until the next reload.
+
+set -euo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+
+case ${1:-} in
+  help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+  '') n=20 ;;
+  *[!0-9]*|0*) die "vikix why [N]: how many, a number (vikix why help)" ;;
+  *) n=$1; [ "$n" -le 50 ] || n=50 ;;
+esac
+[ $# -le 1 ] || die "vikix why [N]: one number at most (vikix why help)"
+
+ok=0
+out=$(python3 "$VIKIX_DIR/bin/vikix-eval" "(if (fboundp 'vikix-why-text) (progn (princ (vikix-why-text $n)) (values)) (error \"this desktop is older than vikix why: reload it (Super+m, Reload config)\"))" 2>&1) || ok=$?
+case $out in
+  *"error: "*) die "$(sed -n 's/^.*error: //p' <<<"$out" | head -1)" ;;
+esac
+[ "$ok" = 0 ] || die "vikix why: StumpWM didn't answer (is the desktop running? vikix doctor)"
+printf '%s\n' "$out" | grep -v '^=> ' || true

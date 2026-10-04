@@ -62,9 +62,31 @@ If errors keep coming (three in 20 seconds), Vikix stops asking and restarts, as
 
 Every error is written down, with its backtrace, in `~/.local/state/vikix/errors/` (`vikix debug` includes the latest; an agent can read them too). To have errors reported without being asked, put `(setf *vikix-errors-ask* nil)` in `user.lisp`.
 
+## Something happened and you don't know why
+
+A window went to another workspace by itself, a key did something you didn't expect, the layout changed under you. Press `Super+?` (or `Super+m` → *Why did that happen?*). The desktop lists the last things it did, newest first, each with what made it do it and where that is written:
+
+```
+21:04:10  Super+Ctrl+d ran vikix-quiet (Do not disturb on/off)  ·  Vikix's key: registry.lisp, line 83
+21:03:59  A rule, as a window opened ran (when-window (:class "Firefox") (workspace 2))  ·  rules.lisp:3, for Firefox "Mozilla Firefox"
+21:03:40  Super+s ran user-dropterm  ·  your key: user.lisp, line 242
+```
+
+A key with the command it ran; a rule with the window it ran for; an entry of `Super+m`; a command an agent ran; the last notification, with the program that sent it; and a command that none of those explains (a click on the bar, a script, `vikix eval`). The same thing again is one line, counted (`×3`), so a rule that runs each time a window takes the focus doesn't crowd the rest out.
+
+Pick a line and it offers what can be done about it:
+
+- **Edit it**, where it is yours: `user.lisp` or `rules.lisp` opens in Emacs at that line. Where it is Vikix's own, you can see the line, to read; what you want different goes in `user.lisp` ([Making it yours](customize.md)).
+- **Take it back**, where something does: a switch is run again, a change of layout is undone (`Super+u`).
+- **Bring that window here**, for a window a rule sent to another workspace.
+- **Switch that rule off** until the next reload (`vikix rules on` brings it back).
+
+`vikix why` prints the same list in a terminal. It is kept in the running desktop only, the last fifty, until you log out: nothing is written down. For a window in particular, `vikix rules why` says which rules ran for it and which match it but haven't ([Rules for the desktop](rules.md)).
+
 ## A key doesn't work
 
 - `Super+m` → *What does a key do?*, then press the key. It says what the key is bound to, if anything.
+- When it does something, but not what you expected: `Super+?` right after says which command it ran, and where that key is written (above).
 - `Super+/` shows every key Vikix binds, grouped; `Super+F1` lists them, searchable. After `Ctrl+t`, wait a moment and StumpWM lists its own keys.
 - In a VM, the host may take the key before the guest sees it: on Windows, Super+L locks Windows.
 

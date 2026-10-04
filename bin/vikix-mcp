@@ -22,8 +22,9 @@ undoable changes without asking each time, while other commands still ask.
 The tools, a fixed set:
   read only   desktop (workspaces, windows, screens, theme), keys, commands
               (the desktop's commands an agent may run), rules (the
-              desktop's rules, and why a window is where it is), doctor,
-              history, changes, themes, version
+              desktop's rules, and why a window is where it is), why (what
+              the desktop did lately, and what made it), doctor, history,
+              changes, themes, version
   small acts  notify, snapshot, set_theme, switch_workspace, focus_window,
               run_command: each checked against what's there, and easy to
               take back. run_command runs one of the desktop's own commands
@@ -244,6 +245,15 @@ COMMANDS_FORM = JSON_HELPERS % r"""
                 (funcall 'vikix-agent-commands))))
 """
 
+# What the desktop did lately (why.lisp), a line each; null from a desktop
+# older than it. The limit is a number checked here, the only thing put in.
+WHY_FORM = (JSON_HELPERS % r"""
+  (if (not (fboundp 'vikix-why-entries))
+      "null"
+      (format nil "[~{~a~^,~}]"
+        (mapcar (lambda (e) (str (funcall 'vikix-why-line e))) (funcall 'vikix-why-entries LIMIT))))
+""").replace("%", "%%").replace("LIMIT", "%d")
+
 
 RULES_FORM = JSON_HELPERS % r"""
   (if (not (fboundp 'vikix-rules-list))
@@ -348,6 +358,20 @@ def t_commands(a):
     if value is None:
         raise ToolError("this desktop is older than the commands list: vikix update brings it")
     return json.dumps(value, indent=1, ensure_ascii=False)
+
+
+def t_why(a):
+    """What the desktop did lately and what made it (why.lisp), as text."""
+    limit = a.get("limit", 20)
+    if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 50:
+        raise ToolError("limit is 1 to 50")
+    try:
+        lines = json.loads(evaluate(WHY_FORM % limit))
+    except ValueError:
+        raise ToolError("the window manager's answer wasn't what happened")
+    if lines is None:
+        raise ToolError("this desktop is older than why: vikix update brings it")
+    return "\n".join(lines) or "nothing yet: no key, rule or command has run since the desktop started"
 
 
 def t_run_command(a):
@@ -684,6 +708,13 @@ TOOLS = [
      "light, gaps, focus left ...): none starts a program, asks a question or ends anything. A command the user "
      "wrote and marked for agents is among them." + DATA,
      schema(), READ, t_commands),
+    ("why", "Why did that happen?",
+     "What the desktop did lately, newest first, and what made it do it: a key and the command it ran, a rule and "
+     "the window it ran for, an entry of the menu, an agent's command, a notification, a command something asked "
+     "for; each with where it is written (user.lisp, line 42). For \"why did my window move?\" or \"what did "
+     "that key do?\". Kept in the running desktop only, fifty at most. Read only." + DATA,
+     schema({"limit": {"type": "integer", "minimum": 1, "maximum": 50, "description": "how many (20)"}}),
+     READ, t_why),
     ("doctor", "vikix doctor", "Check the desktop: programs, services, links, the snapshot history, vikix eval "
      "(a fixed test form)." + DATA, schema(), READ, t_doctor),
     ("history", "Snapshots of your files", "vikix history: the snapshots of the user's settings, newest first." + DATA,

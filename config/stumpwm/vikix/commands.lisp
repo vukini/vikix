@@ -344,9 +344,14 @@ Entries whose program or file isn't here are left out; each shows its key."
                                           prompt))))
     (when choice
       (let ((action (second choice)))
-        (if (symbolp action)
-            (run-commands (string-downcase (symbol-name action)))
-            (eval action))))))
+        ;; For "why did that happen?" (why.lisp): the entry is noted, and
+        ;; the commands it runs are its doing, not noted again.
+        (when (fboundp 'vikix-why-menu-picked)
+          (ignore-errors (funcall 'vikix-why-menu-picked (first choice))))
+        (progv '(*vikix-why-cause*) '(:menu)
+          (if (symbolp action)
+              (run-commands (string-downcase (symbol-name action)))
+              (eval action)))))))
 
 (defcommand vikix-menu () ()
   "Pick from the Vikix menu."

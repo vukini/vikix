@@ -3,9 +3,32 @@
 # newest first. Pick one and it shows again. (s-N, or s-m then
 # "Notifications: earlier ones".)
 #
-#   vikix-notifications   the list, in rofi
+#   vikix-notifications        the list, in rofi
+#   vikix-notifications last   the newest one, in a line: its id, the program
+#                              that sent it, its title and how many seconds
+#                              ago it came, tab-separated; nothing when there
+#                              is none. For "why did that happen?" (vikix why)
 
 command -v dunstctl >/dev/null || { echo "vikix-notifications: dunst isn't installed" >&2; exit 1; }
+
+if [ "${1:-}" = last ]; then
+  dunstctl history 2>/dev/null | python3 -c '
+import json, sys
+try:
+    history = json.load(sys.stdin)["data"][0]
+except (ValueError, KeyError, IndexError):
+    sys.exit(0)
+if not history:
+    sys.exit(0)
+with open("/proc/uptime") as f:
+    now = float(f.read().split()[0])
+n = max(history, key=lambda n: n["timestamp"]["data"])
+flat = lambda k: " ".join(str(n[k]["data"]).split())
+print(n["id"]["data"], flat("appname") or "a program", flat("summary")[:120],
+      int(max(0, now - n["timestamp"]["data"] / 1e6)), sep="\t")
+'
+  exit 0
+fi
 
 # One line per notification: its id, a tab, then what rofi shows.
 # dunst stamps each with microseconds since boot, so ages come from

@@ -63,6 +63,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-wallpapers](#vikix-wallpapers): more wallpapers: Vid's collection, a git repository
 - [vikix-webapp](#vikix-webapp): a website as a program of its own
 - [vikix-welcome](#vikix-welcome): the welcome: first steps on a new desktop, in a terminal, each ticked off once done
+- [vikix-why](#vikix-why): why did that happen? What the desktop did lately, and what made it
 - [vikix-windows](#vikix-windows): Windows in a VM, for the programs that only run there
 
 ## vikix
@@ -90,6 +91,7 @@ The everyday command.
 - `vikix version`
 - `vikix layout save NAME | NAME [--no-start] | list | rm NAME` — this workspace's layout (its splits or its strip, and which window is where) saved, put back (the windows it had that aren't open started, unless --no-start), listed, removed
 - `vikix rules [off|on|forget N] [why [CLASS]] [test|apply [N]] [verbs|proposed]` — the desktop's rules: the list, one off or on, why a window is where it is, what they'd do with the windows open now, and doing it; forget takes one out of your rules.lisp (vikix rules help)
+- `vikix why [N]` — why did that happen? the last things the desktop did (a key and its command, a rule and its window, the menu, an agent) and where each is written (Super+?)
 - `vikix viri [on|off]` — this workspace as a strip that scrolls sideways (Super+h/l along it), or tiled again; no word switches
 - `vikix eval FORM` — run Lisp in the running StumpWM, print the result
 - `vikix debug` — one file saying what's going on, secrets taken out, to attach to an issue
@@ -608,8 +610,9 @@ The tools, a fixed set:
 ```
 read only   desktop (workspaces, windows, screens, theme), keys, commands
             (the desktop's commands an agent may run), rules (the
-            desktop's rules, and why a window is where it is), doctor,
-            history, changes, themes, version
+            desktop's rules, and why a window is where it is), why (what
+            the desktop did lately, and what made it), doctor, history,
+            changes, themes, version
 small acts  notify, snapshot, set_theme, switch_workspace, focus_window,
             run_command: each checked against what's there, and easy to
             take back. run_command runs one of the desktop's own commands
@@ -702,6 +705,7 @@ Who answers follows Super+i: `vikix ai use local|claude`. Locally nothing leaves
 The notifications dunst has put away, in rofi, newest first.
 
 - `vikix-notifications` — the list, in rofi
+- `vikix-notifications last` — the newest one, in a line: its id, the program that sent it, its title and how many seconds ago it came, tab-separated; nothing when there is none. For "why did that happen?" (vikix why)
 
 The notifications dunst has put away, in rofi, newest first. Pick one and it shows again. (s-N, or s-m then "Notifications: earlier ones".)
 
@@ -1038,6 +1042,16 @@ The welcome: first steps on a new desktop, in a terminal, each ticked off once d
 StumpWM opens it by itself at the first login (commands.lisp), and Super+m, Welcome brings it back. What's done is kept in `~/.local/state/vikix/welcome`, one step a line; that it exists means the welcome has been shown.
 
 The pickers are fzf, which the base installs: type to narrow the list, Tab to pick several, Enter to go, Esc to go back.
+
+## vikix-why
+
+Why did that happen? What the desktop did lately, and what made it.
+
+- `vikix why [N]` — the last N things the desktop did (20), newest first: when, what it was (a key, a rule, an entry of the menu, an agent, a notification, a command something asked for), what it did, and where that is written
+
+A window jumped to another workspace, a key did something odd, the layout changed under you: the desktop notes the key pressed and the command it ran, each rule that runs and the window it ran for, the menu's entries, what an agent or a script asked for. The same thing again is one line, counted (×3). It is kept in the running desktop only, fifty at most, until StumpWM starts again; nothing is written down.
+
+Super+? shows the same list on the desktop. Pick a line there and it offers what can be done: edit it where it is written (user.lisp, line 42, in Emacs), take it back when it is a switch or changed the layout, bring a window a rule moved here, switch the rule off until the next reload.
 
 ## vikix-windows
 

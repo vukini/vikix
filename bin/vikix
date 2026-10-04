@@ -54,6 +54,9 @@
 #                       window is where it is, what they'd do with the windows
 #                       open now, and doing it; forget takes one out of your
 #                       rules.lisp (vikix rules help)
+#   vikix why [N]       why did that happen? the last things the desktop did
+#                       (a key and its command, a rule and its window, the
+#                       menu, an agent) and where each is written (Super+?)
 #   vikix viri [on|off]  this workspace as a strip that scrolls sideways
 #                       (Super+h/l along it), or tiled again; no word switches
 #   vikix eval FORM     run Lisp in the running StumpWM, print the result
@@ -1585,6 +1588,7 @@ main() {
     eval)        shift; exec python3 "$VIKIX_DIR/bin/vikix-eval" "$@" ;;
     layout)      shift; cmd_layout "$@" ;;
     rules)       shift; exec "$VIKIX_DIR/bin/vikix-rules" "$@" ;;
+    why)         shift; exec "$VIKIX_DIR/bin/vikix-why" "$@" ;;
     viri)        shift
                  case ${1:-} in ''|on|off) ;; *) die "vikix viri: on, off, or nothing to switch" ;; esac
                  python3 "$VIKIX_DIR/bin/vikix-eval" "(run-commands \"vikix-viri ${1:-}\")" >/dev/null ||

@@ -25,6 +25,7 @@
     "layouts"    ; saved layouts: vikix layout save NAME, vikix layout NAME
     "overview"   ; every workspace drawn small on a card, to pick a window (Super+o)
     "day"        ; what had the screen, written down for vikix day
+    "why"        ; why did that happen? the key, rule or command behind it (Super+?)
     "keys"       ; Super-key bindings
     "help"       ; the key card (s-/), key help (s-F1), all commands, which-key
     "webapps"    ; your web apps (vikix webapp): keys and Super+m

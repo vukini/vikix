@@ -43,5 +43,10 @@ first=$(sed -n 1p "$t/shown")
 case $first in *"Vikix: Newer") ;; *) echo "FAIL: the newest isn't first: $first"; fail=1 ;; esac
 case $(sed -n 2p "$t/shown") in *"Mail: Older — first line") ;; *) echo "FAIL: the body isn't on one line: $(sed -n 2p "$t/shown")"; fail=1 ;; esac
 [ "$(cat "$t/popped" 2>/dev/null)" = 7 ] || { echo "FAIL: picking line 2 showed id $(cat "$t/popped" 2>/dev/null), not 7"; fail=1; }
-[ "$fail" = 0 ] && echo "notifications: history listed newest first; the one picked is shown again"
+# last: the newest in a line, for "why did that happen?": id, program, title, seconds ago.
+: > "$t/shown"
+last=$(PATH="$t/bin:$PATH" sh "$here/bin/vikix-notifications" last)
+case $last in "9	Vikix	Newer	"[0-9]*) ;; *) echo "FAIL: last should be the newest, in four fields: $last"; fail=1 ;; esac
+[ ! -s "$t/shown" ] || { echo "FAIL: last shouldn't open rofi"; fail=1; }
+[ "$fail" = 0 ] && echo "notifications: history listed newest first; the one picked is shown again; the last one in a line"
 exit "$fail"

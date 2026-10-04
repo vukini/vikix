@@ -44,6 +44,7 @@ login on tty1
                       ├─ vikix/layouts.lisp      saved layouts
                       ├─ vikix/overview.lisp     every workspace drawn small (Super+o)
                       ├─ vikix/day.lisp          what had the screen, noted for vikix day
+                      ├─ vikix/why.lisp          why did that happen? what the desktop did, and what made it
                       ├─ vikix/keys.lisp         binding the Super keys, and the rule they keep
                       ├─ vikix/help.lisp         Super+/ and Super+F1
                       ├─ vikix/webapps.lisp      your web apps: their keys and Super+m entries

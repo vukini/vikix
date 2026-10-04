@@ -28,6 +28,8 @@
 ;;;;           only what is put back as easily as it is done, and never
 ;;;;           anything that asks a question or starts a program
 ;;;;
+;;;; Each is kept with the file and line it was written at, for vikix-why.
+;;;;
 ;;;; From these: *vikix-bindings* and the keys bound (keys.lisp), *vikix-menu*
 ;;;; (commands.lisp), the agents' list (the end of this file), and the keys in
 ;;;; the agents' skill and in the README's table (lib/skill-keys.sh). Those two lists are still lists,
@@ -139,7 +141,11 @@ menu entry goes before the last one, Power, as a plugin's does."
 (defun vikix-register-command (name does options)
   "Add the command NAME to the registry, in place of one of that name."
   (vikix-command-check name does options)
-  (let* ((command (list* :name name :does does (copy-list options)))
+  (let* ((command (list* :name name :does does
+                         ;; Where it is written, for "why did that happen?" (why.lisp).
+                         :file (and *load-truename* (ignore-errors (namestring *load-truename*)))
+                         :line (and *load-truename* (boundp '*vikix-load-line*) (symbol-value '*vikix-load-line*))
+                         (copy-list options)))
          (old (position (string name) *vikix-commands*
                         :key (lambda (c) (string (getf c :name))) :test #'string-equal)))
     (if old
@@ -368,6 +374,9 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
   :run "vikix-menu" :key "s-m")
 (define-vikix-command keys-card "Every key at a glance, grouped; any key closes it"
   :run "vikix-keys-card" :key "s-slash")
+(define-vikix-command why "Why did that happen? The key, rule or command behind the last things: edit it, or take it back"
+  :run "vikix-why" :key "s-?"
+  :menu "Help" :label "Why did that happen? What the desktop just did, and what made it")
 (define-vikix-command keys "Search the keys, and run one"
   :run "vikix-keys" :key "s-F1"
   :menu "Help" :label "Keyboard shortcuts")
@@ -607,6 +616,9 @@ answer in words either way. Never an error: the agent reads the answer."
           ((not (vikix-command-here-p command))
            (format nil "refused: ~(~a~) needs ~a, which isn't on this machine" (getf command :name) (getf command :needs)))
           (t (handler-case
-                 (progn (vikix-run-command name)
+                 (progn (when (fboundp 'vikix-why-agent-ran)   ; why.lisp: noted, with what it runs
+                          (ignore-errors (funcall 'vikix-why-agent-ran command)))
+                        (progv '(*vikix-why-cause*) '(:agent)
+                          (vikix-run-command name))
                         (format nil "done: ~(~a~) (~a)" (getf command :name) (getf command :does)))
                (error (e) (format nil "failed: ~(~a~): ~a" (getf command :name) e)))))))
