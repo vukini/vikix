@@ -9,3 +9,4 @@ swtpm               # the TPM 2.0 Windows 11 needs, emulated
 virtiofsd           # the shared folder, ~/Windows (drive Z: in Windows)
 virt-viewer         # the window the Windows desktop shows in
 xorriso             # makes the answer-file disc for the unattended install
+freerdp             # xfreerdp3: a Windows program's own window, over RDP's RemoteApp (vikix windows app)

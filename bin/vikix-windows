@@ -14,6 +14,19 @@
 #   vikix windows network  put the VM on its private network (setup and
 #                         vikix update do it; asks for sudo only to change something)
 #   vikix windows remove  delete the VM and its disk (asks first)
+#   vikix windows apps setup   once: Windows programs in windows of their
+#                         own. FreeRDP, Remote Desktop and RemoteApp switched
+#                         on in Windows (through its guest agent; reachable
+#                         from this machine only), your account's password
+#                         kept, ~/Documents as drive Y: in Windows
+#   vikix windows apps    the programs in Windows' Start menu
+#   vikix windows apps add NAME   one of them in the launcher (Super+d);
+#                         remove NAME takes it out again
+#   vikix windows app NAME [FILE]   that program as a window of its own,
+#                         tiled like any other (Windows started first if
+#                         it's off); a FILE in ~/Windows or ~/Documents is
+#                         opened in it
+#   vikix windows apps forget   delete the kept password
 #
 # The VM runs as you (libvirt's qemu:///session), so its disk, its TPM
 # and its shared folder are all yours, in your home. ~/Windows is drive Z:
@@ -541,6 +554,7 @@ case ${1:-open} in
   check)         cmd_check ;;
   remove)        shift; cmd_remove "$@" ;;
   watch-install) cmd_watch_install ;;
+  app|apps)      exec python3 "$VIKIX_DIR/lib/windows-apps.py" "$@" ;;
   help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
   *) die "vikix windows: unknown command $1 (vikix windows help)" ;;
 esac
