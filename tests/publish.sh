@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # tests/publish.sh — vikix publish: books from Markdown, EPUB and PDF.
 #
-#   The test book (tests/publish/: two tables, Esperanto, Arabic) becomes
-#   an EPUB with its tables as row cards, the right-to-left paragraph kept,
+#   The test book (tests/publish/: two tables, a listing, Esperanto,
+#   Arabic) becomes an EPUB with its tables as row cards, its code without
+#   highlighting (readers lose the spaces between spans) and indented, the right-to-left paragraph kept,
 #   mimetype first and stored; one epubcheck rejects is kept as .rejected,
 #   never as the book; the PDF builds in the face publish.yml names with
 #   Amiri for the Arabic, and one Typst warned about (a face that isn't
@@ -50,7 +51,7 @@ if command -v pandoc >/dev/null && command -v typst >/dev/null && python3 -c 'im
   check "the EPUB is built: $out" test -f "$epub"
   check "and epubcheck was asked" grep -q "^epubcheck .*\.epub" "$calls"
   python3 - "$epub" <<'PY' || fail=1
-import sys, zipfile
+import re, sys, zipfile
 z = zipfile.ZipFile(sys.argv[1])
 first = z.infolist()[0]
 assert first.filename == "mimetype" and first.compress_type == zipfile.ZIP_STORED, "mimetype isn't first and stored"
@@ -60,6 +61,11 @@ assert pages.count('class="row-card"') == 5, f"row cards: {pages.count('class=\"
 assert 'class="field-label">Since<' in pages, "the column's name isn't on its field"
 assert 'dir="rtl"' in pages and "الكتاب" in pages, "the Arabic paragraph lost its direction"
 assert "Ĉiuĵaŭde" in pages, "the Esperanto letters"
+code = re.findall(r"<pre[^>]*><code[^>]*>(.*?)</code></pre>", pages, re.S)
+assert code and all("<span" not in c for c in code), "code is highlighted: e-ink readers and FBReader lose its spaces"
+assert "\n        if row:\n            return" in code[0], "the listing lost its indentation"
+css = "".join(z.read(n).decode() for n in z.namelist() if n.endswith(".css"))
+assert "pre code" in css and "pre-wrap" in css, "the stylesheet doesn't keep code's spaces"
 PY
   rm -f "$epub"
   out=$(VIKIX_EPUBCHECK="$t/bin/epubcheck-no" python3 "$build" epub 2>&1) && fail=1

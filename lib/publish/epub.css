@@ -1,4 +1,6 @@
 @charset "UTF-8";
+/* From Living in Python's epub.css (2026-10-04), the doc-to-epub skill's with
+   its code blocks made to keep their spaces on e-ink readers. */
 
 /* Tuned for legibility on small (7") e-reader/tablet screens */
 
@@ -88,17 +90,48 @@ hr {
 
 a { color: inherit; text-decoration: underline; }
 
+/* Upright, and a face that is installed: FBReader sets code in italics
+   unless told, and without Courier New it fell back to a serif. */
 code, pre {
-  font-family: "Courier New", monospace;
+  font-family: "DejaVu Sans Mono", "Noto Sans Mono", "Courier New", monospace;
+  font-style: normal;
+  font-weight: normal;
   font-size: 0.85em;
 }
 
+/* Python is whitespace-significant: indentation MUST survive.
+   pre-wrap preserves every leading space while still wrapping long
+   lines so nothing runs off a narrow e-ink screen. */
 pre {
-  white-space: pre-wrap;
+  white-space: pre-wrap !important;
+  -webkit-white-space: pre-wrap;
   word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: normal;
+  tab-size: 4;
+  -moz-tab-size: 4;
   background: #f4f4f4;
   padding: 0.6em;
   border-radius: 4px;
+  margin: 0.9em 0;
+  line-height: 1.35;
+  page-break-inside: avoid;
+}
+
+/* Some readers reset white-space on the inner <code>; restate it. */
+pre code {
+  white-space: pre-wrap !important;
+  -webkit-white-space: pre-wrap;
+  display: block;
+  background: transparent;
+  padding: 0;
+  border: none;
+  font-size: 1em;
+}
+
+code {
+  background: #f0f0f0;
+  padding: 0 0.15em;
 }
 
 nav#toc ol { list-style-type: none; padding-left: 0.6em; }

@@ -23,6 +23,7 @@ NAME.epub.rejected beside the report. A PDF Typst warned about is the same.
 """
 import glob
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -93,13 +94,31 @@ def epubcheck(path):
     return run(argv)
 
 
+def code_intact(unpacked):
+    """The pages whose code blocks have markup inside (a span per token),
+    which e-ink readers lay out without the spaces between."""
+    pre_code = re.compile(r"<pre[^>]*>\s*<code[^>]*>(.*?)</code>\s*</pre>", re.S)
+    bad = []
+    for page in sorted(glob.glob(os.path.join(unpacked, "EPUB", "text", "*.xhtml"))):
+        with open(page, encoding="utf-8") as f:
+            if any("<span" in block for block in pre_code.findall(f.read())):
+                bad.append(os.path.basename(page))
+    return ", ".join(bad)
+
+
 def epub(m, files, outdir):
     os.makedirs(outdir, exist_ok=True)
     dest = os.path.join(outdir, name(m) + ".epub")
     with tempfile.TemporaryDirectory() as tmp:
         raw = os.path.join(tmp, "raw.epub")
         rc, said = run(["pandoc", *files, "--metadata-file=publish.yml", "-o", raw,
-                        f"--css={os.path.join(HERE, 'epub.css')}", "--toc", "--toc-depth=2"])
+                        f"--css={os.path.join(HERE, 'epub.css')}", "--toc", "--toc-depth=2",
+                        # No highlighting: it wraps each token of code in a
+                        # <span>, and e-ink readers collapse the spaces
+                        # between them, so every listing loses its layout
+                        # (Living in Python found it first). epubcheck can't
+                        # see it: code_intact() below can.
+                        "--no-highlight"])
         if rc != 0:
             die(f"pandoc: {said}")
         unpacked = os.path.join(tmp, "book")
@@ -109,6 +128,9 @@ def epub(m, files, outdir):
         rc, said = run([sys.executable, os.path.join(HERE, "fix-tables.py"), unpacked])
         if rc != 0:
             die(f"the table fix: {said}")
+        broken = code_intact(unpacked)
+        if broken:
+            die(f"code would lose its spaces on e-ink readers: {broken}")
         built = os.path.join(tmp, "built.epub")
         rezip(unpacked, built)
         rc, report = epubcheck(built)

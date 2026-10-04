@@ -14,3 +14,12 @@ And a second, smaller one:
 |---|---|
 | libro | book |
 | legi | to read |
+
+A listing, whose indentation must survive every reader:
+
+```python
+def pages(db):
+    for row in db.execute("PRAGMA page_count"):
+        if row:
+            return row[0]
+```
