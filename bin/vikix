@@ -1506,9 +1506,12 @@ vikix_complete() {   # vikix __complete INDEX WORDS-BEFORE...: what may come at 
   local index=$1 cmd sub
   shift
   if [ "$index" -le 1 ]; then vikix_commands; return; fi
-  cmd=$(vikix_resolve "$1" $(vikix_commands)) || return 0
+  local all words
+  mapfile -t all < <(vikix_commands)
+  cmd=$(vikix_resolve "$1" "${all[@]}") || return 0
   sub=${2:-}
-  [ -n "$sub" ] && [ "$index" -ge 3 ] && sub=$(vikix_resolve "$sub" $(vikix_subcommands "$cmd")) || true
+  mapfile -t words < <(vikix_subcommands "$cmd")
+  [ -n "$sub" ] && [ "$index" -ge 3 ] && sub=$(vikix_resolve "$sub" "${words[@]}") || true
   case $cmd:$index in
     theme:2)            vikix_subcommands theme; theme_names ;;
     add:2|remove:2)     awk -F'|' '!/^[[:space:]]*#/ && NF > 1 {gsub(/ /, "", $1); print $1}' "$VIKIX_DIR/features.list" ;;
@@ -1521,10 +1524,11 @@ vikix_complete() {   # vikix __complete INDEX WORDS-BEFORE...: what may come at 
 }
 
 vikix_expand() {   # the arguments, a command's and a subcommand's names made whole
-  local word whole cmd script
+  local word whole cmd all words
   [ "$#" -gt 0 ] || return 0
   case $1 in -*|__complete) printf '%s\0' "$@"; return ;; esac
-  if whole=$(vikix_resolve "$1" $(vikix_commands)); then
+  mapfile -t all < <(vikix_commands)
+  if whole=$(vikix_resolve "$1" "${all[@]}"); then
     cmd=$whole
   elif [ $? = 2 ]; then
     echo "vikix: \"$1\" could be: $whole" >&2; exit 2
@@ -1538,7 +1542,8 @@ vikix_expand() {   # the arguments, a command's and a subcommand's names made wh
   # (a theme, a feature, a message).
   if [ "$#" -gt 0 ] && [[ $1 != -* ]]; then
     word=$1
-    if whole=$(vikix_resolve "$word" $(vikix_subcommands "$cmd")); then word=$whole; fi
+    mapfile -t words < <(vikix_subcommands "$cmd")
+    if whole=$(vikix_resolve "$word" "${words[@]}"); then word=$whole; fi
     shift
     printf '%s\0' "$word"
   fi

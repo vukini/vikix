@@ -34,7 +34,7 @@ check "add: the features" bash -c 'grep -qx python <<<"$1" && grep -qx emacs <<<
 check "screens' words" test "$(vk __complete 2 scr | tr '\n' ' ')" = "auto extend external laptop mirror pick "
 
 # A free word stays as it is: a theme's name isn't made into a subcommand.
-check "vk theme pa isn't made into vk theme import" grep -q "no theme called 'pa'" <<<"$(DISPLAY= vk theme pa 2>&1 || true)"
+check "vk theme pa isn't made into vk theme import" grep -q "no theme called 'pa'" <<<"$(DISPLAY='' vk theme pa 2>&1 || true)"
 
 # The completion function in vikix.bash, with vikix on PATH.
 mkdir -p "$t/bin"; ln -s "$here/bin/vikix" "$t/bin/vikix"; ln -s "$here/bin/vikix" "$t/bin/vk"
