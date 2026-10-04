@@ -553,6 +553,21 @@ def t_propose(a):
     raise ToolError(scrub(out) or "esploro propose failed")
 
 
+def t_file_changes(a):
+    """What changed in the user's files through Esploro, newest first: read
+    only (esploro changes --lines), for "what did I move yesterday?"."""
+    prog = esploro_program()
+    if not prog:
+        raise ToolError("Esploro isn't installed, so no changes are kept: the user can add it (vikix add esploro)")
+    limit = a.get("limit", 30)
+    if not isinstance(limit, int) or not 1 <= limit <= 200:
+        raise ToolError("limit is 1 to 200")
+    out, ok = run([prog, "changes", "--lines", str(limit)], timeout=20)
+    if not ok:
+        raise ToolError(scrub(out) or "esploro changes failed")
+    return out.strip() or "no changes yet: Esploro hasn't changed any files"
+
+
 def schema(props=None, required=None):
     s = {"type": "object", "properties": props or {}, "additionalProperties": False}
     if required:
@@ -638,6 +653,13 @@ TOOLS = [
              "why": {"type": "string", "maxLength": 300, "description": "what it's for, shown to the user"}},
             ["steps"]),
      ONCE, t_propose),
+    ("file_changes", "What changed in the user's files",
+     "Every change made to the user's files through Esploro, their file manager (by the user, or an agent's "
+     "plan they applied), newest first: when, what it did in words (\"moved 3 files into ~/Work\"), undone or "
+     "not, and each step indented below. For \"what did I move yesterday?\" or \"where did that file go?\". "
+     "Read only: to undo one, the user uses Edit > Changes in Esploro." + DATA,
+     schema({"limit": {"type": "integer", "minimum": 1, "maximum": 200, "description": "how many changes (30)"}}),
+     READ, t_file_changes),
     ("focus_window", "Focus a window", "Go to a window: its workspace's name and its number, as desktop gives them.",
      schema({"workspace": {"type": "string"}, "number": {"type": "integer", "minimum": 0}}, ["workspace", "number"]),
      ACT, t_focus_window),

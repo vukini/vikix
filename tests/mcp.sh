@@ -82,6 +82,10 @@ EOF
 # $t/refuse makes it refuse.
 cat > "$t/bin/esploro" <<EOF
 #!/bin/sh
+if [ "\$1" = changes ]; then
+  [ "\$2" = --lines ] && printf '2026-10-04 06:15:41  duplicated "bin" in ~/vikix\n    copy ~/vikix/bin to ~/vikix/bin copy\n' && echo "limit \$3" > "$t/changes.limit"
+  exit 0
+fi
 [ "\$1" = propose ] || exit 2
 cp "\$2" "$t/proposed.lisp"; echo "\$3" > "$t/proposed.why"
 if [ -e "$t/refuse" ]; then echo '(:refused ("step 1: /no/such is not there"))'; exit 1; fi
@@ -132,7 +136,7 @@ out=$(call eval '{"form":"(run-shell-command \"touch pwned\")"}')
 check "eval without --allow-eval should be refused: $out" grep -q '^ERROR: no tool' <<<"$out"
 check "a refused eval ran something" test ! -e "$t/forms"
 ro=$(rpc -- '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python3 -c 'import json,sys; print(" ".join(t["name"] for t in json.loads(sys.stdin.readline())["result"]["tools"] if t["annotations"]["readOnlyHint"]))')
-check "the read tools should say they only read: $ro" test "$ro" = "desktop keys doctor history changes themes version rules records_search records_get docs_search docs_read"
+check "the read tools should say they only read: $ro" test "$ro" = "desktop keys doctor history changes themes version rules records_search records_get docs_search docs_read file_changes"
 
 # Reading the desktop.
 out=$(call desktop '{}')
@@ -208,6 +212,12 @@ mv "$t/bin/esploro" "$t/esploro.off"
 out=$(PATH="$t/bin:/usr/bin:/bin" call propose_file_changes '{"steps":[{"op":"mkdir","path":"/home/u/x"}]}')
 check "without Esploro it should say so: $out" grep -q "Esploro isn't installed" <<<"$out"
 mv "$t/esploro.off" "$t/bin/esploro"
+# file_changes: Esploro's journal in words, read only.
+out=$(call file_changes '{"limit":5}')
+check "file_changes should give the changes in words, steps below: $out" grep -q 'duplicated "bin" in ~/vikix' <<<"$out"
+check "and ask Esploro for that many" grep -qx 'limit 5' "$t/changes.limit"
+out=$(call file_changes '{"limit":0}')
+check "a limit out of range should be refused: $out" grep -q '^ERROR: limit is 1 to 200' <<<"$out"
 # The user's sorting rules go with propose_file_changes, to every agent.
 described() { rpc -- '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python3 -c 'import json,sys; print(next(t["description"] for t in json.loads(sys.stdin.readline())["result"]["tools"] if t["name"] == "propose_file_changes"))'; }
 out=$(described)
