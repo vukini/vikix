@@ -786,6 +786,25 @@ GTK and Qt dialogs are drawn at; without one, a modest box."
          (when (and (typep win 'float-window) (vikix-dialog-p win) (window-visible-p win))
            (setf (xlib:window-priority (window-parent win)) :above)))))))
 
+;; StumpWM hides a window that goes to a workspace not in view, and shows a
+;; tile again when its frame does; nothing shows a floating one. So a
+;; floating window sent to another workspace (Super+Shift+digit), or one a
+;; rule opened there, was never seen again. Gone to, a workspace shows them,
+;; in front and with the focus: they are what's new there.
+(defun vikix-show-floats (new &rest ignore)
+  "Show the floating windows of workspace NEW that arrived while it wasn't in view."
+  (declare (ignore ignore))
+  (ignore-errors
+   (when (typep new 'tile-group)
+     (dolist (win (reverse (group-windows new)))
+       (when (and (typep win 'float-window)
+                  (not (eql (window-state win) +normal-state+)))
+         (unhide-window win)
+         (focus-window win))))))
+
+(remove-hook *focus-group-hook* 'vikix-show-floats)
+(add-hook *focus-group-hook* 'vikix-show-floats)
+
 (defun vikix-float-dialog (win)
   ;; Lazarus floats its own windows (above); never float one twice.
   (when (and (vikix-dialog-p win)

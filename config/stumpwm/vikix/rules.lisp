@@ -527,8 +527,28 @@ answered the same for the window's whole life."
     (when (and (typep win 'tile-window) (typep group 'tile-group))
       (when (fboundp 'vikix-titlebar-remove)
         (funcall 'vikix-titlebar-remove win))
-      (float-window win group))
+      ;; float-window takes WIN for the window on top of the frame in front,
+      ;; and leaves that frame with none. A window still opening isn't on
+      ;; top yet: the frame keeps the one it shows, or going to it (a key,
+      ;; a change of workspace) would leave the focus nowhere.
+      (let* ((front (tile-group-current-frame group))
+             (top (frame-window front)))
+        (float-window win group)
+        (when (and top (not (eq top win)) (null (frame-window front)))
+          (setf (frame-window front) top))))
     (typep win 'float-window)))
+
+;; StumpWM gives a new window the focus when it is a tile in the frame in
+;; front; a floating one it only shows. So a window a rule floated as it
+;; opened had the focus only with the pointer where it appeared, a rule
+;; :on :focus never ran for it, and the next tile to take the focus covered
+;; it. (On a workspace not in view it waits: windows.lisp, vikix-show-floats.)
+(defun vikix-rule-float-arrives (win)
+  "WIN was a tile and a rule has just floated it: on the workspace in view
+it takes the focus, as a window opening in a frame does."
+  (when (and (typep win 'float-window)
+             (eq (window-group win) (current-group)))
+    (focus-window win)))
 
 (define-rule-verb workspace (target &key follow)
   "Send the window to a workspace, by number or name; :follow t goes along."
@@ -559,7 +579,8 @@ corner and that edge.")
 
 (define-rule-verb float (&key width height x y corner own)
   "Float the window: :width and :height (pixels, or \"65%\" of the monitor below the bar; 60% when not given), in the middle, or at a :corner, or at :x and :y. :own t only floats it, at the size and place it asks for itself."
-  (let ((win (rule-window)))
+  (let* ((win (rule-window))
+         (was-tile (typep win 'tile-window)))
     (unless (member corner '(nil :centre :center :top-left :top-right :bottom-left :bottom-right
                              :top :bottom :left :right))
       (error "A float's :corner is one of :top-left, :top-right, :bottom-left, :bottom-right, :top, :bottom, :left, :right, :centre; this is ~s." corner))
@@ -587,6 +608,8 @@ corner and that edge.")
                                     :y (+ ay (max 0 fy))
                                     :width (max 1 (- w (* 2 *float-window-border*)))
                                     :height (max 1 (- h *float-window-title-height* *float-window-border*))))))
+    (when was-tile
+      (vikix-rule-float-arrives win))
     win))
 
 (define-rule-verb tile ()
@@ -623,7 +646,7 @@ corner and that edge.")
     (let ((was-tile (typep win 'tile-window)))
       (when (and (vikix-rule-float-it win) was-tile)
         (when (fboundp 'vikix-centre-window) (funcall 'vikix-centre-window win))
-        (focus-window win)))
+        (vikix-rule-float-arrives win)))
     (when (fboundp 'vikix-raise-dialogs) (funcall 'vikix-raise-dialogs))
     win))
 

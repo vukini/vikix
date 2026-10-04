@@ -190,7 +190,7 @@ A plain string matches exactly that and nothing longer. `(:has "fox")` matches a
 | Verb | What it does |
 |---|---|
 | `(workspace 2)` | Sends the window to a workspace, by number or name: it opens there, without showing here first. `:follow t` takes you along |
-| `(float ...)` | Floats it. `:width` and `:height` are pixels (`400`) or a share of the monitor below the bar (`"65%"`), 60% when left out. It goes in the middle, or to a `:corner` (`:top-left`, `:top-right`, `:bottom-left`, `:bottom-right`, `:top`, `:bottom`, `:left`, `:right`), or to `:x` and `:y`. `(float :own t)` only floats it, at the size and place the window asks for itself |
+| `(float ...)` | Floats it. `:width` and `:height` are pixels (`400`) or a share of the monitor below the bar (`"65%"`), 60% when left out. It goes in the middle, or to a `:corner` (`:top-left`, `:top-right`, `:bottom-left`, `:bottom-right`, `:top`, `:bottom`, `:left`, `:right`), or to `:x` and `:y`. `(float :own t)` only floats it, at the size and place the window asks for itself. It has the focus as it opens, as a tiled window does; opened for a workspace that isn't in view, it is shown there, with the focus, when you go to it |
 | `(tile)` | Puts a floating window back in the tiles |
 | `(fullscreen)` | Fills the screen with it |
 | `(sticky)` | Keeps it on every workspace (it floats) |

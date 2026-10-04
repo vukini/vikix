@@ -11,6 +11,12 @@
 #   window gone to with a key keeps the focus while the pointer rests on
 #   another; the mouse moved away and back to the same spot is the mouse
 #   again; and five changes at once still don't run away.
+#   A window a rule floats as it opens: it has the focus wherever the
+#   pointer rests, so a rule that keeps floating windows in front holds
+#   for it from the start; the frame in front keeps its window; and opened
+#   for a workspace not in view, it is shown there, with the focus, when
+#   that workspace is gone to. So is a floating window sent to another
+#   workspace (Super+Shift+digit): StumpWM never showed either again.
 #
 # Needs what tests/lib/wm.sh needs (Xvfb, xdotool, alacritty, Vikix's
 # StumpWM); skipped without.
@@ -87,7 +93,65 @@ case $after in
   *) check "nor do the two take the focus from each other then: $((after - before)) changes for five asked" test $((after - before)) -le 10 ;;
 esac
 check "and the focus is where it was last put: $(focused)" test "$(focused)" = Under
+# --- a window a rule floats as it opens ---------------------------------------------
+# StumpWM gives a new window the focus as a tile, and only shows a floating
+# one: a window a rule floated had the focus only with the pointer where it
+# appeared, so the rule above never ran for it and the next tile to take
+# the focus covered it; the frame in front was left with no window; and on
+# a workspace not in view the window was never shown at all.
+above() { [ "$(ask "(let ((kids (xlib:query-tree (screen-root (current-screen))))) (princ (if (> (position (window-parent $(w "$1")) kids) (position (window-parent $(w "$2")) kids)) 1 0)))")" = 1 ]; }
+front_frame() { ask '(princ (let ((w (frame-window (tile-group-current-frame (current-group))))) (and w (window-title w))))'; }
+shown() { ask "(princ (xlib:window-map-state (window-parent $(w "$1"))))"; }
+ask '(progn (when-window (:class "Small") (float :width "30%" :height "30%" :corner :bottom-right))
+       (when-window (:class "Away") (workspace 3) (float :width "30%" :height "30%" :corner :bottom-right)))' >/dev/null
+ask '(run-commands "gselect 3")' >/dev/null; sleep 0.4
+win There
+ask '(run-commands "gselect 2")' >/dev/null; sleep 0.4
+win Left
+ask '(run-commands "hsplit")' >/dev/null; sleep 0.3
+ask '(run-commands "fnext")' >/dev/null; sleep 0.3
+win Right
+xdotool mousemove 300 300; sleep 0.5      # on Left, far from where the window will appear
+ask "(focus-all $(w Right))" >/dev/null; sleep 0.5
+win Small Small
+check "a window a rule floats as it opens has the focus, the pointer resting elsewhere: $(focused)" test "$(focused)" = Small
+check "the frame in front keeps the window it shows: $(front_frame)" test "$(front_frame)" = Right
+ask '(run-commands "fnext")' >/dev/null; sleep 0.5
+check "a tile gone to with a key has the focus: $(focused)" test "$(focused)" = Left
+check "and the floating window, kept in front by the rule, is still over the tile under it" above Small Right
+xdotool mousemove 900 300; sleep 0.5
+check "the same with the mouse moved to the tile under it: $(focused)" test "$(focused)" = Right
+check "the floating window still in front" above Small Right
+
+# Opened for a workspace that isn't in view.
+LIBGL_ALWAYS_SOFTWARE=1 alacritty --class Away --title Away -e sleep 300 >/dev/null 2>&1 &
+pids+=($!)
+for _ in $(seq 1 40); do [ "$(ask "(princ (if $(w Away) 1 0))")" = 1 ] && break; sleep 0.25; done
+sleep 0.5
+check "a window a rule floats on another workspace leaves the focus where it is: $(focused), workspace $(ask '(princ (group-number (current-group)))')" \
+  test "$(focused) $(ask '(princ (group-number (current-group)))')" = "Right 2"
+ask '(run-commands "gselect 3")' >/dev/null; sleep 0.7
+check "gone to, that workspace shows it: $(shown Away)" test "$(shown Away)" = VIEWABLE
+check "with the focus: $(focused)" test "$(focused)" = Away
+check "in front of the tile there" above Away There
+xdotool mousemove 1000 700; sleep 0.4     # onto it, and off: the pointer was on the tile all along
+xdotool mousemove 300 300; sleep 0.5
+check "and it stays in front when the mouse gives the tile the focus: $(focused)" test "$(focused)" = There
+check "(in front)" above Away There
+ask '(run-commands "gselect 2")' >/dev/null; sleep 0.4
+ask '(run-commands "gselect 3")' >/dev/null; sleep 0.7
+check "away and back, it is still shown, and the tile keeps the focus: $(shown Away), $(focused)" test "$(shown Away) $(focused)" = "VIEWABLE There"
+# A floating window sent away once it is open: by a rule (vikix rules
+# apply), and with Super+Shift+digit.
+ask "(let ((*vikix-rule-window* $(w Away))) (vikix-verb-workspace 2))" >/dev/null; sleep 0.5
+ask '(run-commands "gselect 2")' >/dev/null; sleep 0.7
+check "a floating window a rule sends to another workspace is shown there too: $(shown Away), $(focused)" test "$(shown Away) $(focused)" = "VIEWABLE Away"
+ask '(run-commands "gmove 3")' >/dev/null; sleep 0.5
+check "sent back with the key, it is gone from here: $(shown Away)" test "$(shown Away)" = UNMAPPED
+ask '(run-commands "gselect 3")' >/dev/null; sleep 0.7
+check "and shown there, with the focus: $(shown Away), $(focused)" test "$(shown Away) $(focused)" = "VIEWABLE Away"
+
 check "no rule failed" test "$(ask '(princ (reduce (function +) (mapcar (function vikix-rule-failures) *vikix-rules*)))')" = 0
 
-wm_report focus "the mouse gives the focus, four changes of focus in one go don't set a floating window and the tile under it taking it from each other for ever, a window gone to with a key keeps it under a still pointer, floating windows kept in front too"
+wm_report focus "the mouse gives the focus, four changes of focus in one go don't set a floating window and the tile under it taking it from each other for ever, a window gone to with a key keeps it under a still pointer, floating windows kept in front too, a window a rule floats has the focus as it opens, a floating window opened on or sent to a workspace that wasn't in view is shown there"
 exit "$fail"
