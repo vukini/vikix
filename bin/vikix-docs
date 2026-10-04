@@ -53,6 +53,7 @@ import json
 import os
 import re
 import shutil
+import socket
 import sqlite3
 import subprocess
 import sys
@@ -633,31 +634,48 @@ def hit_line(h):
     return f"{BADGE.get(h['source'], h['source']):<5}  {title[:160]}"
 
 
+def nyxt_listens(sock):
+    """Whether a Nyxt answers on its socket. Asked of the socket itself: with
+    none running `nyxt --remote` exits 0 all the same, and says so on the
+    terminal it finds (/dev/tty: from the desktop's menu the login's, never
+    our pipe), so its words can't be gone by."""
+    s = socket.socket(socket.AF_UNIX)
+    s.settimeout(2)
+    try:
+        s.connect(sock)
+        return True
+    except OSError:
+        return False
+    finally:
+        s.close()
+
+
 def page(query):
     """The catalogue as a page in Nyxt (started first when it isn't running)."""
     if not shutil.which("nyxt"):
         die("the page is Nyxt's (vikix add lisp-apps); without it, Super+F2 or vikix docs find")
     form = f"(nyxt-user::vikix-docs-show {json.dumps(query)})"
+    sock = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "nyxt", "nyxt.socket")
     def ask():
-        # --remote exits 0 with no Nyxt to ask; it only says so.
-        r = subprocess.run(["nyxt", "--remote", "--quit", "--eval", form],
-                           capture_output=True, text=True, timeout=20)
-        said = r.stdout + r.stderr
-        return r.returncode == 0 and "No instance running" not in said, said
-    ok, said = ask()
-    if not ok:
+        try:
+            r = subprocess.run(["nyxt", "--remote", "--quit", "--eval", form],
+                               capture_output=True, text=True, timeout=20)
+        except subprocess.TimeoutExpired:
+            return False
+        return r.returncode == 0
+    if not (nyxt_listens(sock) and ask()):
         # Started with the page's address: Nyxt opens it after putting your
         # last session back, so it ends up in front. (Asked by --eval
         # instead, the page came first and the restored buffers covered it.)
+        # A running Nyxt that didn't take the form takes the address.
         url = "nyxt:nyxt-user::vikix-docs-page?query=" + urllib.parse.quote(query, safe="")
         nyxt = subprocess.Popen(["nyxt", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                 start_new_session=True)
-        sock = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "nyxt", "nyxt.socket")
         for _ in range(60):
-            if os.path.exists(sock) or nyxt.poll() is not None:
+            if nyxt_listens(sock) or nyxt.poll() is not None:
                 break
             time.sleep(0.5)
-        if not os.path.exists(sock):
+        if not nyxt_listens(sock):
             die("Nyxt didn't start (run nyxt in a terminal to see why)")
     # StumpWM brings Nyxt's window forward (vikix-docs-open does the same).
     subprocess.run(["vikix", "eval", '(vikix-raise-class "Nyxt")'], capture_output=True)

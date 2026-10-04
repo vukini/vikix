@@ -126,26 +126,38 @@ if command -v Xvfb >/dev/null && command -v rofi >/dev/null && command -v xdotoo
 fi
 
 # The page in Nyxt: the hits as id, source, title, excerpt; the page asked of
-# a running Nyxt (a stand-in); with none (--remote exits 0 then, saying only
-# "No instance running"), Nyxt started with the page's address, so it opens
-# after the restored session rather than under it; and said when it can't.
+# a running Nyxt (a stand-in, on a socket that answers); with none (--remote
+# exits 0 then, and says "No instance running" only on the terminal: from the
+# desktop's menu nothing reaches the pipe, so the socket is what's asked),
+# Nyxt started with the page's address, so it opens after the restored
+# session rather than under it; and said when it can't.
 check "list: how many from each source" grep -qxP 'repo\t[0-9]+' <<<"$(d list)"
 check "list --source: its documents by title, four fields: $(d list --source repo)" grep -qP '^repo:.*\trepo\tMusic sketchpad.*\t$' <<<"$(d list --source repo)"
 tsv=$(d find websocket --tsv)
 check "--tsv gives four fields a line: $tsv" test -n "$tsv" -a -z "$(awk -F'\t' 'NF != 4' <<<"$tsv")"
+# A socket that answers for a few seconds, as a running Nyxt's does.
+listen() { mkdir -p "$(dirname "$1")"; rm -f "$1"; python3 -c 'import os, socket, sys, time
+s = socket.socket(socket.AF_UNIX); s.bind(sys.argv[1]); s.listen()
+if os.fork(): os._exit(0)
+time.sleep(20)' "$1" >/dev/null 2>&1; }
 printf '#!/bin/sh\necho "nyxt $*" >> %s/opened\n' "$t" > "$t/bin/nyxt"; chmod +x "$t/bin/nyxt"
-: > "$t/opened"; d page 'say "hi"'
-check "the page is asked for the words: $(cat "$t/opened")" grep -qF 'nyxt --remote --quit --eval (nyxt-user::vikix-docs-show "say \"hi\"")' "$t/opened"
+listen "$t/run/nyxt/nyxt.socket"
+: > "$t/opened"; XDG_RUNTIME_DIR="$t/run" d page 'say "hi"'
+check "the page is asked for the words: $(cat "$t/opened")" grep -qxF 'nyxt --remote --quit --eval (nyxt-user::vikix-docs-show "say \"hi\"")' "$t/opened"
 cat > "$t/bin/nyxt" <<X
 #!/bin/sh
 case "\$1" in
-  --remote) echo "<INFO> No instance running." ;;
-  *) echo "nyxt \$*" >> "$t/opened"; mkdir -p "$t/run/nyxt"; : > "$t/run/nyxt/nyxt.socket" ;;
+  --remote) echo "nyxt \$*" >> "$t/opened" ;;   # silent, exit 0: as from the desktop's menu
+  *) echo "nyxt \$*" >> "$t/opened"; $(declare -f listen); listen "$t/run2/nyxt/nyxt.socket" ;;
 esac
 X
-: > "$t/opened"; XDG_RUNTIME_DIR="$t/run" d page 'say "hi"'
-check "none running: Nyxt is started on the page: $(cat "$t/opened")" grep -qxF 'nyxt nyxt:nyxt-user::vikix-docs-page?query=say%20%22hi%22' "$t/opened"
-printf '#!/bin/sh\necho "<INFO> No instance running."\n' > "$t/bin/nyxt"  # never starts
+: > "$t/opened"; XDG_RUNTIME_DIR="$t/run2" d page 'say "hi"'
+check "none running: Nyxt is started on the page, not asked: $(cat "$t/opened")" grep -qxF 'nyxt nyxt:nyxt-user::vikix-docs-page?query=say%20%22hi%22' "$t/opened"
+check "none running: nothing is asked of a Nyxt that isn't there" test "$(wc -l < "$t/opened")" = 1
+mkdir -p "$t/run3/nyxt"; : > "$t/run3/nyxt/nyxt.socket"   # a socket file left behind, nobody listening
+: > "$t/opened"; out=$(XDG_RUNTIME_DIR="$t/run3" d page x 2>&1 || true)
+check "a socket left behind isn't a Nyxt: one is started: $(cat "$t/opened")" grep -qxF 'nyxt nyxt:nyxt-user::vikix-docs-page?query=x' "$t/opened"
+printf '#!/bin/sh\n:\n' > "$t/bin/nyxt"  # never starts
 out=$(XDG_RUNTIME_DIR="$t/home" d page x 2>&1 || true)
 check "a Nyxt that doesn't start is said: $out" grep -q "didn't start" <<<"$out"
 rm "$t/bin/nyxt"
