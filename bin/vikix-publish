@@ -25,6 +25,11 @@
 #                     out/ in .gitignore, and the make targets in its
 #                     Makefile (the line added to one already there);
 #                     never over a book that's there
+#   vikix publish skill [ZIP]
+#                     the doc-to-epub skill for claude.ai, made from this
+#                     pipeline (its SKILL.md, fix-tables.py and epub.css),
+#                     as a zip to upload (Settings, Capabilities, Skills);
+#                     ~/Downloads/doc-to-epub.zip without ZIP
 #   vikix publish setup
 #                     the packages, epubcheck (a pinned release, checked
 #                     against its checksum), the British English, Esperanto
@@ -327,8 +332,27 @@ cmd_new() {
   say "a book in $dir: write in chapters/, then vikix publish $dir (or make epub there)"
 }
 
+# The cloud skill, from the same files the laptop builds with: the skill
+# synced from claude.ai can't be changed here, only replaced by an upload.
+cmd_skill() {
+  local zip=${1:-$HOME/Downloads/doc-to-epub.zip}
+  local src="$VIKIX_DIR/lib/publish"
+  if [ "$DRY_RUN" = 1 ]; then printf '   would write %s\n' "$zip"; return 0; fi
+  mkdir -p "$(dirname "$zip")"
+  python3 - "$src" "$zip" <<'PY' || die "couldn't write $1"
+import sys, zipfile
+src, out = sys.argv[1], sys.argv[2]
+with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+    z.write(f"{src}/skill/SKILL.md", "doc-to-epub/SKILL.md")
+    z.write(f"{src}/fix-tables.py", "doc-to-epub/scripts/fix_tables.py")
+    z.write(f"{src}/epub.css", "doc-to-epub/references/epub.css")
+PY
+  say "the skill: $zip; on claude.ai, Settings, Capabilities, Skills: upload it in place of doc-to-epub"
+}
+
 case ${1:-} in
   new)       shift; cmd_new "$@" ;;
+  skill)     shift; cmd_skill "${1:-}" ;;
   setup)     cmd_setup ;;
   status)    cmd_status ;;
   uninstall) cmd_uninstall ;;

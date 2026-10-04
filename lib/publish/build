@@ -195,7 +195,9 @@ def languages(m, files):
     own = dict_name(m.get("lang"))
     marked = set()
     for f in files:
-        with open(f, encoding="utf-8") as fh:
+        if f.lower().endswith((".docx", ".odt", ".epub")):
+            continue   # a passage's language there is Word's, not marked: the book's lang
+        with open(f, encoding="utf-8", errors="replace") as fh:
             marked.update(re.findall(r"lang=[\"']?([A-Za-z_-]+)", fh.read()))
     others = sorted({dict_name(x) or x for x in marked} - {own})
     return own or m.get("lang", "?"), others

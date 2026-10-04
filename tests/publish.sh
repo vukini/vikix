@@ -218,16 +218,45 @@ X
   bash "$here/bin/vikix-publish" new "$t/fresh2" >/dev/null 2>&1 || true
   check "nor adds the make line twice" test "$(grep -c 'publish.mk' "$t/fresh2/Makefile")" = 1
 
+  # A Word document as the text (chapters: [../x.docx]), as the skill says.
+  word="$t/word"; mkdir -p "$word/book"
+  pandoc "$here/tests/publish/chapters/01-tables.md" -o "$word/INPUT.docx"
+  printf 'title: "From Word"\nlang: en-GB\nchapters: [../INPUT.docx]\n' > "$word/book/publish.yml"
+  out=$(VIKIX_EPUBCHECK="$t/bin/epubcheck-ok" bash "$here/bin/vikix-publish" "$word/book" epub 2>&1) || true
+  check "a .docx is a book's text too: $out" test -f "$word/book/out/book.epub"
+  out=$(PATH="$t/bin:$PATH" bash "$here/bin/vikix-publish" "$word/book" spell 2>&1) || true
+  check "and is spell-checked: $out" grep -q "^spelling" <<<"$out"
+
   out=$(bash "$here/bin/vikix-publish" no-such-book 2>&1) && fail=1
   check "a book that isn't there is said: $out" grep -q "no book called no-such-book" <<<"$out"
 else
   echo "(publish: no pandoc, Typst, or bs4/lxml/yaml: the building isn't tried)"
 fi
 
-# The e-ink fix is the doc-to-epub skill's: the same file, while it's at hand.
-skill=$(find "$real_home"/.claude/skills -path '*doc-to-epub/scripts/fix_tables.py' 2>/dev/null | head -1 || true)
-if [ -n "$skill" ]; then
-  check "fix-tables.py is still the skill's ($skill)" cmp -s "$skill" "$here/lib/publish/fix-tables.py"
+# The cloud skill is made from this pipeline (vikix publish skill): the zip
+# holds its SKILL.md and the same fix-tables.py and epub.css. The skill
+# synced from claude.ai, once it is the uploaded one, must still be them.
+bash "$here/bin/vikix-publish" skill "$t/skill.zip" >/dev/null 2>&1 || true
+check "vikix publish skill makes the zip" test -f "$t/skill.zip"
+python3 - "$t/skill.zip" "$here/lib/publish" <<'PY' || fail=1
+import sys, zipfile
+z = zipfile.ZipFile(sys.argv[1]); src = sys.argv[2]
+for inside, here in (("doc-to-epub/SKILL.md", "skill/SKILL.md"),
+                     ("doc-to-epub/scripts/fix_tables.py", "fix-tables.py"),
+                     ("doc-to-epub/references/epub.css", "epub.css")):
+    assert z.read(inside) == open(f"{src}/{here}", "rb").read(), f"{inside} isn't lib/publish/{here}"
+md = z.read("doc-to-epub/SKILL.md").decode()
+assert md.startswith("---\nname: doc-to-epub\n"), "the skill's front matter"
+assert "--no-highlight" in md, "the skill doesn't say --no-highlight"
+PY
+synced=$(find "$real_home"/.claude/skills -path '*doc-to-epub/SKILL.md' 2>/dev/null | head -1 || true)
+if [ -n "$synced" ]; then
+  d=$(dirname "$synced")
+  check "fix-tables.py is still the skill's ($d)" cmp -s "$d/scripts/fix_tables.py" "$here/lib/publish/fix-tables.py"
+  if grep -q 'vikix publish skill' "$synced"; then
+    check "the synced skill is this pipeline's: epub.css" cmp -s "$d/references/epub.css" "$here/lib/publish/epub.css"
+    check "and SKILL.md (vikix publish skill, then upload it)" cmp -s "$synced" "$here/lib/publish/skill/SKILL.md"
+  fi
 fi
 
 # setup: the packages are there (no sudo); a download that isn't epubcheck
@@ -264,5 +293,5 @@ check "uninstall takes the link, epubcheck and the dictionaries" test ! -e "$HOM
 check "and leaves your books" test -f "$HOME/src/books/mine/book.md" -a -f "$book/publish.yml"
 check "and the feature" bash -c '! grep -qx publish "$1"' _ "$HOME/.config/vikix/features"
 
-[ "$fail" = 0 ] && echo "publish: the test book as an EPUB with row cards for e-ink and its Arabic right to left, a PDF with Amiri, rejected ones kept apart, check leaving out/ alone, books found by name, the spelling by language with words.txt and --keep, --send to a Kindle, a Kobo, a BOOX over MTP or adb, new books started, the downloads' checksums checked"
+[ "$fail" = 0 ] && echo "publish: the test book as an EPUB with row cards for e-ink and its Arabic right to left, a PDF with Amiri, rejected ones kept apart, check leaving out/ alone, books found by name, the spelling by language with words.txt and --keep, --send to a Kindle, a Kobo, a BOOX over MTP or adb, new books started, a .docx as the text, the cloud skill made from the same files, the downloads' checksums checked"
 exit "$fail"
