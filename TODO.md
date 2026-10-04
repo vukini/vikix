@@ -8,9 +8,9 @@ From a review of 0.71.71 against one aim: the best desktop for a power user. Vik
 
 1. **The rules language** (the next section, items 68 to 71). Vid picked it first; `when-window` and the verbs, and the rules for the time, the battery and login, are in (`rules.lisp`).
 2. **Saved layouts**: by hand (`vikix layout save NAME`, `vikix layout NAME`) and by a rule (`(layout "writing")`) are in (`layouts.lisp`, plain Lisp files as IDEAS' "Layouts as plain Lisp" had it). `vikix project open` saving (on leaving its workspace) and putting back a project's layout is in too (50a). Starting the windows a layout names that aren't open, and placing them as they come, is in too. Left: nothing planned; what living with it shows.
-3. **A desktop to trust for weeks.** Signed updates (To look into, 4). A soak test: a hidden StumpWM on Xvfb with windows opening and closing for an hour, the time its main thread takes to answer measured over Swank, failing above a limit, weekly on GitHub. And times written down and tested: login to a usable desktop, a reload, a key to its action, an Emacs frame. Neither test is worked out yet.
+3. **A desktop to trust for weeks.** Signed updates (To look into, 4) are what's left. The times are measured and tested (`vikix times`, `tests/times.sh`: login, a reload, a key to its command, an Emacs frame, StumpWM answering, and a tiled xterm), and the soak test is in (`vikix times soak`, an hour on a hidden screen, weekly after asking; `tests/soak.sh` a minute of it); not on GitHub, whose runners have no screen.
 4. **Agents that act through code you can check first** (IDEAS, Leaning into Lisp), then the time machine for functions. The rules language's verbs (`*vikix-rule-verbs*`, `rules.lisp`) are the first entries of its allow-list.
-5. **In between, as polish:** `bugs.md`; a newly plugged screen (To look into, 2); GTK and Qt programs following `vikix theme`, and a tray that can be switched on (README, "Not done yet").
+5. **In between, as polish:** `bugs.md`; a newly plugged screen (To look into, 2). Done: GTK and Qt programs following `vikix theme`, and a tray that can be switched on (`vikix tray on`).
 
 ## The rules language (picked by Vid 2026-10-03)
 

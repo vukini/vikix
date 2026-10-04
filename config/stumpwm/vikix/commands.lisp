@@ -266,6 +266,7 @@ Returns the window, or nil when there's none."
     ("Do not disturb on/off" vikix-quiet)
     ("Keep awake on/off"   vikix-awake)
     ("Night light on/off"  vikix-nightlight)
+    ("Tray on/off: network and Bluetooth icons in the bar" vikix-tray)
     ("Find a window, any workspace" global-windowlist)
     ("Gaps around windows on/off" toggle-gaps)
     ("This workspace as a strip that scrolls sideways (Viri), or tiled again" vikix-viri)

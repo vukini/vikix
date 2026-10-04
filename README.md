@@ -307,6 +307,7 @@ Along the top, in Iosevka like the terminal: on the left the workspaces in use (
 - the volume: `vol 40%`
 - the battery, on a laptop: `bat 84%`, with a `+` while charging; nothing when it is full on the charger
 - the date and time
+- the **tray**, if you switch it on: `vikix tray on` (or `s-m` → *Tray on/off*). The network's and Bluetooth's applets show their icons there (nm-applet, blueman-applet: click for networks, devices, VPNs), and any program that puts an icon in a tray does too. It's StumpWM's stumptray module, loaded only when it's on, with Quicklisp's xembed; the bar leaves its icons room. Your choice is kept in `~/.config/vikix/tray` for the next login, with the applets it starts (`applets = nm-applet blueman-applet`; name your own, or none). `vikix tray off` takes it away and stops them.
 
 Each colour means one thing: alert (red in void) is something watching you, accent is something to act on, and the quieter colour is a mode you switched on yourself.
 
@@ -1189,7 +1190,6 @@ They run side by side, as many at once as the machine has cores (`VIKIX_TEST_JOB
 
 ## Not done yet
 
-- **System tray.** StumpWM has no tray, so the network and Bluetooth applets aren't started. Use `nmtui` and `blueman-manager` instead; both are in the `s-m` menu.
 - **Installer ISO.** None yet. For now it's a script on top of a plain Void install.
 
 ## Contact

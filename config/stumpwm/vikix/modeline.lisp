@@ -222,6 +222,104 @@ from *vikix-recording* and *vikix-dictating* (commands.lisp)."
 (add-screen-mode-line-formatter #\R 'vikix-mode-line-recording)
 (add-screen-mode-line-formatter #\E 'vikix-mode-line-battery)
 
+;;; The tray (vikix tray on): off unless switched on. StumpWM has none of
+;;; its own, so the network and Bluetooth applets (nm-applet,
+;;; blueman-applet) had nowhere to show; StumpWM's stumptray module puts
+;;; their icons at the bar's right end. The module and its one library
+;;; (xembed, from Quicklisp) load only when it's switched on. The bar
+;;; leaves the icons room (%S): spaces as wide as the tray.
+
+(defparameter *vikix-tray-file*
+  (merge-pathnames ".config/vikix/tray" (user-homedir-pathname))
+  "vikix tray's settings: on or off, and the applets it starts.")
+
+(defun vikix-tray-settings ()
+  "(ON-P APPLETS APPLETS-SET-P) from *vikix-tray-file*: a line `on`, and
+`applets = ...` (which may name none)."
+  (let ((on nil) (applets '()) (set nil))
+    (with-open-file (in *vikix-tray-file* :if-does-not-exist nil)
+      (when in
+        (loop for line = (read-line in nil) while line
+              for text = (string-trim " " (subseq line 0 (or (position #\# line) (length line))))
+              do (cond ((string-equal text "on") (setf on t))
+                       ((and (> (length text) 7) (string-equal (subseq text 0 7) "applets"))
+                        (let ((eq (position #\= text)))
+                          (when eq
+                            (setf set t
+                                  applets (remove "" (split-string (subseq text (1+ eq)) " ")
+                                                  :test #'string=)))))))))
+    (list on applets set)))
+
+(defun vikix-tray-object ()
+  "The screen's tray, when it's on."
+  (let ((pkg (find-package :stumptray)))
+    (and pkg (funcall (find-symbol "CURRENT-TRAY" pkg)))))
+
+(defun vikix-tray-start ()
+  "The tray on, in the bar, and its applets started (those not running)."
+  (handler-case
+      (progn
+        (unless (find-package :stumptray)
+          (funcall (find-symbol "QUICKLOAD" :ql) :xembed :silent t)
+          (load-module "stumptray"))
+        (unless (vikix-tray-object)
+          (run-commands "stumptray"))
+        (dolist (a (second (vikix-tray-settings)))
+          (when (every (lambda (c) (or (alphanumericp c) (find c "-_."))) a)
+            (run-shell-command (format nil "pgrep -x ~a >/dev/null || exec ~a" a a))))
+        t)
+    (error (e)
+      (message "^1Vikix: the tray didn't start:^n ~a" e)
+      nil)))
+
+(defun vikix-tray-stop ()
+  "The tray off; its applets stopped."
+  (ignore-errors (when (vikix-tray-object) (run-commands "stumptray")))
+  (dolist (a (second (vikix-tray-settings)))
+    (when (every (lambda (c) (or (alphanumericp c) (find c "-_."))) a)
+      (run-shell-command (format nil "pkill -x ~a" a)))))
+
+(defun vikix-mode-line-tray (ml)
+  "Room for the tray's icons at the bar's end: spaces as wide as it is."
+  (declare (ignore ml))
+  (let ((tray (ignore-errors (vikix-tray-object))))
+    (if (null tray)
+        ""
+        (let* ((width (or (ignore-errors (funcall (find-symbol "TRAY-WIDTH" :stumptray) tray)) 0))
+               (space (max 1 (or (ignore-errors
+                                  (ceiling (text-line-width (screen-font (current-screen)) "          ") 10))
+                                 7))))
+          (make-string (+ 1 (ceiling width space)) :initial-element #\Space)))))
+
+(add-screen-mode-line-formatter #\S 'vikix-mode-line-tray)
+
+(defun vikix-tray-set (on)
+  "The tray on (ON true) or off, remembered for the next login."
+  (let ((settings (vikix-tray-settings)))
+    ;; The choice, kept in the file; the applets line as it was.
+    (ensure-directories-exist *vikix-tray-file*)
+    (with-open-file (out *vikix-tray-file* :direction :output :if-exists :supersede)
+      (format out "# vikix tray's settings (yours; vikix tray on/off rewrites the first line).~%~a~%"
+              (if on "on" "off"))
+      (format out "# The programs started with the tray, whose icons show in it:~%applets = ~{~a~^ ~}~%"
+              ;; The network's and Bluetooth's, unless you've named your own (or none).
+              (if (third settings) (second settings) '("nm-applet" "blueman-applet"))))
+    (if on (vikix-tray-start) (vikix-tray-stop))
+    (message "Tray ~a" (if on "on" "off"))))
+
+(defcommand vikix-tray () ()
+  "The tray in the bar, for applets' icons (network, Bluetooth): on if it's
+off, off if it's on, remembered for the next login."
+  (vikix-tray-set (null (vikix-tray-object))))
+
+(defcommand vikix-tray-on () ()
+  "The tray in the bar, on (vikix tray on)."
+  (vikix-tray-set t))
+
+(defcommand vikix-tray-off () ()
+  "The tray in the bar, off (vikix tray off)."
+  (vikix-tray-set nil))
+
 (defun vikix-bar-refresh ()
   (vikix-volume-refresh)
   (vikix-net-refresh)
@@ -253,9 +351,13 @@ from *vikix-recording* and *vikix-dictating* (commands.lisp)."
       ;; The window's number and title. StumpWM's default adds * + - marks,
       ;; which say again what the accent colour already shows.
       *window-format*        "%n %30t"
-      *screen-mode-line-format* "%J  %W^>%P%R%K%X%Y%Q%U%A%D%Z%O%T%V%E%d")
+      *screen-mode-line-format* "%J  %W^>%P%R%K%X%Y%Q%U%A%D%Z%O%T%V%E%d%S")
 
 ;; Turn the bar on for every screen and head (monitor).
 (dolist (screen *screen-list*)
   (dolist (head (screen-heads screen))
     (enable-mode-line screen head t)))
+
+;; The tray, when you switched it on (vikix tray on): after the bar it sits in.
+(when (and (first (vikix-tray-settings)) (not (vikix-tray-object)))
+  (vikix-tray-start))
