@@ -22,18 +22,49 @@
 ;; Focus moves to the window under the mouse, without a click.
 (setf *mouse-focus-policy* :sloppy)
 
-;; StumpWM's own handler, but for one thing: the pointer "entering" the
-;; window that has the focus already does nothing. X says the pointer
-;; entered a window whenever what covered it goes (a menu closing over the
-;; pointer), and StumpWM's focus-all takes any message off the screen: the
-;; answer of "What does a key do?", picked from the menu, was gone as it
-;; came.
-(define-stump-event-handler :enter-notify (window mode)
+;; StumpWM's own handler, but for two things.
+;;
+;; The pointer "entering" the window that has the focus already does
+;; nothing. X says the pointer entered a window whenever what covered it
+;; goes (a menu closing over the pointer), and StumpWM's focus-all takes any
+;; message off the screen: the answer of "What does a key do?", picked from
+;; the menu, was gone as it came.
+;;
+;; And an EnterNotify with the pointer where it was when the focus last
+;; changed changes nothing either: the mouse didn't move, windows did (one
+;; raised over another under a still pointer). Acting on those froze the
+;; desktop: a floating window over a tile, the pointer on both, and two such
+;; events waiting out of step. Each gave the focus to its window, which
+;; raised it, which made the next event for the other one, for ever, with
+;; StumpWM's one thread never free again. It also means a window you go to
+;; with a key keeps the focus while the pointer rests on another. An
+;; EnterNotify anywhere else shows the mouse has moved since, whether or not
+;; it changes the focus, and the place is forgotten: the pointer back on the
+;; same spot later is the mouse again.
+
+(defvar *vikix-pointer-at-focus* nil
+  "Where the pointer was, as (X . Y) on the root window, when the focus last
+changed; nil once the mouse has moved since.")
+
+(defun vikix-note-pointer-at-focus (&rest ignore)
+  "Note where the pointer is now: the focus has just changed."
+  (declare (ignore ignore))
+  (setf *vikix-pointer-at-focus*
+        (ignore-errors
+         (multiple-value-bind (x y) (xlib:global-pointer-position *display*)
+           (cons x y)))))
+
+(remove-hook *focus-window-hook* 'vikix-note-pointer-at-focus)
+(add-hook *focus-window-hook* 'vikix-note-pointer-at-focus)
+
+(define-stump-event-handler :enter-notify (window mode root-x root-y)
   (when (and window (eq mode :normal) (eq *mouse-focus-policy* :sloppy))
-    (let ((win (find-window window)))
-      (when (and win (find win (top-windows)) (not (eq win (current-window))))
-        (focus-all win)
-        (update-all-mode-lines)))))
+    (unless (equal (cons root-x root-y) *vikix-pointer-at-focus*)
+      (setf *vikix-pointer-at-focus* nil)
+      (let ((win (find-window window)))
+        (when (and win (find win (top-windows)) (not (eq win (current-window))))
+          (focus-all win)
+          (update-all-mode-lines))))))
 
 (defun vikix-load-module (name)
   "Load contrib module NAME. True if it loaded. A missing module is

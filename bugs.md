@@ -13,15 +13,15 @@ Noted 2026-10-04, twice the same day (`tests/run.sh` with other sessions' test r
 
 **Next step.** Run it under load (`stress-ng --cpu 16` beside it) to see which check fails, and give that wait a poll with a deadline; or add `main` to `alone` in `tests/run.sh` if it can't be made patient.
 
-## The desktop can freeze: focus bouncing between a floating window and the tile under it
+## A window with a broken WM_HINTS can't be raised: "an error StumpWM didn't catch"
 
-Noted 2026-10-04, on main at 0.71.139, on a hidden screen (Xvfb, no picom). Not seen on a real desktop yet, but nothing about it is the test's own.
+Noted 2026-10-04, on Vid's desktop at 0.71.148 (`~/.local/state/vikix/errors/20261004-161317-00.txt`).
 
-**What happens.** StumpWM's main thread never comes back: no key works, `vikix eval` says "StumpWM's main thread did not answer within 10 s", and Escape doesn't help. To see it: a tiled window filling the screen, a second window floated over the middle of it (`float-window`), the pointer resting on the floating one, then the tiled window given the focus by a command (`focus-all`, a few times back and forth). Within about half a minute it is stuck. With the pointer moved off the floating window first (`xdotool mousemove 3 790`), it never happens.
+**What happens.** A window titled "Calculator" opened, and StumpWM met an error it doesn't catch, in the handling of the window's map request: `The value 1668047203 is not of type (UNSIGNED-BYTE 29) when binding XLIB::ID`. Vikix's errors menu took it, so the desktop went on, but every raise of that window would do the same.
 
-**What's known.** The main thread is running, not waiting: its backtrace is `handle-event` for an `:enter-notify` on the floating window, in the handler at the top of `windows.lisp` (ours since 0.71.126; StumpWM's own would do the same), calling `focus-all` and the focus hooks (`vikix-rules-focus-window`, `vikix-titlebar-redraw`, `vikix-raise-dialogs`), with the tile as the window that had the focus; the X request numbers are in the tens of thousands. So each `focus-all` brings another EnterNotify for the other window, without the pointer moving, and the two take the focus from each other for ever. What gives it back to the tile each time isn't known: something in the focus hooks restacks (the title bars, or the dialogs kept in front) is the first guess. It doesn't need rules: a desktop with none does it.
+**What's known.** The backtrace is `raise-window` → `window-urgent-p` → `xlib::decode-wm-hints` → `xlib::lookup-pixmap`. The window's `WM_HINTS` was `#(7 1 1 1668047203 0 0 0 0 0)`: its flags say it has an icon pixmap, and the pixmap's id is 1668047203, which is no X id (they are 29 bits) but the four letters "calc" read as a number (0x636c6163). So the program wrote text where an id belongs, and CLX, which StumpWM reads the hints with, is strict about it. Which program it was isn't known: the calculators tried that day aren't installed any more (SpeedCrunch, which is, doesn't do it).
 
-**Next step.** Log the EnterNotify events (window, detail, pointer position) during the bounce to see who restacks. The likely fix is in the handler: an EnterNotify with the pointer where it was at the last one comes from windows moving, not from the mouse, and changes no focus. Then a check in `tests/rules.sh` (or `tests/main.sh`): the windows above, the pointer on the floating one, and StumpWM still answering a minute later.
+**Next step.** Reproduce it with any window: `xprop -id ID -f WM_HINTS 32c -set WM_HINTS "7, 1, 1, 1668047203, 0, 0, 0, 0, 0"`, then raise it. The likely fix is to read the hints forgivingly, `xlib:wm-hints` answering nothing for a window whose hints can't be read (an `sb-int:encapsulate` in `windows.lisp`, as `get-window-placement` is wrapped in `rules.lisp`), with a check for it in `tests/focus.sh`.
 
 ## tests/rules.sh fails when the machine is very busy
 
