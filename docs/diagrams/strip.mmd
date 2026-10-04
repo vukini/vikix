@@ -1,0 +1,18 @@
+flowchart LR
+  A["1 notes"]
+  subgraph screen["what the screen shows"]
+    direction LR
+    B["2 editor"]
+    C["3 terminal"]
+  end
+  subgraph shared["one column, two windows"]
+    direction TB
+    D["4 browser"]
+    E["5 chat"]
+    D ~~~ E
+  end
+  F["6 music"]
+  A ---|"← Super+h"| B
+  B --- C
+  C ---|"Super+l →"| shared
+  shared --- F

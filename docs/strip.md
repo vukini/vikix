@@ -1,0 +1,122 @@
+# The strip, a workspace that scrolls
+
+Tiles are good for two or three windows. With five, each is too small to work in, or most are hidden behind others. A strip is the other way to arrange a workspace: its windows stand side by side in a row that is wider than the screen, each as wide as it needs to be, and you move along the row. Nothing shrinks when a window opens, and nothing is hidden: what isn't on the screen is just off to one side.
+
+![A strip of five columns: the screen shows two of them, the others stand past its edges, and Super+h and Super+l move along](diagrams/strip.svg)
+
+A column is one window, or a few stacked one above the other. The screen shows as many columns as fit; the rest keep running past its edges, and come back the moment you walk to them.
+
+You choose it for one workspace at a time. The others stay as they are, and the workspace goes back to tiles whenever you like, split as it was before. The idea is Niri's, a Wayland compositor; on Vikix it is called Viri.
+
+## Making a workspace a strip, and tiles again
+
+Any of these, on the workspace you want:
+
+- `Super+m`, then *This workspace as a strip that scrolls sideways (Viri), or tiled again*
+- `Super+Ctrl+Space`, the layout menu, then *Strip: columns side by side that scroll sideways*
+- `vikix viri` in a terminal (`vikix viri on` and `vikix viri off` say which)
+
+Its windows keep the order they stood in: left to right, then top to bottom. The same again (or `vikix viri off`) makes it tiles, split as they were before it was a strip, each window back in its place. A window opened while it was a strip joins the split you're in.
+
+To have a workspace always start as a strip, a rule in `~/.stumpwm.d/rules.lisp` ([Rules for the desktop](rules.md) is their page):
+
+```lisp
+(when-workspace 3 (command "vikix-viri on"))
+```
+
+## Moving along it
+
+| Key | What it does |
+|---|---|
+| `Super+h`, `Super+l` (or the arrows) | the column on the left, on the right; the strip scrolls when it has to |
+| `Super+j`, `Super+k` | down and up, in a column of several windows |
+| `Super+Shift+h`, `Super+Shift+l` | move this column left or right along the strip |
+| `Super+Shift+j`, `Super+Shift+k` | move this window down or up its column |
+| `Super+Tab` | back to the window you were in before; again flips between the two |
+| `Super+o` | every workspace drawn small, the strip among them, to pick a window |
+| `Super+g` | the list of every window on every workspace, to go to one |
+
+A new window opens as a column of its own, just right of the one you're in, and takes the focus. When you close one, the focus goes to the column that took its place.
+
+The bar at the top shows where you are: the strip's windows in order, the ones on the screen in brackets, the one you're in picked out, as in `A [B C] D`. A column of two windows is written `D/C`. The window you're in has the coloured border and title bar, as on tiles.
+
+The strip scrolls only as far as it must to show the column you went to whole, so a neighbour may show in part. It slides there, in about a tenth of a second.
+
+## Columns: how wide, and what's in them
+
+| Key | What it does |
+|---|---|
+| `Super+r` | this column wider: half the screen, two thirds, all of it, then a third, and round again |
+| `Super+[`, `Super+]` | this window into the column on its left or right, under what's there; pressed on a window that shares a column, out into a column of its own that way |
+| `Super+f` | this window on the whole screen, and back |
+| `Super+Ctrl+y` | title bars off and on, as on tiles |
+
+A new column is half the screen wide. A column's windows share its height evenly: an editor with a terminal under it, say, is `Super+[` pressed on the terminal standing right of the editor.
+
+## The mouse
+
+| Do this | And |
+|---|---|
+| Hold `Super` and turn the wheel over the strip | you walk along it, as `Super+h` and `Super+l` do |
+| Turn the wheel over the bar's window names | the same |
+| Drag a window's title bar (or hold `Super` and drag anywhere in it) | its column goes with the pointer, and stays where you let it go |
+| Drag a column's side edge (or hold `Super` and drag with the right button) | the column gets wider or narrower, a twentieth of the screen at a time |
+| Click a window's name in the bar | you go to it |
+
+A width set by dragging can be any twentieth of the screen; `Super+r` then takes the column to the next of its four widths.
+
+## What's different from tiles
+
+Most keys do on a strip what they do everywhere. A few belong to tiles, and say so when pressed on a strip rather than doing something surprising:
+
+| Key | On a strip |
+|---|---|
+| `Super+b`, `Super+v` | A strip has no splits: a new window gets a column, and `Super+[` and `Super+]` stack. |
+| `Super+u`, `Super+Shift+u` | No layout undo: a strip keeps its order, and you move a column back. |
+| `Super+z`, `Super+Shift+o`, `Super+Ctrl+m` | Focus mode, grid mode and main and stack are ways of tiling. |
+| `Super+Shift+g` | The window you pick comes onto the strip, as a column beside the one you're in. |
+| `Super+Shift+1` … `9` | The window goes to that workspace, and is tiled there if that workspace is. |
+
+Dialogs (a password box, a file chooser) float in the middle of the screen, as on tiles, and aren't columns.
+
+## Settings
+
+In `~/.stumpwm.d/user.lisp`, each a line; `vikix eval '(loadrc)'` applies the file ([Making it yours](customize.md) has more on it):
+
+```lisp
+(setf *viri-default-width* 2/3)   ; a new column's width: a part of the screen (1/2 as it comes)
+(setf *viri-centre* t)            ; keep the column you're in in the middle of the screen
+(setf *viri-animate* nil)         ; jump instead of sliding
+(setf *viri-animate-seconds* 0.2) ; or slide more slowly (0.12 as it comes)
+(setf *viri-width-step* 1/10)     ; dragging an edge goes a tenth of the screen at a time
+```
+
+The slide needs a compositor, which Vikix runs (picom). Without one the strip jumps, since each step would make every program draw its window again.
+
+A rule can give a program's window its width or its place as it opens: `(width 2/3)` and `(join :left)`, in [What a rule does](rules.md#what-a-rule-does). A strip's columns, their widths and what's stacked are kept by [saved layouts](customize.md#saved-layouts) too, and a project opened with `vikix project open` comes back as the strip you left.
+
+## When it isn't right
+
+- **A window lies over its neighbours, or a gap stays where one was.** Press `Super+Ctrl+y` twice (title bars off and on again): the strip is laid out afresh. It shouldn't happen, so it's worth a report: `vikix debug` writes one.
+- **A program looks stale when you come back to it.** Columns past the screen's edge are moved there, not hidden, so programs keep drawing; one that pauses when it thinks nobody is looking may take a moment to catch up.
+- **You'd rather have the tiles back.** `vikix viri off`. Nothing is lost: the windows, and the splits the workspace had before.
+
+## For the curious: how a strip works
+
+It is one file, `config/stumpwm/vikix/viri.lisp`, and less than it looks. StumpWM has two kinds of workspace built in: tiled ones, which own the windows' places, and floating ones, which leave each window where it is put. A strip is a floating workspace (`viri-group`, a subclass of StumpWM's `float-group`) in which Viri does the putting. StumpWM's own code still focuses, raises and closes the windows; `viri.lisp` only takes over what a strip does differently: a window joining (`group-add-window`), leaving (`group-delete-window`), being focused (`group-focus-window`), and a press of the mouse (`group-button-press`).
+
+What the strip remembers is small: a list of columns, each with its windows from top to bottom, its width as a part of the screen and the window focused in it last; and how far the strip is scrolled, in pixels from its left end. Everything on the screen follows from those. `viri-place` works out each window's place and size from them, and `viri-layout` calls it whenever something changed.
+
+This is what one press of `Super+l` sets off:
+
+![Super+l runs vikix-focus, which asks the strip for the next column; focusing it scrolls the strip, which slides its windows and then lays them out](diagrams/strip-scroll.svg)
+
+Three things in it are there because of how X and StumpWM work:
+
+- **The keys are not the strip's own.** StumpWM looks in its main key map before any workspace's, and every Vikix key is in the main one. So `Super+l` runs `vikix-focus`, which walks the strip on a strip and moves between splits everywhere else. `vikix-move`, `vikix-split` and the others are made the same way.
+- **The slide is a loop, not a timer.** `viri-slide` moves every column a little, eight times, with a short sleep between. A timer would want a fraction of a second as its delay, and StumpWM's timers stop working when given one.
+- **The pointer is taken along.** Vikix's focus follows the mouse. When the strip moves under a pointer that stays still, X reports that the pointer has entered whichever window landed under it, and that window would take the focus back. So `viri-keep-pointer` moves the pointer to the focused window and drops those reports.
+
+The drawn overview (`Super+o`) is `overview.lisp`; the strip gives it its columns as boxes through `viri-overview-boxes`. An AI agent sees a strip through the `desktop` tool of `vikix mcp`, which lists its columns left to right with their widths and which are on the screen ([Working with AI](ai.md)).
+
+The design, with what was planned and what building it changed, is `DESIGN-viri.md` in the checkout.

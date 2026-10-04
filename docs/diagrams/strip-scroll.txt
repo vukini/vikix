@@ -1,0 +1,22 @@
+  You        StumpWM's keys   vikix-focus      the strip          the X server
+             (*top-map*)      (viri.lisp)      (a viri-group)
+   |               |               |                |                   |
+   |-- Super+l --->|               |                |                   |
+   |               |-- "vikix- --->|                |                   |
+   |               |   focus right"|                |                   |
+   |               |               |-- viri-step -->|                   |
+   |               |               |   the column   | group-focus-window:
+   |               |               |   on the right | focus it, then
+   |               |               |                | viri-scroll-to (the
+   |               |               |                | offset changes only
+   |               |               |                | as far as it must)
+   |               |               |                |-- viri-slide: --->|
+   |               |               |                |   every column a  |
+   |               |               |                |   little, 8 times |
+   |               |               |                |   in about 0.12 s |
+   |               |               |                |-- viri-place: --->|
+   |               |               |                |   final places,   |
+   |               |               |                |   title bars      |
+   |               |               |                |-- viri-keep- ---->|
+   |               |               |                |   pointer         |
+   |<------------- the strip has slid, the next column has the focus ---|

@@ -13,6 +13,7 @@ Every `vikix` command has a man page as well, and so has each command of a plugi
 | [Where everything is](map.md) | You want to find a file: what Vikix put where, and whose it is |
 | [How it fits together](how-it-works.md) | You want to know what the base and the features are, what happens between logging in and the desktop, or what `vikix update` does |
 | [Making it yours](customize.md) | You want to change something: keys, startup programs, the bar, the theme, the terminal, what's installed |
+| [The strip, a workspace that scrolls](strip.md) | You have more windows than fit side by side: a row wider than the screen that you move along, its keys, the mouse, and how it works |
 | [Rules for the desktop](rules.md) | You want something to happen by itself: a window on its workspace, a program at login, a reminder at a time; or you want to know why a window went where it did |
 | [Neovim and Emacs](editors.md) | You write code or text in Neovim or Emacs: which files are yours, the language servers, AI beside your code |
 | [Nyxt, the browser you change in Lisp](nyxt.md) | You have Nyxt (the feature `lisp-apps`): guides opening in it, its colours, your config, Emacs connected to it, commands of your own |

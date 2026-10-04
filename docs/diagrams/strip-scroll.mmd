@@ -1,0 +1,16 @@
+sequenceDiagram
+  autonumber
+  actor You
+  participant K as StumpWM's keys<br/>(*top-map*)
+  participant C as vikix-focus<br/>(viri.lisp)
+  participant G as the strip<br/>(a viri-group)
+  participant X as the X server
+  You->>K: Super+l
+  K->>C: the command vikix-focus right
+  C->>G: viri-step: the column on the right,<br/>the window focused there last
+  G->>G: group-focus-window, then viri-scroll-to
+  Note over G: the offset changes only as far as<br/>the column needs to be whole on the screen
+  G->>X: viri-slide: every column moved a little,<br/>eight times in about 0.12 s
+  G->>X: viri-place: each window's final place and size,<br/>its title bar across its top
+  G->>X: viri-keep-pointer: the pointer goes to the focused window,<br/>and what X said of the moves is dropped
+  X-->>You: the strip has slid, the next column has the focus

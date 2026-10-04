@@ -1,0 +1,13 @@
+  the strip: its columns side by side, wider than the screen
+
+             +---- what the screen shows ----+
+             |                               |
+  +---------+|+------------+ +-------------+ | +------------+ +---------+
+  | 1 notes ||| 2 editor   | | 3 terminal  | | | 4 browser  | | 6 music |
+  |         |||            | |             | | +------------+ |         |
+  |         |||            | |             | | | 5 chat     | |         |
+  +---------+|+------------+ +-------------+ | +------------+ +---------+
+             |                               |  one column,
+             +-------------------------------+  two windows
+
+      <-- Super+h goes this way        Super+l goes this way -->
