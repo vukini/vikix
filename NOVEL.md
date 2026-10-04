@@ -198,6 +198,68 @@ Why only Vikix: the rules know power and network, the machines design gives the 
 
 First step: `vikix ai serve on|off` by hand between the Z13 and the X1 over the tailnet; then the rule.
 
+## 16. Tabs are windows
+
+The browser stops being a window with tabs inside and becomes part of the desktop: each page is a window StumpWM arranges.
+
+- Nyxt is written in Lisp and can run each buffer in its own X window; StumpWM is written in Lisp and arranges windows. Join them and a page is tiled beside Emacs, two pages sit side by side without a split-screen extension, a page lives on a project's workspace with the project's files, and a strip (Viri) scrolls through your reading the way it scrolls through everything else.
+- The things browsers reinvented badly come back as desktop things: the window list is the tab list; `Super+g` finds a page by title; "close this project" closes its pages; a rule puts documentation pages on the right and the thing you're building on the left; the agent opens a page the way it opens a terminal.
+- Firefox stays for what Nyxt can't render; a key sends the current page across. The docs catalogue's pages (`vikix docs`) open this way already, as `vikix:` pages in Nyxt.
+
+Why only Vikix: the browser and the window manager are the same language on the same machine, and Nyxt's buffer-per-window is a setting, not a rewrite.
+
+First step: Nyxt with one window per buffer on a strip, for a day of reading. If pages as columns feel right, the rest is rules and keys.
+
+## 17. Personas
+
+One desktop, two companies, nothing leaking between them.
+
+- `vikix persona centaur`: the accent colour, the web apps' profiles (each already has its own, `~/.local/share/vikix/webapps/NAME`), the browser's container, the mail account the desk (TODO 21) reads, the projects `vikix project` lists first, the folders Esploro opens by default, the notes file capture goes to, even the agent's guide (which company's files it may read). `vikix persona link`, and all of it changes; `vikix persona home` for the evening.
+- Not accounts, not logins: one user, one home, with the rules language choosing what is in front of you. A persona is a file of settings a rule applies; `when-workspace` and `at` can switch personas (the Link workspace is Link's; nine o'clock is work).
+- The bar names the persona in the quiet colour, so a screenshot sent to the wrong company is caught by the eye.
+
+Why only Vikix: the web apps already have separate profiles, the rules switch things on the desktop, and the desk is designed to keep companies apart; a persona is the word for doing all of that at once.
+
+First step: a persona that changes the accent colour and the web apps shown in Super+m; see whether having the word makes the switching happen.
+
+## 18. Rules you can send
+
+A key, a rule or a layout as a card you hand to someone.
+
+- `vikix share rule firefox-right`: a QR code on the screen (or a short file) holding the rule's text, its one-line description and who made it. Another Vikix scans it (the phone, or the webcam, or the file) and Esploro's review panel shows the rule as text with Apply and Cancel; it lands in `~/.stumpwm.d/rules.lisp` with a comment naming the giver. Snapshot first, undo after.
+- The same for a key, a theme, a web app, a saved layout, a music pattern (`DESIGN-music.md`), a Cuis package.
+- Because the card is the rule's text and the receiver reads it before applying, this is sharing without a store: no registry, no accounts, no trust in a server. The plugins repo stays for code; cards are for the small things people make for themselves.
+- A classroom of Vikix machines (should the children's account ever return) is a teacher showing a card.
+
+Why only Vikix: settings are small readable Lisp forms, and the review panel that shows a plan before applying it already exists.
+
+First step: `vikix share` and `vikix take` for a rule, through a file; the QR after.
+
+## 19. The terminal remembers
+
+Every command's output is a thing you can point at afterwards.
+
+- With `bash-preexec` and atuin already seeing each command, Vikix keeps each command's output (bounded, say the last hundred commands or 50 MB) in the record store, with the command, the folder, the time, the exit status and the project. Then: `vikix last` prints the previous output; `vikix last | esploro` opens the files it named; `Super+i` on a terminal offers "explain the last error" with the real output, not a guess; the agent reads `vikix last --json` instead of asking you to paste; the diary (4) knows what the shell did.
+- In the terminal, a key (the same `Super+?` of "why did that happen?") on a line of output shows which command made it and when.
+- Outputs are private records: in `records.db`, 600, never in the backup unless asked, never sent anywhere; the ledger shows if the agent read one.
+
+Why only Vikix: the hooks, the record store and the agent's door exist; the terminal is the last part of the desktop that forgets.
+
+First step: keep the last twenty outputs and `vikix last`; see how often it's reached for.
+
+## 20. Every fix becomes a check
+
+When you fix something by hand, the desktop offers to remember how to notice it next time.
+
+- You edit a config to fix a problem (the Wi-Fi driver option, the printer's URL, a font that wasn't picked up). The snapshot history sees the change; the apprentice (`IDEAS.md`) asks, once, "this fixed something; should `vikix doctor` check for it?" and proposes the check as a line in `~/.config/vikix/doctor.d/`: what to look at, what it should say, what to do if it doesn't.
+- `vikix doctor` grows with the machine: the checks that matter to this laptop, written at the moment the knowledge was fresh, instead of a fixed list for every machine.
+- The developers' rule in `CLAUDE.md` ("a new kind of breakage found by hand should become a check in the matching test") becomes a user's habit, with the desktop doing the writing.
+- A check can be shared as a card (18), which is how a fix for one ThinkPad reaches the next.
+
+Why only Vikix: the snapshot history shows every change to your settings, `vikix doctor` is the place checks live, and the agent can write the check from the diff.
+
+First step: a user `doctor.d/` folder that `vikix doctor` reads; the offer after.
+
 ---
 
 ## Not yet written up
@@ -206,4 +268,6 @@ A line each, for the next session with Vid:
 
 - **The desktop as a musical instrument** beyond the sketchpad: the bar's beat, keys as pads, is in `DESIGN-music.md`; what isn't is the other direction, the desktop's own events as sound: a quiet tick for a finished build, a chord for a passed test suite, so a long job can be heard from across the room.
 - **Draw a rhythm.** The music sketchpad's codeless face (`DESIGN-music.md`, `DESIGN-cuis.md`) could take ink on the Z13: a stroke per hit, a longer stroke a longer note, the row redrawn as cells; the pen as the first instrument.
+- **Vikix in the browser.** The site's sketch of the desktop could be the real thing: Void in v86 (x86 in WebAssembly) with Vikix installed, slow but true, so "try it without installing" is a click. Measure first whether StumpWM on v86 is bearable.
+- **A conversation partner in Esperanto.** Idea 1 plus the voice keys: a daily few minutes of spoken Esperanto with the local model at your level, the desktop as the patient speaker every learner lacks (Vid's own conversation skill is the model for how it talks).
 - **Teach the agent your desktop by showing it**: record (3) a few minutes of how you work, and the apprentice (`IDEAS.md`) reads that instead of the shell history alone.
