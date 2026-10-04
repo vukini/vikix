@@ -1,0 +1,322 @@
+#!/usr/bin/env python3
+"""vikix-gestures — a three-finger swipe on the touchpad moves the focus (`vikix gestures`).
+
+  vikix gestures          whether it's listening, and what a swipe does
+  vikix gestures on       listen from now on, and at each login
+  vikix gestures off      stop listening, and don't start at login
+  vikix gestures --watch  listen for swipes (the session starts this)
+
+Three fingers swept left or right go to the window that way, as Super+h
+and Super+l do: along a strip (vikix viri), a column at a time, and between
+the splits of a tiled workspace. Swept up or down, they go up and down a
+column or the splits. A long sweep goes on going: a step for each stretch
+of the way. The window goes the way the picture under your fingers does,
+as two fingers scroll a page: fingers to the left bring the next column
+on the right. Nothing else is touched: two fingers scroll, as always.
+
+Settings are yours, in ~/.config/vikix/gestures, one a line:
+
+    fingers = 3      how many fingers make the sweep (3 or 4)
+    distance = 200   how far they go for each step: less is quicker
+    natural = yes    no: the focus goes the way the fingers do
+
+It listens through the X server (XInput 2.4, touchpad gestures), so it
+needs no group or password; a program that takes the sweep for itself
+keeps it. It is off while ~/.config/vikix/gestures-off exists, and stops
+by itself on a machine with no touchpad.
+"""
+import ctypes
+import os
+import subprocess
+import sys
+
+HERE = os.path.dirname(os.path.realpath(__file__))
+CONFIG = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "vikix")
+SETTINGS = os.path.join(CONFIG, "gestures")
+OFF = os.path.join(CONFIG, "gestures-off")
+
+# XInput 2.4's touchpad swipe events.
+SWIPE_BEGIN, SWIPE_UPDATE, SWIPE_END = 30, 31, 32
+
+
+def settings():
+    """What ~/.config/vikix/gestures says, over the defaults."""
+    values = {"fingers": 3, "distance": 200.0, "natural": True}
+    try:
+        with open(SETTINGS, encoding="utf-8") as f:
+            for line in f:
+                line = line.split("#", 1)[0].strip()
+                if "=" not in line:
+                    continue
+                key, value = (part.strip() for part in line.split("=", 1))
+                if key == "fingers" and value in ("3", "4"):
+                    values["fingers"] = int(value)
+                elif key == "distance":
+                    try:
+                        values["distance"] = max(40.0, min(2000.0, float(value)))
+                    except ValueError:
+                        pass
+                elif key == "natural":
+                    values["natural"] = value.lower() not in ("no", "off", "false", "0")
+    except OSError:
+        pass
+    return values
+
+
+class Sweep:
+    """Turns a sweep's movement into steps. Each DISTANCE of the way along
+    the axis the sweep started on is one step that way; the axis is chosen
+    by the first stretch, so a sweep that wanders doesn't change its mind."""
+
+    def __init__(self, fingers, distance, natural, act):
+        self.fingers, self.distance, self.natural, self.act = fingers, distance, natural, act
+        self.on, self.x, self.y, self.axis = False, 0.0, 0.0, None
+
+    def begin(self, fingers):
+        self.on, self.x, self.y, self.axis = (fingers == self.fingers), 0.0, 0.0, None
+
+    def update(self, dx, dy):
+        if not self.on:
+            return
+        self.x += dx
+        self.y += dy
+        if self.axis is None:
+            if abs(self.x) >= self.distance and abs(self.x) >= abs(self.y):
+                self.axis = "x"
+            elif abs(self.y) >= self.distance:
+                self.axis = "y"
+        if self.axis == "x":
+            while abs(self.x) >= self.distance:
+                left = self.x < 0
+                # Fingers to the left bring what's on the right, as a page scrolls.
+                self.act(("right" if left else "left") if self.natural else ("left" if left else "right"))
+                self.x += self.distance if left else -self.distance
+        elif self.axis == "y":
+            while abs(self.y) >= self.distance:
+                up = self.y < 0
+                self.act(("down" if up else "up") if self.natural else ("up" if up else "down"))
+                self.y += self.distance if up else -self.distance
+
+    def end(self):
+        self.on = False
+
+
+def focus(direction):
+    """Go that way: Super+h/j/k/l's command, in the running StumpWM."""
+    try:
+        subprocess.run([sys.executable, os.path.join(HERE, "vikix-eval"),
+                        '(run-commands "vikix-focus %s")' % direction],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
+def touchpads():
+    """The names of the touchpads X knows: the devices libinput gives tapping to."""
+    found = []
+    try:
+        ids = subprocess.run(["xinput", "list", "--id-only"], capture_output=True, text=True,
+                             timeout=10, check=False).stdout.split()
+        for device in ids:
+            props = subprocess.run(["xinput", "list-props", device], capture_output=True, text=True,
+                                   timeout=10, check=False).stdout
+            if "libinput Tapping Enabled" in props:
+                found.append(props.splitlines()[0].replace("Device", "").strip(" ':"))
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return found
+
+
+class Cookie(ctypes.Structure):          # XGenericEventCookie
+    _fields_ = [("type", ctypes.c_int), ("serial", ctypes.c_ulong), ("send_event", ctypes.c_int),
+                ("display", ctypes.c_void_p), ("extension", ctypes.c_int), ("evtype", ctypes.c_int),
+                ("cookie", ctypes.c_uint), ("data", ctypes.c_void_p)]
+
+
+class SwipeEvent(ctypes.Structure):      # XIGestureSwipeEvent
+    _fields_ = [("type", ctypes.c_int), ("serial", ctypes.c_ulong), ("send_event", ctypes.c_int),
+                ("display", ctypes.c_void_p), ("extension", ctypes.c_int), ("evtype", ctypes.c_int),
+                ("time", ctypes.c_ulong), ("deviceid", ctypes.c_int), ("sourceid", ctypes.c_int),
+                ("detail", ctypes.c_int),            # how many fingers
+                ("root", ctypes.c_ulong), ("event", ctypes.c_ulong), ("child", ctypes.c_ulong),
+                ("root_x", ctypes.c_double), ("root_y", ctypes.c_double),
+                ("event_x", ctypes.c_double), ("event_y", ctypes.c_double),
+                ("delta_x", ctypes.c_double), ("delta_y", ctypes.c_double),
+                ("delta_unaccel_x", ctypes.c_double), ("delta_unaccel_y", ctypes.c_double),
+                ("mods", ctypes.c_int * 4), ("group", ctypes.c_int * 4), ("flags", ctypes.c_int)]
+
+
+class EventMask(ctypes.Structure):       # XIEventMask
+    _fields_ = [("deviceid", ctypes.c_int), ("mask_len", ctypes.c_int),
+                ("mask", ctypes.POINTER(ctypes.c_ubyte))]
+
+
+def listen(sweep, once=False):
+    """Hear the X server's swipe events on the root window, and feed SWEEP.
+    Returns a line to say when it can't; with ONCE, returns None as soon as
+    it is listening (for --check)."""
+    try:
+        x11 = ctypes.CDLL("libX11.so.6")
+        xi = ctypes.CDLL("libXi.so.6")
+    except OSError as e:
+        return "the X libraries aren't here (%s)" % e
+    x11.XOpenDisplay.restype = ctypes.c_void_p
+    x11.XOpenDisplay.argtypes = [ctypes.c_char_p]
+    display = x11.XOpenDisplay(None)
+    if not display:
+        return "no X display to listen on"
+    display = ctypes.c_void_p(display)
+    x11.XDefaultRootWindow.restype = ctypes.c_ulong
+    x11.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
+    x11.XQueryExtension.argtypes = [ctypes.c_void_p, ctypes.c_char_p] + [ctypes.POINTER(ctypes.c_int)] * 3
+    x11.XNextEvent.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    x11.XGetEventData.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    x11.XFreeEventData.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    x11.XFlush.argtypes = [ctypes.c_void_p]
+    xi.XIQueryVersion.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int)]
+    xi.XISelectEvents.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.POINTER(EventMask), ctypes.c_int]
+
+    opcode, first_event, first_error = ctypes.c_int(), ctypes.c_int(), ctypes.c_int()
+    if not x11.XQueryExtension(display, b"XInputExtension", ctypes.byref(opcode),
+                               ctypes.byref(first_event), ctypes.byref(first_error)):
+        return "this X server has no XInput"
+    major, minor = ctypes.c_int(2), ctypes.c_int(4)
+    if xi.XIQueryVersion(display, ctypes.byref(major), ctypes.byref(minor)) != 0 \
+            or (major.value, minor.value) < (2, 4):
+        return "this X server doesn't pass touchpad gestures on (it has XInput %d.%d; 2.4 does)" \
+            % (major.value, minor.value)
+
+    bits = (ctypes.c_ubyte * 5)()
+    for event in (SWIPE_BEGIN, SWIPE_UPDATE, SWIPE_END):
+        bits[event >> 3] |= 1 << (event & 7)
+    mask = EventMask(1, 5, bits)           # 1: every master device
+    xi.XISelectEvents(display, x11.XDefaultRootWindow(display), ctypes.byref(mask), 1)
+    x11.XFlush(display)
+    if once:
+        return None
+
+    event = ctypes.create_string_buffer(256)   # an XEvent is 192 bytes
+    cookie = ctypes.cast(event, ctypes.POINTER(Cookie))
+    while True:
+        x11.XNextEvent(display, event)
+        if cookie.contents.type != 35 or cookie.contents.extension != opcode.value:   # GenericEvent
+            continue
+        if not x11.XGetEventData(display, cookie):
+            continue
+        try:
+            swipe = ctypes.cast(cookie.contents.data, ctypes.POINTER(SwipeEvent)).contents
+            kind = cookie.contents.evtype
+            if kind == SWIPE_BEGIN:
+                sweep.begin(swipe.detail)
+            elif kind == SWIPE_UPDATE:
+                sweep.update(swipe.delta_x, swipe.delta_y)
+            elif kind == SWIPE_END:
+                sweep.end()
+        finally:
+            x11.XFreeEventData(display, cookie)
+
+
+def watchers():
+    """The process ids of the listeners running as you, this one aside."""
+    try:
+        out = subprocess.run(["pgrep", "-u", str(os.getuid()), "-f", "vikix-gestures --watch"],
+                             capture_output=True, text=True, check=False).stdout.split()
+    except OSError:
+        return []
+    return [int(p) for p in out if p.isdigit() and int(p) != os.getpid()]
+
+
+def start():
+    """Start a listener apart from this terminal, unless one runs already."""
+    if watchers():
+        return
+    subprocess.Popen([sys.executable, os.path.realpath(__file__), "--watch"],
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     start_new_session=True)
+
+
+def stop():
+    for pid in watchers():
+        try:
+            os.kill(pid, 15)
+        except OSError:
+            pass
+
+
+def status():
+    s = settings()
+    pads = touchpads()
+    off = os.path.exists(OFF)
+    running = bool(watchers())
+    print("Touchpad sweeps: %s." % ("off (vikix gestures on switches them on)" if off
+                                    else "listening" if running
+                                    else "on, but not listening now (vikix gestures on starts it)"))
+    print("  %d fingers left or right, up or down: the focus goes that way (Super+h/j/k/l),"
+          % s["fingers"])
+    print("  a step for each %g of the way; %s." % (
+        s["distance"], "fingers to the left bring the next on the right" if s["natural"]
+        else "the focus goes the way the fingers do"))
+    print("  touchpad: %s" % (", ".join(pads) if pads else "none found"))
+    print("  settings: %s%s" % (SETTINGS.replace(os.path.expanduser("~"), "~"),
+                                "" if os.path.exists(SETTINGS) else " (not there: the defaults)"))
+
+
+def main(argv):
+    if argv and argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return 0
+    if not argv:
+        status()
+        return 0
+    if argv[0] == "on":
+        if os.path.exists(OFF):
+            os.remove(OFF)
+        if not touchpads():
+            print("No touchpad found: nothing to listen to.")
+            return 0
+        start()
+        print("Touchpad sweeps on: %d fingers left, right, up or down move the focus." % settings()["fingers"])
+        return 0
+    if argv[0] == "off":
+        os.makedirs(CONFIG, exist_ok=True)
+        with open(OFF, "w", encoding="utf-8") as f:
+            f.write("Touchpad sweeps off (vikix gestures on switches them on).\n")
+        stop()
+        print("Touchpad sweeps off.")
+        return 0
+    if argv[0] == "--watch":
+        if os.path.exists(OFF) or not touchpads():
+            return 0
+        s = settings()
+        problem = listen(Sweep(s["fingers"], s["distance"], s["natural"], focus))
+        if problem:
+            print("vikix gestures: " + problem, file=sys.stderr)
+            return 1
+        return 0
+    if argv[0] == "--check":
+        # Can it listen here? Says so, and leaves.
+        problem = listen(Sweep(3, 200.0, True, focus), once=True)
+        print(problem or "listening for touchpad sweeps works here")
+        return 1 if problem else 0
+    if argv[0] == "--feed":
+        # For the tests: "begin N", "update DX DY", "end" on stdin; the
+        # steps they make, one a line.
+        s = settings()
+        sweep = Sweep(s["fingers"], s["distance"], s["natural"], print)
+        for line in sys.stdin:
+            words = line.split()
+            if not words:
+                continue
+            if words[0] == "begin":
+                sweep.begin(int(words[1]))
+            elif words[0] == "update":
+                sweep.update(float(words[1]), float(words[2]))
+            elif words[0] == "end":
+                sweep.end()
+        return 0
+    print("vikix gestures: on, off, or nothing to see how it is (-h for more)", file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

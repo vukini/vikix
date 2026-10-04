@@ -59,6 +59,8 @@
 #                       menu, an agent) and where each is written (Super+?)
 #   vikix viri [on|off]  this workspace as a strip that scrolls sideways
 #                       (Super+h/l along it), or tiled again; no word switches
+#   vikix gestures [on|off]  three fingers swept on the touchpad move the
+#                         focus, as Super+h/j/k/l do; alone: how it is
 #   vikix eval FORM     run Lisp in the running StumpWM, print the result
 #   vikix debug         one file saying what's going on, secrets taken out, to
 #                         attach to an issue
@@ -1618,6 +1620,7 @@ main() {
     today)       shift; exec "$VIKIX_DIR/bin/vikix-project" today "$@" ;;
     day)         shift; exec "$VIKIX_DIR/bin/vikix-day" "$@" ;;
     back)        shift; exec "$VIKIX_DIR/bin/vikix-back" "$@" ;;
+    gestures)    shift; exec "$VIKIX_DIR/bin/vikix-gestures" "$@" ;;
     mcp)         shift; exec "$VIKIX_DIR/bin/vikix-mcp" "$@" ;;
     snapshot|changes|history|undo)
       case ${2:-} in -h|--help) history_help; exit 0 ;; esac

@@ -27,6 +27,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-firewall](#vikix-firewall): the firewall, ufw
 - [vikix-firmware](#vikix-firmware): firmware updates from LVFS, through fwupd
 - [vikix-font](#vikix-font): the one font file StumpWM draws its bar, menus and messages in
+- [vikix-gestures](#vikix-gestures): a three-finger swipe on the touchpad moves the focus
 - [vikix-hype](#vikix-hype): Hype, Markdown presentations with a visual slide editor
 - [vikix-idle](#vikix-idle): what happens when you leave the computer alone
 - [vikix-image](#vikix-image): open an image in nsxiv together with the rest of its folder
@@ -93,6 +94,7 @@ The everyday command.
 - `vikix rules [off|on|forget N] [why [CLASS]] [test|apply [N]] [verbs|proposed]` — the desktop's rules: the list, one off or on, why a window is where it is, what they'd do with the windows open now, and doing it; forget takes one out of your rules.lisp (vikix rules help)
 - `vikix why [N]` — why did that happen? the last things the desktop did (a key and its command, a rule and its window, the menu, an agent) and where each is written (Super+?)
 - `vikix viri [on|off]` — this workspace as a strip that scrolls sideways (Super+h/l along it), or tiled again; no word switches
+- `vikix gestures [on|off]` — three fingers swept on the touchpad move the focus, as Super+h/j/k/l do; alone: how it is
 - `vikix eval FORM` — run Lisp in the running StumpWM, print the result
 - `vikix debug` — one file saying what's going on, secrets taken out, to attach to an issue
 - `vikix diagnose` — that report, handed to your AI agent: what's wrong?
@@ -451,6 +453,27 @@ StumpWM's TrueType module (ttf-fonts) reads only single .ttf files, and Void's f
 ```
 
 which theme.lisp loads. Until Iosevka is installed (fonts.list, in the base), wm.ttf is a link to Noto Sans Mono instead. The folder is outside fontconfig's paths, so other programs don't see a second Iosevka.
+
+## vikix-gestures
+
+A three-finger swipe on the touchpad moves the focus.
+
+- `vikix gestures` — whether it's listening, and what a swipe does
+- `vikix gestures on` — listen from now on, and at each login
+- `vikix gestures off` — stop listening, and don't start at login
+- `vikix gestures --watch` — listen for swipes (the session starts this)
+
+Three fingers swept left or right go to the window that way, as Super+h and Super+l do: along a strip (vikix viri), a column at a time, and between the splits of a tiled workspace. Swept up or down, they go up and down a column or the splits. A long sweep goes on going: a step for each stretch of the way. The window goes the way the picture under your fingers does, as two fingers scroll a page: fingers to the left bring the next column on the right. Nothing else is touched: two fingers scroll, as always.
+
+Settings are yours, in `~/.config/vikix/gestures`, one a line:
+
+```
+fingers = 3      how many fingers make the sweep (3 or 4)
+distance = 200   how far they go for each step: less is quicker
+natural = yes    no: the focus goes the way the fingers do
+```
+
+It listens through the X server (XInput 2.4, touchpad gestures), so it needs no group or password; a program that takes the sweep for itself keeps it. It is off while `~/.config/vikix/gestures-off` exists, and stops by itself on a machine with no touchpad.
 
 ## vikix-hype
 

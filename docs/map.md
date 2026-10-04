@@ -55,6 +55,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── wallpaper          yours     a link to the picture you chose
 │   │   ├── wallpaper-off      yours     exists if you set the wallpaper with your own tool
 │   │   ├── titlebars-off      yours     exists if you turned the title bars off (Super+Ctrl+y)
+│   │   ├── gestures           yours     the touchpad's sweeps: fingers, distance, natural (vikix gestures)
 │   │   ├── wallpaper-theme    yours     exists if the wallpaper follows the theme instead of cycling
 │   │   ├── wallpaper-minutes  yours     how often the wallpaper changes when cycling (vikix-wallpaper cycle MINUTES; 30 without it)
 │   │   ├── themes/            yours     your own themes (NAME.theme, NAME.jpg)

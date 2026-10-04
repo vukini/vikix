@@ -102,6 +102,8 @@ Two commands have no key of their own, for a key in `user.lisp` if you want one:
 | Drag the edge between two windows stacked in a column | the one grows and the other shrinks |
 | Click a window's name in the bar | you go to it |
 
+The touchpad works too: three fingers swept left or right walk along the strip, a column for each stretch of the way, and up or down go through a column's windows. The strip goes the way your fingers do, as a page does under two: fingers to the left bring the next column on the right. `vikix gestures` says how it is set, and `vikix gestures off` stops it ([The commands](commands.md) has its settings).
+
 A width set by dragging can be any twentieth of the screen; `Super+r` then takes the column to the next of its four widths.
 
 ## What's different from tiles

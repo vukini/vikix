@@ -89,6 +89,9 @@ if grep -qw hypervisor /proc/cpuinfo 2>/dev/null; then
 else
   picom -b || picom -b --backend xrender
 fi
+# Three fingers swept on the touchpad move the focus (vikix gestures). It
+# leaves by itself where there's no touchpad, or when you switched it off.
+"$HOME/.local/bin/vikix-gestures" --watch >/dev/null 2>&1 &
 "$HOME/.local/bin/vikix-idle" apply    # lock and screen-off times (~/.config/vikix/idle)
 "$HOME/.local/bin/vikix-nightlight" start   # warmer in the evening, unless switched off
 xss-lock -- "$HOME/.local/bin/vikix-lock" --locker &   # locks then; also on suspend
