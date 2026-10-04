@@ -200,7 +200,9 @@ inside it, and the border X draws around it."
                                 :height (max 1 (- h edge *float-window-title-height* *float-window-border*))))))
 
 (defun vikix-drawer-raise (&optional (group (current-group)))
-  "The drawer's windows on GROUP above the others, and a dialog above them."
+  "The drawer's windows on GROUP above the others, and a dialog above them.
+A strip's column is never that dialog: it is a floating window, and a rule
+for floating windows (yours, with the verb dialog) makes it one by name."
   (let ((raised nil))
     (dolist (w (group-windows group))
       (when (and (vikix-drawer-window-p w) (typep w 'float-window) (window-visible-p w))
@@ -210,6 +212,8 @@ inside it, and the border X draws around it."
       (dolist (w (group-windows group))
         (when (and (typep w 'float-window) (not (vikix-drawer-window-p w))
                    (fboundp 'vikix-dialog-p) (funcall 'vikix-dialog-p w)
+                   (not (and (fboundp 'viri-group-p) (funcall 'viri-group-p group)
+                             (funcall 'viri-col-of group w)))
                    (window-visible-p w))
           (setf (xlib:window-priority (window-parent w)) :above))))))
 

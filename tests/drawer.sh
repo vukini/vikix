@@ -36,10 +36,14 @@ cat > "$home/.stumpwm.d/user.lisp" <<'L'
         ("Two" "setsid -f alacritty --class drawertwo --title Two -e sleep 300" :class "drawertwo")))
 L
 # A rule of the user's for the first program: the drawer's window is the
-# drawer's all the same.
+# drawer's all the same. A second (Vid's own) calls every floating window
+# a dialog: a strip's columns still stay behind the drawer.
 cat > "$home/.stumpwm.d/rules.lisp" <<'L'
 (in-package :stumpwm)
 (when-window (:class "drawerone") (workspace 3) (float :width 300 :height 200))
+;; And one that makes a dialog of every floating window that takes the
+;; focus: on a strip that is every column.
+(when-window (:where (lambda (w) (typep w 'float-window))) :on :focus (dialog))
 L
 wm_start
 
