@@ -100,7 +100,9 @@ def address():
     for iface in agent("guest-network-get-interfaces", check=False) or []:
         for a in iface.get("ip-addresses", []):
             ip = a.get("ip-address", "")
-            if a.get("ip-address-type") == "ipv4" and not ip.startswith(("127.", "169.254.")):
+            # Not Windows' loopback, nor a link-local address it gives
+            # itself without DHCP.
+            if a.get("ip-address-type") == "ipv4" and ip != "127.0.0.1" and not ip.startswith("169.254."):
                 return ip
     return None
 
