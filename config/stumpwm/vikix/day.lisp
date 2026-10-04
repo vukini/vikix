@@ -44,6 +44,13 @@
 (defvar *vikix-day-away* nil
   "True from the away line until somebody is back.")
 
+(defvar *vikix-back-after* 600
+  "Back after at least this many seconds away (a break, a lock, a meeting),
+the desktop shows where you were: vikix back --card. NIL: never.")
+
+(defvar *vikix-day-away-since* nil
+  "When the time away began (universal time), for vikix back.")
+
 (defvar *vikix-day-started* nil
   "True once this StumpWM has written its start line: a reload writes no second one.")
 
@@ -112,15 +119,23 @@ ticker; TIME and IDLE are arguments for the tests."
     (if (>= idle *vikix-day-idle*)
         (unless *vikix-day-away*
           (setf *vikix-day-away* t
+                *vikix-day-away-since* (- time idle)
                 *vikix-day-last* nil)
           (vikix-day-write time "away" idle))
         (let ((now (vikix-day-now)))
+          (when (and *vikix-day-away* *vikix-back-after* *vikix-day-away-since*
+                     (>= (- time *vikix-day-away-since*) *vikix-back-after*))
+            (vikix-back-card))
           (cond ((or *vikix-day-away* (not (equal now *vikix-day-last*)))
                  (setf *vikix-day-away* nil
                        *vikix-day-last* now)
                  (apply #'vikix-day-write time "focus" now))
                 ((>= (- time *vikix-day-written*) *vikix-day-beat*)
                  (vikix-day-write time "beat")))))))
+
+(defun vikix-back-card ()
+  "Where you were, as a notification: you're back after a while away."
+  (ignore-errors (run-shell-command "vikix back --card")))
 
 (defun vikix-day-rule-ran (rule)
   "A rule ran: its name, or the start of its text. Called by vikix-run-rule."

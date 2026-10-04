@@ -1,0 +1,221 @@
+#!/usr/bin/env python3
+"""vikix-back — where you were, when you come back to the laptop (`vikix back`).
+
+  vikix back          how long you were away, the project you were in (its
+                      next step and last commit), the files with changes not
+                      yet saved in Emacs, your last commands there, and the
+                      last note you captured
+  vikix back --card   the same, short, as a notification: what the desktop
+                      shows by itself when you come back after ten minutes
+                      or more away (a break, a lock, a meeting)
+
+Everything is read from what is kept anyway: the desktop's screen log
+(vikix day: the workspace, project, program and folder that had the
+screen, and when nobody was at the keyboard), the project's log and its
+git history (vikix project), Emacs (asked over its socket, for two seconds
+at most), your shell history (atuin's, for the project's folder, when you
+use atuin; else the end of ~/.bash_history) and the inbox's file (the
+inbox plugin). Nothing is written.
+
+The card comes when the desktop sees you back (day.lisp, every 30
+seconds), so not when the screen log is off ((setf *vikix-day-on* nil)).
+Another wait: (setf *vikix-back-after* 1800) in ~/.stumpwm.d/user.lisp,
+in seconds; nil, never.
+"""
+import datetime
+import importlib.util
+import os
+import re
+import shutil
+import subprocess
+import sys
+from importlib.machinery import SourceFileLoader
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+
+
+def load(name, module):
+    loader = SourceFileLoader(module, str(HERE / name))
+    spec = importlib.util.spec_from_loader(module, loader)
+    mod = importlib.util.module_from_spec(spec)
+    loader.exec_module(mod)
+    return mod
+
+
+vd = load("vikix-day", "vikix_day")   # the screen log, and vikix project through it
+vp = vd.vp
+
+
+def last_away(lines):
+    """(when you left, how long away, the index of the away line, when you
+    were back or None), for the
+    last time nobody was at the keyboard; how long runs to the next line of
+    you at it, or to now when there's none yet."""
+    for i in range(len(lines) - 1, -1, -1):
+        t, kind, fields = lines[i]
+        if kind == "away":
+            idle = int(fields[0]) if fields and fields[0].isdigit() else 0
+            start = t - idle
+            back = next((tt for tt, k, _ in lines[i + 1:] if k in ("focus", "beat")), None)
+            return start, (back or vd.now()) - start, i, back
+    return None
+
+
+def emacs_unsaved():
+    """Files with changes not yet saved, in the Emacs you use, if it answers."""
+    if not shutil.which("emacsclient"):
+        return None
+    form = ("(delq nil (mapcar (lambda (b) (and (buffer-file-name b) (buffer-modified-p b)"
+            " (abbreviate-file-name (buffer-file-name b)))) (buffer-list)))")
+    try:
+        r = subprocess.run(["emacsclient", "--eval", form], capture_output=True, text=True, timeout=2)
+    except subprocess.TimeoutExpired:
+        return None
+    if r.returncode != 0:
+        return None
+    return re.findall(r'"((?:[^"\\]|\\.)*)"', r.stdout)
+
+
+def commands(folder, n=4):
+    """Your last commands: in the project's folder from atuin, else the end of bash's history."""
+    if shutil.which("atuin") and folder:
+        try:
+            r = subprocess.run(["atuin", "search", "--cwd", str(folder), "--limit", str(n),
+                                "--format", "{command}"], capture_output=True, text=True, timeout=3)
+            got = [line for line in r.stdout.splitlines() if line.strip()]
+            if r.returncode == 0 and got:
+                return got[-n:]
+        except subprocess.TimeoutExpired:
+            pass
+    hist = Path(os.environ.get("HISTFILE") or Path.home() / ".bash_history")
+    try:
+        lines = [line for line in hist.read_text(errors="replace").splitlines()
+                 if line.strip() and not line.startswith("#")]
+    except OSError:
+        return []
+    return lines[-n:]
+
+
+def inbox_note():
+    """The last note in the inbox's file: (its words, when), or None."""
+    settings = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "vikix" / "plugins" / "inbox" / "settings"
+    try:
+        m = re.search(r"^\s*file\s*=\s*(.+)$", settings.read_text(errors="replace"), re.M)
+    except OSError:
+        return None
+    if not m:
+        return None
+    path = Path(os.path.expanduser(m.group(1).strip()))
+    try:
+        text = path.read_text(errors="replace")
+    except OSError:
+        return None
+    heads = list(re.finditer(r"^\*+\s+(.+)$", text, re.M))
+    if not heads:
+        return None
+    last = heads[-1]
+    when = re.search(r":CREATED:\s*\[([^\]]+)\]", text[last.end():])
+    return last.group(1).strip(), (when.group(1) if when else "")
+
+
+def last_commit(path):
+    top = vp.git_top(path)
+    if not top:
+        return None
+    r = subprocess.run(["git", "-C", str(top), "log", "-1", "--format=%ct\t%s"], capture_output=True, text=True)
+    if r.returncode != 0 or "\t" not in r.stdout:
+        return None
+    t, subject = r.stdout.strip().split("\t", 1)
+    return int(t), subject
+
+
+def gather():
+    today = datetime.date.fromtimestamp(vd.now())
+    projects = vp.discover()
+    screen = vd.Screen(today - datetime.timedelta(days=1), today, projects)
+    away = last_away(screen.lines)
+    found = {"away": (away[0], away[1], away[3]) if away else None}
+    # The windows before you left, newest first: the last one, and the
+    # last project among them (a terminal in ~ is often the last window).
+    before = screen.lines[:away[2]] if away else screen.lines
+    focus = [(f + ["", "", "", ""])[:4] for t, k, f in reversed(before) if k == "focus"]
+    fields = focus[0] if focus else None
+    found["window"] = fields
+    found["project"] = screen.project(fields) if fields else None
+    found["earlier"] = None
+    if not found["project"]:
+        found["earlier"] = next((screen.project(f) for f in focus[1:] if screen.project(f)), None)
+    folder = Path(fields[3]) if fields and fields[3] else None
+    p = found["project"] or found["earlier"]
+    found["next"] = vp.next_step(p) if p else ""
+    found["commit"] = last_commit(p.path) if p else None
+    found["unsaved"] = emacs_unsaved()
+    found["commands"] = commands(p.path if p else folder)
+    found["note"] = inbox_note()
+    return found
+
+
+def card_lines(f, short=False):
+    out = []
+    away = f["away"]
+    if away:
+        start, seconds, back = away
+        if back and vd.now() - back > 120:
+            out.append(f"Away {vd.length(seconds)}, {vd.clock(start)} to {vd.clock(back)}.")
+        else:
+            out.append(f"Away {vd.length(seconds)}, since {vd.clock(start)}.")
+    w, p = f["window"], f["project"]
+    if p:
+        where = f"You were on {p.full}"
+        if w and w[2]:
+            where += f", in {w[2]}"
+        out.append(where + ".")
+        if f["next"]:
+            out.append(f"Next: {f['next']}")
+        if f["commit"] and not short:
+            t, subject = f["commit"]
+            out.append(f"Last commit, {vd.clock(t)}: {subject}")
+    elif w and w[2]:
+        out.append(f"You were in {w[2]}" + (f", in {vd.tilde(w[3])}" if w[3] else "") + ".")
+    if not p and f["earlier"]:
+        e = f["earlier"]
+        out.append(f"Before that, on {e.full}.")
+        if f["next"]:
+            out.append(f"Next: {f['next']}")
+        if f["commit"] and not short:
+            t, subject = f["commit"]
+            out.append(f"Last commit, {vd.clock(t)}: {subject}")
+    if f["unsaved"]:
+        names = f["unsaved"] if not short else [os.path.basename(n) for n in f["unsaved"]]
+        out.append("Not saved in Emacs: " + ", ".join(names[:6]) + (" ..." if len(names) > 6 else ""))
+    if f["commands"]:
+        if short:
+            out.append("Last command: " + f["commands"][-1][:80])
+        else:
+            out.append("Last commands:")
+            out += [f"  {c[:120]}" for c in f["commands"]]
+    if f["note"]:
+        words, when = f["note"]
+        out.append(f"Last note: {words[:80]}" + (f" ({when})" if when and not short else ""))
+    return out or ["Nothing kept yet: the screen log starts with the desktop (vikix day)."]
+
+
+def main(argv):
+    if argv and argv[0] in ("-h", "--help", "help"):
+        print(__doc__.strip())
+        return 0
+    f = gather()
+    if argv and argv[0] == "--card":
+        lines = card_lines(f, short=True)
+        subprocess.run(["notify-send", "-a", "Vikix", "Where was I?", "\n".join(lines)])
+        return 0
+    if argv:
+        print("vikix back [--card]", file=sys.stderr)
+        return 2
+    print("\n".join(card_lines(f)))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

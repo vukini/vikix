@@ -333,11 +333,22 @@ ask '(progn (vikix-day-tick) (vikix-day-tick) (princ 1))' >/dev/null
 check "the same window isn't written again" test "$(grep -c focus "$slog")" = 1
 ask '(progn (setf (gethash (current-group) *vikix-project-groups*) "alpha") (vikix-day-tick) (princ 1))' >/dev/null
 check "a workspace opened for a project says so ($(lines | tail -1))" grep -qP "\tfocus\t1\talpha\tdaywin\t" "$slog"
+# Where was I: back after ten minutes or more away, the card (vikix back
+# --card; here a stand-in that counts); after less, none.
+ask '(progn (defvar *test-cards* 0) (defun vikix-back-card () (incf *test-cards*)) (princ 1))' >/dev/null
 ask '(progn (vikix-day-tick (get-universal-time) 400) (vikix-day-tick (get-universal-time) 430) (princ 1))' >/dev/null
 check "away, with how long already, once" test "$(grep -cP '^\d+\taway\t400$' "$slog")" = 1
 check "away: one line" test "$(grep -c away "$slog")" = 1
 ask '(progn (vikix-day-tick (get-universal-time) 0) (princ 1))' >/dev/null
 check "back: the window again" test "$(grep -c "focus${tab:-	}1	alpha" "$slog")" = 2
+check "back after under ten minutes: no card" test "$(ask '(princ *test-cards*)')" = 0
+ask '(progn (vikix-day-tick (get-universal-time) 700) (vikix-day-tick (get-universal-time) 0) (princ 1))' >/dev/null
+check "back after ten minutes or more: where you were, as a card" test "$(ask '(princ *test-cards*)')" = 1
+ask '(progn (vikix-day-tick (get-universal-time) 0) (princ 1))' >/dev/null
+check "and once" test "$(ask '(princ *test-cards*)')" = 1
+ask '(progn (setf *vikix-back-after* nil) (vikix-day-tick (get-universal-time) 900) (vikix-day-tick (get-universal-time) 0) (princ 1))' >/dev/null
+check "*vikix-back-after* nil: never" test "$(ask '(princ *test-cards*)')" = 1
+ask '(progn (setf *vikix-back-after* 600) (princ 1))' >/dev/null
 ask '(progn (vikix-day-tick (+ (get-universal-time) 301) 0) (princ 1))' >/dev/null
 check "five minutes on, a beat ($(lines | tail -1))" grep -qP '^\d+\tbeat$' "$slog"
 ask '(progn (when-window (:class "dayrule") :name "day rule" (title "ruled")) (princ 1))' >/dev/null
