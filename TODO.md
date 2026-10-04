@@ -138,6 +138,13 @@ Added 2026-09-30, from a conversation with Vid about 0.52-0.65. Not yet ordered 
 30. **A drop-down terminal** on Super+`, over whatever is open.
 31. **Find any file.** A rofi search over the home folder (plocate or fd), as fast as typing.
 32. **Battery care on ThinkPads.** tlp's charge thresholds: stop at 80% while docked; a Super+m entry to charge to 100% before a trip.
+83. **Another terminal, all the way** (good to have, not urgent; Vid 2026-10-04: it can wait for the first user who asks). Today `(setf *vikix-terminal* "kitty")` moves Super+Return and the menu's entries, and `vikix theme` writes kitty's colours (the `include` line added by hand); the rest stays on Alacritty.
+    - **One setting.** `vikix terminal NAME` writes `~/.config/vikix/terminal`, read by StumpWM and by the shell commands alike. Now there are two that don't know of each other: `*vikix-terminal*`, and `$VIKIX_TERMINAL`, which nothing sets, so `vikix-ask`, `vikix-voice`, `vikix-local-ai` and `vikix project open` open Alacritty whatever the first says.
+    - **One launcher.** `vikix-term [--class C] [--dir D] [-e CMD...]`, turning those into each terminal's own flags; every place that builds a terminal's command line calls it (`commands.lisp`, `modeline.lisp`, the four commands above). `--class` is what differs: `vikix learn`'s panes and the voice agent's window pass it as Alacritty takes it, and the rules match on it. Check each terminal's form before building (Ghostty's and WezTerm's weren't tested).
+    - **Three kept working:** Alacritty (the default), Kitty and Ghostty, each a feature (`vikix add kitty`) with a theme file from `vikix theme`, a starter config that includes it (Iosevka, the same size), and open windows repainted. Any other terminal goes through the launcher's plain `-e`, without theme or class. Foot is Wayland only: not offered.
+    - **The lists of terminals:** Ghostty into `*vikix-layout-terminals*` (`layouts.lisp`) and `own_window` (`bin/vikix-agent`), or both from one list.
+    - **`vikix doctor`** checks the chosen terminal, not `alacritty` by name; Alacritty stays in `desktop.list` as the one that's always there.
+    - Vid's `user.lisp` names Alacritty for the drop-down terminal and passes `--class` for nmtui: both move to the launcher, with Vid.
 
 ### Family
 
