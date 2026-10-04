@@ -39,6 +39,12 @@ headings=$(for f in "$here"/docs/*.md; do
 done | wc -l)
 nodes=$(grep -c '^@node ' "$t/vikix.texi")
 check "$nodes nodes for $headings headings and Top" test "$nodes" = $((headings + 1))
+# The pages come in the order docs/README.md first links them, which should
+# be its table's: a link in the words above the table once made a page the
+# manual's first chapter.
+table=$(grep -oE '^\| \[[^]]+\]\([a-z-]+\.md\)' "$here/docs/README.md" | sed 's/.*(\(.*\))/\1/' | tr '\n' ' ')
+linked=$(grep -oE '\]\([a-z-]+\.md\)' "$here/docs/README.md" | tr -d '()]' | awk '!seen[$0]++' | tr '\n' ' ')
+check "docs/README.md links a page before its row in the table, which moves it in the manual ($linked)" test "$table" = "$linked"
 # Outside code: a code block may hold "[~a](~a)" (a Lisp format string).
 check "Markdown links left in the manual" bash -c "! awk '/^@example/ { code = 1 } /^@end example/ { code = 0 } !code && /\\]\\(/' '$t/vikix.texi' | grep -q ."
 check "Markdown bold left in the manual" bash -c "! awk '/^@example/ { code = 1 } /^@end example/ { code = 0 } !code && /\\*\\*/' '$t/vikix.texi' | grep -q ."

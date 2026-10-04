@@ -4,7 +4,7 @@ These pages are for someone who has installed Vikix and wants to know where thin
 
 They are on your machine too, in three forms: as these files in `~/vikix/docs/`, as web pages with the diagrams drawn as pictures (`Super+m` → *Vikix guide in the browser*), and as an Info manual. Read that with `Super+m` → *Vikix guide* (in Emacs if you have it, otherwise in a terminal), `C-h i` then *Vikix* in Emacs, or `info vikix` in a terminal.
 
-Every `vikix` command has a man page as well, and so has each command of a plugin you've added: `man vikix` lists them, `man vikix-backup` or `man inbox` is the whole of one, and `man -k vikix` finds a page by a word. [The commands](commands.md) is the same in one page. They say what each command's `-h` says, since both are made from the same lines.
+Every `vikix` command has a man page as well, and so has each command of a plugin you've added: `man vikix` lists them, `man vikix-backup` or `man inbox` is the whole of one, and `man -k vikix` finds a page by a word. The page *The commands*, in the table below, is the same in one place. They say what each command's `-h` says, since both are made from the same lines.
 
 | Page | Read it when |
 |---|---|
