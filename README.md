@@ -893,6 +893,7 @@ A sample to start from, a short tour of Vikix with speaker notes, two screenshot
 A book is a folder with its text in Markdown (`chapters/*.md`, taken in name order, or `book.md`) and a `publish.yml` saying what it is: pandoc's metadata (`title`, `author`, `lang`), and Vikix's `name` (the files' name), `chapters` (another order) and `mainfont`. One command makes an EPUB and a PDF from it, checked, in its `out/`:
 
 ```sh
+vikix publish new ~/src/living-series/new-book --title "A New Book"   # start one
 vikix publish living-in-sql      # a book in ~/src (by its folder, or the name in publish.yml)
 vikix publish living-in-sql epub # just the EPUB; pdf, or check (both, keeping nothing)
 vikix publish status             # the tools, epubcheck, the dictionaries and the fonts it finds
