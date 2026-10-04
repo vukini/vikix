@@ -117,7 +117,15 @@ check "one of them you gave something else stays: $(bound s-P)" test "$(bound s-
 check "the new ones are there: $(bound s-M-s), $(bound s-C-a), $(bound s-S-Left)" \
   test "$(bound s-M-s)|$(bound s-C-a)|$(bound s-S-Left)" = "exec spacefm|vikix-awake|vikix-move left"
 check "no key of Vikix's breaks the rule for keys: $(ask '(princ (vikix-key-problems))')" test "$(ask '(princ (length (vikix-key-problems)))')" = 0
+
+# "What does a key do?" from the menu: the answer stays. The menu closes
+# over the pointer, X says the pointer entered the window beneath, and
+# focusing it again took the answer off the screen as it came.
+xdotool mousemove 640 400; sleep 0.5
+xdotool key super+m; sleep 1; xdotool type "What does"; sleep 0.5; key Return; key super+ctrl+a; sleep 1
+check "the answer of What does a key do? stays on the screen" test "$(ask '(princ (xlib:window-map-state (screen-message-window (current-screen))))')" = VIEWABLE
+key Escape
 check "nothing failed on the way" test -z "$(ls "$home/.local/state/vikix/errors/" 2>/dev/null)"
 
-[ "$fail" = 0 ] && echo "keys: Super+Shift+digit by the keyboard's layout (US, British, French), Super+Shift moves the window, the old keys let go at a reload"
+[ "$fail" = 0 ] && echo "keys: Super+Shift+digit by the keyboard's layout (US, British, French), Super+Shift moves the window, the old keys let go at a reload, the key help's answer stays"
 exit "$fail"

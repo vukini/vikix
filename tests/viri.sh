@@ -174,5 +174,29 @@ win Under
 check "a rule's (join :left) puts the new window under the column on its left: $(cols)" grep -q 'WideUnder' <<<"$(cols)"
 check "the rules ran without failing" test "$(ask '(princ (reduce (function +) (mapcar (function vikix-rule-failures) *vikix-rules*)))')" = 0
 
-wm_report viri "a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, the overview, the agents' desktop tool, new and closed windows, a dialog, another workspace, off and on"
+# The window keys that only knew tiles: on a strip each does its thing, or
+# says why not; none is an error.
+focus() { ask '(princ (window-title (current-window)))'; }
+find_any() { echo "(find \"$1\" (screen-windows (current-screen)) :key (function window-title) :test (function equal))"; }
+msgs() { ask '(progn (setf *print-pretty* nil) (format t "~{~a~%~}" (subseq (screen-last-msg (current-screen)) 0 (min 30 (length (screen-last-msg (current-screen)))))))'; }
+ask '(message "the window keys")' >/dev/null
+was=$(focus); key super+h; now=$(focus)
+key super+Tab
+check "Super+Tab on a strip goes back to the window you were in: $was, $now, $(focus)" test "$was" != "$now" -a "$(focus)" = "$was"
+key super+Tab
+check "and again flips between the two: $(focus)" test "$(focus)" = "$now"
+xdotool mousemove 5 400; sleep 0.3; ask "(focus-all $(find_w "$now"))" >/dev/null; key super+p
+check "Super+p brings the pointer to the window" test "$(ask '(let ((p (window-parent (current-window)))) (multiple-value-bind (x y) (xlib:global-pointer-position *display*) (princ (if (and (<= (xlib:drawable-x p) x (+ (xlib:drawable-x p) (xlib:drawable-width p))) (<= (xlib:drawable-y p) y (+ (xlib:drawable-y p) (xlib:drawable-height p)))) 1 0))))')" = 1
+key super+u; key super+shift+u; key super+b; key super+v
+check "Super+u, Super+b and Super+v say a strip has none of that" test "$(msgs | grep -c 'A strip has no splits\|Layout undo is for tiled')" -ge 3
+sent=$(focus); key super+shift+3
+check "a column sent to a tiled workspace is tiled there, in a frame: $sent" test "$(ask "(princ (type-of $(find_any "$sent")))")" = TILE-WINDOW
+key super+3; key super+g; key Return
+check "Super+g from there goes to a window on the strip: $(focus)" test "$(ask '(princ (if (viri-group-p) 1 0))') $(focus)" != "0 $sent"
+key super+3; key super+shift+g; key Return
+check "Super+Shift+g brings one off the strip, into a frame: $(focus)" test "$(ask '(princ (list (group-number (current-group)) (type-of (current-window))))')" = "(3 TILE-WINDOW)"
+key super+1
+check "none of them was an error: $(msgs | grep -i 'Error In Command\|not found' | head -1)" test -z "$(msgs | sed '/the window keys/,$d' | grep -i 'Error In Command\|not found')"
+
+wm_report viri "a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, the overview, the agents' desktop tool, new and closed windows, a dialog, another workspace, off and on, the window keys on a strip"
 exit "$fail"

@@ -64,10 +64,10 @@ front, so a name like Brightness-up is never mistaken for one."
      "emacsclient" "clipmenu" "vikix-rofi" "vikix-webapp" "vikix-esploro"
      "vikix-project")
     ("AI & voice" "vikix-agent" "vikix-ask" "vikix-dictate" "vikix-voice")
-    ("Windows & frames" "delete" "fullscreen" "pull-hidden-other" "next" "prev"
-     "move-focus" "move-window" "vikix-focus" "vikix-move" "vikix-viri" "vikix-width-or-remove" "vikix-stack" "vikix-expose" "hsplit" "vsplit" "remove" "expose" "vikix-grid" "vikix-main" "vikix-layout-pick" "vikix-solo"
-     "toggle-gaps" "winner-undo" "winner-redo" "global-windowlist"
-     "global-pull-windowlist" "beckon" "vikix-float" "vikix-titlebars" "vikix-title")
+    ("Windows & frames" "delete" "fullscreen" "pull-hidden-other" "vikix-last-window" "next" "prev"
+     "move-focus" "move-window" "vikix-focus" "vikix-move" "vikix-viri" "vikix-width-or-remove" "vikix-stack" "vikix-expose" "vikix-split" "hsplit" "vsplit" "remove" "expose" "vikix-grid" "vikix-main" "vikix-layout-pick" "vikix-solo"
+     "toggle-gaps" "winner-undo" "winner-redo" "vikix-layout-undo" "vikix-layout-redo" "global-windowlist"
+     "global-pull-windowlist" "vikix-bring-window" "beckon" "vikix-pointer" "vikix-float" "vikix-titlebars" "vikix-title")
     ("Workspaces" "gselect" "gmove" "grouplist")
     ("Notifications" "dunstctl" "vikix-notifications" "vikix-quiet")
     ("Screenshots & recording" "vikix-screenshot" "vikix-record" "vikix-capture")

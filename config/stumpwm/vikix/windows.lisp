@@ -6,7 +6,7 @@
 ;;;;   grid       every window in a grid: once (s-o), or kept so (s-O)
 ;;;;   main       a main window and a stack beside it, kept so (s-C-m)
 ;;;;   find       any window on any workspace (s-g goes there, s-G brings it here)
-;;;;   beckon     the pointer jumps to the focused window (s-p)
+;;;;   pointer    the pointer jumps to the focused window (s-p)
 ;;;;   lazarus    the docked IDE tiles; its dialogs float
 ;;;;   solo       only this window, then the layout back (s-z)
 ;;;;   dialogs    float, centred, and stay in front of the tiles
@@ -21,6 +21,19 @@
 
 ;; Focus moves to the window under the mouse, without a click.
 (setf *mouse-focus-policy* :sloppy)
+
+;; StumpWM's own handler, but for one thing: the pointer "entering" the
+;; window that has the focus already does nothing. X says the pointer
+;; entered a window whenever what covered it goes (a menu closing over the
+;; pointer), and StumpWM's focus-all takes any message off the screen: the
+;; answer of "What does a key do?", picked from the menu, was gone as it
+;; came.
+(define-stump-event-handler :enter-notify (window mode)
+  (when (and window (eq mode :normal) (eq *mouse-focus-policy* :sloppy))
+    (let ((win (find-window window)))
+      (when (and win (find win (top-windows)) (not (eq win (current-window))))
+        (focus-all win)
+        (update-all-mode-lines)))))
 
 (defun vikix-load-module (name)
   "Load contrib module NAME. True if it loaded. A missing module is
@@ -115,6 +128,28 @@ below zero for a small window, and X then kills the window manager."
 ;;   - after an undo, a new change leaves the old redo steps in place;
 ;;     they are dropped, as in any editor
 ;; Named functions, so a reload doesn't add the hooks twice.
+
+;; On s-u and s-U: winner-mode puts a layout back with restore-group, which
+;; gives every window a frame, so a floating one (a dialog, a window
+;; floated with s-t) was an error; they're kept out of it, as s-z does.
+;; A strip has no frames to go back to, and says so.
+(defun vikix-layout-step (command)
+  (let ((group (current-group)))
+    (if (not (typep group 'tile-group))
+        (message "Layout undo is for tiled workspaces: a strip keeps its order.")
+        (let* ((all (group-windows group))
+               (floats (remove-if-not #'float-window-p all)))
+          (setf (group-windows group) (set-difference all floats))
+          (unwind-protect (run-commands command)
+            (setf (group-windows group) all))))))
+
+(defcommand vikix-layout-undo () ()
+  "Undo the last layout change on this workspace (splits, moves)."
+  (vikix-layout-step "winner-undo"))
+
+(defcommand vikix-layout-redo () ()
+  "Redo the layout change just undone."
+  (vikix-layout-step "winner-redo"))
 
 (defun vikix-layout-command-p (command)
   (or (member command (symbol-value (find-symbol "*DEFAULT-COMMANDS*" :winner-mode)))
@@ -216,8 +251,50 @@ not tiled already; then focus FOCUS, or the window that had focus."
 
 ;;; Finding windows, and the pointer
 
-(vikix-load-module "globalwindows")
-(vikix-load-module "beckon")
+;; s-g is the module globalwindows' list of every window. Its goto-window
+;; only knew a window in a frame: one on a strip, or floating, was an
+;; error. Vikix's takes its place, as maximize-window's does above.
+(defun vikix-goto-window (window)
+  "Go to WINDOW wherever it is: in a frame, floating, or on a strip."
+  (let ((group (window-group window)))
+    (when (and (typep group 'tile-group) (typep window 'tile-window))
+      (frame-raise-window group (window-frame window) window))
+    (focus-all window)))
+
+(when (vikix-load-module "globalwindows")
+  (setf (symbol-function (find-symbol "GOTO-WINDOW" :globalwindows)) #'vikix-goto-window))
+
+(defun vikix-bring-window-here (window)
+  "WINDOW comes to the current workspace and takes the focus: into the
+current frame on tiles, as a column on a strip."
+  (let ((group (current-group)))
+    (unless (eq (window-group window) group)
+      (move-window-to-group window group))
+    (when (and (typep group 'tile-group) (typep window 'tile-window))
+      (pull-window window))
+    (group-focus-window group window)))
+
+(defcommand vikix-bring-window () ()
+  "Bring any window here, from any workspace: pick it from the list."
+  (let ((windows (remove (current-window)
+                         (loop for g in (sort-groups (current-screen))
+                               append (copy-list (group-windows g))))))
+    (if (null windows)
+        (message "No other window to bring.")
+        (let ((window (select-window-from-menu
+                       (sort windows #'string-lessp :key #'window-name) *window-format*)))
+          (when window
+            (vikix-bring-window-here window))))))
+
+(defcommand vikix-pointer () ()
+  "Move the pointer to the middle of this window, tiled, floating or on a strip."
+  (let ((win (current-window)))
+    (if (null win)
+        (message "No window here.")
+        (let ((p (window-parent win)))
+          (warp-pointer (window-screen win)
+                        (+ (xlib:drawable-x p) (floor (xlib:drawable-width p) 2))
+                        (+ (xlib:drawable-y p) (floor (xlib:drawable-height p) 2)))))))
 
 ;;; Lazarus
 

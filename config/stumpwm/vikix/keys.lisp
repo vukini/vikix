@@ -50,7 +50,7 @@ tools. Every other program a key starts is on Super+Alt.")
   "What switches something on the desktop: on Super+Ctrl, and nothing else is.")
 
 (defparameter *vikix-key-movers*
-  '("vikix-move" "move-window" "gmove" "global-pull-windowlist")
+  '("vikix-move" "move-window" "gmove" "vikix-bring-window" "global-pull-windowlist")
   "What moves a window: on Super+Shift.")
 
 (defvar *vikix-bind-later* nil
@@ -107,7 +107,7 @@ of a reload's 15 seconds, and the desktop stood still meanwhile."
     ;; windows
     ("s-q"    "delete"            "Close window")
     ("s-f"    "fullscreen"        "Fullscreen on/off")
-    ("s-TAB"  "pull-hidden-other" "The last window again: flips between two")
+    ("s-TAB"  "vikix-last-window" "The last window again: flips between two")
     ;; Super+` and Super+Shift+` go through every window on the workspace:
     ;; to its frame when it's showing, into this frame when it's hidden.
     ;; Shift+` is ~ on the keyboard, so StumpWM knows that key as asciitilde.
@@ -133,8 +133,8 @@ of a reload's 15 seconds, and the desktop stood still meanwhile."
     ("s-S-Up"    "vikix-move up"    "Move window up (arrow)")
     ("s-S-Right" "vikix-move right" "Move window right (arrow)")
     ;; frames (StumpWM's splits)
-    ("s-b"    "hsplit"            "Split: side by side")
-    ("s-v"    "vsplit"            "Split: one above the other")
+    ("s-b"    "vikix-split"       "Split: side by side")
+    ("s-v"    "vikix-split below" "Split: one above the other")
     ("s-r"    "vikix-width-or-remove" "Remove this split (on a strip: the column's width; in main and stack: the main window's)")
     ("s-bracketleft"  "vikix-stack left"  "On a strip: into the column on the left, or out of a shared one")
     ("s-bracketright" "vikix-stack right" "On a strip: into the column on the right, or out of a shared one")
@@ -145,11 +145,11 @@ of a reload's 15 seconds, and the desktop stood still meanwhile."
     ("s-z"    "vikix-solo"        "Focus: only this window; again puts the others back")
     ;; windows.lisp: gaps, layout undo, finding windows
     ("s-C-g"  "toggle-gaps"       "Gaps around windows on/off")
-    ("s-u"    "winner-undo"       "Undo the last layout change (splits, moves)")
-    ("s-U"    "winner-redo"       "Redo the layout change")
+    ("s-u"    "vikix-layout-undo" "Undo the last layout change (splits, moves)")
+    ("s-U"    "vikix-layout-redo" "Redo the layout change")
     ("s-g"    "global-windowlist" "Go to any window, on any workspace")
-    ("s-G"    "global-pull-windowlist" "Bring any window here, from any workspace")
-    ("s-p"    "beckon"            "Move the pointer to this window")
+    ("s-G"    "vikix-bring-window" "Bring any window here, from any workspace")
+    ("s-p"    "vikix-pointer"     "Move the pointer to this window")
     ("s-t"    "vikix-float"       "Float this window, or tile it again (Super+drag moves it)")
     ("s-C-y"  "vikix-titlebars"   "Title bars on/off")
     ("s-\""   "vikix-title"       "Rename this window")

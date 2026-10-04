@@ -241,6 +241,25 @@ focus. So a pointer over the strip goes along with the focused window."
       (float-window-move-resize window :x (+ ax (max 0 (floor (- aw w) 2)))
                                        :y (+ ay (max 0 (floor (- ah h) 2)))))))
 
+;; A column that leaves the strip for a tiled workspace (Super+Shift+digit,
+;; Super+Shift+g there) is tiled there: it floated only because a strip's
+;; windows do. Noted as it leaves, tiled as it arrives.
+(defvar *viri-leaving* (make-hash-table :test 'eq :weakness :key)
+  "Windows that have just left a strip as one of its columns.")
+
+(defmethod group-add-window :after ((group tile-group) (window float-window) &key &allow-other-keys)
+  (when (gethash window *viri-leaving*)
+    (remhash window *viri-leaving*)
+    ;; Into the frame the workspace is on, which stays the current one.
+    (let ((frame (tile-group-current-frame group)))
+      (unfloat-window window group)
+      (pull-window window frame nil)
+      (setf (tile-group-current-frame group) frame))))
+
+(defmethod group-delete-window :before ((group viri-group) (window float-window))
+  (when (viri-col-of group window)
+    (setf (gethash window *viri-leaving*) t)))
+
 (defmethod group-delete-window ((group viri-group) (window float-window))
   (let* ((col (viri-col-of group window))
          (i (and col (position col (viri-cols group))))
@@ -390,6 +409,28 @@ width. On other tiles, remove this split (remove)."
   (cond ((viri-group-p) (viri-cycle-width (current-group)))
         ((vikix-main-p) (vikix-main-cycle-share (current-group)))
         (t (run-commands "remove"))))
+
+(defcommand vikix-last-window () ()
+  "The window you were in before this one: on a strip the focus goes back
+to it; on tiles it comes into this frame (pull-hidden-other)."
+  (if (viri-group-p)
+      (let* ((group (current-group))
+             (now (group-current-window group))
+             ;; A group's windows are kept last focused first.
+             (last (find-if (lambda (w) (and (not (eq w now)) (viri-col-of group w)))
+                            (group-windows group))))
+        (if last
+            (group-focus-window group last)
+            (message "No other window on this strip.")))
+      (run-commands "pull-hidden-other")))
+
+(defcommand vikix-split (&optional how) ((:string nil))
+  "Split this frame in two: side by side, or with \"below\" one above the
+other. A strip has no splits to make."
+  (cond ((viri-group-p)
+         (message "A strip has no splits: a new window opens beside this one, and Super+[ or Super+] puts a window under its neighbour."))
+        ((equal how "below") (run-commands "vsplit"))
+        (t (run-commands "hsplit"))))
 
 (defcommand vikix-focus (dir) ((:direction "Direction: "))
   "Focus the window that way: along the strip on a Viri workspace, the

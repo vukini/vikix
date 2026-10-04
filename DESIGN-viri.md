@@ -23,6 +23,7 @@ What building it settled, against the plan below:
 - **Stacking** (0.71.97): Niri's consume-or-expel on Super+[ and Super+] rather than the planned Super+Shift+j/k, which move a window up and down its column instead; a column's windows share its height evenly.
 - **The overview** (a menu, 0.71.105) is Super+o on a strip, not Super+Tab: Super+o already means "every window on this workspace, pick one" (expose, tiles only), and Super+Tab's "the last window" works on a strip too. Rule verbs `width` and `join` came in 0.71.104.
 - **The agents see strips** (0.71.107): the MCP `desktop` tool gives each workspace's kind, and a strip's columns with their widths, windows and which are on the screen.
+- **The window keys that only knew tiles** (0.71.126): lived in for a day, the strip met Super+g (an error: the contrib module asked a floating window for its frame), Super+Tab and Super+b/v ("command not found": StumpWM's own are tile-group commands), Super+p and Super+u (errors). Each key now runs a Vikix command that does its thing on a strip or says why not (`vikix-last-window`, `vikix-split`, `vikix-layout-undo`, `vikix-pointer`, `vikix-bring-window`, and Vikix's `goto-window` in the module's place). A column sent to a tiled workspace stayed floating there; it is tiled as it arrives.
 - **Not done:** the drawn overview, `vikix project` saving a strip.
 
 ## The problem
