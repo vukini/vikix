@@ -44,7 +44,7 @@ VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 # A commit, not a branch: an update brings a new Esploro only when Vikix
 # moves this pin, after trying it.
 ESPLORO_REPO=https://github.com/vukini/esploro
-ESPLORO_COMMIT=b3b116327ec3b85c24ac439b5069aab61d416b32 # the biggest anywhere below (C-c S), what's marked adds up, the Trash's size; Recent, What's Taking Space, Duplicates
+ESPLORO_COMMIT=26161aa04aadb5be5fdd2a8a378caef294b7f65a # servers over SSH, Changes (undo any), Dropbox status, duplicates
 OPT="$HOME/.local/opt/esploro"
 BIN="$HOME/.local/bin"
 APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
@@ -164,7 +164,7 @@ reload_in_emacs() {
   # Emacs's start from then on).
   form="(progn (load \"$OPT/emacs/esploro-loaddefs\" t t) (when (featurep 'esploro)
           (dolist (v '(esploro-mode-map esploro-places-mode-map esploro-tool-bar-map esploro-manual-mode-map esploro-preview-mode-map
-                       esploro-review-mode-map esploro-plan-edit-mode-map esploro-project-mode-map esploro-habits-mode-map esploro-grid-mode-map
+                       esploro-review-mode-map esploro-plan-edit-mode-map esploro-project-mode-map esploro-habits-mode-map esploro-grid-mode-map esploro-changes-mode-map
                        esploro--back esploro--forward esploro--sort esploro--reverse
                        esploro--hidden esploro--filter))
             (makunbound v))
