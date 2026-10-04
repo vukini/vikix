@@ -109,6 +109,28 @@ as theme.lisp sets it), and say how wide it is."
                     (screen-unfocus-color screen))))
         (call-next-method))))
 
+(defun viri-titlebar-height (window slot)
+  "The room WINDOW's title bar takes at the top of a SLOT pixels high: none
+with the bars off (Super+Ctrl+y), or in a slot too low for one."
+  (if (and (fboundp 'vikix-titlebar-height)
+           (boundp '*vikix-titlebars*) (symbol-value '*vikix-titlebars*)
+           (not (window-fullscreen window)))
+      (let ((h (funcall 'vikix-titlebar-height)))
+        (if (> slot (* 3 h)) h 0))
+      0))
+
+;; Fullscreen is StumpWM's own, as for any floating window. Going into it,
+;; a column's title bar goes (it would lie over the top of the picture);
+;; coming out, StumpWM puts the window back as a floating one, so the strip
+;; lays its columns out again.
+(defmethod (setf window-fullscreen) :around (val (window float-window))
+  (prog1 (call-next-method)
+    (let ((group (and (slot-boundp window 'group) (window-group window))))
+      (when (and group (viri-group-p group) (viri-col-of group window))
+        (cond (val (when (fboundp 'vikix-titlebar-remove)
+                     (funcall 'vikix-titlebar-remove window)))
+              ((eq group (current-group)) (viri-layout group)))))))
+
 (defun viri-spans (group width)
   "Each column's place along the strip: a list of (x . w) in pixels from its
 left end, for a screen WIDTH wide."
@@ -157,13 +179,24 @@ the windows of a column one above the other, sharing its height."
                    ;; (iconic) is shown again, now, or when the workspace is.
                    when (window-hidden-p w)
                      do (unhide-window w)
-                   unless (window-fullscreen w)
-                     do (let ((border (* 2 (viri-border w))))
-                          (set-window-geometry w :x 0 :y 0)
-                          (float-window-move-resize w :x (+ ax (- x (viri-offset group))) :y wy
-                                                      :width (max 1 (- cw border))
-                                                      :height (max 1 (- wh border))
-                                                      :border 0)))))
+                   ;; A column's window has the tiles' title bar (windows.lisp):
+                   ;; the window sits below it in its parent, the bar a child
+                   ;; in the room above. None on a fullscreen window.
+                   do (if (window-fullscreen w)
+                          (when (fboundp 'vikix-titlebar-remove)
+                            (funcall 'vikix-titlebar-remove w))
+                          (let* ((border (* 2 (viri-border w)))
+                                 (width (max 1 (- cw border)))
+                                 (bar (viri-titlebar-height w (- wh border))))
+                            (set-window-geometry w :x 0 :y bar)
+                            (float-window-move-resize w :x (+ ax (- x (viri-offset group))) :y wy
+                                                        :width width
+                                                        :height (max 1 (- wh border bar))
+                                                        :border 0)
+                            (if (plusp bar)
+                                (funcall 'vikix-titlebar-show w width)
+                                (when (fboundp 'vikix-titlebar-remove)
+                                  (funcall 'vikix-titlebar-remove w))))))))
   (viri-keep-pointer group)
   (update-all-mode-lines))
 
@@ -213,8 +246,8 @@ focus. So a pointer over the strip goes along with the focused window."
 ;;; What StumpWM asks of a group, where a strip differs from a float group.
 
 (defmethod group-add-window ((group viri-group) window &key &allow-other-keys)
-  ;; Vikix's title bars are for tiles (windows.lisp); one left from the
-  ;; tiles would cover the top of the window here.
+  ;; A title bar left from the tiles would cover the top of a dialog here;
+  ;; a column gets its own again as the strip is laid out.
   (when (fboundp 'vikix-titlebar-remove)
     (funcall 'vikix-titlebar-remove window))
   ;; A new column goes right of the focused one, the way you're working.

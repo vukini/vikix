@@ -66,7 +66,7 @@ front, so a name like Brightness-up is never mistaken for one."
     ("AI & voice" "vikix-agent" "vikix-ask" "vikix-dictate" "vikix-voice")
     ("Windows & frames" "delete" "fullscreen" "pull-hidden-other" "vikix-last-window" "next" "prev"
      "move-focus" "move-window" "vikix-focus" "vikix-move" "vikix-viri" "vikix-width-or-remove" "vikix-stack" "vikix-expose" "vikix-split" "hsplit" "vsplit" "remove" "expose" "vikix-grid" "vikix-main" "vikix-layout-pick" "vikix-solo"
-     "toggle-gaps" "winner-undo" "winner-redo" "vikix-layout-undo" "vikix-layout-redo" "global-windowlist"
+     "toggle-gaps" "winner-undo" "winner-redo" "vikix-layout-undo" "vikix-layout-redo" "global-windowlist" "vikix-go-to-window"
      "global-pull-windowlist" "vikix-bring-window" "beckon" "vikix-pointer" "vikix-float" "vikix-titlebars" "vikix-title")
     ("Workspaces" "gselect" "gmove" "grouplist")
     ("Notifications" "dunstctl" "vikix-notifications" "vikix-quiet")

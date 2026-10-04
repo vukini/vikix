@@ -147,7 +147,7 @@ of a reload's 15 seconds, and the desktop stood still meanwhile."
     ("s-C-g"  "toggle-gaps"       "Gaps around windows on/off")
     ("s-u"    "vikix-layout-undo" "Undo the last layout change (splits, moves)")
     ("s-U"    "vikix-layout-redo" "Redo the layout change")
-    ("s-g"    "global-windowlist" "Go to any window, on any workspace")
+    ("s-g"    "vikix-go-to-window" "Go to any window, on any workspace")
     ("s-G"    "vikix-bring-window" "Bring any window here, from any workspace")
     ("s-p"    "vikix-pointer"     "Move the pointer to this window")
     ("s-t"    "vikix-float"       "Float this window, or tile it again (Super+drag moves it)")

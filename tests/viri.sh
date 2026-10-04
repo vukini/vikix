@@ -174,6 +174,21 @@ win Under
 check "a rule's (join :left) puts the new window under the column on its left: $(cols)" grep -q 'WideUnder' <<<"$(cols)"
 check "the rules ran without failing" test "$(ask '(princ (reduce (function +) (mapcar (function vikix-rule-failures) *vikix-rules*)))')" = 0
 
+# Title bars: each column's window has the tiles' bar, as wide as the column,
+# the window below it; Super+Ctrl+y takes them away and brings them back; a
+# fullscreen window has none.
+bars() { ask '(progn (setf *print-pretty* nil) (let ((ws (viri-columns (current-group)))) (format t "~a/~a" (count-if (lambda (w) (let ((bar (gethash w *vikix-titlebar-windows*))) (and bar (not (eq (xlib:window-map-state bar) :unmapped)) (= (xlib:drawable-width bar) (xlib:drawable-width (window-parent w))) (= (xlib:drawable-y (window-xwin w)) (xlib:drawable-height bar))))) ws) (length ws))))'; }
+n=$(ask '(princ (length (viri-columns (current-group))))')
+check "each column's window has a title bar as wide as it, the window below: $(bars)" test "$(bars)" = "$n/$n"
+key super+ctrl+y
+check "Super+Ctrl+y takes them away, the windows at the top again: $(bars)" test "$(bars) $(ask '(princ (hash-table-count *vikix-titlebar-windows*))') $(ask '(princ (xlib:drawable-y (window-xwin (current-window))))')" = "0/$n 0 0"
+key super+ctrl+y
+check "and brings them back: $(bars)" test "$(bars)" = "$n/$n"
+key super+f
+check "a fullscreen window has none: $(bars)" test "$(bars) $(ask '(princ (if (gethash (current-window) *vikix-titlebar-windows*) 1 0))')" = "$((n - 1))/$n 0"
+key super+f
+check "out of fullscreen it has its bar and its place again: $(bars)" test "$(bars)" = "$n/$n"
+
 # The window keys that only knew tiles: on a strip each does its thing, or
 # says why not; none is an error.
 focus() { ask '(princ (window-title (current-window)))'; }
@@ -191,12 +206,12 @@ key super+u; key super+shift+u; key super+b; key super+v
 check "Super+u, Super+b and Super+v say a strip has none of that" test "$(msgs | grep -c 'A strip has no splits\|Layout undo is for tiled')" -ge 3
 sent=$(focus); key super+shift+3
 check "a column sent to a tiled workspace is tiled there, in a frame: $sent" test "$(ask "(princ (type-of $(find_any "$sent")))")" = TILE-WINDOW
-key super+3; key super+g; key Return
+key super+3; key super+g; sleep 1; key Return   # the list first, then Enter: a slow machine
 check "Super+g from there goes to a window on the strip: $(focus)" test "$(ask '(princ (if (viri-group-p) 1 0))') $(focus)" != "0 $sent"
-key super+3; key super+shift+g; key Return
+key super+3; key super+shift+g; sleep 1; key Return
 check "Super+Shift+g brings one off the strip, into a frame: $(focus)" test "$(ask '(princ (list (group-number (current-group)) (type-of (current-window))))')" = "(3 TILE-WINDOW)"
 key super+1
 check "none of them was an error: $(msgs | grep -i 'Error In Command\|not found' | head -1)" test -z "$(msgs | sed '/the window keys/,$d' | grep -i 'Error In Command\|not found')"
 
-wm_report viri "a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, the overview, the agents' desktop tool, new and closed windows, a dialog, another workspace, off and on, the window keys on a strip"
+wm_report viri "a strip from tiles and back in order, walking and moving along it, stacking, widths, rules for strips, the overview, the agents' desktop tool, new and closed windows, a dialog, another workspace, off and on, title bars, the window keys on a strip"
 exit "$fail"

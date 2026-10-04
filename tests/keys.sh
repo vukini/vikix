@@ -118,6 +118,13 @@ check "the new ones are there: $(bound s-M-s), $(bound s-C-a), $(bound s-S-Left)
   test "$(bound s-M-s)|$(bound s-C-a)|$(bound s-S-Left)" = "exec spacefm|vikix-awake|vikix-move left"
 check "no key of Vikix's breaks the rule for keys: $(ask '(princ (vikix-key-problems))')" test "$(ask '(princ (length (vikix-key-problems)))')" = 0
 
+# Super+g's list: each line has the window's workspace, its title, and for
+# a terminal its folder and what runs in it, so two terminals with one
+# title can be told apart; the focused window isn't in it.
+lines() { ask '(progn (setf *print-pretty* nil) (format t "~{~a~%~}" (mapcar (function first) (vikix-window-lines (vikix-other-windows)))))'; }
+check "the window list says each window's workspace and what runs in it: $(lines | head -3 | tr '\n' '|')" grep -qE '^2 +B +.*sleep 300' <<<"$(lines)"
+check "and leaves the focused window out" test "$(lines | grep -c " $(ask '(princ (window-title (current-window)))') ")" = 0
+
 # "What does a key do?" from the menu: the answer stays. The menu closes
 # over the pointer, X says the pointer entered the window beneath, and
 # focusing it again took the answer off the screen as it came.
@@ -127,5 +134,5 @@ check "the answer of What does a key do? stays on the screen" test "$(ask '(prin
 key Escape
 check "nothing failed on the way" test -z "$(ls "$home/.local/state/vikix/errors/" 2>/dev/null)"
 
-[ "$fail" = 0 ] && echo "keys: Super+Shift+digit by the keyboard's layout (US, British, French), Super+Shift moves the window, the old keys let go at a reload, the key help's answer stays"
+[ "$fail" = 0 ] && echo "keys: Super+Shift+digit by the keyboard's layout (US, British, French), Super+Shift moves the window, the old keys let go at a reload, the window list, the key help's answer stays"
 exit "$fail"

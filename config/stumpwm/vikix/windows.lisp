@@ -251,9 +251,9 @@ not tiled already; then focus FOCUS, or the window that had focus."
 
 ;;; Finding windows, and the pointer
 
-;; s-g is the module globalwindows' list of every window. Its goto-window
-;; only knew a window in a frame: one on a strip, or floating, was an
-;; error. Vikix's takes its place, as maximize-window's does above.
+;; The module globalwindows' goto-window only knew a window in a frame: one
+;; on a strip, or floating, was an error. Vikix's takes its place, as
+;; maximize-window's does above, for s-g and for the module's own command.
 (defun vikix-goto-window (window)
   "Go to WINDOW wherever it is: in a frame, floating, or on a strip."
   (let ((group (window-group window)))
@@ -263,6 +263,95 @@ not tiled already; then focus FOCUS, or the window that had focus."
 
 (when (vikix-load-module "globalwindows")
   (setf (symbol-function (find-symbol "GOTO-WINDOW" :globalwindows)) #'vikix-goto-window))
+
+;; The list itself (s-g, s-G). The module's showed a number and a title, and
+;; sorted by title: seven idle terminals were seven lines of "Alacritty",
+;; none saying which workspace it was on. Each line here has the workspace,
+;; the title, and what the window is: a terminal's folder and what runs in
+;; it, any other window's program. Typing narrows it by any of those.
+;; Windows on a hidden workspace (the drop-down terminal's) are left out.
+
+(defun vikix-short-path (path)
+  "PATH with the home folder as ~ and no slash at its end."
+  (let* ((home (string-right-trim "/" (namestring (user-homedir-pathname))))
+         (path (if (> (length path) 1) (string-right-trim "/" path) path)))
+    (if (and (>= (length path) (length home)) (string= home path :end2 (length home)))
+        (concat "~" (subseq path (length home)))
+        path)))
+
+(defun vikix-proc-foreground (pid)
+  "The process in front on PID's terminal (the job its shell is running),
+or NIL: field 8 of /proc/PID/stat, counted after the name's bracket."
+  (ignore-errors
+   (with-open-file (in (format nil "/proc/~d/stat" pid))
+     (let* ((line (read-line in))
+            (fields (remove "" (split-seq (subseq line (1+ (position #\) line :from-end t))) " ")
+                            :test #'string=))
+            (front (parse-integer (nth 5 fields))))
+       (and (plusp front) front)))))
+
+(defun vikix-window-about (window)
+  "A few words on what WINDOW is, beyond its title: a terminal's folder and
+what runs in it (nothing for a shell at its prompt), any other window's
+class. The reading of /proc is layouts.lisp's."
+  (or (ignore-errors
+       (let* ((pid (vikix-window-pid window))
+              (cmd (and pid (vikix-proc-cmdline pid))))
+         (when (and cmd (member (vikix-layout-program (first cmd)) *vikix-layout-terminals*
+                                :test #'string=))
+           (let* ((inside (vikix-proc-child pid))
+                  (front (and inside (or (vikix-proc-foreground inside) inside)))
+                  (job (and front (or (vikix-proc-cmdline front) (vikix-proc-cmdline inside))))
+                  (program (and job (vikix-layout-program (first job))))
+                  (folder (and inside (vikix-proc-cwd inside)))
+                  (words (and program
+                              (not (member program *vikix-layout-shells* :test #'string=))
+                              (format nil "~a~{ ~a~}" program (rest job)))))
+             (format nil "~@[~a~]~:[~;  ~]~@[~a~]"
+                     ;; A long path keeps its end, which says most.
+                     (and folder
+                          (let ((short (vikix-short-path folder)))
+                            (if (> (length short) 36)
+                                (concat "..." (subseq short (- (length short) 33)))
+                                short)))
+                     (and folder words)
+                     (and words (subseq words 0 (min 40 (length words)))))))))
+      (window-class window)
+      ""))
+
+(defun vikix-window-lines (windows)
+  "A menu line for each of WINDOWS: workspace, title, what it is."
+  (let ((wide (min 40 (reduce #'max windows :key (lambda (w) (length (window-name w)))
+                                            :initial-value 0))))
+    (mapcar (lambda (w)
+              (let ((name (window-name w)))
+                (list (format nil "~3a ~va  ~a"
+                              (group-name (window-group w))
+                              wide (subseq name 0 (min wide (length name)))
+                              (vikix-window-about w))
+                      w)))
+            windows)))
+
+(defun vikix-other-windows ()
+  "Every window but the focused one, by workspace and then by number; none
+from a hidden workspace."
+  (remove (current-window)
+          (loop for g in (sort-groups (current-screen))
+                unless (char= (char (group-name g) 0) #\.)
+                  append (sort (copy-list (group-windows g)) #'< :key #'window-number))))
+
+(defun vikix-pick-window (prompt)
+  "Pick one of the other windows from the list, or NIL."
+  (let ((windows (vikix-other-windows)))
+    (if (null windows)
+        (progn (message "No other window.") nil)
+        (second (select-from-menu (current-screen) (vikix-window-lines windows) prompt)))))
+
+(defcommand vikix-go-to-window () ()
+  "Go to any window, on any workspace: pick it from the list."
+  (let ((window (vikix-pick-window "Go to: ")))
+    (when window
+      (vikix-goto-window window))))
 
 (defun vikix-bring-window-here (window)
   "WINDOW comes to the current workspace and takes the focus: into the
@@ -276,15 +365,9 @@ current frame on tiles, as a column on a strip."
 
 (defcommand vikix-bring-window () ()
   "Bring any window here, from any workspace: pick it from the list."
-  (let ((windows (remove (current-window)
-                         (loop for g in (sort-groups (current-screen))
-                               append (copy-list (group-windows g))))))
-    (if (null windows)
-        (message "No other window to bring.")
-        (let ((window (select-window-from-menu
-                       (sort windows #'string-lessp :key #'window-name) *window-format*)))
-          (when window
-            (vikix-bring-window-here window))))))
+  (let ((window (vikix-pick-window "Bring here: ")))
+    (when window
+      (vikix-bring-window-here window))))
 
 (defcommand vikix-pointer () ()
   "Move the pointer to the middle of this window, tiled, floating or on a strip."
@@ -734,7 +817,8 @@ GTK and Qt dialogs are drawn at; without one, a modest box."
 
 ;;; Title bars, and floating
 
-;; A strip at the top of each tiled window with its number and name, in the
+;; A strip at the top of each tiled window, and of each column's window on
+;; a Viri workspace, with its number and name, in the
 ;; theme's accent when focused. StumpWM draws none of its own: after it lays
 ;; a window out, the window is moved down inside its frame (StumpWM's
 ;; "parent" X window) and the bar is a child window in the space above it.
@@ -815,34 +899,40 @@ and round it goes, the main thread never resting (bugs.md, 2026-10-02)."
        (not (nth-value 7 (geometry-hints win)))   ; kept at its own size
        (> parent-height (* 3 (vikix-titlebar-height)))))
 
+(defun vikix-titlebar-show (win &optional (width (xlib:drawable-width (window-parent win))))
+  "WIN's bar across the top of its parent, WIDTH wide: made if it has none,
+and painted. The caller has left it room above the window."
+  (let ((parent (window-parent win))
+        (h (vikix-titlebar-height))
+        (bar (gethash win *vikix-titlebar-windows*)))
+    (unless bar
+      ;; The screen's own visual, not the parent's: a terminal with
+      ;; transparency gives its parent 32 bits, and smoothed text
+      ;; then comes out with coloured fringes.
+      (let ((root (screen-root (window-screen win))))
+        (setf bar (xlib:create-window
+                   :parent parent :x 0 :y 0 :width width :height h
+                   :depth (xlib:drawable-depth root)
+                   :visual (xlib:window-visual-info root)
+                   :colormap (xlib:screen-default-colormap
+                              (screen-number (window-screen win)))
+                   :border 0 :border-width 0 :event-mask '())
+              (gethash win *vikix-titlebar-windows*) bar)))
+    (xlib:with-state (bar)
+      (setf (xlib:drawable-x bar) 0 (xlib:drawable-y bar) 0
+            (xlib:drawable-width bar) width (xlib:drawable-height bar) h))
+    (xlib:map-window bar)
+    (vikix-titlebar-draw win)))
+
 (defun vikix-titlebar-place (win)
   "After StumpWM has laid WIN out: make room at its top and put its bar there."
   (let ((parent (window-parent win))
         (h (vikix-titlebar-height)))
     (if (vikix-titlebar-wants-p win (xlib:drawable-height parent))
-        (let ((pw (xlib:drawable-width parent))
-              (ph (xlib:drawable-height parent))
-              (bar (gethash win *vikix-titlebar-windows*))
+        (let ((ph (xlib:drawable-height parent))
               (y (max h (xlib:drawable-y (window-xwin win)))))
           (set-window-geometry win :y y :height (vikix-titlebar-fit win (min (window-height win) (- ph y))))
-          (unless bar
-            ;; The screen's own visual, not the parent's: a terminal with
-            ;; transparency gives its parent 32 bits, and smoothed text
-            ;; then comes out with coloured fringes.
-            (let ((root (screen-root (window-screen win))))
-              (setf bar (xlib:create-window
-                         :parent parent :x 0 :y 0 :width pw :height h
-                         :depth (xlib:drawable-depth root)
-                         :visual (xlib:window-visual-info root)
-                         :colormap (xlib:screen-default-colormap
-                                    (screen-number (window-screen win)))
-                         :border 0 :border-width 0 :event-mask '())
-                    (gethash win *vikix-titlebar-windows*) bar)))
-          (xlib:with-state (bar)
-            (setf (xlib:drawable-x bar) 0 (xlib:drawable-y bar) 0
-                  (xlib:drawable-width bar) pw (xlib:drawable-height bar) h))
-          (xlib:map-window bar)
-          (vikix-titlebar-draw win)
+          (vikix-titlebar-show win)
           (update-configuration win))
         (vikix-titlebar-remove win))))
 
@@ -886,10 +976,14 @@ theme.lisp calls it after a theme change."
   (dolist (screen *screen-list*)
     (dolist (win (screen-windows screen))
       (when (typep win 'tile-window)
-        (maximize-window win)))))
+        (maximize-window win))))
+  ;; A strip on the screen now (viri.lisp, loaded later); one on another
+  ;; workspace is laid out as you come to it.
+  (when (and (fboundp 'viri-group-p) (funcall 'viri-group-p (current-group)))
+    (funcall 'viri-layout (current-group))))
 
 (defcommand vikix-titlebars () ()
-  "Title bars on tiled windows on or off."
+  "Title bars on tiled windows and a strip's columns, on or off."
   (setf *vikix-titlebars* (not *vikix-titlebars*))
   (handler-case
       (if *vikix-titlebars*
