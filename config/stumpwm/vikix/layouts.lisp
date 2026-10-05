@@ -371,13 +371,16 @@ when it was started; NIL when it can't be (no command) or was just now."
 workspace is NAME's still, put it back as NAME says again as more of them
 are there (nothing started this time). Whole seconds: a fractional delay
 once stopped StumpWM's timers."
-  (let ((tries 0) (timer nil) (left (length started)))
+  (let ((tries 0) (timer nil) (left (length started))
+        ;; The folder the layout was read from: resume.lisp keeps its own.
+        (dir *vikix-layouts-dir*))
     (setf timer
           (run-with-timer 1 1
                           (lambda ()
                             (incf tries)
                             (handler-case
-                                (let* ((windows (remove-if #'viri-floats-p (group-windows group)))
+                                (let* ((*vikix-layouts-dir* dir)
+                                       (windows (remove-if #'viri-floats-p (group-windows group)))
                                        (still (count-if-not (lambda (s) (first (vikix-layout-match (list s) windows))) started)))
                                   (when (< still left)
                                     (setf left still)

@@ -109,6 +109,22 @@ Or Super+m, *Layout: save this workspace's* and *Layout: put this workspace back
 
 Each is a file of plain Lisp in `~/.config/vikix/layouts/`, to read and change by hand: windows are described by their class and title, not remembered as the windows they were, and a split's place and size are parts of the screen, so a layout still fits after the windows have been closed and opened again, or on another screen. Putting one back matches the windows on the workspace to the saved ones (the same program first, then the closest title); a window it doesn't mention stays, and a saved one that isn't open is started again and placed as it comes (`vikix layout NAME --no-start` only names it). Each saved window says how: its `:command` and `:directory`, read from the program when the layout was saved; a terminal comes back in its shell's folder (with what ran in it, when that wasn't the shell), an Emacs window as `emacsclient -c` on the file it showed, Esploro on its folder. Since a layout can start programs, read one you were given before you put it back. A strip's layout makes the workspace a strip, a tiled one tiles. Floating windows aren't saved.
 
+### Your windows back after a restart
+
+The desktop saves every workspace by itself, every five minutes and when it ends: which windows, where they stand, and how each was started. After a restart, the login asks whether to bring them back; Enter does it. Each workspace in turn is put back as it was, its programs started again in their folders, and you end on the workspace you were on.
+
+```sh
+vikix resume           # what is saved, and what a login does
+vikix resume now       # bring them back now (Super+m, Bring my windows back)
+vikix resume always    # at login, bring them back without asking
+vikix resume never     # at login, leave it
+vikix resume ask       # at login, ask first: how it starts out
+```
+
+What comes back is what can be started again: a terminal in the folder it was in, with the program that ran in it; a program by its command line; a web app; an Emacs frame on its file. What a program had open inside it is the program's own to bring back: Firefox reopens its tabs, an editor its files. An AI agent started with Super+a comes back as a new session in its folder (in Claude Code, `claude --continue` takes up the last conversation there). Floating windows and dialogs aren't saved.
+
+The saved workspaces are layouts like those above, kept apart in `~/.local/state/vikix/resume/`; the choice is one word in `~/.config/vikix/resume`.
+
 ### The drawer
 
 A few programs you want often and for a moment: a calculator, your files, a page of notes. `Super+Ctrl+b` slides them in from the right edge of the screen, one above the other, over your windows, on whatever workspace you're on; the key again slides them away. They keep running while they're away, so the calculator keeps its sums and the files their folder. The windows underneath are not moved or made smaller.

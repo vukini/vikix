@@ -53,6 +53,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-record](#vikix-record): record the screen to a video, without sound
 - [vikix-records](#vikix-records): where plugins keep what they found, to search and use later
 - [vikix-rescue](#vikix-rescue): a way out when the desktop is stuck
+- [vikix-resume](#vikix-resume): your windows back after a restart
 - [vikix-rofi](#vikix-rofi): rofi's plugin modes, set up the Vikix way
 - [vikix-rules](#vikix-rules): the desktop's rules, seen and steered
 - [vikix-screens](#vikix-screens): the screens: a new one lights up by itself, and a menu for the rest
@@ -83,6 +84,7 @@ The everyday command.
 - `vikix tray on|off` — a tray at the bar's end: network and Bluetooth icons (nm-applet, blueman-applet; Super+m too)
 - `vikix memory [left|clean]` — what uses the memory, biggest first, and the programs left over (hidden screens, tests nobody ended); clean ends those; a warning comes by itself when memory runs low (vikix memory help)
 - `vikix rescue [free|undo|lock]` — when the desktop is stuck: how it is and what it is doing; free = out of a loop (rules paused, focus on clicks, a fresh event loop); works from a text console too (vikix rescue help)
+- `vikix resume [now|save|ask|always|never]` — your windows back after a restart: what is saved, bring them back now, and whether a login asks first (vikix resume help)
 - `vikix times [measure|soak]` — how long logging in and a reload take; measure = on a hidden screen: start, reload, a key, an Emacs frame, StumpWM answering, against limits; soak = an hour of it worked hard (vikix times help)
 - `vikix features` — what you can add (languages, editors, LibreOffice, printing, Windows, local AI ...), and what you have
 - `vikix add NAME...` — add features, or a bundle (essentials, developer, everything); every update keeps them
@@ -892,6 +894,19 @@ A way out when the desktop is stuck.
 On the desktop itself, Super+Ctrl+Alt+Escape does what `vikix rescue free` does: StumpWM reads that key on a connection of its own, so it works when the other keys don't. A watcher inside StumpWM tells you when the desktop is stuck, and frees it by itself after a while (rescue.lisp).
 
 Exit status: 0 the desktop is coming round (or was freed), 1 it is stuck or waiting, 2 StumpWM could not be asked.
+
+## vikix-resume
+
+Your windows back after a restart.
+
+- `vikix resume` — what is saved (how many windows, on how many workspaces, when), and what a login does with it
+- `vikix resume now` — bring them back now: each workspace in turn as it was, its programs started again in their folders
+- `vikix resume save` — save the workspaces now (it is done by itself every five minutes, and when the desktop ends)
+- `vikix resume ask` — at login, ask first (as it starts out)
+- `vikix resume always` — at login, bring them back without asking
+- `vikix resume never` — at login, leave it; `vikix resume now` still works
+
+The desktop saves each workspace as a layout (which windows, where, and how each was started) in `~/.local/state/vikix/resume/`. What comes back is what can be started again: a terminal in its folder with the program that ran in it, a program by its command line, a web app, an Emacs frame on its file. What a program had open inside it is its own to bring back. Super+m has "Bring my windows back" too.
 
 ## vikix-rofi
 

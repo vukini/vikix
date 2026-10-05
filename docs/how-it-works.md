@@ -43,6 +43,7 @@ login on tty1
                       ├─ vikix/drawer.lisp       a few everyday programs at the screen's edge
                       ├─ vikix/layouts.lisp      saved layouts
                       ├─ vikix/overview.lisp     every workspace drawn small (Super+o)
+                      ├─ vikix/resume.lisp       your windows back after a restart
                       ├─ vikix/day.lisp          what had the screen, noted for vikix day
                       ├─ vikix/why.lisp          why did that happen? what the desktop did, and what made it
                       ├─ vikix/keys.lisp         binding the Super keys, and the rule they keep

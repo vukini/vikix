@@ -361,6 +361,9 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command layout-restore "Layout: put this workspace back as one you saved"
   :run "vikix-layout-restore-command"
   :menu "Windows")
+(define-vikix-command resume "Bring my windows back, as they were before the restart"
+  :run "vikix-resume"
+  :menu "Windows")
 (define-vikix-command viri "This workspace as a strip that scrolls sideways (Viri), or tiled again"
   :run "vikix-viri"
   :menu "Windows" :label "Strip: this workspace scrolls sideways (Viri), or tiled again" :agent t)

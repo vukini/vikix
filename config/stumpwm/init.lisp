@@ -24,6 +24,7 @@
     "drawer"     ; a few everyday programs at the screen's edge, out and away (Super+Ctrl+b)
     "layouts"    ; saved layouts: vikix layout save NAME, vikix layout NAME
     "overview"   ; every workspace drawn small on a card, to pick a window (Super+o)
+    "resume"     ; your windows back after a restart: every workspace saved, and put back at login
     "day"        ; what had the screen, written down for vikix day
     "why"        ; why did that happen? the key, rule or command behind it (Super+?)
     "keys"       ; Super-key bindings

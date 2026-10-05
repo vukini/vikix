@@ -28,6 +28,9 @@
 #                         what it is doing; free = out of a loop (rules
 #                         paused, focus on clicks, a fresh event loop); works
 #                         from a text console too (vikix rescue help)
+#   vikix resume [now|save|ask|always|never]  your windows back after a
+#                         restart: what is saved, bring them back now, and
+#                         whether a login asks first (vikix resume help)
 #   vikix times [measure|soak]  how long logging in and a reload take; measure
 #                         = on a hidden screen: start, reload, a key, an
 #                         Emacs frame, StumpWM answering, against limits;
@@ -1621,6 +1624,7 @@ main() {
     memory)      shift; exec "$VIKIX_DIR/bin/vikix-memory" "$@" ;;
     times)       shift; exec "$VIKIX_DIR/bin/vikix-times" "$@" ;;
     rescue)      shift; exec "$VIKIX_DIR/bin/vikix-rescue" "$@" ;;
+    resume)      shift; exec "$VIKIX_DIR/bin/vikix-resume" "$@" ;;
     tray)        shift
                  case ${1:-} in
                    on|off) exec python3 "$VIKIX_DIR/bin/vikix-eval" "(run-commands \"vikix-tray-$1\")" ;;

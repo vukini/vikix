@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# vikix-resume — your windows back after a restart.
+#
+#   vikix resume           what is saved (how many windows, on how many
+#                          workspaces, when), and what a login does with it
+#   vikix resume now       bring them back now: each workspace in turn as it
+#                          was, its programs started again in their folders
+#   vikix resume save      save the workspaces now (it is done by itself
+#                          every five minutes, and when the desktop ends)
+#   vikix resume ask       at login, ask first (as it starts out)
+#   vikix resume always    at login, bring them back without asking
+#   vikix resume never     at login, leave it; `vikix resume now` still works
+#
+# The desktop saves each workspace as a layout (which windows, where, and
+# how each was started) in ~/.local/state/vikix/resume/. What comes back
+# is what can be started again: a terminal in its folder with the program
+# that ran in it, a program by its command line, a web app, an Emacs frame
+# on its file. What a program had open inside it is its own to bring back.
+# Super+m has "Bring my windows back" too.
+set -euo pipefail
+VIKIX_DIR=${VIKIX_DIR:-$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)}
+setting="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/resume"
+ask() { python3 "$VIKIX_DIR/bin/vikix-eval" "$1" 2>/dev/null | grep -v '^=> ' || true; }
+no_desktop() { echo "vikix resume: the desktop can't be asked (is StumpWM running? vikix rescue says)" >&2; exit 2; }
+at_login() {
+  case $(head -1 "$setting" 2>/dev/null | tr -d '[:space:]') in
+    always) echo "At login they come back without asking (vikix resume ask or never changes it)." ;;
+    never)  echo "At login they are left; vikix resume now brings them back (vikix resume ask or always changes it)." ;;
+    *)      echo "At login you are asked first (vikix resume always or never changes it)." ;;
+  esac
+}
+
+case ${1:-show} in
+  -h|--help|help) sed -n '2,/^set -euo/{/^set -euo/d;s/^# \{0,1\}//;p}' "$0" ;;
+  show)
+    out=$(ask '(princ (or (and (fboundp (quote vikix-resume-summary)) (vikix-resume-summary)) "nothing"))')
+    [ -n "$out" ] || no_desktop
+    if [ "$out" = nothing ]; then
+      echo "Nothing is saved yet: the desktop saves your workspaces every five minutes, once there are windows."
+    else
+      echo "Saved: $out."
+    fi
+    at_login ;;
+  now)
+    out=$(ask '(princ (or (and (fboundp (quote vikix-resume-now)) (vikix-resume-now)) "nothing"))')
+    [ -n "$out" ] || no_desktop
+    if [ "$out" = nothing ]; then echo "Nothing is saved to bring back yet."; else echo "Bringing back $out: each workspace in turn."; fi ;;
+  save)
+    out=$(ask '(princ (if (fboundp (quote vikix-resume-save)) (vikix-resume-save) "old"))')
+    [ -n "$out" ] || no_desktop
+    case $out in
+      old) echo "vikix resume: the running desktop is from before this; Super+m, Reload config" >&2; exit 2 ;;
+      0)   echo "No windows to save: what was saved before is kept." ;;
+      *)   echo "Saved: $out windows." ;;
+    esac ;;
+  ask|always|never)
+    mkdir -p "$(dirname "$setting")"
+    printf '%s\n' "$1" > "$setting"
+    at_login ;;
+  *) echo "vikix resume: no such thing as $1 (vikix resume help)" >&2; exit 2 ;;
+esac
