@@ -3,6 +3,46 @@
 Small known problems, not yet fixed. Each says what happens, what is known, and the next step. A fix removes its entry in the commit that ships it. (Larger planned work is in `TODO.md`; ideas in `IDEAS.md`.)
 
 
+## `vikix windows remove` leaves the Windows programs' things behind
+
+Noted 2026-10-05, by the guides check.
+
+**What happens.** After `vikix windows remove`, the password kept for Windows programs (`~/.config/vikix/secrets/windows-password`), the launcher entries (`~/.local/share/applications/vikix-win-*.desktop`) and the list of programs (`~/.local/state/vikix/windows-apps.json`) are still there, the entries for programs that are gone.
+
+**What's known.** `cmd_remove` in `bin/vikix-windows` deletes the VM, its disk and the answers disc, and predates `vikix windows apps`. `docs/windows.md` ("Removing it") says how to clear the first two by hand.
+
+**Next step.** Have `cmd_remove` do what `vikix windows apps forget` does, and delete the `vikix-win-*.desktop` entries and `windows-apps.json`; then take the by-hand line out of the guide. A check for it in `tests/winapps.sh`.
+
+## A code block inside a list item comes out wrong in the Info manual and the web guide
+
+Noted 2026-10-05, by the guides check.
+
+**What happens.** A fenced code block indented under a numbered or bulleted item is not a block there: "Installing Windows" in `docs/windows.md` (three of them) and one in `docs/plugins.md` (line 49) show as ` ``sh vikix windows setup `` ` in a line of text, and in the web guide every step is numbered 1. On GitHub they are right.
+
+**What's known.** `lib/md2texi.py` knows fenced code only at the start of a line (`python3 lib/md2texi.py docs | grep -n 'windows setup'` shows the `@code{sh ...}` it makes), and `tests/info.sh` passes, since makeinfo has nothing to warn about.
+
+**Next step.** Teach `md2texi.py` an indented fence inside an item (an `@example` within the `@item`, the list going on after it), and have `tests/info.sh` fail on a ` ``` ` left in the Texinfo. Or write those two lists without the construct, as the newer section of `windows.md` does.
+
+## Esploro's iPhone under Drives needs programs no list brings
+
+Noted 2026-10-05, by the guides check. Esploro at the pin (b84b605).
+
+**What happens.** Esploro shows an iPhone under Drives and opens it with a click, but on a machine with only Vikix's packages the programs it runs aren't there, so nothing shows. The guides say nothing of the iPhone for that reason.
+
+**What's known.** Esploro's `src/phone.lisp` runs `idevice_id`, `ideviceinfo`, `idevicepair` and `ifuse`; no file in `packages/` names them (`optional/esploro.list` has the thumbnails' programs, archivemount and sshfs).
+
+**Next step.** Find Void's packages for them (libimobiledevice's tools, ifuse, and usbmuxd with its service), add them to `optional/esploro.list` or to a feature of their own, try an iPhone, then a line in the README's Esploro paragraph.
+
+## vikix.dev's Windows card doesn't say a program can have a window of its own
+
+Noted 2026-10-05, by the guides check.
+
+**What happens.** `site/index.html`'s card "Windows 11 in a window, installed by itself" tells of the whole Windows desktop only. `vikix windows app` and `apps` (since 0.71.178: one Windows program in a window of its own, tiled like any other) aren't on the page.
+
+**What's known.** `docs/windows.md` has the section ("One program, in a window of its own") to take the words from.
+
+**Next step.** A sentence and a command line on the card (`vikix windows app excel`), and a screenshot for the gallery when there is one.
+
 ## The first menu after StumpWM starts is drawn too short
 
 Noted 2026-10-05, on a hidden screen (Xvfb), while testing Super+m in sections; the same on the release before. Not checked on a real screen.
