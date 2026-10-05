@@ -99,3 +99,13 @@ Noted 2026-10-04, with the plugin's rewrite (Vikix 0.71.160).
 
 **Next step.** The next time a session asks a question with choices while its window isn't in front, look at the bar and at `~/.local/state/vikix/agents/`: the note's third line should be the question.
 
+
+## tests/registry.sh: "its key runs it" failed once in a full run
+
+Noted 2026-10-05, releasing Super+i's Codex choice.
+
+**What happens.** In a release's full run, with other sessions testing, `registry` failed at `FAIL: its key runs it: NIL`: the hidden StumpWM had shown no message when the test read it, right after the key press. Alone, the test passed three times out of three on the same commit, and the release passed at the second try.
+
+**What's known.** The check reads the screen's last message straight after `key super+alt+F12`, without waiting for the command to have run. The change being released touched nothing of StumpWM's.
+
+**Next step.** Have the check wait for the message (a short loop, as other hidden-screen tests do) instead of reading it once.
