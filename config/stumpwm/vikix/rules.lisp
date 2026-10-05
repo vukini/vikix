@@ -397,8 +397,14 @@ every look, and would push out what happened when the window opened."
               (setf (gethash (vikix-rule-key rule) *vikix-rules-once-done*) t))
             t)))))
 
+(defvar *vikix-rules-paused* nil
+  "True while no rule runs at all: `vikix rescue` sets it to break a loop a
+rule is part of (rescue.lisp). A reload puts it back.")
+(setf *vikix-rules-paused* nil)
+
 (defun vikix-rule-ready-p (rule event)
-  (and (vikix-rule-on-p rule)
+  (and (not *vikix-rules-paused*)
+       (vikix-rule-on-p rule)
        (eq (vikix-rule-on rule) event)
        (not (and (vikix-rule-once rule)
                  (gethash (vikix-rule-key rule) *vikix-rules-once-done*)))))
@@ -895,8 +901,9 @@ WORKSPACE is a number, a name, or a list of them."
 
 (defun vikix-rules-on (on)
   "The rules ON sets off that are switched on."
-  (remove-if-not (lambda (rule) (and (eq (vikix-rule-on rule) on) (vikix-rule-on-p rule)))
-                 *vikix-rules*))
+  (unless *vikix-rules-paused*
+    (remove-if-not (lambda (rule) (and (eq (vikix-rule-on rule) on) (vikix-rule-on-p rule)))
+                   *vikix-rules*)))
 
 (defun vikix-rules-day (time)
   "TIME's day as \"YYYYMMDD\", its day of the week (:mon ...), and the

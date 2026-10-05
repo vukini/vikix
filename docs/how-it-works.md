@@ -49,6 +49,7 @@ login on tty1
                       ├─ vikix/help.lisp         Super+/ and Super+F1
                       ├─ vikix/webapps.lisp      your web apps: their keys and Super+m entries
                       ├─ vikix/modeline.lisp     the bar
+                      ├─ vikix/rescue.lisp       a way out when the desktop is stuck: a watcher, Super+Ctrl+Alt+Escape
                       ├─ vikix/swank-guard.lisp  a wrong or missing password can't take Swank down
                       ├─ vikix/swank.lisp        Swank on 127.0.0.1:4004 (with a password), for Emacs and `vikix eval`
                       ├─ rules.lisp              yours: your rules for windows, when you have any

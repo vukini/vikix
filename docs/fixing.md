@@ -135,6 +135,28 @@ If `vikix memory` says "Graphics and other shared memory ... That is a lot", a p
 
 The usual causes: a virtual machine (the bar says `win`), several AI agents at once, a browser with many tabs, big files in `/tmp` (it is kept in memory), and programs left over by tests. If the screen is already frozen, switch to a text console with Ctrl+Alt+F2, log in, and run `vikix memory` there (`pkill` the biggest), then Ctrl+Alt+F1 to come back.
 
+## The desktop is stuck, or no key works
+
+Two different things look alike. Start with one key and one command:
+
+- **Super+Ctrl+Alt+Escape** frees a stuck desktop. StumpWM reads this key apart from all the others, so it works when they don't. When nothing is stuck it only says so.
+- **`vikix rescue`**, in any terminal, on a text console (Ctrl+Alt+F2, log in) or over ssh, says which of these it is:
+
+```sh
+vikix rescue          # coming round, waiting, or stuck; what the desktop is doing; is the screen locked
+vikix rescue free     # out of a loop: every rule paused, focus on clicks, then a fresh event loop
+vikix rescue undo     # rules and focus back (Reload config does the same)
+vikix rescue lock     # the lock screen in front of the windows again
+```
+
+**Stuck** means StumpWM is going round and round on something: a rule and the mouse chasing each other's focus, say. It works flat out and gets to nothing else: the bar's clock stands still, `vikix eval` gets no answer, the agent's tools time out. A watcher inside StumpWM notices within a quarter of a minute and tells you in a notification; what the desktop was doing is written to `~/.local/state/vikix/errors/`. Left alone, it eases itself after a minute (rules paused, focus following clicks instead of the mouse), and after three starts a fresh event loop: your windows and settings stay as they are. Easing stays until `vikix rescue undo` or a reload, because what made the loop is still there: `vikix rules` lists your rules, and the report names what kept running. To have the watcher only tell you, `(setf *vikix-rescue-auto* nil)` in `user.lisp`.
+
+**Waiting** is not stuck: a menu or a prompt of StumpWM's is open (look at the top of the screen), and it takes the keys until Escape closes it.
+
+**Locked, and you can't see it.** If the desktop shows but no key does anything, the lock screen may be up behind the windows, taking every key. Type your password and press Enter: it unlocks though you can't see it. The lock screen now puts itself back in front twice a second, so this should no longer happen; `vikix rescue` says when the screen is locked, and `vikix rescue lock` brings it forward.
+
+If `vikix rescue` itself gets no answer, StumpWM is beyond asking. From a text console, `pkill -x stumpwm` ends the desktop session and you log in again; programs with unsaved work lose it, so it is the last thing to try.
+
 ## Settings went wrong
 
 ```sh
@@ -196,7 +218,7 @@ First see whether it's the connection or one program. `ping -c 5 1.1.1.1` should
 
 ## `vikix eval` fails
 
-- **Exit 2** means it couldn't reach StumpWM: it isn't running, or a menu or prompt is open. Close it and try again.
+- **Exit 2** means it couldn't reach StumpWM: it isn't running, a menu or prompt is open (close it and try again), or it is stuck. `vikix rescue` says which, and frees a stuck one (see [The desktop is stuck](#the-desktop-is-stuck-or-no-key-works)).
 - **`… is another user's (uid N), not StumpWM's: the password isn't sent`**: something of another user's is listening on port 4004, most likely because your StumpWM isn't running (you're on a text console). `vikix eval` won't send it your Swank password. Start the desktop, or find out what that is: `ss -ltnp 'sport = :4004'`.
 - **`error: …`** is an error in the Lisp you sent; the desktop is fine.
 

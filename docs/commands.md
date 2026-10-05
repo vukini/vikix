@@ -52,6 +52,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-publish](#vikix-publish): books from Markdown
 - [vikix-record](#vikix-record): record the screen to a video, without sound
 - [vikix-records](#vikix-records): where plugins keep what they found, to search and use later
+- [vikix-rescue](#vikix-rescue): a way out when the desktop is stuck
 - [vikix-rofi](#vikix-rofi): rofi's plugin modes, set up the Vikix way
 - [vikix-rules](#vikix-rules): the desktop's rules, seen and steered
 - [vikix-screens](#vikix-screens): the screens: a new one lights up by itself, and a menu for the rest
@@ -81,6 +82,7 @@ The everyday command.
 - `vikix screens [extend|mirror|external|laptop|pick]` — the screens: a plugged one lights up by itself; this lays them out otherwise (Super+Ctrl+p)
 - `vikix tray on|off` — a tray at the bar's end: network and Bluetooth icons (nm-applet, blueman-applet; Super+m too)
 - `vikix memory [left|clean]` — what uses the memory, biggest first, and the programs left over (hidden screens, tests nobody ended); clean ends those; a warning comes by itself when memory runs low (vikix memory help)
+- `vikix rescue [free|undo|lock]` — when the desktop is stuck: how it is and what it is doing; free = out of a loop (rules paused, focus on clicks, a fresh event loop); works from a text console too (vikix rescue help)
 - `vikix times [measure|soak]` — how long logging in and a reload take; measure = on a hidden screen: start, reload, a key, an Emacs frame, StumpWM answering, against limits; soak = an hour of it worked hard (vikix times help)
 - `vikix features` — what you can add (languages, editors, LibreOffice, printing, Windows, local AI ...), and what you have
 - `vikix add NAME...` — add features, or a bundle (essentials, developer, everything); every update keeps them
@@ -875,6 +877,21 @@ Where plugins keep what they found, to search and use later.
 - `vikix records stats` — how many, by plugin and kind
 
 The store is one SQLite file, `~/.local/share/vikix/records.db`, kept by vikix backup. Any program can read it with SQL: the table is records (id, plugin, kind, key, at, title, body, data, link), and `records_fts` is its full-text index.
+
+## vikix-rescue
+
+A way out when the desktop is stuck.
+
+- `vikix rescue` — how the desktop is: coming round, waiting (a menu is open), or stuck; what its main thread is doing, which rules ran in the last second, and whether a lock screen is up
+- `vikix rescue free` — free a stuck desktop: pause every rule and make focus follow clicks, not the mouse; if its loop still doesn't come round, start a fresh event loop (your windows and settings stay as they are)
+- `vikix rescue undo` — put rules and focus back as they were (a reload, Super+m then Reload config, does the same)
+- `vikix rescue lock` — bring the lock screen in front of the windows, when the screen is locked and you can't see it
+
+`vikix eval` and the agents' tools go through StumpWM's one main thread, so they time out when it is stuck. This asks over the same door (Swank, 127.0.0.1:4004, with its password) but is answered by another thread. It works from any terminal, from a text console (Ctrl+Alt+F2, log in) and over ssh.
+
+On the desktop itself, Super+Ctrl+Alt+Escape does what `vikix rescue free` does: StumpWM reads that key on a connection of its own, so it works when the other keys don't. A watcher inside StumpWM tells you when the desktop is stuck, and frees it by itself after a while (rescue.lisp).
+
+Exit status: 0 the desktop is coming round (or was freed), 1 it is stuck or waiting, 2 StumpWM could not be asked.
 
 ## vikix-rofi
 

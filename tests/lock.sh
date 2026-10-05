@@ -6,7 +6,9 @@
 #   paused) stays paused; i3lock's failure is the locker's; with xss-lock
 #   running, plain vikix-lock asks it to lock; without, it locks by itself,
 #   pausing too; a bad colour falls back to void's; when the monitor comes
-#   back on from DPMS while locked, Escape clears the key that woke it.
+#   back on from DPMS while locked, Escape clears the key that woke it;
+#   the lock screen's window is raised again every half second while it is
+#   up, so a window that opens meanwhile doesn't stay in front of it.
 #
 # i3lock, dunstctl, pgrep, xset and xdotool are stand-ins.
 
@@ -37,9 +39,12 @@ fi
 exit 0
 END
 echo On > "$t/monitor"
+# xdotool: finds the lock screen's window (4242), and notes what it's asked.
 cat > "$t/bin/xdotool" <<END
 #!/bin/sh
 echo "xdotool \$*" >> "$calls"
+[ "\$1" = search ] && echo 4242
+exit 0
 END
 cat > "$t/bin/dunstctl" <<END
 #!/bin/sh
@@ -66,15 +71,22 @@ lock --locker || { echo "FAIL: the locker should succeed"; fail=1; }
 check "i3lock should run in the foreground, the theme's colour, dunst paused: $(cat "$calls")" \
   grep -qx "i3lock -n -c 282828 paused=true" "$calls"
 check "notifications should come back after unlocking" test "$(cat "$t/paused")" = false
-check "no Escape when the screen never went dark: $(cat "$calls")" test -z "$(grep xdotool "$calls" || true)"
+check "no Escape when the screen never went dark: $(cat "$calls")" test -z "$(grep 'xdotool key' "$calls" || true)"
 
 : > "$calls"; echo false > "$t/paused"; touch "$t/dark"
 lock --locker
 check "the key that wakes the dark screen should be cleared: $(cat "$calls")" \
   test "$(grep -c "xdotool key Escape" "$calls")" = 1
 rm -f "$t/dark"
+# Locked for a second: its window is found once and raised again and again,
+# so nothing that opens meanwhile stays in front of it.
+check "the lock screen should be found by its class: $(grep search "$calls")" grep -qx "xdotool search --class i3lock" "$calls"
+check "and found once, not at every turn" test "$(grep -c 'xdotool search' "$calls")" = 1
+check "it should be raised again while locked: $(grep -c 'windowraise 4242' "$calls") times" test "$(grep -c 'xdotool windowraise 4242' "$calls")" -ge 1
 sleep 0.2
-check "nothing should be left watching after unlocking" test "$(grep -c xdotool "$calls")" = 1
+seen=$(grep -c xdotool "$calls")
+sleep 0.8
+check "nothing should be left watching after unlocking" test "$(grep -c xdotool "$calls")" = "$seen"
 
 : > "$calls"; echo true > "$t/paused"
 lock --locker

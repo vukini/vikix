@@ -21,18 +21,32 @@
 colour=$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/vikix/theme/lock" 2>/dev/null)
 case $colour in [0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]) ;; *) colour=1e1e2e ;; esac
 
-# clear_on_wake: the key that wakes a dark screen also reaches i3lock, as
-# the first letter of the password, which then can't be right. So while
-# i3lock runs, when the monitor comes back on from DPMS, Escape (i3lock's
-# "clear what's typed") goes to it. Woken by the mouse, it clears nothing.
-clear_on_wake() {
+# while_locked: two things i3lock can't do for itself, while it runs.
+#
+# The key that wakes a dark screen also reaches i3lock, as the first letter
+# of the password, which then can't be right. So when the monitor comes
+# back on from DPMS, Escape (i3lock's "clear what's typed") goes to it.
+# Woken by the mouse, it clears nothing.
+#
+# And the lock screen is kept in front. A window raised after it (one that
+# opens, the drawer, a dialog) goes above it; i3lock would raise itself
+# again when it is told it's covered, but with a compositor running (picom)
+# no window is ever told that. The desktop then shows, with i3lock behind
+# it holding the keyboard: every key looks dead (2026-10-04). So its
+# window is raised again every half second.
+while_locked() {
   command -v xdotool >/dev/null 2>&1 || return 0
-  was=on
-  while sleep 0.1; do
+  was=on; turn=0; lock=
+  # $$ is the locker itself: when it is gone (ended from outside), so is this.
+  while kill -0 $$ 2>/dev/null && sleep 0.1; do
     case $(xset q 2>/dev/null) in
       *"Monitor is On"*) [ "$was" = off ] && xdotool key Escape 2>/dev/null; was=on ;;
       *"Monitor is "*) was=off ;;
     esac
+    turn=$((turn + 1))
+    [ $((turn % 5)) = 0 ] || continue
+    [ -n "$lock" ] || lock=$(xdotool search --class i3lock 2>/dev/null | head -1)
+    [ -z "$lock" ] || xdotool windowraise "$lock" 2>/dev/null || lock=
   done
 }
 
@@ -43,7 +57,7 @@ locked() {
     paused=$(dunstctl is-paused 2>/dev/null)
     [ "$paused" = false ] && dunstctl set-paused true 2>/dev/null
   fi
-  clear_on_wake &
+  while_locked &
   waker=$!
   i3lock -n -c "$colour"
   status=$?

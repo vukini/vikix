@@ -49,7 +49,10 @@ front, so a name like Brightness-up is never mistaken for one."
 (defparameter *vikix-extra-keys*
   '(("Super+1 ... Super+9" "Go to workspace 1-9" "grouplist")
     ("Super+Shift+1 ... 9" "Send window to workspace 1-9 (on a strip: its whole column)" "vikix-send")
-    ("Ctrl+t then ?" "StumpWM's own keys (after the prefix)" "vikix-prefix-keys"))
+    ("Ctrl+t then ?" "StumpWM's own keys (after the prefix)" "vikix-prefix-keys")
+    ;; Not one of StumpWM's keys: rescue.lisp reads it on a connection of
+    ;; its own, so it works when these don't.
+    ("Super+Ctrl+Alt+Escape" "Free a stuck desktop (it works when no other key does)" "vikix-rescue"))
   "Each entry: the key as the help shows it, a description, the command.")
 
 ;;; Groups, for the card. A key's group comes from its command, so a new
@@ -72,7 +75,7 @@ front, so a name like Brightness-up is never mistaken for one."
     ("Notifications" "dunstctl" "vikix-notifications" "vikix-quiet")
     ("Screenshots & recording" "vikix-screenshot" "vikix-record" "vikix-capture")
     ("Sound & screen" "vikix-volume" "vikix-osd" "vikix-nightlight" "vikix-screens-pick" "vikix-bar")
-    ("System" "vikix-menu" "vikix-keys" "vikix-why" "vikix-docs" "vikix-keys-card" "vikix-prefix-keys" "vikix-pick-theme"
+    ("System" "vikix-menu" "vikix-keys" "vikix-rescue" "vikix-why" "vikix-docs" "vikix-keys-card" "vikix-prefix-keys" "vikix-pick-theme"
      "vikix-lock" "vikix-power" "vikix-awake" "vikix-drives"
      ;; The drawer is here, not with the windows: one key more there takes the
      ;; card to a fifth column, too wide for a 1366x768 laptop (tests/lisp.sh).

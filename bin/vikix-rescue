@@ -1,0 +1,231 @@
+#!/usr/bin/env python3
+"""vikix-rescue — a way out when the desktop is stuck.
+
+    vikix rescue          how the desktop is: coming round, waiting (a menu
+                          is open), or stuck; what its main thread is doing,
+                          which rules ran in the last second, and whether a
+                          lock screen is up
+    vikix rescue free     free a stuck desktop: pause every rule and make
+                          focus follow clicks, not the mouse; if its loop
+                          still doesn't come round, start a fresh event loop
+                          (your windows and settings stay as they are)
+    vikix rescue undo     put rules and focus back as they were (a reload,
+                          Super+m then Reload config, does the same)
+    vikix rescue lock     bring the lock screen in front of the windows,
+                          when the screen is locked and you can't see it
+
+`vikix eval` and the agents' tools go through StumpWM's one main thread, so
+they time out when it is stuck. This asks over the same door (Swank,
+127.0.0.1:4004, with its password) but is answered by another thread. It
+works from any terminal, from a text console (Ctrl+Alt+F2, log in) and
+over ssh.
+
+On the desktop itself, Super+Ctrl+Alt+Escape does what `vikix rescue free`
+does: StumpWM reads that key on a connection of its own, so it works when
+the other keys don't. A watcher inside StumpWM tells you when the desktop
+is stuck, and frees it by itself after a while (rescue.lisp).
+
+Exit status: 0 the desktop is coming round (or was freed), 1 it is stuck or
+waiting, 2 StumpWM could not be asked.
+"""
+
+import importlib.machinery
+import importlib.util
+import os
+import shutil
+import socket
+import subprocess
+import sys
+
+HERE = os.path.dirname(os.path.realpath(__file__))
+
+
+def load_eval():
+    """bin/vikix-eval as a module: its Swank conversation is this one's too."""
+    loader = importlib.machinery.SourceFileLoader("vikix_eval", os.path.join(HERE, "vikix-eval"))
+    spec = importlib.util.spec_from_loader("vikix_eval", loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+
+
+def worker(ev, form, timeout=40):
+    """Run FORM in a Swank worker thread (never StumpWM's main thread) and
+    return (what it printed, None), or (None, why not)."""
+    try:
+        sock = socket.create_connection((ev.HOST, ev.PORT), timeout=5)
+    except OSError:
+        return None, f"nothing is listening on {ev.HOST}:{ev.PORT}"
+    sock.settimeout(timeout)
+    owner = ev.listener_uid(ev.PORT)
+    if owner is not None and owner != os.getuid():
+        sock.close()
+        return None, f"{ev.HOST}:{ev.PORT} is another user's (uid {owner}): the password isn't sent"
+    secret = ev.slime_secret()
+    try:
+        if secret is not None:
+            ev.send(sock, secret)
+        # Everything in a handler: an error must come back as words, never
+        # as Swank's debugger, which would leave a thread waiting in it.
+        inner = ("(if (fboundp 'stumpwm::vikix-rescue-report)"
+                 " (handler-case (progn %s (values))"
+                 "   (error (e) (format t \"error: ~a~%%\" e)))"
+                 " (princ \":missing\"))" % form)
+        ev.send(sock, '(:emacs-rex (swank:eval-and-grab-output %s) "STUMPWM" t 1)' % ev.lisp_string(inner))
+        while True:
+            reply = ev.receive(sock)
+            if reply.startswith("(:return"):
+                break
+            if reply.startswith("(:debug "):
+                thread = reply.split()[1]
+                ev.send(sock, '(:emacs-rex (swank:throw-to-toplevel) "STUMPWM" %s 2)' % thread)
+                while not ev.receive(sock).startswith("(:return"):
+                    pass
+                return None, "Swank failed: " + (ev.lisp_strings(reply) or ["?"])[0]
+    except (socket.timeout, ConnectionError, OSError) as e:
+        return None, f"no answer ({e})"
+    finally:
+        sock.close()
+    if not reply.startswith("(:return (:ok"):
+        return None, "StumpWM aborted the request"
+    strings = ev.lisp_strings(reply)
+    printed = strings[0] if strings else ""
+    if printed.strip() == ":missing":
+        return None, ("the running StumpWM has a Vikix from before `vikix rescue`; "
+                      "reload it (Super+m, Reload config) when it comes round")
+    return printed, None
+
+
+def pids(name):
+    try:
+        out = subprocess.run(["pgrep", "-x", "-u", str(os.getuid()), name],
+                             capture_output=True, text=True).stdout.split()
+    except OSError:
+        out = []
+    return [int(p) for p in out]
+
+
+def locked():
+    return bool(pids("i3lock"))
+
+
+def say_lock():
+    if locked():
+        print("The screen is locked (i3lock is running). If you can't see the lock screen, it is\n"
+              "behind the windows: type your password and press Enter, or `vikix rescue lock`\n"
+              "brings it to the front.")
+        return True
+    return False
+
+
+def cant_ask(why):
+    print(f"vikix rescue: StumpWM can't be asked: {why}.", file=sys.stderr)
+    running = pids("stumpwm")
+    if running:
+        print("StumpWM is running (process %s) but its door isn't answering. From a text console\n"
+              "(Ctrl+Alt+F2, log in), the last resort is ending it: `pkill -x stumpwm` ends the\n"
+              "desktop session, and you log in again; programs with unsaved work lose it."
+              % ", ".join(map(str, running)), file=sys.stderr)
+    else:
+        print("StumpWM isn't running. Log in on the first console (Ctrl+Alt+F1) to start the desktop.",
+              file=sys.stderr)
+    return 2
+
+
+def status(ev):
+    is_locked = say_lock()
+    printed, why = worker(ev, "(stumpwm::vikix-rescue-report)")
+    if printed is None:
+        return cant_ask(why)
+    sys.stdout.write(printed if printed.endswith("\n") else printed + "\n")
+    first = printed.lstrip()
+    if first.startswith("The desktop is coming round"):
+        if not is_locked:
+            print("Nothing to free. Keys that seem dead on a desktop that is coming round: look for a\n"
+                  "menu or a prompt waiting at the top of the screen (Escape closes it).")
+        return 0
+    if first.startswith("The desktop is stuck"):
+        print("To free it: vikix rescue free   (or Super+Ctrl+Alt+Escape on the desktop)")
+    return 1
+
+
+def free(ev):
+    form = ("(multiple-value-bind (came did) (stumpwm::vikix-rescue-free)"
+            " (format t \"~:[still-stuck~;came-round~]~%~{~a~%~}\" came did))")
+    state, why = worker(ev, "(princ (getf (stumpwm::vikix-rescue-state) :state))")
+    if state is None:
+        return cant_ask(why)
+    if state.strip().upper().endswith("FINE"):
+        print("The desktop is coming round: nothing to free. (`vikix rescue` says how it is.)")
+        say_lock()
+        return 0
+    printed, why = worker(ev, form, timeout=60)
+    if printed is None:
+        return cant_ask(why)
+    lines = [line for line in printed.splitlines() if line.strip()]
+    came = bool(lines) and lines[0] == "came-round"
+    did = lines[1:]
+    print("Done: " + (", ".join(did) if did else "nothing needed changing") + ".")
+    if came:
+        print("The desktop is coming round again.")
+        if did:
+            print("Rules and focus stay that way until `vikix rescue undo`, or Reload config: what made\n"
+                  "the loop is still there. `vikix rules` lists your rules; the newest report in\n"
+                  "~/.local/state/vikix/errors/ says what the desktop was doing.")
+        return 0
+    print("It still isn't coming round. `vikix rescue` shows what its main thread is doing.")
+    return 1
+
+
+def undo(ev):
+    printed, why = worker(ev, "(format t \"~{~a~%~}\" (stumpwm::vikix-rescue-undo))")
+    if printed is None:
+        return cant_ask(why)
+    lines = [line for line in printed.splitlines() if line.strip()]
+    print(("Put back: " + ", ".join(lines) + ".") if lines else "Nothing to put back: rules and focus are as you had them.")
+    return 0
+
+
+def raise_lock():
+    if not locked():
+        print("The screen isn't locked: no lock screen to bring forward.")
+        return 0
+    if not shutil.which("xdotool"):
+        print("vikix rescue: xdotool isn't installed; type your password and press Enter to unlock.", file=sys.stderr)
+        return 2
+    env = dict(os.environ)
+    env.setdefault("DISPLAY", ":0")       # from a text console
+    found = subprocess.run(["xdotool", "search", "--class", "i3lock"], capture_output=True, text=True, env=env)
+    windows = found.stdout.split()
+    if not windows:
+        print("vikix rescue: the lock screen's window wasn't found on %s; type your password and press Enter."
+              % env["DISPLAY"], file=sys.stderr)
+        return 2
+    for w in windows:
+        subprocess.run(["xdotool", "windowraise", w], env=env)
+    print("The lock screen is in front again.")
+    return 0
+
+
+def main():
+    args = sys.argv[1:]
+    if args and args[0] in ("-h", "--help", "help"):
+        print(__doc__.strip())
+        return 0
+    what = args[0] if args else "status"
+    if what == "lock":
+        return raise_lock()
+    ev = load_eval()
+    if what == "status":
+        return status(ev)
+    if what == "free":
+        return free(ev)
+    if what == "undo":
+        return undo(ev)
+    print(f"vikix rescue: no such thing as {what}; try: vikix rescue, vikix rescue free, undo, lock",
+          file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

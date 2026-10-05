@@ -43,7 +43,7 @@ case $mode in
 esac
 tests=(lint)
 if command -v sbcl >/dev/null; then tests+=(lisp); else echo "(lisp needs sbcl; skipped here)"; fi
-tests+=(battery memory gestures home services lisp-stage image theme theme-import bar rofi wallpaper mimeapps examples dev-ai notes project drives firmware fingerprint firewall updates notifications idle lock lazarus capture nightlight update windows ai ai-local llm ai-keys agents debug dictate voice lisp-apps esploro hype publish winapps learn mcp swank errors bitwarden plugin records obsidian docs-check screens docs vk webapp features nvim emacs editor-theme welcome menu docs-open nyxt pkg oneline man day back viri main drawer layouts rules keys registry why gather tray focus propose pixmaps times soak)
+tests+=(battery memory gestures home services lisp-stage image theme theme-import bar rofi wallpaper mimeapps examples dev-ai notes project drives firmware fingerprint firewall updates notifications idle lock lazarus capture nightlight update windows ai ai-local llm ai-keys agents debug dictate voice lisp-apps esploro hype publish winapps learn mcp swank errors bitwarden plugin records obsidian docs-check screens docs vk webapp features nvim emacs editor-theme welcome menu docs-open nyxt pkg oneline man day back viri main drawer layouts rules keys registry why gather tray focus propose pixmaps times soak rescue)
 if command -v restic >/dev/null; then tests+=(backup); else echo "(backup needs restic; skipped here)"; fi
 if command -v makeinfo >/dev/null; then tests+=(info); else echo "(info needs makeinfo; skipped here)"; fi
 # --quick leaves these out (the run says so); the full run and GitHub keep them.
@@ -113,8 +113,9 @@ show_ended() {
 
 # Tests that can't share the machine with others (a fixed real port or
 # display) run after the rest, one at a time: times and soak, whose measures
-# others running beside it would slow.
-alone=(times soak)
+# others running beside it would slow, and rescue, which makes a hidden
+# desktop work flat out and counts the seconds.
+alone=(times soak rescue)
 for t in "${ordered[@]}"; do
   [[ " ${alone[*]} " == *" $t "* ]] && continue
   while [ "$(jobs -rp | wc -l)" -ge "$jobs" ]; do
