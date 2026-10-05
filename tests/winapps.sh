@@ -81,8 +81,8 @@ sys.exit(1)
 X
 cat > "$t/bin/xfreerdp3" <<X
 #!/bin/sh
-printf '%s\n' "\$@" > "$t/rdp-args"
-cat > "$t/rdp-stdin"
+printf '%s\n' "\$@" > "$t/rdp-argv"
+cat > "$t/rdp-args"   # /args-from:stdin: the arguments, one a line
 [ -e "$t/rdp-refuse" ] && { echo "ERRCONNECT_LOGON_FAILURE"; exit 131; }
 sleep 30
 X
@@ -111,6 +111,7 @@ check "the password's name is never exported (secrets.sh takes only ..._KEY, _TO
 w apps setup < /dev/null >/dev/null 2>&1 || true
 check "and only once" test "$(grep -c '^define$' "$t/vm/calls")" = 1
 check "setup read what Windows has" grep -q '"FACTS"' "$HOME/.local/state/vikix/windows-apps.json"
+check "an installer's advertised shortcut is asked of Windows Installer, not taken as its icon" grep -q "ShortcutTarget" "$t/vm/scripts"
 
 out=$(w apps 2>&1)
 check "apps lists the Start menu's programs: $out" grep -q "^facts .*FACTS" <<<"$out"
@@ -127,8 +128,9 @@ check "FreeRDP runs RemoteApp for the program" grep -qxF '/app:program:C:\Progra
 check "at the VM's address and RDP's port" grep -qx "/v:127.0.0.2:$port" "$t/rdp-args"
 check "as you" grep -qx "/u:vid" "$t/rdp-args"
 check "with the window's class for rules" grep -qx "/wm-class:vikix-win-facts" "$t/rdp-args"
-check "the password on stdin" grep -qx hunter2 "$t/rdp-stdin"
-check "never in the arguments" bash -c '! grep -q hunter2 "$1"' _ "$t/rdp-args"
+check "FreeRDP's own arguments are only /args-from:stdin" test "$(cat "$t/rdp-argv")" = "/args-from:stdin"
+check "the password with the rest, on its input" grep -qx "/p:hunter2" "$t/rdp-args"
+check "never on its command line" bash -c '! grep -q hunter2 "$1"' _ "$t/rdp-argv"
 pkill -f "$t/bin/xfreerdp3" 2>/dev/null || true
 out=$(w app facts "$HOME/Windows/sub/a.txt" 2>&1) || true
 check "a file in ~/Windows is on Z:" grep -qF 'cmd:"Z:\sub\a.txt"' "$t/rdp-args"
@@ -154,5 +156,5 @@ check "forget deletes the password" test ! -e "$HOME/.config/vikix/secrets/windo
 out=$(w app facts 2>&1) && fail=1
 check "without it, app says to run setup: $out" grep -q "vikix windows apps setup" <<<"$out"
 
-[ "$fail" = 0 ] && echo "winapps: setup (the password kept and never exported, RemoteApp on through the guest agent, Z: and Y: by tag, ~/Documents shared once), the Start menu read, launcher entries, app starting the VM and passing the password on stdin only, files by their drive, refusals said"
+[ "$fail" = 0 ] && echo "winapps: setup (the password kept and never exported, RemoteApp on through the guest agent, Z: and Y: by tag, ~/Documents shared once), the Start menu read, launcher entries, app starting the VM and passing its arguments, the password with them, on FreeRDP's input only, files by their drive, refusals said"
 exit "$fail"

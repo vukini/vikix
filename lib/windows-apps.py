@@ -227,6 +227,18 @@ def cmd_setup():
 
 LIST_APPS = r"""
 $sh = New-Object -ComObject WScript.Shell
+$wi = New-Object -ComObject WindowsInstaller.Installer
+# An installer's "advertised" shortcut points at its icon in
+# C:\Windows\Installer; Windows Installer knows the real program.
+function Resolve-Advertised($lnk) {
+  try {
+    $st = $wi.GetType().InvokeMember('ShortcutTarget', 'GetProperty', $null, $wi, @($lnk))
+    $prod = $st.GetType().InvokeMember('StringData', 'GetProperty', $null, $st, 1)
+    $comp = $st.GetType().InvokeMember('StringData', 'GetProperty', $null, $st, 3)
+    if ($prod -and $comp) { return $wi.GetType().InvokeMember('ComponentPath', 'GetProperty', $null, $wi, @($prod, $comp)) }
+  } catch {}
+  return $null
+}
 $dirs = @("$env:ProgramData\Microsoft\Windows\Start Menu\Programs") +
         (Get-ChildItem C:\Users -Directory | ForEach-Object { "$($_.FullName)\AppData\Roaming\Microsoft\Windows\Start Menu\Programs" })
 $seen = @{}
@@ -234,6 +246,7 @@ $out = foreach ($d in $dirs) {
   if (Test-Path $d) {
     Get-ChildItem $d -Recurse -Filter *.lnk -ErrorAction SilentlyContinue | ForEach-Object {
       $t = $sh.CreateShortcut($_.FullName).TargetPath
+      if (-not $t -or $t -like '*\Installer\*') { $r = Resolve-Advertised $_.FullName; if ($r) { $t = $r } }
       if ($t -like '*.exe' -and -not $seen[$t]) { $seen[$t] = 1; [pscustomobject]@{ name = $_.BaseName; path = $t } }
     }
   }
@@ -333,16 +346,22 @@ def cmd_app(name, file=None):
     target = windows_path(file) if file else None
     ip = up(for_rdp=True)
     program = f"program:{a['path']}" + (f',cmd:"{target}"' if target else "")
-    argv = ["xfreerdp3", f"/v:{ip}:{RDP_PORT}", f"/u:{USER}", "/from-stdin", f"/app:{program}",
+    password = SECRET.read_text().rstrip("\n")
+    # Every argument on FreeRDP's input, one a line (/args-from:stdin), the
+    # password with them: never on a command line (ps shows those) nor in
+    # the environment. (/from-stdin read only the password, and only from a
+    # terminal: started from the launcher there is none.)
+    args = [f"/v:{ip}:{RDP_PORT}", f"/u:{USER}", f"/p:{password}", f"/app:{program}",
             "/cert:tofu", "+clipboard", "/sound", f"/wm-class:vikix-win-{a['id']}", "/log-level:ERROR"]
     log = STATE / "logs" / "windows-app.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     with open(log, "a") as out:
         out.write(f"--- {time.strftime('%F %T')} {a['name']}\n")
         out.flush()
-        p = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=out, stderr=out, start_new_session=True)
+        p = subprocess.Popen(["xfreerdp3", "/args-from:stdin"], stdin=subprocess.PIPE,
+                             stdout=out, stderr=out, start_new_session=True)
         assert p.stdin is not None
-        p.stdin.write(SECRET.read_bytes().rstrip(b"\n") + b"\n")
+        p.stdin.write(("\n".join(args) + "\n").encode())
         p.stdin.close()
     # A wrong password or a refused program ends it within seconds: say so.
     try:
