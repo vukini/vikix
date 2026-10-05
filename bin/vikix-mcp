@@ -23,8 +23,9 @@ The tools, a fixed set:
   read only   desktop (workspaces, windows, screens, theme), keys, commands
               (the desktop's commands an agent may run), rules (the
               desktop's rules, and why a window is where it is), why (what
-              the desktop did lately, and what made it), doctor, history,
-              changes, themes, version
+              the desktop did lately, and what made it), agents (the
+              agents at work on the desktop, and what each is doing),
+              doctor, history, changes, themes, version
   small acts  notify, snapshot, set_theme, switch_workspace, focus_window,
               run_command: each checked against what's there, and easy to
               take back. run_command runs one of the desktop's own commands
@@ -374,6 +375,23 @@ def t_why(a):
     return "\n".join(lines) or "nothing yet: no key, rule or command has run since the desktop started"
 
 
+def t_agents(a):
+    """The agents at work on the desktop (bin/vikix-agents --json): each
+    one's folder, branch, workspace, how long, and what it is doing."""
+    out, ok = run([sys.executable, os.path.join(os.path.dirname(os.path.realpath(__file__)), "vikix-agents"), "--json"],
+                  timeout=30)
+    if not ok:
+        raise ToolError(scrub(out)[:300] or "vikix agents failed")
+    try:
+        agents = json.loads(out)
+    except ValueError:
+        raise ToolError("vikix agents' answer wasn't the agents")
+    for agent in agents:      # a title and what it said are other programs' text: kept short
+        for k in ("title", "said"):
+            agent[k] = scrub(str(agent.get(k, "")))[:200]
+    return json.dumps(agents, indent=1, ensure_ascii=False)
+
+
 def t_run_command(a):
     """One of the desktop's commands, by its name in the registry. The name
     is checked here for its shape and by the desktop for the rest: it runs
@@ -715,6 +733,13 @@ TOOLS = [
      "that key do?\". Kept in the running desktop only, fifty at most. Read only." + DATA,
      schema({"limit": {"type": "integer", "minimum": 1, "maximum": 50, "description": "how many (20)"}}),
      READ, t_why),
+    ("agents", "The agents at work here",
+     "The agents running on this desktop, yourself among them: for each, which it is (claude, codex, opencode, "
+     "gemini, aider), its process, the folder it works in with its branch and how many files wait uncommitted "
+     "there, its workspace and window, how long it has run, and what it is doing (working, idle at its prompt, "
+     "done with its turn, asks: waiting for the user). Look here before changing files in a folder: another "
+     "agent may be at work in it. Read only: nothing is asked of the other agents, and none is stopped." + DATA,
+     schema(), READ, t_agents),
     ("doctor", "vikix doctor", "Check the desktop: programs, services, links, the snapshot history, vikix eval "
      "(a fixed test form)." + DATA, schema(), READ, t_doctor),
     ("history", "Snapshots of your files", "vikix history: the snapshots of the user's settings, newest first." + DATA,

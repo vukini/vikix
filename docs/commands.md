@@ -6,6 +6,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 
 - [vikix](#vikix): the everyday command
 - [vikix-agent](#vikix-agent): an AI agent in this terminal, after a snapshot of your files
+- [vikix-agents](#vikix-agents): the agents at work on this desktop, in one place
 - [vikix-ai](#vikix-ai): AI services on Vikix: keys, and local models
 - [vikix-ask](#vikix-ask): AI on the text you selected, anywhere on the desktop (Super+i)
 - [vikix-back](#vikix-back): where you were, when you come back to the laptop
@@ -124,6 +125,7 @@ The everyday command.
 - `vikix esploro setup|status|doctor|uninstall` — Esploro, a file explorer in Common Lisp (vikix add esploro; Super+e)
 - `vikix mcp register|unregister|tools|status` — the desktop as an MCP server, for Claude Code and other agents
 - `vikix agent` — the AI agent, after a snapshot of your files (alias: a): Claude Code, or --use opencode|codex|gemini|aider, --local on this laptop, --default NAME, --list; --exec [NAME] for editors (stdout is the agent's), --which
+- `vikix agents [--json]` — the agents at work here: each one's folder, branch and uncommitted files, its workspace, how long it has run, and whether it works or waits for you
 - `vikix snapshot [MESSAGE]` — record your files as they are now
 - `vikix changes [ID]` — what changed since the last snapshot (or in snapshot ID)
 - `vikix history` — the snapshots, newest first
@@ -165,6 +167,19 @@ An AI agent in this terminal, after a snapshot of your files (so whatever it cha
 Every agent is told how Vikix works by the same guide: Claude Code and OpenCode read the Vikix skill (`~/.claude/skills/vikix`); the others read `~/.local/share/vikix/AGENTS.md`, made from that skill at each update and each start: linked as `~/.codex/AGENTS.md`, imported by a one-line `~/.gemini/GEMINI.md`, given to Aider with --read; never over a file of yours.
 
 What an agent doesn't get, so a prompt injection (a web page, a README it reads) can't use it: your API keys and other secrets from the environment (each agent signs in its own way; Aider has no login, so it keeps the model companies' keys; `VIKIX_AGENT_API_KEY=1` keeps them all), and your SSH agent, which after your first push would let it push as you (`VIKIX_AGENT_SSH=1` keeps it). This prevents accidents; it isn't a sandbox: the agent runs as you and can read your files.
+
+## vikix-agents
+
+The agents at work on this desktop, in one place.
+
+- `vikix agents` — each agent running in a terminal here: which it is (claude, codex, opencode, gemini, aider), the folder it works in with its branch and how many files it has left uncommitted there, its workspace, how long it has run, and what it is doing: working, at its prompt, finished its turn, or waiting for you (a dialog open, a question asked); under it, its window's title, or what it asked
+- `vikix agents --json` — the same as JSON, for a script
+
+Several agents run side by side, each in a terminal of its own, and five windows called "Alacritty" don't say which is which. The desktop starts them (vikix agent, Super+a), so it knows: it finds the agent in each terminal, started by vikix agent or by hand at a shell, and reads what it is doing from the agent-waiting plugin's note for its window (when you have that plugin: vikix plugin add agent-waiting) and from the mark Claude Code keeps at the front of its window's title. Nothing is asked of the agents themselves.
+
+An agent an editor started (vikix agent --acp: Emacs's agent-shell, Neovim's CodeCompanion) has no window of its own; it is listed last, with what started it.
+
+Super+m, AI, "Agents: who is running" is the same list on the desktop: pick one to go to its window.
 
 ## vikix-ai
 
@@ -643,8 +658,9 @@ The tools, a fixed set:
 read only   desktop (workspaces, windows, screens, theme), keys, commands
             (the desktop's commands an agent may run), rules (the
             desktop's rules, and why a window is where it is), why (what
-            the desktop did lately, and what made it), doctor, history,
-            changes, themes, version
+            the desktop did lately, and what made it), agents (the
+            agents at work on the desktop, and what each is doing),
+            doctor, history, changes, themes, version
 small acts  notify, snapshot, set_theme, switch_workspace, focus_window,
             run_command: each checked against what's there, and easy to
             take back. run_command runs one of the desktop's own commands

@@ -28,6 +28,7 @@
     "day"        ; what had the screen, written down for vikix day
     "why"        ; why did that happen? the key, rule or command behind it (Super+?)
     "used"       ; what gets used: counts of the keys and commands, for vikix used
+    "agents"     ; the office: the agents running here, each with its folder and what it's doing
     "keys"       ; Super-key bindings
     "help"       ; the key card (s-/), key help (s-F1), all commands, which-key
     "webapps"    ; your web apps (vikix webapp): keys and Super+m

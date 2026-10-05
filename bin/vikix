@@ -136,6 +136,10 @@
 #                         Claude Code, or --use opencode|codex|gemini|aider,
 #                         --local on this laptop, --default NAME, --list;
 #                         --exec [NAME] for editors (stdout is the agent's), --which
+#   vikix agents [--json]
+#                       the agents at work here: each one's folder, branch
+#                       and uncommitted files, its workspace, how long it
+#                       has run, and whether it works or waits for you
 #   vikix snapshot [MESSAGE]   record your files as they are now
 #   vikix changes [ID]  what changed since the last snapshot (or in snapshot ID)
 #   vikix history       the snapshots, newest first
@@ -1618,6 +1622,7 @@ main() {
                  python3 "$VIKIX_DIR/bin/vikix-eval" "(run-commands \"vikix-viri ${1:-}\")" >/dev/null ||
                    die "vikix viri: StumpWM didn't answer (vikix doctor)" ;;
     agent)       shift; exec "$VIKIX_DIR/bin/vikix-agent" "$@" ;;
+    agents)      shift; exec python3 "$VIKIX_DIR/bin/vikix-agents" "$@" ;;
     debug|diagnose) exec "$VIKIX_DIR/bin/vikix-debug" "$@" ;;
     dictate)     shift; exec "$VIKIX_DIR/bin/vikix-dictate" "$@" ;;
     lisp-apps)   shift; exec "$VIKIX_DIR/bin/vikix-lisp-apps" "$@" ;;

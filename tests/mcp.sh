@@ -70,6 +70,10 @@ elif "vikix-agent-commands" in form:
     else:
         print(lisp(json.dumps([{"name": "quiet", "does": "Do not disturb on/off", "key": "Super+Ctrl+d"},
                                {"name": "tray", "does": "Tray on/off", "key": None}])))
+elif "vikix-agents-tsv" in form:
+    # As agents.lisp prints them: a line an agent, tab-separated (and a title with the user's text in it).
+    print("\t".join(["claude", str(os.getpid()), t, "2", "0", "125", "asks", "waits for your yes", "May I run it?", "a title => not the end"]))
+    print("=> NIL")
 elif "vikix-why-entries" in form:
     if os.path.exists(t + "/old-desktop"):
         print(lisp("null"))
@@ -148,7 +152,7 @@ check "not JSON should be -32700: $out" test "$(field '["error"]["code"]' <<<"$o
 # The tools: eval and undo only when switched on.
 names() { rpc "$@" -- '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python3 -c 'import json,sys; print(" ".join(t["name"] for t in json.loads(sys.stdin.readline())["result"]["tools"]))'; }
 list=$(names)
-check "the read-only tools should be there: $list" grep -q 'desktop keys commands why doctor history changes themes version rules' <<<"$list"
+check "the read-only tools should be there: $list" grep -q 'desktop keys commands why agents doctor history changes themes version rules' <<<"$list"
 check "eval shouldn't be there by default: $list" test -z "$(grep -ow 'eval\|undo' <<<"$list" || true)"
 check "--allow-eval should add eval: $(names --allow-eval)" grep -qw eval <<<"$(names --allow-eval)"
 check "--allow-undo should add undo: $(names --allow-undo)" grep -qw undo <<<"$(names --allow-undo)"
@@ -156,7 +160,7 @@ out=$(call eval '{"form":"(run-shell-command \"touch pwned\")"}')
 check "eval without --allow-eval should be refused: $out" grep -q '^ERROR: no tool' <<<"$out"
 check "a refused eval ran something" test ! -e "$t/forms"
 ro=$(rpc -- '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python3 -c 'import json,sys; print(" ".join(t["name"] for t in json.loads(sys.stdin.readline())["result"]["tools"] if t["annotations"]["readOnlyHint"]))')
-check "the read tools should say they only read: $ro" test "$ro" = "desktop keys commands why doctor history changes themes version rules records_search records_get docs_search docs_read file_changes"
+check "the read tools should say they only read: $ro" test "$ro" = "desktop keys commands why agents doctor history changes themes version rules records_search records_get docs_search docs_read file_changes"
 
 # Reading the desktop.
 out=$(call desktop '{}')
@@ -204,6 +208,14 @@ check "one not for agents should be refused, in the desktop's words: $out" grep 
 out=$(call run_command '{"name":"quiet\") (run-shell-command \"touch pwned"}')
 check "a name that isn't a command's shape should be refused: $out" grep -q '^ERROR: name' <<<"$out"
 check "and never reach Lisp: $(cat "$t/forms")" test ! -s "$t/forms"
+out=$(VIKIX_PROC=/nonexistent call agents '{}')
+check "agents should list the agents at work, each with its folder and what it does: $out" \
+  python3 -c '
+import json, sys
+a = json.loads(sys.argv[1])
+assert len(a) == 1 and a[0]["agent"] == "claude" and a[0]["state"] == "asks" and a[0]["workspace"] == "2", a
+assert a[0]["said"] == "May I run it?" and a[0]["seconds"] == 125 and "branch" in a[0], a
+' "$out"
 out=$(call why '{}')
 check "why should say what the desktop did, a line each: $out" test "$(grep -c -e 'Super+Ctrl+d ran vikix-quiet' -e 'A rule, as a window opened' <<<"$out")" = 2
 check "with how many asked for, a number: $(grep 'vikix-why-entries' "$t/forms" | tail -1 | cut -c1-60)" grep -q "(funcall 'vikix-why-entries 20)" "$t/forms"

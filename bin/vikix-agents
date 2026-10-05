@@ -1,0 +1,215 @@
+#!/usr/bin/env python3
+"""vikix-agents — the agents at work on this desktop, in one place (`vikix agents`).
+
+  vikix agents         each agent running in a terminal here: which it is
+                       (claude, codex, opencode, gemini, aider), the folder
+                       it works in with its branch and how many files it
+                       has left uncommitted there, its workspace, how long
+                       it has run, and what it is doing: working, at its
+                       prompt, finished its turn, or waiting for you (a
+                       dialog open, a question asked); under it, its
+                       window's title, or what it asked
+  vikix agents --json  the same as JSON, for a script
+
+Several agents run side by side, each in a terminal of its own, and five
+windows called "Alacritty" don't say which is which. The desktop starts
+them (vikix agent, Super+a), so it knows: it finds the agent in each
+terminal, started by vikix agent or by hand at a shell, and reads what it
+is doing from the agent-waiting plugin's note for its window (when you
+have that plugin: vikix plugin add agent-waiting) and from the mark Claude
+Code keeps at the front of its window's title. Nothing is asked of the
+agents themselves.
+
+An agent an editor started (vikix agent --acp: Emacs's agent-shell,
+Neovim's CodeCompanion) has no window of its own; it is listed last, with
+what started it.
+
+Super+m, AI, "Agents: who is running" is the same list on the desktop:
+pick one to go to its window.
+"""
+import json
+import os
+import subprocess
+import sys
+
+VIKIX_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+# Tests name a stand-in for vikix-eval (the live window manager), as vikix-mcp's do.
+EVAL = os.environ.get("VIKIX_EVAL") or os.path.join(VIKIX_DIR, "bin", "vikix-eval")
+# And another /proc: a test's desktop shouldn't list the real one's agents.
+PROC = os.environ.get("VIKIX_PROC") or "/proc"
+PROGRAMS = ("claude", "codex", "opencode", "gemini", "aider")
+FIELDS = ("agent", "pid", "folder", "workspace", "window", "seconds", "state", "doing", "said", "title")
+
+
+def die(message):
+    print(f"vikix agents: {message}", file=sys.stderr)
+    sys.exit(1)
+
+
+def desktop():
+    """The agents in the desktop's terminals, as StumpWM finds them
+    (agents.lisp): a dict each."""
+    form = ("(if (fboundp 'vikix-agents-tsv) (progn (princ (vikix-agents-tsv)) (values)) "
+            "(error \"this desktop is older than vikix agents: reload it (Super+m, Reload config)\"))")
+    try:
+        r = subprocess.run(([sys.executable, EVAL] if EVAL.endswith("/bin/vikix-eval") else [EVAL]) + [form],
+                           capture_output=True, text=True, timeout=20)
+    except (OSError, subprocess.TimeoutExpired):
+        die("StumpWM didn't answer (is the desktop running? vikix doctor)")
+    out = r.stdout + r.stderr
+    if "error: " in out:
+        die(out.split("error: ", 1)[1].splitlines()[0])
+    if r.returncode != 0:
+        die("StumpWM didn't answer (is the desktop running? vikix doctor)")
+    agents = []
+    for line in r.stdout.splitlines():
+        parts = line.split("\t")
+        if line.startswith("=> ") or len(parts) != len(FIELDS):
+            continue
+        a = dict(zip(FIELDS, parts))
+        for k in ("pid", "seconds"):
+            a[k] = int(a[k]) if a[k].isdigit() else 0
+        agents.append(a)
+    return agents
+
+
+def cmdline(pid):
+    try:
+        with open(f"{PROC}/{pid}/cmdline", "rb") as f:
+            return [w.decode("utf-8", "replace") for w in f.read().split(b"\0") if w]
+    except OSError:
+        return []
+
+
+def agent_name(words):
+    for word in words[:2]:
+        name = os.path.basename(word).lstrip("-")
+        if name in PROGRAMS:
+            return name
+    return None
+
+
+def whereabouts(pid, parent):
+    """Where an agent without a window runs, in words: a text console, or
+    whatever started it (an editor, tmux, a shell over ssh)."""
+    by = (os.path.basename((cmdline(parent) or ["?"])[0]) or "?").lstrip("-")
+    try:
+        tty = os.readlink(f"{PROC}/{pid}/fd/0")
+    except OSError:
+        tty = ""
+    if tty.startswith("/dev/tty") and tty[8:].isdigit():
+        return f"on the text console {tty[5:]} (Ctrl+Alt+F{tty[8:]}), started by {by}"
+    return f"started by {by}"
+
+
+def elsewhere(known):
+    """Agents running with no terminal window of their own here (an
+    editor's, one in tmux or over ssh): not children of one we know."""
+    found = []
+    try:
+        uptime = float(open(f"{PROC}/uptime").read().split()[0])
+    except OSError:
+        return found
+    for entry in os.listdir(PROC):
+        if not entry.isdigit() or int(entry) in known:
+            continue
+        pid = int(entry)
+        try:
+            if os.stat(f"{PROC}/{pid}").st_uid != os.getuid():
+                continue
+            name = agent_name(cmdline(pid))
+            if not name:
+                continue
+            stat = open(f"{PROC}/{pid}/stat").read()
+            rest = stat[stat.rindex(")") + 2:].split()
+            parent = int(rest[1])
+            # One an agent started itself (a helper of the same name) is that agent's.
+            if agent_name(cmdline(parent)) or parent in known:
+                continue
+            found.append({"agent": name, "pid": pid, "folder": os.readlink(f"{PROC}/{pid}/cwd"),
+                          "workspace": "", "window": "", "seconds": max(0, round(uptime - int(rest[19]) / 100)),
+                          "state": "running", "doing": "running", "said": "",
+                          "title": "no window of its own: " + whereabouts(pid, parent)})
+        except (OSError, ValueError, IndexError):
+            continue
+    return found
+
+
+def git(folder, *args):
+    try:
+        r = subprocess.run(["git", "-C", folder, *args], capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return r.stdout if r.returncode == 0 else None
+
+
+def with_git(agent):
+    """The folder's branch and how many files wait uncommitted there."""
+    folder = agent["folder"]
+    agent["branch"], agent["uncommitted"] = None, None
+    if folder and os.path.isdir(folder):
+        branch = git(folder, "rev-parse", "--abbrev-ref", "HEAD")
+        if branch is not None:
+            agent["branch"] = branch.strip()
+            status = git(folder, "status", "--porcelain")
+            agent["uncommitted"] = len(status.splitlines()) if status is not None else None
+    return agent
+
+
+def how_long(seconds):
+    if seconds < 60:
+        return f"{seconds} s"
+    if seconds < 3600:
+        return f"{seconds // 60} min"
+    if seconds < 86400:
+        return f"{seconds // 3600} h {seconds % 3600 // 60} min"
+    return f"{seconds // 86400} d"
+
+
+def short(path):
+    home = os.path.expanduser("~")
+    return "~" + path[len(home):] if path == home or path.startswith(home + "/") else path
+
+
+def where(agent):
+    place = short(agent["folder"]) or "?"
+    if agent["branch"] is None:
+        return place
+    n = agent["uncommitted"]
+    left = "nothing uncommitted" if n == 0 else f"{n} uncommitted" if n is not None else "?"
+    return f"{place} ({agent['branch']}, {left})"
+
+
+def main(argv):
+    if argv and argv[0] in ("-h", "--help", "help"):
+        print(__doc__.strip())
+        return 0
+    as_json = argv == ["--json"]
+    if argv and not as_json:
+        die("vikix agents [--json] (vikix agents help)")
+    agents = desktop()
+    agents += elsewhere({a["pid"] for a in agents})
+    agents = [with_git(a) for a in agents]
+    if as_json:
+        print(json.dumps(agents, indent=1, ensure_ascii=False))
+        return 0
+    if not agents:
+        print("No agent is running here. Super+a (vikix agent) starts one.")
+        return 0
+    waiting = sum(1 for a in agents if a["state"] == "asks")
+    print(f"{len(agents)} agent{'s' if len(agents) != 1 else ''}"
+          + (f", {waiting} waiting for you" if waiting else "") + ":")
+    wide = max(len(where(a)) for a in agents)
+    for a in agents:
+        # A workspace whose name starts with a dot is hidden: the drop-down terminal's.
+        place = ("no window" if not a["workspace"] else
+                 "put away" if a["workspace"].startswith(".") else f"workspace {a['workspace']}")
+        print(f"  {a['agent']:<8} {where(a):<{wide}}  {place:<13} {how_long(a['seconds']):<11} {a['doing']}")
+        line = a["said"] if a["state"] == "asks" and a["said"] else a["title"]
+        if line:
+            print(f"           {line[:110]}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

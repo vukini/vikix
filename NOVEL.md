@@ -290,6 +290,8 @@ Why only Vikix: it starts the agents, keeps the journal, owns the workspaces and
 
 First step: a workspace and a bar colour per `vikix agent`, and `vikix agents` listing them; the rules after.
 
+> 2026-10-05, the office session: the first step is built, a little differently. `vikix agents` (and Super+m, AI; the MCP tool `agents`) lists every agent in a terminal here, found from the terminal's processes whether `vikix agent` started it or a shell did: its folder with branch and uncommitted files, workspace, how long, and what it is doing (the agent-waiting note, else Claude Code's mark in the title); its window carries `_VIKIX_AGENT`. Not yet: a workspace and a bar colour each. What the listing showed at once: every session's folder is `~`, because Super+a starts them there and each then works in a worktree it made itself. So the next step is a desk each, `vikix agent` starting an agent in a project and a worktree of its own, before the house rules.
+
 ## 23. Feed the distro
 
 What Vikix builds because Void lacks it goes back to Void.

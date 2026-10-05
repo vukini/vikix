@@ -104,6 +104,26 @@ This prevents accidents; it isn't a wall. The agent runs as you, and can read yo
 
 **How they know Vikix:** OpenCode reads the same skill as Claude Code. Codex, Gemini and Aider read `~/.local/share/vikix/AGENTS.md`, the skill's first page, which names the other pages where they can open them: Vikix links it as `~/.codex/AGENTS.md`, writes a one-line `~/.gemini/GEMINI.md` that imports it, and hands it to Aider (not to a small local model, for which it's too long). If you have one of those files already, it's yours and stays; Vikix says how to add the guide to it.
 
+### Several at once
+
+Agents run side by side, each in a terminal of its own, and a row of windows all called "Alacritty" doesn't say which is which. The desktop starts them, so it knows:
+
+```
+$ vikix agents
+4 agents, 1 waiting for you:
+  claude   ~/src/living-series (main, 3 uncommitted)   workspace 7   2 h 10 min  waits for your yes
+           May I run the tests?
+  claude   ~/src/vikix-office (office, nothing uncommitted)  workspace 1   35 min  working
+           ◑ The office, step one
+  codex    ~/src/esploro (main, 1 uncommitted)         workspace 3   12 min      running
+  claude   ~                                           no window     5 h         running
+           no window of its own: on the text console tty2 (Ctrl+Alt+F2), started by bash
+```
+
+Each line is an agent: which one, the folder it works in with its branch and how many files wait uncommitted there, its workspace, how long it has run, and what it is doing. *Working* and *at its prompt* come from the mark Claude Code keeps at the front of its window's title; *waits for your yes*, *asked you something* and *finished its turn* come from the agent-waiting plugin's note for that window, when you have the plugin ([Plugins](plugins.md)); under one that asks is what it asked. An agent started by hand at a shell is found like one `vikix agent` started. One without a window of its own (an editor's, one on a text console) comes last, with where it runs.
+
+`Super+m` → *AI* → *Agents: who is running, and go to one* is the same list on the desktop: pick one and you're at its window (one in the drop-down terminal is brought to you). Nothing is asked of the agents themselves, and none is stopped: the list only reads what is there. Each agent's window also carries its name (the X property `_VIKIX_AGENT`).
+
 ## API keys
 
 Programs find an API key in a variable such as `ANTHROPIC_API_KEY`. Don't put it in `~/.bashrc`: that file's history keeps every version for ever. Vikix has a safe place instead:
@@ -305,6 +325,7 @@ vikix mcp unregister   # take it away
 | keys | Every key Vikix binds, and what it does |
 | rules | The desktop's rules (each one's number, on or off, where it's written, how often it ran), and for a window you name, which rules ran for it and which match it but haven't. Nothing is switched or run |
 | why | What the desktop did lately and what made it: a key and its command, a rule and its window, the menu, an agent; each with where it is written. For "why did my window move?" |
+| agents | The agents at work on the desktop, the asking one among them: each one's folder, branch, uncommitted files, workspace, how long, and what it is doing. So an agent can see another is at work in a folder before it changes files there |
 | doctor, history, changes, themes, version | What `vikix doctor`, `vikix history`, `vikix changes`, `vikix theme` and `vikix version` say |
 | docs_search, docs_read | Finds and reads the documents on this machine, the ones `Super+F2` searches: these guides, man pages, your projects' documents, your notes. So the agent can answer from the man page, not from memory |
 | records_search, records_get | Finds and reads what your plugins kept (`vikix records`): flight searches, meetings, your Claude plan's use. It can't add or change a record |
