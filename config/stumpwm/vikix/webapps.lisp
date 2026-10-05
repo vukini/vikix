@@ -80,7 +80,7 @@ else opened, and that is Super+Alt."
                   (setf *vikix-bindings*
                         (append *vikix-bindings*
                                 (list (list key command (format nil "~a (web app)" title))))))
-                (push (list (format nil "Web app: ~a" title) (list 'vikix-webapp name)) entries))))
+                (push (list (format nil "Web app: ~a" title) (list 'vikix-webapp name) nil "Apps") entries))))
         (error () nil)))
     ;; Before the last entry, Power, so that one stays at the bottom.
     (let ((power (last *vikix-menu*)))

@@ -6,7 +6,10 @@
 #   from them; Super+m is made from them too, the welcome first, Power
 #   last, an entry that runs a program as the menu always wrote it; a
 #   command written in user.lisp is bound, on the key card's list and in
-#   the menu, just before Power, and its key runs it; an agent may run a
+#   the menu, just before Power, and its key runs it; Super+m, by its
+#   keys, opens on its sections, Enter (or Right) shows one's entries with
+#   their keys, Escape (or Left) comes back and a second closes it, and
+#   typing finds an entry of any section, which Enter runs; an agent may run a
 #   command marked for agents (a switch flips) and is refused any other, in
 #   words; a reload leaves one of each.
 #
@@ -26,6 +29,14 @@ cat > "$home/.stumpwm.d/user.lisp" <<'L'
 (define-vikix-command hello "Say hello"
   :run "echo hello from the registry" :key "s-M-F12"
   :menu "Work" :label "Hello, from the menu" :agent t)
+;; What a menu shows, each time it is drawn: the test reads it, since
+;; StumpWM answers nothing while a menu is open.
+(defun test-menu-log (menu)
+  (with-open-file (o (merge-pathnames "menu.log" (user-homedir-pathname))
+                     :direction :output :if-exists :supersede :if-does-not-exist :create)
+    (format o "prompt=~a~%selected=~a~%" (menu-prompt-line menu) (first (nth (menu-selected menu) (menu-table menu))))
+    (dolist (row (menu-table menu)) (format o "row=~a~%" (first row)))))
+(add-hook *menu-selection-hook* 'test-menu-log)
 L
 wm_start
 
@@ -55,6 +66,38 @@ check "and in the menu, just before Power: $(ask '(princ (first (car (last *viki
 key super+alt+F12
 check "its key runs it: $(said)" test "$(said)" = "hello from the registry"
 
+# Super+m itself, by its keys.
+menu() { cat "$home/menu.log" 2>/dev/null || true; }
+rows() { menu | sed -n 's/^row=//p'; }
+ask '(message "nothing yet")' >/dev/null
+key super+m
+check "Super+m opens on its sections, Start first and Power last: $(rows | head -1 | cut -d' ' -f1) ... $(rows | tail -1 | cut -c1-6)" \
+  test "$(rows | head -1 | cut -d' ' -f1) $(rows | tail -1)" = "Start Power: lock, suspend, log out, reboot, power off  Super+Shift+Escape"
+check "a section's row says what it holds: $(rows | grep '^Windows ')" \
+  grep -q '^Windows  *Overview, Layout, Strip, ' <(rows)
+check "and no entry of a section shows yet" test -z "$(rows | grep -E '^(Hello|Emoji|Calculator)' || true)"
+for _ in $(seq 1 12); do menu | grep -q '^selected=Work ' && break; key Down; done
+key Return
+check "Enter on Work shows what is in it, under its name: $(menu | head -1)" grep -q '^prompt=Work: ' <(menu)
+check "with yours, and its key in the column: $(rows | grep Hello)" grep -qE '^Hello, from the menu +Super\+Alt\+F12$' <(rows)
+check "the keys are in one column" test "$(rows | awk 'match($0, /  Super\+/) { print RSTART }' | sort -u | wc -l)" = 1
+key Escape
+check "Escape comes back to the sections, on Work: $(menu | sed -n 2p | cut -c1-20)" grep -q '^selected=Work ' <(menu)
+key Right
+check "Right opens the section too" grep -q '^prompt=Work: ' <(menu)
+key Left
+check "and Left comes back" grep -q '^selected=Work ' <(menu)
+key Escape
+check "a second Escape closes the menu" test "$(ask '(princ 1)')" = 1
+key super+m
+xdotool type --delay 60 "hello fr"; sleep 0.5
+check "typing finds an entry of any section, its section before it: $(rows | head -3)" \
+  test "$(rows | sed -E 's/  +/ | /g')" = "Work | Hello, from the menu | Super+Alt+F12"
+key Return
+check "and Enter runs it: $(said)" test "$(said)" = "hello from the registry"
+check "the desktop noted what the menu did, for Super+?" \
+  yes '(search "Hello, from the menu" (vikix-why-text 3))'
+
 # Agents: only what is marked, by name.
 check "agents are offered the commands marked for them, yours too: $(ask '(princ (length (vikix-agent-commands)))')" \
   yes '(and (find (quote hello) (vikix-agent-commands) :key (lambda (c) (getf c :name))) (not (find (quote terminal) (vikix-agent-commands) :key (lambda (c) (getf c :name)))))'
@@ -78,5 +121,5 @@ check "and your menu entry once, before Power" \
   yes '(and (= 1 (count "Hello, from the menu" *vikix-menu* :key (function first) :test (function equal))) (equal (first (car (last *vikix-menu* 2))) "Hello, from the menu"))'
 check "the desktop met no error" test -z "$(ls "$home/.local/state/vikix/errors" 2>/dev/null)"
 
-wm_report registry "Vikix's keys and Super+m made from its commands, every one a real command, a command of yours bound and in the menu at once, agents run only what is marked for them, a reload leaves one of each"
+wm_report registry "Vikix's keys and Super+m made from its commands, every one a real command, a command of yours bound and in the menu at once, Super+m opens on its sections, shows one's entries with their keys, comes back, and finds an entry of any section as it is typed, agents run only what is marked for them, a reload leaves one of each"
 exit "$fail"

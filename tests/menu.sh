@@ -5,9 +5,15 @@
 # appear with their features. Entries that name nothing are always shown,
 # and every entry that needs something names a real program or file.
 #
-# vikix-program-p and vikix-menu-entry-here-p are read from commands.lisp
-# and run in sbcl, with a made-up PATH and home. The menu's own entries are
-# the registry's (lib/registry.sh menu).
+# Each entry shows its key in a straight column, a plugin's and a web
+# app's too. Super+m is in sections: a row a section, saying what it
+# holds; a section of one entry is that entry; lines about one thing stay
+# together; typing finds an entry of any section.
+#
+# The menu's functions are read from commands.lisp and run in sbcl, with a
+# made-up PATH and home. The menu's own entries are the registry's
+# (lib/registry.sh menu). tests/registry.sh opens the menu in a real
+# StumpWM.
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
@@ -47,19 +53,110 @@ fns=$(awk '/^\(defun vikix-menu-entry-command/,/^$/; /^\(defun vikix-menu-entry-
 cat > "$t/keys.lisp" <<EOF
 (defpackage :stumpwm (:use :cl))
 (in-package :stumpwm)
-(defvar *vikix-bindings* '(("s-C-d" "vikix-quiet" "Do not disturb") ("s-F10" "exec vikix-dictate toggle ask" "Voice")))
-(defun vikix-pretty-key (k) (cond ((equal k "s-C-d") "Super+Ctrl+d") ((equal k "s-F10") "Super+F10") (t k)))
+(defvar *vikix-bindings* '(("s-C-d" "vikix-quiet" "Do not disturb") ("s-F10" "exec vikix-dictate toggle ask" "Voice")
+                           ("s-M-t" "vikix-webapp teams" "Teams (web app)") ("s-M-u" "ai-usage" "Claude plan")
+                           ("s-C-v" "vikix-record area" "Record")))
+(defun vikix-pretty-key (k)
+  (or (second (assoc k '(("s-C-d" "Super+Ctrl+d") ("s-F10" "Super+F10") ("s-M-t" "Super+Alt+t") ("s-M-u" "Super+Alt+u")
+                         ("s-C-v" "Super+Ctrl+v"))
+                     :test #'equal))
+      k))
 $fns
 (dolist (line (vikix-menu-lines '(("Do not disturb on/off" vikix-quiet)
                                   ("Voice: talk to the AI" (run-shell-command "vikix-dictate toggle ask"))
                                   ("Install a program" (vikix-in-terminal "vikix pkg add"))
                                   ("Theme" vikix-pick-theme))))
   (format t "[~a]~%" (first line)))
+;; A web app's and a plugin's entries are forms that call a command: their
+;; keys are found too. The column of keys is straight, after the longest
+;; label that has one, however long that is.
+(dolist (line (vikix-menu-lines '(("Web app: Teams" (vikix-webapp "teams") nil "Apps")
+                                  ("Claude plan: how much is used" (ai-usage) :plugin)
+                                  ("Record the screen, an area of it or a window, with or without the pointer" (run-commands "vikix-record area"))
+                                  ("A form no key could be" (progn (message "x") (vikix-quiet))))))
+  (format t "[~a]~%" (first line)))
 EOF
 out=$("$sbcl" --script "$t/keys.lisp" 2>&1)
-for want in "[Do not disturb on/off  Super+Ctrl+d]" "[Voice: talk to the AI  Super+F10]" "[Install a program]" "[Theme]"; do
+for want in "[Do not disturb on/off  Super+Ctrl+d]" "[Voice: talk to the AI  Super+F10]" "[Install a program]" "[Theme]" \
+    "[Web app: Teams                                                             Super+Alt+t]" \
+    "[Claude plan: how much is used                                              Super+Alt+u]" \
+    "[Record the screen, an area of it or a window, with or without the pointer  Super+Ctrl+v]" \
+    "[A form no key could be]"; do
   grep -qxF "$want" <<<"$out" || { echo "FAIL: the menu should show $want, got: $(tr '\n' ' ' <<<"$out")"; fail=1; }
 done
+
+# Super+m in sections. The registry's own entries, then what a web app, two
+# plugins and the user add as they do: before Power, and (the user's old
+# way) after it.
+fns=$(awk '/^\(defun vikix-menu-(entry-command|entry-key|lines|entry-section|head|together|sections|hint|rows|row-shown-p|everything) /,/^$/' "$lisp")
+cat > "$t/sections.lisp" <<EOF
+(defpackage :stumpwm (:use :cl))
+(in-package :stumpwm)
+(load "$here/config/stumpwm/vikix/registry.lisp")
+(defvar *vikix-menu* (vikix-registry-menu))
+(defvar *vikix-bindings* (vikix-registry-bindings))
+(defvar *vikix-apps-menu* '(("Video: edit (Shotcut)" (run-shell-command "shotcut") "shotcut")
+                            ("Pictures: edit a photo (GIMP)" (run-shell-command "gimp") "gimp")))
+(defun menu-item-matches-regexp (line object typed)
+  (declare (ignore object))
+  (search (string-downcase (string-trim " " typed)) (string-downcase line)))
+$fns
+(setf *vikix-menu* (append (butlast *vikix-menu*)
+                           '(("Web app: Teams" (vikix-webapp "teams") nil "Apps")
+                             ("Projects: what to push, pull or commit" (repos-term) :plugin "Work")
+                             ("Flights: search" (flights-search) :plugin)
+                             ("Flights: the watched ones that got cheaper" (flights-drops) :plugin)
+                             ("Tides: today's" (tides) :plugin "Sailing"))
+                           (last *vikix-menu*)
+                           '(("iPhone" iphone-menu))))
+(defvar *sections* (vikix-menu-sections (vikix-menu-everything)))
+(defvar *rows* (vikix-menu-rows *sections*))
+(defun shown (typed) (remove-if-not (lambda (row) (vikix-menu-row-shown-p (first row) (second row) typed)) *rows*))
+(format t "sections=~{~a~^,~}~%" (mapcar #'first *sections*))
+(dolist (row (shown "")) (format t "top=[~a]~%" (first row)))
+(dolist (name '("Work" "Apps" "Windows" "System"))
+  (format t "~a=~{~a~^|~}~%" name (mapcar #'first (rest (assoc name *sections* :test #'equal)))))
+(dolist (row (shown "lay")) (format t "lay=[~a]~%" (first row)))
+(format t "kinds=~{~(~a~)~^,~}~%" (remove-duplicates (mapcar #'second (shown "lay"))))
+(format t "spaces=~a~%" (length (shown "  ")))
+(dolist (label '("Layout: save this workspace's, by name" "Do not disturb on/off" "The bar on/off (hide it for the whole screen)"
+                 "Why did that happen? What the desktop just did, and what made it" "What does a key do?"
+                 "Find a window, any workspace" "Tray on/off: network and Bluetooth icons in the bar" "Emoji"))
+  (format t "head=~a~%" (vikix-menu-head label)))
+(format t "hint=~a~%" (vikix-menu-hint '(("One: a") ("One: b") ("Two") ("Three (x)") ("Four, and more")) 20))
+(format t "longest=~a~%" (reduce #'max (mapcar (lambda (row) (length (first row))) (shown ""))))
+EOF
+out=$("$sbcl" --script "$t/sections.lisp" 2>&1) || { echo "FAIL: the menu's sections didn't run: $(tail -5 <<<"$out")"; exit 1; }
+has() { grep -qxF -- "$1" <<<"$out" || { echo "FAIL: $2: no line '$1' in: $(grep "^${1%%=*}=" <<<"$out" | tr '\n' ' ')"; fail=1; }; }
+has "sections=Start,Help,Vikix,AI,Work,Notifications,Desktop,Windows,System,Apps,Plugins,Sailing,Yours,Power" \
+  "the sections come in Vikix's order, a plugin's own, Plugins and Yours after them, Power last"
+has "top=[Start          Welcome, Add software, Install a program, Remove a program]" "a section's row says what it holds"
+has "top=[Notifications  Notifications, Do not disturb]" "a section's row names each thing once"
+has "top=[Plugins        Flights]" "a plugin's entry that names no section is in Plugins"
+has "top=[Tides: today's]" "a section of one entry is that entry, at the top"
+has "top=[iPhone]" "an entry of yours that names no section is in Yours: alone there, it is at the top"
+has "top=[Power: lock, suspend, log out, reboot, power off  s-S-ESC]" "Power is the last row, with its key"
+[ "$(grep -c '^top=' <<<"$out")" = 14 ] || { echo "FAIL: the top of the menu should have 14 rows: $(grep -c '^top=' <<<"$out")"; fail=1; }
+[ "$(grep '^top=' <<<"$out" | tail -1)" = "top=[Power: lock, suspend, log out, reboot, power off  s-S-ESC]" ] ||
+  { echo "FAIL: Power should be the menu's last row: $(grep '^top=' <<<"$out" | tail -1)"; fail=1; }
+longest=$(sed -n 's/^longest=//p' <<<"$out")
+[ "${longest:-99}" -le 80 ] || { echo "FAIL: a row at the top of the menu is $longest letters wide; 80 fit a small screen"; fail=1; }
+has "Work=Projects: open one (a terminal there, its log in the editor)|Projects: what to push, pull or commit|Where was I? (the project, its next step, what isn't saved)|My day: each project's time, entries and commits (kept in ~/journal)|Clipboard history|Emoji|Calculator|Learn C: the lesson, and a shell beside it|JupyterLab (in ~/dev)" \
+  "a plugin's line goes beside Vikix's about the same thing (Projects)"
+has "Apps=Video: edit (Shotcut)|Pictures: edit a photo (GIMP)|Dropbox|Windows (the VM)|Web app: Teams" \
+  "Apps has the apps that came with features, then Dropbox, Windows and the web apps"
+has "Windows=Overview: every workspace, drawn small|Layout: pick this workspace's (tiles, main and stack, grid, strip)|Layout: save this workspace's, by name|Layout: put this workspace back as one you saved|Strip: this workspace scrolls sideways (Viri), or tiled again|Gaps around windows on/off|Find a window, any workspace|Remember this window here: write the rule for where it is|Rules: the list, one off or on, why this window is where it is" \
+  "Windows keeps the three layout lines together"
+has "System=Network (nmtui)|Network use: which program is using it (nethogs)|Firewall: on or off, and what it lets in|Bluetooth|Sound (pavucontrol)|Screens: extend, mirror, one only, arrange|Screens: arrange (arandr)|Screens: save this layout|Printers|Eject a drive|Apply keyboard settings|Firmware updates" \
+  "System keeps the three lines for screens together"
+has "lay=[Windows        Layout: pick this workspace's (tiles, main and stack, grid, strip)  s-C-SPC]" "typing finds an entry, its section before it and its key after"
+has "lay=[System         Screens: save this layout]" "typing looks in every section"
+has "kinds=found" "while something is typed, no section's row shows"
+has "spaces=14" "spaces alone are nothing typed"
+for head in "Layout" "Do not disturb" "The bar" "Why did that happen?" "What does a key do?" "Find a window" "Tray" "Emoji"; do
+  has "head=$head" "what a line is about"
+done
+has "hint=One, Two, Three ..." "what a section holds is cut at a whole word, and says there is more"
 # So no label names a key itself: it would go stale when the key moves.
 if "$here/lib/registry.sh" menu | cut -f1 | grep -q 'Super+'; then
   echo "FAIL: a Super+m label names its key; the menu shows keys by itself"; fail=1
@@ -78,7 +175,7 @@ while IFS= read -r need; do
          { echo "FAIL: the menu needs the program $need, but no list installs a package of that name"; fail=1; } ;;
   esac
 done < <("$here/lib/registry.sh" menu | cut -f2 | grep . | sort -u
-         awk '/^\(defparameter \*vikix-apps-menu\*/,/^  "The apps menu/' "$lisp" |
+         awk '/^\(defparameter \*vikix-apps-menu\*/,/^  "The apps of Super/' "$lisp" |
            grep -oE '(\) |^ +)"(~/[^"]+|[a-z-]+)"\)+$' | sed -E 's/^(\) | +)"//; s/"\)+$//')
 
 # The launcher (Super+d) lists config/applications/*.desktop: each runs a
@@ -91,5 +188,5 @@ done
 grep -q '^Keywords=.*jlab;' "$here/config/applications/vikix-jupyterlab.desktop" ||
   { echo "FAIL: typing jlab in the launcher wouldn't find JupyterLab (no Keywords=jlab)"; fail=1; }
 
-[ "$fail" = 0 ] && echo "menu: entries whose program or file isn't here are left out, the rest shown, every need is real, and the launcher entries run and are found (jlab)"
+[ "$fail" = 0 ] && echo "menu: entries whose program or file isn't here are left out, the rest shown with their keys in a straight column (a web app's and a plugin's too), Super+m in sections that say what they hold, lines about one thing together, typing finds an entry of any section, every need is real, and the launcher entries run and are found (jlab)"
 exit "$fail"

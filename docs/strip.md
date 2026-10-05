@@ -12,7 +12,7 @@ You choose it for one workspace at a time. The others stay as they are, and the 
 
 Any of these, on the workspace you want:
 
-- `Super+m`, then *This workspace as a strip that scrolls sideways (Viri), or tiled again*
+- `Super+m`, then *Strip: this workspace scrolls sideways (Viri), or tiled again* (in *Windows*, or type `strip`)
 - `Super+Ctrl+Space`, the layout menu, then *Strip: columns side by side that scroll sideways*
 - `vikix viri` in a terminal (`vikix viri on` and `vikix viri off` say which)
 

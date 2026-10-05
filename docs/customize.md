@@ -39,7 +39,7 @@ A key bound like that works, and nothing else knows of it. To have it on the key
   :menu "Apps" :needs "obsidian")
 ```
 
-The name (`obsidian`) is yours to choose; the words after it are what the key card and the menu say. `:run` is the command and `:key` its key. `:menu` puts it in `Super+m`, in that part of it (Start, Help, Vikix, AI, Work, Notifications, Desktop, Windows, System, Apps); leave it out for a key alone. `:label` gives the menu other words than the key card's, and `:needs` names a program or a file (`"~/..."`) without which the menu leaves the entry out. Leave `:key` out for a menu entry with no key; then `:do` can take a Lisp form in place of `:run`. `:agent t` lets your AI agent run it by name, without asking you each time ([Working with AI](ai.md#the-desktop-as-tools-mcp)): only for something put back as easily as it is done. A mistake in the form is said when `user.lisp` loads, with what is wrong.
+The name (`obsidian`) is yours to choose; the words after it are what the key card and the menu say. `:run` is the command and `:key` its key. `:menu` puts it in `Super+m`, in that section of it (Start, Help, Vikix, AI, Work, Notifications, Desktop, Windows, System, Apps); leave it out for a key alone. `:label` gives the menu other words than the key card's, and `:needs` names a program or a file (`"~/..."`) without which the menu leaves the entry out. Leave `:key` out for a menu entry with no key; then `:do` can take a Lisp form in place of `:run`. `:agent t` lets your AI agent run it by name, without asking you each time ([Working with AI](ai.md#the-desktop-as-tools-mcp)): only for something put back as easily as it is done. A mistake in the form is said when `user.lisp` loads, with what is wrong.
 
 Vikix's own commands are written the same way, all in one file, `registry.lisp` in Vikix's layer: its keys, its menu, and what agents may run all come from it. The older way still works, and is what a plugin or a web app does: add to the list the card and the help are built from, and bind the key.
 
@@ -148,14 +148,19 @@ Gaps between windows (Super+Ctrl+g) are 10px, 9px at the screen edge. The inner 
 
 ### The Super+m menu
 
-A command written with `define-vikix-command` and `:menu` is in the menu already (Keys, above). The menu itself is a list you can change as a whole. Each entry is a label and either a command or a Lisp form, and, if you like, what it needs: a program on PATH, or a file (`"~/..."`). An entry whose need isn't there is left out of the menu, which is how Vikix hides JupyterLab or Printers until you add their features (and, in `*vikix-apps-menu*`, Super+m → Apps, each video, graphics or study program until it is installed):
+The menu opens on its sections: Start, Help, Vikix, AI, Work, Notifications, Desktop, Windows, System, Apps, and Power last. Each row says what the section holds. Enter (or Right) opens one, and Escape (or Left) comes back; a second Escape closes the menu. Typing at the top looks through every entry of every section at once, so `printers`, `theme` or `F10` is one step away. An entry that has a key shows it at the right, a web app's and a plugin's too.
+
+A command written with `define-vikix-command` and `:menu` is in its section already (Keys, above). The menu itself is a list you can change as a whole. Each entry is a label and either a command or a Lisp form; then, if you like, what it needs: a program on PATH, or a file (`"~/..."`); and then its section. An entry whose need isn't there is left out of the menu, which is how Vikix hides JupyterLab or Printers until you add their features (and, in `*vikix-apps-menu*`, which the section Apps shows, each video, graphics or study program until it is installed):
 
 ```lisp
 (setf *vikix-menu*
       (append *vikix-menu*
-              '(("Obsidian" (run-shell-command "obsidian") "obsidian")   ; shown only with obsidian installed
-                ("Keys"     vikix-keys))))
+              '(("Obsidian" (run-shell-command "obsidian") "obsidian" "Apps")   ; in Apps, and only with obsidian installed
+                ("Keys"     vikix-keys nil "Help")                              ; needs nothing; in Help
+                ("Tides"    (run-shell-command "tides")))))                     ; no section: in one called Yours
 ```
+
+A section can have a name of your own (`"Sailing"`): it comes after Vikix's, before Power. A section with one entry is not a row to open: the entry itself is at the top. Inside a section the entries keep the list's order, except that lines about the same thing (`Layout: save ...`, `Layout: put back ...`) stay together.
 
 ### The bar
 

@@ -267,12 +267,15 @@ Returns the window, or nil when there's none."
 
 (defparameter *vikix-menu* (vikix-registry-menu)
   "Each entry: a label, then what to do — a command name, or a Lisp form —
-and, for some, what it needs: a program on PATH, or a file (\"~/...\"). An
-entry whose need isn't there is left out of the menu (vikix-menu-entry-here-p):
-JupyterLab without the feature python, Printers without printing ...
+then, for some, what it needs: a program on PATH, or a file (\"~/...\"),
+and the section of Super+m it is in (\"Work\"; one of *vikix-menu-groups*,
+or a name of your own). An entry whose need isn't there is left out of
+the menu (vikix-menu-entry-here-p): JupyterLab without the feature python,
+Printers without printing ... One that names no section is in Yours.
 Vikix's own are made from its commands (registry.lisp: a command with
-:menu is in it, under its group); yours, a plugin's and a web app's are
-added to this list.")
+:menu is in it, in that section); yours, a plugin's and a web app's are
+added to this list. Its order is each section's order; the sections' own
+is *vikix-menu-groups*'.")
 
 (defparameter *vikix-power-menu*
   ;; Lock first: the harmless one is where an Enter pressed by mistake lands.
@@ -308,54 +311,227 @@ here: a program on PATH, or a file when it starts with ~/."
 (defun vikix-menu-entry-command (entry)
   "The StumpWM command ENTRY runs, as a key would write it, or NIL when it's
 a form no key could be: vikix-quiet -> \"vikix-quiet\",
-(run-shell-command \"vikix-ask\") -> \"exec vikix-ask\"."
+(run-shell-command \"vikix-ask\") -> \"exec vikix-ask\",
+(vikix-webapp \"teams\") -> \"vikix-webapp teams\", (ai-usage) -> \"ai-usage\"."
   (let ((action (second entry)))
     (cond ((and action (symbolp action)) (string-downcase (symbol-name action)))
-          ((and (consp action) (eq (first action) 'run-shell-command) (stringp (second action))
-                (null (cddr action)))
-           (concatenate 'string "exec " (second action))))))
+          ((atom action) nil)
+          ((and (eq (first action) 'run-shell-command) (stringp (second action)) (null (cddr action)))
+           (concatenate 'string "exec " (second action)))
+          ((and (eq (first action) 'run-commands) (stringp (second action)) (null (cddr action)))
+           (second action))
+          ;; A command called as a function, as plugins and web apps write
+          ;; theirs: its name, then what it is given.
+          ((and (symbolp (first action))
+                (every (lambda (a) (or (stringp a) (numberp a))) (rest action)))
+           (format nil "~(~a~)~{ ~a~}" (first action) (rest action))))))
 
 (defun vikix-menu-entry-key (entry)
   "The key that does what ENTRY does, as the key help writes it
 (\"Super+Ctrl+d\"), or NIL: found in *vikix-bindings* when the menu opens,
-so a menu label never names a key that has moved."
-  (let* ((command (vikix-menu-entry-command entry))
-         (binding (and command (boundp '*vikix-bindings*)
-                       (find command (symbol-value '*vikix-bindings*) :key #'second :test #'equal))))
-    (when binding
-      (if (fboundp 'vikix-pretty-key) (funcall 'vikix-pretty-key (first binding)) (first binding)))))
+and only when the key still runs that command, so a menu never names a
+key that has moved."
+  (let ((command (vikix-menu-entry-command entry)))
+    (when (and command (boundp '*vikix-bindings*))
+      (loop for binding in (symbol-value '*vikix-bindings*)
+            for key = (first binding)
+            when (and (equal (second binding) command)
+                      (or (not (fboundp 'lookup-key)) (not (boundp '*top-map*))
+                          (equal (ignore-errors (funcall 'lookup-key (symbol-value '*top-map*) (funcall 'kbd key)))
+                                 command)))
+              return (if (fboundp 'vikix-pretty-key) (funcall 'vikix-pretty-key key) key)))))
 
 (defun vikix-menu-lines (entries)
-  "ENTRIES as the menu shows them, (LINE ENTRY): each label, and its key in
+  "ENTRIES as a menu shows them, (LINE ENTRY): each label, and its key in
 a column when it has one, so the menu teaches the keys (and typing F10
-finds what Super+F10 does)."
+finds what Super+F10 does). The column starts after the longest label
+that has a key, so it is straight."
   (let* ((keys (mapcar #'vikix-menu-entry-key entries))
-         (width (min 48 (reduce #'max (loop for e in entries for k in keys
-                                            when k collect (length (first e)))
-                                :initial-value 0))))
+         (width (reduce #'max (loop for e in entries for k in keys
+                                    when k collect (length (first e)))
+                        :initial-value 0)))
     (loop for e in entries for k in keys
           collect (list (if k (format nil "~va  ~a" width (first e) k) (first e)) e))))
+
+(defun vikix-menu-do (entry)
+  "Do what ENTRY, picked from a menu, says."
+  (let ((action (second entry)))
+    ;; For "why did that happen?" (why.lisp): the entry is noted, and
+    ;; the commands it runs are its doing, not noted again.
+    (when (fboundp 'vikix-why-menu-picked)
+      (ignore-errors (funcall 'vikix-why-menu-picked (first entry))))
+    (progv '(*vikix-why-cause*) '(:menu)
+      (if (symbolp action)
+          (run-commands (string-downcase (symbol-name action)))
+          (eval action)))))
+
+(defun vikix-menu-choose (entries prompt &optional keymap)
+  "Show ENTRIES, each with its key, and give back the one picked, or NIL."
+  (when entries
+    (second (select-from-menu (current-screen) (vikix-menu-lines entries) prompt 0 keymap))))
 
 (defun vikix-run-menu (entries prompt)
   "Pick from ENTRIES, a menu like *vikix-menu*, and do what the choice says.
 Entries whose program or file isn't here are left out; each shows its key."
-  (let ((choice (second (select-from-menu (current-screen)
-                                          (vikix-menu-lines (remove-if-not #'vikix-menu-entry-here-p entries))
-                                          prompt))))
-    (when choice
-      (let ((action (second choice)))
-        ;; For "why did that happen?" (why.lisp): the entry is noted, and
-        ;; the commands it runs are its doing, not noted again.
-        (when (fboundp 'vikix-why-menu-picked)
-          (ignore-errors (funcall 'vikix-why-menu-picked (first choice))))
-        (progv '(*vikix-why-cause*) '(:menu)
-          (if (symbolp action)
-              (run-commands (string-downcase (symbol-name action)))
-              (eval action)))))))
+  (let ((entry (vikix-menu-choose (remove-if-not #'vikix-menu-entry-here-p entries) prompt)))
+    (when entry (vikix-menu-do entry))))
+
+;;; Super+m itself is in sections: it opens on a dozen rows, one a section
+;;; (Windows, System ...), and Enter on one shows what is in it. Typing
+;;; there looks through every entry of every section at once, so
+;;; "printers" or "F10" is still one step away. An entry says its section
+;;; (its fourth element); a plugin's that doesn't is in Plugins, anything
+;;; else in Yours.
+
+(defun vikix-menu-entry-section (entry)
+  "The section of Super+m ENTRY is in."
+  (cond ((stringp (fourth entry)) (fourth entry))
+        ((eq (third entry) :plugin) "Plugins")
+        (t "Yours")))
+
+(defun vikix-menu-head (label)
+  "What a menu line is about, in a word or three: LABEL up to its colon,
+question mark, bracket or comma, without \"on/off\". \"Layout: save ...\" ->
+\"Layout\", \"Do not disturb on/off\" -> \"Do not disturb\". A section keeps
+the lines of one head together, and its row at the top of Super+m is its
+heads."
+  (let* ((cuts (loop for (mark keep) in '((": " 0) ("? " 1) (" (" 0) (", " 0))
+                     for at = (search mark label)
+                     when at collect (+ at keep)))
+         (head (subseq label 0 (reduce #'min cuts :initial-value (length label))))
+         (switch (- (length head) (length " on/off"))))
+    (if (and (plusp switch) (string= " on/off" head :start2 switch))
+        (subseq head 0 switch)
+        head)))
+
+(defun vikix-menu-together (entries)
+  "ENTRIES in their order, but each beside the earlier ones about the same
+thing (vikix-menu-head): a plugin's \"Projects: ...\" goes under Vikix's."
+  (let ((heads '()))
+    (dolist (entry entries)
+      (let* ((head (vikix-menu-head (first entry)))
+             (cell (assoc head heads :test #'string-equal)))
+        (if cell
+            (push entry (rest cell))
+            (push (list head entry) heads))))
+    (loop for cell in (reverse heads) append (reverse (rest cell)))))
+
+(defun vikix-menu-sections (entries)
+  "ENTRIES by section, a list of (NAME ENTRY...): the sections Vikix names
+in *vikix-menu-groups*' order, any other (a plugin's, Plugins, Yours) in
+the order they come, and the last of Vikix's, Power, last."
+  (let ((names '()) (table (make-hash-table :test #'equal))
+        (known (symbol-value '*vikix-menu-groups*)))
+    (dolist (entry entries)
+      (let ((name (vikix-menu-entry-section entry)))
+        (pushnew name names :test #'equal)
+        (push entry (gethash name table))))
+    (flet ((here (list) (remove-if-not (lambda (name) (member name names :test #'equal)) list)))
+      (loop for name in (append (here (butlast known))
+                                (remove-if (lambda (name) (member name known :test #'equal)) (reverse names))
+                                (here (last known)))
+            collect (cons name (vikix-menu-together (reverse (gethash name table))))))))
+
+(defun vikix-menu-hint (entries &optional (room 60))
+  "What a section holds, in a line of at most ROOM letters: its entries'
+heads, each once, as many as fit whole, then \"...\" when there are more."
+  (let ((heads (remove-duplicates (mapcar (lambda (entry) (vikix-menu-head (first entry))) entries)
+                                  :test #'string-equal :from-end t))
+        (line nil))
+    (loop for (head . more) on heads
+          for longer = (if line (concatenate 'string line ", " head) head)
+          do (if (or (null line) (<= (length longer) (if more (- room 4) room)))
+                 (setf line longer)
+                 (return (concatenate 'string line " ...")))
+          finally (return (or line "")))))
+
+(defun vikix-menu-rows (sections)
+  "The rows of Super+m, each (LINE KIND WHAT). A section is one row, its
+name and what it holds (:section, WHAT the section); a section of one
+entry is that entry (:single). After them, for typing, every entry with
+its section before it (:found). vikix-menu-row-shown-p picks which show."
+  (let* ((singles (vikix-menu-lines (loop for section in sections
+                                          unless (cddr section) collect (second section))))
+         (found (vikix-menu-lines (loop for section in sections append (rest section))))
+         (width (lambda (list) (reduce #'max (mapcar (lambda (section) (length (first section))) list)
+                                       :initial-value 0)))
+         (wide (funcall width (remove-if-not #'cddr sections)))
+         (widest (funcall width sections)))
+    (append (loop for section in sections
+                  collect (if (cddr section)
+                              (list (format nil "~va  ~a" wide (first section) (vikix-menu-hint (rest section)))
+                                    :section section)
+                              (list (first (pop singles)) :single (second section))))
+            (loop for section in sections
+                  append (loop for entry in (rest section)
+                               collect (list (format nil "~va  ~a" widest (first section) (first (pop found)))
+                                             :found entry))))))
+
+(defun vikix-menu-row-shown-p (line kind typed)
+  "Whether Super+m shows a row: the sections while nothing is TYPED, then
+the entries, of any section, that everything typed is found in."
+  (if (zerop (length (string-trim " " typed)))
+      (and (member kind '(:section :single)) t)
+      (and (eq kind :found) (menu-item-matches-regexp line nil typed))))
+
+(defun vikix-menu-open (menu)
+  "Right, at the top of Super+m: into the section under the cursor, as
+Enter goes. On any other row it does nothing."
+  (when (eq (second (nth (menu-selected menu) (menu-table menu))) :section)
+    (menu-finish menu)))
+
+(defparameter *vikix-menu-top-map*
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "Right") 'vikix-menu-open)
+    map)
+  "Keys of Super+m's first list, beside StumpWM's own for menus.")
+
+(defparameter *vikix-menu-section-map*
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "Left") 'menu-abort)
+    map)
+  "Keys inside a section of Super+m: Left goes back, as Escape does.")
+
+(defun vikix-menu-pick (rows prompt &optional (selected 0))
+  "StumpWM's menu over ROWS (vikix-menu-rows), opening on the row SELECTED:
+the row picked, or NIL. select-from-menu shows every row until something
+is typed; this one asks vikix-menu-row-shown-p from the start."
+  (when rows
+    (let ((menu (make-instance 'single-menu :table rows :selected 0 :prompt prompt
+                                            :view-start 0 :view-end 0
+                                            :additional-keymap *vikix-menu-top-map*
+                                            :filter-pred #'vikix-menu-row-shown-p)))
+      (typing-action menu nil)
+      (setf (menu-selected menu) selected)
+      (run-menu (current-screen) menu))))
+
+(defun vikix-menu-everything ()
+  "Every entry Super+m has: the apps that came with features
+(*vikix-apps-menu*), in the section Apps, then *vikix-menu*."
+  (append (loop for entry in (symbol-value '*vikix-apps-menu*)
+                collect (list (first entry) (second entry) (third entry) "Apps"))
+          *vikix-menu*))
+
+(defun vikix-run-sections (entries prompt)
+  "Pick from ENTRIES by section, and do what the choice says: the sections
+first, then the one picked, from which Escape (or Left) comes back to the
+sections. Typing among the sections finds an entry of any of them."
+  (let* ((sections (vikix-menu-sections (remove-if-not #'vikix-menu-entry-here-p entries)))
+         (rows (vikix-menu-rows sections))
+         (at 0))
+    (loop
+      (let ((row (vikix-menu-pick rows prompt at)))
+        (cond ((null row) (return nil))
+              ((eq (second row) :section)
+               (setf at (or (position row rows) 0))
+               (let ((entry (vikix-menu-choose (rest (third row)) (format nil "~a: " (first (third row)))
+                                               *vikix-menu-section-map*)))
+                 (when entry (return (vikix-menu-do entry)))))
+              (t (return (vikix-menu-do (third row)))))))))
 
 (defcommand vikix-menu () ()
-  "Pick from the Vikix menu."
-  (vikix-run-menu *vikix-menu* "Vikix: "))
+  "The Vikix menu, by section; typing finds an entry of any section."
+  (vikix-run-sections (vikix-menu-everything) "Vikix: "))
 
 (defcommand vikix-power () ()
   "Lock, suspend, log out, reboot or power off."
@@ -368,7 +544,7 @@ Entries whose program or file isn't here are left out; each shows its key."
     ;; when they ask. The bar says dbx off meanwhile.
     ("Start"       (progn (run-shell-command "dropbox start") (message "Dropbox is starting")))
     ("Stop"        (progn (run-shell-command "dropbox stop") (message "Dropbox is stopping"))))
-  "The Dropbox menu (Super+m, then Dropbox), in the same form as *vikix-menu*.")
+  "The Dropbox menu (Super+m, Apps, Dropbox), in the same form as *vikix-menu*.")
 
 (defcommand vikix-dropbox () ()
   "Dropbox: its status, the folder, start or stop it."
@@ -394,8 +570,8 @@ Entries whose program or file isn't here are left out; each shows its key."
     ;; In a terminal, so "no device" (USB debugging off, cable out) is seen.
     ("Phone: its screen in a window (scrcpy)" (vikix-in-terminal "scrcpy") "scrcpy")
     ("Disk: what fills my home (ncdu)" (vikix-in-terminal "ncdu ~") "ncdu")
-    ("Files: Esploro, the Lisp file explorer" (run-shell-command "esploro") "~/.local/bin/esploro"))
-  "The apps menu (Super+m, then Apps), in the same form as *vikix-menu*: the
+    ("Files: Esploro, the Lisp file explorer" vikix-esploro "~/.local/bin/esploro"))
+  "The apps of Super+m's section Apps, in the same form as *vikix-menu*: the
 programs of the features video, graphics, blender, study, passwords, bitwarden, phone,
 cli-extras and esploro. Each shows once its program is here.")
 
@@ -415,7 +591,8 @@ through Emacs's server, and asks StumpWM which workspace it's for."
       (run-shell-command "pcmanfm")))
 
 (defcommand vikix-apps () ()
-  "Video, pictures, study and other apps that come with features."
+  "Video, pictures, study and other apps that come with features: what
+Super+m's section Apps has of them, in a menu of their own."
   (if (some #'vikix-menu-entry-here-p *vikix-apps-menu*)
       (vikix-run-menu *vikix-apps-menu* "Apps: ")
       (message "No apps yet. Add some: Super+m, then Add software (video, graphics, study ...)")))

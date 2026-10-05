@@ -19,8 +19,8 @@
 ;;;;           rule they keep)
 ;;;;   :card   its group on the key card, when the command's own word doesn't
 ;;;;           say (help.lisp: *vikix-key-groups*)
-;;;;   :menu   the part of Super+m it is in (*vikix-menu-groups*); none: not
-;;;;           in the menu
+;;;;   :menu   the section of Super+m it is in (*vikix-menu-groups*); none:
+;;;;           not in the menu
 ;;;;   :label  the menu's words, when they differ from the key's
 ;;;;   :needs  a program on PATH, or a file ("~/..."): without it the menu
 ;;;;           leaves the entry out
@@ -37,10 +37,13 @@
 ;;;; before. In user.lisp a command of your own is one form too: written
 ;;;; there, its key is bound and its menu entry added at once.
 ;;;;
-;;;; Vikix's commands are in this file in the key card's order; the menu
-;;;; puts its groups in *vikix-menu-groups*' order, and inside a group keeps
-;;;; this file's. Each form's :run and :key are on one line: scripts that
-;;;; only want Vikix's keys (vikix-webapp, the tests) read them with grep.
+;;;; Vikix's commands are in this file in the key card's order. Super+m
+;;;; shows its sections in *vikix-menu-groups*' order, and inside a section
+;;;; keeps this file's: so a command the menu alone has is written where its
+;;;; section wants it, beside the keys it belongs with (Theme before the
+;;;; bar's key, the saved layouts after the layout picker's). Each form's
+;;;; :run and :key are on one line: scripts that only want Vikix's keys
+;;;; (vikix-webapp, the tests) read them with grep.
 ;;;;
 ;;;; Plain Common Lisp until the end of the entries, so a script can load
 ;;;; this file without StumpWM (lib/skill-keys.sh, tests/lisp.sh).
@@ -49,9 +52,10 @@
 
 (defparameter *vikix-menu-groups*
   '("Start" "Help" "Vikix" "AI" "Work" "Notifications" "Desktop" "Windows" "System" "Apps" "Power")
-  "The parts of Super+m, in the order it shows them. Power is last: an
-Enter pressed by mistake never lands on it, and plugins and web apps put
-their entries just before it.")
+  "The sections of Super+m, in the order it shows them (commands.lisp:
+vikix-menu-sections). Power is last: an Enter pressed by mistake never
+lands on it. A section these don't name (a plugin's, Plugins, Yours) comes
+just before it.")
 
 (defparameter *vikix-commands* '()
   "Every command defined with define-vikix-command, in order: a list of
@@ -108,9 +112,10 @@ always wrote it."
           (t (intern (string-upcase run) :stumpwm)))))
 
 (defun vikix-command-menu-entry (command)
-  "COMMAND as an entry of *vikix-menu*: (LABEL ACTION [NEEDS])."
-  (append (list (or (getf command :label) (getf command :does)) (vikix-command-action command))
-          (when (getf command :needs) (list (getf command :needs)))))
+  "COMMAND as an entry of *vikix-menu*: (LABEL ACTION NEEDS SECTION), NEEDS
+nil when it needs nothing."
+  (list (or (getf command :label) (getf command :does)) (vikix-command-action command)
+        (getf command :needs) (getf command :menu)))
 
 (defun vikix-registry-bindings ()
   "*vikix-bindings* as the registry has it: the commands with a key, in order."
@@ -118,7 +123,7 @@ always wrote it."
 
 (defun vikix-registry-menu ()
   "*vikix-menu* as the registry has it: the commands with a place in the
-menu, its groups in *vikix-menu-groups*' order, each group in the registry's."
+menu, its sections in *vikix-menu-groups*' order, each in the registry's."
   (loop for group in *vikix-menu-groups*
         append (loop for c in *vikix-commands*
                      when (equal (getf c :menu) group) collect (vikix-command-menu-entry c))))
@@ -126,7 +131,8 @@ menu, its groups in *vikix-menu-groups*' order, each group in the registry's."
 (defun vikix-command-apply (command)
   "Bind COMMAND's key and put it in the menu now: for one defined after
 Vikix's own were (user.lisp). Its key is taken from whatever had it; its
-menu entry goes before the last one, Power, as a plugin's does."
+menu entry joins the list before the last one, Power, as a plugin's does,
+and the menu shows it in its section."
   (let ((key (getf command :key)))
     (when key
       (set '*vikix-bindings*
@@ -177,9 +183,6 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
   :run "vikix-esploro" :key "s-e")
 (define-vikix-command spacefm "Files in SpaceFM: tabs and split panes"
   :run "exec spacefm" :key "s-M-s")
-(define-vikix-command eject "Eject a USB drive: pick it, then pull it out safely"
-  :run "exec vikix-drives eject" :key "s-C-e"
-  :menu "System" :label "Eject a drive")
 (define-vikix-command pcmanfm "Files in PCManFM"
   :run "exec pcmanfm" :key "s-M-e")
 (define-vikix-command files-new "Files in a new Esploro window, beside the others"
@@ -194,6 +197,9 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command back "Where was I? The project you were on, its next step, what isn't saved"
   :run "exec vikix-back --card" :menu "Work"
   :label "Where was I? (the project, its next step, what isn't saved)")
+(define-vikix-command day "My day: each project's time, entries and commits (kept in ~/journal)"
+  :do (vikix-in-terminal "vikix day")
+  :menu "Work")
 (define-vikix-command passwords "Passwords (Bitwarden): pick a login, Enter types it (vikix add bitwarden)"
   :run "exec vikix-bitwarden pick" :key "s-M-v")
 (define-vikix-command agent "AI agent in a terminal: Claude Code, or the one you chose"
@@ -213,9 +219,21 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command voice-quiet "Voice: stop the AI talking"
   :run "exec vikix-voice quiet" :key "s-S-F10"
   :menu "AI" :label "Voice: stop talking" :needs "~/.local/bin/piper")
+(define-vikix-command voice-new "Voice: a new conversation"
+  :run "exec vikix-voice new"
+  :menu "AI" :needs "~/.local/bin/piper")
 (define-vikix-command ask "AI on the selected text: ask, proofread, rewrite, translate, explain"
   :run "exec vikix-ask" :key "s-i"
   :menu "AI" :label "AI on the selected text")
+(define-vikix-command local-ai-chat "Local AI: talk to a model"
+  :run "exec vikix-local-ai chat --rofi"
+  :menu "AI" :needs "~/.local/opt/ollama/bin/ollama")
+(define-vikix-command local-ai-models "Local AI: choose a model"
+  :run "exec vikix-local-ai models --rofi"
+  :menu "AI" :needs "~/.local/opt/ollama/bin/ollama")
+(define-vikix-command local-ai-stop "Local AI: unload the model"
+  :run "exec vikix-local-ai stop --notify"
+  :menu "AI" :needs "~/.local/opt/ollama/bin/ollama")
 (define-vikix-command emacs "Emacs: a new window"
   :run "exec emacsclient -c -a ''" :key "s-x")
 (define-vikix-command clipboard "Clipboard history: pick to paste again"
@@ -227,6 +245,12 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command calculator "Calculator: Enter copies the answer"
   :run "exec vikix-rofi calc" :key "s-equal"
   :menu "Work" :label "Calculator")
+(define-vikix-command learn-c "Learn C: the lesson, and a shell beside it"
+  :do (vikix-learn-open "c")
+  :menu "Work")
+(define-vikix-command jupyter "JupyterLab (in ~/dev)"
+  :run "exec vikix-jupyter"
+  :menu "Work" :needs "~/dev/python/.venv/bin/jupyter")
 
 ;;; Notifications
 
@@ -331,6 +355,15 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command layout-pick "Layout: pick this workspace's (tiles, main and stack, grid, strip, or one you saved)"
   :run "vikix-layout-pick" :key "s-C-SPC"
   :menu "Windows" :label "Layout: pick this workspace's (tiles, main and stack, grid, strip)")
+(define-vikix-command layout-save "Layout: save this workspace's, by name"
+  :run "vikix-layout-save-command"
+  :menu "Windows")
+(define-vikix-command layout-restore "Layout: put this workspace back as one you saved"
+  :run "vikix-layout-restore-command"
+  :menu "Windows")
+(define-vikix-command viri "This workspace as a strip that scrolls sideways (Viri), or tiled again"
+  :run "vikix-viri"
+  :menu "Windows" :label "Strip: this workspace scrolls sideways (Viri), or tiled again" :agent t)
 (define-vikix-command solo "Focus: only this window; again puts the others back (on a strip: its column's windows as tabs)"
   :run "vikix-solo" :key "s-z"
   :agent t)
@@ -362,44 +395,118 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command remember "Remember this window here: the rule for where it is, written for you (shown first)"
   :run "vikix-remember" :key "s-T"
   :menu "Windows" :label "Remember this window here: write the rule for where it is")
+(define-vikix-command rules "Rules: the list, one off or on, why this window is where it is"
+  :run "vikix-rules"
+  :menu "Windows")
 (define-vikix-command titlebars "Title bars on/off"
   :run "vikix-titlebars" :key "s-C-y"
   :agent t)
-(define-vikix-command bar "The bar on/off"
-  :run "vikix-bar" :key "s-C-h"
-  :menu "Desktop" :label "The bar on/off (hide it for the whole screen)" :agent t)
 (define-vikix-command title "Rename this window"
   :run "vikix-title" :key "s-\"")
 
-;;; Vikix
+;;; Vikix, and help
 
 (define-vikix-command menu "Vikix menu"
   :run "vikix-menu" :key "s-m")
 (define-vikix-command keys-card "Every key at a glance, grouped; any key closes it"
   :run "vikix-keys-card" :key "s-slash")
-(define-vikix-command why "Why did that happen? The key, rule or command behind the last things: edit it, or take it back"
-  :run "vikix-why" :key "s-?"
-  :menu "Help" :label "Why did that happen? What the desktop just did, and what made it")
 (define-vikix-command keys "Search the keys, and run one"
   :run "vikix-keys" :key "s-F1"
   :menu "Help" :label "Keyboard shortcuts")
+(define-vikix-command describe-key "What does a key do?"
+  :run "describe-key"
+  :menu "Help")
+(define-vikix-command commands "All commands"
+  :run "vikix-commands"
+  :menu "Help")
+(define-vikix-command why "Why did that happen? The key, rule or command behind the last things: edit it, or take it back"
+  :run "vikix-why" :key "s-?"
+  :menu "Help" :label "Why did that happen? What the desktop just did, and what made it")
+(define-vikix-command guide "Vikix guide"
+  :do (run-shell-command (format nil "emacsclient -c -a '' -e '(info \"~~/.local/share/info/vikix.info\")' || ~a -e info -f ~~/.local/share/info/vikix.info" *vikix-terminal*))
+  :menu "Help")
+(define-vikix-command guide-browser "Vikix guide in the browser, with diagrams"
+  :run "exec vikix-docs-open ~/.local/share/vikix/guide/index.html"
+  :menu "Help" :needs "~/.local/share/vikix/guide/index.html")
 (define-vikix-command docs "Search every document: Vikix's guides, your projects and notes, man pages"
   :run "exec vikix-docs pick" :key "s-F2"
   :menu "Help" :label "Search every document (guides, projects, notes, man pages)")
+(define-vikix-command docs-page "Every document as a page in Nyxt"
+  :run "exec vikix-docs page"
+  :menu "Help" :needs "nyxt")
+(define-vikix-command dev-docs "Programming docs (offline)"
+  :run "exec vikix-docs-open ~/dev/index.html"
+  :menu "Help" :needs "~/dev/index.html")
+(define-vikix-command zeal "Zeal: search the docs"
+  :run "exec zeal"
+  :menu "Help" :needs "zeal")
 (define-vikix-command lock "Lock the screen"
   :run "exec vikix-lock" :key "s-ESC")
 (define-vikix-command power "Power: lock, suspend, log out, reboot, power off"
   :run "vikix-power" :key "s-S-ESC"
   :menu "Power")
+
+;;; The desktop: its look, its bar, what it does by itself
+
+(define-vikix-command theme "Theme"
+  :run "vikix-pick-theme"
+  :menu "Desktop")
+(define-vikix-command wallpaper "Wallpaper"
+  :run "exec vikix-wallpaper pick"
+  :menu "Desktop")
+(define-vikix-command bar "The bar on/off"
+  :run "vikix-bar" :key "s-C-h"
+  :menu "Desktop" :label "The bar on/off (hide it for the whole screen)" :agent t)
+(define-vikix-command tray "Tray on/off: network and Bluetooth icons in the bar"
+  :run "vikix-tray"
+  :menu "Desktop" :agent t)
 (define-vikix-command awake "Keep awake on/off: no lock, dark screen or suspend"
   :run "vikix-awake" :key "s-C-a"
   :menu "Desktop" :label "Keep awake on/off" :agent t)
 (define-vikix-command nightlight "Night light on/off: a warmer screen in the evening"
   :run "vikix-nightlight" :key "s-C-l"
   :menu "Desktop" :label "Night light on/off" :agent t)
+
+;;; The system: the network, sound, screens, printers, drives
+
+(define-vikix-command network "Network (nmtui)"
+  :do (run-shell-command (format nil "~a -e nmtui" *vikix-terminal*))
+  :menu "System")
+(define-vikix-command network-use "Network use: which program is using it (nethogs)"
+  :do (run-shell-command (format nil "~a -e sudo nethogs" *vikix-terminal*))
+  :menu "System" :needs "nethogs")
+(define-vikix-command firewall "Firewall: on or off, and what it lets in"
+  :do (vikix-in-terminal "vikix firewall")
+  :menu "System" :needs "ufw")
+(define-vikix-command bluetooth "Bluetooth"
+  :run "exec blueman-manager"
+  :menu "System")
+(define-vikix-command sound "Sound (pavucontrol)"
+  :run "exec pavucontrol"
+  :menu "System")
 (define-vikix-command screens "Screens: extend, mirror, one only, arrange (a newly plugged one lights up by itself)"
   :run "vikix-screens-pick" :key "s-C-p"
   :menu "System" :label "Screens: extend, mirror, one only, arrange")
+(define-vikix-command screens-arrange "Screens: arrange (arandr)"
+  :run "exec arandr"
+  :menu "System")
+(define-vikix-command screens-save "Screens: save this layout"
+  :run "vikix-screens-save"
+  :menu "System")
+(define-vikix-command printers "Printers"
+  :run "exec system-config-printer"
+  :menu "System" :needs "system-config-printer")
+(define-vikix-command eject "Eject a USB drive: pick it, then pull it out safely"
+  :run "exec vikix-drives eject" :key "s-C-e"
+  :menu "System" :label "Eject a drive")
+;; Then the keys that depend on the layout (Super+Shift+digit) again, a
+;; moment later: StumpWM must hear of the new layout first.
+(define-vikix-command keyboard "Apply keyboard settings"
+  :do (progn (run-shell-command "vikix-keyboard") (run-with-timer 2 nil 'vikix-bind-workspace-keys))
+  :menu "System")
+(define-vikix-command firmware "Firmware updates"
+  :do (run-shell-command (format nil "~a -e sh -c 'vikix firmware update; printf \"\\nEnter closes this window. \"; read x'" *vikix-terminal*))
+  :menu "System")
 
 ;;; Screenshots: the modifier picks what, Shift keeps it in a file (~/Pictures/Screenshots)
 ;;; instead of the clipboard.
@@ -440,7 +547,7 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command screens-display-key "Screens: extend, mirror, one only (the laptop's display key)"
   :run "vikix-screens-pick" :key "XF86Display")
 
-;;; In Super+m only: no key of Vikix's runs these.
+;;; Parts of Super+m that no key of Vikix's opens: Start, Vikix, Apps.
 
 (define-vikix-command welcome "Welcome: first steps"
   :run "vikix-welcome"
@@ -454,32 +561,17 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command remove-program "Remove a program"
   :do (vikix-in-terminal "vikix pkg drop")
   :menu "Start")
-(define-vikix-command commands "All commands"
-  :run "vikix-commands"
-  :menu "Help")
-(define-vikix-command describe-key "What does a key do?"
-  :run "describe-key"
-  :menu "Help")
-(define-vikix-command guide "Vikix guide"
-  :do (run-shell-command (format nil "emacsclient -c -a '' -e '(info \"~~/.local/share/info/vikix.info\")' || ~a -e info -f ~~/.local/share/info/vikix.info" *vikix-terminal*))
-  :menu "Help")
-(define-vikix-command docs-page "Every document as a page in Nyxt"
-  :run "exec vikix-docs page"
-  :menu "Help" :needs "nyxt")
-(define-vikix-command guide-browser "Vikix guide in the browser, with diagrams"
-  :run "exec vikix-docs-open ~/.local/share/vikix/guide/index.html"
-  :menu "Help" :needs "~/.local/share/vikix/guide/index.html")
 (define-vikix-command update "Update Vikix"
   :run "vikix-update"
   :menu "Vikix")
-(define-vikix-command day "My day: each project's time, entries and commits (kept in ~/journal)"
-  :do (vikix-in-terminal "vikix day")
-  :menu "Work")
-(define-vikix-command diagnose "Something's wrong? Ask the agent"
-  :do (vikix-in-terminal "vikix diagnose")
+(define-vikix-command reload "Reload config"
+  :run "vikix-reload"
+  :menu "Vikix" :agent t)
+(define-vikix-command backup "Backup now"
+  :run "exec vikix-backup now --notify"
   :menu "Vikix")
-(define-vikix-command debug "A report of what's going on (vikix debug)"
-  :do (vikix-in-terminal "vikix debug")
+(define-vikix-command undo "Undo: my files back one snapshot"
+  :run "vikix-undo"
   :menu "Vikix")
 (define-vikix-command memory "Memory: what uses it, and what's left over"
   :do (vikix-in-terminal "vikix memory")
@@ -487,101 +579,18 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command memory-clean "Memory: end the left-over programs"
   :do (vikix-in-terminal "vikix memory clean")
   :menu "Vikix")
-(define-vikix-command learn-c "Learn C: the lesson, and a shell beside it"
-  :do (vikix-learn-open "c")
-  :menu "Work")
-(define-vikix-command jupyter "JupyterLab (in ~/dev)"
-  :run "exec vikix-jupyter"
-  :menu "Work" :needs "~/dev/python/.venv/bin/jupyter")
-(define-vikix-command dev-docs "Programming docs (offline)"
-  :run "exec vikix-docs-open ~/dev/index.html"
-  :menu "Help" :needs "~/dev/index.html")
-(define-vikix-command zeal "Zeal: search the docs"
-  :run "exec zeal"
-  :menu "Help" :needs "zeal")
-(define-vikix-command tray "Tray on/off: network and Bluetooth icons in the bar"
-  :run "vikix-tray"
-  :menu "Desktop" :agent t)
-(define-vikix-command rules "Rules: the list, one off or on, why this window is where it is"
-  :run "vikix-rules"
-  :menu "Windows")
-(define-vikix-command viri "This workspace as a strip that scrolls sideways (Viri), or tiled again"
-  :run "vikix-viri"
-  :menu "Windows" :agent t)
-(define-vikix-command layout-save "Layout: save this workspace's, by name"
-  :run "vikix-layout-save-command"
-  :menu "Windows")
-(define-vikix-command layout-restore "Layout: put this workspace back as one you saved"
-  :run "vikix-layout-restore-command"
-  :menu "Windows")
-(define-vikix-command undo "Undo: my files back one snapshot"
-  :run "vikix-undo"
+(define-vikix-command diagnose "Something's wrong? Ask the agent"
+  :do (vikix-in-terminal "vikix diagnose")
   :menu "Vikix")
-(define-vikix-command backup "Backup now"
-  :run "exec vikix-backup now --notify"
+(define-vikix-command debug "A report of what's going on (vikix debug)"
+  :do (vikix-in-terminal "vikix debug")
   :menu "Vikix")
-(define-vikix-command reload "Reload config"
-  :run "vikix-reload"
-  :menu "Vikix" :agent t)
-(define-vikix-command theme "Theme"
-  :run "vikix-pick-theme"
-  :menu "Desktop")
-(define-vikix-command wallpaper "Wallpaper"
-  :run "exec vikix-wallpaper pick"
-  :menu "Desktop")
-;; Then the keys that depend on the layout (Super+Shift+digit) again, a
-;; moment later: StumpWM must hear of the new layout first.
-(define-vikix-command keyboard "Apply keyboard settings"
-  :do (progn (run-shell-command "vikix-keyboard") (run-with-timer 2 nil 'vikix-bind-workspace-keys))
-  :menu "System")
-(define-vikix-command network "Network (nmtui)"
-  :do (run-shell-command (format nil "~a -e nmtui" *vikix-terminal*))
-  :menu "System")
-(define-vikix-command network-use "Network use: which program is using it (nethogs)"
-  :do (run-shell-command (format nil "~a -e sudo nethogs" *vikix-terminal*))
-  :menu "System" :needs "nethogs")
-(define-vikix-command firewall "Firewall: on or off, and what it lets in"
-  :do (vikix-in-terminal "vikix firewall")
-  :menu "System" :needs "ufw")
-(define-vikix-command bluetooth "Bluetooth"
-  :run "exec blueman-manager"
-  :menu "System")
-(define-vikix-command apps "Apps: video, pictures, study ..."
-  :run "vikix-apps"
-  :menu "Apps")
 (define-vikix-command dropbox "Dropbox"
   :run "vikix-dropbox"
   :menu "Apps" :needs "dropbox")
-(define-vikix-command printers "Printers"
-  :run "exec system-config-printer"
-  :menu "System" :needs "system-config-printer")
 (define-vikix-command windows-vm "Windows (the VM)"
   :do (run-shell-command (format nil "vikix-windows open || ~a -e sh -c 'vikix windows status; printf \"\\nEnter closes this window. \"; read x'" *vikix-terminal*))
   :menu "Apps" :needs "virt-viewer")
-(define-vikix-command local-ai-chat "Local AI: talk to a model"
-  :run "exec vikix-local-ai chat --rofi"
-  :menu "AI" :needs "~/.local/opt/ollama/bin/ollama")
-(define-vikix-command local-ai-models "Local AI: choose a model"
-  :run "exec vikix-local-ai models --rofi"
-  :menu "AI" :needs "~/.local/opt/ollama/bin/ollama")
-(define-vikix-command local-ai-stop "Local AI: unload the model"
-  :run "exec vikix-local-ai stop --notify"
-  :menu "AI" :needs "~/.local/opt/ollama/bin/ollama")
-(define-vikix-command voice-new "Voice: a new conversation"
-  :run "exec vikix-voice new"
-  :menu "AI" :needs "~/.local/bin/piper")
-(define-vikix-command firmware "Firmware updates"
-  :do (run-shell-command (format nil "~a -e sh -c 'vikix firmware update; printf \"\\nEnter closes this window. \"; read x'" *vikix-terminal*))
-  :menu "System")
-(define-vikix-command screens-arrange "Screens: arrange (arandr)"
-  :run "exec arandr"
-  :menu "System")
-(define-vikix-command screens-save "Screens: save this layout"
-  :run "vikix-screens-save"
-  :menu "System")
-(define-vikix-command sound "Sound (pavucontrol)"
-  :run "exec pavucontrol"
-  :menu "System")
 
 ;;; --- Running one, and what agents are offered -------------------------------------------------
 

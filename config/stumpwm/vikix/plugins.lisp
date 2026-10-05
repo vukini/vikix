@@ -16,8 +16,10 @@
 ;;;;   (vikix-plugin-key KEY COMMAND DESCRIPTION &optional GROUP)
 ;;;;       a key, in the key card under GROUP (the plugin's name if none)
 ;;;;       (a key Vikix had comes back when the plugin goes)
-;;;;   (vikix-plugin-menu LABEL ACTION)
-;;;;       an entry in Super+m, as *vikix-menu*'s are
+;;;;   (vikix-plugin-menu LABEL ACTION &optional SECTION)
+;;;;       an entry in Super+m, as *vikix-menu*'s are, in its section
+;;;;       SECTION ("Work", "AI" ...: *vikix-menu-groups*, or a name of the
+;;;;       plugin's own); without one, in the section Plugins
 ;;;;   (when-window (MATCH...) VERB...)
 ;;;;       a rule for windows (rules.lisp): it goes when the plugin does
 ;;;; Loading them again (Reload config) first takes away what each gave.
@@ -73,13 +75,14 @@ the last two what the key had before, to put back when the plugin goes.")
 (defun vikix-plugin-menu-entry-p (entry)
   (and (consp entry) (eq (third entry) :plugin)))
 
-(defun vikix-plugin-menu (label action)
+(defun vikix-plugin-menu (label action &optional section)
   ;; Marked :plugin (a third element), so a reload can find them; before
-  ;; the last entry, Power, so that one stays at the bottom.
+  ;; the last entry, Power, so that one stays at the bottom. SECTION is the
+  ;; part of Super+m it is in ("Work"); without one it is in Plugins.
   (let ((power (last *vikix-menu*)))
     (setf *vikix-menu*
           (append (butlast (remove label *vikix-menu* :key #'first :test #'equal))
-                  (list (list label action :plugin))
+                  (list (list* label action :plugin (when section (list section))))
                   power)))
   label)
 

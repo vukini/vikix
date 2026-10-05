@@ -20,7 +20,7 @@ The first time, a terminal opens with **the welcome**. Follow it: it adds softwa
 |---|---|
 | `Super+Return` | a terminal |
 | `Super+d` (or `Super+Space`) | the launcher: type a program's name, Enter |
-| `Super+m` | the Vikix menu: everything, in a list |
+| `Super+m` | the Vikix menu: everything, in sections; type a word to find an entry of any |
 | `Super+/` | every key on one card; the next key closes it |
 | `Super+q` | close the window |
 
@@ -39,7 +39,7 @@ Then, when you have two windows:
 
 And a few for everyday things: `Super+w` the browser, `Super+e` your files, `Print` a screenshot of an area (to the clipboard, to paste with `Ctrl+v`; `Shift+Print` keeps it as a file in `~/Pictures/Screenshots` instead), `Super+c` the clipboard's history, `Super+Escape` lock, `Super+Shift+Escape` suspend, log out or power off.
 
-**When three windows aren't enough:** a workspace can be a strip instead (`Super+m`, *This workspace as a strip that scrolls sideways (Viri), or tiled again*, or `vikix viri`). Its windows stand side by side in a row wider than the screen, each half the screen wide; two show at a time, and `Super+h` / `Super+l` move along the row, which slides under you. A new window opens beside the one you're in, and nothing shrinks to make room. The same menu entry makes it tiles again, split as they were. [The strip, a workspace that scrolls](strip.md) is its page: the keys, the mouse, widths and stacking, and how it works.
+**When three windows aren't enough:** a workspace can be a strip instead (`Super+m`, *Strip: this workspace scrolls sideways (Viri), or tiled again*, or `vikix viri`). Its windows stand side by side in a row wider than the screen, each half the screen wide; two show at a time, and `Super+h` / `Super+l` move along the row, which slides under you. A new window opens beside the one you're in, and nothing shrinks to make room. The same menu entry makes it tiles again, split as they were. [The strip, a workspace that scrolls](strip.md) is its page: the keys, the mouse, widths and stacking, and how it works.
 
 **One main window, the rest beside it:** `Super+Ctrl+m` puts the workspace into main and stack (what dwm and xmonad call master and stack). The window you're in takes the left of the screen, three fifths wide, and the others share a column on its right. It stays so as windows open and close: a new one opens at the top of the stack. `Super+Shift+h` makes the window you're in the main one (with `Shift`, `h` `j` `k` `l` swap it with the window that way), and `Super+r` changes the main window's width: two thirds, a half, three fifths again. The stack shows four windows; any more wait behind the last (`` Super+` `` brings them round). Splits you make by hand are put back at once, until `Super+Ctrl+m` switches the mode off and the layout is yours again. To have a workspace always so, a rule in `~/.stumpwm.d/rules.lisp`: `(when-workspace 2 (command "vikix-main on"))`. For new windows to open as the main one, as in dwm: `(setf *vikix-main-new* :main)` in `user.lisp`.
 

@@ -93,7 +93,7 @@ Pick a line and it offers what can be done about it:
 ## Something's missing from the menu or the launcher
 
 - **An entry isn't in Super+m** (JupyterLab, Zeal, Printers, Windows, Local AI, Dictation, Voice, Dropbox): it's left out until its feature is here. `vikix features` shows what you have; `vikix add python` (or `printing`, `windows`, `local-ai`, `dictation`, `voice` …) brings it, and the entry with it.
-- **Super+m → *Apps* says "No apps yet"**, or a program is missing from it: each entry shows once its program is installed. `vikix add video` (or `graphics`, `blender`, `study`, `passwords`, `phone`, `cli-extras`) brings them.
+- **A program is missing from Super+m → *Apps***: each entry shows once its program is installed. `vikix add video` (or `graphics`, `blender`, `study`, `passwords`, `phone`, `cli-extras`) brings them.
 - **A program isn't in the launcher (Super+d)**: the launcher lists programs that come with a `.desktop` file. Type its name as the file gives it: JupyterLab also answers to `jlab`. A program without one (most command-line tools) runs from a terminal, or from Super+m if Vikix has an entry for it.
 - **The welcome didn't open, or you closed it**: `Super+m` → *Welcome*, or `vikix welcome` in a terminal.
 

@@ -3,6 +3,16 @@
 Small known problems, not yet fixed. Each says what happens, what is known, and the next step. A fix removes its entry in the commit that ships it. (Larger planned work is in `TODO.md`; ideas in `IDEAS.md`.)
 
 
+## The first menu after StumpWM starts is drawn too short
+
+Noted 2026-10-05, on a hidden screen (Xvfb), while testing Super+m in sections; the same on the release before. Not checked on a real screen.
+
+**What happens.** The first menu shown after StumpWM starts (Super+m: 13 rows) is drawn with its last rows missing (10 of 13; before the sections, 28 of 35) and a box about a sixth too wide. Any key that redraws it (Down), or opening it again, shows it whole, and every later menu is right.
+
+**What's known.** The menu itself is right: its table and its view say 13 rows at that first drawing. The numbers fit a window sized with the old font's measures (9x15: 15 pixels a row where Iosevka has 19, 9 a letter where it has 7.6), so the message window's first size is probably worked out before the TTF font is what it measures with.
+
+**Next step.** See whether a real login does it (the first Super+m after logging in). If so, look at what `echo-string-list` measures with on its first call after `vikix-set-font` (theme.lisp), and draw one message at start-up, or measure once, so the first menu is not the first.
+
 ## `tests/main.sh` fails in a busy parallel run, and passes alone
 
 Noted 2026-10-04, twice the same day (`tests/run.sh` with other sessions' test runs beside it, load 15 to 25).
