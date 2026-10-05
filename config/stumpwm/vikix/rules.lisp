@@ -1725,6 +1725,7 @@ comment saying WORDS) and load it. Returns the rule, as the desktop has it."
          (line (vikix-line-at new (search printed new))))
     (let ((*load-truename* (truename file))
           (*load-pathname* (pathname file))
+          (*vikix-loading-file* (truename file))
           (*vikix-load-line* line)
           (*package* (find-package :stumpwm)))
       ;; What is in the file is what runs: read back from its own words.
@@ -1966,6 +1967,7 @@ desktop has it. It is checked again first: the table of verbs may have changed."
            (line (vikix-line-at new (search printed new :from-end t))))
       (let ((*load-truename* (truename file))
             (*load-pathname* (pathname file))
+            (*vikix-loading-file* (truename file))
             (*vikix-load-line* line)
             (*package* (find-package :stumpwm)))
         (vikix-eval-from file form))
