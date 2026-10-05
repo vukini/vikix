@@ -56,6 +56,15 @@ check "the bar shows the strip, the two on the screen in brackets: $(plain_bar)"
 check "and the focused one picked out" grep -qE '\(:fg [^)]*\)[0-9]+ D' <<<"$(bar)"
 check "the focused column has the accent border, as a tile would" test "$(ask '(let ((w (current-window))) (princ (if (= (xlib:drawable-border-width (window-parent w)) *normal-border-width*) 1 0)))')" = 1
 check "every column is drawn (none left hidden by the tiles)" test "$(ask '(princ (count-if (function window-hidden-p) (viri-columns (current-group))))')" = 0
+# The bar hidden (Super+Ctrl+h): the strip takes its room, and gives it back.
+barh=$(ask '(princ (mode-line-height (head-mode-line (current-head))))')
+tall() { ask '(let ((p (window-parent (current-window)))) (format t "~a ~a" (xlib:drawable-y p) (xlib:drawable-height p)))'; }
+before=$(tall)
+ask '(run-commands "vikix-bar")' >/dev/null; sleep 0.5
+check "with the bar hidden a strip's windows fill the height: at $before with it ($barh high), $(tall) without" \
+  test "$(tall)" = "$(( ${before% *} - barh )) $(( ${before#* } + barh ))"
+ask '(run-commands "vikix-bar")' >/dev/null; sleep 0.5
+check "and make room for it again when it shows: $(tall)" test "$(tall)" = "$before"
 
 key super+h; key super+h
 check "Super+h walks left and scrolls: $(state)" test "$(state)" = "ABCD left=1 focus=B"

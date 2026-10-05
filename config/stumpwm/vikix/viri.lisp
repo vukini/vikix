@@ -639,6 +639,15 @@ strip moved."
 (defmethod group-sync-all-heads ((group viri-group))
   (viri-layout group))
 
+;; The bar hidden or shown (Super+Ctrl+h): StumpWM tells every workspace
+;; with group-sync-head, which does nothing for a floating one, so a strip
+;; kept the bar's room empty at its top. The strip in view is laid out
+;; again now; another is when it is gone to (group-wake-up).
+(defmethod group-sync-head ((group viri-group) head)
+  (declare (ignore head))
+  (when (eq group (current-group))
+    (viri-layout group)))
+
 ;;; Moving along the strip.
 
 (defun viri-step (dir move)
