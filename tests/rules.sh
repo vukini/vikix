@@ -765,7 +765,7 @@ LISP
   yes() { [ "$(ask "(princ (if $1 1 0))")" = 1 ]; }
   the() { echo "(find \"$1\" (screen-windows (current-screen)) :key (function window-class) :test (function equal))"; }
   win() {   # win CLASS [TITLE]: a window of that class, and wait till StumpWM has it
-    LIBGL_ALWAYS_SOFTWARE=1 alacritty --class "$1" --title "${2:-$1}" -e sleep 300 >/dev/null 2>&1 &
+    LIBGL_ALWAYS_SOFTWARE=1 alacritty --class "$1" --title "${2:-$1}" -e sleep infinity >/dev/null 2>&1 &
     pids+=($!)
     for _ in $(seq 1 40); do
       yes "(find \"${2:-$1}\" (screen-windows (current-screen)) :key (function window-title) :test (function equal))" && break

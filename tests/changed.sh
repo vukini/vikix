@@ -27,6 +27,7 @@ for f in "${files[@]}"; do
     # Words, plans and designs: nothing runs them.
     TODO*.md|IDEAS.md|bugs.md|DESIGN-*.md|APP-IDEAS.md|TUTORIALS.md|ai-desktop.md|CLAUDE.md|NYXT-GUIDE.md|VERSION|.gitignore) continue ;;
     tests/run.sh|tests/changed.sh) all=1 ;;
+    .claude/release) add release ;;
     tests/*.sh) add "$(basename "$f" .sh)" ;;
     tests/*) all=1 ;;
     docs/*|lib/md2texi.py|lib/build-guide.sh) add info docs-open ;;

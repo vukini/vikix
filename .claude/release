@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+# .claude/release — finish a change: its branch onto main, the version, the tag.
+# (Vid's dev machine; for the sessions that work on Vikix side by side.)
+#
+#   .claude/release TOPIC "what it brings, in a line"
+#       TOPIC's branch is put on top of main (rebased, when main has moved
+#       on), the tests its changes reach are run, main is fast-forwarded to
+#       it, VERSION goes up by one and is committed as
+#       "Vikix X.Y.Z: what it brings", tagged vX.Y.Z; then TOPIC's worktree
+#       and branch are removed. Nothing is pushed: Vid runs gup.
+#
+#   --tests changed|quick|full|none
+#                 which tests run first (changed: tests/run.sh --changed main,
+#                 the default; none: you ran them on this very commit)
+#   --plain       only put the branch on main: no version, no tag (a change
+#                 to TODO.md or the guides alone)
+#   --keep        leave the worktree and the branch
+#   --co-author "Name <mail>"
+#                 a Co-Authored-By line on the release commit
+#
+# One release at a time: a second waits for the first (a lock in the
+# repository), so two sessions can't take the same number, and main can't
+# move between a session's last look and its merge. Each step runs only if
+# the one before it worked; one that fails stops everything and says where
+# things stand. An empty release, tagged over a merge that had been
+# refused, happened twice by hand (0.71.142, 0.71.147).
+#
+# It never rewrites main, never pushes, never touches another topic.
+
+set -uo pipefail
+# In braces, so the whole of it is read before any of it runs: it removes
+# the worktree it may have been started from, this file with it.
+{
+say() { printf ':: %s\n' "$*"; }
+die() { printf 'xx %s\n' "$*" >&2; exit 1; }
+
+tests=changed plain='' keep='' coauthor='' topic='' summary=''
+while [ $# -gt 0 ]; do
+  case $1 in
+    --tests) [ $# -ge 2 ] || die "--tests needs changed, quick, full or none"; tests=$2; shift 2 ;;
+    --tests=*) tests=${1#--tests=}; shift ;;
+    --plain) plain=1; shift ;;
+    --keep) keep=1; shift ;;
+    --co-author) [ $# -ge 2 ] || die "--co-author needs a name and an address"; coauthor=$2; shift 2 ;;
+    -h|--help) sed -n '2,/^$/s/^# \{0,1\}//p' "$0"; exit 0 ;;
+    -*) die "no option $1 (see --help)" ;;
+    *) if [ -z "$topic" ]; then topic=$1; elif [ -z "$summary" ]; then summary=$1; else die "too many words: the summary in quotes"; fi; shift ;;
+  esac
+done
+case $tests in changed|quick|full|none) ;; *) die "--tests is changed, quick, full or none" ;; esac
+[ -n "$topic" ] || die "which topic? .claude/release TOPIC \"what it brings\""
+[ -n "$plain" ] || [ -n "$summary" ] || die "what does it bring? .claude/release $topic \"...\" (it becomes the release's line)"
+case $summary in *$'\n'*) die "the summary is one line" ;; esac
+
+here=$(cd "$(dirname "$0")/.." && pwd) || die "where am I?"
+common=$(cd "$here" && cd "$(git rev-parse --git-common-dir)" && pwd) || die "$here isn't a git repository"
+# The first worktree listed is the main checkout: where main is merged.
+main=$(git -C "$here" worktree list --porcelain | awk '/^worktree /{print substr($0, 10); exit}')
+[ -n "$main" ] && [ -d "$main" ] || die "the main checkout wasn't found"
+wt=$(git -C "$main" worktree list --porcelain | awk -v b="refs/heads/$topic" '/^worktree /{w=substr($0, 10)} $1=="branch" && $2==b {print w; exit}')
+git -C "$main" rev-parse --verify -q "refs/heads/$topic" >/dev/null || die "there is no branch $topic"
+[ -n "$wt" ] || die "the branch $topic has no worktree (git worktree add ~/src/vikix-$topic $topic)"
+[ "$wt" != "$main" ] || die "$topic is checked out in the main folder: that one is for merging only"
+
+# One at a time.
+exec 9>"$common/vikix-release.lock" || die "the lock can't be made"
+if ! flock -n 9; then
+  say "another session is releasing: waiting for it"
+  flock -w 3600 9 || die "waited an hour for the other release; nothing done"
+fi
+
+[ "$(git -C "$main" symbolic-ref -q --short HEAD)" = main ] || die "the main folder ($main) isn't on main"
+[ -z "$(git -C "$main" status --porcelain)" ] || die "the main folder ($main) has changes of its own: it is for merging only. Nothing done"
+[ -z "$(git -C "$wt" status --porcelain)" ] || die "$wt has changes not committed (commit them by name, or take them out). Nothing done"
+[ ! -d "$common/worktrees/$(basename "$wt")/rebase-merge" ] || die "$wt is in the middle of a rebase. Nothing done"
+[ "$(git -C "$main" rev-list --count "main..$topic")" -gt 0 ] || die "$topic has nothing main hasn't. Nothing done"
+
+# On top of main as it is now.
+if [ "$(git -C "$main" rev-list --count "$topic..main")" -gt 0 ]; then
+  say "main has moved on: putting $topic on top of it"
+  if ! git -C "$wt" rebase -q main >/dev/null 2>&1; then
+    files=$(git -C "$wt" diff --name-only --diff-filter=U | tr '\n' ' ')
+    git -C "$wt" rebase --abort >/dev/null 2>&1
+    die "$topic and main changed the same lines (${files:-?}). Nothing done: in $wt run git rebase main, settle them, and release again"
+  fi
+fi
+
+case $tests in
+  none) say "tests: not run (you said none)" ;;
+  *)
+    case $tests in changed) args=(--changed main) ;; quick) args=(--quick) ;; full) args=() ;; esac
+    say "tests (${tests}), in $wt ..."
+    log=$(mktemp)
+    if ! (cd "$wt" && tests/run.sh "${args[@]}") >"$log" 2>&1; then
+      grep -E '^FAIL|^FAILED' "$log" | head -20 >&2
+      kept="$common/vikix-release-tests.log"; cp "$log" "$kept"; rm -f "$log"
+      die "the tests failed (all they said: $kept). Nothing merged"
+    fi
+    tail -1 "$log" | cut -c1-300
+    rm -f "$log" ;;
+esac
+
+# From here main changes. Each step only after the one before.
+git -C "$main" merge -q --ff-only "$topic" >/dev/null 2>&1 ||
+  die "main wouldn't fast-forward to $topic. Nothing merged"
+merged=$(git -C "$main" rev-parse --short HEAD)
+say "main is at $merged ($topic)"
+
+if [ -z "$plain" ]; then
+  old=$(cat "$main/VERSION" 2>/dev/null)
+  [[ $old =~ ^([0-9]+\.[0-9]+)\.([0-9]+)$ ]] ||
+    die "VERSION says '$old', not a number like 0.71.189. $topic is merged ($merged); the version and tag are not made"
+  new="${BASH_REMATCH[1]}.$((BASH_REMATCH[2] + 1))"
+  git -C "$main" rev-parse -q --verify "refs/tags/v$new" >/dev/null &&
+    die "the tag v$new is there already. $topic is merged ($merged); the version and tag are not made"
+  printf '%s\n' "$new" > "$main/VERSION" ||
+    die "VERSION can't be written. $topic is merged ($merged); the version and tag are not made"
+  message=("-m" "Vikix $new: $summary")
+  [ -z "$coauthor" ] || message+=("-m" "Co-Authored-By: $coauthor")
+  if ! { git -C "$main" add VERSION && git -C "$main" commit -q "${message[@]}"; } >/dev/null 2>&1; then
+    git -C "$main" checkout -q -- VERSION 2>/dev/null
+    die "the release commit failed. $topic is merged ($merged); the version and tag are not made"
+  fi
+  git -C "$main" tag "v$new" || die "the tag v$new failed. Vikix $new is committed; tag it: git -C $main tag v$new"
+fi
+
+if [ -z "$keep" ]; then
+  git -C "$main" worktree remove "$wt" >/dev/null 2>&1 || say "the worktree $wt wasn't removed (something in it git doesn't know?)"
+  git -C "$main" branch -q -d "$topic" >/dev/null 2>&1 || say "the branch $topic wasn't removed"
+fi
+
+if [ -z "$plain" ]; then
+  say "Vikix $new is released on main: $summary"
+else
+  say "$topic is on main, with no new version"
+fi
+say "not pushed. Vid: gup"
+exit 0
+}

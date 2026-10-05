@@ -61,17 +61,9 @@ Noted 2026-10-04, twice the same day (`tests/run.sh` with other sessions' test r
 
 **What's known.** Nothing in the commits under test touched layouts or windows (a pin of Esploro; `vikix memory`). `main` drives a real StumpWM on a hidden screen, so it most likely waits a fixed time for a window or a layout that a loaded machine doesn't meet.
 
+**Since.** Every run on the machine now draws from one set of test slots (`tests/run.sh`, the slots), so several sessions' runs no longer add up to a load of 15 to 25; it may not come back. If it does:
+
 **Next step.** Run it under load (`stress-ng --cpu 16` beside it) to see which check fails, and give that wait a poll with a deadline; or add `main` to `alone` in `tests/run.sh` if it can't be made patient.
-
-## tests/rules.sh fails when the machine is very busy
-
-Noted 2026-10-03, while the load average was 20 to 25 on four cores (other sessions' work).
-
-**What happens.** The part after a reload fails: "StumpWM's main thread did not answer within 10 s", or the window `Named` is gone (`window-group NIL`), then "StumpWM started again" counts too few windows. Alone it passes, in about a minute; on main it passed under the same load once and failed on this branch once, with no change to rules.
-
-**What's known.** Its windows are `alacritty -e sleep 300`, and a slow run reaches the reload near that mark, so they close themselves; `vikix eval` gives up after 10 s while the reload is still loading.
-
-**Next step.** Windows that live until the test ends (`sleep infinity`, killed by its cleanup), and a longer wait for the answer after `(loadrc)`.
 
 ## Alacritty sometimes fails to copy ("Failed to set new owner of XCB selection")
 

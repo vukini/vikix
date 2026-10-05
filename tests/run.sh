@@ -21,7 +21,8 @@
 #
 # Each test is its own script in tests/ and can be run alone. They run side
 # by side, as many at once as the machine has cores (VIKIX_TEST_JOBS sets
-# it; 1 is one after another), each one's output printed whole when it
+# it; 1 is one after another), and no more than that over every run on the
+# machine together (the slots, below; `tests/run.sh NAME` queues one test), each one's output printed whole when it
 # ends, so a failure reads as it would alone. A test must therefore keep
 # to its own temporary folder, display and ports. GitHub runs them too:
 # .github/workflows/test.yml.
@@ -43,7 +44,7 @@ case $mode in
 esac
 tests=(lint)
 if command -v sbcl >/dev/null; then tests+=(lisp); else echo "(lisp needs sbcl; skipped here)"; fi
-tests+=(battery memory gestures home services lisp-stage image theme theme-import bar rofi wallpaper mimeapps examples dev-ai notes project drives firmware fingerprint firewall updates notifications idle lock lazarus capture nightlight update windows ai ai-local llm ai-keys agents debug dictate voice lisp-apps esploro hype publish winapps learn mcp swank errors bitwarden plugin records obsidian docs-check screens docs vk webapp features nvim emacs editor-theme welcome menu docs-open nyxt pkg oneline man day back viri main drawer layouts rules keys registry why gather tray focus propose pixmaps times soak rescue)
+tests+=(battery memory gestures home services lisp-stage image theme theme-import bar rofi wallpaper mimeapps examples dev-ai notes project drives firmware fingerprint firewall updates notifications idle lock queue release lazarus capture nightlight update windows ai ai-local llm ai-keys agents debug dictate voice lisp-apps esploro hype publish winapps learn mcp swank errors bitwarden plugin records obsidian docs-check screens docs vk webapp features nvim emacs editor-theme welcome menu docs-open nyxt pkg oneline man day back viri main drawer layouts rules keys registry why gather tray focus propose pixmaps times soak rescue)
 if command -v restic >/dev/null; then tests+=(backup); else echo "(backup needs restic; skipped here)"; fi
 if command -v makeinfo >/dev/null; then tests+=(info); else echo "(info needs makeinfo; skipped here)"; fi
 # --quick leaves these out (the run says so); the full run and GitHub keep them.
@@ -89,6 +90,51 @@ logs=$(mktemp -d)
 trap 'rm -rf "$logs"' EXIT
 failed=() took=() shown=()
 
+# The machine's test slots. Several sessions test at once, each run side
+# by side: with no more said, five runs on four cores were twenty tests at
+# a time, hidden desktops among them, and tests failed for slowness alone
+# (2026-10-03 and 04: a load of 70 to 100). So every run on this machine
+# draws from one set of slots, as many as there are cores: a test starts
+# when one is free, in whichever run. And a test that must have the machine
+# to itself (the `alone` list) waits until no other test is running
+# anywhere, and holds the others back while it runs.
+slots_dir=${VIKIX_TEST_SLOTS_DIR:-${XDG_RUNTIME_DIR:-/tmp}/vikix-test-slots}
+slots=${VIKIX_TEST_SLOTS:-$(nproc 2>/dev/null || echo 2)}
+[ "$slots" -ge 1 ] 2>/dev/null || slots=1
+queue=1
+command -v flock >/dev/null 2>&1 && mkdir -p "$slots_dir" 2>/dev/null || queue=
+
+in_slot() {     # in_slot COMMAND...: run it holding one of the machine's slots
+  [ -n "$queue" ] || { "$@"; return; }
+  local all fd i code waited=0
+  exec {all}>"$slots_dir/all"
+  flock -s "$all"                    # not while a test has the machine to itself
+  while :; do
+    for i in $(seq 1 "$slots"); do
+      exec {fd}>"$slots_dir/$i"
+      if flock -n "$fd"; then
+        "$@"; code=$?
+        exec {fd}>&- {all}>&-
+        return "$code"
+      fi
+      exec {fd}>&-
+    done
+    waited=$((waited + 1))
+    [ "$waited" = 20 ] && echo "(waiting for a free test slot: other runs are testing on this machine)" >&2
+    sleep 0.5
+  done
+}
+
+alone_slot() {  # alone_slot COMMAND...: run it while no other test runs anywhere
+  [ -n "$queue" ] || { "$@"; return; }
+  local all code
+  exec {all}>"$slots_dir/all"
+  flock -n -x "$all" || { echo "(waiting for the machine to be free of other tests)" >&2; flock -x "$all"; }
+  "$@"; code=$?
+  exec {all}>&-
+  return "$code"
+}
+
 run_one() {
   local start=$SECONDS code=0
   ./"$1".sh > "$logs/$1.out" 2>&1 || code=$?
@@ -122,13 +168,13 @@ for t in "${ordered[@]}"; do
     wait -n 2>/dev/null || true
     show_ended
   done
-  run_one "$t" &
+  in_slot run_one "$t" &
 done
 wait
 show_ended
 for t in "${ordered[@]}"; do
   [[ " ${alone[*]} " == *" $t "* ]] || continue
-  run_one "$t"
+  alone_slot run_one "$t"
   show_ended
 done
 echo
