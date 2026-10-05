@@ -118,7 +118,7 @@ on_screen() {
   printf '#!/bin/sh\nexit 0\n' > "$t/path/notify-send"; printf '#!/bin/sh\n[ "$1" = is-paused ] && echo false\nexit 0\n' > "$t/path/dunstctl"
   chmod +x "$t/path/notify-send" "$t/path/dunstctl"
   for _ in $(seq 1 30); do xdpyinfo >/dev/null 2>&1 && break; sleep 0.2; done
-  PATH="$t/path:$PATH" HOME=$home XDG_STATE_HOME= VIKIX_SWANK_PORT=$port "$wm" >"$t/wm.log" 2>&1 &
+  PATH="$t/path:$PATH" HOME=$home XDG_STATE_HOME='' VIKIX_SWANK_PORT=$port "$wm" >"$t/wm.log" 2>&1 &
   pids+=($!)
   ask() { HOME=$home VIKIX_SWANK_PORT=$port python3 "$here/bin/vikix-eval" "(progn (setf *print-pretty* nil) $1)" 2>&1 | grep -v '^=> ' || true; }
   local until=$((SECONDS + 60)); while [ "$SECONDS" -lt "$until" ]; do [ "$(ask '(princ 1)')" = 1 ] && break; sleep 0.5; done
@@ -133,7 +133,7 @@ on_screen() {
     sleep 0.3
   }
   count() { ask "(princ (vikix-used-count $1 \"$2\"))"; }
-  used() { HOME=$home XDG_STATE_HOME= VIKIX_SWANK_PORT=$port python3 "$here/bin/vikix-used" "$@"; }
+  used() { HOME=$home XDG_STATE_HOME='' VIKIX_SWANK_PORT=$port python3 "$here/bin/vikix-used" "$@"; }
   file="$home/.local/state/vikix/used"
 
   win usedtest "A private title 4711"
@@ -169,7 +169,7 @@ on_screen() {
     grep -qE '^ +2  Super\+Ctrl\+g +Gaps around windows on/off' <<<"$out"
   check "and counts the keys never pressed: $(tail -1 <<<"$out")" grep -qE '^[0-9]+ of [0-9]+ keys never pressed: vikix used never$' <<<"$out"
   check "never leaves out the key that was pressed, and has one that wasn't" \
-    bash -c "o=\$(HOME='$home' XDG_STATE_HOME= VIKIX_SWANK_PORT=$port python3 '$here/bin/vikix-used' never); ! grep -q '  Super+Ctrl+g ' <<<\"\$o\" && grep -q '  Super+Return ' <<<\"\$o\""
+    bash -c "o=\$(HOME='$home' XDG_STATE_HOME='' VIKIX_SWANK_PORT=$port python3 '$here/bin/vikix-used' never); ! grep -q '  Super+Ctrl+g ' <<<\"\$o\" && grep -q '  Super+Return ' <<<\"\$o\""
   used forget >/dev/null
   check "forget starts again: the file is one line, and the count is none" \
     test "$(wc -l < "$file") $(count :key "s-C-g${tab}toggle-gaps")" = "1 0"

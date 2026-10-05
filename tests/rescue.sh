@@ -166,7 +166,8 @@ if PATH=$real_path command -v i3lock >/dev/null && PATH=$real_path command -v pi
   top() { xwininfo -root -children | grep -E '^\s+0x' | head -1; }
   check "locked: the lock screen is in front: $(top)" grep -q i3lock <<<"$(top)"
   ask '(setf (xlib:window-priority (window-parent (first (screen-windows (current-screen))))) :above)' >/dev/null
-  sleep 1.5
+  # The locker lifts it every half second; on a busy machine that has taken more than the 1.5 s once waited here.
+  for _ in $(seq 1 24); do sleep 0.25; grep -q i3lock <<<"$(top)" && break; done
   check "a window raised over it, with a compositor running: the lock screen is in front again: $(top)" grep -q i3lock <<<"$(top)"
   out=$(rescue lock)
   check "vikix rescue lock says the screen is locked and brings it forward: $out" grep -q 'in front again' <<<"$out"
