@@ -1,5 +1,54 @@
 # Ideas
 
+## Architecture review with Codex (2026-10-05)
+
+Suggestions from a read of the projects in `~/src`, saved at Vid's request.
+These are recommendations, not agreed priorities or a replacement for the
+order in [TODO.md](TODO.md). No implementation was started in this review.
+
+Vikix already has a broad set of features. The strongest next step is to
+connect the command registry, rules, snapshots, projects and live Lisp
+desktop so that everyday work takes less managing.
+
+1. **Finish the agent office.** Starting an agent should attach it to a
+   project, worktree, workspace and task. Its desk should show what changed,
+   which checks passed and what needs Vid's attention. Agent discovery is
+   already in; the `desk` work is underway. Build on [NOVEL.md, idea
+   22](NOVEL.md#22-an-office-for-agents), rather than a second agent manager.
+2. **Restore the work, including the conversation.** Session restoration
+   brings agent terminals back in their folders; the remaining step is to
+   resume the conversations where the agent supports it. After a reboot,
+   recover the project, layout and resumable session, and say clearly what
+   could not be restored. This follows the session work in TODO's saved
+   layouts item.
+3. **Make "why?" offer a useful next action.** Connect an explanation to the
+   rule, setting or guide behind it. "This window moved because of this
+   rule" should lead to inspecting the rule, testing a revision or disabling
+   it. Existing provenance and rule controls are the foundation; the addition
+   is the route from an explanation to a fix.
+4. **Bring file versions into Esploro.** The planned "Versions…" interface
+   should list available versions, preview or compare one, and restore
+   through a reversible plan. This makes backups useful during ordinary
+   work. Continue [DESIGN-restore.md](DESIGN-restore.md), TODO item 80.
+5. **Show what changed after an update.** Keep a small "Since your last
+   update" page, filtered by installed features and linked to examples.
+   Features arriving quickly need a way to become habits. This develops
+   [NOVEL.md, idea 11](NOVEL.md#11-whats-new-for-you), rather than adding a
+   separate release-notes mechanism.
+
+**Another addition: a project handoff card.** When leaving a project, keep
+a short account of the task, unfinished changes, last check results and
+next action. On returning, or starting another agent, show it beside the
+actual Git state. Existing project logs, agent discovery and saved layouts
+provide much of the foundation. Distinguish observed facts from an agent's
+summary or uncertain claims; associate check results with the revision
+tested so that old results do not look current. First try a card for one
+project, using its existing log rather than a second task database.
+
+Suggested order from this review: finish the agent office, then reliable
+session restoration. Both address friction in Vid's current workflow and
+make the existing features more useful.
+
 Ideas for Vikix that nobody has decided to build yet. When one is picked up, it moves to `TODO.md` (worked out properly there: what, why, what it touches) and is deleted from here. Nothing here is a promise, and no package name here has been checked against void-packages.
 
 Gathered on 2026-09-30, in a conversation with Vid.
