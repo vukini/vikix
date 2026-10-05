@@ -2,6 +2,10 @@
 
 What is left for Windows programs in their own windows (`vikix windows app`, TODO item 82, `DESIGN-remoteapp.md`). Written 2026-10-05, after FACTS, the company ERP, first ran this way. Remove an item in the commit that ships it.
 
+## 0. FACTS's message boxes don't show
+
+FACTS draws some boxes ("are you sure?" on closing, a startup message) on a layer whose pixels each have their own transparency (Windows' per-pixel layered windows, `UpdateLayeredWindow`). Over RemoteApp, FreeRDP 3.30 makes the layer's window (32-bit, override-redirect, the main window's size) but every pixel arrives black and fully transparent, so the box is invisible and FACTS waits for an answer. Found 2026-10-05 with `xwd` on the layer. A window that fades as a whole (constant opacity) comes through in every setting tried (`-gfx`, `+aero`, `/bpp:24`, the progressive codec), so no FreeRDP option is the fix. To try: FACTS's own Themes menu (a plain theme may draw boxes without the layer); `sdl3-freerdp3`, which draws differently; and, if neither, FACTS as Windows' whole desktop over RDP in one tiled window (`vikix windows app facts --desktop`), where Windows draws everything itself.
+
 ## 1. See that the title bar sits below the bar (0.71.184)
 
 The desktop says where the bar is (`_NET_WORKAREA`) and FreeRDP passes it to Windows (`/workarea`), so a maximized program's own title bar, its close button too, should come out below Vikix's bar. Tested in a hidden StumpWM, not yet on the real VM: open FACTS, and Edge from FACTS, and see that both title bars are below the bar. If not, the next things to try: `/monitors` with the bar's height left out, or StumpWM answering FreeRDP's move requests for these windows.
