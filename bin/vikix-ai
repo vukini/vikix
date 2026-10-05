@@ -6,7 +6,7 @@
 #                             (vikix ai help-local tells more)
 #   vikix ai llm [--default MODEL]   the llm command, with your local models
 #                             and your keys: cat notes.md | llm "summarise"
-#   vikix ai use [local|claude]  which model Super+i (AI on the selected text) uses;
+#   vikix ai use [local|claude|codex]  which model Super+i (AI on the selected text) uses;
 #                             alone, says which (one word)
 #
 #   vikix ai key set NAME     ask for a key (it isn't shown as you paste it)

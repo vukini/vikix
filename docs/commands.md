@@ -138,7 +138,7 @@ The everyday command.
 - `vikix webapp add|open|list|remove` — a website as a program of its own (presets: fastmail, gmail, outlook, outlook-live, superhuman)
 - `vikix ai setup|models|chat|list|remove|status|stop|uninstall` — AI models that run on this laptop (Ollama)
 - `vikix ai llm` — the llm command, with those models and your keys
-- `vikix ai use [local|claude]` — the model for Super+i, AI on the selected text
+- `vikix ai use [local|claude|codex]` — the model for Super+i, AI on the selected text
 - `vikix ai key set|list|remove|check` — API keys (`ANTHROPIC_API_KEY` ...) kept safely, out of your dotfiles and their history
 - `vikix windows [setup|create ISO|stop|status|network|remove]` — Windows in a VM: set it up once, install it by itself, then open its desktop in a window (vikix windows help)
 - `vikix windows app NAME [FILE] | apps [setup|add NAME|remove NAME|forget]` — one Windows program in a window of its own, and the programs Windows has
@@ -191,7 +191,7 @@ AI services on Vikix: keys, and local models.
 
 - `vikix ai setup | models | chat | list | remove | status | stop | uninstall` — models that run on this machine, with Ollama (vikix ai help-local tells more)
 - `vikix ai llm [--default MODEL]` — the llm command, with your local models and your keys: cat notes.md | llm "summarise"
-- `vikix ai use [local|claude]` — which model Super+i (AI on the selected text) uses; alone, says which (one word)
+- `vikix ai use [local|claude|codex]` — which model Super+i (AI on the selected text) uses; alone, says which (one word)
 - `vikix ai key set NAME` — ask for a key (it isn't shown as you paste it) and keep it. NAME is a service (anthropic, openai, gemini, perplexity, openrouter, groq, mistral, deepseek, xai, huggingface, github ...) or the variable itself (`MY_SERVICE_API_KEY`). Piped in, the key comes from stdin: pass show api/openai | vikix ai key set openai
 - `vikix ai key list` — the keys kept: names and a fingerprint, never the key
 - `vikix ai key remove NAME` — forget one
@@ -205,12 +205,14 @@ AI on the text you selected, anywhere on the desktop (Super+i).
 
 - `vikix-ask` — a menu: Ask, Proofread, Rewrite, Translate, Explain
 - `vikix-ask ACTION` — one of those straight away (ask, proofread, rewrite, translate, explain): for keys of your own in user.lisp
-- `vikix-ask use [local|claude]` — which model answers (vikix ai use); alone, says which
-- `vikix-ask which` — the model and where the text goes, tab-separated (for vikix-voice: Super+F10 asks the same model)
+- `vikix-ask use [local|claude|codex]` — which model answers (vikix ai use); alone, says which
+- `vikix-ask which` — the model, where the text goes and which of the three it is, tab-separated (for vikix-voice: Super+F10 asks the same model)
 
-The text is what you last highlighted (X keeps it after the highlight is gone), else the clipboard: the notification while it works shows it. Proofread, Rewrite and Translate put their result on the clipboard, to paste where you want it; Ask and Explain show the answer, in a notification when it's short, else in a terminal. Everything goes through llm (vikix ai llm), so it's all in llm logs too.
+The text is what you last highlighted (X keeps it after the highlight is gone), else the clipboard: the notification while it works shows it. Proofread, Rewrite and Translate put their result on the clipboard, to paste where you want it; Ask and Explain show the answer, in a notification when it's short, else in a terminal. A local model and Claude answer through llm (vikix ai llm), so it's all in llm logs too.
 
-Which model answers is yours to choose, in `~/.config/vikix/ai` (made on first use): a local one (free, offline, the text stays on this laptop), or Claude (better, paid, the text goes to Anthropic). It never falls back from local to Claude by itself.
+Which model answers is yours to choose, in `~/.config/vikix/ai` (made on first use): a local one (free, offline, the text stays on this laptop), Claude (better, paid, the text goes to Anthropic), or Codex (the Codex you installed and signed in to with codex login; the text goes to OpenAI). It never leaves the local model by itself.
+
+Codex is an agent, so Super+i asks it with its tools switched off: no commands, no web search, none of the apps connected to your ChatGPT account, and nothing kept of the session. What you select can come from any page, and a line in it written for an agent finds nothing to act with. It takes some ten seconds an answer; the editors' chats and note know only local and Claude, and stay on the local model meanwhile.
 
 ## vikix-back
 
@@ -1079,16 +1081,17 @@ Talk to the AI, and it talks back. Dictation writes down what you said (on this 
 
 ```
 Super+F10         speak, Super+F10 again: the chat model answers
-                  (Super+i's: local, or Claude), shown and spoken.
-                  Follow-ups carry on the conversation; after 5 quiet
-                  minutes (idle= below) the next one starts afresh
+                  (Super+i's: local, Claude or Codex), shown and
+                  spoken. Follow-ups carry on the conversation; after
+                  5 quiet minutes (idle= below) the next one starts
+                  afresh. Codex answers each question on its own
 Super+F11         speak, Super+F11 again: it goes to the agent (Claude
                   Code) in its own terminal; follow-ups go to the same
                   one, and Claude's replies are read aloud
 Super+Shift+F10   stop talking
 ```
 
-The choices are yours, in `~/.config/vikix/voice` (made on first use): the voice, speak=no to only show answers, idle= minutes. The chat's words go where Super+i's do (vikix ai use local|claude); the agent's go to Anthropic, as with Super+a. What's said aloud stays on this laptop.
+The choices are yours, in `~/.config/vikix/voice` (made on first use): the voice, speak=no to only show answers, idle= minutes. The chat's words go where Super+i's do (vikix ai use local|claude|codex); the agent's go to Anthropic, as with Super+a. What's said aloud stays on this laptop.
 
 ## vikix-wallpaper
 

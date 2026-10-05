@@ -41,7 +41,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── backup-exclude     yours     what backups leave out
 │   │   ├── backup-password    yours     the backup password (never in snapshots)
 │   │   ├── secrets/           yours     API keys, one file each (vikix ai key), and windows-password, your Windows account's (vikix windows apps); never in snapshots
-│   │   ├── ai                 yours     which model Super+i uses: use=local or claude, model=, languages=
+│   │   ├── ai                 yours     which model Super+i uses: use=local, claude or codex, model=, languages=
 │   │   ├── agent              yours     which agent Super+a starts (vikix agent --default NAME)
 │   │   ├── dictation          yours     dictation's model: base.en or small (vikix dictate models)
 │   │   ├── voice              yours     how the AI talks back: voice=, speak=, idle= (vikix voice)

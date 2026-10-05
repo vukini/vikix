@@ -5,23 +5,34 @@
 #   vikix-ask ACTION      one of those straight away (ask, proofread,
 #                         rewrite, translate, explain): for keys of your own
 #                         in user.lisp
-#   vikix-ask use [local|claude]  which model answers (vikix ai use); alone, says which
-#   vikix-ask which       the model and where the text goes, tab-separated
-#                         (for vikix-voice: Super+F10 asks the same model)
+#   vikix-ask use [local|claude|codex]  which model answers (vikix ai use); alone, says which
+#   vikix-ask which       the model, where the text goes and which of the
+#                         three it is, tab-separated (for vikix-voice:
+#                         Super+F10 asks the same model)
 #
 # The text is what you last highlighted (X keeps it after the highlight
 # is gone), else the clipboard: the notification while it works shows it. Proofread, Rewrite and Translate put their result on the
 # clipboard, to paste where you want it; Ask and Explain show the answer,
-# in a notification when it's short, else in a terminal. Everything goes
-# through llm (vikix ai llm), so it's all in llm logs too.
+# in a notification when it's short, else in a terminal. A local model and
+# Claude answer through llm (vikix ai llm), so it's all in llm logs too.
 #
 # Which model answers is yours to choose, in ~/.config/vikix/ai (made on
 # first use): a local one (free, offline, the text stays on this laptop),
-# or Claude (better, paid, the text goes to Anthropic). It never falls back
-# from local to Claude by itself.
+# Claude (better, paid, the text goes to Anthropic), or Codex (the Codex
+# you installed and signed in to with codex login; the text goes to
+# OpenAI). It never leaves the local model by itself.
+#
+# Codex is an agent, so Super+i asks it with its tools switched off: no
+# commands, no web search, none of the apps connected to your ChatGPT
+# account, and nothing kept of the session. What you select can come from
+# any page, and a line in it written for an agent finds nothing to act
+# with. It takes some ten seconds an answer; the editors' chats and note
+# know only local and Claude, and stay on the local model meanwhile.
 
 set -uo pipefail
 VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+# shellcheck source=../lib/codex-ask.sh
+. "$VIKIX_DIR/lib/codex-ask.sh"
 CONF="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/ai"
 LLM=${VIKIX_LLM:-$HOME/.local/bin/llm}   # tests name their stand-in
 TERMINAL=${VIKIX_TERMINAL:-alacritty}
@@ -42,16 +53,18 @@ make_conf() {
   mkdir -p "$(dirname "$CONF")"
   cat > "$CONF" <<'EOF'
 # Vikix AI on the selected text (Super+i): which model answers.
-# vikix ai use local|claude switches, or edit it here.
+# vikix ai use local|claude|codex switches, or edit it here.
 #
 #   use=local    a model on this laptop: free, offline, the text stays here
 #                (vikix ai models gets one)
 #   use=claude   Claude: better, paid, the text goes to Anthropic
 #                (vikix ai key set anthropic first)
+#   use=codex    Codex, with its tools off: the text goes to OpenAI
+#                (install it and codex login first)
 use=local
 
 # A model by name (llm models lists them). Empty: llama3.2:3b, or your
-# first local model; claude-sonnet-5 for Claude.
+# first local model; claude-sonnet-5 for Claude; Codex's own for Codex.
 model=
 
 # The languages Translate offers, first to last (you can also type another).
@@ -68,7 +81,7 @@ conf() {   # conf KEY — its value in the file, without comments or spaces
 pick_model() {
   local use model names
   use=$(conf use); use=${use,,}; model=$(conf model)
-  [ -x "$LLM" ] || fail "Super+i needs llm" "In a terminal: vikix ai llm"
+  [ "$use" = codex ] || [ -x "$LLM" ] || fail "Super+i needs llm" "In a terminal: vikix ai llm"
   case $model in [!A-Za-z0-9]*|*[!A-Za-z0-9._:/-]*) fail "The model in ~/.config/vikix/ai looks wrong" "$(escape <<<"$model")" ;; esac
   case ${use:-local} in
     local)
@@ -91,9 +104,25 @@ pick_model() {
         fail "Claude needs your Anthropic key" "In a terminal: vikix ai key set anthropic. Or back to local: vikix ai use local"
       model=${model:-$CLAUDE_DEFAULT}
       WHERE="sent to Anthropic" ;;
-    *) fail "use= in ~/.config/vikix/ai should be local or claude" "$(escape <<<"$use")" ;;
+    codex)
+      codex_ready || fail "$CODEX_MISSING" "$CODEX_FIX. Or back to local: vikix ai use local"
+      # No name: the model Codex itself is set to (~/.codex/config.toml).
+      CODEX_MODEL=$model; model=${model:-codex}
+      WHERE="sent to OpenAI" ;;
+    *) fail "use= in ~/.config/vikix/ai should be local, claude or codex" "$(escape <<<"$use")" ;;
   esac
-  MODEL=$model
+  MODEL=$model; USE=${use:-local}
+}
+
+# Codex is there and signed in; else what's missing, and what to do.
+codex_ready() {
+  vikix_codex_ready
+  case $? in
+    0) return 0 ;;
+    1) CODEX_MISSING="Codex isn't installed"; CODEX_FIX="In a terminal: vikix add codex, then codex login" ;;
+    *) CODEX_MISSING="Codex isn't signed in"; CODEX_FIX="In a terminal: codex login" ;;
+  esac
+  return 1
 }
 
 have_key() {
@@ -105,15 +134,19 @@ have_key() {
   [ -n "${ANTHROPIC_API_KEY:-}" ]
 }
 
-# use local|claude: rewrite use= in the file (and only that line).
+# use local|claude|codex: rewrite use= in the file (and only that line).
 set_use() {
   local to=${1:-}
   # Without one: which it is now, one word (editors read it).
   if [ -z "$to" ]; then local use; use=$(conf use); use=${use,,}; echo "${use:-local}"; exit 0; fi
-  case $to in local|claude) ;; *) echo "usage: vikix ai use local|claude" >&2; exit 2 ;; esac
+  case $to in local|claude|codex) ;; *) echo "usage: vikix ai use local|claude|codex" >&2; exit 2 ;; esac
   if [ "$to" = claude ] && ! have_key; then
     echo "Claude needs your Anthropic key first: vikix ai key set anthropic" >&2
     note "Claude needs your Anthropic key" "In a terminal: vikix ai key set anthropic"; exit 1
+  fi
+  if [ "$to" = codex ] && ! codex_ready; then
+    echo "$CODEX_MISSING. $CODEX_FIX" >&2
+    note "$CODEX_MISSING" "$CODEX_FIX"; exit 1
   fi
   if grep -q '^[[:space:]]*use[[:space:]]*=' "$CONF"; then
     sed --follow-symlinks -i "s/^[[:space:]]*use[[:space:]]*=.*/use=$to/" "$CONF"
@@ -122,6 +155,14 @@ set_use() {
   fi
   local what="a model on this laptop: free, offline, the text stays here"
   [ "$to" = claude ] && what="Claude: better, paid, the text you select goes to Anthropic"
+  if [ "$to" = codex ]; then
+    # The editors' chats and note know only local and Claude.
+    what="Codex, with its tools off: the text you select goes to OpenAI"
+    echo "Super+i and the voice key now use $what"
+    echo "The editors' chats and note stay on the local model."
+    note "Super+i and the voice key now use codex" "$what. The editors' chats and note stay on the local model."
+    return 0
+  fi
   echo "Super+i and the editors' chats now use $what"
   note "Super+i and the editors' chats now use $to" "$what"
 }
@@ -169,8 +210,9 @@ print(t, end="")
 make_conf
 if [ "${1:-}" = use ]; then set_use "${2:-}"; exit; fi
 pick_model
-# The model and where the words go, tab-separated (vikix-voice asks the same one).
-if [ "${1:-}" = which ]; then printf '%s\t%s\n' "$MODEL" "$WHERE"; exit 0; fi
+# The model, where the words go and which of the three it is, tab-separated
+# (vikix-voice asks the same one).
+if [ "${1:-}" = which ]; then printf '%s\t%s\t%s\n' "$MODEL" "$WHERE" "$USE"; exit 0; fi
 TEXT=$(selection)
 if [ "${#TEXT}" -gt "$MAX" ]; then TEXT=${TEXT:0:$MAX}; CUT=1; else CUT=0; fi
 
@@ -186,13 +228,16 @@ preview() {   # the selection's start, on one line, for rofi's message
 ACTION=${1:-}
 if [ -z "$ACTION" ]; then
   menu=$'Ask about it\nProofread\nRewrite: clearer\nTranslate\nExplain'
-  if [ "$WHERE" = "on this laptop" ]; then menu+=$'\nUse Claude instead (paid; the text goes to Anthropic)'
-  else menu+=$'\nUse the local model instead (free; the text stays here)'; fi
+  # The other two, each only when it could answer.
+  [ "$USE" = local ] || menu+=$'\nUse the local model instead (free; the text stays here)'
+  [ "$USE" = claude ] || menu+=$'\nUse Claude instead (paid; the text goes to Anthropic)'
+  if [ "$USE" != codex ] && vikix_codex_ready; then menu+=$'\nUse Codex instead (the text goes to OpenAI)'; fi
   pick=$(rofi -dmenu -i -no-custom -p "AI ($MODEL, $WHERE)" -mesg "$(preview)" <<<"$menu") || exit 0
   case $pick in
     Ask*) ACTION=ask ;; Proofread*) ACTION=proofread ;; Rewrite*) ACTION=rewrite ;;
     Translate*) ACTION=translate ;; Explain*) ACTION=explain ;;
     "Use Claude"*) set_use claude; exit ;; "Use the local"*) set_use local; exit ;;
+    "Use Codex"*) set_use codex; exit ;;
     *) exit 0 ;;
   esac
 fi
@@ -220,7 +265,7 @@ case $ACTION in
   explain)
     system="Explain the text in plain language, in at most three short sentences, without lists, headings or Markdown. If it is code or a command, say what it does. If it is an error message, say what it means and how to fix it. Don't suggest fixes for anything that isn't wrong."
     title="Explained" ;;
-  *) echo "usage: vikix-ask [ask|proofread|rewrite|translate|explain] | use local|claude" >&2
+  *) echo "usage: vikix-ask [ask|proofread|rewrite|translate|explain] | use local|claude|codex" >&2
      fail "vikix-ask doesn't know \"$(escape <<<"${ACTION:0:40}")\"" "It knows ask, proofread, rewrite, translate, explain" ;;
 esac
 if [ -z "$TEXT" ] && [ "$ACTION" != ask ]; then
@@ -235,17 +280,28 @@ NOTE_ID=$(notify-send -p -a Vikix -t 300000 "AI is working…" "$MODEL, $WHERE
 $(if [ -n "$TEXT" ]; then printf '“'; preview; printf '”'; fi)" 2>/dev/null || true)
 [[ $NOTE_ID =~ ^[0-9]+$ ]] || NOTE_ID=''
 err="$RUN/vikix-ask.err"
-args=(-m "$MODEL" -s "$system")
-[ "$ACTION" = ask ] && args+=("$question")
+# One answer: the text on stdin, from Codex or through llm.
+answer() {
+  if [ "$USE" = codex ]; then
+    vikix_codex_ask "$system" "${question:-}" "${CODEX_MODEL:-}"
+  else
+    local args=(-m "$MODEL" -s "$system")
+    [ "$ACTION" = ask ] && args+=("$question")
+    timeout 300 "$LLM" "${args[@]}"
+  fi
+}
 if [ -n "$TEXT" ]; then
-  out=$(printf '%s\n' "$TEXT" | timeout 300 "$LLM" "${args[@]}" 2>"$err")
+  out=$(printf '%s\n' "$TEXT" | answer 2>"$err")
 else
-  out=$(timeout 300 "$LLM" "${args[@]}" </dev/null 2>"$err")
+  out=$(answer </dev/null 2>"$err")
 fi
 rc=$?
 if [ "$rc" != 0 ] || [ -z "${out//[[:space:]]/}" ]; then
   why=$(grep -v '^\s*$' "$err" 2>/dev/null | tail -1); why=$(printf '%s' "${why:0:200}" | escape)
-  [ "$rc" = 124 ] && why="It took over 5 minutes; a smaller model answers faster (vikix ai models)"
+  if [ "$rc" = 124 ]; then
+    why="It took over 5 minutes; a smaller model answers faster (vikix ai models)"
+    [ "$USE" = codex ] && why="It took over 5 minutes"
+  fi
   case $why in *"No key found"*) why="Your Anthropic key: vikix ai key set anthropic" ;; esac
   fail "AI didn't answer" "${why:-no answer from $MODEL}"
 fi
@@ -276,6 +332,7 @@ case $ACTION in
       { printf '%s (%s, %s)%s\n\n' "$title" "$MODEL" "$WHERE" "$cut_note"; printf '%s\n' "$out"; } > "$answer"
       # 9>&-: the terminal mustn't keep the lock, or Super+i would say
       # "still working" for as long as the answer is open.
-      exec "$TERMINAL" -e less -P "AI answer: q closes, /word searches, llm logs keeps it" "$answer" 9>&-
+      kept=", llm logs keeps it"; [ "$USE" = codex ] && kept=''
+      exec "$TERMINAL" -e less -P "AI answer: q closes, /word searches$kept" "$answer" 9>&-
     fi ;;
 esac

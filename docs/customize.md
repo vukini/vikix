@@ -337,7 +337,7 @@ Each of these is one of your files, so it has an undo too. [Working with AI](ai.
 
 | To change | Do |
 |---|---|
-| The model Super+i uses (and the editors' chats, Super+F10 and `note`) | `vikix ai use local` or `vikix ai use claude`; `vikix ai use` alone says which. The model and the languages to translate into are in `~/.config/vikix/ai` ([Local or Claude](ai.md#local-or-claude)) |
+| The model Super+i uses (and the editors' chats, Super+F10 and `note`) | `vikix ai use local`, `vikix ai use claude` or `vikix ai use codex` (Super+i and Super+F10 only); `vikix ai use` alone says which. The model and the languages to translate into are in `~/.config/vikix/ai` ([Local or Claude](ai.md#local-or-claude)) |
 | The agent Super+a starts (and the editors, and Super+F11) | `vikix agent --default opencode`; `vikix agent --which` says which ([Another agent](ai.md#another-agent)) |
 | Dictation's language | `vikix dictate models small` for many languages, `base.en` for English ([Dictation](ai.md#dictation)) |
 | The voice that answers, or no voice at all | `vikix voice voices alan`; `speak=no` or `idle=` in `~/.config/vikix/voice` ([Talking with the AI](ai.md#talking-with-the-ai)) |

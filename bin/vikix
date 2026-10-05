@@ -162,7 +162,7 @@
 #   vikix ai setup|models|chat|list|remove|status|stop|uninstall
 #                         AI models that run on this laptop (Ollama)
 #   vikix ai llm          the llm command, with those models and your keys
-#   vikix ai use [local|claude]  the model for Super+i, AI on the selected text
+#   vikix ai use [local|claude|codex]  the model for Super+i, AI on the selected text
 #   vikix ai key set|list|remove|check   API keys (ANTHROPIC_API_KEY ...)
 #                         kept safely, out of your dotfiles and their history
 #   vikix windows [setup|create ISO|stop|status|network|remove]   Windows in a VM:

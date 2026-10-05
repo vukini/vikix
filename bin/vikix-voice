@@ -4,9 +4,10 @@
 # reads the answer aloud (a neural voice, on this laptop too).
 #
 #   Super+F10         speak, Super+F10 again: the chat model answers
-#                     (Super+i's: local, or Claude), shown and spoken.
-#                     Follow-ups carry on the conversation; after 5 quiet
-#                     minutes (idle= below) the next one starts afresh
+#                     (Super+i's: local, Claude or Codex), shown and
+#                     spoken. Follow-ups carry on the conversation; after
+#                     5 quiet minutes (idle= below) the next one starts
+#                     afresh. Codex answers each question on its own
 #   Super+F11         speak, Super+F11 again: it goes to the agent (Claude
 #                     Code) in its own terminal; follow-ups go to the same
 #                     one, and Claude's replies are read aloud
@@ -25,7 +26,7 @@
 #
 # The choices are yours, in ~/.config/vikix/voice (made on first use):
 # the voice, speak=no to only show answers, idle= minutes. The chat's
-# words go where Super+i's do (vikix ai use local|claude); the agent's go
+# words go where Super+i's do (vikix ai use local|claude|codex); the agent's go
 # to Anthropic, as with Super+a. What's said aloud stays on this laptop.
 
 set -uo pipefail
@@ -34,6 +35,8 @@ VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 . "$VIKIX_DIR/lib/common.sh"
 # shellcheck source=../lib/features.sh
 . "$VIKIX_DIR/lib/features.sh"
+# shellcheck source=../lib/codex-ask.sh
+. "$VIKIX_DIR/lib/codex-ask.sh"
 
 # Pinned, like llm: a new version is a new line here. uv installs it as
 # you, in its own environment, with `piper` in ~/.local/bin.
@@ -231,11 +234,11 @@ cmd_say() {
 # --- The chat model (Super+F10) -----------------------------------------------
 
 cmd_ask() {
-  local question=${1:-} model where cid='' last=0 idle out rc err answer
+  local question=${1:-} model where use cid='' last=0 idle out rc err answer
   [ -n "${question//[[:space:]]/}" ] || { note "Heard nothing to ask" ""; return 0; }
   make_conf
   # The model Super+i uses: it says what's missing, if anything.
-  IFS=$'\t' read -r model where < <("$VIKIX_DIR/bin/vikix-ask" which) || return 1
+  IFS=$'\t' read -r model where use < <("$VIKIX_DIR/bin/vikix-ask" which) || return 1
   [ -n "$model" ] || return 1
   # One at a time: a second question while it thinks would only queue up.
   exec 9>"$RUN/vikix-voice.lock"
@@ -253,10 +256,21 @@ cmd_ask() {
   local args=(-m "$model" -s "$system")
   [ -n "$cid" ] && args+=(--cid "$cid")
   err="$RUN/vikix-voice.err"
-  out=$(timeout 300 "$LLM" "${args[@]}" "$question" </dev/null 2>"$err"); rc=$?
+  if [ "$use" = codex ]; then
+    # Codex keeps no conversation here (nothing of the session is kept):
+    # each question is asked on its own. No name: Codex's own model.
+    cid=''; [ "$model" = codex ] && model=''
+    out=$(vikix_codex_ask "$system" "$question" "$model" </dev/null 2>"$err"); rc=$?
+    model=${model:-codex}
+  else
+    out=$(timeout 300 "$LLM" "${args[@]}" "$question" </dev/null 2>"$err"); rc=$?
+  fi
   if [ "$rc" != 0 ] || [ -z "${out//[[:space:]]/}" ]; then
     local why; why=$(grep -v '^\s*$' "$err" 2>/dev/null | tail -1); why=$(printf '%s' "${why:0:200}" | escape)
-    [ "$rc" = 124 ] && why="It took over 5 minutes; a smaller model answers faster (vikix ai models)"
+    if [ "$rc" = 124 ]; then
+      why="It took over 5 minutes; a smaller model answers faster (vikix ai models)"
+      [ "$use" = codex ] && why="It took over 5 minutes"
+    fi
     case $why in *"No key found"*) why="Your Anthropic key: vikix ai key set anthropic" ;; esac
     # A conversation llm no longer has: the next question starts afresh.
     case $why in *onversation*) rm -f "$CHAT" ;; esac
@@ -264,9 +278,11 @@ cmd_ask() {
   fi
   rm -f "$err"
   # The conversation to carry on: the one given, or the new one llm just logged.
-  [ -n "$cid" ] || cid=$("$LLM" logs list -n 1 --json 2>/dev/null |
-    python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["conversation_id"])' 2>/dev/null || true)
-  [ -n "$cid" ] && printf '%s %s\n' "$cid" "$(date +%s)" > "$CHAT"
+  if [ "$use" != codex ]; then
+    [ -n "$cid" ] || cid=$("$LLM" logs list -n 1 --json 2>/dev/null |
+      python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["conversation_id"])' 2>/dev/null || true)
+    [ -n "$cid" ] && printf '%s %s\n' "$cid" "$(date +%s)" > "$CHAT"
+  fi
 
   cmd_say "$(for_speech 1200 <<<"$out")"
   # Short: a notification. Long: a terminal to read it in.

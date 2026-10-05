@@ -275,7 +275,7 @@ It needs `llm` (`vikix ai llm`) and a local model. A small one takes some second
 
 ### Local or Claude
 
-To switch, pick *Use Claude instead* (or *Use the local model instead*) at the end of the Super+i menu, or type `vikix ai use claude` or `vikix ai use local`. The choice is kept in `~/.config/vikix/ai`, which starts as:
+To switch, pick *Use Claude instead* (or *Use the local model instead*) at the end of the Super+i menu, or type `vikix ai use claude` or `vikix ai use local`. A third choice, Codex, is below. The choice is kept in `~/.config/vikix/ai`, which starts as:
 
 ```sh
 use=local          # free, offline, the text stays on this laptop
@@ -284,6 +284,14 @@ languages=English Esperanto French Spanish Arabic Hindi
 ```
 
 For better answers, above all translations into Esperanto, which small models get wrong, use Claude. Then each use costs a little and the text you selected goes to Anthropic, so it needs your key first: `vikix ai key set anthropic`. Super+i never switches to Claude by itself, and its menu always names the model and where the text goes.
+
+### Codex
+
+If you have Codex (`vikix add codex`) and are signed in (`codex login`), it can answer Super+i too: `vikix ai use codex`, or *Use Codex instead* at the end of the menu. It uses Codex's own sign-in, your ChatGPT account, so it needs no key, and the text you selected goes to OpenAI. The model is the one Codex is set to (`~/.codex/config.toml`), or the one `model=` names. An answer takes some ten seconds.
+
+Codex is an agent, not a chat model: by itself it runs commands, searches the web and reaches the apps connected to your ChatGPT account, such as mail and GitHub. The text you select can come from any page, and a page can hold a line written for an agent. So Super+i asks Codex with all of that switched off, read-only, in an empty folder, and keeps nothing of the session: such a line finds nothing to act with. If a later Codex no longer knows one of those switches, Super+i says so and gives no answer, until `vikix update` brings the new list.
+
+Super+F10 follows, one question at a time: Codex doesn't carry the conversation on. The editors' chats and `note` know only local and Claude, and stay on the local model while Super+i is on Codex.
 
 ## AI in Neovim
 
@@ -391,7 +399,7 @@ Dictation types what you say. Voice sends it to the AI instead, and the answer c
 
 | Key | What happens |
 |---|---|
-| **Super+F10**, speak, **Super+F10** | The chat model answers: the one Super+i uses (local, or Claude). You hear the answer and see it in a notification (a long one opens in a terminal) |
+| **Super+F10**, speak, **Super+F10** | The chat model answers: the one Super+i uses (local, Claude, or Codex, which takes each question on its own). You hear the answer and see it in a notification (a long one opens in a terminal) |
 | **Super+F11**, speak, **Super+F11** | It goes to the agent, Claude Code, in a terminal of its own. Claude's replies are read aloud |
 | **Super+Shift+F10** | Stop the talking |
 
@@ -407,7 +415,7 @@ vikix add voice            # brings dictation and llm, if they aren't here
 
 That installs [Piper](https://github.com/OHF-Voice/piper1-gpl), a voice that runs on this laptop, and downloads a voice for it (60 MB, checked against its published checksum).
 
-**Where your words go.** The listening is dictation's: on this laptop. A question to Super+F10 goes where Super+i's text does (nowhere, with a local model; to Anthropic, with Claude: `vikix ai use`). A question to Super+F11 goes to the agent's company, as with Super+a. The answer is spoken on this laptop.
+**Where your words go.** The listening is dictation's: on this laptop. A question to Super+F10 goes where Super+i's text does (nowhere, with a local model; to Anthropic, with Claude; to OpenAI, with Codex: `vikix ai use`). A question to Super+F11 goes to the agent's company, as with Super+a. The answer is spoken on this laptop.
 
 **Your choices** are in `~/.config/vikix/voice`:
 
@@ -443,7 +451,8 @@ To take it away: `vikix remove voice` (the voices stay; `vikix voice uninstall -
 | Super+i says "You don't have the model …" | `vikix ai models` gets it, or empty `model=` in `~/.config/vikix/ai` |
 | Super+i says "Claude needs your Anthropic key" | `vikix ai key set anthropic`, or back to local: `vikix ai use local` |
 | Super+i says "AI didn't answer" | The notification says why; a local model: `vikix ai status` |
-| Super+i says something in `~/.config/vikix/ai` looks wrong | Fix that line (`use=local` or `use=claude`; `model=` a name from `llm models`), or delete the file: the next Super+i writes it afresh |
+| Super+i says "Codex isn't installed" or "isn't signed in" | `vikix add codex`, then `codex login`; or back to local: `vikix ai use local` |
+| Super+i says something in `~/.config/vikix/ai` looks wrong | Fix that line (`use=local`, `use=claude` or `use=codex`; `model=` a name from `llm models`), or delete the file: the next Super+i writes it afresh |
 | Super+i took the wrong text | It takes the last highlight before the clipboard: highlight the text you mean |
 | `note` says "no folder yet" or "no index yet" | `note index ~/Notes` once (your folder; `--skip A,B` leaves folders out) |
 | `note` says the index needs local AI, or can't reach Ollama | The index is made on this laptop: `vikix add local-ai`, then `vikix ai status` |

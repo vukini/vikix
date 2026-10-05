@@ -8,7 +8,8 @@
 #   stays silent; ask asks Super+i's model with a spoken-style system
 #   prompt, speaks and shows the answer, carries the conversation on, and
 #   starts afresh after the idle minutes or `new`; a failed answer says why
-#   and speaks nothing; agent starts Claude Code in its own terminal with a
+#   and speaks nothing; with use=codex it asks Codex (lib/codex-ask.sh),
+#   tools off, each question on its own, and not llm; agent starts Claude Code in its own terminal with a
 #   Stop hook for this session only, and agent-said speaks its reply (from
 #   the hook's field or the transcript), without code or Markdown, and
 #   exits 0 on junk; dictate toggle ask/agent sends what was said here,
@@ -197,6 +198,27 @@ ask_env v ask "Anything?" >/dev/null 2>&1 || true; settle
 check "a failed answer should say why: $(notes)" grep -q 'vikix ai key set anthropic' <<<"$(notes)"
 check "a failed answer shouldn't be spoken" test -z "$(spoken)"
 rm -f "$t/llm-error"
+
+# Super+i on Codex: the voice key asks Codex too, its tools off, and keeps
+# no conversation; llm isn't asked.
+cat > "$t/codex" <<EOF
+#!/bin/sh
+[ "\$1 \$2" = "login status" ] && exit 0
+for a; do printf '[%s] ' "\$a"; done > "$t/codex.args"
+prev=; for a; do [ "\$prev" = -o ] && out=\$a; prev=\$a; done
+echo "Lyon is a city." > "\$out"
+EOF
+chmod +x "$t/codex"
+printf 'use=codex\nmodel=\n' > "$HOME/.config/vikix/ai"
+: > "$calls"; : > "$t/notes"; rm -f "$t/spoken" "$VIKIX_STATE/voice-chat"
+VIKIX_CODEX="$t/codex" v ask "What is Lyon?" >/dev/null 2>&1; settle
+check "with use=codex, ask should ask Codex: $(cat "$t/codex.args" 2>/dev/null)" grep -q 'read aloud.*Question: What is Lyon?' <<<"$(tr '\n' ' ' < "$t/codex.args")"
+check "the voice key should ask Codex with its tools off" grep -qF -- '[--disable] [shell_tool]' "$t/codex.args"
+check "with use=codex, llm shouldn't be asked: $(grep '^llm' "$calls" || true)" test -z "$(grep '^llm' "$calls" || true)"
+check "Codex's answer should be spoken: [$(spoken)]" test "$(spoken)" = "Lyon is a city."
+check "Codex's answer should say where it went: $(notes)" grep -q 'codex, sent to OpenAI' <<<"$(tr '\n' ' ' < "$t/notes")"
+check "Codex shouldn't leave a conversation to carry on" test ! -e "$VIKIX_STATE/voice-chat"
+cp "$t/ask-conf" "$HOME/.config/vikix/ai"
 
 # The agent: Claude Code in its own terminal, with a hook for this session only.
 v agent "open my downloads" >/dev/null 2>&1; sleep 0.3
