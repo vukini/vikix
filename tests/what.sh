@@ -192,6 +192,12 @@ point() {
   xdotool mousemove $at; sleep 0.3
 }
 asked() { tail -1 "$t/asked" 2>/dev/null || true; }
+# press WHAT...: xdotool WHAT, then wait until the stand-in was started (a busy machine takes its time).
+press() {
+  local before; before=$(wc -l < "$t/asked" 2>/dev/null || echo 0)
+  xdotool "$@"
+  for _ in $(seq 1 40); do [ "$(wc -l < "$t/asked" 2>/dev/null || echo 0)" -gt "$before" ] && break; sleep 0.25; done
+}
 
 win "Notes"
 # A field that shows: three updates waiting, in the file the bar's rounds read.
@@ -215,13 +221,13 @@ check "on a window's title, that window" test "$(got '"here"' kind) $(got '"here
 
 # The key, and a click.
 point '(equal (sixth a) (list "clock"))'
-key super+alt+question
+press key super+alt+question
 check "Super+Alt+? asks for the card of what the pointer is on: $(asked)" test "$(asked)" = "--card clock"
 xdotool mousemove 640 400; sleep 0.3
-key super+alt+question
+press key super+alt+question
 check "and of the window in front, away from the bar: $(asked)" test "$(asked)" = "--card window $id"
 point '(equal (sixth a) (list "updates"))'
-xdotool click 1; sleep 0.5
+press click 1
 check "a click on a field with no click of its own asks for its card: $(asked)" test "$(asked)" = "--card updates"
 check "the key is in the registry, and Super+m has it under Help" \
   yes '(and (find "s-M-?" *vikix-bindings* :key (function first) :test (function equal)) (find (quote vikix-what) *vikix-menu* :key (function second)))'
