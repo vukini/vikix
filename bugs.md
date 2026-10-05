@@ -45,7 +45,7 @@ Noted 2026-10-05, on Vid's desktop at 0.71.179, tray on (`vikix tray on`, nm-app
 
 **What's known.** The system was fine at that moment: NetworkManager had scanned 20 seconds before (`LastScan` on the device), and `nmcli device wifi list` showed six networks; `nmcli device wifi rescan` works. So it is the applet's menu, not the scan. nm-applet had run for 30 hours; it was restarted (killed, started again from StumpWM, back in the tray, the connection untouched). Whether its list is right since then, Vid hasn't said.
 
-**Next step.** Ask Vid what the menu shows against `nmcli device wifi list`. If it is still stale after the restart, build the picker (`TODO.md`, item 84) rather than chase the applet.
+**Next step.** Ask Vid what the menu shows against `nmcli device wifi list`. If it is still stale after the restart, build the picker (`TODO.md`, item 85) rather than chase the applet.
 
 ## agent-waiting: a question with choices may arrive late (to confirm)
 
