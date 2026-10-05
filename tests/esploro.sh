@@ -66,6 +66,8 @@ check "a dry run should say it would build Esploro" grep -q "would build Esploro
 check "a dry run should say it would reload Esploro in a running Emacs" grep -q "would reload Esploro" "$t/out"
 check "the reload should unbind Esploro's keymaps first, so new keys take" \
   grep -q "makunbound" "$here/bin/vikix-esploro"
+check "the reload should give the places their mode again and draw them again: that buffer lives on with its old keys" \
+  grep -q '(esploro-places-mode))' "$here/bin/vikix-esploro"
 
 # --- Not the pinned commit: refused ---------------------------------------------
 echo 0000000000000000000000000000000000000000 > "$t/commit"
