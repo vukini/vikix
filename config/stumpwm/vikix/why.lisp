@@ -194,7 +194,13 @@ a command, then run it as ever."
    (vikix-why-note :rule (vikix-rule-key rule)
                    :what (format nil "A rule~@[, ~a~]"
                                  (case event (:open "as a window opened") (:focus "as a window took the focus")
-                                   (:close "as a window closed")))
+                                   (:close "as a window closed")
+                                   (:idle "as you were away")
+                                   (t (let ((thing (and (boundp '*vikix-rule-things*)
+                                                        (assoc event (symbol-value '*vikix-rule-things*)))))
+                                        (and thing
+                                             (format nil "as ~a was ~a~@[ (~a)~]" (third thing) (fourth thing)
+                                                     (symbol-value '*vikix-rule-thing*)))))))
                    :does (format nil "ran ~a" (vikix-one-line (vikix-rule-text rule) 110))
                    :from (format nil "~a~@[, for ~a~]"
                                  (vikix-rule-from rule)

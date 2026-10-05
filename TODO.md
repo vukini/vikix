@@ -19,8 +19,8 @@ From a review of 0.71.71 against one aim: the best desktop for a power user. Vik
 
 Left here before a restart; none is begun. In the order suggested:
 
-- **Rules for more events** (the last line of the next section): a rule that fires when a screen is plugged in or taken away, a Wi-Fi network is joined, a drive is plugged in, or the laptop goes idle. "When I join VID, start Dropbox"; "when the TV is plugged in, this layout". Self-contained in `rules.lisp`.
-- **The rules test, fast and steady** (`bugs.md`, "tests/rules.sh fails when the machine is very busy"): it took over five minutes a run on 2026-10-04 and every session's release waits on it. The next step is written there.
+- **Rules for more events** are in (`when-screen`, `when-network`, `when-drive`, their `-gone`, `when-idle`; `vikix rules now`). Left from them: a screen by its model's name rather than its socket's (the EDID's, as autorandr reads it), and `when-back` for coming back after being away, if living with these asks for them.
+
 - **A focus timer in the bar** (item 77).
 - **A Wi-Fi picker that scans first** (item 85 below), if the tray applet's list is still stale after its restart (`bugs.md`).
 - The bigger one stays item 4 above, agents that act through code you can check first: `propose_rule` and `run_command` are its first slices; the next wants a short design before any code.
@@ -31,7 +31,6 @@ The rules language is in: `when-window` and the timed rules (`rules.lisp`), `vik
 
 - The apprentice's suggestions written as rules (IDEAS).
 - The verbs table (`*vikix-rule-verbs*`) as the first entries of the allow-list for agents that act through code (What's next, 4). `propose_rule` (0.71.x) is its first use: `vikix-rule-proposal-check` in `rules.lisp` is the walker that lets through only rule forms, verbs and plain values.
-- Rules for a screen plugged in or taken away, a Wi-Fi network joined, a drive plugged in, idle.
 
 ## Picked from IDEAS (with Vid 2026-10-04)
 

@@ -228,6 +228,10 @@ The same file, the same verbs (those that need no window: `run`, `command`, `not
 (when-on-battery (run "brightnessctl set 40%"))
 (at-login (run "syncthing --no-browser"))
 (when-workspace 3 (command "vikix-grid"))                ; on arriving at workspace 3
+(when-network "Home" (run "dropbox start"))              ; on joining that Wi-Fi network
+(when-screen "HDMI-1" (layout "desk"))                   ; the second screen plugged in
+(when-drive "BACKUP" (run "vikix backup"))               ; a drive plugged in
+(when-idle 10 (run "vikix-lock"))                        ; ten minutes away
 ```
 
 | Rule | When it runs |
@@ -238,8 +242,26 @@ The same file, the same verbs (those that need no window: `run`, `command`, `not
 | `(when-charging ...)`, `(when-on-battery ...)` | When the charger goes in, or comes out |
 | `(at-login ...)` | Once each login, not at a reload. A rule you add while logged in runs at the reload that brings it, once |
 | `(when-workspace 3 ...)` | Each time you go to that workspace: a number, a name, or a list of them |
+| `(when-screen "HDMI-1" ...)`, `(when-screen-gone "HDMI-1" ...)` | When that screen is plugged in and lit, or taken away |
+| `(when-network "Home" ...)`, `(when-network-gone "Home" ...)` | When you join that Wi-Fi network (`"wired"` is a cable), or leave it |
+| `(when-drive "BACKUP" ...)`, `(when-drive-gone "BACKUP" ...)` | When that drive is plugged in and opened, or ejected or pulled out |
+| `(when-idle 10 ...)` | Once, when nothing has been typed or moved for ten minutes. It's ready again at the next key or move of the mouse |
 
 They're checked every 30 seconds, so a time is met within half a minute. `at-login` is how a program starts with the desktop: `user.lisp` runs again on every reload and the rule doesn't, so there's no need for a `pgrep -x … ||` in front to keep a second copy from starting.
+
+**Screens, networks and drives go by name.** `vikix rules now` prints the ones there are, as a rule writes them:
+
+```
+$ vikix rules now
+Screens: "eDP1"  "HDMI-1"
+Network: "Home"
+Drives:  none
+Idle:    0 min
+```
+
+The name can be a string (exactly that), `(:has "hdmi")` (contains it, in any case), `(:like "^DP-")` (a pattern), a list of those, or `:any`. In a rule for `:any`, `(rule-thing)` is the one it ran for: `(when-drive :any (notify "Drive" (rule-thing)))`. These four are looked at every five seconds.
+
+**At a login, what's already there counts as arriving.** So `(when-network "Home" ...)` runs when you log in at home, not only when you walk in with the laptop open; and a rule you add while logged in runs at the reload that brings it, if its screen, network or drive is there. A reload alone sets nothing off. A `-gone` rule only runs when something that was there goes.
 
 ## Seeing what your rules do
 
@@ -253,6 +275,7 @@ They're checked every 30 seconds, so a time is met within half a minute. `at-log
 | `vikix rules off 3` | Switch a rule off until the next reload, by its number, its `:name`, or words only it has. `vikix rules on 3` brings it back |
 | `vikix rules forget 3` | Take a rule out of `rules.lisp` for good, after a snapshot |
 | `vikix rules verbs` | Everything a rule can be, match and do, each with its line |
+| `vikix rules now` | The screens, the network and the drives there are now, each by the name a rule writes, and how long you've been idle |
 | `vikix rules proposed` | The rules an agent has proposed that wait for you (below) |
 
 A good habit after writing a rule: reload, then `vikix rules test` to see which open windows it would take, before you trust it with new ones. [The commands](commands.md#vikix-rules) has the whole of `vikix rules`.

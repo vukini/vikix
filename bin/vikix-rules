@@ -27,6 +27,8 @@
 #                            Super+Shift+t remembered, or one of yours
 #   vikix rules verbs        what a rule can be, match and do: the rules, the
 #                            matchers and the verbs, each with its line
+#   vikix rules now          what the rules for screens, networks and drives
+#                            see now: each one's name, as a rule writes it
 #   vikix rules proposed     the rules an agent has proposed and you haven't
 #                            decided on: each with its why, and what it would
 #                            run. Super+m, Rules adds one or drops it
@@ -76,6 +78,7 @@ case ${1:-list} in
   why)        [ $# -le 2 ] || die "vikix rules why [CLASS]: one class, in quotes if it has spaces"; ask why "${2:-}" ;;
   test|apply) [ $# -le 2 ] || die "vikix rules $1 [N|NAME]: one rule, or none for all of them"; ask "$1" "${2:-}" ;;
   verbs)      ask verbs ;;
+  now)        [ $# -le 1 ] || die "vikix rules now takes nothing more (vikix rules help)"; ask now ;;
   proposed)   [ $# -le 1 ] || die "vikix rules proposed takes nothing more (vikix rules help)"; ask proposed ;;
   help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
   *) die "unknown: vikix rules $1 (try: vikix rules help)" ;;

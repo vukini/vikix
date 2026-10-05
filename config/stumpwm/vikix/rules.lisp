@@ -721,7 +721,8 @@ corner and that edge.")
 ;;; No new slot in the structure for them: redefining a structure in a
 ;;; running desktop asks questions at the reload that brings it. What sets
 ;;; such a rule off is its `on` (:at, :each, :battery-below, :charging,
-;;; :on-battery, :login, :workspace), its settings are in `match`, and what
+;;; :on-battery, :login, :workspace, and the next section's :screen,
+;;; :network, :drive, their -gone and :idle), its settings are in `match`, and what
 ;;; it remembers is kept in tables by its key, as :once is.
 
 (defvar *vikix-rules-now* 'get-universal-time
@@ -897,6 +898,101 @@ WORKSPACE is a number, a name, or a list of them."
   (vikix-rule-timed-expansion whole :workspace (list :workspaces (if (listp workspace) workspace (list workspace)))
                               body))
 
+;;; --- Rules for screens, networks, drives and being away ---------------------------------------
+;;;
+;;;   (when-screen "HDMI-1" (layout "tv"))          (when-screen-gone "HDMI-1" ...)
+;;;   (when-network "VID" (run "dropbox start"))    (when-network-gone "VID" ...)
+;;;   (when-drive "BACKUP" (run "vikix backup"))    (when-drive-gone :any ...)
+;;;   (when-idle 10 (run "vikix-lock"))
+;;;
+;;; Rules with no window, like the last ones, in the same table. A look
+;;; every five seconds compares what is there with what each rule saw last:
+;;; the screens StumpWM has (its heads, by RandR's names), the network the
+;;; bar shows (*vikix-net*, read by the bar's own thread: no program is run
+;;; here), the drives mounted under /run/media/USER (from /proc/mounts,
+;;; which never waits on a drive). `vikix rules now` prints all three, for
+;;; the names to write.
+;;;
+;;; What each rule saw is noted on X's root window, as at-login's rules
+;;; are. So a reload sets nothing off; and at a login, or for a rule new
+;;; in a reload, what is already there counts as arriving: "when I'm on
+;;; VID" holds for the morning's login at home too.
+
+(defvar *vikix-rules-things* 'vikix-rules-read-things
+  "How the rules see what is there: a function of :screen, :network or
+:drive returning a list of names, or :unknown when that can't be told now
+(nothing has come or gone then). Tests put their own here.")
+
+(defvar *vikix-rules-idle* 'vikix-rules-read-idle
+  "How the rules read how long nothing was typed or moved: a function
+returning seconds.")
+
+(defvar *vikix-rules-mounts* "/proc/mounts"
+  "The kernel's list of what is mounted where; the tests name a file of their own.")
+
+(defvar *vikix-rules-seen-here* '()
+  "Without a screen (the tests): what the rules for things saw last. With
+one, the root window's property _VIKIX_RULES_SEEN holds it.")
+(defvar *vikix-rules-idle-ran* (make-hash-table :test 'equal)
+  "The when-idle rules that have run and wait for a key or the mouse
+before they can run again.")
+(defvar *vikix-rule-thing* nil
+  "The screen, network or drive the running rule is for: its name.")
+(defvar *vikix-rules-look-timer* nil "The five-second look.")
+
+(defparameter *vikix-rule-things*
+  '((:screen :screen "a screen" "plugged in") (:screen-gone :screen "a screen" "taken away")
+    (:network :network "a network" "joined") (:network-gone :network "a network" "left")
+    (:drive :drive "a drive" "plugged in") (:drive-gone :drive "a drive" "taken out"))
+  "What sets such a rule off, the kind of thing it watches, and its words.")
+
+(defun rule-thing ()
+  "In a when-screen, when-network or when-drive rule: the name of the one
+it is running for, as (notify (rule-thing) \"is here\")."
+  *vikix-rule-thing*)
+
+(defun vikix-rule-thing-expansion (whole on what body)
+  (unless (or (eq what :any) (and (vikix-rule-pattern-p what) (not (symbolp what))))
+    (error "~(~a~) takes a name first: a string (exactly that), (:has \"text\"), (:like \"^regex$\"), a list of those, or :any; this is ~s. vikix rules now prints the names there are."
+           (first whole) what))
+  (unless (eq what :any) (vikix-rule-check-pattern (first whole) what))
+  (vikix-rule-timed-expansion whole on (list :what what) body))
+
+(defmacro when-screen (&whole whole name &body body)
+  "A rule for a screen plugged in and lit: (when-screen \"HDMI-1\" (layout \"tv\")).
+NAME is the screen's name as `vikix rules now` prints it, a pattern, or :any."
+  (vikix-rule-thing-expansion whole :screen name body))
+
+(defmacro when-screen-gone (&whole whole name &body body)
+  "A rule for a screen taken away: (when-screen-gone \"HDMI-1\" (layout \"laptop\"))."
+  (vikix-rule-thing-expansion whole :screen-gone name body))
+
+(defmacro when-network (&whole whole name &body body)
+  "A rule for a network joined: (when-network \"VID\" (run \"dropbox start\")).
+NAME is the Wi-Fi network's name, \"wired\" for a cable, a pattern, or :any."
+  (vikix-rule-thing-expansion whole :network name body))
+
+(defmacro when-network-gone (&whole whole name &body body)
+  "A rule for a network left: (when-network-gone \"VID\" (run \"dropbox stop\"))."
+  (vikix-rule-thing-expansion whole :network-gone name body))
+
+(defmacro when-drive (&whole whole name &body body)
+  "A rule for a drive plugged in and opened: (when-drive \"BACKUP\" (run \"vikix backup\")).
+NAME is the drive's name under /run/media/USER, a pattern, or :any."
+  (vikix-rule-thing-expansion whole :drive name body))
+
+(defmacro when-drive-gone (&whole whole name &body body)
+  "A rule for a drive ejected or pulled out: (when-drive-gone :any (say \"Drive out\"))."
+  (vikix-rule-thing-expansion whole :drive-gone name body))
+
+(defmacro when-idle (&whole whole minutes &body body)
+  "A rule for being away: (when-idle 10 (run \"vikix-lock\")). It runs once
+when nothing was typed or moved for MINUTES, and is ready again at the
+next key or move of the mouse."
+  (unless (and (integerp minutes) (plusp minutes))
+    (error "An idle rule waits a whole number of minutes, 1 or more; this is ~s." minutes))
+  (vikix-rule-timed-expansion whole :idle (list :seconds (* 60 minutes)) body))
+
 ;;; Running them
 
 (defun vikix-rules-on (on)
@@ -1028,6 +1124,164 @@ when no rule asks about it."
               (vikix-rules-login-note ran)
               (vikix-run-rule rule nil :login))))))))
 
+;;; What is there now
+
+(defun vikix-rules-unescape (text)
+  "A mount point as /proc/mounts writes it, with its \\040 for a space."
+  (ppcre:regex-replace-all "\\\\([0-7]{3})" text
+                           (lambda (match digits)
+                             (declare (ignore match))
+                             (string (code-char (parse-integer digits :radix 8))))
+                           :simple-calls t))
+
+(defun vikix-rules-media ()
+  "Where drives are mounted for you, with its last slash."
+  (let ((media (or (ignore-errors (getenv "VIKIX_MEDIA"))
+                   (format nil "/run/media/~a" (or (ignore-errors (getenv "USER")) "")))))
+    (concatenate 'string (string-right-trim "/" media) "/")))
+
+(defun vikix-rules-read-things (kind)
+  "The screens, the network or the drives there are now, by name; :unknown
+when that can't be told."
+  (ecase kind
+    (:screen
+     (if (and (boundp '*screen-list*) *screen-list*)
+         (remove-duplicates
+          (loop for screen in *screen-list*
+                append (loop for head in (screen-heads screen)
+                             for name = (ignore-errors (head-name head))
+                             when (and (stringp name) (plusp (length name))) collect name))
+          :test #'equal)
+         :unknown))
+    (:network
+     (let ((net (and (boundp '*vikix-net*) (symbol-value '*vikix-net*))))
+       (cond ((or (not (stringp net)) (string= net "")) :unknown)   ; not read yet, or no NetworkManager
+             ((string= net "offline") '())
+             ((and (> (length net) 5) (string= "wifi " net :end2 5))
+              (list (ppcre:regex-replace " \\d+%$" (subseq net 5) "")))   ; a weak signal's "42%" isn't its name
+             (t (list net)))))
+    (:drive
+     (let ((media (vikix-rules-media)) (names '()))
+       (with-open-file (in *vikix-rules-mounts* :if-does-not-exist nil :external-format :utf-8)
+         (if (null in)
+             :unknown
+             (loop for line = (read-line in nil)
+                   while line
+                   do (let ((at (vikix-rules-unescape (or (second (ppcre:split " " line)) ""))))
+                        (when (and (> (length at) (length media))
+                                   (string= media at :end2 (length media))
+                                   (not (find #\/ at :start (length media))))
+                          (pushnew (subseq at (length media)) names :test #'equal)))
+                   finally (return (nreverse names)))))))))
+
+(defun vikix-rules-read-idle ()
+  (or (ignore-errors (floor (idle-time (current-screen)))) 0))
+
+;;; What each rule saw last: ((HASH NAME...) ...), printed on the root window.
+
+(defun vikix-rules-seen ()
+  (let ((root (vikix-rules-login-root)))
+    (if root
+        (let ((seen (let ((*read-eval* nil))
+                      (ignore-errors
+                       (read-from-string
+                        (sb-ext:octets-to-string
+                         (coerce (or (xlib:get-property root :_VIKIX_RULES_SEEN) '()) '(vector (unsigned-byte 8)))
+                         :external-format :utf-8)
+                        nil nil)))))
+          ;; Anything can write a property: only the shape written here is taken.
+          (and (listp seen)
+               (every (lambda (entry) (and (consp entry) (listp (cdr entry)) (every #'stringp entry))) seen)
+               seen))
+        *vikix-rules-seen-here*)))
+
+(defun vikix-rules-seen-note (seen)
+  (let ((root (vikix-rules-login-root)))
+    (if root
+        ;; As UTF-8: a network's name can be anything, and one read back
+        ;; changed would look like a network joined at every look.
+        (xlib:change-property root :_VIKIX_RULES_SEEN
+                              (coerce (sb-ext:string-to-octets
+                                       (let ((*print-pretty* nil) (*print-readably* nil))
+                                         (prin1-to-string seen))
+                                       :external-format :utf-8)
+                                      'list)
+                              :string 8)
+        (setf *vikix-rules-seen-here* seen))))
+
+(defun vikix-rule-thing-fits-p (rule name)
+  (let ((what (getf (vikix-rule-match rule) :what)))
+    (or (eq what :any) (vikix-rule-text-p name what))))
+
+(defun vikix-rules-run-things ()
+  "The rules for a screen, a network or a drive that has come or gone since
+each rule last looked. A rule that is off still looks, so switching it on
+sets nothing off."
+  (let ((rules (remove-if-not (lambda (rule) (assoc (vikix-rule-on rule) *vikix-rule-things*)) *vikix-rules*)))
+    (when rules
+      (let* ((seen (vikix-rules-seen))
+             (now '())                  ; kind -> names, read once a look
+             (kept '()) (changed nil) (due '()))
+        (dolist (rule rules)
+          (destructuring-bind (on kind &rest words) (assoc (vikix-rule-on rule) *vikix-rule-things*)
+            (declare (ignore words))
+            (let* ((hash (vikix-rule-hash (vikix-rule-key rule)))
+                   (entry (assoc hash seen :test #'equal))
+                   (there (cdr (or (assoc kind now)
+                                   (first (push (cons kind (handler-case (funcall *vikix-rules-things* kind)
+                                                             (error () :unknown)))
+                                                now))))))
+              (if (eq there :unknown)
+                  (when entry (push entry kept))
+                  (let* ((mine (remove-if-not (lambda (name) (vikix-rule-thing-fits-p rule name)) there))
+                         (before (cdr entry))
+                         ;; In the order they are there (set-difference keeps none).
+                         (came (remove-if (lambda (name) (member name before :test #'equal)) mine))
+                         (went (and entry (remove-if (lambda (name) (member name mine :test #'equal)) before))))
+                    (push (cons hash mine) kept)
+                    (when (or (null entry) came went) (setf changed t))
+                    (dolist (name (if (eq on kind) came went))
+                      (push (list rule name) due)))))))
+        ;; Noted first: a rule that fails isn't tried at every look.
+        (when changed (vikix-rules-seen-note (nreverse kept)))
+        (loop for (rule name) in (nreverse due)
+              when (and (vikix-rule-on-p rule) (not *vikix-rules-paused*))
+                do (let ((*vikix-rule-thing* name))
+                     (vikix-run-rule rule nil (vikix-rule-on rule))))
+        changed))))
+
+(defun vikix-rules-run-idle ()
+  "The when-idle rules whose minutes have passed. Idle time isn't read when
+no rule asks about it."
+  (let ((rules (vikix-rules-on :idle)))
+    (when rules
+      (let ((idle (funcall *vikix-rules-idle*)))
+        (dolist (rule rules)
+          (let ((key (vikix-rule-key rule)))
+            (cond ((< idle (getf (vikix-rule-match rule) :seconds))
+                   (remhash key *vikix-rules-idle-ran*))
+                  ((not (gethash key *vikix-rules-idle-ran*))
+                   (setf (gethash key *vikix-rules-idle-ran*) t)
+                   (vikix-run-rule rule nil :idle)))))))))
+
+(defun vikix-rules-look ()
+  "What the five-second look does. Never an error: this runs in StumpWM's timer."
+  (ignore-errors (vikix-rules-run-things))
+  (ignore-errors (vikix-rules-run-idle))
+  nil)
+
+(defun vikix-rules-now-text ()
+  "What the rules for things see now, for `vikix rules now`: the names to write."
+  (with-output-to-string (out)
+    (loop for (kind title none) in '((:screen "Screens" "none") (:network "Network" "offline") (:drive "Drives" "none"))
+          for there = (handler-case (funcall *vikix-rules-things* kind) (error () :unknown))
+          do (format out "~9a~a~%" (concatenate 'string title ":")
+                     (cond ((eq there :unknown) "can't be told just now")
+                           ((null there) none)
+                           (t (format nil "~{~s~^  ~}" there)))))
+    (format out "~9a~d min~%" "Idle:" (floor (or (ignore-errors (funcall *vikix-rules-idle*)) 0) 60))
+    (format out "A rule names one as it is written here: (when-network \"NAME\" ...), (when-screen-gone \"NAME\" ...), or :any.")))
+
 (defun vikix-rules-tick ()
   "What the ticker does: the rules for login, the clock and the battery
 that are due. Never an error: this runs in StumpWM's timer."
@@ -1061,6 +1315,14 @@ that are due. Never an error: this runs in StumpWM's timer."
 (setf *vikix-rules-timer*
       (and (boundp '*screen-list*) *screen-list*
            (run-with-timer 5 30 'vikix-rules-tick)))
+;; The look at screens, networks, drives and idle time: every 5 seconds, so
+;; a rule follows a plug within a breath. It does nothing while no rule asks.
+(ignore-errors
+ (when (and *vikix-rules-look-timer* (timer-p *vikix-rules-look-timer*))
+   (cancel-timer *vikix-rules-look-timer*)))
+(setf *vikix-rules-look-timer*
+      (and (boundp '*screen-list*) *screen-list*
+           (run-with-timer 7 5 'vikix-rules-look)))
 
 ;;; --- Seeing and steering them ------------------------------------------------------------------
 ;;;
@@ -1367,7 +1629,11 @@ What was done, as lines."
     ("(when-battery-below 20 VERB...)" "once as the charge goes under that, off the charger")
     ("(when-charging VERB...)  (when-on-battery VERB...)" "when the charger goes in, or comes out")
     ("(at-login VERB...)" "once a login, not at a reload")
-    ("(when-workspace 3 VERB...)" "on going to a workspace: a number, a name, or a list of them"))
+    ("(when-workspace 3 VERB...)" "on going to a workspace: a number, a name, or a list of them")
+    ("(when-screen \"HDMI-1\" VERB...)  (when-screen-gone \"HDMI-1\" VERB...)" "when a screen is plugged in and lit, or taken away")
+    ("(when-network \"NAME\" VERB...)  (when-network-gone \"NAME\" VERB...)" "when a Wi-Fi network is joined (\"wired\": a cable), or left")
+    ("(when-drive \"NAME\" VERB...)  (when-drive-gone \"NAME\" VERB...)" "when a drive is plugged in and opened, or taken out. For all three the name is a string, (:has ..), (:like ..), a list, or :any; (rule-thing) is the one it ran for; vikix rules now prints the names there are; at a login what is already there counts as arriving")
+    ("(when-idle 10 VERB...)" "once when nothing was typed or moved for that many minutes"))
   "The rules there are, each with its line, for `vikix rules verbs`.")
 
 (defparameter *vikix-rule-matchers*
@@ -1451,11 +1717,12 @@ failing, and the rules naming a workspace that isn't there."
             ((equal what "test") (say (vikix-rules-test-text (one))))
             ((equal what "apply") (say (vikix-rules-apply (one))))
             ((equal what "verbs") (say (vikix-rules-verbs-text)))
+            ((equal what "now") (say (vikix-rules-now-text)))
             ((equal what "proposed") (say (vikix-rule-proposals-text)))
             ((equal what "forget")
              (say (format nil "Taken out of ~~/.stumpwm.d/rules.lisp, and off the desktop:~%  ~a~%vikix undo puts the file back."
                           (vikix-rules-forget (vikix-rule-called arg)))))
-            (t (error "vikix rules: list, off, on, why, test, apply, forget, verbs or proposed; not ~s." what)))
+            (t (error "vikix rules: list, off, on, why, test, apply, forget, verbs, now or proposed; not ~s." what)))
       (values))))
 
 ;;; Super+m, Rules
@@ -1818,7 +2085,9 @@ into ~/.stumpwm.d/rules.lisp. The rule is shown first."
   "How many proposals wait at most: more than that are refused, not queued.")
 (defparameter *vikix-rule-proposal-heads*
   '(("WHEN-WINDOW" 1) ("AT" 1) ("EACH" 2) ("WHEN-BATTERY-BELOW" 1) ("WHEN-CHARGING" 0)
-    ("WHEN-ON-BATTERY" 0) ("AT-LOGIN" 0) ("WHEN-WORKSPACE" 1))
+    ("WHEN-ON-BATTERY" 0) ("AT-LOGIN" 0) ("WHEN-WORKSPACE" 1)
+    ("WHEN-SCREEN" 1) ("WHEN-SCREEN-GONE" 1) ("WHEN-NETWORK" 1) ("WHEN-NETWORK-GONE" 1)
+    ("WHEN-DRIVE" 1) ("WHEN-DRIVE-GONE" 1) ("WHEN-IDLE" 1))
   "The rules that can be proposed, each with how many settings come before its options and verbs.")
 (defparameter *vikix-rule-proposal-runners* '("RUN" "COMMAND")
   "The verbs that run a program or a command: a proposal with one says so where it is shown.")

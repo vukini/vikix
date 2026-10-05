@@ -98,7 +98,7 @@ The everyday command.
 - `vikix theme import URL|OWNER/REPO [NAME]` — an Omarchy theme as one of yours, then switch to it (vikix theme --help)
 - `vikix version`
 - `vikix layout save NAME | NAME [--no-start] | list | rm NAME` — this workspace's layout (its splits or its strip, and which window is where) saved, put back (the windows it had that aren't open started, unless --no-start), listed, removed
-- `vikix rules [off|on|forget N] [why [CLASS]] [test|apply [N]] [verbs|proposed]` — the desktop's rules: the list, one off or on, why a window is where it is, what they'd do with the windows open now, and doing it; forget takes one out of your rules.lisp (vikix rules help)
+- `vikix rules [off|on|forget N] [why [CLASS]] [test|apply [N]] [verbs|now|proposed]` — the desktop's rules: the list, one off or on, why a window is where it is, what they'd do with the windows open now, and doing it; forget takes one out of your rules.lisp (vikix rules help)
 - `vikix why [N]` — why did that happen? the last things the desktop did (a key and its command, a rule and its window, the menu, an agent) and where each is written (Super+?)
 - `vikix viri [on|off]` — this workspace as a strip that scrolls sideways (Super+h/l along it), or tiled again; no word switches
 - `vikix gestures [on|off]` — three fingers swept on the touchpad move the focus, as Super+h/j/k/l do; alone: how it is
@@ -943,6 +943,7 @@ The desktop's rules, seen and steered.
 - `vikix rules apply [N|NAME]` — do it: run them on the windows open now. A reload never moves windows already open; this does
 - `vikix rules forget N|NAME` — take a rule out of `~/.stumpwm.d/rules.lisp` and off the desktop, after a snapshot (vikix undo puts the file back). Only a rule written in that file: one Super+Shift+t remembered, or one of yours
 - `vikix rules verbs` — what a rule can be, match and do: the rules, the matchers and the verbs, each with its line
+- `vikix rules now` — what the rules for screens, networks and drives see now: each one's name, as a rule writes it
 - `vikix rules proposed` — the rules an agent has proposed and you haven't decided on: each with its why, and what it would run. Super+m, Rules adds one or drops it
 
 The rules are written in `~/.stumpwm.d/rules.lisp` (or user.lisp):

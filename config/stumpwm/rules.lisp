@@ -73,6 +73,25 @@
 ;; Workspace 6 is always a grid.
 ; (when-workspace 6 (command "vikix-grid"))
 
+;;; A screen, a network, a drive, and being away
+;;;
+;;; vikix rules now prints the names there are: write them as they stand
+;;; there, or :any. At a login, what is already there counts as arriving.
+
+;; The second screen plugged in, and taken away again.
+; (when-screen "HDMI-1" (notify "Second screen" "Super+Ctrl+p arranges them."))
+; (when-screen-gone "HDMI-1" (say "Back to one screen"))
+
+;; On the network at home, and off it.
+; (when-network "Home" (notify "Home" "On the home network."))
+; (when-network-gone "Home" (say "Left the home network"))
+
+;; Any drive plugged in; (rule-thing) is its name.
+; (when-drive :any (notify "Drive" (rule-thing)))
+
+;; Ten minutes with nothing typed or moved.
+; (when-idle 10 (say "Away"))
+
 ;;; Remembered windows
 ;;;
 ;;; Super+Shift+t on a window writes its rule here, below this line, as
