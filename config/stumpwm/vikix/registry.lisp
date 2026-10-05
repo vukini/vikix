@@ -428,6 +428,9 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command why "Why did that happen? The key, rule or command behind the last things: edit it, or take it back"
   :run "vikix-why" :key "s-?"
   :menu "Help" :label "Why did that happen? What the desktop just did, and what made it")
+(define-vikix-command used "What you use: the keys you press most, and those you never have"
+  :do (vikix-in-terminal "vikix used")
+  :menu "Help")
 (define-vikix-command guide "Vikix guide"
   :do (run-shell-command (format nil "emacsclient -c -a '' -e '(info \"~~/.local/share/info/vikix.info\")' || ~a -e info -f ~~/.local/share/info/vikix.info" *vikix-terminal*))
   :menu "Help")

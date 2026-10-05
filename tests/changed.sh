@@ -41,7 +41,7 @@ for f in "${files[@]}"; do
       if [ "${#hits[@]}" -eq 0 ] || [ "${#hits[@]}" -gt 12 ]; then all=1; else add "${hits[@]}"; fi ;;
   esac
   case $f in
-    config/stumpwm/*) add lisp errors menu rules viri main drawer keys registry why gather focus rescue reload resume palette ;;
+    config/stumpwm/*) add lisp errors menu rules viri main drawer keys registry why gather focus rescue reload resume palette used ;;
   esac
   case $f in
     # A command's man page is made from its header (lib/man.py).
@@ -49,7 +49,8 @@ for f in "${files[@]}"; do
   esac
   case $f in
     # The skill's list of keys is made from these (lib/skill-keys.sh).
-    config/stumpwm/vikix/why.lisp|bin/vikix-why|bin/vikix-notifications) add why mcp notifications ;;
+    config/stumpwm/vikix/why.lisp|bin/vikix-why|bin/vikix-notifications) add why mcp notifications used ;;
+    config/stumpwm/vikix/used.lisp|bin/vikix-used) add used why palette ;;
     config/stumpwm/vikix/registry.lisp|lib/registry.sh) add agents registry menu mcp webapp plugin project screens esploro memory docs-open welcome ;;
     config/stumpwm/vikix/keys.lisp|config/stumpwm/vikix/help.lisp|bin/vikix-plugin|README.md|lib/skill-keys.sh) add agents ;;
   esac

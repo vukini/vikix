@@ -62,6 +62,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-session](#vikix-session): everything that runs for the length of a desktop session
 - [vikix-times](#vikix-times): how long the desktop takes
 - [vikix-updates](#vikix-updates): what `vikix update` would bring
+- [vikix-used](#vikix-used): what gets used: the keys you press and the commands you run
 - [vikix-voice](#vikix-voice): talk to the AI, and it talks back
 - [vikix-wallpaper](#vikix-wallpaper): the picture behind the windows
 - [vikix-wallpapers](#vikix-wallpapers): more wallpapers: Vid's collection, a git repository
@@ -86,6 +87,7 @@ The everyday command.
 - `vikix memory [left|clean]` — what uses the memory, biggest first, and the programs left over (hidden screens, tests nobody ended); clean ends those; a warning comes by itself when memory runs low (vikix memory help)
 - `vikix rescue [free|undo|lock]` — when the desktop is stuck: how it is and what it is doing; free = out of a loop (rules paused, focus on clicks, a fresh event loop); works from a text console too (vikix rescue help)
 - `vikix resume [now|save|ask|always|never]` — your windows back after a restart: what is saved, bring them back now, and whether a login asks first (vikix resume help)
+- `vikix used [never|all|forget]` — what gets used: the keys you press most, the menu entries and commands, and the keys you never have; names and counts only, kept on this machine (vikix used help)
 - `vikix times [measure|soak]` — how long logging in and a reload take; measure = on a hidden screen: start, reload, a key, an Emacs frame, StumpWM answering, against limits; soak = an hour of it worked hard (vikix times help)
 - `vikix features` — what you can add (languages, editors, LibreOffice, printing, Windows, local AI ...), and what you have
 - `vikix add NAME...` — add features, or a bundle (essentials, developer, everything); every update keeps them
@@ -1024,6 +1026,19 @@ What `vikix update` would bring.
 What `vikix update` would bring: Void packages with a newer version, and new Vikix commits; and firmware updates waiting on LVFS (`vikix firmware update` installs those). The bar shows it (modeline.lisp).
 
 The result goes to `~/.local/state/vikix/updates` as "PACKAGES COMMITS FIRMWARE", with ? for a count that couldn't be checked (offline, say). Checking takes a few seconds of network, so it happens here, in the background, and the bar only reads the file.
+
+## vikix-used
+
+What gets used: the keys you press and the commands you run.
+
+- `vikix used` — the keys you use most, the menu entries, palette picks, typed commands, rules and agents' commands, and how many keys you have never pressed
+- `vikix used never` — the keys never pressed since counting began
+- `vikix used all` — every count, most used first, with when each was last used
+- `vikix used forget` — start counting again from now
+
+The desktop counts each key that runs a command, each entry picked in Super+m and the other menus, each pick in the palette (Super+Space), each command typed after Ctrl+t ;, each rule that runs and each command an agent runs. It keeps names and numbers only: the key, the command it is bound to, the entry's words, and when each was first and last used. Never a window's title, never what you typed into a program or after a command's name.
+
+The counts are in `~/.local/state/vikix/used`, a text file that is yours to read or delete. Nothing sends it anywhere. They are written every five minutes and when the desktop ends.
 
 ## vikix-voice
 

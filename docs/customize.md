@@ -71,6 +71,29 @@ Sending a window to a workspace is Super+Shift and the digit on any keyboard: Vi
 
 `vikix doctor` names a key that breaks the rule: a plugin's or a web app's not on Super+Alt, a program of yours on plain Super, a switch somewhere else. The key still works; the doctor only says so. What Vikix counts as everyday, a switch or a move is three short lists at the top of `~/vikix/config/stumpwm/vikix/keys.lisp`; add a command of your own to one in `user.lisp`, `(push "my-toggle" *vikix-key-switches*)`, and the doctor knows it.
 
+### Which keys do you use?
+
+Before you move a key or give one up, look at what you press. The desktop counts each key that runs a command, each entry you pick in a menu or in the palette, and each command you type:
+
+```
+$ vikix used
+Counting since 5 Oct 2026 (12 days).
+
+Keys
+     412  Super+Return                 Terminal
+     388  Super+Space                  Everything in one box: windows, commands, projects ...
+      97  Super+f                      Fullscreen on/off
+
+Menu entries
+      14  Reload config
+
+61 of 107 keys never pressed: vikix used never
+```
+
+`vikix used never` lists the keys you have never pressed since counting began: the ones free to take for something of your own. `vikix used all` shows every count and when each was last used; `vikix used forget` starts again. Super+m has it as *What you use*.
+
+Only names and numbers are kept: the key, the command it is bound to, a menu entry's words. Never a window's title, and nothing you type into a program. The counts are in `~/.local/state/vikix/used`, a text file you can read or delete, and nothing sends it anywhere.
+
 ### Start a program with the desktop
 
 ```lisp

@@ -59,7 +59,10 @@ as StumpWM has them, first pressed first.")
 (defun vikix-why-note (kind id &rest fields)
   "Note that something happened: KIND (:key :rule :menu :agent :asked), ID
 what makes it the same thing next time, FIELDS the rest of its plist. One
-with the same KIND and ID moves to the front, counted. Never an error."
+with the same KIND and ID moves to the front, counted. Never an error.
+Each is counted for `vikix used` too (used.lisp)."
+  (when (fboundp 'vikix-used-note)
+    (funcall 'vikix-used-note kind id))
   (ignore-errors
    (let* ((old (find-if (lambda (e) (and (eq (getf e :kind) kind) (equal (getf e :id) id)))
                         *vikix-why-ring*))

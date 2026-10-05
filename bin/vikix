@@ -31,6 +31,10 @@
 #   vikix resume [now|save|ask|always|never]  your windows back after a
 #                         restart: what is saved, bring them back now, and
 #                         whether a login asks first (vikix resume help)
+#   vikix used [never|all|forget]  what gets used: the keys you press most,
+#                         the menu entries and commands, and the keys you
+#                         never have; names and counts only, kept on this
+#                         machine (vikix used help)
 #   vikix times [measure|soak]  how long logging in and a reload take; measure
 #                         = on a hidden screen: start, reload, a key, an
 #                         Emacs frame, StumpWM answering, against limits;
@@ -1623,6 +1627,7 @@ main() {
     screens)     shift; exec "$VIKIX_DIR/bin/vikix-screens" "$@" ;;
     memory)      shift; exec "$VIKIX_DIR/bin/vikix-memory" "$@" ;;
     times)       shift; exec "$VIKIX_DIR/bin/vikix-times" "$@" ;;
+    used)        shift; exec "$VIKIX_DIR/bin/vikix-used" "$@" ;;
     rescue)      shift; exec "$VIKIX_DIR/bin/vikix-rescue" "$@" ;;
     resume)      shift; exec "$VIKIX_DIR/bin/vikix-resume" "$@" ;;
     tray)        shift

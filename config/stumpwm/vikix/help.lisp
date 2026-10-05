@@ -506,6 +506,9 @@ last of them: the others are the ones to go to."
 (defun vikix-palette-run (kind id)
   "Do what was picked in the palette. From a timer, a moment later: a
 command that asks something must not keep `vikix eval` waiting for it."
+  (when (fboundp 'vikix-used-note)
+    (funcall 'vikix-used-note :palette
+             (if (equal kind "command") (format nil "command ~a" id) kind)))
   (run-with-timer
    0 nil
    (lambda ()

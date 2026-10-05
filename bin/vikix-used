@@ -1,0 +1,208 @@
+#!/usr/bin/env python3
+"""vikix-used — what gets used: the keys you press and the commands you run.
+
+    vikix used            the keys you use most, the menu entries, palette
+                          picks, typed commands, rules and agents' commands,
+                          and how many keys you have never pressed
+    vikix used never      the keys never pressed since counting began
+    vikix used all        every count, most used first, with when each was
+                          last used
+    vikix used forget     start counting again from now
+
+The desktop counts each key that runs a command, each entry picked in
+Super+m and the other menus, each pick in the palette (Super+Space), each
+command typed after Ctrl+t ;, each rule that runs and each command an
+agent runs. It keeps names and numbers only: the key, the command it is
+bound to, the entry's words, and when each was first and last used.
+Never a window's title, never what you typed into a program or after a
+command's name.
+
+The counts are in ~/.local/state/vikix/used, a text file that is yours
+to read or delete. Nothing sends it anywhere. They are written every
+five minutes and when the desktop ends.
+"""
+
+import os
+import subprocess
+import sys
+import time
+
+HERE = os.path.dirname(os.path.realpath(__file__))
+STATE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "vikix")
+FILE = os.path.join(STATE, "used")
+MODS = {"s-": "Super+", "C-": "Ctrl+", "M-": "Alt+", "S-": "Shift+"}
+KINDS = [
+    ("menu", "Menu entries"),
+    ("palette", "Picks in the palette"),
+    ("asked", "Commands you typed"),
+    ("rule", "Rules that ran"),
+    ("agent", "Commands agents ran"),
+]
+
+
+def ask(form):
+    """What FORM prints in the running desktop, as lines; None when it can't be asked."""
+    try:
+        done = subprocess.run([sys.executable, os.path.join(HERE, "vikix-eval"), form],
+                              capture_output=True, text=True, timeout=45)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if done.returncode != 0:
+        return None
+    return [line for line in done.stdout.splitlines() if not line.startswith("=> ")]
+
+
+def read():
+    """The file: (since, {kind: [(count, first, last, what...)]})."""
+    since, counts = None, {}
+    try:
+        with open(FILE, encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                parts = line.rstrip("\n").split("\t")
+                if parts[0] == "since" and len(parts) > 1 and parts[1].isdigit():
+                    since = int(parts[1])
+                elif len(parts) >= 5 and all(p.isdigit() for p in parts[1:4]):
+                    counts.setdefault(parts[0], []).append(
+                        (int(parts[1]), int(parts[2]), int(parts[3]), parts[4:]))
+    except OSError:
+        pass
+    for rows in counts.values():
+        rows.sort(key=lambda row: (-row[0], row[3]))
+    return since, counts
+
+
+def unix(universal):
+    """A Lisp universal time as seconds since 1970."""
+    return universal - 2208988800
+
+
+def day(universal):
+    return time.strftime("%-d %b %Y", time.localtime(unix(universal)))
+
+
+def ago(universal):
+    days = int((time.time() - unix(universal)) // 86400)
+    return "today" if days <= 0 else "yesterday" if days == 1 else f"{days} days ago"
+
+
+def keys():
+    """Every key of the desktop: [(name, as printed, command, what it does)], or None."""
+    lines = ask("(when (fboundp 'vikix-used-keys) (vikix-used-keys))")
+    if lines is None:
+        return None
+    return [tuple(parts) for parts in (line.split("\t") for line in lines) if len(parts) == 4]
+
+
+def plain_key(name):
+    """One key as the keyboard says it, when the desktop has no word for it:
+    "s-C-RET" is Super+Ctrl+Return (as vikix-pretty-key in help.lisp)."""
+    mods, rest = "", name
+    while len(rest) > 2 and rest[:2] in MODS:
+        mods, rest = mods + MODS[rest[:2]], rest[2:]
+    if len(rest) == 1 and rest.isupper():
+        mods, rest = mods + "Shift+", rest.lower()
+    return mods + {"RET": "Return", "SPC": "Space", "ESC": "Escape", "TAB": "Tab"}.get(rest, rest)
+
+
+def pretty(name, known):
+    """A key sequence as the keyboard says it."""
+    return known.get(name) or " ".join(known.get(part) or plain_key(part) for part in name.split(" "))
+
+
+def table(rows, limit=None):
+    wide = max((len(words) for _, words, _ in rows[:limit]), default=0)
+    for count, words, more in rows[:limit]:
+        print(f"  {count:>6}  " + (f"{words:<{wide}}   {more}" if more else words))
+    if limit and len(rows) > limit:
+        print(f"          ... and {len(rows) - limit} more (vikix used all)")
+
+
+def show(everything):
+    fresh = ask("(when (fboundp 'vikix-used-write) (vikix-used-write))")
+    since, counts = read()
+    every = keys()
+    if since is None:
+        if fresh is None:
+            print("Nothing is counted yet, and the desktop can't be asked (is StumpWM running? vikix rescue says).")
+        else:
+            print("Nothing is counted yet: the running desktop is from before this (Super+m, Reload config).")
+        return 0
+    days = max(1, int((time.time() - unix(since)) // 86400) + 1)
+    print(f"Counting since {day(since)} ({days} day{'s' if days != 1 else ''}).")
+    known = {name: printed for name, printed, _, _ in every or []}
+    does = {name: what for name, _, _, what in every or []}
+    pressed = counts.get("key", [])
+    limit = None if everything else 15
+    print("\nKeys")
+    if pressed:
+        rows = []
+        for count, _, last, what in pressed:
+            name = what[0]
+            words = does.get(name) or (what[1] if len(what) > 1 else "")
+            rows.append((count, f"{pretty(name, known):<28} {words}", ago(last) if everything else ""))
+        table(rows, limit)
+    else:
+        print("  none pressed yet")
+    for kind, title in KINDS:
+        rows = counts.get(kind, [])
+        if rows:
+            print(f"\n{title}")
+            table([(count, " ".join(what), ago(last) if everything else "") for count, _, last, what in rows],
+                  None if everything else 8)
+    if every:
+        names = {what[0] for _, _, _, what in pressed}
+        never = [key for key in every if key[0] not in names]
+        print(f"\n{len(never)} of {len(every)} keys never pressed" + (": vikix used never" if never else "."))
+    elif every is None:
+        print("\n(The desktop can't be asked for its keys, so the ones never pressed can't be listed.)")
+    return 0
+
+
+def never():
+    ask("(when (fboundp 'vikix-used-write) (vikix-used-write))")
+    since, counts = read()
+    every = keys()
+    if not every:
+        print("vikix used: the desktop can't be asked for its keys (is StumpWM running? vikix rescue says)",
+              file=sys.stderr)
+        return 2
+    names = {what[0] for _, _, _, what in counts.get("key", [])}
+    rows = [key for key in every if key[0] not in names]
+    if since is None:
+        print("Nothing is counted yet, so every key is here.")
+    else:
+        print(f"Never pressed since {day(since)}: {len(rows)} of {len(every)} keys.")
+    for _, printed, _, what in rows:
+        print(f"  {printed:<28} {what}")
+    return 0
+
+
+def forget():
+    if ask("(when (fboundp 'vikix-used-forget) (vikix-used-forget))") is None:
+        try:
+            os.remove(FILE)
+        except FileNotFoundError:
+            pass
+    print("Forgotten: counting starts again from now.")
+    return 0
+
+
+def main():
+    what = sys.argv[1] if len(sys.argv) > 1 else "show"
+    if what in ("-h", "--help", "help"):
+        print(__doc__.strip())
+        return 0
+    if what == "show":
+        return show(False)
+    if what == "all":
+        return show(True)
+    if what == "never":
+        return never()
+    if what == "forget":
+        return forget()
+    print(f"vikix used: no such thing as {what} (vikix used help)", file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

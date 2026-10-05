@@ -46,6 +46,7 @@ login on tty1
                       ├─ vikix/resume.lisp       your windows back after a restart
                       ├─ vikix/day.lisp          what had the screen, noted for vikix day
                       ├─ vikix/why.lisp          why did that happen? what the desktop did, and what made it
+                      ├─ vikix/used.lisp         what gets used: the keys and commands, counted for vikix used
                       ├─ vikix/keys.lisp         binding the Super keys, and the rule they keep
                       ├─ vikix/help.lisp         Super+/ and Super+F1
                       ├─ vikix/webapps.lisp      your web apps: their keys and Super+m entries

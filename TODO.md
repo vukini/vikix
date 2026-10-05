@@ -12,6 +12,7 @@ From a review of 0.71.71 against one aim: the best desktop for a power user. Vik
 4. **Agents that act through code you can check first** (IDEAS, Leaning into Lisp), then the time machine for functions. The rules language's verbs (`*vikix-rule-verbs*`, `rules.lisp`) are the first entries of its allow-list.
 5. **In between, as polish:** `bugs.md`. Done: a newly plugged screen lighting up by itself (Super+Ctrl+p for the rest), GTK and Qt programs following `vikix theme`, and a tray that can be switched on (`vikix tray on`).
    Also in, from a second look on 2026-10-05: one box for everything (the palette, Super+Space: windows, commands, projects, web apps, layouts and programs). Left from it: files and the docs as you type (the launcher's script mode lists once, so those want a different box), and the rules.
+   And what gets used is counted (`vikix used`, `used.lisp`: keys, menu entries, palette picks, typed commands, rules, agents' commands; names and counts only, on this machine). Left from it: after some weeks of counts, look at `vikix used never` and decide which keys to give up or move (the key card is full); a count per day, if the totals turn out to hide what changed.
 6. **Then the items picked from IDEAS** (the section below, 73 to 82), in their order.
 
 ## Offered next, and not started (Vid and Claude, 2026-10-05)
