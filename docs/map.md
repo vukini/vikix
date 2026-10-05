@@ -151,7 +151,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 | `ollama.log` | Local AI's log (vikix ai); one old one is kept as `ollama.log.old` |
 | `updates` | What the bar's `updates` field shows, written by `vikix-updates` every 6 hours |
 | `mimeapps-offered` | The starter's default programs already offered to your `~/.config/mimeapps.list` (added, or yours kept), so each is offered once |
-| `wallpaper-now`, `wallpaper.lock` | The picture the cycling wallpaper shows, and the lock that keeps its watcher (`vikix-wallpaper --watch`) to one |
+| `wallpaper-now`, `wallpaper-queue`, `wallpaper-shown`, `wallpaper.lock` | The picture the cycling wallpaper shows, the pictures still to come this round and those it has had, and the lock that keeps its watcher (`vikix-wallpaper --watch`) to one |
 | `initramfs-*` | Marks that the initramfs was rebuilt with this microcode |
 | `soak/` | Each `vikix times soak`'s samples, one CSV a run: StumpWM's answer time, memory, windows, timers, every ten seconds |
 | `times.log`, `times-measured.log` | How long things took: each login and Reload config on this desktop, and each `vikix times measure` ([When something breaks](fixing.md#the-desktop-feels-slow)) |

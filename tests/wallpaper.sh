@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # tests/wallpaper.sh — vikix-wallpaper cycles through the pictures unless
-# you choose otherwise, shows the theme's when you ask, keeps your choice
+# you choose otherwise (every one once before any comes again, a new one
+# next), shows the theme's when you ask, keeps your choice
 # across theme changes, gives a theme without a picture a plain background
 # in its own colour, and its picker sets what was picked.
 #
@@ -48,6 +49,29 @@ if wp cycle soon 2>/dev/null; then echo "FAIL: minutes that aren't a number shou
 for _ in 1 2 3 4 5 6; do
   case $(wp next; wp which) in "$here/themes/"*) echo "FAIL: cycling shouldn't show the themes' own"; fail=1 ;; esac
 done
+# A round: every picture once before any comes again, a new one next, one
+# that has gone never.
+state="$H/.local/state/vikix"
+touch "$H/wallpapers/c1.jpg" "$H/wallpapers/c2.jpg" "$H/wallpapers/c3.jpg"
+rm -f "$state"/wallpaper-now "$state"/wallpaper-queue "$state"/wallpaper-shown
+round=$(for _ in 1 2 3 4 5 6; do wp next; wp which; done)
+check "a round should show every picture once" test "$(echo "$round" | sort -u | wc -l)" = 6
+again=$(for _ in 1 2 3 4 5 6; do wp next; wp which; done)
+check "the next round should show every picture once more" test "$(echo "$again" | sort -u | wc -l)" = 6
+check "a new round shouldn't start with the one showing" \
+  test "$(echo "$round" | tail -n 1)" != "$(echo "$again" | head -n 1)"
+wp next
+touch "$H/wallpapers/new.jpg"
+wp next
+check "a picture you add should be the next one" test "$(wp which)" = "$H/wallpapers/new.jpg"
+left=$(head -n 1 "$state/wallpaper-queue"); mv "$left" "$left.away"
+rest=$(for _ in 1 2 3 4 5 6 7 8; do wp next; wp which; done)
+check "a picture that has gone shouldn't be shown" test -z "$(echo "$rest" | grep -xF "$left")"
+mv "$left.away" "$left"
+wp next
+check "a picture that is back should be the next one" test "$(wp which)" = "$left"
+rm -f "$H/wallpapers"/c?.jpg "$H/wallpapers/new.jpg"
+check "with pictures gone it should go on with the rest" test -f "$(wp next; wp which)"
 gone=$(wp which); mv "$gone" "$gone.away"
 check "a picture that's gone should give way to another" test -f "$(wp which)"
 mv "$gone.away" "$gone"
@@ -189,5 +213,5 @@ check "your own clone should be listed once" test "$(grep -ac '^first' "$t/offer
 wps uninstall >/dev/null 2>&1
 check "uninstall should leave your own clone" test -f "$H/wallpapers/first.jpg"
 
-[ "$fail" = 0 ] && echo "wallpaper: cycles until you choose a picture, the theme's or off; update leaves it; the migration spots your own; the collection clones, pulls, lists and goes"
+[ "$fail" = 0 ] && echo "wallpaper: cycles until you choose a picture, the theme's or off, every picture once a round and a new one next; update leaves it; the migration spots your own; the collection clones, pulls, lists and goes"
 exit "$fail"

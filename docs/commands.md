@@ -1107,7 +1107,7 @@ The picture behind the windows.
 - `vikix-wallpaper which` — print the picture it would show
 - `vikix-wallpaper --watch` — change it on time; vikix-session runs this
 
-Unless you choose otherwise, the wallpaper cycles: a picture at random, never the same twice running, from Vid's collection (the feature wallpapers, in `~/.local/share/vikix/wallpapers`, which a fresh install has), `~/Pictures/Wallpapers` and `~/wallpapers` (put yours in either). The one showing is remembered in `~/.local/state/vikix/wallpaper-now`, the minutes in `~/.config/vikix/wallpaper-minutes`.
+Unless you choose otherwise, the wallpaper cycles: every picture once, in a shuffled order, before any comes again, and one you add is shown next, from Vid's collection (the feature wallpapers, in `~/.local/share/vikix/wallpapers`, which a fresh install has), `~/Pictures/Wallpapers` and `~/wallpapers` (put yours in either). The one showing is remembered in `~/.local/state/vikix/wallpaper-now`, the round in wallpaper-queue and wallpaper-shown beside it, the minutes in `~/.config/vikix/wallpaper-minutes`.
 
 Following the theme (`~/.config/vikix/wallpaper-theme`), its own picture is the one next to its theme file with the same name (themes/void.jpg, or `~/.config/vikix/themes/mine.jpg` beside mine.theme), so `vikix theme` changes it too. A theme without a picture gets a plain background in its own colour; so does cycling with no pictures to cycle. Your choice is `~/.config/vikix/wallpaper`, a link to the file; off is `~/.config/vikix/wallpaper-off`. Each choice ends the others.
 

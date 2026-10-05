@@ -14,12 +14,14 @@
 #   vikix-wallpaper which    print the picture it would show
 #   vikix-wallpaper --watch  change it on time; vikix-session runs this
 #
-# Unless you choose otherwise, the wallpaper cycles: a picture at random,
-# never the same twice running, from Vid's collection (the feature
-# wallpapers, in ~/.local/share/vikix/wallpapers, which a fresh install
-# has), ~/Pictures/Wallpapers and ~/wallpapers (put yours in either). The
-# one showing is remembered in ~/.local/state/vikix/wallpaper-now, the
-# minutes in ~/.config/vikix/wallpaper-minutes.
+# Unless you choose otherwise, the wallpaper cycles: every picture once,
+# in a shuffled order, before any comes again, and one you add is shown
+# next, from Vid's collection (the feature wallpapers, in
+# ~/.local/share/vikix/wallpapers, which a fresh install has),
+# ~/Pictures/Wallpapers and ~/wallpapers (put yours in either). The one
+# showing is remembered in ~/.local/state/vikix/wallpaper-now, the round
+# in wallpaper-queue and wallpaper-shown beside it, the minutes in
+# ~/.config/vikix/wallpaper-minutes.
 #
 # Following the theme (~/.config/vikix/wallpaper-theme), its own picture is
 # the one next to its theme file with the same name (themes/void.jpg, or
@@ -40,6 +42,8 @@ THEME="$CONFIG/vikix/wallpaper-theme"
 MINUTES="$CONFIG/vikix/wallpaper-minutes"
 STATE=${XDG_STATE_HOME:-$HOME/.local/state}/vikix
 NOW="$STATE/wallpaper-now"
+QUEUE="$STATE/wallpaper-queue"
+SHOWN="$STATE/wallpaper-shown"
 USER_THEMES="$CONFIG/vikix/themes"
 CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/vikix
 COLLECTION=${XDG_DATA_HOME:-$HOME/.local/share}/vikix/wallpapers
@@ -85,13 +89,37 @@ now() {
   f=$(cat "$NOW" 2>/dev/null) && [ -f "$f" ] && echo "$f"
 }
 
-# next — a new picture to cycle to, at random, never the one showing
+# next — a new picture to cycle to: every picture once, in a shuffled
+# order, before any comes again. (Drawn afresh each time, a few came
+# again and again while a new one waited its luck: plain to see at a
+# picture a minute.) QUEUE is what's left of this round, in order, SHOWN
+# what it has had; a picture in neither is new and goes to the front, one
+# that has gone is dropped.
 next() {
   current=$(cat "$NOW" 2>/dev/null)
-  f=$(pool | grep -vxF -- "${current:-/}" | shuf -n 1)
-  [ -n "$f" ] || f=$(pool | head -n 1)   # only one picture: that one again
-  [ -n "$f" ] || return 1
+  all=$(pool)
+  [ -n "$all" ] || return 1
   mkdir -p "$STATE"
+  touch "$QUEUE" "$SHOWN"
+  order=$(
+    printf '%s\n' "$all" | grep -vxF -f "$QUEUE" -f "$SHOWN" -e "${current:-/}" | shuf
+    printf '%s\n' "$all" | grep -xF -f - "$QUEUE" | grep -vxF -e "${current:-/}"
+  )
+  if [ -n "$order" ]; then
+    # The one showing has been shown, whoever put it there.
+    [ -z "$current" ] || grep -qxF -e "$current" "$SHOWN" || echo "$current" >> "$SHOWN"
+  else
+    # The round is over: all of them again, not starting with the one
+    # showing (only one picture: that one again).
+    order=$(printf '%s\n' "$all" | shuf)
+    if [ "$(printf '%s\n' "$order" | head -n 1)" = "$current" ]; then
+      order=$(printf '%s\n' "$order" | sed 1d; echo "$current")
+    fi
+    : > "$SHOWN"
+  fi
+  f=$(printf '%s\n' "$order" | head -n 1)
+  printf '%s\n' "$order" | sed 1d > "$QUEUE"
+  echo "$f" >> "$SHOWN"
   echo "$f" > "$NOW"
   echo "$f"
 }
