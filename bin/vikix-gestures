@@ -2,7 +2,8 @@
 """vikix-gestures — a three-finger swipe on the touchpad moves the focus (`vikix gestures`).
 
   vikix gestures          whether it's listening, and what a swipe does
-  vikix gestures on       listen from now on, and at each login
+  vikix gestures on       listen from now on, and at each login (and again,
+                          after you changed a setting)
   vikix gestures off      stop listening, and don't start at login
   vikix gestures --watch  listen for swipes (the session starts this)
 
@@ -10,15 +11,18 @@ Three fingers swept left or right go to the window that way, as Super+h
 and Super+l do: along a strip (vikix viri), a column at a time, and between
 the splits of a tiled workspace. Swept up or down, they go up and down a
 column or the splits. A long sweep goes on going: a step for each stretch
-of the way. The window goes the way the picture under your fingers does,
-as two fingers scroll a page: fingers to the left bring the next column
-on the right. Nothing else is touched: two fingers scroll, as always.
+of the way. The direction is the one your touchpad scrolls in: where
+scrolling isn't "natural" the focus goes the way the fingers do, fingers
+to the left to the window on the left; where it is, they bring the next
+window on the right, as they move a page. (Two fingers swept sideways walk
+along a strip too: that is the strip's own, `*viri-scroll-walks*`.)
 
 Settings are yours, in ~/.config/vikix/gestures, one a line:
 
     fingers = 3      how many fingers make the sweep (3 or 4)
-    distance = 200   how far they go for each step: less is quicker
-    natural = yes    no: the focus goes the way the fingers do
+    distance = 120   how far they go for each step: less is quicker
+    natural = no     yes: fingers to the left bring what's on the right;
+                     not said, it is as your touchpad scrolls
 
 It listens through the X server (XInput 2.4, touchpad gestures), so it
 needs no group or password; a program that takes the sweep for itself
@@ -41,7 +45,7 @@ SWIPE_BEGIN, SWIPE_UPDATE, SWIPE_END = 30, 31, 32
 
 def settings():
     """What ~/.config/vikix/gestures says, over the defaults."""
-    values = {"fingers": 3, "distance": 200.0, "natural": True}
+    values = {"fingers": 3, "distance": 120.0, "natural": None}
     try:
         with open(SETTINGS, encoding="utf-8") as f:
             for line in f:
@@ -60,7 +64,27 @@ def settings():
                     values["natural"] = value.lower() not in ("no", "off", "false", "0")
     except OSError:
         pass
+    if values["natural"] is None:
+        # Not said: the way the touchpad scrolls.
+        values["natural"] = natural_scrolling()
     return values
+
+
+def natural_scrolling():
+    """Whether a touchpad here scrolls the "natural" way (libinput's setting)."""
+    try:
+        ids = subprocess.run(["xinput", "list", "--id-only"], capture_output=True, text=True,
+                             timeout=10, check=False).stdout.split()
+        for device in ids:
+            props = subprocess.run(["xinput", "list-props", device], capture_output=True, text=True,
+                                   timeout=10, check=False).stdout
+            if "libinput Tapping Enabled" in props:
+                for line in props.splitlines():
+                    if "libinput Natural Scrolling Enabled (" in line:
+                        return line.rsplit(":", 1)[-1].strip() == "1"
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return False
 
 
 class Sweep:
@@ -216,20 +240,55 @@ def listen(sweep, once=False):
             x11.XFreeEventData(display, cookie)
 
 
+def surroundings(pid=None):
+    """The screen and the settings folder a process works with (this
+    process's, with no PID): its X display, ":0" and ":0.0" being the same
+    one, and where its XDG_CONFIG_HOME or its home's .config is."""
+    if pid is None:
+        env = os.environ
+    else:
+        with open("/proc/%d/environ" % pid, "rb") as f:
+            env = dict(pair.split("=", 1) for pair in f.read().decode("utf-8", "replace").split("\0")
+                       if "=" in pair)
+    host, _, number = env.get("DISPLAY", "").rpartition(":")
+    config = env.get("XDG_CONFIG_HOME") or os.path.join(env.get("HOME", ""), ".config")
+    return ("" if host == "unix" else host, number.split(".")[0], os.path.realpath(config))
+
+
 def watchers():
-    """The process ids of the listeners running as you, this one aside."""
+    """The process ids of this desktop's listeners, this one aside: a Python
+    started on this script with --watch, by its own arguments (a shell whose
+    command line only mentions the words isn't one), on this screen and with
+    this settings folder (a test's listener isn't the desktop's, nor the
+    other way round)."""
+    found = []
     try:
-        out = subprocess.run(["pgrep", "-u", str(os.getuid()), "-f", "vikix-gestures --watch"],
+        out = subprocess.run(["pgrep", "-u", str(os.getuid()), "-f", "vikix-gestures"],
                              capture_output=True, text=True, check=False).stdout.split()
     except OSError:
-        return []
-    return [int(p) for p in out if p.isdigit() and int(p) != os.getpid()]
+        return found
+    for pid in (int(p) for p in out if p.isdigit()):
+        if pid == os.getpid():
+            continue
+        try:
+            with open("/proc/%d/cmdline" % pid, "rb") as f:
+                args = f.read().decode("utf-8", "replace").split("\0")
+        except OSError:
+            continue
+        if ("python" in os.path.basename(args[0]) and "--watch" in args
+                and any(os.path.basename(a) == "vikix-gestures" for a in args[1:3])):
+            try:
+                if surroundings(pid) == surroundings():
+                    found.append(pid)
+            except OSError:
+                pass
+    return found
 
 
 def start():
-    """Start a listener apart from this terminal, unless one runs already."""
-    if watchers():
-        return
+    """Start a listener apart from this terminal, in place of any running
+    (it reads the settings as it starts)."""
+    stop()
     subprocess.Popen([sys.executable, os.path.realpath(__file__), "--watch"],
                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                      start_new_session=True)
@@ -255,7 +314,7 @@ def status():
           % s["fingers"])
     print("  a step for each %g of the way; %s." % (
         s["distance"], "fingers to the left bring the next on the right" if s["natural"]
-        else "the focus goes the way the fingers do"))
+        else "the focus goes the way the fingers do, left for left"))
     print("  touchpad: %s" % (", ".join(pads) if pads else "none found"))
     print("  settings: %s%s" % (SETTINGS.replace(os.path.expanduser("~"), "~"),
                                 "" if os.path.exists(SETTINGS) else " (not there: the defaults)"))

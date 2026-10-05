@@ -380,7 +380,8 @@ check "a fullscreen window has none: $(bars)" test "$(bars) $(ask '(princ (if (g
 key super+f
 check "out of fullscreen it has its bar and its place again: $(bars)" test "$(bars)" = "$n/$n"
 
-# The mouse on a strip: Super and the wheel walk along it; Super and a drag
+# The mouse on a strip: Super and the wheel walk along it, and so does
+# scrolling sideways (two fingers on a touchpad); Super and a drag
 # with the right button, or a drag of a column's side edge, change its
 # width a twentieth of the screen at a time; a drag of its title bar carries
 # the column to where it's let go; a click on the title bar moves nothing.
@@ -394,6 +395,22 @@ mouse keydown super click 5 keyup super
 check "Super and the wheel down walks to the next column: $(focus)" test "$(focus)" = "$two"
 mouse keydown super click 4 keyup super
 check "and the wheel up walks back: $(focus)" test "$(focus)" = "$one"
+# Two fingers swept sideways on a touchpad come as clicks of sideways
+# scrolling: six of them one way are a step along the strip, fewer are not;
+# a page scrolled up and down by fingers that drift sideways walks nowhere;
+# and it can be turned off.
+mouse click --repeat 5 --delay 30 7; sleep 0.5
+check "five clicks of sideways scrolling walk nowhere: $(focus)" test "$(focus)" = "$one"
+mouse click --repeat 6 --delay 30 7; sleep 0.5
+check "six of them walk to the next column: $(focus)" test "$(focus)" = "$two"
+mouse click --repeat 8 --delay 30 5 click --repeat 6 --delay 30 6; sleep 0.5
+check "scrolling down with a drift sideways walks nowhere: $(focus)" test "$(focus)" = "$two"
+mouse click --repeat 6 --delay 30 6; sleep 0.5
+check "six the other way walk back: $(focus)" test "$(focus)" = "$one"
+ask '(setf *viri-scroll-walks* nil)' >/dev/null
+mouse click --repeat 6 --delay 30 7; sleep 0.5
+check "with *viri-scroll-walks* off the strip stays: $(focus)" test "$(focus)" = "$one"
+ask '(setf *viri-scroll-walks* t)' >/dev/null
 was=$(colwidth)
 mouse mousemove $((x + w / 2)) $((y + h / 2)); mouse keydown super mousedown 3; mouse mousemove_relative 64 0; mouse mousemove_relative 64 0; mouse mouseup 3 keyup super
 check "Super and a drag with the right button makes the column a tenth of the screen wider: $was, then $(colwidth)" test "$(ask "(princ (if (= (viri-col-width (viri-col-of (current-group) (current-window))) (+ $was 1/10)) 1 0))")" = 1

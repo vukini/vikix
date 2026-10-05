@@ -97,12 +97,13 @@ Two commands have no key of their own, for a key in `user.lisp` if you want one:
 |---|---|
 | Hold `Super` and turn the wheel over the strip | you walk along it, as `Super+h` and `Super+l` do |
 | Turn the wheel over the bar's window names | the same |
+| Sweep two fingers sideways on the touchpad, over the strip | the same: the strip scrolls as a wide page would |
 | Drag a window's title bar (or hold `Super` and drag anywhere in it) | its column goes with the pointer, and stays where you let it go |
 | Drag a column's side edge (or hold `Super` and drag with the right button) | the column gets wider or narrower, a twentieth of the screen at a time |
 | Drag the edge between two windows stacked in a column | the one grows and the other shrinks |
 | Click a window's name in the bar | you go to it |
 
-The touchpad works too: three fingers swept left or right walk along the strip, a column for each stretch of the way, and up or down go through a column's windows. The strip goes the way your fingers do, as a page does under two: fingers to the left bring the next column on the right. `vikix gestures` says how it is set, and `vikix gestures off` stops it ([The commands](commands.md) has its settings).
+The touchpad's two fingers are the quick way: swept sideways over a strip they walk along it, a column for each short stretch, the way everything else scrolls under them (as yours is set: fingers to the left go to the column on the left, or bring the one on the right where scrolling is "natural"). Up and down they scroll the program, as always, and a little drift sideways while you do walks nowhere. Three fingers do the same on any workspace, and up or down go through a column's windows: `vikix gestures` says how they are set, and `vikix gestures off` stops them ([The commands](commands.md) has the settings). A strip takes sideways scrolling for itself, so a program on one that scrolls sideways (a wide sheet, a long line) is scrolled with its scroll bar, or with `Shift` and the wheel; the setting below gives it back.
 
 A width set by dragging can be any twentieth of the screen; `Super+r` then takes the column to the next of its four widths.
 
@@ -133,6 +134,8 @@ In `~/.stumpwm.d/user.lisp`, each a line; `vikix eval '(loadrc)'` applies the fi
 (setf *viri-animate* nil)         ; jump instead of sliding
 (setf *viri-animate-seconds* 0.2) ; or slide more slowly (0.12 as it comes)
 (setf *viri-width-step* 1/10)     ; dragging an edge goes a tenth of the screen at a time
+(setf *viri-scroll-clicks* 3)     ; two fingers walk along the strip sooner (6 as it comes; more is slower)
+(setf *viri-scroll-walks* nil)    ; two fingers swept sideways scroll the program, not the strip
 ```
 
 The slide needs a compositor, which Vikix runs (picom). Without one the strip jumps, since each step would make every program draw its window again.
@@ -143,6 +146,7 @@ A rule can give a program's window its width or its place as it opens: `(width 2
 
 - **A window lies over its neighbours, or a gap stays where one was.** Press `Super+Ctrl+y` twice (title bars off and on again): the strip is laid out afresh. It shouldn't happen, so it's worth a report: `vikix debug` writes one.
 - **A program looks stale when you come back to it.** Columns past the screen's edge are moved there, not hidden, so programs keep drawing; one that pauses when it thinks nobody is looking may take a moment to catch up.
+- **Two fingers walk too fast, too slowly, or the wrong way.** `*viri-scroll-clicks*` above is how far they go for a step. The way is your touchpad's scrolling direction, the same as in every program; three fingers follow it too, unless `natural` in `~/.config/vikix/gestures` says otherwise.
 - **You'd rather have the tiles back.** `vikix viri off`. Nothing is lost: the windows, and the splits the workspace had before.
 
 ## For the curious: how a strip works

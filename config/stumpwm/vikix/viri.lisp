@@ -972,6 +972,9 @@ way (exchange-direction); into the frame that way (move-window) elsewhere."
 ;;;
 ;;;   Super + the wheel, over the strip    walk along it (so does the wheel
 ;;;                                        on the bar's window names)
+;;;   two fingers swept sideways           the same: the touchpad's sideways
+;;;                                        scrolling, which a strip takes
+;;;                                        for itself (*viri-scroll-walks*)
 ;;;   drag a title bar, or Super + drag    carry the column along the strip:
 ;;;                                        it stays where you let it go
 ;;;   drag a column's side edge, or        its width, a twentieth of the
@@ -985,6 +988,47 @@ way (exchange-direction); into the frame that way (move-window) elsewhere."
 
 (defparameter *viri-width-least* 1/5
   "The narrowest a column can be dragged.")
+
+(defparameter *viri-scroll-walks* t
+  "True: scrolling sideways over a strip (two fingers swept left or right on
+a touchpad, a mouse's tilting wheel) walks along it. NIL: it is left to the
+program under the pointer, as off a strip.")
+
+(defparameter *viri-scroll-clicks* 6
+  "How many clicks of sideways scrolling are a step along the strip: fewer
+is quicker. A touchpad sends one every little way the fingers go.")
+
+(defvar *viri-scrolled* (list nil 0 0 0 0)
+  "The sweep of scrolling so far: which way sideways, the clicks toward the
+next step, all its clicks sideways, all up and down, and when the last came.")
+
+(defun viri-scroll-walk (button)
+  "A click of scrolling over a strip. Sideways, every *viri-scroll-clicks*
+of them one way without a pause is a step along the strip that way (the way
+the view would scroll, so as the touchpad is set); up and down they are only
+counted, so that a page scrolled by fingers that drift a little sideways
+doesn't walk the strip: the sweep has to be twice as much sideways."
+  (destructuring-bind (was count across along at) *viri-scrolled*
+    (let ((now (get-internal-real-time))
+          (dir (case button (:wheel-left :left) (:wheel-right :right))))
+      ;; A pause: a new sweep.
+      (when (> (- now at) (floor (* 4 internal-time-units-per-second) 10))
+        (setf was nil count 0 across 0 along 0))
+      (cond ((null dir) (incf along))
+            (t (unless (eq dir was) (setf count 0))
+               (incf count)
+               (incf across)
+               (when (and (>= count (max 1 *viri-scroll-clicks*))
+                          (>= across (* 2 along)))
+                 (setf count 0)
+                 (viri-step dir nil))
+               (setf was dir)))
+      (setf *viri-scrolled* (list was count across along (get-internal-real-time)))
+      (when dir
+        ;; Let go without passing it on: a program that takes its scrolling
+        ;; as wheel clicks doesn't scroll sideways as well. (StumpWM would
+        ;; replay the click to it after this.)
+        (ignore-errors (xlib:allow-events *display* :async-pointer))))))
 
 (defun viri-drag (screen moving)
   "Follow the pointer until the button is let go, calling MOVING with its
@@ -1115,8 +1159,12 @@ one gains the other gives, a twentieth of the column at a time."
       (handler-case
           (let ((super (intersection (float-window-modifier) *button-state*)))
             (case button
-              (:wheel-up (when super (viri-step :left nil)))
-              (:wheel-down (when super (viri-step :right nil)))
+              ((:wheel-up :wheel-down)
+               (if super
+                   (viri-step (if (eq button :wheel-up) :left :right) nil)
+                   (viri-scroll-walk button)))
+              ((:wheel-left :wheel-right)
+               (when *viri-scroll-walks* (viri-scroll-walk button)))
               ((:left-button :right-button)
                (let ((parent (window-parent window)))
                  ;; Where in the window's frame the pointer is: beside the

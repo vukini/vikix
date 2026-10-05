@@ -459,18 +459,19 @@ which theme.lisp loads. Until Iosevka is installed (fonts.list, in the base), wm
 A three-finger swipe on the touchpad moves the focus.
 
 - `vikix gestures` — whether it's listening, and what a swipe does
-- `vikix gestures on` — listen from now on, and at each login
+- `vikix gestures on` — listen from now on, and at each login (and again, after you changed a setting)
 - `vikix gestures off` — stop listening, and don't start at login
 - `vikix gestures --watch` — listen for swipes (the session starts this)
 
-Three fingers swept left or right go to the window that way, as Super+h and Super+l do: along a strip (vikix viri), a column at a time, and between the splits of a tiled workspace. Swept up or down, they go up and down a column or the splits. A long sweep goes on going: a step for each stretch of the way. The window goes the way the picture under your fingers does, as two fingers scroll a page: fingers to the left bring the next column on the right. Nothing else is touched: two fingers scroll, as always.
+Three fingers swept left or right go to the window that way, as Super+h and Super+l do: along a strip (vikix viri), a column at a time, and between the splits of a tiled workspace. Swept up or down, they go up and down a column or the splits. A long sweep goes on going: a step for each stretch of the way. The direction is the one your touchpad scrolls in: where scrolling isn't "natural" the focus goes the way the fingers do, fingers to the left to the window on the left; where it is, they bring the next window on the right, as they move a page. (Two fingers swept sideways walk along a strip too: that is the strip's own, `*viri-scroll-walks*`.)
 
 Settings are yours, in `~/.config/vikix/gestures`, one a line:
 
 ```
 fingers = 3      how many fingers make the sweep (3 or 4)
-distance = 200   how far they go for each step: less is quicker
-natural = yes    no: the focus goes the way the fingers do
+distance = 120   how far they go for each step: less is quicker
+natural = no     yes: fingers to the left bring what's on the right;
+                 not said, it is as your touchpad scrolls
 ```
 
 It listens through the X server (XInput 2.4, touchpad gestures), so it needs no group or password; a program that takes the sweep for itself keeps it. It is off while `~/.config/vikix/gestures-off` exists, and stops by itself on a machine with no touchpad.
