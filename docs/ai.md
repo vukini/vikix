@@ -44,7 +44,7 @@ It isn't limited to the desktop: it can write and run code in `~/dev`, explain a
 
 ### How it knows what to do
 
-- **A guide for the agent.** Vikix installs a skill in `~/.claude/skills/vikix`: where every file is, which ones are yours to change, the keys, and the `vikix` commands. Its main rule is the one in [Where everything is](map.md): change your files, never Vikix's.
+- **A guide for the agent.** Vikix installs a skill in `~/.claude/skills/vikix`: where every file is, which ones are yours to change, the keys, and the `vikix` commands. Its first page is short (the rules that always hold); the rest is a page a subject, which the agent reads when it needs it. Its main rule is the one in [Where everything is](map.md): change your files, never Vikix's.
 - **It can try before it writes.** `vikix eval` runs Lisp in the running window manager, so the agent can try a key or a colour on the live desktop, see that it works, and only then save it in `~/.stumpwm.d/user.lisp`.
 - **It asks first.** By default Claude Code shows each command and each edit and waits for your yes. You can let it do more on its own; its `/permissions` command shows what it may do without asking.
 
@@ -102,7 +102,7 @@ vikix add codex                   # or install one as a feature (vikix remove co
 
 This prevents accidents; it isn't a wall. The agent runs as you, and can read your files. OpenCode is set to ask before it runs a command or edits a file, as Claude Code does, unless your own OpenCode settings say otherwise.
 
-**How they know Vikix:** OpenCode reads the same skill as Claude Code. Codex, Gemini and Aider read `~/.local/share/vikix/AGENTS.md`, the same text: Vikix links it as `~/.codex/AGENTS.md`, writes a one-line `~/.gemini/GEMINI.md` that imports it, and hands it to Aider (not to a small local model, for which it's too long). If you have one of those files already, it's yours and stays; Vikix says how to add the guide to it.
+**How they know Vikix:** OpenCode reads the same skill as Claude Code. Codex, Gemini and Aider read `~/.local/share/vikix/AGENTS.md`, the skill's first page, which names the other pages where they can open them: Vikix links it as `~/.codex/AGENTS.md`, writes a one-line `~/.gemini/GEMINI.md` that imports it, and hands it to Aider (not to a small local model, for which it's too long). If you have one of those files already, it's yours and stays; Vikix says how to add the guide to it.
 
 ## API keys
 

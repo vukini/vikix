@@ -29,8 +29,8 @@ the internals).
   around its tables, and the wording of their rows. What the tables
   *list* follows the code; if a row is wrong, fix it to match the code,
   never the other way round.
-- **You check but don't rewrite:** `config/claude/skills/vikix/SKILL.md`,
-  which guides AI agents rather than people. If it disagrees with the
+- **You check but don't rewrite:** `config/claude/skills/vikix/` (`SKILL.md`
+  and the subject pages beside it), which guides AI agents rather than people. If it disagrees with the
   code or the guides, say so in your reply.
 - **Not yours:** `CLAUDE.md`, the code (`bin/`, `lib/`, `install/`,
   `config/`), and `site/` (vikix.dev), unless your instructions say

@@ -74,7 +74,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   └── nvim/                      yours     with the feature neovim: init.lua (your settings at its end), your plugins in lua/plugins/, lazy-lock.json
 │
 ├── .emacs.d/                  with the feature emacs: a git clone of the Emacs config (vukini/emacs-void)
-├── .claude/skills/vikix       Vikix's   tells Claude Code how Vikix works
+├── .claude/skills/vikix       Vikix's   tells Claude Code how Vikix works: SKILL.md, the short first page, and a page a subject
 │
 ├── .local/
 │   ├── bin/

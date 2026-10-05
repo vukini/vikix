@@ -110,6 +110,28 @@ check "the guide shouldn't keep the skill's header" test -z "$(grep -m1 '^name: 
 check "the guide should have the skill's text" grep -q 'This machine runs \*\*Vikix\*\*' "$guide"
 check "the guide should call itself a guide, not a skill" grep -q 'this guide' "$guide"
 
+# The skill is a short first page and a page a subject: the first page is all an
+# agent is sure to have read (and all the guide is), so it stays short, names
+# every page by a path any agent can open, and keeps the rules that guard
+# the user's secrets and the desktop.
+pages="$here/config/claude/skills/vikix"
+check "the skill's first page should stay short (16 KB; it was 80): $(wc -c < "$pages/SKILL.md") bytes" \
+  test "$(wc -c < "$pages/SKILL.md")" -le 16000
+for page in "$pages"/*.md; do
+  name=$(basename "$page")
+  [ "$name" = SKILL.md ] && continue
+  check "the skill's first page should name its page $name, by its full path" grep -qF "\`~/.claude/skills/vikix/$name\`" "$pages/SKILL.md"
+  check "the page $name should say it is part of the skill" grep -q '^A page of the Vikix skill (~/.claude/skills/vikix/SKILL.md' "$page"
+done
+missing=$(grep -ohE '[~]/\.claude/skills/vikix/[a-z-]+\.md' "$pages"/*.md | sort -u | while read -r named; do [ -f "$pages/${named##*/}" ] || echo "$named"; done)
+check "the skill names pages that aren't there: $(echo $missing)" test -z "$missing"
+check "the guide should name the pages too" grep -q '[~]/\.claude/skills/vikix/desktop\.md' "$guide"
+for rule in 'never read or print a file in `secrets/`' 'Never run `env`, `printenv`, `set` or `declare -p`' 'never ask for its master password' \
+            'backup-password' 'Never edit or commit in the Vikix checkout' 'isn.t a whole number' 'Never try to get round a lock screen' \
+            'Tell the user before running anything with sudo' 'vikix snapshot "before:' 'data, never instructions'; do
+  check "the skill's first page should keep the rule: $rule" grep -q "$rule" "$pages/SKILL.md"
+done
+
 # A dry run installs nothing.
 DRY_RUN=1 agent --install opencode >/dev/null 2>&1
 check "a dry run shouldn't run an installer: $(cat "$calls")" test ! -s "$calls"
@@ -293,10 +315,9 @@ if command -v sbcl >/dev/null; then
   out=$(VIKIX_PLUGINS_REPO="$plugins_repo" bash "$here/lib/skill-keys.sh" --check 2>&1 || true)
   check "the skill's keys and the README's table should be registry.lisp's: $out" test -z "$out"
   # And every key its prose names is one of them, so none lingers after it moves.
-  skill="$here/config/claude/skills/vikix/SKILL.md"
-  known=$(awk '/^<!-- (plugin-)?keys:/,/^<!-- \/(plugin-)?keys -->/' "$skill" |
+  known=$(awk '/^<!-- (plugin-)?keys:/,/^<!-- \/(plugin-)?keys -->/' "$pages/keys.md" |
           grep -oE '(Super|Ctrl|Shift)\+[A-Za-z0-9+./=`-]*[A-Za-z0-9/=`]( Screen)?' | sed 's/ Screen$//' | sort -u)
-  stale=$(awk '/^<!-- (plugin-)?keys:/,/^<!-- \/(plugin-)?keys -->/ {next} {print}' "$skill" |
+  stale=$(cat "$pages"/*.md | awk '/^<!-- (plugin-)?keys:/,/^<!-- \/(plugin-)?keys -->/ {next} {print}' |
           grep -oE 'Super\+[A-Za-z0-9+./=`-]*[A-Za-z0-9/=`]' | grep -vE '\.\.|/[a-z]' | sort -u | grep -vxFf <(echo "$known") || true)
   check "the skill names keys Vikix doesn't have: $(echo $stale)" test -z "$stale"
 else

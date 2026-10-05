@@ -9,12 +9,13 @@
 #                                commands an agent may run (the same file's
 #                                :agent ones) and the plugins' keys (from the
 #                                plugins repository at Vikix's pin)
-#   lib/skill-keys.sh --write    put them into config/claude/skills/vikix/SKILL.md,
+#   lib/skill-keys.sh --write    put them into config/claude/skills/vikix/keys.md
+#                                (the skill's page of keys),
 #                                between the <!-- keys -->, <!-- commands -->
 #                                and <!-- plugin-keys --> markers; and Vikix's
 #                                keys as a table, a row a key, into README.md
 #                                between its <!-- readme-keys --> markers
-#   lib/skill-keys.sh --check    exit 1 when SKILL.md's blocks or README.md's
+#   lib/skill-keys.sh --check    exit 1 when keys.md's blocks or README.md's
 #                                table aren't what they'd be now
 #                                (tests/agents.sh runs it);
 #                                the plugins' block only where a copy of the
@@ -24,7 +25,7 @@
 # Needs sbcl, which reads the key names and groups with help.lisp's own code.
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
-skill="$root/config/claude/skills/vikix/SKILL.md"
+skill="$root/config/claude/skills/vikix/keys.md"
 readme="$root/README.md"
 registry="$root/config/stumpwm/vikix/registry.lisp"
 help="$root/config/stumpwm/vikix/help.lisp"
@@ -129,7 +130,7 @@ for name in ("keys", "commands", "plugin-keys"):
     new = re.search(r"<!-- %s:.*?<!-- /%s -->\n" % (name, name), blocks, re.S).group(0)
     pat = re.compile(r"<!-- %s:.*?<!-- /%s -->\n" % (name, name), re.S)
     if not pat.search(s):
-        sys.exit(f"skill-keys: SKILL.md has no <!-- {name}: ... <!-- /{name} --> block to fill")
+        sys.exit(f"skill-keys: the skill's keys.md has no <!-- {name}: ... <!-- /{name} --> block to fill")
     s = pat.sub(lambda m: new, s, count=1)
 open(skill, "w").write(s)
 PY
@@ -147,14 +148,14 @@ PY
   --check)
     fail=0
     diff <(block keys "$skill") <(block keys "$t/blocks") >/dev/null ||
-      { echo "SKILL.md's keys aren't registry.lisp's: lib/skill-keys.sh --write"; fail=1; }
+      { echo "the skill's keys.md: its keys aren't registry.lisp's: lib/skill-keys.sh --write"; fail=1; }
     diff <(block commands "$skill") <(block commands "$t/blocks") >/dev/null ||
-      { echo "SKILL.md's commands for agents aren't registry.lisp's: lib/skill-keys.sh --write"; fail=1; }
+      { echo "the skill's keys.md: its commands for agents aren't registry.lisp's: lib/skill-keys.sh --write"; fail=1; }
     diff <(block readme-keys "$readme") <(block readme-keys "$t/blocks") >/dev/null ||
       { echo "README.md's table of keys isn't registry.lisp's: lib/skill-keys.sh --write"; fail=1; }
     if have_plugins; then
       diff <(block plugin-keys "$skill") <(block plugin-keys "$t/blocks") >/dev/null ||
-        { echo "SKILL.md's plugin keys aren't the plugins' at the pin: lib/skill-keys.sh --write"; fail=1; }
+        { echo "the skill's keys.md: its plugin keys aren't the plugins' at the pin: lib/skill-keys.sh --write"; fail=1; }
     fi
     exit "$fail" ;;
   *) echo "usage: lib/skill-keys.sh [--write|--check]" >&2; exit 2 ;;
