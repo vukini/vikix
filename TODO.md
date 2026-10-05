@@ -13,6 +13,16 @@ From a review of 0.71.71 against one aim: the best desktop for a power user. Vik
 5. **In between, as polish:** `bugs.md`. Done: a newly plugged screen lighting up by itself (Super+Ctrl+p for the rest), GTK and Qt programs following `vikix theme`, and a tray that can be switched on (`vikix tray on`).
 6. **Then the items picked from IDEAS** (the section below, 73 to 82), in their order.
 
+## Offered next, and not started (Vid and Claude, 2026-10-05)
+
+Left here before a restart; none is begun. In the order suggested:
+
+- **Rules for more events** (the last line of the next section): a rule that fires when a screen is plugged in or taken away, a Wi-Fi network is joined, a drive is plugged in, or the laptop goes idle. "When I join VID, start Dropbox"; "when the TV is plugged in, this layout". Self-contained in `rules.lisp`.
+- **The rules test, fast and steady** (`bugs.md`, "tests/rules.sh fails when the machine is very busy"): it took over five minutes a run on 2026-10-04 and every session's release waits on it. The next step is written there.
+- **A focus timer in the bar** (item 77).
+- **A Wi-Fi picker that scans first** (item 84 below), if the tray applet's list is still stale after its restart (`bugs.md`).
+- The bigger one stays item 4 above, agents that act through code you can check first: `propose_rule` and `run_command` are its first slices; the next wants a short design before any code.
+
 ## After the rules language
 
 The rules language is in: `when-window` and the timed rules (`rules.lisp`), `vikix rules`, remembering a window (Super+Shift+t), every hand-written window hook moved over, the guide (`docs/rules.md`) and the starter `rules.lisp`. What it leads to, each an item of its own when its turn comes:
@@ -93,6 +103,7 @@ Added 2026-09-30, from a conversation with Vid about 0.52-0.65. Not yet ordered 
 31. **Find any file.** A rofi search over the home folder (plocate or fd), as fast as typing.
 32. **Battery care on ThinkPads.** tlp's charge thresholds: stop at 80% while docked; a Super+m entry to charge to 100% before a trip.
 83. **Another terminal, all the way** (good to have, not urgent; Vid 2026-10-04: it can wait for the first user who asks). Today `(setf *vikix-terminal* "kitty")` moves Super+Return and the menu's entries, and `vikix theme` writes kitty's colours (the `include` line added by hand); the rest stays on Alacritty.
+84. **A Wi-Fi picker that scans first** (Vid asked on 2026-10-05 how to make the system scan again; the tray applet's list looked stale). Today the bar's Wi-Fi field opens `nmtui`, and with the tray on it is nm-applet's menu: neither has a "scan again", and the field itself only reads what NetworkManager already knows (`nmcli ... --rescan no`). A rofi list in Vikix's style: `nmcli device wifi rescan` first, then each network with its signal and whether it's known, the one in use marked, "Scan again" as an entry, Enter joins (a saved one at once, a new one asks its password), and `nmtui` still there for the rest. On a click on the bar's field, a Super+m entry, and `vikix wifi`.
     - **One setting.** `vikix terminal NAME` writes `~/.config/vikix/terminal`, read by StumpWM and by the shell commands alike. Now there are two that don't know of each other: `*vikix-terminal*`, and `$VIKIX_TERMINAL`, which nothing sets, so `vikix-ask`, `vikix-voice`, `vikix-local-ai` and `vikix project open` open Alacritty whatever the first says.
     - **One launcher.** `vikix-term [--class C] [--dir D] [-e CMD...]`, turning those into each terminal's own flags; every place that builds a terminal's command line calls it (`commands.lisp`, `modeline.lisp`, the four commands above). `--class` is what differs: `vikix learn`'s panes and the voice agent's window pass it as Alacritty takes it, and the rules match on it. Check each terminal's form before building (Ghostty's and WezTerm's weren't tested).
     - **Three kept working:** Alacritty (the default), Kitty and Ghostty, each a feature (`vikix add kitty`) with a theme file from `vikix theme`, a starter config that includes it (Iosevka, the same size), and open windows repainted. Any other terminal goes through the launcher's plain `-e`, without theme or class. Foot is Wayland only: not offered.

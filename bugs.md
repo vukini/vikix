@@ -36,3 +36,24 @@ Noted 2026-10-02. Minor.
 **Suspect.** `virt-viewer` on the Windows VM shares the clipboard over SPICE, and may grab the host clipboard at the same moment when the guest echoes a copy. Not confirmed: Alacritty's log times are its running time on the monotonic clock, which stops during suspend, so they can't be matched to when the VM was open.
 
 **Next step.** Note whether the VM window is open when it happens; or run a small logger (clipnotify, then the selection owner's window and its client, via `vikix eval` and `xlib:selection-owner`) until the next warning names the client. If it's SPICE: switch off clipboard sharing in the viewer, or accept a rare second copy.
+
+## The tray's network applet may show a stale list of networks (to confirm)
+
+Noted 2026-10-05, on Vid's desktop at 0.71.179, tray on (`vikix tray on`, nm-applet in stumptray).
+
+**What happens.** Vid: "the list is not updating in the wifi bar". Which part was stale (a network missing, old signal bars, networks gone) isn't known yet.
+
+**What's known.** The system was fine at that moment: NetworkManager had scanned 20 seconds before (`LastScan` on the device), and `nmcli device wifi list` showed six networks; `nmcli device wifi rescan` works. So it is the applet's menu, not the scan. nm-applet had run for 30 hours; it was restarted (killed, started again from StumpWM, back in the tray, the connection untouched). Whether its list is right since then, Vid hasn't said.
+
+**Next step.** Ask Vid what the menu shows against `nmcli device wifi list`. If it is still stale after the restart, build the picker (`TODO.md`, item 84) rather than chase the applet.
+
+## agent-waiting: a question with choices may arrive late (to confirm)
+
+Noted 2026-10-04, with the plugin's rewrite (Vikix 0.71.160).
+
+**What happens.** Nothing seen yet. The plugin's hook for Claude Code's AskUserQuestion (`PreToolUse` with that matcher → `agent-waiting question`) was written without being seen to fire: a throwaway `claude -p` session can't show such a question.
+
+**What's known.** `PermissionRequest` and `Stop` were checked on Claude Code 2.1.289 and fire at once with what the plugin reads. If the question hook doesn't fire, the note comes from Claude's own notification some seconds later, without the question's words.
+
+**Next step.** The next time a session asks a question with choices while its window isn't in front, look at the bar and at `~/.local/state/vikix/agents/`: the note's third line should be the question.
+
