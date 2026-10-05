@@ -3,7 +3,8 @@
 # screen: on at the start when switched on, an icon (a GTK status icon)
 # embedded in it, the bar leaving it room; still there, once, after a
 # reload; the bar's network and Bluetooth fields stepping aside while
-# their applets are in it; vikix-tray-off and the toggle switch it and say so in the
+# their applets are in it, and back when an applet has stopped, which is
+# started again, once; vikix-tray-off and the toggle switch it and say so in the
 # settings file, an applets line naming none staying empty; where the bar
 # is said in _NET_WORKAREA, and vikix-bar (Super+Ctrl+h) hides and shows it.
 # Needs Xvfb, Vikix's StumpWM, StumpWM's contrib modules (stumptray) and
@@ -44,8 +45,24 @@ touch "$home/.local/state/vikix/welcome"
 # On, and no applets: the test's icon is its own, and no applet of the
 # desktop's is started on the hidden screen.
 printf 'on\napplets =\n' > "$home/.config/vikix/tray"
+# Stand-ins for the two applets and for asking whether they run: the real
+# pgrep sees the whole machine, the real desktop's applets too, and a real
+# nm-applet has no place on a hidden screen. An applet "runs" while its
+# name is in $t/running; started, it says so and puts its name there.
+mkdir -p "$t/path"
+real_pgrep=$(command -v pgrep)
+cat > "$t/path/pgrep" <<END
+#!/bin/sh
+case "\$1 \$2" in "-x nm-applet"|"-x blueman-applet") grep -qx "\$2" "$t/running" 2>/dev/null; exit \$? ;; esac
+exec "$real_pgrep" "\$@"
+END
+for applet in nm-applet blueman-applet; do
+  printf '#!/bin/sh\necho %s >> "%s/started"\necho %s >> "%s/running"\n' "$applet" "$t" "$applet" "$t" > "$t/path/$applet"
+done
+chmod +x "$t/path/"*
+printf 'nm-applet\nblueman-applet\n' > "$t/running"; : > "$t/started"
 for _ in $(seq 1 50); do xdpyinfo >/dev/null 2>&1 && break; sleep 0.2; done
-HOME=$home VIKIX_SWANK_PORT=$port "$wm" >"$t/wm.log" 2>&1 &
+PATH="$t/path:$PATH" HOME=$home VIKIX_SWANK_PORT=$port "$wm" >"$t/wm.log" 2>&1 &
 pids+=($!)
 ask() { HOME=$home VIKIX_SWANK_PORT=$port timeout 30 python3 "$here/bin/vikix-eval" "$1" 2>&1 | grep -v '^=> ' || true; }
 for _ in $(seq 1 120); do [ "$(ask '(princ 1)')" = 1 ] && break; sleep 0.5; done
@@ -74,6 +91,20 @@ fields='(progn (setf *vikix-net* "wifi Home" *vikix-bt* "bt") (format t "[~a][~a
 check "without applets, the bar should show the network and Bluetooth: $(ask "$fields")" bash -c '[[ $1 == *"wifi Home"*"bt"* ]]' _ "$(ask "$fields")"
 ask '(setf *vikix-tray-applets* (list "nm-applet" "blueman-applet"))' >/dev/null
 check "with their applets in the tray, they should step aside: $(ask "$fields")" test "$(ask "$fields")" = "[][]"
+# An applet that stops takes its icon with it: the bar's own field comes
+# back, and the applet is started again, but not twice in five minutes.
+missing() { ask '(progn (vikix-tray-refresh) (princ *vikix-tray-missing*))'; }
+ask '(setf (gethash "nm-applet" *vikix-tray-restarted*) (- (get-universal-time) 301))' >/dev/null   # it has been up a while
+echo blueman-applet > "$t/running"
+check "the network applet has stopped: the bar's rounds find it gone: $(missing)" grep -q 'nm-applet' "$t/started"
+check "it is started again, once: $(tr '\n' ' ' < "$t/started")" test "$(grep -c nm-applet "$t/started")" = 1
+check "and with it running, the field steps aside again: $(missing) $(ask "$fields")" test "$(ask "$fields")" = "[][]"
+echo blueman-applet > "$t/running"
+check "stopped again at once: the bar shows the network itself, Bluetooth's applet still there: $(missing) $(ask "$fields")" \
+  bash -c '[[ $1 == "[wifi Home"*"][]" ]]' _ "$(ask "$fields" | sed 's/\^[^)]*)//g')"
+ask '(vikix-tray-refresh)' >/dev/null
+check "and it isn't started a second time within five minutes: $(tr '\n' ' ' < "$t/started")" test "$(grep -c nm-applet "$t/started")" = 1
+check "the bar's own thread makes this round" test "$(ask "(princ (and (member 'vikix-tray-refresh *vikix-bar-refreshers*) t))")" = T
 ask '(run-commands "vikix-reload")' >/dev/null; sleep 1
 check "a reload should keep the tray: $(state)" test "$(state)" = ON
 check "and not add its handler twice" test "$(ask '(princ (length *event-processing-hook*))')" = 1
@@ -97,5 +128,5 @@ check "and shows it again: $(area)" test "$(area)" = "0 $bar 1280 $((800 - bar))
 check "Super+Ctrl+h is the bar's key" grep -q '(s-C-h vikix-bar ' <<<"$(ask '(princ (assoc "s-C-h" *vikix-bindings* :test (quote string=)))')"
 check "StumpWM should still answer" test "$(ask '(princ 1)')" = 1
 
-[ "$fail" = 0 ] && echo "tray: on from the settings, an icon in it with room in the bar, through a reload, off and on, remembered"
+[ "$fail" = 0 ] && echo "tray: on from the settings, an icon in it with room in the bar, an applet that stops started again once and its field back meanwhile, through a reload, off and on, remembered"
 exit "$fail"

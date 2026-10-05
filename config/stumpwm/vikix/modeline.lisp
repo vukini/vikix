@@ -276,9 +276,45 @@ from *vikix-recording* and *vikix-dictating* (commands.lisp)."
 bar's own fields would (nm-applet the network, blueman-applet Bluetooth),
 so those fields step aside.")
 
+(defvar *vikix-tray-missing* '()
+  "The tray's applets that aren't running, as the bar's thread last found
+them. An applet can stop (nm-applet has, mid-session): its icon goes, and
+with the field stepped aside the bar said nothing of the network at all.")
+(defvar *vikix-tray-restarted* (make-hash-table :test 'equal)
+  "When each applet was last started again (a universal time).")
+(defparameter *vikix-tray-restart-after* 300
+  "An applet that has stopped is started again, but not twice within this
+many seconds: one that stops at once isn't started in a loop.")
+
 (defun vikix-tray-shows-p (applet)
-  "Whether the tray is on with APPLET among those it starts."
-  (and (member applet *vikix-tray-applets* :test #'string=) t))
+  "Whether the tray is on with APPLET among those it starts, and running:
+the bar's own field steps aside only while the icon is there to say it."
+  (and (member applet *vikix-tray-applets* :test #'string=)
+       (not (member applet *vikix-tray-missing* :test #'string=))
+       t))
+
+(defun vikix-tray-applet-name-p (applet)
+  "A program's name and nothing else: it goes into a shell command."
+  (and (plusp (length applet))
+       (every (lambda (c) (or (alphanumericp c) (find c "-_."))) applet)))
+
+(defun vikix-tray-refresh ()
+  "One of the bar's rounds (its own thread): which of the tray's applets
+aren't running. Their fields come back until they are, and each is
+started again, once in five minutes at most."
+  (let ((missing (loop for a in *vikix-tray-applets*
+                       when (and (vikix-tray-applet-name-p a)
+                                 (string= (vikix-shell-line (format nil "pgrep -x ~a >/dev/null || echo gone" a))
+                                          "gone"))
+                         collect a)))
+    (unless (equal missing *vikix-tray-missing*)
+      (setf *vikix-tray-missing* missing)
+      (vikix-bar-redraw))
+    (dolist (a missing)
+      (let ((now (get-universal-time)))
+        (when (> (- now (gethash a *vikix-tray-restarted* 0)) *vikix-tray-restart-after*)
+          (setf (gethash a *vikix-tray-restarted*) now)
+          (ignore-errors (run-shell-command (format nil "pgrep -x ~a >/dev/null || exec ~a" a a))))))))
 
 (defun vikix-tray-object ()
   "The screen's tray, when it's on."
@@ -294,9 +330,12 @@ so those fields step aside.")
           (load-module "stumptray"))
         (unless (vikix-tray-object)
           (run-commands "stumptray"))
-        (setf *vikix-tray-applets* (second (vikix-tray-settings)))
+        (setf *vikix-tray-applets* (second (vikix-tray-settings))
+              *vikix-tray-missing* '())
         (dolist (a *vikix-tray-applets*)
-          (when (every (lambda (c) (or (alphanumericp c) (find c "-_."))) a)
+          (when (vikix-tray-applet-name-p a)
+            ;; Noted, so the bar's round doesn't start it a second time while it comes up.
+            (setf (gethash a *vikix-tray-restarted*) (get-universal-time))
             (run-shell-command (format nil "pgrep -x ~a >/dev/null || exec ~a" a a))))
         t)
     (error (e)
@@ -305,10 +344,11 @@ so those fields step aside.")
 
 (defun vikix-tray-stop ()
   "The tray off; its applets stopped, and the bar's own fields back."
-  (setf *vikix-tray-applets* '())
+  (setf *vikix-tray-applets* '()
+        *vikix-tray-missing* '())
   (ignore-errors (when (vikix-tray-object) (run-commands "stumptray")))
   (dolist (a (second (vikix-tray-settings)))
-    (when (every (lambda (c) (or (alphanumericp c) (find c "-_."))) a)
+    (when (vikix-tray-applet-name-p a)
       (run-shell-command (format nil "pkill -x ~a" a)))))
 
 (defun vikix-mode-line-tray (ml)
@@ -390,7 +430,7 @@ bar isn't under ours. StumpWM doesn't set it."
   '(vikix-volume-refresh vikix-net-refresh vikix-bt-refresh vikix-dropbox-refresh
     vikix-updates-refresh vikix-backup-refresh vikix-usb-refresh vikix-quiet-refresh
     vikix-awake-refresh vikix-windows-refresh vikix-ai-refresh vikix-memory-refresh
-    vikix-record-refresh)
+    vikix-record-refresh vikix-tray-refresh)
   "What a round of the bar reads, in order. Each asks a small program or
 reads a file, and keeps what it found in a variable of its own.")
 
