@@ -40,7 +40,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── backup             yours     where backups go, and the reminder's days
 │   │   ├── backup-exclude     yours     what backups leave out
 │   │   ├── backup-password    yours     the backup password (never in snapshots)
-│   │   ├── secrets/           yours     API keys, one file each (vikix ai key); never in snapshots
+│   │   ├── secrets/           yours     API keys, one file each (vikix ai key), and windows-password, your Windows account's (vikix windows apps); never in snapshots
 │   │   ├── ai                 yours     which model Super+i uses: use=local or claude, model=, languages=
 │   │   ├── agent              yours     which agent Super+a starts (vikix agent --default NAME)
 │   │   ├── dictation          yours     dictation's model: base.en or small (vikix dictate models)
@@ -81,7 +81,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── vikix, vikix-*     Vikix's   the command and its helpers
 │   │   ├── stumpwm            built     the window manager, built by 30-lisp (`vikix rebuild-wm`)
 │   │   └── pil, claude, ...   installed by 65-languages, the npm language servers, Claude Code
-│   ├── share/applications/*.desktop   Vikix's   JupyterLab, vikix-image, Lazarus in the launcher (Super+d); your web apps' too, Lem's and the Listener's (lisp-apps), and Esploro's
+│   ├── share/applications/*.desktop   Vikix's   JupyterLab, vikix-image, Lazarus in the launcher (Super+d); your web apps' too, Lem's and the Listener's (lisp-apps), Esploro's, and the Windows programs you added (vikix-win-NAME.desktop, vikix windows apps add)
 │   ├── share/vikix/fonts/wm.ttf       built     the bar's font, made by vikix-font
 │   ├── share/vikix/nvim               Vikix's   Vikix's part of Neovim: AstroNvim and Vikix's plugins (a link to config/nvim)
 │   ├── share/vikix/nyxt/vikix.lisp    Vikix's   Vikix's part of Nyxt: its colours from vikix theme's palette, followed live, and Swank on 127.0.0.1:4006 with ~/.slime-secret (a link to config/nyxt)
@@ -123,7 +123,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 ├── journal/                   yours     the diary: a day a file, written by vikix day (700; what you write under Notes is kept)
 ├── Pictures/Screenshots/      Shift+Print and friends
 ├── Videos/Recordings/         Super+Ctrl+v
-├── Windows/                   yours     drive Z: in the Windows VM (vikix windows)
+├── Windows/                   yours     drive Z: in the Windows VM (vikix windows); ~/Documents is drive Y: there once vikix windows apps setup has run
 └── Restored/                  `vikix backup restore` puts files here, never over yours
 ```
 
@@ -131,7 +131,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 
 | Path | What |
 |---|---|
-| `logs/` | One log per install and per `vikix update`, named by date. Also the long output of a few builds, kept out of the update's own: `nvim-plugins.log` (Neovim's plugins), `whisper-build.log` (dictation), `lazarus-build.log` (the Lazarus IDE) |
+| `logs/` | One log per install and per `vikix update`, named by date. Also the long output of a few builds, kept out of the update's own: `nvim-plugins.log` (Neovim's plugins), `whisper-build.log` (dictation), `lazarus-build.log` (the Lazarus IDE); and `windows-app.log`, what FreeRDP said each time a Windows program was opened (`vikix windows app`) |
 | `session.log`, `session.log.old` | Everything the desktop session printed, this login and the one before. The first place to look when the desktop won't start. |
 | `yours.git` | The history of your files (`vikix snapshot`, `changes`, `history`, `undo`). A git repository whose work tree is `~`, limited to the files in `~/vikix/config/yours.list` |
 | `errors/` | Every error the desktop met, one file each, with its backtrace: a mistake in `user.lisp` or a Vikix file, or one StumpWM didn't catch ([When something breaks](fixing.md#when-the-desktop-asks-what-to-do)). The newest 50 are kept |
@@ -155,6 +155,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 | `initramfs-*` | Marks that the initramfs was rebuilt with this microcode |
 | `soak/` | Each `vikix times soak`'s samples, one CSV a run: StumpWM's answer time, memory, windows, timers, every ten seconds |
 | `times.log`, `times-measured.log` | How long things took: each login and Reload config on this desktop, and each `vikix times measure` ([When something breaks](fixing.md#the-desktop-feels-slow)) |
+| `windows-apps.json` | The programs in Windows' Start menu, as `vikix windows apps` last read them: where `vikix windows app NAME` finds a program |
 | `obsidian/` | `vikix obsidian`'s record: which folders of the vault are converted, each note as it was written (so one you changed since is left alone), and each folder's report |
 
 ### `~/dev`

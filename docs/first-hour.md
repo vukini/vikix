@@ -94,4 +94,4 @@ vikix update core           # only Vikix: seconds
 
 - **The agent:** `Super+a` starts the AI agent, which knows this desktop: ask it to change a key, find a setting, or explain an error. It takes a snapshot of your files first.
 - **The checks:** `vikix doctor` looks at everything Vikix put in place and says what's missing.
-- **The guides:** these pages, on your machine too (`Super+m` → *Vikix guide*). [When something breaks](fixing.md) is the one for problems.
+- **The guides:** these pages, on your machine too (`Super+m` → *Vikix guide*). [When something breaks](fixing.md) is the one for problems. `Super+F2` searches them by a few words, along with every man page, your projects' documents and your notes.

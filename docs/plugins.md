@@ -218,7 +218,7 @@ A key over whatever you're doing opens a small box; what you write, or say, land
 
 **When it doesn't work:**
 
-- *Two boxes open, Emacs's and rofi's:* the note couldn't be added in Emacs (an older plugin with an Emacs that opens files read-only). `gup` brings the fix.
+- *Two boxes open, Emacs's and rofi's:* the note couldn't be added in Emacs (an older plugin with an Emacs that opens files read-only). `vikix update` brings the fix.
 - *No page address on a note from the browser:* Firefox saves its open tabs every 15 seconds, so a page opened just before may not be known yet; web apps (Chromium) give only their title.
 - *To-dos don't reach Todoist:* `vikix ai key set todoist` once, with the token from Todoist's Settings, Integrations, Developer.
 

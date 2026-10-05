@@ -164,6 +164,8 @@ A section can have a name of your own (`"Sailing"`): it comes after Vikix's, bef
 
 ### The bar
 
+`Super+Ctrl+h` hides the bar on the screen you're on, and the windows take its room; the key again brings it back (`Super+m` → *The bar on/off (hide it for the whole screen)* is the same). It isn't remembered: the bar is there again after *Reload config* and at the next login.
+
 The mouse works on it too: a workspace's number goes there, a window's title focuses it, volume opens the mixer (the wheel turns it up and down, the middle button mutes), the network opens `nmtui`, and Bluetooth its settings. The clickable parts are `^(:on-click ...)` areas made by `vikix-ml-clickable` in `modeline.lisp`; when they overlap, as a long window title under the fields on the right, the narrowest wins.
 
 The bar is one format string. Vikix sets it in `modeline.lisp`:
@@ -276,12 +278,20 @@ depth=2               # how far down: 2 makes ~/src/series/book a project of the
 logs=~/src/project-logs   # a public repo ~/src/NAME with no log.md of its own uses logs/NAME/log.md
 ```
 
-`vikix day` keeps a diary from the same projects: how long each had the screen, its entries and commits, a file a day in `~/journal` ([the README](../README.md#projects-vikix-project) says what it reads). Its folder is `folder=~/Notes/journal` in `~/.config/vikix/day`, a file you make; and `(setf *vikix-day-on* nil)` in `user.lisp` stops the desktop noting what is on the screen.
-
 The change takes effect at once: each `vikix project` reads it again. A project whose build isn't `build.sh`, `make`, `src/build.sh` or `npm run build` says so in its log's Status, with a `- Build: COMMAND` line, and the same for its checks with `- Check: COMMAND`. `vikix project new NAME` adds a project (a folder in the first `root=` with its log); `vikix today` is the day across all of them. `Super+Alt+p` (or `Super+m` → *Projects*) picks one with rofi and opens a terminal in its folder and its log in Emacs (in `$EDITOR`, Neovim by default, without Emacs); the terminal is `$VIKIX_TERMINAL`, `alacritty` unless you set it.
 
 
 `vikix project open NAME` (or Super+Alt+p) puts a project on a workspace of its own, the first empty one, with a terminal in its folder and its log in the editor. Arrange them as you like: when you leave that workspace its layout is saved (as a layout called `project-NAME`, see *Saved layouts*), and the next time you open the project it comes back that way. While the project's workspace is still open, opening it again just goes there. `vikix project save` saves it at once. A window the saved layout names that isn't open, a browser say, is started again and put in its place.
+
+`vikix day` keeps a diary from the same projects: how long each had the screen, its entries and commits, a file a day in `~/journal` ([the README](../README.md#projects-vikix-project) says what it reads). Its folder is `folder=~/Notes/journal` in `~/.config/vikix/day`, a file you make; and `(setf *vikix-day-on* nil)` in `user.lisp` stops the desktop noting what is on the screen.
+
+**Where was I?** When you come back to the laptop after ten minutes or more away, a notification with that title says where you were: how long you were gone, the project you were on and its next step, the files Emacs hasn't saved, your last command, and your last note if you have the [inbox plugin](plugins.md#inbox-notes-from-anywhere). `Super+m` → *Where was I? (the project, its next step, what isn't saved)* shows it again, and `vikix back` in a terminal says more: the project's last commit and your last few commands. It only reads what is kept anyway, the diary's record of the screen among it, so there is no card while `*vikix-day-on*` is `nil`. To wait longer, or never show it, in `user.lisp`:
+
+```lisp
+(setf *vikix-back-after* 1800)   ; seconds away before the card: half an hour (600 as it comes)
+(setf *vikix-back-after* nil)    ; never; vikix back still answers when you ask
+```
+
 ## AI
 
 Each of these is one of your files, so it has an undo too. [Working with AI](ai.md) says what each does.

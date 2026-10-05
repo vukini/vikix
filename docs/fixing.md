@@ -113,7 +113,7 @@ pkill picom; picom -b
 
 ## The desktop feels slow
 
-`vikix times` says how long logging in and each Reload config took on this desktop, the last time and the usual, against a limit. `vikix times measure` measures more, in a few seconds and without touching your screen: on a hidden one, with Vikix's config, StumpWM's start, a reload, a key to its command, an Emacs frame opening, and StumpWM answering after all that; it keeps each run, so the next says what changed. Quiet, on the X1 Carbon: about 2 s to start, 1 s to reload, 10 ms from a key to its command, under a second for an Emacs frame.
+`vikix times` says how long logging in and each Reload config took on this desktop, the last time and the usual, against a limit. `vikix times measure` measures more, in a few seconds and without touching your screen: on a hidden one, with Vikix's config, StumpWM's start, a reload, a key to its command, an Emacs frame opening, and StumpWM answering after all that (and, when xterm is installed, with a tiled xterm open, which once kept it too busy to answer); it keeps each run, so the next says what changed. Quiet, on the X1 Carbon: about 2 s to start, 1 s to reload, 10 ms from a key to its command, under a second for an Emacs frame.
 
 - **One over its limit** (`SLOW`) when the machine is busy (an update, a VM starting) says little: measure again when it's quiet.
 - **Slow when quiet** is worth a report: `vikix debug` writes one, with the measures in it.

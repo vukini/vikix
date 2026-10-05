@@ -301,16 +301,20 @@ vikix mcp unregister   # take it away
 
 | Tool | What it does |
 |---|---|
-| desktop | The workspaces and their windows, the screens, the theme |
+| desktop | The workspaces and their windows (a [strip](strip.md)'s columns too, in order), the screens, the theme |
 | keys | Every key Vikix binds, and what it does |
 | rules | The desktop's rules (each one's number, on or off, where it's written, how often it ran), and for a window you name, which rules ran for it and which match it but haven't. Nothing is switched or run |
 | why | What the desktop did lately and what made it: a key and its command, a rule and its window, the menu, an agent; each with where it is written. For "why did my window move?" |
 | doctor, history, changes, themes, version | What `vikix doctor`, `vikix history`, `vikix changes`, `vikix theme` and `vikix version` say |
+| docs_search, docs_read | Finds and reads the documents on this machine, the ones `Super+F2` searches: these guides, man pages, your projects' documents, your notes. So the agent can answer from the man page, not from memory |
+| records_search, records_get | Finds and reads what your plugins kept (`vikix records`): flight searches, meetings, your Claude plan's use. It can't add or change a record |
+| file_changes | Every change made to your files through Esploro (`vikix add esploro`), newest first, in words, and whether it was undone. For "where did that file go?". Nothing is undone here: that stays yours, in Esploro's Edit → Changes… |
 | notify | Shows a notification, marked as the agent's |
 | snapshot | Records your settings before a change |
 | set_theme, switch_workspace, focus_window | Small changes, easily undone |
 | commands | The desktop's commands the agent may run by name: switches and moves put back as easily as done (do not disturb, night light, gaps, title bars, focus left ...) |
 | run_command | Runs one of those, as its key would. The desktop refuses any other command, and says why |
+| propose_file_changes | Proposes a plan of changes to your files (copy, move, rename, new folders, the Trash, tags), which waits for you: checked whole first, then shown in Esploro with why, where only your Apply runs it, and undo takes it back. Without Esploro there is nowhere to show it, and the tool says so |
 | propose_rule | Proposes a rule for the desktop, which waits for you: checked first to be only a rule (verbs and plain values, no Lisp of its own), then shown under `Super+m` → *Rules*, where you add it to your `rules.lisp` or drop it ([Rules](rules.md#a-rule-an-agent-proposes)) |
 
 Two more are off unless you turn them on, because they can change a lot: `vikix mcp register --allow-eval` adds **eval** (any Lisp in the window manager) and `--allow-undo` adds **undo** (your settings back one snapshot). `vikix mcp register` again, without them, takes them away. They're a convenience, not a lock: an agent that may run commands could run `vikix eval` itself.

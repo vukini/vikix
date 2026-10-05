@@ -33,6 +33,8 @@ echo firefox > ~/.config/vikix/docs-browser
 
 Delete the file to have Nyxt again. The rest of the web is unaffected either way: links from other programs go to your default browser (`~/.config/mimeapps.list`).
 
+**Every document, as a page.** `Super+F2` searches every document on the machine (these guides, man pages, your projects' documents, your notes) and shows the hits in a list. With Nyxt the same search is also a page: `Super+m` → *Every document as a page in Nyxt*, `vikix docs page WORDS` in a terminal, or `Ctrl+Space`, then `vikix-docs`, in Nyxt itself. The hits are grouped by whose they are, each with an *Open* button and, where there is another place to read it, a second one named for it (*In Emacs*, *In a terminal*); *Find…* searches again. Nyxt is started if it isn't running, and its window comes to the front.
+
 ## Nyxt's colours
 
 Nyxt reads the desktop's palette, `~/.config/vikix/theme/palette` (the `key=#rrggbb` lines `vikix theme` writes for every program), each time it starts, and builds a Nyxt theme from it. `vikix theme NAME` also asks a running Nyxt to read it again: the status bars and the message line change at once, and new tabs and prompts follow.
@@ -441,7 +443,8 @@ Some directions, from small to big, none of them built yet:
 - **A change to Vikix's part didn't take.** The theme follows `vikix theme` live, but a new `vikix.lisp` (after `vikix update`) and your own `config.lisp` are read when Nyxt starts. Quit Nyxt (`Ctrl+Space`, `quit`) and start it again; your tabs come back.
 - **Nothing answers on 4006.** Nyxt isn't running, or it started without `~/.slime-secret`, or something else had the port. Its log, `~/.local/share/nyxt/nyxt.log`, says which ("Swank not started ...").
 - **`C-x C-e` stops in the debugger with "invalid number of arguments: 3".** Nyxt's Swank is built into it and older than the SLIME Emacs installs, which sends a few calls more arguments. Vikix's part makes those calls take them (since Vikix 0.71.60), so this means it isn't loaded: check `vikix lisp-apps status`, then restart Nyxt.
-- **A Nyxt with no window.** A `nyxt URL` started while another Nyxt was closing can be left behind: a process, but no window and no socket. It holds nothing useful: `pkill -x nyxt`, then start Nyxt again.
+- **A Nyxt with no window.** Closing Nyxt's last window, or a `nyxt URL` started while another Nyxt was closing, can leave one behind: a process, but no window and no socket, so nothing can reach it. It holds nothing useful. The docs page (`vikix docs page`, or its `Super+m` entry) closes such a Nyxt by itself before it starts a new one, and a notification says *A stuck Nyxt was closed*. Anywhere else: `pkill -x nyxt`, then start Nyxt again.
+- **A notification says *Nyxt isn't answering*.** The Nyxt you have open has lost its socket, so the docs page can't be sent to it and a second Nyxt opens for the page. Your open one is left alone, since you're using it. Close it when you're ready, and you have one Nyxt again.
 - **Your config stops partway after the checkout moved.** A `config.lisp` copied before Vikix 0.71.58 guards the load of Vikix's part with `probe-file`, which on SBCL lets through a link whose file has gone, and the error then stops the rest of your file. The starter now catches the error instead; change your load line to match it:
 
 ```lisp
