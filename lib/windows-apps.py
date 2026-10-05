@@ -356,7 +356,11 @@ def cmd_app(name, file=None):
             # Sharp text: the VM is on this machine, so a fast local link,
             # full colour, and no H.264 (lossy video, which blurs text); the
             # progressive codec sharpens to the exact picture once it's still.
-            "/network:lan", "/bpp:32", "/gfx:progressive:on,AVC420:off,AVC444:off"]
+            "/network:lan", "/bpp:32", "/gfx:progressive:on,AVC420:off,AVC444:off",
+            # The screen as the desktop leaves it free (_NET_WORKAREA, which
+            # modeline.lisp sets): Windows sees it start below the bar, so a
+            # maximized program's own title bar isn't under ours.
+            "/workarea"]
     log = STATE / "logs" / "windows-app.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     with open(log, "a") as out:

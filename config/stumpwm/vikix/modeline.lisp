@@ -352,7 +352,42 @@ off, off if it's on, remembered for the next login."
   "The tray in the bar, off (vikix tray off)."
   (vikix-tray-set nil))
 
+(defvar *vikix-workarea-last* nil
+  "What _NET_WORKAREA was last set to, so it's written only when it changes.")
+
+(defun vikix-workarea ()
+  "The screen less the bar at its top, as (x y width height): what programs
+may cover. The bar hidden, the whole screen."
+  (let* ((screen (current-screen))
+         (ml (ignore-errors (head-mode-line (current-head))))
+         (bar (if (and ml (eq *mode-line-position* :top) (not (eq (mode-line-mode ml) :hidden)))
+                  (mode-line-height ml)
+                  0)))
+    (list 0 bar (screen-width screen) (- (screen-height screen) bar))))
+
+(defun vikix-publish-workarea ()
+  "Say where the bar is, as other desktops do (_NET_WORKAREA, once per
+workspace): FreeRDP reads it for Windows programs (/workarea), so Windows
+sees a screen that starts below the bar and a maximized program's own title
+bar isn't under ours. StumpWM doesn't set it."
+  (ignore-errors
+    (let* ((screen (current-screen))
+           (area (vikix-workarea))
+           (n (max 1 (length (screen-groups screen))))
+           (key (cons n area)))
+      (unless (equal key *vikix-workarea-last*)
+        (setf *vikix-workarea-last* key)
+        (xlib:change-property (screen-root screen) :_NET_WORKAREA
+                              (loop repeat n append area) :cardinal 32)
+        (xlib:display-force-output *display*)))))
+
+(defcommand vikix-bar () ()
+  "The bar on/off, on the screen in front."
+  (toggle-mode-line (current-screen) (current-head))
+  (vikix-publish-workarea))
+
 (defun vikix-bar-refresh ()
+  (vikix-publish-workarea)
   (vikix-volume-refresh)
   (vikix-net-refresh)
   (vikix-bt-refresh)
@@ -390,6 +425,8 @@ off, off if it's on, remembered for the next login."
 (dolist (screen *screen-list*)
   (dolist (head (screen-heads screen))
     (enable-mode-line screen head t)))
+(setf *vikix-workarea-last* nil)
+(vikix-publish-workarea)
 
 ;; The tray, when you switched it on (vikix tray on): after the bar it sits in.
 ;; Already there (a reload), it's left as it is, its applets noted again.

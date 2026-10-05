@@ -365,6 +365,9 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command titlebars "Title bars on/off"
   :run "vikix-titlebars" :key "s-C-y"
   :agent t)
+(define-vikix-command bar "The bar on/off"
+  :run "vikix-bar" :key "s-C-h"
+  :menu "Desktop" :label "The bar on/off (hide it for the whole screen)" :agent t)
 (define-vikix-command title "Rename this window"
   :run "vikix-title" :key "s-\"")
 
