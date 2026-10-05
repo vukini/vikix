@@ -387,6 +387,9 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
   :menu "Windows" :label "Find a window, any workspace")
 (define-vikix-command bring-window "Bring any window here, from any workspace"
   :run "vikix-bring-window" :key "s-G")
+(define-vikix-command gather "Bring every window of another workspace here, as ordinary windows: tiled, none floating"
+  :run "vikix-gather"
+  :menu "Windows" :label "Bring every window of another workspace here")
 (define-vikix-command pointer "Move the pointer to this window"
   :run "vikix-pointer" :key "s-p"
   :agent t)

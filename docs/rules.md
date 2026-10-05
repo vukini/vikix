@@ -194,7 +194,7 @@ A plain string matches exactly that and nothing longer. `(:has "fox")` matches a
 | `(tile)` | Puts a floating window back in the tiles |
 | `(fullscreen)` | Fills the screen with it |
 | `(sticky)` | Keeps it on every workspace (it floats) |
-| `(dialog)` | Floats it in the middle and keeps it in front of the tiles, as password boxes are |
+| `(dialog)` | Floats it in the middle and keeps it in front of the tiles, as password boxes are. It lasts while the window floats: tiled again, it is an ordinary window. On a strip a column is never a dialog, though a strip's windows float: a rule for every floating window doesn't mean them |
 | `(title "name")` | Names it, in its title bar and the bar |
 | `(focus)` | Goes to it |
 | `(run "command")`, `(command "vikix-grid")` | Runs a shell command, or a StumpWM command |

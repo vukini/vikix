@@ -400,6 +400,78 @@ current frame on tiles, as a column on a strip."
     (when window
       (vikix-bring-window-here window))))
 
+;;; A whole workspace's windows, brought here.
+;;;
+;;; StumpWM's own gmerge moves them as they are, and a strip's windows are
+;;; floating ones: so are a window floated by hand and one a rule called a
+;;; dialog. Brought here they are ordinary windows first: tiles on a tiled
+;;; workspace, columns on a strip. What stays afloat is what was made to: a
+;;; dialog by what it is, and a window a rule floats as it opens.
+
+(defun vikix-gather-keeps-floating-p (window)
+  "Does WINDOW float by what it is, or by a rule for it: not just because
+it stood on a strip, was floated by hand, or was called a dialog as it took
+the focus?"
+  (or (vikix-born-dialog-p window)
+      (and (fboundp 'vikix-rules-float-p) (ignore-errors (funcall 'vikix-rules-float-p window)))))
+
+(defun vikix-gather-windows (from &optional (to (current-group)))
+  "Every window of workspace FROM comes to TO, the one that had the focus
+there last, so it is in front; the drawer's stay where the drawer is.
+Returns the windows brought."
+  (let* ((drawer (lambda (w) (and (fboundp 'vikix-drawer-window-p) (funcall 'vikix-drawer-window-p w))))
+         (focused (group-current-window from))
+         (windows (remove-if drawer (reverse (group-windows from))))
+         (windows (if (member focused windows) (append (remove focused windows) (list focused)) windows)))
+    (dolist (w windows)
+      (let ((plain (not (vikix-gather-keeps-floating-p w))))
+        ;; A rule's word that it is a dialog ends here: or a strip would
+        ;; leave it afloat, taking it for one.
+        (when (and plain (boundp '*vikix-dialog-windows*))
+          (remhash w (symbol-value '*vikix-dialog-windows*)))
+        (move-window-to-group w to)
+        ;; On tiles a strip's column is tiled as it arrives (viri.lisp); a
+        ;; window that floated for another reason is tiled here.
+        (when (and plain (typep to 'tile-group) (typep w 'float-window))
+          (when (fboundp 'vikix-titlebar-remove) (funcall 'vikix-titlebar-remove w))
+          (let ((frame (tile-group-current-frame to)))
+            (unfloat-window w to)
+            (pull-window w frame nil)
+            (setf (tile-group-current-frame to) frame)))))
+    (when windows
+      (group-focus-window to (car (last windows))))
+    windows))
+
+(defun vikix-gather-choices ()
+  "The other workspaces that have windows, as menu lines: (LINE GROUP)."
+  (loop for g in (sort-groups (current-screen))
+        for windows = (group-windows g)
+        unless (or (eq g (current-group)) (null windows) (char= (char (group-name g) 0) #\.))
+          collect (list (format nil "~a  ~d window~:p: ~a" (group-name g) (length windows)
+                                (vikix-one-line (format nil "~{~a~^, ~}" (mapcar #'window-title windows)) 90))
+                        g)))
+
+(defcommand vikix-gather (&optional from) ((:string nil))
+  "Bring every window of another workspace here: pick the workspace, or
+name it (`vikix-gather 2`). They arrive as ordinary windows, tiled here
+(as columns, on a strip): a strip's windows, and ones that floated, no
+longer float. Dialogs, and windows a rule floats, stay as they are."
+  (let* ((choices (vikix-gather-choices))
+         (group (cond ((null from)
+                       (and choices
+                            (second (select-from-menu (current-screen) choices
+                                                      "Bring every window here from workspace: "))))
+                      (t (or (second (find from choices :key (lambda (c) (group-name (second c))) :test #'equal))
+                             (progn (message "No other workspace called ~a has windows." from) nil))))))
+    (cond ((and (null from) (null choices))
+           (message "No other workspace has windows."))
+          (group
+           (let ((brought (vikix-gather-windows group)))
+             (message "~d window~:p from workspace ~a ~:[are~;is~] here.~@[ ~a~]"
+                      (length brought) (group-name group) (= 1 (length brought))
+                      (and (typep (current-group) 'tile-group) (> (length brought) 1)
+                           "Super+Ctrl+Space lays them out.")))))))
+
 (defcommand vikix-pointer () ()
   "Move the pointer to the middle of this window, tiled, floating or on a strip."
   (let ((win (current-window)))
@@ -748,15 +820,35 @@ as windows open and close."
 (push \"Class\" *vikix-dialog-classes*); `xprop WM_CLASS` gives a
 window's class, its second word.")
 
+(defun vikix-born-dialog-p (win)
+  "A dialog by what it is: its type, modal or transient, or one of
+*vikix-dialog-classes*. Not one a rule only called a dialog."
+  (and (or (window-transient-p win)
+           (ignore-errors (window-modal-p win))
+           (member (window-class win) *vikix-dialog-classes* :test #'equal))
+       t))
+
+(defun vikix-strip-column-p (win)
+  "Is WIN a column of a strip (viri.lisp)? Such a window is a floating one
+to StumpWM, and is no more a dialog for it than a tile is."
+  (let ((group (window-group win)))
+    (and (fboundp 'viri-group-p) (funcall 'viri-group-p group)
+         (funcall 'viri-col-of group win)
+         t)))
+
 (defun vikix-dialog-p (win)
   "A window that asks something and waits: a dialog by its type, a modal
 or transient one, one of *vikix-dialog-classes*, or one a rule made a
-dialog of (rules.lisp, the verb dialog)."
-  (or (window-transient-p win)
-      (ignore-errors (window-modal-p win))
-      (member (window-class win) *vikix-dialog-classes* :test #'equal)
+dialog of (rules.lisp, the verb dialog) that floats still. A rule's word
+lasts only while the window floats over the others: tiled, or a column of
+a strip, it is an ordinary window again. (A rule for every floating window
+that takes the focus called each column of a strip a dialog, and a
+workspace made tiles and a strip again left them all afloat.)"
+  (or (vikix-born-dialog-p win)
       (and (boundp '*vikix-dialog-windows*)
-           (gethash win (symbol-value '*vikix-dialog-windows*)))))
+           (gethash win (symbol-value '*vikix-dialog-windows*))
+           (typep win 'float-window)
+           (not (vikix-strip-column-p win)))))
 
 (defun vikix-dialog-size (win head)
   "The size a dialog asked for. Tiled first, it was stretched to its frame

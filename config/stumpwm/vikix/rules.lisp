@@ -645,12 +645,15 @@ corner and that edge.")
 (define-rule-verb dialog ()
   "Treat the window as a dialog: floating, in the middle, kept in front of the tiles."
   (let ((win (rule-window)))
-    (setf (gethash win *vikix-dialog-windows*) t)
-    (let ((was-tile (typep win 'tile-window)))
-      (when (and (vikix-rule-float-it win) was-tile)
-        (when (fboundp 'vikix-centre-window) (funcall 'vikix-centre-window win))
-        (vikix-rule-float-arrives win)))
-    (when (fboundp 'vikix-raise-dialogs) (funcall 'vikix-raise-dialogs))
+    ;; Not a column of a strip: it floats only because a strip's windows do,
+    ;; and a rule for floating windows doesn't mean it.
+    (unless (and (fboundp 'vikix-strip-column-p) (funcall 'vikix-strip-column-p win))
+      (setf (gethash win *vikix-dialog-windows*) t)
+      (let ((was-tile (typep win 'tile-window)))
+        (when (and (vikix-rule-float-it win) was-tile)
+          (when (fboundp 'vikix-centre-window) (funcall 'vikix-centre-window win))
+          (vikix-rule-float-arrives win)))
+      (when (fboundp 'vikix-raise-dialogs) (funcall 'vikix-raise-dialogs)))
     win))
 
 (define-rule-verb title (name)

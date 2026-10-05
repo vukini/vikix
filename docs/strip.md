@@ -119,6 +119,7 @@ Most keys do on a strip what they do everywhere. A few belong to tiles, and say 
 | `Super+z` | This column's windows as tabs (above), where on tiles it keeps only one window on the workspace. |
 | `Super+Shift+o`, `Super+Ctrl+m` | Grid mode and main and stack are ways of tiling. |
 | `Super+Shift+g` | The window you pick comes onto the strip, as a column beside the one you're in. |
+| `Super+m` → *Bring every window of another workspace here* | They all come onto the strip as columns; from a strip onto a tiled workspace, they arrive tiled. None is left floating, but a dialog, or a window a rule of yours floats. |
 | `Super+Shift+1` … `9` | A column is what moves on a strip, so the whole column goes to that workspace: a window alone in its column goes alone; one that shares it takes the others along. On another strip it arrives as the column it was (its width, tabs or stack, the heights); on a tiled workspace its windows are tiled. To send one window of several, take it out of the column first (`Super+[` or `Super+]`). |
 
 Dialogs (a password box, a file chooser) float in the middle of the screen, as on tiles, and aren't columns.
