@@ -286,11 +286,25 @@ with the field stepped aside the bar said nothing of the network at all.")
   "An applet that has stopped is started again, but not twice within this
 many seconds: one that stops at once isn't started in a loop.")
 
+(defvar *vikix-tray-wanted* nil
+  "True while the tray is switched on (vikix tray on): it should be in the
+bar whenever there is a bar.")
+(defvar *vikix-tray-icons* '()
+  "The icons in the tray now, by their windows' classes (\"Nm-applet\"),
+as the main thread last found them.")
+(defparameter *vikix-tray-icon-classes*
+  '(("nm-applet" "nm-applet") ("blueman-applet" "blueman-tray" "blueman-applet"))
+  "An applet, and the classes its icon's window may have, in any case.")
+
 (defun vikix-tray-shows-p (applet)
-  "Whether the tray is on with APPLET among those it starts, and running:
-the bar's own field steps aside only while the icon is there to say it."
+  "Whether APPLET's icon is in the tray: the bar's own field steps aside
+only while the icon is there to say the same. Not merely \"the tray is on
+and starts it\": an applet stops, and a tray has been left behind in a bar
+that was rebuilt, and each time the bar said nothing of the network."
   (and (member applet *vikix-tray-applets* :test #'string=)
-       (not (member applet *vikix-tray-missing* :test #'string=))
+       (some (lambda (class)
+               (member class *vikix-tray-icons* :test #'string-equal))
+             (or (rest (assoc applet *vikix-tray-icon-classes* :test #'string=)) (list applet)))
        t))
 
 (defun vikix-tray-applet-name-p (applet)
@@ -300,8 +314,9 @@ the bar's own field steps aside only while the icon is there to say it."
 
 (defun vikix-tray-refresh ()
   "One of the bar's rounds (its own thread): which of the tray's applets
-aren't running. Their fields come back until they are, and each is
-started again, once in five minutes at most."
+aren't running; each is started again, once in five minutes at most. Then
+the main thread is asked to tend the tray (vikix-tray-tend): this thread
+never talks to the X server."
   (let ((missing (loop for a in *vikix-tray-applets*
                        when (and (vikix-tray-applet-name-p a)
                                  (string= (vikix-shell-line (format nil "pgrep -x ~a >/dev/null || echo gone" a))
@@ -314,12 +329,104 @@ started again, once in five minutes at most."
       (let ((now (get-universal-time)))
         (when (> (- now (gethash a *vikix-tray-restarted* 0)) *vikix-tray-restart-after*)
           (setf (gethash a *vikix-tray-restarted*) now)
-          (ignore-errors (run-shell-command (format nil "pgrep -x ~a >/dev/null || exec ~a" a a))))))))
+          (ignore-errors (run-shell-command (format nil "pgrep -x ~a >/dev/null || exec ~a" a a))))))
+    (when (and (or *vikix-tray-wanted* (vikix-tray-object))
+               (or (in-main-thread-p) *request-channel*))
+      (ignore-errors (call-in-main-thread 'vikix-tray-tend)))))
 
 (defun vikix-tray-object ()
   "The screen's tray, when it's on."
   (let ((pkg (find-package :stumptray)))
     (and pkg (funcall (find-symbol "CURRENT-TRAY" pkg)))))
+
+;;; The tray is a window inside the bar's. StumpWM makes the bar anew when
+;;; it is hidden and shown (Super+Ctrl+h) and when a screen comes or goes,
+;;; and the tray's window goes with the old one: stumptray then still has
+;;; a tray, of windows that aren't there, and the applets have nowhere to
+;;; put their icons. So: the tray is taken down properly as its bar goes,
+;;; put up again in the new one, and the bar's rounds look for one left
+;;; behind all the same.
+
+(defun vikix-tray-bar ()
+  "The bar the tray belongs in: the first head's, or nil while it's hidden."
+  (ignore-errors (funcall (find-symbol "SCREEN-MODE-LINE" :stumptray) (current-screen))))
+
+(defun vikix-tray-stale-p ()
+  "True when there is a tray, but not in the bar that is showing. Lisp
+only, no request to the X server: the bar's thread asks this."
+  (let ((tray (vikix-tray-object)))
+    (and tray
+         (not (eq (vikix-tray-bar) (funcall (find-symbol "TRAY-MODE-LINE" :stumptray) tray)))
+         t)))
+
+(defun vikix-tray-forget ()
+  "Let go of a tray whose windows went with its bar: nothing of it is
+asked of the X server, where it no longer is."
+  (let ((tray (vikix-tray-object)))
+    (when tray
+      (let ((handler (funcall (find-symbol "TRAY-EVENT-PROCESSING-FN" :stumptray) tray)))
+        (when handler (remove-hook *event-processing-hook* handler)))
+      (setf (gethash (current-screen) (symbol-value (find-symbol "*SCREEN-TRAY-TABLE*" :stumptray))) nil
+            *vikix-tray-icons* '()))))
+
+(defun vikix-tray-note-icons ()
+  "In the main thread: which icons are in the tray, by class."
+  (let ((classes (ignore-errors
+                  (let ((tray (vikix-tray-object)))
+                    (and tray (not (vikix-tray-stale-p))
+                         (loop for socket in (funcall (find-symbol "TRAY-VICONS" :stumptray) tray)
+                               for class = (ignore-errors (funcall (find-symbol "CLIENT-WM-CLASS" :stumptray) socket))
+                               when (stringp class) collect class))))))
+    (unless (equal classes *vikix-tray-icons*)
+      (setf *vikix-tray-icons* classes)
+      (vikix-bar-redraw))))
+
+(defun vikix-tray-tend ()
+  "In the main thread: the tray where it should be, and its icons noted.
+One left behind in a bar that is gone is let go, and a tray that is
+switched on is put into the bar that is showing. Never an error."
+  (ignore-errors
+   (let ((left-behind (vikix-tray-stale-p)))
+     (when left-behind
+       (vikix-tray-forget))
+     (when (and *vikix-tray-wanted* (null (vikix-tray-object)) (vikix-tray-bar))
+       (vikix-tray-start)
+       (when left-behind
+         (vikix-tray-restart-applets)))))
+  (ignore-errors (vikix-tray-note-icons))
+  nil)
+
+(defun vikix-tray-restart-applets ()
+  "After a tray was left behind: its applets' icons went with the old
+bar's window, and an applet doesn't make itself another (nm-applet ends
+some time later, blueman-applet stays, without one). So each is ended and
+started again, into the new tray."
+  (dolist (a *vikix-tray-applets*)
+    (when (vikix-tray-applet-name-p a)
+      (setf (gethash a *vikix-tray-restarted*) (get-universal-time))
+      (ignore-errors (run-shell-command (format nil "pkill -x ~a; sleep 1; exec ~a" a a))))))
+
+(defun vikix-tray-bar-gone (mode-line)
+  "On *destroy-mode-line-hook*, before the bar's window goes: the tray in
+it is taken down while its windows are still there."
+  (ignore-errors
+   (let ((tray (vikix-tray-object)))
+     (when (and tray (eq mode-line (funcall (find-symbol "TRAY-MODE-LINE" :stumptray) tray)))
+       (funcall (find-symbol "DESTROY-TRAY" :stumptray) tray)
+       (setf *vikix-tray-icons* '())))))
+
+(defun vikix-tray-bar-new (mode-line)
+  "On *new-mode-line-hook*: a second later, once the bar is in place, the
+tray into it. (A whole second: a timer's delay is never a fraction.)"
+  (declare (ignore mode-line))
+  (ignore-errors
+   (when *vikix-tray-wanted*
+     (run-with-timer 1 nil 'vikix-tray-tend))))
+
+(remove-hook *destroy-mode-line-hook* 'vikix-tray-bar-gone)
+(add-hook *destroy-mode-line-hook* 'vikix-tray-bar-gone)
+(remove-hook *new-mode-line-hook* 'vikix-tray-bar-new)
+(add-hook *new-mode-line-hook* 'vikix-tray-bar-new)
 
 (defun vikix-tray-start ()
   "The tray on, in the bar, and its applets started (those not running)."
@@ -327,7 +434,13 @@ started again, once in five minutes at most."
       (progn
         (unless (find-package :stumptray)
           (funcall (find-symbol "QUICKLOAD" :ql) :xembed :silent t)
-          (load-module "stumptray"))
+          (load-module "stumptray")
+          ;; The module takes %T for a placeholder of its own as it loads;
+          ;; %T is the bar's Bluetooth field, and %S the tray's room.
+          (add-screen-mode-line-formatter #\T 'vikix-mode-line-bt))
+        (setf *vikix-tray-wanted* t)
+        (when (vikix-tray-stale-p)
+          (vikix-tray-forget))
         (unless (vikix-tray-object)
           (run-commands "stumptray"))
         (setf *vikix-tray-applets* (second (vikix-tray-settings))
@@ -345,8 +458,12 @@ started again, once in five minutes at most."
 (defun vikix-tray-stop ()
   "The tray off; its applets stopped, and the bar's own fields back."
   (setf *vikix-tray-applets* '()
-        *vikix-tray-missing* '())
-  (ignore-errors (when (vikix-tray-object) (run-commands "stumptray")))
+        *vikix-tray-missing* '()
+        *vikix-tray-icons* '()
+        *vikix-tray-wanted* nil)
+  (ignore-errors
+   (cond ((vikix-tray-stale-p) (vikix-tray-forget))
+         ((vikix-tray-object) (run-commands "stumptray"))))
   (dolist (a (second (vikix-tray-settings)))
     (when (vikix-tray-applet-name-p a)
       (run-shell-command (format nil "pkill -x ~a" a)))))
@@ -502,7 +619,9 @@ main thread if anything changed."
 
 ;; The tray, when you switched it on (vikix tray on): after the bar it sits in.
 ;; Already there (a reload), it's left as it is, its applets noted again.
-(if (vikix-tray-object)
-    (setf *vikix-tray-applets* (second (vikix-tray-settings)))
-    (when (first (vikix-tray-settings))
+(setf *vikix-tray-wanted* (and (first (vikix-tray-settings)) t))
+(if (and (vikix-tray-object) (not (vikix-tray-stale-p)))
+    (progn (setf *vikix-tray-applets* (second (vikix-tray-settings)))
+           (ignore-errors (vikix-tray-note-icons)))
+    (when *vikix-tray-wanted*
       (vikix-tray-start)))
