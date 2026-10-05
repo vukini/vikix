@@ -10,7 +10,10 @@
 #   changes of its own, a topic with nothing new: each refused, nothing
 #   changed. Two releases at once both land, one after the other, with
 #   numbers of their own. --plain merges without a version; --keep leaves
-#   the worktree; --tests none runs none.
+#   the worktree; --tests none runs none. --queue: nothing when nothing
+#   is releasing; with one testing and one waiting, the one whose turn it
+#   is first, each with what it is doing and its summary; a note left by a
+#   release that died is cleared; none left when they have landed.
 #
 # In a made-up repository: git only, no network.
 
@@ -38,6 +41,7 @@ printf 'one\ntwo\nthree\n' > "$r/words"
 cat > "$r/tests/run.sh" <<'END'
 #!/bin/sh
 echo "run.sh $*" >> "$(dirname "$0")/../.git-test-calls" 2>/dev/null || true
+while [ -e "$(dirname "$0")/../../hold" ]; do sleep 0.2; done   # held up while the test says so
 [ -e "$(dirname "$0")/../fail" ] && { echo "FAIL: made to"; echo "FAILED: made"; exit 1; }
 echo "all passed: made-up"
 END
@@ -138,5 +142,32 @@ check "--plain merges with no version and no tag: $code $(version)" bash -c "[ $
 check "--keep leaves the worktree and the branch" bash -c "[ -d '$t/vikix-k' ] && git -C '$r' rev-parse -q --verify refs/heads/k >/dev/null"
 check "the main folder is clean after it all" test -z "$(git -C "$r" status --porcelain)"
 
-[ "$fail" = 0 ] && echo "release: merged, numbered and tagged; rebased when main moved; refused, with nothing changed, on a clash, failing tests or uncommitted work; two at once land in turn"
+# --- The queue -----------------------------------------------------------------------
+check "--queue with nothing releasing says so: $(release --queue)" test "$(release --queue)" = "No release is under way."
+topic q1 file-q1 "q1"; topic q2 file-q2 "q2"
+touch "$t/hold"
+release q1 "the first of two" > "$t/q1.out" 2>&1 &
+p1=$!
+for _ in $(seq 1 50); do grep -q testing <<<"$(release --queue)" && break; sleep 0.2; done
+release q2 --plain > "$t/q2.out" 2>&1 &
+p2=$!
+for _ in $(seq 1 50); do grep -q waiting <<<"$(release --queue)" && break; sleep 0.2; done
+mkdir -p "$r/.git/vikix-release-queue"; printf 'ghost\ntesting (quick)\n1\n\na release that died\n' > "$r/.git/vikix-release-queue/999999"
+out=$(release --queue)
+check "--queue: the one whose turn it is first, testing, with its summary: $(sed -n 2p <<<"$out")" \
+  grep -qE '^  q1 +testing \(changed\) +since [0-9]{2}:[0-9]{2}   the first of two$' <<<"$(sed -n 2p <<<"$out")"
+check "then the one waiting, and that it brings no version: $(sed -n 3p <<<"$out")" \
+  grep -qE '^  q2 +waiting for its turn +since [0-9]{2}:[0-9]{2}    ?\(no version\)$' <<<"$(sed -n 3p <<<"$out")"
+check "a note left by a release that died isn't listed, and is cleared away: $(wc -l <<<"$out") lines" \
+  bash -c "[ \"\$(wc -l <<<\"\$1\")\" = 3 ] && [ ! -e '$r/.git/vikix-release-queue/999999' ]" _ "$out"
+check "--queue changes nothing: both still under way" bash -c "kill -0 $p1 && kill -0 $p2"
+check "the one waiting is told how to see the queue" grep -q 'release --queue shows the queue' "$t/q2.out"
+rm -f "$t/hold"
+wait "$p1" || true; wait "$p2" || true
+check "both land once the first is done: $(tail -1 "$t/q1.out"); $(tail -2 "$t/q2.out" | head -1)" bash -c "[ -e '$r/file-q1' ] && [ -e '$r/file-q2' ]"
+check "and the queue is empty again, no note left: $(release --queue)" \
+  bash -c "[ \"\$1\" = 'No release is under way.' ] && [ -z \"\$(ls '$r/.git/vikix-release-queue' 2>/dev/null)\" ]" _ "$(release --queue)"
+check "the main folder is clean after the queue's releases" test -z "$(git -C "$r" status --porcelain)"
+
+[ "$fail" = 0 ] && echo "release: merged, numbered and tagged; rebased when main moved; refused, with nothing changed, on a clash, failing tests or uncommitted work; two at once land in turn; --queue shows who is testing and who waits"
 exit "$fail"

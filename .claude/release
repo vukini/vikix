@@ -18,6 +18,11 @@
 #   --co-author "Name <mail>"
 #                 a Co-Authored-By line on the release commit
 #
+#   .claude/release --queue
+#       the releases under way, the one whose turn it is first: each one's
+#       topic, what it is doing (testing, waiting for its turn) and since
+#       when, and its summary. Nothing is changed.
+#
 # One release at a time: a second waits for the first (a lock in the
 # repository), so two sessions can't take the same number, and main can't
 # move between a session's last look and its merge. Each step runs only if
@@ -34,13 +39,14 @@ set -uo pipefail
 say() { printf ':: %s\n' "$*"; }
 die() { printf 'xx %s\n' "$*" >&2; exit 1; }
 
-tests=changed plain='' keep='' coauthor='' topic='' summary=''
+tests=changed plain='' keep='' coauthor='' topic='' summary='' queue=''
 while [ $# -gt 0 ]; do
   case $1 in
     --tests) [ $# -ge 2 ] || die "--tests needs changed, quick, full or none"; tests=$2; shift 2 ;;
     --tests=*) tests=${1#--tests=}; shift ;;
     --plain) plain=1; shift ;;
     --keep) keep=1; shift ;;
+    --queue) queue=1; shift ;;
     --co-author) [ $# -ge 2 ] || die "--co-author needs a name and an address"; coauthor=$2; shift 2 ;;
     -h|--help) sed -n '2,/^$/s/^# \{0,1\}//p' "$0"; exit 0 ;;
     -*) die "no option $1 (see --help)" ;;
@@ -48,6 +54,37 @@ while [ $# -gt 0 ]; do
   esac
 done
 case $tests in changed|quick|full|none) ;; *) die "--tests is changed, quick, full or none" ;; esac
+
+# Each release keeps a note of itself while it runs (its topic, what it
+# is doing, since when), in the repository beside the lock: what --queue
+# reads. A note whose process has ended is nobody's, and is cleared away.
+notes_dir() { printf '%s/vikix-release-queue' "$(cd "$(dirname "$0")/.." && cd "$(git rev-parse --git-common-dir)" && pwd)"; }
+show_queue() {
+  local dir f pid topic state since summary kind rows
+  dir=$(notes_dir) || die "this isn't a git repository"
+  rows=$(for f in "$dir"/*; do
+    [ -f "$f" ] || continue
+    pid=${f##*/}
+    kill -0 "$pid" 2>/dev/null || { rm -f "$f"; continue; }
+    { IFS= read -r topic; IFS= read -r state; IFS= read -r since; IFS= read -r kind; IFS= read -r summary; } < "$f" || true
+    # The one whose turn it is sorts first, then the waiting by when they came.
+    case $state in waiting*) printf '1 %s' "$since" ;; *) printf '0 %s' "$since" ;; esac
+    printf '\t%s\t%s\t%s\t%s\n' "$topic" "$state" "$(date -d "@$since" +%H:%M 2>/dev/null || echo '?')" "$summary${kind:+ ($kind)}"
+  done | sort | while IFS=$'\t' read -r _ topic state since summary; do
+    printf '  %-12s %-22s since %s   %s\n' "$topic" "$state" "$since" "$summary" | cut -c1-"${COLUMNS:-160}"
+  done)
+  if [ -n "$rows" ]; then
+    printf 'Releases under way, the one whose turn it is first:\n%s\n' "$rows"
+  else
+    echo "No release is under way."
+  fi
+}
+if [ -n "$queue" ]; then
+  [ -z "$topic" ] || die "--queue takes nothing more"
+  show_queue
+  exit 0
+fi
+
 [ -n "$topic" ] || die "which topic? .claude/release TOPIC \"what it brings\""
 [ -n "$plain" ] || [ -n "$summary" ] || die "what does it bring? .claude/release $topic \"...\" (it becomes the release's line)"
 case $summary in *$'\n'*) die "the summary is one line" ;; esac
@@ -62,12 +99,23 @@ git -C "$main" rev-parse --verify -q "refs/heads/$topic" >/dev/null || die "ther
 [ -n "$wt" ] || die "the branch $topic has no worktree (git worktree add ~/src/vikix-$topic $topic)"
 [ "$wt" != "$main" ] || die "$topic is checked out in the main folder: that one is for merging only"
 
+# This release's note, for --queue: gone when this ends, however it ends.
+note_file="$common/vikix-release-queue/$$"
+came=$(date +%s)
+note() {   # note STATE: what this release is doing now
+  mkdir -p "$common/vikix-release-queue" 2>/dev/null || return 0
+  printf '%s\n%s\n%s\n%s\n%s\n' "$topic" "$1" "$came" "${plain:+no version}" "$summary" > "$note_file" 2>/dev/null || true
+}
+trap 'rm -f "$note_file"' EXIT
+
 # One at a time.
 exec 9>"$common/vikix-release.lock" || die "the lock can't be made"
 if ! flock -n 9; then
-  say "another session is releasing: waiting for it"
+  note "waiting for its turn"
+  say "another session is releasing: waiting for it (.claude/release --queue shows the queue)"
   flock -w 3600 9 || die "waited an hour for the other release; nothing done"
 fi
+note "checking"
 
 [ "$(git -C "$main" symbolic-ref -q --short HEAD)" = main ] || die "the main folder ($main) isn't on main"
 [ -z "$(git -C "$main" status --porcelain)" ] || die "the main folder ($main) has changes of its own: it is for merging only. Nothing done"
@@ -77,6 +125,7 @@ fi
 
 # On top of main as it is now.
 if [ "$(git -C "$main" rev-list --count "$topic..main")" -gt 0 ]; then
+  note "onto main"
   say "main has moved on: putting $topic on top of it"
   if ! git -C "$wt" rebase -q main >/dev/null 2>&1; then
     files=$(git -C "$wt" diff --name-only --diff-filter=U | tr '\n' ' ')
@@ -89,6 +138,7 @@ case $tests in
   none) say "tests: not run (you said none)" ;;
   *)
     case $tests in changed) args=(--changed main) ;; quick) args=(--quick) ;; full) args=() ;; esac
+    note "testing ($tests)"
     say "tests (${tests}), in $wt ..."
     log=$(mktemp)
     if ! (cd "$wt" && tests/run.sh "${args[@]}") >"$log" 2>&1; then
@@ -101,6 +151,7 @@ case $tests in
 esac
 
 # From here main changes. Each step only after the one before.
+note "merging"
 git -C "$main" merge -q --ff-only "$topic" >/dev/null 2>&1 ||
   die "main wouldn't fast-forward to $topic. Nothing merged"
 merged=$(git -C "$main" rev-parse --short HEAD)
