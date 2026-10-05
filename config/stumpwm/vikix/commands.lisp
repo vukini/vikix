@@ -158,9 +158,9 @@ VIKIX_SESSION_START), its config loaded."
 
 (defcommand vikix-reload () ()
   "Reload the whole configuration (Vikix's files and user.lisp)."
-  (let ((t0 (vikix-now)))
-    (loadrc)    ; loadrc prints its own confirmation
-    (vikix-time-note "reload" (- (vikix-now) t0))))
+  ;; loadrc prints its own confirmation; init.lisp notes how long it took
+  ;; (a reload from `vikix update` or `vikix eval` is one too).
+  (loadrc))
 
 (defcommand vikix-theme (name) ((:string "Theme: "))
   "Switch to the theme called NAME everywhere: StumpWM, the terminals,
@@ -627,6 +627,27 @@ manager."
                    (when (char= c #\^) (write-char c s)))))
     (error () "")))
 
+;;; The bar's words come from small programs (pamixer, vikix-net, vikix-bt,
+;;; vikix-dropbox ...). Run every ten seconds in StumpWM's one thread, they
+;;; held the whole desktop for as long as they took together: a quarter of
+;;; a second as a rule, four seconds when one of them was slow (measured
+;;; 2026-10-05), with every key waiting. So the round is made by a thread of
+;;; its own (modeline.lisp); what it finds is put in these variables, and the
+;;; bar is redrawn once, by the main thread, when something changed. A
+;;; refresh asked for in the main thread (the volume keys) redraws at once.
+
+(defvar *vikix-bar-in-worker* nil
+  "True in the bar's own thread: nothing may be drawn from there.")
+(defvar *vikix-bar-changed* nil
+  "In the bar's thread: a refresher found something new this round.")
+
+(defun vikix-bar-redraw ()
+  "Redraw the bar for a value that changed: now, in the main thread; from
+the bar's own thread, once its round is over."
+  (if *vikix-bar-in-worker*
+      (setf *vikix-bar-changed* t)
+      (update-all-mode-lines)))
+
 (defvar *vikix-volume* ""
   "The volume as pamixer puts it (\"40%\" or \"muted\"), or \"\" when
 there is no sound server to ask.")
@@ -644,14 +665,14 @@ when there is none or it's off.")
   (let ((new (vikix-shell-line "pamixer --get-volume-human")))
     (unless (string= new *vikix-volume*)
       (setf *vikix-volume* new)
-      (update-all-mode-lines))))
+      (vikix-bar-redraw))))
 
 (defun vikix-net-refresh ()
   "Read the network link into *vikix-net*, and redraw the bar if it changed."
   (let ((new (vikix-shell-line "vikix-net")))
     (unless (string= new *vikix-net*)
       (setf *vikix-net* new)
-      (update-all-mode-lines))))
+      (vikix-bar-redraw))))
 
 (defvar *vikix-usb* ""
   "\"usb\" while a drive is mounted under /run/media (bin/vikix-drives), or \"\".")
@@ -662,14 +683,14 @@ it changed. vikix-drives also calls this when a drive comes or goes."
   (let ((new (vikix-shell-line "vikix-drives bar")))
     (unless (string= new *vikix-usb*)
       (setf *vikix-usb* new)
-      (update-all-mode-lines))))
+      (vikix-bar-redraw))))
 
 (defun vikix-bt-refresh ()
   "Read Bluetooth into *vikix-bt*, and redraw the bar if it changed."
   (let ((new (vikix-shell-line "vikix-bt")))
     (unless (string= new *vikix-bt*)
       (setf *vikix-bt* new)
-      (update-all-mode-lines))))
+      (vikix-bar-redraw))))
 
 (defvar *vikix-dropbox* ""
   "Dropbox as bin/vikix-dropbox puts it (\"dbx ↓1,204\", \"dbx off\"), or \"\"
@@ -680,7 +701,7 @@ when it's up to date, not installed, or never set up.")
   (let ((new (vikix-shell-line "vikix-dropbox")))
     (unless (string= new *vikix-dropbox*)
       (setf *vikix-dropbox* new)
-      (update-all-mode-lines))))
+      (vikix-bar-redraw))))
 
 (defvar *vikix-updates* ""
   "What `vikix update` would bring, for the bar: \"updates 12\", \"updates
@@ -717,7 +738,7 @@ changed. Reading a small file is cheap, so this runs with the others."
                (ignore-errors (parse-integer (third words))))))
     (unless (string= new *vikix-updates*)
       (setf *vikix-updates* new)
-      (update-all-mode-lines))))
+      (vikix-bar-redraw))))
 
 ;;; Keep awake (bin/vikix-idle), shown in the bar.
 
@@ -733,7 +754,7 @@ changed. Reading a small file is cheap, so this runs with the others."
   (let ((new (and (probe-file *vikix-awake-file*) t)))
     (unless (eq new *vikix-awake*)
       (setf *vikix-awake* new)
-      (update-all-mode-lines))))
+      (vikix-bar-redraw))))
 
 (defparameter *vikix-windows-pidfile*
   (concatenate 'string
@@ -777,7 +798,7 @@ A small file, so this runs with the others."
                (with-open-file (in *vikix-memory-file*) (read-line in nil ""))))))
     (unless (equal new *vikix-memory*)
       (setf *vikix-memory* new)
-      (update-all-mode-lines))))
+      (vikix-bar-redraw))))
 
 (defun vikix-windows-refresh ()
   "Read whether Windows runs into *vikix-windows*; redraw the bar if it changed.
@@ -785,7 +806,7 @@ A file test, so no program starts every 10 seconds."
   (let ((new (and (probe-file *vikix-windows-pidfile*) t)))
     (unless (eq new *vikix-windows*)
       (setf *vikix-windows* new)
-      (update-all-mode-lines))))
+      (vikix-bar-redraw))))
 
 (defparameter *vikix-ai-file*
   (merge-pathnames ".local/state/vikix/ai-loaded" (user-homedir-pathname))
@@ -799,7 +820,7 @@ A file test, so no program starts every 10 seconds."
   (let ((new (and (probe-file *vikix-ai-file*) t)))
     (unless (eq new *vikix-ai*)
       (setf *vikix-ai* new)
-      (update-all-mode-lines))))
+      (vikix-bar-redraw))))
 
 (defcommand vikix-awake () ()
   "Keep awake, on or off: while on, the screen doesn't lock or go dark and
@@ -842,7 +863,7 @@ NOW (all Unix times but DAYS). NIL LAST means backups aren't set up."
          (new (vikix-backup-text last days now)))
     (unless (string= new *vikix-backup*)
       (setf *vikix-backup* new)
-      (update-all-mode-lines))))
+      (vikix-bar-redraw))))
 
 ;;; Recording the screen (bin/vikix-record), shown in the bar.
 
@@ -878,7 +899,7 @@ changed. vikix-record calls this when it starts and stops."
     (unless (and (eq new *vikix-recording*) (eq mic *vikix-dictating*))
       (setf *vikix-recording* new
             *vikix-dictating* mic)
-      (update-all-mode-lines))))
+      (vikix-bar-redraw))))
 
 (defcommand vikix-record (what) ((:string "Record (area, screen): "))
   "Start recording the screen, or stop if it is recording. WHAT is area
@@ -936,7 +957,7 @@ at the next login too, until you switch it on."
                  "")))
     (unless (string= new *vikix-quiet*)
       (setf *vikix-quiet* new)
-      (update-all-mode-lines))))
+      (vikix-bar-redraw))))
 
 (defcommand vikix-quiet () ()
   "Do not disturb, on or off. While it is on, notifications wait (the bar

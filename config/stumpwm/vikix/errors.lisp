@@ -37,6 +37,16 @@
 (defvar *vikix-asking* nil
   "True while the menu is open, so an error inside it isn't asked about.")
 
+(defvar *vikix-loading-file* nil
+  "The file being loaded, whichever way: from its text here, or from its
+compiled copy (init.lisp), when *load-truename* is the copy's.")
+
+;; init.lisp defines it; here for this file loaded by itself (the tests).
+(unless (fboundp 'vikix-loading-file)
+  (defun vikix-loading-file ()
+    "The file a form being loaded is written in, or nil outside a load."
+    (or *vikix-loading-file* *load-truename*)))
+
 (defvar *vikix-load-line* nil
   "While a file loads a form at a time: the line the form being loaded
 starts on. rules.lisp notes it, so each rule knows where it was written.")
@@ -211,7 +221,8 @@ loaded."
          (*package* *package*)
          (*readtable* *readtable*)
          (*load-pathname* (pathname file))
-         (*load-truename* (truename file)))
+         (*load-truename* (truename file))
+         (*vikix-loading-file* (truename file)))
     (with-input-from-string (in text)
       (block file
         (loop

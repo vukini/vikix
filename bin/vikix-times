@@ -5,6 +5,9 @@
                          session started to the desktop ready) and each
                          Reload config, the last and the usual (the median
                          of the last 10), against their limits
+  vikix times files      the last load of the config (a login or a reload),
+                         file by file: how long each took, and whether it
+                         came from its compiled copy or from its text
   vikix times soak [MINUTES]   the desktop used hard for an hour (or MINUTES)
                          on a hidden screen: windows opening, closing,
                          moving, floating, splits, reloads; fails when
@@ -142,6 +145,36 @@ def soak(args):
     return out.returncode
 
 
+def files():
+    """The last load, file by file, slowest first (init.lisp writes it)."""
+    path = os.path.join(STATE, "load-times")
+    try:
+        with open(path, encoding="utf-8") as f:
+            lines = f.read().splitlines()
+    except OSError:
+        print("No load written down yet: the next login or Reload config is.")
+        return 0
+    total, what = (lines[0].split() + ["", ""])[:2]
+    rows = []
+    for line in lines[1:]:
+        ms, how, name = (line.split(None, 2) + ["", ""])[:3]
+        if ms.isdigit():
+            rows.append((int(ms), how, name))
+    print(f"The last {'reload' if what == 'reload' else 'start'} took {total} s:")
+    for ms, how, name in sorted(rows, reverse=True):
+        way = {"compiled": "its compiled copy", "source": "its text",
+               "yours": "its text (yours, or a plugin's)"}.get(how, how)
+        print(f"  {ms:>5} ms  {name:<26} from {way}")
+    waiting = [name for _, how, name in rows
+               if how == "source" and name not in ("errors.lisp", "registry.lisp")]
+    if waiting:
+        print("Read from their text this time, and compiled in the background for the next: "
+              + ", ".join(waiting) + ".")
+    print("Vikix's files are compiled once (~/.cache/vikix/fasl/) and loaded from there until they change;\n"
+          "errors.lisp and registry.lisp, the plugins' files and yours are always read from their text.")
+    return 0
+
+
 def main(argv):
     cmd = argv[0] if argv else "show"
     if cmd == "soak":
@@ -153,6 +186,8 @@ def main(argv):
         return measure()
     if cmd == "show":
         return show()
+    if cmd == "files":
+        return files()
     sys.exit(f"vikix times: no command {cmd} (vikix times help)")
 
 

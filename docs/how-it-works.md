@@ -58,6 +58,10 @@ login on tty1
 
 Each file in that list is loaded on its own, a piece (a form) at a time. If one piece has a mistake, a small menu asks what to do: skip that piece and load the rest, open the file at that line in Emacs, or, for `user.lisp`, load your last snapshot of it instead. So a typo in `user.lisp` costs only that line, never your desktop. Errors StumpWM itself doesn't catch (in a timer, say) used to restart the whole desktop; now the menu offers to carry on first. See [When the desktop asks what to do](fixing.md#when-the-desktop-asks-what-to-do).
 
+Vikix's own files are compiled once and kept, in `~/.cache/vikix/fasl/`: the first load after a file changes reads it from its text, as described, and compiles it in the background; from then on it is loaded from the compiled copy, which takes a fifth of the time, until it changes again. A copy belongs to the file's text and to that of every file before it in the list, so a change early in the list has the later ones compiled again too. `errors.lisp`, `registry.lisp` (whose commands know the line they're written on), the plugins' files and yours are always read from their text. A copy that fails is thrown away and the text loaded, so a mistake never costs more than it did. `vikix times files` shows the last load file by file.
+
+The bar's words (the volume, the network, Bluetooth, Dropbox ...) are asked of small programs every ten seconds by a thread of their own, not by StumpWM's main one: a program that is slow to answer delays its own word in the bar, never your keys.
+
 At the very first login, StumpWM also opens the welcome (`vikix welcome`, in a terminal): add software, the keys that matter, a theme, the keyboard layout, the guide. Once it has been shown, it only comes back from `Super+m` → *Welcome*.
 
 **Why no systemd user services:** Void uses runit, which runs system services only. Programs that belong to your desktop session are started by `vikix-session` and end with it. To start one of your own with the desktop, see [startup programs](customize.md#start-a-program-with-the-desktop).

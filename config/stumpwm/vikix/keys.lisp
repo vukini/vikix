@@ -63,9 +63,9 @@ tools. Every other program a key starts is on Super+Alt.")
 (defun vikix-bind (key command)
   "Bind KEY (a key name like \"s-RET\") to COMMAND (a command string)."
   ;; Where it was written, for "why did that happen?" (why.lisp).
-  (when (and *load-truename* (boundp '*vikix-key-sources*))
+  (when (and (or (and (boundp '*vikix-loading-file*) (symbol-value '*vikix-loading-file*)) *load-truename*) (boundp '*vikix-key-sources*))
     (setf (gethash key (symbol-value '*vikix-key-sources*))
-          (cons (namestring *load-truename*)
+          (cons (namestring (or (and (boundp '*vikix-loading-file*) (symbol-value '*vikix-loading-file*)) *load-truename*))
                 (and (boundp '*vikix-load-line*) (symbol-value '*vikix-load-line*)))))
   (if *vikix-bind-later*
       ;; define-key tells X when the map is *top-map*: not this time.

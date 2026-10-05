@@ -279,12 +279,12 @@ starts with) and its forms: (values OPTIONS FORMS)."
 
 (defun vikix-add-rule (&rest fields &key name text &allow-other-keys)
   "Add a rule, or replace the one known by the same name (or text)."
-  (let* ((file (and *load-truename* (ignore-errors (namestring *load-truename*))))
+  (let* ((file (and (or (and (boundp '*vikix-loading-file*) (symbol-value '*vikix-loading-file*)) *load-truename*) (ignore-errors (namestring (or (and (boundp '*vikix-loading-file*) (symbol-value '*vikix-loading-file*)) *load-truename*)))))
          (rule (apply #'make-vikix-rule
                       :key (or name text)
                       :file file
                       :line (and file *vikix-load-line*)
-                      :owner (vikix-rules-owner (and *load-truename* file))
+                      :owner (vikix-rules-owner (and (or (and (boundp '*vikix-loading-file*) (symbol-value '*vikix-loading-file*)) *load-truename*) file))
                       fields))
          (old (member (vikix-rule-key rule) *vikix-rules* :key #'vikix-rule-key :test #'equal)))
     (if old

@@ -149,8 +149,8 @@ and the menu shows it in its section."
   (vikix-command-check name does options)
   (let* ((command (list* :name name :does does
                          ;; Where it is written, for "why did that happen?" (why.lisp).
-                         :file (and *load-truename* (ignore-errors (namestring *load-truename*)))
-                         :line (and *load-truename* (boundp '*vikix-load-line*) (symbol-value '*vikix-load-line*))
+                         :file (and (or (and (boundp '*vikix-loading-file*) (symbol-value '*vikix-loading-file*)) *load-truename*) (ignore-errors (namestring (or (and (boundp '*vikix-loading-file*) (symbol-value '*vikix-loading-file*)) *load-truename*))))
+                         :line (and (or (and (boundp '*vikix-loading-file*) (symbol-value '*vikix-loading-file*)) *load-truename*) (boundp '*vikix-load-line*) (symbol-value '*vikix-load-line*))
                          (copy-list options)))
          (old (position (string name) *vikix-commands*
                         :key (lambda (c) (string (getf c :name))) :test #'string-equal)))

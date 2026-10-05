@@ -34,6 +34,10 @@ unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE   # the desktop session's: from an agent
 # The tests make up a home folder, and Vikix follows the XDG variables
 # where they are set; GitHub's runners set XDG_CONFIG_HOME, which would
 # send a test's files into the runner's real config instead.
+# The hidden desktops the tests start share one folder of compiled copies
+# of the layer (init.lisp), so each needn't compile it again: a copy is
+# named by what it was made from, so runs of different branches don't mix.
+export VIKIX_FASL_DIR=${VIKIX_FASL_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/vikix/test-fasl}
 unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME
 cd "$(dirname "$0")" || exit 1
 mode=${1:-}
@@ -44,7 +48,7 @@ case $mode in
 esac
 tests=(lint)
 if command -v sbcl >/dev/null; then tests+=(lisp); else echo "(lisp needs sbcl; skipped here)"; fi
-tests+=(battery memory gestures home services lisp-stage image theme theme-import bar rofi wallpaper mimeapps examples dev-ai notes project drives firmware fingerprint firewall updates notifications idle lock queue release lazarus capture nightlight update windows ai ai-local llm ai-keys agents debug dictate voice lisp-apps esploro hype publish winapps learn mcp swank errors bitwarden plugin records obsidian docs-check screens docs vk webapp features nvim emacs editor-theme welcome menu docs-open nyxt pkg oneline man day back viri main drawer layouts rules keys registry why gather tray focus propose pixmaps times soak rescue)
+tests+=(battery memory gestures home services lisp-stage image theme theme-import bar rofi wallpaper mimeapps examples dev-ai notes project drives firmware fingerprint firewall updates notifications idle lock queue release lazarus capture nightlight update windows ai ai-local llm ai-keys agents debug dictate voice lisp-apps esploro hype publish winapps learn mcp swank errors bitwarden plugin records obsidian docs-check screens docs vk webapp features nvim emacs editor-theme welcome menu docs-open nyxt pkg oneline man day back viri main drawer layouts rules keys reload registry why gather tray focus propose pixmaps times soak rescue)
 if command -v restic >/dev/null; then tests+=(backup); else echo "(backup needs restic; skipped here)"; fi
 if command -v makeinfo >/dev/null; then tests+=(info); else echo "(info needs makeinfo; skipped here)"; fi
 # --quick leaves these out (the run says so); the full run and GitHub keep them.

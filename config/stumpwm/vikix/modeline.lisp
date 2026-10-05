@@ -386,30 +386,62 @@ bar isn't under ours. StumpWM doesn't set it."
   (toggle-mode-line (current-screen) (current-head))
   (vikix-publish-workarea))
 
-(defun vikix-bar-refresh ()
-  (vikix-publish-workarea)
-  (vikix-volume-refresh)
-  (vikix-net-refresh)
-  (vikix-bt-refresh)
-  (vikix-dropbox-refresh)
-  (vikix-updates-refresh)
-  (vikix-backup-refresh)
-  (vikix-usb-refresh)
-  (vikix-quiet-refresh)
-  (vikix-awake-refresh)
-  (vikix-windows-refresh)
-  (vikix-ai-refresh)
-  (vikix-memory-refresh)
-  (vikix-record-refresh))
+(defparameter *vikix-bar-refreshers*
+  '(vikix-volume-refresh vikix-net-refresh vikix-bt-refresh vikix-dropbox-refresh
+    vikix-updates-refresh vikix-backup-refresh vikix-usb-refresh vikix-quiet-refresh
+    vikix-awake-refresh vikix-windows-refresh vikix-ai-refresh vikix-memory-refresh
+    vikix-record-refresh)
+  "What a round of the bar reads, in order. Each asks a small program or
+reads a file, and keeps what it found in a variable of its own.")
 
-;; The volume keys update the bar at once (vikix-volume); this timer
-;; catches everything else: pavucontrol, a new Wi-Fi network, a cable.
-;; Cancel the old timer first, so reloading the config doesn't stack them.
+(defun vikix-bar-refresh ()
+  "A whole round, here and now, in this thread. From the main thread it
+holds the desktop while the programs answer: the bar's own thread is what
+makes the rounds (vikix-bar-kick asks it for one)."
+  (when (in-main-thread-p) (vikix-publish-workarea))
+  (dolist (refresh *vikix-bar-refreshers*)
+    (ignore-errors (funcall refresh))))
+
+(defvar *vikix-bar-thread* nil)
+(defvar *vikix-bar-wake* (sb-thread:make-semaphore :name "vikix-bar")
+  "Signalled to have a round now, not at the next ten seconds.")
+(defvar *vikix-bar-rounds* 0 "How many rounds the bar's thread has made.")
+
+(defun vikix-bar-round ()
+  "One round by the bar's thread: every refresher, then one redraw by the
+main thread if anything changed."
+  (let ((*vikix-bar-in-worker* t)
+        (*vikix-bar-changed* nil))
+    (dolist (refresh *vikix-bar-refreshers*)
+      (ignore-errors (funcall refresh)))
+    (incf *vikix-bar-rounds*)
+    (when (and *vikix-bar-changed* *request-channel*)
+      (ignore-errors (call-in-main-thread 'update-all-mode-lines)))))
+
+(defun vikix-bar-loop ()
+  ;; The round by name each time, so a reload's new one is used.
+  (loop (ignore-errors (funcall 'vikix-bar-round))
+        (sb-thread:wait-on-semaphore *vikix-bar-wake* :timeout 10)))
+
+(defun vikix-bar-kick ()
+  "Ask the bar's thread for a round now."
+  (sb-thread:signal-semaphore *vikix-bar-wake*))
+
+;; The volume keys update the bar at once (vikix-volume); the rounds catch
+;; everything else: pavucontrol, a new Wi-Fi network, a cable. The timer
+;; left in the main thread only tells programs where the bar is
+;; (_NET_WORKAREA), which costs nothing. Cancel the old timer first, so
+;; reloading the config doesn't stack them.
 (defvar *vikix-bar-timer* nil)
 (when *vikix-bar-timer*
   (cancel-timer *vikix-bar-timer*))
-(vikix-bar-refresh)
-(setf *vikix-bar-timer* (run-with-timer 10 10 #'vikix-bar-refresh))
+(setf *vikix-bar-timer* (run-with-timer 10 10 'vikix-publish-workarea))
+(if (and (boundp '*screen-list*) *screen-list*)
+    (progn
+      (unless (and *vikix-bar-thread* (sb-thread:thread-alive-p *vikix-bar-thread*))
+        (setf *vikix-bar-thread* (sb-thread:make-thread 'vikix-bar-loop :name "vikix-bar")))
+      (vikix-bar-kick))
+    (vikix-bar-refresh))
 
 (setf *mode-line-timeout*    10          ; redraw every 10 seconds
       *mode-line-position*   :top

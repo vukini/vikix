@@ -980,6 +980,7 @@ Started by `~/.xinitrc` inside dbus-run-session, so every program here shares on
 How long the desktop takes.
 
 - `vikix times` — this desktop's own measures: logging in (the session started to the desktop ready) and each Reload config, the last and the usual (the median of the last 10), against their limits
+- `vikix times files` — the last load of the config (a login or a reload), file by file: how long each took, and whether it came from its compiled copy or from its text
 - `vikix times soak [MINUTES]` — the desktop used hard for an hour (or MINUTES) on a hidden screen: windows opening, closing, moving, floating, splits, reloads; fails when StumpWM answers slowly, grows, keeps timers or hooks, or writes an error (lib/soak.py)
 - `vikix times soak --ask` — first asks in a dialog (cron, weekly), then runs at low priority and says how it went in a notification
 - `vikix times measure` — measure now on a hidden screen, with this checkout's config (a few seconds, nothing on your screen): StumpWM's start, a reload, a key to its command, an Emacs frame, StumpWM answering (and answering with a tiled xterm open, when xterm is installed); kept, so the next one says what changed
