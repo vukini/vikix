@@ -137,7 +137,19 @@ on_screen() {
   file="$home/.local/state/vikix/used"
 
   win usedtest "A private title 4711"
-  xdotool key super+ctrl+g; sleep 0.5; xdotool key super+ctrl+g; sleep 0.5
+  # Pressed until it is counted: a key sent to a busy hidden screen just
+  # after a window opened is sometimes lost (StumpWM hasn't its keys on the
+  # new window yet), and two presses then counted as one.
+  press_counted() {   # press_counted HOW-MANY-BY-THEN
+    for _ in 1 2 3; do
+      xdotool key super+ctrl+g
+      for _ in $(seq 1 8); do
+        [ "$(count :key "s-C-g${tab}toggle-gaps")" -ge "$1" ] && return 0
+        sleep 0.25
+      done
+    done
+  }
+  press_counted 1; press_counted 2
   check "a key pressed twice is counted twice, under the name it is bound by: $(count :key "s-C-g${tab}toggle-gaps")" \
     test "$(count :key "s-C-g${tab}toggle-gaps")" = 2
   ask '(vikix-menu-do (list "A menu entry" (quote (values))))' >/dev/null
