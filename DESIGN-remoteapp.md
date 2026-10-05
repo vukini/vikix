@@ -91,6 +91,8 @@ Non-blocking:
 
 **Built 2026-10-04, not yet tried on the real VM.** The first program is FACTS, Vid's company ERP, already in the VM; Office isn't the target yet. Decided: the password kept once; `~/Documents` shared as `Y:` (a second virtio-fs folder, added to the VM's saved definition; in Windows a second virtiofs service by its tag, and the first pinned to `vikix-shared` as `Z:`, so the two can't swap). `lib/windows-apps.py` does the work, behind `vikix windows app` and `apps`; everything inside Windows goes through the guest agent (PowerShell run as SYSTEM). Phase 0 on the real VM waits for Vid (it takes 6 GB of memory).
 
+**Tried 2026-10-05: FACTS opens.** Two fixes on the way. `/from-stdin` reads only from a terminal, and the launcher has none, so sign-in was cancelled; FreeRDP now gets every argument on its input (`/args-from:stdin`), the password among them. And FACTS's Start-menu entry is an installer's advertised shortcut, whose target is its icon in `C:\Windows\Installer`: Windows Installer's `ShortcutTarget` and `ComponentPath` give the real `Facts.exe`. FACTS's login comes up as one window, class `vikix-win-factserp`, and says Online.
+
 **Phase 0, a day:** `apps setup` on this laptop's VM, and `vikix windows app` for one program with no file, by hand, measured: does Excel (or the program Vid uses) come up as a tiled window, does the clipboard cross, how long from a running VM.
 
 **Phase 1:** P0 items 1–4, with the file question settled.

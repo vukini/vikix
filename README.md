@@ -829,7 +829,7 @@ vikix windows app excel ~/Documents/report.xlsx   # a file, opened in it
 ```
 
 - **Setup** installs FreeRDP and, through the VM's guest agent, switches Remote Desktop and RemoteApp on in Windows, with sign-in checked first. The VM is on its private network, so only this machine can reach it.
-- **Your password** is kept in `~/.config/vikix/secrets/windows-password`, readable only by you. It is never put in the environment or on a command line: FreeRDP reads it on its input. `vikix windows apps forget` deletes it.
+- **Your password** is kept in `~/.config/vikix/secrets/windows-password`, readable only by you. It is never put in the environment or on a command line: FreeRDP reads its arguments, the password with them, on its input. `vikix windows apps forget` deletes it.
 - **Files:** `~/Windows` is drive `Z:` and `~/Documents` drive `Y:` (from the VM's next start after setup). A file in either opens in place; any other is refused with a message, since Windows can't see it.
 - **Each program's windows** have a class of their own, `vikix-win-NAME`, so a rule can place them: `(when-window (:class "vikix-win-facts") (workspace 4))`.
 - **One at a time:** Windows 11 Pro has one session. A program open this way takes it from the full desktop (`vikix windows`), which shows the lock screen until you go back to it.
