@@ -434,6 +434,9 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command why "Why did that happen? The key, rule or command behind the last things: edit it, or take it back"
   :run "vikix-why" :key "s-?"
   :menu "Help" :label "Why did that happen? What the desktop just did, and what made it")
+(define-vikix-command what "What is this? The field of the bar the pointer is on, or the window in front: what it is doing now, and where it is explained"
+  :run "vikix-what" :key "s-M-?"
+  :menu "Help" :label "What is this? The window in front, or the field of the bar the pointer is on")
 (define-vikix-command used "What you use: the keys you press most, and those you never have"
   :do (vikix-in-terminal "vikix used")
   :menu "Help")

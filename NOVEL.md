@@ -35,6 +35,8 @@ First step: `Super+?` on the bar's items alone (battery, network, updates, a wor
 
 > 2026-10-05, the what session: worked out with Vid as `DESIGN-what.md`; not built. `Super+?` had gone to `vikix why` since this was written, so the key is `Super+Alt+?` and the command `vikix what`. A card comes first (what this very thing is doing now, a short paragraph), the chapter one Enter away. The books are private, so Vikix holds only the mechanism and a table to its own guides and man pages; the table to the books, and the paragraphs in Vid's words, live in the books' repository, and the user's own documents are closed to agents unless switched on. Two things learned: the catalogue doesn't read the books yet (the `repo` source takes a project's README, plans and `docs/` only), so an `own` source with a row a section is the larger half; and several of the chapters the examples above name are not written yet, which `vikix what gaps` is for.
 
+> 2026-10-05, the what session, later: Phase 0 built, as `vikix what` (`bin/vikix-what`, `what.lisp`, `config/what/`; the README's part on the bar says what it does). In: the card for a field of the bar, a window, a workspace, a key, a running process and a package, from Vikix's guides and the manuals; `Super+Alt+?` on what the pointer is on, and a click on a field. Not in: anything of the books (Phase 1, with the `own` source), ports, services and files as kinds, the row in `vikix why`.
+
 ## 3. Record a lesson
 
 Doing a thing once becomes the first draft of teaching it.

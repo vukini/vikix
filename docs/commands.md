@@ -69,6 +69,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-wallpapers](#vikix-wallpapers): more wallpapers: Vid's collection, a git repository
 - [vikix-webapp](#vikix-webapp): a website as a program of its own
 - [vikix-welcome](#vikix-welcome): the welcome: first steps on a new desktop, in a terminal, each ticked off once done
+- [vikix-what](#vikix-what): what is this? A part of the running computer, on a card
 - [vikix-why](#vikix-why): why did that happen? What the desktop did lately, and what made it
 - [vikix-windows](#vikix-windows): Windows in a VM, for the programs that only run there
 
@@ -101,6 +102,7 @@ The everyday command.
 - `vikix layout save NAME | NAME [--no-start] | list | rm NAME` — this workspace's layout (its splits or its strip, and which window is where) saved, put back (the windows it had that aren't open started, unless --no-start), listed, removed
 - `vikix rules [off|on|forget N] [why [CLASS]] [test|apply [N]] [verbs|now|proposed]` — the desktop's rules: the list, one off or on, why a window is where it is, what they'd do with the windows open now, and doing it; forget takes one out of your rules.lisp (vikix rules help)
 - `vikix why [N]` — why did that happen? the last things the desktop did (a key and its command, a rule and its window, the menu, an agent) and where each is written (Super+?)
+- `vikix what [KIND] [NAME]` — what is this? the bar's field under the pointer or the window in front, or a thing by name (a field, a key, a process, a package): what it is doing now, what such a thing is, and where it is explained (Super+Alt+?)
 - `vikix viri [on|off]` — this workspace as a strip that scrolls sideways (Super+h/l along it), or tiled again; no word switches
 - `vikix gestures [on|off]` — three fingers swept on the touchpad move the focus, as Super+h/j/k/l do; alone: how it is
 - `vikix eval FORM` — run Lisp in the running StumpWM, print the result
@@ -1153,6 +1155,25 @@ The welcome: first steps on a new desktop, in a terminal, each ticked off once d
 StumpWM opens it by itself at the first login (commands.lisp), and Super+m, Welcome brings it back. What's done is kept in `~/.local/state/vikix/welcome`, one step a line; that it exists means the welcome has been shown.
 
 The pickers are fzf, which the base installs: type to narrow the list, Tab to pick several, Enter to go, Esc to go back.
+
+## vikix-what
+
+What is this? A part of the running computer, on a card.
+
+- `vikix what` — the thing the pointer is on in the bar (a field, a workspace's number, a window's title), else the window in front: what it is doing now, a few lines on what such a thing is, and where it is explained
+- `vikix what NAME` — a thing by its name: a field of the bar (battery, network, clock ...), a key (Super+t, or s-t as StumpWM writes it), a process (its number or its name), a package
+- `vikix what KIND [NAME]` — the same, saying which kind: field, key, process, package, window, workspace; without a name, what such a thing is
+- `vikix what ... --open N` — open the Nth of the card's explanations
+- `vikix what ... --card` — the card as a menu on the desktop, which is what the key shows: Enter opens the first explanation
+- `vikix what ... --json` — the card as data, for a script
+- `vikix what kinds` — the kinds of thing it knows, and which have a page
+- `vikix what check` — the pages: every guide, manual and file they name is there, and none says more than a card holds
+
+Super+Alt+? is the same on the desktop: point at a field of the bar and press it, or press it with a window in front. A click on a field that does nothing else when clicked (the battery, the clock, updates) opens its card too.
+
+A card has three depths. First what this very thing is doing now, read a moment ago: a process's memory and what started it, where a key is written and how often you press it, what a field of the bar shows and where that comes from. Then a short paragraph on what such a thing is. Then the explanations, the nearest first: the section of Vikix's guide, the manual page, the file it is written in, and the things beside it (a window's process, a process's package).
+
+The paragraphs and what each kind points at are files, one a kind, in Vikix's config/what: the paragraph, then lines such as guide: fixing.md#The desktop feels slow, manual: ps(1), source: bin/vikix-net and see: process. A window's title and whatever you pointed at are shown on the card and written nowhere.
 
 ## vikix-why
 

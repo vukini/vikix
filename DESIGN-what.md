@@ -2,7 +2,7 @@
 
 What is this? Any part of the running computer, explained at the depth you ask for: what this very thing is doing now, a few plain lines about its kind, then the chapter, the manual, the source.
 
-Drafted 2026-10-05 with Vid, from idea 2 of `NOVEL.md` ("Every part of this computer has a chapter"). Not built. Kept honest like the other designs: what ships is deleted here, what changes is dated.
+Drafted 2026-10-05 with Vid, from idea 2 of `NOVEL.md` ("Every part of this computer has a chapter"). Phase 0 was built the same day (see Phasing); the books' half is not. Kept honest like the other designs: what ships is deleted here, what changes is dated.
 
 ---
 
@@ -114,25 +114,21 @@ Vikix's folder is `config/what/` (no `chapter:` lines, ever). The user's are nam
 
 ### Must have (P0)
 
-1. `bin/vikix-what` with the kinds a bar field, window, process, package and key; facts as in the table above.
-2. `config/what/` for those kinds: a paragraph and guide or manual lines each; the lint check on its targets.
-3. The card, `Super+Alt+?`, the menu entry; every bar field an area.
-4. `tests/what.sh`: a made-up home and tables; the test's own process and a port it opens; the card through a stand-in for rofi; the bar lookup in a real StumpWM on a hidden screen.
-5. The guide (`docs/first-hour.md` or `fixing.md`), the skill's page, the README's row.
+Shipped: see Phasing.
 
 ### Should have (P1)
 
-6. The `own` source: sections as rows, opening at the anchor, closed to agents by default; `tests/docs.sh` with an invented book; `tests/mcp.sh` that an agent is refused it.
-7. The user's tables (`what=`), `gaps`, `check`.
-8. The kinds port, service, file and command; a bare name tried as each.
-9. The row in `vikix why`.
+1. The `own` source: sections as rows, opening at the anchor, closed to agents by default; `tests/docs.sh` with an invented book; `tests/mcp.sh` that an agent is refused it.
+2. The user's tables (`what=`), `gaps`, and `check` over them (it covers Vikix's pages today).
+3. The kinds port, service, file and command, each tried for a bare name as a process and a package are now.
+4. The row in `vikix why`.
 
 ### Later (P2)
 
-10. The selection as "this", when it is the window in front that owns it.
-11. Counting what was asked for (the kind's name only, through `vikix-used-note`), so `gaps` lists the most asked first.
-12. The palette (Super+Space: "what is …") and Esploro (a file's "What is this?").
-13. A read-only `what` tool for agents: the kind, the facts, Vikix's own targets; never the user's.
+5. The selection as "this", when it is the window in front that owns it.
+6. Counting what was asked for (the kind's name only, through `vikix-used-note`), so `gaps` lists the most asked first.
+7. The palette (Super+Space: "what is …") and Esploro (a file's "What is this?").
+8. A read-only `what` tool for agents: the kind, the facts, Vikix's own targets; never the user's.
 
 ## Decided with Vid, 2026-10-05
 
@@ -150,14 +146,23 @@ Blocking:
 - **Anchors.** (engineering) pandoc's ids for Markdown headings are stable for a given heading; a book built another way may give others. `check` catches a broken one, but pick one rule for what the anchor is and write it in the table's README.
 
 Non-blocking:
-- Is `s-M-?` free in every plugin and web app? (It is in Vikix's own files.)
 - How many rows does a section each add for a shelf of books, and what does it do to a search's ranking? Measure on a real shelf, report here as counts only.
 - Does `vikix debug`'s report carry anything of the tables or the catalogue? If it does, it must leave `own` out.
 - When is the selection "this"? It can be old text from another window; hence P2 and the owner check.
 
 ## Phasing
 
-**Phase 0, the first step:** P0. Public only, no books: the bar's fields, the window, its process and package, a key. Live with it a week: is the card right, and is the key pressed? (`vikix used` will say.)
+**Shipped 2026-10-05: Phase 0.** Public only, no books: `vikix what` (`bin/vikix-what`), `what.lisp`, `Super+Alt+?`, and a page for each of 22 kinds in `config/what/` (the bar's sixteen fields, a field, a window, a workspace, a process, a package, a key). A card's facts for a process (how long, what started it or which service keeps it, memory, ports and whether the network reaches them, its program's package), a package, a window (workspace, how it is held, its process, a terminal's job, the rules that ran), a key (what it runs, whose, its file and line, how often pressed), and for the battery, memory, the clock and the network beyond what the bar shows. Things done differently from the plan above, or beside it:
+
+- **A click on a field with no click of its own opens its card** (the battery, the clock, updates): the area needed a click function anyway. Volume, the network, Bluetooth and memory keep their own clicks.
+- **In a terminal the card is printed**, with its explanations numbered; `--open N` opens one, `--card` is the menu the key shows, `--json` the data.
+- **A bare name** is tried as a field, a key, a process and a package already (P1 item 8 had this); the card of a process offers its package and its parent as rows.
+- **`vikix what KIND`** with no name is the page alone: what a process is.
+- **The package of a file** is found by searching xbps's own lists of files as text: `xbps-query -o` takes three seconds, too long for a card.
+- **The window's title in the bar** is a thing to point at too (StumpWM's own area for it).
+- `vikix what check` exists for Vikix's pages, and `tests/lint.sh` runs it; `gaps` waits for the user's tables.
+
+Now: live with it a week. Is the card right, and is the key pressed? (`vikix used` will say.)
 
 **Phase 1:** P1. The books come in, on the user's side; the second half of this design, in the books' repository, starts then.
 

@@ -75,7 +75,7 @@ front, so a name like Brightness-up is never mistaken for one."
     ("Notifications" "dunstctl" "vikix-notifications" "vikix-quiet")
     ("Screenshots & recording" "vikix-screenshot" "vikix-record" "vikix-capture")
     ("Sound & screen" "vikix-volume" "vikix-osd" "vikix-nightlight" "vikix-screens-pick" "vikix-bar")
-    ("System" "vikix-menu" "vikix-keys" "vikix-rescue" "vikix-why" "vikix-docs" "vikix-keys-card" "vikix-prefix-keys" "vikix-pick-theme"
+    ("System" "vikix-menu" "vikix-keys" "vikix-rescue" "vikix-why" "vikix-what" "vikix-docs" "vikix-keys-card" "vikix-prefix-keys" "vikix-pick-theme"
      "vikix-lock" "vikix-power" "vikix-awake" "vikix-drives"
      ;; The drawer is here, not with the windows: one key more there takes the
      ;; card to a fifth column, too wide for a 1366x768 laptop (tests/lisp.sh).

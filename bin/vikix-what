@@ -1,0 +1,914 @@
+#!/usr/bin/env python3
+"""vikix-what — what is this? A part of the running computer, on a card (`vikix what`).
+
+  vikix what              the thing the pointer is on in the bar (a field,
+                          a workspace's number, a window's title), else
+                          the window in front: what it is doing now, a few
+                          lines on what such a thing is, and where it is
+                          explained
+  vikix what NAME         a thing by its name: a field of the bar (battery,
+                          network, clock ...), a key (Super+t, or s-t as
+                          StumpWM writes it), a process (its number or its
+                          name), a package
+  vikix what KIND [NAME]  the same, saying which kind: field, key, process,
+                          package, window, workspace; without a name, what
+                          such a thing is
+  vikix what ... --open N
+                          open the Nth of the card's explanations
+  vikix what ... --card   the card as a menu on the desktop, which is what
+                          the key shows: Enter opens the first explanation
+  vikix what ... --json   the card as data, for a script
+  vikix what kinds        the kinds of thing it knows, and which have a
+                          page
+  vikix what check        the pages: every guide, manual and file they
+                          name is there, and none says more than a card
+                          holds
+
+Super+Alt+? is the same on the desktop: point at a field of the bar and
+press it, or press it with a window in front. A click on a field that does
+nothing else when clicked (the battery, the clock, updates) opens its card
+too.
+
+A card has three depths. First what this very thing is doing now, read a
+moment ago: a process's memory and what started it, where a key is
+written and how often you press it, what a field of the bar shows and
+where that comes from. Then a short paragraph on what such a thing is.
+Then the explanations, the nearest first: the section of Vikix's guide,
+the manual page, the file it is written in, and the things beside it (a
+window's process, a process's package).
+
+The paragraphs and what each kind points at are files, one a kind, in
+Vikix's config/what: the paragraph, then lines such as
+guide: fixing.md#The desktop feels slow, manual: ps(1),
+source: bin/vikix-net and see: process. A window's title and whatever you
+pointed at are shown on the card and written nowhere.
+"""
+import glob
+import html
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import textwrap
+import time
+from importlib.machinery import SourceFileLoader
+import importlib.util
+
+HERE = os.path.dirname(os.path.realpath(__file__))
+VIKIX_DIR = os.path.dirname(HERE)
+# Tests name a stand-in for vikix-eval (the live window manager), as vikix-agents' do.
+EVAL = os.environ.get("VIKIX_EVAL") or os.path.join(HERE, "vikix-eval")
+PROC = os.environ.get("VIKIX_PROC") or "/proc"
+SYS_POWER = os.environ.get("VIKIX_WHAT_POWER") or "/sys/class/power_supply"
+XBPS_DB = os.environ.get("VIKIX_WHAT_XBPS_DB") or "/var/db/xbps"
+# Vikix's pages. (Tests name another folder, to see a broken page refused.)
+TABLES = [os.environ.get("VIKIX_WHAT_PAGES") or os.path.join(VIKIX_DIR, "config", "what")]
+
+# A card holds this much and no more: check says which page breaks it.
+MAX_FACTS = 6
+MAX_WORDS = 60
+
+FIELDS = ("battery", "network", "bluetooth", "volume", "memory", "updates", "backup", "drive",
+          "dropbox", "quiet", "awake", "windows-vm", "ai", "recording", "dictation", "clock")
+# What the bar itself writes, and other everyday words, for a field's name.
+FIELD_WORDS = {"bat": "battery", "net": "network", "wifi": "network", "bt": "bluetooth", "vol": "volume",
+               "sound": "volume", "mem": "memory", "usb": "drive", "dbx": "dropbox", "win": "windows-vm",
+               "rec": "recording", "mic": "dictation", "time": "clock", "date": "clock"}
+KINDS = ("field", "key", "process", "package", "window", "workspace")
+DEPTHS = ("guide", "manual", "source", "see")
+
+
+def die(message):
+    print(f"vikix what: {message}", file=sys.stderr)
+    sys.exit(1)
+
+
+def docs():
+    """bin/vikix-docs as a module: its opening of pages is this command's too."""
+    sys.dont_write_bytecode = True   # no __pycache__ beside the commands
+    loader = SourceFileLoader("vikix_docs", os.path.join(HERE, "vikix-docs"))
+    spec = importlib.util.spec_from_loader("vikix_docs", loader)
+    mod = importlib.util.module_from_spec(spec)
+    loader.exec_module(mod)
+    return mod
+
+
+# --- The desktop ----------------------------------------------------------------------------
+
+def lisp_string(text):
+    return '"' + str(text).replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def desktop(kind, name=None):
+    """What the running desktop knows of a thing (what.lisp): (key, value)
+    pairs in the order it says them; none when it doesn't answer."""
+    arg = "nil" if name is None else str(name) if isinstance(name, int) else lisp_string(name)
+    form = (f"(if (fboundp 'vikix-what-lines) (progn (princ (vikix-what-lines {lisp_string(kind)} {arg})) (values)) "
+            "(values))")
+    try:
+        r = subprocess.run(([sys.executable, EVAL] if EVAL.endswith("/vikix-eval") else [EVAL]) + [form],
+                           capture_output=True, text=True, timeout=6)
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    if r.returncode != 0:
+        return []
+    pairs = []
+    for line in r.stdout.splitlines():
+        if line.startswith("=> ") or "\t" not in line:
+            continue
+        key, value = line.split("\t", 1)
+        pairs.append((key, value))
+    return pairs
+
+
+def first(pairs, key):
+    return next((v for k, v in pairs if k == key), None)
+
+
+# --- Small readers ---------------------------------------------------------------------------
+
+def read(path):
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            return f.read()
+    except OSError:
+        return None
+
+
+def run(argv, timeout=3):
+    """A program's output, or None: a fact that can't be read is left out."""
+    if not shutil.which(argv[0]):
+        return None
+    try:
+        r = subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return r.stdout if r.returncode == 0 else None
+
+
+def how_long(seconds):
+    seconds = int(seconds)
+    if seconds < 60:
+        return f"{seconds} s"
+    if seconds < 3600:
+        return f"{seconds // 60} min"
+    if seconds < 86400:
+        return f"{seconds // 3600} h {seconds % 3600 // 60} min"
+    return f"{seconds // 86400} days" if seconds >= 172800 else "1 day"
+
+
+def size(kb):
+    if kb >= 1048576:
+        return f"{kb / 1048576:.1f} GB"
+    if kb >= 1024:
+        return f"{kb / 1024:.0f} MB"
+    return f"{kb:.0f} kB"
+
+
+def short(path):
+    home = os.path.expanduser("~")
+    return "~" + path[len(home):] if path == home or path.startswith(home + "/") else path
+
+
+def times(n):
+    return "once" if n == 1 else "twice" if n == 2 else f"{n} times"
+
+
+# --- Processes -------------------------------------------------------------------------------
+
+def proc_stat(pid):
+    """(name, parent, start in clock ticks) of a process, or None."""
+    text = read(f"{PROC}/{pid}/stat")
+    if not text:
+        return None
+    try:
+        name = text[text.index("(") + 1:text.rindex(")")]
+        rest = text[text.rindex(")") + 2:].split()
+        return name, int(rest[1]), int(rest[19])
+    except (ValueError, IndexError):
+        return None
+
+
+def proc_cmdline(pid):
+    try:
+        with open(f"{PROC}/{pid}/cmdline", "rb") as f:
+            return [w.decode("utf-8", "replace") for w in f.read().split(b"\0") if w]
+    except OSError:
+        return []
+
+
+def proc_status(pid):
+    fields = {}
+    for line in (read(f"{PROC}/{pid}/status") or "").splitlines():
+        key, _, value = line.partition(":")
+        fields[key] = value.strip()
+    return fields
+
+
+def pids_named(name):
+    """The processes called NAME, the one that started the others first."""
+    found = []
+    try:
+        entries = os.listdir(PROC)
+    except OSError:
+        return found
+    for entry in entries:
+        if entry.isdigit():
+            stat = proc_stat(entry)
+            if stat and stat[0] == name[:15]:
+                found.append((int(entry), stat[1]))
+    own = {pid for pid, _ in found}
+    return [pid for pid, parent in sorted(found, key=lambda f: (f[1] in own, f[0]))]
+
+
+def listening(pid):
+    """The TCP ports PID listens on: (port, whether only this machine reaches it)."""
+    out = run(["ss", "-H", "-ltnp"])
+    ports = []
+    for line in (out or "").splitlines():
+        if f"pid={pid}," not in line:
+            continue
+        words = line.split()
+        if len(words) < 4 or ":" not in words[3]:
+            continue
+        address, _, port = words[3].rpartition(":")
+        local = address.strip("[]") in ("127.0.0.1", "::1") or address.startswith("127.")
+        if port.isdigit() and (int(port), local) not in ports:
+            ports.append((int(port), local))
+    return sorted(ports)
+
+
+def package_of(path):
+    """The package a file came from, or None. From xbps's own lists of each
+    package's files, searched as text: xbps-query -o reads them all in, and
+    takes three seconds to say the same."""
+    lists = glob.glob(os.path.join(XBPS_DB, ".*-files.plist"))
+    if not lists or "<" in path or ">" in path:
+        return None
+    try:
+        r = subprocess.run(["grep", "-l", "-F", "-m1", f">{path}<", *lists], capture_output=True, text=True, timeout=3)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    for line in r.stdout.splitlines():
+        return os.path.basename(line)[1:-len("-files.plist")]
+    return None
+
+
+def proc_memory(pid):
+    """(kB a process uses, its threads): its share of what it shares (Pss)
+    when that can be read, else what it holds (VmRSS)."""
+    status = proc_status(pid)
+    pss = re.search(r"^Pss:\s+(\d+) kB", read(f"{PROC}/{pid}/smaps_rollup") or "", re.M)
+    rss = re.match(r"(\d+) kB", status.get("VmRSS", ""))
+    return (int(pss.group(1)) if pss else int(rss.group(1)) if rss else None), status.get("Threads", "1")
+
+
+def process_card(pid):
+    pid = int(pid)
+    stat = proc_stat(pid)
+    if not stat:
+        return None
+    name, parent, start = stat
+    card = {"kind": "process", "name": str(pid), "heading": f"{name}, a process (number {pid})",
+            "facts": [], "rows": []}
+    facts = card["facts"]
+    try:
+        uptime = float((read(f"{PROC}/uptime") or "").split()[0])
+        running = "running for " + how_long(max(0, uptime - start / os.sysconf("SC_CLK_TCK")))
+    except (ValueError, IndexError, OSError):
+        running = None
+    # What started it, up to three back; a service is said as one.
+    chain, service, at = [], None, parent
+    while at > 1 and len(chain) < 3:
+        up = proc_stat(at)
+        if not up:
+            break
+        if up[0] == "runsv":
+            service = (proc_cmdline(at) or ["", ""])[-1]
+            break
+        chain.append(up[0])
+        at = up[1]
+    by = (f"kept running by runit, as the service {service}" if service
+          else "started by " + ", which ".join(
+              [chain[0]] + [f"{n} started" for n in chain[1:]]) if chain else None)
+    if running or by:
+        facts.append(", ".join(w for w in (running, by) if w))
+    memory, threads = proc_memory(pid)
+    if memory is not None:
+        facts.append(f"uses {size(memory)} of memory" + (f", in {threads} threads" if threads not in ("", "1") else ""))
+    ports = listening(pid)
+    if ports:
+        facts.append("listens on " + ", ".join(
+            f"port {port} ({'this machine only' if local else 'open to the network'})" for port, local in ports[:3]))
+    try:
+        exe = os.readlink(f"{PROC}/{pid}/exe")
+    except OSError:
+        exe = None
+    package = package_of(exe.replace(" (deleted)", "")) if exe else None
+    if exe:
+        facts.append(f"its program is {short(exe)}" + (f", from the package {package}" if package else ""))
+    uid = proc_status(pid).get("Uid", "").split()
+    if uid and uid[0].isdigit() and int(uid[0]) != os.getuid():
+        try:
+            import pwd
+            facts.append(f"runs as {pwd.getpwuid(int(uid[0])).pw_name}, not as you")
+        except (KeyError, ImportError):
+            facts.append("runs as another user, not as you")
+    words = proc_cmdline(pid)
+    if len(words) > 1:
+        line = " ".join(words)
+        facts.append("started as: " + (line if len(line) <= 90 else line[:87] + "..."))
+    siblings = pids_named(name)
+    if len(siblings) > 1:
+        facts.append(f"one of {len(siblings)} processes called {name}")
+    if parent > 1 and proc_stat(parent):
+        card["rows"].append({"label": f"Also: what started it, {proc_stat(parent)[0]} (number {parent})",
+                             "what": ["process", str(parent)]})
+    if package:
+        card["rows"].append({"label": f"Also: the package {package}", "what": ["package", package]})
+    return card
+
+
+# --- Packages --------------------------------------------------------------------------------
+
+def package_props(name, remote=False):
+    out = run(["xbps-query"] + (["-R"] if remote else []) + [name])
+    props = {}
+    for line in (out or "").splitlines():
+        key, sep, value = line.partition(":")
+        if sep and not line.startswith(("\t", " ")):
+            props[key.strip()] = value.strip()
+    return props
+
+
+def package_card(name):
+    props = package_props(name)
+    installed = bool(props)
+    if not installed:
+        props = package_props(name, remote=True)
+        if not props:
+            return None
+    card = {"kind": "package", "name": name, "heading": f"{name}, a package", "facts": [], "rows": []}
+    facts = card["facts"]
+    if props.get("short_desc"):
+        facts.append(props["short_desc"])
+    version = props.get("pkgver", name).rsplit("-", 1)[-1]
+    if installed:
+        when = props.get("install-date", "").split(" ")[0]
+        facts.append(f"version {version}" + (f", installed {when}" if when else "")
+                     + (f", takes {props['installed_size']}" if props.get("installed_size") else ""))
+        if props.get("automatic-install") == "yes":
+            facts.append("it came with another package: nobody asked for it by name")
+        needing = [line for line in (run(["xbps-query", "-X", name]) or "").splitlines() if line.strip()]
+        if needing:
+            facts.append(f"{len(needing)} installed package{'s' if len(needing) != 1 else ''} need{'s' if len(needing) == 1 else ''} it"
+                         + (": " + ", ".join(p.rsplit("-", 1)[0] for p in needing[:3]) + (" ..." if len(needing) > 3 else "")))
+        else:
+            facts.append("no other installed package needs it")
+    else:
+        facts.append(f"not installed here; Void has version {version} (vikix pkg {name} adds it)")
+    card["rows"].append({"label": f"The package's page: what it is, its website", "doc": f"pkg:{name}"})
+    return card
+
+
+# --- Windows, workspaces, keys ---------------------------------------------------------------
+
+def window_card(name):
+    wid = int(name) if name is not None and str(name).isdigit() else None
+    pairs = desktop("window", wid)
+    if not pairs:
+        return None
+    card = {"kind": "window", "name": first(pairs, "id") or "", "facts": [], "rows": []}
+    card["heading"] = f"{first(pairs, 'class') or 'A window'}, a window"
+    facts = card["facts"]
+    title = first(pairs, "title")
+    if title:
+        facts.append("its title: " + (title if len(title) <= 80 else title[:77] + "..."))
+    facts.append(f"on workspace {first(pairs, 'workspace')}, {first(pairs, 'how')}"
+                 + (", in front" if first(pairs, "front") else ""))
+    pid = first(pairs, "pid")
+    if pid and proc_stat(pid):
+        memory = proc_memory(pid)[0]
+        facts.append(f"its program is {proc_stat(pid)[0]} (process {pid})"
+                     + (f", which uses {size(memory)} of memory" if memory is not None else ""))
+        card["rows"].append({"label": f"Also: the process {proc_stat(pid)[0]} (number {pid})", "what": ["process", pid]})
+    job = first(pairs, "job")
+    if job and proc_stat(job):
+        facts.append(f"running in it now: {proc_stat(job)[0]} (process {job})")
+        card["rows"].append({"label": f"Also: what runs in it, {proc_stat(job)[0]} (number {job})", "what": ["process", job]})
+    rules = [v for k, v in pairs if k == "rule"]
+    for rule in rules[:2]:
+        facts.append("a rule ran for it: " + rule)
+    if len(rules) > 2:
+        facts.append(f"and {len(rules) - 2} more rules (vikix rules why)")
+    card["rows"].append({"label": f"Also: the workspace {first(pairs, 'workspace')}",
+                         "what": ["workspace", first(pairs, "workspace")]})
+    return card
+
+
+def workspace_card(name):
+    pairs = desktop("workspace", name)
+    if not pairs:
+        return None
+    name = first(pairs, "name")
+    count = int(first(pairs, "windows") or 0)
+    card = {"kind": "workspace", "name": name, "heading": f"{name}, a workspace", "rows": []}
+    card["facts"] = [f"{count} window{'s' if count != 1 else ''} on it, held as {first(pairs, 'how')}"
+                     + (", and it is the one in view" if first(pairs, "view") else "")]
+    return card
+
+
+def key_name(words):
+    """A key as StumpWM writes it: Super+Alt+? and s-M-? are both s-M-?."""
+    name = words.strip()
+    for said, written in (("Super+", "s-"), ("Ctrl+", "C-"), ("Control+", "C-"), ("Alt+", "M-"), ("Shift+", "S-")):
+        name = re.sub(re.escape(said), written, name, flags=re.I)
+    # Shift and a letter is that letter's capital, as Vikix writes its keys: s-T.
+    found = re.fullmatch(r"((?:[sCM]-)*)S-((?:[sCM]-)*)([a-z])", name)
+    if found:
+        name = found.group(1) + found.group(2) + found.group(3).upper()
+    return name
+
+
+def looks_like_key(words):
+    return bool(re.match(r"^((s|C|M|S)-)+\S+$", key_name(words)))
+
+
+def key_card(name):
+    pairs = desktop("key", key_name(name))
+    if not pairs:
+        return None
+    card = {"kind": "key", "name": first(pairs, "key"), "heading": f"{first(pairs, 'said')}, a key",
+            "facts": [], "rows": []}
+    facts = card["facts"]
+    does = first(pairs, "does")
+    facts.append(f"runs {first(pairs, 'runs')}" + (f": {does}" if does else ""))
+    file, line = first(pairs, "file"), first(pairs, "line")
+    where = (f", written in {short(file)}" + (f", line {line}" if line else "")) if file else ""
+    facts.append((first(pairs, "whose") or "a key") + where)
+    pressed = first(pairs, "pressed")
+    facts.append(f"you have pressed it {times(int(pressed))} (vikix used)" if pressed and pressed != "0"
+                 else "you haven't pressed it since the counting began (vikix used)")
+    if file and os.path.isfile(file):
+        card["rows"].append({"label": f"The line it is written at: {os.path.basename(file)}"
+                                      + (f", line {line}" if line else ""),
+                             "file": file, "line": int(line) if line and line.isdigit() else None})
+    return card
+
+
+# --- The bar's fields ------------------------------------------------------------------------
+
+def battery_facts():
+    facts = []
+    try:
+        batteries = sorted(d for d in os.listdir(SYS_POWER) if d.startswith("BAT"))
+    except OSError:
+        return facts
+    if not batteries:
+        return ["this machine has no battery"]
+    at = os.path.join(SYS_POWER, batteries[0])
+
+    def number(name):
+        text = (read(os.path.join(at, name)) or "").strip()
+        return int(text) if text.lstrip("-").isdigit() else None
+
+    level, status = number("capacity"), (read(os.path.join(at, "status")) or "").strip()
+    watts = number("power_now")
+    if level is not None:
+        facts.append(f"{level}% full, {status.lower() or 'state unknown'}"
+                     + (f", at {abs(watts) / 1e6:.0f} W" if watts and status in ("Charging", "Discharging") else ""))
+    full, design = number("energy_full") or number("charge_full"), number("energy_full_design") or number("charge_full_design")
+    if full and design:
+        facts.append(f"holds {min(100, round(100 * full / design))}% of what it held when new")
+    cycles = number("cycle_count")
+    if cycles:
+        facts.append(f"charged and emptied about {times(cycles)} so far")
+    return facts
+
+
+def memory_facts():
+    info = {}
+    for line in (read(f"{PROC}/meminfo") or "").splitlines():
+        key, _, value = line.partition(":")
+        number = value.split()
+        if number and number[0].isdigit():
+            info[key] = int(number[0])
+    facts = []
+    total, free = info.get("MemTotal"), info.get("MemAvailable")
+    if total and free is not None:
+        facts.append(f"{size(total - free)} of {size(total)} in use; {round(100 * free / total)}% is free for programs")
+    swap, swap_free = info.get("SwapTotal"), info.get("SwapFree")
+    if swap:
+        facts.append(f"{size(swap - (swap_free or 0))} of {size(swap)} of swap in use")
+    elif total:
+        facts.append("no swap: when memory is full, a program has to go")
+    return facts
+
+
+def clock_facts():
+    zone = os.path.realpath("/etc/localtime").partition("/zoneinfo/")[2]
+    facts = [time.strftime("%A %-d %B %Y, %H:%M, in the time zone ") + (zone or time.strftime("%Z"))]
+    try:
+        facts.append("the machine has been up for " + how_long(float((read(f"{PROC}/uptime") or "").split()[0])))
+    except (ValueError, IndexError):
+        pass
+    return facts
+
+
+def network_facts():
+    out = run(["ip", "-o", "-4", "route", "get", "1.1.1.1"], timeout=2)
+    found = re.search(r"dev (\S+).*?src (\S+)", out or "")
+    if found:
+        return [f"the way out is {found.group(1)}; this machine's address there is {found.group(2)}"]
+    return ["no way out to the internet just now"] if out is not None or shutil.which("ip") else []
+
+
+FIELD_FACTS = {"battery": battery_facts, "memory": memory_facts, "clock": clock_facts, "network": network_facts}
+FIELD_SAID = {"battery": "The battery", "network": "The network", "bluetooth": "Bluetooth", "volume": "The volume",
+              "memory": "Memory", "updates": "Updates", "backup": "The backup reminder", "drive": "A drive",
+              "dropbox": "Dropbox", "quiet": "Do not disturb", "awake": "Keep awake",
+              "windows-vm": "The Windows machine", "ai": "The local AI model", "recording": "Recording",
+              "dictation": "Dictation", "clock": "The clock"}
+
+
+def field_card(name):
+    name = FIELD_WORDS.get(name, name)
+    if name not in FIELDS:
+        return None
+    card = {"kind": name, "name": None, "rows": [],
+            "heading": f"{FIELD_SAID[name]}, a field of the bar"}
+    pairs = desktop(name)
+    shows = first(pairs, "shows")
+    # No answer at all is the desktop not running: then nothing is said of the bar.
+    card["facts"] = [f"the bar shows: {shows}"] if shows else ["the bar shows nothing for it now"] if pairs else []
+    try:
+        card["facts"] += FIELD_FACTS.get(name, lambda: [])()
+    except (OSError, ValueError):
+        pass
+    return card
+
+
+# --- The pages: a paragraph and what to read, a kind each --------------------------------
+
+def page_path(kind, name=None):
+    for folder in TABLES:
+        for stem in ([f"{kind}-{name}"] if name else []) + [kind]:
+            if re.fullmatch(r"[\w.+-]+", stem):
+                path = os.path.join(folder, stem + ".md")
+                if os.path.isfile(path):
+                    return path
+    return None
+
+
+def page(kind, name=None):
+    """A kind's page: (paragraph, [(depth, target)]), or ("", [])."""
+    path = page_path(kind, name)
+    paragraph, targets = [], []
+    for line in (read(path) or "").splitlines() if path else []:
+        found = re.match(r"^([a-z]+):\s+(\S.*)$", line)
+        if found and (found.group(1) in DEPTHS or targets):
+            targets.append((found.group(1), found.group(2).strip()))
+        elif not targets:
+            paragraph.append(line.strip())
+    return " ".join(w for w in paragraph if w), targets
+
+
+def guide_title(path):
+    for line in (read(path) or "").splitlines():
+        if line.startswith("# "):
+            return line[2:].strip()
+    return os.path.basename(path)
+
+
+def guide_headings(path):
+    return [re.sub(r"^#+\s+", "", line).strip() for line in (read(path) or "").splitlines()
+            if re.match(r"^#{2,4}\s", line)]
+
+
+def anchor(heading):
+    """The id makeinfo gives a guide's heading in the built page: letters and
+    digits as they are, a space a hyphen, anything else _ and its code."""
+    out = []
+    for c in heading.replace("`", ""):
+        out.append(c if c.isascii() and c.isalnum() else "-" if c == " " else f"_{ord(c):04x}")
+    return "".join(out)
+
+
+def plain(heading):
+    return heading.replace("`", "")
+
+
+def man_there(name, section):
+    out = run(["man", "-w", section, name], timeout=3)
+    return bool(out and out.strip())
+
+
+def explanations(kind, name=None):
+    """The rows a kind's page gives, nearest first; what isn't on this
+    machine (a manual of a program not installed) is left out."""
+    rows = []
+    for depth, target in page(kind, name)[1]:
+        if depth == "guide":
+            file, _, heading = target.partition("#")
+            path = os.path.join(VIKIX_DIR, "docs", file)
+            if os.path.isfile(path):
+                rows.append({"label": f"The guide: {guide_title(path)}" + (f", {plain(heading)}" if heading else ""),
+                             "guide": path, "heading": heading})
+        elif depth == "manual":
+            found = re.fullmatch(r"([\w.+-]+)\((\w+)\)", target)
+            if found and man_there(found.group(1), found.group(2)):
+                rows.append({"label": f"The manual: {target}", "man": [found.group(2), found.group(1)]})
+        elif depth == "source":
+            path = os.path.join(VIKIX_DIR, target)
+            if os.path.isfile(path):
+                rows.append({"label": f"The source: {target}", "file": path, "line": None})
+        elif depth == "see" and page_path(target):
+            rows.append({"label": f"Also: what {SEE_SAID.get(target, 'a ' + target)} is", "what": [target], "see": True})
+    return rows
+
+
+SEE_SAID = {"memory": "memory", "field": "a field of the bar", "windows-vm": "the Windows machine"}
+
+
+def general_card(kind):
+    """What such a thing is, with no thing in hand: the page alone."""
+    if not page_path(kind):
+        return None
+    said = kind.replace("-", " ")
+    return {"kind": kind, "name": None, "facts": [], "rows": [],
+            "heading": f"{'An' if said[0] in 'aeiou' else 'A'} {said}"}
+
+
+# --- Which thing --------------------------------------------------------------------------
+
+def card_for(kind, name):
+    if kind == "field":
+        return field_card(name) if name else general_card("field")
+    if kind in FIELDS or kind in FIELD_WORDS:
+        return field_card(kind)
+    if kind == "window":
+        return window_card(name)
+    if kind == "workspace":
+        return workspace_card(name)
+    if kind == "key":
+        return key_card(name) if name else general_card("key")
+    if kind == "process":
+        if not name:
+            return general_card("process")
+        if str(name).isdigit():
+            return process_card(name)
+        found = pids_named(name)
+        return process_card(found[0]) if found else None
+    if kind == "package":
+        return package_card(name) if name else general_card("package")
+    return None
+
+
+def find(words):
+    """The card for what the command line names, or None."""
+    if not words:
+        here = desktop("here")
+        kind = first(here, "kind")
+        if not kind:
+            die("the desktop didn't say what is in front (is it running? vikix doctor); "
+                "name a thing: vikix what battery, vikix what Super+t, vikix what firefox")
+        return card_for(kind, first(here, "name"))
+    if len(words) > 2:
+        die("vikix what [KIND] [NAME] (vikix what help)")
+    if len(words) == 2:
+        if words[0] not in KINDS and words[0] not in FIELDS:
+            die(f"{words[0]} is no kind of thing: {', '.join(KINDS)}")
+        return card_for(words[0], words[1])
+    name = words[0]
+    if name in KINDS or name in FIELDS or name in FIELD_WORDS:
+        return card_for(name, None)
+    if looks_like_key(name):
+        card = key_card(name)
+        if card:
+            return card
+    if name.isdigit():
+        return process_card(name)
+    return card_for("process", name) or package_card(name)
+
+
+def finish(card):
+    """The paragraph and the page's rows, joined to what was read."""
+    kind, name = card["kind"], card.get("name")
+    card["paragraph"] = page(kind, name)[0]
+    # The explanations first, the nearest at the top; then the things beside
+    # this very one; then the kinds of thing beside its kind.
+    found = explanations(kind, name)
+    card["rows"] = ([r for r in found if not r.get("see")] + card["rows"]
+                    + [r for r in found if r.get("see")])
+    card["facts"] = card["facts"][:MAX_FACTS]
+    return card
+
+
+# --- Showing, and opening -------------------------------------------------------------------
+
+def open_row(row, as_card=True):
+    if "what" in row:
+        # A thing beside this one: its own card, shown the way this one was.
+        os.execv(sys.executable, [sys.executable, os.path.realpath(__file__),
+                                  *(["--card"] if as_card else []), *[str(w) for w in row["what"]]])
+    d = docs()
+    if "guide" in row:
+        d.note_opened({"id": "vikix:" + row["guide"], "title": row["label"]})
+        built = d.guide_page(row["guide"])
+        if built and row.get("heading"):
+            want = anchor(row["heading"])
+            if f'id="{want}"' in (read(built) or ""):
+                return d.docs_open(["file://" + built + "#" + want])
+        if built:
+            return d.docs_open([built])
+        # No built pages on this machine: the guide's own text.
+        return d.emacs([row["guide"]]) or d.docs_open([row["guide"]])
+    if "man" in row:
+        section, name = row["man"]
+        return d.open_doc({"id": f"man:{name}({section})", "source": "man", "kind": "man",
+                           "title": f"{name}({section})", "path": f"{section} {name}", "excerpt": ""})
+    if "doc" in row:
+        doc = d.get(row["doc"])
+        if doc:
+            return d.open_doc(doc)
+        return subprocess.run(["notify-send", "-a", "What", "Not in the catalogue yet", "vikix docs index reads it"])
+    if "file" in row:
+        # Vikix's own files to read, not to change: Emacs's view of them.
+        path, line = row["file"], row.get("line")
+        ours = os.path.realpath(path).startswith(os.path.realpath(VIKIX_DIR) + os.sep)
+        form = (f'(progn ({"view-file" if ours else "find-file"} {lisp_string(path)})'
+                + (f" (goto-char (point-min)) (forward-line {line - 1})" if line else "") + ")")
+        return d.emacs(["-e", form]) or d.terminal(["less", f"+{line or 1}", path])
+    return None
+
+
+def text_card(card):
+    lines = [card["heading"]]
+    lines += ["  " + fact for fact in card["facts"]]
+    if card["paragraph"]:
+        lines.append("")
+        words, line = card["paragraph"].split(), "  "
+        for word in words:
+            if len(line) + len(word) > 78 and line.strip():
+                lines.append(line.rstrip())
+                line = "  "
+            line += word + " "
+        lines.append(line.rstrip())
+    if card["rows"]:
+        lines += ["", "Read more (--open N opens one):"]
+        lines += [f"  {n}  {row['label']}" for n, row in enumerate(card["rows"], 1)]
+    return "\n".join(lines)
+
+
+CARD_WIDTH = 80
+
+
+def markup(card):
+    """The card's words for rofi's message, which is markup: & and < said
+    plainly. The lines are broken here, to the card's width, so the card is
+    as wide on every screen and a path isn't broken at a hyphen."""
+    def lines(text, indent=""):
+        return [html.escape(line) for line in
+                textwrap.wrap(text, CARD_WIDTH, subsequent_indent=indent, break_long_words=False,
+                              break_on_hyphens=False) or [""]]
+    parts = [f"<b>{line}</b>" for line in lines(card["heading"])]
+    for fact in card["facts"]:
+        parts += lines(fact, "  ")
+    if card["paragraph"]:
+        parts += [""] + lines(card["paragraph"])
+    return "\n".join(parts)
+
+
+def show_card(card):
+    rows = card["rows"] or [{"label": "(nothing more to open)"}]
+    r = subprocess.run(["rofi", "-dmenu", "-i", "-no-custom", "-p", "what", "-format", "i",
+                        # As wide as the lines broken above, and no taller than its rows.
+                        # The room under the words: rofi 2.0 cuts half a line off a
+                        # message of several lines (measured, on a hidden screen).
+                        "-theme-str", (f"window {{ width: {CARD_WIDTH + 4}ch; }} listview {{ lines: {min(len(rows), 10)}; }} "
+                                       "textbox { padding: 0 0 0.6em 0; }"),
+                        "-mesg", markup(card)],
+                       input="\n".join(row["label"] for row in rows), capture_output=True, text=True)
+    pick = r.stdout.strip()
+    if r.returncode == 0 and pick.isdigit() and int(pick) < len(card["rows"]):
+        open_row(card["rows"][int(pick)])
+    return 0
+
+
+# --- kinds, check ---------------------------------------------------------------------------
+
+def kinds():
+    print("Things vikix what knows, and whether each has a page (a paragraph, and where to read on):")
+    print("  by name:")
+    for kind, how in (("process", "its number, or its name: vikix what firefox"),
+                      ("package", "its name: vikix what package curl"),
+                      ("key", "as said or as written: vikix what Super+t, vikix what s-t"),
+                      ("window", "the one in front, or by pointing at its title in the bar"),
+                      ("workspace", "its name: vikix what workspace 2")):
+        print(f"    {kind:<11} {'page' if page_path(kind) else 'no page':<8} {how}")
+    print("  the bar's fields:")
+    for name in FIELDS:
+        print(f"    {name:<11} {'page' if page_path(name) else 'no page'}")
+    return 0
+
+
+def check():
+    """Every page of Vikix's: the paragraph fits a card, and what it names is there."""
+    problems, notes, count = [], [], 0
+    folder = TABLES[0]
+    names = sorted(f[:-3] for f in os.listdir(folder) if f.endswith(".md")) if os.path.isdir(folder) else []
+    for want in list(FIELDS) + list(KINDS):
+        if want not in names:
+            problems.append(f"{want}: no page (config/what/{want}.md)")
+    for name in names:
+        count += 1
+        where = f"config/what/{name}.md"
+        paragraph, targets = page(name)
+        words = len(paragraph.split())
+        if not words:
+            problems.append(f"{where}: no paragraph")
+        elif words > MAX_WORDS:
+            problems.append(f"{where}: the paragraph is {words} words; a card holds {MAX_WORDS}")
+        if not any(depth in ("guide", "manual") for depth, _ in targets):
+            problems.append(f"{where}: nowhere to read on (a guide: or manual: line)")
+        for depth, target in targets:
+            if depth == "guide":
+                file, _, heading = target.partition("#")
+                path = os.path.join(VIKIX_DIR, "docs", file)
+                if "/" in file or not os.path.isfile(path):
+                    problems.append(f"{where}: guide: {file} is no guide in docs/")
+                elif heading and heading not in guide_headings(path):
+                    problems.append(f"{where}: guide: {file} has no heading \"{heading}\"")
+            elif depth == "manual":
+                found = re.fullmatch(r"([\w.+-]+)\((\w+)\)", target)
+                if not found:
+                    problems.append(f"{where}: manual: {target} isn't NAME(SECTION)")
+                elif not man_there(found.group(1), found.group(2)):
+                    notes.append(f"{where}: {target} isn't on this machine (its row is left out here)")
+            elif depth == "source":
+                path = os.path.realpath(os.path.join(VIKIX_DIR, target))
+                if target.startswith(("/", "~")) or not path.startswith(os.path.realpath(VIKIX_DIR) + os.sep):
+                    problems.append(f"{where}: source: {target} is outside Vikix: its pages name its own files only")
+                elif not os.path.isfile(path):
+                    problems.append(f"{where}: source: {target} isn't there")
+            elif depth == "see":
+                if target not in names:
+                    problems.append(f"{where}: see: {target} has no page")
+            else:
+                # Vikix's pages point at Vikix's guides, the manuals and its own
+                # files, never at anyone's books (DESIGN-what.md).
+                problems.append(f"{where}: {depth}: is no line of Vikix's pages ({', '.join(DEPTHS)})")
+    for line in problems + notes:
+        print(line)
+    print(f"{count} pages, {len(problems)} problem{'s' if len(problems) != 1 else ''}")
+    return 1 if problems else 0
+
+
+def main(argv):
+    if argv and argv[0] in ("-h", "--help", "help"):
+        print(__doc__.strip())
+        return 0
+    as_card = "--card" in argv
+    as_json = "--json" in argv
+    to_open = None
+    if "--open" in argv:
+        at = argv.index("--open")
+        if at + 1 >= len(argv) or not argv[at + 1].isdigit():
+            die("--open N, the number of an explanation as the card lists them")
+        to_open = int(argv[at + 1])
+        del argv[at:at + 2]
+    words = [a for a in argv if a not in ("--card", "--json")]
+    if any(w.startswith("--") for w in words):
+        die("vikix what [KIND] [NAME] [--card|--json|--open N] (vikix what help)")
+    if words == ["kinds"]:
+        return kinds()
+    if words == ["check"]:
+        return check()
+    card = find(words)
+    if not card:
+        said = " ".join(words) or "that"
+        message = (f"nothing here is called {said}: a field of the bar (vikix what kinds), "
+                   "a key, a running process or a package")
+        if as_card:
+            subprocess.run(["notify-send", "-a", "What", "What is this?", message[0].upper() + message[1:]])
+            return 1
+        die(message)
+    card = finish(card)
+    if to_open is not None:
+        if not 1 <= to_open <= len(card["rows"]):
+            die(f"the card has {len(card['rows'])} explanation{'s' if len(card['rows']) != 1 else ''}")
+        open_row(card["rows"][to_open - 1], as_card)
+        return 0
+    if as_json:
+        print(json.dumps(card, indent=1, ensure_ascii=False))
+        return 0
+    if as_card:
+        return show_card(card)
+    print(text_card(card))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

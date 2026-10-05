@@ -174,6 +174,7 @@ Everything Vikix is. `readlink -f ~/.local/bin/vikix` finds it if you cloned it 
 | `config/` | Everything that ends up in your home: the files linked there, and the starters copied once |
 | `config/stumpwm/vikix/` | The StumpWM layer. Read it to see how a key, the bar or the menu is made, then change it from `user.lisp` |
 | `config/yours.list` | The files the snapshot history covers |
+| `config/what/` | A page for each kind of thing `vikix what` explains (a process, a key, each field of the bar): a short paragraph, then the guide, manual and file to read on |
 | `packages/*.list` | What gets installed, one list per concern, `lang-*.list` one per language. `packages/optional/` holds lists only a feature brings, like the Windows VM |
 | `features.list`, `bundles.list` | What `vikix add` offers: each feature's lists, and the bundles (essentials, developer, everything). A list no feature names is the base |
 | `services.list` | The runit services Vikix switches on |

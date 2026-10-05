@@ -27,6 +27,9 @@
 ;;;; (updates, backup, usb, dbx off or !, mem when low, left), subtle
 ;;;; for a mode you switched on yourself (awake, win, ai, quiet), or work under way
 ;;;; (dbx syncing).
+;;;;
+;;;; Every field is an area of the bar with a name (vikix-ml-what), so
+;;;; Super+Alt+? can say which one the pointer is on (what.lisp).
 
 (in-package :stumpwm)
 
@@ -46,8 +49,9 @@ when it is full on the charger, since that isn't news."
         (status (vikix-battery-file "status")))
     (cond ((or (null level) (string= level "")) "")
           ((member status '("Full" "Not charging") :test #'string=) "")
-          (t (format nil "bat ~a%~a  " level
-                     (if (string= status "Charging") "+" ""))))))
+          (t (vikix-ml-what "battery"
+                            (format nil "bat ~a%~a  " level
+                                    (if (string= status "Charging") "+" "")))))))
 
 ;;; The mouse, for when a key doesn't come to mind: a workspace's number
 ;;; in the bar goes there, and volume, the network and Bluetooth open their
@@ -80,18 +84,43 @@ runs from the event loop, where an error would reach the top level."
     (error (e) (message "The bar: ~a" e))))
 
 (register-ml-on-click-id :vikix-ml-click 'vikix-ml-click)
+
+(defun vikix-ml-what (kind text)
+  "TEXT as the bar's field KIND (\"battery\"): an area Super+Alt+? knows by
+that name, and which a click explains (what.lisp). Nothing stays nothing.
+For the fields that do nothing else when clicked; volume, the network,
+Bluetooth and memory keep their own click, and what.lisp knows their names."
+  (if (string= text "")
+      ""
+      (vikix-ml-clickable :vikix-ml-what kind text)))
+
+(defun vikix-ml-what-click (button kind &rest rest)
+  "A click on a field that has no click of its own: what is this? Never
+signals, as vikix-ml-click."
+  (declare (ignore rest))
+  (ignore-errors
+   (when (and (member button '(1 3)) (fboundp 'vikix-what-show))
+     (funcall 'vikix-what-show (list kind)))))
+
+(register-ml-on-click-id :vikix-ml-what 'vikix-ml-what-click)
 ;; When the bar is full, the windows' titles run on under the fields on
 ;; the right, and StumpWM's dispatcher takes the first area that holds the
 ;; click: a click on volume focused a window. Here the narrowest one wins,
 ;; which is the field drawn on top.
-(defun vikix-ml-click-dispatcher (ml code x y)
-  "StumpWM's mode-line-click-dispatcher, with the narrowest area winning."
+(defun vikix-ml-area-at (ml x y)
+  "The bar's area that holds X, Y (the bar's own coordinates), the narrowest
+when several do: (XBEG XEND YBEG YEND ID ARGS), or nil."
   (let ((best nil))
     (loop for area in (mode-line-on-click-bounds ml)
           for (xbeg xend ybeg yend) = area
           when (and (< xbeg x xend) (< ybeg y yend)
                     (or (null best) (< (- xend xbeg) (- (second best) (first best)))))
             do (setf best area))
+    best))
+
+(defun vikix-ml-click-dispatcher (ml code x y)
+  "StumpWM's mode-line-click-dispatcher, with the narrowest area winning."
+  (let ((best (vikix-ml-area-at ml x y)))
     (when best
       (let ((fn (assoc (fifth best) *mode-line-on-click-functions*)))
         (when fn (apply (cdr fn) code (sixth best)))))))
@@ -141,11 +170,12 @@ it's off or can't sync, something to do; quieter while it syncs."
   (declare (ignore ml))
   (if (string= *vikix-dropbox* "")
       ""
-      (format nil "^(:push)^(:fg \"~a\")~a^(:pop)  "
-              (vikix-colour (if (member *vikix-dropbox* '("dbx off" "dbx !") :test #'string=)
-                                :accent
-                                :subtle))
-              *vikix-dropbox*)))
+      (vikix-ml-what "dropbox"
+                     (format nil "^(:push)^(:fg \"~a\")~a^(:pop)  "
+                             (vikix-colour (if (member *vikix-dropbox* '("dbx off" "dbx !") :test #'string=)
+                                               :accent
+                                               :subtle))
+                             *vikix-dropbox*))))
 
 (defun vikix-mode-line-usb (ml)
   "\"usb\" in the accent colour while a drive is mounted: something to do
@@ -153,7 +183,7 @@ it's off or can't sync, something to do; quieter while it syncs."
   (declare (ignore ml))
   (if (string= *vikix-usb* "")
       ""
-      (format nil "^(:push)^(:fg \"~a\")~a^(:pop)  " (vikix-colour :accent) *vikix-usb*)))
+      (vikix-ml-what "drive" (format nil "^(:push)^(:fg \"~a\")~a^(:pop)  " (vikix-colour :accent) *vikix-usb*))))
 
 (defun vikix-mode-line-updates (ml)
   "Waiting updates, from *vikix-updates* (commands.lisp), in the accent
@@ -161,8 +191,8 @@ colour; nothing when there are none."
   (declare (ignore ml))
   (if (string= *vikix-updates* "")
       ""
-      (format nil "^(:push)^(:fg \"~a\")~a^(:pop)  "
-              (vikix-colour :accent) *vikix-updates*)))
+      (vikix-ml-what "updates" (format nil "^(:push)^(:fg \"~a\")~a^(:pop)  "
+                                       (vikix-colour :accent) *vikix-updates*))))
 
 (defun vikix-mode-line-backup (ml)
   "The backup reminder, from *vikix-backup* (commands.lisp), in the accent
@@ -170,15 +200,15 @@ colour; nothing while backups are recent, or not set up."
   (declare (ignore ml))
   (if (string= *vikix-backup* "")
       ""
-      (format nil "^(:push)^(:fg \"~a\")~a^(:pop)  "
-              (vikix-colour :accent) *vikix-backup*)))
+      (vikix-ml-what "backup" (format nil "^(:push)^(:fg \"~a\")~a^(:pop)  "
+                                      (vikix-colour :accent) *vikix-backup*))))
 
 (defun vikix-mode-line-quiet (ml)
   "\"quiet\" while notifications are paused, from *vikix-quiet* (commands.lisp)."
   (declare (ignore ml))
   (if (string= *vikix-quiet* "")
       ""
-      (format nil "^(:push)^(:fg \"~a\")~a^(:pop)  " (vikix-colour :subtle) *vikix-quiet*)))
+      (vikix-ml-what "quiet" (format nil "^(:push)^(:fg \"~a\")~a^(:pop)  " (vikix-colour :subtle) *vikix-quiet*))))
 
 (defun vikix-mode-line-recording (ml)
   "\"rec\" while the screen is recorded, \"mic\" while dictation listens,
@@ -186,22 +216,22 @@ from *vikix-recording* and *vikix-dictating* (commands.lisp)."
   (declare (ignore ml))
   (format nil "~@[~a~]~@[~a~]"
           (and *vikix-recording*
-               (format nil "^(:push)^(:fg \"~a\")rec^(:pop)  " (vikix-colour :alert)))
+               (vikix-ml-what "recording" (format nil "^(:push)^(:fg \"~a\")rec^(:pop)  " (vikix-colour :alert))))
           (and *vikix-dictating*
-               (format nil "^(:push)^(:fg \"~a\")mic^(:pop)  " (vikix-colour :alert)))))
+               (vikix-ml-what "dictation" (format nil "^(:push)^(:fg \"~a\")mic^(:pop)  " (vikix-colour :alert))))))
 
 (defun vikix-mode-line-awake (ml)
   "\"awake\" while keep awake is on, from *vikix-awake* (commands.lisp)."
   (declare (ignore ml))
   (if *vikix-awake*
-      (format nil "^(:push)^(:fg \"~a\")awake^(:pop)  " (vikix-colour :subtle))
+      (vikix-ml-what "awake" (format nil "^(:push)^(:fg \"~a\")awake^(:pop)  " (vikix-colour :subtle)))
       ""))
 
 (defun vikix-mode-line-windows (ml)
   "\"win\" while the Windows VM runs, from *vikix-windows* (commands.lisp)."
   (declare (ignore ml))
   (if *vikix-windows*
-      (format nil "^(:push)^(:fg \"~a\")win^(:pop)  " (vikix-colour :subtle))
+      (vikix-ml-what "windows-vm" (format nil "^(:push)^(:fg \"~a\")win^(:pop)  " (vikix-colour :subtle)))
       ""))
 
 (defun vikix-mode-line-memory (ml)
@@ -222,11 +252,11 @@ from *vikix-recording* and *vikix-dictating* (commands.lisp)."
   "\"ai\" while a local model is loaded, from *vikix-ai* (commands.lisp)."
   (declare (ignore ml))
   (if *vikix-ai*
-      (format nil "^(:push)^(:fg \"~a\")ai^(:pop)  " (vikix-colour :subtle))
+      (vikix-ml-what "ai" (format nil "^(:push)^(:fg \"~a\")ai^(:pop)  " (vikix-colour :subtle)))
       ""))
 
 ;; %J, %V, %O, %T, %U, %A, %D, %Q, %K, %X, %Y, %G, %R, %E, %Z and %P (plugins.lisp) are free: neither StumpWM nor its
-;; contrib modules use them.
+;; contrib modules use them. %d is StumpWM's, taken over below to give the clock its area.
 (add-screen-mode-line-formatter #\J 'vikix-mode-line-groups)
 (add-screen-mode-line-formatter #\V 'vikix-mode-line-volume)
 (add-screen-mode-line-formatter #\O 'vikix-mode-line-net)
@@ -242,6 +272,11 @@ from *vikix-recording* and *vikix-dictating* (commands.lisp)."
 (add-screen-mode-line-formatter #\G 'vikix-mode-line-memory)
 (add-screen-mode-line-formatter #\R 'vikix-mode-line-recording)
 (add-screen-mode-line-formatter #\E 'vikix-mode-line-battery)
+
+(defun vikix-mode-line-clock (ml)
+  "The date and time, as StumpWM's own %d says them (*time-modeline-string*)."
+  (vikix-ml-what "clock" (fmt-modeline-time ml)))
+(add-screen-mode-line-formatter #\d 'vikix-mode-line-clock)
 
 ;;; The tray (vikix tray on): off unless switched on. StumpWM has none of
 ;;; its own, so the network and Bluetooth applets (nm-applet,

@@ -27,6 +27,7 @@
     "resume"     ; your windows back after a restart: every workspace saved, and put back at login
     "day"        ; what had the screen, written down for vikix day
     "why"        ; why did that happen? the key, rule or command behind it (Super+?)
+    "what"       ; what is this? the bar's field under the pointer or the window in front, for vikix what (Super+Alt+?)
     "used"       ; what gets used: counts of the keys and commands, for vikix used
     "agents"     ; the office: the agents running here, each with its folder and what it's doing
     "keys"       ; Super-key bindings
