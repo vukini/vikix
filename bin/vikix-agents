@@ -10,6 +10,17 @@
                        dialog open, a question asked); under it, its
                        window's title, or what it asked
   vikix agents --json  the same as JSON, for a script
+  vikix agents desk [PROJECT [TOPIC]] [--use NAME] [--here]
+                       start an agent at a desk of its own: in PROJECT (one
+                       of vikix project's, by any part of its name), on a
+                       workspace to itself, and with a TOPIC in a git
+                       worktree of the project made for it: the folder
+                       PROJECT-TOPIC beside the project, on a new branch
+                       TOPIC, so its work can't collide with another
+                       agent's. Without PROJECT it asks which, then for a
+                       topic (none: it works in the project's own folder).
+                       --use: another agent than yours (vikix agent --use);
+                       --here: in this terminal, no new workspace
 
 Several agents run side by side, each in a terminal of its own, and five
 windows called "Alacritty" don't say which is which. The desktop starts
@@ -26,11 +37,26 @@ what started it.
 
 Super+m, AI, "Agents: who is running" is the same list on the desktop:
 pick one to go to its window.
+
+A desk: Super+a starts an agent in your home folder, and what it works on
+is whatever you tell it; two of them on one project then edit the same
+files. vikix agents desk gives each its own copy to work in. The worktree
+is an ordinary git one: the agent commits on its branch there, and when
+its work is in (merged, as the project's own notes say), the desk goes
+with `git worktree remove FOLDER` and `git branch -d TOPIC` in the
+project. A desk that is still there is used again, not made twice. A
+project that isn't a git repository has no worktrees: its agent works in
+the folder itself. Super+m, AI, "Agents: start one on a project" is the same,
+asking for the project.
 """
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
+from importlib.machinery import SourceFileLoader
+import importlib.util
 
 VIKIX_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 # Tests name a stand-in for vikix-eval (the live window manager), as vikix-mcp's do.
@@ -180,10 +206,143 @@ def where(agent):
     return f"{place} ({agent['branch']}, {left})"
 
 
+# --- A desk: a workspace and a worktree for one agent --------------------------------
+
+def projects():
+    """vikix-project as a module: its projects are the ones a desk is for."""
+    sys.dont_write_bytecode = True     # no __pycache__ left in bin/
+    loader = SourceFileLoader("vikix_project", os.path.join(VIKIX_DIR, "bin", "vikix-project"))
+    spec = importlib.util.spec_from_loader("vikix_project", loader)
+    mod = importlib.util.module_from_spec(spec)
+    loader.exec_module(mod)
+    return mod
+
+
+def rofi(prompt, message, lines=None):
+    """Ask on the desktop: one of LINES (its number), or with none, a line
+    of text. None when the menu was closed."""
+    if not os.environ.get("DISPLAY") or not shutil.which("rofi"):
+        die("say which project: vikix agents desk PROJECT [TOPIC] (vikix project list names them)")
+    cmd = ["rofi", "-dmenu", "-i", "-p", prompt, "-mesg", message]
+    cmd += ["-format", "i", "-no-custom"] if lines is not None else ["-l", "0"]
+    r = subprocess.run(cmd, input="\n".join(lines or []), capture_output=True, text=True)
+    if r.returncode != 0:
+        return None
+    return r.stdout.strip()
+
+
+def topic_name(words):
+    """WORDS as a branch and a folder's ending: lower case, dashes for spaces."""
+    name = re.sub(r"[^a-z0-9]+", "-", words.strip().lower()).strip("-")
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,40}", name):
+        die(f"a topic is a word or two (letters, digits): '{words}' gives no name for a branch")
+    return name
+
+
+def worktree(top, topic):
+    """The worktree of the repository TOP for TOPIC, made when it isn't
+    there: TOP-TOPIC beside it, on the branch TOPIC. (folder, made)."""
+    folder = os.path.join(os.path.dirname(top), f"{os.path.basename(top)}-{topic}")
+    listed = git(top, "worktree", "list", "--porcelain") or ""
+    known = {line[9:] for line in listed.splitlines() if line.startswith("worktree ")}
+    if os.path.realpath(folder) in {os.path.realpath(k) for k in known}:
+        return folder, False
+    if os.path.exists(folder):
+        die(f"{short(folder)} is there already, and isn't a worktree of {short(top)}: another topic, or move it away")
+    has_branch = git(top, "show-ref", "--verify", f"refs/heads/{topic}") is not None
+    args = ["worktree", "add", folder, topic] if has_branch else ["worktree", "add", folder, "-b", topic]
+    r = subprocess.run(["git", "-C", top, *args], capture_output=True, text=True)
+    if r.returncode != 0:
+        die("git couldn't make the worktree: " + (r.stderr.strip().splitlines() or ["?"])[-1])
+    return folder, True
+
+
+def desk(argv):
+    use, here, words = None, False, []
+    while argv:
+        a = argv.pop(0)
+        if a == "--use":
+            use = argv.pop(0) if argv else die("--use which agent? (vikix agent --list)")
+        elif a == "--here":
+            here = True
+        elif a.startswith("-"):
+            die(f"vikix agents desk: {a}? (vikix agents help)")
+        else:
+            words.append(a)
+    if len(words) > 2:
+        die("vikix agents desk [PROJECT [TOPIC]]: a topic of several words goes in quotes")
+    vp = projects()
+    asked = not words
+    if asked:
+        table = vp.rows(vp.discover(), True)
+        if not table:
+            die("no projects found (vikix project list says where it looks)")
+        wide = max(len(r[1]) for r in table)
+        picked = rofi("Agent on", "The project the agent will work on.",
+                      [f"{name:<{wide}}  {nxt}"[:160] for _, name, _, _, nxt in table])
+        if picked is None or not picked.isdigit():
+            return 0
+        project = table[int(picked)][0]
+    else:
+        project = vp.match(words[0])
+    if len(words) == 2:
+        topic = words[1]
+    elif asked:
+        topic = rofi("Topic", f"A word or two for what it will work on in {project.full}: it gets a worktree and a "
+                              "branch of that name, so another agent's work can't collide with its own. "
+                              "Empty: it works in the project's own folder.")
+        if topic is None:
+            return 0
+    else:
+        topic = ""
+    path = str(project.path)
+    top = (git(path, "rev-parse", "--show-toplevel") or "").strip()
+    said = f"in {short(path)}"
+    folder = path
+    if topic and not top:
+        print(f"{project.full} isn't a git repository, so it has no worktrees: the agent works in its folder")
+    elif topic:
+        topic = topic_name(topic)
+        tree, made = worktree(top, topic)
+        # A project inside a collection (living-series/living-in-sql): its folder in the worktree.
+        folder = os.path.normpath(os.path.join(tree, os.path.relpath(path, top)))
+        said = (f"in {short(folder)}, " + (f"a new worktree on the branch {topic}" if made
+                                           else f"the worktree that was there (branch {topic})"))
+    if not os.path.isdir(folder):
+        die(f"{short(folder)} isn't there")
+    # Tests name a stand-in for what starts the agent.
+    start = ([os.environ["VIKIX_AGENT_CMD"]] if os.environ.get("VIKIX_AGENT_CMD")
+             else [os.path.join(VIKIX_DIR, "bin", "vikix"), "agent"] + (["--use", use] if use else []))
+    if here:
+        print(f"a desk for the agent: {said}")
+        sys.stdout.flush()
+        os.chdir(folder)
+        os.execvp(start[0], start)
+    if not os.environ.get("DISPLAY"):
+        die("no desktop to open a terminal on: add --here to start it in this terminal")
+    term = os.environ.get("VIKIX_TERMINAL") or "alacritty"
+    if not shutil.which(term):
+        die(f"no terminal: {term} isn't installed (VIKIX_TERMINAL names another)")
+    # A workspace to itself: the first empty one (this one when none is).
+    form = "(if (fboundp 'vikix-agent-desk-claim) (princ (vikix-agent-desk-claim)) (princ \"\"))"
+    try:
+        r = subprocess.run(([sys.executable, EVAL] if EVAL.endswith("/bin/vikix-eval") else [EVAL]) + [form],
+                           capture_output=True, text=True, timeout=20)
+        workspace = next((l for l in r.stdout.splitlines() if l and not l.startswith("=> ")), "")
+    except (OSError, subprocess.TimeoutExpired):
+        workspace = ""
+    subprocess.Popen([term, "-e", *start], cwd=folder, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL, start_new_session=True)
+    print(f"a desk for the agent: {said}" + (f", on workspace {workspace}" if workspace else ""))
+    return 0
+
+
 def main(argv):
     if argv and argv[0] in ("-h", "--help", "help"):
         print(__doc__.strip())
         return 0
+    if argv and argv[0] == "desk":
+        return desk(argv[1:])
     as_json = argv == ["--json"]
     if argv and not as_json:
         die("vikix agents [--json] (vikix agents help)")

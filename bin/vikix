@@ -140,6 +140,10 @@
 #                       the agents at work here: each one's folder, branch
 #                       and uncommitted files, its workspace, how long it
 #                       has run, and whether it works or waits for you
+#   vikix agents desk [PROJECT [TOPIC]]
+#                       start an agent at a desk of its own: a workspace to
+#                       itself and, with a topic, a git worktree of the
+#                       project on a branch of that name (vikix agents help)
 #   vikix snapshot [MESSAGE]   record your files as they are now
 #   vikix changes [ID]  what changed since the last snapshot (or in snapshot ID)
 #   vikix history       the snapshots, newest first

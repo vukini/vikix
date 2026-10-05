@@ -122,6 +122,17 @@ $ vikix agents
 
 Each line is an agent: which one, the folder it works in with its branch and how many files wait uncommitted there, its workspace, how long it has run, and what it is doing. *Working* and *at its prompt* come from the mark Claude Code keeps at the front of its window's title; *waits for your yes*, *asked you something* and *finished its turn* come from the agent-waiting plugin's note for that window, when you have the plugin ([Plugins](plugins.md)); under one that asks is what it asked. An agent started by hand at a shell is found like one `vikix agent` started. One without a window of its own (an editor's, one on a text console) comes last, with where it runs.
 
+**A desk each.** `Super+a` starts an agent in your home folder, and what it works on is whatever you tell it. Two of them on one project then edit the same files, and one's half-finished change is in the other's way. A desk gives each its own copy:
+
+```sh
+vikix agents desk vikix drawer-fix     # an agent on the project vikix, for the topic "drawer-fix"
+vikix agents desk                      # asks which project, then for a topic
+```
+
+The agent gets a workspace to itself (the first empty one) and a git worktree of the project made for the topic: the folder `~/src/vikix-drawer-fix`, beside the project, on a new branch `drawer-fix`. It commits there; the project's own folder and every other agent's desk stay as they are, and `vikix agents` now says which branch each is on and what it has left uncommitted. `Super+m` → *AI* → *Agents: start one on a project, at a desk of its own* is the second form. Without a topic the agent works in the project's own folder, on a workspace of its own; so does one on a project that isn't a git repository, which has no worktrees. A project inside a collection (`living-series/living-in-sql`) gets its own folder inside the collection's worktree. `--here` starts the agent in the terminal you're in; `--use codex` another agent than yours.
+
+A desk that is still there is used again, never made twice. When the work is in (merged, the way the project's own notes say), the desk goes with `git worktree remove ~/src/vikix-drawer-fix` and `git branch -d drawer-fix` in the project; the agent that worked there can do both.
+
 `Super+m` → *AI* → *Agents: who is running, and go to one* is the same list on the desktop: pick one and you're at its window (one in the drop-down terminal is brought to you). Nothing is asked of the agents themselves, and none is stopped: the list only reads what is there. Each agent's window also carries its name (the X property `_VIKIX_AGENT`).
 
 ## API keys

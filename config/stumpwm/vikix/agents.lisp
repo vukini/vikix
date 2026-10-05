@@ -21,8 +21,10 @@
 ;;;; works, a star when it is at its prompt). A window with an agent in it
 ;;;; carries the agent's name (_VIKIX_AGENT), for whatever wants to know.
 ;;;;
-;;;; This is the first step of NOVEL.md's "An office for agents": seeing
-;;;; them. A workspace and a worktree each, and the house rules, come after.
+;;;; These are the first steps of NOVEL.md's "An office for agents": seeing
+;;;; them, and a desk each (vikix agents desk: a workspace to itself and a
+;;;; git worktree of its project; bin/vikix-agents makes it, this file only
+;;;; finds the workspace). The house rules come after.
 
 (in-package :stumpwm)
 
@@ -220,3 +222,15 @@ what each has left uncommitted."
                 ((vikix-agent-away-p picked)
                  (vikix-bring-window-here (getf picked :window)))
                 (t (vikix-goto-window (getf picked :window))))))))
+
+;;; --- A desk --------------------------------------------------------------------------------
+
+(defun vikix-agent-desk-claim ()
+  "Go to a workspace an agent can have to itself: the first with no window
+(this one, when none is empty). Its name. For vikix agents desk, which
+then opens the agent's terminal there."
+  (let ((empty (find-if (lambda (g) (and (null (group-windows g)) (plusp (group-number g))))
+                        (sort-groups (current-screen)))))
+    (when (and empty (not (eq empty (current-group))))
+      (switch-to-group empty))
+    (group-name (current-group))))

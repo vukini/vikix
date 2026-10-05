@@ -126,6 +126,7 @@ The everyday command.
 - `vikix mcp register|unregister|tools|status` — the desktop as an MCP server, for Claude Code and other agents
 - `vikix agent` — the AI agent, after a snapshot of your files (alias: a): Claude Code, or --use opencode|codex|gemini|aider, --local on this laptop, --default NAME, --list; --exec [NAME] for editors (stdout is the agent's), --which
 - `vikix agents [--json]` — the agents at work here: each one's folder, branch and uncommitted files, its workspace, how long it has run, and whether it works or waits for you
+- `vikix agents desk [PROJECT [TOPIC]]` — start an agent at a desk of its own: a workspace to itself and, with a topic, a git worktree of the project on a branch of that name (vikix agents help)
 - `vikix snapshot [MESSAGE]` — record your files as they are now
 - `vikix changes [ID]` — what changed since the last snapshot (or in snapshot ID)
 - `vikix history` — the snapshots, newest first
@@ -174,12 +175,15 @@ The agents at work on this desktop, in one place.
 
 - `vikix agents` — each agent running in a terminal here: which it is (claude, codex, opencode, gemini, aider), the folder it works in with its branch and how many files it has left uncommitted there, its workspace, how long it has run, and what it is doing: working, at its prompt, finished its turn, or waiting for you (a dialog open, a question asked); under it, its window's title, or what it asked
 - `vikix agents --json` — the same as JSON, for a script
+- `vikix agents desk [PROJECT [TOPIC]] [--use NAME] [--here]` — start an agent at a desk of its own: in PROJECT (one of vikix project's, by any part of its name), on a workspace to itself, and with a TOPIC in a git worktree of the project made for it: the folder PROJECT-TOPIC beside the project, on a new branch TOPIC, so its work can't collide with another agent's. Without PROJECT it asks which, then for a topic (none: it works in the project's own folder). --use: another agent than yours (vikix agent --use); --here: in this terminal, no new workspace
 
 Several agents run side by side, each in a terminal of its own, and five windows called "Alacritty" don't say which is which. The desktop starts them (vikix agent, Super+a), so it knows: it finds the agent in each terminal, started by vikix agent or by hand at a shell, and reads what it is doing from the agent-waiting plugin's note for its window (when you have that plugin: vikix plugin add agent-waiting) and from the mark Claude Code keeps at the front of its window's title. Nothing is asked of the agents themselves.
 
 An agent an editor started (vikix agent --acp: Emacs's agent-shell, Neovim's CodeCompanion) has no window of its own; it is listed last, with what started it.
 
 Super+m, AI, "Agents: who is running" is the same list on the desktop: pick one to go to its window.
+
+A desk: Super+a starts an agent in your home folder, and what it works on is whatever you tell it; two of them on one project then edit the same files. vikix agents desk gives each its own copy to work in. The worktree is an ordinary git one: the agent commits on its branch there, and when its work is in (merged, as the project's own notes say), the desk goes with `git worktree remove FOLDER` and `git branch -d TOPIC` in the project. A desk that is still there is used again, not made twice. A project that isn't a git repository has no worktrees: its agent works in the folder itself. Super+m, AI, "Agents: start one on a project" is the same, asking for the project.
 
 ## vikix-ai
 

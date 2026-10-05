@@ -294,6 +294,8 @@ First step: a workspace and a bar colour per `vikix agent`, and `vikix agents` l
 
 > 2026-10-05, the office session: the first step is built, a little differently. `vikix agents` (and Super+m, AI; the MCP tool `agents`) lists every agent in a terminal here, found from the terminal's processes whether `vikix agent` started it or a shell did: its folder with branch and uncommitted files, workspace, how long, and what it is doing (the agent-waiting note, else Claude Code's mark in the title); its window carries `_VIKIX_AGENT`. Not yet: a workspace and a bar colour each. What the listing showed at once: every session's folder is `~`, because Super+a starts them there and each then works in a worktree it made itself. So the next step is a desk each, `vikix agent` starting an agent in a project and a worktree of its own, before the house rules.
 
+> 2026-10-05, later: the second step, a desk each, is built. `vikix agents desk PROJECT TOPIC` (Super+m, AI) gives an agent the first empty workspace and a git worktree of the project, `PROJECT-TOPIC` beside it on the branch `TOPIC`; Super+a is unchanged. No key (the key card is full), no bar colour yet, and nothing removes a desk but `git worktree remove`. Next: the house rules (two agents reaching for one file; crossings into another's folder).
+
 ## 23. Feed the distro
 
 What Vikix builds because Void lacks it goes back to Void.
