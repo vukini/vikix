@@ -208,13 +208,13 @@ AI on the text you selected, anywhere on the desktop (Super+i).
 - `vikix-ask` — a menu: Ask, Proofread, Rewrite, Translate, Explain
 - `vikix-ask ACTION` — one of those straight away (ask, proofread, rewrite, translate, explain): for keys of your own in user.lisp
 - `vikix-ask use [local|claude|codex]` — which model answers (vikix ai use); alone, says which
-- `vikix-ask which` — the model, where the text goes and which of the three it is, tab-separated (for vikix-voice: Super+F10 asks the same model)
+- `vikix-ask which` — the model, where the text goes, which of the three it is and Codex's effort, tab-separated (for vikix-voice: Super+F10 asks the same model)
 
 The text is what you last highlighted (X keeps it after the highlight is gone), else the clipboard: the notification while it works shows it. Proofread, Rewrite and Translate put their result on the clipboard, to paste where you want it; Ask and Explain show the answer, in a notification when it's short, else in a terminal. A local model and Claude answer through llm (vikix ai llm), so it's all in llm logs too.
 
 Which model answers is yours to choose, in `~/.config/vikix/ai` (made on first use): a local one (free, offline, the text stays on this laptop), Claude (better, paid, the text goes to Anthropic), or Codex (the Codex you installed and signed in to with codex login; the text goes to OpenAI). It never leaves the local model by itself.
 
-Codex is an agent, so Super+i asks it with its tools switched off: no commands, no web search, none of the apps connected to your ChatGPT account, and nothing kept of the session. What you select can come from any page, and a line in it written for an agent finds nothing to act with. It takes some ten seconds an answer; the editors' chats and note know only local and Claude, and stay on the local model meanwhile.
+Codex is an agent, so Super+i asks it with its tools switched off: no commands, no web search, none of the apps connected to your ChatGPT account, and nothing kept of the session. What you select can come from any page, and a line in it written for an agent finds nothing to act with. It takes some ten seconds an answer, fewer with a faster model (model=) and effort=low in that file, which leave Codex in the terminal as it was; the editors' chats and note know only local and Claude, and stay on the local model meanwhile.
 
 ## vikix-back
 

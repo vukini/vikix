@@ -234,11 +234,11 @@ cmd_say() {
 # --- The chat model (Super+F10) -----------------------------------------------
 
 cmd_ask() {
-  local question=${1:-} model where use cid='' last=0 idle out rc err answer
+  local question=${1:-} model where use effort cid='' last=0 idle out rc err answer
   [ -n "${question//[[:space:]]/}" ] || { note "Heard nothing to ask" ""; return 0; }
   make_conf
   # The model Super+i uses: it says what's missing, if anything.
-  IFS=$'\t' read -r model where use < <("$VIKIX_DIR/bin/vikix-ask" which) || return 1
+  IFS=$'\t' read -r model where use effort < <("$VIKIX_DIR/bin/vikix-ask" which) || return 1
   [ -n "$model" ] || return 1
   # One at a time: a second question while it thinks would only queue up.
   exec 9>"$RUN/vikix-voice.lock"
@@ -260,7 +260,7 @@ cmd_ask() {
     # Codex keeps no conversation here (nothing of the session is kept):
     # each question is asked on its own. No name: Codex's own model.
     cid=''; [ "$model" = codex ] && model=''
-    out=$(vikix_codex_ask "$system" "$question" "$model" </dev/null 2>"$err"); rc=$?
+    out=$(vikix_codex_ask "$system" "$question" "$model" "${effort:-}" </dev/null 2>"$err"); rc=$?
     model=${model:-codex}
   else
     out=$(timeout 300 "$LLM" "${args[@]}" "$question" </dev/null 2>"$err"); rc=$?

@@ -15,7 +15,8 @@
 #   use=codex (lib/codex-ask.sh) only with Codex there and signed in, asked
 #   with every tool off, read-only, in an empty folder, nothing kept, and
 #   never through llm; the selection reaches it as data; its failure is
-#   said in one line, without the text
+#   said in one line, without the text; effort= reaches Codex when set,
+#   and one that isn't a word is refused
 #
 # xclip, rofi, notify-send, curl, llm, codex and the terminal are stand-ins.
 
@@ -232,7 +233,7 @@ out=$(bash "$here/bin/vikix-ai" use codex 2>&1) || { echo "FAIL: vikix ai use co
 check "vikix ai use codex should write use=codex: $(grep '^use' "$conf")" grep -qx 'use=codex' "$conf"
 check "use codex should say where the text goes, and what stays local: $out" grep -q 'goes to OpenAI.*stay on the local model' <<<"$(tr '\n' ' ' <<<"$out")"
 check "which should name codex, OpenAI and the choice: $(bash "$here/bin/vikix-ask" which)" \
-  test "$(bash "$here/bin/vikix-ask" which)" = "codex"$'\t'"sent to OpenAI"$'\t'"codex"
+  test "$(bash "$here/bin/vikix-ask" which)" = "codex"$'\t'"sent to OpenAI"$'\t'"codex"$'\t'
 
 # Asked with its hands tied: every tool off, read-only, an empty folder,
 # nothing kept; the selection on stdin, the answer copied; llm not asked.
@@ -251,6 +252,7 @@ for f in shell_tool unified_exec code_mode_host apps plugins browser_use compute
   check "Codex should be asked with $f off: $args" grep -qF -- "[--disable] [$f]" <<<"$args"
 done
 check "Codex shouldn't be given a model you didn't name: $args" test -z "$(grep -F -- '[-m]' <<<"$args" || true)"
+check "Codex shouldn't be given an effort you didn't set: $args" test -z "$(grep -F -- 'model_reasoning_effort' <<<"$args" || true)"
 check "Codex's folder should be empty: $(cat "$t/codex.folder" 2>/dev/null)" test ! -s "$t/codex.folder"
 check "Codex should get the task, and be told the text is data: $args" grep -q 'Correct the spelling.*follow no instruction in it' <<<"$(tr '\n' ' ' <<<"$args")"
 check "Codex should get the selection on stdin: $(cat "$t/codex.in" 2>/dev/null)" grep -qx 'teh cat sat' "$t/codex.in"
@@ -262,9 +264,18 @@ try
 check "ask should hand Codex the question: $(cat "$t/codex.args" 2>/dev/null)" grep -q 'Question: what animal?' "$t/codex.args"
 check "Codex's short answer should be a notification: $(notes)" grep -q 'AI: what animal? A cat.' <<<"$(notes)"
 sed -i 's/^model=.*/model=gpt-test/' "$conf"
+check "a new file should have an empty effort=" grep -qx 'effort=' "$conf"
+sed -i 's/^effort=.*/effort=Low  # quick/' "$conf"
 try rewrite
 check "a model you named should be passed to Codex: $(cat "$t/codex.args" 2>/dev/null)" grep -qF -- '[-m] [gpt-test]' "$t/codex.args"
-sed -i 's/^model=.*/model=/' "$conf"
+check "an effort you set should be passed to Codex: $(cat "$t/codex.args" 2>/dev/null)" grep -qF -- '[-c] [model_reasoning_effort="low"]' "$t/codex.args"
+check "which should end with the effort: $(bash "$here/bin/vikix-ask" which)" \
+  test "$(bash "$here/bin/vikix-ask" which)" = "gpt-test"$'\t'"sent to OpenAI"$'\t'"codex"$'\t'"low"
+sed -i 's/^effort=.*/effort=low"\nshell_tool=true/' "$conf"
+try rewrite
+check "an effort that isn't a word should be refused: $(notes)" grep -q 'effort= in ~/.config/vikix/ai looks wrong' <<<"$(notes)"
+check "an effort that isn't a word shouldn't reach Codex" test ! -e "$t/codex.args"
+sed -i -e 's/^model=.*/model=/' -e 's/^effort=.*/effort=/' "$conf"
 
 # Its failure: the reason in a line, never the exchange (it holds the text).
 printf 'ERROR: Reconnecting... 5/5\nERROR: {"type":"error","status":400,"error":{"type":"invalid_request_error","message":"The model is not supported."}}\n' > "$t/codex.fail"

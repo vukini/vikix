@@ -209,11 +209,12 @@ prev=; for a; do [ "\$prev" = -o ] && out=\$a; prev=\$a; done
 echo "Lyon is a city." > "\$out"
 EOF
 chmod +x "$t/codex"
-printf 'use=codex\nmodel=\n' > "$HOME/.config/vikix/ai"
+printf 'use=codex\nmodel=\neffort=low\n' > "$HOME/.config/vikix/ai"
 : > "$calls"; : > "$t/notes"; rm -f "$t/spoken" "$VIKIX_STATE/voice-chat"
 VIKIX_CODEX="$t/codex" v ask "What is Lyon?" >/dev/null 2>&1; settle
 check "with use=codex, ask should ask Codex: $(cat "$t/codex.args" 2>/dev/null)" grep -q 'read aloud.*Question: What is Lyon?' <<<"$(tr '\n' ' ' < "$t/codex.args")"
 check "the voice key should ask Codex with its tools off" grep -qF -- '[--disable] [shell_tool]' "$t/codex.args"
+check "the voice key should pass your effort on: $(cat "$t/codex.args" 2>/dev/null)" grep -qF -- '[-c] [model_reasoning_effort="low"]' "$t/codex.args"
 check "with use=codex, llm shouldn't be asked: $(grep '^llm' "$calls" || true)" test -z "$(grep '^llm' "$calls" || true)"
 check "Codex's answer should be spoken: [$(spoken)]" test "$(spoken)" = "Lyon is a city."
 check "Codex's answer should say where it went: $(notes)" grep -q 'codex, sent to OpenAI' <<<"$(tr '\n' ' ' < "$t/notes")"

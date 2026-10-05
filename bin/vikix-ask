@@ -6,9 +6,9 @@
 #                         rewrite, translate, explain): for keys of your own
 #                         in user.lisp
 #   vikix-ask use [local|claude|codex]  which model answers (vikix ai use); alone, says which
-#   vikix-ask which       the model, where the text goes and which of the
-#                         three it is, tab-separated (for vikix-voice:
-#                         Super+F10 asks the same model)
+#   vikix-ask which       the model, where the text goes, which of the
+#                         three it is and Codex's effort, tab-separated
+#                         (for vikix-voice: Super+F10 asks the same model)
 #
 # The text is what you last highlighted (X keeps it after the highlight
 # is gone), else the clipboard: the notification while it works shows it. Proofread, Rewrite and Translate put their result on the
@@ -26,8 +26,10 @@
 # commands, no web search, none of the apps connected to your ChatGPT
 # account, and nothing kept of the session. What you select can come from
 # any page, and a line in it written for an agent finds nothing to act
-# with. It takes some ten seconds an answer; the editors' chats and note
-# know only local and Claude, and stay on the local model meanwhile.
+# with. It takes some ten seconds an answer, fewer with a faster model
+# (model=) and effort=low in that file, which leave Codex in the terminal
+# as it was; the editors' chats and note know only local and Claude, and
+# stay on the local model meanwhile.
 
 set -uo pipefail
 VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
@@ -65,7 +67,12 @@ use=local
 
 # A model by name (llm models lists them). Empty: llama3.2:3b, or your
 # first local model; claude-sonnet-5 for Claude; Codex's own for Codex.
+# One line for all three: empty it before switching to another.
 model=
+
+# Codex only: how hard it thinks (low, medium, high). Empty: Codex's own
+# setting, in ~/.codex/config.toml. Low answers soonest.
+effort=
 
 # The languages Translate offers, first to last (you can also type another).
 languages=English Esperanto French Spanish Arabic Hindi
@@ -108,6 +115,8 @@ pick_model() {
       codex_ready || fail "$CODEX_MISSING" "$CODEX_FIX. Or back to local: vikix ai use local"
       # No name: the model Codex itself is set to (~/.codex/config.toml).
       CODEX_MODEL=$model; model=${model:-codex}
+      CODEX_EFFORT=$(conf effort); CODEX_EFFORT=${CODEX_EFFORT,,}
+      case $CODEX_EFFORT in *[!a-z]*) fail "effort= in ~/.config/vikix/ai looks wrong" "A word such as low, medium or high: $(escape <<<"$CODEX_EFFORT")" ;; esac
       WHERE="sent to OpenAI" ;;
     *) fail "use= in ~/.config/vikix/ai should be local, claude or codex" "$(escape <<<"$use")" ;;
   esac
@@ -210,9 +219,9 @@ print(t, end="")
 make_conf
 if [ "${1:-}" = use ]; then set_use "${2:-}"; exit; fi
 pick_model
-# The model, where the words go and which of the three it is, tab-separated
-# (vikix-voice asks the same one).
-if [ "${1:-}" = which ]; then printf '%s\t%s\t%s\n' "$MODEL" "$WHERE" "$USE"; exit 0; fi
+# The model, where the words go, which of the three it is and Codex's
+# effort (last: it may be empty), tab-separated (vikix-voice asks the same one).
+if [ "${1:-}" = which ]; then printf '%s\t%s\t%s\t%s\n' "$MODEL" "$WHERE" "$USE" "${CODEX_EFFORT:-}"; exit 0; fi
 TEXT=$(selection)
 if [ "${#TEXT}" -gt "$MAX" ]; then TEXT=${TEXT:0:$MAX}; CUT=1; else CUT=0; fi
 
@@ -283,7 +292,7 @@ err="$RUN/vikix-ask.err"
 # One answer: the text on stdin, from Codex or through llm.
 answer() {
   if [ "$USE" = codex ]; then
-    vikix_codex_ask "$system" "${question:-}" "${CODEX_MODEL:-}"
+    vikix_codex_ask "$system" "${question:-}" "${CODEX_MODEL:-}" "${CODEX_EFFORT:-}"
   else
     local args=(-m "$MODEL" -s "$system")
     [ "$ACTION" = ask ] && args+=("$question")
