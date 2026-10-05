@@ -33,6 +33,8 @@ wm_start
 
 yes() { test "$(ask "(princ (if $1 1 0))")" = 1; }
 agents() { ask '(progn (setf *print-pretty* nil) (format t "~{~a~^ | ~}" (mapcar (lambda (a) (format nil "~a ~a ~a ~(~a~)" (getf a :name) (file-namestring (string-right-trim "/" (getf a :folder))) (group-name (window-group (getf a :window))) (getf a :state))) (vikix-agents))))'; }
+# To a workspace, asked of StumpWM itself: a key sent to a busy hidden screen is sometimes lost.
+go() { ask "(run-commands \"gselect $1\")" >/dev/null; sleep 0.3; }
 cli() { HOME=$home VIKIX_SWANK_PORT=$port python3 "$here/bin/vikix-agents" "$@" 2>&1 || true; }
 
 # Stand-in agents: programs called as the real ones are, that only stay.
@@ -63,7 +65,7 @@ win Shell
 agent "✳ Books" "$t/proj-a" "$t/bin/claude"
 check "a terminal with an agent in it is found, by its name, folder and workspace; a shell's isn't: $(agents)" \
   test "$(agents)" = "claude proj-a 1 idle"
-key super+2
+go 2
 agent "◐ Tests running" "$t/proj-b" "$t/bin/claude"
 agent "codex" "$t/proj-b" sh -c "$t/bin/codex"
 check "one working, and one a script started, each on its workspace: $(agents)" \
