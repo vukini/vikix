@@ -1,0 +1,125 @@
+#!/usr/bin/env python3
+"""vikix-palette — everything in one box (Super+Space).
+
+    vikix-palette          open it: the launcher, listing your windows on
+                           every workspace, every Vikix command (with its
+                           key), your projects, web apps and saved layouts,
+                           and the programs, all at once. Type a few
+                           letters, Enter.
+    vikix-palette --list   what it would offer, in the terminal
+
+Enter on a window goes to it, wherever it is; on a command, runs it; on a
+project, opens it (a terminal in its folder, its log in the editor); on a
+web app, brings it forward or starts it; on a layout, puts this workspace
+back as it; on a program, starts it.
+
+Super+d is still the plain launcher, programs only. When the desktop
+doesn't answer within a second and a half, the box opens with the projects
+and the programs alone.
+"""
+
+import os
+import shutil
+import subprocess
+import sys
+
+HERE = os.path.dirname(os.path.realpath(__file__))
+SEP = "\x1f"
+
+
+def desktop(form, timeout=1.5):
+    """What the running StumpWM prints for FORM, or "" when it doesn't answer in time."""
+    try:
+        out = subprocess.run([sys.executable, os.path.join(HERE, "vikix-eval"), form],
+                             capture_output=True, text=True, timeout=timeout)
+    except (subprocess.TimeoutExpired, OSError):
+        return ""
+    return "" if out.returncode else out.stdout
+
+
+def projects():
+    """Your projects: (name, next step), most recently worked on first."""
+    try:
+        out = subprocess.run([os.path.join(HERE, "vikix-project"), "list"],
+                             capture_output=True, text=True, timeout=2).stdout
+    except (subprocess.TimeoutExpired, OSError):
+        return []
+    found = []
+    for line in out.splitlines():
+        if not line.strip() or line.startswith(" "):
+            continue
+        name = line.split()[0]
+        # The next step is the last column, after the date in brackets.
+        rest = line.split(")", 1)[1].strip() if ")" in line else ""
+        found.append((name, rest))
+    return found
+
+
+def entries():
+    """Every row: (kind, id, words, more)."""
+    rows = []
+    lines = desktop("(if (fboundp (quote vikix-palette-lines)) (vikix-palette-lines) (values))")
+    for line in lines.splitlines():
+        if line.startswith("=> "):
+            continue
+        parts = line.split("\t")
+        if len(parts) == 4 and parts[0] in ("window", "command", "webapp", "layout"):
+            rows.append(tuple(parts))
+    # Windows first, then projects, then the rest as the desktop gave them.
+    windows = [r for r in rows if r[0] == "window"]
+    others = [r for r in rows if r[0] != "window"]
+    mine = [("project", name, name, "project" + (f" · next: {step}" if step else "")) for name, step in projects()]
+    return windows + mine + others
+
+
+def row(kind, ident, words, more):
+    """A row as rofi's script mode reads it: what shows, then what comes
+    back when it is picked (info), and what else matches it (meta)."""
+    shown = f"{words}  ·  {more}" if more else words
+    return f"{shown}\0info{SEP}{kind}\t{ident}{SEP}meta{SEP}{kind}\n"
+
+
+def picked(info):
+    """Do what the picked row says."""
+    kind, _, ident = info.partition("\t")
+    if kind == "project":
+        subprocess.Popen([os.path.join(HERE, "vikix-project"), "open", ident],
+                         start_new_session=True, stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    elif kind in ("window", "command", "webapp", "layout"):
+        quoted = ident.replace("\\", "\\\\").replace('"', '\\"')
+        desktop(f'(vikix-palette-run "{kind}" "{quoted}")', timeout=5)
+
+
+def main():
+    args = sys.argv[1:]
+    if args and args[0] in ("-h", "--help", "help"):
+        print(__doc__.strip())
+        return 0
+    if args and args[0] == "--list":
+        for kind, ident, words, more in entries():
+            print(f"{words}  ·  {more}")
+        return 0
+    if args and args[0] == "--rofi":
+        # rofi's script mode: with nothing more, list; with the picked row
+        # (its info in ROFI_INFO), act and list nothing, which closes the box.
+        info = os.environ.get("ROFI_INFO", "")
+        if len(args) > 1 or info:
+            if info:
+                picked(info)
+            return 0
+        sys.stdout.write("\0no-custom\x1ftrue\n")
+        for entry in entries():
+            sys.stdout.write(row(*entry))
+        return 0
+    if not shutil.which("rofi"):
+        print("vikix-palette: rofi isn't installed", file=sys.stderr)
+        return 2
+    me = os.path.realpath(__file__)
+    os.execvp("rofi", ["rofi", "-show", "combi", "-modes", f"combi,vikix:{me} --rofi,drun",
+                       "-combi-modes", "vikix,drun", "-display-combi", "", "-combi-hide-mode-prefix", "true",
+                       "-display-vikix", "", "-display-drun", ""])
+
+
+if __name__ == "__main__":
+    sys.exit(main())

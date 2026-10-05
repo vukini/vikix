@@ -19,7 +19,8 @@ The first time, a terminal opens with **the welcome**. Follow it: it adds softwa
 | Key | What it does |
 |---|---|
 | `Super+Return` | a terminal |
-| `Super+d` (or `Super+Space`) | the launcher: type a program's name, Enter |
+| `Super+Space` | everything in one box: type a few letters of a window, a command, a project, a web app, a saved layout or a program, Enter |
+| `Super+d` | the launcher: programs only |
 | `Super+m` | the Vikix menu: everything, in sections; type a word to find an entry of any |
 | `Super+/` | every key on one card; the next key closes it |
 | `Super+q` | close the window |

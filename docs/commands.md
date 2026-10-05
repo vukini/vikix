@@ -46,6 +46,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-notifications](#vikix-notifications): the notifications dunst has put away, in rofi, newest first
 - [vikix-obsidian](#vikix-obsidian): an Obsidian vault, converted to Org notes, a folder at a time
 - [vikix-osd](#vikix-osd): change volume or brightness and show a bar for it
+- [vikix-palette](#vikix-palette): everything in one box (Super+Space)
 - [vikix-pkg](#vikix-pkg): single programs, beyond the features
 - [vikix-plugin](#vikix-plugin): small additions to Vikix, from the vikix-plugins repo
 - [vikix-project](#vikix-project): your projects, each a folder with a log.md
@@ -763,6 +764,17 @@ Change volume or brightness and show a bar for it.
 - `vikix-osd brightness up|down`
 
 The bar is a dunst notification with a progress value. The stack tag makes each new press replace the last bar instead of piling up.
+
+## vikix-palette
+
+Everything in one box (Super+Space).
+
+- `vikix-palette` — open it: the launcher, listing your windows on every workspace, every Vikix command (with its key), your projects, web apps and saved layouts, and the programs, all at once. Type a few letters, Enter.
+- `vikix-palette --list` — what it would offer, in the terminal
+
+Enter on a window goes to it, wherever it is; on a command, runs it; on a project, opens it (a terminal in its folder, its log in the editor); on a web app, brings it forward or starts it; on a layout, puts this workspace back as it; on a program, starts it.
+
+Super+d is still the plain launcher, programs only. When the desktop doesn't answer within a second and a half, the box opens with the projects and the programs alone.
 
 ## vikix-pkg
 

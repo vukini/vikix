@@ -63,7 +63,7 @@ front, so a name like Brightness-up is never mistaken for one."
 ;;;   ("s-F12" "exec obsidian" "Obsidian" "Apps")
 ;;; Any other program started with exec is an app; anything else is Other.
 (defparameter *vikix-key-groups*
-  '(("Apps" "vikix-terminal" "rofi" "firefox" "pcmanfm" "spacefm"
+  '(("Apps" "vikix-terminal" "rofi" "vikix-palette" "firefox" "pcmanfm" "spacefm"
      "emacsclient" "clipmenu" "vikix-rofi" "vikix-webapp" "vikix-esploro"
      "vikix-project")
     ("AI & voice" "vikix-agent" "vikix-ask" "vikix-dictate" "vikix-voice")
@@ -449,3 +449,72 @@ messages stay as they were."
   (and on t))
 
 (vikix-which-key t)
+
+;;; --- The palette (Super+Space): one box for everything ---------------------------
+;;;
+;;; bin/vikix-palette shows these in the launcher, beside the programs:
+;;; your windows on every workspace, every command (with its key), your web
+;;; apps and saved layouts; it adds your projects itself. Picking one comes
+;;; back here, to vikix-palette-run.
+
+(defun vikix-palette-clean (text)
+  "TEXT on one line, without the tab that parts a line's fields."
+  (substitute #\Space #\Tab (substitute #\Space #\Newline (princ-to-string (or text "")))))
+
+(defun vikix-palette-line (kind id words &optional more)
+  (format t "~a~c~a~c~a~c~a~%" kind #\Tab id #\Tab (vikix-palette-clean words) #\Tab
+          (vikix-palette-clean more)))
+
+(defun vikix-palette-lines ()
+  "Print what the palette offers, a line each: KIND, ID, WORDS and MORE
+(what it is, said small), parted by tabs. Windows first, the one in front
+last of them: the others are the ones to go to."
+  (let ((current (current-window)))
+    (dolist (group (sort (copy-list (screen-groups (current-screen))) #'< :key #'group-number))
+      (when (plusp (group-number group))
+        (dolist (window (group-windows group))
+          (unless (eq window current)
+            (let ((class (window-class window)))
+              (vikix-palette-line
+               "window" (window-id window) (window-name window)
+               (format nil "window on ~a~@[ · ~a~]" (group-name group)
+                       (and class (not (search class (window-name window) :test #'char-equal))
+                            class))))))))
+    (when current
+      (vikix-palette-line "window" (window-id current) (window-name current) "this window")))
+  (when (boundp '*vikix-commands*)
+    (dolist (command (symbol-value '*vikix-commands*))
+      (when (and (ignore-errors (vikix-command-here-p command))
+                 (not (search "vikix-palette" (or (getf command :run) ""))))
+        (vikix-palette-line
+         "command" (string-downcase (getf command :name))
+         (or (getf command :label) (getf command :does))
+         (format nil "command~@[ · ~a~]"
+                 (and (getf command :key) (vikix-pretty-key (getf command :key))))))))
+  (when (fboundp 'vikix-read-webapps)
+    (dolist (app (ignore-errors (funcall 'vikix-read-webapps)))
+      (when (second app)
+        (vikix-palette-line
+         "webapp" (first app) (funcall 'vikix-webapp-title (first app))
+         (format nil "web app~@[ · ~a~]"
+                 (and (third app) (ignore-errors (vikix-pretty-key (third app)))))))))
+  (when (fboundp 'vikix-layout-names)
+    (dolist (name (ignore-errors (funcall 'vikix-layout-names)))
+      (vikix-palette-line "layout" name name "layout: put this workspace back as it")))
+  (values))
+
+(defun vikix-palette-run (kind id)
+  "Do what was picked in the palette. From a timer, a moment later: a
+command that asks something must not keep `vikix eval` waiting for it."
+  (run-with-timer
+   0 nil
+   (lambda ()
+     (handler-case
+         (cond ((equal kind "window")
+                (let ((window (window-by-id (parse-integer id))))
+                  (if window (focus-all window) (message "That window has gone."))))
+               ((equal kind "command") (vikix-run-command id))
+               ((equal kind "webapp") (run-commands (format nil "vikix-webapp ~a" id)))
+               ((equal kind "layout") (run-commands (format nil "vikix-layout-restore-command ~a" id))))
+       (error (e) (message "^1Vikix:^n ~a" e)))))
+  t)
