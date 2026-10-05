@@ -352,7 +352,11 @@ def cmd_app(name, file=None):
     # the environment. (/from-stdin read only the password, and only from a
     # terminal: started from the launcher there is none.)
     args = [f"/v:{ip}:{RDP_PORT}", f"/u:{USER}", f"/p:{password}", f"/app:{program}",
-            "/cert:tofu", "+clipboard", "/sound", f"/wm-class:vikix-win-{a['id']}", "/log-level:ERROR"]
+            "/cert:tofu", "+clipboard", "/sound", f"/wm-class:vikix-win-{a['id']}", "/log-level:ERROR",
+            # Sharp text: the VM is on this machine, so a fast local link,
+            # full colour, and no H.264 (lossy video, which blurs text); the
+            # progressive codec sharpens to the exact picture once it's still.
+            "/network:lan", "/bpp:32", "/gfx:progressive:on,AVC420:off,AVC444:off"]
     log = STATE / "logs" / "windows-app.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     with open(log, "a") as out:
