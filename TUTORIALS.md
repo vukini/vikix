@@ -23,14 +23,7 @@ The tools are already there. Checked in Void on 2026-09-28:
 
 So `vikix learn c` only needs `vikix add c` first, and can offer to run it.
 
-The Bottom-Up C work supplies the evidence. It has 14 measured findings, for example:
-
-- `-lm` is optional at `-O2`. **Corrected when lesson 03 was written (gcc 14.2, 2026-10-01):** not as stated. `-lm` isn't needed when gcc can work `sqrt` out itself (a constant: `sqrt(2.0)`, at any `-O`, even `-O0`), and is needed when the program calls it while it runs, at any `-O`. Link order mattered for a static archive (`libarea.a` before the object failed) and not for the shared libm.
-- archive link order matters
-- `-Wall -Wextra` miss `signed char s = 200`, and `-pedantic` catches it
-- a megabyte of bss costs nothing in the file
-
-These are exactly the "surprising when you run it" lessons that basic tutorials never reach.
+The Bottom-Up C work supplies the evidence: its measured findings (the book is private, so none is quoted here) are exactly the "surprising when you run it" lessons that basic tutorials never reach.
 
 The AI agent is already there. Super+a and the skills folder give a natural slot for a tutor.
 
