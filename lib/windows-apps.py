@@ -172,11 +172,23 @@ Enable-NetFirewallRule -Group '@FirewallAPI.dll,-28752'
 # Each shared folder as its drive letter: the virtio-fs service once per
 # folder, by its tag (with two, one service alone would take either).
 SHARE_SERVICE = r"""
-$exe = ((Get-CimInstance Win32_Service -Filter "Name='VirtioFsSvc'").PathName -replace '"','' -split ' ')[0]
-if (-not $exe) { 'no virtiofs service'; exit 1 }
-sc.exe config VirtioFsSvc binpath= "`"$exe`" -t vikix-shared -m Z:" | Out-Null
+$svc = 'HKLM:\SYSTEM\CurrentControlSet\Services'
+# The program's whole path, spaces and all ("C:\Program Files\..."): from
+# the service's own line when it names one, else wherever the guest tools put it.
+$line = (Get-ItemProperty "$svc\VirtioFsSvc" -ErrorAction SilentlyContinue).ImagePath
+$exe = if ($line -match '^"([^"]+\.exe)"') { $Matches[1] } elseif ($line -match '^(\S+\.exe)') { $Matches[1] } else { $null }
+if (-not $exe -or -not (Test-Path $exe)) {
+  $exe = Get-ChildItem 'C:\Program Files', 'C:\Program Files (x86)' -Recurse -Filter virtiofs.exe -ErrorAction SilentlyContinue |
+         Select-Object -First 1 -ExpandProperty FullName
+}
+if (-not $exe) { 'no virtiofs.exe'; exit 1 }
+# Written to the registry, not through sc.exe, whose quoting PowerShell mangles.
+Set-ItemProperty "$svc\VirtioFsSvc" -Name ImagePath -Value ('"' + $exe + '" -t vikix-shared -m Z:')
 if (-not (Get-Service VikixDocuments -ErrorAction SilentlyContinue)) {
-  sc.exe create VikixDocuments binpath= "`"$exe`" -t vikix-documents -m Y:" start= auto depend= WinFsp.Launcher/VirtioFsDrv DisplayName= "Vikix: Documents as Y:" | Out-Null
+  New-Service -Name VikixDocuments -DisplayName 'Vikix: Documents as Y:' -StartupType Automatic `
+    -DependsOn 'WinFsp.Launcher', 'VirtioFsDrv' -BinaryPathName ('"' + $exe + '" -t vikix-documents -m Y:') | Out-Null
+} else {
+  Set-ItemProperty "$svc\VikixDocuments" -Name ImagePath -Value ('"' + $exe + '" -t vikix-documents -m Y:')
 }
 'shares set'
 """

@@ -104,6 +104,8 @@ check "through the guest agent, as PowerShell" grep -q "^exec powershell.exe$" "
 for k in fDenyTSConnections UserAuthentication fAllowUnlistedRemotePrograms "@FirewallAPI.dll,-28752"; do
   check "the setting $k is sent" grep -qF -- "$k" "$t/vm/scripts"
 done
+check "the share program's path is written whole, through the registry (sc.exe's quoting cut it at the first space)" \
+  bash -c 'grep -q "Set-ItemProperty .*VirtioFsSvc.* -Name ImagePath" "$1" && ! grep -q "sc.exe config" "$1"' _ "$t/vm/scripts"
 check "each share's drive by its tag: Z: and Y:" bash -c 'grep -q "vikix-shared -m Z:" "$1" && grep -q "vikix-documents -m Y:" "$1"' _ "$t/vm/scripts"
 check "Documents added to the VM's definition" grep -q "<target dir='vikix-documents'/>" "$t/vm/xml"
 check "the password's name is never exported (secrets.sh takes only ..._KEY, _TOKEN, _SECRET)" \
