@@ -109,3 +109,13 @@ Noted 2026-10-05, releasing Super+i's Codex choice.
 **What's known.** The check reads the screen's last message straight after `key super+alt+F12`, without waiting for the command to have run. The change being released touched nothing of StumpWM's.
 
 **Next step.** Have the check wait for the message (a short loop, as other hidden-screen tests do) instead of reading it once.
+
+## tests/docs.sh: "Super+F2's menus: Return should open the hit" failed once in a release's run
+
+Noted 2026-10-05, releasing Esploro's Names Only.
+
+**What happens.** In a release's run, with other sessions testing (load 7 on 4 cores), `docs` failed at `FAIL: Super+F2's menus: Return should open the hit its way:` with nothing opened. Alone, a minute later on the same commit, it passed. The change being released touched the README, `bin/vikix-esploro` and `tests/esploro.sh` only.
+
+**What's known.** The check types into rofi on a hidden screen by the clock: 1.5 s after starting `vikix-docs pick` it types the words and Return, 1.5 s later the key that opens the hit. On a busy machine rofi isn't up, or the hits aren't listed, when the keys are sent.
+
+**Next step.** Wait for rofi's window (`xdotool search --sync`) before typing, and for the second menu before the opening key, instead of the two sleeps.
