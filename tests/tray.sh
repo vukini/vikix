@@ -4,7 +4,8 @@
 # embedded in it, the bar leaving it room; still there, once, after a
 # reload; the bar's network and Bluetooth fields stepping aside while
 # their applets are in it; vikix-tray-off and the toggle switch it and say so in the
-# settings file, an applets line naming none staying empty.
+# settings file, an applets line naming none staying empty; where the bar
+# is said in _NET_WORKAREA, and vikix-bar (Super+Ctrl+h) hides and shows it.
 # Needs Xvfb, Vikix's StumpWM, StumpWM's contrib modules (stumptray) and
 # Quicklisp's xembed, and python3's GTK 3 for the icon; skipped without.
 set -euo pipefail
@@ -84,6 +85,16 @@ check "an applets line naming none should stay empty" grep -qx 'applets = ' "$ho
 ask '(run-commands "vikix-tray")' >/dev/null
 check "the toggle should put it back" test "$(state)" = ON
 check "and say so in the settings" grep -qx on "$home/.config/vikix/tray"
+# Where the bar is, said as other desktops say it (_NET_WORKAREA: FreeRDP
+# reads it for Windows programs), and the bar switched off and on.
+area() { xprop -root _NET_WORKAREA 2>/dev/null | sed -n 's/.*= \([0-9]*\), \([0-9]*\), \([0-9]*\), \([0-9]*\).*/\1 \2 \3 \4/p'; }
+bar=$(ask '(princ (mode-line-height (head-mode-line (current-head))))')
+check "_NET_WORKAREA starts below the bar: $(area)" test "$(area)" = "0 $bar 1280 $((800 - bar))"
+ask '(run-commands "vikix-bar")' >/dev/null
+check "vikix-bar hides the bar, and the whole screen is free: $(area)" test "$(area)" = "0 0 1280 800"
+ask '(run-commands "vikix-bar")' >/dev/null
+check "and shows it again: $(area)" test "$(area)" = "0 $bar 1280 $((800 - bar))"
+check "Super+Ctrl+h is the bar's key" grep -q '(s-C-h vikix-bar ' <<<"$(ask '(princ (assoc "s-C-h" *vikix-bindings* :test (quote string=)))')"
 check "StumpWM should still answer" test "$(ask '(princ 1)')" = 1
 
 [ "$fail" = 0 ] && echo "tray: on from the settings, an icon in it with room in the bar, through a reload, off and on, remembered"

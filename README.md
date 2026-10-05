@@ -336,6 +336,8 @@ StumpWM's own `Ctrl+t` prefix keys still work too: press `Ctrl+t` and wait, and 
 | Super+Shift+Escape | Power: lock, suspend, log out, reboot, power off |
 | Super+Ctrl+a | Keep awake on/off: no lock, dark screen or suspend |
 | Ctrl+t then ? | StumpWM's own keys (after the prefix) |
+| **Other** | |
+| Super+Ctrl+h | The bar on/off |
 <!-- /readme-keys -->
 
 The table is made from Vikix's commands (`config/stumpwm/vikix/registry.lisp`, where each is written once, with its key), so it is what the keys are. `Shift` with a screenshot key keeps the picture in `~/Pictures/Screenshots` instead of the clipboard. A web app you add and a plugin bring keys of their own on Super+Alt (the first mail web app takes Super+Alt+m: see [Web apps](#web-apps)); `Super+F1` lists every key as it is on your machine, yours too. What each key's program does at length is in the guides: [the first hour](docs/first-hour.md), [every command](docs/commands.md).
@@ -833,6 +835,7 @@ vikix windows app excel ~/Documents/report.xlsx   # a file, opened in it
 - **Files:** `~/Windows` is drive `Z:` and `~/Documents` drive `Y:` (from the VM's next start after setup). A file in either opens in place; any other is refused with a message, since Windows can't see it.
 - **Each program's windows** have a class of their own, `vikix-win-NAME`, so a rule can place them: `(when-window (:class "vikix-win-facts") (workspace 4))`.
 - **Sharp, not blurred:** FreeRDP mirrors Windows' see-through layers as screen-sized windows, and picom's blur behind see-through windows would blur the whole screen; the starter `picom.conf` leaves `vikix-win-*` windows out of the blur (a `picom.conf` from before 0.71.183 needs the line `"class_g ^= 'vikix-win-'"` in `blur-background-exclude`). The picture is sent without lossy video either.
+- **Below the bar:** the desktop says where the bar is (`_NET_WORKAREA`) and FreeRDP passes it on (`/workarea`), so Windows sees a screen that starts below the bar and a maximized program's own title bar, its close button too, isn't under it. Hide the bar (Super+Ctrl+h) while a program is open and it moves up the next time it opens.
 - **One at a time:** Windows 11 Pro has one session. A program open this way takes it from the full desktop (`vikix windows`), which shows the lock screen until you go back to it.
 
 ## Plugins

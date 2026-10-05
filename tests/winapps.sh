@@ -129,6 +129,7 @@ check "at the VM's address and RDP's port" grep -qx "/v:127.0.0.2:$port" "$t/rdp
 check "as you" grep -qx "/u:vid" "$t/rdp-args"
 check "with the window's class for rules" grep -qx "/wm-class:vikix-win-facts" "$t/rdp-args"
 check "sharp text: no H.264, which blurs it" grep -qx "/gfx:progressive:on,AVC420:off,AVC444:off" "$t/rdp-args"
+check "the screen as the desktop leaves it free, below the bar" grep -qx "/workarea" "$t/rdp-args"
 check "picom's starter blurs nothing behind a Windows program's windows" grep -qF "\"class_g ^= 'vikix-win-'\"" "$here/config/picom/picom.conf"
 check "FreeRDP's own arguments are only /args-from:stdin" test "$(cat "$t/rdp-argv")" = "/args-from:stdin"
 check "the password with the rest, on its input" grep -qx "/p:hunter2" "$t/rdp-args"
