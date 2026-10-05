@@ -218,6 +218,41 @@ X
   bash "$here/bin/vikix-publish" new "$t/fresh2" >/dev/null 2>&1 || true
   check "nor adds the make line twice" test "$(grep -c 'publish.mk' "$t/fresh2/Makefile")" = 1
 
+  # In a git repository, what the command writes it commits, those files
+  # alone: a new book's first files, the words spell --keep adds. What else
+  # is changed or staged stays as it was; a words.txt with changes of yours
+  # waiting is left to you; --no-commit leaves git alone.
+  repo="$HOME/src/series"; mkdir -p "$repo"
+  git -C "$repo" init -q; git -C "$repo" config user.name Test; git -C "$repo" config user.email test@example.com
+  echo other > "$repo/other.txt"; git -C "$repo" add other.txt; git -C "$repo" commit -q -m first
+  echo changed >> "$repo/other.txt"; echo staged > "$repo/staged.txt"; git -C "$repo" add staged.txt
+  out=$(bash "$here/bin/vikix-publish" new "$repo/book-a" 2>&1) || fail=1
+  check "in a git repository, new commits what it wrote: $out" \
+    test "$(git -C "$repo" log -1 --format=%s)" = "book-a: a book for vikix publish (publish.yml, a first chapter, words.txt)"
+  check "those files alone: $(git -C "$repo" show --name-only --format= HEAD | sort | tr '\n' ' ')" \
+    test "$(git -C "$repo" show --name-only --format= HEAD | sort | tr '\n' ' ')" = "book-a/.gitignore book-a/Makefile book-a/chapters/01-start.md book-a/publish.yml book-a/words.txt "
+  check "what else was changed or staged stays as it was: $(git -C "$repo" status --porcelain | tr '\n' '|')" \
+    test "$(git -C "$repo" status --porcelain | tr '\n' '|')" = " M other.txt|A  staged.txt|"
+  check "and it says so: $out" grep -q 'committed: .*words.txt.*your next push takes it' <<<"$out"
+  printf '\nA sentance.\n' >> "$repo/book-a/chapters/01-start.md"
+  out=$(PATH="$t/bin:$PATH" bash "$here/bin/vikix-publish" "$repo/book-a" spell --keep 2>&1) || fail=1
+  check "spell --keep commits the words it added: $(git -C "$repo" log -1 --format=%s)" \
+    grep -qE '^book-a: [0-9]+ words? the spell check keeps \(words.txt\)$' <<<"$(git -C "$repo" log -1 --format=%s)"
+  check "words.txt alone: the chapter you're writing stays yours: $(git -C "$repo" status --porcelain | tr '\n' '|')" \
+    test "$(git -C "$repo" show --name-only --format= HEAD) $(git -C "$repo" status --porcelain -- book-a | tr '\n' '|')" = "book-a/words.txt  M book-a/chapters/01-start.md|"
+  before=$(git -C "$repo" rev-parse HEAD)
+  echo mine >> "$repo/book-a/words.txt"; printf '\nAnother wrod.\n' >> "$repo/book-a/chapters/01-start.md"
+  out=$(PATH="$t/bin:$PATH" bash "$here/bin/vikix-publish" "$repo/book-a" spell --keep 2>&1) || fail=1
+  check "a words.txt with changes of yours waiting isn't committed" test "$(git -C "$repo" rev-parse HEAD)" = "$before"
+  check "it is left to you, and said: $(tail -1 <<<"$out")" grep -q 'left for you to commit' <<<"$out"
+  check "with the new words in it all the same" grep -qx wrod "$repo/book-a/words.txt"
+  git -C "$repo" add book-a; git -C "$repo" commit -q -m mine -- book-a
+  before=$(git -C "$repo" rev-parse HEAD)
+  out=$(bash "$here/bin/vikix-publish" new "$repo/book-b" --no-commit 2>&1) || fail=1
+  check "--no-commit leaves git alone" test "$(git -C "$repo" rev-parse HEAD)" = "$before" -a -f "$repo/book-b/publish.yml"
+  out=$(VIKIX_PUBLISH_COMMIT=0 bash "$here/bin/vikix-publish" new "$repo/book-c" 2>&1) || fail=1
+  check "and so does VIKIX_PUBLISH_COMMIT=0" test "$(git -C "$repo" rev-parse HEAD)" = "$before"
+
   # A Word document as the text (chapters: [../x.docx]), as the skill says.
   word="$t/word"; mkdir -p "$word/book"
   pandoc "$here/tests/publish/chapters/01-tables.md" -o "$word/INPUT.docx"

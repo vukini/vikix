@@ -16,15 +16,17 @@
 #                     Android reader such as a BOOX in file transfer mode
 #                     (its Books folder, over MTP), or one with USB
 #                     debugging (adb, /sdcard/Books); --to names the folder
-#   vikix publish [NAME|DIR] spell [--keep]
+#   vikix publish [NAME|DIR] spell [--keep] [--no-commit]
 #                     the words the dictionary doesn't know, by chapter;
-#                     --keep adds them to the book's words.txt, to read
-#   vikix publish new DIR [--title TITLE] [--lang LANG]
+#                     --keep adds them to the book's words.txt, to read,
+#                     and in a git repository commits that file
+#   vikix publish new DIR [--title TITLE] [--lang LANG] [--no-commit]
 #                     start a book in DIR (made if it isn't there):
 #                     publish.yml, a first chapter, an empty words.txt,
 #                     out/ in .gitignore, and the make targets in its
 #                     Makefile (the line added to one already there);
-#                     never over a book that's there
+#                     never over a book that's there. In a git repository
+#                     what it wrote is committed
 #   vikix publish skill [ZIP]
 #                     the doc-to-epub skill for claude.ai, made from this
 #                     pipeline (its SKILL.md, fix-tables.py and epub.css),
@@ -51,6 +53,13 @@
 # (any English is checked as British), and a passage marked ::: {lang=eo}
 # or [vorto]{lang=ar} in its own; code isn't prose. words.txt beside
 # publish.yml holds the book's own words, one a line.
+#
+# What this command writes into a book that is in a git repository (its
+# words.txt, a new book's first files) it commits, those files alone:
+# nobody else would, and the project would say "not committed" at every
+# push. A file that had changes of yours waiting is left to you, and said;
+# so is everything during a merge or a rebase. --no-commit, or
+# VIKIX_PUBLISH_COMMIT=0, leaves git alone.
 #
 # In a project's Makefile, last, the same as make targets (epub, pdf,
 # check):
@@ -258,6 +267,48 @@ send_book() {
   say "sent: $where"
 }
 
+# --- Keeping what it writes in git ---------------------------------------------------
+
+COMMIT=${VIKIX_PUBLISH_COMMIT:-1}
+
+# git_ready DIR: is DIR in a git work tree, with no merge or rebase under
+# way, and committing wanted?
+git_ready() {
+  [ "$COMMIT" = 1 ] && [ "$DRY_RUN" != 1 ] || return 1
+  local top gitdir
+  top=$(git -C "$1" rev-parse --show-toplevel 2>/dev/null) || return 1
+  [ -n "$top" ] || return 1
+  gitdir=$(git -C "$1" rev-parse --absolute-git-dir 2>/dev/null) || return 1
+  [ ! -e "$gitdir/MERGE_HEAD" ] && [ ! -d "$gitdir/rebase-merge" ] && [ ! -d "$gitdir/rebase-apply" ] &&
+    [ ! -e "$gitdir/CHERRY_PICK_HEAD" ]
+}
+
+# git_clean DIR FILE: has FILE (in DIR) nothing of yours waiting? True for
+# one that isn't there and isn't known to git, and for one git has as it is.
+git_clean() {
+  if [ -e "$1/$2" ] || git -C "$1" ls-files --error-unmatch -- "$2" >/dev/null 2>&1; then
+    git -C "$1" ls-files --error-unmatch -- "$2" >/dev/null 2>&1 &&
+      [ -z "$(git -C "$1" status --porcelain -- "$2" 2>/dev/null)" ]
+  else
+    return 0
+  fi
+}
+
+# git_keep DIR MESSAGE FILE...: commit those files of DIR as they are now,
+# and nothing else: whatever else is changed or staged stays as it was.
+git_keep() {
+  local dir=$1 message=$2 id; shift 2
+  [ $# -gt 0 ] || return 0
+  if git -C "$dir" add -- "$@" 2>/dev/null &&
+     git -C "$dir" commit -q -m "$message" -- "$@" >/dev/null 2>&1; then
+    id=$(git -C "$dir" rev-parse --short HEAD 2>/dev/null)
+    say "committed: $* ($id); your next push takes it"
+  else
+    git -C "$dir" reset -q -- "$@" 2>/dev/null || true
+    warn "not committed: $* (git commit didn't go through: git -C $dir status says more)"
+  fi
+}
+
 cmd_build() {
   local book="" formats=() keep=() send=0 to="" a
   while [ $# -gt 0 ]; do
@@ -265,6 +316,7 @@ cmd_build() {
     case $a in
       epub|pdf|check|spell) formats+=("$a") ;;
       --keep) keep=(--keep) ;;
+      --no-commit) COMMIT=0 ;;
       --send) send=1 ;;
       --to) send=1; to=${1:-}; [ -n "$to" ] || die "--to which folder?"; shift ;;
       -*) die "vikix publish: $a? (vikix publish -h)" ;;
@@ -277,10 +329,26 @@ cmd_build() {
   local dir
   dir=$(find_book "$book") || exit 1
   cd "$dir" || die "can't go into $dir"
+  # The book's words, kept (spell --keep): committed, when the file had
+  # nothing of yours waiting before.
+  local words_clean=0 words_before=0 words_now name
+  if [ "${#keep[@]}" -gt 0 ] && git_ready "$dir" && git_clean "$dir" words.txt; then
+    words_clean=1
+    [ -e words.txt ] && words_before=$(grep -c . words.txt || true)
+  fi
   local f
   for f in "${formats[@]}"; do
     python3 "$BUILD" "$f" "${keep[@]}" || exit 1
   done
+  if [ "$words_clean" = 1 ] && [ -e words.txt ] && ! git_clean "$dir" words.txt; then
+    words_now=$(grep -c . words.txt || true)
+    name=$(basename -- "$dir")
+    local n=$((words_now - words_before)) w=words
+    [ "$n" = 1 ] && w=word
+    git_keep "$dir" "$name: $n $w the spell check keeps (words.txt)" words.txt
+  elif [ "${#keep[@]}" -gt 0 ] && [ "$words_clean" = 0 ] && git_ready "$dir" && ! git_clean "$dir" words.txt; then
+    say "words.txt had changes of yours waiting: left for you to commit"
+  fi
   [ "$send" = 1 ] || return 0
   send_book "$dir/out/$(python3 "$BUILD" name).epub" "$to"
 }
@@ -292,6 +360,7 @@ cmd_new() {
     case $a in
       --title) title=${1:-}; shift || true ;;
       --lang)  lang=${1:-}; shift || true ;;
+      --no-commit) COMMIT=0 ;;
       -*) die "vikix publish new: $a? (vikix publish -h)" ;;
       *) [ -z "$dir" ] || die "one book at a time"; dir=$a ;;
     esac
@@ -310,6 +379,14 @@ cmd_new() {
   title=${title//\\/\\\\}; title=${title//\"/\\\"}
   author=${author//\\/\\\\}; author=${author//\"/\\\"}
   if [ "$DRY_RUN" = 1 ]; then printf '   would write %s/publish.yml, a chapter, words.txt, the Makefile line\n' "$dir"; return 0; fi
+  # Which of its files have nothing of yours waiting, asked before they are
+  # written: those are committed afterwards, the others left to you.
+  local f mine=() left=()
+  if git_ready "$dir"; then
+    for f in publish.yml chapters/01-start.md words.txt .gitignore Makefile; do
+      if git_clean "$dir" "$f"; then mine+=("$f"); else left+=("$f"); fi
+    done
+  fi
   {
     echo "# publish.yml: the book's metadata for vikix publish. pandoc reads it as"
     echo "# it is (title, subtitle, author, lang, date, rights ...); name, chapters"
@@ -330,6 +407,15 @@ cmd_new() {
     printf '# The book: make epub, make pdf, make check (vikix publish -h).\n%s\n' "$line" >> "$dir/Makefile"
   fi
   say "a book in $dir: write in chapters/, then vikix publish $dir (or make epub there)"
+  # Committed: what was written just now, of the files that were clean.
+  local wrote=()
+  for f in "${mine[@]}"; do
+    [ -e "$dir/$f" ] && ! git_clean "$dir" "$f" && wrote+=("$f")
+  done
+  [ "${#wrote[@]}" -eq 0 ] || git_keep "$dir" "$name: a book for vikix publish (publish.yml, a first chapter, words.txt)" "${wrote[@]}"
+  for f in "${left[@]}"; do
+    git_clean "$dir" "$f" || say "$f had changes of yours waiting: left for you to commit"
+  done
 }
 
 # The cloud skill, from the same files the laptop builds with: the skill
