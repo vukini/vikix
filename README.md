@@ -315,6 +315,7 @@ StumpWM's own `Ctrl+t` prefix keys still work too: press `Ctrl+t` and wait, and 
 | Super+Ctrl+v | Record a video of an area or a window; again to stop |
 | Super+Ctrl+Print Screen | Screenshot or record: all the choices |
 | **Sound & screen** | |
+| Super+Ctrl+h | The bar on/off |
 | Super+Ctrl+l | Night light on/off: a warmer screen in the evening |
 | Super+Ctrl+p | Screens: extend, mirror, one only, arrange (a newly plugged one lights up by itself) |
 | Volume-up key | Volume up |
@@ -336,8 +337,6 @@ StumpWM's own `Ctrl+t` prefix keys still work too: press `Ctrl+t` and wait, and 
 | Super+Shift+Escape | Power: lock, suspend, log out, reboot, power off |
 | Super+Ctrl+a | Keep awake on/off: no lock, dark screen or suspend |
 | Ctrl+t then ? | StumpWM's own keys (after the prefix) |
-| **Other** | |
-| Super+Ctrl+h | The bar on/off |
 <!-- /readme-keys -->
 
 The table is made from Vikix's commands (`config/stumpwm/vikix/registry.lisp`, where each is written once, with its key), so it is what the keys are. `Shift` with a screenshot key keeps the picture in `~/Pictures/Screenshots` instead of the clipboard. A web app you add and a plugin bring keys of their own on Super+Alt (the first mail web app takes Super+Alt+m: see [Web apps](#web-apps)); `Super+F1` lists every key as it is on your machine, yours too. What each key's program does at length is in the guides: [the first hour](docs/first-hour.md), [every command](docs/commands.md).
