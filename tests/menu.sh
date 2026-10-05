@@ -88,7 +88,7 @@ done
 # Super+m in sections. The registry's own entries, then what a web app, two
 # plugins and the user add as they do: before Power, and (the user's old
 # way) after it.
-fns=$(awk '/^\(defun vikix-menu-(entry-command|entry-key|lines|entry-section|head|together|sections|hint|rows|row-shown-p|everything) /,/^$/' "$lisp")
+fns=$(awk '/^\(defun vikix-menu-(entry-command|entry-key|lines|typed-p|entry-section|head|together|sections|hint|rows|row-shown-p|everything) /,/^$/' "$lisp")
 cat > "$t/sections.lisp" <<EOF
 (defpackage :stumpwm (:use :cl))
 (in-package :stumpwm)
@@ -97,12 +97,10 @@ cat > "$t/sections.lisp" <<EOF
 (defvar *vikix-bindings* (vikix-registry-bindings))
 (defvar *vikix-apps-menu* '(("Video: edit (Shotcut)" (run-shell-command "shotcut") "shotcut")
                             ("Pictures: edit a photo (GIMP)" (run-shell-command "gimp") "gimp")))
-(defun menu-item-matches-regexp (line object typed)
-  (declare (ignore object))
-  (search (string-downcase (string-trim " " typed)) (string-downcase line)))
 $fns
 (setf *vikix-menu* (append (butlast *vikix-menu*)
                            '(("Web app: Teams" (vikix-webapp "teams") nil "Apps")
+                             ("Sums: a+b, and (more" (sums) nil "Work")
                              ("Projects: what to push, pull or commit" (repos-term) :plugin "Work")
                              ("Flights: search" (flights-search) :plugin)
                              ("Flights: the watched ones that got cheaper" (flights-drops) :plugin)
@@ -119,6 +117,11 @@ $fns
 (dolist (row (shown "lay")) (format t "lay=[~a]~%" (first row)))
 (format t "kinds=~{~(~a~)~^,~}~%" (remove-duplicates (mapcar #'second (shown "lay"))))
 (format t "spaces=~a~%" (length (shown "  ")))
+;; What is typed is plain letters, in any case and any order of words: a
+;; key's own name finds it, plus sign and all.
+(format t "words=~{~a~^|~}~%" (mapcar (lambda (row) (first (third row))) (shown "S-c-spc  layout")))
+(format t "plus=~{~a~^|~}~%" (mapcar (lambda (row) (first (third row))) (shown "a+b")))
+(format t "none=~a~%" (length (shown "layout zzz")))
 (dolist (label '("Layout: save this workspace's, by name" "Do not disturb on/off" "The bar on/off (hide it for the whole screen)"
                  "Why did that happen? What the desktop just did, and what made it" "What does a key do?"
                  "Find a window, any workspace" "Tray on/off: network and Bluetooth icons in the bar" "Emoji"))
@@ -141,7 +144,7 @@ has "top=[Power: lock, suspend, log out, reboot, power off  s-S-ESC]" "Power is 
   { echo "FAIL: Power should be the menu's last row: $(grep '^top=' <<<"$out" | tail -1)"; fail=1; }
 longest=$(sed -n 's/^longest=//p' <<<"$out")
 [ "${longest:-99}" -le 80 ] || { echo "FAIL: a row at the top of the menu is $longest letters wide; 80 fit a small screen"; fail=1; }
-has "Work=Projects: open one (a terminal there, its log in the editor)|Projects: what to push, pull or commit|Where was I? (the project, its next step, what isn't saved)|My day: each project's time, entries and commits (kept in ~/journal)|Clipboard history|Emoji|Calculator|Learn C: the lesson, and a shell beside it|JupyterLab (in ~/dev)" \
+has "Work=Projects: open one (a terminal there, its log in the editor)|Projects: what to push, pull or commit|Where was I? (the project, its next step, what isn't saved)|My day: each project's time, entries and commits (kept in ~/journal)|Clipboard history|Emoji|Calculator|Learn C: the lesson, and a shell beside it|JupyterLab (in ~/dev)|Sums: a+b, and (more" \
   "a plugin's line goes beside Vikix's about the same thing (Projects)"
 has "Apps=Video: edit (Shotcut)|Pictures: edit a photo (GIMP)|Dropbox|Windows (the VM)|Web app: Teams" \
   "Apps has the apps that came with features, then Dropbox, Windows and the web apps"
@@ -153,6 +156,9 @@ has "lay=[Windows        Layout: pick this workspace's (tiles, main and stack, g
 has "lay=[System         Screens: save this layout]" "typing looks in every section"
 has "kinds=found" "while something is typed, no section's row shows"
 has "spaces=14" "spaces alone are nothing typed"
+has "words=Layout: pick this workspace's (tiles, main and stack, grid, strip)" "every word typed is looked for, in any case, a key's name too"
+has "plus=Sums: a+b, and (more" "what is typed is plain letters, not a pattern"
+has "none=0" "a word that is nowhere finds nothing"
 for head in "Layout" "Do not disturb" "The bar" "Why did that happen?" "What does a key do?" "Find a window" "Tray" "Emoji"; do
   has "head=$head" "what a line is about"
 done

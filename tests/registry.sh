@@ -90,8 +90,8 @@ check "and Left comes back" grep -q '^selected=Work ' <(menu)
 key Escape
 check "a second Escape closes the menu" test "$(ask '(princ 1)')" = 1
 key super+m
-xdotool type --delay 60 "hello fr"; sleep 0.5
-check "typing finds an entry of any section, its section before it: $(rows | head -3)" \
+xdotool type --delay 60 "alt+f12 hello"; sleep 0.5
+check "typing finds an entry of any section, by its words or its key, its section before it: $(rows | head -3)" \
   test "$(rows | sed -E 's/  +/ | /g')" = "Work | Hello, from the menu | Super+Alt+F12"
 key Return
 check "and Enter runs it: $(said)" test "$(said)" = "hello from the registry"

@@ -148,7 +148,7 @@ Gaps between windows (Super+Ctrl+g) are 10px, 9px at the screen edge. The inner 
 
 ### The Super+m menu
 
-The menu opens on its sections: Start, Help, Vikix, AI, Work, Notifications, Desktop, Windows, System, Apps, and Power last. Each row says what the section holds. Enter (or Right) opens one, and Escape (or Left) comes back; a second Escape closes the menu. Typing at the top looks through every entry of every section at once, so `printers`, `theme` or `F10` is one step away. An entry that has a key shows it at the right, a web app's and a plugin's too.
+The menu opens on its sections: Start, Help, Vikix, AI, Work, Notifications, Desktop, Windows, System, Apps, and Power last. Each row says what the section holds. Enter (or Right) opens one, and Escape (or Left) comes back; a second Escape closes the menu. Typing at the top looks through every entry of every section at once, so `printers`, `theme` or `F10` is one step away (plain words, in any order and any case; a key's name counts, so `ctrl+d` finds what Super+Ctrl+d does). An entry that has a key shows it at the right, a web app's and a plugin's too.
 
 A command written with `define-vikix-command` and `:menu` is in its section already (Keys, above). The menu itself is a list you can change as a whole. Each entry is a label and either a command or a Lisp form; then, if you like, what it needs: a program on PATH, or a file (`"~/..."`); and then its section. An entry whose need isn't there is left out of the menu, which is how Vikix hides JupyterLab or Printers until you add their features (and, in `*vikix-apps-menu*`, which the section Apps shows, each video, graphics or study program until it is installed):
 

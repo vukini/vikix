@@ -365,10 +365,22 @@ that has a key, so it is straight."
           (run-commands (string-downcase (symbol-name action)))
           (eval action)))))
 
+(defun vikix-menu-typed-p (line typed)
+  "Whether every word TYPED is somewhere in LINE, in any case. Plain
+letters, not a pattern as StumpWM's menus take them: there \"ctrl+d\"
+means c, t, r, some l's and a d, and finds no key."
+  (loop with start = 0
+        for end = (position #\Space typed :start start)
+        always (search typed line :start1 start :end1 end :test #'char-equal)
+        while end do (setf start (1+ end))))
+
 (defun vikix-menu-choose (entries prompt &optional keymap)
   "Show ENTRIES, each with its key, and give back the one picked, or NIL."
   (when entries
-    (second (select-from-menu (current-screen) (vikix-menu-lines entries) prompt 0 keymap))))
+    (second (select-from-menu (current-screen) (vikix-menu-lines entries) prompt 0 keymap
+                              (lambda (line entry typed)
+                                (declare (ignore entry))
+                                (vikix-menu-typed-p line typed))))))
 
 (defun vikix-run-menu (entries prompt)
   "Pick from ENTRIES, a menu like *vikix-menu*, and do what the choice says.
@@ -472,7 +484,7 @@ its section before it (:found). vikix-menu-row-shown-p picks which show."
 the entries, of any section, that everything typed is found in."
   (if (zerop (length (string-trim " " typed)))
       (and (member kind '(:section :single)) t)
-      (and (eq kind :found) (menu-item-matches-regexp line nil typed))))
+      (and (eq kind :found) (vikix-menu-typed-p line typed))))
 
 (defun vikix-menu-open (menu)
   "Right, at the top of Super+m: into the section under the cursor, as

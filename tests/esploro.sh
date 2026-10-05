@@ -170,8 +170,8 @@ check "vikix-esploro should go to the Esploro frame on this workspace only (by i
 check "the reload should reset the old one-buffer state, and make its buffer a view" \
   grep -q 'esploro--view t' "$here/bin/vikix-esploro"
 check "the feature should bring Emacs, where the window is" grep -qE '^esploro +\| optional/esploro +\| emacs +\|' "$here/features.list"
-check "the Apps menu should offer Esploro once it's here" \
-  grep -q '(run-shell-command "esploro") "~/.local/bin/esploro")' "$here/config/stumpwm/vikix/commands.lisp"
+check "the Apps menu should offer Esploro once it's here, by the command its key runs (so the menu shows the key)" \
+  grep -q '"Files: Esploro, the Lisp file explorer" vikix-esploro "~/.local/bin/esploro")' "$here/config/stumpwm/vikix/commands.lisp"
 check "vikix update should build a moved pin" grep -q 'is_chosen esploro' "$here/bin/vikix"
 
 # --- The rofi door: Super+Alt+x -----------------------------------------------------
