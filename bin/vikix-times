@@ -16,8 +16,9 @@
   vikix times measure    measure now on a hidden screen, with this
                          checkout's config (a few seconds, nothing on your
                          screen): StumpWM's start, a reload, a key to its
-                         command, an Emacs frame, StumpWM answering; kept,
-                         so the next one says what changed
+                         command, an Emacs frame, StumpWM answering (and
+                         answering with a tiled xterm open, when xterm is
+                         installed); kept, so the next one says what changed
 
 The limits are lib/times.limits; tests/times.sh fails above them.
 """

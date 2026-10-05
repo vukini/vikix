@@ -149,6 +149,9 @@
 #   vikix windows [setup|create ISO|stop|status|network|remove]   Windows in a VM:
 #                         set it up once, install it by itself, then open its
 #                         desktop in a window (vikix windows help)
+#   vikix windows app NAME [FILE] | apps [setup|add NAME|remove NAME|forget]
+#                         one Windows program in a window of its own, and
+#                         the programs Windows has
 #
 # Each command has a man page with the whole of it: man vikix-NAME (man
 # vikix is this list; man -k vikix lists the pages).
