@@ -33,6 +33,8 @@ Why only Vikix: nobody else owns both a desktop and a bottom-up library written 
 
 First step: `Super+?` on the bar's items alone (battery, network, updates, a workspace number), each opening the matching guide page in Nyxt. Then the books.
 
+> 2026-10-05, the what session: worked out with Vid as `DESIGN-what.md`; not built. `Super+?` had gone to `vikix why` since this was written, so the key is `Super+Alt+?` and the command `vikix what`. A card comes first (what this very thing is doing now, a short paragraph), the chapter one Enter away. The books are private, so Vikix holds only the mechanism and a table to its own guides and man pages; the table to the books, and the paragraphs in Vid's words, live in the books' repository, and the user's own documents are closed to agents unless switched on. Two things learned: the catalogue doesn't read the books yet (the `repo` source takes a project's README, plans and `docs/` only), so an `own` source with a row a section is the larger half; and several of the chapters the examples above name are not written yet, which `vikix what gaps` is for.
+
 ## 3. Record a lesson
 
 Doing a thing once becomes the first draft of teaching it.
