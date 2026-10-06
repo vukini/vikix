@@ -107,9 +107,10 @@ p.expect("NEW\\$ ")
 
 def sh(cmd, timeout=120):
     p.sendline(cmd + "; echo '<<'END")
-    p.expect("<<END", timeout=timeout)
+    p.expect("<<END", timeout=timeout)   # the typed line reads '<<'END, so this is the output's
+    out = p.before.replace("\r", "")
     p.expect("NEW\\$ ")
-    return p.before.replace("\r", "")
+    return out
 
 out = sh("uname -r"); print(out.strip())
 check("kernel 6.18 or newer", bool(re.search(r"\n6\.(1[89]|[2-9]\d)", out)))
@@ -120,7 +121,7 @@ check("no read workqueue", "no_read_workqueue" in out)
 out = sh("findmnt -no FSTYPE,SOURCE / ; findmnt -no FSTYPE /boot")
 check("/ is ext4 on cryptroot", "ext4" in out and "cryptroot" in out)
 check("/boot is vfat", "vfat" in out)
-out = sh("ls /boot/EFI; ls /var/service")
+out = sh(f"echo {PASS} | sudo -S ls /boot/EFI; ls /var/service")   # /boot is root's alone (umask 0077)
 check("GRUB in its own place and the fallback", "Vikix" in out and "BOOT" in out)
 check("NetworkManager on", "NetworkManager" in out)
 check("dhcpcd not on", "dhcpcd" not in out)
