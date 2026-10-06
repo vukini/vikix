@@ -108,16 +108,29 @@ slots=${VIKIX_TEST_SLOTS:-$(nproc 2>/dev/null || echo 2)}
 queue=1
 command -v flock >/dev/null 2>&1 && mkdir -p "$slots_dir" 2>/dev/null || queue=
 
+# Each test leaves a note of what it is doing ($slots_dir/notes/PID: waiting
+# for a slot, waiting for the machine to itself, or running; the test; since
+# when), gone when it ends: what `vikix agents` reads to say that an agent's
+# tests wait for a slot. A note whose process is gone is nobody's.
+note_slot() {   # note_slot STATE TEST SINCE
+  mkdir -p "$slots_dir/notes" 2>/dev/null || return 0
+  printf '%s\n%s\n%s\n' "$1" "$2" "$3" > "$slots_dir/notes/$BASHPID" 2>/dev/null || true
+}
+
 in_slot() {     # in_slot COMMAND...: run it holding one of the machine's slots
   [ -n "$queue" ] || { "$@"; return; }
-  local all fd i code waited=0
+  local all fd i code waited=0 since name
+  since=$(date +%s); name=${*: -1}
   exec {all}>"$slots_dir/all"
+  note_slot waiting "$name" "$since"
   flock -s "$all"                    # not while a test has the machine to itself
   while :; do
     for i in $(seq 1 "$slots"); do
       exec {fd}>"$slots_dir/$i"
       if flock -n "$fd"; then
+        note_slot running "$name" "$since"
         "$@"; code=$?
+        rm -f "$slots_dir/notes/$BASHPID"
         exec {fd}>&- {all}>&-
         return "$code"
       fi
@@ -131,10 +144,13 @@ in_slot() {     # in_slot COMMAND...: run it holding one of the machine's slots
 
 alone_slot() {  # alone_slot COMMAND...: run it while no other test runs anywhere
   [ -n "$queue" ] || { "$@"; return; }
-  local all code
+  local all code since name
+  since=$(date +%s); name=${*: -1}
   exec {all}>"$slots_dir/all"
-  flock -n -x "$all" || { echo "(waiting for the machine to be free of other tests)" >&2; flock -x "$all"; }
+  flock -n -x "$all" || { echo "(waiting for the machine to be free of other tests)" >&2; note_slot alone "$name" "$since"; flock -x "$all"; }
+  note_slot running "$name" "$since"
   "$@"; code=$?
+  rm -f "$slots_dir/notes/$BASHPID"
   exec {all}>&-
   return "$code"
 }

@@ -10,6 +10,11 @@
                        prompt, finished its turn, or waiting for you (a
                        dialog open, a question asked); under it, its
                        window's title, or what it asked
+                       An agent whose shell is held by a release
+                       (.claude/release) or by tests (tests/run.sh) says
+                       so instead: waiting for a release (its turn in the
+                       release queue), releasing (what step), waiting for
+                       a test slot (other runs are testing), testing
   vikix agents --json  the same as JSON, for a script
   vikix agents desk [PROJECT [TOPIC]] [--use NAME] [--here]
                        start an agent at a desk of its own: in PROJECT (one
@@ -250,6 +255,142 @@ def elsewhere(known):
         except (OSError, ValueError, IndexError):
             continue
     return found
+
+
+# --- What holds an agent: a release's turn, a test slot ------------------------------------
+
+def read_notes(folder, lines):
+    """The notes in FOLDER, one a process (its pid the file's name, LINES
+    lines in it): [(pid, lines)]. A note whose process is gone is nobody's
+    and is cleared away, as .claude/release --queue clears its own."""
+    notes = []
+    try:
+        names = os.listdir(folder)
+    except OSError:
+        return notes
+    for name in names:
+        if not name.isdigit():
+            continue
+        path = os.path.join(folder, name)
+        try:
+            os.kill(int(name), 0)
+        except ProcessLookupError:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+            continue
+        except OSError:
+            pass
+        try:
+            with open(path) as f:
+                got = [f.readline().rstrip("\n") for _ in range(lines)]
+        except OSError:
+            continue
+        notes.append((int(name), got))
+    return notes
+
+
+def test_notes():
+    """tests/run.sh's notes: (pid, [state, test, since]) each, state
+    waiting (for a slot), alone (for the machine to itself) or running."""
+    folder = os.environ.get("VIKIX_TEST_SLOTS_DIR") or os.path.join(os.environ.get("XDG_RUNTIME_DIR") or "/tmp",
+                                                                      "vikix-test-slots")
+    return read_notes(os.path.join(folder, "notes"), 3)
+
+
+def release_notes():
+    """.claude/release's notes, in each project repository: (pid, [topic,
+    state, since, kind, summary]) each."""
+    notes = []
+    for common in known_repos():
+        notes += read_notes(os.path.join(common, "vikix-release-queue"), 5)
+    return notes
+
+
+def under(pid, agents):
+    """The pid of the agent of AGENTS ({pid, folder} each) that PID runs
+    under (PID itself when it is one), or 0. A process no agent is above
+    (a shell Claude Code runs in the background is reparented to init) is
+    the agent's whose folder it works in: the one with the deepest folder
+    over its cwd, when that is one agent alone and not just home (an agent
+    at home, no desk, is over everything)."""
+    pids = {a["pid"] for a in agents}
+    p = pid
+    for _ in range(40):
+        if p in pids:
+            return p
+        p = parent_of(p)
+        if p <= 1:
+            break
+    try:
+        cwd = os.readlink(f"{PROC}/{pid}/cwd")
+    except OSError:
+        return 0
+    home = os.path.expanduser("~")
+    over = [a for a in agents if a["folder"] and a["folder"].rstrip("/") != home and inside(cwd, a["folder"])]
+    if not over:
+        return 0
+    deepest = max(len(a["folder"]) for a in over)
+    over = [a for a in over if len(a["folder"]) == deepest]
+    return over[0]["pid"] if len(over) == 1 else 0
+
+
+def at(since):
+    try:
+        return time.strftime("%H:%M", time.localtime(int(since)))
+    except (ValueError, OverflowError):
+        return "?"
+
+
+def waits(agents):
+    """What holds each agent of AGENTS ({pid, folder} each), from the notes
+    its processes left: {pid: (words, line)}. Tests of its waiting for a
+    slot (and none running) are "waiting for a test slot"; its release
+    waiting its turn is "waiting for a release"; a release under way or
+    tests running, what step. The line under it says which, since when,
+    and what it is behind."""
+    held = {}
+    tests = {}
+    for pid, (state, name, since) in test_notes():
+        a = under(pid, agents)
+        if a:
+            tests.setdefault(a, []).append((state, name, since))
+    releases = {}
+    all_releases = release_notes()
+    for pid, (topic, state, since, kind, summary) in all_releases:
+        a = under(pid, agents)
+        if a:
+            releases[a] = (topic, state, since, kind, summary)
+    for a in set(tests) | set(releases):
+        words = line = None
+        if a in releases:
+            topic, state, since, kind, summary = releases[a]
+            if state.startswith("waiting"):
+                ahead = [t for p, (t, st, *_) in all_releases if p != a and not st.startswith("waiting")]
+                words = "waiting for a release"
+                line = (f"its release {topic} waits for its turn since {at(since)}"
+                        + (f", behind {', '.join(ahead)}" if ahead else "") + " (.claude/release --queue)")
+            else:
+                words = f"releasing: {state}"
+                line = f"its release {topic}: {state} since {at(since)}; {summary}"
+        if a in tests:
+            waiting = [n for st, n, _ in tests[a] if st != "running"]
+            running = [n for st, n, _ in tests[a] if st == "running"]
+            first = min(s for _, _, s in tests[a])
+            if waiting and not running:
+                words = "waiting for a test slot"
+                line = (f"its test{'s' if len(waiting) != 1 else ''} {', '.join(sorted(waiting)[:4])}"
+                        f"{'...' if len(waiting) > 4 else ''} wait{'' if len(waiting) != 1 else 's'} for a slot since "
+                        f"{at(first)}: other runs are testing on this machine"
+                        + (f" (release {releases[a][0]})" if a in releases else ""))
+            elif running and not words:
+                words = "testing"
+                line = (f"its tests: {len(running)} running" + (f", {len(waiting)} waiting for a slot" if waiting else "")
+                        + f" since {at(first)}")
+        if words:
+            held[a] = (words, line)
+    return held
 
 
 def git(folder, *args):
@@ -1194,6 +1335,18 @@ def main(argv):
         return clash(argv[1:])
     if argv and argv[0] == "crossings":
         return crossings(argv[1:])
+    if argv and argv[0] == "--waits":
+        # For agents.lisp's menu: what holds each agent of the pids given, a
+        # line each (pid, words, the line under), from the notes alone.
+        found = []
+        for pid in (int(a) for a in argv[1:] if a.isdigit()):
+            try:
+                found.append({"agent": agent_name(cmdline(pid)) or "?", "pid": pid, "folder": os.readlink(f"{PROC}/{pid}/cwd")})
+            except OSError:
+                found.append({"agent": "?", "pid": pid, "folder": ""})
+        for pid, (words, line) in waits(seated(found)).items():
+            print(f"{pid}\t{words}\t{line}")
+        return 0
     as_json = argv == ["--json"]
     if argv and not as_json:
         die("vikix agents [--json|desk|sit|close|desks|clash|crossings] (vikix agents help)")
@@ -1203,9 +1356,16 @@ def main(argv):
     for a in agents:
         a["desk"] = desk_of(a["folder"])
     shared = all_clashes(agents)
+    held = waits(agents)
     for a in agents:
         a["clashes"] = [{"file": rel, "with": [who(o) for o, _, _ in rows if o["pid"] != a["pid"]]}
                         for rel, rows in shared.items() if any(o["pid"] == a["pid"] for o, _, _ in rows)]
+        # A shell held by a release or by tests: said so (one at its prompt
+        # too: it started that in the background), unless the agent is
+        # asking you something or has just finished.
+        a["waits"] = None
+        if a["pid"] in held and a["state"] in ("working", "running", "idle"):
+            a["doing"], a["waits"] = held[a["pid"]]
     if as_json:
         print(json.dumps(agents, indent=1, ensure_ascii=False))
         return 0
@@ -1230,7 +1390,7 @@ def main(argv):
         place = ("no window" if not a["workspace"] else
                  "put away" if a["workspace"].startswith(".") else f"workspace {a['workspace']}")
         print(f"  {a['agent']:<8} {where(a):<{wide}}  {place:<13} {how_long(a['seconds']):<11} {a['doing']}")
-        line = a["said"] if a["state"] == "asks" and a["said"] else a["title"]
+        line = a["said"] if a["state"] == "asks" and a["said"] else a["waits"] or a["title"]
         if line:
             print(f"           {line[:110]}")
         for c in a["clashes"]:

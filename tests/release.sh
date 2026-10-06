@@ -50,6 +50,9 @@ echo "all passed: made-up"
 END
 chmod +x "$r/tests/run.sh"
 printf '.git-test-calls\n' > "$r/.gitignore"
+# A project of vikix project's (a log, under a root): where vikix agents looks for release notes.
+printf '# Log: Vikix\n' > "$r/log.md"
+mkdir -p "$HOME/.config/vikix"; printf 'root=%s\n' "$t" > "$HOME/.config/vikix/projects"
 git -C "$r" init -q
 git -C "$r" add -A && git -C "$r" commit -q -m "Vikix 0.1.5: the start"
 git -C "$r" tag v0.1.5
@@ -165,6 +168,12 @@ check "a note left by a release that died isn't listed, and is cleared away: $(w
   bash -c "[ \"\$(wc -l <<<\"\$1\")\" = 3 ] && [ ! -e '$r/.git/vikix-release-queue/999999' ]" _ "$out"
 check "--queue changes nothing: both still under way" bash -c "kill -0 $p1 && kill -0 $p2"
 check "the one waiting is told how to see the queue" grep -q 'release --queue shows the queue' "$t/q2.out"
+# What vikix agents says of an agent above each (here, the shell each release runs in).
+held=$(python3 "$here/bin/vikix-agents" --waits "$p1" "$p2" 2>&1)
+check "vikix agents: the one waiting is waiting for a release, behind the first: $(grep "^$p2" <<<"$held")" \
+  grep -qE "^$p2	waiting for a release	its release q2 waits for its turn since [0-9]{2}:[0-9]{2}, behind q1 \(.claude/release --queue\)\$" <<<"$held"
+check "and the first is releasing, at its step: $(grep "^$p1" <<<"$held")" \
+  grep -qE "^$p1	releasing: testing \(changed\)	its release q1: testing \(changed\) since [0-9]{2}:[0-9]{2}; the first of two\$" <<<"$held"
 rm -f "$t/hold"
 wait "$p1" || true; wait "$p2" || true
 check "both land once the first is done: $(tail -1 "$t/q1.out"); $(tail -2 "$t/q2.out" | head -1)" bash -c "[ -e '$r/file-q1' ] && [ -e '$r/file-q2' ]"

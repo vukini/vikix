@@ -388,9 +388,9 @@ def t_agents(a):
         agents = json.loads(out)
     except ValueError:
         raise ToolError("vikix agents' answer wasn't the agents")
-    for agent in agents:      # a title and what it said are other programs' text: kept short
-        for k in ("title", "said"):
-            agent[k] = scrub(str(agent.get(k, "")))[:200]
+    for agent in agents:      # a title, what it said and what holds it are other programs' text: kept short
+        for k in ("title", "said", "waits"):
+            agent[k] = scrub(str(agent.get(k) or ""))[:200]
     return json.dumps(agents, indent=1, ensure_ascii=False)
 
 

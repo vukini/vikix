@@ -18,7 +18,9 @@
 ;;;; doing is read, not asked: the agent-waiting plugin's note for its
 ;;;; window when there is one (a dialog open, a question, finished), else
 ;;;; what Claude Code writes in its window's title (a turning mark while it
-;;;; works, a star when it is at its prompt). A window with an agent in it
+;;;; works, a star when it is at its prompt); and when a release or tests
+;;;; hold its shell, the notes those leave (vikix-agents-held: waiting for
+;;;; a release, waiting for a test slot). A window with an agent in it
 ;;;; carries the agent's name (_VIKIX_AGENT), for whatever wants to know.
 ;;;;
 ;;;; These are the first steps of NOVEL.md's "An office for agents": seeing
@@ -150,18 +152,44 @@ off when NAME is nil and it had one."
            ((xlib:get-property xwin :_VIKIX_AGENT)
             (xlib:delete-property xwin :_VIKIX_AGENT))))))
 
-(defun vikix-agents ()
+(defun vikix-agents (&optional (held t))
   "The agents running in this desktop's terminals: a plist each (see
 vikix-window-agent), by workspace and then by window; one in a window that
 is put away (the drop-down terminal's, on its hidden workspace) comes last.
-Each one's window is marked with its name as it is found."
-  (flet ((hidden-p (group) (char= (char (group-name group) 0) #\.)))
-    (loop for group in (let ((groups (sort-groups (current-screen))))
-                         (append (remove-if #'hidden-p groups) (remove-if-not #'hidden-p groups)))
-          append (loop for window in (sort (copy-list (group-windows group)) #'< :key #'window-number)
-                       for agent = (vikix-window-agent window)
-                       do (vikix-agent-mark window (getf agent :name))
-                       when agent collect agent))))
+Each one's window is marked with its name as it is found. With HELD, one
+whose shell a release or tests hold says so (vikix-agents-held); nil for
+bin/vikix-agents, which asks the notes itself."
+  (let ((agents
+          (flet ((hidden-p (group) (char= (char (group-name group) 0) #\.)))
+            (loop for group in (let ((groups (sort-groups (current-screen))))
+                                 (append (remove-if #'hidden-p groups) (remove-if-not #'hidden-p groups)))
+                  append (loop for window in (sort (copy-list (group-windows group)) #'< :key #'window-number)
+                               for agent = (vikix-window-agent window)
+                               do (vikix-agent-mark window (getf agent :name))
+                               when agent collect agent)))))
+    (if held (vikix-agents-held agents) agents)))
+
+(defun vikix-agents-held (agents)
+  "AGENTS, with what holds the shell of one that works, runs or sits at its
+prompt said in its :words instead: waiting for a release (its turn in
+.claude/release's queue), releasing, waiting for a test slot (tests/run.sh's
+slots, other runs testing), testing. The words are bin/vikix-agents's own
+(vikix-agents --waits PID...), from the notes the release and the tests
+leave. Never signals: without the program, or on any error, AGENTS as they
+are."
+  (when agents
+    (handler-case
+        (let ((out (run-shell-command (format nil "vikix-agents --waits ~{~d~^ ~} 2>/dev/null"
+                                              (mapcar (lambda (a) (getf a :pid)) agents))
+                                      t)))
+          (dolist (line (split-string out (string #\Newline)))
+            (let* ((parts (split-string line (string #\Tab)))
+                   (pid (ignore-errors (parse-integer (first parts))))
+                   (agent (find pid agents :key (lambda (a) (getf a :pid)))))
+              (when (and agent (second parts) (member (getf agent :state) '(:working :running :idle)))
+                (setf (getf agent :words) (second parts))))))
+      (error () nil)))
+  agents)
 
 (defun vikix-agent-away-p (agent)
   "Is AGENT's window put away, on a hidden workspace (the drop-down terminal)?"
@@ -208,7 +236,7 @@ the window's title. Tabs and line ends inside a field are spaces."
                                               (group-name (window-group w)) (window-number w)
                                               (getf a :seconds) (string-downcase (getf a :state))
                                               (getf a :words) (getf a :said) (window-title w))))))
-                    (vikix-agents)))))
+                    (vikix-agents nil)))))
 
 (defcommand vikix-agents-pick () ()
   "The agents running on this desktop: each with its folder, its workspace,
