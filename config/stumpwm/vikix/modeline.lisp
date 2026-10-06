@@ -6,6 +6,7 @@
 ;;;;   ^>   everything after this goes on the right
 ;;;;   %P   the plugins' few words (plugins.lisp; vikix plugin add)
 ;;;;   %R   rec: the screen is being recorded (vikix-record); mic: dictation listens
+;;;;   %F   focus 24: focus time, the minutes left (Super+Ctrl+f); break 5 after it
 ;;;;   %K   awake: keep awake is on (no lock, dark screen or suspend)
 ;;;;   %X   win: the Windows VM is running (vikix windows); it uses memory and battery
 ;;;;   %Y   ai: a local AI model is loaded in memory (vikix ai); it unloads after 5 idle minutes
@@ -25,7 +26,7 @@
 ;;;; Colour carries one meaning each: alert for something watching you
 ;;;; (rec) or about to stop you (mem, nearly full), accent for something to act on
 ;;;; (updates, backup, usb, dbx off or !, mem when low, left), subtle
-;;;; for a mode you switched on yourself (awake, win, ai, quiet), or work under way
+;;;; for a mode you switched on yourself (awake, win, ai, quiet, focus), or work under way
 ;;;; (dbx syncing).
 ;;;;
 ;;;; Every field is an area of the bar with a name (vikix-ml-what), so
@@ -274,6 +275,19 @@ from *vikix-recording* and *vikix-dictating* (commands.lisp)."
 (add-screen-mode-line-formatter #\Y 'vikix-mode-line-ai)
 (add-screen-mode-line-formatter #\G 'vikix-mode-line-memory)
 (add-screen-mode-line-formatter #\R 'vikix-mode-line-recording)
+
+(defun vikix-mode-line-focus (ml)
+  "\"focus 24\" while focus time runs, the minutes left; \"break 5\" after
+it (commands.lisp, vikix-focus-time)."
+  (declare (ignore ml))
+  (if (null *vikix-focus*)
+      ""
+      (vikix-ml-what "focus"
+                     (format nil "^(:push)^(:fg \"~a\")~:[break~;focus~] ~d^(:pop)  "
+                             (vikix-colour (if (eq (first *vikix-focus*) :focus) :subtle :accent))
+                             (eq (first *vikix-focus*) :focus) (vikix-focus-left)))))
+
+(add-screen-mode-line-formatter #\F 'vikix-mode-line-focus)
 (add-screen-mode-line-formatter #\E 'vikix-mode-line-battery)
 
 (defun vikix-mode-line-clock (ml)
@@ -646,7 +660,7 @@ main thread if anything changed."
       ;; The window's number and title. StumpWM's default adds * + - marks,
       ;; which say again what the accent colour already shows.
       *window-format*        "%n %30t"
-      *screen-mode-line-format* "%J  %W^>%P%R%K%X%Y%G%Q%U%A%D%Z%O%T%V%E%d%S")
+      *screen-mode-line-format* "%J  %W^>%P%R%F%K%X%Y%G%Q%U%A%D%Z%O%T%V%E%d%S")
 
 ;; Turn the bar on for every screen and head (monitor).
 (dolist (screen *screen-list*)

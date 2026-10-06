@@ -48,7 +48,7 @@
 tools. Every other program a key starts is on Super+Alt.")
 
 (defparameter *vikix-key-switches*
-  '("toggle-gaps" "vikix-titlebars" "vikix-main" "vikix-layout-pick" "vikix-drawer" "vikix-awake" "vikix-nightlight" "vikix-quiet"
+  '("toggle-gaps" "vikix-titlebars" "vikix-main" "vikix-layout-pick" "vikix-drawer" "vikix-awake" "vikix-nightlight" "vikix-quiet" "vikix-focus-time"
     "vikix-record" "vikix-capture" "vikix-pick-theme" "exec dunstctl close-all" "exec vikix-drives eject"
     "vikix-screens-pick" "vikix-bar")
   "What switches something on the desktop: on Super+Ctrl, and nothing else is.")

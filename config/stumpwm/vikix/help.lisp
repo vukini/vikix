@@ -72,7 +72,7 @@ front, so a name like Brightness-up is never mistaken for one."
      "toggle-gaps" "winner-undo" "winner-redo" "vikix-layout-undo" "vikix-layout-redo" "global-windowlist" "vikix-go-to-window"
      "global-pull-windowlist" "vikix-bring-window" "beckon" "vikix-pointer" "vikix-float" "vikix-remember" "vikix-titlebars" "vikix-title")
     ("Workspaces" "gselect" "gmove" "vikix-send" "grouplist")
-    ("Notifications" "dunstctl" "vikix-notifications" "vikix-quiet")
+    ("Notifications" "dunstctl" "vikix-notifications" "vikix-quiet" "vikix-focus-time")
     ("Screenshots & recording" "vikix-screenshot" "vikix-record" "vikix-capture")
     ("Sound & screen" "vikix-volume" "vikix-osd" "vikix-nightlight" "vikix-screens-pick" "vikix-bar")
     ("System" "vikix-menu" "vikix-keys" "vikix-rescue" "vikix-why" "vikix-what" "vikix-docs" "vikix-keys-card" "vikix-prefix-keys" "vikix-pick-theme"

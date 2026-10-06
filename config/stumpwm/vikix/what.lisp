@@ -81,7 +81,7 @@ it is explained."
     ("memory" . vikix-mode-line-memory) ("updates" . vikix-mode-line-updates)
     ("backup" . vikix-mode-line-backup) ("drive" . vikix-mode-line-usb)
     ("dropbox" . vikix-mode-line-dropbox) ("quiet" . vikix-mode-line-quiet)
-    ("awake" . vikix-mode-line-awake) ("windows-vm" . vikix-mode-line-windows)
+    ("awake" . vikix-mode-line-awake) ("focus" . vikix-mode-line-focus) ("windows-vm" . vikix-mode-line-windows)
     ("ai" . vikix-mode-line-ai) ("clock" . vikix-mode-line-clock))
   "The bar's fields by name, each with what writes it. The network and
 Bluetooth by their variables: their fields step aside for the tray's icons.")

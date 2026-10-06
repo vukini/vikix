@@ -41,7 +41,7 @@ for f in "${files[@]}"; do
       if [ "${#hits[@]}" -eq 0 ] || [ "${#hits[@]}" -gt 12 ]; then all=1; else add "${hits[@]}"; fi ;;
   esac
   case $f in
-    config/stumpwm/*) add lisp errors menu rules viri main drawer keys registry why what gather office focus rescue reload resume palette used events ;;
+    config/stumpwm/*) add lisp errors menu rules viri main drawer keys registry why what gather office focus rescue reload resume palette used events focus-time ;;
   esac
   case $f in
     # A command's man page is made from its header (lib/man.py).

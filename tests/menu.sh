@@ -134,7 +134,7 @@ has() { grep -qxF -- "$1" <<<"$out" || { echo "FAIL: $2: no line '$1' in: $(grep
 has "sections=Start,Help,Vikix,AI,Work,Notifications,Desktop,Windows,System,Apps,Plugins,Sailing,Yours,Power" \
   "the sections come in Vikix's order, a plugin's own, Plugins and Yours after them, Power last"
 has "top=[Start          Welcome, Add software, Install a program, Remove a program]" "a section's row says what it holds"
-has "top=[Notifications  Notifications, Do not disturb]" "a section's row names each thing once"
+has "top=[Notifications  Notifications, Do not disturb, Focus time]" "a section's row names each thing once"
 has "top=[Plugins        Flights]" "a plugin's entry that names no section is in Plugins"
 has "top=[Tides: today's]" "a section of one entry is that entry, at the top"
 has "top=[iPhone]" "an entry of yours that names no section is in Yours: alone there, it is at the top"

@@ -275,6 +275,14 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command quiet "Do not disturb on/off"
   :run "vikix-quiet" :key "s-C-d"
   :menu "Notifications" :agent t)
+;; No key: the key card is full (vikix used never says which keys could go).
+;; Super+F1 and Super+Space find it by "focus".
+(define-vikix-command focus-time "Focus time: 25 minutes with do not disturb, then a break; again stops it"
+  :run "vikix-focus-time"
+  :menu "Notifications" :label "Focus time: 25 minutes with do not disturb, then a break" :agent t)
+(define-vikix-command focus-time-long "Focus time: 50 minutes"
+  :do (run-commands "vikix-focus-time 50")
+  :menu "Notifications")
 
 ;;; Windows
 

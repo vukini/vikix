@@ -232,6 +232,7 @@ The same file, the same verbs (those that need no window: `run`, `command`, `not
 (when-screen "HDMI-1" (layout "desk"))                   ; the second screen plugged in
 (when-drive "BACKUP" (run "vikix backup"))               ; a drive plugged in
 (when-idle 10 (run "vikix-lock"))                        ; ten minutes away
+(at "09:00" :weekdays (command "vikix-focus-time 50"))   ; focus time at nine: do not disturb, then a break
 ```
 
 | Rule | When it runs |

@@ -968,6 +968,96 @@ says quiet, and how many are waiting); switching it off shows them."
                "Notifications on"
                "Do not disturb: notifications wait until you switch it off")))
 
+;;; Focus time (Super+m, Notifications; no key, the card is full): so many
+;;; minutes with do not disturb on by itself, then a break, each said in
+;;; the bar and at its end. A rule starts one too:
+;;; (at "09:00" :weekdays (command "vikix-focus-time 50")).
+
+(defparameter *vikix-focus-minutes* 25
+  "How long focus time is when the key starts it (vikix-focus-time 50 for once).")
+(defparameter *vikix-focus-break* nil
+  "The break after focus time, in minutes; nil: a fifth of it, 5 at least.")
+(defvar *vikix-focus* nil
+  "What is on: (:focus END MINUTES QUIET-BEFORE) while you work (QUIET-BEFORE:
+do not disturb was already on, so it stays on after), (:break END MINUTES)
+while you rest, or nil. END is a universal time.")
+(defvar *vikix-focus-timer* nil "Every 30 seconds while something is on.")
+(defvar *vikix-focus-now* 'get-universal-time
+  "The clock focus time reads: a function returning a universal time. Tests put their own here.")
+
+(defun vikix-focus-left ()
+  "Minutes left of what is on, 0 when nothing is."
+  (if *vikix-focus*
+      (max 0 (ceiling (- (second *vikix-focus*) (funcall *vikix-focus-now*)) 60))
+      0))
+
+(defun vikix-focus-notify (title body)
+  (run-shell-command (format nil "notify-send -a Vikix -- ~a ~a"
+                             (vikix-shell-quote title) (vikix-shell-quote body))))
+
+(defun vikix-focus-quiet (on)
+  "Do not disturb on or off, and the bar's word for it read again."
+  (run-shell-command (format nil "dunstctl set-paused ~:[false~;true~]" on) t)
+  (vikix-quiet-refresh))
+
+(defun vikix-focus-break-minutes (minutes)
+  (or *vikix-focus-break* (max 5 (round minutes 5))))
+
+(defun vikix-focus-start (minutes)
+  "Focus time for MINUTES: do not disturb on, the bar counting down."
+  (let ((quiet-before (not (string= *vikix-quiet* ""))))
+    (unless quiet-before (vikix-focus-quiet t))
+    (setf *vikix-focus* (list :focus (+ (funcall *vikix-focus-now*) (* 60 minutes)) minutes quiet-before))
+    (unless (and *vikix-focus-timer* (timer-p *vikix-focus-timer*))
+      (setf *vikix-focus-timer* (run-with-timer 30 30 'vikix-focus-tick)))
+    (vikix-bar-redraw)
+    (message "Focus time: ~d minutes. Notifications wait; the same entry again stops it." minutes)))
+
+(defun vikix-focus-stop (&optional (said t))
+  "Whatever is on, off: do not disturb as it was before, the field gone."
+  (let ((was *vikix-focus*))
+    (when (and was (eq (first was) :focus) (not (fourth was)))
+      (vikix-focus-quiet nil))
+    (setf *vikix-focus* nil)
+    (when (and *vikix-focus-timer* (timer-p *vikix-focus-timer*))
+      (cancel-timer *vikix-focus-timer*))
+    (setf *vikix-focus-timer* nil)
+    (vikix-bar-redraw)
+    (when (and was said)
+      (message (if (eq (first was) :focus) "Focus time stopped." "Break over.")))))
+
+(defun vikix-focus-tick ()
+  "Every 30 seconds while something is on: the bar's minute, and the turn
+from work to the break and from the break to nothing. Never an error."
+  (ignore-errors
+   (when *vikix-focus*
+     (if (plusp (vikix-focus-left))
+         (vikix-bar-redraw)
+         (destructuring-bind (what end minutes &optional quiet-before) *vikix-focus*
+           (declare (ignore end))
+           (if (eq what :focus)
+               (let ((break (vikix-focus-break-minutes minutes)))
+                 (unless quiet-before (vikix-focus-quiet nil))
+                 (setf *vikix-focus* (list :break (+ (funcall *vikix-focus-now*) (* 60 break)) break))
+                 (vikix-focus-notify (format nil "Focus time over: ~d minutes" minutes)
+                                     (format nil "A break of ~d. Notifications are back." break))
+                 (vikix-bar-redraw))
+               (progn
+                 (vikix-focus-notify "Break over" "Focus time again: Super+m, Notifications.")
+                 (vikix-focus-stop nil))))))))
+
+(defcommand vikix-focus-time (&optional what) ((:string nil))
+  "Focus time: so many minutes with do not disturb on, then a break, counted
+down in the bar. Alone it starts *vikix-focus-minutes* (25), or stops what is
+on; with a number (`vikix-focus-time 50`) it starts that many; `off` stops."
+  (let ((what (and what (string-trim " " what))))
+    (cond ((or (null what) (string= what ""))
+           (if *vikix-focus* (vikix-focus-stop) (vikix-focus-start *vikix-focus-minutes*)))
+          ((string-equal what "off") (vikix-focus-stop))
+          ((and (every #'digit-char-p what) (< 0 (parse-integer what) 1000))
+           (vikix-focus-start (parse-integer what)))
+          (t (message "Focus time takes a number of minutes, or off; not ~a." what)))))
+
 (defcommand vikix-volume (change) ((:string "Volume (up, down, mute, mic): "))
   "Change the volume with vikix-osd, which shows a bar for it, then show
 the new level in the mode line."
