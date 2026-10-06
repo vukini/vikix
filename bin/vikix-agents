@@ -2,7 +2,8 @@
 """vikix-agents — the agents at work on this desktop, in one place (`vikix agents`).
 
   vikix agents         each agent running in a terminal here: which it is
-                       (claude, codex, opencode, gemini, aider), the folder
+                       (claude, codex, opencode, gemini, antigravity, aider),
+                       the folder
                        it works in with its branch and how many files it
                        has left uncommitted there, its workspace, how long
                        it has run, and what it is doing: working, at its
@@ -58,9 +59,11 @@
                        agent's window
   vikix agents touch [FILE]
                        the house rules for one edit, run by Claude Code's
-                       PreToolUse hook before every Edit, Write and Bash
-                       (vikix agent sets it; it reads the hook's JSON on
-                       stdin when no FILE is given). A file of a project's
+                       PreToolUse hook before every Edit, Write and Bash,
+                       and by Antigravity CLI's before each edit and
+                       command (vikix agent sets both; it reads the hook's
+                       JSON on stdin when no FILE is given, and answers in
+                       the shape of whichever asked). A file of a project's
                        repository is refused unless the agent is at a desk
                        (a worktree of its own: vikix agents desk or sit),
                        and always in the project's own folder, which is for
@@ -123,10 +126,13 @@ both changes for you to choose; `vikix agents` marks the file under both
 agents. An agent may edit a file in another agent's folder, or go to
 another agent's window (the MCP tool focus_window), but never quietly:
 the crossing is told to it and recorded (vikix records, plugin office,
-kind crossing), and `vikix agents crossings` lists them. Other agents
-(codex, gemini, aider) have no such hook: for them the rules hold through
-git alone, so a clash with one of them is seen in the listing, not before
-the edit.
+kind crossing), and `vikix agents crossings` lists them. Antigravity CLI
+(agy) runs the same hook, as a plugin of Vikix's that vikix agent puts in
+place (agy plugin list shows vikix); its hooks can't tell the agent
+something without deciding, so there a crossing asks you, with the
+reason. Other agents (codex, gemini, opencode, aider) have no such hook:
+for them the rules hold through git alone, so a clash with one of them is
+seen in the listing, not before the edit.
 """
 import json
 import os
@@ -144,7 +150,8 @@ VIKIX_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 EVAL = os.environ.get("VIKIX_EVAL") or os.path.join(VIKIX_DIR, "bin", "vikix-eval")
 # And another /proc: a test's desktop shouldn't list the real one's agents.
 PROC = os.environ.get("VIKIX_PROC") or "/proc"
-PROGRAMS = ("claude", "codex", "opencode", "gemini", "aider")
+PROGRAMS = ("claude", "codex", "opencode", "gemini", "aider", "agy")
+NAMES = {"agy": "antigravity"}     # a program whose name isn't its agent's
 FIELDS = ("agent", "pid", "folder", "workspace", "window", "seconds", "state", "doing", "said", "title")
 
 
@@ -195,7 +202,7 @@ def agent_name(words):
     for word in words[:2]:
         name = os.path.basename(word).lstrip("-")
         if name in PROGRAMS:
-            return name
+            return NAMES.get(name, name)
     return None
 
 
@@ -759,7 +766,22 @@ def crossing_for(me, path, others):
     return max(hits, key=lambda o: len(o["folder"]), default=None)
 
 
+# Whose hook asks: Claude Code's JSON has tool_name and tool_input and takes
+# hookSpecificOutput back; Antigravity CLI's has toolCall and takes a
+# decision (allow, ask, deny) with a reason, nothing else, so what Claude
+# Code is told beside an allowed edit (a crossing) asks there, with the
+# reason, and nothing to say is an empty object. HOOK is set by touch.
+HOOK = "claude"
+SAID = False
+
+
 def hook_output(**fields):
+    global SAID
+    SAID = True
+    if HOOK == "agy":
+        reason = fields.get("permissionDecisionReason") or fields.get("additionalContext") or ""
+        print(json.dumps({"decision": fields.get("permissionDecision") or "ask", "reason": reason}))
+        return
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", **fields}}))
 
 
@@ -981,14 +1003,27 @@ def touch_bash(command, cwd):
 
 
 def touch(argv):
+    global HOOK
     path = argv[0] if argv and not argv[0].startswith("-") else ""
     if not path and not sys.stdin.isatty():
         try:
             got = json.loads(sys.stdin.read() or "{}")
-            tool = got.get("tool_input") or {}
-            path = tool.get("file_path") or tool.get("notebook_path") or ""
-            if not path and got.get("tool_name") == "Bash":
-                return touch_bash(tool.get("command") or "", got.get("cwd") or "")
+            if isinstance(got.get("toolCall"), dict):
+                # Antigravity CLI: the tool's name and args, and the workspaces.
+                HOOK = "agy"
+                call = got["toolCall"]
+                args = call.get("args") or {}
+                here = (got.get("workspacePaths") or [""])[0]
+                if call.get("name") == "run_command":
+                    return touch_bash(args.get("CommandLine") or "", args.get("Cwd") or here)
+                path = args.get("TargetFile") or ""
+                if path and not os.path.isabs(path) and here:
+                    path = os.path.join(here, path)
+            else:
+                tool = got.get("tool_input") or {}
+                path = tool.get("file_path") or tool.get("notebook_path") or ""
+                if not path and got.get("tool_name") == "Bash":
+                    return touch_bash(tool.get("command") or "", got.get("cwd") or "")
         except ValueError:
             return 0
     if not path:
@@ -1151,7 +1186,10 @@ def main(argv):
             print(f"{d['folder']}\t{d['branch'] or ''}\t{d['top']}")
         return 0
     if argv and argv[0] == "touch":
-        return touch(argv[1:])
+        rc = touch(argv[1:])
+        if HOOK == "agy" and not SAID:
+            print("{}")     # nothing to say, in agy's shape: a decision is its to make
+        return rc
     if argv and argv[0] == "clash":
         return clash(argv[1:])
     if argv and argv[0] == "crossings":

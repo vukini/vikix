@@ -23,7 +23,10 @@
 #   refused), after which its edits there pass, the listing shows it at
 #   the desk and an unseated one as "no desk", the seats keep only the
 #   agents still running, and close refuses while a seated agent works
-#   there. vikix agents close removes
+#   there. Antigravity CLI's hook (toolCall on stdin) is answered in its
+#   shape: a decision with a reason, a crossing asking, nothing to say an
+#   empty object, run_command and a relative TargetFile judged the same.
+#   vikix agents close removes
 #   a desk's worktree and its branch when the work is in: refused with an
 #   agent at work there or files uncommitted (--force throws them away), a
 #   branch not merged is kept and said, the desk by its folder, topic,
@@ -88,6 +91,27 @@ check "a file in another agent's folder is a crossing, told to the agent: $(head
 check "allowed, not asked" not grep -q permissionDecision <<<"$out"
 check "and recorded: $(agents crossings | head -2 | tail -1)" grep -q 'claude 1001 edited .*book-b/notes.md, in codex 1002' <<<"$(agents crossings)"
 check "the journal has it as a crossing" grep -q '"kind": "crossing".*"with": "codex 1002"' "$journal"
+
+# Antigravity CLI (its program is agy) asks with its own JSON, and is answered in its shape.
+proc 1008 agy "$t/src/book-a"
+agy_as() {   # agy_as PID JSON
+  printf '%s' "$2" | VIKIX_AGENT_PID=$1 python3 "$here/bin/vikix-agents" touch 2>&1
+}
+out=$(agy_as 1008 "{\"toolCall\":{\"name\":\"replace_file_content\",\"args\":{\"TargetFile\":\"$t/src/book-a/ch1.md\"}},\"workspacePaths\":[\"$t/src/book-a\"]}")
+check "agy's edit of a file another agent changed is asked in agy's shape, with the reason: $out" \
+  grep -q '^{"decision": "ask", "reason": "Vikix office: another agent is on this file. .*codex 1002 (.*book-b) has changed it in .*book-b, uncommitted.*"}$' <<<"$out"
+check "the journal knows it as antigravity" grep -q '"agent": "antigravity", "pid": 1008' "$journal"
+out=$(agy_as 1008 "{\"toolCall\":{\"name\":\"write_to_file\",\"args\":{\"TargetFile\":\"$t/src/book-a/new.md\"}},\"workspacePaths\":[\"$t/src/book-a\"]}")
+check "nothing to say is an empty object, never silence (agy wants a decision): '$out'" test "$out" = '{}'
+out=$(agy_as 1008 "{\"toolCall\":{\"name\":\"view_file\",\"args\":{\"AbsolutePath\":\"$t/src/book-a/ch1.md\"}}}")
+check "a tool without a file to change: an empty object: '$out'" test "$out" = '{}'
+out=$(agy_as 1008 "{\"toolCall\":{\"name\":\"run_command\",\"args\":{\"CommandLine\":\"ls\",\"Cwd\":\"$t/src/book-a\"}}}")
+check "a command that only reads: an empty object: '$out'" test "$out" = '{}'
+out=$(agy_as 1008 "{\"toolCall\":{\"name\":\"write_to_file\",\"args\":{\"TargetFile\":\"$t/src/book-b/plan.md\"}}}")
+check "a crossing asks there, with the reason, since agy's hooks can't tell the agent without deciding: $out" \
+  grep -q '^{"decision": "ask", "reason": "Vikix office: .*book-b/plan.md is in .*book-b, the folder codex 1002 works in, not yours' <<<"$out"
+check "and is recorded as antigravity's" grep -q 'antigravity 1008 edited .*book-b/plan.md, in codex 1002' <<<"$(agents crossings)"
+rm -r "$t/proc/1008"
 
 proc 1004 claude "$HOME"
 out=$(touch_as 1001 "$HOME/plan.md")
@@ -162,6 +186,13 @@ out=$(touch_as 1006 "$t/src/book-a/ch1.md")
 check "an edit of a project's repository off a desk is refused: $(head -c 80 <<<"$out")" grep -q '"permissionDecision": "deny"' <<<"$out"
 check "saying so, and how to sit down" grep -q 'you are not at a desk.*vikix agents sit book TOPIC.*/book-TOPIC on the branch TOPIC' <<<"$out"
 check "and the refusal is recorded" grep -q 'claude 1006 was refused .*book-a/ch1.md: off a desk' <<<"$(VIKIX_RECORDS_DB=$t/records.db python3 "$here/bin/vikix-records" list office --kind refused)"
+proc 1016 agy "$HOME"
+out=$(agy_as 1016 "{\"toolCall\":{\"name\":\"run_command\",\"args\":{\"CommandLine\":\"sed -i 1d ./ch1.md\",\"Cwd\":\"$t/src/book-a\"}}}")
+check "agy's command that would write there, off a desk, is denied in agy's shape: $(head -c 120 <<<"$out")" \
+  grep -q '^{"decision": "deny", "reason": "Vikix office: .*book-a/ch1.md is in the project book, and you are not at a desk.*vikix agents sit book TOPIC.*(This command would write there.)"}$' <<<"$out"
+out=$(agy_as 1016 "{\"toolCall\":{\"name\":\"write_to_file\",\"args\":{\"TargetFile\":\"ch2.md\"}},\"workspacePaths\":[\"$t/src/book-a\"]}")
+check "a TargetFile relative to the workspace is judged where it is: $(head -c 100 <<<"$out")" grep -q '^{"decision": "deny", "reason": "Vikix office: .*book-a/ch2.md is in the project book' <<<"$out"
+rm -r "$t/proc/1016"
 out=$(touch_as 1001 "$t/src/book/ch1.md")
 check "the project's own folder is refused from a desk too: $(head -c 80 <<<"$out")" \
   grep -q '"permissionDecision": "deny".*the project.s own folder, which is for merging only.*Your desk is .*/book-a' <<<"$out"
@@ -267,5 +298,5 @@ check "--force throws uncommitted files away, and says when the terminal was in 
 out=$(close)
 check "no desk left: $out" grep -q 'no desk to close: no project has a worktree beside it' <<<"$out"
 
-[ $fail = 0 ] && echo "house: ok (the hook says nothing, asks, or tells of a crossing; off a desk or in the project's own folder it refuses, Bash writes too; sit seats an agent; clash lists and shows; the listing marks; the journal is pruned; close removes a desk once its work is in)"
+[ $fail = 0 ] && echo "house: ok (the hook says nothing, asks, or tells of a crossing, in Claude Code's shape or agy's; off a desk or in the project's own folder it refuses, Bash writes too; sit seats an agent; clash lists and shows; the listing marks; the journal is pruned; close removes a desk once its work is in)"
 exit $fail

@@ -21,7 +21,16 @@
 #   asks, even at a terminal; --which says which agent is yours; --acp
 #   starts each as an ACP agent (gemini --acp, codex through its adapter,
 #   pinned and installed with it on Node 22+, pointed at your codex), and
-#   refuses aider, --local, and an adapter that isn't there
+#   refuses aider, --local, and an adapter that isn't there; antigravity
+#   (Google's agy) installs from the release pinned here, checked against
+#   its SHA-512 (a wrong sum installs nothing), without Google's installer
+#   and without a line in your shell files, gets the guide through a rule
+#   file of Vikix's own (yours is kept) and the house rules as an agy plugin
+#   (not with VIKIX_OFFICE=0), is found when Google's installer put it there,
+#   starts with its arguments, -i for --ask and --mode plan for a report,
+#   keeps GEMINI_API_KEY only when set to a key, refuses --local and --acp,
+#   works from a home with a space in it, and uninstalls to the program and
+#   Vikix's pieces alone (the plugin, the MCP entry), keeping its settings
 #
 # curl, npm, uv, node and the agents are stand-ins: nothing is downloaded.
 
@@ -74,9 +83,32 @@ case "\$*" in
   *opencode.ai/install*)   echo 'echo "install opencode \$*" >> "$calls"; mkdir -p "$HOME/.opencode/bin"; cp "$t/agent" "$HOME/.opencode/bin/opencode"' ;;
   *codex/install.sh*)      echo 'echo "install codex CODEX_NON_INTERACTIVE=\$CODEX_NON_INTERACTIVE" >> "$calls"; mkdir -p "$HOME/.codex/packages/standalone"; cp "$t/agent" "$HOME/.codex/packages/standalone/codex"; ln -sfn "$HOME/.codex/packages/standalone/codex" "$HOME/.local/bin/codex"' ;;
   *aider.chat/install.sh*) echo 'echo "install aider UV_NO_MODIFY_PATH=\$UV_NO_MODIFY_PATH" >> "$calls"; cp "$t/agent" "$HOME/.local/bin/aider"' ;;
+  *cli_linux_x64.tar.gz*)  env | grep -q 'API_KEY' && echo "download saw a key" >> "$calls"; cat "$t/agy.tar.gz" ;;
   *api/tags*) cat "$t/tags" 2>/dev/null ;;
 esac; } > "\$out"
 EOF
+# Antigravity's program, agy: it writes down how it was started, as the
+# others do, and answers the subcommands vikix agent uses (plugin install
+# stages the folder as the real one does, under ~/.gemini/config/plugins).
+cat > "$t/agy" <<EOF
+#!/bin/sh
+case "\$1" in
+  plugin|mcp)
+    echo "agy \$*" >> "$calls"
+    case "\$1 \$2" in
+      "plugin install")   rm -rf "\$HOME/.gemini/config/plugins/vikix"; mkdir -p "\$HOME/.gemini/config/plugins"; cp -r "\$3" "\$HOME/.gemini/config/plugins/vikix" ;;
+      "plugin uninstall") rm -rf "\$HOME/.gemini/config/plugins/vikix" ;;
+      "mcp list")         printf 'NAME   TYPE   STATUS   COMMAND/URL\n'; [ -e "\$HOME/.gemini/config/mcp-vikix" ] && echo 'vikix  stdio  enabled  vikix-mcp serve' ;;
+      "mcp remove")       rm -f "\$HOME/.gemini/config/mcp-vikix" ;;
+    esac; exit 0 ;;
+esac
+{ echo "ran \$0 \$*"; env | grep -E '_API_KEY|_TOKEN|_PASSWORD|SSH_AUTH_SOCK|VIKIX_AGENT=' | sort; } > "$t/started"
+EOF
+chmod +x "$t/agy"
+# Google's release is a tar.gz holding one file, antigravity; the pin is its SHA-512.
+( cd "$t" && cp agy antigravity && tar -czf agy.tar.gz antigravity && rm antigravity )
+agy_sum=$(sha512sum "$t/agy.tar.gz" | cut -d' ' -f1)
+export VIKIX_AGY_RELEASE="https://example.invalid/antigravity-cli/1.3.0/linux-x64/cli_linux_x64.tar.gz $agy_sum"
 cat > "$t/bin/npm" <<EOF
 #!/bin/sh
 echo "npm \$*" >> "$calls"
@@ -306,6 +338,104 @@ check "on Node 20, codex installs without the adapter, and says so: $out" grep -
 check "on Node 20, no npm: $(grep '^npm' "$calls" || true)" test -z "$(grep '^npm' "$calls" || true)"
 agent --uninstall codex >/dev/null 2>&1
 
+# --- Antigravity CLI (agy): Google's release, pinned and checked; a rule file; the house rules as a plugin ---
+rule="$HOME/.gemini/antigravity-cli/rules/vikix.md"; plug="$HOME/.gemini/config/plugins/vikix"
+check "--list should offer antigravity: $(agent --list | grep antigravity)" grep -q '^  antigravity -  *Antigravity CLI (Google)' <<<"$(agent --list)"
+: > "$calls"
+DRY_RUN=1 agent --install antigravity >"$t/out" 2>&1
+check "a dry run downloads nothing, and says what it would: $(cat "$t/out")" bash -c "[ ! -s '$calls' ] && grep -q 'would download Antigravity CLI 1.3.0 (pinned, checked)' '$t/out'"
+out=$(VIKIX_AGY_RELEASE="${VIKIX_AGY_RELEASE% *} 0000bad" agent --install antigravity 2>&1) && { echo "FAIL: a download with the wrong sum installed"; fail=1; }
+check "a wrong SHA-512 installs nothing, and says so: $out" bash -c "[ ! -e '$HOME/.local/bin/agy' ] && grep -q \"doesn't match its SHA-512\" <<<\"\$1\"" _ "$out"
+printf 'export PATH=\$HOME/bin:\$PATH\n' > "$HOME/.bashrc"; cp "$HOME/.bashrc" "$t/bashrc.before"
+: > "$calls"
+out=$(ANTHROPIC_API_KEY=sk-ant-x agent --install antigravity 2>&1) || { echo "FAIL: --install antigravity: $out"; fail=1; }
+check "agy should be in ~/.local/bin, from the pinned release, downloaded whole: $(grep '^curl' "$calls")" \
+  bash -c "[ -x '$HOME/.local/bin/agy' ] && grep -q '^curl -fsSL https://example.invalid/antigravity-cli/1.3.0/linux-x64/cli_linux_x64.tar.gz -o ' '$calls'"
+check "the download should run without your keys" test -z "$(grep 'download saw a key' "$calls" || true)"
+check "nothing of Google's installer should touch your shell files" cmp -s "$HOME/.bashrc" "$t/bashrc.before"
+check "no npm or uv for it: $(grep -E '^(npm|uv)' "$calls" || true)" test -z "$(grep -E '^(npm|uv)' "$calls" || true)"
+check "the guide should reach it through a rule file of Vikix's: $(head -3 "$rule" 2>/dev/null)" \
+  bash -c "grep -qx 'trigger: always_on' '$rule' && grep -qx '@\[The Vikix guide for agents\](~/.local/share/vikix/AGENTS.md)' '$rule' && grep -q '^<!-- Made by Vikix' '$rule'"
+check "the house rules should be an agy plugin, installed through agy: $(grep '^agy plugin' "$calls")" grep -q '^agy plugin install ' "$calls"
+check "with the hook on edits and commands, running vikix agents touch: $(cat "$plug/hooks.json" 2>/dev/null)" \
+  python3 -c '
+import json, sys
+h = json.load(open(sys.argv[1]))["vikix-office"]["PreToolUse"][0]
+assert h["matcher"] == "write_to_file|replace_file_content|multi_replace_file_content|run_command", h
+assert h["hooks"][0]["command"] == sys.argv[2] + "/bin/vikix-agents touch", h["hooks"][0]
+' "$plug/hooks.json" "$here"
+check "the plugin should say what it is: $(cat "$plug/plugin.json" 2>/dev/null)" grep -q '"name": "vikix"' "$plug/plugin.json"
+check "it should say how it signs in: $out" grep -q 'signs in in your browser at the first start' <<<"$out"
+check "antigravity should be recorded as a feature" grep -qx antigravity "$HOME/.config/vikix/features"
+# A rule file of your own is kept, and you are told how to add the guide.
+: > "$calls"; rm -rf "$plug"
+echo "my own rule" > "$rule"
+out=$(agent --install antigravity 2>&1)
+check "one you have isn't downloaded again, and the missing plugin is put back: $out / $(cat "$calls")" \
+  bash -c "grep -q 'already installed' <<<\"\$1\" && ! grep -q '^curl' '$calls' && [ -f '$plug/hooks.json' ]" _ "$out"
+check "your own rule file should be kept" test "$(cat "$rule")" = "my own rule"
+check "and you should be told how to add the guide to it: $out" grep -q "add this line to it.*@\[The Vikix guide for agents\]($guide)" <<<"$out"
+rm "$rule"
+# Starting: its arguments, no keys, VIKIX_AGENT; -i for a question, --mode plan for a report.
+rm -f "$t/started"
+ANTHROPIC_API_KEY=sk-ant-x GEMINI_API_KEY=AIza-x GITHUB_TOKEN=gh-x agent --use antigravity --effort high "two words" >/dev/null 2>&1 || true
+check "antigravity should start as agy with its arguments, after the rule file is back: $(head -1 "$t/started" 2>/dev/null)" \
+  bash -c "grep -q '^ran $HOME/.local/bin/agy --effort high two words$' '$t/started' && grep -qx 'trigger: always_on' '$rule'"
+check "without API keys or tokens (its own sign-in): $(cat "$t/started")" test -z "$(grep -E 'API_KEY|TOKEN' "$t/started" || true)"
+check "and knowing it's an agent" grep -qx 'VIKIX_AGENT=antigravity' "$t/started"
+mkdir -p "$HOME/.gemini/antigravity-cli"; echo '{ "modelProvider": "gemini" }' > "$HOME/.gemini/antigravity-cli/settings.json"
+GEMINI_API_KEY=AIza-x OPENAI_API_KEY=sk-x agent --use antigravity >/dev/null 2>&1 || true
+check "set to a Gemini API key, it keeps that one key and no other: $(grep API_KEY "$t/started")" \
+  bash -c "grep -qx 'GEMINI_API_KEY=AIza-x' '$t/started' && ! grep -q OPENAI_API_KEY '$t/started'"
+rm "$HOME/.gemini/antigravity-cli/settings.json"
+agent --use antigravity --ask "why is it slow" >/dev/null 2>&1 || true
+check "--ask should be -i, the question then the session: $(head -1 "$t/started")" grep -q '^ran .*/agy -i why is it slow$' "$t/started"
+echo report > "$t/report.txt"
+agent --use antigravity --report "$t/report.txt" >/dev/null 2>&1 || true
+check "a report should start it in plan mode (agy has --mode, not --permission-mode): $(head -1 "$t/started")" grep -q '^ran .*/agy --mode plan$' "$t/started"
+# What it can't do: local models, ACP.
+rm -f "$t/started"
+out=$(agent --use antigravity --local </dev/null 2>&1) && { echo "FAIL: antigravity --local started"; fail=1; }
+check "--local should be refused: $out" bash -c "grep -q 'antigravity has no local models' <<<\"\$1\" && [ ! -e '$t/started' ]" _ "$out"
+out=$(agent --acp antigravity 2>&1 >/dev/null) && { echo "FAIL: --acp antigravity started"; fail=1; }
+check "--acp should say it has no ACP, naming the help it was checked against: $out" grep -q "Antigravity CLI doesn't speak ACP (nothing of it in agy --help, 1.3.0)" <<<"$out"
+check "and start nothing" test ! -e "$t/started"
+# The default, and a home with a space in it.
+agent --default antigravity >/dev/null 2>&1
+agent >/dev/null 2>&1 || true
+which=$(agent --which 2>/dev/null)
+check "--default antigravity: vikix agent starts agy, --which says antigravity: $(head -1 "$t/started") / $which" \
+  bash -c "grep -q '^ran $HOME/.local/bin/agy *$' '$t/started' && [ '$which' = antigravity ]"
+check "--list should mark it: $(agent --list | grep '^\*')" grep -q '^\* antigravity' <<<"$(agent --list)"
+rm -f "$t/started"
+( export HOME="$t/ho me"; mkdir -p "$HOME/.local/bin"; cp "$t/agy" "$HOME/.local/bin/agy"
+  bash "$here/bin/vikix-agent" --use antigravity --add-dir "$HOME/my docs" >/dev/null 2>&1 || true
+  [ -f "$HOME/.gemini/antigravity-cli/rules/vikix.md" ] || echo "FAIL: no rule file in a home with a space"
+  [ -f "$HOME/.gemini/config/plugins/vikix/hooks.json" ] || echo "FAIL: no plugin in a home with a space" ) | tee -a "$t/space.fail"
+[ -s "$t/space.fail" ] && fail=1
+check "an argument with a space reaches agy whole: $(head -1 "$t/started")" grep -q "^ran $t/ho me/.local/bin/agy --add-dir $t/ho me/my docs$" "$t/started"
+# VIKIX_OFFICE=0 leaves the plugin as it is (here: absent).
+rm -rf "$plug"
+VIKIX_OFFICE=0 agent --use antigravity >/dev/null 2>&1 || true
+check "VIKIX_OFFICE=0 shouldn't install the plugin" test ! -e "$plug"
+agent --use antigravity >/dev/null 2>&1 || true
+check "and the next plain start puts it back" test -f "$plug/hooks.json"
+# Uninstall: the program and Vikix's pieces go (through agy, first); its settings stay.
+mkdir -p "$HOME/.gemini/antigravity-cli"; echo '{}' > "$HOME/.gemini/antigravity-cli/settings.json"
+mkdir -p "$HOME/.gemini/config"; : > "$HOME/.gemini/config/mcp-vikix"    # the stand-in's: vikix mcp register added it
+: > "$calls"
+out=$(agent --uninstall antigravity 2>&1)
+check "agy should be gone, Vikix's rule and plugin with it: $out" bash -c "[ ! -e '$HOME/.local/bin/agy' ] && [ ! -e '$rule' ] && [ ! -e '$plug' ]"
+check "the plugin and the MCP entry should go through agy itself, before it does: $(cat "$calls")" \
+  bash -c "grep -q '^agy plugin uninstall vikix$' '$calls' && grep -q '^agy mcp remove vikix$' '$calls' && [ ! -e '$HOME/.gemini/config/mcp-vikix' ]"
+check "its settings should stay, and be said: $out" bash -c "[ -f '$HOME/.gemini/antigravity-cli/settings.json' ] && grep -q 'its settings, conversations and skills stay: ~/.gemini/antigravity-cli' <<<\"\$1\"" _ "$out"
+check "the default should go back to claude" test "$(agent --which)" = claude
+check "and the feature be forgotten" test -z "$(grep -x antigravity "$HOME/.config/vikix/features" || true)"
+ln -s /usr/bin/true "$HOME/.local/bin/agy"      # an agy link of your own
+agent --uninstall antigravity >/dev/null 2>&1
+check "an agy link that isn't Vikix's should stay" test -L "$HOME/.local/bin/agy"
+rm "$HOME/.local/bin/agy"
+
 # Not installed: an error, never a question, even at a terminal.
 out=$(HOME="$t/nothing" script -qec "bash '$here/bin/vikix-agent' --exec codex" /dev/null </dev/null 2>&1) && { echo "FAIL: --exec started an agent that isn't installed"; fail=1; }
 check "--exec: not installed should say how to install it: $out" grep -q 'vikix agent --install codex' <<<"$out"
@@ -326,5 +456,5 @@ else
   echo "(the skill's keys need sbcl; skipped here)"
 fi
 
-[ "$fail" = 0 ] && echo "agents: five agents, one guide, a snapshot first, no keys unless needed, local where they can"
+[ "$fail" = 0 ] && echo "agents: six agents, one guide, a snapshot first, no keys unless needed, local where they can; antigravity from a pinned, checked release"
 exit "$fail"

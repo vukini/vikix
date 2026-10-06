@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """vikix-mcp — the Vikix desktop as an MCP server, for any agent that
-speaks MCP (Claude Code, Codex, Gemini CLI, OpenCode).
+speaks MCP (Claude Code, Antigravity CLI, Codex, Gemini CLI, OpenCode).
 
   vikix mcp register [--allow-eval] [--allow-undo]
-                      add it to Claude Code (claude mcp add, for you), and
-                      print the lines for Codex, Gemini CLI and OpenCode;
-                      register again without a flag to take that tool away
-  vikix mcp status    whether Claude Code has it, with which tools, and the
-                      last calls
+                      add it to Claude Code and Antigravity CLI (claude mcp
+                      add and agy mcp add, for you, each when it is
+                      installed), and print the lines for Codex, Gemini CLI
+                      and OpenCode; register again without a flag to take
+                      that tool away
+  vikix mcp status    whether Claude Code (and Antigravity CLI) has it, with
+                      which tools, and the last calls
   vikix mcp unregister
   vikix mcp tools     what it offers
   vikix-mcp serve [--allow-eval] [--allow-undo]
@@ -1150,6 +1152,20 @@ def find_claude():
     return home if os.access(home, os.X_OK) else shutil.which("claude")
 
 
+def find_agy():
+    """Antigravity CLI, when it is installed (vikix agent --install antigravity)."""
+    c = os.environ.get("VIKIX_AGY")             # tests name their stand-in
+    if c:
+        return c
+    home = os.path.expanduser("~/.local/bin/agy")
+    return home if os.access(home, os.X_OK) else shutil.which("agy")
+
+
+def agy_has_it(agy):
+    p = subprocess.run([agy, "mcp", "list"], capture_output=True, text=True)
+    return p.returncode == 0 and any(line.split()[:1] == ["vikix"] for line in p.stdout.splitlines())
+
+
 def server_command():
     link = os.path.expanduser("~/.local/bin/vikix-mcp")
     return link if os.path.exists(link) else os.path.realpath(__file__)
@@ -1170,6 +1186,16 @@ def register(flags):
         print("To stop being asked for each call: in Claude Code, allow the vikix tools (mcp__vikix__*) once.")
     else:
         print("Claude Code isn't installed: for it, later: vikix mcp register")
+    agy = find_agy()
+    if agy:
+        # Its own command, into ~/.gemini/config/mcp_config.json: the server's
+        # flags begin with -, so the command comes after --.
+        subprocess.run([agy, "mcp", "remove", "vikix"], capture_output=True)
+        p = subprocess.run([agy, "mcp", "add", "vikix", "--", cmd, "serve"] + flags, capture_output=True, text=True)
+        print((p.stdout + p.stderr).strip() or "added to Antigravity CLI")
+        if p.returncode != 0:
+            return 1
+        print("Antigravity CLI has it too (agy mcp list). Restart it (or /mcp) to see it; allow its tools there once.")
     q = json.dumps
     print(f"""
 For the other agents, add it to their settings yourself (Vikix leaves their files to you),
@@ -1192,6 +1218,10 @@ def unregister():
         print((p.stdout + p.stderr).strip())
     else:
         print("Claude Code isn't installed")
+    agy = find_agy()
+    if agy and agy_has_it(agy):
+        p = subprocess.run([agy, "mcp", "remove", "vikix"], capture_output=True, text=True)
+        print((p.stdout + p.stderr).strip() or "removed from Antigravity CLI")
     print("If you added it to Codex, Gemini CLI or OpenCode, take its lines out of their settings too.")
     return 0
 
@@ -1208,6 +1238,9 @@ def status():
             print("Claude Code doesn't have it: vikix mcp register")
     else:
         print("Claude Code isn't installed")
+    agy = find_agy()
+    if agy:
+        print("Antigravity CLI has it" if agy_has_it(agy) else "Antigravity CLI doesn't have it: vikix mcp register")
     servers, now = running(), version()
     if servers:
         old = [s for s in servers if s[1] != now]

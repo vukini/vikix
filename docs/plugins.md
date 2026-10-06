@@ -62,7 +62,7 @@ You start Claude Code on a task in one window and get on with something else in 
 - *It tells you of a permission some seconds late:* the hook that says a dialog opened (`PermissionRequest`) isn't in your settings. `vikix plugin add agent-waiting` again adds it.
 - *It says asks, but nothing asks:* it read a question in the session's last words that wasn't one for you. Look at the window: that clears it.
 - *It says done for a session that asked you something:* its last three lines had no question mark and no line starting `You:`. That is all it goes by.
-- It knows Claude Code only. Codex, Gemini CLI, OpenCode and Aider don't tell it.
+- It knows Claude Code only. Codex, Gemini CLI, Antigravity CLI, OpenCode and Aider don't tell it.
 
 **Remove it:** `vikix plugin remove agent-waiting` takes the hooks out of `~/.claude/settings.json` again, and leaves your other settings as they were.
 

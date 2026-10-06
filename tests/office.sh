@@ -4,7 +4,8 @@
 #
 #   A terminal with an agent in it is found, one with a shell's job isn't:
 #   the agent the terminal started itself, one a script started, by its
-#   name; its folder, its workspace, how long it has run; what it is doing
+#   name (Antigravity CLI's program agy shown as antigravity); its folder,
+#   its workspace, how long it has run; what it is doing
 #   from its window's title as Claude Code keeps it (at its prompt, working)
 #   and from the agent-waiting plugin's note (waits for your yes, with what
 #   it asked); its window carries its name; the menu goes to the one picked;
@@ -39,7 +40,7 @@ cli() { HOME=$home VIKIX_SWANK_PORT=$port python3 "$here/bin/vikix-agents" "$@" 
 
 # Stand-in agents: programs called as the real ones are, that only stay.
 mkdir -p "$t/bin" "$t/proj-a" "$t/proj-b" "$home/.local/state/vikix/agents"
-for name in claude codex gemini; do
+for name in claude codex gemini agy; do
   printf '#!/bin/sh\nwhile :; do sleep 1; done\n' > "$t/bin/$name"; chmod +x "$t/bin/$name"
 done
 git -C "$t/proj-a" init -q -b topic; git -C "$t/proj-a" config user.name T; git -C "$t/proj-a" config user.email t@example.com
@@ -99,6 +100,13 @@ check "under it what it asked" grep -qx '           May I run the tests?' <<<"$o
 check "a folder that isn't a repository is only named, with no desk: $(grep 'codex' <<<"$out")" grep -qE '^  codex +.*proj-b \(no desk\) +workspace 2 ' <<<"$out"
 check "one with no window of its own is listed too: $(grep -A1 gemini <<<"$out" | tr '\n' ' ')" \
   bash -c "grep -A1 '^  gemini ' <<<\"\$1\" | grep -q 'no window of its own: started by'" _ "$out"
+# Antigravity CLI's program is agy: found by that name, shown as antigravity, in Lisp and in the terminal.
+agent "agy" "$t/proj-b" "$t/bin/agy"
+check "an agy in a terminal is the agent antigravity: $(agents)" grep -qE 'antigravity proj-b [0-9] running' <<<"$(agents)"
+check "its window carries that name" \
+  yes '(let ((a (find "antigravity" (vikix-agents) :key (lambda (a) (getf a :name)) :test (function equal)))) (and a (equal (sb-ext:octets-to-string (coerce (xlib:get-property (window-xwin (getf a :window)) :_VIKIX_AGENT) (quote (vector (unsigned-byte 8))))) "antigravity")))'
+check "vikix agents lists it as antigravity: $(cli | grep antigravity)" grep -qE '^  antigravity +.*proj-b \(no desk\) +workspace [0-9] ' <<<"$(cli)"
+kill "${pids[-1]}" 2>/dev/null || true; sleep 0.5
 json=$(cli --json)
 check "--json is the same as data" python3 -c '
 import json, sys

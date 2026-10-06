@@ -6,7 +6,7 @@
 #   vikix agent [ARGS]            your agent (Claude Code, unless you chose
 #                                 another); ARGS go to it
 #   vikix agent --use NAME [ARGS]  another one, this time: claude, opencode,
-#                                 codex, gemini, aider
+#                                 codex, gemini, antigravity, aider
 #   vikix agent --local [--model M]   on a model on this laptop (Ollama):
 #                                 opencode, codex and aider can. Small models
 #                                 do little as agents, and a laptop CPU takes
@@ -25,18 +25,31 @@
 #                                 Client Protocol: Neovim's CodeCompanion,
 #                                 Emacs's agent-shell, Zed): claude and codex
 #                                 through their adapters (installed with
-#                                 them), gemini and opencode as they are
+#                                 them), gemini and opencode as they are;
+#                                 aider and antigravity don't speak it
 #   vikix agent --which           the agent Super+a starts, one word
-#   vikix agent --install NAME    install one (its official installer; also
-#   vikix agent --uninstall NAME  vikix add/remove NAME), or take it away.
-#                                 For one you have, --install adds only
-#                                 what's missing (its ACP adapter, say)
+#   vikix agent --install NAME    install one (its official installer, or
+#   vikix agent --uninstall NAME  for antigravity Google's release pinned
+#                                 and checked here; also vikix add/remove
+#                                 NAME), or take it away. For one you have,
+#                                 --install adds only what's missing (its
+#                                 ACP adapter, say)
 #
 # Every agent is told how Vikix works by the same guide: Claude Code and
 # OpenCode read the Vikix skill (~/.claude/skills/vikix); the others read
 # ~/.local/share/vikix/AGENTS.md, made from that skill at each update and
 # each start: linked as ~/.codex/AGENTS.md, imported by a one-line
-# ~/.gemini/GEMINI.md, given to Aider with --read; never over a file of yours.
+# ~/.gemini/GEMINI.md, included by a rule file of Vikix's own for
+# Antigravity CLI (~/.gemini/antigravity-cli/rules/vikix.md), given to
+# Aider with --read; never over a file of yours.
+#
+# Antigravity CLI (agy) is where a personal Google account signs in now: in
+# June 2026 Gemini CLI stopped serving the free, AI Pro and AI Ultra
+# accounts, and keeps working with a Gemini API key or a Code Assist
+# licence from work. Both are here. Antigravity signs in in your browser
+# at its first start and keeps the sign-in in the system keyring (/logout
+# in it drops it); with modelProvider gemini in its settings it uses
+# GEMINI_API_KEY instead, which it then keeps from vikix ai key.
 #
 # What an agent doesn't get, so a prompt injection (a web page, a README it
 # reads) can't use it: your API keys and other secrets from the environment
@@ -46,10 +59,13 @@
 # (VIKIX_AGENT_SSH=1 keeps it). This prevents accidents; it isn't a sandbox:
 # the agent runs as you and can read your files.
 #
-# Claude Code also gets the office's house rules: a hook that runs vikix
-# agents touch before each edit, so two agents on one file are caught and
-# a crossing into another agent's folder is recorded (see vikix agents).
-# VIKIX_OFFICE=0 leaves it out.
+# Claude Code and Antigravity CLI also get the office's house rules: a hook
+# that runs vikix agents touch before each edit, so two agents on one file
+# are caught and a crossing into another agent's folder is recorded (see
+# vikix agents). Claude Code gets it for the session; agy takes no such
+# option, so for it the hook is a plugin of Vikix's (agy plugin list shows
+# vikix), put in place at each start. VIKIX_OFFICE=0 leaves it out, and
+# for agy leaves the plugin as it is.
 
 set -euo pipefail
 VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
@@ -58,7 +74,7 @@ VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 # shellcheck source=../lib/features.sh
 . "$VIKIX_DIR/lib/features.sh"
 
-AGENTS=(claude opencode codex gemini aider)
+AGENTS=(claude opencode codex gemini antigravity aider)
 LOCAL_OK=" opencode codex aider "
 # Aider's keys: the model companies it can use. Every other secret goes.
 AIDER_KEYS=" ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY OPENROUTER_API_KEY DEEPSEEK_API_KEY MISTRAL_API_KEY GROQ_API_KEY XAI_API_KEY "
@@ -117,15 +133,18 @@ about() {
     claude)   echo "Claude Code (Anthropic): your Claude login" ;;
     opencode) echo "OpenCode: any model company, or local" ;;
     codex)    echo "Codex (OpenAI): your ChatGPT login, or local" ;;
-    gemini)   echo "Gemini CLI (Google): your Google login; needs Node (vikix add javascript)" ;;
+    gemini)   echo "Gemini CLI (Google): a Gemini API key, or a Code Assist licence from work (a personal account: antigravity); needs Node (vikix add javascript)" ;;
+    antigravity) echo "Antigravity CLI (Google): your Google account (free, AI Pro, AI Ultra), or a Gemini API key" ;;
     aider)    echo "Aider: with an API key (vikix ai key), or local" ;;
   esac
 }
 
+# agent_cmd NAME — the program's name, where it isn't the agent's.
+agent_cmd() { case $1 in antigravity) echo agy ;; *) echo "$1" ;; esac; }
 agent_bin() {
   case $1 in
     opencode) echo "$HOME/.opencode/bin/opencode" ;;
-    *)        echo "$BIN/$1" ;;
+    *)        echo "$BIN/$(agent_cmd "$1")" ;;
   esac
 }
 is_agent() { printf '%s\n' "${AGENTS[@]}" | grep -qx -- "${1:-}"; }
@@ -133,7 +152,7 @@ need_agent() {
   [ -n "${1:-}" ] || die "which agent? ${AGENTS[*]} (vikix agent --list)"
   is_agent "$1" || die "no agent called '$1': ${AGENTS[*]}"
 }
-installed() { [ -x "$(agent_bin "$1")" ] || command -v "$1" >/dev/null 2>&1; }
+installed() { [ -x "$(agent_bin "$1")" ] || command -v "$(agent_cmd "$1")" >/dev/null 2>&1; }
 
 chosen() {
   local a=''
@@ -164,6 +183,24 @@ write_guide() {
 # into the guide the others read (and the next start wipe it).
 gemini_md() { echo "${GEMINI_CLI_HOME:-$HOME}/.gemini/GEMINI.md"; }
 gemini_line() { echo "@$GUIDE"; }
+# Antigravity CLI reads its global rules from ~/.gemini/antigravity-cli/rules/
+# (each with YAML frontmatter), and a rule may include a file: so a file of
+# Vikix's own there, one line that includes the guide, is never a line in a
+# file of yours, and agy's memory can't write into the guide through it.
+agy_rule() { echo "$HOME/.gemini/antigravity-cli/rules/vikix.md"; }
+agy_rule_text() {
+  local path=$GUIDE
+  # shellcheck disable=SC2088  # a literal ~/, for agy to expand (its documented form)
+  case $path in "$HOME"/*) path="~/${path#"$HOME"/}" ;; esac
+  cat <<EOF
+---
+trigger: always_on
+description: "How this Vikix desktop (Void Linux, StumpWM) is put together, whose files are whose, and how to change it safely: read it before touching the desktop, its keys, themes, packages or the vikix command."
+---
+<!-- Made by Vikix (vikix agent); edits here are replaced. The guide itself: $GUIDE -->
+@[The Vikix guide for agents]($path)
+EOF
+}
 link_guide() {
   local to
   case $1 in
@@ -187,6 +224,15 @@ link_guide() {
       fi
       run mkdir -p "$(dirname "$to")"
       if [ "$DRY_RUN" = 1 ]; then printf '   would write %s\n' "$to"; else gemini_line > "$to"; fi ;;
+    antigravity)
+      to=$(agy_rule)
+      [ -f "$to" ] && [ ! -L "$to" ] && [ "$(cat "$to")" = "$(agy_rule_text)" ] && return 0
+      if { [ -e "$to" ] || [ -L "$to" ]; } && ! grep -q '^<!-- Made by Vikix' "$to" 2>/dev/null; then
+        say "your $to is kept; to give Antigravity CLI the Vikix guide too, add this line to it (or to ~/.gemini/GEMINI.md): @[The Vikix guide for agents]($GUIDE)"
+        return 0
+      fi
+      run mkdir -p "$(dirname "$to")"
+      if [ "$DRY_RUN" = 1 ]; then printf '   would write %s\n' "$to"; else agy_rule_text > "$to"; fi ;;
   esac
 }
 unlink_guide() {
@@ -196,13 +242,87 @@ unlink_guide() {
             [ -L "$to" ] && [ "$(readlink "$to")" = "$GUIDE" ] && run rm -f "$to" ;;
     gemini) to=$(gemini_md)
             [ -f "$to" ] && [ ! -L "$to" ] && [ "$(cat "$to")" = "$(gemini_line)" ] && run rm -f "$to" ;;
+    antigravity) to=$(agy_rule)
+            [ -f "$to" ] && [ ! -L "$to" ] && grep -q '^<!-- Made by Vikix' "$to" && run rm -f "$to" ;;
   esac
   return 0
+}
+
+# --- The house rules for Antigravity CLI ---------------------------------------
+# The same hook Claude Code gets (config/claude/office.json), before each
+# edit and command. agy takes no settings for one session, so it is a
+# plugin of Vikix's, installed with agy plugin install (staged under
+# ~/.gemini/config/plugins/vikix; agy plugin list shows it), never a line
+# in a file of yours; put in again when what it says changed. Its answer
+# has agy's shape (vikix agents touch sees which agent asks).
+agy_office_dir() { echo "$HOME/.gemini/config/plugins/vikix"; }
+agy_office_json() {
+  python3 -c 'import json, shlex, sys
+print(json.dumps({"vikix-office": {"PreToolUse": [{
+  "matcher": "write_to_file|replace_file_content|multi_replace_file_content|run_command",
+  "hooks": [{"type": "command", "command": shlex.quote(sys.argv[1]) + " touch", "timeout": 15}]}]}}, indent=2))' "$VIKIX_DIR/bin/vikix-agents"
+}
+agy_exe() { local e; e=$(agent_bin antigravity); [ -x "$e" ] && { echo "$e"; return; }; command -v agy 2>/dev/null; }
+agy_office() {
+  local exe dir
+  [ "${VIKIX_OFFICE:-1}" != 0 ] || return 0
+  exe=$(agy_exe) || return 0
+  [ -f "$(agy_office_dir)/hooks.json" ] && [ "$(cat "$(agy_office_dir)/hooks.json")" = "$(agy_office_json)" ] && return 0
+  if [ "$DRY_RUN" = 1 ]; then printf '   would install the house rules as the agy plugin vikix (%s)\n' "$(agy_office_dir)"; return 0; fi
+  dir=$(mktemp -d)
+  printf '{\n  "name": "vikix",\n  "version": "%s",\n  "description": "The house rules of the Vikix desktop: vikix agents touch before each edit and command (vikix agents help)"\n}\n' \
+    "$(cat "$VIKIX_DIR/VERSION" 2>/dev/null || echo 0)" > "$dir/plugin.json"
+  agy_office_json > "$dir/hooks.json"
+  "$exe" plugin install "$dir" >/dev/null 2>&1 ||
+    warn "the house rules didn't install as an agy plugin (agy plugin install $dir failed); antigravity runs without them"
+  rm -rf "$dir"
+}
+agy_office_remove() {
+  local exe
+  [ -d "$(agy_office_dir)" ] || return 0
+  exe=$(agy_exe) || { run rm -rf "$(agy_office_dir)"; return 0; }
+  run "$exe" plugin uninstall vikix
 }
 
 # --- Installing ----------------------------------------------------------------
 
 node_major() { node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0; }
+
+# Antigravity CLI: Google's installer (antigravity.google/cli/install.sh)
+# reads a manifest (version, URL, SHA-512) from its update server, checks
+# the download against it, puts agy in ~/.local/bin and then runs `agy
+# install`, which writes a PATH line into .bashrc, .profile and
+# .bash_profile (--skip-path and --skip-aliases are that step's, not the
+# script's). Vikix fetches the release the manifest named when this was
+# written, checks the sum itself, and puts the program in ~/.local/bin,
+# which is on PATH already: nothing of yours is edited. Moving the pin is
+# a Vikix release: the manifests are linux_amd64.json and linux_arm64.json
+# under https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests/
+# (version, url, sha512). Once installed, agy updates itself in the
+# background, as Claude Code does (AGY_CLI_DISABLE_AUTO_UPDATE=true stops that).
+AGY_VERSION=1.3.0
+agy_release() {   # "URL SHA-512" for this machine, or nothing
+  if [ -n "${VIKIX_AGY_RELEASE:-}" ]; then echo "$VIKIX_AGY_RELEASE"; return; fi   # the tests'
+  case $(uname -m) in
+    x86_64)  echo "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.3.0-6233328509124608/linux-x64/cli_linux_x64.tar.gz f6f5e16f356ae8a345fd6ab265ad2a4e4dc8d0b7f4ac345249d0e250a06edd496677b8ac0193b258971feb7ccfbba2fccc2f482db1d62cc650498e352ef85280" ;;
+    aarch64) echo "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.3.0-6233328509124608/linux-arm/cli_linux_arm64.tar.gz 8a880575accf28b03de00e748209dc735c11e59847de8b137cba07aaaab166c892836574cacd9a0d6fa1e24d6e19197d25f36b7e0a49fd84d64ea84ee26ab21d" ;;
+  esac
+}
+install_agy() {
+  local release url sum f dir
+  release=$(agy_release)
+  [ -n "$release" ] || die "no Antigravity CLI release is pinned here for $(uname -m): Google's installer is at https://antigravity.google/docs/cli/install"
+  url=${release% *}; sum=${release##* }
+  f=$(fetch "$url")
+  if ! printf '%s  %s\n' "$sum" "$f" | sha512sum -c --status; then
+    rm -f "$f"; die "the download of Antigravity CLI $AGY_VERSION doesn't match its SHA-512 ($url): nothing installed"
+  fi
+  dir=$(mktemp -d)
+  tar -xzf "$f" -C "$dir" antigravity || { rm -rf "$f" "$dir"; die "couldn't unpack $url (it should hold one file, antigravity)"; }
+  mkdir -p "$BIN"
+  install -m 755 "$dir/antigravity" "$BIN/agy"
+  rm -rf "$f" "$dir"
+}
 
 # fetch URL — an installer script, whole, into a temp file: piping curl
 # into a shell would run half a script if the download broke off.
@@ -225,12 +345,15 @@ install_agent() {
       say "$name is already installed"
     fi
     install_acp "$name"; write_guide; link_guide "$name"
+    [ "$name" = antigravity ] && agy_office
     [ "$name" = claude ] || record_features "$name"
     return 0
   fi
   say "installing $name: $(about "$name")"
   if [ "$DRY_RUN" = 1 ]; then
-    printf '   would install %s with its official installer\n' "$name"; return 0
+    if [ "$name" = antigravity ]; then printf '   would download Antigravity CLI %s (pinned, checked) into %s/agy\n' "$AGY_VERSION" "$BIN"
+    else printf '   would install %s with its official installer\n' "$name"; fi
+    return 0
   fi
   # The installers run without your keys (as the install stages do).
   (
@@ -253,6 +376,8 @@ install_agent() {
         [ "$(node_major)" -ge 20 ] || die "Gemini CLI needs Node 20 or newer; this is $(node --version)"
         # --prefix: into ~/.local, as you, not the system's node_modules.
         "$NPM" install -g --prefix "$HOME/.local" @google/gemini-cli ;;
+      antigravity)
+        install_agy ;;   # not Google's installer: see agy_release
       aider)
         # Aider runs on Python 3.10-3.12, not Void's 3.14: uv brings 3.12
         # along. The same command its official installer runs.
@@ -267,9 +392,12 @@ install_agent() {
   install_acp "$name"
   write_guide
   link_guide "$name"
+  [ "$name" = antigravity ] && agy_office
   # So vikix features shows it, and vikix remove can take it away.
   [ "$name" = claude ] || record_features "$name"
-  say "$name is installed: start it with vikix agent --use $name (not plain $name: that skips the snapshot); vikix agent --default $name makes it Super+a's"
+  say "$name is installed: start it with vikix agent --use $name (not plain $(agent_cmd "$name"): that skips the snapshot); vikix agent --default $name makes it Super+a's"
+  [ "$name" = antigravity ] && say "Antigravity CLI $AGY_VERSION: it signs in in your browser at the first start (a Google account, or GEMINI_API_KEY with modelProvider gemini in ~/.gemini/antigravity-cli/settings.json), and updates itself from then on"
+  return 0
 }
 
 # install_acp NAME — its ACP adapter, for editors, where it needs one. Not
@@ -289,7 +417,7 @@ install_acp() {
 }
 
 uninstall_agent() {
-  local name=$1 link target
+  local name=$1 link target exe
   [ "$name" = claude ] && die "Claude Code has its own uninstall: https://docs.claude.com/en/docs/claude-code"
   installed "$name" || say "$name isn't installed"
   case $name in
@@ -309,6 +437,13 @@ uninstall_agent() {
     aider)
       command -v "$UV" >/dev/null 2>&1 && [ -e "$BIN/aider" ] && run "$UV" tool uninstall aider-chat
       say "its settings and history stay: ~/.aider*, and .aider* in your projects" ;;
+    antigravity)
+      # Vikix's own pieces first, through agy while it is still here: the
+      # house rules' plugin and the MCP server vikix mcp register added.
+      agy_office_remove
+      if exe=$(agy_exe) && "$exe" mcp list 2>/dev/null | grep -q '^vikix[[:space:]]'; then run "$exe" mcp remove vikix; fi
+      [ -f "$BIN/agy" ] && [ ! -L "$BIN/agy" ] && run rm -f "$BIN/agy"
+      say "its settings, conversations and skills stay: ~/.gemini/antigravity-cli (and ~/.gemini/config); its sign-in stays in the keyring until you /logout in it" ;;
   esac
   local pkg; pkg=$(acp_package "$name")
   if [ -n "$pkg" ] && [ -e "$(acp_bin "$name")" ] && command -v "$NPM" >/dev/null 2>&1; then
@@ -320,7 +455,7 @@ uninstall_agent() {
     set_default claude
     installed claude || say "Claude Code isn't installed either: Super+a offers to install it"
   fi
-  installed "$name" && warn "$name is still found: $(command -v "$name")" || say "$name is gone"
+  installed "$name" && warn "$name is still found: $(command -v "$(agent_cmd "$name")")" || say "$name is gone"
 }
 
 set_default() {
@@ -382,6 +517,7 @@ start() {
   fi
   if [ "$ACP" = 1 ]; then
     [ "$name" = aider ] && die "Aider doesn't speak ACP: in an editor, run it in a terminal (vikix agent --use aider)"
+    [ "$name" = antigravity ] && die "Antigravity CLI doesn't speak ACP (nothing of it in agy --help, $AGY_VERSION): in an editor, run it in a terminal (vikix agent --use antigravity)"
     [ "$local" = 1 ] && die "--local is for the terminal; as an ACP agent, $name uses its own models"
   fi
   if [ "$local" = 1 ]; then
@@ -397,11 +533,12 @@ start() {
       *) say "not installed"; own_window && { printf 'Enter closes this window. '; read -r _ || true; }; return 1 ;;
     esac
   fi
-  local exe; exe=$(agent_bin "$name"); [ -x "$exe" ] || exe=$(command -v "$name" || echo "$name")
+  local exe; exe=$(agent_bin "$name"); [ -x "$exe" ] || exe=$(command -v "$(agent_cmd "$name")" || agent_cmd "$name")
 
   # What it needs: the guide, and where to look for it.
   write_guide
   link_guide "$name"
+  [ "$name" = antigravity ] && agy_office
   local args=() setenv=("VIKIX_AGENT=$name") oc='{}'
   # As an ACP agent: the adapter runs your agent, or the agent's own ACP mode.
   if [ "$ACP" = 1 ]; then
@@ -448,6 +585,7 @@ print(json.dumps({"model": "ollama/" + m, "provider": {"ollama": {
       claude|codex) set -- "$@" "$ASK" ;;
       opencode)     args+=(--prompt "$ASK") ;;
       gemini)       args+=(-i "$ASK") ;;
+      antigravity)  args+=(-i "$ASK") ;;   # --prompt-interactive: asked, then the session goes on
       aider)        say "ask it: $ASK" ;;
     esac
   fi
@@ -457,6 +595,7 @@ print(json.dumps({"model": "ollama/" + m, "provider": {"ollama": {
     case $name in
       claude) args+=(--permission-mode plan) ;;
       codex)  args+=(--sandbox read-only) ;;
+      antigravity) args+=(--mode plan) ;;   # reads and outlines first (agy has --mode, not --permission-mode)
       aider)  args+=(--read "$REPORT" --no-git) ;;   # not making a git repository where it starts
     esac
   fi
@@ -473,6 +612,8 @@ print(json.dumps(c))' "$oc")
   # What it doesn't get (see the top).
   local unset=() v keep=''
   [ "$name" = aider ] && [ "$local" != 1 ] && keep=$AIDER_KEYS
+  # Antigravity set to a Gemini API key instead of a Google account: that one key.
+  if [ "$name" = antigravity ] && grep -qs '"modelProvider"[[:space:]]*:[[:space:]]*"gemini"' "$HOME/.gemini/antigravity-cli/settings.json"; then keep=" GEMINI_API_KEY "; fi
   if [ "${VIKIX_AGENT_API_KEY:-}" != 1 ]; then
     for v in $(compgen -e); do
       case $v in

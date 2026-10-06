@@ -83,7 +83,7 @@ link_managed "$C/claude/skills/vikix" "$HOME/.claude/skills/vikix"
 # yours alone: the session log carries the pages a browser had open.
 run mkdir -p "$VIKIX_STATE"
 run chmod 700 "$VIKIX_STATE"
-# The same guide for the other agents (Codex, Gemini, Aider), as AGENTS.md:
+# The same guide for the other agents (Codex, Gemini, Antigravity, Aider), as AGENTS.md:
 # made from the skill, so it changes with it.
 bash "$VIKIX_DIR/bin/vikix-agent" --write-guide
 link_managed "$C/fontconfig/50-vikix-iosevka.conf" "$HOME/.config/fontconfig/conf.d/50-vikix-iosevka.conf"

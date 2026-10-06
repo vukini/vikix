@@ -97,7 +97,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   ├── share/vikix/whisper/           fetched   dictation's model and voice detector (vikix dictate)
 │   ├── share/vikix/piper/             fetched   the voice the AI talks with (vikix voice)
 │   ├── share/vikix/notes/index.db     written   note's index: passages of your notes and their embeddings (folder 700; note index)
-│   ├── share/vikix/AGENTS.md          written   the skill as a guide for Codex, Gemini, Aider (linked as ~/.codex/AGENTS.md, ~/.gemini/GEMINI.md)
+│   ├── share/vikix/AGENTS.md          written   the skill as a guide for Codex, Gemini, Antigravity, Aider (linked as ~/.codex/AGENTS.md, imported by ~/.gemini/GEMINI.md, included by ~/.gemini/antigravity-cli/rules/vikix.md)
 │   ├── opt/picolisp/          built     PicoLisp, from source (with the feature lisp)
 │   ├── share/vikix/plugins/   Vikix's   the plugins repo at its pinned commit (vikix plugin sync)
 │   ├── share/vikix/records.db made       what plugins found and kept (vikix records; SQLite, 600)

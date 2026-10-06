@@ -229,7 +229,7 @@ First see whether it's the connection or one program. `ping -c 5 1.1.1.1` should
 
 ## The agent doesn't have the desktop's tools
 
-After `vikix mcp register`, restart the agent: it reads its list of servers when it starts. Then `vikix mcp status` says whether Claude Code has it, which risky tools are on, how many servers are running and on which version, and the last calls. For Codex, Gemini CLI and OpenCode, `vikix mcp register` prints the lines to put in their settings yourself. A tool that says it was refused names what it would take (a workspace that exists, a theme you have); every call is in `~/.local/state/vikix/mcp.log`.
+After `vikix mcp register`, restart the agent: it reads its list of servers when it starts. Then `vikix mcp status` says whether Claude Code has it, which risky tools are on, how many servers are running and on which version, and the last calls. Antigravity CLI gets it the same way, through `agy mcp add`, when it is installed (`agy mcp list` shows it). For Codex, Gemini CLI and OpenCode, `vikix mcp register` prints the lines to put in their settings yourself. A tool that says it was refused names what it would take (a workspace that exists, a theme you have); every call is in `~/.local/state/vikix/mcp.log`.
 
 ## Looking for yourself: what the kernel and the system did
 

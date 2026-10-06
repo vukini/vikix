@@ -120,8 +120,18 @@ cat > "$t/bin/claude" <<EOF
 #!/bin/sh
 echo "claude \$*" >> "$t/claude.calls"
 EOF
+# Antigravity CLI's agy: mcp add, remove and list, remembered in a file.
+cat > "$t/bin/agy" <<EOF
+#!/bin/sh
+echo "agy \$*" >> "$t/agy.calls"
+case "\$1 \$2" in
+  "mcp add")    : > "$t/agy.has" ;;
+  "mcp remove") rm -f "$t/agy.has" ;;
+  "mcp list")   printf 'NAME   TYPE   STATUS   COMMAND/URL\n'; [ -e "$t/agy.has" ] && echo 'vikix  stdio  enabled  vikix-mcp serve --allow-eval' ;;
+esac
+EOF
 chmod +x "$t/bin/"*
-export PATH="$t/bin:$PATH" VIKIX_EVAL="$t/bin/eval" VIKIX_CLAUDE="$t/bin/claude" T="$t"
+export PATH="$t/bin:$PATH" VIKIX_EVAL="$t/bin/eval" VIKIX_CLAUDE="$t/bin/claude" VIKIX_AGY="$t/bin/agy" T="$t"
 
 # rpc [FLAGS] -- one request (a JSON line) per argument; the answers, a line each.
 rpc() {
@@ -420,7 +430,7 @@ def settle(path):
     os.utime(path, (t, t))
 def status(server=co + "/bin/vikix-mcp"):
     out = subprocess.run([sys.executable, server, "status"], capture_output=True, text=True).stdout
-    return out.splitlines()[1]
+    return next(l for l in out.splitlines() if "running" in l)     # after the agents' lines
 seen = []
 p.stdin.write(req(1).encode()); p.stdin.flush()
 print("before", version_answer()[0])
@@ -458,6 +468,14 @@ check "the refused restart should be logged" grep -q "refused restart" "$VIKIX_S
 python3 "$here/bin/vikix-mcp" register --allow-eval >/dev/null
 check "register should add it to Claude Code, for you, with the flags: $(cat "$t/claude.calls")" \
   grep -qE '^claude mcp add --scope user vikix -- .*vikix-mcp serve --allow-eval$' "$t/claude.calls"
+check "and to Antigravity CLI, through agy mcp add, the command after --: $(cat "$t/agy.calls")" \
+  grep -qE '^agy mcp add vikix -- .*vikix-mcp serve --allow-eval$' "$t/agy.calls"
+out=$(python3 "$here/bin/vikix-mcp" status 2>&1)
+check "status should say Antigravity CLI has it: $out" grep -q '^Antigravity CLI has it$' <<<"$out"
+python3 "$here/bin/vikix-mcp" unregister >/dev/null
+check "unregister should take it out of Antigravity CLI too: $(tail -1 "$t/agy.calls")" grep -q '^agy mcp remove vikix$' "$t/agy.calls"
+out=$(python3 "$here/bin/vikix-mcp" status 2>&1)
+check "and status say so: $out" grep -q "^Antigravity CLI doesn't have it: vikix mcp register$" <<<"$out"
 
-[ "$fail" = 0 ] && echo "mcp: the protocol, read-only tools, checked acts, eval and undo only when switched on, a log, register"
+[ "$fail" = 0 ] && echo "mcp: the protocol, read-only tools, checked acts, eval and undo only when switched on, a log, register (Claude Code and Antigravity CLI)"
 exit "$fail"

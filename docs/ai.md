@@ -70,13 +70,14 @@ In a terminal, `vikix undo` first lists the files it would change and asks. Answ
 
 ### Another agent
 
-Claude Code isn't the only one. Four others work the same way, with the same snapshot first and the same guide:
+Claude Code isn't the only one. Five others work the same way, with the same snapshot first and the same guide:
 
 | Agent | Signs in with | Can run on this laptop |
 |---|---|---|
 | **OpenCode** | Any model company you have an account with | Yes |
 | **Codex** (OpenAI) | Your ChatGPT account | Yes |
-| **Gemini CLI** (Google) | Your Google account | No |
+| **Antigravity CLI** (Google, `agy`) | Your Google account (free, AI Pro or AI Ultra), or a Gemini API key | No |
+| **Gemini CLI** (Google) | A Gemini API key, or a Code Assist licence from work | No |
 | **Aider** | An API key (`vikix ai key set anthropic`) | Yes |
 
 ```sh
@@ -87,11 +88,13 @@ vikix agent --default claude      # back to Claude Code
 vikix add codex                   # or install one as a feature (vikix remove codex takes it away)
 ```
 
-**Which one?** Claude Code is the one Vikix is made with and tested with. OpenCode or Aider if you want to work offline.
+**Which one?** Claude Code is the one Vikix is made with and tested with. OpenCode or Aider if you want to work offline. With a Google account, Antigravity CLI: in June 2026 Gemini CLI stopped serving personal accounts (the free tier, AI Pro and AI Ultra) and sent them there; Gemini CLI stays for a Gemini API key (`vikix ai key set gemini`, then `VIKIX_AGENT_API_KEY=1 vikix agent --use gemini`, since keys are kept from agents) or a Code Assist Standard or Enterprise licence.
+
+**Antigravity CLI** is installed from the release Vikix has pinned and checked (its SHA-512 is in `vikix agent`), not with Google's installer, which would write a PATH line into your `.bashrc`, `.profile` and `.bash_profile`; `~/.local/bin` is on your PATH already. An `agy` that Google's installer put there is found and left as it is. At its first start it signs you in in your browser and keeps the sign-in in the system keyring (`/logout` in it drops it); to use a Gemini API key instead, set `"modelProvider": "gemini"` in `~/.gemini/antigravity-cli/settings.json`, and Vikix then lets that one key through. From then on `agy` updates itself in the background (`AGY_CLI_DISABLE_AUTO_UPDATE=true` stops that). It has no local models and doesn't speak ACP. `agy -c` picks up the last conversation in this folder: `vikix agent --use antigravity -c`.
 
 **Always through Vikix:** start them with `vikix agent --use NAME` (or Super+a), not by typing `codex` or `opencode`: that skips the snapshot, and the protections below.
 
-**From an editor:** an editor that starts an agent itself should run `vikix agent --exec NAME` and the agent's own options after it, or `vikix agent --exec` for yours. It's the same start, with the same protections, but quiet: nothing of Vikix's in the agent's output, and no questions. Editors that speak ACP, the Agent Client Protocol (Neovim's CodeCompanion, below; Emacs's agent-shell; Zed), run `vikix agent --acp NAME`: Gemini CLI and OpenCode speak it themselves, and Claude Code and Codex need a small adapter, which `vikix agent --install claude` (or `codex`) puts next to them. It uses the agent you have, and your login. It needs Node 22 or newer, which `vikix add neovim` brings. Aider doesn't speak ACP. `vikix agent --which` says which agent is yours, and `vikix ai use` which model Super+i uses.
+**From an editor:** an editor that starts an agent itself should run `vikix agent --exec NAME` and the agent's own options after it, or `vikix agent --exec` for yours. It's the same start, with the same protections, but quiet: nothing of Vikix's in the agent's output, and no questions. Editors that speak ACP, the Agent Client Protocol (Neovim's CodeCompanion, below; Emacs's agent-shell; Zed), run `vikix agent --acp NAME`: Gemini CLI and OpenCode speak it themselves, and Claude Code and Codex need a small adapter, which `vikix agent --install claude` (or `codex`) puts next to them. It uses the agent you have, and your login. It needs Node 22 or newer, which `vikix add neovim` brings. Aider and Antigravity CLI don't speak ACP. `vikix agent --which` says which agent is yours, and `vikix ai use` which model Super+i uses.
 
 **Offline**, on a local model: `vikix agent --use opencode --local` (or codex, or aider; `--model NAME` picks one). It picks the best of your models for code. Be warned: on a laptop's CPU each answer takes minutes (Aider on llama3.2:3b took over four minutes for one sentence), and a small model rarely carries out a change on its own. A bigger model (`vikix ai models`) does more, more slowly still.
 
@@ -102,7 +105,9 @@ vikix add codex                   # or install one as a feature (vikix remove co
 
 This prevents accidents; it isn't a wall. The agent runs as you, and can read your files. OpenCode is set to ask before it runs a command or edits a file, as Claude Code does, unless your own OpenCode settings say otherwise.
 
-**How they know Vikix:** OpenCode reads the same skill as Claude Code. Codex, Gemini and Aider read `~/.local/share/vikix/AGENTS.md`, the skill's first page, which names the other pages where they can open them: Vikix links it as `~/.codex/AGENTS.md`, writes a one-line `~/.gemini/GEMINI.md` that imports it, and hands it to Aider (not to a small local model, for which it's too long). If you have one of those files already, it's yours and stays; Vikix says how to add the guide to it.
+**How they know Vikix:** OpenCode reads the same skill as Claude Code. Codex, Gemini, Antigravity and Aider read `~/.local/share/vikix/AGENTS.md`, the skill's first page, which names the other pages where they can open them: Vikix links it as `~/.codex/AGENTS.md`, writes a one-line `~/.gemini/GEMINI.md` that imports it, writes a rule file of its own for Antigravity, `~/.gemini/antigravity-cli/rules/vikix.md`, that includes it (Antigravity reads every rule there), and hands it to Aider (not to a small local model, for which it's too long). If you have one of those files already, it's yours and stays; Vikix says how to add the guide to it.
+
+**The house rules** (`vikix agents touch`, [Agents at work](agents.md)) reach Claude Code and Antigravity CLI: Claude Code gets the hook for the session, Antigravity as a plugin of Vikix's that stays (`agy plugin list` shows `vikix`; `agy plugin disable vikix` switches it off).
 
 ### Several at once
 
@@ -315,7 +320,7 @@ MCP is how an AI agent is given tools of its own. `vikix mcp register` gives you
 Why, when the agent can run commands anyway? Each command needs your yes. These tools are few, checked, and easy to take back, so you can allow them once: in Claude Code, answer "always allow" for a vikix tool (or allow `mcp__vikix__*`). Then the agent looks at the desktop and switches a theme or a window without asking each time, while every other command still asks.
 
 ```sh
-vikix mcp register     # for Claude Code, then restart it; it prints the lines for Codex, Gemini CLI and OpenCode
+vikix mcp register     # for Claude Code and Antigravity CLI, then restart them; it prints the lines for Codex, Gemini CLI and OpenCode
 vikix mcp status       # is it on, with which tools, the servers running (and their version), the last calls
 vikix mcp tools        # what it offers
 vikix mcp unregister   # take it away

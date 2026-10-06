@@ -130,7 +130,7 @@ The everyday command.
 - `vikix lisp-apps setup|status|uninstall` — Nyxt, Lem and McCLIM's Listener: programs in Common Lisp (vikix add lisp-apps)
 - `vikix esploro setup|status|doctor|uninstall` — Esploro, a file explorer in Common Lisp (vikix add esploro; Super+e)
 - `vikix mcp register|unregister|tools|status` — the desktop as an MCP server, for Claude Code and other agents
-- `vikix agent` — the AI agent, after a snapshot of your files (alias: a): Claude Code, or --use opencode|codex|gemini|aider, --local on this laptop, --default NAME, --list; --exec [NAME] for editors (stdout is the agent's), --which
+- `vikix agent` — the AI agent, after a snapshot of your files (alias: a): Claude Code, or --use opencode|codex|gemini|antigravity|aider, --local on this laptop, --default NAME, --list; --exec [NAME] for editors (stdout is the agent's), --which
 - `vikix agents [--json]` — the agents at work here: each one's folder, branch and uncommitted files, its workspace, how long it has run, and whether it works or waits for you
 - `vikix agents desk [PROJECT [TOPIC]]` — start an agent at a desk of its own: a workspace to itself and, with a topic, a git worktree of the project on a branch of that name (vikix agents help)
 - `vikix agents close [DESK] [--force]` — close a desk whose work is in: its worktree removed, its branch deleted when merged, else kept and said
@@ -159,30 +159,32 @@ vk is the same command, shorter. A command can be given by the start of its name
 An AI agent in this terminal, after a snapshot of your files.
 
 - `vikix agent [ARGS]` — your agent (Claude Code, unless you chose another); ARGS go to it
-- `vikix agent --use NAME [ARGS]` — another one, this time: claude, opencode, codex, gemini, aider
+- `vikix agent --use NAME [ARGS]` — another one, this time: claude, opencode, codex, gemini, antigravity, aider
 - `vikix agent --local [--model M]` — on a model on this laptop (Ollama): opencode, codex and aider can. Small models do little as agents, and a laptop CPU takes minutes per answer
 - `vikix agent --default NAME` — the one Super+a starts
 - `vikix agent --list` — the agents, which are here, and yours
 - `vikix agent --ask TEXT` — start with this question (vikix diagnose)
 - `vikix agent --exec [NAME] [ARGS]` — for editors: the same start (the guide, no keys, a snapshot), but nothing of Vikix's on stdout (it's the agent's: ACP talks over it), no questions, and an error if it isn't installed. NAME: yours when left out. Editors run e.g. vikix agent --exec gemini --experimental-acp
-- `vikix agent --acp [NAME] [ARGS]` — the same, as an ACP agent (Agent Client Protocol: Neovim's CodeCompanion, Emacs's agent-shell, Zed): claude and codex through their adapters (installed with them), gemini and opencode as they are
+- `vikix agent --acp [NAME] [ARGS]` — the same, as an ACP agent (Agent Client Protocol: Neovim's CodeCompanion, Emacs's agent-shell, Zed): claude and codex through their adapters (installed with them), gemini and opencode as they are; aider and antigravity don't speak it
 - `vikix agent --which` — the agent Super+a starts, one word
-- `vikix agent --install NAME` — install one (its official installer; also
-- `vikix agent --uninstall NAME` — vikix add/remove NAME), or take it away. For one you have, --install adds only what's missing (its ACP adapter, say)
+- `vikix agent --install NAME` — install one (its official installer, or
+- `vikix agent --uninstall NAME` — for antigravity Google's release pinned and checked here; also vikix add/remove NAME), or take it away. For one you have, --install adds only what's missing (its ACP adapter, say)
 
 An AI agent in this terminal, after a snapshot of your files (so whatever it changes can be seen with vikix changes, and undone with vikix undo). Super+a and `vikix agent` (alias: a) start it.
 
-Every agent is told how Vikix works by the same guide: Claude Code and OpenCode read the Vikix skill (`~/.claude/skills/vikix`); the others read `~/.local/share/vikix/AGENTS.md`, made from that skill at each update and each start: linked as `~/.codex/AGENTS.md`, imported by a one-line `~/.gemini/GEMINI.md`, given to Aider with --read; never over a file of yours.
+Every agent is told how Vikix works by the same guide: Claude Code and OpenCode read the Vikix skill (`~/.claude/skills/vikix`); the others read `~/.local/share/vikix/AGENTS.md`, made from that skill at each update and each start: linked as `~/.codex/AGENTS.md`, imported by a one-line `~/.gemini/GEMINI.md`, included by a rule file of Vikix's own for Antigravity CLI (`~/.gemini/antigravity-cli/rules/vikix.md`), given to Aider with --read; never over a file of yours.
+
+Antigravity CLI (agy) is where a personal Google account signs in now: in June 2026 Gemini CLI stopped serving the free, AI Pro and AI Ultra accounts, and keeps working with a Gemini API key or a Code Assist licence from work. Both are here. Antigravity signs in in your browser at its first start and keeps the sign-in in the system keyring (/logout in it drops it); with modelProvider gemini in its settings it uses `GEMINI_API_KEY` instead, which it then keeps from vikix ai key.
 
 What an agent doesn't get, so a prompt injection (a web page, a README it reads) can't use it: your API keys and other secrets from the environment (each agent signs in its own way; Aider has no login, so it keeps the model companies' keys; `VIKIX_AGENT_API_KEY=1` keeps them all), and your SSH agent, which after your first push would let it push as you (`VIKIX_AGENT_SSH=1` keeps it). This prevents accidents; it isn't a sandbox: the agent runs as you and can read your files.
 
-Claude Code also gets the office's house rules: a hook that runs vikix agents touch before each edit, so two agents on one file are caught and a crossing into another agent's folder is recorded (see vikix agents). `VIKIX_OFFICE=0` leaves it out.
+Claude Code and Antigravity CLI also get the office's house rules: a hook that runs vikix agents touch before each edit, so two agents on one file are caught and a crossing into another agent's folder is recorded (see vikix agents). Claude Code gets it for the session; agy takes no such option, so for it the hook is a plugin of Vikix's (agy plugin list shows vikix), put in place at each start. `VIKIX_OFFICE=0` leaves it out, and for agy leaves the plugin as it is.
 
 ## vikix-agents
 
 The agents at work on this desktop, in one place.
 
-- `vikix agents` — each agent running in a terminal here: which it is (claude, codex, opencode, gemini, aider), the folder it works in with its branch and how many files it has left uncommitted there, its workspace, how long it has run, and what it is doing: working, at its prompt, finished its turn, or waiting for you (a dialog open, a question asked); under it, its window's title, or what it asked
+- `vikix agents` — each agent running in a terminal here: which it is (claude, codex, opencode, gemini, antigravity, aider), the folder it works in with its branch and how many files it has left uncommitted there, its workspace, how long it has run, and what it is doing: working, at its prompt, finished its turn, or waiting for you (a dialog open, a question asked); under it, its window's title, or what it asked
 - `vikix agents --json` — the same as JSON, for a script
 - `vikix agents desk [PROJECT [TOPIC]] [--use NAME] [--here]` — start an agent at a desk of its own: in PROJECT (one of vikix project's, by any part of its name), on a workspace to itself, and with a TOPIC in a git worktree of the project made for it: the folder PROJECT-TOPIC beside the project, on a new branch TOPIC, so its work can't collide with another agent's. Without PROJECT it asks which, then for a topic (a repository's desk is a worktree, so one is needed; a project that is no repository works in its own folder, with none). --use: another agent than yours (vikix agent --use); --here: in this terminal, no new workspace
 - `vikix agents sit [PROJECT [TOPIC]]` — for an agent, from its own shell: take a desk without being started again. The worktree PROJECT-TOPIC is made (or the one there used), and the agent that runs this is seated at it: from then on the house rules take that folder as its own, and vikix agents shows it there. Without PROJECT, the desk the agent's folder is in. A repository's desk is a worktree, so TOPIC is needed for one; a project that is no repository seats the agent in its folder
@@ -190,7 +192,7 @@ The agents at work on this desktop, in one place.
 - `vikix agents desks` — every desk there is, one a line, tab-parted: its folder, its branch and the project's own folder (for scripts, such as vikix try; close says them in words)
 - `vikix agents clash [FILE]` — the files two agents are on at once: each file with the agents that have changed it, uncommitted, in worktrees of one repository, or that have edited the same file; with FILE, each agent's change to it in full (both plans, one under the other), for you to say which stays
 - `vikix agents crossings [--limit N]` — the last crossings recorded: an agent that edited a file in another agent's folder, or went to another agent's window
-- `vikix agents touch [FILE]` — the house rules for one edit, run by Claude Code's PreToolUse hook before every Edit, Write and Bash (vikix agent sets it; it reads the hook's JSON on stdin when no FILE is given). A file of a project's repository is refused unless the agent is at a desk (a worktree of its own: vikix agents desk or sit), and always in the project's own folder, which is for merging only; a Bash command that would write there (sed -i, a redirection, mv, git commit...) the same. An allowed edit is noted in the office journal; one in another agent's folder is a crossing, recorded and told to the agent; a file another agent has changed too makes Claude Code ask you first, naming that agent. No agent above it: nothing happens
+- `vikix agents touch [FILE]` — the house rules for one edit, run by Claude Code's PreToolUse hook before every Edit, Write and Bash, and by Antigravity CLI's before each edit and command (vikix agent sets both; it reads the hook's JSON on stdin when no FILE is given, and answers in the shape of whichever asked). A file of a project's repository is refused unless the agent is at a desk (a worktree of its own: vikix agents desk or sit), and always in the project's own folder, which is for merging only; a Bash command that would write there (sed -i, a redirection, mv, git commit...) the same. An allowed edit is noted in the office journal; one in another agent's folder is a crossing, recorded and told to the agent; a file another agent has changed too makes Claude Code ask you first, naming that agent. No agent above it: nothing happens
 
 Several agents run side by side, each in a terminal of its own, and five windows called "Alacritty" don't say which is which. The desktop starts them (vikix agent, Super+a), so it knows: it finds the agent in each terminal, started by vikix agent or by hand at a shell, and reads what it is doing from the agent-waiting plugin's note for its window (when you have that plugin: vikix plugin add agent-waiting) and from the mark Claude Code keeps at the front of its window's title. Nothing is asked of the agents themselves.
 
@@ -202,7 +204,7 @@ A desk: Super+a starts an agent in your home folder, and what it works on is wha
 
 No desk, no work on a repository: an agent edits the files of a project's repository (any of vikix project's that is one) only from a desk, a worktree of its own, and never in the project's own folder, which is for merging only. Claude Code's hook refuses the edit otherwise and tells the agent how to take a desk from where it sits: `vikix agents sit PROJECT TOPIC` seats it at the worktree PROJECT-TOPIC without a restart (the seats: `~/.local/state/vikix/office/seats.jsonl`, kept while the agent runs). An agent started by vikix agents desk is at one already. A Bash command that would write into a repository (sed -i, a redirection, mv, git commit and the like) is held to the same rule; one that only reads is not. A repository that is no project (`~/.dotfiles`) is not ruled.
 
-The house rules: the office keeps a journal of what each agent edits (`~/.local/state/vikix/office/journal.jsonl`, pruned to the agents still running), fed by the hook vikix agent gives Claude Code (vikix agents touch). From it and from git it knows when two agents are on one file: the one that comes second is stopped at Claude Code's own question to you, with the other agent's name, and `vikix agents clash FILE` shows both changes for you to choose; `vikix agents` marks the file under both agents. An agent may edit a file in another agent's folder, or go to another agent's window (the MCP tool `focus_window`), but never quietly: the crossing is told to it and recorded (vikix records, plugin office, kind crossing), and `vikix agents crossings` lists them. Other agents (codex, gemini, aider) have no such hook: for them the rules hold through git alone, so a clash with one of them is seen in the listing, not before the edit.
+The house rules: the office keeps a journal of what each agent edits (`~/.local/state/vikix/office/journal.jsonl`, pruned to the agents still running), fed by the hook vikix agent gives Claude Code (vikix agents touch). From it and from git it knows when two agents are on one file: the one that comes second is stopped at Claude Code's own question to you, with the other agent's name, and `vikix agents clash FILE` shows both changes for you to choose; `vikix agents` marks the file under both agents. An agent may edit a file in another agent's folder, or go to another agent's window (the MCP tool `focus_window`), but never quietly: the crossing is told to it and recorded (vikix records, plugin office, kind crossing), and `vikix agents crossings` lists them. Antigravity CLI (agy) runs the same hook, as a plugin of Vikix's that vikix agent puts in place (agy plugin list shows vikix); its hooks can't tell the agent something without deciding, so there a crossing asks you, with the reason. Other agents (codex, gemini, opencode, aider) have no such hook: for them the rules hold through git alone, so a clash with one of them is seen in the listing, not before the edit.
 
 ## vikix-ai
 
@@ -671,13 +673,13 @@ A key that wakes the dark screen isn't kept as part of the password.
 
 The Vikix desktop as an MCP server, for any agent that speaks MCP.
 
-- `vikix mcp register [--allow-eval] [--allow-undo]` — add it to Claude Code (claude mcp add, for you), and print the lines for Codex, Gemini CLI and OpenCode; register again without a flag to take that tool away
-- `vikix mcp status` — whether Claude Code has it, with which tools, and the last calls
+- `vikix mcp register [--allow-eval] [--allow-undo]` — add it to Claude Code and Antigravity CLI (claude mcp add and agy mcp add, for you, each when it is installed), and print the lines for Codex, Gemini CLI and OpenCode; register again without a flag to take that tool away
+- `vikix mcp status` — whether Claude Code (and Antigravity CLI) has it, with which tools, and the last calls
 - `vikix mcp unregister`
 - `vikix mcp tools` — what it offers
 - `vikix-mcp serve [--allow-eval] [--allow-undo]` — the server itself, on stdin and stdout: what an agent starts (nothing listens on a port)
 
-The Vikix desktop as an MCP server, for any agent that speaks MCP (Claude Code, Codex, Gemini CLI, OpenCode).
+The Vikix desktop as an MCP server, for any agent that speaks MCP (Claude Code, Antigravity CLI, Codex, Gemini CLI, OpenCode).
 
 Why: your agent can already run commands, but each needs your yes. These tools are a small, checked set: allow them once (in Claude Code, "always allow" for vikix), and the agent can look at the desktop and make small, undoable changes without asking each time, while other commands still ask.
 

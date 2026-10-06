@@ -28,9 +28,13 @@
 
 (in-package :stumpwm)
 
-(defparameter *vikix-agent-programs* '("claude" "codex" "opencode" "gemini" "aider")
+(defparameter *vikix-agent-programs* '("claude" "codex" "opencode" "gemini" "aider" "agy")
   "The programs that are agents, by name: the ones vikix agent starts. One
 of your own: (push \"my-agent\" *vikix-agent-programs*) in user.lisp.")
+
+(defparameter *vikix-agent-names* '(("agy" . "antigravity"))
+  "A program whose name isn't its agent's: Antigravity CLI's program is agy.
+The agent is named as vikix agent names it, everywhere it is shown.")
 
 (defvar *vikix-agent-notes-dir*
   (merge-pathnames ".local/state/vikix/agents/" (user-homedir-pathname))
@@ -46,7 +50,7 @@ interpreter first (node .../gemini), so the first two words are looked at."
     (loop for word in (subseq words 0 (min 2 (length words)))
           for program = (vikix-layout-program word)
           when (member program *vikix-agent-programs* :test #'string=)
-            return program)))
+            return (or (cdr (assoc program *vikix-agent-names* :test #'string=)) program))))
 
 (defun vikix-proc-children (pid)
   "PID's child processes, by number."

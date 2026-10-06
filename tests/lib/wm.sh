@@ -23,6 +23,22 @@ pids=()
 
 check() { "${@:2}" || { echo "FAIL: $1"; fail=1; }; }
 
+# The processes ended, then the folder: StumpWM still writes its state
+# (used, resume) as it quits, and an rm racing it has failed on a folder
+# not yet empty, which failed the test; so a moment for them to go, and a
+# second try.
+wm_cleanup() {
+  local p alive
+  for p in "${pids[@]}"; do kill "$p" 2>/dev/null || true; done
+  for _ in 1 2 3 4 5 6; do
+    alive=0
+    for p in "${pids[@]}"; do kill -0 "$p" 2>/dev/null && alive=1; done
+    [ "$alive" = 0 ] && break
+    sleep 0.5
+  done
+  rm -rf "$t" 2>/dev/null || { sleep 1; rm -rf "$t"; }
+}
+
 wm_setup() {
   local name=$1 need n
   for need in Xvfb xdotool alacritty; do
@@ -30,7 +46,7 @@ wm_setup() {
   done
   [ -x "$wm" ] || { echo "$name: needs Vikix's StumpWM ($wm); skipped"; exit 0; }
   t=$(mktemp -d)
-  trap 'for p in "${pids[@]}"; do kill "$p" 2>/dev/null || true; done; rm -rf "$t"' EXIT
+  trap wm_cleanup EXIT
   # A free screen and a free port: tests run side by side.
   n=$(( 100 + RANDOM % 400 ))
   while [ -e "/tmp/.X$n-lock" ] || [ -e "/tmp/.X11-unix/X$n" ]; do n=$((n + 1)); done
