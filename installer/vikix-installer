@@ -78,7 +78,7 @@ write() {
   fi
 }
 
-[ "$(id -u)" -eq 0 ] || die "run it as root: sudo vikix-installer"
+[ "$DRY_RUN" = 1 ] || [ "$(id -u)" -eq 0 ] || die "run it as root: sudo vikix-installer"
 
 # --- Asking -----------------------------------------------------------------
 # dialog draws the questions; answers come back on stderr, so 3>&1 1>&2 2>&3
@@ -224,7 +224,10 @@ confirm() {
 }
 
 # --- Checks before anything ---------------------------------------------------
-[ -d /sys/firmware/efi ] || die "this computer started the stick without UEFI. Start it again with UEFI (its firmware settings), not 'legacy' or 'CSM'."
+if [ ! -d /sys/firmware/efi ]; then
+  msg="this computer started the stick without UEFI. Start it again with UEFI (its firmware settings), not 'legacy' or 'CSM'."
+  if [ "$DRY_RUN" = 1 ]; then warn "$msg"; else die "$msg"; fi
+fi
 
 # Secure Boot: Void's kernel isn't signed for it, so the installed system
 # would not start. Its EFI variable ends in 1 when it's on.
@@ -262,8 +265,10 @@ EFI=$(part "$VI_DISK" 1) ROOTPART=$(part "$VI_DISK" 2)
 
 say "erasing $VI_DISK and making two partitions"
 # Anything of ours still open from an earlier try is let go first.
-umount -R "$VI_TARGET" 2>/dev/null || true
-cryptsetup close cryptroot 2>/dev/null || true
+if [ "$DRY_RUN" != 1 ]; then
+  umount -R "$VI_TARGET" 2>/dev/null || true
+  cryptsetup close cryptroot 2>/dev/null || true
+fi
 run wipefs -af "$VI_DISK"
 run sgdisk --zap-all "$VI_DISK"
 # 8309 is "Linux LUKS", 8304 "Linux x86-64 root": the type says what's inside.

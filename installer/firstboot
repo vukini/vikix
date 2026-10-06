@@ -32,7 +32,7 @@ if "$HOME/vikix/install.sh" "${args[@]}"; then
   sed -i '/^# >>> vikix firstboot >>>$/,/^# <<< vikix firstboot <<<$/d' "$HOME/.bash_profile"
   rm -f "$marker"
   echo
-  read -r -p "  Vikix is installed. Enter restarts into the desktop. " _
+  read -r -p "  Vikix is installed. Enter restarts into the desktop. " _ || true
   sudo reboot
 else
   echo
