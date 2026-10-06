@@ -174,9 +174,9 @@ check "a session whose store is gone starts fresh, naming the store: $out" \
 mkdir -p "$HOME/.claude/projects/-x"; : > "$HOME/.claude/projects/-x/0f1e2d3c-aaaa-bbbb-cccc-123456789abc.jsonl"
 out=$(resume c --here --use claude)
 check "the session its store still has is resumed, with claude --resume ID: $out" \
-  bash -c 'grep -q "^resumed: claude session 0f1e2d3c-aaaa-bbbb-cccc-123456789abc at .*/book-c, its conversation continues" <<<"$1" && grep -q "^AGENT ARGS: --resume 0f1e2d3c-aaaa-bbbb-cccc-123456789abc$" <<<"$1"' _ "$out"
+  bash -c 'grep -q "^resumed: claude session 0f1e2d3c-aaaa-bbbb-cccc-123456789abc at .*/book-c, its conversation continues" <<<"$1" && grep -q "^AGENT ARGS: --use claude --resume 0f1e2d3c-aaaa-bbbb-cccc-123456789abc$" <<<"$1"' _ "$out"
 out=$(resume c --here)
-check "without --use the last session's provider is taken" grep -q "^AGENT ARGS: --resume 0f1e2d3c" <<<"$out"
+check "without --use the last session's provider is taken" grep -q "^AGENT ARGS: --use claude --resume 0f1e2d3c" <<<"$out"
 out=$(resume c --here --fresh)
 check "--fresh starts a new conversation all the same: $out" bash -c 'grep -q "a fresh conversation was asked for" <<<"$1" && grep -q "^AGENT ARGS: $" <<<"$1"' _ "$out"
 check "the record logs what happened" grep -q '"what": "resumed: claude 0f1e2d3c' "$records"/*.json
@@ -186,10 +186,10 @@ printf '{"type":"session_meta","payload":{"id":"01a111e5-f7bf-7871-823c-70aee4f4
   > "$HOME/.codex/sessions/2026/10/06/rollout-2026-10-06T19-47-26-01a111e5-f7bf-7871-823c-70aee4f44f19.jsonl"
 out=$(resume c --here --use codex)
 check "codex with nothing noted: fresh, and the conversation its store has for this folder is suggested, not taken: $out" \
-  bash -c 'grep -q "^fresh conversation with codex" <<<"$1" && grep -q "codex.s own store has a conversation in this folder: 01a111e5-f7bf-7871-823c-70aee4f44f19" <<<"$1" && grep -q "nothing is resumed unasked" <<<"$1" && grep -q "^AGENT ARGS: $" <<<"$1"' _ "$out"
+  bash -c 'grep -q "^fresh conversation with codex" <<<"$1" && grep -q "codex.s own store has a conversation in this folder: 01a111e5-f7bf-7871-823c-70aee4f44f19" <<<"$1" && grep -q "nothing is resumed unasked" <<<"$1" && grep -q "^AGENT ARGS: --use codex$" <<<"$1"' _ "$out"
 agents handoff session --desk c codex 01a111e5-f7bf-7871-823c-70aee4f44f19 >/dev/null
 out=$(resume c --here --use codex)
-check "noted, it is resumed with codex resume ID: $out" grep -q "^AGENT ARGS: resume 01a111e5-f7bf-7871-823c-70aee4f44f19$" <<<"$out"
+check "noted, it is resumed with codex resume ID: $out" grep -q "^AGENT ARGS: --use codex resume 01a111e5-f7bf-7871-823c-70aee4f44f19$" <<<"$out"
 # OpenCode: its SQLite store.
 mkdir -p "$HOME/.local/share/opencode"
 python3 -c '
@@ -198,14 +198,14 @@ c = sqlite3.connect(sys.argv[1]); c.execute("create table session (id text, dire
 c.execute("insert into session values (?, ?, ?)", ("ses_abc123", sys.argv[2], 1759780000000)); c.commit()' "$HOME/.local/share/opencode/opencode.db" "$t/src/book-c"
 agents handoff session --desk c opencode ses_abc123 >/dev/null
 out=$(resume c --here --use opencode)
-check "opencode's session, in its database, is resumed with --session ID: $out" grep -q "^AGENT ARGS: --session ses_abc123$" <<<"$out"
+check "opencode's session, in its database, is resumed with --session ID: $out" grep -q "^AGENT ARGS: --use opencode --session ses_abc123$" <<<"$out"
 agents handoff session --desk c opencode ses_gone >/dev/null
 out=$(resume c --here --use opencode)
 check "one its database hasn't: fresh, saying so: $out" grep -q "opencode's session ses_gone is gone from ~/.local/share/opencode/opencode.db" <<<"$out"
 # A provider with no resume: fresh, with the handoff; gemini's is unverified and said so.
 agents handoff session --desk c other thread-1 >/dev/null
 out=$(resume c --here --use other)
-check "a generic provider starts fresh with the handoff: $out" bash -c 'grep -q "other can.t resume a session by id" <<<"$1" && grep -q "^AGENT ARGS: $" <<<"$1"' _ "$out"
+check "a generic provider starts fresh with the handoff: $out" bash -c 'grep -q "other can.t resume a session by id" <<<"$1" && grep -q "^AGENT ARGS: --use other$" <<<"$1"' _ "$out"
 agents handoff session --desk c gemini abcd-1234 >/dev/null
 out=$(resume c --here --use gemini)
 check "gemini's store can't be vouched for here: fresh, and said: $out" grep -q "whether gemini still has abcd-1234 can't be known" <<<"$out"
@@ -214,7 +214,7 @@ proc 1005 claude "$t/src/book-c"
 out=$(resume c --here)
 check "an agent at the desk already: refused, with the way to it: $out" grep -q 'claude 1005 is at this desk already: go to it (vikix agents, Super+m), or --another' <<<"$out"
 out=$(resume c --here --another --use claude)
-check "--another starts a second one there" grep -q "^AGENT ARGS: --resume 0f1e2d3c" <<<"$out"
+check "--another starts a second one there" grep -q "^AGENT ARGS: --use claude --resume 0f1e2d3c" <<<"$out"
 rm -r "$t/proc/1005"
 out=$(resume a --here)
 check "a desk whose folder is gone says how to make it again, and keeps the record: $out" grep -q 'book-a is gone: vikix agents desk book a makes the worktree again (the record is kept' <<<"$out"
