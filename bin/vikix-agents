@@ -56,6 +56,31 @@
   vikix agents desks   every desk there is, one a line, tab-parted: its
                        folder, its branch and the project's own folder (for
                        scripts, such as vikix try; close says them in words)
+  vikix agents handoff [DESK] [--json]
+                       the desk's record: the task, the status, what was
+                       done and decided, what is left, the checks with
+                       whether each still speaks for the code (stale once
+                       the code moved on), the git state now, the sessions
+                       that can be resumed, who is at the desk and what
+                       holds the rules for each. DESK as for close; none:
+                       the desk you sit at
+  vikix agents handoff set [--desk DESK] [--task "..."] [--status S]
+                       [--summary "..."] [--next "..."] [--from FILE|-]
+                       the user's task; the agent's status (working,
+                       waiting, review, finished), its account of changes
+                       and decisions, what is left and the next action;
+                       --from takes the same as JSON (task, status,
+                       summary, next, check {name, ok, note}, session
+                       {provider, id}). Each line says who wrote it
+  vikix agents handoff check NAME --ok|--failed [--note "..."] [--desk DESK]
+                       a check that ran (the command), with the commit it
+                       ran on and whether the tree was dirty, read by Vikix
+  vikix agents handoff session PROVIDER ID [--desk DESK]
+                       a conversation that can be resumed at this desk
+                       (claude's session id, codex's thread, opencode's
+                       session); Claude Code's is noted by the hook itself
+  vikix agents handoff list [--json]
+                       every desk with a record, newest change first
   vikix agents clash [FILE]
                        the files two agents are on at once: each file with
                        the agents that have changed it, uncommitted, in
@@ -125,6 +150,19 @@ runs). An agent started by vikix agents desk is at one already. A Bash
 command that would write into a repository (sed -i, a redirection, mv,
 git commit and the like) is held to the same rule; one that only reads
 is not. A repository that is no project (~/.dotfiles) is not ruled.
+
+A handoff: each desk keeps a small record across agent exits and
+reboots (~/.local/state/vikix/office/desks/ID.json, lib/handoff.py; the id
+is the repository's and the worktree's, never a process's): the user's
+task in their words, what the agent says of its work (status, account,
+next), what Vikix read itself (commit, branch, uncommitted files at each
+write; for a check, the commit it ran on and whether the tree was dirty)
+and the providers' resumable session ids. The three stay apart, each line
+says who wrote it, no transcript is copied and no credential is kept.
+Agents of every kind use the same commands (and the MCP tools handoff and
+handoff_update): read the handoff when joining a desk, set it when
+handing work back, blocked, or done. vikix agents close marks the record
+closed and keeps it.
 
 The house rules: the office keeps a journal of what each agent edits
 (~/.local/state/vikix/office/journal.jsonl, pruned to the agents still
@@ -538,7 +576,7 @@ def ask_agent():
 
 
 def desk(argv):
-    use, local, here, words = None, False, False, []
+    use, local, here, words, task = None, False, False, [], ""
     while argv:
         a = argv.pop(0)
         if a == "--use":
@@ -547,6 +585,8 @@ def desk(argv):
             local = True
         elif a == "--here":
             here = True
+        elif a == "--task":
+            task = argv.pop(0) if argv else die("--task needs the words of the task")
         elif a.startswith("-"):
             die(f"vikix agents desk: {a}? (vikix agents help)")
         else:
@@ -600,6 +640,8 @@ def desk(argv):
                                            else f"the worktree that was there (branch {topic})"))
     if not os.path.isdir(folder):
         die(f"{short(folder)} isn't there")
+    if task or (top and topic):
+        desk_record(folder, task=task, by="user")
     # Tests name a stand-in for what starts the agent; it gets the same words.
     extra = (["--use", use] if use else []) + (["--local"] if local else [])
     start = ([os.environ["VIKIX_AGENT_CMD"]] if os.environ.get("VIKIX_AGENT_CMD")
@@ -632,9 +674,14 @@ def desk(argv):
 # --- Sitting down: an agent takes a desk from where it is -------------------------------------
 
 def sit(argv):
+    task = ""
+    if "--task" in argv:
+        i = argv.index("--task")
+        task = argv[i + 1] if len(argv) > i + 1 else die("--task needs the words of the task")
+        argv = argv[:i] + argv[i + 2:]
     words = [a for a in argv if not a.startswith("-")]
     if len(words) != len(argv) or len(words) > 2:
-        die("vikix agents sit [PROJECT [TOPIC]]")
+        die("vikix agents sit [PROJECT [TOPIC]] [--task \"...\"]")
     me = my_agent()
     if not me:
         die("no agent runs this shell: vikix agents sit is for an agent, from its own shell "
@@ -676,6 +723,9 @@ def sit(argv):
     seats = seats_read()
     seats[me["pid"]] = {"pid": me["pid"], "agent": me["agent"], "folder": folder, "at": int(time.time())}
     seats_write(seats)
+    rec = desk_record(folder, task=task, by=who(me)) if (task or desk_of(folder)) else None
+    if rec and (rec.get("task") or rec.get("handoff")):
+        print(f"The desk has a handoff (vikix agents handoff shows it: read it before you start).")
     print(f"{who(me)} is seated at {short(folder)}: {said}. Work there (cd {short(folder)}) and commit there"
           + (f", on the branch {topic}" if topic else "") + "; the house rules take that folder as yours now, "
           "and vikix agents shows you at it.")
@@ -794,11 +844,18 @@ def close(argv):
     if d["uncommitted"] and not force:
         die(f"{d['uncommitted']} file{'s' if d['uncommitted'] != 1 else ''} uncommitted in {short(folder)}: "
             "commit there first, or --force throws them away")
+    common = common_of(folder)      # before the folder goes: the record's id is made from it
     r = subprocess.run(["git", "-C", top, "worktree", "remove"] + (["--force"] if force else []) + [folder],
                        capture_output=True, text=True)
     if r.returncode != 0:
         die("git couldn't remove the worktree: " + (r.stderr.strip().splitlines() or ["?"])[-1])
     said = f"the desk is closed: {short(folder)} removed"
+    try:
+        H = handoff_module()
+        if H.load(H.desk_id(common, folder)):
+            H.update(common, folder, lambda rec: H.mark_closed(rec, "user"))
+    except Exception:  # noqa: BLE001  a record that can't be marked doesn't stop the closing
+        pass
     if branch and (d["merged"] or force):
         r = subprocess.run(["git", "-C", top, "branch", "-D" if force else "-d", branch], capture_output=True, text=True)
         said += (f", the branch {branch} deleted" + (" (its work wasn't in)" if force and not d["merged"] else "")
@@ -809,6 +866,250 @@ def close(argv):
     if cwd and (inside(cwd, os.path.realpath(folder)) or inside(cwd, folder)):
         said += ". This terminal was in it: cd somewhere else"
     say(said)
+    return 0
+
+# --- The handoff: a desk's task, status, account and checks, kept across sessions ---------------
+
+_handoff = None
+
+
+def handoff_module():
+    """lib/handoff.py as a module: the desk records."""
+    global _handoff
+    if _handoff is None:
+        sys.dont_write_bytecode = True
+        loader = SourceFileLoader("vikix_handoff", os.path.join(VIKIX_DIR, "lib", "handoff.py"))
+        spec = importlib.util.spec_from_loader("vikix_handoff", loader)
+        _handoff = importlib.util.module_from_spec(spec)
+        loader.exec_module(_handoff)
+    return _handoff
+
+
+def common_of(folder):
+    """The repository's common git dir for FOLDER, '' for no repository."""
+    common = (git(folder, "rev-parse", "--path-format=absolute", "--git-common-dir") or "").strip()
+    return os.path.realpath(common) if common else ""
+
+
+def project_of(folder, common):
+    if common:
+        name = known_repos().get(common)
+        if name:
+            return name
+        return os.path.basename(os.path.dirname(common))
+    return os.path.basename(folder.rstrip("/"))
+
+
+def by_me():
+    """Who writes: the agent this runs under, else the user."""
+    me = my_agent()
+    return (who(me), me) if me else ("user", None)
+
+
+def desk_record(folder, task="", by="user", change=None):
+    """The record of the desk FOLDER, made when there is none, with TASK
+    set when given and CHANGE applied. The record."""
+    H = handoff_module()
+    common = common_of(folder)
+    branch = (git(folder, "rev-parse", "--abbrev-ref", "HEAD") or "").strip() if common else ""
+
+    def apply(rec):
+        if task:
+            H.set_task(rec, task, by)
+        if change:
+            change(rec)
+    try:
+        return H.update(common, folder, apply, branch=branch, project=project_of(folder, common))
+    except H.HandoffError as e:
+        die(str(e))
+
+
+def note_session(sid):
+    """The resumable session id the hook's input carries (Claude Code's
+    session_id), noted on the agent's desk once: nothing else of the
+    conversation is kept."""
+    H = handoff_module()
+    if not H.session_id_ok(sid):
+        return
+    me = my_agent()
+    if not me or not desk_of(me["folder"]):
+        return
+    common = common_of(me["folder"])
+    rec = H.load(H.desk_id(common, me["folder"]))
+    if rec and any(s["provider"] == me["agent"] and s["id"] == sid and s.get("pid") == me["pid"]
+                   for s in rec.get("sessions", [])):
+        return
+    try:
+        H.update(common, me["folder"], lambda r: H.add_session(r, me["agent"], sid, who(me), me["pid"]),
+                 branch=(git(me["folder"], "rev-parse", "--abbrev-ref", "HEAD") or "").strip(),
+                 project=project_of(me["folder"], common))
+    except (H.HandoffError, OSError):
+        pass
+
+
+def desk_for(words, me=None):
+    """The desk WORDS name (a folder, a topic, a branch, a record's id, or
+    PROJECT TOPIC), or with none the desk the caller sits at (its seat,
+    else its shell's folder). (folder, record or None); the folder may be
+    gone when a record is all that is left."""
+    H = handoff_module()
+    if not words:
+        me = me or my_agent()
+        try:
+            here = os.getcwd()
+        except OSError:
+            here = ""
+        for f in ([me["folder"]] if me else []) + [here]:
+            if f and (desk_of(f) or (not common_of(f) and project_folder_p(f))):
+                return f, H.load(H.desk_id(common_of(f), f))
+        die("no desk here: say which (vikix agents handoff DESK: its folder, topic or branch; "
+            "vikix agents handoff list names them)")
+    if len(words) == 1 and H.DESK_ID.match(words[0]):
+        rec = H.load(words[0])
+        if rec:
+            return rec["desk"]["worktree"], rec
+    vp = projects()
+    every = desks(vp)
+    if len(words) == 2:
+        top = (git(str(vp.match(words[0]).path), "rev-parse", "--show-toplevel") or "").strip()
+        folder = os.path.join(os.path.dirname(top), f"{os.path.basename(top)}-{topic_name(words[1])}") if top else ""
+        hits = [d["folder"] for d in every if d["folder"] == folder]
+    else:
+        word = os.path.realpath(os.path.expanduser(words[0]))
+        hits = [d["folder"] for d in every if os.path.realpath(d["folder"]) == word]
+        if not hits:
+            hits = [d["folder"] for d in every if d["branch"] == words[0] or os.path.basename(d["folder"]) == words[0]
+                    or os.path.basename(d["folder"]).endswith("-" + words[0])]
+        if not hits and os.path.isdir(word) and not common_of(word) and project_folder_p(word):
+            hits = [word]
+    if not hits:
+        # A desk whose folder is gone: its record still answers by name.
+        name = words[-1]
+        recs = [r for r in H.all_records() if os.path.basename(r["desk"]["worktree"]) in (name, f"{words[0]}-{name}")
+                or r["desk"]["branch"] == name or os.path.basename(r["desk"]["worktree"]).endswith("-" + name)]
+        if len(recs) == 1:
+            return recs[0]["desk"]["worktree"], recs[0]
+        die(f"no desk called {' '.join(words)} (vikix agents handoff list names them)")
+    if len(hits) > 1:
+        die(f"{' '.join(words)} is several desks, say which: " + ", ".join(short(h) for h in hits))
+    return hits[0], H.load(H.desk_id(common_of(hits[0]), hits[0]))
+
+
+def project_folder_p(folder):
+    """A project of vikix project's that is no repository: a desk of its own."""
+    try:
+        return any(os.path.realpath(str(p.path)) == os.path.realpath(folder) for p in projects().discover())
+    except (OSError, SystemExit):
+        return False
+
+
+def protection_lines(folder):
+    """What holds the house rules for each agent at the desk: honest about
+    what there is. A hook is seen through the journal's proposed edits
+    (noted before the edit, so a note is a proposal, not a change made)."""
+    lines = []
+    here = [a for a in live_agents() if a["folder"] and os.path.realpath(a["folder"]) == os.path.realpath(folder)]
+    entries = journal_read()
+    for a in sorted(here, key=lambda a: a["pid"]):
+        seen = sum(1 for e in entries if e.get("pid") == a["pid"] and e.get("kind") in ("edit", "crossing"))
+        if a["agent"] == "claude":
+            held = (f"pre-edit and pre-shell hooks (vikix agents touch): {seen} edit{'s' if seen != 1 else ''} proposed "
+                    "through them" if seen else "pre-edit hooks expected from vikix agent, none seen yet "
+                    "(a session started another way has only the instructions)")
+        elif a["agent"] in ("codex", "opencode", "gemini"):
+            held = (f"a pre-edit hook: {seen} edit{'s' if seen != 1 else ''} proposed through it" if seen else
+                    f"instructions only, unless its hook is installed (vikix agents hooks {a['agent']})")
+        else:
+            held = "instructions only (no hook)"
+        lines.append(f"{who(a)}: {held}")
+    lines.append("no filesystem enforcement: a worktree keeps copies apart, it is no sandbox")
+    return here, lines
+
+
+def handoff(argv):
+    H = handoff_module()
+    verb = argv.pop(0) if argv and argv[0] in ("show", "set", "check", "session", "list") else "show"
+    as_json, desk, words, opts = False, None, [], {}
+    while argv:
+        a = argv.pop(0)
+        if a == "--json":
+            as_json = True
+        elif a == "--desk":
+            desk = argv.pop(0).split() if argv else die("--desk which? (vikix agents handoff list)")
+        elif a in ("--task", "--status", "--summary", "--next", "--note", "--from"):
+            opts[a] = argv.pop(0) if argv else die(f"{a} needs words")
+        elif a in ("--ok", "--failed"):
+            opts["ok"] = a == "--ok"
+        elif a.startswith("-"):
+            die(f"vikix agents handoff: {a}? (vikix agents help)")
+        else:
+            words.append(a)
+    if verb == "list":
+        recs = H.all_records()
+        if as_json:
+            print(json.dumps(recs, indent=1, ensure_ascii=False))
+            return 0
+        if not recs:
+            print("No desk has a record yet: vikix agents desk PROJECT TOPIC --task \"...\" makes one, "
+                  "or vikix agents handoff set --task from a desk.")
+            return 0
+        for r in recs:
+            d, h = r["desk"], r.get("handoff") or {}
+            status = (h.get("status") or {}).get("value", "no status")
+            place = short(d["worktree"]) + ("" if os.path.isdir(d["worktree"]) else " (folder gone)")
+            print(f"  {place}  {status}, {H.when(r['updated'])}: {(r.get('task') or {}).get('text', 'no task')[:80]}"
+                  + (f"  [closed {H.when(d['closed'])}]" if d.get("closed") else ""))
+        return 0
+    by, me = by_me()
+    if verb == "show":
+        folder, rec = desk_for(desk if desk is not None else words, me)
+        if not rec:
+            die(f"{short(folder)} has no record yet: vikix agents handoff set --task \"...\" starts one")
+        if as_json:
+            now = H.observe(folder) if os.path.isdir(folder) else {}
+            rec = dict(rec, now=now, checks=[dict(c, freshness=H.freshness(c, now)) for c in rec.get("checks", [])])
+            print(json.dumps(rec, indent=1, ensure_ascii=False))
+            return 0
+        agents_at, lines = protection_lines(folder) if os.path.isdir(folder) else ([], [])
+        print(H.render(rec, [who(a) for a in agents_at], lines))
+        return 0
+    folder, _ = desk_for(desk or [], me)
+    if verb == "set":
+        data = {}
+        if "--from" in opts:
+            src = opts["--from"]
+            try:
+                text = sys.stdin.read() if src == "-" else open(src).read()
+                data = json.loads(text or "{}")
+            except (OSError, ValueError) as e:
+                die(f"--from {src}: {e}")
+        for k in ("--task", "--status", "--summary", "--next"):
+            if k in opts:
+                data[k[2:]] = opts[k]
+        if words:
+            die("vikix agents handoff set takes options: --task, --status, --summary, --next, --from FILE|-")
+        if not data:
+            die("nothing to set: --task, --status (working|waiting|review|finished), --summary, --next, or --from")
+        rec = desk_record(folder, by=by, change=lambda r: H.from_json(r, data, by, folder))
+        s = (rec.get("handoff") or {}).get("status")
+        print(f"{short(folder)}: handoff updated by {by}" + (f", status {s['value']}" if s else ""))
+        return 0
+    if verb == "check":
+        if not words or "ok" not in opts:
+            die("vikix agents handoff check NAME --ok|--failed [--note \"...\"]")
+        rec = desk_record(folder, by=by, change=lambda r: H.add_check(r, " ".join(words), opts["ok"], by, folder,
+                                                                       opts.get("--note", "")))
+        c = rec["checks"][-1]
+        print(f"{short(folder)}: {'passed' if c['ok'] else 'failed'} {c['name']} on {(c['commit'] or '?')[:7]}"
+              + (", tree dirty" if c.get("dirty") else ", clean tree") + f" ({by})")
+        return 0
+    if verb == "session":
+        if len(words) != 2:
+            die("vikix agents handoff session PROVIDER ID (claude, codex, opencode, gemini, aider, other)")
+        pid = me["pid"] if me and me["agent"] == words[0] else 0
+        desk_record(folder, by=by, change=lambda r: H.add_session(r, words[0], words[1], by, pid))
+        print(f"{short(folder)}: {words[0]} session {words[1]} noted; vikix agents resume offers it")
+        return 0
     return 0
 
 # --- The house rules: the journal, clashes and crossings ---------------------------------
@@ -1220,6 +1521,7 @@ def touch(argv):
             else:
                 tool = got.get("tool_input") or {}
                 path = tool.get("file_path") or tool.get("notebook_path") or ""
+                note_session(got.get("session_id"))
                 if not path and got.get("tool_name") == "Bash":
                     return touch_bash(tool.get("command") or "", got.get("cwd") or "")
         except ValueError:
@@ -1383,6 +1685,8 @@ def main(argv):
         for d in desks(projects()):
             print(f"{d['folder']}\t{d['branch'] or ''}\t{d['top']}")
         return 0
+    if argv and argv[0] == "handoff":
+        return handoff(argv[1:])
     if argv and argv[0] == "touch":
         rc = touch(argv[1:])
         if HOOK == "agy" and not SAID:
@@ -1406,7 +1710,7 @@ def main(argv):
         return 0
     as_json = argv == ["--json"]
     if argv and not as_json:
-        die("vikix agents [--json|desk|sit|close|desks|clash|crossings] (vikix agents help)")
+        die("vikix agents [--json|desk|sit|close|desks|desks|handoff|clash|crossings] (vikix agents help)")
     agents = desktop()
     agents += elsewhere({a["pid"] for a in agents})
     agents = [with_git(a) for a in seated(agents)]
