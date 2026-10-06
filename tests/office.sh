@@ -90,7 +90,9 @@ check "the menu goes to the one picked: workspace $(ask '(princ (group-name (cur
 check "Super+m has it, under AI" yes '(find (quote vikix-agents-pick) *vikix-menu* :key (function second))'
 
 # vikix agents, in a terminal.
-"$t/bin/gemini" & pids+=($!)      # one with no window of its own
+# One with no window of its own; in the test's folder, not this checkout's,
+# where a run of the tests would make the listing call it "testing".
+(cd "$t" && exec "$t/bin/gemini") & pids+=($!)
 sleep 0.5
 out=$(cli)
 check "vikix agents says how many, and how many wait: $(head -1 <<<"$out")" grep -qE '^[0-9]+ agents, 1 waiting for you:$' <<<"$(head -1 <<<"$out")"
