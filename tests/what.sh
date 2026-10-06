@@ -149,6 +149,7 @@ check "a service that is down says so" grep -qx '  not running, and runit doesn'
 check "a service that isn't there is nothing" grep -q 'nothing here is called service wombat' <<<"$(what service wombat)"
 out=$(what command grep)
 check "a command: where it is: $(sed -n 2p <<<"$out")" grep -qE '^  it is /(usr/)?bin/grep' <<<"$out"
+check "a bare name is the command before the package: $(what grep | head -1)" grep -qx 'grep, a command' <<<"$(what grep | head -1)"
 check "a word of the shell's own: $(what command cd | sed -n 2p)" grep -qx '  a builtin of the shell, not a program on the PATH' <<<"$(what command cd)"
 printf 'hello\n' > "$t0/books/note.txt"
 out=$(what file "$t0/books/note.txt")

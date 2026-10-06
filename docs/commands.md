@@ -1179,7 +1179,7 @@ The pickers are fzf, which the base installs: type to narrow the list, Tab to pi
 What is this? A part of the running computer, on a card.
 
 - `vikix what` — the thing the pointer is on in the bar (a field, a workspace's number, a window's title), else the window in front: what it is doing now, a few lines on what such a thing is, and where it is explained
-- `vikix what NAME` — a thing by its name: a field of the bar (battery, network, clock ...), a key (Super+t, or s-t as StumpWM writes it), a process (its number or its name), a service, a package, a command, a file; when a name fits more than one, the others are rows of the card
+- `vikix what NAME` — a thing by its name: a field of the bar (battery, network, clock ...), a key (Super+t, or s-t as StumpWM writes it), a process (its number or its name), a service, a command, a package, a file; when a name fits more than one, the first is the card and the others its rows
 - `vikix what KIND [NAME]` — the same, saying which kind: field, key, process, port, service, package, command, file, window, workspace; without a name, what such a thing is
 - `vikix what ... --open N` — open the Nth of the card's explanations
 - `vikix what ... --card` — the card as a menu on the desktop, which is what the key shows: Enter opens the first explanation
