@@ -21,6 +21,15 @@
                        topic (none: it works in the project's own folder).
                        --use: another agent than yours (vikix agent --use);
                        --here: in this terminal, no new workspace
+  vikix agents close [DESK] [--force]
+                       close a desk whose work is in: its worktree is
+                       removed and its branch deleted. DESK is the folder
+                       (~/src/PROJECT-TOPIC), the topic or the branch, or
+                       PROJECT TOPIC; without one it asks which on the
+                       desktop, or lists them. Refused while an agent still
+                       works there, or with files uncommitted; a branch not
+                       merged yet is kept and said. --force: uncommitted
+                       files and the unmerged branch are thrown away
   vikix agents clash [FILE]
                        the files two agents are on at once: each file with
                        the agents that have changed it, uncommitted, in
@@ -65,10 +74,12 @@ files. vikix agents desk gives each its own copy to work in. The worktree
 is an ordinary git one: the agent commits on its branch there, and when
 its work is in (merged, as the project's own notes say), the desk goes
 with `git worktree remove FOLDER` and `git branch -d TOPIC` in the
-project. A desk that is still there is used again, not made twice. A
-project that isn't a git repository has no worktrees: its agent works in
-the folder itself. Super+m, AI, "Agents: start one on a project" is the same,
-asking for the project.
+project; `vikix agents close` does both once the agent there has
+finished, and keeps a branch that isn't merged yet. A desk that is still
+there is used again, not made twice. A project that isn't a git repository
+has no worktrees: its agent works in the folder itself. Super+m, AI,
+"Agents: start one on a project" and "Agents: close a desk" are the same,
+asking which.
 
 The house rules: the office keeps a journal of what each agent edits
 (~/.local/state/vikix/office/journal.jsonl, pruned to the agents still
@@ -376,6 +387,136 @@ def desk(argv):
     print(f"a desk for the agent: {said}" + (f", on workspace {workspace}" if workspace else ""))
     return 0
 
+# --- Closing a desk -----------------------------------------------------------------------
+
+def say(message):
+    """Said in the terminal, and on the desktop when there is no terminal
+    to read it in (the menu)."""
+    print(message)
+    if not sys.stdout.isatty() and os.environ.get("DISPLAY") and shutil.which("notify-send"):
+        subprocess.run(["notify-send", "-a", "Vikix", "vikix agents", message[:300]], check=False)
+
+
+def desks(vp):
+    """Every desk there is: a worktree TOP-TOPIC beside a project's
+    repository TOP (vikix agents desk makes them so). {folder, top,
+    branch} each, by folder; branch is None for a detached one."""
+    tops, out = [], []
+    for p in vp.discover():
+        top = (git(str(p.path), "rev-parse", "--show-toplevel") or "").strip()
+        if top and top not in tops:
+            tops.append(top)
+    for top in tops:
+        beside, prefix = os.path.dirname(top), os.path.basename(top) + "-"
+        folder, branch = None, None
+        for line in (git(top, "worktree", "list", "--porcelain") or "").splitlines() + [""]:
+            if line.startswith("worktree "):
+                folder, branch = line[9:], None
+            elif line.startswith("branch refs/heads/"):
+                branch = line[18:]
+            elif not line and folder:
+                if (os.path.dirname(folder) == beside and os.path.basename(folder).startswith(prefix)
+                        and os.path.realpath(folder) != os.path.realpath(top)):
+                    out.append({"folder": folder, "top": top, "branch": branch})
+                folder = None
+    return sorted(out, key=lambda d: d["folder"])
+
+
+def inside(path, folder):
+    return path == folder or path.startswith(folder.rstrip("/") + "/")
+
+
+def desk_state(d):
+    """What stands in the way of closing D: the agents at work there, how
+    many files wait uncommitted, and whether its branch is in (merged into
+    the project's own branch, as git branch -d judges it)."""
+    d["agents"] = [f"{a['agent']} {a['pid']}" for a in sorted(live_agents(), key=lambda a: a["pid"])
+                   if a["folder"] and inside(os.path.realpath(a["folder"]), os.path.realpath(d["folder"]))]
+    status = git(d["folder"], "status", "--porcelain")
+    d["uncommitted"] = len(status.splitlines()) if status is not None else None
+    merged = git(d["top"], "branch", "--merged", "HEAD", "--format=%(refname:short)") or ""
+    d["head"] = (git(d["top"], "rev-parse", "--abbrev-ref", "HEAD") or "?").strip()
+    d["merged"] = d["branch"] is None or d["branch"] in merged.split()
+    return d
+
+
+def desk_line(d):
+    n = d["uncommitted"]
+    parts = [f"branch {d['branch']}" + (", in" if d["merged"] else f", not in {d['head']} yet") if d["branch"] else "no branch",
+             "nothing uncommitted" if n == 0 else f"{n} uncommitted" if n is not None else "?"]
+    if d["agents"]:
+        parts.append("at work: " + ", ".join(d["agents"]))
+    return f"{short(d['folder'])}  ({'; '.join(parts)})"
+
+
+def close(argv):
+    force, words = False, []
+    while argv:
+        a = argv.pop(0)
+        if a == "--force":
+            force = True
+        elif a.startswith("-"):
+            die(f"vikix agents close: {a}? (vikix agents help)")
+        else:
+            words.append(a)
+    if len(words) > 2:
+        die("vikix agents close [DESK | PROJECT TOPIC] [--force]")
+    vp = projects()
+    every = [desk_state(d) for d in desks(vp)]
+    if not every:
+        die("no desk to close: no project has a worktree beside it (vikix agents desk makes one)")
+    if not words:
+        if os.environ.get("DISPLAY") and shutil.which("rofi"):
+            picked = rofi("Close the desk", "Its worktree is removed, and its branch when the work is in. "
+                          "One with an agent at work, or files uncommitted, is refused.", [desk_line(d) for d in every])
+            if picked is None or not picked.isdigit():
+                return 0
+            hits = [every[int(picked)]]
+        else:
+            print("The desks:\n" + "\n".join("  " + desk_line(d) for d in every))
+            die("say which: vikix agents close DESK (its folder, topic or branch, or PROJECT TOPIC)")
+    elif len(words) == 2:
+        top = (git(str(vp.match(words[0]).path), "rev-parse", "--show-toplevel") or "").strip()
+        folder = os.path.join(os.path.dirname(top), f"{os.path.basename(top)}-{topic_name(words[1])}") if top else ""
+        hits = [d for d in every if d["folder"] == folder]
+    else:
+        word = os.path.realpath(os.path.expanduser(words[0]))
+        hits = [d for d in every if os.path.realpath(d["folder"]) == word]
+        if not hits:
+            hits = [d for d in every if d["branch"] == words[0] or os.path.basename(d["folder"]) == words[0]
+                    or os.path.basename(d["folder"]).endswith("-" + words[0])]
+    if not hits:
+        die(f"no desk called {' '.join(words)}; the desks: " + ", ".join(short(d["folder"]) for d in every))
+    if len(hits) > 1:
+        die(f"{' '.join(words)} is several desks, say which: " + ", ".join(short(d["folder"]) for d in hits))
+    d = hits[0]
+    folder, top, branch = d["folder"], d["top"], d["branch"]
+    try:
+        cwd = os.getcwd()         # before the folder goes: afterwards there is no cwd to ask for
+    except OSError:
+        cwd = ""
+    if d["agents"]:
+        die(f"{', '.join(d['agents'])} still at work in {short(folder)}: let it finish, or close its terminal, then close the desk")
+    if d["uncommitted"] and not force:
+        die(f"{d['uncommitted']} file{'s' if d['uncommitted'] != 1 else ''} uncommitted in {short(folder)}: "
+            "commit there first, or --force throws them away")
+    r = subprocess.run(["git", "-C", top, "worktree", "remove"] + (["--force"] if force else []) + [folder],
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        die("git couldn't remove the worktree: " + (r.stderr.strip().splitlines() or ["?"])[-1])
+    said = f"the desk is closed: {short(folder)} removed"
+    if branch and (d["merged"] or force):
+        r = subprocess.run(["git", "-C", top, "branch", "-D" if force else "-d", branch], capture_output=True, text=True)
+        said += (f", the branch {branch} deleted" + (" (its work wasn't in)" if force and not d["merged"] else "")
+                 if r.returncode == 0 else f"; the branch {branch} stays: " + (r.stderr.strip().splitlines() or ["?"])[-1])
+    elif branch:
+        said += (f"; the branch {branch} is kept: not in {d['head']} yet. Merge it, then git branch -d {branch} "
+                 f"in {short(top)}; or --force throws it away")
+    if cwd and (inside(cwd, os.path.realpath(folder)) or inside(cwd, folder)):
+        said += ". This terminal was in it: cd somewhere else"
+    say(said)
+    return 0
+
 # --- The house rules: the journal, clashes and crossings ---------------------------------
 
 STATE = os.environ.get("XDG_STATE_HOME") or os.path.join(os.path.expanduser("~"), ".local", "state")
@@ -681,6 +822,8 @@ def main(argv):
         return 0
     if argv and argv[0] == "desk":
         return desk(argv[1:])
+    if argv and argv[0] == "close":
+        return close(argv[1:])
     if argv and argv[0] == "touch":
         return touch(argv[1:])
     if argv and argv[0] == "clash":
@@ -689,7 +832,7 @@ def main(argv):
         return crossings(argv[1:])
     as_json = argv == ["--json"]
     if argv and not as_json:
-        die("vikix agents [--json|desk|clash|crossings] (vikix agents help)")
+        die("vikix agents [--json|desk|close|clash|crossings] (vikix agents help)")
     agents = desktop()
     agents += elsewhere({a["pid"] for a in agents})
     agents = [with_git(a) for a in agents]

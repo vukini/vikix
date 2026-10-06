@@ -208,6 +208,9 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command agent-desk "AI agent at a desk of its own: pick a project; it gets a workspace and a worktree to itself"
   :run "exec vikix-agents desk"
   :menu "AI" :label "Agents: start one on a project, at a desk of its own")
+(define-vikix-command agent-desk-close "Close an agent's desk whose work is in: pick one; its worktree and branch go"
+  :run "exec vikix-agents close"
+  :menu "AI" :label "Agents: close a desk (its worktree and branch, once the work is in)")
 (define-vikix-command agents "Agents: who is running, on what, and which waits for you; pick one to go to it"
   :run "vikix-agents-pick"
   :menu "AI" :label "Agents: who is running, and go to one")

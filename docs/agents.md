@@ -81,11 +81,25 @@ a desk for the agent: in ~/src/novel-chapter-3, a new worktree on the branch cha
 The agent drafts and commits on `chapter-3`. When you like it:
 
 ```sh
-cd ~/src/novel && git merge chapter-3                     # the work comes in
-git worktree remove ~/src/novel-chapter-3 && git branch -d chapter-3   # the desk goes
+cd ~/src/novel && git merge chapter-3     # the work comes in
+vikix agents close chapter-3              # the desk goes
+the desk is closed: ~/src/novel-chapter-3 removed, the branch chapter-3 deleted
 ```
 
-Or tell the agent: *merge your branch into main and remove your desk*; the skill tells it how. A project with no release step of its own needs these two lines from somebody: Vikix doesn't yet remove a desk by itself.
+Or tell the agent: *merge your branch into main*; the skill tells it how, and it tells you when the desk can go.
+
+### Closing a desk
+
+`vikix agents close` takes a desk down: its worktree is removed, and its branch deleted once the work is in. Name the desk by its topic, its branch, its folder, or as `PROJECT TOPIC`; with nothing named, `Super+m` → *AI* → *Agents: close a desk* (or the command on the desktop) asks which, and in a terminal without a desktop it lists them:
+
+```sh
+vikix agents close
+The desks:
+  ~/src/novel-chapter-3  (branch chapter-3, in; nothing uncommitted)
+  ~/src/vikix-wifi-fix  (branch wifi-fix, not in main yet; 3 uncommitted; at work: claude 48213)
+```
+
+It refuses while an agent still works there (*claude 48213 still at work in ~/src/vikix-wifi-fix: let it finish, or close its terminal*) and while files wait uncommitted (*3 files uncommitted: commit there first, or --force throws them away*). A branch that isn't merged yet is kept, and the message says so: merge it, then `git branch -d` in the project, or `--force`, which throws the branch and its work away. The workspace the desk had is simply empty again.
 
 ### When a desk doesn't appear
 

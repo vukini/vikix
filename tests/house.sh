@@ -13,7 +13,11 @@
 #   vikix agents clash lists the files and shows both changes; the listing
 #   marks them; the journal keeps only the agents still running; a process
 #   with no agent above it is nothing to rule on; vikix agent gives Claude
-#   Code the hook from config/claude/office.json.
+#   Code the hook from config/claude/office.json. vikix agents close removes
+#   a desk's worktree and its branch when the work is in: refused with an
+#   agent at work there or files uncommitted (--force throws them away), a
+#   branch not merged is kept and said, the desk by its folder, topic,
+#   branch or PROJECT TOPIC, asked on the desktop or listed without one.
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
@@ -134,5 +138,43 @@ check "vikix agent gives Claude Code the hook, unless VIKIX_OFFICE=0" \
 check "with --settings, so nothing is written to the user's settings" \
   grep -q -- '--settings "$VIKIX_DIR/config/claude/office.json"' "$here/bin/vikix-agent"
 
-[ $fail = 0 ] && echo "house: ok (the hook says nothing, asks, or tells of a crossing; clash lists and shows; the listing marks; the journal is pruned)"
+# --- Closing a desk: the worktree and the branch go, once the work is in ----------------------
+# The repository is a project (a log), found through vikix project's config.
+mkdir -p "$HOME/.config/vikix"; printf 'root=%s\n' "$t/src" > "$HOME/.config/vikix/projects"
+( cd "$t/src/book" && echo '# Log' > log.md && git add log.md && git commit -q -m log )
+close() { python3 "$here/bin/vikix-agents" close "$@" 2>&1 </dev/null || true; }
+proc 1005 claude "$t/src/book-a"   # a second agent at the first desk
+
+out=$(close book-a)
+check "a desk with agents at work is refused, naming them: $out" grep -q 'claude 1001, claude 1005 still at work in .*/book-a: let it finish' <<<"$out"
+out=$(DISPLAY='' close)
+check "without a desk named, and no desktop to ask on, the desks are listed: $out" \
+  bash -c 'grep -q "The desks:" <<<"$1" && grep -q "book-a  (branch a, in; nothing uncommitted; at work: claude 1001, claude 1005)" <<<"$1" && grep -q "say which: vikix agents close DESK" <<<"$1"' _ "$out"
+out=$(close zzz)
+check "a desk that isn't says which there are: $out" grep -q 'no desk called zzz; the desks: .*/book-a, .*/book-b' <<<"$out"
+rm -r "$t/proc/1002"
+out=$(close b)
+check "files uncommitted refuse the closing: $out" grep -q '1 file uncommitted in .*/book-b: commit there first, or --force' <<<"$out"
+out=$(close book b)
+check "as PROJECT TOPIC too: $out" grep -q '1 file uncommitted in .*/book-b' <<<"$out"
+( cd "$t/src/book-b" && git commit -qam "by b" )
+out=$(close b)
+check "closed by its branch; a branch not merged yet is kept and said: $out" \
+  grep -q 'the desk is closed: .*/book-b removed; the branch b is kept: not in main yet. Merge it, then git branch -d b in' <<<"$out"
+check "the worktree is gone, the branch stays" bash -c "[ ! -e '$t/src/book-b' ] && git -C '$t/src/book' show-ref -q refs/heads/b"
+git -C "$t/src/book" worktree add -q "$t/src/book-c" -b c
+# From the menu: a stand-in rofi picks the last line (book-c), and the outcome is a notification.
+printf '#!/bin/sh\nawk '"'"'END { print NR - 1 }'"'"'\n' > "$t/bin/rofi"; chmod +x "$t/bin/rofi"
+rm -f "$t/notified"
+out=$(PATH="$t/bin:$PATH" DISPLAY=:7 close)
+check "asked on the desktop, a merged desk goes with its branch, and it is said in a notification: $out / $(cat "$t/notified" 2>/dev/null)" \
+  bash -c "[ ! -e '$t/src/book-c' ] && ! git -C '$t/src/book' show-ref -q refs/heads/c && grep -q 'the desk is closed: .*/book-c removed, the branch c deleted' '$t/notified'"
+rm -r "$t/proc/1001" "$t/proc/1005"; echo half > "$t/src/book-a/draft.md"
+out=$(cd "$t/src/book-a" && close a --force)
+check "--force throws uncommitted files away, and says when the terminal was in it: $out" \
+  grep -q 'the desk is closed: .*/book-a removed, the branch a deleted. This terminal was in it: cd somewhere else' <<<"$out"
+out=$(close)
+check "no desk left: $out" grep -q 'no desk to close: no project has a worktree beside it' <<<"$out"
+
+[ $fail = 0 ] && echo "house: ok (the hook says nothing, asks, or tells of a crossing; clash lists and shows; the listing marks; the journal is pruned; close removes a desk once its work is in)"
 exit $fail
