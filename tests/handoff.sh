@@ -13,6 +13,14 @@
 #   same commands; a credential, an unknown field, a bad session id or a
 #   record id that is a path are refused; --json has the freshness; the
 #   listing names every desk; close marks the record closed and keeps it.
+#   vikix agents resume shows the handoff and resumes the session the
+#   record names when the provider's store still has it (claude --resume,
+#   codex resume, opencode --session), else starts fresh and says why; a
+#   conversation the store has for the folder is suggested, never taken;
+#   never a second agent at a desk unasked. vikix agents hooks says what
+#   holds the rules for each provider and links the Codex and OpenCode
+#   adapters; touch --for gemini answers in Gemini's shape, --for opencode
+#   refuses a clash once and lets the same edit through.
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
@@ -151,5 +159,100 @@ check "a desk that isn't: $out" grep -q 'no desk called zzz' <<<"$out"
 out=$(cd "$t" && agents handoff)
 check "from nowhere, with no desk named, it says so: $out" grep -q 'no desk here: say which' <<<"$out"
 
-[ $fail = 0 ] && echo "handoff: ok (a desk's task, handoff, checks and sessions kept apart and across sessions; stale checks said; writers at once lose nothing; refusals)"
+# --- Taking a desk up again: resumed where the provider can, fresh and said why otherwise --------
+git -C "$t/src/book" worktree add -q "$t/src/book-c" -b c
+printf '#!/bin/sh\necho "AGENT ARGS: $*"\n' > "$t/bin/agent"; chmod +x "$t/bin/agent"
+resume() { VIKIX_AGENT_CMD="$t/bin/agent" python3 "$here/bin/vikix-agents" resume "$@" 2>&1 </dev/null || true; }
+agents handoff set --desk c --task "Chapter three" >/dev/null
+out=$(resume c --here --use claude)
+check "a desk with no session noted starts fresh, and says so, after the handoff: $out" \
+  bash -c 'grep -q "^Task (user, .*): Chapter three" <<<"$1" && grep -q "^fresh conversation with claude at .*/book-c: no claude session is noted on this desk" <<<"$1" && grep -q "^AGENT ARGS: $" <<<"$1"' _ "$out"
+agents handoff session --desk c claude 0f1e2d3c-aaaa-bbbb-cccc-123456789abc >/dev/null
+out=$(resume c --here --use claude)
+check "a session whose store is gone starts fresh, naming the store: $out" \
+  grep -q "fresh conversation with claude .*: claude's session 0f1e2d3c-aaaa-bbbb-cccc-123456789abc is gone from ~/.claude/projects" <<<"$out"
+mkdir -p "$HOME/.claude/projects/-x"; : > "$HOME/.claude/projects/-x/0f1e2d3c-aaaa-bbbb-cccc-123456789abc.jsonl"
+out=$(resume c --here --use claude)
+check "the session its store still has is resumed, with claude --resume ID: $out" \
+  bash -c 'grep -q "^resumed: claude session 0f1e2d3c-aaaa-bbbb-cccc-123456789abc at .*/book-c, its conversation continues" <<<"$1" && grep -q "^AGENT ARGS: --resume 0f1e2d3c-aaaa-bbbb-cccc-123456789abc$" <<<"$1"' _ "$out"
+out=$(resume c --here)
+check "without --use the last session's provider is taken" grep -q "^AGENT ARGS: --resume 0f1e2d3c" <<<"$out"
+out=$(resume c --here --fresh)
+check "--fresh starts a new conversation all the same: $out" bash -c 'grep -q "a fresh conversation was asked for" <<<"$1" && grep -q "^AGENT ARGS: $" <<<"$1"' _ "$out"
+check "the record logs what happened" grep -q '"what": "resumed: claude 0f1e2d3c' "$records"/*.json
+# Codex: a rollout file in its store, found by the id; one on disk for the folder is suggested, never taken.
+mkdir -p "$HOME/.codex/sessions/2026/10/06"
+printf '{"type":"session_meta","payload":{"id":"01a111e5-f7bf-7871-823c-70aee4f44f19","cwd":"%s"}}\n' "$t/src/book-c" \
+  > "$HOME/.codex/sessions/2026/10/06/rollout-2026-10-06T19-47-26-01a111e5-f7bf-7871-823c-70aee4f44f19.jsonl"
+out=$(resume c --here --use codex)
+check "codex with nothing noted: fresh, and the conversation its store has for this folder is suggested, not taken: $out" \
+  bash -c 'grep -q "^fresh conversation with codex" <<<"$1" && grep -q "codex.s own store has a conversation in this folder: 01a111e5-f7bf-7871-823c-70aee4f44f19" <<<"$1" && grep -q "nothing is resumed unasked" <<<"$1" && grep -q "^AGENT ARGS: $" <<<"$1"' _ "$out"
+agents handoff session --desk c codex 01a111e5-f7bf-7871-823c-70aee4f44f19 >/dev/null
+out=$(resume c --here --use codex)
+check "noted, it is resumed with codex resume ID: $out" grep -q "^AGENT ARGS: resume 01a111e5-f7bf-7871-823c-70aee4f44f19$" <<<"$out"
+# OpenCode: its SQLite store.
+mkdir -p "$HOME/.local/share/opencode"
+python3 -c '
+import sqlite3, sys
+c = sqlite3.connect(sys.argv[1]); c.execute("create table session (id text, directory text, time_updated integer)")
+c.execute("insert into session values (?, ?, ?)", ("ses_abc123", sys.argv[2], 1759780000000)); c.commit()' "$HOME/.local/share/opencode/opencode.db" "$t/src/book-c"
+agents handoff session --desk c opencode ses_abc123 >/dev/null
+out=$(resume c --here --use opencode)
+check "opencode's session, in its database, is resumed with --session ID: $out" grep -q "^AGENT ARGS: --session ses_abc123$" <<<"$out"
+agents handoff session --desk c opencode ses_gone >/dev/null
+out=$(resume c --here --use opencode)
+check "one its database hasn't: fresh, saying so: $out" grep -q "opencode's session ses_gone is gone from ~/.local/share/opencode/opencode.db" <<<"$out"
+# A provider with no resume: fresh, with the handoff; gemini's is unverified and said so.
+agents handoff session --desk c other thread-1 >/dev/null
+out=$(resume c --here --use other)
+check "a generic provider starts fresh with the handoff: $out" bash -c 'grep -q "other can.t resume a session by id" <<<"$1" && grep -q "^AGENT ARGS: $" <<<"$1"' _ "$out"
+agents handoff session --desk c gemini abcd-1234 >/dev/null
+out=$(resume c --here --use gemini)
+check "gemini's store can't be vouched for here: fresh, and said: $out" grep -q "whether gemini still has abcd-1234 can't be known" <<<"$out"
+# Never a second agent at the desk unasked; a desk whose folder is gone.
+proc 1005 claude "$t/src/book-c"
+out=$(resume c --here)
+check "an agent at the desk already: refused, with the way to it: $out" grep -q 'claude 1005 is at this desk already: go to it (vikix agents, Super+m), or --another' <<<"$out"
+out=$(resume c --here --another --use claude)
+check "--another starts a second one there" grep -q "^AGENT ARGS: --resume 0f1e2d3c" <<<"$out"
+rm -r "$t/proc/1005"
+out=$(resume a --here)
+check "a desk whose folder is gone says how to make it again, and keeps the record: $out" grep -q 'book-a is gone: vikix agents desk book a makes the worktree again (the record is kept' <<<"$out"
+
+# --- The hooks each provider has, honestly; the adapters ---------------------------------------
+out=$(agents hooks)
+check "hooks says what holds the rules for each provider: $out" \
+  bash -c 'grep -q "^claude .*given to Claude Code by vikix agent" <<<"$1" && grep -q "^codex .*unverified on this machine" <<<"$1" && grep -q "^gemini .*not installed by Vikix since that file is yours" <<<"$1" && grep -q "^aider .*no hooks: instructions only" <<<"$1" && grep -q "not installed (vikix agents hooks opencode --install" <<<"$1"' _ "$out"
+out=$(agents hooks opencode --install)
+check "--install links OpenCode's plugin into its plugins folder: $out" \
+  test "$(readlink "$HOME/.config/opencode/plugins/vikix-office.js")" = "$here/config/opencode/vikix-office.js"
+check "and codex's hook file" bash -c 'python3 "$1/bin/vikix-agents" hooks codex --install >/dev/null 2>&1; test "$(readlink "$HOME/.codex/hooks.json")" = "$1/config/codex/hooks.json"' _ "$here"
+rm "$HOME/.codex/hooks.json"; echo '{}' > "$HOME/.codex/hooks.json"
+out=$(agents hooks codex --install)
+check "a file of the user's own in the way is left alone: $out" bash -c 'grep -q "is there and isn.t Vikix.s: left alone" <<<"$1" && [ "$(cat "$HOME/.codex/hooks.json")" = "{}" ]' _ "$out"
+check "the adapters are valid JSON naming vikix agents touch --for their provider" python3 -c '
+import json, sys
+for name in ("codex", "gemini"):
+    h = json.load(open(f"{sys.argv[1]}/config/{name}/hooks.json"))["hooks"]
+    (event, rules), = h.items()
+    assert rules[0]["hooks"][0]["command"] == f"vikix agents touch --for {name}", (name, rules)' "$here"
+check "OpenCode's plugin asks touch --for opencode and throws on deny and ask" \
+  bash -c 'grep -q "\"agents\", \"touch\", \"--for\", \"opencode\"" "$1" && grep -q "permissionDecision === \"deny\" || out.permissionDecision === \"ask\"" "$1"' _ "$here/config/opencode/vikix-office.js"
+# touch --for gemini answers in Gemini's shape; --for opencode refuses a clash once, then lets the same edit through.
+proc 1006 gemini "$t/src/book"
+out=$(printf '{"tool_name":"write_file","tool_input":{"file_path":"%s/log.md"},"cwd":"%s"}' "$t/src/book" "$t/src/book" | VIKIX_AGENT_PID=1006 python3 "$here/bin/vikix-agents" touch --for gemini 2>&1)
+check "--for gemini: decision and reason, BeforeTool's shape: $out" python3 -c '
+import json, sys; a = json.loads(sys.argv[1]); assert a["decision"] == "deny" and "not at a desk" in a["reason"], a' "$out"
+git -C "$t/src/book" worktree add -q "$t/src/book-d" -b d
+proc 1007 opencode "$t/src/book-d"; proc 1008 claude "$t/src/book-c"
+echo "by c" >> "$t/src/book-c/log.md"
+edit_d() { printf '{"tool_name":"Edit","tool_input":{"file_path":"%s/log.md"},"cwd":"%s"}' "$t/src/book-d" "$t/src/book-d" | VIKIX_AGENT_PID=1007 python3 "$here/bin/vikix-agents" touch --for opencode 2>&1; }
+out=$(edit_d)
+check "--for opencode: a clash is refused once, with the reason and the way through: $out" \
+  grep -q '"permissionDecision": "ask".*claude 1008 .*the same edit within ten minutes goes through' <<<"$out"
+out=$(edit_d)
+check "the same edit again goes through, quietly: '$out'" test -z "$out"
+rm -r "$t/proc/1006" "$t/proc/1007" "$t/proc/1008"
+
+[ $fail = 0 ] && echo "handoff: ok (a desk's task, handoff, checks and sessions kept apart and across sessions; stale checks said; writers at once lose nothing; refusals; resume where the provider can, fresh and said why otherwise; the hooks each has)"
 exit $fail

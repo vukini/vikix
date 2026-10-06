@@ -1,0 +1,13 @@
+{
+  "_comment": "Vikix office: the house rules before each edit and shell command, for Gemini CLI. Merge the hooks key into ~/.gemini/settings.json yourself (that file is yours; vikix agents hooks gemini shows this). From Gemini CLI's documentation (BeforeTool: decision allow|deny|ask, reason): unverified on this machine, where Gemini CLI isn't installed.",
+  "hooks": {
+    "BeforeTool": [
+      {
+        "matcher": "write_file|replace|edit|run_shell_command",
+        "hooks": [
+          {"type": "command", "command": "vikix agents touch --for gemini", "timeout": 15000}
+        ]
+      }
+    ]
+  }
+}

@@ -143,6 +143,53 @@ The desks:
 
 It refuses while an agent still works there (*claude 48213 still at work in ~/src/vikix-wifi-fix: let it finish, or close its terminal*) and while files wait uncommitted (*3 files uncommitted: commit there first, or --force throws them away*). A branch that isn't merged yet is kept, and the message says so: merge it, then `git branch -d` in the project, or `--force`, which throws the branch and its work away. The workspace the desk had is simply empty again.
 
+### The handoff: what the desk remembers
+
+A desk outlives the agent at it. Each keeps a small record (`~/.local/state/vikix/office/desks/`, one file a desk, named by the repository and the worktree, never by a process), and `vikix agents handoff` shows it:
+
+```
+$ vikix agents handoff wifi-fix
+Desk ~/src/vikix-wifi-fix (branch wifi-fix), project vikix  [3f9a1c2b7d4e]
+Task (user, 2 h ago): the Wi-Fi picker should scan first, then show the list
+Status: review (claude 48213, 20 min ago)
+Done and decided (claude 48213, 20 min ago):
+  scan before the list in bin/vikix-wifi; kept the old order under --no-scan
+Left to do, next (claude 48213, 20 min ago):
+  Vid tries it on the laptop; then release
+Checks:
+  passed  tests/run.sh wifi  (claude 48213, 25 min ago, on 7c1e0f2, clean tree)  fresh
+Now: wifi-fix at 7c1e0f2, nothing uncommitted
+Sessions: claude 0f1e2d3c-… (2 h ago)
+At the desk now: claude 48213
+  claude 48213: pre-edit and pre-shell hooks (vikix agents touch): 14 edits proposed through them
+  no filesystem enforcement: a worktree keeps copies apart, it is no sandbox
+```
+
+Three kinds of line, kept apart and each signed. The **task** is yours, in your words: `vikix agents desk vikix wifi-fix --task "..."` sets it as the desk is made, or `vikix agents handoff set --task "..."` later. The **handoff** is the agent's: a status (working, waiting, review, finished), what it changed and decided, what is left and the very next action. What **Vikix read itself** is the rest: the commit and the uncommitted files at each write, and for a check the commit it ran on and whether the tree was dirty then. A check is marked *stale* the moment the code differs from what it ran on, by another commit or other uncommitted changes, so an old green never passes for a new one. The sessions are the providers' conversation ids and nothing more: no transcript is copied, and a line that looks like a key or a token is refused outright.
+
+The agent writes with the same command, or with the MCP tools `handoff` and `handoff_update`, whichever agent it is:
+
+```sh
+vikix agents handoff set --status review --summary "..." --next "..."
+vikix agents handoff check "tests/run.sh wifi" --ok
+vikix agents handoff session codex 01a111e5-…      # a conversation that can be resumed here
+echo '{"status":"waiting","next":"needs the laptop"}' | vikix agents handoff set --from -
+```
+
+Claude Code's session id is noted by the hook itself; the others say theirs with `session`. `vikix agents handoff list` is every desk with a record, `vikix agents` shows each agent's desk status under its line, and `Super+m` → *AI* → *Agents: a desk's handoff* picks one. `vikix agents close` marks the record closed and keeps it.
+
+### Taking a desk up again
+
+```
+$ vikix agents resume wifi-fix
+Desk ~/src/vikix-wifi-fix ...            (the handoff, as above)
+
+resumed: claude session 0f1e2d3c-… at ~/src/vikix-wifi-fix, its conversation continues (its store has it)
+on workspace 4
+```
+
+`vikix agents resume` shows the handoff, the git state and the checks' freshness, then starts an agent at the desk. When the record names a session and the provider's store still has it, that very conversation is resumed: `claude --resume ID`, `codex resume ID`, `opencode --session ID`, each as its installed help says. Otherwise a fresh conversation starts, with the handoff on the terminal above it, and the line says why: no session noted, the provider's store lost it, or the provider can't resume one (Aider has no session ids; Gemini CLI's `--resume` is from its documentation, unverified here). When the provider's own store has a conversation for that folder which the record doesn't name, it is suggested, with the command that notes it, and never taken: nothing resumes the most recent conversation lying about, and nothing starts a second agent at a desk that has one (`--another` does, on purpose). `--fresh` asks for a new conversation, `--use codex` another provider, `--here` this terminal.
+
 ### When a desk doesn't appear
 
 `vikix agents` shows no new line and the workspace is empty: the desk wasn't made. From a terminal the reason is printed (*no project called ...*: `vikix project list` names them, and any part of a name does); from `Super+m` it comes as a notification. The usual cause is a name that isn't the project's (`novel-second-edition` when the project is `novel`).
@@ -192,14 +239,34 @@ $ vikix agents crossings
 
 An agent in your home folder owns no folder, so nothing is a crossing into it: everything under home would be.
 
+### What holds the rules, for each agent
+
+`vikix agents hooks` says it plainly, and the handoff's last lines say it for the agents at a desk:
+
+```
+$ vikix agents hooks
+claude    given to Claude Code by vikix agent at every start (--settings): pre-edit and pre-shell hooks
+codex     PreToolUse hook in ~/.codex/hooks.json; Codex needs [features] hooks = true ... unverified on this machine
+          not installed (vikix agents hooks codex --install links ~/.codex/hooks.json)
+opencode  a plugin on tool.execute.before (edit, write, bash): a refused edit throws, with the reason ...
+          not installed (vikix agents hooks opencode --install links ~/.config/opencode/plugins/vikix-office.js)
+gemini    a BeforeTool hook to merge into ~/.gemini/settings.json by hand ... unverified here
+antigravity a plugin of Vikix's that vikix agent installs with agy plugin install ...: pre-edit and pre-shell hooks
+aider     no hooks: instructions only (the guide it reads), and git
+```
+
+Three levels, and the listing never claims more than there is. *Instructions only*: the agent has read the rules in its guide, and git shows afterwards what it did. *Pre-edit hooks*: the house rules run before each edit and shell command and can refuse it; Claude Code and Antigravity CLI have them from `vikix agent`, Codex and OpenCode get them from an adapter you install once (`--install` links a file of Vikix's into their folders and leaves a file of your own alone; Codex's hook shape and Gemini's are taken from their documentation and marked unverified until tried here). *Filesystem enforcement*: none. A worktree keeps copies apart, and the hook reads a shell command's words; neither is a sandbox, and the page doesn't call them one. A hook that a provider lacks keeps nothing else from working: the handoff and the resume are the same for every agent.
+
+The hook notes an edit before it happens, so a note in the journal is a proposal; what actually changed is git's to say (`vikix agents` counts the uncommitted files, `vikix agents clash FILE` shows the diff). Nothing here resolves another agent's changes, answers its prompts, stops it or closes its desk: those are yours.
+
 ### What the rules don't do
 
-A clash and a crossing stop nothing on their own: the one that decides is you, at Claude Code's prompt. Only the desk rule refuses outright, and it names the way out. The rules hold for Claude Code and Antigravity CLI: Codex, Gemini CLI, OpenCode and Aider have no such hook, so a clash with one of them is seen afterwards, in `vikix agents` and `vikix agents clash`, not before the edit, and nothing keeps them off a project's own folder. Antigravity's hooks can't tell the agent something without deciding, so there a crossing asks you, with the reason, where Claude Code is told and goes on; its hook is a plugin of Vikix's that `vikix agent` puts in place (`agy plugin list` shows `vikix`), so it stays between sessions, and `agy plugin disable vikix` switches it off. A Claude Code session started before the update, or with `VIKIX_OFFICE=0 vikix agent`, has no hook either; one started before the desk rule has the edit hook but not the one on shell commands, since Claude Code reads its hooks at the start. A shell command that writes through a program the hook doesn't know (a Python script of the agent's own) passes. And they know files, not meaning: two agents editing different files of one feature are not a clash to them.
+A clash and a crossing stop nothing on their own: the one that decides is you, at Claude Code's prompt (OpenCode's plugin can only refuse or let through, so it refuses a clash once and lets the same edit through when tried again within ten minutes, the agent having told you). Only the desk rule refuses outright, and it names the way out. The rules hold for Claude Code and Antigravity CLI: Codex, Gemini CLI, OpenCode and Aider have no such hook, so a clash with one of them is seen afterwards, in `vikix agents` and `vikix agents clash`, not before the edit, and nothing keeps them off a project's own folder. Antigravity's hooks can't tell the agent something without deciding, so there a crossing asks you, with the reason, where Claude Code is told and goes on; its hook is a plugin of Vikix's that `vikix agent` puts in place (`agy plugin list` shows `vikix`), so it stays between sessions, and `agy plugin disable vikix` switches it off. A Claude Code session started before the update, or with `VIKIX_OFFICE=0 vikix agent`, has no hook either; one started before the desk rule has the edit hook but not the one on shell commands, since Claude Code reads its hooks at the start. A shell command that writes through a program the hook doesn't know (a Python script of the agent's own) passes. And they know files, not meaning: two agents editing different files of one feature are not a clash to them.
 
 ## From the agent's side
 
-The Vikix skill tells every agent the same rules, so you can hold it to them: look at `vikix agents` before changing files in a folder another agent is in; take a desk before touching a repository (`vikix agents sit`), commit there on that branch and leave the project's own folder alone; when the work is merged, say so and let you close the desk; never stop, signal or type into another agent's window, and never answer a question another agent asked you. An agent with the MCP tools has `agents` to see the others and `focus_window` to go to one, and the second is recorded as a crossing.
+The Vikix skill tells every agent the same rules, so you can hold it to them: look at `vikix agents` before changing files in a folder another agent is in; take a desk before touching a repository (`vikix agents sit`), commit there on that branch and leave the project's own folder alone; read the handoff when joining a desk, and write it when handing work back, when blocked, and when done; when the work is merged, say so and let you close the desk; never stop, signal or type into another agent's window, and never answer a question another agent asked you. An agent with the MCP tools has `agents` to see the others, `handoff` and `handoff_update` for the desk's record, and `focus_window` to go to one, and the last is recorded as a crossing.
 
 ## Not there yet
 
-A workspace and a bar colour each; `vikix agents stop NAME`; handing a window from one agent to another; a permission list per agent; a key for the desk (the key card has no line left). Each will come as it is needed; the pieces that are here are the ones the first weeks with several agents asked for.
+A workspace and a bar colour each; `vikix agents stop NAME`; handing a window from one agent to another; a permission list per agent; a key for the desk (the key card has no line left). Gemini CLI's and Codex's hook shapes, and Gemini's resume, tried on a machine that has them. Each will come as it is needed; the pieces that are here are the ones the first weeks with several agents asked for.

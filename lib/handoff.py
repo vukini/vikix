@@ -39,7 +39,7 @@ VERSION = 1
 STATE = os.environ.get("XDG_STATE_HOME") or os.path.join(os.path.expanduser("~"), ".local", "state")
 DESKS = os.path.join(STATE, "vikix", "office", "desks")
 STATES = ("working", "waiting", "review", "finished")
-PROVIDERS = ("claude", "codex", "opencode", "gemini", "aider", "other")
+PROVIDERS = ("claude", "codex", "opencode", "gemini", "antigravity", "aider", "other")
 TEXT_MAX = 4000
 LOG_MAX = 40
 CHECKS_MAX = 20
@@ -346,3 +346,127 @@ def render(rec, agents_at=(), protection=(), now=None):
     for line in protection:
         lines.append("  " + line)
     return "\n".join(lines)
+
+
+# --- Resuming a provider's conversation ---------------------------------------------------------
+#
+# What each provider offers, as its installed help says (claude, codex,
+# opencode, checked 2026-10-06) or its documentation (gemini, aider: not
+# installed here, so marked unverified):
+#   claude    claude --resume ID          ~/.claude/projects/*/ID.jsonl
+#   codex     codex resume ID             ~/.codex/sessions/Y/M/D/rollout-*-ID.jsonl
+#   opencode  opencode --session ID       ~/.local/share/opencode/opencode.db (table session)
+#   gemini    gemini --resume ID          ~/.gemini/tmp/*/chats/   (unverified)
+#   aider     no session ids: --restore-chat-history reloads the folder's
+#             .aider.chat.history.md, which is the folder's, not a session's
+# A session is offered only when the record names it and its store still
+# has it; never the newest conversation found lying about.
+
+RESUME = {"claude": ["--resume"], "codex": ["resume"], "opencode": ["--session"], "gemini": ["--resume"]}
+UNVERIFIED = {"gemini"}
+
+
+def home():
+    return os.path.expanduser("~")
+
+
+def session_store(provider, sid, folder=""):
+    """Whether PROVIDER's store still has the session SID: (True, where),
+    (False, where looked), or (None, why it can't be known)."""
+    import glob
+    if not session_id_ok(sid or "x"):
+        return False, "not a session id"
+    if provider == "claude":
+        hits = glob.glob(os.path.join(home(), ".claude", "projects", "*", sid + ".jsonl"))
+        return (True, short(hits[0])) if hits else (False, short(os.path.join(home(), ".claude", "projects")))
+    if provider == "codex":
+        root = os.environ.get("CODEX_HOME") or os.path.join(home(), ".codex")
+        hits = glob.glob(os.path.join(root, "sessions", "*", "*", "*", f"rollout-*-{sid}.jsonl"))
+        return (True, short(hits[0])) if hits else (False, short(os.path.join(root, "sessions")))
+    if provider == "opencode":
+        db = os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.join(home(), ".local", "share"), "opencode", "opencode.db")
+        if not os.path.exists(db):
+            return False, short(db)
+        try:
+            import sqlite3
+            c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+            row = c.execute("SELECT directory FROM session WHERE id = ?", (sid,)).fetchone()
+            c.close()
+        except Exception:  # noqa: BLE001  a store that can't be read is one we can't vouch for
+            return None, f"{short(db)} couldn't be read"
+        return (True, short(db)) if row else (False, short(db))
+    if provider == "gemini":
+        root = os.path.join(home(), ".gemini", "tmp")
+        hits = glob.glob(os.path.join(root, "*", "chats", f"*{sid}*"))
+        return (True, short(hits[0])) if hits else (None, f"{short(root)} (gemini's store: unverified here)")
+    if provider == "aider":
+        return None, "aider has no session ids"
+    return None, f"{provider} has no resume known to Vikix"
+
+
+def resume_args(provider, sid, folder=""):
+    """The arguments that resume SID with PROVIDER, or None."""
+    if provider in RESUME and session_id_ok(sid):
+        return RESUME[provider] + [sid]
+    if provider == "aider" and folder and os.path.exists(os.path.join(folder, ".aider.chat.history.md")):
+        return ["--restore-chat-history"]
+    return None
+
+
+def sessions_on_disk(provider, folder, limit=3):
+    """Conversations PROVIDER's own store has for FOLDER, newest first, as
+    (id, time): a suggestion for the user to note, never resumed unasked."""
+    import glob
+    out = []
+    try:
+        if provider == "claude":
+            key = re.sub(r"[^A-Za-z0-9]", "-", os.path.realpath(folder))
+            for f in glob.glob(os.path.join(home(), ".claude", "projects", key, "*.jsonl")):
+                out.append((os.path.basename(f)[:-6], int(os.path.getmtime(f))))
+        elif provider == "codex":
+            root = os.environ.get("CODEX_HOME") or os.path.join(home(), ".codex")
+            real = os.path.realpath(folder)
+            for f in sorted(glob.glob(os.path.join(root, "sessions", "*", "*", "*", "rollout-*.jsonl")))[-200:]:
+                try:
+                    with open(f) as fh:
+                        meta = json.loads(fh.readline() or "{}")
+                    p = meta.get("payload") or {}
+                    if meta.get("type") == "session_meta" and os.path.realpath(p.get("cwd") or "") == real and p.get("id"):
+                        out.append((p["id"], int(os.path.getmtime(f))))
+                except (OSError, ValueError):
+                    continue
+        elif provider == "opencode":
+            db = os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.join(home(), ".local", "share"), "opencode", "opencode.db")
+            if os.path.exists(db):
+                import sqlite3
+                c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+                for sid, t in c.execute("SELECT id, time_updated FROM session WHERE directory = ? ORDER BY time_updated DESC LIMIT ?",
+                                        (os.path.realpath(folder), limit)):
+                    out.append((sid, int(t // 1000) if t and t > 10**11 else int(t or 0)))
+                c.close()
+    except Exception:  # noqa: BLE001  a store that can't be read suggests nothing
+        return []
+    return sorted(out, key=lambda x: -x[1])[:limit]
+
+
+def resume_plan(rec, provider, folder, fresh=False):
+    """How to open the desk again with PROVIDER: {mode: resumed|fresh,
+    session, args, why}. Resumed only for a session the record names
+    whose store still has it."""
+    sessions = [s for s in (rec or {}).get("sessions", []) if s["provider"] == provider]
+    if fresh:
+        return {"mode": "fresh", "session": None, "args": [], "why": "a fresh conversation was asked for"}
+    if not sessions:
+        return {"mode": "fresh", "session": None, "args": [],
+                "why": f"no {provider} session is noted on this desk"}
+    s = sessions[-1]
+    args = resume_args(provider, s["id"], folder)
+    if not args:
+        return {"mode": "fresh", "session": s, "args": [], "why": f"{provider} can't resume a session by id"}
+    found, where = session_store(provider, s["id"], folder)
+    if found:
+        return {"mode": "resumed", "session": s, "args": args, "why": f"its store has it ({where})"}
+    if found is None:
+        return {"mode": "fresh", "session": s, "args": [],
+                "why": f"whether {provider} still has {s['id']} can't be known: {where}"}
+    return {"mode": "fresh", "session": s, "args": [], "why": f"{provider}'s session {s['id']} is gone from {where}"}

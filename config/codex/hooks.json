@@ -1,0 +1,13 @@
+{
+  "_comment": "Vikix office: the house rules before each edit and shell command, for Codex CLI. vikix agents hooks codex --install links this to ~/.codex/hooks.json; Codex also needs [features] hooks = true in ~/.codex/config.toml, and asks you to trust the hook once. The shape is Claude Code's, which Codex documents as its own: unverified on this machine (Codex 0.160).",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|apply_patch|shell",
+        "hooks": [
+          {"type": "command", "command": "vikix agents touch --for codex", "timeout": 15}
+        ]
+      }
+    ]
+  }
+}

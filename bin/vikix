@@ -162,6 +162,11 @@
 #   vikix agents handoff [show|set|check|session|list] ...
 #                       a desk's record across sessions: the task, status,
 #                       account, next step, checks and resumable sessions
+#   vikix agents resume [DESK] [--use NAME] [--here] [--fresh]
+#                       take a desk up again: the handoff shown, the
+#                       agent's conversation resumed where it can be
+#   vikix agents hooks [PROVIDER] [--install]
+#                       what holds the house rules for each agent program
 #   vikix snapshot [MESSAGE]   record your files as they are now
 #   vikix changes [ID]  what changed since the last snapshot (or in snapshot ID)
 #   vikix history       the snapshots, newest first
