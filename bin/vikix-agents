@@ -16,7 +16,7 @@
                        release queue), releasing (what step), waiting for
                        a test slot (other runs are testing), testing
   vikix agents --json  the same as JSON, for a script
-  vikix agents desk [PROJECT [TOPIC]] [--use NAME] [--here]
+  vikix agents desk [PROJECT [TOPIC]] [--use NAME] [--local] [--here]
                        start an agent at a desk of its own: in PROJECT (one
                        of vikix project's, by any part of its name), on a
                        workspace to itself, and with a TOPIC in a git
@@ -26,8 +26,13 @@
                        agent's. Without PROJECT it asks which, then for a
                        topic (a repository's desk is a worktree, so one is
                        needed; a project that is no repository works in
-                       its own folder, with none).
+                       its own folder, with none), then which agent, when
+                       --use doesn't say: yours first, the others as vikix
+                       agent --list has them, and the ones that can on a
+                       model on this laptop.
                        --use: another agent than yours (vikix agent --use);
+                       --local: on a model on this laptop (vikix agent
+                       --local; opencode, codex and aider can);
                        --here: in this terminal, no new workspace
   vikix agents sit [PROJECT [TOPIC]]
                        for an agent, from its own shell: take a desk
@@ -492,12 +497,54 @@ def worktree(top, topic):
     return folder, True
 
 
+# The agents that can run on a model on this laptop (LOCAL_OK in bin/vikix-agent).
+LOCAL = ("opencode", "codex", "aider")
+
+
+def agents_offered():
+    """What vikix agent --list says: (name, yours, installed, about) a line."""
+    try:
+        out = subprocess.run([os.path.join(VIKIX_DIR, "bin", "vikix-agent"), "--list"],
+                             capture_output=True, text=True, timeout=10).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    rows = []
+    for line in out.splitlines():
+        m = re.match(r"([* ]) (\S+)\s+(installed|-)\s+(.*)", line)
+        if m:
+            rows.append((m.group(2), m.group(1) == "*", m.group(3) == "installed", m.group(4)))
+    return rows
+
+
+def ask_agent():
+    """Which agent for the desk, asked on the desktop: (NAME or None for
+    yours, local). None when the menu was closed."""
+    rows = agents_offered()
+    if not rows:
+        return None, False
+    rows.sort(key=lambda r: not r[1])     # yours first; the rest as --list has them
+    choices, lines = [], []
+    for name, yours, installed, about in rows:
+        choices.append((None if yours else name, False))
+        lines.append(f"{name:<12} {about}" + (" (yours)" if yours else "" if installed else " (not installed yet)"))
+    for name, yours, installed, about in rows:
+        if name in LOCAL and installed:
+            choices.append((name, True))
+            lines.append(f"{name:<12} on a model on this laptop (Ollama), offline")
+    picked = rofi("Agent", "The agent for this desk. One not installed yet is offered its installer in the terminal.", lines)
+    if picked is None or not picked.isdigit() or int(picked) >= len(choices):
+        return None
+    return choices[int(picked)]
+
+
 def desk(argv):
-    use, here, words = None, False, []
+    use, local, here, words = None, False, False, []
     while argv:
         a = argv.pop(0)
         if a == "--use":
             use = argv.pop(0) if argv else die("--use which agent? (vikix agent --list)")
+        elif a == "--local":
+            local = True
         elif a == "--here":
             here = True
         elif a.startswith("-"):
@@ -530,6 +577,11 @@ def desk(argv):
             return 0
     else:
         topic = ""
+    if asked and not use and not local:
+        chosen = ask_agent()
+        if chosen is None:
+            return 0
+        use, local = chosen
     path = str(project.path)
     top = (git(path, "rev-parse", "--show-toplevel") or "").strip()
     said = f"in {short(path)}"
@@ -548,9 +600,12 @@ def desk(argv):
                                            else f"the worktree that was there (branch {topic})"))
     if not os.path.isdir(folder):
         die(f"{short(folder)} isn't there")
-    # Tests name a stand-in for what starts the agent.
+    # Tests name a stand-in for what starts the agent; it gets the same words.
+    extra = (["--use", use] if use else []) + (["--local"] if local else [])
     start = ([os.environ["VIKIX_AGENT_CMD"]] if os.environ.get("VIKIX_AGENT_CMD")
-             else [os.path.join(VIKIX_DIR, "bin", "vikix"), "agent"] + (["--use", use] if use else []))
+             else [os.path.join(VIKIX_DIR, "bin", "vikix"), "agent"]) + extra
+    if use or local:
+        said += f", {use or 'your agent'}" + (" on a model on this laptop" if local else "")
     if here:
         print(f"a desk for the agent: {said}")
         sys.stdout.flush()

@@ -16,8 +16,8 @@
 #   branch of the topic (used again when it is there; a collection's
 #   project in the collection's worktree; no worktree for a folder that is
 #   no repository, or without a topic; a folder in the way left alone),
-#   --here in this terminal, and asks for the project and the topic when
-#   they aren't given.
+#   --here in this terminal, and asks for the project, the topic and the
+#   agent when they aren't given (--use and --local reach vikix agent).
 #
 # Needs Xvfb, xdotool, alacritty and Vikix's own StumpWM, as viri does;
 # without them it says so and stops there. Its own screen, port and home.
@@ -159,17 +159,33 @@ check "a topic that gives no name is refused: $out" grep -q 'gives no name for a
 printf '#!/bin/sh\npwd\n' > "$t/bin/where"; chmod +x "$t/bin/where"
 out=$(AGENT_CMD="$t/bin/where" desk books in-place --here)
 check "--here starts it in this terminal, in the worktree: $(tail -1 <<<"$out")" test "$(tail -1 <<<"$out")" = "$home/src/books-in-place"
-# Asked on the desktop: a stand-in rofi picks the project called books, and types a topic.
-cat > "$t/bin/rofi" <<'R'
+# Asked on the desktop: a stand-in rofi picks the project called books, types a topic, and picks
+# the agent $t/agent-pick names (the first row, yours, when the file is empty).
+cat > "$t/bin/rofi" <<R
 #!/bin/sh
-case " $* " in
-  *" -format i "*) grep -n '^books ' | head -1 | cut -d: -f1 | awk '{ print $1 - 1 }' ;;
+case " \$* " in
+  *" -p Agent -mesg "*) grep -n "^\$(cat "$t/agent-pick")" | head -1 | cut -d: -f1 | awk '{ print \$1 - 1 }' ;;
+  *" -format i "*) grep -n '^books ' | head -1 | cut -d: -f1 | awk '{ print \$1 - 1 }' ;;
   *) cat >/dev/null; echo "From the menu" ;;
 esac
 R
 chmod +x "$t/bin/rofi"
-out=$(PATH="$t/bin:$PATH" desk)
-check "without a project it asks which, then for a topic: $out" grep -q 'in ~/src/books-from-the-menu, a new worktree on the branch from-the-menu' <<<"$out"
+printf '#!/bin/sh\necho "$*" > "%s"\nexec "%s"\n' "$t/desk.args" "$t/bin/claude" > "$t/bin/argsaver"; chmod +x "$t/bin/argsaver"
+: > "$t/agent-pick"
+out=$(PATH="$t/bin:$PATH" AGENT_CMD="$t/bin/argsaver" desk)
+check "without a project it asks which, then for a topic, then which agent: $out" grep -q 'in ~/src/books-from-the-menu, a new worktree on the branch from-the-menu, on workspace' <<<"$out"
+sleep 0.5
+check "yours, the first row, adds nothing: '$(cat "$t/desk.args" 2>/dev/null)'" test -z "$(cat "$t/desk.args" 2>/dev/null)"
+echo "codex " > "$t/agent-pick"
+out=$(PATH="$t/bin:$PATH" AGENT_CMD="$t/bin/argsaver" desk)
+check "another agent picked reaches vikix agent as --use, and is said: $out" grep -q 'from-the-menu), codex, on workspace' <<<"$out"
+sleep 0.5
+check "... as --use codex: '$(cat "$t/desk.args" 2>/dev/null)'" test "$(cat "$t/desk.args" 2>/dev/null)" = "--use codex"
+mkdir -p "$home/.local/bin"; cp "$t/bin/codex" "$home/.local/bin/codex"     # installed: its local row is offered
+echo "codex        on a model" > "$t/agent-pick"
+out=$(PATH="$t/bin:$PATH" AGENT_CMD="$t/bin/argsaver" desk)
+sleep 0.5
+check "the local row adds --local: '$(cat "$t/desk.args" 2>/dev/null)'" test "$(cat "$t/desk.args" 2>/dev/null)" = "--use codex --local"
 check "Super+m has it, under AI" yes '(find (quote (run-shell-command "vikix-agents desk")) *vikix-menu* :key (function second) :test (function equal))'
 
 check "vikix agents with a word it doesn't know says what it takes" grep -q 'vikix agents \[--json|desk|sit|close|desks|clash|crossings\]' <<<"$(cli nonsense)"
