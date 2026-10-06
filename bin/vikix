@@ -72,8 +72,9 @@
 #   vikix what [KIND] [NAME]
 #                       what is this? the bar's field under the pointer or the
 #                       window in front, or a thing by name (a field, a key,
-#                       a process, a package): what it is doing now, what
-#                       such a thing is, and where it is explained (Super+Alt+?)
+#                       a process, a service, a package, a command, a file):
+#                       what it is doing now, what such a thing is, and where
+#                       it is explained: your own chapters first (Super+Alt+?)
 #   vikix viri [on|off]  this workspace as a strip that scrolls sideways
 #                       (Super+h/l along it), or tiled again; no word switches
 #   vikix gestures [on|off]  three fingers swept on the touchpad move the

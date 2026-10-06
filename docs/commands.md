@@ -104,7 +104,7 @@ The everyday command.
 - `vikix layout save NAME | NAME [--no-start] | list | rm NAME` — this workspace's layout (its splits or its strip, and which window is where) saved, put back (the windows it had that aren't open started, unless --no-start), listed, removed
 - `vikix rules [off|on|forget N] [why [CLASS]] [test|apply [N]] [verbs|now|proposed]` — the desktop's rules: the list, one off or on, why a window is where it is, what they'd do with the windows open now, and doing it; forget takes one out of your rules.lisp (vikix rules help)
 - `vikix why [N]` — why did that happen? the last things the desktop did (a key and its command, a rule and its window, the menu, an agent) and where each is written (Super+?)
-- `vikix what [KIND] [NAME]` — what is this? the bar's field under the pointer or the window in front, or a thing by name (a field, a key, a process, a package): what it is doing now, what such a thing is, and where it is explained (Super+Alt+?)
+- `vikix what [KIND] [NAME]` — what is this? the bar's field under the pointer or the window in front, or a thing by name (a field, a key, a process, a service, a package, a command, a file): what it is doing now, what such a thing is, and where it is explained: your own chapters first (Super+Alt+?)
 - `vikix viri [on|off]` — this workspace as a strip that scrolls sideways (Super+h/l along it), or tiled again; no word switches
 - `vikix gestures [on|off]` — three fingers swept on the touchpad move the focus, as Super+h/j/k/l do; alone: how it is
 - `vikix eval FORM` — run Lisp in the running StumpWM, print the result
@@ -347,9 +347,11 @@ Every document on the machine in one catalogue, found from one key.
 - `vikix docs list [--source S]` — how many from each source, a line each (source, count, tab between); with --source, its documents by title, as find --tsv prints them
 - `vikix docs get` — download the offline programming docs into `~/dev` (a few GB, slow; what plain vikix docs did before)
 
-What it covers, each with whose words they are: Vikix's guides (vikix); the README, DESIGN, TODO, CLAUDE and log files and docs/ of your projects in `~/src` (repo); the language guides in `~/dev` (dev); your Org notes in `~/Dropbox/notes` (note); every man page (man) and Info manual (info) on the machine; the tldr pages (tldr: a command's worked examples, where a man page has its options) and the ArchWiki (arch), the English pages of each as wikiman keeps them in /usr/share/doc, when they're there; the READMEs and notes packages keep in /usr/share/doc (doc); and every package there is, installed or not (pkg). Vikix's guides rank first, then yours, then tldr with the man pages, then the rest of the system's.
+What it covers, each with whose words they are: Vikix's guides (vikix); the README, DESIGN, TODO, CLAUDE and log files and docs/ of your projects in `~/src` (repo); the language guides in `~/dev` (dev); your Org notes in `~/Dropbox/notes` (note); your own documents, the folders you name (own, below); every man page (man) and Info manual (info) on the machine; the tldr pages (tldr: a command's worked examples, where a man page has its options) and the ArchWiki (arch), the English pages of each as wikiman keeps them in /usr/share/doc, when they're there; the READMEs and notes packages keep in /usr/share/doc (doc); and every package there is, installed or not (pkg). Vikix's guides rank first, then yours, then tldr with the man pages, then the rest of the system's.
 
 It reads again by itself what changed, when a search finds the catalogue more than a day old (a few seconds); vikix update reads the man pages and manuals again. A man page, a tldr page or a Markdown file opens as a page in the docs browser, styled as the guide is (made by mandoc and pandoc, cached in `~/.cache/vikix/docs/`); an ArchWiki page as the copy is; a package as a short page (installed or not, how to add it, its website); an Info manual and your notes in Emacs. Ctrl+Enter (or --other) opens the other way: Emacs, or a terminal; an ArchWiki page as it is today, on the web.
+
+Your own documents (own) are the folders named in `~/.config/vikix/docs`, yours to make, a line each: `own=~/books` (every Markdown file under it), or `own=~/books` `one/*.md` `two/out/*.html` (those files, as patterns from that folder; HTML pages only when asked for). Unlike the other sources they are read a section at a time (a Markdown heading, an HTML heading with an id), so a search lands on the section, and so does a chapter a page of vikix what names. They open in the docs browser at that section, styled as the guide is, or in Emacs. They are closed to agents: `docs_search` and `docs_read` leave them out, unless a line `agents=~/books` opens that folder to them. The same file names the folders of your own pages for vikix what (what=FOLDER; vikix what help says what a page is).
 
 The catalogue is one SQLite file, `~/.local/share/vikix/docs/index.db`: table docs (id, source, kind, title, path, excerpt, mtime) and `docs_fts`, its full-text index. Nothing in it leaves the machine.
 
@@ -1170,19 +1172,20 @@ The pickers are fzf, which the base installs: type to narrow the list, Tab to pi
 What is this? A part of the running computer, on a card.
 
 - `vikix what` — the thing the pointer is on in the bar (a field, a workspace's number, a window's title), else the window in front: what it is doing now, a few lines on what such a thing is, and where it is explained
-- `vikix what NAME` — a thing by its name: a field of the bar (battery, network, clock ...), a key (Super+t, or s-t as StumpWM writes it), a process (its number or its name), a package
-- `vikix what KIND [NAME]` — the same, saying which kind: field, key, process, package, window, workspace; without a name, what such a thing is
+- `vikix what NAME` — a thing by its name: a field of the bar (battery, network, clock ...), a key (Super+t, or s-t as StumpWM writes it), a process (its number or its name), a service, a package, a command, a file; when a name fits more than one, the others are rows of the card
+- `vikix what KIND [NAME]` — the same, saying which kind: field, key, process, port, service, package, command, file, window, workspace; without a name, what such a thing is
 - `vikix what ... --open N` — open the Nth of the card's explanations
 - `vikix what ... --card` — the card as a menu on the desktop, which is what the key shows: Enter opens the first explanation
 - `vikix what ... --json` — the card as data, for a script
 - `vikix what kinds` — the kinds of thing it knows, and which have a page
-- `vikix what check` — the pages: every guide, manual and file they name is there, and none says more than a card holds
+- `vikix what gaps` — what has no page or no chapter yet: the kinds, the bar's fields, and the services that run here; a writing list, drawn from the machine
+- `vikix what check` — the pages, Vikix's and yours: every guide, manual, chapter and file they name is there, and none says more than a card holds
 
 Super+Alt+? is the same on the desktop: point at a field of the bar and press it, or press it with a window in front. A click on a field that does nothing else when clicked (the battery, the clock, updates) opens its card too.
 
 A card has three depths. First what this very thing is doing now, read a moment ago: a process's memory and what started it, where a key is written and how often you press it, what a field of the bar shows and where that comes from. Then a short paragraph on what such a thing is. Then the explanations, the nearest first: the section of Vikix's guide, the manual page, the file it is written in, and the things beside it (a window's process, a process's package).
 
-The paragraphs and what each kind points at are files, one a kind, in Vikix's config/what: the paragraph, then lines such as guide: fixing.md#The desktop feels slow, manual: ps(1), source: bin/vikix-net and see: process. A window's title and whatever you pointed at are shown on the card and written nowhere.
+The paragraphs and what each kind points at are pages, a file a kind: the paragraph, then lines such as guide: fixing.md#The desktop feels slow, manual: ps(1), source: bin/vikix-net and see: process. Vikix's are in its config/what. Yours are in the folders `~/.config/vikix/docs` names with what=FOLDER (process.md, service.md, and service-sshd.md for one thing by name, which falls back to service.md): your paragraph replaces Vikix's, your lines come first, and yours may say chapter: PATH#HEADING, a section of one of your own documents (a folder an own= line there names, which the catalogue reads a section at a time; vikix docs help), opened as the catalogue opens it. A window's title and whatever you pointed at are shown on the card and written nowhere.
 
 ## vikix-why
 

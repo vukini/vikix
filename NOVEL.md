@@ -37,6 +37,8 @@ First step: `Super+?` on the bar's items alone (battery, network, updates, a wor
 
 > 2026-10-05, the what session, later: Phase 0 built, as `vikix what` (`bin/vikix-what`, `what.lisp`, `config/what/`; the README's part on the bar says what it does). In: the card for a field of the bar, a window, a workspace, a key, a running process and a package, from Vikix's guides and the manuals; `Super+Alt+?` on what the pointer is on, and a click on a field. Not in: anything of the books (Phase 1, with the `own` source), ports, services and files as kinds, the row in `vikix why`.
 
+> 2026-10-06, the what session: Phase 1 built. The catalogue reads a user's own documents a section at a time (`own=` in `~/.config/vikix/docs`), closed to agents until a folder is opened; the user's pages (`what=`) put their paragraph and their chapters first on the card; ports, services, commands and files have cards; `vikix what gaps` is the writing list; why's menu asks what a key or a window is. The books' tables themselves are Vid's to write, in the books' repository.
+
 ## 3. Record a lesson
 
 Doing a thing once becomes the first draft of teaching it.

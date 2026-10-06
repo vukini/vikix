@@ -486,6 +486,10 @@ def t_docs_search(a):
         raise ToolError("docs_search needs a query: the words to find")
     docs.fresh_enough()
     hits = docs.find(query.split(), a.get("source") or None, min(int(a.get("limit") or 10), 25))
+    # The user's own documents are theirs: closed to agents, unless the
+    # folder is opened to them (agents= in ~/.config/vikix/docs).
+    own = docs.own_config()
+    hits = [h for h in hits if h["source"] != "own" or docs.own_open_to_agents(docs.own_split(h)[0], own)]
     return json.dumps([{"id": h["id"], "source": h["source"], "kind": h["kind"], "title": h["title"],
                         "excerpt": h["excerpt"][:300]} for h in hits], ensure_ascii=False)
 
@@ -495,6 +499,9 @@ def t_docs_read(a):
     doc = docs.get(str(a.get("id", "")))
     if not doc:
         raise ToolError(f"there's no document {a.get('id')} (docs_search gives the ids)")
+    if doc["source"] == "own" and not docs.own_open_to_agents(docs.own_split(doc)[0]):
+        raise ToolError("that is one of the user's own documents, which are closed to agents; "
+                        "the user opens a folder of them with a line agents=FOLDER in ~/.config/vikix/docs")
     text = docs.read(doc)
     return text[:30000] + (" [cut short]" if len(text) > 30000 else "")
 
@@ -804,10 +811,11 @@ TOOLS = [
      "docs of the user's projects in ~/src (repo), the language guides in ~/dev (dev), the user's Org notes "
      "(note), man pages (man), Info manuals (info), the tldr pages (tldr: a command's worked examples), the "
      "ArchWiki (arch: offline copies, when wikiman keeps them), packages' READMEs (pkgdoc) and every package "
-     "there is, installed or not (pkg). Use it before answering how something on this machine "
+     "there is, installed or not (pkg); the user's own documents (own) only from a folder the user has "
+     "opened to agents. Use it before answering how something on this machine "
      "works. Words, \"a phrase\", or OR; the start of a word is enough. Read only." + DATA,
      schema({"query": {"type": "string", "maxLength": 200},
-             "source": {"type": "string", "enum": ["vikix", "repo", "dev", "note", "man", "info", "tldr", "arch", "pkgdoc", "pkg"]},
+             "source": {"type": "string", "enum": ["vikix", "own", "repo", "dev", "note", "man", "info", "tldr", "arch", "pkgdoc", "pkg"]},
              "limit": {"type": "integer", "minimum": 1, "maximum": 25}}, ["query"]),
      READ, t_docs_search),
     ("docs_read", "Read one document",

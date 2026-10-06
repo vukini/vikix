@@ -29,7 +29,8 @@
 What it covers, each with whose words they are: Vikix's guides (vikix);
 the README, DESIGN, TODO, CLAUDE and log files and docs/ of your projects in
 ~/src (repo); the language guides in ~/dev (dev); your Org notes in
-~/Dropbox/notes (note); every man page (man) and Info manual (info) on the
+~/Dropbox/notes (note); your own documents, the folders you name (own,
+below); every man page (man) and Info manual (info) on the
 machine; the tldr pages (tldr: a command's worked examples, where a man
 page has its options) and the ArchWiki (arch), the English pages of each
 as wikiman keeps them in /usr/share/doc, when they're there; the READMEs
@@ -45,6 +46,18 @@ cached in ~/.cache/vikix/docs/); an ArchWiki page as the copy is; a package
 as a short page (installed or not, how to add it, its website); an Info
 manual and your notes in Emacs. Ctrl+Enter (or --other) opens the other
 way: Emacs, or a terminal; an ArchWiki page as it is today, on the web.
+
+Your own documents (own) are the folders named in ~/.config/vikix/docs,
+yours to make, a line each: own=~/books (every Markdown file under it), or
+own=~/books one/*.md two/out/*.html (those files, as patterns from that
+folder; HTML pages only when asked for). Unlike the other sources they are
+read a section at a time (a Markdown heading, an HTML heading with an id),
+so a search lands on the section, and so does a chapter a page of vikix
+what names. They open in the docs browser at that section, styled as the
+guide is, or in Emacs. They are closed to agents: docs_search and
+docs_read leave them out, unless a line agents=~/books opens that folder
+to them. The same file names the folders of your own pages for vikix what
+(what=FOLDER; vikix what help says what a page is).
 
 The catalogue is one SQLite file, ~/.local/share/vikix/docs/index.db: table
 docs (id, source, kind, title, path, excerpt, mtime) and docs_fts, its
@@ -78,9 +91,9 @@ SRC = os.environ.get("VIKIX_DOCS_SRC") or os.path.join(HOME, "src")
 DEV = os.environ.get("VIKIX_DOCS_DEV") or os.path.join(HOME, "dev")
 STALE = 24 * 3600                       # a search reads again what changed, after a day
 BODY = 200_000                          # characters of a document indexed
-BOOST = {"vikix": 3.0, "repo": 2.0, "dev": 2.0, "note": 2.0, "tldr": 1.1, "man": 1.0, "info": 1.0, "arch": 0.95,
+BOOST = {"vikix": 3.0, "own": 2.5, "repo": 2.0, "dev": 2.0, "note": 2.0, "tldr": 1.1, "man": 1.0, "info": 1.0, "arch": 0.95,
          "pkgdoc": 0.9, "pkg": 0.8}
-BADGE = {"vikix": "vikix", "repo": "repo", "dev": "dev", "note": "note", "man": "man", "info": "info",
+BADGE = {"vikix": "vikix", "own": "yours", "repo": "repo", "dev": "dev", "note": "note", "man": "man", "info": "info",
          "tldr": "tldr", "arch": "arch", "pkgdoc": "doc", "pkg": "pkg"}
 PKGDOC = "/usr/share/doc"
 # wikiman's offline copies (its own download step puts them here; nothing
@@ -209,6 +222,145 @@ def files_repo():
 def files_dev():
     for p in sorted(glob.glob(os.path.join(DEV, "*", "README.md"))):
         yield p, "guide"
+
+
+OWN_FILE = os.path.join(CONFIG, "vikix", "docs")
+OWN_SKIP = {"node_modules", "out", "build", "dist", ".cache", "__pycache__"}
+OWN_LARGEST = 3_000_000   # bytes: a built single-file site is bigger, and isn't a document to read
+OWN_HEADINGS = 2          # a section is a second-level heading (## in Markdown, h2); the first is the whole
+
+
+def own_config(path=None):
+    """~/.config/vikix/docs, yours: {"own": [(folder, [patterns])], "agents": [folders], "what": [folders]}."""
+    found = {"own": [], "agents": [], "what": []}
+    for line in (read_text(path or OWN_FILE) or "").splitlines():
+        line = line.split("#", 1)[0].strip()
+        key, sep, rest = line.partition("=")
+        key = key.strip()
+        if not sep or key not in found or not rest.strip():
+            continue
+        words = rest.split()
+        folder = os.path.realpath(os.path.expanduser(words[0]))
+        found[key].append((folder, words[1:]) if key == "own" else folder)
+    return found
+
+
+def own_open_to_agents(path, config=None):
+    """Whether agents may read the document at PATH: it is under a folder an
+    agents= line opens to them. Everything of yours is closed until then."""
+    path = os.path.realpath(path)
+    return any(path == folder or path.startswith(folder + os.sep)
+               for folder in (config or own_config())["agents"])
+
+
+def files_own(config=None):
+    """Your documents: (path, top folder) each, by the own= lines."""
+    seen = set()
+    for folder, patterns in (config or own_config())["own"]:
+        if not os.path.isdir(folder):
+            continue
+        if patterns:
+            paths = [p for pat in patterns for p in sorted(glob.glob(os.path.join(folder, pat), recursive=True))]
+        else:
+            paths = []
+            for root, dirs, files in os.walk(folder):
+                dirs[:] = sorted(d for d in dirs if not d.startswith(".") and d not in OWN_SKIP)
+                paths += [os.path.join(root, f) for f in sorted(files) if f.endswith(".md")]
+        for path in paths:
+            if path in seen or not os.path.isfile(path):
+                continue
+            seen.add(path)
+            yield path, folder
+
+
+def md_sections(text):
+    """A Markdown text as (heading, depth, body) parts: what is before the
+    first heading first, with no heading."""
+    parts, heading, depth, body = [], "", 0, []
+    for line in text.splitlines():
+        m = re.match(r"^(#{1,%d}) +(.+?)\s*#*\s*$" % OWN_HEADINGS, line)
+        if m:
+            parts.append((heading, depth, "\n".join(body)))
+            heading, depth, body = m.group(2).strip(), len(m.group(1)), []
+        else:
+            body.append(line)
+    parts.append((heading, depth, "\n".join(body)))
+    return [p for p in parts if p[0] or p[2].strip()]
+
+
+def html_sections(text):
+    """An HTML page as (heading, id, body) parts, by the second-level
+    headings that have an id (what a link can land on); what comes before
+    the first is the page's."""
+    parts, heading, hid, start = [], "", "", 0
+    for m in re.finditer(r"(?is)<h2\b([^>]*)>(.*?)</h2>", text):
+        idm = re.search(r'\bid="([^"]+)"', m.group(1))
+        if not idm:
+            continue
+        parts.append((heading, hid, text[start:m.start()]))
+        heading, hid, start = html_plain(m.group(2)), idm.group(1), m.end()
+    parts.append((heading, hid, text[start:]))
+    return [p for p in parts if p[0] or html_plain(p[2])]
+
+
+def own_title(text, path):
+    if path.endswith(".html"):
+        m = re.search(r"(?is)<title>(.*?)</title>", text) or re.search(r"(?is)<h1\b[^>]*>(.*?)</h1>", text)
+        return html_plain(m.group(1)) if m else os.path.basename(path)
+    return md_title(text, path)
+
+
+def own_rows(path, folder):
+    """The rows a document of yours makes: the whole, then a row a section
+    (id own:PATH#HEADING, path PATH#HEADING for Markdown, PATH#ID for HTML)."""
+    text = read_text(path)
+    book = os.path.relpath(path, folder).split(os.sep)[0]
+    book = "" if book == os.path.basename(path) else book
+    title = own_title(text, path)
+    said = f"{title} ({book})" if book else title
+    whole = html_plain(text) if path.endswith(".html") else md_plain(text)
+    rows = [({"id": f"own:{path}", "source": "own", "kind": "own", "title": said, "path": path,
+              "excerpt": excerpt(whole)}, whole)]
+    if path.endswith(".html"):
+        parts = [(h, i, html_plain(b)) for h, i, b in html_sections(text) if h]
+    else:
+        parts = [(h, h, md_plain(b)) for h, d, b in md_sections(text) if h and d > 1]
+    for heading, anchor, body in parts:
+        rows.append(({"id": f"own:{path}#{heading}", "source": "own", "kind": "section",
+                      "title": f"{title} › {heading}" + (f" ({book})" if book else ""),
+                      "path": f"{path}#{anchor}", "excerpt": excerpt(body)}, body))
+    return rows
+
+
+def index_own(db, full):
+    """Your documents, a file read again when it changed, its rows made anew."""
+    known = {}
+    for doc_id, mtime in db.execute("SELECT id, mtime FROM docs WHERE source = 'own'").fetchall():
+        known.setdefault(doc_id.split("#", 1)[0], mtime)
+    seen, changed = set(), 0
+    for path, folder in files_own():
+        try:
+            mtime = os.path.getmtime(path)
+            if os.path.getsize(path) > OWN_LARGEST:
+                continue
+        except OSError:
+            continue
+        doc_id = f"own:{path}"
+        seen.add(doc_id)
+        if not full and known.get(doc_id) == mtime:
+            continue
+        for old in db.execute("SELECT id FROM docs WHERE source = 'own' AND (id = ? OR id LIKE ?)",
+                              (doc_id, doc_id.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "#%")).fetchall():
+            drop(db, old[0])
+        for doc, body in own_rows(path, folder):
+            doc["mtime"] = mtime
+            put(db, doc, body)
+        changed += 1
+    for doc_id in set(known) - seen:
+        for old in db.execute("SELECT id FROM docs WHERE source = 'own' AND (id = ? OR id LIKE ?)",
+                              (doc_id, doc_id.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "#%")).fetchall():
+            drop(db, old[0])
+    return changed
 
 
 def html_plain(text):
@@ -458,6 +610,7 @@ def index(full=False, quiet=False):
         counts["repo"] = index_files(db, "repo", files_repo(), md_title, md_plain, full)
         counts["dev"] = index_files(db, "dev", files_dev(), md_title, md_plain, full)
         counts["note"] = index_files(db, "note", files_note(), org_title, org_plain, full)
+        counts["own"] = index_own(db, full)
         # VIKIX_DOCS_SOURCES limits what's read (the tests leave the system's out).
         only = os.environ.get("VIKIX_DOCS_SOURCES", "man info tldr arch pkg pkgdoc").split()
         if "man" in only:
@@ -574,7 +727,58 @@ def read(doc):
         return tldr_text(doc["path"])
     if doc["source"] == "arch":
         return arch_plain(read_text(doc["path"]))
+    if doc["source"] == "own":
+        return own_text(doc)
     return read_text(doc["path"])
+
+
+def own_split(doc):
+    """(file, heading or id) of a document of yours: the whole file when it has no section."""
+    path, _, anchor = doc["path"].partition("#")
+    return path, anchor
+
+
+def own_text(doc):
+    """A document of yours as text: the section alone when it is one."""
+    path, anchor = own_split(doc)
+    text = read_text(path)
+    if not anchor:
+        return html_plain(text) if path.endswith(".html") else text
+    if path.endswith(".html"):
+        for heading, hid, body in html_sections(text):
+            if hid == anchor:
+                return heading + "\n\n" + html_plain(body)
+    else:
+        for heading, depth, body in md_sections(text):
+            if heading == anchor:
+                return "#" * depth + " " + heading + "\n" + body
+    return html_plain(text) if path.endswith(".html") else text
+
+
+def html_id_of(page, heading):
+    """The id of the heading HEADING in the page PAGE (a file), as the
+    renderer wrote it, or None: matched by the heading's words, so no rule
+    of pandoc's has to be known."""
+    want = re.sub(r"\s+", " ", re.sub(r"[`*_]", "", heading)).strip().lower()
+    for m in re.finditer(r'(?is)<h[1-6]\b[^>]*\bid="([^"]+)"[^>]*>(.*?)</h[1-6]>', read_text(page)):
+        if re.sub(r"\s+", " ", html_plain(m.group(2))).strip().lower() == want:
+            return m.group(1)
+    return None
+
+
+def own_page(doc):
+    """A document of yours as a page to open: its file (HTML), or the
+    rendered Markdown, at its section when it has one."""
+    path, anchor = own_split(doc)
+    if path.endswith(".html"):
+        page = path
+    else:
+        page = md_html(path, doc["title"])
+        if page and anchor:
+            anchor = html_id_of(page, anchor) or ""
+    if not page:
+        return None
+    return "file://" + page + (f"#{anchor}" if anchor else "")
 
 
 def guide_page(path):
@@ -770,9 +974,16 @@ def open_doc(doc, other=False):
             subprocess.Popen(["xdg-open", arch_url(doc)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
             docs_open([doc["path"]])
+    elif src == "own" and not other:
+        page = own_page(doc)
+        if page:
+            docs_open([page])
+        else:
+            emacs([own_split(doc)[0]])
     elif src == "note" or other:
-        if not emacs([doc["path"]]):
-            docs_open([doc["path"]])
+        path = own_split(doc)[0] if src == "own" else doc["path"]
+        if not emacs([path]):
+            docs_open([path])
     else:
         # A guide as its own built page; any Markdown as a page styled as
         # the guide; an HTML or text file as it is.
@@ -1000,7 +1211,7 @@ def main(argv):
         doc = get(args[0])
         if not doc:
             die(f"no document {args[0]} (vikix docs find WORDS shows the ids)")
-        if doc["source"] not in ("man", "info", "pkg") and not os.path.exists(doc["path"]):
+        if doc["source"] not in ("man", "info", "pkg") and not os.path.exists(own_split(doc)[0]):
             die(f"{doc['path']} is gone since the last index (vikix docs index catches up)")
         if cmd == "read":
             print(read(doc))

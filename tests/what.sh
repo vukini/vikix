@@ -7,11 +7,17 @@
 #   is refused: the pages point at Vikix's guides, the manuals and its own
 #   files, never at anyone's books; a process's card says how long it has
 #   run, what started it, the port it listens on and to whom, and the
-#   package its program came from; the battery's card reads the kernel's
-#   files; memory's and the clock's are read; a name nothing has is said; a
-#   card as data; an explanation opens the guide's built page at its
-#   heading, a file of Vikix's to read in Emacs; the card on the desktop
-#   says & and < plainly, and Enter opens the first explanation.
+#   package its program came from; a port's who listens; a service's (a
+#   made-up runit) its process, boot and run file; a command's where it is
+#   and its package, a shell's own word; a file's type, size and repository;
+#   a bare name that fits more than one thing lists the others; the
+#   battery's card reads the kernel's files; memory's and the clock's are
+#   read; a name nothing has is said; a card as data; an explanation opens
+#   the guide's built page at its heading, a file of Vikix's to read in
+#   Emacs; your own pages (what= in ~/.config/vikix/docs) give the paragraph
+#   and chapters of a made-up book, opened at the section, checked, and
+#   gaps lists what has none; the card on the desktop says & and < plainly,
+#   and Enter opens the first explanation.
 #
 #   In a real StumpWM on a hidden screen: every field of the bar is an
 #   area with its name; "this" is the field the pointer is on (the clock, a
@@ -35,7 +41,8 @@ here=$(cd "$(dirname "$0")/.." && pwd)
 
 t0=$(mktemp -d)
 trap 'for p in "${pids[@]}"; do kill "$p" 2>/dev/null || true; done; rm -rf "$t0"' EXIT
-mkdir -p "$t0/bin" "$t0/home/.local/share/vikix/guide" "$t0/power/BAT0" "$t0/xbps" "$t0/pages"
+mkdir -p "$t0/bin" "$t0/home/.local/share/vikix/guide" "$t0/home/.config/vikix" "$t0/power/BAT0" "$t0/xbps" "$t0/pages" \
+         "$t0/sv/quokka/log" "$t0/service" "$t0/books/unix-by-hand" "$t0/books/what"
 
 # Stand-ins, so nothing of this reaches the desktop: the menu, notifications,
 # Emacs, the docs browser, and a desktop that doesn't answer.
@@ -51,8 +58,10 @@ printf '#!/bin/sh\nprintf "%%s\\n" "$@" >> "%s"\n' "$t0/opened" > "$t0/bin/docs-
 printf '#!/bin/sh\nexit 1\n' > "$t0/bin/no-desktop"
 chmod +x "$t0/bin/"*
 what() {
-  HOME="$t0/home" XDG_DATA_HOME="$t0/home/.local/share" PATH="$t0/bin:$PATH" VIKIX_EVAL="${desk:-$t0/bin/no-desktop}" \
+  HOME="$t0/home" XDG_DATA_HOME="$t0/home/.local/share" XDG_CONFIG_HOME="$t0/home/.config" XDG_CACHE_HOME="$t0/home/.cache" \
+    PATH="$t0/bin:$PATH" VIKIX_EVAL="${desk:-$t0/bin/no-desktop}" \
     VIKIX_DOCS_OPEN="$t0/bin/docs-open" VIKIX_WHAT_POWER="$t0/power" VIKIX_WHAT_XBPS_DB="$t0/xbps" \
+    VIKIX_WHAT_SV="$t0/sv" VIKIX_WHAT_SERVICES="$t0/service" \
     python3 "$here/bin/vikix-what" "$@" 2>&1 || true
 }
 
@@ -112,6 +121,76 @@ assert card["rows"][0]["guide"].endswith("docs/fixing.md") and card["rows"][0]["
 out=$(what no-such-thing-here)
 check "a name nothing has is said: $out" grep -q 'nothing here is called no-such-thing-here' <<<"$out"
 check "three words say what it takes" grep -q 'vikix what \[KIND\] \[NAME\]' <<<"$(what a b c)"
+
+# --- A port, a service, a command, a file ------------------------------------------
+if command -v ss >/dev/null; then
+  out=$(what port "$lport")
+  check "a port: who listens on it, and to whom: $(sed -n 2p <<<"$out")" \
+    grep -q "^  python3[.0-9]* (process $lpid) listens on it, TCP, to this machine only$" <<<"$out"
+  check "and the process is a row of the card" grep -q "^  [0-9]*  Also: the process python3[.0-9]* (number $lpid)$" <<<"$out"
+  check "a port nothing listens on says so" grep -qx '  nothing listens on it now' <<<"$(what port 1)"
+  check "and its usual use, from /etc/services: $(what port 22 | grep usual)" grep -q 'its usual use, by /etc/services: ssh' <<<"$(what port 22)"
+fi
+# A runit service, made up: runsv NAME with the service's process under it.
+printf '#!/bin/sh\n# the quokka service\nexec sleep 300\n' > "$t0/sv/quokka/run"; chmod +x "$t0/sv/quokka/run"
+ln -s "$t0/sv/quokka" "$t0/service/quokka"
+printf '#!/bin/sh\nsleep 300 & wait $!\n' > "$t0/bin/runsv"; chmod +x "$t0/bin/runsv"
+"$t0/bin/runsv" quokka & pids+=($!); runsv=$!
+sleep 0.3
+out=$(what service quokka)
+check "a service: up, its process, since when: $(sed -n 2p <<<"$out")" grep -qE '^  up, for [0-9]+ s: runit keeps sleep \(process [0-9]+\) running$' <<<"$out"
+check "that it starts at boot, and its run file's last line" \
+  bash -c 'grep -q "^  starts at boot: it is linked in " <<<"$1" && grep -qx "  its run file ends with: exec sleep 300" <<<"$1" && grep -qx "  keeps a log of its own (svlogd)" <<<"$1"' _ "$out"
+check "the run file is a row to open, and the process another" \
+  bash -c 'grep -q "  The run file: .*/sv/quokka/run$" <<<"$1" && grep -q "  Also: its process, sleep (number " <<<"$1"' _ "$out"
+check "a bare name is the service first, with the process as a row: $(what quokka | head -1)" grep -qx 'quokka, a service' <<<"$(what quokka | head -1)"
+pkill -P "$runsv" 2>/dev/null || true; kill "$runsv" 2>/dev/null || true; sleep 0.3
+check "a service that is down says so" grep -qx '  not running, and runit doesn'"'"'t watch it' <<<"$(what service quokka)"
+check "a service that isn't there is nothing" grep -q 'nothing here is called service wombat' <<<"$(what service wombat)"
+out=$(what command grep)
+check "a command: where it is: $(sed -n 2p <<<"$out")" grep -qE '^  it is /(usr/)?bin/grep' <<<"$out"
+check "a word of the shell's own: $(what command cd | sed -n 2p)" grep -qx '  a builtin of the shell, not a program on the PATH' <<<"$(what command cd)"
+printf 'hello\n' > "$t0/books/note.txt"
+out=$(what file "$t0/books/note.txt")
+check "a file: its type and size: $(sed -n 2p <<<"$out")" grep -qE '^  text/plain, 6 bytes, changed 20' <<<"$out"
+check "and the file itself to open" grep -q "  The file itself: .*/books/note.txt$" <<<"$out"
+check "a folder: what it holds: $(what file "$t0/books" | sed -n 2p)" grep -qE '^  holds [0-9]+ entries$' <<<"$(what file "$t0/books")"
+check "a path is tried as a file by itself" grep -q ', a file$' <<<"$(what "$t0/books/note.txt" | head -1)"
+
+# --- Your own pages, and the chapters of a made-up book ---------------------------------
+cat > "$t0/books/unix-by-hand/ch04-processes.md" <<'M'
+# 4. Processes
+
+## A program that is running
+
+Every process has a number.
+
+## What starts them
+
+The first starts the rest.
+M
+printf 'own=%s\nwhat=%s\n' "$t0/books" "$t0/books/what" > "$t0/home/.config/vikix/docs"
+printf 'A process, in my words.\n\nchapter: unix-by-hand/ch04-processes.md#A program that is running\nsee: port\n' > "$t0/books/what/process.md"
+printf 'chapter: unix-by-hand/ch04-processes.md#What starts them\n' > "$t0/books/what/service-quokka.md"
+out=$(what process "$lpid")
+check "your paragraph replaces Vikix's" grep -qx '  A process, in my words.' <<<"$out"
+check "your chapter comes first, Vikix's guide after it: $(grep -E '^  [12]  ' <<<"$out" | tr '\n' '|')" \
+  bash -c 'grep -qx "  1  The chapter: 4. Processes, A program that is running" <<<"$1" && grep -qx "  2  The guide: When something breaks, The desktop feels slow" <<<"$1"' _ "$out"
+check "and your see: line is a row" grep -q 'Also: what a port is' <<<"$out"
+check "a page for one thing by name: $(what service quokka | grep chapter)" grep -q '  1  The chapter: 4. Processes, What starts them' <<<"$(what service quokka)"
+: > "$t0/opened"
+what process "$lpid" --open 1 >/dev/null; sleep 0.3
+check "a chapter opens as the catalogue opens it, at the section: $(cat "$t0/opened")" grep -qE '^file://.*\.html#a-program-that-is-running$' "$t0/opened"
+check "your pages pass the check with Vikix's: $(what check | tail -1)" grep -qE '^[0-9]+ pages, 0 problems$' <<<"$(what check)"
+printf 'chapter: nowhere.md#x\nchapter: unix-by-hand/ch04-processes.md#No such\n' > "$t0/books/what/port.md"
+out=$(what check)
+check "a chapter outside your own folders, or a section that isn't there, is found" \
+  bash -c 'grep -q "port.md: chapter: nowhere.md isn.t under a folder own= names" <<<"$1" && grep -q "port.md: chapter: ch04-processes.md has no section \"No such\"" <<<"$1"' _ "$out"
+rm -f "$t0/books/what/port.md"
+out=$(what gaps)
+check "gaps: what has your paragraph, a chapter, or neither: $(grep -E '^  (process|port|service quokka) ' <<<"$out" | tr -s ' ' | tr '\n' '|')" \
+  bash -c 'grep -qE "^  process +yours +yes " <<<"$1" && grep -qE "^  port +Vikix.s +none " <<<"$1" && grep -qE "^  service quokka +Vikix.s +yes " <<<"$1" && grep -qE "^[0-9]+ of [0-9]+ have no chapter yet$" <<<"$1"' _ "$out"
+rm -f "$t0/home/.config/vikix/docs"
 
 # --- The bar's fields, from the kernel's files ---------------------------------
 printf '84\n' > "$t0/power/BAT0/capacity"; printf 'Discharging\n' > "$t0/power/BAT0/status"

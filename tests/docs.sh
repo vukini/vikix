@@ -5,7 +5,10 @@
 # plugin's folder); found by the start of a word, a phrase, OR; Vikix's
 # guide first; read again only what changed, a file gone gone; read as text;
 # opened in Emacs or the docs browser (stand-ins); the agents' docs_search and
-# docs_read; tldr pages and the ArchWiki from stand-ins of wikiman's copies.
+# docs_read; tldr pages and the ArchWiki from stand-ins of wikiman's copies;
+# your own documents (own= in ~/.config/vikix/docs, a made-up book here) read
+# a section at a time, found and opened at the section, closed to agents
+# until a folder is opened to them.
 # Man pages and Info manuals are the system's: left out here
 # (VIKIX_DOCS_SOURCES), but a man page is read and opened when there is man.
 set -euo pipefail
@@ -256,8 +259,45 @@ d index >/dev/null; gone=$(d find ephemeral --source repo --tsv | cut -f1); rm "
 out=$(d open "$gone" 2>&1 || true)
 check "a file gone since the index says so: $out" grep -q "gone since the last index" <<<"$out"
 
-# The agents: docs_search and docs_read, read only.
-python3 - "$here/bin/vikix-mcp" <<'PY' || fail=1
+# Your own documents: a made-up book, a section a row.
+mkdir -p "$HOME/books/unix-by-hand" "$HOME/books/site/out"
+cat > "$HOME/books/unix-by-hand/ch04-processes.md" <<'M'
+# 4. Processes
+
+A chapter of a made-up book.
+
+## A program that is running
+
+Every process has a number: the quokka fact is here.
+
+## What starts them
+
+The first process starts the rest.
+
+### Not a section
+
+Too deep to be one.
+M
+printf '<html><head><title>Wires</title></head><body><h1 id="top">Wires</h1><p>Intro.</p><h2 id="bus">The shared bus</h2><p>One wire for all: the wombat fact.</p><h2>No id here</h2><p>x</p></body></html>\n' > "$HOME/books/site/out/page.html"
+printf 'own=~/books\nown=~/books site/out/*.html\n' > "$XDG_CONFIG_HOME/vikix/docs"
+out=$(d index)
+check "the own= folders are read: $out" grep -q 'own' <<<"$out"
+check "a Markdown file is a row, and each ## section one; a ### isn't: $(d list --source own | cut -f3 | tr '\n' '|')" \
+  test "$(d list --source own | cut -f3 | tr '\n' '|')" = "4. Processes (unix-by-hand)|4. Processes › A program that is running (unix-by-hand)|4. Processes › What starts them (unix-by-hand)|Wires (site)|Wires › The shared bus (site)|"
+check "a search lands on the section: $(d find quokka | head -1)" grep -q '^yours .*4. Processes › A program that is running' <<<"$(d find quokka | head -1)"
+check "an HTML page's section too, by its heading with an id" grep -q '^yours .*Wires › The shared bus' <<<"$(d find wombat | head -1)"
+sect=$(d find quokka --tsv | head -1 | cut -f1)
+check "read gives the section alone: $(d read "$sect" | head -1)" bash -c 'grep -q "^## A program that is running" <<<"$1" && ! grep -q "What starts them" <<<"$1"' _ "$(d read "$sect")"
+: > "$t/opened"
+d open "$sect"; sleep 0.3
+check "it opens as a page, at the section: $(cat "$t/opened")" grep -qE '^browser file://.*\.html#a-program-that-is-running$' "$t/opened"
+d open "$(d find wombat --tsv | head -1 | cut -f1)"; sleep 0.3
+check "an HTML page opens itself, at the id: $(tail -1 "$t/opened")" grep -q '^browser file://.*site/out/page.html#bus$' "$t/opened"
+: > "$t/opened"; d open "$sect" --other; sleep 0.3
+check "the other way is the file in Emacs" grep -q '^emacsclient .*ch04-processes.md$' "$t/opened"
+
+# The agents: docs_search and docs_read, read only; your own documents closed to them.
+python3 - "$here/bin/vikix-mcp" "$HOME/books" "$XDG_CONFIG_HOME/vikix/docs" <<'PY' || fail=1
 import importlib.machinery, importlib.util, json, sys
 loader = importlib.machinery.SourceFileLoader("vikix_mcp", sys.argv[1])
 spec = importlib.util.spec_from_loader("vikix_mcp", loader); m = importlib.util.module_from_spec(spec); loader.exec_module(m)
@@ -267,7 +307,21 @@ text = m.t_docs_read({"id": hits[0]["id"]})
 assert "websocket" in text, text
 tools = {t[0]: t for t in m.TOOLS}
 assert tools["docs_search"][4]["readOnlyHint"] and tools["docs_read"][4]["readOnlyHint"]
+# Yours: not found, and refused by id, until a folder is opened to agents.
+assert json.loads(m.t_docs_search({"query": "quokka"})) == [], "an agent found the user's own document"
+docs = m.docs_module()
+own_id = docs.find(["quokka"])[0]["id"]
+try:
+    m.t_docs_read({"id": own_id}); raise SystemExit("an agent read the user's own document")
+except m.ToolError as e:
+    assert "closed to agents" in str(e), e
+with open(sys.argv[3], "a") as f:
+    f.write(f"agents={sys.argv[2]}/unix-by-hand\n")
+hits = json.loads(m.t_docs_search({"query": "quokka"}))
+assert hits and hits[0]["source"] == "own", hits
+assert "quokka" in m.t_docs_read({"id": own_id})
+assert json.loads(m.t_docs_search({"query": "wombat"})) == [], "a folder not opened to agents was found"
 PY
 
-[ "$fail" = 0 ] && echo "docs: guides, projects, ~/dev and notes found by words, phrases and OR, Vikix's first, the one named first, only what changed read again, opened, man pages styled, tldr pages and the ArchWiki from wikiman's copies, the page in Nyxt asked for, and read-only tools for the agents"
+[ "$fail" = 0 ] && echo "docs: guides, projects, ~/dev and notes found by words, phrases and OR, Vikix's first, the one named first, only what changed read again, opened, man pages styled, tldr pages, your own documents a section at a time and closed to agents until opened and the ArchWiki from wikiman's copies, the page in Nyxt asked for, and read-only tools for the agents"
 exit "$fail"

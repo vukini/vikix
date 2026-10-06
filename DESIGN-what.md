@@ -2,7 +2,7 @@
 
 What is this? Any part of the running computer, explained at the depth you ask for: what this very thing is doing now, a few plain lines about its kind, then the chapter, the manual, the source.
 
-Drafted 2026-10-05 with Vid, from idea 2 of `NOVEL.md` ("Every part of this computer has a chapter"). Phase 0 was built the same day (see Phasing); the books' half is not. Kept honest like the other designs: what ships is deleted here, what changes is dated.
+Drafted 2026-10-05 with Vid, from idea 2 of `NOVEL.md` ("Every part of this computer has a chapter"). Phase 0 was built the same day and Phase 1 the next (see Phasing); the books' own tables are the user's to write. Kept honest like the other designs: what ships is deleted here, what changes is dated.
 
 ---
 
@@ -118,17 +118,14 @@ Shipped: see Phasing.
 
 ### Should have (P1)
 
-1. The `own` source: sections as rows, opening at the anchor, closed to agents by default; `tests/docs.sh` with an invented book; `tests/mcp.sh` that an agent is refused it.
-2. The user's tables (`what=`), `gaps`, and `check` over them (it covers Vikix's pages today).
-3. The kinds port, service, file and command, each tried for a bare name as a process and a package are now.
-4. The row in `vikix why`.
+Shipped: see Phasing.
 
 ### Later (P2)
 
-5. The selection as "this", when it is the window in front that owns it.
-6. Counting what was asked for (the kind's name only, through `vikix-used-note`), so `gaps` lists the most asked first.
-7. The palette (Super+Space: "what is …") and Esploro (a file's "What is this?").
-8. A read-only `what` tool for agents: the kind, the facts, Vikix's own targets; never the user's.
+1. The selection as "this", when it is the window in front that owns it.
+2. Counting what was asked for (the kind's name only, through `vikix-used-note`), so `gaps` lists the most asked first.
+3. The palette (Super+Space: "what is …") and Esploro (a file's "What is this?").
+4. A read-only `what` tool for agents: the kind, the facts, Vikix's own targets; never the user's.
 
 ## Decided with Vid, 2026-10-05
 
@@ -141,9 +138,7 @@ Shipped: see Phasing.
 
 ## Open questions
 
-Blocking:
-- **What a user may read of a runit service without sudo.** (engineering) `supervise/` is root's on Void, so `sv status` may be refused. Measure; if so, "up since" comes from the process whose command is the run file's, and "starts at boot" from the link in `/var/service`.
-- **Anchors.** (engineering) pandoc's ids for Markdown headings are stable for a given heading; a book built another way may give others. `check` catches a broken one, but pick one rule for what the anchor is and write it in the table's README.
+Blocking: none left (the two were answered by Phase 1; see Phasing).
 
 Non-blocking:
 - How many rows does a section each add for a shelf of books, and what does it do to a search's ranking? Measure on a real shelf, report here as counts only.
@@ -162,7 +157,7 @@ Non-blocking:
 - **The window's title in the bar** is a thing to point at too (StumpWM's own area for it).
 - `vikix what check` exists for Vikix's pages, and `tests/lint.sh` runs it; `gaps` waits for the user's tables.
 
-Now: live with it a week. Is the card right, and is the key pressed? (`vikix used` will say.)
+**Shipped 2026-10-06: Phase 1.** The `own` source (`own=` in `~/.config/vikix/docs`: a row a file and a row a `##` heading or an `<h2>` with an id, opened at the section, closed to agents until `agents=` opens a folder); the user's pages (`what=`, a paragraph that replaces Vikix's, lines that come first, `chapter:` lines to sections of their own documents); the kinds port (who listens, to whom, the usual use), service (runit's, read without sudo: `runsv NAME`'s children, the log's left out), command and file; a bare name tried as a service, a process, a package, a command and a file, the first the card and the rest its rows; `vikix what gaps`; `check` over the user's pages; the rows "What is this key?" and "What is this window?" in `vikix why`. Answers to the two open questions: a user may not read `sv status`, so a service's state comes from its processes; and the anchor is the heading's words (Markdown) or the element's id (HTML), found again in the rendered page by its words, so a renamed heading is caught by `check` and nothing depends on pandoc's rule. Still: live with it. Is the card right, and is the key pressed?
 
 **Phase 1:** P1. The books come in, on the user's side; the second half of this design, in the books' repository, starts then.
 

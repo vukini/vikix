@@ -340,6 +340,16 @@ in its place by the time it came."
       (when (getf entry :notification)
         (offer "Show that notification again"
                (lambda () (run-shell-command (format nil "dunstctl history-pop ~a" (getf entry :notification))))))
+      ;; What is this? (what.lisp): the key's card, or the window's.
+      (when (and (eq (getf entry :kind) :key) (fboundp 'vikix-what-show)
+                 (consp (getf entry :id)) (stringp (first (getf entry :id))))
+        (let ((key (car (last (split-string (first (getf entry :id)) " ")))))
+          (offer (format nil "What is this key? ~a: what it runs, whose it is, how often you press it"
+                         (vikix-why-keys-said key))
+                 (lambda () (funcall 'vikix-what-show (list "key" key))))))
+      (when (and window (fboundp 'vikix-what-show) (member window (screen-windows (current-screen))))
+        (offer "What is this window? Its program, its workspace, the rules that ran for it"
+               (lambda () (funcall 'vikix-what-show (list "window" (xlib:window-id (window-xwin window)))))))
       choices)))
 
 (defcommand vikix-why () ()

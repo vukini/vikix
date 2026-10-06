@@ -331,6 +331,31 @@ The change takes effect at once: each `vikix project` reads it again. A project 
 (setf *vikix-back-after* nil)    ; never; vikix back still answers when you ask
 ```
 
+## Your documents, and your pages for "what is this?"
+
+`Super+F2` searches a catalogue of every document on the machine (`vikix docs`), and `Super+Alt+?` explains a thing on a card (`vikix what`). One file of yours, `~/.config/vikix/docs`, adds your own writing to both. Make it with lines like these:
+
+```
+own=~/books                       # every Markdown file under it, read a section at a time
+own=~/books site/out/*.html       # these HTML pages too (patterns from that folder)
+agents=~/books/unix-by-hand       # open this folder to the AI agents; the rest of yours stays closed
+what=~/books/what                 # your pages for vikix what
+```
+
+An `own=` folder's documents are rows of the catalogue, one for each file and one for each second-level heading (`##`, or an `<h2>` with an id), so a search lands on the section, and so does a chapter a page names. They open in the docs browser at that section, styled as the guide is (`Ctrl+Enter`: the file in Emacs). They are closed to the agents' `docs_search` and `docs_read` until an `agents=` line opens a folder to them.
+
+A `what=` folder holds your pages, a file a kind of thing (`process.md`, `service.md`, and `service-sshd.md` for one thing by name): a paragraph in your words, which replaces Vikix's on the card, then lines saying where to read on, yours before Vikix's:
+
+```
+A process is a program while it runs. (Your words, sixty at most.)
+
+chapter: unix-by-hand/ch04-processes.md#A program that is running
+chapter: site/out/page.html#bus
+see: port
+```
+
+A `chapter:` line names a file under one of your `own=` folders and a section of it: the heading's words for Markdown, the element's id for HTML. `vikix what check` says which line names nothing, `vikix what gaps` lists what has no page or no chapter yet (the kinds, the bar's fields, the services that run here): a writing list drawn from the machine. ("unix-by-hand" is a made-up book.)
+
 ## AI
 
 Each of these is one of your files, so it has an undo too. [Working with AI](ai.md) says what each does.

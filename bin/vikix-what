@@ -9,10 +9,12 @@
   vikix what NAME         a thing by its name: a field of the bar (battery,
                           network, clock ...), a key (Super+t, or s-t as
                           StumpWM writes it), a process (its number or its
-                          name), a package
+                          name), a service, a package, a command, a file;
+                          when a name fits more than one, the others are
+                          rows of the card
   vikix what KIND [NAME]  the same, saying which kind: field, key, process,
-                          package, window, workspace; without a name, what
-                          such a thing is
+                          port, service, package, command, file, window,
+                          workspace; without a name, what such a thing is
   vikix what ... --open N
                           open the Nth of the card's explanations
   vikix what ... --card   the card as a menu on the desktop, which is what
@@ -20,9 +22,12 @@
   vikix what ... --json   the card as data, for a script
   vikix what kinds        the kinds of thing it knows, and which have a
                           page
-  vikix what check        the pages: every guide, manual and file they
-                          name is there, and none says more than a card
-                          holds
+  vikix what gaps         what has no page or no chapter yet: the kinds,
+                          the bar's fields, and the services that run
+                          here; a writing list, drawn from the machine
+  vikix what check        the pages, Vikix's and yours: every guide,
+                          manual, chapter and file they name is there,
+                          and none says more than a card holds
 
 Super+Alt+? is the same on the desktop: point at a field of the bar and
 press it, or press it with a window in front. A click on a field that does
@@ -37,11 +42,17 @@ Then the explanations, the nearest first: the section of Vikix's guide,
 the manual page, the file it is written in, and the things beside it (a
 window's process, a process's package).
 
-The paragraphs and what each kind points at are files, one a kind, in
-Vikix's config/what: the paragraph, then lines such as
-guide: fixing.md#The desktop feels slow, manual: ps(1),
-source: bin/vikix-net and see: process. A window's title and whatever you
-pointed at are shown on the card and written nowhere.
+The paragraphs and what each kind points at are pages, a file a kind:
+the paragraph, then lines such as guide: fixing.md#The desktop feels slow,
+manual: ps(1), source: bin/vikix-net and see: process. Vikix's are in its
+config/what. Yours are in the folders ~/.config/vikix/docs names with
+what=FOLDER (process.md, service.md, and service-sshd.md for one thing by
+name, which falls back to service.md): your paragraph replaces Vikix's,
+your lines come first, and yours may say chapter: PATH#HEADING, a section
+of one of your own documents (a folder an own= line there names, which
+the catalogue reads a section at a time; vikix docs help), opened as the
+catalogue opens it. A window's title and whatever you pointed at are
+shown on the card and written nowhere.
 """
 import glob
 import html
@@ -64,7 +75,7 @@ PROC = os.environ.get("VIKIX_PROC") or "/proc"
 SYS_POWER = os.environ.get("VIKIX_WHAT_POWER") or "/sys/class/power_supply"
 XBPS_DB = os.environ.get("VIKIX_WHAT_XBPS_DB") or "/var/db/xbps"
 # Vikix's pages. (Tests name another folder, to see a broken page refused.)
-TABLES = [os.environ.get("VIKIX_WHAT_PAGES") or os.path.join(VIKIX_DIR, "config", "what")]
+VIKIX_PAGES = os.environ.get("VIKIX_WHAT_PAGES") or os.path.join(VIKIX_DIR, "config", "what")
 
 # A card holds this much and no more: check says which page breaks it.
 MAX_FACTS = 6
@@ -76,8 +87,10 @@ FIELDS = ("battery", "network", "bluetooth", "volume", "memory", "updates", "bac
 FIELD_WORDS = {"bat": "battery", "net": "network", "wifi": "network", "bt": "bluetooth", "vol": "volume",
                "sound": "volume", "mem": "memory", "usb": "drive", "dbx": "dropbox", "win": "windows-vm",
                "rec": "recording", "mic": "dictation", "time": "clock", "date": "clock"}
-KINDS = ("field", "key", "process", "package", "window", "workspace")
-DEPTHS = ("guide", "manual", "source", "see")
+KINDS = ("field", "key", "process", "port", "service", "package", "command", "file", "window", "workspace")
+DEPTHS = ("chapter", "guide", "manual", "source", "see")
+SV = os.environ.get("VIKIX_WHAT_SV") or "/etc/sv"
+SERVICES = os.environ.get("VIKIX_WHAT_SERVICES") or "/var/service"
 
 
 def die(message):
@@ -85,14 +98,29 @@ def die(message):
     sys.exit(1)
 
 
+_docs = None
+
+
 def docs():
-    """bin/vikix-docs as a module: its opening of pages is this command's too."""
-    sys.dont_write_bytecode = True   # no __pycache__ beside the commands
-    loader = SourceFileLoader("vikix_docs", os.path.join(HERE, "vikix-docs"))
-    spec = importlib.util.spec_from_loader("vikix_docs", loader)
-    mod = importlib.util.module_from_spec(spec)
-    loader.exec_module(mod)
-    return mod
+    """bin/vikix-docs as a module: its opening of pages, and its reading of
+    ~/.config/vikix/docs, are this command's too."""
+    global _docs
+    if _docs is None:
+        sys.dont_write_bytecode = True   # no __pycache__ beside the commands
+        loader = SourceFileLoader("vikix_docs", os.path.join(HERE, "vikix-docs"))
+        spec = importlib.util.spec_from_loader("vikix_docs", loader)
+        _docs = importlib.util.module_from_spec(spec)
+        loader.exec_module(_docs)
+    return _docs
+
+
+def tables():
+    """The folders of pages, the user's first, Vikix's last."""
+    return docs().own_config()["what"] + [VIKIX_PAGES]
+
+
+def own_folders():
+    return [folder for folder, _ in docs().own_config()["own"]]
 
 
 # --- The desktop ----------------------------------------------------------------------------
@@ -160,6 +188,8 @@ def how_long(seconds):
 
 
 def size(kb):
+    if kb < 1:
+        return f"{round(kb * 1024)} bytes"
     if kb >= 1048576:
         return f"{kb / 1048576:.1f} GB"
     if kb >= 1024:
@@ -373,6 +403,186 @@ def package_card(name):
     return card
 
 
+# --- Ports, services, commands, files ----------------------------------------------------
+
+def listeners():
+    """Who listens on which port: {(protocol, port): (pid or None, name or None, local only)}.
+    Another user's process has no name here: ss says it only to root."""
+    found = {}
+    for protocol, flag in (("tcp", "-ltnp"), ("udp", "-lunp")):
+        for line in (run(["ss", "-H", flag]) or "").splitlines():
+            words = line.split()
+            if len(words) < 4 or ":" not in words[3]:
+                continue
+            address, _, port = words[3].rpartition(":")
+            if not port.isdigit():
+                continue
+            local = address.strip("[]") in ("127.0.0.1", "::1") or address.startswith("127.")
+            who = re.search(r'users:\(\("([^"]+)",pid=(\d+)', line)
+            key = (protocol, int(port))
+            if key not in found or who:
+                found[key] = (int(who.group(2)) if who else None, who.group(1) if who else None, local)
+    return found
+
+
+def port_usual(port):
+    """The usual use of a port, from /etc/services: "ssh", or None."""
+    for line in (read("/etc/services") or "").splitlines():
+        words = line.split("#")[0].split()
+        if len(words) >= 2 and words[1].split("/")[0] == str(port):
+            return words[0]
+    return None
+
+
+def port_card(name):
+    if not str(name).isdigit() or not 0 < int(name) < 65536:
+        return None
+    port = int(name)
+    card = {"kind": "port", "name": str(port), "heading": f"Port {port}", "facts": [], "rows": []}
+    facts = card["facts"]
+    who = listeners()
+    heard = [(protocol, *who[(protocol, port)]) for protocol in ("tcp", "udp") if (protocol, port) in who]
+    if not heard:
+        facts.append("nothing listens on it now")
+    for protocol, pid, pname, local in heard:
+        if pid:
+            facts.append(f"{pname} (process {pid}) listens on it, {protocol.upper()}, "
+                         + ("to this machine only" if local else "open to the network"))
+            card["rows"].append({"label": f"Also: the process {pname} (number {pid})", "what": ["process", str(pid)]})
+        else:
+            facts.append(f"a process of another user listens on it, {protocol.upper()}, "
+                         + ("to this machine only" if local else "open to the network")
+                         + " (sudo ss -ltnp says which)")
+    usual = port_usual(port)
+    if usual:
+        facts.append(f"its usual use, by /etc/services: {usual}")
+    return card
+
+
+def service_process(name):
+    """(the service's process, runsv's) for the runit service NAME, as a
+    user may read them: runsv NAME's children, the log's svlogd left out."""
+    for entry in os.listdir(PROC) if os.path.isdir(PROC) else []:
+        if not entry.isdigit():
+            continue
+        words = proc_cmdline(entry)
+        # "runsv NAME" (a test's stand-in is a script: "sh .../runsv NAME").
+        if len(words) >= 2 and words[-1] == name and any(os.path.basename(w) == "runsv" for w in words[:2]):
+            children = (read(f"{PROC}/{entry}/task/{entry}/children") or "").split()
+            # Not the log's own process: svlogd, or vlogger on Void.
+            for child in children:
+                stat = proc_stat(child)
+                if stat and stat[0] not in ("svlogd", "vlogger", "logger"):
+                    return int(child), int(entry)
+            return None, int(entry)
+    return None, None
+
+
+def service_card(name):
+    if not re.fullmatch(r"[\w.+-]+", name) or not os.path.isdir(os.path.join(SV, name)):
+        return None
+    card = {"kind": "service", "name": name, "heading": f"{name}, a service", "facts": [], "rows": []}
+    facts = card["facts"]
+    enabled = os.path.lexists(os.path.join(SERVICES, name))
+    pid, runsv = service_process(name)
+    if pid:
+        stat = proc_stat(pid)
+        try:
+            uptime = float((read(f"{PROC}/uptime") or "").split()[0])
+            since = ", for " + how_long(max(0, uptime - stat[2] / os.sysconf("SC_CLK_TCK")))
+        except (ValueError, IndexError, OSError):
+            since = ""
+        facts.append(f"up{since}: runit keeps {stat[0]} (process {pid}) running")
+        card["rows"].append({"label": f"Also: its process, {stat[0]} (number {pid})", "what": ["process", str(pid)]})
+    elif runsv:
+        facts.append("down: runit watches it, but nothing of it runs now")
+    else:
+        facts.append("not running, and runit doesn't watch it")
+    facts.append("starts at boot: it is linked in " + SERVICES if enabled else "doesn't start at boot (not linked in " + SERVICES + ")")
+    if os.path.exists(os.path.join(SV, name, "down")):
+        facts.append("a down file: runit doesn't start it until asked (sv up)")
+    run_file = os.path.join(SV, name, "run")
+    if os.path.isfile(run_file):
+        lines = [l for l in (read(run_file) or "").splitlines() if l.strip() and not l.startswith("#")]
+        if lines:
+            facts.append("its run file ends with: " + lines[-1].strip()[:80])
+        card["rows"].append({"label": f"The run file: {run_file}", "file": run_file, "line": None})
+    if os.path.isdir(os.path.join(SV, name, "log")):
+        facts.append("keeps a log of its own (svlogd)")
+    return card
+
+
+def command_card(name):
+    if "/" in name or not re.fullmatch(r"[\w.+-]+", name):
+        return None
+    path = shutil.which(name)
+    kind = (run(["bash", "-c", f"type -t -- {name}"]) or "").strip() if not path else "file"
+    if not path and kind not in ("builtin", "keyword", "alias", "function"):
+        return None
+    card = {"kind": "command", "name": name, "heading": f"{name}, a command", "facts": [], "rows": []}
+    facts = card["facts"]
+    if path:
+        real = os.path.realpath(path)
+        facts.append(f"it is {short(path)}" + (f", a link to {short(real)}" if real != path else ""))
+        package = package_of(real)
+        if package:
+            facts.append(f"from the package {package}")
+            card["rows"].append({"label": f"Also: the package {package}", "what": ["package", package]})
+        elif real.startswith(os.path.expanduser("~")):
+            facts.append("yours: it is in your home, not a package's")
+        if re.match(r"vikix(-|$)", os.path.basename(real)) and os.path.dirname(real) == os.path.join(VIKIX_DIR, "bin"):
+            facts.append("one of Vikix's own commands")
+    else:
+        facts.append(f"a {kind} of the shell, not a program on the PATH")
+    running = [p for p in pids_named(name)]
+    if running:
+        facts.append(f"running now as process{'es' if len(running) > 1 else ''} " + ", ".join(str(p) for p in running[:4]))
+        card["rows"].append({"label": f"Also: the process {name} (number {running[0]})", "what": ["process", str(running[0])]})
+    if path and man_there(name, "1"):
+        card["rows"].append({"label": f"The manual: {name}(1)", "man": ["1", name]})
+    return card
+
+
+def file_card(name):
+    path = os.path.realpath(os.path.expanduser(name))
+    if not os.path.exists(path):
+        return None
+    card = {"kind": "file", "name": path, "facts": [], "rows": []}
+    folder = os.path.isdir(path)
+    card["heading"] = f"{short(path)}, a {'folder' if folder else 'file'}"
+    facts = card["facts"]
+    st = os.stat(path)
+    if folder:
+        try:
+            n = len(os.listdir(path))
+            facts.append(f"holds {n} entr{'ies' if n != 1 else 'y'}")
+        except OSError:
+            facts.append("can't be read by you")
+    else:
+        mime = (run(["file", "--brief", "--mime-type", path]) or "").strip()
+        facts.append(f"{mime or 'a file'}, {size(st.st_size / 1024)}, changed {time.strftime('%Y-%m-%d %H:%M', time.localtime(st.st_mtime))}")
+        if mime:
+            app = (run(["xdg-mime", "query", "default", mime]) or "").strip()
+            if app:
+                facts.append(f"opens with {app[:-8] if app.endswith('.desktop') else app} (xdg-open)")
+    if st.st_uid != os.getuid():
+        try:
+            import pwd
+            facts.append(f"belongs to {pwd.getpwuid(st.st_uid).pw_name}, not to you")
+        except (KeyError, ImportError):
+            facts.append("belongs to another user")
+    top = (run(["git", "-C", path if folder else os.path.dirname(path), "rev-parse", "--show-toplevel"]) or "").strip()
+    if top:
+        facts.append(f"in the git repository {short(top)}")
+    package = package_of(path) if not folder and not path.startswith(os.path.expanduser("~")) else None
+    if package:
+        facts.append(f"from the package {package}")
+        card["rows"].append({"label": f"Also: the package {package}", "what": ["package", package]})
+    if not folder and os.access(path, os.R_OK) and (mime.startswith("text/") or mime in ("application/json", "application/x-shellscript", "inode/x-empty")):
+        card["rows"].append({"label": f"The file itself: {short(path)}", "file": path, "line": None})
+    return card
+
+
 # --- Windows, workspaces, keys ---------------------------------------------------------------
 
 def window_card(name):
@@ -552,8 +762,9 @@ def field_card(name):
 
 # --- The pages: a paragraph and what to read, a kind each --------------------------------
 
-def page_path(kind, name=None):
-    for folder in TABLES:
+def page_path(kind, name=None, folders=None):
+    """The first page for KIND (and the thing NAME) in FOLDERS, or None."""
+    for folder in folders if folders is not None else tables():
         for stem in ([f"{kind}-{name}"] if name else []) + [kind]:
             if re.fullmatch(r"[\w.+-]+", stem):
                 path = os.path.join(folder, stem + ".md")
@@ -562,17 +773,30 @@ def page_path(kind, name=None):
     return None
 
 
-def page(kind, name=None):
-    """A kind's page: (paragraph, [(depth, target)]), or ("", [])."""
-    path = page_path(kind, name)
+def page_read(path):
+    """One page: (paragraph, [(depth, target)])."""
     paragraph, targets = [], []
     for line in (read(path) or "").splitlines() if path else []:
         found = re.match(r"^([a-z]+):\s+(\S.*)$", line)
         if found and (found.group(1) in DEPTHS or targets):
-            targets.append((found.group(1), found.group(2).strip()))
+            targets.append((found.group(1), found.group(2).strip(), path))
         elif not targets:
             paragraph.append(line.strip())
     return " ".join(w for w in paragraph if w), targets
+
+
+def page(kind, name=None):
+    """A kind's page, from every folder: the first paragraph found (yours
+    before Vikix's), and the lines of all, yours first: (paragraph,
+    [(depth, target, file)])."""
+    paragraph, targets = "", []
+    for folder in tables():
+        path = page_path(kind, name, [folder])
+        if path:
+            found, lines = page_read(path)
+            paragraph = paragraph or found
+            targets += lines
+    return paragraph, targets
 
 
 def guide_title(path):
@@ -609,8 +833,19 @@ def explanations(kind, name=None):
     """The rows a kind's page gives, nearest first; what isn't on this
     machine (a manual of a program not installed) is left out."""
     rows = []
-    for depth, target in page(kind, name)[1]:
-        if depth == "guide":
+    for depth, target, where in page(kind, name)[1]:
+        if depth == "chapter":
+            file, heading = chapter_file(target)
+            if file:
+                d = docs()
+                text = read(file) or ""
+                said = heading
+                if heading and file.endswith(".html"):
+                    # The id names the section; the card says its heading.
+                    said = next((h for h, i, _ in d.html_sections(text) if i == heading), heading)
+                rows.append({"label": f"The chapter: {d.own_title(text, file)}" + (f", {said}" if said else ""),
+                             "own": file, "heading": heading})
+        elif depth == "guide":
             file, _, heading = target.partition("#")
             path = os.path.join(VIKIX_DIR, "docs", file)
             if os.path.isfile(path):
@@ -621,7 +856,7 @@ def explanations(kind, name=None):
             if found and man_there(found.group(1), found.group(2)):
                 rows.append({"label": f"The manual: {target}", "man": [found.group(2), found.group(1)]})
         elif depth == "source":
-            path = os.path.join(VIKIX_DIR, target)
+            path = os.path.expanduser(target) if target.startswith(("/", "~")) else os.path.join(VIKIX_DIR, target)
             if os.path.isfile(path):
                 rows.append({"label": f"The source: {target}", "file": path, "line": None})
         elif depth == "see" and page_path(target):
@@ -630,6 +865,17 @@ def explanations(kind, name=None):
 
 
 SEE_SAID = {"memory": "memory", "field": "a field of the bar", "windows-vm": "the Windows machine"}
+
+
+def chapter_file(target):
+    """(file, heading) a chapter: line names, the file under one of your own
+    folders (own= in ~/.config/vikix/docs), or (None, heading)."""
+    path, _, heading = target.partition("#")
+    for folder in own_folders():
+        file = os.path.join(folder, path)
+        if os.path.isfile(file):
+            return file, heading
+    return None, heading
 
 
 def general_card(kind):
@@ -663,7 +909,43 @@ def card_for(kind, name):
         return process_card(found[0]) if found else None
     if kind == "package":
         return package_card(name) if name else general_card("package")
+    if kind == "port":
+        return port_card(name) if name else general_card("port")
+    if kind == "service":
+        return service_card(name) if name else general_card("service")
+    if kind == "command":
+        return command_card(name) if name else general_card("command")
+    if kind == "file":
+        return file_card(name) if name else general_card("file")
     return None
+
+
+# A bare name is tried as each of these, in this order; the first that fits
+# is the card, the others its rows.
+BY_NAME = (("service", service_card), ("process", lambda n: card_for("process", n)),
+           ("package", package_card), ("command", command_card), ("file", file_card))
+BY_NAME_SAID = {"process": "a process", "service": "the service", "package": "the package",
+                "command": "the command", "file": "the file"}
+
+
+def by_name(name):
+    """The card for a bare NAME, with a row for every other thing of that name."""
+    card, others = None, []
+    for kind, make in BY_NAME:
+        if kind == "file" and (card or "/" not in name and not name.startswith(("~", "."))):
+            continue
+        found = make(name)
+        if not found:
+            continue
+        if card is None:
+            card = found
+        else:
+            others.append({"label": f"Also: {name}, {BY_NAME_SAID[kind]}", "what": [kind, found["name"] or name]})
+    if card:
+        # A row the card has of its own (a service's process) says more than "also a process".
+        had = {r["what"][0] for r in card["rows"] if "what" in r}
+        card["rows"] += [o for o in others if o["what"][0] not in had]
+    return card
 
 
 def find(words):
@@ -690,7 +972,7 @@ def find(words):
             return card
     if name.isdigit():
         return process_card(name)
-    return card_for("process", name) or package_card(name)
+    return by_name(name)
 
 
 def finish(card):
@@ -714,6 +996,10 @@ def open_row(row, as_card=True):
         os.execv(sys.executable, [sys.executable, os.path.realpath(__file__),
                                   *(["--card"] if as_card else []), *[str(w) for w in row["what"]]])
     d = docs()
+    if "own" in row:
+        path = row["own"] + (f"#{row['heading']}" if row.get("heading") else "")
+        return d.open_doc({"id": "own:" + path, "source": "own", "kind": "section" if row.get("heading") else "own",
+                           "title": row["label"], "path": path, "excerpt": ""})
     if "guide" in row:
         d.note_opened({"id": "vikix:" + row["guide"], "title": row["label"]})
         built = d.guide_page(row["guide"])
@@ -803,7 +1089,11 @@ def kinds():
     print("Things vikix what knows, and whether each has a page (a paragraph, and where to read on):")
     print("  by name:")
     for kind, how in (("process", "its number, or its name: vikix what firefox"),
+                      ("port", "its number: vikix what port 22"),
+                      ("service", "its name: vikix what sshd"),
                       ("package", "its name: vikix what package curl"),
+                      ("command", "its name: vikix what grep"),
+                      ("file", "its path: vikix what ~/notes.org"),
                       ("key", "as said or as written: vikix what Super+t, vikix what s-t"),
                       ("window", "the one in front, or by pointing at its title in the bar"),
                       ("workspace", "its name: vikix what workspace 2")):
@@ -814,56 +1104,113 @@ def kinds():
     return 0
 
 
+def gaps():
+    """What has no page, or no chapter: the kinds, the bar's fields, and the
+    services that run here. A writing list, drawn from the machine."""
+    yours = docs().own_config()["what"]
+    things = [(k, None) for k in KINDS if k != "field"] + [(f, None) for f in FIELDS]
+    try:
+        things += [("service", n) for n in sorted(os.listdir(SERVICES)) if not n.startswith(".")]
+    except OSError:
+        pass
+    print("What is this? knows these things; a page is a paragraph and where to read on, a chapter a section of your own documents.")
+    print(f"  {'thing':<24} {'paragraph':<10} {'chapter':<8} explanations")
+    missing = 0
+    for kind, name in things:
+        own = page_path(kind, name, yours) if yours else None
+        own_own = own and name and os.path.basename(own) == f"{kind}-{name}.md"
+        paragraph = "yours" if own and page_read(own)[0] else "Vikix's" if page_path(kind, None, [VIKIX_PAGES]) and page_read(page_path(kind, None, [VIKIX_PAGES]))[0] else "none"
+        targets = page(kind, name)[1]
+        chapters = sum(1 for d, _, _ in targets if d == "chapter")
+        others = sum(1 for d, _, _ in targets if d in ("guide", "manual"))
+        said = f"{kind} {name}" if name else kind
+        if name and not own_own:
+            said += " (the kind's)"
+        if not chapters:
+            missing += 1
+        print(f"  {said:<24} {paragraph:<10} {('yes' if chapters else 'none'):<8} {others} guide or manual lines")
+    print(f"{missing} of {len(things)} have no chapter yet")
+    return 0
+
+
 def check():
-    """Every page of Vikix's: the paragraph fits a card, and what it names is there."""
+    """Every page, Vikix's and yours: the paragraph fits a card, and what it
+    names is there. Vikix's may name no chapter and no file outside Vikix."""
     problems, notes, count = [], [], 0
-    folder = TABLES[0]
-    names = sorted(f[:-3] for f in os.listdir(folder) if f.endswith(".md")) if os.path.isdir(folder) else []
-    for want in list(FIELDS) + list(KINDS):
-        if want not in names:
-            problems.append(f"{want}: no page (config/what/{want}.md)")
-    for name in names:
-        count += 1
-        where = f"config/what/{name}.md"
-        paragraph, targets = page(name)
-        words = len(paragraph.split())
-        if not words:
-            problems.append(f"{where}: no paragraph")
-        elif words > MAX_WORDS:
-            problems.append(f"{where}: the paragraph is {words} words; a card holds {MAX_WORDS}")
-        if not any(depth in ("guide", "manual") for depth, _ in targets):
-            problems.append(f"{where}: nowhere to read on (a guide: or manual: line)")
-        for depth, target in targets:
-            if depth == "guide":
-                file, _, heading = target.partition("#")
-                path = os.path.join(VIKIX_DIR, "docs", file)
-                if "/" in file or not os.path.isfile(path):
-                    problems.append(f"{where}: guide: {file} is no guide in docs/")
-                elif heading and heading not in guide_headings(path):
-                    problems.append(f"{where}: guide: {file} has no heading \"{heading}\"")
-            elif depth == "manual":
-                found = re.fullmatch(r"([\w.+-]+)\((\w+)\)", target)
-                if not found:
-                    problems.append(f"{where}: manual: {target} isn't NAME(SECTION)")
-                elif not man_there(found.group(1), found.group(2)):
-                    notes.append(f"{where}: {target} isn't on this machine (its row is left out here)")
-            elif depth == "source":
-                path = os.path.realpath(os.path.join(VIKIX_DIR, target))
-                if target.startswith(("/", "~")) or not path.startswith(os.path.realpath(VIKIX_DIR) + os.sep):
-                    problems.append(f"{where}: source: {target} is outside Vikix: its pages name its own files only")
-                elif not os.path.isfile(path):
-                    problems.append(f"{where}: source: {target} isn't there")
-            elif depth == "see":
-                if target not in names:
-                    problems.append(f"{where}: see: {target} has no page")
-            else:
-                # Vikix's pages point at Vikix's guides, the manuals and its own
-                # files, never at anyone's books (DESIGN-what.md).
-                problems.append(f"{where}: {depth}: is no line of Vikix's pages ({', '.join(DEPTHS)})")
+    yours = docs().own_config()["what"]
+    for folder in tables():
+        ours = folder == VIKIX_PAGES
+        names = sorted(f[:-3] for f in os.listdir(folder) if f.endswith(".md")) if os.path.isdir(folder) else []
+        if not os.path.isdir(folder):
+            problems.append(f"{short(folder)}: no such folder (what= in ~/.config/vikix/docs)")
+        if ours:
+            for want in list(FIELDS) + list(KINDS):
+                if want not in names:
+                    problems.append(f"{want}: no page (config/what/{want}.md)")
+        for name in names:
+            count += 1
+            where = f"config/what/{name}.md" if ours else short(os.path.join(folder, name + ".md"))
+            paragraph, targets = page_read(os.path.join(folder, name + ".md"))
+            words = len(paragraph.split())
+            if ours and not words:
+                problems.append(f"{where}: no paragraph")
+            elif words > MAX_WORDS:
+                problems.append(f"{where}: the paragraph is {words} words; a card holds {MAX_WORDS}")
+            if ours and not any(depth in ("guide", "manual") for depth, _, _ in targets):
+                problems.append(f"{where}: nowhere to read on (a guide: or manual: line)")
+            kind = name.split("-")[0] if name.split("-")[0] in KINDS else name
+            if not ours and name not in FIELDS and name not in KINDS and kind not in KINDS and not page_path(name, None, [VIKIX_PAGES]):
+                notes.append(f"{where}: {name} is no kind vikix what knows (vikix what kinds); the page waits for one")
+            check_lines(targets, where, ours, problems, notes)
     for line in problems + notes:
         print(line)
     print(f"{count} pages, {len(problems)} problem{'s' if len(problems) != 1 else ''}")
     return 1 if problems else 0
+
+
+def check_lines(targets, where, ours, problems, notes):
+    names = {f[:-3] for folder in tables() if os.path.isdir(folder) for f in os.listdir(folder) if f.endswith(".md")}
+    for depth, target, _ in targets:
+        if depth == "chapter":
+            if ours:
+                # Vikix's pages point at Vikix's guides, the manuals and its own
+                # files, never at anyone's books (DESIGN-what.md).
+                problems.append(f"{where}: chapter: is no line of Vikix's pages (they point at its guides, the manuals and its files only)")
+                continue
+            file, heading = chapter_file(target)
+            if not file:
+                problems.append(f"{where}: chapter: {target.partition('#')[0]} isn't under a folder own= names in ~/.config/vikix/docs")
+            elif heading:
+                text = read(file) or ""
+                d = docs()
+                known = ([i for _, i, _ in d.html_sections(text)] if file.endswith(".html")
+                         else [h for h, depth_, _ in d.md_sections(text) if depth_ > 1])
+                if heading not in known:
+                    problems.append(f"{where}: chapter: {os.path.basename(file)} has no section \"{heading}\"")
+        elif depth == "guide":
+            file, _, heading = target.partition("#")
+            path = os.path.join(VIKIX_DIR, "docs", file)
+            if "/" in file or not os.path.isfile(path):
+                problems.append(f"{where}: guide: {file} is no guide in docs/")
+            elif heading and heading not in guide_headings(path):
+                problems.append(f"{where}: guide: {file} has no heading \"{heading}\"")
+        elif depth == "manual":
+            found = re.fullmatch(r"([\w.+-]+)\((\w+)\)", target)
+            if not found:
+                problems.append(f"{where}: manual: {target} isn't NAME(SECTION)")
+            elif not man_there(found.group(1), found.group(2)):
+                notes.append(f"{where}: {target} isn't on this machine (its row is left out here)")
+        elif depth == "source":
+            path = os.path.realpath(os.path.expanduser(target) if not ours else os.path.join(VIKIX_DIR, target))
+            if ours and (target.startswith(("/", "~")) or not path.startswith(os.path.realpath(VIKIX_DIR) + os.sep)):
+                problems.append(f"{where}: source: {target} is outside Vikix: its pages name its own files only")
+            elif not os.path.isfile(path):
+                problems.append(f"{where}: source: {target} isn't there")
+        elif depth == "see":
+            if target not in names:
+                problems.append(f"{where}: see: {target} has no page")
+        else:
+            problems.append(f"{where}: {depth}: is no line of a page ({', '.join(DEPTHS)})")
 
 
 def main(argv):
@@ -886,6 +1233,8 @@ def main(argv):
         return kinds()
     if words == ["check"]:
         return check()
+    if words == ["gaps"]:
+        return gaps()
     card = find(words)
     if not card:
         said = " ".join(words) or "that"

@@ -57,7 +57,7 @@ key super+ctrl+y
 check "a key of Vikix's: the key, its command, what that does, where it is written: $(newest)" \
   grep -q "  Super+Ctrl+y ran vikix-titlebars (Title bars on/off)  ·  Vikix's key: registry.lisp, line $line\$" <<<"$(newest)"
 check "it can be seen where it is written, not edited, and taken back: $(choices :key)" \
-  grep -q "^See where it is written: registry.lisp, line $line (Vikix's own.*| Take it back: run vikix-titlebars again (it is a switch)\$" <<<"$(choices :key)"
+  grep -q "^See where it is written: registry.lisp, line $line (Vikix's own.*| Take it back: run vikix-titlebars again (it is a switch) | What is this key? " <<<"$(choices :key)"
 choose :key "Take it back"
 check "taking it back runs the switch again" yes "(eq (and *vikix-titlebars* t) (= $bars 1))"
 check "which is noted as its own doing, not the key's: $(newest)" grep -q 'Something asked for it ran vikix-titlebars' <<<"$(newest)"
@@ -68,7 +68,7 @@ check "seeing where opens Vikix's file to read, at its line: $(cat "$t/emacs" 2>
 key super+alt+F12
 check "a key of yours, at its line of user.lisp: $(newest)" \
   grep -q "  Super+Alt+F12 ran echo hello from a key of mine.*  ·  your key: user.lisp, line 2\$" <<<"$(newest)"
-check "which can be edited: $(choices :key)" grep -q '^Edit it: user.lisp, line 2, in Emacs$' <<<"$(choices :key)"
+check "which can be edited, and asked about (what.lisp): $(choices :key)" grep -q '^Edit it: user.lisp, line 2, in Emacs | What is this key? ' <<<"$(choices :key)"
 : > "$t/emacs"; choose :key "Edit it"
 check "editing opens user.lisp at the line: $(cat "$t/emacs")" grep -q 'emacsclient -n -c -a  +2 .*/.stumpwm.d/user.lisp' "$t/emacs"
 key super+alt+F12
@@ -82,6 +82,7 @@ check "the rule is noted, with its window and its line: $(newest)" \
   grep -q '  A rule, as a window opened ran (when-window (:class "whytest") (workspace 3))  ·  rules.lisp:2, for whytest "Gone"$' <<<"$(newest)"
 check "it offers its line, the window back and the rule off: $(choices :rule)" \
   grep -q '^Edit it: rules.lisp, line 2, in Emacs | Bring that window here (it is on workspace 3) | Switch that rule off' <<<"$(choices :rule)"
+check "and asks what that window is (what.lisp)" grep -q '| What is this window? ' <<<"$(choices :rule)"
 choose :rule "Bring that window here"
 check "bringing the window here does" yes '(eq (window-group (find "Gone" (screen-windows (current-screen)) :key (function window-title) :test (function equal))) (current-group))'
 choose :rule "Switch that rule off"
