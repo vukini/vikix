@@ -106,41 +106,7 @@ This prevents accidents; it isn't a wall. The agent runs as you, and can read yo
 
 ### Several at once
 
-Agents run side by side, each in a terminal of its own, and a row of windows all called "Alacritty" doesn't say which is which. The desktop starts them, so it knows:
-
-```
-$ vikix agents
-4 agents, 1 waiting for you:
-  claude   ~/src/living-series (main, 3 uncommitted)   workspace 7   2 h 10 min  waits for your yes
-           May I run the tests?
-  claude   ~/src/vikix-office (office, nothing uncommitted)  workspace 1   35 min  working
-           ◑ The office, step one
-  codex    ~/src/esploro (main, 1 uncommitted)         workspace 3   12 min      running
-  claude   ~                                           no window     5 h         running
-           no window of its own: on the text console tty2 (Ctrl+Alt+F2), started by bash
-```
-
-Each line is an agent: which one, the folder it works in with its branch and how many files wait uncommitted there, its workspace, how long it has run, and what it is doing. *Working* and *at its prompt* come from the mark Claude Code keeps at the front of its window's title; *waits for your yes*, *asked you something* and *finished its turn* come from the agent-waiting plugin's note for that window, when you have the plugin ([Plugins](plugins.md)); under one that asks is what it asked. An agent started by hand at a shell is found like one `vikix agent` started. One without a window of its own (an editor's, one on a text console) comes last, with where it runs.
-
-**A desk each.** `Super+a` starts an agent in your home folder, and what it works on is whatever you tell it. Two of them on one project then edit the same files, and one's half-finished change is in the other's way. A desk gives each its own copy:
-
-```sh
-vikix agents desk vikix drawer-fix     # an agent on the project vikix, for the topic "drawer-fix"
-vikix agents desk                      # asks which project, then for a topic
-```
-
-The agent gets a workspace to itself (the first empty one) and a git worktree of the project made for the topic: the folder `~/src/vikix-drawer-fix`, beside the project, on a new branch `drawer-fix`. It commits there; the project's own folder and every other agent's desk stay as they are, and `vikix agents` now says which branch each is on and what it has left uncommitted. `Super+m` → *AI* → *Agents: start one on a project, at a desk of its own* is the second form. Without a topic the agent works in the project's own folder, on a workspace of its own; so does one on a project that isn't a git repository, which has no worktrees. A project inside a collection (`living-series/living-in-sql`) gets its own folder inside the collection's worktree. `--here` starts the agent in the terminal you're in; `--use codex` another agent than yours.
-
-A desk that is still there is used again, never made twice. When the work is in (merged, the way the project's own notes say), the desk goes with `git worktree remove ~/src/vikix-drawer-fix` and `git branch -d drawer-fix` in the project; the agent that worked there can do both.
-
-**The house rules.** Desks keep agents apart; the rules say what happens when they meet all the same. Claude Code started by `vikix agent` (so `Super+a` and a desk) runs `vikix agents touch` before every edit, a hook from `config/claude/office.json` passed with `--settings`, so nothing is written to your own Claude settings. The hook notes the file in the office's journal (`~/.local/state/vikix/office/journal.jsonl`, kept to the agents still running) and looks around:
-
-- *Two agents on one file.* When another agent has changed the same file in its worktree of the same repository, uncommitted, or has edited that very file (the journal), Claude Code asks you before the edit, naming the other agent: "codex 1002 (~/src/book-b) has changed it in ~/src/book-b, uncommitted". `vikix agents clash ~/src/book-a/ch1.md` then shows each agent's change in full, one under the other, and which stays is yours to say: tell the other agent to drop its change, or let both go in and settle the merge. `vikix agents clash` alone lists every file two agents are on, and `vikix agents` marks such a file under each of them.
-- *A crossing.* An agent may edit a file in another agent's folder, or go to another agent's window (the MCP tool `focus_window`), but never quietly: the crossing is told to it, with whose folder it is, and recorded in the record store (`vikix records list office`, kind `crossing`); `vikix agents crossings` lists the last ones.
-
-The other agents (Codex, Gemini, Aider) have no such hook: for them the rules hold through git alone, so a clash with one of them shows in `vikix agents` and `vikix agents clash`, not before the edit. `VIKIX_OFFICE=0 vikix agent` starts Claude Code without the hook.
-
-`Super+m` → *AI* → *Agents: who is running, and go to one* is the same list on the desktop: pick one and you're at its window (one in the drop-down terminal is brought to you). Nothing is asked of the agents themselves, and none is stopped: the list only reads what is there. Each agent's window also carries its name (the X property `_VIKIX_AGENT`).
+Agents run side by side, each in a terminal of its own, and a row of windows all called "Alacritty" doesn't say which is which. `vikix agents` (and `Super+m` → *AI* → *Agents: who is running, and go to one*) lists them: which agent, its folder with branch and uncommitted files, its workspace, how long, and what it is doing. `vikix agents desk PROJECT TOPIC` gives an agent a desk of its own, a workspace and a git worktree, and the house rules say what happens when two agents reach for one file. All of it, with examples, is its own page: [Agents at work](agents.md).
 
 ## API keys
 
