@@ -1,0 +1,193 @@
+#!/usr/bin/env bash
+# vikix-wifi — Wi-Fi: pick a network from a list that is scanned first.
+#
+#   vikix wifi            scan, then the networks in rofi: the signal, the
+#                         name, whether it's saved or in use; Enter joins
+#                         (a saved or open one at once, a new one asks its
+#                         password); "Scan again", "Disconnect", and nmtui
+#                         for the rest (a hidden network, a company login).
+#                         A click on the bar's Wi-Fi field, or Super+m,
+#                         System, opens the same list
+#   vikix wifi list       the networks as the list shows them, no menu
+#   vikix wifi scan       scan now and wait for it (some ten seconds)
+#
+# The list is only as fresh as NetworkManager's last scan, which is what
+# the tray's applet shows, often stale. So the picker scans first when the
+# last scan is older than 30 seconds (a scan takes some ten seconds: a
+# notification says so), and "Scan again" always does.
+#
+# A new network's password goes to NetworkManager through a file of your
+# own (0600, deleted at once), never on a command line. A network that
+# can't be joined this way (WEP, a login with a user name) is sent to
+# nmtui. A password refused leaves nothing saved.
+
+set -uo pipefail
+NMCLI=${VIKIX_NMCLI:-nmcli}          # tests name their stand-ins
+DBUS_SEND=${VIKIX_DBUS_SEND:-dbus-send}
+UPTIME=${VIKIX_UPTIME:-/proc/uptime}
+TERMINAL=${VIKIX_TERMINAL:-alacritty}
+RUN="${XDG_RUNTIME_DIR:-/tmp}"
+FRESH=30      # seconds: a scan younger than this is shown as it is
+
+note() { notify-send -a Vikix ${NOTE_ID:+-r "$NOTE_ID"} "$1" "${2:-}" 2>/dev/null || true; }
+fail() { note "$1" "${2:-}"; exit 1; }
+escape() { sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'; }
+# nmcli -t writes a colon in a value as \: (and a backslash as \\).
+unescape() { sed 's/\\\(.\)/\1/g'; }
+nmtui() { exec "$TERMINAL" --class vikix-nmtui -e nmtui; }
+
+# The Wi-Fi device, and its D-Bus path for the time of its last scan.
+device() {
+  "$NMCLI" -t -f DEVICE,TYPE,DBUS-PATH device 2>/dev/null | awk -F: '$2=="wifi"{print $1"\t"$3; exit}'
+}
+# Seconds since the device last scanned, or nothing when that can't be read.
+scan_age() {   # scan_age DBUS-PATH
+  local ms up
+  ms=$("$DBUS_SEND" --system --print-reply --dest=org.freedesktop.NetworkManager "$1" \
+        org.freedesktop.DBus.Properties.Get string:org.freedesktop.NetworkManager.Device.Wireless string:LastScan 2>/dev/null |
+       sed -n 's/.*int64 \(-\?[0-9]*\).*/\1/p')
+  up=$(cut -d' ' -f1 "$UPTIME" 2>/dev/null); up=${up%%.*}
+  [[ $ms =~ ^-?[0-9]+$ && $up =~ ^[0-9]+$ ]] || return 0
+  [ "$ms" -lt 0 ] && { echo never; return 0; }   # LastScan is -1 before the first scan
+  echo $(( up - ms / 1000 ))
+}
+
+scan() {   # a scan, waited for: the list that comes is the fresh one
+  NOTE_ID=$(notify-send -p -a Vikix ${NOTE_ID:+-r "$NOTE_ID"} -t 20000 "Scanning for networks…" "some ten seconds" 2>/dev/null || true)
+  [[ $NOTE_ID =~ ^[0-9]+$ ]] || NOTE_ID=''
+  timeout 40 "$NMCLI" device wifi list --rescan yes >/dev/null 2>&1 || true
+}
+
+# The networks, one a line, tab-parted: SIGNAL, SSID, SECURITY, FLAGS
+# (in-use, saved, or nothing), strongest first; one line a name.
+networks() {
+  local saved
+  saved=$(saved_ssids)
+  "$NMCLI" -t -f IN-USE,SIGNAL,SECURITY,SSID device wifi list --rescan no 2>/dev/null |
+    python3 -c '
+import re, sys
+saved = set(sys.argv[1].split("\n")) - {""}
+seen = {}
+for line in sys.stdin.read().split("\n"):
+    # IN-USE:SIGNAL:SECURITY:SSID; only the SSID may hold \: (a colon).
+    m = re.match(r"([ *]):(\d+):([^:]*):(.*)$", line)
+    if not m:
+        continue
+    inuse, signal, security, ssid = m.group(1) == "*", int(m.group(2)), m.group(3), re.sub(r"\\(.)", r"\1", m.group(4))
+    if not ssid:
+        continue   # hidden: nmtui joins those
+    old = seen.get(ssid)
+    if old is None or signal > old[0] or (inuse and not old[2]):
+        seen[ssid] = (max(signal, old[0] if old else 0), security, inuse or (old[2] if old else False))
+for ssid, (signal, security, inuse) in sorted(seen.items(), key=lambda kv: (not kv[1][2], -kv[1][0], kv[0].lower())):
+    flags = "in-use" if inuse else ("saved" if ssid in saved else "")
+    print(f"{signal}\t{ssid}\t{security}\t{flags}")
+' "$saved"
+}
+
+# The names of the networks NetworkManager has a connection for.
+saved_ssids() {
+  local name
+  "$NMCLI" -t -f NAME,TYPE connection show 2>/dev/null | grep ':802-11-wireless$' | cut -d: -f1 | unescape |
+    while IFS= read -r name; do
+      "$NMCLI" -g 802-11-wireless.ssid connection show "$name" 2>/dev/null | unescape
+    done
+}
+# The connection for an SSID, by name.
+connection_for() {   # connection_for SSID
+  local name
+  "$NMCLI" -t -f NAME,TYPE connection show 2>/dev/null | grep ':802-11-wireless$' | cut -d: -f1 | unescape |
+    while IFS= read -r name; do
+      [ "$("$NMCLI" -g 802-11-wireless.ssid connection show "$name" 2>/dev/null | unescape)" = "$1" ] && { printf '%s\n' "$name"; return 0; }
+    done
+}
+
+bars() {   # bars SIGNAL — four steps
+  if [ "$1" -ge 75 ]; then echo '▂▄▆█'; elif [ "$1" -ge 50 ]; then echo '▂▄▆ '
+  elif [ "$1" -ge 25 ]; then echo '▂▄  '; else echo '▂   '; fi
+}
+
+# One line of the list, as rofi shows it.
+line() {   # line SIGNAL SSID SECURITY FLAGS
+  local what=''
+  case $4 in in-use) what='  (in use)' ;; saved) what='  (saved)' ;; esac
+  case $3 in ''|--) [ -n "$what" ] || what='  (open)' ;; esac
+  printf '%s %3s%%  %s%s\n' "$(bars "$1")" "$1" "$2" "$what"
+}
+
+join() {   # join SIGNAL SSID SECURITY
+  local ssid=$2 security=$3 conn pw file keymgmt out rc
+  conn=$(connection_for "$ssid")
+  NOTE_ID=$(notify-send -p -a Vikix ${NOTE_ID:+-r "$NOTE_ID"} -t 30000 "Joining $(escape <<<"$ssid")…" "" 2>/dev/null || true)
+  [[ $NOTE_ID =~ ^[0-9]+$ ]] || NOTE_ID=''
+  if [ -n "$conn" ]; then
+    out=$(timeout 60 "$NMCLI" connection up "$conn" 2>&1) && { note "On $(escape <<<"$ssid")" ""; return 0; }
+    fail "Couldn't join $(escape <<<"$ssid")" "$(tail -1 <<<"$out" | cut -c1-200 | escape)"
+  fi
+  case $security in
+    ''|--) keymgmt='' ;;
+    *802.1X*|*WEP*) note "$(escape <<<"$ssid") needs more than a password" "nmtui opens for it"; nmtui ;;
+    *WPA3*) case $security in *WPA2*|*WPA1*) keymgmt=wpa-psk ;; *) keymgmt=sae ;; esac ;;
+    *WPA*) keymgmt=wpa-psk ;;
+    *) note "$(escape <<<"$ssid"): $security" "nmtui opens for it"; nmtui ;;
+  esac
+  if [ -z "$keymgmt" ]; then
+    out=$(timeout 60 "$NMCLI" device wifi connect "$ssid" 2>&1) && { note "On $(escape <<<"$ssid")" "an open network: nothing is private on it"; return 0; }
+    fail "Couldn't join $(escape <<<"$ssid")" "$(tail -1 <<<"$out" | cut -c1-200 | escape)"
+  fi
+  pw=$(rofi -dmenu -password -p "Password for $ssid" -mesg "Enter joins; Escape leaves it" </dev/null) || return 0
+  [ -n "$pw" ] || return 0
+  # The password through a file only you can read, gone as soon as it's used.
+  file=$(mktemp "$RUN/vikix-wifi.XXXXXX") || fail "Couldn't make a file for the password" ""
+  printf '802-11-wireless-security.psk:%s\n' "$pw" > "$file"
+  out=$(timeout 60 "$NMCLI" connection add type wifi con-name "$ssid" ifname "$DEV" ssid "$ssid" \
+          wifi-sec.key-mgmt "$keymgmt" 2>&1) || { rm -f "$file"; fail "Couldn't save $(escape <<<"$ssid")" "$(tail -1 <<<"$out" | cut -c1-200 | escape)"; }
+  out=$(timeout 90 "$NMCLI" connection up "$ssid" passwd-file "$file" 2>&1); rc=$?
+  rm -f "$file"
+  [ "$rc" = 0 ] && { note "On $(escape <<<"$ssid")" "saved: next time it joins by itself"; return 0; }
+  # Refused: nothing kept, so the next try asks afresh.
+  "$NMCLI" connection delete "$ssid" >/dev/null 2>&1
+  fail "Couldn't join $(escape <<<"$ssid")" "$(tail -1 <<<"$out" | cut -c1-200 | escape). Nothing saved; try again"
+}
+
+read -r DEV DBUS < <(device)
+[ -n "${DEV:-}" ] || { [ "${1:-}" = list ] && exit 0; fail "No Wi-Fi here" "nmtui opens for the rest"; }
+
+case ${1:-} in
+  list) networks | while IFS=$'\t' read -r signal ssid security flags; do line "$signal" "$ssid" "$security" "$flags"; done; exit 0 ;;
+  scan) scan; note "Scanned" "$(networks | wc -l) networks"; exit 0 ;;
+  '') ;;
+  *) echo "usage: vikix wifi [list|scan]" >&2; exit 2 ;;
+esac
+
+# The list, scanned first unless it's fresh; the pick by its line number.
+age=$(scan_age "$DBUS")
+if [ "$age" = never ] || [ -z "$age" ] || [ "$age" -gt "$FRESH" ]; then scan; age=0; fi
+while :; do
+  mapfile -t rows < <(networks)
+  mesg="Scanned just now"; [ "$age" -gt 0 ] && mesg="Scanned $age s ago"
+  [ "${#rows[@]}" -gt 0 ] || mesg+=". No network found"
+  inuse=''; menu=''
+  for r in "${rows[@]}"; do
+    IFS=$'\t' read -r signal ssid security flags <<<"$r"
+    menu+="$(line "$signal" "$ssid" "$security" "$flags")"$'\n'
+    [ "$flags" = in-use ] && inuse=$ssid
+  done
+  menu+=$'Scan again\n'; [ -n "$inuse" ] && menu+="Disconnect from $inuse"$'\n'; menu+='Everything else (nmtui)'
+  # The pick comes back as a line number: a name can hold anything.
+  pick=$(rofi -dmenu -i -no-custom -format i -p "Wi-Fi" -mesg "$(escape <<<"$mesg")" <<<"$menu") || exit 0
+  [[ $pick =~ ^[0-9]+$ ]] || exit 0
+  if [ "$pick" -lt "${#rows[@]}" ]; then
+    IFS=$'\t' read -r signal ssid security flags <<<"${rows[$pick]}"
+    [ "$flags" = in-use ] && { note "Already on $(escape <<<"$ssid")" ""; exit 0; }
+    join "$signal" "$ssid" "$security"; exit
+  fi
+  case $(( pick - ${#rows[@]} )) in
+    0) scan; age=0 ;;
+    1) if [ -n "$inuse" ]; then
+         timeout 30 "$NMCLI" device disconnect "$DEV" >/dev/null 2>&1 && note "Off Wi-Fi" "pick a network to join again" || fail "Couldn't disconnect" ""
+         exit
+       else nmtui; fi ;;
+    *) nmtui ;;
+  esac
+done

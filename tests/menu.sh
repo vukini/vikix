@@ -150,7 +150,7 @@ has "Apps=Video: edit (Shotcut)|Pictures: edit a photo (GIMP)|Dropbox|Windows (t
   "Apps has the apps that came with features, then Dropbox, Windows and the web apps"
 has "Windows=Overview: every workspace, drawn small|Layout: pick this workspace's (tiles, main and stack, grid, strip)|Layout: save this workspace's, by name|Layout: put this workspace back as one you saved|Strip: this workspace scrolls sideways (Viri), or tiled again|Gaps around windows on/off|Find a window, any workspace|Bring every window of another workspace here|Remember this window here: write the rule for where it is|Rules: the list, one off or on, why this window is where it is|Bring my windows back, as they were before the restart" \
   "Windows keeps the three layout lines together"
-has "System=Network (nmtui)|Network use: which program is using it (nethogs)|Firewall: on or off, and what it lets in|Bluetooth|Sound (pavucontrol)|Screens: extend, mirror, one only, arrange|Screens: arrange (arandr)|Screens: save this layout|Printers|Eject a drive|Apply keyboard settings|Firmware updates" \
+has "System=Wi-Fi: pick a network (scans first)|Network: everything else (nmtui)|Network use: which program is using it (nethogs)|Firewall: on or off, and what it lets in|Bluetooth|Sound (pavucontrol)|Screens: extend, mirror, one only, arrange|Screens: arrange (arandr)|Screens: save this layout|Printers|Eject a drive|Apply keyboard settings|Firmware updates" \
   "System keeps the three lines for screens together"
 has "lay=[Windows        Layout: pick this workspace's (tiles, main and stack, grid, strip)  s-C-SPC]" "typing finds an entry, its section before it and its key after"
 has "lay=[System         Screens: save this layout]" "typing looks in every section"

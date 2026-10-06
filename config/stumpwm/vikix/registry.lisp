@@ -487,7 +487,10 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 
 ;;; The system: the network, sound, screens, printers, drives
 
-(define-vikix-command network "Network (nmtui)"
+(define-vikix-command wifi "Wi-Fi: pick a network (scans first)"
+  :do (run-shell-command "vikix-wifi")
+  :menu "System")
+(define-vikix-command network "Network: everything else (nmtui)"
   :do (run-shell-command (format nil "~a -e nmtui" *vikix-terminal*))
   :menu "System")
 (define-vikix-command network-use "Network use: which program is using it (nethogs)"

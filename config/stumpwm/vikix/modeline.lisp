@@ -75,8 +75,11 @@ runs from the event loop, where an error would reach the top level."
                    (5 (run-commands "vikix-volume down"))
                    (2 (run-commands "vikix-volume mute"))
                    ((1 3) (run-shell-command "pavucontrol"))))
+        ;; Wi-Fi: the picker, which scans first; a cable or nothing: nmtui.
         (:net (when (member button '(1 3))
-                (run-shell-command (format nil "~a -e nmtui" *vikix-terminal*))))
+                (if (and (stringp *vikix-net*) (string= *vikix-net* "wifi" :end1 (min 4 (length *vikix-net*))))
+                    (run-shell-command "vikix-wifi")
+                    (run-shell-command (format nil "~a -e nmtui" *vikix-terminal*)))))
         (:bt (when (member button '(1 3))
                (run-shell-command "blueman-manager")))
         (:memory (when (member button '(1 3))

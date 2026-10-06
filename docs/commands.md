@@ -71,6 +71,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-welcome](#vikix-welcome): the welcome: first steps on a new desktop, in a terminal, each ticked off once done
 - [vikix-what](#vikix-what): what is this? A part of the running computer, on a card
 - [vikix-why](#vikix-why): why did that happen? What the desktop did lately, and what made it
+- [vikix-wifi](#vikix-wifi): Wi-Fi: pick a network from a list that is scanned first
 - [vikix-windows](#vikix-windows): Windows in a VM, for the programs that only run there
 
 ## vikix
@@ -85,6 +86,7 @@ The everyday command.
 - `vikix docs get` — download the offline programming docs into `~/dev` (a few GB, slow; update and the installer skip them)
 - `vikix doctor` — check the pieces are all there
 - `vikix screens [extend|mirror|external|laptop|pick]` — the screens: a plugged one lights up by itself; this lays them out otherwise (Super+Ctrl+p)
+- `vikix wifi [list|scan]` — Wi-Fi: pick a network from a list scanned first
 - `vikix tray on|off` — a tray at the bar's end: network and Bluetooth icons (nm-applet, blueman-applet; Super+m too)
 - `vikix memory [left|clean]` — what uses the memory, biggest first, and the programs left over (hidden screens, tests nobody ended); clean ends those; a warning comes by itself when memory runs low (vikix memory help)
 - `vikix rescue [free|undo|lock]` — when the desktop is stuck: how it is and what it is doing; free = out of a loop (rules paused, focus on clicks, a fresh event loop); works from a text console too (vikix rescue help)
@@ -1184,6 +1186,18 @@ Why did that happen? What the desktop did lately, and what made it.
 A window jumped to another workspace, a key did something odd, the layout changed under you: the desktop notes the key pressed and the command it ran, each rule that runs and the window it ran for, the menu's entries, what an agent or a script asked for. The same thing again is one line, counted (×3). It is kept in the running desktop only, fifty at most, until StumpWM starts again; nothing is written down.
 
 Super+? shows the same list on the desktop. Pick a line there and it offers what can be done: edit it where it is written (user.lisp, line 42, in Emacs), take it back when it is a switch or changed the layout, bring a window a rule moved here, switch the rule off until the next reload.
+
+## vikix-wifi
+
+Wi-Fi: pick a network from a list that is scanned first.
+
+- `vikix wifi` — scan, then the networks in rofi: the signal, the name, whether it's saved or in use; Enter joins (a saved or open one at once, a new one asks its password); "Scan again", "Disconnect", and nmtui for the rest (a hidden network, a company login). A click on the bar's Wi-Fi field, or Super+m, System, opens the same list
+- `vikix wifi list` — the networks as the list shows them, no menu
+- `vikix wifi scan` — scan now and wait for it (some ten seconds)
+
+The list is only as fresh as NetworkManager's last scan, which is what the tray's applet shows, often stale. So the picker scans first when the last scan is older than 30 seconds (a scan takes some ten seconds: a notification says so), and "Scan again" always does.
+
+A new network's password goes to NetworkManager through a file of your own (0600, deleted at once), never on a command line. A network that can't be joined this way (WEP, a login with a user name) is sent to nmtui. A password refused leaves nothing saved.
 
 ## vikix-windows
 

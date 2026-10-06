@@ -17,7 +17,7 @@ A page of the Vikix skill (~/.claude/skills/vikix/SKILL.md: read that first, its
 
 ## The bar, notifications and small switches
 
-- The bar takes clicks: a workspace's number goes there, a window's title focuses it, vol opens pavucontrol (wheel up/down, middle mutes), the network nmtui, bt blueman (modeline.lisp, vikix-ml-clickable; the narrowest overlapping area wins).
+- The bar takes clicks: a workspace's number goes there, a window's title focuses it, vol opens pavucontrol (wheel up/down, middle mutes), the network `vikix wifi` (the picker: a scan first, then the list; `vikix wifi list` prints it; a cable opens nmtui), bt blueman (modeline.lisp, vikix-ml-clickable; the narrowest overlapping area wins).
 - What the bar says: `quiet` (do not disturb), `awake` (keep awake), `rec` (a recording runs), `mic` (dictation listens), `usb` (a drive is mounted), `ai` (a local model is loaded), `updates N` / `Vikix update`, `backup 9d`, `mem 91%` / `left 5`, `agent asks`; the bar also shows `bt`, or `bt DEVICE 80%`, while Bluetooth is on, from bin/vikix-bt, and `dbx ↓N` / `dbx off` / `dbx !` for Dropbox, from bin/vikix-dropbox, with the feature dropbox.
 - Notifications: Super+n / Super+Shift+n the last notification again / pick an earlier one, Super+Ctrl+n close all, Super+Ctrl+d do not disturb (dunstctl; the bar says quiet).
 - Super+Ctrl+a keep awake (vikix-idle; no lock, dark screen or suspend; the bar says awake). Super+Ctrl+l night light on/off (vikix-nightlight, gammastep; times and colours in the user's ~/.config/gammastep/config.ini; off lasts across logins).
