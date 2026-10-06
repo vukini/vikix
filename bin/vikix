@@ -7,6 +7,11 @@
 #                         upgrade your pipx, uv and cargo programs
 #   vikix update core|system|tools   one part: Vikix only (seconds), Void's
 #                         packages only, or the editors, languages and tools
+#   vikix try [DESK]    the desktop runs a desk's work before it is released:
+#                         ~/vikix is put at the desk's last commit and the core
+#                         update's steps run; DESK is a desk's folder, topic or
+#                         branch, none the desk this shell is in (vikix try help)
+#   vikix try off|status   back to main now; what the desktop runs
 #   vikix migrate       run only the migrations not yet applied
 #   vikix rebuild-wm    rebuild the StumpWM executable (after a Quicklisp update)
 #   vikix docs find WORDS  every document on the machine, searched: Vikix's
@@ -339,6 +344,123 @@ vikix update tools    the editors' plugins and servers, the languages built
 EOF
 }
 
+# --- vikix try: a desk's work on the desktop before it is released -------------
+
+try_help() {
+  cat <<'EOF'
+vikix try [DESK]      the desktop runs a desk's work before it is released:
+                        ~/vikix is put at the desk's last commit (its branch,
+                        not main), and the core update's steps run: packages
+                        new to the lists, services, config links, migrations,
+                        StumpWM reloaded. DESK is a desk's folder, its topic or
+                        its branch (vikix agents desks lists them); none: the
+                        desk this shell is in. Files uncommitted at the desk
+                        aren't taken: commit first. One desk at a time: the
+                        next vikix try replaces it, and vikix update core
+                        (gup) puts ~/vikix back on main first
+vikix try off         back to main now, with the core update's steps
+vikix try status      what the desktop runs: main, or which desk since when
+EOF
+}
+try_file() { printf '%s/try' "$VIKIX_STATE"; }
+try_status() {
+  local f folder commit branch since
+  f=$(try_file)
+  if [ -f "$f" ]; then
+    { read -r folder; read -r commit; read -r branch; read -r since; } < "$f"
+    echo "the desktop runs $folder ($branch at ${commit:0:7}, since $since; vikix try), not main: vikix update core (gup) puts it back on main"
+  else
+    echo "the desktop runs main: Vikix $(cat "$VIKIX_DIR/VERSION")"
+  fi
+}
+# Back on main after a try (nothing to do otherwise). An update calls it
+# before its pull: a detached checkout can't pull, and a try is never kept
+# over an update, so what the desktop runs is always main or a named desk.
+try_back() {
+  local f
+  f=$(try_file)
+  if [ -f "$f" ]; then
+    say "back from the try of $(head -n 1 "$f"): $VIKIX_DIR on main again"
+  elif ! git -C "$VIKIX_DIR" symbolic-ref -q HEAD >/dev/null 2>&1; then
+    say "$VIKIX_DIR was on no branch: on main again"
+  else
+    return 0
+  fi
+  run git -C "$VIKIX_DIR" checkout -q main || die "$VIKIX_DIR couldn't go back to main (git checkout main failed, above)"
+  [ "$DRY_RUN" = 1 ] || rm -f "$f"
+}
+# try_desk WORD: the desk's folder, from a folder, a topic or a branch;
+# none: the repository this shell is in, which must not be the project's own folder.
+try_desk() {
+  local word=$1 top own hits
+  if [ -z "$word" ]; then
+    top=$(git rev-parse --show-toplevel 2>/dev/null) ||
+      die "this folder isn't a repository: name the desk (vikix try DESK; vikix agents desks lists them), or run it from one"
+    own=$(git -C "$top" worktree list --porcelain | awk '/^worktree /{print substr($0, 10); exit}')
+    [ "$(readlink -f "$top")" != "$(readlink -f "$own")" ] ||
+      die "$top is the project's own folder, not a desk: vikix try DESK (vikix agents desks lists them)"
+    printf '%s\n' "$top"
+    return 0
+  fi
+  if [ -d "$word" ]; then
+    top=$(git -C "$word" rev-parse --show-toplevel 2>/dev/null) || die "$word isn't a repository"
+    printf '%s\n' "$top"
+    return 0
+  fi
+  hits=$(python3 "$VIKIX_DIR/bin/vikix-agents" desks 2>/dev/null |
+    awk -F'\t' -v w="$word" '{ n = split($1, p, "/"); last = p[n] }
+      $2 == w || last == w || substr(last, length(last) - length(w)) == "-" w { print $1 }')
+  [ -n "$hits" ] || die "no desk called $word: vikix agents desks lists them (a folder, a topic or a branch)"
+  [ "$(wc -l <<<"$hits")" = 1 ] || die "$word is several desks, say which: $(paste -sd' ' <<<"$hits")"
+  printf '%s\n' "$hits"
+}
+cmd_try() {
+  local a word='' off='' desk changes commit branch f
+  while [ "$#" -gt 0 ]; do
+    a=$1; shift
+    case $a in
+      -h|--help|help) try_help; return 0 ;;
+      status) try_status; return 0 ;;
+      off) off=1 ;;
+      -*) die "vikix try [DESK|off|status] (vikix try help)" ;;
+      *) [ -z "$word" ] || die "one desk at a time: vikix try DESK"; word=$a ;;
+    esac
+  done
+  f=$(try_file)
+  if [ -n "$off" ]; then
+    [ -z "$word" ] || die "vikix try off takes no desk"
+    if [ ! -f "$f" ] && git -C "$VIKIX_DIR" symbolic-ref -q HEAD >/dev/null 2>&1; then
+      say "the desktop runs main already (Vikix $(cat "$VIKIX_DIR/VERSION")); nothing to do"
+      return 0
+    fi
+    set_aside_local_changes "$VIKIX_DIR"
+    try_back
+    exec "$VIKIX_DIR/bin/vikix" update --pulled core
+  fi
+  desk=$(try_desk "$word")
+  git -C "$desk" cat-file -e HEAD:bin/vikix 2>/dev/null ||
+    die "$desk isn't a Vikix repository (no bin/vikix at its last commit)"
+  changes=$(git -C "$desk" status --porcelain 2>/dev/null) || changes=''
+  [ -z "$changes" ] ||
+    die "$(wc -l <<<"$changes") file(s) uncommitted at $desk aren't taken: commit them there first, then vikix try again"
+  commit=$(git -C "$desk" rev-parse HEAD)
+  branch=$(git -C "$desk" rev-parse --abbrev-ref HEAD)
+  [ ! -f "$f" ] || say "replacing the try of $(head -n 1 "$f")"
+  set_aside_local_changes "$VIKIX_DIR"
+  say "the desktop takes $desk: $branch at ${commit:0:7}, not main (vikix try off, or vikix update core, puts main back)"
+  # From the desk's folder, a repository of its own as far as git is concerned.
+  run git -C "$VIKIX_DIR" fetch -q "$desk" HEAD || die "couldn't fetch $desk's commit into $VIKIX_DIR"
+  run git -C "$VIKIX_DIR" checkout -q --detach FETCH_HEAD || die "$VIKIX_DIR couldn't take ${commit:0:7} (git checkout failed, above)"
+  if [ "$DRY_RUN" = 1 ]; then
+    printf '   would note the try in %s\n' "$f"
+  else
+    mkdir -p "$(dirname "$f")"
+    printf '%s\n%s\n%s\n%s\n' "$desk" "$commit" "$branch" "$(date '+%Y-%m-%d %H:%M')" > "$f"
+  fi
+  # The steps, from the copy of this script the desk's commit brought.
+  exec "$VIKIX_DIR/bin/vikix" update --pulled core
+}
+
 cmd_update() {
   local a pulled='' part=all from=''
   while [ "$#" -gt 0 ]; do
@@ -375,6 +497,7 @@ cmd_update() {
   if [ "$part" = all ] || [ "$part" = core ]; then
     if [ -z "$pulled" ]; then
       set_aside_local_changes "$VIKIX_DIR"
+      try_back
       if [ -n "$from" ]; then
         # Your own repository's main, without GitHub: commits you haven't
         # pushed yet. Only a fast-forward, so ~/vikix stays a step of the
@@ -469,6 +592,10 @@ cmd_update() {
   # Said again at the end, where it's seen: the warning was 400 lines up.
   if [ -n "${VIKIX_SET_ASIDE:-}" ]; then
     warn "changes made in the checkout were set aside before this update: less $VIKIX_SET_ASIDE"
+  fi
+  # After vikix try: what runs is a desk's work, not a release.
+  if [ "$part" = core ] && [ -f "$(try_file)" ]; then
+    warn "$(try_status)"
   fi
   # The docs catalogue (vikix docs, Super+F2) reads again what changed: the
   # man pages and manuals of the packages this update brought, the guides.
@@ -1618,6 +1745,7 @@ main() {
   case ${1:-help} in
     __complete)  shift; vikix_complete "$@" ;;
     update)      shift; cmd_update "$@" ;;
+    try)         shift; cmd_try "$@" ;;
     migrate)     cmd_migrate ;;
     rebuild-wm)  VIKIX_REBUILD_WM=1 bash "$VIKIX_DIR/install/30-lisp.sh" ;;
     docs)        shift; exec python3 "$VIKIX_DIR/bin/vikix-docs" "$@" ;;

@@ -42,6 +42,9 @@
                        works there, or with files uncommitted; a branch not
                        merged yet is kept and said. --force: uncommitted
                        files and the unmerged branch are thrown away
+  vikix agents desks   every desk there is, one a line, tab-parted: its
+                       folder, its branch and the project's own folder (for
+                       scripts, such as vikix try; close says them in words)
   vikix agents clash [FILE]
                        the files two agents are on at once: each file with
                        the agents that have changed it, uncommitted, in
@@ -1143,6 +1146,10 @@ def main(argv):
         return sit(argv[1:])
     if argv and argv[0] == "close":
         return close(argv[1:])
+    if argv == ["desks"]:
+        for d in desks(projects()):
+            print(f"{d['folder']}\t{d['branch'] or ''}\t{d['top']}")
+        return 0
     if argv and argv[0] == "touch":
         return touch(argv[1:])
     if argv and argv[0] == "clash":
@@ -1151,7 +1158,7 @@ def main(argv):
         return crossings(argv[1:])
     as_json = argv == ["--json"]
     if argv and not as_json:
-        die("vikix agents [--json|desk|sit|close|clash|crossings] (vikix agents help)")
+        die("vikix agents [--json|desk|sit|close|desks|clash|crossings] (vikix agents help)")
     agents = desktop()
     agents += elsewhere({a["pid"] for a in agents})
     agents = [with_git(a) for a in seated(agents)]
@@ -1164,6 +1171,14 @@ def main(argv):
     if as_json:
         print(json.dumps(agents, indent=1, ensure_ascii=False))
         return 0
+    # What the desktop runs when it isn't a release: a desk's work (vikix try).
+    try_file = os.path.join(os.environ.get("VIKIX_STATE") or os.path.join(STATE, "vikix"), "try")
+    try:
+        with open(try_file) as f:
+            folder, commit, branch = [f.readline().strip() for _ in range(3)]
+        print(f"The desktop runs {short(folder)} ({branch} at {commit[:7]}; vikix try), not a release.")
+    except OSError:
+        pass
     if not agents:
         print("No agent is running here. Super+a (vikix agent) starts one.")
         return 0
