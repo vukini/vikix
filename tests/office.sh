@@ -190,7 +190,7 @@ sleep 0.5
 check "the local row adds --local: '$(cat "$t/desk.args" 2>/dev/null)'" test "$(cat "$t/desk.args" 2>/dev/null)" = "--use codex --local"
 check "Super+m has it, under AI" yes '(find (quote (run-shell-command "vikix-agents desk")) *vikix-menu* :key (function second) :test (function equal))'
 
-check "vikix agents with a word it doesn't know says what it takes" grep -q 'vikix agents \[--json|desk|sit|close|desks|clash|crossings\]' <<<"$(cli nonsense)"
+check "vikix agents with a word it doesn't know says what it takes" grep -q 'vikix agents \[--json|desk|sit|close|desks|handoff|resume|hooks|clash|crossings\]' <<<"$(cli nonsense)"
 check "the desktop met no error" test -z "$(ls "$home/.local/state/vikix/errors" 2>/dev/null)"
 
 wm_report office "agents found in their terminals by name, folder and workspace, what each is doing from its title and its note, its window marked, the menu to one, vikix agents with branches and uncommitted files, one without a window, --json; a desk: a workspace and a worktree for one agent"
