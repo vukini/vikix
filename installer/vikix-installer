@@ -420,8 +420,9 @@ say "Vikix, into ~/vikix"
 home=/home/$VI_USER
 run cp -a "$VI_VIKIX_SRC" "$VI_TARGET$home/vikix"
 in_target chown -R "$VI_USER:$VI_USER" "$home/vikix"
-# The stick's copy may be days old; bring it up to GitHub's if we can.
-in_target su - "$VI_USER" -c "git -C ~/vikix pull --ff-only -q" \
+# The stick's copy may be days old; bring it up to GitHub's main if we can
+# (by name: a stick built from a branch has that branch checked out).
+in_target su - "$VI_USER" -c "git -C ~/vikix pull --ff-only -q origin main" \
   || warn "couldn't bring Vikix up to date; the stick's copy is used (vikix update brings it later)"
 
 # The first login finishes the job: installer/firstboot runs install.sh,

@@ -47,6 +47,7 @@ check "NetworkManager on"               has 'ln -sf /etc/sv/NetworkManager' "$ou
 check "GRUB, and its fallback path"     has 'grub-install --target=x86_64-efi --efi-directory=/boot --removable' "$out"
 check "the firstboot block"             has '# >>> vikix firstboot >>>' "$out"
 check "the marker"                      has 'state/vikix/firstboot' "$out"
+check "Vikix brought up to GitHub's main" has 'git -C ~/vikix pull --ff-only -q origin main' "$out"
 check "root locked"                     has 'passwd -l root' "$out"
 check "the password never printed"      lacks 'vikix-test' "$out"
 
