@@ -81,6 +81,7 @@
                        session); Claude Code's is noted by the hook itself
   vikix agents handoff list [--json]
                        every desk with a record, newest change first
+                       (--menu, from Super+m: pick one, read it in a terminal)
   vikix agents clash [FILE]
                        the files two agents are on at once: each file with
                        the agents that have changed it, uncommitted, in
@@ -1026,8 +1027,32 @@ def protection_lines(folder):
     return here, lines
 
 
+def handoff_menu():
+    """From Super+m: pick a desk with a record, and read it in a terminal."""
+    H = handoff_module()
+    recs = H.all_records()
+    if not recs:
+        die("no desk has a handoff yet (vikix agents desk PROJECT TOPIC --task \"...\" starts one)")
+    lines = [f"{short(r['desk']['worktree'])}  {((r.get('handoff') or {}).get('status') or {}).get('value', 'no status')}"
+             f"  {(r.get('task') or {}).get('text', '')[:60]}" for r in recs]
+    picked = rofi("Handoff of", "A desk's task, what the agent did and left, and its checks.", lines)
+    if picked is None or not picked.isdigit():
+        return 0
+    did = recs[int(picked)]["desk"]["id"]
+    term = os.environ.get("VIKIX_TERMINAL") or "alacritty"
+    if not shutil.which(term):
+        die(f"no terminal: {term} isn't installed")
+    me = os.path.join(VIKIX_DIR, "bin", "vikix-agents")
+    subprocess.Popen([term, "--title", "Handoff", "-e", "bash", "-c",
+                      f"python3 {shlex.quote(me)} handoff {did}; echo; read -r -p 'Enter closes this window. ' _"],
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    return 0
+
+
 def handoff(argv):
     H = handoff_module()
+    if argv == ["--menu"]:
+        return handoff_menu()
     verb = argv.pop(0) if argv and argv[0] in ("show", "set", "check", "session", "list") else "show"
     as_json, desk, words, opts = False, None, [], {}
     while argv:
@@ -1727,6 +1752,7 @@ def main(argv):
         a["waits"] = None
         if a["pid"] in held and a["state"] in ("working", "running", "idle"):
             a["doing"], a["waits"] = held[a["pid"]]
+        a["handoff"] = handoff_brief(a["folder"]) if a["desk"] else None
     if as_json:
         print(json.dumps(agents, indent=1, ensure_ascii=False))
         return 0
@@ -1756,7 +1782,30 @@ def main(argv):
             print(f"           {line[:110]}")
         for c in a["clashes"]:
             print(f"           on {c['file']} with {', '.join(c['with'])} too (vikix agents clash {c['file']})")
+        h = a["handoff"]
+        if h:
+            print(f"           handoff: {h['status'] or 'no status'}" + (f"; next: {h['next'][:80]}" if h["next"] else "")
+                  + (f"; checks {h['checks']}" if h["checks"] else ""))
     return 0
+
+
+def handoff_brief(folder):
+    """The desk's record in a line's worth: status, next, the checks'
+    freshness (fresh/stale counts). None without a record."""
+    try:
+        H = handoff_module()
+        rec = H.load(H.desk_id(common_of(folder), folder))
+    except Exception:  # noqa: BLE001  a record that can't be read costs the line, not the listing
+        return None
+    if not rec:
+        return None
+    h = rec.get("handoff") or {}
+    now = H.observe(folder) if os.path.isdir(folder) else {}
+    checks = rec.get("checks") or []
+    fresh = sum(1 for c in checks if H.freshness(c, now) == "fresh")
+    return {"status": (h.get("status") or {}).get("value"), "next": (h.get("next") or {}).get("text", ""),
+            "task": (rec.get("task") or {}).get("text", ""),
+            "checks": f"{fresh} fresh, {len(checks) - fresh} stale" if checks else ""}
 
 
 if __name__ == "__main__":

@@ -162,7 +162,7 @@ check "not JSON should be -32700: $out" test "$(field '["error"]["code"]' <<<"$o
 # The tools: eval and undo only when switched on.
 names() { rpc "$@" -- '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python3 -c 'import json,sys; print(" ".join(t["name"] for t in json.loads(sys.stdin.readline())["result"]["tools"]))'; }
 list=$(names)
-check "the read-only tools should be there: $list" grep -q 'desktop keys commands why agents doctor history changes themes version rules' <<<"$list"
+check "the read-only tools should be there: $list" grep -q 'desktop keys commands why agents handoff doctor history changes themes version rules' <<<"$list"
 check "eval shouldn't be there by default: $list" test -z "$(grep -ow 'eval\|undo' <<<"$list" || true)"
 check "--allow-eval should add eval: $(names --allow-eval)" grep -qw eval <<<"$(names --allow-eval)"
 check "--allow-undo should add undo: $(names --allow-undo)" grep -qw undo <<<"$(names --allow-undo)"
@@ -170,7 +170,7 @@ out=$(call eval '{"form":"(run-shell-command \"touch pwned\")"}')
 check "eval without --allow-eval should be refused: $out" grep -q '^ERROR: no tool' <<<"$out"
 check "a refused eval ran something" test ! -e "$t/forms"
 ro=$(rpc -- '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python3 -c 'import json,sys; print(" ".join(t["name"] for t in json.loads(sys.stdin.readline())["result"]["tools"] if t["annotations"]["readOnlyHint"]))')
-check "the read tools should say they only read: $ro" test "$ro" = "desktop keys commands why agents doctor history changes themes version rules records_search records_get docs_search docs_read file_changes"
+check "the read tools should say they only read: $ro" test "$ro" = "desktop keys commands why agents handoff doctor history changes themes version rules records_search records_get docs_search docs_read file_changes"
 
 # Reading the desktop.
 out=$(call desktop '{}')
@@ -218,6 +218,31 @@ check "one not for agents should be refused, in the desktop's words: $out" grep 
 out=$(call run_command '{"name":"quiet\") (run-shell-command \"touch pwned"}')
 check "a name that isn't a command's shape should be refused: $out" grep -q '^ERROR: name' <<<"$out"
 check "and never reach Lisp: $(cat "$t/forms")" test ! -s "$t/forms"
+# A desk's handoff: the record read and written through the office's own code, signed by the caller.
+mkdir -p "$t/src" "$t/proc" "$HOME/.config/vikix"; echo "5000.00 1.00" > "$t/proc/uptime"; printf 'root=%s\n' "$t/src" > "$HOME/.config/vikix/projects"
+git -C "$t/src" init -q -b main book; git -C "$t/src/book" config user.name T; git -C "$t/src/book" config user.email t@example.com
+echo '# Log' > "$t/src/book/log.md"; git -C "$t/src/book" add log.md; git -C "$t/src/book" commit -q -m first
+git -C "$t/src/book" worktree add -q "$t/src/book-a" -b a
+mkdir -p "$t/proc/1001"; printf 'claude\0--x\0' > "$t/proc/1001/cmdline"; ln -sfn "$t/src/book-a" "$t/proc/1001/cwd"
+printf '1001 (claude) S 1 1001 1 0 -1 4194560 0 0 0 0 0 0 0 0 20 0 1 0 100000 0 0\n' > "$t/proc/1001/stat"
+out=$(VIKIX_PROC=$t/proc VIKIX_AGENT_PID=1001 call handoff '{}')
+check "handoff without a record says how one starts: $out" grep -q '"record": null' <<<"$out"
+out=$(VIKIX_PROC=$t/proc VIKIX_AGENT_PID=1001 call handoff_update '{"status":"working","summary":"read the log","next":"fix ch1","check":{"name":"spell","ok":true}}')
+check "handoff_update writes the caller's handoff on its desk, signed: $out" grep -q '^handoff of .*/book-a updated by claude 1001: status working; check, next, status, summary set' <<<"$out"
+out=$(VIKIX_PROC=$t/proc VIKIX_AGENT_PID=1001 call handoff '{}')
+check "handoff then reads it back, with the freshness and what holds the rules: $out" python3 -c '
+import json, sys
+r = json.loads(sys.argv[1])
+assert r["handoff"]["status"]["value"] == "working" and r["handoff"]["status"]["by"] == "claude 1001", r["handoff"]
+assert r["checks"][0]["freshness"] == "fresh" and r["now"]["commit"], r
+assert r["at_the_desk"] == ["claude 1001"] and any("no filesystem enforcement" in p for p in r["protection"]), r' "$out"
+out=$(VIKIX_PROC=$t/proc VIKIX_AGENT_PID=1001 call handoff_update '{"summary":"token sk-ant-abcdefghijklmnopqrstu"}')
+check "a credential is refused: $out" grep -q '^ERROR: .*looks like it holds a credential' <<<"$out"
+out=$(VIKIX_PROC=$t/proc VIKIX_AGENT_PID=1001 call handoff '{"desk":"nowhere"}')
+check "a desk that isn't: $out" grep -q '^ERROR: no such desk here' <<<"$out"
+out=$(VIKIX_PROC=$t/proc call handoff_update '{"task":"Fix chapter one","desk":"a"}')
+check "from no agent the writer is the user, by the desk named: $out" grep -q 'updated by user: status working; task set' <<<"$out"
+rm -rf "$t/proc" "$t/src"; rm -f "$HOME/.config/vikix/projects"
 out=$(VIKIX_PROC=/nonexistent call agents '{}')
 check "agents should list the agents at work, each with its folder and what it does: $out" \
   python3 -c '

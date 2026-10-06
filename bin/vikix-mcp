@@ -394,6 +394,62 @@ def t_agents(a):
     return json.dumps(agents, indent=1, ensure_ascii=False)
 
 
+def handoff_desk(a, agents):
+    """The desk a handoff call means: the one named, else the caller's."""
+    desk = a.get("desk")
+    if desk is not None and (not isinstance(desk, str) or len(desk) > 200 or "\n" in desk):
+        raise ToolError("desk is a short name: a folder, a topic, a branch, or a record's id")
+    try:
+        return agents.desk_for(desk.split() if desk else [])
+    except SystemExit:
+        raise ToolError("no such desk here (vikix agents handoff list names them); without desk, "
+                        "the call means the desk you sit at: vikix agents sit PROJECT TOPIC takes one")
+
+
+def t_handoff(a):
+    """A desk's record (vikix agents handoff): the task, the handoff, the
+    checks with their freshness, the git state now, the sessions."""
+    agents = office()
+    H = agents.handoff_module()
+    folder, rec = handoff_desk(a, agents)
+    if not rec:
+        return json.dumps({"desk": folder, "record": None,
+                           "note": "no record yet: handoff_update with task, status, summary or next starts one"})
+    now = H.observe(folder) if os.path.isdir(folder) else {}
+    at, held = agents.protection_lines(folder) if os.path.isdir(folder) else ([], [])
+    out = dict(rec, now=now, checks=[dict(c, freshness=H.freshness(c, now)) for c in rec.get("checks", [])],
+               at_the_desk=[agents.who(x) for x in at], protection=held)
+    for key in ("task", "handoff"):
+        v = out.get(key)
+        if isinstance(v, dict):
+            for k, field in v.items():
+                if isinstance(field, dict) and "text" in field:
+                    field["text"] = scrub(field["text"])
+    text = json.dumps(out, indent=1, ensure_ascii=False)
+    return text[:30000] + (" [cut short]" if len(text) > 30000 else "")
+
+
+def t_handoff_update(a):
+    """The caller's handoff on its desk (vikix agents handoff set): the
+    same fields as --from, through the same code, signed by the caller."""
+    agents = office()
+    H = agents.handoff_module()
+    folder, _ = handoff_desk(a, agents)
+    data = {k: a[k] for k in ("task", "status", "summary", "next", "check", "session") if k in a}
+    if not data:
+        raise ToolError("nothing to set: task, status, summary, next, check or session")
+    by, _ = agents.by_me()
+    try:
+        rec = H.update(agents.common_of(folder), folder, lambda r: H.from_json(r, data, by, folder),
+                       branch=(agents.git(folder, "rev-parse", "--abbrev-ref", "HEAD") or "").strip(),
+                       project=agents.project_of(folder, agents.common_of(folder)))
+    except H.HandoffError as e:
+        raise ToolError(str(e))
+    status = (rec.get("handoff") or {}).get("status")
+    return (f"handoff of {H.short(folder)} updated by {by}" + (f": status {status['value']}" if status else "")
+            + f"; {', '.join(sorted(data))} set")
+
+
 def t_run_command(a):
     """One of the desktop's commands, by its name in the registry. The name
     is checked here for its shape and by the desktop for the rest: it runs
@@ -778,6 +834,14 @@ TOOLS = [
      "done with its turn, asks: waiting for the user). Look here before changing files in a folder: another "
      "agent may be at work in it. Read only: nothing is asked of the other agents, and none is stopped." + DATA,
      schema(), READ, t_agents),
+    ("handoff", "A desk's task and handoff",
+     "The record of a desk (vikix agents handoff): the user's task in their words, the agent's handoff (status: "
+     "working, waiting, review or finished; what was done and decided; what is left and the next action), each "
+     "signed and dated; the checks that ran, with the commit each ran on, whether the tree was dirty, and whether "
+     "it is still fresh or stale since the code moved on; the git state now; the sessions that can be resumed; "
+     "who is at the desk and what holds the rules for each. Read it when you join a desk. Without desk, yours." + DATA,
+     schema({"desk": {"type": "string", "description": "a desk: its folder, topic, branch or record id; empty: the desk you sit at"}}),
+     READ, t_handoff),
     ("doctor", "vikix doctor", "Check the desktop: programs, services, links, the snapshot history, vikix eval "
      "(a fixed test form)." + DATA, schema(), READ, t_doctor),
     ("history", "Snapshots of your files", "vikix history: the snapshots of the user's settings, newest first." + DATA,
@@ -827,6 +891,22 @@ TOOLS = [
     ("notify", "Show a notification", "A desktop notification, its title starting \"Agent:\".",
      schema({"title": {"type": "string", "maxLength": 80}, "body": {"type": "string", "maxLength": 400}}, ["title"]),
      ONCE, t_notify),
+    ("handoff_update", "Update your desk's handoff",
+     "Write your handoff on your desk (vikix agents handoff set), for whoever takes the desk next, the user "
+     "included: do it when you hand work back, when you are blocked (status waiting), when the work is ready "
+     "(review) or done (finished). status: working|waiting|review|finished; summary: what you changed and "
+     "decided, in a few lines; next: what is left and the very next action; task: the user's task, in their "
+     "words, only when they gave it to you; check: {name, ok, note} for a check you ran, which Vikix stamps with "
+     "the commit and whether the tree was dirty; session: {provider, id} for a conversation that can be resumed "
+     "here. No transcript, no credential: both are refused. Signed with your name.",
+     schema({"desk": {"type": "string", "description": "a desk (empty: yours)"},
+             "task": {"type": "string"}, "status": {"type": "string", "enum": ["working", "waiting", "review", "finished"]},
+             "summary": {"type": "string"}, "next": {"type": "string"},
+             "check": {"type": "object", "properties": {"name": {"type": "string"}, "ok": {"type": "boolean"},
+                                                        "note": {"type": "string"}}, "required": ["name", "ok"]},
+             "session": {"type": "object", "properties": {"provider": {"type": "string"}, "id": {"type": "string"}},
+                         "required": ["provider", "id"]}}),
+     ACT, t_handoff_update),
     ("snapshot", "Take a snapshot", "Record the user's files as they are now (vikix snapshot), before changing them.",
      schema({"message": {"type": "string", "maxLength": 100}}), ONCE, t_snapshot),
     ("set_theme", "Switch the theme", "Switch the whole desktop's colours to one of the themes there are. Easily put back.",
