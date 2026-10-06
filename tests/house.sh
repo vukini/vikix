@@ -119,6 +119,11 @@ check "a process with no agent above it is nothing to rule on: '$out'" test -z "
 out=$(agents crossings --limit x || true)
 check "crossings with a bad limit says what it takes: $out" grep -q 'vikix agents crossings \[--limit N\]' <<<"$out"
 
+# A failure with no terminal to read it in (the menu) is said on the desktop.
+mkdir -p "$t/bin"; printf '#!/bin/sh\necho "$*" > %s/notified\n' "$t" > "$t/bin/notify-send"; chmod +x "$t/bin/notify-send"
+PATH="$t/bin:$PATH" DISPLAY=:7 python3 "$here/bin/vikix-agents" crossings --limit x 2>/dev/null </dev/null || true
+check "a failure from the menu is said in a notification: $(cat "$t/notified" 2>/dev/null)" grep -q 'vikix agents vikix agents crossings' "$t/notified"
+
 check "config/claude/office.json is the hook, on edits only" python3 -c '
 import json
 h = json.load(open("'"$here"'/config/claude/office.json"))["hooks"]["PreToolUse"]

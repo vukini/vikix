@@ -106,6 +106,9 @@ FIELDS = ("agent", "pid", "folder", "workspace", "window", "seconds", "state", "
 
 def die(message):
     print(f"vikix agents: {message}", file=sys.stderr)
+    # From the menu there is no terminal to read this in: say it on the desktop.
+    if not sys.stderr.isatty() and os.environ.get("DISPLAY") and shutil.which("notify-send"):
+        subprocess.run(["notify-send", "-a", "Vikix", "vikix agents", message[:300]], check=False)
     sys.exit(1)
 
 
