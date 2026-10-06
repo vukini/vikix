@@ -2,6 +2,8 @@
 
 Vikix goes on top of an ordinary Void Linux, so the first step is Void itself. This page walks through its installer once, screen by screen, with the answers Vikix needs; the pictures are from a real install, made for this page. It takes about half an hour, most of it waiting.
 
+There is a shorter way: [Vikix's stick](install-stick.md) installs Void and Vikix together after a few questions, with a newer kernel than Void's own image, which a laptop made since 2025 may need.
+
 **Installing erases the disk you choose.** Copy off anything you want to keep first.
 
 You need:

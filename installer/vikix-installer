@@ -374,6 +374,18 @@ run chmod 440 "$VI_TARGET/etc/sudoers.d/10-wheel"
 for sv in dbus NetworkManager; do
   run ln -sf "/etc/sv/$sv" "$VI_TARGET/etc/runit/runsvdir/default/$sv"
 done
+# A serial console asked for (console=ttyS0 in VI_EXTRA_CMDLINE, for a
+# machine without a screen, or the QEMU test) needs a login prompt there:
+# Void starts one only on the screens it is told to.
+for c in $VI_EXTRA_CMDLINE; do
+  case $c in
+    console=ttyS*)
+      tty=${c#console=}; tty=${tty%%,*}
+      [ -d "$VI_TARGET/etc/sv/agetty-$tty" ] || [ "$DRY_RUN" = 1 ] \
+        || run ln -s agetty-serial "$VI_TARGET/etc/sv/agetty-$tty"
+      run ln -sf "/etc/sv/agetty-$tty" "$VI_TARGET/etc/runit/runsvdir/default/agetty-$tty" ;;
+  esac
+done
 if compgen -G "/etc/NetworkManager/system-connections/*" >/dev/null; then
   run mkdir -p "$VI_TARGET/etc/NetworkManager/system-connections"
   run cp -a /etc/NetworkManager/system-connections/. "$VI_TARGET/etc/NetworkManager/system-connections/"
@@ -385,6 +397,7 @@ say "the boot loader"
 cmdline="loglevel=4"
 [ -n "$luks_uuid" ] && cmdline="$cmdline rd.luks.uuid=$luks_uuid"
 [ -n "$VI_EXTRA_CMDLINE" ] && cmdline="$cmdline $VI_EXTRA_CMDLINE"
+say "the kernel's line: $cmdline"
 if [ "$DRY_RUN" != 1 ]; then
   sed -i -e "s|^GRUB_CMDLINE_LINUX_DEFAULT=.*|GRUB_CMDLINE_LINUX_DEFAULT=\"$cmdline\"|" \
          -e "s|^#\?GRUB_DISTRIBUTOR=.*|GRUB_DISTRIBUTOR=\"Vikix\"|" "$VI_TARGET/etc/default/grub"

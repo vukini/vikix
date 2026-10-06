@@ -70,7 +70,11 @@ Added 2026-09-30, from a conversation with Vid about 0.52-0.65. Not yet ordered 
 17. **Syncthing as a feature** (design: `DESIGN-machines.md`, 2026-10-04). Folders (an Obsidian vault, say) kept in step between machines directly, no cloud; a bar note while it syncs.
 18. **KDE Connect** (design: `DESIGN-machines.md`, 2026-10-04). Phone notifications on the desktop, files both ways, the phone as a remote.
 19. **`vikix export` / `vikix import`** (design: `DESIGN-machines.md`, 2026-10-04). One file with your features, theme, keyboard, web apps and settings (no secrets), so a new machine becomes yours in one step.
-20. **A Vikix installer image.** A USB stick that installs Void and Vikix in one go (void-mklive).
+20. **A Vikix installer image.** Its first step is in (2026-10-06, for the Z13): `installer/build-image.sh` makes a stick with void-mklive (pinned) and kernel 6.18 + current firmware from Void's repository; `installer/vikix-installer` asks a few questions (Wi-Fi, disk, you, encryption, time zone, keyboard, how much of Vikix), erases one whole disk (1 GiB EFI as `/boot`, then LUKS2 with ext4), installs Void from the network with NetworkManager on and the Wi-Fi carried over, puts Vikix in `~/vikix`, and `installer/firstboot` runs `install.sh` at the first login. Guide: `docs/install-stick.md`; `tests/installer.sh`; `installer/qemu-test.py` end to end in QEMU. Still to do:
+    - Publish the image: a GitHub release per version, and a download link on vikix.dev (the site says "a virtual machine" today).
+    - Try it on the Z13 (TODO 58) and on the X1; move the mklive pin on after a test boot.
+    - Beside another system (shrink Windows, keep it), only if someone asks; the stick erases the whole disk.
+    - The stick as a desktop of its own (`NOVEL.md` idea 8, `vikix stick`): the same image with Vikix already installed and persistence.
 
 ### The desk: mail, documents, investing
 
@@ -170,7 +174,7 @@ Obsidian is retired. Vid used it to view, organise and quickly capture notes, sy
 
 Vid's new laptop, bought for AI on the machine itself: an ASUS ROG Flow Z13 (2025), model GZ302EA-XS99. AMD Ryzen AI Max+ 395, 128 GB of memory shared by the processor and the graphics, a 13.4" 2560×1600 touch screen, a detachable keyboard. Most of this can only be finished with it in hand.
 
-58. **Void and Vikix on it.** Install from the glibc image and write down what works on Void's kernel: Wi-Fi 7 (MediaTek), the speakers (CS35L41 amplifiers, which need their firmware), the camera, the fingerprint reader, suspend, the battery. What needs a fix becomes item 59; the findings go in a hardware page in `docs/`.
+58. **Void and Vikix on it.** Install from the glibc image and write down what works on Void's kernel: Wi-Fi 7 (MediaTek), the speakers (CS35L41 amplifiers, which need their firmware), the camera, the fingerprint reader, suspend, the battery. What needs a fix becomes item 59; the findings go in a hardware page in `docs/`. Vikix's stick (item 20) has kernel 6.18; `vikix-hwreport` on the stick shows what was found before installing, and the installer saves it as `~/vikix-hardware-DATE.txt`.
 59. **A Z13 profile in `55-hardware`**, chosen by the model name (DMI: GZ302). The detachable keyboard wakes it from suspend when folded shut: switch off that USB device's wake-up, through an elogind sleep hook. `Xft.dpi` for its screen (about 225 pixels an inch). ASUS's fan and power modes and the keyboard light with asusctl, if Void packages it. Touch works in X; turning the screen round by hand from Super+m, and turning it by itself (iio-sensor-proxy) later.
 60. **Most of the memory for AI.** On this chip Linux lets the graphics use only part of the memory at first (about 96 of 128 GB). Kernel settings (the TTM page limit) raise it to about 120 GB, which Qwen3-235B needs. `vikix ai setup` offers it on any Ryzen AI Max machine, asking first, since it changes how the machine boots.
 61. **Ollama on its graphics.** Vulkan (the library `vikix ai setup` already keeps) against ROCm, measured with gpt-oss-120b. The picker in `vikix ai models` learns the 128 GB tier: gpt-oss-120b (about 63 GB, 34-56 tokens a second: the default), Nemotron 3 Super 120B for coding agents, Qwen3-235B after item 60. Its memory rule counts memory the graphics share.

@@ -50,6 +50,10 @@ check "the marker"                      has 'state/vikix/firstboot' "$out"
 check "root locked"                     has 'passwd -l root' "$out"
 check "the password never printed"      lacks 'vikix-test' "$out"
 
+out=$(VI_LOG="$t/log" VI_EXTRA_CMDLINE="console=ttyS0,115200" bash "$here/installer/vikix-installer" --dry-run --answers "$t/answers" 2>&1) || fail=1
+check "a serial console gets a login prompt" has 'runsvdir/default/agetty-ttyS0' "$out"
+check "and is on the kernel's line"          has 'console=ttyS0,115200' "$out"
+
 sed -i 's|^VI_ENCRYPT=.*|VI_ENCRYPT=no|' "$t/answers"
 out=$(VI_LOG="$t/log" bash "$here/installer/vikix-installer" --dry-run --answers "$t/answers" 2>&1) || fail=1
 check "unencrypted: no LUKS"            lacks 'cryptsetup luksFormat' "$out"

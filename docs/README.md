@@ -8,6 +8,7 @@ Every `vikix` command has a man page as well, and so has each command of a plugi
 
 | Page | Read it when |
 |---|---|
+| [Installing from Vikix's stick](install-stick.md) | You're starting from a blank computer and want it done in one go: the stick, its few questions, the first start |
 | [Installing Void for Vikix](install-void.md) | You're starting from a blank computer: Void's installer, screen by screen, then Vikix's |
 | [Your first hour](first-hour.md) | You've just logged in: the keys that matter, adding software, a theme, staying current |
 | [Where everything is](map.md) | You want to find a file: what Vikix put where, and whose it is |
