@@ -123,6 +123,23 @@ note "checking"
 [ ! -d "$common/worktrees/$(basename "$wt")/rebase-merge" ] || die "$wt is in the middle of a rebase. Nothing done"
 [ "$(git -C "$main" rev-list --count "main..$topic")" -gt 0 ] || die "$topic has nothing main hasn't. Nothing done"
 
+# A release made elsewhere (a cloud session pushing straight to GitHub) and
+# not pulled here would take the same number again, and gup would be refused:
+# GitHub's main is looked at first, over HTTPS (no key needed), when the
+# repository has an origin. Unreachable: said, and the release goes on.
+origin=$(git -C "$main" remote get-url origin 2>/dev/null || true)
+if [ -n "$origin" ]; then
+  note "looking at origin"
+  case $origin in git@github.com:*) origin="https://github.com/${origin#git@github.com:}" ;; esac
+  if timeout 30 git -C "$main" fetch -q --no-tags "$origin" main >/dev/null 2>&1; then
+    behind=$(git -C "$main" rev-list --count main..FETCH_HEAD 2>/dev/null || echo 0)
+    [ "$behind" = 0 ] ||
+      die "origin's main has $behind commit(s) this main hasn't (a release from elsewhere?). Vid: gpl, then release again. Nothing done"
+  else
+    say "origin couldn't be reached: releasing without looking at it"
+  fi
+fi
+
 # On top of main as it is now.
 if [ "$(git -C "$main" rev-list --count "$topic..main")" -gt 0 ]; then
   note "onto main"

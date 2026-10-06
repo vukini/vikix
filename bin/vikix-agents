@@ -18,9 +18,21 @@
                        PROJECT-TOPIC beside the project, on a new branch
                        TOPIC, so its work can't collide with another
                        agent's. Without PROJECT it asks which, then for a
-                       topic (none: it works in the project's own folder).
+                       topic (a repository's desk is a worktree, so one is
+                       needed; a project that is no repository works in
+                       its own folder, with none).
                        --use: another agent than yours (vikix agent --use);
                        --here: in this terminal, no new workspace
+  vikix agents sit [PROJECT [TOPIC]]
+                       for an agent, from its own shell: take a desk
+                       without being started again. The worktree
+                       PROJECT-TOPIC is made (or the one there used), and
+                       the agent that runs this is seated at it: from then
+                       on the house rules take that folder as its own, and
+                       vikix agents shows it there. Without PROJECT, the
+                       desk the agent's folder is in. A repository's desk
+                       is a worktree, so TOPIC is needed for one; a project
+                       that is no repository seats the agent in its folder
   vikix agents close [DESK] [--force]
                        close a desk whose work is in: its worktree is
                        removed and its branch deleted. DESK is the folder
@@ -43,14 +55,19 @@
                        agent's window
   vikix agents touch [FILE]
                        the house rules for one edit, run by Claude Code's
-                       PreToolUse hook before every Edit and Write (vikix
-                       agent sets it; it reads the hook's JSON on stdin
-                       when no FILE is given): the edit is noted in the
-                       office journal; one in another agent's folder is a
-                       crossing, recorded and told to the agent; a file
-                       another agent has changed too makes Claude Code ask
-                       you first, naming that agent. No agent above it:
-                       nothing happens
+                       PreToolUse hook before every Edit, Write and Bash
+                       (vikix agent sets it; it reads the hook's JSON on
+                       stdin when no FILE is given). A file of a project's
+                       repository is refused unless the agent is at a desk
+                       (a worktree of its own: vikix agents desk or sit),
+                       and always in the project's own folder, which is for
+                       merging only; a Bash command that would write there
+                       (sed -i, a redirection, mv, git commit...) the same.
+                       An allowed edit is noted in the office journal; one
+                       in another agent's folder is a crossing, recorded
+                       and told to the agent; a file another agent has
+                       changed too makes Claude Code ask you first, naming
+                       that agent. No agent above it: nothing happens
 
 Several agents run side by side, each in a terminal of its own, and five
 windows called "Alacritty" don't say which is which. The desktop starts
@@ -81,6 +98,18 @@ has no worktrees: its agent works in the folder itself. Super+m, AI,
 "Agents: start one on a project" and "Agents: close a desk" are the same,
 asking which.
 
+No desk, no work on a repository: an agent edits the files of a project's
+repository (any of vikix project's that is one) only from a desk, a
+worktree of its own, and never in the project's own folder, which is for
+merging only. Claude Code's hook refuses the edit otherwise and tells the
+agent how to take a desk from where it sits: `vikix agents sit PROJECT
+TOPIC` seats it at the worktree PROJECT-TOPIC without a restart (the
+seats: ~/.local/state/vikix/office/seats.jsonl, kept while the agent
+runs). An agent started by vikix agents desk is at one already. A Bash
+command that would write into a repository (sed -i, a redirection, mv,
+git commit and the like) is held to the same rule; one that only reads
+is not. A repository that is no project (~/.dotfiles) is not ruled.
+
 The house rules: the office keeps a journal of what each agent edits
 (~/.local/state/vikix/office/journal.jsonl, pruned to the agents still
 running), fed by the hook vikix agent gives Claude Code (vikix agents
@@ -99,6 +128,7 @@ the edit.
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -250,11 +280,12 @@ def short(path):
 
 def where(agent):
     place = short(agent["folder"]) or "?"
+    mark = "" if agent.get("desk") else "no desk"
     if agent["branch"] is None:
-        return place
+        return place + (f" ({mark})" if mark else "")
     n = agent["uncommitted"]
     left = "nothing uncommitted" if n == 0 else f"{n} uncommitted" if n is not None else "?"
-    return f"{place} ({agent['branch']}, {left})"
+    return f"{place} ({agent['branch']}, {left}{', ' + mark if mark else ''})"
 
 
 # --- A desk: a workspace and a worktree for one agent --------------------------------
@@ -341,7 +372,7 @@ def desk(argv):
     elif asked:
         topic = rofi("Topic", f"A word or two for what it will work on in {project.full}: it gets a worktree and a "
                               "branch of that name, so another agent's work can't collide with its own. "
-                              "Empty: it works in the project's own folder.")
+                              "(Only a project that is no repository works in its own folder, with no topic.)")
         if topic is None:
             return 0
     else:
@@ -352,6 +383,9 @@ def desk(argv):
     folder = path
     if topic and not top:
         print(f"{project.full} isn't a git repository, so it has no worktrees: the agent works in its folder")
+    elif top and not topic:
+        die(f"a repository's desk is a worktree of it, and {project.full} is one: give a topic "
+            f"(vikix agents desk {project.name} TOPIC). The project's own folder is for merging only")
     elif topic:
         topic = topic_name(topic)
         tree, made = worktree(top, topic)
@@ -385,6 +419,58 @@ def desk(argv):
     subprocess.Popen([term, "-e", *start], cwd=folder, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL, start_new_session=True)
     print(f"a desk for the agent: {said}" + (f", on workspace {workspace}" if workspace else ""))
+    return 0
+
+# --- Sitting down: an agent takes a desk from where it is -------------------------------------
+
+def sit(argv):
+    words = [a for a in argv if not a.startswith("-")]
+    if len(words) != len(argv) or len(words) > 2:
+        die("vikix agents sit [PROJECT [TOPIC]]")
+    me = my_agent()
+    if not me:
+        die("no agent runs this shell: vikix agents sit is for an agent, from its own shell "
+            "(vikix agents desk starts one at a desk)")
+    topic = ""
+    if not words:
+        # The shell's folder first (an agent that went into a worktree of its own: cd, or
+        # Claude Code's worktree support, which leaves the process in its first folder).
+        try:
+            here = os.getcwd()
+        except OSError:
+            here = ""
+        cwd = next((f for f in (here, me.get("cwd") or me["folder"]) if desk_of(f)), "")
+        if not cwd:
+            die("say which: vikix agents sit PROJECT TOPIC (your folder is not in a desk)")
+        folder, said = cwd, ("the desk you are in, a worktree on the branch "
+                             f"{(git(cwd, 'rev-parse', '--abbrev-ref', 'HEAD') or '?').strip()}")
+    else:
+        # A repository by its own folder's name (the hook names it so), else any part of a project's name.
+        known = known_repos()
+        common = next((c for c, n in known.items() if n == words[0]), None)
+        if common:
+            path = top = os.path.dirname(common)
+        else:
+            path = str(projects().match(words[0]).path)
+            top = (git(path, "rev-parse", "--show-toplevel") or "").strip()
+        if not top:
+            folder, said = path, "its folder (no repository, so no worktree)"
+        else:
+            if len(words) < 2:
+                die(f"a repository's desk is a worktree of it: vikix agents sit {os.path.basename(own_folder(top))} TOPIC "
+                    "(a word or two for the work)")
+            topic = topic_name(words[1])
+            tree, made = worktree(own_folder(top), topic)
+            folder = os.path.normpath(os.path.join(tree, os.path.relpath(path, top)))
+            said = f"a new worktree on the branch {topic}" if made else f"the worktree that was there (branch {topic})"
+    if not os.path.isdir(folder):
+        die(f"{short(folder)} isn't there")
+    seats = seats_read()
+    seats[me["pid"]] = {"pid": me["pid"], "agent": me["agent"], "folder": folder, "at": int(time.time())}
+    seats_write(seats)
+    print(f"{who(me)} is seated at {short(folder)}: {said}. Work there (cd {short(folder)}) and commit there"
+          + (f", on the branch {topic}" if topic else "") + "; the house rules take that folder as yours now, "
+          "and vikix agents shows you at it.")
     return 0
 
 # --- Closing a desk -----------------------------------------------------------------------
@@ -542,11 +628,19 @@ def my_agent():
             return None
         name = agent_name(cmdline(pid))
         if name:
+            # A helper the agent started under its own name (Claude Code's daemon runs
+            # the shell commands) is that agent's: the topmost of the same name.
+            for _ in range(8):
+                up = parent_of(pid)
+                if up <= 1 or agent_name(cmdline(up)) != name:
+                    break
+                pid = up
             try:
                 folder = os.readlink(f"{PROC}/{pid}/cwd")
             except OSError:
                 folder = ""
-            return {"agent": name, "pid": pid, "folder": folder}
+            # The folder is the desk it sat down at, when it did; cwd stays the process's own.
+            return seated([{"agent": name, "pid": pid, "folder": folder, "cwd": folder}])[0]
         pid = parent_of(pid)
     return None
 
@@ -555,7 +649,7 @@ def live_agents():
     """Every agent running on the machine, from /proc alone (a terminal's
     or not): {agent, pid, folder} each. Nothing is asked of the desktop, so
     a hook never waits on it."""
-    return [{k: a[k] for k in ("agent", "pid", "folder")} for a in elsewhere(set())]
+    return seated([{k: a[k] for k in ("agent", "pid", "folder")} for a in elsewhere(set())])
 
 
 def alive(pid):
@@ -666,6 +760,223 @@ def hook_output(**fields):
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", **fields}}))
 
 
+# --- No desk, no work: the seats, and what a desk is -----------------------------------------
+
+SEATS = os.path.join(STATE, "vikix", "office", "seats.jsonl")
+
+
+def seats_read():
+    """The seats taken (vikix agents sit), by pid: only the agents still
+    running, since a pid that is gone may be another program's tomorrow."""
+    seats = {}
+    try:
+        with open(SEATS) as f:
+            for line in f:
+                try:
+                    e = json.loads(line)
+                except ValueError:
+                    continue
+                if alive(e.get("pid", 0)):
+                    seats[e["pid"]] = e
+    except OSError:
+        pass
+    return seats
+
+
+def seats_write(seats):
+    os.makedirs(os.path.dirname(SEATS), exist_ok=True)
+    tmp = SEATS + ".tmp"
+    with open(tmp, "w") as f:
+        for e in seats.values():
+            f.write(json.dumps(e, ensure_ascii=False) + "\n")
+    os.replace(tmp, SEATS)
+
+
+def seated(agents):
+    """AGENTS, each one's folder replaced by the desk it sat down at."""
+    seats = seats_read()
+    for a in agents:
+        s = seats.get(a["pid"])
+        if s:
+            a["folder"], a["seat"] = s["folder"], True
+    return agents
+
+
+_own = {}
+
+
+def own_folder(top):
+    """The project's own folder for the repository TOP is in: the first
+    worktree listed, where main is merged. Never a desk."""
+    if top not in _own:
+        listed = git(top, "worktree", "list", "--porcelain") or ""
+        first = next((line[9:] for line in listed.splitlines() if line.startswith("worktree ")), top)
+        _own[top] = os.path.realpath(first)
+    return _own[top]
+
+
+def desk_of(folder):
+    """The desk FOLDER is in: a worktree of a repository other than the
+    project's own folder. None off one (home, a project's own folder, a
+    folder that is no repository)."""
+    if not folder or not os.path.isdir(folder):
+        return None
+    top, _, _ = repo_of(folder)
+    if not top or os.path.realpath(top) == own_folder(top):
+        return None
+    return top
+
+
+_known = None
+
+
+def known_repos():
+    """The repositories the rule holds for: the projects' (vikix project
+    list), by their common git dir, each with the name of its own folder."""
+    global _known
+    if _known is None:
+        _known = {}
+        try:
+            for p in projects().discover():
+                common = (git(str(p.path), "rev-parse", "--path-format=absolute", "--git-common-dir") or "").strip()
+                if common:
+                    common = os.path.realpath(common)
+                    _known.setdefault(common, os.path.basename(os.path.dirname(common)))
+        except (OSError, SystemExit):
+            pass
+    return _known
+
+
+def off_desk(me, path):
+    """Why ME may not change PATH, in words, or None: a file of a project's
+    repository is changed from a desk alone, and never in the project's
+    own folder, which is for merging only."""
+    top, common, _ = repo_of(path)
+    if not top or common not in known_repos():
+        return None
+    own = own_folder(top)
+    name = known_repos()[common] or os.path.basename(own)
+    desk = desk_of(me["folder"])
+    if desk is None:
+        return (f"Vikix office: {short(path)} is in the project {name}, and you are not at a desk. An agent works on a "
+                f"repository only from a desk of its own, a worktree of it. Take one from here: run "
+                f"`vikix agents sit {name} TOPIC` (a word or two for the work; it makes {short(os.path.dirname(own))}/"
+                f"{name}-TOPIC on the branch TOPIC, or takes the one that is there, and seats you at it), then work in "
+                f"that folder and commit there; in a worktree of your own already, `vikix agents sit` alone, run from "
+                f"inside it, seats you there. The project's own folder, {short(own)}, is for merging only.")
+    if os.path.realpath(top) == own:
+        return (f"Vikix office: {short(path)} is in {short(own)}, the project's own folder, which is for merging only: "
+                f"no agent changes it. Your desk is {short(desk)}: make the change there"
+                + ("" if repo_of(desk)[1] == common else f", or take a desk of {name}: vikix agents sit {name} TOPIC")
+                + ".")
+    return None
+
+
+# A Bash command is held to the rule when it would write: these programs,
+# a redirection, sed -i, or git with a verb that changes something.
+WRITERS = {"tee", "mv", "cp", "rm", "rmdir", "mkdir", "touch", "ln", "chmod", "chown", "truncate", "dd", "install",
+           "patch", "rsync", "unlink", "shred", "sed", "perl"}
+GIT_WRITERS = {"commit", "merge", "rebase", "push", "pull", "checkout", "switch", "reset", "restore", "cherry-pick",
+               "revert", "am", "apply", "rm", "mv", "add", "clean", "worktree", "branch", "tag", "stash", "remote",
+               "notes", "filter-branch", "update-ref", "symbolic-ref", "gc", "prune"}
+GIT_READS = {"list", "show", "-l", "--list", "-a", "-r", "--show-current", "--merged", "--no-merged", "--contains",
+             "--points-at", "-v", "--verbose", "get-url"}
+SEPARATORS = {"&&", "||", ";", "|", "|&"}
+
+
+def writes(tokens):
+    """Whether the shell command TOKENS would write somewhere."""
+    for i, tok in enumerate(tokens):
+        if re.fullmatch(r"\d*>>?", tok) or re.fullmatch(r"&>>?", tok):
+            # A redirection to a file: '> out' (not 2>&1, not /dev/null).
+            target = tokens[i + 1] if i + 1 < len(tokens) else ""
+            if target and not target.startswith("&") and target != "/dev/null":
+                return True
+        elif re.fullmatch(r"\d*>>?[^&].*", tok) or re.fullmatch(r"&>>?.+", tok):
+            if not tok.endswith("/dev/null"):
+                return True
+        name = os.path.basename(tok)
+        if name in ("sed", "perl"):
+            rest = tokens[i + 1:]
+            rest = rest[:next((j for j, t in enumerate(rest) if t in SEPARATORS), len(rest))]
+            if any(t.startswith("-i") or t == "--in-place" or (name == "perl" and t.startswith("-p") and "i" in t)
+                   for t in rest):
+                return True
+        elif name in WRITERS:
+            return True
+        elif name == "git":
+            rest = tokens[i + 1:]
+            rest = rest[:next((j for j, t in enumerate(rest) if t in SEPARATORS), len(rest))]
+            verb, k = "", 0
+            while k < len(rest):
+                if rest[k] in ("-C", "-c", "--git-dir", "--work-tree"):
+                    k += 2
+                    continue
+                if not rest[k].startswith("-"):
+                    verb = rest[k]
+                    break
+                k += 1
+            after = rest[k + 1:]
+            if verb in GIT_WRITERS:
+                if verb in ("branch", "tag", "stash", "worktree", "remote", "notes"):
+                    if not after or set(after) & GIT_READS:
+                        continue
+                return True
+    return False
+
+
+def paths_named(tokens, cwd):
+    """The places a command names: every token with a slash in it (a
+    redirection's target, a VAR=path, --opt=path too), made absolute from CWD."""
+    out = []
+    for tok in tokens:
+        t = re.sub(r"^\d*>>?|^&>>?", "", tok)
+        if "=" in t and not t.startswith(("/", "~", ".")):
+            t = t.split("=", 1)[1]
+        t = os.path.expanduser(t)
+        if "/" not in t or t.startswith("-") or t.startswith("http"):
+            continue
+        out.append(os.path.normpath(t if os.path.isabs(t) else os.path.join(cwd or os.getcwd(), t)))
+    # The places that are there first: a sed pattern (s/a/b/) names nothing, a file to make may.
+    return sorted(out, key=lambda p: not os.path.exists(p))
+
+
+def refuse(me, path, why, how):
+    record("refused", f"{who(me)} was refused {short(path)}: {how}",
+           {"agent": me["agent"], "pid": me["pid"], "folder": me["folder"], "file": path, "how": how},
+           key=f"{me['pid']}:{path}")
+    hook_output(permissionDecision="deny", permissionDecisionReason=why)
+
+
+def touch_bash(command, cwd):
+    """The rule for a Bash command: refused when it would write into a
+    repository it may not change. Only the places it names are looked at,
+    and its folder when it names none."""
+    me = my_agent()
+    if not me or not command.strip():
+        return 0
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        tokens = command.split()
+    # A semicolon stays glued to its word ('x; y'): a token of its own here.
+    tokens = [t for tok in tokens for t in re.split(r"(;)", tok) if t]
+    if not writes(tokens):
+        return 0
+    named = [p for p in paths_named(tokens, cwd) if repo_of(p)[0]]
+    seen = set()
+    for p in named or ([cwd] if cwd else []):
+        top = repo_of(p)[0]
+        if top in seen:
+            continue
+        seen.add(top)
+        why = off_desk(me, p)
+        if why:
+            refuse(me, p, why + " (This command would write there.)", "a Bash command, off a desk")
+            return 0
+    return 0
+
+
 def touch(argv):
     path = argv[0] if argv and not argv[0].startswith("-") else ""
     if not path and not sys.stdin.isatty():
@@ -673,6 +984,8 @@ def touch(argv):
             got = json.loads(sys.stdin.read() or "{}")
             tool = got.get("tool_input") or {}
             path = tool.get("file_path") or tool.get("notebook_path") or ""
+            if not path and got.get("tool_name") == "Bash":
+                return touch_bash(tool.get("command") or "", got.get("cwd") or "")
         except ValueError:
             return 0
     if not path:
@@ -681,6 +994,10 @@ def touch(argv):
     if not me:
         return 0
     path = os.path.realpath(os.path.abspath(path))
+    why = off_desk(me, path)
+    if why:
+        refuse(me, path, why, "off a desk" if desk_of(me["folder"]) is None else "the project's own folder")
+        return 0
     others = live_agents()
     entries = journal_read()
     now = int(time.time())
@@ -822,6 +1139,8 @@ def main(argv):
         return 0
     if argv and argv[0] == "desk":
         return desk(argv[1:])
+    if argv and argv[0] == "sit":
+        return sit(argv[1:])
     if argv and argv[0] == "close":
         return close(argv[1:])
     if argv and argv[0] == "touch":
@@ -832,10 +1151,12 @@ def main(argv):
         return crossings(argv[1:])
     as_json = argv == ["--json"]
     if argv and not as_json:
-        die("vikix agents [--json|desk|close|clash|crossings] (vikix agents help)")
+        die("vikix agents [--json|desk|sit|close|clash|crossings] (vikix agents help)")
     agents = desktop()
     agents += elsewhere({a["pid"] for a in agents})
-    agents = [with_git(a) for a in agents]
+    agents = [with_git(a) for a in seated(agents)]
+    for a in agents:
+        a["desk"] = desk_of(a["folder"])
     shared = all_clashes(agents)
     for a in agents:
         a["clashes"] = [{"file": rel, "with": [who(o) for o, _, _ in rows if o["pid"] != a["pid"]]}

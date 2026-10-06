@@ -94,9 +94,9 @@ sleep 0.5
 out=$(cli)
 check "vikix agents says how many, and how many wait: $(head -1 <<<"$out")" grep -qE '^[0-9]+ agents, 1 waiting for you:$' <<<"$(head -1 <<<"$out")"
 check "each with its folder's branch and what waits uncommitted there: $(grep 'proj-a' <<<"$out" | head -1)" \
-  grep -qE '^  claude +.*proj-a \(topic, 2 uncommitted\) +workspace 1 +[0-9]+ (s|min) +waits for your yes$' <<<"$out"
+  grep -qE '^  claude +.*proj-a \(topic, 2 uncommitted, no desk\) +workspace 1 +[0-9]+ (s|min) +waits for your yes$' <<<"$out"
 check "under it what it asked" grep -qx '           May I run the tests?' <<<"$out"
-check "a folder that isn't a repository is only named: $(grep 'codex' <<<"$out")" grep -qE '^  codex +.*proj-b +workspace 2 ' <<<"$out"
+check "a folder that isn't a repository is only named, with no desk: $(grep 'codex' <<<"$out")" grep -qE '^  codex +.*proj-b \(no desk\) +workspace 2 ' <<<"$out"
 check "one with no window of its own is listed too: $(grep -A1 gemini <<<"$out" | tr '\n' ' ')" \
   bash -c "grep -A1 '^  gemini ' <<<\"\$1\" | grep -q 'no window of its own: started by'" _ "$out"
 json=$(cli --json)
@@ -139,7 +139,10 @@ out=$(desk plain anything)
 check "a project that is no repository: the agent works in its folder, and it's said: $out" \
   grep -q "plain isn't a git repository, so it has no worktrees" <<<"$out"
 out=$(desk books)
-check "a project named without a topic: its own folder, no worktree: $out" grep -q 'a desk for the agent: in ~/src/books, on workspace' <<<"$out"
+check "a repository named without a topic is refused, since its own folder is for merging only: $out" \
+  grep -q "a repository's desk is a worktree of it, and books is one: give a topic (vikix agents desk books TOPIC)" <<<"$out"
+out=$(desk plain)
+check "a project that is no repository, without a topic: its own folder: $out" grep -q 'a desk for the agent: in ~/src/plain, on workspace' <<<"$out"
 mkdir "$home/src/books-taken"
 out=$(desk books taken)
 check "a folder in the way that is no worktree is left alone: $out" grep -q "is there already, and isn't a worktree" <<<"$out"
@@ -161,7 +164,7 @@ out=$(PATH="$t/bin:$PATH" desk)
 check "without a project it asks which, then for a topic: $out" grep -q 'in ~/src/books-from-the-menu, a new worktree on the branch from-the-menu' <<<"$out"
 check "Super+m has it, under AI" yes '(find (quote (run-shell-command "vikix-agents desk")) *vikix-menu* :key (function second) :test (function equal))'
 
-check "vikix agents with a word it doesn't know says what it takes" grep -q 'vikix agents \[--json|desk|close|clash|crossings\]' <<<"$(cli nonsense)"
+check "vikix agents with a word it doesn't know says what it takes" grep -q 'vikix agents \[--json|desk|sit|close|clash|crossings\]' <<<"$(cli nonsense)"
 check "the desktop met no error" test -z "$(ls "$home/.local/state/vikix/errors" 2>/dev/null)"
 
 wm_report office "agents found in their terminals by name, folder and workspace, what each is doing from its title and its note, its window marked, the menu to one, vikix agents with branches and uncommitted files, one without a window, --json; a desk: a workspace and a worktree for one agent"

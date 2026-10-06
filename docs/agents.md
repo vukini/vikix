@@ -5,7 +5,7 @@ One agent is a terminal you talk to. Three or four at once are a small office: e
 Three habits carry the whole page:
 
 1. **Start agents with Vikix**, `Super+a` or `vikix agent`, never plain `claude`: that is how they get a snapshot of your files, the Vikix skill, no API keys, and the house rules.
-2. **One desk per piece of work**: `vikix agents desk PROJECT TOPIC`.
+2. **One desk per piece of work**: `vikix agents desk PROJECT TOPIC`. No desk, no work: an agent off a desk is refused when it reaches for a project's files, and told how to sit down.
 3. **`vikix agents` when you lose track.**
 
 ## One agent
@@ -55,12 +55,36 @@ The project is any of `vikix project list`'s, by any part of its name (`vikix`, 
 `Super+m` → *AI* → *Agents: start one on a project, at a desk of its own* asks for the project in a menu, then for the topic. Other forms:
 
 ```sh
-vikix agents desk novel                # no topic: the project's own folder, a workspace to itself
+vikix agents desk notes                # a project that is no repository: its own folder, a workspace to itself
 vikix agents desk novel typos --here   # in this terminal, no new workspace
 vikix agents desk novel typos --use codex
 ```
 
-A desk that is already there is used again, never made twice: the second `vikix agents desk vikix wifi-fix` starts another agent in the same worktree (for a reviewer beside the writer). A project inside a collection (`books/novel`) gets its own folder inside the collection's worktree, `~/src/books-typos/novel`. A project that isn't a git repository has no worktrees: its agent works in the folder itself.
+A desk that is already there is used again, never made twice: the second `vikix agents desk vikix wifi-fix` starts another agent in the same worktree (for a reviewer beside the writer). A project inside a collection (`books/novel`) gets its own folder inside the collection's worktree, `~/src/books-typos/novel`. A project that isn't a git repository has no worktrees: its agent works in the folder itself, and a topic isn't needed. A repository without a topic is refused: its own folder is for merging only, and no agent works there.
+
+### No desk, no work
+
+Desks only help if agents use them. So the rule, held by Claude Code's hook before every edit: **an agent changes a project's repository only from a desk, and never in the project's own folder.** An agent started with `Super+a` sits in your home folder; the moment it reaches for a file in `~/src/vikix` or `~/src/novel`, the edit is refused, and it reads why:
+
+> Vikix office: ~/src/vikix/bin/vikix-wifi is in the project vikix, and you are not at a desk. An agent works on a repository only from a desk of its own, a worktree of it. Take one from here: run `vikix agents sit vikix TOPIC` (a word or two for the work; it makes ~/src/vikix-TOPIC on the branch TOPIC, or takes the one that is there, and seats you at it), then work in that folder and commit there. The project's own folder, ~/src/vikix, is for merging only.
+
+The agent sits down by itself, with no restart:
+
+```
+$ vikix agents sit vikix wifi-fix
+claude 48213 is seated at ~/src/vikix-wifi-fix: a new worktree on the branch wifi-fix. Work there (cd ~/src/vikix-wifi-fix) and commit there, on the branch wifi-fix; the house rules take that folder as yours now, and vikix agents shows you at it.
+```
+
+From then on the desk is that agent's: its edits there pass, `vikix agents` lists it at `~/src/vikix-wifi-fix (wifi-fix, 2 uncommitted)` with the branch and what waits there, and `vikix agents close` refuses the desk while it is seated. An agent that has a worktree already, made by hand or by Claude Code's own worktree support, sits at it with `vikix agents sit` and no more, run from inside it; an agent you started with `vikix agents desk` is at one from the start. A project that isn't a repository has no desks and no rule: the agent works in its folder.
+
+Two more refusals. The project's own folder is refused from any desk, naming the agent's desk (*~/src/vikix is the project's own folder, which is for merging only: no agent changes it. Your desk is ~/src/vikix-wifi-fix: make the change there*). And a shell command is held to the rule when it would write there (`sed -i`, a `>` into a file, `mv`, `git commit`, `git rebase` and the like): the hook reads the command, finds the places it names, and refuses it the same way; a command that only reads (`cat`, `grep`, `git log`, `git worktree list`) passes. The rule holds for every project `vikix project list` knows that is a git repository; a repository that is no project (`~/.dotfiles`) is not ruled. Each refusal is kept in the record store (`vikix records list office --kind refused`).
+
+The listing says who still sits nowhere:
+
+```
+  claude   ~ (no desk)                                workspace 1   1 d        at its prompt
+  claude   ~/src/vikix-wifi-fix (wifi-fix, 2 uncommitted)   workspace 4   35 min     working
+```
 
 ### A day with two agents on Vikix
 
@@ -152,11 +176,11 @@ An agent in your home folder owns no folder, so nothing is a crossing into it: e
 
 ### What the rules don't do
 
-They don't stop anything on their own: the one that decides is you, at Claude Code's prompt. They hold only for Claude Code: Codex, Gemini and Aider have no such hook, so a clash with one of them is seen afterwards, in `vikix agents` and `vikix agents clash`, not before the edit. A session started before the update, or with `VIKIX_OFFICE=0 vikix agent`, has no hook either. And they know files, not meaning: two agents editing different files of one feature are not a clash to them.
+A clash and a crossing stop nothing on their own: the one that decides is you, at Claude Code's prompt. Only the desk rule refuses outright, and it names the way out. The rules hold only for Claude Code: Codex, Gemini and Aider have no such hook, so a clash with one of them is seen afterwards, in `vikix agents` and `vikix agents clash`, not before the edit, and nothing keeps them off a project's own folder. A session started before the update, or with `VIKIX_OFFICE=0 vikix agent`, has no hook either; one started before the desk rule has the edit hook but not the one on shell commands, since Claude Code reads its hooks at the start. A shell command that writes through a program the hook doesn't know (a Python script of the agent's own) passes. And they know files, not meaning: two agents editing different files of one feature are not a clash to them.
 
 ## From the agent's side
 
-The Vikix skill tells every agent the same rules, so you can hold it to them: look at `vikix agents` before changing files in a folder another agent is in; at a desk, commit there on that branch and leave the project's own folder alone; when the work is merged, remove the desk; never stop, signal or type into another agent's window, and never answer a question another agent asked you. An agent with the MCP tools has `agents` to see the others and `focus_window` to go to one, and the second is recorded as a crossing.
+The Vikix skill tells every agent the same rules, so you can hold it to them: look at `vikix agents` before changing files in a folder another agent is in; take a desk before touching a repository (`vikix agents sit`), commit there on that branch and leave the project's own folder alone; when the work is merged, say so and let you close the desk; never stop, signal or type into another agent's window, and never answer a question another agent asked you. An agent with the MCP tools has `agents` to see the others and `focus_window` to go to one, and the second is recorded as a crossing.
 
 ## Not there yet
 

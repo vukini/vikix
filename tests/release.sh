@@ -13,9 +13,12 @@
 #   the worktree; --tests none runs none. --queue: nothing when nothing
 #   is releasing; with one testing and one waiting, the one whose turn it
 #   is first, each with what it is doing and its summary; a note left by a
-#   release that died is cleared; none left when they have landed.
+#   release that died is cleared; none left when they have landed. With an
+#   origin, a main behind it (a release made elsewhere) is refused with
+#   nothing changed, and goes once pulled; an origin that can't be reached
+#   is said, and the release goes on.
 #
-# In a made-up repository: git only, no network.
+# In a made-up repository: git only, no network (the origin is a folder).
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
@@ -168,6 +171,26 @@ check "both land once the first is done: $(tail -1 "$t/q1.out"); $(tail -2 "$t/q
 check "and the queue is empty again, no note left: $(release --queue)" \
   bash -c "[ \"\$1\" = 'No release is under way.' ] && [ -z \"\$(ls '$r/.git/vikix-release-queue' 2>/dev/null)\" ]" _ "$(release --queue)"
 check "the main folder is clean after the queue's releases" test -z "$(git -C "$r" status --porcelain)"
+
+# --- A release made elsewhere: origin's main ahead of this one --------------------------
+git init -q --bare "$t/origin.git"
+git -C "$r" remote add origin "$t/origin.git"; git -C "$r" push -q origin main
+git clone -q "$t/origin.git" "$t/elsewhere"; echo cloud > "$t/elsewhere/file-cloud"
+git -C "$t/elsewhere" add file-cloud; git -C "$t/elsewhere" commit -q -m "Vikix 0.9.9: from the cloud"; git -C "$t/elsewhere" push -q origin main
+topic z file-z "from z"
+before=$(state)
+out=$(release z "Z") && code=0 || code=$?
+check "a main behind origin's is refused, nothing changed: $code $out" \
+  bash -c "[ $code != 0 ] && grep -q \"origin's main has 1 commit(s) this main hasn't\" <<<\"\$1\" && grep -q 'Vid: gpl' <<<\"\$1\"" _ "$out"
+check "nothing changed: $(state)" test "$(state)" = "$before"
+git -C "$r" pull -q --ff-only origin main
+out=$(release z "Z") && code=0 || code=$?
+check "once pulled, it goes: $code $out" bash -c "[ $code = 0 ] && [ -e '$r/file-z' ] && [ -e '$r/file-cloud' ]"
+git -C "$r" remote set-url origin "$t/nowhere.git"
+topic y file-y "from y"
+out=$(release y "Y") && code=0 || code=$?
+check "an origin that can't be reached is said, and the release goes on: $code $out" \
+  bash -c "[ $code = 0 ] && grep -q \"origin couldn't be reached\" <<<\"\$1\"" _ "$out"
 
 [ "$fail" = 0 ] && echo "release: merged, numbered and tagged; rebased when main moved; refused, with nothing changed, on a clash, failing tests or uncommitted work; two at once land in turn; --queue shows who is testing and who waits"
 exit "$fail"
