@@ -58,6 +58,11 @@ ask() { HOME=$home VIKIX_SWANK_PORT=$port python3 "$here/bin/vikix-eval" "(progn
 until=$((SECONDS + 60))
 while [ "$SECONDS" -lt "$until" ]; do [ "$(ask '(princ 1)')" = 1 ] && break; sleep 0.5; done
 [ "$(ask '(princ 1)')" = 1 ] || { echo "FAIL: the test StumpWM didn't start: $(grep -v '^;' "$t/wm.log" | tail -5)"; exit 1; }
+# The first message after a start is measured with the font the desktop has
+# now, not the one it started with: thirteen rows are thirteen rows high.
+first=$(ask '(let* ((s (current-screen)) (w (screen-message-window s)) (rows (loop for i from 1 to 13 collect (format nil "row ~d of the first message" i)))) (echo-string-list s rows) (format t "~a ~a" (xlib:drawable-height w) (+ (* 13 (font-height (screen-font s))) (* 2 *message-window-y-padding*))))')
+check "the first message after a start is as high as its rows in the desktop's font (was the start-up font's: rows cut off): $first" test "${first% *}" = "${first#* }"
+ask '(unmap-all-message-windows)' >/dev/null
 
 win() {   # win TITLE: a window, and wait till StumpWM has it
   LIBGL_ALWAYS_SOFTWARE=1 alacritty --class keystest --title "$1" -e sleep 300 >/dev/null 2>&1 &

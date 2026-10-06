@@ -288,6 +288,9 @@ cmd_check() {
       n=${f##*/}
       case $n in .|..|'*'|'.*'|.new.*) continue ;; esac
       [ -e "$f" ] || [ -L "$f" ] || continue
+      # Vikix's own secrets that aren't keys: the Windows programs' password
+      # (lib/windows-apps.py), never exported. A real file of yours, like a key.
+      case $n in windows-password) [ -L "$f" ] || [ ! -f "$f" ] || continue ;; esac
       if [ -L "$f" ] || [ ! -f "$f" ] || [[ ! $n =~ $NAME_OK ]]; then
         found=1; warn "$SECRETS/$n isn't a key Vikix set (a link, a folder, or a name never exported); did you put it there? If not, delete it"
       fi

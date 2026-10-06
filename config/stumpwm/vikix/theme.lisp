@@ -150,6 +150,12 @@
         (set-font (make-instance (xft "FONT")
                                  :family family :subfamily "Regular"
                                  :size *vikix-font-size* :antialias t))
+        ;; The message window measures a message with its drawing context's
+        ;; font, which set-font leaves as it was (9x15) until the first
+        ;; message has been drawn: the first menu after a start came out
+        ;; with 15 pixels a row where Iosevka has 19, its last rows cut off.
+        (dolist (screen *screen-list*)
+          (ignore-errors (reset-color-context (screen-message-cc screen))))
         family))))
 
 (handler-case (vikix-set-font)

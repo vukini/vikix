@@ -139,6 +139,13 @@ chmod 644 "$secrets/ANTHROPIC_API_KEY"
 out=$(ai key check 2>&1) && { echo "FAIL: a key others can read went unnoticed"; fail=1; }
 check "check should say others can read the keys" grep -q 'others can read' <<<"$out"
 chmod 600 "$secrets/ANTHROPIC_API_KEY"
+# The Windows programs' password (vikix windows apps setup) lives there too: Vikix's own, not a key.
+printf 'x\n' > "$secrets/windows-password"; chmod 600 "$secrets/windows-password"
+out=$(ai key check 2>&1) || { echo "FAIL: check complained of secrets/windows-password, which Vikix put there: $out"; fail=1; }
+rm -f "$secrets/windows-password"; ln -s /etc/hostname "$secrets/windows-password"
+out=$(ai key check 2>&1) && { echo "FAIL: a link called windows-password went unnoticed"; fail=1; }
+check "but one that is a link is named: $out" grep -q "windows-password isn't a key Vikix set" <<<"$out"
+rm -f "$secrets/windows-password"
 
 printf 'export OPENAI_API_KEY=sk-proj-%s\n' 'abcdefghijklmnopqrstuvwxyz' >> "$HOME/.bashrc"
 out=$(bash "$here/bin/vikix" doctor 2>&1) || true
