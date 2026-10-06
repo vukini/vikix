@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# installer/firstboot — the last step of a stick install: Vikix's own install.
+#
+# vikix-installer (on the stick) leaves two things in the new system:
+#   ~/.local/state/vikix/firstboot   a marker, holding VIKIX_WITH=features
+#   a "vikix firstboot" block at the top of ~/.bash_profile, which runs
+#   this script at a login on tty1 while the marker is there.
+# So the first login runs ./install.sh (your password once; twenty minutes
+# or more), and on success removes the block and the marker and restarts
+# into the desktop. If the install stops, both stay, and the next login on
+# tty1 tries again (every stage is safe to re-run).
+
+set -euo pipefail
+
+marker=$HOME/.local/state/vikix/firstboot
+[ -e "$marker" ] || exit 0
+VIKIX_WITH=$(sed -n 's/^VIKIX_WITH=//p' "$marker")
+
+cat <<'EOF'
+
+  Welcome. Void is installed; now Vikix's own install finishes the job.
+  It asks for your password once, then runs by itself for twenty
+  minutes or more (it downloads the desktop and builds the window
+  manager). Ctrl+C stops it; the next login here starts it again.
+
+EOF
+
+args=()
+[ -n "$VIKIX_WITH" ] && args=(--with "$VIKIX_WITH")
+if "$HOME/vikix/install.sh" "${args[@]}"; then
+  # The block goes, then the marker; only the block's own lines are removed.
+  sed -i '/^# >>> vikix firstboot >>>$/,/^# <<< vikix firstboot <<<$/d' "$HOME/.bash_profile"
+  rm -f "$marker"
+  echo
+  read -r -p "  Vikix is installed. Enter restarts into the desktop. " _
+  sudo reboot
+else
+  echo
+  echo "  The install stopped. The message above names the stage."
+  echo "  The log is in ~/.local/state/vikix/logs/; ~/vikix/docs/fixing.md says what to try."
+  echo "  Run it again now with:  ~/vikix/install.sh${VIKIX_WITH:+ --with $VIKIX_WITH}"
+  echo "  (or log out and in again on this screen)."
+fi

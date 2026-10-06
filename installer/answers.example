@@ -1,0 +1,17 @@
+# installer/answers.example — every answer vikix-installer asks for, as shell
+# variables, for `vikix-installer --answers FILE` (the tests use one).
+# The file is sourced: keep it to plain assignments.
+VI_DISK=/dev/vda              # ALL of it is erased
+VI_FULLNAME="Test User"
+VI_USER=tester
+VI_PASSWORD=vikix-test        # also sudo's
+VI_HOSTNAME=vikix
+VI_ENCRYPT=yes                # yes or no
+VI_PASSPHRASE=vikix-test      # the disk's; empty means the login password
+VI_TIMEZONE=Asia/Dubai
+VI_KEYMAP=us
+VI_WITH=                      # empty (the base), essentials, developer or everything
+# Settings a test changes:
+# VI_MIRROR=https://repo-default.voidlinux.org
+# VI_HOSTONLY=no              # an initramfs for any machine (built in a container, booted in QEMU)
+# VI_EXTRA_CMDLINE="console=ttyS0"

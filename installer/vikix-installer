@@ -1,0 +1,443 @@
+#!/usr/bin/env bash
+# vikix-installer — put Void and Vikix on this computer's disk, from the stick.
+#
+#   sudo vikix-installer                  the questions, then the install
+#   sudo vikix-installer --answers FILE   take the answers from FILE (tests)
+#   sudo vikix-installer --dry-run        ask, then print what would be done
+#
+# It runs on Vikix's live stick (installer/build-image.sh makes it) and
+# asks a few things: the network, the disk, your name and password,
+# whether to encrypt the disk, the time zone and keyboard, and how much of
+# Vikix to install. Then it erases that disk, installs Void from the
+# network (today's packages, not the stick's), and leaves Vikix ready in
+# ~/vikix. At your first login Vikix's own install runs by itself
+# (installer/firstboot), and one restart later you are at the desktop.
+#
+# The disk is laid out the simplest way that encrypts everything but the
+# boot files:
+#   1. 1 GiB EFI System partition, vfat, mounted at /boot: the kernel, the
+#      initramfs and GRUB, which can't read an encrypted disk without a
+#      second passphrase and an old key format
+#   2. the rest: LUKS2 (when encrypting), then ext4, mounted at /
+#
+# The whole disk is used; anything on it, Windows included, is erased.
+# Nothing is touched until the last question, where you type "erase".
+#
+# An answers file is shell variables (see installer/answers.example).
+# Every system change goes through `run`, so --dry-run prints them all.
+
+set -euo pipefail
+
+# --- Settings ---------------------------------------------------------------
+# Today's packages from Void's CDN; Vikix's install times the mirrors itself
+# afterwards (install/05-mirror.sh) and moves to the fastest.
+: "${VI_MIRROR:=https://repo-fastly.voidlinux.org}"
+# Where the stick keeps its copy of Vikix (build-image.sh puts it there).
+: "${VI_VIKIX_SRC:=/usr/share/vikix}"
+: "${VI_TARGET:=/mnt/vikix}"
+: "${VI_KEYS:=/var/db/xbps/keys}"
+: "${VI_LOCALE:=en_US.UTF-8}"
+# hostonly: an initramfs for this machine alone (small, fits /boot many times
+# over). The tests build in a container and boot in QEMU, so they say no.
+: "${VI_HOSTONLY:=yes}"
+: "${VI_EXTRA_CMDLINE:=}"
+: "${VI_LOG:=/tmp/vikix-installer.log}"
+DRY_RUN=0 answers=""
+
+# Packages for the new system. base-system brings the kernel (the linux
+# metapackage, 6.18 as of 2026-10) and Void's tools; the rest is what the
+# first boot needs before Vikix's own install takes over.
+PACKAGES=(base-system grub-x86_64-efi efibootmgr cryptsetup NetworkManager
+          sudo git curl linux-firmware sof-firmware terminus-font)
+
+while [ $# -gt 0 ]; do
+  case $1 in
+    --answers) answers=${2:?--answers needs a file}; shift ;;
+    --dry-run) DRY_RUN=1 ;;
+    -h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "unknown option: $1 (try --help)" >&2; exit 1 ;;
+  esac
+  shift
+done
+
+say()  { printf '\033[1;36m::\033[0m %s\n' "$*"; }
+warn() { printf '\033[1;33m!!\033[0m %s\n' "$*" >&2; }
+die()  { printf '\033[1;31mxx\033[0m %s\n' "$*" >&2; exit 1; }
+run() {
+  if [ "$DRY_RUN" = 1 ]; then printf '   would run: %s\n' "$*"; else "$@"; fi
+}
+# in_target CMD...: run a command inside the new system.
+in_target() { run chroot "$VI_TARGET" "$@"; }
+# write FILE TEXT: write a file into the new system (printed in a dry run).
+write() {
+  if [ "$DRY_RUN" = 1 ]; then
+    printf '   would write %s:\n%s\n' "$1" "$(printf '%s\n' "$2" | sed 's/^/      /')"
+  else
+    mkdir -p "$(dirname "$1")"
+    printf '%s\n' "$2" > "$1"
+  fi
+}
+
+[ "$(id -u)" -eq 0 ] || die "run it as root: sudo vikix-installer"
+
+# --- Asking -----------------------------------------------------------------
+# dialog draws the questions; answers come back on stderr, so 3>&1 1>&2 2>&3
+# swaps them to be captured. Esc or Cancel means "stop": nothing has been
+# changed before the last question, so stopping is always safe.
+D=(dialog --backtitle "Vikix installer" --no-collapse)
+ask() { "${D[@]}" "$@" 3>&1 1>&2 2>&3 || { clear; say "stopped; nothing was changed"; exit 1; }; }
+tell() { "${D[@]}" --msgbox "$1" 0 0 || true; }
+
+# The disk the stick itself is on, so it is never offered.
+live_disk() {
+  local src
+  src=$(findmnt -no SOURCE /run/initramfs/live 2>/dev/null || true)
+  [ -n "$src" ] && lsblk -no PKNAME "$src" 2>/dev/null | head -n1
+}
+
+# Partition N of DISK: nvme0n1 → nvme0n1p1, sda → sda1.
+part() { case $1 in *[0-9]) echo "${1}p$2" ;; *) echo "$1$2" ;; esac; }
+
+network_ok() { curl -fsS -m 10 -o /dev/null "$VI_MIRROR/current/x86_64-repodata"; }
+
+# Wi-Fi through NetworkManager (the stick starts it): pick a network, type
+# its password. The connection is copied to the new system, so the first
+# boot is online without asking again.
+connect_wifi() {
+  local list=() ssid pass
+  nmcli radio wifi on >/dev/null 2>&1 || true
+  nmcli dev wifi rescan >/dev/null 2>&1 || true
+  sleep 3
+  while IFS=: read -r ssid signal security; do
+    [ -n "$ssid" ] || continue
+    list+=("$ssid" "${signal}%  ${security:-open}")
+  done < <(nmcli -t -f SSID,SIGNAL,SECURITY dev wifi list 2>/dev/null | sort -t: -k2 -nr | awk -F: '!seen[$1]++')
+  [ ${#list[@]} -gt 0 ] || { tell "No Wi-Fi networks found. Plug in a network cable, or check the Wi-Fi is switched on, then choose Retry."; return 1; }
+  ssid=$(ask --title "Wi-Fi" --menu "Choose your network:" 0 0 0 "${list[@]}")
+  pass=$(ask --title "Wi-Fi" --insecure --passwordbox "Password for $ssid (empty for an open network):" 0 0)
+  if [ -n "$pass" ]; then
+    nmcli dev wifi connect "$ssid" password "$pass" >/dev/null 2>&1
+  else
+    nmcli dev wifi connect "$ssid" >/dev/null 2>&1
+  fi
+}
+
+ask_network() {
+  while ! network_ok; do
+    local c
+    c=$(ask --title "Network" --menu "The install downloads Void and Vikix, so it needs the network, and there is none yet." 0 0 0 \
+          wifi "Connect to Wi-Fi" \
+          retry "Retry (after plugging in a cable)" \
+          shell "A shell, to sort it out by hand (exit comes back)")
+    case $c in
+      wifi)  connect_wifi || true ;;
+      retry) sleep 2 ;;
+      shell) clear; echo "nmcli and nmtui are here. Type exit to come back."; bash || true ;;
+    esac
+  done
+}
+
+ask_disk() {
+  local live list=() name size model tran
+  live=$(live_disk || true)
+  while read -r name size tran model; do
+    [ "$name" = "$live" ] && continue
+    list+=("/dev/$name" "$size  ${tran:-}  ${model:-}")
+  done < <(lsblk -dno NAME,SIZE,TRAN,MODEL -e 1,7,11,251 2>/dev/null)
+  [ ${#list[@]} -gt 0 ] || die "no disk found to install on"
+  ask --title "Disk" --menu "Which disk? ALL of it is erased (Windows too, if it's there)." 0 0 0 "${list[@]}"
+}
+
+ask_password() {   # ask_password TITLE TEXT
+  local a b
+  while :; do
+    a=$(ask --title "$1" --insecure --passwordbox "$2" 0 0)
+    b=$(ask --title "$1" --insecure --passwordbox "Again, to be sure:" 0 0)
+    if [ -z "$a" ]; then tell "It can't be empty."
+    elif [ "$a" != "$b" ]; then tell "The two didn't match. Once more."
+    else printf '%s' "$a"; return 0
+    fi
+  done
+}
+
+ask_timezone() {
+  local regions=() cities=() r c
+  for r in Africa America Antarctica Asia Atlantic Australia Europe Indian Pacific; do regions+=("$r" ""); done
+  regions+=(UTC "")
+  r=$(ask --title "Time zone" --default-item Asia --menu "Your region:" 0 0 0 "${regions[@]}")
+  [ "$r" = UTC ] && { echo UTC; return; }
+  while read -r c; do cities+=("$c" ""); done < <(cd /usr/share/zoneinfo/"$r" && find . -type f | sed 's|^\./||' | sort)
+  c=$(ask --title "Time zone" --menu "Your city, or the nearest in your time zone:" 0 0 0 "${cities[@]}")
+  echo "$r/$c"
+}
+
+ask_keymap() {
+  ask --title "Keyboard" --default-item us --menu "Your keyboard's layout (for the text screens; the desktop's is set in Vikix's welcome):" 0 0 0 \
+    us "US English" uk "UK English" de German fr French es Spanish it Italian \
+    dvorak "US Dvorak" ara "Arabic" br-abnt2 "Brazilian"
+}
+
+ask_all() {
+  ask_network
+  VI_DISK=$(ask_disk)
+  VI_FULLNAME=$(ask --title "You" --inputbox "Your name, as it should be shown:" 0 50)
+  local guess
+  guess=$(printf '%s' "${VI_FULLNAME%% *}" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9')
+  while :; do
+    VI_USER=$(ask --title "You" --inputbox "Your login name (short, lowercase):" 0 50 "$guess")
+    [[ $VI_USER =~ ^[a-z_][a-z0-9_-]{0,30}$ ]] && break
+    tell "Lowercase letters and digits only, starting with a letter."
+  done
+  VI_PASSWORD=$(ask_password "Password" "The password for $VI_USER (also the one sudo asks for):")
+  VI_HOSTNAME=$(ask --title "Computer" --inputbox "A name for this computer:" 0 50 "vikix")
+  # dialog itself, not ask: here "No" is an answer, not a way to stop.
+  if "${D[@]}" --title "Encryption" --yesno "Encrypt the disk?\n\nRecommended for a laptop: if it's lost, nothing on it can be read. A passphrase is asked at every start. It costs nothing you'd notice: the processor encrypts in hardware, about as fast as the disk can go." 0 0; then
+    VI_ENCRYPT=yes
+  else
+    VI_ENCRYPT=no
+  fi
+  if [ "$VI_ENCRYPT" = yes ]; then
+    if "${D[@]}" --title "Encryption" --yesno "Use your login password as the disk's passphrase too?\n\n(No: choose a separate one.)" 0 0; then
+      VI_PASSPHRASE=$VI_PASSWORD
+    else
+      VI_PASSPHRASE=$(ask_password "Passphrase" "The disk's passphrase, asked at every start. Lose it and the data is gone: write it down somewhere safe.")
+    fi
+  fi
+  VI_TIMEZONE=$(ask_timezone)
+  VI_KEYMAP=$(ask_keymap)
+  VI_WITH=$(ask --title "Vikix" --default-item essentials --menu "How much of Vikix? Anything left out is one command later (vikix add)." 0 0 0 \
+    base "The desktop alone" \
+    essentials "Plus Emacs, C, Python and Lisp" \
+    developer "Plus Neovim and every language" \
+    everything "Plus LibreOffice and printing")
+  [ "$VI_WITH" = base ] && VI_WITH=""
+}
+
+confirm() {
+  local size model enc
+  size=$(lsblk -dno SIZE "$VI_DISK" 2>/dev/null || echo "?")
+  model=$(lsblk -dno MODEL "$VI_DISK" 2>/dev/null || true)
+  enc=$([ "$VI_ENCRYPT" = yes ] && echo "encrypted" || echo "not encrypted")
+  local typed
+  typed=$(ask --title "Last chance" --inputbox "Everything on $VI_DISK ($size $model) will be erased, now and for good.\n\nThen: Void and Vikix, $enc; user $VI_USER; $VI_TIMEZONE.\n\nType  erase  to go ahead:" 0 0)
+  [ "$typed" = erase ] || { clear; say "not erased; nothing was changed"; exit 1; }
+}
+
+# --- Checks before anything ---------------------------------------------------
+[ -d /sys/firmware/efi ] || die "this computer started the stick without UEFI. Start it again with UEFI (its firmware settings), not 'legacy' or 'CSM'."
+
+# Secure Boot: Void's kernel isn't signed for it, so the installed system
+# would not start. Its EFI variable ends in 1 when it's on.
+secure_boot_on() {
+  local v
+  v=$(find /sys/firmware/efi/efivars -name 'SecureBoot-*' 2>/dev/null | head -n1)
+  [ -n "$v" ] && [ "$(od -An -tu1 -j4 -N1 "$v" 2>/dev/null | tr -d ' ')" = 1 ]
+}
+
+if [ -n "$answers" ]; then
+  # shellcheck disable=SC1090  # the test's own answers file
+  . "$answers"
+else
+  command -v dialog >/dev/null || die "dialog is missing; this is meant to run on Vikix's stick"
+  if secure_boot_on; then
+    tell "Secure Boot is on. Void's kernel isn't signed for it, so the installed system wouldn't start.\n\nRestart, open the firmware settings (on an ASUS: hold F2 while it starts), switch Secure Boot off under Security, save, and start from the stick again."
+    clear; exit 1
+  fi
+  tell "This installs Void Linux and Vikix on one whole disk of this computer.\n\nA few questions first; nothing is changed until the last one, where you type \"erase\". Esc stops at any point."
+  ask_all
+  confirm
+  clear
+fi
+
+: "${VI_DISK:?} ${VI_USER:?} ${VI_PASSWORD:?} ${VI_HOSTNAME:=vikix} ${VI_TIMEZONE:=UTC} ${VI_KEYMAP:=us} ${VI_ENCRYPT:=yes}"
+: "${VI_FULLNAME:=$VI_USER}" "${VI_WITH:=}"
+[ "$VI_ENCRYPT" = no ] || : "${VI_PASSPHRASE:=$VI_PASSWORD}"
+[ -b "$VI_DISK" ] || [ "$DRY_RUN" = 1 ] || die "$VI_DISK is not a disk"
+
+[ "$DRY_RUN" = 1 ] || exec > >(tee -a "$VI_LOG") 2>&1
+say "installing to $VI_DISK (log: $VI_LOG)"
+
+# --- 1. The disk --------------------------------------------------------------
+EFI=$(part "$VI_DISK" 1) ROOTPART=$(part "$VI_DISK" 2)
+
+say "erasing $VI_DISK and making two partitions"
+# Anything of ours still open from an earlier try is let go first.
+umount -R "$VI_TARGET" 2>/dev/null || true
+cryptsetup close cryptroot 2>/dev/null || true
+run wipefs -af "$VI_DISK"
+run sgdisk --zap-all "$VI_DISK"
+# 8309 is "Linux LUKS", 8304 "Linux x86-64 root": the type says what's inside.
+roottype=$([ "$VI_ENCRYPT" = yes ] && echo 8309 || echo 8304)
+run sgdisk -n1:0:+1G -t1:ef00 -c1:EFI -n2:0:0 -t2:"$roottype" -c2:vikix "$VI_DISK"
+run partx -u "$VI_DISK" 2>/dev/null || true
+command -v udevadm >/dev/null && run udevadm settle || true
+if [ "$DRY_RUN" != 1 ]; then
+  for _ in $(seq 20); do [ -b "$ROOTPART" ] && break; sleep 0.5; done
+  [ -b "$ROOTPART" ] || die "the new partitions did not appear ($ROOTPART)"
+fi
+
+run mkfs.vfat -F32 -n EFI "$EFI"
+ROOTDEV=$ROOTPART
+if [ "$VI_ENCRYPT" = yes ]; then
+  say "encrypting the second partition (LUKS2)"
+  # The passphrase goes in on stdin, never on a command line (ps shows those).
+  # --perf-*: on a fast NVMe disk dm-crypt's own queues only add delay;
+  # --persistent keeps these and discard (TRIM) in the LUKS2 header.
+  if [ "$DRY_RUN" = 1 ]; then
+    run cryptsetup luksFormat --type luks2 --batch-mode --key-file - "$ROOTPART"
+    run cryptsetup open --key-file - --allow-discards --perf-no_read_workqueue --perf-no_write_workqueue --persistent "$ROOTPART" cryptroot
+  else
+    printf '%s' "$VI_PASSPHRASE" | cryptsetup luksFormat --type luks2 --batch-mode --key-file - "$ROOTPART"
+    printf '%s' "$VI_PASSPHRASE" | cryptsetup open --key-file - --allow-discards \
+      --perf-no_read_workqueue --perf-no_write_workqueue --persistent "$ROOTPART" cryptroot
+  fi
+  ROOTDEV=/dev/mapper/cryptroot
+fi
+run mkfs.ext4 -F -L vikix "$ROOTDEV"
+
+run mkdir -p "$VI_TARGET"
+run mount "$ROOTDEV" "$VI_TARGET"
+run mkdir -p "$VI_TARGET/boot"
+run mount "$EFI" "$VI_TARGET/boot"
+
+# --- 2. Void --------------------------------------------------------------------
+say "installing Void from $VI_MIRROR"
+for d in dev proc sys; do
+  run mkdir -p "$VI_TARGET/$d"
+  run mount --rbind "/$d" "$VI_TARGET/$d"
+  run mount --make-rslave "$VI_TARGET/$d"
+done
+run mkdir -p "$VI_TARGET/var/db/xbps/keys" "$VI_TARGET/etc"
+run cp -a "$VI_KEYS/." "$VI_TARGET/var/db/xbps/keys/"
+run cp -L /etc/resolv.conf "$VI_TARGET/etc/resolv.conf"
+
+# What the initramfs needs is written before the kernel arrives, so the
+# initramfs made while installing it is already the right one.
+luks_uuid=""
+if [ "$VI_ENCRYPT" = yes ]; then
+  luks_uuid=$(blkid -s UUID -o value "$ROOTPART" 2>/dev/null || echo LUKS-UUID)
+  write "$VI_TARGET/etc/crypttab" "cryptroot UUID=$luks_uuid none luks,discard"
+fi
+write "$VI_TARGET/etc/dracut.conf.d/10-vikix.conf" \
+"# Written by vikix-installer.
+hostonly=$VI_HOSTONLY
+hostonly_cmdline=no
+$([ "$VI_ENCRYPT" = yes ] && printf '%s\n%s' 'add_dracutmodules+=" crypt "' 'install_items+=" /etc/crypttab "')"
+
+XBPS_ARCH=x86_64 run xbps-install -Sy -R "$VI_MIRROR/current" -r "$VI_TARGET" "${PACKAGES[@]}" </dev/null
+
+# --- 3. Its settings ------------------------------------------------------------
+say "settings: time zone, keyboard, language, name"
+efi_uuid=$(blkid -s UUID -o value "$EFI" 2>/dev/null || echo EFI-UUID)
+root_uuid=$(blkid -s UUID -o value "$ROOTDEV" 2>/dev/null || echo ROOT-UUID)
+write "$VI_TARGET/etc/fstab" \
+"# <file system>  <dir>  <type>  <options>  <dump>  <pass>
+UUID=$root_uuid  /      ext4  defaults,noatime  0 1
+UUID=$efi_uuid   /boot  vfat  defaults,umask=0077  0 2
+tmpfs  /tmp  tmpfs  defaults,nosuid,nodev  0 0"
+
+write "$VI_TARGET/etc/hostname" "$VI_HOSTNAME"
+run ln -sf "/usr/share/zoneinfo/$VI_TIMEZONE" "$VI_TARGET/etc/localtime"
+# A big console font when the screen is wide (the Z13's 2560 pixels made
+# the default letters about a millimetre high).
+font=""
+width=$(cut -d, -f1 /sys/class/graphics/fb0/virtual_size 2>/dev/null || echo 0)
+[ "${width:-0}" -ge 2000 ] && font=ter-v32n
+if [ "$DRY_RUN" != 1 ]; then
+  sed -i -e "s|^#\?KEYMAP=.*|KEYMAP=\"$VI_KEYMAP\"|" "$VI_TARGET/etc/rc.conf"
+  [ -n "$font" ] && sed -i -e "s|^#\?FONT=.*|FONT=\"$font\"|" "$VI_TARGET/etc/rc.conf"
+  sed -i -e "s|^#\($VI_LOCALE .*\)|\1|" "$VI_TARGET/etc/default/libc-locales"
+fi
+write "$VI_TARGET/etc/locale.conf" "LANG=$VI_LOCALE"
+
+# --- 4. You ---------------------------------------------------------------------
+say "your account: $VI_USER"
+in_target useradd -m -c "$VI_FULLNAME" -G wheel,audio,video,input,storage,network -s /bin/bash "$VI_USER"
+if [ "$DRY_RUN" = 1 ]; then
+  run chpasswd "(your password)"
+else
+  printf '%s:%s\n' "$VI_USER" "$VI_PASSWORD" | chroot "$VI_TARGET" chpasswd -c SHA512
+fi
+# root keeps no password: sudo is the way in, as on the desktop.
+in_target passwd -l root
+write "$VI_TARGET/etc/sudoers.d/10-wheel" "%wheel ALL=(ALL:ALL) ALL"
+run chmod 440 "$VI_TARGET/etc/sudoers.d/10-wheel"
+
+# --- 5. The network at the first start ------------------------------------------
+# NetworkManager from the start (Vikix's 25-network finds it already on), and
+# the stick's Wi-Fi connection with it, so the first boot is online.
+for sv in dbus NetworkManager; do
+  run ln -sf "/etc/sv/$sv" "$VI_TARGET/etc/runit/runsvdir/default/$sv"
+done
+if compgen -G "/etc/NetworkManager/system-connections/*" >/dev/null; then
+  run mkdir -p "$VI_TARGET/etc/NetworkManager/system-connections"
+  run cp -a /etc/NetworkManager/system-connections/. "$VI_TARGET/etc/NetworkManager/system-connections/"
+  run chmod 600 "$VI_TARGET"/etc/NetworkManager/system-connections/*
+fi
+
+# --- 6. Starting ----------------------------------------------------------------
+say "the boot loader"
+cmdline="loglevel=4"
+[ -n "$luks_uuid" ] && cmdline="$cmdline rd.luks.uuid=$luks_uuid"
+[ -n "$VI_EXTRA_CMDLINE" ] && cmdline="$cmdline $VI_EXTRA_CMDLINE"
+if [ "$DRY_RUN" != 1 ]; then
+  sed -i -e "s|^GRUB_CMDLINE_LINUX_DEFAULT=.*|GRUB_CMDLINE_LINUX_DEFAULT=\"$cmdline\"|" \
+         -e "s|^#\?GRUB_DISTRIBUTOR=.*|GRUB_DISTRIBUTOR=\"Vikix\"|" "$VI_TARGET/etc/default/grub"
+fi
+run mkdir -p "$VI_TARGET/sys/firmware/efi/efivars"
+mountpoint -q "$VI_TARGET/sys/firmware/efi/efivars" 2>/dev/null \
+  || run mount -t efivarfs efivarfs "$VI_TARGET/sys/firmware/efi/efivars" 2>/dev/null || true
+# Both: the firmware's own boot entry, and the fallback path every UEFI
+# looks at, for firmware that forgets entries it didn't make.
+in_target grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=Vikix \
+  || warn "grub-install could not add a boot entry; the fallback below still starts it"
+in_target grub-install --target=x86_64-efi --efi-directory=/boot --removable --no-nvram
+# Every package's configure step again, with everything above in place:
+# the locales, and the initramfs (now with the crypt module) and GRUB's menu.
+in_target xbps-reconfigure -fa
+in_target grub-mkconfig -o /boot/grub/grub.cfg
+
+# --- 7. Vikix -------------------------------------------------------------------
+say "Vikix, into ~/vikix"
+home=/home/$VI_USER
+run cp -a "$VI_VIKIX_SRC" "$VI_TARGET$home/vikix"
+in_target chown -R "$VI_USER:$VI_USER" "$home/vikix"
+# The stick's copy may be days old; bring it up to GitHub's if we can.
+in_target su - "$VI_USER" -c "git -C ~/vikix pull --ff-only -q" \
+  || warn "couldn't bring Vikix up to date; the stick's copy is used (vikix update brings it later)"
+
+# The first login finishes the job: installer/firstboot runs install.sh,
+# once, from this block in ~/.bash_profile (it removes the block when done).
+state=$home/.local/state/vikix
+run mkdir -p "$VI_TARGET$state"
+write "$VI_TARGET$state/firstboot" "VIKIX_WITH=$VI_WITH"
+profile="# >>> vikix firstboot >>>
+[ \"\$(tty)\" = /dev/tty1 ] && [ -e ~/.local/state/vikix/firstboot ] && bash ~/vikix/installer/firstboot
+# <<< vikix firstboot <<<"
+if [ "$DRY_RUN" = 1 ]; then
+  write "$VI_TARGET$home/.bash_profile" "$profile"
+else
+  { printf '%s\n' "$profile"; cat "$VI_TARGET$home/.bash_profile" 2>/dev/null || true; } > "$VI_TARGET/tmp/bp"
+  mv "$VI_TARGET/tmp/bp" "$VI_TARGET$home/.bash_profile"
+fi
+in_target chown -R "$VI_USER:$VI_USER" "$home/.local" "$home/.bash_profile"
+
+# What the stick saw of this machine, for the hardware page (TODO 58).
+if command -v vikix-hwreport >/dev/null; then
+  run sh -c "vikix-hwreport > '$VI_TARGET$home/vikix-hardware-$(date +%Y%m%d).txt' 2>&1" || true
+  in_target chown "$VI_USER:$VI_USER" "$home/vikix-hardware-$(date +%Y%m%d).txt" || true
+fi
+[ "$DRY_RUN" = 1 ] || cp "$VI_LOG" "$VI_TARGET$home/vikix-installer.log" 2>/dev/null || true
+
+# --- 8. Done --------------------------------------------------------------------
+say "unmounting"
+run sync
+run umount -R "$VI_TARGET"
+[ "$VI_ENCRYPT" = yes ] && run cryptsetup close cryptroot
+say "done"
+
+if [ -z "$answers" ]; then
+  tell "Void is installed, and Vikix is ready in ~/vikix.\n\nNext:\n  1. Take the stick out, then OK restarts.\n  $([ "$VI_ENCRYPT" = yes ] && echo '2. Type the disk passphrase.' || echo '2. (No passphrase: the disk is not encrypted.)')\n  3. Log in as $VI_USER.\n  4. Vikix's install runs by itself (20 minutes or more; your password once).\n  5. It restarts into the desktop."
+  clear
+  run reboot
+fi

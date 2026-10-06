@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# vikix-hwreport — what this machine is, and what the kernel made of it.
+#
+#   vikix-hwreport            print the report (sudo for the firmware's names)
+#
+# On the stick, before installing: see whether the Wi-Fi, sound, graphics
+# and touch were found, and which firmware the kernel asked for and
+# didn't get. vikix-installer also saves it in your home as
+# vikix-hardware-DATE.txt, for the hardware page (TODO 58).
+# Read only: it changes nothing.
+
+set -uo pipefail
+
+section() { printf '\n== %s\n' "$1"; }
+have() { command -v "$1" >/dev/null 2>&1; }
+
+section "Machine"
+for f in sys_vendor product_name product_version board_name bios_version bios_date; do
+  printf '%-16s %s\n' "$f" "$(cat /sys/class/dmi/id/$f 2>/dev/null || echo '?')"
+done
+printf '%-16s %s\n' kernel "$(uname -r)"
+printf '%-16s %s\n' cpu "$(sed -n 's/^model name[[:space:]]*: //p' /proc/cpuinfo | head -n1)"
+printf '%-16s %s\n' memory "$(awk '/MemTotal/ {printf "%.1f GiB", $2/1048576}' /proc/meminfo)"
+printf '%-16s %s\n' "secure boot" "$(od -An -tu1 -j4 -N1 /sys/firmware/efi/efivars/SecureBoot-* 2>/dev/null | tr -d ' ' | sed 's/1/on/;s/0/off/' || echo '?')"
+
+section "Devices and their drivers (lspci -k)"
+have lspci && lspci -nnk || echo "lspci is missing"
+
+section "USB"
+have lsusb && lsusb || echo "lsusb is missing"
+
+section "Network"
+ip -br link 2>/dev/null
+have nmcli && nmcli -t -f DEVICE,TYPE,STATE dev 2>/dev/null
+
+section "Sound cards"
+cat /proc/asound/cards 2>/dev/null || echo "none"
+
+section "Graphics"
+for c in /sys/class/drm/card*; do
+  [ -e "$c/device/driver" ] && printf '%s: %s\n' "${c##*/}" "$(basename "$(readlink "$c/device/driver")")"
+done
+cat /sys/class/graphics/fb0/virtual_size 2>/dev/null | sed 's/^/framebuffer /'
+
+section "Input (touch, pen, keyboard, touchpad)"
+grep -E '^N: Name=' /proc/bus/input/devices 2>/dev/null | sed 's/^N: Name=//'
+
+section "Power"
+for b in /sys/class/power_supply/*; do
+  [ -e "$b/type" ] && printf '%s (%s) %s%%\n' "${b##*/}" "$(cat "$b/type")" "$(cat "$b/capacity" 2>/dev/null || echo -)"
+done
+printf 'sleep states: %s\n' "$(cat /sys/power/mem_sleep 2>/dev/null)"
+printf 'platform profile: %s\n' "$(cat /sys/firmware/acpi/platform_profile 2>/dev/null || echo none)"
+
+section "Firmware the kernel asked for and missed, and other complaints"
+if dmesg >/dev/null 2>&1; then d=(dmesg); else d=(sudo -n dmesg); fi
+"${d[@]}" 2>/dev/null | grep -iE 'firmware|failed|error|not found|timed out' | grep -viE 'ACPI BIOS Error \(bug\)' | tail -n 60 \
+  || echo "dmesg not readable (run with sudo)"
