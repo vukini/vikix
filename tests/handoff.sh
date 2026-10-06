@@ -15,7 +15,7 @@
 #   listing names every desk; close marks the record closed and keeps it.
 #   vikix agents resume shows the handoff and resumes the session the
 #   record names when the provider's store still has it (claude --resume,
-#   codex resume, opencode --session), else starts fresh and says why; a
+#   codex resume, opencode --session, agy --conversation), else starts fresh and says why; a
 #   conversation the store has for the folder is suggested, never taken;
 #   never a second agent at a desk unasked. vikix agents hooks says what
 #   holds the rules for each provider and links the Codex and OpenCode
@@ -202,6 +202,19 @@ check "opencode's session, in its database, is resumed with --session ID: $out" 
 agents handoff session --desk c opencode ses_gone >/dev/null
 out=$(resume c --here --use opencode)
 check "one its database hasn't: fresh, saying so: $out" grep -q "opencode's session ses_gone is gone from ~/.local/share/opencode/opencode.db" <<<"$out"
+# Antigravity: a conversation folder in its brain, found by the id; the last one for the folder, from its cache, is suggested.
+mkdir -p "$HOME/.gemini/antigravity-cli/cache"
+printf '{"%s": "5e5e5e5e-1111-2222-3333-444444444444"}\n' "$t/src/book-c" > "$HOME/.gemini/antigravity-cli/cache/last_conversations.json"
+out=$(resume c --here --use antigravity)
+check "antigravity with nothing noted: fresh, and the folder's last conversation from its cache is suggested, not taken: $out" \
+  bash -c 'grep -q "^fresh conversation with antigravity" <<<"$1" && grep -q "antigravity.s own store has a conversation in this folder: 5e5e5e5e-1111-2222-3333-444444444444" <<<"$1" && grep -q "^AGENT ARGS: --use antigravity$" <<<"$1"' _ "$out"
+agents handoff session --desk c antigravity 5e5e5e5e-1111-2222-3333-444444444444 >/dev/null
+out=$(resume c --here --use antigravity)
+check "noted but gone from its brain: fresh, naming the store: $out" grep -q "antigravity's session 5e5e5e5e-1111-2222-3333-444444444444 is gone from ~/.gemini/antigravity-cli/brain" <<<"$out"
+mkdir -p "$HOME/.gemini/antigravity-cli/brain/5e5e5e5e-1111-2222-3333-444444444444/.system_generated/logs"
+out=$(resume c --here --use antigravity)
+check "in its brain, it is resumed with agy --conversation ID: $out" \
+  bash -c 'grep -q "^resumed: antigravity session 5e5e5e5e-1111-2222-3333-444444444444 at .*/book-c" <<<"$1" && grep -q "^AGENT ARGS: --use antigravity --conversation 5e5e5e5e-1111-2222-3333-444444444444$" <<<"$1" && ! grep -q unverified <<<"$1"' _ "$out"
 # A provider with no resume: fresh, with the handoff; gemini's is unverified and said so.
 agents handoff session --desk c other thread-1 >/dev/null
 out=$(resume c --here --use other)

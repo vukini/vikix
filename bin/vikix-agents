@@ -87,7 +87,8 @@
                        checks shown, then an agent started there. A
                        session the record names, which the provider's
                        store still has, is resumed (claude --resume ID,
-                       codex resume ID, opencode --session ID); else a
+                       codex resume ID, opencode --session ID, agy
+                       --conversation ID); else a
                        fresh conversation, and why is said. Refused while
                        an agent is at the desk (--another: a second one)
   vikix agents hooks [PROVIDER] [--install]

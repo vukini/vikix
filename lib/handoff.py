@@ -357,12 +357,16 @@ def render(rec, agents_at=(), protection=(), now=None):
 #   codex     codex resume ID             ~/.codex/sessions/Y/M/D/rollout-*-ID.jsonl
 #   opencode  opencode --session ID       ~/.local/share/opencode/opencode.db (table session)
 #   gemini    gemini --resume ID          ~/.gemini/tmp/*/chats/   (unverified)
+#   antigravity  agy --conversation ID    ~/.gemini/antigravity-cli/brain/ID/ (agy --help 1.3.0,
+#             and the folder on this machine); its cache/last_conversations.json
+#             maps a folder to its last conversation (what agy -c takes)
 #   aider     no session ids: --restore-chat-history reloads the folder's
 #             .aider.chat.history.md, which is the folder's, not a session's
 # A session is offered only when the record names it and its store still
 # has it; never the newest conversation found lying about.
 
-RESUME = {"claude": ["--resume"], "codex": ["resume"], "opencode": ["--session"], "gemini": ["--resume"]}
+RESUME = {"claude": ["--resume"], "codex": ["resume"], "opencode": ["--session"], "gemini": ["--resume"],
+          "antigravity": ["--conversation"]}
 UNVERIFIED = {"gemini"}
 
 
@@ -399,6 +403,9 @@ def session_store(provider, sid, folder=""):
         root = os.path.join(home(), ".gemini", "tmp")
         hits = glob.glob(os.path.join(root, "*", "chats", f"*{sid}*"))
         return (True, short(hits[0])) if hits else (None, f"{short(root)} (gemini's store: unverified here)")
+    if provider == "antigravity":
+        root = os.path.join(home(), ".gemini", "antigravity-cli", "brain")
+        return (True, short(os.path.join(root, sid))) if os.path.isdir(os.path.join(root, sid)) else (False, short(root))
     if provider == "aider":
         return None, "aider has no session ids"
     return None, f"{provider} has no resume known to Vikix"
@@ -444,6 +451,14 @@ def sessions_on_disk(provider, folder, limit=3):
                                         (os.path.realpath(folder), limit)):
                     out.append((sid, int(t // 1000) if t and t > 10**11 else int(t or 0)))
                 c.close()
+        elif provider == "antigravity":
+            cache = os.path.join(home(), ".gemini", "antigravity-cli", "cache", "last_conversations.json")
+            if os.path.exists(cache):
+                with open(cache) as fh:
+                    last = json.load(fh)
+                sid = last.get(os.path.realpath(folder)) or last.get(folder)
+                if sid:
+                    out.append((sid, int(os.path.getmtime(cache))))
     except Exception:  # noqa: BLE001  a store that can't be read suggests nothing
         return []
     return sorted(out, key=lambda x: -x[1])[:limit]
