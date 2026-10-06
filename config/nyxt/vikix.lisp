@@ -230,8 +230,8 @@ each function once, and only one that has fewer places than SLIME sends."
 
 (defparameter *vikix-docs-sources*
   '(("vikix" . "Vikix's guides") ("repo" . "Your projects") ("dev" . "Your languages (~/dev)")
-    ("note" . "Your notes") ("man" . "Man pages") ("info" . "Manuals (Info)")
-    ("pkgdoc" . "Packages' READMEs") ("pkg" . "Packages"))
+    ("note" . "Your notes") ("tldr" . "tldr: commands by example") ("man" . "Man pages")
+    ("info" . "Manuals (Info)") ("arch" . "The ArchWiki") ("pkgdoc" . "Packages' READMEs") ("pkg" . "Packages"))
   "Each source of the catalogue and its heading, in the order shown.")
 
 (defun vikix-docs-run (&rest args)
@@ -256,7 +256,8 @@ each function once, and only one that has fewer places than SLIME sends."
 
 (defparameter *vikix-docs-other-ways*
   '(("vikix" . "In Emacs") ("repo" . "In Emacs") ("dev" . "In Emacs") ("pkgdoc" . "In Emacs")
-    ("man" . "In a terminal") ("info" . "In a terminal") ("pkg" . "In a terminal"))
+    ("man" . "In a terminal") ("info" . "In a terminal") ("pkg" . "In a terminal") ("tldr" . "In a terminal")
+    ("arch" . "On the web, as it is today"))
   "What each source's second button says: where vikix docs open --other shows
 a document of it (open_doc in bin/vikix-docs). A source not named here opens
 one way only (a note: in Emacs), and has no second button.")

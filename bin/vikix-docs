@@ -30,17 +30,21 @@ What it covers, each with whose words they are: Vikix's guides (vikix);
 the README, DESIGN, TODO, CLAUDE and log files and docs/ of your projects in
 ~/src (repo); the language guides in ~/dev (dev); your Org notes in
 ~/Dropbox/notes (note); every man page (man) and Info manual (info) on the
-machine; the READMEs and notes packages keep in /usr/share/doc (doc); and
-every package there is, installed or not (pkg). Vikix's guides rank first,
-then yours, then the system's.
+machine; the tldr pages (tldr: a command's worked examples, where a man
+page has its options) and the ArchWiki (arch), the English pages of each
+as wikiman keeps them in /usr/share/doc, when they're there; the READMEs
+and notes packages keep in /usr/share/doc (doc); and every package there
+is, installed or not (pkg). Vikix's guides rank first, then yours, then
+tldr with the man pages, then the rest of the system's.
 
 It reads again by itself what changed, when a search finds the catalogue
 more than a day old (a few seconds); vikix update reads the man pages and
-manuals again. A man page or a Markdown file opens as a page in the docs
-browser, styled as the guide is (made by mandoc and pandoc, cached in
-~/.cache/vikix/docs/); a package as a short page (installed or not, how to
-add it, its website); an Info manual and your notes in Emacs. Ctrl+Enter (or
---other) opens the other way: Emacs, or a terminal.
+manuals again. A man page, a tldr page or a Markdown file opens as a page
+in the docs browser, styled as the guide is (made by mandoc and pandoc,
+cached in ~/.cache/vikix/docs/); an ArchWiki page as the copy is; a package
+as a short page (installed or not, how to add it, its website); an Info
+manual and your notes in Emacs. Ctrl+Enter (or --other) opens the other
+way: Emacs, or a terminal; an ArchWiki page as it is today, on the web.
 
 The catalogue is one SQLite file, ~/.local/share/vikix/docs/index.db: table
 docs (id, source, kind, title, path, excerpt, mtime) and docs_fts, its
@@ -52,6 +56,7 @@ import html
 import json
 import os
 import re
+import shlex
 import shutil
 import signal
 import socket
@@ -73,10 +78,15 @@ SRC = os.environ.get("VIKIX_DOCS_SRC") or os.path.join(HOME, "src")
 DEV = os.environ.get("VIKIX_DOCS_DEV") or os.path.join(HOME, "dev")
 STALE = 24 * 3600                       # a search reads again what changed, after a day
 BODY = 200_000                          # characters of a document indexed
-BOOST = {"vikix": 3.0, "repo": 2.0, "dev": 2.0, "note": 2.0, "man": 1.0, "info": 1.0, "pkgdoc": 0.9, "pkg": 0.8}
+BOOST = {"vikix": 3.0, "repo": 2.0, "dev": 2.0, "note": 2.0, "tldr": 1.1, "man": 1.0, "info": 1.0, "arch": 0.95,
+         "pkgdoc": 0.9, "pkg": 0.8}
 BADGE = {"vikix": "vikix", "repo": "repo", "dev": "dev", "note": "note", "man": "man", "info": "info",
-         "pkgdoc": "doc", "pkg": "pkg"}
+         "tldr": "tldr", "arch": "arch", "pkgdoc": "doc", "pkg": "pkg"}
 PKGDOC = "/usr/share/doc"
+# wikiman's offline copies (its own download step puts them here; nothing
+# refreshes them by itself): the English pages of each.
+TLDR = os.environ.get("VIKIX_DOCS_TLDR") or "/usr/share/doc/tldr-pages/en"
+ARCH = os.environ.get("VIKIX_DOCS_ARCH") or "/usr/share/doc/arch-wiki/html/en"
 PKGDOC_FILES = re.compile(r"^(README|NEWS|CHANGES|ChangeLog|FAQ|INSTALL|USAGE|TODO)|\.(md|txt|html?|rst)$", re.I)
 REPO_FILES = ("README.md", "DESIGN.md", "TODO.md", "CLAUDE.md", "IDEAS.md", "bugs.md", "log.md")
 
@@ -199,6 +209,61 @@ def files_repo():
 def files_dev():
     for p in sorted(glob.glob(os.path.join(DEV, "*", "README.md"))):
         yield p, "guide"
+
+
+def html_plain(text):
+    """An HTML page's words, scripts and styles left out."""
+    text = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", text)
+    text = re.sub(r"<[^>]+>", " ", text)
+    return re.sub(r"\s+", " ", html.unescape(text)).strip()
+
+
+def files_tldr():
+    """The tldr pages for every system (common) and for Linux: one a command."""
+    for sub in ("common", "linux"):
+        for p in sorted(glob.glob(os.path.join(TLDR, sub, "*.html"))):
+            yield p, "tldr"
+
+
+def tldr_title(text, path):
+    """The command, and what it is in a line: "tar — Archiving utility." """
+    name = html.unescape(re.sub(r"<[^>]+>", "", (re.search(r"(?s)<h1>(.*?)</h1>", text) or [None, ""])[1])).strip()
+    name = name or os.path.basename(path)[:-5]
+    quote = re.search(r"(?s)<blockquote>(.*?)</blockquote>", text)
+    what = ""
+    if quote:
+        lines = [l.strip() for l in html_plain(quote.group(1)).split(". ") if l.strip()]
+        lines = [l for l in lines if not l.startswith("More information")]
+        what = lines[0].rstrip(".") + "." if lines else ""
+    return f"{name} — {what}" if what else name
+
+
+def files_arch():
+    """The ArchWiki's pages, each named for its title; the ones named by a
+    hash are other languages' main pages."""
+    for p in sorted(glob.glob(os.path.join(ARCH, "*.html"))):
+        if not re.fullmatch(r"[0-9a-f]{32}\.html", os.path.basename(p)):
+            yield p, "wiki"
+
+
+def arch_title(text, path):
+    m = re.search(r"(?s)<title>(.*?)</title>", text)
+    title = html.unescape(m.group(1)).strip() if m else ""
+    title = re.sub(r"\s+-\s+ArchWiki$", "", title)
+    return title or os.path.basename(path)[:-5].replace("_", " ")
+
+
+def arch_plain(text):
+    """The page's own words: from its body, before the categories and the
+    footer every page has."""
+    start = text.find('id="bodyContent"')
+    end = text.find('id="catlinks"')
+    if end < 0:
+        end = text.find('id="footer"')
+    if start >= 0:
+        # From the body's own tag to the tag that ends it.
+        text = text[text.rfind("<", 0, start):text.rfind("<", 0, end) if end > start else None]
+    return html_plain(text)
 
 
 def notes_dir():
@@ -394,11 +459,15 @@ def index(full=False, quiet=False):
         counts["dev"] = index_files(db, "dev", files_dev(), md_title, md_plain, full)
         counts["note"] = index_files(db, "note", files_note(), org_title, org_plain, full)
         # VIKIX_DOCS_SOURCES limits what's read (the tests leave the system's out).
-        only = os.environ.get("VIKIX_DOCS_SOURCES", "man info pkg pkgdoc").split()
+        only = os.environ.get("VIKIX_DOCS_SOURCES", "man info tldr arch pkg pkgdoc").split()
         if "man" in only:
             counts["man"] = index_man(db, full)
         if "info" in only:
             counts["info"] = index_info(db, full)
+        if "tldr" in only:
+            counts["tldr"] = index_files(db, "tldr", files_tldr(), tldr_title, html_plain, full)
+        if "arch" in only:
+            counts["arch"] = index_files(db, "arch", files_arch(), arch_title, arch_plain, full)
         if "pkg" in only:
             counts["pkg"] = index_pkg(db, full)
         if "pkgdoc" in only:
@@ -450,10 +519,18 @@ def find(words, source=None, limit=20):
         return []
     db = connect()
     cases = " ".join(f"WHEN '{s}' THEN {b}" for s, b in BOOST.items())
+    # The document named by the words themselves comes first: "tar" is
+    # tar's own pages (tldr's, man's, the package) before everything that
+    # mentions tar, or starts with it (target, tarball), however often.
+    name = re.sub(r"\s+", " ", " ".join(words).replace('"', "")).strip().lower()
+    like = name.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    named = ("(lower(d.title) = ? OR lower(d.title) LIKE ? ESCAPE '\\' OR lower(d.title) LIKE ? ESCAPE '\\'"
+             " OR lower(d.title) LIKE ? ESCAPE '\\')")
     sql = (f"SELECT d.id, d.source, d.kind, d.title, d.path, d.excerpt, "
-           f"bm25(docs_fts, 10.0, 1.0) * (CASE d.source {cases} ELSE 1 END) AS score "
+           f"bm25(docs_fts, 10.0, 1.0) * (CASE d.source {cases} ELSE 1 END) "
+           f"* (CASE WHEN {named} THEN 2 ELSE 1 END) AS score "
            f"FROM docs_fts JOIN docs d ON d.rid = docs_fts.rowid WHERE docs_fts MATCH ?")
-    args = [q]
+    args = [name, like + " — %", like + "(%", like + ": %", q]
     if source:
         sql += " AND d.source = ?"
         args.append(source)
@@ -493,6 +570,10 @@ def read(doc):
     if doc["source"] == "pkg":
         r = subprocess.run(["xbps-query", "-R", "-S", doc["path"]], capture_output=True, text=True)
         return r.stdout or doc["title"]
+    if doc["source"] == "tldr":
+        return tldr_text(doc["path"])
+    if doc["source"] == "arch":
+        return arch_plain(read_text(doc["path"]))
     return read_text(doc["path"])
 
 
@@ -553,6 +634,46 @@ def md_html(path, title):
     with open(out, "w") as f:
         f.write(page)
     return out
+
+
+def tldr_html(doc):
+    """A tldr page (bare HTML as wikiman keeps it) as a page styled as the
+    guide is, saying when the copy is from; cached."""
+    path = doc["path"]
+    key = hashlib.sha1(f"{path}:{os.path.getmtime(path)}".encode()).hexdigest()[:16]
+    out = os.path.join(CACHE, "tldr", f"{key}.html")
+    if os.path.exists(out):
+        return out
+    css = "file://" + os.path.join(vikix_dir(), "docs", "guide.css")
+    body = re.sub(r"(?is)^.*?<body[^>]*>|</body>.*$", "", read_text(path))
+    when = time.strftime("%Y-%m-%d", time.localtime(os.path.getmtime(path)))
+    page = (f'<!doctype html><html><head><meta charset="utf-8"><title>{html.escape(doc["title"])}</title>'
+            f'<link rel="stylesheet" href="{css}"></head>'
+            f'<body><p class="vikix-docs-from">{html.escape(path)}, the copy of {when}</p>{body}</body></html>')
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    with open(out, "w") as f:
+        f.write(page)
+    return out
+
+
+def tldr_text(path):
+    """A tldr page as text: what the command is, then each example's words
+    and, set in, its command."""
+    text = read_text(path)
+    text = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", text)
+    text = re.sub(r"(?i)<p>\s*<code>(.*?)</code>\s*</p>", lambda m: "    " + m.group(1), text)
+    text = re.sub(r"(?i)</(h1|p|li|blockquote)>", "\n", text)
+    text = re.sub(r"(?i)<li>", "- ", text)
+    text = re.sub(r"(?i)</?code>", "`", text)
+    text = re.sub(r"<[^>]+>", "", text)
+    text = "\n".join(line.rstrip() for line in html.unescape(text).splitlines())
+    return re.sub(r"\n{3,}", "\n\n", text).strip() + "\n"
+
+
+def arch_url(doc):
+    """The page as it is today, on wiki.archlinux.org (the copy's name is its title)."""
+    name = os.path.basename(doc["path"])[:-5]
+    return "https://wiki.archlinux.org/title/" + urllib.parse.quote(name, safe="()_,.-:")
 
 
 def pkg_card(doc):
@@ -632,6 +753,23 @@ def open_doc(doc, other=False):
             terminal(["sh", "-c", f"xbps-query -R -S {doc['path']} | less"])
         else:
             docs_open([pkg_card(doc)])
+    elif src == "tldr":
+        if other:
+            # tealdeer's own showing when it has its cache (tldr --update);
+            # else the page's words, from the copy.
+            name = os.path.basename(doc["path"])[:-5]
+            txt = os.path.join(CACHE, "tldr", f"{name}.txt")
+            os.makedirs(os.path.dirname(txt), exist_ok=True)
+            with open(txt, "w") as f:
+                f.write(tldr_text(doc["path"]))
+            terminal(["sh", "-c", f"tldr {shlex.quote(name)} 2>/dev/null || less {shlex.quote(txt)}"])
+        else:
+            docs_open([tldr_html(doc)])
+    elif src == "arch":
+        if other:
+            subprocess.Popen(["xdg-open", arch_url(doc)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            docs_open([doc["path"]])
     elif src == "note" or other:
         if not emacs([doc["path"]]):
             docs_open([doc["path"]])
@@ -764,7 +902,7 @@ def page(query):
 def pick():
     fresh_enough()
     r = subprocess.run(["rofi", "-dmenu", "-p", "docs", "-l", "0", "-mesg",
-                        "Words to find: Vikix's guides, your projects and notes, man pages, manuals"],
+                        "Words to find: Vikix's guides, your projects and notes, man and tldr pages, manuals, the ArchWiki"],
                        input="", capture_output=True, text=True)
     words = r.stdout.strip()
     if r.returncode != 0 or not words:

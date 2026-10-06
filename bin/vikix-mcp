@@ -773,11 +773,12 @@ TOOLS = [
     ("docs_search", "Search the machine's documents",
      "Every document on this machine (vikix docs): Vikix's guides (source vikix), the README, DESIGN, TODO and "
      "docs of the user's projects in ~/src (repo), the language guides in ~/dev (dev), the user's Org notes "
-     "(note), man pages (man), Info manuals (info), packages' READMEs (pkgdoc) and every package there is, "
-     "installed or not (pkg). Use it before answering how something on this machine "
+     "(note), man pages (man), Info manuals (info), the tldr pages (tldr: a command's worked examples), the "
+     "ArchWiki (arch: offline copies, when wikiman keeps them), packages' READMEs (pkgdoc) and every package "
+     "there is, installed or not (pkg). Use it before answering how something on this machine "
      "works. Words, \"a phrase\", or OR; the start of a word is enough. Read only." + DATA,
      schema({"query": {"type": "string", "maxLength": 200},
-             "source": {"type": "string", "enum": ["vikix", "repo", "dev", "note", "man", "info", "pkgdoc", "pkg"]},
+             "source": {"type": "string", "enum": ["vikix", "repo", "dev", "note", "man", "info", "tldr", "arch", "pkgdoc", "pkg"]},
              "limit": {"type": "integer", "minimum": 1, "maximum": 25}}, ["query"]),
      READ, t_docs_search),
     ("docs_read", "Read one document",

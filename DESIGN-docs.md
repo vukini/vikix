@@ -185,6 +185,8 @@ Non-blocking:
 
 ## Phasing
 
+**Shipped 2026-10-06:** the sources `tldr` and `arch`, wikiman's offline copies in `/usr/share/doc` (English pages; opened styled, or as the copy is; `--other` a terminal, or the live wiki), and the rule that the document named by the words comes first (`tar`: tar's pages before "target" and every mention).
+
 **Shipped 2026-10-04: Phase 0, and of Phase 1 the man pages as styled pages (mandoc), the agents' `docs_search`/`docs_read`, reindexing at `vikix update`, `vikix docs status` and `vikix docs get`.** The key is Super+F2, not Super+h (Super+h moves the focus left now); the user's Org notes (`~/Dropbox/notes`, the converted vault) are a source of their own, `note`, read from the files, since `note`'s index covers Markdown. A first index of this laptop (12,000 man pages, 3,200 notes, 665 manuals) takes 1.3 s; nothing changed, 0.1 s. Then the same day: Markdown as pages styled like the guide (pandoc, else Python's markdown), packages (`pkg`, all 20,000, with a page each) and packages' READMEs (`pkgdoc`, their own folder's top only: below it, ImageMagick alone has thousands of HTML pages); the full index 3.6 s. Then the page in Nyxt, `vikix docs page WORDS`: a search, a section per source with counts, Open and the other way on each hit, in a Nyxt internal page (`config/nyxt/vikix.lisp`) that asks `vikix docs find --tsv`; its buttons run `vikix docs open`, so the two doors open the same way. Not done from that door: recently opened, and a page per repository. Left: TODO 73.
 
 **Phase 0, a day:** the `docs` table and FTS5 over `vikix`, `repo`, `dev`, `man` titles; `vikix docs find`; `Super+h` opening in the existing viewers. No rendering yet. Prove the hits are good.

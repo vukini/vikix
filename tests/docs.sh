@@ -5,7 +5,8 @@
 # plugin's folder); found by the start of a word, a phrase, OR; Vikix's
 # guide first; read again only what changed, a file gone gone; read as text;
 # opened in Emacs or the docs browser (stand-ins); the agents' docs_search and
-# docs_read. Man pages and Info manuals are the system's: left out here
+# docs_read; tldr pages and the ArchWiki from stand-ins of wikiman's copies.
+# Man pages and Info manuals are the system's: left out here
 # (VIKIX_DOCS_SOURCES), but a man page is read and opened when there is man.
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
@@ -88,6 +89,58 @@ check "an installed one says so" grep -q 'ruff — .*(installed)' <<<"$(d find l
 card=$(awk '/^browser/ {print $2}' "$t/opened" | tail -1)
 check "a package's page says how to add it: $card" grep -q 'vikix pkg add ardour' "$card"
 check "and its website" grep -q 'http://ardour.org' "$card"
+
+# tldr pages and the ArchWiki, as wikiman keeps them (stand-ins): a command's
+# page named for it first; opened as a styled page, or in a terminal; a wiki
+# page as the copy is, or on the web; both read as text.
+mkdir -p "$t/tldr/common" "$t/tldr/linux" "$t/arch"
+export VIKIX_DOCS_TLDR="$t/tldr" VIKIX_DOCS_ARCH="$t/arch"
+cat > "$t/tldr/common/tar.html" <<'H'
+<h1>tar</h1>
+
+<blockquote><p>Archiving utility.
+Often combined with a compression method, such as <code>gzip</code>.
+More information: <a href="https://www.gnu.org/software/tar">https://www.gnu.org/software/tar</a>.</p></blockquote>
+
+<ul>
+<li>[c]reate an archive and write it to a [f]ile:</li>
+</ul>
+
+<p><code>tar cf {{path/to/target.tar}} {{path/to/file1 path/to/file2 ...}}</code></p>
+H
+printf '<h1>sv</h1>\n<blockquote><p>Control a running runsv service.</p></blockquote>\n<ul><li>Restart a service:</li></ul>\n<p><code>sv restart {{service}}</code></p>\n' > "$t/tldr/linux/sv.html"
+printf '<h1>target</h1>\n<blockquote><p>Something else, with tar in every line: tar tar tar tar.</p></blockquote>\n' > "$t/tldr/common/target.html"
+cat > "$t/arch/Bluetooth_headset.html" <<'H'
+<!DOCTYPE html>
+<html><head><title>Bluetooth headset - ArchWiki</title><script>var nav = "menu words";</script></head>
+<body><div id="mw-navigation">Main page Recent changes</div>
+<div id="bodyContent"><h1>Bluetooth headset</h1><p>Pair it with bluetoothctl, then PipeWire takes it as a sink.</p></div>
+<div id="catlinks">Category: Sound</div><div id="footer">Privacy policy</div></body></html>
+H
+printf '<html><head><title>Main page (Deutsch) - ArchWiki</title></head><body>Hauptseite</body></html>\n' > "$t/arch/0123456789abcdef0123456789abcdef.html"
+out=$(VIKIX_DOCS_SOURCES="tldr arch" d index)
+check "the tldr pages and the wiki are read, the hash-named wiki pages left out: $out" grep -q 'Read 3 tldr, 1 arch' <<<"$out"
+check "a tldr page is named for its command, with what it is: $(d find sv | head -3)" grep -q '^tldr  *sv — Control a running runsv service.' <<<"$(d find sv | head -3)"
+check "the command's own page comes before one that says its name more, or starts with it: $(d find tar | head -1)" grep -q '^tldr  *tar — Archiving utility.' <<<"$(d find tar | head -1)"
+check "a wiki page by its title, without the site's name" grep -q '^arch  *Bluetooth headset$' <<<"$(d find headset | head -1)"
+check "a wiki page is found by its own words" grep -q 'Bluetooth headset' <<<"$(d find bluetoothctl)"
+check "not by its menus or scripts" test "$(d find menu OR navigation OR words --source arch)" = "nothing found"
+check "a tldr page as text, each command set in: $(d read "tldr:$t/tldr/common/tar.html" | tail -1)" grep -q '^    tar cf {{path/to/target.tar}}' <<<"$(d read "tldr:$t/tldr/common/tar.html")"
+check "a wiki page as text, its body alone" test "$(d read "arch:$t/arch/Bluetooth_headset.html")" = "Bluetooth headset Pair it with bluetoothctl, then PipeWire takes it as a sink."
+: > "$t/opened"; d open "tldr:$t/tldr/common/tar.html"; sleep 0.3
+page=$(awk '/^browser/ {print $2}' "$t/opened" | tail -1)
+check "a tldr page opens as a page styled like the guide: $page" grep -q 'guide.css' "$page"
+check "saying when the copy is from" grep -q 'the copy of 20' "$page"
+check "with its examples" grep -q 'tar cf' "$page"
+printf '#!/bin/sh\necho "terminal $*" >> %s/opened\n' "$t" > "$t/bin/term"; chmod +x "$t/bin/term"
+: > "$t/opened"; VIKIX_TERMINAL="$t/bin/term" d open "tldr:$t/tldr/common/tar.html" --other; sleep 0.3
+check "--other shows a tldr page in a terminal, tealdeer's or the copy's words: $(cat "$t/opened")" grep -q "terminal -e sh -c tldr tar 2>/dev/null || less .*tldr/tar.txt" "$t/opened"
+check "the copy's words are there for it" grep -q '^    tar cf' "$XDG_CACHE_HOME/vikix/docs/tldr/tar.txt"
+: > "$t/opened"; d open "arch:$t/arch/Bluetooth_headset.html"; sleep 0.3
+check "a wiki page opens as the copy is: $(cat "$t/opened")" grep -q "browser $t/arch/Bluetooth_headset.html" "$t/opened"
+printf '#!/bin/sh\necho "xdg-open $*" >> %s/opened\n' "$t" > "$t/bin/xdg-open"; chmod +x "$t/bin/xdg-open"
+: > "$t/opened"; d open "arch:$t/arch/Bluetooth_headset.html" --other; sleep 0.3
+check "--other opens the page as it is today, on the web: $(cat "$t/opened")" grep -q "xdg-open https://wiki.archlinux.org/title/Bluetooth_headset" "$t/opened"
 
 # A man page, when there is man: read as text, opened as a styled page.
 if command -v man >/dev/null && command -v mandoc >/dev/null && man -w 1 ls >/dev/null 2>&1; then
@@ -216,5 +269,5 @@ tools = {t[0]: t for t in m.TOOLS}
 assert tools["docs_search"][4]["readOnlyHint"] and tools["docs_read"][4]["readOnlyHint"]
 PY
 
-[ "$fail" = 0 ] && echo "docs: guides, projects, ~/dev and notes found by words, phrases and OR, Vikix's first, only what changed read again, opened, man pages styled, the page in Nyxt asked for, and read-only tools for the agents"
+[ "$fail" = 0 ] && echo "docs: guides, projects, ~/dev and notes found by words, phrases and OR, Vikix's first, the one named first, only what changed read again, opened, man pages styled, tldr pages and the ArchWiki from wikiman's copies, the page in Nyxt asked for, and read-only tools for the agents"
 exit "$fail"
