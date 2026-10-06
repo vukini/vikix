@@ -7,7 +7,8 @@
 #   journal; a file another agent has changed in its worktree makes the
 #   hook ask, naming that agent (from an argument, and from the hook's JSON
 #   on stdin; a tool without a file is let be); a file in another agent's
-#   folder is a crossing: allowed, told to the agent, recorded; two agents
+#   folder is a crossing: allowed, told to the agent, recorded (not one into an
+#   agent in the home folder, which owns nothing); two agents
 #   editing one file in one working copy is a clash through the journal;
 #   vikix agents clash lists the files and shows both changes; the listing
 #   marks them; the journal keeps only the agents still running; a process
@@ -73,6 +74,10 @@ check "allowed, not asked" not grep -q permissionDecision <<<"$out"
 check "and recorded: $(agents crossings | head -2 | tail -1)" grep -q 'claude 1001 edited .*book-b/notes.md, in codex 1002' <<<"$(agents crossings)"
 check "the journal has it as a crossing" grep -q '"kind": "crossing".*"with": "codex 1002"' "$journal"
 
+proc 1004 claude "$HOME"
+out=$(touch_as 1001 "$HOME/plan.md")
+check "an agent in the home folder owns no folder: no crossing into it: '$out'" test -z "$out"
+rm -rf "$t/proc/1004"
 out=$(touch_as 1003 "$t/src/book-a/ch1.md")
 check "two agents editing one file in one working copy is a clash through the journal: $(head -c 120 <<<"$out")" \
   grep -q '"permissionDecision": "ask".*claude 1001 (.*book-a) edited it too, [0-9]* s ago' <<<"$out"

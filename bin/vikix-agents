@@ -501,12 +501,20 @@ def clashes_for(me, path, others, entries):
     return list(found.values())
 
 
+def owns_nothing(folder):
+    """An agent in your home folder (Super+a starts them there) works on
+    whatever it is told: it owns no folder, so nothing is a crossing into
+    it, and everything under home would be."""
+    home = os.path.realpath(os.path.expanduser("~"))
+    return not folder or os.path.realpath(folder) == home or inside(home, folder)
+
+
 def crossing_for(me, path, others):
     """The other agent whose folder PATH is in, when it isn't in mine: the
     nearest folder when several are."""
     if inside(path, me["folder"]):
         return None
-    hits = [o for o in others if o["pid"] != me["pid"] and inside(path, o["folder"])]
+    hits = [o for o in others if o["pid"] != me["pid"] and inside(path, o["folder"]) and not owns_nothing(o["folder"])]
     return max(hits, key=lambda o: len(o["folder"]), default=None)
 
 
