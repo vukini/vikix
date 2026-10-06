@@ -168,7 +168,9 @@ echo "my own rules" > "$HOME/.gemini/GEMINI.md"
 # Starting: the default (claude, installed on the spot here), a snapshot first, no keys.
 fake_agent "$HOME/.local/bin/claude"
 ANTHROPIC_API_KEY=sk-ant-x OPENAI_API_KEY=sk-x GITHUB_TOKEN=gh-x DB_PASSWORD=pw SSH_AUTH_SOCK=/tmp/agent.sock agent --print hello >/dev/null 2>&1 || true
-check "the default should be claude, with its arguments: $(cat "$t/started" 2>/dev/null)" grep -q "^ran $HOME/.local/bin/claude --print hello" "$t/started"
+check "the default should be claude, with the office's hook and its arguments: $(cat "$t/started" 2>/dev/null)" grep -q "^ran $HOME/.local/bin/claude --settings $here/config/claude/office.json --print hello" "$t/started"
+VIKIX_OFFICE=0 agent --print hello >/dev/null 2>&1 || true
+check "VIKIX_OFFICE=0 leaves the hook out: $(cat "$t/started" 2>/dev/null)" grep -q "^ran $HOME/.local/bin/claude --print hello" "$t/started"
 check "claude shouldn't get API keys or passwords: $(cat "$t/started" 2>/dev/null)" test -z "$(grep -E 'API_KEY|TOKEN|PASSWORD' "$t/started" || true)"
 check "claude shouldn't get the SSH agent (it could push as you)" test -z "$(grep SSH_AUTH_SOCK "$t/started" || true)"
 check "the agent should know it's one (VIKIX_AGENT), so its shells don't read the keys back" grep -qx 'VIKIX_AGENT=claude' "$t/started"

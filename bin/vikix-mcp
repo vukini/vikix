@@ -633,7 +633,7 @@ def t_focus_window(a):
     out = evaluate(f"(let* ((g (find-group (current-screen) {lisp_string(name)})) "
                    f"(w (find {number} (group-windows g) :key #'window-number))) "
                    f"(switch-to-group g) (when w (focus-all w)) "
-                   f"(or (and w (fboundp 'vikix-window-agent) (getf (vikix-window-agent w) :pid)) 0))")
+                   f"(or (and w (fboundp 'vikix-window-agent) (getf (funcall 'vikix-window-agent w) :pid)) 0))")
     crossed = note_window_crossing(name, number, int(out)) if out.isdigit() and out != "0" else ""
     return f"window {number} on workspace {name} has the focus{crossed}"
 

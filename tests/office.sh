@@ -161,7 +161,7 @@ out=$(PATH="$t/bin:$PATH" desk)
 check "without a project it asks which, then for a topic: $out" grep -q 'in ~/src/books-from-the-menu, a new worktree on the branch from-the-menu' <<<"$out"
 check "Super+m has it, under AI" yes '(find (quote (run-shell-command "vikix-agents desk")) *vikix-menu* :key (function second) :test (function equal))'
 
-check "vikix agents with a word it doesn't know says what it takes" grep -q 'vikix agents \[--json\]' <<<"$(cli nonsense)"
+check "vikix agents with a word it doesn't know says what it takes" grep -q 'vikix agents \[--json|desk|clash|crossings\]' <<<"$(cli nonsense)"
 check "the desktop met no error" test -z "$(ls "$home/.local/state/vikix/errors" 2>/dev/null)"
 
 wm_report office "agents found in their terminals by name, folder and workspace, what each is doing from its title and its note, its window marked, the menu to one, vikix agents with branches and uncommitted files, one without a window, --json; a desk: a workspace and a worktree for one agent"
