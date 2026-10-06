@@ -601,12 +601,41 @@ def t_propose_rule(a):
     raise ToolError("the window manager's answer wasn't one: " + scrub(out)[:300])
 
 
+def office():
+    """bin/vikix-agents as a module: the office's house rules."""
+    import importlib.util
+    from importlib.machinery import SourceFileLoader
+    sys.dont_write_bytecode = True
+    loader = SourceFileLoader("vikix_agents", os.path.join(VIKIX_DIR, "bin", "vikix-agents"))
+    spec = importlib.util.spec_from_loader("vikix_agents", loader)
+    mod = importlib.util.module_from_spec(spec)
+    loader.exec_module(mod)
+    return mod
+
+
+def note_window_crossing(name, number, other_pid):
+    """A house rule: going to another agent's window is allowed, and
+    recorded (vikix agents crossings). Never a reason to fail the act."""
+    try:
+        agents = office()
+        me = agents.my_agent()
+        other = next((o for o in agents.live_agents() if o["pid"] == other_pid), None)
+        if me and other and me["pid"] != other_pid:
+            agents.window_crossing(me, other, f"window {number} on workspace {name}")
+            return f" ({other['agent']} {other_pid} works in it: the crossing is recorded)"
+    except Exception as e:      # noqa: BLE001  a journal that can't be written mustn't fail the act
+        log("focus_window", {}, f"crossing not recorded: {e}")
+    return ""
+
+
 def t_focus_window(a):
     name, number = window_named(a)
-    evaluate(f"(let* ((g (find-group (current-screen) {lisp_string(name)})) "
-             f"(w (find {number} (group-windows g) :key #'window-number))) "
-             f"(switch-to-group g) (when w (focus-all w)) t)")
-    return f"window {number} on workspace {name} has the focus"
+    out = evaluate(f"(let* ((g (find-group (current-screen) {lisp_string(name)})) "
+                   f"(w (find {number} (group-windows g) :key #'window-number))) "
+                   f"(switch-to-group g) (when w (focus-all w)) "
+                   f"(or (and w (fboundp 'vikix-window-agent) (getf (vikix-window-agent w) :pid)) 0))")
+    crossed = note_window_crossing(name, number, int(out)) if out.isdigit() and out != "0" else ""
+    return f"window {number} on workspace {name} has the focus{crossed}"
 
 
 def t_eval(a):

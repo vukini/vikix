@@ -133,6 +133,13 @@ The agent gets a workspace to itself (the first empty one) and a git worktree of
 
 A desk that is still there is used again, never made twice. When the work is in (merged, the way the project's own notes say), the desk goes with `git worktree remove ~/src/vikix-drawer-fix` and `git branch -d drawer-fix` in the project; the agent that worked there can do both.
 
+**The house rules.** Desks keep agents apart; the rules say what happens when they meet all the same. Claude Code started by `vikix agent` (so `Super+a` and a desk) runs `vikix agents touch` before every edit, a hook from `config/claude/office.json` passed with `--settings`, so nothing is written to your own Claude settings. The hook notes the file in the office's journal (`~/.local/state/vikix/office/journal.jsonl`, kept to the agents still running) and looks around:
+
+- *Two agents on one file.* When another agent has changed the same file in its worktree of the same repository, uncommitted, or has edited that very file (the journal), Claude Code asks you before the edit, naming the other agent: "codex 1002 (~/src/book-b) has changed it in ~/src/book-b, uncommitted". `vikix agents clash ~/src/book-a/ch1.md` then shows each agent's change in full, one under the other, and which stays is yours to say: tell the other agent to drop its change, or let both go in and settle the merge. `vikix agents clash` alone lists every file two agents are on, and `vikix agents` marks such a file under each of them.
+- *A crossing.* An agent may edit a file in another agent's folder, or go to another agent's window (the MCP tool `focus_window`), but never quietly: the crossing is told to it, with whose folder it is, and recorded in the record store (`vikix records list office`, kind `crossing`); `vikix agents crossings` lists the last ones.
+
+The other agents (Codex, Gemini, Aider) have no such hook: for them the rules hold through git alone, so a clash with one of them shows in `vikix agents` and `vikix agents clash`, not before the edit. `VIKIX_OFFICE=0 vikix agent` starts Claude Code without the hook.
+
 `Super+m` → *AI* → *Agents: who is running, and go to one* is the same list on the desktop: pick one and you're at its window (one in the drop-down terminal is brought to you). Nothing is asked of the agents themselves, and none is stopped: the list only reads what is there. Each agent's window also carries its name (the X property `_VIKIX_AGENT`).
 
 ## API keys

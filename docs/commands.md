@@ -173,6 +173,8 @@ Every agent is told how Vikix works by the same guide: Claude Code and OpenCode 
 
 What an agent doesn't get, so a prompt injection (a web page, a README it reads) can't use it: your API keys and other secrets from the environment (each agent signs in its own way; Aider has no login, so it keeps the model companies' keys; `VIKIX_AGENT_API_KEY=1` keeps them all), and your SSH agent, which after your first push would let it push as you (`VIKIX_AGENT_SSH=1` keeps it). This prevents accidents; it isn't a sandbox: the agent runs as you and can read your files.
 
+Claude Code also gets the office's house rules: a hook that runs vikix agents touch before each edit, so two agents on one file are caught and a crossing into another agent's folder is recorded (see vikix agents). `VIKIX_OFFICE=0` leaves it out.
+
 ## vikix-agents
 
 The agents at work on this desktop, in one place.
@@ -180,6 +182,9 @@ The agents at work on this desktop, in one place.
 - `vikix agents` — each agent running in a terminal here: which it is (claude, codex, opencode, gemini, aider), the folder it works in with its branch and how many files it has left uncommitted there, its workspace, how long it has run, and what it is doing: working, at its prompt, finished its turn, or waiting for you (a dialog open, a question asked); under it, its window's title, or what it asked
 - `vikix agents --json` — the same as JSON, for a script
 - `vikix agents desk [PROJECT [TOPIC]] [--use NAME] [--here]` — start an agent at a desk of its own: in PROJECT (one of vikix project's, by any part of its name), on a workspace to itself, and with a TOPIC in a git worktree of the project made for it: the folder PROJECT-TOPIC beside the project, on a new branch TOPIC, so its work can't collide with another agent's. Without PROJECT it asks which, then for a topic (none: it works in the project's own folder). --use: another agent than yours (vikix agent --use); --here: in this terminal, no new workspace
+- `vikix agents clash [FILE]` — the files two agents are on at once: each file with the agents that have changed it, uncommitted, in worktrees of one repository, or that have edited the same file; with FILE, each agent's change to it in full (both plans, one under the other), for you to say which stays
+- `vikix agents crossings [--limit N]` — the last crossings recorded: an agent that edited a file in another agent's folder, or went to another agent's window
+- `vikix agents touch [FILE]` — the house rules for one edit, run by Claude Code's PreToolUse hook before every Edit and Write (vikix agent sets it; it reads the hook's JSON on stdin when no FILE is given): the edit is noted in the office journal; one in another agent's folder is a crossing, recorded and told to the agent; a file another agent has changed too makes Claude Code ask you first, naming that agent. No agent above it: nothing happens
 
 Several agents run side by side, each in a terminal of its own, and five windows called "Alacritty" don't say which is which. The desktop starts them (vikix agent, Super+a), so it knows: it finds the agent in each terminal, started by vikix agent or by hand at a shell, and reads what it is doing from the agent-waiting plugin's note for its window (when you have that plugin: vikix plugin add agent-waiting) and from the mark Claude Code keeps at the front of its window's title. Nothing is asked of the agents themselves.
 
@@ -188,6 +193,8 @@ An agent an editor started (vikix agent --acp: Emacs's agent-shell, Neovim's Cod
 Super+m, AI, "Agents: who is running" is the same list on the desktop: pick one to go to its window.
 
 A desk: Super+a starts an agent in your home folder, and what it works on is whatever you tell it; two of them on one project then edit the same files. vikix agents desk gives each its own copy to work in. The worktree is an ordinary git one: the agent commits on its branch there, and when its work is in (merged, as the project's own notes say), the desk goes with `git worktree remove FOLDER` and `git branch -d TOPIC` in the project. A desk that is still there is used again, not made twice. A project that isn't a git repository has no worktrees: its agent works in the folder itself. Super+m, AI, "Agents: start one on a project" is the same, asking for the project.
+
+The house rules: the office keeps a journal of what each agent edits (`~/.local/state/vikix/office/journal.jsonl`, pruned to the agents still running), fed by the hook vikix agent gives Claude Code (vikix agents touch). From it and from git it knows when two agents are on one file: the one that comes second is stopped at Claude Code's own question to you, with the other agent's name, and `vikix agents clash FILE` shows both changes for you to choose; `vikix agents` marks the file under both agents. An agent may edit a file in another agent's folder, or go to another agent's window (the MCP tool `focus_window`), but never quietly: the crossing is told to it and recorded (vikix records, plugin office, kind crossing), and `vikix agents crossings` lists them. Other agents (codex, gemini, aider) have no such hook: for them the rules hold through git alone, so a clash with one of them is seen in the listing, not before the edit.
 
 ## vikix-ai
 

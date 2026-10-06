@@ -45,6 +45,11 @@
 # agent, which after your first push would let it push as you
 # (VIKIX_AGENT_SSH=1 keeps it). This prevents accidents; it isn't a sandbox:
 # the agent runs as you and can read your files.
+#
+# Claude Code also gets the office's house rules: a hook that runs vikix
+# agents touch before each edit, so two agents on one file are caught and
+# a crossing into another agent's folder is recorded (see vikix agents).
+# VIKIX_OFFICE=0 leaves it out.
 
 set -euo pipefail
 VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
@@ -408,6 +413,13 @@ start() {
       gemini)   args+=(--acp) ;;
       opencode) args+=(acp) ;;
     esac
+  fi
+  # The office's house rules (vikix agents touch): Claude Code runs them
+  # before each edit, from settings added to yours for this session only
+  # (--settings merges with your files; nothing is written to them). The
+  # ACP adapter takes no such option.
+  if [ "$name" = claude ] && [ "$ACP" = 0 ] && [ "${VIKIX_OFFICE:-1}" != 0 ]; then
+    args+=(--settings "$VIKIX_DIR/config/claude/office.json")
   fi
   if [ "$local" = 1 ]; then
     model=$(local_model "$model")
