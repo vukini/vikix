@@ -361,13 +361,15 @@ def waits(agents):
     for pid, (topic, state, since, kind, summary) in all_releases:
         a = under(pid, agents)
         if a:
-            releases[a] = (topic, state, since, kind, summary)
+            releases[a] = (pid, topic, state, since, kind, summary)
     for a in set(tests) | set(releases):
         words = line = None
         if a in releases:
-            topic, state, since, kind, summary = releases[a]
+            pid, topic, state, since, kind, summary = releases[a]
             if state.startswith("waiting"):
-                ahead = [t for p, (t, st, *_) in all_releases if p != a and not st.startswith("waiting")]
+                # Ahead of it: the one whose turn it is, then those that came before it.
+                ahead = [t for p, (t, st, s, *_) in sorted(all_releases, key=lambda n: (n[1][1].startswith("waiting"), n[1][2]))
+                         if p != pid and (not st.startswith("waiting") or s < since)]
                 words = "waiting for a release"
                 line = (f"its release {topic} waits for its turn since {at(since)}"
                         + (f", behind {', '.join(ahead)}" if ahead else "") + " (.claude/release --queue)")
@@ -383,7 +385,7 @@ def waits(agents):
                 line = (f"its test{'s' if len(waiting) != 1 else ''} {', '.join(sorted(waiting)[:4])}"
                         f"{'...' if len(waiting) > 4 else ''} wait{'' if len(waiting) != 1 else 's'} for a slot since "
                         f"{at(first)}: other runs are testing on this machine"
-                        + (f" (release {releases[a][0]})" if a in releases else ""))
+                        + (f" (release {releases[a][1]})" if a in releases else ""))
             elif running and not words:
                 words = "testing"
                 line = (f"its tests: {len(running)} running" + (f", {len(waiting)} waiting for a slot" if waiting else "")
