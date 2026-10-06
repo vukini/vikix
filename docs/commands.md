@@ -653,6 +653,8 @@ Lock the screen, with only ever one locker.
 
 The session runs xss-lock, which starts `vikix-lock --locker` after 10 idle minutes and before a suspend. The key (s-Escape) and the menu run plain `vikix-lock`, which asks xss-lock to lock now: a second i3lock started beside xss-lock's would need unlocking twice. Without xss-lock (another session), it locks by itself.
 
+The lock screen is i3lock-color: the wallpaper (the one showing, through vikix-wallpaper which), a clock and the date, and a ring that shows what is typed, in the theme's colours (vikix theme writes them to `~/.config/vikix/theme/palette`). The ring is the accent; a key lights it in the foreground, backspace in the alert colour; while the password is checked it goes subtle, and wrong turns it the alert colour and says so. With plain i3lock instead, a screen in the theme's background colour.
+
 While the screen is locked, notifications wait: dunst draws its windows above everything, i3lock's too, so a message could be read on a locked screen. They are shown once it's unlocked, unless they were already paused (Do not disturb), which is kept.
 
 A key that wakes the dark screen isn't kept as part of the password.

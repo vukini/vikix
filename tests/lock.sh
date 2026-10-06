@@ -8,9 +8,13 @@
 #   pausing too; a bad colour falls back to void's; when the monitor comes
 #   back on from DPMS while locked, Escape clears the key that woke it;
 #   the lock screen's window is raised again every half second while it is
-#   up, so a window that opens meanwhile doesn't stay in front of it.
+#   up, so a window that opens meanwhile doesn't stay in front of it;
+#   with i3lock-color (its usage names the manpage) the lock screen gets
+#   the wallpaper (a picture; not the plain PPM of a theme without one),
+#   the clock and the ring in the theme's colours; with plain i3lock, the
+#   theme's colour alone.
 #
-# i3lock, dunstctl, pgrep, xset and xdotool are stand-ins.
+# i3lock, vikix-wallpaper, dunstctl, pgrep, xset and xdotool are stand-ins.
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
@@ -31,6 +35,8 @@ calls="$t/calls"
 # it; with $t/dark, the monitor goes off while it runs, then a key wakes it.
 cat > "$t/bin/i3lock" <<END
 #!/bin/sh
+# --help: i3lock-color's usage names the manpage, with $t/color.
+[ "\$1" = --help ] && { [ -e "$t/color" ] && echo "Please see the manpage for a full list of arguments." >&2; exit 1; }
 echo "i3lock \$* paused=\$(cat "$t/paused")" >> "$calls"
 [ -e "$t/i3lock-fails" ] && exit 1
 if [ -e "$t/dark" ]; then
@@ -45,6 +51,11 @@ cat > "$t/bin/xdotool" <<END
 echo "xdotool \$*" >> "$calls"
 [ "\$1" = search ] && echo 4242
 exit 0
+END
+# vikix-wallpaper which: the picture showing, from $t/wallpaper.
+cat > "$t/bin/vikix-wallpaper" <<END
+#!/bin/sh
+[ "\$1" = which ] && cat "$t/wallpaper"
 END
 cat > "$t/bin/dunstctl" <<END
 #!/bin/sh
@@ -113,5 +124,32 @@ check "and resume after" test "$(cat "$t/paused")" = false
 lock --locker
 check "a bad colour should fall back to void's" grep -q "i3lock -n -c 1e1e2e" "$calls"
 
-[ "$fail" = 0 ] && echo "lock: the locker, one lock, notifications paused while locked"
+# i3lock-color: the wallpaper, the clock and the theme's colours.
+echo 282828 > "$HOME/.config/vikix/theme/lock"
+printf 'bg=#282828\nfg=#ebdbb2\nsubtle=#a89984\naccent=#fabd2f\nalert=#fb4934\n' > "$HOME/.config/vikix/theme/palette"
+touch "$t/color" "$t/wall.png"; echo "$t/wall.png" > "$t/wallpaper"
+: > "$calls"; echo false > "$t/paused"
+lock --locker
+check "i3lock-color should get the wallpaper, filled: $(cat "$calls")" grep -q -- "-i $t/wall.png -F " "$calls"
+check "and the clock" grep -q -- "--force-clock" "$calls"
+check "and the theme's colours: the ring in the accent, the time in the foreground, wrong in the alert colour" \
+  grep -q -- "--ring-color=fabd2fff .*--time-color=ebdbb2ff\|--time-color=ebdbb2ff .*--ring-color=fabd2fff" "$calls"
+check "wrong in the alert colour" grep -q -- "--ringwrong-color=fb4934ff" "$calls"
+check "in the foreground (-n), on the theme's background" grep -q -- "i3lock -n -c 282828ff " "$calls"
+check "dunst paused meanwhile" grep -q "paused=true" "$calls"
+
+# A theme without a picture: vikix-wallpaper makes a plain PPM, which
+# i3lock can't show; the colour alone then.
+: > "$calls"; echo "$t/plain-282828.ppm" > "$t/wallpaper"; touch "$t/plain-282828.ppm"
+lock --locker
+check "a plain PPM wallpaper shouldn't be passed to i3lock: $(cat "$calls")" test -z "$(grep -- ' -i ' "$calls" || true)"
+check "the clock still" grep -q -- "--force-clock" "$calls"
+
+# A palette the theme never wrote: the lock colour as background, white on it.
+: > "$calls"; rm -f "$HOME/.config/vikix/theme/palette"
+lock --locker
+check "without a palette, the lock colour and white: $(cat "$calls")" grep -q -- "i3lock -n -c 282828ff .*--time-color=ffffffff" "$calls"
+rm -f "$t/color"
+
+[ "$fail" = 0 ] && echo "lock: the locker, one lock, notifications paused while locked, i3lock-color's look"
 exit "$fail"

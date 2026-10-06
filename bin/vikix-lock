@@ -10,6 +10,14 @@
 # started beside xss-lock's would need unlocking twice. Without xss-lock
 # (another session), it locks by itself.
 #
+# The lock screen is i3lock-color: the wallpaper (the one showing, through
+# vikix-wallpaper which), a clock and the date, and a ring that shows what
+# is typed, in the theme's colours (vikix theme writes them to
+# ~/.config/vikix/theme/palette). The ring is the accent; a key lights it
+# in the foreground, backspace in the alert colour; while the password is
+# checked it goes subtle, and wrong turns it the alert colour and says so.
+# With plain i3lock instead, a screen in the theme's background colour.
+#
 # While the screen is locked, notifications wait: dunst draws its windows
 # above everything, i3lock's too, so a message could be read on a locked
 # screen. They are shown once it's unlocked, unless they were already
@@ -17,9 +25,54 @@
 #
 # A key that wakes the dark screen isn't kept as part of the password.
 
+THEME="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/theme"
+
+# hex6 X: whether X is a colour as i3lock takes one, rrggbb.
+hex6() {
+  case $1 in [0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]) ;; *) return 1 ;; esac
+}
+
 # The theme's background (vikix theme writes it), or void's.
-colour=$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/vikix/theme/lock" 2>/dev/null)
-case $colour in [0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]) ;; *) colour=1e1e2e ;; esac
+colour=$(cat "$THEME/lock" 2>/dev/null)
+hex6 "$colour" || colour=1e1e2e
+
+# colour_of KEY FALLBACK: a colour from the theme's palette, as rrggbb.
+colour_of() {
+  c=$(sed -n "s/^$1=#//p" "$THEME/palette" 2>/dev/null | head -n 1)
+  if hex6 "$c"; then echo "$c"; else echo "$2"; fi
+}
+
+# lock_screen: i3lock in the foreground (-n). i3lock-color's usage points
+# at its manpage; plain i3lock's doesn't, and knows only the colour.
+# Enter with nothing typed is still an attempt (no -e): with a fingerprint
+# reader (vikix fingerprint), that is how the finger is asked for.
+lock_screen() {
+  if ! i3lock --help 2>&1 | grep -q manpage; then
+    i3lock -n -c "$colour"
+    return
+  fi
+  bg=$(colour_of bg "$colour") fg=$(colour_of fg ffffff)
+  subtle=$(colour_of subtle "$fg") accent=$(colour_of accent "$fg") alert=$(colour_of alert "$fg")
+  set -- -n -c "${bg}ff"
+  # The wallpaper, when it is a picture i3lock can show (not the plain
+  # PPM vikix-wallpaper makes for a theme without one).
+  pic=$(command -v vikix-wallpaper >/dev/null 2>&1 && vikix-wallpaper which 2>/dev/null)
+  case $pic in
+    *.png|*.PNG|*.jpg|*.jpeg|*.JPG|*.JPEG) [ -f "$pic" ] && set -- "$@" -i "$pic" -F ;;
+  esac
+  set -- "$@" --force-clock --indicator --radius=110 --ring-width=6 \
+    --time-str='%H:%M' --time-size=40 --time-color="${fg}ff" \
+    --date-str='%A %-d %B' --date-size=16 --date-color="${subtle}ff" \
+    --inside-color="${bg}e6" --insidever-color="${bg}e6" --insidewrong-color="${bg}e6" \
+    --ring-color="${accent}ff" --ringver-color="${subtle}ff" --ringwrong-color="${alert}ff" \
+    --keyhl-color="${fg}ff" --bshl-color="${alert}ff" \
+    --line-color=00000000 --separator-color=00000000 \
+    --verif-color="${fg}ff" --wrong-color="${alert}ff" \
+    --modif-color="${subtle}ff" --layout-color="${subtle}ff" \
+    --verif-text='' --wrong-text='wrong' --noinput-text='' \
+    --lock-text='' --lockfailed-text='lock failed'
+  i3lock "$@"
+}
 
 # while_locked: two things i3lock can't do for itself, while it runs.
 #
@@ -50,7 +103,7 @@ while_locked() {
   done
 }
 
-# locked: i3lock in the foreground (-n), notifications paused till it exits.
+# locked: the lock screen, notifications paused till it exits.
 locked() {
   paused=
   if command -v dunstctl >/dev/null 2>&1; then
@@ -59,7 +112,7 @@ locked() {
   fi
   while_locked &
   waker=$!
-  i3lock -n -c "$colour"
+  lock_screen
   status=$?
   kill "$waker" 2>/dev/null
   [ "$paused" = false ] && dunstctl set-paused false 2>/dev/null
@@ -70,6 +123,7 @@ if [ "${1:-}" = --locker ]; then
   locked                               # xss-lock waits for this to exit
   exit $?
 fi
+
 if pgrep -x -u "$(id -u)" xss-lock >/dev/null; then
   exec xset s activate
 fi

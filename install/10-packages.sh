@@ -100,6 +100,16 @@ if [ "${#missing[@]}" -eq 0 ]; then
   exit 0
 fi
 
+# A package that took another's place on a list (i3lock-color for i3lock,
+# the same files): xbps refuses the new one while the old is installed, so
+# the old one goes first.
+for pkg in "${missing[@]}"; do
+  case $pkg in i3lock-color) old=i3lock ;; *) continue ;; esac
+  pkg_installed "$old" || continue
+  say "removing $old: $pkg takes its place"
+  run sudo xbps-remove -y "$old"
+done
+
 # A fresh Void install refuses every other package until xbps itself is
 # current ("The 'xbps' package must be updated"). A no-op when it is.
 run sudo xbps-install -yu xbps

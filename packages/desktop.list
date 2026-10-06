@@ -22,7 +22,7 @@ alacritty       # terminal
 noto-fonts-ttf  # everything else
 xss-lock        # locks the screen on suspend/idle
 gammastep       # night light: a warmer screen in the evening (vikix-nightlight)
-i3lock          # the lock screen
+i3lock-color    # the lock screen: i3lock with a clock and the theme's colours (in i3lock's place)
 maim            # screenshots
 slop            # choosing an area to record (maim uses it too)
 ffmpeg6         # screen recording (vikix-record)
