@@ -1179,7 +1179,7 @@ What is this? A part of the running computer, on a card.
 - `vikix what ... --json` — the card as data, for a script
 - `vikix what kinds` — the kinds of thing it knows, and which have a page
 - `vikix what gaps` — what has no page or no chapter yet: the kinds, the bar's fields, and the services that run here; a writing list, drawn from the machine
-- `vikix what check` — the pages, Vikix's and yours: every guide, manual, chapter and file they name is there, and none says more than a card holds
+- `vikix what check [--vikix]` — the pages, Vikix's and yours (--vikix: Vikix's alone, what its tests ask): every guide, manual, chapter and file they name is there, and none says more than a card holds
 
 Super+Alt+? is the same on the desktop: point at a field of the bar and press it, or press it with a window in front. A click on a field that does nothing else when clicked (the battery, the clock, updates) opens its card too.
 

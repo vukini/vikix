@@ -25,9 +25,11 @@
   vikix what gaps         what has no page or no chapter yet: the kinds,
                           the bar's fields, and the services that run
                           here; a writing list, drawn from the machine
-  vikix what check        the pages, Vikix's and yours: every guide,
-                          manual, chapter and file they name is there,
-                          and none says more than a card holds
+  vikix what check [--vikix]
+                          the pages, Vikix's and yours (--vikix: Vikix's
+                          alone, what its tests ask): every guide, manual,
+                          chapter and file they name is there, and none
+                          says more than a card holds
 
 Super+Alt+? is the same on the desktop: point at a field of the bar and
 press it, or press it with a window in front. A click on a field that does
@@ -1133,14 +1135,20 @@ def gaps():
     return 0
 
 
-def check():
+def page_names(folder):
+    """The pages in FOLDER by name: lower-case files; a README is not one."""
+    if not os.path.isdir(folder):
+        return []
+    return sorted(f[:-3] for f in os.listdir(folder) if f.endswith(".md") and f[:-3] == f[:-3].lower())
+
+
+def check(vikix_only=False):
     """Every page, Vikix's and yours: the paragraph fits a card, and what it
     names is there. Vikix's may name no chapter and no file outside Vikix."""
     problems, notes, count = [], [], 0
-    yours = docs().own_config()["what"]
-    for folder in tables():
+    for folder in [VIKIX_PAGES] if vikix_only else tables():
         ours = folder == VIKIX_PAGES
-        names = sorted(f[:-3] for f in os.listdir(folder) if f.endswith(".md")) if os.path.isdir(folder) else []
+        names = page_names(folder)
         if not os.path.isdir(folder):
             problems.append(f"{short(folder)}: no such folder (what= in ~/.config/vikix/docs)")
         if ours:
@@ -1169,7 +1177,7 @@ def check():
 
 
 def check_lines(targets, where, ours, problems, notes):
-    names = {f[:-3] for folder in tables() if os.path.isdir(folder) for f in os.listdir(folder) if f.endswith(".md")}
+    names = {n for folder in tables() for n in page_names(folder)}
     for depth, target, _ in targets:
         if depth == "chapter":
             if ours:
@@ -1227,12 +1235,14 @@ def main(argv):
         to_open = int(argv[at + 1])
         del argv[at:at + 2]
     words = [a for a in argv if a not in ("--card", "--json")]
-    if any(w.startswith("--") for w in words):
+    if any(w.startswith("--") for w in words) and words != ["check", "--vikix"]:
         die("vikix what [KIND] [NAME] [--card|--json|--open N] (vikix what help)")
     if words == ["kinds"]:
         return kinds()
     if words == ["check"]:
         return check()
+    if words == ["check", "--vikix"]:
+        return check(vikix_only=True)
     if words == ["gaps"]:
         return gaps()
     card = find(words)

@@ -181,7 +181,8 @@ check "a page for one thing by name: $(what service quokka | grep chapter)" grep
 : > "$t0/opened"
 what process "$lpid" --open 1 >/dev/null; sleep 0.3
 check "a chapter opens as the catalogue opens it, at the section: $(cat "$t0/opened")" grep -qE '^file://.*\.html#a-program-that-is-running$' "$t0/opened"
-check "your pages pass the check with Vikix's: $(what check | tail -1)" grep -qE '^[0-9]+ pages, 0 problems$' <<<"$(what check)"
+printf 'Not a page: a note on these pages.\n' > "$t0/books/what/README.md"
+check "your pages pass the check with Vikix's, a README among them not a page: $(what check | tail -1)" grep -qE '^[0-9]+ pages, 0 problems$' <<<"$(what check)"
 printf 'chapter: nowhere.md#x\nchapter: unix-by-hand/ch04-processes.md#No such\n' > "$t0/books/what/port.md"
 out=$(what check)
 check "a chapter outside your own folders, or a section that isn't there, is found" \
@@ -271,11 +272,12 @@ point() {
   xdotool mousemove $at; sleep 0.3
 }
 asked() { tail -1 "$t/asked" 2>/dev/null || true; }
+asked_n() { if [ -f "$t/asked" ]; then wc -l < "$t/asked"; else echo 0; fi; }
 # press WHAT...: xdotool WHAT, then wait until the stand-in was started (a busy machine takes its time).
 press() {
-  local before; before=$(wc -l < "$t/asked" 2>/dev/null || echo 0)
+  local before; before=$(asked_n)
   xdotool "$@"
-  for _ in $(seq 1 40); do [ "$(wc -l < "$t/asked" 2>/dev/null || echo 0)" -gt "$before" ] && break; sleep 0.25; done
+  for _ in $(seq 1 40); do [ "$(asked_n)" -gt "$before" ] && break; sleep 0.25; done
 }
 
 win "Notes"

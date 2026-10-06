@@ -93,7 +93,7 @@ fi
 # `vikix what`'s pages are public, and a user's books may not be: Vikix's
 # pages point at its own guides, the manuals and its own files, never at a
 # chapter (DESIGN-what.md). The command's own check says which page does.
-if out=$(python3 bin/vikix-what check 2>&1); then
+if out=$(python3 bin/vikix-what check --vikix 2>&1); then
   echo "what: $(tail -1 <<<"$out"); they name Vikix's guides, manuals and files only"
 else
   echo "FAIL what: a page of config/what is wrong:"
