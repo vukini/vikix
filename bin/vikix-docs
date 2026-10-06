@@ -51,7 +51,8 @@ Your own documents (own) are the folders named in ~/.config/vikix/docs,
 yours to make, a line each: own=~/books (every Markdown file under it), or
 own=~/books one/*.md two/out/*.html (those files, as patterns from that
 folder; HTML pages only when asked for). Unlike the other sources they are
-read a section at a time (a Markdown heading, an HTML heading with an id),
+read a section at a time (a Markdown heading, an HTML heading with an id
+or a data-at tag),
 so a search lands on the section, and so does a chapter a page of vikix
 what names. They open in the docs browser at that section, styled as the
 guide is, or in Emacs. They are closed to agents: docs_search and
@@ -289,12 +290,13 @@ def md_sections(text):
 
 
 def html_sections(text):
-    """An HTML page as (heading, id, body) parts, by the second-level
-    headings that have an id (what a link can land on); what comes before
-    the first is the page's."""
+    """An HTML page as (heading, anchor, body) parts, by the second-level
+    headings that have an id, or a data-at tag (what a link can land on: a
+    page's own script routes #TAG to the block tagged so); what comes
+    before the first is the page's."""
     parts, heading, hid, start = [], "", "", 0
     for m in re.finditer(r"(?is)<h2\b([^>]*)>(.*?)</h2>", text):
-        idm = re.search(r'\bid="([^"]+)"', m.group(1))
+        idm = re.search(r'\bid="([^"]+)"', m.group(1)) or re.search(r'\bdata-at="([^"]+)"', m.group(1))
         if not idm:
             continue
         parts.append((heading, hid, text[start:m.start()]))

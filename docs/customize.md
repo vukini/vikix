@@ -342,7 +342,7 @@ agents=~/books/unix-by-hand       # open this folder to the AI agents; the rest 
 what=~/books/what                 # your pages for vikix what
 ```
 
-An `own=` folder's documents are rows of the catalogue, one for each file and one for each second-level heading (`##`, or an `<h2>` with an id), so a search lands on the section, and so does a chapter a page names. They open in the docs browser at that section, styled as the guide is (`Ctrl+Enter`: the file in Emacs). They are closed to the agents' `docs_search` and `docs_read` until an `agents=` line opens a folder to them.
+An `own=` folder's documents are rows of the catalogue, one for each file and one for each second-level heading (`##`, or an `<h2>` with an id or a `data-at` tag), so a search lands on the section, and so does a chapter a page names. They open in the docs browser at that section, styled as the guide is (`Ctrl+Enter`: the file in Emacs). They are closed to the agents' `docs_search` and `docs_read` until an `agents=` line opens a folder to them.
 
 A `what=` folder holds your pages, a file a kind of thing (`process.md`, `service.md`, and `service-sshd.md` for one thing by name): a paragraph in your words, which replaces Vikix's on the card, then lines saying where to read on, yours before Vikix's:
 

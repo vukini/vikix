@@ -278,14 +278,17 @@ The first process starts the rest.
 
 Too deep to be one.
 M
-printf '<html><head><title>Wires</title></head><body><h1 id="top">Wires</h1><p>Intro.</p><h2 id="bus">The shared bus</h2><p>One wire for all: the wombat fact.</p><h2>No id here</h2><p>x</p></body></html>\n' > "$HOME/books/site/out/page.html"
+printf '<html><head><title>Wires</title></head><body><h1 id="top">Wires</h1><p>Intro.</p><h2 id="bus">The shared bus</h2><p>One wire for all: the wombat fact.</p><h2>No id here</h2><p>x</p><h2 data-at="l1-latch:1">A latch</h2><p>The numbat fact.</p></body></html>\n' > "$HOME/books/site/out/page.html"
 printf 'own=~/books\nown=~/books site/out/*.html\n' > "$XDG_CONFIG_HOME/vikix/docs"
 out=$(d index)
 check "the own= folders are read: $out" grep -q 'own' <<<"$out"
 check "a Markdown file is a row, and each ## section one; a ### isn't: $(d list --source own | cut -f3 | tr '\n' '|')" \
-  test "$(d list --source own | cut -f3 | tr '\n' '|')" = "4. Processes (unix-by-hand)|4. Processes › A program that is running (unix-by-hand)|4. Processes › What starts them (unix-by-hand)|Wires (site)|Wires › The shared bus (site)|"
+  test "$(d list --source own | cut -f3 | tr '\n' '|')" = "4. Processes (unix-by-hand)|4. Processes › A program that is running (unix-by-hand)|4. Processes › What starts them (unix-by-hand)|Wires (site)|Wires › A latch (site)|Wires › The shared bus (site)|"
 check "a search lands on the section: $(d find quokka | head -1)" grep -q '^yours .*4. Processes › A program that is running' <<<"$(d find quokka | head -1)"
 check "an HTML page's section too, by its heading with an id" grep -q '^yours .*Wires › The shared bus' <<<"$(d find wombat | head -1)"
+check "or with a data-at tag, which the page's own script routes to: $(d find numbat --tsv | head -1 | cut -f1)" grep -q '^own:.*page.html#A latch$' <<<"$(d find numbat --tsv | head -1 | cut -f1)"
+: > "$t/opened"; d open "$(d find numbat --tsv | head -1 | cut -f1)"; sleep 0.3
+check "and opens at the tag" grep -q '^browser file://.*page.html#l1-latch:1$' "$t/opened"
 sect=$(d find quokka --tsv | head -1 | cut -f1)
 check "read gives the section alone: $(d read "$sect" | head -1)" bash -c 'grep -q "^## A program that is running" <<<"$1" && ! grep -q "What starts them" <<<"$1"' _ "$(d read "$sect")"
 : > "$t/opened"
