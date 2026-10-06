@@ -16,3 +16,5 @@ dev/c/examples/wordfreq/wordfreq
 # passages of whichever notes were indexed)
 dev/ai/examples/ask-notes/notes.db
 site/guide/
+# Claude Code's own worktrees, when a session uses them instead of a desk beside the repo
+.claude/worktrees/
