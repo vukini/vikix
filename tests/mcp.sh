@@ -162,7 +162,7 @@ check "not JSON should be -32700: $out" test "$(field '["error"]["code"]' <<<"$o
 # The tools: eval and undo only when switched on.
 names() { rpc "$@" -- '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python3 -c 'import json,sys; print(" ".join(t["name"] for t in json.loads(sys.stdin.readline())["result"]["tools"]))'; }
 list=$(names)
-check "the read-only tools should be there: $list" grep -q 'desktop keys commands why agents handoff doctor history changes themes version rules' <<<"$list"
+check "the read-only tools should be there: $list" grep -q 'desktop keys commands why agents office handoff doctor history changes themes version rules' <<<"$list"
 check "eval shouldn't be there by default: $list" test -z "$(grep -ow 'eval\|undo' <<<"$list" || true)"
 check "--allow-eval should add eval: $(names --allow-eval)" grep -qw eval <<<"$(names --allow-eval)"
 check "--allow-undo should add undo: $(names --allow-undo)" grep -qw undo <<<"$(names --allow-undo)"
@@ -170,7 +170,7 @@ out=$(call eval '{"form":"(run-shell-command \"touch pwned\")"}')
 check "eval without --allow-eval should be refused: $out" grep -q '^ERROR: no tool' <<<"$out"
 check "a refused eval ran something" test ! -e "$t/forms"
 ro=$(rpc -- '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python3 -c 'import json,sys; print(" ".join(t["name"] for t in json.loads(sys.stdin.readline())["result"]["tools"] if t["annotations"]["readOnlyHint"]))')
-check "the read tools should say they only read: $ro" test "$ro" = "desktop keys commands why agents handoff doctor history changes themes version rules records_search records_get docs_search docs_read file_changes"
+check "the read tools should say they only read: $ro" test "$ro" = "desktop keys commands why agents office handoff doctor history changes themes version rules records_search records_get docs_search docs_read file_changes"
 
 # Reading the desktop.
 out=$(call desktop '{}')
@@ -218,6 +218,12 @@ check "one not for agents should be refused, in the desktop's words: $out" grep 
 out=$(call run_command '{"name":"quiet\") (run-shell-command \"touch pwned"}')
 check "a name that isn't a command's shape should be refused: $out" grep -q '^ERROR: name' <<<"$out"
 check "and never reach Lisp: $(cat "$t/forms")" test ! -s "$t/forms"
+# The Office reuses the shared snapshot, including retained desks.
+mkdir -p "$t/proc"; echo "5000.00 1.00" > "$t/proc/uptime"
+out=$(VIKIX_PROC=$t/proc call office '{}')
+check "Office exposes discovery certainty: $out" grep -q '"live_known": true' <<<"$out"
+check "Office exposes desk rows: $out" grep -q '"desks":' <<<"$out"
+
 # A desk's handoff: the record read and written through the office's own code, signed by the caller.
 mkdir -p "$t/src" "$t/proc" "$HOME/.config/vikix"; echo "5000.00 1.00" > "$t/proc/uptime"; printf 'root=%s\n' "$t/src" > "$HOME/.config/vikix/projects"
 git -C "$t/src" init -q -b main book; git -C "$t/src/book" config user.name T; git -C "$t/src/book" config user.email t@example.com

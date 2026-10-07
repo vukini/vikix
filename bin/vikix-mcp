@@ -27,6 +27,7 @@ The tools, a fixed set:
               desktop's rules, and why a window is where it is), why (what
               the desktop did lately, and what made it), agents (the
               agents at work on the desktop, and what each is doing),
+              office (tasks and desks), handoff (a desk's record),
               doctor, history, changes, themes, version
   small acts  notify, snapshot, set_theme, switch_workspace, focus_window,
               run_command: each checked against what's there, and easy to
@@ -392,6 +393,27 @@ def t_agents(a):
         for k in ("title", "said", "waits"):
             agent[k] = scrub(str(agent.get(k) or ""))[:200]
     return json.dumps(agents, indent=1, ensure_ascii=False)
+
+
+def t_office(a):
+    """The same read-only projection used by the Office's Emacs frame."""
+    out, ok = run([sys.executable, os.path.join(os.path.dirname(os.path.realpath(__file__)), "vikix-agents"),
+                   "office", "--json"], timeout=45)
+    if not ok:
+        raise ToolError(scrub(out)[:300] or "Office snapshot failed")
+    try:
+        data = json.loads(out)
+    except ValueError:
+        raise ToolError("Office returned invalid JSON")
+    def clean(value):
+        if isinstance(value, str):
+            return scrub(value)
+        if isinstance(value, list):
+            return [clean(v) for v in value]
+        if isinstance(value, dict):
+            return {k: clean(v) for k, v in value.items()}
+        return value
+    return json.dumps(clean(data), ensure_ascii=False)
 
 
 def handoff_desk(a, agents):
@@ -834,6 +856,11 @@ TOOLS = [
      "done with its turn, asks: waiting for the user). Look here before changing files in a folder: another "
      "agent may be at work in it. Read only: nothing is asked of the other agents, and none is stopped." + DATA,
      schema(), READ, t_agents),
+    ("office", "The Office: tasks and desks",
+     "Overview of tasks grouped by attention, working, parked and finished; live activity is separate "
+     "from signed handoff claims and observed Git state. Includes retained desks, reported check freshness "
+     "and saved conversation availability. Discovery failures mean unknown, not stopped. Read only." + DATA,
+     schema(), READ, t_office),
     ("handoff", "A desk's task and handoff",
      "The record of a desk (vikix agents handoff): the user's task in their words, the agent's handoff (status: "
      "working, waiting, review or finished; what was done and decided; what is left and the next action), each "

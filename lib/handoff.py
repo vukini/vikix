@@ -103,18 +103,24 @@ def load(did):
     return rec if isinstance(rec, dict) and rec.get("version") == VERSION else None
 
 
-def all_records():
+def all_records(strict=False):
     """Every record there is, newest change first."""
     out = []
     try:
         names = os.listdir(DESKS)
+    except FileNotFoundError:
+        return out
     except OSError:
+        if strict:
+            raise
         return out
     for name in names:
         if name.endswith(".json") and DESK_ID.match(name[:-5]):
             rec = load(name[:-5])
             if rec:
                 out.append(rec)
+            elif strict:
+                raise HandoffError(f"Cannot read handoff record {name}")
     return sorted(out, key=lambda r: -(r.get("updated") or 0))
 
 
@@ -177,8 +183,30 @@ def observe(folder):
     status = git(folder, "status", "--porcelain", "--untracked-files=all")
     if status is not None:
         now["dirty"] = len(status.splitlines())
-        diff = git(folder, "diff", "HEAD") or ""
-        now["fingerprint"] = hashlib.sha1((status + "\n" + diff).encode(errors="replace")).hexdigest()[:12] if status else ""
+        diff = git(folder, "diff", "--binary", "HEAD")
+        untracked = git(folder, "ls-files", "--others", "--exclude-standard", "-z")
+        if diff is None or untracked is None:
+            now["dirty"] = None
+            return now
+        digest = hashlib.sha1((status + "\n" + diff).encode(errors="replace"))
+        # Status names an untracked file, but says nothing when its contents
+        # change. Include those contents so yesterday's check cannot look fresh.
+        try:
+            for name in sorted(n for n in untracked.split("\0") if n):
+                path = os.path.join(folder, name)
+                digest.update(name.encode(errors="replace") + b"\0")
+                if os.path.islink(path):
+                    digest.update(os.readlink(path).encode(errors="replace"))
+                elif os.path.isfile(path):
+                    with open(path, "rb") as stream:
+                        for chunk in iter(lambda: stream.read(65536), b""):
+                            digest.update(chunk)
+                else:
+                    now["dirty"] = None
+        except OSError:
+            now["dirty"] = None
+        now["fingerprint"] = digest.hexdigest()[:12] if status else ""
+
     return now
 
 
@@ -187,6 +215,8 @@ def freshness(check, now):
     'stale' with why."""
     if not now.get("commit"):
         return "unknown (no repository to compare with)"
+    if now.get("dirty") is None:
+        return "unknown (current working tree could not be read)"
     if check.get("commit") != now["commit"]:
         return f"stale: the code moved on ({(check.get('commit') or '?')[:7]} then, {now['commit'][:7]} now)"
     if (check.get("fingerprint") or "") != (now.get("fingerprint") or ""):

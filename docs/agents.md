@@ -270,3 +270,48 @@ The Vikix skill tells every agent the same rules, so you can hold it to them: lo
 ## Not there yet
 
 A workspace and a bar colour each; `vikix agents stop NAME`; handing a window from one agent to another; a permission list per agent; a key for the desk (the key card has no line left). Gemini CLI's and Codex's hook shapes, and Gemini's resume, tried on a machine that has them. Each will come as it is needed; the pieces that are here are the ones the first weeks with several agents asked for.
+
+## The Office
+
+`Super+m` → **AI** → **Office: tasks, desks and agents**, the palette's
+**office**, or `vikix agents office` opens a dedicated Emacs frame. It
+inherits Emacs's Vikix theme. The existing agent menu and terminal commands
+remain available; without Emacs, the command opens the existing agent menu.
+Conversations stay in each agent's terminal.
+
+The left side groups desks into **Needs you**, **Working**, **Parked** and
+**Finished**. The task is the title, with project/topic as the fallback.
+Each row distinguishes **Live** activity from the recorded **Handoff** and
+shows the next action. A waiting agent or a waiting/review handoff needs you;
+a live agent otherwise counts as working; a finished/closed record without
+an agent counts as finished; the remaining desks are parked. Unavailable
+live discovery is **unknown**, never proof that an agent stopped. Desks
+without handoffs and retained records whose worktrees are gone still appear.
+
+Click a task, or use `n`/`p` to select it. `RET` enters its details; `C-x o`
+moves between panes. `Tab` visits buttons, `a` goes to an agent, `c` continues
+a desk, `g` refreshes and `q` closes the Office. Details keep the user's task,
+signed agent account, observed Git state, reported checks and saved
+conversation availability separate. **Review does not mean merged.** A
+fresh check means its recorded code matches the current observation; it does
+not independently verify the agent's report.
+
+**Go to agent** lets you choose when several agents share a desk. It resolves
+the chosen process again through the desktop before focusing it. An agent
+without a desktop window is identified and cannot be focused here.
+
+**Continue** offers a named provider and either its recorded saved
+conversation or an explicit **Start fresh** choice. It uses `vikix agents
+resume`, including its duplicate-session checks. A saved conversation that
+disappears after the choice fails instead of silently starting fresh. The
+Office does not offer a second agent at an occupied desk or recreate a
+removed worktree; the existing CLI remains available for those operations.
+
+Refresh runs in the background every ten seconds, with one refresh at a
+time and a timeout. It preserves selection and pane position, never focuses
+a window, and stops when the view closes. On failure the header says why,
+previous information stays visible and live activity becomes unknown;
+actions wait for a successful refresh. `vikix agents office --json` exposes
+the same snapshot to scripts, including discovery errors; the read-only MCP
+tool `office` returns it too. It is a view of
+existing desks and handoffs, not another task store.

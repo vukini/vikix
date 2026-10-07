@@ -15,6 +15,14 @@
                        so instead: waiting for a release (its turn in the
                        release queue), releasing (what step), waiting for
                        a test slot (other runs are testing), testing
+  vikix agents office  The Office in its own Emacs frame: tasks, desks,
+                       handoffs; go to an agent or continue a desk
+  vikix agents office --json
+                       the same snapshot for scripts: desks, live activity
+                       (unknown on failure), handoffs and check freshness
+  vikix agents office --go PID
+                       go to that live agent through the desktop; fail if
+                       it ended or has no desktop window
   vikix agents --json  the same as JSON, for a script
   vikix agents desk [PROJECT [TOPIC]] [--use NAME] [--local] [--here]
                        start an agent at a desk of its own: in PROJECT (one
@@ -90,7 +98,11 @@
                        codex resume ID, opencode --session ID, agy
                        --conversation ID); else a
                        fresh conversation, and why is said. Refused while
-                       an agent is at the desk (--another: a second one)
+                       an agent is at the desk (--another: a second one).
+                       --require-saved refuses a fresh fallback if the
+                       saved conversation is no longer available;
+                       --expect-session ID also refuses if the recorded
+                       conversation changed since the choice was shown
   vikix agents hooks [PROVIDER] [--install]
                        what holds the house rules for each provider:
                        Claude Code's hooks, given at each start; Codex's
@@ -227,21 +239,25 @@ def die(message):
     sys.exit(1)
 
 
-def desktop():
+def desktop(strict=False):
     """The agents in the desktop's terminals, as StumpWM finds them
     (agents.lisp): a dict each."""
+    def failed(message):
+        if strict:
+            raise RuntimeError(message)
+        die(message)
     form = ("(if (fboundp 'vikix-agents-tsv) (progn (princ (vikix-agents-tsv)) (values)) "
             "(error \"this desktop is older than vikix agents: reload it (Super+m, Reload config)\"))")
     try:
         r = subprocess.run(([sys.executable, EVAL] if EVAL.endswith("/bin/vikix-eval") else [EVAL]) + [form],
                            capture_output=True, text=True, timeout=20)
     except (OSError, subprocess.TimeoutExpired):
-        die("StumpWM didn't answer (is the desktop running? vikix doctor)")
+        failed("StumpWM didn't answer (is the desktop running? vikix doctor)")
     out = r.stdout + r.stderr
     if "error: " in out:
-        die(out.split("error: ", 1)[1].splitlines()[0])
+        failed(out.split("error: ", 1)[1].splitlines()[0])
     if r.returncode != 0:
-        die("StumpWM didn't answer (is the desktop running? vikix doctor)")
+        failed("StumpWM didn't answer (is the desktop running? vikix doctor)")
     agents = []
     for line in r.stdout.splitlines():
         parts = line.split("\t")
@@ -283,13 +299,15 @@ def whereabouts(pid, parent):
     return f"started by {by}"
 
 
-def elsewhere(known):
+def elsewhere(known, strict=False):
     """Agents running with no terminal window of their own here (an
     editor's, one in tmux or over ssh): not children of one we know."""
     found = []
     try:
         uptime = float(open(f"{PROC}/uptime").read().split()[0])
-    except OSError:
+    except OSError as e:
+        if strict:
+            raise RuntimeError("process discovery unavailable: " + str(e)) from e
         return found
     for entry in os.listdir(PROC):
         if not entry.isdigit() or int(entry) in known:
@@ -1175,12 +1193,17 @@ def handoff(argv):
 def resume(argv):
     H = handoff_module()
     use, here, fresh, another, words = None, False, False, False, []
+    require_saved, expect_session = False, None
     while argv:
         a = argv.pop(0)
         if a == "--use":
             use = argv.pop(0) if argv else die("--use which agent? (vikix agent --list)")
         elif a == "--here":
             here = True
+        elif a == "--expect-session":
+            expect_session = argv.pop(0) if argv else die("--expect-session needs a conversation id")
+        elif a == "--require-saved":
+            require_saved = True
         elif a == "--fresh":
             fresh = True
         elif a == "--another":
@@ -1207,6 +1230,10 @@ def resume(argv):
     sessions = (rec or {}).get("sessions", [])
     provider = use or (sessions[-1]["provider"] if sessions else "") or default_agent()
     plan = H.resume_plan(rec, provider, folder, fresh)
+    if expect_session and (plan["mode"] != "resumed" or plan["session"]["id"] != expect_session):
+        die("saved conversation changed or unavailable; refresh and choose again")
+    if require_saved and plan["mode"] != "resumed":
+        die("saved conversation unavailable: " + plan["why"] + "; choose --fresh explicitly")
     if plan["mode"] == "resumed":
         sid = plan["session"]["id"]
         said = f"resumed: {provider} session {sid} at {short(folder)}, its conversation continues ({plan['why']})"
@@ -1882,6 +1909,13 @@ def main(argv):
     if argv and argv[0] in ("-h", "--help", "help"):
         print(__doc__.strip())
         return 0
+    if argv and argv[0] == "office":
+        sys.path.insert(0, os.path.join(VIKIX_DIR, "lib"))
+        import office
+        try:
+            return office.main(sys.modules[__name__], argv[1:])
+        except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as e:
+            die(str(e))
     if argv and argv[0] == "desk":
         return desk(argv[1:])
     if argv and argv[0] == "sit":
