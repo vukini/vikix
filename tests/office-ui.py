@@ -345,13 +345,51 @@ class Launcher(unittest.TestCase):
         self.assertEqual(args[:3], ['emacsclient', '--alternate-editor=false', '--eval'])
         quoted = json.dumps('/tmp/Office desk "quoted"/config/emacs/vikix-office.el')
         self.assertEqual(args[3], '(progn (load ' + quoted + ' nil t) (vikix-office-open \":91\"))')
+        self.assertNotIn('-nw', args)
         self.assertNotIn('shell', self.called.call_args.kwargs)
+
+    def test_no_display_opens_in_this_terminal(self):
+        # A headless server or SSH: -nw in the foreground, the Office in the
+        # selected frame as the frame's own, no timeout on the session.
+        self.called.return_value = subprocess.CompletedProcess([], 0, '', '')
+        env = {k: v for k, v in os.environ.items() if k != 'DISPLAY'}
+        with patch.dict(os.environ, env, clear=True), patch.object(A, 'VIKIX_DIR', '/tmp/Office desk "quoted"'):
+            office.launch(A)
+        self.called.assert_called_once()
+        args = self.called.call_args.args[0]
+        self.assertEqual(args[:4], ['emacsclient', '--alternate-editor=false', '-nw', '--eval'])
+        quoted = json.dumps('/tmp/Office desk "quoted"/config/emacs/vikix-office.el')
+        self.assertEqual(args[4], '(progn (load ' + quoted + ' nil t) (vikix-office-open-here t))')
+        kwargs = self.called.call_args.kwargs
+        self.assertNotIn('timeout', kwargs)
+        self.assertNotIn('capture_output', kwargs)   # the terminal is the Office's
+        self.assertNotIn('stdout', kwargs)
+        self.assertNotIn('stdin', kwargs)
+
+    def test_tty_forces_the_terminal_with_a_display(self):
+        self.called.return_value = subprocess.CompletedProcess([], 0, '', '')
+        with patch.dict(os.environ, {'DISPLAY': ':91'}):
+            office.main(A, ['--tty'])
+        args = self.called.call_args.args[0]
+        self.assertIn('-nw', args)
+        self.assertIn('(vikix-office-open-here t)', args[-1])
+        with self.assertRaises(ValueError):
+            office.main(A, ['--tty', 'more'])
+
+    def test_terminal_without_a_server_is_the_same_honest_message(self):
+        self.called.return_value = subprocess.CompletedProcess([], 1, '', 'emacsclient: no socket')
+        env = {k: v for k, v in os.environ.items() if k != 'DISPLAY'}
+        with patch.dict(os.environ, env, clear=True):
+            with self.assertRaisesRegex(RuntimeError, 'could not open in the existing Emacs.*no socket'):
+                office.launch(A)
+        self.called.assert_called_once()
+        self.assertEqual(self.called.call_args.args[0][1], '--alternate-editor=false')
 
     def test_failed_connection_or_lisp_error_is_reported(self):
         for code, stdout, stderr, expected in ((1, '', 'no server', 'no server'),
                                               (1, 'Lisp error', '', 'Lisp error'),
                                               (1, '', '', 'emacsclient failed')):
-            with self.subTest(expected=expected):
+            with self.subTest(expected=expected), patch.dict(os.environ, {'DISPLAY': ':91'}):
                 self.called.reset_mock()
                 self.called.return_value = subprocess.CompletedProcess([], code, stdout, stderr)
                 with self.assertRaisesRegex(RuntimeError, expected):
@@ -360,7 +398,8 @@ class Launcher(unittest.TestCase):
 
     def test_timeout_does_not_start_another_emacs(self):
         self.called.side_effect = subprocess.TimeoutExpired('emacsclient', 8)
-        with self.assertRaisesRegex(RuntimeError, 'did not answer within 8 seconds'):
+        with patch.dict(os.environ, {'DISPLAY': ':91'}), \
+             self.assertRaisesRegex(RuntimeError, 'did not answer within 8 seconds'):
             office.launch(A)
         self.called.assert_called_once()
 

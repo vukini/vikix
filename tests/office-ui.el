@@ -228,3 +228,50 @@
          (should (equal args '("office" "--close-agent" "789" "999"))))))
    (setf (alist-get 'live_known vikix-office--data) :false)
    (should-error (vikix-office-close-agent) :type 'user-error)))
+
+(ert-deftest office-open-here-shares-the-setup-and-gives-the-frame-back ()
+  "The terminal path builds the same two buffers in the selected frame
+and q puts the windows back; the only frame is never deleted."
+  (let ((vikix-office-command '("python3" "-c" "import time; time.sleep(20)"))
+        (vikix-office-interval 60)
+        (before (current-window-configuration))
+        buffer detail timer process)
+    (unwind-protect
+        (progn
+          (vikix-office-open-here)
+          (setq buffer (get-buffer "*The Office*") detail (get-buffer "*Office desk*"))
+          (should (buffer-live-p buffer))
+          (should (buffer-live-p detail))
+          (should (eq (frame-parameter nil 'vikix-office-buffer) buffer))
+          (should (= 2 (length (window-list nil 'no-minibuf))))
+          (should (eq (window-buffer (selected-window)) buffer))
+          (should (get-buffer-window detail))
+          (with-current-buffer buffer
+            (should (eq major-mode 'vikix-office-mode))
+            (should (eq vikix-office--frame (selected-frame)))
+            (should-not vikix-office--own-frame)
+            (should (window-configuration-p vikix-office--windows))
+            (should (timerp vikix-office--timer))
+            (setq timer vikix-office--timer process vikix-office--process))
+          (should (memq timer timer-list))
+          (should (process-live-p process))
+          (with-current-buffer detail (vikix-office-close))
+          (should-not (buffer-live-p buffer))
+          (should-not (buffer-live-p detail))
+          (should-not (memq timer timer-list))
+          (should-not (process-live-p process))
+          (should (frame-live-p (selected-frame)))
+          (should (= 1 (length (window-list nil 'no-minibuf))))
+          ;; The frame's own, as the launcher asks (emacsclient -nw): q would
+          ;; delete the frame, but never the only one there is.
+          (vikix-office-open-here t)
+          (setq buffer (get-buffer "*The Office*"))
+          (with-current-buffer buffer
+            (should vikix-office--own-frame)
+            (should-not vikix-office--windows)
+            (vikix-office-close))
+          (should-not (buffer-live-p buffer))
+          (should (frame-live-p (selected-frame))))
+      (dolist (name '("*The Office*" "*Office desk*"))
+        (when (get-buffer name) (kill-buffer name)))
+      (set-window-configuration before))))

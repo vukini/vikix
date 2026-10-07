@@ -21,6 +21,22 @@ else
   echo 'SKIP: Office UI tests need Emacs'
 fi
 
+if command -v emacs >/dev/null; then
+  # The terminal path, end to end: a daemon of its own (the visual check's
+  # ends with kill-emacs), the real launcher on a pty with no display, the
+  # Office drawn there, and q giving the shell back.
+  export EMACS_SOCKET_NAME="$t/office-tty"
+  emacs -Q --fg-daemon="$EMACS_SOCKET_NAME" >"$t/daemon-tty.log" 2>&1 &
+  epid=$!
+  for ((i=0; i<100; i++)); do [ ! -S "$EMACS_SOCKET_NAME" ] || break; sleep 0.1; done
+  [ -S "$EMACS_SOCKET_NAME" ] || { cat "$t/daemon-tty.log"; exit 1; }
+  timeout --kill-after=5s 90s python3 "$here/tests/office-ui-tty.py" || { cat "$t/daemon-tty.log"; exit 1; }
+  timeout 10 emacsclient --alternate-editor=false --eval '(kill-emacs 0)' >/dev/null 2>&1 || true
+  wait "$epid" || true
+  epid=''
+  export EMACS_SOCKET_NAME=/nonexistent/emacs-server
+fi
+
 if command -v Xvfb >/dev/null && command -v emacs >/dev/null; then
   Xvfb -displayfd 3 -screen 0 1600x1000x24 -nolisten tcp 3>"$t/display" >"$t/xvfb.log" 2>&1 &
   xpid=$!

@@ -290,6 +290,16 @@ Emacs or restores a second copy of your saved session. In your existing
 Emacs, use `M-x server-start` if its server is not running, then try again.
 An inherited `ALTERNATE_EDITOR` setting cannot start a second instance here.
 
+**In a terminal.** With no display, on a headless server or over SSH, or
+with `vikix agents office --tty` anywhere, the Office opens in the terminal
+you typed in instead: `emacsclient -nw` makes a text frame of your running
+Emacs there, with the same two panes (the desk below the list when the
+terminal is narrower than a hundred columns), and `q` closes that frame, so
+the shell comes back. It is the same Emacs and the same server: with none
+running, the same message as on the desktop, and still never a second
+Emacs. Inside Emacs, `M-x vikix-office-open-here` opens it in the frame you
+are in, and `q` then puts that frame's windows back as they were.
+
 The left side groups desks into **Needs you**, **Working**, **Parked** and
 **Finished**. The task is the title, with project/topic as the fallback.
 Each row distinguishes **Live** activity from the recorded **Handoff** and

@@ -198,11 +198,38 @@ def focus(api, pid):
         raise RuntimeError((r.stderr or r.stdout).strip() or 'Desktop did not answer')
 
 
-def launch(api):
+def launch(api, tty=False):
+    """Open the Office in the user's existing Emacs: an X frame of its own
+    on the desktop, or, with no DISPLAY or with --tty, in this terminal."""
     source = os.path.join(api.VIKIX_DIR, 'config', 'emacs', 'vikix-office.el')
-    display = json.dumps(os.environ.get('DISPLAY', ''), ensure_ascii=False)
-    form = '(progn (load ' + json.dumps(source, ensure_ascii=False) + ' nil t) (vikix-office-open ' + display + '))'
+    load = '(load ' + json.dumps(source, ensure_ascii=False) + ' nil t)'
     if shutil.which('emacsclient'):
+        if tty or not os.environ.get('DISPLAY'):
+            # The terminal path: a headless server, SSH, or --tty. emacsclient
+            # -nw with --eval, as Emacs 29 on does it (checked on 31): the
+            # client's tty frame is made and selected first, the form is
+            # evaluated in it, and the client stays until that frame is
+            # deleted, so the Office takes over this terminal and q (which
+            # deletes the frame) gives the shell back. No --create-frame is
+            # needed, and --eval alone would run in the daemon's invisible
+            # frame. The terminal is the Office's while it runs: no timeout,
+            # and only stderr is caught, for the error message when there is
+            # no server.
+            form = '(progn ' + load + ' (vikix-office-open-here t))'
+            try:
+                result = subprocess.run(['emacsclient', '--alternate-editor=false', '-nw', '--eval', form],
+                                        stderr=subprocess.PIPE, text=True)
+            except OSError as e:
+                raise RuntimeError(f'The Office could not run emacsclient: {e}. '
+                                   'No second Emacs was started.') from e
+            if result.returncode:
+                detail = (result.stderr or '').strip()[:400] or 'emacsclient failed'
+                raise RuntimeError('The Office could not open in the existing Emacs. '
+                                   'In that Emacs, use M-x server-start if needed, then try again. '
+                                   f'vikix agents remains available. Details: {detail}')
+            return
+        display = json.dumps(os.environ.get('DISPLAY', ''), ensure_ascii=False)
+        form = '(progn ' + load + ' (vikix-office-open ' + display + '))'
         # Override ALTERNATE_EDITOR too: a connection failure must never
         # start another Emacs competing for the user's saved desktop.
         try:
@@ -242,8 +269,8 @@ def main(api, args):
         purge_archive(api, args[1])
     elif len(args) == 2 and args[0] == '--forget':
         forget_record(api, args[1])
-    elif not args:
-        launch(api)
+    elif args in ([], ['--tty']):
+        launch(api, tty=bool(args))
     else:
-        raise ValueError('vikix agents office [--json | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN]')
+        raise ValueError('vikix agents office [--tty | --json | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN]')
     return 0

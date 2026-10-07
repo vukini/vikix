@@ -1,4 +1,4 @@
-;;; vikix-office.el --- Tasks and agents in their own frame -*- lexical-binding: t; -*-
+;;; vikix-office.el --- Tasks and agents in their own frame, or your terminal -*- lexical-binding: t; -*-
 
 (require 'cl-lib)
 (require 'json)
@@ -16,6 +16,8 @@
 (defvar-local vikix-office--detail nil)
 (defvar-local vikix-office--owner nil)
 (defvar-local vikix-office--frame nil)
+(defvar-local vikix-office--own-frame nil)
+(defvar-local vikix-office--windows nil)
 (defvar-local vikix-office--timer nil)
 (defvar-local vikix-office--process nil)
 (defvar-local vikix-office--action nil)
@@ -396,13 +398,24 @@
       (kill-buffer buffer))))
 (add-hook 'delete-frame-functions #'vikix-office--frame-deleted)
 (defun vikix-office-close ()
+  "Leave the Office.
+A frame the Office made for itself (`vikix-office-open', or the
+terminal's client frame of `vikix agents office' in a terminal) is
+deleted, so an emacsclient ends and the shell comes back; the only
+frame there is never deleted.  Opened by hand in a frame of yours
+(`vikix-office-open-here'), the frame's windows are put back as they
+were."
   (interactive)
   (with-current-buffer (vikix-office--owner-buffer)
-    (vikix-office--cleanup)
-    (if (and (frame-live-p vikix-office--frame) (> (length (frame-list)) 1))
-        (delete-frame vikix-office--frame)
-      (when (buffer-live-p vikix-office--detail) (kill-buffer vikix-office--detail))
-      (kill-buffer (current-buffer)))))
+    (let ((frame vikix-office--frame) (windows vikix-office--windows))
+      (vikix-office--cleanup)
+      (if (and vikix-office--own-frame (frame-live-p frame) (> (length (frame-list)) 1))
+          (delete-frame frame)
+        (when (buffer-live-p vikix-office--detail) (kill-buffer vikix-office--detail))
+        (kill-buffer (current-buffer))
+        (when (and (window-configuration-p windows)
+                   (frame-live-p (window-configuration-frame windows)))
+          (set-window-configuration windows))))))
 (defvar vikix-office-mode-map
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map special-mode-map)
@@ -425,9 +438,46 @@
   (hl-line-mode 1)
   (add-hook 'post-command-hook #'vikix-office--track nil t)
   (add-hook 'kill-buffer-hook #'vikix-office--cleanup nil t))
+;; The two ways in share one setup: an X frame of the Office's own on the
+;; desktop, or the frame the call comes from, which is a terminal's when
+;; `vikix agents office' runs with no display (emacsclient -nw).
+(defun vikix-office--setup (frame own &optional windows)
+  "Build the Office in FRAME: the desks on the left, the one picked on the right.
+OWN says the frame is the Office's, deleted by q; WINDOWS is the frame's
+window configuration to put back on q otherwise.  Returns the Office buffer."
+  (let ((buffer (generate-new-buffer "*The Office*"))
+        (detail (generate-new-buffer "*Office desk*")))
+    (set-frame-parameter frame 'vikix-office-buffer buffer)
+    (with-selected-frame frame
+      (switch-to-buffer buffer)
+      (delete-other-windows)
+      (with-current-buffer detail
+        (special-mode)
+        (use-local-map (copy-keymap vikix-office-mode-map))
+        (local-set-key (kbd "RET") #'push-button)
+        (local-set-key (kbd "n") #'next-line)
+        (local-set-key (kbd "p") #'previous-line)
+        (setq-local vikix-office--owner buffer)
+        (setq-local word-wrap t))
+      ;; A terminal is often 80 columns: two columns of 40 would wrap every
+      ;; line, so a narrow frame puts the desk below the list instead.
+      (set-window-buffer (if (< (frame-width) 100)
+                             (split-window-below (floor (* (window-height) 0.5)))
+                           (split-window-right (floor (* (frame-width) 0.53))))
+                         detail)
+      (with-current-buffer buffer
+        (vikix-office-mode)
+        (setq vikix-office--frame frame vikix-office--detail detail
+              vikix-office--own-frame own vikix-office--windows windows)
+        (vikix-office--render)
+        (vikix-office-refresh)
+        (setq vikix-office--timer
+              (run-at-time vikix-office-interval vikix-office-interval
+                           (lambda () (when (buffer-live-p buffer) (with-current-buffer buffer (vikix-office-refresh))))))))
+    buffer))
 (defun vikix-office-open (&optional display)
   "Open the Office on X11 DISPLAY, inheriting Emacs's Vikix theme.
-Use the current graphical display or DISPLAY environment when called interactively."
+Interactively, the current graphical display or $DISPLAY."
   (interactive)
   (let ((existing (cl-find-if (lambda (f) (buffer-live-p (frame-parameter f 'vikix-office-buffer))) (frame-list))))
     (if existing (select-frame-set-input-focus existing)
@@ -435,32 +485,20 @@ Use the current graphical display or DISPLAY environment when called interactive
                         (and (display-graphic-p) (frame-parameter nil 'display))
                         (getenv "DISPLAY")))
       (unless (and display (not (string-empty-p display)))
-        (user-error "The Office needs an X11 display; use vikix agents in a terminal"))
-      (let* ((frame (make-frame `((window-system . x) (display . ,display)
-                                 (name . "The Office") (title . "The Office") (tool-bar-lines . 0) (menu-bar-lines . 0) (width . 150) (height . 44))))
-             (buffer (generate-new-buffer "*The Office*"))
-             (detail (generate-new-buffer "*Office desk*")))
-        (set-frame-parameter frame 'vikix-office-buffer buffer)
-        (with-selected-frame frame
-          (switch-to-buffer buffer)
-          (delete-other-windows)
-          (with-current-buffer detail
-            (special-mode)
-            (use-local-map (copy-keymap vikix-office-mode-map))
-            (local-set-key (kbd "RET") #'push-button)
-            (local-set-key (kbd "n") #'next-line)
-            (local-set-key (kbd "p") #'previous-line)
-            (setq-local vikix-office--owner buffer)
-            (setq-local word-wrap t))
-          (set-window-buffer (split-window-right (floor (* (frame-width) 0.53))) detail)
-          (with-current-buffer buffer
-            (vikix-office-mode)
-            (setq vikix-office--frame frame vikix-office--detail detail)
-            (vikix-office--render)
-            (vikix-office-refresh)
-            (setq vikix-office--timer
-                  (run-at-time vikix-office-interval vikix-office-interval
-                               (lambda () (when (buffer-live-p buffer) (with-current-buffer buffer (vikix-office-refresh))))))))))
+        (user-error "The Office needs an X11 display; use vikix agents office --tty in a terminal"))
+      (vikix-office--setup
+       (make-frame `((window-system . x) (display . ,display)
+                     (name . "The Office") (title . "The Office") (tool-bar-lines . 0) (menu-bar-lines . 0) (width . 150) (height . 44)))
+       t))
     nil))
+(defun vikix-office-open-here (&optional own)
+  "Open the Office in the selected frame, a terminal's as well as a window's.
+`vikix agents office' in a terminal (no display, or --tty) runs this
+through emacsclient -nw with OWN non-nil: the client's frame is the
+Office's, and q deletes it, which ends the client and gives the shell
+back.  Called by hand, OWN is nil and q puts the frame's windows back."
+  (interactive)
+  (vikix-office--setup (selected-frame) own (unless own (current-window-configuration)))
+  nil)
 (provide 'vikix-office)
 ;;; vikix-office.el ends here

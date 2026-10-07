@@ -15,8 +15,14 @@
                        so instead: waiting for a release (its turn in the
                        release queue), releasing (what step), waiting for
                        a test slot (other runs are testing), testing
-  vikix agents office  The Office in its own Emacs frame: tasks, desks,
-                       handoffs; go to an agent or continue a desk
+  vikix agents office [--tty]
+                       The Office: tasks, desks, handoffs; go to an agent or
+                       continue a desk. On the desktop an Emacs frame of its
+                       own; in a terminal with no display (a server, SSH),
+                       or with --tty, it takes over this terminal through
+                       emacsclient -nw, and q gives the shell back. Either
+                       way it is your running Emacs (M-x server-start if
+                       needed): a second one is never started
   vikix agents office --json
                        the same snapshot for scripts: desks, live activity
                        (unknown on failure), handoffs and check freshness
