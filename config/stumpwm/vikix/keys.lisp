@@ -29,7 +29,7 @@
 ;;;; tests/lisp.sh fails on one of Vikix's.
 ;;;;
 ;;;; A few keys open a map instead (Super+Ctrl+Space the layout's, Super+Alt+d
-;;;; the desks'): single keys act in it until Escape or a few seconds pass
+;;;; the desks'): single keys act in it until Escape or half a minute passes
 ;;;; (help.lisp, vikix-map). Such a key is written "s-C-SPC m" in
 ;;;; *vikix-bindings*, the two keys with a space between; this file binds the
 ;;;; first alone, and the rule judges it by that first key.

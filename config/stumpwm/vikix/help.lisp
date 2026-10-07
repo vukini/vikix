@@ -498,7 +498,7 @@ messages stay as they were."
 
 ;;; Maps (Super+Ctrl+Space the layout's, Super+Alt+d the desks'): one key
 ;;; opens a map, and single keys act in it until Escape, the opening key
-;;; again, or a few seconds pass; the keys show in the message window
+;;; again, or half a minute passes; the keys show in the message window
 ;;; meanwhile, as the card does, with what the last one said under them.
 ;;; The key card is full (a hundred keys, no line left at 32 rows), and a
 ;;; map gives each new thing a key without taking one.
@@ -513,9 +513,10 @@ messages stay as they were."
 ;;; (rofi gives up when it can't grab it); any other command runs with the
 ;;; map open, and the map is drawn again after it, so m, w, w, w works.
 
-(defparameter *vikix-map-timeout* 5
-  "Seconds a map stays open after its last key. Whole seconds: StumpWM's
-timers break on a float.")
+(defparameter *vikix-map-timeout* 30
+  "Seconds a map stays open after its last key: half a minute, as the key
+card has one (five went by before the keys were read, 0.71.232). Whole
+seconds: StumpWM's timers break on a float.")
 
 (defvar *vikix-map-open* nil "The name of the map that is open, or nil.")
 (defvar *vikix-map-timer* nil)
@@ -560,7 +561,7 @@ last key said) and how it closes."
            collect (concatenate 'string accent (vikix-card-cell label key-width) "^n  "
                                 (vikix-card-cell (third e) *vikix-card-description-width*)))
      (when note (list "" note))
-     (list "" (format nil "~aEscape or ~a again closes it; by itself after ~d s^n"
+     (list "" (format nil "~aEscape or ~a again closes it; by itself after ~d seconds^n"
                       hint (vikix-pretty-key (first opener)) *vikix-map-timeout*)))))
 
 (defun vikix-map-show (name &optional note)
@@ -633,7 +634,7 @@ else leaves it open and drawn again, with what the command said."
 
 (defcommand vikix-map (name) ((:string "Map: "))
   "Open the map NAME: its keys show, and single keys act in it until Escape
-or a few seconds pass. Again while it is open closes it."
+or half a minute passes. Again while it is open closes it."
   (cond ((equal *vikix-map-open* name) (vikix-map-close))
         ((null (vikix-map-opener name))
          (message "^1Vikix:^n no map called ~a: a command with :run \"vikix-map ~a\" and a :key opens one" name name))

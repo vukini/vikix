@@ -20,7 +20,7 @@
 ;;;;   :map    a key inside a map ("layout m": the map's name, then the key
 ;;;;           in it), beside :key or instead of it. A map is a command
 ;;;;           whose :run is "vikix-map NAME" (help.lisp): its key opens
-;;;;           it, single keys act in it until Escape or a few seconds
+;;;;           it, single keys act in it until Escape or half a minute
 ;;;;           pass, and the card shows its keys under its entry
 ;;;;   :card   its group on the key card, when the command's own word doesn't
 ;;;;           say (help.lisp: *vikix-key-groups*)
