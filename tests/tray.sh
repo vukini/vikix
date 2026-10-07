@@ -128,6 +128,15 @@ check "an applets line naming none should stay empty" grep -qx 'applets = ' "$ho
 ask '(run-commands "vikix-tray")' >/dev/null
 check "the toggle should put it back" test "$(state)" = ON
 check "and say so in the settings" grep -qx on "$home/.config/vikix/tray"
+# The command, alone, is the same toggle; status says which; another word is refused.
+tray() { HOME=$home VIKIX_SWANK_PORT=$port VIKIX_DIR=$here timeout 30 bash "$here/bin/vikix" tray "$@" 2>&1; }
+tray >/dev/null
+check "vikix tray alone should switch it off: $(state)" test "$(state)" = OFF
+check "vikix tray status says so" bash -c '[[ $1 == *"now: off"* ]]' _ "$(tray status)"
+tray >/dev/null
+check "and alone again, on: $(state)" test "$(state)" = ON
+check "vikix tray status says so" bash -c '[[ $1 == *"now: on"* ]]' _ "$(tray status)"
+check "a word it doesn't know is refused" bash -c '! "$@" >/dev/null 2>&1' _ env HOME="$home" VIKIX_SWANK_PORT="$port" VIKIX_DIR="$here" bash "$here/bin/vikix" tray sideways
 # Where the bar is, said as other desktops say it (_NET_WORKAREA: FreeRDP
 # reads it for Windows programs), and the bar switched off and on.
 area() { xprop -root _NET_WORKAREA 2>/dev/null | sed -n 's/.*= \([0-9]*\), \([0-9]*\), \([0-9]*\), \([0-9]*\).*/\1 \2 \3 \4/p'; }

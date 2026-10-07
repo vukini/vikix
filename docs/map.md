@@ -33,7 +33,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── vikix.bash         Vikix's   aliases, prompt, fzf/zoxide/atuin setup
 │   │   ├── keyboard           yours     layout and XKB options
 │   │   ├── plugins.list       yours     the plugins you added (vikix plugin add); "#off NAME" is one switched off
-│   │   ├── tray               yours     the tray in the bar: on or off (vikix tray on), and the applets it starts
+│   │   ├── tray               yours     the tray in the bar: on or off (vikix tray switches it), and the applets it starts
 │   │   ├── plugins/NAME/      yours     your settings for plugin NAME (copied once)
 │   │   ├── obsidian           yours     vikix obsidian's vault, where its notes go, and the folders it leaves out
 │   │   ├── idle               yours     minutes before lock, dark screen, suspend (make it; see customize.md)

@@ -89,7 +89,7 @@ The everyday command.
 - `vikix doctor` — check the pieces are all there
 - `vikix screens [extend|mirror|external|laptop|pick]` — the screens: a plugged one lights up by itself; this lays them out otherwise (Super+Ctrl+p)
 - `vikix wifi [list|scan]` — Wi-Fi: pick a network from a list scanned first
-- `vikix tray on|off` — a tray at the bar's end: network and Bluetooth icons (nm-applet, blueman-applet; Super+m too)
+- `vikix tray [on|off|status]` — a tray at the bar's end: network and Bluetooth icons (nm-applet, blueman-applet); alone it switches, as Super+m's Tray does
 - `vikix memory [left|clean]` — what uses the memory, biggest first, and the programs left over (hidden screens, tests nobody ended); clean ends those; a warning comes by itself when memory runs low (vikix memory help)
 - `vikix rescue [free|undo|lock]` — when the desktop is stuck: how it is and what it is doing; free = out of a loop (rules paused, focus on clicks, a fresh event loop); works from a text console too (vikix rescue help)
 - `vikix resume [now|save|ask|always|never]` — your windows back after a restart: what is saved, bring them back now, and whether a login asks first (vikix resume help)

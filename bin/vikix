@@ -24,8 +24,9 @@
 #                         the screens: a plugged one lights up by itself;
 #                         this lays them out otherwise (Super+Ctrl+p)
 #   vikix wifi [list|scan]   Wi-Fi: pick a network from a list scanned first
-#   vikix tray on|off   a tray at the bar's end: network and Bluetooth
-#                         icons (nm-applet, blueman-applet; Super+m too)
+#   vikix tray [on|off|status]  a tray at the bar's end: network and
+#                         Bluetooth icons (nm-applet, blueman-applet); alone
+#                         it switches, as Super+m's Tray does
 #   vikix memory [left|clean]  what uses the memory, biggest first, and the
 #                         programs left over (hidden screens, tests nobody
 #                         ended); clean ends those; a warning comes by itself
@@ -1788,11 +1789,17 @@ main() {
     rescue)      shift; exec "$VIKIX_DIR/bin/vikix-rescue" "$@" ;;
     resume)      shift; exec "$VIKIX_DIR/bin/vikix-resume" "$@" ;;
     tray)        shift
+                 # Alone it switches, like Super+m's Tray: vikix-tray in modeline.lisp
+                 # is the toggle, vikix-tray-on and -off the two ends.
                  case ${1:-} in
-                   on|off) exec python3 "$VIKIX_DIR/bin/vikix-eval" "(run-commands \"vikix-tray-$1\")" ;;
-                   *) echo "vikix tray on|off: the tray in the bar, for the network and Bluetooth applets' icons"
+                   '') python3 "$VIKIX_DIR/bin/vikix-eval" "(run-commands \"vikix-tray\")" >/dev/null ||
+                         die "vikix tray: StumpWM didn't answer (vikix doctor)" ;;
+                   on|off) python3 "$VIKIX_DIR/bin/vikix-eval" "(run-commands \"vikix-tray-$1\")" >/dev/null ||
+                         die "vikix tray $1: StumpWM didn't answer (vikix doctor)" ;;
+                   status) echo "the tray in the bar, for the network and Bluetooth applets' icons"
                       echo "  (the applets it starts: applets = in ~/.config/vikix/tray)"
                       grep -qx on "${XDG_CONFIG_HOME:-$HOME/.config}/vikix/tray" 2>/dev/null && echo "now: on" || echo "now: off" ;;
+                   *) die "vikix tray: on, off, status, or nothing to switch" ;;
                  esac ;;
     obsidian)    shift; exec "$VIKIX_DIR/bin/vikix-obsidian" "$@" ;;
     bitwarden)   shift; exec "$VIKIX_DIR/bin/vikix-bitwarden" "$@" ;;
