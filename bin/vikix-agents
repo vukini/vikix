@@ -1451,7 +1451,8 @@ def crossing_for(me, path, others):
 # Antigravity CLI's has toolCall and takes a
 # decision (allow, ask, deny) with a reason, nothing else, so what Claude
 # Code is told beside an allowed edit (a crossing) asks there, with the
-# reason, and nothing to say is an empty object. HOOK is set by touch.
+# reason, and nothing to say is {"decision": "ask"}: agy's own way, as the
+# decision is required there. HOOK is set by touch.
 HOOK = "claude"
 SAID = False
 
@@ -1900,7 +1901,13 @@ def main(argv):
     if argv and argv[0] == "touch":
         rc = touch(argv[1:])
         if HOOK == "agy" and not SAID:
-            print("{}")     # nothing to say, in agy's shape: a decision is its to make
+            # Nothing to say. Antigravity's hook contract makes the decision
+            # required (its schema: required, allow|deny|ask|force_ask), and an
+            # empty object was taken for no decision and denied the call,
+            # git status among them (2026-10-07). "ask" is its own way: the
+            # user is asked unless they said "Always Allow" before; "allow"
+            # would wave through every command the hook matches.
+            print(json.dumps({"decision": "ask"}))
         return rc
     if argv and argv[0] == "clash":
         return clash(argv[1:])

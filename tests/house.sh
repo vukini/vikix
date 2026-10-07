@@ -24,8 +24,9 @@
 #   the desk and an unseated one as "no desk", the seats keep only the
 #   agents still running, and close refuses while a seated agent works
 #   there. Antigravity CLI's hook (toolCall on stdin) is answered in its
-#   shape: a decision with a reason, a crossing asking, nothing to say an
-#   empty object, run_command and a relative TargetFile judged the same.
+#   shape: a decision with a reason, a crossing asking, nothing to say
+#   "ask" (agy's own way; the decision is required, and an empty object
+#   denied the call), run_command and a relative TargetFile judged the same.
 #   vikix agents close removes
 #   a desk's worktree and its branch when the work is in: refused with an
 #   agent at work there or files uncommitted (--force throws them away), a
@@ -102,11 +103,11 @@ check "agy's edit of a file another agent changed is asked in agy's shape, with 
   grep -q '^{"decision": "ask", "reason": "Vikix office: another agent is on this file. .*codex 1002 (.*book-b) has changed it in .*book-b, uncommitted.*"}$' <<<"$out"
 check "the journal knows it as antigravity" grep -q '"agent": "antigravity", "pid": 1008' "$journal"
 out=$(agy_as 1008 "{\"toolCall\":{\"name\":\"write_to_file\",\"args\":{\"TargetFile\":\"$t/src/book-a/new.md\"}},\"workspacePaths\":[\"$t/src/book-a\"]}")
-check "nothing to say is an empty object, never silence (agy wants a decision): '$out'" test "$out" = '{}'
+check "nothing to say is agy's own way, ask (its decision is required; an empty object denied the call): '$out'" test "$out" = '{"decision": "ask"}'
 out=$(agy_as 1008 "{\"toolCall\":{\"name\":\"view_file\",\"args\":{\"AbsolutePath\":\"$t/src/book-a/ch1.md\"}}}")
-check "a tool without a file to change: an empty object: '$out'" test "$out" = '{}'
+check "a tool without a file to change: ask, agy's own way: '$out'" test "$out" = '{"decision": "ask"}'
 out=$(agy_as 1008 "{\"toolCall\":{\"name\":\"run_command\",\"args\":{\"CommandLine\":\"ls\",\"Cwd\":\"$t/src/book-a\"}}}")
-check "a command that only reads: an empty object: '$out'" test "$out" = '{}'
+check "a command that only reads: ask, agy's own way: '$out'" test "$out" = '{"decision": "ask"}'
 out=$(agy_as 1008 "{\"toolCall\":{\"name\":\"write_to_file\",\"args\":{\"TargetFile\":\"$t/src/book-b/plan.md\"}}}")
 check "a crossing asks there, with the reason, since agy's hooks can't tell the agent without deciding: $out" \
   grep -q '^{"decision": "ask", "reason": "Vikix office: .*book-b/plan.md is in .*book-b, the folder codex 1002 works in, not yours' <<<"$out"
