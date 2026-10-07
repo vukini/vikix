@@ -70,7 +70,36 @@ class Office(unittest.TestCase):
         self.rec['handoff']['status']['value'] = 'finished'
         self.assertEqual(office.snapshot(A)['desks'][0]['group'], 'Finished')
         Path(self.folder).rmdir()
-        self.assertFalse(office.snapshot(A)['desks'][0]['exists'])
+        result = office.snapshot(A)
+        self.assertEqual(result['desks'], [])
+        self.assertEqual(result['archive'][0]['group'], 'Archived')
+        self.assertEqual(result['archive'][0]['resume'], {})
+
+    def test_removed_review_record_is_archived_but_live_agent_is_not(self):
+        self.records = [self.rec]
+        self.rec['handoff'] = {'status': {'value': 'review'}}
+        Path(self.folder).rmdir()
+        result = office.snapshot(A)
+        self.assertEqual(result['desks'], [])
+        self.assertTrue(result['archive'][0]['archived'])
+        self.agents = [self.agent()]
+        self.assertEqual(office.snapshot(A)['archive'], [])
+        self.assertEqual(len(office.snapshot(A)['desks']), 1)
+        self.agents[0]['folder'] += ' (deleted)'
+        self.assertEqual(office.snapshot(A)['archive'], [])
+        self.assertEqual(len(office.snapshot(A)['desks']), 1)
+        self.agents = []
+        with patch.object(A, 'desktop', side_effect=RuntimeError('offline')):
+            self.assertEqual(office.snapshot(A)['archive'], [])
+
+    def test_archive_reopened_and_unreadable_folders(self):
+        self.records = [self.rec]
+        Path(self.folder).rmdir()
+        self.assertEqual(len(office.snapshot(A)['archive']), 1)
+        Path(self.folder).mkdir()
+        self.assertEqual(office.snapshot(A)['archive'], [])
+        with patch.object(office.os, 'lstat', side_effect=PermissionError):
+            self.assertFalse(office.missing_folder(self.folder))
 
     def test_first_handoff_keeps_selection_identity(self):
         self.agents = [self.agent()]
@@ -205,6 +234,67 @@ class Office(unittest.TestCase):
              patch.object(A, 'die', side_effect=ValueError), patch.object(A, 'open_at') as start:
             with self.assertRaises(ValueError): A.resume([self.folder, '--fresh'])
             start.assert_not_called()
+
+
+class ArchivePurge(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.folder = Path(self.temp.name) / 'removed desk'
+        self.folder.mkdir()
+        self.records_dir = Path(self.temp.name) / 'records'
+        for name, value in {'DESKS': str(self.records_dir)}.items():
+            p = patch.object(H, name, value)
+            p.start(); self.addCleanup(p.stop)
+        for name, value in {
+            'handoff_module': lambda: H, 'desktop': lambda **kw: [],
+            'elsewhere': lambda known, **kw: [], 'seated': lambda a: a,
+            'waits': lambda a: {}, 'default_agent': lambda: 'codex',
+            'projects': lambda: [], 'desks': lambda p: [],
+        }.items():
+            p = patch.object(A, name, value)
+            p.start(); self.addCleanup(p.stop)
+        self.rec = H.update('', str(self.folder), lambda r: H.set_task(r, 'Old task', 'user'))
+        self.path = Path(H.record_path(self.rec['desk']['id']))
+        self.folder.rmdir()
+        self.token = office.snapshot(A)['archive_token']
+
+    def test_purge_only_archived_records(self):
+        active = Path(self.temp.name) / 'active'
+        active.mkdir()
+        keep = H.update('', str(active), lambda r: H.set_task(r, 'Keep me', 'user'))
+        office.main(A, ['--purge-archive', self.token])
+        self.assertFalse(self.path.exists())
+        self.assertTrue(Path(H.record_path(keep['desk']['id'])).exists())
+        self.assertTrue(active.is_dir())
+        self.assertEqual(office.snapshot(A)['archive'], [])
+
+    def test_changed_record_requires_new_confirmation(self):
+        H.update('', str(self.folder), lambda r: H.set_task(r, 'Changed task', 'user'))
+        with self.assertRaisesRegex(RuntimeError, 'Archive changed'):
+            office.purge_archive(A, self.token)
+        self.assertTrue(self.path.exists())
+
+    def test_reopened_desk_and_unknown_discovery_are_not_purged(self):
+        self.folder.mkdir()
+        with self.assertRaises(RuntimeError): office.purge_archive(A, self.token)
+        self.folder.rmdir()
+        with patch.object(A, 'desktop', side_effect=RuntimeError('offline')):
+            with self.assertRaises(RuntimeError): office.purge_archive(A, self.token)
+        self.assertTrue(self.path.exists())
+
+    def test_concurrent_update_and_recheck(self):
+        import fcntl
+        with open(str(self.path) + '.lock', 'w') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            with self.assertRaisesRegex(RuntimeError, 'being updated'):
+                office.purge_archive(A, self.token)
+        before = office.snapshot(A)
+        after = dict(before, archive_token='changed')
+        with patch.object(office, 'snapshot', side_effect=[before, after]):
+            with self.assertRaisesRegex(RuntimeError, 'changed'):
+                office.purge_archive(A, self.token)
+        self.assertTrue(self.path.exists())
 
 
 class Launcher(unittest.TestCase):

@@ -55,6 +55,49 @@
    (setq vikix-office--data '((desks . nil)))
    (vikix-office--render)
    (should (string-match-p "No desks yet" (buffer-string)))))
+
+(ert-deftest office-archive-hides-actions-and-clears-removed-selection ()
+  (office-test-buffer
+   (let ((archived (copy-tree (car (alist-get 'desks vikix-office--data)))))
+     (setf (alist-get 'id archived) "old"
+           (alist-get 'title archived) "Old task"
+           (alist-get 'archived archived) t
+           (alist-get 'exists archived) :false
+           (alist-get 'group archived) "Archived"
+           (alist-get 'archive vikix-office--data) (list archived))
+     (setq vikix-office--detail (generate-new-buffer " *Archive details*"))
+     (vikix-office--render)
+     (should-not (string-match-p "Old task" (buffer-string)))
+     (vikix-office-toggle-archive)
+     (should (equal vikix-office--selected "old"))
+     (with-current-buffer vikix-office--detail
+       (should (string-match-p "No action is needed" (buffer-string)))
+       (should-not (next-button (point-min))))
+     (setf (alist-get 'archive vikix-office--data) nil)
+     (vikix-office--render)
+     (should-not vikix-office--selected)
+     (with-current-buffer vikix-office--detail
+       (should-not (string-match-p "Old task" (buffer-string))))
+     (vikix-office-toggle-archive)
+     (should (equal vikix-office--selected "a")))))
+
+(ert-deftest office-purge-needs-confirmation-and-refreshes ()
+  (office-test-buffer
+   (setf (alist-get 'archive vikix-office--data) '(((id . "old")))
+         (alist-get 'archive_token vikix-office--data) "confirmed-version")
+   (let (args refreshed)
+     (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) nil))
+               ((symbol-function 'vikix-office--request)
+                (lambda (a _slot done) (setq args a) (funcall done "Purged" nil)))
+               ((symbol-function 'vikix-office-refresh) (lambda () (setq refreshed t))))
+       (vikix-office-purge-archive)
+       (should-not args)
+       (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t)))
+         (vikix-office-purge-archive)
+         (should (equal args '("office" "--purge-archive" "confirmed-version")))
+         (should refreshed)))
+     (setf (alist-get 'live_known vikix-office--data) :false)
+     (should-error (vikix-office-purge-archive) :type 'user-error))))
 (ert-deftest office-actions-safe-arguments ()
   (office-test-buffer
    (vikix-office--render)

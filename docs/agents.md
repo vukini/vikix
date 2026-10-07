@@ -297,10 +297,23 @@ shows the next action. A waiting agent or a waiting/review handoff needs you;
 a live agent otherwise counts as working; a finished/closed record without
 an agent counts as finished; the remaining desks are parked. Unavailable
 live discovery is **unknown**, never proof that an agent stopped. Desks
-without handoffs and retained records whose worktrees are gone still appear.
+without handoffs still appear. Removed worktrees with no live agent go into
+**Archive**, separate from current desks. A handoff saying "finished" alone
+does not archive an existing desk or remove any files.
+
+Click **Archive** (or press `A`) to see historical tasks, handoffs and checks.
+Archived entries say no action is needed; Go to agent, Continue and Close
+agent are absent. Their old next actions are historical, not new instructions.
+**Back to desks** (`A` again) returns to current work.
+
+**Purge archive** permanently deletes the archived desk records after
+confirmation. It rechecks the exact records, worktree paths and live agents;
+changed records, reopened desks or unavailable discovery require a refresh
+and a new confirmation. Project files, branches and the providers' saved
+conversations are untouched. There is no automatic age or size cutoff.
 
 Click a task, or use `n`/`p` to select it. `RET` enters its details; `C-x o`
-moves between panes. `Tab` visits buttons, `a` goes to an agent, `c` continues
+moves between panes. Only available action buttons are shown. `Tab` visits buttons, `a` goes to an agent, `c` continues
 a desk, `g` refreshes and `q` closes the Office. Details keep the user's task,
 signed agent account, observed Git state, reported checks and saved
 conversation availability separate. **Review does not mean merged.** A

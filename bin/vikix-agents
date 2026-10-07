@@ -26,6 +26,11 @@
   vikix agents office --close-agent PID START
                        request agent exit, keeping its desk and files;
                        START is process_start from the Office JSON snapshot
+  vikix agents office --purge-archive TOKEN
+                       permanently delete the archived desk records in the
+                       confirmed snapshot; TOKEN is its archive_token.
+                       Refused if records or live discovery changed; leaves
+                       project files and provider conversations alone
   vikix agents --json  the same as JSON, for a script
   vikix agents desk [PROJECT [TOPIC]] [--use NAME] [--local] [--here]
                        start an agent at a desk of its own: in PROJECT (one

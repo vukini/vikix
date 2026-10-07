@@ -4,12 +4,34 @@ Terminal clients and the Emacs view share a read-only snapshot; unavailable
 discovery is explicitly different from an empty office.
 """
 import json
+import hashlib
+import fcntl
+from contextlib import ExitStack
 import os
 import select
 import signal
 import shutil
 import subprocess
 import time
+
+
+def missing_folder(path):
+    try:
+        os.lstat(path)
+    except FileNotFoundError:
+        return True
+    except OSError:
+        pass
+    return False
+
+
+def agent_folder(agent):
+    path = agent.get('folder') or '/'
+    # Linux marks a running process's removed cwd with this suffix.
+    # It still belongs to that desk and must prevent archive purging.
+    if path.endswith(' (deleted)') and missing_folder(path):
+        path = path[:-10]
+    return os.path.realpath(path)
 
 
 def snapshot(api):
@@ -39,20 +61,24 @@ def snapshot(api):
     for a in agents:
         a['process_start'] = process_start(api, a['pid'])
         if a.get('folder'):
-            path = os.path.realpath(a['folder'])
+            path = agent_folder(a)
             rows.setdefault(path, {'desk': {'worktree': path}})
     held = api.waits(agents) if live_known else {}
     for a in agents:
         if a['pid'] in held and a.get('state') in ('working', 'running', 'idle'):
             a['doing'], a['waits'] = held[a['pid']]
     default = api.default_agent()
+    archive_records = []
     for path, row in rows.items():
         d = row['desk']
         # The path stays stable when an active desk gets its first handoff.
         row['id'] = path
         row['exists'] = os.path.isdir(path)
-        row['agents'] = [a for a in agents if os.path.realpath(a.get('folder') or '/') == path]
+        row['agents'] = [a for a in agents if agent_folder(a) == path]
         row['live_known'] = live_known
+        row['archived'] = bool(d.get('id')) and live_known and missing_folder(path) and not row['agents']
+        if row['archived']:
+            archive_records.append(next((r for r in records if r.get('desk') == d), {}))
         row['now'] = H.observe(path)
         row['checks'] = [dict(c, freshness=H.freshness(c, row['now'])) for c in row.get('checks', [])]
         row['sessions'] = [dict(s, available=H.session_store(s['provider'], s['id'], path)[0])
@@ -72,9 +98,43 @@ def snapshot(api):
         providers = list(dict.fromkeys([s['provider'] for s in row['sessions']] + [default]))
         row['resume'] = {p: H.resume_plan(row, p, path) for p in providers}
         row['provider'] = ', '.join(dict.fromkeys([a['agent'] for a in row['agents']] + [s['provider'] for s in row['sessions']])) or 'unrecorded'
+        if row['archived']:
+            row['group'] = 'Archived'
+            row['next_action'] = 'Archived — worktree removed'
+            row['resume'] = {}
     order = ['Needs you', 'Working', 'Parked', 'Finished']
     return {'version': 1, 'at': int(time.time()), 'live_known': live_known, 'errors': errors,
-            'desks': sorted(rows.values(), key=lambda r: (order.index(r['group']), r['title'].lower(), r['id']))}
+            'desks': sorted((r for r in rows.values() if not r['archived']),
+                            key=lambda r: (order.index(r['group']), r['title'].lower(), r['id'])),
+            'archive': sorted((r for r in rows.values() if r['archived']), key=lambda r: (r['title'].lower(), r['id'])),
+            'archive_token': hashlib.sha256(''.join(sorted(json.dumps(r, sort_keys=True) for r in archive_records)).encode()).hexdigest()}
+
+
+def purge_archive(api, expected_token):
+    """Delete exactly the archived records the user confirmed, under writer locks."""
+    H = api.handoff_module()
+    before = snapshot(api)
+    if before['errors'] or not before['live_known']:
+        raise RuntimeError('Cannot purge while discovery is unavailable; refresh first')
+    if before['archive_token'] != expected_token:
+        raise RuntimeError('Archive changed; refresh and confirm again')
+    paths = sorted(H.record_path(r['desk']['id']) for r in before['archive'] if r['desk'].get('id'))
+    with ExitStack() as locks:
+        for path in paths:
+            lock = locks.enter_context(open(path + '.lock', 'w'))
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as e:
+                raise RuntimeError('A handoff is being updated; try again after it finishes') from e
+        # Recheck activity, folders and record contents after taking all locks.
+        current = snapshot(api)
+        if current['errors'] or not current['live_known'] or current['archive_token'] != expected_token:
+            raise RuntimeError('Archive or live activity changed; refresh and confirm again')
+        for path in paths:
+            os.unlink(path)
+        # Keep the empty lock files: unlinking them can split waiting writers
+        # across two different lock inodes. No task or conversation is in them.
+    print(f'Purged {len(paths)} archived desk records. Project files and provider conversations were not changed.')
 
 
 def process_start(api, pid):
@@ -163,8 +223,10 @@ def main(api, args):
         focus(api, args[1])
     elif len(args) == 3 and args[0] == '--close-agent':
         close_agent(api, args[1], args[2])
+    elif len(args) == 2 and args[0] == '--purge-archive':
+        purge_archive(api, args[1])
     elif not args:
         launch(api)
     else:
-        raise ValueError('vikix agents office [--json | --go PID | --close-agent PID START]')
+        raise ValueError('vikix agents office [--json | --go PID | --close-agent PID START | --purge-archive TOKEN]')
     return 0
