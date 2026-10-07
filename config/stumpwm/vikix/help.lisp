@@ -71,7 +71,7 @@ a map, the two keys with a space between (\"s-C-SPC m\"), reads
   '(("Apps" "vikix-terminal" "rofi" "vikix-palette" "firefox" "pcmanfm" "spacefm"
      "emacsclient" "clipmenu" "vikix-rofi" "vikix-webapp" "vikix-esploro"
      "vikix-project")
-    ("AI & voice" "vikix-agent" "vikix-ask" "vikix-dictate" "vikix-voice")
+    ("AI & voice" "vikix-agent" "vikix-agent-choice" "vikix-ask" "vikix-dictate" "vikix-voice")
     ("Windows & frames" "delete" "fullscreen" "pull-hidden-other" "vikix-last-window" "next" "prev"
      "move-focus" "move-window" "vikix-focus" "vikix-move" "vikix-focus-end" "vikix-move-end" "vikix-pin" "vikix-viri" "vikix-width-or-remove" "vikix-height" "vikix-fill" "vikix-stack" "vikix-expose" "vikix-overview" "vikix-split" "hsplit" "vsplit" "remove" "expose" "vikix-grid" "vikix-main" "vikix-layout-pick" "vikix-solo"
      "toggle-gaps" "winner-undo" "winner-redo" "vikix-layout-undo" "vikix-layout-redo" "global-windowlist" "vikix-go-to-window"

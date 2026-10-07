@@ -245,7 +245,7 @@ StumpWM's own `Ctrl+t` prefix keys still work too: press `Ctrl+t` and wait, and 
 | Super+. | Emoji: pick one to type it (Ctrl+c copies) |
 | Super+= | Calculator: Enter copies the answer |
 | **AI & voice** | |
-| Super+a | AI agent in a terminal: Claude Code, or the one you chose |
+| Super+a | AI agent: here in a terminal, or at a new desk of its own |
 | Super+Alt+d | Desk keys: n new, r take up again, c close, h handoff, o the Office |
 | then n | AI agent at a desk of its own: pick a project; it gets a workspace and a worktree to itself |
 | then r | Take a desk up again: pick one; its handoff shown, its agent's conversation resumed where it can be |

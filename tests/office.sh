@@ -218,6 +218,19 @@ echo "codex        on a model" > "$t/agent-pick"
 out=$(PATH="$t/bin:$PATH" AGENT_CMD="$t/bin/argsaver" desk)
 sleep 0.5
 check "the local row adds --local: '$(cat "$t/desk.args" 2>/dev/null)'" test "$(cat "$t/desk.args" 2>/dev/null)" = "--use codex --local"
+here() { HOME=$home VIKIX_SWANK_PORT=$port VIKIX_AGENT_CMD="${AGENT_CMD:-$t/bin/claude}" python3 "$here/bin/vikix-agents" here "$@" 2>&1 || true; }
+: > "$t/desk.args"
+out=$(AGENT_CMD="$t/bin/argsaver" here --use codex --local)
+sleep 0.5
+check "vikix agents here starts the agent named in a terminal in the home folder, no desk: '$(cat "$t/desk.args")' $out" \
+  test "$(cat "$t/desk.args")" = "--use codex --local"
+echo "codex " > "$t/agent-pick"; : > "$t/desk.args"
+out=$(PATH="$t/bin:$PATH" AGENT_CMD="$t/bin/argsaver" here)
+sleep 0.5
+check "without --use it asks which agent, as a desk does: '$(cat "$t/desk.args")' $out" test "$(cat "$t/desk.args")" = "--use codex"
+out=$(DISPLAY='' here)
+check "with no desktop to ask on it says how to name one: $out" grep -q 'say which agent: vikix agents here --use NAME' <<<"$out"
+check "Super+a offers it first" yes '(equal (second (first *vikix-agent-choice-menu*)) (quote (run-shell-command "vikix-agents here")))'
 check "Super+m has it, under AI" yes '(find (quote (run-shell-command "vikix-agents desk")) *vikix-menu* :key (function second) :test (function equal))'
 # --task: the task is the agent's first prompt, in the shape its provider takes; aider gets none.
 : > "$t/desk.args"
@@ -236,7 +249,7 @@ sleep 0.5
 check "aider takes no first prompt: nothing added, and said: $out '$(cat "$t/desk.args")'" \
   bash -c 'grep -q "aider, the task in its handoff (aider takes no first prompt)" <<<"$1" && [ "$(cat "$2")" = "--use aider" ]' _ "$out" "$t/desk.args"
 
-check "vikix agents with a word it doesn't know says what it takes" grep -q 'vikix agents \[--json|desk|sit|close|desks|handoff|resume|hooks|clash|crossings\]' <<<"$(cli nonsense)"
+check "vikix agents with a word it doesn't know says what it takes" grep -q 'vikix agents \[--json|here|desk|sit|close|desks|handoff|resume|hooks|clash|crossings\]' <<<"$(cli nonsense)"
 check "the desktop met no error" test -z "$(ls "$home/.local/state/vikix/errors" 2>/dev/null)"
 
 wm_report office "agents found in their terminals by name, folder and workspace, what each is doing from its title and its note, its window marked, the menu to one, vikix agents with branches and uncommitted files, one without a window, --json; a desk: a workspace and a worktree for one agent, the task its first prompt"

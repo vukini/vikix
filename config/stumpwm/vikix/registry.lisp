@@ -249,9 +249,9 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
   :menu "Work")
 (define-vikix-command passwords "Passwords (Bitwarden): pick a login, Enter types it (vikix add bitwarden)"
   :run "exec vikix-bitwarden pick" :key "s-M-v")
-(define-vikix-command agent "AI agent in a terminal: Claude Code, or the one you chose"
-  :run "vikix-agent" :key "s-a"
-  :menu "AI" :label "AI agent")
+(define-vikix-command agent "AI agent: here in a terminal, or at a new desk of its own"
+  :run "vikix-agent-choice" :key "s-a"
+  :menu "AI" :label "AI agent: here, or at a new desk")
 (define-vikix-command desks "Desk keys: n new, r take up again, c close, h handoff, o the Office"
   :run "vikix-map desks" :key "s-M-d" :card "AI & voice")
 (define-vikix-command agent-desk "AI agent at a desk of its own: pick a project; it gets a workspace and a worktree to itself"

@@ -23,7 +23,7 @@ An agent is an AI that does things, not only talks about them. Claude Code reads
 
 ### Starting it
 
-Press **Super+a**, or type `a` in a terminal. A terminal opens with your agent in it: Claude Code, unless you chose another ([Another agent](#another-agent), below).
+Press **Super+a**. It asks: *Agent here*, or *Agent at a new desk*; then which agent: yours first (Claude Code, unless you chose another: [Another agent](#another-agent), below), the others, and the ones that can run on a model on this laptop. Enter twice, or `a` in a terminal, opens a terminal with your agent in it. The second choice is for an agent on a project, with a copy of the repository to itself: [Agents](agents.md#a-desk-each) says when you want that.
 
 The first time, it offers to install Claude Code (with Anthropic's installer, into `~/.local/bin`), then asks you to log in. Log in with your Claude account: the agent then uses your plan. If you'd rather pay per use with an API key, see [API keys](#api-keys) below.
 

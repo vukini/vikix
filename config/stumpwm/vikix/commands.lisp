@@ -190,6 +190,22 @@ saves the choice for the next start)."
 so whatever it changes can be undone with `vikix undo`."
   (run-shell-command (format nil "~a -e vikix agent" *vikix-terminal*)))
 
+(defparameter *vikix-agent-choice-menu*
+  ;; Here first: a stray Enter then does what Super+a always did.
+  '(("Agent here: pick which, then a terminal with it, in your home folder" (run-shell-command "vikix-agents here"))
+    ("Agent at a new desk: pick a project and which agent; a workspace and a worktree of its own" (run-shell-command "vikix-agents desk")))
+  "What Super+a asks (vikix-agent-choice), in the same form as *vikix-menu*.
+Both then ask which agent (yours first, the others, and the ones on a
+model on this laptop), in the script, never here: the list comes from
+`vikix agent --list`, a program StumpWM's thread must not wait on.")
+
+(defcommand vikix-agent-choice () ()
+  "Super+a: an agent here (`vikix agents here`: which agent, then a
+terminal with it in your home folder) or at a new desk of its own (`vikix
+agents desk`: a project, which agent, a workspace and a git worktree to
+itself)."
+  (vikix-run-menu *vikix-agent-choice-menu* "AI agent: "))
+
 (defcommand vikix-welcome () ()
   "The welcome: add software, the keys that matter, a theme, the keyboard
 layout, the guide (`vikix welcome`, in a terminal)."

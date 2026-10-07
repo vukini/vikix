@@ -46,7 +46,7 @@
 ;;; is about (the program it starts, or the StumpWM command: "vikix-move").
 
 (defparameter *vikix-key-everyday*
-  '("vikix-terminal" "rofi" "vikix-palette" "firefox" "vikix-esploro" "emacsclient" "vikix-agent"  ; the six main apps (the launcher twice)
+  '("vikix-terminal" "rofi" "vikix-palette" "firefox" "vikix-esploro" "emacsclient" "vikix-agent" "vikix-agent-choice"  ; the six main apps (the launcher twice)
     "vikix-ask" "clipmenu" "vikix-rofi" "vikix-dictate" "vikix-voice"
     "exec dunstctl history-pop" "vikix-notifications" "vikix-lock" "vikix-screenshot" "vikix-osd"
     "vikix-docs")

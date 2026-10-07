@@ -184,6 +184,17 @@ done < <("$here/lib/registry.sh" menu | cut -f2 | grep . | sort -u
          awk '/^\(defparameter \*vikix-apps-menu\*/,/^  "The apps of Super/' "$lisp" |
            grep -oE '(\) |^ +)"(~/[^"]+|[a-z-]+)"\)+$' | sed -E 's/^(\) | +)"//; s/"\)+$//')
 
+# Super+a asks: an agent here, or at a new desk (vikix-agent-choice), a
+# plain menu in *vikix-menu*'s form; here first, where a stray Enter lands.
+choice=$(awk '/^\(defparameter \*vikix-agent-choice-menu\*/,/^  "What Super\+a asks/' "$lisp")
+grep -q '^(defcommand vikix-agent-choice ' "$lisp" || { echo "FAIL: no vikix-agent-choice command in commands.lisp"; fail=1; }
+grep -qE ':run "vikix-agent-choice" :key "s-a"' "$here/config/stumpwm/vikix/registry.lisp" ||
+  { echo "FAIL: Super+a doesn't run vikix-agent-choice"; fail=1; }
+printf '%s\n' "$choice" | grep -A1 "'((" | head -1 | grep -q 'here.*(run-shell-command "vikix-agents here")' ||
+  { echo "FAIL: the first choice of Super+a isn't the agent here (vikix-agents here)"; fail=1; }
+printf '%s\n' "$choice" | grep -q 'new desk.*(run-shell-command "vikix-agents desk")' ||
+  { echo "FAIL: Super+a doesn't offer an agent at a new desk (vikix-agents desk)"; fail=1; }
+
 # The launcher (Super+d) lists config/applications/*.desktop: each runs a
 # command Vikix has, and JupyterLab answers to what people type, jlab too.
 for f in "$here"/config/applications/*.desktop; do
@@ -194,5 +205,5 @@ done
 grep -q '^Keywords=.*jlab;' "$here/config/applications/vikix-jupyterlab.desktop" ||
   { echo "FAIL: typing jlab in the launcher wouldn't find JupyterLab (no Keywords=jlab)"; fail=1; }
 
-[ "$fail" = 0 ] && echo "menu: entries whose program or file isn't here are left out, the rest shown with their keys in a straight column (a web app's and a plugin's too), Super+m in sections that say what they hold, lines about one thing together, typing finds an entry of any section, every need is real, and the launcher entries run and are found (jlab)"
+[ "$fail" = 0 ] && echo "menu: entries whose program or file isn't here are left out, the rest shown with their keys in a straight column (a web app's and a plugin's too), Super+m in sections that say what they hold, lines about one thing together, typing finds an entry of any section, Super+a asks here (then which agent) or a new desk, every need is real, and the launcher entries run and are found (jlab)"
 exit "$fail"

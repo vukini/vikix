@@ -10,7 +10,7 @@ Three habits carry the whole page:
 
 ## One agent
 
-`Super+a` opens a terminal with your agent in it (Claude Code, unless you chose another: `vikix agent --default codex`). Before the agent starts, Vikix takes a snapshot of your files, so afterwards:
+`Super+a` asks *Agent here* or *Agent at a new desk*, then which agent; the first, with yours (Claude Code, unless you chose another: `vikix agent --default codex`), opens a terminal with it in your home folder (`vikix agents here`). Before the agent starts, Vikix takes a snapshot of your files, so afterwards:
 
 ```sh
 vikix changes      # what the agent changed in your config, notes, dotfiles
@@ -19,7 +19,7 @@ vikix undo         # put it all back
 
 The agent knows the desktop from the Vikix skill: ask it in words. *Make Firefox open on workspace 2. Why did this window float? Set the theme to paper.* It proposes rules rather than writing them, asks before it edits, and never gets your API keys or your SSH agent (see *What the agent doesn't get* in [Working with AI](ai.md)).
 
-A second `Super+a` is a second agent, and so on. Nothing stops you; the rest of this page is what to do once you have several.
+A second `Super+a`, *Agent here*, is a second agent, and so on. Nothing stops you; the rest of this page is what to do once you have several.
 
 ## Seeing them all
 
@@ -41,7 +41,7 @@ Nothing here stops, signals or types into an agent: the list only reads what is 
 
 ## A desk each
 
-An agent started with `Super+a` sits in your home folder, and works wherever you send it. Two of them on one project then edit one working copy: git can't tell whose change is whose, one's half-written edit breaks the other's tests, and neither can commit cleanly. A desk gives each agent its own copy, on a workspace of its own:
+An agent started with `Super+a`, *Agent here*, sits in your home folder, and works wherever you send it. Two of them on one project then edit one working copy: git can't tell whose change is whose, one's half-written edit breaks the other's tests, and neither can commit cleanly. A desk gives each agent its own copy, on a workspace of its own:
 
 ```sh
 vikix agents desk vikix wifi-fix
@@ -54,7 +54,7 @@ The agent's terminal is named for its desk on the desktop: `wifi-fix · Claude`,
 
 The project is any of `vikix project list`'s, by any part of its name (`vikix`, `novel`, `nov`). The topic is a word or two for the work: it becomes the folder's ending and the branch's name, so choose one that says what the agent is doing (`wifi-fix`, `chapter-3`, `typos`), not who (`agent-2`). A topic that gives no name for a branch is refused.
 
-`Super+Alt+d` then `n` (the desk keys: `Super+Alt+d` opens a small card of them, `n` a new desk, `r` take one up again, `c` close one, `h` its handoff, `o` the Office), or `Super+m` → *AI* → *Agents: start one on a project, at a desk of its own*, asks for the project in a menu, then for the topic, then which agent: yours first, the others as `vikix agent --list` has them (one not installed yet is offered its installer in the terminal), and the ones that can run on a model on this laptop. Other forms:
+`Super+a`, *Agent at a new desk*, or `Super+Alt+d` then `n` (the desk keys: `Super+Alt+d` opens a small card of them, `n` a new desk, `r` take one up again, `c` close one, `h` its handoff, `o` the Office), or `Super+m` → *AI* → *Agents: start one on a project, at a desk of its own*, asks for the project in a menu, then for the topic, then which agent: yours first, the others as `vikix agent --list` has them (one not installed yet is offered its installer in the terminal), and the ones that can run on a model on this laptop. Other forms:
 
 ```sh
 vikix agents desk notes                # a project that is no repository: its own folder, a workspace to itself
@@ -68,7 +68,7 @@ A desk that is already there is used again, never made twice: the second `vikix 
 
 ### No desk, no work
 
-Desks only help if agents use them. So the rule, held by Claude Code's hook before every edit: **an agent changes a project's repository only from a desk, and never in the project's own folder.** An agent started with `Super+a` sits in your home folder; the moment it reaches for a file in `~/src/vikix` or `~/src/novel`, the edit is refused, and it reads why:
+Desks only help if agents use them. So the rule, held by Claude Code's hook before every edit: **an agent changes a project's repository only from a desk, and never in the project's own folder.** An agent started with `Super+a`, *Agent here*, sits in your home folder; the moment it reaches for a file in `~/src/vikix` or `~/src/novel`, the edit is refused, and it reads why:
 
 > Vikix office: ~/src/vikix/bin/vikix-wifi is in the project vikix, and you are not at a desk. An agent works on a repository only from a desk of its own, a worktree of it. Take one from here: run `vikix agents sit vikix TOPIC` (a word or two for the work; it makes ~/src/vikix-TOPIC on the branch TOPIC, or takes the one that is there, and seats you at it), then work in that folder and commit there. The project's own folder, ~/src/vikix, is for merging only.
 
