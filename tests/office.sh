@@ -36,7 +36,31 @@ yes() { test "$(ask "(princ (if $1 1 0))")" = 1; }
 agents() { ask '(progn (setf *print-pretty* nil) (format t "~{~a~^ | ~}" (mapcar (lambda (a) (format nil "~a ~a ~a ~(~a~)" (getf a :name) (file-namestring (string-right-trim "/" (getf a :folder))) (group-name (window-group (getf a :window))) (getf a :state))) (vikix-agents))))'; }
 # To a workspace, asked of StumpWM itself: a key sent to a busy hidden screen is sometimes lost.
 go() { ask "(run-commands \"gselect $1\")" >/dev/null; sleep 0.3; }
-cli() { HOME=$home VIKIX_SWANK_PORT=$port python3 "$here/bin/vikix-agents" "$@" 2>&1 || true; }
+cli() {
+  # Only fixture processes belong to this Office. The real machine's agents
+  # otherwise appear as windowless agents and can add unrelated file clashes.
+  python3 - "$t" <<'PY'
+import os
+from pathlib import Path
+import sys
+root = Path(sys.argv[1])
+proc = root / 'proc'
+proc.mkdir(exist_ok=True)
+for link in proc.iterdir():
+    link.unlink()
+(proc / 'uptime').symlink_to('/proc/uptime')
+for entry in Path('/proc').iterdir():
+    if not entry.name.isdigit():
+        continue
+    try:
+        cwd = os.readlink(entry / 'cwd')
+        if cwd == str(root) or cwd.startswith(str(root) + '/'):
+            (proc / entry.name).symlink_to(entry)
+    except OSError:
+        pass
+PY
+  HOME=$home VIKIX_PROC=${VIKIX_PROC:-$t/proc} VIKIX_SWANK_PORT=$port python3 "$here/bin/vikix-agents" "$@" 2>&1 || true
+}
 
 # Stand-in agents: programs called as the real ones are, that only stay.
 mkdir -p "$t/bin" "$t/proj-a" "$t/proj-b" "$home/.local/state/vikix/agents"
