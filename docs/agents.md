@@ -282,7 +282,9 @@ A workspace and a bar colour each; `vikix agents stop NAME`; handing a window fr
 **office**, or `vikix agents office` opens a dedicated Emacs frame. It
 inherits Emacs's Vikix theme. The existing agent menu and terminal commands
 remain available; without Emacs, the command opens the existing agent menu.
-Conversations stay in each agent's terminal.
+Conversations stay in each agent's terminal. Opened while it is open
+already, the Office comes to the front instead: the desktop goes to its
+window's workspace, or brings it here from a hidden one.
 
 The Office connects to your existing Emacs server and explicitly opens an X11
 window on the launching desktop, including when Emacs runs as a daemon with

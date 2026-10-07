@@ -499,10 +499,18 @@ window configuration to put back on q otherwise.  Returns the Office buffer."
     buffer))
 (defun vikix-office-open (&optional display)
   "Open the Office on X11 DISPLAY, inheriting Emacs's Vikix theme.
-Interactively, the current graphical display or $DISPLAY."
+Interactively, the current graphical display or $DISPLAY.
+Open already, the Office's frame is selected and its X window id is
+returned (the outer window, the one the window manager holds), so
+`vikix agents office' can ask the desktop to go to it: StumpWM takes no
+notice of a frame asking for the focus from another workspace, or from
+behind another window.  A frame made now returns nil: it takes the
+focus as it opens."
   (interactive)
   (let ((existing (cl-find-if (lambda (f) (buffer-live-p (frame-parameter f 'vikix-office-buffer))) (frame-list))))
-    (if existing (select-frame-set-input-focus existing)
+    (if existing
+        (progn (select-frame-set-input-focus existing)
+               (frame-parameter existing 'outer-window-id))
       (setq display (or (and display (not (string-empty-p display)) display)
                         (and (display-graphic-p) (frame-parameter nil 'display))
                         (getenv "DISPLAY")))
@@ -511,8 +519,8 @@ Interactively, the current graphical display or $DISPLAY."
       (vikix-office--setup
        (make-frame `((window-system . x) (display . ,display)
                      (name . "The Office") (title . "The Office") (tool-bar-lines . 0) (menu-bar-lines . 0) (width . 150) (height . 44)))
-       t))
-    nil))
+       t)
+      nil)))
 (defun vikix-office-open-here (&optional own)
   "Open the Office in the selected frame, a terminal's as well as a window's.
 `vikix agents office' in a terminal (no display, or --tty) runs this

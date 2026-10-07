@@ -22,7 +22,9 @@
                        or with --tty, it takes over this terminal through
                        emacsclient -nw, and q gives the shell back. Either
                        way it is your running Emacs (M-x server-start if
-                       needed): a second one is never started
+                       needed): a second one is never started, and the
+                       Office open already comes to the front instead,
+                       from whichever workspace it is on
   vikix agents office --json
                        the same snapshot for scripts: desks, live activity
                        (unknown on failure), handoffs and check freshness

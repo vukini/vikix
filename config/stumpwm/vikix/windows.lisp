@@ -394,6 +394,25 @@ current frame on tiles, as a column on a strip."
       (pull-window window))
     (group-focus-window group window)))
 
+(defun vikix-show-window (window)
+  "WINDOW comes to the front wherever it is: gone to on its own workspace,
+brought here from a hidden one (a dot workspace: the drop-down terminal,
+the drawer), where nothing can be gone to."
+  (if (char= (char (group-name (window-group window)) 0) #\.)
+      (vikix-bring-window-here window)
+      (vikix-goto-window window)))
+
+(defun vikix-show-window-id (id)
+  "Show the window whose X id is ID, a number, as `vikix-show-window' does;
+nil when no window of the desktop has it. For a program that opened a
+window of its own earlier and is asked for it again (the Office's Emacs
+frame): a client asking for the focus itself is not heard from another
+workspace."
+  (let ((window (find id (screen-windows (current-screen)) :key #'window-id)))
+    (when window
+      (vikix-show-window window)
+      t)))
+
 (defcommand vikix-bring-window () ()
   "Bring any window here, from any workspace: pick it from the list."
   (let ((window (vikix-pick-window "Bring here: ")))

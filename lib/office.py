@@ -8,6 +8,7 @@ import hashlib
 import fcntl
 from contextlib import ExitStack
 import os
+import re
 import select
 import signal
 import shutil
@@ -209,11 +210,24 @@ def focus(api, pid):
         raise ValueError('Go to agent needs a positive process number')
     form = (f"(let ((a (find {int(pid)} (vikix-agents) :key (lambda (a) (getf a :pid))))) "
             '(unless a (error "Agent has no desktop window, or has ended")) '
-            '(if (vikix-agent-away-p a) (vikix-bring-window-here (getf a :window)) '
-            '(vikix-goto-window (getf a :window))))')
+            '(vikix-show-window (getf a :window)))')
     r = subprocess.run([api.EVAL, form], capture_output=True, text=True, timeout=20)
     if r.returncode or 'error: ' in r.stdout + r.stderr:
         raise RuntimeError((r.stderr or r.stdout).strip() or 'Desktop did not answer')
+
+
+def show_again(api, answer):
+    """The Office was open already: ANSWER, emacsclient's, is its frame's X
+    window id as a string (vikix-office-open), nil for a frame made now.
+    Emacs selecting the frame itself is not heard by StumpWM from another
+    workspace or behind another window, so the desktop is asked to go to
+    it. Only an integer enters Lisp, and a desktop that doesn't answer
+    costs nothing: the Office is open all the same."""
+    found = re.fullmatch(r'"([0-9]+)"', (answer or '').strip())
+    if not found:
+        return
+    form = f'(vikix-show-window-id {int(found.group(1))})'
+    subprocess.run([api.EVAL, form], capture_output=True, text=True, check=False, timeout=20)
 
 
 def launch(api, tty=False):
@@ -265,6 +279,7 @@ def launch(api, tty=False):
             raise RuntimeError('The Office could not open in the existing Emacs. '
                                'In that Emacs, use M-x server-start if needed, then try again. '
                                f'vikix agents remains available. Details: {detail}')
+        show_again(api, result.stdout)
         return
     if shutil.which('emacs'):
         raise RuntimeError('The Office needs emacsclient to use your existing Emacs. '

@@ -381,6 +381,33 @@ class Launcher(unittest.TestCase):
         self.assertNotIn('-nw', args)
         self.assertNotIn('shell', self.called.call_args.kwargs)
 
+    def test_open_already_asks_the_desktop_to_go_to_its_window(self):
+        # vikix-office-open answers the existing frame's X window id: the
+        # desktop is asked to show that window, by its number alone.
+        self.called.return_value = subprocess.CompletedProcess([], 0, '"62914563"\n', '')
+        with patch.dict(os.environ, {'DISPLAY': ':91'}):
+            office.launch(A)
+        self.assertEqual(self.called.call_count, 2)
+        args = self.called.call_args.args[0]
+        self.assertEqual(args, [A.EVAL, '(vikix-show-window-id 62914563)'])
+        self.assertNotIn('shell', self.called.call_args.kwargs)
+
+    def test_a_frame_made_now_asks_nothing_of_the_desktop(self):
+        # nil: the frame is new and takes the focus as it opens.
+        for answer in ('nil\n', '', '"7) (quit)"\n', '"-3"\n', '""\n'):
+            self.called.reset_mock()
+            self.called.return_value = subprocess.CompletedProcess([], 0, answer, '')
+            with patch.dict(os.environ, {'DISPLAY': ':91'}):
+                office.launch(A)
+            self.assertEqual(self.called.call_count, 1, answer)
+
+    def test_a_desktop_that_does_not_answer_costs_nothing(self):
+        self.called.side_effect = [subprocess.CompletedProcess([], 0, '"62914563"\n', ''),
+                                   subprocess.CompletedProcess([], 1, '', 'error: no window')]
+        with patch.dict(os.environ, {'DISPLAY': ':91'}):
+            office.launch(A)
+        self.assertEqual(self.called.call_count, 2)
+
     def test_no_display_opens_in_this_terminal(self):
         # A headless server or SSH: -nw in the foreground, the Office in the
         # selected frame as the frame's own, no timeout on the session.

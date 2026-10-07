@@ -36,6 +36,15 @@
          (unless (eq (frame-parameter frame 'window-system) 'x)
            (error "Office did not create an X11 frame"))
          (select-frame-set-input-focus frame)
+         ;; Opened again: the same frame, and its X window id answered, for
+         ;; the launcher to hand the desktop.
+         (let ((frames (length (frame-list)))
+               (again (vikix-office-open (getenv "DISPLAY"))))
+           (unless (and (stringp again) (equal again (frame-parameter frame 'outer-window-id))
+                        (string-match-p "\\`[0-9]+\\'" again))
+             (error "Opened again, the Office did not answer its frame's X window id: %S" again))
+           (unless (= frames (length (frame-list)))
+             (error "Opened again, the Office made a second frame")))
          (with-current-buffer buffer
            (unless (equal vikix-office--selected "attention") (error "No asynchronous snapshot"))
            (let* ((detail vikix-office--detail) (window (get-buffer-window detail frame))

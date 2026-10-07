@@ -113,6 +113,20 @@ check "the menu goes to the one picked: workspace $(ask '(princ (group-name (cur
   yes '(and (equal (group-name (current-group)) "1") (equal (window-title (current-window)) "✳ Books"))'
 check "Super+m has it, under AI" yes '(find (quote vikix-agents-pick) *vikix-menu* :key (function second))'
 
+# A window asked for again by its X id (the Office's Emacs frame, open
+# already): gone to on its workspace, brought here from a hidden one.
+go 2
+check "vikix-show-window-id goes to the window's workspace: $(ask "(princ (vikix-show-window-id $id))") $(ask '(princ (group-name (current-group)))')" \
+  yes "(and (vikix-show-window-id $id) (equal (group-name (current-group)) \"1\") (equal (window-title (current-window)) \"✳ Books\"))"
+check "an id no window has is nil" yes '(null (vikix-show-window-id 1))'
+# (add-group switches to the new group unless told not to.)
+ask "(let ((w (find $id (screen-windows (current-screen)) :key (function window-id)))) (move-window-to-group w (add-group (current-screen) \".hid\" :background t)))" >/dev/null
+go 2
+check "from a hidden workspace it is brought here: $(ask '(princ (group-name (current-group)))')" \
+  yes "(and (vikix-show-window-id $id) (equal (group-name (current-group)) \"2\") (equal (window-title (current-window)) \"✳ Books\"))"
+ask "(move-window-to-group (find $id (screen-windows (current-screen)) :key (function window-id)) (find-group (current-screen) \"1\"))" >/dev/null
+go 1
+
 # vikix agents, in a terminal.
 # One with no window of its own; in the test's folder, not this checkout's,
 # where a run of the tests would make the listing call it "testing".
