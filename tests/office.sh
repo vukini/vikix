@@ -262,8 +262,14 @@ out=$(AGENT_CMD="$t/bin/argsaver" desk books with-task-aider --use aider --task 
 sleep 0.5
 check "aider takes no first prompt: nothing added, and said: $out '$(cat "$t/desk.args")'" \
   bash -c 'grep -q "aider, the task in its handoff (aider takes no first prompt)" <<<"$1" && [ "$(cat "$2")" = "--use aider" ]' _ "$out" "$t/desk.args"
+# A note for a worker at work on the desktop (vikix agents tell): its state, from the desktop, says when it lands.
+desk books tell-demo >/dev/null
+at_desk "claude books-tell-demo"
+out=$(HOME=$home VIKIX_SWANK_PORT=$port python3 "$here/bin/vikix-agents" tell tell-demo "the index of names only" 2>&1)
+check "a note for a worker at work is delivered at its next command: $out" \
+  grep -q 'books-tell-demo: noted for its agent, delivered at its next edit or command' <<<"$out"
 
-check "vikix agents with a word it doesn't know says what it takes" grep -q 'vikix agents \[--json|here|desk|sit|close|desks|handoff|resume|hooks|clash|crossings\]' <<<"$(cli nonsense)"
+check "vikix agents with a word it doesn't know says what it takes" grep -q 'vikix agents \[--json|here|desk|sit|close|desks|handoff|resume|tell|hooks|clash|crossings\]' <<<"$(cli nonsense)"
 check "the desktop met no error" test -z "$(ls "$home/.local/state/vikix/errors" 2>/dev/null)"
 
 wm_report office "agents found in their terminals by name, folder and workspace, what each is doing from its title and its note, its window marked, the menu to one, vikix agents with branches and uncommitted files, one without a window, --json; a desk: a workspace and a worktree for one agent, the task its first prompt"

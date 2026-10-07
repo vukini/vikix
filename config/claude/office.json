@@ -4,7 +4,22 @@
       {
         "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash",
         "hooks": [
-          {"type": "command", "command": "vikix agents touch", "timeout": 15}
+          {
+            "type": "command",
+            "command": "vikix agents touch",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "vikix agents stopping",
+            "timeout": 15
+          }
         ]
       }
     ]

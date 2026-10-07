@@ -462,9 +462,7 @@ def t_handoff_update(a):
         raise ToolError("nothing to set: task, status, summary, next, estimate, check or session")
     by, _ = agents.by_me()
     try:
-        rec = H.update(agents.common_of(folder), folder, lambda r: H.from_json(r, data, by, folder),
-                       branch=(agents.git(folder, "rev-parse", "--abbrev-ref", "HEAD") or "").strip(),
-                       project=agents.project_of(folder, agents.common_of(folder)))
+        rec = agents.handoff_apply(folder, data, by)     # the user told of a status worth telling
     except H.HandoffError as e:
         raise ToolError(str(e))
     status = (rec.get("handoff") or {}).get("status")

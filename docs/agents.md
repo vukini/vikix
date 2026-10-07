@@ -195,6 +195,12 @@ on workspace 4
 
 `vikix agents resume` shows the handoff, the git state and the checks' freshness, then starts an agent at the desk. When the record names a session and the provider's store still has it, that very conversation is resumed: `claude --resume ID`, `codex resume ID`, `opencode --session ID`, `agy --conversation ID`, each as its installed help says. Otherwise a fresh conversation starts, with the handoff on the terminal above it, and the line says why: no session noted, the provider's store lost it, or the provider can't resume one (Aider has no session ids; Gemini CLI's `--resume` is from its documentation, unverified here). When the provider's own store has a conversation for that folder which the record doesn't name, it is suggested, with the command that notes it, and never taken: nothing resumes the most recent conversation lying about, and nothing starts a second agent at a desk that has one (`--another` does, on purpose). `--fresh` asks for a new conversation, `--use codex` another provider, `--here` this terminal.
 
+### A worker: a desk with a task
+
+Give a desk a task and the agent at it is a worker: `vikix agents desk vikix wifi-fix --task "the Wi-Fi picker should scan first"`. The agent is started on the task, its first prompt, with where the desk's record is, so it opens on what the desk is for rather than at an empty prompt. The worker reports by construction. When its status comes to *review*, *waiting* or *finished*, a notification on the desktop says so, with its next step (never for a status that stayed, or for your own change). And a worker that ends a turn having changed files without writing its handoff is asked once, by Claude Code's Stop hook (`vikix agents stopping`, set by `vikix agent` with the house rules), to write it before it stops; the stop after that is let go, so nothing goes round, and a desk with no task, a session you are simply talking with, is never held to it.
+
+A note for a worker at work: `vikix agents tell wifi-fix "try the laptop's second card too"`. It waits at the desk, shown by `vikix agents handoff` and counted under the agent's line in `vikix agents`, and the hook hands it to the agent at its next edit or command, signed and timed, so nothing types into its window. Only Claude Code's hook can carry words to the agent: for the others `tell` says so, the note stays in the handoff for the agent to read there, and `resume` reads the notes out to whichever agent takes the desk up. A note is text like the handoff's: a line that looks like a key is refused.
+
 ### When a desk doesn't appear
 
 `vikix agents` shows no new line and the workspace is empty: the desk wasn't made. From a terminal the reason is printed (*no project called ...*: `vikix project list` names them, and any part of a name does); from `Super+m` it comes as a notification. The usual cause is a name that isn't the project's (`novel-second-edition` when the project is `novel`).
@@ -274,7 +280,7 @@ The Vikix skill tells every agent the same rules, so you can hold it to them: lo
 
 ## Not there yet
 
-A workspace and a bar colour each; `vikix agents stop NAME`; handing a window from one agent to another; a permission list per agent. Gemini CLI's and Codex's hook shapes, and Gemini's resume, tried on a machine that has them. Each will come as it is needed; the pieces that are here are the ones the first weeks with several agents asked for.
+A workspace and a bar colour each; pausing an agent, two taking turns on one file, a tester that runs a desk's tests on its hand-in, and dismissing one (`DESIGN-workers.md`); handing a window from one agent to another; a permission list per agent. Gemini CLI's and Codex's hook shapes, and Gemini's resume, tried on a machine that has them. Each will come as it is needed; the pieces that are here are the ones the first weeks with several agents asked for.
 
 ## The Office
 

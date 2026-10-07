@@ -32,6 +32,12 @@
 #   agent at work there or files uncommitted (--force throws them away), a
 #   branch not merged is kept and said, the desk by its folder, topic,
 #   branch or PROJECT TOPIC, asked on the desktop or listed without one.
+#   A worker: a note for a desk's agent (vikix agents tell) is delivered
+#   by Claude Code's hook at its next edit, once, and not by another
+#   provider's; the Stop hook asks an agent at a desk with a task, that
+#   changed files (an edit, or a Bash command that writes) without
+#   writing its handoff since, to write it, once per turn (the stop after
+#   it is let go), and holds nothing at a desk without a task.
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
@@ -180,9 +186,10 @@ check "a failure from the menu is said in a notification: $(cat "$t/notified" 2>
 
 check "config/claude/office.json is the hook, on edits and Bash" python3 -c '
 import json
-h = json.load(open("'"$here"'/config/claude/office.json"))["hooks"]["PreToolUse"]
-assert h[0]["matcher"] == "Edit|Write|MultiEdit|NotebookEdit|Bash", h
-assert h[0]["hooks"][0]["command"] == "vikix agents touch", h'
+h = json.load(open("'"$here"'/config/claude/office.json"))["hooks"]
+assert h["PreToolUse"][0]["matcher"] == "Edit|Write|MultiEdit|NotebookEdit|Bash", h
+assert h["PreToolUse"][0]["hooks"][0]["command"] == "vikix agents touch", h
+assert h["Stop"][0]["hooks"][0]["command"] == "vikix agents stopping", h'
 check "vikix agent gives Claude Code the hook, unless VIKIX_OFFICE=0" \
   grep -q 'VIKIX_OFFICE:-1.*!= 0.*\]' "$here/bin/vikix-agent"
 check "with --settings, so nothing is written to the user's settings" \
@@ -259,6 +266,40 @@ out=$(cd "$HOME" && VIKIX_AGENT_PID=1001 agents sit)
 check "sit alone, in a desk: that one: $out" grep -q 'claude 1001 is seated at .*/book-a: the desk you are in, a worktree on the branch a' <<<"$out"
 out=$(cd "$HOME" && python3 "$here/bin/vikix-agents" sit book x 2>&1 </dev/null || true)
 check "no agent above it: refused: $out" grep -q 'no agent runs this shell' <<<"$out"
+
+# --- A worker: a note delivered by the hook; the Stop hook asks for the handoff ---------------
+as() { local pid=$1; shift; VIKIX_AGENT_PID=$pid python3 "$here/bin/vikix-agents" "$@" 2>&1 </dev/null || true; }
+stop_as() { printf '%s' "$2" | VIKIX_AGENT_PID=$1 python3 "$here/bin/vikix-agents" stopping 2>&1; }
+out=$(agents tell a "look at chapter two first")
+check "a note for the desk's agent: $out" grep -q 'book-a: noted for its agent, delivered at its next edit or command' <<<"$out"
+out=$(touch_as 1001 "$t/src/book-a/ch3.md")
+check "delivered at its next edit: $out" grep -q '"additionalContext": "Vikix office, notes for you at this desk (vikix agents tell): \[user, [0-9:]*\] look at chapter two first"' <<<"$out"
+out=$(touch_as 1001 "$t/src/book-a/ch3.md")
+check "once: '$out'" test -z "$out"
+out=$(agents tell b "wait for a")
+check "an agent whose hook carries no note is said so: $out" grep -q 'codex 1002 has no hook that carries a note' <<<"$out"
+out=$(touch_as 1002 --for codex "$t/src/book-b/ch9.md")
+check "and its hook delivers nothing: '$out'" test -z "$out"
+out=$(stop_as 1001 '{"stop_hook_active": false}')
+check "a desk with no task holds nothing at a stop: '$out'" test -z "$out"
+agents handoff set --desk "$t/src/book-a" --task "Fix the typos" >/dev/null
+out=$(stop_as 1001 '{"stop_hook_active": false}')
+check "a worker that changed files and wrote no handoff is asked to, once: $out" \
+  grep -q '"decision": "block", "reason": "Vikix office: this turn changed [0-9]* files* at your desk and the handoff hasn.t been written since. Write it now, then stop: vikix agents handoff set --status' <<<"$out"
+check "the record notes it" grep -q 'asked for the handoff before the agent stopped' "$HOME/.local/state/vikix/office/desks/"*.json
+out=$(stop_as 1001 '{"stop_hook_active": true}')
+check "the stop after it is let go, so nothing goes round: '$out'" test -z "$out"
+as 1001 handoff set --status working --summary "fixed three" --next "the spell check" >/dev/null
+out=$(stop_as 1001 '{}')
+check "written, the agent stops freely: '$out'" test -z "$out"
+sleep 1
+out=$(bash_as 1001 "$t/src/book-a" "sed -i s/one/uno/ $t/src/book-a/ch1.md")
+check "a Bash command that writes at the desk passes: '$out'" test -z "$out"
+out=$(stop_as 1001 '{}')
+check "and counts as a change for the Stop hook: $(head -c 80 <<<"$out")" grep -q '"decision": "block".*changed 1 file at your desk' <<<"$out"
+check "a shell write is noted apart, so the clash and protection counts don't change" grep -q '"kind": "shell".*"pid": 1001.*book-a/ch1.md' "$journal"
+out=$(stop_as 1002 '{}')
+check "an agent at a desk with no record holds nothing: '$out'" test -z "$out"
 # A helper an agent started under its own name (Claude Code's daemon runs the shell
 # commands): what it does is the agent's, so a seat taken through it is the agent's.
 proc 1010 claude "$HOME"

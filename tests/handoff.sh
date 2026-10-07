@@ -18,7 +18,11 @@
 #   listing names every desk; close marks the record closed and keeps it;
 #   handoff forget removes the record of a desk whose folder is gone, and
 #   refuses a desk that stands, one with an agent still in it, and a desk
-#   with no record.
+#   with no record. A worker reports: an agent's status coming to review,
+#   waiting or finished is a notification (not a status that stayed, nor
+#   the user's own change); a note for the desk's agent (vikix agents
+#   tell) waits in the handoff, is refused when it looks like a credential,
+#   and is delivered by the hook at the agent's next edit, once.
 #   vikix agents resume shows the handoff and resumes the session the
 #   record names when the provider's store still has it (claude --resume,
 #   codex resume, opencode --session, agy --conversation), else starts fresh and says why; a
@@ -86,6 +90,15 @@ check "and the listing of desks says it too: $(agents handoff list)" grep -q 'wo
 out=$(as 1001 handoff set --status finished)
 check "finished, the estimate is judged against the time it took: $(agents handoff a | grep ^Estimate)" \
   grep -q '; finished in 50 min against 40 min, 10 min over$' <<<"$(agents handoff a)"
+printf '#!/bin/sh\necho "$*" > %s/notified\n' "$t" > "$t/bin/notify-send"; chmod +x "$t/bin/notify-send"
+PATH="$t/bin:$PATH" DISPLAY=:7 as 1001 handoff set --status review --next "try it on the laptop" >/dev/null
+check "an agent's status coming to review is told on the desktop: $(cat "$t/notified" 2>/dev/null)" \
+  grep -q 'Agent at .*/book-a: ready for review try it on the laptop' "$t/notified"
+rm -f "$t/notified"
+PATH="$t/bin:$PATH" DISPLAY=:7 as 1001 handoff set --next "run the spell check" >/dev/null
+check "a status that stayed is not told again" test ! -e "$t/notified"
+PATH="$t/bin:$PATH" DISPLAY=:7 agents handoff set --desk a --status waiting >/dev/null
+check "nor the user's own change" test ! -e "$t/notified"
 as 1001 handoff set --status working >/dev/null
 out=$(as 1001 handoff check tests/run.sh house --ok --note "4 s")
 check "a check keeps the commit and the clean tree, read by Vikix: $out" grep -qE 'passed tests/run.sh house on [0-9a-f]{7}, clean tree \(claude 1001\)' <<<"$out"
@@ -140,6 +153,21 @@ printf '{"toolCall":{"name":"replace_file_content","args":{"TargetFile":"%s/ch1.
 check "the hook notes Antigravity's conversation id on the desk too: $(agents handoff a | grep Sessions)" \
   grep -q 'antigravity aaaaaaaa-1111-2222-3333-444444444444' <<<"$(agents handoff a)"
 rm -r "$t/proc/1009"
+
+# A note for the desk's agent: waits in the handoff, delivered by the hook.
+out=$(agents tell a "look at chapter two first")
+check "a note for the desk's agent: $out" grep -q 'book-a: noted for its agent, delivered at its next edit or command' <<<"$out"
+check "the handoff shows it waiting" grep -q '^  user (just now): look at chapter two first$' <<<"$(agents handoff a)"
+out=$(agents tell a "the key is sk-ant-abcdefghijklmnopqrst")
+check "a credential in a note is refused: $out" grep -q 'looks like it holds a credential' <<<"$out"
+out=$(printf '{"tool_name":"Edit","tool_input":{"file_path":"%s/ch1.md"},"cwd":"%s"}' "$t/src/book-a" "$t/src/book-a" \
+      | VIKIX_AGENT_PID=1001 python3 "$here/bin/vikix-agents" touch 2>&1)
+check "delivered by the hook at the agent's next edit, signed and timed: $out" \
+  grep -q '"additionalContext": "Vikix office, notes for you at this desk (vikix agents tell): \[user, [0-9][0-9]:[0-9][0-9]\] look at chapter two first"' <<<"$out"
+check "and gone from the desk" not grep -q 'Notes waiting' <<<"$(agents handoff a)"
+out=$(printf '{"tool_name":"Edit","tool_input":{"file_path":"%s/ch1.md"},"cwd":"%s"}' "$t/src/book-a" "$t/src/book-a" \
+      | VIKIX_AGENT_PID=1001 python3 "$here/bin/vikix-agents" touch 2>&1)
+check "once: the next edit says nothing: '$out'" test -z "$out"
 
 # Refusals: a credential, an unknown field, a bad session id, an id that is a path.
 out=$(agents handoff set --desk a --summary "the key is ANTHROPIC_API_KEY=sk-ant-abcdefghijklmnopqrst")
@@ -201,9 +229,11 @@ git -C "$t/src/book" worktree add -q "$t/src/book-c" -b c
 printf '#!/bin/sh\necho "AGENT ARGS: $*"\n' > "$t/bin/agent"; chmod +x "$t/bin/agent"
 resume() { VIKIX_AGENT_CMD="$t/bin/agent" python3 "$here/bin/vikix-agents" resume "$@" 2>&1 </dev/null || true; }
 agents handoff set --desk c --task "Chapter three" >/dev/null
+agents tell c "start with the index" >/dev/null
 out=$(resume c --here --use claude)
 check "a desk with no session noted starts fresh, and says so, after the handoff: $out" \
   bash -c 'grep -q "^Task (user, .*): Chapter three" <<<"$1" && grep -q "^fresh conversation with claude at .*/book-c: no claude session is noted on this desk" <<<"$1" && grep -q "^AGENT ARGS: $" <<<"$1"' _ "$out"
+check "the notes waiting are read out, for an agent whose hook can't carry them" grep -q "^  user (just now): start with the index$" <<<"$out"
 agents handoff session --desk c claude 0f1e2d3c-aaaa-bbbb-cccc-123456789abc >/dev/null
 out=$(resume c --here --use claude)
 check "a session whose store is gone starts fresh, naming the store: $out" \
