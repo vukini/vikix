@@ -91,9 +91,13 @@ Each is counted for `vikix used` too (used.lisp)."
 
 (defun vikix-why-key-source (key command)
   "Where KEY, running COMMAND, was written: (values WORDS FILE LINE). WORDS
-says whose it is; FILE and LINE may be nil (a key of StumpWM's own)."
+says whose it is; FILE and LINE may be nil (a key of StumpWM's own). KEY
+may be a key inside a map, written as the two keys (\"s-C-SPC m\")."
   (let* ((registered (and (boundp '*vikix-commands*)
-                          (find-if (lambda (c) (and (equal (getf c :key) key) (equal (getf c :run) command)))
+                          (find-if (lambda (c) (and (equal (getf c :run) command)
+                                                    (if (fboundp 'vikix-command-keys)
+                                                        (member key (funcall 'vikix-command-keys c) :test #'equal)
+                                                        (equal (getf c :key) key))))
                                    (symbol-value '*vikix-commands*))))
          (bound (gethash key *vikix-key-sources*))
          (file (if registered (getf registered :file) (car bound)))
@@ -161,7 +165,9 @@ as StumpWM has them, first pressed first."
                   (keys (format nil "~{~a~^ ~}" names)))
              (setf *vikix-why-key* nil)
              (multiple-value-bind (whose file line)
-                 (vikix-why-key-source (car (last names)) command)
+                 ;; A key inside a map is written whole ("s-C-SPC m"); any
+                 ;; other sequence (C-t k) by its last key.
+                 (vikix-why-key-source (if (gethash keys *vikix-key-sources*) keys (car (last names))) command)
                (vikix-why-note :key (list keys command)
                                :what (vikix-why-keys-said keys)
                                :does (format nil "ran ~a~@[ (~a)~]" command (vikix-why-command-words command))

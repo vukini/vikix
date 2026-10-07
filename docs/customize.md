@@ -41,6 +41,23 @@ A key bound like that works, and nothing else knows of it. To have it on the key
 
 The name (`obsidian`) is yours to choose; the words after it are what the key card and the menu say. `:run` is the command and `:key` its key. `:menu` puts it in `Super+m`, in that section of it (Start, Help, Vikix, AI, Work, Notifications, Desktop, Windows, System, Apps); leave it out for a key alone. `:label` gives the menu other words than the key card's, and `:needs` names a program or a file (`"~/..."`) without which the menu leaves the entry out. Leave `:key` out for a menu entry with no key; then `:do` can take a Lisp form in place of `:run`. `:agent t` lets your AI agent run it by name, without asking you each time ([Working with AI](ai.md#the-desktop-as-tools-mcp)): only for something put back as easily as it is done. A mistake in the form is said when `user.lisp` loads, with what is wrong.
 
+### Keys inside a map
+
+The key card is full, so a few keys open a *map* instead: `Super+Ctrl+Space` the layout keys (`m` main and stack, `s` strip, `g` grid, `t` tiles, `w` width, `h` height, `u` and `r` undo and redo, `Space` the menu), `Super+Alt+d` the desk keys (`n` a new desk, `r` take one up again, `c` close one, `h` its handoff, `o` the Office). The map's keys show in a small card while it is open; a key acts and the card stays, so `w`, `w`, `w` goes through the widths, and Escape, the opening key again, or a few seconds of nothing closes it (`(setf *vikix-map-timeout* 10)` in `user.lisp` for more). A key that starts a program closes the map first. The key card has the key that opens a map, whose words name its keys; `Super+F1`'s list and the README's table have each as *then m*, and `vikix used` counts each as a key of its own.
+
+To put a command of yours into a map, give it `:map` with the map's name and the key: `:map "layout x"`, beside `:key` or instead of it. A map of your own is a command whose `:run` is `vikix-map NAME`, with a key; the commands with `:map "NAME k"` written after it are its keys:
+
+```lisp
+(define-vikix-command music "Music keys: p play or pause, n next, b back"
+  :run "vikix-map music" :key "s-M-u")
+(define-vikix-command music-play "Play or pause"
+  :run "exec playerctl play-pause" :map "music p")
+(define-vikix-command music-next "Next track"
+  :run "exec playerctl next" :map "music n")
+```
+
+The words of the map's command are what the card says of it, so name its keys there after a colon, a comma between, in the order you want them shown. The rule for keys judges a key inside a map by the key that opens the map (a map of programs goes on Super+Alt, a map of switches on Super+Ctrl).
+
 Vikix's own commands are written the same way, all in one file, `registry.lisp` in Vikix's layer: its keys, its menu, and what agents may run all come from it. The older way still works, and is what a plugin or a web app does: add to the list the card and the help are built from, and bind the key.
 
 ```lisp

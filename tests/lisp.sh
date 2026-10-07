@@ -21,7 +21,9 @@
 # window to a workspace, and the keys from before the rule go at a reload.
 # Then the
 # key card (Super+/): every key in *vikix-bindings* is in a group and on
-# the card, at any screen size; and a reload sets which-key-mode rather
+# the card, at any screen size; a key inside a map (:map "layout m") is in
+# the help right under the key that opens it, and off the card, which is
+# full; a wrong :map is refused as the file loads; and a reload sets which-key-mode rather
 # than toggling it. Against the real StumpWM when Quicklisp has it (the
 # layer must then compile without a warning), else against stand-ins.
 
@@ -263,11 +265,41 @@ cat > "$t/check.lisp" <<EOF
                            ((define-vikix-command t3 "x" :do (print 1) :key "s-M-F12") "a key runs a command")
                            ((define-vikix-command t4 "x" :run "exec x" :menu "Nowhere") "is no part of the menu")
                            ((define-vikix-command t5 "x" :run "exec x") "nothing would ever run it")
-                           ((define-vikix-command t6 :run "exec x" :key "s-M-F12") "its words"))
+                           ((define-vikix-command t6 :run "exec x" :key "s-M-F12") "its words")
+                           ((define-vikix-command t7 "x" :run "exec x" :map "nowhere x") "no command opens a map called nowhere")
+                           ((define-vikix-command t8 "x" :run "exec x" :map "layout") "a map's name and the key in it")
+                           ((define-vikix-command t9 "x" :do (print 1) :map "layout x") "with :map it needs :run")
+                           ((define-vikix-command t10 "x" :run "exec x" :key "s-C-SPC x") ":key is one key"))
       do (let ((said (handler-case (progn (eval form) "no error") (error (e) (princ-to-string e)))))
            (unless (search want said)
              (fail "~s should be refused, saying ~s: ~a" form want said))))
 (when (vikix-command 't1) (fail "a refused command is in the registry all the same"))
+;; A key inside a map (registry.lisp, :map "layout m"): in *vikix-bindings*
+;; as the two keys, read as "Super+Ctrl+Space, m", on the card as "then m"
+;; right under the key that opens the map and in its group, and not bound
+;; in *top-map* (the map reads it itself).
+(let ((main (find "vikix-main" *vikix-bindings* :key #'second :test #'equal :from-end t)))
+  (unless (equal (first main) "s-C-SPC m")
+    (fail "vikix-main should be in *vikix-bindings* a second time as \"s-C-SPC m\": ~s" main)))
+(unless (equal (vikix-pretty-key "s-C-SPC m") "Super+Ctrl+Space, m")
+  (fail "s-C-SPC m should read Super+Ctrl+Space, m: ~s" (vikix-pretty-key "s-C-SPC m")))
+(unless (equal (vikix-command-keys (vikix-command 'main)) '("s-C-m" "s-C-SPC m"))
+  (fail "main's keys should be its own and the map's: ~s" (vikix-command-keys (vikix-command 'main))))
+(unless (equal (vikix-command-keys (vikix-command 'viri)) '("s-C-SPC s"))
+  (fail "viri's only key should be the map's: ~s" (vikix-command-keys (vikix-command 'viri))))
+(let* ((entries (vikix-key-entries))
+       (opener (position "Super+Ctrl+Space" entries :key #'first :test #'equal))
+       (after (and opener (subseq entries (1+ opener) (+ opener 10)))))
+  (unless opener (fail "the layout map's opener should be among the help's entries"))
+  (unless (and after (every (lambda (e) (eql 0 (search "then " (first e)))) after)
+               (equal (fourth (first after)) "Windows & frames")
+               (equal (mapcar #'first after) '("then m" "then s" "then g" "then t" "then w" "then h" "then u" "then r" "then Space")))
+    (fail "the layout map's keys should follow its opener in the help as \"then m\" ..., in its group and in the order its words name them: ~s" (mapcar #'first after))))
+(when (find-if (lambda (e) (or (eql 0 (search "then " (first e))) (equal (third e) "vikix-keys-card"))) (vikix-card-entries))
+  (fail "the card's rows should leave the keys inside a map out, and its own key: the card is full"))
+(when (fboundp 'lookup-key)
+  (when (ignore-errors (lookup-key *top-map* (kbd "m")))
+    (fail "m alone should not be bound in *top-map*: a map's key is the map's")))
 ;; One written in user.lisp (after keys.lisp) is bound and in the menu at
 ;; once, before Power; written again, it is there once.
 (defvar *vikix-menu* (vikix-registry-menu))
@@ -310,7 +342,7 @@ cat > "$t/check.lisp" <<EOF
 ;; No key lost: each on the card once, at any monitor size, in columns no
 ;; taller than the monitor and, side by side, no wider (1366x768 and up;
 ;; smaller monitors get cut descriptions, and may still run over).
-(let ((want (sort (mapcar (lambda (e) (list (first e) (second e))) (vikix-key-entries))
+(let ((want (sort (mapcar (lambda (e) (list (first e) (second e))) (vikix-card-entries))
                   #'string< :key #'first)))
   (loop for (rows chars) in '((50 250) (32 175) (100 500) (25 140) (12 90) (5 40))
         do (multiple-value-bind (columns key-width desc-width)
@@ -337,9 +369,11 @@ cat > "$t/check.lisp" <<EOF
 (let ((lines (vikix-card-strings 45 240)))
   (unless (<= (length lines) 45)
     (fail "the card is ~d lines, more than the 45 that fit" (length lines)))
-  (dolist (e (vikix-key-entries))
+  (dolist (e (vikix-card-entries))
     (unless (find-if (lambda (l) (search (first e) l)) lines)
-      (fail "~a isn't on the card" (first e)))))
+      (fail "~a isn't on the card" (first e))))
+  (unless (search "Super+/" (first lines))
+    (fail "the card's first line should name its own key, since it isn't a row: ~a" (first lines))))
 (format t "key card: ~d keys in ~d groups, against $against~%"
         (length (vikix-key-entries)) (length (vikix-card-groups)))
 (sb-ext:exit :code (if (zerop *failed*) 0 1))
@@ -357,7 +391,7 @@ grep -q '^FAIL' <<<"$out" && card_rc=1
 # grep (vikix-webapp, one migration): what they find is what the registry has.
 here=$(pwd)   # the checkout: this script went there at its start
 found=$(VIKIX_DIR="$here" bash -c 'eval "$(sed -n "/^vikix_keys() {/,/^}/p" "$VIKIX_DIR/bin/vikix-webapp")"; vikix_keys' | grep -vxE 's-[1-9]' | sort)
-real=$("$here/lib/registry.sh" keys | cut -f1 | grep '^s-' | sort)
+real=$("$here/lib/registry.sh" keys | cut -f1 | grep '^s-' | grep -v ' ' | sort)   # a key inside a map ("s-C-SPC m") is no key of theirs
 if [ -z "$real" ] || [ "$found" != "$real" ]; then
   echo "FAIL the keys vikix-webapp reads from registry.lisp aren't the registry's: $(diff <(echo "$found") <(echo "$real") | grep '^[<>]' | tr '\n' ' ')"
   card_rc=1

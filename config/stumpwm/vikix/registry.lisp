@@ -17,6 +17,11 @@
 ;;;;   :do     a Lisp form, for what no command string can say (menu only)
 ;;;;   :key    its key ("s-C-d": keys.lisp says how keys are named, and the
 ;;;;           rule they keep)
+;;;;   :map    a key inside a map ("layout m": the map's name, then the key
+;;;;           in it), beside :key or instead of it. A map is a command
+;;;;           whose :run is "vikix-map NAME" (help.lisp): its key opens
+;;;;           it, single keys act in it until Escape or a few seconds
+;;;;           pass, and the card shows its keys under its entry
 ;;;;   :card   its group on the key card, when the command's own word doesn't
 ;;;;           say (help.lisp: *vikix-key-groups*)
 ;;;;   :menu   the section of Super+m it is in (*vikix-menu-groups*); none:
@@ -59,7 +64,7 @@ just before it.")
 
 (defparameter *vikix-commands* '()
   "Every command defined with define-vikix-command, in order: a list of
-plists (:name :does :run :do :key :card :menu :label :needs :agent). Emptied
+plists (:name :does :run :do :key :map :card :menu :label :needs :agent). Emptied
 when this file loads, so a reload has each once.")
 
 (defparameter *vikix-registry-live* nil
@@ -79,26 +84,69 @@ when this file loads, so a reload has each once.")
     (unless (stringp does) (bad "after its name come its words, a string; this is ~s." does))
     (unless (evenp (length options)) (bad "an option without a value: ~s." options))
     (loop for (key nil) on options by #'cddr
-          unless (member key '(:run :do :key :card :menu :label :needs :agent))
-            do (bad "~(~s~) is no option of a command: :run, :do, :key, :card, :menu, :label, :needs, :agent." key))
+          unless (member key '(:run :do :key :map :card :menu :label :needs :agent))
+            do (bad "~(~s~) is no option of a command: :run, :do, :key, :map, :card, :menu, :label, :needs, :agent." key))
     (let ((run (getf options :run)) (do (getf options :do)) (key (getf options :key))
-          (menu (getf options :menu)))
+          (map (getf options :map)) (menu (getf options :menu)))
       (unless (or run do) (bad "it does nothing: give it :run, a command, or :do, a form."))
       (when (and run do) (bad "both :run and :do: one says what it does."))
       (when (and run (not (stringp run))) (bad ":run is a command string, like \"exec firefox\"; this is ~s." run))
       (when (and key (not run)) (bad "a key runs a command: with :key it needs :run, not :do."))
       (when (and key (not (stringp key))) (bad ":key is a key's name, like \"s-C-d\"; this is ~s." key))
+      (when (and key (find #\Space key)) (bad ":key is one key; a key inside a map is :map \"MAP KEY\"."))
+      (when map
+        (unless run (bad "a key runs a command: with :map it needs :run, not :do."))
+        (unless (and (stringp map) (= 1 (count #\Space map)) (not (eql 0 (position #\Space map)))
+                     (not (eql (1- (length map)) (position #\Space map))))
+          (bad ":map is a map's name and the key in it, like \"layout m\"; this is ~s." map))
+        (let* ((map-name (subseq map 0 (position #\Space map)))
+               (opener (vikix-map-command map-name)))
+          (unless opener
+            (bad ":map ~s: no command opens a map called ~a (one with :run \"vikix-map ~a\" and a :key, defined before this one)."
+                 map map-name map-name))
+          (unless (getf opener :key)
+            (bad ":map ~s: the command that opens the map ~a has no key, so nothing could reach this one." map map-name))))
       (when (and menu (not (member menu *vikix-menu-groups* :test #'equal)))
         (bad ":menu ~s is no part of the menu: ~{~s~^, ~}." menu *vikix-menu-groups*))
       (when (and (not menu) (or (getf options :label) (getf options :needs)))
         (bad ":label and :needs are the menu's: they want :menu too."))
-      (unless (or key menu (getf options :agent))
+      (unless (or key map menu (getf options :agent))
         (bad "it has no key, is in no menu and is not for agents: nothing would ever run it.")))))
 
-(defun vikix-command-binding (command)
-  "COMMAND as an entry of *vikix-bindings*: (KEY COMMAND WORDS [GROUP])."
-  (append (list (getf command :key) (getf command :run) (getf command :does))
-          (when (getf command :card) (list (getf command :card)))))
+;;; Maps: a command whose :run is "vikix-map NAME" opens the map NAME; a
+;;; command with :map "NAME k" is the key k inside it. In *vikix-bindings*
+;;; such a key is written as the two keys with a space between, "s-C-SPC m",
+;;; the way StumpWM writes a key sequence; keys.lisp binds only the first
+;;; (the opener), and the map reads the second itself (help.lisp).
+
+(defun vikix-map-command (name)
+  "The command that opens the map NAME (its :run is \"vikix-map NAME\"), or nil."
+  (find (format nil "vikix-map ~(~a~)" name) *vikix-commands*
+        :key (lambda (c) (getf c :run)) :test #'string-equal))
+
+(defun vikix-map-enter-key (name)
+  "The key that opens the map NAME, or nil."
+  (getf (vikix-map-command name) :key))
+
+(defun vikix-command-map-key (command)
+  "The key COMMAND has inside a map, as *vikix-bindings* writes it
+(\"s-C-SPC m\"), or nil: none, or the map has no opener with a key."
+  (let ((map (getf command :map)))
+    (when map
+      (let* ((space (position #\Space map))
+             (enter (vikix-map-enter-key (subseq map 0 space))))
+        (and enter (format nil "~a ~a" enter (subseq map (1+ space))))))))
+
+(defun vikix-command-keys (command)
+  "Every key name COMMAND is bound under: its own, and the one in its map."
+  (remove nil (list (getf command :key) (vikix-command-map-key command))))
+
+(defun vikix-command-bindings (command)
+  "COMMAND's entries of *vikix-bindings*, (KEY COMMAND WORDS [GROUP]): one
+for its key, one for its key inside a map, none when it has neither."
+  (loop for key in (vikix-command-keys command)
+        collect (append (list key (getf command :run) (getf command :does))
+                        (when (getf command :card) (list (getf command :card))))))
 
 (defun vikix-command-action (command)
   "What the menu does for COMMAND, in *vikix-menu*'s own form: a command's
@@ -119,7 +167,7 @@ nil when it needs nothing."
 
 (defun vikix-registry-bindings ()
   "*vikix-bindings* as the registry has it: the commands with a key, in order."
-  (loop for c in *vikix-commands* when (getf c :key) collect (vikix-command-binding c)))
+  (loop for c in *vikix-commands* append (vikix-command-bindings c)))
 
 (defun vikix-registry-menu ()
   "*vikix-menu* as the registry has it: the commands with a place in the
@@ -133,12 +181,11 @@ menu, its sections in *vikix-menu-groups*' order, each in the registry's."
 Vikix's own were (user.lisp). Its key is taken from whatever had it; its
 menu entry joins the list before the last one, Power, as a plugin's does,
 and the menu shows it in its section."
-  (let ((key (getf command :key)))
-    (when key
-      (set '*vikix-bindings*
-           (append (remove key (symbol-value '*vikix-bindings*) :key #'first :test #'equal)
-                   (list (vikix-command-binding command))))
-      (funcall 'vikix-bind key (getf command :run))))
+  (dolist (binding (vikix-command-bindings command))
+    (set '*vikix-bindings*
+         (append (remove (first binding) (symbol-value '*vikix-bindings*) :key #'first :test #'equal)
+                 (list binding)))
+    (funcall 'vikix-bind (first binding) (second binding)))
   (when (and (getf command :menu) (boundp '*vikix-menu*))
     (let* ((entry (vikix-command-menu-entry command))
            (menu (remove (first entry) (symbol-value '*vikix-menu*) :key #'first :test #'equal)))
@@ -205,17 +252,22 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command agent "AI agent in a terminal: Claude Code, or the one you chose"
   :run "vikix-agent" :key "s-a"
   :menu "AI" :label "AI agent")
+(define-vikix-command desks "Desk keys: n new, r take up again, c close, h handoff, o the Office"
+  :run "vikix-map desks" :key "s-M-d" :card "AI & voice")
 (define-vikix-command agent-desk "AI agent at a desk of its own: pick a project; it gets a workspace and a worktree to itself"
-  :run "exec vikix-agents desk"
+  :run "exec vikix-agents desk" :map "desks n"
   :menu "AI" :label "Agents: start one on a project, at a desk of its own")
+(define-vikix-command agent-desk-resume "Take a desk up again: pick one; its handoff shown, its agent's conversation resumed where it can be"
+  :run "exec vikix-agents resume --menu" :map "desks r"
+  :menu "AI" :label "Agents: take a desk up again (its handoff, the conversation resumed)")
 (define-vikix-command agent-desk-close "Close an agent's desk whose work is in: pick one; its worktree and branch go"
-  :run "exec vikix-agents close"
+  :run "exec vikix-agents close" :map "desks c"
   :menu "AI" :label "Agents: close a desk (its worktree and branch, once the work is in)")
 (define-vikix-command agent-handoff "A desk's handoff: the task, what the agent did and left, its checks; pick a desk"
-  :run "exec vikix-agents handoff --menu"
+  :run "exec vikix-agents handoff --menu" :map "desks h"
   :menu "AI" :label "Agents: a desk's handoff (task, status, what is left)")
 (define-vikix-command office "The Office: tasks, desks and agents; continue unfinished work"
-  :run "exec vikix-agents office"
+  :run "exec vikix-agents office" :map "desks o"
   :menu "AI" :label "Office: tasks, desks and agents")
 (define-vikix-command agents "Agents: who is running, on what, and which waits for you; pick one to go to it"
   :run "vikix-agents-pick"
@@ -350,12 +402,16 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 
 ;;; Frames (StumpWM's splits), strips, layouts
 
+(define-vikix-command layout "Layout keys: m main, s strip, g grid, t tiles, w width, h height, u undo, r redo, Space the menu"
+  :run "vikix-map layout" :key "s-C-SPC" :card "Windows & frames")
 (define-vikix-command split "Split: side by side (on a strip: this column fills the room the others leave)"
   :run "vikix-split" :key "s-b")
 (define-vikix-command split-below "Split: one above the other (on a strip: this window taller in its column)"
   :run "vikix-split below" :key "s-v")
 (define-vikix-command width-or-remove "Remove this split (on a strip: the column's width; in main and stack: the main window's)"
-  :run "vikix-width-or-remove" :key "s-r")
+  :run "vikix-width-or-remove" :key "s-r" :map "layout w")
+(define-vikix-command height "On a strip: this window taller in its column (a third, half, two thirds, then even again)"
+  :run "vikix-height" :map "layout h")
 (define-vikix-command strip-first "On a strip: the first column"
   :run "vikix-focus-end first" :key "s-Home")
 (define-vikix-command strip-last "On a strip: the last column"
@@ -370,13 +426,16 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
   :run "vikix-overview" :key "s-o"
   :menu "Windows" :label "Overview: every workspace, drawn small")
 (define-vikix-command grid "Grid mode on/off: windows stay tiled in a grid as they open and close"
-  :run "vikix-grid" :key "s-O"
+  :run "vikix-grid" :key "s-O" :map "layout g"
   :agent t)
 (define-vikix-command main "Main and stack (master and stack) on/off: this window on the left, the rest in a column beside it"
-  :run "vikix-main" :key "s-C-m"
+  :run "vikix-main" :key "s-C-m" :map "layout m"
+  :agent t)
+(define-vikix-command tiles "Tiles: the plain layout, splits you make yourself"
+  :run "vikix-layout-pick tiles" :map "layout t"
   :agent t)
 (define-vikix-command layout-pick "Layout: pick this workspace's (tiles, main and stack, grid, strip, or one you saved)"
-  :run "vikix-layout-pick" :key "s-C-SPC"
+  :run "vikix-layout-pick" :map "layout SPC"
   :menu "Windows" :label "Layout: pick this workspace's (tiles, main and stack, grid, strip)")
 (define-vikix-command layout-save "Layout: save this workspace's, by name"
   :run "vikix-layout-save-command"
@@ -385,7 +444,7 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
   :run "vikix-layout-restore-command"
   :menu "Windows")
 (define-vikix-command viri "This workspace as a strip that scrolls sideways (Viri), or tiled again"
-  :run "vikix-viri"
+  :run "vikix-viri" :map "layout s"
   :menu "Windows" :label "Strip: this workspace scrolls sideways (Viri), or tiled again" :agent t)
 (define-vikix-command solo "Focus: only this window; again puts the others back (on a strip: its column's windows as tabs)"
   :run "vikix-solo" :key "s-z"
@@ -400,10 +459,10 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
   :run "toggle-gaps" :key "s-C-g"
   :menu "Windows" :agent t)
 (define-vikix-command layout-undo "Undo the last layout change (splits, moves)"
-  :run "vikix-layout-undo" :key "s-u"
+  :run "vikix-layout-undo" :key "s-u" :map "layout u"
   :agent t)
 (define-vikix-command layout-redo "Redo the layout change"
-  :run "vikix-layout-redo" :key "s-U"
+  :run "vikix-layout-redo" :key "s-U" :map "layout r"
   :agent t)
 (define-vikix-command go-to-window "Go to any window, on any workspace"
   :run "vikix-go-to-window" :key "s-g"

@@ -92,7 +92,8 @@
                        (--menu, from Super+m: pick one, read it in a terminal)
   vikix agents resume [DESK] [--use NAME] [--here] [--fresh] [--another]
                        take a desk up again: its handoff, git state and
-                       checks shown, then an agent started there. A
+                       checks shown, then an agent started there (--menu,
+                       from the desktop: pick the desk in rofi). A
                        session the record names, which the provider's
                        store still has, is resumed (claude --resume ID,
                        codex resume ID, opencode --session ID, agy
@@ -1193,10 +1194,12 @@ def handoff(argv):
 def resume(argv):
     H = handoff_module()
     use, here, fresh, another, words = None, False, False, False, []
-    require_saved, expect_session = False, None
+    require_saved, expect_session, menu = False, None, False
     while argv:
         a = argv.pop(0)
-        if a == "--use":
+        if a == "--menu":
+            menu = True
+        elif a == "--use":
             use = argv.pop(0) if argv else die("--use which agent? (vikix agent --list)")
         elif a == "--here":
             here = True
@@ -1212,6 +1215,16 @@ def resume(argv):
             die(f"vikix agents resume: {a}? (vikix agents help)")
         else:
             words.append(a)
+    if menu and not words:
+        # From the desktop (Super+Alt+d, r; Super+m): the desk picked in rofi.
+        every = [desk_state(d) for d in desks(projects())]
+        if not every:
+            die("no desk to take up: no project has a worktree beside it (vikix agents desk makes one)")
+        picked = rofi("Take a desk up again", "Its handoff is shown, and an agent started there: the conversation "
+                      "resumed where its provider still has it.", [desk_line(d) for d in every])
+        if picked is None or not picked.isdigit():
+            return 0
+        words = [every[int(picked)]["folder"]]
     folder, rec = desk_for(words)
     if not os.path.isdir(folder):
         die(f"{short(folder)} is gone: vikix agents desk {(rec or {}).get('desk', {}).get('project', 'PROJECT')} "

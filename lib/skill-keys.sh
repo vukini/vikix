@@ -58,22 +58,25 @@ plugin_keys() {
   echo '(defparameter *vikix-bindings* (vikix-registry-bindings))'
   awk '/^\(defparameter \*vikix-key-names\*/,/^$/; /^\(defun vikix-pretty-key/,/^$/;
        /^\(defparameter \*vikix-extra-keys\*/,/^$/; /^\(defparameter \*vikix-key-groups\*/,/^$/;
-       /^\(defun vikix-command-word/,/^$/; /^\(defun vikix-key-group/,/^$/' "$help"
+       /^\(defun vikix-command-word/,/^$/; /^\(defun vikix-key-group/,/^$/;
+       /^\(defun vikix-map-sorted/,/^$/; /^\(defun vikix-key-entries/,/^$/' "$help"
   echo "(defparameter *plugin-keys* '$(plugin_keys))"
   cat <<'LISP'
 (defun line (label description)
   (format nil "~a: ~a" label (string-right-trim "." description)))
+(defun split-string (string &optional (separators " "))   ; StumpWM's, for vikix-pretty-key
+  (loop with start = 0
+        for pos = (position-if (lambda (c) (find c separators)) string :start start)
+        collect (subseq string start pos)
+        while pos do (setf start (1+ pos))))
+;; The entries as the key card has them (help.lisp): a key inside a map
+;; ("then m") right under the key that opens it, in its group.
 (let ((groups '()))
-  (dolist (b *vikix-bindings*)
-    (destructuring-bind (key command description &optional group) b
-      (let ((g (vikix-key-group command group)))
-        (unless (assoc g groups :test #'string=) (setf groups (append groups (list (list g)))))
-        (push (line (vikix-pretty-key key) description) (cdr (assoc g groups :test #'string=))))))
-  (dolist (e *vikix-extra-keys*)
-    (destructuring-bind (label description command) e
-      (let ((g (vikix-key-group command)))
-        (unless (assoc g groups :test #'string=) (setf groups (append groups (list (list g)))))
-        (push (line label description) (cdr (assoc g groups :test #'string=))))))
+  (dolist (e (vikix-key-entries))
+    (destructuring-bind (label description command g) e
+      (declare (ignore command))
+      (unless (assoc g groups :test #'string=) (setf groups (append groups (list (list g)))))
+      (push (line label description) (cdr (assoc g groups :test #'string=)))))
   ;; In the key card's order of groups, Other last.
   (let ((order (append (mapcar #'first *vikix-key-groups*) '("Apps" "Other"))))
     (setf groups (sort groups #'< :key (lambda (g) (or (position (first g) order :test #'string=) 99)))))

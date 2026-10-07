@@ -101,13 +101,15 @@ check "grid mode takes the workspace over: one mode, never both" test "$(on) $(a
 key super+ctrl+m
 check "and main and stack takes it back" test "$(on) $(shape) $(ask '(princ (if (member (current-group) *vikix-grid-groups*) 1 0))')" = "1 1 0"
 
-# The picker: Super+Ctrl+Space is a menu of the layouts, the current one
-# chosen; by name from a rule or a key of your own.
+# The picker: Super+Ctrl+Space opens the layout keys (tests/maps.sh), and
+# Space there is a menu of the layouts, the current one chosen; by name
+# from a rule or a key of your own.
 now() { ask '(princ (vikix-layout-now))'; }
 key super+ctrl+m
 check "off: plain tiles" test "$(now)" = TILES
-key super+ctrl+space; key Down; key Return
-check "Super+Ctrl+Space, down, Enter: main and stack: $(now)" test "$(now) $(shape)" = "MAIN 1"
+key super+ctrl+space; xdotool key space; sleep 1; key Down; key Return   # a moment for the menu to open before its keys
+check "Super+Ctrl+Space, Space, down, Enter: main and stack: $(now)" test "$(now) $(shape)" = "MAIN 1"
+key Escape   # the layout keys, still open after the menu
 ask '(run-commands "vikix-layout-pick grid")' >/dev/null; sleep 0.5
 check "vikix-layout-pick grid: $(now)" test "$(now) $(on)" = "GRID 0"
 ask '(run-commands "vikix-layout-pick strip")' >/dev/null; sleep 0.5

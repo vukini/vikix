@@ -337,8 +337,12 @@ key that has moved."
             for key = (first binding)
             when (and (equal (second binding) command)
                       (or (not (fboundp 'lookup-key)) (not (boundp '*top-map*))
-                          (equal (ignore-errors (funcall 'lookup-key (symbol-value '*top-map*) (funcall 'kbd key)))
-                                 command)))
+                          ;; A key inside a map ("s-C-SPC m"): its opener still opens one.
+                          (let ((space (position #\Space key)))
+                            (if space
+                                (eql 0 (search "vikix-map " (ignore-errors (funcall 'lookup-key (symbol-value '*top-map*) (funcall 'kbd (subseq key 0 space))))))
+                                (equal (ignore-errors (funcall 'lookup-key (symbol-value '*top-map*) (funcall 'kbd key)))
+                                       command)))))
               return (if (fboundp 'vikix-pretty-key) (funcall 'vikix-pretty-key key) key)))))
 
 (defun vikix-menu-lines (entries)

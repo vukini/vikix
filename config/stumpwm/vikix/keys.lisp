@@ -28,6 +28,12 @@
 ;;;; vikix-key-problems (help.lisp) finds a key that breaks the rule, and
 ;;;; tests/lisp.sh fails on one of Vikix's.
 ;;;;
+;;;; A few keys open a map instead (Super+Ctrl+Space the layout's, Super+Alt+d
+;;;; the desks'): single keys act in it until Escape or a few seconds pass
+;;;; (help.lisp, vikix-map). Such a key is written "s-C-SPC m" in
+;;;; *vikix-bindings*, the two keys with a space between; this file binds the
+;;;; first alone, and the rule judges it by that first key.
+;;;;
 ;;;; Sending a window to a workspace is Super+Shift+<digit>. Shift+digit is
 ;;;; a different key on every keyboard layout (! on US, " on UK for 2 ...),
 ;;;; so the key's name is asked of the keyboard as it is laid out now
@@ -61,18 +67,21 @@ tools. Every other program a key starts is on Super+Alt.")
   "True inside vikix-binding-keys: X hears of the keys once, at its end.")
 
 (defun vikix-bind (key command)
-  "Bind KEY (a key name like \"s-RET\") to COMMAND (a command string)."
+  "Bind KEY (a key name like \"s-RET\") to COMMAND (a command string). A
+key inside a map (\"s-C-SPC m\") is only noted: the map reads it itself."
   ;; Where it was written, for "why did that happen?" (why.lisp).
   (when (and (or (and (boundp '*vikix-loading-file*) (symbol-value '*vikix-loading-file*)) *load-truename*) (boundp '*vikix-key-sources*))
     (setf (gethash key (symbol-value '*vikix-key-sources*))
           (cons (namestring (or (and (boundp '*vikix-loading-file*) (symbol-value '*vikix-loading-file*)) *load-truename*))
                 (and (boundp '*vikix-load-line*) (symbol-value '*vikix-load-line*)))))
-  (if *vikix-bind-later*
-      ;; define-key tells X when the map is *top-map*: not this time.
-      (let ((map *top-map*))
-        (let ((*top-map* nil))
-          (define-key map (kbd key) command)))
-      (define-key *top-map* (kbd key) command)))
+  (cond
+    ((find #\Space key))
+    (*vikix-bind-later*
+     ;; define-key tells X when the map is *top-map*: not this time.
+     (let ((map *top-map*))
+       (let ((*top-map* nil))
+         (define-key map (kbd key) command))))
+    (t (define-key *top-map* (kbd key) command))))
 
 (defmacro vikix-binding-keys (&body body)
   "Run BODY, which binds keys with vikix-bind, and tell X about them once.

@@ -13,7 +13,7 @@ You choose it for one workspace at a time. The others stay as they are, and the 
 Any of these, on the workspace you want:
 
 - `Super+m`, then *Strip: this workspace scrolls sideways (Viri), or tiled again* (in *Windows*, or type `strip`)
-- `Super+Ctrl+Space`, the layout menu, then *Strip: columns side by side that scroll sideways*
+- `Super+Ctrl+Space`, the layout keys, then `s` (or `Space` for the menu, then *Strip: columns side by side that scroll sideways*)
 - `vikix viri` in a terminal (`vikix viri on` and `vikix viri off` say which)
 
 Its windows keep the order they stood in: left to right, then top to bottom. The same again (or `vikix viri off`) makes it tiles, split as they were before it was a strip, each window back in its place. A window opened while it was a strip joins the split you're in.

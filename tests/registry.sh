@@ -48,8 +48,8 @@ check "Vikix's keys are its commands', and yours after them: $(ask '(princ (leng
   yes "(= (length *vikix-bindings*) (1+ $keys))"
 check "a key runs its command (Super+Return, Super+Ctrl+d)" \
   yes '(and (equal (lookup-key *top-map* (kbd "s-RET")) "vikix-terminal") (equal (lookup-key *top-map* (kbd "s-C-d")) "vikix-quiet"))'
-check "every key of the registry is bound to its command" \
-  yes '(every (lambda (b) (equal (lookup-key *top-map* (kbd (first b))) (second b))) (vikix-registry-bindings))'
+check "every key of the registry is bound to its command (one inside a map: its opener is)" \
+  yes '(every (lambda (b) (let ((space (position #\Space (first b)))) (if space (eql 0 (search "vikix-map " (lookup-key *top-map* (kbd (subseq (first b) 0 space))))) (equal (lookup-key *top-map* (kbd (first b))) (second b))))) (vikix-registry-bindings))'
 check "every command a key or the menu names is a real one" test -z "$(ask '(progn (setf *print-pretty* nil) (princ (loop for c in *vikix-commands* for run = (getf c :run) for word = (and run (subseq run 0 (position #\Space run))) when (and word (not (equal word "exec")) (not (get-command-structure (intern (string-upcase word) :stumpwm) nil))) collect word)))' | grep -v '^NIL$' || true)"
 
 check "Super+m starts with the welcome and ends with Power: $(ask '(princ (first (first *vikix-menu*)))') ... $(ask '(princ (first (car (last *vikix-menu*))))')" \
@@ -58,6 +58,8 @@ check "an entry that runs a program is as the menu always wrote it" \
   yes '(equal (second (assoc "Wallpaper" *vikix-menu* :test (function equal))) (quote (run-shell-command "vikix-wallpaper pick")))'
 check "an entry shows its key, found among the keys" \
   yes '(equal (vikix-menu-entry-key (assoc "Do not disturb on/off" *vikix-menu* :test (function equal))) "Super+Ctrl+d")'
+check "an entry whose key is inside a map shows both keys: $(ask '(princ (vikix-menu-entry-key (assoc "Strip: this workspace scrolls sideways (Viri), or tiled again" *vikix-menu* :test (function equal))))')" \
+  yes '(equal (vikix-menu-entry-key (assoc "Strip: this workspace scrolls sideways (Viri), or tiled again" *vikix-menu* :test (function equal))) "Super+Ctrl+Space, s")'
 
 # A command of your own, written in user.lisp.
 check "a command of yours is bound" yes '(equal (lookup-key *top-map* (kbd "s-M-F12")) "echo hello from the registry")'

@@ -152,7 +152,7 @@ has "Windows=Overview: every workspace, drawn small|Layout: pick this workspace'
   "Windows keeps the three layout lines together"
 has "System=Wi-Fi: pick a network (scans first)|Network: everything else (nmtui)|Network use: which program is using it (nethogs)|Firewall: on or off, and what it lets in|Bluetooth|Sound (pavucontrol)|Screens: extend, mirror, one only, arrange|Screens: arrange (arandr)|Screens: save this layout|Printers|Eject a drive|Apply keyboard settings|Firmware updates" \
   "System keeps the three lines for screens together"
-has "lay=[Windows        Layout: pick this workspace's (tiles, main and stack, grid, strip)  s-C-SPC]" "typing finds an entry, its section before it and its key after"
+has "lay=[Windows        Layout: pick this workspace's (tiles, main and stack, grid, strip)    s-C-SPC SPC]" "typing finds an entry, its section before it and its key after (one inside a map: both keys)"
 has "lay=[System         Screens: save this layout]" "typing looks in every section"
 has "kinds=found" "while something is typed, no section's row shows"
 has "spaces=14" "spaces alone are nothing typed"

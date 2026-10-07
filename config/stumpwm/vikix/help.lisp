@@ -30,7 +30,12 @@
 
 (defun vikix-pretty-key (key)
   "\"s-C-RET\" -> \"Super+Ctrl+Return\". Modifiers are only read at the
-front, so a name like Brightness-up is never mistaken for one."
+front, so a name like Brightness-up is never mistaken for one. A key inside
+a map, the two keys with a space between (\"s-C-SPC m\"), reads
+\"Super+Ctrl+Space, m\"."
+  (when (find #\Space key)
+    (return-from vikix-pretty-key
+      (format nil "~{~a~^, ~}" (mapcar #'vikix-pretty-key (split-string key " ")))))
   (let ((mods "") (rest key))
     (loop for (prefix . word) in '(("s-" . "Super+") ("C-" . "Ctrl+") ("M-" . "Alt+") ("S-" . "Shift+"))
           do (loop while (and (> (length rest) 2)
@@ -70,8 +75,11 @@ front, so a name like Brightness-up is never mistaken for one."
     ("Windows & frames" "delete" "fullscreen" "pull-hidden-other" "vikix-last-window" "next" "prev"
      "move-focus" "move-window" "vikix-focus" "vikix-move" "vikix-focus-end" "vikix-move-end" "vikix-pin" "vikix-viri" "vikix-width-or-remove" "vikix-height" "vikix-fill" "vikix-stack" "vikix-expose" "vikix-overview" "vikix-split" "hsplit" "vsplit" "remove" "expose" "vikix-grid" "vikix-main" "vikix-layout-pick" "vikix-solo"
      "toggle-gaps" "winner-undo" "winner-redo" "vikix-layout-undo" "vikix-layout-redo" "global-windowlist" "vikix-go-to-window"
-     "global-pull-windowlist" "vikix-bring-window" "beckon" "vikix-pointer" "vikix-float" "vikix-remember" "vikix-titlebars" "vikix-title")
-    ("Workspaces" "gselect" "gmove" "vikix-send" "grouplist")
+     "global-pull-windowlist" "vikix-bring-window" "beckon" "vikix-pointer" "vikix-float" "vikix-remember" "vikix-titlebars" "vikix-title"
+     ;; The workspace keys are here too, not a group of their own: two rows
+     ;; under a heading of their own cost the card the two lines it had
+     ;; left at 32 rows when the maps' two opening keys came (0.71.232).
+     "gselect" "gmove" "vikix-send" "grouplist")
     ("Notifications" "dunstctl" "vikix-notifications" "vikix-quiet" "vikix-focus-time")
     ("Screenshots & recording" "vikix-screenshot" "vikix-record" "vikix-capture")
     ("Sound & screen" "vikix-volume" "vikix-osd" "vikix-nightlight" "vikix-screens-pick" "vikix-bar")
@@ -157,19 +165,54 @@ keeps it. OWNER is :plugin or :webapp for a key of theirs."
         for why = (vikix-key-problem key command owner)
         when why collect (list (vikix-pretty-key key) description why)))
 
-(defun vikix-key-entries ()
+(defun vikix-map-sorted (words entries key-of)
+  "ENTRIES in the order the opener's WORDS name their keys (\"Layout keys:
+m main, s strip, Space the menu\": the first word after the colon and
+after each comma), the ones not named after them, as they came. KEY-OF
+gives an entry's key alone (\"m\")."
+  (let* ((colon (position #\: words))
+         (named (when colon
+                  (mapcar (lambda (piece)
+                            (let ((p (string-trim " " piece)))
+                              (subseq p 0 (or (position #\Space p) (length p)))))
+                          (split-string (subseq words (1+ colon)) ",")))))
+    (stable-sort (copy-list entries) #'<
+                 :key (lambda (e) (or (position (vikix-pretty-key (funcall key-of e)) named :test #'string=)
+                                      most-positive-fixnum)))))
+
+(defun vikix-key-entries (&key (map-keys t))
   "Every key the help shows, as (label description command group): the
-entries of *vikix-bindings* (yours from user.lisp too), then the extras."
-  (append
-   (mapcar (lambda (b)
-             (destructuring-bind (key command description &optional group) b
-               (list (vikix-pretty-key key) description command
-                     (vikix-key-group command group))))
-           *vikix-bindings*)
-   (mapcar (lambda (e)
-             (destructuring-bind (label description command) e
-               (list label description command (vikix-key-group command))))
-           *vikix-extra-keys*)))
+keys of *vikix-bindings*, then *vikix-extra-keys*. A key inside a map
+(\"s-C-SPC m\") is shown as \"then m\", right under the key that opens
+its map, in that key's group and in the order its words name the keys,
+wherever its command is written; one whose opener has gone is shown
+whole, at the end. With MAP-KEYS nil they are left out: the card has no
+room for them, and the opener's words name them."
+  (let ((plain '()) (inner '()))
+    (dolist (b *vikix-bindings*)
+      (destructuring-bind (key command description &optional group) b
+        (let ((space (position #\Space key)))
+          (if space
+              (when map-keys
+                (push (list (subseq key 0 space) (subseq key (1+ space)) command description) inner))
+              (push (list key (vikix-pretty-key key) description command (vikix-key-group command group)) plain)))))
+    (setf plain (nreverse plain) inner (nreverse inner))
+    (flet ((under (opener)
+             (let ((mine (remove (first opener) inner :key #'first :test #'string/=)))
+               (setf inner (set-difference inner mine))
+               (loop for (nil key command description) in (vikix-map-sorted (third opener) mine #'second)
+                     collect (list (format nil "then ~a" (vikix-pretty-key key)) description command (fifth opener))))))
+      (append
+       (loop for e in plain
+             collect (rest e)
+             append (under e))
+       (loop for (enter key command description) in inner
+             collect (list (vikix-pretty-key (format nil "~a ~a" enter key)) description command
+                           (vikix-key-group command)))
+       (mapcar (lambda (e)
+                 (destructuring-bind (label description command) e
+                   (list label description command (vikix-key-group command))))
+               *vikix-extra-keys*)))))
 
 (defun vikix-keys-table ()
   "The rows of the key help: (label command). Built from *vikix-bindings*,
@@ -245,11 +288,17 @@ timers break on a float.")
 (defvar *vikix-card-old-handler* nil
   "The key handler there was before the card took the keys, given back after.")
 
+(defun vikix-card-entries ()
+  "The card's rows, of vikix-key-entries: without the keys inside a map
+(the card is full, which is what the maps are for; the key that opens one
+names them) and without the card's own key, which its first line names."
+  (remove "vikix-keys-card" (vikix-key-entries :map-keys nil) :key #'third :test #'equal))
+
 (defun vikix-card-groups ()
   "The keys as (group-name . entries), in the card's order; empty groups
 left out. A group an entry names that *vikix-key-groups* doesn't know
 comes before Other."
-  (let* ((entries (vikix-key-entries))
+  (let* ((entries (vikix-card-entries))
          (names (mapcar #'first *vikix-key-groups*)))
     (dolist (e entries)
       (unless (or (member (fourth e) names :test #'string=)
@@ -259,11 +308,14 @@ comes before Other."
           for rows = (remove-if-not (lambda (e) (string= (fourth e) name)) entries)
           when rows collect (cons name rows))))
 
-(defun vikix-card-pack (groups height)
+(defun vikix-card-pack (groups height &optional fill)
   "Lay GROUPS out in columns at most HEIGHT lines tall. A column is a list
 of lines: (:heading NAME), (:key LABEL DESCRIPTION) or :blank. A group
 stays in one column when it fits in one; a longer one carries on in the
-next column, under its heading again."
+next column, under its heading again. With FILL, a group that would leave
+four lines or more empty at a column's foot starts there and carries on in
+the next, so the columns fill up: for when the columns side by side would
+otherwise be wider than the monitor."
   (let ((height (max 3 height)) (columns '()) (column '()) (used 0))
     (flet ((close-column ()
              (when column (push (nreverse column) columns))
@@ -273,7 +325,8 @@ next column, under its heading again."
         (let ((size (1+ (length (rest group)))))
           ;; A new column, unless the group fits under what's there (after
           ;; a blank line), or is too long for any column anyway.
-          (when (and column (> (+ used 1 size) height) (<= size height))
+          (when (and column (> (+ used 1 size) height) (<= size height)
+                     (or (not fill) (< (- height used 1) 4)))
             (close-column))
           (when (and column (> (+ used 3) height))   ; no heading left alone
             (close-column))
@@ -303,7 +356,14 @@ the columns, the key width and the description width."
          (columns (loop for h from (max 3 (ceiling total fit)) to (max 3 rows)
                         for packed = (vikix-card-pack groups h)
                         when (<= (length packed) fit) return packed
-                        finally (return (vikix-card-pack groups rows)))))
+                        ;; No height fits with the descriptions whole: as tall as
+                        ;; the monitor, and when even then the columns would run
+                        ;; past its edge at the narrowest descriptions, filled up.
+                        finally (return (let ((packed (vikix-card-pack groups rows))
+                                              (narrowest (max 1 (floor (+ chars gap) (+ key-width 2 12 gap)))))
+                                          (if (> (length packed) narrowest)
+                                              (vikix-card-pack groups rows t)
+                                              packed))))))
     ;; More columns than fit side by side (a small screen): cut the
     ;; descriptions shorter, rather than run off the edge.
     (let ((room (- (floor (+ chars gap) (max 1 (length columns))) gap key-width 2)))
@@ -346,7 +406,7 @@ the columns, the key width and the description width."
                                      (vikix-card-cell (third item) desc-width))))))
         (append
          (list (concatenate 'string accent "Vikix keys^n"
-                            hint "   any key closes this; one that does something does it too^n")
+                            hint "   Super+/ opened this; any key closes it, and one that does something does it too^n")
                ;; The rule for keys, in a line (keys.lisp).
                (concatenate 'string hint "Super: everyday.  +Shift: move the window.  "
                             "+Alt: open something else.  +Ctrl: switch something.^n")
@@ -435,6 +495,158 @@ messages stay as they were."
               *custom-key-event-handler* 'vikix-card-key
               *vikix-card-timer* (run-with-timer *vikix-card-timeout* nil 'vikix-keys-card-close))
         (grab-keyboard (screen-key-window (current-screen))))))
+
+;;; Maps (Super+Ctrl+Space the layout's, Super+Alt+d the desks'): one key
+;;; opens a map, and single keys act in it until Escape, the opening key
+;;; again, or a few seconds pass; the keys show in the message window
+;;; meanwhile, as the card does, with what the last one said under them.
+;;; The key card is full (a hundred keys, no line left at 32 rows), and a
+;;; map gives each new thing a key without taking one.
+;;;
+;;; Written as a command with :map "NAME k" in registry.lisp (or user.lisp);
+;;; in *vikix-bindings* that is the key "s-C-SPC k", the opener's key and
+;;; its own with a space between, so the card, the help, vikix used and
+;;; the agents' list have it as a key. Like the card it takes the keys
+;;; through *custom-key-event-handler* and a grab, and never waits: the
+;;; desktop carries on, and a timer closes it. A key that starts a program
+;;; (exec) closes the map first, since the program will want the keyboard
+;;; (rofi gives up when it can't grab it); any other command runs with the
+;;; map open, and the map is drawn again after it, so m, w, w, w works.
+
+(defparameter *vikix-map-timeout* 5
+  "Seconds a map stays open after its last key. Whole seconds: StumpWM's
+timers break on a float.")
+
+(defvar *vikix-map-open* nil "The name of the map that is open, or nil.")
+(defvar *vikix-map-timer* nil)
+(defvar *vikix-map-old-handler* nil
+  "The key handler there was before the map took the keys, given back after.")
+
+(defun vikix-map-opener (name)
+  "The entry of *vikix-bindings* whose key opens the map NAME, or nil."
+  (find (format nil "vikix-map ~(~a~)" name) *vikix-bindings* :key #'second :test #'string-equal))
+
+(defun vikix-map-entries (name)
+  "The keys inside the map NAME: (KEY COMMAND DESCRIPTION), KEY the key
+alone (\"m\"), in the order the opener's words name them."
+  (let* ((opener (vikix-map-opener name))
+         (prefix (and opener (concatenate 'string (first opener) " "))))
+    (when prefix
+      (vikix-map-sorted
+       (third opener)
+       (loop for (key command description) in *vikix-bindings*
+             when (and (> (length key) (length prefix)) (string= prefix key :end2 (length prefix)))
+               collect (list (subseq key (length prefix)) command description))
+       #'first))))
+
+(defun vikix-map-strings (name &optional note)
+  "The lines the map NAME shows: its words, a key a line, NOTE (what the
+last key said) and how it closes."
+  (let* ((opener (vikix-map-opener name))
+         (entries (vikix-map-entries name))
+         (accent (vikix-card-fg :accent))
+         (heading (vikix-card-fg :color3 :fg))
+         (hint (vikix-card-fg :color8 :subtle))
+         (labels (mapcar (lambda (e) (vikix-pretty-key (first e))) entries))
+         (key-width (reduce #'max labels :key #'length :initial-value 1))
+         (words (third opener))
+         ;; The opener's words name its keys ("Layout keys: m main ..."):
+         ;; the heading is what comes before the colon.
+         (title (subseq words 0 (or (position #\: words) (length words)))))
+    (append
+     (list (concatenate 'string heading (vikix-card-cell title (+ key-width 2 *vikix-card-description-width*)) "^n"))
+     (loop for e in entries
+           for label in labels
+           collect (concatenate 'string accent (vikix-card-cell label key-width) "^n  "
+                                (vikix-card-cell (third e) *vikix-card-description-width*)))
+     (when note (list "" note))
+     (list "" (format nil "~aEscape or ~a again closes it; by itself after ~d s^n"
+                      hint (vikix-pretty-key (first opener)) *vikix-map-timeout*)))))
+
+(defun vikix-map-show (name &optional note)
+  "Draw the map NAME. Only draws."
+  (vikix-card-opaque t)
+  (let ((*suppress-echo-timeout* t)
+        (*record-last-msg-override* t))
+    (echo-string-list (current-screen) (vikix-map-strings name note))))
+
+(defun vikix-map-arm ()
+  "The timer that closes the map, started again."
+  (when (timer-p *vikix-map-timer*) (cancel-timer *vikix-map-timer*))
+  (setf *vikix-map-timer* (run-with-timer *vikix-map-timeout* nil 'vikix-map-close)))
+
+(defun vikix-map-close ()
+  "Close the map and give the keyboard back. Safe to call when none is open."
+  (when *vikix-map-open*
+    (setf *vikix-map-open* nil)
+    (when (eq *custom-key-event-handler* 'vikix-map-key)
+      (setf *custom-key-event-handler* *vikix-map-old-handler*))
+    (ungrab-keyboard)
+    (when (timer-p *vikix-map-timer*) (cancel-timer *vikix-map-timer*))
+    (setf *vikix-map-timer* nil)
+    (unmap-message-window (current-screen))
+    (vikix-card-opaque nil)
+    (xlib:display-finish-output *display*)))
+
+(defun vikix-map-run (name entry key)
+  "Run ENTRY's command for KEY pressed in the map NAME: noted as the two
+keys for why and vikix used; a program closes the map first, anything
+else leaves it open and drawn again, with what the command said."
+  (destructuring-bind (own command description) entry
+    (declare (ignore own description))
+    (let* ((opener (vikix-map-opener name))
+           (program (eql 0 (search "exec " command)))
+           (screen (current-screen))
+           (before (first (screen-last-msg screen))))
+      (when program (vikix-map-close))
+      (when (fboundp 'vikix-why-key-press)
+        (ignore-errors (funcall 'vikix-why-key-press key (list key (kbd (first opener))) command)))
+      (handler-case (eval-command command t)
+        (error (e) (message "^1Vikix:^n ~a" e)))
+      (when (and (not program) (equal *vikix-map-open* name))
+        (let ((after (first (screen-last-msg screen))))
+          (vikix-map-show name (and (not (eq before after)) (first after))))
+        (vikix-map-arm)
+        (grab-keyboard (screen-key-window screen))))))
+
+(defun vikix-map-key (code state)
+  "The key handler while a map is open. True means the key is used up."
+  (if (is-modifier code)
+      t
+      (let* ((name *vikix-map-open*)
+             (key (ignore-errors (code-state->key code state)))
+             (opener (vikix-map-opener name))
+             (entry (and key (find-if (lambda (e) (ignore-errors (equalp (kbd (first e)) key)))
+                                      (vikix-map-entries name)))))
+        (cond (entry
+               (vikix-map-run name entry key)
+               t)
+              ((or (null key) (equalp key (kbd "ESC")) (and opener (equalp key (kbd (first opener)))))
+               (vikix-map-close)
+               t)
+              ;; Any other key closes the map; one bound to something goes
+              ;; on to StumpWM, which runs it, as the card does.
+              (t (vikix-map-close)
+                 (not (ignore-errors
+                       (find-if-not #'null (mapcar (lambda (map) (lookup-key map key))
+                                                   (dereference-kmaps (top-maps)))))))))))
+
+(defcommand vikix-map (name) ((:string "Map: "))
+  "Open the map NAME: its keys show, and single keys act in it until Escape
+or a few seconds pass. Again while it is open closes it."
+  (cond ((equal *vikix-map-open* name) (vikix-map-close))
+        ((null (vikix-map-opener name))
+         (message "^1Vikix:^n no map called ~a: a command with :run \"vikix-map ~a\" and a :key opens one" name name))
+        ((null (vikix-map-entries name))
+         (message "^1Vikix:^n the map ~a has no keys: a command with :map \"~a k\" puts k in it" name name))
+        (t (vikix-map-close)
+           (when *vikix-card-open* (vikix-keys-card-close))
+           (setf *vikix-map-open* name
+                 *vikix-map-old-handler* *custom-key-event-handler*
+                 *custom-key-event-handler* 'vikix-map-key)
+           (vikix-map-show name)
+           (vikix-map-arm)
+           (grab-keyboard (screen-key-window (current-screen))))))
 
 ;;; which-key-mode: press Ctrl+t and wait, and StumpWM lists the keys that
 ;;; can follow (in the theme's accent, from theme.lisp). StumpWM's command
