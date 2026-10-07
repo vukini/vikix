@@ -58,6 +58,7 @@ The project is any of `vikix project list`'s, by any part of its name (`vikix`, 
 vikix agents desk notes                # a project that is no repository: its own folder, a workspace to itself
 vikix agents desk novel typos --here   # in this terminal, no new workspace
 vikix agents desk novel typos --use codex
+vikix agents desk novel typos --use antigravity
 vikix agents desk novel typos --use aider --local   # on a model on this laptop
 ```
 
@@ -141,7 +142,7 @@ The desks:
   ~/src/vikix-wifi-fix  (branch wifi-fix, not in main yet; 3 uncommitted; at work: claude 48213)
 ```
 
-It refuses while an agent still works there (*claude 48213 still at work in ~/src/vikix-wifi-fix: let it finish, or close its terminal*) and while files wait uncommitted (*3 files uncommitted: commit there first, or --force throws them away*). A branch that isn't merged yet is kept, and the message says so: merge it, then `git branch -d` in the project, or `--force`, which throws the branch and its work away. The workspace the desk had is simply empty again.
+It refuses while an agent still works there (*claude 48213 still at work in ~/src/vikix-wifi-fix: let it finish, or close its terminal*) and while files wait uncommitted (*3 files uncommitted: commit there first, or --force throws them away*). A branch that isn't merged yet is kept, and the message says so: merge it, then `git branch -d` in the project, or `--force`, which throws the branch and its work away. The workspace the desk had is simply empty again. When a desk is closed, the agent tells you so in its last message: that the desk is gone, which branch was merged or kept, and what is left for you to do (a push, or trying it on the desktop).
 
 ### The handoff: what the desk remembers
 
@@ -176,7 +177,7 @@ vikix agents handoff session codex 01a111e5-…      # a conversation that can b
 echo '{"status":"waiting","next":"needs the laptop"}' | vikix agents handoff set --from -
 ```
 
-Claude Code's session id is noted by the hook itself; the others say theirs with `session`. `vikix agents handoff list` is every desk with a record, `vikix agents` shows each agent's desk status under its line, and `Super+m` → *AI* → *Agents: a desk's handoff* picks one. `vikix agents close` marks the record closed and keeps it.
+Claude Code's session id and Antigravity CLI's conversation id are noted by the hook itself; the others say theirs with `session`. `vikix agents handoff list` is every desk with a record, `vikix agents` shows each agent's desk status under its line, and `Super+m` → *AI* → *Agents: a desk's handoff* picks one. `vikix agents close` marks the record closed and keeps it.
 
 ### Taking a desk up again
 
