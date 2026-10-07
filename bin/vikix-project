@@ -381,8 +381,12 @@ def cmd_path(args):
 
 
 def git_top(path):
+    """The repository PATH is in, or None. A .git that is a repository (HEAD in
+    it) or a worktree's file; a bare empty folder called .git isn't one (one in
+    /tmp once made every temporary folder look like a repository)."""
     for d in [path, *path.parents]:
-        if (d / ".git").exists():
+        g = d / ".git"
+        if g.is_file() or (g / "HEAD").exists():
             return d
     return None
 

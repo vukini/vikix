@@ -49,7 +49,7 @@ src="$HOME/src"
 vp() { python3 "$here/bin/vikix-project" "$@"; }
 
 # --- the projects ---------------------------------------------------------
-mkdir -p "$src/alpha/.git"
+mkdir -p "$src/alpha/.git"; : > "$src/alpha/.git/HEAD"   # a repository has HEAD in its .git
 cat > "$src/alpha/log.md" <<'EOF'
 # Log: Alpha Book
 
@@ -72,7 +72,7 @@ Started.
 EOF
 cp "$src/alpha/log.md" "$t/alpha-before.md"
 
-mkdir -p "$src/series/lambda-book" "$src/series/lisp-book/src" "$src/series/.git"
+mkdir -p "$src/series/lambda-book" "$src/series/lisp-book/src" "$src/series/.git"; : > "$src/series/.git/HEAD"
 printf '# Log: The Series\n\n## 2026-09-01 · planned\n\nA plan.\n' > "$src/series/LOG.md"
 cat > "$src/series/lambda-book/log.md" <<'EOF'
 # Log: Lambda Book
@@ -111,7 +111,7 @@ for d in alpha-topic .hidden series/node_modules/x deep/a/b; do
 done
 
 # A public repo, its log kept in the logs repo, which is no project itself.
-mkdir -p "$src/pubrepo/.git" "$src/project-logs/pubrepo" "$src/project-logs/.git"
+mkdir -p "$src/pubrepo/.git" "$src/project-logs/pubrepo" "$src/project-logs/.git"; : > "$src/pubrepo/.git/HEAD"; : > "$src/project-logs/.git/HEAD"
 printf '# Log: Pubrepo\n\nThis log is private.\n\n## 2026-09-29\n\nReleased.\n' > "$src/project-logs/pubrepo/log.md"
 printf '# Logs\n\n## 2026-10-01\n\nnot a project\n' > "$src/project-logs/log.md"
 
@@ -258,7 +258,7 @@ expect "new: alpha's log untouched" grep -q '^Wrote chapter four.$' "$src/alpha/
 vp new chapter-x --in series >/dev/null
 expect "new --in: inside the collection" test -f "$src/series/chapter-x/log.md"
 expect "new --in: listed as the collection's" has "series/chapter-x" "$(vp list)"
-mkdir -p "$src/secret/.git"
+mkdir -p "$src/secret/.git"; : > "$src/secret/.git/HEAD"
 p=$(vp new secret --private)
 expect "new --private: the log in the logs folder" test -f "$src/project-logs/secret/log.md"
 expect "new --private: none in the repo" test ! -e "$src/secret/log.md"
