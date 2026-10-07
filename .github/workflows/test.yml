@@ -122,6 +122,8 @@ jobs:
         run: tests/ci.sh info
       - name: man
         run: tests/ci.sh man
+      - name: changed-map
+        run: tests/ci.sh changed-map
 
   void:
     runs-on: ubuntu-latest

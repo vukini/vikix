@@ -1292,7 +1292,7 @@ tests/run.sh lint lisp  # just those
 tests/run.sh --all      # plus the editors: several minutes, needs the network
 ```
 
-They run side by side, as many at once as the machine has cores (`VIKIX_TEST_JOBS=1` runs them one after another), and each one's output is printed whole when it ends. `tests/changed.sh` says how changed files map to tests: a file maps to the tests that name it, and one it can't place means the whole quick set.
+They run side by side, as many at once as the machine has cores (`VIKIX_TEST_JOBS=1` runs them one after another), and each one's output is printed whole when it ends. `tests/changed.sh` says how changed files map to tests: a file maps to the tests that name it, `bin/vikix` (which nearly every test names) by the part of it a hunk touches (its header, one command's arm of `main`'s case, the update's and try's functions), and one it can't place means the whole quick set.
 
 | Test | Checks |
 |---|---|
