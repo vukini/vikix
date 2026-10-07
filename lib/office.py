@@ -92,15 +92,27 @@ def launch(api):
     source = os.path.join(api.VIKIX_DIR, 'config', 'emacs', 'vikix-office.el')
     form = '(progn (load ' + json.dumps(source, ensure_ascii=False) + ' nil t) (vikix-office-open))'
     if shutil.which('emacsclient'):
+        # Override ALTERNATE_EDITOR too: a connection failure must never
+        # start another Emacs competing for the user's saved desktop.
         try:
-            result = subprocess.run(['emacsclient', '--eval', form], capture_output=True, text=True, timeout=8)
-            if result.returncode == 0:
-                return
-        except (OSError, subprocess.TimeoutExpired):
-            pass
-    if shutil.which('emacs'):
-        subprocess.Popen(['emacs', '--load', source, '--funcall', 'vikix-office-open'], start_new_session=True)
+            result = subprocess.run(['emacsclient', '--alternate-editor=false', '--eval', form],
+                                    capture_output=True, text=True, timeout=8)
+        except subprocess.TimeoutExpired as e:
+            raise RuntimeError('The Office: Emacs did not answer within 8 seconds. '
+                               'Finish any prompt in your existing Emacs, or wait, then try again. '
+                               'No second Emacs was started.') from e
+        except OSError as e:
+            raise RuntimeError(f'The Office could not run emacsclient: {e}. '
+                               'No second Emacs was started.') from e
+        if result.returncode:
+            detail = (result.stderr or result.stdout).strip()[:400] or 'emacsclient failed'
+            raise RuntimeError('The Office could not open in the existing Emacs. '
+                               'In that Emacs, use M-x server-start if needed, then try again. '
+                               f'vikix agents remains available. Details: {detail}')
         return
+    if shutil.which('emacs'):
+        raise RuntimeError('The Office needs emacsclient to use your existing Emacs. '
+                           'emacsclient is not available; use vikix agents in a terminal.')
     # Preserve the existing desktop menu and terminal interface on machines
     # without Emacs. No new dependency is installed just to open the Office.
     print('The Office needs Emacs; opening the existing agent menu. Use vikix agents in a terminal.')

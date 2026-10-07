@@ -162,5 +162,72 @@ class Office(unittest.TestCase):
             start.assert_not_called()
 
 
+class Launcher(unittest.TestCase):
+    """No connection attempt reaches a real server or saved desktop."""
+    def setUp(self):
+        self.client = patch.object(office.shutil, 'which', return_value='/test/emacsclient')
+        self.run = patch.object(office.subprocess, 'run')
+        self.spawn = patch.object(office.subprocess, 'Popen')
+        self.client.start()
+        self.called = self.run.start()
+        self.spawned = self.spawn.start()
+        self.addCleanup(self.client.stop)
+        self.addCleanup(self.run.stop)
+        self.addCleanup(self.spawn.stop)
+
+    def tearDown(self):
+        self.spawned.assert_not_called()
+
+    def test_uses_existing_server_even_with_alternate_editor_configured(self):
+        self.called.return_value = subprocess.CompletedProcess([], 0, 'nil', '')
+        with patch.dict(os.environ, {'ALTERNATE_EDITOR': 'emacs'}), \
+             patch.object(A, 'VIKIX_DIR', '/tmp/Office desk "quoted"'):
+            office.launch(A)
+        self.called.assert_called_once()
+        args = self.called.call_args.args[0]
+        self.assertEqual(args[:3], ['emacsclient', '--alternate-editor=false', '--eval'])
+        quoted = json.dumps('/tmp/Office desk "quoted"/config/emacs/vikix-office.el')
+        self.assertEqual(args[3], '(progn (load ' + quoted + ' nil t) (vikix-office-open))')
+        self.assertNotIn('shell', self.called.call_args.kwargs)
+
+    def test_failed_connection_or_lisp_error_is_reported(self):
+        for code, stdout, stderr, expected in ((1, '', 'no server', 'no server'),
+                                              (1, 'Lisp error', '', 'Lisp error'),
+                                              (1, '', '', 'emacsclient failed')):
+            with self.subTest(expected=expected):
+                self.called.reset_mock()
+                self.called.return_value = subprocess.CompletedProcess([], code, stdout, stderr)
+                with self.assertRaisesRegex(RuntimeError, expected):
+                    office.launch(A)
+                self.called.assert_called_once()
+
+    def test_timeout_does_not_start_another_emacs(self):
+        self.called.side_effect = subprocess.TimeoutExpired('emacsclient', 8)
+        with self.assertRaisesRegex(RuntimeError, 'did not answer within 8 seconds'):
+            office.launch(A)
+        self.called.assert_called_once()
+
+    def test_client_execution_error_does_not_start_another_emacs(self):
+        self.called.side_effect = OSError('cannot execute client')
+        with self.assertRaisesRegex(RuntimeError, 'cannot execute client'):
+            office.launch(A)
+        self.called.assert_called_once()
+
+    def test_missing_client_is_reported_when_emacs_is_installed(self):
+        with patch.object(office.shutil, 'which', side_effect=lambda name: '/test/emacs' if name == 'emacs' else None):
+            with self.assertRaisesRegex(RuntimeError, 'emacsclient is not available'):
+                office.launch(A)
+        self.called.assert_not_called()
+
+    def test_without_emacs_the_existing_agent_menu_remains(self):
+        with patch.object(office.shutil, 'which', return_value=None):
+            office.launch(A)
+        self.called.assert_called_once()
+        args = self.called.call_args.args[0]
+        self.assertEqual(args[0], A.EVAL)
+        self.assertIn('(run-with-timer 0 nil', args[1])
+        self.assertIn('(run-commands "vikix-agents-pick")', args[1])
+
+
 if __name__ == '__main__':
     unittest.main()

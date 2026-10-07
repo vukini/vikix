@@ -280,6 +280,12 @@ inherits Emacs's Vikix theme. The existing agent menu and terminal commands
 remain available; without Emacs, the command opens the existing agent menu.
 Conversations stay in each agent's terminal.
 
+The Office connects to your existing Emacs server. If it is unavailable,
+busy, or reports an error, the launcher says why; it never starts another
+Emacs or restores a second copy of your saved session. In your existing
+Emacs, use `M-x server-start` if its server is not running, then try again.
+An inherited `ALTERNATE_EDITOR` setting cannot start a second instance here.
+
 The left side groups desks into **Needs you**, **Working**, **Parked** and
 **Finished**. The task is the title, with project/topic as the fallback.
 Each row distinguishes **Live** activity from the recorded **Handoff** and
