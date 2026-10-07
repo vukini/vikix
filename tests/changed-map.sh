@@ -13,6 +13,8 @@
 #     test, and an arm with none all mean all: wider, never narrower
 #   - two parts in one change map to both; a committed change is seen as an
 #     uncommitted one is; a changed test is added to what bin/vikix gives
+#   - README.md alone maps to agents, the one test that reads it, not to the
+#     tests that make up README.md files of their own
 #
 # Each case edits the copy and puts it back; nothing of Vikix's runs.
 
@@ -35,14 +37,17 @@ for n in lint man vk tray update try wifi capture; do
   printf '#!/usr/bin/env bash\n# tests/%s.sh\n' "$n" >"$repo/tests/$n.sh"
 done
 echo 'bash "$here/bin/vikix-screens" extend' >>"$repo/tests/capture.sh"
+# update makes up a README.md of its own, as the real one does; agents reads the repository's.
+echo 'echo hi >"$t/machine/README.md"' >>"$repo/tests/update.sh"
+echo '# Vikix' >"$repo/README.md"
 g() { git -C "$repo" -c user.name=t -c user.email=t@t -c commit.gpgsign=false "$@"; }
 g init -q
-g add bin tests
+g add bin tests README.md
 g commit -q -m 'as it is'
 
 vikix=$repo/bin/vikix
 map()   { (cd "$repo" && tests/changed.sh "${1:-HEAD}" | tr '\n' ' ' | sed 's/ $//'); }
-reset() { g checkout -q -- bin tests; }
+reset() { g checkout -q -- bin tests README.md; }
 # edit "WHAT" EXPECTED SED-SCRIPT...: the copy edited so, maps to EXPECTED
 edit() {
   local what=$1 want=$2; shift 2
@@ -80,6 +85,11 @@ check "and nothing against its own commit: '$(map)'" test -z "$(map)"
 sed -i 's/^cmd_update() {$/cmd_update() {\n  :/' "$vikix"
 echo '# more' >>"$repo/tests/wifi.sh"
 check "cmd_update and tests/wifi.sh: '$(map)'" test "$(map)" = "lint try update wifi"
+reset
+
+# README.md is read by agents alone; the tests naming it make up their own.
+echo 'more' >>"$repo/README.md"
+check "README.md alone maps to 'agents': '$(map)'" test "$(map)" = agents
 reset
 
 [ "$fail" = 0 ] && echo "changed-map: a change to bin/vikix maps to its part's tests (header, an arm, update's and try's functions, the short forms), anything else to all"

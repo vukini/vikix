@@ -101,6 +101,10 @@ for f in "${files[@]}"; do
     # The agents' guide is made from the skill.
     config/claude/*) add agents ;;
     site/*) add lint ;;
+    # Only agents reads the repository's README.md (its table of keys, through
+    # lib/skill-keys.sh --check); the name rule would add the tests that make up
+    # README.md files of their own (update, try, docs, examples, what ...).
+    README.md) add agents ;;
     # What the full run's slow tests cover: the quick set can't vouch for it.
     install/*|packages/*|features.list|bundles.list|dev/*) all=1 ;;
     bin/vikix)
@@ -144,7 +148,7 @@ for f in "${files[@]}"; do
     bin/vikix-docs) add docs what mcp ;;
     config/stumpwm/vikix/used.lisp|bin/vikix-used) add used why palette ;;
     config/stumpwm/vikix/registry.lisp|lib/registry.sh) add agents registry menu mcp webapp plugin project screens esploro memory docs-open welcome ;;
-    config/stumpwm/vikix/keys.lisp|config/stumpwm/vikix/help.lisp|bin/vikix-plugin|README.md|lib/skill-keys.sh) add agents ;;
+    config/stumpwm/vikix/keys.lisp|config/stumpwm/vikix/help.lisp|bin/vikix-plugin|lib/skill-keys.sh) add agents ;;
   esac
   case $f in
     bin/*|lib/*|tests/*|migrations/*|install/*|*.sh) add lint ;;
