@@ -32,6 +32,13 @@
 (defun vikix-office--row ()
   (cl-find vikix-office--selected (alist-get 'desks vikix-office--data)
            :key (lambda (r) (alist-get 'id r)) :test #'equal))
+(defun vikix-office--position (id)
+  "Find ID by value: each JSON refresh creates new string objects."
+  (let ((position (point-min)))
+    (while (and (< position (point-max))
+                (not (equal (get-text-property position 'office-id) id)))
+      (setq position (next-single-property-change position 'office-id nil (point-max))))
+    (and (< position (point-max)) position)))
 (defun vikix-office--notice (text)
   (setq header-line-format (concat "  " (replace-regexp-in-string "%" "%%" text)))
   (force-mode-line-update))
@@ -150,7 +157,7 @@
                           "\n    Next: " (truncate-string-to-width (vikix-office--one-line (alist-get 'next_action r)) 110 nil nil "…") "\n")
                   (add-text-properties start (point) `(office-id ,id)))))
             (insert "\n")))))
-    (let ((position (text-property-any (point-min) (point-max) 'office-id vikix-office--selected)))
+    (let ((position (vikix-office--position vikix-office--selected)))
       (goto-char (or position (min old (point-max))))
       (when position (move-to-column column)))
     (dolist (view views)
@@ -232,7 +239,7 @@
          (index (or (cl-position vikix-office--selected ids :test #'equal) 0))
          (id (nth (max 0 (min (1- (length ids)) (+ index direction))) ids)))
     (when id
-      (goto-char (text-property-any (point-min) (point-max) 'office-id id))
+      (goto-char (vikix-office--position id))
       (vikix-office--track))))
 
 (defun vikix-office--act (args)

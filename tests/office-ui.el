@@ -31,7 +31,7 @@
      (vikix-office-next 1)
      (should (equal vikix-office--selected "b"))
      (let ((window (selected-window)))
-       (setq vikix-office--data (office-test-data '("x" "b" "a")))
+       (setq vikix-office--data (office-test-data '("b" "x" "a")))
        (vikix-office--render)
        (should (eq window (selected-window)))
        (should (equal (get-text-property (point) 'office-id) "b")))
@@ -117,7 +117,7 @@
 (ert-deftest office-mouse-button-selects-its-desk ()
   (office-test-buffer
    (vikix-office--render)
-   (let ((button (button-at (text-property-any (point-min) (point-max) 'office-id "b"))))
+   (let ((button (button-at (vikix-office--position (copy-sequence "b")))))
      (goto-char (point-min))
      (button-activate button)
      (should (equal vikix-office--selected "b")))))
