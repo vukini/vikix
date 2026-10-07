@@ -171,6 +171,9 @@
                               "none observed"))
                           ;; A plain folder keeps no handoff: nothing to say of one.
                           (if (vikix-office--folder-p r) "" (concat " · Handoff: " (vikix-office--one-line (alist-get 'status r))))
+                          ;; Where the work stands against the agent's estimate, while one stands.
+                          (let ((estimate (alist-get 'estimate r)))
+                            (if (member estimate '(nil "")) "" (concat " · " (vikix-office--one-line estimate))))
                           "\n    Next: " (truncate-string-to-width (vikix-office--one-line (alist-get 'next_action r)) 110 nil nil "…") "\n")
                   (add-text-properties start (point) `(office-id ,id)))))
             (insert "\n")))))
@@ -222,7 +225,13 @@
                         "vikix agents desk PROJECT TOPIC starts one at a desk.\n")
             (vikix-office--signed "User task" (alist-get 'task r))
             (insert "\nAgent claims — review does not mean merged\n")
-            (dolist (pair '(("Status" . status) ("Summary and decisions" . summary) ("Next action" . next)))
+            (vikix-office--signed "Status" (alist-get 'status (alist-get 'handoff r)))
+            ;; The estimate, when the agent gave one: its words, then the clock against it.
+            (let ((estimate (alist-get 'estimate (alist-get 'handoff r))))
+              (when estimate
+                (vikix-office--signed "Estimate" estimate)
+                (insert "  " (vikix-office--text (alist-get 'estimate r)) "\n")))
+            (dolist (pair '(("Summary and decisions" . summary) ("Next action" . next)))
               (vikix-office--signed (car pair) (alist-get (cdr pair) (alist-get 'handoff r))))
             (let ((now (alist-get 'now r)))
               (insert "\nObserved Git state · " (vikix-office--time (alist-get 'at now)) "\n"

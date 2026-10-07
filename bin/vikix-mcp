@@ -457,9 +457,9 @@ def t_handoff_update(a):
     agents = office()
     H = agents.handoff_module()
     folder, _ = handoff_desk(a, agents)
-    data = {k: a[k] for k in ("task", "status", "summary", "next", "check", "session") if k in a}
+    data = {k: a[k] for k in ("task", "status", "summary", "next", "estimate", "check", "session") if k in a}
     if not data:
-        raise ToolError("nothing to set: task, status, summary, next, check or session")
+        raise ToolError("nothing to set: task, status, summary, next, estimate, check or session")
     by, _ = agents.by_me()
     try:
         rec = H.update(agents.common_of(folder), folder, lambda r: H.from_json(r, data, by, folder),
@@ -863,8 +863,8 @@ TOOLS = [
      schema(), READ, t_office),
     ("handoff", "A desk's task and handoff",
      "The record of a desk (vikix agents handoff): the user's task in their words, the agent's handoff (status: "
-     "working, waiting, review or finished; what was done and decided; what is left and the next action), each "
-     "signed and dated; the checks that ran, with the commit each ran on, whether the tree was dirty, and whether "
+     "working, waiting, review or finished; its estimate of how long, with where the work stands against it; "
+     "what was done and decided; what is left and the next action), each signed and dated; the checks that ran, with the commit each ran on, whether the tree was dirty, and whether "
      "it is still fresh or stale since the code moved on; the git state now; the sessions that can be resumed; "
      "who is at the desk and what holds the rules for each. Read it when you join a desk. Without desk, yours." + DATA,
      schema({"desk": {"type": "string", "description": "a desk: its folder, topic, branch or record id; empty: the desk you sit at"}}),
@@ -920,15 +920,20 @@ TOOLS = [
      ONCE, t_notify),
     ("handoff_update", "Update your desk's handoff",
      "Write your handoff on your desk (vikix agents handoff set), for whoever takes the desk next, the user "
-     "included: do it when you hand work back, when you are blocked (status waiting), when the work is ready "
-     "(review) or done (finished). status: working|waiting|review|finished; summary: what you changed and "
-     "decided, in a few lines; next: what is left and the very next action; task: the user's task, in their "
+     "included: do it when you start (status working, with an estimate), when you hand work back, when you are "
+     "blocked (status waiting), when the work is ready (review) or done (finished). status: "
+     "working|waiting|review|finished; estimate: how long the work will take from now, assuming no major issue "
+     "turns up (\"40 min\", \"2 h 30 min\"; what it assumes may follow after a comma), which the user sees "
+     "counted down; summary: what you changed and decided, in a few lines; next: what is left and the very next "
+     "action; task: the user's task, in their "
      "words, only when they gave it to you; check: {name, ok, note} for a check you ran, which Vikix stamps with "
      "the commit and whether the tree was dirty; session: {provider, id} for a conversation that can be resumed "
      "here. No transcript, no credential: both are refused. Signed with your name.",
      schema({"desk": {"type": "string", "description": "a desk (empty: yours)"},
              "task": {"type": "string"}, "status": {"type": "string", "enum": ["working", "waiting", "review", "finished"]},
              "summary": {"type": "string"}, "next": {"type": "string"},
+             "estimate": {"type": "string", "maxLength": 300,
+                          "description": "how long from now, barring a major issue: \"40 min\", \"2 h 30 min\""},
              "check": {"type": "object", "properties": {"name": {"type": "string"}, "ok": {"type": "boolean"},
                                                         "note": {"type": "string"}}, "required": ["name", "ok"]},
              "session": {"type": "object", "properties": {"provider": {"type": "string"}, "id": {"type": "string"}},

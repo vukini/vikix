@@ -155,6 +155,7 @@ $ vikix agents handoff wifi-fix
 Desk ~/src/vikix-wifi-fix (branch wifi-fix), project vikix  [3f9a1c2b7d4e]
 Task (user, 2 h ago): the Wi-Fi picker should scan first, then show the list
 Status: review (claude 48213, 20 min ago)
+Estimate (claude 48213, 1 h ago): 40 min, if the picker needs no new test; finished in 45 min against 40 min, 5 min over
 Done and decided (claude 48213, 20 min ago):
   scan before the list in bin/vikix-wifi; kept the old order under --no-scan
 Left to do, next (claude 48213, 20 min ago):
@@ -168,11 +169,12 @@ At the desk now: claude 48213
   no filesystem enforcement: a worktree keeps copies apart, it is no sandbox
 ```
 
-Three kinds of line, kept apart and each signed. The **task** is yours, in your words: `vikix agents desk vikix wifi-fix --task "..."` sets it as the desk is made and gives it to the agent as its first prompt, so the desk starts working at once (Claude Code, Codex, OpenCode, Gemini CLI and Antigravity CLI take one; Aider doesn't, and is told to read the record); or `vikix agents handoff set --task "..."` sets it later. The **handoff** is the agent's: a status (working, waiting, review, finished), what it changed and decided, what is left and the very next action. What **Vikix read itself** is the rest: the commit and the uncommitted files at each write, and for a check the commit it ran on and whether the tree was dirty then. A check is marked *stale* the moment the code differs from what it ran on, by another commit or other uncommitted changes, so an old green never passes for a new one. The sessions are the providers' conversation ids and nothing more: no transcript is copied, and a line that looks like a key or a token is refused outright.
+Three kinds of line, kept apart and each signed. The **task** is yours, in your words: `vikix agents desk vikix wifi-fix --task "..."` sets it as the desk is made and gives it to the agent as its first prompt, so the desk starts working at once (Claude Code, Codex, OpenCode, Gemini CLI and Antigravity CLI take one; Aider doesn't, and is told to read the record); or `vikix agents handoff set --task "..."` sets it later. The **handoff** is the agent's: a status (working, waiting, review, finished), an estimate, what it changed and decided, what is left and the very next action. The **estimate** is how long the work will take from the moment it is written, assuming no major issue turns up (`--estimate "40 min, if the picker needs no new test"`: a duration first, in minutes, hours or days, and what it assumes after a comma); an agent started with a task is asked for one as soon as it knows the shape of the work. The record and `vikix agents` count it down (*28 min left of 40 min*, *10 min over its 40 min*), and once the status is finished they say how it went (*finished in 45 min against 40 min, 5 min over*). The clock is the wall's, so time spent waiting for you counts, as it would for a person; an estimate written again starts it afresh. What **Vikix read itself** is the rest: the commit and the uncommitted files at each write, and for a check the commit it ran on and whether the tree was dirty then. A check is marked *stale* the moment the code differs from what it ran on, by another commit or other uncommitted changes, so an old green never passes for a new one. The sessions are the providers' conversation ids and nothing more: no transcript is copied, and a line that looks like a key or a token is refused outright.
 
 The agent writes with the same command, or with the MCP tools `handoff` and `handoff_update`, whichever agent it is:
 
 ```sh
+vikix agents handoff set --status working --estimate "40 min, if the picker needs no new test"
 vikix agents handoff set --status review --summary "..." --next "..."
 vikix agents handoff check "tests/run.sh wifi" --ok
 vikix agents handoff session codex 01a111e5-…      # a conversation that can be resumed here
@@ -302,8 +304,9 @@ are in, and `q` then puts that frame's windows back as they were.
 
 The left side groups desks into **Needs you**, **Working**, **Parked** and
 **Finished**. The task is the title, with project/topic as the fallback.
-Each row distinguishes **Live** activity from the recorded **Handoff** and
-shows the next action. A waiting agent or a waiting/review handoff needs you;
+Each row distinguishes **Live** activity from the recorded **Handoff**,
+counts down the agent's estimate while one stands, and shows the next
+action. A waiting agent or a waiting/review handoff needs you;
 a live agent otherwise counts as working; a finished/closed record without
 an agent counts as finished; the remaining desks are parked. Unavailable
 live discovery is **unknown**, never proof that an agent stopped. Desks

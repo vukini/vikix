@@ -10,8 +10,9 @@ part of it. The record keeps three kinds of thing apart:
 
   task      what the user asked for, in their words ("by": "user")
   handoff   what the agent writes: a status (working, waiting, review,
-            finished), an account of what it changed and decided, what is
-            left and the next action ("by": the agent, as "claude 48213")
+            finished), an estimate of how long the work will take, barring
+            a major issue, an account of what it changed and decided, what
+            is left and the next action ("by": the agent, as "claude 48213")
   observed  what Vikix read itself: the commit, branch and uncommitted
             files at each write, and for each check the commit it ran on
             and whether the tree was dirty then
@@ -50,6 +51,12 @@ SECRET = re.compile(r"(sk-ant-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9]{20,}|gh[pousr]_[A
                     r"|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----"
                     r"|\b[A-Z_]*(API_KEY|SECRET|TOKEN|PASSWORD|PASSWD)\s*[=:]\s*\S{6,})")
 SESSION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{3,99}$")
+ESTIMATE_MAX = 300
+# How long, as an estimate says it: "40 min", "2 h 30 min", "1.5 h", "1:30",
+# "2 days", or a bare number of minutes. Words may follow (what it assumes).
+DURATION = re.compile(r"(\d+(?:[.,]\d+)?)\s*(min(?:ute)?s?|m|h(?:ou)?rs?|h|d(?:ays?)?)\b", re.I)
+DURATION_HMM = re.compile(r"(?<![\d:])(\d{1,3}):([0-5]\d)(?![\d:])")
+MINUTES = {"m": 1, "h": 60, "d": 1440}
 DESK_ID = re.compile(r"^[0-9a-f]{12}$")
 
 
@@ -76,6 +83,32 @@ def clean(text, what="text"):
 
 def session_id_ok(sid):
     return isinstance(sid, str) and bool(SESSION_ID.match(sid)) and ".." not in sid and "/" not in sid
+
+
+def minutes_of(text):
+    """The minutes TEXT says, or None when it names no duration: the sum
+    of every "N unit" in it ("2 h 30 min" is 150), "H:MM", or the whole
+    text a number of minutes."""
+    if not isinstance(text, str):
+        return None
+    if text.strip().isdigit():
+        return int(text.strip()) or None
+    total = 0.0
+    for num, unit in DURATION.findall(text):
+        total += float(num.replace(",", ".")) * MINUTES[unit[0].lower()]
+    for hours, mins in DURATION_HMM.findall(text):
+        total += int(hours) * 60 + int(mins)
+    return int(round(total)) or None
+
+
+def span(minutes):
+    """MINUTES as a person says them: 40 min, 1 h 30 min, 2 d 3 h."""
+    minutes = int(minutes)
+    if minutes < 60:
+        return f"{minutes} min"
+    if minutes < 1440:
+        return f"{minutes // 60} h" + (f" {minutes % 60} min" if minutes % 60 else "")
+    return f"{minutes // 1440} d" + (f" {minutes % 1440 // 60} h" if minutes % 1440 // 60 else "")
 
 
 # --- Where a record lives ------------------------------------------------------------------
@@ -240,7 +273,7 @@ def set_task(rec, text, by):
     _log(rec, by, "task set")
 
 
-def set_handoff(rec, by, status=None, summary=None, next_=None):
+def set_handoff(rec, by, status=None, summary=None, next_=None, estimate=None):
     h = rec.setdefault("handoff", {})
     changed = []
     if status is not None:
@@ -248,6 +281,15 @@ def set_handoff(rec, by, status=None, summary=None, next_=None):
             raise HandoffError(f"a status is one of {', '.join(STATES)}, not '{status}'")
         h["status"] = {"value": status, "by": by, "at": int(time.time())}
         changed.append(f"status {status}")
+    if estimate is not None:
+        text = clean(estimate, "the estimate").replace("\n", " ")[:ESTIMATE_MAX]
+        minutes = minutes_of(text)
+        if not minutes:
+            raise HandoffError("an estimate says how long the work will take, barring a major issue: "
+                               "40 min, 2 h 30 min, 1.5 h (what it assumes may follow after a comma)")
+        # The clock starts when the estimate is written: it is "from now".
+        h["estimate"] = {"text": text, "minutes": minutes, "by": by, "at": int(time.time())}
+        changed.append(f"estimate {span(minutes)}")
     if summary is not None:
         h["summary"] = {"text": clean(summary, "the summary"), "by": by, "at": int(time.time())}
         changed.append("summary")
@@ -255,8 +297,37 @@ def set_handoff(rec, by, status=None, summary=None, next_=None):
         h["next"] = {"text": clean(next_, "the next step"), "by": by, "at": int(time.time())}
         changed.append("next")
     if not changed:
-        raise HandoffError("nothing to set: --status, --summary or --next")
+        raise HandoffError("nothing to set: --status, --summary, --next or --estimate")
     _log(rec, by, ", ".join(changed))
+
+
+def estimate_state(rec, now=None):
+    """Where the work stands against the agent's estimate, or None without
+    one: the estimate's fields, the minutes elapsed since it was written
+    (wall-clock: time waiting for the user counts, as it would for a
+    person), the minutes left (negative when over), whether the work is
+    done (status finished, said after the estimate), and a line saying it."""
+    h = rec.get("handoff") or {}
+    e = h.get("estimate") or {}
+    if not e.get("minutes") or not e.get("at"):
+        return None
+    now = int(now if now is not None else time.time())
+    status = h.get("status") or {}
+    done = status.get("value") == "finished" and int(status.get("at") or 0) >= int(e["at"])
+    elapsed = max(0, (int(status["at"]) if done else now) - int(e["at"])) // 60
+    left = int(e["minutes"]) - elapsed
+    total = span(e["minutes"])
+    if done:
+        line = f"finished in {span(elapsed)} against {total}" + (
+            f", {span(-left)} over" if left < 0 else f", {span(left)} under" if left > 0 else ", to the minute")
+    elif left > 0:
+        line = f"{span(left)} left of {total}"
+    elif left == 0:
+        line = f"its {total} are up"
+    else:
+        line = f"{span(-left)} over its {total}"
+    return {"text": e.get("text", ""), "minutes": int(e["minutes"]), "by": e.get("by", "?"), "at": int(e["at"]),
+            "elapsed": elapsed, "left": left, "done": done, "line": line}
 
 
 def add_check(rec, name, ok, by, folder, note=""):
@@ -323,18 +394,18 @@ def forget(did):
 
 def from_json(rec, data, by, folder):
     """DATA, a dict as --from reads it, applied: task, status, summary,
-    next, check {name, ok, note}, session {provider, id}. Other keys are
+    next, estimate, check {name, ok, note}, session {provider, id}. Other keys are
     refused, so a typo doesn't go quietly."""
     if not isinstance(data, dict):
         raise HandoffError("the JSON must be an object")
-    allowed = {"task", "status", "summary", "next", "check", "session"}
+    allowed = {"task", "status", "summary", "next", "estimate", "check", "session"}
     odd = sorted(set(data) - allowed)
     if odd:
         raise HandoffError(f"unknown field{'s' if len(odd) > 1 else ''}: {', '.join(odd)} (the fields: {', '.join(sorted(allowed))})")
     if "task" in data:
         set_task(rec, data["task"], by)
-    if any(k in data for k in ("status", "summary", "next")):
-        set_handoff(rec, by, data.get("status"), data.get("summary"), data.get("next"))
+    if any(k in data for k in ("status", "summary", "next", "estimate")):
+        set_handoff(rec, by, data.get("status"), data.get("summary"), data.get("next"), data.get("estimate"))
     if "check" in data:
         c = data["check"]
         if not isinstance(c, dict) or "name" not in c or "ok" not in c:
@@ -384,6 +455,9 @@ def render(rec, agents_at=(), protection=(), now=None):
     h = rec.get("handoff") or {}
     s = h.get("status")
     lines.append(f"Status: {s['value']} ({s['by']}, {when(s['at'])})" if s else "Status: not said")
+    est = estimate_state(rec)
+    if est:
+        lines.append(f"Estimate ({est['by']}, {when(est['at'])}): {est['text']}; {est['line']}")
     for key, label in (("summary", "Done and decided"), ("next", "Left to do, next")):
         v = h.get(key)
         if v:

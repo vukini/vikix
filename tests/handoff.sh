@@ -4,7 +4,10 @@
 # with a worktree for a desk, and a made-up /proc for the agents.
 #
 #   A desk gets a record when the user sets a task; the agent's status,
-#   account and next step say who wrote them; a check keeps the commit it
+#   account and next step say who wrote them; its estimate of how long,
+#   barring a major issue, is counted down from when it was written (left,
+#   over, and how it ended once finished), and one that names no duration
+#   is refused; a check keeps the commit it
 #   ran on and whether the tree was dirty, and is stale once the code
 #   moved on (a commit, or other uncommitted changes); a session id is
 #   kept by provider, Claude Code's from the hook's own input; the record
@@ -65,6 +68,25 @@ check "the user sets the task: $out" grep -q 'book-a: handoff updated by user$' 
 check "the record is one file in the office's desks, named by the desk's id" test "$(ls "$records"/*.json | wc -l)" = 1
 out=$(as 1001 handoff set --status working --summary "Read ch1; fixed 3 typos" --next "run the spell check")
 check "the agent at the desk sets its handoff, from its seat, signed: $out" grep -q 'updated by claude 1001, status working' <<<"$out"
+out=$(as 1001 handoff set --estimate "40 min, if the spell check needs no new words")
+check "the agent says how long, from now: $out" grep -q 'updated by claude 1001, status working, estimate 40 min from now$' <<<"$out"
+out=$(as 1001 handoff set --estimate "soon")
+check "an estimate that names no duration is refused: $out" grep -q 'an estimate says how long the work will take, barring a major issue' <<<"$out"
+check "the page counts it down, with its words and who said it" \
+  grep -q '^Estimate (claude 1001, just now): 40 min, if the spell check needs no new words; 40 min left of 40 min$' <<<"$(agents handoff a)"
+# The clock runs from when the estimate was written: fifty minutes on, it is ten over.
+python3 - "$records" <<'PY'
+import glob, json, sys
+path = glob.glob(sys.argv[1] + "/*.json")[0]
+rec = json.load(open(path)); rec["handoff"]["estimate"]["at"] -= 50 * 60
+json.dump(rec, open(path, "w"))
+PY
+check "fifty minutes on, the page says how far over" grep -q '; 10 min over its 40 min$' <<<"$(agents handoff a)"
+check "and the listing of desks says it too: $(agents handoff list)" grep -q 'working, .*: Fix the typos in chapter one  (10 min over its 40 min)$' <<<"$(agents handoff list)"
+out=$(as 1001 handoff set --status finished)
+check "finished, the estimate is judged against the time it took: $(agents handoff a | grep ^Estimate)" \
+  grep -q '; finished in 50 min against 40 min, 10 min over$' <<<"$(agents handoff a)"
+as 1001 handoff set --status working >/dev/null
 out=$(as 1001 handoff check tests/run.sh house --ok --note "4 s")
 check "a check keeps the commit and the clean tree, read by Vikix: $out" grep -qE 'passed tests/run.sh house on [0-9a-f]{7}, clean tree \(claude 1001\)' <<<"$out"
 out=$(agents handoff a)
@@ -86,6 +108,11 @@ check "other uncommitted changes make it stale" grep -q 'FAILED  tests/run.sh li
 git -C "$t/src/book-a" commit -qam "ch1"
 out=$(agents handoff a)
 check "a commit makes every older check stale, naming both commits: $out" grep -qE 'stale: the code moved on \([0-9a-f]{7} then, [0-9a-f]{7} now\)' <<<"$out"
+check "--json carries the estimate's minutes and where it stands" python3 -c '
+import json, sys
+r = json.loads(sys.argv[1])
+assert r["handoff"]["estimate"]["minutes"] == 40 and r["handoff"]["estimate"]["by"] == "claude 1001", r["handoff"]
+' "$(agents handoff a --json)"
 check "--json carries the freshness and the state now" python3 -c '
 import json, sys
 r = json.load(sys.stdin)
@@ -119,7 +146,7 @@ out=$(agents handoff set --desk a --summary "the key is ANTHROPIC_API_KEY=sk-ant
 check "a credential is refused, and nothing kept: $out" \
   bash -c 'grep -q "looks like it holds a credential" <<<"$1" && ! grep -rq "sk-ant" "$2"' _ "$out" "$records"
 out=$(echo '{"stat": "working"}' | VIKIX_AGENT_PID=1001 python3 "$here/bin/vikix-agents" handoff set --desk a --from - 2>&1 || true)
-check "an unknown field in --from is refused, naming the fields: $out" grep -q 'unknown field: stat (the fields: check, next, session, status, summary, task)' <<<"$out"
+check "an unknown field in --from is refused, naming the fields: $out" grep -q 'unknown field: stat (the fields: check, estimate, next, session, status, summary, task)' <<<"$out"
 out=$(agents handoff set --desk a --status 'done')
 check "a status outside the four is refused: $out" grep -q 'a status is one of working, waiting, review, finished' <<<"$out"
 out=$(agents handoff session --desk a codex '../../etc/passwd')

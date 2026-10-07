@@ -98,12 +98,17 @@
                        holds the rules for each. DESK as for close; none:
                        the desk you sit at
   vikix agents handoff set [--desk DESK] [--task "..."] [--status S]
-                       [--summary "..."] [--next "..."] [--from FILE|-]
+                       [--summary "..."] [--next "..."] [--estimate "..."]
+                       [--from FILE|-]
                        the user's task; the agent's status (working,
                        waiting, review, finished), its account of changes
                        and decisions, what is left and the next action;
-                       --from takes the same as JSON (task, status,
-                       summary, next, check {name, ok, note}, session
+                       --estimate how long the work will take from now,
+                       barring a major issue (40 min, 2 h 30 min, 1.5 h;
+                       what it assumes may follow after a comma), which
+                       the record and the listing then count down; --from
+                       takes the same as JSON (task, status, summary,
+                       next, estimate, check {name, ok, note}, session
                        {provider, id}). Each line says who wrote it
   vikix agents handoff check NAME --ok|--failed [--note "..."] [--desk DESK]
                        a check that ran (the command), with the commit it
@@ -225,15 +230,16 @@ is not. A repository that is no project (~/.dotfiles) is not ruled.
 A handoff: each desk keeps a small record across agent exits and
 reboots (~/.local/state/vikix/office/desks/ID.json, lib/handoff.py; the id
 is the repository's and the worktree's, never a process's): the user's
-task in their words, what the agent says of its work (status, account,
-next), what Vikix read itself (commit, branch, uncommitted files at each
+task in their words, what the agent says of its work (status, an
+estimate of how long barring a major issue, account, next), what Vikix
+read itself (commit, branch, uncommitted files at each
 write; for a check, the commit it ran on and whether the tree was dirty)
 and the providers' resumable session ids. The three stay apart, each line
 says who wrote it, no transcript is copied and no credential is kept.
 Agents of every kind use the same commands (and the MCP tools handoff and
-handoff_update): read the handoff when joining a desk, set it when
-handing work back, blocked, or done. vikix agents close marks the record
-closed and keeps it.
+handoff_update): read the handoff when joining a desk, say how long when
+starting, set it when handing work back, blocked, or done. vikix agents
+close marks the record closed and keeps it.
 
 The house rules: the office keeps a journal of what each agent edits
 (~/.local/state/vikix/office/journal.jsonl, pruned to the agents still
@@ -767,7 +773,10 @@ def desk_prompt(task):
     """The first prompt of an agent started at a desk with a task: the
     user's words, then where the desk's record is."""
     return (task.rstrip() + "\n\nThis is your desk's task, as its record keeps it (vikix agents handoff, or the "
-            "MCP tool handoff): read the handoff before you start, and write yours when you hand back or finish.")
+            "MCP tool handoff): read the handoff before you start; once you know the shape of the work, say how "
+            "long it will take, assuming no major issue turns up (handoff_update with status working and an "
+            "estimate, or vikix agents handoff set --status working --estimate \"40 min\"); and write yours "
+            "when you hand back or finish.")
 
 
 def here(argv):
@@ -1221,7 +1230,7 @@ def handoff(argv):
             as_json = True
         elif a == "--desk":
             desk = argv.pop(0).split() if argv else die("--desk which? (vikix agents handoff list)")
-        elif a in ("--task", "--status", "--summary", "--next", "--note", "--from"):
+        elif a in ("--task", "--status", "--summary", "--next", "--estimate", "--note", "--from"):
             opts[a] = argv.pop(0) if argv else die(f"{a} needs words")
         elif a in ("--ok", "--failed"):
             opts["ok"] = a == "--ok"
@@ -1242,7 +1251,9 @@ def handoff(argv):
             d, h = r["desk"], r.get("handoff") or {}
             status = (h.get("status") or {}).get("value", "no status")
             place = short(d["worktree"]) + ("" if os.path.isdir(d["worktree"]) else " (folder gone)")
+            est = H.estimate_state(r)
             print(f"  {place}  {status}, {H.when(r['updated'])}: {(r.get('task') or {}).get('text', 'no task')[:80]}"
+                  + (f"  ({est['line']})" if est else "")
                   + (f"  [closed {H.when(d['closed'])}]" if d.get("closed") else ""))
         return 0
     if verb == "forget":
@@ -1270,16 +1281,19 @@ def handoff(argv):
                 data = json.loads(text or "{}")
             except (OSError, ValueError) as e:
                 die(f"--from {src}: {e}")
-        for k in ("--task", "--status", "--summary", "--next"):
+        for k in ("--task", "--status", "--summary", "--next", "--estimate"):
             if k in opts:
                 data[k[2:]] = opts[k]
         if words:
-            die("vikix agents handoff set takes options: --task, --status, --summary, --next, --from FILE|-")
+            die("vikix agents handoff set takes options: --task, --status, --summary, --next, --estimate, --from FILE|-")
         if not data:
-            die("nothing to set: --task, --status (working|waiting|review|finished), --summary, --next, or --from")
+            die("nothing to set: --task, --status (working|waiting|review|finished), --summary, --next, "
+                "--estimate, or --from")
         rec = desk_record(folder, by=by, change=lambda r: H.from_json(r, data, by, folder))
         s = (rec.get("handoff") or {}).get("status")
-        print(f"{short(folder)}: handoff updated by {by}" + (f", status {s['value']}" if s else ""))
+        est = H.estimate_state(rec) if "estimate" in data else None
+        print(f"{short(folder)}: handoff updated by {by}" + (f", status {s['value']}" if s else "")
+              + (f", estimate {H.span(est['minutes'])} from now" if est else ""))
         return 0
     if verb == "check":
         if not words or "ok" not in opts:
@@ -2218,14 +2232,16 @@ def main(argv):
             print(f"           on {c['file']} with {', '.join(c['with'])} too (vikix agents clash {c['file']})")
         h = a["handoff"]
         if h:
-            print(f"           handoff: {h['status'] or 'no status'}" + (f"; next: {h['next'][:80]}" if h["next"] else "")
+            print(f"           handoff: {h['status'] or 'no status'}" + (f"; {h['estimate']}" if h["estimate"] else "")
+                  + (f"; next: {h['next'][:80]}" if h["next"] else "")
                   + (f"; checks {h['checks']}" if h["checks"] else ""))
     return 0
 
 
 def handoff_brief(folder):
-    """The desk's record in a line's worth: status, next, the checks'
-    freshness (fresh/stale counts). None without a record."""
+    """The desk's record in a line's worth: status, where the work stands
+    against the estimate, next, the checks' freshness (fresh/stale
+    counts). None without a record."""
     try:
         H = handoff_module()
         rec = H.load(H.desk_id(common_of(folder), folder))
@@ -2237,8 +2253,9 @@ def handoff_brief(folder):
     now = H.observe(folder) if os.path.isdir(folder) else {}
     checks = rec.get("checks") or []
     fresh = sum(1 for c in checks if H.freshness(c, now) == "fresh")
+    est = H.estimate_state(rec)
     return {"status": (h.get("status") or {}).get("value"), "next": (h.get("next") or {}).get("text", ""),
-            "task": (rec.get("task") or {}).get("text", ""),
+            "estimate": est["line"] if est else "", "task": (rec.get("task") or {}).get("text", ""),
             "checks": f"{fresh} fresh, {len(checks) - fresh} stale" if checks else ""}
 
 

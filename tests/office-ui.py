@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 import subprocess
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -55,6 +56,14 @@ class Office(unittest.TestCase):
         self.assertIn('desk with spaces', row['title'])
         self.records = [{'desk': {}}, {'desk': {'worktree': self.folder}}]
         self.assertEqual(len(office.snapshot(A)['desks']), 1)
+
+    def test_estimate_counted_down(self):
+        # The agent's estimate, counted down from when it was written; '' without one.
+        self.records = [self.rec]
+        self.assertEqual(office.snapshot(A)['desks'][0]['estimate'], '')
+        self.rec['handoff'] = {'status': {'value': 'working', 'at': int(time.time()) - 600},
+                               'estimate': {'text': '40 min', 'minutes': 40, 'by': 'codex 1', 'at': int(time.time()) - 600}}
+        self.assertEqual(office.snapshot(A)['desks'][0]['estimate'], '30 min left of 40 min')
 
     def test_groups_and_multiple_agents(self):
         self.records = [self.rec]

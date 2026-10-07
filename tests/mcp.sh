@@ -233,13 +233,14 @@ mkdir -p "$t/proc/1001"; printf 'claude\0--x\0' > "$t/proc/1001/cmdline"; ln -sf
 printf '1001 (claude) S 1 1001 1 34816 -1 4194560 0 0 0 0 0 0 0 0 20 0 1 0 100000 0 0\n' > "$t/proc/1001/stat"
 out=$(VIKIX_PROC=$t/proc VIKIX_AGENT_PID=1001 call handoff '{}')
 check "handoff without a record says how one starts: $out" grep -q '"record": null' <<<"$out"
-out=$(VIKIX_PROC=$t/proc VIKIX_AGENT_PID=1001 call handoff_update '{"status":"working","summary":"read the log","next":"fix ch1","check":{"name":"spell","ok":true}}')
-check "handoff_update writes the caller's handoff on its desk, signed: $out" grep -q '^handoff of .*/book-a updated by claude 1001: status working; check, next, status, summary set' <<<"$out"
+out=$(VIKIX_PROC=$t/proc VIKIX_AGENT_PID=1001 call handoff_update '{"status":"working","estimate":"40 min","summary":"read the log","next":"fix ch1","check":{"name":"spell","ok":true}}')
+check "handoff_update writes the caller's handoff on its desk, signed: $out" grep -q '^handoff of .*/book-a updated by claude 1001: status working; check, estimate, next, status, summary set' <<<"$out"
 out=$(VIKIX_PROC=$t/proc VIKIX_AGENT_PID=1001 call handoff '{}')
 check "handoff then reads it back, with the freshness and what holds the rules: $out" python3 -c '
 import json, sys
 r = json.loads(sys.argv[1])
 assert r["handoff"]["status"]["value"] == "working" and r["handoff"]["status"]["by"] == "claude 1001", r["handoff"]
+assert r["handoff"]["estimate"]["minutes"] == 40 and r["handoff"]["estimate"]["by"] == "claude 1001", r["handoff"]
 assert r["checks"][0]["freshness"] == "fresh" and r["now"]["commit"], r
 assert r["at_the_desk"] == ["claude 1001"] and any("no filesystem enforcement" in p for p in r["protection"]), r' "$out"
 out=$(VIKIX_PROC=$t/proc VIKIX_AGENT_PID=1001 call handoff_update '{"summary":"token sk-ant-abcdefghijklmnopqrstu"}')

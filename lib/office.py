@@ -100,6 +100,8 @@ def snapshot(api):
         handoff = row.get('handoff') or {}
         status = (handoff.get('status') or {}).get('value', 'unrecorded')
         row['status'] = status
+        # Where the work stands against the agent's estimate, as a line; '' without one.
+        row['estimate'] = (H.estimate_state(row) or {}).get('line', '')
         row['title'] = (row.get('task') or {}).get('text') or (short(path) if row['kind'] == 'folder' else ' / '.join(
             str(x) for x in (d.get('project'), d.get('branch') or os.path.basename(path)) if x))
         row['next_action'] = (handoff.get('next') or {}).get('text', '')
