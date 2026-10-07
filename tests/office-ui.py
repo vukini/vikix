@@ -133,6 +133,51 @@ class Office(unittest.TestCase):
             run.return_value.stderr = 'no desktop window'
             with self.assertRaisesRegex(RuntimeError, 'no desktop window'): office.focus(A, '123')
 
+    def test_close_refuses_stale_or_non_agent_process(self):
+        with patch.object(office.os, 'pidfd_open', return_value=42), \
+             patch.object(office.os, 'close') as close, \
+             patch.object(office, 'process_start', return_value='new'), \
+             patch.object(office.signal, 'pidfd_send_signal') as send:
+            with self.assertRaises(ValueError): office.close_agent(A, '1;bad', '100')
+            with self.assertRaisesRegex(RuntimeError, 'ended or changed'):
+                office.close_agent(A, '123', '100')
+            send.assert_not_called()
+            close.assert_called_once_with(42)
+        with patch.object(office.os, 'pidfd_open', return_value=42), \
+             patch.object(office.os, 'close'), \
+             patch.object(office, 'process_start', return_value='100'), \
+             patch.object(A, 'cmdline', return_value=['/bin/bash']), \
+             patch.object(office.signal, 'pidfd_send_signal') as send:
+            with self.assertRaisesRegex(RuntimeError, 'ended or changed'):
+                office.close_agent(A, '123', '100')
+            send.assert_not_called()
+
+    def test_close_owned_process_and_keep_files(self):
+        # An owned stand-in exercises real pidfd delivery, never a live agent.
+        child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])
+        try:
+            start = office.process_start(A, child.pid)
+            with patch.object(A, 'agent_name', return_value='codex'):
+                office.main(A, ['--close-agent', str(child.pid), start])
+            self.assertEqual(child.wait(timeout=5), -15)
+            self.assertTrue(Path(self.folder).is_dir())
+        finally:
+            if child.poll() is None:
+                child.kill()
+            child.wait(timeout=5)
+
+    def test_close_reports_still_exiting_without_force(self):
+        with patch.object(office.os, 'pidfd_open', return_value=42), \
+             patch.object(office.os, 'close'), \
+             patch.object(office, 'process_start', return_value='100'), \
+             patch.object(A, 'cmdline', return_value=['codex']), \
+             patch.object(office.signal, 'pidfd_send_signal') as send, \
+             patch.object(office.select, 'poll') as poll, patch('builtins.print') as output:
+            poll.return_value.poll.return_value = []
+            office.close_agent(A, '123', '100')
+            send.assert_called_once_with(42, office.signal.SIGTERM)
+            self.assertIn('still exiting', output.call_args.args[0])
+
     def test_changed_conversation_is_not_resumed(self):
         with patch.object(A, 'desk_for', return_value=(self.folder, self.rec)), \
              patch.object(A, 'protection_lines', return_value=([], [])), \

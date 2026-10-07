@@ -1,10 +1,12 @@
-"""The Office: a read-only projection of desks, handoffs and live discovery.
+"""The Office: desk snapshots and explicit user actions.
 
-No state is written here. Terminal clients and the Emacs view share this
-snapshot; unavailable discovery is explicitly different from an empty office.
+Terminal clients and the Emacs view share a read-only snapshot; unavailable
+discovery is explicitly different from an empty office.
 """
 import json
 import os
+import select
+import signal
 import shutil
 import subprocess
 import time
@@ -35,6 +37,7 @@ def snapshot(api):
     except (OSError, ValueError, SystemExit) as e:
         errors.append(f'Desk discovery unavailable: {e}')
     for a in agents:
+        a['process_start'] = process_start(api, a['pid'])
         if a.get('folder'):
             path = os.path.realpath(a['folder'])
             rows.setdefault(path, {'desk': {'worktree': path}})
@@ -72,6 +75,38 @@ def snapshot(api):
     order = ['Needs you', 'Working', 'Parked', 'Finished']
     return {'version': 1, 'at': int(time.time()), 'live_known': live_known, 'errors': errors,
             'desks': sorted(rows.values(), key=lambda r: (order.index(r['group']), r['title'].lower(), r['id']))}
+
+
+def process_start(api, pid):
+    """Linux start ticks distinguish a process from a later reuse of its PID."""
+    try:
+        with open(f'{api.PROC}/{pid}/stat') as f:
+            return f.read().rsplit(')', 1)[1].split()[19]
+    except (OSError, IndexError):
+        return None
+
+
+def close_agent(api, pid, expected_start):
+    if not str(pid).isdigit() or int(pid) <= 1 or not str(expected_start).isdigit():
+        raise ValueError('Close agent needs a process number and its start identity')
+    pid = int(pid)
+    if not hasattr(os, 'pidfd_open') or not hasattr(signal, 'pidfd_send_signal'):
+        raise RuntimeError('Safe agent closing needs Linux process descriptor support')
+    # Pin the process before rechecking identity. Never signal a bare PID or
+    # a process group: that could reach a replacement or an unrelated shell.
+    fd = os.pidfd_open(pid)
+    try:
+        if process_start(api, pid) != expected_start or api.agent_name(api.cmdline(pid)) is None:
+            raise RuntimeError('Agent ended or changed; refresh the Office')
+        signal.pidfd_send_signal(fd, signal.SIGTERM)
+        poll = select.poll()
+        poll.register(fd, select.POLLIN)
+        if poll.poll(3000):
+            print('Agent closed. Desk, branch and files retained.')
+        else:
+            print('Close requested; agent is still exiting. Refresh to check. Desk and files retained.')
+    finally:
+        os.close(fd)
 
 
 def focus(api, pid):
@@ -126,8 +161,10 @@ def main(api, args):
         print(json.dumps(snapshot(api), ensure_ascii=False))
     elif len(args) == 2 and args[0] == '--go':
         focus(api, args[1])
+    elif len(args) == 3 and args[0] == '--close-agent':
+        close_agent(api, args[1], args[2])
     elif not args:
         launch(api)
     else:
-        raise ValueError('vikix agents office [--json | --go PID]')
+        raise ValueError('vikix agents office [--json | --go PID | --close-agent PID START]')
     return 0

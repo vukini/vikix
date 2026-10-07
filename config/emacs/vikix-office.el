@@ -95,7 +95,7 @@
   (with-current-buffer (vikix-office--owner-buffer)
     (unless (or vikix-office--closed (process-live-p vikix-office--process)
                 (process-live-p vikix-office--action))
-      (vikix-office--notice "Refreshing…  g refresh · RET details · a go to agent · c continue · q close")
+      (vikix-office--notice "Refreshing…  g refresh · RET details · a go to agent · c continue · x close agent · q close Office")
       (vikix-office--request
        '("office" "--json") 'vikix-office--process
        (lambda (output error)
@@ -115,7 +115,7 @@
                    (vikix-office--notice
                     (if errors (string-join errors "; ")
                       (concat "Updated " (vikix-office--time (alist-get 'at data))
-                              " · g refresh · RET details · a go to agent · c continue · q close")))))
+                              " · g refresh · RET details · a go to agent · c continue · x close agent · q close Office")))))
              (error (vikix-office--failure (error-message-string err))))))))))
 
 (defun vikix-office--button (label action)
@@ -185,6 +185,7 @@
             (insert (propertize (vikix-office--text (alist-get 'title r)) 'face '(:inherit variable-pitch :height 1.3 :weight bold)) "\n\n")
             (vikix-office--button "Go to agent" (lambda () (with-current-buffer owner (vikix-office-go))))
             (vikix-office--button "Continue…" (lambda () (with-current-buffer owner (vikix-office-continue))))
+            (vikix-office--button "Close agent…" (lambda () (with-current-buffer owner (vikix-office-close-agent))))
             (insert "\n\n")
             (vikix-office--signed "User task" (alist-get 'task r))
             (insert "\nAgent claims — review does not mean merged\n")
@@ -263,6 +264,29 @@
       (unless a (user-error "No live agent at this desk"))
       (when (member (alist-get 'window a) '(nil "")) (user-error "This agent has no desktop window"))
       (vikix-office--act (list "office" "--go" (number-to-string (alist-get 'pid a)))))))
+(defun vikix-office-close-agent ()
+  "Stop a selected agent, keeping its desk and files."
+  (interactive)
+  (with-current-buffer (vikix-office--owner-buffer)
+    (unless (eq (alist-get 'live_known vikix-office--data) t)
+      (user-error "Live activity unknown; refresh first"))
+    (let* ((r (vikix-office--row))
+           (agents (alist-get 'agents r))
+           (choices (mapcar (lambda (a)
+                              (cons (format "%s %s · %s" (alist-get 'agent a)
+                                            (alist-get 'pid a) (alist-get 'doing a)) a)) agents))
+           (a (cond ((null agents) (user-error "No live agent at this desk"))
+                    ((= (length agents) 1) (car agents))
+                    (t (cdr (assoc (completing-read "Close agent: " choices nil t) choices))))))
+      (unless (alist-get 'process_start a)
+        (user-error "Agent identity unavailable; refresh first"))
+      (when (yes-or-no-p (format "Close %s %s at %s? Running work will stop; desk and files stay. "
+                                 (alist-get 'agent a) (alist-get 'pid a)
+                                 (alist-get 'worktree (alist-get 'desk r))))
+        (vikix-office--act (list "office" "--close-agent"
+                                (number-to-string (alist-get 'pid a))
+                                (alist-get 'process_start a)))))))
+
 (defun vikix-office-continue ()
   (interactive)
   (with-current-buffer (vikix-office--owner-buffer)
@@ -318,6 +342,7 @@
     (define-key map (kbd "g") #'vikix-office-refresh)
     (define-key map (kbd "a") #'vikix-office-go)
     (define-key map (kbd "c") #'vikix-office-continue)
+    (define-key map (kbd "x") #'vikix-office-close-agent)
     (define-key map (kbd "q") #'vikix-office-close)
     (define-key map (kbd "RET") #'vikix-office-details)
     (define-key map (kbd "TAB") #'forward-button)

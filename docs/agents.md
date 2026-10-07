@@ -311,6 +311,13 @@ not independently verify the agent's report.
 the chosen process again through the desktop before focusing it. An agent
 without a desktop window is identified and cannot be focused here.
 
+**Close agent** (`x`) asks which agent when a desk has several, then asks
+for confirmation before requesting its exit. Running work stops; the desk,
+branch and files stay for later. The process identity is checked again so a
+stale view cannot close a replacement process. If it is still exiting after
+three seconds, the Office says so; it does not force-kill it. `q` closes only
+the Office window.
+
 **Continue** offers a named provider and either its recorded saved
 conversation or an explicit **Start fresh** choice. It uses `vikix agents
 resume`, including its duplicate-session checks. A saved conversation that

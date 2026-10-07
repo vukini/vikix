@@ -23,6 +23,9 @@
   vikix agents office --go PID
                        go to that live agent through the desktop; fail if
                        it ended or has no desktop window
+  vikix agents office --close-agent PID START
+                       request agent exit, keeping its desk and files;
+                       START is process_start from the Office JSON snapshot
   vikix agents --json  the same as JSON, for a script
   vikix agents desk [PROJECT [TOPIC]] [--use NAME] [--local] [--here]
                        start an agent at a desk of its own: in PROJECT (one
