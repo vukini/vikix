@@ -13,8 +13,8 @@
 #                           --rebuild builds Lem and the Listener again
 #   vikix lisp-apps status
 #   vikix lisp-apps uninstall
-#                           removes Lem and the Listener; Nyxt goes with
-#                           vikix remove lisp-apps
+#                           removes Lem and the Listener; the feature stays,
+#                           as Nyxt does: it goes with vikix remove lisp-apps
 #
 # Commands: nyxt, lem, clim-listener; all three are in the launcher (Super+d).
 
@@ -181,8 +181,7 @@ cmd_uninstall() {
   unlink_ours "$BIN/clim-listener" "$CLIM_OPT/clim-listener"
   run rm -f "$APPS/vikix-lem.desktop" "$APPS/vikix-clim-listener.desktop"
   run rm -rf "$LEM_OPT" "$CLIM_OPT"
-  say "removed Lem and the Listener; McCLIM stays in your Quicklisp, and Nyxt goes with vikix remove lisp-apps"
-  forget_features lisp-apps
+  say "removed Lem and the Listener; McCLIM stays in your Quicklisp, and Nyxt (the feature lisp-apps) goes with vikix remove lisp-apps"
 }
 
 case ${1:-} in

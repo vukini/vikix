@@ -651,7 +651,7 @@ Programs written in Common Lisp, and programmable in it, as StumpWM is.
 
 - `vikix lisp-apps setup [--rebuild]` — Nyxt from Void; Lem built from source (a pinned commit, its libraries pinned by its qlfile.lock); McCLIM, the Listener and Clouseau from Quicklisp, saved as one program. A few minutes, once; no password when the packages are there. --rebuild builds Lem and the Listener again
 - `vikix lisp-apps status`
-- `vikix lisp-apps uninstall` — removes Lem and the Listener; Nyxt goes with vikix remove lisp-apps
+- `vikix lisp-apps uninstall` — removes Lem and the Listener; the feature stays, as Nyxt does: it goes with vikix remove lisp-apps
 
 Programs written in Common Lisp, and programmable in it, as StumpWM is: Nyxt (a web browser), Lem (an editor) and McCLIM's Listener (a Lisp prompt whose output is live objects), with Clouseau, the inspector.
 

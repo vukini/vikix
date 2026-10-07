@@ -8,7 +8,7 @@
 #   for no sudo when the packages are there; a second setup builds nothing,
 #   --rebuild builds again; a failed build says where its log is and links
 #   nothing; status says what's built; uninstall removes only what setup
-#   made and forgets the feature; a dry run changes nothing.
+#   made and keeps the feature (Nyxt stays); a dry run changes nothing.
 #
 # git and sbcl are stand-ins.
 
@@ -132,7 +132,7 @@ check "a clim-listener that isn't setup's should stay" test "$(readlink "$HOME/.
 check "Lem's folder should be gone" test ! -e "$lem"
 check "the Listener's folder should be gone" test ! -e "$clim"
 check "the launcher entries should be gone" test ! -e "$apps/vikix-lem.desktop" -a ! -e "$apps/vikix-clim-listener.desktop"
-check "uninstall should forget the feature" test -z "$(grep -x lisp-apps "$HOME/.config/vikix/features" || true)"
+check "uninstall should keep the feature (Nyxt stays)" grep -qx lisp-apps "$HOME/.config/vikix/features"
 check "Quicklisp should stay" test -e "$HOME/quicklisp/setup.lisp"
 
 [ "$fail" = 0 ] && echo "lisp-apps: ok"
