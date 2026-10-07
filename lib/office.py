@@ -90,7 +90,8 @@ def focus(api, pid):
 
 def launch(api):
     source = os.path.join(api.VIKIX_DIR, 'config', 'emacs', 'vikix-office.el')
-    form = '(progn (load ' + json.dumps(source, ensure_ascii=False) + ' nil t) (vikix-office-open))'
+    display = json.dumps(os.environ.get('DISPLAY', ''), ensure_ascii=False)
+    form = '(progn (load ' + json.dumps(source, ensure_ascii=False) + ' nil t) (vikix-office-open ' + display + '))'
     if shutil.which('emacsclient'):
         # Override ALTERNATE_EDITOR too: a connection failure must never
         # start another Emacs competing for the user's saved desktop.

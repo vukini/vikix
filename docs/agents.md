@@ -280,7 +280,9 @@ inherits Emacs's Vikix theme. The existing agent menu and terminal commands
 remain available; without Emacs, the command opens the existing agent menu.
 Conversations stay in each agent's terminal.
 
-The Office connects to your existing Emacs server. If it is unavailable,
+The Office connects to your existing Emacs server and explicitly opens an X11
+window on the launching desktop, including when Emacs runs as a daemon with
+only terminal frames. If it is unavailable,
 busy, or reports an error, the launcher says why; it never starts another
 Emacs or restores a second copy of your saved session. In your existing
 Emacs, use `M-x server-start` if its server is not running, then try again.

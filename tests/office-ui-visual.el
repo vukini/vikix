@@ -19,13 +19,22 @@
   (setq vikix-office-command
         (list "python3" "-c" (concat "print(" (json-encode (json-encode data)) ")"))))
 (load-theme 'modus-vivendi t)
-(vikix-office-open)
+(vikix-office-open (getenv "DISPLAY"))
+;; Wait for the fixture response, not a fixed one-second startup assumption.
+(let* ((frame (cl-find-if (lambda (f) (frame-parameter f 'vikix-office-buffer)) (frame-list)))
+       (buffer (frame-parameter frame 'vikix-office-buffer))
+       (deadline (+ (float-time) 10)))
+  (while (and (< (float-time) deadline)
+              (with-current-buffer buffer (not vikix-office--selected)))
+    (accept-process-output nil 0.1)))
 (run-at-time
  1 nil
  (lambda ()
    (condition-case err
        (let* ((frame (cl-find-if (lambda (f) (frame-parameter f 'vikix-office-buffer)) (frame-list)))
               (buffer (frame-parameter frame 'vikix-office-buffer)))
+         (unless (eq (frame-parameter frame 'window-system) 'x)
+           (error "Office did not create an X11 frame"))
          (select-frame-set-input-focus frame)
          (with-current-buffer buffer
            (unless (equal vikix-office--selected "attention") (error "No asynchronous snapshot"))

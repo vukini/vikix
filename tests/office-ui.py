@@ -180,14 +180,14 @@ class Launcher(unittest.TestCase):
 
     def test_uses_existing_server_even_with_alternate_editor_configured(self):
         self.called.return_value = subprocess.CompletedProcess([], 0, 'nil', '')
-        with patch.dict(os.environ, {'ALTERNATE_EDITOR': 'emacs'}), \
+        with patch.dict(os.environ, {'ALTERNATE_EDITOR': 'emacs', 'DISPLAY': ':91'}), \
              patch.object(A, 'VIKIX_DIR', '/tmp/Office desk "quoted"'):
             office.launch(A)
         self.called.assert_called_once()
         args = self.called.call_args.args[0]
         self.assertEqual(args[:3], ['emacsclient', '--alternate-editor=false', '--eval'])
         quoted = json.dumps('/tmp/Office desk "quoted"/config/emacs/vikix-office.el')
-        self.assertEqual(args[3], '(progn (load ' + quoted + ' nil t) (vikix-office-open))')
+        self.assertEqual(args[3], '(progn (load ' + quoted + ' nil t) (vikix-office-open \":91\"))')
         self.assertNotIn('shell', self.called.call_args.kwargs)
 
     def test_failed_connection_or_lisp_error_is_reported(self):

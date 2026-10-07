@@ -8,7 +8,8 @@ unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE   # never the live session settings
 here=$(cd "$(dirname "$0")/.." && pwd)
 t=$(mktemp -d)
 xpid=''
-trap '[ -z "$xpid" ] || kill "$xpid" 2>/dev/null; rm -rf "$t"' EXIT
+epid=''
+trap '[ -z "$epid" ] || kill "$epid" 2>/dev/null; [ -z "$xpid" ] || kill "$xpid" 2>/dev/null; rm -rf "$t"' EXIT
 export HOME="$t"
 export XDG_STATE_HOME="$t/state" XDG_CONFIG_HOME="$t/config" XDG_DATA_HOME="$t/data"
 export DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent/office-test
@@ -31,6 +32,19 @@ if command -v Xvfb >/dev/null && command -v emacs >/dev/null; then
     timeout 20 emacs -Q --no-splash -l "$here/tests/office-ui-visual.el" || code=$?
     [ ! -f "$t/visual-result" ] || cat "$t/visual-result"
     [ "$code" = 0 ] || exit "$code"
+    # Exercise the terminal-only daemon used by the real launcher as well.
+    export EMACS_SOCKET_NAME="$t/office-server"
+    emacs -Q --fg-daemon="$EMACS_SOCKET_NAME" >"$t/daemon.log" 2>&1 &
+    epid=$!
+    for ((i=0; i<100; i++)); do [ ! -S "$EMACS_SOCKET_NAME" ] || break; sleep 0.1; done
+    [ -S "$EMACS_SOCKET_NAME" ] || { cat "$t/daemon.log"; exit 1; }
+    rm -f "$t/visual-result"
+    timeout 10 emacsclient --alternate-editor=false --eval "(load \"$here/tests/office-ui-visual.el\" nil t)"
+    for ((i=0; i<100; i++)); do [ ! -f "$t/visual-result" ] || break; sleep 0.1; done
+    [ -f "$t/visual-result" ] || { cat "$t/daemon.log"; exit 1; }
+    cat "$t/visual-result"
+    wait "$epid"
+    epid=''
   else
     echo 'SKIP: safe display unavailable; Office visual testing unavailable'
   fi

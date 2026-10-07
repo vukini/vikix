@@ -329,12 +329,19 @@
   (hl-line-mode 1)
   (add-hook 'post-command-hook #'vikix-office--track nil t)
   (add-hook 'kill-buffer-hook #'vikix-office--cleanup nil t))
-(defun vikix-office-open ()
-  "Open the Office in a dedicated frame inheriting Emacs's Vikix theme."
+(defun vikix-office-open (&optional display)
+  "Open the Office on X11 DISPLAY, inheriting Emacs's Vikix theme.
+Use the current graphical display or DISPLAY environment when called interactively."
   (interactive)
   (let ((existing (cl-find-if (lambda (f) (buffer-live-p (frame-parameter f 'vikix-office-buffer))) (frame-list))))
     (if existing (select-frame-set-input-focus existing)
-      (let* ((frame (make-frame '((name . "The Office") (title . "The Office") (tool-bar-lines . 0) (menu-bar-lines . 0) (width . 150) (height . 44))))
+      (setq display (or (and display (not (string-empty-p display)) display)
+                        (and (display-graphic-p) (frame-parameter nil 'display))
+                        (getenv "DISPLAY")))
+      (unless (and display (not (string-empty-p display)))
+        (user-error "The Office needs an X11 display; use vikix agents in a terminal"))
+      (let* ((frame (make-frame `((window-system . x) (display . ,display)
+                                 (name . "The Office") (title . "The Office") (tool-bar-lines . 0) (menu-bar-lines . 0) (width . 150) (height . 44))))
              (buffer (generate-new-buffer "*The Office*"))
              (detail (generate-new-buffer "*Office desk*")))
         (set-frame-parameter frame 'vikix-office-buffer buffer)
