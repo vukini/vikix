@@ -6,7 +6,7 @@
     (desks . ,(mapcar (lambda (id)
                        `((id . ,id) (title . ,(concat "Task " id)) (group . "Parked")
                          (desk . ((project . "Vikix") (worktree . "/tmp/a desk with spaces")))
-                         (status . "review") (live_known . t) (exists . t)
+                         (status . "review") (live_known . t) (exists . t) (kind . "desk")
                          (task . nil) (handoff . nil) (now . nil) (checks . nil) (sessions . nil)
                          (agents . nil) (provider . "codex") (next_action . "Review changes")
                          (resume . ((codex . ((mode . "resumed") (session . ((id . "abc")))))))))
@@ -49,6 +49,37 @@
            (should (string-match-p "review does not mean merged" (buffer-string)))
            (should (string-match-p "Worktree removed" (buffer-string))))
          (should-error (vikix-office-continue) :type 'user-error))
+     (kill-buffer vikix-office--detail))))
+(ert-deftest office-folder-row-is-not-a-desk ()
+  (office-test-buffer
+   (setq vikix-office--detail (generate-new-buffer " *Office folder test*"))
+   (unwind-protect
+       (let ((r (car (alist-get 'desks vikix-office--data))))
+         (setf (alist-get 'kind r) "folder"
+               (alist-get 'title r) "~"
+               (alist-get 'group r) "Working"
+               (alist-get 'next_action r) "Go to agent"
+               (alist-get 'resume r) nil
+               (alist-get 'now r) nil
+               (alist-get 'desk r) '((worktree . "/home/someone"))
+               (alist-get 'agents r) '(((agent . "codex") (pid . 7598) (doing . "running") (window . "3")
+                                        (workspace . "2") (process_start . "100"))))
+         (vikix-office--render)
+         ;; Its own lines: no handoff named (the other row, a desk, still has one).
+         (should (string-match-p "^    Not a desk · codex\n    Live: running\n    Next: Go to agent$" (buffer-string)))
+         (with-current-buffer vikix-office--detail
+           (should (string-match-p "^Not a desk: agents running in ~$" (buffer-string)))
+           (should (string-match-p "Go to agent" (buffer-string)))
+           (should (string-match-p "Close agent" (buffer-string)))
+           (should-not (string-match-p "Continue" (buffer-string)))
+           (should-not (string-match-p "Observed Git state\\|review does not mean merged\\|Saved conversations" (buffer-string)))
+           (should (string-match-p "codex 7598 · running · workspace 2" (buffer-string))))
+         (should-error (vikix-office-continue) :type 'user-error)
+         ;; Without an agent left there is still no Continue: nothing to continue in a folder.
+         (setf (alist-get 'agents r) nil)
+         (vikix-office--render)
+         (with-current-buffer vikix-office--detail
+           (should-not (string-match-p "Continue" (buffer-string)))))
      (kill-buffer vikix-office--detail))))
 (ert-deftest office-empty ()
   (office-test-buffer

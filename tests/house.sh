@@ -53,12 +53,13 @@ printf 'one\ntwo\n' > ch1.md; echo notes > notes.md; git add ch1.md notes.md; gi
 git worktree add -q "$t/src/book-a" -b a; git worktree add -q "$t/src/book-b" -b b
 cd "$here"
 
-# A made-up /proc: PID NAME FOLDER makes an agent process in it.
+# A made-up /proc: PID NAME FOLDER [TTY] makes an agent process in it, on a
+# controlling terminal (pts/0 unless TTY says 0: none, as a daemon has).
 mkdir -p "$t/proc"; echo "5000.00 1.00" > "$t/proc/uptime"
 proc() {
   mkdir -p "$t/proc/$1"
   printf '%s\0%s\0' "$2" "--some-flag" > "$t/proc/$1/cmdline"
-  printf '%s (%s) S 1 %s 1 0 -1 4194560 0 0 0 0 0 0 0 0 20 0 1 0 100000 0 0\n' "$1" "$2" "$1" > "$t/proc/$1/stat"
+  printf '%s (%s) S 1 %s 1 %s -1 4194560 0 0 0 0 0 0 0 0 20 0 1 0 100000 0 0\n' "$1" "$2" "$1" "${4:-34816}" > "$t/proc/$1/stat"
   ln -sfn "$3" "$t/proc/$1/cwd"
 }
 proc 1001 claude "$t/src/book-a"
@@ -147,6 +148,20 @@ import json, sys
 agents = json.load(sys.stdin)
 a = next(x for x in agents if x["pid"] == 1002)
 assert a["clashes"] == [{"file": "ch1.md", "with": ["claude 1001", "claude 1003"]}], a["clashes"]' <<<"$(VIKIX_EVAL=$t/eval agents --json)"
+
+# A daemon is not an agent: codex's app-server under runit (a server
+# subcommand, no terminal) was listed as "codex running"; nor is a provider's
+# program with no controlling terminal and no window. A session has a tty.
+proc 1030 codex "$HOME" 0; printf 'codex\0app-server\0--listen\0unix://\0' > "$t/proc/1030/cmdline"
+proc 1031 codex "$HOME" 0
+proc 1032 claude "$HOME" 34816; printf '%s\0claude\0mcp\0serve\0' "$(command -v node || echo node)" > "$t/proc/1032/cmdline"
+out=$(VIKIX_EVAL=$t/eval agents)
+check "a server subcommand, or no terminal, is no agent: $(head -1 <<<"$out")" grep -q '^3 agents, 1 file two are on:$' <<<"$out"
+check "none of the three in --json" python3 -c '
+import json, sys
+pids = {a["pid"] for a in json.load(sys.stdin)}
+assert pids == {1001, 1002, 1003}, pids' <<<"$(VIKIX_EVAL=$t/eval agents --json)"
+rm -r "$t/proc/1030" "$t/proc/1031" "$t/proc/1032"
 
 rm -rf "$t/proc/1003"
 touch_as 1001 "$t/src/book-a/ch1.md" >/dev/null
@@ -247,7 +262,7 @@ check "no agent above it: refused: $out" grep -q 'no agent runs this shell' <<<"
 # A helper an agent started under its own name (Claude Code's daemon runs the shell
 # commands): what it does is the agent's, so a seat taken through it is the agent's.
 proc 1010 claude "$HOME"
-printf '1010 (claude) S 1007 1010 1 0 -1 4194560 0 0 0 0 0 0 0 0 20 0 1 0 100000 0 0\n' > "$t/proc/1010/stat"
+printf '1010 (claude) S 1007 1010 1 34816 -1 4194560 0 0 0 0 0 0 0 0 20 0 1 0 100000 0 0\n' > "$t/proc/1010/stat"
 out=$(VIKIX_AGENT_PID=1010 agents sit book c4)
 check "a seat taken through the agent's helper is the agent's: $out" grep -q 'claude 1007 is seated at .*/book-c4' <<<"$out"
 out=$(touch_as 1007 "$t/src/book-c4/notes.md")

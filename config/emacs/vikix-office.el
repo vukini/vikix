@@ -34,6 +34,9 @@
   (if (buffer-live-p vikix-office--owner) vikix-office--owner (current-buffer)))
 (defun vikix-office--rows ()
   (alist-get (if vikix-office--archive 'archive 'desks) vikix-office--data))
+(defun vikix-office--folder-p (row)
+  "ROW is a plain folder agents run in (an agent started in ~), not a desk."
+  (equal (alist-get 'kind row) "folder"))
 (defun vikix-office--row ()
   (cl-find vikix-office--selected (vikix-office--rows)
            :key (lambda (r) (alist-get 'id r)) :test #'equal))
@@ -158,14 +161,16 @@
                                         (setq vikix-office--selected id)
                                         (vikix-office--render-detail)
                                         (vikix-office-details)))
-                  (insert "\n    " (vikix-office--one-line (or (alist-get 'project (alist-get 'desk r)) "Project unrecorded"))
+                  (insert "\n    " (if (vikix-office--folder-p r) "Not a desk"
+                                    (vikix-office--one-line (or (alist-get 'project (alist-get 'desk r)) "Project unrecorded")))
                           " · " (vikix-office--one-line (alist-get 'provider r))
                           "\n    Live: "
                           (if (eq (alist-get 'live_known r) :false) "unknown"
                             (if (alist-get 'agents r)
                                 (string-join (mapcar (lambda (a) (vikix-office--one-line (alist-get 'doing a))) (alist-get 'agents r)) ", ")
                               "none observed"))
-                          " · Handoff: " (vikix-office--one-line (alist-get 'status r))
+                          ;; A plain folder keeps no handoff: nothing to say of one.
+                          (if (vikix-office--folder-p r) "" (concat " · Handoff: " (vikix-office--one-line (alist-get 'status r))))
                           "\n    Next: " (truncate-string-to-width (vikix-office--one-line (alist-get 'next_action r)) 110 nil nil "…") "\n")
                   (add-text-properties start (point) `(office-id ,id)))))
             (insert "\n")))))
@@ -204,11 +209,17 @@
                 (let ((agents (alist-get 'agents r)))
                   (when (cl-some (lambda (a) (not (member (alist-get 'window a) '(nil "")))) agents)
                     (vikix-office--button "Go to agent" (lambda () (with-current-buffer owner (vikix-office-go)))))
-                  (when (and (not agents) (eq (alist-get 'exists r) t))
+                  (when (and (not agents) (eq (alist-get 'exists r) t) (not (vikix-office--folder-p r)))
                     (vikix-office--button "Continue…" (lambda () (with-current-buffer owner (vikix-office-continue)))))
                   (when (cl-some (lambda (a) (alist-get 'process_start a)) agents)
                     (vikix-office--button "Close agent…" (lambda () (with-current-buffer owner (vikix-office-close-agent))))))))
             (insert "\n\n")
+            (if (vikix-office--folder-p r)
+                ;; Not a desk: no task, no handoff, no Git state to observe. The
+                ;; agents are listed below; Go to agent and Close agent work as on a desk.
+                (insert "Not a desk: agents running in " (vikix-office--text (alist-get 'title r)) "\n"
+                        "An agent takes a desk with vikix agents sit PROJECT TOPIC from its own shell;\n"
+                        "vikix agents desk PROJECT TOPIC starts one at a desk.\n")
             (vikix-office--signed "User task" (alist-get 'task r))
             (insert "\nAgent claims — review does not mean merged\n")
             (dolist (pair '(("Status" . status) ("Summary and decisions" . summary) ("Next action" . next)))
@@ -228,7 +239,7 @@
                       (vikix-office--text (alist-get 'freshness c)) " · "
                       (vikix-office--text (alist-get 'by c)) " · " (vikix-office--time (alist-get 'at c))
                       "\n  Tested commit: " (vikix-office--text (alist-get 'commit c))
-                      " · dirty: " (vikix-office--text (alist-get 'dirty c)) "\n"))
+                      " · dirty: " (vikix-office--text (alist-get 'dirty c)) "\n")))
             (insert "\nLive agents\n")
             (when (eq (alist-get 'live_known r) :false) (insert "Unknown — live discovery unavailable\n"))
             (dolist (a (alist-get 'agents r))
@@ -239,14 +250,15 @@
                               (if (member (alist-get 'desk_title a) '(nil ""))
                                   "" (concat " · " (vikix-office--one-line (alist-get 'desk_title a))))
                               (if (member (alist-get 'window a) '(nil "")) "No desktop window" (or (alist-get 'said a) "")))))
-            (insert "\nSaved conversations (provider store availability)\n")
-            (unless (alist-get 'sessions r)
-              (insert (if (eq (alist-get 'archived r) t) "None recorded\n"
-                        "None recorded; Continue offers an explicit fresh start\n")))
-            (dolist (s (alist-get 'sessions r))
-              (insert (format "%s · %s · %s\n  %s · %s\n" (alist-get 'provider s) (alist-get 'id s)
-                              (pcase (alist-get 'available s) ('t "available") (:false "missing") (_ "unknown"))
-                              (alist-get 'by s) (vikix-office--time (alist-get 'at s))))))
+            (unless (vikix-office--folder-p r)
+              (insert "\nSaved conversations (provider store availability)\n")
+              (unless (alist-get 'sessions r)
+                (insert (if (eq (alist-get 'archived r) t) "None recorded\n"
+                          "None recorded; Continue offers an explicit fresh start\n")))
+              (dolist (s (alist-get 'sessions r))
+                (insert (format "%s · %s · %s\n  %s · %s\n" (alist-get 'provider s) (alist-get 'id s)
+                                (pcase (alist-get 'available s) ('t "available") (:false "missing") (_ "unknown"))
+                                (alist-get 'by s) (vikix-office--time (alist-get 'at s)))))))
           (goto-char (min old (point-max)))
           (dolist (v views) (when (window-live-p (car v)) (set-window-start (car v) (min (cdr v) (point-max)) t))))))))
 
@@ -361,6 +373,7 @@
   (with-current-buffer (vikix-office--owner-buffer)
     (let* ((r (vikix-office--row)) (plans (alist-get 'resume r)) choices)
       (unless r (user-error "Select a desk first"))
+      (when (vikix-office--folder-p r) (user-error "Not a desk: nothing to continue in a plain folder (vikix agents sit PROJECT TOPIC seats an agent)"))
       (when (eq (alist-get 'exists r) :false) (user-error "Worktree removed; the record is retained"))
       (when (eq (alist-get 'live_known vikix-office--data) :false) (user-error "Live activity unknown; refresh first"))
       (when (alist-get 'agents r) (user-error "An agent is already here; use Go to agent"))

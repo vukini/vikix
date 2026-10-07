@@ -116,8 +116,12 @@ check "Super+m has it, under AI" yes '(find (quote vikix-agents-pick) *vikix-men
 # vikix agents, in a terminal.
 # One with no window of its own; in the test's folder, not this checkout's,
 # where a run of the tests would make the listing call it "testing".
-(cd "$t" && exec "$t/bin/gemini") & pids+=($!)
+# On a terminal of its own (script gives it one): a provider's program with
+# no controlling terminal and no window is a daemon, not an agent.
+(cd "$t" && exec script -qfc "exec $t/bin/gemini" /dev/null) </dev/null >/dev/null 2>&1 & pids+=($!)
 sleep 0.5
+# (The stand-in itself, under script's pty: ended by its own number at the end.)
+while read -r p; do pids+=("$p"); done < <(pgrep -f "$t/bin/gemini" || true)
 out=$(cli)
 # (The machine's own agents are counted too, and when two of them are on one
 # file the line says so: that part is theirs, not this test's.)

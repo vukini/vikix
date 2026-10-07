@@ -266,6 +266,9 @@ EVAL = os.environ.get("VIKIX_EVAL") or os.path.join(VIKIX_DIR, "bin", "vikix-eva
 PROC = os.environ.get("VIKIX_PROC") or "/proc"
 PROGRAMS = ("claude", "codex", "opencode", "gemini", "aider", "agy")
 NAMES = {"agy": "antigravity"}     # a program whose name isn't its agent's
+# A provider's program run as a server is no session: codex app-server (runit's
+# daemon), claude mcp serve, opencode serve. Never listed as an agent.
+SERVERS = {"codex": ("app-server", "exec-server", "mcp-server"), "claude": ("mcp",), "opencode": ("serve", "web", "acp")}
 FIELDS = ("agent", "pid", "folder", "workspace", "window", "seconds", "state", "doing", "said", "title", "desk_title")
 
 
@@ -325,6 +328,17 @@ def agent_name(words):
     return None
 
 
+def server_p(words):
+    """True for a provider's program run as a server (SERVERS): its first
+    word after the program that isn't a flag."""
+    for i, word in enumerate(words[:2]):
+        name = os.path.basename(word).lstrip("-")
+        if name in PROGRAMS:
+            sub = next((w for w in words[i + 1:] if not w.startswith("-")), "")
+            return sub in SERVERS.get(name, ())
+    return False
+
+
 def whereabouts(pid, parent):
     """Where an agent without a window runs, in words: a text console, or
     whatever started it (an editor, tmux, a shell over ssh)."""
@@ -355,12 +369,19 @@ def elsewhere(known, strict=False):
         try:
             if os.stat(f"{PROC}/{pid}").st_uid != os.getuid():
                 continue
-            name = agent_name(cmdline(pid))
+            words = cmdline(pid)
+            name = agent_name(words)
             if not name:
                 continue
             stat = open(f"{PROC}/{pid}/stat").read()
             rest = stat[stat.rindex(")") + 2:].split()
             parent = int(rest[1])
+            # A daemon is not an agent (codex's app-server under runit was listed as
+            # "codex running"): a server subcommand, or no controlling terminal (stat's
+            # tty_nr) and no window here (those are KNOWN). A session in a terminal, in
+            # tmux, over ssh or in an Emacs terminal has a tty; one on pipes alone hasn't.
+            if server_p(words) or int(rest[4]) == 0:
+                continue
             # One an agent started itself (a helper of the same name) is that agent's.
             if agent_name(cmdline(parent)) or parent in known:
                 continue

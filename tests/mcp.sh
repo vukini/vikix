@@ -230,7 +230,7 @@ git -C "$t/src" init -q -b main book; git -C "$t/src/book" config user.name T; g
 echo '# Log' > "$t/src/book/log.md"; git -C "$t/src/book" add log.md; git -C "$t/src/book" commit -q -m first
 git -C "$t/src/book" worktree add -q "$t/src/book-a" -b a
 mkdir -p "$t/proc/1001"; printf 'claude\0--x\0' > "$t/proc/1001/cmdline"; ln -sfn "$t/src/book-a" "$t/proc/1001/cwd"
-printf '1001 (claude) S 1 1001 1 0 -1 4194560 0 0 0 0 0 0 0 0 20 0 1 0 100000 0 0\n' > "$t/proc/1001/stat"
+printf '1001 (claude) S 1 1001 1 34816 -1 4194560 0 0 0 0 0 0 0 0 20 0 1 0 100000 0 0\n' > "$t/proc/1001/stat"
 out=$(VIKIX_PROC=$t/proc VIKIX_AGENT_PID=1001 call handoff '{}')
 check "handoff without a record says how one starts: $out" grep -q '"record": null' <<<"$out"
 out=$(VIKIX_PROC=$t/proc VIKIX_AGENT_PID=1001 call handoff_update '{"status":"working","summary":"read the log","next":"fix ch1","check":{"name":"spell","ok":true}}')

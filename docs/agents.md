@@ -33,7 +33,7 @@ $ vikix agents
   codex    ~                                           workspace 2   12 min      running
 ```
 
-A line an agent: which one; the folder it works in, with its branch and how many files wait uncommitted there; its workspace; how long it has run; and what it is doing. *Working* and *at its prompt* come from the mark Claude Code keeps at the front of its window's title; *waits for your yes*, *asked you something* and *finished its turn* from the agent-waiting plugin, when you have it ([Plugins](plugins.md)); under one that waits is what it asked, under the others the title the agent writes in its terminal, after the name its window has on the desktop when it is at a desk (`wifi · Claude`: see [A desk each](#a-desk-each)). An agent whose shell is held by a release or by tests says so instead: *waiting for a release* (its release is in `.claude/release`'s queue, behind another's; under it, since when and behind which), *releasing* (what step the release is at), *waiting for a test slot* (its tests wait for one of the machine's `tests/run.sh` slots, other runs testing) or *testing*. An agent with no window of its own (one in Emacs, one on a text console) comes last, with where it runs.
+A line an agent: which one; the folder it works in, with its branch and how many files wait uncommitted there; its workspace; how long it has run; and what it is doing. *Working* and *at its prompt* come from the mark Claude Code keeps at the front of its window's title; *waits for your yes*, *asked you something* and *finished its turn* from the agent-waiting plugin, when you have it ([Plugins](plugins.md)); under one that waits is what it asked, under the others the title the agent writes in its terminal, after the name its window has on the desktop when it is at a desk (`wifi · Claude`: see [A desk each](#a-desk-each)). An agent whose shell is held by a release or by tests says so instead: *waiting for a release* (its release is in `.claude/release`'s queue, behind another's; under it, since when and behind which), *releasing* (what step the release is at), *waiting for a test slot* (its tests wait for one of the machine's `tests/run.sh` slots, other runs testing) or *testing*. An agent with no window of its own (one in Emacs, one on a text console) comes last, with where it runs. A provider's program that is no session isn't listed at all: one run as a server (`codex app-server`, the daemon runit keeps; `claude mcp serve`; `opencode serve`), or one with no controlling terminal and no window here. A session in a terminal, in tmux, over ssh or in an Emacs terminal has a terminal; an adapter on pipes alone (ACP) has none.
 
 The same list on the desktop: `Super+m` → *AI* → *Agents: who is running, and go to one*. Pick a line and you are on that agent's workspace, at its window. `vikix agents --json` is the list for a script, and the MCP tool `agents` gives it to an agent, so one agent can see the others.
 
@@ -307,7 +307,13 @@ shows the next action. A waiting agent or a waiting/review handoff needs you;
 a live agent otherwise counts as working; a finished/closed record without
 an agent counts as finished; the remaining desks are parked. Unavailable
 live discovery is **unknown**, never proof that an agent stopped. Desks
-without handoffs still appear. Removed worktrees with no live agent go into
+without handoffs still appear. A folder an agent merely runs in (one
+started in `~`, or in a project's own folder) gets a row too, marked
+**Not a desk**: its title is the folder, its details name the agents
+running there, and Go to agent and Close agent work as on a desk. It has
+no Git state, no handoff and no Continue, since there is no desk to
+continue; `vikix agents sit PROJECT TOPIC` from the agent's own shell
+seats it at one. Removed worktrees with no live agent go into
 **Archive**, separate from current desks. A handoff saying "finished" alone
 does not archive an existing desk or remove any files.
 

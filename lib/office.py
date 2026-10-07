@@ -34,6 +34,12 @@ def agent_folder(agent):
     return os.path.realpath(path)
 
 
+def short(path):
+    """PATH with the home folder as ~, as the terminal listing shows it."""
+    home = os.path.expanduser('~')
+    return '~' + path[len(home):] if path == home or path.startswith(home + '/') else path
+
+
 def snapshot(api):
     H = api.handoff_module()
     errors = []
@@ -58,11 +64,15 @@ def snapshot(api):
                                            'project': os.path.basename(d['top'])}})
     except (OSError, ValueError, SystemExit) as e:
         errors.append(f'Desk discovery unavailable: {e}')
+    # A row for every folder an agent runs in: a desk only when the folder is one.
+    folders = set()
     for a in agents:
         a['process_start'] = process_start(api, a['pid'])
         if a.get('folder'):
             path = agent_folder(a)
-            rows.setdefault(path, {'desk': {'worktree': path}})
+            if path not in rows:
+                rows[path] = {'desk': {'worktree': path}}
+                folders.add(path)
     held = api.waits(agents) if live_known else {}
     for a in agents:
         if a['pid'] in held and a.get('state') in ('working', 'running', 'idle'):
@@ -73,30 +83,36 @@ def snapshot(api):
         d = row['desk']
         # The path stays stable when an active desk gets its first handoff.
         row['id'] = path
+        # A folder with no record that no project's desks list (an agent started
+        # in ~, or in a project's own folder) is no desk: a worktree desks() missed
+        # still is (desk_of). The view says so instead of an empty Git state.
+        row['kind'] = 'folder' if path in folders and not api.desk_of(path) else 'desk'
         row['exists'] = os.path.isdir(path)
         row['agents'] = [a for a in agents if agent_folder(a) == path]
         row['live_known'] = live_known
         row['archived'] = bool(d.get('id')) and live_known and missing_folder(path) and not row['agents']
         if row['archived']:
             archive_records.append(next((r for r in records if r.get('desk') == d), {}))
-        row['now'] = H.observe(path)
+        row['now'] = H.observe(path) if row['kind'] == 'desk' else {}
         row['checks'] = [dict(c, freshness=H.freshness(c, row['now'])) for c in row.get('checks', [])]
         row['sessions'] = [dict(s, available=H.session_store(s['provider'], s['id'], path)[0])
                            for s in row.get('sessions', [])]
         handoff = row.get('handoff') or {}
         status = (handoff.get('status') or {}).get('value', 'unrecorded')
         row['status'] = status
-        row['title'] = (row.get('task') or {}).get('text') or ' / '.join(
-            str(x) for x in (d.get('project'), d.get('branch') or os.path.basename(path)) if x)
+        row['title'] = (row.get('task') or {}).get('text') or (short(path) if row['kind'] == 'folder' else ' / '.join(
+            str(x) for x in (d.get('project'), d.get('branch') or os.path.basename(path)) if x))
         row['next_action'] = (handoff.get('next') or {}).get('text', '')
         if not row['next_action']:
-            row['next_action'] = 'Go to agent' if row['agents'] else 'Continue' if row['exists'] else 'Worktree removed'
+            row['next_action'] = ('Go to agent' if row['agents'] else 'Not a desk' if row['kind'] == 'folder'
+                                  else 'Continue' if row['exists'] else 'Worktree removed')
         needs = any(a.get('state') in ('asks', 'permission', 'question', 'waiting', 'done') for a in row['agents'])
         row['group'] = ('Needs you' if needs or status in ('waiting', 'review') or not live_known
                         else 'Working' if row['agents'] else 'Finished' if status == 'finished' or d.get('closed')
                         else 'Parked')
         providers = list(dict.fromkeys([s['provider'] for s in row['sessions']] + [default]))
-        row['resume'] = {p: H.resume_plan(row, p, path) for p in providers}
+        # Nothing to continue in a plain folder: Continue is for desks.
+        row['resume'] = {p: H.resume_plan(row, p, path) for p in providers} if row['kind'] == 'desk' else {}
         row['provider'] = ', '.join(dict.fromkeys([a['agent'] for a in row['agents']] + [s['provider'] for s in row['sessions']])) or 'unrecorded'
         if row['archived']:
             row['group'] = 'Archived'

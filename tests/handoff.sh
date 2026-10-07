@@ -50,7 +50,7 @@ cd "$here"
 proc() {   # proc PID NAME FOLDER: an agent process in the made-up /proc
   mkdir -p "$t/proc/$1"
   printf '%s\0%s\0' "$2" "--some-flag" > "$t/proc/$1/cmdline"
-  printf '%s (%s) S 1 %s 1 0 -1 4194560 0 0 0 0 0 0 0 0 20 0 1 0 100000 0 0\n' "$1" "$2" "$1" > "$t/proc/$1/stat"
+  printf '%s (%s) S 1 %s 1 34816 -1 4194560 0 0 0 0 0 0 0 0 20 0 1 0 100000 0 0\n' "$1" "$2" "$1" > "$t/proc/$1/stat"
   ln -sfn "$3" "$t/proc/$1/cwd"
 }
 proc 1001 claude "$t/src/book-a"

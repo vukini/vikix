@@ -101,6 +101,30 @@ class Office(unittest.TestCase):
         with patch.object(office.os, 'lstat', side_effect=PermissionError):
             self.assertFalse(office.missing_folder(self.folder))
 
+    def test_plain_folder_is_not_a_desk(self):
+        # An agent started in ~ makes a row for its folder: a folder, not a desk.
+        self.agents = [self.agent()]
+        row = office.snapshot(A)['desks'][0]
+        self.assertEqual(row['kind'], 'folder')
+        self.assertEqual(row['title'], office.short(self.folder))
+        self.assertEqual(row['group'], 'Working')
+        self.assertEqual(row['next_action'], 'Go to agent')
+        self.assertEqual(row['resume'], {})
+        self.assertEqual(row['now'], {})
+        self.assertEqual(office.short(os.path.expanduser('~/x y')), '~/x y')
+        # The same folder listed as a project's desk, or a worktree desks() missed: a desk.
+        self.desks = [{'folder': self.folder, 'branch': 'topic', 'top': '/tmp/book'}]
+        row = office.snapshot(A)['desks'][0]
+        self.assertEqual((row['kind'], row['title']), ('desk', 'book / topic'))
+        self.assertIn('codex', row['resume'])
+        self.desks = []
+        with patch.object(A, 'desk_of', return_value=self.folder):
+            self.assertEqual(office.snapshot(A)['desks'][0]['kind'], 'desk')
+        # A record makes it a desk too, and the row keeps its identity.
+        self.records = [self.rec]
+        row = office.snapshot(A)['desks'][0]
+        self.assertEqual((row['kind'], row['title']), ('desk', 'Fix the picker'))
+
     def test_first_handoff_keeps_selection_identity(self):
         self.agents = [self.agent()]
         before = office.snapshot(A)['desks'][0]['id']
