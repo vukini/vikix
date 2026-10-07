@@ -95,7 +95,9 @@ check "Super+m has it, under AI" yes '(find (quote vikix-agents-pick) *vikix-men
 (cd "$t" && exec "$t/bin/gemini") & pids+=($!)
 sleep 0.5
 out=$(cli)
-check "vikix agents says how many, and how many wait: $(head -1 <<<"$out")" grep -qE '^[0-9]+ agents, 1 waiting for you:$' <<<"$(head -1 <<<"$out")"
+# (The machine's own agents are counted too, and when two of them are on one
+# file the line says so: that part is theirs, not this test's.)
+check "vikix agents says how many, and how many wait: $(head -1 <<<"$out")" grep -qE '^[0-9]+ agents, 1 waiting for you(, [0-9]+ files? two are on)?:$' <<<"$(head -1 <<<"$out")"
 check "each with its folder's branch and what waits uncommitted there: $(grep 'proj-a' <<<"$out" | head -1)" \
   grep -qE '^  claude +.*proj-a \(topic, 2 uncommitted, no desk\) +workspace 1 +[0-9]+ (s|min) +waits for your yes$' <<<"$out"
 check "under it what it asked" grep -qx '           May I run the tests?' <<<"$out"

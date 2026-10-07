@@ -1288,9 +1288,12 @@ that are due. Never an error: this runs in StumpWM's timer."
   (ignore-errors (vikix-rules-run-login))
   (ignore-errors (vikix-rules-run-clock))
   (ignore-errors (vikix-rules-run-power))
-  ;; The same ticker writes down what has the screen (day.lisp, loaded later).
+  ;; The same ticker writes down what has the screen (day.lisp, loaded later),
+  ;; and names the agents' windows for their desks (agents.lisp).
   (when (fboundp 'vikix-day-tick)
     (ignore-errors (funcall 'vikix-day-tick)))
+  (when (fboundp 'vikix-agent-titles-tick)
+    (ignore-errors (funcall 'vikix-agent-titles-tick)))
   nil)
 
 (defun vikix-rules-focus-group (new old)

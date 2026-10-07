@@ -168,6 +168,16 @@ has no worktrees: its agent works in the folder itself. Super+m, AI,
 "Agents: start one on a project" and "Agents: close a desk" are the same,
 asking which.
 
+An agent's terminal is named for its desk on the desktop: "wifi-fix ·
+Claude", the topic and the provider, in the title bar, the window list,
+the overview and the palette, from the moment the agent is at the desk
+(started there, seated with sit, or resumed) until it leaves. Two of one
+provider at a desk are "wifi-fix · Claude 1" and "wifi-fix · Claude 2",
+each keeping its number while it runs. The title the agent itself writes
+(Claude Code's turning mark) is kept apart, and still says what it is
+doing; a terminal with no agent at a desk is left as it is. The listing
+and the Office show the same name (desk_title in --json).
+
 No desk, no work on a repository: an agent edits the files of a project's
 repository (any of vikix project's that is one) only from a desk, a
 worktree of its own, and never in the project's own folder, which is for
@@ -229,7 +239,7 @@ EVAL = os.environ.get("VIKIX_EVAL") or os.path.join(VIKIX_DIR, "bin", "vikix-eva
 PROC = os.environ.get("VIKIX_PROC") or "/proc"
 PROGRAMS = ("claude", "codex", "opencode", "gemini", "aider", "agy")
 NAMES = {"agy": "antigravity"}     # a program whose name isn't its agent's
-FIELDS = ("agent", "pid", "folder", "workspace", "window", "seconds", "state", "doing", "said", "title")
+FIELDS = ("agent", "pid", "folder", "workspace", "window", "seconds", "state", "doing", "said", "title", "desk_title")
 
 
 def die(message):
@@ -262,9 +272,10 @@ def desktop(strict=False):
     agents = []
     for line in r.stdout.splitlines():
         parts = line.split("\t")
-        if line.startswith("=> ") or len(parts) != len(FIELDS):
+        # A desktop from before the windows were named for their desks has no last field.
+        if line.startswith("=> ") or len(parts) not in (len(FIELDS) - 1, len(FIELDS)):
             continue
-        a = dict(zip(FIELDS, parts))
+        a = dict(zip(FIELDS, parts + [""] * (len(FIELDS) - len(parts))))
         for k in ("pid", "seconds"):
             a[k] = int(a[k]) if a[k].isdigit() else 0
         agents.append(a)
@@ -329,7 +340,7 @@ def elsewhere(known, strict=False):
             found.append({"agent": name, "pid": pid, "folder": os.readlink(f"{PROC}/{pid}/cwd"),
                           "workspace": "", "window": "", "seconds": max(0, round(uptime - int(rest[19]) / 100)),
                           "state": "running", "doing": "running", "said": "",
-                          "title": "no window of its own: " + whereabouts(pid, parent)})
+                          "title": "no window of its own: " + whereabouts(pid, parent), "desk_title": ""})
         except (OSError, ValueError, IndexError):
             continue
     return found
@@ -776,6 +787,7 @@ def sit(argv):
     seats = seats_read()
     seats[me["pid"]] = {"pid": me["pid"], "agent": me["agent"], "folder": folder, "at": int(time.time())}
     seats_write(seats)
+    desktop_nudge()
     rec = desk_record(folder, task=task, by=who(me)) if (task or desk_of(folder)) else None
     if rec and (rec.get("task") or rec.get("handoff")):
         print(f"The desk has a handoff (vikix agents handoff shows it: read it before you start).")
@@ -1533,6 +1545,18 @@ def seats_read():
     return seats
 
 
+def desktop_nudge():
+    """The desktop names the agent's window for its desk now (agents.lisp's
+    pass), not at its next look. Nothing without a desktop, and never an
+    error: the seat is taken either way."""
+    form = "(progn (when (fboundp 'vikix-agent-titles-refresh) (vikix-agent-titles-refresh)) (values))"
+    try:
+        subprocess.run(([sys.executable, EVAL] if EVAL.endswith("/bin/vikix-eval") else [EVAL]) + [form],
+                       capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
 def seats_write(seats):
     os.makedirs(os.path.dirname(SEATS), exist_ok=True)
     tmp = SEATS + ".tmp"
@@ -2017,8 +2041,12 @@ def main(argv):
                  "put away" if a["workspace"].startswith(".") else f"workspace {a['workspace']}")
         print(f"  {a['agent']:<8} {where(a):<{wide}}  {place:<13} {how_long(a['seconds']):<11} {a['doing']}")
         line = a["said"] if a["state"] == "asks" and a["said"] else a["waits"] or a["title"]
-        if line:
-            print(f"           {line[:110]}")
+        # Its window's name on the desktop (its desk and provider), then what the agent wrote there.
+        name = a.get("desk_title") or ""
+        if name and line:
+            print(f"           {name}: {line[:110]}")
+        elif name or line:
+            print(f"           {(name or line)[:110]}")
         for c in a["clashes"]:
             print(f"           on {c['file']} with {', '.join(c['with'])} too (vikix agents clash {c['file']})")
         h = a["handoff"]

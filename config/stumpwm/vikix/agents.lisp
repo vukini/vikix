@@ -26,7 +26,8 @@
 ;;;; These are the first steps of NOVEL.md's "An office for agents": seeing
 ;;;; them, and a desk each (vikix agents desk: a workspace to itself and a
 ;;;; git worktree of its project; bin/vikix-agents makes it, this file only
-;;;; finds the workspace). The house rules come after.
+;;;; finds the workspace, and names the agent's window for the desk:
+;;;; "office-ui · Claude", the last section). The house rules come after.
 
 (in-package :stumpwm)
 
@@ -167,6 +168,8 @@ bin/vikix-agents, which asks the notes itself."
                                for agent = (vikix-window-agent window)
                                do (vikix-agent-mark window (getf agent :name))
                                when agent collect agent)))))
+    ;; Each one's window named for its desk, the others unnamed (below).
+    (ignore-errors (vikix-agent-titles-name (all-windows) agents))
     (if held (vikix-agents-held agents) agents)))
 
 (defun vikix-agents-held (agents)
@@ -224,7 +227,8 @@ and its window's title or what it last said."
 (defun vikix-agents-tsv ()
   "The agents, a line each, tab-separated, for bin/vikix-agents: name, pid,
 folder, workspace, window number, seconds, state, its words, what it said,
-the window's title. Tabs and line ends inside a field are spaces."
+the window's title, and the window's name for its desk (\"office-ui ·
+Claude\"; empty off a desk). Tabs and line ends inside a field are spaces."
   (flet ((field (x) (substitute-if #\Space (lambda (c) (member c '(#\Tab #\Newline #\Return)))
                                    (princ-to-string (or x "")))))
     (format nil "~{~a~^~%~}"
@@ -235,7 +239,8 @@ the window's title. Tabs and line ends inside a field are spaces."
                                         (list (getf a :name) (getf a :pid) (getf a :folder)
                                               (group-name (window-group w)) (window-number w)
                                               (getf a :seconds) (string-downcase (getf a :state))
-                                              (getf a :words) (getf a :said) (window-title w))))))
+                                              (getf a :words) (getf a :said) (window-title w)
+                                              (vikix-agent-desk-mark w))))))
                     (vikix-agents nil)))))
 
 (defcommand vikix-agents-pick () ()
@@ -266,3 +271,303 @@ then opens the agent's terminal there."
     (when (and empty (not (eq empty (current-group))))
       (switch-to-group empty))
     (group-name (current-group))))
+
+;;; --- The desk's name on the window --------------------------------------------------------
+;;;
+;;; A terminal with an agent at a desk is named for the desk, "office-ui ·
+;;; Claude": the name is StumpWM's own user title for the window (what the
+;;; title bar, the window list, the overview and the palette show through
+;;; window-name), so the X title the agent keeps writing (window-title: the
+;;; mark Claude Code turns while it works) stays as it is, and what the agent
+;;; is doing is still read from it. The name is written on the window too
+;;; (_VIKIX_DESK), so a restarted desktop, which starts with no user titles,
+;;; finds it and the number it held. The desk is found without git: a desk is
+;;; a worktree, whose .git is a file naming the repository's .git/worktrees/
+;;; (the project's own folder has a .git folder), and its topic is the
+;;; folder's ending after the repository's name and a dash; an agent that sat
+;;; down elsewhere (vikix agents sit) is at the seat's folder, from the seats
+;;; file bin/vikix-agents keeps. Two of one provider at one desk are "Claude
+;;; 1" and "Claude 2": each keeps its number while it runs, a new one takes
+;;; the lowest free. A terminal with no agent at a desk is left alone, and
+;;; one whose agent has gone (a shell again, or another agent now) is named
+;;; again or unnamed at the next pass. A pass runs at a title change (once a
+;;; second at most: a provider's title turns several times a second, so the
+;;; rest wait for one pass two seconds on), a few seconds after a terminal
+;;; opens, at the rules' ticker, at every vikix-agents, and when sit asks;
+;;; it reads /proc and Lisp state only, and names a window only when its
+;;; name changes, so nothing goes round: a user title makes no X event.
+
+(defparameter *vikix-agent-shown-names*
+  '(("claude" . "Claude") ("codex" . "Codex") ("opencode" . "OpenCode") ("gemini" . "Gemini")
+    ("antigravity" . "Antigravity") ("aider" . "Aider"))
+  "Each agent's name as the window's name writes it.")
+
+(defun vikix-agent-shown-name (name)
+  (or (cdr (assoc name *vikix-agent-shown-names* :test #'string=)) (string-capitalize name)))
+
+(defun vikix-agent-basename (path)
+  (let ((path (string-right-trim "/" path)))
+    (subseq path (1+ (or (position #\/ path :from-end t) -1)))))
+
+(defun vikix-agent-desk (folder)
+  "The desk FOLDER is in: (values DESK TOPIC), or nil. A desk is a git
+worktree: the nearest .git up from FOLDER is a file, \"gitdir: REPO/.git/
+worktrees/NAME\"; the project's own folder, whose .git is a folder, is no
+desk, nor is a folder outside any repository. The topic is the worktree
+folder's name after the repository's and a dash (vikix-office-agent at a
+worktree of vikix: office-agent), else the whole name."
+  (let ((dir (string-right-trim "/" (or folder ""))))
+    (loop while (plusp (length dir))
+          do (let* ((git (concatenate 'string dir "/.git"))
+                    (st (ignore-errors (sb-posix:stat git))))
+               (when st
+                 (return
+                   (unless (sb-posix:s-isdir (sb-posix:stat-mode st))
+                     (let* ((line (ignore-errors
+                                   (with-open-file (in git :external-format :utf-8) (read-line in nil))))
+                            (gitdir (and line (eql 0 (search "gitdir:" line)) (string-trim " " (subseq line 7))))
+                            (at (and gitdir (search "/.git/worktrees/" gitdir))))
+                       (when at
+                         (let* ((prefix (concatenate 'string (vikix-agent-basename (subseq gitdir 0 at)) "-"))
+                                (name (vikix-agent-basename dir)))
+                           (values dir (if (and (> (length name) (length prefix))
+                                                (string= prefix name :end2 (length prefix)))
+                                           (subseq name (length prefix))
+                                           name))))))))
+               (let ((slash (position #\/ dir :from-end t)))
+                 (setf dir (if slash (subseq dir 0 slash) "")))))))
+
+(defun vikix-json-field (line key)
+  "KEY's value in LINE, one JSON object as Python writes it: a string with
+its escapes undone, or an integer; nil without it."
+  (let* ((mark (format nil "\"~a\":" key))
+         (at (search mark line))
+         (i (and at (+ at (length mark)))))
+    (when i
+      (loop while (and (< i (length line)) (char= (char line i) #\Space)) do (incf i))
+      (cond ((>= i (length line)) nil)
+            ((char/= (char line i) #\") (parse-integer line :start i :junk-allowed t))
+            (t (with-output-to-string (out)
+                 (loop with j = (1+ i)
+                       while (< j (length line))
+                       do (let ((c (char line j)))
+                            (cond ((char= c #\") (return))
+                                  ((char= c #\\)
+                                   (incf j)
+                                   (when (< j (length line))
+                                     (case (char line j)
+                                       (#\n (write-char #\Newline out))
+                                       (#\t (write-char #\Tab out))
+                                       (#\r (write-char #\Return out))
+                                       (#\b (write-char #\Backspace out))
+                                       (#\f (write-char #\Page out))
+                                       (#\u (let ((code (ignore-errors
+                                                         (parse-integer line :start (1+ j) :end (min (length line) (+ j 5))
+                                                                             :radix 16))))
+                                              (when code (write-char (code-char code) out))
+                                              (incf j 4)))
+                                       (t (write-char (char line j) out)))))
+                                  (t (write-char c out))))
+                          (incf j))))))))
+
+(defvar *vikix-agent-seats* (cons nil nil)
+  "The seats file as last read: ((MTIME . SIZE) . ((PID . FOLDER) ...)).")
+
+(defun vikix-agent-seats-file ()
+  "Where bin/vikix-agents keeps the seats (XDG_STATE_HOME honoured, as there)."
+  (let ((xdg (sb-posix:getenv "XDG_STATE_HOME")))
+    (if (and xdg (plusp (length xdg)))
+        (format nil "~a/vikix/office/seats.jsonl" xdg)
+        (namestring (merge-pathnames ".local/state/vikix/office/seats.jsonl" (user-homedir-pathname))))))
+
+(defun vikix-agent-seats ()
+  "The seats taken with vikix agents sit, (PID . FOLDER) each; read again
+only when the file changed. Only read: bin/vikix-agents keeps it."
+  (let* ((file (vikix-agent-seats-file))
+         (st (ignore-errors (sb-posix:stat file)))
+         (stamp (and st (cons (sb-posix:stat-mtime st) (sb-posix:stat-size st)))))
+    (cond ((null st) nil)
+          ((equal stamp (car *vikix-agent-seats*)) (cdr *vikix-agent-seats*))
+          (t (let ((seats (ignore-errors
+                           (with-open-file (in file :external-format :utf-8)
+                             (loop for line = (read-line in nil)
+                                   while line
+                                   for pid = (vikix-json-field line "pid")
+                                   for folder = (vikix-json-field line "folder")
+                                   when (and (integerp pid) (stringp folder)) collect (cons pid folder))))))
+               (setf *vikix-agent-seats* (cons stamp seats))
+               seats)))))
+
+(defun vikix-agent-desk-of (agent)
+  "(values DESK TOPIC) of AGENT's desk: the seat it took (vikix agents
+sit), else the desk its folder is in; nil off one."
+  (vikix-agent-desk (or (cdr (assoc (getf agent :pid) (vikix-agent-seats))) (getf agent :folder))))
+
+(defvar *vikix-agent-desk-numbers* (make-hash-table :test 'eql)
+  "Each agent, by process number, and the number it holds at its desk:
+(DESK PROVIDER N). An agent that is gone loses its entry at the next pass.")
+
+(defvar *vikix-agent-marks* (make-hash-table :test 'eq)
+  "Each window and the name written on it (_VIKIX_DESK; \"\" for none), as
+read once or written here, so a pass asks the X server nothing.")
+
+(defun vikix-agent-desk-mark (window)
+  "The name written on WINDOW (_VIKIX_DESK), or nil."
+  (let ((known (gethash window *vikix-agent-marks*)))
+    (when (null known)
+      (setf known (or (ignore-errors
+                       (let ((bytes (xlib:get-property (window-xwin window) :_VIKIX_DESK)))
+                         (and bytes (sb-ext:octets-to-string (coerce bytes '(vector (unsigned-byte 8)))
+                                                             :external-format :utf-8))))
+                      ""))
+      (setf (gethash window *vikix-agent-marks*) known))
+    (and (plusp (length known)) known)))
+
+(defun vikix-agent-titles (agents)
+  "What to name the window of each of AGENTS (vikix-window-agent's plists)
+that is at a desk: (AGENT . \"TOPIC · Provider\"), with a number after the
+provider when more of that provider are at the desk, or when the number
+isn't 1 (the first may have gone). One that holds a number keeps it; the
+rest take the lowest free, the longest-running first, or the number its
+window was marked with before a restart when that is free."
+  (let ((at '()) (taken (make-hash-table :test 'equal)))
+    (dolist (a agents)
+      (multiple-value-bind (desk topic) (vikix-agent-desk-of a)
+        (when desk (push (list a desk topic (vikix-agent-shown-name (getf a :name))) at))))
+    (setf at (nreverse at))
+    ;; The numbers of agents gone are anyone's tomorrow.
+    (let ((live (mapcar (lambda (row) (getf (first row) :pid)) at)))
+      (maphash (lambda (pid held) (declare (ignore held))
+                 (unless (member pid live) (remhash pid *vikix-agent-desk-numbers*)))
+               *vikix-agent-desk-numbers*))
+    (dolist (row at)
+      (destructuring-bind (a desk topic provider) row
+        (declare (ignore topic))
+        (let ((held (gethash (getf a :pid) *vikix-agent-desk-numbers*)))
+          (if (and held (equal (first held) desk) (equal (second held) provider))
+              (push (third held) (gethash (cons desk provider) taken))
+              (remhash (getf a :pid) *vikix-agent-desk-numbers*)))))
+    (dolist (row (stable-sort (copy-list at) #'> :key (lambda (row) (getf (first row) :seconds))))
+      (destructuring-bind (a desk topic provider) row
+        (unless (gethash (getf a :pid) *vikix-agent-desk-numbers*)
+          (let* ((have (gethash (cons desk provider) taken))
+                 (mark (vikix-agent-desk-mark (getf a :window)))
+                 (head (format nil "~a · ~a " topic provider))
+                 (kept (and mark (eql 0 (search head mark))
+                            (ignore-errors (parse-integer mark :start (length head) :junk-allowed t))))
+                 (n (if (and kept (plusp kept) (not (member kept have)))
+                        kept
+                        (loop for n from 1 unless (member n have) return n))))
+            (setf (gethash (getf a :pid) *vikix-agent-desk-numbers*) (list desk provider n))
+            (push n (gethash (cons desk provider) taken))))))
+    (mapcar (lambda (row)
+              (destructuring-bind (a desk topic provider) row
+                (let ((n (third (gethash (getf a :pid) *vikix-agent-desk-numbers*)))
+                      (shared (rest (gethash (cons desk provider) taken))))
+                  (cons a (format nil "~a · ~a~@[ ~d~]" topic provider (and (or (> n 1) shared) n))))))
+            at)))
+
+(defvar *vikix-agent-title-sets* 0
+  "How many times a window was named or unnamed: the tests watch it stay
+still while a provider's title turns.")
+
+(defun vikix-agent-title-apply (window title)
+  "Name WINDOW TITLE (its user title, and the mark _VIKIX_DESK), or with
+no TITLE take off the name this gave it. A name the user gave since, with
+StumpWM's title command (one that is neither the mark nor nothing), is
+theirs and stays. Nothing is done when nothing changes. True when the
+name shown changed."
+  (ignore-errors
+   (let ((mark (vikix-agent-desk-mark window))
+         (shown (window-user-title window)))
+     (flet ((write-mark (text)
+              (xlib:change-property (window-xwin window) :_VIKIX_DESK
+                                    (sb-ext:string-to-octets text :external-format :utf-8) :utf8_string 8)
+              (setf (gethash window *vikix-agent-marks*) text)))
+       (cond ((and title shown mark (not (equal shown mark)) (not (equal shown title)))
+              nil)
+             ((and title (not (equal shown title)))
+              (setf (window-user-title window) title)
+              (write-mark title)
+              (incf *vikix-agent-title-sets*)
+              t)
+             ((and title (not (equal mark title)))   ; named already (the user did); the mark says so now
+              (write-mark title)
+              nil)
+             ((and (null title) mark)
+              (xlib:delete-property (window-xwin window) :_VIKIX_DESK)
+              (setf (gethash window *vikix-agent-marks*) "")
+              (when (equal (window-user-title window) mark)
+                (setf (window-user-title window) nil)
+                (incf *vikix-agent-title-sets*)
+                t)))))))
+
+(defvar *vikix-agent-titles-at* 0 "When the last pass ran (universal time).")
+(defvar *vikix-agent-titles-timer* nil "The pass waiting to run, when one is.")
+
+(defun vikix-agent-titles-name (windows agents)
+  "Name each of WINDOWS for the desk of its agent among AGENTS (the ones
+found in them), and unname the rest of them that were named. Redraws
+what shows names when one changed."
+  (let ((titles (vikix-agent-titles agents))
+        (changed nil))
+    (dolist (w windows)
+      (let ((row (find w titles :key (lambda (r) (getf (car r) :window)))))
+        (when (vikix-agent-title-apply w (cdr row))
+          (setf changed t)
+          (when (fboundp 'vikix-titlebar-redraw) (ignore-errors (funcall 'vikix-titlebar-redraw w))))))
+    (setf *vikix-agent-titles-at* (get-universal-time))
+    (when changed (ignore-errors (update-all-mode-lines)))
+    changed))
+
+(defun vikix-agent-titles-refresh ()
+  "A pass over every window: the terminals with an agent at a desk named
+for it, the others left or unnamed. Reads /proc and Lisp state only; never
+an error."
+  (ignore-errors
+   (let* ((windows (all-windows))
+          (agents (loop for w in windows for a = (vikix-window-agent w) when a collect a)))
+     (vikix-agent-titles-name windows agents)))
+  nil)
+
+(defun vikix-agent-titles-soon ()
+  "A pass now, unless one ran this second: then one in two seconds, once,
+however many title changes come meanwhile."
+  (cond ((> (get-universal-time) *vikix-agent-titles-at*) (vikix-agent-titles-refresh))
+        ((null *vikix-agent-titles-timer*)
+         (setf *vikix-agent-titles-timer*
+               (run-with-timer 2 nil (lambda ()
+                                       (setf *vikix-agent-titles-timer* nil)
+                                       (vikix-agent-titles-refresh)))))))
+
+(defun vikix-agent-titles-tick ()
+  "The rules' ticker's call (every 30 seconds): the pass that catches an
+agent that never writes a title, and a terminal that is a shell again."
+  (vikix-agent-titles-refresh))
+
+(defun vikix-agent-title-new-window (window)
+  "A terminal opened: a pass in three seconds, when vikix agent has
+started the agent in it (one that writes no title would wait for the
+ticker)."
+  (ignore-errors
+   (let* ((pid (vikix-window-pid window))
+          (own (and pid (vikix-proc-cmdline pid))))
+     (when (and own (member (vikix-layout-program (first own)) *vikix-layout-terminals* :test #'string=))
+       (run-with-timer 3 nil (lambda () (ignore-errors (vikix-agent-titles-soon))))))))
+
+(defun vikix-agent-title-forget (window)
+  (remhash window *vikix-agent-marks*))
+
+(remove-hook *new-window-hook* 'vikix-agent-title-new-window)
+(add-hook *new-window-hook* 'vikix-agent-title-new-window)
+(remove-hook *destroy-window-hook* 'vikix-agent-title-forget)
+(add-hook *destroy-window-hook* 'vikix-agent-title-forget)
+
+;; A title the agent writes (Claude Code's turning mark): the pass, once a
+;; second at most. The encapsulation is by name, so a reload replaces it.
+(sb-int:unencapsulate 'update-window-properties 'vikix-agent-title)
+(sb-int:encapsulate 'update-window-properties 'vikix-agent-title
+                    (lambda (f window atom)
+                      (prog1 (funcall f window atom)
+                        (when (eq atom :wm_name)
+                          (ignore-errors (vikix-agent-titles-soon))))))

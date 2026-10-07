@@ -27,13 +27,13 @@ A second `Super+a` is a second agent, and so on. Nothing stops you; the rest of 
 $ vikix agents
 3 agents, 1 waiting for you:
   claude   ~/src/vikix-wifi (wifi, 2 uncommitted)      workspace 4   35 min      working
-           ◑ Wi-Fi picker
+           wifi · Claude: ◑ Wi-Fi picker
   claude   ~/src/novel-chapter-3 (chapter-3, nothing uncommitted)  workspace 5   2 h 10 min  waits for your yes
            May I run the spell check over the whole book?
   codex    ~                                           workspace 2   12 min      running
 ```
 
-A line an agent: which one; the folder it works in, with its branch and how many files wait uncommitted there; its workspace; how long it has run; and what it is doing. *Working* and *at its prompt* come from the mark Claude Code keeps at the front of its window's title; *waits for your yes*, *asked you something* and *finished its turn* from the agent-waiting plugin, when you have it ([Plugins](plugins.md)); under one that waits is what it asked. An agent whose shell is held by a release or by tests says so instead: *waiting for a release* (its release is in `.claude/release`'s queue, behind another's; under it, since when and behind which), *releasing* (what step the release is at), *waiting for a test slot* (its tests wait for one of the machine's `tests/run.sh` slots, other runs testing) or *testing*. An agent with no window of its own (one in Emacs, one on a text console) comes last, with where it runs.
+A line an agent: which one; the folder it works in, with its branch and how many files wait uncommitted there; its workspace; how long it has run; and what it is doing. *Working* and *at its prompt* come from the mark Claude Code keeps at the front of its window's title; *waits for your yes*, *asked you something* and *finished its turn* from the agent-waiting plugin, when you have it ([Plugins](plugins.md)); under one that waits is what it asked, under the others the title the agent writes in its terminal, after the name its window has on the desktop when it is at a desk (`wifi · Claude`: see [A desk each](#a-desk-each)). An agent whose shell is held by a release or by tests says so instead: *waiting for a release* (its release is in `.claude/release`'s queue, behind another's; under it, since when and behind which), *releasing* (what step the release is at), *waiting for a test slot* (its tests wait for one of the machine's `tests/run.sh` slots, other runs testing) or *testing*. An agent with no window of its own (one in Emacs, one on a text console) comes last, with where it runs.
 
 The same list on the desktop: `Super+m` → *AI* → *Agents: who is running, and go to one*. Pick a line and you are on that agent's workspace, at its window. `vikix agents --json` is the list for a script, and the MCP tool `agents` gives it to an agent, so one agent can see the others.
 
@@ -49,6 +49,8 @@ a desk for the agent: in ~/src/vikix-wifi-fix, a new worktree on the branch wifi
 ```
 
 What happened: the first empty workspace (4) was taken; a git worktree of `~/src/vikix` was made beside it, `~/src/vikix-wifi-fix`, on a new branch `wifi-fix`; and a terminal opened there with your agent in it, the same way `Super+a` does. `Super+4` is now that agent. It commits on its branch, in its folder; `~/src/vikix` and every other desk stay as they are.
+
+The agent's terminal is named for its desk on the desktop: `wifi-fix · Claude`, the topic and the provider, in the title bar, the window list (`Super+g`), the overview and the palette, from the moment the agent is at the desk (started there, seated with `vikix agents sit`, or taken up again with `resume`) until it leaves. Two of one provider at a desk are `wifi-fix · Claude 1` and `wifi-fix · Claude 2`, each keeping its number while it runs; another provider at the same desk is `wifi-fix · Codex`. The title the agent itself writes (Claude Code's turning mark, which is how *working* and *at its prompt* are read) is kept apart, so nothing it does to its title changes the name, and nothing is lost: `vikix agents` shows both. A terminal whose agent has gone is plain again, or named for the next agent run in it, within half a minute; a terminal with no agent at a desk, and a name you gave a window yourself with StumpWM's `title` command, are left alone.
 
 The project is any of `vikix project list`'s, by any part of its name (`vikix`, `novel`, `nov`). The topic is a word or two for the work: it becomes the folder's ending and the branch's name, so choose one that says what the agent is doing (`wifi-fix`, `chapter-3`, `typos`), not who (`agent-2`). A topic that gives no name for a branch is refused.
 

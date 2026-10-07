@@ -209,9 +209,12 @@
             (insert "\nLive agents\n")
             (when (eq (alist-get 'live_known r) :false) (insert "Unknown — live discovery unavailable\n"))
             (dolist (a (alist-get 'agents r))
-              (insert (format "%s %s · %s · workspace %s\n  %s\n"
+              (insert (format "%s %s · %s · workspace %s%s\n  %s\n"
                               (alist-get 'agent a) (alist-get 'pid a) (alist-get 'doing a)
                               (or (alist-get 'workspace a) "unknown")
+                              ;; Its window's name on the desktop: the desk and the provider.
+                              (if (member (alist-get 'desk_title a) '(nil ""))
+                                  "" (concat " · " (vikix-office--one-line (alist-get 'desk_title a))))
                               (if (member (alist-get 'window a) '(nil "")) "No desktop window" (or (alist-get 'said a) "")))))
             (insert "\nSaved conversations (provider store availability)\n")
             (unless (alist-get 'sessions r) (insert "None recorded; Continue offers an explicit fresh start\n"))
