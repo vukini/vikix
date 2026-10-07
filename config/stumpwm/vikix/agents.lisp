@@ -113,6 +113,11 @@ nil. Only read: the plugin clears its own."
     (cond ((equal (first note) "ask") (values :asks "waits for your yes" (fourth note)))
           ((equal (first note) "reply") (values :asks "asked you something" (fourth note)))
           ((equal (first note) "done") (values :done "finished its turn" (fourth note)))
+          ;; Codex's: "[ ! ] Action Required" (or "[ . ]", its blink) at the
+          ;; front while an approval or a question waits.
+          ((or (eql 0 (search "[ ! ] Action Required" title))
+               (eql 0 (search "[ . ] Action Required" title)))
+           (values :asks "waits for your yes" nil))
           ;; Claude Code's own mark at the front of the title: a star at its
           ;; prompt; while it works, one that turns (a circle's quarters, or
           ;; Braille dots).

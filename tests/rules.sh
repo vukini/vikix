@@ -1057,9 +1057,18 @@ LISP
     sleep 0.4
     check "a rule that runs at every look leaves one note on the window, not one a look: $(ask "(princ (mapcar (function second) (gethash $(the Waits) *vikix-rule-notes*)))")" \
       yes "(= 1 (count :focus (gethash $(the Waits) *vikix-rule-notes*) :key (function second)))"
+    # Codex has no hook of ours: its title while it waits is its note.
+    win Codex "[ ! ] Action Required | Build the Office | office-ui"
+    ask "(focus-all $(the Other))" >/dev/null; sleep 0.5
+    check "Codex's title while it waits is its note, named by its thread: $(ask '(princ (multiple-value-list (agent-waiting-bar)))')" \
+      yes '(equal (multiple-value-list (agent-waiting-bar)) (list "asks: Build the Office (1)" :accent))'
+    sleep 0.5
+    check "and a notification says so, once: $(grep -c 'Build the Office asks' "$t/notified" 2>/dev/null)" test "$(grep -c 'Build the Office asks (workspace 1)' "$t/notified" 2>/dev/null)" = 1
+    ask "(delete-window $(the Codex))" >/dev/null; sleep 0.5
+    check "and goes with the window" yes '(null (agent-waiting-notes))'
     ask '(vikix-remove-rules :owner-prefix "plugin ")' >/dev/null
     check "and they go when the plugins do: $(ask '(princ (remove-duplicates (mapcar (function vikix-rule-owner) *vikix-rules*) :test (function equal)))')" yes '(notany (lambda (o) (eql 0 (search "plugin " o))) (mapcar (function vikix-rule-owner) *vikix-rules*))'
-    said+=("the plugins' rules at the pin (inbox's box, agent-waiting's note, named in the bar and a notification)")
+    said+=("the plugins' rules at the pin (inbox's box, agent-waiting's note and Codex's title, named in the bar and a notification)")
   else
     echo "(the plugins' rules: no copy of the plugins repository here at the pin; skipped)"
   fi

@@ -92,9 +92,9 @@ check "a terminal with an agent in it is found, by its name, folder and workspac
   test "$(agents)" = "claude proj-a 1 idle"
 go 2
 agent "◐ Tests running" "$t/proj-b" "$t/bin/claude"
-agent "codex" "$t/proj-b" sh -c "$t/bin/codex"
-check "one working, and one a script started, each on its workspace: $(agents)" \
-  test "$(agents)" = "claude proj-a 1 idle | claude proj-b 2 working | codex proj-b 2 running"
+agent "[ ! ] Action Required | Build the Office | proj-b" "$t/proj-b" sh -c "$t/bin/codex"
+check "one working, and one a script started, each on its workspace; Codex's title says it waits for you: $(agents)" \
+  test "$(agents)" = "claude proj-a 1 idle | claude proj-b 2 working | codex proj-b 2 asks"
 check "how long each has run is known" yes '(every (lambda (a) (< 0 (getf a :seconds) 300)) (vikix-agents))'
 check "its window carries its name (_VIKIX_AGENT)" \
   yes '(equal (sb-ext:octets-to-string (coerce (xlib:get-property (window-xwin (getf (first (vikix-agents)) :window)) :_VIKIX_AGENT) (quote (vector (unsigned-byte 8))))) "claude")'
@@ -121,11 +121,11 @@ sleep 0.5
 out=$(cli)
 # (The machine's own agents are counted too, and when two of them are on one
 # file the line says so: that part is theirs, not this test's.)
-check "vikix agents says how many, and how many wait: $(head -1 <<<"$out")" grep -qE '^[0-9]+ agents, 1 waiting for you(, [0-9]+ files? two are on)?:$' <<<"$(head -1 <<<"$out")"
+check "vikix agents says how many, and how many wait: $(head -1 <<<"$out")" grep -qE '^[0-9]+ agents, 2 waiting for you(, [0-9]+ files? two are on)?:$' <<<"$(head -1 <<<"$out")"
 check "each with its folder's branch and what waits uncommitted there: $(grep 'proj-a' <<<"$out" | head -1)" \
   grep -qE '^  claude +.*proj-a \(topic, 2 uncommitted, no desk\) +workspace 1 +[0-9]+ (s|min) +waits for your yes$' <<<"$out"
 check "under it what it asked" grep -qx '           May I run the tests?' <<<"$out"
-check "a folder that isn't a repository is only named, with no desk: $(grep 'codex' <<<"$out")" grep -qE '^  codex +.*proj-b \(no desk\) +workspace 2 ' <<<"$out"
+check "a folder that isn't a repository is only named, with no desk: $(grep 'codex' <<<"$out")" grep -qE '^  codex +.*proj-b \(no desk\) +workspace 2 +[0-9]+ (s|min) +waits for your yes$' <<<"$out"
 check "one with no window of its own is listed too: $(grep -A1 gemini <<<"$out" | tr '\n' ' ')" \
   bash -c "grep -A1 '^  gemini ' <<<\"\$1\" | grep -q 'no window of its own: started by'" _ "$out"
 # Antigravity CLI's program is agy: found by that name, shown as antigravity, in Lisp and in the terminal.

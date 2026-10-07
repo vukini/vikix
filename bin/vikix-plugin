@@ -33,7 +33,7 @@ VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 # VIKIX_PLUGINS_REPO and VIKIX_PLUGINS_COMMIT name others (tests, or trying
 # your own work on the repo: a folder works as well as an address).
 PLUGINS_REPO=${VIKIX_PLUGINS_REPO:-https://github.com/vukini/vikix-plugins}
-PLUGINS_COMMIT=${VIKIX_PLUGINS_COMMIT:-e5d81fdcaea759f87138db3d02b72e291e6c68e8}   # 2026-10-05: each menu entry says its section of Super+m (AI, Work)
+PLUGINS_COMMIT=${VIKIX_PLUGINS_COMMIT:-495474eff1859702e3f7934b76043b8b032b2e0a}   # 2026-10-07: agent-waiting sees Codex (its title while it waits, notify when a turn ends)
 DIR="$HOME/.local/share/vikix/plugins"
 LIST="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/plugins.list"
 SETTINGS="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/plugins"

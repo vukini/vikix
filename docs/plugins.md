@@ -34,16 +34,17 @@ The keys at a glance. A plugin's keys are all on Super+Alt, with Shift for a sec
 
 ## agent-waiting: an agent waiting for you
 
-You start Claude Code on a task in one window and get on with something else in another. When it needs you, or has finished, the bar says which session, where it is and whether it asks something of you; a notification says what; and one key takes you there.
+You start Claude Code, or Codex, on a task in one window and get on with something else in another. When it needs you, or has finished, the bar says which session, where it is and whether it asks something of you; a notification says what; and one key takes you there.
 
-**Add it:** `vikix plugin add agent-waiting`. It adds five hooks to Claude Code's settings, `~/.claude/settings.json` (a copy of the file is kept first). A Claude Code session already running takes them once you type `/hooks` in it (it asks you to look them over), or when it starts again. After an update that brings new hooks, add it again: it shows what it changes, asks, and adds only what isn't there.
+**Add it:** `vikix plugin add agent-waiting`. It adds five hooks to Claude Code's settings, `~/.claude/settings.json` (a copy of the file is kept first). A Claude Code session already running takes them once you type `/hooks` in it (it asks you to look them over), or when it starts again. After an update that brings new hooks, add it again: it shows what it changes, asks, and adds only what isn't there. Where Codex is set up (`~/.codex`), it also puts Codex's `notify` setting in `~/.codex/config.toml` (a copy kept first), which runs the plugin when a turn ends; a `notify` of your own is left as it is, and said.
 
 **Use it:**
 
 - `asks: Esploro tags (3)` in the bar, in the accent colour: the session called *Esploro tags*, on workspace 3, wants something of you. Either a dialog is open (a permission, a question with choices) and its work stands still, or it finished and its last words ask something: a question, or a step that is yours (a line that starts `You:`).
 - `done: Fix the bar (1)`, quieter: that session finished and asks nothing.
 - With several: `asks: Esploro tags (3) +1, done 2` is two that ask and two that finished. The one named is the one to go to first: an open dialog before a question, the oldest first.
-- A session is called by its window's title, which Claude Code sets to what the session is about; a window with no title of its own, by the folder the session works in.
+- A session is called by its window's title, which Claude Code sets to what the session is about, and Codex to its thread; a window with no title of its own, by the folder the session works in.
+- **Codex** is seen two ways. While an approval or a question waits, Codex writes `[ ! ] Action Required` at the front of its window's title, and the plugin reads that: `asks` in the bar, a notification, Super+Alt+w, with nothing to set up. When a turn ends, its `notify` setting tells the plugin, with the last message: `done`, or `asks` when it ends on a question. Nothing of Codex's says you answered, so a `done` stays until you look at the window.
 - **A notification** comes the moment a session asks: `Esploro tags asks (workspace 3)`, and under it what it asks (`Bash: Install the build`, or its question). Finished sessions stay in the bar only. To have a notification for those too, or none at all, put one of these in `~/.stumpwm.d/user.lisp`:
 
   ```lisp
@@ -62,9 +63,10 @@ You start Claude Code on a task in one window and get on with something else in 
 - *It tells you of a permission some seconds late:* the hook that says a dialog opened (`PermissionRequest`) isn't in your settings. `vikix plugin add agent-waiting` again adds it.
 - *It says asks, but nothing asks:* it read a question in the session's last words that wasn't one for you. Look at the window: that clears it.
 - *It says done for a session that asked you something:* its last three lines had no question mark and no line starting `You:`. That is all it goes by.
-- It knows Claude Code only. Codex, Gemini CLI, Antigravity CLI, OpenCode and Aider don't tell it.
+- *A Codex session that finished isn't in the bar:* its `notify` setting isn't in `~/.codex/config.toml` (the plugin was added before Codex was set up, or the file has a `notify` of its own). `vikix plugin add agent-waiting` again adds it; a Codex session already running takes it when it starts again. One that waits for your yes is seen anyway, by its title.
+- It knows Claude Code and Codex. Gemini CLI, Antigravity CLI, OpenCode and Aider don't tell it.
 
-**Remove it:** `vikix plugin remove agent-waiting` takes the hooks out of `~/.claude/settings.json` again, and leaves your other settings as they were.
+**Remove it:** `vikix plugin remove agent-waiting` takes the hooks out of `~/.claude/settings.json` and the `notify` setting out of `~/.codex/config.toml` again, and leaves your other settings as they were.
 
 ## ai-usage: how much of your Claude plan is left
 
