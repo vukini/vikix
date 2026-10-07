@@ -103,6 +103,13 @@ printf '{"session_id":"11111111-2222-3333-4444-555555555555","tool_name":"Edit",
 check "the same session again is not a second line" \
   test "$(agents handoff a --json | python3 -c 'import json,sys; print(len(json.load(sys.stdin)["sessions"]))')" = 2
 check "the hook's proposed edits now count for the protection shown" grep -q 'claude 1001: pre-edit and pre-shell hooks (vikix agents touch): 2 edits proposed' <<<"$(agents handoff a)"
+# Antigravity's hook carries the conversation id instead; noted the same way, as what agy --conversation resumes.
+proc 1009 agy "$t/src/book-a"
+printf '{"toolCall":{"name":"replace_file_content","args":{"TargetFile":"%s/ch1.md"}},"workspacePaths":["%s"],"conversationId":"aaaaaaaa-1111-2222-3333-444444444444"}' \
+  "$t/src/book-a" "$t/src/book-a" | VIKIX_AGENT_PID=1009 python3 "$here/bin/vikix-agents" touch >/dev/null 2>&1 || true
+check "the hook notes Antigravity's conversation id on the desk too: $(agents handoff a | grep Sessions)" \
+  grep -q 'antigravity aaaaaaaa-1111-2222-3333-444444444444' <<<"$(agents handoff a)"
+rm -r "$t/proc/1009"
 
 # Refusals: a credential, an unknown field, a bad session id, an id that is a path.
 out=$(agents handoff set --desk a --summary "the key is ANTHROPIC_API_KEY=sk-ant-abcdefghijklmnopqrst")

@@ -1702,6 +1702,7 @@ def touch(argv):
                 call = got["toolCall"]
                 args = call.get("args") or {}
                 here = (got.get("workspacePaths") or [""])[0]
+                note_session(got.get("conversationId"))     # what agy --conversation resumes
                 if call.get("name") == "run_command":
                     return touch_bash(args.get("CommandLine") or "", args.get("Cwd") or here)
                 path = args.get("TargetFile") or ""
