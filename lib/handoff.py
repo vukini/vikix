@@ -431,6 +431,19 @@ def render(rec, agents_at=(), protection=(), now=None):
 RESUME = {"claude": ["--resume"], "codex": ["resume"], "opencode": ["--session"], "gemini": ["--resume"],
           "antigravity": ["--conversation"]}
 UNVERIFIED = {"gemini"}
+# A first prompt, the conversation going on at the agent's prompt after it:
+# the words that give one, as each installed help says (claude PROMPT,
+# codex [PROMPT], opencode --prompt, gemini and agy -i, their
+# --prompt-interactive). Aider has none: its --message runs one and exits.
+FIRST_PROMPT = {"claude": [], "codex": [], "opencode": ["--prompt"], "gemini": ["-i"], "antigravity": ["-i"]}
+
+
+def first_prompt_args(provider, text):
+    """The arguments that give PROVIDER TEXT as its first prompt and keep
+    the conversation going, or None for one that can't."""
+    if provider in FIRST_PROMPT and text:
+        return FIRST_PROMPT[provider] + [text]
+    return None
 
 
 def home():

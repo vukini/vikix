@@ -215,9 +215,25 @@ out=$(PATH="$t/bin:$PATH" AGENT_CMD="$t/bin/argsaver" desk)
 sleep 0.5
 check "the local row adds --local: '$(cat "$t/desk.args" 2>/dev/null)'" test "$(cat "$t/desk.args" 2>/dev/null)" = "--use codex --local"
 check "Super+m has it, under AI" yes '(find (quote (run-shell-command "vikix-agents desk")) *vikix-menu* :key (function second) :test (function equal))'
+# --task: the task is the agent's first prompt, in the shape its provider takes; aider gets none.
+: > "$t/desk.args"
+out=$(AGENT_CMD="$t/bin/argsaver" desk books with-task --use codex --task "Fix the index")
+sleep 0.5
+check "--task is the agent's first prompt, after its own words, and said: $out" \
+  bash -c 'grep -q "with-task, codex, the task its first prompt, on workspace" <<<"$1" && [ "$(head -1 "$2")" = "--use codex Fix the index" ] && grep -q "read the handoff before you start" "$2"' _ "$out" "$t/desk.args"
+check "and the task is in the record too" grep -q 'books-with-task  no status, just now: Fix the index' <<<"$(cli handoff list)"
+: > "$t/desk.args"
+out=$(AGENT_CMD="$t/bin/argsaver" desk books with-task-oc --use opencode --task "Fix the index")
+sleep 0.5
+check "opencode takes it as --prompt: '$(head -1 "$t/desk.args")'" test "$(head -1 "$t/desk.args")" = "--use opencode --prompt Fix the index"
+: > "$t/desk.args"
+out=$(AGENT_CMD="$t/bin/argsaver" desk books with-task-aider --use aider --task "Fix the index")
+sleep 0.5
+check "aider takes no first prompt: nothing added, and said: $out '$(cat "$t/desk.args")'" \
+  bash -c 'grep -q "aider, the task in its handoff (aider takes no first prompt)" <<<"$1" && [ "$(cat "$2")" = "--use aider" ]' _ "$out" "$t/desk.args"
 
 check "vikix agents with a word it doesn't know says what it takes" grep -q 'vikix agents \[--json|desk|sit|close|desks|handoff|resume|hooks|clash|crossings\]' <<<"$(cli nonsense)"
 check "the desktop met no error" test -z "$(ls "$home/.local/state/vikix/errors" 2>/dev/null)"
 
-wm_report office "agents found in their terminals by name, folder and workspace, what each is doing from its title and its note, its window marked, the menu to one, vikix agents with branches and uncommitted files, one without a window, --json; a desk: a workspace and a worktree for one agent"
+wm_report office "agents found in their terminals by name, folder and workspace, what each is doing from its title and its note, its window marked, the menu to one, vikix agents with branches and uncommitted files, one without a window, --json; a desk: a workspace and a worktree for one agent, the task its first prompt"
 exit "$fail"

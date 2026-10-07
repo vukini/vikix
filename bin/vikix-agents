@@ -58,7 +58,10 @@
                        --use: another agent than yours (vikix agent --use);
                        --local: on a model on this laptop (vikix agent
                        --local; opencode, codex and aider can);
-                       --here: in this terminal, no new workspace
+                       --here: in this terminal, no new workspace;
+                       --task "...": the task, in your words, written in
+                       the desk's record and given to the agent as its
+                       first prompt (aider takes none: it reads the record)
   vikix agents sit [PROJECT [TOPIC]]
                        for an agent, from its own shell: take a desk
                        without being started again. The worktree
@@ -712,15 +715,31 @@ def desk(argv):
         die(f"{short(folder)} isn't there")
     if task or (top and topic):
         desk_record(folder, task=task, by="user")
-    start = agent_start(use, local=local)
+    # The task is the agent's first prompt, so a new desk never sits idle
+    # with its task written only in the record (2026-10-07: one did, for
+    # three minutes, until the user typed "read the handoff").
+    first = handoff_module().first_prompt_args(use or default_agent(), desk_prompt(task)) if task else None
+    start = agent_start(use, first or (), local=local)
     if use or local:
         said += f", {use or 'your agent'}" + (" on a model on this laptop" if local else "")
+    if task:
+        said += (", the task its first prompt" if first
+                 else f", the task in its handoff ({use or default_agent()} takes no first prompt)")
     if here:
         print(f"a desk for the agent: {said}")
+        if task and not first:
+            print(f"The task: {task}")
         open_here(folder, start)
     workspace = open_at(folder, start)
     print(f"a desk for the agent: {said}" + (f", on workspace {workspace}" if workspace else ""))
     return 0
+
+
+def desk_prompt(task):
+    """The first prompt of an agent started at a desk with a task: the
+    user's words, then where the desk's record is."""
+    return (task.rstrip() + "\n\nThis is your desk's task, as its record keeps it (vikix agents handoff, or the "
+            "MCP tool handoff): read the handoff before you start, and write yours when you hand back or finish.")
 
 
 def agent_start(use=None, extra=(), local=False):
