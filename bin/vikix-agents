@@ -26,6 +26,9 @@
   vikix agents office --close-agent PID START
                        request agent exit, keeping its desk and files;
                        START is process_start from the Office JSON snapshot
+  vikix agents office --forget ID
+                       forget one archived desk record by its id, as handoff
+                       forget does (the Office's "Forget this record")
   vikix agents office --purge-archive TOKEN
                        permanently delete the archived desk records in the
                        confirmed snapshot; TOKEN is its archive_token.
@@ -98,6 +101,13 @@
   vikix agents handoff list [--json]
                        every desk with a record, newest change first
                        (--menu, from Super+m: pick one, read it in a terminal)
+  vikix agents handoff forget [DESK]
+                       remove the record of a desk whose worktree is gone
+                       (released, or closed): the Office's Archive, one at a
+                       time. Refused while the folder stands (close it) or an
+                       agent is still in it. Nothing else goes: no file, no
+                       branch, no saved conversation. Without DESK: the
+                       records that could be forgotten
   vikix agents resume [DESK] [--use NAME] [--here] [--fresh] [--another]
                        take a desk up again: its handoff, git state and
                        checks shown, then an agent started there (--menu,
@@ -924,9 +934,7 @@ def close(argv):
         die("git couldn't remove the worktree: " + (r.stderr.strip().splitlines() or ["?"])[-1])
     said = f"the desk is closed: {short(folder)} removed"
     try:
-        H = handoff_module()
-        if H.load(H.desk_id(common, folder)):
-            H.update(common, folder, lambda rec: H.mark_closed(rec, "user"))
+        handoff_module().close_record(common, folder, "user")
     except Exception:  # noqa: BLE001  a record that can't be marked doesn't stop the closing
         pass
     if branch and (d["merged"] or force):
@@ -1125,7 +1133,7 @@ def handoff(argv):
     H = handoff_module()
     if argv == ["--menu"]:
         return handoff_menu()
-    verb = argv.pop(0) if argv and argv[0] in ("show", "set", "check", "session", "list") else "show"
+    verb = argv.pop(0) if argv and argv[0] in ("show", "set", "check", "session", "list", "forget") else "show"
     as_json, desk, words, opts = False, None, [], {}
     while argv:
         a = argv.pop(0)
@@ -1157,6 +1165,8 @@ def handoff(argv):
             print(f"  {place}  {status}, {H.when(r['updated'])}: {(r.get('task') or {}).get('text', 'no task')[:80]}"
                   + (f"  [closed {H.when(d['closed'])}]" if d.get("closed") else ""))
         return 0
+    if verb == "forget":
+        return handoff_forget(desk if desk is not None else words)
     by, me = by_me()
     if verb == "show":
         folder, rec = desk_for(desk if desk is not None else words, me)
@@ -1208,6 +1218,73 @@ def handoff(argv):
         print(f"{short(folder)}: {words[0]} session {words[1]} noted; vikix agents resume offers it")
         return 0
     return 0
+
+def forgettable():
+    """The records that may be forgotten: their worktree gone, no agent
+    left in it. (record, why not) for every record whose folder is gone."""
+    H = handoff_module()
+    at = {}
+    for a in live_agents():
+        folder = a.get("folder") or ""
+        # Linux names a running process's removed cwd "PATH (deleted)": still that desk's.
+        if folder.endswith(" (deleted)") and not os.path.lexists(folder):
+            folder = folder[:-10]
+        at.setdefault(os.path.realpath(folder), []).append(who(a))
+    out = []
+    for rec in H.all_records():
+        wt = rec["desk"]["worktree"]
+        if os.path.lexists(wt):
+            continue
+        out.append((rec, ", ".join(at.get(os.path.realpath(wt), []))))
+    return out
+
+
+def forget_record(rec):
+    """The record REC removed, for a desk whose worktree is gone and where
+    no agent is left: what was done, in a line. HandoffError says why not."""
+    H = handoff_module()
+    d = rec["desk"]
+    if os.path.lexists(d["worktree"]):
+        raise H.HandoffError(f"{short(d['worktree'])} is there: a desk that stands is closed, not forgotten "
+                             f"(vikix agents close {os.path.basename(d['worktree'])} takes it down and keeps the record)")
+    there = dict((r["desk"]["id"], at) for r, at in forgettable()).get(d["id"], "")
+    if there:
+        raise H.HandoffError(f"{there} still at work in {short(d['worktree'])}, gone as it is: let it finish first")
+    if not H.forget(d["id"]):
+        raise H.HandoffError(f"the record of {short(d['worktree'])} is gone already")
+    h = rec.get("handoff") or {}
+    status = (h.get("status") or {}).get("value", "no status")
+    return (f"forgotten: the record of {short(d['worktree'])} ({d.get('branch') or 'no branch'}, {status}"
+            + (f", closed {H.when(d['closed'])}" if d.get("closed") else ", never closed")
+            + "). Nothing else went with it: no file, no branch, no conversation of the provider's")
+
+
+def handoff_forget(words):
+    """vikix agents handoff forget [DESK]: the record of a desk whose
+    worktree is gone, removed; with no desk named, the ones that could be."""
+    H = handoff_module()
+    if not words:
+        gone = forgettable()
+        if not gone:
+            print("No record of a desk whose folder is gone: nothing to forget (vikix agents handoff list).")
+            return 0
+        print("The records of desks whose folder is gone:")
+        for rec, at in gone:
+            d = rec["desk"]
+            status = ((rec.get("handoff") or {}).get("status") or {}).get("value", "no status")
+            print(f"  {short(d['worktree'])}  {status}, {H.when(rec['updated'])}"
+                  + (f"  [closed {H.when(d['closed'])}]" if d.get("closed") else "")
+                  + (f"  ({at} still there)" if at else ""))
+        die("say which: vikix agents handoff forget DESK (its topic, branch or folder)")
+    folder, rec = desk_for(words)
+    if not rec:
+        die(f"{short(folder)} has no record: nothing to forget")
+    try:
+        print(forget_record(rec))
+    except H.HandoffError as e:
+        die(str(e))
+    return 0
+
 
 # --- Taking a desk up again: the handoff shown, the conversation resumed where it can be ----------
 

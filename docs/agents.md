@@ -179,7 +179,7 @@ vikix agents handoff session codex 01a111e5-…      # a conversation that can b
 echo '{"status":"waiting","next":"needs the laptop"}' | vikix agents handoff set --from -
 ```
 
-Claude Code's session id and Antigravity CLI's conversation id are noted by the hook itself; the others say theirs with `session`. `vikix agents handoff list` is every desk with a record, `vikix agents` shows each agent's desk status under its line, and `Super+m` → *AI* → *Agents: a desk's handoff* picks one. `vikix agents close` marks the record closed and keeps it.
+Claude Code's session id and Antigravity CLI's conversation id are noted by the hook itself; the others say theirs with `session`. `vikix agents handoff list` is every desk with a record, `vikix agents` shows each agent's desk status under its line, and `Super+m` → *AI* → *Agents: a desk's handoff* picks one. `vikix agents close` marks the record closed and keeps it, and so does a release that removes the desk (`.claude/release`), so a desk whose work is in shows as finished, not as waiting. A record no longer wanted, of a desk whose worktree is gone, is removed with `vikix agents handoff forget DESK` (the Office's Archive has the same, one record at a time, and *Purge archive* for all of them); without a desk named it lists the ones that could go. It refuses while the folder stands (close the desk instead) or an agent is still in it, and takes nothing else with it: no file, no branch, no saved conversation.
 
 ### Taking a desk up again
 
@@ -304,7 +304,9 @@ does not archive an existing desk or remove any files.
 Click **Archive** (or press `A`) to see historical tasks, handoffs and checks.
 Archived entries say no action is needed; Go to agent, Continue and Close
 agent are absent. Their old next actions are historical, not new instructions.
-**Back to desks** (`A` again) returns to current work.
+**Forget this record…** removes that one record after confirmation (as
+`vikix agents handoff forget` does); its files, branch and saved
+conversations stay. **Back to desks** (`A` again) returns to current work.
 
 **Purge archive** permanently deletes the archived desk records after
 confirmation. It rechecks the exact records, worktree paths and live agents;

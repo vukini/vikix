@@ -137,6 +137,21 @@ def purge_archive(api, expected_token):
     print(f'Purged {len(paths)} archived desk records. Project files and provider conversations were not changed.')
 
 
+def forget_record(api, did):
+    """One archived record, forgotten by its id: the same refusals as
+    vikix agents handoff forget (the folder stands, an agent is in it)."""
+    H = api.handoff_module()
+    if not H.DESK_ID.match(str(did)):
+        raise ValueError('Forget needs a desk record id')
+    rec = H.load(did)
+    if not rec:
+        raise RuntimeError('No such record; refresh the Office')
+    try:
+        print(api.forget_record(rec))
+    except H.HandoffError as e:
+        raise RuntimeError(str(e)) from e
+
+
 def process_start(api, pid):
     """Linux start ticks distinguish a process from a later reuse of its PID."""
     try:
@@ -225,8 +240,10 @@ def main(api, args):
         close_agent(api, args[1], args[2])
     elif len(args) == 2 and args[0] == '--purge-archive':
         purge_archive(api, args[1])
+    elif len(args) == 2 and args[0] == '--forget':
+        forget_record(api, args[1])
     elif not args:
         launch(api)
     else:
-        raise ValueError('vikix agents office [--json | --go PID | --close-agent PID START | --purge-archive TOKEN]')
+        raise ValueError('vikix agents office [--json | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN]')
     return 0

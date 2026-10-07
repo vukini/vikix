@@ -195,6 +195,14 @@ fi
 if [ -z "$keep" ]; then
   git -C "$main" worktree remove "$wt" >/dev/null 2>&1 || say "the worktree $wt wasn't removed (something in it git doesn't know?)"
   git -C "$main" branch -q -d "$topic" >/dev/null 2>&1 || say "the branch $topic wasn't removed"
+  # The desk's record (the office's, ~/.local/state/vikix/office/desks/) is
+  # marked closed, as vikix agents close marks it, so the Office files the
+  # desk under Finished and not among the ones waiting to be picked up. A
+  # desk that never had a record gets none.
+  if [ -f "$main/lib/handoff.py" ]; then
+    python3 "$main/lib/handoff.py" closed "$common" "$wt" release >/dev/null 2>&1
+    case $? in 0|1) ;; *) say "the desk's record wasn't marked closed (vikix agents handoff list)" ;; esac
+  fi
 fi
 
 if [ -z "$plain" ]; then

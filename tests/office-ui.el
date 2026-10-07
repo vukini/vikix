@@ -98,6 +98,40 @@
          (should refreshed)))
      (setf (alist-get 'live_known vikix-office--data) :false)
      (should-error (vikix-office-purge-archive) :type 'user-error))))
+(ert-deftest office-forget-needs-an-archived-desk-and-confirmation ()
+  (office-test-buffer
+   (setq vikix-office--detail (generate-new-buffer " *Forget details*"))
+   (unwind-protect
+       (progn
+         (vikix-office--render)
+         (should-error (vikix-office-forget) :type 'user-error)   ; a current desk is closed, not forgotten
+         (let ((archived (copy-tree (car (alist-get 'desks vikix-office--data)))))
+           (setf (alist-get 'id archived) "old"
+                 (alist-get 'title archived) "Old task"
+                 (alist-get 'archived archived) t
+                 (alist-get 'exists archived) :false
+                 (alist-get 'group archived) "Archived"
+                 (alist-get 'desk archived) '((id . "0123456789ab") (project . "Vikix") (worktree . "/tmp/a gone desk"))
+                 (alist-get 'archive vikix-office--data) (list archived))
+           (vikix-office-toggle-archive)
+           (should (equal vikix-office--selected "old"))
+           (with-current-buffer vikix-office--detail
+             (should (string-match-p "Forget this record" (buffer-string)))
+             (should-not (string-match-p "Go to agent\\|Continue\\|Close agent" (buffer-string))))
+           (let (args refreshed)
+             (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) nil))
+                       ((symbol-function 'vikix-office--request)
+                        (lambda (a _slot done) (setq args a) (funcall done "forgotten" nil)))
+                       ((symbol-function 'vikix-office-refresh) (lambda () (setq refreshed t))))
+               (vikix-office-forget)
+               (should-not args)
+               (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t)))
+                 (vikix-office-forget)
+                 (should (equal args '("office" "--forget" "0123456789ab")))
+                 (should refreshed))))
+           (setf (alist-get 'live_known vikix-office--data) :false)
+           (should-error (vikix-office-forget) :type 'user-error)))
+     (kill-buffer vikix-office--detail))))
 (ert-deftest office-actions-safe-arguments ()
   (office-test-buffer
    (vikix-office--render)

@@ -269,6 +269,28 @@ class ArchivePurge(unittest.TestCase):
         self.assertTrue(active.is_dir())
         self.assertEqual(office.snapshot(A)['archive'], [])
 
+    def test_forget_one_record_by_id_only(self):
+        with self.assertRaises(ValueError): office.main(A, ['--forget', '../etc/passwd'])
+        with self.assertRaisesRegex(RuntimeError, 'No such record'): office.forget_record(A, '0123456789ab')
+        keep = H.update('', str(Path(self.temp.name) / 'other gone'), lambda r: H.set_task(r, 'Keep me', 'user'))
+        office.main(A, ['--forget', self.rec['desk']['id']])
+        self.assertFalse(self.path.exists())
+        self.assertTrue(Path(str(self.path) + '.lock').exists())
+        self.assertTrue(Path(H.record_path(keep['desk']['id'])).exists())
+        self.assertEqual(office.snapshot(A)['archive'][0]['desk']['id'], keep['desk']['id'])
+
+    def test_forget_refuses_standing_desk_and_agent_in_it(self):
+        did = self.rec['desk']['id']
+        self.folder.mkdir()
+        with self.assertRaisesRegex(RuntimeError, 'is there: a desk that stands is closed'):
+            office.forget_record(A, did)
+        self.folder.rmdir()
+        gone = [{'agent': 'codex', 'pid': 7, 'folder': str(self.folder) + ' (deleted)'}]
+        with patch.object(A, 'live_agents', return_value=gone):
+            with self.assertRaisesRegex(RuntimeError, 'codex 7 still at work'):
+                office.forget_record(A, did)
+        self.assertTrue(self.path.exists())
+
     def test_changed_record_requires_new_confirmation(self):
         H.update('', str(self.folder), lambda r: H.set_task(r, 'Changed task', 'user'))
         with self.assertRaisesRegex(RuntimeError, 'Archive changed'):

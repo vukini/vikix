@@ -288,6 +288,39 @@ def mark_closed(rec, by):
     _log(rec, by, "desk closed")
 
 
+def close_record(common, folder, by):
+    """The record of the desk (COMMON, FOLDER) marked closed, when there is
+    one: a desk closed by vikix agents close, or removed by a release. None
+    is made for a desk that never had one. True when a record was marked."""
+    if not load(desk_id(common, folder)):
+        return False
+    update(common, folder, lambda rec: mark_closed(rec, by))
+    return True
+
+
+def forget(did):
+    """The record DID removed, under its lock: for a desk whose worktree
+    is gone and whose work is in, when the record itself is no longer
+    wanted. Nothing else goes with it: no file, no branch, no conversation
+    of the provider's. The lock file stays (removing it could split writers
+    arriving at once across two inodes). The record as it was, or None
+    when there was none; HandoffError when a writer holds it."""
+    path = record_path(did)
+    rec = load(did)
+    if not rec:
+        return None
+    with open(path + ".lock", "w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as e:
+            raise HandoffError("the record is being updated: try again in a moment") from e
+        try:
+            os.unlink(path)
+        except FileNotFoundError:
+            pass
+    return rec
+
+
 def from_json(rec, data, by, folder):
     """DATA, a dict as --from reads it, applied: task, status, summary,
     next, check {name, ok, note}, session {provider, id}. Other keys are
@@ -515,3 +548,14 @@ def resume_plan(rec, provider, folder, fresh=False):
         return {"mode": "fresh", "session": s, "args": [],
                 "why": f"whether {provider} still has {s['id']} can't be known: {where}"}
     return {"mode": "fresh", "session": s, "args": [], "why": f"{provider}'s session {s['id']} is gone from {where}"}
+
+
+if __name__ == "__main__":
+    # For .claude/release, which has no desk of its own to speak from:
+    #   python3 lib/handoff.py closed COMMON FOLDER [BY]
+    # marks the record of the desk (COMMON, FOLDER) closed, when there is one.
+    import sys
+    if len(sys.argv) >= 4 and sys.argv[1] == "closed":
+        sys.exit(0 if close_record(sys.argv[2], sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else "user") else 1)
+    sys.stderr.write("usage: python3 handoff.py closed COMMON FOLDER [BY]\n")
+    sys.exit(2)

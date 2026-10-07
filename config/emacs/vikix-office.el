@@ -194,7 +194,10 @@
           (if (not r) (insert "Select a desk to see its task and handoff.\n")
             (insert (propertize (vikix-office--text (alist-get 'title r)) 'face '(:inherit variable-pitch :height 1.3 :weight bold)) "\n\n")
             (if (eq (alist-get 'archived r) t)
-                (insert "Archived — desk removed. No action is needed.\nHistorical handoff below; its next action may already be completed.")
+                (progn
+                  (insert "Archived — desk removed. No action is needed.\nHistorical handoff below; its next action may already be completed.\n")
+                  (when (and (eq (alist-get 'live_known r) t) (alist-get 'id (alist-get 'desk r)))
+                    (vikix-office--button "Forget this record…" (lambda () (with-current-buffer owner (vikix-office-forget))))))
               (when (eq (alist-get 'live_known r) t)
                 (let ((agents (alist-get 'agents r)))
                   (when (cl-some (lambda (a) (not (member (alist-get 'window a) '(nil "")))) agents)
@@ -293,6 +296,24 @@
       (when (yes-or-no-p (format "Permanently purge %d archived desk records, including tasks, handoffs and checks? Project files and provider conversations stay. " (length records)))
         (vikix-office--request
          (list "office" "--purge-archive" token) 'vikix-office--action
+         (lambda (output error)
+           (if error (vikix-office--notice error)
+             (message "%s" (string-trim output))
+             (vikix-office-refresh))))))))
+(defun vikix-office-forget ()
+  "Remove the selected archived desk's record; files, branches and saved conversations stay."
+  (interactive)
+  (with-current-buffer (vikix-office--owner-buffer)
+    (let* ((r (vikix-office--row)) (id (alist-get 'id (alist-get 'desk r))))
+      (unless r (user-error "Select a desk first"))
+      (unless (eq (alist-get 'archived r) t) (user-error "Only an archived desk's record can be forgotten"))
+      (unless (eq (alist-get 'live_known vikix-office--data) t) (user-error "Live activity unknown; refresh first"))
+      (unless (stringp id) (user-error "This desk has no record"))
+      (when (process-live-p vikix-office--action) (user-error "An Office action is still running"))
+      (when (yes-or-no-p (format "Forget the record of %s? Its task, handoff and checks go; files, branches and saved conversations stay. "
+                                 (alist-get 'worktree (alist-get 'desk r))))
+        (vikix-office--request
+         (list "office" "--forget" id) 'vikix-office--action
          (lambda (output error)
            (if error (vikix-office--notice error)
              (message "%s" (string-trim output))

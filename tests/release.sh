@@ -10,7 +10,9 @@
 #   changes of its own, a topic with nothing new: each refused, nothing
 #   changed. Two releases at once both land, one after the other, with
 #   numbers of their own. --plain merges without a version; --keep leaves
-#   the worktree; --tests none runs none. --queue: nothing when nothing
+#   the worktree; --tests none runs none. The desk's record (the office's)
+#   is marked closed by the release, and none is made for a desk without
+#   one. --queue: nothing when nothing
 #   is releasing; with one testing and one waiting, the one whose turn it
 #   is first, each with what it is doing and its summary; a note left by a
 #   release that died is cleared; none left when they have landed. With an
@@ -24,6 +26,7 @@ set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
 export EMACS_SOCKET_NAME=/nonexistent/emacs-server   # never the live desktop's Emacs: emacsclient from a test goes nowhere
 unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE   # the desktop session's: from an agent's shell they'd point a test at the real ~/vikix and state, and hide the keys
+unset XDG_STATE_HOME   # the desks' records go under this test's home
 here=$(cd "$(dirname "$0")/.." && pwd)
 command -v flock >/dev/null || { echo "release: needs flock; skipped"; exit 0; }
 t=$(mktemp -d)
@@ -52,6 +55,8 @@ chmod +x "$r/tests/run.sh"
 printf '.git-test-calls\n' > "$r/.gitignore"
 # A project of vikix project's (a log, under a root): where vikix agents looks for release notes.
 printf '# Log: Vikix\n' > "$r/log.md"
+# The desks' records: the release marks a desk's closed through lib/handoff.py.
+mkdir -p "$r/lib"; cp "$here/lib/handoff.py" "$r/lib/"
 mkdir -p "$HOME/.config/vikix"; printf 'root=%s\n' "$t" > "$HOME/.config/vikix/projects"
 git -C "$r" init -q
 git -C "$r" add -A && git -C "$r" commit -q -m "Vikix 0.1.5: the start"
@@ -63,12 +68,25 @@ topic() {   # topic NAME FILE TEXT: a worktree with one commit that writes TEXT 
   git -C "$t/vikix-$1" add "$2" && git -C "$t/vikix-$1" commit -q -m "$1: $2"
 }
 release() { "$r/.claude/release" "$@" 2>&1; }
+records="$HOME/.local/state/vikix/office/desks"
+record() {   # record TOPIC TASK: a desk record for the worktree of TOPIC, as vikix agents desk --task makes one
+  python3 -B -c 'import sys; sys.path.insert(0, sys.argv[1]); import handoff as H
+H.update(sys.argv[2], sys.argv[3], lambda r: H.set_task(r, sys.argv[4], "user"), branch=sys.argv[5])' \
+    "$r/lib" "$r/.git" "$t/vikix-$1" "$2" "$1" >/dev/null
+}
+record_of() {   # record_of TOPIC: the record whose worktree is TOPIC's, as JSON
+  python3 -c 'import json, sys, glob
+for f in glob.glob(sys.argv[1] + "/*.json"):
+    r = json.load(open(f))
+    if r["desk"]["worktree"].endswith("/vikix-" + sys.argv[2]): print(json.dumps(r))' "$records" "$1"
+}
 version() { cat "$r/VERSION"; }
 head_of() { git -C "$r" log -1 --format=%s; }
 state() { echo "$(version) $(git -C "$r" rev-parse --short HEAD) $(git -C "$r" tag | wc -l)"; }
 
 # --- A release ---------------------------------------------------------------------
 topic a file-a "from a"
+record a "A thing to do"
 out=$(release a "A thing" --co-author "Claude <c@example.com>") && code=0 || code=$?
 check "a release should succeed: $code $out" test "$code" = 0
 check "VERSION goes up by one: $(version)" test "$(version)" = 0.1.6
@@ -80,6 +98,10 @@ check "the topic's work is on main" test "$(cat "$r/file-a")" = "from a"
 check "its worktree and branch are gone" bash -c "[ ! -e '$t/vikix-a' ] && ! git -C '$r' rev-parse -q --verify refs/heads/a >/dev/null"
 check "the tests its changes reach were run, against main: $(cat "$t/vikix-a/.git-test-calls" 2>/dev/null || echo gone-with-the-worktree)" grep -q 'tests (changed)' <<<"$out"
 check "it says it isn't pushed" grep -q 'not pushed' <<<"$out"
+rec=$(record_of a)
+check "the desk's record is marked closed by the release, and kept: $rec" python3 -c 'import json, sys
+r = json.loads(sys.argv[1]); assert r["desk"]["closed"] > 0 and r["task"]["text"] == "A thing to do", r
+assert r["log"][-1]["what"] == "desk closed" and r["log"][-1]["by"] == "release", r["log"]' "$rec"
 
 # --- main has moved on ----------------------------------------------------------------
 topic b file-b "from b"; topic c file-c "from c"
@@ -87,6 +109,7 @@ release b "B" >/dev/null
 out=$(release c "C") && code=0 || code=$?
 check "a topic behind main is put on top of it and released: $code $out" bash -c "[ $code = 0 ] && grep -q 'main has moved on' <<<\"\$1\"" _ "$out"
 check "both are there, with numbers of their own: $(version)" bash -c "[ '$(version)' = 0.1.8 ] && [ -e '$r/file-b' ] && [ -e '$r/file-c' ]"
+check "a desk without a record gets none from its release: $(ls "$records")" test "$(ls "$records"/*.json | wc -l)" = 1
 check "main was never rewritten: every release is behind the newest" bash -c "git -C '$r' merge-base --is-ancestor v0.1.6 HEAD && git -C '$r' merge-base --is-ancestor v0.1.7 HEAD"
 
 # --- The same line, twice -------------------------------------------------------------

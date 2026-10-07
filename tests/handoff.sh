@@ -12,7 +12,10 @@
 #   twenty-five writers at once lose nothing; a generic provider uses the
 #   same commands; a credential, an unknown field, a bad session id or a
 #   record id that is a path are refused; --json has the freshness; the
-#   listing names every desk; close marks the record closed and keeps it.
+#   listing names every desk; close marks the record closed and keeps it;
+#   handoff forget removes the record of a desk whose folder is gone, and
+#   refuses a desk that stands, one with an agent still in it, and a desk
+#   with no record.
 #   vikix agents resume shows the handoff and resumes the session the
 #   record names when the provider's store still has it (claude --resume,
 #   codex resume, opencode --session, agy --conversation), else starts fresh and says why; a
@@ -274,5 +277,32 @@ out=$(edit_d)
 check "the same edit again goes through, quietly: '$out'" test -z "$out"
 rm -r "$t/proc/1006" "$t/proc/1007" "$t/proc/1008"
 
-[ $fail = 0 ] && echo "handoff: ok (a desk's task, handoff, checks and sessions kept apart and across sessions; stale checks said; writers at once lose nothing; refusals; resume where the provider can, fresh and said why otherwise; the hooks each has)"
+# --- Forgetting the record of a desk whose folder is gone ---------------------------------------
+out=$(agents handoff forget)
+check "forget with no desk named lists the records whose folder is gone, and asks which: $out" \
+  bash -c 'grep -q "book-a  waiting, .*\[closed " <<<"$1" && grep -q "say which: vikix agents handoff forget DESK" <<<"$1"' _ "$out"
+out=$(agents handoff forget c)
+check "a desk that stands is refused, with close as the way: $out" \
+  grep -q 'book-c is there: a desk that stands is closed, not forgotten (vikix agents close book-c' <<<"$out"
+proc 1009 claude "$t/src/book-a (deleted)"   # a shell still in the removed folder, as /proc names it
+out=$(agents handoff forget a)
+check "an agent still in the removed folder: refused: $out" grep -q 'claude 1009 still at work in .*book-a, gone as it is' <<<"$out"
+rm -r "$t/proc/1009"
+out=$(agents handoff forget d)
+check "a desk with no record: nothing to forget: $out" grep -q 'book-d has no record: nothing to forget' <<<"$out"
+id=$(python3 -c 'import json, sys, glob
+for f in glob.glob(sys.argv[1] + "/*.json"):
+    r = json.load(open(f))
+    if r["desk"]["worktree"].endswith("book-a"): print(r["desk"]["id"])' "$records")
+out=$(agents handoff forget a)
+check "forget a: the record goes, and says what stayed: $out" \
+  bash -c 'grep -q "forgotten: the record of .*book-a (a, waiting, closed " <<<"$1" && grep -q "no file, no branch, no conversation" <<<"$1"' _ "$out"
+check "the record file is gone, its lock kept ($id)" bash -c '[ -n "$2" ] && [ ! -e "$1/$2.json" ] && [ -e "$1/$2.json.lock" ]' _ "$records" "$id"
+check "the listing no longer names it" not grep -q 'book-a' <<<"$(agents handoff list)"
+out=$(agents handoff forget a)
+check "forgetting it again: no such desk: $out" grep -q 'no desk called a' <<<"$out"
+out=$(agents handoff forget)
+check "nothing left to forget is said: $out" grep -q 'No record of a desk whose folder is gone: nothing to forget' <<<"$out"
+
+[ $fail = 0 ] && echo "handoff: ok (a desk's task, handoff, checks and sessions kept apart and across sessions; stale checks said; writers at once lose nothing; refusals; a gone desk's record forgotten, a standing one refused; resume where the provider can, fresh and said why otherwise; the hooks each has)"
 exit $fail
