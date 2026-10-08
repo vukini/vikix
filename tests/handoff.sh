@@ -30,7 +30,9 @@
 #   never a second agent at a desk unasked. vikix agents hooks says what
 #   holds the rules for each provider and links the Codex and OpenCode
 #   adapters; touch --for gemini answers in Gemini's shape, --for opencode
-#   refuses a clash once and lets the same edit through.
+#   refuses a clash once and lets the same edit through. A desk gives the
+#   agent the user's SSH agent only when asked: --push, or yes to the
+#   picker's last question; the picker asks it after the agent.
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
@@ -361,6 +363,28 @@ out=$(agents handoff forget a)
 check "forgetting it again: no such desk: $out" grep -q 'no desk called a' <<<"$out"
 out=$(agents handoff forget)
 check "nothing left to forget is said: $out" grep -q 'No record of a desk whose folder is gone: nothing to forget' <<<"$out"
+
+# --- Pushing as the user: only when asked, by --push or the picker's last question ----------------
+printf '#!/bin/sh\necho "AGENT SSH: ${VIKIX_AGENT_SSH-unset}"\n' > "$t/bin/agent-ssh"; chmod +x "$t/bin/agent-ssh"
+desk() { VIKIX_AGENT_CMD="$t/bin/agent-ssh" python3 "$here/bin/vikix-agents" desk "$@" 2>&1 </dev/null || true; }
+out=$(desk book c --here)
+check "a desk started plainly keeps the SSH agent from the agent: $out" grep -q '^AGENT SSH: unset$' <<<"$out"
+out=$(desk book c --here --push)
+check "--push hands it over, and says so: $out" \
+  bash -c 'grep -q "^AGENT SSH: 1$" <<<"$1" && grep -q "a desk for the agent: .*, and it may push as you" <<<"$1"' _ "$out"
+# The picker: rofi is a stand-in answering by prompt, the project (the first), the topic c, the agent (yours).
+printf '#!/bin/sh\np=; while [ $# -gt 0 ]; do [ "$1" = -p ] && p=$2; shift; done\necho "$p" >> %s\ncase $p in "Agent on") echo 0;; Topic) echo c;; Agent) echo 0;; Push) cat %s;; esac\n' \
+  "$t/rofi-asked" "$t/push-answer" > "$t/bin/rofi"; chmod +x "$t/bin/rofi"
+picker() { rm -f "$t/rofi-asked"; echo "$1" > "$t/push-answer"; DISPLAY=:7 PATH="$t/bin:$PATH" desk --here; }
+out=$(picker 0)
+check "the picker asks about pushing last, after the agent: $(tr '\n' ' ' < "$t/rofi-asked")" \
+  bash -c '[ "$(tail -1 "$1")" = Push ] && grep -qx Agent "$1"' _ "$t/rofi-asked"
+check "no keeps the SSH agent back: $out" grep -q '^AGENT SSH: unset$' <<<"$out"
+out=$(picker 1)
+check "yes hands it over: $out" grep -q '^AGENT SSH: 1$' <<<"$out"
+printf '#!/bin/sh\nexit 1\n' > "$t/bin/rofi"
+out=$(DISPLAY=:7 PATH="$t/bin:$PATH" desk --here)
+check "the picker closed at any question starts nothing: '$out'" not grep -q 'AGENT SSH' <<<"$out"
 
 [ $fail = 0 ] && echo "handoff: ok (a desk's task, handoff, checks and sessions kept apart and across sessions; stale checks said; writers at once lose nothing; refusals; a gone desk's record forgotten, a standing one refused; resume where the provider can, fresh and said why otherwise; the hooks each has)"
 exit $fail

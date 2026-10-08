@@ -48,7 +48,7 @@
                        this workspace, with no desk (Super+a, Agent here):
                        it asks which agent, as desk does, when --use and
                        --local don't say
-  vikix agents desk [PROJECT [TOPIC]] [--use NAME] [--local] [--here]
+  vikix agents desk [PROJECT [TOPIC]] [--use NAME] [--local] [--here] [--push]
                        start an agent at a desk of its own: in PROJECT (one
                        of vikix project's, by any part of its name), on a
                        workspace to itself, and with a TOPIC in a git
@@ -63,11 +63,16 @@
                        task), then which agent, when --use doesn't say:
                        yours first, the others as vikix agent --list has
                        them, and the ones that can on a model on this
-                       laptop.
+                       laptop; then whether it may push as you (no, the
+                       usual: it commits, you push).
                        --use: another agent than yours (vikix agent --use);
                        --local: on a model on this laptop (vikix agent
                        --local; opencode, codex and aider can);
                        --here: in this terminal, no new workspace;
+                       --push: the agent may push as you: your SSH agent
+                       goes with it (vikix agent keeps it back otherwise,
+                       since after your first push of the day it holds
+                       your unlocked key), so git push works at the desk;
                        --task "...": the task, in your words, written in
                        the desk's record and given to the agent as its
                        first prompt (aider takes none: it reads the record)
@@ -763,8 +768,22 @@ def ask_agent(what="this desk", absent=None):
     return choices[int(picked)]
 
 
+def ask_push():
+    """Whether the agent may push as the user, asked on the desktop: True,
+    False, or None when the menu was closed."""
+    picked = rofi("Push", "May the agent push as you? With yes, your SSH agent goes with it: after your first "
+                          "push of the day it holds your unlocked key, so the agent can push (git push) to "
+                          "anything you can. With no, the agent commits and you push.",
+                  ["no   it commits, you push (the usual)",
+                   "yes  it may push as you (your SSH agent goes with it)"],
+                  "say so on the command line: vikix agents desk PROJECT TOPIC [--push]")
+    if picked is None or not picked.isdigit():
+        return None
+    return picked == "1"
+
+
 def desk(argv):
-    use, local, here, words, task = None, False, False, [], ""
+    use, local, here, push, words, task = None, False, False, None, [], ""
     while argv:
         a = argv.pop(0)
         if a == "--use":
@@ -773,6 +792,8 @@ def desk(argv):
             local = True
         elif a == "--here":
             here = True
+        elif a == "--push":
+            push = True
         elif a == "--task":
             task = argv.pop(0) if argv else die("--task needs the words of the task")
         elif a.startswith("-"):
@@ -818,6 +839,10 @@ def desk(argv):
         if chosen is None:
             return 0
         use, local = chosen
+    if asked and push is None:
+        push = ask_push()
+        if push is None:
+            return 0
     path = str(project.path)
     top = (git(path, "rev-parse", "--show-toplevel") or "").strip()
     said = f"in {short(path)}"
@@ -845,6 +870,11 @@ def desk(argv):
     start = agent_start(use, first or (), local=local)
     if use or local:
         said += f", {use or 'your agent'}" + (" on a model on this laptop" if local else "")
+    if push:
+        # vikix agent keeps your SSH agent from the agent unless this says
+        # otherwise; the terminal, and the agent in it, inherit it from here.
+        os.environ["VIKIX_AGENT_SSH"] = "1"
+        said += ", and it may push as you"
     if task:
         said += (", the task its first prompt" if first
                  else f", the task in its handoff ({use or default_agent()} takes no first prompt)")

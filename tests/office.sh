@@ -206,12 +206,14 @@ printf '#!/bin/sh\npwd\n' > "$t/bin/where"; chmod +x "$t/bin/where"
 out=$(AGENT_CMD="$t/bin/where" desk books in-place --here)
 check "--here starts it in this terminal, in the worktree: $(tail -1 <<<"$out")" test "$(tail -1 <<<"$out")" = "$home/src/books-in-place"
 # Asked on the desktop: a stand-in rofi picks the project called books, types a topic, answers the
-# task with what $t/task-typed holds (nothing: a desk with no task), and picks the agent
-# $t/agent-pick names (the first row, yours, when the file is empty).
+# task with what $t/task-typed holds (nothing: a desk with no task), picks the agent
+# $t/agent-pick names (the first row, yours, when the file is empty), and answers the last
+# question, may it push as you, with the row $t/push-pick names (0: no).
 cat > "$t/bin/rofi" <<R
 #!/bin/sh
 case " \$* " in
   *" -p Agent -mesg "*) grep -n "^\$(cat "$t/agent-pick")" | head -1 | cut -d: -f1 | awk '{ print \$1 - 1 }' ;;
+  *" -p Push -mesg "*) cat >/dev/null; cat "$t/push-pick" ;;
   *" -format i "*) grep -n '^books ' | head -1 | cut -d: -f1 | awk '{ print \$1 - 1 }' ;;
   *" -p Task -mesg "*) cat >/dev/null; cat "$t/task-typed" ;;
   *) cat >/dev/null; echo "From the menu" ;;
@@ -219,12 +221,19 @@ esac
 R
 chmod +x "$t/bin/rofi"
 : > "$t/task-typed"
-printf '#!/bin/sh\necho "$*" > "%s"\nexec "%s"\n' "$t/desk.args" "$t/bin/claude" > "$t/bin/argsaver"; chmod +x "$t/bin/argsaver"
-: > "$t/agent-pick"
+printf '#!/bin/sh\necho "$*" > "%s"\necho "${VIKIX_AGENT_SSH-unset}" > "%s"\nexec "%s"\n' "$t/desk.args" "$t/desk.ssh" "$t/bin/claude" > "$t/bin/argsaver"; chmod +x "$t/bin/argsaver"
+: > "$t/agent-pick"; echo 0 > "$t/push-pick"
 out=$(PATH="$t/bin:$PATH" AGENT_CMD="$t/bin/argsaver" desk)
 check "without a project it asks which, then for a topic, then which agent: $out" grep -q 'in ~/src/books-from-the-menu, a new worktree on the branch from-the-menu, on workspace' <<<"$out"
 sleep 0.5
 check "yours, the first row, adds nothing: '$(cat "$t/desk.args" 2>/dev/null)'" test -z "$(cat "$t/desk.args" 2>/dev/null)"
+check "no to the last question, may it push as you, keeps your SSH agent from it: '$(cat "$t/desk.ssh" 2>/dev/null)'" test "$(cat "$t/desk.ssh" 2>/dev/null)" = unset
+echo 1 > "$t/push-pick"
+out=$(PATH="$t/bin:$PATH" AGENT_CMD="$t/bin/argsaver" desk)
+sleep 0.5
+check "yes hands it over, and it's said: '$(cat "$t/desk.ssh" 2>/dev/null)' $out" \
+  bash -c '[ "$(cat "$2")" = 1 ] && grep -q "from-the-menu), and it may push as you, on workspace" <<<"$1"' _ "$out" "$t/desk.ssh"
+echo 0 > "$t/push-pick"
 echo "codex " > "$t/agent-pick"
 out=$(PATH="$t/bin:$PATH" AGENT_CMD="$t/bin/argsaver" desk)
 check "another agent picked reaches vikix agent as --use, and is said: $out" grep -q 'from-the-menu), codex, on workspace' <<<"$out"
