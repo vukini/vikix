@@ -40,6 +40,34 @@ check "a cable should say wired" test "$(net none ethernet:connected)" = wired
 check "nothing should say offline" test "$(net none ethernet:unavailable)" = offline
 [ "$fail" = 0 ] && echo "bar: vikix-net labels Wi-Fi, and shows the signal only when it is weak"
 
+# --- the Wi-Fi field's bars ---------------------------------------------------
+# vikix-net-bars (modeline.lisp) draws "wifi VID" as three bars and the name,
+# the bars the signal doesn't reach in the subtle colour: run in sbcl with the
+# colour stood in. tests/tray.sh sees the field drawn in a real StumpWM.
+if command -v sbcl >/dev/null; then
+  lisp="$here/config/stumpwm/vikix/modeline.lisp"
+  fns=$(awk '/^\(defparameter \*vikix-net-bars\*/,/^$/; /^\(defun vikix-net-bars/,/^$/' "$lisp")
+  [ -n "$fns" ] || { echo "FAIL: vikix-net-bars isn't in modeline.lisp"; fail=1; }
+  {
+    echo '(defun vikix-colour (key) (declare (ignore key)) "#777777")'
+    echo "$fns"
+    echo '(dolist (net (list "wifi VID" "wifi My Net 42%" "wifi VID 12%" "wifi 100%" "wired" "offline" "wifi"))'
+    echo '  (format t "~a => ~a~%" net (vikix-net-bars net)))'
+  } > "$t/bars.lisp"
+  bars=$(sbcl --script "$t/bars.lisp" 2>&1) || { echo "FAIL: vikix-net-bars failed to run: $bars"; fail=1; }
+  dim='^(:push)^(:fg "#777777")'
+  check "a strong signal should be three bars and the name: $bars" grep -qxF 'wifi VID => ▂▄▆ VID' <<< "$bars"
+  check "a weak signal should dim the top bar and keep its figure" grep -qxF "wifi My Net 42% => ▂▄$dim▆^(:pop) My Net 42%" <<< "$bars"
+  check "under 30% should light one bar" grep -qxF "wifi VID 12% => ▂$dim▄▆^(:pop) VID 12%" <<< "$bars"
+  check "a name ending in % with no figure before it is a name" grep -qxF 'wifi 100% => ▂▄▆ 100%' <<< "$bars"
+  check "a cable should stay a word" grep -qxF 'wired => wired' <<< "$bars"
+  check "offline should stay a word" grep -qxF 'offline => offline' <<< "$bars"
+  check "the bare word should be left as it is" grep -qxF 'wifi => wifi' <<< "$bars"
+  [ "$fail" = 0 ] && echo "bar: the Wi-Fi field is three bars by the signal, and the name"
+else
+  echo "(no sbcl here: the Wi-Fi field's bars are skipped)"
+fi
+
 # --- vikix-bt ---------------------------------------------------------------------
 # bt POWERED DEVICES... — what vikix-bt prints when Bluetooth is on (yes) or
 # off (no), with these devices connected, each "MAC NAME" or "MAC NAME BATTERY".

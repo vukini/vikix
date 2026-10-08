@@ -375,7 +375,7 @@ Along the top, in Iosevka like the terminal: on the left the workspaces in use (
 - **usb**, in the accent colour, while a USB drive is mounted: eject it (`s-C-e`) before pulling it out.
 - **backup 9d**, in the accent colour, once backups are set up and the last one is older than a week (`backup` alone: set up, but none yet). See [Backups](#backups).
 - **dbx**, once Dropbox is set up here (the feature `dropbox`): `dbx ↓1,204 ↑3`, the files left to download and upload, in the quieter colour while it syncs; `dbx paused`; and in the accent colour `dbx off` when it isn't running (Vikix doesn't start it: `dropbox start`, or `s-m` → Dropbox → Start) or `dbx !` when it can't sync (`dropbox status` says why). Nothing while it's up to date (`vikix-dropbox`). `s-m` → Dropbox shows its status, opens `~/Dropbox`, starts and stops it.
-- the network: `wifi` and the network's name (and its signal when it is weak, under 60%), `wired`, or `offline`
+- the network: Wi-Fi as three bars, the way a phone draws its signal, and the network's name (`▂▄▆ VID`; the bars the signal doesn't reach are dimmed, and under 60% the figure follows the name), `wired`, or `offline`
 - Bluetooth, when it's on: `bt`, or the connected device and its battery, `bt WH-1000XM4 80%` (`+1` for another); nothing when it's off or there is none (`vikix-bt`). `s-m` → Bluetooth pairs and connects
 - the volume: `vol 40%`
 - the battery, on a laptop: `bat 84%`, with a `+` while charging; nothing when it is full on the charger

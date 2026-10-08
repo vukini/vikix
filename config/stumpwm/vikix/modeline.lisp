@@ -17,7 +17,7 @@
 ;;;;   %A   backup 9d: the last backup is older than the reminder's days
 ;;;;   %D   usb: a drive is mounted; eject it (Super+Ctrl+e) before pulling it out
 ;;;;   %Z   Dropbox: files left to sync, paused, off, or a problem (bin/vikix-dropbox)
-;;;;   %O   network: Wi-Fi name and signal, wired, or offline
+;;;;   %O   network: Wi-Fi as three bars and the network's name, wired, or offline
 ;;;;   %T   Bluetooth: bt when on, and the connected device (bin/vikix-bt)
 ;;;;   %V   volume (only when there is a sound server)
 ;;;;   %E   battery: "bat 84%", "+" while charging; nothing when full on the charger
@@ -153,13 +153,43 @@ All nine always exist, so listing them all would say nothing. A hidden one
       ""
       (vikix-ml-clickable :vikix-ml-click :volume (format nil "vol ~a  " *vikix-volume*))))
 
+(defparameter *vikix-net-bars* "▂▄▆"
+  "The Wi-Fi field's icon: three bars, as a phone draws its signal. Block
+elements, which Iosevka and the stand-in font both have; the bar draws one
+font file, so a glyph from an icon font would be a box.")
+
+(defun vikix-net-bars (net)
+  "NET, the line bin/vikix-net gives, drawn for the bar: a Wi-Fi link gets
+the bars in place of the word, the ones the signal doesn't reach in the
+subtle colour. The script leaves the figure out from 60%, so no figure is
+three bars, 30% and over two, under that one; a weak signal's figure stays
+after the name, since the bars only say about how weak. A cable, offline,
+or anything else is NET as it is. The text stays \"wifi VID\" in
+*vikix-net*: the rules, the click and the tests read the word."
+  (if (and (> (length net) 5) (string= "wifi " net :end2 5))
+      (let* ((rest (subseq net 5))
+             (figure (and (> (length rest) 2)
+                          (char= (char rest (1- (length rest))) #\%)
+                          (let ((at (position #\Space rest :from-end t)))
+                            (and at (parse-integer rest :start (1+ at) :end (1- (length rest))
+                                                        :junk-allowed t)))))
+             (lit (cond ((null figure) 3) ((>= figure 30) 2) (t 1))))
+        (concatenate 'string
+                     (subseq *vikix-net-bars* 0 lit)
+                     (if (< lit 3)
+                         (format nil "^(:push)^(:fg \"~a\")~a^(:pop)"
+                                 (vikix-colour :subtle) (subseq *vikix-net-bars* lit))
+                         "")
+                     " " rest))
+      net))
+
 (defun vikix-mode-line-net (ml)
-  "The network link, from *vikix-net* (commands.lisp); nothing without
-NetworkManager."
+  "The network link, from *vikix-net* (commands.lisp), Wi-Fi as its bars
+(vikix-net-bars); nothing without NetworkManager."
   (declare (ignore ml))
   (if (or (string= *vikix-net* "") (and (fboundp (quote vikix-tray-shows-p)) (vikix-tray-shows-p "nm-applet")))
       ""
-      (vikix-ml-clickable :vikix-ml-click :net (format nil "~a  " *vikix-net*))))
+      (vikix-ml-clickable :vikix-ml-click :net (format nil "~a  " (vikix-net-bars *vikix-net*)))))
 
 (defun vikix-mode-line-bt (ml)
   "Bluetooth, from *vikix-bt* (commands.lisp); nothing when it's off or absent."

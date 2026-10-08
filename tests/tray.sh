@@ -97,10 +97,10 @@ done
 check "the icon should be in the tray: $icons" test "$icons" = 1
 room=$(ask '(princ (length (vikix-mode-line-tray nil)))')
 check "the bar should leave the tray room: $room spaces" test "$room" -gt 2
-# The network's and Bluetooth's own fields step aside while their applets
+# The network's (Wi-Fi drawn as its bars) and Bluetooth's own fields step aside while their applets
 # are in the tray (set here: the test starts none on the hidden screen).
 fields='(progn (setf *vikix-net* "wifi Home" *vikix-bt* "bt") (format t "[~a][~a]" (vikix-mode-line-net nil) (vikix-mode-line-bt nil)))'
-check "without applets, the bar should show the network and Bluetooth: $(ask "$fields")" bash -c '[[ $1 == *"wifi Home"*"bt"* ]]' _ "$(ask "$fields")"
+check "without applets, the bar should show the network and Bluetooth: $(ask "$fields")" bash -c '[[ $1 == *"▂▄▆ Home"*"bt"* ]]' _ "$(ask "$fields")"
 plain() { ask "$fields" | sed 's/\^[^)]*)//g; s/  *\]/]/g'; }   # the fields without the bar's own markup
 ask '(setf *vikix-tray-applets* (list "nm-applet" "blueman-applet"))' >/dev/null
 ask '(vikix-tray-note-icons)' >/dev/null
@@ -122,7 +122,7 @@ check "a reload should keep the tray: $(state)" test "$(state)" = ON
 check "and not add its handler twice" test "$(ask '(princ (length *event-processing-hook*))')" = 1
 ask '(run-commands "vikix-tray-off")' >/dev/null
 check "vikix-tray-off should take it away" test "$(state)" = OFF
-check "and bring the bar's own network field back: $(ask "$fields")" bash -c '[[ $1 == *"wifi Home"* ]]' _ "$(ask "$fields")"
+check "and bring the bar's own network field back: $(ask "$fields")" bash -c '[[ $1 == *"▂▄▆ Home"* ]]' _ "$(ask "$fields")"
 check "and say so in the settings" grep -qx off "$home/.config/vikix/tray"
 check "an applets line naming none should stay empty" grep -qx 'applets = ' "$home/.config/vikix/tray"
 ask '(run-commands "vikix-tray")' >/dev/null
@@ -158,7 +158,7 @@ ask '(vikix-tray-note-icons)' >/dev/null
 check "with the icon there the network's field steps aside: $(ask "$fields")" bash -c '[[ $1 == "[]["* ]]' _ "$(ask "$fields")"
 kill "$icon_pid" 2>/dev/null || true
 for _ in $(seq 1 40); do [ "$(ask '(progn (vikix-tray-note-icons) (prin1 *vikix-tray-icons*))')" = NIL ] && break; sleep 0.25; done
-check "the icon's program ended: the bar says the network itself again: $(ask "$fields" | cut -c1-40)" bash -c '[[ $1 == *"wifi Home"* ]]' _ "$(ask "$fields")"
+check "the icon's program ended: the bar says the network itself again: $(ask "$fields" | cut -c1-40)" bash -c '[[ $1 == *"▂▄▆ Home"* ]]' _ "$(ask "$fields")"
 # What happened on a real desktop: the bar made anew with nobody telling
 # the tray. Its icons go with the old bar's window. The bar's own round
 # finds the tray left behind, makes it anew, and starts its applets again.
