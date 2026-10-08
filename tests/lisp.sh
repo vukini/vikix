@@ -213,8 +213,8 @@ cat > "$t/check.lisp" <<EOF
 ;; Super+Shift+digit sends the window to that workspace. With no keyboard
 ;; to ask (here), the keys are a US keyboard's.
 (unless (equal *vikix-workspace-send-keys*
-               '("s-exclam" "s-at" "s-numbersign" "s-dollar" "s-percent" "s-asciicircum" "s-ampersand" "s-asterisk" "s-parenleft"))
-  (fail "Super+Shift+1 ... 9 should be bound for a US keyboard here: ~s" *vikix-workspace-send-keys*))
+               '("s-parenright" "s-exclam" "s-at" "s-numbersign" "s-dollar" "s-percent" "s-asciicircum" "s-ampersand" "s-asterisk" "s-parenleft"))
+  (fail "Super+Shift+0 ... 9 should be bound for a US keyboard here: ~s" *vikix-workspace-send-keys*))
 ;; A key Vikix had before the rule goes at a reload, while it still runs
 ;; what Vikix gave it; one given something else since stays.
 (when (and (fboundp 'lookup-key) (fboundp 'undefine-key))

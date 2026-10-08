@@ -132,7 +132,7 @@ for f in "${files[@]}"; do
     *) named "$(basename "$f")" ;;
   esac
   case $f in
-    config/stumpwm/*) add lisp errors menu rules viri main drawer keys registry maps why what gather office focus rescue reload resume palette used events focus-time ;;
+    config/stumpwm/*) add lisp errors menu rules viri main drawer keys registry maps why what gather workspaces office focus rescue reload resume palette used events focus-time ;;
   esac
   case $f in
     # A command's man page is made from its header (lib/man.py).

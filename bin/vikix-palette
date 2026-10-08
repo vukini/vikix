@@ -2,16 +2,18 @@
 """vikix-palette — everything in one box (Super+Space).
 
     vikix-palette          open it: the launcher, listing your windows on
-                           every workspace, every Vikix command (with its
-                           key), your projects, web apps and saved layouts,
-                           and the programs, all at once. Type a few
-                           letters, Enter.
+                           every workspace, the workspaces in use and the
+                           named ones, every Vikix command (with its key),
+                           your projects, web apps and saved layouts, and
+                           the programs, all at once. Type a few letters,
+                           Enter.
     vikix-palette --list   what it would offer, in the terminal
 
-Enter on a window goes to it, wherever it is; on a command, runs it; on a
-project, opens it (a terminal in its folder, its log in the editor); on a
-web app, brings it forward or starts it; on a layout, puts this workspace
-back as it; on a program, starts it.
+Enter on a window goes to it, wherever it is; on a workspace, goes there
+(the ones with windows, and the named ones past the nine); on a command,
+runs it; on a project, opens it (a terminal in its folder, its log in the
+editor); on a web app, brings it forward or starts it; on a layout, puts
+this workspace back as it; on a program, starts it.
 
 Super+d is still the plain launcher, programs only. When the desktop
 doesn't answer within a second and a half, the box opens with the projects
@@ -63,7 +65,7 @@ def entries():
         if line.startswith("=> "):
             continue
         parts = line.split("\t")
-        if len(parts) == 4 and parts[0] in ("window", "command", "webapp", "layout"):
+        if len(parts) == 4 and parts[0] in ("window", "workspace", "command", "webapp", "layout"):
             rows.append(tuple(parts))
     # Windows first, then projects, then the rest as the desktop gave them.
     windows = [r for r in rows if r[0] == "window"]
@@ -86,7 +88,7 @@ def picked(info):
         subprocess.Popen([os.path.join(HERE, "vikix-project"), "open", ident],
                          start_new_session=True, stdin=subprocess.DEVNULL,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    elif kind in ("window", "command", "webapp", "layout"):
+    elif kind in ("window", "workspace", "command", "webapp", "layout"):
         quoted = ident.replace("\\", "\\\\").replace('"', '\\"')
         desktop(f'(vikix-palette-run "{kind}" "{quoted}")', timeout=5)
 

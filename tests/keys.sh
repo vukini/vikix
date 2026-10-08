@@ -79,7 +79,7 @@ sends() { ask '(princ (format nil "~{~a~^ ~}" *vikix-workspace-send-keys*))'; }
 bound() { ask "(princ (or (lookup-key *top-map* (kbd \"$1\")) \"nothing\"))"; }
 
 check "on a US keyboard, Super+Shift+digit is the key Shift+digit types: $(sends)" \
-  test "$(sends)" = "s-exclam s-at s-numbersign s-dollar s-percent s-asciicircum s-ampersand s-asterisk s-parenleft"
+  test "$(sends)" = "s-parenright s-exclam s-at s-numbersign s-dollar s-percent s-asciicircum s-ampersand s-asterisk s-parenleft"
 check "Super+Ctrl+digit sends nothing any more: $(bound s-C-2)" test "$(bound s-C-2)" = nothing
 
 win A; win B
@@ -98,7 +98,7 @@ check "Super+Shift+h moves it back left: $(frame)" test "$(frame)" = "$before"
 # Another keyboard: Shift+2 is " and Shift+3 is £ on a British one.
 setxkbmap gb; sleep 1
 ask '(vikix-bind-workspace-keys)' >/dev/null
-check "on a British keyboard the keys follow it: $(sends)" grep -q '^s-exclam s-quotedbl s-sterling ' <<<"$(sends)"
+check "on a British keyboard the keys follow it: $(sends)" grep -q '^s-parenright s-exclam s-quotedbl s-sterling ' <<<"$(sends)"
 check "and the US ones that differ are let go: $(bound s-at)" test "$(bound s-at)" = nothing
 key super+shift+3
 check "Super+Shift+3 there sends the window to workspace 3: $(where C)" test "$(where C)" = 3
@@ -106,7 +106,7 @@ check "Super+Shift+3 there sends the window to workspace 3: $(where C)" test "$(
 # Where the digits themselves need Shift, Shift+digit can't be the key.
 setxkbmap fr; sleep 1
 ask '(vikix-bind-workspace-keys)' >/dev/null
-check "on a French keyboard, Super+Ctrl+digit: $(sends)" test "$(sends)" = "s-C-1 s-C-2 s-C-3 s-C-4 s-C-5 s-C-6 s-C-7 s-C-8 s-C-9"
+check "on a French keyboard, Super+Ctrl+digit: $(sends)" test "$(sends)" = "s-C-0 s-C-1 s-C-2 s-C-3 s-C-4 s-C-5 s-C-6 s-C-7 s-C-8 s-C-9"
 setxkbmap us; sleep 1
 ask '(vikix-bind-workspace-keys)' >/dev/null
 check "and back on a US one: $(bound s-C-2), $(bound s-at)" test "$(bound s-C-2) $(bound s-at)" = "nothing vikix-send 2"

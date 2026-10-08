@@ -559,17 +559,15 @@ collection's project as --."
 
 (defun vikix-project-claim (project)
   "Go to PROJECT's workspace: :existing when it's still open there, else
-:new on the first empty workspace (or this one when none is empty)."
+:new on the first empty one of the nine, or, all nine in use, on a new
+workspace named for the project (groups.lisp: vikix-workspace-claim)."
   (let ((g (vikix-project-group project)))
     (if g
         (progn (switch-to-group g) :existing)
-        (let ((empty (or (find-if (lambda (g) (and (null (group-windows g))
-                                                   (plusp (group-number g))))
-                                  (sort-groups (current-screen)))
-                         (current-group))))
-          (switch-to-group empty)
+        (let ((taken (vikix-workspace-claim
+                      (subseq project (1+ (or (position #\/ project :from-end t) -1))))))
           ;; This workspace is no other project's any more.
-          (setf (gethash empty *vikix-project-groups*) project)
+          (setf (gethash taken *vikix-project-groups*) project)
           :new))))
 
 (defun vikix-project-save (project &optional (group (or (vikix-project-group project) (current-group))))

@@ -52,8 +52,8 @@ a map, the two keys with a space between (\"s-C-SPC m\"), reads
 ;; Keys bound some other way than from *vikix-bindings* (the workspace
 ;; keys are bound in a loop in keys.lisp), as the help writes them.
 (defparameter *vikix-extra-keys*
-  '(("Super+1 ... Super+9" "Go to workspace 1-9" "grouplist")
-    ("Super+Shift+1 ... 9" "Send window to workspace 1-9 (on a strip: its whole column)" "vikix-send")
+  '(("Super+1 ... Super+9" "Go to workspace 1-9 (Super+0: one by name, past the nine)" "grouplist")
+    ("Super+Shift+1 ... 9" "Send window to workspace 1-9, 0 one by name (on a strip: its whole column)" "vikix-send")
     ("Ctrl+t then ?" "StumpWM's own keys (after the prefix)" "vikix-prefix-keys")
     ;; Not one of StumpWM's keys: rescue.lisp reads it on a connection of
     ;; its own, so it works when these don't.
@@ -695,6 +695,16 @@ last of them: the others are the ones to go to."
                             class))))))))
     (when current
       (vikix-palette-line "window" (window-id current) (window-name current) "this window")))
+  ;; The workspaces: the ones with windows, and the named ones (past the
+  ;; nine, which Super+1 ... 9 reach without the palette).
+  (when (and (fboundp 'vikix-workspace-names) (boundp '*vikix-group-names*))
+    (dolist (group (sort-groups (current-screen)))
+      (let ((name (group-name group)) (n (length (group-windows group))))
+        (when (and (member name (ignore-errors (funcall 'vikix-workspace-names)) :test #'equal)
+                   (not (eq group (current-group)))
+                   (or (plusp n) (not (member name (symbol-value '*vikix-group-names*) :test #'equal))))
+          (vikix-palette-line "workspace" name name
+                              (format nil "workspace~[, empty~:;: ~:*~d window~:p~]" n))))))
   (when (boundp '*vikix-commands*)
     (dolist (command (symbol-value '*vikix-commands*))
       (when (and (ignore-errors (vikix-command-here-p command))
@@ -729,6 +739,9 @@ command that asks something must not keep `vikix eval` waiting for it."
          (cond ((equal kind "window")
                 (let ((window (window-by-id (parse-integer id))))
                   (if window (focus-all window) (message "That window has gone."))))
+               ((equal kind "workspace")
+                (let ((group (find-group (current-screen) id)))
+                  (if group (switch-to-group group) (message "That workspace has gone."))))
                ((equal kind "command") (vikix-run-command id))
                ((equal kind "webapp") (run-commands (format nil "vikix-webapp ~a" id)))
                ((equal kind "layout") (run-commands (format nil "vikix-layout-restore-command ~a" id))))

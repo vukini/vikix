@@ -798,7 +798,7 @@ def desk(argv):
         if task and not first:
             print(f"The task: {task}")
         open_here(folder, start)
-    workspace = open_at(folder, start)
+    workspace = open_at(folder, start, topic or project.name)
     print(f"a desk for the agent: {said}" + (f", on workspace {workspace}" if workspace else ""))
     return 0
 
@@ -863,10 +863,26 @@ def open_terminal(folder, start):
                      stderr=subprocess.DEVNULL, start_new_session=True)
 
 
-def open_at(folder, start):
+def lisp_str(text):
+    """TEXT as a Lisp string, for a form the desktop reads."""
+    return '"' + str(text).replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def desk_name(folder):
+    """What a desk's workspace is called when it needs a name: the topic
+    (the worktree's name after the repository's and a dash), else the
+    folder's own name."""
+    base = os.path.basename(folder.rstrip("/"))
+    return base.split("-", 1)[1] if desk_of(folder) and "-" in base else base
+
+
+def open_at(folder, start, name=""):
     """START in a terminal of its own in FOLDER, on a workspace to itself
-    (the first empty one; this one when none is). The workspace's name."""
-    form = "(if (fboundp 'vikix-agent-desk-claim) (princ (vikix-agent-desk-claim)) (princ \"\"))"
+    (the first empty one of the nine; when all nine have windows, a new one
+    called NAME, the desk's topic; this one when there is no name either).
+    The workspace's name."""
+    form = ("(if (fboundp 'vikix-agent-desk-claim) (princ (vikix-agent-desk-claim "
+            + lisp_str(name) + ")) (princ \"\"))")
     try:
         r = subprocess.run(([sys.executable, EVAL] if EVAL.endswith("/bin/vikix-eval") else [EVAL]) + [form],
                            capture_output=True, text=True, timeout=20)
@@ -1678,7 +1694,7 @@ def resume(argv):
     start = agent_start(provider if provider != default_agent() or plan["args"] else None, plan["args"])
     if here:
         open_here(folder, start)
-    workspace = open_at(folder, start)
+    workspace = open_at(folder, start, desk_name(folder))
     if workspace:
         print(f"on workspace {workspace}")
     return 0

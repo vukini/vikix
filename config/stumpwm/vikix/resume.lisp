@@ -68,7 +68,9 @@ tiled or a strip, with a window."
                  (sort (copy-list (screen-groups (current-screen))) #'< :key #'group-number)))
 
 (defun vikix-resume-index ()
-  "What is saved: (:saved TIME :current NUMBER :workspaces ((NUMBER WINDOWS) ...)), or nil."
+  "What is saved: (:saved TIME :current NUMBER :workspaces ((NUMBER WINDOWS NAME) ...)), or nil.
+NAME is the workspace's name: a named one (past the nine, groups.lisp) is
+made again at login before its windows come back."
   (ignore-errors
    (with-open-file (in (merge-pathnames "index.lisp" *vikix-resume-dir*) :if-does-not-exist nil)
      (when in
@@ -84,7 +86,7 @@ none, what was saved before is left as it is."
         (saved '()))
     (dolist (group (vikix-resume-groups))
       (when (ignore-errors (vikix-layout-save (vikix-resume-name (group-number group)) group))
-        (push (list (group-number group) (length (vikix-resume-windows group))) saved)))
+        (push (list (group-number group) (length (vikix-resume-windows group)) (group-name group)) saved)))
     (setf saved (nreverse saved))
     (when saved
       ;; The workspaces that have no windows any more.
@@ -162,8 +164,15 @@ windows are still coming back."
 ;;; for its windows (or *vikix-resume-wait* seconds), then the next. A
 ;;; timer does the steps, a second apart: nothing here waits.
 
-(defun vikix-resume-group (number)
-  (find number (screen-groups (current-screen)) :key #'group-number))
+(defun vikix-resume-group (number &optional name)
+  "The workspace saved as NUMBER (and NAME): by its name first, since a
+named workspace made again at login may have another number; a named one
+that is gone is made again (groups.lisp)."
+  (let ((groups (screen-groups (current-screen))))
+    (or (and name (find name groups :key #'group-name :test #'equal))
+        (and (null name) (find number groups :key #'group-number))
+        (and name (fboundp 'vikix-workspace-name-ok) (funcall 'vikix-workspace-name-ok name)
+             (ignore-errors (funcall 'vikix-workspace-make name))))))
 
 (defun vikix-resume-open (specs group)
   "How many of SPECS have a window in GROUP now."
@@ -187,7 +196,7 @@ windows are still coming back."
   (handler-case
       (let* ((run *vikix-resume-run*)
              (number (getf run :number))
-             (group (and number (vikix-resume-group number))))
+             (group (and number (vikix-resume-group number (getf run :name)))))
         (cond
           ((null run))
           ;; Waiting for this workspace's windows.
@@ -202,13 +211,14 @@ windows are still coming back."
              (incf (getf *vikix-resume-run* :back)
                    (let ((layout-windows (getf run :wanted)))
                      (min layout-windows
-                          (length (vikix-resume-windows (or (vikix-resume-group number) group)))))))
+                          (length (vikix-resume-windows (or (vikix-resume-group number (getf run :name)) group)))))))
            (let ((next (pop (getf *vikix-resume-run* :queue))))
              (if (null next)
                  (vikix-resume-finish)
-                 (destructuring-bind (next-number wanted) next
-                   (let ((next-group (vikix-resume-group next-number)))
+                 (destructuring-bind (next-number wanted &optional next-name) next
+                   (let ((next-group (vikix-resume-group next-number next-name)))
                      (setf (getf *vikix-resume-run* :number) next-number
+                           (getf *vikix-resume-run* :name) next-name
                            (getf *vikix-resume-run* :wanted) wanted
                            (getf *vikix-resume-run* :since) (get-universal-time)
                            (getf *vikix-resume-run* :started) '())
@@ -232,7 +242,7 @@ what was saved, or nil when there is nothing."
           (t
            (setf *vikix-resume-run*
                  (list :queue (copy-list (getf index :workspaces))
-                       :number nil :wanted 0 :since 0 :started '()
+                       :number nil :name nil :wanted 0 :since 0 :started '()
                        :current (or (getf index :current) 1)
                        :asked (reduce #'+ (getf index :workspaces) :key #'second)
                        :back 0)

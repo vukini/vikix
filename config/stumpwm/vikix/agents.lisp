@@ -267,15 +267,15 @@ what each has left uncommitted."
 
 ;;; --- A desk --------------------------------------------------------------------------------
 
-(defun vikix-agent-desk-claim ()
-  "Go to a workspace an agent can have to itself: the first with no window
-(this one, when none is empty). Its name. For vikix agents desk, which
-then opens the agent's terminal there."
-  (let ((empty (find-if (lambda (g) (and (null (group-windows g)) (plusp (group-number g))))
-                        (sort-groups (current-screen)))))
-    (when (and empty (not (eq empty (current-group))))
-      (switch-to-group empty))
-    (group-name (current-group))))
+(defun vikix-agent-desk-claim (&optional name)
+  "Go to a workspace an agent can have to itself: the first of the nine
+with no window, or, all nine in use, a new one named NAME, the desk's
+topic (groups.lisp: vikix-workspace-claim; this workspace when there is
+no name either). Its name. For vikix agents desk, which then opens the
+agent's terminal there."
+  (group-name (if (fboundp 'vikix-workspace-claim)
+                  (funcall 'vikix-workspace-claim name)
+                  (current-group))))
 
 ;;; --- The desk's name on the window --------------------------------------------------------
 ;;;

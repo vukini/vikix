@@ -37,7 +37,9 @@
 ;;;; Sending a window to a workspace is Super+Shift+<digit>. Shift+digit is
 ;;;; a different key on every keyboard layout (! on US, " on UK for 2 ...),
 ;;;; so the key's name is asked of the keyboard as it is laid out now
-;;;; (vikix-bind-workspace-keys, below), not written down here.
+;;;; (vikix-bind-workspace-keys, below), not written down here. The 0 of
+;;;; each pair is a workspace by name (groups.lisp): the ones past the
+;;;; nine have no digit.
 
 (in-package :stumpwm)
 
@@ -111,7 +113,8 @@ added to this list.")
 when the keyboard can't be asked (no screen yet).")
 
 (defvar *vikix-workspace-send-keys* '()
-  "The keys bound to send a window to workspaces 1 to 9, as bound last.")
+  "The keys bound to send a window to workspaces 1 to 9, and to one by name
+(Super+Shift+0), as bound last.")
 
 (defun vikix-shift-digit-key (n)
   "The name of the key Super+Shift+N on the keyboard as it is laid out now.
@@ -126,18 +129,19 @@ Where the digit itself needs Shift (French), Super+Ctrl+N instead."
                ((/= plain digit) (format nil "s-C-~d" n))
                ((or (null name) (= shifted digit)) (format nil "s-S-~d" n))
                (t (format nil "s-~a" name)))))
-      (format nil "s-~a" (nth (1- n) *vikix-us-shifted-digits*))))
+      (format nil "s-~a" (if (zerop n) "parenright" (nth (1- n) *vikix-us-shifted-digits*)))))
 
 (defun vikix-bind-workspace-keys ()
-  "Bind Super+Shift+1 ... 9 to send the window to that workspace, for the
+  "Bind Super+Shift+1 ... 9 to send the window to that workspace, and
+Super+Shift+0 to send it to one by name (asked, with completion), for the
 keyboard as it is now; the keys bound for another layout are let go."
-  (let ((keys (loop for n from 1 to 9 collect (vikix-shift-digit-key n))))
+  (let ((keys (loop for n from 0 to 9 collect (vikix-shift-digit-key n))))
     (dolist (old *vikix-workspace-send-keys*)
       (unless (member old keys :test #'equal)
         (ignore-errors (undefine-key *top-map* (kbd old)))))
     (loop for key in keys
-          for n from 1
-          do (vikix-bind key (format nil "vikix-send ~d" n)))
+          for n from 0
+          do (vikix-bind key (if (zerop n) "vikix-send" (format nil "vikix-send ~d" n))))
     (setf *vikix-workspace-send-keys* keys)))
 
 ;;; Clashes: a plugin or a web app taking a key something else has. The
@@ -211,9 +215,12 @@ Vikix (yours from user.lisp count as Vikix's here: they load after)."
   (dolist (binding *vikix-bindings*)
     (vikix-bind (first binding) (second binding)))
 
-  ;; Workspaces: s-1 goes to workspace 1; Super+Shift+1 sends the window there.
+  ;; Workspaces: s-1 goes to workspace 1; Super+Shift+1 sends the window
+  ;; there. s-0 goes to one by name (groups.lisp), and Super+Shift+0 sends
+  ;; the window to one by name: the workspaces past the nine have no digit.
   (loop for n from 1 to 9
         do (vikix-bind (format nil "s-~d" n) (format nil "gselect ~d" n)))
+  (vikix-bind "s-0" "vikix-workspace")
   (vikix-bind-workspace-keys))
 
 ;; From here on a command defined with define-vikix-command (yours, in

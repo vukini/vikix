@@ -34,7 +34,7 @@ login on tty1
                   └─ ~/.stumpwm.d/init.lisp
                       ├─ vikix/errors.lisp       when something fails, ask what to do
                       ├─ vikix/theme.lisp        colours and fonts
-                      ├─ vikix/groups.lisp       workspaces 1–9
+                      ├─ vikix/groups.lisp       workspaces 1–9, more by name
                       ├─ vikix/registry.lisp     every command once: its key, its place in Super+m
                       ├─ vikix/commands.lisp     Vikix's commands and the Super+m menu
                       ├─ vikix/windows.lisp      focus, gaps, layout undo
