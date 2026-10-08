@@ -173,6 +173,23 @@
                        for that agent's commit instead of asking you (ten
                        minutes at most, then it asks); two waiting for each
                        other is seen, and the later one asks you at once
+  vikix agents test [DESK | --all] [--log DESK]
+                       the tester: the tests a desk's changes reach
+                       (its project's tests/run.sh, --changed from where
+                       its branch left the project's own), run in its
+                       worktree through the runner's queue; the result
+                       goes into its handoff as a check by vikix, with the
+                       failing tests named, and into its inbox, so the
+                       worker fixes its own failures. A desk set to review
+                       runs this by itself, once per hand-in. --all: every
+                       desk in review; those that changed no file in
+                       common are merged onto the project's own branch in
+                       a throwaway worktree and tested together once
+                       (passing alone and failing together is what a
+                       batch is for), the overlapping ones each alone,
+                       told which it overlaps; a merge that conflicts
+                       sends that desk to run alone. --log: the last
+                       run's output
   vikix agents stopping
                        Claude Code's Stop hook (vikix agent sets it): a
                        worker, an agent at a desk with a task, that changed
@@ -283,7 +300,9 @@ by typing into its window. The same hook holds a paused worker (vikix
 agents pause) at its next call, a second entry of it before every tool,
 Read too, so a pause takes hold at the next thing it does; and with turns
 on (vikix agents turns) it waits at a clash for the other agent's commit
-rather than asking you.
+rather than asking you. A hand-in (status review) runs the desk's tests
+(vikix agents test): a script, never an agent, whose result lands in the
+record and the worker's inbox.
 
 The house rules: the office keeps a journal of what each agent edits
 (~/.local/state/vikix/office/journal.jsonl, pruned to the agents still
@@ -312,6 +331,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 from importlib.machinery import SourceFileLoader
 import importlib.util
@@ -1288,6 +1308,10 @@ def handoff_apply(folder, data, by):
     rec = H.update(common, folder, change, branch=(git(folder, "rev-parse", "--abbrev-ref", "HEAD") or "").strip(),
                    project=project_of(folder, common))
     status_told(folder, seen.get("before"), rec, by)
+    status = ((rec.get("handoff") or {}).get("status") or {}).get("value")
+    if (status == "review" and seen.get("before") != "review" and os.environ.get("VIKIX_TESTER") != "0"
+            and runner_of(folder)[1] and not tester_running(folder)):
+        tester_start(folder)
     return rec
 
 
@@ -1476,6 +1500,237 @@ def take_turn(me, path, clashes, now):
     if live:
         return clashes, f"waited {PAUSE_LIMIT // 60} minutes for the commit; still uncommitted"
     return [], f"Vikix office: your turn on {short(path)}: the other agent's change there is committed now."
+
+
+# --- The tester: a desk's tests, the result in its record and its inbox ----------------------------
+
+def tester_paths(folder):
+    """(the log of the desk's last run, the note of a run under way)."""
+    H = handoff_module()
+    d = os.path.join(STATE, "vikix", "office", "tests")
+    did = H.desk_id(common_of(folder), folder)
+    return os.path.join(d, did + ".log"), os.path.join(d, did + ".running")
+
+
+def tester_running(folder):
+    """The pid of a tester at work on the desk, or 0; a note whose process is gone is nobody's."""
+    try:
+        with open(tester_paths(folder)[1]) as f:
+            pid = int(f.read().split()[0])
+        os.kill(pid, 0)
+        return pid
+    except (OSError, ValueError, IndexError):
+        return 0
+
+
+def runner_of(folder):
+    """The project's test runner for the desk FOLDER: tests/run.sh in the
+    folder, else at its worktree's top. (where, runner, takes --changed),
+    Nones without one."""
+    top = (git(folder, "rev-parse", "--show-toplevel") or "").strip()
+    for where in dict.fromkeys([folder, top]):
+        runner = os.path.join(where, "tests", "run.sh") if where else ""
+        if runner and os.access(runner, os.X_OK):
+            try:
+                with open(runner, errors="replace") as f:
+                    changed = "--changed" in f.read()
+            except OSError:
+                changed = False
+            return where, runner, changed
+    return None, None, False
+
+
+def base_of(folder):
+    """Where the desk's branch left the project's own: (merge base, the
+    project's own folder, its branch)."""
+    top = (git(folder, "rev-parse", "--show-toplevel") or "").strip()
+    own = own_folder(top) if top else ""
+    own_branch = (git(own, "rev-parse", "--abbrev-ref", "HEAD") or "").strip() if own else ""
+    base = (git(folder, "merge-base", "HEAD", own_branch) or "").strip() if own_branch and own_branch != "HEAD" else ""
+    return base, own, own_branch
+
+
+def run_tests(where, runner, changed, base, log):
+    """The runner in WHERE, all it says to LOG. (ok, the failed tests'
+    names, a few lines of the first failure)."""
+    cmd = [runner] + (["--changed", base] if changed and base else [])
+    os.makedirs(os.path.dirname(log), exist_ok=True)
+    with open(log, "w") as out:
+        try:
+            r = subprocess.run(cmd, cwd=where, stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT)
+            code = r.returncode
+        except OSError as e:
+            out.write(f"{runner}: {e}\n")
+            code = 127
+    try:
+        with open(log, errors="replace") as f:
+            text = f.read()
+    except OSError:
+        text = ""
+    failed = re.findall(r"^FAILED: (.*)$", text, re.M)
+    names = failed[-1].split() if failed else []
+    ok = code == 0 and not names
+    if not ok and not names:
+        names = [f"exit {code}"]
+    fails = [line.strip() for line in text.splitlines() if line.startswith("FAIL")][:3]
+    excerpt = " | ".join(fails) if fails else " | ".join(line.strip() for line in text.splitlines()[-5:])
+    return ok, names, excerpt
+
+
+def tester_result(folder, name, ok, names, excerpt, took, note=""):
+    """The run's result into the desk's record (a check by vikix) and its inbox; said."""
+    H = handoff_module()
+    words = (f"passed in {took} s" if ok else f"failed: {', '.join(names)}; {excerpt}")
+    full = ((note + "; ") if note else "") + words
+    desk_record(folder, by="vikix", change=lambda r: H.add_check(r, name, ok, "vikix", folder, full[:480]))
+    line = (f"tests passed ({name}, {took} s)" if ok else
+            f"tests: {len(names)} failed ({', '.join(names)}); vikix agents test --log {os.path.basename(folder)} shows them")
+    if note:
+        line += f" [{note}]"
+    try:
+        inbox_add(folder, line, "vikix")
+    except H.HandoffError:
+        pass
+    print(f"{short(folder)}: {line}")
+    return ok
+
+
+def test_desk(folder, note=""):
+    """One desk's tests, in its worktree. True, False, or None when the
+    project has no runner (said; no check, no note)."""
+    where, runner, changed = runner_of(folder)
+    if not runner:
+        print(f"{short(folder)}: no tests/run.sh in this project, nothing to run")
+        return None
+    base, _, _ = base_of(folder)
+    log, running = tester_paths(folder)
+    os.makedirs(os.path.dirname(log), exist_ok=True)
+    with open(running, "w") as f:
+        f.write(f"{os.getpid()} {int(time.time())}\n")
+    started = time.time()
+    try:
+        ok, names, excerpt = run_tests(where, runner, changed, base, log)
+    finally:
+        try:
+            os.unlink(running)
+        except OSError:
+            pass
+    name = "tests/run.sh" + (f" --changed {base[:7]}" if changed and base else "")
+    return tester_result(folder, name, ok, names, excerpt, int(time.time() - started), note)
+
+
+def test_batch(own, own_branch, batch):
+    """BATCH, desks of one project that changed no file in common, merged
+    onto the project's own branch in a throwaway worktree and tested there
+    once; the check and the note on each. The desks a merge conflict kept
+    out, to run alone."""
+    tmp = tempfile.mkdtemp(prefix="vikix-tester-")
+    wt = os.path.join(tmp, "batch")
+    dropped, merged = [], []
+    try:
+        if git(own, "worktree", "add", "--detach", wt, own_branch) is None:
+            return batch
+        for d in batch:
+            r = subprocess.run(["git", "-C", wt, "merge", "--no-ff", "-q", "-m", f"batch: {d['branch']}", d["branch"]],
+                               capture_output=True, text=True)
+            if r.returncode:
+                subprocess.run(["git", "-C", wt, "merge", "--abort"], capture_output=True, text=True)
+                d["note"] = "a merge conflict kept it out of the batch"
+                dropped.append(d)
+            else:
+                merged.append(d)
+        if len(merged) < 2:
+            return dropped + merged
+        where, runner, changed = runner_of(wt)
+        base = (git(wt, "rev-parse", own_branch) or "").strip()
+        log = os.path.join(STATE, "vikix", "office", "tests", f"batch-{int(time.time())}.log")
+        started = time.time()
+        ok, names, excerpt = run_tests(where, runner, changed, base, log)
+        took = int(time.time() - started)
+        name = "tests/run.sh" + (f" --changed {base[:7]}" if changed and base else "") + " (batch)"
+        for d in merged:
+            others = ", ".join(short(o["folder"]) for o in merged if o is not d)
+            shutil.copyfile(log, tester_paths(d["folder"])[0])
+            tester_result(d["folder"], name, ok, names, excerpt, took, f"with {others}")
+        return dropped
+    finally:
+        subprocess.run(["git", "-C", own, "worktree", "remove", "--force", wt], capture_output=True, text=True)
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_all():
+    """Every desk in review: the disjoint ones of a project together, the
+    overlapping ones alone, told which they overlap."""
+    H = handoff_module()
+    review = [r for r in H.all_records()
+              if ((r.get("handoff") or {}).get("status") or {}).get("value") == "review"
+              and not r["desk"].get("closed") and os.path.isdir(r["desk"]["worktree"])]
+    if not review:
+        print("no desk is in review (vikix agents handoff list)")
+        return 0
+    desks = []
+    for r in review[::-1]:                       # in the order they went to review
+        folder = r["desk"]["worktree"]
+        base, own, own_branch = base_of(folder)
+        files = set((git(folder, "diff", "--name-only", base) or "").split()) if base else set()
+        branch = r["desk"].get("branch") or (git(folder, "rev-parse", "--abbrev-ref", "HEAD") or "").strip()
+        desks.append({"folder": folder, "own": own, "own_branch": own_branch, "files": files, "branch": branch, "note": ""})
+    for own in dict.fromkeys(d["own"] for d in desks):
+        mine = [d for d in desks if d["own"] == own]
+        batch, alone = [], []
+        for d in mine:
+            # In the order they went to review: a desk joins the batch when it changed no
+            # file the batch has; else it runs alone, told which desk it overlaps on what.
+            overlap = [(o, d["files"] & o["files"]) for o in batch if d["files"] & o["files"]]
+            if overlap:
+                d["note"] = "; ".join(f"overlaps {short(o['folder'])} on {', '.join(sorted(f)[:3])}" for o, f in overlap)
+                alone.append(d)
+            elif d["files"] and own and runner_of(d["folder"])[1]:
+                batch.append(d)
+            else:
+                alone.append(d)
+        if len(batch) >= 2:
+            alone += test_batch(own, mine[0]["own_branch"], batch)
+        else:
+            alone += batch
+        for d in alone:
+            test_desk(d["folder"], d["note"])
+    return 0
+
+
+def tester_start(folder):
+    """The desk's tests started by themselves, apart from this process
+    (a hand-in): their words to the log's side file."""
+    log, _ = tester_paths(folder)
+    os.makedirs(os.path.dirname(log), exist_ok=True)
+    with open(log + ".tester", "w") as out:
+        subprocess.Popen([sys.executable, os.path.realpath(__file__), "test", folder], cwd=folder,
+                         stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT, start_new_session=True)
+
+
+def tester(argv):
+    """vikix agents test [DESK | --all] [--log DESK]."""
+    if argv == ["--all"]:
+        return test_all()
+    show = "--log" in argv
+    words = [a for a in argv if not a.startswith("-")]
+    if len(words) != len(argv) - (1 if show else 0):
+        die("vikix agents test [DESK | --all] [--log DESK]")
+    by, me = by_me()
+    folder, _ = desk_for(words, me)
+    if show:
+        log, _ = tester_paths(folder)
+        try:
+            with open(log, errors="replace") as f:
+                sys.stdout.write(f.read())
+        except OSError:
+            print(f"{short(folder)}: no test run yet (vikix agents test {os.path.basename(folder)})")
+        return 0
+    pid = tester_running(folder)
+    if pid:
+        die(f"{short(folder)}: a tester is at work there already (pid {pid})")
+    test_desk(folder)
+    return 0
 
 
 def stopping(argv):
@@ -2641,6 +2896,8 @@ def main(argv):
         return go(argv[1:])
     if argv and argv[0] == "turns":
         return turns(argv[1:])
+    if argv and argv[0] == "test":
+        return tester(argv[1:])
     if argv and argv[0] == "stopping":
         return stopping(argv[1:])
     if argv and argv[0] == "touch":
@@ -2674,7 +2931,7 @@ def main(argv):
         return 0
     as_json = argv == ["--json"]
     if argv and not as_json:
-        die("vikix agents [--json|here|desk|sit|close|desks|handoff|resume|tell|pause|go|turns|hooks|clash|crossings] (vikix agents help)")
+        die("vikix agents [--json|here|desk|sit|close|desks|handoff|resume|tell|pause|go|turns|test|hooks|clash|crossings] (vikix agents help)")
     agents = desktop()
     agents += elsewhere({a["pid"] for a in agents})
     agents = [with_git(a) for a in seated(agents)]
@@ -2691,7 +2948,11 @@ def main(argv):
         a["waits"] = None
         if a["pid"] in held and a["state"] in ("working", "running", "idle"):
             a["doing"], a["waits"] = held[a["pid"]]
-        # A paused desk: said in place of what the agent is doing, with who paused it and when.
+        # A tester at work on the desk, or a paused desk: said in place of what the agent is doing.
+        a["testing"] = tester_running(a["folder"]) if a["folder"] else 0
+        if a["testing"] and a["state"] in ("working", "running", "idle"):
+            a["doing"] = "testing"
+            a["waits"] = f"its desk's tests run (vikix agents test, pid {a['testing']}); the result goes into its handoff and its inbox"
         a["paused"] = pause_read(a["folder"]) if a["folder"] else {}
         if a["paused"]:
             a["doing"] = "frozen" if a["paused"].get("hard") else "paused"

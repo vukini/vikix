@@ -207,6 +207,12 @@ A note for a worker at work: `vikix agents tell wifi-fix "try the laptop's secon
 
 Two workers reaching for one file are stopped at your prompt, as the house rules say below. With `vikix agents turns wifi-fix on`, the worker at that desk waits instead: an edit of a file another agent has changed, uncommitted, waits for that agent's commit, up to ten minutes, and goes on with "your turn" when it comes, or asks you when it doesn't. A journal entry alone holds nobody: once the file is committed in the other's worktree, the turn is free. Two waiting for each other is seen, and the later one asks you at once. It is off by default, because silence is wrong for a session you are talking with; `turns off` puts the question back.
 
+### The tester: a hand-in comes back checked
+
+When a worker sets its status to *review*, its desk's tests run by themselves: `vikix agents test wifi-fix` is what runs, a script and never an agent. It runs the project's `tests/run.sh` in the desk's worktree, `--changed` from where the branch left the project's own, through the runner's queue like any other run, and writes the result into the record as a check signed *vikix*, the failing tests named and the first failure's line kept, and into the worker's inbox, so the worker reads it at its next tool call and fixes its own failures; `vikix agents test --log wifi-fix` shows the whole run. `vikix agents` and the Office say *testing* while it runs. A project with no `tests/run.sh` is said so, with no check.
+
+`vikix agents test --all` takes every desk in review. In the order they went to review, a desk joins a batch when it changed no file the batch has; the batch is merged onto the project's own branch in a throwaway worktree, gone afterwards, and tested once, each desk's check saying with which, since passing alone and failing together is what a batch is for. A desk that overlaps one in the batch runs alone, in its own worktree as it stands, told which it overlaps on what. Nothing touches a desk's branch: a merge that conflicts only sends that desk to run alone.
+
 ### When a desk doesn't appear
 
 `vikix agents` shows no new line and the workspace is empty: the desk wasn't made. From a terminal the reason is printed (*no project called ...*: `vikix project list` names them, and any part of a name does); from `Super+m` it comes as a notification. The usual cause is a name that isn't the project's (`novel-second-edition` when the project is `novel`).
@@ -286,7 +292,7 @@ The Vikix skill tells every agent the same rules, so you can hold it to them: lo
 
 ## Not there yet
 
-A workspace and a bar colour each; a tester that runs a desk's tests on its hand-in, and dismissing an agent from the terminal (`DESIGN-workers.md`); handing a window from one agent to another; a permission list per agent. Gemini CLI's and Codex's hook shapes, and Gemini's resume, tried on a machine that has them. Each will come as it is needed; the pieces that are here are the ones the first weeks with several agents asked for.
+A workspace and a bar colour each; dismissing an agent from the terminal, and the workers' keys and buttons (`DESIGN-workers.md`); handing a window from one agent to another; a permission list per agent. Gemini CLI's and Codex's hook shapes, and Gemini's resume, tried on a machine that has them. Each will come as it is needed; the pieces that are here are the ones the first weeks with several agents asked for.
 
 ## The Office
 

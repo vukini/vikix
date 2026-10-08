@@ -111,6 +111,7 @@ def snapshot(api):
                                   else 'Continue' if row['exists'] else 'Worktree removed')
         needs = any(a.get('state') in ('asks', 'permission', 'question', 'waiting', 'done') for a in row['agents'])
         row['paused'] = api.pause_read(path) if row['kind'] == 'desk' else {}
+        row['testing'] = api.tester_running(path) if row['kind'] == 'desk' else 0
         row['group'] = ('Needs you' if needs or status in ('waiting', 'review') or not live_known
                         else 'Working' if row['agents'] and not row['paused']
                         else 'Finished' if status == 'finished' or d.get('closed')
