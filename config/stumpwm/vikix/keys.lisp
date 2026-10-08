@@ -217,9 +217,9 @@ Vikix (yours from user.lisp count as Vikix's here: they load after)."
     (vikix-bind (first binding) (second binding)))
 
   ;; Workspaces: s-1 goes to workspace 1; Super+Shift+1 sends the window
-  ;; there. s-0 goes to one by name (groups.lisp), and Super+Shift+0 sends
-  ;; the window to one by name, made when it is new (viri.lisp): the
-  ;; workspaces past the nine have no digit.
+  ;; there. s-0 goes to one by name (groups.lisp), made when the name is
+  ;; new, and Super+Shift+0 sends the window to one by name, made the same
+  ;; way (viri.lisp): the workspaces past the nine have no digit.
   (loop for n from 1 to 9
         do (vikix-bind (format nil "s-~d" n) (format nil "gselect ~d" n)))
   (vikix-bind "s-0" "vikix-workspace")

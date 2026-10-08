@@ -9,10 +9,11 @@
 ;;;; project open) each want a workspace to themselves, and take the first
 ;;;; empty one of the nine; only when every one of the nine has windows is
 ;;;; a tenth made, named for what it is for ("wifi-fix", "novel"), through
-;;;; vikix-workspace-claim. Super+0 (vikix-workspace) goes to one by name,
-;;;; and makes one the same way when the name is new; Super+Shift+0
-;;;; (vikix-send-named, viri.lisp) sends the window to one, new or not. A
-;;;; named workspace is
+;;;; vikix-workspace-claim. A name you type is different: Super+0
+;;;; (vikix-workspace) goes to a workspace by name and makes one of that
+;;;; name when it is new, empty numbered ones or not (:named t), since you
+;;;; asked for it by name; Super+Shift+0 (vikix-send-named, viri.lisp)
+;;;; sends the window to one the same way. A named workspace is
 ;;;; Vikix's to take away again: left with no windows on it, it goes (a
 ;;;; hook on leaving a workspace), so the bar never fills with empty names.
 ;;;; Workspaces you make yourself (gnewbg in user.lisp) are never touched.
@@ -72,17 +73,20 @@ to take away again. The one of that name already there is returned instead."
     (setf (gethash name *vikix-workspaces-made*) (get-universal-time))
     group))
 
-(defun vikix-workspace-claim (&optional name &key (go t))
+(defun vikix-workspace-claim (&optional name &key (go t) named)
   "A workspace for NAME (a desk's topic, a project), gone to unless GO is
 nil: the one of that name when it exists; else the first of the nine with
 no window; else, all nine being in use, a new one named NAME (this
-workspace when no name is given). The group."
+workspace when no name is given). With NAMED, a name the user typed, the
+empty ones of the nine are passed over: a new name is a new workspace of
+that name at once. The group."
   (let* ((screen (current-screen))
          (name (vikix-workspace-name-ok name))
          (group (or (and name (find-group screen name))
-                    (find-if (lambda (g) (and (null (group-windows g))
-                                              (member (group-name g) *vikix-group-names* :test #'equal)))
-                             (sort-groups screen))
+                    (and (not (and named name))
+                         (find-if (lambda (g) (and (null (group-windows g))
+                                                   (member (group-name g) *vikix-group-names* :test #'equal)))
+                                  (sort-groups screen)))
                     (and name (vikix-workspace-make name))
                     (current-group))))
     (when (and go (not (eq group (current-group))))
@@ -115,8 +119,8 @@ is never you leaving."
 
 (defcommand vikix-workspace (name) ((:vikix-workspace "Workspace: "))
   "Go to a workspace by name (Super+0; Tab completes). A name there is no
-workspace of gets one: the first empty of the nine, or a new workspace of
-that name once all nine have windows."
+workspace of gets a new workspace of that name, whether or not one of the
+nine is empty: you named it."
   (let* ((screen (current-screen))
          (name (string-trim " " (or name "")))
          (there (and (plusp (length name)) (find-group screen name))))
@@ -124,8 +128,5 @@ that name once all nine have windows."
           (there (switch-to-group there))
           ((not (vikix-workspace-name-ok name))
            (message "~s is no name for a workspace: a word or two, not a number." name))
-          (t (let ((group (vikix-workspace-claim name)))
-               (if (equal (group-name group) name)
-                   (message "Workspace ~a, new." name)
-                   (message "No workspace ~a; workspace ~a was empty, so here. One named ~a comes once all nine have windows."
-                            name (group-name group) name)))))))
+          (t (vikix-workspace-claim name :named t)
+             (message "Workspace ~a, new." name)))))

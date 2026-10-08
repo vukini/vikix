@@ -6,8 +6,9 @@
 #   project) takes the first empty one of the nine while there is one, and
 #   makes a workspace of that name only once all nine have windows; the
 #   same name again is the same workspace. Super+0 (vikix-workspace) goes
-#   to one by name, and a new name there is claimed the same way, said in
-#   words; Super+Shift+0 sends the window to one by name. The palette lists
+#   to one by name, and a new name there makes a workspace of that name at
+#   once, empty numbered ones or not (the user named it); Super+Shift+0
+#   sends the window to one by name, the same way. The palette lists
 #   the workspaces in use and the named ones. A named workspace left with
 #   no window goes, after its first minute; one with a window stays; a
 #   workspace made in user.lisp is never taken; a strip on and off keeps a
@@ -44,7 +45,23 @@ check "a name is a word or two, not a number, not hidden: $ok" test "$ok" = "(wi
 check "a claim with every workspace empty takes the first of the nine: $(ask '(princ (group-name (vikix-workspace-claim "early")))')" test "$(here_name)" = 1
 check "no workspace was made for it: $(names)" test "$(names)" = "1 2 3 4 5 6 7 8 9"
 ask '(vikix-workspace "early")' >/dev/null
-check "Super+0 with a new name says where you are and why: $(said)" grep -q 'No workspace early; workspace 1 was empty' <<<"$(said)"
+check "Super+0 with a new name makes a workspace of that name though the nine are empty: $(here_name)" test "$(here_name)" = early
+check "and says so: $(said)" grep -q 'Workspace early, new' <<<"$(said)"
+check "it is Vikix's to take away" yes '(gethash "early" *vikix-workspaces-made*)'
+ask '(vikix-workspace "1")' >/dev/null
+ask '(setf *vikix-workspace-grace* 0)' >/dev/null
+ask '(vikix-workspace "early")' >/dev/null; key super+1
+check "left empty past its minute, it is gone again: $(names)" test "$(names)" = "1 2 3 4 5 6 7 8 9"
+ask '(setf *vikix-workspace-grace* 60)' >/dev/null
+win E1
+ask '(vikix-send-named "notes")' >/dev/null; sleep 0.5
+check "Super+Shift+0 with a new name sends the window to a new workspace of that name though the nine are empty: $(on notes)" test "$(on notes)" = "E1"
+check "said so: $(said)" grep -q 'Workspace notes, new' <<<"$(said)"
+check "and you stayed: $(here_name)" test "$(here_name)" = 1
+ask '(progn (switch-to-group (find-group (current-screen) "notes")) (delete-window (current-window)))' >/dev/null; sleep 0.5
+ask '(setf *vikix-workspace-grace* 0)' >/dev/null; key super+1; sleep 0.3
+ask '(setf *vikix-workspace-grace* 60)' >/dev/null
+check "the nine alone again: $(names)" test "$(names)" = "1 2 3 4 5 6 7 8 9"
 
 # All nine in use.
 for n in 1 2 3 4 5 6 7 8 9; do key "super+$n"; win "W$n"; done
@@ -119,5 +136,5 @@ check "and is Vikix's to take away" yes '(gethash "ghost" *vikix-workspaces-made
 
 check "the desktop met no error" test -z "$(ls "$home/.local/state/vikix/errors" 2>/dev/null)"
 
-wm_report workspaces "the nine always there, a claim takes an empty one of them first and makes a named workspace once all nine are in use, the desk's and the project's claims, Super+0 and Super+Shift+0 by name, the palette's rows, an empty named workspace gone after its minute and one with a window kept, the user's own and a strip's left alone, resume by name"
+wm_report workspaces "the nine always there, a claim takes an empty one of them first and makes a named workspace once all nine are in use, the desk's and the project's claims, Super+0 and Super+Shift+0 by name (a new name a new workspace at once), the palette's rows, an empty named workspace gone after its minute and one with a window kept, the user's own and a strip's left alone, resume by name"
 exit "$fail"

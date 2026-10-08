@@ -481,7 +481,7 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
   :menu "Windows" :label "Find a window, any workspace")
 ;; Super+0 is bound beside the digits in keys.lisp, so the key card keeps
 ;; its rows (it is full): here for the menu and the palette.
-(define-vikix-command workspace "Go to a workspace by name; a new name makes one, once all nine have windows"
+(define-vikix-command workspace "Go to a workspace by name; a new name makes one"
   :run "vikix-workspace"
   :menu "Windows" :label "Workspace: go to one by name, or make one")
 (define-vikix-command bring-window "Bring any window here, from any workspace"
