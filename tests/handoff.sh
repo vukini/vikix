@@ -156,7 +156,7 @@ rm -r "$t/proc/1009"
 
 # A note for the desk's agent: waits in the handoff, delivered by the hook.
 out=$(agents tell a "look at chapter two first")
-check "a note for the desk's agent: $out" grep -q 'book-a: noted for its agent, delivered at its next edit or command' <<<"$out"
+check "a note for the desk's agent: $out" grep -q 'book-a: noted for its agent, delivered at its next tool call' <<<"$out"
 check "the handoff shows it waiting" grep -q '^  user (just now): look at chapter two first$' <<<"$(agents handoff a)"
 out=$(agents tell a "the key is sk-ant-abcdefghijklmnopqrst")
 check "a credential in a note is refused: $out" grep -q 'looks like it holds a credential' <<<"$out"

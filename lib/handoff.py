@@ -455,6 +455,9 @@ def render(rec, agents_at=(), protection=(), now=None):
     h = rec.get("handoff") or {}
     s = h.get("status")
     lines.append(f"Status: {s['value']} ({s['by']}, {when(s['at'])})" if s else "Status: not said")
+    turns = rec.get("turns") or {}
+    if turns.get("on"):
+        lines.append(f"Turns: on ({turns.get('by', '?')}, {when(turns.get('at', 0))}): a clash waits for the other's commit")
     est = estimate_state(rec)
     if est:
         lines.append(f"Estimate ({est['by']}, {when(est['at'])}): {est['text']}; {est['line']}")

@@ -7,7 +7,16 @@
           {
             "type": "command",
             "command": "vikix agents touch",
-            "timeout": 15
+            "timeout": 660
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "vikix agents touch --pause-only",
+            "timeout": 660
           }
         ]
       }

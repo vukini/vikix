@@ -153,17 +153,32 @@
                        Aider none. Instructions only, where no hook is
   vikix agents tell DESK "..."
                        a note for the desk's agent, delivered by Claude
-                       Code's hook at its next edit or command (another
+                       Code's hook at its next tool call (another
                        agent reads it in vikix agents handoff, and resume
                        reads it out); said when the agent is at its prompt,
                        since it makes none until you speak to it; DESK as
                        for close
+  vikix agents pause DESK [--hard]
+                       hold the desk's agent: its next tool call
+                       waits, with its context whole and at no cost,
+                       until go, for ten minutes at most, after which the
+                       call is refused with why and the turn ends. --hard
+                       freezes the agent's process this instant instead
+                       (SIGSTOP; for an agent with no hook, or an emergency:
+                       a request in flight may time out)
+  vikix agents go DESK  let it go on (SIGCONT after --hard)
+  vikix agents turns DESK on|off
+                       take turns on a file: with turns on, an edit of a
+                       file another agent has changed, uncommitted, waits
+                       for that agent's commit instead of asking you (ten
+                       minutes at most, then it asks); two waiting for each
+                       other is seen, and the later one asks you at once
   vikix agents stopping
                        Claude Code's Stop hook (vikix agent sets it): a
                        worker, an agent at a desk with a task, that changed
                        files in this turn and left the handoff unwritten
                        is asked once to write it before it stops
-  vikix agents touch [FILE] [--for PROVIDER]
+  vikix agents touch [FILE] [--for PROVIDER] [--pause-only]
   vikix agents clash [FILE]
                        the files two agents are on at once: each file with
                        the agents that have changed it, uncommitted, in
@@ -264,7 +279,11 @@ the desktop, and a worker that changed files in a turn without writing its
 handoff is asked once to, by Claude Code's Stop hook, before it stops. A
 note for a worker at work (vikix agents tell) reaches it at its next edit
 or command, through the same hook that holds the house rules, and never
-by typing into its window.
+by typing into its window. The same hook holds a paused worker (vikix
+agents pause) at its next call, a second entry of it before every tool,
+Read too, so a pause takes hold at the next thing it does; and with turns
+on (vikix agents turns) it waits at a clash for the other agent's commit
+rather than asking you.
 
 The house rules: the office keeps a journal of what each agent edits
 (~/.local/state/vikix/office/journal.jsonl, pruned to the agents still
@@ -290,6 +309,7 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -1233,9 +1253,9 @@ def tell(argv):
         if state in ("idle", "done"):
             said += "; its agent is at its prompt: it reads this when you next ask it something"
         elif state == "asks":
-            said += "; its agent is waiting for you: answer it, and it reads this at its next edit or command"
+            said += "; its agent is waiting for you: answer it, and it reads this at its next tool call"
         else:
-            said += ", delivered at its next edit or command"
+            said += ", delivered at its next tool call"
     print(said)
     return 0
 
@@ -1269,6 +1289,193 @@ def handoff_apply(folder, data, by):
                    project=project_of(folder, common))
     status_told(folder, seen.get("before"), rec, by)
     return rec
+
+
+# --- Pause and go; turns on one file ------------------------------------------------------------
+
+PAUSE_LIMIT = int(os.environ.get("VIKIX_PAUSE_LIMIT") or 600)   # seconds a hook waits, at most
+
+
+def pause_path(folder):
+    """The desk's pause: a file named by the desk's id, {at, by, hard, stopped}."""
+    H = handoff_module()
+    return os.path.join(STATE, "vikix", "office", "pause", H.desk_id(common_of(folder), folder))
+
+
+def pause_read(folder):
+    try:
+        with open(pause_path(folder)) as f:
+            p = json.load(f)
+        return p if isinstance(p, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def agents_at(folder):
+    """The agents whose seat or folder is FOLDER, from /proc alone."""
+    return [a for a in live_agents() if a["folder"] and os.path.realpath(a["folder"]) == os.path.realpath(folder)]
+
+
+def signal_agent(pid, sig):
+    """SIG to the agent PID, pinned by a process descriptor and checked to
+    be an agent still: never a bare pid, which may be another program's by
+    now, and never a group. True when sent."""
+    if not hasattr(os, "pidfd_open") or not hasattr(signal, "pidfd_send_signal"):
+        return False
+    try:
+        fd = os.pidfd_open(pid)
+    except OSError:
+        return False
+    try:
+        if agent_name(cmdline(pid)) is None:
+            return False
+        signal.pidfd_send_signal(fd, sig)
+        return True
+    except OSError:
+        return False
+    finally:
+        os.close(fd)
+
+
+def pause(argv):
+    """vikix agents pause DESK [--hard]."""
+    hard = "--hard" in argv
+    words = [a for a in argv if not a.startswith("-")]
+    if len(words) != len(argv) - (1 if hard else 0):
+        die("vikix agents pause DESK [--hard] (DESK as for close)")
+    by, me = by_me()
+    folder, _ = desk_for(words, me)
+    there = agents_at(folder)
+    if hard and me and any(a["pid"] == me["pid"] for a in there):
+        die("you can't freeze your own process: vikix agents pause without --hard holds you at your next call")
+    path = pause_path(folder)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    stopped = [a["pid"] for a in there if hard and signal_agent(a["pid"], signal.SIGSTOP)]
+    with open(path, "w") as f:
+        json.dump({"at": int(time.time()), "by": by, "hard": hard, "stopped": stopped}, f)
+    names = ", ".join(who(a) for a in there)
+    if hard:
+        said = (f"{short(folder)}: frozen (SIGSTOP): {', '.join(who(a) for a in there if a['pid'] in stopped)}"
+                if stopped else f"{short(folder)}: paused; no agent's process to freeze there now")
+        said += "; vikix agents go lets it continue"
+    elif there:
+        said = (f"{short(folder)}: paused; {names} hold{'s' if len(there) == 1 else ''} at the next tool call, for up to "
+                f"{PAUSE_LIMIT // 60} minutes, then that call is refused and the turn ends; vikix agents go lets it go on")
+    else:
+        said = f"{short(folder)}: paused (no agent is there now: one that comes holds at its first call)"
+    print(said)
+    return 0
+
+
+def go(argv):
+    """vikix agents go DESK."""
+    words = [a for a in argv if not a.startswith("-")]
+    if len(words) != len(argv):
+        die("vikix agents go DESK")
+    by, me = by_me()
+    folder, _ = desk_for(words, me)
+    path = pause_path(folder)
+    if not os.path.exists(path):
+        print(f"{short(folder)} isn't paused")
+        return 0
+    p = pause_read(folder)
+    woken = [pid for pid in p.get("stopped", []) if isinstance(pid, int) and signal_agent(pid, signal.SIGCONT)]
+    os.unlink(path)
+    print(f"{short(folder)}: go" + (f"; {len(woken)} process{'es' if len(woken) != 1 else ''} continue{'' if len(woken) != 1 else 's'}"
+                                    if woken else "; its agent's next call goes through"))
+    return 0
+
+
+def pause_hold(me):
+    """A hook's wait while the agent's desk is paused: a second at a time,
+    up to PAUSE_LIMIT, then the call is refused with why, so the turn ends
+    cleanly and nothing waits for ever. True when refused."""
+    if not me or not me["folder"]:
+        return False
+    path = pause_path(me["folder"])
+    if not os.path.exists(path):
+        return False
+    end = time.time() + PAUSE_LIMIT
+    while os.path.exists(path):
+        if time.time() >= end:
+            p = pause_read(me["folder"])
+            hook_output(permissionDecision="deny", permissionDecisionReason=(
+                f"Vikix office: your desk is paused by {p.get('by', 'the user')} since {at(p.get('at', 0))}, and the "
+                f"wait reached {PAUSE_LIMIT // 60} minutes. End this turn now, saying you are paused; nothing is lost. "
+                "The user's `vikix agents go` and their next words to you start you again."))
+            return True
+        time.sleep(1)
+    return False
+
+
+def turns(argv):
+    """vikix agents turns DESK on|off."""
+    words = [a for a in argv if not a.startswith("-")]
+    if len(words) != len(argv) or len(words) < 2 or words[-1] not in ("on", "off"):
+        die("vikix agents turns DESK on|off (DESK as for close)")
+    on = words[-1] == "on"
+    by, me = by_me()
+    folder, _ = desk_for(words[:-1], me)
+    H = handoff_module()
+
+    def change(rec):
+        rec["turns"] = {"on": on, "by": by, "at": int(time.time())}
+        H._log(rec, by, f"turns {'on' if on else 'off'}")
+    try:
+        desk_record(folder, by=by, change=change)
+    except H.HandoffError as e:
+        die(str(e))
+    print(f"{short(folder)}: turns {'on' if on else 'off'}: " + (
+        "an edit of a file another agent has changed, uncommitted, waits for that agent's commit "
+        f"(up to {PAUSE_LIMIT // 60} minutes), then asks you" if on else "a clash asks you, as usual"))
+    return 0
+
+
+def turns_on(folder):
+    H = handoff_module()
+    rec = H.load(H.desk_id(common_of(folder), folder))
+    return bool(((rec or {}).get("turns") or {}).get("on"))
+
+
+def clash_live(path, clashes):
+    """Of CLASHES, those that hold a turn: the file still changed,
+    uncommitted, in that agent's worktree. A journal entry alone, once the
+    file is committed there, holds nobody."""
+    _, _, rel = repo_of(path)
+    live = []
+    for o, how in clashes:
+        otop = repo_of(o["folder"])[0] if os.path.isdir(o["folder"]) else None
+        if otop and rel and changed_in(otop, rel):
+            live.append((o, how))
+    return live
+
+
+def take_turn(me, path, clashes, now):
+    """With turns on: wait for the other agents' commits of PATH, up to
+    PAUSE_LIMIT. (clashes left, words for the agent): none left and "your
+    turn" when the file is committed; the clashes and why when the wait
+    ran out, or when the other waits on this agent already (then the later
+    one, this one, asks the user at once rather than both waiting)."""
+    live = clash_live(path, clashes)
+    if not live:
+        return [], f"Vikix office: your turn on {short(path)}: what the other agent changed there is committed."
+    pids = {o["pid"] for o, _ in live}
+    for e in journal_read():
+        if e.get("kind") == "waiting" and e.get("pid") in pids and who(me) in (e.get("with") or []):
+            return clashes, f"{e.get('agent')} {e.get('pid')} waits on you already (since {at(e.get('at', 0))}), so you ask"
+    journal_add({"at": now, "kind": "waiting", "agent": me["agent"], "pid": me["pid"], "folder": me["folder"],
+                 "file": path, "with": [who(o) for o, _ in live]})
+    end = time.time() + PAUSE_LIMIT
+    try:
+        while live and time.time() < end:
+            time.sleep(1)
+            live = clash_live(path, clashes)
+    finally:
+        journal_write([e for e in journal_read() if not (e.get("kind") == "waiting" and e.get("pid") == me["pid"]
+                                                          and e.get("file") == path)])
+    if live:
+        return clashes, f"waited {PAUSE_LIMIT // 60} minutes for the commit; still uncommitted"
+    return [], f"Vikix office: your turn on {short(path)}: the other agent's change there is committed now."
 
 
 def stopping(argv):
@@ -1491,7 +1698,7 @@ def handoff(argv):
         print(H.render(rec, [who(a) for a in agents_at], lines))
         notes = inbox_peek(folder)
         if notes:
-            print("Notes waiting for its agent (vikix agents tell; delivered at its next edit or command):")
+            print("Notes waiting for its agent (vikix agents tell; delivered at its next tool call):")
             for n in notes:
                 print(f"  {n['by']} ({H.when(n['at'])}): {n['text']}")
         return 0
@@ -1826,7 +2033,10 @@ def journal_read():
 def journal_add(entry):
     """ENTRY to the journal, which keeps only the agents still running:
     the pid of one that is gone may be another program's tomorrow."""
-    entries = [e for e in journal_read() if alive(e.get("pid", 0))] + [entry]
+    journal_write([e for e in journal_read() if alive(e.get("pid", 0))] + [entry])
+
+
+def journal_write(entries):
     os.makedirs(os.path.dirname(JOURNAL), exist_ok=True)
     tmp = JOURNAL + ".tmp"
     with open(tmp, "w") as f:
@@ -2161,6 +2371,8 @@ def touch_bash(command, cwd):
     me = my_agent()
     if not me or not command.strip():
         return 0
+    if pause_hold(me):
+        return 0
     try:
         tokens = shlex.split(command)
     except ValueError:
@@ -2194,6 +2406,10 @@ def touch(argv):
         i = argv.index("--for")
         HOOK = argv[i + 1] if len(argv) > i + 1 else "claude"
         argv = argv[:i] + argv[i + 2:]
+    if "--pause-only" in argv:
+        # Before every tool (office.json's second entry): the pause alone, one stat when there is none.
+        pause_hold(my_agent())
+        return 0
     path = argv[0] if argv and not argv[0].startswith("-") else ""
     if not path and not sys.stdin.isatty():
         try:
@@ -2223,6 +2439,8 @@ def touch(argv):
     me = my_agent()
     if not me:
         return 0
+    if pause_hold(me):
+        return 0
     path = os.path.realpath(os.path.abspath(path))
     why = off_desk(me, path)
     if why:
@@ -2233,6 +2451,10 @@ def touch(argv):
     now = int(time.time())
     crossing = crossing_for(me, path, others)
     clashes = clashes_for(me, path, others, entries)
+    turn = ""
+    if clashes and HOOK != "opencode" and turns_on(me["folder"]):
+        clashes, turn = take_turn(me, path, clashes, now)
+        entries = journal_read()
     if clashes and HOOK == "opencode":
         # OpenCode's plugin can only block or let through: a clash is refused
         # once, with the reason, and the same edit tried again within ten
@@ -2268,7 +2490,10 @@ def touch(argv):
         said = "; ".join(f"{who(o)} ({short(o['folder'])}) {how}" for o, how in clashes)
         hook_output(permissionDecision="ask",
                     permissionDecisionReason=f"Vikix office: another agent is on this file. {said}. "
-                                             f"`vikix agents clash {short(path)}` shows both changes. Let this one edit it too?")
+                                             + (f"Turns: {turn}. " if turn else "")
+                                             + f"`vikix agents clash {short(path)}` shows both changes. Let this one edit it too?")
+    elif turn:
+        hook_output(additionalContext=turn)
     elif crossing:
         hook_output(additionalContext=f"Vikix office: {short(path)} is in {short(crossing['folder'])}, the folder "
                                       f"{who(crossing)} works in, not yours ({short(me['folder'])}). The crossing is "
@@ -2410,6 +2635,12 @@ def main(argv):
         return hooks(argv[1:])
     if argv and argv[0] == "tell":
         return tell(argv[1:])
+    if argv and argv[0] == "pause":
+        return pause(argv[1:])
+    if argv and argv[0] == "go":
+        return go(argv[1:])
+    if argv and argv[0] == "turns":
+        return turns(argv[1:])
     if argv and argv[0] == "stopping":
         return stopping(argv[1:])
     if argv and argv[0] == "touch":
@@ -2443,7 +2674,7 @@ def main(argv):
         return 0
     as_json = argv == ["--json"]
     if argv and not as_json:
-        die("vikix agents [--json|here|desk|sit|close|desks|handoff|resume|tell|hooks|clash|crossings] (vikix agents help)")
+        die("vikix agents [--json|here|desk|sit|close|desks|handoff|resume|tell|pause|go|turns|hooks|clash|crossings] (vikix agents help)")
     agents = desktop()
     agents += elsewhere({a["pid"] for a in agents})
     agents = [with_git(a) for a in seated(agents)]
@@ -2460,6 +2691,12 @@ def main(argv):
         a["waits"] = None
         if a["pid"] in held and a["state"] in ("working", "running", "idle"):
             a["doing"], a["waits"] = held[a["pid"]]
+        # A paused desk: said in place of what the agent is doing, with who paused it and when.
+        a["paused"] = pause_read(a["folder"]) if a["folder"] else {}
+        if a["paused"]:
+            a["doing"] = "frozen" if a["paused"].get("hard") else "paused"
+            a["waits"] = (f"paused by {a['paused'].get('by', '?')} since {at(a['paused'].get('at', 0))}"
+                          + (" (its process frozen)" if a["paused"].get("hard") else "") + "; vikix agents go")
         a["handoff"] = handoff_brief(a["folder"]) if a["desk"] else None
     if as_json:
         print(json.dumps(agents, indent=1, ensure_ascii=False))

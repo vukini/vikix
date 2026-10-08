@@ -189,6 +189,8 @@ import json
 h = json.load(open("'"$here"'/config/claude/office.json"))["hooks"]
 assert h["PreToolUse"][0]["matcher"] == "Edit|Write|MultiEdit|NotebookEdit|Bash", h
 assert h["PreToolUse"][0]["hooks"][0]["command"] == "vikix agents touch", h
+assert "matcher" not in h["PreToolUse"][1] and h["PreToolUse"][1]["hooks"][0]["command"] == "vikix agents touch --pause-only", h
+assert all(e["hooks"][0]["timeout"] >= 660 for e in h["PreToolUse"]), h
 assert h["Stop"][0]["hooks"][0]["command"] == "vikix agents stopping", h'
 check "vikix agent gives Claude Code the hook, unless VIKIX_OFFICE=0" \
   grep -q 'VIKIX_OFFICE:-1.*!= 0.*\]' "$here/bin/vikix-agent"
@@ -271,7 +273,7 @@ check "no agent above it: refused: $out" grep -q 'no agent runs this shell' <<<"
 as() { local pid=$1; shift; VIKIX_AGENT_PID=$pid python3 "$here/bin/vikix-agents" "$@" 2>&1 </dev/null || true; }
 stop_as() { printf '%s' "$2" | VIKIX_AGENT_PID=$1 python3 "$here/bin/vikix-agents" stopping 2>&1; }
 out=$(agents tell a "look at chapter two first")
-check "a note for the desk's agent: $out" grep -q 'book-a: noted for its agent, delivered at its next edit or command' <<<"$out"
+check "a note for the desk's agent: $out" grep -q 'book-a: noted for its agent, delivered at its next tool call' <<<"$out"
 out=$(touch_as 1001 "$t/src/book-a/ch3.md")
 check "delivered at its next edit: $out" grep -q '"additionalContext": "Vikix office, notes for you at this desk (vikix agents tell): \[user, [0-9:]*\] look at chapter two first"' <<<"$out"
 out=$(touch_as 1001 "$t/src/book-a/ch3.md")
@@ -283,7 +285,7 @@ out=$(VIKIX_EVAL=$t/eval-idle agents tell a "and chapter three")
 check "an agent at its prompt is said to be, since a note reaches it only at a command: $out" \
   grep -q 'noted for its agent; its agent is at its prompt: it reads this when you next ask it something' <<<"$out"
 out=$(VIKIX_EVAL=$t/eval-asks agents tell a "and chapter four")
-check "one waiting for you too: $out" grep -q 'its agent is waiting for you: answer it, and it reads this at its next edit' <<<"$out"
+check "one waiting for you too: $out" grep -q 'its agent is waiting for you: answer it, and it reads this at its next tool call' <<<"$out"
 out=$(touch_as 1001 "$t/src/book-a/ch3.md")
 check "both notes come together at its next edit: $(head -c 150 <<<"$out")" \
   grep -q 'and chapter three \[user, [0-9:]*\] and chapter four"' <<<"$out"
@@ -311,6 +313,56 @@ check "and counts as a change for the Stop hook: $(head -c 80 <<<"$out")" grep -
 check "a shell write is noted apart, so the clash and protection counts don't change" grep -q '"kind": "shell".*"pid": 1001.*book-a/ch1.md' "$journal"
 out=$(stop_as 1002 '{}')
 check "an agent at a desk with no record holds nothing: '$out'" test -z "$out"
+
+# --- Pause and go: the hook holds, then refuses; --hard freezes the process; turns on one file ---
+export VIKIX_PAUSE_LIMIT=2
+out=$(agents pause a)
+check "a desk paused, saying who holds: $out" bash -c 'grep -q "book-a: paused; .*claude 1001.* hold.* at the next tool call, for up to 0 minutes" <<<"$1"' _ "$out"
+start=$(date +%s); out=$(touch_as 1001 "$t/src/book-a/ch3.md"); took=$(( $(date +%s) - start ))
+check "the hook holds the agent's edit while the desk is paused, then refuses with why ($took s): $(head -c 100 <<<"$out")" \
+  bash -c '[ "$1" -ge 2 ] && grep -q "\"permissionDecision\": \"deny\".*your desk is paused by user since .*End this turn now" <<<"$2"' _ "$took" "$out"
+out=$(printf '{"tool_name":"Read","tool_input":{"file_path":"%s/ch1.md"}}' "$t/src/book-a" | VIKIX_AGENT_PID=1001 python3 "$here/bin/vikix-agents" touch --pause-only 2>&1)
+check "--pause-only, before every tool, holds a Read too: $(head -c 60 <<<"$out")" grep -q '"deny".*paused' <<<"$out"
+out=$(VIKIX_PAUSE_LIMIT=2 VIKIX_AGENT_PID=1002 python3 "$here/bin/vikix-agents" touch --pause-only 2>&1 </dev/null)
+check "an agent at another desk isn't held (its notes come, as before every tool): '$(head -c 60 <<<"$out")'" not grep -q deny <<<"$out"
+out=$(VIKIX_EVAL=$t/eval agents)
+check "the listing says paused, by whom: $(grep -A1 'paused' <<<"$out" | head -2 | tr '\n' ' ')" \
+  bash -c 'grep -qE "^  claude +.*/book-a .* paused$" <<<"$1" && grep -q "paused by user since .*; vikix agents go" <<<"$1"' _ "$out"
+(sleep 1; agents go a >/dev/null) &
+out=$(touch_as 1001 "$t/src/book-a/ch3.md"); wait
+check "go lets the held edit through: '$out'" test -z "$out"
+out=$(agents go a)
+check "go on a desk not paused says so: $out" grep -q "book-a isn't paused" <<<"$out"
+sleep 300 & spid=$!; proc "$spid" claude "$t/src/book-a"     # a real process standing in for an agent's
+out=$(agents pause a --hard)
+check "--hard freezes the agent's process, by descriptor: $out" \
+  bash -c 'grep -q "book-a: frozen (SIGSTOP): claude '"$spid"'" <<<"$1" && [ "$(awk "{print \$3}" /proc/$2/stat)" = T ]' _ "$out" "$spid"
+out=$(agents go a)
+check "go thaws it: $out" bash -c 'grep -q "1 process continues" <<<"$1" && [ "$(awk "{print \$3}" /proc/$2/stat)" = S ]' _ "$out" "$spid"
+kill "$spid" 2>/dev/null; wait "$spid" 2>/dev/null || true; rm -r "$t/proc/$spid"
+# Turns: book-b has ch1.md changed, uncommitted (codex 1002's); claude 1001's edit of it waits for the commit.
+out=$(agents turns a on)
+check "turns on: $out" grep -q 'book-a: turns on: an edit of a file another agent has changed, uncommitted, waits' <<<"$out"
+start=$(date +%s); out=$(touch_as 1001 "$t/src/book-a/ch1.md"); took=$(( $(date +%s) - start ))
+check "with turns on a clash waits for the commit, and asks when it doesn't come ($took s): $(head -c 100 <<<"$out")" \
+  bash -c '[ "$1" -ge 2 ] && grep -q "\"ask\".*Turns: waited 0 minutes for the commit; still uncommitted" <<<"$2"' _ "$took" "$out"
+check "the wait is gone from the journal after" not grep -q '"kind": "waiting"' "$journal"
+(sleep 1; git -C "$t/src/book-b" commit -q -am "b: ch1 done") &
+out=$(touch_as 1001 "$t/src/book-a/ch1.md"); wait
+check "the other's commit gives the turn, said to the agent: $(head -c 100 <<<"$out")" grep -q '"additionalContext": "Vikix office: your turn on .*ch1.md: the other agent.s change there is committed now."' <<<"$out"
+echo "two by b, again" >> "$t/src/book-b/ch1.md"
+printf '{"at": %s, "kind": "waiting", "agent": "codex", "pid": 1002, "folder": "%s", "file": "%s/ch1.md", "with": ["claude 1001"]}\n' \
+  "$(($(date +%s) - 5))" "$t/src/book-b" "$t/src/book-a" >> "$journal"
+start=$(date +%s); out=$(touch_as 1001 "$t/src/book-a/ch1.md"); took=$(( $(date +%s) - start ))
+check "two waiting for each other: the later one asks at once ($took s): $(head -c 120 <<<"$out")" \
+  bash -c '[ "$1" -lt 2 ] && grep -q "\"ask\".*Turns: codex 1002 waits on you already" <<<"$2"' _ "$took" "$out"
+python3 - "$journal" <<'PY'
+import json, sys
+lines = [l for l in open(sys.argv[1]) if '"kind": "waiting"' not in l]
+open(sys.argv[1], "w").writelines(lines)
+PY
+agents turns a off >/dev/null
+unset VIKIX_PAUSE_LIMIT
 # A helper an agent started under its own name (Claude Code's daemon runs the shell
 # commands): what it does is the agent's, so a seat taken through it is the agent's.
 proc 1010 claude "$HOME"

@@ -110,9 +110,13 @@ def snapshot(api):
             row['next_action'] = ('Go to agent' if row['agents'] else 'Not a desk' if row['kind'] == 'folder'
                                   else 'Continue' if row['exists'] else 'Worktree removed')
         needs = any(a.get('state') in ('asks', 'permission', 'question', 'waiting', 'done') for a in row['agents'])
+        row['paused'] = api.pause_read(path) if row['kind'] == 'desk' else {}
         row['group'] = ('Needs you' if needs or status in ('waiting', 'review') or not live_known
-                        else 'Working' if row['agents'] else 'Finished' if status == 'finished' or d.get('closed')
+                        else 'Working' if row['agents'] and not row['paused']
+                        else 'Finished' if status == 'finished' or d.get('closed')
                         else 'Parked')
+        if row['paused'] and row['agents']:
+            row['next_action'] = 'Paused: vikix agents go ' + os.path.basename(path)
         providers = list(dict.fromkeys([s['provider'] for s in row['sessions']] + [default]))
         # Nothing to continue in a plain folder: Continue is for desks.
         row['resume'] = {p: H.resume_plan(row, p, path) for p in providers} if row['kind'] == 'desk' else {}

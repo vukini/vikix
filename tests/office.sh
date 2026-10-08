@@ -279,7 +279,7 @@ desk books tell-demo >/dev/null
 at_desk "claude books-tell-demo"
 out=$(HOME=$home VIKIX_SWANK_PORT=$port python3 "$here/bin/vikix-agents" tell tell-demo "the index of names only" 2>&1)
 check "a note for a worker at work is delivered at its next command: $out" \
-  grep -q 'books-tell-demo: noted for its agent, delivered at its next edit or command' <<<"$out"
+  grep -q 'books-tell-demo: noted for its agent, delivered at its next tool call' <<<"$out"
 
 check "vikix agents with a word it doesn't know says what it takes" grep -q 'vikix agents \[--json|here|desk|sit|close|desks|handoff|resume|tell|hooks|clash|crossings\]' <<<"$(cli nonsense)"
 check "the desktop met no error" test -z "$(ls "$home/.local/state/vikix/errors" 2>/dev/null)"
