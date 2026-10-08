@@ -58,10 +58,12 @@
                        agent's. Without PROJECT it asks which, then for a
                        topic (a repository's desk is a worktree, so one is
                        needed; a project that is no repository works in
-                       its own folder, with none), then which agent, when
-                       --use doesn't say: yours first, the others as vikix
-                       agent --list has them, and the ones that can on a
-                       model on this laptop.
+                       its own folder, with none), then for the task, when
+                       --task doesn't say (nothing typed is a desk with no
+                       task), then which agent, when --use doesn't say:
+                       yours first, the others as vikix agent --list has
+                       them, and the ones that can on a model on this
+                       laptop.
                        --use: another agent than yours (vikix agent --use);
                        --local: on a model on this laptop (vikix agent
                        --local; opencode, codex and aider can);
@@ -748,6 +750,14 @@ def desk(argv):
             return 0
     else:
         topic = ""
+    if asked and not task:
+        # The task, asked as --task would give it: a desk from the menu was the one
+        # kind that started with no task, so its agent sat at an empty prompt.
+        task = rofi("Task", "The task, in your words: written in the desk's record and given to the agent as its "
+                            "first prompt, so it starts on it at once. Enter with nothing for a desk with no task.")
+        if task is None:
+            return 0
+        task = task.strip()
     if asked and not use and not local:
         chosen = ask_agent()
         if chosen is None:

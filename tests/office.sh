@@ -205,17 +205,20 @@ check "a topic that gives no name is refused: $out" grep -q 'gives no name for a
 printf '#!/bin/sh\npwd\n' > "$t/bin/where"; chmod +x "$t/bin/where"
 out=$(AGENT_CMD="$t/bin/where" desk books in-place --here)
 check "--here starts it in this terminal, in the worktree: $(tail -1 <<<"$out")" test "$(tail -1 <<<"$out")" = "$home/src/books-in-place"
-# Asked on the desktop: a stand-in rofi picks the project called books, types a topic, and picks
-# the agent $t/agent-pick names (the first row, yours, when the file is empty).
+# Asked on the desktop: a stand-in rofi picks the project called books, types a topic, answers the
+# task with what $t/task-typed holds (nothing: a desk with no task), and picks the agent
+# $t/agent-pick names (the first row, yours, when the file is empty).
 cat > "$t/bin/rofi" <<R
 #!/bin/sh
 case " \$* " in
   *" -p Agent -mesg "*) grep -n "^\$(cat "$t/agent-pick")" | head -1 | cut -d: -f1 | awk '{ print \$1 - 1 }' ;;
   *" -format i "*) grep -n '^books ' | head -1 | cut -d: -f1 | awk '{ print \$1 - 1 }' ;;
+  *" -p Task -mesg "*) cat >/dev/null; cat "$t/task-typed" ;;
   *) cat >/dev/null; echo "From the menu" ;;
 esac
 R
 chmod +x "$t/bin/rofi"
+: > "$t/task-typed"
 printf '#!/bin/sh\necho "$*" > "%s"\nexec "%s"\n' "$t/desk.args" "$t/bin/claude" > "$t/bin/argsaver"; chmod +x "$t/bin/argsaver"
 : > "$t/agent-pick"
 out=$(PATH="$t/bin:$PATH" AGENT_CMD="$t/bin/argsaver" desk)
@@ -232,6 +235,15 @@ echo "codex        on a model" > "$t/agent-pick"
 out=$(PATH="$t/bin:$PATH" AGENT_CMD="$t/bin/argsaver" desk)
 sleep 0.5
 check "the local row adds --local: '$(cat "$t/desk.args" 2>/dev/null)'" test "$(cat "$t/desk.args" 2>/dev/null)" = "--use codex --local"
+# The task is asked too, after the topic (Super+a's desk started with none, so its agent sat at an
+# empty prompt): what is typed is the agent's first prompt and the record's task.
+echo "  Fix the index from the menu  " > "$t/task-typed"; echo "codex " > "$t/agent-pick"; : > "$t/desk.args"
+out=$(PATH="$t/bin:$PATH" AGENT_CMD="$t/bin/argsaver" desk)
+sleep 0.5
+check "the task typed in the menu is the agent's first prompt, trimmed, and said: $out '$(head -1 "$t/desk.args")'" \
+  bash -c 'grep -q "from-the-menu), codex, the task its first prompt, on workspace" <<<"$1" && [ "$(head -1 "$2")" = "--use codex Fix the index from the menu" ]' _ "$out" "$t/desk.args"
+check "and in the record" grep -q 'books-from-the-menu  no status, just now: Fix the index from the menu' <<<"$(cli handoff list)"
+: > "$t/task-typed"
 here() { HOME=$home VIKIX_SWANK_PORT=$port VIKIX_AGENT_CMD="${AGENT_CMD:-$t/bin/claude}" python3 "$here/bin/vikix-agents" here "$@" 2>&1 || true; }
 : > "$t/desk.args"
 out=$(AGENT_CMD="$t/bin/argsaver" here --use codex --local)
