@@ -197,8 +197,9 @@ check "and the page shows them" bash -c 'grep -q "^Status: review (user" <<<"$1"
 # Twenty-five writers at once: every line lands, the task stays.
 before=$(agents handoff a --json | python3 -c 'import json,sys; print(len(json.load(sys.stdin)["log"]))')
 for i in $(seq 1 25); do (agents handoff set --desk a --summary "writer $i" >/dev/null) & done; wait
-after=$(agents handoff a --json | python3 -c 'import json,sys; r=json.load(sys.stdin); print(len(r["log"]), r["task"]["text"][:3])')
-check "twenty-five writers at once lose nothing: $before then $after" test "$after" = "$((before + 25)) Fix"
+# The record keeps its last forty log lines (LOG_MAX), so the count stops there.
+after=$(agents handoff a --json | python3 -c 'import json,sys; r=json.load(sys.stdin); print(len(r["log"]), r["task"]["text"][:3], sum(1 for e in r["log"][-25:] if e["what"] == "summary"))')
+check "twenty-five writers at once lose nothing: $before then $after" test "$after" = "$(( before + 25 > 40 ? 40 : before + 25 )) Fix 25"
 
 # The agent exits (its pid is stale), the desk stays, the record stays; then the worktree goes.
 rm -r "$t/proc/1001"
