@@ -12,9 +12,14 @@
    |                   |                      | client only          |
    |                   |-- eval-and-grab ---->|                      |
    |                   |   -output            |-- vikix-eval-for --->|
-   |                   |                      |   -agent             | read and eval
-   |                   |                      |                      | each form in
-   |                   |                      |                      | STUMPWM
+   |                   |                      |   -agent             | read each form
+   |                   |                      |                      | (*read-eval* off);
+   |                   |                      |                      | an agent's:
+   |                   |                      |                      | door.lisp walks
+   |                   |                      |                      | it first, held
+   |                   |                      |                      | if not on the
+   |                   |                      |                      | list (:HELD);
+   |                   |                      |                      | then eval
    |                   |                      |<-- printed text, ----|
    |                   |                      |    :OK or :ERROR     |
    |                   |                      |    ("error: ..."     |

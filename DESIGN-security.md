@@ -62,6 +62,8 @@ This is the idea from IDEAS made concrete, and it covers every door at once.
 - The agents' guide and `SKILL.md` describe the list, so a well-meaning agent doesn't guess.
 - Test: a list of forms that must pass and must fail, run against the walker without a desktop.
 
+*2026-10-08: the walker is in* (`config/stumpwm/vikix/door.lisp`, a layer file rather than `lib/door/`, since the loader and the compiled copies are the layer's; `bin/vikix-door`, Super+m → Door, `tests/door.sh`). As built: an agent's form is held for the user (as a proposed rule is), never asked for in a menu at the time; `--allow-eval` keeps its meaning and there is no `--allow-anything`, since agents have no way round on purpose (your own `vikix eval` at a terminal is yours, not checked); the refused attempts go to `~/.local/state/vikix/errors/` rather than a `door.log` of their own. Still to come from this section: the shared module for Cuis's and the music socket's doors, and the review panel for a held form.
+
 ### 4. `vikix debug` tells the agent only what it should (D)
 
 - Web-page text in logs (Firefox, Nyxt) is dropped from the report, not scrubbed; the agent that reads the report sees the error lines and the system facts, never page content.

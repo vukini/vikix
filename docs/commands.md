@@ -19,6 +19,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-dictate](#vikix-dictate): speak, and it types what you said
 - [vikix-docs](#vikix-docs): every document on the machine in one catalogue, found from one key
 - [vikix-docs-open](#vikix-docs-open): open guides, tutorials and offline docs in the docs browser
+- [vikix-door](#vikix-door): the Lisp agents sent that the door held, and what passes
 - [vikix-drives](#vikix-drives): USB drives: mounted when plugged in, ejected from a menu
 - [vikix-dropbox](#vikix-dropbox): Dropbox as one short line, for the mode line
 - [vikix-esploro](#vikix-esploro): Esploro, Vid's file explorer
@@ -409,6 +410,20 @@ The docs browser is Nyxt when it's installed (the feature lisp-apps): a browser 
 
 A running Nyxt takes the pages as new buffers in its window (Nyxt hands them over through its socket), and StumpWM then brings that window forward, from whichever workspace it's on.
 
+## vikix-door
+
+The Lisp agents sent that the door held, and what passes.
+
+- `vikix door` — the forms held for you: each one's number, when, which agent, why it was held, and the form
+- `vikix door run N` — run one, as you (nothing of it ran before), and forget it: what it printed and its values
+- `vikix door drop N` — forget one without running it
+- `vikix door check FORM` — would the door let FORM through? "ok", or "held:" and why. For an agent, before sending; for you, to see what the list means
+- `vikix door allowed` — every name a form may call, one a line: the door's own list, the registry's commands agents may run, and `~/.config/vikix/door`
+
+The door (config/stumpwm/vikix/door.lisp) stands between an agent and the running desktop. An agent's Lisp (vikix eval under Claude Code or another agent, the MCP server's eval tool) is read without running anything and walked: every function it calls must be on one list, of what reads the desktop and what is put back as easily as done. A form that runs a program, touches a file, defines or changes code, sets a global or waits on the desktop is held here instead, and the agent is told why. Super+m, Door is the same list in a menu. Your own vikix eval isn't checked.
+
+Your own names go in `~/.config/vikix/door`, one a line (# for a comment): a function of your user.lisp that an agent may call.
+
 ## vikix-drives
 
 USB drives: mounted when plugged in, ejected from a menu.
@@ -460,12 +475,16 @@ Run Lisp inside the running StumpWM and print the result.
 
 - `vikix eval '(current-group)'` — one or more forms as an argument
 - `vikix eval < file.lisp` — or read them from standard input, a file or a pipe: echo '(vikix-apply-theme :paper)' | vikix eval
+- `vikix eval --door FORM` — check the forms as an agent's, whoever sends them
+- `vikix eval --whose` — say whose a form from here would be: yours, or an agent's and which, and whether the door stands
 
 The forms are read in the STUMPWM package, so Vikix's and StumpWM's own names work without a prefix. For each form it prints what the form printed, then "=> " and the value.
 
 It talks to the Swank server that config/stumpwm/vikix/swank.lisp starts on 127.0.0.1:4004 (`VIKIX_SWANK_PORT` changes the port). When `~/.slime-secret` exists (40-config makes it), Swank lets in only a client that sends its first line first, as Emacs's SLIME does; so does this. The Lisp side, vikix-eval-for-agent, catches errors, so a bad form prints "error: ..." instead of leaving this command waiting.
 
-Exit status: 0 when every form ran, 1 when one failed, 2 when StumpWM could not be reached.
+Exit status: 0 when every form ran, 1 when one failed, 2 when StumpWM could not be reached, 3 when the door held the forms.
+
+The door (config/stumpwm/vikix/door.lisp). When an agent is above this command in the process tree (Claude Code, Codex, OpenCode, Gemini, Aider or Antigravity, with no script of Vikix's between: `vikix theme` run by an agent sends Vikix's Lisp, not the agent's), the forms are an agent's, and the desktop walks each before anything runs: every function it calls must be on the door's list (`vikix door allowed`). A form that runs a program, touches a file, defines or changes code, sets a global or waits on the desktop is held for the user instead (Super+m, Door; `vikix door`), with why printed here. Your own `vikix eval` at a terminal is yours and isn't checked. The door stands only at the desktop's own Swank (port 4004): a test's StumpWM on another port asks for it with --door.
 
 Changes made this way live in the running StumpWM only. They are gone after a restart or a reload; to keep one, put it in `~/.stumpwm.d/user.lisp`.
 
@@ -734,13 +753,14 @@ small acts  notify, snapshot, set_theme, switch_workspace, focus_window,
 proposals   propose_file_changes (a plan shown in Esploro) and
             propose_rule (a rule shown under Super+m, Rules): checked
             whole, and only your choice there changes anything
-off unless  eval (any Lisp in the window manager: --allow-eval) and
-switched on undo (your files back a snapshot: --allow-undo). These are a
-            convenience, not a wall: an agent that can run commands can
-            run vikix eval, or register the server again, itself.
+off unless  eval (Lisp in the window manager, through the door:
+switched on --allow-eval) and undo (your files back a snapshot:
+            --allow-undo). These are a convenience, not a wall: an agent
+            that can run commands can run vikix eval, or register the
+            server again, itself; the door stands on that road too.
 ```
 
-Nothing an agent sends reaches Lisp or a shell except as a value checked against the desktop (a workspace that exists, a theme there is, a number), or, for `propose_rule`, as text the window manager reads without running and holds until you decide. Every call, refused ones too, is logged in `~/.local/state/vikix/mcp.log` (600): the tool, whether it worked, its arguments (secrets taken out, long ones cut, with their length and a hash).
+Nothing an agent sends reaches Lisp or a shell except as a value checked against the desktop (a workspace that exists, a theme there is, a number), or, for `propose_rule`, as text the window manager reads without running and holds until you decide; eval's form is read the same way and walked by the door (door.lisp) first, and runs only when every function it calls is on the door's list, else it waits for you (Super+m, Door; vikix door). Every call, refused ones too, is logged in `~/.local/state/vikix/mcp.log` (600): the tool, whether it worked, its arguments (secrets taken out, long ones cut, with their length and a hash).
 
 ## vikix-memory
 

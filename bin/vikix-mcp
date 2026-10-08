@@ -38,15 +38,18 @@ The tools, a fixed set:
   proposals   propose_file_changes (a plan shown in Esploro) and
               propose_rule (a rule shown under Super+m, Rules): checked
               whole, and only your choice there changes anything
-  off unless  eval (any Lisp in the window manager: --allow-eval) and
-  switched on undo (your files back a snapshot: --allow-undo). These are a
-              convenience, not a wall: an agent that can run commands can
-              run vikix eval, or register the server again, itself.
+  off unless  eval (Lisp in the window manager, through the door:
+  switched on --allow-eval) and undo (your files back a snapshot:
+              --allow-undo). These are a convenience, not a wall: an agent
+              that can run commands can run vikix eval, or register the
+              server again, itself; the door stands on that road too.
 
 Nothing an agent sends reaches Lisp or a shell except as a value checked
 against the desktop (a workspace that exists, a theme there is, a number),
 or, for propose_rule, as text the window manager reads without running
-and holds until you decide.
+and holds until you decide; eval's form is read the same way and walked
+by the door (door.lisp) first, and runs only when every function it calls
+is on the door's list, else it waits for you (Super+m, Door; vikix door).
 Every call, refused ones too, is logged in ~/.local/state/vikix/mcp.log
 (600): the tool, whether it worked, its arguments (secrets taken out, long
 ones cut, with their length and a hash).
@@ -151,9 +154,11 @@ def lisp_string(s):
     return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def eval_cmd(form):
-    # The real one is a Python file; a test's stand-in runs by itself.
-    return (["python3", EVAL] if EVAL.endswith("/bin/vikix-eval") else [EVAL]) + [form]
+def eval_cmd(form, door=False):
+    # The real one is a Python file; a test's stand-in runs by itself. The
+    # server's own forms are Vikix's; the eval tool's are the agent's, and
+    # go through the door (door.lisp) whatever port the desktop is on.
+    return (["python3", EVAL] if EVAL.endswith("/bin/vikix-eval") else [EVAL]) + (["--door"] if door else []) + [form]
 
 
 class ToolError(Exception):
@@ -727,7 +732,7 @@ def t_eval(a):
     form = str(a.get("form", ""))
     if not form.strip():
         raise ToolError("form: the Lisp to run")
-    out, ok = run(eval_cmd(form), timeout=20)
+    out, ok = run(eval_cmd(form, door=True), timeout=20)
     if not ok or re.search(r"(?m)^error:", out):
         raise ToolError(out)
     return out
@@ -994,8 +999,12 @@ TOOLS = [
      ACT, t_focus_window),
 ]
 EVAL_TOOL = ("eval", "Run Lisp in the window manager",
-             "Any Common Lisp form, in the running StumpWM (package STUMPWM). It can change anything the desktop can: "
-             "prefer the other tools; try a change live here, then write it into ~/.stumpwm.d/user.lisp.",
+             "A Common Lisp form, in the running StumpWM (package STUMPWM), through the door: it is read and walked "
+             "first, and runs only when every function it calls is on the door's list (reads of the desktop, moves "
+             "and switches put back as easily as done; `vikix door allowed` lists it). A form that runs a program, "
+             "touches a file, defines or changes code, sets a global or waits is held for the user instead, with why; "
+             "they run it or drop it (Super+m, Door). Prefer the other tools; try a change live here, then write it "
+             "into ~/.stumpwm.d/user.lisp.",
              schema({"form": {"type": "string"}}, ["form"]), RISK, t_eval)
 UNDO_TOOL = ("undo", "Undo: your files back a snapshot",
              "vikix undo: put the user's files back as they were one snapshot ago, or at a given snapshot. "

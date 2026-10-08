@@ -53,6 +53,7 @@ login on tty1
                       ├─ vikix/webapps.lisp      your web apps: their keys and Super+m entries
                       ├─ vikix/modeline.lisp     the bar
                       ├─ vikix/rescue.lisp       a way out when the desktop is stuck: a watcher, Super+Ctrl+Alt+Escape
+                      ├─ vikix/door.lisp         an agent's Lisp walked against one list before it runs; what fails waits for you
                       ├─ vikix/swank-guard.lisp  a wrong or missing password can't take Swank down
                       ├─ vikix/swank.lisp        Swank on 127.0.0.1:4004 (with a password), for Emacs and `vikix eval`
                       ├─ rules.lisp              yours: your rules for windows, when you have any
@@ -77,7 +78,7 @@ For the curious: `vikix eval` is a small Python program that talks to StumpWM th
 
 ![vikix eval sends your Lisp to Swank, which runs it in StumpWM's main thread and sends back what it printed](diagrams/vikix-eval.svg)
 
-Two things keep it safe. The password in `~/.slime-secret` means only you can run code there, and `swank-guard.lisp` makes sure a client with a wrong or slow password is turned away without taking Swank down. And if StumpWM is busy (a menu is open, say), `vikix eval` gives up after 10 seconds with a message, and the code never runs later by surprise. It also looks at who owns the port before it sends the password: if the listener on 4004 is another user's (your StumpWM isn't running, and someone else took the port), it stops there.
+Two things keep it safe. The password in `~/.slime-secret` means only you can run code there, and `swank-guard.lisp` makes sure a client with a wrong or slow password is turned away without taking Swank down. And if StumpWM is busy (a menu is open, say), `vikix eval` gives up after 10 seconds with a message, and the code never runs later by surprise. It also looks at who owns the port before it sends the password: if the listener on 4004 is another user's (your StumpWM isn't running, and someone else took the port), it stops there. And when the sender is an agent (`vikix eval` under Claude Code or another agent, or the MCP server's `eval`), the forms pass the door first (`door.lisp`): read without running anything, walked, and run only when every function they call is on the door's list; the rest waits for you under `Super+m` → *Door* ([AI](ai.md#the-door)).
 
 ### How `vikix mcp` reaches it
 

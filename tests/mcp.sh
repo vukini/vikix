@@ -36,9 +36,10 @@ cd "$t"
 cat > "$t/bin/eval" <<'EOF'
 #!/usr/bin/env python3
 import sys, os, json
-form = sys.argv[1]
+form = sys.argv[-1]
 t = os.environ["T"]
 open(t + "/forms", "a").write(form.replace("\n", " ") + "\n")
+open(t + "/args", "a").write(" ".join(sys.argv[1:-1]) + "\n")   # the flags: --door for the agent's own forms
 # Whole, too, one file each, for compiling against the real StumpWM below.
 d = t + "/forms.d"
 os.makedirs(d, exist_ok=True)
@@ -347,8 +348,13 @@ out=$(call changes '{"snapshot":"HEAD; rm -rf ~"}')
 check "changes with a bad id should be refused: $out" grep -q '^ERROR: snapshot' <<<"$out"
 
 # With eval switched on, it runs; undo checks its id too.
+: > "$t/args"
 out=$(call eval '{"form":"(+ 1 2)"}' --allow-eval)
 check "eval, switched on, should run the form: $out" grep -q '(+ 1 2)' "$t/forms"
+check "the eval tool's form is the agent's: through the door" grep -qx -- '--door' "$t/args"
+: > "$t/args"
+call desktop '{}' >/dev/null
+check "the server's own forms are Vikix's: not through the door ($(cat "$t/args"))" bash -c "! grep -q -- '--door' '$t/args'"
 out=$(call undo '{"snapshot":"x y"}' --allow-undo)
 check "undo with a bad id should be refused: $out" grep -q '^ERROR: snapshot' <<<"$out"
 

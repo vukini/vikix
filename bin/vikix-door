@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# vikix-door — the Lisp agents sent that the door held, and what passes (`vikix door`).
+#
+#   vikix door               the forms held for you: each one's number, when,
+#                            which agent, why it was held, and the form
+#   vikix door run N         run one, as you (nothing of it ran before), and
+#                            forget it: what it printed and its values
+#   vikix door drop N        forget one without running it
+#   vikix door check FORM    would the door let FORM through? "ok", or "held:"
+#                            and why. For an agent, before sending; for you,
+#                            to see what the list means
+#   vikix door allowed       every name a form may call, one a line: the
+#                            door's own list, the registry's commands agents
+#                            may run, and ~/.config/vikix/door
+#
+# The door (config/stumpwm/vikix/door.lisp) stands between an agent and the
+# running desktop. An agent's Lisp (vikix eval under Claude Code or another
+# agent, the MCP server's eval tool) is read without running anything and
+# walked: every function it calls must be on one list, of what reads the
+# desktop and what is put back as easily as done. A form that runs a
+# program, touches a file, defines or changes code, sets a global or waits
+# on the desktop is held here instead, and the agent is told why. Super+m,
+# Door is the same list in a menu. Your own vikix eval isn't checked.
+#
+# Your own names go in ~/.config/vikix/door, one a line (# for a comment):
+# a function of your user.lisp that an agent may call.
+
+set -euo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+
+# A word of yours as a Lisp string: nothing in it is read as Lisp.
+lisp_string() {
+  local s=${1//\\/\\\\}
+  printf '"%s"' "${s//\"/\\\"}"
+}
+
+# ask WHAT [ARG]: StumpWM's answer, or its own words when it says no. This
+# script is Vikix's, so its form is Vikix's own even under an agent; the
+# check is the one thing an agent asks for here, and it only reads.
+ask() {
+  local out ok=0
+  out=$(python3 "$VIKIX_DIR/bin/vikix-eval" "(if (fboundp 'vikix-door-cli) (progn (princ (vikix-door-cli $(lisp_string "$1") $(lisp_string "${2:-}"))) (values)) (error \"this desktop is older than the door: reload it (Super+m, Reload config)\"))" 2>&1) || ok=$?
+  case $out in
+    *"error: "*) die "$(sed -n 's/^.*error: //p' <<<"$out" | head -1)" ;;
+  esac
+  [ "$ok" = 0 ] || die "vikix door: StumpWM didn't answer (is the desktop running? vikix doctor)"
+  printf '%s\n' "$out" | grep -v '^=> ' || true
+}
+
+case ${1:-list} in
+  list)
+    [ $# -le 1 ] || die "vikix door takes nothing more (vikix door help)"
+    out=$(ask list)
+    if [ -z "$out" ]; then
+      echo "Nothing waits at the door. vikix door allowed lists what an agent's Lisp may call."
+    else
+      printf '%s\n' "$out" | while IFS=$'\t' read -r id when from why text; do
+        printf '%s  %s  %s\n    %s\n    held because %s\n' "$id" "$when" "$from" "$text" "$why"
+      done
+      echo "vikix door run N runs one as you; vikix door drop N forgets it."
+    fi ;;
+  run|drop)
+    [ $# -eq 2 ] || die "which one? vikix door $1 N (vikix door lists them)"
+    ask "$1" "$2" ;;
+  check)
+    [ $# -ge 2 ] || die "vikix door check FORM (or several forms, in one argument)"
+    shift
+    out=$(ask check "$*")
+    printf '%s\n' "$out"
+    case $out in ok*) exit 0 ;; *) exit 3 ;; esac ;;
+  allowed)
+    [ $# -le 1 ] || die "vikix door allowed takes nothing more (vikix door help)"
+    ask allowed ;;
+  help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) die "unknown: vikix door $1 (try: vikix door help)" ;;
+esac

@@ -10,7 +10,9 @@ sequenceDiagram
   Note over S: swank-guard.lisp: a wrong or late<br/>password (5 s) closes this client only
   E->>S: (:emacs-rex (swank:eval-and-grab-output ...))
   S->>M: vikix-eval-for-agent: run the forms<br/>in the main thread
-  M->>M: read and eval each form<br/>in the STUMPWM package
+  M->>M: read each form in the STUMPWM package<br/>(*read-eval* off)
+  Note over M: an agent's forms: door.lisp walks each first,<br/>and one not on the list is held for you (:HELD)
+  M->>M: eval each form
   M-->>S: what they printed, and :OK or :ERROR<br/>(or "error: ..." after 10 s)
   S-->>E: (:return (:ok (output ...)))
   E-->>You: the output, then "=> value"

@@ -114,8 +114,7 @@ vikix eval < some-file.lisp                       # several forms from stdin
 - Each value is printed after `=> `. Errors print `error: ...` and exit 1; they never hang. Exit 2 means StumpWM couldn't be reached (not running, or a menu or prompt was open: ask the user to close it).
 - **Changes made with `vikix eval` are live only.** They're gone at the next reload or login. To keep one, also write it into `~/.stumpwm.d/user.lisp`.
 - To apply an edited `user.lisp`: `vikix eval '(loadrc)'` reloads everything (Vikix's files, then user.lisp). If user.lisp has an error, StumpWM shows it on screen and keeps running; the rest still loads.
-- Don't evaluate anything that waits for keyboard input (`read-one-line`, `select-from-menu`, commands with prompts): it blocks the main thread until the user answers.
-- Don't call `(quit)`, `(restart-hard)`, or anything that ends the session, unless the user asks.
+- **The door.** Under an agent, `vikix eval` is checked before it runs (`door.lisp`): a form runs only when every function it calls is on the door's list (reads of the desktop, moves and switches put back as easily as done: `vikix door allowed`). One that runs a program, touches a file, defines or changes code, sets a global, waits for input or ends the session is *held* for the user: exit 3, with why; they run it as themselves (Super+m → Door, `vikix door run N`) or drop it. Don't work around it: say what was held and why. `vikix door check FORM` tells you beforehand.
 
 A good workflow for a StumpWM change: try it live with `vikix eval`,
 let the user see it, then write the same form into `user.lisp`.

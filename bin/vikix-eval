@@ -5,6 +5,9 @@
     vikix eval < file.lisp                   or read them from standard input,
                                              a file or a pipe:
                                              echo '(vikix-apply-theme :paper)' | vikix eval
+    vikix eval --door FORM                   check the forms as an agent's, whoever sends them
+    vikix eval --whose                       say whose a form from here would be: yours, or an
+                                             agent's and which, and whether the door stands
 
 The forms are read in the STUMPWM package, so Vikix's and StumpWM's own
 names work without a prefix. For each form it prints what the form
@@ -18,7 +21,19 @@ vikix-eval-for-agent, catches errors, so a bad form prints "error: ..."
 instead of leaving this command waiting.
 
 Exit status: 0 when every form ran, 1 when one failed, 2 when StumpWM
-could not be reached.
+could not be reached, 3 when the door held the forms.
+
+The door (config/stumpwm/vikix/door.lisp). When an agent is above this
+command in the process tree (Claude Code, Codex, OpenCode, Gemini, Aider
+or Antigravity, with no script of Vikix's between: `vikix theme` run by
+an agent sends Vikix's Lisp, not the agent's), the forms are an agent's,
+and the desktop walks each before anything runs: every function it calls
+must be on the door's list (`vikix door allowed`). A form that runs a
+program, touches a file, defines or changes code, sets a global or waits
+on the desktop is held for the user instead (Super+m, Door; `vikix door`),
+with why printed here. Your own `vikix eval` at a terminal is yours and
+isn't checked. The door stands only at the desktop's own Swank (port 4004):
+a test's StumpWM on another port asks for it with --door.
 
 Changes made this way live in the running StumpWM only. They are gone
 after a restart or a reload; to keep one, put it in ~/.stumpwm.d/user.lisp.
@@ -30,7 +45,51 @@ import sys
 
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("VIKIX_SWANK_PORT", "4004"))
+DESKTOP_PORT = 4004   # the door stands here; a test's StumpWM is on a port of its own
 TIMEOUT = 30  # seconds; the Lisp side gives up on a busy main thread sooner
+PROC = os.environ.get("VIKIX_PROC") or "/proc"
+# The agents, as bin/vikix-agents knows them (PROGRAMS, NAMES there; tests/door.sh
+# holds the two together). Not imported: that file is large, and this one runs
+# at every click of the bar.
+AGENTS = ("claude", "codex", "opencode", "gemini", "aider", "agy")
+AGENT_NAMES = {"agy": "antigravity"}
+
+
+def cmdline(pid):
+    try:
+        with open(f"{PROC}/{pid}/cmdline", "rb") as f:
+            return [w.decode("utf-8", "replace") for w in f.read().split(b"\0") if w]
+    except OSError:
+        return []
+
+
+def parent_of(pid):
+    try:
+        with open(f"{PROC}/{pid}/stat") as f:
+            return int(f.read().rpartition(")")[2].split()[1])
+    except (OSError, ValueError, IndexError):
+        return 0
+
+
+def whose(past_vikix=False):
+    """Whose forms these are: ("agent", "claude 1234") when an agent is above
+    this process with nothing of Vikix's between, else ("me", why). The
+    first thing met going up decides: an agent's shell runs the agent's
+    Lisp; a script of Vikix's (vikix-theme, vikix-mcp) runs its own, even
+    under an agent. With PAST_VIKIX the scripts are passed over: the agent
+    above the MCP server, to name it."""
+    pid = int(os.environ.get("VIKIX_EVAL_PARENT") or 0) or os.getppid()
+    for _ in range(16):
+        if pid <= 1:
+            break
+        for word in cmdline(pid)[:2]:
+            name = os.path.basename(word).lstrip("-")
+            if name in AGENTS:
+                return "agent", f"{AGENT_NAMES.get(name, name)} {pid}"
+            if not past_vikix and (name == "vikix" or name.startswith("vikix-")):
+                return "me", f"sent by {name}"
+        pid = parent_of(pid)
+    return "me", "no agent above this shell"
 
 
 def lisp_string(text):
@@ -109,6 +168,25 @@ def main():
     if args and args[0] in ("-h", "--help"):
         print(__doc__.strip())
         return 0
+    door = False
+    while args and args[0] in ("--door", "--whose"):
+        if args[0] == "--whose":
+            kind, who = whose()
+            at_desktop = PORT == DESKTOP_PORT
+            if kind == "agent":
+                print(f"an agent's: {who}; the door {'stands' if at_desktop else 'is off (not the desktop: port ' + str(PORT) + ')'}")
+            else:
+                print(f"yours ({who}); the door is off")
+            return 0
+        door = True
+        args = args[1:]
+    kind, who = whose()
+    if kind == "agent" and PORT == DESKTOP_PORT:
+        door = True
+    if door and kind != "agent":
+        # Asked for (the MCP server's eval tool, a test): the agent above, if there is one.
+        kind, who = whose(past_vikix=True)
+    sender = who if kind == "agent" else "a test"
     code = " ".join(args) if args else sys.stdin.read()
     if not code.strip():
         print("vikix eval: no Lisp to run (try: vikix eval '(+ 1 2)')", file=sys.stderr)
@@ -145,9 +223,16 @@ def main():
     # Ask Swank to call our safe evaluator, and to hand back what it printed.
     # The fboundp check keeps Swank out of its debugger when StumpWM is
     # still running a config from before `vikix eval` existed.
-    inner = ("(if (fboundp 'stumpwm::vikix-eval-for-agent)"
-             " (stumpwm::vikix-eval-for-agent %s)"
-             " :missing)" % lisp_string(code))
+    if door:
+        # An agent's forms go through the door, or nowhere: a desktop from
+        # before the door (an older config still running) is told to reload.
+        inner = ("(if (fboundp 'stumpwm::vikix-door-check)"
+                 " (stumpwm::vikix-eval-for-agent %s :door t :from %s)"
+                 " :missing-door)" % (lisp_string(code), lisp_string(sender)))
+    else:
+        inner = ("(if (fboundp 'stumpwm::vikix-eval-for-agent)"
+                 " (stumpwm::vikix-eval-for-agent %s)"
+                 " :missing)" % lisp_string(code))
     send(sock, '(:emacs-rex (swank:eval-and-grab-output %s) "STUMPWM" t 1)'
          % lisp_string(inner))
 
@@ -189,9 +274,17 @@ def main():
               "Reload it (Super+m, then Reload config) and try again.",
               file=sys.stderr)
         return 2
+    if status == ":MISSING-DOOR":
+        print("vikix eval: the running StumpWM has a Vikix config from before the door,\n"
+              "so an agent's Lisp can't be checked, and isn't run. Ask the user to reload\n"
+              "the desktop (Super+m, then Reload config), then try again.",
+              file=sys.stderr)
+        return 2
     sys.stdout.write(printed)
     if printed and not printed.endswith("\n"):
         sys.stdout.write("\n")
+    if status == ":HELD":
+        return 3
     return 0 if status == ":OK" else 1
 
 

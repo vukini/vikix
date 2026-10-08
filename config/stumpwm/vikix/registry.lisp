@@ -313,6 +313,9 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command local-ai-stop "Local AI: unload the model"
   :run "exec vikix-local-ai stop --notify"
   :menu "AI" :needs "~/.local/opt/ollama/bin/ollama")
+(define-vikix-command door "Door: the Lisp an agent sent that waits for your yes (run it as you, or drop it)"
+  :run "vikix-door"
+  :menu "AI")
 (define-vikix-command emacs "Emacs: a new window"
   :run "exec emacsclient -c -a ''" :key "s-x")
 (define-vikix-command clipboard "Clipboard history: pick to paste again"

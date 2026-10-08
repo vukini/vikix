@@ -346,7 +346,21 @@ vikix mcp unregister   # take it away
 | propose_file_changes | Proposes a plan of changes to your files (copy, move, rename, new folders, the Trash, tags), which waits for you: checked whole first, then shown in Esploro with why, where only your Apply runs it, and undo takes it back. Without Esploro there is nowhere to show it, and the tool says so |
 | propose_rule | Proposes a rule for the desktop, which waits for you: checked first to be only a rule (verbs and plain values, no Lisp of its own), then shown under `Super+m` → *Rules*, where you add it to your `rules.lisp` or drop it ([Rules](rules.md#a-rule-an-agent-proposes)) |
 
-Two more are off unless you turn them on, because they can change a lot: `vikix mcp register --allow-eval` adds **eval** (any Lisp in the window manager) and `--allow-undo` adds **undo** (your settings back one snapshot). `vikix mcp register` again, without them, takes them away. They're a convenience, not a lock: an agent that may run commands could run `vikix eval` itself.
+Two more are off unless you turn them on, because they can change a lot: `vikix mcp register --allow-eval` adds **eval** (Lisp in the window manager, through the door, below) and `--allow-undo` adds **undo** (your settings back one snapshot). `vikix mcp register` again, without them, takes them away. They're a convenience, not a lock: an agent that may run commands could run `vikix eval` itself, and that goes through the door too.
+
+### The door
+
+An agent's Lisp is checked before it runs. Whatever road it takes, `vikix eval` at the agent's own shell or the MCP server's `eval`, the form is read without running anything (nothing of `#.`), then walked: every function it calls is looked up in one list, of what reads the desktop (the windows, the workspaces, a key) and what is put back as easily as done (a workspace switch, a move, a theme, the commands `run_command` may run). A form made only of those runs. One that runs a program, touches a file, defines or changes code, sets a global of the desktop's, waits for input or ends the session is **held** instead: nothing of it runs, the agent is told why (and that it mustn't try another way), and a notification says an agent sent Lisp the door held. `Super+m` → *Door* lists what waits: pick one to see it, run it as you, or drop it. The same from a terminal:
+
+```sh
+vikix door                 # what waits: when, which agent, why, the form
+vikix door run 1           # run it, as you
+vikix door drop 1          # forget it
+vikix door check '(form)'  # would it pass? "ok", or why not
+vikix door allowed         # every name a form may call
+```
+
+A function of your own `user.lisp` that an agent may call goes in `~/.config/vikix/door`, one name a line. Your own `vikix eval` at a terminal is yours and isn't checked; only a shell under an agent (Claude Code, Codex, OpenCode, Gemini, Aider, Antigravity) is an agent's, and a script of Vikix's run by the agent (`vikix theme paper`) sends Vikix's Lisp, not the agent's. A form that reaches a shell, a file, eval or the system is also written in `~/.local/state/vikix/errors/`, so `vikix doctor` and `vikix debug` keep the attempt. Ten forms wait at most; past that an agent is refused until you have looked.
 
 It works only for the agent that starts it: nothing listens on the network. Everything the agent asks of it is checked first (a workspace that exists, a theme you have). Secrets are taken out of what it hands back (`changes` shows your files' differences). Every call, refused ones too, is written in `~/.local/state/vikix/mcp.log`, yours alone: the tool, whether it worked, and its arguments. Its notifications start "Agent:". After `vikix update` it runs the new version by itself, without the agent reconnecting.
 

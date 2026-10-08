@@ -466,6 +466,7 @@ Vikix is set up for an AI agent to work on the desktop with you, the way Omarchy
   ```
 
   It talks to Swank on port 4004. Errors come back as `error: ...`; they never leave it hanging. A menu or prompt that is open makes it give up after 10 seconds.
+- **The door** (`door.lisp`). An agent's `vikix eval`, and the MCP server's `eval`, are checked before they run: the form is read without running anything and walked, and runs only when every function it calls is on the door's list (reads of the desktop, moves and switches put back as easily as done; `vikix door allowed`). One that runs a program, touches a file, defines or changes code, sets a global or waits is held for you instead, with the agent told why: `Super+m` → *Door*, or `vikix door`, shows what waits, and you run it as yourself or drop it. Your own `vikix eval` isn't checked.
 - **Undo.** Before each agent session, Vikix takes a snapshot of your files. See below.
 
 ### Any agent, not just Claude Code
@@ -583,7 +584,7 @@ Why, when the agent can run commands: each command needs your yes, and these too
 - **Every call is logged**, refused ones too, in `~/.local/state/vikix/mcp.log` (600, rotated at 1 MB): the time, `ok`/`error`/`refused`, the tool, its arguments (secrets scrubbed, long ones cut with their length and a hash).
 - **What it hands back** is scrubbed of secrets (`lib/debug-report.py`, as `vikix debug` does), and the tools that return text from files and programs say it's data, not instructions; window titles are cut to 200 characters. A command that fails is an error, not a success; so is a Lisp error from `eval`.
 - **Robust**: bad JSON, a batch, params of the wrong type, invalid UTF-8, deep nesting or a line over 1 MB get an error answer, and the server carries on.
-- **The flags are a convenience, not a wall**: an agent that may run commands can run `vikix eval` or register again itself.
+- **The flags are a convenience, not a wall**: an agent that may run commands can run `vikix eval` or register again itself; both roads pass the door above.
 - **Theme names** are letters, digits, `-` and `_` (`vikix theme` refuses others, and doesn't list a file named otherwise): the name goes to StumpWM as a Lisp keyword. `vikix eval` sends Swank's password only to a port that's yours (`/proc/net/tcp`), and a form that timed out doesn't run later.
 
 ### Dictation (`s-F9`)

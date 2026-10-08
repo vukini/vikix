@@ -147,6 +147,7 @@ for f in "${files[@]}"; do
     config/stumpwm/vikix/what.lisp|bin/vikix-what|config/what/*) add what ;;
     bin/vikix-docs) add docs what mcp ;;
     config/stumpwm/vikix/used.lisp|bin/vikix-used) add used why palette ;;
+    config/stumpwm/vikix/door.lisp|bin/vikix-door|config/stumpwm/vikix/swank.lisp|bin/vikix-eval|bin/vikix-mcp) add door swank mcp propose ;;
     config/stumpwm/vikix/registry.lisp|lib/registry.sh) add agents registry menu mcp webapp plugin project screens esploro memory docs-open welcome ;;
     config/stumpwm/vikix/keys.lisp|config/stumpwm/vikix/help.lisp|bin/vikix-plugin|lib/skill-keys.sh) add agents ;;
   esac

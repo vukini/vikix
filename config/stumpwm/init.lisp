@@ -36,6 +36,7 @@
     "modeline"   ; the bar at the top
     "plugins"    ; the plugins you added (vikix plugin add), and their part of the bar
     "rescue"     ; a way out when the desktop is stuck: a watcher, Super+Ctrl+Alt+Escape, vikix rescue
+    "door"       ; an agent's Lisp checked against one list before it runs; what fails waits for you
     "swank-guard" ; a wrong Swank password can't take Swank down
     "swank")     ; the door for Emacs, with a password
   "Loaded in this order. Each file only uses what the files before it define.")

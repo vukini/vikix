@@ -86,34 +86,53 @@ try the bind for up to 5 s."
 (defparameter *vikix-eval-timeout* 10
   "Seconds `vikix eval` waits for StumpWM's main thread.")
 
-(defun vikix-eval-forms (text)
+(defun vikix-eval-forms (text &key door from)
   "Read every form in TEXT, in the STUMPWM package, and evaluate each.
 Print whatever the forms print, then each form's values after \"=> \".
-Return :OK, or :ERROR after printing the error."
+Return :OK, or :ERROR after printing the error. With DOOR (an agent's
+forms, FROM saying whose) each form is first walked by door.lisp, and the
+whole text is held for the user, with :HELD returned and why printed,
+when one of them calls what the door doesn't let an agent call."
   (let ((*package* (find-package :stumpwm))
         (*error-output* *standard-output*))   ; compiler warnings too
     (handler-case
-        (with-input-from-string (in text)
-          (loop with eof = (gensym "EOF")
-                for form = (read in nil eof)
-                until (eq form eof)
-                do (let ((values (multiple-value-list (eval form))))
-                     (fresh-line)
-                     (if values
-                         (format t "~{=> ~S~%~}" values)
-                         (format t "=> ; no values~%"))))
+        (let ((forms (let ((*read-eval* nil))   ; #. would run at reading, before any check
+                       (with-input-from-string (in text)
+                         (loop with eof = (gensym "EOF")
+                               for form = (read in nil eof)
+                               until (eq form eof)
+                               collect form)))))
+          (when door
+            (dolist (form forms)
+              (multiple-value-bind (ok why kind) (vikix-door-check form)
+                (unless ok
+                  (let ((id (vikix-door-hold text why kind from)))
+                    (fresh-line)
+                    (if id
+                        (format t "held ~d: ~a~%  because ~a.~%  The door lets an agent's Lisp through only when every function it calls is on its list (vikix door allowed). The user can run this as they are, from Super+m, Door, or vikix door run ~d, or drop it; nothing of it ran.~%"
+                                id (vikix-door-print form) why id)
+                        (format t "refused: ~a~%  because ~a; and ~d forms wait at the door already, so this one isn't kept. Ask the user to look at them (Super+m, Door).~%"
+                                (vikix-door-print form) why *vikix-door-most*))
+                    (return-from vikix-eval-forms :held))))))
+          (dolist (form forms)
+            (let ((values (multiple-value-list (eval form))))
+              (fresh-line)
+              (if values
+                  (format t "~{=> ~S~%~}" values)
+                  (format t "=> ; no values~%"))))
           :ok)
       (error (e)
         (fresh-line)
         (format t "error: ~A~%" e)
         :error))))
 
-(defun vikix-eval-for-agent (text)
-  "Evaluate the forms in TEXT in StumpWM's main thread and return :OK or
-:ERROR. What they print goes to *standard-output*, which Swank sends back."
+(defun vikix-eval-for-agent (text &key door from)
+  "Evaluate the forms in TEXT in StumpWM's main thread and return :OK,
+:ERROR, or :HELD when DOOR is set and the door kept them for the user.
+What they print goes to *standard-output*, which Swank sends back."
   (cond
     ((in-main-thread-p)
-     (vikix-eval-forms text))
+     (vikix-eval-forms text :door door :from from))
     ;; StumpWM hands work to its main thread through a channel it makes when
     ;; its loop starts, after this file is loaded and the windows already
     ;; there are taken in. Asked before that, call-in-main-thread fails in
@@ -135,7 +154,7 @@ Return :OK, or :ERROR after printing the error."
            (unwind-protect
                 (unless cancelled
                   (setf output (with-output-to-string (*standard-output*)
-                                 (setf status (vikix-eval-forms text)))))
+                                 (setf status (vikix-eval-forms text :door door :from from)))))
              (sb-thread:signal-semaphore done))))
         (cond ((sb-thread:wait-on-semaphore done :timeout *vikix-eval-timeout*)
                (write-string output)
