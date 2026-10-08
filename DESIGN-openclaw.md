@@ -6,6 +6,8 @@ Drafted 2026-10-08 from a desk's task ("how can vikix agents work with open claw
 
 ---
 
+> 2026-10-08: Vid clarified that phone access to the existing Office is the goal and chose Telegram. [The Office on Telegram](DESIGN-phone.md) replaces the phone gateway direction here with a direct bridge for blocking questions, replies, task assignment, pause, continue and close. OpenClaw agent integration remains a separate idea, not a dependency.
+
 ## What OpenClaw is
 
 A personal AI agent that runs on your own machine and talks to you where you already are: WhatsApp, Telegram, Signal, Discord, Slack, iMessage, a web chat, a terminal. Born as Clawdbot in November 2025, renamed twice, MIT, and since mid-2026 held by the OpenClaw Foundation after its author went to OpenAI. Written for Node (24.16 or newer), installed with npm or its own installer; Void doesn't package it. Its parts, as far as this design needs them:
