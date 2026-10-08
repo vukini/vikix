@@ -856,8 +856,10 @@ TOOLS = [
      schema(), READ, t_agents),
     ("office", "The Office: tasks and desks",
      "Overview of tasks grouped by attention, working, parked and finished; live activity is separate "
-     "from signed handoff claims and observed Git state. Includes retained desks, reported check freshness "
-     "and saved conversation availability. Discovery failures mean unknown, not stopped. Read only." + DATA,
+     "from signed handoff claims and observed Git state. Includes retained desks, reported check freshness, "
+     "saved conversation availability, and the releases under way in the projects (.claude/release's queue: "
+     "topic, state, since when; each desk's release, when its branch is being released). Discovery failures "
+     "mean unknown, not stopped. Read only." + DATA,
      schema(), READ, t_office),
     ("handoff", "A desk's task and handoff",
      "The record of a desk (vikix agents handoff): the user's task in their words, the agent's handoff (status: "

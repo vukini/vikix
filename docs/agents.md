@@ -353,6 +353,18 @@ seats it at one. Removed worktrees with no live agent go into
 **Archive**, separate from current desks. A handoff saying "finished" alone
 does not archive an existing desk or remove any files.
 
+**Releases.** Above the groups, a **Releases** box lists the releases under
+way in your projects, as `.claude/release --queue` does: each one's topic,
+what it is doing (checking, testing, waiting for its turn) and since when,
+with the project and the line it brings; the one whose turn it is comes
+first, the ones waiting for the lock after it. A desk whose branch is being
+released says so too, a **Release** row under its Handoff, and in its Git
+state. The box is read from the notes each release keeps of itself
+(`.git/vikix-release-queue/`, one file a running release); a note of a
+release that ended is skipped, never removed. When none is under way, a
+repository that has released before gets the line *No release under way*,
+and a machine that never released shows nothing.
+
 Click **Archive** (or press `A`) to see historical tasks, handoffs and checks.
 Archived entries say no action is needed; Go to agent, Continue and Close
 agent are absent. Their old next actions are historical, not new instructions.
@@ -397,6 +409,6 @@ time and a timeout. It preserves selection and pane position, never focuses
 a window, and stops when the view closes. On failure the header says why,
 previous information stays visible and live activity becomes unknown;
 actions wait for a successful refresh. `vikix agents office --json` exposes
-the same snapshot to scripts, including discovery errors; the read-only MCP
-tool `office` returns it too. It is a view of
+the same snapshot to scripts, including discovery errors and the release
+queue; the read-only MCP tool `office` returns it too. It is a view of
 existing desks and handoffs, not another task store.

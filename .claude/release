@@ -57,7 +57,9 @@ case $tests in changed|quick|full|none) ;; *) die "--tests is changed, quick, fu
 
 # Each release keeps a note of itself while it runs (its topic, what it
 # is doing, since when), in the repository beside the lock: what --queue
-# reads. A note whose process has ended is nobody's, and is cleared away.
+# reads, and what the Office shows as its Releases box (release_queue in
+# lib/office.py reads the same five lines; change one, change both). A
+# note whose process has ended is nobody's, and is cleared away here.
 notes_dir() { printf '%s/vikix-release-queue' "$(cd "$(dirname "$0")/.." && cd "$(git rev-parse --git-common-dir)" && pwd)"; }
 show_queue() {
   local dir f pid topic state since summary kind rows

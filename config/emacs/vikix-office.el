@@ -30,6 +30,8 @@
   (replace-regexp-in-string "[\n\r\t]+" " " (vikix-office--text value)))
 (defun vikix-office--time (value)
   (if (numberp value) (format-time-string "%Y-%m-%d %H:%M" (seconds-to-time value)) "time unknown"))
+(defun vikix-office--clock (value)
+  (if (numberp value) (format-time-string "%H:%M" (seconds-to-time value)) "?"))
 (defun vikix-office--owner-buffer ()
   (if (buffer-live-p vikix-office--owner) vikix-office--owner (current-buffer)))
 (defun vikix-office--rows ()
@@ -231,6 +233,30 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                  (not (alist-get 'errors vikix-office--data)))
         (vikix-office--button "Purge archive…" (lambda () (with-current-buffer owner (vikix-office-purge-archive)))))
       (insert "\n\n")
+      ;; The releases under way (.claude/release's queue, as --queue shows
+      ;; it): a box when there are any, the one whose turn it is first; a
+      ;; line when a repository has released before and none is under way;
+      ;; nothing on a machine that never released.
+      (unless vikix-office--archive
+        (let ((releases (alist-get 'releases vikix-office--data)))
+          (cond (releases
+                 (let ((label-width (vikix-office--label-width
+                                     (mapcar (lambda (r) (vikix-office--one-line (alist-get 'topic r))) releases) 8)))
+                   (vikix-office--box-top width chars "Releases")
+                   (vikix-office--note width chars "The one whose turn it is first; the others wait for it.")
+                   (dolist (r releases)
+                     (vikix-office--field width chars label-width (vikix-office--one-line (alist-get 'topic r))
+                                          (concat (vikix-office--one-line (alist-get 'state r))
+                                                  " · since " (vikix-office--clock (alist-get 'since r))
+                                                  (let ((kind (alist-get 'kind r)))
+                                                    (if (member kind '(nil "")) "" (concat " · " (vikix-office--one-line kind))))))
+                     (vikix-office--field width chars label-width ""
+                                          (concat (vikix-office--one-line (alist-get 'project r)) " · "
+                                                  (vikix-office--one-line (alist-get 'summary r)))
+                                          'shadow))
+                   (vikix-office--box-bottom width chars)))
+                ((eq (alist-get 'releases_kept vikix-office--data) t)
+                 (insert (propertize "No release under way.\n\n" 'face 'shadow))))))
       (if (null rows) (insert (if vikix-office--archive "Archive is empty.\n" "No desks yet. Start one with vikix agents desk PROJECT TOPIC.\n"))
         (dolist (group (if vikix-office--archive '("Archived") '("Needs you" "Working" "Parked" "Finished")))
           (let ((members (cl-remove-if-not (lambda (r) (equal (alist-get 'group r) group)) rows))
@@ -272,7 +298,11 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                     (let ((estimate (alist-get 'estimate r)))
                       (vikix-office--field width chars label-width "Handoff"
                                            (concat (vikix-office--one-line (alist-get 'status r))
-                                                   (if (member estimate '(nil "")) "" (concat " · " (vikix-office--one-line estimate)))))))
+                                                   (if (member estimate '(nil "")) "" (concat " · " (vikix-office--one-line estimate))))))
+                    ;; .claude/release at work on this desk's branch.
+                    (let ((release (alist-get 'release r)))
+                      (unless (member release '(nil ""))
+                        (vikix-office--field width chars label-width "Release" (vikix-office--one-line release)))))
                   ;; Two lines of it at most here; the desk's details have it whole.
                   (vikix-office--field width chars label-width "Next"
                                        (truncate-string-to-width (vikix-office--one-line (alist-get 'next_action r))
@@ -374,6 +404,9 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                 (vikix-office--field width chars label-width "Branch" (vikix-office--text (alist-get 'branch now)))
                 (vikix-office--field width chars label-width "Commit" (vikix-office--text (alist-get 'commit now)))
                 (vikix-office--field width chars label-width "Uncommitted" (vikix-office--text (alist-get 'dirty now)))
+                (let ((release (alist-get 'release r)))
+                  (unless (member release '(nil ""))
+                    (vikix-office--field width chars label-width "Release" (vikix-office--one-line release))))
                 (vikix-office--box-bottom width chars))
               (vikix-office--box-top width chars "Reported checks")
               (vikix-office--note width chars "Freshness compares code, not the truth of the report.")

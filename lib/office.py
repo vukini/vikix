@@ -41,9 +41,65 @@ def short(path):
     return '~' + path[len(home):] if path == home or path.startswith(home + '/') else path
 
 
+# .claude/release's notes: one file a release under way, named by its pid,
+# beside its lock in the repository's common git dir. Five lines: the topic,
+# what it is doing (checking, testing (quick), waiting for its turn, ...),
+# since when (epoch seconds), "no version" for a --plain release or nothing,
+# and the summary. The script's --queue reads them the same way.
+QUEUE_DIR = 'vikix-release-queue'
+
+
+def release_queue(api):
+    """The releases under way in the projects' repositories, the one whose
+    turn it is first, then the waiting by when they came; and whether any
+    repository has the notes' folder at all (so an empty queue can be told
+    from a machine that never released). Read only: a note whose process
+    has ended is skipped and left for the script, which clears it."""
+    rows, kept = [], False
+    for common, name in sorted(api.known_repos().items()):
+        folder = os.path.join(common, QUEUE_DIR)
+        if not os.path.isdir(folder):
+            continue
+        kept = True
+        for entry in os.listdir(folder):
+            if not entry.isdigit():
+                continue
+            pid = int(entry)
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                continue
+            except OSError:
+                pass   # another user's: alive, we can't signal it
+            try:
+                with open(os.path.join(folder, entry), encoding='utf-8', errors='replace') as f:
+                    lines = (f.read().split('\n') + [''] * 5)[:5]
+            except OSError:
+                continue
+            topic, state, since, kind, summary = (l.strip() for l in lines)
+            if not topic:
+                continue
+            rows.append({'project': name, 'common': common, 'pid': pid, 'topic': topic, 'state': state or 'unknown',
+                         'since': int(since) if since.isdigit() else None, 'kind': kind, 'summary': summary,
+                         'waiting': state.startswith('waiting')})
+    rows.sort(key=lambda r: (r['waiting'], r['since'] or 0, r['topic']))
+    return rows, kept
+
+
+def release_line(release):
+    """One release as the desk's row says it: what it does, since when."""
+    since = time.strftime('%H:%M', time.localtime(release['since'])) if release['since'] else '?'
+    return f"{release['state']} · since {since}" + (f" · {release['kind']}" if release['kind'] else '')
+
+
 def snapshot(api):
     H = api.handoff_module()
     errors = []
+    try:
+        releases, releases_kept = release_queue(api)
+    except (OSError, ValueError, SystemExit) as e:
+        releases, releases_kept = [], False
+        errors.append(f'Release queue unknown: {e}')
     try:
         agents = api.desktop(strict=True)
         agents += api.elsewhere({a['pid'] for a in agents}, strict=True)
@@ -103,6 +159,19 @@ def snapshot(api):
         row['status'] = status
         # Where the work stands against the agent's estimate, as a line; '' without one.
         row['estimate'] = (H.estimate_state(row) or {}).get('line', '')
+        # The desk's release, when .claude/release is at work on its branch:
+        # the note's topic is the branch, in the same repository. Git is asked
+        # for the repository only while a release is under way at all.
+        row['release'] = ''
+        if releases and row['kind'] == 'desk':
+            branch = row['now'].get('branch') or d.get('branch')
+            mine = [r for r in releases if r['topic'] == branch]
+            if mine:
+                common = api.common_of(path) if row['exists'] else ''
+                if common:   # a removed worktree can't say whose it was: the topic's name has to do
+                    mine = [r for r in mine if r['common'] == common]
+                if mine:
+                    row['release'] = release_line(mine[0])
         row['title'] = (row.get('task') or {}).get('text') or (short(path) if row['kind'] == 'folder' else ' / '.join(
             str(x) for x in (d.get('project'), d.get('branch') or os.path.basename(path)) if x))
         row['next_action'] = (handoff.get('next') or {}).get('text', '')
@@ -130,6 +199,7 @@ def snapshot(api):
             row['resume'] = {}
     order = ['Needs you', 'Working', 'Parked', 'Finished']
     return {'version': 1, 'at': int(time.time()), 'live_known': live_known, 'errors': errors,
+            'releases': releases, 'releases_kept': releases_kept,
             'desks': sorted((r for r in rows.values() if not r['archived']),
                             key=lambda r: (order.index(r['group']), r['title'].lower(), r['id'])),
             'archive': sorted((r for r in rows.values() if r['archived']), key=lambda r: (r['title'].lower(), r['id'])),

@@ -30,9 +30,10 @@ class Office(unittest.TestCase):
         Path(self.folder).mkdir()
         self.rec = {'desk': {'worktree': self.folder, 'id': 'abc', 'project': 'Vikix'},
                     'task': {'text': 'Fix the picker'}, 'handoff': {}, 'checks': [], 'sessions': []}
-        self.records, self.agents, self.desks = [], [], []
+        self.records, self.agents, self.desks, self.repos, self.common = [], [], [], {}, ''
         for name, replacement in {
             'handoff_module': lambda: H,
+            'known_repos': lambda: self.repos, 'common_of': lambda folder: self.common,
             'desktop': lambda **kw: self.agents,
             'elsewhere': lambda known, **kw: [], 'seated': lambda agents: agents,
             'waits': lambda agents: {}, 'default_agent': lambda: 'codex',
@@ -133,6 +134,49 @@ class Office(unittest.TestCase):
         self.records = [self.rec]
         row = office.snapshot(A)['desks'][0]
         self.assertEqual((row['kind'], row['title']), ('desk', 'Fix the picker'))
+
+    def test_release_queue_and_the_desks_release(self):
+        # .claude/release's notes in a repository's common git dir: the one whose
+        # turn it is first, a dead process's skipped and left, anything else ignored.
+        common = Path(self.temp.name) / 'repo.git'
+        queue = common / office.QUEUE_DIR
+        self.repos = {str(common): 'vikix'}
+        snap = office.snapshot(A)
+        self.assertEqual((snap['releases'], snap['releases_kept']), ([], False))
+        queue.mkdir(parents=True)
+        snap = office.snapshot(A)
+        self.assertEqual((snap['releases'], snap['releases_kept']), ([], True))
+        now = int(time.time())
+        (queue / str(os.getppid())).write_text(f'docs\nwaiting for its turn\n{now - 120}\nno version\na guide\n')
+        (queue / str(os.getpid())).write_text(f'wifi\ntesting (quick)\n{now - 60}\n\nthe bar\n')
+        (queue / '999999').write_text('ghost\ntesting (quick)\n1\n\na release that died\n')
+        (queue / 'lock').write_text('')
+        snap = office.snapshot(A)
+        self.assertEqual([(r['topic'], r['state'], r['kind'], r['summary'], r['project']) for r in snap['releases']],
+                         [('wifi', 'testing (quick)', '', 'the bar', 'vikix'),
+                          ('docs', 'waiting for its turn', 'no version', 'a guide', 'vikix')])
+        self.assertEqual(snap['releases'][0]['since'], now - 60)
+        self.assertTrue((queue / '999999').exists())
+        self.assertEqual(snap['errors'], [])
+        # The desk whose branch is being released says so; another repository's branch of the same name doesn't.
+        self.desks = [{'folder': self.folder, 'branch': 'wifi', 'top': str(Path(self.temp.name) / 'repo')}]
+        self.common = str(common)
+        row = office.snapshot(A)['desks'][0]
+        self.assertTrue(row['release'].startswith('testing (quick) · since '), row['release'])
+        self.common = '/elsewhere/.git'
+        self.assertEqual(office.snapshot(A)['desks'][0]['release'], '')
+        self.desks[0]['branch'] = 'other'
+        self.common = str(common)
+        self.assertEqual(office.snapshot(A)['desks'][0]['release'], '')
+        # A plain folder has no branch to release.
+        self.desks = []
+        self.agents = [self.agent()]
+        self.assertEqual(office.snapshot(A)['desks'][0]['release'], '')
+        # An unreadable queue is said, not an empty office.
+        with patch.object(A, 'known_repos', side_effect=OSError('no')):
+            snap = office.snapshot(A)
+        self.assertEqual(snap['releases'], [])
+        self.assertTrue(any(e.startswith('Release queue unknown') for e in snap['errors']))
 
     def test_first_handoff_keeps_selection_identity(self):
         self.agents = [self.agent()]
@@ -309,7 +353,7 @@ class ArchivePurge(unittest.TestCase):
             'handoff_module': lambda: H, 'desktop': lambda **kw: [],
             'elsewhere': lambda known, **kw: [], 'seated': lambda a: a,
             'waits': lambda a: {}, 'default_agent': lambda: 'codex',
-            'projects': lambda: [], 'desks': lambda p: [],
+            'projects': lambda: [], 'desks': lambda p: [], 'known_repos': lambda: {},
         }.items():
             p = patch.object(A, name, value)
             p.start(); self.addCleanup(p.stop)
