@@ -14,6 +14,8 @@
 #   named workspace Vikix's. The desk's and the project's claims go through
 #   it. Resume saves each workspace's name and makes a named one again.
 #
+# Super+Shift+0 with a new name makes the workspace and sends the window.
+#
 # Needs Xvfb, xdotool, alacritty and Vikix's own StumpWM; without them it
 # says so and stops there. Its own screen, port and home.
 
@@ -95,6 +97,16 @@ key super+2
 xdotool key super+shift+0; sleep 0.7; xdotool type --delay 40 "novel"; sleep 0.3; key Return; sleep 0.7
 check "Super+Shift+0, a name, Enter: the window went there: $(on novel)" test "$(on novel)" = "N1 W2"
 check "and you stayed: $(here_name)" test "$(here_name)" = 2
+win W2b     # the nine full again
+key super+3
+ask '(vikix-send-named "12")' >/dev/null
+check "a number that is no workspace is refused: $(said)" grep -q 'no name for a workspace' <<<"$(said)"
+ask '(vikix-send-named "reading")' >/dev/null; sleep 0.5
+check "Super+Shift+0 with a new name makes the workspace and sends the window there: $(on reading)" test "$(on reading)" = "W3"
+check "said so: $(said)" grep -q 'Workspace reading, new' <<<"$(said)"
+check "and you stayed: $(here_name)" test "$(here_name)" = 3
+check "it is Vikix's to take away" yes '(gethash "reading" *vikix-workspaces-made*)'
+
 
 # Resume saves the name, and makes a named workspace again.
 ask '(vikix-resume-save)' >/dev/null

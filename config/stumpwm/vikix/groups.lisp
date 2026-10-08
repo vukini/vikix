@@ -10,7 +10,9 @@
 ;;;; empty one of the nine; only when every one of the nine has windows is
 ;;;; a tenth made, named for what it is for ("wifi-fix", "novel"), through
 ;;;; vikix-workspace-claim. Super+0 (vikix-workspace) goes to one by name,
-;;;; and makes one the same way when the name is new. A named workspace is
+;;;; and makes one the same way when the name is new; Super+Shift+0
+;;;; (vikix-send-named, viri.lisp) sends the window to one, new or not. A
+;;;; named workspace is
 ;;;; Vikix's to take away again: left with no windows on it, it goes (a
 ;;;; hook on leaving a workspace), so the bar never fills with empty names.
 ;;;; Workspaces you make yourself (gnewbg in user.lisp) are never touched.
@@ -70,11 +72,11 @@ to take away again. The one of that name already there is returned instead."
     (setf (gethash name *vikix-workspaces-made*) (get-universal-time))
     group))
 
-(defun vikix-workspace-claim (&optional name)
-  "A workspace for NAME (a desk's topic, a project), gone to: the one of
-that name when it exists; else the first of the nine with no window; else,
-all nine being in use, a new one named NAME (this workspace when no name
-is given). The group."
+(defun vikix-workspace-claim (&optional name &key (go t))
+  "A workspace for NAME (a desk's topic, a project), gone to unless GO is
+nil: the one of that name when it exists; else the first of the nine with
+no window; else, all nine being in use, a new one named NAME (this
+workspace when no name is given). The group."
   (let* ((screen (current-screen))
          (name (vikix-workspace-name-ok name))
          (group (or (and name (find-group screen name))
@@ -83,7 +85,7 @@ is given). The group."
                              (sort-groups screen))
                     (and name (vikix-workspace-make name))
                     (current-group))))
-    (unless (eq group (current-group))
+    (when (and go (not (eq group (current-group))))
       (switch-to-group group))
     group))
 

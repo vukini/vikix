@@ -53,7 +53,7 @@ a map, the two keys with a space between (\"s-C-SPC m\"), reads
 ;; keys are bound in a loop in keys.lisp), as the help writes them.
 (defparameter *vikix-extra-keys*
   '(("Super+1 ... Super+9" "Go to workspace 1-9 (Super+0: one by name, past the nine)" "grouplist")
-    ("Super+Shift+1 ... 9" "Send window to workspace 1-9, 0 one by name (on a strip: its whole column)" "vikix-send")
+    ("Super+Shift+1 ... 9" "Send window to workspace 1-9, 0 one by name, new or not (on a strip: its whole column)" "vikix-send")
     ("Ctrl+t then ?" "StumpWM's own keys (after the prefix)" "vikix-prefix-keys")
     ;; Not one of StumpWM's keys: rescue.lisp reads it on a connection of
     ;; its own, so it works when these don't.

@@ -805,6 +805,27 @@ whole column it is in, which stays a column there."
              (message "The column's ~d windows are on workspace ~a." n (group-name to-group))))
           (t (move-window-to-group window to-group)))))
 
+(defcommand vikix-send-named (name) ((:vikix-workspace "To workspace: "))
+  "Send this window to a workspace by name (Super+Shift+0; Tab completes),
+staying where you are. A name there is no workspace of gets one as Super+0
+gives it (groups.lisp): the first empty of the nine while there is one, a
+new workspace of that name once all nine have windows. On a strip, the
+whole column goes, as vikix-send sends it."
+  (let* ((name (string-trim " " (or name "")))
+         (window (current-window))
+         (there (and (plusp (length name)) (find-group (current-screen) name))))
+    (cond ((zerop (length name)))
+          ((null window) (message "No window here to send."))
+          ((not (or there (vikix-workspace-name-ok name)))
+           (message "~s is no name for a workspace: a word or two, not a number." name))
+          (t (let ((group (or there (vikix-workspace-claim name :go nil))))
+               (vikix-send group)
+               (cond (there)
+                     ((equal (group-name group) name)
+                      (message "Workspace ~a, new: the window is there (Super+0 ~a goes to it)." name name))
+                     (t (message "No workspace ~a; workspace ~a was empty, so the window is there. One named ~a comes once all nine have windows."
+                                 name (group-name group) name))))))))
+
 (defun viri-fill (group)
   "The focused column as wide as the room the other columns wholly on the
 screen leave: with it they fill the screen exactly, and none is cut."

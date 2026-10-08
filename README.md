@@ -313,7 +313,7 @@ StumpWM's own `Ctrl+t` prefix keys still work too: press `Ctrl+t` and wait, and 
 | Super+Ctrl+y | Title bars on/off |
 | Super+" | Rename this window |
 | Super+1 ... Super+9 | Go to workspace 1-9 (Super+0: one by name, past the nine) |
-| Super+Shift+1 ... 9 | Send window to workspace 1-9, 0 one by name (on a strip: its whole column) |
+| Super+Shift+1 ... 9 | Send window to workspace 1-9, 0 one by name, new or not (on a strip: its whole column) |
 | **Notifications** | |
 | Super+n | Notifications: the last one again |
 | Super+Shift+n | Notifications: pick an earlier one |
