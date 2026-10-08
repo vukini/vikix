@@ -58,6 +58,11 @@ if command -v Xvfb >/dev/null && command -v emacs >/dev/null; then
   for ((i=0; i<100; i++)); do [ ! -S "/tmp/.X11-unix/X$n" ] || break; sleep 0.1; done
   if [ -S "/tmp/.X11-unix/X$n" ]; then
     export DISPLAY=":$n"
+    # And until it answers, as tests/lib/wm.sh waits: the socket is there a
+    # moment before the server listens, and under load Emacs found no display.
+    if command -v xdpyinfo >/dev/null; then
+      for ((i=0; i<50; i++)); do xdpyinfo >/dev/null 2>&1 && break; sleep 0.2; done
+    fi
     code=0
     timeout 20 emacs -Q --no-splash -l "$here/tests/office-ui-visual.el" || code=$?
     [ ! -f "$t/visual-result" ] || cat "$t/visual-result"

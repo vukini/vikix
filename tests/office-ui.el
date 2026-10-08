@@ -20,8 +20,12 @@
            ,@body)
        (when (buffer-live-p buffer) (kill-buffer buffer)))))
 (defun office-test-wait ()
-  (let ((end (+ (float-time) 4)))
-    (while (and (process-live-p vikix-office--process) (< (float-time) end))
+  "Until the request's sentinel has run (it clears the slot, then calls
+DONE), or twenty seconds. A process that has exited is not enough: its
+sentinel, which delivers the output, runs a moment later, and under the
+load of other sessions' tests that moment was missed (2026-10-08)."
+  (let ((end (+ (float-time) 20)))
+    (while (and (or vikix-office--process vikix-office--action) (< (float-time) end))
       (accept-process-output nil 0.03))))
 (ert-deftest office-selection-and-focus ()
   (office-test-buffer
