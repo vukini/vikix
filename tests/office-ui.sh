@@ -9,7 +9,9 @@ here=$(cd "$(dirname "$0")/.." && pwd)
 t=$(mktemp -d)
 xpid=''
 epid=''
-trap '[ -z "$epid" ] || kill "$epid" 2>/dev/null; [ -z "$xpid" ] || kill "$xpid" 2>/dev/null; rm -rf "$t"' EXIT
+# (|| true: a daemon gone on its own would stop the trap at its kill, under
+# set -e, and leave the screen running.)
+trap '[ -z "$epid" ] || kill "$epid" 2>/dev/null || true; [ -z "$xpid" ] || kill "$xpid" 2>/dev/null || true; rm -rf "$t"' EXIT
 export HOME="$t"
 export XDG_STATE_HOME="$t/state" XDG_CONFIG_HOME="$t/config" XDG_DATA_HOME="$t/data"
 export DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent/office-test
@@ -38,12 +40,16 @@ if command -v emacs >/dev/null; then
 fi
 
 if command -v Xvfb >/dev/null && command -v emacs >/dev/null; then
-  Xvfb -displayfd 3 -screen 0 1600x1000x24 -nolisten tcp 3>"$t/display" >"$t/xvfb.log" 2>&1 &
+  # A free screen of its own, as every hidden-screen test picks one: tests
+  # run side by side, and -displayfd, taking the lowest free number, once
+  # met another server on :1 and lost the display under the daemon.
+  n=$(( 4600 + RANDOM % 400 ))
+  while [ -e "/tmp/.X$n-lock" ] || [ -e "/tmp/.X11-unix/X$n" ]; do n=$((n + 1)); done
+  Xvfb ":$n" -screen 0 1600x1000x24 -nolisten tcp >"$t/xvfb.log" 2>&1 &
   xpid=$!
-  for ((i=0; i<50; i++)); do [ ! -s "$t/display" ] || break; sleep 0.1; done
-  if [ -s "$t/display" ]; then
-    DISPLAY=":$(cat "$t/display")"
-    export DISPLAY
+  for ((i=0; i<100; i++)); do [ ! -S "/tmp/.X11-unix/X$n" ] || break; sleep 0.1; done
+  if [ -S "/tmp/.X11-unix/X$n" ]; then
+    export DISPLAY=":$n"
     code=0
     timeout 20 emacs -Q --no-splash -l "$here/tests/office-ui-visual.el" || code=$?
     [ ! -f "$t/visual-result" ] || cat "$t/visual-result"
