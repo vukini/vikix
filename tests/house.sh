@@ -276,6 +276,17 @@ out=$(touch_as 1001 "$t/src/book-a/ch3.md")
 check "delivered at its next edit: $out" grep -q '"additionalContext": "Vikix office, notes for you at this desk (vikix agents tell): \[user, [0-9:]*\] look at chapter two first"' <<<"$out"
 out=$(touch_as 1001 "$t/src/book-a/ch3.md")
 check "once: '$out'" test -z "$out"
+row() { printf 'claude\t1001\t%s\t1\t123\t10\t%s\t%s\t\t%s\tbook-a · Claude\n' "$t/src/book-a" "$1" "$2" "$3"; }
+printf '#!/bin/sh\necho "%s"\n' "$(row idle 'at its prompt' '✳ x')" > "$t/eval-idle"; chmod +x "$t/eval-idle"
+printf '#!/bin/sh\necho "%s"\n' "$(row asks 'waits for your yes' '◐ x')" > "$t/eval-asks"; chmod +x "$t/eval-asks"
+out=$(VIKIX_EVAL=$t/eval-idle agents tell a "and chapter three")
+check "an agent at its prompt is said to be, since a note reaches it only at a command: $out" \
+  grep -q 'noted for its agent; its agent is at its prompt: it reads this when you next ask it something' <<<"$out"
+out=$(VIKIX_EVAL=$t/eval-asks agents tell a "and chapter four")
+check "one waiting for you too: $out" grep -q 'its agent is waiting for you: answer it, and it reads this at its next edit' <<<"$out"
+out=$(touch_as 1001 "$t/src/book-a/ch3.md")
+check "both notes come together at its next edit: $(head -c 150 <<<"$out")" \
+  grep -q 'and chapter three \[user, [0-9:]*\] and chapter four"' <<<"$out"
 out=$(agents tell b "wait for a")
 check "an agent whose hook carries no note is said so: $out" grep -q 'codex 1002 has no hook that carries a note' <<<"$out"
 out=$(touch_as 1002 --for codex "$t/src/book-b/ch9.md")

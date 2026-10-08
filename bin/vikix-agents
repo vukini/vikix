@@ -153,7 +153,9 @@
                        a note for the desk's agent, delivered by Claude
                        Code's hook at its next edit or command (another
                        agent reads it in vikix agents handoff, and resume
-                       reads it out); DESK as for close
+                       reads it out); said when the agent is at its prompt,
+                       since it makes none until you speak to it; DESK as
+                       for close
   vikix agents stopping
                        Claude Code's Stop hook (vikix agent sets it): a
                        worker, an agent at a desk with a task, that changed
@@ -1195,7 +1197,19 @@ def tell(argv):
         said += (f"; {', '.join(who(a) for a in there)} has no hook that carries a note, so it isn't told: "
                  "vikix agents handoff shows the note, and the agent reads it when it looks there")
     else:
-        said += ", delivered at its next edit or command"
+        # What the agent is doing, from the desktop: a note reaches it only at an edit or a
+        # command, which an agent at its prompt makes none of until it is spoken to.
+        try:
+            states = {a["pid"]: a["state"] for a in desktop(strict=True)}
+        except (RuntimeError, SystemExit):
+            states = {}
+        state = next((states.get(a["pid"]) for a in there if a["agent"] == "claude" and states.get(a["pid"])), "")
+        if state in ("idle", "done"):
+            said += "; its agent is at its prompt: it reads this when you next ask it something"
+        elif state == "asks":
+            said += "; its agent is waiting for you: answer it, and it reads this at its next edit or command"
+        else:
+            said += ", delivered at its next edit or command"
     print(said)
     return 0
 
