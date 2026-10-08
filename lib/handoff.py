@@ -451,7 +451,7 @@ def render(rec, agents_at=(), protection=(), now=None):
     elif not os.path.isdir(d["worktree"]):
         lines.append("  its folder is gone (the record is kept; vikix agents desk makes the worktree again)")
     t = rec.get("task") or {}
-    lines.append(f"Task ({t['by']}, {when(t['at'])}): {t['text']}" if t else "Task: none set (vikix agents handoff set --task \"...\")")
+    lines.append(f"Task ({t['by']}, {when(t['at'])}): {t['text']}" if t else "Task: none set (vikix agents handoff --task \"...\")")
     h = rec.get("handoff") or {}
     s = h.get("status")
     lines.append(f"Status: {s['value']} ({s['by']}, {when(s['at'])})" if s else "Status: not said")

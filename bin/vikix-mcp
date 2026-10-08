@@ -457,7 +457,7 @@ def t_handoff(a):
 
 
 def t_handoff_update(a):
-    """The caller's handoff on its desk (vikix agents handoff set): the
+    """The caller's handoff on its desk (vikix agents handoff --status ...): the
     same fields as --from, through the same code, signed by the caller."""
     agents = office()
     H = agents.handoff_module()
@@ -924,7 +924,7 @@ TOOLS = [
      schema({"title": {"type": "string", "maxLength": 80}, "body": {"type": "string", "maxLength": 400}}, ["title"]),
      ONCE, t_notify),
     ("handoff_update", "Update your desk's handoff",
-     "Write your handoff on your desk (vikix agents handoff set), for whoever takes the desk next, the user "
+     "Write your handoff on your desk (vikix agents handoff --status ...), for whoever takes the desk next, the user "
      "included: do it when you start (status working, with an estimate), when you hand work back, when you are "
      "blocked (status waiting), when the work is ready (review) or done (finished). status: "
      "working|waiting|review|finished; estimate: how long the work will take from now, assuming no major issue "

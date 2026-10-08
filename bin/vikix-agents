@@ -1,70 +1,68 @@
 #!/usr/bin/env python3
 """vikix-agents — the agents at work on this desktop, in one place (`vikix agents`).
 
-  vikix agents         each agent running in a terminal here: which it is
-                       (claude, codex, opencode, gemini, antigravity, aider),
-                       the folder
-                       it works in with its branch and how many files it
-                       has left uncommitted there, its workspace, how long
-                       it has run, and what it is doing: working, at its
-                       prompt, finished its turn, or waiting for you (a
-                       dialog open, a question asked); under it, its
-                       window's title, or what it asked
-                       An agent whose shell is held by a release
+  vikix agents [--json]  each agent running in a terminal here, and what it is doing.
+                       Which it is (claude, codex, opencode, gemini,
+                       antigravity, aider), the folder it works in with its
+                       branch and how many files it has left uncommitted
+                       there, its workspace, how long it has run, and what
+                       it is doing: working, at its prompt, finished its
+                       turn, or waiting for you (a dialog open, a question
+                       asked); under it, its window's title, or what it
+                       asked. An agent whose shell is held by a release
                        (.claude/release) or by tests (tests/run.sh) says
                        so instead: waiting for a release (its turn in the
                        release queue), releasing (what step), waiting for
-                       a test slot (other runs are testing), testing
+                       a test slot (other runs are testing), testing.
+                       --json: the same for a script
   vikix agents office [--tty]
-                       The Office: tasks, desks, handoffs; go to an agent or
-                       continue a desk. On the desktop an Emacs frame of its
-                       own; in a terminal with no display (a server, SSH),
-                       or with --tty, it takes over this terminal through
-                       emacsclient -nw, and q gives the shell back. Either
-                       way it is your running Emacs (M-x server-start if
-                       needed): a second one is never started, and the
-                       Office open already comes to the front instead,
-                       from whichever workspace it is on
-  vikix agents office --json
-                       the same snapshot for scripts: desks, live activity
-                       (unknown on failure), handoffs and check freshness
-  vikix agents office --go PID
-                       go to that live agent through the desktop; fail if
-                       it ended or has no desktop window
-  vikix agents office --close-agent PID START
-                       request agent exit, keeping its desk and files;
-                       START is process_start from the Office JSON snapshot
-  vikix agents office --forget ID
-                       forget one archived desk record by its id, as handoff
-                       forget does (the Office's "Forget this record")
-  vikix agents office --purge-archive TOKEN
-                       permanently delete the archived desk records in the
-                       confirmed snapshot; TOKEN is its archive_token.
-                       Refused if records or live discovery changed; leaves
-                       project files and provider conversations alone
-  vikix agents --json  the same as JSON, for a script
+                       The Office: tasks, desks and handoffs, in Emacs.
+                       Go to an agent or continue a desk from it. On the
+                       desktop an Emacs frame of its own; in a terminal
+                       with no display (a server, SSH), or with --tty, it
+                       takes over this terminal through emacsclient -nw,
+                       and q gives the shell back. Either way it is your
+                       running Emacs (M-x server-start if needed): a
+                       second one is never started, and the Office open
+                       already comes to the front instead, from whichever
+                       workspace it is on
+  vikix agents clash [FILE]
+                       the files two agents are on at once.
+                       Each file with the agents that have changed it,
+                       uncommitted, in worktrees of one repository, or
+                       that have edited the same file; with FILE, each
+                       agent's change to it in full (both plans, one under
+                       the other), for you to say which stays
+  vikix agents crossings [--limit N]
+                       the last crossings recorded.
+                       An agent that edited a file in another agent's
+                       folder, or went to another agent's window
+  vikix agents help [COMMAND]
+                       the commands in short, or one of them in full.
+                       -h (and man vikix-agents) is all of it
+
   vikix agents here [--use NAME] [--local]
-                       start an agent in a terminal in your home folder, on
-                       this workspace, with no desk (Super+a, Agent here):
-                       it asks which agent, as desk does, when --use and
-                       --local don't say
+                       an agent in your home folder, with no desk.
+                       In a terminal on this workspace (Super+a, Agent
+                       here): it asks which agent, as desk does, when --use
+                       and --local don't say
   vikix agents desk [PROJECT [TOPIC]] [--use NAME] [--local] [--here] [--push]
-                       start an agent at a desk of its own: in PROJECT (one
-                       of vikix project's, by any part of its name), on a
-                       workspace to itself, and with a TOPIC in a git
-                       worktree of the project made for it: the folder
-                       PROJECT-TOPIC beside the project, on a new branch
-                       TOPIC, so its work can't collide with another
-                       agent's. Without PROJECT it asks which, then for a
-                       topic (a repository's desk is a worktree, so one is
-                       needed; a project that is no repository works in
-                       its own folder, with none), then for the task, when
-                       --task doesn't say (nothing typed is a desk with no
-                       task), then which agent, when --use doesn't say:
-                       yours first, the others as vikix agent --list has
-                       them, and the ones that can on a model on this
-                       laptop; then whether it may push as you (no, the
-                       usual: it commits, you push).
+                       start an agent at a desk of its own.
+                       In PROJECT (one of vikix project's, by any part of
+                       its name), on a workspace to itself, and with a
+                       TOPIC in a git worktree of the project made for it:
+                       the folder PROJECT-TOPIC beside the project, on a
+                       new branch TOPIC, so its work can't collide with
+                       another agent's. Without PROJECT it asks which, then
+                       for a topic (a repository's desk is a worktree, so
+                       one is needed; a project that is no repository
+                       works in its own folder, with none), then for the
+                       task, when --task doesn't say (nothing typed is a
+                       desk with no task), then which agent, when --use
+                       doesn't say: yours first, the others as vikix agent
+                       --list has them, and the ones that can on a model
+                       on this laptop; then whether it may push as you
+                       (no, the usual: it commits, you push).
                        --use: another agent than yours (vikix agent --use);
                        --local: on a model on this laptop (vikix agent
                        --local; opencode, codex and aider can);
@@ -76,40 +74,53 @@
                        --task "...": the task, in your words, written in
                        the desk's record and given to the agent as its
                        first prompt (aider takes none: it reads the record)
-  vikix agents sit [PROJECT [TOPIC]]
-                       for an agent, from its own shell: take a desk
-                       without being started again. The worktree
-                       PROJECT-TOPIC is made (or the one there used), and
-                       the agent that runs this is seated at it: from then
-                       on the house rules take that folder as its own, and
-                       vikix agents shows it there. Without PROJECT, the
-                       desk the agent's folder is in. A repository's desk
-                       is a worktree, so TOPIC is needed for one; a project
-                       that is no repository seats the agent in its folder
+  vikix agents resume [DESK] [--use NAME] [--here] [--fresh] [--another]
+                       take a desk up again, its conversation resumed.
+                       Its handoff, git state and checks shown, then an
+                       agent started there, its conversation resumed where
+                       it can be (--menu, from the desktop: pick
+                       the desk in rofi). A session the record names,
+                       which the provider's store still has, is resumed
+                       (claude --resume ID, codex resume ID, opencode
+                       --session ID, agy --conversation ID); else a fresh
+                       conversation, and why is said. Refused while an
+                       agent is at the desk (--another: a second one).
+                       --require-saved refuses a fresh fallback if the
+                       saved conversation is no longer available;
+                       --expect-session ID also refuses if the recorded
+                       conversation changed since the choice was shown
   vikix agents close [DESK] [--force]
-                       close a desk whose work is in: its worktree is
-                       removed and its branch deleted. DESK is the folder
-                       (~/src/PROJECT-TOPIC), the topic or the branch, or
-                       PROJECT TOPIC; without one it asks which on the
-                       desktop, or lists them. Refused while an agent still
-                       works there, or with files uncommitted; a branch not
-                       merged yet is kept and said. --force: uncommitted
-                       files and the unmerged branch are thrown away
-  vikix agents desks   every desk there is, one a line, tab-parted: its
-                       folder, its branch and the project's own folder (for
-                       scripts, such as vikix try; close says them in words)
+                       close a desk whose work is in.
+                       Its worktree is removed and its branch deleted. DESK
+                       is the folder (~/src/PROJECT-TOPIC), the topic or
+                       the branch, or PROJECT TOPIC; without one it asks
+                       which on the desktop, or lists them. Refused while
+                       an agent still works there, or with files
+                       uncommitted; a branch not merged yet is kept and
+                       said. --force: uncommitted files and the unmerged
+                       branch are thrown away
+
+  vikix agents sit [PROJECT [TOPIC]]
+                       take a desk without being started again.
+                       For an agent, from its own shell: the worktree
+                       PROJECT-TOPIC is made (or the one there used), and
+                       the agent that runs this is seated
+                       at it: from then on the house rules take that
+                       folder as its own, and vikix agents shows it there.
+                       Without PROJECT, the desk the agent's folder is in.
+                       A repository's desk is a worktree, so TOPIC is
+                       needed for one; a project that is no repository
+                       seats the agent in its folder
   vikix agents handoff [DESK] [--json]
-                       the desk's record: the task, the status, what was
-                       done and decided, what is left, the checks with
-                       whether each still speaks for the code (stale once
-                       the code moved on), the git state now, the sessions
-                       that can be resumed, who is at the desk and what
-                       holds the rules for each. DESK as for close; none:
-                       the desk you sit at
-  vikix agents handoff set [--desk DESK] [--task "..."] [--status S]
-                       [--summary "..."] [--next "..."] [--estimate "..."]
-                       [--from FILE|-]
-                       the user's task; the agent's status (working,
+                       the desk's record: task, status, what was done, what is left.
+                       Also the checks with whether each still speaks for
+                       the code (stale once the code moved on), the git
+                       state now, the sessions that can be resumed, who is
+                       at the desk and what holds the rules for each. DESK
+                       as for close; none: the desk you sit at
+  vikix agents handoff [DESK] [--status S] [--estimate "..."] [--summary "..."] [--next "..."] [--task "..."] [--from FILE|-]
+                       set the record's task, status, estimate, account or next step.
+                       The user's task; the agent's status (working,
                        waiting, review, finished), its account of changes
                        and decisions, what is left and the next action;
                        --estimate how long the work will take from now,
@@ -118,121 +129,97 @@
                        the record and the listing then count down; --from
                        takes the same as JSON (task, status, summary,
                        next, estimate, check {name, ok, note}, session
-                       {provider, id}). Each line says who wrote it
+                       {provider, id}). Each line says who wrote it.
+                       "handoff set", and --desk DESK, are the same
   vikix agents handoff check NAME --ok|--failed [--note "..."] [--desk DESK]
-                       a check that ran (the command), with the commit it
-                       ran on and whether the tree was dirty, read by Vikix
+                       a check that ran (the command), and whether it passed.
+                       Kept with the commit it ran on and whether the tree
+                       was dirty, read by Vikix
   vikix agents handoff session PROVIDER ID [--desk DESK]
-                       a conversation that can be resumed at this desk
-                       (claude's session id, codex's thread, opencode's
-                       session); Claude Code's is noted by the hook itself
+                       a conversation that can be resumed at this desk.
+                       Claude's session id, codex's thread, opencode's
+                       session; Claude Code's is noted by the hook itself
   vikix agents handoff list [--json]
-                       every desk with a record, newest change first
-                       (--menu, from Super+m: pick one, read it in a terminal)
+                       every desk with a record, newest change first.
+                       --menu, from Super+m: pick one, read it in a
+                       terminal
   vikix agents handoff forget [DESK]
-                       remove the record of a desk whose worktree is gone
-                       (released, or closed): the Office's Archive, one at a
-                       time. Refused while the folder stands (close it) or an
-                       agent is still in it. Nothing else goes: no file, no
-                       branch, no saved conversation. Without DESK: the
-                       records that could be forgotten
-  vikix agents resume [DESK] [--use NAME] [--here] [--fresh] [--another]
-                       take a desk up again: its handoff, git state and
-                       checks shown, then an agent started there (--menu,
-                       from the desktop: pick the desk in rofi). A
-                       session the record names, which the provider's
-                       store still has, is resumed (claude --resume ID,
-                       codex resume ID, opencode --session ID, agy
-                       --conversation ID); else a
-                       fresh conversation, and why is said. Refused while
-                       an agent is at the desk (--another: a second one).
-                       --require-saved refuses a fresh fallback if the
-                       saved conversation is no longer available;
-                       --expect-session ID also refuses if the recorded
-                       conversation changed since the choice was shown
+                       remove the record of a desk whose worktree is gone.
+                       Released, or closed: the Office's Archive, one at a
+                       time. Refused while the folder stands (close it) or
+                       an agent is still in it. Nothing else goes: no
+                       file, no branch, no saved conversation. Without
+                       DESK: the records that could be forgotten
+
+  vikix agents tell DESK "..." | --menu
+                       a note for the desk's agent, at its next tool call.
+                       Delivered by Claude Code's hook (another agent reads
+                       it in vikix agents handoff, and resume reads it
+                       out); said when the agent is at its prompt, since it
+                       makes none until you speak to it; DESK as for close
+  vikix agents pause DESK [--hard] | --menu
+                       hold the desk's agent at its next tool call, until go.
+                       It waits with its context whole and at no cost, for
+                       ten minutes at most, after which the call is refused
+                       with why and the turn ends. --hard freezes the
+                       agent's process this instant instead (SIGSTOP; for
+                       an agent with no hook, or an emergency: a request
+                       in flight may time out)
+  vikix agents go DESK  let a paused agent go on (SIGCONT after --hard)
+  vikix agents turns DESK on|off
+                       take turns on a file instead of asking you.
+                       With turns on, an edit of a file another agent has
+                       changed, uncommitted, waits for that agent's commit
+                       (ten minutes at most, then it asks); two waiting for
+                       each other is seen, and the later one asks you at
+                       once
+  vikix agents test [DESK | --all | --menu] [--log DESK]
+                       the tester: the tests a desk's changes reach, run for it.
+                       Its project's tests/run.sh, --changed from where its
+                       branch left the project's own, run in its worktree
+                       through the runner's queue; the result goes into
+                       its handoff as a check by vikix, with the failing
+                       tests named, and into its inbox, so the worker fixes
+                       its own failures. A desk set to review runs this by
+                       itself, once per hand-in. --all: every desk in
+                       review; those that changed no file in common are
+                       merged onto the project's own branch in a throwaway
+                       worktree and tested together once (passing alone
+                       and failing together is what a batch is for), the
+                       overlapping ones each alone, told which it overlaps;
+                       a merge that conflicts sends that desk to run
+                       alone. --log: the last run's output
+  vikix agents dismiss DESK | --menu
+                       ask the desk's agent to exit, and keep the desk for later.
+                       Its branch and files stay (vikix agents resume): the
+                       Office's Close agent, from the terminal. A note
+                       first, "dismissed: write your handoff if you can",
+                       which an agent mid-turn reads at its next call; the
+                       record notes the dismissal and the files left
+                       uncommitted. Never your own process.
+                       --menu, on each of these: the desk picked in rofi,
+                       and for tell the note typed there; the desks' map,
+                       Super+Alt+d: t test, p pause or go, i tell, x
+                       dismiss
+
   vikix agents hooks [PROVIDER] [--install]
-                       what holds the house rules for each provider:
+                       what holds the house rules for each agent program.
                        Claude Code's hooks, given at each start; Codex's
                        and OpenCode's as adapters --install links into
                        their folders; Gemini's a snippet to merge by hand;
                        Aider none. Instructions only, where no hook is
-  vikix agents tell DESK "..." | --menu
-                       a note for the desk's agent, delivered by Claude
-                       Code's hook at its next tool call (another
-                       agent reads it in vikix agents handoff, and resume
-                       reads it out); said when the agent is at its prompt,
-                       since it makes none until you speak to it; DESK as
-                       for close
-  vikix agents pause DESK [--hard] | --menu
-                       hold the desk's agent: its next tool call
-                       waits, with its context whole and at no cost,
-                       until go, for ten minutes at most, after which the
-                       call is refused with why and the turn ends. --hard
-                       freezes the agent's process this instant instead
-                       (SIGSTOP; for an agent with no hook, or an emergency:
-                       a request in flight may time out)
-  vikix agents go DESK  let it go on (SIGCONT after --hard)
-  vikix agents turns DESK on|off
-                       take turns on a file: with turns on, an edit of a
-                       file another agent has changed, uncommitted, waits
-                       for that agent's commit instead of asking you (ten
-                       minutes at most, then it asks); two waiting for each
-                       other is seen, and the later one asks you at once
-  vikix agents test [DESK | --all | --menu] [--log DESK]
-                       the tester: the tests a desk's changes reach
-                       (its project's tests/run.sh, --changed from where
-                       its branch left the project's own), run in its
-                       worktree through the runner's queue; the result
-                       goes into its handoff as a check by vikix, with the
-                       failing tests named, and into its inbox, so the
-                       worker fixes its own failures. A desk set to review
-                       runs this by itself, once per hand-in. --all: every
-                       desk in review; those that changed no file in
-                       common are merged onto the project's own branch in
-                       a throwaway worktree and tested together once
-                       (passing alone and failing together is what a
-                       batch is for), the overlapping ones each alone,
-                       told which it overlaps; a merge that conflicts
-                       sends that desk to run alone. --log: the last
-                       run's output
-  vikix agents dismiss DESK | --menu
-                       ask the desk's agent to exit, and keep its desk,
-                       branch and files for later (vikix agents resume):
-                       the Office's Close agent, from the terminal. A note
-                       first, "dismissed: write your handoff if you can",
-                       which an agent mid-turn reads at its next call; the
-                       record notes the dismissal and the files left
-                       uncommitted. Never your own process
-                       (--menu, on each of these: the desk picked in rofi,
-                       and for tell the note typed there; the desks' map,
-                       Super+Alt+d: t test, p pause or go, i tell, x dismiss)
-  vikix agents left    Claude Code's SessionEnd hook: how the agent left
-                       its desk (exit, logout, dismissed) and the files
-                       left uncommitted, noted in the record for the next
-                       one at the desk
-  vikix agents stopping
-                       Claude Code's Stop hook (vikix agent sets it): a
-                       worker, an agent at a desk with a task, that changed
-                       files in this turn and left the handoff unwritten
-                       is asked once to write it before it stops
+
+  vikix agents desks   every desk there is, one a line, for scripts.
+                       Tab-parted: its folder, its branch and the project's
+                       own folder (vikix try reads it; close says them in
+                       words)
   vikix agents touch [FILE] [--for PROVIDER] [--pause-only]
-  vikix agents clash [FILE]
-                       the files two agents are on at once: each file with
-                       the agents that have changed it, uncommitted, in
-                       worktrees of one repository, or that have edited the
-                       same file; with FILE, each agent's change to it in
-                       full (both plans, one under the other), for you to
-                       say which stays
-  vikix agents crossings [--limit N]
-                       the last crossings recorded: an agent that edited a
-                       file in another agent's folder, or went to another
-                       agent's window
-                       the house rules for one edit, run by Claude Code's
-                       PreToolUse hook before every Edit, Write and Bash,
-                       and by Antigravity CLI's before each edit and
-                       command (vikix agent sets both; it reads the hook's
-                       JSON on stdin when no FILE is given, and answers in
-                       the shape of whichever asked). A file of a project's
+                       the house rules for one edit: Claude Code's PreToolUse hook.
+                       Run before every Edit, Write and Bash, and by
+                       Antigravity CLI's before each edit and command
+                       (vikix agent sets both; it reads the hook's JSON on
+                       stdin when no FILE is given, and answers in the
+                       shape of whichever asked). A file of a project's
                        repository is refused unless the agent is at a desk
                        (a worktree of its own: vikix agents desk or sit),
                        and always in the project's own folder, which is for
@@ -243,6 +230,38 @@
                        and told to the agent; a file another agent has
                        changed too makes Claude Code ask you first, naming
                        that agent. No agent above it: nothing happens
+  vikix agents stopping
+                       Claude Code's Stop hook: a worker is asked once for its handoff.
+                       A worker, an agent at a desk with a task, that
+                       changed files in this turn and left the handoff
+                       unwritten is asked to write it before it stops
+                       (vikix agent sets the hook)
+  vikix agents left    Claude Code's SessionEnd hook: how the agent left its desk.
+                       Exit, logout, dismissed, and the files left
+                       uncommitted, noted in the record for the next one
+                       at the desk
+  vikix agents office --json
+                       the Office's snapshot for scripts: desks, live activity, handoffs.
+                       Unknown on failure; the checks with their freshness
+  vikix agents office --go PID
+                       go to that live agent through the desktop.
+                       Fails if it ended or has no desktop window
+  vikix agents office --close-agent PID START
+                       request an agent's exit, keeping its desk and files.
+                       START is process_start from the Office JSON snapshot
+  vikix agents office --forget ID
+                       forget one archived desk record by its id.
+                       As handoff forget does (the Office's "Forget this
+                       record")
+  vikix agents office --purge-archive TOKEN
+                       delete the archived desk records in the confirmed snapshot.
+                       TOKEN is its archive_token. Refused if records or
+                       live discovery changed; leaves project files and
+                       provider conversations alone
+  vikix agents --waits PID...
+                       for the desktop's menu: what holds each of these agents.
+                       A line each: pid, the words, the line under, from
+                       the notes alone (agents.lisp)
 
 Several agents run side by side, each in a terminal of its own, and five
 windows called "Alacritty" don't say which is which. The desktop starts
@@ -367,6 +386,111 @@ NAMES = {"agy": "antigravity"}     # a program whose name isn't its agent's
 # daemon), claude mcp serve, opencode serve. Never listed as an agent.
 SERVERS = {"codex": ("app-server", "exec-server", "mcp-server"), "claude": ("mcp",), "opencode": ("serve", "web", "acp")}
 FIELDS = ("agent", "pid", "folder", "workspace", "window", "seconds", "state", "doing", "said", "title", "desk_title")
+# What vikix agents handoff writes, given any of them (no "set" needed).
+SETTINGS = ("--task", "--status", "--summary", "--next", "--estimate", "--from")
+
+# The commands by what they are for, as vikix agents help lists them: a
+# section's word (help WORD shows it in full) and the forms' first words
+# after "vikix agents" (help_key). Every form of the header must be in
+# one, or help can't place it (tests/house.sh checks).
+SECTIONS = (
+    ("seeing", "Seeing them", ("", "office", "clash", "crossings", "help")),
+    ("each", "A desk each", ("here", "desk", "resume", "close")),
+    ("agent", "The agent's own, from its shell", ("sit", "handoff", "handoff check", "handoff session", "handoff list",
+                                                "handoff forget")),
+    ("workers", "Workers: a desk with a task", ("tell", "pause", "go", "turns", "test", "dismiss")),
+    ("rules", "The house rules", ("hooks",)),
+    ("scripts", "For hooks, the Office and scripts", ("desks", "touch", "stopping", "left", "office --json", "office --go",
+                                                      "office --close-agent", "office --forget", "office --purge-archive",
+                                                      "--waits")),
+)
+
+
+def help_entries():
+    """The header's forms: (key, form, one line, every line) each, in the
+    header's order. A form is a line of the docstring at two spaces
+    starting with vikix agents; the lines further in are its description,
+    the first of them (or what is beside the form) its one line."""
+    out = []
+    for line in __doc__.splitlines()[1:]:
+        if line and not line.startswith(" "):
+            break               # the prose
+        if line.startswith("  vikix agents"):
+            form, beside = (re.split(r" {2,}", line.strip(), maxsplit=1) + [""])[:2]
+            out.append([help_key(form), form, beside, [line]])
+        elif line.startswith("   ") and out:
+            out[-1][3].append(line)
+            if not out[-1][2]:
+                out[-1][2] = line.strip()
+    return [(k, f, one.rstrip("."), lines) for k, f, one, lines in out]
+
+
+def help_key(form):
+    """The words of FORM after "vikix agents" that name the command: lowercase
+    words and options, up to the first argument ([DESK], NAME, "...")."""
+    words = []
+    for w in form.split()[2:]:
+        if not re.fullmatch(r"[a-z-]+", w):
+            break
+        words.append(w)
+    return " ".join(words)
+
+
+def help_short(form, seen):
+    """FORM for the map: whole when it fits the column, else cut at its first
+    bracketed option, or at the second when the first cut repeats one
+    shown already (handoff's two forms). SEEN keeps the first cuts."""
+    parts = form.split(" [--")
+    cut = parts[0]
+    repeated = cut in seen
+    seen.add(cut)
+    if len(form) <= 42 or len(parts) == 1:
+        return form
+    if repeated and len(parts) > 2:
+        cut = " [--".join(parts[:2])
+    return cut + " ..."
+
+
+def help_map():
+    """vikix agents help: the sections, a line a command; the last section
+    only names its commands."""
+    entries = help_entries()
+    by_key = {}
+    for e in entries:
+        by_key.setdefault(e[0], []).append(e)
+    print(__doc__.splitlines()[0].replace("vikix-agents", "vikix agents").split(" (`vikix agents`)")[0] + ".")
+    seen = set()
+    for word, title, keys in SECTIONS:
+        print(f"\n{title}")
+        if word == "scripts":
+            import textwrap
+            print(textwrap.fill(", ".join(keys), 76, initial_indent="  ", subsequent_indent="  ", break_on_hyphens=False)
+                  + f"\n  (vikix agents help {word} says what each is)")
+            continue
+        for k in keys:
+            for _, form, one, _ in by_key.get(k, []):
+                short_form = help_short(form, seen)
+                if len(short_form) <= 42:
+                    print(f"  {short_form:<42} {one}")
+                else:
+                    print(f"  {short_form}\n  {'':<42} {one}")
+    print("\nvikix agents help COMMAND says more about one (help handoff, help scripts); "
+          "vikix agents -h, or man vikix-agents, is all of it.")
+
+
+def help_one(word):
+    """vikix agents help WORD: the forms of that command, or of that
+    section, in full, as the header has them."""
+    entries = help_entries()
+    picked = [e for e in entries if e[0] == word or e[0].startswith(word + " ") or e[0] == "--" + word]
+    for w, _, keys in SECTIONS:
+        if not picked and word == w:
+            picked = [e for e in entries if e[0] in keys]
+    if not picked:
+        die(f"no command called {word} (vikix agents help lists them)")
+    for _, _, _, lines in picked:
+        print("\n".join(lines))
+    return 0
 
 
 def die(message):
@@ -894,7 +1018,7 @@ def desk_prompt(task):
     return (task.rstrip() + "\n\nThis is your desk's task, as its record keeps it (vikix agents handoff, or the "
             "MCP tool handoff): read the handoff before you start; once you know the shape of the work, say how "
             "long it will take, assuming no major issue turns up (handoff_update with status working and an "
-            "estimate, or vikix agents handoff set --status working --estimate \"40 min\"); and write yours "
+            "estimate, or vikix agents handoff --status working --estimate \"40 min\"); and write yours "
             "when you hand back or finish.")
 
 
@@ -1963,7 +2087,7 @@ def stopping(argv):
     n = len(edited)
     print(json.dumps({"decision": "block", "reason": (
         f"Vikix office: this turn changed {n} file{'s' if n != 1 else ''} at your desk and the handoff hasn't been "
-        "written since. Write it now, then stop: vikix agents handoff set --status working|waiting|review|finished "
+        "written since. Write it now, then stop: vikix agents handoff --status working|waiting|review|finished "
         "--summary \"what you changed and decided\" --next \"what is left, the very next action\" (or the MCP tool "
         "handoff_update); review when the work is ready for the user, waiting when you need them.")}))
     return 0
@@ -2099,13 +2223,16 @@ def handoff(argv):
         return handoff_menu()
     verb = argv.pop(0) if argv and argv[0] in ("show", "set", "check", "session", "list", "forget") else "show"
     as_json, desk, words, opts = False, None, [], {}
+    # A setting given is a set: "handoff --status working", no verb needed.
+    if verb == "show" and any(a in SETTINGS for a in argv):
+        verb = "set"
     while argv:
         a = argv.pop(0)
         if a == "--json":
             as_json = True
         elif a == "--desk":
             desk = argv.pop(0).split() if argv else die("--desk which? (vikix agents handoff list)")
-        elif a in ("--task", "--status", "--summary", "--next", "--estimate", "--note", "--from"):
+        elif a in SETTINGS or a == "--note":
             opts[a] = argv.pop(0) if argv else die(f"{a} needs words")
         elif a in ("--ok", "--failed"):
             opts["ok"] = a == "--ok"
@@ -2120,7 +2247,7 @@ def handoff(argv):
             return 0
         if not recs:
             print("No desk has a record yet: vikix agents desk PROJECT TOPIC --task \"...\" makes one, "
-                  "or vikix agents handoff set --task from a desk.")
+                  "or vikix agents handoff --task \"...\" from a desk.")
             return 0
         for r in recs:
             d, h = r["desk"], r.get("handoff") or {}
@@ -2137,7 +2264,7 @@ def handoff(argv):
     if verb == "show":
         folder, rec = desk_for(desk if desk is not None else words, me)
         if not rec:
-            die(f"{short(folder)} has no record yet: vikix agents handoff set --task \"...\" starts one")
+            die(f"{short(folder)} has no record yet: vikix agents handoff --task \"...\" starts one")
         if as_json:
             now = H.observe(folder) if os.path.isdir(folder) else {}
             rec = dict(rec, now=now, checks=[dict(c, freshness=H.freshness(c, now)) for c in rec.get("checks", [])])
@@ -2151,8 +2278,11 @@ def handoff(argv):
             for n in notes:
                 print(f"  {n['by']} ({H.when(n['at'])}): {n['text']}")
         return 0
-    folder, _ = desk_for(desk or [], me)
+    # set names its desk as show does, before the settings; check and session
+    # take their own words, so for them it is --desk.
+    folder, _ = desk_for(desk if desk is not None else (words if verb == "set" else []), me)
     if verb == "set":
+        words = []
         data = {}
         if "--from" in opts:
             src = opts["--from"]
@@ -2164,8 +2294,6 @@ def handoff(argv):
         for k in ("--task", "--status", "--summary", "--next", "--estimate"):
             if k in opts:
                 data[k[2:]] = opts[k]
-        if words:
-            die("vikix agents handoff set takes options: --task, --status, --summary, --next, --estimate, --from FILE|-")
         if not data:
             die("nothing to set: --task, --status (working|waiting|review|finished), --summary, --next, "
                 "--estimate, or --from")
@@ -2308,7 +2436,7 @@ def resume(argv):
     if rec:
         print(H.render(rec, [who(a) for a in at], lines))
     else:
-        print(f"Desk {short(folder)}: no record yet (vikix agents handoff set --task \"...\" starts one)")
+        print(f"Desk {short(folder)}: no record yet (vikix agents handoff --task \"...\" starts one)")
         for line in lines:
             print("  " + line)
     if at and not another:
@@ -3054,9 +3182,17 @@ def window_crossing(me, other, what):
 
 
 def main(argv):
-    if argv and argv[0] in ("-h", "--help", "help"):
+    if argv and argv[0] in ("-h", "--help"):
         print(__doc__.strip())
         return 0
+    if argv and argv[0] == "help":
+        if len(argv) == 1:
+            help_map()
+            return 0
+        return help_one(" ".join(argv[1:]))
+    # vikix agents desk -h: that command's forms, as help desk shows them.
+    if len(argv) >= 2 and argv[-1] in ("-h", "--help") and re.fullmatch(r"[a-z-]+", argv[0]):
+        return help_one(" ".join(argv[:-1]))
     if argv and argv[0] == "office":
         sys.path.insert(0, os.path.join(VIKIX_DIR, "lib"))
         import office
@@ -3129,7 +3265,7 @@ def main(argv):
         return 0
     as_json = argv == ["--json"]
     if argv and not as_json:
-        die("vikix agents [--json|here|desk|sit|close|desks|handoff|resume|tell|pause|go|turns|test|dismiss|hooks|clash|crossings] (vikix agents help)")
+        die(f"no command called {argv[0]}: vikix agents help lists them")
     agents = desktop()
     agents += elsewhere({a["pid"] for a in agents})
     agents = [with_git(a) for a in seated(agents)]

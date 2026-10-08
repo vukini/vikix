@@ -299,7 +299,7 @@ check "a desk with no task holds nothing at a stop: '$out'" test -z "$out"
 agents handoff set --desk "$t/src/book-a" --task "Fix the typos" >/dev/null
 out=$(stop_as 1001 '{"stop_hook_active": false}')
 check "a worker that changed files and wrote no handoff is asked to, once: $out" \
-  grep -q '"decision": "block", "reason": "Vikix office: this turn changed [0-9]* files* at your desk and the handoff hasn.t been written since. Write it now, then stop: vikix agents handoff set --status' <<<"$out"
+  grep -q '"decision": "block", "reason": "Vikix office: this turn changed [0-9]* files* at your desk and the handoff hasn.t been written since. Write it now, then stop: vikix agents handoff --status' <<<"$out"
 check "the record notes it" grep -q 'asked for the handoff before the agent stopped' "$HOME/.local/state/vikix/office/desks/"*.json
 out=$(stop_as 1001 '{"stop_hook_active": true}')
 check "the stop after it is let go, so nothing goes round: '$out'" test -z "$out"

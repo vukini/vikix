@@ -13,8 +13,9 @@
 #   kept by provider, Claude Code's from the hook's own input; the record
 #   survives the agent's exit and a stale pid, and the worktree's removal;
 #   twenty-five writers at once lose nothing; a generic provider uses the
-#   same commands; a credential, an unknown field, a bad session id or a
-#   record id that is a path are refused; --json has the freshness; the
+#   same commands, and handoff writes given any setting, no "set" needed,
+#   naming its desk first as close does; a credential, an unknown field, a
+#   bad session id or a record id that is a path are refused; --json has the freshness; the
 #   listing names every desk; close marks the record closed and keeps it;
 #   handoff forget removes the record of a desk whose folder is gone, and
 #   refuses a desk that stands, one with an agent still in it, and a desk
@@ -32,13 +33,17 @@
 #   adapters; touch --for gemini answers in Gemini's shape, --for opencode
 #   refuses a clash once and lets the same edit through. A desk gives the
 #   agent the user's SSH agent only when asked: --push, or yes to the
-#   picker's last question; the picker asks it after the agent.
+#   picker's last question; the picker asks it after the agent. vikix
+#   agents help is a map, a line a command, every form of the header in a
+#   section of it; help COMMAND (and COMMAND -h) one command in full; an
+#   unknown command points at it.
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
 export EMACS_SOCKET_NAME=/nonexistent/emacs-server   # never the live desktop's Emacs: emacsclient from a test goes nowhere
 unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE   # the desktop session's: from an agent's shell they'd point a test at the real ~/vikix and state, and hide the keys
 unset DISPLAY XDG_STATE_HOME XDG_CONFIG_HOME
+unset VIKIX_AGENT_SSH   # a desk started with --push sets it for its agent, whose tests would then see every desk push
 here=$(cd "$(dirname "$0")/.." && pwd)
 t=$(mktemp -d)
 trap 'rm -rf "$t"' EXIT
@@ -68,7 +73,7 @@ as() { local pid=$1; shift; VIKIX_AGENT_PID=$pid python3 "$here/bin/vikix-agents
 records="$HOME/.local/state/vikix/office/desks"
 
 out=$(agents handoff a)
-check "a desk without a record says how to start one: $out" grep -q 'has no record yet: vikix agents handoff set --task' <<<"$out"
+check "a desk without a record says how to start one: $out" grep -q 'has no record yet: vikix agents handoff --task' <<<"$out"
 out=$(agents handoff set --desk a --task "Fix the typos in chapter one")
 check "the user sets the task: $out" grep -q 'book-a: handoff updated by user$' <<<"$out"
 check "the record is one file in the office's desks, named by the desk's id" test "$(ls "$records"/*.json | wc -l)" = 1
@@ -89,6 +94,12 @@ json.dump(rec, open(path, "w"))
 PY
 check "fifty minutes on, the page says how far over" grep -q '; 10 min over its 40 min$' <<<"$(agents handoff a)"
 check "and the listing of desks says it too: $(agents handoff list)" grep -q 'working, .*: Fix the typos in chapter one  (10 min over its 40 min)$' <<<"$(agents handoff list)"
+# A setting given is a set, "set" or not; the desk named first, as for close.
+out=$(as 1001 handoff --status working --next "the spell check, then the index")
+check "handoff with a setting writes, no set needed: $out" grep -q 'updated by claude 1001, status working$' <<<"$out"
+out=$(agents handoff a --task "Fix the typos in chapter one, and the index")
+check "the desk named before the settings: $out" grep -q 'book-a: handoff updated by user, status working$' <<<"$out"
+check "and it took" grep -q '^Task (user, just now): Fix the typos in chapter one, and the index$' <<<"$(agents handoff a)"
 out=$(as 1001 handoff set --status finished)
 check "finished, the estimate is judged against the time it took: $(agents handoff a | grep ^Estimate)" \
   grep -q '; finished in 50 min against 40 min, 10 min over$' <<<"$(agents handoff a)"
@@ -386,5 +397,24 @@ printf '#!/bin/sh\nexit 1\n' > "$t/bin/rofi"
 out=$(DISPLAY=:7 PATH="$t/bin:$PATH" desk --here)
 check "the picker closed at any question starts nothing: '$out'" not grep -q 'AGENT SSH' <<<"$out"
 
-[ $fail = 0 ] && echo "handoff: ok (a desk's task, handoff, checks and sessions kept apart and across sessions; stale checks said; writers at once lose nothing; refusals; a gone desk's record forgotten, a standing one refused; resume where the provider can, fresh and said why otherwise; the hooks each has)"
+# vikix agents help: a map of the commands, in sections, a line each.
+out=$(agents help)
+check "help is a map, not the page ($(wc -l <<<"$out") lines)" test "$(wc -l <<<"$out")" -lt 50
+for k in office clash crossings here desk resume close sit handoff tell pause go turns test dismiss hooks; do
+  check "the map names $k" grep -q "^  vikix agents $k" <<<"$out"
+done
+check "the map says where the hooks' and scripts' commands are" grep -q 'touch, stopping, left' <<<"$out"
+forms=$(agents -h | grep -c '^  vikix agents')
+placed=$(for s in seeing each agent workers rules scripts; do agents help $s; done | grep -c '^  vikix agents')
+check "every form of the header is in a section of help ($forms forms, $placed placed)" test "$forms" = "$placed"
+out=$(agents help desk)
+check "help desk is that command in full" grep -q -- '--push: the agent may push as you' <<<"$out"
+check "and only it" not grep -q 'vikix agents close' <<<"$out"
+check "desk -h is the same" grep -q -- '--push: the agent may push as you' <<<"$(agents desk -h)"
+check "help handoff is every handoff form" test "$(agents help handoff | grep -c '^  vikix agents handoff')" -ge 5
+check "help desks is the desks command, not the desks section" grep -qi 'tab-parted' <<<"$(agents help desks)"
+out=$(agents nope)
+check "an unknown command points at help: $out" grep -q 'no command called nope: vikix agents help lists them' <<<"$out"
+
+[ $fail = 0 ] && echo "handoff: ok (a desk's task, handoff, checks and sessions kept apart and across sessions; stale checks said; writers at once lose nothing; refusals; a gone desk's record forgotten, a standing one refused; resume where the provider can, fresh and said why otherwise; the hooks each has; help a map, a command in full)"
 exit $fail

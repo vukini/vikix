@@ -26,6 +26,7 @@ set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
 export EMACS_SOCKET_NAME=/nonexistent/emacs-server   # never the live desktop's Emacs: emacsclient from a test goes nowhere
 unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE   # the desktop session's: from an agent's shell they'd point a test at the real ~/vikix and state, and hide the keys
+unset VIKIX_AGENT_SSH   # a desk started with --push sets it for its agent, whose tests would then see every desk push
 here=$(cd "$(dirname "$0")/.." && pwd)
 # shellcheck source=tests/lib/wm.sh
 . "$here/tests/lib/wm.sh"
@@ -290,7 +291,7 @@ out=$(HOME=$home VIKIX_SWANK_PORT=$port python3 "$here/bin/vikix-agents" tell te
 check "a note for a worker at work is delivered at its next command: $out" \
   grep -q 'books-tell-demo: noted for its agent, delivered at its next tool call' <<<"$out"
 
-check "vikix agents with a word it doesn't know says what it takes" grep -q 'vikix agents \[--json|here|desk|sit|close|desks|handoff|resume|tell|pause|go|turns|test|dismiss|hooks|clash|crossings\]' <<<"$(cli nonsense)"
+check "vikix agents with a word it doesn't know points at help" grep -q 'no command called nonsense: vikix agents help lists them' <<<"$(cli nonsense)"
 check "the desktop met no error" test -z "$(ls "$home/.local/state/vikix/errors" 2>/dev/null)"
 
 wm_report office "agents found in their terminals by name, folder and workspace, what each is doing from its title and its note, its window marked, the menu to one, vikix agents with branches and uncommitted files, one without a window, --json; a desk: a workspace and a worktree for one agent, the task its first prompt"
