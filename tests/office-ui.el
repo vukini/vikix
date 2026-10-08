@@ -69,21 +69,57 @@ load of other sessions' tests that moment was missed (2026-10-08)."
                (alist-get 'agents r) '(((agent . "codex") (pid . 7598) (doing . "running") (window . "3")
                                         (workspace . "2") (process_start . "100"))))
          (vikix-office--render)
-         ;; Its own lines: no handoff named (the other row, a desk, still has one).
-         (should (string-match-p "^    Not a desk · codex\n    Live: running\n    Next: Go to agent$" (buffer-string)))
+         ;; Its own rows: no handoff named (the other row, a desk, still has one).
+         (should (string-match-p "^[│|] Not a desk · codex +[│|]\n[│|] Live +running +[│|]\n[│|] Next +Go to agent +[│|]$" (buffer-string)))
          (with-current-buffer vikix-office--detail
-           (should (string-match-p "^Not a desk: agents running in ~$" (buffer-string)))
+           (should (string-match-p "^[│|] Agents running in ~ +[│|]$" (buffer-string)))
            (should (string-match-p "Go to agent" (buffer-string)))
            (should (string-match-p "Close agent" (buffer-string)))
            (should-not (string-match-p "Continue" (buffer-string)))
            (should-not (string-match-p "Observed Git state\\|review does not mean merged\\|Saved conversations" (buffer-string)))
-           (should (string-match-p "codex 7598 · running · workspace 2" (buffer-string))))
+           (should (string-match-p "codex 7598 +running · workspace 2" (buffer-string))))
          (should-error (vikix-office-continue) :type 'user-error)
          ;; Without an agent left there is still no Continue: nothing to continue in a folder.
          (setf (alist-get 'agents r) nil)
          (vikix-office--render)
          (with-current-buffer vikix-office--detail
            (should-not (string-match-p "Continue" (buffer-string)))))
+     (kill-buffer vikix-office--detail))))
+(defun office-test-box-lines ()
+  "The lines of the current buffer that belong to a box, with their widths."
+  (cl-remove-if-not (lambda (line) (string-match-p "\\`[┌├└│+|]" line))
+                    (split-string (buffer-string) "\n")))
+(ert-deftest office-boxes-fit-the-window-and-wrap-inside ()
+  "Every line of a box is as wide as its edges, at most the window's width, a
+long text is wrapped inside and a long path cut; a window made another width
+is drawn again at that width."
+  (office-test-buffer
+   (setq vikix-office--detail (generate-new-buffer " *Office box test*"))
+   (unwind-protect
+       (save-window-excursion
+         (switch-to-buffer buffer)
+         (delete-other-windows)
+         (let ((r (car (alist-get 'desks vikix-office--data))))
+           (setf (alist-get 'title r) (make-string 200 ?t)
+                 (alist-get 'next_action r) (mapconcat #'identity (make-list 60 "word") " ")
+                 (alist-get 'task r) `((text . ,(mapconcat #'identity (make-list 80 "task") " ")) (by . "user") (at . 1791300000))
+                 (alist-get 'desk r) `((project . "Vikix") (worktree . ,(concat "/" (make-string 300 ?p))))))
+         (vikix-office--render)
+         (dolist (b (list buffer vikix-office--detail))
+           (with-current-buffer b
+             (let* ((lines (office-test-box-lines)) (widths (mapcar #'string-width lines)))
+               (should lines)
+               (should (= 1 (length (delete-dups (copy-sequence widths)))))
+               (should (<= (car widths) (window-body-width (get-buffer-window buffer)))))))
+         (should truncate-lines)
+         (should (string-match-p "task task task task +[│|]\n" (with-current-buffer vikix-office--detail (buffer-string))))
+         (should (string-match-p "…" (buffer-string)))
+         ;; Narrower: the boxes follow the window.
+         (let ((before vikix-office--width))
+           (split-window-right)
+           (vikix-office--resized (get-buffer-window buffer))
+           (should (< vikix-office--width before))
+           (should (= (+ 4 vikix-office--width) (string-width (car (office-test-box-lines)))))))
      (kill-buffer vikix-office--detail))))
 (ert-deftest office-empty ()
   (office-test-buffer
@@ -208,7 +244,7 @@ load of other sessions' tests that moment was missed (2026-10-08)."
      (vikix-office-refresh) (office-test-wait)
      (should (eq data vikix-office--data))
      (should (string-match-p "Task a" (buffer-string)))
-     (should (string-match-p "Live: unknown" (buffer-string)))
+     (should (string-match-p "Live +unknown" (buffer-string)))
      (should (string-match-p "fixture failure" header-line-format)))
    (let ((vikix-office-command '("python3" "-c" "import time; time.sleep(5)"))
          (vikix-office-timeout 0.05))
@@ -229,7 +265,8 @@ load of other sessions' tests that moment was missed (2026-10-08)."
 (ert-deftest office-mouse-button-selects-its-desk ()
   (office-test-buffer
    (vikix-office--render)
-   (let ((button (button-at (vikix-office--position (copy-sequence "b")))))
+   ;; The row begins with the box's border; its title, the button, follows.
+   (let ((button (next-button (vikix-office--position (copy-sequence "b")))))
      (goto-char (point-min))
      (button-activate button)
      (should (equal vikix-office--selected "b")))))
@@ -281,6 +318,7 @@ and q puts the windows back; the only frame is never deleted."
           (should (= 2 (length (window-list nil 'no-minibuf))))
           (should (eq (window-buffer (selected-window)) buffer))
           (should (get-buffer-window detail))
+          (with-current-buffer detail (should truncate-lines))
           (with-current-buffer buffer
             (should (eq major-mode 'vikix-office-mode))
             (should (eq vikix-office--frame (selected-frame)))

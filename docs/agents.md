@@ -311,7 +311,14 @@ Emacs. Inside Emacs, `M-x vikix-office-open-here` opens it in the frame you
 are in, and `q` then puts that frame's windows back as they were.
 
 The left side groups desks into **Needs you**, **Working**, **Parked** and
-**Finished**. The task is the title, with project/topic as the fallback.
+**Finished**, each group drawn in a box of its own, a rule between its
+desks, and a desk's lines as labelled rows (Live, Handoff, Next); the desk
+pane draws each of its sections (the task, the agent's claims, the Git
+state, the checks, the agents, the saved conversations) in a box the same
+way, so neither pane reads as a wall of text. The boxes are as wide as
+their window and are drawn again when it is resized; a terminal that
+can't show the box characters gets ASCII ones. The task is the title,
+with project/topic as the fallback.
 Each row distinguishes **Live** activity from the recorded **Handoff**,
 counts down the agent's estimate while one stands, and shows the next
 action. A waiting agent or a waiting/review handoff needs you;

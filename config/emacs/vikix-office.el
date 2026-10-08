@@ -130,13 +130,92 @@
   (insert-text-button label 'follow-link t 'action (lambda (_) (funcall action)))
   (insert "  "))
 
+;; The boxes. Each group of desks, and each section of a desk's details, is
+;; drawn in one, a labelled row a line, so the two panes read as tables
+;; and not as prose (2026-10-08: as prose the Office was a wall of text).
+;; The width is the buffer's window's, measured at each drawing and again
+;; when the window is resized; a terminal that can't show the box
+;; characters gets ASCII ones.
+(defvar-local vikix-office--width nil "The inner width the buffer was last drawn at.")
+(defun vikix-office--geometry ()
+  "The inner width to draw at and the box's characters, for this buffer's window."
+  (let ((window (get-buffer-window (current-buffer) t)))
+    (cons (max 40 (- (if window (window-body-width window) 80) 5))
+          (if (with-selected-window (or window (selected-window)) (char-displayable-p ?│))
+              "┌┐└┘─│├┤" "++++-|++"))))
+(defun vikix-office--fill (text width)
+  "TEXT as lines of at most WIDTH columns, broken at spaces."
+  (let ((lines nil) (line ""))
+    (dolist (word (split-string (vikix-office--one-line text) " +" t))
+      ;; A word wider than a line (a path) is cut.
+      (while (> (string-width word) width)
+        (let ((head (truncate-string-to-width word width)))
+          (when (string-empty-p head) (setq head (substring word 0 1)))
+          (unless (string-empty-p line) (push line lines) (setq line ""))
+          (push head lines)
+          (setq word (substring word (length head)))))
+      (cond ((string-empty-p line) (setq line word))
+            ((<= (+ (string-width line) 1 (string-width word)) width)
+             (setq line (concat line " " word)))
+            (t (push line lines) (setq line word))))
+    (nreverse (cons line lines))))
+(defun vikix-office--edge (chars left right width title)
+  "A box's horizontal edge, WIDTH wide inside, with TITLE in it when given.
+LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
+  (let* ((bar (aref chars 4))
+         (label (if (member title '(nil "")) ""
+                  (concat " " (truncate-string-to-width title (- width 2) nil nil "…") " "))))
+    (insert (propertize (string (aref chars left) bar) 'face 'shadow)
+            (propertize label 'face 'bold)
+            (propertize (concat (make-string (- (1+ width) (string-width label)) bar)
+                                (string (aref chars right)))
+                        'face 'shadow)
+            "\n")))
+(defun vikix-office--box-top (width chars title) (vikix-office--edge chars 0 1 width title))
+(defun vikix-office--box-bottom (width chars) (vikix-office--edge chars 2 3 width nil) (insert "\n"))
+(defun vikix-office--box-rule (width chars) (vikix-office--edge chars 6 7 width nil))
+(defun vikix-office--line (width chars content)
+  "One line of a box: CONTENT, a string or a function that inserts it, padded."
+  (let ((side (propertize (string (aref chars 5)) 'face 'shadow)))
+    (insert side " ")
+    (if (functionp content) (funcall content) (insert content))
+    (let ((used (- (current-column) 2)))
+      (when (< used width) (insert (make-string (- width used) ?\s))))
+    (insert " " side "\n")))
+(defun vikix-office--field (width chars label-width label text &optional face)
+  "A box's row: LABEL in a column LABEL-WIDTH wide, TEXT filled beside it, in FACE."
+  (let ((first t))
+    (dolist (line (vikix-office--fill text (- width label-width)))
+      (vikix-office--line width chars
+                          (concat (truncate-string-to-width (if first (or label "") "") label-width nil ?\s)
+                                  (if face (propertize line 'face face) line)))
+      (setq first nil))))
+(defun vikix-office--note (width chars text)
+  "A line of a box that says something about the box, in the shade."
+  (vikix-office--field width chars 0 "" text 'shadow))
+(defun vikix-office--label-width (labels least)
+  "A label column wide enough for LABELS, two spaces of air, and at least LEAST."
+  (apply #'max least (mapcar (lambda (l) (+ 2 (string-width l))) labels)))
+(defun vikix-office--resized (window)
+  "Draw the buffer again when its WINDOW's width is not the one it was drawn at."
+  (when (window-live-p window)
+    (let ((owner (vikix-office--owner-buffer)))
+      (when (and (buffer-live-p owner)
+                 (not (buffer-local-value 'vikix-office--closed owner))
+                 (not (equal vikix-office--width (car (vikix-office--geometry)))))
+        (if (eq owner (current-buffer)) (vikix-office--render)
+          (with-current-buffer owner (vikix-office--render-detail)))))))
+
 (defun vikix-office--render ()
   (let* ((rows (vikix-office--rows))
          (owner (current-buffer))
          (old (point)) (column (current-column))
          (views (mapcar (lambda (w) (list w (window-start w) (window-hscroll w)))
-                        (get-buffer-window-list (current-buffer) nil t))))
+                        (get-buffer-window-list (current-buffer) nil t)))
+         (geometry (vikix-office--geometry)) (width (car geometry)) (chars (cdr geometry))
+         (label-width 9))
     (unless (vikix-office--row) (setq vikix-office--selected (alist-get 'id (car rows))))
+    (setq vikix-office--width width)
     (let ((inhibit-read-only t))
       (erase-buffer)
       (insert (propertize "The Office\n" 'face '(:inherit variable-pitch :height 1.5 :weight bold)))
@@ -149,34 +228,46 @@
       (insert "\n\n")
       (if (null rows) (insert (if vikix-office--archive "Archive is empty.\n" "No desks yet. Start one with vikix agents desk PROJECT TOPIC.\n"))
         (dolist (group (if vikix-office--archive '("Archived") '("Needs you" "Working" "Parked" "Finished")))
-          (insert (propertize (concat group "\n") 'face 'bold))
-          (let ((members (cl-remove-if-not (lambda (r) (equal (alist-get 'group r) group)) rows)))
-            (if (null members) (insert "  —\n")
+          (let ((members (cl-remove-if-not (lambda (r) (equal (alist-get 'group r) group)) rows))
+                (first t))
+            (vikix-office--box-top width chars group)
+            (if (null members) (vikix-office--note width chars "none")
               (dolist (r members)
-                (let ((start (point)) (id (alist-get 'id r)))
-                  (insert-text-button (concat "  " (truncate-string-to-width (vikix-office--one-line (alist-get 'title r)) 100 nil nil "…"))
-                                      'follow-link t 'action
-                                      (lambda (button)
-                                        (goto-char (button-start button))
-                                        (setq vikix-office--selected id)
-                                        (vikix-office--render-detail)
-                                        (vikix-office-details)))
-                  (insert "\n    " (if (vikix-office--folder-p r) "Not a desk"
-                                    (vikix-office--one-line (or (alist-get 'project (alist-get 'desk r)) "Project unrecorded")))
-                          " · " (vikix-office--one-line (alist-get 'provider r))
-                          "\n    Live: "
-                          (if (eq (alist-get 'live_known r) :false) "unknown"
-                            (if (alist-get 'agents r)
-                                (string-join (mapcar (lambda (a) (vikix-office--one-line (alist-get 'doing a))) (alist-get 'agents r)) ", ")
-                              "none observed"))
-                          ;; A plain folder keeps no handoff: nothing to say of one.
-                          (if (vikix-office--folder-p r) "" (concat " · Handoff: " (vikix-office--one-line (alist-get 'status r))))
-                          ;; Where the work stands against the agent's estimate, while one stands.
-                          (let ((estimate (alist-get 'estimate r)))
-                            (if (member estimate '(nil "")) "" (concat " · " (vikix-office--one-line estimate))))
-                          "\n    Next: " (truncate-string-to-width (vikix-office--one-line (alist-get 'next_action r)) 110 nil nil "…") "\n")
+                (unless first (vikix-office--box-rule width chars))
+                (setq first nil)
+                (let ((start (point)) (id (alist-get 'id r)) (folder (vikix-office--folder-p r)))
+                  (vikix-office--line
+                   width chars
+                   (lambda ()
+                     (insert-text-button (truncate-string-to-width (vikix-office--one-line (alist-get 'title r)) width nil nil "…")
+                                         'follow-link t 'action
+                                         (lambda (button)
+                                           (goto-char (button-start button))
+                                           (setq vikix-office--selected id)
+                                           (vikix-office--render-detail)
+                                           (vikix-office-details)))))
+                  (vikix-office--note width chars
+                                      (concat (if folder "Not a desk"
+                                                (vikix-office--one-line (or (alist-get 'project (alist-get 'desk r)) "Project unrecorded")))
+                                              " · " (vikix-office--one-line (alist-get 'provider r))))
+                  (vikix-office--field width chars label-width "Live"
+                                       (if (eq (alist-get 'live_known r) :false) "unknown"
+                                         (if (alist-get 'agents r)
+                                             (string-join (mapcar (lambda (a) (vikix-office--one-line (alist-get 'doing a))) (alist-get 'agents r)) ", ")
+                                           "none observed")))
+                  ;; A plain folder keeps no handoff: nothing to say of one. Where
+                  ;; the work stands against the agent's estimate, while one stands.
+                  (unless folder
+                    (let ((estimate (alist-get 'estimate r)))
+                      (vikix-office--field width chars label-width "Handoff"
+                                           (concat (vikix-office--one-line (alist-get 'status r))
+                                                   (if (member estimate '(nil "")) "" (concat " · " (vikix-office--one-line estimate)))))))
+                  ;; Two lines of it at most here; the desk's details have it whole.
+                  (vikix-office--field width chars label-width "Next"
+                                       (truncate-string-to-width (vikix-office--one-line (alist-get 'next_action r))
+                                                                 (* 2 (- width label-width)) nil nil "…"))
                   (add-text-properties start (point) `(office-id ,id)))))
-            (insert "\n")))))
+            (vikix-office--box-bottom width chars)))))
     (let ((position (vikix-office--position vikix-office--selected)))
       (goto-char (or position (min old (point-max))))
       (when position (move-to-column column)))
@@ -187,27 +278,36 @@
         (set-window-point (car view) (point))))
     (vikix-office--render-detail)))
 
-(defun vikix-office--signed (label entry)
-  (insert (propertize (concat label "\n") 'face 'bold)
-          (vikix-office--text (or (alist-get 'text entry) (alist-get 'value entry) "Unrecorded")) "\n")
-  (when entry (insert "  " (vikix-office--text (alist-get 'by entry)) " · "
-                      (vikix-office--time (alist-get 'at entry)) "\n")))
+(defun vikix-office--signed (width chars label-width label entry)
+  "A row of ENTRY's text, then who recorded it and when."
+  (vikix-office--field width chars label-width label
+                       (vikix-office--text (or (alist-get 'text entry) (alist-get 'value entry) "Unrecorded")))
+  (when entry
+    (vikix-office--field width chars label-width ""
+                         (concat (vikix-office--text (alist-get 'by entry)) " · " (vikix-office--time (alist-get 'at entry)))
+                         'shadow)))
 
 (defun vikix-office--render-detail ()
   (when (buffer-live-p vikix-office--detail)
     (let ((r (vikix-office--row)) (owner (current-buffer)))
       (with-current-buffer vikix-office--detail
-        (let ((inhibit-read-only t) (old (point))
-              (views (mapcar (lambda (w) (cons w (window-start w)))
-                             (get-buffer-window-list (current-buffer) nil t))))
+        (let* ((inhibit-read-only t) (old (point))
+               (views (mapcar (lambda (w) (cons w (window-start w)))
+                              (get-buffer-window-list (current-buffer) nil t)))
+               (geometry (vikix-office--geometry)) (width (car geometry)) (chars (cdr geometry)))
+          (setq vikix-office--width width)
           (erase-buffer)
           (if (not r) (insert "Select a desk to see its task and handoff.\n")
             (insert (propertize (vikix-office--text (alist-get 'title r)) 'face '(:inherit variable-pitch :height 1.3 :weight bold)) "\n\n")
             (if (eq (alist-get 'archived r) t)
                 (progn
-                  (insert "Archived — desk removed. No action is needed.\nHistorical handoff below; its next action may already be completed.\n")
+                  (vikix-office--box-top width chars "Archived")
+                  (vikix-office--field width chars 0 "" "Desk removed. No action is needed.")
+                  (vikix-office--note width chars "Historical handoff below; its next action may already be completed.")
                   (when (and (eq (alist-get 'live_known r) t) (alist-get 'id (alist-get 'desk r)))
-                    (vikix-office--button "Forget this record…" (lambda () (with-current-buffer owner (vikix-office-forget))))))
+                    (vikix-office--line width chars
+                                        (lambda () (vikix-office--button "Forget this record…" (lambda () (with-current-buffer owner (vikix-office-forget)))))))
+                  (vikix-office--box-bottom width chars))
               (when (eq (alist-get 'live_known r) t)
                 (let ((agents (alist-get 'agents r)))
                   (when (cl-some (lambda (a) (not (member (alist-get 'window a) '(nil "")))) agents)
@@ -215,59 +315,95 @@
                   (when (and (not agents) (eq (alist-get 'exists r) t) (not (vikix-office--folder-p r)))
                     (vikix-office--button "Continue…" (lambda () (with-current-buffer owner (vikix-office-continue)))))
                   (when (cl-some (lambda (a) (alist-get 'process_start a)) agents)
-                    (vikix-office--button "Close agent…" (lambda () (with-current-buffer owner (vikix-office-close-agent))))))))
-            (insert "\n\n")
+                    (vikix-office--button "Close agent…" (lambda () (with-current-buffer owner (vikix-office-close-agent)))))))
+              (insert "\n\n"))
             (if (vikix-office--folder-p r)
                 ;; Not a desk: no task, no handoff, no Git state to observe. The
                 ;; agents are listed below; Go to agent and Close agent work as on a desk.
-                (insert "Not a desk: agents running in " (vikix-office--text (alist-get 'title r)) "\n"
-                        "An agent takes a desk with vikix agents sit PROJECT TOPIC from its own shell;\n"
-                        "vikix agents desk PROJECT TOPIC starts one at a desk.\n")
-            (vikix-office--signed "User task" (alist-get 'task r))
-            (insert "\nAgent claims — review does not mean merged\n")
-            (vikix-office--signed "Status" (alist-get 'status (alist-get 'handoff r)))
-            ;; The estimate, when the agent gave one: its words, then the clock against it.
-            (let ((estimate (alist-get 'estimate (alist-get 'handoff r))))
-              (when estimate
-                (vikix-office--signed "Estimate" estimate)
-                (insert "  " (vikix-office--text (alist-get 'estimate r)) "\n")))
-            (dolist (pair '(("Summary and decisions" . summary) ("Next action" . next)))
-              (vikix-office--signed (car pair) (alist-get (cdr pair) (alist-get 'handoff r))))
-            (let ((now (alist-get 'now r)))
-              (insert "\nObserved Git state · " (vikix-office--time (alist-get 'at now)) "\n"
-                      (vikix-office--text (alist-get 'worktree (alist-get 'desk r))) "\n"
-                      (if (eq (alist-get 'exists r) :false) "Worktree removed; record retained\n" "")
-                      "Branch: " (vikix-office--text (alist-get 'branch now)) "\nCommit: "
-                      (vikix-office--text (alist-get 'commit now)) "\nUncommitted files: "
-                      (vikix-office--text (alist-get 'dirty now)) "\n"))
-            (insert "\nReported checks — freshness compares code, not the truth of the report\n")
-            (unless (alist-get 'checks r) (insert "No checks recorded\n"))
-            (dolist (c (alist-get 'checks r))
-              (insert (if (eq (alist-get 'ok c) t) "Reported passed: " "Reported failed: ")
-                      (vikix-office--text (alist-get 'name c)) "\n  "
-                      (vikix-office--text (alist-get 'freshness c)) " · "
-                      (vikix-office--text (alist-get 'by c)) " · " (vikix-office--time (alist-get 'at c))
-                      "\n  Tested commit: " (vikix-office--text (alist-get 'commit c))
-                      " · dirty: " (vikix-office--text (alist-get 'dirty c)) "\n")))
-            (insert "\nLive agents\n")
-            (when (eq (alist-get 'live_known r) :false) (insert "Unknown — live discovery unavailable\n"))
-            (dolist (a (alist-get 'agents r))
-              (insert (format "%s %s · %s · workspace %s%s\n  %s\n"
-                              (alist-get 'agent a) (alist-get 'pid a) (alist-get 'doing a)
-                              (or (alist-get 'workspace a) "unknown")
-                              ;; Its window's name on the desktop: the desk and the provider.
-                              (if (member (alist-get 'desk_title a) '(nil ""))
-                                  "" (concat " · " (vikix-office--one-line (alist-get 'desk_title a))))
-                              (if (member (alist-get 'window a) '(nil "")) "No desktop window" (or (alist-get 'said a) "")))))
+                (progn
+                  (vikix-office--box-top width chars "Not a desk")
+                  (vikix-office--field width chars 0 "" (concat "Agents running in " (vikix-office--text (alist-get 'title r))))
+                  (vikix-office--note width chars "An agent takes a desk with vikix agents sit PROJECT TOPIC from its own shell; vikix agents desk PROJECT TOPIC starts one at a desk.")
+                  (vikix-office--box-bottom width chars))
+              (vikix-office--box-top width chars "Task")
+              (vikix-office--signed width chars 0 "" (alist-get 'task r))
+              (vikix-office--box-bottom width chars)
+              (vikix-office--box-top width chars "Agent claims")
+              (vikix-office--note width chars "The agent's own report: review does not mean merged.")
+              (let ((handoff (alist-get 'handoff r)) (label-width 10))
+                (vikix-office--signed width chars label-width "Status" (alist-get 'status handoff))
+                ;; The estimate, when the agent gave one: its words, then the clock against it.
+                (let ((estimate (alist-get 'estimate handoff)))
+                  (when estimate
+                    (vikix-office--signed width chars label-width "Estimate" estimate)
+                    (vikix-office--field width chars label-width "" (vikix-office--text (alist-get 'estimate r)))))
+                (vikix-office--signed width chars label-width "Summary" (alist-get 'summary handoff))
+                (vikix-office--signed width chars label-width "Next" (alist-get 'next handoff)))
+              (vikix-office--box-bottom width chars)
+              (let ((now (alist-get 'now r)) (label-width 13))
+                (vikix-office--box-top width chars (concat "Observed Git state · " (vikix-office--time (alist-get 'at now))))
+                (vikix-office--field width chars label-width "Worktree" (vikix-office--text (alist-get 'worktree (alist-get 'desk r))))
+                (when (eq (alist-get 'exists r) :false)
+                  (vikix-office--field width chars label-width "" "Worktree removed; record retained" 'shadow))
+                (vikix-office--field width chars label-width "Branch" (vikix-office--text (alist-get 'branch now)))
+                (vikix-office--field width chars label-width "Commit" (vikix-office--text (alist-get 'commit now)))
+                (vikix-office--field width chars label-width "Uncommitted" (vikix-office--text (alist-get 'dirty now)))
+                (vikix-office--box-bottom width chars))
+              (vikix-office--box-top width chars "Reported checks")
+              (vikix-office--note width chars "Freshness compares code, not the truth of the report.")
+              (unless (alist-get 'checks r) (vikix-office--field width chars 0 "" "No checks recorded"))
+              (dolist (c (alist-get 'checks r))
+                (let ((label-width 9))
+                  (vikix-office--field width chars label-width
+                                       (if (eq (alist-get 'ok c) t) (propertize "passed" 'face 'success) (propertize "failed" 'face 'error))
+                                       (vikix-office--text (alist-get 'name c)))
+                  (vikix-office--field width chars label-width ""
+                                       (concat (vikix-office--text (alist-get 'freshness c)) " · "
+                                               (vikix-office--text (alist-get 'by c)) " · " (vikix-office--time (alist-get 'at c)))
+                                       'shadow)
+                  (vikix-office--field width chars label-width ""
+                                       (concat "tested " (vikix-office--text (alist-get 'commit c))
+                                               " · dirty " (vikix-office--text (alist-get 'dirty c)))
+                                       'shadow)))
+              (vikix-office--box-bottom width chars))
+            (vikix-office--box-top width chars "Live agents")
+            (let* ((agents (alist-get 'agents r))
+                   (labels (mapcar (lambda (a) (format "%s %s" (alist-get 'agent a) (alist-get 'pid a))) agents))
+                   (label-width (vikix-office--label-width labels 8)))
+              (cond ((eq (alist-get 'live_known r) :false)
+                     (vikix-office--field width chars 0 "" "Unknown — live discovery unavailable"))
+                    ((null agents) (vikix-office--field width chars 0 "" "None observed")))
+              (cl-mapc (lambda (a label)
+                         (vikix-office--field width chars label-width label
+                                              (format "%s · workspace %s%s" (alist-get 'doing a)
+                                                      (or (alist-get 'workspace a) "unknown")
+                                                      ;; Its window's name on the desktop: the desk and the provider.
+                                                      (if (member (alist-get 'desk_title a) '(nil ""))
+                                                          "" (concat " · " (vikix-office--one-line (alist-get 'desk_title a))))))
+                         (let ((said (if (member (alist-get 'window a) '(nil "")) "No desktop window" (or (alist-get 'said a) ""))))
+                           (unless (string-empty-p said)
+                             (vikix-office--field width chars label-width "" said 'shadow))))
+                       agents labels))
+            (vikix-office--box-bottom width chars)
             (unless (vikix-office--folder-p r)
-              (insert "\nSaved conversations (provider store availability)\n")
-              (unless (alist-get 'sessions r)
-                (insert (if (eq (alist-get 'archived r) t) "None recorded\n"
-                          "None recorded; Continue offers an explicit fresh start\n")))
-              (dolist (s (alist-get 'sessions r))
-                (insert (format "%s · %s · %s\n  %s · %s\n" (alist-get 'provider s) (alist-get 'id s)
-                                (pcase (alist-get 'available s) ('t "available") (:false "missing") (_ "unknown"))
-                                (alist-get 'by s) (vikix-office--time (alist-get 'at s)))))))
+              (vikix-office--box-top width chars "Saved conversations")
+              (vikix-office--note width chars "Whether each provider's store still has it.")
+              (let* ((sessions (alist-get 'sessions r))
+                     (labels (mapcar (lambda (s) (vikix-office--text (alist-get 'provider s))) sessions))
+                     (label-width (vikix-office--label-width labels 8)))
+                (unless sessions
+                  (vikix-office--field width chars 0 ""
+                                       (if (eq (alist-get 'archived r) t) "None recorded"
+                                         "None recorded; Continue offers an explicit fresh start")))
+                (cl-mapc (lambda (s label)
+                           (vikix-office--field width chars label-width label
+                                                (format "%s · %s" (alist-get 'id s)
+                                                        (pcase (alist-get 'available s) ('t "available") (:false "missing") (_ "unknown"))))
+                           (vikix-office--field width chars label-width ""
+                                                (format "%s · %s" (alist-get 'by s) (vikix-office--time (alist-get 'at s)))
+                                                'shadow))
+                         sessions labels))
+              (vikix-office--box-bottom width chars)))
           (goto-char (min old (point-max)))
           (dolist (v views) (when (window-live-p (car v)) (set-window-start (car v) (min (cdr v) (point-max)) t))))))))
 
@@ -455,9 +591,11 @@ were."
     map))
 (define-derived-mode vikix-office-mode special-mode "Office"
   "Tasks, handoffs and observed agent activity."
-  (setq-local truncate-lines nil)
-  (setq-local word-wrap t)
+  ;; The boxes are drawn to the window's width: a line never wraps, and a
+  ;; window made another width is drawn again.
+  (setq-local truncate-lines t)
   (hl-line-mode 1)
+  (add-hook 'window-size-change-functions #'vikix-office--resized nil t)
   (add-hook 'post-command-hook #'vikix-office--track nil t)
   (add-hook 'kill-buffer-hook #'vikix-office--cleanup nil t))
 ;; The two ways in share one setup: an X frame of the Office's own on the
@@ -480,7 +618,8 @@ window configuration to put back on q otherwise.  Returns the Office buffer."
         (local-set-key (kbd "n") #'next-line)
         (local-set-key (kbd "p") #'previous-line)
         (setq-local vikix-office--owner buffer)
-        (setq-local word-wrap t))
+        (setq-local truncate-lines t)
+        (add-hook 'window-size-change-functions #'vikix-office--resized nil t))
       ;; A terminal is often 80 columns: two columns of 40 would wrap every
       ;; line, so a narrow frame puts the desk below the list instead.
       (set-window-buffer (if (< (frame-width) 100)
