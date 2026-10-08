@@ -3,8 +3,9 @@
 #
 #   the list: one line a network, strongest first after the one in use,
 #   saved and open ones marked, a hidden one left out, a colon in a name
-#   kept; a stale last scan (over 30 s, or none yet) is scanned again and
-#   waited for, a fresh one shown as it is, and "Scan again" always scans;
+#   kept; the picker scans first every time, waiting five seconds at most,
+#   the line over the list says when NetworkManager last scanned, and
+#   "Scan again" scans once more;
 #   a saved network joins by its connection, an open one straight away, a
 #   new one asks its password in rofi and hands it over in a file (0600,
 #   gone after), never on the command line, and a refused password leaves
@@ -35,6 +36,7 @@ cat > "$t/bin/nmcli" <<EOF
 #!/bin/sh
 echo "nmcli \$*" >> "$log"
 case "\$*" in
+  *"device wifi list --rescan yes"*) [ -e "$t/slow" ] && exec sleep 30; [ -e "$t/no-wifi" ] && exit 0; cat "$t/aps" ;;
   *"device wifi list"*) [ -e "$t/no-wifi" ] && exit 0; cat "$t/aps" ;;
   "-t -f DEVICE,TYPE,DBUS-PATH device") [ -e "$t/no-wifi" ] || echo 'wlp4s0:wifi:/org/freedesktop/NetworkManager/Devices/3'; echo 'lo:loopback:/org/freedesktop/NetworkManager/Devices/1' ;;
   "-t -f NAME,TYPE connection show") awk 'NR%2==1{print \$0":802-11-wireless"}' "$t/saved" ;;
@@ -100,24 +102,34 @@ check "a colon in a name should be kept: $out" grep -q 'Mrs KINI: BDRM$' <<<"$ou
 check "a hidden network should be left out: $out" test "$(wc -l <<<"$out")" = 6
 check "list should ask nothing to scan: $(cat "$log")" test -z "$(grep -- '--rescan yes' "$log" || true)"
 
-# Fresh: shown as it is. Stale, or never scanned: a scan first, waited for.
+# A scan first, every time, waited for, and said; then the list, with the
+# scan's age as NetworkManager tells it.
+echo 999000 > "$t/lastscan"            # 1 s ago: the scan just made
 : > "$t/answer"
 wifi || true
-check "a fresh scan should be shown as it is: $(cat "$log")" test -z "$(grep -- '--rescan yes' "$log" || true)"
-check "the menu should say how old the scan is: $(cat "$log")" grep -q 'mesg Scanned 10 s ago' "$log"
-check "the menu should end with Scan again, Disconnect and nmtui: $(offered)" test "$(tail -3 "$t/offered" | tr '\n' '|')" = 'Scan again|Disconnect from LIVING ROOM|Everything else (nmtui)|'
-echo 900000 > "$t/lastscan"            # 100 s ago
-wifi || true
-check "a stale scan should be scanned again first: $(cat "$log")" grep -q -- 'device wifi list --rescan yes' "$log"
+check "the picker should scan first: $(cat "$log")" grep -q -- 'device wifi list --rescan yes' "$log"
 check "the scan should be said: $(cat "$log")" grep -q 'Scanning for networks' "$log"
+check "the scan should come before the list: $(cat "$log")" grep -q -- '--rescan yes' <<<"$(grep -e '--rescan yes' -e '^rofi' "$log" | head -1)"
 check "after the scan the menu should say just now: $(cat "$log")" grep -q 'mesg Scanned just now' "$log"
+check "the menu should end with Scan again, Disconnect and nmtui: $(offered)" test "$(tail -3 "$t/offered" | tr '\n' '|')" = 'Scan again|Disconnect from LIVING ROOM|Everything else (nmtui)|'
+echo 900000 > "$t/lastscan"            # 100 s ago: NetworkManager refused the scan
+wifi || true
+check "a scan that didn't happen should show as its age: $(cat "$log")" grep -q 'mesg Scanned 100 s ago' "$log"
 echo -1 > "$t/lastscan"
 wifi || true
-check "never scanned should scan first: $(cat "$log")" grep -q -- '--rescan yes' "$log"
-echo 990000 > "$t/lastscan"
+check "never scanned should still scan, and say so: $(cat "$log")" grep -q -- '--rescan yes' "$log"
+check "never scanned should be said: $(cat "$log")" grep -q 'mesg Not scanned yet' "$log"
+echo 999000 > "$t/lastscan"
+# A scan that goes on: five seconds at most, then the list as it is.
+touch "$t/slow"
+SECONDS=0; wifi || true; took=$SECONDS
+rm -f "$t/slow"
+check "a long scan should be given up after five seconds, not $took" test "$took" -ge 4 -a "$took" -le 9
+check "and the list shown all the same: $(offered)" grep -q 'LIVING ROOM' "$t/offered"
+check "the scan's wait should be said: $(cat "$log")" grep -q '5 seconds at most' "$log"
 printf '6\n' > "$t/answer"             # Scan again (6 networks: 0-5), then closed
 wifi || true
-check "Scan again should scan: $(cat "$log")" grep -q -- '--rescan yes' "$log"
+check "Scan again should scan once more: $(cat "$log")" test "$(grep -c -- '--rescan yes' "$log")" = 2
 check "and show the list again: $(grep -c '^rofi' "$log")" test "$(grep -c '^rofi' "$log")" = 2
 
 # Joining: saved by its connection; the one in use left alone; open at once.

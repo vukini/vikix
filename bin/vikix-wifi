@@ -9,12 +9,16 @@
 #                         A click on the bar's Wi-Fi field, or Super+m,
 #                         System, opens the same list
 #   vikix wifi list       the networks as the list shows them, no menu
-#   vikix wifi scan       scan now and wait for it (some ten seconds)
+#   vikix wifi scan       scan now and wait for it (five seconds at most)
 #
 # The list is only as fresh as NetworkManager's last scan, which is what
-# the tray's applet shows, often stale. So the picker scans first when the
-# last scan is older than 30 seconds (a scan takes some ten seconds: a
-# notification says so), and "Scan again" always does.
+# the tray's applet shows, often stale: NetworkManager scans on its own
+# now and then, so a recent stamp is no sign the list is right. So the
+# picker scans every time it opens, waiting five seconds at most (a
+# notification says so; what the scan has found by then is shown), and
+# "Scan again" scans once more. The line over the list says when
+# NetworkManager last scanned, so a scan it refused (one asked too soon
+# after the last) or one still going shows as what it is.
 #
 # A new network's password goes to NetworkManager through a file of your
 # own (0600, deleted at once), never on a command line. A network that
@@ -27,7 +31,6 @@ DBUS_SEND=${VIKIX_DBUS_SEND:-dbus-send}
 UPTIME=${VIKIX_UPTIME:-/proc/uptime}
 TERMINAL=${VIKIX_TERMINAL:-alacritty}
 RUN="${XDG_RUNTIME_DIR:-/tmp}"
-FRESH=30      # seconds: a scan younger than this is shown as it is
 
 note() { notify-send -a Vikix ${NOTE_ID:+-r "$NOTE_ID"} "$1" "${2:-}" 2>/dev/null || true; }
 fail() { note "$1" "${2:-}"; exit 1; }
@@ -52,10 +55,14 @@ scan_age() {   # scan_age DBUS-PATH
   echo $(( up - ms / 1000 ))
 }
 
-scan() {   # a scan, waited for: the list that comes is the fresh one
-  NOTE_ID=$(notify-send -p -a Vikix ${NOTE_ID:+-r "$NOTE_ID"} -t 20000 "Scanning for networks…" "some ten seconds" 2>/dev/null || true)
+SCAN_WAIT=5   # seconds: the list is shown with what the scan has found by then
+
+scan() {   # a scan, waited for up to SCAN_WAIT: the list that comes is the fresh one
+  NOTE_ID=$(notify-send -p -a Vikix ${NOTE_ID:+-r "$NOTE_ID"} -t $(( SCAN_WAIT * 1000 + 2000 )) "Scanning for networks…" "$SCAN_WAIT seconds at most" 2>/dev/null || true)
   [[ $NOTE_ID =~ ^[0-9]+$ ]] || NOTE_ID=''
-  timeout 40 "$NMCLI" device wifi list --rescan yes >/dev/null 2>&1 || true
+  # nmcli asks NetworkManager for a scan and waits for its end; past the
+  # wait it is stopped, and NetworkManager finishes the scan on its own.
+  timeout --kill-after=2s "$SCAN_WAIT" "$NMCLI" device wifi list --rescan yes >/dev/null 2>&1 || true
 }
 
 # The networks, one a line, tab-parted: SIGNAL, SSID, SECURITY, FLAGS
@@ -160,12 +167,16 @@ case ${1:-} in
   *) echo "usage: vikix wifi [list|scan]" >&2; exit 2 ;;
 esac
 
-# The list, scanned first unless it's fresh; the pick by its line number.
-age=$(scan_age "$DBUS")
-if [ "$age" = never ] || [ -z "$age" ] || [ "$age" -gt "$FRESH" ]; then scan; age=0; fi
+# The list, scanned first every time; the pick by its line number.
+scan
 while :; do
   mapfile -t rows < <(networks)
-  mesg="Scanned just now"; [ "$age" -gt 0 ] && mesg="Scanned $age s ago"
+  # When NetworkManager says it last scanned: "just now" after the scan
+  # that was waited for, an age when it refused that scan.
+  age=$(scan_age "$DBUS")
+  mesg="Scanned just now"
+  [[ $age =~ ^[0-9]+$ ]] && [ "$age" -gt 5 ] && mesg="Scanned $age s ago"
+  [ "$age" = never ] && mesg="Not scanned yet"
   [ "${#rows[@]}" -gt 0 ] || mesg+=". No network found"
   inuse=''; menu=''
   for r in "${rows[@]}"; do
@@ -183,7 +194,7 @@ while :; do
     join "$signal" "$ssid" "$security"; exit
   fi
   case $(( pick - ${#rows[@]} )) in
-    0) scan; age=0 ;;
+    0) scan ;;
     1) if [ -n "$inuse" ]; then
          timeout 30 "$NMCLI" device disconnect "$DEV" >/dev/null 2>&1 && note "Off Wi-Fi" "pick a network to join again" || fail "Couldn't disconnect" ""
          exit

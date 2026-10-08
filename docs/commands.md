@@ -1242,9 +1242,9 @@ Wi-Fi: pick a network from a list that is scanned first.
 
 - `vikix wifi` — scan, then the networks in rofi: the signal, the name, whether it's saved or in use; Enter joins (a saved or open one at once, a new one asks its password); "Scan again", "Disconnect", and nmtui for the rest (a hidden network, a company login). A click on the bar's Wi-Fi field, or Super+m, System, opens the same list
 - `vikix wifi list` — the networks as the list shows them, no menu
-- `vikix wifi scan` — scan now and wait for it (some ten seconds)
+- `vikix wifi scan` — scan now and wait for it (five seconds at most)
 
-The list is only as fresh as NetworkManager's last scan, which is what the tray's applet shows, often stale. So the picker scans first when the last scan is older than 30 seconds (a scan takes some ten seconds: a notification says so), and "Scan again" always does.
+The list is only as fresh as NetworkManager's last scan, which is what the tray's applet shows, often stale: NetworkManager scans on its own now and then, so a recent stamp is no sign the list is right. So the picker scans every time it opens, waiting five seconds at most (a notification says so; what the scan has found by then is shown), and "Scan again" scans once more. The line over the list says when NetworkManager last scanned, so a scan it refused (one asked too soon after the last) or one still going shows as what it is.
 
 A new network's password goes to NetworkManager through a file of your own (0600, deleted at once), never on a command line. A network that can't be joined this way (WEP, a login with a user name) is sent to nmtui. A password refused leaves nothing saved.
 
