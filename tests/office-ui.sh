@@ -61,9 +61,16 @@ if command -v Xvfb >/dev/null && command -v emacs >/dev/null; then
     for ((i=0; i<100; i++)); do [ ! -S "$EMACS_SOCKET_NAME" ] || break; sleep 0.1; done
     [ -S "$EMACS_SOCKET_NAME" ] || { cat "$t/daemon.log"; exit 1; }
     rm -f "$t/visual-result"
-    timeout 10 emacsclient --alternate-editor=false --eval "(load \"$here/tests/office-ui-visual.el\" nil t)"
+    # When the daemon can't draw, say what the screen was doing: it once
+    # said "cannot open display" seconds after the first part drew on it.
+    screen() {
+      echo "--- the daemon: $(cat "$t/daemon.log")"
+      echo "--- Xvfb $xpid $(kill -0 "$xpid" 2>/dev/null && echo alive || echo gone), socket $(test -S "/tmp/.X11-unix/X$n" && echo there || echo gone), lock $(cat "/tmp/.X$n-lock" 2>/dev/null || echo gone): $(cat "$t/xvfb.log")"
+      echo "--- xdpyinfo: $(timeout 5 xdpyinfo -display ":$n" 2>&1 | head -2)"
+    }
+    timeout 10 emacsclient --alternate-editor=false --eval "(load \"$here/tests/office-ui-visual.el\" nil t)" || { screen; exit 1; }
     for ((i=0; i<100; i++)); do [ ! -f "$t/visual-result" ] || break; sleep 0.1; done
-    [ -f "$t/visual-result" ] || { cat "$t/daemon.log"; exit 1; }
+    [ -f "$t/visual-result" ] || { screen; exit 1; }
     cat "$t/visual-result"
     wait "$epid"
     epid=''
