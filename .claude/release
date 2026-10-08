@@ -158,7 +158,9 @@ case $tests in
     note "testing ($tests)"
     say "tests (${tests}), in $wt ..."
     log=$(mktemp)
-    if ! (cd "$wt" && tests/run.sh "${args[@]}") >"$log" 2>&1; then
+    # 9>&-: the tests don't inherit the lock's descriptor, or a program a test
+    # leaves behind (an Xvfb, 2026-10-08) holds the queue for everyone after.
+    if ! (cd "$wt" && tests/run.sh "${args[@]}" 9>&-) >"$log" 2>&1; then
       grep -E '^FAIL|^FAILED' "$log" | head -20 >&2
       kept="$common/vikix-release-tests.log"; cp "$log" "$kept"; rm -f "$log"
       die "the tests failed (all they said: $kept). Nothing merged"

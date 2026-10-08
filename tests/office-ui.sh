@@ -10,8 +10,16 @@ t=$(mktemp -d)
 xpid=''
 epid=''
 # (|| true: a daemon gone on its own would stop the trap at its kill, under
-# set -e, and leave the screen running.)
-trap '[ -z "$epid" ] || kill "$epid" 2>/dev/null || true; [ -z "$xpid" ] || kill "$xpid" 2>/dev/null || true; rm -rf "$t"' EXIT
+# set -e, and leave the screen running.) The Xvfb is ended for sure: one
+# left behind (2026-10-08) held, through a descriptor it inherited, the
+# release queue locked for hours.
+end_xvfb() {
+  [ -n "$xpid" ] || return 0
+  kill "$xpid" 2>/dev/null || true
+  for _ in 1 2 3 4 5 6 7 8 9 10; do kill -0 "$xpid" 2>/dev/null || return 0; sleep 0.2; done
+  kill -KILL "$xpid" 2>/dev/null || true
+}
+trap '[ -z "$epid" ] || kill "$epid" 2>/dev/null || true; end_xvfb; rm -rf "$t"' EXIT
 export HOME="$t"
 export XDG_STATE_HOME="$t/state" XDG_CONFIG_HOME="$t/config" XDG_DATA_HOME="$t/data"
 export DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent/office-test
