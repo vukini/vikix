@@ -112,6 +112,8 @@ def snapshot(api):
         needs = any(a.get('state') in ('asks', 'permission', 'question', 'waiting', 'done') for a in row['agents'])
         row['paused'] = api.pause_read(path) if row['kind'] == 'desk' else {}
         row['testing'] = api.tester_running(path) if row['kind'] == 'desk' else 0
+        row['notes'] = len(api.inbox_peek(path)) if row['kind'] == 'desk' else 0
+        row['left'] = row.get('left') or {}
         row['group'] = ('Needs you' if needs or status in ('waiting', 'review') or not live_known
                         else 'Working' if row['agents'] and not row['paused']
                         else 'Finished' if status == 'finished' or d.get('closed')
@@ -174,6 +176,31 @@ def forget_record(api, did):
         print(api.forget_record(rec))
     except H.HandoffError as e:
         raise RuntimeError(str(e)) from e
+
+
+def desk_action(api, verb, path, text=''):
+    """A worker's desk acted on from the Office: pause or unpause, its
+    tests started, a note left. PATH is a desk's folder, as the row's id is."""
+    if not isinstance(path, str) or not os.path.isdir(path) or not api.desk_of(path):
+        raise ValueError('Needs a desk folder (a worktree of a project)')
+    if verb == 'pause':
+        print(api.go_folder(path) if os.path.exists(api.pause_path(path)) else api.pause_folder(path, 'user'))
+    elif verb == 'unpause':
+        print(api.go_folder(path))
+    elif verb == 'test':
+        if not api.runner_of(path)[1]:
+            raise RuntimeError('No tests/run.sh in this project: nothing to run')
+        if api.tester_running(path):
+            raise RuntimeError('A tester is at work there already; refresh')
+        api.tester_start(path)
+        print("Tests started; the result goes into the handoff and the agent's inbox.")
+    elif verb == 'tell':
+        H = api.handoff_module()
+        try:
+            api.inbox_add(path, text, 'user')
+        except H.HandoffError as e:
+            raise RuntimeError(str(e)) from e
+        print('Noted for its agent; delivered at its next tool call.')
 
 
 def process_start(api, pid):
@@ -307,8 +334,12 @@ def main(api, args):
         purge_archive(api, args[1])
     elif len(args) == 2 and args[0] == '--forget':
         forget_record(api, args[1])
+    elif len(args) == 2 and args[0] in ('--pause', '--unpause', '--test'):
+        desk_action(api, args[0][2:], args[1])
+    elif len(args) == 3 and args[0] == '--tell':
+        desk_action(api, 'tell', args[1], args[2])
     elif args in ([], ['--tty']):
         launch(api, tty=bool(args))
     else:
-        raise ValueError('vikix agents office [--tty | --json | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN]')
+        raise ValueError('vikix agents office [--tty | --json | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN | --pause DESK | --unpause DESK | --test DESK | --tell DESK TEXT]')
     return 0

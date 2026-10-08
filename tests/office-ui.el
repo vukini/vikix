@@ -281,6 +281,44 @@ is drawn again at that width."
      (should (equal (json-parse-string output :array-type 'list)
                     '("resume" "/tmp/a desk;$(never run)" "--fresh"))))))
 
+(ert-deftest office-worker-actions-and-marks ()
+  (office-test-buffer
+   (let (args)
+     (cl-letf (((symbol-function 'vikix-office--act) (lambda (a) (setq args a)))
+               ((symbol-function 'read-string) (lambda (&rest _) "  look at chapter two  ")))
+       (vikix-office--render)
+       (vikix-office-pause)
+       (should (equal args '("office" "--pause" "a")))
+       (vikix-office-test)
+       (should (equal args '("office" "--test" "a")))
+       (vikix-office-tell)
+       (should (equal args '("office" "--tell" "a" "look at chapter two")))
+       (cl-letf (((symbol-function 'read-string) (lambda (&rest _) "   ")))
+         (should-error (vikix-office-tell) :type 'user-error))
+       ;; A paused desk with notes waiting and a tester at work says so in its row, and offers Go.
+       (nconc (vikix-office--row)            ; keys the fixture lacks, added to the row in place
+              (list (cons 'paused '((at . 1791300000) (by . "user") (hard . :false)))
+                    (cons 'notes 2) (cons 'testing 4242)
+                    (cons 'left '((reason . "dismissed") (by . "user") (at . 1791300000) (dirty . 3)))))
+       (vikix-office--render)
+       (dolist (words '("paused by user" "testing" "2 notes waiting"))
+         (should (string-match-p words (buffer-string))))
+       (setq vikix-office--detail (generate-new-buffer " *Office test detail*"))
+       (unwind-protect
+           (progn
+             (vikix-office--render-detail)
+             (with-current-buffer vikix-office--detail
+               (should (string-match-p "Last agent left: dismissed" (buffer-string)))
+               (should (string-match-p "3 uncommitted then" (buffer-string)))
+               (should (string-match-p "Notes waiting for its agent: 2" (buffer-string)))
+               (should (cl-find "Go" (let (labels) (save-excursion (goto-char (point-min))
+                                                                   (while (forward-button 1 nil nil t) (push (button-label (button-at (point))) labels)))
+                                       labels) :test #'equal))))
+         (kill-buffer vikix-office--detail))
+       ;; The archive offers none of them.
+       (nconc (vikix-office--row) (list (cons 'archived t)))
+       (should-error (vikix-office-pause) :type 'user-error)))))
+
 (ert-deftest office-close-agent-confirmation-and-selection ()
   (office-test-buffer
    (vikix-office--render)

@@ -246,12 +246,16 @@ StumpWM's own `Ctrl+t` prefix keys still work too: press `Ctrl+t` and wait, and 
 | Super+= | Calculator: Enter copies the answer |
 | **AI & voice** | |
 | Super+a | AI agent: here in a terminal, or at a new desk of its own |
-| Super+Alt+d | Desk keys: n new, r take up again, c close, h handoff, o the Office |
+| Super+Alt+d | Desk keys: n new, r take up again, c close, h handoff, o the Office, t test, p pause or go, i a note, x dismiss |
 | then n | AI agent at a desk of its own: pick a project; it gets a workspace and a worktree to itself |
 | then r | Take a desk up again: pick one; its handoff shown, its agent's conversation resumed where it can be |
 | then c | Close an agent's desk whose work is in: pick one; its worktree and branch go |
 | then h | A desk's handoff: the task, what the agent did and left, its checks; pick a desk |
 | then o | The Office: tasks, desks and agents; continue unfinished work |
+| then t | A desk's tests run (vikix agents test): pick one; the result goes into its handoff and its agent's inbox |
+| then p | Pause a desk's agent at its next tool call, or let a paused one go: pick one |
+| then i | A note for a desk's agent, delivered at its next tool call: pick the desk, type the note |
+| then x | Dismiss a desk's agent, keeping the desk and its files: pick one |
 | Super+F9 | Dictation: speak, then Super+F9 again types it |
 | Super+Shift+F9 | Dictation: stop listening, type nothing |
 | Super+F10 | Voice: speak, then Super+F10 again: the AI answers aloud |

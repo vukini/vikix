@@ -23,7 +23,7 @@ Seven pieces, each a subcommand of `vikix agents`, a key in the desks' map (`Sup
 > 2026-10-07: the first three pieces are in (the task as the agent's first prompt, by `desk --task`, which another session built the same day in 0.71.249 with an estimate the handoff counts down; `resume` starts the agent with no first prompt: a resumed conversation has its context, a fresh one the handoff printed above it; the inbox, `vikix agents tell`, delivered by Claude Code's hook and read out by `handoff` and `resume` for the others; the report: a notification when an agent's status comes to review, waiting or finished, and the Stop hook `vikix agents stopping` asking a worker once for its handoff). The bar's agent-waiting note doesn't show a status yet: the note is by X window, which a status set from a terminal doesn't know; left for the Office's step.
 > 2026-10-08: pause and go, the hard form and turns are in (`pause`, `go`, `turns`, `pause_hold`, `take_turn` in `bin/vikix-agents`; the second hook entry `touch --pause-only` before every tool, which delivers waiting notes too, so a note now reaches a worker at its next tool call, a read included). Not the Office's buttons: step 4.
 > 2026-10-08: the tester is in (`vikix agents test [DESK | --all] [--log DESK]`; `test_desk`, `test_batch`, `test_all`, `tester_start` in `bin/vikix-agents`; `tests/tester.sh`). A desk joins the batch when it changed no file the batch has, in the order the desks went to review, which is greedier than "disjoint from every other" and runs fewer times. The note's 500 characters hold the failing tests' names and the first failure's line; the whole run is in `office/tests/ID.log`, `--log`. A project with no runner gets no check and no note, so a hand-in there makes no noise.
-- **Dismiss.** `vikix agents dismiss DESK` is the Office's "Close agent" from the terminal: the agent is asked to exit, the desk, branch and files stay, and `resume` takes it up again. A `SessionEnd` hook notes in the record when and how the agent left, so a resumed desk says "dismissed Tuesday 15:40, 3 files uncommitted".
+> 2026-10-08: dismiss and the SessionEnd note are in (`dismiss`, `left`; a note to the agent first; `Left:` on the handoff's page and in the Office's details), with the menu forms (`--menu` on tell, pause, test and dismiss; `pick_desk`), the desk keys `t`, `p`, `i`, `x`, and the Office's Pause/Go, Test and Tell buttons (`desk_action` in `lib/office.py`: `--pause`, `--unpause`, `--test`, `--tell`). The design is complete; what stays out is said under "What doesn't change".
 
 ## How it is built
 
@@ -44,9 +44,7 @@ Seven pieces, each a subcommand of `vikix agents`, a key in the desks' map (`Sup
 
 (The tester is built as the design said, in `bin/vikix-agents` rather than `lib/office.py`; the Office reads `testing` from the same note the listing reads.)
 
-**Dismiss**: `dismiss DESK` is `close_agent` from the lib with the desk resolved by `desk_for`, and a last line in the inbox first, "dismissed; write your handoff if you can", which an agent mid-turn reads at its next tool call and an idle one never will. `office.json` gains `"SessionEnd"` → `vikix agents left`, which notes `{at, reason}` in the record under the agent's signature (`reason` from Claude Code's JSON: `exit`, `logout`, `prompt_input_exit`, `other`) and runs `observe`, so the record's git state is the one the agent left.
-
-**Keys and the Office.** In the desks' map: `t` test, `p` pause or go (asks which desk; a paused one offers go), `i` tell, `x` dismiss; `registry.lisp` only, then `lib/skill-keys.sh --write`. The Office: a Paused mark in the row, Pause/Go, Test, Tell and Dismiss buttons, the check's note and the inbox's unread count in the details.
+(Dismiss, the SessionEnd note, the keys and the Office's buttons are built as the design said; `left` keeps a dismissal noted a moment before over the hook's own reason, and the Office's Dismiss is its Close agent button, which was there.)
 
 **Tests.** `tests/house.sh`: the inbox delivered and emptied, a pause that holds and then denies at the limit (`VIKIX_PAUSE_LIMIT=2`), `--pause-only` at a Read, turns waiting and the deadlock answered `ask`, the Stop hook's four cases. `tests/handoff.sh`: `review` starts the tester (`VIKIX_TESTER` names a stand-in), the check and the inbox line, `left` noted. `tests/office.sh`: `test` on a made-up project with a stub `tests/run.sh` that records what it ran, `--all` with two disjoint desks and one that overlaps, the batch's throwaway worktree gone afterwards. `tests/office-ui*`: the new buttons. `tests/mcp.sh`: `handoff_update` to review notifies.
 
@@ -62,4 +60,4 @@ Seven pieces, each a subcommand of `vikix agents`, a key in the desks' map (`Sup
 1. ~~The task reaches the worker, the inbox, the report.~~ In, 2026-10-07.
 2. ~~Pause and go, the hard form, turns.~~ In, 2026-10-08.
 3. ~~The tester, and review running it.~~ In, 2026-10-08.
-4. Dismiss and `left`, the keys, the Office's buttons, the guide's "Workers" section in `docs/agents.md`, the skill's line on the inbox.
+4. ~~Dismiss and `left`, the keys, the Office's buttons, the guide, the skill.~~ In, 2026-10-08.

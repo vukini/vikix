@@ -191,6 +191,7 @@ assert h["PreToolUse"][0]["matcher"] == "Edit|Write|MultiEdit|NotebookEdit|Bash"
 assert h["PreToolUse"][0]["hooks"][0]["command"] == "vikix agents touch", h
 assert "matcher" not in h["PreToolUse"][1] and h["PreToolUse"][1]["hooks"][0]["command"] == "vikix agents touch --pause-only", h
 assert all(e["hooks"][0]["timeout"] >= 660 for e in h["PreToolUse"]), h
+assert h["SessionEnd"][0]["hooks"][0]["command"] == "vikix agents left", h
 assert h["Stop"][0]["hooks"][0]["command"] == "vikix agents stopping", h'
 check "vikix agent gives Claude Code the hook, unless VIKIX_OFFICE=0" \
   grep -q 'VIKIX_OFFICE:-1.*!= 0.*\]' "$here/bin/vikix-agent"
@@ -333,11 +334,15 @@ out=$(touch_as 1001 "$t/src/book-a/ch3.md"); wait
 check "go lets the held edit through: '$out'" test -z "$out"
 out=$(agents go a)
 check "go on a desk not paused says so: $out" grep -q "book-a isn't paused" <<<"$out"
-sleep 300 & spid=$!; proc "$spid" claude "$t/src/book-a"     # a real process standing in for an agent's
-out=$(agents pause a --hard)
+# A desk with a real process standing in for its agent, alone there: a signal
+# goes by process descriptor to a pid the made-up /proc calls an agent, so a
+# made-up pid that is a real process's must never be at this desk.
+git -C "$t/src/book" worktree add -q "$t/src/book-p" -b p
+sleep 300 & spid=$!; proc "$spid" claude "$t/src/book-p"
+out=$(agents pause p --hard)
 check "--hard freezes the agent's process, by descriptor: $out" \
-  bash -c 'grep -q "book-a: frozen (SIGSTOP): claude '"$spid"'" <<<"$1" && [ "$(awk "{print \$3}" /proc/$2/stat)" = T ]' _ "$out" "$spid"
-out=$(agents go a)
+  bash -c 'grep -q "book-p: frozen (SIGSTOP): claude '"$spid"'" <<<"$1" && [ "$(awk "{print \$3}" /proc/$2/stat)" = T ]' _ "$out" "$spid"
+out=$(agents go p)
 check "go thaws it: $out" bash -c 'grep -q "1 process continues" <<<"$1" && [ "$(awk "{print \$3}" /proc/$2/stat)" = S ]' _ "$out" "$spid"
 kill "$spid" 2>/dev/null; wait "$spid" 2>/dev/null || true; rm -r "$t/proc/$spid"
 # Turns: book-b has ch1.md changed, uncommitted (codex 1002's); claude 1001's edit of it waits for the commit.
@@ -363,6 +368,24 @@ open(sys.argv[1], "w").writelines(lines)
 PY
 agents turns a off >/dev/null
 unset VIKIX_PAUSE_LIMIT
+# Dismiss: the desk's agent asked to exit (a real process standing in), the desk kept, the leaving noted.
+sleep 300 & spid=$!; proc "$spid" claude "$t/src/book-p"
+out=$(VIKIX_AGENT_PID=$spid agents dismiss p || true)
+check "an agent doesn't dismiss itself: $out" grep -q "that is your own desk: an agent doesn't dismiss itself" <<<"$out"
+out=$(agents dismiss p)
+check "dismiss asks the desk's agents to exit, and says what stays: $out" \
+  grep -q "book-p: dismissed claude $spid\. The desk, its branch and 0 uncommitted files stay; vikix agents resume takes it up again" <<<"$out"
+for _ in 1 2 3 4 5; do kill -0 "$spid" 2>/dev/null || break; sleep 0.2; done
+check "and the process is gone" not kill -0 "$spid" 2>/dev/null
+wait "$spid" 2>/dev/null || true; rm -r "$t/proc/$spid"
+out=$(agents handoff p)
+check "the record says how the last agent left: $(grep '^Left' <<<"$out")" grep -q '^Left: dismissed (user, just now), 0 uncommitted then$' <<<"$out"
+check "with a note left for it first" grep -q 'user (just now): dismissed by user: write your handoff if you can, then stop' <<<"$out"
+out=$(printf '{"reason":"logout","session_id":"x"}' | VIKIX_AGENT_PID=1001 python3 "$here/bin/vikix-agents" left 2>&1)
+check "the SessionEnd hook notes how an agent left: '$out'" bash -c '[ -z "$1" ] && grep -q "^Left: logout (claude 1001, just now)" <<<"$2"' _ "$out" "$(agents handoff a)"
+out=$(printf '{"reason":"other"}' | VIKIX_AGENT_PID=1002 python3 "$here/bin/vikix-agents" left 2>&1)
+check "one at a desk with no record notes nothing: '$out'" test -z "$out"
+git -C "$t/src/book" worktree remove --force "$t/src/book-p"; git -C "$t/src/book" branch -q -D p     # the closing tests count the desks
 # A helper an agent started under its own name (Claude Code's daemon runs the shell
 # commands): what it does is the agent's, so a seat taken through it is the agent's.
 proc 1010 claude "$HOME"

@@ -54,7 +54,7 @@ The agent's terminal is named for its desk on the desktop: `wifi-fix · Claude`,
 
 The project is any of `vikix project list`'s, by any part of its name (`vikix`, `novel`, `nov`). The topic is a word or two for the work: it becomes the folder's ending and the branch's name, so choose one that says what the agent is doing (`wifi-fix`, `chapter-3`, `typos`), not who (`agent-2`). A topic that gives no name for a branch is refused.
 
-`Super+a`, *Agent at a new desk*, or `Super+Alt+d` then `n` (the desk keys: `Super+Alt+d` opens a small card of them, `n` a new desk, `r` take one up again, `c` close one, `h` its handoff, `o` the Office), or `Super+m` → *AI* → *Agents: start one on a project, at a desk of its own*, asks for the project in a menu, then for the topic, then for the task (in your words; it becomes the agent's first prompt, as `--task` does below, and Enter with nothing typed makes a desk with no task), then which agent: yours first, the others as `vikix agent --list` has them (one not installed yet is offered its installer in the terminal), and the ones that can run on a model on this laptop. Other forms:
+`Super+a`, *Agent at a new desk*, or `Super+Alt+d` then `n` (the desk keys: `Super+Alt+d` opens a small card of them, `n` a new desk, `r` take one up again, `c` close one, `h` its handoff, `o` the Office, `t` test a desk's work, `p` pause its agent or let it go, `i` a note for it, `x` dismiss it), or `Super+m` → *AI* → *Agents: start one on a project, at a desk of its own*, asks for the project in a menu, then for the topic, then which agent: yours first, the others as `vikix agent --list` has them (one not installed yet is offered its installer in the terminal), and the ones that can run on a model on this laptop. Other forms:
 
 ```sh
 vikix agents desk notes                # a project that is no repository: its own folder, a workspace to itself
@@ -213,6 +213,12 @@ When a worker sets its status to *review*, its desk's tests run by themselves: `
 
 `vikix agents test --all` takes every desk in review. In the order they went to review, a desk joins a batch when it changed no file the batch has; the batch is merged onto the project's own branch in a throwaway worktree, gone afterwards, and tested once, each desk's check saying with which, since passing alone and failing together is what a batch is for. A desk that overlaps one in the batch runs alone, in its own worktree as it stands, told which it overlaps on what. Nothing touches a desk's branch: a merge that conflicts only sends that desk to run alone.
 
+### Dismissing a worker, and how it left
+
+`vikix agents dismiss wifi-fix` asks the desk's agent to exit and keeps the desk, its branch and its files, so `vikix agents resume` takes it up later; it is the Office's *Close agent* from the terminal. A note goes to the worker first, "dismissed: write your handoff if you can, then stop", which one mid-turn reads at its next tool call, and the record notes the dismissal and how many files were left uncommitted. An agent never dismisses itself. Whichever way an agent leaves a desk, dismissed, exited or logged out, Claude Code's SessionEnd hook (`vikix agents left`) notes it in the record, so the next one at the desk, and the Office, see *Left: dismissed, 3 uncommitted then*.
+
+Each of the worker's commands has a form for the desktop: in the desk keys (`Super+Alt+d`) `t` tests a desk's work, `p` pauses its agent or lets it go, `i` leaves it a note, `x` dismisses it, each asking which desk in a menu, and `Super+m` → *AI* has the same; the Office has them as buttons.
+
 ### When a desk doesn't appear
 
 `vikix agents` shows no new line and the workspace is empty: the desk wasn't made. From a terminal the reason is printed (*no project called ...*: `vikix project list` names them, and any part of a name does); from `Super+m` it comes as a notification. The usual cause is a name that isn't the project's (`novel-second-edition` when the project is `novel`).
@@ -292,7 +298,7 @@ The Vikix skill tells every agent the same rules, so you can hold it to them: lo
 
 ## Not there yet
 
-A workspace and a bar colour each; dismissing an agent from the terminal, and the workers' keys and buttons (`DESIGN-workers.md`); handing a window from one agent to another; a permission list per agent. Gemini CLI's and Codex's hook shapes, and Gemini's resume, tried on a machine that has them. Each will come as it is needed; the pieces that are here are the ones the first weeks with several agents asked for.
+A workspace and a bar colour each; handing a window from one agent to another; a permission list per agent. Gemini CLI's and Codex's hook shapes, and Gemini's resume, tried on a machine that has them. Each will come as it is needed; the pieces that are here are the ones the first weeks with several agents asked for.
 
 ## The Office
 
@@ -362,7 +368,7 @@ conversations are untouched. There is no automatic age or size cutoff.
 
 Click a task, or use `n`/`p` to select it. `RET` enters its details; `C-x o`
 moves between panes. Only available action buttons are shown. `Tab` visits buttons, `a` goes to an agent, `c` continues
-a desk, `g` refreshes and `q` closes the Office. Details keep the user's task,
+a desk, `P` pauses its agent or lets it go, `t` runs its tests, `i` leaves its agent a note, `g` refreshes and `q` closes the Office. A row says when its desk is paused and by whom, when its tests run, and how many notes wait for its agent; the details say how the last agent left. Details keep the user's task,
 signed agent account, observed Git state, reported checks and saved
 conversation availability separate. **Review does not mean merged.** A
 fresh check means its recorded code matches the current observation; it does

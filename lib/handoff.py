@@ -455,6 +455,11 @@ def render(rec, agents_at=(), protection=(), now=None):
     h = rec.get("handoff") or {}
     s = h.get("status")
     lines.append(f"Status: {s['value']} ({s['by']}, {when(s['at'])})" if s else "Status: not said")
+    gone = rec.get("left") or {}
+    if gone.get("reason") and not rec.get("desk", {}).get("closed"):
+        n = gone.get("dirty")
+        lines.append(f"Left: {gone['reason']} ({gone.get('by', '?')}, {when(gone.get('at', 0))})"
+                     + (f", {n} uncommitted then" if n is not None else ""))
     turns = rec.get("turns") or {}
     if turns.get("on"):
         lines.append(f"Turns: on ({turns.get('by', '?')}, {when(turns.get('at', 0))}): a clash waits for the other's commit")

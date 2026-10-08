@@ -252,7 +252,7 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command agent "AI agent: here in a terminal, or at a new desk of its own"
   :run "vikix-agent-choice" :key "s-a"
   :menu "AI" :label "AI agent: here, or at a new desk")
-(define-vikix-command desks "Desk keys: n new, r take up again, c close, h handoff, o the Office"
+(define-vikix-command desks "Desk keys: n new, r take up again, c close, h handoff, o the Office, t test, p pause or go, i a note, x dismiss"
   :run "vikix-map desks" :key "s-M-d" :card "AI & voice")
 (define-vikix-command agent-desk "AI agent at a desk of its own: pick a project; it gets a workspace and a worktree to itself"
   :run "exec vikix-agents desk" :map "desks n"
@@ -269,6 +269,18 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command office "The Office: tasks, desks and agents; continue unfinished work"
   :run "exec vikix-agents office" :map "desks o"
   :menu "AI" :label "Office: tasks, desks and agents")
+(define-vikix-command agent-desk-test "A desk's tests run (vikix agents test): pick one; the result goes into its handoff and its agent's inbox"
+  :run "exec vikix-agents test --menu" :map "desks t"
+  :menu "AI" :label "Agents: test a desk's work (the result into its handoff and inbox)")
+(define-vikix-command agent-desk-pause "Pause a desk's agent at its next tool call, or let a paused one go: pick one"
+  :run "exec vikix-agents pause --menu" :map "desks p"
+  :menu "AI" :label "Agents: pause a desk's agent, or let it go")
+(define-vikix-command agent-desk-tell "A note for a desk's agent, delivered at its next tool call: pick the desk, type the note"
+  :run "exec vikix-agents tell --menu" :map "desks i"
+  :menu "AI" :label "Agents: a note for a desk's agent")
+(define-vikix-command agent-desk-dismiss "Dismiss a desk's agent, keeping the desk and its files: pick one"
+  :run "exec vikix-agents dismiss --menu" :map "desks x"
+  :menu "AI" :label "Agents: dismiss a desk's agent (the desk stays)")
 (define-vikix-command agents "Agents: who is running, on what, and which waits for you; pick one to go to it"
   :run "vikix-agents-pick"
   :menu "AI" :label "Agents: who is running, and go to one")

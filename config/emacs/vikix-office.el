@@ -103,7 +103,7 @@
   (with-current-buffer (vikix-office--owner-buffer)
     (unless (or vikix-office--closed (process-live-p vikix-office--process)
                 (process-live-p vikix-office--action))
-      (vikix-office--notice "Refreshing…  g refresh · RET details · a go to agent · c continue · x close agent · q close Office")
+      (vikix-office--notice "Refreshing…  g refresh · RET details · a go to agent · c continue · P pause/go · t test · i tell · x close agent · q close Office")
       (vikix-office--request
        '("office" "--json") 'vikix-office--process
        (lambda (output error)
@@ -123,8 +123,13 @@
                    (vikix-office--notice
                     (if errors (string-join errors "; ")
                       (concat "Updated " (vikix-office--time (alist-get 'at data))
-                              " · g refresh · RET details · a go to agent · c continue · x close agent · q close Office")))))
+                              " · g refresh · RET details · a go to agent · c continue · P pause/go · t test · i tell · x close agent · q close Office")))))
              (error (vikix-office--failure (error-message-string err))))))))))
+
+(defun vikix-office--positive (value) (and (numberp value) (> value 0)))
+(defun vikix-office--worker-p (r)
+  "A desk that stands, where the worker's actions make sense."
+  (and r (not (vikix-office--folder-p r)) (eq (alist-get 'exists r) t) (not (eq (alist-get 'archived r) t))))
 
 (defun vikix-office--button (label action)
   (insert-text-button label 'follow-link t 'action (lambda (_) (funcall action)))
@@ -251,10 +256,16 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                                                 (vikix-office--one-line (or (alist-get 'project (alist-get 'desk r)) "Project unrecorded")))
                                               " · " (vikix-office--one-line (alist-get 'provider r))))
                   (vikix-office--field width chars label-width "Live"
-                                       (if (eq (alist-get 'live_known r) :false) "unknown"
-                                         (if (alist-get 'agents r)
-                                             (string-join (mapcar (lambda (a) (vikix-office--one-line (alist-get 'doing a))) (alist-get 'agents r)) ", ")
-                                           "none observed")))
+                                       (concat
+                                        (if (eq (alist-get 'live_known r) :false) "unknown"
+                                          (if (alist-get 'agents r)
+                                              (string-join (mapcar (lambda (a) (vikix-office--one-line (alist-get 'doing a))) (alist-get 'agents r)) ", ")
+                                            "none observed"))
+                                        ;; A worker's state: paused (by whom), its tests running, notes waiting for it.
+                                        (if (alist-get 'paused r) (concat " · paused by " (vikix-office--one-line (alist-get 'by (alist-get 'paused r)))) "")
+                                        (if (vikix-office--positive (alist-get 'testing r)) " · testing" "")
+                                        (if (vikix-office--positive (alist-get 'notes r))
+                                            (format " · %d note%s waiting" (alist-get 'notes r) (if (= (alist-get 'notes r) 1) "" "s")) "")))
                   ;; A plain folder keeps no handoff: nothing to say of one. Where
                   ;; the work stands against the agent's estimate, while one stands.
                   (unless folder
@@ -315,7 +326,11 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                   (when (and (not agents) (eq (alist-get 'exists r) t) (not (vikix-office--folder-p r)))
                     (vikix-office--button "Continue…" (lambda () (with-current-buffer owner (vikix-office-continue)))))
                   (when (cl-some (lambda (a) (alist-get 'process_start a)) agents)
-                    (vikix-office--button "Close agent…" (lambda () (with-current-buffer owner (vikix-office-close-agent)))))))
+                    (vikix-office--button "Close agent…" (lambda () (with-current-buffer owner (vikix-office-close-agent)))))
+                  (when (vikix-office--worker-p r)
+                    (vikix-office--button (if (alist-get 'paused r) "Go" "Pause") (lambda () (with-current-buffer owner (vikix-office-pause))))
+                    (vikix-office--button "Test" (lambda () (with-current-buffer owner (vikix-office-test))))
+                    (vikix-office--button "Tell…" (lambda () (with-current-buffer owner (vikix-office-tell)))))))
               (insert "\n\n"))
             (if (vikix-office--folder-p r)
                 ;; Not a desk: no task, no handoff, no Git state to observe. The
@@ -327,6 +342,17 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                   (vikix-office--box-bottom width chars))
               (vikix-office--box-top width chars "Task")
               (vikix-office--signed width chars 0 "" (alist-get 'task r))
+              ;; How the last agent left (dismissed, exited, logged out), and the notes waiting for the next.
+              (let ((gone (alist-get 'left r)))
+                (when (and gone (alist-get 'reason gone))
+                  (vikix-office--field width chars 0 ""
+                                       (format "Last agent left: %s · %s · %s%s" (vikix-office--text (alist-get 'reason gone))
+                                               (vikix-office--text (alist-get 'by gone)) (vikix-office--time (alist-get 'at gone))
+                                               (if (numberp (alist-get 'dirty gone)) (format " · %d uncommitted then" (alist-get 'dirty gone)) ""))
+                                       'shadow)))
+              (when (vikix-office--positive (alist-get 'notes r))
+                (vikix-office--field width chars 0 ""
+                                     (format "Notes waiting for its agent: %d (delivered at its next tool call)" (alist-get 'notes r))))
               (vikix-office--box-bottom width chars)
               (vikix-office--box-top width chars "Agent claims")
               (vikix-office--note width chars "The agent's own report: review does not mean merged.")
@@ -513,6 +539,34 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                                 (number-to-string (alist-get 'pid a))
                                 (alist-get 'process_start a)))))))
 
+(defun vikix-office--worker-row ()
+  "The selected desk, for a worker's action; a user error otherwise."
+  (let ((r (vikix-office--row)))
+    (unless r (user-error "Select a desk first"))
+    (unless (vikix-office--worker-p r) (user-error "Not a standing desk: nothing to do here"))
+    (when (eq (alist-get 'live_known vikix-office--data) :false) (user-error "Live activity unknown; refresh first"))
+    r))
+(defun vikix-office-pause ()
+  "Pause the selected desk's agent at its next tool call, or let a paused one go."
+  (interactive)
+  (with-current-buffer (vikix-office--owner-buffer)
+    (let ((r (vikix-office--worker-row)))
+      (vikix-office--act (list "office" "--pause" (alist-get 'id r))))))
+(defun vikix-office-test ()
+  "Run the selected desk's tests; the result goes into its handoff and its agent's inbox."
+  (interactive)
+  (with-current-buffer (vikix-office--owner-buffer)
+    (let ((r (vikix-office--worker-row)))
+      (vikix-office--act (list "office" "--test" (alist-get 'id r))))))
+(defun vikix-office-tell ()
+  "Leave the selected desk's agent a note, delivered at its next tool call."
+  (interactive)
+  (with-current-buffer (vikix-office--owner-buffer)
+    (let* ((r (vikix-office--worker-row))
+           (text (string-trim (read-string (format "Note for the agent at %s: " (vikix-office--text (alist-get 'title r)))))))
+      (when (string-empty-p text) (user-error "A note needs words"))
+      (vikix-office--act (list "office" "--tell" (alist-get 'id r) text)))))
+
 (defun vikix-office-continue ()
   (interactive)
   (with-current-buffer (vikix-office--owner-buffer)
@@ -581,6 +635,9 @@ were."
     (define-key map (kbd "a") #'vikix-office-go)
     (define-key map (kbd "c") #'vikix-office-continue)
     (define-key map (kbd "x") #'vikix-office-close-agent)
+    (define-key map (kbd "P") #'vikix-office-pause)
+    (define-key map (kbd "t") #'vikix-office-test)
+    (define-key map (kbd "i") #'vikix-office-tell)
     (define-key map (kbd "A") #'vikix-office-toggle-archive)
     (define-key map (kbd "q") #'vikix-office-close)
     (define-key map (kbd "RET") #'vikix-office-details)

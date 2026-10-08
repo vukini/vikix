@@ -31,6 +31,17 @@
           }
         ]
       }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "vikix agents left",
+            "timeout": 15
+          }
+        ]
+      }
     ]
   }
 }

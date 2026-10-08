@@ -181,6 +181,32 @@ class Office(unittest.TestCase):
         path.write_text('other')
         self.assertTrue(H.freshness(before, H.observe(self.folder)).startswith('stale'))
 
+    def test_worker_actions_from_the_office(self):
+        # Pause, unpause, a note and the tests, on the desk's folder; the row says what stands.
+        state = str(Path(self.temp.name) / 'state')
+        self.agents = [self.agent()]
+        with patch.object(A, 'STATE', state), patch.object(A, 'desk_of', lambda f: f), \
+             patch.object(A, 'live_agents', lambda: []), patch.object(A, 'runner_of', lambda f: (None, None, False)):
+            with self.assertRaises(ValueError):
+                office.main(A, ['--pause', str(Path(self.temp.name) / 'nowhere')])
+            office.main(A, ['--pause', self.folder])
+            self.assertTrue(os.path.exists(A.pause_path(self.folder)))
+            row = office.snapshot(A)['desks'][0]
+            self.assertTrue(row['paused'])
+            self.assertEqual(row['group'], 'Parked')
+            self.assertTrue(row['next_action'].startswith('Paused: vikix agents go'))
+            office.main(A, ['--unpause', self.folder])
+            self.assertFalse(os.path.exists(A.pause_path(self.folder)))
+            office.main(A, ['--tell', self.folder, 'look at the picker again'])
+            self.assertEqual([n['text'] for n in A.inbox_peek(self.folder)], ['look at the picker again'])
+            self.assertEqual(office.snapshot(A)['desks'][0]['notes'], 1)
+            with self.assertRaises(RuntimeError):
+                office.main(A, ['--tell', self.folder, 'the key is sk-ant-abcdefghijklmnopqrst'])
+            with self.assertRaises(RuntimeError):
+                office.main(A, ['--test', self.folder])
+            with self.assertRaises(ValueError):
+                office.main(A, ['--tell', self.folder])
+
     def test_focus_only_integer_and_failure(self):
         with patch.object(office.subprocess, 'run') as run:
             with self.assertRaises(ValueError): office.focus(A, '1) (quit)')
