@@ -66,7 +66,12 @@ if command -v Xvfb >/dev/null && command -v emacs >/dev/null; then
     code=0
     timeout 20 emacs -Q --no-splash -l "$here/tests/office-ui-visual.el" || code=$?
     [ ! -f "$t/visual-result" ] || cat "$t/visual-result"
-    [ "$code" = 0 ] || exit "$code"
+    if [ "$code" != 0 ]; then
+      # What the screen said, for a failure that only shows beside other tests.
+      echo "--- Xvfb $DISPLAY (pid $xpid, $(kill -0 "$xpid" 2>/dev/null && echo running || echo gone)):"
+      cat "$t/xvfb.log"; xdpyinfo 2>&1 | head -3
+      exit "$code"
+    fi
     # Exercise the terminal-only daemon used by the real launcher as well.
     export EMACS_SOCKET_NAME="$t/office-server"
     emacs -Q --fg-daemon="$EMACS_SOCKET_NAME" >"$t/daemon.log" 2>&1 &
