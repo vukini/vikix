@@ -30,6 +30,8 @@ Each note lands at once at the end of `~/Dropbox/notes/inbox.org`, with when you
 
 To-dos get `TODO` in front of their title. `inbox sort --undo` puts every file back as it was before the last sort, when nothing has changed them since.
 
+To move one note by hand, open the inbox (**C-c n o**), put the cursor on the note and press **C-c C-w**: it asks for a file (`work.org` puts the note at its end) or a top heading in one (`work.org/Projects`), and the note goes there, out of the inbox. Type `TODO` before its title to make it a to-do. (Org's own key, with its targets set to your notes files; your own `org-refile-targets`, if you've set them, are kept.)
+
 The first sort makes four files to sort into: `work.org`, `personal.org`, `projects.org` (a heading for each project in `~/src`) and `someday.org`. Rename them, add your own or remove them: the sort offers whatever `.org` files are in the folder, and their top headings.
 
 **To-dos into Todoist.** Give Vikix your Todoist token once: `vikix ai key set todoist` (in Todoist: Settings, Integrations, Developer). After that, each sort asks whether to send its to-dos to Todoist too, and each note keeps the task's link.
@@ -45,6 +47,7 @@ Everything is under **C-c n**:
 | `C-c n c` | A note into the inbox |
 | `C-c n o` | Open a notes file, the inbox first |
 | `C-c n j` | Today's journal page, `journal/2026-10-03.org` |
+| `C-c C-w` | In a note: move it into another notes file, or under one of its top headings |
 | `C-c n f` | Find a note by its title, or start a new one |
 | `C-c n i` | A link to another note, where you are |
 | `C-c n l` | What links to this note |

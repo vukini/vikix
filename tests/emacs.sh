@@ -278,9 +278,18 @@ check "with when it was written" grep -qE '^:CREATED: +\[' "$n/Dropbox/notes/in.
 out=$(notes "(progn (find-file \"$n/Dropbox/notes/work.org\") (princ (format \"notes %S\n\" auto-revert-mode)) (find-file \"$n/mine/elsewhere.org\") (princ (format \"mine %S\n\" auto-revert-mode)))")
 check "a notes file should follow the phones' changes (auto-revert), and only a notes file: $out" \
   bash -c 'grep -q "^notes t" <<<"$1" && grep -q "^mine nil" <<<"$1"' _ "$out"
+out=$(notes "(progn (require (quote org)) (find-file \"$n/Dropbox/notes/in.org\") (dolist (x (org-refile-get-targets)) (princ (format \"target %s\\n\" (car x)))))")
+check "C-c C-w should offer the notes files and their top headings: $out" \
+  bash -c 'grep -qx "target work.org" <<<"$1" && grep -qx "target work.org/Plain heading" <<<"$1" && grep -qx "target in.org/Captured in Emacs" <<<"$1"' _ "$out"
+check "and only the notes': $out" bash -c "! grep -q 'elsewhere' <<<\"\$1\"" _ "$out"
+out=$(notes "(progn (require (quote org)) (setq org-refile-targets (quote ((nil :maxlevel . 2)))) (find-file \"$n/Dropbox/notes/in.org\") (dolist (x (org-refile-get-targets)) (princ (format \"target %s\\n\" (car x)))))")
+check "your own org-refile-targets should be kept: $out" bash -c "! grep -q 'work.org' <<<\"\$1\"" _ "$out"
+rm -rf "$n/Dropbox/notes/journal"
+out=$(notes '(princ (vikix-notes-journal-directory))')
+check "C-c n j should make the journal folder first (the first auto-save failed without it): $out" test -d "$n/Dropbox/notes/journal"
 rm -rf "$n/Dropbox"
 out=$(notes '(progn (princ (format "key %S\n" (key-binding (kbd "C-c n a")))) (condition-case e (vikix-notes-agenda) (user-error (princ (cadr e)))))')
 check "without the notes folder, C-c n a should say so: $out" has 'No notes yet in' "$out"
 
-[ "$fail" = 0 ] && echo "emacs: Vikix's part is linked, gptel follows vikix ai use, agents start through vikix agent, and the notes' agenda and capture"
+[ "$fail" = 0 ] && echo "emacs: Vikix's part is linked, gptel follows vikix ai use, agents start through vikix agent, and the notes' agenda, capture and refile targets"
 exit "$fail"

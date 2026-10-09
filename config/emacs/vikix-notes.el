@@ -16,6 +16,9 @@
 ;;   C-c n c   a note into the inbox, from inside Emacs
 ;;   C-c n o   open a notes file (the inbox first)
 ;;   C-c n j   today's journal page (journal/2026-10-03.org)
+;;   C-c C-w   in a note: refile it into another notes file, or under one
+;;             of its top headings (Org's own key; the targets are set
+;;             here unless you've set your own org-refile-targets)
 ;;   C-c n f   find a note by its title, or start a new one (org-roam)
 ;;   C-c n i   a link to another note, here (org-roam)
 ;;   C-c n l   what links to this note: its backlinks (org-roam)
@@ -63,6 +66,9 @@ inbox.org in `vikix-notes-directory'.")
 (defvar org-agenda-files)
 (defvar org-agenda-custom-commands)
 (defvar org-capture-templates)
+(defvar org-refile-targets)
+(defvar org-refile-use-outline-path)
+(defvar org-outline-path-complete-in-steps)
 (defvar httpd-host)
 
 (defun vikix-notes-inbox-file ()
@@ -121,6 +127,25 @@ they are now (a journal begun since counts)."
   (vikix-notes--agenda-files)
   (org-todo-list))
 
+;;; Refiling: C-c C-w into another notes file
+
+(defun vikix-notes-files ()
+  "The notes files: the inbox, then every .org file at the top of the folder."
+  (let ((inbox (vikix-notes-inbox-file)))
+    (cons inbox (remove inbox (when (file-directory-p vikix-notes-directory)
+                                (directory-files vikix-notes-directory t "\\`[^.].*\\.org\\'"))))))
+
+(defun vikix-notes--refile-setup ()
+  "org-refile-targets: yours, when you've set your own; else the notes
+files and their top headings, as `inbox sort' offers them. Org's own
+default would be the headings of the file you're in only."
+  (with-eval-after-load 'org-refile
+    (unless org-refile-targets
+      (setq org-refile-targets '((vikix-notes-files :maxlevel . 1))
+            ;; "work.org" is the file's end, "work.org/Projects" a heading in it.
+            org-refile-use-outline-path 'file
+            org-outline-path-complete-in-steps nil))))
+
 ;;; Capture, opening
 
 (defun vikix-notes-capture ()
@@ -135,8 +160,7 @@ they are now (a journal begun since counts)."
 (defun vikix-notes-open ()
   "Open a notes file, the inbox first."
   (interactive)
-  (let* ((inbox (vikix-notes-inbox-file))
-         (files (cons inbox (remove inbox (directory-files vikix-notes-directory t "\\`[^.].*\\.org\\'"))))
+  (let* ((files (vikix-notes-files))
          (names (mapcar (lambda (f) (file-relative-name f vikix-notes-directory)) files))
          (pick (completing-read "Notes file: " names nil nil nil nil (car names))))
     (find-file (expand-file-name pick vikix-notes-directory))))
@@ -190,11 +214,19 @@ they are now (a journal begun since counts)."
   (vikix-notes--roam)
   (org-roam-buffer-toggle))
 
+(defun vikix-notes-journal-directory ()
+  "The journal's folder, made when it isn't there yet: org-roam opens
+today's page without making it, and the first auto-save then fails."
+  (let ((dir (expand-file-name vikix-notes-journal vikix-notes-directory)))
+    (make-directory dir t)
+    dir))
+
 (defun vikix-notes-journal ()
   "Today's journal page."
   (interactive)
   (vikix-notes--roam)
   (require 'org-roam-dailies)
+  (vikix-notes-journal-directory)
   (org-roam-dailies-goto-today))
 
 (defun vikix-notes-graph ()
@@ -230,6 +262,7 @@ wrote to it, through Dropbox, while it has no unsaved changes."
 (define-key vikix-notes-map "g" #'vikix-notes-graph)
 
 (vikix-notes--agenda-setup)
+(vikix-notes--refile-setup)
 (keymap-global-set "C-c n" vikix-notes-map)
 
 (provide 'vikix-notes)
