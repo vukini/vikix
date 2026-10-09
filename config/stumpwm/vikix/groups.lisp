@@ -130,3 +130,86 @@ nine is empty: you named it."
            (message "~s is no name for a workspace: a word or two, not a number." name))
           (t (vikix-workspace-claim name :named t)
              (message "Workspace ~a, new." name)))))
+
+;;; --- Refile: the workspaces move left into the empty ones -------------------------------
+
+(defparameter *vikix-refile-from* 2
+  "The first workspace a refile moves. Workspace 1 is home: it is neither
+moved nor filled, however empty.")
+
+(defun vikix-workspace-empty-p (group)
+  (null (group-windows group)))
+
+(defun vikix-refile-candidates ()
+  "The numbered workspaces a refile may move, in order: the nine from
+*vikix-refile-from* on. A named workspace has no left to move to."
+  (loop for group in (sort-groups (current-screen))
+        when (and (member (group-name group) *vikix-group-names* :test #'equal)
+                  (>= (group-number group) *vikix-refile-from*))
+          collect group))
+
+(defun vikix-winner-swap (a b)
+  "winner-mode keeps a workspace's layout steps by its number, in two
+tables and as files named for it: numbers A and B trade theirs, so Super+u
+on a moved workspace still undoes its own changes."
+  (let ((package (find-package :winner-mode)))
+    (when package
+      (let ((current (symbol-value (find-symbol "*CURRENT-IDS*" package)))
+            (max (symbol-value (find-symbol "*MAX-IDS*" package)))
+            (dump-name (find-symbol "DUMP-NAME" package)))
+        (flet ((files (number)
+                 (loop for id from 1 to (gethash number max 0)
+                       for file = (funcall dump-name number id)
+                       when (probe-file file) collect (cons id file))))
+          (let ((a-files (files a)) (b-files (files b)))
+            (ignore-errors
+             ;; Each set to its new number through a number no workspace has (0),
+             ;; so the two never meet half way.
+             (loop for (id . file) in a-files do (rename-file file (funcall dump-name 0 id)))
+             (loop for (id . file) in b-files do (rename-file file (funcall dump-name a id)))
+             (loop for (id) in a-files do (rename-file (funcall dump-name 0 id) (funcall dump-name b id))))))
+        (dolist (table (list current max))
+          (let ((a-ids (gethash a table)) (b-ids (gethash b table)))
+            (if b-ids (setf (gethash a table) b-ids) (remhash a table))
+            (if a-ids (setf (gethash b table) a-ids) (remhash b table))))))))
+
+(defun vikix-workspace-swap (a b)
+  "Workspaces A and B trade names and numbers. Everything else is the
+group's own and stays with it: the windows, the frames, what floats, a
+strip and its columns, grid or main-and-stack mode, the solo layout; so
+the workspace that moves keeps its layout entire. The keys, the bar and
+the rules go by number and name, so each now reaches the other."
+  (let ((a-name (group-name a)) (a-number (group-number a)))
+    (setf (group-name a) (group-name b)
+          (group-number a) (group-number b)
+          (group-name b) a-name
+          (group-number b) a-number)
+    (vikix-winner-swap a-number (group-number a))))
+
+(defun vikix-refile-moves ()
+  "The moves a refile makes, as it makes them: a list of (FROM . TO), the
+numbers' names, in order."
+  (let ((moves '()))
+    (loop
+      (let* ((groups (vikix-refile-candidates))
+             (empty (find-if #'vikix-workspace-empty-p groups))
+             (full (and empty
+                        (find-if (lambda (g) (and (not (vikix-workspace-empty-p g))
+                                                  (> (group-number g) (group-number empty))))
+                                 groups))))
+        (unless full (return))
+        (let ((from (group-name full)) (to (group-name empty)))
+          (vikix-workspace-swap full empty)
+          (setf moves (append moves (list (cons from to)))))))
+    moves))
+
+(defcommand vikix-refile-workspaces () ()
+  "Refile the workspaces: from 2 on, each one with windows moves left into
+the nearest empty one, as far as it can, keeping its layout, its order
+among the others kept too. Workspace 1 is left as it is, and so are the
+named workspaces past the nine. Says what moved."
+  (let ((moves (vikix-refile-moves)))
+    (update-all-mode-lines)
+    (if moves
+        (message "Refiled: ~{~a to ~a~^, ~}." (loop for (from . to) in moves collect from collect to))
+        (message "Nothing to refile: no workspace has an empty one to its left."))))
