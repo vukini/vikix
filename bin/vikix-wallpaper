@@ -24,7 +24,7 @@
 # ~/.config/vikix/wallpaper-minutes.
 #
 # Following the theme (~/.config/vikix/wallpaper-theme), its own picture is
-# the one next to its theme file with the same name (themes/void.jpg, or
+# the one next to its theme file with the same name (themes/vikix-dark.jpg, or
 # ~/.config/vikix/themes/mine.jpg beside mine.theme), so `vikix theme`
 # changes it too. A theme without a picture gets a plain background in its
 # own colour; so does cycling with no pictures to cycle. Your choice is

@@ -44,7 +44,7 @@
       <a href="#void" class="opt">For Linux people</a>
       <a href="https://github.com/vukini/vikix" class="opt">GitHub</a>
     </nav>
-    <button class="theme-btn" id="themeBtn" type="button" aria-label="Switch theme"><span class="tb-cmd">vikix theme </span><b id="themeName">void</b></button>
+    <button class="theme-btn" id="themeBtn" type="button" aria-label="Switch theme"><span class="tb-cmd">vikix theme </span><b id="themeName">vikix-dark</b></button>
   </div>
 </header>
 
@@ -74,8 +74,8 @@
 
       <figure class="hero-shot">
         <a class="shot" href="gallery.html" aria-label="Open the gallery">
-          <img class="on-light" src="shots/work-paper.webp" width="1920" height="1080" fetchpriority="high" alt="The Vikix desktop in its light theme: Emacs on the left, a Python program and a system monitor on the right, tiled side by side, with the bar along the top.">
-          <img class="on-dark" src="shots/work-void.webp" width="1920" height="1080" alt="The Vikix desktop in its dark theme: Emacs on the left, a Python program and a system monitor on the right, tiled side by side, with the bar along the top.">
+          <img class="on-light" src="shots/work-vikix-light.webp" width="1920" height="1080" fetchpriority="high" alt="The Vikix desktop in its light theme: Emacs on the left, a Python program and a system monitor on the right, tiled side by side, with the bar along the top.">
+          <img class="on-dark" src="shots/work-vikix-dark.webp" width="1920" height="1080" alt="The Vikix desktop in its dark theme: Emacs on the left, a Python program and a system monitor on the right, tiled side by side, with the bar along the top.">
         </a>
         <figcaption>A real screenshot, not a mock-up: three windows side by side, none overlapping. <a href="gallery.html">More in the gallery</a></figcaption>
       </figure>
@@ -99,7 +99,7 @@
 <span class="t-d">:: to see what the agent changed: vikix changes</span>
 <span class="t-d">:: to take it back: vikix undo</span>
 
-<span class="t-a">you ›</span> Switch the desktop to the void theme, and make Super+t open
+<span class="t-a">you ›</span> Switch the desktop to the vikix-dark theme, and make Super+t open
       a second terminal. Try the key live first, then keep it in
       my user.lisp.
 
@@ -107,8 +107,8 @@
 <span class="t-k">●</span> Super+t is live now. I'll save it to user.lisp so it
   survives a reload.
 <span class="t-k">●</span> Both changes are in place.
-  - <b>Theme:</b> the desktop is on void now. <span class="t-c">vikix theme</span> saved the
-    choice, so it will still be void after you log in again.
+  - <b>Theme:</b> the desktop is on vikix-dark now. <span class="t-c">vikix theme</span> saved the
+    choice, so it will still be vikix-dark after you log in again.
   - <b>Super+t:</b> I bound it live first (<span class="t-c">vikix-bind "s-t" "vikix-terminal"</span>),
     then added it to <span class="t-c">~/.stumpwm.d/user.lisp</span> and reloaded.
     It also shows up in the Super+F1 key help.
@@ -250,9 +250,9 @@ and accessing the guides"
         </div>
       </div>
       <div class="teaser">
-        <a class="shot" href="gallery.html#launcher"><img class="on-light" src="shots/small/launcher-paper.webp" width="960" height="540" loading="lazy" alt="The launcher: type a few letters of a program's name."><img class="on-dark" src="shots/small/launcher-void.webp" width="960" height="540" loading="lazy" alt="The launcher: type a few letters of a program's name."></a>
+        <a class="shot" href="gallery.html#launcher"><img class="on-light" src="shots/small/launcher-vikix-light.webp" width="960" height="540" loading="lazy" alt="The launcher: type a few letters of a program's name."><img class="on-dark" src="shots/small/launcher-vikix-dark.webp" width="960" height="540" loading="lazy" alt="The launcher: type a few letters of a program's name."></a>
         <a class="shot" href="gallery.html#agent"><img src="shots/small/agent.webp" width="960" height="540" loading="lazy" alt="Claude Code on the desktop, after switching the theme and adding a key."></a>
-        <a class="shot" href="gallery.html#keys"><img class="on-light" src="shots/small/keys-paper.webp" width="960" height="540" loading="lazy" alt="Every key, in a searchable list."><img class="on-dark" src="shots/small/keys-void.webp" width="960" height="540" loading="lazy" alt="Every key, in a searchable list."></a>
+        <a class="shot" href="gallery.html#keys"><img class="on-light" src="shots/small/keys-vikix-light.webp" width="960" height="540" loading="lazy" alt="Every key, in a searchable list."><img class="on-dark" src="shots/small/keys-vikix-dark.webp" width="960" height="540" loading="lazy" alt="Every key, in a searchable list."></a>
       </div>
       <p class="also"><a href="gallery.html">See the whole gallery</a>, in both themes, or <a href="gallery.html#video">watch the video</a>.</p>
     </div>
@@ -292,7 +292,7 @@ and accessing the guides"
           <p class="eyebrow">The AI agent</p>
           <h3>Claude Code, set up to work on the desktop with you.</h3>
           <p><kbd>Super</kbd>+<kbd>a</kbd> starts Claude Code. A skill tells it how Vikix is put together and which files are yours to change. With <code>vikix eval</code> it can run Lisp in the live window manager and try a key or a theme before writing it down. Your files are snapshotted before every session. API keys have a place of their own, <code>vikix ai key set anthropic</code>: every shell gets them, and your dotfiles' history never does. And for offline work, <code>vikix ai setup</code> runs models on the laptop itself (Ollama), with a picker that's honest about what a CPU can do.</p>
-<pre><span class="t-p">$</span> vikix eval '(vikix-apply-theme :paper)'
+<pre><span class="t-p">$</span> vikix eval '(vikix-apply-theme :vikix-light)'
 <span class="t-p">$</span> vikix eval '(loadrc)'   <span class="t-d"># reload after editing user.lisp</span></pre>
         </div>
 
@@ -313,8 +313,8 @@ and accessing the guides"
           <p>StumpWM, the bar, the terminal, rofi, notifications and the lock screen all follow one file of colours. This page uses the same two. And Omarchy's community themes come over in one line: <code>vikix theme import bjarneo/omarchy-ash-theme</code>.</p>
           <div class="swatches" id="swatches"></div>
           <div class="theme-pick">
-            <button type="button" data-set="dark" aria-pressed="false">vikix theme void</button>
-            <button type="button" data-set="light" aria-pressed="false">vikix theme paper</button>
+            <button type="button" data-set="dark" aria-pressed="false">vikix theme vikix-dark</button>
+            <button type="button" data-set="light" aria-pressed="false">vikix theme vikix-light</button>
           </div>
         </div>
 
@@ -342,7 +342,7 @@ and accessing the guides"
           <h3><code style="font-size:.95em">vikix update</code> does the lot.</h3>
           <p>It pulls the new Vikix, updates Void, installs new packages, switches on new services, refreshes the config links and editor configs, runs any migrations, and reloads StumpWM so new keys work at once. The bar tells you when there's something to bring in. Just one part? <code>vikix update core</code> (Vikix alone, in seconds), <code>system</code> or <code>tools</code>.</p>
 <pre><span class="t-p">$</span> vikix doctor       <span class="t-d"># check everything is in place</span>
-<span class="t-p">$</span> vikix theme paper  <span class="t-d"># switch, everywhere, now</span>
+<span class="t-p">$</span> vikix theme vikix-light  <span class="t-d"># switch, everywhere, now</span>
 <span class="t-p">$</span> vikix firmware     <span class="t-d"># BIOS and device firmware, from LVFS</span>
 <span class="t-p">$</span> vikix firewall     <span class="t-d"># on from the start: only SSH comes in</span></pre>
         </div>
@@ -680,7 +680,7 @@ exec /usr/bin/sshd -D $OPTS
   var root = document.documentElement;
   var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  /* ---------- theme: void (dark) / paper (light) ---------- */
+  /* ---------- theme: vikix-dark / vikix-light ---------- */
   function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
   function isDark() {
     var t = root.getAttribute("data-theme");
@@ -692,7 +692,7 @@ exec /usr/bin/sshd -D $OPTS
     paper: ["#eff1f5", "#4c4f69", "#1c5bd6", "#d20f39", "#327a1f", "#8a5d06", "#a33a91", "#107077"]
   };
   function paintTheme() {
-    var name = isDark() ? "void" : "paper";
+    var name = isDark() ? "vikix-dark" : "vikix-light";
     document.getElementById("themeName").textContent = name;
     document.querySelectorAll(".theme-pick button").forEach(function (b) {
       b.setAttribute("aria-pressed", String((b.dataset.set === "dark") === isDark()));
@@ -814,7 +814,7 @@ exec /usr/bin/sshd -D $OPTS
       ["$", "vikix eval '(length (screen-windows (current-screen)))'"],
       ["o", function () { return String(countWindows()); }],
       ["$", "vikix theme"],
-      ["o", function () { return "<span class='t-a'>" + (isDark() ? "void" : "paper") + "</span> (current)\nvoid  paper  gruvbox  nord  tokyo-night  contrast"; }]
+      ["o", function () { return "<span class='t-a'>" + (isDark() ? "vikix-dark" : "vikix-light") + "</span> (current)\nvikix-light  vikix-dark  contrast-dark  gruvbox-dark  nord-dark  tokyo-night-dark"; }]
     ] },
     emacs: { name: "emacs", top: true, static:
       "<span class='t-d'>;;; user.lisp — loads last, so it wins</span>\n\n" +

@@ -1,7 +1,8 @@
 -- vikix.theme — Neovim follows `vikix theme`.
 --
--- The built-in themes have a colour scheme made for them (void and paper
--- are Catppuccin's Mocha and Latte, ...); any other theme, contrast and
+-- The built-in themes have a colour scheme made for them (vikix-dark and
+-- vikix-light are Catppuccin's Mocha and Latte, ...); any other theme,
+-- contrast-dark and
 -- yours included, becomes the colour scheme "vikix": base16, built by
 -- mini.base16 from the theme's own colours, which `vikix theme` writes to
 -- ~/.config/vikix/theme/palette. `vikix theme NAME` calls apply() in every
@@ -13,11 +14,11 @@ local dir = (vim.env.XDG_CONFIG_HOME or (vim.env.HOME .. "/.config")) .. "/vikix
 
 -- Vikix's theme → Neovim's colour scheme (the plugins are in plugins/theme.lua).
 M.schemes = {
-  void = "catppuccin-mocha",
-  paper = "catppuccin-latte",
-  gruvbox = "gruvbox",
-  nord = "nord",
-  ["tokyo-night"] = "tokyonight-night",
+  ["vikix-dark"] = "catppuccin-mocha",
+  ["vikix-light"] = "catppuccin-latte",
+  ["gruvbox-dark"] = "gruvbox",
+  ["nord-dark"] = "nord",
+  ["tokyo-night-dark"] = "tokyonight-night",
 }
 
 local function read(file)
@@ -28,10 +29,10 @@ local function read(file)
   return text
 end
 
--- The current theme's name, as `vikix theme` saved it; void when there's none.
+-- The current theme's name, as `vikix theme` saved it; vikix-dark when there's none.
 function M.current()
   local name = vim.trim(read(dir .. "/current") or "")
-  return name:match "^[%w_-]+$" and name or "void"
+  return name:match "^[%w_-]+$" and name or "vikix-dark"
 end
 
 -- The current theme's colours: { bg = "#1e1e2e", fg = ..., color0 = ... }.

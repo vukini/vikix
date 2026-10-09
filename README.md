@@ -382,15 +382,15 @@ Along the top, in Iosevka like the terminal: on the left the workspaces in use (
 - the date and time
 - the **tray**, if you switch it on: `vikix tray` (on if off, off if on; `vikix tray on` and `off` say which; or `s-m` → *Tray on/off*). The network's and Bluetooth's applets show their icons there (nm-applet, blueman-applet: click for networks, devices, VPNs), and any program that puts an icon in a tray does too. It's StumpWM's stumptray module, loaded only when it's on, with Quicklisp's xembed; the bar leaves its icons room. Your choice is kept in `~/.config/vikix/tray` for the next login, with the applets it starts (`applets = nm-applet blueman-applet`; name your own, or none). While it's on, the bar's own network and Bluetooth text steps aside for those two applets' icons, which say the same (the text steps aside only while that applet's icon really is in the tray: it is back when the tray goes, when you take an applet off the list, and whenever the icon isn't there. An applet that has stopped is started again, once in five minutes at most). The tray lives inside the bar, so it is taken down and put up again with it when you hide and show the bar (`Super+Ctrl+h`) or a screen comes or goes; one found left behind in a bar that's gone is made anew within ten seconds, and its applets started again. `vikix tray off` takes it away and stops them.
 
-Each colour means one thing: alert (red in void) is something watching you, or about to stop you (memory nearly full), accent is something to act on, and the quieter colour is a mode you switched on yourself.
+Each colour means one thing: alert (red in vikix-dark) is something watching you, or about to stop you (memory nearly full), accent is something to act on, and the quieter colour is a mode you switched on yourself.
 
 ## Themes
 
-One theme colours the whole desktop: StumpWM and its bar, the terminal (alacritty, and kitty if you want it), rofi, notifications, the lock screen, the wallpaper, and the editors, Neovim and Emacs. Six come with Vikix, each with its own wallpaper: **void** (dark, the default; Catppuccin Mocha), **paper** (light; Catppuccin Latte), **gruvbox** (warm and retro), **nord** (cool arctic blues), **tokyo-night** (deep blue, neon colours) and **contrast** (white on black with a yellow focus, every colour at 7:1 or better, for bright rooms and low vision). Where a palette's own colours were too faint to read (Nord's red, the comment grays), they're lifted to 4.5:1 on the background; `tests/theme.sh` checks that for every built-in theme.
+One theme colours the whole desktop: StumpWM and its bar, the terminal (alacritty, and kitty if you want it), rofi, notifications, the lock screen, the wallpaper, and the editors, Neovim and Emacs. Six come with Vikix, each with its own wallpaper, and each name ends in what it is, `-light` or `-dark`: **vikix-dark** (the default; Catppuccin Mocha), **vikix-light** (Catppuccin Latte), **gruvbox-dark** (warm and retro), **nord-dark** (cool arctic blues), **tokyo-night-dark** (deep blue, neon colours) and **contrast-dark** (white on black with a yellow focus, every colour at 7:1 or better, for bright rooms and low vision). `vikix theme` lists them in that order, Vikix's own two first, then by name, a `-light` before its `-dark`. The names from before 0.72.4 (`void`, `paper`, `gruvbox`, `nord`, `tokyo-night`, `contrast`) still switch, to the new name. Where a palette's own colours were too faint to read (Nord's red, the comment grays), they're lifted to 4.5:1 on the background; `tests/theme.sh` checks that for every built-in theme.
 
 ```sh
 vikix theme           # the current theme, and the list
-vikix theme paper     # switch, everywhere, now; kept for the next start
+vikix theme vikix-light   # switch, everywhere, now; kept for the next start
 ```
 
 Or `s-m`, then Theme. Open alacritty windows change at once; rofi and the lock screen use the new colours from their next start.
@@ -402,8 +402,8 @@ Or `s-m`, then Theme. Open alacritty windows change at once; rofi and the lock s
   vikix theme import URL mine --no-switch           # another name; import only
   ```
 
-  It becomes your own theme, `~/.config/vikix/themes/ash.theme` (the name is the repository's without `omarchy-` and `-theme`), with the first picture in `backgrounds/` beside it as its wallpaper, and Vikix switches to it. The file says where it came from, and which Omarchy colour each of its colours is. The rest of the repository (Hyprland, Neovim, btop and the like) is left out. Nothing in it is run: only `#rrggbb` colours are read, and only a real JPEG, PNG or WebP is copied. It won't replace a theme of yours without `--force` (the old files are kept as `.vikix-bak`), nor take `void` or `paper`'s name. A theme with no `colors.toml` (some older ones have only `alacritty.toml`) can't be imported.
-- **A theme is a file of colours:** `themes/void.theme` shows every name. `sel`, the colour behind selected text and rows, may be left out; `color0` stands in. Copy it to `~/.config/vikix/themes/mine.theme`, change the colours, and `vikix theme mine`.
+  It becomes your own theme, `~/.config/vikix/themes/ash.theme` (the name is the repository's without `omarchy-` and `-theme`), with the first picture in `backgrounds/` beside it as its wallpaper, and Vikix switches to it. The file says where it came from, and which Omarchy colour each of its colours is. The rest of the repository (Hyprland, Neovim, btop and the like) is left out. Nothing in it is run: only `#rrggbb` colours are read, and only a real JPEG, PNG or WebP is copied. It won't replace a theme of yours without `--force` (the old files are kept as `.vikix-bak`), nor take `vikix-dark` or `vikix-light`'s name. A theme with no `colors.toml` (some older ones have only `alacritty.toml`) can't be imported.
+- **A theme is a file of colours:** `themes/vikix-dark.theme` shows every name. `sel`, the colour behind selected text and rows, may be left out; `color0` stands in. Copy it to `~/.config/vikix/themes/mine.theme`, change the colours, and `vikix theme mine`.
 - **How the programs get them:** `vikix theme` writes each program's colours into `~/.config/vikix/theme/`, and your configs include those files. Your `alacritty.toml` imports `alacritty.toml` from there, and rofi's `config.rasi` names `rofi.rasi`; dunst reads `~/.config/dunst/dunstrc.d/10-vikix-theme.conf` by itself. For kitty, add `include ~/.config/vikix/theme/kitty.conf` to your `kitty.conf`.
 - **The editors** take the theme made for each built-in one: in Neovim Catppuccin (void, paper), gruvbox.nvim, nord.nvim and tokyonight.nvim; in Emacs Catppuccin and Doom's themes, installed from MELPA the first time, and Modus Vivendi for contrast. A theme of yours, or contrast in Neovim, is drawn in its own colours, from `~/.config/vikix/theme/palette` (mini.base16 in Neovim, `vikix-palette` in Emacs). `vikix theme NAME` changes a running Emacs and every open Neovim at once. To keep your own: in Neovim, a spec for `AstroNvim/astroui` with `colorscheme` in your `lua/plugins/`; in Emacs, don't load `vikix-theme.el` (emacs-void loads it, and falls back to gruber-darker without Vikix).
 - **GTK and Qt programs** (Firefox, PCManFM, LibreOffice, zenity's boxes, Qt's) go dark with a dark theme and light with a light one, decided by the theme's background; open ones change at once. GTK 3 (Firefox, PCManFM, LibreOffice) switches between Adwaita and Adwaita-dark, told by xsettingsd (started with the desktop); GTK 4 and libadwaita take the theme's own colours too (its background, text and accent), from `~/.config/vikix/theme/gtk4.css`, which your `~/.config/gtk-4.0/gtk.css` imports on its first line (your own rules below it win); Qt 6 programs take the theme's palette through qt6ct (`QT_QPA_PLATFORMTHEME=qt6ct`; run `qt6ct` to choose otherwise), when they next start. A web page that offers a dark look follows too, in Firefox. Firefox's own colours follow when its theme is *System theme — auto* (the default).
@@ -457,7 +457,7 @@ Vikix is set up for an AI agent to work on the desktop with you, the way Omarchy
 
   ```sh
   vikix eval '(mapcar (function group-name) (screen-groups (current-screen)))'
-  vikix eval '(vikix-apply-theme :paper)'
+  vikix eval '(vikix-apply-theme :vikix-light)'
   vikix eval '(loadrc)'          # reload the config after editing user.lisp
   ```
 
@@ -971,7 +971,7 @@ StumpWM is a program written in Common Lisp that you can change, while it runs, 
 [Hype](https://github.com/omacom/hype) is DHH's app for presentations: a Markdown file, with its pictures and videos beside it, and a visual slide editor. It was made for Omarchy; Vikix gives it what it looks for there.
 
 ```sh
-hype new talk/talk.md --title "My talk" --theme nord   # start one
+hype new talk/talk.md --title "My talk" --theme nord-dark   # start one
 hype open talk/talk.md          # the editor (or s-d, Hype)
 hype export talk/talk.md talk.pdf   # or talk.pptx
 hype help                       # everything else, and hype help format for the Markdown
@@ -1189,7 +1189,7 @@ Back at the laptop after ten minutes or more away (a break, a locked screen, a m
 
 ## Shell aliases
 
-**`vk` is `vikix`, shorter**, and both take less typing: a command by the start of its name when only one begins so (`vk upd`, `vk th paper`, `vk scr`), and the word after it the same way when it starts only one of that command's own (`vk docs f runit` is `vikix docs find runit`). A start that fits several says which (`vk d` → debug, diagnose, dictate, docs, doctor) and does nothing. **Tab** completes in bash: the commands, then each one's words, the themes after `theme`, the features after `add`, the plugins after `plugin add`. The guides and the agents keep saying `vikix`.
+**`vk` is `vikix`, shorter**, and both take less typing: a command by the start of its name when only one begins so (`vk upd`, `vk th vikix-light`, `vk scr`), and the word after it the same way when it starts only one of that command's own (`vk docs f runit` is `vikix docs find runit`). A start that fits several says which (`vk d` → debug, diagnose, dictate, docs, doctor) and does nothing. **Tab** completes in bash: the commands, then each one's words, the themes after `theme`, the features after `add`, the plugins after `plugin add`. The guides and the agents keep saying `vikix`.
 
 These come from `~/.config/vikix/vikix.bash`. Type `alias` to see them all.
 

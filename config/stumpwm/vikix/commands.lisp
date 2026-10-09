@@ -170,12 +170,31 @@ saves the choice for the next start)."
       (run-shell-command (format nil "vikix theme ~a" (string-downcase name)))
       (message "No theme called ~a" name)))
 
+(defun vikix-theme-order (names)
+  "NAMES (strings) in the order `vikix theme` lists them: Vikix's own two
+first, then by name, a -light before its -dark."
+  (flet ((key (n)
+           (flet ((ends (tail) (let ((at (- (length n) (length tail))))
+                                 (and (plusp at) (string= tail n :start2 at)))))
+             (let ((shade (cond ((ends "-light") 0) ((ends "-dark") 1) (t 2))))
+               (list (if (and (>= (length n) 6) (string= "vikix-" n :end2 6)) 0 1)
+                     (subseq n 0 (- (length n) (case shade (0 6) (1 5) (t 0))))
+                     shade)))))
+    (sort (copy-list names)
+          (lambda (a b)
+            (let ((ka (key a)) (kb (key b)))
+              (or (< (first ka) (first kb))
+                  (and (= (first ka) (first kb))
+                       (or (string< (second ka) (second kb))
+                           (and (string= (second ka) (second kb))
+                                (< (third ka) (third kb)))))))))))
+
 (defcommand vikix-pick-theme () ()
   "Pick a theme from the list of theme files."
   (vikix-load-themes)
   (let* ((names (loop for (name nil) on *vikix-themes* by #'cddr
                       collect (string-downcase (symbol-name name))))
-         (choice (select-from-menu (current-screen) (sort names #'string<)
+         (choice (select-from-menu (current-screen) (vikix-theme-order names)
                                    (format nil "Theme (now ~(~a~)): " *vikix-theme*))))
     (when choice
       (vikix-theme (if (consp choice) (first choice) choice)))))

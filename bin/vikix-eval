@@ -4,7 +4,7 @@
     vikix eval '(current-group)'             one or more forms as an argument
     vikix eval < file.lisp                   or read them from standard input,
                                              a file or a pipe:
-                                             echo '(vikix-apply-theme :paper)' | vikix eval
+                                             echo '(vikix-apply-theme :vikix-light)' | vikix eval
     vikix eval --door FORM                   check the forms as an agent's, whoever sends them
     vikix eval --socket FORM                 over Vikix's socket only (no Swank), or --swank
                                              over Swank only; alone it tries the socket first

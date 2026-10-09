@@ -100,7 +100,7 @@ check "the keys step should be ticked" grep -qx keys "$state"
 out=$(FZF_IN="$t/themes" bash -c "set -- seen; . '$here/bin/vikix-welcome'; cmd_theme; echo back" </dev/null 2>&1 || true)
 check "the theme step should come back after Esc: $out" has '^back$' "$out"
 check "the theme step should offer Vikix's themes: $(tr '\n' ' ' < "$t/themes" 2>/dev/null)" \
-  bash -c "grep -qx void '$t/themes' && grep -qx paper '$t/themes'"
+  bash -c "grep -qx vikix-dark '$t/themes' && grep -qx vikix-light '$t/themes'"
 out=$(PICK='Close' w)
 check "Close should end the welcome: $out" test -z "$(grep -v '^$' <<<"$out" || true)"
 rm "$state"

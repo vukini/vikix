@@ -1,6 +1,6 @@
-# tokyo-night — dark: Tokyo Night (night), deep blue with neon colours.
+# tokyo-night-dark — dark: Tokyo Night (night), deep blue with neon colours.
 # Its comment gray is lifted to read at 4.5:1 on the background. (See
-# void.theme for what each colour is for.)
+# vikix-dark.theme for what each colour is for.)
 
 bg=#1a1b26
 fg=#c0caf5         # 10.59:1

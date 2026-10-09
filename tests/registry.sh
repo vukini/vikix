@@ -24,6 +24,9 @@ here=$(cd "$(dirname "$0")/.." && pwd)
 # shellcheck source=tests/lib/wm.sh
 . "$here/tests/lib/wm.sh"
 wm_setup registry
+# The themes: theme.lisp finds them three folders up from the layer (the
+# checkout's, on a desktop); here the layer is a copy under $t.
+ln -s "$here/themes" "$t/themes"
 cat > "$home/.stumpwm.d/user.lisp" <<'L'
 (in-package :stumpwm)
 (define-vikix-command hello "Say hello"
@@ -124,5 +127,18 @@ check "and your menu entry once, before Power" \
   yes '(and (= 1 (count "Hello, from the menu" *vikix-menu* :key (function first) :test (function equal))) (equal (first (car (last *vikix-menu* 2))) "Hello, from the menu"))'
 check "the desktop met no error" test -z "$(ls "$home/.local/state/vikix/errors" 2>/dev/null)"
 
-wm_report registry "Vikix's keys and Super+m made from its commands, every one a real command, a command of yours bound and in the menu at once, Super+m opens on its sections, shows one's entries with their keys, comes back, and finds an entry of any section as it is typed, agents run only what is marked for them, a reload leaves one of each"
+# The themes: every built-in theme's file is read, the default is
+# vikix-dark, an old name (void, paper ...) stands for the new one, and the
+# picker's list is in `vikix theme`'s order.
+check "the six built-in themes should be read: $(ask '(princ (loop for (n nil) on *vikix-themes* by (function cddr) collect n))')" \
+  yes '(every (lambda (n) (getf *vikix-themes* n)) (list :vikix-dark :vikix-light :contrast-dark :gruvbox-dark :nord-dark :tokyo-night-dark))'
+check "with no saved theme the desktop should be on vikix-dark" yes '(eq *vikix-theme* :vikix-dark)'
+check "an old name should be the new one" yes '(and (eq (vikix-theme-name :void) :vikix-dark) (eq (vikix-theme-name :tokyo-night) :tokyo-night-dark) (eq (vikix-theme-name :mine) :mine))'
+ask '(vikix-apply-theme :paper)' >/dev/null
+check "applying an old name should apply the new one: $(ask '(princ *vikix-theme*)')" yes '(eq *vikix-theme* :vikix-light)'
+ask '(vikix-apply-theme :vikix-dark)' >/dev/null
+check "the picker's order: $(ask '(princ (vikix-theme-order (list "nord-dark" "zed-dark" "vikix-dark" "zed-light" "vikix-light" "apple")))')" \
+  yes '(equal (vikix-theme-order (list "nord-dark" "zed-dark" "vikix-dark" "zed-light" "vikix-light" "apple")) (list "vikix-light" "vikix-dark" "apple" "nord-dark" "zed-light" "zed-dark"))'
+
+wm_report registry "Vikix's keys and Super+m made from its commands, every one a real command, a command of yours bound and in the menu at once, Super+m opens on its sections, shows one's entries with their keys, comes back, and finds an entry of any section as it is typed, agents run only what is marked for them, a reload leaves one of each, the six themes are read with vikix-dark the default, an old theme name is the new one, the picker in vikix theme's order"
 exit "$fail"

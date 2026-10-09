@@ -82,7 +82,7 @@ cat > "$t/door-test.lisp" <<LISP
 (passes "(loop for x in (list 1 2) collect x into out finally (return out))")
 (passes "(let ((n 0)) (dolist (w (group-windows (current-group))) (incf n)) n)")
 (passes "(let ((x 1)) (setq x 2) (push 3 x) x)")
-(passes "(gselect 2) (vikix-apply-theme :paper)")
+(passes "(gselect 2) (vikix-apply-theme :vikix-light)")
 (passes "(vikix-titlebars)")                 ; the registry's :agent t
 (passes "(vikix-gaps)")                      ; its first word
 (passes "(my-thing 1)")                      ; ~/.config/vikix/door

@@ -177,11 +177,11 @@ check "the read tools should say they only read: $ro" test "$ro" = "desktop keys
 out=$(call desktop '{}')
 check "desktop should give the workspaces: $out" grep -q '"name": "web"' <<<"$out"
 check "a title with quotes and a backslash should come through whole: $out" grep -qF 'a \"quoted\" \\ title' <<<"$out"
-check "desktop should give the theme" grep -q '"theme": "void"' <<<"$out"
+check "desktop should give the theme" grep -q '"theme": "vikix-dark"' <<<"$out"
 out=$(call keys '{}')
 check "keys should give the bindings: $out" grep -q 's-RET' <<<"$out"
 out=$(call themes '{}')
-check "themes should list them: $out" grep -q '"paper"' <<<"$out"
+check "themes should list them: $out" grep -q '"vikix-light"' <<<"$out"
 # The rules: the list alone, or with why for a window that is there.
 out=$(call rules '{}')
 check "rules should give the list: $out" grep -q '"from": "rules.lisp:2"' <<<"$out"
@@ -289,8 +289,8 @@ out=$(call focus_window '{"workspace":"1","number":0}')
 check "an existing window should get the focus: $out" grep -q 'has the focus' <<<"$out"
 out=$(call set_theme '{"name":"../../etc"}')
 check "a theme that isn't there should be refused: $out" grep -q "^ERROR: no theme" <<<"$out"
-out=$(call set_theme '{"name":"paper"}')
-check "set_theme should switch, and say how to go back: $out" grep -q 'theme paper (it was void' <<<"$out"
+out=$(call set_theme '{"name":"vikix-light"}')
+check "set_theme should switch, and say how to go back: $out" grep -q 'theme vikix-light (it was vikix-dark' <<<"$out"
 out=$(call notify '{"title":"Hi","body":"a <b>bold</b> & more"}')
 check "notify should show it: $out" test "$out" = shown
 check "the notification should be marked as the agent's: $(head -2 "$t/notified")" grep -qx 'Vikix (agent)' "$t/notified"
@@ -382,7 +382,7 @@ check "the title should start Agent:, escaped: $(head -4 "$t/notified")" grep -q
 mkdir -p "$VIKIX_STATE"; printf 'DISPLAY=:7\nDBUS_SESSION_BUS_ADDRESS=unix:path=/x\nXDG_RUNTIME_DIR=/run/user/1\n' > "$VIKIX_STATE/session.env"
 call notify '{"title":"x"}' >/dev/null
 check "without DISPLAY, it should take the session's: $(tail -1 "$t/notified")" grep -qx 'DISPLAY=:7' "$t/notified"
-mkdir -p "$HOME/.config/vikix/themes"; cp "$here/themes/void.theme" "$HOME/.config/vikix/themes/x) (run-shell-command \"touch pwned\") (list.theme"
+mkdir -p "$HOME/.config/vikix/themes"; cp "$here/themes/vikix-dark.theme" "$HOME/.config/vikix/themes/x) (run-shell-command \"touch pwned\") (list.theme"
 out=$(call themes '{}')
 check "a theme file named like Lisp shouldn't be offered: $out" test -z "$(grep -F 'pwned' <<<"$out" || true)"
 out=$(call set_theme '{"name":"x) (run-shell-command \"touch pwned\") (list"}')
@@ -397,7 +397,7 @@ python3 "$here/bin/vikix-mcp" register --allow-evl >/dev/null 2>&1 && { echo "FA
 out=$(call eval '{"form":"(+ 1 1)"}')
 check "a refused call should be logged: $(tail -1 "$VIKIX_STATE/mcp.log")" grep -q ' refused eval ' "$VIKIX_STATE/mcp.log"
 check "the log should be yours alone, is $(stat -c %a "$VIKIX_STATE/mcp.log")" test "$(stat -c %a "$VIKIX_STATE/mcp.log")" = 600
-check "calls should be logged, with how they went: $(tail -2 "$VIKIX_STATE/mcp.log" 2>/dev/null)" grep -q ' ok set_theme {"name": "paper"}' "$VIKIX_STATE/mcp.log"
+check "calls should be logged, with how they went: $(tail -2 "$VIKIX_STATE/mcp.log" 2>/dev/null)" grep -q ' ok set_theme {"name": "vikix-light"}' "$VIKIX_STATE/mcp.log"
 
 # The forms, against the real StumpWM: each compiles without a warning
 # (an unknown function, a wrong number of arguments), and calls no

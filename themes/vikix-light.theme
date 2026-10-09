@@ -1,6 +1,6 @@
-# paper — light: Catppuccin Latte, with the text colours darkened so each
+# vikix-light — light: Catppuccin Latte, with the text colours darkened so each
 # reads at 4.5:1 or better on the background; Latte's own green, yellow
-# and magenta are nearer 2.5:1, too faint in daylight. (See void.theme for
+# and magenta are nearer 2.5:1, too faint in daylight. (See vikix-dark.theme for
 # what each colour is for.)
 
 bg=#eff1f5

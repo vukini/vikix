@@ -111,8 +111,8 @@ check "a kept-aside theme is listed" test -z "$(vikix | grep -F vikix-bak || tru
 vikix import "$r" other-name --no-switch >/dev/null 2>&1 || { echo "FAIL: a given NAME wasn't used"; fail=1; }
 check "a given NAME wasn't used" test -f "$mine/other-name.theme"
 refused "a built-in theme's name was taken" vikix import "$r" void --force --no-switch
-refused "a built-in theme's name was taken" vikix import "$r" paper --no-switch
-check "void was shadowed" test ! -e "$mine/void.theme"
+refused "a built-in theme's name was taken" vikix import "$r" vikix-light --no-switch
+check "vikix-dark was shadowed" test ! -e "$mine/vikix-dark.theme"
 out=$(vikix import "$r" 'x) (run-shell-command "touch pwned")' --no-switch 2>&1) && { echo "FAIL: a name like Lisp was taken"; fail=1; }
 check "a name like Lisp isn't refused plainly: $out" grep -q "letters, digits" <<<"$out"
 refused "import was taken as a theme's name" vikix import "$r" import --no-switch

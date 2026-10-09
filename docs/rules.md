@@ -199,7 +199,7 @@ A plain string matches exactly that and nothing longer. `(:has "fox")` matches a
 | `(focus)` | Goes to it |
 | `(run "command")`, `(command "vikix-grid")` | Runs a shell command, or a StumpWM command |
 | `(notify "text")`, `(say "text")` | A notification, or a message in the middle of the screen |
-| `(open-project "name")`, `(theme "paper")` | Opens one of your projects; switches the theme |
+| `(open-project "name")`, `(theme "vikix-light")` | Opens one of your projects; switches the theme |
 | `(layout "writing")` | Puts the workspace back as a layout you saved ([Making it yours](customize.md#saved-layouts)) |
 | `(width 2/3)`, `(join :left)` | On a strip (`vikix viri`): the window's column is two thirds of the screen wide (`1/3`, `1/2`, `1`, `"40%"`); the window goes under the column on its left (or `:right`). Off a strip they do nothing |
 

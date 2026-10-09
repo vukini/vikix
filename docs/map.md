@@ -180,7 +180,7 @@ Everything Vikix is. `readlink -f ~/.local/bin/vikix` finds it if you cloned it 
 | `services.list` | The runit services Vikix switches on |
 | `examples/` | Samples to copy and change: `hype/vikix-tour/`, a Hype presentation (`vikix add hype`) |
 | `learn/` | The courses `vikix learn` runs (`learn/c/`): each lesson's text, example and exercise, copied once to your `~/learn/c/`, and its checks, which stay here |
-| `themes/` | The themes that come with Vikix (`void`, `paper`, `gruvbox`, `nord`, `tokyo-night`, `contrast`) and their wallpapers, drawn by `lib/make-wallpaper.py` |
+| `themes/` | The themes that come with Vikix (`vikix-dark`, `vikix-light`, `gruvbox-dark`, `nord-dark`, `tokyo-night-dark`, `contrast-dark`) and their wallpapers, drawn by `lib/make-wallpaper.py` |
 | `dev/` | The READMEs and examples `~/dev` is made from |
 | `migrations/` | One-off fixes for machines installed before a change |
 | `lib/` | Shared shell helpers, and the script that builds StumpWM |

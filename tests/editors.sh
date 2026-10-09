@@ -54,8 +54,8 @@ if [ "$which" = both ] || [ "$which" = emacs ]; then
   [ "$fail" = 0 ] && echo "emacs: installs from scratch and starts clean"
   # Every built-in theme, with its package from MELPA (vikix-theme.el
   # installs it the first time): Emacs ends up in the theme made for it.
-  for want in void:catppuccin paper:catppuccin gruvbox:doom-gruvbox nord:doom-nord \
-              tokyo-night:doom-tokyo-night contrast:modus-vivendi; do
+  for want in vikix-dark:catppuccin vikix-light:catppuccin gruvbox-dark:doom-gruvbox nord-dark:doom-nord \
+              tokyo-night-dark:doom-tokyo-night contrast-dark:modus-vivendi; do
     DISPLAY='' bash "$here/bin/vikix" theme "${want%%:*}" >/dev/null
     out=$(emacs --batch -l "$HOME/.emacs.d/init.el" -l "$HOME/.local/share/vikix/emacs/vikix-theme" \
             --eval '(princ (format "THEME=%s" (cdr vikix-theme--applied)))' </dev/null 2>&1 | grep -o 'THEME=.*' || true)
@@ -77,9 +77,9 @@ if [ "$which" = both ] || [ "$which" = nvim ]; then
   echo "nvim: installing the plugins in lazy-lock.json"
   nvim --headless "+Lazy! restore" +qa >"$t/nvim1.log" 2>&1 || { echo "FAIL nvim: Lazy restore exited $?"; fail=1; }
   # Every built-in theme: Neovim starts in the scheme made for it, and
-  # contrast in "vikix", built from its palette.
-  for want in void:catppuccin-mocha paper:catppuccin-latte gruvbox:gruvbox nord:nord \
-              tokyo-night:tokyonight-night contrast:vikix; do
+  # contrast-dark in "vikix", built from its palette.
+  for want in vikix-dark:catppuccin-mocha vikix-light:catppuccin-latte gruvbox-dark:gruvbox nord-dark:nord \
+              tokyo-night-dark:tokyonight-night contrast-dark:vikix; do
     DISPLAY='' bash "$here/bin/vikix" theme "${want%%:*}" >/dev/null
     out=$(nvim --headless -c 'lua io.stderr:write("SCHEME=" .. (vim.g.colors_name or "none") .. "\n")' -c 'qa!' 2>&1 | grep -o 'SCHEME=.*' || true)
     [ "$out" = "SCHEME=${want#*:}" ] || { echo "FAIL nvim: theme ${want%%:*} should be ${want#*:}, got: ${out:-nothing}"; fail=1; }

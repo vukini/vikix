@@ -114,11 +114,11 @@ check "an OMARCHY_PATH of yours should win" grep -qx 'hype themes OMARCHY_PATH=/
 
 # --- The themes -----------------------------------------------------------------------
 check "setup should write the current theme for Hype's window" grep -qx 'background = "#1e1e2e"' "$current"
-check "and every built-in theme for the slides" test -f "$themes/gruvbox/colors.toml" -a -f "$themes/contrast/colors.toml"
-bash "$here/bin/vikix" theme nord >/dev/null
-check "vikix theme should move Hype's window to nord" grep -qx 'background = "#2e3440"' "$current"
-check "the slide themes should stay their own" grep -qx 'background = "#282828"' "$themes/gruvbox/colors.toml"
-check "with all 16 colours" test "$(grep -c '^color[0-9]* = "#' "$themes/nord/colors.toml")" = 16
+check "and every built-in theme for the slides" test -f "$themes/gruvbox-dark/colors.toml" -a -f "$themes/contrast-dark/colors.toml"
+bash "$here/bin/vikix" theme nord-dark >/dev/null
+check "vikix theme should move Hype's window to nord-dark" grep -qx 'background = "#2e3440"' "$current"
+check "the slide themes should stay their own" grep -qx 'background = "#282828"' "$themes/gruvbox-dark/colors.toml"
+check "with all 16 colours" test "$(grep -c '^color[0-9]* = "#' "$themes/nord-dark/colors.toml")" = 16
 
 # --- Again -----------------------------------------------------------------------------
 echo mine > "$portals"; : > "$calls"

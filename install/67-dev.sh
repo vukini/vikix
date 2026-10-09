@@ -451,9 +451,11 @@ doc_label() {
 }
 
 page() {
-  local l d f n theme mode=dark
-  theme=$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/vikix/theme/current" 2>/dev/null || echo void)
-  [ "$theme" = paper ] && mode=light
+  local l d f n theme mode
+  theme=$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/vikix/theme/current" 2>/dev/null || echo vikix-dark)
+  # `vikix theme` writes whether the theme is light or dark beside its name.
+  mode=$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/vikix/theme/mode" 2>/dev/null) || mode=dark
+  [ "$mode" = light ] || mode=dark
   printf '<!doctype html>\n<html lang="en" data-theme="%s" data-vikix="%s">\n' "$mode" "$theme"
   cat <<'EOF'
 <meta charset="utf-8">
@@ -461,7 +463,7 @@ page() {
 <title>~/dev — offline docs</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%231e1e2e'/%3E%3Ctext x='30' y='47' font-family='monospace' font-weight='800' font-size='44' text-anchor='middle' fill='%23cdd6f4'%3Ev%3C/text%3E%3Ccircle cx='50' cy='44' r='5' fill='%2389b4fa'/%3E%3C/svg%3E">
 <style>
-/* The two Vikix themes, as on vikix.dev: paper (light) and void (dark). */
+/* The two Vikix themes, as on vikix.dev: vikix-light and vikix-dark. */
 :root {
   --bg: #eff1f5; --bg2: #e6e9ef; --bg3: #dce0e8;
   --fg: #4c4f69; --subtle: #636679; --dim: #9ca0b0; --line: #ccd0da;
@@ -605,7 +607,7 @@ EOF
 (function () {
   var root = document.documentElement, btn = document.getElementById("themeBtn"), name = document.getElementById("themeName");
   function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
-  function paint() { name.textContent = root.getAttribute("data-theme") === "light" ? "paper" : "void"; }
+  function paint() { name.textContent = root.getAttribute("data-theme") === "light" ? "vikix-light" : "vikix-dark"; }
   var saved = store("vikix-dev-theme");
   if (saved === "dark" || saved === "light") root.setAttribute("data-theme", saved);
   paint();

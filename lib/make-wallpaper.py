@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # lib/make-wallpaper.py — how the built-in themes' wallpapers were made.
 #
-#   python3 lib/make-wallpaper.py void themes/void.jpg
+#   python3 lib/make-wallpaper.py vikix-dark themes/vikix-dark.jpg
 #
 # Not run by the install (it needs numpy and Pillow); kept so the pictures
 # can be made again, or a new theme's drawn the same way.
@@ -24,31 +24,31 @@ def make(out, top, bottom, glows, grain):
     img += np.random.default_rng(1).normal(0, grain, (H, W, 1))
     Image.fromarray(np.clip(img, 0, 255).astype(np.uint8)).save(out, quality=90, optimize=True)
 # Each theme: the gradient's top and bottom, its glows (colour, centre x and
-# y, radius, strength), and the grain. void and paper's are the ones their
+# y, radius, strength), and the grain. vikix-dark and vikix-light's are the ones their
 # pictures were made with.
 THEMES = {
-    "void": ("#1e1e2e", "#11111b",
+    "vikix-dark": ("#1e1e2e", "#11111b",
              [("#89b4fa", 0.82, 0.78, 0.38, 0.16),    # blue, low right
               ("#cba6f7", 0.12, 0.10, 0.34, 0.10)],   # mauve, top left
              1.6),
-    "paper": ("#eff1f5", "#dce0e8",
+    "vikix-light": ("#eff1f5", "#dce0e8",
               [("#1e66f5", 0.82, 0.80, 0.40, 0.08),
                ("#ea76cb", 0.12, 0.08, 0.34, 0.06)],
               1.2),
-    "gruvbox": ("#282828", "#1d2021",
+    "gruvbox-dark": ("#282828", "#1d2021",
                 [("#fe8019", 0.82, 0.80, 0.38, 0.13),  # orange, low right
                  ("#8ec07c", 0.12, 0.10, 0.34, 0.07)], # aqua, top left
                 1.6),
-    "nord": ("#2e3440", "#242933",
+    "nord-dark": ("#2e3440", "#242933",
              [("#88c0d0", 0.82, 0.78, 0.40, 0.15),     # frost, low right
               ("#b48ead", 0.12, 0.10, 0.34, 0.08)],    # purple, top left
              1.4),
-    "tokyo-night": ("#1a1b26", "#13141c",
+    "tokyo-night-dark": ("#1a1b26", "#13141c",
                     [("#7aa2f7", 0.82, 0.78, 0.38, 0.16),   # blue, low right
                      ("#bb9af7", 0.12, 0.10, 0.34, 0.12)],  # purple, top left
                     1.6),
     # Calm on purpose: nothing behind the windows to compete with them.
-    "contrast": ("#000000", "#000000",
+    "contrast-dark": ("#000000", "#000000",
                  [("#ffd700", 0.85, 0.85, 0.36, 0.05)],     # a faint yellow
                  1.0),
 }

@@ -993,6 +993,28 @@ THEME_OPTIONAL="sel"
 # run as you (at vikix theme, and at every update's refresh).
 theme_name_ok() { [[ $1 =~ ^[A-Za-z0-9_-]{1,40}$ ]]; }
 
+# The built-in themes' names before 0.72.4, when every theme's name got
+# its -light or -dark: a saved choice, a script of yours or an agent may
+# still say them, and a Vikix update refreshes the saved theme before the
+# migration renames it. An old name stands for the new one only while no
+# theme file of yours has it.
+theme_old_name() {   # theme_old_name NAME — the theme NAME is now called
+  case $1 in
+    void)        echo vikix-dark ;;
+    paper)       echo vikix-light ;;
+    contrast)    echo contrast-dark ;;
+    gruvbox)     echo gruvbox-dark ;;
+    nord)        echo nord-dark ;;
+    tokyo-night) echo tokyo-night-dark ;;
+    *)           echo "$1" ;;
+  esac
+}
+
+theme_canonical() {   # theme_canonical NAME — NAME, or what an old name is now
+  local new; new=$(theme_old_name "$1")
+  if [ "$new" != "$1" ] && [ ! -f "$USER_THEMES/$1.theme" ]; then echo "$new"; else echo "$1"; fi
+}
+
 theme_file() {   # theme_file NAME — the file that defines NAME (yours first)
   local f
   theme_name_ok "$1" || return 1
@@ -1002,6 +1024,8 @@ theme_file() {   # theme_file NAME — the file that defines NAME (yours first)
   return 1
 }
 
+# theme_names — every theme there is, in order: Vikix's own two first, then
+# by name, a -light before its -dark.
 theme_names() {
   local f
   local n
@@ -1009,7 +1033,10 @@ theme_names() {
     [ -f "$f" ] || continue
     n=$(basename "$f" .theme)
     theme_name_ok "$n" && echo "$n"
-  done | sort -u
+  done | sort -u | awk '{ own = ($0 ~ /^vikix-/) ? 0 : 1
+                         shade = ($0 ~ /-light$/) ? 0 : ($0 ~ /-dark$/) ? 1 : 2
+                         base = $0; sub(/-(light|dark)$/, "", base)
+                         print own "\t" base "\t" shade "\t" $0 }' | sort -t $'\t' -k1,1n -k2,2 -k3,3n | cut -f4
 }
 
 # theme_read FILE — sets c_KEY for each colour. The file is read, never run.
@@ -1298,8 +1325,8 @@ theme_nyxt() {
 }
 
 theme_current() {
-  local n; n=$(cat "$THEME_OUT/current" 2>/dev/null) || n=void
-  theme_name_ok "$n" && echo "$n" || echo void
+  local n; n=$(cat "$THEME_OUT/current" 2>/dev/null) || n=vikix-dark
+  theme_name_ok "$n" && theme_canonical "$n" || echo vikix-dark
 }
 
 # vikix theme            the current theme, and the ones there are
@@ -1320,6 +1347,11 @@ cmd_theme() {
   fi
   local refresh=0
   [ "$name" = --refresh ] && { refresh=1; name=$(theme_current); }
+  theme_name_ok "$name" || die "a theme's name is letters, digits, - and _ only"
+  if [ "$(theme_canonical "$name")" != "$name" ]; then
+    say "$name is called $(theme_canonical "$name") now"
+    name=$(theme_canonical "$name")
+  fi
   theme_write "$name"
   [ "$DRY_RUN" = 1 ] && return 0
   # The programs that are running pick the new colours up now. Alacritty
@@ -1563,7 +1595,7 @@ theme_import() {
   case $name in
     -*|import) die "'$name' would read as part of the command; give the theme another name" ;;
   esac
-  [ -f "$VIKIX_DIR/themes/$name.theme" ] &&
+  { [ -f "$VIKIX_DIR/themes/$name.theme" ] || [ "$(theme_old_name "$name")" != "$name" ]; } &&
     die "$name is one of Vikix's own themes; give yours another name: vikix theme import $source NAME"
   local dest="$USER_THEMES/$name.theme" f existing=()
   for f in "$dest" "$USER_THEMES/$name".{jpg,jpeg,png,webp}; do

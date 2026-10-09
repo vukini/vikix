@@ -1,6 +1,6 @@
-# nord — dark: Nord, cool arctic blues. Nord is soft by design; its red,
+# nord-dark — dark: Nord, cool arctic blues. Nord is soft by design; its red,
 # orange, purple and comment gray are lifted so each reads at 4.5:1 or
-# better on the background. (See void.theme for what each colour is for.)
+# better on the background. (See vikix-dark.theme for what each colour is for.)
 
 bg=#2e3440
 fg=#d8dee9         # 9.25:1

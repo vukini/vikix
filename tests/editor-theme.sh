@@ -2,7 +2,7 @@
 # tests/editor-theme.sh — the editors follow `vikix theme`, without the network.
 #
 #   vikix theme writes the palette the editors read; in Emacs
-#   (config/emacs/vikix-theme.el) contrast is Modus Vivendi, a theme of
+#   (config/emacs/vikix-theme.el) contrast-dark is Modus Vivendi, a theme of
 #   yours is `vikix-palette' in its own colours, a built-in one whose
 #   package can't be installed falls back to its colours too, and a second
 #   apply of the same theme does nothing; in Neovim (lua/vikix/theme.lua)
@@ -29,10 +29,10 @@ theme() { DISPLAY='' bash "$here/bin/vikix" theme "$@" >/dev/null; }
 pal="$HOME/.config/vikix/theme/palette"
 
 # --- the palette -------------------------------------------------------------------
-theme gruvbox
+theme gruvbox-dark
 check "vikix theme should write the palette" grep -qx 'bg=#282828' "$pal"
 check "with every colour, sel too" test "$(grep -c '^[a-z0-9]*=#' "$pal")" = 23
-sed 's/^bg=.*/bg=#102030/; s/^fg=.*/fg=#f0e0d0/' "$here/themes/void.theme" > "$HOME/.config/vikix/themes/mine.theme"
+sed 's/^bg=.*/bg=#102030/; s/^fg=.*/fg=#f0e0d0/' "$here/themes/vikix-dark.theme" > "$HOME/.config/vikix/themes/mine.theme"
 theme mine
 check "a theme of yours gets its palette too" grep -qx 'bg=#102030' "$pal"
 
@@ -48,10 +48,10 @@ if command -v emacs >/dev/null; then
   }
   out=$(em '(princ (format "%s %s" (cdr vikix-theme--applied) (face-attribute (quote default) :background)))')
   check "Emacs: a theme of yours should be vikix-palette in its colours: $out" test "$out" = "vikix-palette #102030"
-  theme contrast
+  theme contrast-dark
   out=$(em '(princ (cdr vikix-theme--applied))')
-  check "Emacs: contrast should be Modus Vivendi: $out" test "$out" = modus-vivendi
-  theme void
+  check "Emacs: contrast-dark should be Modus Vivendi: $out" test "$out" = modus-vivendi
+  theme vikix-dark
   out=$(em '(princ (format "%s %s" (cdr vikix-theme--applied) (face-attribute (quote default) :background)))')
   check "Emacs: void without its package should fall back to its own colours: $out" test "$out" = "vikix-palette #1e1e2e"
   out=$(em '(princ (vikix-theme-apply))')
@@ -62,11 +62,11 @@ if command -v emacs >/dev/null; then
   # the new colours, not keep the first's (its old settings outlived the
   # disabling, and won; the Office and Esploro, Emacs frames, stayed in
   # the first imported theme's colours through every switch).
-  sed 's/^bg=.*/bg=#304050/' "$here/themes/void.theme" > "$HOME/.config/vikix/themes/mine2.theme"
+  sed 's/^bg=.*/bg=#304050/' "$here/themes/vikix-dark.theme" > "$HOME/.config/vikix/themes/mine2.theme"
   theme mine
   out=$(em "(progn (let ((process-environment (cons \"DISPLAY=\" process-environment))) (call-process \"bash\" nil nil nil \"$here/bin/vikix\" \"theme\" \"mine2\")) (vikix-theme-apply) (princ (format \"%s %s %s\" (car vikix-theme--applied) (face-attribute (quote default) :background) (length custom-enabled-themes))))")
   check "Emacs: a second theme of yours should bring its own colours: $out" test "$out" = "mine2 #304050 1"
-  theme void
+  theme vikix-dark
 else
   echo "(the Emacs part needs Emacs; skipped here)"
 fi
@@ -77,12 +77,12 @@ if command -v nvim >/dev/null; then
   nv() { nvim --headless --clean --cmd "set rtp^=$rtp${base16:+,$base16}" -c "lua $1" -c q 2>&1; }
   out=$(nv 'io.write(require("vikix.theme").colorscheme())')
   check "Neovim: void should be Catppuccin Mocha: $out" test "$out" = catppuccin-mocha
-  theme tokyo-night
+  theme tokyo-night-dark
   out=$(nv 'io.write(require("vikix.theme").colorscheme())')
-  check "Neovim: tokyo-night should be tokyonight-night: $out" test "$out" = tokyonight-night
-  theme contrast
+  check "Neovim: tokyo-night-dark should be tokyonight-night: $out" test "$out" = tokyonight-night
+  theme contrast-dark
   out=$(nv 'local t = require("vikix.theme"); io.write(t.colorscheme(), " ", t.palette().accent)')
-  check "Neovim: contrast should be vikix, from its palette: $out" test "$out" = "vikix #ffd700"
+  check "Neovim: contrast-dark should be vikix, from its palette: $out" test "$out" = "vikix #ffd700"
   if [ -n "$base16" ]; then
     out=$(nv 'vim.cmd.colorscheme "vikix"; io.write(string.format("%s #%06x", vim.g.colors_name, vim.api.nvim_get_hl(0, { name = "Normal" }).bg))')
     check "Neovim: the vikix scheme should be the palette's colours: $out" test "$out" = "vikix #000000"
@@ -95,7 +95,7 @@ if command -v nvim >/dev/null; then
     -c 'lua package.loaded["vikix.theme"] = { apply = function() vim.g.vikix_applied = (vim.g.vikix_applied or 0) + 1 end }' >/dev/null 2>&1 &
   nvim_pid=$!
   for _ in $(seq 1 50); do [ -S "$sock" ] && break; sleep 0.1; done
-  DISPLAY=:99 bash "$here/bin/vikix" theme nord >/dev/null 2>&1 || true
+  DISPLAY=:99 bash "$here/bin/vikix" theme nord-dark >/dev/null 2>&1 || true
   out=$(timeout 3 nvim --server "$sock" --remote-expr 'g:vikix_applied' 2>&1 || true)
   check "vikix theme should reach a running Neovim: $out" test "$out" = 1
 fi

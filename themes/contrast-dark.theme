@@ -1,6 +1,6 @@
-# contrast — high contrast: white on black, a yellow focus, and every
+# contrast-dark — high contrast, dark: white on black, a yellow focus, and every
 # colour at 7:1 or better on the background (WCAG's AAA), for bright rooms,
-# tired eyes and low vision. (See void.theme for what each colour is for.)
+# tired eyes and low vision. (See vikix-dark.theme for what each colour is for.)
 
 bg=#000000
 fg=#ffffff         # 21:1

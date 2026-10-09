@@ -21,9 +21,9 @@ vikix() { HOME="$t/home" DISPLAY='' bash "$here/bin/vikix" theme "$@"; }
 out="$t/home/.config/vikix/theme"
 
 # --- vikix theme --------------------------------------------------------------
-vikix paper >/dev/null
-check "the choice isn't saved" test "$(cat "$out/current")" = paper
-check "alacritty doesn't get paper's background" grep -q '"#eff1f5"' "$out/alacritty.toml"
+vikix vikix-light >/dev/null
+check "the choice isn't saved" test "$(cat "$out/current")" = vikix-light
+check "alacritty doesn't get vikix-light's background" grep -q '"#eff1f5"' "$out/alacritty.toml"
 check "alacritty's file isn't valid TOML" python3 -c "import tomllib,sys; tomllib.load(open(sys.argv[1],'rb'))" "$out/alacritty.toml"
 check "kitty doesn't get 16 colours" test "$(grep -c '^color[0-9]* #' "$out/kitty.conf")" = 16
 check "the lock screen doesn't get the background" test "$(cat "$out/lock")" = eff1f5
@@ -35,9 +35,9 @@ if command -v rofi >/dev/null; then
   check "rofi can't read its theme" sh -c "rofi -theme '$out/rofi.rasi' -dump-theme | grep -q 'accent:'"
 fi
 
-# GTK and Qt: paper is light, void dark; their colours where they take them.
-check "paper should be light" test "$(cat "$out/mode")" = light
-check "paper: GTK 3's theme should be Adwaita" grep -qx 'Net/ThemeName "Adwaita"' "$out/xsettingsd.conf"
+# GTK and Qt: vikix-light is light, vikix-dark dark; their colours where they take them.
+check "vikix-light should be light" test "$(cat "$out/mode")" = light
+check "vikix-light: GTK 3's theme should be Adwaita" grep -qx 'Net/ThemeName "Adwaita"' "$out/xsettingsd.conf"
 check "GTK 4 should get the accent and the background" bash -c "grep -q -- '--accent-bg-color: #1c5bd6;' '$out/gtk4.css' && grep -q '@define-color window_bg_color #eff1f5;' '$out/gtk4.css'"
 check "Qt's palette should have its 22 roles, three times" python3 -c "
 import configparser, sys
@@ -46,29 +46,52 @@ s = c['ColorScheme']
 assert all(len(s[k].split(',')) == 22 for k in ('active_colors', 'disabled_colors', 'inactive_colors'))
 assert s['active_colors'].split(',')[10] == '#ffeff1f5'      # Window: the background
 assert s['disabled_colors'].split(',')[0] == '#ff636679'    # WindowText, disabled: subtle" "$out/qt6ct-colors.conf"
-vikix void >/dev/null
-check "void should be dark" test "$(cat "$out/mode")" = dark
-check "void: GTK 3's theme should be Adwaita-dark" grep -qx 'Net/ThemeName "Adwaita-dark"' "$out/xsettingsd.conf"
-vikix paper >/dev/null
+vikix vikix-dark >/dev/null
+check "vikix-dark should be dark" test "$(cat "$out/mode")" = dark
+check "vikix-dark: GTK 3's theme should be Adwaita-dark" grep -qx 'Net/ThemeName "Adwaita-dark"' "$out/xsettingsd.conf"
+vikix vikix-light >/dev/null
 
 vikix --refresh >/dev/null
-check "--refresh doesn't keep the saved theme" test "$(cat "$out/current")" = paper
+check "--refresh doesn't keep the saved theme" test "$(cat "$out/current")" = vikix-light
+
+# The names before 0.72.4 (void, paper, gruvbox ...) still work, and the
+# new name is what's saved: a script of yours, an agent or a saved choice
+# from before may say them. A theme of yours with the old name wins.
+out_old=$(vikix paper)
+check "an old name should switch, saying the new one: $out_old" bash -c 'grep -q "paper is called vikix-light now" <<<"$1" && grep -q "theme: vikix-light" <<<"$1"' _ "$out_old"
+check "the old name should save the new one" test "$(cat "$out/current")" = vikix-light
+echo void > "$out/current"
+vikix --refresh >/dev/null
+check "--refresh should rename a saved old name" test "$(cat "$out/current")" = vikix-dark
+mkdir -p "$t/home/.config/vikix/themes"
+sed 's/^bg=.*/bg=#111111/' "$here/themes/vikix-dark.theme" > "$t/home/.config/vikix/themes/nord.theme"
+vikix nord >/dev/null
+check "a theme of yours with an old name should be itself" test "$(cat "$out/current")" = nord
+rm "$t/home/.config/vikix/themes/nord.theme"
+# The list: Vikix's own two first, then by name, a -light before its -dark.
+sed 's/^bg=.*/bg=#111111/' "$here/themes/vikix-dark.theme" > "$t/home/.config/vikix/themes/zed-dark.theme"
+cp "$t/home/.config/vikix/themes/zed-dark.theme" "$t/home/.config/vikix/themes/zed-light.theme"
+cp "$t/home/.config/vikix/themes/zed-dark.theme" "$t/home/.config/vikix/themes/apple.theme"
+listed=$(vikix | sed -n 's/^.*themes: //p')
+check "the list should be in order: $listed" test "$listed" = "vikix-light vikix-dark apple contrast-dark gruvbox-dark nord-dark tokyo-night-dark zed-light zed-dark "
+rm "$t/home/.config/vikix/themes"/{zed-dark,zed-light,apple}.theme
+vikix vikix-light >/dev/null
 
 if vikix nope >/dev/null 2>&1; then echo "FAIL: an unknown theme is accepted"; fail=1; fi
-check "a failed switch changed the saved theme" test "$(cat "$out/current")" = paper
+check "a failed switch changed the saved theme" test "$(cat "$out/current")" = vikix-light
 
 # Your own themes: a complete one works, an incomplete one changes nothing.
 mkdir -p "$t/home/.config/vikix/themes"
-sed 's/^bg=.*/bg=#123456   # mine/' "$here/themes/void.theme" > "$t/home/.config/vikix/themes/mine.theme"
+sed 's/^bg=.*/bg=#123456   # mine/' "$here/themes/vikix-dark.theme" > "$t/home/.config/vikix/themes/mine.theme"
 vikix mine >/dev/null
 check "your own theme isn't used" grep -q '"#123456"' "$out/alacritty.toml"
 # A theme from before sel existed still works, with color0 behind selections.
-grep -v '^sel=' "$here/themes/void.theme" | sed 's/^color0=.*/color0=#010203/' > "$t/home/.config/vikix/themes/older.theme"
+grep -v '^sel=' "$here/themes/vikix-dark.theme" | sed 's/^color0=.*/color0=#010203/' > "$t/home/.config/vikix/themes/older.theme"
 vikix older >/dev/null
 check "a theme without sel isn't accepted" test "$(cat "$out/current")" = older
 check "a theme without sel doesn't fall back to color0" grep -q 'selection_background #010203' "$out/kitty.conf"
 vikix mine >/dev/null
-grep -v '^accent=' "$here/themes/void.theme" > "$t/home/.config/vikix/themes/half.theme"
+grep -v '^accent=' "$here/themes/vikix-dark.theme" > "$t/home/.config/vikix/themes/half.theme"
 if vikix half >/dev/null 2>&1; then echo "FAIL: a theme without an accent colour is accepted"; fail=1; fi
 check "an incomplete theme changed the files" grep -q '"#123456"' "$out/alacritty.toml"
 [ "$fail" = 0 ] && echo "theme: vikix theme writes every program's colours, and refuses a broken theme"
@@ -131,7 +154,7 @@ check "your own rofi theme was replaced" grep -qx '@theme "gruvbox-dark"' "$h/.c
 # A theme's name goes to StumpWM as a Lisp keyword: a file named like Lisp
 # is neither listed nor used.
 mkdir -p "$t/home/.config/vikix/themes"
-cp "$here/themes/void.theme" "$t/home/.config/vikix/themes/x) (run-shell-command \"touch pwned\") (list.theme"
+cp "$here/themes/vikix-dark.theme" "$t/home/.config/vikix/themes/x) (run-shell-command \"touch pwned\") (list.theme"
 out=$(vikix 2>&1)
 check "a theme named like Lisp shouldn't be listed: $out" test -z "$(grep -F pwned <<<"$out" || true)"
 out=$(vikix 'x) (run-shell-command "touch pwned") (list' 2>&1) && { echo "FAIL: a theme named like Lisp was used"; fail=1; }

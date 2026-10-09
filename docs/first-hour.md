@@ -74,7 +74,7 @@ vikix add office printing   # LibreOffice, and printers
 
 ```sh
 vikix theme                 # the themes there are
-vikix theme nord            # switch: the bar, terminals, menus, lock screen, wallpaper, editors
+vikix theme nord-dark       # switch: the bar, terminals, menus, lock screen, wallpaper, editors
 ```
 
 Or `Super+m` → *Theme*. Six come with Vikix: void (the default), paper (light), gruvbox, nord, tokyo-night and contrast (for bright rooms and tired eyes). `vikix theme import` brings one of Omarchy's. The wallpaper follows the theme until you choose your own (`Super+m` → *Wallpaper*).

@@ -17,7 +17,7 @@ vikix changes      # what the agent changed in your config, notes, dotfiles
 vikix undo         # put it all back
 ```
 
-The agent knows the desktop from the Vikix skill: ask it in words. *Make Firefox open on workspace 2. Why did this window float? Set the theme to paper.* It proposes rules rather than writing them, asks before it edits, and never gets your API keys or your SSH agent (see *What the agent doesn't get* in [Working with AI](ai.md)).
+The agent knows the desktop from the Vikix skill: ask it in words. *Make Firefox open on workspace 2. Why did this window float? Set the theme to vikix-light.* It proposes rules rather than writing them, asks before it edits, and never gets your API keys or your SSH agent (see *What the agent doesn't get* in [Working with AI](ai.md)).
 
 A second `Super+a`, *Agent here*, is a second agent, and so on. Nothing stops you; the rest of this page is what to do once you have several.
 

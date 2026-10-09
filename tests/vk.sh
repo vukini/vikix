@@ -29,7 +29,7 @@ check "an unknown command is still said" grep -q 'unknown command: zzz' <<<"$(vk
 cmds=$(vk __complete 1)
 check "commands, without help's dashes" bash -c '! grep -q -- "^-" <<<"$1" && grep -qx theme <<<"$1" && grep -qx docs <<<"$1"' _ "$cmds"
 check "docs' words, from its usage lines only" test "$(vk __complete 2 docs | tr '\n' ' ')" = "find get index list open page pick read status "
-check "theme: import and the themes" bash -c 'grep -qx import <<<"$1" && grep -qx paper <<<"$1" && grep -qx void <<<"$1"' _ "$(vk __complete 2 th)"
+check "theme: import and the themes" bash -c 'grep -qx import <<<"$1" && grep -qx vikix-light <<<"$1" && grep -qx vikix-dark <<<"$1"' _ "$(vk __complete 2 th)"
 check "add: the features" bash -c 'grep -qx python <<<"$1" && grep -qx emacs <<<"$1"' _ "$(vk __complete 2 add)"
 check "screens' words" test "$(vk __complete 2 scr | tr '\n' ' ')" = "auto extend external laptop mirror pick "
 
@@ -41,8 +41,8 @@ mkdir -p "$t/bin"; ln -s "$here/bin/vikix" "$t/bin/vikix"; ln -s "$here/bin/viki
 out=$(PATH="$t/bin:$PATH" bash -c '
   source <(sed -n "/^_vikix_complete()/,/^complete -F/p" "$1/config/bash/vikix.bash")
   t() { COMP_WORDS=("$@"); COMP_CWORD=$((${#COMP_WORDS[@]}-1)); _vikix_complete; echo "${COMPREPLY[*]}"; }
-  t vk the; t vk theme pa; t vk docs f' _ "$here")
-check "Tab completes: $out" test "$out" = $'theme\npaper\nfind'
+  t vk the; t vk theme vikix-l; t vk docs f' _ "$here")
+check "Tab completes: $out" test "$out" = $'theme\nvikix-light\nfind'
 check "40-config links vk" grep -q 'link_managed "$VIKIX_DIR/bin/vikix" "$HOME/.local/bin/vk"' "$here/install/40-config.sh"
 
 [ "$fail" = 0 ] && echo "vk: commands and their words by the start of the name, ambiguous ones named, free words left alone, Tab completion's lists"

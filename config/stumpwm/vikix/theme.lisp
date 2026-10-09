@@ -10,12 +10,12 @@
 (in-package :stumpwm)
 
 (defparameter *vikix-themes*
-  '(:void (:bg "#1e1e2e" :fg "#cdd6f4" :subtle "#a6adc8" :dim "#585b70"
+  '(:vikix-dark (:bg "#1e1e2e" :fg "#cdd6f4" :subtle "#a6adc8" :dim "#585b70"
           :accent "#89b4fa" :alert "#f38ba8" :sel "#45475a"))
   "Named palettes: NAME (a keyword) then its colours, :bg :fg :dim :accent
 :alert and more. Filled from the theme files; this one is only a fallback.")
 
-(defvar *vikix-theme* :void
+(defvar *vikix-theme* :vikix-dark
   "The theme currently applied.")
 
 (defparameter *vikix-saved-theme-file*
@@ -56,23 +56,37 @@
         (error (e) (message "^1Vikix: theme ~a not read:^n ~a" file e)))))
   *vikix-themes*)
 
+(defparameter *vikix-theme-old-names*
+  '((:void . :vikix-dark) (:paper . :vikix-light) (:contrast . :contrast-dark)
+    (:gruvbox . :gruvbox-dark) (:nord . :nord-dark) (:tokyo-night . :tokyo-night-dark))
+  "The built-in themes' names before 0.72.4, when every theme's name got its
+-light or -dark. A saved choice or a form of yours may still say one; it
+stands for the new name while no theme file of yours has the old one.")
+
+(defun vikix-theme-name (name)
+  "The theme NAME (a keyword) names: itself, or what an old name is now."
+  (let ((new (cdr (assoc name *vikix-theme-old-names*))))
+    (if (and new (not (getf *vikix-themes* name))) new name)))
+
 (defun vikix-saved-theme ()
-  "The theme `vikix theme` saved, as a keyword; :void when there is none."
+  "The theme `vikix theme` saved, as a keyword; :vikix-dark when there is none."
   (let ((name (ignore-errors
                (with-open-file (in *vikix-saved-theme-file*)
                  (string-trim '(#\Space #\Tab #\Newline) (read-line in nil ""))))))
     (if (and name (plusp (length name)))
-        (intern (string-upcase name) :keyword)
-        :void)))
+        (vikix-theme-name (intern (string-upcase name) :keyword))
+        :vikix-dark)))
 
 (defun vikix-colour (key)
   "The colour KEY (e.g. :accent) in the current theme."
   (getf (getf *vikix-themes* *vikix-theme*) key))
 
 (defun vikix-apply-theme (name)
-  "Make NAME the current theme and repaint StumpWM with it."
+  "Make NAME the current theme and repaint StumpWM with it. An old name
+(:void, :paper ...) is the new one's."
   (unless (getf *vikix-themes* name)
     (vikix-load-themes))                 ; a theme file added since
+  (setf name (vikix-theme-name name))
   (unless (getf *vikix-themes* name)
     (error "No Vikix theme called ~s" name))
   (setf *vikix-theme* name)
@@ -178,4 +192,4 @@
 ;; user.lisp still wins: it runs after this.)
 (vikix-load-themes)
 (vikix-apply-theme (let ((saved (vikix-saved-theme)))
-                     (if (getf *vikix-themes* saved) saved :void)))
+                     (if (getf *vikix-themes* saved) saved :vikix-dark)))

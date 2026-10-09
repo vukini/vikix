@@ -1,6 +1,6 @@
-# gruvbox — dark: Gruvbox (medium), warm and retro, with its orange as the
+# gruvbox-dark — dark: Gruvbox (medium), warm and retro, with its orange as the
 # accent. Its gray and red are lifted a little, so each reads at 4.5:1 or
-# better on the background. (See void.theme for what each colour is for.)
+# better on the background. (See vikix-dark.theme for what each colour is for.)
 
 bg=#282828
 fg=#ebdbb2         # 10.75:1

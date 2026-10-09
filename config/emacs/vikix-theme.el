@@ -7,9 +7,10 @@
 ;;
 ;;   (load (expand-file-name "~/.local/share/vikix/emacs/vikix-theme") t t)
 ;;
-;; The built-in themes have a theme made for them: void and paper are
-;; Catppuccin's Mocha and Latte, gruvbox, nord and tokyo-night Doom's, and
-;; contrast is Modus Vivendi, which comes with Emacs and keeps every colour
+;; The built-in themes have a theme made for them: vikix-dark and
+;; vikix-light are Catppuccin's Mocha and Latte, gruvbox-dark, nord-dark and
+;; tokyo-night-dark Doom's, and contrast-dark is Modus Vivendi, which comes
+;; with Emacs and keeps every colour
 ;; at 7:1. The packages are installed from MELPA the first time they're
 ;; needed. Any other theme (yours, or one imported from Omarchy), or one
 ;; whose package can't be installed (no network), becomes `vikix-palette':
@@ -31,12 +32,12 @@
   "Where `vikix theme' writes the current theme's name and colours.")
 
 (defvar vikix-theme-schemes
-  '(("void"        catppuccin       catppuccin-theme (catppuccin-flavor . mocha))
-    ("paper"       catppuccin       catppuccin-theme (catppuccin-flavor . latte))
-    ("gruvbox"     doom-gruvbox     doom-themes)
-    ("nord"        doom-nord        doom-themes)
-    ("tokyo-night" doom-tokyo-night doom-themes)
-    ("contrast"    modus-vivendi    nil))
+  '(("vikix-dark"       catppuccin       catppuccin-theme (catppuccin-flavor . mocha))
+    ("vikix-light"      catppuccin       catppuccin-theme (catppuccin-flavor . latte))
+    ("gruvbox-dark"     doom-gruvbox     doom-themes)
+    ("nord-dark"        doom-nord        doom-themes)
+    ("tokyo-night-dark" doom-tokyo-night doom-themes)
+    ("contrast-dark"    modus-vivendi    nil))
   "Vikix's theme, then Emacs's theme, the package it's in (nil: built in),
 and a variable to set first, as (VARIABLE . VALUE).")
 
@@ -50,9 +51,9 @@ and a variable to set first, as (VARIABLE . VALUE).")
       (with-temp-buffer (insert-file-contents f) (buffer-string)))))
 
 (defun vikix-theme-current ()
-  "The current Vikix theme's name; \"void\" when there's none."
+  "The current Vikix theme's name; \"vikix-dark\" when there's none."
   (let ((name (string-trim (or (vikix-theme--read "current") ""))))
-    (if (string-match-p "\\`[[:alnum:]_-]+\\'" name) name "void")))
+    (if (string-match-p "\\`[[:alnum:]_-]+\\'" name) name "vikix-dark")))
 
 (defun vikix-theme-palette ()
   "The current theme's colours, as an alist of (KEY . \"#rrggbb\")."

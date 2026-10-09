@@ -139,7 +139,7 @@ The way to change something of Vikix's is to override it from one of your files.
 
 ## Themes
 
-A theme is a small file of named colours (`~/vikix/themes/void.theme`). `vikix theme NAME` does three things:
+A theme is a small file of named colours (`~/vikix/themes/vikix-dark.theme`). `vikix theme NAME` does three things:
 
 1. saves the name to `~/.config/vikix/theme/current`
 2. writes each program's colours into `~/.config/vikix/theme/` (alacritty, kitty, rofi, the lock screen) and `~/.config/dunst/dunstrc.d/10-vikix-theme.conf`

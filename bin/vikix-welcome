@@ -120,10 +120,9 @@ EOF
 # --- a theme ------------------------------------------------------------------------------
 cmd_theme() {
   local themes choice
-  # if, not &&: without themes of your own the last test is false, which
-  # failed the loop, and under pipefail and set -e, the welcome, without a word.
-  themes=$(for f in "$VIKIX_DIR"/themes/*.theme "${XDG_CONFIG_HOME:-$HOME/.config}"/vikix/themes/*.theme; do
-             if [ -e "$f" ]; then basename "$f" .theme; fi; done | sort -u)
+  # The list as `vikix theme` gives it, in its order (Vikix's own two first,
+  # then by name, a -light before its -dark).
+  themes=$("$VIKIX_DIR/bin/vikix" theme 2>/dev/null | sed -n 's/^.*themes: //p' | tr ' ' '\n' | grep -v '^$') || true   # pipefail: an empty list isn't an error
   choice=$(printf '%s\n' "$themes" |
     pick --prompt 'Theme: ' --header 'The colours of the whole desktop. Enter switches, Esc goes back.') || return 0
   [ -n "$choice" ] || return 0
