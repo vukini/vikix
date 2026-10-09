@@ -61,6 +61,9 @@ Gathered on 2026-09-30, in a conversation with Vid.
 ## Working on projects
 
 - **Per-project settings with direnv.** Entering a project's folder sets its tools and settings; leaving undoes them.
+- **From Onshape (2026-10-09).** Onshape runs full 3D CAD in a browser: the server computes, the browser only draws, and every edit is a tiny commit in a database. Its API, thin-client and version-history ideas are already in Vikix (`vikix-mcp`, `DESIGN-machines.md`'s `--on NAME`, `DESIGN-remoteapp.md`, `vikix snapshot`/`history`/`undo`, `DESIGN-restore.md`). Two gaps left:
+  - *Snapshots on every change, not only at moments.* Vikix snapshots before an agent starts and before a rule changes; Onshape records every edit. A quiet snapshot whenever a file in `yours.list` is saved (inotify, debounced to a minute) would make `vikix history` a true timeline.
+  - *A project reopens everything.* `vikix project open` brings back the terminal, the editor and the layout. Add the project's browser tabs and its Esploro view, as an Onshape document holds every tab of one job.
 
 ## AI
 
