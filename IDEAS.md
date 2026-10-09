@@ -29,7 +29,7 @@ desktop so that everyday work takes less managing.
 4. **Bring file versions into Esploro.** The planned "Versions…" interface
    should list available versions, preview or compare one, and restore
    through a reversible plan. This makes backups useful during ordinary
-   work. Continue [DESIGN-restore.md](DESIGN-restore.md), TODO item 80.
+   work. Continue [plans/DESIGN-restore.md](plans/DESIGN-restore.md), TODO item 80.
 5. **Show what changed after an update.** Keep a small "Since your last
    update" page, filtered by installed features and linked to examples.
    Features arriving quickly need a way to become habits. This develops
@@ -61,7 +61,7 @@ Gathered on 2026-09-30, in a conversation with Vid.
 ## Working on projects
 
 - **Per-project settings with direnv.** Entering a project's folder sets its tools and settings; leaving undoes them.
-- **From Onshape (2026-10-09).** Onshape runs full 3D CAD in a browser: the server computes, the browser only draws, and every edit is a tiny commit in a database. Its API, thin-client and version-history ideas are already in Vikix (`vikix-mcp`, `DESIGN-machines.md`'s `--on NAME`, `DESIGN-remoteapp.md`, `vikix snapshot`/`history`/`undo`, `DESIGN-restore.md`). Two gaps left:
+- **From Onshape (2026-10-09).** Onshape runs full 3D CAD in a browser: the server computes, the browser only draws, and every edit is a tiny commit in a database. Its API, thin-client and version-history ideas are already in Vikix (`vikix-mcp`, `plans/DESIGN-machines.md`'s `--on NAME`, `plans/DESIGN-remoteapp.md`, `vikix snapshot`/`history`/`undo`, `plans/DESIGN-restore.md`). Two gaps left:
   - *Snapshots on every change, not only at moments.* Vikix snapshots before an agent starts and before a rule changes; Onshape records every edit. A quiet snapshot whenever a file in `yours.list` is saved (inotify, debounced to a minute) would make `vikix history` a true timeline.
   - *A project reopens everything.* `vikix project open` brings back the terminal, the editor and the layout. Add the project's browser tabs and its Esploro view, as an Onshape document holds every tab of one job.
 
@@ -144,7 +144,7 @@ From the Nyxt work of 2026-10-02 (the guide is `docs/nyxt.md`; the page tools th
 
 ## Gathered on 2026-10-03, in a conversation with Vid
 
-Two of the day's ideas are already worked out as designs, so they go to `TODO.md` instead when picked up: `DESIGN-music.md` (the musical sketchpad: patterns as Lisp, a codeless grid over them, the inbox, "send to Ardour") and `DESIGN-docs.md` (one catalogue over every document on the machine, `Super+h`, the agent's `docs_search`, and the `vk` alias, prefix matching and tab completion). The rest are here, none decided.
+Two of the day's ideas are already worked out as designs, so they go to `TODO.md` instead when picked up: `plans/DESIGN-music.md` (the musical sketchpad: patterns as Lisp, a codeless grid over them, the inbox, "send to Ardour") and `plans/DESIGN-docs.md` (one catalogue over every document on the machine, `Super+h`, the agent's `docs_search`, and the `vk` alias, prefix matching and tab completion). The rest are here, none decided.
 
 ### The desktop, from the inside
 
@@ -157,7 +157,7 @@ Two of the day's ideas are already worked out as designs, so they go to `TODO.md
 
 ### Documentation that acts
 
-- **"Do it" buttons in the guides.** Every command on a guide page in Nyxt gets a button that sends the form to StumpWM through the checked route the agent uses, snapshot first. With the docs catalogue (`DESIGN-docs.md`), any Markdown on the machine gets the same: a README's install steps become buttons. Nyxt is Lisp, so this is a page hook, not a program.
+- **"Do it" buttons in the guides.** Every command on a guide page in Nyxt gets a button that sends the form to StumpWM through the checked route the agent uses, snapshot first. With the docs catalogue (`plans/DESIGN-docs.md`), any Markdown on the machine gets the same: a README's install steps become buttons. Nyxt is Lisp, so this is a page hook, not a program.
 - **Show me how.** Ask the agent "how do I split the screen" and the desktop demonstrates instead of answering: `vikix-osd` shows the key, StumpWM performs it slowly, the bar names what changed. Teaching by doing, from the OSD and the eval route already there. The children's account would get a lot from this.
 
 ### Files and care
@@ -166,27 +166,27 @@ Two of the day's ideas are already worked out as designs, so they go to `TODO.md
 
 ### Cuis Smalltalk
 
-Worked out as `DESIGN-cuis.md`: `vikix add cuis` from pinned packages, a `vikix eval --cuis` door with Swank's password and guard, the desktop drawn as objects in Morphic, the music sketchpad's second face, lessons that change the running image, and a docs adapter for class comments. One idea stays here: **the other living image, as a book.** The Common Lisp book is *Living in the Image*; Cuis is the other image one can live in, and one language against two images is a chapter nobody has written. For the Living Series file when the time comes.
+Worked out as `plans/DESIGN-cuis.md`: `vikix add cuis` from pinned packages, a `vikix eval --cuis` door with Swank's password and guard, the desktop drawn as objects in Morphic, the music sketchpad's second face, lessons that change the running image, and a docs adapter for class comments. One idea stays here: **the other living image, as a book.** The Common Lisp book is *Living in the Image*; Cuis is the other image one can live in, and one language against two images is a chapter nobody has written. For the Living Series file when the time comes.
 
 ### PicoLisp
 
 Vikix already builds pil21 from the release tarball (`65-languages`, into `~/.local/opt/picolisp`; Void has no package, checked 2026-10-03) and gives it `~/dev/picolisp`. What its particular strengths buy beyond a working language: a database that is part of the language with Pilog to query it, its own HTTP server and form library, `native` for calling any C library without glue, and a debugger in `pil +`. Four uses, in order; none decided.
 
-- **The music catalogue, a book project and a feature at once.** Track X of *Living in PicoLisp* is "a music catalogue"; `DESIGN-music.md` has an inbox of captures and renders, and a later item for a sample library by detected key and tempo. The same artefact: a pil program that watches `~/music/inbox/` and `render/`, calls aubio and libkeyfinder through `native` for tempo and key, keeps each capture as a database object, answers Pilog questions ("every loop in E minor near 90 bpm, newest first") and serves the result as a page on loopback with pil's own server. The book writes it in public; Vikix ships it (`vikix add music-catalogue`, or inside `music`). What the Living Series workshop section of `TODO.md` is for.
-- **A docs adapter** (`DESIGN-docs.md`): pil21 ships its whole reference as HTML in `@doc/` (the function index, the tutorial, the FAQ; `(doc 'car)` opens an entry), and Zeal has no PicoLisp docset, so the catalogue is the only way these reach `Super+h`. An hour; the files are already in `~/.local/opt/picolisp/doc/`.
+- **The music catalogue, a book project and a feature at once.** Track X of *Living in PicoLisp* is "a music catalogue"; `plans/DESIGN-music.md` has an inbox of captures and renders, and a later item for a sample library by detected key and tempo. The same artefact: a pil program that watches `~/music/inbox/` and `render/`, calls aubio and libkeyfinder through `native` for tempo and key, keeps each capture as a database object, answers Pilog questions ("every loop in E minor near 90 bpm, newest first") and serves the result as a page on loopback with pil's own server. The book writes it in public; Vikix ships it (`vikix add music-catalogue`, or inside `music`). What the Living Series workshop section of `TODO.md` is for.
+- **A docs adapter** (`plans/DESIGN-docs.md`): pil21 ships its whole reference as HTML in `@doc/` (the function index, the tutorial, the FAQ; `(doc 'car)` opens an entry), and Zeal has no PicoLisp docset, so the catalogue is the only way these reach `Super+h`. An hour; the files are already in `~/.local/opt/picolisp/doc/`.
 - **A door, `vikix eval --pil`.** A listening task on loopback in about twenty lines of PicoLisp: the password file's first line within five seconds, then one expression a line and its value back; the same shape as Swank's and Cuis's. `vikix mcp` gets `pil_eval` behind `--allow-eval`, so the agent can read the catalogue's database and help build track X.
-- **`vikix learn picolisp`.** `TUTORIALS.md` lists the runner's next languages (lisp, forth, haskell, sql); PicoLisp joins them, with the site's ten tracks as the syllabus and the steps as shared files, rendered on the site and run by `vikix learn` on the laptop under the same evidence rule.
+- **`vikix learn picolisp`.** `plans/TUTORIALS.md` lists the runner's next languages (lisp, forth, haskell, sql); PicoLisp joins them, with the site's ten tracks as the syllabus and the steps as shared files, rendered on the site and run by `vikix learn` on the laptop under the same evidence rule.
 
 Not: a fourth implementation language for Vikix itself (bash, Python and Common Lisp are three already; PicoLisp earns a place only where its database is the point); a replacement for SQLite in `vikix records` or the docs index; the music sketchpad's face (pil's forms are server-driven pages, wrong for a sequencer that changes on the next bar).
 
 ### Areas still to look at (2026-10-03)
 
-Parts of Vikix that haven't had the code-first pass the sections above got. Each would become a section here or a `DESIGN-*.md`. In Vid's order of interest: publishing (TODO 79, worked out as `DESIGN-publish.md`), then security (now `DESIGN-security.md`). The children's account is set aside for now (Vid, 2026-10-04): it stays at the end of this list, not to be picked up before the rest.
+Parts of Vikix that haven't had the code-first pass the sections above got. Each would become a section here or a `DESIGN-*.md`. In Vid's order of interest: publishing (TODO 79, worked out as `plans/DESIGN-publish.md`), then security (now `plans/DESIGN-security.md`). The children's account is set aside for now (Vid, 2026-10-04): it stays at the end of this list, not to be picked up before the rest.
 
-- **Security.** Worked out as `DESIGN-security.md` (2026-10-04): the four pen-test reports and TODO items 4 and 5 as one ordered plan.
-- **Your machines and your phone.** Worked out as `DESIGN-machines.md` (2026-10-04): Tailscale, Syncthing, KDE Connect and `vikix export`/`import` as one design, with `--on NAME` for the doors.
-- **The computer extended into the cloud.** Vid's idea, kept as he wrote it in `DESIGN-cloud.md` (2026-10-09): rented always-on machines as *nodes* of the one Vikix (`vikix nodes`, `vikix node shell|run`, `vikix run --on atlas`, projects sent by git, jobs that outlive the laptop), over SSH first and the mesh of `DESIGN-machines.md` later; and, if it works for Vid, the product: Vikix Cloud sells nodes that attach to your Vikix, not a VPS. First milestone: the laptop and one cheap Void VPS feeling like one system.
-- **Backup and restore.** Worked out as `DESIGN-restore.md` (2026-10-04): `vikix versions` over both histories, Esploro's "Versions…" as a plan with undo, a guided setup.
+- **Security.** Worked out as `plans/DESIGN-security.md` (2026-10-04): the four pen-test reports and TODO items 4 and 5 as one ordered plan.
+- **Your machines and your phone.** Worked out as `plans/DESIGN-machines.md` (2026-10-04): Tailscale, Syncthing, KDE Connect and `vikix export`/`import` as one design, with `--on NAME` for the doors.
+- **The computer extended into the cloud.** Vid's idea, kept as he wrote it in `plans/DESIGN-cloud.md` (2026-10-09): rented always-on machines as *nodes* of the one Vikix (`vikix nodes`, `vikix node shell|run`, `vikix run --on atlas`, projects sent by git, jobs that outlive the laptop), over SSH first and the mesh of `plans/DESIGN-machines.md` later; and, if it works for Vid, the product: Vikix Cloud sells nodes that attach to your Vikix, not a VPS. First milestone: the laptop and one cheap Void VPS feeling like one system.
+- **Backup and restore.** Worked out as `plans/DESIGN-restore.md` (2026-10-04): `vikix versions` over both histories, Esploro's "Versions…" as a plan with undo, a guided setup.
 - **The Z13 as a tablet.** Touch, pen and the detachable keyboard (TODO 58–63): what a tablet mode of a tiling desktop is. Nobody on Linux has a good answer; Viri's strip may be part of one.
 - **A first visitor's path.** The site, the install line, the first hour, the release process and GitHub Actions, seen by someone who actually tries it for the first time; the everyday-user agent on a fresh VM, start to finish.
 - **The children's account** (TODO 33). Several of today's ideas point at it: lessons in Cuis, Pascal, the education bundle, screen time, "show me how". Enough hangs off it that it would deserve its own design, later: a second login, a simpler desktop, apps chosen by the parent, nothing of the parent's reachable, a home for the programming course.

@@ -1,4 +1,4 @@
-;;;; What is this? (Super+Alt+?, `vikix what`; the design is DESIGN-what.md)
+;;;; What is this? (Super+Alt+?, `vikix what`; the design is plans/DESIGN-what.md)
 ;;;;
 ;;;; The sibling of why.lisp: that one says what made a thing happen, this
 ;;;; one what a thing is. The key says what the pointer is on in the bar (a

@@ -1,4 +1,4 @@
-;;;; viri.lisp — a workspace that scrolls sideways (Viri, DESIGN-viri.md).
+;;;; viri.lisp — a workspace that scrolls sideways (Viri, plans/DESIGN-viri.md).
 ;;;;
 ;;;; Tiling's weak point is the fourth window: it makes the other three too
 ;;;; narrow. On a Viri workspace the windows stand in a strip of columns

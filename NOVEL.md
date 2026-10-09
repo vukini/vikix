@@ -33,7 +33,7 @@ Why only Vikix: nobody else owns both a desktop and a bottom-up library written 
 
 First step: `Super+?` on the bar's items alone (battery, network, updates, a workspace number), each opening the matching guide page in Nyxt. Then the books.
 
-> 2026-10-05, the what session: worked out with Vid as `DESIGN-what.md`; not built. `Super+?` had gone to `vikix why` since this was written, so the key is `Super+Alt+?` and the command `vikix what`. A card comes first (what this very thing is doing now, a short paragraph), the chapter one Enter away. The books are private, so Vikix holds only the mechanism and a table to its own guides and man pages; the table to the books, and the paragraphs in Vid's words, live in the books' repository, and the user's own documents are closed to agents unless switched on. Two things learned: the catalogue doesn't read the books yet (the `repo` source takes a project's README, plans and `docs/` only), so an `own` source with a row a section is the larger half; and several of the chapters the examples above name are not written yet, which `vikix what gaps` is for.
+> 2026-10-05, the what session: worked out with Vid as `plans/DESIGN-what.md`; not built. `Super+?` had gone to `vikix why` since this was written, so the key is `Super+Alt+?` and the command `vikix what`. A card comes first (what this very thing is doing now, a short paragraph), the chapter one Enter away. The books are private, so Vikix holds only the mechanism and a table to its own guides and man pages; the table to the books, and the paragraphs in Vid's words, live in the books' repository, and the user's own documents are closed to agents unless switched on. Two things learned: the catalogue doesn't read the books yet (the `repo` source takes a project's README, plans and `docs/` only), so an `own` source with a row a section is the larger half; and several of the chapters the examples above name are not written yet, which `vikix what gaps` is for.
 
 > 2026-10-05, the what session, later: Phase 0 built, as `vikix what` (`bin/vikix-what`, `what.lisp`, `config/what/`; the README's part on the bar says what it does). In: the card for a field of the bar, a window, a workspace, a key, a running process and a package, from Vikix's guides and the manuals; `Super+Alt+?` on what the pointer is on, and a click on a field. Not in: anything of the books (Phase 1, with the `own` source), ports, services and files as kinds, the row in `vikix why`.
 
@@ -59,13 +59,13 @@ The desktop is the one witness to your day, and today it forgets.
 - `vikix day`: today as an Org file from what Vikix already records: projects opened (`vikix project`), commits made, files Esploro moved (its journal), agent sessions and the diffs they left (the snapshot history), documents read (the catalogue's "recent"), captures and renders (the music inbox), rules that fired, how long each project had the screen.
 - Then the thing Vid asks of every session anyway: the Work Log entry and the Status Board's percentages written from the record, offered for a yes, never written on their own. The log stops depending on memory at the end of a long day.
 - `vikix day --week` and `--for living-in-lambda` for the summaries; the agent reads the file to answer "what did I do on Tuesday".
-- Private by construction: the file lives in `~/journal/`, in the backup, and the ledger (`DESIGN-security.md`) shows if anything ever reads it out.
+- Private by construction: the file lives in `~/journal/`, in the backup, and the ledger (`plans/DESIGN-security.md`) shows if anything ever reads it out.
 
 Why only Vikix: the sources are all Vikix's own records, in files and SQLite; the day is a query.
 
 First step: `vikix day` over projects, commits and the Esploro journal, printed to the terminal. If it is right about what the day was, the Work Log can trust it.
 
-> 2026-10-04, the diary session: built, as `vikix day` (`bin/vikix-day`, `day.lisp`; the README's Projects section says what it reads). In: the day as `~/journal/DATE.org` with Notes kept, how long each project had the screen (the desktop notes what is in front every 30 seconds, never a title), entries, commits, Esploro's changes, agents' sessions and the settings changed after each, updates, rules that ran, documents opened, the plugins' records; `--week`, `--for NAME`; `vikix day log` offering the missing log entries for a yes, with the next step and the percentage asked, not guessed. Not in: the music inbox's captures (not built yet), the ledger's view of who read the journal (`DESIGN-security.md`), and time for a project whose windows are neither on its workspace nor in its folder (an Emacs frame on another workspace, a browser tab), which idea 6 would give.
+> 2026-10-04, the diary session: built, as `vikix day` (`bin/vikix-day`, `day.lisp`; the README's Projects section says what it reads). In: the day as `~/journal/DATE.org` with Notes kept, how long each project had the screen (the desktop notes what is in front every 30 seconds, never a title), entries, commits, Esploro's changes, agents' sessions and the settings changed after each, updates, rules that ran, documents opened, the plugins' records; `--week`, `--for NAME`; `vikix day log` offering the missing log entries for a yes, with the next step and the percentage asked, not guessed. Not in: the music inbox's captures (not built yet), the ledger's view of who read the journal (`plans/DESIGN-security.md`), and time for a project whose windows are neither on its workspace nor in its folder (an Emacs frame on another workspace, a browser tab), which idea 6 would give.
 
 > 2026-10-05, exploring with Vid (not yet a TODO): the diary's next phase. **The browser as a source**: Firefox's `places.sqlite` (copied; it's locked while Firefox runs) and Nyxt's history, so the day says what was read, not only "Firefox on workspace 2". Titles for everything by default (the file is the user's alone), with the deny side doing the work: a private list of domains shipped with the obvious categories (banks, webmail, health, dating, adult, the password manager, payment pages), `vikix day private DOMAIN` to add one, nothing from those appears, not even the domain; a few patterns (`login`, `account`, `statement`, `invoice`, `checkout`, `unsubscribe`, `reset`, a long token in the path) drop a page to its domain alone; search queries and URLs never kept, domain and title only; `vikix day forget DOMAIN` also removes it from every past day's file, so a mistake isn't permanent. An allow-list of domains for titles was considered and dropped as too restrictive. **A summary paragraph** at the top, written by the local model from the structured records, a cloud model only when asked and the file saying which wrote it. **A night run and a morning report**: `(at "03:00" (run "vikix day yesterday"))` in the rules, the paragraph as `vikix welcome`'s first card and a quiet notification at a later login; the file reaching the other machines over Syncthing when that lands. **Files changed outside Esploro and git**: a nightly `find` over a folder list, caches and the browser profile excluded, names only for folders the user lists.
 
@@ -99,7 +99,7 @@ First step: the property and the grouped window list; see whether the grouping i
 A running program moves from this laptop to that one without closing.
 
 - `vikix hand firefox z13`: the Firefox you have open, with its tabs and its form half filled, leaves the X1's screen and appears on the Z13's, still running where it was. `vikix hand --back`.
-- The trick is old and unused: xpra (6.4.4 in Void) can detach a program from one display and attach it to another; nobody has made it a desktop verb. Over the tailnet (`DESIGN-machines.md`) the other machine is a name.
+- The trick is old and unused: xpra (6.4.4 in Void) can detach a program from one display and attach it to another; nobody has made it a desktop verb. Over the tailnet (`plans/DESIGN-machines.md`) the other machine is a name.
 - Programs started by Vikix (Super+Return, the launcher, `vikix project open`) run under xpra's seamless mode from the start when the feature is on, so any of them can be handed; a program started otherwise is told it can't, with the reason.
 - Uses: the terminal you were in when you left the desk; the agent's session moved to the office machine with the big models while it keeps its state; a child's program handed to the parent's screen to look at.
 
@@ -164,7 +164,7 @@ A tablet mode for a tiling desktop is open ground: the tiling desktops ignore to
 
 Detaching the keyboard is a statement of intent, and the desktop should hear it.
 
-- A rule, `when-keyboard-detached`: the current workspace becomes a Viri strip (`DESIGN-viri.md`) with one column per screen, panned with two fingers; tap focuses; a long press on a window opens the window's menu (close, move, hand to another machine); the bar grows to finger height; notifications wait. Reattach, and the tiles come back as they were.
+- A rule, `when-keyboard-detached`: the current workspace becomes a Viri strip (`plans/DESIGN-viri.md`) with one column per screen, panned with two fingers; tap focuses; a long press on a window opens the window's menu (close, move, hand to another machine); the bar grows to finger height; notifications wait. Reattach, and the tiles come back as they were.
 - The key card becomes a touch card: `Super+/`'s groups as tappable tiles, so every key still exists without a key. The `onboard` keyboard appears only when a text field has the focus, as a column of its own at the strip's right edge, never over the window you're typing into.
 - A workspace switch is a three-finger swipe; the overview is a pinch. Each gesture is one entry in a table beside `*vikix-bindings*`, so the key card can print "or swipe left" beside "Super+l".
 
@@ -190,7 +190,7 @@ Turn the Z13 on its side and it is an e-reader for your own drafts.
 
 - Rotation (iio-sensor-proxy) into portrait becomes a rule, `when-portrait`: the bar hides, the strip turns vertical (columns become rows), the theme warms (the nightlight's colours), notifications wait, and the focused document fills the screen: a PDF in `xournalpp` so the pen writes in the margin, an EPUB in Foliate, Markdown rendered by the guide's CSS.
 - Tap at the edges turns pages; the pen's margin notes are saved beside the file (`chapter-3.md.notes.xopp`) and listed by Esploro's "Versions…" neighbour, "Notes…"; `vikix publish check` can list the pages with notes still unresolved.
-- This is the proofreading posture for the Living Series: build the EPUB (`DESIGN-publish.md`), pick up the Z13, read it as a reader would, mark it with the pen, put it down, and the marks are in the project.
+- This is the proofreading posture for the Living Series: build the EPUB (`plans/DESIGN-publish.md`), pick up the Z13, read it as a reader would, mark it with the pen, put it down, and the marks are in the project.
 
 Why only Vikix: the publish pipeline, the strip, the rules and Esploro meet here; an e-reader app can't know what a project is.
 
@@ -201,8 +201,8 @@ First step: the `when-portrait` rule hiding the bar and opening the focused PDF 
 When the Z13 is on power and on the tailnet, its 128 GB is everyone's.
 
 - `vikix ai serve` as a rule, `when-charging` and `when-on-network home`: Ollama listens on the Tailscale address, and the X1, the office and the phones' Hermes gateway find it by name; off power or off the network, it stops, and the others fall back to what they had (`vikix ai use` keeps a list, first available wins).
-- The bar on the Z13 shows who is using it ("serving: x1, phone"), in the quiet colour; the ledger (`DESIGN-security.md`) shows what was asked, never the text.
-- The office machine (`ai-desktop.md`) is the same rule with `always`; the design is one and the hardware decides.
+- The bar on the Z13 shows who is using it ("serving: x1, phone"), in the quiet colour; the ledger (`plans/DESIGN-security.md`) shows what was asked, never the text.
+- The office machine (`plans/ai-desktop.md`) is the same rule with `always`; the design is one and the hardware decides.
 
 Why only Vikix: the rules know power and network, the machines design gives the names, and `vikix ai use` already abstracts where the model is.
 
@@ -237,7 +237,7 @@ First step: a persona that changes the accent colour and the web apps shown in S
 A key, a rule or a layout as a card you hand to someone.
 
 - `vikix share rule firefox-right`: a QR code on the screen (or a short file) holding the rule's text, its one-line description and who made it. Another Vikix scans it (the phone, or the webcam, or the file) and Esploro's review panel shows the rule as text with Apply and Cancel; it lands in `~/.stumpwm.d/rules.lisp` with a comment naming the giver. Snapshot first, undo after.
-- The same for a key, a theme, a web app, a saved layout, a music pattern (`DESIGN-music.md`), a Cuis package.
+- The same for a key, a theme, a web app, a saved layout, a music pattern (`plans/DESIGN-music.md`), a Cuis package.
 - Because the card is the rule's text and the receiver reads it before applying, this is sharing without a store: no registry, no accounts, no trust in a server. The plugins repo stays for code; cards are for the small things people make for themselves.
 - A classroom of Vikix machines (should the children's account ever return) is a teacher showing a card.
 
@@ -289,7 +289,7 @@ Several agents on one desktop, and the desktop as their manager.
 
 - Vid runs several Claude sessions at once, and other agents beside them. Today they share the desktop by luck. Vikix can run the office: each agent gets a workspace of its own, a colour in the bar, its windows marked with its name (6), and a rule that it may not touch another agent's windows or files without the snapshot journal recording the crossing.
 - `vikix agents`: who is running, on what, since when, how many files each has changed (from the snapshots), which is waiting for a yes (the `agent-waiting` plugin already knows). `vikix agents stop NAME`, `vikix agents hand NAME z13` (7).
-- The door module (`DESIGN-security.md`) gives each agent its own audit line and its own allow-list; a cheaper model gets a shorter list.
+- The door module (`plans/DESIGN-security.md`) gives each agent its own audit line and its own allow-list; a cheaper model gets a shorter list.
 - When two agents want the same file, the second is told, and the journal shows both plans side by side for you to choose, as Esploro's review panel does for one.
 
 Why only Vikix: it starts the agents, keeps the journal, owns the workspaces and holds the door; no other desktop knows an agent from a terminal.
@@ -349,8 +349,8 @@ First step: `vikix note --on COMMAND`, shown by `vikix COMMAND -h` and in Super+
 
 A line each, for the next session with Vid:
 
-- **The desktop as a musical instrument** beyond the sketchpad: the bar's beat, keys as pads, is in `DESIGN-music.md`; what isn't is the other direction, the desktop's own events as sound: a quiet tick for a finished build, a chord for a passed test suite, so a long job can be heard from across the room.
-- **Draw a rhythm.** The music sketchpad's codeless face (`DESIGN-music.md`, `DESIGN-cuis.md`) could take ink on the Z13: a stroke per hit, a longer stroke a longer note, the row redrawn as cells; the pen as the first instrument.
+- **The desktop as a musical instrument** beyond the sketchpad: the bar's beat, keys as pads, is in `plans/DESIGN-music.md`; what isn't is the other direction, the desktop's own events as sound: a quiet tick for a finished build, a chord for a passed test suite, so a long job can be heard from across the room.
+- **Draw a rhythm.** The music sketchpad's codeless face (`plans/DESIGN-music.md`, `plans/DESIGN-cuis.md`) could take ink on the Z13: a stroke per hit, a longer stroke a longer note, the row redrawn as cells; the pen as the first instrument.
 - **Vikix in the browser.** The site's sketch of the desktop could be the real thing: Void in v86 (x86 in WebAssembly) with Vikix installed, slow but true, so "try it without installing" is a click. Measure first whether StumpWM on v86 is bearable.
 - **A conversation partner in Esperanto.** Idea 1 plus the voice keys: a daily few minutes of spoken Esperanto with the local model at your level, the desktop as the patient speaker every learner lacks (Vid's own conversation skill is the model for how it talks).
 - **Teach the agent your desktop by showing it**: record (3) a few minutes of how you work, and the apprentice (`IDEAS.md`) reads that instead of the shell history alone.

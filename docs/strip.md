@@ -170,4 +170,4 @@ A window's height in its column is a weight, 1 for an even share, kept by the wi
 
 The drawn overview (`Super+o`) is `overview.lisp`; the strip gives it its columns as boxes through `viri-overview-boxes`. An AI agent sees a strip through the `desktop` tool of `vikix mcp`, which lists its columns left to right with their widths and which are on the screen ([Working with AI](ai.md)).
 
-The design, with what was planned and what building it changed, is `DESIGN-viri.md` in the checkout.
+The design, with what was planned and what building it changed, is `plans/DESIGN-viri.md` in the checkout.

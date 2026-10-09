@@ -1182,7 +1182,7 @@ def check_lines(targets, where, ours, problems, notes):
         if depth == "chapter":
             if ours:
                 # Vikix's pages point at Vikix's guides, the manuals and its own
-                # files, never at anyone's books (DESIGN-what.md).
+                # files, never at anyone's books (plans/DESIGN-what.md).
                 problems.append(f"{where}: chapter: is no line of Vikix's pages (they point at its guides, the manuals and its files only)")
                 continue
             file, heading = chapter_file(target)
