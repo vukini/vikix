@@ -29,14 +29,14 @@ chmod +x "$t/bin/notify-send"
 export PATH="$t/bin:$PATH"
 wm_start
 
-ev() { HOME=$home VIKIX_SWANK_PORT=$port VIKIX_SOCKET=$sock VIKIX_EVAL_PARENT=1 python3 "$here/bin/vikix-eval" "$@" 2>&1; }   # VIKIX_EVAL_PARENT: the test may itself run under an agent
+ev() { HOME=$home VIKIX_SWANK_PORT=$port VIKIX_SOCKET=$wm_socket VIKIX_EVAL_PARENT=1 python3 "$here/bin/vikix-eval" "$@" 2>&1; }   # VIKIX_EVAL_PARENT: the test may itself run under an agent
 secs() { python3 -c 'import sys; print(float(sys.argv[2]) - float(sys.argv[1]))' "$1" "$2"; }
 now() { date +%s.%N; }
 
 # --- there, yours alone, and the same answers --------------------------------------------
-check "the socket is there" test -S "$sock"
-check "and 600, is $(stat -c %a "$sock")" test "$(stat -c %a "$sock")" = 600
-check "the desktop says it serves it: $(ask '(princ (vikix-socket-status))')" test "$(ask '(princ (vikix-socket-status))')" = "$sock"
+check "the socket is there" test -S "$wm_socket"
+check "and 600, is $(stat -c %a "$wm_socket")" test "$(stat -c %a "$wm_socket")" = 600
+check "the desktop says it serves it: $(ask '(princ (vikix-socket-status))')" test "$(ask '(princ (vikix-socket-status))')" = "$wm_socket"
 out=$(ev --socket '(princ (+ 1 2))') && st=0 || st=$?
 check "a read over the socket (exit $st): $out" test "$st" = 0 -a "$(head -1 <<<"$out")" = 3
 check "with its value after it" grep -q '^=> 3$' <<<"$out"
@@ -45,7 +45,7 @@ check "an error over the socket is error: ..., exit 1 (got $st): $out" test "$st
 out=$(ev --socket '(message "over the socket")') && st=0 || st=$?
 check "an act goes to the main thread and runs (exit $st)" test "$st" = 0
 check "and did: $(ask '(princ (first (first (screen-last-msg (current-screen)))))')" test "$(ask '(princ (first (first (screen-last-msg (current-screen)))))')" = "over the socket"
-check "a read is not run in the main thread: $(ev --socket '(princ (if (in-main-thread-p) :main :thread))')" grep -q '^THREAD' <<<"$(ev --socket '(princ (if (in-main-thread-p) :main :thread))')"
+check "a read is answered by the main thread when it is free, so it follows what the desktop was doing: $(ev --socket '(princ (if (in-main-thread-p) :main :thread))')" grep -q '^MAIN' <<<"$(ev --socket '(princ (if (in-main-thread-p) :main :thread))')"
 check "a sort is: $(ev --socket '(princ (if (in-main-thread-p) :main :thread)) (sort (list 2 1) (function <))')" grep -q '^MAIN' <<<"$(ev --socket '(princ (if (in-main-thread-p) :main :thread)) (sort (list 2 1) (function <))')"
 check "the same over Swank still: $(ev --swank '(princ (+ 2 2))' | head -1)" test "$(ev --swank '(princ (+ 2 2))' | head -1)" = 4
 check "several forms from stdin" test "$(printf '(princ 1)\n(princ 2)\n' | ev --socket | grep -v '^=>' | tr -d '\n')" = 12
@@ -57,12 +57,13 @@ sleep 0.5
 t0=$(now); out=$(ev --socket '(princ (length (screen-groups (current-screen))))') && st=0 || st=$?; took=$(secs "$t0" "$(now)")
 check "a read is answered with the menu open, in ${took}s (exit $st): $out" test "$st" = 0
 check "and quickly" python3 -c 'import sys; sys.exit(0 if float(sys.argv[1]) < 1.5 else 1)' "$took"
+check "by the client's thread, since the main one is busy: $(ev --socket '(princ (if (in-main-thread-p) :main :thread))')" grep -q '^THREAD' <<<"$(ev --socket '(princ (if (in-main-thread-p) :main :thread))')"
 t0=$(now); out=$(ev --socket '(message "late act")') && st=0 || st=$?; took=$(secs "$t0" "$(now)")
 check "an act with the menu open is given up on within the deadline, in ${took}s (exit $st): $out" test "$st" = 1
 check "and says so" grep -q "did not answer within" <<<"$out"
 key Escape
 sleep 1
-check "a form given up on never runs later: $(ask '(princ (first (first (screen-last-msg (current-screen)))))')" bash -c "[ \"\$(HOME=$home VIKIX_SWANK_PORT=$port VIKIX_SOCKET=$sock python3 '$here/bin/vikix-eval' '(princ (first (first (screen-last-msg (current-screen)))))' 2>&1 | head -1)\" != 'late act' ]"
+check "a form given up on never runs later: $(ask '(princ (first (first (screen-last-msg (current-screen)))))')" bash -c "[ \"\$(HOME=$home VIKIX_SWANK_PORT=$port VIKIX_SOCKET=$wm_socket python3 '$here/bin/vikix-eval' '(princ (first (first (screen-last-msg (current-screen)))))' 2>&1 | head -1)\" != 'late act' ]"
 ask '(setf *vikix-eval-timeout* 10)' >/dev/null
 
 # --- the door, in the thread --------------------------------------------------------------------
@@ -77,7 +78,7 @@ out=$(ev --socket --door '(princ (if (in-main-thread-p) :main :thread)) (gnext)'
 check "an agent's switch runs, in the main thread (exit $st): $out" test "$st" = 0 && grep -q '^MAIN' <<<"$out"
 
 # --- clients that misbehave ------------------------------------------------------------------
-python3 - "$sock" <<'PY'
+python3 - "$wm_socket" <<'PY'
 import socket, sys
 for data in (b"", b"rubbish\n", b"eval me x\n(princ", b"\xff\xfe\n"):
     s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM); s.settimeout(10); s.connect(sys.argv[1])
@@ -94,22 +95,22 @@ check "two clients at once: $b, $(head -1 "$t/a")" test "$b" = B -a "$(head -1 "
 check "the server's thread is still the one" test "$(ask '(princ (if (sb-thread:thread-alive-p *vikix-socket-thread*) 1 0))')" = 1
 
 # --- without the socket: Swank; and a reload makes it anew -------------------------------------
-mv "$sock" "$sock.away"
+mv "$wm_socket" "$wm_socket.away"
 out=$(ev '(princ 5)') && st=0 || st=$?
 check "with the socket gone, vikix eval falls back to Swank (exit $st): $out" test "$st" = 0 -a "$(head -1 <<<"$out")" = 5
 out=$(ev --socket '(princ 5)') && st=0 || st=$?
 check "--socket with the socket gone says so, exit 2 (got $st): $out" test "$st" = 2 && grep -q "didn't answer" <<<"$out"
-rm -f "$sock.away"
+rm -f "$wm_socket.away"
 ask '(loadrc)' >/dev/null 2>&1 || true
-for _ in $(seq 1 40); do [ -S "$sock" ] && break; sleep 0.25; done
-check "a reload makes the socket anew" test -S "$sock"
+for _ in $(seq 1 40); do [ -S "$wm_socket" ] && break; sleep 0.25; done
+check "a reload makes the socket anew" test -S "$wm_socket"
 check "and it answers: $(ev --socket '(princ 8)' | head -1)" test "$(ev --socket '(princ 8)' | head -1)" = 8
 check "one accepting thread, not two: $(ask '(princ (count "vikix-socket" (sb-thread:list-all-threads) :key (function sb-thread:thread-name) :test (function equal)))')" \
   test "$(ask '(princ (count "vikix-socket" (sb-thread:list-all-threads) :key (function sb-thread:thread-name) :test (function equal)))')" = 1
 
 # --- a test's StumpWM never takes the desktop's path --------------------------------------------
-check "a StumpWM with VIKIX_SWANK_PORT set and no VIKIX_SOCKET serves nothing: $(ask '(princ (let ((*vikix-socket-path* nil)) (sb-posix:unsetenv "VIKIX_SOCKET") (prog1 (vikix-socket-path) (sb-posix:setenv "VIKIX_SOCKET" "'"$sock"'" 1))))')" \
-  test "$(ask '(princ (let ((*vikix-socket-path* nil)) (sb-posix:unsetenv "VIKIX_SOCKET") (prog1 (vikix-socket-path) (sb-posix:setenv "VIKIX_SOCKET" "'"$sock"'" 1))))')" = NIL
+check "a StumpWM with VIKIX_SWANK_PORT set and no VIKIX_SOCKET serves nothing: $(ask '(princ (let ((*vikix-socket-path* nil)) (sb-posix:unsetenv "VIKIX_SOCKET") (prog1 (vikix-socket-path) (sb-posix:setenv "VIKIX_SOCKET" "'"$wm_socket"'" 1))))')" \
+  test "$(ask '(princ (let ((*vikix-socket-path* nil)) (sb-posix:unsetenv "VIKIX_SOCKET") (prog1 (vikix-socket-path) (sb-posix:setenv "VIKIX_SOCKET" "'"$wm_socket"'" 1))))')" = NIL
 out=$(env -u VIKIX_SOCKET XDG_RUNTIME_DIR="$t" VIKIX_SWANK_PORT=9 python3 "$here/bin/vikix-eval" --socket '(princ 1)' 2>&1) && st=0 || st=$?
 check "a test's vikix eval (VIKIX_SWANK_PORT set) never asks the runtime dir's socket (exit $st): $out" test "$st" = 2 && grep -q "no socket" <<<"$out"
 

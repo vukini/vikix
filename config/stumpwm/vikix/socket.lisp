@@ -9,9 +9,15 @@
 ;;;; authentication and no secret is sent; a thread of Vikix's accepts each
 ;;;; client and answers it in a thread of its own. Forms that only read Lisp
 ;;;; state (the windows, the workspaces, a key, the rules, the palette's
-;;;; rows: *vikix-socket-reads*, the door's list less what acts or draws)
-;;;; are evaluated right there, so a read is answered while a menu is open;
-;;;; anything else goes to the main thread as before, with its deadline
+;;;; rows: the door's list less *vikix-socket-acts*) are given to the main
+;;;; thread first, so the answer comes after whatever the desktop was
+;;;; already doing, as it did over Swank: the key just pressed has been
+;;;; handled. The wait is in slices (*vikix-socket-read-wait*): after a
+;;;; slice without an answer, a main thread that used no processor time
+;;;; in it is idle without answering, which is a menu or a prompt (or a
+;;;; program it waits on), and the client's thread evaluates the read
+;;;; itself; one that was working gets another slice, up to the deadline.
+;;;; Anything else goes to the main thread as before, with its deadline
 ;;;; (*vikix-eval-timeout*), and a form given up on never runs later. An
 ;;;; agent's forms pass the door first (door.lisp), in the thread.
 ;;;;
@@ -70,6 +76,36 @@ go to the main thread. Everything else on the door's list is a read.")
   "The names a form may call and still be answered in the socket's thread."
   (set-difference *vikix-door-allowed* *vikix-socket-acts* :test #'string=))
 
+(defparameter *vikix-socket-read-wait* 0.3
+  "A slice of the wait for the main thread, in seconds: after one without
+an answer in which the main thread used no processor time (a menu, a
+prompt), the client's thread answers a read itself.")
+
+(defun vikix-socket-in-main (text)
+  "TEXT's forms in the main thread, or, when it is idle without answering,
+here. The status and what was printed."
+  (let ((done (sb-thread:make-semaphore))
+        (output "") (status :error) (cancelled nil))
+    (call-in-main-thread
+     (lambda ()
+       (unwind-protect
+            (unless cancelled
+              (setf output (with-output-to-string (*standard-output*)
+                             (setf status (vikix-eval-forms text)))))
+         (sb-thread:signal-semaphore done))))
+    (loop with waited = 0
+          for ticks = (vikix-main-ticks)
+          do (when (sb-thread:wait-on-semaphore done :timeout *vikix-socket-read-wait*)
+               (return (values status output)))
+             (incf waited *vikix-socket-read-wait*)
+             (when (or (>= waited *vikix-eval-timeout*)
+                       (eql ticks (vikix-main-ticks)))   ; idle, not answering: a menu or a prompt
+               (setf cancelled t)
+               (return (values :thread
+                               (with-output-to-string (*standard-output*)
+                                 (setf status (vikix-eval-forms text)))
+                               status))))))
+
 (defun vikix-socket-read-only-p (forms)
   "Do FORMS only read Lisp state? Then the thread answers them itself. The
 door's walker says, with the reads as its list and nothing else (not the
@@ -93,7 +129,10 @@ the thread. A read is answered here; anything else in the main thread."
                       (let ((forms (vikix-door-read text)))
                         (cond ((and door (not (fboundp 'vikix-door-check))) :missing-door)
                               ((and door (vikix-eval-door forms text from)) :held)
-                              ((vikix-socket-read-only-p forms) (vikix-eval-forms text))
+                              ((vikix-socket-read-only-p forms)
+                               (multiple-value-bind (where printed here) (vikix-socket-in-main text)
+                                 (write-string printed)
+                                 (if (eq where :thread) here where)))
                               (t (vikix-eval-for-agent text))))
                     (error (e)
                       (fresh-line)

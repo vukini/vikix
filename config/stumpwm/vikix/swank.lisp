@@ -136,8 +136,10 @@ when one of them calls what the door doesn't let an agent call."
 
 (defun vikix-eval-for-agent (text &key door from)
   "Evaluate the forms in TEXT in StumpWM's main thread and return :OK,
-:ERROR, or :HELD when DOOR is set and the door kept them for the user.
-What they print goes to *standard-output*, which Swank sends back."
+:ERROR, :HELD when DOOR is set and the door kept them for the user, or
+:BUSY when the main thread didn't answer within *vikix-eval-timeout* (the
+forms won't run later). What they print goes to *standard-output*, which
+Swank sends back."
   (cond
     ((in-main-thread-p)
      (vikix-eval-forms text :door door :from from))
@@ -172,4 +174,4 @@ What they print goes to *standard-output*, which Swank sends back."
                (format t "error: StumpWM's main thread did not answer within ~a s.~%~
                           Is a menu or a prompt open? Close it and try again (nothing will run later).~%"
                        *vikix-eval-timeout*)
-               :error))))))
+               :busy))))))

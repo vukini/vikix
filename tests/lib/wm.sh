@@ -63,8 +63,8 @@ wm_setup() {
   echo "wm-test" > "$home/.slime-secret"; chmod 600 "$home/.slime-secret"
   # Vikix's own socket (socket.lisp), in the test's folder: vikix eval tries
   # it first, as on the desktop; a test of Swank itself asks with --swank.
-  sock="$t/vikix.sock"
-  export VIKIX_SOCKET="$sock"
+  wm_socket="$t/vikix.sock"      # its own name: tests keep Emacs's in sock
+  export VIKIX_SOCKET="$wm_socket"
   touch "$home/.local/state/vikix/welcome"     # no welcome terminal
 }
 
@@ -76,7 +76,7 @@ wm_start() {
   [ "$(ask '(princ 1)')" = 1 ] || { echo "FAIL: the test StumpWM didn't start: $(tail -5 "$t/wm.log")"; exit 1; }
 }
 
-ask() { HOME=$home VIKIX_SWANK_PORT=$port VIKIX_SOCKET=$sock python3 "$here/bin/vikix-eval" "$1" 2>&1 | grep -v '^=> ' || true; }
+ask() { HOME=$home VIKIX_SWANK_PORT=$port VIKIX_SOCKET=$wm_socket python3 "$here/bin/vikix-eval" "$1" 2>&1 | grep -v '^=> ' || true; }
 
 win() {   # win TITLE [CLASS]
   LIBGL_ALWAYS_SOFTWARE=1 alacritty --class "${2:-viritest}" --title "$1" -e sleep 300 >/dev/null 2>&1 &

@@ -360,7 +360,7 @@ def finish(status, printed):
         sys.stdout.write("\n")
     if status == "HELD":
         return 3
-    return 0 if status == "OK" else 1
+    return 0 if status == "OK" else 1     # BUSY (the deadline) is 1 too, its message printed above
 
 
 if __name__ == "__main__":
