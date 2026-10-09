@@ -146,6 +146,10 @@
 #   vikix esploro setup|status|doctor|uninstall
 #                         Esploro, a file explorer in Common Lisp (vikix add
 #                         esploro; Super+e)
+#   vikix cuis setup|rebuild|run|status|doctor|uninstall
+#                         Cuis Smalltalk: a live image built from Vikix's
+#                         packages, with a door for vikix eval --cuis (vikix
+#                         add cuis)
 #   vikix mcp register|unregister|tools|status
 #                         the desktop as an MCP server, for Claude Code and other agents
 #   vikix agent         the AI agent, after a snapshot of your files (alias: a):
@@ -568,6 +572,11 @@ cmd_update() {
     if is_chosen esploro; then
       bash "$VIKIX_DIR/bin/vikix-esploro" setup || failed+=("esploro")
     fi
+    # Cuis (vikix add cuis): a release that moves the pin fetches it, one
+    # that changes Vikix's packages builds the image again; else nothing.
+    if is_chosen cuis; then
+      bash "$VIKIX_DIR/bin/vikix-cuis" setup || failed+=("cuis")
+    fi
   fi
   if [ "$part" = all ] || [ "$part" = tools ]; then
     # llm (vikix ai llm) is installed with uv, outside the stages: bring it
@@ -716,6 +725,10 @@ cmd_doctor() {
   if is_chosen esploro; then
     bash "$VIKIX_DIR/bin/vikix-esploro" doctor || ok=0
   fi
+  # Cuis Smalltalk (vikix add cuis): at the pin, the image built, the door.
+  if is_chosen cuis; then
+    bash "$VIKIX_DIR/bin/vikix-cuis" doctor || ok=0
+  fi
   if [ ! -L "$HOME/.stumpwm.d/init.lisp" ]; then
     warn "$HOME/.stumpwm.d/init.lisp is not Vikix's"; ok=0
   fi
@@ -858,6 +871,12 @@ yours_exclude() {
 /.stumpwm.d/*.log*
 /.stumpwm.d/history
 /.config/vikix/secrets/
+/cuis/*.image
+/cuis/*.changes
+/cuis/*.sources
+/cuis/Logs/
+/cuis/UserChanges/
+/cuis/.build/
 *.vikix-bak.*
 *.fasl
 *~
@@ -1823,6 +1842,7 @@ main() {
     dictate)     shift; exec "$VIKIX_DIR/bin/vikix-dictate" "$@" ;;
     lisp-apps)   shift; exec "$VIKIX_DIR/bin/vikix-lisp-apps" "$@" ;;
     esploro)     shift; exec "$VIKIX_DIR/bin/vikix-esploro" "$@" ;;
+    cuis)        shift; exec "$VIKIX_DIR/bin/vikix-cuis" "$@" ;;
     plugin|plugins) shift; exec "$VIKIX_DIR/bin/vikix-plugin" "$@" ;;
     records)     shift; exec "$VIKIX_DIR/bin/vikix-records" "$@" ;;
     screens)     shift; exec "$VIKIX_DIR/bin/vikix-screens" "$@" ;;

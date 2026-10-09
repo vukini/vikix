@@ -5,7 +5,7 @@
 #                         sbcl), battery, memory, home, services, backup (with
 #                         restic), image, theme, theme-import, bar, rofi,
 #                         wallpaper, examples, dev-ai, notes, project, drives, firmware, fingerprint, firewall, updates, notifications, idle, lock, lazarus, capture,
-#                         mimeapps, nightlight, update, windows, ai, ai-local, llm, ai-keys, agents, debug, dictate, voice, lisp-apps, esploro, mcp, swank (with Quicklisp), errors (with Quicklisp's StumpWM), webapp, features, nvim, emacs, welcome, menu (with sbcl), docs-open, nyxt (with sbcl), pkg, oneline, installer, man, day, info (with makeinfo),
+#                         mimeapps, nightlight, update, windows, ai, ai-local, llm, ai-keys, agents, debug, dictate, voice, lisp-apps, esploro, cuis, mcp, swank (with Quicklisp), errors (with Quicklisp's StumpWM), webapp, features, nvim, emacs, welcome, menu (with sbcl), docs-open, nyxt (with sbcl), pkg, oneline, installer, man, day, info (with makeinfo),
 #                         and on Void also packages and dry-run
 #   tests/run.sh --quick  the same without the slow ones that check only
 #                         one corner: packages and dry-run (Void's mirror,
@@ -48,7 +48,7 @@ case $mode in
 esac
 tests=(lint)
 if command -v sbcl >/dev/null; then tests+=(lisp); else echo "(lisp needs sbcl; skipped here)"; fi
-tests+=(battery memory gestures home services lisp-stage image theme theme-import bar rofi wallpaper mimeapps examples dev-ai notes project drives firmware fingerprint firewall updates notifications idle lock queue release lazarus capture nightlight update try windows ai ai-local llm ai-keys agents debug dictate voice lisp-apps esploro hype publish winapps learn mcp swank errors bitwarden plugin records obsidian docs-check screens wifi docs vk webapp features nvim emacs editor-theme welcome menu docs-open nyxt pkg oneline installer man changed-map day back viri main drawer layouts rules keys reload resume palette used registry maps why what gather workspaces refile office titles house handoff tester office-ui tray focus propose door socket events focus-time pixmaps times soak rescue)
+tests+=(battery memory gestures home services lisp-stage image theme theme-import bar rofi wallpaper mimeapps examples dev-ai notes project drives firmware fingerprint firewall updates notifications idle lock queue release lazarus capture nightlight update try windows ai ai-local llm ai-keys agents debug dictate voice lisp-apps esploro cuis hype publish winapps learn mcp swank errors bitwarden plugin records obsidian docs-check screens wifi docs vk webapp features nvim emacs editor-theme welcome menu docs-open nyxt pkg oneline installer man changed-map day back viri main drawer layouts rules keys reload resume palette used registry maps why what gather workspaces refile office titles house handoff tester office-ui tray focus propose door socket events focus-time pixmaps times soak rescue)
 if command -v restic >/dev/null; then tests+=(backup); else echo "(backup needs restic; skipped here)"; fi
 if command -v makeinfo >/dev/null; then tests+=(info); else echo "(info needs makeinfo; skipped here)"; fi
 # --quick leaves these out (the run says so); the full run and GitHub keep them.

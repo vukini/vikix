@@ -703,6 +703,9 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command dropbox "Dropbox"
   :run "vikix-dropbox"
   :menu "Apps" :needs "dropbox")
+(define-vikix-command cuis "Cuis Smalltalk: a live image, changeable while it runs"
+  :run "exec cuis"
+  :menu "Apps" :needs "~/.local/bin/cuis")
 (define-vikix-command windows-vm "Windows (the VM)"
   :do (run-shell-command (format nil "vikix-windows open || ~a -e sh -c 'vikix windows status; printf \"\\nEnter closes this window. \"; read x'" *vikix-terminal*))
   :menu "Apps" :needs "virt-viewer")

@@ -2,7 +2,7 @@
 
 Cuis Smalltalk as a Vikix citizen: installed, themed, with a door for `vikix eval` and the agent, and then the things a live image can do for the desktop.
 
-Drafted 2026-10-03 with Vid. Kept honest like the other designs: what ships is deleted here, what changes is dated.
+Drafted 2026-10-03 with Vid. Kept honest like the other designs: what ships is deleted here, what changes is dated. Picked up 2026-10-09 (TODO 88): Phase 0 is built, see the dated notes.
 
 ---
 
@@ -23,27 +23,32 @@ Cuis is small (the whole image is a few megabytes), built for teaching, and ever
 **Packages, not an image.** Cuis packages (`.pck.st`) are plain text and diff in git; a prebuilt image doesn't. So nothing hand-made survives in the image:
 
 ```
- ~/.local/opt/cuis/           the VM and the base image, pinned (Vikix's)
- cuis/*.pck.st (this repo)    Vikix's packages: VikixTheme, VikixServer,
+ ~/.local/opt/cuis/base/      the release as the tag has it, Linux parts only (Vikix's)
+ cuis/*.pck.st (this repo)    Vikix's packages: VikixServer (in), VikixTheme,
                               VikixDesktop, VikixMusic, VikixLessons
- ~/cuis/                      the user's packages and their working image (yours)
- vikix cuis rebuild           fresh base image + Vikix's packages + the user's,
-                              saved as ~/cuis/vikix.image
+ ~/cuis/                      the user's: vikix.image and its .changes, NewPackages/
+                              (their packages), UserChanges/, Logs/, preferences;
+                              links to the release's Packages, CoreUpdates,
+                              TrueTypeFonts and sources file, and Vikix to cuis/
+ vikix cuis rebuild           fresh base image + its core updates + Vikix's packages
+                              + the user's, saved as ~/cuis/vikix.image
 ```
 
-- `vikix add cuis` downloads the VM and the image from the Cuis-Smalltalk-Dev release, pinned and checksummed as Ollama is, into `~/.local/opt/cuis/`; builds the image headless by filing in the packages; writes `~/.local/bin/cuis` (the launcher, with the `-ud` pinning that keeps user files out of `$PWD`, moved here from the dotfiles) and a `.desktop` file; adds the Super+m entry.
-- `vikix update` rebuilds when Vikix's packages or the pin changed; the user's packages reload on top. `~/cuis/` is in `yours.list`, so `vikix undo` covers Smalltalk work. Cuis's own `.changes` file logs every method edit besides, which is the function time machine from IDEAS for free.
+> 2026-10-09, built: Cuis has no GitHub releases; a stable version is a tag of the repository (`#BaseForCuis7.8`, whose archive holds the VM for every platform, the base image *before* that version's 979 core updates, and the updates), so the pin is the tag's archive by checksum, and the build applies the updates (`-u`). Cuis finds its Packages, CoreUpdates and TrueTypeFonts beside the image's folder, or in it, and the sources file beside the image: so `~/cuis` is both Cuis's base and the user's folder, with links into the release. That makes `Feature require: 'Network-Kernel'` work from the user's image, and NewPackages (Cuis's own place for a user's packages) is where theirs go. The snapshot history covers `~/cuis` less the image, the changes file, Logs and UserChanges (`yours_exclude`).
+
+- `vikix add cuis` (in, 2026-10-09: `bin/vikix-cuis`) downloads the tag's archive, pinned and checksummed as Ollama is, into `~/.local/opt/cuis/`; builds the image with no window (`-vm-display-null`, `-s build.st`, two seconds) by requiring the packages by path; writes `~/.local/bin/cuis` (a wrapper for `vikix cuis run`, which starts the image with `-ud ~/cuis`, replacing the dotfiles' launcher) and a `.desktop` file; the Super+m entry is in the registry (Apps). A package of Vikix's that doesn't load fails the build; one of the user's is warned of and left out.
+- `vikix update` rebuilds when Vikix's packages or the pin changed (the stamp `~/cuis/.vikix-built`); the user's packages reload on top. `~/cuis/` is in `yours.list`, so `vikix undo` covers Smalltalk work. Cuis's own `.changes` file logs every method edit besides, which is the function time machine from IDEAS for free.
 - **Theme:** `vikix theme NAME` writes `cuis/VikixTheme-NAME.st` from the `.theme` file (the colours, the font) and files it into any running image through the door; the next launch reads it from disk. Cuis's `Theme` class and its subclasses are made for this.
 - **Font:** the Vikix font as a TrueType loaded into the image at build, so Cuis looks like the rest.
 - **Doctor:** `vikix cuis doctor`: VM runs, image at the pin, packages loaded, the door answering. `vikix doctor` carries the line.
 
-**The door.** `VikixServer`, a TCP listener on `127.0.0.1:4005`:
+**The door.** `VikixServer`, a TCP listener on `127.0.0.1:4005` (in, 2026-10-09: `cuis/VikixServer.pck.st`, 200 lines; `vikix eval --cuis`):
 
-- The first line is the password, `~/.slime-secret` (the same file Swank uses), with five seconds to send it; a wrong or late one closes that client and never the server, as `swank-guard.lisp` does for Swank.
-- Then one expression a line, `Compiler evaluate:` in the image, the printString back, errors as `error: …` instead of a debugger.
-- `vikix eval --cuis '3 + 4'` from a shell (`bin/vikix-eval` learns a flag; the same Python, a different port and no Swank framing). `vikix mcp` gains `cuis_eval` behind `--allow-eval`, and a read-only `cuis_state` (image, packages, open windows).
-- The allow-list idea from IDEAS applies: an expression is parsed and walked before it runs; Smalltalk's syntax is small enough that the walker is short. Sends to `Smalltalk`, `OSProcess`, file streams and the like are refused or asked.
-- The server starts with the image when `~/.slime-secret` exists and stops when the image saves and quits. It never listens on any address but loopback.
+- The first line is the password, `~/.slime-secret` (the same file Swank uses), with five seconds to send it; a wrong or late one closes that client and never the server, as `swank-guard.lisp` does for Swank. The image reads the file at each client, so a new secret needs no restart.
+- Then a request: lines ending with a line of one dot (a line that starts with a dot gets one more), so an expression may span lines; `Compiler evaluate:` in the image's UI process (`UISupervisor whenUIinSafeState:`, thirty seconds, else "the image is busy"); back a line `ok` or `error`, the printString's lines or the error (`ZeroDivide`, `Error: not this way`) the same way, and a dot. UTF-8 both ways (`asUtf8Bytes` out: a String's own bytes aren't).
+- `vikix eval --cuis '3 + 4'` from a shell prints `=> 7`; an error is `error: ...` and exit 1, nothing listening exit 2. Still to come: `vikix mcp`'s `cuis_eval` behind `--allow-eval`, and the read-only `cuis_state` (image, packages, open windows).
+- The allow-list idea from IDEAS applies: an expression is parsed and walked before it runs; Smalltalk's syntax is small enough that the walker is short. Sends to `Smalltalk`, `OSProcess`, file streams and the like are refused or asked. Until it exists, an agent's `vikix eval --cuis` is held (exit 3, as the Lisp door holds): the user runs it.
+- The launcher starts the server (`-d 'VikixServer startOn: 4005 secret: ...'`) when `~/.slime-secret` exists; the image's startUp and shutDown lists stop it before a save or quit and start it again, on the same port, when a saved image is opened. A port already taken leaves the door closed (`vikix cuis doctor` says so). It never listens on any address but loopback.
 
 **The apps,** each its own package, each loaded by `vikix add cuis` but harmless when unused:
 
@@ -79,14 +84,14 @@ Cuis is small (the whole image is a few megabytes), built for teaching, and ever
 
 ### Must have (P0)
 
-1. **The feature**: pinned VM and image from the Cuis-Smalltalk-Dev release (checksummed), headless build loading `cuis/*.pck.st`, `~/.local/bin/cuis` with `-ud`, a `.desktop`, the Super+m entry, `~/cuis/` in `yours.list`, `features.list` and the README row.
+1. **The feature**: in (2026-10-09), all of it but the theme: pinned archive, checksummed; headless build loading `cuis/*.pck.st`; `~/.local/bin/cuis` with `-ud`; a `.desktop`; the Super+m entry; `~/cuis/` in `yours.list`; `features.list`; the README section.
    - [ ] On the test VM: `vikix add cuis && cuis` opens a themed image within 10 s of launch
-   - [ ] `vikix cuis rebuild` twice gives images whose package list and theme are identical
+   - [x] `vikix cuis rebuild` twice gives images whose package list is identical (`tests/cuis.sh` builds from the real release when it is at hand)
 2. **`VikixTheme`** written from the `.theme` file by `vikix theme`, filed in live when an image runs, read at launch otherwise; the Vikix font loaded.
    - [ ] `vikix theme paper` then `vikix theme void`: the running image follows both
-3. **`VikixServer`** and `vikix eval --cuis`: loopback, password, five-second deadline, errors as text; `tests/cuis.sh` with `VIKIX_SWANK_PORT=9` and a port of its own so it never touches the live image.
-   - [ ] A wrong password closes the client; the next correct one is served
-   - [ ] `vikix eval --cuis '3 + 4'` prints `7`
+3. **`VikixServer`** and `vikix eval --cuis`: in (2026-10-09): loopback, password, five-second deadline, errors as text; `tests/cuis.sh` with `VIKIX_SWANK_PORT=9` and a port of its own so it never touches the live image.
+   - [x] A wrong password closes the client; the next correct one is served
+   - [x] `vikix eval --cuis '3 + 4'` prints `=> 7`
 4. **`vikix mcp`**: `cuis_state` (read) and `cuis_eval` (behind `--allow-eval`), listed by `vikix mcp tools`; the agents' skill names them.
 5. **`vikix cuis doctor`** and the `vikix doctor` line.
 6. **`VikixDesktop`**, first version: read-only. Workspaces and windows drawn, refreshed each second, halos and inspectors working on the morphs.
@@ -110,19 +115,19 @@ Nothing. Cuis is not in void-packages (neither is Squeak or Pharo), which is why
 
 ## Open questions
 
-Blocking:
-- **Which Cuis release to pin, and does its Linux VM bundle run on glibc Void without extra libraries?** (one try on the VM; the current launcher works on the X1, so probably yes)
-- **Headless build:** does the Cuis VM run a build script with no display (`-headless` or an Xvfb)? (engineering, an hour) Decides whether `vikix add cuis` can build during install or only at first launch.
-- **The font:** can Cuis load the Vikix TrueType at build time, or only through the UI? (engineering)
+Blocking, all three answered 2026-10-09 by trying on the X1:
+- **Which Cuis release to pin:** the tag `#BaseForCuis7.8` (2026-05-29; Cuis has no GitHub releases). Its Linux VM (OpenSmalltalk 7.0-202603271636, Spur 64-bit) runs on glibc Void with libuuid and libz alone. Not yet tried on the test VM.
+- **Headless build:** `squeak -vm-display-null IMAGE -ud DIR -u -s build.st` runs with no display and no Xvfb; `-headless` does the same. The whole build, 979 updates and the packages, takes two seconds, so `vikix add cuis` builds during install. The script must end in `Smalltalk quit` (`snapshot:andQuit:` doesn't exist in 7.8; `saveAndQuit` saves first).
+- **The font:** `TrueTypeFontFamily readAllTrueTypeFontsIn: aDirectoryEntry` loads a folder of TrueType fonts from a script, so the Vikix font can come at build time (Phase 1).
 
 Non-blocking:
-- Port 4005 is a guess; check nothing else in Vikix uses it, and write it beside Swank's 4004 in the guide.
+- Port 4005: nothing else in Vikix uses it (checked 2026-10-09); it is in the README beside Swank's 4004 and Nyxt's 4006.
 - Does `VikixDesktop` poll (simplest) or does StumpWM push changes over the door? Polling first.
 - Name of the Lisp function that returns the desktop as JSON; it should be the same one `vikix mcp`'s `desktop` tool uses.
 
 ## Phasing
 
-**Phase 0, a weekend:** P0 items 1 and 3: the feature with the pinned download, the headless build with one package (`VikixServer`), and `vikix eval --cuis '3 + 4'` printing 7 on the VM. No theme, no apps.
+**Phase 0, a weekend:** done 2026-10-09 (a morning): P0 items 1 and 3, the feature with the pinned download, the headless build with one package (`VikixServer`), and `vikix eval --cuis '3 + 4'` printing 7, on the X1 (the VM is still to try). No theme, no apps.
 
 **Phase 1:** the rest of P0: theme, MCP, doctor, read-only `VikixDesktop`.
 

@@ -14,6 +14,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-battery](#vikix-battery): a warning when the battery runs low
 - [vikix-bitwarden](#vikix-bitwarden): your Bitwarden vault on the desktop
 - [vikix-bt](#vikix-bt): Bluetooth as one short line, for the mode line
+- [vikix-cuis](#vikix-cuis): Cuis Smalltalk as a Vikix program
 - [vikix-day](#vikix-day): the day as the desktop saw it, kept as a diary
 - [vikix-debug](#vikix-debug): one file that says what's going on, to attach to an issue or hand to an agent
 - [vikix-dictate](#vikix-dictate): speak, and it types what you said
@@ -131,6 +132,7 @@ The everyday command.
 - `vikix bitwarden setup|pick|lock|sync|status|uninstall` — your Bitwarden vault: Super+Alt+v types a password into any window (vikix add bitwarden)
 - `vikix lisp-apps setup|status|uninstall` — Nyxt, Lem and McCLIM's Listener: programs in Common Lisp (vikix add lisp-apps)
 - `vikix esploro setup|status|doctor|uninstall` — Esploro, a file explorer in Common Lisp (vikix add esploro; Super+e)
+- `vikix cuis setup|rebuild|run|status|doctor|uninstall` — Cuis Smalltalk: a live image built from Vikix's packages, with a door for vikix eval --cuis (vikix add cuis)
 - `vikix mcp register|unregister|tools|status` — the desktop as an MCP server, for Claude Code and other agents
 - `vikix agent` — the AI agent, after a snapshot of your files (alias: a): Claude Code, or --use opencode|codex|gemini|antigravity|aider, --local on this laptop, --default NAME, --list; --exec [NAME] for editors (stdout is the agent's), --which
 - `vikix agents [--json]` — the agents at work here: each one's folder, branch and uncommitted files, its workspace, how long it has run, and whether it works or waits for you
@@ -331,6 +333,21 @@ bt Buds +1          and another one besides
 
 Prints nothing when there is no Bluetooth, when it's switched off, or when bluetoothd isn't answering, so the bar leaves the field out. Asks bluez through bluetoothctl, each question with a time limit: a hung bluetoothd must not hold up the bar.
 
+## vikix-cuis
+
+Cuis Smalltalk as a Vikix program.
+
+- `vikix cuis setup` — Cuis 7.8 (the tag #BaseForCuis7.8 of Cuis-Smalltalk-Dev, 134 MB once, checksummed) into `~/.local/opt/cuis`; your image, `~/cuis/vikix.image`, built with no window from its base image, its core updates and Vikix's packages (VikixServer, the door); the cuis command and the launcher's entry (vikix add cuis)
+- `vikix cuis rebuild` — a fresh image from the base and the packages, with your own packages in `~/cuis/NewPackages` loaded on top; refused while Cuis runs
+- `vikix cuis run [--headless] [--port N] [ARG...]` — what the cuis command runs: your image, with the door on 127.0.0.1:4005 (`VIKIX_CUIS_PORT`, or --port; 0 for none) when `~/.slime-secret` exists; --headless draws nothing, for a script (-s FILE.st, which must end in Smalltalk quit)
+- `vikix cuis status` — what is installed, built and running
+- `vikix cuis doctor` — the VM runs, the release is at the pin, the image is built with Vikix's packages, the door answers (when Cuis runs)
+- `vikix cuis uninstall` — removes the release, the command and the entry; `~/cuis`, your image, packages and changes, stays
+
+Cuis Smalltalk as a Vikix program: a live image, pinned, built from packages, with a door for vikix eval and the agents.
+
+The door: vikix eval --cuis '3 + 4' prints 7. The image evaluates what it is sent in its own UI process, after the first line of `~/.slime-secret`, as Swank in StumpWM does (port 4004) and Nyxt (4006). An agent's expression isn't checked yet, so from an agent vikix eval --cuis is held for you to run. Cuis's own files (UserChanges, Logs, NewPackages, your preferences) are in `~/cuis`: the image is started with -ud there, so nothing lands in the folder you started it from.
+
 ## vikix-day
 
 The day as the desktop saw it, kept as a diary.
@@ -476,6 +493,7 @@ Run Lisp inside the running StumpWM and print the result.
 - `vikix eval --door FORM` — check the forms as an agent's, whoever sends them
 - `vikix eval --socket FORM` — over Vikix's socket only (no Swank), or --swank over Swank only; alone it tries the socket first
 - `vikix eval --whose` — say whose a form from here would be: yours, or an agent's and which, and whether the door stands
+- `vikix eval --cuis '3 + 4'` — Smalltalk, in the running Cuis image instead (vikix add cuis; its door, VikixServer, on 127.0.0.1:4005, `VIKIX_CUIS_PORT`): one expression, "=> " and its printString, or "error: ..."
 
 The forms are read in the STUMPWM package, so Vikix's and StumpWM's own names work without a prefix. For each form it prints what the form printed, then "=> " and the value.
 
@@ -486,6 +504,8 @@ Exit status: 0 when every form ran, 1 when one failed, 2 when StumpWM could not 
 The door (config/stumpwm/vikix/door.lisp). When an agent is above this command in the process tree (Claude Code, Codex, OpenCode, Gemini, Aider or Antigravity, with no script of Vikix's between: `vikix theme` run by an agent sends Vikix's Lisp, not the agent's), the forms are an agent's, and the desktop walks each before anything runs: every function it calls must be on the door's list (`vikix door allowed`). A form that runs a program, touches a file, defines or changes code, sets a global or waits on the desktop is held for the user instead (Super+m, Door; `vikix door`), with why printed here. Your own `vikix eval` at a terminal is yours and isn't checked. The door stands only at the desktop's own Swank (port 4004): a test's StumpWM on another port asks for it with --door.
 
 Changes made this way live in the running StumpWM only. They are gone after a restart or a reload; to keep one, put it in `~/.stumpwm.d/user.lisp`.
+
+The Cuis door (--cuis; cuis/VikixServer.pck.st, loaded by vikix cuis setup) takes the same first line of `~/.slime-secret`, then lines ending with a line of one dot (a line starting with a dot gets one more), and answers "ok" or "error", the lines of the answer the same way, and a dot. It has no walker yet, so an agent's expression is held (exit 3) for the user to run.
 
 ## vikix-features
 

@@ -1,0 +1,324 @@
+#!/usr/bin/env bash
+# vikix-cuis — Cuis Smalltalk as a Vikix program: a live image, pinned,
+# built from packages, with a door for vikix eval and the agents.
+#
+#   vikix cuis setup        Cuis 7.8 (the tag #BaseForCuis7.8 of
+#                           Cuis-Smalltalk-Dev, 134 MB once, checksummed)
+#                           into ~/.local/opt/cuis; your image,
+#                           ~/cuis/vikix.image, built with no window from
+#                           its base image, its core updates and Vikix's
+#                           packages (VikixServer, the door); the cuis
+#                           command and the launcher's entry (vikix add cuis)
+#   vikix cuis rebuild      a fresh image from the base and the packages,
+#                           with your own packages in ~/cuis/NewPackages
+#                           loaded on top; refused while Cuis runs
+#   vikix cuis run [--headless] [--port N] [ARG...]
+#                           what the cuis command runs: your image, with the
+#                           door on 127.0.0.1:4005 (VIKIX_CUIS_PORT, or
+#                           --port; 0 for none) when ~/.slime-secret exists;
+#                           --headless draws nothing, for a script
+#                           (-s FILE.st, which must end in Smalltalk quit)
+#   vikix cuis status       what is installed, built and running
+#   vikix cuis doctor       the VM runs, the release is at the pin, the
+#                           image is built with Vikix's packages, the door
+#                           answers (when Cuis runs)
+#   vikix cuis uninstall    removes the release, the command and the entry;
+#                           ~/cuis, your image, packages and changes, stays
+#
+# The door: vikix eval --cuis '3 + 4' prints 7. The image evaluates what it
+# is sent in its own UI process, after the first line of ~/.slime-secret,
+# as Swank in StumpWM does (port 4004) and Nyxt (4006). An agent's
+# expression isn't checked yet, so from an agent vikix eval --cuis is held
+# for you to run. Cuis's own files (UserChanges, Logs, NewPackages, your
+# preferences) are in ~/cuis: the image is started with -ud there, so
+# nothing lands in the folder you started it from.
+
+set -uo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+# shellcheck source=../lib/features.sh
+. "$VIKIX_DIR/lib/features.sh"
+
+# Pinned: a new release is a new set of lines here, after a try on the VM.
+# Cuis has no GitHub releases: a stable version is a tag of the repository,
+# whose archive holds the VM for every platform, the base image before that
+# version's core updates, and the updates (979 for 7.8), which the build
+# applies (-u). The checksum is GitHub's archive of the tag as downloaded on
+# 2026-10-09; GitHub keeps tag archives stable.
+CUIS_VERSION=7.8
+CUIS_TAG='#BaseForCuis7.8'
+CUIS_URL='https://github.com/Cuis-Smalltalk/Cuis-Smalltalk-Dev/archive/refs/tags/%23BaseForCuis7.8.zip'
+CUIS_SHA256=${VIKIX_CUIS_SHA256:-737650bf02b1f79567b15b61aef484e0f55bbe131f5650a6c00bd65ce01ebedb}
+CUIS_FOLDER='Cuis-Smalltalk-Dev--BaseForCuis7.8'   # the folder inside the archive
+CUIS_IMAGE=Cuis7.7-7976                            # the base image, before the updates
+CUIS_SOURCES=Cuis7.6.sources
+
+OPT="${VIKIX_CUIS_OPT:-$HOME/.local/opt/cuis}"
+BASE="$OPT/base"
+VM="$BASE/CuisVM.app/Contents/Linux-x86_64/squeak"
+CUIS="$HOME/cuis"                                   # yours: the image, your packages, Cuis's own files
+PKGS="$VIKIX_DIR/cuis"                              # Vikix's packages, loaded in name order
+CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/vikix"
+BIN="$HOME/.local/bin"
+APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+LOGS="$VIKIX_STATE/logs"
+PORT_DEFAULT=4005
+CURL=${VIKIX_CURL:-curl}   # the tests' stand-in
+
+installed() { [ -x "$VM" ] && [ "$(cat "$OPT/.vikix-pin" 2>/dev/null)" = "$CUIS_TAG" ]; }
+built() { [ -f "$CUIS/vikix.image" ] && [ "$(cat "$CUIS/.vikix-built" 2>/dev/null)" = "$(build_stamp)" ]; }
+# What the image was built from: the pin and Vikix's packages, so a change
+# to either asks for a rebuild and nothing else does.
+build_stamp() { { echo "$CUIS_TAG"; cat "$PKGS"/*.pck.st; } | sha256sum | cut -c1-16; }
+running() { pgrep -f -- "$CUIS/vikix.image" >/dev/null 2>&1; }
+package_names() { local p names=(); for p in "$PKGS"/*.pck.st; do names+=("$(basename "$p" .pck.st)"); done; echo "${names[*]}"; }
+
+# --- The release ------------------------------------------------------------------
+
+fetch() {
+  if installed; then say "Cuis $CUIS_VERSION is here ($BASE)"; return 0; fi
+  if [ "$DRY_RUN" = 1 ]; then printf '   would download Cuis %s (134 MB) into %s\n' "$CUIS_VERSION" "$BASE"; return 0; fi
+  local archive="$CACHE/cuis-$CUIS_VERSION.zip"
+  mkdir -p "$CACHE"
+  if [ -f "$archive" ] && [ "$(sha256sum "$archive" | cut -d' ' -f1)" = "$CUIS_SHA256" ]; then
+    say "Cuis $CUIS_VERSION: already downloaded"
+  else
+    say "downloading Cuis $CUIS_VERSION (134 MB, once)"
+    "$CURL" -fL --retry 3 -C - -o "$archive.part" "$CUIS_URL" || die "couldn't download $CUIS_URL"
+    if [ "$(sha256sum "$archive.part" | cut -d' ' -f1)" != "$CUIS_SHA256" ]; then
+      rm -f "$archive.part"
+      die "the download isn't what it should be (its checksum doesn't match); deleted it. Try again later."
+    fi
+    mv "$archive.part" "$archive"
+  fi
+  say "unpacking the parts this machine uses (the Linux VM, the image, the packages)"
+  rm -rf "$OPT.new"
+  mkdir -p "$OPT.new"
+  # Only what Linux x86_64 needs: the other platforms' VMs and the 32-bit
+  # image are two thirds of the archive.
+  unzip -q "$archive" -d "$OPT.new" \
+    -x "$CUIS_FOLDER/CuisVM.app/Contents/MacOS/*" "$CUIS_FOLDER/CuisVM.app/Contents/Windows-*/*" \
+       "$CUIS_FOLDER/CuisVM.app/Contents/Linux-arm64/*" "$CUIS_FOLDER/CuisImage/32BitsImage/*" \
+       "$CUIS_FOLDER/CuisVM.app/Contents/Resources/*" ||
+    { rm -rf "$OPT.new"; die "couldn't unpack $archive"; }
+  [ -d "$OPT.new/$CUIS_FOLDER" ] || { rm -rf "$OPT.new"; die "the archive doesn't hold $CUIS_FOLDER"; }
+  mv "$OPT.new/$CUIS_FOLDER" "$OPT.new/base"
+  chmod +x "$OPT.new/base/CuisVM.app/Contents/Linux-x86_64/squeak" \
+           "$OPT.new/base/CuisVM.app/Contents/Linux-x86_64/lib/squeak"/*/squeak 2>/dev/null
+  [ -x "$OPT.new/base/CuisVM.app/Contents/Linux-x86_64/squeak" ] || { rm -rf "$OPT.new"; die "the archive has no Linux VM"; }
+  [ -f "$OPT.new/base/CuisImage/$CUIS_IMAGE.image" ] || { rm -rf "$OPT.new"; die "the archive has no $CUIS_IMAGE.image"; }
+  rm -rf "$OPT"
+  mv "$OPT.new" "$OPT"
+  echo "$CUIS_TAG" > "$OPT/.vikix-pin"
+  rm -f "$archive"
+  say "Cuis $CUIS_VERSION is in $BASE"
+}
+
+# --- Your image ----------------------------------------------------------------------
+
+# ~/cuis is both what Cuis calls its base (Packages, CoreUpdates and
+# TrueTypeFonts beside the image: links into the release) and the user's
+# folder (-ud: UserChanges, Logs, NewPackages); the sources file must be
+# beside the image too. The image's own name is vikix, so Cuis's .changes
+# is vikix.changes.
+lay_out() {
+  run mkdir -p "$CUIS/NewPackages"
+  local name
+  for name in Packages CoreUpdates TrueTypeFonts; do
+    run ln -sfn "$BASE/$name" "$CUIS/$name"
+  done
+  run ln -sfn "$BASE/CuisImage/$CUIS_SOURCES" "$CUIS/$CUIS_SOURCES"
+  run ln -sfn "$BASE/CuisImage/UnicodeData.txt" "$CUIS/UnicodeData.txt"
+  run ln -sfn "$PKGS" "$CUIS/Vikix"
+}
+
+build_image() {
+  if [ "$DRY_RUN" = 1 ]; then printf '   would build %s/vikix.image from Cuis %s and %s\n' "$CUIS" "$CUIS_VERSION" "$PKGS"; return 0; fi
+  installed || die "Cuis isn't here: vikix cuis setup"
+  if running; then die "Cuis is running: close it, then vikix cuis rebuild (the image it has open would be replaced under it)"; fi
+  lay_out
+  local work="$CUIS/.build" log="$LOGS/cuis-build.log" script
+  mkdir -p "$LOGS"
+  rm -rf "$work"; mkdir -p "$work"
+  cp "$BASE/CuisImage/$CUIS_IMAGE.image" "$work/vikix.image"
+  cp "$BASE/CuisImage/$CUIS_IMAGE.changes" "$work/vikix.changes"
+  ln -s "$BASE/CuisImage/$CUIS_SOURCES" "$work/$CUIS_SOURCES"
+  script="$work/build.st"
+  {
+    # Vikix's packages must load: a failure is the build's. Yours are told
+    # of and left out, so one that no longer loads doesn't cost the image.
+    local pkg
+    for pkg in "$PKGS"/*.pck.st; do
+      printf "[ Feature require: '%s' ] on: Error do: [ :ex | StdIOWriteStream stdout nextPutAll: 'VIKIX-ERROR %s: ', ex description; newLine; flush ].\n" \
+        "$pkg" "$(basename "$pkg")"
+    done
+    for pkg in "$CUIS"/NewPackages/*.pck.st; do
+      [ -f "$pkg" ] || continue
+      printf "[ Feature require: '%s' ] on: Error do: [ :ex | StdIOWriteStream stdout nextPutAll: 'WARNING your package %s did not load: ', ex description; newLine; flush ].\n" \
+        "$pkg" "$(basename "$pkg")"
+    done
+    echo "StdIOWriteStream stdout nextPutAll: 'loaded: ', (CodePackage installedPackages keys asSortedCollection asArray printString); newLine; flush."
+    echo "Smalltalk saveAndQuit."
+  } > "$script"
+  say "building your image, $CUIS/vikix.image (Cuis $CUIS_VERSION, its updates, Vikix's packages; a few seconds; log: $log)"
+  # The build is headless (-vm-display-null); -u applies the core updates;
+  # -ud keeps Cuis's own files in ~/cuis. The script saves and quits, so a
+  # build that doesn't come back in two minutes is stuck on a dialog.
+  ( cd "$work" && env -u DISPLAY timeout --kill-after=5s 120s "$VM" -encoding UTF-8 -vm-display-null \
+      "$work/vikix.image" -ud "$CUIS" -u -s "$script" ) > "$log" 2>&1
+  local status=$?
+  if grep -q '^VIKIX-ERROR' "$log"; then
+    grep '^VIKIX-ERROR' "$log"; rm -rf "$work"
+    die "a package of Vikix's didn't load (the log is $log)"
+  fi
+  if [ "$status" != 0 ] || ! grep -q '^loaded:' "$log"; then
+    grep -v -E 'pthread_setschedparam|heartbeat thread|higher priority|change the priority|latency|limits.d|rtprio|improves behaviour|For more information|opensmalltalk-vm/releases|^$|cat <<END|^END$|and handle events|thread should run' "$log" | tail -n 15
+    rm -rf "$work"
+    die "the image didn't build (status $status; the log is $log)"
+  fi
+  grep '^WARNING' "$log" | while IFS= read -r line; do warn "${line#WARNING }"; done
+  mv -f "$work/vikix.image" "$CUIS/vikix.image"
+  mv -f "$work/vikix.changes" "$CUIS/vikix.changes"
+  rm -rf "$work"
+  build_stamp > "$CUIS/.vikix-built"
+  say "your image is built: $(grep '^loaded:' "$log" | sed 's/^loaded: //')"
+}
+
+# --- The command and the launcher's entry ---------------------------------------------
+
+write_command() {
+  if [ "$DRY_RUN" = 1 ]; then printf '   would write %s\n' "$BIN/cuis"; return 0; fi
+  mkdir -p "$BIN"
+  cat > "$BIN/cuis" <<'EOF'
+#!/bin/sh
+# Written by vikix cuis setup; vikix cuis uninstall removes it.
+# Cuis Smalltalk, your image ~/cuis/vikix.image, with Vikix's door.
+exec vikix cuis run "$@"
+EOF
+  chmod +x "$BIN/cuis"
+}
+
+write_entry() {
+  if [ "$DRY_RUN" = 1 ]; then printf '   would write %s\n' "$APPS/vikix-cuis.desktop"; return 0; fi
+  mkdir -p "$APPS"
+  cat > "$APPS/vikix-cuis.desktop" <<EOF
+[Desktop Entry]
+# Written by vikix cuis setup; vikix cuis uninstall removes it.
+Name=Cuis Smalltalk
+Comment=A live Smalltalk image, changeable while it runs; Vikix's door answers vikix eval --cuis
+Exec=$BIN/cuis
+Icon=applications-development
+Terminal=false
+Type=Application
+Categories=Development;
+EOF
+}
+
+# --- The commands --------------------------------------------------------------------
+
+cmd_setup() {
+  record_features cuis
+  command -v unzip >/dev/null 2>&1 || [ "$DRY_RUN" = 1 ] || die "unzip isn't here (it is in Vikix's base packages: vikix update)"
+  fetch
+  if built; then say "your image is built with Vikix's packages ($CUIS/vikix.image)"
+  elif [ -f "$CUIS/vikix.image" ] && running; then
+    warn "Vikix's packages changed since your image was built, and Cuis is running: close it, then vikix cuis rebuild"
+  else build_image; fi
+  write_command
+  write_entry
+  say "ready: cuis (in Super+d and Super+m, Apps); vikix eval --cuis '3 + 4' while it runs"
+}
+
+cmd_rebuild() {
+  build_image
+}
+
+cmd_run() {
+  local headless=0 port=${VIKIX_CUIS_PORT:-$PORT_DEFAULT} args=()
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --headless) headless=1 ;;
+      --port) [ $# -ge 2 ] || die "vikix cuis run --port N"; port=$2; shift ;;
+      -h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'; return 0 ;;
+      *) args+=("$1") ;;
+    esac
+    shift
+  done
+  installed || die "Cuis isn't here: vikix add cuis"
+  [ -f "$CUIS/vikix.image" ] || die "your image isn't built yet: vikix cuis setup"
+  local door=() sound=()
+  case $port in ''|*[!0-9]*) die "vikix cuis run: the port must be a number" ;; esac
+  if [ "$port" != 0 ] && [ -s "$HOME/.slime-secret" ]; then
+    # The same first line Swank asks for; the image reads the file at each
+    # client, so a new secret needs no restart.
+    door=(-d "VikixServer startOn: $port secret: '$HOME/.slime-secret'")
+  fi
+  if [ "$headless" = 0 ] && command -v pactl >/dev/null 2>&1 && pactl info >/dev/null 2>&1; then
+    sound=(-vm-sound-pulse)
+  fi
+  cd "$CUIS" || die "no $CUIS"
+  local opts=(-encoding UTF-8)
+  [ "$headless" = 1 ] && opts+=(-vm-display-null)
+  export SQUEAK_DISPLAY_PER_MONITOR_SCALE=1   # the X11 driver leaks without it (opensmalltalk-vm 642)
+  exec "$VM" "${opts[@]}" "${sound[@]}" "$CUIS/vikix.image" -ud "$CUIS" "${door[@]}" "${args[@]}"
+}
+
+cmd_status() {
+  if installed; then echo "cuis      Cuis $CUIS_VERSION at Vikix's pin ($BASE)"
+  elif [ -x "$VM" ]; then echo "cuis      installed from another release: vikix cuis setup brings $CUIS_VERSION"
+  else echo "cuis      not installed"; fi
+  if built; then echo "image     $CUIS/vikix.image, built with Vikix's packages: $(package_names)"
+  elif [ -f "$CUIS/vikix.image" ]; then echo "image     $CUIS/vikix.image, built before Vikix's packages changed: vikix cuis rebuild"
+  else echo "image     not built"; fi
+  if running; then echo "running   yes; the door is 127.0.0.1:${VIKIX_CUIS_PORT:-$PORT_DEFAULT} when ~/.slime-secret exists"
+  else echo "running   no (cuis starts it)"; fi
+  [ -x "$BIN/cuis" ] || echo "(vikix cuis setup writes the cuis command)"
+}
+
+cmd_doctor() {
+  local ok=1 port=${VIKIX_CUIS_PORT:-$PORT_DEFAULT} answer
+  if installed; then
+    if "$VM" -version 2>/dev/null | grep -q 'Spur 64-bit'; then say "the Cuis VM runs (Cuis $CUIS_VERSION at Vikix's pin)"
+    else warn "the Cuis VM in $BASE doesn't run: vikix cuis setup after removing it"; ok=0; fi
+  elif [ -x "$VM" ]; then warn "Cuis is installed from another release: vikix cuis setup"; ok=0
+  else warn "Cuis isn't installed: vikix cuis setup"; ok=0; fi
+  if built; then say "your image is built with Vikix's packages ($CUIS/vikix.image)"
+  elif [ -f "$CUIS/vikix.image" ]; then warn "Vikix's packages changed since your image was built: vikix cuis rebuild"; ok=0
+  else warn "your image isn't built: vikix cuis setup"; ok=0; fi
+  if [ -x "$BIN/cuis" ] && grep -q 'vikix cuis run' "$BIN/cuis" 2>/dev/null; then say "cuis is the command"
+  elif [ -e "$BIN/cuis" ]; then say "cuis in $BIN is one of your own"
+  else warn "cuis isn't in $BIN: vikix cuis setup writes it"; ok=0; fi
+  if running; then
+    if [ ! -s "$HOME/.slime-secret" ]; then say "Cuis is running; without ~/.slime-secret it has no door (vikix update makes the secret)"
+    elif answer=$(python3 "$VIKIX_DIR/bin/vikix-eval" --cuis '3 + 4' 2>&1) && [ "$answer" = "=> 7" ]; then
+      say "the door answers on 127.0.0.1:$port (vikix eval --cuis)"
+    else warn "Cuis is running but the door doesn't answer on 127.0.0.1:$port: ${answer#vikix eval: }"; ok=0; fi
+  else say "Cuis isn't running (the door opens with it: cuis)"; fi
+  [ "$ok" = 1 ]
+}
+
+# Only what setup made; a link only while it's still setup's.
+cmd_uninstall() {
+  if running; then die "Cuis is running: close it first"; fi
+  run rm -rf "$OPT" "$OPT.new"
+  if grep -q 'vikix cuis run' "$BIN/cuis" 2>/dev/null; then run rm -f "$BIN/cuis"; fi
+  run rm -f "$APPS/vikix-cuis.desktop"
+  local name
+  for name in Packages CoreUpdates TrueTypeFonts "$CUIS_SOURCES" UnicodeData.txt Vikix; do
+    [ -L "$CUIS/$name" ] && run rm -f "$CUIS/$name"
+  done
+  run rm -f "$CUIS/.vikix-built"
+  say "removed Cuis $CUIS_VERSION and the cuis command; $CUIS (your image, packages and changes) stays, and the feature goes with vikix remove cuis"
+}
+
+case ${1:-} in
+  setup)     shift; [ $# = 0 ] || die "vikix cuis setup takes nothing"; cmd_setup ;;
+  rebuild)   cmd_rebuild ;;
+  run)       shift; cmd_run "$@" ;;
+  status)    cmd_status ;;
+  doctor)    cmd_doctor ;;
+  uninstall) cmd_uninstall ;;
+  -h|--help|help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) die "vikix cuis: setup, rebuild, run, status, doctor, uninstall" ;;
+esac

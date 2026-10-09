@@ -10,6 +10,10 @@
                                              over Swank only; alone it tries the socket first
     vikix eval --whose                       say whose a form from here would be: yours, or an
                                              agent's and which, and whether the door stands
+    vikix eval --cuis '3 + 4'                Smalltalk, in the running Cuis image instead
+                                             (vikix add cuis; its door, VikixServer, on
+                                             127.0.0.1:4005, VIKIX_CUIS_PORT): one expression,
+                                             "=> " and its printString, or "error: ..."
 
 The forms are read in the STUMPWM package, so Vikix's and StumpWM's own
 names work without a prefix. For each form it prints what the form
@@ -45,6 +49,12 @@ a test's StumpWM on another port asks for it with --door.
 
 Changes made this way live in the running StumpWM only. They are gone
 after a restart or a reload; to keep one, put it in ~/.stumpwm.d/user.lisp.
+
+The Cuis door (--cuis; cuis/VikixServer.pck.st, loaded by vikix cuis setup)
+takes the same first line of ~/.slime-secret, then lines ending with a line
+of one dot (a line starting with a dot gets one more), and answers "ok" or
+"error", the lines of the answer the same way, and a dot. It has no walker
+yet, so an agent's expression is held (exit 3) for the user to run.
 """
 
 import os
@@ -54,6 +64,7 @@ import sys
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("VIKIX_SWANK_PORT", "4004"))
 DESKTOP_PORT = 4004   # the door stands here; a test's StumpWM is on a port of its own
+CUIS_PORT = int(os.environ.get("VIKIX_CUIS_PORT", "4005"))   # VikixServer, in the Cuis image
 TIMEOUT = 30  # seconds; the Lisp side gives up on a busy main thread sooner
 PROC = os.environ.get("VIKIX_PROC") or "/proc"
 # The agents, as bin/vikix-agents knows them (PROGRAMS, NAMES there; tests/door.sh
@@ -215,7 +226,13 @@ def main():
         return 0
     door = False
     way = "either"          # the socket first, then Swank
-    while args and args[0] in ("--door", "--whose", "--socket", "--swank"):
+    while args and args[0] in ("--door", "--whose", "--socket", "--swank", "--cuis"):
+        if args[0] == "--cuis":
+            code = " ".join(args[1:]) if len(args) > 1 else sys.stdin.read()
+            if not code.strip():
+                print("vikix eval --cuis: no Smalltalk to run (try: vikix eval --cuis '3 + 4')", file=sys.stderr)
+                return 2
+            return through_cuis(code.rstrip("\n"))
         if args[0] in ("--socket", "--swank"):
             way = args[0][2:]
             args = args[1:]
@@ -339,6 +356,70 @@ def main():
     printed = strings[0] if strings else ""
     status = strings[1] if len(strings) > 1 else ""
     return finish(status.lstrip(":"), printed)
+
+
+def dotted(text):
+    """TEXT as the door's lines: each line, a dot added before one that starts
+    with a dot, and a line of one dot to end."""
+    lines = text.split("\n")
+    return "".join(("." + line if line.startswith(".") else line) + "\n" for line in lines) + ".\n"
+
+
+def through_cuis(code):
+    """One Smalltalk expression to the Cuis image's door; the exit status."""
+    kind, who = whose()
+    if kind == "agent":
+        print(f"vikix eval --cuis: the Cuis door checks nothing yet, so an agent's Smalltalk ({who})\n"
+              "isn't run: say what it is, and the user runs it as themselves.", file=sys.stderr)
+        return 3
+    try:
+        sock = socket.create_connection((HOST, CUIS_PORT), timeout=5)
+    except OSError:
+        print(f"vikix eval --cuis: nothing is listening on {HOST}:{CUIS_PORT}.\n"
+              "Is Cuis running, started by the cuis command? (its door opens with it; vikix cuis doctor)",
+              file=sys.stderr)
+        return 2
+    sock.settimeout(TIMEOUT + 5)
+    owner = listener_uid(CUIS_PORT)
+    if owner is not None and owner != os.getuid():
+        sock.close()
+        print(f"vikix eval --cuis: {HOST}:{CUIS_PORT} is another user's (uid {owner}), not Cuis's: "
+              "the password isn't sent", file=sys.stderr)
+        return 2
+    secret = slime_secret()
+    if secret is None:
+        sock.close()
+        print("vikix eval --cuis: no ~/.slime-secret, and the door takes nobody without it "
+              "(vikix update makes the secret)", file=sys.stderr)
+        return 2
+    try:
+        sock.sendall((secret + "\n").encode("utf-8") + dotted(code).encode("utf-8"))
+        reader = sock.makefile("rb")
+        status = reader.readline().decode("utf-8", errors="replace").rstrip("\n")
+        if not status:
+            print("vikix eval --cuis: Cuis closed the connection without an answer: the password "
+                  "(the first line of ~/.slime-secret) wasn't the one it reads", file=sys.stderr)
+            return 2
+        lines = []
+        for raw in reader:
+            line = raw.decode("utf-8", errors="replace").rstrip("\n")
+            if line == ".":
+                break
+            lines.append(line[1:] if line.startswith(".") else line)
+        else:
+            print("vikix eval --cuis: Cuis closed the connection before the answer ended", file=sys.stderr)
+            return 2
+    except (socket.timeout, ConnectionError) as e:
+        print(f"vikix eval --cuis: no answer from Cuis ({e})", file=sys.stderr)
+        return 2
+    finally:
+        sock.close()
+    text = "\n".join(lines)
+    if status == "ok":
+        print("=> " + text)
+        return 0
+    print("error: " + text)
+    return 1
 
 
 def finish(status, printed):
