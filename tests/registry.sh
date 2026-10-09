@@ -95,8 +95,14 @@ key Left
 check "and Left comes back" grep -q '^selected=Work ' <(menu)
 key Escape
 check "a second Escape closes the menu" test "$(ask '(princ 1)')" = 1
+# The menu must be up before the letters come, and have taken them before
+# its rows are read: on a loaded machine both took longer than a fixed
+# wait, and the letters went nowhere.
+rm -f "$home/menu.log"
 key super+m
-xdotool type --delay 60 "alt+f12 hello"; sleep 0.5
+for _ in $(seq 1 40); do grep -q '^row=' "$home/menu.log" 2>/dev/null && break; sleep 0.25; done
+xdotool type --delay 60 "alt+f12 hello"
+for _ in $(seq 1 20); do [ "$(rows | wc -l)" = 1 ] && break; sleep 0.25; done
 check "typing finds an entry of any section, by its words or its key, its section before it: $(rows | head -3)" \
   test "$(rows | sed -E 's/  +/ | /g')" = "Work | Hello, from the menu | Super+Alt+F12"
 key Return
