@@ -1286,7 +1286,7 @@ Windows in a VM, for the programs that only run there.
 - `vikix windows apps` — the programs in Windows' Start menu
 - `vikix windows apps add NAME` — one of them in the launcher (Super+d); remove NAME takes it out again
 - `vikix windows app NAME [FILE]` — that program as a window of its own, tiled like any other (Windows started first if it's off); a FILE in `~/Windows` or `~/Documents` is opened in it
-- `vikix windows apps forget` — delete the kept password
+- `vikix windows apps forget` — delete the kept password (--all: the launcher entries and the list of programs too, as remove does)
 
 The VM runs as you (libvirt's qemu:///session), so its disk, its TPM and its shared folder are all yours, in your home. `~/Windows` is drive Z: in Windows, and `vikix backup` covers it; the VM's disk it leaves out. The display is SPICE with no network port: only this user can open it.
 

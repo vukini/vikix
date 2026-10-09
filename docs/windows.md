@@ -104,7 +104,7 @@ and open the *windows* VM's details. Change memory and processors while Windows 
 vikix windows remove
 ```
 
-It asks first, then deletes the VM and its disk. `~/Windows`, with your files in it, stays. So do the password kept for Windows programs and their launcher entries, if you set those up: `vikix windows apps forget` deletes the password, and the entries are the `vikix-win-*.desktop` files in `~/.local/share/applications`.
+It asks first, then deletes the VM and its disk, and with them the password kept for Windows programs, their launcher entries and the list of them, if you set those up (`vikix windows apps forget --all` does that part alone). `~/Windows`, with your files in it, stays.
 
 ## When it goes wrong
 

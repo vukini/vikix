@@ -158,6 +158,13 @@ w apps remove facts >/dev/null 2>&1 || true
 check "and takes its own" test ! -e "$desk"
 w apps forget >/dev/null
 check "forget deletes the password" test ! -e "$HOME/.config/vikix/secrets/windows-password"
+check "forget alone keeps the list of programs" test -e "$HOME/.local/state/vikix/windows-apps.json"
+w apps add facts >/dev/null 2>&1 || true
+check "an entry of its own, to forget" test -f "$desk"
+w apps forget --all >/dev/null
+check "forget --all deletes the list of programs" test ! -e "$HOME/.local/state/vikix/windows-apps.json"
+check "forget --all deletes the entries it wrote" test ! -e "$desk"
+check "forget --all leaves an entry it didn't write" test -f "$HOME/.local/share/applications/vikix-win-notepad.desktop"
 out=$(w app facts 2>&1) && fail=1
 check "without it, app says to run setup: $out" grep -q "vikix windows apps setup" <<<"$out"
 

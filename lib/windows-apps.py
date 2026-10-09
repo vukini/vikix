@@ -395,10 +395,24 @@ def cmd_app(name, file=None):
     return 0
 
 
-def cmd_forget():
+def cmd_forget(everything=False):
     if SECRET.exists():
         SECRET.unlink()
-    say("the Windows password is forgotten; vikix windows apps setup asks for it again")
+    if not everything:
+        say("the Windows password is forgotten; vikix windows apps setup asks for it again")
+        return 0
+    # --all: the launcher entries this wrote (never one of yours) and the list
+    # of programs go too. vikix windows remove calls this, so nothing of the
+    # programs outlives the VM.
+    gone = 0
+    for f in sorted(DESKTOP.glob("vikix-win-*.desktop")):
+        if "vikix windows apps add" in f.read_text(errors="replace"):
+            f.unlink()
+            gone += 1
+    if APPS.exists():
+        APPS.unlink()
+    say(f"the Windows password, the list of programs and {gone} launcher entr{'y' if gone == 1 else 'ies'} are forgotten")
+    return 0
 
 
 def main(argv):
@@ -416,8 +430,8 @@ def main(argv):
     if sub in ("add", "remove") and len(argv) > 2:
         return cmd_add(argv[2]) if sub == "add" else cmd_remove_app(argv[2])
     if sub == "forget":
-        return cmd_forget()
-    die("vikix windows apps [setup|add NAME|remove NAME|forget]")
+        return cmd_forget(everything="--all" in argv[2:])
+    die("vikix windows apps [setup|add NAME|remove NAME|forget [--all]]")
 
 
 if __name__ == "__main__":

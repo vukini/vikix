@@ -109,7 +109,7 @@ class Manual:
         stack = []           # (level, node)
         in_code = False
         for line in self.read(page).splitlines():
-            if line.startswith("```"):
+            if line.lstrip().startswith("```"):   # at the margin, or inside a list item
                 in_code = not in_code
                 continue
             m = re.match(r"(#{1,3}) (.*)", line)
@@ -203,9 +203,11 @@ class Manual:
                 "@ifnotinfo", f"@image{{shots/{name},,,{words.replace(',', '@comma{}')},png}}", "@end ifnotinfo"]
 
     def lists(self, items, page):
-        """items: (indent, ordered, text). Nested by indentation."""
+        """items: (indent, ordered, parts). Nested by indentation. An item's
+        parts are its text and, between or after, the fenced blocks indented
+        under it, shown as examples in their order, the list going on after."""
         out, stack = [], []   # stack of (indent, kind)
-        for indent, ordered, text in items:
+        for indent, ordered, parts in items:
             while stack and indent < stack[-1][0]:
                 out.append(f"@end {stack.pop()[1]}")
             if not stack or indent > stack[-1][0]:
@@ -213,7 +215,16 @@ class Manual:
                 out.append("@enumerate" if ordered else "@itemize @bullet")
                 stack.append((indent, kind))
             out.append("@item")
-            out.append(self.inline(text, page))
+            for kind, body in parts:
+                if kind == "text":
+                    out.append(self.inline(body, page))
+                else:
+                    out.append("@example")
+                    out += [escape(l) for l in body]
+                    out.append("@end example")
+                out.append("")
+            if out[-1] == "":
+                out.pop()
         while stack:
             out.append(f"@end {stack.pop()[1]}")
         return out
@@ -289,13 +300,30 @@ class Manual:
             if re.match(r"\s*([-*]|\d+\.) ", line):
                 flush()
                 items = []
+                item_re = r"(\s*)([-*]|\d+\.) (.*)"
                 while i < len(lines):
-                    m = re.match(r"(\s*)([-*]|\d+\.) (.*)", lines[i])
+                    m = re.match(item_re, lines[i])
                     if m:
-                        items.append((len(m.group(1)), m.group(2)[0].isdigit(), m.group(3)))
+                        items.append((len(m.group(1)), m.group(2)[0].isdigit(), [("text", m.group(3))]))
+                    elif items and lines[i].startswith(" ") and lines[i].lstrip().startswith("```"):
+                        # A fenced block indented under the item: its lines, less
+                        # the fence's indentation, a part of the item in its place.
+                        pad = len(lines[i]) - len(lines[i].lstrip())
+                        i += 1
+                        block = []
+                        while i < len(lines) and not lines[i].lstrip().startswith("```"):
+                            block.append(lines[i][pad:] if lines[i][:pad].strip() == "" else lines[i].lstrip())
+                            i += 1
+                        items[-1][2].append(("code", block))
                     elif lines[i].strip() and items and lines[i].startswith(" "):
-                        indent, ordered, text = items[-1]
-                        items[-1] = (indent, ordered, text + " " + lines[i].strip())
+                        parts = items[-1][2]
+                        if parts[-1][0] == "text":
+                            parts[-1] = ("text", parts[-1][1] + " " + lines[i].strip())
+                        else:
+                            parts.append(("text", lines[i].strip()))
+                    elif (not lines[i].strip() and items and i + 1 < len(lines)
+                          and ((lines[i + 1].startswith(" ") and lines[i + 1].strip()) or re.match(item_re, lines[i + 1]))):
+                        pass   # a blank line inside an item, or between two items of the list
                     else:
                         break
                     i += 1

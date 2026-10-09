@@ -66,6 +66,7 @@ check "a command of yours is bound" yes '(equal (lookup-key *top-map* (kbd "s-M-
 check "and in the menu, just before Power: $(ask '(princ (first (car (last *vikix-menu* 2))))')" \
   yes '(equal (first (car (last *vikix-menu* 2))) "Hello, from the menu")'
 key super+alt+F12
+for _ in $(seq 1 20); do [ "$(said)" = "hello from the registry" ] && break; sleep 0.25; done   # a loaded machine is slower
 check "its key runs it: $(said)" test "$(said)" = "hello from the registry"
 
 # Super+m itself, by its keys.

@@ -168,10 +168,17 @@ if command -v Xvfb >/dev/null && command -v rofi >/dev/null && command -v xdotoo
   xvfb=$!
   sleep 1
   printf '#!/bin/sh\necho "browser $*" >> %s/opened\n' "$t" > "$t/bin/notify-send"; chmod +x "$t/bin/notify-send"
+  # rofi's process, not the clock: on a busy machine the menu isn't up when
+  # the keys come. Not its window: asking X for it (xdotool search) beside
+  # rofi's keyboard grab stalled the display until the pick's timeout. Each
+  # rofi is known by its own words (the first's prompt, the second's), and a
+  # second after it is seen its window has the keyboard.
+  rofi_wait() { for _ in $(seq 1 150); do pgrep -f -- "$1" >/dev/null && return; sleep 0.1; done; }
   for way in Return ctrl+Return; do
     : > "$t/opened"
-    ( sleep 1.5; DISPLAY=":$n" xdotool type mypy; DISPLAY=":$n" xdotool key Return
-      sleep 1.5; DISPLAY=":$n" xdotool key "$way" ) &
+    ( rofi_wait "rofi -dmenu -p docs"; sleep 1
+      DISPLAY=":$n" xdotool type mypy; DISPLAY=":$n" xdotool key Return
+      rofi_wait "rofi -dmenu -i -p mypy"; sleep 1; DISPLAY=":$n" xdotool key "$way" ) &
     keys=$!
     DISPLAY=":$n" timeout 20 python3 "$here/bin/vikix-docs" pick || true
     wait "$keys" || true; sleep 0.5

@@ -31,6 +31,9 @@ python3 "$here/lib/md2texi.py" "$here/docs" > "$t/vikix.texi"
 makeinfo --no-split -I "$here/docs" -o "$t/vikix.info" "$t/vikix.texi" 2> "$t/errors" ||
   { echo "FAIL: makeinfo failed:"; sed 's/^/  /' "$t/errors"; exit 1; }
 [ -s "$t/errors" ] && { echo "FAIL: makeinfo warned:"; sed 's/^/  /' "$t/errors" | head -20; fail=1; }
+# A fence that reached the Texinfo is a code block md2texi didn't see (one
+# indented under a list item, once): makeinfo has nothing to say about it.
+grep -n '```' "$t/vikix.texi" | head -3 | sed 's/^/  /' | grep . && { echo "FAIL: a \`\`\` fence is left in the Texinfo (a code block inside a list item?)"; fail=1; }
 
 # One node per page (Top is docs/README.md) and per heading of the others.
 headings=$(for f in "$here"/docs/*.md; do

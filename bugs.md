@@ -3,26 +3,6 @@
 Small known problems, not yet fixed. Each says what happens, what is known, and the next step. A fix removes its entry in the commit that ships it. (Larger planned work is in `TODO.md`; ideas in `IDEAS.md`.)
 
 
-## `vikix windows remove` leaves the Windows programs' things behind
-
-Noted 2026-10-05, by the guides check.
-
-**What happens.** After `vikix windows remove`, the password kept for Windows programs (`~/.config/vikix/secrets/windows-password`), the launcher entries (`~/.local/share/applications/vikix-win-*.desktop`) and the list of programs (`~/.local/state/vikix/windows-apps.json`) are still there, the entries for programs that are gone.
-
-**What's known.** `cmd_remove` in `bin/vikix-windows` deletes the VM, its disk and the answers disc, and predates `vikix windows apps`. `docs/windows.md` ("Removing it") says how to clear the first two by hand.
-
-**Next step.** Have `cmd_remove` do what `vikix windows apps forget` does, and delete the `vikix-win-*.desktop` entries and `windows-apps.json`; then take the by-hand line out of the guide. A check for it in `tests/winapps.sh`.
-
-## A code block inside a list item comes out wrong in the Info manual and the web guide
-
-Noted 2026-10-05, by the guides check.
-
-**What happens.** A fenced code block indented under a numbered or bulleted item is not a block there: "Installing Windows" in `docs/windows.md` (three of them) and one in `docs/plugins.md` (line 49) show as ` ``sh vikix windows setup `` ` in a line of text, and in the web guide every step is numbered 1. On GitHub they are right.
-
-**What's known.** `lib/md2texi.py` knows fenced code only at the start of a line (`python3 lib/md2texi.py docs | grep -n 'windows setup'` shows the `@code{sh ...}` it makes), and `tests/info.sh` passes, since makeinfo has nothing to warn about.
-
-**Next step.** Teach `md2texi.py` an indented fence inside an item (an `@example` within the `@item`, the list going on after it), and have `tests/info.sh` fail on a ` ``` ` left in the Texinfo. Or write those two lists without the construct, as the newer section of `windows.md` does.
-
 ## Esploro's iPhone under Drives needs programs no list brings
 
 Noted 2026-10-05, by the guides check. Esploro at the pin (b84b605).
@@ -78,24 +58,3 @@ Noted 2026-10-04, with the plugin's rewrite (Vikix 0.71.160).
 **What's known.** `PermissionRequest` and `Stop` were checked on Claude Code 2.1.289 and fire at once with what the plugin reads. If the question hook doesn't fire, the note comes from Claude's own notification some seconds later, without the question's words.
 
 **Next step.** The next time a session asks a question with choices while its window isn't in front, look at the bar and at `~/.local/state/vikix/agents/`: the note's third line should be the question.
-
-
-## tests/registry.sh: "its key runs it" failed once in a full run
-
-Noted 2026-10-05, releasing Super+i's Codex choice.
-
-**What happens.** In a release's full run, with other sessions testing, `registry` failed at `FAIL: its key runs it: NIL`: the hidden StumpWM had shown no message when the test read it, right after the key press. Alone, the test passed three times out of three on the same commit, and the release passed at the second try.
-
-**What's known.** The check reads the screen's last message straight after `key super+alt+F12`, without waiting for the command to have run. The change being released touched nothing of StumpWM's.
-
-**Next step.** Have the check wait for the message (a short loop, as other hidden-screen tests do) instead of reading it once.
-
-## tests/docs.sh: "Super+F2's menus: Return should open the hit" failed once in a release's run
-
-Noted 2026-10-05, releasing Esploro's Names Only.
-
-**What happens.** In a release's run, with other sessions testing (load 7 on 4 cores), `docs` failed at `FAIL: Super+F2's menus: Return should open the hit its way:` with nothing opened. Alone, a minute later on the same commit, it passed. The change being released touched the README, `bin/vikix-esploro` and `tests/esploro.sh` only.
-
-**What's known.** The check types into rofi on a hidden screen by the clock: 1.5 s after starting `vikix-docs pick` it types the words and Return, 1.5 s later the key that opens the hit. On a busy machine rofi isn't up, or the hits aren't listed, when the keys are sent.
-
-**Next step.** Wait for rofi's window (`xdotool search --sync`) before typing, and for the second menu before the opening key, instead of the two sleeps.

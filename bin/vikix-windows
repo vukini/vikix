@@ -26,7 +26,8 @@
 #                         tiled like any other (Windows started first if
 #                         it's off); a FILE in ~/Windows or ~/Documents is
 #                         opened in it
-#   vikix windows apps forget   delete the kept password
+#   vikix windows apps forget   delete the kept password (--all: the launcher
+#                         entries and the list of programs too, as remove does)
 #
 # The VM runs as you (libvirt's qemu:///session), so its disk, its TPM
 # and its shared folder are all yours, in your home. ~/Windows is drive Z:
@@ -540,7 +541,10 @@ cmd_remove() {
   virsh destroy "$NAME" >/dev/null 2>&1 || true
   virsh undefine "$NAME" --nvram --tpm >/dev/null
   rm -f "$d/$NAME.qcow2" "$d/$NAME-answers.iso"
-  say "the Windows VM is removed; ~/Windows is still there"
+  # The programs' things (vikix windows apps): the password, their launcher
+  # entries and the list; they were for this VM.
+  python3 "$VIKIX_DIR/lib/windows-apps.py" apps forget --all >/dev/null 2>&1 || true
+  say "the Windows VM is removed, with the password and the launcher entries of its programs; ~/Windows is still there"
 }
 
 case ${1:-open} in

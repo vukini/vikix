@@ -249,8 +249,18 @@ rm "$t/qemu-running"
 out=$(win remove < /dev/null 2>&1) && { echo "FAIL: remove went ahead without asking"; fail=1; }
 check "remove without a terminal should ask for --yes: $out" grep -q -- '--yes' <<<"$out"
 check "remove without asking deleted the disk" test -e "$images/windows.qcow2"
+# The programs' things go with the VM: the password, the list, the entries it wrote.
+mkdir -p "$HOME/.config/vikix/secrets" "$HOME/.local/state/vikix" "$HOME/.local/share/applications"
+echo pw > "$HOME/.config/vikix/secrets/windows-password"
+echo '[]' > "$VIKIX_STATE/windows-apps.json"
+printf '[Desktop Entry]\nName=Notepad\nComment=vikix windows apps add\n' > "$HOME/.local/share/applications/vikix-win-notepad.desktop"
+printf '[Desktop Entry]\nName=Mine\n' > "$HOME/.local/share/applications/vikix-win-mine.desktop"
 win remove --yes >/dev/null
 check "remove --yes didn't undefine the VM with its TPM and NVRAM" grep -q 'virsh.*undefine windows --nvram --tpm' "$calls"
+check "remove left the Windows programs' password" test ! -e "$HOME/.config/vikix/secrets/windows-password"
+check "remove left the list of Windows programs" test ! -e "$VIKIX_STATE/windows-apps.json"
+check "remove left a launcher entry it wrote" test ! -e "$HOME/.local/share/applications/vikix-win-notepad.desktop"
+check "remove took a launcher entry it didn't write" test -f "$HOME/.local/share/applications/vikix-win-mine.desktop"
 check "remove --yes left the disk" test ! -e "$images/windows.qcow2"
 check "remove deleted ~/Windows" test -d "$HOME/Windows"
 
