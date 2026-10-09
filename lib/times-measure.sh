@@ -12,9 +12,9 @@
 #            config: what's measured is the window manager's part)
 #   xterm    StumpWM answering with a tiled xterm open (the median of 3):
 #            an xterm once kept it busy laying the window out, over and over
-#   answer-swank  the same over Swank (the main thread, the password)
 #   answer   StumpWM answering a question over Vikix's socket, after
 #            all that (the median of 5): a slow one means it's kept busy
+#   answer-swank  the same over Swank (the main thread, with the password)
 #
 # Needs Xvfb, xdotool and Vikix's StumpWM (~/.local/bin/stumpwm); emacs for
 # the emacs line. Exits 2 (saying why) when one is missing.
