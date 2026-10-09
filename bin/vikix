@@ -490,6 +490,14 @@ cmd_update() {
     from=$(cd "$from" && pwd)
   fi
   local what="update"; [ "$part" = all ] || what="update $part"
+  # gup from a folder that is gone since (a desk its release removed, with
+  # your shell still standing in it): every stage's bash would start with
+  # "shell-init: getcwd" noise and git refuse to work, though nothing of an
+  # update needs the folder it was started from. So go home, once, and say.
+  if ! pwd -P >/dev/null 2>&1; then
+    cd "$HOME" 2>/dev/null || cd /
+    say "the folder this was started from is gone: running from $PWD"
+  fi
   drop_keys
   # Everything it prints also goes to a log, like the installer's. Set up
   # once: the run restarted after the pull (below) inherits it.
@@ -842,7 +850,10 @@ cmd_doctor() {
 
 YOURS_GIT="$VIKIX_STATE/yours.git"
 
-yours_git() { git --git-dir="$YOURS_GIT" --work-tree="$HOME" "$@"; }
+# From ~ itself: git reads the current folder even with both given, so from
+# a folder that is gone (vikix update after a release removed the desk you
+# stood in) it failed: "Unable to read current working directory".
+yours_git() { git -C "$HOME" --git-dir="$YOURS_GIT" --work-tree="$HOME" "$@"; }
 
 yours_init() {
   [ -d "$YOURS_GIT" ] && return 0

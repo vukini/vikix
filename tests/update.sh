@@ -37,6 +37,19 @@ else
 fi
 [ "$fail" = 0 ] && echo "update: restarts into the new version, and logs the whole run"
 
+# gup from a folder that is gone since (a desk its release removed, with the
+# shell still in it): the update goes home, says so once, and runs; nothing
+# after that complains of the folder (the one "shell-init" line before it is
+# bash's own, starting there, which only the shell that ran it can avoid).
+git clone -q "$t/upstream" "$t/m0" && git -C "$t/m0" reset -q --hard HEAD~1
+mkdir -p "$t/home" "$t/gone"
+out=$(cd "$t/gone" && rmdir "$t/gone" && HOME="$t/home" VIKIX_STATE="$t/state0" VIKIX_SUDO_KEPT=1 bash "$t/m0/bin/vikix" update 2>&1) || true
+grep -q "the folder this was started from is gone: running from $t/home" <<<"$out" ||
+  { echo "FAIL: an update from a folder that is gone should say it went home: $out"; fail=1; }
+grep -q 'NEW VERSION STEPS' <<<"$out" || { echo "FAIL: an update from a folder that is gone didn't go on: $out"; fail=1; }
+sed -n '/running from/,$p' <<<"$out" | grep -q 'getcwd' && { echo "FAIL: the update went on complaining of the gone folder: $out"; fail=1; }
+[ "$fail" = 0 ] && echo "update: from a folder that is gone, it goes home and runs"
+
 # Changes made in the checkout (another program edited TODO.md) would stop
 # the pull. They're set aside, in a patch file and a stash, and the update
 # goes on; an editor's leftover isn't a change (.gitignore).

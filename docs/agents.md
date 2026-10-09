@@ -119,7 +119,7 @@ vikix agents desk vikix wifi-fix       # workspace 4: "the Wi-Fi picker should s
 vikix agents desk vikix docs-pass      # workspace 5: "read docs/ for anything stale"
 ```
 
-Tell each what to do on its own workspace. Each works in its worktree and, when done, finishes with the project's own release step (for Vikix, `.claude/release wifi-fix "..."`), which merges the branch and removes the worktree and the branch: the desk clears itself. `vikix agents` meanwhile shows `~/src/vikix-wifi-fix (wifi-fix, 3 uncommitted)` and `~/src/vikix-docs-pass (docs-pass, 1 uncommitted)`, so you can see at a glance who has what in hand.
+Tell each what to do on its own workspace. Each works in its worktree and, when done, finishes with the project's own release step (for Vikix, `.claude/release wifi-fix "..."`), which merges the branch and removes the worktree and the branch: the desk clears itself. A shell of yours still standing in that folder is told so by the next `gup` or `vikix update core` (*the folder this was started from is gone: running from /home/you*), which runs all the same. `vikix agents` meanwhile shows `~/src/vikix-wifi-fix (wifi-fix, 3 uncommitted)` and `~/src/vikix-docs-pass (docs-pass, 1 uncommitted)`, so you can see at a glance who has what in hand.
 
 ### A book
 

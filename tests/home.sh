@@ -107,6 +107,18 @@ out=$(echo y | script -qec "bash '$here/bin/vikix' undo" /dev/null 2>&1)
 check "a yes should put it back: $out" test "$(cat "$user")" = "$changed"
 [ "$fail" = 0 ] && echo "home: --help is help, and in a terminal undo says what it will change and asks"
 
+# A snapshot from a folder that is gone (gup after a release removed the
+# desk you stood in): git read the current folder even told both its dirs,
+# and 40-config's snapshot failed the stage.
+echo '(setf *from-a-gone-folder* t)' >> "$user"
+n=$(git --git-dir="$VIKIX_STATE/yours.git" rev-list --count HEAD)
+mkdir "$t/gone"
+out=$(cd "$t/gone" && rmdir "$t/gone" && bash "$here/bin/vikix" snapshot "from a folder that is gone" 2>&1) ||
+  { echo "FAIL: a snapshot from a folder that is gone failed:"; echo "$out" | tail -3 | sed 's/^/  /'; fail=1; }
+check "a snapshot from a folder that is gone should be recorded" \
+  test "$(git --git-dir="$VIKIX_STATE/yours.git" rev-list --count HEAD)" = "$((n + 1))"
+[ "$fail" = 0 ] && echo "home: a snapshot works from a folder that is gone"
+
 # --- 3. API keys never in the history -------------------------------------------
 # Every file any snapshot ever recorded.
 ever() { git --git-dir="$VIKIX_STATE/yours.git" log --all --name-only --format= | sort -u; }
