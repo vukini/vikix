@@ -27,8 +27,8 @@
                                   vikix docs did before)
 
 What it covers, each with whose words they are: Vikix's guides (vikix);
-the README, DESIGN, TODO, CLAUDE and log files and docs/ of your projects in
-~/src (repo); the language guides in ~/dev (dev); your Org notes in
+the README, DESIGN, TODO, CLAUDE and log files, plans/ and docs/ of your
+projects in ~/src (repo); the language guides in ~/dev (dev); your Org notes in
 ~/Dropbox/notes (note); your own documents, the folders you name (own,
 below); every man page (man) and Info manual (info) on the
 machine; the tldr pages (tldr: a command's worked examples, where a man
@@ -207,6 +207,9 @@ def files_repo():
                 kind = {"README.md": "readme", "TODO.md": "todo", "log.md": "log"}.get(f, "design")
                 yield p, kind
         for p in sorted(glob.glob(os.path.join(project, "DESIGN-*.md"))):
+            yield p, "design"
+        # The longer plans of a project, in its plans/ folder (Vikix's own are there).
+        for p in sorted(glob.glob(os.path.join(project, "plans", "*.md"))):
             yield p, "design"
         # A checkout of Vikix: its guides are the vikix source's already.
         if os.path.exists(os.path.join(project, "docs", "guide.css")):
