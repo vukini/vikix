@@ -64,7 +64,7 @@ sock="$t/vikix.sock"
 VIKIX_SESSION_START=$(now) HOME=$home VIKIX_SWANK_PORT=$port VIKIX_SOCKET=$sock "$wm" >"$t/wm.log" 2>&1 &
 pids+=($!)
 
-ask() { HOME=$home VIKIX_SWANK_PORT=$port VIKIX_SOCKET=$sock timeout 20 python3 "$here/bin/vikix-eval" "$1" 2>&1 | grep -v '^=> ' || true; }
+ask() { HOME=$home VIKIX_SWANK_PORT=$port VIKIX_SOCKET=$sock timeout 20 python3 "$here/bin/vikix-eval" "$@" 2>&1 | grep -v '^=> ' || true; }
 for _ in $(seq 1 120); do grep -q ' login ' "$log" 2>/dev/null && break; sleep 0.25; done
 grep -q ' login ' "$log" 2>/dev/null || { echo "times: the test StumpWM didn't get ready: $(tail -5 "$t/wm.log")" >&2; exit 1; }
 echo "start $(awk '$2 == "login" {print $3}' "$log" | tail -1)"
@@ -132,3 +132,4 @@ for _ in 1 2 3 4 5; do
   t0=$(now); [ "$(ask --swank '(princ 1)')" = 1 ] && answers+=("$(secs "$t0" "$(now)")")
 done
 [ "${#answers[@]}" -gt 0 ] && echo "answer-swank $(median "${answers[@]}")"
+true
