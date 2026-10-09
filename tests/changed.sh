@@ -97,7 +97,7 @@ for f in "${files[@]}"; do
     .claude/release) add release ;;
     tests/*.sh) add "$(basename "$f" .sh)" ;;
     tests/*) all=1 ;;
-    docs/*|lib/md2texi.py|lib/build-guide.sh) add info docs-open ;;
+    docs/*|lib/md2texi.py|lib/build-guide.sh) add info docs-open docs ;;   # the catalogue (vikix docs) reads the guides too
     # The agents' guide is made from the skill.
     config/claude/*) add agents ;;
     site/*) add lint ;;
