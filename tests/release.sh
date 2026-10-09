@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # tests/release.sh — .claude/release: a branch onto main, the version, the tag.
 #
-#   A topic is merged, VERSION goes up by one, the release commit has the
+#   A topic is merged, VERSION goes up by one (--middle: the middle number,
+#   the last from 0), the release commit has the
 #   summary (and a co-author when given), it is tagged, and the worktree
 #   and the branch are gone. When main has moved on, the topic is put on
 #   top of it first. Two topics that changed the same line: the second is
@@ -162,6 +163,15 @@ check "two releases at once both land: $(version); $(tail -1 "$t/i.out"); $(tail
 check "each with its own number and tag" bash -c "git -C '$r' rev-parse -q --verify refs/tags/v0.1.$((n + 1)) >/dev/null && git -C '$r' rev-parse -q --verify refs/tags/v0.1.$((n + 2)) >/dev/null"
 check "and both topics' work" bash -c "[ -e '$r/file-i' ] && [ -e '$r/file-j' ]"
 check "neither release is empty" bash -c "[ -n \"\$(git -C '$r' diff --name-only v0.1.$n v0.1.$((n + 1)) | grep -v VERSION)\" ] && [ -n \"\$(git -C '$r' diff --name-only v0.1.$((n + 1)) v0.1.$((n + 2)) | grep -v VERSION)\" ]"
+
+# --- --middle: the middle number up, the last from 0 ---------------------------------------
+topic m file-m "from m"
+out=$(release m "M" --middle) && code=0 || code=$?
+check "--middle bumps the middle number and starts the last again: $code $(version)" bash -c "[ $code = 0 ] && [ '$(version)' = 0.2.0 ]"
+check "and tags it so" bash -c "git -C '$r' rev-parse -q --verify refs/tags/v0.2.0 >/dev/null"
+topic n file-n "from n"
+out=$(release n "N") && code=0 || code=$?
+check "the next release goes on from there: $(version)" test "$(version)" = 0.2.1
 
 # --- --plain, --keep ---------------------------------------------------------------------
 topic k file-k "from k"

@@ -14,6 +14,8 @@
 #                 the default; none: you ran them on this very commit)
 #   --plain       only put the branch on main: no version, no tag (a change
 #                 to TODO.md or the guides alone)
+#   --middle      the middle number goes up and the last starts again
+#                 (0.71.266 → 0.72.0): only when Vid asks for it
 #   --keep        leave the worktree and the branch
 #   --co-author "Name <mail>"
 #                 a Co-Authored-By line on the release commit
@@ -39,12 +41,13 @@ set -uo pipefail
 say() { printf ':: %s\n' "$*"; }
 die() { printf 'xx %s\n' "$*" >&2; exit 1; }
 
-tests=changed plain='' keep='' coauthor='' topic='' summary='' queue=''
+tests=changed plain='' keep='' coauthor='' topic='' summary='' queue='' middle=''
 while [ $# -gt 0 ]; do
   case $1 in
     --tests) [ $# -ge 2 ] || die "--tests needs changed, quick, full or none"; tests=$2; shift 2 ;;
     --tests=*) tests=${1#--tests=}; shift ;;
     --plain) plain=1; shift ;;
+    --middle) middle=1; shift ;;
     --keep) keep=1; shift ;;
     --queue) queue=1; shift ;;
     --co-author) [ $# -ge 2 ] || die "--co-author needs a name and an address"; coauthor=$2; shift 2 ;;
@@ -180,9 +183,10 @@ say "main is at $merged ($topic)"
 
 if [ -z "$plain" ]; then
   old=$(cat "$main/VERSION" 2>/dev/null)
-  [[ $old =~ ^([0-9]+\.[0-9]+)\.([0-9]+)$ ]] ||
+  [[ $old =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] ||
     die "VERSION says '$old', not a number like 0.71.189. $topic is merged ($merged); the version and tag are not made"
-  new="${BASH_REMATCH[1]}.$((BASH_REMATCH[2] + 1))"
+  if [ -n "$middle" ]; then new="${BASH_REMATCH[1]}.$((BASH_REMATCH[2] + 1)).0"
+  else new="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((BASH_REMATCH[3] + 1))"; fi
   git -C "$main" rev-parse -q --verify "refs/tags/v$new" >/dev/null &&
     die "the tag v$new is there already. $topic is merged ($merged); the version and tag are not made"
   printf '%s\n' "$new" > "$main/VERSION" ||
