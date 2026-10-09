@@ -94,6 +94,14 @@ and a variable to set first, as (VARIABLE . VALUE).")
             (yellow (funcall c "color3")) (blue (funcall c "color4"))
             (magenta (funcall c "color5")) (cyan (funcall c "color6"))
             (orange (funcall c "color9" "color1")))
+        ;; The colours set the last time stay in the theme's settings
+        ;; after it is disabled, and a face's link to the theme goes with
+        ;; the disabling, so setting the faces again would only add a
+        ;; second setting a face, and the old one wins when the theme is
+        ;; enabled: every theme of yours after the first kept the first's
+        ;; colours. So the theme starts empty each time.
+        (disable-theme 'vikix-palette)
+        (put 'vikix-palette 'theme-settings nil)
         (custom-theme-set-faces
          'vikix-palette
          `(default ((t (:foreground ,fg :background ,bg))))

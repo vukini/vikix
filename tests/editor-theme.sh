@@ -58,6 +58,15 @@ if command -v emacs >/dev/null; then
   check "Emacs: applying the same theme again should do nothing: $out" test "$out" = nil
   out=$(em '(progn (princ (length custom-enabled-themes)))')
   check "Emacs: one theme at a time: $out" test "$out" = 1
+  # A second theme of yours in the same Emacs: the palette theme must take
+  # the new colours, not keep the first's (its old settings outlived the
+  # disabling, and won; the Office and Esploro, Emacs frames, stayed in
+  # the first imported theme's colours through every switch).
+  sed 's/^bg=.*/bg=#304050/' "$here/themes/void.theme" > "$HOME/.config/vikix/themes/mine2.theme"
+  theme mine
+  out=$(em "(progn (let ((process-environment (cons \"DISPLAY=\" process-environment))) (call-process \"bash\" nil nil nil \"$here/bin/vikix\" \"theme\" \"mine2\")) (vikix-theme-apply) (princ (format \"%s %s %s\" (car vikix-theme--applied) (face-attribute (quote default) :background) (length custom-enabled-themes))))")
+  check "Emacs: a second theme of yours should bring its own colours: $out" test "$out" = "mine2 #304050 1"
+  theme void
 else
   echo "(the Emacs part needs Emacs; skipped here)"
 fi
