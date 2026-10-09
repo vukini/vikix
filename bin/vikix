@@ -726,6 +726,15 @@ cmd_doctor() {
   else
     warn "Swank lets anyone on 127.0.0.1 in: no ~/.slime-secret, or others can read it (vikix update makes it)"; ok=0
   fi
+  # Vikix's own socket (socket.lisp): there, yours alone, answering.
+  sock=${VIKIX_SOCKET:-${XDG_RUNTIME_DIR:-}/vikix.sock}
+  if [ -S "$sock" ]; then
+    if [ "$(stat -c %a "$sock")" != 600 ]; then warn "Vikix's socket $sock isn't 600 (others could talk to the desktop)"; ok=0
+    elif [ "$(timeout 5 python3 "$VIKIX_DIR/bin/vikix-eval" --socket '(princ 1)' 2>/dev/null | head -1)" = 1 ]; then say "Vikix's socket answers ($sock)"
+    else warn "Vikix's socket $sock doesn't answer (vikix eval falls back to Swank; a reload makes it anew)"; ok=0; fi
+  elif [ -n "${XDG_RUNTIME_DIR:-}" ]; then
+    warn "no socket of Vikix's at $sock (an older desktop: reload it; vikix eval uses Swank meanwhile)"; ok=0
+  fi
   # Local AI, if it's set up: running?
   bash "$VIKIX_DIR/bin/vikix-local-ai" check || ok=0
   # The Windows VM, if there is one, on its private network.

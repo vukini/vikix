@@ -98,8 +98,7 @@ Don't run `vikix undo` unless the user asks for it.
 
 ## The running desktop: `vikix eval`
 
-StumpWM is a live Lisp image with a Swank server on `127.0.0.1:4004`.
-`vikix eval` sends Lisp to it and prints what came back:
+StumpWM is a live Lisp image; `vikix eval` sends Lisp to it (over Vikix's socket, or Swank on `127.0.0.1:4004`) and prints what came back:
 
 ```sh
 vikix eval '(+ 1 2)'                              # => 3

@@ -35,7 +35,7 @@ STATE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.
 LOG = os.path.join(STATE, "times.log")
 MEASURED = os.path.join(STATE, "times-measured.log")
 NAMES = {"login": "logging in", "reload": "Reload config", "start": "StumpWM's start",
-         "key": "a key to its command", "emacs": "an Emacs frame", "answer": "StumpWM answering",
+         "key": "a key to its command", "emacs": "an Emacs frame", "answer": "StumpWM answering", "answer-swank": "answering over Swank",
          "xterm": "answering, an xterm open"}
 
 

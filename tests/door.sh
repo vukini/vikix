@@ -203,7 +203,8 @@ printf '#!/bin/sh\nprintf "%%s|" "$@" >> "%s/notified"; echo >> "%s/notified"\n'
 chmod +x "$t/bin/notify-send"
 export PATH="$t/bin:$PATH"
 wm_start
-agent() { HOME=$home VIKIX_SWANK_PORT=$port python3 "$here/bin/vikix-eval" --door "$1" 2>&1; }
+# VIKIX_EVAL_PARENT=1: this test may itself run under an agent, which --door would name as the sender.
+agent() { HOME=$home VIKIX_SWANK_PORT=$port VIKIX_EVAL_PARENT=1 python3 "$here/bin/vikix-eval" --door "$1" 2>&1; }
 door() { HOME=$home VIKIX_SWANK_PORT=$port bash "$here/bin/vikix-door" "$@" 2>&1; }
 
 out=$(agent "(run-shell-command \"touch $t/ran\")") && st=0 || st=$?
@@ -257,3 +258,4 @@ check "without the door, an agent's form is refused, exit 2 (got $st: $out)" tes
 check "and told to reload" grep -q "before the door" <<<"$out"
 
 wm_report door "the door: an agent's Lisp checked, held, run or dropped"
+exit "$fail"

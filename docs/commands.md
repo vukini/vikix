@@ -473,11 +473,12 @@ Run Lisp inside the running StumpWM and print the result.
 - `vikix eval '(current-group)'` — one or more forms as an argument
 - `vikix eval < file.lisp` — or read them from standard input, a file or a pipe: echo '(vikix-apply-theme :paper)' | vikix eval
 - `vikix eval --door FORM` — check the forms as an agent's, whoever sends them
+- `vikix eval --socket FORM` — over Vikix's socket only (no Swank), or --swank over Swank only; alone it tries the socket first
 - `vikix eval --whose` — say whose a form from here would be: yours, or an agent's and which, and whether the door stands
 
 The forms are read in the STUMPWM package, so Vikix's and StumpWM's own names work without a prefix. For each form it prints what the form printed, then "=> " and the value.
 
-It talks to the Swank server that config/stumpwm/vikix/swank.lisp starts on 127.0.0.1:4004 (`VIKIX_SWANK_PORT` changes the port). When `~/.slime-secret` exists (40-config makes it), Swank lets in only a client that sends its first line first, as Emacs's SLIME does; so does this. The Lisp side, vikix-eval-for-agent, catches errors, so a bad form prints "error: ..." instead of leaving this command waiting.
+It talks to Vikix's own socket, `$XDG_RUNTIME_DIR/vikix.sock` (`VIKIX_SOCKET` names another; config/stumpwm/vikix/socket.lisp serves it, 0600 in a folder that is yours alone, so nothing is sent to prove who you are), where a form that only reads the desktop's state is answered by a thread of its own, even while a menu is open, and anything else goes to the main thread as before. Without the socket (an older desktop, a session without elogind) it talks to the Swank server that swank.lisp starts on 127.0.0.1:4004 (`VIKIX_SWANK_PORT` changes the port). When `~/.slime-secret` exists (40-config makes it), Swank lets in only a client that sends its first line first, as Emacs's SLIME does; so does this. The Lisp side, vikix-eval-for-agent, catches errors, so a bad form prints "error: ..." instead of leaving this command waiting.
 
 Exit status: 0 when every form ran, 1 when one failed, 2 when StumpWM could not be reached, 3 when the door held the forms.
 

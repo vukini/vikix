@@ -81,6 +81,7 @@
     "FRAME-NUMBER" "FRAME-X" "FRAME-Y" "FRAME-WIDTH" "FRAME-HEIGHT" "FRAME-WINDOW" "FRAME-WINDOWS"
     "HEAD-NUMBER" "HEAD-X" "HEAD-Y" "HEAD-WIDTH" "HEAD-HEIGHT" "LOOKUP-KEY" "KBD" "PRINT-KEY"
     "PRINT-KEY-SEQ" "PARSE-KEY" "ALL-COMMANDS" "GET-COMMAND-STRUCTURE" "MESSAGE" "ECHO-STRING"
+    "IN-MAIN-THREAD-P"
     ;; StumpWM: what is put back as easily as done
     "GSELECT" "GNEXT" "GPREV" "GOTHER" "GMOVE" "FNEXT" "FPREV" "FOTHER" "MOVE-FOCUS"
     "MOVE-WINDOW" "FOCUS-WINDOW" "FOCUS-FRAME" "FOCUS-ALL" "PULL-WINDOW" "PULL-WINDOW-BY-NUMBER"
@@ -141,6 +142,10 @@ the desktop runs, or a wait in its main thread.")
 (defparameter *vikix-door-setters* '("SETF" "SETQ" "PSETF" "PSETQ" "INCF" "DECF" "PUSH" "PUSHNEW" "POP" "ROTATEF" "SHIFTF")
   "What sets a place: fine on a variable the form itself bound, held on anything else.")
 
+(defvar *vikix-door-no-extras* nil
+  "Bound true to judge by *vikix-door-allowed* alone, without the registry's
+commands and the user's file: socket.lisp asks that way whether a form only reads.")
+
 (defparameter *vikix-door-lambda-keywords* '("&OPTIONAL" "&REST" "&KEY" "&AUX" "&BODY" "&WHOLE" "&ALLOW-OTHER-KEYS" "&ENVIRONMENT"))
 
 (defun vikix-door-user-file ()
@@ -188,8 +193,8 @@ registry's :agent commands, and the user's own file."
           (refused (cons :refused (format nil "it ~a ~(~a~), which ~a" how name (second refused))))
           (asks (cons :held (format nil "it ~a ~(~a~), which ~a" how name (second asks))))
           ((member name *vikix-door-allowed* :test #'string=) nil)
-          ((member name (vikix-door-registry-names) :test #'string=) nil)
-          ((member name (vikix-door-user-names) :test #'string=) nil)
+          ((and (not *vikix-door-no-extras*) (member name (vikix-door-registry-names) :test #'string=)) nil)
+          ((and (not *vikix-door-no-extras*) (member name (vikix-door-user-names) :test #'string=)) nil)
           (t (cons :held (format nil "it ~a ~(~a~), which isn't on the door's list (vikix door allowed shows it)" how name))))))
 
 (defun vikix-door-proper-list-p (x)

@@ -56,6 +56,7 @@ login on tty1
                       ├─ vikix/door.lisp         an agent's Lisp walked against one list before it runs; what fails waits for you
                       ├─ vikix/swank-guard.lisp  a wrong or missing password can't take Swank down
                       ├─ vikix/swank.lisp        Swank on 127.0.0.1:4004 (with a password), for Emacs and `vikix eval`
+                      └─ vikix/socket.lisp       Vikix's own socket beside it, `$XDG_RUNTIME_DIR/vikix.sock`: `vikix eval`'s first road
                       ├─ rules.lisp              yours: your rules for windows, when you have any
                       └─ user.lisp               yours, last
 ```
@@ -74,7 +75,7 @@ At the very first login, StumpWM also opens the welcome (`vikix welcome`, in a t
 
 ### How `vikix eval` reaches StumpWM
 
-For the curious: `vikix eval` is a small Python program that talks to StumpWM the way Emacs does, over Swank. Your code never runs in the Python program; it's sent across and run inside StumpWM itself, in its main thread, so it can touch windows and the bar safely.
+For the curious: `vikix eval` is a small Python program that talks to StumpWM over a socket. Your code never runs in the Python program; it's sent across and run inside StumpWM itself. Its first road is Vikix's own socket, `$XDG_RUNTIME_DIR/vikix.sock` (`socket.lisp`): a file only you can open, in a folder that is yours alone, so nothing is sent to prove who you are. A thread of Vikix's answers there: a form that only reads the desktop's state (which windows are where, what a key runs, the rules) is answered by that thread at once, even while a menu is open; anything that acts or draws is handed to the main thread, the one that owns the X connection, so it can touch windows and the bar safely. Without that socket (a session without elogind, or a desktop from before it), `vikix eval` talks to StumpWM the way Emacs does, over Swank, and everything runs in the main thread:
 
 ![vikix eval sends your Lisp to Swank, which runs it in StumpWM's main thread and sends back what it printed](diagrams/vikix-eval.svg)
 

@@ -12,7 +12,8 @@
 #            config: what's measured is the window manager's part)
 #   xterm    StumpWM answering with a tiled xterm open (the median of 3):
 #            an xterm once kept it busy laying the window out, over and over
-#   answer   StumpWM's main thread answering a question over Swank, after
+#   answer-swank  the same over Swank (the main thread, the password)
+#   answer   StumpWM answering a question over Vikix's socket, after
 #            all that (the median of 5): a slow one means it's kept busy
 #
 # Needs Xvfb, xdotool and Vikix's StumpWM (~/.local/bin/stumpwm); emacs for
@@ -57,10 +58,13 @@ touch "$home/.local/state/vikix/welcome"     # no welcome terminal
 log="$home/.local/state/vikix/times.log"
 
 for _ in $(seq 1 50); do xdpyinfo >/dev/null 2>&1 && break; sleep 0.2; done
-VIKIX_SESSION_START=$(now) HOME=$home VIKIX_SWANK_PORT=$port "$wm" >"$t/wm.log" 2>&1 &
+# Vikix's own socket (socket.lisp), in this folder: the answer is measured
+# over it, as the desktop's vikix eval goes, and once over Swank beside it.
+sock="$t/vikix.sock"
+VIKIX_SESSION_START=$(now) HOME=$home VIKIX_SWANK_PORT=$port VIKIX_SOCKET=$sock "$wm" >"$t/wm.log" 2>&1 &
 pids+=($!)
 
-ask() { HOME=$home VIKIX_SWANK_PORT=$port timeout 20 python3 "$here/bin/vikix-eval" "$1" 2>&1 | grep -v '^=> ' || true; }
+ask() { HOME=$home VIKIX_SWANK_PORT=$port VIKIX_SOCKET=$sock timeout 20 python3 "$here/bin/vikix-eval" "$1" 2>&1 | grep -v '^=> ' || true; }
 for _ in $(seq 1 120); do grep -q ' login ' "$log" 2>/dev/null && break; sleep 0.25; done
 grep -q ' login ' "$log" 2>/dev/null || { echo "times: the test StumpWM didn't get ready: $(tail -5 "$t/wm.log")" >&2; exit 1; }
 echo "start $(awk '$2 == "login" {print $3}' "$log" | tail -1)"
@@ -123,3 +127,8 @@ for _ in 1 2 3 4 5; do
   t0=$(now); [ "$(ask '(princ 1)')" = 1 ] && answers+=("$(secs "$t0" "$(now)")")
 done
 [ "${#answers[@]}" -gt 0 ] && echo "answer $(median "${answers[@]}")"
+answers=()
+for _ in 1 2 3 4 5; do
+  t0=$(now); [ "$(ask --swank '(princ 1)')" = 1 ] && answers+=("$(secs "$t0" "$(now)")")
+done
+[ "${#answers[@]}" -gt 0 ] && echo "answer-swank $(median "${answers[@]}")"

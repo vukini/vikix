@@ -9,5 +9,6 @@ reload  6
 key     0.5
 emacs   6
 answer  3
+answer-swank  3
 xterm   3
 login   20

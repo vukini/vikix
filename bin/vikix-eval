@@ -6,6 +6,8 @@
                                              a file or a pipe:
                                              echo '(vikix-apply-theme :paper)' | vikix eval
     vikix eval --door FORM                   check the forms as an agent's, whoever sends them
+    vikix eval --socket FORM                 over Vikix's socket only (no Swank), or --swank
+                                             over Swank only; alone it tries the socket first
     vikix eval --whose                       say whose a form from here would be: yours, or an
                                              agent's and which, and whether the door stands
 
@@ -13,10 +15,16 @@ The forms are read in the STUMPWM package, so Vikix's and StumpWM's own
 names work without a prefix. For each form it prints what the form
 printed, then "=> " and the value.
 
-It talks to the Swank server that config/stumpwm/vikix/swank.lisp starts
-on 127.0.0.1:4004 (VIKIX_SWANK_PORT changes the port). When ~/.slime-secret
-exists (40-config makes it), Swank lets in only a client that sends its
-first line first, as Emacs's SLIME does; so does this. The Lisp side,
+It talks to Vikix's own socket, $XDG_RUNTIME_DIR/vikix.sock (VIKIX_SOCKET
+names another; config/stumpwm/vikix/socket.lisp serves it, 0600 in a folder
+that is yours alone, so nothing is sent to prove who you are), where a form
+that only reads the desktop's state is answered by a thread of its own,
+even while a menu is open, and anything else goes to the main thread as
+before. Without the socket (an older desktop, a session without elogind)
+it talks to the Swank server that swank.lisp starts on 127.0.0.1:4004
+(VIKIX_SWANK_PORT changes the port). When ~/.slime-secret exists
+(40-config makes it), Swank lets in only a client that sends its first
+line first, as Emacs's SLIME does; so does this. The Lisp side,
 vikix-eval-for-agent, catches errors, so a bad form prints "error: ..."
 instead of leaving this command waiting.
 
@@ -147,6 +155,43 @@ def slime_secret():
         return None
 
 
+def socket_path():
+    """Vikix's socket: $VIKIX_SOCKET, else $XDG_RUNTIME_DIR/vikix.sock; None
+    when neither is set. With VIKIX_SWANK_PORT set (a test: every test sets
+    it, to keep off the live desktop's Swank) only VIKIX_SOCKET counts, so a
+    test keeps off the live desktop's socket the same way."""
+    own = os.environ.get("VIKIX_SOCKET")
+    if own:
+        return own
+    if os.environ.get("VIKIX_SWANK_PORT"):
+        return None
+    run = os.environ.get("XDG_RUNTIME_DIR")
+    return os.path.join(run, "vikix.sock") if run else None
+
+
+def through_socket(path, code, door, sender):
+    """The forms over Vikix's socket: (status, what was printed). The
+    request is a line "eval KIND FROM" and the forms, then our side closed
+    for writing; the answer a status line and the output, until it closes.
+    OSError when there is no socket to talk to (then Swank)."""
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.settimeout(TIMEOUT)
+    try:
+        sock.connect(path)
+        sock.sendall(f"eval {'door' if door else 'me'} {sender}\n".encode("utf-8") + code.encode("utf-8"))
+        sock.shutdown(socket.SHUT_WR)
+        data = b""
+        while True:
+            chunk = sock.recv(65536)
+            if not chunk:
+                break
+            data += chunk
+    finally:
+        sock.close()
+    status, _, out = data.decode("utf-8", errors="replace").partition("\n")
+    return status.strip(), out
+
+
 def listener_uid(port):
     """The user owning the socket listening on PORT on 127.0.0.1 (or on
     every address), from /proc/net/tcp; None when there's none to read."""
@@ -169,7 +214,12 @@ def main():
         print(__doc__.strip())
         return 0
     door = False
-    while args and args[0] in ("--door", "--whose"):
+    way = "either"          # the socket first, then Swank
+    while args and args[0] in ("--door", "--whose", "--socket", "--swank"):
+        if args[0] in ("--socket", "--swank"):
+            way = args[0][2:]
+            args = args[1:]
+            continue
         if args[0] == "--whose":
             kind, who = whose()
             at_desktop = PORT == DESKTOP_PORT
@@ -190,6 +240,25 @@ def main():
     code = " ".join(args) if args else sys.stdin.read()
     if not code.strip():
         print("vikix eval: no Lisp to run (try: vikix eval '(+ 1 2)')", file=sys.stderr)
+        return 2
+
+    # Vikix's own socket first: no password, and a read answered while a
+    # menu is open. A socket that isn't there (an older desktop, a session
+    # without elogind) means Swank, as before.
+    path = socket_path()
+    if way != "swank" and path:
+        try:
+            status, printed = through_socket(path, code, door, sender)
+        except OSError as e:
+            if way == "socket":
+                print(f"vikix eval: Vikix's socket at {path} didn't answer ({e}).\n"
+                      "Is StumpWM running with Vikix's config? (socket.lisp serves it; without --socket, Swank is tried)",
+                      file=sys.stderr)
+                return 2
+        else:
+            return finish(status.upper(), printed)
+    elif way == "socket":
+        print("vikix eval: no socket: neither VIKIX_SOCKET nor XDG_RUNTIME_DIR is set", file=sys.stderr)
         return 2
 
     try:
@@ -269,12 +338,18 @@ def main():
     strings = lisp_strings(reply)
     printed = strings[0] if strings else ""
     status = strings[1] if len(strings) > 1 else ""
-    if status == ":MISSING":
+    return finish(status.lstrip(":"), printed)
+
+
+def finish(status, printed):
+    """Print what the forms printed and turn STATUS (OK, ERROR, HELD,
+    MISSING, MISSING-DOOR) into the exit status; the same for both roads."""
+    if status == "MISSING":
         print("vikix eval: the running StumpWM has an older Vikix config.\n"
               "Reload it (Super+m, then Reload config) and try again.",
               file=sys.stderr)
         return 2
-    if status == ":MISSING-DOOR":
+    if status == "MISSING-DOOR":
         print("vikix eval: the running StumpWM has a Vikix config from before the door,\n"
               "so an agent's Lisp can't be checked, and isn't run. Ask the user to reload\n"
               "the desktop (Super+m, then Reload config), then try again.",
@@ -283,9 +358,9 @@ def main():
     sys.stdout.write(printed)
     if printed and not printed.endswith("\n"):
         sys.stdout.write("\n")
-    if status == ":HELD":
+    if status == "HELD":
         return 3
-    return 0 if status == ":OK" else 1
+    return 0 if status == "OK" else 1
 
 
 if __name__ == "__main__":

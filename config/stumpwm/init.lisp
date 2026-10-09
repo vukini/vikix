@@ -38,7 +38,8 @@
     "rescue"     ; a way out when the desktop is stuck: a watcher, Super+Ctrl+Alt+Escape, vikix rescue
     "door"       ; an agent's Lisp checked against one list before it runs; what fails waits for you
     "swank-guard" ; a wrong Swank password can't take Swank down
-    "swank")     ; the door for Emacs, with a password
+    "swank"      ; the door for Emacs, with a password
+    "socket")    ; Vikix's own door beside it: a UNIX socket, reads answered while a menu is open
   "Loaded in this order. Each file only uses what the files before it define.")
 
 ;;; Compiled copies. StumpWM compiles every form it loads, and the layer is

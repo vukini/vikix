@@ -86,6 +86,24 @@ try the bind for up to 5 s."
 (defparameter *vikix-eval-timeout* 10
   "Seconds `vikix eval` waits for StumpWM's main thread.")
 
+(defun vikix-eval-door (forms text from)
+  "The door for an agent's FORMS (read from TEXT, FROM says whose): when one
+of them calls what the door doesn't let an agent call, the whole text is
+held for the user, why is printed for the agent, and :HELD is returned;
+NIL when every form may run. Shared with socket.lisp, which asks it in a
+thread of its own."
+  (dolist (form forms nil)
+    (multiple-value-bind (ok why kind) (vikix-door-check form)
+      (unless ok
+        (let ((id (vikix-door-hold text why kind from)))
+          (fresh-line)
+          (if id
+              (format t "held ~d: ~a~%  because ~a.~%  The door lets an agent's Lisp through only when every function it calls is on its list (vikix door allowed). The user can run this as they are, from Super+m, Door, or vikix door run ~d, or drop it; nothing of it ran.~%"
+                      id (vikix-door-print form) why id)
+              (format t "refused: ~a~%  because ~a; and ~d forms wait at the door already, so this one isn't kept. Ask the user to look at them (Super+m, Door).~%"
+                      (vikix-door-print form) why *vikix-door-most*))
+          (return :held))))))
+
 (defun vikix-eval-forms (text &key door from)
   "Read every form in TEXT, in the STUMPWM package, and evaluate each.
 Print whatever the forms print, then each form's values after \"=> \".
@@ -102,18 +120,8 @@ when one of them calls what the door doesn't let an agent call."
                                for form = (read in nil eof)
                                until (eq form eof)
                                collect form)))))
-          (when door
-            (dolist (form forms)
-              (multiple-value-bind (ok why kind) (vikix-door-check form)
-                (unless ok
-                  (let ((id (vikix-door-hold text why kind from)))
-                    (fresh-line)
-                    (if id
-                        (format t "held ~d: ~a~%  because ~a.~%  The door lets an agent's Lisp through only when every function it calls is on its list (vikix door allowed). The user can run this as they are, from Super+m, Door, or vikix door run ~d, or drop it; nothing of it ran.~%"
-                                id (vikix-door-print form) why id)
-                        (format t "refused: ~a~%  because ~a; and ~d forms wait at the door already, so this one isn't kept. Ask the user to look at them (Super+m, Door).~%"
-                                (vikix-door-print form) why *vikix-door-most*))
-                    (return-from vikix-eval-forms :held))))))
+          (when (and door (vikix-eval-door forms text from))
+            (return-from vikix-eval-forms :held))
           (dolist (form forms)
             (let ((values (multiple-value-list (eval form))))
               (fresh-line)
