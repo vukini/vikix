@@ -1030,8 +1030,23 @@ terminal's title changing) was a gigabyte an hour in Xorg."
 (defun vikix-titlebar-height ()
   (+ 4 (font-height (screen-font (current-screen)))))
 
+(defvar *vikix-titlebar-pixels* (make-hash-table :test 'equal)
+  "Each colour a title bar was painted in (\"#rrggbb\"), and its pixel.")
+
+(defun vikix-titlebar-attention (screen win)
+  "The background and text colours (pixels) of WIN's title bar when its
+agent's terminal needs you (vikix-window-attention, agents.lisp: asks, gup,
+close), in the theme's colour for it; nil otherwise."
+  (let ((kind (and (fboundp 'vikix-window-attention) (ignore-errors (funcall 'vikix-window-attention win)))))
+    (when kind
+      (let ((colour (funcall 'vikix-attention-colour kind)))
+        (values (or (gethash colour *vikix-titlebar-pixels*)
+                    (setf (gethash colour *vikix-titlebar-pixels*) (alloc-color screen colour)))
+                (screen-bg-color screen))))))
+
 (defun vikix-titlebar-draw (win)
-  "Paint WIN's title bar: its number and name."
+  "Paint WIN's title bar: its number and name. Focused, in the focus colour;
+in the colour of what its agent needs of you, when it needs something."
   (let ((bar (gethash win *vikix-titlebar-windows*)))
     (when bar
       (let* ((screen (window-screen win))
@@ -1044,6 +1059,9 @@ terminal's title changing) was a gigabyte an hour in Xorg."
              (pm (xlib:create-pixmap :width w :height h :drawable bar
                                      :depth (xlib:drawable-depth bar)))
              (gc (xlib:create-gcontext :drawable pm :foreground bg :background bg)))
+        (multiple-value-bind (needs-bg needs-fg) (vikix-titlebar-attention screen win)
+          (when needs-bg
+            (setf bg needs-bg fg needs-fg (xlib:gcontext-foreground gc) bg (xlib:gcontext-background gc) bg)))
         (unwind-protect
              (let ((tabs (and (fboundp 'viri-titlebar-tabs) (funcall 'viri-titlebar-tabs win))))
                (xlib:draw-rectangle pm gc 0 0 w h t)
@@ -1063,8 +1081,9 @@ terminal's title changing) was a gigabyte an hour in Xorg."
                            for x = (* i cell)
                            for cw = (if (= i (1- (length tabs))) (- w x) cell)
                            for mine = (eq tab win)
-                           for cell-bg = (if mine bg (screen-bg-color screen))
-                           for cell-fg = (if mine fg (screen-fg-color screen))
+                           for needs = (and (not mine) (vikix-titlebar-attention screen tab))
+                           for cell-bg = (cond (mine bg) (needs needs) (t (screen-bg-color screen)))
+                           for cell-fg = (cond (mine fg) (needs (screen-bg-color screen)) (t (screen-fg-color screen)))
                            for text = (format nil "~d  ~a" (window-number tab) (window-name tab))
                            for room = (max 0 (floor (- cw 12) char))
                            do (setf (xlib:gcontext-foreground gc) cell-bg

@@ -85,6 +85,40 @@ load of other sessions' tests that moment was missed (2026-10-08)."
          (with-current-buffer vikix-office--detail
            (should-not (string-match-p "Continue" (buffer-string)))))
      (kill-buffer vikix-office--detail))))
+(ert-deftest office-attention-colours-the-desk ()
+  "A desk whose terminal needs you is drawn in the colour the desktop gives it:
+its title and its Live row in the face for asks, gup or close, and in the
+details the agent's line; a desk needing nothing is plain."
+  (should (eq (vikix-office--attention-face "gup") 'vikix-office-released))
+  (should (eq (vikix-office--attention-face "asks") 'vikix-office-asks))
+  (should (eq (vikix-office--attention-face "close") 'vikix-office-pushed))
+  (should-not (vikix-office--attention-face ""))
+  (should-not (vikix-office--attention-face nil))
+  (office-test-buffer
+   (setq vikix-office--detail (generate-new-buffer " *Office attention test*"))
+   (unwind-protect
+       (let ((r (car (alist-get 'desks vikix-office--data))))
+         ;; A key the data lacks: put into the row itself (setf alist-get would only cons onto r).
+         (setcdr r (cons (cons 'attention "gup") (cdr r)))
+         (setf (alist-get 'group r) "Needs you"
+               (alist-get 'agents r) '(((agent . "claude") (pid . 4242) (doing . "its desk is gone; main has commits to push: gup")
+                                        (window . "3") (workspace . "2") (attention . "gup"))))
+         (vikix-office--render)
+         (goto-char (point-min))
+         (search-forward "Task a")
+         (let ((face (get-text-property (match-beginning 0) 'face)))
+           (should (memq 'vikix-office-released (if (listp face) face (list face)))))
+         (search-forward "Live")
+         (search-forward "its desk is gone")
+         (should (eq (get-text-property (match-beginning 0) 'face) 'vikix-office-released))
+         ;; The other desk, needing nothing, is plain.
+         (search-forward "Task b")
+         (should-not (memq 'vikix-office-released (let ((f (get-text-property (match-beginning 0) 'face))) (if (listp f) f (list f)))))
+         (with-current-buffer vikix-office--detail
+           (goto-char (point-min))
+           (search-forward "its desk is gone")
+           (should (eq (get-text-property (match-beginning 0) 'face) 'vikix-office-released))))
+     (kill-buffer vikix-office--detail))))
 (defun office-test-box-lines ()
   "The lines of the current buffer that belong to a box, with their widths."
   (cl-remove-if-not (lambda (line) (string-match-p "\\`[┌├└│+|]" line))

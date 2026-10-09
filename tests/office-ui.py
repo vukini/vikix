@@ -44,9 +44,29 @@ class Office(unittest.TestCase):
         p = patch.object(H, 'all_records', lambda **kw: self.records)
         p.start(); self.addCleanup(p.stop)
 
-    def agent(self, pid=1, state='working', window='2'):
+    def agent(self, pid=1, state='working', window='2', attention=''):
         return {'folder': self.folder, 'pid': pid, 'agent': 'codex', 'state': state,
-                'doing': state, 'window': window, 'workspace': '4'}
+                'doing': state, 'window': window, 'workspace': '4', 'attention': attention}
+
+    def test_attention_is_the_desktops_and_needs_you(self):
+        """What a desk's terminals need of you, as the desktop colours them: asks
+        over gup over close, '' when nothing; gup and close put the desk in Needs
+        you, since both are yours to do."""
+        self.records = [self.rec]
+        self.agents = [self.agent()]
+        row = office.snapshot(A)['desks'][0]
+        self.assertEqual((row['attention'], row['group']), ('', 'Working'))
+        self.agents = [self.agent(1, 'idle', attention='close')]
+        row = office.snapshot(A)['desks'][0]
+        self.assertEqual((row['attention'], row['group']), ('close', 'Needs you'))
+        self.agents = [self.agent(1, 'idle', attention='close'), self.agent(2, 'idle', attention='gup')]
+        self.assertEqual(office.snapshot(A)['desks'][0]['attention'], 'gup')
+        self.agents.append(self.agent(3, 'asks', attention='asks'))
+        self.assertEqual(office.snapshot(A)['desks'][0]['attention'], 'asks')
+        # A desktop from before the colours: the field is missing, nothing is said.
+        old = self.agent(4, 'idle'); del old['attention']
+        self.agents = [old]
+        self.assertEqual(office.snapshot(A)['desks'][0]['attention'], '')
 
     def test_empty_and_incomplete(self):
         self.assertEqual(office.snapshot(A)['desks'], [])

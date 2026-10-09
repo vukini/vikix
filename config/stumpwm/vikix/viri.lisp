@@ -1341,21 +1341,33 @@ the event loop."
 
 (register-ml-on-click-id :viri-ml-window 'viri-ml-click)
 
+(defun viri-window-entry (w current)
+  "W's entry in the bar's window list: *window-format* filled in, then in
+the colour of what its agent's terminal needs of you (vikix-window-list-entry,
+agents.lisp: asks, gup, close), else highlighted when W is CURRENT."
+  (let ((str (format-expand *window-formatters* *window-format* w)))
+    (if (fboundp 'vikix-window-list-entry)
+        (funcall 'vikix-window-list-entry w str (eq w current))
+        (if (eq w current) (fmt-highlight str) str))))
+
 (defun viri-mode-line-windows (ml)
   "On a strip, its windows in order, the two on the screen in [brackets]
 and the focused one picked out, each a click away; elsewhere StumpWM's own
-list. So you can see how far along the strip you are, and what's off it."
+list (fmt-head-window-list, with the agents' colours). So you can see how
+far along the strip you are, and what's off it."
   (let ((group (mode-line-current-group ml)))
     (if (not (viri-group-p group))
-        (fmt-head-window-list ml)
+        (format nil "~{~a~^ ~}"
+                (mapcar (lambda (w)
+                          (format-with-on-click-id (viri-window-entry w (current-window))
+                                                   :ml-on-click-focus-window (window-id w)))
+                        (sort1 (head-windows group (mode-line-head ml)) #'< :key #'window-number)))
         (let* ((cols (viri-cols group))
                (shown (viri-visible group))
                (floats (remove-if (lambda (w) (viri-col-of group w)) (group-windows group))))
           (flet ((name (w)
-                   (format-with-on-click-id
-                    (let ((str (format-expand *window-formatters* *window-format* w)))
-                      (if (eq w (group-current-window group)) (fmt-highlight str) str))
-                    :viri-ml-window (window-id w))))
+                   (format-with-on-click-id (viri-window-entry w (group-current-window group))
+                                            :viri-ml-window (window-id w))))
             (format nil "~{~a~^ ~}"
                     (append (loop for c in cols
                                   for i from 0

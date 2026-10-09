@@ -179,11 +179,15 @@ def snapshot(api):
             row['next_action'] = ('Go to agent' if row['agents'] else 'Not a desk' if row['kind'] == 'folder'
                                   else 'Continue' if row['exists'] else 'Worktree removed')
         needs = any(a.get('state') in ('asks', 'permission', 'question', 'waiting', 'done') for a in row['agents'])
+        # What the desk's terminals need of you, as the desktop colours them
+        # (agents.lisp): asks over gup over close; '' when nothing.
+        kinds = [a.get('attention') or '' for a in row['agents']]
+        row['attention'] = next((k for k in ('asks', 'gup', 'close') if k in kinds), '')
         row['paused'] = api.pause_read(path) if row['kind'] == 'desk' else {}
         row['testing'] = api.tester_running(path) if row['kind'] == 'desk' else 0
         row['notes'] = len(api.inbox_peek(path)) if row['kind'] == 'desk' else 0
         row['left'] = row.get('left') or {}
-        row['group'] = ('Needs you' if needs or status in ('waiting', 'review') or not live_known
+        row['group'] = ('Needs you' if needs or row['attention'] or status in ('waiting', 'review') or not live_known
                         else 'Working' if row['agents'] and not row['paused']
                         else 'Finished' if status == 'finished' or d.get('closed')
                         else 'Parked')

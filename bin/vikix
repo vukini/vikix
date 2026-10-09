@@ -985,8 +985,12 @@ DUNST_DROPIN="${XDG_CONFIG_HOME:-$HOME/.config}/dunst/dunstrc.d/10-vikix-theme.c
 THEME_KEYS="bg fg subtle dim accent alert color0 color1 color2 color3 color4 color5
             color6 color7 color8 color9 color10 color11 color12 color13 color14 color15"
 # Keys a theme may leave out, with what stands in: themes made before
-# 0.23.0 have no sel, and keep working.
-THEME_OPTIONAL="sel"
+# 0.23.0 have no sel, and keep working; the three agent_ colours (what an
+# agent's terminal needs of you: it asks, its desk is released and waits
+# for gup, that is pushed and the terminal can go) are the terminal's
+# yellow, green and cyan unless the theme says otherwise (agents.lisp has
+# the same fallbacks).
+THEME_OPTIONAL="sel agent_asks agent_released agent_pushed"
 
 # A theme's name is its file's name, and it goes to StumpWM as a Lisp
 # keyword: letters, digits, - and _ only, or a file named to be Lisp would
@@ -1057,6 +1061,9 @@ theme_read() {
   done
   [ "${#missing[@]}" -eq 0 ] || { warn "$1 has no colour for: ${missing[*]}"; return 1; }
   : "${c_sel:=$c_color0}"
+  : "${c_agent_asks:=$c_color3}"
+  : "${c_agent_released:=$c_color2}"
+  : "${c_agent_pushed:=$c_color6}"
 }
 
 # theme_write NAME — every program's theme file, from theme NAME.
@@ -1166,7 +1173,7 @@ EOF
   # for a theme they have no colour scheme of their own for.
   {
     printf '# %s\n' "$head"
-    for k in $THEME_KEYS sel; do local var="c_$k"; printf '%s=%s\n' "$k" "${!var}"; done
+    for k in $THEME_KEYS $THEME_OPTIONAL; do local var="c_$k"; printf '%s=%s\n' "$k" "${!var}"; done
   } > "$THEME_OUT/palette"
   printf '%s\n' "$1" > "$THEME_OUT/current"
   theme_toolkits "$head"

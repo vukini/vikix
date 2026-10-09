@@ -144,7 +144,9 @@ nil. Only read: the plugin clears its own."
              (list :name (vikix-agent-name agent) :pid agent :window window
                    :folder (or (vikix-proc-cwd agent) "")
                    :seconds (or (vikix-proc-seconds agent) 0)
-                   :state state :words words :said said))))))))
+                   :state state :words words :said said
+                   ;; Filled by the title pass (vikix-agent-attention-of): :asks, :gup, :close or nil.
+                   :attention nil))))))))
 
 (defun vikix-agent-mark (window name)
   "Write NAME on WINDOW as the agent in it (_VIKIX_AGENT), or take the mark
@@ -232,8 +234,10 @@ and its window's title or what it last said."
 (defun vikix-agents-tsv ()
   "The agents, a line each, tab-separated, for bin/vikix-agents: name, pid,
 folder, workspace, window number, seconds, state, its words, what it said,
-the window's title, and the window's name for its desk (\"office-ui ·
-Claude\"; empty off a desk). Tabs and line ends inside a field are spaces."
+the window's title, the window's name for its desk (\"office-ui · Claude\";
+empty off a desk), and what its terminal needs of you (asks, gup, close, or
+empty: vikix-agent-attention-of). Tabs and line ends inside a field are
+spaces."
   (flet ((field (x) (substitute-if #\Space (lambda (c) (member c '(#\Tab #\Newline #\Return)))
                                    (princ-to-string (or x "")))))
     (format nil "~{~a~^~%~}"
@@ -245,7 +249,8 @@ Claude\"; empty off a desk). Tabs and line ends inside a field are spaces."
                                               (group-name (window-group w)) (window-number w)
                                               (getf a :seconds) (string-downcase (getf a :state))
                                               (getf a :words) (getf a :said) (window-title w)
-                                              (vikix-agent-desk-mark w))))))
+                                              (vikix-agent-desk-mark w)
+                                              (string-downcase (or (getf a :attention) "")))))))
                     (vikix-agents nil)))))
 
 (defcommand vikix-agents-pick () ()
@@ -315,12 +320,13 @@ agent's terminal there."
     (subseq path (1+ (or (position #\/ path :from-end t) -1)))))
 
 (defun vikix-agent-desk (folder)
-  "The desk FOLDER is in: (values DESK TOPIC), or nil. A desk is a git
-worktree: the nearest .git up from FOLDER is a file, \"gitdir: REPO/.git/
-worktrees/NAME\"; the project's own folder, whose .git is a folder, is no
-desk, nor is a folder outside any repository. The topic is the worktree
+  "The desk FOLDER is in: (values DESK TOPIC REPO), or nil. A desk is a
+git worktree: the nearest .git up from FOLDER is a file, \"gitdir: REPO/
+.git/worktrees/NAME\"; the project's own folder, whose .git is a folder, is
+no desk, nor is a folder outside any repository. The topic is the worktree
 folder's name after the repository's and a dash (vikix-office-agent at a
-worktree of vikix: office-agent), else the whole name."
+worktree of vikix: office-agent), else the whole name; REPO is the
+repository's own .git folder."
   (let ((dir (string-right-trim "/" (or folder ""))))
     (loop while (plusp (length dir))
           do (let* ((git (concatenate 'string dir "/.git"))
@@ -335,10 +341,12 @@ worktree of vikix: office-agent), else the whole name."
                        (when at
                          (let* ((prefix (concatenate 'string (vikix-agent-basename (subseq gitdir 0 at)) "-"))
                                 (name (vikix-agent-basename dir)))
-                           (values dir (if (and (> (length name) (length prefix))
-                                                (string= prefix name :end2 (length prefix)))
-                                           (subseq name (length prefix))
-                                           name))))))))
+                           (values dir
+                                   (if (and (> (length name) (length prefix))
+                                            (string= prefix name :end2 (length prefix)))
+                                       (subseq name (length prefix))
+                                       name)
+                                   (subseq gitdir 0 (+ at 5)))))))))
                (let ((slash (position #\/ dir :from-end t)))
                  (setf dir (if slash (subseq dir 0 slash) "")))))))
 
@@ -435,10 +443,16 @@ provider when more of that provider are at the desk, or when the number
 isn't 1 (the first may have gone). One that holds a number keeps it; the
 rest take the lowest free, the longest-running first, or the number its
 window was marked with before a restart when that is free."
-  (let ((at '()) (taken (make-hash-table :test 'equal)))
+  (let ((at '()) (gone '()) (taken (make-hash-table :test 'equal)))
     (dolist (a agents)
-      (multiple-value-bind (desk topic) (vikix-agent-desk-of a)
-        (when desk (push (list a desk topic (vikix-agent-shown-name (getf a :name))) at))))
+      (multiple-value-bind (desk topic repo) (vikix-agent-desk-of a)
+        (cond (desk
+               (when repo (setf (gethash (getf a :pid) *vikix-agent-repos*) repo))
+               (push (list a desk topic (vikix-agent-shown-name (getf a :name))) at))
+              ;; Its desk is gone (released, or closed) while it runs: the
+              ;; name it had stays, and the colour says what is left to do.
+              ((vikix-agent-gone-desk a)
+               (push (cons a (vikix-agent-desk-mark (getf a :window))) gone)))))
     (setf at (nreverse at))
     ;; The numbers of agents gone are anyone's tomorrow.
     (let ((live (mapcar (lambda (row) (getf (first row) :pid)) at)))
@@ -465,12 +479,14 @@ window was marked with before a restart when that is free."
                         (loop for n from 1 unless (member n have) return n))))
             (setf (gethash (getf a :pid) *vikix-agent-desk-numbers*) (list desk provider n))
             (push n (gethash (cons desk provider) taken))))))
-    (mapcar (lambda (row)
-              (destructuring-bind (a desk topic provider) row
-                (let ((n (third (gethash (getf a :pid) *vikix-agent-desk-numbers*)))
-                      (shared (rest (gethash (cons desk provider) taken))))
-                  (cons a (format nil "~a · ~a~@[ ~d~]" topic provider (and (or (> n 1) shared) n))))))
-            at)))
+    (append
+     (mapcar (lambda (row)
+               (destructuring-bind (a desk topic provider) row
+                 (let ((n (third (gethash (getf a :pid) *vikix-agent-desk-numbers*)))
+                       (shared (rest (gethash (cons desk provider) taken))))
+                   (cons a (format nil "~a · ~a~@[ ~d~]" topic provider (and (or (> n 1) shared) n))))))
+             at)
+     (nreverse gone))))
 
 (defvar *vikix-agent-title-sets* 0
   "How many times a window was named or unnamed: the tests watch it stay
@@ -521,6 +537,17 @@ what shows names when one changed."
         (when (vikix-agent-title-apply w (cdr row))
           (setf changed t)
           (when (fboundp 'vikix-titlebar-redraw) (ignore-errors (funcall 'vikix-titlebar-redraw w))))))
+    ;; What each terminal needs of you, in its colour: noted for the bar and
+    ;; the title bar, and said in the agent's words.
+    (dolist (w windows)
+      (let ((agent (find w agents :key (lambda (a) (getf a :window)))))
+        (if agent
+            (let ((kind (vikix-agent-attention-of agent)))
+              (setf (getf agent :attention) kind)
+              (when (and kind (not (eq kind :asks)))
+                (setf (getf agent :words) (vikix-agent-attention-words agent kind)))
+              (when (vikix-agent-attention-note w kind) (setf changed t)))
+            (when (vikix-agent-attention-note w nil :forget t) (setf changed t)))))
     (setf *vikix-agent-titles-at* (get-universal-time))
     (when changed (ignore-errors (update-all-mode-lines)))
     changed))
@@ -576,3 +603,154 @@ ticker)."
                       (prog1 (funcall f window atom)
                         (when (eq atom :wm_name)
                           (ignore-errors (vikix-agent-titles-soon))))))
+
+;;; --- What a desk's terminal needs of you: three colours -------------------------------------
+;;;
+;;; An agent's terminal is shown in a colour while something is yours to do
+;;; with it, in the bar's window list (viri-mode-line-windows) and as its
+;;; title bar's background (vikix-titlebar-draw): :asks while the agent waits
+;;; for you (vikix-agent-state, from the agent-waiting plugin's note or the
+;;; provider's title); :gup once its desk is gone (a release removed the
+;;; worktree, or vikix agents close did) while the repository's own branch
+;;; has commits its origin hasn't, which Vid's gup pushes; :close once that
+;;; is pushed too, so the terminal has nothing left to do. The colours come
+;;; from the theme, so a light theme and a dark one each have their own:
+;;; agent_asks, agent_released and agent_pushed in the theme file, or the
+;;; terminal's yellow, green and cyan (color3, color2, color6) for a theme
+;;; without them. Whether a branch is pushed is read from the repository's
+;;; ref files, never git: the pass runs in StumpWM's thread.
+
+(defvar *vikix-agent-repos* (make-hash-table :test 'eql)
+  "Each agent, by process number, and its desk's repository (its .git
+folder), noted while the desk is there: a desk gone can't say whose it
+was. An agent gone loses its entry with its number.")
+
+(defvar *vikix-agent-attention* (make-hash-table :test 'eq)
+  "Each window with an agent in it at the last pass, and what it needs of
+you then: :asks, :gup, :close or nil.")
+
+(defvar *vikix-agent-pushed-cache* (make-hash-table :test 'equal)
+  "Each repository asked, and (WHEN ANSWER BRANCH): the ref files are read
+again five seconds on, not at every redraw of the bar.")
+
+(defun vikix-agent-gone-desk (agent)
+  "AGENT's desk when it is gone while the agent runs: (values FOLDER TOPIC
+REPO), or nil. The folder is the seat's or the process's (whose link reads
+\"... (deleted)\" once the folder is removed), and it must be gone; the
+topic is the name its window was given, up to the dot; the repository is
+the one noted while the desk stood, else the folder's beginning before
+\"-TOPIC\", when that has a .git folder."
+  (let* ((window (getf agent :window))
+         (mark (and window (vikix-agent-desk-mark window)))
+         (raw (or (cdr (assoc (getf agent :pid) (vikix-agent-seats))) (getf agent :folder) ""))
+         (deleted (search " (deleted)" raw :from-end t))
+         (folder (string-right-trim "/" (if (and deleted (= (+ deleted 10) (length raw))) (subseq raw 0 deleted) raw)))
+         (dot (and mark (search " · " mark)))
+         (topic (and dot (subseq mark 0 dot))))
+    (when (and topic (plusp (length folder)) (not (probe-file (concatenate 'string folder "/"))))
+      (let ((repo (or (gethash (getf agent :pid) *vikix-agent-repos*)
+                      (let ((tail (concatenate 'string "-" topic)))
+                        (and (> (length folder) (length tail))
+                             (string= tail folder :start2 (- (length folder) (length tail)))
+                             (let ((git (concatenate 'string (subseq folder 0 (- (length folder) (length tail))) "/.git")))
+                               (and (probe-file (concatenate 'string git "/")) git)))))))
+        (values folder topic repo)))))
+
+(defun vikix-git-ref (repo ref)
+  "REF's commit in the repository whose .git folder is REPO, from its loose
+file or packed-refs; nil without one. Never git."
+  (ignore-errors
+   (let ((loose (concatenate 'string repo "/" ref)))
+     (or (with-open-file (in loose :if-does-not-exist nil)
+           (and in (let ((line (read-line in nil))) (and line (string-trim " " line)))))
+         (with-open-file (in (concatenate 'string repo "/packed-refs") :if-does-not-exist nil)
+           (and in
+                (loop for line = (read-line in nil)
+                      while line
+                      do (let ((space (position #\Space line)))
+                           (when (and space (string= ref line :start2 (1+ space)))
+                             (return (subseq line 0 space)))))))))))
+
+(defun vikix-git-pushed (repo)
+  "Whether the repository REPO's own branch (what its HEAD names) is at
+its origin: (values :pushed or :unpushed, BRANCH), or nil when HEAD names
+no branch or the branch has no commit. A branch with no origin/BRANCH counts
+as pushed: there is nothing to push it to. Cached for five seconds."
+  (let* ((now (get-universal-time))
+         (known (gethash repo *vikix-agent-pushed-cache*)))
+    (if (and known (< (- now (first known)) 5))
+        (values (second known) (third known))
+        (let* ((head (vikix-git-ref repo "HEAD"))
+               (branch (and head (eql 0 (search "ref: refs/heads/" head)) (subseq head 16)))
+               (mine (and branch (vikix-git-ref repo (concatenate 'string "refs/heads/" branch))))
+               (theirs (and mine (vikix-git-ref repo (concatenate 'string "refs/remotes/origin/" branch))))
+               (answer (cond ((null mine) nil)
+                             ((or (null theirs) (string= mine theirs)) :pushed)
+                             (t :unpushed))))
+          (setf (gethash repo *vikix-agent-pushed-cache*) (list now answer branch))
+          (values answer branch)))))
+
+(defun vikix-agent-attention-of (agent)
+  "What AGENT's terminal needs of you: :asks (it waits for you), :gup (its
+desk is gone and the repository's branch has commits to push), :close (its
+desk is gone and the branch is pushed), or nil."
+  (cond ((eq (getf agent :state) :asks) :asks)
+        (t (multiple-value-bind (folder topic repo) (vikix-agent-gone-desk agent)
+             (declare (ignore folder topic))
+             (and repo
+                  (case (vikix-git-pushed repo)
+                    (:unpushed :gup)
+                    (:pushed :close)))))))
+
+(defun vikix-agent-attention-words (agent kind)
+  "What to say of AGENT in the list for KIND, :gup or :close."
+  (let ((branch (multiple-value-bind (folder topic repo) (vikix-agent-gone-desk agent)
+                  (declare (ignore folder topic))
+                  (or (and repo (nth-value 1 (vikix-git-pushed repo))) "main"))))
+    (ecase kind
+      (:gup (format nil "its desk is gone; ~a has commits to push: gup" branch))
+      (:close (format nil "its desk is gone and ~a is pushed: close the terminal" branch)))))
+
+(defun vikix-agent-attention-note (window kind &key forget)
+  "Note KIND as what WINDOW needs of you (with FORGET, that no agent is in
+it), redrawing its title bar when that changed. True then."
+  (let ((before (gethash window *vikix-agent-attention* :none)))
+    (if forget
+        (remhash window *vikix-agent-attention*)
+        (setf (gethash window *vikix-agent-attention*) kind))
+    (unless (or (eq before kind) (and forget (eq before :none)))
+      (when (fboundp 'vikix-titlebar-redraw) (ignore-errors (funcall 'vikix-titlebar-redraw window)))
+      t)))
+
+(defun vikix-window-attention (window)
+  "What WINDOW needs of you now: :asks, :gup, :close or nil. Reads Lisp
+state and the agent's note only (vikix-agent-state), so the bar may ask at
+every redraw: a note that came since the last pass is seen at once, and one
+answered is gone at once; the rest is what the pass found."
+  (let ((known (gethash window *vikix-agent-attention* :none)))
+    (unless (eq known :none)
+      (let ((asks (eq (ignore-errors (vikix-agent-state window)) :asks)))
+        (cond (asks :asks)
+              ((eq known :asks) nil)
+              (t known))))))
+
+(defun vikix-attention-colour (kind)
+  "The theme's colour for KIND: agent_asks, agent_released or agent_pushed
+in the theme file, else the terminal's yellow, green or cyan."
+  (ecase kind
+    (:asks (or (vikix-colour :agent_asks) (vikix-colour :color3) (vikix-colour :accent)))
+    (:gup (or (vikix-colour :agent_released) (vikix-colour :color2) (vikix-colour :accent)))
+    (:close (or (vikix-colour :agent_pushed) (vikix-colour :color6) (vikix-colour :subtle)))))
+
+(defun vikix-window-list-entry (window text &optional current)
+  "TEXT, WINDOW's entry in the bar's window list, in the colour of what it
+needs of you, else highlighted when it is the CURRENT window, else as it is."
+  (let ((kind (vikix-window-attention window)))
+    (cond (kind (format nil "^(:push)^(:fg \"~a\")~a^(:pop)" (vikix-attention-colour kind) text))
+          (current (fmt-highlight text))
+          (t text))))
+
+(defun vikix-agent-attention-forget (window)
+  (remhash window *vikix-agent-attention*))
+(remove-hook *destroy-window-hook* 'vikix-agent-attention-forget)
+(add-hook *destroy-window-hook* 'vikix-agent-attention-forget)

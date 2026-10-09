@@ -16,7 +16,11 @@
 #   project's own folder) and a name the user gave are left alone; a desk
 #   with spaces, punctuation and Unicode in its name; a reload leaves one
 #   hook and one wrapper, and the names as they were; vikix agents and
-#   --json say the same name.
+#   --json say the same name. A desk gone while its agent runs (released, or
+#   closed) keeps the terminal's name, and the terminal takes a colour for
+#   what is left to do: gup while the repository's branch has commits its
+#   origin hasn't, close once pushed, asks over both while the agent waits
+#   for you; the colours are the theme's, and the listing says the same.
 #
 # Needs Xvfb, xdotool, alacritty and Vikix's own StumpWM, as office does;
 # without them it says so and stops there. Its own screen, port and home.
@@ -208,6 +212,57 @@ check "resume starts an agent at the desk again: $out" grep -q 'fresh conversati
 got=$(name_of Alacritty "resume-me · Claude")
 check "and its terminal is named for the desk: '$got'" test "$got" = "resume-me · Claude"
 
+# --- A desk gone while its agent runs: the name stays, the colour says what is left ----------------
+# The repository gets an origin; the desk's branch is merged, its worktree removed
+# and its branch deleted, as .claude/release leaves things.
+git init -q --bare "$t/origin.git"
+git -C "$home/src/books" remote add origin "$t/origin.git"
+git -C "$home/src/books" push -q -u origin main 2>/dev/null
+echo note > "$home/src/books-resume-me/note.md"
+git -C "$home/src/books-resume-me" add note.md; git -C "$home/src/books-resume-me" commit -q -m note
+rm_win=$(by_title Alacritty)
+check "nothing is asked of you while the desk stands" yes "(null (vikix-window-attention $rm_win))"
+git -C "$home/src/books" merge -q --ff-only resume-me
+git -C "$home/src/books" worktree remove --force "$home/src/books-resume-me"
+git -C "$home/src/books" branch -q -d resume-me
+pass
+check "the terminal keeps its desk's name once the desk is gone: $(ask "(princ (window-user-title $rm_win))")" \
+  yes "(equal (window-user-title $rm_win) \"resume-me · Claude\")"
+check "and says gup: main has commits origin hasn't" yes "(eq (vikix-window-attention $rm_win) :gup)"
+# The colours are the theme's: agent_released when the theme names it, else its color2.
+ask '(setf (getf (getf *vikix-themes* *vikix-theme*) :agent_released) "#112233")' >/dev/null
+check "the colour is the theme's agent_released" yes '(equal (vikix-attention-colour :gup) "#112233")'
+ask '(progn (remf (getf *vikix-themes* *vikix-theme*) :agent_released) (setf (getf (getf *vikix-themes* *vikix-theme*) :color2) "#445566"))' >/dev/null
+check "or its color2 without one" yes '(equal (vikix-attention-colour :gup) "#445566")'
+check "the bar's entry is in that colour" \
+  yes "(equal (vikix-window-list-entry $rm_win \"7 x\") (format nil \"^(:push)^(:fg \\\"~a\\\")7 x^(:pop)\" (vikix-attention-colour :gup)))"
+check "viri's list entry goes through it" yes "(search (vikix-attention-colour :gup) (viri-window-entry $rm_win nil))"
+out=$(cli)
+check "vikix agents says gup: $(grep -i 'gup' <<<"$out")" grep -q 'its desk is gone; main has commits to push: gup' <<<"$out"
+check "--json has attention gup" python3 -c '
+import json, sys
+agents = json.loads(sys.argv[1])
+assert any(a["attention"] == "gup" and a["desk_title"] == "resume-me · Claude" for a in agents), [(a["desk_title"], a.get("attention")) for a in agents]
+' "$(cli --json)"
+# Pushed: the terminal can go.
+git -C "$home/src/books" push -q origin main 2>/dev/null
+sleep 5   # the ref files are read again five seconds on
+pass
+check "once pushed, close" yes "(eq (vikix-window-attention $rm_win) :close)"
+ask '(setf (getf (getf *vikix-themes* *vikix-theme*) :color6) "#778899")' >/dev/null
+check "in the theme's colour for it (color6 without agent_pushed)" yes '(equal (vikix-attention-colour :close) "#778899")'
+check "the listing says to close the terminal" grep -q 'its desk is gone and main is pushed: close the terminal' <<<"$(cli)"
+# The agent asks: seen at once from its note, without a pass, and over the rest.
+xid=$(ask "(princ (xlib:window-id (window-xwin $rm_win)))")
+mkdir -p "$home/.local/state/vikix/agents"
+printf 'ask 1700000000\n%s\nMay I?\n' "$home/src/books-resume-me" > "$home/.local/state/vikix/agents/$xid"
+check "an agent that asks is asks, from its note, before any pass" yes "(eq (vikix-window-attention $rm_win) :asks)"
+ask '(setf (getf (getf *vikix-themes* *vikix-theme*) :agent_asks) "#aabbcc")' >/dev/null
+check "in the theme's colour for asking" yes '(equal (vikix-attention-colour :asks) "#aabbcc")'
+rm -f "$home/.local/state/vikix/agents/$xid"
+check "the note gone, what the pass found is back" yes "(eq (vikix-window-attention $rm_win) :close)"
+check "a terminal with no agent needs nothing" yes "(null (vikix-window-attention $(by_title Shell)))"
+
 # --- A reload: one hook, one wrapper, the names as they were ------------------------------------
 before=$(sets)
 ask '(loadrc)' >/dev/null; sleep 2
@@ -221,5 +276,5 @@ check "the name as it was: $(ask "(princ (window-user-title $(by_title "◐ Work
   test "$(ask "(princ (window-user-title $(by_title "◐ Working F")))")" = "ünï cøde & \"quotes\" · Claude"
 check "the desktop met no error" test -z "$(ls "$home/.local/state/vikix/errors" 2>/dev/null)"
 
-wm_report titles "an agent's terminal named for its desk: started, seated, resumed; the provider's title kept apart and still read, no name again while it turns; numbered by provider at a shared desk, stable as one leaves; unnamed or renamed as the agent goes; home, the own folder and a hand-given name left alone; a reload leaves one hook and one wrapper"
+wm_report titles "an agent's terminal named for its desk: started, seated, resumed; the provider's title kept apart and still read, no name again while it turns; numbered by provider at a shared desk, stable as one leaves; unnamed or renamed as the agent goes; home, the own folder and a hand-given name left alone; a desk gone keeps the name and colours the terminal gup, close or asks, the theme's colours, said in the listing; a reload leaves one hook and one wrapper"
 exit "$fail"

@@ -22,6 +22,36 @@
 (defvar-local vikix-office--process nil)
 (defvar-local vikix-office--action nil)
 (defvar-local vikix-office--closed nil)
+
+;; What a desk's terminal needs of you, in the desktop's three colours
+;; (agents.lisp: the bar's window list and the title bar show the same):
+;; the agent asks, its desk is released and the branch waits for gup, that
+;; is pushed and the terminal can go. The colours are the theme's
+;; (agent_asks, agent_released, agent_pushed in the palette `vikix theme'
+;; writes, read at each draw so a theme change is followed); without a
+;; palette, Emacs's own warning, success and constant faces, which every
+;; theme sets for light and dark.
+(defgroup vikix-office nil "The Office: tasks, desks and agents." :group 'applications)
+(defface vikix-office-asks '((t :inherit warning))
+  "A desk whose agent waits for you." :group 'vikix-office)
+(defface vikix-office-released '((t :inherit success))
+  "A desk released, its branch not pushed yet: gup." :group 'vikix-office)
+(defface vikix-office-pushed '((t :inherit font-lock-constant-face))
+  "A desk released and pushed: its terminal can be closed." :group 'vikix-office)
+(defun vikix-office--attention-face (kind)
+  "The face for KIND (\"asks\", \"gup\", \"close\"), or nil."
+  (pcase kind ("asks" 'vikix-office-asks) ("gup" 'vikix-office-released) ("close" 'vikix-office-pushed)))
+(defun vikix-office--attention-colours ()
+  "Give the three faces the desktop's colours, from the theme's palette when
+`vikix-theme-palette' (vikix-theme.el) is loaded and has them."
+  (when (fboundp 'vikix-theme-palette)
+    (let ((palette (ignore-errors (vikix-theme-palette))))
+      (pcase-dolist (`(,face ,key ,fallback) '((vikix-office-asks "agent_asks" "color3")
+                                               (vikix-office-released "agent_released" "color2")
+                                               (vikix-office-pushed "agent_pushed" "color6")))
+        (let ((colour (or (cdr (assoc key palette)) (cdr (assoc fallback palette)))))
+          (when (and colour (not (equal colour (face-foreground face nil t))))
+            (set-face-attribute face nil :foreground colour)))))))
 (defvar-local vikix-office--archive nil)
 
 (defun vikix-office--get (key object) (alist-get key object))
@@ -223,6 +253,7 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
          (label-width 9))
     (unless (vikix-office--row) (setq vikix-office--selected (alist-get 'id (car rows))))
     (setq vikix-office--width width)
+    (vikix-office--attention-colours)
     (let ((inhibit-read-only t))
       (erase-buffer)
       (insert (propertize "The Office\n" 'face '(:inherit variable-pitch :height 1.5 :weight bold)))
@@ -266,11 +297,14 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
               (dolist (r members)
                 (unless first (vikix-office--box-rule width chars))
                 (setq first nil)
-                (let ((start (point)) (id (alist-get 'id r)) (folder (vikix-office--folder-p r)))
+                (let* ((start (point)) (id (alist-get 'id r)) (folder (vikix-office--folder-p r))
+                       ;; The desk's colour: what its terminal needs of you, as the desktop shows it.
+                       (face (vikix-office--attention-face (alist-get 'attention r))))
                   (vikix-office--line
                    width chars
                    (lambda ()
                      (insert-text-button (truncate-string-to-width (vikix-office--one-line (alist-get 'title r)) width nil nil "…")
+                                         'face (if face (list face 'button) 'button)
                                          'follow-link t 'action
                                          (lambda (button)
                                            (goto-char (button-start button))
@@ -291,7 +325,8 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                                         (if (alist-get 'paused r) (concat " · paused by " (vikix-office--one-line (alist-get 'by (alist-get 'paused r)))) "")
                                         (if (vikix-office--positive (alist-get 'testing r)) " · testing" "")
                                         (if (vikix-office--positive (alist-get 'notes r))
-                                            (format " · %d note%s waiting" (alist-get 'notes r) (if (= (alist-get 'notes r) 1) "" "s")) "")))
+                                            (format " · %d note%s waiting" (alist-get 'notes r) (if (= (alist-get 'notes r) 1) "" "s")) ""))
+                                       face)
                   ;; A plain folder keeps no handoff: nothing to say of one. Where
                   ;; the work stands against the agent's estimate, while one stands.
                   (unless folder
@@ -438,7 +473,9 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                                                       (or (alist-get 'workspace a) "unknown")
                                                       ;; Its window's name on the desktop: the desk and the provider.
                                                       (if (member (alist-get 'desk_title a) '(nil ""))
-                                                          "" (concat " · " (vikix-office--one-line (alist-get 'desk_title a))))))
+                                                          "" (concat " · " (vikix-office--one-line (alist-get 'desk_title a)))))
+                                              ;; In the colour its terminal has on the desktop.
+                                              (vikix-office--attention-face (alist-get 'attention a)))
                          (let ((said (if (member (alist-get 'window a) '(nil "")) "No desktop window" (or (alist-get 'said a) ""))))
                            (unless (string-empty-p said)
                              (vikix-office--field width chars label-width "" said 'shadow))))

@@ -13,6 +13,13 @@ accent=#89b4fa     # the focused window, frames, updates waiting
 alert=#f38ba8      # urgent notifications, recording
 sel=#45475a        # behind selected text and rows (optional; color0 if missing)
 
+# An agent's terminal, in the bar's window list and its title bar, while
+# something is yours to do with it (optional; the terminal's yellow, green
+# and cyan if missing).
+agent_asks=#f9e2af      # the agent waits for you
+agent_released=#a6e3a1  # its desk is released, the branch not pushed yet: gup
+agent_pushed=#94e2d5    # pushed too: the terminal can be closed
+
 # The terminal's 16 colours: black red green yellow blue magenta cyan white,
 # then the same eight, bright.
 color0=#45475a

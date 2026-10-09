@@ -385,7 +385,8 @@ NAMES = {"agy": "antigravity"}     # a program whose name isn't its agent's
 # A provider's program run as a server is no session: codex app-server (runit's
 # daemon), claude mcp serve, opencode serve. Never listed as an agent.
 SERVERS = {"codex": ("app-server", "exec-server", "mcp-server"), "claude": ("mcp",), "opencode": ("serve", "web", "acp")}
-FIELDS = ("agent", "pid", "folder", "workspace", "window", "seconds", "state", "doing", "said", "title", "desk_title")
+FIELDS = ("agent", "pid", "folder", "workspace", "window", "seconds", "state", "doing", "said", "title", "desk_title",
+          "attention")   # what its terminal needs of you: asks, gup, close or "" (agents.lisp)
 # What vikix agents handoff writes, given any of them (no "set" needed).
 SETTINGS = ("--task", "--status", "--summary", "--next", "--estimate", "--from")
 
@@ -523,8 +524,9 @@ def desktop(strict=False):
     agents = []
     for line in r.stdout.splitlines():
         parts = line.split("\t")
-        # A desktop from before the windows were named for their desks has no last field.
-        if line.startswith("=> ") or len(parts) not in (len(FIELDS) - 1, len(FIELDS)):
+        # A desktop from before the windows were named for their desks has two
+        # fields fewer, one from before the colours one fewer.
+        if line.startswith("=> ") or len(parts) not in (len(FIELDS) - 2, len(FIELDS) - 1, len(FIELDS)):
             continue
         a = dict(zip(FIELDS, parts + [""] * (len(FIELDS) - len(parts))))
         for k in ("pid", "seconds"):
@@ -609,7 +611,8 @@ def elsewhere(known, strict=False):
             found.append({"agent": name, "pid": pid, "folder": os.readlink(f"{PROC}/{pid}/cwd"),
                           "workspace": "", "window": "", "seconds": max(0, round(uptime - int(rest[19]) / 100)),
                           "state": "running", "doing": "running", "said": "",
-                          "title": "no window of its own: " + whereabouts(pid, parent), "desk_title": ""})
+                          "title": "no window of its own: " + whereabouts(pid, parent), "desk_title": "",
+                          "attention": ""})
         except (OSError, ValueError, IndexError):
             continue
     return found

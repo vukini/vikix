@@ -10,6 +10,9 @@ dim=#9ca0b0
 accent=#1c5bd6     # 5.28:1
 alert=#d20f39      # 4.80:1
 sel=#ccd0da        # fg on it 5.17:1
+agent_asks=#8a5d06      # 5.09:1
+agent_released=#327a1f  # 4.71:1
+agent_pushed=#107077    # 5.15:1
 
 color0=#5c5f77
 color1=#d20f39

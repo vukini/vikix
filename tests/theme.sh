@@ -28,6 +28,8 @@ check "alacritty's file isn't valid TOML" python3 -c "import tomllib,sys; tomlli
 check "kitty doesn't get 16 colours" test "$(grep -c '^color[0-9]* #' "$out/kitty.conf")" = 16
 check "the lock screen doesn't get the background" test "$(cat "$out/lock")" = eff1f5
 check "dunst's drop-in is missing" grep -q '#eff1f5' "$t/home/.config/dunst/dunstrc.d/10-vikix-theme.conf"
+# The three colours of an agent's terminal reach the palette (Emacs reads it there).
+check "the palette lacks vikix-light's agent colours" bash -c "grep -q '^agent_asks=#8a5d06$' '$out/palette' && grep -q '^agent_released=#327a1f$' '$out/palette' && grep -q '^agent_pushed=#107077$' '$out/palette'"
 check "alacritty's selection isn't the sel colour" grep -A1 '^\[colors.selection\]' "$out/alacritty.toml" | grep -q '"#ccd0da"'
 check "rofi's selected row isn't sel" grep -q 'sel: #ccd0da' "$out/rofi.rasi"
 check "dunst's bars don't get the accent" grep -q 'highlight = "#1c5bd6"' "$t/home/.config/dunst/dunstrc.d/10-vikix-theme.conf"
@@ -85,11 +87,14 @@ mkdir -p "$t/home/.config/vikix/themes"
 sed 's/^bg=.*/bg=#123456   # mine/' "$here/themes/vikix-dark.theme" > "$t/home/.config/vikix/themes/mine.theme"
 vikix mine >/dev/null
 check "your own theme isn't used" grep -q '"#123456"' "$out/alacritty.toml"
-# A theme from before sel existed still works, with color0 behind selections.
-grep -v '^sel=' "$here/themes/vikix-dark.theme" | sed 's/^color0=.*/color0=#010203/' > "$t/home/.config/vikix/themes/older.theme"
+# A theme from before sel existed still works, with color0 behind selections,
+# and one without the agent colours takes the terminal's yellow, green and cyan.
+grep -v '^sel=\|^agent_' "$here/themes/vikix-dark.theme" | sed 's/^color0=.*/color0=#010203/' > "$t/home/.config/vikix/themes/older.theme"
 vikix older >/dev/null
 check "a theme without sel isn't accepted" test "$(cat "$out/current")" = older
 check "a theme without sel doesn't fall back to color0" grep -q 'selection_background #010203' "$out/kitty.conf"
+check "a theme without the agent colours doesn't take color3, color2 and color6" \
+  bash -c "grep -q '^agent_asks=#f9e2af$' '$out/palette' && grep -q '^agent_released=#a6e3a1$' '$out/palette' && grep -q '^agent_pushed=#94e2d5$' '$out/palette'"
 vikix mine >/dev/null
 grep -v '^accent=' "$here/themes/vikix-dark.theme" > "$t/home/.config/vikix/themes/half.theme"
 if vikix half >/dev/null 2>&1; then echo "FAIL: a theme without an accent colour is accepted"; fail=1; fi
