@@ -259,8 +259,10 @@ LISP
 
 ;; The file: made when it isn't there, with its first lines.
 (check "there is no rules.lisp yet" (not (probe-file (vikix-rules-file))))
+;; No snapshot here: without StumpWM's event loop there is no main thread
+;; for the write to come back to (the key's path, with one, is tried below).
 (let ((rule (vikix-remember-write '(when-window (:class "Kept") :name "remembered: Kept" (workspace 2))
-                                  "remembered: Kept" "Kept")))
+                                  "remembered: Kept" "Kept" :snapshot nil)))
   (check "remembering writes rules.lisp, under a dated comment, after its first lines"
          (let ((text (rules-file-text)))
            (and (eql 0 (search ";;;; rules.lisp" text)) (search "(in-package :stumpwm)" text)
@@ -274,7 +276,7 @@ LISP
   (format out "~%;; Mine, by hand.~%(when-window (:class \"Mine\")~%  (title \"mine\"))~%"))
 (vikix-load-forms (vikix-rules-file) "rules.lisp")
 (vikix-remember-write '(when-window (:class "Kept") :name "remembered: Kept" (workspace 5))
-                      "remembered: Kept" "Kept")
+                      "remembered: Kept" "Kept" :snapshot nil)
 (check "remembering the same window again replaces its rule where it stood, and leaves your own lines alone"
        (let ((text (rules-file-text)))
          (and (= 1 (count-of "remembered: Kept" text)) (= 1 (count-of ";; Remembered " text))

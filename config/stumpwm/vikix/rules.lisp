@@ -2073,41 +2073,41 @@ into ~/.stumpwm.d/rules.lisp. The rule is shown first."
 vikix-remember-ways takes it), and the rule written on yes."
   (if (not (member window (all-windows)))
       (message "That window is gone.")
-        (let* ((ways (or (vikix-remember-ways window :emacs-named emacs-named)
-                         (return-from vikix-remember-ask
-                           (message "This window has no class, instance or title for a rule to know it by."))))
-               (placed (or (typep window 'float-window) (member window *always-show-windows*)))
-               (words (lambda (way)
-                        (ecase way (:class "its class") (:instance "its instance") (:title "its title, exactly"))))
-               (label (lambda (start &rest keys)
-                        (format nil "~a  ~a" start
-                                (vikix-rules-carets (vikix-one-line (vikix-rules-print (apply #'vikix-remember-rule window keys)) 140)))))
-               (choice (vikix-ask "Remember this window here? The rule goes into ~/.stumpwm.d/rules.lisp"
-                                  (append
-                                   (list (list (funcall label "Write it:") (list :way (first ways))))
-                                   (and placed
-                                        (list (list (funcall label "Its workspace only:" :workspace-only t)
-                                                    (list :way (first ways) :workspace-only t))))
-                                   (mapcar (lambda (way)
-                                             (list (funcall label (format nil "Known by ~a instead:" (funcall words way)) :way way)
-                                                   (list :way way)))
-                                           (rest ways))
-                                   '(("Cancel" nil))))))
-          (when choice
-            (flet ((failed (e)
-                     (vikix-error-report e "remembering a window" nil)
-                     (message "^1Couldn't write the rule:^n ~a" (vikix-one-line e))))
-              (handler-case
-                  (multiple-value-bind (form name) (apply #'vikix-remember-rule window choice)
-                    (vikix-remember-write
-                     form name (subseq name (length "remembered: "))
-                     :then (lambda (rule)
-                             (handler-case
-                                 (message "Remembered, in ~~/.stumpwm.d/rules.lisp:~%~a~%vikix rules forget ~d takes it out again."
-                                          (vikix-rules-carets (vikix-one-line (vikix-rules-print form) 150))
-                                          (or (and rule (vikix-rule-number rule)) 0))
-                               (error (e) (failed e))))))
-                (error (e) (failed e))))))))
+      (let* ((ways (or (vikix-remember-ways window :emacs-named emacs-named)
+                       (return-from vikix-remember-ask
+                         (message "This window has no class, instance or title for a rule to know it by."))))
+             (placed (or (typep window 'float-window) (member window *always-show-windows*)))
+             (words (lambda (way)
+                      (ecase way (:class "its class") (:instance "its instance") (:title "its title, exactly"))))
+             (label (lambda (start &rest keys)
+                      (format nil "~a  ~a" start
+                              (vikix-rules-carets (vikix-one-line (vikix-rules-print (apply #'vikix-remember-rule window keys)) 140)))))
+             (choice (vikix-ask "Remember this window here? The rule goes into ~/.stumpwm.d/rules.lisp"
+                                (append
+                                 (list (list (funcall label "Write it:") (list :way (first ways))))
+                                 (and placed
+                                      (list (list (funcall label "Its workspace only:" :workspace-only t)
+                                                  (list :way (first ways) :workspace-only t))))
+                                 (mapcar (lambda (way)
+                                           (list (funcall label (format nil "Known by ~a instead:" (funcall words way)) :way way)
+                                                 (list :way way)))
+                                         (rest ways))
+                                 '(("Cancel" nil))))))
+        (when choice
+          (flet ((failed (e)
+                   (vikix-error-report e "remembering a window" nil)
+                   (message "^1Couldn't write the rule:^n ~a" (vikix-one-line e))))
+            (handler-case
+                (multiple-value-bind (form name) (apply #'vikix-remember-rule window choice)
+                  (vikix-remember-write
+                   form name (subseq name (length "remembered: "))
+                   :then (lambda (rule)
+                           (handler-case
+                               (message "Remembered, in ~~/.stumpwm.d/rules.lisp:~%~a~%vikix rules forget ~d takes it out again."
+                                        (vikix-rules-carets (vikix-one-line (vikix-rules-print form) 150))
+                                        (or (and rule (vikix-rule-number rule)) 0))
+                             (error (e) (failed e))))))
+              (error (e) (failed e))))))))
 
 ;;; --- Rules an agent proposes ---------------------------------------------------------------------
 ;;;
