@@ -68,6 +68,17 @@ out=$(agents test a)
 check "a desk's tests run, and pass: $out" grep -qE "book-a: tests passed \(tests/run.sh --changed ${base:0:7}, [0-9]+ s\)" <<<"$out"
 check "in its worktree, with --changed from where its branch left main: $(cat "$t/calls")" \
   grep -q "^$t/src/book-a --changed $base:a.md log.md" "$t/calls"
+# A release's tests go first: .claude/release's note in the repository (the
+# file its pid, alive: this shell's) says testing while they run.
+q="$t/src/book/.git/vikix-release-queue"; mkdir -p "$q"
+printf 'topic-x\ntesting (quick)\n%s\n\n\n' "$(date +%s)" > "$q/$$"
+out=$(VIKIX_RELEASE_WAIT=2 agents test a)
+check "the tester waits while a release of the project is testing, then runs: $out" \
+  bash -c 'grep -q "book-a: a release of topic-x is testing; waiting for it" <<<"$1" && grep -q "book-a: tests passed" <<<"$1"' _ "$out"
+printf 'topic-x\nwaiting for its turn\n%s\n\n\n' "$(date +%s)" > "$q/$$"
+out=$(VIKIX_RELEASE_WAIT=2 agents test a)
+check "a release waiting for its turn holds nothing: $out" not grep -q "waiting for it" <<<"$out"
+rm -rf "$q"
 out=$(agents handoff a)
 check "the record has the check, by vikix, on the desk's commit: $(grep 'tests/run.sh' <<<"$out")" \
   grep -qE 'passed  tests/run.sh --changed [0-9a-f]{7}  \(vikix, just now, on [0-9a-f]{7}, clean tree\)  fresh' <<<"$out"

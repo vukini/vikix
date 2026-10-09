@@ -7,10 +7,14 @@
 #   - one arm of main's case maps to that command's own test (tray) → tray),
 #     a deleted line of the arm too, or to the tests naming the script the
 #     arm hands over to (screens) → the test that runs vikix-screens)
+#   - an arm with neither, run by hand in a test, maps to that test: the
+#     version and help arms to vk, layout to layouts, snapshot to home,
+#     migrate to update
 #   - the update's and try's functions map to update and try; the vikix_*
 #     functions to vk
 #   - another function, main's own lines, the top level, a new arm with no
-#     test, and an arm with none all mean all: wider, never narrower
+#     test, and an arm no test runs (rebuild-wm) all mean all: wider, never
+#     narrower
 #   - two parts in one change map to both; a committed change is seen as an
 #     uncommitted one is; a changed test is added to what bin/vikix gives
 #   - README.md alone maps to agents, the one test that reads it, not to the
@@ -33,7 +37,7 @@ mkdir -p "$repo/tests" "$repo/bin"
 cp "$here/tests/changed.sh" "$repo/tests/"
 cp "$here/bin/vikix" "$repo/bin/vikix"
 # Made-up tests: a test maps by its name, or by naming a script.
-for n in lint man vk tray update try wifi capture; do
+for n in lint man vk tray update try wifi capture layouts home; do
   printf '#!/usr/bin/env bash\n# tests/%s.sh\n' "$n" >"$repo/tests/$n.sh"
 done
 echo 'bash "$here/bin/vikix-screens" extend' >>"$repo/tests/capture.sh"
@@ -68,7 +72,12 @@ edit "cmd_update" "lint try update" 's/^cmd_update() {$/cmd_update() {\n  :/'
 edit "try_back" "lint try update" 's/^try_back() {$/try_back() {\n  :/'
 edit "vikix_expand, the short forms" "lint vk" 's/^vikix_expand() {.*$/&\n  :/'
 edit "cmd_doctor, a function with no test of its own" all 's/^cmd_doctor() {$/cmd_doctor() {\n  :/'
-edit "the version arm, which no test is named for" all 's#^    version|-v|--version) cat#    version|-v|--version)  cat#'
+edit "the version arm, which vk runs by hand" "lint vk" 's#^    version|-v|--version) cat#    version|-v|--version)  cat#'
+edit "the help arm, the same" "lint vk" 's#^    help|-h|--help) sed#    help|-h|--help)  sed#'
+edit "the layout arm, run by layouts" "layouts lint vk" 's|^    layout)      shift; cmd_layout|    layout)      shift;  cmd_layout|'
+edit "a line inside the snapshot arm, run by home" "home lint vk" 's|history_help; exit 0 ;; esac|history_help; exit 0 ;;  esac|'
+edit "the migrate arm, as cmd_migrate" "lint update vk" 's|^    migrate)     cmd_migrate ;;|    migrate)     cmd_migrate  ;;|'
+edit "the rebuild-wm arm, which no test runs" all 's|^    rebuild-wm)  VIKIX_REBUILD_WM=1|    rebuild-wm)   VIKIX_REBUILD_WM=1|'
 edit "a new arm with no test" all 's|^  case ${1:-help} in$|  case ${1:-help} in\n    foo) echo hi ;;|'
 edit "main's own line" all 's|^main() {$|main()  {|'
 edit "the top level" all 's|^set -euo pipefail$|set -euo pipefail\n:|'

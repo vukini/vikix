@@ -189,7 +189,9 @@
                        the tester: the tests a desk's changes reach, run for it.
                        Its project's tests/run.sh, --changed from where its
                        branch left the project's own, run in its worktree
-                       through the runner's queue; the result goes into
+                       through the runner's queue, and after a release's
+                       tests (.claude/release) when one is testing; the
+                       result goes into
                        its handoff as a check by vikix, with the failing
                        tests named, and into its inbox, so the worker fixes
                        its own failures. A desk set to review runs this by
@@ -1591,6 +1593,7 @@ def handoff_apply(folder, data, by):
 # --- Pause and go; turns on one file ------------------------------------------------------------
 
 PAUSE_LIMIT = int(os.environ.get("VIKIX_PAUSE_LIMIT") or 600)   # seconds a hook waits, at most
+RELEASE_WAIT = int(os.environ.get("VIKIX_RELEASE_WAIT") or 1800)   # seconds the tester waits for a release's tests, at most
 
 
 def pause_path(folder):
@@ -1924,6 +1927,18 @@ def tester_running(folder):
         return 0
 
 
+def release_testing(folder):
+    """The topic of a release of FOLDER's project whose tests are running
+    now (.claude/release's note in the repository says testing), or ''."""
+    common = common_of(folder)
+    if not common:
+        return ""
+    for _, (topic, state, *_) in read_notes(os.path.join(common, "vikix-release-queue"), 5):
+        if state.startswith("testing"):
+            return topic
+    return ""
+
+
 def runner_of(folder):
     """The project's test runner for the desk FOLDER: tests/run.sh in the
     folder, else at its worktree's top. (where, runner, takes --changed),
@@ -2010,6 +2025,18 @@ def test_desk(folder, note=""):
         f.write(f"{os.getpid()} {int(time.time())}\n")
     started = time.time()
     try:
+        # A release's tests and a desk's at once failed two timing checks for
+        # load alone (2026-10-09), and the release is the one that merges: it
+        # has the machine first. The running note is written already, so a
+        # second tester isn't started meanwhile.
+        topic = release_testing(folder)
+        if topic:
+            print(f"{short(folder)}: a release of {topic} is testing; waiting for it")
+        waited, step = 0, min(5, max(1, RELEASE_WAIT))
+        while topic and waited < RELEASE_WAIT:
+            time.sleep(step)
+            waited += step
+            topic = release_testing(folder)
         ok, names, excerpt = run_tests(where, runner, changed, base, log)
     finally:
         try:

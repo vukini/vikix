@@ -15,10 +15,13 @@
 # pages, vk's word lists and lint read, maps to lint, man and vk; one arm
 # of main's case to that command's own test and the tests naming the
 # script it hands over to (tray) → tray; wifi) → wifi), with vk, which runs
-# the dispatch; the update's and try's functions to update and try; the
-# vikix_* functions (the short forms, completion) to vk. Any other line
-# (another function, the top level, an arm with no test) means all, and a
-# hunk across two of these maps to both: wider, never narrower.
+# the dispatch; an arm with neither, but a test that runs the command by
+# hand, to that one (version) and help) → vk, layout) → layouts, snapshot)
+# → home, migrate) → update, as cmd_migrate); the update's and try's
+# functions to update and try; the vikix_* functions (the short forms,
+# completion) to vk. Any other line (another function, the top level, an
+# arm no test runs: doctor), rebuild-wm)) means all, and a hunk across two
+# of these maps to both: wider, never narrower.
 # tests/changed-map.sh checks this on a copy of bin/vikix.
 set -uo pipefail
 # It runs nothing of Vikix's, but lint holds every script here to the tests' rules.
@@ -113,6 +116,13 @@ for f in "${files[@]}"; do
           header\ *) add lint man vk ;;
           fn\ cmd_update|fn\ cmd_migrate|fn\ set_aside_local_changes|fn\ pull_failed|fn\ upgrade_user_tools|fn\ update_help|fn\ cmd_try|fn\ try_*) add update try ;;
           fn\ vikix_*) add vk ;;
+          # Arms that hand to no script and have no test of their own, but
+          # are run by hand in one: a change to the version arm once cost the
+          # whole suite (2026-10-09).
+          arm\ version*|arm\ help*) add vk ;;      # vk vers, vk upd --help
+          arm\ migrate) add update vk ;;           # as cmd_migrate, which it calls
+          arm\ layout) add layouts vk ;;           # vikix layout save, NAME, list
+          arm\ snapshot*) add home vk ;;           # snapshot, undo, undo again, --help
           arm\ *)
             # The command's own test, and the tests naming the script it hands
             # over to; neither means all, and so does a script most tests name.
