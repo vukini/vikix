@@ -4,6 +4,8 @@
 (require 'json)
 (require 'button)
 (require 'subr-x)
+(require 'widget)
+(require 'wid-edit)
 
 (defvar vikix-office-command
   (list (expand-file-name "../../bin/vikix-agents"
@@ -135,7 +137,7 @@
   (with-current-buffer (vikix-office--owner-buffer)
     (unless (or vikix-office--closed (process-live-p vikix-office--process)
                 (process-live-p vikix-office--action))
-      (vikix-office--notice "Refreshing…  g refresh · RET details · a go to agent · c continue · P pause/go · t test · i tell · x close agent · q close Office")
+      (vikix-office--notice "Refreshing…  g refresh · RET details · N new desk · w worker · a go to agent · c continue · P pause/go · t test · i tell · x close agent · q close Office")
       (vikix-office--request
        '("office" "--json") 'vikix-office--process
        (lambda (output error)
@@ -155,7 +157,7 @@
                    (vikix-office--notice
                     (if errors (string-join errors "; ")
                       (concat "Updated " (vikix-office--time (alist-get 'at data))
-                              " · g refresh · RET details · a go to agent · c continue · P pause/go · t test · i tell · x close agent · q close Office")))))
+                              " · g refresh · RET details · N new desk · w worker · a go to agent · c continue · P pause/go · t test · i tell · x close agent · q close Office")))))
              (error (vikix-office--failure (error-message-string err))))))))))
 
 (defun vikix-office--positive (value) (and (numberp value) (> value 0)))
@@ -258,6 +260,8 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
       (erase-buffer)
       (insert (propertize "The Office\n" 'face '(:inherit variable-pitch :height 1.5 :weight bold)))
       (insert "Tasks first. Conversations stay in their agent terminals.\n\n")
+      (unless vikix-office--archive
+        (vikix-office--button "New desk…" (lambda () (with-current-buffer owner (vikix-office-new-desk)))))
       (vikix-office--button (if vikix-office--archive "Back to desks" (format "Archive (%d)" (length (alist-get 'archive vikix-office--data))))
                             (lambda () (with-current-buffer owner (vikix-office-toggle-archive))))
       (when (and vikix-office--archive rows (eq (alist-get 'live_known vikix-office--data) t)
@@ -333,7 +337,8 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                     (let ((estimate (alist-get 'estimate r)))
                       (vikix-office--field width chars label-width "Handoff"
                                            (concat (vikix-office--one-line (alist-get 'status r))
-                                                   (if (member estimate '(nil "")) "" (concat " · " (vikix-office--one-line estimate))))))
+                                                   (if (member estimate '(nil "")) "" (concat " · " (vikix-office--one-line estimate)))
+                                                   (if (eq (alist-get 'tests_off r) t) " · tests off" ""))))
                     ;; .claude/release at work on this desk's branch.
                     (let ((release (alist-get 'release r)))
                       (unless (member release '(nil ""))
@@ -389,7 +394,8 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                   (when (cl-some (lambda (a) (not (member (alist-get 'window a) '(nil "")))) agents)
                     (vikix-office--button "Go to agent" (lambda () (with-current-buffer owner (vikix-office-go)))))
                   (when (and (not agents) (eq (alist-get 'exists r) t) (not (vikix-office--folder-p r)))
-                    (vikix-office--button "Continue…" (lambda () (with-current-buffer owner (vikix-office-continue)))))
+                    (vikix-office--button "Continue…" (lambda () (with-current-buffer owner (vikix-office-continue))))
+                    (vikix-office--button "Worker…" (lambda () (with-current-buffer owner (vikix-office-worker)))))
                   (when (cl-some (lambda (a) (alist-get 'process_start a)) agents)
                     (vikix-office--button "Close agent…" (lambda () (with-current-buffer owner (vikix-office-close-agent)))))
                   (when (vikix-office--worker-p r)
@@ -418,6 +424,8 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
               (when (vikix-office--positive (alist-get 'notes r))
                 (vikix-office--field width chars 0 ""
                                      (format "Notes waiting for its agent: %d (delivered at its next tool call)" (alist-get 'notes r))))
+              (when (eq (alist-get 'tests_off r) t)
+                (vikix-office--field width chars 0 "" "Tests: not run by themselves when the worker hands in; Test runs them" 'shadow))
               (vikix-office--box-bottom width chars)
               (vikix-office--box-top width chars "Agent claims")
               (vikix-office--note width chars "The agent's own report: review does not mean merged.")
@@ -662,8 +670,199 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
       (let ((pick (completing-read "Continue (choose conversation or fresh start): " (reverse choices) nil t)))
         (vikix-office--act (cdr (assoc pick choices)))))))
 
+
+;; New desk and Worker: a form each. A desk is the place (vikix agents desk:
+;; the project, a topic for its worktree and branch, and a task when a
+;; worker is wanted at it at once); a worker is an agent on a task at a
+;; desk that stands (vikix agents worker). The worker's words are boxes to
+;; tick: which agent, on a model on this laptop, may push as you (your SSH
+;; agent goes with it), no tests by themselves when it hands in. The form is
+;; widget.el's, drawn in the desk pane's window, so the terminal has it as
+;; the frame does; what it offers (the projects, the agents) comes from the
+;; backend's office --form, asked when the form opens, never kept.
+(defvar-local vikix-office--form nil
+  "The open form: its owner, the desk it is for (nil for a new one), what the backend offered, its widgets by name, the window it took.")
+
+(defun vikix-office-new-desk ()
+  "Make a desk, and a worker at it when a task is given: a form."
+  (interactive)
+  (with-current-buffer (vikix-office--owner-buffer)
+    (when (eq (alist-get 'live_known vikix-office--data) :false) (user-error "Live activity unknown; refresh first"))
+    (vikix-office--form-open nil)))
+(defun vikix-office-worker ()
+  "Start a worker at the selected desk, on a task: a form."
+  (interactive)
+  (with-current-buffer (vikix-office--owner-buffer)
+    (let ((r (vikix-office--worker-row)))
+      (when (alist-get 'agents r)
+        (user-error "An agent is at this desk already, and a desk takes its workers one at a time: Tell leaves it a note, Close agent ends it"))
+      (vikix-office--form-open r))))
+(defun vikix-office--form-open (desk)
+  "Ask the backend what the form offers, then draw it for DESK, a row, or a new desk with nil."
+  (when (process-live-p vikix-office--action) (user-error "An Office action is still running"))
+  (let ((owner (current-buffer)))
+    (vikix-office--request
+     '("office" "--form") 'vikix-office--action
+     (lambda (output error)
+       (if error (vikix-office--notice error)
+         (condition-case err
+             (vikix-office--form-draw
+              owner desk
+              (json-parse-string output :object-type 'alist :array-type 'list :null-object nil :false-object :false))
+           (error (vikix-office--notice (error-message-string err)))))))))
+(defvar vikix-office-form-map
+  (let ((map (make-sparse-keymap)))
+    (set-keymap-parent map widget-keymap)
+    (define-key map (kbd "C-c C-c") #'vikix-office-form-submit)
+    (define-key map (kbd "C-c C-k") #'vikix-office-form-cancel)
+    map))
+(defun vikix-office--form-draw (owner desk offer)
+  "Draw the form for DESK (nil: a new desk) with what the backend OFFERed, in OWNER's desk pane."
+  (let* ((buffer (generate-new-buffer (if desk "*Office worker*" "*Office new desk*")))
+         (window (with-current-buffer owner
+                   (and (buffer-live-p vikix-office--detail)
+                        (get-buffer-window vikix-office--detail vikix-office--frame))))
+         (agents (alist-get 'agents offer)) (projects (alist-get 'projects offer))
+         widgets)
+    (with-current-buffer buffer
+      (kill-all-local-variables)
+      (let ((inhibit-read-only t)) (erase-buffer))
+      (remove-overlays)
+      (widget-insert (propertize (if desk (concat "Worker at " (vikix-office--one-line (alist-get 'title desk))) "New desk")
+                                 'face '(:inherit variable-pitch :height 1.3 :weight bold))
+                     "\n")
+      (widget-insert (if desk
+                         "An agent on a task at this desk, on a workspace to itself. The task is its first prompt and goes into the desk's record; the task before it goes into the desk's history. Nothing typed is a session: an agent to talk with.\n\n"
+                       "A worktree of the project beside it, on a branch named by the topic, and a record. With a task, a worker is started at it; without, the desk alone, for a worker later.\n\n"))
+      (unless desk
+        (push (cons 'project
+                    (apply #'widget-create 'menu-choice :tag "Project" :value ""
+                           :help-echo "The project the desk is for (vikix project list)"
+                           '(item :tag "pick one" :value "")
+                           (mapcar (lambda (p)
+                                     (list 'item :tag (concat (alist-get 'name p) "  " (or (alist-get 'short p) "")
+                                                              (if (eq (alist-get 'repo p) t) "" "  (no repository: its own folder, no topic)"))
+                                           :value (alist-get 'name p)))
+                                   projects)))
+              widgets)
+        (widget-insert "\n")
+        (push (cons 'topic (widget-create 'editable-field :size 40 :format "Topic:   %v\n"
+                                          :help-echo "A word or two for the work: the worktree's ending and the branch" ""))
+              widgets)
+        (widget-insert (propertize "         a word or two for the work (wifi-fix, chapter-3): the folder's ending and the branch; needed for a repository\n" 'face 'shadow)))
+      (widget-insert "\n")
+      (push (cons 'task (widget-create 'text :format "Task:\n%v\n" :help-echo "The worker's task, in your words: its first prompt" ""))
+            widgets)
+      (widget-insert (propertize (if desk "         in your words; nothing for a session, the record left as it is\n"
+                                   "         in your words; nothing for the desk alone\n")
+                                 'face 'shadow))
+      (widget-insert "\n")
+      (push (cons 'agent
+                  (apply #'widget-create 'menu-choice :tag "Agent"
+                         :value "" :help-echo "Which agent: yours, or another (vikix agent --list)"
+                         (list 'item :tag (concat "yours (" (or (alist-get 'default offer) "claude") ")") :value "")
+                         (mapcar (lambda (a)
+                                   (list 'item
+                                         :tag (concat (alist-get 'name a) "  " (or (alist-get 'about a) "")
+                                                      (cond ((eq (alist-get 'yours a) t) "  (yours)")
+                                                            ((eq (alist-get 'installed a) t) "")
+                                                            (t "  (not installed yet: its installer is offered in the terminal)")))
+                                         :value (alist-get 'name a)))
+                                 agents)))
+            widgets)
+      (widget-insert "\n")
+      (push (cons 'local (widget-create 'checkbox nil)) widgets)
+      (widget-insert (concat " On a model on this laptop (Ollama), offline: "
+                             (let ((names (mapcar (lambda (a) (alist-get 'name a))
+                                                  (cl-remove-if-not (lambda (a) (eq (alist-get 'local a) t)) agents))))
+                               (if names (concat (mapconcat #'identity names ", ") " can") "none installed can"))
+                             "\n"))
+      (push (cons 'push (widget-create 'checkbox nil)) widgets)
+      (widget-insert " May push as you: your SSH agent goes with it, so git push works at the desk (no: it commits, you push)\n")
+      (push (cons 'notests (widget-create 'checkbox nil)) widgets)
+      (widget-insert " No tests by themselves when it hands in (the Test button runs them still)\n\n")
+      (widget-create 'push-button :notify (lambda (&rest _) (vikix-office-form-submit))
+                     (if desk "Start worker" "Make desk"))
+      (widget-insert "  ")
+      (widget-create 'push-button :notify (lambda (&rest _) (vikix-office-form-cancel)) "Cancel")
+      (widget-insert "\n\n"
+                     (propertize (concat "TAB moves between the fields, RET or a click picks and presses; C-c C-c is the button, C-c C-k cancels."
+                                         (if (eq (alist-get 'display offer) :false)
+                                             " No display here: a worker's terminal can't open from this Office; a desk alone can be made."
+                                           ""))
+                                 'face 'shadow))
+      (use-local-map vikix-office-form-map)
+      (widget-setup)
+      (setq vikix-office--form (list :owner owner :desk desk :offer offer :widgets widgets :window window))
+      (goto-char (point-min))
+      (widget-forward 1))
+    (if (window-live-p window)
+        (progn (set-window-buffer window buffer) (select-window window))
+      (pop-to-buffer buffer))
+    buffer))
+(defun vikix-office--form-value (name)
+  "The form's widget NAME's value in this buffer; nil without the widget."
+  (let ((w (alist-get name (plist-get vikix-office--form :widgets))))
+    (and w (widget-value w))))
+(defun vikix-office--form-args ()
+  "The backend's words for this form as it stands; a user error for what is missing."
+  (let* ((form vikix-office--form) (desk (plist-get form :desk))
+         (task (string-trim (or (vikix-office--form-value 'task) "")))
+         (agent (vikix-office--form-value 'agent))
+         (options (append (unless (member agent '(nil "")) (list "--use" agent))
+                          (and (vikix-office--form-value 'local) '("--local"))
+                          (and (vikix-office--form-value 'push) '("--push"))
+                          (and (vikix-office--form-value 'notests) '("--no-tests")))))
+    (unless form (user-error "Not a form"))
+    (if desk
+        (append (list "office" "--worker" (alist-get 'worktree (alist-get 'desk desk)))
+                (unless (string-empty-p task) (list task))
+                options)
+      (let* ((project (vikix-office--form-value 'project))
+             (topic (string-trim (or (vikix-office--form-value 'topic) "")))
+             (offered (cl-find project (alist-get 'projects (plist-get form :offer))
+                               :key (lambda (p) (alist-get 'name p)) :test #'equal)))
+        (when (member project '(nil "")) (user-error "Pick the project"))
+        (when (and (eq (alist-get 'repo offered) t) (string-empty-p topic))
+          (user-error "A repository's desk needs a topic: a word or two for the work"))
+        (append (list "office" "--desk" project)
+                (unless (string-empty-p topic) (list topic))
+                (unless (string-empty-p task) (list "--task" task))
+                options)))))
+(defun vikix-office-form-submit ()
+  "Make the desk, or start the worker, as the form says; the form closes once the backend has."
+  (interactive)
+  (let* ((args (vikix-office--form-args)) (owner (plist-get vikix-office--form :owner)) (buffer (current-buffer)))
+    (unless (buffer-live-p owner) (user-error "The Office is closed"))
+    (with-current-buffer owner
+      (when (process-live-p vikix-office--action) (user-error "An Office action is still running"))
+      (vikix-office--request
+       args 'vikix-office--action
+       (lambda (output error)
+         (if error
+             ;; The form stays, with what to fix said where the eye is.
+             (progn (vikix-office--notice error) (message "%s" (string-trim error)))
+           (vikix-office--notice (or (car (last (split-string (string-trim output) "\n" t))) "Done"))
+           (when (buffer-live-p buffer) (with-current-buffer buffer (vikix-office-form-cancel)))
+           (vikix-office-refresh)))))))
+(defun vikix-office-form-cancel ()
+  "Close the form, the desk pane back in its window; nothing is started."
+  (interactive)
+  (let* ((form vikix-office--form) (owner (plist-get form :owner)) (window (plist-get form :window))
+         (buffer (current-buffer)))
+    (when (and (window-live-p window) (eq (window-buffer window) buffer) (buffer-live-p owner))
+      (let ((detail (buffer-local-value 'vikix-office--detail owner)))
+        (if (buffer-live-p detail) (set-window-buffer window detail) (delete-window window))))
+    (kill-buffer buffer)))
+(defun vikix-office--form-buffers ()
+  "The form buffers open for this Office."
+  (let ((owner (current-buffer)))
+    (cl-remove-if-not (lambda (b) (eq (plist-get (buffer-local-value 'vikix-office--form b) :owner) owner))
+                      (buffer-list))))
+
 (defun vikix-office--cleanup ()
   (setq vikix-office--closed t)
+  (dolist (b (vikix-office--form-buffers)) (kill-buffer b))
   (when (timerp vikix-office--timer) (cancel-timer vikix-office--timer))
   (setq vikix-office--timer nil)
   (when (buffer-live-p vikix-office--detail) (kill-buffer vikix-office--detail))
@@ -708,6 +907,8 @@ were."
     (define-key map (kbd "P") #'vikix-office-pause)
     (define-key map (kbd "t") #'vikix-office-test)
     (define-key map (kbd "i") #'vikix-office-tell)
+    (define-key map (kbd "N") #'vikix-office-new-desk)
+    (define-key map (kbd "w") #'vikix-office-worker)
     (define-key map (kbd "A") #'vikix-office-toggle-archive)
     (define-key map (kbd "q") #'vikix-office-close)
     (define-key map (kbd "RET") #'vikix-office-details)

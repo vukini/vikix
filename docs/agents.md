@@ -62,7 +62,7 @@ The agent's terminal is named for its desk on the desktop: `wifi-fix · Claude`,
 
 The project is any of `vikix project list`'s, by any part of its name (`vikix`, `novel`, `nov`). The topic is a word or two for the work: it becomes the folder's ending and the branch's name, so choose one that says what the agent is doing (`wifi-fix`, `chapter-3`, `typos`), not who (`agent-2`). A topic that gives no name for a branch is refused.
 
-`Super+a`, *Agent at a new desk*, or `Super+Alt+d` then `n` (the desk keys: `Super+Alt+d` opens a small card of them, `n` a new desk, `r` take one up again, `c` close one, `h` its handoff, `o` the Office, `t` test a desk's work, `p` pause its agent or let it go, `i` a note for it, `x` dismiss it), or `Super+m` → *AI* → *Agents: a new desk, with a worker when you give it a task*, asks for the project in a menu, then for the topic, then for the task. Enter with nothing is the desk alone. A task typed goes on to the worker's questions: which agent, yours first, the others as `vikix agent --list` has them (one not installed yet is offered its installer in the terminal), and the ones that can run on a model on this laptop; then whether the agent may push as you. No is the usual: the agent commits, you push. Yes sends your SSH agent with it (`vikix agent` keeps it back otherwise: after your first push of the day it holds your unlocked key), so `git push` works at that desk. Other forms:
+`Super+a`, *Agent at a new desk*, or `Super+Alt+d` then `n` (the desk keys: `Super+Alt+d` opens a small card of them, `n` a new desk, `r` take one up again, `c` close one, `h` its handoff, `o` the Office, `t` test a desk's work, `p` pause its agent or let it go, `i` a note for it, `x` dismiss it), or `Super+m` → *AI* → *Agents: a new desk, with a worker when you give it a task*, asks for the project in a menu, then for the topic, then for the task. Enter with nothing is the desk alone. A task typed goes on to the worker's questions: which agent, yours first, the others as `vikix agent --list` has them (one not installed yet is offered its installer in the terminal), and the ones that can run on a model on this laptop; then whether the agent may push as you. No is the usual: the agent commits, you push. Yes sends your SSH agent with it (`vikix agent` keeps it back otherwise: after your first push of the day it holds your unlocked key), so `git push` works at that desk. The Office has the same as a form, **New desk…**, with the worker's choices as boxes to tick (see [The Office](#the-office)). Other forms:
 
 ```sh
 vikix agents desk notes                       # a project that is no repository: a desk is its own folder
@@ -72,6 +72,7 @@ vikix agents worker typos "..." --use codex
 vikix agents worker typos "..." --use antigravity
 vikix agents worker typos "..." --use aider --local   # on a model on this laptop
 vikix agents worker typos "..." --push                # it may push as you (your SSH agent goes with it)
+vikix agents worker typos "..." --no-tests            # its tests don't run by themselves when it hands in
 vikix agents desk novel typos --task "..." --use codex   # the desk and the worker in one go, with the worker's words
 ```
 
@@ -222,7 +223,7 @@ Two workers reaching for one file are stopped at your prompt, as the house rules
 
 ### The tester: a hand-in comes back checked
 
-When a worker sets its status to *review*, its desk's tests run by themselves: `vikix agents test wifi-fix` is what runs, a script and never an agent. It runs the project's `tests/run.sh` in the desk's worktree, `--changed` from where the branch left the project's own, through the runner's queue like any other run (and after a release's tests, when one of the project is testing: the two at once failed for load alone), and writes the result into the record as a check signed *vikix*, the failing tests named and the first failure's line kept, and into the worker's inbox, so the worker reads it at its next tool call and fixes its own failures; `vikix agents test --log wifi-fix` shows the whole run. `vikix agents` and the Office say *testing* while it runs. A project with no `tests/run.sh` is said so, with no check.
+When a worker sets its status to *review*, its desk's tests run by themselves: `vikix agents test wifi-fix` is what runs, a script and never an agent. It runs the project's `tests/run.sh` in the desk's worktree, `--changed` from where the branch left the project's own, through the runner's queue like any other run (and after a release's tests, when one of the project is testing: the two at once failed for load alone), and writes the result into the record as a check signed *vikix*, the failing tests named and the first failure's line kept, and into the worker's inbox, so the worker reads it at its next tool call and fixes its own failures; `vikix agents test --log wifi-fix` shows the whole run. `vikix agents` and the Office say *testing* while it runs. A project with no `tests/run.sh` is said so, with no check. A desk made, or a worker started, with `--no-tests` (the Office's *No tests by themselves* box) runs nothing at the hand-in: the tests are yours to run, with `vikix agents test wifi-fix`, the Office's *Test* or the desk key `t`, and `vikix agents test --all` leaves such a desk out and says so. The setting is the desk's, kept in its record and shown by `vikix agents handoff` and in the Office (*tests off*); a worker started on a task without `--no-tests` has the tests again.
 
 `vikix agents test --all` takes every desk in review. In the order they went to review, a desk joins a batch when it changed no file the batch has; the batch is merged onto the project's own branch in a throwaway worktree, gone afterwards, and tested once, each desk's check saying with which, since passing alone and failing together is what a batch is for. A desk that overlaps one in the batch runs alone, in its own worktree as it stands, told which it overlaps on what. Nothing touches a desk's branch: a merge that conflicts only sends that desk to run alone.
 
@@ -399,7 +400,7 @@ and a new confirmation. Project files, branches and the providers' saved
 conversations are untouched. There is no automatic age or size cutoff.
 
 Click a task, or use `n`/`p` to select it. `RET` enters its details; `C-x o`
-moves between panes. Only available action buttons are shown. `Tab` visits buttons, `a` goes to an agent, `c` continues
+moves between panes. Only available action buttons are shown. `Tab` visits buttons, `N` makes a new desk, `w` starts a worker at the selected one, `a` goes to an agent, `c` continues
 a desk, `P` pauses its agent or lets it go, `t` runs its tests, `i` leaves its agent a note, `g` refreshes and `q` closes the Office. A row says when its desk is paused and by whom, when its tests run, and how many notes wait for its agent; the details say how the last agent left. Details keep the user's task,
 signed agent account, observed Git state, reported checks and saved
 conversation availability separate. **Review does not mean merged.** A
@@ -416,6 +417,26 @@ branch and files stay for later. The process identity is checked again so a
 stale view cannot close a replacement process. If it is still exiting after
 three seconds, the Office says so; it does not force-kill it. `q` closes only
 the Office window.
+
+**New desk…** (`N`, above the groups) and **Worker…** (`w`, in the details
+of a desk that stands with nobody at it) are forms, drawn in the desk pane
+and in the terminal alike. New desk asks for the project (a menu of `vikix
+project list`'s, a click or `RET` opens it), the topic (a word or two; a
+repository needs one, a project that is no repository works in its own
+folder), and the task; nothing typed for the task is the desk alone, for a
+worker later. Worker asks for the task alone; nothing typed is a session, an
+agent to talk with, the record left as it is. Both have the worker's choices
+as boxes to tick: the agent (yours, or any `vikix agent --list` has, one not
+installed yet offered its installer in the terminal), *on a model on this
+laptop* (the ones that can are named), *may push as you* (your SSH agent
+goes with it, as `--push` does) and *no tests by themselves when it hands
+in* (`--no-tests`: the Test button still runs them). `TAB` moves between
+the fields, `C-c C-c` is the button, `C-c C-k` cancels. The form hands its
+words to `vikix agents desk` or `vikix agents worker` as they are, which
+answer in the Office's header line; a refusal (a topic that gives no branch
+name, an agent at the desk already) leaves the form open to fix. A worker's
+terminal opens on the desktop, so from a terminal Office with no display
+only the desk alone can be made.
 
 **Continue** offers a named provider and either its recorded saved
 conversation or an explicit **Start fresh** choice. It uses `vikix agents

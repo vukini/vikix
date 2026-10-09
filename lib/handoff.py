@@ -499,6 +499,8 @@ def render(rec, agents_at=(), protection=(), now=None):
         n = gone.get("dirty")
         lines.append(f"Left: {gone['reason']} ({gone.get('by', '?')}, {when(gone.get('at', 0))})"
                      + (f", {n} uncommitted then" if n is not None else ""))
+    if d.get("tests") == "off":
+        lines.append("Tests: not run by themselves at a hand-in (--no-tests); vikix agents test runs them")
     turns = rec.get("turns") or {}
     if turns.get("on"):
         lines.append(f"Turns: on ({turns.get('by', '?')}, {when(turns.get('at', 0))}): a clash waits for the other's commit")

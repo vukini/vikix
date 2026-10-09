@@ -186,6 +186,8 @@ def snapshot(api):
         row['paused'] = api.pause_read(path) if row['kind'] == 'desk' else {}
         row['testing'] = api.tester_running(path) if row['kind'] == 'desk' else 0
         row['notes'] = len(api.inbox_peek(path)) if row['kind'] == 'desk' else 0
+        # The user's switch on the desk: a hand-in runs no tests by itself (Test still does).
+        row['tests_off'] = d.get('tests') == 'off'
         row['left'] = row.get('left') or {}
         row['group'] = ('Needs you' if needs or row['attention'] or status in ('waiting', 'review') or not live_known
                         else 'Working' if row['agents'] and not row['paused']
@@ -275,6 +277,80 @@ def desk_action(api, verb, path, text=''):
         except H.HandoffError as e:
             raise RuntimeError(str(e)) from e
         print('Noted for its agent; delivered at its next tool call.')
+
+
+def form(api):
+    """What the desk form offers: the projects (the full name, which
+    vikix agents desk takes as it is; the folder; whether it is a
+    repository, so a topic is needed; the next step from its log), the
+    agents as vikix agent --list has them, yours first, with which can
+    run on a model on this laptop, and whether a terminal can open here."""
+    vp = api.projects()
+    projects = []
+    for p, full, _pct, _date, nxt in vp.rows(vp.discover(), True):
+        path = str(p.path)
+        projects.append({'name': full, 'path': path, 'short': short(path),
+                         'repo': bool((api.git(path, 'rev-parse', '--show-toplevel') or '').strip()),
+                         'next': nxt})
+    agents = [{'name': name, 'yours': yours, 'installed': installed, 'about': about,
+               'local': name in api.LOCAL and installed}
+              for name, yours, installed, about in api.agents_offered()]
+    agents.sort(key=lambda a: not a['yours'])
+    return {'projects': projects, 'agents': agents, 'default': api.default_agent(),
+            'display': bool(os.environ.get('DISPLAY'))}
+
+
+def worker_words(args, what):
+    """The worker's words from the form's ARGS, as vikix agents WHAT takes
+    them: --use NAME, --local, --push, --no-tests. Anything else is refused,
+    so a form out of step with the command says so instead of starting an
+    agent with words it didn't mean."""
+    out, rest = [], list(args)
+    while rest:
+        a = rest.pop(0)
+        if a == '--use':
+            if not rest or rest[0].startswith('-'):
+                raise ValueError('--use which agent?')
+            out += ['--use', rest.pop(0)]
+        elif a in ('--local', '--push', '--no-tests'):
+            out.append(a)
+        else:
+            raise ValueError(f'vikix agents office --{what}: {a}? (--use NAME, --local, --push, --no-tests)')
+    return out
+
+
+def new_desk(api, args):
+    """The Office's New desk: PROJECT [TOPIC] [--task "..."] and the
+    worker's words, handed to vikix agents desk, which asks nothing when
+    the project is named. A task starts a worker at the desk."""
+    words, task, rest = [], None, list(args)
+    while rest and not rest[0].startswith('-'):
+        words.append(rest.pop(0))
+    if '--task' in rest:
+        i = rest.index('--task')
+        if i + 1 >= len(rest):
+            raise ValueError('--task needs the words of the task')
+        task = rest[i + 1].strip()
+        del rest[i:i + 2]
+    words = [w for w in words if w]   # a project that is no repository: no topic
+    if not words:
+        raise ValueError('vikix agents office --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests]')
+    agent = worker_words(rest, 'desk')
+    if task:
+        return api.desk(words + ['--task', task] + agent)
+    # Nobody sits at a desk alone: the agent's words would be refused; the setting stays.
+    return api.desk(words + [w for w in agent if w == '--no-tests'])
+
+
+def new_worker(api, args):
+    """The Office's Worker: DESK ["..."] and the worker's words, handed to
+    vikix agents worker. DESK is the desk's folder, the snapshot's id."""
+    rest = list(args)
+    if not rest or not os.path.isdir(rest[0]) or not api.desk_of(rest[0]):
+        raise ValueError('Needs a desk folder (a worktree of a project)')
+    folder = rest.pop(0)
+    task = rest.pop(0).strip() if rest and not rest[0].startswith('-') else ''
+    return api.worker([folder] + ([task] if task else []) + worker_words(rest, 'worker'))
 
 
 def process_start(api, pid):
@@ -412,8 +488,14 @@ def main(api, args):
         desk_action(api, args[0][2:], args[1])
     elif len(args) == 3 and args[0] == '--tell':
         desk_action(api, 'tell', args[1], args[2])
+    elif args == ['--form']:
+        print(json.dumps(form(api), ensure_ascii=False))
+    elif args and args[0] == '--desk':
+        return new_desk(api, args[1:])
+    elif args and args[0] == '--worker':
+        return new_worker(api, args[1:])
     elif args in ([], ['--tty']):
         launch(api, tty=bool(args))
     else:
-        raise ValueError('vikix agents office [--tty | --json | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN | --pause DESK | --unpause DESK | --test DESK | --tell DESK TEXT]')
+        raise ValueError('vikix agents office [--tty | --json | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN | --pause DESK | --unpause DESK | --test DESK | --tell DESK TEXT | --form | --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests] | --worker DESK ["..."] [--use NAME] [--local] [--push] [--no-tests]]')
     return 0

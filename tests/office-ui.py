@@ -271,6 +271,78 @@ class Office(unittest.TestCase):
             with self.assertRaises(ValueError):
                 office.main(A, ['--tell', self.folder])
 
+    def test_form_new_desk_and_worker_from_the_office(self):
+        # The form's offer, and the two forms' words handed to vikix agents desk and worker as they are.
+        class P:
+            def __init__(self, full, path):
+                self.full, self.path = full, Path(path)
+
+        class VP:
+            def discover(self): return ['x']
+            def rows(self, projects, everything):
+                return [(P('vikix', '/home/u/src/vikix'), 'vikix', '', '', 'the next step'),
+                        (P('notes', '/home/u/notes'), 'notes', '', '', '')]
+        calls = []
+        with patch.object(A, 'projects', lambda: VP()), \
+             patch.object(A, 'git', lambda folder, *a: '/home/u/src/vikix\n' if 'vikix' in folder else None), \
+             patch.object(A, 'agents_offered', lambda: [('codex', False, True, 'OpenAI'), ('claude', True, True, 'Anthropic'),
+                                                        ('aider', False, False, 'Aider')]), \
+             patch.object(A, 'desk', lambda argv: calls.append(('desk', argv)) or 0), \
+             patch.object(A, 'worker', lambda argv: calls.append(('worker', argv)) or 0), \
+             patch.object(A, 'desk_of', lambda f: f), patch.dict(os.environ, {'DISPLAY': ''}):
+            offer = office.form(A)
+            self.assertEqual([(p['name'], p['short'], p['repo'], p['next']) for p in offer['projects']],
+                             [('vikix', '/home/u/src/vikix', True, 'the next step'), ('notes', '/home/u/notes', False, '')])
+            # Yours first; local only for one that can and is installed.
+            self.assertEqual([(a['name'], a['yours'], a['installed'], a['local']) for a in offer['agents']],
+                             [('claude', True, True, False), ('codex', False, True, True), ('aider', False, False, False)])
+            self.assertEqual((offer['default'], offer['display']), ('codex', False))
+            office.main(A, ['--desk', 'vikix', 'wifi', '--task', ' fix the wifi ', '--use', 'codex', '--local', '--push', '--no-tests'])
+            self.assertEqual(calls[-1], ('desk', ['vikix', 'wifi', '--task', 'fix the wifi', '--use', 'codex', '--local', '--push', '--no-tests']))
+            # No task: the desk alone, so the worker's words are dropped and the desk's setting kept.
+            office.main(A, ['--desk', 'notes', '', '--use', 'codex', '--push', '--no-tests'])
+            self.assertEqual(calls[-1], ('desk', ['notes', '--no-tests']))
+            office.main(A, ['--desk', 'vikix', 'wifi', '--task', '  '])
+            self.assertEqual(calls[-1], ('desk', ['vikix', 'wifi']))
+            office.main(A, ['--worker', self.folder, 'sort them', '--local'])
+            self.assertEqual(calls[-1], ('worker', [self.folder, 'sort them', '--local']))
+            office.main(A, ['--worker', self.folder, '--no-tests'])
+            self.assertEqual(calls[-1], ('worker', [self.folder, '--no-tests']))
+            n = len(calls)
+            for bad in (['--desk'], ['--desk', 'vikix', 'wifi', '--here'], ['--desk', 'vikix', 'wifi', '--use'],
+                        ['--desk', 'vikix', 'wifi', '--task'], ['--worker', str(Path(self.temp.name) / 'nowhere'), 'x'],
+                        ['--worker', self.folder, 'x', '--fresh']):
+                with self.assertRaises(ValueError, msg=bad):
+                    office.main(A, bad)
+            self.assertEqual(len(calls), n)
+
+    def test_tests_off_keeps_the_tester_away_and_shows(self):
+        # --no-tests is the desk's: a hand-in runs nothing by itself, the row says so, and a worker without it has the tests again.
+        desks = str(Path(self.temp.name) / 'desks')
+        started = []
+        with patch.object(H, 'DESKS', desks), patch.object(A, 'common_of', lambda f: ''), \
+             patch.object(A, 'git', lambda *a: ''), patch.object(A, 'project_of', lambda f, c: 'Vikix'), \
+             patch.object(A, 'runner_of', lambda f: (f, f + '/tests/run.sh', True)), \
+             patch.object(A, 'tester_running', lambda f: 0), patch.object(A, 'tester_start', started.append), \
+             patch.object(A, 'desk_of', lambda f: f), patch.object(A, 'live_agents', lambda: []), \
+             patch.dict(os.environ, {'DISPLAY': ''}):
+            os.environ.pop('VIKIX_TESTER', None)
+            A.desk_record(self.folder, task='Fix it', change=lambda rec: A.tests_set(rec, False))
+            self.assertTrue(A.tests_off(self.folder))
+            A.handoff_apply(self.folder, {'status': 'review'}, 'claude 7')
+            self.assertEqual(started, [])
+            self.records = [H.load(H.desk_id('', self.folder))]
+            row = office.snapshot(A)['desks'][0]
+            self.assertTrue(row['tests_off'])
+            self.assertIn('not run by themselves', H.render(self.records[0]))
+            # A new worker on a task, without --no-tests: the tests again.
+            A.desk_record(self.folder, change=lambda rec: (H.start_worker(rec, 'Then this', 'user'), A.tests_set(rec, True)))
+            self.assertFalse(A.tests_off(self.folder))
+            A.handoff_apply(self.folder, {'status': 'review'}, 'claude 7')
+            self.assertEqual(started, [self.folder])
+            self.records = [H.load(H.desk_id('', self.folder))]
+            self.assertFalse(office.snapshot(A)['desks'][0]['tests_off'])
+
     def test_focus_only_integer_and_failure(self):
         with patch.object(office.subprocess, 'run') as run:
             with self.assertRaises(ValueError): office.focus(A, '1) (quit)')

@@ -46,7 +46,7 @@
                        In a terminal on this workspace (Super+a, Agent
                        here): it asks which agent, as desk does, when --use
                        and --local don't say
-  vikix agents desk [PROJECT [TOPIC]] [--task "..."] [--use NAME] [--local] [--here] [--push]
+  vikix agents desk [PROJECT [TOPIC]] [--task "..."] [--use NAME] [--local] [--here] [--push] [--no-tests]
                        make a desk: a worktree of the project, a branch, a record.
                        In PROJECT (one of vikix project's, by any part of
                        its name), a git worktree of the project made for
@@ -64,8 +64,10 @@
                        is a worktree, so one is needed; a project that is
                        no repository works in its own folder, with none),
                        then for the task: nothing typed is the desk alone,
-                       a task the worker's questions after it
-  vikix agents worker DESK ["..."] [--use NAME] [--local] [--here] [--push]
+                       a task the worker's questions after it. --no-tests:
+                       the desk's tests don't run by themselves when a
+                       worker hands in (vikix agents test runs them still)
+  vikix agents worker DESK ["..."] [--use NAME] [--local] [--here] [--push] [--no-tests]
                        start a worker at a desk: an agent on a task there.
                        DESK is the folder (~/src/PROJECT-TOPIC), the topic
                        or the branch; the task in your words, written in
@@ -85,7 +87,12 @@
                        --push: the agent may push as you: your SSH agent
                        goes with it (vikix agent keeps it back otherwise,
                        since after your first push of the day it holds
-                       your unlocked key), so git push works at the desk
+                       your unlocked key), so git push works at the desk;
+                       --no-tests: the tester doesn't run by itself when
+                       this worker hands in (status review); a worker
+                       started without it has the tests again. The Office
+                       has both desk and worker as a form, with these as
+                       boxes to tick
   vikix agents resume [DESK] [--use NAME] [--here] [--fresh] [--another]
                        take a desk up again, its conversation resumed.
                        Its handoff, git state and checks shown, then an
@@ -272,6 +279,21 @@
                        TOKEN is its archive_token. Refused if records or
                        live discovery changed; leaves project files and
                        provider conversations alone
+  vikix agents office --form
+                       what the Office's desk form offers, as JSON.
+                       The projects (name, folder, whether a repository,
+                       so a topic is needed, and the next step), the
+                       agents as vikix agent --list has them (yours
+                       first, which can run on a local model), and
+                       whether a terminal can open here (a display)
+  vikix agents office --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests]
+                       the Office's New desk: vikix agents desk with its words, asking nothing.
+                       PROJECT is the project's full name; a task starts
+                       a worker at the new desk, and the agent's words
+                       are the worker's
+  vikix agents office --worker DESK ["..."] [--use NAME] [--local] [--push] [--no-tests]
+                       the Office's Worker: vikix agents worker with its words, asking nothing.
+                       DESK is the desk's folder, as the snapshot's id is
   vikix agents --waits PID...
                        for the desktop's menu: what holds each of these agents.
                        A line each: pid, the words, the line under, from
@@ -422,7 +444,7 @@ SECTIONS = (
     ("rules", "The house rules", ("hooks",)),
     ("scripts", "For hooks, the Office and scripts", ("desks", "touch", "stopping", "left", "office --json", "office --go",
                                                       "office --close-agent", "office --forget", "office --purge-archive",
-                                                      "--waits")),
+                                                      "office --form", "office --desk", "office --worker", "--waits")),
 )
 
 
@@ -931,7 +953,7 @@ def ask_push():
 def desk(argv):
     """vikix agents desk [PROJECT [TOPIC]] [--task "..."]: the place, and
     with a task a worker at it too."""
-    use, local, here, push, words, task = None, False, False, None, [], ""
+    use, local, here, push, words, task, notests = None, False, False, None, [], "", False
     while argv:
         a = argv.pop(0)
         if a == "--use":
@@ -942,6 +964,8 @@ def desk(argv):
             here = True
         elif a == "--push":
             push = True
+        elif a == "--no-tests":
+            notests = True
         elif a == "--task":
             task = argv.pop(0) if argv else die("--task needs the words of the task")
         elif a.startswith("-"):
@@ -1015,20 +1039,22 @@ def desk(argv):
     if not os.path.isdir(folder):
         die(f"{short(folder)} isn't there")
     if top and topic:
-        desk_record(folder, by="user")
+        # --no-tests without a task is the desk's setting alone; with a task the worker sets it.
+        desk_record(folder, by="user", change=(lambda rec: tests_set(rec, False)) if notests and not task else None)
     if not task:
         at = agents_at(folder)
         print(f"a desk: {said}" + (f"; {', '.join(who(a) for a in at)} is at it" if at else
                                    f". Nobody sits at it: vikix agents worker {topic or project.name} \"the task\" "
-                                   "starts a worker there"))
+                                   "starts a worker there") + ("; its tests don't run by themselves" if notests else ""))
         return 0
-    return worker_at(folder, task, use, local, here, push, f"a desk, and a worker at it: {said}", topic or project.name)
+    return worker_at(folder, task, use, local, here, push, f"a desk, and a worker at it: {said}", topic or project.name,
+                     notests=notests)
 
 
 def worker(argv):
     """vikix agents worker DESK ["..."]: an agent on a task at a desk that
     is there; without a task, a session there."""
-    use, local, here, push, words = None, False, False, False, []
+    use, local, here, push, words, notests = None, False, False, False, [], False
     while argv:
         a = argv.pop(0)
         if a == "--use":
@@ -1039,6 +1065,8 @@ def worker(argv):
             here = True
         elif a == "--push":
             push = True
+        elif a == "--no-tests":
+            notests = True
         elif a.startswith("-"):
             die(f"vikix agents worker: {a}? (vikix agents help)")
         else:
@@ -1053,7 +1081,7 @@ def worker(argv):
             f"{os.path.basename(folder).split('-', 1)[-1] if rec else 'TOPIC'} makes the worktree again "
             "(the record is kept, and waits there)")
     return worker_at(folder, task, use, local, here, push, f"a worker at {short(folder)}" if task
-                     else f"a session at {short(folder)}", desk_name(folder))
+                     else f"a session at {short(folder)}", desk_name(folder), notests=notests)
 
 
 def agents_at(folder):
@@ -1061,11 +1089,14 @@ def agents_at(folder):
     return [a for a in live_agents() if a["folder"] and os.path.realpath(a["folder"]) == os.path.realpath(folder)]
 
 
-def worker_at(folder, task, use, local, here, push, said, name):
+def worker_at(folder, task, use, local, here, push, said, name, notests=False):
     """An agent started at the desk FOLDER: on TASK, the record's task
     folded into the desk's history and TASK its first prompt; without one
     a session, the record left as it is (a line in its log). SAID is how
-    the desk was named, NAME what its workspace is called."""
+    the desk was named, NAME what its workspace is called. NOTESTS: the
+    tester stays off when this worker hands in; a worker with a task
+    started without it has the tests again (the setting is the desk's,
+    decided as each worker starts), a session leaves it as it was."""
     H = handoff_module()
     at = agents_at(folder)
     if at:
@@ -1079,13 +1110,18 @@ def worker_at(folder, task, use, local, here, push, said, name):
     if task:
         def change(rec):
             folded[0] = H.start_worker(rec, task, "user", provider)
+            tests_set(rec, not notests)
         desk_record(folder, change=change)
         # The task is the agent's first prompt, so a new worker never sits idle
         # with its task written only in the record (2026-10-07: one did, for
         # three minutes, until the user typed "read the handoff").
         first = H.first_prompt_args(provider, desk_prompt(task))
     elif desk_of(folder) or H.load(H.desk_id(common_of(folder), folder)):
-        desk_record(folder, change=lambda rec: H._log(rec, "user", f"session: {provider}"))
+        def change(rec):
+            H._log(rec, "user", f"session: {provider}")
+            if notests:
+                tests_set(rec, False)   # a session leaves the setting alone unless told
+        desk_record(folder, change=change)
     start = agent_start(use, first or (), local=local)
     if use or local:
         said += f", {use or 'your agent'}" + (" on a model on this laptop" if local else "")
@@ -1094,6 +1130,8 @@ def worker_at(folder, task, use, local, here, push, said, name):
         # otherwise; the terminal, and the agent in it, inherit it from here.
         os.environ["VIKIX_AGENT_SSH"] = "1"
         said += ", and it may push as you"
+    if notests:
+        said += ", its tests not run by themselves"
     if task:
         said += ", the task its first prompt" if first else f", the task in its handoff ({provider} takes no first prompt)"
         if folded[0]:
@@ -1451,6 +1489,24 @@ def desk_record(folder, task="", by="user", change=None):
         die(str(e))
 
 
+def tests_set(rec, on):
+    """The desk's tester switch in its record: `tests` "off" under `desk`
+    when a hand-in should run nothing by itself; absent when it should.
+    Keyed under desk, not handoff, since it is the user's setting for the
+    place, which a new worker's cleared handoff must not take away."""
+    if on:
+        rec["desk"].pop("tests", None)
+    else:
+        rec["desk"]["tests"] = "off"
+
+
+def tests_off(folder):
+    """Whether the desk's tests are not to run by themselves at a hand-in."""
+    H = handoff_module()
+    rec = H.load(H.desk_id(common_of(folder), folder)) or {}
+    return (rec.get("desk") or {}).get("tests") == "off"
+
+
 def inbox_path(folder):
     """The desk's inbox: a line a note, named by the desk's id as its record is
     (STATE is set further down, with the journal's)."""
@@ -1585,7 +1641,7 @@ def handoff_apply(folder, data, by):
     status_told(folder, seen.get("before"), rec, by)
     status = ((rec.get("handoff") or {}).get("status") or {}).get("value")
     if (status == "review" and seen.get("before") != "review" and os.environ.get("VIKIX_TESTER") != "0"
-            and runner_of(folder)[1] and not tester_running(folder)):
+            and rec["desk"].get("tests") != "off" and runner_of(folder)[1] and not tester_running(folder)):
         tester_start(folder)
     return rec
 
@@ -2093,6 +2149,10 @@ def test_all():
     review = [r for r in H.all_records()
               if ((r.get("handoff") or {}).get("status") or {}).get("value") == "review"
               and not r["desk"].get("closed") and os.path.isdir(r["desk"]["worktree"])]
+    for r in [r for r in review if r["desk"].get("tests") == "off"]:
+        # Its tests are the user's to run: vikix agents test DESK does.
+        print(f"{short(r['desk']['worktree'])}: in review, its tests not run by themselves (--no-tests); left out")
+        review.remove(r)
     if not review:
         print("no desk is in review (vikix agents handoff list)")
         return 0
