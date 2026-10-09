@@ -93,7 +93,9 @@ class Office(unittest.TestCase):
         row = office.snapshot(A)['desks'][0]
         self.assertEqual(row['group'], 'Needs you')
         self.assertEqual(len(row['agents']), 2)
-        self.assertEqual(row['title'], 'Fix the picker')
+        # A row is a desk: named for the place, the task a field of its own.
+        self.assertEqual(row['title'], 'Vikix / desk with spaces')
+        self.assertEqual(row['task']['text'], 'Fix the picker')
         self.agents = []
         self.rec['handoff'] = {'status': {'value': 'review'}}
         self.assertEqual(office.snapshot(A)['desks'][0]['group'], 'Needs you')
@@ -153,7 +155,25 @@ class Office(unittest.TestCase):
         # A record makes it a desk too, and the row keeps its identity.
         self.records = [self.rec]
         row = office.snapshot(A)['desks'][0]
-        self.assertEqual((row['kind'], row['title']), ('desk', 'Fix the picker'))
+        self.assertEqual((row['kind'], row['title']), ('desk', 'Vikix / desk with spaces'))
+
+    def test_workers_before_newest_first(self):
+        # The desk's history of workers (fold_worker), newest first, each one's summary cut to its first line.
+        self.records = [self.rec]
+        self.assertEqual(office.snapshot(A)['desks'][0]['workers'], [])
+        self.rec['workers'] = [{'task': 'first', 'by': 'user', 'at': 1, 'ended': 2, 'status': 'finished',
+                                'summary': 'done it\nand more', 'provider': 'claude', 'left': 'exited'},
+                               'not a worker',
+                               {'task': 'second', 'status': '', 'summary': '', 'ended': 'soon'}]
+        workers = office.snapshot(A)['desks'][0]['workers']
+        self.assertEqual([w['task'] for w in workers], ['second', 'first'])
+        self.assertEqual(workers[1], {'task': 'first', 'status': 'finished', 'provider': 'claude', 'by': 'user',
+                                      'at': 1, 'ended': 2, 'left': 'exited', 'summary': 'done it'})
+        self.assertEqual((workers[0]['ended'], workers[0]['by'], workers[0]['summary']), (0, '', ''))
+        # Nothing of it for a plain folder.
+        self.records = []
+        self.agents = [self.agent()]
+        self.assertEqual(office.snapshot(A)['desks'][0]['workers'], [])
 
     def test_release_queue_and_the_desks_release(self):
         # .claude/release's notes in a repository's common git dir: the one whose

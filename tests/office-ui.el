@@ -8,7 +8,7 @@
                          (desk . ((project . "Vikix") (worktree . "/tmp/a desk with spaces")))
                          (status . "review") (live_known . t) (exists . t) (kind . "desk")
                          (task . nil) (handoff . nil) (now . nil) (checks . nil) (sessions . nil)
-                         (agents . nil) (provider . "codex") (next_action . "Review changes")
+                         (agents . nil) (workers . nil) (provider . "codex") (next_action . "Review changes")
                          (resume . ((codex . ((mode . "resumed") (session . ((id . "abc")))))))))
                      (or ids '("a" "b"))))))
 (defmacro office-test-buffer (&rest body)
@@ -495,6 +495,61 @@ each refuses, and the way out; the buttons and keys that open them."
      (dolist (b (buffer-list))
        (when (string-match-p "\\`\\*Office \\(worker\\|new desk\\)\\*" (buffer-name b)) (kill-buffer b)))
      (when (buffer-live-p vikix-office--detail) (kill-buffer vikix-office--detail)))))
+(defun office-test-buttons ()
+  "The labels of the buttons in this buffer, in order."
+  (let (labels)
+    (save-excursion
+      (goto-char (point-min))
+      (while (forward-button 1 nil nil t) (push (button-label (button-at (point))) labels)))
+    (nreverse labels)))
+(ert-deftest office-rows-are-desks-with-their-workers ()
+  "A row is a desk: its task under its name, the workers before newest first
+(three in the row, all in the details), and a New worker button that opens
+the worker's form for that row."
+  (office-test-buffer
+   (setq vikix-office--detail (generate-new-buffer " *Office rows detail*"))
+   (unwind-protect
+       (progn
+         (vikix-office--render)
+         ;; A desk with no task yet says so, and offers a worker all the same.
+         (should (string-match-p "Task +none yet: New worker" (buffer-string)))
+         (should (equal (cl-count "New worker…" (office-test-buttons) :test #'equal) 2))
+         (let ((r (vikix-office--row)))
+           (setf (alist-get 'task r) '((text . "Fix the picker, the wifi\none") (by . "user") (at . 1791300000)))
+           (setf (alist-get 'workers r)
+                 (mapcar (lambda (n) `((task . ,(format "task %d" n)) (status . ,(if (= n 4) "" "review"))
+                                       (provider . "codex") (by . "user") (at . 1) (ended . 1791300000)
+                                       (left . ,(if (= n 4) "dismissed" "")) (summary . ,(format "did %d" n))))
+                         '(1 2 3 4))))
+         (vikix-office--render)
+         (should (string-match-p "Task +Fix the picker, the wifi one" (buffer-string)))
+         ;; Wrapped inside the box, so in pieces: three in the row, the rest counted.
+         (should (string-match-p "Before +review · codex · task 1; review · codex · task 2" (buffer-string)))
+         (should (string-match-p "task 3; 1 more" (buffer-string)))
+         (should-not (string-match-p "task 4" (buffer-string)))
+         (with-current-buffer vikix-office--detail
+           (should (string-match-p "Workers before this one · 4" (buffer-string)))
+           (should (string-match-p "dismissed · codex · task 4" (buffer-string)))
+           (should (string-match-p "user · ended .* · did 4" (buffer-string))))
+         ;; The row's button selects its desk and asks the backend what the form offers.
+         (let (args)
+           (cl-letf (((symbol-function 'vikix-office--request) (lambda (a _slot _done) (setq args a))))
+             (vikix-office-next 1)
+             (should (equal vikix-office--selected "b"))
+             (goto-char (point-min))
+             (search-forward "New worker…")
+             (push-button (1- (point)))
+             (should (equal vikix-office--selected "a"))
+             (should (equal args '("office" "--form")))))
+         ;; A desk with an agent at it, or one that is gone, offers none.
+         (setf (alist-get 'agents (vikix-office--row)) '(((agent . "codex") (pid . 1) (window . "3") (doing . "working"))))
+         (vikix-office--render)
+         (should (equal (cl-count "New worker…" (office-test-buttons) :test #'equal) 1))
+         (setf (alist-get 'agents (vikix-office--row)) nil
+               (alist-get 'exists (vikix-office--row)) :false)
+         (vikix-office--render)
+         (should (equal (cl-count "New worker…" (office-test-buttons) :test #'equal) 1)))
+     (kill-buffer vikix-office--detail))))
 (ert-deftest office-close-agent-confirmation-and-selection ()
   (office-test-buffer
    (vikix-office--render)

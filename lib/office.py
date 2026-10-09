@@ -172,8 +172,11 @@ def snapshot(api):
                     mine = [r for r in mine if r['common'] == common]
                 if mine:
                     row['release'] = release_line(mine[0])
-        row['title'] = (row.get('task') or {}).get('text') or (short(path) if row['kind'] == 'folder' else ' / '.join(
-            str(x) for x in (d.get('project'), d.get('branch') or os.path.basename(path)) if x))
+        # A row is a desk (2026-10-09, desks and workers apart): named for the
+        # place, project / branch, its task and its workers under it.
+        row['title'] = short(path) if row['kind'] == 'folder' else ' / '.join(
+            str(x) for x in (d.get('project'), d.get('branch') or os.path.basename(path)) if x)
+        row['workers'] = workers_before(row)
         row['next_action'] = (handoff.get('next') or {}).get('text', '')
         if not row['next_action']:
             row['next_action'] = ('Go to agent' if row['agents'] else 'Not a desk' if row['kind'] == 'folder'
@@ -210,6 +213,24 @@ def snapshot(api):
                             key=lambda r: (order.index(r['group']), r['title'].lower(), r['id'])),
             'archive': sorted((r for r in rows.values() if r['archived']), key=lambda r: (r['title'].lower(), r['id'])),
             'archive_token': hashlib.sha256(''.join(sorted(json.dumps(r, sort_keys=True) for r in archive_records)).encode()).hexdigest()}
+
+
+def workers_before(row):
+    """The desk's workers before the task it has now, newest first, as the
+    record's history keeps them (fold_worker in lib/handoff.py): the task,
+    how it ended (its status, how the agent left), who worked it, when it
+    ended and the first line of its last summary."""
+    out = []
+    for w in (row.get('workers') or [])[::-1]:
+        if not isinstance(w, dict):
+            continue
+        out.append({'task': str(w.get('task') or ''), 'status': str(w.get('status') or ''),
+                    'provider': str(w.get('provider') or ''), 'by': str(w.get('by') or ''),
+                    'at': w.get('at') if isinstance(w.get('at'), int) else 0,
+                    'ended': w.get('ended') if isinstance(w.get('ended'), int) else 0,
+                    'left': str(w.get('left') or ''),
+                    'summary': (str(w.get('summary') or '').splitlines() or [''])[0]})
+    return out
 
 
 def purge_archive(api, expected_token):

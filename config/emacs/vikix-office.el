@@ -4,6 +4,7 @@
 (require 'json)
 (require 'button)
 (require 'subr-x)
+(require 'seq)
 (require 'widget)
 (require 'wid-edit)
 
@@ -165,6 +166,16 @@
   "A desk that stands, where the worker's actions make sense."
   (and r (not (vikix-office--folder-p r)) (eq (alist-get 'exists r) t) (not (eq (alist-get 'archived r) t))))
 
+(defun vikix-office--worker-line (w)
+  "One worker of a desk's history in a line: how it ended, who, its task."
+  (concat (let ((status (alist-get 'status w)) (left (alist-get 'left w)))
+            (cond ((not (member status '(nil ""))) (vikix-office--one-line status))
+                  ((not (member left '(nil ""))) (vikix-office--one-line left))
+                  (t "no status")))
+          (let ((provider (alist-get 'provider w)))
+            (if (member provider '(nil "")) "" (concat " · " (vikix-office--one-line provider))))
+          " · " (vikix-office--one-line (or (alist-get 'task w) ""))))
+
 (defun vikix-office--button (label action)
   (insert-text-button label 'follow-link t 'action (lambda (_) (funcall action)))
   (insert "  "))
@@ -259,7 +270,7 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
     (let ((inhibit-read-only t))
       (erase-buffer)
       (insert (propertize "The Office\n" 'face '(:inherit variable-pitch :height 1.5 :weight bold)))
-      (insert "Tasks first. Conversations stay in their agent terminals.\n\n")
+      (insert "A row a desk: its task, its workers before, under it. Conversations stay in their agent terminals.\n\n")
       (unless vikix-office--archive
         (vikix-office--button "New desk…" (lambda () (with-current-buffer owner (vikix-office-new-desk)))))
       (vikix-office--button (if vikix-office--archive "Back to desks" (format "Archive (%d)" (length (alist-get 'archive vikix-office--data))))
@@ -319,6 +330,15 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                                       (concat (if folder "Not a desk"
                                                 (vikix-office--one-line (or (alist-get 'project (alist-get 'desk r)) "Project unrecorded")))
                                               " · " (vikix-office--one-line (alist-get 'provider r))))
+                  ;; The desk's task now, the user's words in a line; a desk with none
+                  ;; stands for a worker later. A plain folder has no record to hold one.
+                  (unless folder
+                    (let ((task (alist-get 'text (alist-get 'task r))))
+                      (vikix-office--field width chars label-width "Task"
+                                           (if (member task '(nil "")) "none yet: New worker… gives it one"
+                                             (truncate-string-to-width (vikix-office--one-line task)
+                                                                       (* 2 (- width label-width)) nil nil "…"))
+                                           (and (member task '(nil "")) 'shadow))))
                   (vikix-office--field width chars label-width "Live"
                                        (concat
                                         (if (eq (alist-get 'live_known r) :false) "unknown"
@@ -347,6 +367,26 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                   (vikix-office--field width chars label-width "Next"
                                        (truncate-string-to-width (vikix-office--one-line (alist-get 'next_action r))
                                                                  (* 2 (- width label-width)) nil nil "…"))
+                  ;; The workers before this task, newest first, as the record's history
+                  ;; keeps them: how each ended, who, and its task; three here, all in the details.
+                  (let ((workers (alist-get 'workers r)))
+                    (when workers
+                      (vikix-office--field width chars label-width "Before"
+                                           (truncate-string-to-width
+                                            (concat (mapconcat #'vikix-office--worker-line (seq-take workers 3) "; ")
+                                                    (if (> (length workers) 3) (format "; %d more" (- (length workers) 3)) ""))
+                                            (* 2 (- width label-width)) nil nil "…")
+                                           'shadow)))
+                  ;; A standing desk with nobody at it takes a new worker: the form, for
+                  ;; this row. With an agent there the button is not shown, as the
+                  ;; details show only the buttons that can act (Tell speaks to it).
+                  (when (and (vikix-office--worker-p r) (eq (alist-get 'live_known r) t) (not (alist-get 'agents r)))
+                    (vikix-office--line width chars
+                                        (lambda ()
+                                          (vikix-office--button "New worker…"
+                                                                (lambda () (with-current-buffer owner
+                                                                             (setq vikix-office--selected id)
+                                                                             (vikix-office-worker)))))))
                   (add-text-properties start (point) `(office-id ,id)))))
             (vikix-office--box-bottom width chars)))))
     (let ((position (vikix-office--position vikix-office--selected)))
@@ -395,7 +435,7 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                     (vikix-office--button "Go to agent" (lambda () (with-current-buffer owner (vikix-office-go)))))
                   (when (and (not agents) (eq (alist-get 'exists r) t) (not (vikix-office--folder-p r)))
                     (vikix-office--button "Continue…" (lambda () (with-current-buffer owner (vikix-office-continue))))
-                    (vikix-office--button "Worker…" (lambda () (with-current-buffer owner (vikix-office-worker)))))
+                    (vikix-office--button "New worker…" (lambda () (with-current-buffer owner (vikix-office-worker)))))
                   (when (cl-some (lambda (a) (alist-get 'process_start a)) agents)
                     (vikix-office--button "Close agent…" (lambda () (with-current-buffer owner (vikix-office-close-agent)))))
                   (when (vikix-office--worker-p r)
@@ -439,6 +479,19 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                 (vikix-office--signed width chars label-width "Summary" (alist-get 'summary handoff))
                 (vikix-office--signed width chars label-width "Next" (alist-get 'next handoff)))
               (vikix-office--box-bottom width chars)
+              ;; The desk's workers before this task, newest first: the record's history.
+              (let ((workers (alist-get 'workers r)))
+                (when workers
+                  (vikix-office--box-top width chars (format "Workers before this one · %d" (length workers)))
+                  (vikix-office--note width chars "Each task before, how it ended and the agent's last word on it.")
+                  (dolist (w workers)
+                    (vikix-office--field width chars 0 "" (vikix-office--worker-line w))
+                    (vikix-office--field width chars 0 ""
+                                         (concat (vikix-office--text (alist-get 'by w)) " · ended " (vikix-office--time (alist-get 'ended w))
+                                                 (let ((summary (alist-get 'summary w)))
+                                                   (if (member summary '(nil "")) "" (concat " · " (vikix-office--one-line summary)))))
+                                         'shadow))
+                  (vikix-office--box-bottom width chars)))
               (let ((now (alist-get 'now r)) (label-width 13))
                 (vikix-office--box-top width chars (concat "Observed Git state · " (vikix-office--time (alist-get 'at now))))
                 (vikix-office--field width chars label-width "Worktree" (vikix-office--text (alist-get 'worktree (alist-get 'desk r))))

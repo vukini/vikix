@@ -252,11 +252,14 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command agent "AI agent: here in a terminal, or at a new desk of its own"
   :run "vikix-agent-choice" :key "s-a"
   :menu "AI" :label "AI agent: here, or at a new desk")
-(define-vikix-command desks "Desk keys: n new, r take up again, c close, h handoff, o the Office, t test, p pause or go, i a note, x dismiss"
+(define-vikix-command desks "Desk keys: n new, w a worker at one, r take up again, c close, h handoff, o the Office, t test, p pause or go, i a note, x dismiss"
   :run "vikix-map desks" :key "s-M-d" :card "AI & voice")
 (define-vikix-command agent-desk "A new desk: pick a project and a topic; a worktree to itself, and a worker at it when you give it a task"
   :run "exec vikix-agents desk" :map "desks n"
   :menu "AI" :label "Agents: a new desk, with a worker when you give it a task")
+(define-vikix-command agent-desk-worker "A worker at a desk: pick the desk, type the task; an agent on it there, on a workspace to itself"
+  :run "exec vikix-agents worker --menu" :map "desks w"
+  :menu "AI" :label "Agents: a worker at a desk (pick the desk, type the task)")
 (define-vikix-command agent-desk-resume "Take a desk up again: pick one; its handoff shown, its agent's conversation resumed where it can be"
   :run "exec vikix-agents resume --menu" :map "desks r"
   :menu "AI" :label "Agents: take a desk up again (its handoff, the conversation resumed)")

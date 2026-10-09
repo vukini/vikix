@@ -436,6 +436,34 @@ printf '#!/bin/sh\nexit 1\n' > "$t/bin/rofi"
 out=$(DISPLAY=:7 PATH="$t/bin:$PATH" desk --here)
 check "the picker closed at any question starts nothing: '$out'" not grep -q 'AGENT SSH' <<<"$out"
 
+# --- worker --menu: the desk picked in rofi, the task typed, then the agent and pushing as desk asks ---
+# The terminal is a stand-in that runs what it is given and keeps its output.
+printf '#!/bin/sh\np=; while [ $# -gt 0 ]; do [ "$1" = -p ] && p=$2; shift; done\necho "$p" >> %s\ncase $p in "A worker at") awk '"'"'/book-e/ { print NR - 1; exit }'"'"';; Task) cat %s;; Agent) echo 0;; Push) cat %s;; esac\n' \
+  "$t/rofi-asked" "$t/task-answer" "$t/push-answer" > "$t/bin/rofi"; chmod +x "$t/bin/rofi"
+printf '#!/bin/sh\nshift\n"$@" > %s 2>&1\n' "$t/term-out" > "$t/bin/term"; chmod +x "$t/bin/term"
+menu() {
+  rm -f "$t/rofi-asked" "$t/term-out" "$t/notified"; echo "$1" > "$t/task-answer"; echo "$2" > "$t/push-answer"
+  DISPLAY=:7 PATH="$t/bin:$PATH" VIKIX_TERMINAL="$t/bin/term" VIKIX_EVAL=/bin/true worker --menu
+  for _ in $(seq 40); do [ -f "$t/term-out" ] && break; sleep 0.1; done
+}
+out=$(menu "Menu task" 1)
+check "worker --menu asks for the desk, the task, the agent, then about pushing: $(tr '\n' ' ' < "$t/rofi-asked")" \
+  test "$(tr '\n' ' ' < "$t/rofi-asked")" = "A worker at Task Agent Push "
+check "the worker starts in a terminal of its own at the desk picked, pushing as asked: $out / $(cat "$t/term-out" 2>/dev/null)" \
+  bash -c 'grep -q "^a worker at .*/book-e, and it may push as you, the task its first prompt" <<<"$1" && grep -q "^AGENT SSH: 1$" "$2"' _ "$out" "$t/term-out"
+check "the task typed is the desk's" grep -q '^Task (user, just now): Menu task$' <<<"$(agents handoff e)"
+out=$(menu "" 0)
+check "nothing typed is a session, the task left as it is: $out" \
+  bash -c 'grep -q "^a session at .*/book-e, no task" <<<"$1" && grep -q "^AGENT SSH: unset$" "$2" && grep -q "^Task (user, just now): Menu task$" <<<"$3"' _ "$out" "$t/term-out" "$(agents handoff e)"
+proc 1007 claude "$t/src/book-e"
+out=$(menu "Another" 1)
+check "a desk with an agent at it is refused before any question, in a notification: $out / $(cat "$t/notified" 2>/dev/null)" \
+  bash -c '[ ! -f "$2" ] && grep -q "claude 1007 is at this desk already, and a desk takes its workers one at a time" "$3" && [ "$(cat "$4")" = "A worker at" ]' _ "$out" "$t/term-out" "$t/notified" "$t/rofi-asked"
+rm -r "$t/proc/1007"
+printf '#!/bin/sh\nexit 1\n' > "$t/bin/rofi"
+out=$(menu "Closed" 1)
+check "the menu closed starts nothing: '$out'" test ! -f "$t/term-out"
+
 # vikix agents help: a map of the commands, in sections, a line each.
 out=$(agents help)
 check "help is a map, not the page ($(wc -l <<<"$out") lines)" test "$(wc -l <<<"$out")" -lt 50

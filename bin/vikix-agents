@@ -67,7 +67,7 @@
                        a task the worker's questions after it. --no-tests:
                        the desk's tests don't run by themselves when a
                        worker hands in (vikix agents test runs them still)
-  vikix agents worker DESK ["..."] [--use NAME] [--local] [--here] [--push] [--no-tests]
+  vikix agents worker DESK ["..."] [--use NAME] [--local] [--here] [--push] [--no-tests] | --menu
                        start a worker at a desk: an agent on a task there.
                        DESK is the folder (~/src/PROJECT-TOPIC), the topic
                        or the branch; the task in your words, written in
@@ -92,7 +92,10 @@
                        this worker hands in (status review); a worker
                        started without it has the tests again. The Office
                        has both desk and worker as a form, with these as
-                       boxes to tick
+                       boxes to tick. --menu, from Super+m or the desk key
+                       w: the desk picked in rofi, then the task typed
+                       (nothing for a session), then which agent and
+                       whether it may push, as desk asks them
   vikix agents resume [DESK] [--use NAME] [--here] [--fresh] [--another]
                        take a desk up again, its conversation resumed.
                        Its handoff, git state and checks shown, then an
@@ -1055,6 +1058,33 @@ def worker(argv):
     """vikix agents worker DESK ["..."]: an agent on a task at a desk that
     is there; without a task, a session there."""
     use, local, here, push, words, notests = None, False, False, False, [], False
+    if argv == ["--menu"]:
+        # From the desktop: the desk, the task, then the worker's questions as
+        # desk asks them. A desk with an agent at it is refused before any
+        # question, in a notification, since worker_at's refusal would go unseen.
+        folder = pick_desk("A worker at", "The desk the worker is for: an agent on a task there, on a workspace "
+                                          "to itself. A desk takes its workers one at a time.")
+        if folder is None:
+            return 0
+        at = agents_at(folder)
+        if at:
+            say(f"{short(folder)}: {', '.join(who(a) for a in at)} is at this desk already, and a desk takes its "
+                "workers one at a time: a note (i) speaks to it, dismiss (x) ends it first")
+            return 0
+        task = rofi("Task", f"The task for the worker at {short(folder)}, in your words: written in the desk's "
+                            "record and given to the agent as its first prompt. Enter with nothing for a session: "
+                            "an agent to talk with, the record left as it is.")
+        if task is None:
+            return 0
+        task = task.strip()
+        chosen = ask_agent()
+        if chosen is None:
+            return 0
+        use, local = chosen
+        push = ask_push()
+        if push is None:
+            return 0
+        argv = [folder] + ([task] if task else [])
     while argv:
         a = argv.pop(0)
         if a == "--use":

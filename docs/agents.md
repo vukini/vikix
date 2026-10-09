@@ -62,7 +62,7 @@ The agent's terminal is named for its desk on the desktop: `wifi-fix · Claude`,
 
 The project is any of `vikix project list`'s, by any part of its name (`vikix`, `novel`, `nov`). The topic is a word or two for the work: it becomes the folder's ending and the branch's name, so choose one that says what the agent is doing (`wifi-fix`, `chapter-3`, `typos`), not who (`agent-2`). A topic that gives no name for a branch is refused.
 
-`Super+a`, *Agent at a new desk*, or `Super+Alt+d` then `n` (the desk keys: `Super+Alt+d` opens a small card of them, `n` a new desk, `r` take one up again, `c` close one, `h` its handoff, `o` the Office, `t` test a desk's work, `p` pause its agent or let it go, `i` a note for it, `x` dismiss it), or `Super+m` → *AI* → *Agents: a new desk, with a worker when you give it a task*, asks for the project in a menu, then for the topic, then for the task. Enter with nothing is the desk alone. A task typed goes on to the worker's questions: which agent, yours first, the others as `vikix agent --list` has them (one not installed yet is offered its installer in the terminal), and the ones that can run on a model on this laptop; then whether the agent may push as you. No is the usual: the agent commits, you push. Yes sends your SSH agent with it (`vikix agent` keeps it back otherwise: after your first push of the day it holds your unlocked key), so `git push` works at that desk. The Office has the same as a form, **New desk…**, with the worker's choices as boxes to tick (see [The Office](#the-office)). Other forms:
+`Super+a`, *Agent at a new desk*, or `Super+Alt+d` then `n` (the desk keys: `Super+Alt+d` opens a small card of them, `n` a new desk, `w` a worker at one, `r` take one up again, `c` close one, `h` its handoff, `o` the Office, `t` test a desk's work, `p` pause its agent or let it go, `i` a note for it, `x` dismiss it), or `Super+m` → *AI* → *Agents: a new desk, with a worker when you give it a task*, asks for the project in a menu, then for the topic, then for the task. Enter with nothing is the desk alone. A task typed goes on to the worker's questions: which agent, yours first, the others as `vikix agent --list` has them (one not installed yet is offered its installer in the terminal), and the ones that can run on a model on this laptop; then whether the agent may push as you. No is the usual: the agent commits, you push. Yes sends your SSH agent with it (`vikix agent` keeps it back otherwise: after your first push of the day it holds your unlocked key), so `git push` works at that desk. The Office has the same as a form, **New desk…**, with the worker's choices as boxes to tick (see [The Office](#the-office)). Other forms:
 
 ```sh
 vikix agents desk notes                       # a project that is no repository: a desk is its own folder
@@ -231,7 +231,7 @@ When a worker sets its status to *review*, its desk's tests run by themselves: `
 
 `vikix agents dismiss wifi-fix` asks the desk's agent to exit and keeps the desk, its branch and its files, so `vikix agents resume` takes it up later; it is the Office's *Close agent* from the terminal. A note goes to the worker first, "dismissed: write your handoff if you can, then stop", which one mid-turn reads at its next tool call, and the record notes the dismissal and how many files were left uncommitted. An agent never dismisses itself. Whichever way an agent leaves a desk, dismissed, exited or logged out, Claude Code's SessionEnd hook (`vikix agents left`) notes it in the record, so the next one at the desk, and the Office, see *Left: dismissed, 3 uncommitted then*.
 
-Each of the worker's commands has a form for the desktop: in the desk keys (`Super+Alt+d`) `t` tests a desk's work, `p` pauses its agent or lets it go, `i` leaves it a note, `x` dismisses it, each asking which desk in a menu, and `Super+m` → *AI* has the same; the Office has them as buttons.
+Each of the worker's commands has a form for the desktop: in the desk keys (`Super+Alt+d`) `w` starts a worker at a desk (the desk picked in a menu, the task typed, nothing for a session, then which agent and whether it may push, as a new desk asks; a desk with an agent at it is refused in a notification), `t` tests a desk's work, `p` pauses its agent or lets it go, `i` leaves it a note, `x` dismisses it, each asking which desk in a menu, and `Super+m` → *AI* has the same (*Agents: a worker at a desk*); the Office has them as buttons.
 
 ### When a desk doesn't appear
 
@@ -344,13 +344,20 @@ are in, and `q` then puts that frame's windows back as they were.
 
 The left side groups desks into **Needs you**, **Working**, **Parked** and
 **Finished**, each group drawn in a box of its own, a rule between its
-desks, and a desk's lines as labelled rows (Live, Handoff, Next); the desk
+desks, and a desk's lines as labelled rows (Task, Live, Handoff, Next, Before); the desk
 pane draws each of its sections (the task, the agent's claims, the Git
 state, the checks, the agents, the saved conversations) in a box the same
 way, so neither pane reads as a wall of text. The boxes are as wide as
 their window and are drawn again when it is resized; a terminal that
-can't show the box characters gets ASCII ones. The task is the title,
-with project/topic as the fallback.
+can't show the box characters gets ASCII ones. A row is a desk: its title
+is the place, project / branch (the folder, for an agent in a plain
+folder), and under it its **Task** now, the user's words (a desk with none
+says so: it stands for a worker later), its workers **Before** this task,
+newest first, as the record's history keeps them (how each ended, which
+agent, its task; three in the row, all of them in the desk pane under
+*Workers before this one*, each with who gave the task, when it ended and
+the agent's last word on it), and a **New worker…** button when the desk
+stands with nobody at it, which opens the worker's form for that desk.
 Each row distinguishes **Live** activity from the recorded **Handoff**,
 counts down the agent's estimate while one stands, and shows the next
 action. A desk whose terminal needs you is drawn in the colour the desktop
@@ -399,7 +406,7 @@ changed records, reopened desks or unavailable discovery require a refresh
 and a new confirmation. Project files, branches and the providers' saved
 conversations are untouched. There is no automatic age or size cutoff.
 
-Click a task, or use `n`/`p` to select it. `RET` enters its details; `C-x o`
+Click a desk, or use `n`/`p` to select it. `RET` enters its details; `C-x o`
 moves between panes. Only available action buttons are shown. `Tab` visits buttons, `N` makes a new desk, `w` starts a worker at the selected one, `a` goes to an agent, `c` continues
 a desk, `P` pauses its agent or lets it go, `t` runs its tests, `i` leaves its agent a note, `g` refreshes and `q` closes the Office. A row says when its desk is paused and by whom, when its tests run, and how many notes wait for its agent; the details say how the last agent left. Details keep the user's task,
 signed agent account, observed Git state, reported checks and saved
@@ -418,14 +425,15 @@ stale view cannot close a replacement process. If it is still exiting after
 three seconds, the Office says so; it does not force-kill it. `q` closes only
 the Office window.
 
-**New desk…** (`N`, above the groups) and **Worker…** (`w`, in the details
-of a desk that stands with nobody at it) are forms, drawn in the desk pane
-and in the terminal alike. New desk asks for the project (a menu of `vikix
+**New desk…** (`N`, above the groups) and **New worker…** (`w`, in a desk's
+row and in the details of a desk that stands with nobody at it) are forms,
+drawn in the desk pane and in the terminal alike. New desk asks for the project (a menu of `vikix
 project list`'s, a click or `RET` opens it), the topic (a word or two; a
 repository needs one, a project that is no repository works in its own
 folder), and the task; nothing typed for the task is the desk alone, for a
-worker later. Worker asks for the task alone; nothing typed is a session, an
-agent to talk with, the record left as it is. Both have the worker's choices
+worker later. New worker asks for the task alone; nothing typed is a session, an
+agent to talk with, the record left as it is; a desk with an agent at it
+takes no second, and says so. Both have the worker's choices
 as boxes to tick: the agent (yours, or any `vikix agent --list` has, one not
 installed yet offered its installer in the terminal), *on a model on this
 laptop* (the ones that can are named), *may push as you* (your SSH agent

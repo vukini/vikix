@@ -246,8 +246,9 @@ StumpWM's own `Ctrl+t` prefix keys still work too: press `Ctrl+t` and wait, and 
 | Super+= | Calculator: Enter copies the answer |
 | **AI & voice** | |
 | Super+a | AI agent: here in a terminal, or at a new desk of its own |
-| Super+Alt+d | Desk keys: n new, r take up again, c close, h handoff, o the Office, t test, p pause or go, i a note, x dismiss |
+| Super+Alt+d | Desk keys: n new, w a worker at one, r take up again, c close, h handoff, o the Office, t test, p pause or go, i a note, x dismiss |
 | then n | A new desk: pick a project and a topic; a worktree to itself, and a worker at it when you give it a task |
+| then w | A worker at a desk: pick the desk, type the task; an agent on it there, on a workspace to itself |
 | then r | Take a desk up again: pick one; its handoff shown, its agent's conversation resumed where it can be |
 | then c | Close an agent's desk whose work is in: pick one; its worktree and branch go |
 | then h | A desk's handoff: the task, what the agent did and left, its checks; pick a desk |
