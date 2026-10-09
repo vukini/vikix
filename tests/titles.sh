@@ -262,6 +262,13 @@ check "in the theme's colour for asking" yes '(equal (vikix-attention-colour :as
 rm -f "$home/.local/state/vikix/agents/$xid"
 check "the note gone, what the pass found is back" yes "(eq (vikix-window-attention $rm_win) :close)"
 check "a terminal with no agent needs nothing" yes "(null (vikix-window-attention $(by_title Shell)))"
+# A window named away (a desktop from before did that as the desk went) and the
+# repository forgotten: the name and the colour come back from the folder alone.
+pid=$(ask "(princ (getf (vikix-window-agent $rm_win) :pid))")
+ask "(progn (xlib:delete-property (window-xwin $rm_win) :_VIKIX_DESK) (remhash $rm_win *vikix-agent-marks*) (setf (window-user-title $rm_win) nil) (remhash $pid *vikix-agent-repos*))" >/dev/null
+pass
+check "the name is back from the folder alone: $(ask "(princ (window-user-title $rm_win))")" yes "(equal (window-user-title $rm_win) \"resume-me · Claude\")"
+check "and so is the colour" yes "(eq (vikix-window-attention $rm_win) :close)"
 
 # --- A reload: one hook, one wrapper, the names as they were ------------------------------------
 before=$(sets)

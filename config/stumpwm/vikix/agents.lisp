@@ -451,8 +451,13 @@ window was marked with before a restart when that is free."
                (push (list a desk topic (vikix-agent-shown-name (getf a :name))) at))
               ;; Its desk is gone (released, or closed) while it runs: the
               ;; name it had stays, and the colour says what is left to do.
-              ((vikix-agent-gone-desk a)
-               (push (cons a (vikix-agent-desk-mark (getf a :window))) gone)))))
+              (t
+               (multiple-value-bind (folder topic) (vikix-agent-gone-desk a)
+                 (declare (ignore folder))
+                 (when topic
+                   (push (cons a (or (vikix-agent-desk-mark (getf a :window))
+                                     (format nil "~a · ~a" topic (vikix-agent-shown-name (getf a :name)))))
+                         gone)))))))
     (setf at (nreverse at))
     ;; The numbers of agents gone are anyone's tomorrow.
     (let ((live (mapcar (lambda (row) (getf (first row) :pid)) at)))
@@ -639,7 +644,10 @@ REPO), or nil. The folder is the seat's or the process's (whose link reads
 \"... (deleted)\" once the folder is removed), and it must be gone; the
 topic is the name its window was given, up to the dot; the repository is
 the one noted while the desk stood, else the folder's beginning before
-\"-TOPIC\", when that has a .git folder."
+\"-TOPIC\", when that has a .git folder. A window with no name (a
+desktop from before named it away as the desk went) is read from the
+folder alone: the longest beginning of its name before a dash that is a
+repository, the rest the topic."
   (let* ((window (getf agent :window))
          (mark (and window (vikix-agent-desk-mark window)))
          (raw (or (cdr (assoc (getf agent :pid) (vikix-agent-seats))) (getf agent :folder) ""))
@@ -647,14 +655,23 @@ the one noted while the desk stood, else the folder's beginning before
          (folder (string-right-trim "/" (if (and deleted (= (+ deleted 10) (length raw))) (subseq raw 0 deleted) raw)))
          (dot (and mark (search " · " mark)))
          (topic (and dot (subseq mark 0 dot))))
-    (when (and topic (plusp (length folder)) (not (probe-file (concatenate 'string folder "/"))))
-      (let ((repo (or (gethash (getf agent :pid) *vikix-agent-repos*)
-                      (let ((tail (concatenate 'string "-" topic)))
-                        (and (> (length folder) (length tail))
-                             (string= tail folder :start2 (- (length folder) (length tail)))
-                             (let ((git (concatenate 'string (subseq folder 0 (- (length folder) (length tail))) "/.git")))
-                               (and (probe-file (concatenate 'string git "/")) git)))))))
-        (values folder topic repo)))))
+    (flet ((repo-at (top) (let ((git (concatenate 'string top "/.git")))
+                            (and (probe-file (concatenate 'string git "/")) git))))
+      (when (and (plusp (length folder)) (not (probe-file (concatenate 'string folder "/"))))
+        (cond (topic
+               (let ((repo (or (gethash (getf agent :pid) *vikix-agent-repos*)
+                               (let ((tail (concatenate 'string "-" topic)))
+                                 (and (> (length folder) (length tail))
+                                      (string= tail folder :start2 (- (length folder) (length tail)))
+                                      (repo-at (subseq folder 0 (- (length folder) (length tail)))))))))
+                 (values folder topic repo)))
+              (t
+               (let ((start (1+ (or (position #\/ folder :from-end t) -1))))
+                 (loop for dash = (position #\- folder :from-end t :end (or dash (length folder)))
+                       while (and dash (> dash start))
+                       do (let ((repo (repo-at (subseq folder 0 dash))))
+                            (when repo
+                              (return (values folder (subseq folder (1+ dash)) repo))))))))))))
 
 (defun vikix-git-ref (repo ref)
   "REF's commit in the repository whose .git folder is REPO, from its loose
