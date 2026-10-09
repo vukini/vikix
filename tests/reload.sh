@@ -64,6 +64,9 @@ sed -i "s/(defparameter \*vikix-swank-port\* 4004)/(defparameter *vikix-swank-po
 [ -d "$ql" ] && ln -s "$ql" "$home/quicklisp"
 echo "reload-test" > "$home/.slime-secret"; chmod 600 "$home/.slime-secret"
 touch "$home/.local/state/vikix/welcome"     # no welcome terminal
+# vikix-version climbs three folders up from the layer (config/stumpwm/vikix/
+# in the checkout) to VERSION: here that is $t, since the layer is a copy.
+echo 9.9.9 > "$t/VERSION"
 printf '(in-package :stumpwm)\n(when-window (:class "ReloadTest") (title "ruled"))\n' > "$home/.stumpwm.d/rules.lisp"
 printf '(in-package :stumpwm)\n(setf *vikix-errors-ask* nil)\n(defvar *reload-test-loads* 0)\n(incf *reload-test-loads*)\n' > "$home/.stumpwm.d/user.lisp"
 
@@ -96,6 +99,10 @@ check "and yours from their text still: $(by yours)" test "$(by yours)" = "rules
 check "your user.lisp was loaded again" test "$(ask '(princ *reload-test-loads*)')" = 2
 check "it is quicker than the text was: $(ms compiled) ms now, $text_ms ms then" test "$(( $(ms compiled) + $(ms source) ))" -lt "$text_ms"
 check "it is in the times log as a reload: $(tail -1 "$home/.local/state/vikix/times.log")" grep -q ' reload [0-9.]*$' "$home/.local/state/vikix/times.log"
+check "vikix-version reads the checkout's VERSION: $(ask '(princ (vikix-version))')" test "$(ask '(princ (vikix-version))')" = 9.9.9
+ask '(vikix-reload)' >/dev/null; answers 60 || true; sleep 0.5
+said=$(ask '(princ (first (first (screen-last-msg (current-screen)))))')
+check "Super+m's Reload config says which version runs now, and how long it took: $said" grep -qE '^Vikix 9\.9\.9 reloaded in [0-9.]+ s$' <<<"$said"
 check "your rule and Vikix's rules know whose they are: $(ask '(princ (remove-duplicates (mapcar (function vikix-rule-owner) *vikix-rules*) :test (function equal)))')" \
   grep -q 'rules.lisp' <<<"$(ask '(princ (remove-duplicates (mapcar (function vikix-rule-owner) *vikix-rules*) :test (function equal)))')"
 check "no rule thinks it was written in a compiled copy" test "$(ask '(princ (count-if (lambda (r) (search "fasl" (or (vikix-rule-file r) ""))) *vikix-rules*))')" = 0

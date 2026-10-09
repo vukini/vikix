@@ -104,7 +104,7 @@ For the curious: `vikix mcp register` gives your agent the desktop as tools ([Wo
 4. **Runs migrations**: one-off fixes for machines installed before some change, each run once (recorded in `~/.local/state/vikix/migrations/`).
 5. **Brings `llm` to its pinned version**, if you have it (`vikix ai llm`).
 6. **Upgrades your own programs**: what you installed with `pipx` (`pipx upgrade-all`), with `uv tool install` (each one but Vikix's pinned `llm` and Piper), and with `cargo install` (when `cargo install-update` is there: `cargo install cargo-update`, once). Go can't upgrade everything it installed; run `go install NAME@latest` again for each.
-7. **Reloads StumpWM**, so new keys, the bar and the menu work at once.
+7. **Reloads StumpWM**, so new keys, the bar and the menu work at once; the screen says which version runs now (`Super+m` → *Reload config* says the same).
 
 ### One part at a time
 

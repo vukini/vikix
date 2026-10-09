@@ -168,7 +168,7 @@ Everything Vikix is. `readlink -f ~/.local/bin/vikix` finds it if you cloned it 
 
 | Path | What |
 |---|---|
-| `VERSION` | The version you have (`vikix version`) |
+| `VERSION` | The version you have (`vikix version`, or `vikix --version`; Super+m → *Reload config* says it too) |
 | `install.sh`, `install/` | The installer (the base, then `--with` features) and its stages, `NN-name.sh`. Each is safe to run again: `./install.sh --only 40-config` |
 | `bin/` | `vikix` and its helpers, linked into `~/.local/bin`. Each starts with a comment saying what it does. |
 | `config/` | Everything that ends up in your home: the files linked there, and the starters copied once |

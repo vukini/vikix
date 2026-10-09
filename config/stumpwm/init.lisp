@@ -87,6 +87,7 @@ the compiler thread.")
   "Copies that failed, by name and number: not tried or made again.")
 (defvar *vikix-compiler-thread* nil)
 (defvar *vikix-loaded-once* nil "True after the first load: the next is a reload.")
+(defvar *vikix-load-seconds* nil "How long the last load took (the start, or a reload): vikix-reload says it.")
 (defparameter *vikix-source-only* '("errors" "registry")
   "Files of the layer always loaded from their text: errors.lisp, which is
 there before anything can go wrong; and registry.lisp, whose commands each
@@ -233,6 +234,7 @@ says the file is Vikix's, for the note of how it was loaded."
        (format out "~,2f ~:[start~;reload~]~%" seconds *vikix-loaded-once*)
        (loop for (name ms how) in (reverse *vikix-load-times*)
              do (format out "~d ~(~a~) ~a~%" ms how name)))))
+  (setf *vikix-load-seconds* seconds)
   (when (and *vikix-loaded-once* (fboundp 'vikix-time-note))
     (funcall 'vikix-time-note "reload" seconds)))
 

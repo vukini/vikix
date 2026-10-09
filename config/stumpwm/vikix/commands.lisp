@@ -156,11 +156,33 @@ VIKIX_SESSION_START), its config loaded."
 
 (add-hook *start-hook* 'vikix-time-ready)
 
+(defun vikix-version ()
+  "Vikix's version: the checkout's VERSION file, read each time it is asked
+(`vikix update` changes it before the reload that follows). ~/.stumpwm.d/vikix
+is a link into the checkout, config/stumpwm/vikix/, so the file is three
+folders up from where the layer really is. Nil when there is none (a test's
+copy of the layer stands on its own)."
+  (ignore-errors
+   (let ((top (truename *vikix-dir*)))
+     (dotimes (_ 3) (setf top (uiop:pathname-parent-directory-pathname top)))
+     (with-open-file (in (merge-pathnames "VERSION" top))
+       (let ((line (read-line in nil)))
+         (and line (plusp (length (string-trim '(#\Space #\Tab #\Return) line)))
+              (string-trim '(#\Space #\Tab #\Return) line)))))))
+
 (defcommand vikix-reload () ()
-  "Reload the whole configuration (Vikix's files and user.lisp)."
-  ;; loadrc prints its own confirmation; init.lisp notes how long it took
-  ;; (a reload from `vikix update` or `vikix eval` is one too).
-  (loadrc))
+  "Reload the whole configuration (Vikix's files and user.lisp), and say
+which version runs now and how long it took."
+  ;; StumpWM's loadrc, with Vikix's confirmation in place of its own: after
+  ;; `vikix update` the number on the screen is the one just pulled. init.lisp
+  ;; notes how long the load took (*vikix-load-seconds*, and the times log;
+  ;; a reload from `vikix eval` is one too).
+  (handler-case (with-restarts-menu (load-rc-file nil))
+    (error (c)
+      (message "^1*^BError loading rc file: ^n~A" c))
+    (:no-error (&rest args)
+      (declare (ignore args))
+      (message "Vikix~@[ ~a~] reloaded~@[ in ~,1f s~]" (vikix-version) *vikix-load-seconds*))))
 
 (defcommand vikix-theme (name) ((:string "Theme: "))
   "Switch to the theme called NAME everywhere: StumpWM, the terminals,

@@ -60,7 +60,7 @@
 #                         the list, or switch to NAME
 #   vikix theme import URL|OWNER/REPO [NAME]   an Omarchy theme as one of
 #                         yours, then switch to it (vikix theme --help)
-#   vikix version
+#   vikix version|-v|--version   the version you have (the checkout's VERSION)
 #
 #   vikix layout save NAME | NAME [--no-start] | list | rm NAME
 #                       this workspace's layout (its splits or its strip, and
@@ -603,8 +603,8 @@ cmd_update() {
   # if it can't be reached, the next login loads them.
   if [ "$part" = all ] || [ "$part" = core ]; then
     if [ "$DRY_RUN" = 1 ]; then
-      printf '   would run: %s\n' "vikix eval '(loadrc)'  # reload StumpWM"
-    elif python3 "$VIKIX_DIR/bin/vikix-eval" '(loadrc)' >/dev/null 2>&1; then
+      printf '   would run: %s\n' "vikix eval '(vikix-reload)'  # reload StumpWM, saying the version it then runs"
+    elif python3 "$VIKIX_DIR/bin/vikix-eval" '(vikix-reload)' >/dev/null 2>&1; then
       say "StumpWM reloaded: the new keys, bar and menu are in use"
     else
       warn "couldn't reach StumpWM to reload it; the new keys, bar and menu start at the next login (or Super+m, Reload config)"
@@ -1836,7 +1836,7 @@ main() {
     add|remove)  exec "$VIKIX_DIR/bin/vikix-features" "$@" ;;
     welcome)     shift; exec "$VIKIX_DIR/bin/vikix-welcome" "$@" ;;
     pkg)         shift; exec "$VIKIX_DIR/bin/vikix-pkg" "$@" ;;
-    version)     cat "$VIKIX_DIR/VERSION" ;;
+    version|-v|--version) cat "$VIKIX_DIR/VERSION" ;;
     eval)        shift; exec python3 "$VIKIX_DIR/bin/vikix-eval" "$@" ;;
     layout)      shift; cmd_layout "$@" ;;
     rules)       shift; exec "$VIKIX_DIR/bin/vikix-rules" "$@" ;;

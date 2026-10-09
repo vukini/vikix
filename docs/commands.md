@@ -104,7 +104,7 @@ The everyday command.
 - `vikix welcome [add]` — the first steps (it opens by itself at the first login): add software, keys, theme, keyboard, guide
 - `vikix theme [NAME]` — the colour theme, everywhere: the current one and the list, or switch to NAME
 - `vikix theme import URL|OWNER/REPO [NAME]` — an Omarchy theme as one of yours, then switch to it (vikix theme --help)
-- `vikix version`
+- `vikix version|-v|--version` — the version you have (the checkout's VERSION)
 - `vikix layout save NAME | NAME [--no-start] | list | rm NAME` — this workspace's layout (its splits or its strip, and which window is where) saved, put back (the windows it had that aren't open started, unless --no-start), listed, removed
 - `vikix rules [off|on|forget N] [why [CLASS]] [test|apply [N]] [verbs|now|proposed]` — the desktop's rules: the list, one off or on, why a window is where it is, what they'd do with the windows open now, and doing it; forget takes one out of your rules.lisp (vikix rules help)
 - `vikix door [run N|drop N|check FORM|allowed]` — the Lisp an agent sent that the door held for you: run one as you, drop it, see what passes (vikix door help)
