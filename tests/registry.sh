@@ -143,8 +143,20 @@ check "an old name should be the new one" yes '(and (eq (vikix-theme-name :void)
 ask '(vikix-apply-theme :paper)' >/dev/null
 check "applying an old name should apply the new one: $(ask '(princ *vikix-theme*)')" yes '(eq *vikix-theme* :vikix-light)'
 ask '(vikix-apply-theme :vikix-dark)' >/dev/null
+# The picker shows each theme as the highlight reaches it: the hook's
+# function alone, then the menu itself, by keys; Escape puts it back.
+check "the preview should apply the theme under the highlight" \
+  yes '(progn (vikix-theme-preview (make-instance (quote single-menu) :table (list "vikix-light" "nord-dark") :selected 1 :prompt "" :view-start 0 :view-end 0 :filter-pred (function menu-item-matches-regexp))) (eq *vikix-theme* :nord-dark))'
+ask '(vikix-apply-theme :vikix-dark)' >/dev/null
+ask '(run-with-timer 1 nil (lambda () (vikix-pick-theme)))' >/dev/null; sleep 2   # a whole second: StumpWM's timers take no fraction
+key Down
+for _ in $(seq 1 20); do [ "$(ask '(princ *vikix-theme*)')" = "CONTRAST-DARK" ] && break; sleep 0.25; done
+check "moving down the picker should show the next theme: $(ask '(princ *vikix-theme*)') $(said) $(cat "$home"/.local/state/vikix/errors/* 2>/dev/null | head -c 600)" yes '(eq *vikix-theme* :contrast-dark)'
+key Escape
+for _ in $(seq 1 20); do [ "$(ask '(princ *vikix-theme*)')" = "VIKIX-DARK" ] && break; sleep 0.25; done
+check "Escape should put the theme back: $(ask '(princ *vikix-theme*)')" yes '(eq *vikix-theme* :vikix-dark)'
 check "the picker's order: $(ask '(princ (vikix-theme-order (list "nord-dark" "zed-dark" "vikix-dark" "zed-light" "vikix-light" "apple")))')" \
   yes '(equal (vikix-theme-order (list "nord-dark" "zed-dark" "vikix-dark" "zed-light" "vikix-light" "apple")) (list "vikix-light" "vikix-dark" "apple" "nord-dark" "zed-light" "zed-dark"))'
 
-wm_report registry "Vikix's keys and Super+m made from its commands, every one a real command, a command of yours bound and in the menu at once, Super+m opens on its sections, shows one's entries with their keys, comes back, and finds an entry of any section as it is typed, agents run only what is marked for them, a reload leaves one of each, the six themes are read with vikix-dark the default, an old theme name is the new one, the picker in vikix theme's order"
+wm_report registry "Vikix's keys and Super+m made from its commands, every one a real command, a command of yours bound and in the menu at once, Super+m opens on its sections, shows one's entries with their keys, comes back, and finds an entry of any section as it is typed, agents run only what is marked for them, a reload leaves one of each, the six themes are read with vikix-dark the default, an old theme name is the new one, the picker in vikix theme's order and showing each theme as it is reached, Escape putting it back"
 exit "$fail"

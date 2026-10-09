@@ -189,15 +189,38 @@ first, then by name, a -light before its -dark."
                            (and (string= (second ka) (second kb))
                                 (< (third ka) (third kb)))))))))))
 
+;;; The picker shows each theme as the highlight reaches it. StumpWM runs
+;;; *menu-selection-hook* before every redraw of a menu, so the theme under
+;;; the highlight is applied to StumpWM alone (this menu, the bar, the
+;;; borders, the title bars): Lisp and X requests only, which is what the
+;;; main thread may do at every key. The rest of the desktop (terminals,
+;;; rofi, the editors, the wallpaper) follows on Enter, through `vikix
+;;; theme`, and Escape puts the colours back.
+
+(defun vikix-theme-preview (menu)
+  "Apply, to StumpWM alone, the theme MENU's highlight is on."
+  (let* ((entry (nth (menu-selected menu) (menu-table menu)))
+         (name (and entry (intern (string-upcase (menu-element-name entry)) :keyword))))
+    (when (and name (getf *vikix-themes* name) (not (eq name *vikix-theme*)))
+      (ignore-errors (vikix-apply-theme name)))))
+
 (defcommand vikix-pick-theme () ()
-  "Pick a theme from the list of theme files."
+  "Pick a theme from the list of theme files, each shown as it is reached."
   (vikix-load-themes)
-  (let* ((names (loop for (name nil) on *vikix-themes* by #'cddr
-                      collect (string-downcase (symbol-name name))))
-         (choice (select-from-menu (current-screen) (vikix-theme-order names)
-                                   (format nil "Theme (now ~(~a~)): " *vikix-theme*))))
-    (when choice
-      (vikix-theme (if (consp choice) (first choice) choice)))))
+  (let* ((before *vikix-theme*)
+         (names (vikix-theme-order
+                 (loop for (name nil) on *vikix-themes* by #'cddr
+                       collect (string-downcase (symbol-name name)))))
+         (choice (let ((*menu-selection-hook* (cons #'vikix-theme-preview *menu-selection-hook*)))
+                   (select-from-menu (current-screen) names
+                                     (format nil "Theme (now ~(~a~)): " before)
+                                     (or (position (string-downcase (symbol-name before)) names
+                                                   :test #'string=)
+                                         0)))))
+    (if choice
+        (vikix-theme (if (consp choice) (first choice) choice))
+        (unless (eq *vikix-theme* before)
+          (vikix-apply-theme before)))))
 
 (defcommand vikix-update () ()
   "Run `vikix update` in a terminal."
