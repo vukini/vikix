@@ -106,6 +106,7 @@ The everyday command.
 - `vikix version`
 - `vikix layout save NAME | NAME [--no-start] | list | rm NAME` — this workspace's layout (its splits or its strip, and which window is where) saved, put back (the windows it had that aren't open started, unless --no-start), listed, removed
 - `vikix rules [off|on|forget N] [why [CLASS]] [test|apply [N]] [verbs|now|proposed]` — the desktop's rules: the list, one off or on, why a window is where it is, what they'd do with the windows open now, and doing it; forget takes one out of your rules.lisp (vikix rules help)
+- `vikix door [run N|drop N|check FORM|allowed]` — the Lisp an agent sent that the door held for you: run one as you, drop it, see what passes (vikix door help)
 - `vikix why [N]` — why did that happen? the last things the desktop did (a key and its command, a rule and its window, the menu, an agent) and where each is written (Super+?)
 - `vikix what [KIND] [NAME]` — what is this? the bar's field under the pointer or the window in front, or a thing by name (a field, a key, a process, a service, a package, a command, a file): what it is doing now, what such a thing is, and where it is explained: your own chapters first (Super+Alt+?)
 - `vikix viri [on|off]` — this workspace as a strip that scrolls sideways (Super+h/l along it), or tiled again; no word switches

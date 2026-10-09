@@ -72,6 +72,9 @@
 #                       window is where it is, what they'd do with the windows
 #                       open now, and doing it; forget takes one out of your
 #                       rules.lisp (vikix rules help)
+#   vikix door [run N|drop N|check FORM|allowed]
+#                       the Lisp an agent sent that the door held for you:
+#                       run one as you, drop it, see what passes (vikix door help)
 #   vikix why [N]       why did that happen? the last things the desktop did
 #                       (a key and its command, a rule and its window, the
 #                       menu, an agent) and where each is written (Super+?)
@@ -1769,6 +1772,7 @@ main() {
     layout)      shift; cmd_layout "$@" ;;
     rules)       shift; exec "$VIKIX_DIR/bin/vikix-rules" "$@" ;;
     why)         shift; exec "$VIKIX_DIR/bin/vikix-why" "$@" ;;
+    door)        shift; exec "$VIKIX_DIR/bin/vikix-door" "$@" ;;
     what)        shift; exec python3 "$VIKIX_DIR/bin/vikix-what" "$@" ;;
     viri)        shift
                  case ${1:-} in ''|on|off) ;; *) die "vikix viri: on, off, or nothing to switch" ;; esac
