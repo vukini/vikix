@@ -185,6 +185,7 @@ Parts of Vikix that haven't had the code-first pass the sections above got. Each
 
 - **Security.** Worked out as `DESIGN-security.md` (2026-10-04): the four pen-test reports and TODO items 4 and 5 as one ordered plan.
 - **Your machines and your phone.** Worked out as `DESIGN-machines.md` (2026-10-04): Tailscale, Syncthing, KDE Connect and `vikix export`/`import` as one design, with `--on NAME` for the doors.
+- **The computer extended into the cloud.** Vid's idea, kept as he wrote it in `DESIGN-cloud.md` (2026-10-09): rented always-on machines as *nodes* of the one Vikix (`vikix nodes`, `vikix node shell|run`, `vikix run --on atlas`, projects sent by git, jobs that outlive the laptop), over SSH first and the mesh of `DESIGN-machines.md` later; and, if it works for Vid, the product: Vikix Cloud sells nodes that attach to your Vikix, not a VPS. First milestone: the laptop and one cheap Void VPS feeling like one system.
 - **Backup and restore.** Worked out as `DESIGN-restore.md` (2026-10-04): `vikix versions` over both histories, Esploro's "Versions…" as a plan with undo, a guided setup.
 - **The Z13 as a tablet.** Touch, pen and the detachable keyboard (TODO 58–63): what a tablet mode of a tiling desktop is. Nobody on Linux has a good answer; Viri's strip may be part of one.
 - **A first visitor's path.** The site, the install line, the first hour, the release process and GitHub Actions, seen by someone who actually tries it for the first time; the everyday-user agent on a fresh VM, start to finish.
