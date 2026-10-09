@@ -288,7 +288,7 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                    (vikix-office--box-bottom width chars)))
                 ((eq (alist-get 'releases_kept vikix-office--data) t)
                  (insert (propertize "No release under way.\n\n" 'face 'shadow))))))
-      (if (null rows) (insert (if vikix-office--archive "Archive is empty.\n" "No desks yet. Start one with vikix agents desk PROJECT TOPIC.\n"))
+      (if (null rows) (insert (if vikix-office--archive "Archive is empty.\n" "No desks yet. vikix agents desk PROJECT TOPIC makes one, vikix agents worker TOPIC \"the task\" starts a worker at it.\n"))
         (dolist (group (if vikix-office--archive '("Archived") '("Needs you" "Working" "Parked" "Finished")))
           (let ((members (cl-remove-if-not (lambda (r) (equal (alist-get 'group r) group)) rows))
                 (first t))
@@ -403,7 +403,7 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                 (progn
                   (vikix-office--box-top width chars "Not a desk")
                   (vikix-office--field width chars 0 "" (concat "Agents running in " (vikix-office--text (alist-get 'title r))))
-                  (vikix-office--note width chars "An agent takes a desk with vikix agents sit PROJECT TOPIC from its own shell; vikix agents desk PROJECT TOPIC starts one at a desk.")
+                  (vikix-office--note width chars "An agent takes a desk with vikix agents sit PROJECT TOPIC from its own shell; vikix agents desk PROJECT TOPIC makes a desk, vikix agents worker TOPIC \"the task\" starts one at it.")
                   (vikix-office--box-bottom width chars))
               (vikix-office--box-top width chars "Task")
               (vikix-office--signed width chars 0 "" (alist-get 'task r))

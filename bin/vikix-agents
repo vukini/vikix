@@ -46,23 +46,38 @@
                        In a terminal on this workspace (Super+a, Agent
                        here): it asks which agent, as desk does, when --use
                        and --local don't say
-  vikix agents desk [PROJECT [TOPIC]] [--use NAME] [--local] [--here] [--push]
-                       start an agent at a desk of its own.
+  vikix agents desk [PROJECT [TOPIC]] [--task "..."] [--use NAME] [--local] [--here] [--push]
+                       make a desk: a worktree of the project, a branch, a record.
                        In PROJECT (one of vikix project's, by any part of
-                       its name), on a workspace to itself, and with a
-                       TOPIC in a git worktree of the project made for it:
-                       the folder PROJECT-TOPIC beside the project, on a
-                       new branch TOPIC, so its work can't collide with
-                       another agent's. Without PROJECT it asks which, then
-                       for a topic (a repository's desk is a worktree, so
-                       one is needed; a project that is no repository
-                       works in its own folder, with none), then for the
-                       task, when --task doesn't say (nothing typed is a
-                       desk with no task), then which agent, when --use
-                       doesn't say: yours first, the others as vikix agent
-                       --list has them, and the ones that can on a model
-                       on this laptop; then whether it may push as you
-                       (no, the usual: it commits, you push).
+                       its name), a git worktree of the project made for
+                       it: the folder PROJECT-TOPIC beside the project, on
+                       a new branch TOPIC, so one agent's work can't
+                       collide with another's; a desk that is there is
+                       used again, not made twice. Nobody sits at it yet:
+                       vikix agents worker starts a worker there, on a
+                       task, and the desk keeps the history of its
+                       workers. --task "...": the shortcut that does both,
+                       the desk and a worker at it with that task; the
+                       agent's words (--use, --local, --here, --push) are
+                       worker's, and want a task here. Without PROJECT it
+                       asks which, then for a topic (a repository's desk
+                       is a worktree, so one is needed; a project that is
+                       no repository works in its own folder, with none),
+                       then for the task: nothing typed is the desk alone,
+                       a task the worker's questions after it
+  vikix agents worker DESK ["..."] [--use NAME] [--local] [--here] [--push]
+                       start a worker at a desk: an agent on a task there.
+                       DESK is the folder (~/src/PROJECT-TOPIC), the topic
+                       or the branch; the task in your words, written in
+                       the desk's record and given to the agent as its
+                       first prompt (aider takes none: it reads the
+                       record), on a workspace to itself. The desk's task
+                       and handoff before it go into its history (vikix
+                       agents handoff shows the workers before); the
+                       checks stay. Without a task, a session at the desk:
+                       an agent to talk with, the record left as it is.
+                       Refused while an agent is at the desk: vikix agents
+                       tell leaves it a note, dismiss ends it first.
                        --use: another agent than yours (vikix agent --use);
                        --local: on a model on this laptop (vikix agent
                        --local; opencode, codex and aider can);
@@ -70,10 +85,7 @@
                        --push: the agent may push as you: your SSH agent
                        goes with it (vikix agent keeps it back otherwise,
                        since after your first push of the day it holds
-                       your unlocked key), so git push works at the desk;
-                       --task "...": the task, in your words, written in
-                       the desk's record and given to the agent as its
-                       first prompt (aider takes none: it reads the record)
+                       your unlocked key), so git push works at the desk
   vikix agents resume [DESK] [--use NAME] [--here] [--fresh] [--another]
                        take a desk up again, its conversation resumed.
                        Its handoff, git state and checks shown, then an
@@ -328,8 +340,12 @@ handoff_update): read the handoff when joining a desk, say how long when
 starting, set it when handing work back, blocked, or done. vikix agents
 close marks the record closed and keeps it.
 
-A worker is a desk with a task: the agent is started with the task as its
-first prompt (vikix agents desk --task); it reports by construction: an
+A desk is a place: the worktree, its branch, its record; a worker is an
+agent at a desk with a task. vikix agents desk makes the place, vikix
+agents worker starts an agent on a task there, the task its first prompt,
+and a desk takes its workers one after another on the same branch, the
+record keeping each one's task and how it ended (desk --task does both in
+one go). A worker reports by construction: an
 agent's status coming to review, waiting or finished is a notification on
 the desktop, and a worker that changed files in a turn without writing its
 handoff is asked once to, by Claude Code's Stop hook, before it stops. A
@@ -396,10 +412,11 @@ SETTINGS = ("--task", "--status", "--summary", "--next", "--estimate", "--from")
 # one, or help can't place it (tests/house.sh checks).
 SECTIONS = (
     ("seeing", "Seeing them", ("", "office", "clash", "crossings", "help")),
-    ("each", "A desk each", ("here", "desk", "resume", "close")),
+    ("each", "A desk each: the place", ("desk", "close", "here")),
+    ("workers", "Workers: an agent at a desk, on a task", ("worker", "resume", "tell", "pause", "go", "turns", "test",
+                                                          "dismiss")),
     ("agent", "The agent's own, from its shell", ("sit", "handoff", "handoff check", "handoff session", "handoff list",
                                                 "handoff forget")),
-    ("workers", "Workers: a desk with a task", ("tell", "pause", "go", "turns", "test", "dismiss")),
     ("rules", "The house rules", ("hooks",)),
     ("scripts", "For hooks, the Office and scripts", ("desks", "touch", "stopping", "left", "office --json", "office --go",
                                                       "office --close-agent", "office --forget", "office --purge-archive",
@@ -910,6 +927,8 @@ def ask_push():
 
 
 def desk(argv):
+    """vikix agents desk [PROJECT [TOPIC]] [--task "..."]: the place, and
+    with a task a worker at it too."""
     use, local, here, push, words, task = None, False, False, None, [], ""
     while argv:
         a = argv.pop(0)
@@ -929,6 +948,11 @@ def desk(argv):
             words.append(a)
     if len(words) > 2:
         die("vikix agents desk [PROJECT [TOPIC]]: a topic of several words goes in quotes")
+    # The agent's words are the worker's: a desk alone seats nobody.
+    agent_words = [w for w, on in (("--use", use), ("--local", local), ("--here", here), ("--push", push)) if on]
+    if agent_words and not task and words:
+        die(f"{' '.join(agent_words)} is for the worker, and a desk alone starts no agent: give --task \"...\" "
+            f"too, or start one at the desk with vikix agents worker DESK {' '.join(agent_words)}")
     vp = projects()
     asked = not words
     if asked:
@@ -936,7 +960,7 @@ def desk(argv):
         if not table:
             die("no projects found (vikix project list says where it looks)")
         wide = max(len(r[1]) for r in table)
-        picked = rofi("Agent on", "The project the agent will work on.",
+        picked = rofi("Desk in", "The project the desk is for.",
                       [f"{name:<{wide}}  {nxt}"[:160] for _, name, _, _, nxt in table])
         if picked is None or not picked.isdigit():
             return 0
@@ -946,36 +970,36 @@ def desk(argv):
     if len(words) == 2:
         topic = words[1]
     elif asked:
-        topic = rofi("Topic", f"A word or two for what it will work on in {project.full}: it gets a worktree and a "
-                              "branch of that name, so another agent's work can't collide with its own. "
+        topic = rofi("Topic", f"A word or two for what the desk is for in {project.full}: it gets a worktree and a "
+                              "branch of that name, so one agent's work can't collide with another's. "
                               "(Only a project that is no repository works in its own folder, with no topic.)")
         if topic is None:
             return 0
     else:
         topic = ""
     if asked and not task:
-        # The task, asked as --task would give it: a desk from the menu was the one
-        # kind that started with no task, so its agent sat at an empty prompt.
-        task = rofi("Task", "The task, in your words: written in the desk's record and given to the agent as its "
-                            "first prompt, so it starts on it at once. Enter with nothing for a desk with no task.")
+        # The task, asked as --task would give it: typed, a worker is started at
+        # the new desk; nothing typed is the desk alone, for a worker later.
+        task = rofi("Task", "The task for a worker at this desk, in your words: written in the desk's record and "
+                            "given to the agent as its first prompt. Enter with nothing for the desk alone.")
         if task is None:
             return 0
         task = task.strip()
-    if asked and not use and not local:
+    if task and asked and not use and not local:
         chosen = ask_agent()
         if chosen is None:
             return 0
         use, local = chosen
-    if asked and push is None:
+    if task and asked and push is None:
         push = ask_push()
         if push is None:
             return 0
     path = str(project.path)
     top = (git(path, "rev-parse", "--show-toplevel") or "").strip()
-    said = f"in {short(path)}"
+    said = f"in {short(path)}, the project's own folder (no repository, so no worktree)"
     folder = path
     if topic and not top:
-        print(f"{project.full} isn't a git repository, so it has no worktrees: the agent works in its folder")
+        print(f"{project.full} isn't a git repository, so it has no worktrees: a desk there is its own folder")
     elif top and not topic:
         die(f"a repository's desk is a worktree of it, and {project.full} is one: give a topic "
             f"(vikix agents desk {project.name} TOPIC). The project's own folder is for merging only")
@@ -988,12 +1012,78 @@ def desk(argv):
                                            else f"the worktree that was there (branch {topic})"))
     if not os.path.isdir(folder):
         die(f"{short(folder)} isn't there")
-    if task or (top and topic):
-        desk_record(folder, task=task, by="user")
-    # The task is the agent's first prompt, so a new desk never sits idle
-    # with its task written only in the record (2026-10-07: one did, for
-    # three minutes, until the user typed "read the handoff").
-    first = handoff_module().first_prompt_args(use or default_agent(), desk_prompt(task)) if task else None
+    if top and topic:
+        desk_record(folder, by="user")
+    if not task:
+        at = agents_at(folder)
+        print(f"a desk: {said}" + (f"; {', '.join(who(a) for a in at)} is at it" if at else
+                                   f". Nobody sits at it: vikix agents worker {topic or project.name} \"the task\" "
+                                   "starts a worker there"))
+        return 0
+    return worker_at(folder, task, use, local, here, push, f"a desk, and a worker at it: {said}", topic or project.name)
+
+
+def worker(argv):
+    """vikix agents worker DESK ["..."]: an agent on a task at a desk that
+    is there; without a task, a session there."""
+    use, local, here, push, words = None, False, False, False, []
+    while argv:
+        a = argv.pop(0)
+        if a == "--use":
+            use = argv.pop(0) if argv else die("--use which agent? (vikix agent --list)")
+        elif a == "--local":
+            local = True
+        elif a == "--here":
+            here = True
+        elif a == "--push":
+            push = True
+        elif a.startswith("-"):
+            die(f"vikix agents worker: {a}? (vikix agents help)")
+        else:
+            words.append(a)
+    if not words:
+        die("vikix agents worker DESK [\"the task\"]: which desk? (vikix agents desks lists them; "
+            "vikix agents desk PROJECT TOPIC makes one)")
+    folder, rec = desk_for([words[0]])
+    task = " ".join(words[1:]).strip()
+    if not os.path.isdir(folder):
+        die(f"{short(folder)} is gone: vikix agents desk {(rec or {}).get('desk', {}).get('project', 'PROJECT')} "
+            f"{os.path.basename(folder).split('-', 1)[-1] if rec else 'TOPIC'} makes the worktree again "
+            "(the record is kept, and waits there)")
+    return worker_at(folder, task, use, local, here, push, f"a worker at {short(folder)}" if task
+                     else f"a session at {short(folder)}", desk_name(folder))
+
+
+def agents_at(folder):
+    """The agents at the desk FOLDER now, from /proc (their seats counted)."""
+    return [a for a in live_agents() if a["folder"] and os.path.realpath(a["folder"]) == os.path.realpath(folder)]
+
+
+def worker_at(folder, task, use, local, here, push, said, name):
+    """An agent started at the desk FOLDER: on TASK, the record's task
+    folded into the desk's history and TASK its first prompt; without one
+    a session, the record left as it is (a line in its log). SAID is how
+    the desk was named, NAME what its workspace is called."""
+    H = handoff_module()
+    at = agents_at(folder)
+    if at:
+        # One at a time: in one worktree git can't say whose files are whose,
+        # so the house rules couldn't either.
+        die(f"{', '.join(who(a) for a in at)} is at this desk already, and a desk takes its workers one at a time: "
+            f"vikix agents tell {name} \"...\" leaves it a note, vikix agents dismiss {name} ends it first")
+    provider = use or default_agent()
+    folded = [None]
+    first = None
+    if task:
+        def change(rec):
+            folded[0] = H.start_worker(rec, task, "user", provider)
+        desk_record(folder, change=change)
+        # The task is the agent's first prompt, so a new worker never sits idle
+        # with its task written only in the record (2026-10-07: one did, for
+        # three minutes, until the user typed "read the handoff").
+        first = H.first_prompt_args(provider, desk_prompt(task))
+    elif desk_of(folder) or H.load(H.desk_id(common_of(folder), folder)):
+        desk_record(folder, change=lambda rec: H._log(rec, "user", f"session: {provider}"))
     start = agent_start(use, first or (), local=local)
     if use or local:
         said += f", {use or 'your agent'}" + (" on a model on this laptop" if local else "")
@@ -1003,15 +1093,18 @@ def desk(argv):
         os.environ["VIKIX_AGENT_SSH"] = "1"
         said += ", and it may push as you"
     if task:
-        said += (", the task its first prompt" if first
-                 else f", the task in its handoff ({use or default_agent()} takes no first prompt)")
+        said += ", the task its first prompt" if first else f", the task in its handoff ({provider} takes no first prompt)"
+        if folded[0]:
+            said += f"; the task before it ({folded[0].get('status') or 'no status'}) is in the desk's history"
+    else:
+        said += ", no task: the handoff is what it has"
     if here:
-        print(f"a desk for the agent: {said}")
+        print(said)
         if task and not first:
             print(f"The task: {task}")
         open_here(folder, start)
-    workspace = open_at(folder, start, topic or project.name)
-    print(f"a desk for the agent: {said}" + (f", on workspace {workspace}" if workspace else ""))
+    workspace = open_at(folder, start, name)
+    print(said + (f", on workspace {workspace}" if workspace else ""))
     return 0
 
 
@@ -2249,8 +2342,8 @@ def handoff(argv):
             print(json.dumps(recs, indent=1, ensure_ascii=False))
             return 0
         if not recs:
-            print("No desk has a record yet: vikix agents desk PROJECT TOPIC --task \"...\" makes one, "
-                  "or vikix agents handoff --task \"...\" from a desk.")
+            print("No desk has a record yet: vikix agents desk PROJECT TOPIC makes one, "
+                  "vikix agents worker DESK \"...\" starts a worker at it.")
             return 0
         for r in recs:
             d, h = r["desk"], r.get("handoff") or {}
@@ -3207,6 +3300,8 @@ def main(argv):
         return here(argv[1:])
     if argv and argv[0] == "desk":
         return desk(argv[1:])
+    if argv and argv[0] == "worker":
+        return worker(argv[1:])
     if argv and argv[0] == "sit":
         return sit(argv[1:])
     if argv and argv[0] == "close":

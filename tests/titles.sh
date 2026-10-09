@@ -107,8 +107,8 @@ resume() { HOME=$home VIKIX_SWANK_PORT=$port VIKIX_AGENT_CMD="$t/bin/claude" pyt
 
 # --- A desk started: named without the agent writing any title ----------------------------------
 win Shell
-out=$(desk books "Fix typos")
-check "a desk is made: $out" grep -q 'a new worktree on the branch fix-typos' <<<"$out"
+out=$(desk books "Fix typos" --task "Fix the typos")
+check "a desk is made, with a worker at it: $out" grep -q 'a new worktree on the branch fix-typos' <<<"$out"
 got=$(name_of Alacritty "fix-typos · Claude")
 check "the terminal of an agent started at a desk is named for the desk, though the agent wrote no title: '$got'" test "$got" = "fix-typos · Claude"
 check "its X title is still the terminal's own" yes "(equal (window-title $(by_title Alacritty)) \"Alacritty\")"
@@ -202,7 +202,7 @@ assert any(a["desk_title"] == "ünï cøde & \"quotes\" · Claude" for a in agen
 ' "$(cli --json)"
 
 # --- resume: the terminal it opens is named -----------------------------------------------------
-out=$(desk books resume-me)
+out=$(desk books resume-me --task "Resume me")
 got=$(name_of Alacritty "resume-me · Claude")
 check "a second desk's terminal is named for it: '$got'" test "$got" = "resume-me · Claude"
 pid=$(ask "(princ (getf (vikix-window-agent $(by_title Alacritty)) :pid))")

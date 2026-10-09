@@ -5,7 +5,7 @@ One agent is a terminal you talk to. Three or four at once are a small office: e
 Three habits carry the whole page:
 
 1. **Start agents with Vikix**, `Super+a` or `vikix agent`, never plain `claude`: that is how they get a snapshot of your files, the Vikix skill, no API keys, and the house rules.
-2. **One desk per piece of work**: `vikix agents desk PROJECT TOPIC`. No desk, no work: an agent off a desk is refused when it reaches for a project's files, and told how to sit down.
+2. **One desk per piece of work**: `vikix agents desk PROJECT TOPIC` makes the place, `vikix agents worker TOPIC "the task"` puts an agent to work there. No desk, no work: an agent off a desk is refused when it reaches for a project's files, and told how to sit down.
 3. **`vikix agents` when you lose track.**
 
 ## One agent
@@ -23,7 +23,7 @@ A second `Super+a`, *Agent here*, is a second agent, and so on. Nothing stops yo
 
 ## Seeing them all
 
-`vikix agents help` is the map of the commands, a line each, in the order of this page: seeing them, a desk each, the agent's own, workers, the house rules. `vikix agents help desk` is one command in full, as `vikix agents desk -h` is; `man vikix-agents` has all of it.
+`vikix agents help` is the map of the commands, a line each, in the order of this page: seeing them, a desk each, workers, the agent's own, the house rules. `vikix agents help desk` is one command in full, as `vikix agents desk -h` is; `man vikix-agents` has all of it.
 
 ```
 $ vikix agents
@@ -43,14 +43,18 @@ Nothing here stops, signals or types into an agent: the list only reads what is 
 
 ## A desk each
 
-An agent started with `Super+a`, *Agent here*, sits in your home folder, and works wherever you send it. Two of them on one project then edit one working copy: git can't tell whose change is whose, one's half-written edit breaks the other's tests, and neither can commit cleanly. A desk gives each agent its own copy, on a workspace of its own:
+An agent started with `Super+a`, *Agent here*, sits in your home folder, and works wherever you send it. Two of them on one project then edit one working copy: git can't tell whose change is whose, one's half-written edit breaks the other's tests, and neither can commit cleanly. A desk gives each piece of work its own copy, and a worker is an agent put to work at one:
 
 ```sh
 vikix agents desk vikix wifi-fix
-a desk for the agent: in ~/src/vikix-wifi-fix, a new worktree on the branch wifi-fix, on workspace 4
+a desk: in ~/src/vikix-wifi-fix, a new worktree on the branch wifi-fix. Nobody sits at it: vikix agents worker wifi-fix "the task" starts a worker there
+vikix agents worker wifi-fix "the Wi-Fi picker should scan first"
+a worker at ~/src/vikix-wifi-fix, the task its first prompt, on workspace 4
 ```
 
-What happened: the first empty workspace (4) was taken (when all nine have windows, a new one named `wifi-fix` is made instead, reached with `Super+0` and gone again once it is left empty); a git worktree of `~/src/vikix` was made beside it, `~/src/vikix-wifi-fix`, on a new branch `wifi-fix`; and a terminal opened there with your agent in it, the same way `Super+a` does. `Super+4` is now that agent. It commits on its branch, in its folder; `~/src/vikix` and every other desk stay as they are.
+What happened: a git worktree of `~/src/vikix` was made beside it, `~/src/vikix-wifi-fix`, on a new branch `wifi-fix`, with a record of its own and nobody at it; then the first empty workspace (4) was taken (when all nine have windows, a new one named `wifi-fix` is made instead, reached with `Super+0` and gone again once it is left empty), and a terminal opened in the worktree with your agent in it, started on the task, the same way `Super+a` does. `Super+4` is now that worker. It commits on its branch, in its folder; `~/src/vikix` and every other desk stay as they are. `vikix agents desk vikix wifi-fix --task "..."` does both in one go.
+
+A desk is the place: the worktree, its branch, its record. A worker is one agent on one task there, and a desk takes its workers one after another, on the same branch: when the first has finished (or you dismissed it), `vikix agents worker wifi-fix "now the password dialog"` starts the next, and the record moves the task before, with how it ended and the agent's last account of it, into the desk's history, which `vikix agents handoff wifi-fix` shows under *Workers before this one*. Two at once are refused: in one worktree git can't say whose files are whose, so the house rules couldn't either; `vikix agents tell` speaks to the one there, `dismiss` ends it. `vikix agents worker wifi-fix` with no task is a session at the desk, an agent to talk with, the record left as it is.
 
 The agent's terminal is named for its desk on the desktop: `wifi-fix · Claude`, the topic and the provider, in the title bar, the window list (`Super+g`), the overview and the palette, from the moment the agent is at the desk (started there, seated with `vikix agents sit`, or taken up again with `resume`) until it leaves. Two of one provider at a desk are `wifi-fix · Claude 1` and `wifi-fix · Claude 2`, each keeping its number while it runs; another provider at the same desk is `wifi-fix · Codex`. The title the agent itself writes (Claude Code's turning mark, which is how *working* and *at its prompt* are read) is kept apart, so nothing it does to its title changes the name, and nothing is lost: `vikix agents` shows both. A terminal whose agent has gone is plain again, or named for the next agent run in it, within half a minute; a terminal with no agent at a desk, and a name you gave a window yourself with StumpWM's `title` command, are left alone.
 
@@ -58,18 +62,20 @@ The agent's terminal is named for its desk on the desktop: `wifi-fix · Claude`,
 
 The project is any of `vikix project list`'s, by any part of its name (`vikix`, `novel`, `nov`). The topic is a word or two for the work: it becomes the folder's ending and the branch's name, so choose one that says what the agent is doing (`wifi-fix`, `chapter-3`, `typos`), not who (`agent-2`). A topic that gives no name for a branch is refused.
 
-`Super+a`, *Agent at a new desk*, or `Super+Alt+d` then `n` (the desk keys: `Super+Alt+d` opens a small card of them, `n` a new desk, `r` take one up again, `c` close one, `h` its handoff, `o` the Office, `t` test a desk's work, `p` pause its agent or let it go, `i` a note for it, `x` dismiss it), or `Super+m` → *AI* → *Agents: start one on a project, at a desk of its own*, asks for the project in a menu, then for the topic, then for the task, then which agent: yours first, the others as `vikix agent --list` has them (one not installed yet is offered its installer in the terminal), and the ones that can run on a model on this laptop; then whether the agent may push as you. No is the usual: the agent commits, you push. Yes sends your SSH agent with it (`vikix agent` keeps it back otherwise: after your first push of the day it holds your unlocked key), so `git push` works at that desk. Other forms:
+`Super+a`, *Agent at a new desk*, or `Super+Alt+d` then `n` (the desk keys: `Super+Alt+d` opens a small card of them, `n` a new desk, `r` take one up again, `c` close one, `h` its handoff, `o` the Office, `t` test a desk's work, `p` pause its agent or let it go, `i` a note for it, `x` dismiss it), or `Super+m` → *AI* → *Agents: a new desk, with a worker when you give it a task*, asks for the project in a menu, then for the topic, then for the task. Enter with nothing is the desk alone. A task typed goes on to the worker's questions: which agent, yours first, the others as `vikix agent --list` has them (one not installed yet is offered its installer in the terminal), and the ones that can run on a model on this laptop; then whether the agent may push as you. No is the usual: the agent commits, you push. Yes sends your SSH agent with it (`vikix agent` keeps it back otherwise: after your first push of the day it holds your unlocked key), so `git push` works at that desk. Other forms:
 
 ```sh
-vikix agents desk notes                # a project that is no repository: its own folder, a workspace to itself
-vikix agents desk novel typos --here   # in this terminal, no new workspace
-vikix agents desk novel typos --use codex
-vikix agents desk novel typos --use antigravity
-vikix agents desk novel typos --use aider --local   # on a model on this laptop
-vikix agents desk novel typos --push                # it may push as you (your SSH agent goes with it)
+vikix agents desk notes                       # a project that is no repository: a desk is its own folder
+vikix agents worker ~/src/notes "sort them"   # a worker there, on a workspace to itself
+vikix agents worker typos "..." --here        # in this terminal, no new workspace
+vikix agents worker typos "..." --use codex
+vikix agents worker typos "..." --use antigravity
+vikix agents worker typos "..." --use aider --local   # on a model on this laptop
+vikix agents worker typos "..." --push                # it may push as you (your SSH agent goes with it)
+vikix agents desk novel typos --task "..." --use codex   # the desk and the worker in one go, with the worker's words
 ```
 
-A desk that is already there is used again, never made twice: the second `vikix agents desk vikix wifi-fix` starts another agent in the same worktree (for a reviewer beside the writer). A project inside a collection (`books/novel`) gets its own folder inside the collection's worktree, `~/src/books-typos/novel`. A project that isn't a git repository has no worktrees: its agent works in the folder itself, and a topic isn't needed. A repository without a topic is refused: its own folder is for merging only, and no agent works there.
+A desk that is already there is used again, never made twice: the second `vikix agents desk vikix wifi-fix` says so, and who is at it. A project inside a collection (`books/novel`) gets its own folder inside the collection's worktree, `~/src/books-typos/novel`. A project that isn't a git repository has no worktrees: its desk is the folder itself, and a topic isn't needed; name the folder to `worker`. A repository without a topic is refused: its own folder is for merging only, and no agent works there.
 
 ### No desk, no work
 
@@ -84,7 +90,7 @@ $ vikix agents sit vikix wifi-fix
 claude 48213 is seated at ~/src/vikix-wifi-fix: a new worktree on the branch wifi-fix. Work there (cd ~/src/vikix-wifi-fix) and commit there, on the branch wifi-fix; the house rules take that folder as yours now, and vikix agents shows you at it.
 ```
 
-From then on the desk is that agent's: its edits there pass, `vikix agents` lists it at `~/src/vikix-wifi-fix (wifi-fix, 2 uncommitted)` with the branch and what waits there, and `vikix agents close` refuses the desk while it is seated. An agent that has a worktree already, made by hand or by Claude Code's own worktree support, sits at it with `vikix agents sit` and no more, run from inside it; an agent you started with `vikix agents desk` is at one from the start. A project that isn't a repository has no desks and no rule: the agent works in its folder.
+From then on the desk is that agent's: its edits there pass, `vikix agents` lists it at `~/src/vikix-wifi-fix (wifi-fix, 2 uncommitted)` with the branch and what waits there, and `vikix agents close` refuses the desk while it is seated. An agent that has a worktree already, made by hand or by Claude Code's own worktree support, sits at it with `vikix agents sit` and no more, run from inside it; an agent you started with `vikix agents worker` is at one from the start. A project that isn't a repository has no desks and no rule: the agent works in its folder.
 
 Two more refusals. The project's own folder is refused from any desk, naming the agent's desk (*~/src/vikix is the project's own folder, which is for merging only: no agent changes it. Your desk is ~/src/vikix-wifi-fix: make the change there*). And a shell command is held to the rule when it would write there (`sed -i`, a `>` into a file, `mv`, `git commit`, `git rebase` and the like): the hook reads the command, finds the places it names, and refuses it the same way; a command that only reads (`cat`, `grep`, `git log`, `git worktree list`) passes. The rule holds for every project `vikix project list` knows that is a git repository; a repository that is no project (`~/.dotfiles`) is not ruled. Each refusal is kept in the record store (`vikix records list office --kind refused`).
 
@@ -115,17 +121,17 @@ Three things to know. It takes commits: files uncommitted at the desk are refuse
 ### A day with two agents on Vikix
 
 ```sh
-vikix agents desk vikix wifi-fix       # workspace 4: "the Wi-Fi picker should scan first"
-vikix agents desk vikix docs-pass      # workspace 5: "read docs/ for anything stale"
+vikix agents desk vikix wifi-fix --task "the Wi-Fi picker should scan first"   # workspace 4
+vikix agents desk vikix docs-pass --task "read docs/ for anything stale"        # workspace 5
 ```
 
-Tell each what to do on its own workspace. Each works in its worktree and, when done, finishes with the project's own release step (for Vikix, `.claude/release wifi-fix "..."`), which merges the branch and removes the worktree and the branch: the desk clears itself. A shell of yours still standing in that folder is told so by the next `gup` or `vikix update core` (*the folder this was started from is gone: running from /home/you*), which runs all the same. `vikix agents` meanwhile shows `~/src/vikix-wifi-fix (wifi-fix, 3 uncommitted)` and `~/src/vikix-docs-pass (docs-pass, 1 uncommitted)`, so you can see at a glance who has what in hand.
+Each starts on its task, on its own workspace. Each works in its worktree and, when done, finishes with the project's own release step (for Vikix, `.claude/release wifi-fix "..."`), which merges the branch and removes the worktree and the branch: the desk clears itself. A shell of yours still standing in that folder is told so by the next `gup` or `vikix update core` (*the folder this was started from is gone: running from /home/you*), which runs all the same. `vikix agents` meanwhile shows `~/src/vikix-wifi-fix (wifi-fix, 3 uncommitted)` and `~/src/vikix-docs-pass (docs-pass, 1 uncommitted)`, so you can see at a glance who has what in hand.
 
 ### A book
 
 ```sh
-vikix agents desk novel chapter-3
-a desk for the agent: in ~/src/novel-chapter-3, a new worktree on the branch chapter-3, on workspace 5
+vikix agents desk novel chapter-3 --task "draft chapter three from the outline"
+a desk, and a worker at it: in ~/src/novel-chapter-3, a new worktree on the branch chapter-3, the task its first prompt, on workspace 5
 ```
 
 The agent drafts and commits on `chapter-3`. When you like it:
@@ -174,7 +180,7 @@ At the desk now: claude 48213
   no filesystem enforcement: a worktree keeps copies apart, it is no sandbox
 ```
 
-Three kinds of line, kept apart and each signed. The **task** is yours, in your words: `vikix agents desk vikix wifi-fix --task "..."` sets it as the desk is made and gives it to the agent as its first prompt, so the desk starts working at once (Claude Code, Codex, OpenCode, Gemini CLI and Antigravity CLI take one; Aider doesn't, and is told to read the record); or `vikix agents handoff --task "..."` sets it later. The **handoff** is the agent's: a status (working, waiting, review, finished), an estimate, what it changed and decided, what is left and the very next action. The **estimate** is how long the work will take from the moment it is written, assuming no major issue turns up (`--estimate "40 min, if the picker needs no new test"`: a duration first, in minutes, hours or days, and what it assumes after a comma); an agent started with a task is asked for one as soon as it knows the shape of the work. The record and `vikix agents` count it down (*28 min left of 40 min*, *10 min over its 40 min*), and once the status is finished they say how it went (*finished in 45 min against 40 min, 5 min over*). The clock is the wall's, so time spent waiting for you counts, as it would for a person; an estimate written again starts it afresh. What **Vikix read itself** is the rest: the commit and the uncommitted files at each write, and for a check the commit it ran on and whether the tree was dirty then. A check is marked *stale* the moment the code differs from what it ran on, by another commit or other uncommitted changes, so an old green never passes for a new one. The sessions are the providers' conversation ids and nothing more: no transcript is copied, and a line that looks like a key or a token is refused outright.
+Three kinds of line, kept apart and each signed. The **task** is yours, in your words: `vikix agents worker wifi-fix "..."` sets it as the worker starts and gives it to the agent as its first prompt (the task of the worker before goes into the desk's history, with how it ended), so the desk starts working at once (Claude Code, Codex, OpenCode, Gemini CLI and Antigravity CLI take one; Aider doesn't, and is told to read the record); or `vikix agents handoff --task "..."` sets it later. The **handoff** is the agent's: a status (working, waiting, review, finished), an estimate, what it changed and decided, what is left and the very next action. The **estimate** is how long the work will take from the moment it is written, assuming no major issue turns up (`--estimate "40 min, if the picker needs no new test"`: a duration first, in minutes, hours or days, and what it assumes after a comma); an agent started with a task is asked for one as soon as it knows the shape of the work. The record and `vikix agents` count it down (*28 min left of 40 min*, *10 min over its 40 min*), and once the status is finished they say how it went (*finished in 45 min against 40 min, 5 min over*). The clock is the wall's, so time spent waiting for you counts, as it would for a person; an estimate written again starts it afresh. What **Vikix read itself** is the rest: the commit and the uncommitted files at each write, and for a check the commit it ran on and whether the tree was dirty then. A check is marked *stale* the moment the code differs from what it ran on, by another commit or other uncommitted changes, so an old green never passes for a new one. The sessions are the providers' conversation ids and nothing more: no transcript is copied, and a line that looks like a key or a token is refused outright.
 
 The agent writes with the same command, or with the MCP tools `handoff` and `handoff_update`, whichever agent it is:
 
@@ -202,9 +208,9 @@ on workspace 4
 
 `vikix agents resume` shows the handoff, the git state and the checks' freshness, then starts an agent at the desk. When the record names a session and the provider's store still has it, that very conversation is resumed: `claude --resume ID`, `codex resume ID`, `opencode --session ID`, `agy --conversation ID`, each as its installed help says. Otherwise a fresh conversation starts, with the handoff on the terminal above it, and the line says why: no session noted, the provider's store lost it, or the provider can't resume one (Aider has no session ids; Gemini CLI's `--resume` is from its documentation, unverified here). When the provider's own store has a conversation for that folder which the record doesn't name, it is suggested, with the command that notes it, and never taken: nothing resumes the most recent conversation lying about, and nothing starts a second agent at a desk that has one (`--another` does, on purpose). `--fresh` asks for a new conversation, `--use codex` another provider, `--here` this terminal.
 
-### A worker: a desk with a task
+### A worker: an agent at a desk, on a task
 
-Give a desk a task and the agent at it is a worker: `vikix agents desk vikix wifi-fix --task "the Wi-Fi picker should scan first"`. The agent is started on the task, its first prompt, with where the desk's record is, so it opens on what the desk is for rather than at an empty prompt. The worker reports by construction. When its status comes to *review*, *waiting* or *finished*, a notification on the desktop says so, with its next step (never for a status that stayed, or for your own change). And a worker that ends a turn having changed files without writing its handoff is asked once, by Claude Code's Stop hook (`vikix agents stopping`, set by `vikix agent` with the house rules), to write it before it stops; the stop after that is let go, so nothing goes round, and a desk with no task, a session you are simply talking with, is never held to it.
+A worker is what `vikix agents worker wifi-fix "the Wi-Fi picker should scan first"` starts (or `vikix agents desk vikix wifi-fix --task "..."`, the desk and the worker together). The agent is started on the task, its first prompt, with where the desk's record is, so it opens on what the desk is for rather than at an empty prompt. The worker reports by construction. When its status comes to *review*, *waiting* or *finished*, a notification on the desktop says so, with its next step (never for a status that stayed, or for your own change). And a worker that ends a turn having changed files without writing its handoff is asked once, by Claude Code's Stop hook (`vikix agents stopping`, set by `vikix agent` with the house rules), to write it before it stops; the stop after that is let go, so nothing goes round, and a desk with no task, a session you are simply talking with, is never held to it.
 
 A note for a worker at work: `vikix agents tell wifi-fix "try the laptop's second card too"`. It waits at the desk, shown by `vikix agents handoff` and counted under the agent's line in `vikix agents`, and the hook hands it to the agent at its next tool call, signed and timed, so nothing types into its window. An agent at its prompt makes no tool call until you speak to it, so `tell` says when that is so: the note waits on your next question to it, not on the hook. Only Claude Code's hook can carry words to the agent: for the others `tell` says so, the note stays in the handoff for the agent to read there, and `resume` reads the notes out to whichever agent takes the desk up. A note is text like the handoff's: a line that looks like a key is refused.
 

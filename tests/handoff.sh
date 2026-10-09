@@ -375,21 +375,60 @@ check "forgetting it again: no such desk: $out" grep -q 'no desk called a' <<<"$
 out=$(agents handoff forget)
 check "nothing left to forget is said: $out" grep -q 'No record of a desk whose folder is gone: nothing to forget' <<<"$out"
 
+# --- Desks and workers apart: a desk is made alone, a worker started at it on a task --------------
+desk() { VIKIX_AGENT_CMD="$t/bin/agent" python3 "$here/bin/vikix-agents" desk "$@" 2>&1 </dev/null || true; }
+worker() { VIKIX_AGENT_CMD="$t/bin/agent" python3 "$here/bin/vikix-agents" worker "$@" 2>&1 </dev/null || true; }
+out=$(desk book f)
+check "a desk is made alone: the worktree, the branch, a record, and nobody at it: $out" \
+  bash -c '[ "$(git -C "$2/src/book-f" rev-parse --abbrev-ref HEAD)" = f ] && grep -q "^a desk: in .*/book-f, a new worktree on the branch f. Nobody sits at it: vikix agents worker f \"the task\" starts a worker there$" <<<"$1" && ! grep -q "AGENT ARGS" <<<"$1"' _ "$out" "$t"
+check "the record, with no task" grep -q '^Task: none set' <<<"$(agents handoff f)"
+out=$(desk book f --here)
+check "the agent's words on desk want a task, since a desk alone starts no agent: $out" \
+  grep -q -- '--here is for the worker, and a desk alone starts no agent: give --task "..." too, or start one at the desk with vikix agents worker DESK --here' <<<"$out"
+out=$(worker f --here "Write chapter four" --use claude)
+check "a worker at the desk: the task its first prompt, and in the record: $out" \
+  bash -c 'grep -q "^a worker at .*/book-f, claude, the task its first prompt$" <<<"$1" && grep -q "^AGENT ARGS: --use claude Write chapter four$" <<<"$1" && grep -q "read the handoff before you start" <<<"$1"' _ "$out"
+check "the record has the task" grep -q '^Task (user, just now): Write chapter four$' <<<"$(agents handoff f)"
+agents handoff set --desk f --status finished --summary "Four is written" >/dev/null
+out=$(worker f --here "Write chapter five")
+check "a second worker: the task before it goes into the desk's history, with how it ended: $out" \
+  grep -q "the task its first prompt; the task before it (finished) is in the desk's history$" <<<"$out"
+out=$(agents handoff f)
+check "the record shows the new task, a status not said, and the workers before: $out" \
+  bash -c 'grep -q "^Task (user, just now): Write chapter five$" <<<"$1" && grep -q "^Status: not said$" <<<"$1" && grep -q "^Workers before this one: 1$" <<<"$1" && grep -q "^  just now  finished  Write chapter four (user)$" <<<"$1" && grep -q "^    Four is written$" <<<"$1"' _ "$out"
+out=$(worker f --here)
+check "without a task, a session at the desk, the record left as it is: $out" \
+  bash -c 'grep -q "^a session at .*/book-f, no task: the handoff is what it has$" <<<"$1" && grep -q "^AGENT ARGS: $" <<<"$1"' _ "$out"
+check "the task stayed" grep -q '^Task (user, just now): Write chapter five$' <<<"$(agents handoff f)"
+proc 1006 claude "$t/src/book-f"
+out=$(worker f "Chapter six")
+check "refused while an agent is at the desk, one worker at a time: $out" \
+  grep -q 'claude 1006 is at this desk already, and a desk takes its workers one at a time: vikix agents tell f "..." leaves it a note, vikix agents dismiss f ends it first' <<<"$out"
+out=$(desk book f --task "Chapter six" --here)
+check "desk --task is held to it too: $out" grep -q 'claude 1006 is at this desk already' <<<"$out"
+rm -r "$t/proc/1006"
+out=$(desk book e --task "Chapter seven" --here --use claude)
+check "desk --task does both, the desk and a worker at it: $out" \
+  bash -c 'grep -q "^a desk, and a worker at it: in .*/book-e, a new worktree on the branch e, claude, the task its first prompt$" <<<"$1" && grep -q "^AGENT ARGS: --use claude Chapter seven$" <<<"$1"' _ "$out"
+out=$(worker)
+check "worker with no desk named says which: $out" grep -q 'which desk? (vikix agents desks lists them' <<<"$out"
+
 # --- Pushing as the user: only when asked, by --push or the picker's last question ----------------
 printf '#!/bin/sh\necho "AGENT SSH: ${VIKIX_AGENT_SSH-unset}"\n' > "$t/bin/agent-ssh"; chmod +x "$t/bin/agent-ssh"
 desk() { VIKIX_AGENT_CMD="$t/bin/agent-ssh" python3 "$here/bin/vikix-agents" desk "$@" 2>&1 </dev/null || true; }
-out=$(desk book c --here)
-check "a desk started plainly keeps the SSH agent from the agent: $out" grep -q '^AGENT SSH: unset$' <<<"$out"
-out=$(desk book c --here --push)
+worker() { VIKIX_AGENT_CMD="$t/bin/agent-ssh" python3 "$here/bin/vikix-agents" worker "$@" 2>&1 </dev/null || true; }
+out=$(worker c --here)
+check "a worker started plainly keeps the SSH agent from the agent: $out" grep -q '^AGENT SSH: unset$' <<<"$out"
+out=$(worker c --here --push)
 check "--push hands it over, and says so: $out" \
-  bash -c 'grep -q "^AGENT SSH: 1$" <<<"$1" && grep -q "a desk for the agent: .*, and it may push as you" <<<"$1"' _ "$out"
-# The picker: rofi is a stand-in answering by prompt, the project (the first), the topic c, the agent (yours).
-printf '#!/bin/sh\np=; while [ $# -gt 0 ]; do [ "$1" = -p ] && p=$2; shift; done\necho "$p" >> %s\ncase $p in "Agent on") echo 0;; Topic) echo c;; Agent) echo 0;; Push) cat %s;; esac\n' \
+  bash -c 'grep -q "^AGENT SSH: 1$" <<<"$1" && grep -q "a session at .*, and it may push as you" <<<"$1"' _ "$out"
+# The picker: rofi is a stand-in answering by prompt, the project (the first), the topic c, a task, the agent (yours).
+printf '#!/bin/sh\np=; while [ $# -gt 0 ]; do [ "$1" = -p ] && p=$2; shift; done\necho "$p" >> %s\ncase $p in "Desk in") echo 0;; Topic) echo c;; Task) echo "Push it";; Agent) echo 0;; Push) cat %s;; esac\n' \
   "$t/rofi-asked" "$t/push-answer" > "$t/bin/rofi"; chmod +x "$t/bin/rofi"
 picker() { rm -f "$t/rofi-asked"; echo "$1" > "$t/push-answer"; DISPLAY=:7 PATH="$t/bin:$PATH" desk --here; }
 out=$(picker 0)
-check "the picker asks about pushing last, after the agent: $(tr '\n' ' ' < "$t/rofi-asked")" \
-  bash -c '[ "$(tail -1 "$1")" = Push ] && grep -qx Agent "$1"' _ "$t/rofi-asked"
+check "the picker asks for the task, then which agent, then about pushing last: $(tr '\n' ' ' < "$t/rofi-asked")" \
+  bash -c '[ "$(tail -1 "$1")" = Push ] && grep -qx Agent "$1" && grep -qx Task "$1"' _ "$t/rofi-asked"
 check "no keeps the SSH agent back: $out" grep -q '^AGENT SSH: unset$' <<<"$out"
 out=$(picker 1)
 check "yes hands it over: $out" grep -q '^AGENT SSH: 1$' <<<"$out"
@@ -400,7 +439,7 @@ check "the picker closed at any question starts nothing: '$out'" not grep -q 'AG
 # vikix agents help: a map of the commands, in sections, a line each.
 out=$(agents help)
 check "help is a map, not the page ($(wc -l <<<"$out") lines)" test "$(wc -l <<<"$out")" -lt 50
-for k in office clash crossings here desk resume close sit handoff tell pause go turns test dismiss hooks; do
+for k in office clash crossings here desk worker resume close sit handoff tell pause go turns test dismiss hooks; do
   check "the map names $k" grep -q "^  vikix agents $k" <<<"$out"
 done
 check "the map says where the hooks' and scripts' commands are" grep -q 'touch, stopping, left' <<<"$out"
@@ -408,13 +447,13 @@ forms=$(agents -h | grep -c '^  vikix agents')
 placed=$(for s in seeing each agent workers rules scripts; do agents help $s; done | grep -c '^  vikix agents')
 check "every form of the header is in a section of help ($forms forms, $placed placed)" test "$forms" = "$placed"
 out=$(agents help desk)
-check "help desk is that command in full" grep -q -- '--push: the agent may push as you' <<<"$out"
+check "help desk is that command in full" grep -q -- '--task "...": the shortcut that does both' <<<"$out"
 check "and only it" not grep -q 'vikix agents close' <<<"$out"
-check "desk -h is the same" grep -q -- '--push: the agent may push as you' <<<"$(agents desk -h)"
+check "desk -h is the same" grep -q -- '--task "...": the shortcut that does both' <<<"$(agents desk -h)"
 check "help handoff is every handoff form" test "$(agents help handoff | grep -c '^  vikix agents handoff')" -ge 5
 check "help desks is the desks command, not the desks section" grep -qi 'tab-parted' <<<"$(agents help desks)"
 out=$(agents nope)
 check "an unknown command points at help: $out" grep -q 'no command called nope: vikix agents help lists them' <<<"$out"
 
-[ $fail = 0 ] && echo "handoff: ok (a desk's task, handoff, checks and sessions kept apart and across sessions; stale checks said; writers at once lose nothing; refusals; a gone desk's record forgotten, a standing one refused; resume where the provider can, fresh and said why otherwise; the hooks each has; help a map, a command in full)"
+[ $fail = 0 ] && echo "handoff: ok (a desk's task, handoff, checks and sessions kept apart and across sessions; stale checks said; writers at once lose nothing; refusals; a gone desk's record forgotten, a standing one refused; resume where the provider can, fresh and said why otherwise; the hooks each has; help a map, a command in full; a desk made alone and a worker started at it on a task, the task before kept in the desk's history, one worker at a time)"
 exit $fail

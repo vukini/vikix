@@ -176,40 +176,51 @@ desk() { HOME=$home VIKIX_SWANK_PORT=$port VIKIX_AGENT_CMD="${AGENT_CMD:-$t/bin/
 # Until an agent works in a folder ending so (its terminal takes a moment).
 at_desk() { for _ in $(seq 1 40); do grep -q " $1 " <<<" $(agents) " && return 0; sleep 0.25; done; return 0; }
 
+worker() { HOME=$home VIKIX_SWANK_PORT=$port VIKIX_AGENT_CMD="${AGENT_CMD:-$t/bin/claude}" python3 "$here/bin/vikix-agents" worker "$@" 2>&1 || true; }
 out=$(desk books "Fix typos")
 check "a desk is a worktree beside the project, on a branch of the topic: $out" \
   test "$(git -C "$home/src/books-fix-typos" rev-parse --abbrev-ref HEAD 2>/dev/null)" = fix-typos
-check "and it says so, with the workspace: $out" grep -q 'a desk for the agent: in ~/src/books-fix-typos, a new worktree on the branch fix-typos, on workspace 3$' <<<"$out"
+check "and it says so, with nobody at it: $out" \
+  grep -q '^a desk: in ~/src/books-fix-typos, a new worktree on the branch fix-typos. Nobody sits at it: vikix agents worker fix-typos "the task" starts a worker there$' <<<"$out"
+check "a desk alone starts no agent: $(agents)" not grep -q 'books-fix-typos' <<<"$(agents)"
+out=$(worker fix-typos "Fix the typos")
+check "a worker at the desk, on a workspace to itself: $out" grep -q '^a worker at ~/src/books-fix-typos, the task its first prompt, on workspace 3$' <<<"$out"
 at_desk "claude books-fix-typos 3 running"
 check "the agent works there, on a workspace to itself: $(agents)" grep -q 'claude books-fix-typos 3 running' <<<"$(agents)"
 check "vikix agents shows its branch: $(cli | grep fix-typos)" grep -qE 'books-fix-typos \(fix-typos, nothing uncommitted\) +workspace 3 ' <<<"$(cli)"
 out=$(desk books fix-typos)
-check "a desk that is there is used again, not made twice: $out" grep -q 'the worktree that was there (branch fix-typos), on workspace 4$' <<<"$out"
+check "a desk that is there is used again, not made twice, and says who is at it: $out" grep -qE 'the worktree that was there \(branch fix-typos\); claude [0-9]+ is at it$' <<<"$out"
+out=$(worker fix-typos "A second task")
+check "one worker at a time: $out" grep -q 'is at this desk already, and a desk takes its workers one at a time' <<<"$out"
 check "one worktree for it still" test "$(git -C "$home/src/books" worktree list | grep -c fix-typos)" = 1
-out=$(desk book-a notes)
-at_desk "claude book-a 5 running"
-check "a project inside a collection: its own folder in the collection's worktree: $out" \
-  bash -c "[ -f '$home/src/series-notes/book-a/log.md' ] && grep -q 'in ~/src/series-notes/book-a, a new worktree on the branch notes' <<<\"\$1\"" _ "$out"
+out=$(desk book-a notes --task "Notes for book A")
+at_desk "claude book-a 4 running"
+check "a project inside a collection: its own folder in the collection's worktree, and --task starts a worker there: $out" \
+  bash -c "[ -f '$home/src/series-notes/book-a/log.md' ] && grep -q 'a desk, and a worker at it: in ~/src/series-notes/book-a, a new worktree on the branch notes, the task its first prompt, on workspace 4' <<<\"\$1\"" _ "$out"
 out=$(desk plain anything)
-check "a project that is no repository: the agent works in its folder, and it's said: $out" \
-  grep -q "plain isn't a git repository, so it has no worktrees" <<<"$out"
+check "a project that is no repository: a desk is its own folder, and it's said: $out" \
+  grep -q "plain isn't a git repository, so it has no worktrees: a desk there is its own folder" <<<"$out"
 out=$(desk books)
 check "a repository named without a topic is refused, since its own folder is for merging only: $out" \
   grep -q "a repository's desk is a worktree of it, and books is one: give a topic (vikix agents desk books TOPIC)" <<<"$out"
 out=$(desk plain)
-check "a project that is no repository, without a topic: its own folder: $out" grep -q 'a desk for the agent: in ~/src/plain, on workspace' <<<"$out"
+check "a project that is no repository, without a topic: its own folder: $out" \
+  grep -q "^a desk: in ~/src/plain, the project's own folder (no repository, so no worktree). Nobody sits at it" <<<"$out"
+out=$(worker "$home/src/plain" "Sort the notes")
+check "a worker there works in that folder: $out" grep -q '^a worker at ~/src/plain, the task its first prompt, on workspace 5$' <<<"$out"
 mkdir "$home/src/books-taken"
 out=$(desk books taken)
 check "a folder in the way that is no worktree is left alone: $out" grep -q "is there already, and isn't a worktree" <<<"$out"
 out=$(desk books '!!!')
 check "a topic that gives no name is refused: $out" grep -q 'gives no name for a branch' <<<"$out"
 printf '#!/bin/sh\npwd\n' > "$t/bin/where"; chmod +x "$t/bin/where"
-out=$(AGENT_CMD="$t/bin/where" desk books in-place --here)
-check "--here starts it in this terminal, in the worktree: $(tail -1 <<<"$out")" test "$(tail -1 <<<"$out")" = "$home/src/books-in-place"
-# Asked on the desktop: a stand-in rofi picks the project called books, types a topic, answers the
-# task with what $t/task-typed holds (nothing: a desk with no task), picks the agent
-# $t/agent-pick names (the first row, yours, when the file is empty), and answers the last
-# question, may it push as you, with the row $t/push-pick names (0: no).
+out=$(AGENT_CMD="$t/bin/where" desk books in-place --here --task "In place")
+check "--here starts the worker in this terminal, in the worktree: $(tail -1 <<<"$out")" test "$(tail -1 <<<"$out")" = "$home/src/books-in-place"
+# Asked on the desktop: a stand-in rofi picks the project called books, types the topic
+# $t/topic-typed holds, answers the task with what $t/task-typed holds (nothing: the desk
+# alone), picks the agent $t/agent-pick names (the first row, yours, when the file is
+# empty), and answers the last question, may it push as you, with the row $t/push-pick
+# names (0: no). A topic a run, since a desk takes one worker at a time.
 cat > "$t/bin/rofi" <<R
 #!/bin/sh
 case " \$* " in
@@ -217,42 +228,44 @@ case " \$* " in
   *" -p Push -mesg "*) cat >/dev/null; cat "$t/push-pick" ;;
   *" -format i "*) grep -n '^books ' | head -1 | cut -d: -f1 | awk '{ print \$1 - 1 }' ;;
   *" -p Task -mesg "*) cat >/dev/null; cat "$t/task-typed" ;;
-  *) cat >/dev/null; echo "From the menu" ;;
+  *) cat >/dev/null; cat "$t/topic-typed" ;;
 esac
 R
 chmod +x "$t/bin/rofi"
-: > "$t/task-typed"
+: > "$t/task-typed"; echo "From the menu" > "$t/topic-typed"
 printf '#!/bin/sh\necho "$*" > "%s"\necho "${VIKIX_AGENT_SSH-unset}" > "%s"\nexec "%s"\n' "$t/desk.args" "$t/desk.ssh" "$t/bin/claude" > "$t/bin/argsaver"; chmod +x "$t/bin/argsaver"
 : > "$t/agent-pick"; echo 0 > "$t/push-pick"
+rm -f "$t/desk.args"
 out=$(PATH="$t/bin:$PATH" AGENT_CMD="$t/bin/argsaver" desk)
-check "without a project it asks which, then for a topic, then which agent: $out" grep -q 'in ~/src/books-from-the-menu, a new worktree on the branch from-the-menu, on workspace' <<<"$out"
+check "without a project it asks which, then for a topic, then for the task; nothing typed is the desk alone: $out" \
+  grep -q '^a desk: in ~/src/books-from-the-menu, a new worktree on the branch from-the-menu. Nobody sits at it' <<<"$out"
 sleep 0.5
-check "yours, the first row, adds nothing: '$(cat "$t/desk.args" 2>/dev/null)'" test -z "$(cat "$t/desk.args" 2>/dev/null)"
+check "and no agent, no question after" test ! -e "$t/desk.args"
+# A task typed: the questions a worker needs, which agent and may it push, then a worker at the
+# desk, the task its first prompt (trimmed) and the record's.
+echo "  Fix the index from the menu  " > "$t/task-typed"; echo "menu-two" > "$t/topic-typed"
+out=$(PATH="$t/bin:$PATH" AGENT_CMD="$t/bin/argsaver" desk)
+check "a task typed starts a worker at the new desk: $out" grep -q 'a desk, and a worker at it: in ~/src/books-menu-two, a new worktree on the branch menu-two, the task its first prompt, on workspace' <<<"$out"
+sleep 0.5
+check "yours, the first row, adds nothing but the task, trimmed: '$(head -1 "$t/desk.args" 2>/dev/null)'" test "$(head -1 "$t/desk.args" 2>/dev/null)" = "Fix the index from the menu"
 check "no to the last question, may it push as you, keeps your SSH agent from it: '$(cat "$t/desk.ssh" 2>/dev/null)'" test "$(cat "$t/desk.ssh" 2>/dev/null)" = unset
-echo 1 > "$t/push-pick"
+check "and in the record" grep -q 'books-menu-two  no status, just now: Fix the index from the menu' <<<"$(cli handoff list)"
+echo 1 > "$t/push-pick"; echo "menu-three" > "$t/topic-typed"
 out=$(PATH="$t/bin:$PATH" AGENT_CMD="$t/bin/argsaver" desk)
 sleep 0.5
 check "yes hands it over, and it's said: '$(cat "$t/desk.ssh" 2>/dev/null)' $out" \
-  bash -c '[ "$(cat "$2")" = 1 ] && grep -q "from-the-menu), and it may push as you, on workspace" <<<"$1"' _ "$out" "$t/desk.ssh"
+  bash -c '[ "$(cat "$2")" = 1 ] && grep -q "menu-three, and it may push as you, the task its first prompt, on workspace" <<<"$1"' _ "$out" "$t/desk.ssh"
 echo 0 > "$t/push-pick"
-echo "codex " > "$t/agent-pick"
+echo "codex " > "$t/agent-pick"; echo "menu-four" > "$t/topic-typed"
 out=$(PATH="$t/bin:$PATH" AGENT_CMD="$t/bin/argsaver" desk)
-check "another agent picked reaches vikix agent as --use, and is said: $out" grep -q 'from-the-menu), codex, on workspace' <<<"$out"
+check "another agent picked reaches vikix agent as --use, and is said: $out" grep -q 'menu-four, codex, the task its first prompt, on workspace' <<<"$out"
 sleep 0.5
-check "... as --use codex: '$(cat "$t/desk.args" 2>/dev/null)'" test "$(cat "$t/desk.args" 2>/dev/null)" = "--use codex"
+check "... as --use codex: '$(head -1 "$t/desk.args" 2>/dev/null)'" test "$(head -1 "$t/desk.args" 2>/dev/null)" = "--use codex Fix the index from the menu"
 mkdir -p "$home/.local/bin"; cp "$t/bin/codex" "$home/.local/bin/codex"     # installed: its local row is offered
-echo "codex        on a model" > "$t/agent-pick"
+echo "codex        on a model" > "$t/agent-pick"; echo "menu-five" > "$t/topic-typed"
 out=$(PATH="$t/bin:$PATH" AGENT_CMD="$t/bin/argsaver" desk)
 sleep 0.5
-check "the local row adds --local: '$(cat "$t/desk.args" 2>/dev/null)'" test "$(cat "$t/desk.args" 2>/dev/null)" = "--use codex --local"
-# The task is asked too, after the topic (Super+a's desk started with none, so its agent sat at an
-# empty prompt): what is typed is the agent's first prompt and the record's task.
-echo "  Fix the index from the menu  " > "$t/task-typed"; echo "codex " > "$t/agent-pick"; : > "$t/desk.args"
-out=$(PATH="$t/bin:$PATH" AGENT_CMD="$t/bin/argsaver" desk)
-sleep 0.5
-check "the task typed in the menu is the agent's first prompt, trimmed, and said: $out '$(head -1 "$t/desk.args")'" \
-  bash -c 'grep -q "from-the-menu), codex, the task its first prompt, on workspace" <<<"$1" && [ "$(head -1 "$2")" = "--use codex Fix the index from the menu" ]' _ "$out" "$t/desk.args"
-check "and in the record" grep -q 'books-from-the-menu  no status, just now: Fix the index from the menu' <<<"$(cli handoff list)"
+check "the local row adds --local: '$(head -1 "$t/desk.args" 2>/dev/null)'" test "$(head -1 "$t/desk.args" 2>/dev/null)" = "--use codex --local Fix the index from the menu"
 : > "$t/task-typed"
 here() { HOME=$home VIKIX_SWANK_PORT=$port VIKIX_AGENT_CMD="${AGENT_CMD:-$t/bin/claude}" python3 "$here/bin/vikix-agents" here "$@" 2>&1 || true; }
 : > "$t/desk.args"
@@ -285,7 +298,7 @@ sleep 0.5
 check "aider takes no first prompt: nothing added, and said: $out '$(cat "$t/desk.args")'" \
   bash -c 'grep -q "aider, the task in its handoff (aider takes no first prompt)" <<<"$1" && [ "$(cat "$2")" = "--use aider" ]' _ "$out" "$t/desk.args"
 # A note for a worker at work on the desktop (vikix agents tell): its state, from the desktop, says when it lands.
-desk books tell-demo >/dev/null
+desk books tell-demo --task "The index" >/dev/null
 at_desk "claude books-tell-demo"
 out=$(HOME=$home VIKIX_SWANK_PORT=$port python3 "$here/bin/vikix-agents" tell tell-demo "the index of names only" 2>&1)
 check "a note for a worker at work is delivered at its next command: $out" \

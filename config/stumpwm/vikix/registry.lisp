@@ -254,9 +254,9 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
   :menu "AI" :label "AI agent: here, or at a new desk")
 (define-vikix-command desks "Desk keys: n new, r take up again, c close, h handoff, o the Office, t test, p pause or go, i a note, x dismiss"
   :run "vikix-map desks" :key "s-M-d" :card "AI & voice")
-(define-vikix-command agent-desk "AI agent at a desk of its own: pick a project; it gets a workspace and a worktree to itself"
+(define-vikix-command agent-desk "A new desk: pick a project and a topic; a worktree to itself, and a worker at it when you give it a task"
   :run "exec vikix-agents desk" :map "desks n"
-  :menu "AI" :label "Agents: start one on a project, at a desk of its own")
+  :menu "AI" :label "Agents: a new desk, with a worker when you give it a task")
 (define-vikix-command agent-desk-resume "Take a desk up again: pick one; its handoff shown, its agent's conversation resumed where it can be"
   :run "exec vikix-agents resume --menu" :map "desks r"
   :menu "AI" :label "Agents: take a desk up again (its handoff, the conversation resumed)")

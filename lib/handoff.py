@@ -52,6 +52,9 @@ SECRET = re.compile(r"(sk-ant-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9]{20,}|gh[pousr]_[A
                     r"|\b[A-Z_]*(API_KEY|SECRET|TOKEN|PASSWORD|PASSWD)\s*[=:]\s*\S{6,})")
 SESSION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{3,99}$")
 ESTIMATE_MAX = 300
+# The desk's history of workers: how many are kept, and how much of each one's summary.
+WORKERS_MAX = 50
+WORKER_SUMMARY_MAX = 600
 # How long, as an estimate says it: "40 min", "2 h 30 min", "1.5 h", "1:30",
 # "2 days", or a bare number of minutes. Words may follow (what it assumes).
 DURATION = re.compile(r"(\d+(?:[.,]\d+)?)\s*(min(?:ute)?s?|m|h(?:ou)?rs?|h|d(?:ays?)?)\b", re.I)
@@ -273,6 +276,42 @@ def set_task(rec, text, by):
     _log(rec, by, "task set")
 
 
+def start_worker(rec, text, by, provider=""):
+    """A new worker at the desk: the task before it, with how it ended,
+    goes into the desk's history (`workers`, oldest first), the handoff and
+    how the last agent left are cleared, and TEXT is the task. The checks
+    stay: they speak for the code, and go stale with it. Nothing is lost:
+    the history keeps the task, its status, its last summary and who
+    worked it. The entry folded, or None when the desk had no task."""
+    text = clean(text, "the task")
+    if not text:
+        raise HandoffError("a worker needs a task (vikix agents worker DESK \"...\"; vikix agents resume takes the conversation up without one)")
+    folded = fold_worker(rec)
+    rec["task"] = {"text": text, "by": by, "at": int(time.time())}
+    rec["handoff"] = {}
+    rec.pop("left", None)
+    _log(rec, by, f"worker started{', ' + provider if provider else ''}: {text[:80]}")
+    return folded
+
+
+def fold_worker(rec):
+    """The current task and handoff as one entry of the desk's history,
+    appended to `workers`; None, and nothing done, when there is no task."""
+    t = rec.get("task") or {}
+    if not t:
+        return None
+    h = rec.get("handoff") or {}
+    sessions = rec.get("sessions") or []
+    entry = {"task": t.get("text", ""), "by": t.get("by", "?"), "at": t.get("at", 0), "ended": int(time.time()),
+             "status": (h.get("status") or {}).get("value", ""),
+             "summary": (h.get("summary") or {}).get("text", "")[:WORKER_SUMMARY_MAX],
+             "provider": sessions[-1]["provider"] if sessions else "",
+             "left": (rec.get("left") or {}).get("reason", "")}
+    rec.setdefault("workers", []).append(entry)
+    rec["workers"] = rec["workers"][-WORKERS_MAX:]
+    return entry
+
+
 def set_handoff(rec, by, status=None, summary=None, next_=None, estimate=None):
     h = rec.setdefault("handoff", {})
     changed = []
@@ -480,6 +519,14 @@ def render(rec, agents_at=(), protection=(), now=None):
                          f"  {freshness(c, now)}" + (f"\n    {c['note']}" if c.get("note") else ""))
     else:
         lines.append("Checks: none recorded")
+    workers = rec.get("workers") or []
+    if workers:
+        lines.append(f"Workers before this one: {len(workers)}")
+        for w in workers[-5:][::-1]:
+            lines.append(f"  {when(w.get('ended', 0))}  {w.get('status') or 'no status'}"
+                         + (f", {w['provider']}" if w.get("provider") else "")
+                         + f"  {w.get('task', '')} ({w.get('by', '?')})"
+                         + (f"\n    {w['summary'].splitlines()[0]}" if w.get("summary") else ""))
     if now.get("commit"):
         lines.append(f"Now: {now['branch'] or '?'} at {now['commit'][:7]}, "
                      + ("nothing uncommitted" if now.get("dirty") == 0 else f"{now.get('dirty')} uncommitted"))
