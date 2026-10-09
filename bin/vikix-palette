@@ -7,7 +7,9 @@
                            your projects, web apps and saved layouts, and
                            the programs, all at once. Type a few letters,
                            Enter.
-    vikix-palette --list   what it would offer, in the terminal
+    vikix-palette --list [TEXT]
+                           what it would offer, in the terminal; with TEXT
+                           starting with a sigil, what that search finds
 
 Enter on a window goes to it, wherever it is; on a workspace, goes there
 (the ones with windows, and the named ones past the nine); on a command,
@@ -15,9 +17,31 @@ runs it; on a project, opens it (a terminal in its folder, its log in the
 editor); on a web app, brings it forward or starts it; on a layout, puts
 this workspace back as it; on a program, starts it.
 
-Super+d is still the plain launcher, programs only. When the desktop
-doesn't answer within a second and a half, the box opens with the projects
-and the programs alone.
+A sigil first asks for one kind of thing, and Enter searches instead of
+picking; the hits fill the box, and Enter on one opens it:
+
+    > words      the Vikix menu (Super+m), every entry of every section,
+                 and the commands: Enter runs the one picked
+    @ words      your projects and the agents' desks: Enter opens the
+                 project, or goes to the desk's window
+    # words      the docs catalogue (vikix docs): Vikix's guides, your
+                 projects' documents and notes, man and tldr pages, the
+                 manuals; Enter opens the hit, Ctrl+Enter the other way
+                 (a terminal for a man page, Emacs for Markdown)
+    ? name       what is this: the card for a field of the bar, a key, a
+                 process, a service, a package, a command or a file (vikix
+                 what); ? alone lists what the desktop did lately (vikix
+                 why), and Enter on a line opens Super+?'s choices
+    / words      a file or folder under your home folder, by its name (fd:
+                 the first word is the pattern, the others must be in the
+                 path; hidden folders and mounted drives left out); Enter
+                 opens it, Ctrl+Enter shows it in its folder (Esploro, or
+                 the file manager)
+
+The launcher's own ! filters its lists by mode (!drun), so no sigil of
+Vikix's is !. Super+d is still the plain launcher, programs only. When the
+desktop doesn't answer within a second and a half, the box opens with the
+projects and the programs alone.
 """
 
 import os
@@ -26,7 +50,11 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.realpath(__file__))
+HOME = os.path.expanduser("~")
 SEP = "\x1f"
+SIGILS = {">": "menu", "@": "desks", "#": "docs", "?": "what", "/": "files"}
+HINT = ">  menu and commands  ·  @  projects and desks  ·  #  docs and notes  ·  ?  what is this  ·  /  a file"
+FILE_HITS = 40
 
 
 def desktop(form, timeout=1.5):
@@ -37,6 +65,20 @@ def desktop(form, timeout=1.5):
     except (subprocess.TimeoutExpired, OSError):
         return ""
     return "" if out.returncode else out.stdout
+
+
+def lines_of(kind=None, timeout=1.5):
+    """The desktop's rows of KIND (None: the usual ones), as (kind, id, words, more)."""
+    arg = f' "{kind}"' if kind else ""
+    out = desktop(f"(if (fboundp (quote vikix-palette-lines)) (vikix-palette-lines{arg}) (values))", timeout)
+    rows = []
+    for line in out.splitlines():
+        if line.startswith("=> "):
+            continue
+        parts = line.split("\t")
+        if len(parts) == 4 and parts[0] in ("window", "workspace", "command", "webapp", "layout", "menu", "desk"):
+            rows.append(tuple(parts))
+    return rows
 
 
 def projects():
@@ -57,22 +99,151 @@ def projects():
     return found
 
 
+def project_rows():
+    return [("project", name, name, "project" + (f" · next: {step}" if step else "")) for name, step in projects()]
+
+
 def entries():
     """Every row: (kind, id, words, more)."""
-    rows = []
-    lines = desktop("(if (fboundp (quote vikix-palette-lines)) (vikix-palette-lines) (values))")
-    for line in lines.splitlines():
-        if line.startswith("=> "):
-            continue
-        parts = line.split("\t")
-        if len(parts) == 4 and parts[0] in ("window", "workspace", "command", "webapp", "layout"):
-            rows.append(tuple(parts))
+    rows = lines_of()
     # Windows first, then projects, then the rest as the desktop gave them.
     windows = [r for r in rows if r[0] == "window"]
     others = [r for r in rows if r[0] != "window"]
-    mine = [("project", name, name, "project" + (f" · next: {step}" if step else "")) for name, step in projects()]
-    return windows + mine + others
+    return windows + project_rows() + others
 
+
+# --- The sigils: a search instead of a list ---------------------------------------------
+
+def matches(words, row):
+    """Every word of WORDS somewhere in the row's text, in any case."""
+    text = f"{row[2]} {row[3]}".lower()
+    return all(w.lower() in text for w in words)
+
+
+def menu_search(words):
+    rows = lines_of("menu", 3) + [r for r in lines_of() if r[0] == "command"]
+    return [r for r in rows if matches(words, r)]
+
+
+def desk_search(words):
+    rows = project_rows() + lines_of("desk", 3)
+    return [r for r in rows if matches(words, r)]
+
+
+def docs_search(words):
+    if not words:
+        return []
+    try:
+        out = subprocess.run([os.path.join(HERE, "vikix-docs"), "find", *words, "--tsv", "--limit", "30"],
+                             capture_output=True, text=True, timeout=20).stdout
+    except (subprocess.TimeoutExpired, OSError):
+        return []
+    rows = []
+    for line in out.splitlines():
+        parts = line.split("\t")
+        if len(parts) >= 3:
+            rows.append(("doc", parts[0], parts[2], f"docs · {parts[1]}"))
+    return rows
+
+
+def what_search(words):
+    if words:
+        name = " ".join(words)
+        return [("what", name, f"What is {name}?", "what is this · the card")]
+    try:
+        out = subprocess.run([os.path.join(HERE, "vikix-why"), "20"],
+                             capture_output=True, text=True, timeout=5).stdout
+    except (subprocess.TimeoutExpired, OSError):
+        return []
+    rows = []
+    for line in out.splitlines():
+        if line.strip():
+            when, _, rest = line.partition("  ")
+            rows.append(("why", "", rest.strip() or line, f"why · {when.strip()}"))
+    return rows
+
+
+def file_search(words):
+    if not words:
+        return []
+    first, rest = words[0], words[1:]
+    try:
+        if shutil.which("fd"):
+            # One filesystem: a cloud drive mounted in the home folder
+            # (Tresorit's, say) took a minute to walk; the home disk takes
+            # a second or two.
+            out = subprocess.run(["fd", "--color", "never", "--one-file-system", "--max-results", "2000",
+                                  "--", first, HOME], capture_output=True, text=True, timeout=10).stdout
+        else:
+            out = subprocess.run(["find", HOME, "-xdev", "-not", "-path", "*/.*", "-iname", f"*{first}*"],
+                                 capture_output=True, text=True, timeout=20).stdout
+    except (subprocess.TimeoutExpired, OSError):
+        return []
+    rows = []
+    for path in out.splitlines():
+        path = path.rstrip("/")
+        if not path or not all(w.lower() in path.lower() for w in rest):
+            continue
+        shown = "~" + path[len(HOME):] if path.startswith(HOME + "/") else path
+        rows.append(("file", path, shown, "folder" if os.path.isdir(path) else "file"))
+        if len(rows) >= FILE_HITS:
+            break
+    return rows
+
+
+SEARCHES = {"menu": menu_search, "desks": desk_search, "docs": docs_search, "what": what_search, "files": file_search}
+
+
+def search(text):
+    """The rows a sigil search finds, or None when TEXT starts with none."""
+    text = text.strip()
+    if not text or text[0] not in SIGILS:
+        return None
+    return SEARCHES[SIGILS[text[0]]](text[1:].split())
+
+
+# --- Acting on a pick ---------------------------------------------------------------------
+
+def start(argv):
+    subprocess.Popen(argv, start_new_session=True, stdin=subprocess.DEVNULL,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def show_in_folder(path):
+    """The file's folder with the file marked: Esploro, or whatever answers
+    org.freedesktop.FileManager1; else the folder, plainly."""
+    uri = "file://" + path
+    try:
+        done = subprocess.run(["gdbus", "call", "--session", "--dest", "org.freedesktop.FileManager1",
+                               "--object-path", "/org/freedesktop/FileManager1",
+                               "--method", "org.freedesktop.FileManager1.ShowItems", f"['{uri}']", ""],
+                              capture_output=True, timeout=10).returncode == 0
+    except (subprocess.TimeoutExpired, OSError):
+        done = False
+    if not done:
+        start(["xdg-open", path if os.path.isdir(path) else os.path.dirname(path)])
+
+
+def picked(info, other=False):
+    """Do what the picked row says; OTHER is Ctrl+Enter, the other way."""
+    kind, _, ident = info.partition("\t")
+    if kind == "project":
+        start([os.path.join(HERE, "vikix-project"), "open", ident])
+    elif kind == "doc":
+        start([os.path.join(HERE, "vikix-docs"), "open", ident] + (["--other"] if other else []))
+    elif kind == "what":
+        start([os.path.join(HERE, "vikix-what"), ident, "--card"])
+    elif kind == "file":
+        if other:
+            show_in_folder(ident)
+        else:
+            start(["xdg-open", ident])
+    elif kind in ("window", "workspace", "command", "webapp", "layout", "menu", "desk", "why"):
+        quoted = ident.replace("\\", "\\\\").replace('"', '\\"')
+        desktop(f'(vikix-palette-run "{kind}" "{quoted}")', timeout=5)
+
+
+# --- The launcher -------------------------------------------------------------------------
 
 def row(kind, ident, words, more):
     """A row as rofi's script mode reads it: what shows, then what comes
@@ -81,16 +252,36 @@ def row(kind, ident, words, more):
     return f"{shown}\0info{SEP}{kind}\t{ident}{SEP}meta{SEP}{kind}\n"
 
 
-def picked(info):
-    """Do what the picked row says."""
-    kind, _, ident = info.partition("\t")
-    if kind == "project":
-        subprocess.Popen([os.path.join(HERE, "vikix-project"), "open", ident],
-                         start_new_session=True, stdin=subprocess.DEVNULL,
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    elif kind in ("window", "workspace", "command", "webapp", "layout"):
-        quoted = ident.replace("\\", "\\\\").replace('"', '\\"')
-        desktop(f'(vikix-palette-run "{kind}" "{quoted}")', timeout=5)
+def listing(rows, message):
+    out = sys.stdout
+    out.write(f"\0message{SEP}{message}\n")
+    for entry in rows:
+        out.write(row(*entry))
+
+
+def rofi_mode(args):
+    """rofi's script mode. Nothing more: list. The picked row (its info in
+    ROFI_INFO): act, and list nothing, which closes the box. Words typed
+    that are no row (ROFI_RETV 2): a sigil's search, listed in its turn,
+    else the list again, with the sigils as a hint."""
+    info = os.environ.get("ROFI_INFO", "")
+    retv = os.environ.get("ROFI_RETV", "")
+    if info:
+        picked(info, other=retv == "10")
+        return 0
+    text = args[0] if args else ""
+    found = search(text) if text else None
+    if found is not None:
+        what = SIGILS[text.strip()[0]]
+        if found:
+            listing(found, f"{len(found)} for {text.strip()}")
+        elif text.strip()[1:].strip():
+            listing(entries(), f"nothing in {what} for {text.strip()[1:].strip()}  ·  {HINT}")
+        else:
+            listing(entries(), f"{text.strip()} wants words after it  ·  {HINT}")
+        return 0
+    listing(entries(), HINT)
+    return 0
 
 
 def main():
@@ -99,28 +290,23 @@ def main():
         print(__doc__.strip())
         return 0
     if args and args[0] == "--list":
-        for kind, ident, words, more in entries():
+        text = " ".join(args[1:])
+        found = search(text) if text else None
+        for kind, ident, words, more in (entries() if found is None else found):
             print(f"{words}  ·  {more}")
         return 0
     if args and args[0] == "--rofi":
-        # rofi's script mode: with nothing more, list; with the picked row
-        # (its info in ROFI_INFO), act and list nothing, which closes the box.
-        info = os.environ.get("ROFI_INFO", "")
-        if len(args) > 1 or info:
-            if info:
-                picked(info)
-            return 0
-        sys.stdout.write("\0no-custom\x1ftrue\n")
-        for entry in entries():
-            sys.stdout.write(row(*entry))
-        return 0
+        return rofi_mode(args[1:])
     if not shutil.which("rofi"):
         print("vikix-palette: rofi isn't installed", file=sys.stderr)
         return 2
     me = os.path.realpath(__file__)
+    # Ctrl+Enter is rofi's own (kb-accept-custom): freed first, or rofi
+    # refuses to start ("already bound"); here it is the other way to open.
     os.execvp("rofi", ["rofi", "-show", "combi", "-modes", f"combi,vikix:{me} --rofi,drun",
                        "-combi-modes", "vikix,drun", "-display-combi", "", "-combi-hide-mode-prefix", "true",
-                       "-display-vikix", "", "-display-drun", ""])
+                       "-display-vikix", "", "-display-drun", "",
+                       "-kb-accept-custom", "", "-kb-custom-1", "Control+Return"])
 
 
 if __name__ == "__main__":

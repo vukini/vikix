@@ -892,11 +892,33 @@ The bar is a dunst notification with a progress value. The stack tag makes each 
 Everything in one box (Super+Space).
 
 - `vikix-palette` — open it: the launcher, listing your windows on every workspace, the workspaces in use and the named ones, every Vikix command (with its key), your projects, web apps and saved layouts, and the programs, all at once. Type a few letters, Enter.
-- `vikix-palette --list` — what it would offer, in the terminal
+- `vikix-palette --list [TEXT]` — what it would offer, in the terminal; with TEXT starting with a sigil, what that search finds
 
 Enter on a window goes to it, wherever it is; on a workspace, goes there (the ones with windows, and the named ones past the nine); on a command, runs it; on a project, opens it (a terminal in its folder, its log in the editor); on a web app, brings it forward or starts it; on a layout, puts this workspace back as it; on a program, starts it.
 
-Super+d is still the plain launcher, programs only. When the desktop doesn't answer within a second and a half, the box opens with the projects and the programs alone.
+A sigil first asks for one kind of thing, and Enter searches instead of picking; the hits fill the box, and Enter on one opens it:
+
+```
+> words      the Vikix menu (Super+m), every entry of every section,
+             and the commands: Enter runs the one picked
+@ words      your projects and the agents' desks: Enter opens the
+             project, or goes to the desk's window
+# words      the docs catalogue (vikix docs): Vikix's guides, your
+             projects' documents and notes, man and tldr pages, the
+             manuals; Enter opens the hit, Ctrl+Enter the other way
+             (a terminal for a man page, Emacs for Markdown)
+? name       what is this: the card for a field of the bar, a key, a
+             process, a service, a package, a command or a file (vikix
+             what); ? alone lists what the desktop did lately (vikix
+             why), and Enter on a line opens Super+?'s choices
+/ words      a file or folder under your home folder, by its name (fd:
+             the first word is the pattern, the others must be in the
+             path; hidden folders and mounted drives left out); Enter
+             opens it, Ctrl+Enter shows it in its folder (Esploro, or
+             the file manager)
+```
+
+The launcher's own ! filters its lists by mode (!drun), so no sigil of Vikix's is !. Super+d is still the plain launcher, programs only. When the desktop doesn't answer within a second and a half, the box opens with the projects and the programs alone.
 
 ## vikix-pkg
 

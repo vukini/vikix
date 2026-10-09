@@ -668,7 +668,9 @@ or half a minute passes. Again while it is open closes it."
 ;;; bin/vikix-palette shows these in the launcher, beside the programs:
 ;;; your windows on every workspace, every command (with its key), your web
 ;;; apps and saved layouts; it adds your projects itself. Picking one comes
-;;; back here, to vikix-palette-run.
+;;; back here, to vikix-palette-run. A sigil typed first asks for one kind
+;;; (TODO 89): the script asks for the menu's entries (">") or the desks
+;;; ("@") by name, and does the docs, files and what by itself.
 
 (defun vikix-palette-clean (text)
   "TEXT on one line, without the tab that parts a line's fields."
@@ -678,10 +680,41 @@ or half a minute passes. Again while it is open closes it."
   (format t "~a~c~a~c~a~c~a~%" kind #\Tab id #\Tab (vikix-palette-clean words) #\Tab
           (vikix-palette-clean more)))
 
-(defun vikix-palette-lines ()
+(defun vikix-palette-menu-lines ()
+  "Every entry of Super+m that is here, a line each: the label is its id
+(vikix-palette-run finds it by that), its section and key the rest."
+  (when (and (fboundp 'vikix-menu-everything) (fboundp 'vikix-menu-entry-here-p))
+    (dolist (entry (remove-if-not (lambda (e) (funcall 'vikix-menu-entry-here-p e))
+                                  (funcall 'vikix-menu-everything)))
+      (vikix-palette-line "menu" (first entry) (first entry)
+                          (format nil "menu · ~a~@[ · ~a~]"
+                                  (funcall 'vikix-menu-entry-section entry)
+                                  (ignore-errors (funcall 'vikix-menu-entry-key entry)))))))
+
+(defun vikix-palette-desk-lines ()
+  "Every agent's window, a line each: the window's number is its id, its
+desk's name (or the window's) the words, where it is and what it is doing
+the rest."
+  (when (fboundp 'vikix-agents)
+    (dolist (agent (ignore-errors (funcall 'vikix-agents nil)))
+      (let* ((window (getf agent :window))
+             (mark (ignore-errors (funcall 'vikix-agent-desk-mark window))))
+        (when window
+          (vikix-palette-line "desk" (window-id window)
+                              (if (and mark (plusp (length mark))) mark (window-name window))
+                              (format nil "desk on ~a · ~a~@[: ~a~]"
+                                      (group-name (window-group window))
+                                      (string-downcase (getf agent :state))
+                                      (let ((words (getf agent :words)))
+                                        (and words (plusp (length words)) words)))))))))
+
+(defun vikix-palette-lines (&optional kind)
   "Print what the palette offers, a line each: KIND, ID, WORDS and MORE
 (what it is, said small), parted by tabs. Windows first, the one in front
-last of them: the others are the ones to go to."
+last of them: the others are the ones to go to. With KIND \"menu\" or
+\"desk\", only the menu's entries or the agents' desks (the sigils > and @)."
+  (cond ((equal kind "menu") (return-from vikix-palette-lines (vikix-palette-menu-lines)))
+        ((equal kind "desk") (return-from vikix-palette-lines (vikix-palette-desk-lines))))
   (let ((current (current-window)))
     (dolist (group (sort (copy-list (screen-groups (current-screen))) #'< :key #'group-number))
       (when (plusp (group-number group))
@@ -744,6 +777,14 @@ command that asks something must not keep `vikix eval` waiting for it."
                   (if group (switch-to-group group) (message "That workspace has gone."))))
                ((equal kind "command") (vikix-run-command id))
                ((equal kind "webapp") (run-commands (format nil "vikix-webapp ~a" id)))
-               ((equal kind "layout") (run-commands (format nil "vikix-layout-restore-command ~a" id))))
+               ((equal kind "layout") (run-commands (format nil "vikix-layout-restore-command ~a" id)))
+               ((equal kind "desk")
+                (let ((window (window-by-id (parse-integer id))))
+                  (if window (focus-all window) (message "That desk's window has gone."))))
+               ((equal kind "menu")
+                (let ((entry (and (fboundp 'vikix-menu-everything)
+                                  (find id (funcall 'vikix-menu-everything) :key #'first :test #'equal))))
+                  (if entry (funcall 'vikix-menu-do entry) (message "That entry has gone from the menu."))))
+               ((equal kind "why") (run-commands "vikix-why")))
        (error (e) (message "^1Vikix:^n ~a" e)))))
   t)

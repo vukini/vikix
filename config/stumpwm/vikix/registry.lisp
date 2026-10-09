@@ -222,7 +222,7 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
   :run "vikix-terminal" :key "s-RET")
 (define-vikix-command launcher "Launcher: start any program"
   :run "exec rofi -show drun" :key "s-d")
-(define-vikix-command palette "Everything in one box: windows, commands, projects, web apps, layouts, programs"
+(define-vikix-command palette "Everything in one box: windows, commands, projects, web apps, layouts, programs; > @ # ? / search the menu, desks, docs, what, files"
   :run "exec vikix-palette" :key "s-SPC")
 (define-vikix-command browser "Browser"
   :run "exec firefox" :key "s-w")
