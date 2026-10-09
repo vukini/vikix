@@ -28,7 +28,7 @@ To have a workspace always start as a strip, a rule in `~/.stumpwm.d/rules.lisp`
 
 | Key | What it does |
 |---|---|
-| `Super+h`, `Super+l` (or the arrows) | the column on the left, on the right; the strip scrolls when it has to |
+| `Super+h`, `Super+l` | the column on the left, on the right; the strip scrolls when it has to |
 | `Super+j`, `Super+k` | down and up, in a column of several windows |
 | `Super+Home`, `Super+End` | the strip's first column, and its last |
 | `Super+Shift+h`, `Super+Shift+l` | move this column left or right along the strip |

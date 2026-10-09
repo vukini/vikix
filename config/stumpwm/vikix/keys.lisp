@@ -62,7 +62,7 @@ tools. Every other program a key starts is on Super+Alt.")
   "What switches something on the desktop: on Super+Ctrl, and nothing else is.")
 
 (defparameter *vikix-key-movers*
-  '("vikix-move" "vikix-move-end" "move-window" "gmove" "vikix-send" "vikix-bring-window" "global-pull-windowlist")
+  '("vikix-move" "vikix-move-end" "move-window" "gmove" "vikix-send" "vikix-workspace-carry" "vikix-bring-window" "global-pull-windowlist")
   "What moves a window: on Super+Shift.")
 
 (defvar *vikix-bind-later* nil
@@ -199,6 +199,8 @@ Vikix (yours from user.lisp count as Vikix's here: they load after)."
     "s-y" "vikix-titlebars" "s-M-a" "vikix-awake"            "s-M-l" "vikix-nightlight"
     "s-R" "vikix-record area"
     "s-C-Left" "vikix-move" "s-C-Down" "vikix-move" "s-C-Up" "vikix-move" "s-C-Right" "vikix-move"
+    ;; The arrows walk the workspaces now; Up and Down are free.
+    "s-Up" "vikix-focus" "s-Down" "vikix-focus" "s-S-Up" "vikix-move" "s-S-Down" "vikix-move"
     "s-C-1" "gmove" "s-C-2" "gmove" "s-C-3" "gmove" "s-C-4" "gmove" "s-C-5" "gmove"
     "s-C-6" "gmove" "s-C-7" "gmove" "s-C-8" "gmove" "s-C-9" "gmove")
   "A key, then how the command Vikix had on it began; and so on.")

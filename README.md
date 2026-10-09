@@ -276,14 +276,10 @@ StumpWM's own `Ctrl+t` prefix keys still work too: press `Ctrl+t` and wait, and 
 | Super+Shift+j | Move window down |
 | Super+Shift+k | Move window up |
 | Super+Shift+l | Move window right |
-| Super+Left | Focus left (arrow) |
-| Super+Down | Focus down (arrow) |
-| Super+Up | Focus up (arrow) |
-| Super+Right | Focus right (arrow) |
-| Super+Shift+Left | Move window left (arrow) |
-| Super+Shift+Down | Move window down (arrow) |
-| Super+Shift+Up | Move window up (arrow) |
-| Super+Shift+Right | Move window right (arrow) |
+| Super+Left | Workspace on the left (round the ends) |
+| Super+Right | Workspace on the right |
+| Super+Shift+Left | Take this window to the workspace on the left, and go with it (on a strip: its whole column) |
+| Super+Shift+Right | Take this window to the workspace on the right, and go with it |
 | Super+Ctrl+Space | Layout keys: m main, s strip, g grid, t tiles, w width, h height, u undo, r redo, Space the menu |
 | then m | Main and stack (master and stack) on/off: this window on the left, the rest in a column beside it |
 | then s | This workspace as a strip that scrolls sideways (Viri), or tiled again |

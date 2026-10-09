@@ -394,26 +394,21 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command move-right "Move window right"
   :run "vikix-move right" :key "s-L")
 
-;;; The same four directions on the arrow keys. In a VirtualBox VM on Windows, Super+L never
-;;; reaches the guest (the host locks its screen instead), so s-l and s-L are dead there; the
-;;; arrows always work.
+;;; The arrows walk the workspaces, in the bar's order and round the ends; h j k l
+;;; stay the windows' inside one. A workspace past the nine has no digit: the arrows
+;;; reach it. Shift takes the window along, and you go with it. Up and Down are free:
+;;; workspaces sit side by side. (The arrows did what h j k l do, before.)
 
-(define-vikix-command focus-left-arrow "Focus left (arrow)"
-  :run "vikix-focus left" :key "s-Left")
-(define-vikix-command focus-down-arrow "Focus down (arrow)"
-  :run "vikix-focus down" :key "s-Down")
-(define-vikix-command focus-up-arrow "Focus up (arrow)"
-  :run "vikix-focus up" :key "s-Up")
-(define-vikix-command focus-right-arrow "Focus right (arrow)"
-  :run "vikix-focus right" :key "s-Right")
-(define-vikix-command move-left-arrow "Move window left (arrow)"
-  :run "vikix-move left" :key "s-S-Left")
-(define-vikix-command move-down-arrow "Move window down (arrow)"
-  :run "vikix-move down" :key "s-S-Down")
-(define-vikix-command move-up-arrow "Move window up (arrow)"
-  :run "vikix-move up" :key "s-S-Up")
-(define-vikix-command move-right-arrow "Move window right (arrow)"
-  :run "vikix-move right" :key "s-S-Right")
+(define-vikix-command workspace-left "Workspace on the left (round the ends)"
+  :run "vikix-workspace-step left" :key "s-Left"
+  :agent t)
+(define-vikix-command workspace-right "Workspace on the right"
+  :run "vikix-workspace-step right" :key "s-Right"
+  :agent t)
+(define-vikix-command carry-left "Take this window to the workspace on the left, and go with it (on a strip: its whole column)"
+  :run "vikix-workspace-carry left" :key "s-S-Left")
+(define-vikix-command carry-right "Take this window to the workspace on the right, and go with it"
+  :run "vikix-workspace-carry right" :key "s-S-Right")
 
 ;;; Frames (StumpWM's splits), strips, layouts
 

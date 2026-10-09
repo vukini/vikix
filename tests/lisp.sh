@@ -194,7 +194,8 @@ cat > "$t/check.lisp" <<EOF
         ("s-C-g"    "toggle-gaps"             nil nil)
         ("s-C-w"    "exec firefox"            nil t)        ; an app on Super+Ctrl
         ("s-C-Left" "vikix-move left"         nil t)        ; moving a window with Ctrl
-        ("s-S-Left" "vikix-move left"         nil nil)
+        ("s-S-Left" "vikix-workspace-carry left" nil nil)  ; taking it to another workspace is Super+Shift too
+        ("s-Left"   "vikix-workspace-carry left" nil t)
         ("s-H"      "vikix-move left"         nil nil)
         ("s-M"      "vikix-webapp mail"       :webapp t)
         ("s-M-m"    "vikix-webapp mail"       :webapp nil)
@@ -229,8 +230,12 @@ cat > "$t/check.lisp" <<EOF
     (fail "a key of yours on one of the old keys should stay"))
   (unless (equal (lookup-key *top-map* (kbd "s-exclam")) "vikix-send 1")
     (fail "Super+Shift+1 should send the window to workspace 1: ~s" (lookup-key *top-map* (kbd "s-exclam"))))
-  (unless (equal (lookup-key *top-map* (kbd "s-S-Left")) "vikix-move left")
-    (fail "Super+Shift+Left should move the window left")))
+  (unless (equal (lookup-key *top-map* (kbd "s-S-Left")) "vikix-workspace-carry left")
+    (fail "Super+Shift+Left should take the window to the workspace on the left"))
+  (unless (equal (lookup-key *top-map* (kbd "s-Left")) "vikix-workspace-step left")
+    (fail "Super+Left should go to the workspace on the left"))
+  ;; Up and Down are free: workspaces sit side by side, and h j k l have the windows.
+  (when (lookup-key *top-map* (kbd "s-Up")) (fail "Super+Up should be free (the arrows walk the workspaces)")))
 ;; Every one of Vikix's own keys is in a named group: Other is for yours.
 (dolist (e (vikix-key-entries))
   (when (string= (fourth e) "Other")

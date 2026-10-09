@@ -6,9 +6,11 @@
 #   asked of the keyboard: on a US layout (Shift+2 is @), on a British one
 #   after its layout is applied (Shift+2 is "), and where the digits
 #   themselves need Shift (French) Super+Ctrl+digit instead; the keys of
-#   the layout before are let go. Super+Shift+arrow and Super+Shift+letter
-#   move the window. A desktop that was running the keys from before the
-#   rule lets them go at a reload, but not one you gave something else.
+#   the layout before are let go. Super+Shift+letter moves the window;
+#   Super+Left and Super+Right walk the workspaces, round the ends, and
+#   with Shift take the window along. A desktop that was running the keys
+#   from before the rule lets them go at a reload, but not one you gave
+#   something else.
 #
 # Needs Xvfb, xdotool, setxkbmap, alacritty and Vikix's own StumpWM;
 # skipped, saying so, without them.
@@ -90,10 +92,26 @@ check "and you stay where you were" test "$(ask '(princ (group-number (current-g
 ask '(run-commands "hsplit")' >/dev/null; win C; sleep 0.3
 frame() { ask '(princ (frame-number (window-frame (current-window))))'; }
 before=$(frame)
-key super+shift+Right
-check "Super+Shift+Right moves the window to the frame on the right: $before, then $(frame)" test "$(frame)" != "$before"
+key super+shift+l
+check "Super+Shift+l moves the window to the frame on the right: $before, then $(frame)" test "$(frame)" != "$before"
 key super+shift+h
 check "Super+Shift+h moves it back left: $(frame)" test "$(frame)" = "$before"
+
+# The arrows walk the workspaces: Right from 1 is 2, Left from 1 is round
+# the end to 9; Shift takes the window along and goes with it.
+ws() { ask '(princ (group-number (current-group)))'; }
+key super+Right
+check "Super+Right goes to the workspace on the right: $(ws)" test "$(ws)" = 2
+key super+Left; key super+Left
+check "Super+Left twice goes round the end to 9: $(ws)" test "$(ws)" = 9
+key super+Right
+check "and Right from the last comes round to 1: $(ws)" test "$(ws)" = 1
+key super+shift+Right
+check "Super+Shift+Right takes the window to workspace 2 and goes with it: C on $(where C), you on $(ws)" test "$(where C) $(ws)" = "2 2"
+check "and the window has the focus there" test "$(ask '(princ (window-title (current-window)))')" = C
+key super+shift+Left
+check "Super+Shift+Left brings it back to 1: C on $(where C), you on $(ws)" test "$(where C) $(ws)" = "1 1"
+check "Super+Up is free: $(bound s-Up)" test "$(bound s-Up)" = nothing
 
 # Another keyboard: Shift+2 is " and Shift+3 is £ on a British one.
 setxkbmap gb; sleep 1
@@ -120,7 +138,7 @@ check "after a reload the old keys are gone: $(bound s-E) $(bound s-M-a) $(bound
   test "$(bound s-E) $(bound s-M-a) $(bound s-C-Left) $(bound s-C-4)" = "nothing nothing nothing nothing"
 check "one of them you gave something else stays: $(bound s-P)" test "$(bound s-P)" = "exec my-own-program"
 check "the new ones are there: $(bound s-M-s), $(bound s-C-a), $(bound s-S-Left)" \
-  test "$(bound s-M-s)|$(bound s-C-a)|$(bound s-S-Left)" = "exec spacefm|vikix-awake|vikix-move left"
+  test "$(bound s-M-s)|$(bound s-C-a)|$(bound s-S-Left)" = "exec spacefm|vikix-awake|vikix-workspace-carry left"
 check "no key of Vikix's breaks the rule for keys: $(ask '(princ (vikix-key-problems))')" test "$(ask '(princ (length (vikix-key-problems)))')" = 0
 
 # Super+g's list: each line has the window's workspace, its title, and for

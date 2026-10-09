@@ -990,6 +990,38 @@ way (exchange-direction); into the frame that way (move-window) elsewhere."
         ((vikix-main-p) (run-commands (format nil "exchange-direction ~(~a~)" dir)))
         (t (run-commands (format nil "move-window ~(~a~)" dir)))))
 
+;;; The arrows: the workspace beside this one (Super+Left, Super+Right), and
+;;; the window taken along (Super+Shift+Left, Super+Shift+Right). The order is
+;;; the bar's, StumpWM's by number, round the ends, hidden workspaces (the
+;;; drawer's) left out; a strip counts as any other.
+
+(defun vikix-workspace-beside (dir)
+  "The workspace left or right of this one, round the ends; nil when there
+is no other, or when DIR is up or down: workspaces sit side by side."
+  (when (or (string-equal dir "left") (string-equal dir "right"))
+    (let ((groups (non-hidden-groups (sort-groups (current-screen)))))
+      (next-group (current-group) (if (string-equal dir "left") (reverse groups) groups)))))
+
+(defcommand vikix-workspace-step (dir) ((:direction "Direction: "))
+  "Go to the workspace on the left or the right, round the ends."
+  (let ((there (vikix-workspace-beside dir)))
+    (cond (there (switch-to-group there))
+          ((or (string-equal dir "up") (string-equal dir "down"))
+           (message "Workspaces sit side by side: left or right."))
+          (t (message "No other workspace.")))))
+
+(defcommand vikix-workspace-carry (dir) ((:direction "Direction: "))
+  "Take this window to the workspace on the left or the right and go with
+it; on a strip, the whole column it is in, as vikix-send sends it."
+  (let ((there (vikix-workspace-beside dir))
+        (window (current-window)))
+    (cond ((null there) (vikix-workspace-step dir))
+          ((null window) (message "No window here to take along."))
+          (t (vikix-send there)
+             (switch-to-group there)
+             (when (member window (group-windows there))
+               (group-focus-window there window))))))
+
 ;;; The mouse on a strip.
 ;;;
 ;;; A column is a floating window to StumpWM, which lets the mouse carry one

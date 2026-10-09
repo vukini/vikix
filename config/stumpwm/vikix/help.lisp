@@ -79,7 +79,7 @@ a map, the two keys with a space between (\"s-C-SPC m\"), reads
      ;; The workspace keys are here too, not a group of their own: two rows
      ;; under a heading of their own cost the card the two lines it had
      ;; left at 32 rows when the maps' two opening keys came (0.71.232).
-     "gselect" "gmove" "vikix-send" "grouplist")
+     "gselect" "gmove" "vikix-send" "grouplist" "vikix-workspace-step" "vikix-workspace-carry")
     ("Notifications" "dunstctl" "vikix-notifications" "vikix-quiet" "vikix-focus-time")
     ("Screenshots & recording" "vikix-screenshot" "vikix-record" "vikix-capture")
     ("Sound & screen" "vikix-volume" "vikix-osd" "vikix-nightlight" "vikix-screens-pick" "vikix-bar")
