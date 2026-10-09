@@ -679,20 +679,22 @@ def find(words, source=None, limit=20):
     cases = " ".join(f"WHEN '{s}' THEN {b}" for s, b in BOOST.items())
     # The document named by the words themselves comes first: "tar" is
     # tar's own pages (tldr's, man's, the package) before everything that
-    # mentions tar, or starts with it (target, tarball), however often.
+    # mentions tar, or starts with it (target, tarball), however often. So
+    # the named ones are a tier of their own, not a factor: a guide of
+    # Vikix's (boosted 3.0) saying "targets" twice outweighed a factor.
     name = re.sub(r"\s+", " ", " ".join(words).replace('"', "")).strip().lower()
     like = name.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     named = ("(lower(d.title) = ? OR lower(d.title) LIKE ? ESCAPE '\\' OR lower(d.title) LIKE ? ESCAPE '\\'"
              " OR lower(d.title) LIKE ? ESCAPE '\\')")
     sql = (f"SELECT d.id, d.source, d.kind, d.title, d.path, d.excerpt, "
-           f"bm25(docs_fts, 10.0, 1.0) * (CASE d.source {cases} ELSE 1 END) "
-           f"* (CASE WHEN {named} THEN 2 ELSE 1 END) AS score "
+           f"bm25(docs_fts, 10.0, 1.0) * (CASE d.source {cases} ELSE 1 END) AS score, "
+           f"(CASE WHEN {named} THEN 0 ELSE 1 END) AS tier "
            f"FROM docs_fts JOIN docs d ON d.rid = docs_fts.rowid WHERE docs_fts MATCH ?")
     args = [name, like + " — %", like + "(%", like + ": %", q]
     if source:
         sql += " AND d.source = ?"
         args.append(source)
-    sql += " ORDER BY score LIMIT ?"
+    sql += " ORDER BY tier, score LIMIT ?"
     args.append(limit)
     try:
         rows = db.execute(sql, args).fetchall()
