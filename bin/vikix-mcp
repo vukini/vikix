@@ -255,13 +255,24 @@ COMMANDS_FORM = JSON_HELPERS % r"""
 """
 
 # What the desktop did lately (why.lisp), a line each; null from a desktop
-# older than it. The limit is a number checked here, the only thing put in.
+# older than it. The limit is a number checked here, and the last
+# notification's line (vikix-notifications last, asked here: the desktop's
+# main thread never waits on a program) a Lisp string: the only things put in.
 WHY_FORM = (JSON_HELPERS % r"""
   (if (not (fboundp 'vikix-why-entries))
       "null"
       (format nil "[~{~a~^,~}]"
-        (mapcar (lambda (e) (str (funcall 'vikix-why-line e))) (funcall 'vikix-why-entries LIMIT))))
-""").replace("%", "%%").replace("LIMIT", "%d")
+        (mapcar (lambda (e) (str (funcall 'vikix-why-line e))) (funcall 'vikix-why-entries LIMIT NOTIFICATION))))
+""").replace("%", "%%").replace("LIMIT", "%d").replace("NOTIFICATION", "%s")
+
+
+def notification_last():
+    """The last notification's line, as vikix-notifications last prints it; "" without one."""
+    program = shutil.which("vikix-notifications")
+    if not program:
+        return ""
+    out, ok = run([program, "last"], timeout=3, cap=4000)
+    return out.splitlines()[0] if ok and out else ""
 
 
 RULES_FORM = JSON_HELPERS % r"""
@@ -375,7 +386,7 @@ def t_why(a):
     if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 50:
         raise ToolError("limit is 1 to 50")
     try:
-        lines = json.loads(evaluate(WHY_FORM % limit))
+        lines = json.loads(evaluate(WHY_FORM % (limit, lisp_string(notification_last()))))
     except ValueError:
         raise ToolError("the window manager's answer wasn't what happened")
     if lines is None:

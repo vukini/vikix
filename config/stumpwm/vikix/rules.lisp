@@ -1724,7 +1724,7 @@ failing, and the rules naming a workspace that isn't there."
             ((equal what "proposed") (say (vikix-rule-proposals-text)))
             ((equal what "forget")
              (say (format nil "Taken out of ~~/.stumpwm.d/rules.lisp, and off the desktop:~%  ~a~%vikix undo puts the file back."
-                          (vikix-rules-forget (vikix-rule-called arg)))))
+                          (vikix-rules-forget (vikix-rule-called arg) :snapshot nil))))
             (t (error "vikix rules: list, off, on, why, test, apply, forget, verbs, now or proposed; not ~s." what)))
       (values))))
 
@@ -1767,10 +1767,16 @@ own carets (a pattern's \"^regex$\") written so they show."
        (message "On: ~a" (vikix-rules-carets (vikix-one-line (vikix-rule-text rule) 120))))
       (:apply (vikix-rules-show (vikix-rules-apply rule)))
       (:edit (vikix-open-in-emacs (vikix-rule-file rule) (vikix-rule-line rule)))
-      (:forget (handler-case
-                   (message "Taken out of ~~/.stumpwm.d/rules.lisp:~%~a~%vikix undo puts the file back."
-                            (vikix-rules-carets (vikix-one-line (vikix-rules-forget rule) 150)))
-                 (error (e) (message "^1Couldn't forget it:^n ~a" (vikix-one-line e))))))))
+      (:forget (flet ((failed (e) (message "^1Couldn't forget it:^n ~a" (vikix-one-line e))))
+                 (handler-case
+                     (vikix-rules-forget
+                      rule
+                      :then (lambda (text)
+                              (handler-case
+                                  (message "Taken out of ~~/.stumpwm.d/rules.lisp:~%~a~%vikix undo puts the file back."
+                                           (vikix-rules-carets (vikix-one-line text 150)))
+                                (error (e) (failed e)))))
+                   (error (e) (failed e))))))))
 
 (defcommand vikix-rules () ()
   "The desktop's rules: which are on, how often each ran, why the window
@@ -1826,13 +1832,12 @@ message is added. The tests name another.")
 (defun vikix-remember-emacs-named-p (window)
   "Has WINDOW, an Emacs frame, a name of its own (Esploro, a note's box)
 rather than its buffer's? Emacs is asked, with two seconds to answer; no
-answer is no."
+answer is no. It waits on Emacs: from a thread of vikix-later's
+(vikix-remember), never the main thread."
   (let* ((id (ignore-errors (xlib:window-id (window-xwin window))))
          (lisp (and id (format nil "(let ((n 0)) (dolist (f (frame-list)) (when (and (equal (frame-parameter f 'outer-window-id) \"~d\") (frame-parameter f 'explicit-name)) (setq n 1))) n)" id)))
-         (out (and lisp (ignore-errors
-                         (run-shell-command (format nil "timeout 2 emacsclient -e ~a 2>/dev/null" (vikix-shell-quote lisp))
-                                            t)))))
-    (and out (equal (string-trim '(#\Space #\Newline) out) "1"))))
+         (out (and lisp (vikix-shell-line (format nil "timeout 2 emacsclient -e ~a" (vikix-shell-quote lisp))))))
+    (equal out "1")))
 
 (defun vikix-remember-instance-tells-p (window)
   "Does WINDOW's instance say more than its class? It does when it is one
@@ -1849,17 +1854,19 @@ the class with another instance (an Alacritty started with --class)."
                    (ignore-errors (screen-windows (current-screen)))))
          t)))
 
-(defun vikix-remember-ways (window)
+(defun vikix-remember-ways (window &key emacs-named)
   "The ways a rule can know WINDOW, the one to offer first: :class,
 :instance, :title. An Emacs frame with a name of its own goes by its title,
-matched whole: every Emacs frame has the same class."
+matched whole: every Emacs frame has the same class. EMACS-NAMED says an
+Emacs frame has a name of its own (vikix-remember-emacs-named-p, asked by
+the caller)."
   (let* ((class (or (ignore-errors (window-class window)) ""))
          (instance (or (ignore-errors (window-res window)) ""))
          (title (or (ignore-errors (window-title window)) ""))
          (ways (remove nil (list (and (plusp (length class)) :class)
                                  (and (plusp (length instance)) (not (equalp instance class)) :instance)
                                  (and (plusp (length title)) :title))))
-         (first (cond ((and (equal class "Emacs") (member :title ways) (vikix-remember-emacs-named-p window)) :title)
+         (first (cond ((and (equal class "Emacs") (member :title ways) emacs-named) :title)
                       ((and (member :instance ways) (vikix-remember-instance-tells-p window)) :instance)
                       ((member :class ways) :class)
                       (t (first ways)))))
@@ -1957,28 +1964,38 @@ of its last line. (values FROM TO)."
         (uiop:read-file-string file)
         *vikix-rules-file-head*)))
 
-(defun vikix-rules-file-write (text why)
-  "A snapshot of your files (WHY, in words), then TEXT as your rules.lisp:
-written through a link to the file it names, never over the link."
-  (let ((file (vikix-rules-file)))
-    (ignore-errors
-     (run-shell-command (format nil "~a ~a >/dev/null 2>&1" *vikix-snapshot-command* (vikix-shell-quote why)) t))
-    (ensure-directories-exist file)
-    (with-open-file (out (or (probe-file file) file)
-                         :direction :output :if-exists :supersede :if-does-not-exist :create
-                         :external-format :utf-8)
-      (write-string text out))
-    file))
+(defun vikix-rules-file-write (text why then)
+  "A snapshot of your files (WHY, in words), then TEXT as your rules.lisp,
+written through a link to the file it names, never over the link, then
+THEN called with the file. The snapshot runs in a thread of its own and
+the rest follows in the main thread, which never waits on it; with WHY nil
+(the caller took the snapshot: vikix rules forget does, in the shell)
+there is no thread, everything is done now, and THEN's value is returned."
+  (flet ((write-then ()
+           (let ((file (vikix-rules-file)))
+             (ensure-directories-exist file)
+             (with-open-file (out (or (probe-file file) file)
+                                  :direction :output :if-exists :supersede :if-does-not-exist :create
+                                  :external-format :utf-8)
+               (write-string text out))
+             (funcall then file))))
+    (if why
+        (vikix-later (lambda () (vikix-shell-line (format nil "~a ~a" *vikix-snapshot-command* (vikix-shell-quote why))))
+                     (lambda (said) (declare (ignore said)) (write-then)))
+        (write-then))))
 
 (defun vikix-remember-named-p (form name)
   "Is FORM a when-window rule whose :name is NAME?"
   (and (consp form) (eq (first form) 'when-window)
        (equal name (ignore-errors (getf (cddr form) :name)))))
 
-(defun vikix-remember-write (form name words)
+(defun vikix-remember-write (form name words &key (snapshot t) (then #'identity))
   "Write the rule FORM, named NAME, into your rules.lisp (in the place of
 the one of that name when there is one, else at its end, under a dated
-comment saying WORDS) and load it. Returns the rule, as the desktop has it."
+comment saying WORDS) and load it, after a SNAPSHOT of your files. THEN is
+called with the rule as the desktop has it, once it is loaded: in the main
+thread when the snapshot has been taken (vikix-rules-file-write), so the
+desktop never waits; without a snapshot now, and its value is returned."
   (let* ((text (vikix-rules-file-text))
          (printed (vikix-rules-print form))
          (block (multiple-value-bind (s mi h d mo y) (get-decoded-time)
@@ -1991,20 +2008,24 @@ comment saying WORDS) and load it. Returns the rule, as the desktop has it."
                   (multiple-value-bind (from to) (vikix-rules-file-span text (second old) (third old))
                     (concatenate 'string (subseq text 0 from) block (subseq text to)))
                   (format nil "~a~%~%~a" (string-right-trim '(#\Newline #\Space) text) block)))
-         (file (vikix-rules-file-write new (format nil "before: a rule for ~a" words)))
          (line (vikix-line-at new (search printed new))))
-    (let ((*load-truename* (truename file))
-          (*load-pathname* (pathname file))
-          (*vikix-loading-file* (truename file))
-          (*vikix-load-line* line)
-          (*package* (find-package :stumpwm)))
-      ;; What is in the file is what runs: read back from its own words.
-      (vikix-eval-from file (let ((*read-eval* nil)) (read-from-string printed))))
-    (find name *vikix-rules* :key #'vikix-rule-name :test #'equal)))
+    (vikix-rules-file-write
+     new (and snapshot (format nil "before: a rule for ~a" words))
+     (lambda (file)
+       (let ((*load-truename* (truename file))
+             (*load-pathname* (pathname file))
+             (*vikix-loading-file* (truename file))
+             (*vikix-load-line* line)
+             (*package* (find-package :stumpwm)))
+         ;; What is in the file is what runs: read back from its own words.
+         (vikix-eval-from file (let ((*read-eval* nil)) (read-from-string printed))))
+       (funcall then (find name *vikix-rules* :key #'vikix-rule-name :test #'equal))))))
 
-(defun vikix-rules-forget (rule)
-  "Take RULE out of your rules.lisp, and out of the desktop. Its text. An
-error for a rule written anywhere else, or not found there as it was loaded."
+(defun vikix-rules-forget (rule &key (snapshot t) (then #'identity))
+  "Take RULE out of your rules.lisp, after a SNAPSHOT of your files, and out
+of the desktop; THEN is called with its text (vikix-remember-write says
+when, and what comes back). An error for a rule written anywhere else, or
+not found there as it was loaded: signalled now, before any of that."
   (let ((file (vikix-rules-file))
         (number (vikix-rule-number rule)))
     (unless (and (vikix-rule-file rule) (probe-file file)
@@ -2023,10 +2044,13 @@ error for a rule written anywhere else, or not found there as it was loaded."
       (multiple-value-bind (from to) (vikix-rules-file-span text (second found) (third found))
         (let ((left (string-right-trim '(#\Newline) (subseq text 0 from)))
               (right (string-left-trim '(#\Newline) (subseq text to))))
-          (vikix-rules-file-write (format nil "~a~%~:[~;~%~]~a" left (plusp (length right)) right)
-                                  (format nil "before: forgetting the rule ~a" (vikix-one-line (vikix-rule-text rule) 80)))))
-      (vikix-remove-rules :key (vikix-rule-key rule))
-      (vikix-rule-text rule))))
+          (vikix-rules-file-write
+           (format nil "~a~%~:[~;~%~]~a" left (plusp (length right)) right)
+           (and snapshot (format nil "before: forgetting the rule ~a" (vikix-one-line (vikix-rule-text rule) 80)))
+           (lambda (file)
+             (declare (ignore file))
+             (vikix-remove-rules :key (vikix-rule-key rule))
+             (funcall then (vikix-rule-text rule)))))))))
 
 ;;; The key
 
@@ -2035,10 +2059,22 @@ error for a rule written anywhere else, or not found there as it was loaded."
 where this one is (its workspace, and when it floats its size and place)
 into ~/.stumpwm.d/rules.lisp. The rule is shown first."
   (let ((window (current-window)))
-    (if (null window)
-        (message "No window to remember: go to one first.")
-        (let* ((ways (or (vikix-remember-ways window)
-                         (return-from vikix-remember
+    (cond ((null window)
+           (message "No window to remember: go to one first."))
+          ;; An Emacs frame: Emacs is asked whether it has a name of its
+          ;; own, in a thread of its own; the dialog opens when it answers.
+          ((equal (ignore-errors (window-class window)) "Emacs")
+           (vikix-later (lambda () (vikix-remember-emacs-named-p window))
+                        (lambda (named) (vikix-remember-ask window named))))
+          (t (vikix-remember-ask window nil)))))
+
+(defun vikix-remember-ask (window emacs-named)
+  "The dialog of vikix-remember for WINDOW (EMACS-NAMED as
+vikix-remember-ways takes it), and the rule written on yes."
+  (if (not (member window (all-windows)))
+      (message "That window is gone.")
+        (let* ((ways (or (vikix-remember-ways window :emacs-named emacs-named)
+                         (return-from vikix-remember-ask
                            (message "This window has no class, instance or title for a rule to know it by."))))
                (placed (or (typep window 'float-window) (member window *always-show-windows*)))
                (words (lambda (way)
@@ -2058,15 +2094,20 @@ into ~/.stumpwm.d/rules.lisp. The rule is shown first."
                                            (rest ways))
                                    '(("Cancel" nil))))))
           (when choice
-            (handler-case
-                (multiple-value-bind (form name) (apply #'vikix-remember-rule window choice)
-                  (let ((rule (vikix-remember-write form name (subseq name (length "remembered: ")))))
-                    (message "Remembered, in ~~/.stumpwm.d/rules.lisp:~%~a~%vikix rules forget ~d takes it out again."
-                             (vikix-rules-carets (vikix-one-line (vikix-rules-print form) 150))
-                             (or (and rule (vikix-rule-number rule)) 0))))
-              (error (e)
-                (vikix-error-report e "remembering a window" nil)
-                (message "^1Couldn't write the rule:^n ~a" (vikix-one-line e)))))))))
+            (flet ((failed (e)
+                     (vikix-error-report e "remembering a window" nil)
+                     (message "^1Couldn't write the rule:^n ~a" (vikix-one-line e))))
+              (handler-case
+                  (multiple-value-bind (form name) (apply #'vikix-remember-rule window choice)
+                    (vikix-remember-write
+                     form name (subseq name (length "remembered: "))
+                     :then (lambda (rule)
+                             (handler-case
+                                 (message "Remembered, in ~~/.stumpwm.d/rules.lisp:~%~a~%vikix rules forget ~d takes it out again."
+                                          (vikix-rules-carets (vikix-one-line (vikix-rules-print form) 150))
+                                          (or (and rule (vikix-rule-number rule)) 0))
+                               (error (e) (failed e))))))
+                (error (e) (failed e))))))))
 
 ;;; --- Rules an agent proposes ---------------------------------------------------------------------
 ;;;
@@ -2222,7 +2263,7 @@ you to decide. Returns what the agent is told: \"proposed N ...\", or
   (when (> (length *vikix-rule-proposals-decided*) 10)
     (setf *vikix-rule-proposals-decided* (subseq *vikix-rule-proposals-decided* 0 10))))
 
-(defun vikix-rule-proposal-add (proposal)
+(defun vikix-rule-proposal-add (proposal &key (then #'identity))
   "Write PROPOSAL's rule at the end of your rules.lisp, under a dated
 comment with its why (a snapshot first), and load it. The rule, as the
 desktop has it. It is checked again first: the table of verbs may have changed."
@@ -2235,16 +2276,20 @@ desktop has it. It is checked again first: the table of verbs may have changed."
                     (format nil ";; Proposed by an agent, ~4,'0d-~2,'0d-~2,'0d~@[: ~a~]~%~a~%"
                             y mo d (and (plusp (length (getf proposal :why))) (getf proposal :why)) printed)))
            (new (format nil "~a~%~%~a" (string-right-trim '(#\Newline #\Space) text) block))
-           (file (vikix-rules-file-write new (format nil "before: a rule an agent proposed, ~a" (vikix-one-line printed 60))))
            (line (vikix-line-at new (search printed new :from-end t))))
-      (let ((*load-truename* (truename file))
-            (*load-pathname* (pathname file))
-            (*vikix-loading-file* (truename file))
-            (*vikix-load-line* line)
-            (*package* (find-package :stumpwm)))
-        (vikix-eval-from file form))
-      (vikix-rule-proposal-decided proposal :added)
-      (find printed *vikix-rules* :key #'vikix-rule-text :test #'equal))))
+      ;; The snapshot in a thread, then the file, the load and THEN with
+      ;; the rule in the main thread (vikix-rules-file-write).
+      (vikix-rules-file-write
+       new (format nil "before: a rule an agent proposed, ~a" (vikix-one-line printed 60))
+       (lambda (file)
+         (let ((*load-truename* (truename file))
+               (*load-pathname* (pathname file))
+               (*vikix-loading-file* (truename file))
+               (*vikix-load-line* line)
+               (*package* (find-package :stumpwm)))
+           (vikix-eval-from file form))
+         (vikix-rule-proposal-decided proposal :added)
+         (funcall then (find printed *vikix-rules* :key #'vikix-rule-text :test #'equal)))))))
 
 (defun vikix-rule-proposal-drop (proposal)
   (vikix-rule-proposal-decided proposal :dropped))
@@ -2285,12 +2330,17 @@ nothing, so a hasty Enter adds no rule."
                               ("No: drop it" :drop)
                               ("Later" nil))))))
     (case choice
-      (:add (handler-case
-                (let ((rule (vikix-rule-proposal-add proposal)))
-                  (message "Added to ~~/.stumpwm.d/rules.lisp, and on:~%~a~%vikix rules forget ~d takes it out again."
-                           (vikix-rules-carets (vikix-one-line (getf proposal :text) 150))
-                           (if rule (vikix-rule-number rule) 0)))
-              (error (e) (message "^1Couldn't add it:^n ~a" (vikix-one-line e)))))
+      (:add (flet ((failed (e) (message "^1Couldn't add it:^n ~a" (vikix-one-line e))))
+              (handler-case
+                  (vikix-rule-proposal-add
+                   proposal
+                   :then (lambda (rule)
+                           (handler-case
+                               (message "Added to ~~/.stumpwm.d/rules.lisp, and on:~%~a~%vikix rules forget ~d takes it out again."
+                                        (vikix-rules-carets (vikix-one-line (getf proposal :text) 150))
+                                        (if rule (vikix-rule-number rule) 0))
+                             (error (e) (failed e)))))
+                (error (e) (failed e)))))
       (:drop (vikix-rule-proposal-drop proposal)
        (message "Dropped: ~a" (vikix-rules-carets (vikix-one-line (getf proposal :text) 150)))))))
 

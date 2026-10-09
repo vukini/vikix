@@ -253,11 +253,17 @@ a command, then run it as ever."
   (multiple-value-bind (s mi h) (decode-universal-time time)
     (format nil "~2,'0d:~2,'0d:~2,'0d" h mi s)))
 
-(defun vikix-why-notification ()
-  "The last notification, as an entry, or nil: dunst's own history says
-which program sent it (vikix-notifications last: id, program, title, seconds)."
+(defparameter *vikix-why-notification-command* "timeout 2 vikix-notifications last 2>/dev/null"
+  "The shell line whose one line of output is the last notification.")
+
+(defun vikix-why-notification (&optional line)
+  "The last notification, as an entry, or nil. LINE is what dunst's own
+history says of it, as vikix-notifications last prints it (id, program,
+title, seconds, a tab between): the caller gets it, since the main thread
+would wait on the program here (Super+? asks it through vikix-shell-then;
+vikix why and the MCP server ask in the shell and pass it in)."
   (ignore-errors
-   (let* ((line (string-trim '(#\Newline #\Space) (run-shell-command "timeout 2 vikix-notifications last 2>/dev/null" t)))
+   (let* ((line (string-trim '(#\Newline #\Space) (or line "")))
           (fields (split-string line (string #\Tab))))
      (when (= (length fields) 4)
        (destructuring-bind (id program title seconds) fields
@@ -269,10 +275,11 @@ which program sent it (vikix-notifications last: id, program, title, seconds)."
                :from (format nil "sent by ~a" program)
                :notification id))))))
 
-(defun vikix-why-entries (&optional (limit *vikix-why-size*))
+(defun vikix-why-entries (&optional (limit *vikix-why-size*) notification-line)
   "What happened lately, newest first: the ring, and the last notification
-in its place by the time it came."
-  (let* ((notification (vikix-why-notification))
+(NOTIFICATION-LINE, as vikix-why-notification takes it; none without) in
+its place by the time it came."
+  (let* ((notification (vikix-why-notification notification-line))
          (all (sort (append (and notification (list notification)) (copy-list *vikix-why-ring*))
                     #'> :key (lambda (e) (getf e :at)))))
     (subseq all 0 (min limit (length all)))))
@@ -285,9 +292,10 @@ in its place by the time it came."
           (and (> (getf entry :count 1) 1) (getf entry :count))
           (getf entry :from)))
 
-(defun vikix-why-text (&optional (limit 20))
-  "The list as text, for vikix why and for agents."
-  (let ((entries (vikix-why-entries limit)))
+(defun vikix-why-text (&optional (limit 20) notification-line)
+  "The list as text, for vikix why and for agents, with the last
+notification when its line is given."
+  (let ((entries (vikix-why-entries limit notification-line)))
     (if entries
         (format nil "~{~a~^~%~}" (mapcar #'vikix-why-line entries))
         "Nothing yet: no key, rule or command has run since the desktop started.")))
@@ -363,7 +371,13 @@ in its place by the time it came."
 key and its command, the rule and its window, the menu's entry, what an
 agent or a script asked for, each with where it is written. Pick one to
 edit it there, take it back, or switch a rule off."
-  (let ((entries (vikix-why-entries)))
+  ;; The last notification is asked of dunst first, in a thread of its own.
+  (vikix-shell-then *vikix-why-notification-command*
+                    (lambda (line) (vikix-why-show (vikix-why-entries *vikix-why-size* line)))))
+
+(defun vikix-why-show (entries)
+  "The menu of ENTRIES (vikix-why), and the choices for the one picked."
+  (progn
     (if (null entries)
         (message "Nothing yet: no key, rule or command has run since the desktop started.")
         (let* ((picked (select-from-menu (current-screen)

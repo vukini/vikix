@@ -74,7 +74,12 @@ ask() {
 
 case ${1:-list} in
   list)       [ $# -le 1 ] || die "vikix rules list takes nothing more (vikix rules help)"; ask list ;;
-  off|on|forget) [ $# -eq 2 ] || die "which rule? vikix rules $1 N|NAME (vikix rules lists them)"; ask "$1" "$2" ;;
+  off|on)     [ $# -eq 2 ] || die "which rule? vikix rules $1 N|NAME (vikix rules lists them)"; ask "$1" "$2" ;;
+  forget)     [ $# -eq 2 ] || die "which rule? vikix rules forget N|NAME (vikix rules lists them)"
+              # The snapshot is taken here, so the desktop's main thread
+              # never waits on it (rules.lisp: vikix-rules-forget, :snapshot nil).
+              timeout 30 "$VIKIX_DIR/bin/vikix" snapshot "before: forgetting the rule $2" >/dev/null 2>&1 || true
+              ask forget "$2" ;;
   why)        [ $# -le 2 ] || die "vikix rules why [CLASS]: one class, in quotes if it has spaces"; ask why "${2:-}" ;;
   test|apply) [ $# -le 2 ] || die "vikix rules $1 [N|NAME]: one rule, or none for all of them"; ask "$1" "${2:-}" ;;
   verbs)      ask verbs ;;

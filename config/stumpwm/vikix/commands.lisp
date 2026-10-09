@@ -634,7 +634,8 @@ sections. Typing among the sections finds an entry of any of them."
   (vikix-run-menu *vikix-power-menu* "Power: "))
 
 (defparameter *vikix-dropbox-menu*
-  '(("Status"      (message "Dropbox:~%~a" (vikix-shell-line "timeout 3 dropbox status")))
+  '(("Status"      (vikix-shell-then "timeout 3 dropbox status 2>/dev/null"
+                                      (lambda (said) (message "Dropbox:~%~a" (ppcre:regex-replace-all "\\^" said "^^")))))
     ("Open ~/Dropbox" (run-shell-command "xdg-open ~/Dropbox"))
     ;; Started by hand, not by the session: some want it running only
     ;; when they ask. The bar says dbx off meanwhile.
@@ -710,6 +711,39 @@ manager."
                 do (write-char c s)
                    (when (char= c #\^) (write-char c s)))))
     (error () "")))
+
+;;; A command that wants a program's answer never waits for it in the main
+;;; thread (a slow one would hold every key for its length: measured, the
+;;; agents' notes take 0.3 s, a snapshot of your files up to a second, and
+;;; any of them 30 s when something is stuck). It runs the program in a
+;;; thread of its own and goes on in a callback the main thread runs when
+;;; the answer is there, as the bar's rounds do. tests/lint.sh
+;;; (tests/lib/waits.py) fails a run-shell-command that waits outside the
+;;; few places allowed to.
+
+(defun vikix-later (thunk then)
+  "Call THUNK in a thread of its own, then THEN in the main thread with what
+it returned (nil when it signalled). THUNK may run programs and read files;
+it must not draw or touch the X server. THEN may do anything a command
+does. Returns at once."
+  (sb-thread:make-thread
+   (lambda ()
+     (let ((value (handler-case (funcall thunk) (error () nil))))
+       ;; Nothing to answer to before the event loop runs (loading at login).
+       (when (and (boundp '*request-channel*) *request-channel*)
+         (ignore-errors (call-in-main-thread (lambda () (funcall then value)))))))
+   :name "vikix-later")
+  (values))
+
+(defun vikix-shell-then (command then)
+  "Run COMMAND (a shell line, as run-shell-command takes it) in a thread of
+its own, then call THEN in the main thread with its output: trimmed, \"\"
+on any error. For a program whose answer is shown or acted on; a program
+whose answer isn't wanted is run-shell-command alone."
+  (vikix-later (lambda ()
+                 (handler-case (string-trim '(#\Space #\Newline) (run-shell-command command t))
+                   (error () "")))
+               then))
 
 ;;; The bar's words come from small programs (pamixer, vikix-net, vikix-bt,
 ;;; vikix-dropbox ...). Run every ten seconds in StumpWM's one thread, they
@@ -910,11 +944,13 @@ A file test, so no program starts every 10 seconds."
   "Keep awake, on or off: while on, the screen doesn't lock or go dark and
 the computer doesn't suspend by itself (the bar says awake). For a film or
 a talk. Every login starts with it off."
-  (run-shell-command "vikix-idle awake toggle" t)
-  (vikix-awake-refresh)
-  (message (if *vikix-awake*
-               "Keep awake: on, until you switch it off"
-               "Keep awake: off")))
+  (vikix-shell-then "vikix-idle awake toggle"
+                    (lambda (said)
+                      (declare (ignore said))
+                      (vikix-awake-refresh)
+                      (message (if *vikix-awake*
+                                   "Keep awake: on, until you switch it off"
+                                   "Keep awake: off")))))
 
 ;;; The backup reminder (bin/vikix-backup), shown in the bar.
 
@@ -1021,9 +1057,8 @@ to stop."
   "Night light, on or off: a warmer screen in the evening. The times and
 colours are in ~/.config/gammastep/config.ini. Switched off, it stays off
 at the next login too, until you switch it on."
-  (let ((said (string-trim '(#\Space #\Newline)
-                           (run-shell-command "vikix-nightlight toggle 2>&1" t))))
-    (message "~a" (if (string= said "") "Night light: no answer" said))))
+  (vikix-shell-then "vikix-nightlight toggle 2>&1"
+                    (lambda (said) (message "~a" (if (string= said "") "Night light: no answer" said)))))
 
 ;;; Notifications (dunst): do not disturb, shown in the bar.
 
@@ -1031,26 +1066,37 @@ at the next login too, until you switch it on."
   "\"\" while notifications show; while they are paused (do not disturb),
 \"quiet\", or \"quiet 3\" with three waiting.")
 
+(defun vikix-quiet-read ()
+  "Dunst's pause as the bar's word for it (*vikix-quiet*): asks dunst, so
+from the bar's thread or a thread of vikix-later's."
+  (if (string= (vikix-shell-line "dunstctl is-paused") "true")
+      (let ((waiting (vikix-shell-line "dunstctl count waiting")))
+        (if (member waiting '("" "0") :test #'string=)
+            "quiet"
+            (format nil "quiet ~a" waiting)))
+      ""))
+
+(defun vikix-quiet-set (new)
+  "NEW as the bar's word for do not disturb; the bar redrawn if it changed."
+  (unless (string= new *vikix-quiet*)
+    (setf *vikix-quiet* new)
+    (vikix-bar-redraw)))
+
 (defun vikix-quiet-refresh ()
   "Read dunst's pause into *vikix-quiet*; redraw the bar if it changed."
-  (let ((new (if (string= (vikix-shell-line "dunstctl is-paused") "true")
-                 (let ((waiting (vikix-shell-line "dunstctl count waiting")))
-                   (if (member waiting '("" "0") :test #'string=)
-                       "quiet"
-                       (format nil "quiet ~a" waiting)))
-                 "")))
-    (unless (string= new *vikix-quiet*)
-      (setf *vikix-quiet* new)
-      (vikix-bar-redraw))))
+  (vikix-quiet-set (vikix-quiet-read)))
 
 (defcommand vikix-quiet () ()
   "Do not disturb, on or off. While it is on, notifications wait (the bar
 says quiet, and how many are waiting); switching it off shows them."
-  (run-shell-command "dunstctl set-paused toggle" t)
-  (vikix-quiet-refresh)
-  (message (if (string= *vikix-quiet* "")
-               "Notifications on"
-               "Do not disturb: notifications wait until you switch it off")))
+  (vikix-later (lambda ()
+                 (vikix-shell-line "dunstctl set-paused toggle")
+                 (vikix-quiet-read))
+               (lambda (new)
+                 (vikix-quiet-set (or new ""))
+                 (message (if (string= *vikix-quiet* "")
+                              "Notifications on"
+                              "Do not disturb: notifications wait until you switch it off")))))
 
 ;;; Focus time (Super+m, Notifications; no key, the card is full): so many
 ;;; minutes with do not disturb on by itself, then a break, each said in
@@ -1081,8 +1127,10 @@ while you rest, or nil. END is a universal time.")
 
 (defun vikix-focus-quiet (on)
   "Do not disturb on or off, and the bar's word for it read again."
-  (run-shell-command (format nil "dunstctl set-paused ~:[false~;true~]" on) t)
-  (vikix-quiet-refresh))
+  (vikix-later (lambda ()
+                 (vikix-shell-line (format nil "dunstctl set-paused ~:[false~;true~]" on))
+                 (vikix-quiet-read))
+               (lambda (new) (vikix-quiet-set (or new "")))))
 
 (defun vikix-focus-break-minutes (minutes)
   (or *vikix-focus-break* (max 5 (round minutes 5))))

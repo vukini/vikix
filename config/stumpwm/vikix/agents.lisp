@@ -186,12 +186,12 @@ prompt said in its :words instead: waiting for a release (its turn in
 slots, other runs testing), testing. The words are bin/vikix-agents's own
 (vikix-agents --waits PID...), from the notes the release and the tests
 leave. Never signals: without the program, or on any error, AGENTS as they
-are."
+are. It runs the program (0.3 s): from a thread of vikix-later's when a
+key or a menu asks (vikix-agents-pick), never the main thread."
   (when agents
     (handler-case
-        (let ((out (run-shell-command (format nil "vikix-agents --waits ~{~d~^ ~} 2>/dev/null"
-                                              (mapcar (lambda (a) (getf a :pid)) agents))
-                                      t)))
+        (let ((out (vikix-shell-line (format nil "vikix-agents --waits ~{~d~^ ~}"
+                                             (mapcar (lambda (a) (getf a :pid)) agents)))))
           (dolist (line (split-string out (string #\Newline)))
             (let* ((parts (split-string line (string #\Tab)))
                    (pid (ignore-errors (parse-integer (first parts))))
@@ -258,17 +258,22 @@ spaces."
 how long it has run and what it is doing (working, at its prompt, waiting
 for you). Pick one to go to its window. `vikix agents` in a terminal adds
 what each has left uncommitted."
-  (let ((agents (vikix-agents)))
+  (let ((agents (vikix-agents nil)))
     (if (null agents)
         (message "No agent is running in a terminal here. Super+a starts one.")
-        (let ((picked (second (select-from-menu (current-screen)
-                                                (mapcar (lambda (a) (list (vikix-agent-line a) a)) agents)
-                                                (format nil "~d agent~:p. Go to: " (length agents))))))
-          (cond ((null picked))
-                ;; Its window is put away: brought here, as Super+Shift+g brings one.
-                ((vikix-agent-away-p picked)
-                 (vikix-bring-window-here (getf picked :window)))
-                (t (vikix-goto-window (getf picked :window))))))))
+        ;; What holds each one's shell is asked of bin/vikix-agents in a
+        ;; thread of its own; the menu opens when it has answered.
+        (vikix-later
+         (lambda () (vikix-agents-held agents))
+         (lambda (agents)
+           (let ((picked (second (select-from-menu (current-screen)
+                                                   (mapcar (lambda (a) (list (vikix-agent-line a) a)) agents)
+                                                   (format nil "~d agent~:p. Go to: " (length agents))))))
+             (cond ((null picked))
+                   ;; Its window is put away: brought here, as Super+Shift+g brings one.
+                   ((vikix-agent-away-p picked)
+                    (vikix-bring-window-here (getf picked :window)))
+                   (t (vikix-goto-window (getf picked :window))))))))))
 
 ;;; --- A desk --------------------------------------------------------------------------------
 

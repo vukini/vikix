@@ -31,6 +31,17 @@ for f in sys.argv[1:]:
 ' "${pythons[@]}" || { echo "FAIL syntax: a Python script (above)"; fail=1; }
 echo "python: ${#pythons[@]} script(s) checked"
 
+# StumpWM's main thread never waits on a program (CLAUDE.md, "Loading, and
+# threads"): a run-shell-command that collects its output is allowed in the
+# layer only inside the helpers that run it from a thread of their own, and
+# the two places tests/lib/waits.py names. Anything else goes through
+# vikix-shell-then or vikix-later (commands.lisp).
+if out=$(python3 -I tests/lib/waits.py config/stumpwm/*.lisp config/stumpwm/vikix/*.lisp 2>&1); then
+  echo "waits: $out"
+else
+  echo "FAIL waits: the main thread would wait on a program:"; sed 's/^/  /' <<<"$out"; fail=1
+fi
+
 # Scripts that are run as ./name must carry the executable bit (0.10.0
 # reached GitHub without it, and ./install-1.sh failed with "Permission denied").
 for f in install.sh install-*.sh install/*.sh bin/* tests/*.sh installer/vikix-installer installer/vikix-hwreport installer/firstboot installer/build-image.sh; do

@@ -111,15 +111,16 @@ before=$(ask '(princ (length *vikix-why-ring*))')
 xdotool key super+question; sleep 1.5; xdotool key Escape; sleep 0.5
 check "Super+? opens the list, and asking why isn't itself noted" test "$(ask '(princ (length *vikix-why-ring*))')" = "$before"
 check "Super+? is the key" yes '(equal (lookup-key *top-map* (kbd "s-?")) "vikix-why")'
-text=$(ask '(princ (vikix-why-text))')
+# The notification's line is the caller's to give (vikix why and the MCP server ask dunst in the shell).
+text=$(ask '(princ (vikix-why-text 20 (format nil "7~CMail~CA letter came~C5" #\Tab #\Tab #\Tab)))')
 check "the last notification is in the list, by its program: $(grep notification <<<"$text")" \
   grep -q '  A notification "A letter came"  ·  sent by Mail$' <<<"$text"
 check "newest first: $(head -1 <<<"$text" | cut -c1-80)" grep -q 'Something asked for it ran vikix-pointer' <<<"$(head -1 <<<"$text")"
-check "it can be shown again: $(ask '(progn (setf *print-pretty* nil) (princ (mapcar (function first) (vikix-why-choices (vikix-why-notification)))))')" \
-  grep -q 'Show that notification again' <<<"$(ask '(progn (setf *print-pretty* nil) (princ (mapcar (function first) (vikix-why-choices (vikix-why-notification)))))')"
+shown() { ask '(progn (setf *print-pretty* nil) (princ (mapcar (function first) (vikix-why-choices (vikix-why-notification (format nil "7~CMail~CA letter came~C5" #\Tab #\Tab #\Tab))))))'; }
+check "it can be shown again: $(shown)" grep -q 'Show that notification again' <<<"$(shown)"
 
 # vikix why, in a terminal: the same lines.
-why_cli() { HOME=$home VIKIX_SWANK_PORT=$port "$here/bin/vikix-why" "$@" 2>&1 || true; }
+why_cli() { PATH="$t/bin:$PATH" HOME=$home VIKIX_SWANK_PORT=$port "$here/bin/vikix-why" "$@" 2>&1 || true; }
 out=$(why_cli)
 check "vikix why prints the list, each line once, newest first: $(head -2 <<<"$out" | cut -c1-90)" \
   test "$(grep -c 'Something asked for it ran vikix-pointer' <<<"$out") $(grep -c 'A notification' <<<"$out")" = "1 1"

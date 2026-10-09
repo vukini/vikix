@@ -32,8 +32,19 @@ case ${1:-} in
 esac
 [ $# -le 1 ] || die "vikix why [N]: one number at most (vikix why help)"
 
+# A word as a Lisp string: nothing in it is read as Lisp.
+lisp_string() {
+  local s=${1//\\/\\\\}
+  printf '"%s"' "${s//\"/\\\"}"
+}
+
+# The last notification is asked of dunst here, not by the desktop, whose
+# main thread never waits on a program (why.lisp takes the line).
+notifications=$(command -v vikix-notifications || echo "$VIKIX_DIR/bin/vikix-notifications")
+line=$(timeout 2 "$notifications" last 2>/dev/null || true)
+
 ok=0
-out=$(python3 "$VIKIX_DIR/bin/vikix-eval" "(if (fboundp 'vikix-why-text) (progn (princ (vikix-why-text $n)) (values)) (error \"this desktop is older than vikix why: reload it (Super+m, Reload config)\"))" 2>&1) || ok=$?
+out=$(python3 "$VIKIX_DIR/bin/vikix-eval" "(if (fboundp 'vikix-why-text) (progn (princ (vikix-why-text $n $(lisp_string "$line"))) (values)) (error \"this desktop is older than vikix why: reload it (Super+m, Reload config)\"))" 2>&1) || ok=$?
 case $out in
   *"error: "*) die "$(sed -n 's/^.*error: //p' <<<"$out" | head -1)" ;;
 esac

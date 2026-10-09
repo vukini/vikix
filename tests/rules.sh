@@ -242,8 +242,6 @@ LISP
   # a rule replaced where it stands, one taken out. Loaded last too.
   cat > "$t/remember.lisp" <<'LISP'
 (in-package :stumpwm)
-(defvar *named-frame* nil)
-(defun vikix-remember-emacs-named-p (window) (declare (ignore window)) *named-frame*)   ; Emacs isn't asked here
 (defun rules-file-text () (uiop:read-file-string (vikix-rules-file)))
 (defun count-of (part text) (loop with n = 0 for at = (search part text) then (search part text :start2 (1+ at)) while at do (incf n) finally (return n)))
 
@@ -253,7 +251,7 @@ LISP
        (eq (first (vikix-remember-ways (win "Alacritty" :res "vikix-nmtui" :title "nmtui"))) :instance))
 (check "an Emacs frame by its class, and by its title when it has a name of its own"
        (and (eq (first (vikix-remember-ways (win "Emacs" :res "emacs" :title "notes.org"))) :class)
-            (let ((*named-frame* t)) (eq (first (vikix-remember-ways (win "Emacs" :res "emacs" :title "Esploro"))) :title))))
+            (eq (first (vikix-remember-ways (win "Emacs" :res "emacs" :title "Esploro") :emacs-named t)) :title)))
 (check "known by its title: the class too, the title whole, and a name that says both"
        (multiple-value-bind (match words) (vikix-remember-match (win "Emacs" :res "emacs" :title "Esploro") :title)
          (and (equal match '(:class "Emacs" :title "Esploro")) (equal words "Emacs \"Esploro\""))))
@@ -289,7 +287,7 @@ LISP
        (search "not in your rules.lisp"
                (princ-to-string (nth-value 1 (ignore-errors (vikix-rules-forget (vikix-rule-called "seen-rule")))))))
 (check "forgetting takes a rule of your own out of the file, lines and all, and off the desktop"
-       (and (vikix-rules-forget (rule-of "(title \"mine\")"))
+       (and (vikix-rules-forget (rule-of "(title \"mine\")") :snapshot nil)   ; no snapshot: the file is read back at once
             (not (search "(:class \"Mine\")" (rules-file-text)))
             (search ";; Mine, by hand." (rules-file-text))
             (null (rule-of "(title \"mine\")"))
@@ -304,7 +302,7 @@ LISP
 (with-open-file (out (vikix-rules-file) :direction :output :if-exists :supersede)
   (format out "(in-package :stumpwm)~%(when-window (:class \"Open\"~%"))
 (let ((rule (vikix-remember-write '(when-window (:class "Late") :name "remembered: Late" (workspace 1))
-                                  "remembered: Late" "Late")))
+                                  "remembered: Late" "Late" :snapshot nil)))
   (check "a rules.lisp that can't be read is only added to, nothing of it lost"
          (and (search "(when-window (:class \"Open\"" (rules-file-text))
               (search "remembered: Late" (rules-file-text))))
@@ -974,6 +972,8 @@ LISP
   local before
   before=$(geometry "$(the Kept)")
   ask "(multiple-value-bind (form name) (vikix-remember-rule $(the Kept)) (vikix-remember-write form name \"Kept\"))" >/dev/null
+  # The snapshot runs in a thread of its own and the file follows: a moment.
+  for _ in $(seq 1 50); do grep -q 'remembered: Kept' "$home/.stumpwm.d/rules.lisp" 2>/dev/null && break; sleep 0.1; done
   check "it is written into rules.lisp, after a snapshot that says what for: $(cat "$t/snaps" 2>/dev/null)" \
     bash -c "grep -q ':name \"remembered: Kept\"' '$home/.stumpwm.d/rules.lisp' && grep -qx 'before: a rule for Kept' '$t/snaps'"
   check "and loaded, as one of rules.lisp's" yes '(equal (vikix-rule-owner (vikix-rule-called "remembered: Kept")) "rules.lisp")'

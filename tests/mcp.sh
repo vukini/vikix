@@ -27,6 +27,12 @@ t=$(mktemp -d)
 trap 'rm -rf "$t"' EXIT
 export HOME="$t/home" VIKIX_STATE="$t/home/.local/state/vikix"
 mkdir -p "$HOME" "$t/bin"
+# The last notification, as the server asks dunst for it (vikix-notifications last).
+cat > "$t/bin/vikix-notifications" <<'EOF'
+#!/bin/sh
+[ "$1" = last ] && printf '7\tMail\tA "letter" came\t5\n'
+EOF
+chmod +x "$t/bin/vikix-notifications"
 fail=0
 check() { "${@:2}" || { echo "FAIL: $1"; fail=1; }; }
 cd "$t"
@@ -261,7 +267,8 @@ assert a[0]["said"] == "May I run it?" and a[0]["seconds"] == 125 and "branch" i
 ' "$out"
 out=$(call why '{}')
 check "why should say what the desktop did, a line each: $out" test "$(grep -c -e 'Super+Ctrl+d ran vikix-quiet' -e 'A rule, as a window opened' <<<"$out")" = 2
-check "with how many asked for, a number: $(grep 'vikix-why-entries' "$t/forms" | tail -1 | cut -c1-60)" grep -q "(funcall 'vikix-why-entries 20)" "$t/forms"
+check "with how many asked for, a number, and the last notification's line, asked of dunst here: $(grep 'vikix-why-entries' "$t/forms" | tail -1 | grep -o "vikix-why-entries.*")" \
+  grep -q "(funcall 'vikix-why-entries 20 \"7	Mail	A \\\\\"letter\\\\\" came	5\")" "$t/forms"
 out=$(call why '{"limit":"5) (run-shell-command \"touch pwned"}')
 check "a limit that isn't a number should be refused: $out" grep -q '^ERROR: limit' <<<"$out"
 touch "$t/old-desktop"
