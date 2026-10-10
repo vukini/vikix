@@ -1265,15 +1265,24 @@ theme.lisp calls it after a theme change."
                       (format o "\\u~4,'0x" (char-code c))
                       (write-char c o)))))))
 
+(defun vikix-desktop-bar ()
+  "The bar's fields that show something now, as (KIND . TEXT), in the bar's
+order: what.lisp knows them (it loads after this file, so asked at run time)."
+  (when (and (boundp '*vikix-what-fields*) (fboundp 'vikix-what-field-shows))
+    (loop for (kind . nil) in (symbol-value '*vikix-what-fields*)
+          for shows = (ignore-errors (funcall 'vikix-what-field-shows kind))
+          when (and shows (not (equal shows "")))
+            collect (cons kind shows))))
+
 (defun vikix-desktop-json ()
   "The desktop now, as a JSON text: workspaces (name, number, current, kind,
-strip, windows) and screens."
+strip, windows), screens, and the bar's fields (field, shows) in its order."
   (labels ((str (s) (format nil "\"~a\"" (vikix-json-escape s)))
            (short (s) (let ((s (princ-to-string (or s "")))) (subseq s 0 (min 200 (length s)))))
            (bool (x) (if x "true" "false"))
            (strip-p (g) (and (fboundp 'viri-group-p) (funcall 'viri-group-p g))))
     (let ((cw (current-window)))
-      (format nil "{\"workspaces\":[~{~a~^,~}],\"screens\":[~{~a~^,~}]}"
+      (format nil "{\"workspaces\":[~{~a~^,~}],\"screens\":[~{~a~^,~}],\"bar\":[~{~a~^,~}]}"
               (mapcar (lambda (g)
                         (format nil "{\"name\":~a,\"number\":~d,\"current\":~a,\"kind\":~a,\"strip\":~a,\"windows\":[~{~a~^,~}]}"
                                 (str (short (group-name g))) (group-number g) (bool (eq g (current-group)))
@@ -1301,4 +1310,7 @@ strip, windows) and screens."
               (mapcar (lambda (h)
                         (format nil "{\"number\":~d,\"x\":~d,\"y\":~d,\"width\":~d,\"height\":~d}"
                                 (head-number h) (head-x h) (head-y h) (head-width h) (head-height h)))
-                      (screen-heads (current-screen)))))))
+                      (screen-heads (current-screen)))
+              (mapcar (lambda (field)
+                        (format nil "{\"field\":~a,\"shows\":~a}" (str (car field)) (str (short (cdr field)))))
+                      (vikix-desktop-bar))))))

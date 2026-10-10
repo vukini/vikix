@@ -39,18 +39,21 @@ The tools, a fixed set:
   proposals   propose_file_changes (a plan shown in Esploro) and
               propose_rule (a rule shown under Super+m, Rules): checked
               whole, and only your choice there changes anything
-  off unless  eval (Lisp in the window manager, through the door:
-  switched on --allow-eval) and undo (your files back a snapshot:
+  off unless  eval (Lisp in the window manager, through the door) and
+  switched on  cuis_eval (Smalltalk in the Cuis image, through its own
+              walker: --allow-eval), and undo (your files back a snapshot:
               --allow-undo). These are a convenience, not a wall: an agent
               that can run commands can run vikix eval, or register the
-              server again, itself; the door stands on that road too.
+              server again, itself; the doors stand on that road too.
 
 Nothing an agent sends reaches Lisp or a shell except as a value checked
 against the desktop (a workspace that exists, a theme there is, a number),
 or, for propose_rule, as text the window manager reads without running
 and holds until you decide; eval's form is read the same way and walked
 by the door (door.lisp) first, and runs only when every function it calls
-is on the door's list, else it waits for you (Super+m, Door; vikix door).
+is on the door's list, else it waits for you (Super+m, Door; vikix door);
+cuis_eval's expression the same way by the image's walker (VikixWalker),
+and waits there (VikixServer held) when it may not run.
 Every call, refused ones too, is logged in ~/.local/state/vikix/mcp.log
 (600): the tool, whether it worked, its arguments (secrets taken out, long
 ones cut, with their length and a hash).
@@ -738,6 +741,20 @@ def t_eval(a):
     return out
 
 
+def t_cuis_eval(a):
+    """An agent's Smalltalk in the Cuis image: vikix eval --cuis --door, whose
+    walker (VikixWalker in the image) parses and checks it first; held is
+    exit 3, with why."""
+    expression = str(a.get("expression", ""))
+    if not expression.strip():
+        raise ToolError("expression: the Smalltalk to run")
+    cmd = (["python3", EVAL] if EVAL.endswith("/bin/vikix-eval") else [EVAL]) + ["--cuis", "--door", expression]
+    out, ok = run(cmd, timeout=40)
+    if not ok or re.search(r"(?m)^error:", out):
+        raise ToolError(out)
+    return out
+
+
 def t_undo(a):
     snap = snapshot_id(a)
     return checked(*run([VIKIX, "undo"] + ([snap] if snap else [])), "vikix undo")
@@ -913,13 +930,15 @@ TOOLS = [
     ("docs_search", "Search the machine's documents",
      "Every document on this machine (vikix docs): Vikix's guides (source vikix), the README, DESIGN, TODO and "
      "docs of the user's projects in ~/src (repo), the language guides in ~/dev (dev), the user's Org notes "
-     "(note), man pages (man), Info manuals (info), the tldr pages (tldr: a command's worked examples), the "
+     "(note), the classes of the Cuis Smalltalk image (cuis: a row a package and a row a class, its comment and "
+     "method categories, from the package files), man pages (man), Info manuals (info), the tldr pages (tldr: a "
+     "command's worked examples), the "
      "ArchWiki (arch: offline copies, when wikiman keeps them), packages' READMEs (pkgdoc) and every package "
      "there is, installed or not (pkg); the user's own documents (own) only from a folder the user has "
      "opened to agents. Use it before answering how something on this machine "
      "works. Words, \"a phrase\", or OR; the start of a word is enough. Read only." + DATA,
      schema({"query": {"type": "string", "maxLength": 200},
-             "source": {"type": "string", "enum": ["vikix", "own", "repo", "dev", "note", "man", "info", "tldr", "arch", "pkgdoc", "pkg"]},
+             "source": {"type": "string", "enum": ["vikix", "own", "repo", "dev", "note", "cuis", "man", "info", "tldr", "arch", "pkgdoc", "pkg"]},
              "limit": {"type": "integer", "minimum": 1, "maximum": 25}}, ["query"]),
      READ, t_docs_search),
     ("docs_read", "Read one document",
@@ -1023,6 +1042,16 @@ EVAL_TOOL = ("eval", "Run Lisp in the window manager",
              "they run it or drop it (Super+m, Door). Prefer the other tools; try a change live here, then write it "
              "into ~/.stumpwm.d/user.lisp.",
              schema({"form": {"type": "string"}}, ["form"]), RISK, t_eval)
+CUIS_EVAL_TOOL = ("cuis_eval", "Run Smalltalk in the Cuis image",
+                  "One Smalltalk expression in the running Cuis image (the feature cuis; vikix eval --cuis), through its "
+                  "door: the image parses and walks it first, and runs it only when every global it names and every "
+                  "message it sends is on the walker's lists (reads of the image and its classes, the collections, "
+                  "VikixDesktop's moves and switches; VikixWalker allowedGlobals and allowedSelectors in the image). "
+                  "One that runs a program, touches a file, evaluates text of its own, reaches the system (Smalltalk, "
+                  "sockets, processes, quitting), defines or changes code, sets a global or waits is held in the image "
+                  "for the user, with why; they run it there (VikixServer held; VikixServer runHeld: N) or drop it. "
+                  "Say what was held and why; never work around it. The answer is the value's printString.",
+                  schema({"expression": {"type": "string"}}, ["expression"]), RISK, t_cuis_eval)
 UNDO_TOOL = ("undo", "Undo: your files back a snapshot",
              "vikix undo: put the user's files back as they were one snapshot ago, or at a given snapshot. "
              "It can itself be undone, but ask the user first.",
@@ -1050,6 +1079,7 @@ def tools(allow_eval, allow_undo):
            + t[3:] if t[0] == "propose_file_changes" else t for t in ts]
     if allow_eval:
         ts.append(EVAL_TOOL)
+        ts.append(CUIS_EVAL_TOOL)
     if allow_undo:
         ts.append(UNDO_TOOL)
     return {t[0]: t for t in ts}

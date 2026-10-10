@@ -20,15 +20,19 @@
 #                           --headless draws nothing, for a script
 #                           (-s FILE.st, which must end in Smalltalk quit)
 #   vikix cuis desktop      the desktop as objects, in the running image:
-#                           a window of the workspaces and their windows,
-#                           read from StumpWM once a second (VikixDesktop
-#                           open, in a Workspace there); read-only, halos
-#                           and inspectors work on the morphs
+#                           a window with the bar's fields along the top,
+#                           a column a workspace and a box a window, read
+#                           from StumpWM once a second (VikixDesktop open,
+#                           in a Workspace there); drag a box to another
+#                           column and the real window moves there, click
+#                           one and its window takes the focus, click a
+#                           column's name and the desktop goes there;
+#                           halos and inspectors work on the morphs
 #   vikix cuis status [--json]
 #                           what is installed, built and running; --json
 #                           adds what the running image shows (its theme,
-#                           font, packages, windows), for vikix mcp's
-#                           cuis_state
+#                           font, packages, windows, how many expressions
+#                           its door holds), for vikix mcp's cuis_state
 #   vikix cuis doctor       the VM runs, the release is at the pin, the
 #                           image is built with Vikix's packages, the door
 #                           answers and the theme is Vikix's (when Cuis runs)
@@ -38,8 +42,12 @@
 # The door: vikix eval --cuis '3 + 4' prints 7. The image evaluates what it
 # is sent in its own UI process, after the first line of ~/.slime-secret,
 # as Swank in StumpWM does (port 4004) and Nyxt (4006). An agent's
-# expression isn't checked yet, so from an agent vikix eval --cuis is held
-# for you to run. The theme: vikix theme writes the Vikix theme as a class,
+# expression is walked first (VikixWalker, in the image): every global it
+# names and every message it sends must be on the walker's lists, or it is
+# held in the image for you (VikixServer held in a Workspace, then
+# VikixServer runHeld: N or dropHeld: N), with a notification; your own
+# names for the lists go in ~/.config/vikix/door, the Lisp door's file.
+# The theme: vikix theme writes the Vikix theme as a class,
 # ~/.config/vikix/theme/cuis.st (VikixTheme's colours and the font), and
 # files it into the running image through the door; cuis reads it as it
 # starts. Cuis's own files (UserChanges, Logs, NewPackages, your
@@ -282,6 +290,8 @@ cmd_run() {
     # The same first line Swank asks for; the image reads the file at each
     # client, so a new secret needs no restart.
     door=(-d "VikixServer startOn: $port secret: '$HOME/.slime-secret'")
+    # The user's own names for the walker: the Lisp door's file, read at each check.
+    door+=(-d "VikixServer userNamesPath: $(st_string "${XDG_CONFIG_HOME:-$HOME/.config}/vikix/door")")
   fi
   # The theme as vikix theme wrote it, read at every start (an image built
   # before a theme change, or switched by hand in Cuis, follows the desktop
@@ -348,7 +358,7 @@ cmd_desktop() {
   running || die "Cuis isn't running: cuis, then vikix cuis desktop again (or VikixDesktop open in a Workspace there)"
   [ -s "$HOME/.slime-secret" ] || die "no ~/.slime-secret, so no door into the image (vikix update makes the secret); VikixDesktop open in a Workspace there"
   python3 "$VIKIX_DIR/bin/vikix-eval" --cuis 'VikixDesktop open' >/dev/null || die "the image didn't open it (an image built before VikixDesktop? close Cuis, then vikix cuis rebuild)"
-  say "the desktop is open in Cuis: a column a workspace, a box a window, read from StumpWM once a second"
+  say "the desktop is open in Cuis: a column a workspace, a box a window, read from StumpWM once a second; drag a box to another column to move its window, click one to focus it"
 }
 
 cmd_status() {

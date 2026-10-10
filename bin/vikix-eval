@@ -13,7 +13,8 @@
     vikix eval --cuis '3 + 4'                Smalltalk, in the running Cuis image instead
                                              (vikix add cuis; its door, VikixServer, on
                                              127.0.0.1:4005, VIKIX_CUIS_PORT): one expression,
-                                             "=> " and its printString, or "error: ..."
+                                             "=> " and its printString, or "error: ..."; an
+                                             agent's is walked first, --door makes anyone's so
 
 The forms are read in the STUMPWM package, so Vikix's and StumpWM's own
 names work without a prefix. For each form it prints what the form
@@ -53,12 +54,20 @@ after a restart or a reload; to keep one, put it in ~/.stumpwm.d/user.lisp.
 The Cuis door (--cuis; cuis/VikixServer.pck.st, loaded by vikix cuis setup)
 takes the same first line of ~/.slime-secret, then lines ending with a line
 of one dot (a line starting with a dot gets one more), and answers "ok" or
-"error", the lines of the answer the same way, and a dot. It has no walker
-yet, so an agent's expression is held (exit 3) for the user to run.
+"error", the lines of the answer the same way, and a dot. An agent's
+expression (or anyone's with --door) goes with a first line "door: WHO",
+and the image's walker (VikixWalker) parses it and checks every global it
+names and every message it sends against its lists before anything runs;
+one that runs a program, touches a file, evaluates text, reaches the
+system, defines code or waits is held in the image (VikixServer held; the
+user runs it there with VikixServer runHeld: N, or drops it), with a
+notification here and exit 3, as the Lisp door holds.
 """
 
 import os
+import shutil
 import socket
+import subprocess
 import sys
 
 HOST = "127.0.0.1"
@@ -228,11 +237,13 @@ def main():
     way = "either"          # the socket first, then Swank
     while args and args[0] in ("--door", "--whose", "--socket", "--swank", "--cuis"):
         if args[0] == "--cuis":
-            code = " ".join(args[1:]) if len(args) > 1 else sys.stdin.read()
+            rest = [a for a in args[1:] if a != "--door"]
+            door = door or "--door" in args[1:]
+            code = " ".join(rest) if rest else sys.stdin.read()
             if not code.strip():
                 print("vikix eval --cuis: no Smalltalk to run (try: vikix eval --cuis '3 + 4')", file=sys.stderr)
                 return 2
-            return through_cuis(code.rstrip("\n"))
+            return through_cuis(code.rstrip("\n"), door)
         if args[0] in ("--socket", "--swank"):
             way = args[0][2:]
             args = args[1:]
@@ -365,13 +376,16 @@ def dotted(text):
     return "".join(("." + line if line.startswith(".") else line) + "\n" for line in lines) + ".\n"
 
 
-def through_cuis(code):
-    """One Smalltalk expression to the Cuis image's door; the exit status."""
+def through_cuis(code, door=False):
+    """One Smalltalk expression to the Cuis image's door; the exit status.
+    An agent's (or anyone's with DOOR) goes with the door line, and the
+    image walks it first."""
     kind, who = whose()
+    if door and kind != "agent":
+        kind, who = whose(past_vikix=True)
     if kind == "agent":
-        print(f"vikix eval --cuis: the Cuis door checks nothing yet, so an agent's Smalltalk ({who})\n"
-              "isn't run: say what it is, and the user runs it as themselves.", file=sys.stderr)
-        return 3
+        door = True
+    sender = who if kind == "agent" else "a test"
     # The isolation line the tests draw (VIKIX_SWANK_PORT=9) holds for Cuis
     # too: a test that names no Cuis port of its own gets no door, rather
     # than the live image's (a theme refresh in a test once would have
@@ -401,7 +415,8 @@ def through_cuis(code):
               "(vikix update makes the secret)", file=sys.stderr)
         return 2
     try:
-        sock.sendall((secret + "\n").encode("utf-8") + dotted(code).encode("utf-8"))
+        request = (f"door: {sender}\n" if door else "") + code
+        sock.sendall((secret + "\n").encode("utf-8") + dotted(request).encode("utf-8"))
         reader = sock.makefile("rb")
         status = reader.readline().decode("utf-8", errors="replace").rstrip("\n")
         if not status:
@@ -426,8 +441,27 @@ def through_cuis(code):
     if status == "ok":
         print("=> " + text)
         return 0
+    if status == "held":
+        print(f"vikix eval --cuis: the door held it: {text}\n"
+              "Say what it was and why it was held; the user runs it in Cuis as themselves "
+              "(VikixServer held, then VikixServer runHeld: N) or drops it.", file=sys.stderr)
+        # The image can't run a program, so the word to the desktop goes from here.
+        if shutil.which("notify-send"):
+            try:
+                subprocess.run(["notify-send", "-a", "Vikix", "--", f"{sender} sent Smalltalk the door held",
+                                f"{one_line(code)}\n{one_line(text)}\nIn Cuis: VikixServer held, then runHeld: N or dropHeld: N."],
+                               timeout=5, check=False)
+            except (OSError, subprocess.SubprocessError):
+                pass
+        return 3
     print("error: " + text)
     return 1
+
+
+def one_line(text, most=200):
+    """TEXT on one line, cut at MOST characters."""
+    text = " ".join(text.split())
+    return text if len(text) <= most else text[:most - 1] + "…"
 
 
 def finish(status, printed):

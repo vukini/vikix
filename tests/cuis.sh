@@ -14,7 +14,7 @@
 #   -vm-display-null with --headless; status and doctor say what's there;
 #   uninstall removes the release, the command, the entry and the links, and
 #   keeps ~/cuis and the feature. vikix eval --cuis: nothing listening is
-#   exit 2, an agent's expression is held (exit 3).
+#   exit 2, for an agent's expression too (it goes with the door line).
 #
 #   vikix theme writes the theme as a class for Cuis (cuis.st: VikixTheme's
 #   colours, shout's syntax colours, the font's name); run gives the image
@@ -31,8 +31,22 @@
 #   starts in VikixTheme as written, follows vikix theme through the door
 #   (vikix-light, then vikix-dark), says so in status --json and the doctor;
 #   VikixDesktop, opened by vikix cuis desktop, reads a stand-in Swank
-#   (tests/lib/fake-swank.py) once a second, draws the workspaces and
-#   windows, follows a change, and says when nothing answers.
+#   (tests/lib/fake-swank.py) once a second, draws the bar's fields, the
+#   workspaces and windows, follows a change, and says when nothing
+#   answers; it acts: a box dropped on another column sends StumpWM's own
+#   move-window-to-group through VikixSwank and the move shows at the next
+#   poll, a click on a box focuses its window, a click on a column goes
+#   there, and the status line says what was done. The walker: an agent's
+#   expression (or anyone's with --door) runs when it only reads, is
+#   refused when it names OSProcess, a file class, Socket, Compiler,
+#   Smalltalk or thisContext, held when it defines, waits or sends what
+#   isn't on the lists, with exit 3 and a notification; an undeclared name
+#   or a syntax error is an error; the held ones are listed, run or
+#   dropped in the image; a name in ~/.config/vikix/door passes. vikix docs
+#   opens a class in a Browser in the image through the door. Then, with
+#   Xvfb, xdotool, alacritty and Vikix's StumpWM at hand, the move against
+#   a real StumpWM on a hidden screen: a window moved from the image is on
+#   the other workspace, and Super+2 shows it there.
 #   Without the release that part is skipped, and says so.
 
 set -euo pipefail
@@ -52,6 +66,7 @@ cleanup() {
   rm -rf "$t"
 }
 trap cleanup EXIT
+real_home=$HOME   # the user's own StumpWM and Quicklisp, for the hidden-screen part
 export HOME="$t/home" VIKIX_STATE="$t/home/.local/state/vikix"
 unset VIKIX_FONT_DIR
 mkdir -p "$HOME" "$t/bin" "$VIKIX_STATE"
@@ -196,6 +211,7 @@ check "run should draw (no -vm-display-null): $launch" test -z "$(grep -- '-vm-d
 cu run --headless -s quit.st > "$t/out" 2>&1 || { cat "$t/out"; echo "FAIL: run --headless should work"; fail=1; }
 launch=$(tail -n 1 "$calls")
 check "with the secret the door should open: $launch" grep -q -- "-d VikixServer startOn: 4005 secret: '$HOME/.slime-secret'" <<<"$launch"
+check "and the image get your names file for the walker: $launch" grep -q -- "-d VikixServer userNamesPath: '$HOME/.config/vikix/door'" <<<"$launch"
 check "--headless should draw nothing: $launch" grep -q -- '-vm-display-null' <<<"$launch"
 check "the script should be passed on: $launch" grep -q -- '-s quit.st' <<<"$launch"
 : > "$calls"
@@ -266,14 +282,15 @@ if VIKIX_CUIS_PORT=$port ev --cuis '3 + 4' > "$t/out" 2>&1; then echo "FAIL: not
 check "nothing listening should say so" grep -q "nothing is listening on 127.0.0.1:$port" "$t/out"
 if ev --cuis > "$t/out" 2>&1 < /dev/null; then echo "FAIL: no Smalltalk should be refused"; fail=1; fi
 check "no Smalltalk should say so" grep -q "no Smalltalk to run" "$t/out"
-# An agent above the shell: its expression is held, nothing is sent.
+# An agent above the shell: its expression goes with the door line, so with
+# nothing listening it is exit 2 like anyone's (the walker is the image's).
 mkdir -p "$t/proc/4242"
 printf 'claude\0--resume\0' > "$t/proc/4242/cmdline"
 echo "4242 (claude) S 1 4242 4242 0 -1" > "$t/proc/4242/stat"
 status=0
 VIKIX_PROC="$t/proc" VIKIX_EVAL_PARENT=4242 VIKIX_CUIS_PORT=$port python3 "$here/bin/vikix-eval" --cuis '3 + 4' > "$t/out" 2>&1 || status=$?
-check "an agent's Smalltalk should be held (exit 3, was $status)" test "$status" = 3
-check "an agent should be told why" grep -q "an agent's Smalltalk (claude 4242)" "$t/out"
+check "an agent's Smalltalk with nothing listening should be exit 2 (was $status)" test "$status" = 2
+agent_ev() { VIKIX_PROC="$t/proc" VIKIX_EVAL_PARENT=4242 python3 "$here/bin/vikix-eval" "$@"; }   # claude 4242 above the shell
 
 # --- uninstall: the release, the command and the entry go; ~/cuis stays -------------------
 echo "mine" > "$cuis/NewPackages/Mine.pck.st"
@@ -317,7 +334,7 @@ if [ -x "$real_base/CuisVM.app/Contents/Linux-x86_64/squeak" ] && [ -f "$real_ba
   DISPLAY='' VIKIX_CUIS_PORT=$port bash "$here/bin/vikix-theme" vikix-light > /dev/null 2>&1 || { echo "FAIL: vikix theme with no Cuis running should still work"; fail=1; }
   # A stand-in for StumpWM's Swank, for VikixDesktop.
   cat > "$t/desktop.json" <<'EOF'
-{"workspaces":[{"name":"main","number":1,"current":true,"kind":"tiles","strip":null,"windows":[{"number":0,"title":"Vikix — Firefox","class":"firefox","focused":true},{"number":1,"title":"~ : bash","class":"Alacritty","focused":false}]},{"name":"notes","number":2,"current":false,"kind":"strip","strip":{"columns":[]},"windows":[{"number":2,"title":"notes.org","class":"Emacs","focused":false}]}],"screens":[{"number":0,"x":0,"y":0,"width":1920,"height":1080}]}
+{"workspaces":[{"name":"main","number":1,"current":true,"kind":"tiles","strip":null,"windows":[{"number":0,"title":"Vikix — Firefox","class":"firefox","focused":true},{"number":1,"title":"~ : bash","class":"Alacritty","focused":false}]},{"name":"notes","number":2,"current":false,"kind":"strip","strip":{"columns":[]},"windows":[{"number":2,"title":"notes.org","class":"Emacs","focused":false}]}],"screens":[{"number":0,"x":0,"y":0,"width":1920,"height":1080}],"bar":[{"field":"battery","shows":"84%"},{"field":"clock","shows":"Fri 10 Oct 19:30"}]}
 EOF
   : > "$t/swank.log"
   python3 "$here/tests/lib/fake-swank.py" "$swank_port" the-real-secret "$t/desktop.json" "$t/swank.log" &
@@ -378,6 +395,7 @@ assert isinstance(st["windows"], list) and st["font"], st
   check "the windows should be drawn under their workspace, the focused one said: $summary" grep -q "window 0 firefox: Vikix — Firefox focused" <<<"$summary"
   check "a strip should be said: $summary" grep -q "workspace 2 notes strip" <<<"$summary"
   check "the window should say where it reads from: $summary" grep -q "StumpWM on 127.0.0.1:$swank_port, read every second" <<<"$summary"
+  check "the bar's fields should be along the top: $summary" grep -q "bar battery 84%  ·  clock Fri 10 Oct 19:30" <<<"$summary"
   check "status --json should list the desktop window" bash -c "cu() { bash '$here/bin/vikix-cuis' \"\$@\"; }; cu status --json | grep -q '\"class\": \"VikixDesktopWindow\"'"
   # The desktop changes: the morphs follow, kept by number (a halo on one stays).
   sed -i 's/"notes.org"/"todo.org"/; s/"focused":true/"focused":false/; s/"~ : bash","class":"Alacritty","focused":false/"~ : bash","class":"Alacritty","focused":true/' "$t/desktop.json"
@@ -393,10 +411,155 @@ EOF
   check "a workspace gone should be taken down: $(ev --cuis 'VikixDesktop summary' 2>&1)" test -z "$(grep 'workspace 2' <<<"$(ev --cuis 'VikixDesktop summary' 2>&1)" || true)"
   check "the image should have asked once a second, with the password: $(wc -l < "$t/swank.log")" test "$(wc -l < "$t/swank.log")" -ge 3
   check "every ask should be the one function, through vikix-eval-for-agent" test -z "$(grep -v 'vikix-eval-for-agent.*vikix-desktop-json' "$t/swank.log" || true)"
+
+  # The desktop acts, each through VikixSwank as the reads go, and shows at
+  # the next poll: a box dropped on another column moves the real window
+  # (the stand-in moves it in desktop.json as StumpWM would), a click on a
+  # box focuses its window, a click on a column goes there; the status line
+  # says what was done; a drop on the box's own column sends nothing.
+  python3 - "$t/desktop.json" <<'EOF'
+import json, sys
+d = json.load(open(sys.argv[1]))
+d["workspaces"].append({"name": "notes", "number": 2, "current": False, "kind": "tiles", "strip": None,
+                        "windows": [{"number": 2, "title": "notes.org", "class": "Emacs", "focused": False}]})
+json.dump(d, open(sys.argv[1], "w"))
+EOF
+  for _ in $(seq 1 40); do grep -q "workspace 2" <<<"$(ev --cuis 'VikixDesktop summary' 2>&1)" && break; sleep 0.25; done
+  ev --cuis '(VikixDesktop window workspaceNumbered: 2) acceptDroppingMorph: (VikixDesktop window windowNumbered: 1 on: 1) event: nil' > "$t/out" 2>&1 || { cat "$t/out"; echo "FAIL: a drop on a column should be taken"; fail=1; }
+  for _ in $(seq 1 40); do grep -q "moved window 1 to notes" <<<"$(ev --cuis 'VikixDesktop summary' 2>&1)" && break; sleep 0.25; done
+  summary=$(ev --cuis 'VikixDesktop summary' 2>&1)
+  check "the status line should say what was done: $summary" grep -q "moved window 1 to notes" <<<"$summary"
+  check "the moved window should show under the other workspace at the next poll, not before: $summary" python3 -c '
+import sys
+lines = sys.argv[1].splitlines()
+two = lines.index(next(l for l in lines if l.startswith("workspace 2")))
+assert any("window 1 Alacritty" in l for l in lines[two:]), "not under workspace 2"
+assert not any("window 1 Alacritty" in l for l in lines[:two]), "still under workspace 1"
+' "$summary"
+  check "the move should be StumpWM's own move-window-to-group, through vikix-eval-for-agent, naming both workspaces and the number" grep -q 'vikix-eval-for-agent.*main.*notes.*move-window-to-group' "$t/swank.log"
+  check "a move should wait for the poll: the swank log has a read of the desktop after the move" bash -c "grep -n 'move-window-to-group\|vikix-desktop-json' '$t/swank.log' | grep -A1 move-window | tail -1 | grep -q vikix-desktop-json"
+  ev --cuis '(VikixDesktop window windowNumbered: 2 on: 2) click: nil localPosition: nil' > /dev/null 2>&1 || { echo "FAIL: a click on a box should be taken"; fail=1; }
+  for _ in $(seq 1 40); do grep -q "window 2 Emacs: notes.org focused" <<<"$(ev --cuis 'VikixDesktop summary' 2>&1)" && break; sleep 0.25; done
+  summary=$(ev --cuis 'VikixDesktop summary' 2>&1)
+  check "a click on a box should give its window the focus, its workspace in view: $summary" bash -c "grep -q 'window 2 Emacs: notes.org focused' <<<\"\$1\" && grep -q 'workspace 2 notes here' <<<\"\$1\" && grep -q 'window 2 on notes has the focus' <<<\"\$1\"" _ "$summary"
+  check "the focus should be StumpWM's own focus-all" grep -q 'vikix-eval-for-agent.*switch-to-group g) (focus-all w)' "$t/swank.log"
+  ev --cuis '(VikixDesktop window workspaceNumbered: 1) click: nil localPosition: nil' > /dev/null 2>&1 || { echo "FAIL: a click on a column should be taken"; fail=1; }
+  for _ in $(seq 1 40); do grep -q "workspace 1 main here" <<<"$(ev --cuis 'VikixDesktop summary' 2>&1)" && break; sleep 0.25; done
+  summary=$(ev --cuis 'VikixDesktop summary' 2>&1)
+  check "a click on a column should go to that workspace: $summary" bash -c "grep -q 'workspace 1 main here' <<<\"\$1\" && grep -q 'on workspace main' <<<\"\$1\"" _ "$summary"
+  acts=$(grep -c 'move-window-to-group\|focus-all\|switch-to-group' "$t/swank.log")
+  ev --cuis '(VikixDesktop window workspaceNumbered: 1) acceptDroppingMorph: (VikixDesktop window windowNumbered: 0 on: 1) event: nil' > /dev/null 2>&1 || true
+  sleep 1
+  check "a drop on the box's own column should send nothing ($acts acts before, $(grep -c 'move-window-to-group\|focus-all\|switch-to-group' "$t/swank.log") after)" test "$(grep -c 'move-window-to-group\|focus-all\|switch-to-group' "$t/swank.log")" = "$acts"
+  check "the boxes should still be drawn as the desktop says after the drops: $(ev --cuis 'VikixDesktop summary' 2>&1)" grep -q 'window 0 firefox' <<<"$(ev --cuis 'VikixDesktop summary' 2>&1)"
+
+  # The walker: an agent's expression through the door. A read runs; what
+  # reaches a program, a file, a socket, the compiler or the system is
+  # refused; what defines, waits or isn't on the lists is held; each held one
+  # is exit 3 with a notification, kept in the image, listed, run or dropped
+  # there; an undeclared name or a syntax error is an error, not a hold.
+  mkdir -p "$t/nbin"
+  printf '#!/bin/sh\nprintf "%%s\\n" "$@" > %s/notified\n' "$t" > "$t/nbin/notify-send"; chmod +x "$t/nbin/notify-send"
+  export PATH="$t/nbin:$PATH"
+  status=0; agent_ev --cuis '3 + 4' > "$t/out" 2>&1 || status=$?
+  check "an agent's read should run (exit $status): $(cat "$t/out")" test "$status" = 0 -a "$(cat "$t/out")" = "=> 7"
+  status=0; agent_ev --cuis 'VikixDesktop summary' > "$t/out" 2>&1 || status=$?
+  check "an agent may read the desktop window (exit $status): $(head -c 100 "$t/out")" test "$status" = 0
+  rm -f "$t/notified"
+  status=0; agent_ev --cuis 'Smalltalk quit' > "$t/out" 2>&1 || status=$?
+  check "Smalltalk quit from an agent should be held (exit $status): $(cat "$t/out")" test "$status" = 3
+  check "and said why: $(cat "$t/out")" grep -q "it names Smalltalk, which reaches the system" "$t/out"
+  check "and not run: the image should live on" kill -0 "$vm_pid"
+  check "and the desktop told: $(cat "$t/notified" 2>/dev/null)" grep -q "claude 4242 sent Smalltalk the door held" "$t/notified"
+  walk() { local status=0; agent_ev --cuis "$1" > "$t/out" 2>&1 || status=$?; echo "$status $(head -1 "$t/out")"; }
+  check "OSProcess should be refused by name, though the image has no such class: $(walk "OSProcess command: 'ls'")" grep -q "^3 .*it names OSProcess, which runs a program" <<<"$(walk "OSProcess command: 'ls'")"
+  check "a file should be refused: $(walk "'/etc/passwd' asFileEntry fileContents")" grep -q "^3 .*which touches a file" <<<"$(walk "'/etc/passwd' asFileEntry fileContents")"
+  check "a file class too: $(walk "FileEntry withAbsolutePathName: '/x'")" grep -q "^3 .*it names FileEntry, which touches a file" <<<"$(walk "FileEntry withAbsolutePathName: '/x'")"
+  check "a socket should be refused: $(walk "Socket newTCP")" grep -q "^3 .*it names Socket, which reaches the system" <<<"$(walk "Socket newTCP")"
+  check "the compiler should be refused: $(walk "Compiler evaluate: '1'")" grep -q "^3 .*Compiler, which runs Smalltalk the door can't see" <<<"$(walk "Compiler evaluate: '1'")"
+  check "perform: should be refused: $(walk "3 perform: #quit")" grep -q "^3 .*it sends perform:, which runs Smalltalk" <<<"$(walk "3 perform: #quit")"
+  check "thisContext should be refused: $(walk "thisContext sender")" grep -q "^3 .*it names thisContext, which reaches the system" <<<"$(walk "thisContext sender")"
+  check "VikixSwank eval: should be refused (Lisp past the Lisp door): $(walk "VikixSwank eval: '(quit)'")" grep -q "^3 .*it sends eval:, which runs Smalltalk" <<<"$(walk "VikixSwank eval: '(quit)'")"
+  check "defining a class should be held: $(walk "Object subclass: #Foo instanceVariableNames: '' classVariableNames: '' poolDictionaries: '' category: 'x'")" grep -q "^3 .*which defines or changes code" <<<"$(walk "Object subclass: #Foo instanceVariableNames: '' classVariableNames: '' poolDictionaries: '' category: 'x'")"
+  check "compiling a method should be held: $(walk "Object compile: 'foo ^ 1'")" grep -q "^3 .*it sends compile:, which defines or changes code" <<<"$(walk "Object compile: 'foo ^ 1'")"
+  check "a wait should be held: $(walk "(Delay forSeconds: 1) wait")" grep -q "^3 .*which waits, holding the image" <<<"$(walk "(Delay forSeconds: 1) wait")"
+  check "setting a global should be held: $(walk "Transcript := 3")" grep -q "^3 .*it sets Transcript, which is a global" <<<"$(walk "Transcript := 3")"
+  check "a message off the lists should be held: $(walk "Object frobnicate")" grep -q "^3 .*it sends frobnicate, which isn't on the door's list" <<<"$(walk "Object frobnicate")"
+  check "an undeclared name should be an error, not a hold: $(walk "zork + 1")" grep -q "^1 error: nothing declares zork" <<<"$(walk "zork + 1")"
+  check "a syntax error should be an error: $(walk "3 +")" grep -q "^1 error: " <<<"$(walk "3 +")"
+  check "a temporary of its own may be set: $(walk "| a | a := 3. a * 2")" grep -q "^0 => 6" <<<"$(walk "| a | a := 3. a * 2")"
+  check "a block and a cascade are walked through: $(walk "Transcript show: 'x'; newLine. #(1 2) collect: [ :x | x * 2 ]")" grep -q "^0 => #(2 4)" <<<"$(walk "Transcript show: 'x'; newLine. #(1 2) collect: [ :x | x * 2 ]")"
+  check "the acts of VikixDesktop may be sent: $(walk "VikixDesktop window model switchTo: 'main'")" grep -q "^0 " <<<"$(walk "VikixDesktop window model switchTo: 'main'")"
+  held=$(ev --cuis 'VikixServer held' 2>&1)
+  check "the held ones should be listed, with who, when and why: $(head -3 <<<"$held")" bash -c "grep -q 'claude 4242  [0-9][0-9]:[0-9][0-9]' <<<\"\$1\" && grep -q 'Smalltalk quit' <<<\"\$1\" && grep -q 'it names Smalltalk, which reaches the system' <<<\"\$1\"" _ "$held"
+  check "the same text again should take the old one's place, and ten at most be kept: $(ev --cuis 'VikixServer heldCount' 2>&1)" test "$(ev --cuis 'VikixServer heldCount' 2>&1)" = "=> 10"
+  n=$(sed -n "s/^=> '\([0-9]*\)  claude 4242.*/\1/p" <<<"$held" | head -1)
+  check "state should count them for status --json: $(ev --cuis 'VikixServer state' 2>&1 | grep held)" grep -q "held	10" <<<"$(ev --cuis 'VikixServer state' 2>&1)"
+  check "status --json should say how many the door holds" bash -c "cu() { bash '$here/bin/vikix-cuis' \"\$@\"; }; cu status --json | grep -q '\"held\": \"10\"'"
+  walk "| a | a := 3. a frobnicate" > /dev/null
+  check "the door full should say so, and not keep the eleventh: $(head -1 "$t/out")" grep -q "holds ten expressions already" "$t/out"
+  check "dropping one should forget it ($n): $(ev --cuis "VikixServer dropHeld: $n" 2>&1)" test "$(ev --cuis 'VikixServer heldCount' 2>&1)" = "=> 9"
+  walk "(Delay forMilliseconds: 1) wait" > /dev/null   # room for one again: kept
+  wait_n=$(ev --cuis 'VikixServer held' 2>&1 | grep -B1 'forMilliseconds' | grep -o '[0-9]*  claude' | head -1 | cut -d' ' -f1 || true)
+  check "with room again the next one should be kept ($wait_n)" test -n "$wait_n" -a "$(ev --cuis 'VikixServer heldCount' 2>&1)" = "=> 10"
+  ran=$(ev --cuis "VikixServer runHeld: $wait_n" 2>&1)
+  check "running a held one as yourself should run it and forget it (held $wait_n): $ran" grep -q "=> 'a Delay" <<<"$ran"
+  check "and it should be gone" test "$(ev --cuis 'VikixServer heldCount' 2>&1)" = "=> 9"
+  check "running one that isn't there should say so" grep -q "holds no expression 999" <<<"$(ev --cuis 'VikixServer runHeld: 999' 2>&1)"
+  mkdir -p "$HOME/.config/vikix"; echo "frobnicate   # a name of my own" > "$HOME/.config/vikix/door"
+  ev --cuis "VikixServer userNamesPath: '$HOME/.config/vikix/door'" > /dev/null 2>&1
+  check "a name in your file should pass the walker (then fail as itself): $(walk "Object frobnicate")" grep -q "^1 error: MessageNotUnderstood" <<<"$(walk "Object frobnicate")"
+  check "anyone's expression with --door is walked too: $(ev --cuis --door 'Smalltalk quit' 2>&1 | head -1)" grep -q "the door held it" <<<"$(ev --cuis --door 'Smalltalk quit' 2>&1)"
+  check "the image should live on through all of it" kill -0 "$vm_pid"
+
+  # The docs adapter through the door: a class opened as a Browser in the image.
+  VIKIX_DOCS_SOURCES="" VIKIX_DIR="$here" VIKIX_DOCS_CUIS="$HOME/cuis" python3 "$here/bin/vikix-docs" index --quiet
+  VIKIX_DOCS_SOURCES="" VIKIX_DIR="$here" VIKIX_DOCS_CUIS="$HOME/cuis" python3 "$here/bin/vikix-docs" open "cuis:$here/cuis/VikixDesktop.pck.st#VikixSwank" > "$t/out" 2>&1 || { cat "$t/out"; echo "FAIL: vikix docs open of a class should work with the image running"; fail=1; }
+  check "a hit opened should be a Browser on the class in the image: $(ev --cuis 'VikixServer state' 2>&1 | grep window)" grep -q "window	BrowserWindow	.*VikixSwank" <<<"$(ev --cuis 'VikixServer state' 2>&1)"
   kill "$swank_pid" 2>/dev/null || true; wait "$swank_pid" 2>/dev/null || true; swank_pid=
   for _ in $(seq 1 40); do grep -q "nothing answers" <<<"$(ev --cuis 'VikixDesktop summary' 2>&1)" && break; sleep 0.25; done
   check "with Swank gone the window should say so and keep what it had: $(ev --cuis 'VikixDesktop summary' 2>&1)" grep -q "nothing answers on 127.0.0.1:$swank_port" <<<"$(ev --cuis 'VikixDesktop summary' 2>&1)"
   check "the image should have met no error (no debugger open): $(ev --cuis '(UISupervisor ui submorphs collect: [ :m | m class name ]) asArray' 2>&1)" test -z "$(grep -i 'debug' <<<"$(ev --cuis '(UISupervisor ui submorphs collect: [ :m | m class name ]) asArray' 2>&1)" || true)"
+
+  # The move against a real StumpWM on a hidden screen: the image's VikixSwank
+  # is pointed at it (the secret is the one the Cuis door reads), a window is
+  # moved from the image, and StumpWM has it on the other workspace, where
+  # Super+2 shows it. In a subshell: wm_setup ends it with a note when the
+  # tools aren't there, and its cleanup is its own.
+  (
+    export VIKIX_TEST_STUMPWM="${VIKIX_TEST_STUMPWM:-$real_home/.local/bin/stumpwm}"
+    # shellcheck source=lib/wm.sh
+    . "$here/tests/lib/wm.sh"
+    # shellcheck disable=SC2034  # wm_setup reads it
+    wm_ql="$real_home/quicklisp"
+    wm_setup cuis
+    # shellcheck disable=SC2154  # wm_setup sets home
+    echo "the-real-secret" > "$home/.slime-secret"
+    wm_start
+    win one; win two
+    ev --cuis "VikixSwank port: $port" > /dev/null 2>&1
+    for _ in $(seq 1 40); do grep -q "viritest: one" <<<"$(ev --cuis 'VikixDesktop summary' 2>&1)" && break; sleep 0.25; done
+    summary=$(ev --cuis 'VikixDesktop summary' 2>&1)
+    check "the image should read the real StumpWM: $summary" grep -q "viritest: one" <<<"$summary"
+    from=$(awk '/^workspace 1 /{print $3}' <<<"$summary"); to=$(awk '/^workspace 2 /{print $3}' <<<"$summary")
+    number=$(sed -n 's/^  window \([0-9]*\) viritest: one.*/\1/p' <<<"$summary" | head -1)
+    check "the workspaces and the window should be named ($from, $to, $number)" test -n "$from" -a -n "$to" -a -n "$number"
+    ev --cuis "VikixDesktop window model moveWindow: $number from: '$from' to: '$to'" > /dev/null 2>&1
+    for _ in $(seq 1 40); do grep -q "moved window $number to $to" <<<"$(ev --cuis 'VikixDesktop summary' 2>&1)" && break; sleep 0.25; done
+    where=$(ask "(princ (group-name (window-group (find \"one\" (screen-windows (current-screen)) :key (function window-title) :test (function equal)))))")
+    check "the real window should be on the other workspace: $where" test "$where" = "$to"
+    key super+2
+    check "Super+2 should show it there: $(ask '(princ (group-name (current-group)))')" test "$(ask "(princ (if (find \"one\" (group-windows (current-group)) :key (function window-title) :test (function equal)) 1 0))")" = 1
+    summary=$(ev --cuis 'VikixDesktop summary' 2>&1)
+    check "and the image should show it there at the next poll: $summary" python3 -c '
+import sys
+lines = sys.argv[1].splitlines()
+two = lines.index(next(l for l in lines if l.startswith("workspace 2")))
+assert any("viritest: one" in l for l in lines[two:]), "not under workspace 2"
+' "$summary"
+    wm_report cuis "the move against a real StumpWM on a hidden screen"
+    exit "$fail"
+  ) || fail=1
   ev --cuis 'Smalltalk quit' > /dev/null 2>&1 || true
   for _ in $(seq 1 50); do kill -0 "$vm_pid" 2>/dev/null || break; sleep 0.2; done
   check "Smalltalk quit through the door should end the image" bash -c "! kill -0 $vm_pid 2>/dev/null"

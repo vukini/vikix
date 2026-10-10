@@ -8,7 +8,10 @@
 # docs_read; tldr pages and the ArchWiki from stand-ins of wikiman's copies;
 # your own documents (own= in ~/.config/vikix/docs, a made-up book here) read
 # a section at a time, found and opened at the section, closed to agents
-# until a folder is opened to them.
+# until a folder is opened to them; the Cuis image's classes from the
+# package files (Vikix's in the checkout, a made-up one of yours), a row a
+# package and a row a class, opened in Emacs at the class while no image
+# answers (the Browser in the image is tests/cuis.sh's).
 # Man pages and Info manuals are the system's: left out here
 # (VIKIX_DOCS_SOURCES), but a man page is read and opened when there is man.
 set -euo pipefail
@@ -19,7 +22,7 @@ here=$(cd "$(dirname "$0")/.." && pwd)
 t=$(mktemp -d)
 trap 'rm -rf "$t"' EXIT
 export HOME="$t/home" XDG_CONFIG_HOME="$t/home/.config" XDG_DATA_HOME="$t/home/.local/share" XDG_CACHE_HOME="$t/home/.cache"
-export VIKIX_DOCS_SOURCES="" VIKIX_DIR="$here"
+export VIKIX_DOCS_SOURCES="" VIKIX_DIR="$here" VIKIX_DOCS_CUIS="$t/home/cuis"
 mkdir -p "$HOME/src/music/.git" "$HOME/src/music/docs" "$HOME/src/music-wt" "$HOME/dev/python" "$HOME/notes/vault/Books" "$t/bin"
 echo "gitdir: x" > "$HOME/src/music-wt/.git"
 printf '# Music sketchpad\n\nPatterns as Lisp, sent over a websocket to the DAW.\n' > "$HOME/src/music/DESIGN.md"
@@ -49,8 +52,46 @@ fail=0
 check() { "${@:2}" || { echo "FAIL: $1"; fail=1; }; }
 d() { python3 "$here/bin/vikix-docs" "$@"; }
 
+# A Cuis package of yours, in the chunk format vikix cuis rebuild reads.
+mkdir -p "$HOME/cuis/NewPackages"
+cat > "$HOME/cuis/NewPackages/Mine.pck.st" <<'ST'
+'From Cuis7.7 [latest update: #7977] on 10 October 2026 at 12:00:00 pm'!
+'Description A package of my own: one class that counts.'!
+!provides: 'Mine' 1 0!
+SystemOrganization addCategory: #'Mine'!
+
+!classDefinition: #Counter category: #'Mine'!
+Object subclass: #Counter
+	instanceVariableNames: 'count'
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'Mine'!
+
+!Counter commentStamp: '<historical>' prior: 0!
+Counts up, one at a time; it's mine. A bang inside: !! there.!
+
+!Counter methodsFor: 'counting' stamp: 'me 10/10/2026 12:00'!
+up
+	count := (count ifNil: [ 0 ]) + 1! !
+
+!Counter methodsFor: 'counting' stamp: 'me 10/10/2026 12:00'!
+up: aNumber by: aStep
+	count := count + (aNumber * aStep)! !
+
+!Counter methodsFor: 'accessing' stamp: 'me 10/10/2026 12:00'!
+count
+	^ count! !
+
+!Counter class methodsFor: 'instance creation' stamp: 'me 10/10/2026 12:00'!
+new
+	^ super new up! !
+
+!String methodsFor: '*Mine' stamp: 'me 10/10/2026 12:00'!
+, aCounter
+	^ self! !
+ST
 out=$(d index)
-check "the first index should read each source: $out" grep -qE 'Read .*vikix.*repo.*dev.*note' <<<"$out"
+check "the first index should read each source: $out" grep -qE 'Read .*vikix.*repo.*dev.*note.*cuis' <<<"$out"
 check "a second index should read nothing new" grep -q 'nothing new' <<<"$(d index)"
 check "the start of a word finds it" grep -q 'Music sketchpad' <<<"$(d find webso)"
 check "a worktree isn't a project" bash -c "! grep -q 'Worktree copy' <<<\"\$1\"" _ "$(d find websocket)"
@@ -67,6 +108,26 @@ check "punctuation alone finds nothing, without an error" test "$(d find '***')"
 id=$(d find ruff --json | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["id"])')
 check "read gives the text" grep -q 'uv, ruff' <<<"$(d read "$id")"
 
+# The Cuis image's classes: a row a package (whose it is), a row a class with
+# its comment and categories; read as text; opened in Emacs at the class
+# while no image answers (VIKIX_SWANK_PORT=9 and no Cuis port: the door
+# isn't tried), --other in Emacs outright.
+check "a class of Vikix's package is found, named for its package: $(d find VikixSwank | head -1)" grep -q '^cuis .*VikixSwank (VikixDesktop)' <<<"$(d find VikixSwank | head -1)"
+check "found by its comment's words" grep -q 'VikixSwank (VikixDesktop)' <<<"$(d find '"client of StumpWM"')"
+check "a package of yours is a row, said yours: $(d find 'counts' --source cuis)" grep -q "^cuis .*Mine (Cuis package, yours)" <<<"$(d find 'package of my own' --source cuis)"
+check "a class of yours, found by a category's selector" grep -q '^cuis .*Counter (Mine)' <<<"$(d find 'up:by:' --source cuis)"
+cls=$(d find Counter --source cuis --json | python3 -c 'import json,sys; print([h["id"] for h in json.load(sys.stdin) if h["id"].endswith("#Counter")][0])')
+text=$(d read "$cls")
+check "a class reads as its comment, bangs and quotes unescaped: $text" grep -q "it's mine. A bang inside: ! there." <<<"$text"
+check "then a line a category with its selectors, class-side ones marked: $text" bash -c "grep -q '^counting: up, up:by:$' <<<\"\$1\" && grep -q '^accessing: count$' <<<\"\$1\" && grep -q '^instance creation: new (class side)$' <<<\"\$1\"" _ "$text"
+check "a package reads as its description, classes and what it extends: $(d read "cuis:$HOME/cuis/NewPackages/Mine.pck.st")" bash -c "grep -q 'classes: Counter' <<<\"\$1\" && grep -q 'extends: String (,)' <<<\"\$1\"" _ "$(d read "cuis:$HOME/cuis/NewPackages/Mine.pck.st")"
+: > "$t/opened"; d open "$cls" 2> "$t/err"; sleep 0.3
+check "with no image answering, a class opens in Emacs at its definition, and says why: $(cat "$t/opened") $(cat "$t/err")" grep -q "emacsclient -c -n +6 $HOME/cuis/NewPackages/Mine.pck.st" "$t/opened"
+check "and says the image wasn't there: $(cat "$t/err")" grep -q "Cuis isn't running" "$t/err"
+: > "$t/opened"; d open "$cls" --other; sleep 0.3
+check "--other opens the package file in Emacs outright: $(cat "$t/opened")" grep -q "emacsclient -c -n +6 $HOME/cuis/NewPackages/Mine.pck.st" "$t/opened"
+check "docs_search's enum should offer cuis" grep -q '"cuis"' "$here/bin/vikix-mcp"
+
 # Changed, and gone.
 sleep 1; printf '# Python\n\nNow with mypy too.\n' > "$HOME/dev/python/README.md"
 out=$(d index)
@@ -75,6 +136,13 @@ check "and found by its new words" grep -q Python <<<"$(d find mypy)"
 rm "$HOME/src/music/docs/bridge.md"
 d index >/dev/null
 check "a file gone is gone" test "$(d find transport)" = "nothing found"
+sleep 1; sed -i 's/one class that counts/one class that tallies/' "$HOME/cuis/NewPackages/Mine.pck.st"
+out=$(d index)
+check "a changed package is read again, by itself: $out" grep -q 'Read 1 cuis' <<<"$out"
+check "and its rows made anew" grep -q 'Mine (Cuis package, yours)' <<<"$(d find tallies --source cuis)"
+rm "$HOME/cuis/NewPackages/Mine.pck.st"
+d index >/dev/null
+check "a package gone takes its classes with it" test "$(d find Counter --source cuis)" = "nothing found"
 
 # Opening: Markdown as a page styled like the guide; Ctrl+Enter (--other) in Emacs.
 d open "$id"; sleep 0.3

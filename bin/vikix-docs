@@ -30,13 +30,17 @@ What it covers, each with whose words they are: Vikix's guides (vikix);
 the README, DESIGN, TODO, CLAUDE and log files, plans/ and docs/ of your
 projects in ~/src (repo); the language guides in ~/dev (dev); your Org notes in
 ~/Dropbox/notes (note); your own documents, the folders you name (own,
-below); every man page (man) and Info manual (info) on the
-machine; the tldr pages (tldr: a command's worked examples, where a man
-page has its options) and the ArchWiki (arch), the English pages of each
-as wikiman keeps them in /usr/share/doc, when they're there; the READMEs
-and notes packages keep in /usr/share/doc (doc); and every package there
-is, installed or not (pkg). Vikix's guides rank first, then yours, then
-tldr with the man pages, then the rest of the system's.
+below); the classes of the Cuis Smalltalk image (cuis: a row a package and
+a row a class, its comment and its method categories, read from the
+package files, Vikix's in the checkout, yours in ~/cuis/NewPackages and
+Cuis's own in ~/cuis/Packages, when Cuis is installed); every man page
+(man) and Info manual (info) on the machine; the tldr pages (tldr: a
+command's worked examples, where a man page has its options) and the
+ArchWiki (arch), the English pages of each as wikiman keeps them in
+/usr/share/doc, when they're there; the READMEs and notes packages keep in
+/usr/share/doc (doc); and every package there is, installed or not (pkg).
+Vikix's guides rank first, then yours, then tldr with the man pages, then
+the rest of the system's.
 
 It reads again by itself what changed, when a search finds the catalogue
 more than a day old (a few seconds); vikix update reads the man pages and
@@ -44,8 +48,10 @@ manuals again. A man page, a tldr page or a Markdown file opens as a page
 in the docs browser, styled as the guide is (made by mandoc and pandoc,
 cached in ~/.cache/vikix/docs/); an ArchWiki page as the copy is; a package
 as a short page (installed or not, how to add it, its website); an Info
-manual and your notes in Emacs. Ctrl+Enter (or --other) opens the other
-way: Emacs, or a terminal; an ArchWiki page as it is today, on the web.
+manual and your notes in Emacs; a Cuis class in a Browser in the running
+image, through its door (vikix eval --cuis), or its package file in Emacs
+at the class when Cuis isn't running. Ctrl+Enter (or --other) opens the
+other way: Emacs, or a terminal; an ArchWiki page as it is today, on the web.
 
 Your own documents (own) are the folders named in ~/.config/vikix/docs,
 yours to make, a line each: own=~/books (every Markdown file under it), or
@@ -92,10 +98,11 @@ SRC = os.environ.get("VIKIX_DOCS_SRC") or os.path.join(HOME, "src")
 DEV = os.environ.get("VIKIX_DOCS_DEV") or os.path.join(HOME, "dev")
 STALE = 24 * 3600                       # a search reads again what changed, after a day
 BODY = 200_000                          # characters of a document indexed
-BOOST = {"vikix": 3.0, "own": 2.5, "repo": 2.0, "dev": 2.0, "note": 2.0, "tldr": 1.1, "man": 1.0, "info": 1.0, "arch": 0.95,
-         "pkgdoc": 0.9, "pkg": 0.8}
-BADGE = {"vikix": "vikix", "own": "yours", "repo": "repo", "dev": "dev", "note": "note", "man": "man", "info": "info",
-         "tldr": "tldr", "arch": "arch", "pkgdoc": "doc", "pkg": "pkg"}
+BOOST = {"vikix": 3.0, "own": 2.5, "repo": 2.0, "dev": 2.0, "note": 2.0, "cuis": 1.2, "tldr": 1.1, "man": 1.0, "info": 1.0,
+         "arch": 0.95, "pkgdoc": 0.9, "pkg": 0.8}
+BADGE = {"vikix": "vikix", "own": "yours", "repo": "repo", "dev": "dev", "note": "note", "cuis": "cuis", "man": "man",
+         "info": "info", "tldr": "tldr", "arch": "arch", "pkgdoc": "doc", "pkg": "pkg"}
+CUIS = os.environ.get("VIKIX_DOCS_CUIS") or os.path.join(HOME, "cuis")   # the user's Cuis folder (vikix cuis setup lays it out)
 PKGDOC = "/usr/share/doc"
 # wikiman's offline copies (its own download step puts them here; nothing
 # refreshes them by itself): the English pages of each.
@@ -368,6 +375,156 @@ def index_own(db, full):
     return changed
 
 
+# --- The Cuis image's classes, from the package files ------------------------------------------
+
+def files_cuis():
+    """The Cuis packages (.pck.st) to read: Vikix's in the checkout, the
+    user's in ~/cuis/NewPackages, Cuis's own in ~/cuis/Packages (a link into
+    the release); each with whose it is."""
+    seen = set()
+    for folder, whose, deep in ((os.path.join(vikix_dir(), "cuis"), "Vikix", False),
+                                (os.path.join(CUIS, "NewPackages"), "yours", False),
+                                (os.path.join(CUIS, "Packages"), "Cuis", True)):
+        pattern = os.path.join(folder, "**", "*.pck.st") if deep else os.path.join(folder, "*.pck.st")
+        for path in sorted(glob.glob(pattern, recursive=deep)):
+            real = os.path.realpath(path)
+            if real in seen or not os.path.isfile(path):
+                continue
+            seen.add(real)
+            yield path, whose
+
+
+def pck_selector(pattern):
+    """The selector of a method's first line: unary, binary or keyword."""
+    pattern = pattern.strip()
+    if re.match(r"^[A-Za-z_]\w*$", pattern):
+        return pattern
+    m = re.match(r"^([-+*/\\<>=~@%|&?,]+)\s", pattern)
+    if m:
+        return m.group(1)
+    return "".join(re.findall(r"[A-Za-z_]\w*:", pattern))
+
+
+def pck_parse(text):
+    """A package file as (description, classes): classes in the file's order,
+    each a dict with name, line, comment and categories (a category to its
+    selectors, class-side ones marked); what the file says of other classes
+    (extension methods) under the name 'extensions'. The chunk format: a !
+    inside a chunk is doubled, as a quote inside a string is."""
+    def unchunk(chunk):
+        return chunk.replace("!!", "!").strip()
+    m = re.search(r"^'Description ((?:[^']|'')*)'!", text, re.M)
+    description = m.group(1).replace("''", "'").strip() if m else ""
+    classes, by_name = [], {}
+    for m in re.finditer(r"^!classDefinition: #(\w+) ", text, re.M):
+        cls = {"name": m.group(1), "line": text.count("\n", 0, m.start()) + 1, "comment": "", "categories": {}}
+        classes.append(cls)
+        by_name[cls["name"]] = cls
+    for m in re.finditer(r"^!(\w+) commentStamp: [^!]*!\s*((?:[^!]|!!)*)!", text, re.M):
+        if m.group(1) in by_name:
+            by_name[m.group(1)]["comment"] = unchunk(m.group(2))
+    extensions = {}
+    for m in re.finditer(r"^!(\w+)( class)? methodsFor: '((?:[^']|'')*)'[^!\n]*!\s*([^\n]*)", text, re.M):
+        name, side, category, first = m.group(1), m.group(2), m.group(3).replace("''", "'"), m.group(4)
+        selector = pck_selector(first) + (" (class side)" if side else "")
+        if name in by_name:
+            by_name[name]["categories"].setdefault(category, []).append(selector)
+        else:
+            extensions.setdefault(name, []).append(selector)
+    return description, classes, extensions
+
+
+def cuis_rows(path, whose):
+    """The rows a package file makes: the package (id cuis:PATH), then a row
+    a class (id cuis:PATH#Class, path PATH#Class)."""
+    text = read_text(path)
+    pkg = os.path.basename(path)[:-len(".pck.st")]
+    description, classes, extensions = pck_parse(text)
+    said = f"{pkg} (Cuis package, {whose})" if whose != "Cuis" else f"{pkg} (Cuis package)"
+    body = description + "\n\nclasses: " + ", ".join(c["name"] for c in classes)
+    if extensions:
+        body += "\n\nextends: " + "; ".join(f"{name} ({', '.join(sels)})" for name, sels in extensions.items())
+    rows = [({"id": f"cuis:{path}", "source": "cuis", "kind": "package", "title": said, "path": path,
+              "excerpt": excerpt(description or body)}, body)]
+    for cls in classes:
+        cats = "\n".join(f"{cat}: {', '.join(sels)}" for cat, sels in cls["categories"].items())
+        body = (cls["comment"] or f"a class of {pkg}, with no comment") + "\n\n" + cats
+        rows.append(({"id": f"cuis:{path}#{cls['name']}", "source": "cuis", "kind": "class",
+                      "title": f"{cls['name']} ({pkg})", "path": f"{path}#{cls['name']}",
+                      "excerpt": excerpt(cls["comment"] or cats)}, body))
+    return rows
+
+
+def index_cuis(db, full):
+    """The Cuis packages, a file read again when it changed, its rows made anew."""
+    known = {}
+    for doc_id, mtime in db.execute("SELECT id, mtime FROM docs WHERE source = 'cuis'").fetchall():
+        known.setdefault(doc_id.split("#", 1)[0], mtime)
+    seen, changed = set(), 0
+    for path, whose in files_cuis():
+        try:
+            mtime = os.path.getmtime(path)
+        except OSError:
+            continue
+        doc_id = f"cuis:{path}"
+        seen.add(doc_id)
+        if not full and known.get(doc_id) == mtime:
+            continue
+        drop_rows(db, "cuis", doc_id)
+        for doc, body in cuis_rows(path, whose):
+            doc["mtime"] = mtime
+            put(db, doc, body)
+        changed += 1
+    for doc_id in set(known) - seen:
+        drop_rows(db, "cuis", doc_id)
+    return changed
+
+
+def drop_rows(db, source, doc_id):
+    """A document's row and its sections' (ID#...) gone."""
+    like = doc_id.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "#%"
+    for old in db.execute("SELECT id FROM docs WHERE source = ? AND (id = ? OR id LIKE ? ESCAPE '\\')",
+                          (source, doc_id, like)).fetchall():
+        drop(db, old[0])
+
+
+def cuis_text(doc):
+    """A Cuis class or package as text: the comment, then a line a category with its selectors."""
+    path, name = own_split(doc)
+    description, classes, extensions = pck_parse(read_text(path))
+    pkg = os.path.basename(path)[:-len(".pck.st")]
+    if not name:
+        lines = [f"{pkg}: a Cuis package", "", description, "", "classes: " + ", ".join(c["name"] for c in classes)]
+        if extensions:
+            lines += ["", "extends: " + "; ".join(f"{n} ({', '.join(s)})" for n, s in extensions.items())]
+        return "\n".join(lines)
+    cls = next((c for c in classes if c["name"] == name), None)
+    if not cls:
+        return f"{name} is no longer in {path}"
+    lines = [f"{name} ({pkg})", "", cls["comment"] or "(no comment)", ""]
+    lines += [f"{cat}: {', '.join(sels)}" for cat, sels in cls["categories"].items()]
+    return "\n".join(lines)
+
+
+def cuis_line(doc):
+    """The line of the class's definition in its package file, for Emacs."""
+    path, name = own_split(doc)
+    if name:
+        for cls in pck_parse(read_text(path))[1]:
+            if cls["name"] == name:
+                return cls["line"]
+    return 1
+
+
+def cuis_browse(name):
+    """A Browser on the class in the running image, through the door; False
+    when nothing answered (Cuis not running, no door)."""
+    r = subprocess.run(["python3", os.path.join(HERE, "bin", "vikix-eval"), "--cuis",
+                        f"BrowserWindow fullOnClass: (Smalltalk at: #{name}) selector: nil"],
+                       capture_output=True, text=True, timeout=40)
+    return r.returncode == 0
+
+
 def html_plain(text):
     """An HTML page's words, scripts and styles left out."""
     text = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", text)
@@ -616,6 +773,7 @@ def index(full=False, quiet=False):
         counts["dev"] = index_files(db, "dev", files_dev(), md_title, md_plain, full)
         counts["note"] = index_files(db, "note", files_note(), org_title, org_plain, full)
         counts["own"] = index_own(db, full)
+        counts["cuis"] = index_cuis(db, full)
         # VIKIX_DOCS_SOURCES limits what's read (the tests leave the system's out).
         only = os.environ.get("VIKIX_DOCS_SOURCES", "man info tldr arch pkg pkgdoc").split()
         if "man" in only:
@@ -736,6 +894,8 @@ def read(doc):
         return arch_plain(read_text(doc["path"]))
     if doc["source"] == "own":
         return own_text(doc)
+    if doc["source"] == "cuis":
+        return cuis_text(doc)
     return read_text(doc["path"])
 
 
@@ -987,6 +1147,20 @@ def open_doc(doc, other=False):
             docs_open([page])
         else:
             emacs([own_split(doc)[0]])
+    elif src == "cuis":
+        # A class in a Browser in the running image; a package, or a class
+        # with no image to show it, in Emacs at its definition.
+        path, name = own_split(doc)
+        if name and not other:
+            try:
+                if cuis_browse(name):
+                    return
+            except (OSError, subprocess.SubprocessError):
+                pass
+            print(f"Cuis isn't running with its door, so {name} opens in its package file instead "
+                  "(cuis starts the image; then open it again for a Browser there)", file=sys.stderr)
+        if not emacs([f"+{cuis_line(doc)}", path]):
+            docs_open([path])
     elif src == "note" or other:
         path = own_split(doc)[0] if src == "own" else doc["path"]
         if not emacs([path]):

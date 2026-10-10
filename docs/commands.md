@@ -360,14 +360,14 @@ Cuis Smalltalk as a Vikix program.
 - `vikix cuis setup` — Cuis 7.8 (the tag #BaseForCuis7.8 of Cuis-Smalltalk-Dev, 134 MB once, checksummed) into `~/.local/opt/cuis`; your image, `~/cuis/vikix.image`, built with no window from its base image, its core updates, Vikix's packages (VikixServer, the door; VikixTheme; VikixDesktop) and the Vikix font; the cuis command and the launcher's entry (vikix add cuis)
 - `vikix cuis rebuild` — a fresh image from the base and the packages, with your own packages in `~/cuis/NewPackages` loaded on top; refused while Cuis runs
 - `vikix cuis run [--headless] [--port N] [ARG...]` — what the cuis command runs: your image, with the door on 127.0.0.1:4005 (`VIKIX_CUIS_PORT`, or --port; 0 for none) when `~/.slime-secret` exists; --headless draws nothing, for a script (-s FILE.st, which must end in Smalltalk quit)
-- `vikix cuis desktop` — the desktop as objects, in the running image: a window of the workspaces and their windows, read from StumpWM once a second (VikixDesktop open, in a Workspace there); read-only, halos and inspectors work on the morphs
-- `vikix cuis status [--json]` — what is installed, built and running; --json adds what the running image shows (its theme, font, packages, windows), for vikix mcp's `cuis_state`
+- `vikix cuis desktop` — the desktop as objects, in the running image: a window with the bar's fields along the top, a column a workspace and a box a window, read from StumpWM once a second (VikixDesktop open, in a Workspace there); drag a box to another column and the real window moves there, click one and its window takes the focus, click a column's name and the desktop goes there; halos and inspectors work on the morphs
+- `vikix cuis status [--json]` — what is installed, built and running; --json adds what the running image shows (its theme, font, packages, windows, how many expressions its door holds), for vikix mcp's `cuis_state`
 - `vikix cuis doctor` — the VM runs, the release is at the pin, the image is built with Vikix's packages, the door answers and the theme is Vikix's (when Cuis runs)
 - `vikix cuis uninstall` — removes the release, the command and the entry; `~/cuis`, your image, packages and changes, stays
 
 Cuis Smalltalk as a Vikix program: a live image, pinned, built from packages, with a door for vikix eval and the agents.
 
-The door: vikix eval --cuis '3 + 4' prints 7. The image evaluates what it is sent in its own UI process, after the first line of `~/.slime-secret`, as Swank in StumpWM does (port 4004) and Nyxt (4006). An agent's expression isn't checked yet, so from an agent vikix eval --cuis is held for you to run. The theme: vikix theme writes the Vikix theme as a class, `~/.config/vikix/theme/cuis.st` (VikixTheme's colours and the font), and files it into the running image through the door; cuis reads it as it starts. Cuis's own files (UserChanges, Logs, NewPackages, your preferences) are in `~/cuis`: the image is started with -ud there, so nothing lands in the folder you started it from.
+The door: vikix eval --cuis '3 + 4' prints 7. The image evaluates what it is sent in its own UI process, after the first line of `~/.slime-secret`, as Swank in StumpWM does (port 4004) and Nyxt (4006). An agent's expression is walked first (VikixWalker, in the image): every global it names and every message it sends must be on the walker's lists, or it is held in the image for you (VikixServer held in a Workspace, then VikixServer runHeld: N or dropHeld: N), with a notification; your own names for the lists go in `~/.config/vikix/door`, the Lisp door's file. The theme: vikix theme writes the Vikix theme as a class, `~/.config/vikix/theme/cuis.st` (VikixTheme's colours and the font), and files it into the running image through the door; cuis reads it as it starts. Cuis's own files (UserChanges, Logs, NewPackages, your preferences) are in `~/cuis`: the image is started with -ud there, so nothing lands in the folder you started it from.
 
 ## vikix-day
 
@@ -426,9 +426,9 @@ Every document on the machine in one catalogue, found from one key.
 - `vikix docs list [--source S]` — how many from each source, a line each (source, count, tab between); with --source, its documents by title, as find --tsv prints them
 - `vikix docs get` — download the offline programming docs into `~/dev` (a few GB, slow; what plain vikix docs did before)
 
-What it covers, each with whose words they are: Vikix's guides (vikix); the README, DESIGN, TODO, CLAUDE and log files, plans/ and docs/ of your projects in `~/src` (repo); the language guides in `~/dev` (dev); your Org notes in `~/Dropbox/notes` (note); your own documents, the folders you name (own, below); every man page (man) and Info manual (info) on the machine; the tldr pages (tldr: a command's worked examples, where a man page has its options) and the ArchWiki (arch), the English pages of each as wikiman keeps them in /usr/share/doc, when they're there; the READMEs and notes packages keep in /usr/share/doc (doc); and every package there is, installed or not (pkg). Vikix's guides rank first, then yours, then tldr with the man pages, then the rest of the system's.
+What it covers, each with whose words they are: Vikix's guides (vikix); the README, DESIGN, TODO, CLAUDE and log files, plans/ and docs/ of your projects in `~/src` (repo); the language guides in `~/dev` (dev); your Org notes in `~/Dropbox/notes` (note); your own documents, the folders you name (own, below); the classes of the Cuis Smalltalk image (cuis: a row a package and a row a class, its comment and its method categories, read from the package files, Vikix's in the checkout, yours in `~/cuis/NewPackages` and Cuis's own in `~/cuis/Packages`, when Cuis is installed); every man page (man) and Info manual (info) on the machine; the tldr pages (tldr: a command's worked examples, where a man page has its options) and the ArchWiki (arch), the English pages of each as wikiman keeps them in /usr/share/doc, when they're there; the READMEs and notes packages keep in /usr/share/doc (doc); and every package there is, installed or not (pkg). Vikix's guides rank first, then yours, then tldr with the man pages, then the rest of the system's.
 
-It reads again by itself what changed, when a search finds the catalogue more than a day old (a few seconds); vikix update reads the man pages and manuals again. A man page, a tldr page or a Markdown file opens as a page in the docs browser, styled as the guide is (made by mandoc and pandoc, cached in `~/.cache/vikix/docs/`); an ArchWiki page as the copy is; a package as a short page (installed or not, how to add it, its website); an Info manual and your notes in Emacs. Ctrl+Enter (or --other) opens the other way: Emacs, or a terminal; an ArchWiki page as it is today, on the web.
+It reads again by itself what changed, when a search finds the catalogue more than a day old (a few seconds); vikix update reads the man pages and manuals again. A man page, a tldr page or a Markdown file opens as a page in the docs browser, styled as the guide is (made by mandoc and pandoc, cached in `~/.cache/vikix/docs/`); an ArchWiki page as the copy is; a package as a short page (installed or not, how to add it, its website); an Info manual and your notes in Emacs; a Cuis class in a Browser in the running image, through its door (vikix eval --cuis), or its package file in Emacs at the class when Cuis isn't running. Ctrl+Enter (or --other) opens the other way: Emacs, or a terminal; an ArchWiki page as it is today, on the web.
 
 Your own documents (own) are the folders named in `~/.config/vikix/docs`, yours to make, a line each: `own=~/books` (every Markdown file under it), or `own=~/books` `one/*.md` `two/out/*.html` (those files, as patterns from that folder; HTML pages only when asked for). Unlike the other sources they are read a section at a time (a Markdown heading, an HTML heading with an id or a data-at tag), so a search lands on the section, and so does a chapter a page of vikix what names. They open in the docs browser at that section, styled as the guide is, or in Emacs. They are closed to agents: `docs_search` and `docs_read` leave them out, unless a line `agents=~/books` opens that folder to them. The same file names the folders of your own pages for vikix what (what=FOLDER; vikix what help says what a page is).
 
@@ -514,7 +514,7 @@ Run Lisp inside the running StumpWM and print the result.
 - `vikix eval --door FORM` — check the forms as an agent's, whoever sends them
 - `vikix eval --socket FORM` — over Vikix's socket only (no Swank), or --swank over Swank only; alone it tries the socket first
 - `vikix eval --whose` — say whose a form from here would be: yours, or an agent's and which, and whether the door stands
-- `vikix eval --cuis '3 + 4'` — Smalltalk, in the running Cuis image instead (vikix add cuis; its door, VikixServer, on 127.0.0.1:4005, `VIKIX_CUIS_PORT`): one expression, "=> " and its printString, or "error: ..."
+- `vikix eval --cuis '3 + 4'` — Smalltalk, in the running Cuis image instead (vikix add cuis; its door, VikixServer, on 127.0.0.1:4005, `VIKIX_CUIS_PORT`): one expression, "=> " and its printString, or "error: ..."; an agent's is walked first, --door makes anyone's so
 
 The forms are read in the STUMPWM package, so Vikix's and StumpWM's own names work without a prefix. For each form it prints what the form printed, then "=> " and the value.
 
@@ -526,7 +526,7 @@ The door (config/stumpwm/vikix/door.lisp). When an agent is above this command i
 
 Changes made this way live in the running StumpWM only. They are gone after a restart or a reload; to keep one, put it in `~/.stumpwm.d/user.lisp`.
 
-The Cuis door (--cuis; cuis/VikixServer.pck.st, loaded by vikix cuis setup) takes the same first line of `~/.slime-secret`, then lines ending with a line of one dot (a line starting with a dot gets one more), and answers "ok" or "error", the lines of the answer the same way, and a dot. It has no walker yet, so an agent's expression is held (exit 3) for the user to run.
+The Cuis door (--cuis; cuis/VikixServer.pck.st, loaded by vikix cuis setup) takes the same first line of `~/.slime-secret`, then lines ending with a line of one dot (a line starting with a dot gets one more), and answers "ok" or "error", the lines of the answer the same way, and a dot. An agent's expression (or anyone's with --door) goes with a first line "door: WHO", and the image's walker (VikixWalker) parses it and checks every global it names and every message it sends against its lists before anything runs; one that runs a program, touches a file, evaluates text, reaches the system, defines code or waits is held in the image (VikixServer held; the user runs it there with VikixServer runHeld: N, or drops it), with a notification here and exit 3, as the Lisp door holds.
 
 ## vikix-features
 
@@ -795,14 +795,15 @@ small acts  notify, snapshot, set_theme, switch_workspace, focus_window,
 proposals   propose_file_changes (a plan shown in Esploro) and
             propose_rule (a rule shown under Super+m, Rules): checked
             whole, and only your choice there changes anything
-off unless  eval (Lisp in the window manager, through the door:
-switched on --allow-eval) and undo (your files back a snapshot:
+off unless  eval (Lisp in the window manager, through the door) and
+switched on  cuis_eval (Smalltalk in the Cuis image, through its own
+            walker: --allow-eval), and undo (your files back a snapshot:
             --allow-undo). These are a convenience, not a wall: an agent
             that can run commands can run vikix eval, or register the
-            server again, itself; the door stands on that road too.
+            server again, itself; the doors stand on that road too.
 ```
 
-Nothing an agent sends reaches Lisp or a shell except as a value checked against the desktop (a workspace that exists, a theme there is, a number), or, for `propose_rule`, as text the window manager reads without running and holds until you decide; eval's form is read the same way and walked by the door (door.lisp) first, and runs only when every function it calls is on the door's list, else it waits for you (Super+m, Door; vikix door). Every call, refused ones too, is logged in `~/.local/state/vikix/mcp.log` (600): the tool, whether it worked, its arguments (secrets taken out, long ones cut, with their length and a hash).
+Nothing an agent sends reaches Lisp or a shell except as a value checked against the desktop (a workspace that exists, a theme there is, a number), or, for `propose_rule`, as text the window manager reads without running and holds until you decide; eval's form is read the same way and walked by the door (door.lisp) first, and runs only when every function it calls is on the door's list, else it waits for you (Super+m, Door; vikix door); `cuis_eval's` expression the same way by the image's walker (VikixWalker), and waits there (VikixServer held) when it may not run. Every call, refused ones too, is logged in `~/.local/state/vikix/mcp.log` (600): the tool, whether it worked, its arguments (secrets taken out, long ones cut, with their length and a hash).
 
 ## vikix-memory
 

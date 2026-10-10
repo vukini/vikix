@@ -46,6 +46,12 @@ form = sys.argv[-1]
 t = os.environ["T"]
 open(t + "/forms", "a").write(form.replace("\n", " ") + "\n")
 open(t + "/args", "a").write(" ".join(sys.argv[1:-1]) + "\n")   # the flags: --door for the agent's own forms
+if "--cuis" in sys.argv:   # the Cuis door: as vikix eval --cuis answers, held being exit 3 with why
+    if "quit" in form:
+        print("vikix eval --cuis: the door held it: it sends quit, which reaches the system; held as 1 for the user", file=sys.stderr)
+        sys.exit(3)
+    print("=> 7")
+    sys.exit(0)
 # Whole, too, one file each, for compiling against the real StumpWM below.
 d = t + "/forms.d"
 os.makedirs(d, exist_ok=True)
@@ -172,6 +178,8 @@ list=$(names)
 check "the read-only tools should be there: $list" grep -q 'desktop keys commands why agents office handoff doctor history changes themes cuis_state version rules' <<<"$list"
 check "eval shouldn't be there by default: $list" test -z "$(grep -ow 'eval\|undo' <<<"$list" || true)"
 check "--allow-eval should add eval: $(names --allow-eval)" grep -qw eval <<<"$(names --allow-eval)"
+check "--allow-eval should add cuis_eval too: $(names --allow-eval)" grep -qw cuis_eval <<<"$(names --allow-eval)"
+check "cuis_eval should be off without --allow-eval: $(names)" bash -c "! grep -qw cuis_eval <<<\"\$(names)\""
 check "--allow-undo should add undo: $(names --allow-undo)" grep -qw undo <<<"$(names --allow-undo)"
 out=$(call eval '{"form":"(run-shell-command \"touch pwned\")"}')
 check "eval without --allow-eval should be refused: $out" grep -q '^ERROR: no tool' <<<"$out"
@@ -373,6 +381,15 @@ call desktop '{}' >/dev/null
 check "the server's own forms are Vikix's: not through the door ($(cat "$t/args"))" bash -c "! grep -q -- '--door' '$t/args'"
 out=$(call undo '{"snapshot":"x y"}' --allow-undo)
 check "undo with a bad id should be refused: $out" grep -q '^ERROR: snapshot' <<<"$out"
+# cuis_eval: the expression to vikix eval --cuis --door, the image's walker judging it; held is an error saying why.
+: > "$t/args"
+out=$(call cuis_eval '{"expression":"3 + 4"}' --allow-eval)
+check "cuis_eval should answer what the image printed: $out" grep -q '=> 7' <<<"$out"
+check "cuis_eval should go through the Cuis door as an agent's: $(cat "$t/args")" grep -qx -- '--cuis --door' "$t/args"
+out=$(call cuis_eval '{"expression":"Smalltalk quit"}' --allow-eval)
+check "an expression the walker held should be an error saying why: $out" grep -q '^ERROR: .*the door held it: it sends quit, which reaches the system' <<<"$out"
+out=$(call cuis_eval '{"expression":"  "}' --allow-eval)
+check "cuis_eval without an expression should be refused: $out" grep -q '^ERROR: expression' <<<"$out"
 
 # Malformed input: an error answer, and the server lives on (a ping after).
 alive() { rpc -- "$1" '{"jsonrpc":"2.0","id":99,"method":"ping"}' | tail -1 | field '["id"]'; }

@@ -1,7 +1,7 @@
 'From Cuis7.7 [latest update: #7977] on 10 October 2026 at 12:00:00 pm'!
 'Description The desktop as objects: StumpWM''s workspaces and windows drawn as morphs in Cuis.
 
-VikixDesktop open shows a window with a column a workspace and a box a window, as the desktop is now, asked of StumpWM once a second through its Swank door (127.0.0.1:4004, the same password as the Cuis door, ~/.slime-secret) with the Lisp function vikix-desktop-json, the one vikix mcp''s desktop tool reads. Read-only in this version: grab a morph, open its halo, inspect it (a VikixWindowMorph knows its window''s number, title, class and whether it has the focus); nothing is sent back to the desktop. Vikix''s part of Cuis: vikix cuis setup loads it (cuis/VikixDesktop.pck.st in the Vikix checkout).'!
+VikixDesktop open shows a window with the bar''s fields along the top, a column a workspace and a box a window, as the desktop is now, asked of StumpWM once a second through its Swank door (127.0.0.1:4004, the same password as the Cuis door, ~/.slime-secret) with the Lisp function vikix-desktop-json, the one vikix mcp''s desktop tool reads. The boxes act: drag one to another column and the real window moves there (StumpWM''s own move-window-to-group, sent through the same door), click one and its window takes the focus, click a column''s name and the desktop goes to that workspace. Nothing is guessed: what the window shows is what StumpWM answered at the last poll, so a move shows a moment after the drop. Halos and inspectors work on the morphs (a VikixWindowMorph knows its window''s number, title, class and whether it has the focus). Vikix''s part of Cuis: vikix cuis setup loads it (cuis/VikixDesktop.pck.st in the Vikix checkout).'!
 !provides: 'VikixDesktop' 1 0!
 !requires: 'JSON' 1 0 nil!
 !requires: 'Network-Kernel' 1 12 nil!
@@ -21,7 +21,7 @@ VikixSwank class
 
 !classDefinition: #VikixDesktop category: #'VikixDesktop'!
 Object subclass: #VikixDesktop
-	instanceVariableNames: 'latest error fetching'
+	instanceVariableNames: 'latest error fetching said saidAt'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'VikixDesktop'!
@@ -31,7 +31,7 @@ VikixDesktop class
 
 !classDefinition: #VikixDesktopWindow category: #'VikixDesktop'!
 SystemWindow subclass: #VikixDesktopWindow
-	instanceVariableNames: 'row status workspaces shown'
+	instanceVariableNames: 'row status workspaces shown bar'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'VikixDesktop'!
@@ -41,7 +41,7 @@ VikixDesktopWindow class
 
 !classDefinition: #VikixWorkspaceMorph category: #'VikixDesktop'!
 LinearLayoutMorph subclass: #VikixWorkspaceMorph
-	instanceVariableNames: 'number name current kind label windows'
+	instanceVariableNames: 'number name current kind label windows desktop'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'VikixDesktop'!
@@ -51,7 +51,7 @@ VikixWorkspaceMorph class
 
 !classDefinition: #VikixWindowMorph category: #'VikixDesktop'!
 ColoredBoxMorph subclass: #VikixWindowMorph
-	instanceVariableNames: 'number title windowClass focused'
+	instanceVariableNames: 'number title windowClass focused workspace'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'VikixDesktop'!
@@ -61,19 +61,19 @@ VikixWindowMorph class
 
 
 !VikixSwank commentStamp: '<historical>' prior: 0!
-A client of StumpWM's Swank, as vikix eval is: the password packet first, then one request evaluated by vikix-eval-for-agent in the window manager's main thread, and what it printed back. One connection a request. Port 4004 unless the launcher said another (VikixSwank port: N).!
+A client of StumpWM's Swank, as vikix eval is: the password packet first, then one request evaluated by vikix-eval-for-agent in the window manager's main thread, and what it printed back. One connection a request. Port 4004 unless the launcher said another (VikixSwank port: N). The reads (desktop) and the acts (moveWindow:from:to:, focusWindow:on:, switchTo:) go the same road; an act's form uses StumpWM's own functions and answers a word, moved, focused, switched, or why not.!
 
 !VikixDesktop commentStamp: '<historical>' prior: 0!
-The model of the desktop window: asks StumpWM for the desktop (vikix-desktop-json) in a process of its own, so Morphic never waits on the window manager, and keeps the last answer, or why there is none.!
+The model of the desktop window: asks StumpWM for the desktop (vikix-desktop-json) in a process of its own, so Morphic never waits on the window manager, and keeps the last answer, or why there is none. The acts (moveWindow:from:to:, focusWindow:on:, switchTo:) run the same way, one process each, say what StumpWM answered for a few seconds (said), and ask for the desktop again right after, so what shows is what StumpWM did.!
 
 !VikixDesktopWindow commentStamp: '<historical>' prior: 0!
-The window: a row of VikixWorkspaceMorphs, a line below saying where the desktop is read from, stepped each second to show the model's latest answer. Morphs are kept between answers (a workspace by its number, a window by its), so a halo opened on one stays.!
+The window: the bar's fields along the top, a row of VikixWorkspaceMorphs, a line below saying where the desktop is read from or what the last act did, stepped each second to show the model's latest answer. Morphs are kept between answers (a workspace by its number, a window by its), so a halo opened on one stays.!
 
 !VikixWorkspaceMorph commentStamp: '<historical>' prior: 0!
-One workspace: a column with its number and name on top and a VikixWindowMorph a window. Inspect me for the workspace's number, name, kind (tiles, strip, floating) and whether it is the one in view.!
+One workspace: a column with its number and name on top and a VikixWindowMorph a window. Inspect me for the workspace's number, name, kind (tiles, strip, floating) and whether it is the one in view. A VikixWindowMorph dropped on me moves its window here; a click on me goes to this workspace.!
 
 !VikixWindowMorph commentStamp: '<historical>' prior: 0!
-One window of the desktop: its number, class and title drawn in a box, framed when it has the focus. Inspect me for those.!
+One window of the desktop: its number, class and title drawn in a box, framed when it has the focus. Inspect me for those. Press and drag me to another column to move the window there; click me and the window takes the focus.!
 
 !VikixSwank class methodsFor: 'accessing' stamp: 'vikix 10/10/2026 12:00'!
 port
@@ -105,6 +105,30 @@ desktop
 	| printed |
 	printed := self eval: '(vikix-desktop-json)'.
 	^ Json readFrom: (self valueIn: printed) readStream! !
+
+!VikixSwank class methodsFor: 'acting' stamp: 'vikix 10/10/2026 18:00'!
+moveWindow: aNumber from: fromName to: toName
+	"The real window aNumber of the workspace fromName onto the workspace toName, through StumpWM's own move-window-to-group; moved, or why not."
+
+	^ self valueIn: (self eval: '(let* ((from (find-group (current-screen) ', (self lispString: fromName),
+		')) (to (find-group (current-screen) ', (self lispString: toName),
+		')) (w (and from (find ', aNumber printString, ' (group-windows from) :key (function window-number)))))',
+		' (cond ((null to) "no such workspace") ((null w) "no such window") (t (move-window-to-group w to) "moved")))')! !
+
+!VikixSwank class methodsFor: 'acting' stamp: 'vikix 10/10/2026 18:00'!
+focusWindow: aNumber on: workspaceName
+	"The focus onto the window aNumber of that workspace, the desktop going there; focused, or why not."
+
+	^ self valueIn: (self eval: '(let* ((g (find-group (current-screen) ', (self lispString: workspaceName),
+		')) (w (and g (find ', aNumber printString, ' (group-windows g) :key (function window-number)))))',
+		' (cond ((null g) "no such workspace") ((null w) "no such window") (t (switch-to-group g) (focus-all w) "focused")))')! !
+
+!VikixSwank class methodsFor: 'acting' stamp: 'vikix 10/10/2026 18:00'!
+switchTo: workspaceName
+	"The desktop onto that workspace; switched, or why not."
+
+	^ self valueIn: (self eval: '(let ((g (find-group (current-screen) ', (self lispString: workspaceName),
+		'))) (if g (progn (switch-to-group g) "switched") "no such workspace"))')! !
 
 !VikixSwank class methodsFor: 'text' stamp: 'vikix 10/10/2026 12:00'!
 lispString: aString
@@ -279,6 +303,57 @@ fetch
 		on: Error do: [ :ex | error := ex description ]]
 			ensure: [ fetching := false ]] forkNamed: 'VikixDesktop'! !
 
+!VikixDesktop methodsFor: 'acting' stamp: 'vikix 10/10/2026 18:00'!
+act: aBlock
+	"One act on the desktop, in a process of its own: aBlock answers what to say (StumpWM's word, or an error's words), said for a few seconds; then the desktop is asked again, so what shows is what StumpWM did, never a guess."
+
+	[[ self say: aBlock value ] on: Error do: [ :ex | self say: 'StumpWM: ', ex description ].
+	 self fetch ] forkNamed: 'VikixDesktop act'! !
+
+!VikixDesktop methodsFor: 'acting' stamp: 'vikix 10/10/2026 18:00'!
+moveWindow: aNumber from: fromName to: toName
+	"The real window onto another workspace: a box dropped on a column. The same column is nothing."
+
+	fromName = toName ifTrue: [ ^ self ].
+	self act: [ | answer |
+		answer := VikixSwank moveWindow: aNumber from: fromName to: toName.
+		answer = 'moved'
+			ifTrue: [ 'moved window ', aNumber printString, ' to ', toName ]
+			ifFalse: [ 'StumpWM: ', answer ]]! !
+
+!VikixDesktop methodsFor: 'acting' stamp: 'vikix 10/10/2026 18:00'!
+focusWindow: aNumber on: workspaceName
+	"The focus onto a window: a box clicked."
+
+	self act: [ | answer |
+		answer := VikixSwank focusWindow: aNumber on: workspaceName.
+		answer = 'focused'
+			ifTrue: [ 'window ', aNumber printString, ' on ', workspaceName, ' has the focus' ]
+			ifFalse: [ 'StumpWM: ', answer ]]! !
+
+!VikixDesktop methodsFor: 'acting' stamp: 'vikix 10/10/2026 18:00'!
+switchTo: workspaceName
+	"The desktop onto a workspace: a column clicked."
+
+	self act: [ | answer |
+		answer := VikixSwank switchTo: workspaceName.
+		answer = 'switched'
+			ifTrue: [ 'on workspace ', workspaceName ]
+			ifFalse: [ 'StumpWM: ', answer ]]! !
+
+!VikixDesktop methodsFor: 'acting' stamp: 'vikix 10/10/2026 18:00'!
+say: aString
+	"What the last act did, for the window's status line."
+
+	said := aString.
+	saidAt := Time millisecondClockValue! !
+
+!VikixDesktop methodsFor: 'accessing' stamp: 'vikix 10/10/2026 18:00'!
+said
+	"What the last act did, while it is recent (four seconds), or nil."
+
+	^ (said notNil and: [ Time millisecondClockValue - saidAt < 4000 ]) ifTrue: [ said ] ifFalse: [ nil ]! !
+
 !VikixDesktop methodsFor: 'accessing' stamp: 'vikix 10/10/2026 12:00'!
 latest
 	"The desktop as last answered (a Dictionary), or nil."
@@ -294,11 +369,13 @@ error
 !VikixDesktopWindow methodsFor: 'building' stamp: 'vikix 10/10/2026 12:00'!
 buildMorphicWindow
 
+	bar := LabelMorph contents: ''.
 	row := LinearLayoutMorph newRow.
 	row gap: 6; padding: 6; color: self windowColor; doAdoptWidgetsColor.
 	status := LabelMorph contents: 'asking StumpWM...'.
 	workspaces := Dictionary new.
 	self layoutMorph
+		addMorph: bar fixedHeight: 20;
 		addMorph: row proportionalHeight: 1;
 		addMorph: status fixedHeight: 20! !
 
@@ -320,14 +397,15 @@ step
 		desktop == shown ifFalse: [
 			self show: desktop.
 			shown := desktop ]].
-	status contents: (model error ifNil: [
-		'StumpWM on 127.0.0.1:', VikixSwank port printString, ', read every second' ])! !
+	status contents: (model said ifNil: [ model error ifNil: [
+		'StumpWM on 127.0.0.1:', VikixSwank port printString, ', read every second' ]])! !
 
 !VikixDesktopWindow methodsFor: 'stepping' stamp: 'vikix 10/10/2026 12:00'!
 show: aDictionary
 	"A column a workspace, by number: kept where it is, made when new, removed when gone; put in the desktop's order when that changed."
 
 	| seen order |
+	bar contents: (self barLine: (aDictionary at: 'bar' ifAbsent: [ #() ])).
 	seen := OrderedCollection new.
 	(aDictionary at: 'workspaces') do: [ :each | | number column |
 		number := each at: 'number'.
@@ -335,6 +413,7 @@ show: aDictionary
 		column := workspaces at: number ifAbsent: [ nil ].
 		column ifNil: [
 			column := VikixWorkspaceMorph newColumn.
+			column desktop: model.
 			workspaces at: number put: column ].
 		column update: each ].
 	(workspaces keys reject: [ :k | seen includes: k ]) do: [ :k |
@@ -345,13 +424,35 @@ show: aDictionary
 		row removeAllMorphs.
 		order reverseDo: [ :column | row addMorph: column proportionalWidth: 1 ]]! !
 
-!VikixDesktopWindow methodsFor: 'accessing' stamp: 'vikix 10/10/2026 12:00'!
-summary
-	"A line a morph: workspace NUMBER NAME [here] KIND, then its windows indented."
+!VikixDesktopWindow methodsFor: 'stepping' stamp: 'vikix 10/10/2026 18:00'!
+barLine: fields
+	"The bar's fields as one line: FIELD SHOWS, a dot between; nothing from a desktop that sends none."
 
 	^ String streamContents: [ :s |
+		fields
+			do: [ :each | s nextPutAll: (each at: 'field'); space; nextPutAll: (each at: 'shows') ]
+			separatedBy: [ s nextPutAll: '  ·  ' ]]! !
+
+!VikixDesktopWindow methodsFor: 'accessing' stamp: 'vikix 10/10/2026 12:00'!
+summary
+	"A line a morph: bar FIELD SHOWS ... when the bar shows anything, workspace NUMBER NAME [here] KIND, then its windows indented, and the status line last."
+
+	^ String streamContents: [ :s |
+		bar contents isEmpty ifFalse: [ s nextPutAll: 'bar '; nextPutAll: bar contents; newLine ].
 		row submorphs do: [ :column | column summaryOn: s ].
 		s nextPutAll: status contents ]! !
+
+!VikixDesktopWindow methodsFor: 'accessing' stamp: 'vikix 10/10/2026 18:00'!
+workspaceNumbered: aNumber
+	"The column of that workspace, or nil."
+
+	^ workspaces at: aNumber ifAbsent: [ nil ]! !
+
+!VikixDesktopWindow methodsFor: 'accessing' stamp: 'vikix 10/10/2026 18:00'!
+windowNumbered: aNumber on: workspaceNumber
+	"The box of that window on that workspace, or nil."
+
+	^ (self workspaceNumbered: workspaceNumber) ifNotNil: [ :column | column windowNumbered: aNumber ]! !
 
 !VikixWorkspaceMorph methodsFor: 'updating' stamp: 'vikix 10/10/2026 12:00'!
 update: aDictionary
@@ -378,6 +479,7 @@ update: aDictionary
 		box ifNil: [
 			box := VikixWindowMorph new.
 			windows at: n put: box ].
+		box workspace: self.
 		box update: each ].
 	(windows keys reject: [ :k | seen includes: k ]) do: [ :k |
 		(windows at: k) delete.
@@ -388,6 +490,65 @@ update: aDictionary
 		order reverseDo: [ :box | self addMorph: box fixedHeight: 24 ].
 		self removeMorph: label.
 		self addMorph: label fixedHeight: 20 ]! !
+
+!VikixWorkspaceMorph methodsFor: 'dropping' stamp: 'vikix 10/10/2026 18:00'!
+allowsMorphDrop
+	"A box may be dropped on me."
+
+	^ true! !
+
+!VikixWorkspaceMorph methodsFor: 'dropping' stamp: 'vikix 10/10/2026 18:00'!
+wantsDroppedMorph: aMorph event: anEvent
+	"A window's box, nothing else."
+
+	^ aMorph isKindOf: VikixWindowMorph! !
+
+!VikixWorkspaceMorph methodsFor: 'dropping' stamp: 'vikix 10/10/2026 18:00'!
+acceptDroppingMorph: aBox event: anEvent
+	"A box dropped on me: its real window goes to this workspace. The box goes back into the column it came from for now, and the next poll draws it where StumpWM put it."
+
+	aBox workspace ifNotNil: [ :from | from addMorph: aBox fixedHeight: 24 ].
+	aBox droppedOn: self! !
+
+!VikixWorkspaceMorph methodsFor: 'events' stamp: 'vikix 10/10/2026 18:00'!
+handlesMouseDown: aMouseButtonEvent
+
+	^ true! !
+
+!VikixWorkspaceMorph methodsFor: 'events' stamp: 'vikix 10/10/2026 18:00'!
+mouseButton1Down: aMouseButtonEvent localPosition: localEventPosition
+	"A click goes to this workspace; a drag of the column itself is nothing."
+
+	aMouseButtonEvent hand
+		waitForClicksOrDrag: self event: aMouseButtonEvent
+		dragSel: #dragEvent:localPosition: clkSel: #click:localPosition:! !
+
+!VikixWorkspaceMorph methodsFor: 'events' stamp: 'vikix 10/10/2026 18:00'!
+dragEvent: aMouseEvent localPosition: aPoint
+	"The column stays where it is."! !
+
+!VikixWorkspaceMorph methodsFor: 'events' stamp: 'vikix 10/10/2026 18:00'!
+click: aMouseButtonEvent localPosition: localEventPosition
+	"The desktop goes to this workspace."
+
+	desktop ifNotNil: [ :d | d switchTo: name ]! !
+
+!VikixWorkspaceMorph methodsFor: 'accessing' stamp: 'vikix 10/10/2026 18:00'!
+desktop
+	"The model, which the acts go through."
+
+	^ desktop! !
+
+!VikixWorkspaceMorph methodsFor: 'accessing' stamp: 'vikix 10/10/2026 18:00'!
+desktop: aVikixDesktop
+
+	desktop := aVikixDesktop! !
+
+!VikixWorkspaceMorph methodsFor: 'accessing' stamp: 'vikix 10/10/2026 18:00'!
+windowNumbered: aNumber
+	"The box of that window, or nil."
+
+	^ windows ifNotNil: [ :boxes | boxes at: aNumber ifAbsent: [ nil ]]! !
 
 !VikixWorkspaceMorph methodsFor: 'accessing' stamp: 'vikix 10/10/2026 12:00'!
 number
@@ -454,6 +615,43 @@ drawOn: aCanvas
 		color: Theme current text.
 	self hasFocus ifTrue: [
 		aCanvas frameRectangle: self localBounds color: Theme current focusIndicator borderWidth: 2 borderStyleSymbol: #simple ]! !
+
+!VikixWindowMorph methodsFor: 'events' stamp: 'vikix 10/10/2026 18:00'!
+handlesMouseDown: aMouseButtonEvent
+
+	^ true! !
+
+!VikixWindowMorph methodsFor: 'events' stamp: 'vikix 10/10/2026 18:00'!
+mouseButton1Down: aMouseButtonEvent localPosition: localEventPosition
+	"A click focuses the window; a drag takes the box to another column (Morph's own dragEvent:localPosition: puts it in the hand)."
+
+	aMouseButtonEvent hand
+		waitForClicksOrDrag: self event: aMouseButtonEvent
+		dragSel: #dragEvent:localPosition: clkSel: #click:localPosition:! !
+
+!VikixWindowMorph methodsFor: 'events' stamp: 'vikix 10/10/2026 18:00'!
+click: aMouseButtonEvent localPosition: localEventPosition
+	"The real window takes the focus."
+
+	workspace ifNotNil: [ :ws | ws desktop ifNotNil: [ :d | d focusWindow: number on: ws name ]]! !
+
+!VikixWindowMorph methodsFor: 'events' stamp: 'vikix 10/10/2026 18:00'!
+droppedOn: aColumn
+	"Dropped on a column: the real window goes to that workspace, from the one this box was drawn under at the last poll."
+
+	workspace ifNotNil: [ :from |
+		aColumn desktop ifNotNil: [ :d | d moveWindow: number from: from name to: aColumn name ]]! !
+
+!VikixWindowMorph methodsFor: 'accessing' stamp: 'vikix 10/10/2026 18:00'!
+workspace
+	"The column this box was drawn under at the last poll."
+
+	^ workspace! !
+
+!VikixWindowMorph methodsFor: 'accessing' stamp: 'vikix 10/10/2026 18:00'!
+workspace: aVikixWorkspaceMorph
+
+	workspace := aVikixWorkspaceMorph! !
 
 !VikixWindowMorph methodsFor: 'accessing' stamp: 'vikix 10/10/2026 12:00'!
 line
