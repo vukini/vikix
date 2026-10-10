@@ -135,16 +135,31 @@ def status_told(folder, before, rec, by):
     subprocess.run(["notify-send", "-a", "Vikix", f"Agent at {short(folder)}: {said}", body or f"by {by}"], check=False)
 
 
+def base_of(folder):
+    """Where the desk's branch left the project's own: (merge base, the
+    project's own folder, its branch). What the hand-in's changes and the
+    tester's --changed are counted from."""
+    top = (git(folder, "rev-parse", "--show-toplevel") or "").strip()
+    own = own_folder(top) if top else ""
+    own_branch = (git(own, "rev-parse", "--abbrev-ref", "HEAD") or "").strip() if own else ""
+    base = (git(folder, "merge-base", "HEAD", own_branch) or "").strip() if own_branch and own_branch != "HEAD" else ""
+    return base, own, own_branch
+
+
 def handoff_apply(folder, data, by):
     """DATA (the fields --from takes) applied to the desk's record, signed
-    BY, the user told of a status worth telling; raises HandoffError."""
+    BY, the user told of a status worth telling; what changed against the
+    base and the commits read from git into it (set_changes), signed vikix;
+    raises HandoffError."""
     H = handoff_module()
     common = common_of(folder)
     seen = {}
+    base = base_of(folder)[0] if common else ""
 
     def change(rec):
         seen["before"] = ((rec.get("handoff") or {}).get("status") or {}).get("value")
         H.from_json(rec, data, by, folder)
+        H.set_changes(rec, folder, base)
     rec = H.update(common, folder, change, branch=(git(folder, "rev-parse", "--abbrev-ref", "HEAD") or "").strip(),
                    project=project_of(folder, common))
     status_told(folder, seen.get("before"), rec, by)
@@ -198,7 +213,7 @@ def stop_reason(got, me):
     h = rec.get("handoff") or {}
     if not rec.get("task") and h.get("status"):
         return None
-    last = max([v.get("at", 0) for v in h.values() if isinstance(v, dict)] or [0])
+    last = H.handoff_written_at(rec)
     edited = {e.get("file") for e in journal_read()
               if e.get("pid") == me["pid"] and e.get("kind") in ("edit", "crossing", "shell") and e.get("at", 0) > last}
     if not edited:
@@ -322,6 +337,11 @@ def handoff(argv):
             as_json = True
         elif a == "--desk":
             desk = argv.pop(0).split() if argv else die("--desk which? (vikix agents handoff list)")
+        elif a in SETTINGS_MANY:
+            opts.setdefault(a, []).append(argv.pop(0) if argv else die(f"{a} needs words"))
+        elif a in SETTINGS_NUMBER:
+            n = argv.pop(0) if argv else die(f"{a} N: the number of the item, counted from 1")
+            opts[a] = int(n) if n.isdigit() else die(f"{a} N: the number of the item, counted from 1, not '{n}'")
         elif a in SETTINGS or a == "--note":
             opts[a] = argv.pop(0) if argv else die(f"{a} needs words")
         elif a in ("--ok", "--failed"):
@@ -381,20 +401,23 @@ def handoff(argv):
                 data = json.loads(text or "{}")
             except (OSError, ValueError) as e:
                 die(f"--from {src}: {e}")
-        for k in ("--task", "--status", "--summary", "--next", "--estimate"):
-            if k in opts:
-                data[k[2:]] = opts[k]
+        for k in SETTINGS:
+            if k in opts and k != "--from":
+                data[k[2:].replace("-", "_")] = opts[k]
         if not data:
             die("nothing to set: --task, --status (working|waiting|review|finished), --summary, --next, "
-                "--estimate, or --from")
+                "--estimate, --acceptance, --done N, --defect, --defect-done N, --review, --review-done N, "
+                "--decided, or --from")
         try:
             rec = handoff_apply(folder, data, by)
         except H.HandoffError as e:
             die(str(e))
         s = (rec.get("handoff") or {}).get("status")
         est = H.estimate_state(rec) if "estimate" in data else None
+        d, n = H.acceptance_count(rec.get("handoff") or {})
         print(f"{short(folder)}: handoff updated by {by}" + (f", status {s['value']}" if s else "")
-              + (f", estimate {H.span(est['minutes'])} from now" if est else ""))
+              + (f", estimate {H.span(est['minutes'])} from now" if est else "")
+              + (f", acceptance {d} of {n} done" if n and ("acceptance" in data or "done" in data) else ""))
         return 0
     if verb == "check":
         if not words or "ok" not in opts:
@@ -576,13 +599,135 @@ def resume(argv):
         print("Notes waiting for its agent (vikix agents tell), read out here since a resumed agent's hook delivers them too:")
         for n in notes:
             print(f"  {n['by']} ({H.when(n['at'])}): {n['text']}")
-    start = agent_start(provider if provider != default_agent() or plan["args"] else None, plan["args"], mode=mode)
+    # A fresh conversation asked for at a desk with a task (a handover): the task, the
+    # handoff and the hand-in's fields are its first prompt, so nothing of the record is
+    # left for it to find; a resumed conversation has them already.
+    first = ()
+    task = ((rec or {}).get("task") or {}).get("text", "")
+    if fresh and task:
+        first = H.first_prompt_args(provider, desk_prompt(task, rec)) or ()
+        print("the task and the handoff are its first prompt" if first else
+              f"the task and the handoff are in the record ({provider} takes no first prompt)")
+    start = agent_start(provider if provider != default_agent() or plan["args"] or first else None,
+                        list(plan["args"]) + list(first), mode=mode)
     if here:
         open_here(folder, start)
     workspace = open_at(folder, start, desk_name(folder))
     if workspace:
         print(f"on workspace {workspace}")
     return 0
+
+
+# --- Handing a desk over: from one provider to the next, the record between them -----------------
+HANDOVER_WAIT = int(os.environ.get("VIKIX_HANDOVER_WAIT") or 120)   # seconds waited for the handoff, at most
+
+
+def mid_turn(agents):
+    """Of AGENTS (live_agents' dicts), the ones the journal says are
+    working now: an edit, a command or a turn begun within the last
+    minute and no stop since (journal_states), as (agent, what it is
+    doing) each."""
+    rows = journal_states([dict(a, state="running", doing="") for a in agents])
+    return [(a, a["doing"]) for a in rows if a["state"] == "working"]
+
+
+def handover(argv):
+    """vikix agents handover DESK --to NAME [--mode MODE] [--now] [--here]:
+    the desk passed from the agent at it to a fresh one of PROVIDER, the
+    record between them. Refused while the desk's agent is mid-turn unless
+    --now; its handoff asked for in a note and waited for (two minutes at
+    most, until the record's handoff moves; not for an agent at its prompt,
+    which reads no note); the agent dismissed; then resume --use PROVIDER
+    --fresh, whose first prompt is the task, the handoff and the hand-in's
+    fields. Both sessions stay in the record."""
+    H = handoff_module()
+    to, mode, now, here, words = None, None, False, False, []
+    while argv:
+        a = argv.pop(0)
+        if a == "--to":
+            to = argv.pop(0) if argv else die(f"--to which provider? {', '.join(H.PROVIDERS)}")
+        elif a == "--mode":
+            mode = argv.pop(0) if argv else die(f"--mode which? {', '.join(MODES)}")
+        elif a == "--now":
+            now = True
+        elif a == "--here":
+            here = True
+        elif a.startswith("-"):
+            die(f"vikix agents handover: {a}? (vikix agents help)")
+        else:
+            words.append(a)
+    if not words or not to:
+        die("vikix agents handover DESK --to NAME [--mode MODE] [--now] (DESK as for close; the provider: "
+            f"{', '.join(p for p in H.PROVIDERS if p != 'other')})")
+    if to not in H.PROVIDERS or to == "other":
+        die(f"--to {to}? the providers: {', '.join(p for p in H.PROVIDERS if p != 'other')} (vikix agent --list)")
+    mode_check(to, mode)
+    by, me = by_me()
+    folder, rec = desk_for(words, me)
+    if not os.path.isdir(folder):
+        die(f"{short(folder)} is gone: nothing to hand over (vikix agents desk makes the worktree again)")
+    if not rec or not rec.get("task"):
+        die(f"{short(folder)} has no task in its record: nothing to hand over "
+            f"(vikix agents worker {desk_name(folder)} \"...\" --use {to} starts a worker there)")
+    there = agents_at(folder)
+    if me and any(a["pid"] == me["pid"] for a in there):
+        die("that is your own desk: an agent doesn't hand itself over (write your handoff and end your turn; "
+            "the user runs handover)")
+    busy = mid_turn(there)
+    if busy and not now:
+        die(", ".join(f"{who(a)} is {doing}" for a, doing in busy) + ": wait for its prompt, or --now hands over "
+            "mid-turn (its handoff is asked for all the same)")
+    from_ = ", ".join(sorted({a["agent"] for a in there})) or (
+        rec["sessions"][-1]["provider"] if rec.get("sessions") else "nobody")
+    if there:
+        try:
+            inbox_add(folder, f"handing over to {to}: write your handoff now (vikix agents handoff --status ... "
+                      "--summary \"what you changed and decided\" --next \"what is left\", --decided and --defect "
+                      "for the rest), then stop", by)
+        except H.HandoffError:
+            pass
+        was = H.handoff_written_at(rec)
+        # An agent at its prompt makes no tool call until spoken to, so the note waits
+        # there unread: nothing to wait for. One with no hook never reads it either.
+        reads = [a for a in there if a["agent"] in NOTE_HOOKS]
+        states = {r["pid"]: r["state"] for r in journal_states([dict(a, state="running", doing="") for a in reads])}
+        waiting = [a for a in reads if states.get(a["pid"]) != "idle"]
+        if waiting and not now:
+            print(f"asked {', '.join(who(a) for a in waiting)} for its handoff; waiting up to {HANDOVER_WAIT} s "
+                  "for the record to move")
+            end = time.time() + HANDOVER_WAIT
+            while time.time() < end:
+                time.sleep(min(2, max(0.2, end - time.time())))
+                latest = H.load(H.desk_id(common_of(folder), folder)) or {}
+                if H.handoff_written_at(latest) > was:
+                    print("its handoff moved")
+                    break
+                if all(process_gone(a["pid"]) for a in there):
+                    print("it has gone")
+                    break
+            else:
+                print("no handoff came: what the record has is what the next agent gets")
+        else:
+            print(("handing over now" if now else f"{', '.join(who(a) for a in there)} is at its prompt, or has no hook "
+                   "that carries a note") + ": what the record has is what the next agent gets")
+        dismiss([folder])
+        # Asked of the kernel, not of /proc (the tests' made-up one outlives its stand-ins).
+        for _ in range(25):
+            if all(process_gone(a["pid"]) for a in there):
+                break
+            time.sleep(0.2)
+        left = [a for a in there if not process_gone(a["pid"])]
+        if left:
+            die(f"{', '.join(who(a) for a in left)} is still at the desk after the dismissal: hand over once it has gone")
+
+    base = base_of(folder)[0]
+
+    def change(r):
+        H._log(r, by, f"handed over: {from_} -> {to}")
+        H.set_changes(r, folder, base)      # what the next agent is told it inherits, as git has it now
+    desk_record(folder, by=by, change=change)
+    print(f"{short(folder)}: handed over, {from_} -> {to}")
+    return resume([folder, "--use", to, "--fresh"] + (["--mode", mode] if mode else []) + (["--here"] if here else []))
 
 
 def handoff_brief(folder):

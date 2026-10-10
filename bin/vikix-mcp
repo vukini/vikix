@@ -439,6 +439,10 @@ def t_handoff(a):
             for k, field in v.items():
                 if isinstance(field, dict) and "text" in field:
                     field["text"] = scrub(field["text"])
+                # The hand-in's lists: the acceptance criteria, the defects, the findings, the decisions.
+                for item in (field.get("items", []) if isinstance(field, dict) else field) if isinstance(field, (dict, list)) else []:
+                    if isinstance(item, dict) and "text" in item:
+                        item["text"] = scrub(item["text"])
     text = json.dumps(out, indent=1, ensure_ascii=False)
     return text[:30000] + (" [cut short]" if len(text) > 30000 else "")
 
@@ -449,17 +453,20 @@ def t_handoff_update(a):
     agents = office()
     H = agents.handoff_module()
     folder, _ = handoff_desk(a, agents)
-    data = {k: a[k] for k in ("task", "status", "summary", "next", "estimate", "check", "session") if k in a}
+    data = {k: a[k] for k in ("task", "status", "summary", "next", "estimate", "check", "session", "acceptance", "done",
+                              "defect", "defect_done", "review", "review_done", "decided") if k in a}
     if not data:
-        raise ToolError("nothing to set: task, status, summary, next, estimate, check or session")
+        raise ToolError("nothing to set: task, status, summary, next, estimate, check, session, acceptance, done, "
+                        "defect, defect_done, review, review_done or decided")
     by, _ = agents.by_me()
     try:
         rec = agents.handoff_apply(folder, data, by)     # the user told of a status worth telling
     except H.HandoffError as e:
         raise ToolError(str(e))
     status = (rec.get("handoff") or {}).get("status")
+    d, n = H.acceptance_count(rec.get("handoff") or {})
     return (f"handoff of {H.short(folder)} updated by {by}" + (f": status {status['value']}" if status else "")
-            + f"; {', '.join(sorted(data))} set")
+            + f"; {', '.join(sorted(data))} set" + (f"; acceptance {d} of {n} done" if n else ""))
 
 
 def t_run_command(a):
@@ -932,7 +939,12 @@ TOOLS = [
      "action; task: the user's task, in their "
      "words, only when they gave it to you; check: {name, ok, note} for a check you ran, which Vikix stamps with "
      "the commit and whether the tree was dirty; session: {provider, id} for a conversation that can be resumed "
-     "here. No transcript, no credential: both are refused. Signed with your name.",
+     "here. The hand-in's fields: acceptance, the criteria the work is judged by (a list of lines; the user's, "
+     "set when they give them to you, replacing the list whole), done: the number of a criterion you met "
+     "(counted from 1); defect: a known defect or limit, defect_done: the number of one closed; review: a "
+     "finding (\"FILE:LINE the words\" keeps where), review_done: one addressed; decided: a choice made, a line, "
+     "so the next worker doesn't reopen it. What changed and the commits are read from git at every write, "
+     "never typed. No transcript, no credential: both are refused. Signed with your name.",
      schema({"desk": {"type": "string", "description": "a desk (empty: yours)"},
              "task": {"type": "string"}, "status": {"type": "string", "enum": ["working", "waiting", "review", "finished"]},
              "summary": {"type": "string"}, "next": {"type": "string"},
@@ -941,7 +953,13 @@ TOOLS = [
              "check": {"type": "object", "properties": {"name": {"type": "string"}, "ok": {"type": "boolean"},
                                                         "note": {"type": "string"}}, "required": ["name", "ok"]},
              "session": {"type": "object", "properties": {"provider": {"type": "string"}, "id": {"type": "string"}},
-                         "required": ["provider", "id"]}}),
+                         "required": ["provider", "id"]},
+             "acceptance": {"type": "array", "items": {"type": "string", "maxLength": 1000}, "maxItems": 50,
+                            "description": "the criteria, a line each, the list whole"},
+             "done": {"type": "integer", "minimum": 1, "description": "the criterion met, counted from 1"},
+             "defect": {"type": "string", "maxLength": 1000}, "defect_done": {"type": "integer", "minimum": 1},
+             "review": {"type": "string", "maxLength": 1000}, "review_done": {"type": "integer", "minimum": 1},
+             "decided": {"type": "string", "maxLength": 1000}}),
      ACT, t_handoff_update),
     ("snapshot", "Take a snapshot", "Record the user's files as they are now (vikix snapshot), before changing them.",
      schema({"message": {"type": "string", "maxLength": 100}}), ONCE, t_snapshot),

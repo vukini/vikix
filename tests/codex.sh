@@ -44,7 +44,20 @@
 #   the handoff's page says what holds the rules for a Codex; the hooks
 #   file is in Codex's shape; the store: a thread in session_index.jsonl
 #   or the SQLite store is resumed, one in neither is gone, a thread that
-#   ran a command in the folder is suggested.
+#   ran a command in the folder is suggested. Phase 3, the hand-in and the
+#   handover: the handoff's fields (acceptance from worker, desk --task, a
+#   plan file and handoff, ticked with --done N and shown as 2 of 3;
+#   defects and --defect-done; a finding with where, --review-done;
+#   decisions) written, each signed, fifty kept, a line cut at a thousand,
+#   a credential refused, a tick past the list refused, read back on the
+#   page and in --json; changed and commits read from git against where the
+#   branch left main, the uncommitted and the new marked; handover on a
+#   stand-in agent (a real process): refused mid-turn by the journal, for a
+#   provider that isn't one, without --to, by the agent itself, for a desk
+#   with no task; then asked for its handoff in a note, waited for,
+#   dismissed, the next started with the task, the handoff and the fields
+#   as its first prompt, the log's "handed over: claude -> codex", both
+#   sessions kept; --now hands over mid-turn.
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
@@ -247,8 +260,9 @@ print("office ok")
 EOF
 )
 check "the Office's backend offers the modes with the default, and carries --mode: $out" grep -q "^office ok" <<<"$out"
-printf 'project = "book"\n[[task]]\nname = "a"\ntask = "A"\nagent = "codex"\nmode = "supervised"\n' > "$t/plan.toml"
+printf 'project = "book"\n[[task]]\nname = "a"\ntask = "A"\nagent = "codex"\nmode = "supervised"\nacceptance = ["in order", "log says"]\n' > "$t/plan.toml"
 printf 'project = "book"\n[[task]]\nname = "a"\ntask = "A"\nmode = "fast"\n' > "$t/bad.toml"
+printf 'project = "book"\n[[task]]\nname = "a"\ntask = "A"\nacceptance = "one line"\n' > "$t/bad-acceptance.toml"
 out=$(python3 - "$here" "$t" <<'EOF'
 import sys
 sys.dont_write_bytecode = True
@@ -267,11 +281,15 @@ class Api:
     @staticmethod
     def inbox_add(*a): pass
 plan.start_worker(Api, {"exists": True, "folder": t + "/src/book-a", "topic": "a"}, p["tasks"][0], p, None, {}, lambda *a: None)
-assert ran[-1][-4:] == ["--use", "codex", "--mode", "supervised"], ran
+assert ran[-1][-8:] == ["--use", "codex", "--mode", "supervised", "--acceptance", "in order", "--acceptance", "log says"], ran
+try:
+    plan.read_plan(t + "/bad-acceptance.toml"); raise SystemExit("a bad acceptance passed")
+except plan.PlanError as e:
+    assert "acceptance is a list of lines" in str(e), e
 print("plan ok")
 EOF
 )
-check "a plan file's mode is read, checked and given to the worker: $out" grep -q "^plan ok" <<<"$out"
+check "a plan file's mode and acceptance are read, checked and given to the worker: $out" grep -q "^plan ok" <<<"$out"
 
 # --- The store: Codex's thread store beside the rollout files (Phase 2) ------------------------
 # No rollout file: the id in session_index.jsonl, or in the SQLite thread
@@ -437,6 +455,142 @@ assert set(cmds) == {"PreToolUse", "PermissionRequest", "UserPromptSubmit", "Sto
 for g in (g for e in hooks.values() for g in e):
     for x in g["hooks"]:
         assert x["type"] == "command"' "$here/config/codex/hooks.json"
+
+# --- The hand-in's fields and the handover (Phase 3) ------------------------------------------
+# A fresh desk, book-h: a worker given criteria with its task, the fields written by the
+# worker (a made-up Codex in /proc), read back, refused where they should be.
+export VIKIX_HANDOVER_WAIT=2
+as() { VIKIX_AGENT_PID=$1 python3 "$here/bin/vikix-agents" "${@:2}" 2>&1 </dev/null || true; }
+out=$(agents desk book h --task "Sort the chapters" --acceptance "chapters in order" --acceptance "the log says so" --acceptance "tests pass" --use codex --here)
+check "desk --task --acceptance: the criteria go into the record and the worker's first prompt: $out" \
+  bash -c 'grep -q "^AGENT ARGS: --use codex --mode autonomous Sort the chapters" <<<"$1" && grep -q "Acceptance criteria, 0 of 3 done (tick one with vikix agents handoff --done N): 1. \[ \] chapters in order; 2. \[ \] the log says so; 3. \[ \] tests pass" <<<"$1"' _ "$out"
+out=$(agents handoff h)
+check "the page shows them unticked: $out" bash -c 'grep -q "^Acceptance (user, just now): 0 of 3 done$" <<<"$1" && grep -q "^  \[ \] the log says so$" <<<"$1"' _ "$out"
+out=$(agents worker "$t/src/book-h" --acceptance "x" --here)
+check "--acceptance without a task is refused: $out" grep -q "^vikix agents: --acceptance goes with a task" <<<"$out"
+proc 1201 codex "$t/src/book-h"
+out=$(as 1201 handoff --done 2 --decided "kept the old order under --no-sort" --defect "slow past 500 chapters" --defect "no colour yet" --review "log.md:1 the heading is stale")
+check "the worker ticks one, decides, adds two defects and a finding, in one write: $out" grep -q "book-h: handoff updated by codex 1201, acceptance 1 of 3 done$" <<<"$out"
+out=$(agents handoff h)
+check "the page: the tick signed, the decision, the defects open, the finding with where: $out" \
+  bash -c 'grep -q "^Acceptance (user, just now): 1 of 3 done$" <<<"$1" && grep -q "^  \[x\] the log says so  (codex 1201, just now)$" <<<"$1" && grep -q "^Decided (1):$" <<<"$1" && grep -q "^  kept the old order under --no-sort  (codex 1201, just now)$" <<<"$1" && grep -q "^Defects: 2 open$" <<<"$1" && grep -q "^  open      no colour yet  (codex 1201, just now)$" <<<"$1" && grep -q "^Review: 1 open$" <<<"$1" && grep -q "^  open      log.md:1 the heading is stale  (codex 1201, just now)$" <<<"$1"' _ "$out"
+out=$(as 1201 handoff --defect-done 1 --review-done 1)
+check "a defect closed and a finding addressed: $out" \
+  bash -c 'grep -q "^Defects: 1 open, 1 closed$" <<<"$1" && grep -q "^  closed    slow past 500 chapters  (codex 1201, just now; closed by codex 1201)$" <<<"$1" && grep -q "^Review: 0 open, 1 addressed$" <<<"$1" && grep -q "^  addressed log.md:1 the heading is stale  (codex 1201, just now; addressed by codex 1201)$" <<<"$1"' _ "$(agents handoff h)"
+check "--json has each signed, the finding's where apart from its words, and the log's lines" python3 -c '
+import json, sys
+r = json.load(sys.stdin); h = r["handoff"]
+assert h["acceptance"]["by"] == "user" and h["acceptance"]["items"][1]["done_by"] == "codex 1201" and not h["acceptance"]["items"][0]["done"], h["acceptance"]
+assert h["decisions"][0]["by"] == "codex 1201" and h["defects"][0]["closed_by"] == "codex 1201" and not h["defects"][0]["open"] and h["defects"][1]["open"], h
+assert h["review"][0]["where"] == "log.md:1" and h["review"][0]["text"] == "the heading is stale" and not h["review"][0]["open"], h["review"]
+what = [e["what"] for e in r["log"]]
+assert "acceptance (3)" in what and "done 2 of 3: the log says so, defect (2), review (1), decided (1)" in what, what
+assert "defect-done 1: slow past 500 chapters, review-done 1: the heading is stale" in what, what' <<<"$(agents handoff h --json)"
+out=$(as 1201 handoff --done 9)
+check "a tick past the list is refused: $out" grep -q "there is no item 9 (1 to 3)" <<<"$out"
+out=$(as 1201 handoff --done two)
+check "and one that isn't a number: $out" grep -q "\-\-done N: the number of the item, counted from 1, not 'two'" <<<"$out"
+out=$(as 1201 handoff --decided "API_KEY=abcdefghijk is the key")
+check "a credential in a decision is refused: $out" grep -q "a decision looks like it holds a credential: a record keeps none" <<<"$out"
+out=$(as 1201 handoff --acceptance "")
+check "a criterion with no words: $out" grep -q "acceptance criteria are lines of text, one each" <<<"$out"
+printf '{"status":"working","acceptance":["a","b"],"done":1,"decided":["one","two"],"review":"plain finding"}' > "$t/h.json"
+out=$(as 1201 handoff --from "$t/h.json")
+check "--from takes the fields as JSON, a list where a list is: $out" grep -q "status working, acceptance 1 of 2 done$" <<<"$out"
+check "and an acceptance written again replaces the list whole, ticks and all" python3 -c '
+import json, sys
+h = json.load(sys.stdin)["handoff"]
+assert [i["text"] for i in h["acceptance"]["items"]] == ["a", "b"] and h["acceptance"]["items"][0]["done"] and not h["acceptance"]["items"][1]["done"], h["acceptance"]
+assert [d["text"] for d in h["decisions"]] == ["kept the old order under --no-sort", "one", "two"], h["decisions"]
+assert h["review"][1]["text"] == "plain finding" and "where" not in h["review"][1] and h["review"][1]["open"], h["review"]' <<<"$(agents handoff h --json)"
+for i in $(seq 1 55); do as 1201 handoff --defect "defect $i" >/dev/null; done
+long=$(printf 'x%.0s' $(seq 1 1200))
+as 1201 handoff --decided "$long" >/dev/null
+check "fifty of each are kept, the oldest gone first, and a line is cut at a thousand" python3 -c '
+import json, sys
+h = json.load(sys.stdin)["handoff"]
+assert len(h["defects"]) == 50 and h["defects"][-1]["text"] == "defect 55" and h["defects"][0]["text"] == "defect 6", (len(h["defects"]), h["defects"][0])
+assert len(h["decisions"][-1]["text"]) == 1000, len(h["decisions"][-1]["text"])' <<<"$(agents handoff h --json)"
+# What changed and the commits, read from git against where the branch left main: at every
+# write of the handoff, the uncommitted and the new marked.
+echo 'two' >> "$t/src/book-h/log.md"; git -C "$t/src/book-h" commit -q -am "log: two"
+echo 'ch' > "$t/src/book-h/ch1.md"; git -C "$t/src/book-h" add ch1.md; git -C "$t/src/book-h" commit -q -m "ch1 begun"
+echo 'three' >> "$t/src/book-h/log.md"; echo 'notes' > "$t/src/book-h/notes.md"
+base=$(git -C "$t/src/book-h" merge-base HEAD main | cut -c1-7)
+as 1201 handoff --status review >/dev/null
+out=$(agents handoff h)
+check "changed against the base, the uncommitted and the new marked, and the commits past it: $out" \
+  bash -c 'grep -q "^Changed (vikix, just now): 3 files against '"$base"'$" <<<"$1" && grep -q "^  +2 -0  log.md (uncommitted)$" <<<"$1" && grep -q "^  +1 -0  ch1.md$" <<<"$1" && grep -q "^  +0 -0  notes.md (new, uncommitted)$" <<<"$1" && grep -q "^Commits (vikix, just now): 2 past '"$base"'$" <<<"$1" && grep -q "^  [0-9a-f]*  log: two$" <<<"$1" && grep -q "^  [0-9a-f]*  ch1 begun$" <<<"$1"' _ "$out"
+check "--json: the paths in order, the subjects oldest first, signed vikix" python3 -c '
+import json, sys
+h = json.load(sys.stdin)["handoff"]
+assert h["changed"]["by"] == "vikix" and [f["path"] for f in h["changed"]["files"]] == ["ch1.md", "log.md", "notes.md"], h["changed"]
+assert h["commits"]["by"] == "vikix" and [c["subject"] for c in h["commits"]["list"]] == ["log: two", "ch1 begun"], h["commits"]' <<<"$(agents handoff h --json)"
+rm -r "$t/proc/1201"
+# The handover: a stand-in agent that is a real process (so the dismissal lands), the
+# record between the two providers.
+agents handoff session claude sess-claude-1 --desk h >/dev/null
+standin() {   # standin NAME FOLDER: a real process the dismissal lands on, gone from the made-up /proc as it dies, as from the real one
+  bash -c 'trap "rm -rf \"$0/proc/$$\"; exit 0" TERM; sleep 300 & wait' "$t" &
+  spid=$!; proc "$spid" "$1" "$2"
+}
+standin claude "$t/src/book-h"
+printf '{"at": %s, "kind": "edit", "agent": "claude", "pid": %s, "folder": "%s", "file": "%s/log.md"}\n' "$(date +%s)" "$spid" "$t/src/book-h" "$t/src/book-h" >> "$journal"
+out=$(agents handover h --to codex --here)
+check "refused while its agent is mid-turn, by the journal: $out" \
+  bash -c 'grep -q "^vikix agents: claude '"$spid"' is working (an edit [0-9]* s ago): wait for its prompt, or --now hands over mid-turn" <<<"$1" && ! grep -q "AGENT ARGS" <<<"$1"' _ "$out"
+check "and nothing was dismissed" kill -0 "$spid"
+out=$(agents handover h --to nobody)
+check "a provider that isn't one is refused: $out" grep -q "^vikix agents: --to nobody? the providers: claude, codex, opencode, gemini, antigravity, aider" <<<"$out"
+out=$(agents handover h)
+check "and no --to: $out" grep -q "^vikix agents: vikix agents handover DESK --to NAME" <<<"$out"
+out=$(VIKIX_AGENT_PID=$spid agents handover h --to codex)
+check "an agent doesn't hand its own desk over: $out" grep -q "that is your own desk: an agent doesn't hand itself over" <<<"$out"
+agents desk book n >/dev/null
+out=$(agents handover n --to codex)
+check "a desk with no task has nothing to hand over: $out" grep -q "^vikix agents: .*book-n has no task in its record: nothing to hand over (vikix agents worker n" <<<"$out"
+# The edit made two minutes ago: not mid-turn, not at its prompt either, so the note is
+# waited for (VIKIX_HANDOVER_WAIT seconds), then the agent is dismissed and Codex started.
+python3 - "$journal" "$spid" <<'PY'
+import json, sys
+lines = [json.loads(l) for l in open(sys.argv[1]) if l.strip()]
+for e in lines:
+    if e.get("pid") == int(sys.argv[2]):
+        e["at"] -= 120
+open(sys.argv[1], "w").write("".join(json.dumps(e) + "\n" for e in lines))
+PY
+start=$(date +%s); out=$(agents handover h --to codex --here); took=$(( $(date +%s) - start ))
+check "the agent is asked for its handoff and waited for ($took s): $out" \
+  bash -c 'grep -q "^asked claude '"$spid"' for its handoff; waiting up to 2 s for the record to move" <<<"$1" && grep -q "^no handoff came: what the record has is what the next agent gets" <<<"$1" && [ "$2" -ge 2 ] && [ "$2" -lt 15 ]' _ "$out" "$took"
+check "dismissed, with the note first" bash -c 'grep -q "book-h: dismissed claude '"$spid"'\. The desk, its branch and 2 uncommitted files stay" <<<"$1" && grep -q "user (just now): handing over to codex: write your handoff now (vikix agents handoff --status" <<<"$1" && grep -q "user (just now): dismissed by user: write your handoff if you can, then stop" <<<"$1"' _ "$out"
+for _ in 1 2 3 4 5; do kill -0 "$spid" 2>/dev/null || break; sleep 0.2; done
+check "and the process is gone" not kill -0 "$spid" 2>/dev/null
+wait "$spid" 2>/dev/null || true; rm -rf "$t/proc/$spid"
+check "then Codex is started fresh, the task, the handoff and the fields its first prompt: $out" \
+  bash -c 'grep -q "book-h: handed over, claude -> codex$" <<<"$1" && grep -q "^fresh conversation with codex at .*book-h, autonomous: a fresh conversation was asked for" <<<"$1" && grep -q "^the task and the handoff are its first prompt$" <<<"$1" && grep -q "^AGENT ARGS: --use codex --mode autonomous Sort the chapters" <<<"$1" && grep -q "^What the desk.s record holds, left by the agent before you" <<<"$1" && grep -q "^Status: review (codex 1201, just now)\.$" <<<"$1" && grep -q "^Acceptance criteria, 1 of 2 done .*: 1. \[x\] a; 2. \[ \] b$" <<<"$1" && grep -q "^Decided already (don.t reopen without the user): kept the old order under --no-sort; one; two; xxx" <<<"$1" && grep -q "^Defects open: defect 6 (codex 1201); defect 7 (codex 1201); " <<<"$1" && grep -q "^Review findings open: plain finding (codex 1201)$" <<<"$1" && grep -q "^Changed against '"$base"': 3 files: ch1.md (+1 -0), log.md (+2 -0, uncommitted), notes.md (+0 -0, uncommitted)$" <<<"$1" && grep -q "^Commits past '"$base"': 2: [0-9a-f]* log: two; [0-9a-f]* ch1 begun$" <<<"$1" && grep -q "^This is your desk.s task, as its record keeps it" <<<"$1"' _ "$out"
+check "the record logs the handover and keeps both sessions" python3 -c '
+import json, sys
+r = json.load(sys.stdin)
+assert "handed over: claude -> codex" in [e["what"] for e in r["log"]], r["log"][-5:]
+assert [(s["provider"], s["id"]) for s in r["sessions"]] == [("claude", "sess-claude-1")], r["sessions"]
+assert r["left"]["reason"] == "dismissed" and r["task"]["text"] == "Sort the chapters" and r["launch"]["provider"] == "codex", r' <<<"$(agents handoff h --json)"
+# --now: mid-turn all the same, and the other way round, Codex's desk to Claude's hands.
+agents handoff session codex sess-codex-1 --desk h >/dev/null
+standin codex "$t/src/book-h"
+printf '{"at": %s, "kind": "shell", "agent": "codex", "pid": %s, "folder": "%s", "file": ""}\n' "$(date +%s)" "$spid" "$t/src/book-h" >> "$journal"
+out=$(agents handover h --to claude --now --here)
+check "--now hands over mid-turn, no wait, and Claude gets the first prompt: $(head -c 300 <<<"$out")" \
+  bash -c 'grep -q "^handing over now: what the record has is what the next agent gets" <<<"$1" && ! grep -q "waiting up to" <<<"$1" && grep -q "book-h: handed over, codex -> claude$" <<<"$1" && grep -q "^AGENT ARGS: --use claude Sort the chapters" <<<"$1"' _ "$out"
+for _ in 1 2 3 4 5; do kill -0 "$spid" 2>/dev/null || break; sleep 0.2; done
+wait "$spid" 2>/dev/null || true; rm -rf "$t/proc/$spid"
+check "both sessions stay, for resume with either" python3 -c '
+import json, sys
+r = json.load(sys.stdin)
+assert [(s["provider"], s["id"]) for s in r["sessions"]] == [("claude", "sess-claude-1"), ("codex", "sess-codex-1")], r["sessions"]
+assert [e["what"] for e in r["log"] if e["what"].startswith("handed over")] == ["handed over: claude -> codex", "handed over: codex -> claude"]' <<<"$(agents handoff h --json)"
+out=$(agents resume h --use codex --here)
+check "resume without --fresh gives no first prompt (the conversation has the record): $out" grep -q "^AGENT ARGS: --use codex --mode autonomous$" <<<"$out"
+unset VIKIX_HANDOVER_WAIT
 
 # --- The rules file, through Codex's own checker (when Codex is here) ---------------------------
 if command -v codex >/dev/null 2>&1 && timeout 20 codex execpolicy check --help >/dev/null 2>&1; then

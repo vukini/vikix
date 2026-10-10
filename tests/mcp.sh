@@ -250,6 +250,15 @@ assert r["handoff"]["status"]["value"] == "working" and r["handoff"]["status"]["
 assert r["handoff"]["estimate"]["minutes"] == 40 and r["handoff"]["estimate"]["by"] == "claude 1001", r["handoff"]
 assert r["checks"][0]["freshness"] == "fresh" and r["now"]["commit"], r
 assert r["at_the_desk"] == ["claude 1001"] and any("no filesystem enforcement" in p for p in r["protection"]), r' "$out"
+out=$(VIKIX_PROC=$t/proc VIKIX_AGENT_PID=1001 call handoff_update '{"acceptance":["a","b"],"done":1,"decided":"keep x","defect":"slow","review":"log.md:1 stale"}')
+check "handoff_update takes the hand-in's fields: $out" grep -q 'updated by claude 1001: status working; acceptance, decided, defect, done, review set; acceptance 1 of 2 done' <<<"$out"
+out=$(VIKIX_PROC=$t/proc VIKIX_AGENT_PID=1001 call handoff '{}')
+check "handoff reads them back, signed, with what changed read from git: $out" python3 -c '
+import json, sys
+r = json.loads(sys.argv[1]); h = r["handoff"]
+assert h["acceptance"]["items"][0]["done"] and h["acceptance"]["items"][0]["done_by"] == "claude 1001" and not h["acceptance"]["items"][1]["done"], h["acceptance"]
+assert h["decisions"][0]["text"] == "keep x" and h["defects"][0]["open"] and h["review"][0]["where"] == "log.md:1", h
+assert h["changed"]["by"] == "vikix" and "files" in h["changed"] and h["commits"]["by"] == "vikix", h' "$out"
 out=$(VIKIX_PROC=$t/proc VIKIX_AGENT_PID=1001 call handoff_update '{"summary":"token sk-ant-abcdefghijklmnopqrstu"}')
 check "a credential is refused: $out" grep -q '^ERROR: .*looks like it holds a credential' <<<"$out"
 out=$(VIKIX_PROC=$t/proc VIKIX_AGENT_PID=1001 call handoff '{"desk":"nowhere"}')

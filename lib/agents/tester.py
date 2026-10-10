@@ -26,16 +26,6 @@ def release_testing(folder):
     return ""
 
 
-def base_of(folder):
-    """Where the desk's branch left the project's own: (merge base, the
-    project's own folder, its branch)."""
-    top = (git(folder, "rev-parse", "--show-toplevel") or "").strip()
-    own = own_folder(top) if top else ""
-    own_branch = (git(own, "rev-parse", "--abbrev-ref", "HEAD") or "").strip() if own else ""
-    base = (git(folder, "merge-base", "HEAD", own_branch) or "").strip() if own_branch and own_branch != "HEAD" else ""
-    return base, own, own_branch
-
-
 def run_tests(where, runner, changed, base, log):
     """The runner in WHERE, all it says to LOG. (ok, the failed tests'
     names, a few lines of the first failure)."""
@@ -68,7 +58,12 @@ def tester_result(folder, name, ok, names, excerpt, took, note=""):
     H = handoff_module()
     words = (f"passed in {took} s" if ok else f"failed: {', '.join(names)}; {excerpt}")
     full = ((note + "; ") if note else "") + words
-    desk_record(folder, by="vikix", change=lambda r: H.add_check(r, name, ok, "vikix", folder, full[:480]))
+    base = base_of(folder)[0]
+
+    def change(r):
+        H.add_check(r, name, ok, "vikix", folder, full[:480])
+        H.set_changes(r, folder, base)       # what the hand-in shows as changed, read again now
+    desk_record(folder, by="vikix", change=change)
     line = (f"tests passed ({name}, {took} s)" if ok else
             f"tests: {len(names)} failed ({', '.join(names)}); vikix agents test --log {os.path.basename(folder)} shows them")
     if note:

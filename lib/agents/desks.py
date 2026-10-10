@@ -95,6 +95,7 @@ def desk(argv):
     """vikix agents desk [PROJECT [TOPIC]] [--task "..."]: the place, and
     with a task a worker at it too."""
     use, local, here, push, words, task, notests, mode = None, False, False, None, [], "", False, None
+    acceptance = []
     while argv:
         a = argv.pop(0)
         if a == "--use":
@@ -111,6 +112,8 @@ def desk(argv):
             mode = argv.pop(0) if argv else die(f"--mode which? {', '.join(MODES)}")
         elif a == "--task":
             task = argv.pop(0) if argv else die("--task needs the words of the task")
+        elif a == "--acceptance":
+            acceptance.append(argv.pop(0) if argv else die("--acceptance needs a criterion, a line of text"))
         elif a.startswith("-"):
             die(f"vikix agents desk: {a}? (vikix agents help)")
         else:
@@ -119,7 +122,7 @@ def desk(argv):
         die("vikix agents desk [PROJECT [TOPIC]]: a topic of several words goes in quotes")
     # The agent's words are the worker's: a desk alone seats nobody.
     agent_words = [w for w, on in (("--use", use), ("--local", local), ("--here", here), ("--push", push),
-                                   ("--mode", mode)) if on]
+                                   ("--mode", mode), ("--acceptance", acceptance)) if on]
     if agent_words and not task and words:
         die(f"{' '.join(agent_words)} is for the worker, and a desk alone starts no agent: give --task \"...\" "
             f"too, or start one at the desk with vikix agents worker DESK {' '.join(agent_words)}")
@@ -192,6 +195,7 @@ def desk(argv):
                                    "starts a worker there") + ("; its tests don't run by themselves" if notests else ""))
         return 0
     return worker_at(folder, task, use, local, here, push, f"a desk, and a worker at it: {said}", topic or project.name,
+                     acceptance=acceptance,
                      notests=notests, mode=mode)
 
 
@@ -199,6 +203,7 @@ def worker(argv):
     """vikix agents worker DESK ["..."]: an agent on a task at a desk that
     is there; without a task, a session there."""
     use, local, here, push, words, notests, mode = None, False, False, False, [], False, None
+    acceptance = []
     if argv == ["--menu"]:
         # From the desktop: the desk, the task, then the worker's questions as
         # desk asks them. A desk with an agent at it is refused before any
@@ -240,6 +245,8 @@ def worker(argv):
             notests = True
         elif a == "--mode":
             mode = argv.pop(0) if argv else die(f"--mode which? {', '.join(MODES)}")
+        elif a == "--acceptance":
+            acceptance.append(argv.pop(0) if argv else die("--acceptance needs a criterion, a line of text"))
         elif a.startswith("-"):
             die(f"vikix agents worker: {a}? (vikix agents help)")
         else:
@@ -253,11 +260,14 @@ def worker(argv):
         die(f"{short(folder)} is gone: vikix agents desk {(rec or {}).get('desk', {}).get('project', 'PROJECT')} "
             f"{os.path.basename(folder).split('-', 1)[-1] if rec else 'TOPIC'} makes the worktree again "
             "(the record is kept, and waits there)")
+    if acceptance and not task:
+        die("--acceptance goes with a task: the criteria the worker's work is judged by")
     return worker_at(folder, task, use, local, here, push, f"a worker at {short(folder)}" if task
-                     else f"a session at {short(folder)}", desk_name(folder), notests=notests, mode=mode)
+                     else f"a session at {short(folder)}", desk_name(folder), notests=notests, mode=mode,
+                     acceptance=acceptance)
 
 
-def worker_at(folder, task, use, local, here, push, said, name, notests=False, mode=None):
+def worker_at(folder, task, use, local, here, push, said, name, notests=False, mode=None, acceptance=()):
     """An agent started at the desk FOLDER: on TASK, the record's task
     folded into the desk's history and TASK its first prompt; without one
     a session, the record left as it is (a line in its log). SAID is how
@@ -266,7 +276,9 @@ def worker_at(folder, task, use, local, here, push, said, name, notests=False, m
     started without it has the tests again (the setting is the desk's,
     decided as each worker starts), a session leaves it as it was. MODE:
     how free the worker is (Codex's, for now): the one given, else the
-    house default for Codex; kept in the record as the worker's launch."""
+    house default for Codex; kept in the record as the worker's launch.
+    ACCEPTANCE: the criteria the user gives with the task, a line each,
+    written in the record for the worker to tick."""
     H = handoff_module()
     at = agents_at(folder)
     if at:
@@ -288,11 +300,13 @@ def worker_at(folder, task, use, local, here, push, said, name, notests=False, m
             folded[0] = H.start_worker(rec, task, "user", provider, mode)
             tests_set(rec, not notests)
             H.set_launch(rec, provider, mode, "user")
-        desk_record(folder, change=change)
+            if acceptance:
+                H.set_handoff(rec, "user", acceptance=list(acceptance))
+        rec = desk_record(folder, change=change)
         # The task is the agent's first prompt, so a new worker never sits idle
         # with its task written only in the record (2026-10-07: one did, for
         # three minutes, until the user typed "read the handoff").
-        first = H.first_prompt_args(provider, desk_prompt(task))
+        first = H.first_prompt_args(provider, desk_prompt(task, rec if acceptance else None))
     elif desk_of(folder) or H.load(H.desk_id(common_of(folder), folder)):
         def change(rec):
             H._log(rec, "user", f"session: {provider}" + (f" {mode}" if mode else ""))
@@ -328,10 +342,18 @@ def worker_at(folder, task, use, local, here, push, said, name, notests=False, m
     return 0
 
 
-def desk_prompt(task):
+def desk_prompt(task, rec=None):
     """The first prompt of an agent started at a desk with a task: the
-    user's words, then where the desk's record is."""
-    return (task.rstrip() + "\n\nThis is your desk's task, as its record keeps it (vikix agents handoff, or the "
+    user's words; with REC (a handover, or criteria given with the task),
+    the record's handoff and hand-in as a second paragraph, so the next
+    agent starts from what the last one left; then where the desk's record
+    is."""
+    H = handoff_module()
+    handin = H.handin_text(rec) if rec else ""
+    return (task.rstrip()
+            + (f"\n\nWhat the desk's record holds, left by the agent before you (vikix agents handoff shows it "
+               f"whole):\n{handin}" if handin else "")
+            + "\n\nThis is your desk's task, as its record keeps it (vikix agents handoff, or the "
             "MCP tool handoff): read the handoff before you start; once you know the shape of the work, say how "
             "long it will take, assuming no major issue turns up (handoff_update with status working and an "
             "estimate, or vikix agents handoff --status working --estimate \"40 min\"); and write yours "

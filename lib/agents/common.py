@@ -30,7 +30,11 @@ SERVERS = {"codex": ("app-server", "exec-server", "mcp-server"), "claude": ("mcp
 FIELDS = ("agent", "pid", "folder", "workspace", "window", "seconds", "state", "doing", "said", "title", "desk_title",
           "attention")   # what its terminal needs of you: asks, gup, close or "" (agents.lisp)
 # What vikix agents handoff writes, given any of them (no "set" needed).
-SETTINGS = ("--task", "--status", "--summary", "--next", "--estimate", "--from")
+SETTINGS = ("--task", "--status", "--summary", "--next", "--estimate", "--from",
+            "--acceptance", "--done", "--defect", "--defect-done", "--review", "--review-done", "--decided")
+# Of those, the ones given several times (a line each), and the ones that take a number.
+SETTINGS_MANY = ("--acceptance", "--defect", "--review", "--decided")
+SETTINGS_NUMBER = ("--done", "--defect-done", "--review-done")
 
 
 def die(message):

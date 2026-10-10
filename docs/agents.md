@@ -195,6 +195,28 @@ echo '{"status":"waiting","next":"needs the laptop"}' | vikix agents handoff --f
 
 Given any of those settings, `handoff` writes instead of showing (`vikix agents handoff set` says the same, a word longer); from outside the desk, name it first, as for `close`: `vikix agents handoff wifi-fix --task "..."`.
 
+**The hand-in** (from 0.72.34) is the rest of the record, the fields a worker fills as it goes so that whoever takes the desk next, you, a reviewer or another provider, starts from facts rather than from a conversation. Each line is signed as the others are, each list keeps fifty, a line is cut at a thousand characters, and a line that looks like a key is refused.
+
+```
+Acceptance (user, 2 h ago): 2 of 3 done
+  [x] the picker scans before it lists  (claude 48213, 30 min ago)
+  [x] the old order stays under --no-scan  (claude 48213, 25 min ago)
+  [ ] a test covers the scan
+Decided (1):
+  the scan runs in the bar's thread, never in StumpWM's  (claude 48213, 1 h ago)
+Defects: 1 open
+  open      a card that takes longer than two seconds to scan shows an empty list first  (claude 48213, 20 min ago)
+Review: 0 open, 1 addressed
+  addressed bin/vikix-wifi:88 the timeout is read twice  (codex 51002, 15 min ago; addressed by claude 48213)
+Changed (vikix, 20 min ago): 2 files against 3a9f1c0
+  +41 -6  bin/vikix-wifi
+  +12 -0  tests/wifi.sh (uncommitted)
+Commits (vikix, 20 min ago): 1 past 3a9f1c0
+  7c1e0f2  wifi: scan before the list
+```
+
+The **acceptance** criteria are yours, given with the task, a line each: `vikix agents worker wifi-fix "..." --acceptance "the picker scans before it lists" --acceptance "..."` (`desk --task` takes them the same way, a plan file as `acceptance = ["...", "..."]`, and `vikix agents handoff --acceptance "..."` later, which replaces the list whole). The worker ticks one with `vikix agents handoff --done 2`, and the record, the listing and the Office say *2 of 3*. **Decisions** (`--decided "..."`) are the choices made, so the next worker doesn't reopen them; **defects** (`--defect "..."`, closed with `--defect-done N`) are what the worker knows is wrong or missing; **review** findings (`--review "bin/vikix-wifi:88 the timeout is read twice"`, which keeps the place apart; `--review-done N` marks one addressed) are a reviewer's, or yours. What **changed** and the **commits** are never typed: Vikix reads them from git at every write of the handoff and at the tester's run, against the base, the commit where the desk's branch left the project's own, with the uncommitted files marked and a new untracked one said to be new. The MCP tool `handoff_update` takes the same fields by their names (`acceptance` as a list, `done`, `defect`, `defect_done`, `review`, `review_done`, `decided`), `--from` takes them as JSON, and the Office's desk page shows them all under *Agent claims* and *Observed Git state*.
+
 Claude Code's session id and Antigravity CLI's conversation id are noted by the hook itself; the others say theirs with `session`. `vikix agents handoff list` is every desk with a record, `vikix agents` shows each agent's desk status under its line, and `Super+m` → *AI* → *Agents: a desk's handoff* picks one. `vikix agents close` marks the record closed and keeps it, and so does a release that removes the desk (`.claude/release`), so a desk whose work is in shows as closed, not as waiting. A record no longer wanted, of a desk whose worktree is gone, is removed with `vikix agents handoff forget DESK` (the Office's Archive has the same, one record at a time, and *Purge archive* for all of them); without a desk named it lists the ones that could go. It refuses while the folder stands (close the desk instead) or an agent is still in it, and takes nothing else with it: no file, no branch, no saved conversation.
 
 ### Taking a desk up again
@@ -282,6 +304,10 @@ Its state is worked out each time from the plan file and the desk records (which
 ### Dismissing a worker, and how it left
 
 `vikix agents dismiss wifi-fix` asks the desk's agent to exit and keeps the desk, its branch and its files, so `vikix agents resume` takes it up later; it is the Office's *Close agent* from the terminal. A note goes to the worker first, "dismissed: write your handoff if you can, then stop", which one mid-turn reads at its next tool call, and the record notes the dismissal and how many files were left uncommitted. An agent never dismisses itself. Whichever way an agent leaves a desk, dismissed, exited or logged out, Claude Code's SessionEnd hook (`vikix agents left`) notes it in the record, so the next one at the desk, and the Office, see *Left: dismissed, 3 uncommitted then*.
+
+### Handing a desk over
+
+Claude Code designs at a desk, Codex implements, Claude reviews: each step is a handover, and `vikix agents handover wifi-fix --to codex` is the one command that does it. It is refused while the desk's agent is mid-turn (an edit, a command or a turn begun in the last minute, as the hooks' journal says) unless `--now`; then the agent is asked for its handoff in a note and given up to two minutes to write it, the record's handoff watched for the change (an agent at its prompt reads no note, so it isn't waited for); then it is dismissed as `dismiss` does; then the next agent is started with `vikix agents resume wifi-fix --use codex --fresh` (`--mode` as a worker's), and its first prompt is the task, the handoff and the hand-in's fields, so it starts from what the last one left rather than from an empty prompt. The record logs *handed over: claude -> codex* and keeps both sessions, so `vikix agents resume --use claude` later finds Claude's conversation and `--use codex` Codex's. Nothing of either conversation is copied: git, the record and the project's documents are the common ground. An agent never hands its own desk over.
 
 Each of the worker's commands has a form for the desktop: in the desk keys (`Super+Alt+d`) `w` starts a worker at a desk (the desk picked in a menu, the task typed, nothing for a session, then which agent and whether it may push, as a new desk asks; a desk with an agent at it is refused in a notification), `t` tests a desk's work, `p` pauses its agent or lets it go, `i` leaves it a note, `x` dismisses it, each asking which desk in a menu, and `Super+m` → *AI* has the same (*Agents: a worker at a desk*); the Office has them as buttons.
 
@@ -372,7 +398,7 @@ The Vikix skill tells every agent the same rules, so you can hold it to them: lo
 
 ## Not there yet
 
-A workspace and a bar colour each; handing a window from one agent to another; a permission list per agent. A foreman agent that writes plans for you to approve (never one that runs them). Gemini CLI's and Codex's hook shapes, and Gemini's resume, tried on a machine that has them; the hand-in's fields, a review by another agent, handing a desk over, and the mode for the other providers (the rest of `plans/DESIGN-codex-integration.md`). Each will come as it is needed; the pieces that are here are the ones the first weeks with several agents asked for.
+A workspace and a bar colour each; handing a window from one agent to another; a permission list per agent. A foreman agent that writes plans for you to approve (never one that runs them). Gemini CLI's and Codex's hook shapes, and Gemini's resume, tried on a machine that has them; a review by another agent (`vikix agents review`), and the mode for the other providers (the rest of `plans/DESIGN-codex-integration.md`). Each will come as it is needed; the pieces that are here are the ones the first weeks with several agents asked for.
 
 ## The Office
 

@@ -17,6 +17,7 @@ file:
     push = false
     no-tests = false
     mode = "supervised"        # how free the worker is (Codex's: supervised, autonomous, unrestricted)
+    acceptance = ["a line in events-YYYY-MM.jsonl a write", "tests/plan.sh reads it"]   # what the work is judged by
     release = "The office's event log"  # the release's line, for the last task at a desk
 
     [[task]]
@@ -74,7 +75,7 @@ POLL = int(os.environ.get("VIKIX_PLAN_POLL") or 60)       # seconds between look
 GRACE = int(os.environ.get("VIKIX_PLAN_GRACE") or 120)    # seconds a worker just started has to appear
 ROUNDS = 3                                                 # failed rounds that stop a desk
 KEYS = ("project", "at-once", "gate", "task")
-TASK_KEYS = ("name", "task", "desk", "after", "agent", "local", "push", "no-tests", "release", "mode")
+TASK_KEYS = ("name", "task", "desk", "after", "agent", "local", "push", "no-tests", "release", "mode", "acceptance")
 NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}$")
 GATES = ("none", "me")
 RUNNING = ("running", "starting", "testing", "to-test")    # states that hold a worker's slot
@@ -147,6 +148,9 @@ def read_plan(path):
                 raise PlanError(f"{where} ({name}): {k} is text")
         if t.get("mode") and t["mode"] not in ("supervised", "autonomous", "unrestricted"):
             raise PlanError(f"{where} ({name}): mode is supervised, autonomous or unrestricted, not '{t['mode']}'")
+        acceptance = t.get("acceptance", [])
+        if not isinstance(acceptance, list) or not all(isinstance(a, str) and a.strip() for a in acceptance):
+            raise PlanError(f"{where} ({name}): acceptance is a list of lines, the criteria the work is judged by")
         elsewhere = [a for a in after if tasks[names[a]]["desk"] != desk]
         if elsewhere and desk in desks:
             raise PlanError(f"{where} ({name}): after {', '.join(elsewhere)}, at another desk, so it needs a desk of "
@@ -155,7 +159,7 @@ def read_plan(path):
         tasks.append({"name": name, "text": text.strip(), "desk": desk, "after": after, "agent": t.get("agent", ""),
                       "local": t.get("local", False), "push": t.get("push", False),
                       "no_tests": t.get("no-tests", False), "release": (t.get("release") or "").strip(),
-                      "mode": (t.get("mode") or "").strip(), "index": i})
+                      "mode": (t.get("mode") or "").strip(), "acceptance": [a.strip() for a in acceptance], "index": i})
         desks.setdefault(desk, []).append(name)
     base = os.path.basename(path)
     return {"file": path, "name": base[:-5] if base.endswith(".toml") else base, "project": project.strip(),
@@ -517,6 +521,8 @@ def start_worker(api, view, task, plan, project, note, log, why=""):
     words += ["--push"] if task["push"] else []
     words += ["--no-tests"] if task["no_tests"] else []
     words += ["--mode", task["mode"]] if task.get("mode") else []
+    for line in task.get("acceptance") or []:
+        words += ["--acceptance", line]
     ok, last = run(words, log)
     if not ok:
         return fail(note, view, f"couldn't start the worker for {task['name']}: {last}", log)

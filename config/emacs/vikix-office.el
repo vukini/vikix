@@ -536,7 +536,43 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                     (vikix-office--signed width chars label-width "Estimate" estimate)
                     (vikix-office--field width chars label-width "" (vikix-office--text (alist-get 'estimate r)))))
                 (vikix-office--signed width chars label-width "Summary" (alist-get 'summary handoff))
-                (vikix-office--signed width chars label-width "Next" (alist-get 'next handoff)))
+                (vikix-office--signed width chars label-width "Next" (alist-get 'next handoff))
+                ;; The hand-in: the criteria with their ticks, the decisions, the
+                ;; defects and the review findings, each item signed.
+                (let ((acceptance (alist-get 'acceptance handoff)))
+                  (when acceptance
+                    (let* ((items (alist-get 'items acceptance))
+                           (done (cl-count-if (lambda (i) (eq (alist-get 'done i) t)) items)))
+                      (vikix-office--field width chars label-width "Acceptance"
+                                           (format "%d of %d done · %s · %s" done (length items)
+                                                   (vikix-office--text (alist-get 'by acceptance))
+                                                   (vikix-office--time (alist-get 'at acceptance))))
+                      (dolist (i items)
+                        (vikix-office--field width chars label-width ""
+                                             (concat (if (eq (alist-get 'done i) t) "[x] " "[ ] ")
+                                                     (vikix-office--one-line (alist-get 'text i))
+                                                     (if (eq (alist-get 'done i) t)
+                                                         (concat " · " (vikix-office--text (alist-get 'done_by i))
+                                                                 " · " (vikix-office--time (alist-get 'done_at i)))
+                                                       "")))))))
+                (dolist (list '((decisions "Decided" nil) (defects "Defects" "closed") (review "Review" "addressed")))
+                  (let ((items (alist-get (car list) handoff)))
+                    (when items
+                      (vikix-office--field width chars label-width (nth 1 list)
+                                           (if (nth 2 list)
+                                               (format "%d open of %d"
+                                                       (cl-count-if (lambda (i) (eq (alist-get 'open i) t)) items) (length items))
+                                             (format "%d" (length items))))
+                      (dolist (i items)
+                        (vikix-office--field width chars label-width ""
+                                             (concat (cond ((null (nth 2 list)) "")
+                                                           ((eq (alist-get 'open i) t) "open: ")
+                                                           (t (concat (nth 2 list) ": ")))
+                                                     (let ((where (alist-get 'where i)))
+                                                       (if (member where '(nil "")) "" (concat (vikix-office--text where) " ")))
+                                                     (vikix-office--one-line (alist-get 'text i))
+                                                     " · " (vikix-office--text (alist-get 'by i))
+                                                     " · " (vikix-office--time (alist-get 'at i)))))))))
               (vikix-office--box-bottom width chars)
               ;; The desk's workers before this task, newest first: the record's history.
               (let ((workers (alist-get 'workers r)))
@@ -559,6 +595,38 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                 (vikix-office--field width chars label-width "Branch" (vikix-office--text (alist-get 'branch now)))
                 (vikix-office--field width chars label-width "Commit" (vikix-office--text (alist-get 'commit now)))
                 (vikix-office--field width chars label-width "Uncommitted" (vikix-office--text (alist-get 'dirty now)))
+                ;; What the branch changed against the base and the commits past it,
+                ;; read from git into the handoff at its last write (signed vikix).
+                (let* ((handoff (alist-get 'handoff r))
+                       (changed (alist-get 'changed handoff)) (commits (alist-get 'commits handoff)))
+                  (when changed
+                    (let* ((files (alist-get 'files changed))
+                           (more (or (alist-get 'more changed) 0))
+                           (base (alist-get 'base changed)))
+                      (vikix-office--field width chars label-width "Changed"
+                                           (format "%d file%s%s · %s" (+ (length files) more) (if (= (+ (length files) more) 1) "" "s")
+                                                   (if (member base '(nil "")) " (uncommitted only: no base)"
+                                                     (concat " against " (substring base 0 (min 7 (length base)))))
+                                                   (vikix-office--time (alist-get 'at changed))))
+                      (dolist (f (seq-take files 20))
+                        (vikix-office--field width chars label-width ""
+                                             (format "+%s -%s %s%s" (or (alist-get 'add f) 0) (or (alist-get 'del f) 0)
+                                                     (vikix-office--text (alist-get 'path f))
+                                                     (cond ((eq (alist-get 'new f) t) " (new, uncommitted)")
+                                                           ((eq (alist-get 'uncommitted f) t) " (uncommitted)")
+                                                           (t "")))
+                                             'shadow))
+                      (when (> (+ (length files) more) 20)
+                        (vikix-office--field width chars label-width "" (format "… and %d more" (- (+ (length files) more) 20)) 'shadow))))
+                  (when (and commits (alist-get 'list commits))
+                    (let* ((list (alist-get 'list commits)) (more (or (alist-get 'more commits) 0))
+                           (base (vikix-office--text (alist-get 'base commits))))
+                      (vikix-office--field width chars label-width "Commits"
+                                           (format "%d past %s" (+ (length list) more) (substring base 0 (min 7 (length base)))))
+                      (dolist (c (last list 10))
+                        (vikix-office--field width chars label-width ""
+                                             (concat (vikix-office--text (alist-get 'hash c)) " " (vikix-office--one-line (alist-get 'subject c)))
+                                             'shadow)))))
                 (let ((release (alist-get 'release r)))
                   (unless (member release '(nil ""))
                     (vikix-office--field width chars label-width "Release" (vikix-office--one-line release))))

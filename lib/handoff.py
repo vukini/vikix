@@ -12,10 +12,22 @@ part of it. The record keeps three kinds of thing apart:
   handoff   what the agent writes: a status (working, waiting, review,
             finished), an estimate of how long the work will take, barring
             a major issue, an account of what it changed and decided, what
-            is left and the next action ("by": the agent, as "claude 48213")
+            is left and the next action ("by": the agent, as "claude 48213");
+            and the hand-in's fields (2026-10-10, TODO 116): acceptance,
+            the criteria the user gave as lines, ticked one by one by the
+            worker (2 of 3); defects, known defects and limits, open or
+            closed; review, findings signed by their reviewer, open or
+            addressed; decisions, the choices made, a line each, so the
+            next worker doesn't reopen them. Each item signed, each list
+            capped, every text through clean
   observed  what Vikix read itself: the commit, branch and uncommitted
             files at each write, and for each check the commit it ran on
-            and whether the tree was dirty then
+            and whether the tree was dirty then; and in the handoff, signed
+            vikix, changed (the files against the base, where the desk's
+            branch left the project's own, with their line counts, the
+            uncommitted marked) and commits (the branch's past the base),
+            read from git at every write of the handoff and at the
+            tester's run (set_changes)
 
 A check (tests/run.sh house passed, 14:02, on 3f2a1c, tree dirty) is
 stale once the code differs from what it ran on: another commit, or other
@@ -69,6 +81,15 @@ ESTIMATE_MAX = 300
 # The desk's history of workers: how many are kept, and how much of each one's summary.
 WORKERS_MAX = 50
 WORKER_SUMMARY_MAX = 600
+# The hand-in's lists: how many items each keeps, how long an item may be,
+# how many files and commits the changes read from git keep.
+ITEMS_MAX = 50
+ITEM_MAX = 1000
+FILES_MAX = 200
+COMMITS_MAX = 50
+SUBJECT_MAX = 120
+# A review finding may start with where it is: "lib/x.py:12 the loop ...".
+WHERE = re.compile(r"^(\S+:\d+)\s+(.*)$", re.S)
 # How long, as an estimate says it: "40 min", "2 h 30 min", "1.5 h", "1:30",
 # "2 days", or a bare number of minutes. Words may follow (what it assumes).
 DURATION = re.compile(r"(\d+(?:[.,]\d+)?)\s*(min(?:ute)?s?|m|h(?:ou)?rs?|h|d(?:ays?)?)\b", re.I)
@@ -345,6 +366,69 @@ def observe(folder):
     return now
 
 
+def changes(folder, base):
+    """What the desk's branch changed, from git: the files against BASE
+    (committed past it, and the uncommitted, marked; a new untracked file
+    too) with their line counts, sorted by path, and the commits past
+    BASE, oldest first. None where FOLDER is no repository; without a
+    BASE, the uncommitted alone and no commits."""
+    if git(folder, "rev-parse", "HEAD") is None:
+        return None
+    files = {}
+
+    def take(text, uncommitted):
+        for line in (text or "").splitlines():
+            parts = line.split("\t", 2)
+            if len(parts) != 3:
+                continue
+            add, dele, path = parts
+            try:
+                path = clean(path, "a path")
+            except HandoffError:
+                continue
+            f = files.setdefault(path, {"path": path, "add": 0, "del": 0, "uncommitted": False})
+            f["add"] += int(add) if add.isdigit() else 0      # a binary file counts "-"
+            f["del"] += int(dele) if dele.isdigit() else 0
+            f["uncommitted"] = f["uncommitted"] or uncommitted
+    if base:
+        take(git(folder, "diff", "--numstat", f"{base}..HEAD"), False)
+    take(git(folder, "diff", "--numstat", "HEAD"), True)
+    for name in (git(folder, "ls-files", "--others", "--exclude-standard") or "").splitlines():
+        try:
+            name = clean(name, "a path")
+        except HandoffError:
+            continue
+        if name and name not in files:
+            files[name] = {"path": name, "add": 0, "del": 0, "uncommitted": True, "new": True}
+    commits = []
+    if base:
+        for line in (git(folder, "log", "--reverse", "--format=%h%x09%s", f"{base}..HEAD") or "").splitlines():
+            short_hash, _, subject = line.partition("\t")
+            try:
+                subject = clean(subject, "a subject").replace("\n", " ")[:SUBJECT_MAX]
+            except HandoffError:
+                subject = "(a subject that looks like a credential, withheld)"
+            commits.append({"hash": short_hash, "subject": subject})
+    return sorted(files.values(), key=lambda f: f["path"]), commits
+
+
+def set_changes(rec, folder, base):
+    """The handoff's changed and commits read again from git, signed vikix:
+    at every write of the handoff and at the tester's run. Nothing where
+    FOLDER is no repository. True when written."""
+    got = changes(folder, base) if os.path.isdir(folder) else None
+    if got is None:
+        return False
+    files, commits = got
+    h = rec.setdefault("handoff", {})
+    now = int(time.time())
+    h["changed"] = {"base": (base or "")[:12], "files": files[:FILES_MAX], "more": max(0, len(files) - FILES_MAX),
+                    "by": "vikix", "at": now}
+    h["commits"] = {"base": (base or "")[:12], "list": commits[-COMMITS_MAX:], "more": max(0, len(commits) - COMMITS_MAX),
+                    "by": "vikix", "at": now}
+    return True
+
+
 def freshness(check, now):
     """Whether CHECK still speaks for the code as it is NOW: 'fresh', or
     'stale' with why."""
@@ -415,12 +499,61 @@ def fold_worker(rec):
              "summary": (h.get("summary") or {}).get("text", "")[:WORKER_SUMMARY_MAX],
              "provider": sessions[-1]["provider"] if sessions else "",
              "left": (rec.get("left") or {}).get("reason", "")}
+    d, n = acceptance_count(h)
+    if n:
+        entry["acceptance"] = f"{d} of {n}"
     rec.setdefault("workers", []).append(entry)
     rec["workers"] = rec["workers"][-WORKERS_MAX:]
     return entry
 
 
-def set_handoff(rec, by, status=None, summary=None, next_=None, estimate=None):
+def lines_of(value, what):
+    """VALUE, a string (lines) or a list of strings, as the clean non-empty
+    lines a list field takes, each capped."""
+    if isinstance(value, str):
+        value = value.splitlines()
+    if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+        raise HandoffError(f"{what} is a line of text, or a list of them")
+    out = []
+    for v in value:
+        text = clean(v, what).replace("\n", " ")[:ITEM_MAX]
+        if text:
+            out.append(text)
+    return out
+
+
+def tick(items, n, by, what, key="done"):
+    """Item N (counted from 1) of ITEMS marked KEY, signed BY; the item."""
+    if isinstance(n, bool) or not isinstance(n, int):
+        raise HandoffError(f"{what} takes the number of the item, counted from 1")
+    if not 1 <= n <= len(items):
+        raise HandoffError(f"{what}: there is no item {n}" + (f" (1 to {len(items)})" if items else " (none yet)"))
+    item = items[n - 1]
+    item[key] = True
+    item[key + "_by"] = by
+    item[key + "_at"] = int(time.time())
+    return item
+
+
+def acceptance_count(h):
+    """(done, all) of the handoff H's acceptance criteria."""
+    items = (h.get("acceptance") or {}).get("items") or []
+    return sum(1 for i in items if i.get("done")), len(items)
+
+
+def handoff_written_at(rec):
+    """When the agent (or the user) last wrote the handoff: the newest `at`
+    of its fields, leaving out what Vikix observed into it (changed,
+    commits). 0 for none."""
+    h = rec.get("handoff") or {}
+    return max([int(v.get("at") or 0) for v in h.values()
+                if isinstance(v, dict) and v.get("by") != "vikix"]
+               + [int(i.get("at") or 0) for k in ("defects", "review", "decisions") for i in (h.get(k) or [])]
+               or [0])
+
+
+def set_handoff(rec, by, status=None, summary=None, next_=None, estimate=None, acceptance=None, done=None,
+                defect=None, defect_done=None, review=None, review_done=None, decided=None):
     h = rec.setdefault("handoff", {})
     changed = []
     if status is not None:
@@ -443,8 +576,45 @@ def set_handoff(rec, by, status=None, summary=None, next_=None, estimate=None):
     if next_ is not None:
         h["next"] = {"text": clean(next_, "the next step"), "by": by, "at": int(time.time())}
         changed.append("next")
+    if acceptance is not None:
+        # The criteria, given whole: a list written again replaces the last, ticks and all.
+        items = [{"text": t, "done": False} for t in lines_of(acceptance, "an acceptance criterion")][:ITEMS_MAX]
+        if not items:
+            raise HandoffError("acceptance criteria are lines of text, one each")
+        h["acceptance"] = {"items": items, "by": by, "at": int(time.time())}
+        changed.append(f"acceptance ({len(items)})")
+    if done is not None:
+        items = (h.get("acceptance") or {}).get("items") or []
+        item = tick(items, done, by, "--done")
+        d, n = acceptance_count(h)
+        changed.append(f"done {done} of {n}: {item['text'][:40]}" + (" (all done)" if d == n else ""))
+    for value, key, what, word in ((defect, "defects", "a defect", "defect"), (review, "review", "a review finding", "review"),
+                                   (decided, "decisions", "a decision", "decided")):
+        if value is None:
+            continue
+        new = lines_of(value, what)
+        if not new:
+            raise HandoffError(f"{what} needs words")
+        for text in new:
+            item = {"text": text, "by": by, "at": int(time.time())}
+            if key in ("defects", "review"):
+                item["open"] = True
+            if key == "review":
+                m = WHERE.match(text)
+                if m:
+                    item["where"], item["text"] = m.group(1), m.group(2).strip()
+            h.setdefault(key, []).append(item)
+        h[key] = h[key][-ITEMS_MAX:]
+        changed.append(f"{word} ({len(new)})")
+    for n, key, what in ((defect_done, "defects", "--defect-done"), (review_done, "review", "--review-done")):
+        if n is None:
+            continue
+        item = tick(h.get(key) or [], n, by, what, "closed")
+        item["open"] = False
+        changed.append(f"{what[2:]} {n}: {item['text'][:40]}")
     if not changed:
-        raise HandoffError("nothing to set: --status, --summary, --next or --estimate")
+        raise HandoffError("nothing to set: --status, --summary, --next, --estimate, --acceptance, --done, --defect, "
+                           "--defect-done, --review, --review-done or --decided")
     _log(rec, by, ", ".join(changed))
 
 
@@ -553,18 +723,25 @@ def forget(did):
 
 def from_json(rec, data, by, folder):
     """DATA, a dict as --from reads it, applied: task, status, summary,
-    next, estimate, check {name, ok, note}, session {provider, id}. Other keys are
-    refused, so a typo doesn't go quietly."""
+    next, estimate, check {name, ok, note}, session {provider, id}; the
+    hand-in's acceptance (lines, or a list of them), done N, defect, review
+    and decided (a line, or a list), defect_done N, review_done N. Other
+    keys are refused, so a typo doesn't go quietly."""
     if not isinstance(data, dict):
         raise HandoffError("the JSON must be an object")
-    allowed = {"task", "status", "summary", "next", "estimate", "check", "session"}
+    allowed = {"task", "status", "summary", "next", "estimate", "check", "session",
+               "acceptance", "done", "defect", "defect_done", "review", "review_done", "decided"}
     odd = sorted(set(data) - allowed)
     if odd:
         raise HandoffError(f"unknown field{'s' if len(odd) > 1 else ''}: {', '.join(odd)} (the fields: {', '.join(sorted(allowed))})")
     if "task" in data:
         set_task(rec, data["task"], by)
-    if any(k in data for k in ("status", "summary", "next", "estimate")):
-        set_handoff(rec, by, data.get("status"), data.get("summary"), data.get("next"), data.get("estimate"))
+    fields = ("status", "summary", "next", "estimate", "acceptance", "done", "defect", "defect_done", "review",
+              "review_done", "decided")
+    if any(k in data for k in fields):
+        set_handoff(rec, by, data.get("status"), data.get("summary"), data.get("next"), data.get("estimate"),
+                    data.get("acceptance"), data.get("done"), data.get("defect"), data.get("defect_done"),
+                    data.get("review"), data.get("review_done"), data.get("decided"))
     if "check" in data:
         c = data["check"]
         if not isinstance(c, dict) or "name" not in c or "ok" not in c:
@@ -595,6 +772,95 @@ def when(ts):
 def short(path):
     home = os.path.expanduser("~")
     return "~" + path[len(home):] if path == home or path.startswith(home + "/") else path
+
+
+def handin_lines(h):
+    """The hand-in's fields of the handoff H as lines for a person: the
+    acceptance criteria ticked, the decisions, the defects and the review
+    findings open or closed, what changed and the commits (as Vikix read
+    them). Nothing for a field that isn't there."""
+    lines = []
+    acc = h.get("acceptance") or {}
+    if acc.get("items"):
+        d, n = acceptance_count(h)
+        lines.append(f"Acceptance ({acc.get('by', '?')}, {when(acc.get('at', 0))}): {d} of {n} done")
+        for i in acc["items"]:
+            lines.append(f"  [{'x' if i.get('done') else ' '}] {i['text']}"
+                         + (f"  ({i.get('done_by', '?')}, {when(i.get('done_at', 0))})" if i.get("done") else ""))
+    if h.get("decisions"):
+        lines.append(f"Decided ({len(h['decisions'])}):")
+        for i in h["decisions"]:
+            lines.append(f"  {i['text']}  ({i.get('by', '?')}, {when(i.get('at', 0))})")
+    for key, label in (("defects", "Defects"), ("review", "Review")):
+        items = h.get(key) or []
+        if not items:
+            continue
+        open_ = sum(1 for i in items if i.get("open"))
+        lines.append(f"{label}: {open_} open" + (f", {len(items) - open_} {'closed' if key == 'defects' else 'addressed'}"
+                                                 if len(items) - open_ else ""))
+        for i in items:
+            state = "open" if i.get("open") else ("closed" if key == "defects" else "addressed")
+            lines.append(f"  {state:<9} " + (f"{i['where']} " if i.get("where") else "") + f"{i['text']}  ({i.get('by', '?')}, "
+                         f"{when(i.get('at', 0))}" + (f"; {state} by {i.get('closed_by', '?')}" if not i.get("open") else "") + ")")
+    ch = h.get("changed") or {}
+    if ch.get("files") or ch.get("at"):
+        n = len(ch.get("files") or []) + int(ch.get("more") or 0)
+        lines.append(f"Changed ({ch.get('by', 'vikix')}, {when(ch.get('at', 0))}): {n} file{'s' if n != 1 else ''}"
+                     + (f" against {ch['base'][:7]}" if ch.get("base") else " (uncommitted only: no base to compare with)"))
+        for f in (ch.get("files") or [])[:20]:
+            lines.append(f"  +{f.get('add', 0)} -{f.get('del', 0)}  {f['path']}"
+                         + (" (new, uncommitted)" if f.get("new") else " (uncommitted)" if f.get("uncommitted") else ""))
+        if n > 20:
+            lines.append(f"  … and {n - 20} more")
+    co = h.get("commits") or {}
+    if co.get("list"):
+        n = len(co["list"]) + int(co.get("more") or 0)
+        lines.append(f"Commits ({co.get('by', 'vikix')}, {when(co.get('at', 0))}): {n} past {co.get('base', '?')[:7]}")
+        for c in co["list"][-10:]:
+            lines.append(f"  {c.get('hash', '?')}  {c.get('subject', '')}")
+        if n > 10:
+            lines.append(f"  … and {n - 10} before")
+    return lines
+
+
+def handin_text(rec):
+    """The record's handoff and hand-in as a paragraph for an agent's first
+    prompt (a handover): the status, what was done and decided, what is
+    left, the criteria with their ticks, the decisions, the open defects
+    and findings, what changed and the commits. '' with nothing written."""
+    h = rec.get("handoff") or {}
+    out = []
+    s = h.get("status")
+    if s:
+        out.append(f"Status: {s['value']} ({s['by']}, {when(s['at'])}).")
+    for key, label in (("summary", "Done and decided"), ("next", "Left to do, next")):
+        v = h.get(key)
+        if v:
+            out.append(f"{label} ({v['by']}): {v['text']}")
+    acc = h.get("acceptance") or {}
+    if acc.get("items"):
+        d, n = acceptance_count(h)
+        out.append(f"Acceptance criteria, {d} of {n} done (tick one with vikix agents handoff --done N): "
+                   + "; ".join(f"{i + 1}. [{'x' if it.get('done') else ' '}] {it['text']}" for i, it in enumerate(acc["items"])))
+    if h.get("decisions"):
+        out.append("Decided already (don't reopen without the user): " + "; ".join(i["text"] for i in h["decisions"]))
+    for key, label in (("defects", "Defects open"), ("review", "Review findings open")):
+        items = [i for i in (h.get(key) or []) if i.get("open")]
+        if items:
+            out.append(f"{label}: " + "; ".join((f"{i['where']} " if i.get("where") else "") + f"{i['text']} ({i.get('by', '?')})"
+                                               for i in items))
+    ch = h.get("changed") or {}
+    if ch.get("files"):
+        n = len(ch["files"]) + int(ch.get("more") or 0)
+        out.append(f"Changed against {ch.get('base', '?')[:7] or 'HEAD'}: {n} file{'s' if n != 1 else ''}: "
+                   + ", ".join(f"{f['path']} (+{f.get('add', 0)} -{f.get('del', 0)}" + (", uncommitted)" if f.get("uncommitted") else ")")
+                               for f in ch["files"][:30]) + (", …" if n > 30 else ""))
+    co = h.get("commits") or {}
+    if co.get("list"):
+        n = len(co["list"]) + int(co.get("more") or 0)
+        out.append(f"Commits past {co.get('base', '?')[:7]}: {n}: " + "; ".join(f"{c.get('hash', '?')} {c.get('subject', '')}"
+                                                                           for c in co["list"][-10:]))
+    return "\n".join(out)
 
 
 def render(rec, agents_at=(), protection=(), now=None):
@@ -638,6 +904,7 @@ def render(rec, agents_at=(), protection=(), now=None):
         if v:
             lines.append(f"{label} ({v['by']}, {when(v['at'])}):")
             lines += ["  " + line for line in v["text"].splitlines()]
+    lines += handin_lines(h)
     checks = rec.get("checks") or []
     if checks:
         lines.append("Checks:")

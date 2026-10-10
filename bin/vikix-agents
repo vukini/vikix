@@ -58,7 +58,7 @@
                        In a terminal on this workspace (Super+a, Agent
                        here): it asks which agent, as desk does, when --use
                        and --local don't say
-  vikix agents desk [PROJECT [TOPIC]] [--task "..."] [--use NAME] [--local] [--here] [--push] [--no-tests] [--mode MODE]
+  vikix agents desk [PROJECT [TOPIC]] [--task "..."] [--acceptance "..."] [--use NAME] [--local] [--here] [--push] [--no-tests] [--mode MODE]
                        make a desk: a worktree of the project, a branch, a record.
                        In PROJECT (one of vikix project's, by any part of
                        its name), a git worktree of the project made for
@@ -70,8 +70,8 @@
                        task, and the desk keeps the history of its
                        workers. --task "...": the shortcut that does both,
                        the desk and a worker at it with that task; the
-                       agent's words (--use, --local, --here, --push,
-                       --mode) are worker's, and want a task here. Without PROJECT it
+                       agent's words (--acceptance, --use, --local, --here,
+                       --push, --mode) are worker's, and want a task here. Without PROJECT it
                        asks which, then for a topic (a repository's desk
                        is a worktree, so one is needed; a project that is
                        no repository works in its own folder, with none),
@@ -79,7 +79,7 @@
                        a task the worker's questions after it. --no-tests:
                        the desk's tests don't run by themselves when a
                        worker hands in (vikix agents test runs them still)
-  vikix agents worker DESK ["..."] [--use NAME] [--local] [--here] [--push] [--no-tests] [--mode MODE] | --menu
+  vikix agents worker DESK ["..."] [--acceptance "..."] [--use NAME] [--local] [--here] [--push] [--no-tests] [--mode MODE] | --menu
                        start a worker at a desk: an agent on a task there.
                        DESK is the folder (~/src/PROJECT-TOPIC), the topic
                        or the branch; the task in your words, written in
@@ -92,6 +92,9 @@
                        an agent to talk with, the record left as it is.
                        Refused while an agent is at the desk: vikix agents
                        tell leaves it a note, dismiss ends it first.
+                       --acceptance "...": a criterion the work is judged
+                       by, once per line; the worker ticks them (handoff
+                       --done N) and the record shows 2 of 3;
                        --use: another agent than yours (vikix agent --use);
                        --local: on a model on this laptop (vikix agent
                        --local; opencode, codex and aider can);
@@ -129,7 +132,24 @@
                        --expect-session ID also refuses if the recorded
                        conversation changed since the choice was shown;
                        --mode as worker's (unsaid: the last launch's for
-                       the same provider, else the house default)
+                       the same provider, else the house default). --fresh
+                       at a desk with a task gives the agent the task, the
+                       handoff and the hand-in's fields as its first prompt
+  vikix agents handover DESK --to NAME [--mode MODE] [--now] [--here]
+                       pass a desk from its agent to a fresh one of another provider.
+                       Claude's design to Codex's hands, or the other way:
+                       the agent at the desk is asked for its handoff in a
+                       note and given up to two minutes to write it (not
+                       one at its prompt, which reads no note), dismissed,
+                       and the next started with resume --use NAME
+                       --fresh, its first prompt the task, the handoff and
+                       the hand-in's fields (acceptance, decisions, defects,
+                       findings, what changed, the commits); the record
+                       logs "handed over: claude -> codex" and keeps both
+                       sessions, so resume with either finds its
+                       conversation. Refused while the agent is mid-turn
+                       (an edit or a command in the last minute), unless
+                       --now; --mode as worker's
   vikix agents close [DESK] [--force]
                        close a desk whose work is in.
                        Its worktree is removed and its branch deleted. DESK
@@ -170,8 +190,26 @@
                        the record and the listing then count down; --from
                        takes the same as JSON (task, status, summary,
                        next, estimate, check {name, ok, note}, session
-                       {provider, id}). Each line says who wrote it.
+                       {provider, id}, and the hand-in's fields below by
+                       their names, done, defect_done and review_done
+                       with a number). Each line says who wrote it.
                        "handoff set", and --desk DESK, are the same
+  vikix agents handoff [DESK] [--acceptance "..."] [--done N] [--defect "..."] [--defect-done N] [--review "..."] [--review-done N] [--decided "..."]
+                       the hand-in: criteria, defects, findings, decisions; each signed.
+                       --acceptance, once per criterion, is the list the
+                       work is judged by (yours, with the task: worker,
+                       desk --task and a plan file's acceptance take it
+                       too); the worker ticks one with --done N, and the
+                       record shows 2 of 3. --defect adds a known defect
+                       or limit, --defect-done N closes one; --review adds
+                       a finding (a reviewer's, or yours; "FILE:LINE the
+                       words" keeps where), --review-done N marks it
+                       addressed; --decided adds a choice made, a line, so
+                       the next worker doesn't reopen it. What changed
+                       against the base (where the branch left the
+                       project's own) and the commits past it are read
+                       from git at every write and at the tester's run,
+                       signed vikix, never typed. Fifty of each are kept
   vikix agents handoff check NAME --ok|--failed [--note "..."] [--desk DESK]
                        a check that ran (the command), and whether it passed.
                        Kept with the commit it ran on and whether the tree
@@ -543,8 +581,8 @@ del _part, _path, _f, _header
 SECTIONS = (
     ("seeing", "Seeing them", ("", "office", "clash", "crossings", "tidy", "help")),
     ("each", "A desk each: the place", ("desk", "close", "here")),
-    ("workers", "Workers: an agent at a desk, on a task", ("worker", "resume", "tell", "pause", "go", "turns", "test",
-                                                          "dismiss")),
+    ("workers", "Workers: an agent at a desk, on a task", ("worker", "resume", "handover", "tell", "pause", "go",
+                                                          "turns", "test", "dismiss")),
     ("plans", "Plans: tasks in order, at desks, run for you", ("plan run", "plan status", "plan pause", "plan stop",
                                                               "plan release", "plan log")),
     ("agent", "The agent's own, from its shell", ("sit", "handoff", "handoff check", "handoff session", "handoff list",
@@ -705,6 +743,8 @@ def main(argv):
         return handoff(argv[1:])
     if argv and argv[0] == "resume":
         return resume(argv[1:])
+    if argv and argv[0] == "handover":
+        return handover(argv[1:])
     if argv and argv[0] == "hooks":
         return hooks(argv[1:])
     if argv and argv[0] == "tell":

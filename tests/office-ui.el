@@ -54,6 +54,36 @@ load of other sessions' tests that moment was missed (2026-10-08)."
            (should (string-match-p "Worktree removed" (buffer-string))))
          (should-error (vikix-office-continue) :type 'user-error))
      (kill-buffer vikix-office--detail))))
+(ert-deftest office-details-hand-in ()
+  "The hand-in's fields on the page: the criteria ticked, a decision, a
+defect open, a finding with where, what changed and the commits."
+  (office-test-buffer
+   (setq vikix-office--detail (generate-new-buffer " *Office hand-in test*"))
+   (unwind-protect
+       (progn
+         (setf (alist-get 'handoff (car (alist-get 'desks vikix-office--data)))
+               '((status . ((value . "review") (by . "codex 1") (at . 1791300000)))
+                 (acceptance . ((items . (((text . "chapters in order") (done . t) (done_by . "codex 1") (done_at . 1791300000))
+                                          ((text . "the log says so") (done . :false))))
+                                (by . "user") (at . 1791300000)))
+                 (decisions . (((text . "kept the old order") (by . "codex 1") (at . 1791300000))))
+                 (defects . (((text . "slow past 500") (open . t) (by . "codex 1") (at . 1791300000))))
+                 (review . (((text . "the heading is stale") (where . "log.md:1") (open . :false) (by . "claude 2") (at . 1791300000))))
+                 (changed . ((base . "abc1234567") (files . (((path . "log.md") (add . 2) (del . 0) (uncommitted . t))
+                                                              ((path . "notes.md") (add . 0) (del . 0) (uncommitted . t) (new . t))))
+                             (more . 0) (by . "vikix") (at . 1791300000)))
+                 (commits . ((base . "abc1234567") (list . (((hash . "77aff7b") (subject . "add b")))) (more . 0)
+                             (by . "vikix") (at . 1791300000)))))
+         (vikix-office--render)
+         (with-current-buffer vikix-office--detail
+           (let ((page (buffer-string)))
+             (dolist (want '("Acceptance" "1 of 2 done · user" "\\[x\\] chapters in order · codex 1" "\\[ \\] the log says so"
+                             "Decided" "kept the old order · codex 1" "Defects *1 open of 1" "open: slow past 500"
+                             "Review *0 open of 1" "addressed: log.md:1 the heading is stale · claude 2"
+                             "Changed *2 files against abc1234" "\\+2 -0 log.md (uncommitted)" "\\+0 -0 notes.md (new, uncommitted)"
+                             "Commits *1 past abc1234" "77aff7b add b"))
+               (should (string-match-p want page))))))
+     (kill-buffer vikix-office--detail))))
 (ert-deftest office-folder-row-is-not-a-desk ()
   (office-test-buffer
    (setq vikix-office--detail (generate-new-buffer " *Office folder test*"))

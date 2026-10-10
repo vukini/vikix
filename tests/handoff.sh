@@ -12,7 +12,7 @@
 #   moved on (a commit, or other uncommitted changes); a session id is
 #   kept by provider, Claude Code's from the hook's own input; the record
 #   survives the agent's exit and a stale pid, and the worktree's removal;
-#   twenty-five writers at once lose nothing; a generic provider uses the
+#   twenty-five writers at once lose nothing, over the hand-in's lists too; a generic provider uses the
 #   same commands, and handoff writes given any setting, no "set" needed,
 #   naming its desk first as close does; a credential, an unknown field, a
 #   bad session id or a record id that is a path are refused; --json has the freshness; the
@@ -187,7 +187,7 @@ out=$(agents handoff set --desk a --summary "the key is ANTHROPIC_API_KEY=sk-ant
 check "a credential is refused, and nothing kept: $out" \
   bash -c 'grep -q "looks like it holds a credential" <<<"$1" && ! grep -rq "sk-ant" "$2"' _ "$out" "$records"
 out=$(echo '{"stat": "working"}' | VIKIX_AGENT_PID=1001 python3 "$here/bin/vikix-agents" handoff set --desk a --from - 2>&1 || true)
-check "an unknown field in --from is refused, naming the fields: $out" grep -q 'unknown field: stat (the fields: check, estimate, next, session, status, summary, task)' <<<"$out"
+check "an unknown field in --from is refused, naming the fields: $out" grep -q 'unknown field: stat (the fields: acceptance, check, decided, defect, defect_done, done, estimate, next, review, review_done, session, status, summary, task)' <<<"$out"
 out=$(agents handoff set --desk a --status 'done')
 check "a status outside the four is refused: $out" grep -q 'a status is one of working, waiting, review, finished' <<<"$out"
 out=$(agents handoff session --desk a codex '../../etc/passwd')
@@ -213,6 +213,14 @@ for i in $(seq 1 25); do (agents handoff set --desk a --summary "writer $i" >/de
 # The record keeps its last forty log lines (LOG_MAX), so the count stops there.
 after=$(agents handoff a --json | python3 -c 'import json,sys; r=json.load(sys.stdin); print(len(r["log"]), r["task"]["text"][:3], sum(1 for e in r["log"][-25:] if e["what"] == "summary"))')
 check "twenty-five writers at once lose nothing: $before then $after" test "$after" = "$(( before + 25 > 40 ? 40 : before + 25 )) Fix 25"
+# And over the hand-in's lists: every defect and decision lands, each signed.
+for i in $(seq 1 25); do (agents handoff set --desk a --defect "defect $i" --decided "choice $i" >/dev/null) & done; wait
+check "twenty-five writers over the hand-in's fields lose nothing" python3 -c '
+import json, sys
+h = json.load(sys.stdin)["handoff"]
+assert sorted(d["text"] for d in h["defects"]) == sorted(f"defect {i}" for i in range(1, 26)), h["defects"]
+assert sorted(d["text"] for d in h["decisions"]) == sorted(f"choice {i}" for i in range(1, 26)), h["decisions"]
+assert all(d["by"] == "user" and d["open"] for d in h["defects"])' <<<"$(agents handoff a --json)"
 
 # The agent exits (its pid is stale), the desk stays, the record stays; then the worktree goes.
 rm -r "$t/proc/1001"
@@ -259,7 +267,8 @@ check "the session its store still has is resumed, with claude --resume ID: $out
 out=$(resume c --here)
 check "without --use the last session's provider is taken" grep -q "^AGENT ARGS: --use claude --resume 0f1e2d3c" <<<"$out"
 out=$(resume c --here --fresh)
-check "--fresh starts a new conversation all the same: $out" bash -c 'grep -q "a fresh conversation was asked for" <<<"$1" && grep -q "^AGENT ARGS: $" <<<"$1"' _ "$out"
+check "--fresh starts a new conversation all the same, the task and the record its first prompt (a handover's road): $out" \
+  bash -c 'grep -q "a fresh conversation was asked for" <<<"$1" && grep -q "^the task and the handoff are its first prompt$" <<<"$1" && grep -q "^AGENT ARGS: --use claude Chapter three$" <<<"$1" && grep -q "^This is your desk.s task" <<<"$1" && ! grep -q "What the desk.s record holds" <<<"$1"' _ "$out"
 check "the record logs what happened" grep -q '"what": "resumed: claude 0f1e2d3c' "$records"/*.json
 # Codex: a rollout file in its store, found by the id; one on disk for the folder is suggested, never taken.
 mkdir -p "$HOME/.codex/sessions/2026/10/06"
@@ -466,7 +475,7 @@ check "the menu closed starts nothing: '$out'" test ! -f "$t/term-out"
 
 # vikix agents help: a map of the commands, in sections, a line each.
 out=$(agents help)
-check "help is a map, not the page ($(wc -l <<<"$out") lines)" test "$(wc -l <<<"$out")" -lt 60
+check "help is a map, not the page ($(wc -l <<<"$out") lines)" test "$(wc -l <<<"$out")" -lt 70
 for k in office clash crossings here desk worker resume close sit handoff tell pause go turns test dismiss plan hooks; do
   check "the map names $k" grep -q "^  vikix agents $k" <<<"$out"
 done
