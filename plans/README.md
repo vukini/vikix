@@ -7,6 +7,7 @@ The longer plans of Vikix, one file each. The queue is `../TODO.md`, the pool `.
 | File | Drafted | What it works out |
 |---|---|---|
 | `DESIGN-cloud.md` | 2026-10-09 | Vid's idea, as he wrote it: rented always-on machines as nodes of the one Vikix (`vikix nodes`, `--on NAME` over SSH first, projects sent by git, jobs that outlive the laptop), and the product that could sell such nodes. |
+| `DESIGN-codex-integration.md` | 2026-10-10 | Codex as a first-class worker: `CLAUDE.md` as its instructions, three modes set by the launcher with the desk as the sandbox's only root, its hooks in Codex's shape with an escalation denied off the desk, the hand-in's fields, a review by another provider and a handover between them (TODO 116). |
 | `DESIGN-cuis.md` | 2026-10-03 | Cuis Smalltalk as a Vikix feature, with a door for the agent. Phase 0 built 2026-10-09: `vikix cuis`, `vikix eval --cuis` (TODO 88). |
 | `DESIGN-docs.md` | 2026-10-03 | The docs catalogue and the `vk` alias. |
 | `DESIGN-machines.md` | 2026-10-04 | Your laptops, desktop and phones as one Vikix: Tailscale, Syncthing, KDE Connect, `vikix export`/`import`, `--on NAME` for the doors (TODO 16 to 19). |
