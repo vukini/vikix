@@ -63,6 +63,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-screens](#vikix-screens): the screens: a new one lights up by itself, and a menu for the rest
 - [vikix-screenshot](#vikix-screenshot): keep a picture of an area, a window or the whole screen
 - [vikix-session](#vikix-session): everything that runs for the length of a desktop session
+- [vikix-theme](#vikix-theme): the colour theme, everywhere
 - [vikix-times](#vikix-times): how long the desktop takes
 - [vikix-updates](#vikix-updates): what `vikix update` would bring
 - [vikix-used](#vikix-used): what gets used: the keys you press and the commands you run
@@ -1156,6 +1157,17 @@ Everything that runs for the length of a desktop session.
 - `vikix-session` — the session; `~/.xinitrc` runs it, nobody else should
 
 Started by `~/.xinitrc` inside dbus-run-session, so every program here shares one session bus. Without systemd there are no "user services": the background programs are simply started here, and they end when StumpWM (the last line) exits.
+
+## vikix-theme
+
+The colour theme, everywhere.
+
+- `vikix theme` — the current theme, and the ones there are
+- `vikix theme NAME` — switch to NAME, everywhere, now
+- `vikix theme import SOURCE [NAME] [--force] [--no-switch]` — an Omarchy theme, as a theme of yours, then switch to it. SOURCE is an https git URL, OWNER/REPO on GitHub, or a folder with a git repository. NAME is the repository's name without omarchy- and -theme, unless you give one. --force replaces a theme of yours with that name (the old files are kept as .vikix-bak); --no-switch only imports
+- `vikix theme --refresh` — write the current theme's files again (40-config does this, so a Vikix update reaches them)
+
+A theme is a file of named colours: themes/NAME.theme in Vikix, or your own in `~/.config/vikix/themes/`. Switching remembers the choice and writes the colours out for each program into `~/.config/vikix/theme/`, which your config files include; the programs that are running pick the new colours up now (StumpWM, dunst, kitty, the editors, Nyxt, GTK and Qt), and the theme's own wallpaper comes with it. Super+m → Theme is the same, with each theme shown as you move to it. vikix (the everyday command) hands `vikix theme` over to this script.
 
 ## vikix-times
 

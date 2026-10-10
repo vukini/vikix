@@ -31,7 +31,7 @@ t=$(mktemp -d)
 trap 'rm -rf "$t"' EXIT
 
 # --- the two lists of agents are one ----------------------------------------------------
-a=$(sed -n 's/^PROGRAMS = (\(.*\))$/\1/p' "$here/bin/vikix-agents" | tr -d ' "')
+a=$(sed -n 's/^PROGRAMS = (\(.*\))$/\1/p' "$here/lib/agents/common.py" | tr -d ' "')
 b=$(sed -n 's/^AGENTS = (\(.*\))$/\1/p' "$here/bin/vikix-eval" | tr -d ' "')
 check "bin/vikix-eval's agents ($b) should be bin/vikix-agents' ($a)" test "$a" = "$b"
 

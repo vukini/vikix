@@ -23,7 +23,7 @@ done
 echo "syntax: ${#scripts[@]} scripts checked"
 
 # The Python ones (vikix eval, lib/*.py): parsed, not run, and nothing written to disk.
-mapfile -t pythons < <(grep -lE '^#!.*python' bin/* lib/*)
+mapfile -t pythons < <(grep -lE '^#!.*python' bin/* lib/*; ls lib/agents/*.py)
 python3 -c '
 import ast, sys
 for f in sys.argv[1:]:

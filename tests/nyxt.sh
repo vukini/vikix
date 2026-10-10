@@ -241,9 +241,9 @@ printf '#!/bin/sh\nfor a in "$@"; do echo "$a"; done >> "%s/calls"\n' "$t" > "$t
 printf '#!/bin/sh\n[ -e "%s/running" ]\n' "$t" > "$t/bin/pgrep"
 chmod +x "$t/bin/nyxt" "$t/bin/pgrep"
 # Only the function: all of `vikix theme` would repaint the live desktop.
-fn=$(sed -n '/^theme_nyxt() {/,/^}/p' "$here/bin/vikix")
-check "bin/vikix has theme_nyxt" test -n "$fn"
-check "vikix theme calls theme_nyxt" grep -q '^    theme_nyxt$' "$here/bin/vikix"
+fn=$(sed -n '/^theme_nyxt() {/,/^}/p' "$here/bin/vikix-theme")
+check "bin/vikix-theme has theme_nyxt" test -n "$fn"
+check "vikix theme calls theme_nyxt" grep -q '^    theme_nyxt$' "$here/bin/vikix-theme"
 PATH="$t/bin:$PATH" bash -c "$fn; theme_nyxt"
 check "no Nyxt running, nothing sent" test ! -e "$t/calls"
 touch "$t/running"

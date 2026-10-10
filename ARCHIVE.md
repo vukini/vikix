@@ -42,6 +42,7 @@ What shipped, or was dropped, out of `TODO.md` and `IDEAS.md`, so those two hold
 Items 37, 38 and 41: **Agent waiting** (`agent-waiting`: Claude Code through its hooks, and Codex's `[ ! ] Action Required` title), **Notes from anywhere** (`inbox`: the box, Super+Alt+i, Super+Alt+Shift+i quoting the selection, the page's address from Firefox and Nyxt, `inbox sort` on Super+Alt+Shift+s with `--undo`, to-dos to Todoist) and **Next meeting** (`next-meeting`, calendars by their private ICS links) shipped as plugins; what each still lacks stays under its number in `TODO.md`.
 91. **The socket** (code health, 0.71.265): `socket.lisp`, `vikix eval`'s first road.
 110. **Nothing on the main thread waits on a program** (code health, 0.72.x): `vikix-shell-then` and `vikix-later`, and `tests/lint.sh` failing a `run-shell-command … t` anywhere but the helpers.
+112. **The two largest commands split** (code health, 0.72.x): the themes and the Omarchy importer in `bin/vikix-theme`; `bin/vikix-agents` a front reading its parts `lib/agents/*.py` (common, desks, handoffs, turns, tester, house) into one namespace, in order.
 
 ### Vikix as the workshop for the Living Series (decided with Vid 2026-09-30)
 
