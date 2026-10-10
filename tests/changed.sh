@@ -104,6 +104,10 @@ for f in "${files[@]}"; do
     # The agents' guide is made from the skill.
     config/claude/*) add agents ;;
     site/*) add lint ;;
+    # The office's front and its parts: their tests are named below (fifteen
+    # tests name bin/vikix-agents, and none names a part by its file, which
+    # the name rule would both make all).
+    bin/vikix-agents|lib/agents/*) ;;
     # Only agents reads the repository's README.md (its table of keys, through
     # lib/skill-keys.sh --check); the name rule would add the tests that make up
     # README.md files of their own (update, try, docs, examples, what ...).
@@ -151,7 +155,7 @@ for f in "${files[@]}"; do
   case $f in
     # The skill's list of keys is made from these (lib/skill-keys.sh).
     config/stumpwm/vikix/why.lisp|bin/vikix-why|bin/vikix-notifications) add why mcp notifications used ;;
-    config/stumpwm/vikix/agents.lisp|bin/vikix-agents|config/claude/office.json) add office titles house handoff office-ui mcp tester plan ;;
+    config/stumpwm/vikix/agents.lisp|bin/vikix-agents|lib/agents/*|config/claude/office.json) add office titles house handoff office-ui mcp tester plan door nyxt ;;
     lib/plan.py) add plan office-ui ;;
     lib/handoff.py) add office titles house handoff office-ui mcp release plan ;;
     bin/vikix-agent) add house agents ai ;;

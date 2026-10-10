@@ -101,5 +101,19 @@ echo 'more' >>"$repo/README.md"
 check "README.md alone maps to 'agents': '$(map)'" test "$(map)" = agents
 reset
 
+# The office's front and a part of it (lib/agents/) map to the office's tests,
+# never to all: fifteen tests name the front, none names a part's file.
+mkdir -p "$repo/lib/agents"
+printf '#!/usr/bin/env bash\n' >"$repo/bin/vikix-agents"; echo 'x = 1' >"$repo/lib/agents/turns.py"
+for n in office titles house handoff office-ui mcp tester plan door nyxt; do
+  printf '#!/usr/bin/env bash\n# tests/%s.sh: bin/vikix-agents\n' "$n" >"$repo/tests/$n.sh"
+done
+for n in agents ai day debug dictate records; do printf '#!/usr/bin/env bash\n# bin/vikix-agents\n' >"$repo/tests/$n.sh"; done
+g add bin lib tests; g commit -q -m 'the office'
+echo '# more' >>"$repo/lib/agents/turns.py"; echo '# more' >>"$repo/bin/vikix-agents"
+check "the office's front and a part map to the office's tests: '$(map)'" \
+  test "$(map)" = "door handoff house lint man mcp nyxt office office-ui plan tester titles"
+g checkout -q -- bin lib tests
+
 [ "$fail" = 0 ] && echo "changed-map: a change to bin/vikix maps to its part's tests (header, an arm, update's and try's functions, the short forms), anything else to all"
 exit "$fail"
