@@ -258,14 +258,15 @@ check "yes hands it over, and it's said: '$(cat "$t/desk.ssh" 2>/dev/null)' $out
 echo 0 > "$t/push-pick"
 echo "codex " > "$t/agent-pick"; echo "menu-four" > "$t/topic-typed"
 out=$(PATH="$t/bin:$PATH" AGENT_CMD="$t/bin/argsaver" desk)
-check "another agent picked reaches vikix agent as --use, and is said: $out" grep -q 'menu-four, codex, the task its first prompt, on workspace' <<<"$out"
+# Codex gets the house mode too (autonomous unless ~/.config/vikix/office says; tests/codex.sh has the modes).
+check "another agent picked reaches vikix agent as --use, and is said: $out" grep -q 'menu-four, codex, autonomous, the task its first prompt, on workspace' <<<"$out"
 sleep 0.5
-check "... as --use codex: '$(head -1 "$t/desk.args" 2>/dev/null)'" test "$(head -1 "$t/desk.args" 2>/dev/null)" = "--use codex Fix the index from the menu"
+check "... as --use codex: '$(head -1 "$t/desk.args" 2>/dev/null)'" test "$(head -1 "$t/desk.args" 2>/dev/null)" = "--use codex --mode autonomous Fix the index from the menu"
 mkdir -p "$home/.local/bin"; cp "$t/bin/codex" "$home/.local/bin/codex"     # installed: its local row is offered
 echo "codex        on a model" > "$t/agent-pick"; echo "menu-five" > "$t/topic-typed"
 out=$(PATH="$t/bin:$PATH" AGENT_CMD="$t/bin/argsaver" desk)
 sleep 0.5
-check "the local row adds --local: '$(head -1 "$t/desk.args" 2>/dev/null)'" test "$(head -1 "$t/desk.args" 2>/dev/null)" = "--use codex --local Fix the index from the menu"
+check "the local row adds --local: '$(head -1 "$t/desk.args" 2>/dev/null)'" test "$(head -1 "$t/desk.args" 2>/dev/null)" = "--use codex --local --mode autonomous Fix the index from the menu"
 : > "$t/task-typed"
 here() { HOME=$home VIKIX_SWANK_PORT=$port VIKIX_AGENT_CMD="${AGENT_CMD:-$t/bin/claude}" python3 "$here/bin/vikix-agents" here "$@" 2>&1 || true; }
 : > "$t/desk.args"
@@ -286,7 +287,7 @@ check "Super+m has it, under AI" yes '(find (quote (run-shell-command "vikix-age
 out=$(AGENT_CMD="$t/bin/argsaver" desk books with-task --use codex --task "Fix the index")
 sleep 0.5
 check "--task is the agent's first prompt, after its own words, and said: $out" \
-  bash -c 'grep -q "with-task, codex, the task its first prompt, on workspace" <<<"$1" && [ "$(head -1 "$2")" = "--use codex Fix the index" ] && grep -q "read the handoff before you start" "$2"' _ "$out" "$t/desk.args"
+  bash -c 'grep -q "with-task, codex, autonomous, the task its first prompt, on workspace" <<<"$1" && [ "$(head -1 "$2")" = "--use codex --mode autonomous Fix the index" ] && grep -q "read the handoff before you start" "$2"' _ "$out" "$t/desk.args"
 check "and the task is in the record too" grep -q 'books-with-task  no status, just now: Fix the index' <<<"$(cli handoff list)"
 : > "$t/desk.args"
 out=$(AGENT_CMD="$t/bin/argsaver" desk books with-task-oc --use opencode --task "Fix the index")
