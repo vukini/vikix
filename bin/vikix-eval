@@ -372,6 +372,14 @@ def through_cuis(code):
         print(f"vikix eval --cuis: the Cuis door checks nothing yet, so an agent's Smalltalk ({who})\n"
               "isn't run: say what it is, and the user runs it as themselves.", file=sys.stderr)
         return 3
+    # The isolation line the tests draw (VIKIX_SWANK_PORT=9) holds for Cuis
+    # too: a test that names no Cuis port of its own gets no door, rather
+    # than the live image's (a theme refresh in a test once would have
+    # filed its theme into the desktop's Cuis).
+    if PORT != DESKTOP_PORT and "VIKIX_CUIS_PORT" not in os.environ:
+        print(f"vikix eval --cuis: VIKIX_SWANK_PORT names a test's desktop ({PORT}), and no VIKIX_CUIS_PORT\n"
+              "names its Cuis: nothing is sent to the live image's door.", file=sys.stderr)
+        return 2
     try:
         sock = socket.create_connection((HOST, CUIS_PORT), timeout=5)
     except OSError:

@@ -2,7 +2,7 @@
 
 Cuis Smalltalk as a Vikix citizen: installed, themed, with a door for `vikix eval` and the agent, and then the things a live image can do for the desktop.
 
-Drafted 2026-10-03 with Vid. Kept honest like the other designs: what ships is deleted here, what changes is dated. Picked up 2026-10-09 (TODO 88): Phase 0 is built, see the dated notes.
+Drafted 2026-10-03 with Vid. Kept honest like the other designs: what ships is deleted here, what changes is dated. Picked up 2026-10-09 (TODO 88): Phase 0 is built, Phase 1 on 2026-10-10, see the dated notes.
 
 ---
 
@@ -24,8 +24,8 @@ Cuis is small (the whole image is a few megabytes), built for teaching, and ever
 
 ```
  ~/.local/opt/cuis/base/      the release as the tag has it, Linux parts only (Vikix's)
- cuis/*.pck.st (this repo)    Vikix's packages: VikixServer (in), VikixTheme,
-                              VikixDesktop, VikixMusic, VikixLessons
+ cuis/*.pck.st (this repo)    Vikix's packages: VikixServer, VikixTheme,
+                              VikixDesktop (in), VikixMusic, VikixLessons
  ~/cuis/                      the user's: vikix.image and its .changes, NewPackages/
                               (their packages), UserChanges/, Logs/, preferences;
                               links to the release's Packages, CoreUpdates,
@@ -38,21 +38,21 @@ Cuis is small (the whole image is a few megabytes), built for teaching, and ever
 
 - `vikix add cuis` (in, 2026-10-09: `bin/vikix-cuis`) downloads the tag's archive, pinned and checksummed as Ollama is, into `~/.local/opt/cuis/`; builds the image with no window (`-vm-display-null`, `-s build.st`, two seconds) by requiring the packages by path; writes `~/.local/bin/cuis` (a wrapper for `vikix cuis run`, which starts the image with `-ud ~/cuis`, replacing the dotfiles' launcher) and a `.desktop` file; the Super+m entry is in the registry (Apps). A package of Vikix's that doesn't load fails the build; one of the user's is warned of and left out.
 - `vikix update` rebuilds when Vikix's packages or the pin changed (the stamp `~/cuis/.vikix-built`); the user's packages reload on top. `~/cuis/` is in `yours.list`, so `vikix undo` covers Smalltalk work. Cuis's own `.changes` file logs every method edit besides, which is the function time machine from IDEAS for free.
-- **Theme:** `vikix theme NAME` writes `cuis/VikixTheme-NAME.st` from the `.theme` file (the colours, the font) and files it into any running image through the door; the next launch reads it from disk. Cuis's `Theme` class and its subclasses are made for this.
-- **Font:** the Vikix font as a TrueType loaded into the image at build, so Cuis looks like the rest.
-- **Doctor:** `vikix cuis doctor`: VM runs, image at the pin, packages loaded, the door answering. `vikix doctor` carries the line.
+- **Theme:** in (2026-10-10). Not a file a theme, as planned, but one file, `~/.config/vikix/theme/cuis.st`, beside the other programs' theme files: a chunk file of `VikixTheme`'s colour methods and `fontFamilyName`, written by `vikix theme` and filed in by `VikixTheme loadFrom:` (the class itself, with `useUniformColors` and the loading, is the package `cuis/VikixTheme.pck.st`). Learned on the way: a method compiled outside a package's change set makes Cuis ask for a change set's name in a dialog, so the file-in runs under `ChangeSet installing: 'VikixTheme' do:` and marks the package clean after, as a package install does; and the build script is compiled whole before the packages load, so it names the class with `Smalltalk at:`. The windows already open are recoloured (`setWindowColor:`), which Cuis's own theme switch leaves to the next window.
+- **Font:** in (2026-10-10): `VikixTheme loadFont:` at build, the Vikix font's folder (`~/.local/share/vikix/fonts`, `wm.ttf`); 2.5 s and 6 MB in the image. `vikix-font --family` tells `vikix theme` the family's name for the written class, and `PreferenceSet setDefaultFont:` takes it when the image has it, sizes unchanged.
+- **Doctor:** in (Phase 0; 2026-10-10 adds the theme: the running image's `Theme current` is `VikixTheme`).
 
 **The door.** `VikixServer`, a TCP listener on `127.0.0.1:4005` (in, 2026-10-09: `cuis/VikixServer.pck.st`, 200 lines; `vikix eval --cuis`):
 
 - The first line is the password, `~/.slime-secret` (the same file Swank uses), with five seconds to send it; a wrong or late one closes that client and never the server, as `swank-guard.lisp` does for Swank. The image reads the file at each client, so a new secret needs no restart.
 - Then a request: lines ending with a line of one dot (a line that starts with a dot gets one more), so an expression may span lines; `Compiler evaluate:` in the image's UI process (`UISupervisor whenUIinSafeState:`, thirty seconds, else "the image is busy"); back a line `ok` or `error`, the printString's lines or the error (`ZeroDivide`, `Error: not this way`) the same way, and a dot. UTF-8 both ways (`asUtf8Bytes` out: a String's own bytes aren't).
-- `vikix eval --cuis '3 + 4'` from a shell prints `=> 7`; an error is `error: ...` and exit 1, nothing listening exit 2. Still to come: `vikix mcp`'s `cuis_eval` behind `--allow-eval`, and the read-only `cuis_state` (image, packages, open windows).
+- `vikix eval --cuis '3 + 4'` from a shell prints `=> 7`; an error is `error: ...` and exit 1, nothing listening exit 2. `vikix mcp`'s read-only `cuis_state` is in (2026-10-10: `vikix cuis status --json`, whose live part is `VikixServer state` through the door). Still to come: `cuis_eval` behind `--allow-eval`, once the walker below exists. A test's shell (`VIKIX_SWANK_PORT` set) that names no `VIKIX_CUIS_PORT` of its own reaches no door, as it reaches no Swank (2026-10-10: a theme refresh in a test would have filed its theme into the desktop's image).
 - The allow-list idea from IDEAS applies: an expression is parsed and walked before it runs; Smalltalk's syntax is small enough that the walker is short. Sends to `Smalltalk`, `OSProcess`, file streams and the like are refused or asked. Until it exists, an agent's `vikix eval --cuis` is held (exit 3, as the Lisp door holds): the user runs it.
 - The launcher starts the server (`-d 'VikixServer startOn: 4005 secret: ...'`) when `~/.slime-secret` exists; the image's startUp and shutDown lists stop it before a save or quit and start it again, on the same port, when a saved image is opened. A port already taken leaves the door closed (`vikix cuis doctor` says so). It never listens on any address but loopback.
 
 **The apps,** each its own package, each loaded by `vikix add cuis` but harmless when unused:
 
-1. **`VikixDesktop`: the desktop as objects.** A morph showing workspaces as columns, windows as rectangles with titles, the bar's state along the top, refreshed every second from `vikix eval '(vikix-desktop-json)'` (a Lisp function to add, the same data `vikix mcp`'s `desktop` tool already returns). Drag a rectangle to another column: Cuis sends `(move-window-to-group …)`. Click one, open its halo, inspect: the window's StumpWM properties. This is "look inside any window" from IDEAS, built as an app rather than inside the WM, so a learner can break it safely.
+1. **`VikixDesktop`: the desktop as objects.** The read-only half is in (2026-10-10): a `SystemWindow` with a `LinearLayoutMorph` column a workspace and a `VikixWindowMorph` a window, kept by number between answers so a halo stays, stepped once a second; the model asks in a process of its own, so Morphic never waits. Not through `vikix eval` (the image can't run a program without FFI): `VikixSwank`, a client of StumpWM's Swank in a hundred lines (the password packet, `vikix-eval-for-agent`, the printed value unquoted), which is the road Phase 2's acts will take too. `vikix-desktop-json` is the function (windows.lisp), and `vikix mcp`'s `desktop` tool reads it now rather than carry the form itself. Left: drag a rectangle to another column, Cuis sending `(move-window-to-group …)`; the bar's state along the top.
 2. **`VikixMusic`: the sketchpad's face in Morphic.** `StepRow`, `PadGrid`, `Knob`, `Transport` and `Subtitle` morphs, talking to `vikix-music` over the same local socket the web view uses (`DESIGN-music.md`), so the two faces coexist and the protocol is settled once. The pattern language stays Lisp; a fifty-line s-expression reader in Smalltalk draws it. Built as the spike against the web view after music's Phase 0, and kept only if it wins or earns a second place.
 3. **`VikixLessons`: lessons that change the running image.** The sibling of "Learn Lisp by changing your own desktop": each lesson is a morph with a task, and the image is the exercise book. For the children's account (TODO 33) and the two-ways taster. Cuis's own class list is short enough for an eleven-year-old to read whole.
 4. **A docs adapter** (`DESIGN-docs.md`): class comments and method categories as documents; a hit opens the class in a browser in the image through the door.
@@ -87,18 +87,14 @@ Cuis is small (the whole image is a few megabytes), built for teaching, and ever
 1. **The feature**: in (2026-10-09), all of it but the theme: pinned archive, checksummed; headless build loading `cuis/*.pck.st`; `~/.local/bin/cuis` with `-ud`; a `.desktop`; the Super+m entry; `~/cuis/` in `yours.list`; `features.list`; the README section.
    - [ ] On the test VM: `vikix add cuis && cuis` opens a themed image within 10 s of launch
    - [x] `vikix cuis rebuild` twice gives images whose package list is identical (`tests/cuis.sh` builds from the real release when it is at hand)
-2. **`VikixTheme`** written from the `.theme` file by `vikix theme`, filed in live when an image runs, read at launch otherwise; the Vikix font loaded.
-   - [ ] `vikix theme paper` then `vikix theme void`: the running image follows both
 3. **`VikixServer`** and `vikix eval --cuis`: in (2026-10-09): loopback, password, five-second deadline, errors as text; `tests/cuis.sh` with `VIKIX_SWANK_PORT=9` and a port of its own so it never touches the live image.
    - [x] A wrong password closes the client; the next correct one is served
    - [x] `vikix eval --cuis '3 + 4'` prints `=> 7`
-4. **`vikix mcp`**: `cuis_state` (read) and `cuis_eval` (behind `--allow-eval`), listed by `vikix mcp tools`; the agents' skill names them.
-5. **`vikix cuis doctor`** and the `vikix doctor` line.
-6. **`VikixDesktop`**, first version: read-only. Workspaces and windows drawn, refreshed each second, halos and inspectors working on the morphs.
+4. **`vikix mcp`**: `cuis_state` is in (2026-10-10); `cuis_eval` (behind `--allow-eval`) waits for item 8.
 
 ### Should have (P1)
 
-7. `VikixDesktop` acts: drag to move a window between workspaces, click to focus, through `vikix eval`.
+7. `VikixDesktop` acts: drag to move a window between workspaces, click to focus, through `VikixSwank` (2026-10-10: not `vikix eval`; see the apps).
 8. The expression walker: an allow-list of receivers and selectors for `cuis_eval`, as the Lisp one planned in IDEAS.
 9. The docs adapter: class comments and categories into the catalogue; open-in-browser through the door.
 10. `VikixMusic` as the spike against the web view, after music's Phase 0.
@@ -122,14 +118,13 @@ Blocking, all three answered 2026-10-09 by trying on the X1:
 
 Non-blocking:
 - Port 4005: nothing else in Vikix uses it (checked 2026-10-09); it is in the README beside Swank's 4004 and Nyxt's 4006.
-- Does `VikixDesktop` poll (simplest) or does StumpWM push changes over the door? Polling first.
-- Name of the Lisp function that returns the desktop as JSON; it should be the same one `vikix mcp`'s `desktop` tool uses.
+- `VikixDesktop` polls (2026-10-10), once a second, through Swank; a push would need the image to listen, which the door already does, so it is an option for later.
 
 ## Phasing
 
 **Phase 0, a weekend:** done 2026-10-09 (a morning): P0 items 1 and 3, the feature with the pinned download, the headless build with one package (`VikixServer`), and `vikix eval --cuis '3 + 4'` printing 7, on the X1 (the VM is still to try). No theme, no apps.
 
-**Phase 1:** the rest of P0: theme, MCP, doctor, read-only `VikixDesktop`.
+**Phase 1:** done 2026-10-10: the theme and the font, `cuis_state`, the doctor's theme line, the read-only `VikixDesktop`; `tests/cuis.sh` drives the real image against a stand-in Swank (`tests/lib/fake-swank.py`).
 
 **Phase 2:** P1, the acting `VikixDesktop` first.
 

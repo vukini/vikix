@@ -233,6 +233,24 @@ current
 
 	^ Current! !
 
+!VikixServer class methodsFor: 'accessing' stamp: 'vikix 10/10/2026 12:00'!
+state
+	"What the image shows, a line a fact (key, a tab, value): the theme, the font, the packages, and a line a window (window, class, label). For vikix cuis status --json, and through it vikix mcp's cuis_state."
+
+	^ String streamContents: [ :s |
+		s nextPutAll: 'theme'; tab; nextPutAll: Theme current class name; newLine.
+		s nextPutAll: 'font'; tab; nextPutAll: FontFamily defaultFamilyName, ' ', FontFamily defaultPointSize printString; newLine.
+		s nextPutAll: 'packages'; tab.
+		CodePackage installedPackages keys asSortedCollection
+			do: [ :name | s nextPutAll: name ]
+			separatedBy: [ s nextPutAll: ', ' ].
+		s newLine.
+		s nextPutAll: 'door'; tab; nextPutAll: (Current ifNil: [ 'closed' ] ifNotNil: [ :door | door isRunning ifTrue: [ door port printString ] ifFalse: [ 'closed' ]]); newLine.
+		UISupervisor ui ifNotNil: [ :world |
+			world submorphs do: [ :m |
+				(m is: #SystemWindow) ifTrue: [
+					s nextPutAll: 'window'; tab; nextPutAll: m class name; tab; nextPutAll: (m label ifNil: [ '' ]); newLine ]]]]! !
+
 !VikixServer class methodsFor: 'system startup' stamp: 'vikix 10/9/2026 09:30'!
 startUp: resuming
 	"A saved image opened: its door opens again, on the same port."

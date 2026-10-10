@@ -12,6 +12,9 @@
 #
 #   vikix-font          make wm.ttf if it's missing or a stand-in; print its path
 #   vikix-font --force  make it again
+#   vikix-font --family  the family name wm.ttf carries (Iosevka, or the
+#                        stand-in's), for the programs that take a font by
+#                        name: Cuis's theme (vikix theme writes it)
 
 DIR=${VIKIX_FONT_DIR:-$HOME/.local/share/vikix/fonts}
 OUT="$DIR/wm.ttf"
@@ -19,6 +22,18 @@ TTC=${VIKIX_FONT_TTC:-/usr/share/fonts/TTF/Iosevka.ttc}
 STANDIN=${VIKIX_FONT_STANDIN:-/usr/share/fonts/noto/NotoSansMono-Regular.ttf}
 
 mkdir -p "$DIR"
+if [ "${1:-}" = --family ]; then
+  # fc-scan reads the name out of the file itself; without it, by what the
+  # file is: Iosevka taken out, or the stand-in linked.
+  if [ -f "$OUT" ] && command -v fc-scan >/dev/null 2>&1; then
+    family=$(fc-scan --format '%{family[0]}' "$OUT" 2>/dev/null) || family=
+  fi
+  if [ -z "${family:-}" ]; then
+    if [ -L "$OUT" ] || [ ! -f "$OUT" ]; then family="Noto Sans Mono"; else family=Iosevka; fi
+  fi
+  echo "$family"
+  exit 0
+fi
 [ "${1:-}" = --force ] && rm -f "$OUT"
 
 # Iosevka already taken out: nothing to do. (A link is the stand-in.)

@@ -105,6 +105,7 @@ for f in "${files[@]}"; do
     # The agents' guide is made from the skill.
     config/claude/*) add agents ;;
     site/*) add lint ;;
+    cuis/*|tests/lib/fake-swank.py) add cuis ;;   # Vikix's Smalltalk, and the stand-in its test drives it against
     # The office's front and its parts: their tests are named below (fifteen
     # tests name bin/vikix-agents, and none names a part by its file, which
     # the name rule would both make all).

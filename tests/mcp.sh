@@ -169,7 +169,7 @@ check "not JSON should be -32700: $out" test "$(field '["error"]["code"]' <<<"$o
 # The tools: eval and undo only when switched on.
 names() { rpc "$@" -- '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python3 -c 'import json,sys; print(" ".join(t["name"] for t in json.loads(sys.stdin.readline())["result"]["tools"]))'; }
 list=$(names)
-check "the read-only tools should be there: $list" grep -q 'desktop keys commands why agents office handoff doctor history changes themes version rules' <<<"$list"
+check "the read-only tools should be there: $list" grep -q 'desktop keys commands why agents office handoff doctor history changes themes cuis_state version rules' <<<"$list"
 check "eval shouldn't be there by default: $list" test -z "$(grep -ow 'eval\|undo' <<<"$list" || true)"
 check "--allow-eval should add eval: $(names --allow-eval)" grep -qw eval <<<"$(names --allow-eval)"
 check "--allow-undo should add undo: $(names --allow-undo)" grep -qw undo <<<"$(names --allow-undo)"
@@ -177,7 +177,7 @@ out=$(call eval '{"form":"(run-shell-command \"touch pwned\")"}')
 check "eval without --allow-eval should be refused: $out" grep -q '^ERROR: no tool' <<<"$out"
 check "a refused eval ran something" test ! -e "$t/forms"
 ro=$(rpc -- '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python3 -c 'import json,sys; print(" ".join(t["name"] for t in json.loads(sys.stdin.readline())["result"]["tools"] if t["annotations"]["readOnlyHint"]))')
-check "the read tools should say they only read: $ro" test "$ro" = "desktop keys commands why agents office handoff doctor history changes themes version rules records_search records_get docs_search docs_read file_changes"
+check "the read tools should say they only read: $ro" test "$ro" = "desktop keys commands why agents office handoff doctor history changes themes cuis_state version rules records_search records_get docs_search docs_read file_changes"
 
 # Reading the desktop.
 out=$(call desktop '{}')

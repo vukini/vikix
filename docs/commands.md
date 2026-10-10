@@ -133,7 +133,7 @@ The everyday command.
 - `vikix bitwarden setup|pick|lock|sync|status|uninstall` — your Bitwarden vault: Super+Alt+v types a password into any window (vikix add bitwarden)
 - `vikix lisp-apps setup|status|uninstall` — Nyxt, Lem and McCLIM's Listener: programs in Common Lisp (vikix add lisp-apps)
 - `vikix esploro setup|status|doctor|uninstall` — Esploro, a file explorer in Common Lisp (vikix add esploro; Super+e)
-- `vikix cuis setup|rebuild|run|status|doctor|uninstall` — Cuis Smalltalk: a live image built from Vikix's packages, with a door for vikix eval --cuis (vikix add cuis)
+- `vikix cuis setup|rebuild|run|desktop|status|doctor|uninstall` — Cuis Smalltalk: a live image built from Vikix's packages, with a door for vikix eval --cuis (vikix add cuis)
 - `vikix mcp register|unregister|tools|status` — the desktop as an MCP server, for Claude Code and other agents
 - `vikix agent` — the AI agent, after a snapshot of your files (alias: a): Claude Code, or --use opencode|codex|gemini|antigravity|aider, --local on this laptop, --default NAME, --list; --exec [NAME] for editors (stdout is the agent's), --which
 - `vikix agents [--json]` — the agents at work here: each one's folder, branch and uncommitted files, its workspace, how long it has run, and whether it works or waits for you
@@ -354,16 +354,17 @@ Prints nothing when there is no Bluetooth, when it's switched off, or when bluet
 
 Cuis Smalltalk as a Vikix program.
 
-- `vikix cuis setup` — Cuis 7.8 (the tag #BaseForCuis7.8 of Cuis-Smalltalk-Dev, 134 MB once, checksummed) into `~/.local/opt/cuis`; your image, `~/cuis/vikix.image`, built with no window from its base image, its core updates and Vikix's packages (VikixServer, the door); the cuis command and the launcher's entry (vikix add cuis)
+- `vikix cuis setup` — Cuis 7.8 (the tag #BaseForCuis7.8 of Cuis-Smalltalk-Dev, 134 MB once, checksummed) into `~/.local/opt/cuis`; your image, `~/cuis/vikix.image`, built with no window from its base image, its core updates, Vikix's packages (VikixServer, the door; VikixTheme; VikixDesktop) and the Vikix font; the cuis command and the launcher's entry (vikix add cuis)
 - `vikix cuis rebuild` — a fresh image from the base and the packages, with your own packages in `~/cuis/NewPackages` loaded on top; refused while Cuis runs
 - `vikix cuis run [--headless] [--port N] [ARG...]` — what the cuis command runs: your image, with the door on 127.0.0.1:4005 (`VIKIX_CUIS_PORT`, or --port; 0 for none) when `~/.slime-secret` exists; --headless draws nothing, for a script (-s FILE.st, which must end in Smalltalk quit)
-- `vikix cuis status` — what is installed, built and running
-- `vikix cuis doctor` — the VM runs, the release is at the pin, the image is built with Vikix's packages, the door answers (when Cuis runs)
+- `vikix cuis desktop` — the desktop as objects, in the running image: a window of the workspaces and their windows, read from StumpWM once a second (VikixDesktop open, in a Workspace there); read-only, halos and inspectors work on the morphs
+- `vikix cuis status [--json]` — what is installed, built and running; --json adds what the running image shows (its theme, font, packages, windows), for vikix mcp's `cuis_state`
+- `vikix cuis doctor` — the VM runs, the release is at the pin, the image is built with Vikix's packages, the door answers and the theme is Vikix's (when Cuis runs)
 - `vikix cuis uninstall` — removes the release, the command and the entry; `~/cuis`, your image, packages and changes, stays
 
 Cuis Smalltalk as a Vikix program: a live image, pinned, built from packages, with a door for vikix eval and the agents.
 
-The door: vikix eval --cuis '3 + 4' prints 7. The image evaluates what it is sent in its own UI process, after the first line of `~/.slime-secret`, as Swank in StumpWM does (port 4004) and Nyxt (4006). An agent's expression isn't checked yet, so from an agent vikix eval --cuis is held for you to run. Cuis's own files (UserChanges, Logs, NewPackages, your preferences) are in `~/cuis`: the image is started with -ud there, so nothing lands in the folder you started it from.
+The door: vikix eval --cuis '3 + 4' prints 7. The image evaluates what it is sent in its own UI process, after the first line of `~/.slime-secret`, as Swank in StumpWM does (port 4004) and Nyxt (4006). An agent's expression isn't checked yet, so from an agent vikix eval --cuis is held for you to run. The theme: vikix theme writes the Vikix theme as a class, `~/.config/vikix/theme/cuis.st` (VikixTheme's colours and the font), and files it into the running image through the door; cuis reads it as it starts. Cuis's own files (UserChanges, Logs, NewPackages, your preferences) are in `~/cuis`: the image is started with -ud there, so nothing lands in the folder you started it from.
 
 ## vikix-day
 
@@ -584,6 +585,7 @@ The one font file StumpWM draws its bar, menus and messages in.
 
 - `vikix-font` — make wm.ttf if it's missing or a stand-in; print its path
 - `vikix-font --force` — make it again
+- `vikix-font --family` — the family name wm.ttf carries (Iosevka, or the stand-in's), for the programs that take a font by name: Cuis's theme (vikix theme writes it)
 
 StumpWM's TrueType module (ttf-fonts) reads only single .ttf files, and Void's font-iosevka ships Iosevka as .ttc collections of every weight. So this takes Iosevka Regular out of the collection (with fontTools) into
 
@@ -779,7 +781,8 @@ read only   desktop (workspaces, windows, screens, theme), keys, commands
             the desktop did lately, and what made it), agents (the
             agents at work on the desktop, and what each is doing),
             office (tasks and desks), handoff (a desk's record),
-            doctor, history, changes, themes, version
+            doctor, history, changes, themes, cuis_state (the Cuis
+            image: installed, running, what it shows), version
 small acts  notify, snapshot, set_theme, switch_workspace, focus_window,
             run_command: each checked against what's there, and easy to
             take back. run_command runs one of the desktop's own commands
@@ -1172,7 +1175,7 @@ The colour theme, everywhere.
 - `vikix theme import SOURCE [NAME] [--force] [--no-switch]` — an Omarchy theme, as a theme of yours, then switch to it. SOURCE is an https git URL, OWNER/REPO on GitHub, or a folder with a git repository. NAME is the repository's name without omarchy- and -theme, unless you give one. --force replaces a theme of yours with that name (the old files are kept as .vikix-bak); --no-switch only imports
 - `vikix theme --refresh` — write the current theme's files again (40-config does this, so a Vikix update reaches them)
 
-A theme is a file of named colours: themes/NAME.theme in Vikix, or your own in `~/.config/vikix/themes/`. Switching remembers the choice and writes the colours out for each program into `~/.config/vikix/theme/`, which your config files include; the programs that are running pick the new colours up now (StumpWM, dunst, kitty, the editors, Nyxt, GTK and Qt), and the theme's own wallpaper comes with it. Super+m → Theme is the same, with each theme shown as you move to it. vikix (the everyday command) hands `vikix theme` over to this script.
+A theme is a file of named colours: themes/NAME.theme in Vikix, or your own in `~/.config/vikix/themes/`. Switching remembers the choice and writes the colours out for each program into `~/.config/vikix/theme/`, which your config files include; the programs that are running pick the new colours up now (StumpWM, dunst, kitty, the editors, Nyxt, GTK and Qt, Cuis), and the theme's own wallpaper comes with it. Super+m → Theme is the same, with each theme shown as you move to it. vikix (the everyday command) hands `vikix theme` over to this script.
 
 ## vikix-times
 

@@ -1246,3 +1246,59 @@ theme.lisp calls it after a theme change."
              (float-this)))))
 
 (vikix-titlebars-relayout)
+
+;;; The desktop as data: what vikix mcp's desktop tool answers with, and
+;;; what VikixDesktop in Cuis draws (cuis/VikixDesktop.pck.st, once a
+;;; second through Swank). One function, so the two never drift: the
+;;; workspaces in order with their windows (number, title, class, which has
+;;; the focus), a strip's columns (viri.lisp, which loads after this file,
+;;; so asked by name), and the screens. A title is another program's text,
+;;; cut at 200 characters and escaped as JSON; nothing here runs a program.
+(defun vikix-json-escape (s)
+  "S (anything, printed) as the inside of a JSON string."
+  (with-output-to-string (o)
+    (loop for c across (princ-to-string (or s ""))
+          do (case c
+               (#\" (write-string "\\\"" o))
+               (#\\ (write-string "\\\\" o))
+               (t (if (< (char-code c) 32)
+                      (format o "\\u~4,'0x" (char-code c))
+                      (write-char c o)))))))
+
+(defun vikix-desktop-json ()
+  "The desktop now, as a JSON text: workspaces (name, number, current, kind,
+strip, windows) and screens."
+  (labels ((str (s) (format nil "\"~a\"" (vikix-json-escape s)))
+           (short (s) (let ((s (princ-to-string (or s "")))) (subseq s 0 (min 200 (length s)))))
+           (bool (x) (if x "true" "false"))
+           (strip-p (g) (and (fboundp 'viri-group-p) (funcall 'viri-group-p g))))
+    (let ((cw (current-window)))
+      (format nil "{\"workspaces\":[~{~a~^,~}],\"screens\":[~{~a~^,~}]}"
+              (mapcar (lambda (g)
+                        (format nil "{\"name\":~a,\"number\":~d,\"current\":~a,\"kind\":~a,\"strip\":~a,\"windows\":[~{~a~^,~}]}"
+                                (str (short (group-name g))) (group-number g) (bool (eq g (current-group)))
+                                ;; tiles, a strip (its columns left to right, each its
+                                ;; share of the screen, its windows top to bottom by
+                                ;; number, and whether it's wholly on the screen), or floating.
+                                (str (cond ((strip-p g) "strip")
+                                           ((typep g 'tile-group) "tiles")
+                                           (t "floating")))
+                                (if (strip-p g)
+                                    (let ((shown (ignore-errors (funcall 'viri-visible g))))
+                                      (format nil "{\"columns\":[~{~a~^,~}]}"
+                                              (loop for c in (funcall 'viri-cols g)
+                                                    for i from 0
+                                                    collect (format nil "{\"width\":~a,\"on_screen\":~a,\"windows\":[~{~d~^,~}]}"
+                                                                    (str (funcall 'viri-col-width c)) (bool (member i shown))
+                                                                    (mapcar #'window-number (funcall 'viri-col-windows c))))))
+                                    "null")
+                                (mapcar (lambda (w)
+                                          (format nil "{\"number\":~d,\"title\":~a,\"class\":~a,\"focused\":~a}"
+                                                  (window-number w) (str (short (window-title w)))
+                                                  (str (short (window-class w))) (bool (eq w cw))))
+                                        (group-windows g))))
+                      (sort (copy-list (screen-groups (current-screen))) #'< :key #'group-number))
+              (mapcar (lambda (h)
+                        (format nil "{\"number\":~d,\"x\":~d,\"y\":~d,\"width\":~d,\"height\":~d}"
+                                (head-number h) (head-x h) (head-y h) (head-width h) (head-height h)))
+                      (screen-heads (current-screen)))))))

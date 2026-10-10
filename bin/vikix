@@ -146,7 +146,7 @@
 #   vikix esploro setup|status|doctor|uninstall
 #                         Esploro, a file explorer in Common Lisp (vikix add
 #                         esploro; Super+e)
-#   vikix cuis setup|rebuild|run|status|doctor|uninstall
+#   vikix cuis setup|rebuild|run|desktop|status|doctor|uninstall
 #                         Cuis Smalltalk: a live image built from Vikix's
 #                         packages, with a door for vikix eval --cuis (vikix
 #                         add cuis)

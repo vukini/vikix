@@ -20,8 +20,8 @@
 # in ~/.config/vikix/themes/. Switching remembers the choice and writes the
 # colours out for each program into ~/.config/vikix/theme/, which your config
 # files include; the programs that are running pick the new colours up now
-# (StumpWM, dunst, kitty, the editors, Nyxt, GTK and Qt), and the theme's own
-# wallpaper comes with it. Super+m → Theme is the same, with each theme shown
+# (StumpWM, dunst, kitty, the editors, Nyxt, GTK and Qt, Cuis), and the
+# theme's own wallpaper comes with it. Super+m → Theme is the same, with each theme shown
 # as you move to it. vikix (the everyday command) hands `vikix theme` over
 # to this script.
 
@@ -240,6 +240,58 @@ EOF
   printf '%s\n' "$1" > "$THEME_OUT/current"
   theme_toolkits "$head"
   theme_hype "$1"
+  theme_cuis_write "$head"
+}
+
+# theme_cuis_write HEAD — the theme as a Smalltalk class for Cuis (the
+# feature cuis): cuis.st, a chunk file of VikixTheme's colour methods and
+# the font's name, which cuis reads as it starts and theme_cuis_apply files
+# into a running image. VikixTheme itself (cuis/VikixTheme.pck.st) is in the
+# image; this file only gives it its colours, so it is written whether or
+# not Cuis is installed. A method a line: Cuis's Theme asks each by name.
+# shellcheck disable=SC2154  # the c_* colours are set by theme_read, with printf -v
+theme_cuis_write() {
+  local family pair selector colour
+  family=$("$VIKIX_DIR/bin/vikix-font" --family 2>/dev/null) || family=
+  {
+    printf "'%s'!\n" "${1//\'/\'\'}"
+    for pair in "background $c_bg" "textPane $c_bg" "menu $c_bg" "scrollbarColor $c_bg" \
+                "defaultWindowColor $c_sel" "textHighlight $c_sel" "menuHighlight $c_sel" "hoverHelp $c_sel" \
+                "scrollbarButtonColor $c_sel" \
+                "text $c_fg" "menuText $c_fg" "windowLabel $c_fg" "buttonLabel $c_fg" \
+                "line $c_dim" "scrollbarSliderShadowColor $c_dim" \
+                "textEmptyDisplayMessage $c_subtle" \
+                "focusIndicator $c_accent" "textCursor $c_accent" "autoCompleterDefaultBorderColor $c_accent" \
+                "successColor $c_color2" "errorColor $c_color1" "failureColor $c_color3"; do
+      selector=${pair% *}; colour=${pair#* }
+      printf "!VikixTheme methodsFor: 'colors'!\n%s\n\t^ Color fromHexString: '%s'! !\n" "$selector" "$colour"
+    done
+    # Syntax colours, as the editors map the palette: names in the accent,
+    # strings and literals green, comments in the comment grey.
+    printf "!VikixTheme methodsFor: 'colors'!\nshout\n\t^ {\n"
+    for pair in "selector $c_accent" "arguments $c_color6" "comment $c_color8" "tempBar $c_dim" \
+                "tempVars $c_color3" "instVar $c_color5" "pseudoVariables $c_color4" "literals $c_color2" \
+                "messages $c_fg" "incompleteMessages $c_alert" "blockLevelZero $c_fg" "blockLevelOne $c_color4" \
+                "blockLevelTwo $c_color2" "blockLevelThree $c_color3" "blockLevelFour $c_color5" \
+                "blockLevelFive $c_color6" "blockLevelSix $c_color1" "blockLevelSeven $c_color4" \
+                "defaults $c_fg" "undefined $c_alert" "methodTags $c_color2"; do
+      printf "\t\t#%s -> '%s'.\n" "${pair% *}" "${pair#* }"
+    done
+    printf "\t}! !\n"
+    if [ -n "$family" ]; then
+      printf "!VikixTheme methodsFor: 'fonts'!\nfontFamilyName\n\t^ '%s'! !\n" "${family//\'/\'\'}"
+    fi
+  } > "$THEME_OUT/cuis.st"
+}
+
+# theme_cuis_apply — the written class into the running Cuis image, through
+# its door (vikix eval --cuis; the image's own UI process files it in and
+# makes it current). Only when the user has an image: without one there is
+# no door to try; an image that isn't running answers nothing, in no time.
+theme_cuis_apply() {
+  [ -f "$HOME/cuis/vikix.image" ] || return 0
+  timeout --kill-after=2s 10s python3 "$VIKIX_DIR/bin/vikix-eval" --cuis \
+    "VikixTheme loadFrom: '${THEME_OUT//\'/\'\'}/cuis.st'" >/dev/null 2>&1 || true
 }
 
 # theme_dark — whether the theme just read is dark: its background's
@@ -443,6 +495,7 @@ cmd_theme() {
       "$VIKIX_DIR/bin/vikix-wallpaper" || warn "the wallpaper didn't change"
     fi
   fi
+  theme_cuis_apply
   say "theme: $name"
 }
 

@@ -6,8 +6,9 @@
 #                           Cuis-Smalltalk-Dev, 134 MB once, checksummed)
 #                           into ~/.local/opt/cuis; your image,
 #                           ~/cuis/vikix.image, built with no window from
-#                           its base image, its core updates and Vikix's
-#                           packages (VikixServer, the door); the cuis
+#                           its base image, its core updates, Vikix's
+#                           packages (VikixServer, the door; VikixTheme;
+#                           VikixDesktop) and the Vikix font; the cuis
 #                           command and the launcher's entry (vikix add cuis)
 #   vikix cuis rebuild      a fresh image from the base and the packages,
 #                           with your own packages in ~/cuis/NewPackages
@@ -18,10 +19,19 @@
 #                           --port; 0 for none) when ~/.slime-secret exists;
 #                           --headless draws nothing, for a script
 #                           (-s FILE.st, which must end in Smalltalk quit)
-#   vikix cuis status       what is installed, built and running
+#   vikix cuis desktop      the desktop as objects, in the running image:
+#                           a window of the workspaces and their windows,
+#                           read from StumpWM once a second (VikixDesktop
+#                           open, in a Workspace there); read-only, halos
+#                           and inspectors work on the morphs
+#   vikix cuis status [--json]
+#                           what is installed, built and running; --json
+#                           adds what the running image shows (its theme,
+#                           font, packages, windows), for vikix mcp's
+#                           cuis_state
 #   vikix cuis doctor       the VM runs, the release is at the pin, the
 #                           image is built with Vikix's packages, the door
-#                           answers (when Cuis runs)
+#                           answers and the theme is Vikix's (when Cuis runs)
 #   vikix cuis uninstall    removes the release, the command and the entry;
 #                           ~/cuis, your image, packages and changes, stays
 #
@@ -29,7 +39,10 @@
 # is sent in its own UI process, after the first line of ~/.slime-secret,
 # as Swank in StumpWM does (port 4004) and Nyxt (4006). An agent's
 # expression isn't checked yet, so from an agent vikix eval --cuis is held
-# for you to run. Cuis's own files (UserChanges, Logs, NewPackages, your
+# for you to run. The theme: vikix theme writes the Vikix theme as a class,
+# ~/.config/vikix/theme/cuis.st (VikixTheme's colours and the font), and
+# files it into the running image through the door; cuis reads it as it
+# starts. Cuis's own files (UserChanges, Logs, NewPackages, your
 # preferences) are in ~/cuis: the image is started with -ud there, so
 # nothing lands in the folder you started it from.
 
@@ -65,6 +78,11 @@ APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 LOGS="$VIKIX_STATE/logs"
 PORT_DEFAULT=4005
 CURL=${VIKIX_CURL:-curl}   # the tests' stand-in
+THEME_ST="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/theme/cuis.st"   # VikixTheme as vikix theme writes it
+FONTS="${VIKIX_FONT_DIR:-$HOME/.local/share/vikix/fonts}"           # the Vikix font (bin/vikix-font)
+
+# A path as a Smalltalk string literal: a quote doubled.
+st_string() { printf "'%s'" "${1//\'/\'\'}"; }
 
 installed() { [ -x "$VM" ] && [ "$(cat "$OPT/.vikix-pin" 2>/dev/null)" = "$CUIS_TAG" ]; }
 built() { [ -f "$CUIS/vikix.image" ] && [ "$(cat "$CUIS/.vikix-built" 2>/dev/null)" = "$(build_stamp)" ]; }
@@ -73,6 +91,10 @@ built() { [ -f "$CUIS/vikix.image" ] && [ "$(cat "$CUIS/.vikix-built" 2>/dev/nul
 build_stamp() { { echo "$CUIS_TAG"; cat "$PKGS"/*.pck.st; } | sha256sum | cut -c1-16; }
 running() { pgrep -f -- "$CUIS/vikix.image" >/dev/null 2>&1; }
 package_names() { local p names=(); for p in "$PKGS"/*.pck.st; do names+=("$(basename "$p" .pck.st)"); done; echo "${names[*]}"; }
+# Vikix's packages in the order they load: the door first, which the others
+# require (a requirement Cuis can't find by name is a dialog, and a headless
+# build waits on it for ever), then the rest by name.
+vikix_packages() { local p; echo "$PKGS/VikixServer.pck.st"; for p in "$PKGS"/*.pck.st; do [ "$p" = "$PKGS/VikixServer.pck.st" ] || echo "$p"; done; }
 
 # --- The release ------------------------------------------------------------------
 
@@ -149,7 +171,7 @@ build_image() {
     # Vikix's packages must load: a failure is the build's. Yours are told
     # of and left out, so one that no longer loads doesn't cost the image.
     local pkg
-    for pkg in "$PKGS"/*.pck.st; do
+    for pkg in $(vikix_packages); do
       printf "[ Feature require: '%s' ] on: Error do: [ :ex | StdIOWriteStream stdout nextPutAll: 'VIKIX-ERROR %s: ', ex description; newLine; flush ].\n" \
         "$pkg" "$(basename "$pkg")"
     done
@@ -158,6 +180,13 @@ build_image() {
       printf "[ Feature require: '%s' ] on: Error do: [ :ex | StdIOWriteStream stdout nextPutAll: 'WARNING your package %s did not load: ', ex description; newLine; flush ].\n" \
         "$pkg" "$(basename "$pkg")"
     done
+    # The Vikix font into the image (the saved image carries it), and the
+    # theme as vikix theme wrote it, so the first frame is in the theme;
+    # cuis loads it again at each start, in case it changed. The class is
+    # looked up by name: the script is compiled whole before the packages
+    # load, so written plainly it would be nil.
+    printf "(Smalltalk at: #VikixTheme ifAbsent: [ nil ]) ifNotNil: [ :theme | StdIOWriteStream stdout nextPutAll: 'font: ', (theme loadFont: %s) printString; newLine; flush ].\n" "$(st_string "$FONTS")"
+    [ -f "$THEME_ST" ] && printf "(Smalltalk at: #VikixTheme ifAbsent: [ nil ]) ifNotNil: [ :theme | theme loadFrom: %s ].\n" "$(st_string "$THEME_ST")"
     echo "StdIOWriteStream stdout nextPutAll: 'loaded: ', (CodePackage installedPackages keys asSortedCollection asArray printString); newLine; flush."
     echo "Smalltalk saveAndQuit."
   } > "$script"
@@ -254,6 +283,12 @@ cmd_run() {
     # client, so a new secret needs no restart.
     door=(-d "VikixServer startOn: $port secret: '$HOME/.slime-secret'")
   fi
+  # The theme as vikix theme wrote it, read at every start (an image built
+  # before a theme change, or switched by hand in Cuis, follows the desktop
+  # again); and StumpWM's Swank for VikixDesktop, which is only ever
+  # elsewhere than 4004 in a test (VIKIX_SWANK_PORT, as vikix eval reads it).
+  [ -f "$THEME_ST" ] && door+=(-d "VikixTheme loadFrom: $(st_string "$THEME_ST")")
+  case ${VIKIX_SWANK_PORT:-} in ''|*[!0-9]*) ;; *) door+=(-d "VikixSwank port: $VIKIX_SWANK_PORT") ;; esac
   if [ "$headless" = 0 ] && command -v pactl >/dev/null 2>&1 && pactl info >/dev/null 2>&1; then
     sound=(-vm-sound-pulse)
   fi
@@ -264,7 +299,60 @@ cmd_run() {
   exec "$VM" "${opts[@]}" "${sound[@]}" "$CUIS/vikix.image" -ud "$CUIS" "${door[@]}" "${args[@]}"
 }
 
+# The running image's facts through the door (VikixServer state: a line a
+# fact, key, tab, value), or nothing: the door answers Vikix's own scripts.
+image_state() {
+  local answer
+  running || return 0
+  [ -s "$HOME/.slime-secret" ] || return 0
+  answer=$(timeout --kill-after=2s 10s python3 "$VIKIX_DIR/bin/vikix-eval" --cuis 'VikixServer state' 2>&1) || { printf '%s' "$answer" | head -c 300; return 1; }
+  printf '%s' "$answer"
+}
+
+cmd_status_json() {
+  local state='' error='' port=${VIKIX_CUIS_PORT:-$PORT_DEFAULT}
+  if running; then
+    if state=$(image_state); then :; else error=$state; state=''; fi
+  fi
+  INSTALLED=$(installed && echo 1 || echo 0) BUILT=$(built && echo 1 || echo 0) RUNNING=$(running && echo 1 || echo 0) \
+  VERSION=$CUIS_VERSION PIN=$CUIS_TAG IMAGE="$CUIS/vikix.image" PACKAGES="$(package_names)" PORT=$port \
+  THEME_ST="$THEME_ST" STATE="$state" STATE_ERROR="$error" python3 - <<'EOF'
+import json, os, re
+e = os.environ
+out = {"installed": e["INSTALLED"] == "1", "version": e["VERSION"], "pin": e["PIN"], "image": e["IMAGE"],
+       "built": e["BUILT"] == "1", "packages": e["PACKAGES"].split(), "running": e["RUNNING"] == "1",
+       "door": int(e["PORT"]) if e["RUNNING"] == "1" else None,
+       "theme_file": e["THEME_ST"] if os.path.exists(e["THEME_ST"]) else None, "image_state": None}
+# The door prints the String's printString: => '...' with quotes doubled.
+m = re.search(r"(?s)^=> '(.*)'$", e["STATE"].strip())
+if m:
+    lines = [l.split("\t") for l in m.group(1).replace("''", "'").split("\n") if l.strip()]
+    st = {"windows": []}
+    for parts in lines:
+        key = parts[0]
+        if key == "window" and len(parts) >= 3:
+            st["windows"].append({"class": parts[1], "label": parts[2]})
+        elif key == "packages" and len(parts) >= 2:
+            st["packages"] = [p for p in parts[1].split(", ") if p]
+        elif len(parts) >= 2:
+            st[key] = parts[1]
+    out["image_state"] = st
+elif e["STATE_ERROR"]:
+    out["image_state_error"] = e["STATE_ERROR"]
+print(json.dumps(out, indent=1, ensure_ascii=False))
+EOF
+}
+
+cmd_desktop() {
+  installed || die "Cuis isn't here: vikix add cuis"
+  running || die "Cuis isn't running: cuis, then vikix cuis desktop again (or VikixDesktop open in a Workspace there)"
+  [ -s "$HOME/.slime-secret" ] || die "no ~/.slime-secret, so no door into the image (vikix update makes the secret); VikixDesktop open in a Workspace there"
+  python3 "$VIKIX_DIR/bin/vikix-eval" --cuis 'VikixDesktop open' >/dev/null || die "the image didn't open it (an image built before VikixDesktop? close Cuis, then vikix cuis rebuild)"
+  say "the desktop is open in Cuis: a column a workspace, a box a window, read from StumpWM once a second"
+}
+
 cmd_status() {
+  if [ "${1:-}" = --json ]; then cmd_status_json; return; fi
   if installed; then echo "cuis      Cuis $CUIS_VERSION at Vikix's pin ($BASE)"
   elif [ -x "$VM" ]; then echo "cuis      installed from another release: vikix cuis setup brings $CUIS_VERSION"
   else echo "cuis      not installed"; fi
@@ -293,6 +381,12 @@ cmd_doctor() {
     if [ ! -s "$HOME/.slime-secret" ]; then say "Cuis is running; without ~/.slime-secret it has no door (vikix update makes the secret)"
     elif answer=$(python3 "$VIKIX_DIR/bin/vikix-eval" --cuis '3 + 4' 2>&1) && [ "$answer" = "=> 7" ]; then
       say "the door answers on 127.0.0.1:$port (vikix eval --cuis)"
+      answer=$(python3 "$VIKIX_DIR/bin/vikix-eval" --cuis 'Theme current class name' 2>&1) || answer=
+      case $answer in
+        '=> #VikixTheme') say "the image's theme is Vikix's (vikix theme)" ;;
+        '=> #'*) warn "the image's theme is ${answer#=> #}, not Vikix's: vikix theme --refresh puts it back" ; ok=0 ;;
+        *) warn "the image has no VikixTheme (built before it?): close Cuis, then vikix cuis rebuild"; ok=0 ;;
+      esac
     else warn "Cuis is running but the door doesn't answer on 127.0.0.1:$port: ${answer#vikix eval: }"; ok=0; fi
   else say "Cuis isn't running (the door opens with it: cuis)"; fi
   [ "$ok" = 1 ]
@@ -316,9 +410,10 @@ case ${1:-} in
   setup)     shift; [ $# = 0 ] || die "vikix cuis setup takes nothing"; cmd_setup ;;
   rebuild)   cmd_rebuild ;;
   run)       shift; cmd_run "$@" ;;
-  status)    cmd_status ;;
+  status)    shift; cmd_status "$@" ;;
+  desktop)   cmd_desktop ;;
   doctor)    cmd_doctor ;;
   uninstall) cmd_uninstall ;;
   -h|--help|help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
-  *) die "vikix cuis: setup, rebuild, run, status, doctor, uninstall" ;;
+  *) die "vikix cuis: setup, rebuild, run, desktop, status, doctor, uninstall" ;;
 esac

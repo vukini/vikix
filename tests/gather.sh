@@ -109,6 +109,21 @@ ask '(run-commands "gmerge 7")' >/dev/null; sleep 0.5
 check "gmerge from a strip brings tiles: $(here_is)" test "$(here_is)" = "H:T I:T"
 ask '(vikix-viri "on")' >/dev/null; sleep 0.5
 check "and a strip made of them has them as columns: $(columns)" test "$(columns)" = "H I"
+# The desktop as JSON (vikix-desktop-json: vikix mcp's desktop tool and Cuis's
+# VikixDesktop read it): the workspaces in order, this strip's columns, the
+# windows with their titles, the screens.
+desktop_json=$(HOME=$home VIKIX_SWANK_PORT=$port VIKIX_SOCKET=$wm_socket python3 "$here/bin/vikix-eval" '(princ (vikix-desktop-json))' 2>&1 | grep -v '^=> ')
+check "vikix-desktop-json should be JSON naming the windows and the strip: $(head -c 300 <<<"$desktop_json")" python3 -c '
+import json, sys
+d = json.loads(sys.stdin.read())
+ws = {w["number"]: w for w in d["workspaces"]}
+assert [w["number"] for w in d["workspaces"]] == sorted(ws), "not in order"
+eight = ws[8]
+assert eight["kind"] == "strip" and len(eight["strip"]["columns"]) == 2, eight
+assert sorted(w["title"] for w in eight["windows"]) == ["H", "I"], eight["windows"]
+assert sum(1 for w in d["workspaces"] if w["current"]) == 1
+assert d["screens"] and all(k in d["screens"][0] for k in ("x", "y", "width", "height"))
+' <<<"$desktop_json"
 check "the desktop met no error" test -z "$(ls "$home/.local/state/vikix/errors" 2>/dev/null)"
 
 wm_report gather "a strip's columns are no dialogs to a rule for floating windows, tiles and a strip again keep them, a whole workspace's windows brought here tiled or as columns, floated ones too, real dialogs and rule-floated windows left afloat, gmerge from a strip"

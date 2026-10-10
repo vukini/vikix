@@ -16,12 +16,24 @@
 #   keeps ~/cuis and the feature. vikix eval --cuis: nothing listening is
 #   exit 2, an agent's expression is held (exit 3).
 #
+#   vikix theme writes the theme as a class for Cuis (cuis.st: VikixTheme's
+#   colours, shout's syntax colours, the font's name); run gives the image
+#   the file and a test's Swank port; status --json says what is there;
+#   desktop refuses while Cuis isn't running; a test's shell without a
+#   VIKIX_CUIS_PORT of its own reaches no door (never the live image's).
+#
 #   With the real release at hand (~/.local/opt/cuis of the user running the
 #   test, or VIKIX_CUIS_REAL_BASE): the image is built from it in the test's
-#   home, started headless with the door on a free port, and vikix eval
-#   --cuis gets 7 for 3 + 4, an error for 1/0, a value of several lines, is
-#   refused with the wrong password and served again with the right one.
-#   Without it that part is skipped, and says so.
+#   home (the Vikix font read in when the user has one), started headless
+#   with the door on a free port and the theme file, and vikix eval --cuis
+#   gets 7 for 3 + 4, an error for 1/0, a value of several lines, is refused
+#   with the wrong password and served again with the right one; the image
+#   starts in VikixTheme as written, follows vikix theme through the door
+#   (vikix-light, then vikix-dark), says so in status --json and the doctor;
+#   VikixDesktop, opened by vikix cuis desktop, reads a stand-in Swank
+#   (tests/lib/fake-swank.py) once a second, draws the workspaces and
+#   windows, follows a change, and says when nothing answers.
+#   Without the release that part is skipped, and says so.
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
@@ -30,14 +42,18 @@ unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE   # the desktop session's: from an agent
 unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME DISPLAY VIKIX_CUIS_PORT VIKIX_CUIS_OPT
 here=$(cd "$(dirname "$0")/.." && pwd)
 real_base=${VIKIX_CUIS_REAL_BASE:-$HOME/.local/opt/cuis/base}
+real_fonts=${VIKIX_FONT_DIR:-$HOME/.local/share/vikix/fonts}   # the user's Vikix font, read only
 t=$(mktemp -d)
 vm_pid=
+swank_pid=
 cleanup() {
   if [ -n "$vm_pid" ] && kill -0 "$vm_pid" 2>/dev/null; then kill "$vm_pid" 2>/dev/null || true; wait "$vm_pid" 2>/dev/null || true; fi
+  if [ -n "$swank_pid" ] && kill -0 "$swank_pid" 2>/dev/null; then kill "$swank_pid" 2>/dev/null || true; wait "$swank_pid" 2>/dev/null || true; fi
   rm -rf "$t"
 }
 trap cleanup EXIT
 export HOME="$t/home" VIKIX_STATE="$t/home/.local/state/vikix"
+unset VIKIX_FONT_DIR
 mkdir -p "$HOME" "$t/bin" "$VIKIX_STATE"
 fail=0
 check() { "${@:2}" || { echo "FAIL: $1"; fail=1; }; }
@@ -64,6 +80,7 @@ echo "squeak \$*" >> "$calls"
 case "\$*" in
   *-version*) echo "7.0-test [Production Spur 64-bit x86_64 VM]" ;;
   *" -s "*) script=\$(printf '%s\n' "\$*" | sed 's/.* -s //'); img=\$(printf '%s\n' "\$*" | sed 's/.* \([^ ]*\.image\) .*/\1/')
+    cp "\$script" "$t/last-build.st"
     grep -q VikixServer.pck.st "\$script" || { echo "VIKIX-ERROR no VikixServer in the script"; exit 0; }
     [ -e "$t/break-build" ] && { echo "an error"; exit 1; }
     echo "built by the test" >> "\$img"; echo "loaded: #('Network-Kernel' 'VikixServer')" ;;
@@ -195,7 +212,7 @@ if cu run --port x > "$t/out" 2>&1; then echo "FAIL: a port that isn't a number 
 # --- status and doctor ----------------------------------------------------------------
 cu status > "$t/out" 2>&1 || { cat "$t/out"; echo "FAIL: status should work"; fail=1; }
 check "status should name the release" grep -q "Cuis 7.8 at Vikix's pin" "$t/out"
-check "status should name the image and its packages" grep -q "built with Vikix's packages: VikixServer" "$t/out"
+check "status should name the image and its packages" grep -q "built with Vikix's packages: VikixDesktop VikixServer VikixTheme" "$t/out"
 check "status should say Cuis isn't running" grep -q "running   no" "$t/out"
 cu doctor > "$t/out" 2>&1 || { cat "$t/out"; echo "FAIL: the doctor should pass"; fail=1; }
 check "the doctor should see the VM run" grep -q "the Cuis VM runs" "$t/out"
@@ -207,7 +224,43 @@ if cu doctor > "$t/out" 2>&1; then echo "FAIL: the doctor should fail on an imag
 check "the doctor should ask for a rebuild" grep -q "vikix cuis rebuild" "$t/out"
 cu rebuild > /dev/null 2>&1
 
+# --- The theme as a class for Cuis, the file given at launch, status --json, desktop ----
+theme_st="$HOME/.config/vikix/theme/cuis.st"
+DISPLAY='' bash "$here/bin/vikix-theme" vikix-light > "$t/out" 2>&1 || { cat "$t/out"; echo "FAIL: vikix theme should work"; fail=1; }
+check "vikix theme should write the theme as a class for Cuis" test -f "$theme_st"
+check "the class should get the background" grep -q -A1 '^background$' "$theme_st"
+check "the background should be vikix-light's" grep -q "fromHexString: '#eff1f5'" "$theme_st"
+check "every colour should be a method of VikixTheme" test "$(grep -c "^!VikixTheme methodsFor: 'colors'!" "$theme_st")" -ge 20
+check "the syntax colours should be there" grep -q "#comment -> '#636679'" "$theme_st"
+check "the font's name should be there (the stand-in's, with no Iosevka in this home)" grep -q -A1 '^fontFamilyName$' "$theme_st"
+check "the selection colour should be the window colour" grep -q -A1 '^defaultWindowColor$' "$theme_st"
+check "nothing in the file should run as a doIt but the heading" test "$(grep -c '^!' "$theme_st")" = "$(grep -c "^!VikixTheme methodsFor:" "$theme_st")"
+: > "$calls"
+cu run > /dev/null 2>&1
+launch=$(tail -n 1 "$calls")
+check "run should give the image the theme file: $launch" grep -q -- "-d VikixTheme loadFrom: '$theme_st'" <<<"$launch"
+check "run should give the image a test's Swank port: $launch" grep -q -- "-d VikixSwank port: 9" <<<"$launch"
+: > "$calls"
+cu rebuild > /dev/null 2>&1
+check "the build should read the Vikix font into the image" grep -q "loadFont: '$HOME/.local/share/vikix/fonts'" "$t/last-build.st"
+check "the build should give the image the theme as written" grep -q "loadFrom: '$theme_st'" "$t/last-build.st"
+check "the door should load first, since the others require it: $(grep -n 'Feature require' "$t/last-build.st" | head -n 1)" bash -c "grep 'Feature require' '$t/last-build.st' | head -n 1 | grep -q VikixServer.pck.st"
+cu status --json > "$t/out" 2>&1 || { cat "$t/out"; echo "FAIL: status --json should work"; fail=1; }
+check "status --json should be JSON saying what is there: $(head -c 200 "$t/out")" python3 -c '
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["installed"] and d["built"] and not d["running"] and d["door"] is None
+assert d["packages"] == ["VikixDesktop", "VikixServer", "VikixTheme"], d["packages"]
+assert d["theme_file"].endswith("/cuis.st") and d["image_state"] is None
+' "$t/out"
+if cu desktop > "$t/out" 2>&1; then echo "FAIL: desktop while Cuis isn't running should be refused"; fail=1; fi
+check "desktop should say Cuis isn't running" grep -q "Cuis isn't running" "$t/out"
+
 # --- vikix eval --cuis without Cuis, and from an agent -----------------------------------
+# A test's shell (VIKIX_SWANK_PORT=9) that names no Cuis port of its own
+# reaches no door: never the live image's.
+if ev --cuis '3 + 4' > "$t/out" 2>&1; then echo "FAIL: a test without a Cuis port of its own should reach no door"; fail=1; fi
+check "a test without VIKIX_CUIS_PORT should be told why" grep -q "names a test's desktop (9)" "$t/out"
 port=$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')
 if VIKIX_CUIS_PORT=$port ev --cuis '3 + 4' > "$t/out" 2>&1; then echo "FAIL: nothing listening should be exit 2"; fail=1; fi
 check "nothing listening should say so" grep -q "nothing is listening on 127.0.0.1:$port" "$t/out"
@@ -247,12 +300,29 @@ if [ -x "$real_base/CuisVM.app/Contents/Linux-x86_64/squeak" ] && [ -f "$real_ba
   echo "$tag" > "$VIKIX_CUIS_OPT/.vikix-pin"
   rm -rf "$cuis"
   export PATH="${PATH#"$t/bin:"}"   # the real VM, not the script
+  rm -f "$theme_st"
+  if [ -f "$real_fonts/wm.ttf" ]; then export VIKIX_FONT_DIR="$real_fonts"; fi
   cu rebuild > "$t/out" 2>&1 || { cat "$t/out"; echo "FAIL: the real image should build"; fail=1; }
-  check "the real build should load the door" grep -q "VikixServer" "$t/out"
+  check "the real build should load the door, the theme and the desktop" grep -q "'VikixDesktop' 'VikixServer' 'VikixTheme'" "$t/out"
   check "the real image should be there" test -s "$cuis/vikix.image"
+  if [ -f "$real_fonts/wm.ttf" ]; then
+    check "the real build should read the Vikix font in: $(grep '^font:' "$VIKIX_STATE/logs/cuis-build.log")" grep -q "^font: #('" "$VIKIX_STATE/logs/cuis-build.log"
+  else
+    echo "note: no Vikix font at $real_fonts: the image was built without it"
+  fi
   port=$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')
+  swank_port=$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')
   ( umask 077; echo "the-real-secret" > "$HOME/.slime-secret" )
-  cu run --headless --port "$port" > "$t/vm.log" 2>&1 &
+  # The theme written before the image starts: it is read at launch.
+  DISPLAY='' VIKIX_CUIS_PORT=$port bash "$here/bin/vikix-theme" vikix-light > /dev/null 2>&1 || { echo "FAIL: vikix theme with no Cuis running should still work"; fail=1; }
+  # A stand-in for StumpWM's Swank, for VikixDesktop.
+  cat > "$t/desktop.json" <<'EOF'
+{"workspaces":[{"name":"main","number":1,"current":true,"kind":"tiles","strip":null,"windows":[{"number":0,"title":"Vikix — Firefox","class":"firefox","focused":true},{"number":1,"title":"~ : bash","class":"Alacritty","focused":false}]},{"name":"notes","number":2,"current":false,"kind":"strip","strip":{"columns":[]},"windows":[{"number":2,"title":"notes.org","class":"Emacs","focused":false}]}],"screens":[{"number":0,"x":0,"y":0,"width":1920,"height":1080}]}
+EOF
+  : > "$t/swank.log"
+  python3 "$here/tests/lib/fake-swank.py" "$swank_port" the-real-secret "$t/desktop.json" "$t/swank.log" &
+  swank_pid=$!
+  VIKIX_SWANK_PORT=$swank_port cu run --headless --port "$port" > "$t/vm.log" 2>&1 &
   vm_pid=$!
   for _ in $(seq 1 50); do
     python3 -c "import socket,sys; s=socket.socket(); s.settimeout(0.2); sys.exit(0 if s.connect_ex(('127.0.0.1', $port)) == 0 else 1)" 2>/dev/null && break
@@ -278,6 +348,55 @@ if [ -x "$real_base/CuisVM.app/Contents/Linux-x86_64/squeak" ] && [ -f "$real_ba
   check "the wrong password should be said" grep -q "password" "$t/out"
   ev --cuis '6 * 7' > "$t/out" 2>&1 || true
   check "the right password should be served after a wrong one: $(cat "$t/out")" test "$(cat "$t/out")" = "=> 42"
+
+  # The theme: read at launch, then followed through the door.
+  check "the image should start in VikixTheme, read from the file at launch: $(ev --cuis 'Theme current class name' 2>&1)" test "$(ev --cuis 'Theme current class name' 2>&1)" = "=> #VikixTheme"
+  check "the background should be vikix-light's: $(ev --cuis 'Theme current background printString' 2>&1)" grep -q "r: 0.937 g: 0.945 b: 0.961" <<<"$(ev --cuis 'Theme current background printString' 2>&1)"
+  if [ -f "$real_fonts/wm.ttf" ]; then
+    check "the font should be the Vikix font: $(ev --cuis 'FontFamily defaultFamilyName' 2>&1)" test "$(ev --cuis 'FontFamily defaultFamilyName' 2>&1)" = "=> '$("$here/bin/vikix-font" --family)'"
+  fi
+  DISPLAY='' VIKIX_CUIS_PORT=$port bash "$here/bin/vikix-theme" vikix-dark > "$t/out" 2>&1 || { cat "$t/out"; echo "FAIL: vikix theme vikix-dark should work"; fail=1; }
+  check "the running image should follow vikix theme vikix-dark: $(ev --cuis 'Theme current background printString' 2>&1)" grep -q "r: 0.118 g: 0.118 b: 0.18" <<<"$(ev --cuis 'Theme current background printString' 2>&1)"
+  check "VikixTheme's package should stay clean after the file-in" test "$(ev --cuis "(CodePackage named: 'VikixTheme' createIfAbsent: false registerIfNew: false) hasUnsavedChanges" 2>&1)" = "=> false"
+  check "the doctor should see the theme is Vikix's" bash -c "cu() { bash '$here/bin/vikix-cuis' \"\$@\"; }; cu doctor 2>&1 | grep -q \"the image's theme is Vikix's\""
+  cu status --json > "$t/out" 2>&1 || { cat "$t/out"; echo "FAIL: status --json with the image running should work"; fail=1; }
+  check "status --json should say what the image shows: $(head -c 300 "$t/out")" python3 -c '
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["running"] and d["door"] == int(sys.argv[2]), (d["running"], d["door"])
+st = d["image_state"]
+assert st["theme"] == "VikixTheme" and "VikixDesktop" in st["packages"] and st["door"] == sys.argv[2], st
+assert isinstance(st["windows"], list) and st["font"], st
+' "$t/out" "$port"
+
+  # The desktop as objects, against the stand-in Swank.
+  cu desktop > "$t/out" 2>&1 || { cat "$t/out"; echo "FAIL: vikix cuis desktop should open the window"; fail=1; }
+  check "desktop should say it opened" grep -q "open in Cuis" "$t/out"
+  for _ in $(seq 1 40); do grep -q "workspace 2 notes" <<<"$(ev --cuis 'VikixDesktop summary' 2>&1)" && break; sleep 0.25; done
+  summary=$(ev --cuis 'VikixDesktop summary' 2>&1)
+  check "the workspaces should be drawn, the one in view said: $summary" grep -q "workspace 1 main here tiles" <<<"$summary"
+  check "the windows should be drawn under their workspace, the focused one said: $summary" grep -q "window 0 firefox: Vikix — Firefox focused" <<<"$summary"
+  check "a strip should be said: $summary" grep -q "workspace 2 notes strip" <<<"$summary"
+  check "the window should say where it reads from: $summary" grep -q "StumpWM on 127.0.0.1:$swank_port, read every second" <<<"$summary"
+  check "status --json should list the desktop window" bash -c "cu() { bash '$here/bin/vikix-cuis' \"\$@\"; }; cu status --json | grep -q '\"class\": \"VikixDesktopWindow\"'"
+  # The desktop changes: the morphs follow, kept by number (a halo on one stays).
+  sed -i 's/"notes.org"/"todo.org"/; s/"focused":true/"focused":false/; s/"~ : bash","class":"Alacritty","focused":false/"~ : bash","class":"Alacritty","focused":true/' "$t/desktop.json"
+  for _ in $(seq 1 40); do grep -q "todo.org" <<<"$(ev --cuis 'VikixDesktop summary' 2>&1)" && break; sleep 0.25; done
+  summary=$(ev --cuis 'VikixDesktop summary' 2>&1)
+  check "a changed title and focus should follow: $summary" grep -q "window 1 Alacritty: ~ : bash focused" <<<"$summary"
+  check "the same morph should be kept for a window: $(ev --cuis 'VikixDesktop window summary' 2>&1 | head -c 100)" test "$(ev --cuis '(VikixDesktop window allMorphsDo: [ :m | ]; yourself) class name' 2>&1)" = "=> #VikixDesktopWindow"
+  python3 - "$t/desktop.json" <<'EOF'
+import json, sys
+d = json.load(open(sys.argv[1])); d["workspaces"] = d["workspaces"][:1]; json.dump(d, open(sys.argv[1], "w"))
+EOF
+  for _ in $(seq 1 40); do grep -q "workspace 2" <<<"$(ev --cuis 'VikixDesktop summary' 2>&1)" || break; sleep 0.25; done
+  check "a workspace gone should be taken down: $(ev --cuis 'VikixDesktop summary' 2>&1)" test -z "$(grep 'workspace 2' <<<"$(ev --cuis 'VikixDesktop summary' 2>&1)" || true)"
+  check "the image should have asked once a second, with the password: $(wc -l < "$t/swank.log")" test "$(wc -l < "$t/swank.log")" -ge 3
+  check "every ask should be the one function, through vikix-eval-for-agent" test -z "$(grep -v 'vikix-eval-for-agent.*vikix-desktop-json' "$t/swank.log" || true)"
+  kill "$swank_pid" 2>/dev/null || true; wait "$swank_pid" 2>/dev/null || true; swank_pid=
+  for _ in $(seq 1 40); do grep -q "nothing answers" <<<"$(ev --cuis 'VikixDesktop summary' 2>&1)" && break; sleep 0.25; done
+  check "with Swank gone the window should say so and keep what it had: $(ev --cuis 'VikixDesktop summary' 2>&1)" grep -q "nothing answers on 127.0.0.1:$swank_port" <<<"$(ev --cuis 'VikixDesktop summary' 2>&1)"
+  check "the image should have met no error (no debugger open): $(ev --cuis '(UISupervisor ui submorphs collect: [ :m | m class name ]) asArray' 2>&1)" test -z "$(grep -i 'debug' <<<"$(ev --cuis '(UISupervisor ui submorphs collect: [ :m | m class name ]) asArray' 2>&1)" || true)"
   ev --cuis 'Smalltalk quit' > /dev/null 2>&1 || true
   for _ in $(seq 1 50); do kill -0 "$vm_pid" 2>/dev/null || break; sleep 0.2; done
   check "Smalltalk quit through the door should end the image" bash -c "! kill -0 $vm_pid 2>/dev/null"
