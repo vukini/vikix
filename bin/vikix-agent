@@ -95,7 +95,9 @@
 # other desks are read-only to what Codex runs, and link Vikix's rules
 # (~/.codex/rules/vikix.rules, through vikix agents hooks codex --install)
 # which let a desk's day (git on its branch, the tests, vikix, the release)
-# run without a prompt. And trust for the house rules' hook: Codex runs a
+# out of the sandbox without a prompt once Codex asks to (inside it a
+# desk's .git and ~/.local/state are read-only, so a commit or a handoff
+# fails there; the worker's first prompt says so). And trust for the house rules' hook: Codex runs a
 # hook of yours only once you trusted it in /hooks, by its hash, which every
 # release that changes the file undoes; when ~/.codex/hooks.json is Vikix's
 # and the folder is one of your projects (vikix project list), the start

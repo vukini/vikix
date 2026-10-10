@@ -46,3 +46,24 @@ has it in `~/src/project-logs/NAME/log.md`. Git worktrees are skipped.
 - Where was I: `vikix back` (bin/vikix-back) prints how long the user was away, the project they were on (or the one before a terminal in ~) with its next step and last commit, Emacs's unsaved files, their last commands there and the last inbox note; `--card` is the notification the desktop shows by itself after ten minutes away (`*vikix-back-after*`, day.lisp). Read-only.
 - `vikix project open NAME` puts the project on a workspace of its own (the one it has still, else the first empty one of the nine, else a new one named for the project: groups.lisp's `vikix-workspace-claim`; Super+0 goes to a workspace by name), opens a terminal there and the log in Emacs, and once they've come puts its saved layout back (`project-NAME`, a collection's `/` as `--`; saved when you leave that workspace, or by `vikix project save [NAME]`). Saved windows that aren't open are started again and placed.
 - Super+Alt+p a project (vikix-project pick: rofi, then a terminal in its folder and its log.md in Emacs).
+
+## A worker's day
+
+How a worker at a desk finishes (the same text is the last paragraph of a
+worker's first prompt; `vikix agents handoff` and the hand-in's fields are
+in `~/.claude/skills/vikix/ai.md`):
+
+Understand the task and its acceptance criteria; read the handoff and the
+project's instructions. Look at the files the task touches before changing
+them. Make the change at your desk, on its branch. Run the tests the change
+reaches through the project's runner (`tests/run.sh --changed`), fix what
+fails, run them again. Update the guides the change makes wrong, in the same
+commit. Commit only the files you changed, by name. Write the hand-in: status,
+what changed and why, what is decided, what is left, the tests run, the
+defects you know of. Hand back through the office (`vikix agents handoff
+--status review`); don't merge, release or push unless the task or the house
+says so. Ask when something essential is missing or an action would lose data,
+open a hole or change the design; decide the routine yourself. If your sandbox
+keeps the desk's `.git` or the office's state read-only (Codex's does), run
+git, the tests and `vikix` outside it: ask to escalate, and the house's rules
+let a desk's day through without a prompt.

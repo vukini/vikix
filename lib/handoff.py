@@ -72,6 +72,26 @@ LOG_MAX = 40
 CHECKS_MAX = 20
 SESSIONS_MAX = 10
 
+# The definition of done: what a worker at a desk does, one text (TODO 116,
+# 2026-10-10). desk_prompt (lib/agents/desks.py) gives it to every worker
+# after its task, the skill's projects.md has it as "A worker's day" and
+# docs/agents.md quotes it; tests/codex.sh holds the three to this one.
+# The last sentence is from the first live run of a Codex worker: inside
+# its sandbox a desk's .git and ~/.local/state are read-only, and asked to
+# commit and hand off it saw both fail and stopped, rather than ask to run
+# them outside the sandbox, where Vikix's rules let them through.
+DONE = ("Understand the task and its acceptance criteria; read the handoff and the project's instructions. "
+        "Look at the files the task touches before changing them. Make the change at your desk, on its "
+        "branch. Run the tests the change reaches through the project's runner (`tests/run.sh --changed`), "
+        "fix what fails, run them again. Update the guides the change makes wrong, in the same commit. "
+        "Commit only the files you changed, by name. Write the hand-in: status, what changed and why, what "
+        "is decided, what is left, the tests run, the defects you know of. Hand back through the office "
+        "(`vikix agents handoff --status review`); don't merge, release or push unless the task or the house "
+        "says so. Ask when something essential is missing or an action would lose data, open a hole or "
+        "change the design; decide the routine yourself. If your sandbox keeps the desk's `.git` or the "
+        "office's state read-only (Codex's does), run git, the tests and `vikix` outside it: ask to escalate, "
+        "and the house's rules let a desk's day through without a prompt.")
+
 # What never goes into a record: a key, a token, a password, in any field.
 SECRET = re.compile(r"(sk-ant-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}"
                     r"|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----"

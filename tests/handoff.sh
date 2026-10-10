@@ -325,7 +325,7 @@ check "a desk whose folder is gone says how to make it again, and keeps the reco
 # --- The hooks each provider has, honestly; the adapters ---------------------------------------
 out=$(agents hooks)
 check "hooks says what holds the rules for each provider: $out" \
-  bash -c 'grep -q "^claude .*given to Claude Code by vikix agent" <<<"$1" && grep -q "^codex .*unverified on this machine" <<<"$1" && grep -q "^gemini .*not installed by Vikix since that file is yours" <<<"$1" && grep -q "^aider .*no hooks: instructions only" <<<"$1" && grep -q "not installed (vikix agents hooks opencode --install" <<<"$1"' _ "$out"
+  bash -c 'grep -q "^claude .*given to Claude Code by vikix agent" <<<"$1" && grep -q "^codex .*Seen firing here on 2026-10-10" <<<"$1" && grep -q "^gemini .*not installed by Vikix since that file is yours" <<<"$1" && grep -q "^aider .*no hooks: instructions only" <<<"$1" && grep -q "not installed (vikix agents hooks opencode --install" <<<"$1"' _ "$out"
 out=$(agents hooks opencode --install)
 check "--install links OpenCode's plugin into its plugins folder: $out" \
   test "$(readlink "$HOME/.config/opencode/plugins/vikix-office.js")" = "$here/config/opencode/vikix-office.js"

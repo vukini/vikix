@@ -72,13 +72,15 @@ In a terminal, `vikix undo` first lists the files it would change and asks. Answ
 
 Claude Code isn't the only one. Five others work the same way, with the same snapshot first and the same guide:
 
-| Agent | Signs in with | Can run on this laptop |
-|---|---|---|
-| **OpenCode** | Any model company you have an account with | Yes |
-| **Codex** (OpenAI) | Your ChatGPT account | Yes |
-| **Antigravity CLI** (Google, `agy`) | Your Google account (free, AI Pro or AI Ultra), or a Gemini API key | No |
-| **Gemini CLI** (Google) | A Gemini API key, or a Code Assist licence from work | No |
-| **Aider** | An API key (`vikix ai key set anthropic`) | Yes |
+| Agent | Signs in with | Can run on this laptop | Modes (`vikix agent --mode`) |
+|---|---|---|---|
+| **OpenCode** | Any model company you have an account with | Yes | Its own settings (asks before a command or an edit, as Vikix sets it) |
+| **Codex** (OpenAI) | Your ChatGPT account | Yes | `supervised`, `autonomous`, `unrestricted`: its sandbox narrowed to the desk, who answers a step out of it |
+| **Antigravity CLI** (Google, `agy`) | Your Google account (free, AI Pro or AI Ultra), or a Gemini API key | No | Its own (`--mode plan` for a report) |
+| **Gemini CLI** (Google) | A Gemini API key, or a Code Assist licence from work | No | Its own (`--approval-mode`) |
+| **Aider** | An API key (`vikix ai key set anthropic`) | Yes | None |
+
+The word is Codex's for now: `--mode` with another agent is refused, and each other agent's mapping comes as it is tried. Claude Code's own is `--permission-mode`, which `vikix agent` sets to `plan` for a report (`vikix diagnose`).
 
 ```sh
 vikix agent --list                # which are installed, and which Super+a starts
@@ -107,7 +109,7 @@ This prevents accidents; it isn't a wall. The agent runs as you, and can read yo
 
 **How they know Vikix:** OpenCode reads the same skill as Claude Code. Codex, Gemini, Antigravity and Aider read `~/.local/share/vikix/AGENTS.md`, the skill's first page, which names the other pages where they can open them: Vikix links it as `~/.codex/AGENTS.md`, writes a one-line `~/.gemini/GEMINI.md` that imports it, writes a rule file of its own for Antigravity, `~/.gemini/antigravity-cli/rules/vikix.md`, that includes it (Antigravity reads every rule there), and hands it to Aider (not to a small local model, for which it's too long). If you have one of those files already, it's yours and stays; Vikix says how to add the guide to it. That is the desktop's rules; a project's come from the file at its root, `AGENTS.md` where there is one, `CLAUDE.md` otherwise: Codex, which reads only `AGENTS.md` by itself, is given `CLAUDE.md` as the file to fall back on for the session, whole (see [Modes](agents.md#modes-how-free-a-codex-worker-is)).
 
-**The house rules** (`vikix agents touch`, [Agents at work](agents.md)) reach Claude Code and Antigravity CLI: Claude Code gets the hook for the session, Antigravity as a plugin of Vikix's that stays (`agy plugin list` shows `vikix`; `agy plugin disable vikix` switches it off). Codex gets a **mode** instead, for now: `vikix agent --use codex --mode supervised|autonomous|unrestricted`, its sandbox narrowed to the folder in the first two and Vikix's rules file letting a desk's day (git on its branch, the tests, `vikix`) run without a prompt; at a desk the house default, `mode=autonomous` in `~/.config/vikix/office`, applies when nothing is typed, elsewhere Codex runs as your own settings say. The modes are described in [Agents at work](agents.md#modes-how-free-a-codex-worker-is).
+**The house rules** (`vikix agents touch`, [Agents at work](agents.md)) reach Claude Code, Antigravity CLI and Codex: Claude Code gets the hook for the session, Antigravity as a plugin of Vikix's that stays (`agy plugin list` shows `vikix`; `agy plugin disable vikix` switches it off), Codex from a hooks file of Vikix's you link once (`vikix agents hooks codex --install`), which `vikix agent` trusts for you in your own projects; OpenCode's plugin holds the edit hook. Codex also gets a **mode**: `vikix agent --use codex --mode supervised|autonomous|unrestricted`, its sandbox narrowed to the folder in the first two and Vikix's rules file letting a desk's day (git on its branch, the tests, `vikix`) out of the sandbox without a prompt once Codex asks to; at a desk the house default, `mode=autonomous` in `~/.config/vikix/office`, applies when nothing is typed, elsewhere Codex runs as your own settings say. The modes are described in [Agents at work](agents.md#modes-how-free-a-codex-worker-is).
 
 ### Several at once
 

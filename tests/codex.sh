@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
-# tests/codex.sh — Codex as a worker (TODO 116, Phases 1 to 4: plans/DESIGN-codex-integration.md),
+# tests/codex.sh — Codex as a worker (TODO 116: plans/DESIGN-codex-integration.md),
 # with a stand-in codex that records its arguments, a made-up home and a
 # project with a desk; no network, and Codex itself only for its rules
-# checker, when it is installed.
+# checker, when it is installed. tests/codex.sh --live, by hand and never
+# from run.sh, runs the real Codex once (your login, a session's tokens):
+# its sandbox with a desk as the only root, and one exec session at a
+# scratch desk under the launcher's autonomous row with Vikix's hooks file
+# and rules, asked to make a file, commit it and hand off, which shows the
+# hooks firing (the journal's turn, edit and stop by codex), the commit and
+# the handoff out of the sandbox without a prompt, and how it left.
 #
 #   The launcher (bin/vikix-agent): Codex is given the repository's
 #   instructions, CLAUDE.md as the file to fall back on when a folder has no
@@ -79,6 +85,8 @@ export EMACS_SOCKET_NAME=/nonexistent/emacs-server   # never the live desktop's 
 unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE   # the desktop session's: from an agent's shell they'd point a test at the real ~/vikix and state, and hide the keys
 unset DISPLAY XDG_STATE_HOME XDG_CONFIG_HOME VIKIX_CODEX_HOOK_TRUST VIKIX_AGENT_SSH VIKIX_AGENT_MODE
 here=$(cd "$(dirname "$0")/.." && pwd)
+orig_home=$HOME
+real_codex=$(command -v codex || true)
 t=$(mktemp -d)
 trap 'rm -rf "$t"' EXIT
 export HOME="$t/home" VIKIX_RECORDS_DB="$t/records.db" VIKIX_PROC="$t/proc" VIKIX_TESTER=0
@@ -95,6 +103,99 @@ echo '# Log' > log.md; git add log.md; git commit -q -m first
 git worktree add -q "$t/src/book-a" -b a
 git -C "$t" init -q -b main stranger
 cd "$here"
+
+# --- The real Codex, by hand: tests/codex.sh --live ------------------------------------------
+# A scratch home under your cache, never /tmp (writable inside the sandbox,
+# so a refusal there would prove nothing); the office's state is read from
+# HOME, so the journal and the record land in it; a CODEX_HOME of its own
+# holding a copy of your login, this checkout's hooks file and rules; your
+# shell is snapshotted by Codex for its commands, so the scratch home's
+# profile puts this checkout's bin first; the real /proc, since the hook
+# finds its agent there.
+live() {
+  [ -n "$real_codex" ] || { echo "FAIL: --live needs codex installed"; exit 1; }
+  [ -r "$orig_home/.codex/auth.json" ] || { echo "FAIL: --live needs a Codex login ($orig_home/.codex/auth.json)"; exit 1; }
+  local L; L=$(mktemp -d -p "${XDG_CACHE_HOME:-$orig_home/.cache}" vikix-codex-live.XXXX)
+  trap 'rm -rf "$t" "$L"' EXIT
+  export HOME="$L/home" CODEX_HOME="$L/codex" VIKIX_RECORDS_DB="$L/records.db"
+  unset VIKIX_PROC
+  mkdir -p "$HOME/.config/vikix" "$CODEX_HOME/rules" "$L/src"
+  printf 'root=%s\n' "$L/src" > "$HOME/.config/vikix/projects"
+  install -m 600 "$orig_home/.codex/auth.json" "$CODEX_HOME/auth.json"
+  ln -s "$here/config/codex/hooks.json" "$CODEX_HOME/hooks.json"
+  ln -s "$here/config/codex/vikix.rules" "$CODEX_HOME/rules/vikix.rules"
+  printf 'export PATH=%q:$PATH\n' "$here/bin" | tee "$HOME/.bash_profile" > "$HOME/.bashrc"
+  export PATH="$here/bin:$PATH"
+  git -C "$L/src" init -q -b main book; (cd "$L/src/book" && git config user.name T && git config user.email t@example.com \
+    && echo '# Log' > log.md && git add log.md && git commit -q -m first && git worktree add -q "$L/src/book-a" -b a)
+  local desk="$L/src/book-a"
+  (cd "$desk" && git config user.name T && git config user.email t@example.com)
+
+  # The sandbox with the desk as its only root, as the launcher's two sandboxed modes set it.
+  local out
+  out=$(cd "$desk" && timeout --kill-after=5s 60s "$real_codex" sandbox -c 'sandbox_mode="workspace-write"' \
+    -c 'sandbox_workspace_write.writable_roots=[]' -- sh -c "echo x > inside.txt && echo inside-ok
+      echo y > '$L/outside.txt' && echo outside-ok
+      echo y > '$L/src/book/own.txt' && echo own-ok
+      echo z >> .git && echo git-ok
+      echo w > '$L/src/book/.git/worktrees/book-a/probe' && echo gitdir-ok
+      true" 2>&1 </dev/null) || true
+  echo "$out" | sed 's/^/   sandbox: /'
+  check "the desk is writable inside the sandbox" grep -q inside-ok <<<"$out"
+  check "a folder outside the desk is not" not grep -q outside-ok <<<"$out"
+  check "the project's own folder is not" not grep -q own-ok <<<"$out"
+  check "the desk's .git file is not" not grep -q git-ok <<<"$out"
+  check "the repository's worktree folder is not" not grep -q gitdir-ok <<<"$out"
+  rm -f "$desk/inside.txt"
+
+  # A record for the desk, so SessionEnd has one to note how it left in.
+  (cd "$desk" && python3 "$here/bin/vikix-agents" handoff --status working --summary "the live probe" >/dev/null)
+  # One exec session under the launcher's autonomous row (codex_mode_args in bin/vikix-agent) with
+  # the hook's trust, as vikix agent starts a worker; approvals go to Codex's reviewer, never to a
+  # prompt a script can't answer.
+  local args=(-c 'project_doc_fallback_filenames=["CLAUDE.md"]' -c 'project_doc_max_bytes=262144'
+    -c 'sandbox_mode="workspace-write"' -c 'sandbox_workspace_write.writable_roots=[]' -c 'approval_policy="on-request"'
+    -c 'sandbox_workspace_write.network_access=true' --approve-for-me --dangerously-bypass-hook-trust)
+  # The prompt is a worker's first prompt (desk_prompt: the task, where the record is, the definition of
+  # done), so what the run shows is what a worker is told.
+  local prompt; prompt=$(python3 - "$here" <<'PY'
+import importlib.util, sys
+from importlib.machinery import SourceFileLoader
+sys.dont_write_bytecode = True
+spec = importlib.util.spec_from_loader("office_agents", SourceFileLoader("office_agents", sys.argv[1] + "/bin/vikix-agents"))
+A = importlib.util.module_from_spec(spec); spec.loader.exec_module(A)
+print(A.desk_prompt("Three steps, nothing else, asking no questions: 1. with apply_patch, create probe.txt containing exactly one line: hello. 2. run: git add probe.txt && git commit -m probe. 3. run: vikix agents handoff --status review --summary 'probe committed'."))
+PY
+)
+  echo "   running: codex exec --cd $desk ${args[*]} --skip-git-repo-check --ephemeral \"...\""
+  out=$(cd "$desk" && timeout --kill-after=5s 300s "$real_codex" exec --cd "$desk" "${args[@]}" --skip-git-repo-check --ephemeral "$prompt" 2>&1 </dev/null) || true
+  echo "$out" | sed 's/^/   codex: /'
+  local journal="$HOME/.local/state/vikix/office/journal.jsonl"
+  check "the PreToolUse hook fired: the journal has codex's edit of probe.txt" \
+    grep -q '"kind": "edit", "agent": "codex".*probe.txt' "$journal"
+  check "UserPromptSubmit fired: a turn by codex" grep -q '"kind": "turn", "agent": "codex"' "$journal"
+  check "the Stop hook let a stop through: codex at its prompt" grep -q '"kind": "stop", "agent": "codex"' "$journal"
+  check "probe.txt is there with its line" test "$(cat "$desk/probe.txt" 2>/dev/null)" = hello
+  check "the commit got out of the sandbox (a desk's .git is read-only inside it: Codex must ask to run it outside, where the rules allow it): $(git -C "$desk" log --oneline | head -1)" \
+    test "$(git -C "$desk" log --format=%s -1)" = probe
+  local rec; rec=$(cd "$desk" && python3 "$here/bin/vikix-agents" handoff "$desk" --json 2>/dev/null || true)
+  check "the handoff was written from inside the session: status review, its summary" \
+    bash -c 'grep -q "\"value\": \"review\"" <<<"$1" && grep -q "probe committed" <<<"$1"' _ "$rec"
+  if grep -q '"left"' <<<"$rec"; then echo "   SessionEnd fired: how it left is in the record"
+  else echo "   (SessionEnd not seen: codex exec ended with no 'hook: SessionEnd' line; how a Codex left is still to see in a session of its own)"; fi
+
+  # The review's Codex road, real: the desk's commit read in a throwaway worktree, the findings against
+  # the schema into the record (Claude's road, claude -p, is refused from inside a Claude Code session,
+  # so it stays for a day at the keyboard).
+  out=$(cd "$desk" && timeout --kill-after=5s 300s python3 "$here/bin/vikix-agents" review "$desk" --use codex 2>&1 </dev/null) || true
+  echo "$out" | sed 's/^/   review: /'
+  rec=$(cd "$desk" && python3 "$here/bin/vikix-agents" handoff "$desk" --json 2>/dev/null || true)
+  check "the review by the real Codex answered the schema: a finding signed codex in the handoff's Review, no failure in the log" \
+    bash -c 'grep -qE "\"by\": \"codex [0-9]+\"" <<<"$1" && ! grep -q "review by codex failed" <<<"$1"' _ "$rec"
+  [ "$fail" = 0 ] && echo "codex --live: ok"
+  exit "$fail"
+}
+[ "${1:-}" = --live ] && live
 
 # The stand-in codex: its arguments, one in brackets each, and the environment Vikix gives it.
 export STARTED="$t/started"
@@ -451,7 +552,7 @@ check "under one with no edit seen, the hook file being Vikix's: installed, none
 rm "$HOME/.codex/hooks.json"
 check "the hook file gone: instructions only" grep -q "^  codex 1105: instructions only, unless its hook is installed (vikix agents hooks codex --install)" <<<"$(agents handoff "$t/src/book-b")"
 out=$(agents hooks codex)
-check "hooks codex names every hook and keeps its honesty: $out" bash -c 'grep -q "PreToolUse (apply_patch read for its files" <<<"$1" && grep -q "PermissionRequest (a step out of its sandbox" <<<"$1" && grep -q "Stop and SessionEnd" <<<"$1" && grep -q "unverified on this machine until one has fired" <<<"$1"' _ "$out"
+check "hooks codex names every hook and keeps its honesty: $out" bash -c 'grep -q "PreToolUse (apply_patch read for its files" <<<"$1" && grep -q "PermissionRequest (a step out of its sandbox" <<<"$1" && grep -q "Stop and SessionEnd" <<<"$1" && grep -q "Seen firing here on 2026-10-10 (tests/codex.sh --live" <<<"$1" && ! grep -q unverified <<<"$1"' _ "$out"
 rm -r "$t/proc/1101" "$t/proc/1103" "$t/proc/1104" "$t/proc/1105"
 # The hooks file, in Codex's shape (its documentation, 0.160): a description, the events, their commands.
 check "config/codex/hooks.json is in Codex's shape" python3 -c '
@@ -767,6 +868,27 @@ EOF
 else
   echo "(codex isn't installed here: the rules file's lines aren't checked with codex execpolicy)"
 fi
+# The definition of done: one text (DONE in lib/handoff.py), given by desk_prompt, on the skill's
+# projects page and quoted in the guide, held to the one in the code.
+check "the definition of done is in the worker's first prompt, the skill's projects.md and docs/agents.md, word for word" \
+  python3 - "$here" <<'PY'
+import importlib.util, re, sys
+from importlib.machinery import SourceFileLoader
+sys.dont_write_bytecode = True
+sys.path.insert(0, sys.argv[1] + "/lib")
+import handoff
+spec = importlib.util.spec_from_loader("office_agents", SourceFileLoader("office_agents", sys.argv[1] + "/bin/vikix-agents"))
+A = importlib.util.module_from_spec(spec); spec.loader.exec_module(A)
+norm = lambda t: " ".join(re.sub(r"^> ", "", t, flags=re.M).split())
+done = norm(handoff.DONE)
+bad = [name for name, text in (("desk_prompt", A.desk_prompt("x")),
+                               ("projects.md", open(sys.argv[1] + "/config/claude/skills/vikix/projects.md").read()),
+                               ("docs/agents.md", open(sys.argv[1] + "/docs/agents.md").read()))
+       if done not in norm(text)]
+if bad:
+    print("not word for word in: " + ", ".join(bad))
+sys.exit(1 if bad else 0)
+PY
 check "the rules file has no rule that lets sudo or a force-push through" \
   bash -c '! grep -E "\"(sudo|doas)\".*allow|--force.*allow" "$1/config/codex/vikix.rules"' _ "$here"
 

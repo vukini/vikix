@@ -355,9 +355,10 @@
   vikix agents hooks [PROVIDER] [--install]
                        what holds the house rules for each agent program.
                        Claude Code's hooks, given at each start; Codex's
-                       and OpenCode's as adapters --install links into
-                       their folders; Gemini's a snippet to merge by hand;
-                       Aider none. Instructions only, where no hook is
+                       (seen firing here, 2026-10-10) and OpenCode's as
+                       adapters --install links into their folders;
+                       Gemini's a snippet to merge by hand; Aider none.
+                       Instructions only, where no hook is
 
   vikix agents desks   every desk there is, one a line, for scripts.
                        Tab-parted: its folder, its branch and the project's

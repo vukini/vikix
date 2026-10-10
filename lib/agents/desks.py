@@ -347,7 +347,8 @@ def desk_prompt(task, rec=None):
     user's words; with REC (a handover, or criteria given with the task),
     the record's handoff and hand-in as a second paragraph, so the next
     agent starts from what the last one left; then where the desk's record
-    is."""
+    is, and the definition of done (handoff's DONE), the same for every
+    provider that takes a first prompt."""
     H = handoff_module()
     handin = H.handin_text(rec) if rec else ""
     return (task.rstrip()
@@ -357,7 +358,8 @@ def desk_prompt(task, rec=None):
             "MCP tool handoff): read the handoff before you start; once you know the shape of the work, say how "
             "long it will take, assuming no major issue turns up (handoff_update with status working and an "
             "estimate, or vikix agents handoff --status working --estimate \"40 min\"); and write yours "
-            "when you hand back or finish.")
+            "when you hand back or finish."
+            + "\n\nHow a worker finishes here: " + H.DONE)
 
 
 def here(argv):

@@ -109,8 +109,10 @@ ADAPTERS = {
               "since it can't ask), PermissionRequest (a step out of its sandbox into the project's own folder, "
               "~/vikix, another desk or secrets/ denied), UserPromptSubmit, Stop and SessionEnd (working, at its "
               "prompt, the handoff asked for, how it left); and Vikix's rules in ~/.codex/rules/vikix.rules (git on a "
-              "desk's branch, the tests, vikix and the release run without a prompt; sudo and a force-push never). "
-              "The shapes are from Codex's documentation (0.160): unverified on this machine until one has fired"),
+              "desk's branch, the tests, vikix and the release run outside the sandbox without a prompt once Codex asks "
+              "to; sudo and a force-push never). Seen firing here on 2026-10-10 (tests/codex.sh --live, Codex 0.160): "
+              "UserPromptSubmit, PreToolUse, PermissionRequest (a commit and the handoff out of the sandbox, let through) "
+              "and Stop; SessionEnd not in codex exec"),
     "opencode": ("config/opencode/vikix-office.js", ".config/opencode/plugins/vikix-office.js",
                  "a plugin on tool.execute.before (edit, write, bash): a refused edit throws, with the reason; a "
                  "clash is refused once and goes through when tried again within ten minutes"),
@@ -244,7 +246,8 @@ def hook_output(**fields):
             fields["additionalContext"] = (fields.get("additionalContext", "") + "\n\n" + extra).strip()
     if HOOK in ("agy", "gemini"):
         # Gemini CLI's BeforeTool reads the same decision and reason (from its
-        # documentation: unverified here); nothing beside an allowed edit there is allow.
+        # documentation; seen firing 2026-10-10 for a commit and a handoff out of the sandbox, let
+        # through, the denial itself not yet); nothing beside an allowed edit there is allow.
         reason = fields.get("permissionDecisionReason") or fields.get("additionalContext") or ""
         print(json.dumps({"decision": fields.get("permissionDecision") or ("ask" if HOOK == "agy" else "allow"),
                           "reason": reason}))
