@@ -5,10 +5,12 @@
 #   The nine are always there. A claim for a name (a desk's topic, a
 #   project) takes the first empty one of the nine while there is one, and
 #   makes a workspace of that name only once all nine have windows; the
-#   same name again is the same workspace. Super+0 (vikix-workspace) goes
-#   to one by name, and a new name there makes a workspace of that name at
-#   once, empty numbered ones or not (the user named it); Super+Shift+0
-#   sends the window to one by name, the same way. The palette lists
+#   same name again is the same workspace. Super+0 opens the map of the
+#   named workspaces, a letter each (the first of the name that is free),
+#   and the letter goes there; / there types a name (vikix-workspace), and
+#   a new name makes a workspace of that name at once, empty numbered ones
+#   or not (the user named it); Super+Shift+0 is the same map sending the
+#   window (vikix-send-named). The palette lists
 #   the workspaces in use and the named ones. A named workspace left with
 #   no window goes, after its first minute; one with a window stays; a
 #   workspace made in user.lisp is never taken; a strip on and off keeps a
@@ -106,13 +108,44 @@ ask '(vikix-viri "off")' >/dev/null; sleep 0.5
 check "a strip on and off keeps the named workspace, and its window: $(on novel)" test "$(on novel)" = "N1"
 check "and it is still Vikix's to take away" yes '(gethash "novel" *vikix-workspaces-made*)'
 
-# The keys: Super+0 asks for a name, Super+Shift+0 sends the window to one.
+# The keys: Super+0 opens the map of the named workspaces, a letter each;
+# Super+Shift+0 the same map sending the window.
+open() { ask '(princ (or *vikix-map-open* "none"))'; }
+letters() { ask '(progn (setf *print-pretty* nil) (format t "~{~a~^ ~}" (mapcar (lambda (p) (format nil "~a=~a" (car p) (cdr p))) (vikix-workspace-letters))))'; }
+check "each named workspace gets the first letter of its name that is free: $(letters)" test "$(letters)" = "m=mine n=novel"
+check "a second name on the same letter takes its next free letter, and one with none left goes without" \
+  test "$(ask '(progn (setf *print-pretty* nil) (princ (vikix-workspace-letters (list "notes" "novel" "nyxt" "n" "émail" "aa" "ab" "ac" "ad" "ae" "af" "ag" "ah" "ai" "aj" "ak" "al" "am" "ao" "ap" "aq" "ar" "au" "av" "aw" "ax" "ay" "az" "zzz"))))')" = '((n . notes) (o . novel) (y . nyxt) (a . n) (m . émail) (b . aa) (c . ab) (d . ac) (e . ad) (f . ae) (g . af) (h . ag) (i . ah) (j . ai) (k . aj) (l . ak) (p . al) (q . am) (r . ao) (s . ap) (t . aq) (u . ar) (v . au) (w . av) (x . aw) (z . ax))'
+check "the map's entries are the letters, their command the letter alone, then / to type, each closing the map" \
+  yes '(equal (vikix-workspace-map-entries :go) (quote (("m" "vikix-workspace-key m" "mine" :close) ("n" "vikix-workspace-key n" "novel" :close) ("/" "vikix-workspace" "a name to type: a new one makes a workspace of that name" :close))))'
+check "and for sending: $(ask '(progn (setf *print-pretty* nil) (princ (mapcar (function second) (vikix-workspace-map-entries :send))))')" \
+  yes '(equal (mapcar (function second) (vikix-workspace-map-entries :send)) (quote ("vikix-send-key m" "vikix-send-key n" "vikix-send-named")))'
+check "the map opens on Super+0: $(ask '(progn (setf *print-pretty* nil) (princ (vikix-map-opener "workspaces")))')" \
+  yes '(equal (vikix-map-opener "workspaces") (quote ("s-0" "vikix-map workspaces" "Workspaces by name: a letter each, / a name to type")))'
+check "and the sending one on Shift+0 of this keyboard" yes '(equal (vikix-map-opener "send") (list (vikix-shift-digit-key 0) "vikix-map send" "Send the window to a workspace by name: a letter each, / a name to type"))'
 key super+1
-xdotool key super+0; sleep 0.7; xdotool type --delay 40 "novel"; sleep 0.3; key Return; sleep 0.5
-check "Super+0, a name, Enter: you are there: $(here_name)" test "$(here_name)" = novel
+key super+0
+check "Super+0 opens the map: $(open)" test "$(open)" = workspaces
+check "its lines name the workspaces by their letters" \
+  yes '(let ((lines (vikix-map-strings "workspaces"))) (and (search "Workspaces by name" (first lines)) (find-if (lambda (l) (and (search "n" l) (search "novel" l))) lines) (find-if (lambda (l) (search "a name to type" l)) lines)))'
+key n
+check "n goes to novel, the map closed: $(here_name), $(open)" test "$(here_name) $(open)" = "novel none"
+check "and the keyboard is given back" yes '(not (eq *custom-key-event-handler* (quote vikix-map-key)))'
+check "why noted the two keys: $(ask '(princ (vikix-one-line (vikix-why-text 2) 200))')" yes '(search "Super+0 then n" (vikix-why-text 3))'
+key super+1
+key super+0; key slash; sleep 0.7; xdotool type --delay 40 "novel"; sleep 0.3; key Return; sleep 0.5
+check "Super+0, /, a name, Enter: you are there: $(here_name)" test "$(here_name)" = novel
+key super+0
+key q
+check "a letter of no workspace closes the map and does nothing: $(here_name), $(open)" test "$(here_name) $(open)" = "novel none"
 key super+2
-xdotool key super+shift+0; sleep 0.7; xdotool type --delay 40 "novel"; sleep 0.3; key Return; sleep 0.7
-check "Super+Shift+0, a name, Enter: the window went there: $(on novel)" test "$(on novel)" = "N1 W2"
+key super+shift+0
+check "Super+Shift+0 opens the sending map: $(open)" test "$(open)" = send
+key n
+check "n sends the window to novel, the map closed: $(on novel), $(open)" test "$(on novel) $(open)" = "N1 W2 none"
+check "and you stayed: $(here_name)" test "$(here_name)" = 2
+win W2c
+key super+shift+0; key slash; sleep 0.7; xdotool type --delay 40 "mine"; sleep 0.3; key Return; sleep 0.7
+check "Super+Shift+0, /, a name, Enter: the window went there: $(on mine)" test "$(on mine)" = "W2c"
 check "and you stayed: $(here_name)" test "$(here_name)" = 2
 win W2b     # the nine full again
 key super+3
@@ -136,5 +169,5 @@ check "and is Vikix's to take away" yes '(gethash "ghost" *vikix-workspaces-made
 
 check "the desktop met no error" test -z "$(ls "$home/.local/state/vikix/errors" 2>/dev/null)"
 
-wm_report workspaces "the nine always there, a claim takes an empty one of them first and makes a named workspace once all nine are in use, the desk's and the project's claims, Super+0 and Super+Shift+0 by name (a new name a new workspace at once), the palette's rows, an empty named workspace gone after its minute and one with a window kept, the user's own and a strip's left alone, resume by name"
+wm_report workspaces "the nine always there, a claim takes an empty one of them first and makes a named workspace once all nine are in use, the desk's and the project's claims, Super+0 and Super+Shift+0 the named workspaces as a map (a letter each, / a name to type, a new name a new workspace at once), the palette's rows, an empty named workspace gone after its minute and one with a window kept, the user's own and a strip's left alone, resume by name"
 exit "$fail"

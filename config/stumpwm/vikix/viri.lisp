@@ -806,7 +806,7 @@ whole column it is in, which stays a column there."
           (t (move-window-to-group window to-group)))))
 
 (defcommand vikix-send-named (name) ((:vikix-workspace "To workspace: "))
-  "Send this window to a workspace by name (Super+Shift+0; Tab completes),
+  "Send this window to a workspace by name (Super+Shift+0, then /; Tab completes),
 staying where you are. A name there is no workspace of gets a new
 workspace of that name, as Super+0 gives it (groups.lisp), whether or not
 one of the nine is empty. On a strip, the whole column goes, as vikix-send

@@ -52,8 +52,8 @@ a map, the two keys with a space between (\"s-C-SPC m\"), reads
 ;; Keys bound some other way than from *vikix-bindings* (the workspace
 ;; keys are bound in a loop in keys.lisp), as the help writes them.
 (defparameter *vikix-extra-keys*
-  '(("Super+1 ... Super+9" "Go to workspace 1-9 (Super+0: one by name, new or not)" "grouplist")
-    ("Super+Shift+1 ... 9" "Send window to workspace 1-9, 0 one by name, new or not (on a strip: its whole column)" "vikix-send")
+  '(("Super+1 ... Super+9" "Go to workspace 1-9 (Super+0: the named ones, a letter each; / types one, new or not)" "grouplist")
+    ("Super+Shift+1 ... 9" "Send window to workspace 1-9, 0 the named ones, a letter each (on a strip: its whole column)" "vikix-send")
     ("Ctrl+t then ?" "StumpWM's own keys (after the prefix)" "vikix-prefix-keys")
     ;; Not one of StumpWM's keys: rescue.lisp reads it on a connection of
     ;; its own, so it works when these don't.
@@ -512,6 +512,9 @@ messages stay as they were."
 ;;; (exec) closes the map first, since the program will want the keyboard
 ;;; (rofi gives up when it can't grab it); any other command runs with the
 ;;; map open, and the map is drawn again after it, so m, w, w, w works.
+;;; A map of *vikix-map-live* (Super+0 the named workspaces', Super+Shift+0
+;;; the same for sending the window) makes its keys as it opens, from what
+;;; is there now, and its keys close it: they go somewhere.
 
 (defparameter *vikix-map-timeout* 30
   "Seconds a map stays open after its last key: half a minute, as the key
@@ -523,22 +526,46 @@ seconds: StumpWM's timers break on a float.")
 (defvar *vikix-map-old-handler* nil
   "The key handler there was before the map took the keys, given back after.")
 
+(defparameter *vikix-map-live*
+  '(("workspaces" vikix-workspace-map-key "Workspaces by name: a letter each, / a name to type"
+     vikix-workspace-map-entries :go)
+    ("send" vikix-workspace-send-map-key "Send the window to a workspace by name: a letter each, / a name to type"
+     vikix-workspace-map-entries :send))
+  "The maps whose keys are made as they open, since what they name comes
+and goes: (NAME KEY-FN WORDS ENTRIES-FN . ARGS). KEY-FN gives the key
+that opens the map (bound in keys.lisp, not the registry: the key card is
+full, and its row for the workspace keys names them), WORDS its heading,
+and ENTRIES-FN called with ARGS its entries, as vikix-map-entries has
+them, each with :close as a fourth element when the key is to close the
+map before it runs (one that goes somewhere, or asks). A :map \"NAME k\"
+in the registry or user.lisp still adds a key to such a map, after
+these.")
+
 (defun vikix-map-opener (name)
-  "The entry of *vikix-bindings* whose key opens the map NAME, or nil."
-  (find (format nil "vikix-map ~(~a~)" name) *vikix-bindings* :key #'second :test #'string-equal))
+  "The entry of *vikix-bindings* whose key opens the map NAME, or nil; for
+a map of *vikix-map-live*, the same shape (KEY COMMAND WORDS) made from it."
+  (or (find (format nil "vikix-map ~(~a~)" name) *vikix-bindings* :key #'second :test #'string-equal)
+      (let ((live (assoc name *vikix-map-live* :test #'string-equal)))
+        (and live
+             (let ((key (ignore-errors (funcall (second live)))))
+               (and key (list key (format nil "vikix-map ~(~a~)" name) (third live))))))))
 
 (defun vikix-map-entries (name)
-  "The keys inside the map NAME: (KEY COMMAND DESCRIPTION), KEY the key
-alone (\"m\"), in the order the opener's words name them."
+  "The keys inside the map NAME: (KEY COMMAND DESCRIPTION [:close]), KEY
+the key alone (\"m\"): a live map's as it makes them, then the ones
+written with :map, in the order the opener's words name them."
   (let* ((opener (vikix-map-opener name))
-         (prefix (and opener (concatenate 'string (first opener) " "))))
+         (prefix (and opener (concatenate 'string (first opener) " ")))
+         (live (assoc name *vikix-map-live* :test #'string-equal)))
     (when prefix
-      (vikix-map-sorted
-       (third opener)
-       (loop for (key command description) in *vikix-bindings*
-             when (and (> (length key) (length prefix)) (string= prefix key :end2 (length prefix)))
-               collect (list (subseq key (length prefix)) command description))
-       #'first))))
+      (append
+       (and live (ignore-errors (apply (fourth live) (nthcdr 4 live))))
+       (vikix-map-sorted
+        (third opener)
+        (loop for (key command description) in *vikix-bindings*
+              when (and (> (length key) (length prefix)) (string= prefix key :end2 (length prefix)))
+                collect (list (subseq key (length prefix)) command description))
+        #'first)))))
 
 (defun vikix-map-strings (name &optional note)
   "The lines the map NAME shows: its words, a key a line, NOTE (what the
@@ -591,12 +618,13 @@ last key said) and how it closes."
 
 (defun vikix-map-run (name entry key)
   "Run ENTRY's command for KEY pressed in the map NAME: noted as the two
-keys for why and vikix used; a program closes the map first, anything
+keys for why and vikix used; a program closes the map first, and so does
+an entry marked :close (a live map's that goes somewhere or asks); anything
 else leaves it open and drawn again, with what the command said."
-  (destructuring-bind (own command description) entry
+  (destructuring-bind (own command description &optional close) entry
     (declare (ignore own description))
     (let* ((opener (vikix-map-opener name))
-           (program (eql 0 (search "exec " command)))
+           (program (or (eql 0 (search "exec " command)) (eq close :close)))
            (screen (current-screen))
            (before (first (screen-last-msg screen))))
       (when program (vikix-map-close))

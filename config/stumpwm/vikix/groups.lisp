@@ -9,11 +9,14 @@
 ;;;; project open) each want a workspace to themselves, and take the first
 ;;;; empty one of the nine; only when every one of the nine has windows is
 ;;;; a tenth made, named for what it is for ("wifi-fix", "novel"), through
-;;;; vikix-workspace-claim. A name you type is different: Super+0
-;;;; (vikix-workspace) goes to a workspace by name and makes one of that
-;;;; name when it is new, empty numbered ones or not (:named t), since you
-;;;; asked for it by name; Super+Shift+0 (vikix-send-named, viri.lisp)
-;;;; sends the window to one the same way. A named workspace is
+;;;; vikix-workspace-claim. A name you type is different: Super+0 opens
+;;;; the named workspaces as a map (help.lisp's, made as it opens: a letter
+;;;; each, the first of its name that is free, and / to type a name), and
+;;;; the letter goes there; the name typed (vikix-workspace) makes a
+;;;; workspace of that name when it is new, empty numbered ones or not
+;;;; (:named t), since you asked for it by name. Super+Shift+0 is the same
+;;;; map for sending the window (vikix-send-named, viri.lisp). A named
+;;;; workspace is
 ;;;; Vikix's to take away again: left with no windows on it, it goes (a
 ;;;; hook on leaving a workspace), so the bar never fills with empty names.
 ;;;; Workspaces you make yourself (gnewbg in user.lisp) are never touched.
@@ -118,7 +121,7 @@ is never you leaving."
       (completing-read (current-screen) prompt (vikix-workspace-names))))
 
 (defcommand vikix-workspace (name) ((:vikix-workspace "Workspace: "))
-  "Go to a workspace by name (Super+0; Tab completes). A name there is no
+  "Go to a workspace by name (Super+0, then /; Tab completes). A name there is no
 workspace of gets a new workspace of that name, whether or not one of the
 nine is empty: you named it."
   (let* ((screen (current-screen))
@@ -130,6 +133,73 @@ nine is empty: you named it."
            (message "~s is no name for a workspace: a word or two, not a number." name))
           (t (vikix-workspace-claim name :named t)
              (message "Workspace ~a, new." name)))))
+
+;;; --- The map of the named workspaces: Super+0, a letter ------------------------------------
+;;;
+;;; Super+0 then a letter, where typing the name took a word: the map's
+;;; keys are made as it opens (*vikix-map-live*, help.lisp), one a named
+;;; workspace. Its command carries the letter, not the name
+;;; (vikix-workspace-key o): the two keys are counted by vikix used with
+;;; their command, and a workspace's name is the user's own word.
+
+(defun vikix-workspace-named ()
+  "The workspaces past the nine, in the bar's order: the named ones."
+  (remove-if (lambda (name) (member name *vikix-group-names* :test #'equal))
+             (vikix-workspace-names)))
+
+(defun vikix-workspace-letters (&optional (names (vikix-workspace-named)))
+  "A key for each of NAMES, as (KEY . NAME) in their order: the first
+letter of the name that no earlier name took (office o, cuis c, a second
+name in c- its u), else the first letter of the alphabet still free; a
+name with nothing left goes without a key. Letters only: / types a name,
+and the digits are the nine's."
+  (let ((taken '()) (pairs '()))
+    (dolist (name names (nreverse pairs))
+      (let ((key (or (find-if (lambda (c) (and (alpha-char-p c) (< (char-code c) 128)
+                                                (not (member c taken))))
+                              (string-downcase name))
+                     (find-if-not (lambda (c) (member c taken)) "abcdefghijklmnopqrstuvwxyz"))))
+        (when key
+          (push key taken)
+          (push (cons (string key) name) pairs))))))
+
+(defun vikix-workspace-map-entries (action)
+  "The entries of the map of the named workspaces, for vikix-map-entries:
+a letter a workspace, then / to type a name, each closing the map as it
+runs. ACTION is :go (Super+0: go there) or :send (Super+Shift+0: send
+the window there, staying here)."
+  (let ((command (if (eq action :send) "vikix-send-key" "vikix-workspace-key"))
+        (typed (if (eq action :send) "vikix-send-named" "vikix-workspace")))
+    (append
+     (loop for (key . name) in (vikix-workspace-letters)
+           collect (list key (format nil "~a ~a" command key) name :close))
+     (list (list "/" typed "a name to type: a new one makes a workspace of that name" :close)))))
+
+(defun vikix-workspace-map-key () "s-0")
+
+(defun vikix-workspace-send-map-key ()
+  "The key that sends the window to a workspace by name: Shift+0 of this
+keyboard, as keys.lisp bound it."
+  (and (fboundp 'vikix-shift-digit-key) (funcall 'vikix-shift-digit-key 0)))
+
+(defun vikix-workspace-of-key (key)
+  "The named workspace the letter KEY stands for in the map now, or nil."
+  (cdr (assoc key (vikix-workspace-letters) :test #'string-equal)))
+
+(defcommand vikix-workspace-key (key) ((:string "Letter: "))
+  "Go to the named workspace whose letter in Super+0's map is KEY."
+  (let ((name (vikix-workspace-of-key key)))
+    (if name
+        (vikix-workspace name)
+        (message "No named workspace has the letter ~a now." key))))
+
+(defcommand vikix-send-key (key) ((:string "Letter: "))
+  "Send this window to the named workspace whose letter in Super+Shift+0's
+map is KEY, staying here (vikix-send-named, viri.lisp)."
+  (let ((name (vikix-workspace-of-key key)))
+    (if name
+        (funcall 'vikix-send-named name)
+        (message "No named workspace has the letter ~a now." key))))
 
 ;;; --- Refile: the workspaces move left into the empty ones -------------------------------
 
