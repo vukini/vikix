@@ -444,13 +444,13 @@ each refuses, and the way out; the buttons and keys that open them."
            (set-buffer buffer)
            (should-not (buffer-live-p form))
            (should (eq (window-buffer window) vikix-office--detail)))
-         ;; A desk of a project the offer has: that project is picked already.
+         ;; A desk of a project the offer has selected: the project is still to pick, never guessed.
          (setf (alist-get 'project (alist-get 'desk (vikix-office--row))) "vikix")
          (let ((form (vikix-office--form-draw buffer nil (office-test-offer))))
            (set-buffer buffer)
            (with-current-buffer form
-             (should (string-match-p "Project: \\[vikix  ~/src/vikix\\]" (buffer-string)))
-             (should (equal (vikix-office--form-value 'project) "vikix"))
+             (should (string-match-p "Project: \\[pick one\\]" (buffer-string)))
+             (should (equal (vikix-office--form-value 'project) ""))
              (vikix-office-form-cancel))
            (set-buffer buffer))
          ;; The worker's form for the desk picked: its folder, the task and the boxes.

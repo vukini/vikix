@@ -777,10 +777,6 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                    (and (buffer-live-p vikix-office--detail)
                         (get-buffer-window vikix-office--detail vikix-office--frame))))
          (agents (alist-get 'agents offer)) (projects (alist-get 'projects offer))
-         ;; The project: the selected desk's when the offer has it, else to pick.
-         (chosen (with-current-buffer owner
-                   (let ((name (alist-get 'project (alist-get 'desk (vikix-office--row)))))
-                     (if (cl-find name projects :key (lambda (p) (alist-get 'name p)) :test #'equal) name ""))))
          widgets)
     (with-current-buffer buffer
       (kill-all-local-variables)
@@ -793,8 +789,10 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                          "An agent on a task at this desk, on a workspace to itself. The task is its first prompt and goes into the desk's record; the task before it goes into the desk's history. Nothing typed is a session: an agent to talk with.\n\n"
                        "A worktree of the project beside it, on a branch named by the topic, and a record. With a task, a worker is started at it; without, the desk alone, for a worker later.\n\n"))
       (unless desk
+        ;; The project is always picked, never guessed from the desk selected
+        ;; (Vid, 2026-10-10): a desk in the wrong project is a worktree to undo.
         (push (cons 'project
-                    (apply #'widget-create 'menu-choice :tag "Project" :value chosen
+                    (apply #'widget-create 'menu-choice :tag "Project" :value ""
                            :format "%t: %[%v%]\n" :button-prefix "[" :button-suffix "]"
                            :help-echo "The project the desk is for (vikix project list): a click or RET opens the list"
                            '(item :tag "pick one" :format "%t" :value "")

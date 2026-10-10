@@ -428,8 +428,8 @@ the Office window.
 **New desk…** (`N`, above the groups) and **New worker…** (`w`, in a desk's
 row and in the details of a desk that stands with nobody at it) are forms,
 drawn in the desk pane and in the terminal alike. New desk asks for the project (a menu of `vikix
-project list`'s, a click or `RET` on the `[choice]` opens it; the selected
-desk's project is picked already), the topic (a word or two; a
+project list`'s, a click or `RET` on the `[choice]` opens it; it is always
+picked, never guessed from the desk selected), the topic (a word or two; a
 repository needs one, a project that is no repository works in its own
 folder), and the task; nothing typed for the task is the desk alone, for a
 worker later. New worker asks for the task alone; nothing typed is a session, an
