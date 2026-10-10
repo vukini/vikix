@@ -803,12 +803,11 @@ away only on a second, separate yes."
               owner desk
               (json-parse-string output :object-type 'alist :array-type 'list :null-object nil :false-object :false))
            (error (vikix-office--notice (error-message-string err)))))))))
-(defvar vikix-office-form-map
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map widget-keymap)
-    (define-key map (kbd "C-c C-c") #'vikix-office-form-submit)
-    (define-key map (kbd "C-c C-k") #'vikix-office-form-cancel)
-    map))
+;; Bound at every load, as the Office's map is (see vikix-office--bind-keys).
+(defvar vikix-office-form-map (make-sparse-keymap))
+(set-keymap-parent vikix-office-form-map widget-keymap)
+(define-key vikix-office-form-map (kbd "C-c C-c") #'vikix-office-form-submit)
+(define-key vikix-office-form-map (kbd "C-c C-k") #'vikix-office-form-cancel)
 (defun vikix-office--form-draw (owner desk offer)
   "Draw the form for DESK (nil: a new desk) with what the backend OFFERed, in OWNER's desk pane."
   (let* ((buffer (generate-new-buffer (if desk "*Office worker*" "*Office new desk*")))
@@ -1004,8 +1003,14 @@ were."
         (when (and (window-configuration-p windows)
                    (frame-live-p (window-configuration-frame windows)))
           (set-window-configuration windows))))))
-(defvar vikix-office-mode-map
-  (let ((map (make-sparse-keymap)))
+;; The keys are bound at every load, not inside the defvar: a defvar keeps
+;; its first value, so an Office opened before an update kept the old map
+;; and a key the update brought did nothing there (C, 2026-10-10). The
+;; Office's own buffer uses the map itself, so a reload reaches it; the
+;; desk pane's copy is made again when the Office is opened again.
+(defvar vikix-office-mode-map (make-sparse-keymap))
+(defun vikix-office--bind-keys (map)
+  "The Office's keys in MAP, as this file has them."
     (set-keymap-parent map special-mode-map)
     (define-key map (kbd "g") #'vikix-office-refresh)
     (define-key map (kbd "a") #'vikix-office-go)
@@ -1024,6 +1029,14 @@ were."
     (define-key map (kbd "<backtab>") #'backward-button)
     (define-key map (kbd "n") (lambda () (interactive) (vikix-office-next 1)))
     (define-key map (kbd "p") (lambda () (interactive) (vikix-office-next -1)))
+    map)
+(vikix-office--bind-keys vikix-office-mode-map)
+(defun vikix-office--detail-map ()
+  "The desk pane's map: the Office's keys, with RET pressing a button and n and p moving a line."
+  (let ((map (copy-keymap vikix-office-mode-map)))
+    (define-key map (kbd "RET") #'push-button)
+    (define-key map (kbd "n") #'next-line)
+    (define-key map (kbd "p") #'previous-line)
     map))
 (define-derived-mode vikix-office-mode special-mode "Office"
   "Tasks, handoffs and observed agent activity."
@@ -1049,10 +1062,7 @@ window configuration to put back on q otherwise.  Returns the Office buffer."
       (delete-other-windows)
       (with-current-buffer detail
         (special-mode)
-        (use-local-map (copy-keymap vikix-office-mode-map))
-        (local-set-key (kbd "RET") #'push-button)
-        (local-set-key (kbd "n") #'next-line)
-        (local-set-key (kbd "p") #'previous-line)
+        (use-local-map (vikix-office--detail-map))
         (setq-local vikix-office--owner buffer)
         (setq-local truncate-lines t)
         (add-hook 'window-size-change-functions #'vikix-office--resized nil t))
@@ -1084,8 +1094,14 @@ focus as it opens."
   (interactive)
   (let ((existing (cl-find-if (lambda (f) (buffer-live-p (frame-parameter f 'vikix-office-buffer))) (frame-list))))
     (if existing
-        (progn (select-frame-set-input-focus existing)
-               (frame-parameter existing 'outer-window-id))
+        (progn
+          ;; Opened again after an update: the desk pane's copy of the keys is
+          ;; made again, so the keys the update brought work there too.
+          (let ((detail (buffer-local-value 'vikix-office--detail (frame-parameter existing 'vikix-office-buffer))))
+            (when (buffer-live-p detail)
+              (with-current-buffer detail (use-local-map (vikix-office--detail-map)))))
+          (select-frame-set-input-focus existing)
+          (frame-parameter existing 'outer-window-id))
       (setq display (or (and display (not (string-empty-p display)) display)
                         (and (display-graphic-p) (frame-parameter nil 'display))
                         (getenv "DISPLAY")))

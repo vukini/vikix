@@ -617,6 +617,31 @@ the worker's form for that row."
    (setf (alist-get 'live_known vikix-office--data) :false)
    (should-error (vikix-office-close-agent) :type 'user-error)))
 
+(ert-deftest office-keys-follow-a-reload ()
+  "A key the file binds reaches an Office opened before the file was loaded
+again: the map is bound at every load, and the desk pane's copy made again."
+  (let ((file (symbol-file 'vikix-office-mode)))
+    (office-test-buffer
+     (setq vikix-office--detail (generate-new-buffer " *Office keys detail*"))
+     (unwind-protect
+         (progn
+           (with-current-buffer vikix-office--detail (use-local-map (vikix-office--detail-map)))
+           ;; As an Office from before: C and N unbound in the map and in the pane's copy.
+           (define-key vikix-office-mode-map (kbd "C") nil)
+           (define-key vikix-office-mode-map (kbd "N") nil)
+           (with-current-buffer vikix-office--detail (local-set-key (kbd "C") nil))
+           (should-not (lookup-key vikix-office-mode-map (kbd "C")))
+           (load file nil t)
+           (should (eq (lookup-key vikix-office-mode-map (kbd "C")) 'vikix-office-close-desk))
+           (should (eq (lookup-key vikix-office-mode-map (kbd "N")) 'vikix-office-new-desk))
+           (should (eq (lookup-key (current-local-map) (kbd "C")) 'vikix-office-close-desk))
+           ;; The pane's copy is made again as the Office is opened again.
+           (with-current-buffer vikix-office--detail (use-local-map (vikix-office--detail-map)))
+           (with-current-buffer vikix-office--detail
+             (should (eq (lookup-key (current-local-map) (kbd "C")) 'vikix-office-close-desk))
+             (should (eq (lookup-key (current-local-map) (kbd "RET")) 'push-button))))
+       (kill-buffer vikix-office--detail)))))
+
 (ert-deftest office-close-desk-confirms-and-force-is-a-second-yes ()
   "Close desk: offered for a standing desk with nobody at it; one yes closes
 a clean desk, files uncommitted want a yes of their own and go as --force;
