@@ -11,6 +11,7 @@ The longer plans of Vikix, one file each. The queue is `../TODO.md`, the pool `.
 | `DESIGN-docs.md` | 2026-10-03 | The docs catalogue and the `vk` alias. |
 | `DESIGN-machines.md` | 2026-10-04 | Your laptops, desktop and phones as one Vikix: Tailscale, Syncthing, KDE Connect, `vikix export`/`import`, `--on NAME` for the doors (TODO 16 to 19). |
 | `DESIGN-music.md` | 2026-10-03 | The musical sketchpad (TODO 22). |
+| `DESIGN-office-tasks.md` | 2026-10-10 | The Office as a task board: a task record of its own with provenance, priority and a launch number, the worker's state apart from the task's, Needs attention with decisions a worker registers, a queue and a scheduler that starts nothing until told (TODO 115). |
 | `DESIGN-openclaw.md` | 2026-10-08 | OpenClaw with the office: a sixth agent in a terminal, the house rules as its plugin, its Gateway as the phone's way in; TODO 13's slot, OpenClaw or Hermes for Vid to choose. |
 | `DESIGN-phone.md` | 2026-10-08 | The phone's way into the desktop, replacing OpenClaw's gateway direction for TODO 13. |
 | `DESIGN-publish.md` | 2026-10-04 | Books, sites and EPUBs built and checked by one command (TODO 79). |
