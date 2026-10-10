@@ -103,9 +103,9 @@ ADAPTERS = {
     "claude": ("config/claude/office.json", None,
                "given to Claude Code by vikix agent at every start (--settings): pre-edit and pre-shell hooks"),
     "codex": ("config/codex/hooks.json", ".codex/hooks.json",
-              "PreToolUse hook in ~/.codex/hooks.json; Codex needs [features] hooks = true in ~/.codex/config.toml "
-              "and asks you to trust the hook once. Its hook format is Claude Code's, from Codex's documentation: "
-              "unverified on this machine"),
+              "PreToolUse hook in ~/.codex/hooks.json, and Vikix's rules in ~/.codex/rules/vikix.rules (git on a "
+              "desk's branch, the tests, vikix and the release run without a prompt; sudo and a force-push never). "
+              "Its hook format is Claude Code's, from Codex's documentation: unverified on this machine"),
     "opencode": ("config/opencode/vikix-office.js", ".config/opencode/plugins/vikix-office.js",
                  "a plugin on tool.execute.before (edit, write, bash): a refused edit throws, with the reason; a "
                  "clash is refused once and goes through when tried again within ten minutes"),
@@ -119,6 +119,36 @@ ADAPTERS = {
 }
 
 
+# Files of Vikix's linked beside a provider's hook on --install, a file of the user's own there left alone.
+EXTRA_LINKS = {"codex": (("config/codex/vikix.rules", ".codex/rules/vikix.rules"),)}
+
+
+def link_state(name, src, dest, install, asked):
+    """One link's state, made on --install when asked for by name: installed,
+    in the way, made now, or how to make it."""
+    target = os.path.join(os.path.expanduser("~"), dest)
+    source = os.path.join(VIKIX_DIR, src)
+    if os.path.islink(target) and os.path.realpath(target) == os.path.realpath(source):
+        return "installed"
+    if os.path.exists(target) or os.path.islink(target):
+        return f"{short(target)} is there and isn't Vikix's: left alone"
+    if install and asked:
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        os.symlink(source, target)
+        return f"installed: {short(target)} -> {short(source)}"
+    return f"not installed (vikix agents hooks {name} --install links {short(target)})"
+
+
+def codex_trust_line():
+    """Whether Codex's start trusts the hook for it: the launcher passes
+    --dangerously-bypass-hook-trust when the hook file is Vikix's and the
+    folder is one of your projects, unless VIKIX_CODEX_HOOK_TRUST=ask."""
+    if os.environ.get("VIKIX_CODEX_HOOK_TRUST") == "ask":
+        return "trust: Codex's own /hooks prompt everywhere (VIKIX_CODEX_HOOK_TRUST=ask)"
+    return ("trust: vikix agent passes --dangerously-bypass-hook-trust in your projects when the hook file is "
+            "Vikix's (it vets the file by making it); elsewhere Codex's own /hooks prompt stays")
+
+
 def hooks(argv):
     install = "--install" in argv
     words = [a for a in argv if not a.startswith("-")]
@@ -126,21 +156,13 @@ def hooks(argv):
         die(f"vikix agents hooks [{'|'.join(ADAPTERS)}] [--install]")
     for name in (words or list(ADAPTERS)):
         src, dest, said = ADAPTERS[name]
-        state = ""
+        states = []
         if dest:
-            target = os.path.join(os.path.expanduser("~"), dest)
-            source = os.path.join(VIKIX_DIR, src)
-            if os.path.islink(target) and os.path.realpath(target) == os.path.realpath(source):
-                state = "installed"
-            elif os.path.exists(target):
-                state = f"{short(target)} is there and isn't Vikix's: left alone"
-            elif install and words:
-                os.makedirs(os.path.dirname(target), exist_ok=True)
-                os.symlink(source, target)
-                state = f"installed: {short(target)} -> {short(source)}"
-            else:
-                state = f"not installed (vikix agents hooks {name} --install links {short(target)})"
-        print(f"{name:<9} {said}" + (f"\n          {state}" if state else ""))
+            states.append(link_state(name, src, dest, install, bool(words)))
+            states += [link_state(name, s_, d_, install, bool(words)) for s_, d_ in EXTRA_LINKS.get(name, ())]
+        if name == "codex":
+            states.append(codex_trust_line())
+        print(f"{name:<9} {said}" + "".join(f"\n          {state}" for state in states))
     if install and not words:
         die("say which: vikix agents hooks codex|opencode --install")
     return 0

@@ -13,9 +13,10 @@ file:
     desk = "office-events"     # the desk it works at (the name when unsaid)
     task = "An event log for the office: ..."     # the worker's words
     agent = "codex"            # the worker's choices, as the New worker form has them:
-    local = true               #   --use, --local, --push, --no-tests
+    local = true               #   --use, --local, --push, --no-tests, --mode
     push = false
     no-tests = false
+    mode = "supervised"        # how free the worker is (Codex's: supervised, autonomous, unrestricted)
     release = "The office's event log"  # the release's line, for the last task at a desk
 
     [[task]]
@@ -73,7 +74,7 @@ POLL = int(os.environ.get("VIKIX_PLAN_POLL") or 60)       # seconds between look
 GRACE = int(os.environ.get("VIKIX_PLAN_GRACE") or 120)    # seconds a worker just started has to appear
 ROUNDS = 3                                                 # failed rounds that stop a desk
 KEYS = ("project", "at-once", "gate", "task")
-TASK_KEYS = ("name", "task", "desk", "after", "agent", "local", "push", "no-tests", "release")
+TASK_KEYS = ("name", "task", "desk", "after", "agent", "local", "push", "no-tests", "release", "mode")
 NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}$")
 GATES = ("none", "me")
 RUNNING = ("running", "starting", "testing", "to-test")    # states that hold a worker's slot
@@ -141,9 +142,11 @@ def read_plan(path):
         for k in ("local", "push", "no-tests"):
             if k in t and not isinstance(t[k], bool):
                 raise PlanError(f"{where} ({name}): {k} is true or false")
-        for k in ("agent", "release"):
+        for k in ("agent", "release", "mode"):
             if k in t and (not isinstance(t[k], str) or not t[k].strip()):
                 raise PlanError(f"{where} ({name}): {k} is text")
+        if t.get("mode") and t["mode"] not in ("supervised", "autonomous", "unrestricted"):
+            raise PlanError(f"{where} ({name}): mode is supervised, autonomous or unrestricted, not '{t['mode']}'")
         elsewhere = [a for a in after if tasks[names[a]]["desk"] != desk]
         if elsewhere and desk in desks:
             raise PlanError(f"{where} ({name}): after {', '.join(elsewhere)}, at another desk, so it needs a desk of "
@@ -151,7 +154,8 @@ def read_plan(path):
         names[name] = i
         tasks.append({"name": name, "text": text.strip(), "desk": desk, "after": after, "agent": t.get("agent", ""),
                       "local": t.get("local", False), "push": t.get("push", False),
-                      "no_tests": t.get("no-tests", False), "release": (t.get("release") or "").strip(), "index": i})
+                      "no_tests": t.get("no-tests", False), "release": (t.get("release") or "").strip(),
+                      "mode": (t.get("mode") or "").strip(), "index": i})
         desks.setdefault(desk, []).append(name)
     base = os.path.basename(path)
     return {"file": path, "name": base[:-5] if base.endswith(".toml") else base, "project": project.strip(),
@@ -512,6 +516,7 @@ def start_worker(api, view, task, plan, project, note, log, why=""):
     words += ["--local"] if task["local"] else []
     words += ["--push"] if task["push"] else []
     words += ["--no-tests"] if task["no_tests"] else []
+    words += ["--mode", task["mode"]] if task.get("mode") else []
     ok, last = run(words, log)
     if not ok:
         return fail(note, view, f"couldn't start the worker for {task['name']}: {last}", log)

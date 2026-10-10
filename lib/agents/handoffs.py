@@ -232,6 +232,12 @@ def protection_lines(folder):
     lines = []
     here = [a for a in live_agents() if a["folder"] and os.path.realpath(a["folder"]) == os.path.realpath(folder)]
     entries = journal_read()
+    # How the last agent was started (the record's launch): a Codex row says its sandbox.
+    try:
+        H = handoff_module()
+        launch = (H.load(H.desk_id(common_of(folder), folder)) or {}).get("launch") or {}
+    except Exception:  # noqa: BLE001  a record that can't be read costs the mode's words, not the lines
+        launch = {}
     for a in sorted(here, key=lambda a: a["pid"]):
         seen = sum(1 for e in entries if e.get("pid") == a["pid"] and e.get("kind") in ("edit", "crossing"))
         if a["agent"] in ("claude", "antigravity"):
@@ -243,6 +249,9 @@ def protection_lines(folder):
                     f"instructions only, unless its hook is installed (vikix agents hooks {a['agent']})")
         else:
             held = "instructions only (no hook)"
+        if a["agent"] == "codex" and launch.get("provider") == "codex" and launch.get("mode"):
+            held += ("; no sandbox: unrestricted, by the user" if launch["mode"] == "unrestricted"
+                     else f"; sandboxed to its desk (codex, {launch['mode']})")
         lines.append(f"{who(a)}: {held}")
     lines.append("no filesystem enforcement: a worktree keeps copies apart, it is no sandbox")
     return here, lines
@@ -447,12 +456,14 @@ def handoff_forget(words):
 # --- Taking a desk up again: the handoff shown, the conversation resumed where it can be ----------
 def resume(argv):
     H = handoff_module()
-    use, here, fresh, another, words = None, False, False, False, []
+    use, here, fresh, another, words, mode = None, False, False, False, [], None
     require_saved, expect_session, menu = False, None, False
     while argv:
         a = argv.pop(0)
         if a == "--menu":
             menu = True
+        elif a == "--mode":
+            mode = argv.pop(0) if argv else die(f"--mode which? {', '.join(MODES)}")
         elif a == "--use":
             use = argv.pop(0) if argv else die("--use which agent? (vikix agent --list)")
         elif a == "--here":
@@ -496,6 +507,11 @@ def resume(argv):
             "or --another starts a second agent there")
     sessions = (rec or {}).get("sessions", [])
     provider = use or (sessions[-1]["provider"] if sessions else "") or default_agent()
+    # The mode: the one given, else the last launch's for the same provider, else the house default for Codex.
+    mode = mode_check(provider, mode)
+    launch = (rec or {}).get("launch") or {}
+    if mode is None and provider == "codex":
+        mode = launch["mode"] if launch.get("provider") == "codex" and launch.get("mode") in MODES else default_mode()
     plan = H.resume_plan(rec, provider, folder, fresh)
     if expect_session and (plan["mode"] != "resumed" or plan["session"]["id"] != expect_session):
         die("saved conversation changed or unavailable; refresh and choose again")
@@ -503,11 +519,13 @@ def resume(argv):
         die("saved conversation unavailable: " + plan["why"] + "; choose --fresh explicitly")
     if plan["mode"] == "resumed":
         sid = plan["session"]["id"]
-        said = f"resumed: {provider} session {sid} at {short(folder)}, its conversation continues ({plan['why']})"
+        said = (f"resumed: {provider} session {sid} at {short(folder)}" + (f", {mode}" if mode else "")
+                + f", its conversation continues ({plan['why']})")
         if provider in H.UNVERIFIED:
             said += f"; {provider}'s resume is from its documentation, unverified on this machine"
     else:
-        said = f"fresh conversation with {provider} at {short(folder)}: {plan['why']}. The handoff above is what it has"
+        said = (f"fresh conversation with {provider} at {short(folder)}" + (f", {mode}" if mode else "")
+                + f": {plan['why']}. The handoff above is what it has")
         disk = H.sessions_on_disk(provider, folder)
         if disk and not fresh:
             said += ("\n" + f"{provider}'s own store has a conversation in this folder: "
@@ -517,9 +535,12 @@ def resume(argv):
     print()
     print(said)
     if rec:
+        def noted(r_):
+            H._log(r_, "user", f"{plan['mode']}: {provider}" + (f" {mode}" if mode else "")
+                   + (f" {plan['session']['id']}" if plan["session"] and plan["mode"] == "resumed" else ""))
+            H.set_launch(r_, provider, mode, "user")
         try:
-            H.update(common_of(folder), folder,
-                     lambda r_: H._log(r_, "user", f"{plan['mode']}: {provider}" + (f" {plan['session']['id']}" if plan["session"] and plan["mode"] == "resumed" else "")))
+            H.update(common_of(folder), folder, noted)
         except H.HandoffError:
             pass
     notes = inbox_peek(folder)
@@ -527,7 +548,7 @@ def resume(argv):
         print("Notes waiting for its agent (vikix agents tell), read out here since a resumed agent's hook delivers them too:")
         for n in notes:
             print(f"  {n['by']} ({H.when(n['at'])}): {n['text']}")
-    start = agent_start(provider if provider != default_agent() or plan["args"] else None, plan["args"])
+    start = agent_start(provider if provider != default_agent() or plan["args"] else None, plan["args"], mode=mode)
     if here:
         open_here(folder, start)
     workspace = open_at(folder, start, desk_name(folder))
@@ -553,6 +574,7 @@ def handoff_brief(folder):
     fresh = sum(1 for c in checks if H.freshness(c, now) == "fresh")
     est = H.estimate_state(rec)
     return {"status": (h.get("status") or {}).get("value"), "next": (h.get("next") or {}).get("text", ""),
+            "mode": (rec.get("launch") or {}).get("mode", ""),
             "estimate": est["line"] if est else "", "task": (rec.get("task") or {}).get("text", ""),
             "checks": f"{fresh} fresh, {len(checks) - fresh} stale" if checks else "",
             "notes": len(inbox_peek(folder))}

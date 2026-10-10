@@ -1,0 +1,25 @@
+# Vikix's rules for Codex at a desk (vikix agents hooks codex --install links
+# this as ~/.codex/rules/vikix.rules; Codex reads every .rules file there,
+# so a file of your own beside it stands). A desk's .git is a file pointing
+# into the repository's .git/worktrees/, which Codex's sandbox keeps
+# read-only, so every commit at a desk would be a prompt; so would a
+# snapshot, the tests and the handoff, which write ~/.local/state. These
+# rules run those outside the sandbox without a prompt, and nothing that
+# leaves the house. A rule allows a prefix, and the strictest match wins:
+# git branch -D is under git branch, so the deleting verbs have lines of
+# their own. codex execpolicy check --rules config/codex/vikix.rules -- CMD
+# shows what a command gets (tests/codex.sh holds each line to its intent).
+prefix_rule(pattern=["git", ["add", "commit", "status", "diff", "log", "show", "rebase", "checkout", "switch", "restore", "rev-parse", "fetch", "merge", "branch", "stash", "worktree", "tag", "describe", "ls-files", "blame"]], decision="allow", justification="a desk's own branch")
+prefix_rule(pattern=["git", "push"], decision="prompt", justification="pushing is the user's (gup); a worker started with --push has the key")
+prefix_rule(pattern=["git", "push", "--force"], decision="forbidden", justification="never force-push")
+prefix_rule(pattern=["git", "push", "-f"], decision="forbidden", justification="never force-push")
+prefix_rule(pattern=["git", "push", "--force-with-lease"], decision="forbidden", justification="never force-push")
+prefix_rule(pattern=["git", "branch", ["-D", "-d", "--delete"]], decision="prompt", justification="deleting a branch is a desk's closing: vikix agents close")
+prefix_rule(pattern=["git", "tag", ["-d", "--delete"]], decision="prompt", justification="a tag is a release's: .claude/release makes them")
+prefix_rule(pattern=["git", "worktree", ["add", "remove", "move", "prune"]], decision="prompt", justification="desks are made and closed by vikix agents desk and close")
+prefix_rule(pattern=["tests/run.sh"], decision="allow", justification="the project's tests, through the runner that shares the machine's slots")
+prefix_rule(pattern=["vikix", ["snapshot", "changes", "history", "agents", "try", "docs", "what", "why", "rules", "eval", "project", "records", "doctor", "theme", "version"]], decision="allow", justification="the desktop's own commands: a worker's day")
+prefix_rule(pattern=["vikix", "update"], decision="prompt", justification="changes the installed desktop")
+prefix_rule(pattern=[".claude/release"], decision="allow", justification="the house's release path, which refuses the dangerous cases itself (Vid, 2026-10-10)")
+prefix_rule(pattern=["sudo"], decision="forbidden", justification="nothing of the system from a desk: ask the user")
+prefix_rule(pattern=["doas"], decision="forbidden", justification="nothing of the system from a desk: ask the user")

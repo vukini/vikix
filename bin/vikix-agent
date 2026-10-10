@@ -11,6 +11,19 @@
 #                                 opencode, codex and aider can. Small models
 #                                 do little as agents, and a laptop CPU takes
 #                                 minutes per answer
+#   vikix agent --mode supervised|autonomous|unrestricted [--use codex]
+#                                 how free Codex is this session (Codex only,
+#                                 for now): supervised, its sandbox narrowed
+#                                 to this folder and every step out of it
+#                                 asked of you; autonomous, the same sandbox,
+#                                 a reviewer of Codex's own answering those
+#                                 steps and the network on, what a worker at
+#                                 a desk gets when nothing says otherwise
+#                                 (mode= in ~/.config/vikix/office);
+#                                 unrestricted, no sandbox and no approvals,
+#                                 for a VM or a container: typed each time,
+#                                 warned about, and refused in a project's
+#                                 own folder
 #   vikix agent --default NAME    the one Super+a starts
 #   vikix agent --list            the agents, which are here, and yours
 #   vikix agent --ask TEXT        start with this question (vikix diagnose)
@@ -66,6 +79,29 @@
 # option, so for it the hook is a plugin of Vikix's (agy plugin list shows
 # vikix), put in place at each start. VIKIX_OFFICE=0 leaves it out, and
 # for agy leaves the plugin as it is.
+#
+# Codex gets three more things on its command line, for the session only
+# (~/.codex/config.toml is yours and is never written). The repository's
+# instructions: Codex reads AGENTS.md from the repository's root down to
+# the folder, never CLAUDE.md, so a repository with only a CLAUDE.md (Vikix,
+# most projects made with Claude Code) is given it as the file to fall back
+# on, with Codex's cap raised to hold it whole; a repository with an
+# AGENTS.md is read as its author meant. A mode (--mode above): in a desk
+# (a git worktree) the house default, mode= in ~/.config/vikix/office,
+# which Vikix writes as autonomous the first time; elsewhere Codex runs as
+# your own settings say unless --mode is typed. The two sandboxed modes
+# make this folder Codex's only writable root (your writable_roots are set
+# aside for the session), so the project's own folder, ~/vikix and the
+# other desks are read-only to what Codex runs, and link Vikix's rules
+# (~/.codex/rules/vikix.rules, through vikix agents hooks codex --install)
+# which let a desk's day (git on its branch, the tests, vikix, the release)
+# run without a prompt. And trust for the house rules' hook: Codex runs a
+# hook of yours only once you trusted it in /hooks, by its hash, which every
+# release that changes the file undoes; when ~/.codex/hooks.json is Vikix's
+# and the folder is one of your projects (vikix project list), the start
+# passes --dangerously-bypass-hook-trust, since Vikix vets that file by
+# making it; in a stranger's repository Codex's own prompt stays.
+# VIKIX_CODEX_HOOK_TRUST=ask keeps the prompt everywhere.
 
 set -euo pipefail
 VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
@@ -504,6 +540,79 @@ opencode_asks() {
   return 0
 }
 
+# --- Codex at a desk: the project's instructions, a mode, the hook's trust ------
+# Codex's levers, as 0.160.1 has them (its --help, and codex debug
+# prompt-input and codex sandbox tried here on 2026-10-10): every setting
+# takes -c key=value for one session; sandbox_workspace_write.writable_roots=[]
+# on the command line sets your roots aside, so the folder and /tmp are the
+# only places its shell can write (a desk's .git, a file pointing into the
+# repository's, stays read-only, which is what the rules file is for);
+# --approve-for-me routes each step out of the sandbox to a reviewer of
+# Codex's own; --dangerously-bypass-approvals-and-sandbox is the whole lot
+# off. One row a mode, the only place they are written.
+MODES=(supervised autonomous unrestricted)
+OFFICE_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/office"
+is_mode() { printf '%s\n' "${MODES[@]}" | grep -qx -- "${1:-}"; }
+codex_mode_args() {   # codex_mode_args MODE: Codex's words for it, one a line
+  case $1 in
+    supervised|autonomous)
+      printf '%s\n' -c 'sandbox_mode="workspace-write"' -c 'sandbox_workspace_write.writable_roots=[]' \
+        -c 'approval_policy="on-request"'
+      if [ "$1" = autonomous ]; then printf '%s\n' -c 'sandbox_workspace_write.network_access=true' --approve-for-me
+      else printf '%s\n' -c 'sandbox_workspace_write.network_access=false'; fi ;;
+    unrestricted) echo --dangerously-bypass-approvals-and-sandbox ;;
+  esac
+}
+# The house default, mode= in ~/.config/vikix/office: written once, with
+# its meaning, so it is a setting one can read, never a guess of Vikix's.
+office_mode() {
+  local m=''
+  [ -r "$OFFICE_CONF" ] && m=$(sed -n 's/^[[:space:]]*mode[[:space:]]*=[[:space:]]*\([a-z]*\).*/\1/p' "$OFFICE_CONF" | tail -1)
+  is_mode "$m" && echo "$m" || echo autonomous
+}
+office_conf_write() {
+  [ -e "$OFFICE_CONF" ] && return 0
+  [ "$DRY_RUN" = 1 ] && { printf '   would write %s: mode=autonomous\n' "$OFFICE_CONF"; return 0; }
+  mkdir -p "$(dirname "$OFFICE_CONF")"
+  cat > "$OFFICE_CONF" <<'EOF'
+# The office (vikix agents). mode: how free a Codex worker is at a desk when
+# nothing says otherwise. supervised: its sandbox is the desk alone, and every
+# step out of it (a commit, the tests) asks you, unless Vikix's rules allow it.
+# autonomous: the same sandbox, a reviewer of Codex's own answering those
+# steps, and the network on. unrestricted is never a default: no sandbox, no
+# approvals, typed each time (vikix agent --mode unrestricted). --mode on
+# vikix agent, vikix agents worker, desk and resume overrides this for one.
+mode=autonomous
+EOF
+}
+# Where Codex starts: whether the repository is one of your projects and
+# whether the folder is a desk or a project's own, asked of the office
+# (vikix agents place), which judges the house rules by the same words.
+codex_place() {   # "known|unknown|none desk|own|none"
+  python3 "$VIKIX_DIR/bin/vikix-agents" place "$PWD" 2>/dev/null || echo "none none"
+}
+# The hook's trust: ours when ~/.codex/hooks.json is Vikix's file (the link
+# itself, or its content: the installed checkout's copy is the same file).
+codex_hooks_ours() {
+  local f ours="$VIKIX_DIR/config/codex/hooks.json"
+  f="$(codex_home)/hooks.json"
+  [ -L "$f" ] || return 1
+  [ "$(readlink -f "$f")" = "$(readlink -f "$ours")" ] && return 0
+  cmp -s "$f" "$ours"
+}
+codex_args() {   # codex_args MODE PLACE: the session's words for Codex, one a line
+  local mode=$1 known=${2% *}
+  # The repository's instructions: CLAUDE.md where there is no AGENTS.md,
+  # whole (Vikix's is 78 KB; the cap is 256 KiB, and tests/codex.sh fails
+  # when CLAUDE.md outgrows it).
+  printf '%s\n' -c 'project_doc_fallback_filenames=["CLAUDE.md"]' -c 'project_doc_max_bytes=262144'
+  [ -n "$mode" ] && codex_mode_args "$mode"
+  if [ "${VIKIX_CODEX_HOOK_TRUST:-}" != ask ] && [ "$known" = known ] && codex_hooks_ours; then
+    echo --dangerously-bypass-hook-trust
+  fi
+  return 0
+}
+
 # --- Starting ------------------------------------------------------------------
 
 start() {
@@ -557,6 +666,31 @@ start() {
   # ACP adapter takes no such option.
   if [ "$name" = claude ] && [ "$ACP" = 0 ] && [ "${VIKIX_OFFICE:-1}" != 0 ]; then
     args+=(--settings "$VIKIX_DIR/config/claude/office.json")
+  fi
+  # Codex in a terminal: the project's instructions, its mode, the hook's
+  # trust (see the top). The ACP adapter takes none of it; a report
+  # (vikix diagnose) keeps its read-only sandbox, so no mode there.
+  if [ -n "$MODE" ] && [ "$name" != codex ]; then
+    die "--mode is Codex's for now (${MODES[*]}); $name runs as its own settings say (vikix agent --use codex --mode $MODE)"
+  fi
+  if [ -n "$MODE" ] && [ "$ACP" = 1 ]; then die "--mode is for the terminal; as an ACP agent, codex runs as the editor asks"; fi
+  if [ "$name" = codex ] && [ "$ACP" = 0 ]; then
+    local place mode=$MODE
+    place=$(codex_place)
+    office_conf_write
+    # No mode typed: the house default at a desk, your own settings elsewhere.
+    # A report (vikix diagnose) is read read-only, whatever mode was typed.
+    if [ -z "$mode" ] && [ -z "$REPORT" ] && [ "${place#* }" = desk ]; then mode=$(office_mode); fi
+    if [ -n "$REPORT" ] && [ -n "$mode" ]; then say "a report is read in Codex's read-only sandbox: --mode $mode set aside"; mode=''; fi
+    if [ "$mode" = unrestricted ]; then
+      [ "${place#* }" = own ] && die "unrestricted runs at a desk, in a VM or a container, never in a project's own folder ($PWD is one: vikix agents sit $(basename "$PWD") TOPIC takes a desk)"
+      warn "unrestricted: Codex runs with no sandbox and no approvals here, as you; the house rules' hook still runs, the rest is on you"
+      command -v notify-send >/dev/null 2>&1 && notify-send -u critical "Codex unrestricted" "No sandbox, no approvals, in $PWD (vikix agent --mode unrestricted)" 2>/dev/null || true
+    elif [ -n "$mode" ]; then
+      say "Codex $mode: its sandbox is this folder (and /tmp); Vikix's rules (vikix agents hooks codex) let git on this branch, the tests and vikix run without a prompt"
+    fi
+    local w; while IFS= read -r w; do args+=("$w"); done < <(codex_args "$mode" "$place")
+    [ -n "$REPORT" ] || [ -z "$mode" ] || setenv+=("VIKIX_AGENT_MODE=$mode")
   fi
   if [ "$local" = 1 ]; then
     model=$(local_model "$model")
@@ -636,7 +770,7 @@ print(json.dumps(c))' "$oc")
   exec env "${unset[@]}" "${setenv[@]}" "$exe" "${args[@]}" "$@"
 }
 
-ASK='' REPORT='' EXEC=0 ACP=0
+ASK='' REPORT='' EXEC=0 ACP=0 MODE=''
 main() {
   local use='' local=0 model=''
   while [ $# -gt 0 ]; do
@@ -651,6 +785,7 @@ main() {
                    case ${2:-} in ''|-*) shift ;; *) need_agent "$2"; use=$2; shift 2 ;; esac ;;
       --which)     chosen; return ;;
       --local)     local=1; shift ;;
+      --mode)      MODE=${2:-}; is_mode "$MODE" || die "--mode which? ${MODES[*]} (vikix agent -h says what each is)"; shift 2 ;;
       --model)     model=${2:-}; [ -n "$model" ] || die "--model needs a name (vikix ai list)"; shift 2 ;;
       --default)   set_default "${2:-}"; return ;;
       --list)      list_agents; return ;;

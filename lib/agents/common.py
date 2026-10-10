@@ -8,6 +8,7 @@ their order (its header lists the commands): not a module to import.
 """
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -569,6 +570,58 @@ def default_agent():
         return r.stdout.strip() or "claude"
     except (OSError, subprocess.TimeoutExpired):
         return "claude"
+
+
+# --- Modes: how free a worker is (Codex's, for now: bin/vikix-agent's MODES is the same list) ---
+MODES = ("supervised", "autonomous", "unrestricted")
+OFFICE_CONF = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config"),
+                           "vikix", "office")
+
+
+def office_setting(key):
+    """KEY's value in ~/.config/vikix/office (key=value lines, # comments), '' when unset."""
+    try:
+        with open(OFFICE_CONF) as f:
+            found = [m.group(1).strip() for m in (re.match(rf"\s*{re.escape(key)}\s*=\s*([^#]*)", line)
+                                                  for line in f) if m]
+    except OSError:
+        return ""
+    return found[-1] if found else ""
+
+
+def default_mode():
+    """The house default for a worker's mode: mode= in the office file,
+    autonomous when unset or misspelt (vikix agent writes the file with its
+    meaning the first time Codex starts)."""
+    m = office_setting("mode")
+    return m if m in MODES else "autonomous"
+
+
+def mode_check(provider, mode):
+    """MODE for PROVIDER, or die: a mode is one of MODES, and Codex's for
+    now (the other providers' mappings come as each is tried)."""
+    if mode is None:
+        return None
+    if mode not in MODES:
+        die(f"--mode which? {', '.join(MODES)} (vikix agent -h says what each is)")
+    if provider != "codex":
+        die(f"--mode is Codex's for now ({', '.join(MODES)}); {provider} runs as its own settings say "
+            f"(--use codex --mode {mode})")
+    return mode
+
+
+def place_of(argv):
+    """vikix agents place [FOLDER]: two words for the launcher, whether the
+    folder's repository is one of your projects (known, unknown, none) and
+    what the folder is in it (desk, own: the project's own folder, none)."""
+    folder = os.path.realpath(argv[0] if argv else os.getcwd())
+    top, common, _ = repo_of(folder)
+    if not top:
+        print("none none")
+        return 0
+    known = "known" if common in known_repos() else "unknown"
+    print(f"{known} {'own' if os.path.realpath(top) == own_folder(top) else 'desk'}")
+    return 0
 
 
 # --- The journal of edits, the agents' processes, and what a desk is (the house rules read them) ---

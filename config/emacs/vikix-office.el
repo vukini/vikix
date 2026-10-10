@@ -825,7 +825,9 @@ away only on a second, separate yes."
 ;; worker is wanted at it at once); a worker is an agent on a task at a
 ;; desk that stands (vikix agents worker). The worker's words are boxes to
 ;; tick: which agent, on a model on this laptop, may push as you (your SSH
-;; agent goes with it), no tests by themselves when it hands in. The form is
+;; agent goes with it), no tests by themselves when it hands in, and a row
+;; of three for the mode (how free a Codex worker is), the house default
+;; shown as picked and sent only when another is chosen. The form is
 ;; widget.el's, drawn in the desk pane's window, so the terminal has it as
 ;; the frame does; what it offers (the projects, the agents) comes from the
 ;; backend's office --form, asked when the form opens, never kept.
@@ -934,6 +936,23 @@ away only on a second, separate yes."
       (widget-insert " May push as you: your SSH agent goes with it, so git push works at the desk (no: it commits, you push)\n")
       (push (cons 'notests (widget-create 'checkbox nil)) widgets)
       (widget-insert " No tests by themselves when it hands in (the Test button runs them still)\n\n")
+      ;; The mode: Codex's for now (another agent with one picked is refused by the backend, with the words).
+      (let ((default (or (alist-get 'mode offer) "autonomous")))
+        (push (cons 'mode
+                    (apply #'widget-create 'radio-button-choice :tag "Mode" :value default
+                           :format "Mode (Codex): how free the worker is; the house default is %v"
+                           :help-echo "supervised: its sandbox is the desk, every step out of it asks you; autonomous: a reviewer of Codex's own answers them; unrestricted: no sandbox, no approvals"
+                           (mapcar (lambda (m)
+                                     (list 'item :tag (concat m "  "
+                                                              (pcase m
+                                                                ("supervised" "its sandbox is the desk alone; every step out of it (a commit, the tests) asks you unless Vikix's rules allow it")
+                                                                ("autonomous" "the same sandbox; a reviewer of Codex's own answers those steps, the network on")
+                                                                ("unrestricted" "NO SANDBOX, NO APPROVALS: for a VM or a container; refused in a project's own folder, warned about, recorded")
+                                                                (_ "")))
+                                           :format "%t\n" :value m))
+                                   (or (alist-get 'modes offer) '("supervised" "autonomous" "unrestricted")))))
+              widgets))
+      (widget-insert "\n")
       (widget-create 'push-button :notify (lambda (&rest _) (vikix-office-form-submit))
                      (if desk "Start worker" "Make desk"))
       (widget-insert "  ")
@@ -966,10 +985,14 @@ away only on a second, separate yes."
   (let* ((form vikix-office--form) (desk (plist-get form :desk))
          (task (string-trim (or (vikix-office--form-value 'task) "")))
          (agent (vikix-office--form-value 'agent))
+         (mode (vikix-office--form-value 'mode))
          (options (append (unless (member agent '(nil "")) (list "--use" agent))
                           (and (vikix-office--form-value 'local) '("--local"))
                           (and (vikix-office--form-value 'push) '("--push"))
-                          (and (vikix-office--form-value 'notests) '("--no-tests")))))
+                          (and (vikix-office--form-value 'notests) '("--no-tests"))
+                          ;; The house default is applied by the backend; only another choice is sent.
+                          (and mode (not (equal mode (or (alist-get 'mode (plist-get form :offer)) "autonomous")))
+                               (list "--mode" mode)))))
     (unless form (user-error "Not a form"))
     (if desk
         (append (list "office" "--worker" (alist-get 'worktree (alist-get 'desk desk)))

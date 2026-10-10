@@ -267,10 +267,10 @@ printf '{"type":"session_meta","payload":{"id":"01a111e5-f7bf-7871-823c-70aee4f4
   > "$HOME/.codex/sessions/2026/10/06/rollout-2026-10-06T19-47-26-01a111e5-f7bf-7871-823c-70aee4f44f19.jsonl"
 out=$(resume c --here --use codex)
 check "codex with nothing noted: fresh, and the conversation its store has for this folder is suggested, not taken: $out" \
-  bash -c 'grep -q "^fresh conversation with codex" <<<"$1" && grep -q "codex.s own store has a conversation in this folder: 01a111e5-f7bf-7871-823c-70aee4f44f19" <<<"$1" && grep -q "nothing is resumed unasked" <<<"$1" && grep -q "^AGENT ARGS: --use codex$" <<<"$1"' _ "$out"
+  bash -c 'grep -q "^fresh conversation with codex" <<<"$1" && grep -q "codex.s own store has a conversation in this folder: 01a111e5-f7bf-7871-823c-70aee4f44f19" <<<"$1" && grep -q "nothing is resumed unasked" <<<"$1" && grep -q "^AGENT ARGS: --use codex --mode autonomous$" <<<"$1"' _ "$out"
 agents handoff session --desk c codex 01a111e5-f7bf-7871-823c-70aee4f44f19 >/dev/null
 out=$(resume c --here --use codex)
-check "noted, it is resumed with codex resume ID: $out" grep -q "^AGENT ARGS: --use codex resume 01a111e5-f7bf-7871-823c-70aee4f44f19$" <<<"$out"
+check "noted, it is resumed with codex resume ID (and Codex's house mode, tests/codex.sh): $out" grep -q "^AGENT ARGS: --use codex --mode autonomous resume 01a111e5-f7bf-7871-823c-70aee4f44f19$" <<<"$out"
 # OpenCode: its SQLite store.
 mkdir -p "$HOME/.local/share/opencode"
 python3 -c '

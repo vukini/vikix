@@ -58,7 +58,7 @@
                        In a terminal on this workspace (Super+a, Agent
                        here): it asks which agent, as desk does, when --use
                        and --local don't say
-  vikix agents desk [PROJECT [TOPIC]] [--task "..."] [--use NAME] [--local] [--here] [--push] [--no-tests]
+  vikix agents desk [PROJECT [TOPIC]] [--task "..."] [--use NAME] [--local] [--here] [--push] [--no-tests] [--mode MODE]
                        make a desk: a worktree of the project, a branch, a record.
                        In PROJECT (one of vikix project's, by any part of
                        its name), a git worktree of the project made for
@@ -70,8 +70,8 @@
                        task, and the desk keeps the history of its
                        workers. --task "...": the shortcut that does both,
                        the desk and a worker at it with that task; the
-                       agent's words (--use, --local, --here, --push) are
-                       worker's, and want a task here. Without PROJECT it
+                       agent's words (--use, --local, --here, --push,
+                       --mode) are worker's, and want a task here. Without PROJECT it
                        asks which, then for a topic (a repository's desk
                        is a worktree, so one is needed; a project that is
                        no repository works in its own folder, with none),
@@ -79,7 +79,7 @@
                        a task the worker's questions after it. --no-tests:
                        the desk's tests don't run by themselves when a
                        worker hands in (vikix agents test runs them still)
-  vikix agents worker DESK ["..."] [--use NAME] [--local] [--here] [--push] [--no-tests] | --menu
+  vikix agents worker DESK ["..."] [--use NAME] [--local] [--here] [--push] [--no-tests] [--mode MODE] | --menu
                        start a worker at a desk: an agent on a task there.
                        DESK is the folder (~/src/PROJECT-TOPIC), the topic
                        or the branch; the task in your words, written in
@@ -102,13 +102,18 @@
                        your unlocked key), so git push works at the desk;
                        --no-tests: the tester doesn't run by itself when
                        this worker hands in (status review); a worker
-                       started without it has the tests again. The Office
-                       has both desk and worker as a form, with these as
-                       boxes to tick. --menu, from Super+m or the desk key
+                       started without it has the tests again;
+                       --mode supervised|autonomous|unrestricted: how free
+                       the worker is (Codex's, for now: vikix agent -h says
+                       what each is; the house default, mode= in
+                       ~/.config/vikix/office, when unsaid), kept in the
+                       record and shown in the row. The Office has both
+                       desk and worker as a form, with these as boxes to
+                       tick. --menu, from Super+m or the desk key
                        w: the desk picked in rofi, then the task typed
                        (nothing for a session), then which agent and
                        whether it may push, as desk asks them
-  vikix agents resume [DESK] [--use NAME] [--here] [--fresh] [--another]
+  vikix agents resume [DESK] [--use NAME] [--here] [--fresh] [--another] [--mode MODE]
                        take a desk up again, its conversation resumed.
                        Its handoff, git state and checks shown, then an
                        agent started there, its conversation resumed where
@@ -122,7 +127,9 @@
                        --require-saved refuses a fresh fallback if the
                        saved conversation is no longer available;
                        --expect-session ID also refuses if the recorded
-                       conversation changed since the choice was shown
+                       conversation changed since the choice was shown;
+                       --mode as worker's (unsaid: the last launch's for
+                       the same provider, else the house default)
   vikix agents close [DESK] [--force]
                        close a desk whose work is in.
                        Its worktree is removed and its branch deleted. DESK
@@ -296,6 +303,14 @@
                        Tab-parted: its folder, its branch and the project's
                        own folder (vikix try reads it; close says them in
                        words)
+  vikix agents place [FOLDER]
+                       two words for the launcher: whether the folder's
+                       repository is one of your projects (known, unknown,
+                       none) and what the folder is in it (desk; own, the
+                       project's own folder; none). vikix agent reads them
+                       to pass Codex the hook's trust in your projects
+                       alone and to refuse --mode unrestricted in a
+                       project's own folder
   vikix agents touch [FILE] [--for PROVIDER] [--pause-only]
                        the house rules for one edit: Claude Code's PreToolUse hook.
                        Run before every Edit, Write and Bash, and by
@@ -507,7 +522,7 @@ SECTIONS = (
     ("agent", "The agent's own, from its shell", ("sit", "handoff", "handoff check", "handoff session", "handoff list",
                                                 "handoff forget")),
     ("rules", "The house rules", ("hooks",)),
-    ("scripts", "For hooks, the Office and scripts", ("desks", "touch", "stopping", "left", "office --json", "office --go",
+    ("scripts", "For hooks, the Office and scripts", ("desks", "place", "touch", "stopping", "left", "office --json", "office --go",
                                                       "office --close-agent", "office --forget", "office --purge-archive",
                                                       "office --form", "office --desk", "office --worker", "office --close-desk",
                                                       "--waits")),
@@ -656,6 +671,8 @@ def main(argv):
         for d in desks(projects()):
             print(f"{d['folder']}\t{d['branch'] or ''}\t{d['top']}")
         return 0
+    if argv and argv[0] == "place":
+        return place_of(argv[1:])
     if argv and argv[0] == "handoff":
         return handoff(argv[1:])
     if argv and argv[0] == "resume":
@@ -782,7 +799,8 @@ def main(argv):
                   f"{how_long(a['idle_shells'][0]['seconds'])}: vikix agents tidy")
         h = a["handoff"]
         if h:
-            print(f"           handoff: {h['status'] or 'no status'}" + (f"; {h['estimate']}" if h["estimate"] else "")
+            print(f"           handoff: {h['status'] or 'no status'}" + (f"; {h['mode']}" if h.get("mode") else "")
+                  + (f"; {h['estimate']}" if h["estimate"] else "")
                   + (f"; next: {h['next'][:80]}" if h["next"] else "")
                   + (f"; checks {h['checks']}" if h["checks"] else "")
                   + (f"; {h['notes']} note{'s' if h['notes'] != 1 else ''} unread" if h.get("notes") else ""))

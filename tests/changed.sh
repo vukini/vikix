@@ -94,8 +94,9 @@ vikix_hunks() {   # the parts of bin/vikix the diff touches: one a line, a part 
 for f in "${files[@]}"; do
   case $f in
     # Words, plans and designs: nothing runs them.
-    TODO*.md|IDEAS.md|ARCHIVE.md|bugs.md|plans/*|CLAUDE.md|NYXT-GUIDE.md|VERSION|.gitignore) continue ;;
-    tests/office-ui*|lib/office.py|config/emacs/vikix-office.el) add office-ui ;;
+    TODO*.md|IDEAS.md|ARCHIVE.md|bugs.md|plans/*|NYXT-GUIDE.md|VERSION|.gitignore) continue ;;
+    CLAUDE.md) add codex ;;   # Codex is given it whole, under a cap the launcher sets
+    tests/office-ui*|lib/office.py|config/emacs/vikix-office.el) add office-ui codex ;;
     tests/run.sh|tests/changed.sh) all=1 ;;
     .claude/release) add release ;;
     tests/*.sh) add "$(basename "$f" .sh)" ;;
@@ -155,10 +156,11 @@ for f in "${files[@]}"; do
   case $f in
     # The skill's list of keys is made from these (lib/skill-keys.sh).
     config/stumpwm/vikix/why.lisp|bin/vikix-why|bin/vikix-notifications) add why mcp notifications used ;;
-    config/stumpwm/vikix/agents.lisp|bin/vikix-agents|lib/agents/*|config/claude/office.json) add office titles house handoff office-ui mcp tester plan door nyxt ;;
-    lib/plan.py) add plan office-ui ;;
-    lib/handoff.py) add office titles house handoff office-ui mcp release plan ;;
-    bin/vikix-agent) add house agents ai ;;
+    config/stumpwm/vikix/agents.lisp|bin/vikix-agents|lib/agents/*|config/claude/office.json) add office titles house handoff office-ui mcp tester plan door nyxt codex ;;
+    lib/plan.py) add plan office-ui codex ;;
+    lib/handoff.py) add office titles house handoff office-ui mcp release plan codex ;;
+    bin/vikix-agent) add house agents ai codex ;;
+    config/codex/*) add handoff codex ;;
     config/stumpwm/vikix/what.lisp|bin/vikix-what|config/what/*) add what ;;
     bin/vikix-docs) add docs what mcp ;;
     config/stumpwm/vikix/used.lisp|bin/vikix-used) add used why palette ;;

@@ -381,10 +381,15 @@ class Office(unittest.TestCase):
             self.assertEqual(calls[-1], ('worker', [self.folder, 'sort them', '--local']))
             office.main(A, ['--worker', self.folder, '--no-tests'])
             self.assertEqual(calls[-1], ('worker', [self.folder, '--no-tests']))
+            # The mode (Codex's) rides along as the form sends it; the backend offers the list and the house default.
+            office.main(A, ['--worker', self.folder, 'sort them', '--use', 'codex', '--mode', 'supervised'])
+            self.assertEqual(calls[-1], ('worker', [self.folder, 'sort them', '--use', 'codex', '--mode', 'supervised']))
+            self.assertEqual(offer['modes'], ['supervised', 'autonomous', 'unrestricted'])
+            self.assertIn(offer['mode'], offer['modes'])
             n = len(calls)
             for bad in (['--desk'], ['--desk', 'vikix', 'wifi', '--here'], ['--desk', 'vikix', 'wifi', '--use'],
                         ['--desk', 'vikix', 'wifi', '--task'], ['--worker', str(Path(self.temp.name) / 'nowhere'), 'x'],
-                        ['--worker', self.folder, 'x', '--fresh']):
+                        ['--worker', self.folder, 'x', '--fresh'], ['--worker', self.folder, 'x', '--mode']):
                 with self.assertRaises(ValueError, msg=bad):
                     office.main(A, bad)
             self.assertEqual(len(calls), n)

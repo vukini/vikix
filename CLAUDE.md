@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. Codex reads it too: `vikix agent` gives it this file as the one to fall back on where a folder has no `AGENTS.md` (there is none here, on purpose: one file to keep current), so "Claude" below means the agent at the desk, whichever it is.
 
 Vikix is an opinionated desktop layer for **glibc Void Linux** built around **StumpWM**: Void, supercharged. It was inspired by Omarchy but is its own thing: credit Omarchy as the inspiration, but don't call Vikix "Omarchy for Void". It is not a distribution; it's a set of bash install stages run on top of a plain Void install, plus the config it puts in place and a `vikix` command that keeps it current. Repo: github.com/vukini/vikix (MIT).
 

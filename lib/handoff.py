@@ -375,13 +375,14 @@ def set_task(rec, text, by):
     _log(rec, by, "task set")
 
 
-def start_worker(rec, text, by, provider=""):
+def start_worker(rec, text, by, provider="", mode=""):
     """A new worker at the desk: the task before it, with how it ended,
     goes into the desk's history (`workers`, oldest first), the handoff and
     how the last agent left are cleared, and TEXT is the task. The checks
     stay: they speak for the code, and go stale with it. Nothing is lost:
     the history keeps the task, its status, its last summary and who
-    worked it. The entry folded, or None when the desk had no task."""
+    worked it. The entry folded, or None when the desk had no task. MODE,
+    when given, is how free the worker is, said in the log's line."""
     text = clean(text, "the task")
     if not text:
         raise HandoffError("a worker needs a task (vikix agents worker DESK \"...\"; vikix agents resume takes the conversation up without one)")
@@ -389,8 +390,16 @@ def start_worker(rec, text, by, provider=""):
     rec["task"] = {"text": text, "by": by, "at": int(time.time())}
     rec["handoff"] = {}
     rec.pop("left", None)
-    _log(rec, by, f"worker started{', ' + provider if provider else ''}: {text[:80]}")
+    _log(rec, by, f"worker started{', ' + provider if provider else ''}{' ' + mode if mode else ''}: {text[:80]}")
     return folded
+
+
+def set_launch(rec, provider, mode, by):
+    """How the last agent was started at the desk: the provider and its
+    mode (how free it is; '' when the provider has none), who asked. Read
+    by the listing, the Office and the protection lines; resume takes the
+    mode up again for the same provider."""
+    rec["launch"] = {"provider": provider or "", "mode": mode or "", "by": by, "at": int(time.time())}
 
 
 def fold_worker(rec):
@@ -610,6 +619,12 @@ def render(rec, agents_at=(), protection=(), now=None):
         n = gone.get("dirty")
         lines.append(f"Left: {gone['reason']} ({gone.get('by', '?')}, {when(gone.get('at', 0))})"
                      + (f", {n} uncommitted then" if n is not None else ""))
+    launch = rec.get("launch") or {}
+    if launch.get("mode"):
+        lines.append(f"Mode: {launch['mode']} ({launch.get('provider') or '?'}; {launch.get('by', '?')}, {when(launch.get('at', 0))}): "
+                     + ("no sandbox and no approvals, by the user's word" if launch["mode"] == "unrestricted" else
+                        "its sandbox is the desk alone" + (", a reviewer of its own answers the steps out of it"
+                                                           if launch["mode"] == "autonomous" else ", every step out of it asks you")))
     if d.get("tests") == "off":
         lines.append("Tests: not run by themselves at a hand-in (--no-tests); vikix agents test runs them")
     turns = rec.get("turns") or {}

@@ -94,7 +94,7 @@ def ask_push():
 def desk(argv):
     """vikix agents desk [PROJECT [TOPIC]] [--task "..."]: the place, and
     with a task a worker at it too."""
-    use, local, here, push, words, task, notests = None, False, False, None, [], "", False
+    use, local, here, push, words, task, notests, mode = None, False, False, None, [], "", False, None
     while argv:
         a = argv.pop(0)
         if a == "--use":
@@ -107,6 +107,8 @@ def desk(argv):
             push = True
         elif a == "--no-tests":
             notests = True
+        elif a == "--mode":
+            mode = argv.pop(0) if argv else die(f"--mode which? {', '.join(MODES)}")
         elif a == "--task":
             task = argv.pop(0) if argv else die("--task needs the words of the task")
         elif a.startswith("-"):
@@ -116,7 +118,8 @@ def desk(argv):
     if len(words) > 2:
         die("vikix agents desk [PROJECT [TOPIC]]: a topic of several words goes in quotes")
     # The agent's words are the worker's: a desk alone seats nobody.
-    agent_words = [w for w, on in (("--use", use), ("--local", local), ("--here", here), ("--push", push)) if on]
+    agent_words = [w for w, on in (("--use", use), ("--local", local), ("--here", here), ("--push", push),
+                                   ("--mode", mode)) if on]
     if agent_words and not task and words:
         die(f"{' '.join(agent_words)} is for the worker, and a desk alone starts no agent: give --task \"...\" "
             f"too, or start one at the desk with vikix agents worker DESK {' '.join(agent_words)}")
@@ -189,13 +192,13 @@ def desk(argv):
                                    "starts a worker there") + ("; its tests don't run by themselves" if notests else ""))
         return 0
     return worker_at(folder, task, use, local, here, push, f"a desk, and a worker at it: {said}", topic or project.name,
-                     notests=notests)
+                     notests=notests, mode=mode)
 
 
 def worker(argv):
     """vikix agents worker DESK ["..."]: an agent on a task at a desk that
     is there; without a task, a session there."""
-    use, local, here, push, words, notests = None, False, False, False, [], False
+    use, local, here, push, words, notests, mode = None, False, False, False, [], False, None
     if argv == ["--menu"]:
         # From the desktop: the desk, the task, then the worker's questions as
         # desk asks them. A desk with an agent at it is refused before any
@@ -235,6 +238,8 @@ def worker(argv):
             push = True
         elif a == "--no-tests":
             notests = True
+        elif a == "--mode":
+            mode = argv.pop(0) if argv else die(f"--mode which? {', '.join(MODES)}")
         elif a.startswith("-"):
             die(f"vikix agents worker: {a}? (vikix agents help)")
         else:
@@ -249,17 +254,19 @@ def worker(argv):
             f"{os.path.basename(folder).split('-', 1)[-1] if rec else 'TOPIC'} makes the worktree again "
             "(the record is kept, and waits there)")
     return worker_at(folder, task, use, local, here, push, f"a worker at {short(folder)}" if task
-                     else f"a session at {short(folder)}", desk_name(folder), notests=notests)
+                     else f"a session at {short(folder)}", desk_name(folder), notests=notests, mode=mode)
 
 
-def worker_at(folder, task, use, local, here, push, said, name, notests=False):
+def worker_at(folder, task, use, local, here, push, said, name, notests=False, mode=None):
     """An agent started at the desk FOLDER: on TASK, the record's task
     folded into the desk's history and TASK its first prompt; without one
     a session, the record left as it is (a line in its log). SAID is how
     the desk was named, NAME what its workspace is called. NOTESTS: the
     tester stays off when this worker hands in; a worker with a task
     started without it has the tests again (the setting is the desk's,
-    decided as each worker starts), a session leaves it as it was."""
+    decided as each worker starts), a session leaves it as it was. MODE:
+    how free the worker is (Codex's, for now): the one given, else the
+    house default for Codex; kept in the record as the worker's launch."""
     H = handoff_module()
     at = agents_at(folder)
     if at:
@@ -268,12 +275,19 @@ def worker_at(folder, task, use, local, here, push, said, name, notests=False):
         die(f"{', '.join(who(a) for a in at)} is at this desk already, and a desk takes its workers one at a time: "
             f"vikix agents tell {name} \"...\" leaves it a note, vikix agents dismiss {name} ends it first")
     provider = use or default_agent()
+    mode = mode_check(provider, mode)
+    if mode is None and provider == "codex":
+        mode = default_mode()
+    if mode == "unrestricted":
+        # The launcher refuses it in a project's own folder and warns; the record keeps who asked.
+        print(f"unrestricted: {provider} will run with no sandbox and no approvals at {short(folder)}, by your word")
     folded = [None]
     first = None
     if task:
         def change(rec):
-            folded[0] = H.start_worker(rec, task, "user", provider)
+            folded[0] = H.start_worker(rec, task, "user", provider, mode)
             tests_set(rec, not notests)
+            H.set_launch(rec, provider, mode, "user")
         desk_record(folder, change=change)
         # The task is the agent's first prompt, so a new worker never sits idle
         # with its task written only in the record (2026-10-07: one did, for
@@ -281,13 +295,16 @@ def worker_at(folder, task, use, local, here, push, said, name, notests=False):
         first = H.first_prompt_args(provider, desk_prompt(task))
     elif desk_of(folder) or H.load(H.desk_id(common_of(folder), folder)):
         def change(rec):
-            H._log(rec, "user", f"session: {provider}")
+            H._log(rec, "user", f"session: {provider}" + (f" {mode}" if mode else ""))
             if notests:
                 tests_set(rec, False)   # a session leaves the setting alone unless told
+            H.set_launch(rec, provider, mode, "user")
         desk_record(folder, change=change)
-    start = agent_start(use, first or (), local=local)
+    start = agent_start(use, first or (), local=local, mode=mode)
     if use or local:
         said += f", {use or 'your agent'}" + (" on a model on this laptop" if local else "")
+    if mode:
+        said += f", {mode}"
     if push:
         # vikix agent keeps your SSH agent from the agent unless this says
         # otherwise; the terminal, and the agent in it, inherit it from here.
@@ -343,11 +360,11 @@ def here(argv):
     return 0
 
 
-def agent_start(use=None, extra=(), local=False):
-    """What starts the agent: vikix agent with its words (--use, --local),
-    or the stand-in the tests name, which gets the same words; EXTRA are
-    the agent's own (a session to resume), after --."""
-    words = (["--use", use] if use else []) + (["--local"] if local else [])
+def agent_start(use=None, extra=(), local=False, mode=None):
+    """What starts the agent: vikix agent with its words (--use, --local,
+    --mode), or the stand-in the tests name, which gets the same words;
+    EXTRA are the agent's own (a session to resume), after --."""
+    words = (["--use", use] if use else []) + (["--local"] if local else []) + (["--mode", mode] if mode else [])
     start = ([os.environ["VIKIX_AGENT_CMD"]] if os.environ.get("VIKIX_AGENT_CMD")
              else [os.path.join(VIKIX_DIR, "bin", "vikix"), "agent"]) + words
     return start + (["--", *extra] if extra and not os.environ.get("VIKIX_AGENT_CMD") else list(extra))

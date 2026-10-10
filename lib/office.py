@@ -256,6 +256,8 @@ def snapshot(api):
         # Nothing to continue in a plain folder: Continue is for desks.
         row['resume'] = {p: H.resume_plan(row, p, path) for p in providers} if row['kind'] == 'desk' else {}
         row['provider'] = ', '.join(dict.fromkeys([a['agent'] for a in row['agents']] + [s['provider'] for s in row['sessions']])) or 'unrecorded'
+        # How the last worker was started: its mode (Codex's: supervised, autonomous, unrestricted), '' for none.
+        row['mode'] = (row.get('launch') or {}).get('mode', '') if row['kind'] == 'desk' else ''
         if row['archived']:
             row['group'] = 'Archived'
             row['next_action'] = 'Archived — worktree removed'
@@ -380,25 +382,26 @@ def form(api):
               for name, yours, installed, about in api.agents_offered()]
     agents.sort(key=lambda a: not a['yours'])
     return {'projects': projects, 'agents': agents, 'default': api.default_agent(),
+            'modes': list(api.MODES), 'mode': api.default_mode(),
             'display': bool(os.environ.get('DISPLAY'))}
 
 
 def worker_words(args, what):
     """The worker's words from the form's ARGS, as vikix agents WHAT takes
-    them: --use NAME, --local, --push, --no-tests. Anything else is refused,
-    so a form out of step with the command says so instead of starting an
-    agent with words it didn't mean."""
+    them: --use NAME, --local, --push, --no-tests, --mode MODE. Anything
+    else is refused, so a form out of step with the command says so instead
+    of starting an agent with words it didn't mean."""
     out, rest = [], list(args)
     while rest:
         a = rest.pop(0)
-        if a == '--use':
+        if a in ('--use', '--mode'):
             if not rest or rest[0].startswith('-'):
-                raise ValueError('--use which agent?')
-            out += ['--use', rest.pop(0)]
+                raise ValueError('--use which agent?' if a == '--use' else '--mode which? supervised, autonomous, unrestricted')
+            out += [a, rest.pop(0)]
         elif a in ('--local', '--push', '--no-tests'):
             out.append(a)
         else:
-            raise ValueError(f'vikix agents office --{what}: {a}? (--use NAME, --local, --push, --no-tests)')
+            raise ValueError(f'vikix agents office --{what}: {a}? (--use NAME, --local, --push, --no-tests, --mode MODE)')
     return out
 
 
@@ -417,7 +420,7 @@ def new_desk(api, args):
         del rest[i:i + 2]
     words = [w for w in words if w]   # a project that is no repository: no topic
     if not words:
-        raise ValueError('vikix agents office --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests]')
+        raise ValueError('vikix agents office --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE]')
     agent = worker_words(rest, 'desk')
     if task:
         return api.desk(words + ['--task', task] + agent)
@@ -596,5 +599,5 @@ def main(api, args):
     elif args in ([], ['--tty']):
         launch(api, tty=bool(args))
     else:
-        raise ValueError('vikix agents office [--tty | --json | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN | --pause DESK | --unpause DESK | --test DESK | --tell DESK TEXT | --form | --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests] | --worker DESK ["..."] [--use NAME] [--local] [--push] [--no-tests] | --close-desk DESK [--force]]')
+        raise ValueError('vikix agents office [--tty | --json | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN | --pause DESK | --unpause DESK | --test DESK | --tell DESK TEXT | --form | --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --worker DESK ["..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --close-desk DESK [--force]]')
     return 0
