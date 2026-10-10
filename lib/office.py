@@ -139,6 +139,7 @@ def snapshot(api):
         agents = api.desktop(strict=True)
         agents += api.elsewhere({a['pid'] for a in agents}, strict=True)
         agents = api.seated(agents)
+        api.journal_states(agents)   # working or at its prompt from the hooks' journal, where the title says nothing
         live_known = True
     except (RuntimeError, OSError, ValueError) as e:
         agents, live_known = [], False

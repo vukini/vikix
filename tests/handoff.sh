@@ -328,7 +328,7 @@ check "the adapters are valid JSON naming vikix agents touch --for their provide
 import json, sys
 for name in ("codex", "gemini"):
     h = json.load(open(f"{sys.argv[1]}/config/{name}/hooks.json"))["hooks"]
-    (event, rules), = h.items()
+    rules = h.get("PreToolUse") or next(iter(h.values()))      # Codex has the other events too (tests/codex.sh); Gemini has BeforeTool
     assert rules[0]["hooks"][0]["command"] == f"vikix agents touch --for {name}", (name, rules)' "$here"
 check "OpenCode's plugin asks touch --for opencode and throws on deny and ask" \
   bash -c 'grep -q "\"agents\", \"touch\", \"--for\", \"opencode\"" "$1" && grep -q "permissionDecision === \"deny\" || out.permissionDecision === \"ask\"" "$1"' _ "$here/config/opencode/vikix-office.js"

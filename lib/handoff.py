@@ -674,7 +674,11 @@ def render(rec, agents_at=(), protection=(), now=None):
 # opencode, checked 2026-10-06) or its documentation (gemini, aider: not
 # installed here, so marked unverified):
 #   claude    claude --resume ID          ~/.claude/projects/*/ID.jsonl
-#   codex     codex resume ID             ~/.codex/sessions/Y/M/D/rollout-*-ID.jsonl
+#   codex     codex resume ID             ~/.codex/sessions/Y/M/D/rollout-*-ID.jsonl, and from 0.160
+#             its thread store beside them: session_index.jsonl (id, thread_name,
+#             updated_at) and thread_history_N.sqlite (thread_turns, thread_items
+#             by thread_id; a commandExecution item carries its cwd), both read here,
+#             the rollout files first, since older installs have those alone
 #   opencode  opencode --session ID       ~/.local/share/opencode/opencode.db (table session)
 #   gemini    gemini --resume ID          ~/.gemini/tmp/*/chats/   (unverified)
 #   antigravity  agy --conversation ID    ~/.gemini/antigravity-cli/brain/ID/ (agy --help 1.3.0,
@@ -717,9 +721,24 @@ def session_store(provider, sid, folder=""):
         hits = glob.glob(os.path.join(home(), ".claude", "projects", "*", sid + ".jsonl"))
         return (True, short(hits[0])) if hits else (False, short(os.path.join(home(), ".claude", "projects")))
     if provider == "codex":
-        root = os.environ.get("CODEX_HOME") or os.path.join(home(), ".codex")
+        root = codex_root()
         hits = glob.glob(os.path.join(root, "sessions", "*", "*", "*", f"rollout-*-{sid}.jsonl"))
-        return (True, short(hits[0])) if hits else (False, short(os.path.join(root, "sessions")))
+        if hits:
+            return True, short(hits[0])
+        if sid in codex_index(root):
+            return True, short(os.path.join(root, "session_index.jsonl"))
+        db = codex_db(root)
+        if db:
+            try:
+                import sqlite3
+                c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+                row = c.execute("SELECT 1 FROM thread_turns WHERE thread_id = ? LIMIT 1", (sid,)).fetchone()
+                c.close()
+            except Exception:  # noqa: BLE001  a store that can't be read is one we can't vouch for
+                return None, f"{short(db)} couldn't be read"
+            if row:
+                return True, short(db)
+        return False, f"{short(root)} (sessions/, session_index.jsonl" + (f", {os.path.basename(db)}" if db else "") + ")"
     if provider == "opencode":
         db = os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.join(home(), ".local", "share"), "opencode", "opencode.db")
         if not os.path.exists(db):
@@ -744,6 +763,44 @@ def session_store(provider, sid, folder=""):
     return None, f"{provider} has no resume known to Vikix"
 
 
+def codex_root():
+    return os.environ.get("CODEX_HOME") or os.path.join(home(), ".codex")
+
+
+def codex_db(root):
+    """Codex's thread store, thread_history_N.sqlite, the newest N; None without one."""
+    import glob
+    hits = sorted(glob.glob(os.path.join(root, "thread_history_*.sqlite")))
+    return hits[-1] if hits else None
+
+
+def codex_index(root):
+    """Codex's session_index.jsonl as {thread id: updated, unix time}; {} without one."""
+    out = {}
+    try:
+        with open(os.path.join(root, "session_index.jsonl")) as f:
+            for line in f:
+                try:
+                    d = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(d, dict) and session_id_ok(d.get("id") or ""):
+                    out[d["id"]] = iso_time(d.get("updated_at"))
+    except OSError:
+        pass
+    return out
+
+
+def iso_time(text):
+    """An ISO time with any fraction and a Z (Codex's) as unix seconds; 0 for none."""
+    import datetime
+    try:
+        t = re.sub(r"\.\d+", "", str(text or "")).replace("Z", "+00:00")
+        return int(datetime.datetime.fromisoformat(t).timestamp())
+    except (ValueError, OverflowError):
+        return 0
+
+
 def resume_args(provider, sid, folder=""):
     """The arguments that resume SID with PROVIDER, or None."""
     if provider in RESUME and session_id_ok(sid):
@@ -764,7 +821,7 @@ def sessions_on_disk(provider, folder, limit=3):
             for f in glob.glob(os.path.join(home(), ".claude", "projects", key, "*.jsonl")):
                 out.append((os.path.basename(f)[:-6], int(os.path.getmtime(f))))
         elif provider == "codex":
-            root = os.environ.get("CODEX_HOME") or os.path.join(home(), ".codex")
+            root = codex_root()
             real = os.path.realpath(folder)
             for f in sorted(glob.glob(os.path.join(root, "sessions", "*", "*", "*", "rollout-*.jsonl")))[-200:]:
                 try:
@@ -775,6 +832,20 @@ def sessions_on_disk(provider, folder, limit=3):
                         out.append((p["id"], int(os.path.getmtime(f))))
                 except (OSError, ValueError):
                     continue
+            # The thread store keeps no folder of a thread's own: a thread that ran a
+            # command in the folder is one of the folder's.
+            db = codex_db(root)
+            if db:
+                import sqlite3
+                index = codex_index(root)
+                c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+                rows = c.execute("SELECT thread_id, MAX(created_at_ms) FROM thread_items WHERE item_type = 'commandExecution' "
+                                 "AND item_json LIKE ? GROUP BY thread_id ORDER BY 2 DESC LIMIT 20",
+                                 ("%" + json.dumps({"cwd": real})[1:-1] + "%",)).fetchall()
+                c.close()
+                for sid, ms in rows:
+                    if sid and sid not in {s for s, _ in out}:
+                        out.append((sid, index.get(sid) or int((ms or 0) // 1000)))
         elif provider == "opencode":
             db = os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.join(home(), ".local", "share"), "opencode", "opencode.db")
             if os.path.exists(db):

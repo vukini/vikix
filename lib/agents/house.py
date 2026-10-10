@@ -9,6 +9,8 @@ import json
 import os
 import re
 import shlex
+import shutil
+import subprocess
 import sys
 import time
 
@@ -103,9 +105,12 @@ ADAPTERS = {
     "claude": ("config/claude/office.json", None,
                "given to Claude Code by vikix agent at every start (--settings): pre-edit and pre-shell hooks"),
     "codex": ("config/codex/hooks.json", ".codex/hooks.json",
-              "PreToolUse hook in ~/.codex/hooks.json, and Vikix's rules in ~/.codex/rules/vikix.rules (git on a "
+              "hooks in ~/.codex/hooks.json: PreToolUse (apply_patch read for its files, Bash; a clash refused once, "
+              "since it can't ask), PermissionRequest (a step out of its sandbox into the project's own folder, "
+              "~/vikix, another desk or secrets/ denied), UserPromptSubmit, Stop and SessionEnd (working, at its "
+              "prompt, the handoff asked for, how it left); and Vikix's rules in ~/.codex/rules/vikix.rules (git on a "
               "desk's branch, the tests, vikix and the release run without a prompt; sudo and a force-push never). "
-              "Its hook format is Claude Code's, from Codex's documentation: unverified on this machine"),
+              "The shapes are from Codex's documentation (0.160): unverified on this machine until one has fired"),
     "opencode": ("config/opencode/vikix-office.js", ".config/opencode/plugins/vikix-office.js",
                  "a plugin on tool.execute.before (edit, write, bash): a refused edit throws, with the reason; a "
                  "clash is refused once and goes through when tried again within ten minutes"),
@@ -212,11 +217,6 @@ def crossing_for(me, path, others):
 # Code is told beside an allowed edit (a crossing) asks there, with the
 # reason, and nothing to say is {"decision": "ask"}: agy's own way, as the
 # decision is required there. HOOK is set by touch.
-HOOK = "claude"
-SAID = False
-NOTES = None
-
-
 def notes_for_hook():
     """The notes waiting at the agent's desk, taken from the inbox, as the
     words the hook hands the agent; "" when there are none. Taken once."""
@@ -235,9 +235,10 @@ def notes_for_hook():
 def hook_output(**fields):
     global SAID
     SAID = True
-    if HOOK == "claude":
-        # Only Claude Code's hook carries words to the agent beside its decision:
-        # that its pause was lifted, then the notes left for it.
+    if HOOK in NOTE_HOOKS:
+        # Claude Code's and Codex's hooks carry words to the agent beside their
+        # decision (additionalContext): that its pause was lifted, then the
+        # notes left for it. OpenCode's plugin can only throw, agy's only decide.
         extra = "\n\n".join(x for x in (RESUMED, notes_for_hook()) if x)
         if extra:
             fields["additionalContext"] = (fields.get("additionalContext", "") + "\n\n" + extra).strip()
@@ -346,11 +347,32 @@ def paths_named(tokens, cwd):
     return sorted(out, key=lambda p: not os.path.exists(p))
 
 
-def refuse(me, path, why, how):
+def refuse_record(me, path, how):
     record("refused", f"{who(me)} was refused {short(path)}: {how}",
            {"agent": me["agent"], "pid": me["pid"], "folder": me["folder"], "file": path, "how": how},
            key=f"{me['pid']}:{path}")
+
+
+def refuse(me, path, why, how):
+    refuse_record(me, path, how)
     hook_output(permissionDecision="deny", permissionDecisionReason=why)
+
+
+# Codex's edit tool, apply_patch: its command is the patch text, a file a
+# line of these (a path relative to the folder it works in, or absolute).
+PATCH_LINE = re.compile(r"^\*\*\* (?:Add File|Update File|Delete File|Move to): (.+?)\s*$", re.M)
+
+
+def patch_paths(text, cwd):
+    """The files an apply_patch text names, each made absolute from CWD,
+    in the patch's order, once each."""
+    out = []
+    for m in PATCH_LINE.finditer(text or ""):
+        p = os.path.expanduser(m.group(1).strip())
+        p = os.path.normpath(p if os.path.isabs(p) else os.path.join(cwd or os.getcwd(), p))
+        if p not in out:
+            out.append(p)
+    return out
 
 
 def touch_bash(command, cwd):
@@ -389,77 +411,42 @@ def touch_bash(command, cwd):
     return 0
 
 
-def touch(argv):
-    global HOOK
-    if "--for" in argv:         # whose hook runs this: codex, opencode, gemini (claude without)
-        i = argv.index("--for")
-        HOOK = argv[i + 1] if len(argv) > i + 1 else "claude"
-        argv = argv[:i] + argv[i + 2:]
-    if "--pause-only" in argv:
-        # Before every tool (office.json's second entry): the pause alone, one stat when there
-        # is none; lifted, the words that it was go with this call (RESUMED, in the front).
-        pause_hold(my_agent())
-        return 0
-    path = argv[0] if argv and not argv[0].startswith("-") else ""
-    if not path and not sys.stdin.isatty():
-        try:
-            got = json.loads(sys.stdin.read() or "{}")
-            if isinstance(got.get("toolCall"), dict):
-                # Antigravity CLI: the tool's name and args, and the workspaces.
-                HOOK = "agy"
-                call = got["toolCall"]
-                args = call.get("args") or {}
-                here = (got.get("workspacePaths") or [""])[0]
-                note_session(got.get("conversationId"))     # what agy --conversation resumes
-                if call.get("name") == "run_command":
-                    return touch_bash(args.get("CommandLine") or "", args.get("Cwd") or here)
-                path = args.get("TargetFile") or ""
-                if path and not os.path.isabs(path) and here:
-                    path = os.path.join(here, path)
-            else:
-                tool = got.get("tool_input") or {}
-                path = tool.get("file_path") or tool.get("notebook_path") or ""
-                note_session(got.get("session_id"))
-                if not path and got.get("tool_name") == "Bash":
-                    return touch_bash(tool.get("command") or "", got.get("cwd") or "")
-        except ValueError:
-            return 0
-    if not path:
-        return 0
-    me = my_agent()
-    if not me:
-        return 0
-    if pause_hold(me, tell=False):
-        return 0
+def judge(me, path, others):
+    """The house rules for one edit of PATH by ME: the fields of the hook's
+    answer (a deny with its reason; words beside an allowed edit; {} for
+    nothing to say), the journal written, a clash or a crossing recorded."""
     path = os.path.realpath(os.path.abspath(path))
     why = off_desk(me, path)
     if why:
-        refuse(me, path, why, "off a desk" if desk_of(me["folder"]) is None else "the project's own folder")
-        return 0
-    others = live_agents()
+        refuse_record(me, path, "off a desk" if desk_of(me["folder"]) is None else "the project's own folder")
+        return {"permissionDecision": "deny", "permissionDecisionReason": why}
     entries = journal_read()
     now = int(time.time())
     crossing = crossing_for(me, path, others)
     clashes = clashes_for(me, path, others, entries)
     turn = ""
-    if clashes and HOOK != "opencode" and turns_on(me["folder"]):
+    if clashes and HOOK not in NO_ASK and turns_on(me["folder"]):
         clashes, turn = take_turn(me, path, clashes, now)
         entries = journal_read()
-    if clashes and HOOK == "opencode":
-        # OpenCode's plugin can only block or let through: a clash is refused
-        # once, with the reason, and the same edit tried again within ten
-        # minutes (the agent having told the user) goes through.
+    if clashes and HOOK in NO_ASK:
+        # A hook that can't ask: a clash is refused once, with the reason, and
+        # the same edit tried again within ten minutes (the agent having told
+        # the user) goes through. OpenCode's plugin throws on ask as on deny;
+        # Codex takes deny alone.
         asked = [e for e in entries if e.get("kind") == "asked" and e.get("pid") == me["pid"]
                  and e.get("file") == path and now - e.get("at", 0) < 600]
         if not asked:
             journal_add({"at": now, "kind": "asked", "agent": me["agent"], "pid": me["pid"], "folder": me["folder"],
                          "file": path, "clash": [who(o) for o, _ in clashes]})
+            record("clash", f"{who(me)} and {', '.join(who(o) for o, _ in clashes)} on {short(path)}",
+                   {"agent": me["agent"], "pid": me["pid"], "file": path, "refused_once": True,
+                    "with": [{"agent": o["agent"], "pid": o["pid"], "folder": o["folder"], "how": how} for o, how in clashes]},
+                   key=f"{me['pid']}:{path}")
             said = "; ".join(f"{who(o)} ({short(o['folder'])}) {how}" for o, how in clashes)
-            hook_output(permissionDecision="ask",
-                        permissionDecisionReason=f"Vikix office: another agent is on this file. {said}. "
-                                                 f"`vikix agents clash {short(path)}` shows both changes. Tell the user; "
-                                                 "if they want this edit too, the same edit within ten minutes goes through.")
-            return 0
+            return {"permissionDecision": "ask" if HOOK == "opencode" else "deny",
+                    "permissionDecisionReason": f"Vikix office: another agent is on this file. {said}. "
+                                                f"`vikix agents clash {short(path)}` shows both changes. Tell the user; "
+                                                "if they want this edit too, the same edit within ten minutes goes through."}
         clashes = []
     entry = {"at": now, "kind": "crossing" if crossing else "edit", "agent": me["agent"], "pid": me["pid"],
              "folder": me["folder"], "file": path}
@@ -478,17 +465,169 @@ def touch(argv):
     journal_add(entry)
     if clashes:
         said = "; ".join(f"{who(o)} ({short(o['folder'])}) {how}" for o, how in clashes)
-        hook_output(permissionDecision="ask",
-                    permissionDecisionReason=f"Vikix office: another agent is on this file. {said}. "
-                                             + (f"Turns: {turn}. " if turn else "")
-                                             + f"`vikix agents clash {short(path)}` shows both changes. Let this one edit it too?")
-    elif turn:
-        hook_output(additionalContext=turn)
-    elif crossing:
-        hook_output(additionalContext=f"Vikix office: {short(path)} is in {short(crossing['folder'])}, the folder "
-                                      f"{who(crossing)} works in, not yours ({short(me['folder'])}). The crossing is "
-                                      "recorded (vikix agents crossings). Edit it only if the user asked for that; "
-                                      "else leave it to that agent and tell the user.")
+        return {"permissionDecision": "ask",
+                "permissionDecisionReason": f"Vikix office: another agent is on this file. {said}. "
+                                            + (f"Turns: {turn}. " if turn else "")
+                                            + f"`vikix agents clash {short(path)}` shows both changes. Let this one edit it too?"}
+    if turn:
+        return {"additionalContext": turn}
+    if crossing:
+        return {"additionalContext": f"Vikix office: {short(path)} is in {short(crossing['folder'])}, the folder "
+                                     f"{who(crossing)} works in, not yours ({short(me['folder'])}). The crossing is "
+                                     "recorded (vikix agents crossings). Edit it only if the user asked for that; "
+                                     "else leave it to that agent and tell the user."}
+    return {}
+
+
+def touch_paths(me, paths):
+    """PATHS (one edit's, or every file of a patch) through the judgement
+    each: the first refusal is the answer, else the words for the agent
+    joined, else nothing."""
+    if pause_hold(me, tell=False):
+        return 0
+    others = live_agents()
+    words = []
+    for path in paths:
+        fields = judge(me, path, others)
+        if fields.get("permissionDecision"):
+            hook_output(**fields)
+            return 0
+        if fields.get("additionalContext"):
+            words.append(fields["additionalContext"])
+    if words:
+        hook_output(additionalContext="\n\n".join(words))
+    return 0
+
+
+def touch(argv):
+    global HOOK, SAID
+    argv = hook_for(argv)       # whose hook runs this: codex, opencode, gemini (claude without)
+    if "--escalation" in argv or "--turn" in argv:
+        SAID = True             # answered in their own events' shapes: nothing of PreToolUse's follows
+        return escalation() if "--escalation" in argv else turn_began()
+    if "--pause-only" in argv:
+        # Before every tool (office.json's second entry): the pause alone, one stat when there
+        # is none; lifted, the words that it was go with this call (RESUMED, in the front).
+        pause_hold(my_agent())
+        return 0
+    path = argv[0] if argv and not argv[0].startswith("-") else ""
+    paths = []
+    if not path:
+        got, _ = hook_input()
+        if isinstance(got.get("toolCall"), dict):
+            # Antigravity CLI: the tool's name and args, and the workspaces.
+            HOOK = "agy"
+            call = got["toolCall"]
+            args = call.get("args") or {}
+            here = (got.get("workspacePaths") or [""])[0]
+            note_session(got.get("conversationId"))     # what agy --conversation resumes
+            if call.get("name") == "run_command":
+                return touch_bash(args.get("CommandLine") or "", args.get("Cwd") or here)
+            path = args.get("TargetFile") or ""
+            if path and not os.path.isabs(path) and here:
+                path = os.path.join(here, path)
+        elif got:
+            tool = got.get("tool_input") or {}
+            path = tool.get("file_path") or tool.get("notebook_path") or ""
+            command = tool.get("command") or ""
+            note_session(got.get("session_id"))
+            if not path and (got.get("tool_name") == "apply_patch" or "*** Begin Patch" in command):
+                # Codex's edit: the patch text, every file of it an edit (a
+                # Bash heredoc that applies one is read the same).
+                paths = patch_paths(command, got.get("cwd") or "")
+            elif not path and got.get("tool_name") == "Bash":
+                return touch_bash(command, got.get("cwd") or "")
+    if path:
+        paths = [path]
+    if not paths:
+        return 0
+    me = my_agent()
+    if not me:
+        return 0
+    return touch_paths(me, paths)
+
+
+def escalation_refused(me, path):
+    """Why a step out of Codex's sandbox that writes PATH is denied, in
+    words, or None: the user's key store, the installed checkout (which
+    only pulls), a project's own folder or a repository off a desk (the
+    desk rule's own words), another desk. The desk itself is never
+    refused: that prompt is the user's, or the reviewer's."""
+    real = os.path.realpath(os.path.abspath(path))
+    if me["folder"] and inside(real, os.path.realpath(me["folder"])):
+        return None
+    config = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+    secrets = os.path.realpath(os.path.join(config, "vikix", "secrets"))
+    if inside(real, secrets):
+        return (f"Vikix office: {short(secrets)}/ holds the user's API keys: nothing writes there from an agent "
+                "(vikix ai key set is the user's own command).")
+    for installed in dict.fromkeys([os.path.expanduser("~/vikix"), os.environ.get("VIKIX_DIR") or ""]):
+        if installed and os.path.isdir(installed) and inside(real, os.path.realpath(installed)):
+            return (f"Vikix office: {short(installed)} is the installed Vikix, which only pulls from GitHub "
+                    "(vikix update, vikix try): nothing writes there. Vikix is developed at a desk of its "
+                    "repository (vikix agents sit vikix TOPIC).")
+    why = off_desk(me, real)
+    if why:
+        return why + " (This step out of the sandbox would write there.)"
+    top = repo_of(real)[0]
+    if top and desk_of(top) and os.path.realpath(top) != os.path.realpath(desk_of(me["folder"]) or ""):
+        mine = desk_of(me["folder"])
+        return (f"Vikix office: {short(real)} is in {short(top)}, another desk: an agent writes at its own desk only"
+                + (f", {short(mine)}" if mine else "") + ". Tell the user what that desk needs.")
+    return None
+
+
+def escalation():
+    """vikix agents touch --for codex --escalation: Codex's PermissionRequest
+    hook, run when a command or a patch would leave its sandbox. Denied,
+    with the reason, when it would write where no agent may (escalation_
+    refused); else nothing is said, and the prompt goes where the mode
+    sends it: to the user, or in autonomous mode to Codex's reviewer, so
+    the agent-waiting plugin's note (waits for your yes) is written only
+    when the user is the one asked."""
+    got, raw = hook_input()
+    tool = got.get("tool_input") or {}
+    command = tool.get("command") or ""
+    cwd = got.get("cwd") or ""
+    note_session(got.get("session_id"))
+    me = my_agent()
+    if not me:
+        return 0
+    if got.get("tool_name") == "apply_patch" or "*** Begin Patch" in command:
+        places = patch_paths(command, cwd)
+    else:
+        try:
+            tokens = shlex.split(command)
+        except ValueError:
+            tokens = command.split()
+        tokens = [t for tok in tokens for t in re.split(r"(;)", tok) if t]
+        places = (paths_named(tokens, cwd) or ([cwd] if cwd else [])) if writes(tokens) else []
+    for p in places:
+        why = escalation_refused(me, p)
+        if why:
+            refuse_record(me, p, "a step out of Codex's sandbox")
+            print(json.dumps({"hookSpecificOutput": {"hookEventName": "PermissionRequest",
+                                                     "decision": {"behavior": "deny", "message": why}}}))
+            return 0
+    if os.environ.get("VIKIX_AGENT_MODE") != "autonomous":
+        plugin_note("permission", raw)
+    return 0
+
+
+def turn_began():
+    """vikix agents touch --for codex --turn: Codex's UserPromptSubmit
+    hook. A turn entry in the journal, so a worker thinking before its
+    first tool call is working, not running (journal_states); the plugin's
+    note cleared, as Claude Code's own hook clears it. Nothing printed:
+    plain stdout would be given to the model."""
+    got, raw = hook_input()
+    note_session(got.get("session_id"))
+    me = my_agent()
+    if not me:
+        return 0
+    journal_add({"at": int(time.time()), "kind": "turn", "agent": me["agent"], "pid": me["pid"],
+                 "folder": me["folder"], "file": ""})
+    plugin_note("clear", raw)
     return 0
 
 

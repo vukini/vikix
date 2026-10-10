@@ -99,14 +99,14 @@ def tell(argv):
     said = f"{short(folder)}: noted for its agent"
     if not there:
         said += " (none is there now: vikix agents resume reads it out when one takes the desk up)"
-    elif all(a["agent"] != "claude" for a in there):
+    elif all(a["agent"] not in NOTE_HOOKS for a in there):
         said += (f"; {', '.join(who(a) for a in there)} has no hook that carries a note, so it isn't told: "
                  "vikix agents handoff shows the note, and the agent reads it when it looks there")
     else:
         # What the agent is doing, from the desktop: a note reaches it only at an edit or a
         # command, which an agent at its prompt makes none of until it is spoken to.
         try:
-            states = {a["pid"]: a["state"] for a in desktop(strict=True)}
+            states = {a["pid"]: a["state"] for a in journal_states(desktop(strict=True))}
         except (RuntimeError, SystemExit):
             states = {}
         state = next((states.get(a["pid"]) for a in there if a["agent"] == "claude" and states.get(a["pid"])), "")
@@ -156,50 +156,62 @@ def handoff_apply(folder, data, by):
 
 
 def stopping(argv):
-    """Claude Code's Stop hook (config/claude/office.json): a worker, an
-    agent at a desk with a task, that changed files in this turn and
-    hasn't written its handoff since is asked once to write it before it
-    stops; the stop after that is let go (stop_hook_active), so nothing
-    goes round. An agent at a desk with no task (a session started by
-    hand, or seated from inside) is asked the same way until its record
-    has a status, and then no more: it is a conversation, held only to
-    leave one line behind it (2026-10-10: half the records had none, since
-    nothing ever asked). An agent off a desk is never held to it."""
-    got = {}
-    if not sys.stdin.isatty():
-        try:
-            got = json.loads(sys.stdin.read() or "{}")
-        except ValueError:
-            got = {}
-    if not isinstance(got, dict) or got.get("stop_hook_active"):
-        return 0
+    """Claude Code's and Codex's Stop hook (config/claude/office.json,
+    config/codex/hooks.json): a worker, an agent at a desk with a task,
+    that changed files in this turn and hasn't written its handoff since
+    is asked once to write it before it stops; the stop after that is let
+    go (stop_hook_active), so nothing goes round. An agent at a desk with
+    no task (a session started by hand, or seated from inside) is asked
+    the same way until its record has a status, and then no more: it is a
+    conversation, held only to leave one line behind it (2026-10-10: half
+    the records had none, since nothing ever asked). An agent off a desk is
+    never held to it. A stop let through is noted in the journal (kind
+    stop), which is how the listing says "at its prompt" for an agent whose
+    title says nothing; for Codex the agent-waiting plugin's note is
+    written here too (done, with its last words), as Claude Code's own
+    Stop hook writes it, so "finished its turn" no longer waits for
+    Codex's notify setting."""
+    hook_for(argv)
+    got, raw = hook_input()
     me = my_agent()
-    if not me or not me["folder"]:
-        return 0
+    if HOOK == "codex" and me:
+        plugin_note("done", raw)
+    reason = stop_reason(got, me)
+    if reason:
+        print(json.dumps({"decision": "block", "reason": reason}))
+    elif me:
+        journal_add({"at": int(time.time()), "kind": "stop", "agent": me["agent"], "pid": me["pid"],
+                     "folder": me["folder"], "file": ""})
+    return 0
+
+
+def stop_reason(got, me):
+    """Why the agent ME may not stop yet, as the words for its next prompt,
+    or None: the handoff unwritten after a turn that changed files."""
+    if got.get("stop_hook_active") or not me or not me["folder"]:
+        return None
     H = handoff_module()
     common = common_of(me["folder"])
     if not desk_of(me["folder"]):
-        return 0
+        return None
     rec = H.load(H.desk_id(common, me["folder"])) or {}
     h = rec.get("handoff") or {}
     if not rec.get("task") and h.get("status"):
-        return 0
+        return None
     last = max([v.get("at", 0) for v in h.values() if isinstance(v, dict)] or [0])
     edited = {e.get("file") for e in journal_read()
               if e.get("pid") == me["pid"] and e.get("kind") in ("edit", "crossing", "shell") and e.get("at", 0) > last}
     if not edited:
-        return 0
+        return None
     try:
         H.update(common, me["folder"], lambda r: H._log(r, "vikix", "asked for the handoff before the agent stopped"))
     except (H.HandoffError, OSError):
         pass
     n = len(edited)
-    print(json.dumps({"decision": "block", "reason": (
-        f"Vikix office: this turn changed {n} file{'s' if n != 1 else ''} at your desk and the handoff hasn't been "
-        "written since. Write it now, then stop: vikix agents handoff --status working|waiting|review|finished "
-        "--summary \"what you changed and decided\" --next \"what is left, the very next action\" (or the MCP tool "
-        "handoff_update); review when the work is ready for the user, waiting when you need them.")}))
-    return 0
+    return (f"Vikix office: this turn changed {n} file{'s' if n != 1 else ''} at your desk and the handoff hasn't been "
+            "written since. Write it now, then stop: vikix agents handoff --status working|waiting|review|finished "
+            "--summary \"what you changed and decided\" --next \"what is left, the very next action\" (or the MCP tool "
+            "handoff_update); review when the work is ready for the user, waiting when you need them.")
 
 
 def note_session(sid):
@@ -244,7 +256,21 @@ def protection_lines(folder):
             held = (f"pre-edit and pre-shell hooks (vikix agents touch): {seen} edit{'s' if seen != 1 else ''} proposed "
                     "through them" if seen else "pre-edit hooks expected from vikix agent, none seen yet "
                     "(a session started another way has only the instructions)")
-        elif a["agent"] in ("codex", "opencode", "gemini"):
+        elif a["agent"] == "codex":
+            # Its hooks (config/codex/hooks.json): the edit and command hook, the one on a
+            # step out of its sandbox, the turn, the stop and the leaving; seen through
+            # the journal as Claude Code's are, else by the file being Vikix's.
+            if seen:
+                held = (f"its PreToolUse hook (vikix agents touch --for codex): {seen} edit{'s' if seen != 1 else ''} "
+                        "proposed through it; its PermissionRequest hook denies a step out of its sandbox into the "
+                        "project's own folder, ~/vikix, another desk or secrets/; its Stop hook asks for the handoff")
+            elif codex_hook_ours():
+                held = ("its hooks installed (~/.codex/hooks.json is Vikix's: edits, commands, steps out of its "
+                        "sandbox, turns and stops), none of its edits seen yet (a session started before the install, "
+                        "or without the trust, has only the instructions)")
+            else:
+                held = "instructions only, unless its hook is installed (vikix agents hooks codex --install)"
+        elif a["agent"] in ("opencode", "gemini"):
             held = (f"a pre-edit hook: {seen} edit{'s' if seen != 1 else ''} proposed through it" if seen else
                     f"instructions only, unless its hook is installed (vikix agents hooks {a['agent']})")
         else:
@@ -253,7 +279,9 @@ def protection_lines(folder):
             held += ("; no sandbox: unrestricted, by the user" if launch["mode"] == "unrestricted"
                      else f"; sandboxed to its desk (codex, {launch['mode']})")
         lines.append(f"{who(a)}: {held}")
-    lines.append("no filesystem enforcement: a worktree keeps copies apart, it is no sandbox")
+    lines.append("no filesystem enforcement by Vikix: a worktree keeps copies apart, it is no sandbox"
+                 + ("; Codex's own sandbox, narrowed to the desk by its mode, is the one there is"
+                    if any(a["agent"] == "codex" for a in here) and launch.get("mode") in ("supervised", "autonomous") else ""))
     return here, lines
 
 

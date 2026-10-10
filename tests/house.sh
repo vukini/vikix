@@ -34,7 +34,7 @@
 #   branch or PROJECT TOPIC, asked on the desktop or listed without one.
 #   A worker: a note for a desk's agent (vikix agents tell) is delivered
 #   by Claude Code's hook at its next edit, once, and not by another
-#   provider's; the Stop hook asks an agent at a desk with a task, that
+#   provider's that can't carry one (gemini); the Stop hook asks an agent at a desk with a task, that
 #   changed files (an edit, or a Bash command that writes) without
 #   writing its handoff since, to write it, once per turn (the stop after
 #   it is let go); at a desk without a task it asks the same until a
@@ -292,9 +292,16 @@ out=$(touch_as 1001 "$t/src/book-a/ch3.md")
 check "both notes come together at its next edit: $(head -c 150 <<<"$out")" \
   grep -q 'and chapter three \[user, [0-9:]*\] and chapter four"' <<<"$out"
 out=$(agents tell b "wait for a")
-check "an agent whose hook carries no note is said so: $out" grep -q 'codex 1002 has no hook that carries a note' <<<"$out"
+check "Codex's hook carries a note too (tests/codex.sh has its hooks): $out" grep -q 'noted for its agent, delivered at its next tool call' <<<"$out"
 out=$(touch_as 1002 --for codex "$t/src/book-b/ch9.md")
+check "delivered at its next edit, on additionalContext: $out" \
+  grep -q '"additionalContext": "Vikix office, notes for you at this desk (vikix agents tell): \[user, [0-9:]*\] wait for a"' <<<"$out"
+git -C "$t/src/book" worktree add -q "$t/src/book-gem" -b gem; proc 1009 gemini "$t/src/book-gem"
+out=$(agents tell gem "wait too")
+check "an agent whose hook carries no note is said so: $out" grep -q 'gemini 1009 has no hook that carries a note' <<<"$out"
+out=$(touch_as 1009 --for gemini "$t/src/book-gem/ch9.md")
 check "and its hook delivers nothing: '$out'" test -z "$out"
+rm -r "$t/proc/1009"; git -C "$t/src/book" worktree remove "$t/src/book-gem"; git -C "$t/src/book" branch -q -D gem
 out=$(stop_as 1001 '{"stop_hook_active": false}')
 check "a desk with no task and no handoff yet is asked for one too: $out" \
   grep -q '"decision": "block", "reason": "Vikix office: this turn changed [0-9]* files* at your desk and the handoff hasn.t been written since' <<<"$out"

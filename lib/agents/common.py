@@ -480,14 +480,14 @@ def process_gone(pid):
 
 
 def left(argv):
-    """Claude Code's SessionEnd hook: how the agent left its desk, noted."""
-    got = {}
-    if not sys.stdin.isatty():
-        try:
-            got = json.loads(sys.stdin.read() or "{}")
-        except ValueError:
-            got = {}
-    reason = str((got if isinstance(got, dict) else {}).get("reason") or "exit")[:40]
+    """Claude Code's and Codex's SessionEnd hook: how the agent left its
+    desk, noted. Codex's reason is always "other" (its documentation,
+    0.160), so for it the record says left, without a cause."""
+    hook_for(argv)
+    got, _ = hook_input()
+    reason = str(got.get("reason") or "exit")[:40]
+    if HOOK == "codex" and reason == "other":
+        reason = "left"
     me = my_agent()
     if not me or not me["folder"]:
         return 0
@@ -791,6 +791,86 @@ def journal_add(entry):
     journal_write([e for e in journal_read() if alive(e.get("pid", 0))] + [entry])
 
 
+HOOK = "claude"
+SAID = False
+NOTES = None
+# The hooks (house.py reads and answers them; these are shared with the
+# listing and the Stop and SessionEnd hooks). Whose hook carries words to the agent beside an allowed call (additionalContext).
+NOTE_HOOKS = ("claude", "codex")
+# Whose hook takes deny and allow only, never ask (OpenCode's plugin can only
+# throw; Codex fails a hook that says ask and runs the tool): a clash is
+# refused once with the reason, and the same edit within ten minutes passes,
+# the agent having told the user.
+NO_ASK = ("opencode", "codex")
+
+
+def hook_for(argv):
+    """--for PROVIDER taken out of ARGV: whose hook runs this command
+    (codex, opencode, gemini; Claude Code's without). The provider in HOOK."""
+    global HOOK
+    if "--for" in argv:
+        i = argv.index("--for")
+        HOOK = argv[i + 1] if len(argv) > i + 1 else "claude"
+        argv = argv[:i] + argv[i + 2:]
+    return argv
+
+
+def hook_input():
+    """The hook's JSON on stdin: (the dict, the raw text); ({}, "") at a terminal or for no JSON."""
+    if sys.stdin.isatty():
+        return {}, ""
+    try:
+        raw = sys.stdin.read() or ""
+        got = json.loads(raw or "{}")
+    except (OSError, ValueError):
+        return {}, ""
+    return (got if isinstance(got, dict) else {}), raw
+
+
+def plugin_note(what, raw):
+    """The agent-waiting plugin's note for the agent's window (ask, done,
+    clear), when the plugin is there: Claude Code's own hooks run it, Codex
+    had only its notify setting's minute. Quiet, bounded, never fatal."""
+    prog = shutil.which("agent-waiting")
+    if not prog:
+        return
+    try:
+        subprocess.run([prog, what], input=raw, capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
+# An edit, a command or a turn begun this long ago is "working".
+WORKING_WINDOW = 60
+JOURNAL_DOING = {"turn": "a turn begun", "shell": "a command", "edit": "an edit", "crossing": "an edit"}
+
+
+def journal_states(agents):
+    """What the journal says of an agent whose title says nothing
+    (Codex writes no mark, so it was "running" all day): its last entry a
+    turn begun, an edit or a command within WORKING_WINDOW is working,
+    said with what and how long ago; a stop let through (stopping), with
+    nothing after it, is at its prompt. Only a "running" agent is told by
+    it: the title's mark and the plugin's note (the desktop) come first.
+    AGENTS changed in place and returned."""
+    last = {}
+    for e in journal_read():
+        if e.get("kind") in ("turn", "edit", "crossing", "shell", "stop") and isinstance(e.get("pid"), int):
+            if e["pid"] not in last or e.get("at", 0) >= last[e["pid"]].get("at", 0):
+                last[e["pid"]] = e
+    now = int(time.time())
+    for a in agents:
+        e = last.get(a.get("pid"))
+        if not e or a.get("state") != "running":
+            continue
+        ago = max(0, now - e.get("at", 0))
+        if e["kind"] == "stop":
+            a["state"], a["doing"] = "idle", "at its prompt"
+        elif ago <= WORKING_WINDOW:
+            a["state"], a["doing"] = "working", f"working ({JOURNAL_DOING[e['kind']]} {how_long(ago)} ago)"
+    return agents
+
+
 def journal_write(entries):
     os.makedirs(os.path.dirname(JOURNAL), exist_ok=True)
     tmp = JOURNAL + ".tmp"
@@ -831,6 +911,21 @@ def changed_in(top, rel):
     """What the worktree TOP has done to REL, uncommitted: '' for nothing."""
     out = git(top, "status", "--porcelain", "--untracked-files=all", "--", rel) or ""
     return out.strip()
+
+
+def codex_hook_ours():
+    """Whether ~/.codex/hooks.json is Vikix's: the link vikix agents hooks
+    codex --install makes, or a copy of the file (the installed checkout's),
+    as the launcher judges it for the hook's trust."""
+    target = os.path.join(os.environ.get("CODEX_HOME") or os.path.expanduser("~/.codex"), "hooks.json")
+    ours = os.path.join(VIKIX_DIR, "config", "codex", "hooks.json")
+    try:
+        if os.path.realpath(target) == os.path.realpath(ours):
+            return True
+        with open(target) as a, open(ours) as b:
+            return a.read() == b.read()
+    except OSError:
+        return False
 
 
 def inside(path, folder):
