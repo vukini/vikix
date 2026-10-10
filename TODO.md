@@ -63,6 +63,14 @@ Added 2026-09-30, from a conversation with Vid about 0.52-0.65. Not yet ordered 
 17. **Syncthing as a feature** (design: `plans/DESIGN-machines.md`, 2026-10-04). Folders (an Obsidian vault, say) kept in step between machines directly, no cloud; a bar note while it syncs.
 18. **KDE Connect** (design: `plans/DESIGN-machines.md`, 2026-10-04). Phone notifications on the desktop, files both ways, the phone as a remote.
 19. **`vikix export` / `vikix import`** (design: `plans/DESIGN-machines.md`, 2026-10-04). One file with your features, theme, keyboard, web apps and settings (no secrets), so a new machine becomes yours in one step.
+117. **Vikix nodes: a remote Void machine as part of this Vikix** (design: `plans/DESIGN-cloud.md`, 2026-10-09, Vid's idea as he wrote it; this is its v0.1, brought by Vid 2026-10-10). The aim: a remote Void Linux machine feels like a natural extension of the local Vikix system, not a server one logs into. The first milestone, one local Vikix laptop and one remote Void VPS:
+    - [ ] The node's configuration and state: what a node is and where it is kept (a file a node under `~/.config/vikix/`, in the format the other settings use; its state under `~/.local/state/vikix/`).
+    - [ ] `vikix nodes`: the nodes, one line each (name, kind, online or not, what runs there).
+    - [ ] `vikix node add NAME USER@HOST`, `vikix node remove NAME`.
+    - [ ] `vikix node status NAME`, `vikix node shell NAME`, `vikix node run NAME COMMAND`.
+    - [ ] Sending a project and pulling it back, explicitly, with the Unix tools there are: git for a repository (`bin/vikix-project` knows the folders), rsync or scp for the rest; no synchronization of its own, and never the whole home.
+    - [ ] Tried for real: this laptop and one cheap Void VPS, until the two feel like one system.
+    - Principles: Void Linux native, runit and xbps on the node; SSH first (keys, host keys verified, no password kept), the mesh (TODO 16) later and not required; git and rsync rather than a custom synchronization; no Ubuntu, Debian, systemd or Wayland assumption; a node is part of the Vikix system, not a generic VPS. Everything Vikix automates stays reachable with the plain tools: SSH is SSH, runit is runit. Jobs, services, agents on a node, `--on NAME` and the product are the design's later phases, not this item. Where this and `DESIGN-machines.md` name one thing differently (`vikix machines` there, `vikix nodes` here), what ships decides.
 20. **A Vikix installer image.** Its first step is in (2026-10-06, for the Z13; `ARCHIVE.md`): `installer/build-image.sh`, `installer/vikix-installer`, `installer/firstboot`; guide `docs/install-stick.md`, `tests/installer.sh`, `installer/qemu-test.py`. Still to do:
     - Publish the image: a GitHub release per version, and a download link on vikix.dev (the site says "a virtual machine" today).
     - Try it on the Z13 (TODO 58) and on the X1; move the mklive pin on after a test boot.
