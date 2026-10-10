@@ -2,9 +2,11 @@
 # tests/refile.sh — refiling the workspaces (vikix-refile-workspaces,
 # groups.lisp), in a real StumpWM on a hidden screen.
 #
-#   From 2 on, each workspace with windows moves left into the nearest
-#   empty one, as far as it can, the order among them kept; workspace 1 is
-#   neither moved nor filled; a named workspace past the nine stays. A
+#   From 1 on, each workspace with windows moves left into the nearest
+#   empty one, as far as it can, the order among them kept, so an empty
+#   workspace 1 is filled too; *vikix-refile-from* set to 2 keeps 1 as a
+#   home that is neither moved nor filled; a named workspace past the nine
+#   stays. A
 #   workspace keeps its layout entire as it moves: its frames, a strip and
 #   its columns, a floating window, grid mode, and (winner-mode being
 #   there) the layout steps Super+u undoes. The names and the numbers
@@ -37,26 +39,38 @@ agree() { yes '(every (lambda (g) (equal (group-name g) (princ-to-string (group-
 
 check "the nine are there: $(names)" test "$(names)" = "1 2 3 4 5 6 7 8 9"
 
-# One workspace with windows and a split, 1 and 2 empty: it goes to 2, not 1.
+# One workspace with windows and a split, 1 and 2 empty: it goes all the
+# way to 1, which is filled like any other.
 key super+3
 win B; win C
 ask '(run-commands "hsplit")' >/dev/null; sleep 0.3
 check "(workspace 3 has two frames: $(frames 3))" test "$(frames 3)" = 2
 refile
-check "the workspace moved left, to 2: $(on 2)" test "$(on 2)" = "B C"
-check "and 3 is empty" test -z "$(on 3)"
-check "workspace 1 is never filled" test -z "$(on 1)"
-check "the frames came along: $(frames 2)" test "$(frames 2)" = 2
-check "you are on it still: $(here_name)" test "$(here_name)" = 2
-check "it says what moved: $(said)" test "$(said)" = "Refiled: 3 to 2."
+check "the workspace moved left, to 1: $(on 1)" test "$(on 1)" = "B C"
+check "and 2 and 3 are empty" test -z "$(on 2)$(on 3)"
+check "the frames came along: $(frames 1)" test "$(frames 1)" = 2
+check "you are on it still: $(here_name)" test "$(here_name)" = 1
+check "it says what moved: $(said)" test "$(said)" = "Refiled: 3 to 1."
 check "the names and the numbers agree" agree
 if yes '(find-package :winner-mode)'; then
   ask '(vikix-layout-undo)' >/dev/null; sleep 0.3
-  check "Super+u on the moved workspace undoes its own split: $(frames 2)" test "$(frames 2)" = 1
+  check "Super+u on the moved workspace undoes its own split: $(frames 1)" test "$(frames 1)" = 1
   ask '(vikix-layout-redo)' >/dev/null; sleep 0.3
 else
   echo "(winner-mode isn't in this StumpWM: the undo steps' move is not checked)"
 fi
+
+# *vikix-refile-from* set to 2, as a user may in user.lisp: 1 is home,
+# neither moved nor filled. The windows go back to 3 for it (a swap, so 1 is
+# empty again), and a refile from 2 brings them only to 2.
+ask '(progn (vikix-workspace-swap (find-group (current-screen) "1") (find-group (current-screen) "3")) (setf *vikix-refile-from* 2))' >/dev/null; sleep 0.3
+check "(back on 3, 1 empty: $(on 3) / $(on 1))" test "$(on 3)" = "B C" && test -z "$(on 1)"
+refile
+check "from 2 on, workspace 1 is never filled: 1 $(on 1) / 2 $(on 2)" test -z "$(on 1)" && test "$(on 2)" = "B C"
+check "it says so: $(said)" test "$(said)" = "Refiled: 3 to 2."
+ask '(progn (setf *vikix-refile-from* 1) (vikix-refile-workspaces))' >/dev/null; sleep 0.3
+check "from 1 again, it goes home to 1: $(on 1), $(said)" test "$(on 1)" = "B C" && test "$(said)" = "Refiled: 2 to 1."
+check "the names and the numbers agree" agree
 
 # Several at once, each with a layout of its own: a strip, a floating
 # window, grid mode; the strip is the one you are on.
@@ -73,16 +87,16 @@ win D
 ask '(vikix-viri "on")' >/dev/null; sleep 0.5
 check "(5 is a strip)" yes '(viri-group-p (current-group))'
 refile
-check "the order is kept, each left as far as it can: 2 $(on 2) / 3 $(on 3) / 4 $(on 4) / 5 $(on 5)" \
-  test "$(on 2)|$(on 3)|$(on 4)|$(on 5)" = "B C|D|E|F G"
-check "6 to 9 are empty" test -z "$(on 6)$(on 7)$(on 8)$(on 9)"
-check "the strip is a strip on 3, and you are on it: $(here_name)" test "$(here_name)" = 3 && yes '(viri-group-p (current-group))'
-check "the floating window still floats on 4" yes '(typep (first (group-windows (find-group (current-screen) "4"))) (quote float-window))'
-check "grid mode came along to 5" yes '(member (find-group (current-screen) "5") *vikix-grid-groups*)'
-check "it says every move: $(said)" test "$(said)" = "Refiled: 5 to 3, 7 to 4, 9 to 5."
+check "the order is kept, each left as far as it can: 1 $(on 1) / 2 $(on 2) / 3 $(on 3) / 4 $(on 4)" \
+  test "$(on 1)|$(on 2)|$(on 3)|$(on 4)" = "B C|D|E|F G"
+check "5 to 9 are empty" test -z "$(on 5)$(on 6)$(on 7)$(on 8)$(on 9)"
+check "the strip is a strip on 2, and you are on it: $(here_name)" test "$(here_name)" = 2 && yes '(viri-group-p (current-group))'
+check "the floating window still floats on 3" yes '(typep (first (group-windows (find-group (current-screen) "3"))) (quote float-window))'
+check "grid mode came along to 4" yes '(member (find-group (current-screen) "4") *vikix-grid-groups*)'
+check "it says every move: $(said)" test "$(said)" = "Refiled: 5 to 2, 7 to 3, 9 to 4."
 check "the names and the numbers agree" agree
-key super+2
-check "Super+2 reaches the moved workspace: $(here_name) $(on "$(here_name)")" test "$(here_name)" = 2
+key super+3
+check "Super+3 reaches the moved workspace: $(here_name) $(on "$(here_name)")" test "$(here_name)" = 3 && test "$(on 3)" = E
 check "the bar lists them in order: $(names)" test "$(names)" = "1 2 3 4 5 6 7 8 9"
 
 # Nothing to do, said; a named workspace stays.
@@ -96,5 +110,5 @@ check "a named workspace is left where it is: $(names), $(on novel)" test "$(nam
 check "Super+m has it" yes '(find (quote vikix-refile-workspaces) *vikix-menu* :key (function second))'
 check "the desktop met no error" test -z "$(ls "$home/.local/state/vikix/errors" 2>/dev/null)"
 
-wm_report refile "workspaces from 2 on move left into the empty ones in order, 1 never filled, frames, a strip, a floating window, grid mode and the undo steps come along, names and numbers agree, the one you were on stays yours, what moved is said, a named workspace stays, Super+m has it"
+wm_report refile "workspaces move left into the empty ones in order, 1 filled too, *vikix-refile-from* 2 keeps it, frames, a strip, a floating window, grid mode and the undo steps come along, names and numbers agree, the one you were on stays yours, what moved is said, a named workspace stays, Super+m has it"
 exit "$fail"

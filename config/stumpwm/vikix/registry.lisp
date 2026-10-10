@@ -491,7 +491,7 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command gather "Bring every window of another workspace here, as ordinary windows: tiled, none floating"
   :run "vikix-gather"
   :menu "Windows" :label "Bring every window of another workspace here")
-(define-vikix-command refile-workspaces "Refile the workspaces: from 2 on, each moves left into the empty ones, keeping its layout"
+(define-vikix-command refile-workspaces "Refile the workspaces: each moves left into the empty ones, from 1 on, keeping its layout"
   :run "vikix-refile-workspaces"
   :menu "Windows" :label "Workspace: refile them, each moved left into an empty one")
 (define-vikix-command pointer "Move the pointer to this window"

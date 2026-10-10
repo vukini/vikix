@@ -203,16 +203,17 @@ map is KEY, staying here (vikix-send-named, viri.lisp)."
 
 ;;; --- Refile: the workspaces move left into the empty ones -------------------------------
 
-(defparameter *vikix-refile-from* 2
-  "The first workspace a refile moves. Workspace 1 is home: it is neither
-moved nor filled, however empty.")
+(defparameter *vikix-refile-from* 1
+  "The first workspace a refile moves or fills: 1, so an empty workspace 1
+takes the first workspace with windows. Set it to 2 in user.lisp to keep 1
+as a home that is neither moved nor filled, however empty.")
 
 (defun vikix-workspace-empty-p (group)
   (null (group-windows group)))
 
 (defun vikix-refile-candidates ()
-  "The numbered workspaces a refile may move, in order: the nine from
-*vikix-refile-from* on. A named workspace has no left to move to."
+  "The numbered workspaces a refile may move or fill, in order: the nine
+from *vikix-refile-from* on. A named workspace has no left to move to."
   (loop for group in (sort-groups (current-screen))
         when (and (member (group-name group) *vikix-group-names* :test #'equal)
                   (>= (group-number group) *vikix-refile-from*))
@@ -274,10 +275,10 @@ numbers' names, in order."
     moves))
 
 (defcommand vikix-refile-workspaces () ()
-  "Refile the workspaces: from 2 on, each one with windows moves left into
+  "Refile the workspaces: from 1 on, each one with windows moves left into
 the nearest empty one, as far as it can, keeping its layout, its order
-among the others kept too. Workspace 1 is left as it is, and so are the
-named workspaces past the nine. Says what moved."
+among the others kept too (*vikix-refile-from* says where they start). The
+named workspaces past the nine are left as they are. Says what moved."
   (let ((moves (vikix-refile-moves)))
     (update-all-mode-lines)
     (if moves
