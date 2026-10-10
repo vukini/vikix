@@ -408,7 +408,7 @@ conversations are untouched. There is no automatic age or size cutoff.
 
 Click a desk, or use `n`/`p` to select it. `RET` enters its details; `C-x o`
 moves between panes. Only available action buttons are shown. `Tab` visits buttons, `N` makes a new desk, `w` starts a worker at the selected one, `a` goes to an agent, `c` continues
-a desk, `P` pauses its agent or lets it go, `t` runs its tests, `i` leaves its agent a note, `g` refreshes and `q` closes the Office. A row says when its desk is paused and by whom, when its tests run, and how many notes wait for its agent; the details say how the last agent left. Details keep the user's task,
+a desk, `P` pauses its agent or lets it go, `t` runs its tests, `i` leaves its agent a note, `C` closes a desk, `g` refreshes and `q` closes the Office. A row says when its desk is paused and by whom, when its tests run, and how many notes wait for its agent; the details say how the last agent left. Details keep the user's task,
 signed agent account, observed Git state, reported checks and saved
 conversation availability separate. **Review does not mean merged.** A
 fresh check means its recorded code matches the current observation; it does
@@ -447,6 +447,14 @@ that gives no branch name, an agent at the desk already) is said in the
 form's own header line and leaves the form open to fix. A worker's
 terminal opens on the desktop, so from a terminal Office with no display
 only the desk alone can be made.
+
+**Close desk…** (`C`, in the details of a desk with nobody at it) is
+`vikix agents close` from the Office: after a yes, the worktree is removed
+and the branch deleted when its work is in, kept and said otherwise, and
+the record is kept as closed. A desk with files uncommitted asks a yes of
+its own first, to throw them away (`--force`, which takes an unmerged
+branch with them); no to that closes nothing. A desk with an agent at it
+is not offered: Close agent first, or let it finish.
 
 **Continue** offers a named provider and either its recorded saved
 conversation or an explicit **Start fresh** choice. It uses `vikix agents

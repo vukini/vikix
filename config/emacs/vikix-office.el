@@ -138,7 +138,7 @@
   (with-current-buffer (vikix-office--owner-buffer)
     (unless (or vikix-office--closed (process-live-p vikix-office--process)
                 (process-live-p vikix-office--action))
-      (vikix-office--notice "Refreshing…  g refresh · RET details · N new desk · w worker · a go to agent · c continue · P pause/go · t test · i tell · x close agent · q close Office")
+      (vikix-office--notice "Refreshing…  g refresh · RET details · N new desk · w worker · a go to agent · c continue · P pause/go · t test · i tell · x close agent · C close desk · q close Office")
       (vikix-office--request
        '("office" "--json") 'vikix-office--process
        (lambda (output error)
@@ -158,7 +158,7 @@
                    (vikix-office--notice
                     (if errors (string-join errors "; ")
                       (concat "Updated " (vikix-office--time (alist-get 'at data))
-                              " · g refresh · RET details · N new desk · w worker · a go to agent · c continue · P pause/go · t test · i tell · x close agent · q close Office")))))
+                              " · g refresh · RET details · N new desk · w worker · a go to agent · c continue · P pause/go · t test · i tell · x close agent · C close desk · q close Office")))))
              (error (vikix-office--failure (error-message-string err))))))))))
 
 (defun vikix-office--positive (value) (and (numberp value) (> value 0)))
@@ -435,7 +435,8 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                     (vikix-office--button "Go to agent" (lambda () (with-current-buffer owner (vikix-office-go)))))
                   (when (and (not agents) (eq (alist-get 'exists r) t) (not (vikix-office--folder-p r)))
                     (vikix-office--button "Continue…" (lambda () (with-current-buffer owner (vikix-office-continue))))
-                    (vikix-office--button "New worker…" (lambda () (with-current-buffer owner (vikix-office-worker)))))
+                    (vikix-office--button "New worker…" (lambda () (with-current-buffer owner (vikix-office-worker))))
+                    (vikix-office--button "Close desk…" (lambda () (with-current-buffer owner (vikix-office-close-desk)))))
                   (when (cl-some (lambda (a) (alist-get 'process_start a)) agents)
                     (vikix-office--button "Close agent…" (lambda () (with-current-buffer owner (vikix-office-close-agent)))))
                   (when (vikix-office--worker-p r)
@@ -584,11 +585,13 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
       (goto-char (vikix-office--position id))
       (vikix-office--track))))
 
-(defun vikix-office--act (args)
+(defun vikix-office--act (args &optional then)
+  "Run the backend with ARGS, its answer in the header line; THEN, when given, after a success."
   (when (process-live-p vikix-office--action) (user-error "An Office action is still running"))
   (vikix-office--request args 'vikix-office--action
                          (lambda (output error)
-                           (vikix-office--notice (or error (string-trim output) "Done")))))
+                           (vikix-office--notice (or error (string-trim output) "Done"))
+                           (when (and then (not error)) (funcall then)))))
 
 (defun vikix-office-toggle-archive ()
   (interactive)
@@ -697,6 +700,26 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
            (text (string-trim (read-string (format "Note for the agent at %s: " (vikix-office--text (alist-get 'title r)))))))
       (when (string-empty-p text) (user-error "A note needs words"))
       (vikix-office--act (list "office" "--tell" (alist-get 'id r) text)))))
+
+(defun vikix-office-close-desk ()
+  "Close the selected desk: its worktree removed, its branch deleted when its work is in.
+Offered for a desk with nobody at it; files uncommitted there are thrown
+away only on a second, separate yes."
+  (interactive)
+  (with-current-buffer (vikix-office--owner-buffer)
+    (let* ((r (vikix-office--worker-row)) (folder (alist-get 'worktree (alist-get 'desk r)))
+           (dirty (alist-get 'dirty (alist-get 'now r))) force)
+      (when (alist-get 'agents r) (user-error "An agent is at this desk: Close agent first, or let it finish"))
+      (when (process-live-p vikix-office--action) (user-error "An Office action is still running"))
+      (when (and (numberp dirty) (> dirty 0))
+        (unless (yes-or-no-p (format "%d file%s uncommitted in %s. Throw them away and close the desk? "
+                                     dirty (if (= dirty 1) "" "s") folder))
+          (user-error "Not closed: commit there first, or say yes to throw the files away"))
+        (setq force t))
+      (unless (yes-or-no-p (format "Close the desk %s? Its worktree is removed; its branch is deleted when its work is in%s. "
+                                   folder (if force ", and thrown away otherwise" " and kept otherwise")))
+        (user-error "Not closed"))
+      (vikix-office--act (append (list "office" "--close-desk" folder) (and force '("--force"))) #'vikix-office-refresh))))
 
 (defun vikix-office-continue ()
   (interactive)
@@ -972,6 +995,7 @@ were."
     (define-key map (kbd "a") #'vikix-office-go)
     (define-key map (kbd "c") #'vikix-office-continue)
     (define-key map (kbd "x") #'vikix-office-close-agent)
+    (define-key map (kbd "C") #'vikix-office-close-desk)
     (define-key map (kbd "P") #'vikix-office-pause)
     (define-key map (kbd "t") #'vikix-office-test)
     (define-key map (kbd "i") #'vikix-office-tell)

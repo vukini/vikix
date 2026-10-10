@@ -374,6 +374,20 @@ def new_worker(api, args):
     return api.worker([folder] + ([task] if task else []) + worker_words(rest, 'worker'))
 
 
+def close_desk(api, args):
+    """The Office's Close desk: DESK [--force], handed to vikix agents close,
+    which refuses one with an agent at it or files uncommitted (--force
+    throws the files and an unmerged branch away). DESK is the desk's
+    folder, the snapshot's id."""
+    rest = list(args)
+    if not rest or not os.path.isdir(rest[0]) or not api.desk_of(rest[0]):
+        raise ValueError('Needs a desk folder (a worktree of a project)')
+    folder = rest.pop(0)
+    if rest not in ([], ['--force']):
+        raise ValueError('vikix agents office --close-desk DESK [--force]')
+    return api.close([folder] + rest)
+
+
 def process_start(api, pid):
     """Linux start ticks distinguish a process from a later reuse of its PID."""
     try:
@@ -515,8 +529,10 @@ def main(api, args):
         return new_desk(api, args[1:])
     elif args and args[0] == '--worker':
         return new_worker(api, args[1:])
+    elif args and args[0] == '--close-desk':
+        return close_desk(api, args[1:])
     elif args in ([], ['--tty']):
         launch(api, tty=bool(args))
     else:
-        raise ValueError('vikix agents office [--tty | --json | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN | --pause DESK | --unpause DESK | --test DESK | --tell DESK TEXT | --form | --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests] | --worker DESK ["..."] [--use NAME] [--local] [--push] [--no-tests]]')
+        raise ValueError('vikix agents office [--tty | --json | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN | --pause DESK | --unpause DESK | --test DESK | --tell DESK TEXT | --form | --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests] | --worker DESK ["..."] [--use NAME] [--local] [--push] [--no-tests] | --close-desk DESK [--force]]')
     return 0

@@ -297,6 +297,11 @@
   vikix agents office --worker DESK ["..."] [--use NAME] [--local] [--push] [--no-tests]
                        the Office's Worker: vikix agents worker with its words, asking nothing.
                        DESK is the desk's folder, as the snapshot's id is
+  vikix agents office --close-desk DESK [--force]
+                       the Office's Close desk: vikix agents close, asking nothing.
+                       DESK is the desk's folder; refused with an agent at
+                       it or files uncommitted, --force throws the files
+                       and an unmerged branch away
   vikix agents --waits PID...
                        for the desktop's menu: what holds each of these agents.
                        A line each: pid, the words, the line under, from
@@ -447,7 +452,8 @@ SECTIONS = (
     ("rules", "The house rules", ("hooks",)),
     ("scripts", "For hooks, the Office and scripts", ("desks", "touch", "stopping", "left", "office --json", "office --go",
                                                       "office --close-agent", "office --forget", "office --purge-archive",
-                                                      "office --form", "office --desk", "office --worker", "--waits")),
+                                                      "office --form", "office --desk", "office --worker", "office --close-desk",
+                                                      "--waits")),
 )
 
 

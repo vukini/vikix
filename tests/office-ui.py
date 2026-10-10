@@ -336,6 +336,19 @@ class Office(unittest.TestCase):
                     office.main(A, bad)
             self.assertEqual(len(calls), n)
 
+    def test_close_desk_from_the_office(self):
+        # The desk's folder and --force alone reach vikix agents close; anything else is refused.
+        calls = []
+        with patch.object(A, 'close', lambda argv: calls.append(argv) or 0), patch.object(A, 'desk_of', lambda f: f):
+            office.main(A, ['--close-desk', self.folder])
+            office.main(A, ['--close-desk', self.folder, '--force'])
+            self.assertEqual(calls, [[self.folder], [self.folder, '--force']])
+            for bad in (['--close-desk'], ['--close-desk', str(Path(self.temp.name) / 'nowhere')],
+                        ['--close-desk', self.folder, '--now'], ['--close-desk', self.folder, '--force', 'x']):
+                with self.assertRaises(ValueError, msg=bad):
+                    office.main(A, bad)
+            self.assertEqual(len(calls), 2)
+
     def test_tests_off_keeps_the_tester_away_and_shows(self):
         # --no-tests is the desk's: a hand-in runs nothing by itself, the row says so, and a worker without it has the tests again.
         desks = str(Path(self.temp.name) / 'desks')

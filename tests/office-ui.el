@@ -584,6 +584,48 @@ the worker's form for that row."
    (setf (alist-get 'live_known vikix-office--data) :false)
    (should-error (vikix-office-close-agent) :type 'user-error)))
 
+(ert-deftest office-close-desk-confirms-and-force-is-a-second-yes ()
+  "Close desk: offered for a standing desk with nobody at it; one yes closes
+a clean desk, files uncommitted want a yes of their own and go as --force;
+refused with an agent at the desk, and in the archive."
+  (office-test-buffer
+   (setq vikix-office--detail (generate-new-buffer " *Office close desk*"))
+   (unwind-protect
+       (let (args asked)
+         (vikix-office--render)   ; selects the first desk
+         (setcdr (assq 'now (vikix-office--row)) '((dirty . 0) (branch . "a") (commit . "abc")))
+         (vikix-office--render)
+         (with-current-buffer vikix-office--detail (should (string-match-p "Close desk…" (buffer-string))))
+         (cl-letf (((symbol-function 'yes-or-no-p) (lambda (q) (push q asked) nil))
+                   ((symbol-function 'vikix-office--act) (lambda (a &rest _) (setq args a))))
+           (should-error (vikix-office-close-desk) :type 'user-error)
+           (should-not args))
+         (cl-letf (((symbol-function 'yes-or-no-p) (lambda (q) (push q asked) t))
+                   ((symbol-function 'vikix-office--act) (lambda (a &rest _) (setq args a))))
+           (vikix-office-close-desk)
+           (should (equal args '("office" "--close-desk" "/tmp/a desk with spaces")))
+           ;; Files uncommitted: a question of their own, then --force.
+           (setcdr (assq 'now (vikix-office--row)) '((dirty . 3) (branch . "a") (commit . "abc")))
+           (setq asked nil)
+           (vikix-office-close-desk)
+           (should (equal args '("office" "--close-desk" "/tmp/a desk with spaces" "--force")))
+           (should (= 2 (length asked)))
+           (should (string-match-p "3 files uncommitted" (cadr asked))))
+         ;; No to throwing the files away: nothing done.
+         (setq args nil)
+         (cl-letf (((symbol-function 'yes-or-no-p) (lambda (q) (not (string-match-p "uncommitted" q))))
+                   ((symbol-function 'vikix-office--act) (lambda (a &rest _) (setq args a))))
+           (should-error (vikix-office-close-desk) :type 'user-error)
+           (should-not args))
+         (setf (alist-get 'agents (vikix-office--row)) '(((agent . "codex") (pid . 1) (window . "3"))))
+         (vikix-office--render)
+         (with-current-buffer vikix-office--detail (should-not (string-match-p "Close desk…" (buffer-string))))
+         (should-error (vikix-office-close-desk) :type 'user-error)
+         (setf (alist-get 'agents (vikix-office--row)) nil)
+         (nconc (vikix-office--row) (list (cons 'archived t)))
+         (should-error (vikix-office-close-desk) :type 'user-error))
+     (kill-buffer vikix-office--detail))))
+
 (ert-deftest office-open-here-shares-the-setup-and-gives-the-frame-back ()
   "The terminal path builds the same two buffers in the selected frame
 and q puts the windows back; the only frame is never deleted."
