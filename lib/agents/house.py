@@ -13,25 +13,41 @@ import sys
 import time
 
 
-def pause_hold(me):
+RESUMED = ""    # the words for an agent whose held call goes through: it was paused, and let go
+
+
+def pause_hold(me, tell=True):
     """A hook's wait while the agent's desk is paused: a second at a time,
     up to PAUSE_LIMIT, then the call is refused with why, so the turn ends
-    cleanly and nothing waits for ever. True when refused."""
+    cleanly and nothing waits for ever. True when refused. Let go (vikix
+    agents go, the Office's Go), the call goes through, and with TELL the
+    agent, which saw nothing of the wait, is told it was paused and to
+    carry on where it was (RESUMED, which hook_output adds): the entry
+    before every tool tells, the matcher's holds silently, so an edit,
+    which both hooks hold, hears it once."""
+    global RESUMED
     if not me or not me["folder"]:
         return False
     path = pause_path(me["folder"])
     if not os.path.exists(path):
         return False
-    end = time.time() + PAUSE_LIMIT
+    p = pause_read(me["folder"])
+    held = int(time.time())
+    end = held + PAUSE_LIMIT
     while os.path.exists(path):
         if time.time() >= end:
-            p = pause_read(me["folder"])
             hook_output(permissionDecision="deny", permissionDecisionReason=(
                 f"Vikix office: your desk is paused by {p.get('by', 'the user')} since {at(p.get('at', 0))}, and the "
                 f"wait reached {PAUSE_LIMIT // 60} minutes. End this turn now, saying you are paused; nothing is lost. "
                 "The user's `vikix agents go` and their next words to you start you again."))
             return True
         time.sleep(1)
+    if tell:
+        since = p.get("at") if isinstance(p.get("at"), int) else held
+        RESUMED = (f"Vikix office: your desk was paused by {p.get('by', 'the user')} at {at(since)} and let go just now, "
+                   f"after {how_long(max(0, int(time.time()) - since))} (vikix agents go, or the Office's Go). This call, "
+                   "held meanwhile, goes through now: carry on from where you were, on the same task and plan; the pause "
+                   "changed nothing of yours. A note from the user, when there is one, follows.")
     return False
 
 
@@ -198,10 +214,11 @@ def hook_output(**fields):
     global SAID
     SAID = True
     if HOOK == "claude":
-        # Only Claude Code's hook carries words to the agent beside its decision.
-        notes = notes_for_hook()
-        if notes:
-            fields["additionalContext"] = (fields.get("additionalContext", "") + "\n\n" + notes).strip()
+        # Only Claude Code's hook carries words to the agent beside its decision:
+        # that its pause was lifted, then the notes left for it.
+        extra = "\n\n".join(x for x in (RESUMED, notes_for_hook()) if x)
+        if extra:
+            fields["additionalContext"] = (fields.get("additionalContext", "") + "\n\n" + extra).strip()
     if HOOK in ("agy", "gemini"):
         # Gemini CLI's BeforeTool reads the same decision and reason (from its
         # documentation: unverified here); nothing beside an allowed edit there is allow.
@@ -321,7 +338,7 @@ def touch_bash(command, cwd):
     me = my_agent()
     if not me or not command.strip():
         return 0
-    if pause_hold(me):
+    if pause_hold(me, tell=False):
         return 0
     try:
         tokens = shlex.split(command)
@@ -357,7 +374,8 @@ def touch(argv):
         HOOK = argv[i + 1] if len(argv) > i + 1 else "claude"
         argv = argv[:i] + argv[i + 2:]
     if "--pause-only" in argv:
-        # Before every tool (office.json's second entry): the pause alone, one stat when there is none.
+        # Before every tool (office.json's second entry): the pause alone, one stat when there
+        # is none; lifted, the words that it was go with this call (RESUMED, in the front).
         pause_hold(my_agent())
         return 0
     path = argv[0] if argv and not argv[0].startswith("-") else ""
@@ -389,7 +407,7 @@ def touch(argv):
     me = my_agent()
     if not me:
         return 0
-    if pause_hold(me):
+    if pause_hold(me, tell=False):
         return 0
     path = os.path.realpath(os.path.abspath(path))
     why = off_desk(me, path)

@@ -25,6 +25,9 @@
 (defvar-local vikix-office--process nil)
 (defvar-local vikix-office--action nil)
 (defvar-local vikix-office--closed nil)
+(defvar-local vikix-office--said nil
+  "The last action's answer (Pause, Go, Test, Tell…), kept in the header line
+over the refreshes that follow, so it is seen; g drops it.")
 
 ;; What a desk's terminal needs of you, in the desktop's three colours
 ;; (agents.lisp: the bar's window list and the title bar show the same):
@@ -85,6 +88,9 @@
 (defun vikix-office--notice (text)
   (setq header-line-format (concat "  " (replace-regexp-in-string "%" "%%" text)))
   (force-mode-line-update))
+(defun vikix-office--status (text)
+  "The refresh's notice: the last action's answer first, while one is kept."
+  (vikix-office--notice (if vikix-office--said (concat vikix-office--said " · " text) text)))
 
 (defun vikix-office--request (args slot done)
   "Run ARGS without a shell. DONE receives output or an error string."
@@ -136,9 +142,10 @@
   "Refresh asynchronously, keeping the last successful view on failure."
   (interactive)
   (with-current-buffer (vikix-office--owner-buffer)
+    (when (called-interactively-p 'interactive) (setq vikix-office--said nil))
     (unless (or vikix-office--closed (process-live-p vikix-office--process)
                 (process-live-p vikix-office--action))
-      (vikix-office--notice "Refreshing…  g refresh · RET details · N new desk · w worker · a go to agent · c continue · P pause/go · t test · i tell · x close agent · C close desk · q close Office")
+      (vikix-office--status "Refreshing…  g refresh · RET details · N new desk · w worker · a go to agent · c continue · P pause/go · t test · i tell · x close agent · C close desk · q close Office")
       (vikix-office--request
        '("office" "--json") 'vikix-office--process
        (lambda (output error)
@@ -155,7 +162,7 @@
                      (vikix-office--failure (string-join errors "; "))
                    (setq vikix-office--data data)
                    (vikix-office--render)
-                   (vikix-office--notice
+                   (vikix-office--status
                     (if errors (string-join errors "; ")
                       (concat "Updated " (vikix-office--time (alist-get 'at data))
                               " · g refresh · RET details · N new desk · w worker · a go to agent · c continue · P pause/go · t test · i tell · x close agent · C close desk · q close Office")))))
@@ -643,11 +650,15 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
       (vikix-office--track))))
 
 (defun vikix-office--act (args &optional then)
-  "Run the backend with ARGS, its answer in the header line; THEN, when given, after a success."
+  "Run the backend with ARGS, its answer in the header line, where it stays
+over the refreshes that follow; THEN, when given, after a success."
   (when (process-live-p vikix-office--action) (user-error "An Office action is still running"))
+  (setq vikix-office--said nil)
   (vikix-office--request args 'vikix-office--action
                          (lambda (output error)
-                           (vikix-office--notice (or error (string-trim output) "Done"))
+                           (setq vikix-office--said (and (not error) (string-trim output)))
+                           (when (equal vikix-office--said "") (setq vikix-office--said nil))
+                           (vikix-office--notice (or error vikix-office--said "Done"))
                            (when (and then (not error)) (funcall then)))))
 
 (defun vikix-office-toggle-archive ()
@@ -747,13 +758,13 @@ Files, branches and saved conversations stay."
   (interactive)
   (with-current-buffer (vikix-office--owner-buffer)
     (let ((r (vikix-office--worker-row)))
-      (vikix-office--act (list "office" "--pause" (alist-get 'id r))))))
+      (vikix-office--act (list "office" "--pause" (alist-get 'id r)) #'vikix-office-refresh))))
 (defun vikix-office-test ()
   "Run the selected desk's tests; the result goes into its handoff and its agent's inbox."
   (interactive)
   (with-current-buffer (vikix-office--owner-buffer)
     (let ((r (vikix-office--worker-row)))
-      (vikix-office--act (list "office" "--test" (alist-get 'id r))))))
+      (vikix-office--act (list "office" "--test" (alist-get 'id r)) #'vikix-office-refresh))))
 (defun vikix-office-tell ()
   "Leave the selected desk's agent a note, delivered at its next tool call."
   (interactive)
@@ -761,7 +772,7 @@ Files, branches and saved conversations stay."
     (let* ((r (vikix-office--worker-row))
            (text (string-trim (read-string (format "Note for the agent at %s: " (vikix-office--text (alist-get 'title r)))))))
       (when (string-empty-p text) (user-error "A note needs words"))
-      (vikix-office--act (list "office" "--tell" (alist-get 'id r) text)))))
+      (vikix-office--act (list "office" "--tell" (alist-get 'id r) text) #'vikix-office-refresh))))
 
 (defun vikix-office-close-desk ()
   "Close the selected desk: its worktree removed, its branch deleted when its work is in.

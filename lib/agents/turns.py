@@ -96,15 +96,27 @@ def pause_folder(folder, by, hard=False):
 
 
 def go_folder(folder):
-    """The desk FOLDER let go; what was done, in words."""
+    """The desk FOLDER let go; what was done, in words: how long it was
+    paused, and what its agent hears (the hook tells it, pause_hold)."""
     path = pause_path(folder)
     if not os.path.exists(path):
         return f"{short(folder)} isn't paused"
     p = pause_read(folder)
+    there = agents_at(folder)
     woken = [pid for pid in p.get("stopped", []) if isinstance(pid, int) and signal_agent(pid, signal.SIGCONT)]
     os.unlink(path)
-    return f"{short(folder)}: go" + (f"; {len(woken)} process{'es' if len(woken) != 1 else ''} continue{'' if len(woken) != 1 else 's'}"
-                                     if woken else "; its agent's next call goes through")
+    since = p.get("at") if isinstance(p.get("at"), int) else int(time.time())
+    said = f"{short(folder)}: let go, paused {how_long(max(0, int(time.time()) - since))}"
+    if woken:
+        said += f"; {len(woken)} process{'es' if len(woken) != 1 else ''} continue{'' if len(woken) != 1 else 's'}"
+    elif there:
+        one = len(there) == 1
+        said += (f"; {', '.join(who(a) for a in there)} {'goes' if one else 'go'} on at {'its' if one else 'their'} next "
+                 f"call, told {'it was' if one else 'they were'} paused and to carry on where {'it' if one else 'they'} "
+                 f"{'was' if one else 'were'}")
+    else:
+        said += "; no agent is there now"
+    return said
 
 
 def go(argv):

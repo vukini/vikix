@@ -200,7 +200,8 @@
                        agent's process this instant instead (SIGSTOP; for
                        an agent with no hook, or an emergency: a request
                        in flight may time out)
-  vikix agents go DESK  let a paused agent go on (SIGCONT after --hard)
+  vikix agents go DESK  let a paused agent go on, told it was paused and to carry on
+                        where it was (SIGCONT after --hard)
   vikix agents turns DESK on|off
                        take turns on a file instead of asking you.
                        With turns on, an edit of a file another agent has
@@ -681,8 +682,8 @@ def main(argv):
         return stopping(argv[1:])
     if argv and argv[0] == "touch":
         rc = touch(argv[1:])
-        if HOOK == "claude" and not SAID and notes_for_hook():
-            hook_output()       # nothing to decide: the notes alone, which hook_output adds
+        if HOOK == "claude" and not SAID and (RESUMED or notes_for_hook()):
+            hook_output()       # nothing to decide: a lifted pause and the notes alone, which hook_output adds
         if HOOK == "agy" and not SAID:
             # Nothing to say. Antigravity's hook contract makes the decision
             # required (its schema: required, allow|deny|ask|force_ask), and an

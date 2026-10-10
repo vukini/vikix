@@ -417,15 +417,16 @@ is drawn again at that width."
 (ert-deftest office-worker-actions-and-marks ()
   (office-test-buffer
    (let (args)
-     (cl-letf (((symbol-function 'vikix-office--act) (lambda (a) (setq args a)))
+     (cl-letf (((symbol-function 'vikix-office--act) (lambda (a &optional then) (setq args (cons then a))))
                ((symbol-function 'read-string) (lambda (&rest _) "  look at chapter two  ")))
        (vikix-office--render)
+       ;; Each refreshes after its answer, so the row and the button say what stands now.
        (vikix-office-pause)
-       (should (equal args '("office" "--pause" "a")))
+       (should (equal args '(vikix-office-refresh "office" "--pause" "a")))
        (vikix-office-test)
-       (should (equal args '("office" "--test" "a")))
+       (should (equal args '(vikix-office-refresh "office" "--test" "a")))
        (vikix-office-tell)
-       (should (equal args '("office" "--tell" "a" "look at chapter two")))
+       (should (equal args '(vikix-office-refresh "office" "--tell" "a" "look at chapter two")))
        (cl-letf (((symbol-function 'read-string) (lambda (&rest _) "   ")))
          (should-error (vikix-office-tell) :type 'user-error))
        ;; A paused desk with notes waiting and a tester at work says so in its row, and offers Go.
@@ -451,6 +452,31 @@ is drawn again at that width."
        ;; The archive offers none of them.
        (nconc (vikix-office--row) (list (cons 'archived t)))
        (should-error (vikix-office-pause) :type 'user-error)))))
+
+(ert-deftest office-action-answer-outlives-the-refresh ()
+  ;; A button's answer (Go, Pause, Test, Tell) stays in the header line over the
+  ;; refreshes that follow, so it is seen; g drops it; the next action replaces it.
+  (office-test-buffer
+   (let (refreshed)
+     (cl-letf (((symbol-function 'vikix-office--request)
+                (lambda (_args _slot done) (funcall done "~/src/book-a: let go, paused 3 min; claude 1001 goes on\n" nil))))
+       (vikix-office--act '("office" "--pause" "a") (lambda () (setq refreshed t)))
+       (should refreshed)
+       (should (equal vikix-office--said "~/src/book-a: let go, paused 3 min; claude 1001 goes on"))
+       (should (string-match-p "let go, paused 3 min" header-line-format)))
+     (vikix-office--status "Updated 12:00 · g refresh")
+     (should (string-match-p "let go, paused 3 min; claude 1001 goes on · Updated 12:00" header-line-format))
+     (cl-letf (((symbol-function 'vikix-office--request)
+                (lambda (_args _slot done) (funcall done "" "Backend failed: no"))))
+       (vikix-office--act '("office" "--test" "a") (lambda () (setq refreshed 'again)))
+       (should-not (eq refreshed 'again))
+       (should-not vikix-office--said)
+       (should (string-match-p "Backend failed: no" header-line-format)))
+     (setq vikix-office--said "kept")
+     (cl-letf (((symbol-function 'called-interactively-p) (lambda (&rest _) t))
+               ((symbol-function 'vikix-office--request) (lambda (&rest _) nil)))
+       (vikix-office-refresh)
+       (should-not vikix-office--said)))))
 
 (defun office-test-offer ()
   '((projects . (((name . "vikix") (path . "/home/x/src/vikix") (short . "~/src/vikix") (repo . t) (next . "n"))

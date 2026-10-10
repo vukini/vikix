@@ -339,9 +339,18 @@ check "the listing says paused, by whom: $(grep -A1 'paused' <<<"$out" | head -2
   bash -c 'grep -qE "^  claude +.*/book-a .* paused$" <<<"$1" && grep -q "paused by user since .*; vikix agents go" <<<"$1"' _ "$out"
 (sleep 1; agents go a >/dev/null) &
 out=$(touch_as 1001 "$t/src/book-a/ch3.md"); wait
-check "go lets the held edit through: '$out'" test -z "$out"
+check "go lets the held edit through, the matcher's hook silent (the entry before every tool tells): '$out'" test -z "$out"
 out=$(agents go a)
 check "go on a desk not paused says so: $out" grep -q "book-a isn't paused" <<<"$out"
+agents pause a >/dev/null
+agents tell a "the picker first, then" >/dev/null
+(sleep 1; agents go a) > "$t/go.out" &
+out=$(printf '{"tool_name":"Read","tool_input":{"file_path":"%s/ch1.md"}}' "$t/src/book-a" | VIKIX_AGENT_PID=1001 python3 "$here/bin/vikix-agents" touch --pause-only 2>&1); wait
+check "let go, the call before every tool goes through telling the agent it was paused, since when, and to carry on: $(head -c 120 <<<"$out")" \
+  grep -q '"additionalContext": "Vikix office: your desk was paused by user at [0-9:]* and let go just now, after [0-9] s (vikix agents go, or the Office.s Go). This call, held meanwhile, goes through now: carry on from where you were, on the same task and plan; the pause changed nothing of yours. A note from the user, when there is one, follows.' <<<"$out"
+check "and the note left meanwhile follows it" grep -q 'follows.\\n\\nVikix office, notes for you at this desk (vikix agents tell): \[user, [0-9:]*\] the picker first, then"' <<<"$out"
+check "go says how long, and what its agent hears: $(cat "$t/go.out")" \
+  grep -q "book-a: let go, paused [0-9] s; claude 1007, claude 1001 go on at their next call, told they were paused and to carry on where they were" "$t/go.out"
 # A desk with a real process standing in for its agent, alone there: a signal
 # goes by process descriptor to a pid the made-up /proc calls an agent, so a
 # made-up pid that is a real process's must never be at this desk.
