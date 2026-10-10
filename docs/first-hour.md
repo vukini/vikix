@@ -19,7 +19,7 @@ The first time, a terminal opens with **the welcome**. Follow it: it adds softwa
 | Key | What it does |
 |---|---|
 | `Super+Return` | a terminal |
-| `Super+Space` | everything in one box: type a few letters of a window, a command, a project, a web app, a saved layout or a program, Enter. A sigil first searches one kind instead: `>` the menu, `@` projects and desks, `#` the docs, `?` what is this, `/` a file; Enter shows the hits, Enter again opens one |
+| `Super+Space` | everything in one box: type a few letters of a window, a command, a project, a web app, a saved layout or a program, Enter. A sigil first searches one kind instead: `>` the menu, `@` projects and desks, `#` the docs, `?` what is this, `/` a file (the empty box names them); Enter shows the hits, Enter again opens one |
 | `Super+d` | the launcher: programs only |
 | `Super+m` | the Vikix menu: everything, in sections; type a word to find an entry of any |
 | `Super+/` | every key on one card; the next key closes it |

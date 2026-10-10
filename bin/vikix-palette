@@ -18,7 +18,9 @@ editor); on a web app, brings it forward or starts it; on a layout, puts
 this workspace back as it; on a program, starts it.
 
 A sigil first asks for one kind of thing, and Enter searches instead of
-picking; the hits fill the box, and Enter on one opens it:
+picking; the hits fill the box, and Enter on one opens it. The empty box
+names them (its placeholder: "Type, or  > menu  @ desks  # docs  ? what
+/ files"), and the line goes as you type:
 
     > words      the Vikix menu (Super+m), every entry of every section,
                  and the commands: Enter runs the one picked
@@ -54,6 +56,10 @@ HOME = os.path.expanduser("~")
 SEP = "\x1f"
 SIGILS = {">": "menu", "@": "desks", "#": "docs", "?": "what", "/": "files"}
 HINT = ">  menu and commands  ·  @  projects and desks  ·  #  docs and notes  ·  ?  what is this  ·  /  a file"
+# The legend, where the eye is: the empty field's placeholder. rofi's combi
+# mode shows no message line (neither -mesg nor the script's), so the hint
+# above reaches a plain script mode only; the placeholder shows in any.
+LEGEND = "Type, or  > menu  @ desks  # docs  ? what  / files"
 FILE_HITS = 40
 
 
@@ -306,7 +312,8 @@ def main():
     os.execvp("rofi", ["rofi", "-show", "combi", "-modes", f"combi,vikix:{me} --rofi,drun",
                        "-combi-modes", "vikix,drun", "-display-combi", "", "-combi-hide-mode-prefix", "true",
                        "-display-vikix", "", "-display-drun", "",
-                       "-kb-accept-custom", "", "-kb-custom-1", "Control+Return"])
+                       "-kb-accept-custom", "", "-kb-custom-1", "Control+Return",
+                       "-theme-str", f'entry {{ placeholder: "{LEGEND}"; }}'])
 
 
 if __name__ == "__main__":

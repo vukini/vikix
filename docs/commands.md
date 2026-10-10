@@ -899,7 +899,7 @@ Everything in one box (Super+Space).
 
 Enter on a window goes to it, wherever it is; on a workspace, goes there (the ones with windows, and the named ones past the nine); on a command, runs it; on a project, opens it (a terminal in its folder, its log in the editor); on a web app, brings it forward or starts it; on a layout, puts this workspace back as it; on a program, starts it.
 
-A sigil first asks for one kind of thing, and Enter searches instead of picking; the hits fill the box, and Enter on one opens it:
+A sigil first asks for one kind of thing, and Enter searches instead of picking; the hits fill the box, and Enter on one opens it. The empty box names them (its placeholder: "Type, or  > menu  @ desks  # docs  ? what / files"), and the line goes as you type:
 
 ```
 > words      the Vikix menu (Super+m), every entry of every section,

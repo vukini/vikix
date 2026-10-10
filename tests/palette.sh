@@ -12,7 +12,8 @@
 #   docs (Ctrl+Enter the other way), a file through xdg-open (Ctrl+Enter
 #   shown in its folder), a desk's window goes to the desktop by its
 #   number; words with no sigil list the rows again with the hint, a
-#   sigil with no hit says so; and no sigil is !, the launcher's own.
+#   sigil with no hit says so; the empty box's placeholder names the
+#   sigils; and no sigil is !, the launcher's own.
 #
 #   In a real StumpWM on a hidden screen (skipped without Xvfb, xdotool,
 #   alacritty, rofi and Vikix's StumpWM): the desktop lists its windows on
@@ -95,6 +96,7 @@ check "each row says what it is" bash -c "grep -qx 'notes.org - Emacs  ·  windo
 rows=$(pal --rofi | tr '\0\037' '|^')
 check "for the launcher, a row carries what comes back when it is picked: $(grep 'notes.org' <<<"$rows")" grep -q 'notes.org - Emacs  ·  window on 2|info^window	4194310^meta^window' <<<"$rows"
 check "and the hint names the sigils" grep -q 'message^>  menu and commands  ·  @  projects and desks  ·  #  docs and notes  ·  ?  what is this  ·  /  a file' <<<"$rows"
+check "the empty box names the sigils, in its placeholder (rofi's combi mode shows no message line)" grep -q 'LEGEND = "Type, or  > menu  @ desks  # docs  ? what  / files"' "$here/bin/vikix-palette"
 check "no sigil is the launcher's own !" test -z "$(grep -o 'SIGILS = {[^}]*}' "$here/bin/vikix-palette" | grep -F '"!"' || true)"
 
 # --- The sigils -----------------------------------------------------------------------
