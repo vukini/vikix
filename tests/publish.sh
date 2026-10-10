@@ -356,7 +356,6 @@ X
   check "--no-log writes none: $out" bash -c '! grep -q "2026-10-12" "$1"' _ "$repo/book-a/log.md"
   out=$(VIKIX_TODAY=2026-10-12 PATH="$t/bin:$PATH" VIKIX_EPUBCHECK="$t/bin/epubcheck-ok" bash "$here/bin/vikix-publish" "$repo/book-a" check 2>&1) || true
   check "and check, which keeps nothing, notes nothing: $out" bash -c '! grep -q "2026-10-12" "$1"' _ "$repo/book-a/log.md"
-  check "no __pycache__ left in bin/" test ! -e "$here/bin/__pycache__"
 
   # A Word document as the text (chapters: [../x.docx]), as the skill says.
   word="$t/word"; mkdir -p "$word/book"

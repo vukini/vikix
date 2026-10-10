@@ -100,12 +100,13 @@ for f in "${files[@]}"; do
     tests/run.sh|tests/changed.sh) all=1 ;;
     .claude/release) add release ;;
     tests/*.sh) add "$(basename "$f" .sh)" ;;
+    tests/lib/fake-swank.py) add cuis ;;   # the stand-in Swank the Cuis test drives the image against
     tests/*) all=1 ;;
     docs/*|lib/md2texi.py|lib/build-guide.sh) add info docs-open docs ;;   # the catalogue (vikix docs) reads the guides too
     # The agents' guide is made from the skill.
     config/claude/*) add agents ;;
     site/*) add lint ;;
-    cuis/*|tests/lib/fake-swank.py) add cuis ;;   # Vikix's Smalltalk, and the stand-in its test drives it against
+    cuis/*) add cuis ;;   # Vikix's Smalltalk
     # The office's front and its parts: their tests are named below (fifteen
     # tests name bin/vikix-agents, and none names a part by its file, which
     # the name rule would both make all).
