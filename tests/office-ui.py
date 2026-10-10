@@ -343,6 +343,22 @@ class Office(unittest.TestCase):
                 office.main(A, ['--test', self.folder])
             with self.assertRaises(ValueError):
                 office.main(A, ['--tell', self.folder])
+            # Review by…: the provider checked, the review started apart from the Office; the row says who reads.
+            started = []
+            with patch.object(A, 'review_start', lambda f, p, extra='': started.append((f, p))), \
+                    patch.object(A, 'reviewer_program', lambda p: '/bin/' + p if p == 'codex' else ''), \
+                    patch.object(A, 'git', lambda f, *a: 'abc123\n'):
+                with self.assertRaises(ValueError):
+                    office.main(A, ['--review', self.folder, 'aider'])
+                with self.assertRaises(RuntimeError):
+                    office.main(A, ['--review', self.folder, 'claude'])
+                self.assertEqual(office.snapshot(A)['reviewers'], ['codex'])
+                office.main(A, ['--review', self.folder, 'codex'])
+                self.assertEqual(started, [(self.folder, 'codex')])
+                with patch.object(A, 'reviewer_running', lambda f: {'pid': 9, 'at': 1, 'provider': 'codex', 'worktree': '/tmp/r'}):
+                    with self.assertRaises(RuntimeError):
+                        office.main(A, ['--review', self.folder, 'codex'])
+                    self.assertEqual(office.snapshot(A)['desks'][0]['reviewing']['provider'], 'codex')
 
     def test_form_new_desk_and_worker_from_the_office(self):
         # The form's offer, and the two forms' words handed to vikix agents desk and worker as they are.

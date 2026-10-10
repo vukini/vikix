@@ -272,6 +272,28 @@
                        overlapping ones each alone, told which it overlaps;
                        a merge that conflicts sends that desk to run
                        alone. --log: the last run's output
+  vikix agents review DESK [--use NAME] [--prompt "..."] [--log DESK] | --menu
+                       a review by another provider, read-only, its findings into the handoff.
+                       The desk's last commit is checked out in a throwaway
+                       worktree, and the reviewer (--use codex or claude;
+                       unsaid, the one that isn't the desk's) reads it there
+                       with no window and no way to write (codex exec -s
+                       read-only, claude -p --permission-mode plan), given
+                       the task, the criteria, the decisions and the
+                       worker's account, and asked for findings in one
+                       shape; the worktree is removed after. Each finding
+                       goes into the handoff's Review signed by the reviewer
+                       (codex 1234), and a line into the desk's inbox, so
+                       the worker reads them at its next tool call and
+                       marks each one addressed with handoff --review-done
+                       N; the worker is never stopped, and the reviewer
+                       never sits at the desk. vikix agents and the Office
+                       say reviewing while it runs. --prompt: more words for
+                       the reviewer (what to look at). review=codex in
+                       ~/.config/vikix/office starts one by itself at each
+                       hand-in (status review); off by default, since a
+                       review costs a model's time. --log: the last review's
+                       words. --menu: the desk and the reviewer in rofi
   vikix agents plan run FILE [--here | --once]
                        a plan file's tasks run as workers at desks, in order.
                        FILE is TOML: project, at-once (workers together, 1),
@@ -582,7 +604,7 @@ SECTIONS = (
     ("seeing", "Seeing them", ("", "office", "clash", "crossings", "tidy", "help")),
     ("each", "A desk each: the place", ("desk", "close", "here")),
     ("workers", "Workers: an agent at a desk, on a task", ("worker", "resume", "handover", "tell", "pause", "go",
-                                                          "turns", "test", "dismiss")),
+                                                          "turns", "test", "review", "dismiss")),
     ("plans", "Plans: tasks in order, at desks, run for you", ("plan run", "plan status", "plan pause", "plan stop",
                                                               "plan release", "plan log")),
     ("agent", "The agent's own, from its shell", ("sit", "handoff", "handoff check", "handoff session", "handoff list",
@@ -757,6 +779,8 @@ def main(argv):
         return turns(argv[1:])
     if argv and argv[0] == "test":
         return tester(argv[1:])
+    if argv and argv[0] == "review":
+        return review(argv[1:])
     if argv and argv[0] == "dismiss":
         return dismiss(argv[1:])
     if argv and argv[0] == "tidy":
@@ -805,6 +829,7 @@ def main(argv):
     shared = all_clashes(agents)
     held = waits(agents)
     table = process_table()
+    reviews = reviews_running()
     for a in agents:
         a["clashes"] = [{"file": rel, "with": [who(o) for o, _, _ in rows if o["pid"] != a["pid"]]}
                         for rel, rows in shared.items() if any(o["pid"] == a["pid"] for o, _, _ in rows)]
@@ -819,6 +844,14 @@ def main(argv):
         if a["testing"] and a["state"] in ("working", "running", "idle"):
             a["doing"] = "testing"
             a["waits"] = f"its desk's tests run (vikix agents test, pid {a['testing']}); the result goes into its handoff and its inbox"
+        # A review of the desk under way (said under the agent, which goes on working), and a
+        # reviewer's own process, found in /proc in its throwaway worktree: named for what it is.
+        a["review"] = reviewer_running(a["folder"]) if a["desk"] else {}
+        mine = reviews.get(os.path.realpath(a["folder"])) if a["folder"] else None
+        if mine and a["state"] in ("working", "running", "idle"):
+            a["doing"] = "reviewing"
+            a["waits"] = (f"reviewing a desk's last commit, read-only, in a worktree of its own (vikix agents review); "
+                          f"its findings go into that desk's handoff and its agent's inbox")
         a["paused"] = pause_read(a["folder"]) if a["folder"] else {}
         if a["paused"]:
             a["doing"] = "frozen" if a["paused"].get("hard") else "paused"
@@ -865,6 +898,9 @@ def main(argv):
             n = len(a["idle_shells"])
             print(f"           {n} shell{'s' if n != 1 else ''} of its only sleeping in a loop, the oldest for "
                   f"{how_long(a['idle_shells'][0]['seconds'])}: vikix agents tidy")
+        if a["review"]:
+            print(f"           under review by {a['review']['provider']} (pid {a['review']['pid']}, since {at(a['review']['at'])}): "
+                  "its findings come to its handoff and its inbox")
         h = a["handoff"]
         if h:
             print(f"           handoff: {h['status'] or 'no status'}" + (f"; {h['mode']}" if h.get("mode") else "")

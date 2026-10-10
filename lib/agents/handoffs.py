@@ -167,6 +167,11 @@ def handoff_apply(folder, data, by):
     if (status == "review" and seen.get("before") != "review" and os.environ.get("VIKIX_TESTER") != "0"
             and rec["desk"].get("tests") != "off" and runner_of(folder)[1] and not tester_running(folder)):
         tester_start(folder)
+    if status == "review" and seen.get("before") != "review":
+        # A review by the provider the office file names (review=codex), when it does: off by default.
+        provider = review_auto(folder)
+        if provider and reviewer_program(provider) and not reviewer_running(folder):
+            review_start(folder, provider)
     return rec
 
 

@@ -243,6 +243,8 @@ def snapshot(api):
         row['attention'] = next((k for k in ('asks', 'gup', 'close') if k in kinds), '')
         row['paused'] = api.pause_read(path) if row['kind'] == 'desk' else {}
         row['testing'] = api.tester_running(path) if row['kind'] == 'desk' else 0
+        # A review of the desk under way: who reads it, since when (vikix agents review).
+        row['reviewing'] = api.reviewer_running(path) if row['kind'] == 'desk' else {}
         row['notes'] = len(api.inbox_peek(path)) if row['kind'] == 'desk' else 0
         # The user's switch on the desk: a hand-in runs no tests by itself (Test still does).
         row['tests_off'] = d.get('tests') == 'off'
@@ -271,6 +273,8 @@ def snapshot(api):
     order = ['Needs you', 'Working', 'Parked', 'Finished', 'Closed']
     return {'version': 1, 'at': int(time.time()), 'live_known': live_known, 'errors': errors,
             'releases': releases, 'releases_kept': releases_kept, 'plans': plans,
+            # Who can review a desk here (vikix agents review): the Review by… button's choices.
+            'reviewers': [p for p in api.REVIEWERS if api.reviewer_program(p)],
             'desks': sorted((r for r in rows.values() if not r['archived']),
                             # The closed ones newest first: the day's log.
                             key=lambda r: (order.index(r['group']), -(r['closed'] or {}).get('at', 0),
@@ -342,7 +346,8 @@ def forget_record(api, did):
 
 def desk_action(api, verb, path, text=''):
     """A worker's desk acted on from the Office: pause or unpause, its
-    tests started, a note left. PATH is a desk's folder, as the row's id is."""
+    tests started, a note left, a review by TEXT's provider started. PATH
+    is a desk's folder, as the row's id is."""
     if not isinstance(path, str) or not os.path.isdir(path) or not api.desk_of(path):
         raise ValueError('Needs a desk folder (a worktree of a project)')
     if verb == 'pause':
@@ -363,6 +368,17 @@ def desk_action(api, verb, path, text=''):
         except H.HandoffError as e:
             raise RuntimeError(str(e)) from e
         print('Noted for its agent; delivered at its next tool call.')
+    elif verb == 'review':
+        if text not in api.REVIEWERS:
+            raise ValueError(f"Review by which? {', '.join(api.REVIEWERS)}")
+        if not api.reviewer_program(text):
+            raise RuntimeError(f"{text} isn't installed here: vikix agent --install {text}")
+        if api.reviewer_running(path):
+            raise RuntimeError('A review is under way there already; refresh')
+        if not (api.git(path, 'rev-parse', 'HEAD') or '').strip():
+            raise RuntimeError('No commit to review yet')
+        api.review_start(path, text)
+        print(f"Review by {text} started on its last commit; the findings go into the handoff and the agent's inbox.")
 
 
 def form(api):
@@ -589,6 +605,8 @@ def main(api, args):
         desk_action(api, args[0][2:], args[1])
     elif len(args) == 3 and args[0] == '--tell':
         desk_action(api, 'tell', args[1], args[2])
+    elif len(args) == 3 and args[0] == '--review':
+        desk_action(api, 'review', args[1], args[2])
     elif args == ['--form']:
         print(json.dumps(form(api), ensure_ascii=False))
     elif args and args[0] == '--desk':
@@ -600,5 +618,5 @@ def main(api, args):
     elif args in ([], ['--tty']):
         launch(api, tty=bool(args))
     else:
-        raise ValueError('vikix agents office [--tty | --json | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN | --pause DESK | --unpause DESK | --test DESK | --tell DESK TEXT | --form | --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --worker DESK ["..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --close-desk DESK [--force]]')
+        raise ValueError('vikix agents office [--tty | --json | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN | --pause DESK | --unpause DESK | --test DESK | --tell DESK TEXT | --review DESK PROVIDER | --form | --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --worker DESK ["..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --close-desk DESK [--force]]')
     return 0

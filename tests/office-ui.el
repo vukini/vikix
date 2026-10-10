@@ -457,15 +457,25 @@ is drawn again at that width."
        (should (equal args '(vikix-office-refresh "office" "--test" "a")))
        (vikix-office-tell)
        (should (equal args '(vikix-office-refresh "office" "--tell" "a" "look at chapter two")))
+       ;; Review by…: the reviewers the snapshot offers; one alone is taken without asking.
+       (should-error (vikix-office-review) :type 'user-error)
+       (nconc vikix-office--data (list (cons 'reviewers '("codex" "claude"))))
+       (cl-letf (((symbol-function 'completing-read) (lambda (&rest _) "codex")))
+         (vikix-office-review))
+       (should (equal args '(vikix-office-refresh "office" "--review" "a" "codex")))
+       (setf (alist-get 'reviewers vikix-office--data) '("claude"))
+       (vikix-office-review)
+       (should (equal args '(vikix-office-refresh "office" "--review" "a" "claude")))
        (cl-letf (((symbol-function 'read-string) (lambda (&rest _) "   ")))
          (should-error (vikix-office-tell) :type 'user-error))
        ;; A paused desk with notes waiting and a tester at work says so in its row, and offers Go.
        (nconc (vikix-office--row)            ; keys the fixture lacks, added to the row in place
               (list (cons 'paused '((at . 1791300000) (by . "user") (hard . :false)))
                     (cons 'notes 2) (cons 'testing 4242)
+                    (cons 'reviewing '((pid . 4243) (at . 1791300000) (provider . "codex") (worktree . "/tmp/r")))
                     (cons 'left '((reason . "dismissed") (by . "user") (at . 1791300000) (dirty . 3)))))
        (vikix-office--render)
-       (dolist (words '("paused by user" "testing" "2 notes waiting"))
+       (dolist (words '("paused by user" "testing" "under review by codex" "2 notes waiting"))
          (should (string-match-p words (buffer-string))))
        (setq vikix-office--detail (generate-new-buffer " *Office test detail*"))
        (unwind-protect

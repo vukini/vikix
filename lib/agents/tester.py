@@ -4,8 +4,10 @@ batch's, with their results in the record.
 A part of bin/vikix-agents, which reads the parts into its one namespace in
 their order (its header lists the commands): not a module to import.
 """
+import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -231,3 +233,388 @@ def tester(argv):
         die(f"{short(folder)}: a tester is at work there already (pid {pid})")
     test_desk(folder)
     return 0
+
+
+# --- The reviewer: another provider reads a desk's commit, read-only, in a throwaway worktree -------
+# Who can review, and how it is run with no window and no prompt: the
+# program, read-only, a schema for its answer. Codex's exec takes the schema
+# as a file and writes its last message to one (-o); Claude Code's -p takes
+# the schema on the line and answers JSON on stdout. Neither sits at the
+# desk: the worktree is the reviewer's own and gone afterwards.
+REVIEWERS = ("codex", "claude")
+REVIEW_LIMIT = int(os.environ.get("VIKIX_REVIEW_LIMIT") or 1800)
+# What a reviewer answers: each finding where it is (FILE:LINE, or ""), how
+# much it matters, and the words a person acts on. Every key required and
+# nothing else allowed, which is the shape Codex's structured output wants.
+FINDINGS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "summary": {"type": "string", "description": "A line or two on the work as a whole."},
+        "findings": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "where": {"type": "string", "description": "FILE:LINE in the worktree, or an empty string."},
+                    "severity": {"type": "string", "enum": ["high", "medium", "low"]},
+                    "text": {"type": "string", "description": "One or two sentences a person acts on."},
+                },
+                "required": ["where", "severity", "text"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["summary", "findings"],
+    "additionalProperties": False,
+}
+
+
+def review_paths(folder):
+    """(the log of the desk's last review, the note of one under way)."""
+    H = handoff_module()
+    d = os.path.join(STATE, "vikix", "office", "reviews")
+    did = H.desk_id(common_of(folder), folder)
+    return os.path.join(d, did + ".log"), os.path.join(d, did + ".reviewing")
+
+
+def review_note_read(path):
+    """A review's note: {pid, at, provider, worktree}, or {} for none or
+    for one whose reviewer is gone (its pid is nobody's)."""
+    try:
+        with open(path) as f:
+            pid, at, provider, worktree = f.read().rstrip("\n").split("\t", 3)
+        pid = int(pid)
+        os.kill(pid, 0)
+        return {"pid": pid, "at": int(at), "provider": provider, "worktree": worktree}
+    except (OSError, ValueError):
+        return {}
+
+
+def reviewer_running(folder):
+    """The review under way at the desk FOLDER ({pid, at, provider, worktree}), or {}."""
+    return review_note_read(review_paths(folder)[1])
+
+
+def reviews_running():
+    """Every review under way on the machine, by the reviewer's worktree:
+    {realpath of the worktree: the note with the desk's id}. For the listing,
+    which names a reviewer's process for what it is."""
+    found = {}
+    d = os.path.join(STATE, "vikix", "office", "reviews")
+    try:
+        names = os.listdir(d)
+    except OSError:
+        return found
+    for name in names:
+        if name.endswith(".reviewing"):
+            note = review_note_read(os.path.join(d, name))
+            if note:
+                note["desk_id"] = name[:-len(".reviewing")]
+                found[os.path.realpath(note["worktree"])] = note
+    return found
+
+
+def reviewer_program(provider):
+    """The reviewer's program, on PATH or beside the agents in ~/.local/bin; '' when it isn't installed."""
+    found = shutil.which(provider)
+    if found:
+        return found
+    beside = os.path.join(os.path.expanduser("~"), ".local", "bin", provider)
+    return beside if os.access(beside, os.X_OK) else ""
+
+
+def reviewer_env():
+    """The reviewer's environment: as vikix agent gives an agent's, the keys
+    and the SSH agent withheld (it reads code; it pushes and buys nothing)."""
+    env = dict(os.environ)
+    if env.get("VIKIX_AGENT_API_KEY") != "1":
+        for k in list(env):
+            if k.endswith(("_API_KEY", "_KEY", "_KEY_ID", "_TOKEN", "_SECRET", "_PASSWORD", "_PASSWD", "_CREDENTIALS")) \
+                    or k == "DATABASE_URL":
+                env.pop(k, None)
+    env.pop("SSH_AUTH_SOCK", None)
+    env.pop("SSH_AGENT_PID", None)
+    return env
+
+
+def review_prompt(rec, base, branch, extra):
+    """What the reviewer is asked: the work's place in git, the task and the
+    hand-in it was done against, what to look for, and the answer's shape."""
+    H = handoff_module()
+    h = (rec or {}).get("handoff") or {}
+    lines = [f"Review the work in this git worktree, read-only: the commits on the branch {branch or 'HEAD'} past "
+             + (f"{base[:12]} (git log {base[:12]}..HEAD; git diff {base[:12]}...HEAD shows the whole change)" if base
+                else "its base (git log shows them)")
+             + ". Change nothing, run nothing that writes; read the code, the tests and the guides it touches."]
+    task = ((rec or {}).get("task") or {}).get("text")
+    if task:
+        lines.append(f"The task it was done for: {task}")
+    acc = (h.get("acceptance") or {}).get("items") or []
+    if acc:
+        lines.append("The acceptance criteria, as the worker ticked them: "
+                     + "; ".join(f"[{'x' if i.get('done') else ' '}] {i['text']}" for i in acc))
+    if h.get("decisions"):
+        lines.append("Decided already, not to be reopened: " + "; ".join(i["text"] for i in h["decisions"]))
+    s = h.get("summary")
+    if s:
+        lines.append(f"The worker's own account: {s['text']}")
+    lines.append("Look for defects, a criterion claimed and not met, a case the tests don't cover, a guide, a header or "
+                 "a comment out of step with the code, and anything a careful colleague would send back; not style. "
+                 "Each finding is one thing, where it is as FILE:LINE in this worktree, and one or two sentences a person "
+                 "acts on; severity high for a defect or a criterion not met, medium for a gap, low for a nit worth a line. "
+                 "No findings is an empty list. The summary is a line or two on the work as a whole.")
+    if extra:
+        lines.append(H.clean(extra, "the review's words"))
+    lines.append("Answer with JSON alone, of exactly this shape: " + json.dumps(FINDINGS_SCHEMA, separators=(",", ":")))
+    return "\n\n".join(lines)
+
+
+def reviewer_command(provider, program, worktree, prompt, schema_file, out_file):
+    """The reviewer's command line: Codex's exec or Claude Code's -p, read-only, the schema given."""
+    if provider == "codex":
+        cmd = [program, "exec", "--cd", worktree, "-s", "read-only", "-c", 'approval_policy="never"', "--ephemeral",
+               "--color", "never", "--output-schema", schema_file, "-o", out_file]
+        # The hooks' trust, as vikix agent passes it: Vikix's own hook file, in a project of the user's.
+        hooks = os.path.join(os.path.expanduser("~"), ".codex", "hooks.json")
+        ours = os.path.join(VIKIX_DIR, "config", "codex", "hooks.json")
+        if os.environ.get("VIKIX_CODEX_HOOK_TRUST") != "ask" and os.path.exists(hooks) \
+                and os.path.realpath(hooks) == os.path.realpath(ours) and common_of(worktree) in known_repos():
+            cmd.append("--dangerously-bypass-hook-trust")
+        return cmd + [prompt]
+    return [program, "-p", "--permission-mode", "plan", "--output-format", "json",
+            "--json-schema", json.dumps(FINDINGS_SCHEMA, separators=(",", ":")), prompt]
+
+
+def review_parse(provider, out_file, stdout):
+    """The reviewer's answer as (summary, findings) from the file Codex
+    wrote or the JSON Claude Code printed; a text that isn't the shape is
+    one finding holding it, so a review is never lost for its form."""
+    text = ""
+    try:
+        with open(out_file, errors="replace") as f:
+            text = f.read().strip()
+    except OSError:
+        pass
+    if not text:
+        text = stdout.strip()
+    data = None
+    try:
+        data = json.loads(text)
+    except ValueError:
+        start, end = text.find("{"), text.rfind("}")
+        if 0 <= start < end:
+            try:
+                data = json.loads(text[start:end + 1])
+            except ValueError:
+                data = None
+    if isinstance(data, dict) and provider == "claude" and "findings" not in data:
+        # claude -p --output-format json: the answer under structured_output, or result as text.
+        inner = data.get("structured_output")
+        if not isinstance(inner, dict):
+            inner = data.get("result")
+            if isinstance(inner, str):
+                try:
+                    inner = json.loads(inner[inner.find("{"):inner.rfind("}") + 1])
+                except ValueError:
+                    inner = {"summary": "", "findings": [{"where": "", "severity": "medium", "text": inner}]}
+        data = inner if isinstance(inner, dict) else None
+    if not isinstance(data, dict) or not isinstance(data.get("findings"), list):
+        words = text[:900].replace("\n", " ").strip()
+        return "", ([{"where": "", "severity": "medium", "text": words}] if words else [])
+    findings = []
+    for f in data["findings"]:
+        if not isinstance(f, dict) or not str(f.get("text") or "").strip():
+            continue
+        where = str(f.get("where") or "").strip()
+        sev = str(f.get("severity") or "").strip().lower()
+        findings.append({"where": where if re.fullmatch(r"\S+:\d+", where) else "",
+                         "severity": sev if sev in ("high", "medium", "low") else "medium",
+                         "text": str(f["text"]).strip()})
+    return str(data.get("summary") or "").strip(), findings
+
+
+def review_result(folder, provider, pid, summary, findings, took, failure=""):
+    """The review into the desk's record (the findings in review, each
+    signed by the reviewer; a line in the log) and its inbox; said."""
+    H = handoff_module()
+    by = f"{provider} {pid}" if pid else provider
+    n = len(findings)
+    high = sum(1 for f in findings if f["severity"] == "high")
+    lines = [((f"{f['where']} " if f["where"] else "") + (f"[{f['severity']}] " if f["severity"] != "medium" else "") + f["text"])
+             for f in findings]
+
+    def change(rec):
+        if lines:
+            H.set_handoff(rec, by, review=lines)
+        H._log(rec, by, (f"review: {failure}" if failure else
+                         f"review: {n} finding{'s' if n != 1 else ''}" + (f", {high} high" if high else "")
+                         + (f"; {summary}" if summary else "")))
+    desk_record(folder, by=by, change=change)
+    if failure:
+        line = f"review by {provider} failed: {failure} (vikix agents review --log {os.path.basename(folder)} shows its words)"
+    elif n:
+        line = (f"review by {by} ({took} s): {n} finding{'s' if n != 1 else ''}" + (f", {high} high" if high else "")
+                + ", in your handoff's Review (vikix agents handoff): address each and mark it with "
+                "vikix agents handoff --review-done N" + (f". {summary}" if summary else ""))
+    else:
+        line = f"review by {by} ({took} s): no findings" + (f". {summary}" if summary else "")
+    try:
+        inbox_add(folder, line, "vikix")
+    except H.HandoffError:
+        pass
+    print(f"{short(folder)}: {line}")
+    return not failure
+
+
+def review_desk(folder, provider, extra=""):
+    """One review of the desk's HEAD by PROVIDER: a throwaway worktree of
+    that commit beside nothing of the desk's, the reviewer run in it with no
+    window and no way to write, its answer into the record and the inbox,
+    the worktree removed. True when the reviewer answered, False when it failed."""
+    H = handoff_module()
+    program = reviewer_program(provider)
+    if not program:
+        die(f"{provider} isn't installed here: vikix agent --install {provider} (the reviewers: {', '.join(REVIEWERS)})")
+    head = (git(folder, "rev-parse", "HEAD") or "").strip()
+    if not head:
+        die(f"{short(folder)} has no commit to review")
+    base, _, _ = base_of(folder)
+    branch = (git(folder, "rev-parse", "--abbrev-ref", "HEAD") or "").strip()
+    rec = H.load(H.desk_id(common_of(folder), folder)) or {}
+    dirty = (H.observe(folder) or {}).get("dirty") or 0
+    if dirty:
+        print(f"{short(folder)}: {dirty} uncommitted file{'s' if dirty != 1 else ''} left out: the review is of its last commit, {head[:7]}")
+    log, running = review_paths(folder)
+    os.makedirs(os.path.dirname(log), exist_ok=True)
+    tmp = tempfile.mkdtemp(prefix="vikix-review-")
+    wt = os.path.join(tmp, "review")
+    started = time.time()
+    proc = None
+    try:
+        if git(folder, "worktree", "add", "--detach", wt, head) is None:
+            die(f"{short(folder)}: git couldn't make the reviewer's worktree (git worktree add)")
+        schema_file, out_file = os.path.join(tmp, "findings.schema.json"), os.path.join(tmp, "findings.json")
+        with open(schema_file, "w") as f:
+            json.dump(FINDINGS_SCHEMA, f)
+        prompt = review_prompt(rec, base, branch, extra)
+        cmd = reviewer_command(provider, program, wt, prompt, schema_file, out_file)
+        with open(log, "w") as out:
+            out.write(f"# review of {short(folder)} at {head[:12]} by {provider}, {time.strftime('%Y-%m-%d %H:%M')}\n")
+            out.write("# " + " ".join(shlex.quote(w) for w in cmd[:-1]) + " PROMPT\n\n")
+            out.flush()
+            try:
+                proc = subprocess.Popen(cmd, cwd=wt, env=reviewer_env(), stdin=subprocess.DEVNULL,
+                                        stdout=subprocess.PIPE, stderr=out, text=True, start_new_session=True)
+            except OSError as e:
+                out.write(f"{program}: {e}\n")
+                return review_result(folder, provider, 0, "", [], 0, f"{provider} didn't start: {e}")
+            with open(running, "w") as f:
+                f.write(f"{proc.pid}\t{int(started)}\t{provider}\t{wt}\n")
+            try:
+                stdout, _ = proc.communicate(timeout=REVIEW_LIMIT)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                stdout, _ = proc.communicate()
+                out.write(f"\n# stopped after {REVIEW_LIMIT} s (VIKIX_REVIEW_LIMIT)\n")
+                return review_result(folder, provider, proc.pid, "", [], int(time.time() - started),
+                                     f"no answer in {REVIEW_LIMIT} s")
+            out.write(stdout)
+        summary, findings = review_parse(provider, out_file, stdout)
+        if proc.returncode and not findings and not summary:
+            return review_result(folder, provider, proc.pid, "", [], int(time.time() - started), f"exit {proc.returncode}")
+        return review_result(folder, provider, proc.pid, summary, findings, int(time.time() - started))
+    finally:
+        try:
+            os.unlink(running)
+        except OSError:
+            pass
+        subprocess.run(["git", "-C", folder, "worktree", "remove", "--force", wt], capture_output=True, text=True)
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def review_start(folder, provider, extra=""):
+    """A review started by itself, apart from this process (a hand-in with
+    review= in the office file, the Office's button): its words to the log's side file."""
+    log, _ = review_paths(folder)
+    os.makedirs(os.path.dirname(log), exist_ok=True)
+    with open(log + ".reviewer", "w") as out:
+        subprocess.Popen([sys.executable, os.path.realpath(__file__), "review", folder, "--use", provider]
+                         + (["--prompt", extra] if extra else []), cwd=folder,
+                         stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT, start_new_session=True)
+
+
+def review_auto(folder):
+    """The reviewer the office file names for a hand-in (review=PROVIDER in
+    ~/.config/vikix/office), '' when none: off by default, since a review
+    costs a model's time and is asked for, not assumed."""
+    if os.environ.get("VIKIX_REVIEWER") == "0":
+        return ""
+    provider = office_setting("review").strip()
+    return provider if provider in REVIEWERS else ""
+
+
+def review(argv):
+    """vikix agents review DESK [--use NAME] [--prompt "..."] | --log DESK | --menu."""
+    if argv == ["--menu"]:
+        folder = pick_desk("Review", "Another provider reads the desk's last commit, read-only; its findings go into the handoff and the agent's inbox.")
+        if folder is None:
+            return 0
+        offered = [p for p in REVIEWERS if reviewer_program(p)]
+        provider = rofi("Reviewer", "Which: " + ", ".join(offered)) if len(offered) > 1 else (offered[0] if offered else "")
+        if not provider:
+            return 0
+        if provider not in REVIEWERS or not reviewer_program(provider):
+            say(f"{provider} can't review here (the reviewers: {', '.join(offered) or 'none installed'})")
+            return 0
+        if reviewer_running(folder):
+            say(f"{short(folder)}: a review is under way there already")
+            return 0
+        review_start(folder, provider)
+        say(f"{short(folder)}: {provider} reviews its last commit; the findings go into its handoff and its agent's inbox")
+        return 0
+    use, extra, show, words = None, "", False, []
+    while argv:
+        a = argv.pop(0)
+        if a == "--use":
+            use = argv.pop(0) if argv else die("--use which reviewer? " + ", ".join(REVIEWERS))
+        elif a == "--prompt":
+            extra = argv.pop(0) if argv and argv[0].strip() else die("--prompt needs words for the reviewer")
+        elif a == "--log":
+            show = True
+        elif a.startswith("-"):
+            die(f"vikix agents review: {a}? (vikix agents help review)")
+        else:
+            words.append(a)
+    by, me = by_me()
+    folder, _ = desk_for(words, me)
+    if show:
+        log, _ = review_paths(folder)
+        try:
+            with open(log, errors="replace") as f:
+                sys.stdout.write(f.read())
+        except OSError:
+            print(f"{short(folder)}: no review yet (vikix agents review {os.path.basename(folder)} --use codex)")
+        return 0
+    if not os.path.isdir(folder):
+        die(f"{short(folder)} is gone: nothing to review")
+    provider = use or ""
+    if not provider:
+        # The other provider: not the one at the desk, nor the one that last worked there.
+        H = handoff_module()
+        rec = H.load(H.desk_id(common_of(folder), folder)) or {}
+        there = [a["agent"] for a in agents_at(folder)] + [s.get("provider") for s in rec.get("sessions") or []]
+        last = next((p for p in there if p), "")
+        provider = next((p for p in REVIEWERS if p != last and reviewer_program(p)), "")
+        if not provider:
+            die(f"--use which reviewer? {', '.join(REVIEWERS)} (none other than {last or 'the desk\'s'} is installed)")
+    if provider not in REVIEWERS:
+        die(f"{provider} can't review: the reviewers are {', '.join(REVIEWERS)} (run with no window, read-only)")
+    note = reviewer_running(folder)
+    if note:
+        die(f"{short(folder)}: {note['provider']} is reviewing there already (pid {note['pid']}, since {at(note['at'])})")
+    if extra:
+        try:
+            handoff_module().clean(extra, "the review's words")   # a credential in the words is refused, as in a note
+        except handoff_module().HandoffError as e:
+            die(str(e))
+    return 0 if review_desk(folder, provider, extra) else 1

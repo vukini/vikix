@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/codex.sh — Codex as a worker (TODO 116, Phases 1 and 2: plans/DESIGN-codex-integration.md),
+# tests/codex.sh — Codex as a worker (TODO 116, Phases 1 to 4: plans/DESIGN-codex-integration.md),
 # with a stand-in codex that records its arguments, a made-up home and a
 # project with a desk; no network, and Codex itself only for its rules
 # checker, when it is installed.
@@ -57,7 +57,21 @@
 #   with no task; then asked for its handoff in a note, waited for,
 #   dismissed, the next started with the task, the handoff and the fields
 #   as its first prompt, the log's "handed over: claude -> codex", both
-#   sessions kept; --now hands over mid-turn.
+#   sessions kept; --now hands over mid-turn. Phase 4, the review: vikix
+#   agents review DESK runs a stand-in codex (exec, read-only, no approvals,
+#   ephemeral, the schema as a file, the answer to one) or claude (-p, plan,
+#   the schema on the line, the answer under structured_output) in a
+#   throwaway worktree of the desk's last commit, the uncommitted left out,
+#   no key and no SSH agent, the prompt naming the base, the task, the
+#   criteria, the decisions and the shape; its findings go into the
+#   handoff's Review signed by the reviewer with where and severity, a line
+#   into the inbox and the log, the worktree is gone after; --review-done
+#   marks one addressed; --log shows its words; unsaid, the provider that
+#   isn't the desk's; --prompt adds words; while it runs the desk's agent is
+#   under review, the reviewer's process is reviewing, and a second is
+#   refused; aider, a reviewer not installed, --prompt with no words refused;
+#   a reviewer that fails or answers prose is kept, not lost; review=codex
+#   in the office file starts one at the hand-in, nothing without it.
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
@@ -591,6 +605,127 @@ assert [e["what"] for e in r["log"] if e["what"].startswith("handed over")] == [
 out=$(agents resume h --use codex --here)
 check "resume without --fresh gives no first prompt (the conversation has the record): $out" grep -q "^AGENT ARGS: --use codex --mode autonomous$" <<<"$out"
 unset VIKIX_HANDOVER_WAIT
+
+# --- The review by another provider (Phase 4) -------------------------------------------------
+# A stand-in reviewer for both roads (codex exec, claude -p): it records its
+# arguments, where it ran, what it saw there and whether a key reached it,
+# waits while a hold file stands, and answers in the schema's shape (or as
+# told: a file, prose, a failure).
+rev="$t/reviewers"; mkdir -p "$rev"
+export REVIEWED="$t/reviewed" REVIEW_HOLD="$t/review-hold" REVIEW_ANSWER="$t/review-answer" REVIEW_FAIL="$t/review-fail"
+cat > "$rev/codex" <<'EOF'
+#!/usr/bin/env bash
+{ for a; do printf '[%s] ' "$a"; done; echo; echo "PWD=$PWD"; echo "KEYS=$(env | grep -c '_API_KEY=' || true)"; echo "SSH=${SSH_AUTH_SOCK:-none}"; echo "FILES=$(ls | tr '\n' ' ')"; } > "$REVIEWED"
+printf '%s\n' "${@: -1}" > "$REVIEWED.prompt"
+out=''; schema=''; prev=''
+for a; do case $prev in -o) out=$a ;; --output-schema) schema=$a ;; esac; prev=$a; done
+[ -n "$schema" ] && python3 -c 'import json, sys; json.load(open(sys.argv[1]))' "$schema" && echo "SCHEMA=ok" >> "$REVIEWED"
+n=0; while [ -e "$REVIEW_HOLD" ] && [ $n -lt 120 ]; do sleep 0.25; n=$((n+1)); done
+[ -e "$REVIEW_FAIL" ] && { echo "codex: something broke" >&2; exit 1; }
+answer='{"summary": "Sound, two things to fix.", "findings": [{"where": "log.md:2", "severity": "high", "text": "the second line repeats the first"}, {"where": "", "severity": "low", "text": "ch1.md has no heading"}]}'
+[ -f "$REVIEW_ANSWER" ] && answer=$(cat "$REVIEW_ANSWER")
+if [ "$1" = -p ]; then printf '{"type":"result","is_error":false,"result":"see structured_output","structured_output":%s}\n' "$answer"
+else printf '%s\n' "$answer" > "$out"; echo "codex: reviewed (stderr words)" >&2; fi
+EOF
+chmod +x "$rev/codex"; cp "$rev/codex" "$rev/claude"
+review() { PATH="$rev:$PATH" FOO_API_KEY=secret SSH_AUTH_SOCK=/tmp/none python3 "$here/bin/vikix-agents" review "$@" 2>&1 </dev/null || true; }
+rm -f "$REVIEWED" "$REVIEWED.prompt" "$REVIEW_HOLD" "$REVIEW_ANSWER" "$REVIEW_FAIL"
+proc 1301 claude "$t/src/book-h"     # the worker at the desk now (Claude took it in the last handover)
+head_h=$(git -C "$t/src/book-h" rev-parse --short HEAD)
+out=$(review h --use codex)
+check "a review by codex of the desk's last commit, the uncommitted left out, two findings into the handoff: $out" \
+  bash -c 'grep -q "book-h: 2 uncommitted files left out: the review is of its last commit, '"$head_h"'$" <<<"$1" && grep -qE "book-h: review by codex [0-9]+ \([0-9]+ s\): 2 findings, 1 high, in your handoff.s Review \(vikix agents handoff\): address each and mark it with vikix agents handoff --review-done N\. Sound, two things to fix\.$" <<<"$1"' _ "$out"
+check "codex exec, read-only, no approvals, ephemeral, the schema as a file and the answer to one, in the throwaway worktree, no key and no SSH agent, the files of HEAD and not the uncommitted: $(cat "$REVIEWED")" \
+  bash -c 'grep -q "^\[exec\] \[--cd\] \[[^]]*/vikix-review-[^]/]*/review\] \[-s\] \[read-only\] \[-c\] \[approval_policy=\"never\"\] \[--ephemeral\] \[--color\] \[never\] \[--output-schema\] \[[^]]*findings.schema.json\] \[-o\] \[[^]]*findings.json\] \[Review the work" "$1" && grep -q "^PWD=.*/vikix-review-[^/]*/review$" "$1" && grep -q "^KEYS=0$" "$1" && grep -q "^SSH=none$" "$1" && grep -q "^FILES=ch1.md log.md $" "$1" && grep -q "^SCHEMA=ok$" "$1"' _ "$REVIEWED"
+check "the prompt names the base, the task, the criteria with their ticks, the decisions and the shape: $(head -c 600 "$REVIEWED.prompt")" \
+  bash -c 'grep -q "past '"$base"'" "$1" && grep -q "^The task it was done for: Sort the chapters$" "$1" && grep -q "^The acceptance criteria, as the worker ticked them: \[x\] a; \[ \] b$" "$1" && grep -q "^Decided already, not to be reopened: kept the old order under --no-sort; one; two; xxx" "$1" && grep -q "^Answer with JSON alone, of exactly this shape: {\"type\":\"object\"" "$1"' _ "$REVIEWED.prompt"
+check "the reviewer's worktree is gone" test -z "$(git -C "$t/src/book" worktree list | grep vikix-review || true)"
+out=$(agents handoff h)
+check "the record: each finding signed by the reviewer, the place kept, the severity said when it isn't the middle one; the inbox line for the worker: $out" \
+  bash -c 'grep -qE "^  open      log.md:2 \[high\] the second line repeats the first  \(codex [0-9]+, just now\)$" <<<"$1" && grep -qE "^  open      \[low\] ch1.md has no heading  \(codex [0-9]+, just now\)$" <<<"$1" && grep -qE "^  vikix \(just now\): review by codex [0-9]+ \([0-9]+ s\): 2 findings, 1 high, in your handoff" <<<"$1"' _ "$out"
+check "and the log's line" python3 -c '
+import json, sys
+r = json.load(sys.stdin)
+what = [e for e in r["log"] if e["what"].startswith("review: ")]
+assert what and what[-1]["what"] == "review: 2 findings, 1 high; Sound, two things to fix." and what[-1]["by"].startswith("codex "), what
+rv = r["handoff"]["review"]
+assert rv[-2]["where"] == "log.md:2" and rv[-2]["text"] == "[high] the second line repeats the first" and rv[-2]["open"] and rv[-1]["text"] == "[low] ch1.md has no heading", rv[-2:]' <<<"$(agents handoff h --json)"
+n_rev=$(python3 -c 'import json, sys; print(len(json.load(sys.stdin)["handoff"]["review"]))' <<<"$(agents handoff h --json)")
+out=$(as 1301 handoff --review-done "$n_rev")
+check "the worker marks one addressed: $out" grep -q "book-h: handoff updated by claude 1301, status review$" <<<"$out"
+check "and the page says which, by whom" grep -qE "^  addressed \[low\] ch1.md has no heading  \(codex [0-9]+, just now; addressed by claude 1301\)$" <<<"$(agents handoff h)"
+check "the reviewer's words are kept: --log" bash -c 'grep -q "^# review of .*book-h at [0-9a-f]* by codex" <<<"$1" && grep -q "^codex: reviewed (stderr words)$" <<<"$1"' _ "$(agents review --log h)"
+# Claude Code's road: -p, plan, the schema on the line, the answer under structured_output.
+rm -f "$REVIEWED"; out=$(review h --use claude)
+check "claude -p --permission-mode plan with the schema, its JSON read from structured_output: $out / $(head -1 "$REVIEWED")" \
+  bash -c 'grep -qE "book-h: review by claude [0-9]+ \([0-9]+ s\): 2 findings, 1 high" <<<"$1" && grep -q "^\[-p\] \[--permission-mode\] \[plan\] \[--output-format\] \[json\] \[--json-schema\] \[{\"type\":\"object\"" "$2" && grep -q "^KEYS=0$" "$2"' _ "$out" "$REVIEWED"
+# No --use: the provider that isn't the desk's (claude is at it).
+rm -f "$REVIEWED"; out=$(review h)
+check "unsaid, the other provider reviews: $out" grep -qE "book-h: review by codex [0-9]+" <<<"$out"
+rm -f "$REVIEWED"; out=$(review h --use codex --prompt "look hard at the log")
+check "--prompt: the words go to the reviewer, before the shape: $(tail -3 "$REVIEWED.prompt" | head -1)" \
+  bash -c 'grep -q "^look hard at the log$" "$1" && [ "$(grep -n "^look hard at the log$\|^Answer with JSON" "$1" | head -1 | cut -d: -f2)" = "look hard at the log" ]' _ "$REVIEWED.prompt"
+# Reviewing, while it runs: the desk's agent says so under its row, the reviewer's own
+# process (here a made-up one in the worktree) is named for what it is, and a second is refused.
+touch "$REVIEW_HOLD"
+PATH="$rev:$PATH" python3 "$here/bin/vikix-agents" review h --use codex > "$t/review-bg.out" 2>&1 </dev/null & bg=$!
+note=''
+for _ in $(seq 1 80); do note=$(ls "$HOME/.local/state/vikix/office/reviews/"*.reviewing 2>/dev/null | head -1 || true); [ -n "$note" ] && break; sleep 0.25; done
+check "a note of the review under way, with the reviewer's pid, the provider and its worktree: $(cat "$note" 2>/dev/null)" \
+  bash -c '[ -n "$1" ] && [ "$(cut -f3 "$1")" = codex ] && [ -d "$(cut -f4 "$1")" ]' _ "$note"
+wt=$(cut -f4 "$note"); proc 1302 codex "$wt"
+out=$(agents)
+check "vikix agents: the desk's agent is under review, the reviewer's process is reviewing: $out" \
+  bash -c 'grep -qE "^           under review by codex \(pid [0-9]+, since [^)]+\): its findings come to its handoff and its inbox$" <<<"$1" && grep -qE "^  codex +.*vikix-review-.*  no window .* reviewing$" <<<"$1" && grep -q "reviewing a desk.s last commit, read-only, in a worktree of its own (vikix agents review)" <<<"$1"' _ "$out"
+check "--json has the review under the desk's agent" python3 -c '
+import json, sys
+rows = {a["pid"]: a for a in json.load(sys.stdin)}
+assert rows[1301]["review"]["provider"] == "codex" and rows[1302]["doing"] == "reviewing", (rows[1301].get("review"), rows[1302]["doing"])' <<<"$(agents --json)"
+out=$(review h --use claude)
+check "a second review while one runs is refused: $out" grep -qE "^vikix agents: .*book-h: codex is reviewing there already \(pid [0-9]+, since [^)]+\)" <<<"$out"
+rm -rf "$t/proc/1302" "$REVIEW_HOLD"
+wait "$bg" || true
+check "the held review ended well and its worktree is gone: $(cat "$t/review-bg.out")" \
+  bash -c 'grep -q "book-h: review by codex" "$1" && [ ! -d "$2" ]' _ "$t/review-bg.out" "$wt"
+# Refused: a provider that can't review, one not installed, --prompt with no words, a desk that is gone.
+out=$(review h --use aider)
+check "aider can't review: $out" grep -q "^vikix agents: aider can't review: the reviewers are codex, claude" <<<"$out"
+out=$(PATH="$rev-none:/usr/bin:/bin" FOO=1 python3 "$here/bin/vikix-agents" review h --use claude 2>&1 || true)
+check "a reviewer not installed is said so: $out" grep -q "^vikix agents: claude isn't installed here: vikix agent --install claude" <<<"$out"
+out=$(review h --use codex --prompt "")
+check "--prompt with no words: $out" grep -q "^vikix agents: --prompt needs words for the reviewer" <<<"$out"
+out=$(review nowhere-at-all --use codex)
+check "a desk that isn't one: $out" grep -q "^vikix agents:" <<<"$out"
+# A reviewer that fails, and one that answers prose: neither is lost.
+touch "$REVIEW_FAIL"; out=$(review h --use codex)
+check "a reviewer that fails is said so, in the record and the inbox: $out" \
+  bash -c 'grep -q "book-h: review by codex failed: exit 1 (vikix agents review --log book-h shows its words)$" <<<"$1" && grep -q "\"what\": \"review: exit 1\"" <<<"$(python3 "$2" handoff h --json)" && grep -q "vikix (just now): review by codex failed: exit 1" <<<"$(python3 "$2" handoff h)" && grep -q "^codex: something broke$" <<<"$(python3 "$2" review --log h)"' _ "$out" "$here/bin/vikix-agents"
+rm -f "$REVIEW_FAIL"
+echo 'Looks fine to me, nothing to report beyond a stale heading.' > "$REVIEW_ANSWER"
+out=$(review h --use codex)
+check "prose instead of the shape is one finding holding it: $out" grep -qE "book-h: review by codex [0-9]+ \([0-9]+ s\): 1 finding, in your handoff" <<<"$out"
+check "the finding's words" grep -q "^  open      Looks fine to me, nothing to report beyond a stale heading.  (codex " <<<"$(agents handoff h)"
+rm -f "$REVIEW_ANSWER"
+check "the worktrees are all gone" test -z "$(git -C "$t/src/book" worktree list | grep vikix-review || true)"
+# review=codex in the office file: a hand-in starts one by itself; without it, nothing does.
+rm -f "$REVIEWED"
+VIKIX_AGENT_PID=1301 PATH="$rev:$PATH" python3 "$here/bin/vikix-agents" handoff --status working >/dev/null 2>&1 </dev/null || true
+VIKIX_AGENT_PID=1301 PATH="$rev:$PATH" python3 "$here/bin/vikix-agents" handoff --status review >/dev/null 2>&1 </dev/null || true
+sleep 1
+check "no review= in the office file: a hand-in starts no review" test ! -e "$REVIEWED"
+echo 'review=codex' >> "$HOME/.config/vikix/office"
+VIKIX_AGENT_PID=1301 PATH="$rev:$PATH" python3 "$here/bin/vikix-agents" handoff --status working >/dev/null 2>&1 </dev/null || true
+VIKIX_AGENT_PID=1301 PATH="$rev:$PATH" python3 "$here/bin/vikix-agents" handoff --status review >/dev/null 2>&1 </dev/null || true
+for _ in $(seq 1 80); do [ -e "$REVIEWED" ] && grep -q "review by codex" <<<"$(agents handoff h | tail -4)" && break; sleep 0.25; done
+check "review=codex: the hand-in started a review by itself, apart from the caller, and its findings came: $(tail -3 <<<"$(agents handoff h)")" \
+  bash -c '[ -e "$1" ] && grep -q "review by codex" <<<"$(python3 "$2" handoff h | tail -4)"' _ "$REVIEWED" "$here/bin/vikix-agents"
+rm -f "$REVIEWED"
+VIKIX_AGENT_PID=1301 PATH="$rev:$PATH" python3 "$here/bin/vikix-agents" handoff --summary "more" >/dev/null 2>&1 </dev/null || true
+sleep 1
+check "a status that stayed review starts none" test ! -e "$REVIEWED"
+sed -i '/^review=codex$/d' "$HOME/.config/vikix/office"
+check "help lists review among the workers' commands" grep -q "^  vikix agents review DESK \.\.\. *a review by another provider" <<<"$(agents help)"
+unset -f review
 
 # --- The rules file, through Codex's own checker (when Codex is here) ---------------------------
 if command -v codex >/dev/null 2>&1 && timeout 20 codex execpolicy check --help >/dev/null 2>&1; then
