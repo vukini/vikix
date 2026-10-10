@@ -61,7 +61,9 @@ t=$(mktemp -d)
 vm_pid=
 swank_pid=
 cleanup() {
-  if [ -n "$vm_pid" ] && kill -0 "$vm_pid" 2>/dev/null; then kill "$vm_pid" 2>/dev/null || true; wait "$vm_pid" 2>/dev/null || true; fi
+  # The VM is a child of the squeak wrapper script: ended by its parent, so
+  # a test that stops early leaves no image running in the background.
+  if [ -n "$vm_pid" ] && kill -0 "$vm_pid" 2>/dev/null; then pkill -P "$vm_pid" 2>/dev/null || true; kill "$vm_pid" 2>/dev/null || true; wait "$vm_pid" 2>/dev/null || true; fi
   if [ -n "$swank_pid" ] && kill -0 "$swank_pid" 2>/dev/null; then kill "$swank_pid" 2>/dev/null || true; wait "$swank_pid" 2>/dev/null || true; fi
   rm -rf "$t"
 }
