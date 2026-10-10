@@ -221,6 +221,39 @@ is drawn again at that width."
      (vikix-office-toggle-archive)
      (should (equal vikix-office--selected "a")))))
 
+(ert-deftest office-closed-desk-has-a-box-and-can-be-forgotten ()
+  (office-test-buffer
+   (let ((closed (copy-tree (car (alist-get 'desks vikix-office--data)))))
+     (setf (alist-get 'id closed) "gone"
+           (alist-get 'title closed) "Closed task"
+           (alist-get 'exists closed) :false
+           (alist-get 'group closed) "Closed"
+           (alist-get 'next_action closed) "Closed by release 1 h ago: nothing to do"
+           (alist-get 'desk closed) '((id . "0123456789ab") (project . "Vikix") (worktree . "/tmp/a gone desk"))
+           (alist-get 'desks vikix-office--data) (append (alist-get 'desks vikix-office--data) (list closed)))
+     (push (cons 'closed '((at . 1791296400) (by . "release"))) (car (last (alist-get 'desks vikix-office--data))))
+     (setq vikix-office--detail (generate-new-buffer " *Closed details*"))
+     (vikix-office--render)
+     ;; The Closed box comes last, after Finished, with the desk in it.
+     (should (string-match-p "Finished" (buffer-string)))
+     (should (string-match-p "Closed" (buffer-string)))
+     (should (< (string-match "Finished" (buffer-string)) (string-match "Closed task" (buffer-string))))
+     (setq vikix-office--selected "gone")
+     (vikix-office--render-detail)
+     (with-current-buffer vikix-office--detail
+       (should (string-match-p "Desk closed by release" (buffer-string)))
+       (should (string-match-p "No action is needed" (buffer-string)))
+       ;; The one button is Forget: nothing acts on a desk that is gone.
+       (let ((button (next-button (point-min))))
+         (should button)
+         (should (equal (button-label button) "Forget this record…"))
+         (should-not (next-button (button-end button)))))
+     ;; Forget takes a closed desk as it takes an archived one; a desk that stands is refused.
+     (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) nil)))
+       (vikix-office-forget)   ; no user-error: the question was asked, and declined
+       (setq vikix-office--selected "a")
+       (should-error (vikix-office-forget) :type 'user-error)))))
+
 (ert-deftest office-purge-needs-confirmation-and-refreshes ()
   (office-test-buffer
    (setf (alist-get 'archive vikix-office--data) '(((id . "old")))

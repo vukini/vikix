@@ -167,8 +167,9 @@
                        terminal
   vikix agents handoff forget [DESK]
                        remove the record of a desk whose worktree is gone.
-                       Released, or closed: the Office's Archive, one at a
-                       time. Refused while the folder stands (close it) or
+                       Released, or closed: the Office's Closed group for
+                       a day, then its Archive, one at a time. Refused
+                       while the folder stands (close it) or
                        an agent is still in it. Nothing else goes: no
                        file, no branch, no saved conversation. Without
                        DESK: the records that could be forgotten

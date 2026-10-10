@@ -16,6 +16,20 @@ import subprocess
 import time
 
 
+# A closed desk (vikix agents close, or a release that removed it) stays
+# among the desks this long, in the Closed group, so what was done today is
+# in view; after that its record is in the Archive, as any removed worktree's.
+CLOSED_SHOWN = 24 * 3600
+
+
+def closed_by(rec):
+    """Who closed the desk, from the record's log: 'release', or the user."""
+    for line in reversed(rec.get('log') or []):
+        if isinstance(line, dict) and line.get('what') == 'desk closed':
+            return str(line.get('by') or '')
+    return ''
+
+
 def missing_folder(path):
     try:
         os.lstat(path)
@@ -147,7 +161,13 @@ def snapshot(api):
         row['exists'] = os.path.isdir(path)
         row['agents'] = [a for a in agents if agent_folder(a) == path]
         row['live_known'] = live_known
-        row['archived'] = bool(d.get('id')) and live_known and missing_folder(path) and not row['agents']
+        gone = bool(d.get('id')) and live_known and missing_folder(path) and not row['agents']
+        # A desk closed in the last day is shown among the desks, as Closed;
+        # older, or removed without being closed, it is archived.
+        closed_at = d.get('closed') if isinstance(d.get('closed'), int) else 0
+        row['closed'] = ({'at': closed_at, 'by': closed_by(row)}
+                         if gone and closed_at and time.time() - closed_at < CLOSED_SHOWN else {})
+        row['archived'] = gone and not row['closed']
         if row['archived']:
             archive_records.append(next((r for r in records if r.get('desk') == d), {}))
         row['now'] = H.observe(path) if row['kind'] == 'desk' else {}
@@ -206,11 +226,18 @@ def snapshot(api):
             row['group'] = 'Archived'
             row['next_action'] = 'Archived — worktree removed'
             row['resume'] = {}
-    order = ['Needs you', 'Working', 'Parked', 'Finished']
+        elif row['closed']:
+            row['group'] = 'Closed'
+            row['next_action'] = 'Closed' + (f" by {row['closed']['by']}" if row['closed']['by'] else '') \
+                + f" {H.when(row['closed']['at'])}: nothing to do"
+            row['resume'] = {}
+    order = ['Needs you', 'Working', 'Parked', 'Finished', 'Closed']
     return {'version': 1, 'at': int(time.time()), 'live_known': live_known, 'errors': errors,
             'releases': releases, 'releases_kept': releases_kept,
             'desks': sorted((r for r in rows.values() if not r['archived']),
-                            key=lambda r: (order.index(r['group']), r['title'].lower(), r['id'])),
+                            # The closed ones newest first: the day's log.
+                            key=lambda r: (order.index(r['group']), -(r['closed'] or {}).get('at', 0),
+                                           r['title'].lower(), r['id'])),
             'archive': sorted((r for r in rows.values() if r['archived']), key=lambda r: (r['title'].lower(), r['id'])),
             'archive_token': hashlib.sha256(''.join(sorted(json.dumps(r, sort_keys=True) for r in archive_records)).encode()).hexdigest()}
 
@@ -261,8 +288,9 @@ def purge_archive(api, expected_token):
 
 
 def forget_record(api, did):
-    """One archived record, forgotten by its id: the same refusals as
-    vikix agents handoff forget (the folder stands, an agent is in it)."""
+    """One removed desk's record (archived, or closed today), forgotten by
+    its id: the same refusals as vikix agents handoff forget (the folder
+    stands, an agent is in it)."""
     H = api.handoff_module()
     if not H.DESK_ID.match(str(did)):
         raise ValueError('Forget needs a desk record id')

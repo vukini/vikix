@@ -304,7 +304,8 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                 ((eq (alist-get 'releases_kept vikix-office--data) t)
                  (insert (propertize "No release under way.\n\n" 'face 'shadow))))))
       (if (null rows) (insert (if vikix-office--archive "Archive is empty.\n" "No desks yet. vikix agents desk PROJECT TOPIC makes one, vikix agents worker TOPIC \"the task\" starts a worker at it.\n"))
-        (dolist (group (if vikix-office--archive '("Archived") '("Needs you" "Working" "Parked" "Finished")))
+        ;; Closed last: the desks closed today, newest first, nothing to do at them.
+        (dolist (group (if vikix-office--archive '("Archived") '("Needs you" "Working" "Parked" "Finished" "Closed")))
           (let ((members (cl-remove-if-not (lambda (r) (equal (alist-get 'group r) group)) rows))
                 (first t))
             (vikix-office--box-top width chars group)
@@ -420,10 +421,20 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
           (erase-buffer)
           (if (not r) (insert "Select a desk to see its task and handoff.\n")
             (insert (propertize (vikix-office--text (alist-get 'title r)) 'face '(:inherit variable-pitch :height 1.3 :weight bold)) "\n\n")
-            (if (eq (alist-get 'archived r) t)
+            ;; A desk whose worktree is gone: closed today (the Closed group) or
+            ;; archived. Nothing acts on it; its record can be forgotten.
+            (if (vikix-office--gone-p r)
                 (progn
-                  (vikix-office--box-top width chars "Archived")
-                  (vikix-office--field width chars 0 "" "Desk removed. No action is needed.")
+                  (vikix-office--box-top width chars (if (alist-get 'closed r) "Closed" "Archived"))
+                  (vikix-office--field width chars 0 ""
+                                       (if (alist-get 'closed r)
+                                           (let ((closed (alist-get 'closed r)))
+                                             (concat "Desk closed"
+                                                     (if (member (alist-get 'by closed) '(nil "")) ""
+                                                       (concat " by " (vikix-office--text (alist-get 'by closed))))
+                                                     " · " (vikix-office--time (alist-get 'at closed))
+                                                     ". No action is needed; after a day it is in the Archive."))
+                                         "Desk removed. No action is needed."))
                   (vikix-office--note width chars "Historical handoff below; its next action may already be completed.")
                   (when (and (eq (alist-get 'live_known r) t) (alist-get 'id (alist-get 'desk r)))
                     (vikix-office--line width chars
@@ -619,13 +630,18 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
            (if error (vikix-office--notice error)
              (message "%s" (string-trim output))
              (vikix-office-refresh))))))))
+(defun vikix-office--gone-p (r)
+  "A desk whose worktree is gone: archived, or closed today (the Closed group)."
+  (and r (or (eq (alist-get 'archived r) t) (alist-get 'closed r)) t))
+
 (defun vikix-office-forget ()
-  "Remove the selected archived desk's record; files, branches and saved conversations stay."
+  "Remove the selected removed desk's record (archived, or closed today).
+Files, branches and saved conversations stay."
   (interactive)
   (with-current-buffer (vikix-office--owner-buffer)
     (let* ((r (vikix-office--row)) (id (alist-get 'id (alist-get 'desk r))))
       (unless r (user-error "Select a desk first"))
-      (unless (eq (alist-get 'archived r) t) (user-error "Only an archived desk's record can be forgotten"))
+      (unless (vikix-office--gone-p r) (user-error "Only a removed desk's record can be forgotten: close a desk that stands"))
       (unless (eq (alist-get 'live_known vikix-office--data) t) (user-error "Live activity unknown; refresh first"))
       (unless (stringp id) (user-error "This desk has no record"))
       (when (process-live-p vikix-office--action) (user-error "An Office action is still running"))

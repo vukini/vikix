@@ -107,6 +107,47 @@ class Office(unittest.TestCase):
         self.assertEqual(result['archive'][0]['group'], 'Archived')
         self.assertEqual(result['archive'][0]['resume'], {})
 
+    def test_closed_desk_is_shown_a_day_then_archived(self):
+        # A desk closed today, its worktree gone: the Closed group, newest
+        # first, saying who closed it; after a day, the Archive.
+        self.records = [self.rec]
+        Path(self.folder).rmdir()
+        now = int(time.time())
+        self.rec['desk']['closed'] = now - 3600
+        self.rec['log'] = [{'at': now - 3600, 'by': 'release', 'what': 'desk closed'}]
+        result = office.snapshot(A)
+        self.assertEqual(result['archive'], [])
+        row = result['desks'][0]
+        self.assertEqual(row['group'], 'Closed')
+        self.assertEqual(row['closed'], {'at': now - 3600, 'by': 'release'})
+        self.assertEqual(row['next_action'], 'Closed by release 1 h ago: nothing to do')
+        self.assertEqual(row['resume'], {})
+        self.assertFalse(row['archived'])
+        # Two closed desks: the later one first, whatever their names.
+        later = {'desk': {'worktree': self.folder + ' later', 'id': 'def', 'project': 'Vikix', 'closed': now - 60},
+                 'log': [{'at': now - 60, 'by': 'user', 'what': 'desk closed'}]}
+        self.records = [self.rec, later]
+        rows = office.snapshot(A)['desks']
+        self.assertEqual([r['desk']['id'] for r in rows], ['def', 'abc'])
+        self.assertEqual(rows[0]['next_action'], 'Closed by user just now: nothing to do')
+        # An agent still in the folder: not closed to the Office, whatever the record says.
+        self.records = [self.rec]
+        self.agents = [self.agent()]
+        row = office.snapshot(A)['desks'][0]
+        self.assertEqual(row['closed'], {})
+        self.assertNotEqual(row['group'], 'Closed')
+        self.agents = []
+        # A day on, the Archive has it.
+        self.rec['desk']['closed'] = now - office.CLOSED_SHOWN - 1
+        result = office.snapshot(A)
+        self.assertEqual(result['desks'], [])
+        self.assertEqual(result['archive'][0]['group'], 'Archived')
+        self.assertEqual(result['archive'][0]['closed'], {})
+        # A closed record whose folder still stands is Finished, as before.
+        Path(self.folder).mkdir()
+        self.rec['desk']['closed'] = now - 3600
+        self.assertEqual(office.snapshot(A)['desks'][0]['group'], 'Finished')
+
     def test_removed_review_record_is_archived_but_live_agent_is_not(self):
         self.records = [self.rec]
         self.rec['handoff'] = {'status': {'value': 'review'}}

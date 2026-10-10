@@ -195,7 +195,7 @@ echo '{"status":"waiting","next":"needs the laptop"}' | vikix agents handoff --f
 
 Given any of those settings, `handoff` writes instead of showing (`vikix agents handoff set` says the same, a word longer); from outside the desk, name it first, as for `close`: `vikix agents handoff wifi-fix --task "..."`.
 
-Claude Code's session id and Antigravity CLI's conversation id are noted by the hook itself; the others say theirs with `session`. `vikix agents handoff list` is every desk with a record, `vikix agents` shows each agent's desk status under its line, and `Super+m` → *AI* → *Agents: a desk's handoff* picks one. `vikix agents close` marks the record closed and keeps it, and so does a release that removes the desk (`.claude/release`), so a desk whose work is in shows as finished, not as waiting. A record no longer wanted, of a desk whose worktree is gone, is removed with `vikix agents handoff forget DESK` (the Office's Archive has the same, one record at a time, and *Purge archive* for all of them); without a desk named it lists the ones that could go. It refuses while the folder stands (close the desk instead) or an agent is still in it, and takes nothing else with it: no file, no branch, no saved conversation.
+Claude Code's session id and Antigravity CLI's conversation id are noted by the hook itself; the others say theirs with `session`. `vikix agents handoff list` is every desk with a record, `vikix agents` shows each agent's desk status under its line, and `Super+m` → *AI* → *Agents: a desk's handoff* picks one. `vikix agents close` marks the record closed and keeps it, and so does a release that removes the desk (`.claude/release`), so a desk whose work is in shows as closed, not as waiting. A record no longer wanted, of a desk whose worktree is gone, is removed with `vikix agents handoff forget DESK` (the Office's Archive has the same, one record at a time, and *Purge archive* for all of them); without a desk named it lists the ones that could go. It refuses while the folder stands (close the desk instead) or an agent is still in it, and takes nothing else with it: no file, no branch, no saved conversation.
 
 ### Taking a desk up again
 
@@ -342,8 +342,8 @@ running, the same message as on the desktop, and still never a second
 Emacs. Inside Emacs, `M-x vikix-office-open-here` opens it in the frame you
 are in, and `q` then puts that frame's windows back as they were.
 
-The left side groups desks into **Needs you**, **Working**, **Parked** and
-**Finished**, each group drawn in a box of its own, a rule between its
+The left side groups desks into **Needs you**, **Working**, **Parked**,
+**Finished** and **Closed**, each group drawn in a box of its own, a rule between its
 desks, and a desk's lines as labelled rows (Task, Live, Handoff, Next, Before); the desk
 pane draws each of its sections (the task, the agent's claims, the Git
 state, the checks, the agents, the saved conversations) in a box the same
@@ -368,8 +368,12 @@ terminal can be closed; the theme's `agent_asks`, `agent_released` and
 `agent_pushed`, or Emacs's own warning, success and constant faces without
 a palette. A waiting agent or a waiting/review handoff needs you, as does a
 terminal waiting for `gup` or to be closed;
-a live agent otherwise counts as working; a finished/closed record without
-an agent counts as finished; the remaining desks are parked. Unavailable
+a live agent otherwise counts as working; a finished record whose desk
+still stands counts as finished (it is yours to release or close); the
+remaining desks are parked. A desk closed in the last day (`vikix agents
+close`, or the release that removed it) is **Closed**: newest first, its
+row saying who closed it and when, nothing to do at it, and *Forget this
+record…* in its details; after a day its record is in the Archive. Unavailable
 live discovery is **unknown**, never proof that an agent stopped. Desks
 without handoffs still appear. A folder an agent merely runs in (one
 started in `~`, or in a project's own folder) gets a row too, marked
@@ -378,8 +382,10 @@ running there, and Go to agent and Close agent work as on a desk. It has
 no Git state, no handoff and no Continue, since there is no desk to
 continue; `vikix agents sit PROJECT TOPIC` from the agent's own shell
 seats it at one. Removed worktrees with no live agent go into
-**Archive**, separate from current desks. A handoff saying "finished" alone
-does not archive an existing desk or remove any files.
+**Archive**, separate from current desks, once their day in Closed is
+over (at once, when the worktree went without the desk being closed). A
+handoff saying "finished" alone does not archive an existing desk or
+remove any files.
 
 **Releases.** Above the groups, a **Releases** box lists the releases under
 way in your projects, as `.claude/release --queue` does: each one's topic,
