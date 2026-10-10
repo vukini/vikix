@@ -497,13 +497,25 @@ def mark_closed(rec, by):
     _log(rec, by, "desk closed")
 
 
-def close_record(common, folder, by):
+def close_record(common, folder, by, summary=None):
     """The record of the desk (COMMON, FOLDER) marked closed, when there is
     one: a desk closed by vikix agents close, or removed by a release. None
-    is made for a desk that never had one. True when a record was marked."""
+    is made for a desk that never had one. With SUMMARY (the release's
+    line), a handoff that has no status gets `finished` and that summary
+    first, signed BY: the work is on main whatever the agent left unsaid,
+    and the Office stops showing the desk as one with no handoff. A status
+    the agent wrote stays. True when a record was marked."""
     if not load(desk_id(common, folder)):
         return False
-    update(common, folder, lambda rec: mark_closed(rec, by))
+
+    def change(rec):
+        if summary and not (rec.get("handoff") or {}).get("status"):
+            try:
+                set_handoff(rec, by, status="finished", summary=summary)
+            except HandoffError:
+                pass     # a summary that can't be kept (a secret in it) costs nothing else
+        mark_closed(rec, by)
+    update(common, folder, change)
     return True
 
 
@@ -799,6 +811,7 @@ if __name__ == "__main__":
     # marks the record of the desk (COMMON, FOLDER) closed, when there is one.
     import sys
     if len(sys.argv) >= 4 and sys.argv[1] == "closed":
-        sys.exit(0 if close_record(sys.argv[2], sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else "user") else 1)
+        sys.exit(0 if close_record(sys.argv[2], sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else "user",
+                                   sys.argv[5] if len(sys.argv) > 5 else None) else 1)
     sys.stderr.write("usage: python3 handoff.py closed COMMON FOLDER [BY]\n")
     sys.exit(2)

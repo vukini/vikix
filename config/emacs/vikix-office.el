@@ -443,7 +443,7 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
 (defun vikix-office--signed (width chars label-width label entry)
   "A row of ENTRY's text, then who recorded it and when."
   (vikix-office--field width chars label-width label
-                       (vikix-office--text (or (alist-get 'text entry) (alist-get 'value entry) "Unrecorded")))
+                       (vikix-office--text (or (alist-get 'text entry) (alist-get 'value entry) "Not written")))
   (when entry
     (vikix-office--field width chars label-width ""
                          (concat (vikix-office--text (alist-get 'by entry)) " · " (vikix-office--time (alist-get 'at entry)))

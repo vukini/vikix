@@ -37,7 +37,8 @@
 #   provider's; the Stop hook asks an agent at a desk with a task, that
 #   changed files (an edit, or a Bash command that writes) without
 #   writing its handoff since, to write it, once per turn (the stop after
-#   it is let go), and holds nothing at a desk without a task.
+#   it is let go); at a desk without a task it asks the same until a
+#   status is written, then no more.
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
@@ -295,7 +296,14 @@ check "an agent whose hook carries no note is said so: $out" grep -q 'codex 1002
 out=$(touch_as 1002 --for codex "$t/src/book-b/ch9.md")
 check "and its hook delivers nothing: '$out'" test -z "$out"
 out=$(stop_as 1001 '{"stop_hook_active": false}')
-check "a desk with no task holds nothing at a stop: '$out'" test -z "$out"
+check "a desk with no task and no handoff yet is asked for one too: $out" \
+  grep -q '"decision": "block", "reason": "Vikix office: this turn changed [0-9]* files* at your desk and the handoff hasn.t been written since' <<<"$out"
+out=$(stop_as 1001 '{"stop_hook_active": true}')
+check "once: '$out'" test -z "$out"
+as 1002 handoff set --status working --summary "chapter nine" >/dev/null
+touch_as 1002 --for codex "$t/src/book-b/ch9.md" >/dev/null
+out=$(stop_as 1002 '{}')
+check "with a status once written, a desk without a task is held no more, edits after it or not: '$out'" test -z "$out"
 agents handoff set --desk "$t/src/book-a" --task "Fix the typos" >/dev/null
 out=$(stop_as 1001 '{"stop_hook_active": false}')
 check "a worker that changed files and wrote no handoff is asked to, once: $out" \

@@ -206,9 +206,11 @@ if [ -z "$keep" ]; then
   # The desk's record (the office's, ~/.local/state/vikix/office/desks/) is
   # marked closed, as vikix agents close marks it, so the Office files the
   # desk under Closed (for a day, then its Archive) and not among the ones
-  # waiting to be picked up. A desk that never had a record gets none.
+  # waiting to be picked up. A desk that never had a record gets none. A
+  # handoff with no status gets "finished" and this release's line first:
+  # the work is on main, whatever the agent left unsaid.
   if [ -f "$main/lib/handoff.py" ]; then
-    python3 "$main/lib/handoff.py" closed "$common" "$wt" release >/dev/null 2>&1
+    python3 "$main/lib/handoff.py" closed "$common" "$wt" release "$summary" >/dev/null 2>&1
     case $? in 0|1) ;; *) say "the desk's record wasn't marked closed (vikix agents handoff list)" ;; esac
   fi
 fi

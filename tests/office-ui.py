@@ -73,7 +73,7 @@ class Office(unittest.TestCase):
         self.agents = [self.agent()]
         row = office.snapshot(A)['desks'][0]
         self.assertEqual(row['group'], 'Working')
-        self.assertEqual(row['status'], 'unrecorded')
+        self.assertEqual(row['status'], 'no handoff')
         self.assertIn('desk with spaces', row['title'])
         self.records = [{'desk': {}}, {'desk': {'worktree': self.folder}}]
         self.assertEqual(len(office.snapshot(A)['desks']), 1)

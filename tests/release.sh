@@ -103,6 +103,10 @@ rec=$(record_of a)
 check "the desk's record is marked closed by the release, and kept: $rec" python3 -c 'import json, sys
 r = json.loads(sys.argv[1]); assert r["desk"]["closed"] > 0 and r["task"]["text"] == "A thing to do", r
 assert r["log"][-1]["what"] == "desk closed" and r["log"][-1]["by"] == "release", r["log"]' "$rec"
+check "a handoff with no status gets finished and the release's line, by release: $rec" python3 -c 'import json, sys
+h = json.loads(sys.argv[1])["handoff"]
+assert h["status"]["value"] == "finished" and h["status"]["by"] == "release", h
+assert h["summary"]["text"] == "A thing" and h["summary"]["by"] == "release", h' "$rec"
 
 # --- main has moved on ----------------------------------------------------------------
 topic b file-b "from b"; topic c file-c "from c"
@@ -115,7 +119,14 @@ check "main was never rewritten: every release is behind the newest" bash -c "gi
 
 # --- The same line, twice -------------------------------------------------------------
 topic d words "d's words"; topic e words "e's words"
+record d "D's thing"
+python3 -B -c 'import sys; sys.path.insert(0, sys.argv[1]); import handoff as H
+H.update(sys.argv[2], sys.argv[3], lambda r: H.set_handoff(r, "claude 1", status="review", summary="d is done"))' \
+  "$r/lib" "$r/.git" "$t/vikix-d" >/dev/null
 release d "D" >/dev/null
+rec=$(record_of d)
+check "a status the agent wrote stays through the release: $rec" python3 -c 'import json, sys
+h = json.loads(sys.argv[1])["handoff"]; assert h["status"]["value"] == "review" and h["summary"]["text"] == "d is done", h' "$rec"
 before=$(state)
 out=$(release e "E") && code=0 || code=$?
 check "a topic that changed the same line is refused: $code $out" bash -c "[ $code != 0 ] && grep -q 'changed the same lines (words' <<<\"\$1\"" _ "$out"

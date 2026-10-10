@@ -205,7 +205,9 @@ def snapshot(api):
         row['sessions'] = [dict(s, available=H.session_store(s['provider'], s['id'], path)[0])
                            for s in row.get('sessions', [])]
         handoff = row.get('handoff') or {}
-        status = (handoff.get('status') or {}).get('value', 'unrecorded')
+        # A desk whose agent never wrote one says so plainly: it is no fault
+        # of the record's.
+        status = (handoff.get('status') or {}).get('value', 'no handoff')
         row['status'] = status
         # Where the work stands against the agent's estimate, as a line; '' without one.
         row['estimate'] = (H.estimate_state(row) or {}).get('line', '')

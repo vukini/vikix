@@ -160,8 +160,11 @@ def stopping(argv):
     agent at a desk with a task, that changed files in this turn and
     hasn't written its handoff since is asked once to write it before it
     stops; the stop after that is let go (stop_hook_active), so nothing
-    goes round. A desk with no task, and an agent off a desk, are never
-    held to it."""
+    goes round. An agent at a desk with no task (a session started by
+    hand, or seated from inside) is asked the same way until its record
+    has a status, and then no more: it is a conversation, held only to
+    leave one line behind it (2026-10-10: half the records had none, since
+    nothing ever asked). An agent off a desk is never held to it."""
     got = {}
     if not sys.stdin.isatty():
         try:
@@ -175,10 +178,12 @@ def stopping(argv):
         return 0
     H = handoff_module()
     common = common_of(me["folder"])
-    rec = H.load(H.desk_id(common, me["folder"]))
-    if not rec or not rec.get("task"):
+    if not desk_of(me["folder"]):
         return 0
+    rec = H.load(H.desk_id(common, me["folder"])) or {}
     h = rec.get("handoff") or {}
+    if not rec.get("task") and h.get("status"):
+        return 0
     last = max([v.get("at", 0) for v in h.values() if isinstance(v, dict)] or [0])
     edited = {e.get("file") for e in journal_read()
               if e.get("pid") == me["pid"] and e.get("kind") in ("edit", "crossing", "shell") and e.get("at", 0) > last}
