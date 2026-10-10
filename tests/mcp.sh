@@ -51,7 +51,7 @@ d = t + "/forms.d"
 os.makedirs(d, exist_ok=True)
 open("%s/%03d.lisp" % (d, len(os.listdir(d))), "w").write(form)
 def lisp(s): return '=> "' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
-if "workspaces" in form:
+if "vikix-desktop-json" in form:   # the desktop, from the one Lisp function
     print("=> a title printed first, with => in it")
     print(lisp(json.dumps({"workspaces": [
         {"name": "1", "number": 1, "current": True, "windows": [
@@ -195,7 +195,7 @@ check "rules without a window shouldn't have a why: $out" bash -c "! grep -q '\"
 : > "$t/forms"
 out=$(call rules '{"workspace":"x\") (run-shell-command \"touch pwned","number":0}')
 check "rules for a workspace that isn't there should be refused: $out" grep -q '^ERROR: no workspace' <<<"$out"
-check "a refused workspace shouldn't reach Lisp: $(cat "$t/forms")" test -z "$(grep -v 'workspaces' "$t/forms" || true)"
+check "a refused workspace shouldn't reach Lisp: $(cat "$t/forms")" test -z "$(grep -v 'vikix-desktop-json' "$t/forms" || true)"
 out=$(call rules '{"workspace":"1"}')
 check "rules for a window without its number should be refused: $out" grep -q '^ERROR: number' <<<"$out"
 out=$(call rules '{"workspace":"1","number":5}')
@@ -282,7 +282,7 @@ rm -f "$t/old-desktop"
 : > "$t/forms"
 out=$(call switch_workspace '{"name":"x\") (run-shell-command \"touch pwned"}')
 check "a workspace that isn't there should be refused: $out" grep -q '^ERROR: no workspace' <<<"$out"
-check "a refused workspace shouldn't reach Lisp: $(cat "$t/forms")" test -z "$(grep -v 'workspaces' "$t/forms" || true)"
+check "a refused workspace shouldn't reach Lisp: $(cat "$t/forms")" test -z "$(grep -v 'vikix-desktop-json' "$t/forms" || true)"
 out=$(call switch_workspace '{"name":"web"}')
 check "an existing workspace should be shown: $out" grep -q 'on workspace web' <<<"$out"
 check "it should be selected by name, as a Lisp string: $(tail -1 "$t/forms")" grep -q '(switch-to-group (find-group (current-screen) "web"))' "$t/forms"
