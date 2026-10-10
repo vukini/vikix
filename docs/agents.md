@@ -428,7 +428,8 @@ the Office window.
 **New desk…** (`N`, above the groups) and **New worker…** (`w`, in a desk's
 row and in the details of a desk that stands with nobody at it) are forms,
 drawn in the desk pane and in the terminal alike. New desk asks for the project (a menu of `vikix
-project list`'s, a click or `RET` opens it), the topic (a word or two; a
+project list`'s, a click or `RET` on the `[choice]` opens it; the selected
+desk's project is picked already), the topic (a word or two; a
 repository needs one, a project that is no repository works in its own
 folder), and the task; nothing typed for the task is the desk alone, for a
 worker later. New worker asks for the task alone; nothing typed is a session, an
@@ -441,8 +442,9 @@ goes with it, as `--push` does) and *no tests by themselves when it hands
 in* (`--no-tests`: the Test button still runs them). `TAB` moves between
 the fields, `C-c C-c` is the button, `C-c C-k` cancels. The form hands its
 words to `vikix agents desk` or `vikix agents worker` as they are, which
-answer in the Office's header line; a refusal (a topic that gives no branch
-name, an agent at the desk already) leaves the form open to fix. A worker's
+answer in the Office's header line; a refusal (a project not picked, a topic
+that gives no branch name, an agent at the desk already) is said in the
+form's own header line and leaves the form open to fix. A worker's
 terminal opens on the desktop, so from a terminal Office with no display
 only the desk alone can be made.
 

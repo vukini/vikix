@@ -417,9 +417,13 @@ each refuses, and the way out; the buttons and keys that open them."
            (set-buffer buffer)
            (should (eq (window-buffer window) form))
            (with-current-buffer form
-             (should (string-match-p "Project: pick one" (buffer-string)))
+             ;; The fixture's desk is of "Vikix", not a project of the offer: to pick, as a button.
+             (should (string-match-p "Project: \\[pick one\\]" (buffer-string)))
+             (should (string-match-p "Agent: \\[yours (claude)\\]" (buffer-string)))
              (should (string-match-p "codex can" (buffer-string)))
              (should-error (vikix-office--form-args) :type 'user-error)
+             ;; What stands in the way is said in the form's own header line.
+             (should (string-match-p "Pick the project" header-line-format))
              (office-test-form-set 'project "vikix")
              (should-error (vikix-office--form-args) :type 'user-error)
              (office-test-form-set 'topic " wifi fix ")
@@ -440,6 +444,15 @@ each refuses, and the way out; the buttons and keys that open them."
            (set-buffer buffer)
            (should-not (buffer-live-p form))
            (should (eq (window-buffer window) vikix-office--detail)))
+         ;; A desk of a project the offer has: that project is picked already.
+         (setf (alist-get 'project (alist-get 'desk (vikix-office--row))) "vikix")
+         (let ((form (vikix-office--form-draw buffer nil (office-test-offer))))
+           (set-buffer buffer)
+           (with-current-buffer form
+             (should (string-match-p "Project: \\[vikix  ~/src/vikix\\]" (buffer-string)))
+             (should (equal (vikix-office--form-value 'project) "vikix"))
+             (vikix-office-form-cancel))
+           (set-buffer buffer))
          ;; The worker's form for the desk picked: its folder, the task and the boxes.
          (let ((form (vikix-office--form-draw buffer (vikix-office--row) (office-test-offer))))
            (set-buffer buffer)
@@ -459,7 +472,8 @@ each refuses, and the way out; the buttons and keys that open them."
                  (should (equal args '("office" "--worker" "/tmp/a desk with spaces" "sort them" "--no-tests")))
                  (should-not refreshed)
                  (should (buffer-live-p form))
-                 (should (string-match-p "no" (buffer-local-value 'header-line-format buffer))))
+                 (should (string-match-p "no" (buffer-local-value 'header-line-format buffer)))
+                 (should (string-match-p "vikix agents: no" (buffer-local-value 'header-line-format form))))
                (cl-letf (((symbol-function 'vikix-office--request)
                           (lambda (a _slot done) (funcall done "a worker at ~/src/vikix-a, on workspace 3\n" nil)))
                          ((symbol-function 'vikix-office-refresh) (lambda () (setq refreshed t))))

@@ -754,6 +754,7 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
   "Ask the backend what the form offers, then draw it for DESK, a row, or a new desk with nil."
   (when (process-live-p vikix-office--action) (user-error "An Office action is still running"))
   (let ((owner (current-buffer)))
+    (vikix-office--notice (concat (if desk "New worker" "New desk") ": asking which projects and agents there are…"))
     (vikix-office--request
      '("office" "--form") 'vikix-office--action
      (lambda (output error)
@@ -776,6 +777,10 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                    (and (buffer-live-p vikix-office--detail)
                         (get-buffer-window vikix-office--detail vikix-office--frame))))
          (agents (alist-get 'agents offer)) (projects (alist-get 'projects offer))
+         ;; The project: the selected desk's when the offer has it, else to pick.
+         (chosen (with-current-buffer owner
+                   (let ((name (alist-get 'project (alist-get 'desk (vikix-office--row)))))
+                     (if (cl-find name projects :key (lambda (p) (alist-get 'name p)) :test #'equal) name ""))))
          widgets)
     (with-current-buffer buffer
       (kill-all-local-variables)
@@ -789,13 +794,14 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                        "A worktree of the project beside it, on a branch named by the topic, and a record. With a task, a worker is started at it; without, the desk alone, for a worker later.\n\n"))
       (unless desk
         (push (cons 'project
-                    (apply #'widget-create 'menu-choice :tag "Project" :value ""
-                           :help-echo "The project the desk is for (vikix project list)"
-                           '(item :tag "pick one" :value "")
+                    (apply #'widget-create 'menu-choice :tag "Project" :value chosen
+                           :format "%t: %[%v%]\n" :button-prefix "[" :button-suffix "]"
+                           :help-echo "The project the desk is for (vikix project list): a click or RET opens the list"
+                           '(item :tag "pick one" :format "%t" :value "")
                            (mapcar (lambda (p)
                                      (list 'item :tag (concat (alist-get 'name p) "  " (or (alist-get 'short p) "")
                                                               (if (eq (alist-get 'repo p) t) "" "  (no repository: its own folder, no topic)"))
-                                           :value (alist-get 'name p)))
+                                           :format "%t" :value (alist-get 'name p)))
                                    projects)))
               widgets)
         (widget-insert "\n")
@@ -812,15 +818,16 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
       (widget-insert "\n")
       (push (cons 'agent
                   (apply #'widget-create 'menu-choice :tag "Agent"
-                         :value "" :help-echo "Which agent: yours, or another (vikix agent --list)"
-                         (list 'item :tag (concat "yours (" (or (alist-get 'default offer) "claude") ")") :value "")
+                         :value "" :format "%t: %[%v%]\n" :button-prefix "[" :button-suffix "]"
+                         :help-echo "Which agent: yours, or another (vikix agent --list): a click or RET opens the list"
+                         (list 'item :tag (concat "yours (" (or (alist-get 'default offer) "claude") ")") :format "%t" :value "")
                          (mapcar (lambda (a)
                                    (list 'item
                                          :tag (concat (alist-get 'name a) "  " (or (alist-get 'about a) "")
                                                       (cond ((eq (alist-get 'yours a) t) "  (yours)")
                                                             ((eq (alist-get 'installed a) t) "")
                                                             (t "  (not installed yet: its installer is offered in the terminal)")))
-                                         :value (alist-get 'name a)))
+                                         :format "%t" :value (alist-get 'name a)))
                                  agents)))
             widgets)
       (widget-insert "\n")
@@ -839,7 +846,7 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
       (widget-insert "  ")
       (widget-create 'push-button :notify (lambda (&rest _) (vikix-office-form-cancel)) "Cancel")
       (widget-insert "\n\n"
-                     (propertize (concat "TAB moves between the fields, RET or a click picks and presses; C-c C-c is the button, C-c C-k cancels."
+                     (propertize (concat "A click or RET on a [choice] opens its list; TAB moves between the fields; C-c C-c is the button, C-c C-k cancels."
                                          (if (eq (alist-get 'display offer) :false)
                                              " No display here: a worker's terminal can't open from this Office; a desk alone can be made."
                                            ""))
@@ -853,6 +860,10 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
         (progn (set-window-buffer window buffer) (select-window window))
       (pop-to-buffer buffer))
     buffer))
+(defun vikix-office--form-say (text)
+  "TEXT in the form's own header line, where the eye is (the Office's is in the other pane)."
+  (setq header-line-format (concat "  " (replace-regexp-in-string "%" "%%" text)))
+  (force-mode-line-update))
 (defun vikix-office--form-value (name)
   "The form's widget NAME's value in this buffer; nil without the widget."
   (let ((w (alist-get name (plist-get vikix-office--form :widgets))))
@@ -875,8 +886,11 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
              (topic (string-trim (or (vikix-office--form-value 'topic) "")))
              (offered (cl-find project (alist-get 'projects (plist-get form :offer))
                                :key (lambda (p) (alist-get 'name p)) :test #'equal)))
-        (when (member project '(nil "")) (user-error "Pick the project"))
+        (when (member project '(nil ""))
+          (vikix-office--form-say "Pick the project: a click or RET on [pick one] opens the list")
+          (user-error "Pick the project"))
         (when (and (eq (alist-get 'repo offered) t) (string-empty-p topic))
+          (vikix-office--form-say "A repository's desk needs a topic: a word or two for the work")
           (user-error "A repository's desk needs a topic: a word or two for the work"))
         (append (list "office" "--desk" project)
                 (unless (string-empty-p topic) (list topic))
@@ -887,6 +901,7 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
   (interactive)
   (let* ((args (vikix-office--form-args)) (owner (plist-get vikix-office--form :owner)) (buffer (current-buffer)))
     (unless (buffer-live-p owner) (user-error "The Office is closed"))
+    (vikix-office--form-say (if (plist-get vikix-office--form :desk) "Starting the worker…" "Making the desk…"))
     (with-current-buffer owner
       (when (process-live-p vikix-office--action) (user-error "An Office action is still running"))
       (vikix-office--request
@@ -894,7 +909,9 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
        (lambda (output error)
          (if error
              ;; The form stays, with what to fix said where the eye is.
-             (progn (vikix-office--notice error) (message "%s" (string-trim error)))
+             (progn (vikix-office--notice error)
+                    (when (buffer-live-p buffer) (with-current-buffer buffer (vikix-office--form-say error)))
+                    (message "%s" (string-trim error)))
            (vikix-office--notice (or (car (last (split-string (string-trim output) "\n" t))) "Done"))
            (when (buffer-live-p buffer) (with-current-buffer buffer (vikix-office-form-cancel)))
            (vikix-office-refresh)))))))
