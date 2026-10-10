@@ -10,46 +10,27 @@ Vikix already has a broad set of features. The strongest next step is to
 connect the command registry, rules, snapshots, projects and live Lisp
 desktop so that everyday work takes less managing.
 
-1. **Finish the agent office.** Starting an agent should attach it to a
-   project, worktree, workspace and task. Its desk should show what changed,
-   which checks passed and what needs Vid's attention. Agent discovery is
-   already in; the `desk` work is underway. Build on [NOVEL.md, idea
-   22](NOVEL.md#22-an-office-for-agents), rather than a second agent manager.
-2. **Restore the work, including the conversation.** Session restoration
-   brings agent terminals back in their folders; the remaining step is to
-   resume the conversations where the agent supports it. After a reboot,
-   recover the project, layout and resumable session, and say clearly what
-   could not be restored. This follows the session work in TODO's saved
-   layouts item.
-3. **Make "why?" offer a useful next action.** Connect an explanation to the
-   rule, setting or guide behind it. "This window moved because of this
-   rule" should lead to inspecting the rule, testing a revision or disabling
-   it. Existing provenance and rule controls are the foundation; the addition
-   is the route from an explanation to a fix.
-4. **Bring file versions into Esploro.** The planned "Versions…" interface
+1. **Restore the work, including the conversation.** Session restoration
+   brings agent terminals back in their folders, and `vikix agents resume`
+   takes a desk's conversation up again by hand; the remaining step is to do
+   that at the login. After a reboot, recover the project, layout and
+   resumable session, and say clearly what could not be restored. This
+   follows the session work in TODO's saved layouts item.
+2. **Bring file versions into Esploro.** The planned "Versions…" interface
    should list available versions, preview or compare one, and restore
    through a reversible plan. This makes backups useful during ordinary
    work. Continue [plans/DESIGN-restore.md](plans/DESIGN-restore.md), TODO item 80.
-5. **Show what changed after an update.** Keep a small "Since your last
+3. **Show what changed after an update.** Keep a small "Since your last
    update" page, filtered by installed features and linked to examples.
    Features arriving quickly need a way to become habits. This develops
    [NOVEL.md, idea 11](NOVEL.md#11-whats-new-for-you), rather than adding a
    separate release-notes mechanism.
 
-**Another addition: a project handoff card.** When leaving a project, keep
-a short account of the task, unfinished changes, last check results and
-next action. On returning, or starting another agent, show it beside the
-actual Git state. Existing project logs, agent discovery and saved layouts
-provide much of the foundation. Distinguish observed facts from an agent's
-summary or uncertain claims; associate check results with the revision
-tested so that old results do not look current. First try a card for one
-project, using its existing log rather than a second task database.
+Of the review's five, the office and "why?" with a next action are built,
+and its project handoff card became the desk's handoff (`ARCHIVE.md`).
+Suggested order from this review: reliable session restoration first.
 
-Suggested order from this review: finish the agent office, then reliable
-session restoration. Both address friction in Vid's current workflow and
-make the existing features more useful.
-
-Ideas for Vikix that nobody has decided to build yet. When one is picked up, it moves to `TODO.md` (worked out properly there: what, why, what it touches) and is deleted from here. Nothing here is a promise, and no package name here has been checked against void-packages.
+Ideas for Vikix that nobody has decided to build yet. When one is picked up, it moves to `TODO.md` (worked out properly there: what, why, what it touches) and is taken out of here; one that ships goes to `ARCHIVE.md`. Nothing here is a promise, and no package name here has been checked against void-packages.
 
 Gathered on 2026-09-30, in a conversation with Vid.
 
@@ -101,7 +82,7 @@ Vikix can try these because the whole desktop is a live Lisp program, it already
 
 - **The apprentice: a desktop that learns your habits.** It watches how you work, notices what you repeat, and offers to automate it.
     - **From the shell history:** sequences you repeat (`cd` to a repo, `git pull`, `vikix update` → one command, with a name); long commands retyped often (→ an alias); commands that fail and are rerun fixed (with `sudo`, a typo corrected: it learns the fix); daily habits with a faster way (a flag or a tool you didn't know).
-    - **From the desktop, which only Vikix can see:** StumpWM records which keys, commands and menu entries are used. "You open Firefox and move it to workspace 2 every morning" → a window rule. "You clicked the launcher 20 times this week" → Super+d. "These five keys are never used" → offered for things you do.
+    - **From the desktop, which only Vikix can see:** StumpWM records which keys, commands and menu entries are used. "You open Firefox and move it to workspace 2 every morning" → a window rule. "You clicked the launcher 20 times this week" → Super+d. "These five keys are never used" → offered for things you do. (The counting is in since 0.72.x: `vikix used` keeps which keys, menu entries, palette picks, typed commands and rules are used, names and counts only.)
     - **How it offers:** a short weekly digest, not pop-ups. Each suggestion shows exactly what it would add (an alias, a function, a key in `user.lisp`) with a one-key yes; every yes is a snapshot first, so `vikix undo` takes it back.
     - **How it's built:** the patterns are plain counting, no AI; a model only names and explains a suggestion. History is private and holds secrets typed by accident: a local model only, and the secrets scrubbed first, as `vikix debug` does.
 - **Learn Lisp by changing your own desktop.** A `vikix learn` course where each lesson changes the running desktop: a key that tells the time, the bar's colours, your first StumpWM command. The desktop is the teaching tool. A companion to the Common Lisp books.
@@ -111,25 +92,21 @@ Vikix can try these because the whole desktop is a live Lisp program, it already
 
 ## Leaning into Lisp
 
-Ideas that work only because the desktop is a running Lisp program you can inspect, change and question while it runs. Vid's favourites to start with were three, which make Vikix safer and easier to shape, each a real reason for Lisp rather than a novelty: the first, errors that ask instead of crash, is built (`errors.lisp`); the second, a little language for desktop rules, is being built (`rules.lisp`; the rest in `TODO.md`, items 68 to 71); the third is the first below.
+Ideas that work only because the desktop is a running Lisp program you can inspect, change and question while it runs. Vid's favourites to start with were three, which make Vikix safer and easier to shape, each a real reason for Lisp rather than a novelty: errors that ask instead of crash (`errors.lisp`), a little language for desktop rules (`rules.lisp`, `vikix rules`) and agents that act through code you can check first (the door, `door.lisp`); all three are built, and layouts as plain Lisp with them (`ARCHIVE.md`). Still open:
 
-- **Agents that act through code you can check first.** Done as the door (`door.lisp`, `vikix door`, 2026-10-08): an agent's form is read without running and walked, every function it calls checked against one list; a move passes, a shell command or a file is held for your yes.
 - **A time machine for functions.** Each live redefinition (from Emacs, `vikix eval` or an agent) keeps the previous version and its source. `vikix lisp undo move-window` puts the old one back; a history says what changed and when. Snapshots do this for files; this does it for the running code.
 - **Look inside any window.** Super-click a window: the Lisp inspector opens in Emacs (SLIME) on StumpWM's object for it, with its class, size, workspace and properties, changeable live. A way to learn the desktop from the inside.
-- **Layouts as plain Lisp.** Done as saved layouts (`layouts.lisp`, `vikix layout`).
 - **Your configuration as a book.** `user.lisp` written as an Org document, explanations and code together, the code tangled out by org-babel. The config reads like a chapter.
 - **Live-code music from the same Lisp.** A feature with SuperCollider and a Common Lisp client for it: from the Emacs that talks to StumpWM, play loops, change the tempo live, bind patterns to keys; the bar shows the beat.
-- **Your own desktop, compiled.** `save-lisp-and-die` builds one StumpWM executable with your plugins and settings compiled in, so the desktop starts at once; a Super+m entry rebuilds it after changes, and the plain build stays as the fallback.
 
 ## Lisp apps for the Lisp desktop
 
 Small programs (an image viewer, a file explorer, a launcher, a video player) written in Common Lisp and driven by Vikix: the Lisp-machine idea on a modern desktop, where the desktop, the apps, the rules and the agents talk to each other in one language. A natural companion, or sequel, to the *Living Software* book (one program grown across a book), one app grown in public per book or site.
 
-- **First, what already exists** (shipped in 0.69.0: `vikix add lisp-apps`): **Lem** (an editor written in Common Lisp, Emacs-like, graphical and terminal), **Nyxt** (a web browser written in Common Lisp, programmable as StumpWM is), **McCLIM** (a toolkit for windowed apps in Common Lisp, drawing through the same X11 library as StumpWM) with its inspector (Clouseau) and listener. The first apps StumpWM can drive in its own language, with no new code.
 - **Where Lisp adds something: presentations.** In McCLIM, what is on screen is still the Lisp object behind it: a file shown in an explorer *is* the file object, its right-click offers the commands that apply to it, and the same object can be handed to StumpWM, a rule or an agent. That is what would make these apps new rather than copies.
 - **Where it doesn't:** decoding video, rendering the web, reading every image format are years of others' work. Lisp for the interface and the behaviour, proven engines underneath: the video player is a Lisp app controlling mpv over its socket, not a decoder.
 - **How they fit:** each app its own Lisp process (a crash takes down the app, never the desktop), registered with Vikix and taking commands as StumpWM does through `vikix eval`; one shared command language, so a rule (`(when-window (:class "vikix-view") …)`) or an agent can drive any of them, checked by the allow-list (Leaning into Lisp); one look, following `vikix theme`.
-- **An order, smallest and most useful first:** 1. install Lem, Nyxt, McCLIM (done, 0.69.0); 2. an **image viewer** (thumbnails, zoom, tags, renaming, all scriptable; could replace nsxiv); 3. a **file explorer** built on presentations, the showcase (became Esploro, its own project, now an Emacs window over a Lisp core: TODO 64); 4. a **launcher and menu** in Lisp, replacing rofi and joining the key help and the plugins; 5. a **video player**, a Lisp front-end on mpv; 6. the text editor stays Lem or Emacs, extended rather than rewritten.
+- **An order, smallest and most useful first:** 1. install Lem, Nyxt, McCLIM (done, 0.69.0: `vikix add lisp-apps`, with McCLIM's inspector Clouseau and its listener); 2. an **image viewer** (thumbnails, zoom, tags, renaming, all scriptable; could replace nsxiv); 3. a **file explorer** built on presentations, the showcase (became Esploro, its own project, now an Emacs window over a Lisp core: TODO 64); 4. a **launcher and menu** in Lisp, replacing rofi and joining the key help and the plugins; 5. a **video player**, a Lisp front-end on mpv; 6. the text editor stays Lem or Emacs, extended rather than rewritten.
 
 ## Nyxt: commands still to build
 
@@ -166,7 +143,7 @@ Two of the day's ideas are already worked out as designs, so they go to `TODO.md
 
 ### Cuis Smalltalk
 
-Worked out as `plans/DESIGN-cuis.md`: `vikix add cuis` from pinned packages, a `vikix eval --cuis` door with Swank's password and guard, the desktop drawn as objects in Morphic, the music sketchpad's second face, lessons that change the running image, and a docs adapter for class comments. One idea stays here: **the other living image, as a book.** The Common Lisp book is *Living in the Image*; Cuis is the other image one can live in, and one language against two images is a chapter nobody has written. For the Living Series file when the time comes.
+Worked out as `plans/DESIGN-cuis.md` and being built as TODO 88. One idea stays here: **the other living image, as a book.** The Common Lisp book is *Living in the Image*; Cuis is the other image one can live in, and one language against two images is a chapter nobody has written. For the Living Series file when the time comes.
 
 ### PicoLisp
 
@@ -181,12 +158,8 @@ Not: a fourth implementation language for Vikix itself (bash, Python and Common 
 
 ### Areas still to look at (2026-10-03)
 
-Parts of Vikix that haven't had the code-first pass the sections above got. Each would become a section here or a `DESIGN-*.md`. In Vid's order of interest: publishing (TODO 79, worked out as `plans/DESIGN-publish.md`), then security (now `plans/DESIGN-security.md`). The children's account is set aside for now (Vid, 2026-10-04): it stays at the end of this list, not to be picked up before the rest.
+Parts of Vikix that haven't had the code-first pass the sections above got. Each would become a section here or a `DESIGN-*.md`. Done so far: publishing (TODO 79), security (`plans/DESIGN-security.md`), your machines and your phone (`DESIGN-machines.md`), the cloud (`DESIGN-cloud.md`) and backup and restore (`DESIGN-restore.md`). The children's account is set aside for now (Vid, 2026-10-04): it stays at the end of this list, not to be picked up before the rest.
 
-- **Security.** Worked out as `plans/DESIGN-security.md` (2026-10-04): the four pen-test reports and TODO items 4 and 5 as one ordered plan.
-- **Your machines and your phone.** Worked out as `plans/DESIGN-machines.md` (2026-10-04): Tailscale, Syncthing, KDE Connect and `vikix export`/`import` as one design, with `--on NAME` for the doors.
-- **The computer extended into the cloud.** Vid's idea, kept as he wrote it in `plans/DESIGN-cloud.md` (2026-10-09): rented always-on machines as *nodes* of the one Vikix (`vikix nodes`, `vikix node shell|run`, `vikix run --on atlas`, projects sent by git, jobs that outlive the laptop), over SSH first and the mesh of `plans/DESIGN-machines.md` later; and, if it works for Vid, the product: Vikix Cloud sells nodes that attach to your Vikix, not a VPS. First milestone: the laptop and one cheap Void VPS feeling like one system.
-- **Backup and restore.** Worked out as `plans/DESIGN-restore.md` (2026-10-04): `vikix versions` over both histories, Esploro's "Versions…" as a plan with undo, a guided setup.
 - **The Z13 as a tablet.** Touch, pen and the detachable keyboard (TODO 58–63): what a tablet mode of a tiling desktop is. Nobody on Linux has a good answer; Viri's strip may be part of one.
 - **A first visitor's path.** The site, the install line, the first hour, the release process and GitHub Actions, seen by someone who actually tries it for the first time; the everyday-user agent on a fresh VM, start to finish.
 - **The children's account** (TODO 33). Several of today's ideas point at it: lessons in Cuis, Pascal, the education bundle, screen time, "show me how". Enough hangs off it that it would deserve its own design, later: a second login, a simpler desktop, apps chosen by the parent, nothing of the parent's reachable, a home for the programming course.

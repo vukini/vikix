@@ -94,7 +94,7 @@ vikix_hunks() {   # the parts of bin/vikix the diff touches: one a line, a part 
 for f in "${files[@]}"; do
   case $f in
     # Words, plans and designs: nothing runs them.
-    TODO*.md|IDEAS.md|bugs.md|plans/*|CLAUDE.md|NYXT-GUIDE.md|VERSION|.gitignore) continue ;;
+    TODO*.md|IDEAS.md|ARCHIVE.md|bugs.md|plans/*|CLAUDE.md|NYXT-GUIDE.md|VERSION|.gitignore) continue ;;
     tests/office-ui*|lib/office.py|config/emacs/vikix-office.el) add office-ui ;;
     tests/run.sh|tests/changed.sh) all=1 ;;
     .claude/release) add release ;;

@@ -1,0 +1,89 @@
+# Archive
+
+What shipped, or was dropped, out of `TODO.md` and `IDEAS.md`, so those two hold only what is left. An entry keeps its number (a number is never used twice: the commits, the memories and `CLAUDE.md` cite them) and says what it became, with the version or the date the lists gave. The first entries were moved here on 2026-10-10, from a review of 0.72.21 against the code; since then an item moves here in the commit that ships it, and one half done leaves in `TODO.md` only what is left.
+
+## From TODO.md
+
+### What's next, in order (drawn up with Vid 2026-10-03)
+
+1. **The rules language.** The rules, `vikix rules`, remembering a window, the move over of every hand-written window hook, the guide (`docs/rules.md`) and the starter `rules.lisp`. What follows it is `TODO.md`'s "After the rules language".
+2. **Saved layouts.** By hand (`vikix layout save NAME`, `vikix layout NAME`) and by a rule (`(layout "writing")`), in `layouts.lisp`: plain Lisp files, as IDEAS' "Layouts as plain Lisp" had it. `vikix project open` saving a project's layout on leaving its workspace and putting it back (50a). Starting the windows a layout names that aren't open, and placing them as they come. The whole session back after a restart (`resume.lisp`, `vikix resume`): every workspace saved by itself, and brought back at login.
+3. **A desktop to trust for weeks**, the measured part. The times are measured and tested (`vikix times`, `tests/times.sh`: login, a reload, a key to its command, an Emacs frame, StumpWM answering, and a tiled xterm), and the soak test is in (`vikix times soak`, an hour on a hidden screen, weekly after asking; `tests/soak.sh` a minute of it); not on GitHub, whose runners have no screen. Reloads and logins load the layer from compiled copies made in the background (a reload went from 2.2 s to under half a second on a hidden screen), and the bar's programs run in a thread of their own, which had held the main thread a quarter of a second every ten, four seconds once. A way out when it is stuck: a watcher that notices the main thread going round and round and frees it, Super+Ctrl+Alt+Escape read apart from StumpWM's keys, `vikix rescue`, and the lock screen kept in front of the windows (`rescue.lisp`, `docs/fixing.md`).
+4. **Agents that act through code you can check first**, the first step. `propose_rule` and `run_command` were its first slices. The door (2026-10-08, `door.lisp`, `vikix door`, Super+m → Door): an agent's `vikix eval` and the MCP `eval` are read without running and walked against one list before anything runs, and what fails waits for the user. The socket (2026-10-09, `socket.lisp`): every form passes one road, reads are answered while a menu is open, and the door stands in its thread.
+5. **In between, as polish**, what was done: a newly plugged screen lighting up by itself (Super+Ctrl+p for the rest), GTK and Qt programs following `vikix theme`, a tray that can be switched on (`vikix tray on`). From a second look on 2026-10-05: one box for everything (the palette, Super+Space: windows, commands, projects, web apps, layouts and programs). What gets used is counted (`vikix used`, `used.lisp`: keys, menu entries, palette picks, typed commands, rules, agents' commands; names and counts only, on this machine). The agents' skill is a short first page and a page a subject (80 KB down to 15 for every session).
+
+- **Rules for more events** (offered 2026-10-05, then built): `when-screen`, `when-network`, `when-drive`, their `-gone`, `when-idle`; `vikix rules now`.
+- **The verbs table (`*vikix-rule-verbs*`) as the first entries of the allow-list** for agents that act through code: `propose_rule` (0.71.x) was its first use, `vikix-rule-proposal-check` in `rules.lisp` the walker that lets through only rule forms, verbs and plain values; the door took it from there.
+
+### Picked from IDEAS (with Vid 2026-10-04)
+
+73. **The docs catalogue**, Phase 0 (`vikix docs`, `bin/vikix-docs`): the catalogue over Vikix's guides, `~/src`, `~/dev`, the Org notes, man pages and Info manuals, FTS5 with Vikix's first, Super+F2, man pages as styled pages, `docs_search`/`docs_read` for the agents, `vikix docs get` for the old download. Also: Markdown as styled pages, `pkgdoc` and `pkg` (packages and what they are), `vk` with prefixes and Tab, and the page in Nyxt (`vikix docs page`, Super+m → *Every document as a page in Nyxt*): hits grouped by source with counts, Open and the other way.
+79. **Publishing, `vikix add publish`**, Phase 0 and most of Phase 1: the feature (Void's pandoc, Typst, Calibre, Sigil, IBM Plex, Amiri; epubcheck fetched as a pinned release on the `java` feature), `lib/publish/` (`build`, the `doc-to-epub` skill's `fix-tables.py` and `epub.css`, `publish.mk`), `vikix publish [NAME] [epub|pdf|check]`; Living in SQL builds an EPUB epubcheck passes and a PDF. The spelling in `check` (hunspell, LibreOffice's `en_GB`, `eo` and `ar` pinned, passages by their `lang`, `words.txt`, `spell --keep`) and `--send` (a Kindle or Kobo as a drive, a BOOX over MTP or adb, `--to`). `vikix publish new`, and `vikix publish skill`, the cloud `doc-to-epub` skill made from the same files (Vid uploads it).
+82. **Windows programs in their own windows, through RemoteApp**, built with stand-ins: `vikix windows apps setup` (FreeRDP, RemoteApp switched on through the guest agent, the password kept, `~/Documents` as `Y:`), `vikix windows apps` (the Start menu), `apps add`, `vikix windows app NAME [FILE]`; `tests/winapps.sh`. First real target: FACTS, the company ERP: it opens as a window of its own and reaches its server (2026-10-05).
+88. **Cuis Smalltalk as a Vikix program**, Phase 0 (2026-10-09): `vikix add cuis` (the tag `#BaseForCuis7.8` pinned and checksummed into `~/.local/opt/cuis`, the Linux parts only), `~/cuis/vikix.image` built with no window from the base image, its core updates and `cuis/*.pck.st` (`VikixServer`, the door), the `cuis` command with `-ud ~/cuis`, Super+m → Apps, `~/cuis` in `yours.list`, `vikix cuis status|doctor|rebuild|uninstall`, `vikix update` rebuilding on a changed pin or package; `vikix eval --cuis '3 + 4'` through the door (`127.0.0.1:4005`, the first line of `~/.slime-secret`, lines ending in a dot both ways, evaluated in the UI process); an agent's expression held. `tests/cuis.sh`.
+87. **What is this?**, Phases 0 and 1. Phase 0: `vikix what`, `Super+Alt+?`, a click on a field of the bar; a card for a field, a window, a workspace, a key, a process and a package, from Vikix's guides and the manuals (`config/what/`). Phase 1 (2026-10-06): the user's own documents as a source of the catalogue (`own=`, a row a section, closed to agents unless `agents=` opens a folder), the user's own pages and chapters (`what=`, kept with the books, never here: Vid's are private), the kinds port, service, file and command, `vikix what gaps`, the rows in `vikix why`.
+
+### Features
+
+72. **Viri, a workspace that scrolls sideways**: Phase 0 (`vikix viri`), the drawn overview (0.71.130), sliding and centring (0.71.135) and the mouse (0.71.144): the design's P0 and P1. Past the design: the ends and a pinned column (0.71.156); tabbed columns (0.71.159); uneven heights (0.71.163); fill the rest (0.71.168); a whole column to another workspace (0.71.174); a sliver of the neighbours (0.71.177); a touchpad swipe (0.71.179), two fingers too (0.71.180).
+64. **Esploro becomes Vikix's file explorer**, steps 1 and 2. The plan is in Esploro's DESIGN.md ("Becoming Vikix's file explorer"). The window is Emacs (measured there: dired 1-2 ms a key at 20,000 files, McCLIM 44 ms with none and 7 s at 20,000; McCLIM kept on Esploro's `mcclim` branch), with menus, the mouse and drag and drop; step 1 in 0.71.x. Step 2: Super+e, folders by default (set over PCManFM only), drives through `xdg-open`, and "Show in folder" (org.freedesktop.FileManager1).
+
+### Wish list
+
+97. **The office, live**, the dashboard: `vikix agents office` (`lib/office.py`), the same rows as `vikix agents --json`, in a terminal (`--tty`) and as an Emacs view that stays open, with the desks' branch, uncommitted count, what each agent does and whether it waits on you, and the actions beside (go to its window, Pause/Go, Test, Tell, New desk). Stopping an agent: `vikix agents dismiss` (2026-10-08).
+20. **A Vikix installer image**, its first step (2026-10-06, for the Z13): `installer/build-image.sh` makes a stick with void-mklive (pinned) and kernel 6.18 + current firmware from Void's repository; `installer/vikix-installer` asks a few questions (Wi-Fi, disk, you, encryption, time zone, keyboard, how much of Vikix), erases one whole disk (1 GiB EFI as `/boot`, then LUKS2 with ext4), installs Void from the network with NetworkManager on and the Wi-Fi carried over, puts Vikix in `~/vikix`, and `installer/firstboot` runs `install.sh` at the first login. Guide: `docs/install-stick.md`; `tests/installer.sh`; `installer/qemu-test.py` end to end in QEMU.
+25. **Read aloud**, the voice: Piper, from its release through uv (`piper-tts` pinned, the voices from one commit of rhasspy/piper-voices, each file checked), installed by `vikix voice setup`.
+26. **E-books to an e-reader**, for a book of yours: Calibre with `vikix add publish`, and `vikix publish --send` puts the EPUB on a Kindle or Kobo mounted as a drive, any drive with a Books folder, or a BOOX over MTP or adb (`--to FOLDER` for another).
+31. **Find any file.** The palette (Super+Space): `/ words` finds a file or folder under your home folder by its name, with `fd`, as fast as typing.
+34. **A plugin system**, built in 0.71.x: `vikix plugin` (list, add, remove, off, on, safe, status, sync), the repo `vukini/vikix-plugins` at a pinned commit, the kinds bar (`%P`), menu, key and service, `plugins.lisp` loading each through the errors menu, the debug report, `vikix doctor` naming them.
+35. **More themes** (item 5's Gruvbox, Nord, Tokyo Night and a high-contrast one) were made in the core, as `themes/gruvbox-dark`, `nord-dark`, `tokyo-night-dark` and `contrast-dark`, each with its wallpaper; the `vikix-themes` repo they were meant for stays an item.
+39. **Flights**, the plugin `flights` (search from a line, watched routes): prices from Google Flights through fast-flights (no card, unofficial), never booking; LetsFG wasn't used (it asks for a card to search, and can book).
+40. **AI usage**, the plugin `ai-usage`.
+Items 37, 38 and 41: **Agent waiting** (`agent-waiting`: Claude Code through its hooks, and Codex's `[ ! ] Action Required` title), **Notes from anywhere** (`inbox`: the box, Super+Alt+i, Super+Alt+Shift+i quoting the selection, the page's address from Firefox and Nyxt, `inbox sort` on Super+Alt+Shift+s with `--undo`, to-dos to Todoist) and **Next meeting** (`next-meeting`, calendars by their private ICS links) shipped as plugins; what each still lacks stays under its number in `TODO.md`.
+91. **The socket** (code health, 0.71.265): `socket.lisp`, `vikix eval`'s first road.
+110. **Nothing on the main thread waits on a program** (code health, 0.72.x): `vikix-shell-then` and `vikix-later`, and `tests/lint.sh` failing a `run-shell-command … t` anywhere but the helpers.
+
+### Vikix as the workshop for the Living Series (decided with Vid 2026-09-30)
+
+The series (about 28 projects, 315 MB) lived in the Obsidian vault's `Living-in-Life` folder, with Progress docs in a claude.ai project and the Work Log, Status Board and Living Shelf as claude.ai pages.
+
+47. **The repo, `vukini/living-series`**, its shape: a folder per project (kebab-case names, `Living-in-Commor-Lisp` fixed), `shared/` for what projects share, a root `CLAUDE.md` with the series' house rules, and a `log.md` per project with a Status block and dated entries (not the `project.org` first planned: the books themselves stay in Markdown, which their pipelines, the sites and GitHub all work with).
+48. **Moving in, safely.** Done 2026-10-02: every project moved, checked and building in `~/src/living-series`; the vault's `Living-in-Life` archived (`~/backups/archive/`) and removed.
+51. **The online views.** Dropped (Vid, 2026-10-02): the series is made on the laptop and claude.ai is no longer used, so there are no pages there to regenerate. `vikix project list` and the logs are the views.
+
+### Org instead of Obsidian (decided with Vid 2026-09-30)
+
+54. **The notes: Org files in `~/Dropbox/notes`.** Done without a feature of its own (`notes` is `note ask`'s): the inbox plugin makes the folder and `inbox sort` the starter files; `config/emacs/vikix-notes.el` gives `C-c n` (the agenda over the notes and their journal, the TODOs, capture into the inbox, the journal, org-roam's find, links, backlinks and graph through org-roam-ui), loaded by emacs-void, where `~/Dropbox/notes` opens editable.
+55. **Converting the vault.** `vikix obsidian` (`bin/vikix-obsidian`): a folder at a time into `~/Dropbox/notes/vault/`, links as org-roam id: links (IDs from each note's place, so links work ahead of their folder), front matter, attachments copied, a report per folder; the vault only read.
+56. **The phones.** `docs/notes.md`, the notes guide: the laptop's side (the box, the sort, `C-c n`) and Orgzly Revived and beorg over Dropbox, what each can do, what travels and what to do with a conflicted copy. Notes files open in Emacs follow the phones' changes (auto-revert).
+
+### C tutorials: `vikix learn c`
+
+The plan was the Learning To Code project's "Vikix — C Tutorials Plan"; its decisions are in `plans/TUTORIALS.md`. Phase 0, the feel: `bin/vikix-learn`, a language-neutral runner (each course folder carries its own compile and check; `learn c | list | go NN | hint | reset NN | check`), watch mode with entr, builds with `-Wall -Wextra -pedantic -g -fsanitize=address,undefined`, design-recipe checks one step at a time showing only the first failure, and `learn/outputs.py --fill` writing a lesson's quoted outputs from real runs (the evidence rule). Phase 1: tracks 1 to 4, fourteen lessons, 0.71.22 to 0.71.24, each track ending in a project.
+
+### To look into
+
+2. **A newly plugged screen stays dark until a layout is saved.** Done (`vikix-screens`, autorandr's predetect hook, StumpWM following RANDR's screen changes, Super+Ctrl+p). To try for real: a screen not seen before (the M80C has no saved layout yet), and unplugging.
+5. **Notifications over the lock screen**: done in 0.70.0, `vikix-lock` pauses dunst while locked. The rest of item 5 stays.
+
+## From IDEAS.md
+
+### Architecture review with Codex (2026-10-05)
+
+1. **Finish the agent office.** Starting an agent attaches it to a project, worktree, workspace and task (`vikix agents desk`, `worker`, the seats), and its desk shows what changed, which checks passed and what needs Vid's attention (the handoff record, the tester, the Office). Built on `NOVEL.md`'s idea 22, not as a second agent manager.
+3. **Make "why?" offer a useful next action.** `vikix-why-choices` (`why.lisp`): edit the rule's line in Emacs when the file is the user's, see it read-only when it is Vikix's, run a switch again, undo a layout change, bring a window a rule moved here, switch the rule off. What is left of it is `TODO.md`'s 101.
+- **A project handoff card** became the desk's handoff (`lib/handoff.py`, `vikix agents handoff|resume`, the MCP tools `handoff` and `handoff_update`): the task, a status with a summary and a next step, and what Vikix observed kept apart from what an agent said, each check tied to the commit it ran on so an old result never looks current.
+
+### Leaning into Lisp
+
+- **Agents that act through code you can check first.** The door (`door.lisp`, `vikix door`, 2026-10-08): an agent's form is read without running and walked, every function it calls checked against one list; a move passes, a shell command or a file is held for your yes.
+- **Layouts as plain Lisp.** Saved layouts (`layouts.lisp`, `vikix layout`).
+- **Your own desktop, compiled.** Picked up as `TODO.md`'s 92, a dumped core at login.
+
+### Lisp apps for the Lisp desktop
+
+- **First, what already exists** (0.69.0, `vikix add lisp-apps`): Lem (an editor written in Common Lisp, Emacs-like, graphical and terminal), Nyxt (a web browser written in Common Lisp, programmable as StumpWM is), McCLIM (a toolkit for windowed apps in Common Lisp, drawing through the same X11 library as StumpWM) with its inspector (Clouseau) and listener. The file explorer of the list became Esploro, its own project (TODO 64).
+
+### Areas looked at (2026-10-03)
+
+Each got its code-first pass and became a design: **security** (`plans/DESIGN-security.md`, 2026-10-04: the four pen-test reports and TODO items 4 and 5 as one ordered plan), **your machines and your phone** (`plans/DESIGN-machines.md`: Tailscale, Syncthing, KDE Connect and `vikix export`/`import`, with `--on NAME` for the doors), **the computer extended into the cloud** (Vid's idea as he wrote it, `plans/DESIGN-cloud.md`, 2026-10-09: rented always-on machines as nodes of the one Vikix, over SSH first and the mesh later; the product, if it works for Vid: Vikix Cloud sells nodes that attach to your Vikix; first milestone the laptop and one cheap Void VPS feeling like one system), **backup and restore** (`plans/DESIGN-restore.md`: `vikix versions` over both histories, Esploro's "Versions…" as a plan with undo, a guided setup), and **Cuis Smalltalk** (`plans/DESIGN-cuis.md`, then TODO 88).

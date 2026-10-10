@@ -1,6 +1,6 @@
 # Plans
 
-The longer plans of Vikix, one file each. The queue is `../TODO.md`, the pool `../IDEAS.md`, the big ideas `../NOVEL.md`; a design here moves into `TODO.md` when work on it starts, and what ships is deleted from it, what changes dated.
+The longer plans of Vikix, one file each. The queue is `../TODO.md`, the pool `../IDEAS.md`, the big ideas `../NOVEL.md`, what shipped out of the first two `../ARCHIVE.md`; a design here moves into `TODO.md` when work on it starts, and what ships is deleted from it, what changes dated.
 
 ## Designs
 
