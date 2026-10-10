@@ -318,6 +318,10 @@ $ vikix agents crossings
 
 An agent in your home folder owns no folder, so nothing is a crossing into it: everything under home would be.
 
+### Shells left sleeping in a loop
+
+A command an agent typed may loop waiting for a line that never comes (`until grep -q exit log; do sleep 20; done`, with the log named wrong): the agent goes on to its prompt and the loop stays, a shell with nothing but `sleep` under it, for hours. The Office sees the agent at its prompt and says the terminal can be closed; `vikix agents` and the Office's worker row say how many such shells it has, and `vikix agents tidy` lists them by agent and ends them on yes (`--yes` from a script). A shell counts after ten minutes of only sleeping, and only one given its command on the line (`bash -c`): a script that sleeps between its steps, `tests/run.sh` waiting for a slot, is doing something. A loop the agent means to keep, a watch, looks the same, so nothing is ended unasked; `vikix memory left` lists them among the maybes too.
+
 ### What holds the rules, for each agent
 
 `vikix agents hooks` says it plainly, and the handoff's last lines say it for the agents at a desk:

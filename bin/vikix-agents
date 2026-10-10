@@ -37,6 +37,18 @@
                        the last crossings recorded.
                        An agent that edited a file in another agent's
                        folder, or went to another agent's window
+  vikix agents tidy [--yes]
+                       the shells agents left sleeping in a loop, ended.
+                       A shell of an agent's given its command on the line
+                       (bash -c, as the agent's tool runs one) whose only
+                       child is sleep, for ten minutes or more: a loop
+                       waiting for a line that never comes, while the
+                       agent sits at its prompt. Listed by agent, then
+                       ended on yes (--yes from a script). vikix agents
+                       and the Office say how many each agent has; a loop
+                       the agent means to keep (a watch) looks the same,
+                       so nothing is ended unasked. vikix memory left
+                       lists them too, among the maybes
   vikix agents help [COMMAND]
                        the commands in short, or one of them in full.
                        -h (and man vikix-agents) is all of it
@@ -485,7 +497,7 @@ del _part, _path, _f, _header
 # after "vikix agents" (help_key). Every form of the header must be in
 # one, or help can't place it (tests/house.sh checks).
 SECTIONS = (
-    ("seeing", "Seeing them", ("", "office", "clash", "crossings", "help")),
+    ("seeing", "Seeing them", ("", "office", "clash", "crossings", "tidy", "help")),
     ("each", "A desk each: the place", ("desk", "close", "here")),
     ("workers", "Workers: an agent at a desk, on a task", ("worker", "resume", "tell", "pause", "go", "turns", "test",
                                                           "dismiss")),
@@ -661,6 +673,8 @@ def main(argv):
         return tester(argv[1:])
     if argv and argv[0] == "dismiss":
         return dismiss(argv[1:])
+    if argv and argv[0] == "tidy":
+        return tidy(argv[1:])
     if argv and argv[0] == "left":
         return left(argv[1:])
     if argv and argv[0] == "stopping":
@@ -704,6 +718,7 @@ def main(argv):
         a["desk"] = desk_of(a["folder"])
     shared = all_clashes(agents)
     held = waits(agents)
+    table = process_table()
     for a in agents:
         a["clashes"] = [{"file": rel, "with": [who(o) for o, _, _ in rows if o["pid"] != a["pid"]]}
                         for rel, rows in shared.items() if any(o["pid"] == a["pid"] for o, _, _ in rows)]
@@ -724,6 +739,9 @@ def main(argv):
             a["waits"] = (f"paused by {a['paused'].get('by', '?')} since {at(a['paused'].get('at', 0))}"
                           + (" (its process frozen)" if a["paused"].get("hard") else "") + "; vikix agents go")
         a["handoff"] = handoff_brief(a["folder"]) if a["desk"] else None
+        # Shells it left sleeping in a loop: said while it is at its prompt (a
+        # command of its own may well sleep while it works).
+        a["idle_shells"] = idle_shells(a["pid"], table) if a["state"] not in ("working", "running") else []
     if as_json:
         print(json.dumps(agents, indent=1, ensure_ascii=False))
         return 0
@@ -757,6 +775,10 @@ def main(argv):
             print(f"           {(name or line)[:110]}")
         for c in a["clashes"]:
             print(f"           on {c['file']} with {', '.join(c['with'])} too (vikix agents clash {c['file']})")
+        if a["idle_shells"]:
+            n = len(a["idle_shells"])
+            print(f"           {n} shell{'s' if n != 1 else ''} of its only sleeping in a loop, the oldest for "
+                  f"{how_long(a['idle_shells'][0]['seconds'])}: vikix agents tidy")
         h = a["handoff"]
         if h:
             print(f"           handoff: {h['status'] or 'no status'}" + (f"; {h['estimate']}" if h["estimate"] else "")

@@ -441,5 +441,32 @@ check "--force throws uncommitted files away, and says when the terminal was in 
 out=$(close)
 check "no desk left: $out" grep -q 'no desk to close: no project has a worktree beside it' <<<"$out"
 
+# --- tidy: the shells an agent left sleeping in a loop ----------------------------------
+# A real loop, so ending it can be seen; the made-up /proc puts it under an agent.
+bash -c 'while :; do sleep 30; done' & loop=$!
+sleep 0.3; napper=$(pgrep -P "$loop" sleep | head -1)
+shell_proc() {   # shell_proc PID PPID NAME AGE-SECONDS "ARG ARG..."
+  mkdir -p "$t/proc/$1"; printf '%s' "$5" | tr ' ' '\0' > "$t/proc/$1/cmdline"
+  printf '%s (%s) S %s %s 1 0 -1 4194560 0 0 0 0 0 0 0 0 20 0 1 0 %s 0 0\n' "$1" "$3" "$2" "$1" "$(( (5000 - $4) * 100 ))" > "$t/proc/$1/stat"
+  ln -sfn "$t/src/book" "$t/proc/$1/cwd"
+}
+proc 1009 claude "$t/src/book"
+shell_proc "$loop" 1009 bash 4000 "bash -c while :; do sleep 30; done"
+shell_proc "$napper" "$loop" sleep 10 "sleep 30"
+shell_proc 1010 1009 bash 60 "bash -c while :; do sleep 5; done"          # young: not yet
+shell_proc 1011 1010 sleep 2 "sleep 5"
+shell_proc 1012 1009 bash 4000 "bash tests/run.sh lint"                    # a script that sleeps between steps: busy
+shell_proc 1013 1012 sleep 3 "sleep 10"
+out=$(agents tidy </dev/null || true)
+check "tidy lists the shell asleep in a loop under its agent, and ends nothing unasked: $out" \
+  bash -c "grep -q 'claude 1009: pid $loop, 1 h 6 min: while :; do sleep 30; done' <<<\"\$1\" && grep -q 'Nothing ended: vikix agents tidy --yes' <<<\"\$1\"" _ "$out"
+check "not the young one, nor the script" bash -c '! grep -qE "pid 101[02]" <<<"$1"' _ "$out"
+check "the loop still runs" kill -0 "$loop"
+out=$(agents tidy --yes)
+sleep 0.5
+check "--yes ends it, the shell and its sleep: $out" bash -c "grep -q 'Ended 1 of 1' <<<\"\$1\" && ! kill -0 $loop 2>/dev/null && ! kill -0 $napper 2>/dev/null" _ "$out"
+rm -r "$t/proc/1009" "$t/proc/$loop" "$t/proc/$napper" "$t/proc/1010" "$t/proc/1011" "$t/proc/1012" "$t/proc/1013"
+kill "$loop" 2>/dev/null || true
+
 [ $fail = 0 ] && echo "house: ok (the hook says nothing, asks, or tells of a crossing, in Claude Code's shape or agy's; off a desk or in the project's own folder it refuses, Bash writes too; sit seats an agent; clash lists and shows; the listing marks; the journal is pruned; close removes a desk once its work is in)"
 exit $fail

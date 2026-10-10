@@ -118,6 +118,32 @@ def go(argv):
     return 0
 
 
+def tidy(argv):
+    """vikix agents tidy [--yes]: the shells agents left sleeping in a loop
+    (idle_shells), listed by agent, then ended on yes."""
+    yes = argv == ["--yes"]
+    if argv and not yes:
+        die("vikix agents tidy [--yes] (vikix agents help tidy)")
+    table = process_table()
+    rows = [(a, s) for a in live_agents() for s in idle_shells(a["pid"], table)]
+    if not rows:
+        print("No shell of an agent's is left sleeping in a loop.")
+        return 0
+    n = len(rows)
+    print(f"{n} shell{'s' if n != 1 else ''} of agents' only sleeping in a loop:")
+    for a, s in rows:
+        print(f"  {who(a)}: pid {s['pid']}, {how_long(s['seconds'])}: {s['command'][:90]}")
+    asking = sys.stdin.isatty() and not yes
+    if not yes and not (asking and input(f"End {'them' if n != 1 else 'it'}? A loop the agent means to keep (a watch) looks the same. [y/N] ").strip().lower() == "y"):
+        if not asking:
+            print("Nothing ended: vikix agents tidy --yes ends them.")
+        return 1
+    fresh = process_table()
+    ended = sum(1 for _, s in rows if end_shell(s["pid"], fresh))
+    print(f"Ended {ended} of {n}.")
+    return 0 if ended == n else 1
+
+
 def dismiss(argv):
     """vikix agents dismiss DESK | --menu: the desk's agents asked to exit,
     the desk kept."""

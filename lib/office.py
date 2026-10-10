@@ -166,9 +166,18 @@ def snapshot(api):
                 rows[path] = {'desk': {'worktree': path}}
                 folders.add(path)
     held = api.waits(agents) if live_known else {}
+    try:
+        table = api.process_table() if live_known else {}
+    except Exception:  # noqa: BLE001  the shells left are a note, never the snapshot's failure
+        table = {}
     for a in agents:
         if a['pid'] in held and a.get('state') in ('working', 'running', 'idle'):
             a['doing'], a['waits'] = held[a['pid']]
+        # Shells it left sleeping in a loop (vikix agents tidy), while at its prompt.
+        try:
+            a['idle_shells'] = api.idle_shells(a['pid'], table) if table and a.get('state') not in ('working', 'running') else []
+        except Exception:  # noqa: BLE001
+            a['idle_shells'] = []
     default = api.default_agent()
     archive_records = []
     for path, row in rows.items():

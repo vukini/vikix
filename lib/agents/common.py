@@ -9,6 +9,7 @@ their order (its header lists the commands): not a module to import.
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -574,6 +575,101 @@ def default_agent():
 STATE = os.environ.get("XDG_STATE_HOME") or os.path.join(os.path.expanduser("~"), ".local", "state")
 JOURNAL = os.path.join(STATE, "vikix", "office", "journal.jsonl")
 RECORDS = os.path.join(VIKIX_DIR, "bin", "vikix-records")
+
+
+IDLE_SHELL_AFTER = int(os.environ.get("VIKIX_IDLE_SHELL_AFTER") or 600)   # seconds a shell may sleep in a loop before it is said
+SHELLS = ("bash", "sh", "dash", "zsh")
+
+
+def process_table():
+    """Every process: {pid: (ppid, name, age in seconds)}, from /proc's stat
+    files (the age from the start time and the uptime)."""
+    try:
+        ticks = os.sysconf("SC_CLK_TCK")
+    except (ValueError, OSError):
+        ticks = 100
+    uptime = 0.0
+    for path in (f"{PROC}/uptime", "/proc/uptime"):
+        try:
+            with open(path) as f:
+                uptime = float(f.read().split()[0])
+            break
+        except (OSError, ValueError, IndexError):
+            continue
+    table = {}
+    try:
+        names = os.listdir(PROC)
+    except OSError:
+        return table
+    for entry in names:
+        if not entry.isdigit():
+            continue
+        try:
+            with open(f"{PROC}/{entry}/stat") as f:
+                stat = f.read()
+            end = stat.rindex(")")
+            fields = stat[end + 2:].split()
+            table[int(entry)] = (int(fields[1]), stat[stat.index("(") + 1:end], max(0.0, uptime - int(fields[19]) / ticks))
+        except (OSError, ValueError, IndexError):
+            continue
+    return table
+
+
+def idle_shells(pid, table=None, after=IDLE_SHELL_AFTER):
+    """The shells under the agent PID that only sleep in a loop: a shell
+    given its command on the line (bash -c, as an agent's tool runs one)
+    whose children are all sleep, for AFTER seconds or more. [{pid,
+    seconds, command}], the oldest first. What a command of the agent's
+    leaves when its loop waits for a line that never comes (five of them,
+    for hours, 2026-10-10): the agent sits at its prompt, nothing waits on
+    them, and the Office sees only the agent. A script (bash tests/run.sh,
+    a release) that sleeps between its steps is not one: it is doing
+    something."""
+    table = process_table() if table is None else table
+    children = {}
+    for p, (ppid, _, _) in table.items():
+        children.setdefault(ppid, []).append(p)
+    found, todo, seen = [], list(children.get(pid, [])), set()
+    while todo:
+        p = todo.pop()
+        if p in seen:
+            continue
+        seen.add(p)
+        _, name, age = table[p]
+        kids = children.get(p, [])
+        words = cmdline(p)
+        if (name in SHELLS and len(words) > 1 and words[1] == "-c" and kids
+                and all(table[k][1] == "sleep" for k in kids) and age >= after):
+            found.append({"pid": p, "seconds": int(age), "command": " ".join(words[2:])[:120]})
+        else:
+            todo.extend(kids)
+    return sorted(found, key=lambda s: -s["seconds"])
+
+
+def end_shell(pid, table):
+    """End the idle shell PID and its sleep, pinned by process descriptors and
+    checked against TABLE (a fresh one) to be that shell still: True when
+    ended. Never a bare kill of a number that may be another program's by now."""
+    if not hasattr(os, "pidfd_open") or not hasattr(signal, "pidfd_send_signal"):
+        return False
+    row = table.get(pid)
+    if not row or row[1] not in SHELLS:
+        return False
+    kids = [k for k, (ppid, name, _) in table.items() if ppid == pid and name == "sleep"]
+    done = False
+    for target in [pid] + kids:
+        try:
+            fd = os.pidfd_open(target)
+        except OSError:
+            continue
+        try:
+            signal.pidfd_send_signal(fd, signal.SIGTERM)
+            done = done or target == pid
+        except OSError:
+            pass
+        finally:
+            os.close(fd)
+    return done
 
 
 def parent_of(pid):

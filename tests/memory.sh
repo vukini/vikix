@@ -115,6 +115,12 @@ proc 50 1 0 99000 300 "claude"
 proc 252 1 0 9000 500 "/usr/lib/firefox/firefox" CLAUDE_PID=99999 DISPLAY=:0      # an agent started it; it has a window
 proc 260 1 34816 9000 10 "sleep 1000" DISPLAY=:643                         # in a terminal
 proc 270 1 0 9000 10 "dropbox" DISPLAY=:0                                   # a daemon of yours
+proc 51 50 0 9000 5 "bash -c until grep -q exit log; do sleep 20; done"      # an agent's shell asleep in a loop
+proc 52 51 0 9000 1 "sleep 20"
+proc 53 50 0 60 5 "bash -c while :; do sleep 5; done"                        # a young one: not yet
+proc 54 53 0 10 1 "sleep 5"
+proc 55 50 0 9000 5 "bash -c python3 -m pytest"                              # a shell doing something
+proc 56 55 0 9000 50 "python3 -m pytest"
 out=$(VIKIX_MEMORY_WINDOWS="252" mem left)
 sure=$(sed -n '/^Left over/,/^Maybe/p' <<<"$out")
 maybe=$(sed -n '/^Maybe/,$p' <<<"$out")
@@ -123,6 +129,9 @@ check "and what's on it" grep -q 'emacs -Q --daemon=test.*\[201,' <<<"$sure"
 check "a program on a screen that no longer exists" grep -q 'sbcl.*\[230,' <<<"$sure"
 check "a test's program, its home temporary" grep -q 'emacs --batch.*\[240,' <<<"$sure"
 check "an agent's left-behind programs should only be maybes: $maybe" test "$(grep -c '\[25[01],' <<<"$maybe")" = 2
+check "an agent's shell that only sleeps in a loop is a maybe too, named for what it is: $maybe" \
+  bash -c 'grep -q "bash -c until grep.*\[51, " <<<"$1" && grep -q "only sleeps in a loop (vikix agents tidy" <<<"$1"' _ "$maybe"
+check "not a young one, nor a shell doing something" bash -c '! grep -qE "\[5[356]," <<<"$1"' _ "$out"
 check "and say which: its session ended" grep -A1 '\[250,' <<<"$maybe" | grep -q "session that has ended"
 for pid in 210 211 300 220 252 260 270 50 100; do
   check "process $pid is in use and shouldn't be listed: $out" bash -c "! grep -q '\[$pid,' <<<\"\$1\"" _ "$out"

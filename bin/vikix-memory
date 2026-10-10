@@ -67,6 +67,7 @@ LOW = number("VIKIX_MEMORY_LOW", 15)
 CRITICAL = number("VIKIX_MEMORY_CRITICAL", 7)
 LEFT_AFTER = number("VIKIX_MEMORY_LEFT_AFTER", 10) * 60
 SERVERS = ("Xvfb", "Xephyr", "Xnest", "Xvnc")
+AGENTS = ("claude", "codex", "opencode", "gemini", "aider", "agy")    # as bin/vikix-agents knows them
 INTERPRETERS = ("python", "python3", "bash", "sh", "node", "perl", "ruby", "sbcl", "emacs")
 
 
@@ -261,6 +262,19 @@ def leftovers(procs):
     def old(p):
         return p.age >= LEFT_AFTER
 
+    # An AI agent's shell that only sleeps in a loop: a command the agent typed
+    # (bash -c) whose children are all sleep, under a running agent. A loop
+    # waiting for a line that never comes, mostly; vikix agents tidy ends them.
+    kids = {}
+    for q in procs.values():
+        kids.setdefault(q.ppid, []).append(q)
+
+    def shell_asleep(p):
+        parent = procs.get(p.ppid)
+        return (p.name in ("bash", "sh", "dash", "zsh") and len(p.argv) > 1 and p.argv[1] == "-c"
+                and parent is not None and program(parent) in AGENTS
+                and bool(kids.get(p.pid)) and all(k.name == "sleep" for k in kids[p.pid]))
+
     # Hidden screens: which are there, and which have lost their starter.
     servers = {}
     for p in procs.values():
@@ -288,6 +302,8 @@ def leftovers(procs):
             why, sure = f"on the left-over hidden screen :{n}", True
         elif on_hidden and n not in servers and not os.path.exists(os.path.join(X11, f"X{n}")):
             why, sure = f"its screen (:{n}) no longer exists", True
+        elif shell_asleep(p):
+            why = "an AI agent's shell that only sleeps in a loop (vikix agents tidy ends them too)"
         elif orphan(p):
             home = p.env.get("HOME", "")
             agent = p.env.get("CLAUDE_PID", "")

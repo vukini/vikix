@@ -586,7 +586,13 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                                                       (or (alist-get 'workspace a) "unknown")
                                                       ;; Its window's name on the desktop: the desk and the provider.
                                                       (if (member (alist-get 'desk_title a) '(nil ""))
-                                                          "" (concat " · " (vikix-office--one-line (alist-get 'desk_title a)))))
+                                                          "" (concat " · " (vikix-office--one-line (alist-get 'desk_title a))))
+                                                      ;; Shells it left sleeping in a loop (vikix agents tidy).
+                                                      (let ((idle (alist-get 'idle_shells a)))
+                                                        (if (and idle (> (length idle) 0))
+                                                            (format " · %d shell%s asleep in a loop (vikix agents tidy)"
+                                                                    (length idle) (if (= (length idle) 1) "" "s"))
+                                                          "")))
                                               ;; In the colour its terminal has on the desktop.
                                               (vikix-office--attention-face (alist-get 'attention a)))
                          (let ((said (if (member (alist-get 'window a) '(nil "")) "No desktop window" (or (alist-get 'said a) ""))))
