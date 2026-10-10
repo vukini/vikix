@@ -8,6 +8,7 @@ import hashlib
 import fcntl
 from contextlib import ExitStack
 import os
+import sys
 import re
 import select
 import signal
@@ -106,6 +107,21 @@ def release_line(release):
     return f"{release['state']} · since {since}" + (f" · {release['kind']}" if release['kind'] else '')
 
 
+def plan_rows(api):
+    """The plans the runner has (lib/plan.py's view), and a line for each desk
+    a plan holds, by its folder: "NAME: task (state)"."""
+    sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+    import plan
+    rows = plan.plans_view(api)
+    by_folder = {}
+    for p in rows:
+        for d in p['desks']:
+            now = next((t for t in d['tasks'] if t['state'] not in ('done', 'pending')), None)
+            words = f"{now['name']} ({now['state']})" if now else d['line'] or 'nothing yet'
+            by_folder[os.path.realpath(d['folder'])] = f"{p['name']}: {words}"
+    return rows, by_folder
+
+
 def snapshot(api):
     H = api.handoff_module()
     errors = []
@@ -114,6 +130,11 @@ def snapshot(api):
     except (OSError, ValueError, SystemExit) as e:
         releases, releases_kept = [], False
         errors.append(f'Release queue unknown: {e}')
+    try:
+        plans, plan_desks = plan_rows(api)
+    except Exception as e:  # noqa: BLE001  a plan that can't be read never hides the desks
+        plans, plan_desks = [], {}
+        errors.append(f'Plans unknown: {e}')
     try:
         agents = api.desktop(strict=True)
         agents += api.elsewhere({a['pid'] for a in agents}, strict=True)
@@ -183,6 +204,8 @@ def snapshot(api):
         # the note's topic is the branch, in the same repository. Git is asked
         # for the repository only while a release is under way at all.
         row['release'] = ''
+        # The plan this desk is a part of, and where that plan has it (lib/plan.py).
+        row['plan'] = plan_desks.get(path, '')
         if releases and row['kind'] == 'desk':
             branch = row['now'].get('branch') or d.get('branch')
             mine = [r for r in releases if r['topic'] == branch]
@@ -233,7 +256,7 @@ def snapshot(api):
             row['resume'] = {}
     order = ['Needs you', 'Working', 'Parked', 'Finished', 'Closed']
     return {'version': 1, 'at': int(time.time()), 'live_known': live_known, 'errors': errors,
-            'releases': releases, 'releases_kept': releases_kept,
+            'releases': releases, 'releases_kept': releases_kept, 'plans': plans,
             'desks': sorted((r for r in rows.values() if not r['archived']),
                             # The closed ones newest first: the day's log.
                             key=lambda r: (order.index(r['group']), -(r['closed'] or {}).get('at', 0),

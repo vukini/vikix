@@ -190,6 +190,37 @@ is drawn again at that width."
          (should-not (string-match-p "[Rr]elease" (buffer-string))))
      (kill-buffer vikix-office--detail))))
 
+(ert-deftest office-plans-box-and-the-desks-plan ()
+  ;; The plans the runner has: a box above the desks, a plan a group, a line
+  ;; a desk, what needs you in the asks face; a desk of a plan says which.
+  (office-test-buffer
+   (setf (alist-get 'plans vikix-office--data)
+         '(((id . "abc") (name . "book") (file . "/home/v/book.toml") (project . "book") (state . "running") (pid . 42)
+            (paused . :false) (stopped . :false) (done . 0) (started . 1791300000) (gate . "me") (at_once . 2)
+            (desks . (((topic . "part-one") (folder . "/home/v/src/book-part-one") (line . "released") (released . t) (tasks . nil))
+                      ((topic . "index") (folder . "/home/v/src/book-index") (line . "index: claude 1002 at work, 3 min") (released . :false) (tasks . nil))))
+            (needs . ("cover: its release failed; the log says why")) (error . ""))
+           ((id . "def") (name . "lost") (file . "/home/v/lost.toml") (project . "book") (state . "not running") (pid . 0)
+            (desks . nil) (needs . nil) (error . "/home/v/lost.toml: No such file or directory"))))
+   (setf (alist-get 'plan (car (alist-get 'desks vikix-office--data))) "book: index (running)")
+   (vikix-office--render)
+   (let ((text (buffer-string)))
+     (should (string-match-p "Plans" text))
+     (should (< (string-match "Plans" text) (string-match "Needs you" text)))
+     (should (string-match-p "book · book · running · 2 at once · your yes before a release" text))
+     (should (string-match-p "part-one +released" text))
+     (should (string-match-p "index +index: claude 1002 at work, 3 min" text))
+     (should (string-match-p "Needs you +cover: its release failed" text))
+     (should (string-match-p "lost · book · not running" text))
+     (should (string-match-p "No such file or directory" text))
+     (should (string-match-p "Plan +book: index (running)" text)))
+   ;; No plan has run: no box, and no Plan line on a desk.
+   (setf (alist-get 'plans vikix-office--data) nil)
+   (setf (alist-get 'plan (car (alist-get 'desks vikix-office--data))) "")
+   (vikix-office--render)
+   (should-not (string-match-p "Plans" (buffer-string)))
+   (should-not (string-match-p "Plan +" (buffer-string)))))
+
 (ert-deftest office-empty ()
   (office-test-buffer
    (setq vikix-office--data '((desks . nil)))

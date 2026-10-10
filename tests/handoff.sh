@@ -466,13 +466,13 @@ check "the menu closed starts nothing: '$out'" test ! -f "$t/term-out"
 
 # vikix agents help: a map of the commands, in sections, a line each.
 out=$(agents help)
-check "help is a map, not the page ($(wc -l <<<"$out") lines)" test "$(wc -l <<<"$out")" -lt 50
-for k in office clash crossings here desk worker resume close sit handoff tell pause go turns test dismiss hooks; do
+check "help is a map, not the page ($(wc -l <<<"$out") lines)" test "$(wc -l <<<"$out")" -lt 60
+for k in office clash crossings here desk worker resume close sit handoff tell pause go turns test dismiss plan hooks; do
   check "the map names $k" grep -q "^  vikix agents $k" <<<"$out"
 done
 check "the map says where the hooks' and scripts' commands are" grep -q 'touch, stopping, left' <<<"$out"
 forms=$(agents -h | grep -c '^  vikix agents')
-placed=$(for s in seeing each agent workers rules scripts; do agents help $s; done | grep -c '^  vikix agents')
+placed=$(for s in seeing each agent workers plans rules scripts; do agents help $s; done | grep -c '^  vikix agents')
 check "every form of the header is in a section of help ($forms forms, $placed placed)" test "$forms" = "$placed"
 out=$(agents help desk)
 check "help desk is that command in full" grep -q -- '--task "...": the shortcut that does both' <<<"$out"

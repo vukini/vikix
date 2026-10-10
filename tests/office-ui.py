@@ -259,6 +259,18 @@ class Office(unittest.TestCase):
         self.assertEqual(snap['releases'], [])
         self.assertTrue(any(e.startswith('Release queue unknown') for e in snap['errors']))
 
+    def test_plans_in_the_snapshot(self):
+        # The plans the runner has (lib/plan.py): none, so an empty list and no
+        # Plan line on the desk; a view that can't be made is an error, not an empty office.
+        self.agents = [self.agent()]
+        snap = office.snapshot(A)
+        self.assertEqual(snap['plans'], [])
+        self.assertEqual(snap['desks'][0]['plan'], '')
+        with patch.object(office, 'plan_rows', side_effect=OSError('no plans')):
+            snap = office.snapshot(A)
+        self.assertEqual(snap['plans'], [])
+        self.assertTrue(any(e.startswith('Plans unknown') for e in snap['errors']))
+
     def test_first_handoff_keeps_selection_identity(self):
         self.agents = [self.agent()]
         before = office.snapshot(A)['desks'][0]['id']

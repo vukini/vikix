@@ -227,6 +227,42 @@ When a worker sets its status to *review*, its desk's tests run by themselves: `
 
 `vikix agents test --all` takes every desk in review. In the order they went to review, a desk joins a batch when it changed no file the batch has; the batch is merged onto the project's own branch in a throwaway worktree, gone afterwards, and tested once, each desk's check saying with which, since passing alone and failing together is what a batch is for. A desk that overlaps one in the batch runs alone, in its own worktree as it stands, told which it overlaps on what. Nothing touches a desk's branch: a merge that conflicts only sends that desk to run alone.
 
+### A plan: tasks in order, run for you
+
+Several tasks that belong together, some building on others, are a plan: a TOML file naming the project and its tasks, each one worker's job, and `vikix agents plan run plan.toml` runs it, making the desks and starting the workers through `vikix agents desk` and `vikix agents worker` as you would by hand.
+
+```toml
+project = "vikix"
+at-once = 2            # workers running together, at most
+gate = "me"            # a desk's release waits for your yes
+
+[[task]]
+name = "events"
+desk = "office-events"
+task = "An event log for the office: one line a hand-in, a check, a release."
+
+[[task]]
+name = "runner"
+desk = "office-events"               # the same desk: the next worker in the chain
+after = ["events"]
+task = "The plan runner, waking on the event log."
+release = "The office's event log and the plan runner"
+
+[[task]]
+name = "box"
+after = ["runner"]                   # at another desk: waits for office-events to be released
+task = "A Plans box in the Office, above the desks."
+agent = "codex"                      # the worker's choices, as the New worker form has them
+push = false
+no-tests = false
+```
+
+Tasks at one desk are a chain, its workers in turn on one branch, in the file's order: the next starts once the last has handed in (status *review* or *finished*) and its tests pass, with the handoff the last one left to read, and the desk is released once, at the chain's end, with the project's `.claude/release`. Tasks at different desks run side by side, up to `at-once`. A task after a task at another desk waits for that desk to be released and starts at a fresh desk, made from main as it then is, which is why such a task must be the first at its desk. A task with `no-tests`, or a project with no `tests/run.sh`, goes on the hand-in alone. `desk` left out is the task's name.
+
+The runner is a script, never an agent: it edits no file, answers no prompt, never puts two workers at one desk, and never merges or pushes (the release script merges, `gup` stays yours). A worker that handed in is dismissed once its tests are in, since a worker at its prompt never reads a note. A round is one worker on a task; one whose tests failed, or that left without handing in, failed, and the next round's worker is told why in the desk's inbox; the third failure stops that desk under **Needs you**, with the desk's status set *waiting* by vikix, as a release that failed does, and a hand-in left with files uncommitted when its worker is gone. You go on from there by hand: hand the task in yourself, or fix and run the release again with `vikix agents plan release DESK`, which is also your yes when the gate is *me*.
+
+Its state is worked out each time from the plan file and the desk records (which task is the record's, what came before in its history, the checks and their freshness, who is at the desk), so a reboot loses nothing and `plan run` again carries on; only its switches are its own, in `~/.local/state/vikix/office/plans/`. It wakes on the office's event log, `~/.local/state/vikix/office/events-YYYY-MM.jsonl`, one line a hand-in, a check, a worker started, a desk closed or an agent that left, written by every record write, and looks round by itself once a minute besides. `vikix agents plan status` says where each plan stands, a line a desk and a line a task; `plan pause` starts nothing new, `plan stop` ends the runner (the workers at work carry on), `plan log` is what it did. What it can't know: which files two desks will touch; turns and the clash rules handle that.
+
 ### Dismissing a worker, and how it left
 
 `vikix agents dismiss wifi-fix` asks the desk's agent to exit and keeps the desk, its branch and its files, so `vikix agents resume` takes it up later; it is the Office's *Close agent* from the terminal. A note goes to the worker first, "dismissed: write your handoff if you can, then stop", which one mid-turn reads at its next tool call, and the record notes the dismissal and how many files were left uncommitted. An agent never dismisses itself. Whichever way an agent leaves a desk, dismissed, exited or logged out, Claude Code's SessionEnd hook (`vikix agents left`) notes it in the record, so the next one at the desk, and the Office, see *Left: dismissed, 3 uncommitted then*.
@@ -312,7 +348,7 @@ The Vikix skill tells every agent the same rules, so you can hold it to them: lo
 
 ## Not there yet
 
-A workspace and a bar colour each; handing a window from one agent to another; a permission list per agent. Gemini CLI's and Codex's hook shapes, and Gemini's resume, tried on a machine that has them. Each will come as it is needed; the pieces that are here are the ones the first weeks with several agents asked for.
+A workspace and a bar colour each; handing a window from one agent to another; a permission list per agent. A foreman agent that writes plans for you to approve (never one that runs them). Gemini CLI's and Codex's hook shapes, and Gemini's resume, tried on a machine that has them. Each will come as it is needed; the pieces that are here are the ones the first weeks with several agents asked for.
 
 ## The Office
 
@@ -341,6 +377,8 @@ the shell comes back. It is the same Emacs and the same server: with none
 running, the same message as on the desktop, and still never a second
 Emacs. Inside Emacs, `M-x vikix-office-open-here` opens it in the frame you
 are in, and `q` then puts that frame's windows back as they were.
+
+Above the desks, a **Plans** box when a plan has run (`vikix agents plan`): a plan a group, its name, project and whether its runner runs, a line a desk saying where that desk's chain stands, and what needs you; a desk of a plan says which in its **Plan** line.
 
 The left side groups desks into **Needs you**, **Working**, **Parked**,
 **Finished** and **Closed**, each group drawn in a box of its own, a rule between its

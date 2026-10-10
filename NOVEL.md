@@ -304,6 +304,8 @@ First step: a workspace and a bar colour per `vikix agent`, and `vikix agents` l
 
 > 2026-10-05, later: the second step, a desk each, is built. `vikix agents desk PROJECT TOPIC` (Super+m, AI) gives an agent the first empty workspace and a git worktree of the project, `PROJECT-TOPIC` beside it on the branch `TOPIC`; Super+a is unchanged. No key (the key card is full), no bar colour yet, and nothing removes a desk but `git worktree remove`. Next: the house rules (two agents reaching for one file; crossings into another's folder).
 
+> 2026-10-10, the plan-runner desk: orchestration's first step. `vikix agents plan run FILE` (`lib/plan.py`) takes a TOML plan of one project's tasks, each one worker's job, and runs them: tasks at one desk as its workers in turn on one branch, the next after the last handed in and its tests passed; tasks at other desks side by side up to `at-once`; a task after another desk's waits for its release and starts at a fresh desk; the desk released once at the chain's end with `.claude/release`, held for Vid's yes under `gate = "me"`; three failed rounds stop a desk under Needs you. A script, not an agent: it edits no file, answers no prompt, never merges or pushes. The office got its event log first (`office/events-YYYY-MM.jsonl`, the shape of `plans/DESIGN-office-tasks.md`), which the runner wakes on. The Office shows a Plans box above the desks. Not yet: a foreman agent that writes plans for approval.
+
 ## 23. Feed the distro
 
 What Vikix builds because Void lacks it goes back to Void.

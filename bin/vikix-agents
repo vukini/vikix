@@ -214,6 +214,51 @@
                        overlapping ones each alone, told which it overlaps;
                        a merge that conflicts sends that desk to run
                        alone. --log: the last run's output
+  vikix agents plan run FILE [--here | --once]
+                       a plan file's tasks run as workers at desks, in order.
+                       FILE is TOML: project, at-once (workers together, 1),
+                       gate ("me": a desk's release waits for your yes), then
+                       a [[task]] each with name, task (the worker's words),
+                       desk (the topic; the name when unsaid), after (the
+                       tasks it builds on) and the worker's choices as the
+                       New worker form has them (agent, local, push,
+                       no-tests), and release (the release's line). Tasks
+                       at one desk are its workers in turn, on one branch:
+                       the next starts once the last has handed in and its
+                       tests pass, and reads the handoff it left; the desk
+                       is released once, at the chain's end, with the
+                       project's .claude/release. Tasks at different desks
+                       run side by side; a task after one at another desk
+                       waits for that desk's release and starts at a fresh
+                       one. The runner is a script: it edits no file,
+                       answers no prompt, never puts two workers at one
+                       desk, never merges or pushes (gup stays yours); a
+                       worker that handed in is dismissed once its tests
+                       are in. A round that fails (tests, or the worker
+                       left) starts the next, told why in the inbox; the
+                       third stops that desk under Needs you, as a release
+                       that fails does. It works its state out each time
+                       from the plan file and the desk records, so a reboot
+                       loses nothing and running it again carries on; it
+                       wakes on the office's event log. Run again, a paused
+                       or stopped plan goes on. It runs apart from this
+                       terminal; --here keeps it in it, --once looks and
+                       acts one round and ends
+  vikix agents plan status [PLAN]
+                       where each plan stands: a line a desk, a line a task, what needs you.
+                       PLAN is its file or its name; none: every plan that
+                       has run. A file not run yet is read and shown, which
+                       checks it
+  vikix agents plan pause PLAN
+                       nothing new starts and no release goes; the workers at work carry on
+  vikix agents plan stop PLAN
+                       the runner ends; the workers at work carry on.
+                       plan run FILE carries on from where it stands
+  vikix agents plan release DESK
+                       your yes to the desk's release, when the plan's gate is me.
+                       Also tries again after a release that failed
+  vikix agents plan log PLAN
+                       what the runner did, in order
   vikix agents dismiss DESK | --menu
                        ask the desk's agent to exit, and keep the desk for later.
                        Its branch and files stay (vikix agents resume): the
@@ -448,6 +493,8 @@ SECTIONS = (
     ("each", "A desk each: the place", ("desk", "close", "here")),
     ("workers", "Workers: an agent at a desk, on a task", ("worker", "resume", "tell", "pause", "go", "turns", "test",
                                                           "dismiss")),
+    ("plans", "Plans: tasks in order, at desks, run for you", ("plan run", "plan status", "plan pause", "plan stop",
+                                                              "plan release", "plan log")),
     ("agent", "The agent's own, from its shell", ("sit", "handoff", "handoff check", "handoff session", "handoff list",
                                                 "handoff forget")),
     ("rules", "The house rules", ("hooks",)),
@@ -3419,6 +3466,15 @@ def main(argv):
         try:
             return office.main(sys.modules[__name__], argv[1:])
         except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as e:
+            die(str(e))
+    if argv and argv[0] == "plan":
+        sys.path.insert(0, os.path.join(VIKIX_DIR, "lib"))
+        import plan
+        try:
+            return plan.main(sys.modules[__name__], argv[1:])
+        except plan.PlanError as e:
+            die(str(e))
+        except handoff_module().HandoffError as e:
             die(str(e))
     if argv and argv[0] == "here":
         return here(argv[1:])

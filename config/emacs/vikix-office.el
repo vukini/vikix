@@ -302,7 +302,43 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                                           'shadow))
                    (vikix-office--box-bottom width chars)))
                 ((eq (alist-get 'releases_kept vikix-office--data) t)
-                 (insert (propertize "No release under way.\n\n" 'face 'shadow))))))
+                 (insert (propertize "No release under way.\n\n" 'face 'shadow)))))
+        ;; The plans (vikix agents plan run): a box when any has run, a plan a
+        ;; group of rows: its name, project and whether its runner runs, then a
+        ;; line a desk saying where that desk's chain stands, and what needs
+        ;; you in the asks face. The desks it holds are among the desks below,
+        ;; each with its Plan line.
+        (let ((plans (alist-get 'plans vikix-office--data)))
+          (when plans
+            (let ((label-width (vikix-office--label-width
+                                (apply #'append (mapcar (lambda (p) (mapcar (lambda (d) (vikix-office--one-line (alist-get 'topic d)))
+                                                                             (alist-get 'desks p)))
+                                                        plans))
+                                8))
+                  (first t))
+              (vikix-office--box-top width chars "Plans")
+              (dolist (p plans)
+                (unless first (vikix-office--box-rule width chars))
+                (setq first nil)
+                (vikix-office--line width chars
+                                    (lambda ()
+                                      (insert (propertize (vikix-office--one-line (alist-get 'name p)) 'face 'bold)
+                                              " · " (vikix-office--one-line (alist-get 'project p))
+                                              " · " (vikix-office--one-line (alist-get 'state p))
+                                              (let ((n (alist-get 'at_once p)))
+                                                (if (and n (not (eq n :null))) (format " · %s at once" n) ""))
+                                              (if (equal (alist-get 'gate p) "me") " · your yes before a release" ""))))
+                (let ((err (alist-get 'error p)))
+                  (if (not (member err '(nil "")))
+                      (vikix-office--field width chars label-width "" (vikix-office--one-line err) 'vikix-office-asks)
+                    (dolist (d (alist-get 'desks p))
+                      (vikix-office--field width chars label-width (vikix-office--one-line (alist-get 'topic d))
+                                           (let ((line (vikix-office--one-line (alist-get 'line d))))
+                                             (if (equal line "") "nothing yet" line))
+                                           (and (eq (alist-get 'released d) t) 'shadow)))
+                    (dolist (n (alist-get 'needs p))
+                      (vikix-office--field width chars label-width "Needs you" (vikix-office--one-line n) 'vikix-office-asks)))))
+              (vikix-office--box-bottom width chars)))))
       (if (null rows) (insert (if vikix-office--archive "Archive is empty.\n" "No desks yet. vikix agents desk PROJECT TOPIC makes one, vikix agents worker TOPIC \"the task\" starts a worker at it.\n"))
         ;; Closed last: the desks closed today, newest first, nothing to do at them.
         (dolist (group (if vikix-office--archive '("Archived") '("Needs you" "Working" "Parked" "Finished" "Closed")))
@@ -363,7 +399,11 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                     ;; .claude/release at work on this desk's branch.
                     (let ((release (alist-get 'release r)))
                       (unless (member release '(nil ""))
-                        (vikix-office--field width chars label-width "Release" (vikix-office--one-line release)))))
+                        (vikix-office--field width chars label-width "Release" (vikix-office--one-line release))))
+                    ;; The plan this desk is a part of (vikix agents plan), and where it has it.
+                    (let ((plan (alist-get 'plan r)))
+                      (unless (member plan '(nil ""))
+                        (vikix-office--field width chars label-width "Plan" (vikix-office--one-line plan)))))
                   ;; Two lines of it at most here; the desk's details have it whole.
                   (vikix-office--field width chars label-width "Next"
                                        (truncate-string-to-width (vikix-office--one-line (alist-get 'next_action r))

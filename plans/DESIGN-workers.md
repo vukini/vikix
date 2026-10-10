@@ -63,3 +63,5 @@ Seven pieces, each a subcommand of `vikix agents`, a key in the desks' map (`Sup
 2. ~~Pause and go, the hard form, turns.~~ In, 2026-10-08.
 3. ~~The tester, and review running it.~~ In, 2026-10-08.
 4. ~~Dismiss and `left`, the keys, the Office's buttons, the guide, the skill.~~ In, 2026-10-08.
+
+> 2026-10-10: a step beyond the design, orchestration's first: `vikix agents plan run FILE` (`lib/plan.py`) runs a plan file's tasks as workers at desks, chains at one desk in turn, side by side across desks, releasing each desk at its chain's end; and the office's event log, `office/events-YYYY-MM.jsonl`, which it wakes on (the guide's "A plan: tasks in order, run for you").

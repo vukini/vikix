@@ -27,7 +27,20 @@ and no credential is accepted into any field.
 Writes take a lock on the record, read, change and replace it atomically,
 so two agents updating one desk at once lose nothing. Used by
 bin/vikix-agents (the commands) and bin/vikix-mcp (the tools).
+
+Each write that changes what others wait on is also a line of the event
+log, ~/.local/state/vikix/office/events-YYYY-MM.jsonl, a file a month (as
+vikix day keeps its screen log), appended under a lock and never rewritten:
+a worker started (kind worker), a status changed (handoff: a hand-in), a
+check added (tests done), a desk closed (closed: by close or a release),
+an agent that left (left). One JSON object a line: at, kind, the desk's
+id, by, and data with the worktree, branch and project and the kind's own
+fields. It is what the plan runner (lib/plan.py) waits on instead of
+polling the records (events_size, events_since), and anything else may
+read it; the task board designed in plans/DESIGN-office-tasks.md writes
+the same file.
 """
+import copy
 import fcntl
 import hashlib
 import json
@@ -39,6 +52,7 @@ import time
 VERSION = 1
 STATE = os.environ.get("XDG_STATE_HOME") or os.path.join(os.path.expanduser("~"), ".local", "state")
 DESKS = os.path.join(STATE, "vikix", "office", "desks")
+EVENTS_DIR = os.path.join(STATE, "vikix", "office")
 STATES = ("working", "waiting", "review", "finished")
 PROVIDERS = ("claude", "codex", "opencode", "gemini", "antigravity", "aider", "other")
 TEXT_MAX = 4000
@@ -179,6 +193,7 @@ def update(common, folder, change, branch=None, project=None):
     with open(path + ".lock", "w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         rec = load(did) or new_record(common, folder, branch, project)
+        before = copy.deepcopy(rec)
         if branch:
             rec["desk"]["branch"] = branch
         if project:
@@ -193,7 +208,91 @@ def update(common, folder, change, branch=None, project=None):
             json.dump(rec, f, indent=1, ensure_ascii=False)
             f.write("\n")
         os.replace(tmp, path)
+    for kind, by, data in events_between(before, rec):
+        event(kind, by, rec, data)
     return rec
+
+
+# --- The event log ------------------------------------------------------------------------
+
+def events_between(before, after):
+    """What a write changed that others wait on: (kind, fields) each. The
+    worker started (the task set or started), the status changed, each check
+    added, the desk closed, the agent that left."""
+    out = []
+    t0, t1 = before.get("task") or {}, after.get("task") or {}
+    if t1 and (t1.get("at") != t0.get("at") or t1.get("text") != t0.get("text")):
+        out.append(("worker", t1.get("by", ""), {"task": (t1.get("text") or "")[:120]}))
+    s0 = ((before.get("handoff") or {}).get("status") or {})
+    s1 = ((after.get("handoff") or {}).get("status") or {})
+    if s1 and (s1.get("value") != s0.get("value") or s1.get("at") != s0.get("at")):
+        out.append(("handoff", s1.get("by", ""), {"status": s1.get("value", "")}))
+    c0, c1 = before.get("checks") or [], after.get("checks") or []
+    for c in c1[len(c0):] if len(c1) > len(c0) else []:
+        out.append(("tests done", c.get("by", ""), {"name": c.get("name", ""), "ok": bool(c.get("ok"))}))
+    if (after.get("desk") or {}).get("closed") and not (before.get("desk") or {}).get("closed"):
+        log = after.get("log") or [{}]
+        out.append(("closed", log[-1].get("by", ""), {}))
+    l0, l1 = before.get("left") or {}, after.get("left") or {}
+    if l1 and l1.get("at") != l0.get("at"):
+        out.append(("left", l1.get("by", ""), {"reason": l1.get("reason", "")}))
+    return out
+
+
+def events_path(now=None):
+    """This month's event log."""
+    return os.path.join(EVENTS_DIR, time.strftime("events-%Y-%m.jsonl", time.localtime(now or time.time())))
+
+
+def event(kind, by, rec, data):
+    """One line appended to this month's event log for the desk of REC, under
+    a lock. Never raises: a log that can't be written loses a line, not the
+    write."""
+    d = rec.get("desk") or {}
+    line = {"at": int(time.time()), "kind": kind, "desk": d.get("id", ""), "by": by,
+            "data": dict({"worktree": d.get("worktree", ""), "branch": d.get("branch", ""),
+                          "project": d.get("project", "")}, **data)}
+    try:
+        os.makedirs(EVENTS_DIR, exist_ok=True)
+        with open(os.path.join(EVENTS_DIR, "events.lock"), "w") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            with open(events_path(), "a") as f:
+                f.write(json.dumps(line, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
+
+
+def events_size():
+    """How far this month's event log goes now, in bytes: what a reader
+    notes to see new lines by (a new month's file starts small, so the
+    number changes then too)."""
+    try:
+        return os.path.getsize(events_path())
+    except OSError:
+        return 0
+
+
+def events_since(pos):
+    """This month's event log's lines past POS bytes (dicts), and where it
+    ends now; the whole file when it is shorter than POS (a new month)."""
+    size = events_size()
+    if size < pos:
+        pos = 0
+    out = []
+    if size > pos:
+        try:
+            with open(events_path(), errors="replace") as f:
+                f.seek(pos)
+                for line in f.read().splitlines():
+                    try:
+                        got = json.loads(line)
+                    except ValueError:
+                        continue
+                    if isinstance(got, dict):
+                        out.append(got)
+        except OSError:
+            return [], pos
+    return out, size
 
 
 # --- What Vikix reads itself ----------------------------------------------------------------

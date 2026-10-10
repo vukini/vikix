@@ -151,8 +151,9 @@ for f in "${files[@]}"; do
   case $f in
     # The skill's list of keys is made from these (lib/skill-keys.sh).
     config/stumpwm/vikix/why.lisp|bin/vikix-why|bin/vikix-notifications) add why mcp notifications used ;;
-    config/stumpwm/vikix/agents.lisp|bin/vikix-agents|config/claude/office.json) add office titles house handoff office-ui mcp tester ;;
-    lib/handoff.py) add office titles house handoff office-ui mcp release ;;
+    config/stumpwm/vikix/agents.lisp|bin/vikix-agents|config/claude/office.json) add office titles house handoff office-ui mcp tester plan ;;
+    lib/plan.py) add plan office-ui ;;
+    lib/handoff.py) add office titles house handoff office-ui mcp release plan ;;
     bin/vikix-agent) add house agents ai ;;
     config/stumpwm/vikix/what.lisp|bin/vikix-what|config/what/*) add what ;;
     bin/vikix-docs) add docs what mcp ;;
