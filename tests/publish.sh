@@ -10,6 +10,15 @@
 #   there) is .rejected too; check builds both and leaves out/ alone; the
 #   spelling goes to each language's dictionary, code never, and check
 #   refuses a misspelt word until it's fixed or kept in words.txt; the
+#   links are checked too (a #heading must be in the book, a file or an
+#   image beside the text must be there, an address on the web must
+#   answer: a local server stands in for the web, one that refuses HEAD
+#   is asked with GET, 403 is alive, 404 and no answer are dead, a live
+#   answer is kept a week and not asked again, no network leaves the
+#   web's for next time) and check refuses a dead one; a build into out/
+#   is a dated "published" entry at the top of the project's log.md,
+#   committed when the log was clean, left when it wasn't, none for a book
+#   that is no project and none with --no-log; the
 #   e-ink fix is still the doc-to-epub skill's file when the skill is at
 #   hand; vikix publish NAME finds a book in ~/src by its folder or its
 #   publish.yml's name, and --send puts it on a Kindle, a Kobo, a BOOX
@@ -32,7 +41,8 @@ unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME DISPLAY
 here=$(cd "$(dirname "$0")/.." && pwd)
 real_home=$HOME   # for the doc-to-epub skill, when it is synced here
 t=$(mktemp -d)
-trap 'rm -rf "$t"' EXIT
+srv=""   # the stand-in web server, below
+trap '[ -z "$srv" ] || { kill "$srv" 2>/dev/null; wait "$srv" 2>/dev/null; }; rm -rf "$t"' EXIT
 export HOME="$t/home" VIKIX_STATE="$t/home/.local/state/vikix"
 mkdir -p "$t/bin" "$VIKIX_STATE" "$HOME/src/books"
 fail=0
@@ -144,6 +154,74 @@ PY
   check "and then it is known: $out" grep -q "^spelling: every word is known" <<<"$out"
   rm -f words.txt; sed -i '/sentance/d' chapters/01-tables.md
 
+  # The links: a server of the test's own stands in for the web (a free
+  # port, as every test must), with a page, one that refuses HEAD, one
+  # that says 403 to a script, and one that is gone; a port nobody listens
+  # on is no answer.
+  cat > "$t/server.py" <<'X'
+import http.server, sys
+log = sys.argv[1]
+class H(http.server.BaseHTTPRequestHandler):
+    def log_message(self, *a): pass
+    def answer(self):
+        with open(log, "a") as f: f.write(f"{self.command} {self.path}\n")
+        if self.path == "/gone": self.send_response(404)
+        elif self.path == "/nohead" and self.command == "HEAD": self.send_response(405)
+        elif self.path == "/private": self.send_response(403)
+        else: self.send_response(200)
+        self.end_headers()
+    do_HEAD = do_GET = answer
+s = http.server.HTTPServer(("127.0.0.1", 0), H)
+print(s.server_port, flush=True)
+s.serve_forever()
+X
+  : > "$t/hits"
+  python3 "$t/server.py" "$t/hits" > "$t/port" 2>/dev/null &
+  srv=$!
+  for _ in $(seq 50); do [ -s "$t/port" ] && break; sleep 0.1; done
+  port=$(cat "$t/port")
+  if [ -n "$port" ]; then
+    web="http://127.0.0.1:$port"
+    cat >> chapters/02-languages.md <<X
+
+See [the tables](#tables), [a missing heading](#nowhere), [the site]($web/ok),
+[no head]($web/nohead), [private]($web/private), [gone]($web/gone),
+[nobody](http://127.0.0.1:1/x), [a file](../publish.yml), [no file](../missing.txt),
+[mail](mailto:x@example.com).
+
+![a picture](../pic.png)
+X
+    out=$(python3 "$build" links 2>&1) && fail=1
+    check "the links not found are named, with the chapter and why: $out" test "$(grep -c '^  ' <<<"$out")" = 5
+    check "a heading that isn't in the book" grep -q '^  #nowhere  02-languages: no heading or id' <<<"$out"
+    check "a file that isn't there" grep -q '^  ../missing.txt  02-languages: no such file' <<<"$out"
+    check "and an image" grep -q '^  ../pic.png  02-languages: no such image' <<<"$out"
+    check "a page that is gone" grep -q "^  $web/gone  02-languages: gone (404)" <<<"$out"
+    check "an address nobody answers" grep -q '^  http://127.0.0.1:1/x  02-languages: no answer' <<<"$out"
+    check "a server that refuses HEAD is asked with GET: $(tr '\n' ' ' < "$t/hits")" grep -q '^GET /nohead$' "$t/hits"
+    check "and 403 to a script is still there" bash -c '! grep -q private <<<"$1"' _ "$out"
+    out=$(PATH="$t/bin:$PATH" VIKIX_EPUBCHECK="$t/bin/epubcheck-ok" python3 "$build" check 2>&1) && fail=1
+    check "check refuses a book with a dead link: $out" grep -q "the links above want a look" <<<"$out"
+    : > "$t/hits"
+    python3 "$build" links >/dev/null 2>&1 || true
+    check "a live answer is kept, and not asked again: $(tr '\n' ' ' < "$t/hits")" bash -c '! grep -q "/ok" "$1" && grep -q "/gone" "$1"' _ "$t/hits"
+    check "in the cache under ~/.cache" test -f "$HOME/.cache/vikix/publish-links.json"
+    printf 'Iface\tDestination\tGateway\tFlags\n' > "$t/routes"
+    rm -f "$HOME/.cache/vikix/publish-links.json"; : > "$t/hits"
+    out=$(VIKIX_NET_ROUTES="$t/routes" python3 "$build" links 2>&1) && fail=1
+    check "with no network the web's links are left for next time, and said: $out" grep -q "no network, so 5 on the web are left" <<<"$out"
+    check "and nothing was asked" test ! -s "$t/hits"
+    check "while the book's own are still checked" test "$(grep -c '^  ' <<<"$out")" = 3
+    sed -i '/^See \[the tables\]/,$d' chapters/02-languages.md
+    printf '\nSee [the tables](#tables), [the site](%s/ok) and [the file](../publish.yml).\n' "$web" >> chapters/02-languages.md
+    out=$(python3 "$build" links 2>&1) || fail=1
+    check "a book whose links are all found passes: $out" grep -q "^links: 3 in the text, all found (1 on the web, 1 to headings, 1 to files)" <<<"$out"
+    sed -i '/^See \[the tables\]/,$d' chapters/02-languages.md
+    kill "$srv" 2>/dev/null || true; wait "$srv" 2>/dev/null || true; srv=""
+  else
+    echo "(publish: the stand-in server didn't start: the web's links aren't tried)"; fail=1
+  fi
+
   # vikix publish NAME: by the folder's name, by publish.yml's, and not
   # one that isn't there.
   cd "$t"
@@ -253,6 +331,33 @@ X
   out=$(VIKIX_PUBLISH_COMMIT=0 bash "$here/bin/vikix-publish" new "$repo/book-c" 2>&1) || fail=1
   check "and so does VIKIX_PUBLISH_COMMIT=0" test "$(git -C "$repo" rev-parse HEAD)" = "$before"
 
+  # A build into out/ is noted in the project's log: a dated "published"
+  # entry at the top of log.md (vikix project's shape), committed when the
+  # log was clean, left to you when it wasn't; a book that is no project
+  # (no log.md) gets none, and neither does --no-log.
+  check "a book that is no project gets no log" test ! -e "$book/log.md"
+  printf '# Log: book-a\n\n**Status**: writing\n\n## 2026-10-01 (Vid)\n\nStarted.\n' > "$repo/book-a/log.md"
+  git -C "$repo" add book-a/log.md; git -C "$repo" commit -q -m log -- book-a/log.md
+  out=$(VIKIX_TODAY=2026-10-10 VIKIX_EPUBCHECK="$t/bin/epubcheck-ok" bash "$here/bin/vikix-publish" "$repo/book-a" epub 2>&1) || fail=1
+  check "a build into out/ is an entry in the project's log: $out" grep -q "noted in $repo/book-a/log.md" <<<"$out"
+  check "dated, published, at the top, with the file and its size: $(sed -n 5,7p "$repo/book-a/log.md" | tr '\n' '|')" \
+    bash -c 'sed -n 5p "$1" | grep -qx "## 2026-10-10 · published" && sed -n 7p "$1" | grep -qE "^Built by vikix publish: out/book-a.epub \([0-9]+ KB, passed epubcheck\)\.$"' _ "$repo/book-a/log.md"
+  check "the earlier entry still below it" grep -q '^## 2026-10-01 (Vid)$' "$repo/book-a/log.md"
+  check "and committed, that file alone: $(git -C "$repo" log -1 --format=%s)" \
+    test "$(git -C "$repo" log -1 --format=%s) $(git -C "$repo" show --name-only --format= HEAD)" = "book-a: published (log.md) book-a/log.md"
+  echo "mine" >> "$repo/book-a/log.md"
+  before=$(git -C "$repo" rev-parse HEAD)
+  out=$(VIKIX_TODAY=2026-10-11 VIKIX_EPUBCHECK="$t/bin/epubcheck-ok" bash "$here/bin/vikix-publish" "$repo/book-a" epub 2>&1) || fail=1
+  check "a log with changes of yours waiting gets the entry but no commit: $out" \
+    bash -c 'grep -q "^## 2026-10-11 · published" "$1" && grep -qx mine "$1"' _ "$repo/book-a/log.md"
+  check "and it is said" grep -q 'log.md had changes of yours waiting' <<<"$out"
+  check "with HEAD as it was" test "$(git -C "$repo" rev-parse HEAD)" = "$before"
+  out=$(VIKIX_TODAY=2026-10-12 VIKIX_EPUBCHECK="$t/bin/epubcheck-ok" bash "$here/bin/vikix-publish" "$repo/book-a" epub --no-log 2>&1) || fail=1
+  check "--no-log writes none: $out" bash -c '! grep -q "2026-10-12" "$1"' _ "$repo/book-a/log.md"
+  out=$(VIKIX_TODAY=2026-10-12 PATH="$t/bin:$PATH" VIKIX_EPUBCHECK="$t/bin/epubcheck-ok" bash "$here/bin/vikix-publish" "$repo/book-a" check 2>&1) || true
+  check "and check, which keeps nothing, notes nothing: $out" bash -c '! grep -q "2026-10-12" "$1"' _ "$repo/book-a/log.md"
+  check "no __pycache__ left in bin/" test ! -e "$here/bin/__pycache__"
+
   # A Word document as the text (chapters: [../x.docx]), as the skill says.
   word="$t/word"; mkdir -p "$word/book"
   pandoc "$here/tests/publish/chapters/01-tables.md" -o "$word/INPUT.docx"
@@ -328,5 +433,5 @@ check "uninstall takes the link, epubcheck and the dictionaries" test ! -e "$HOM
 check "and leaves your books" test -f "$HOME/src/books/mine/book.md" -a -f "$book/publish.yml"
 check "and the feature" bash -c '! grep -qx publish "$1"' _ "$HOME/.config/vikix/features"
 
-[ "$fail" = 0 ] && echo "publish: the test book as an EPUB with row cards for e-ink and its Arabic right to left, a PDF with Amiri, rejected ones kept apart, check leaving out/ alone, books found by name, the spelling by language with words.txt and --keep, --send to a Kindle, a Kobo, a BOOX over MTP or adb, new books started, a .docx as the text, the cloud skill made from the same files, the downloads' checksums checked"
+[ "$fail" = 0 ] && echo "publish: the test book as an EPUB with row cards for e-ink and its Arabic right to left, a PDF with Amiri, rejected ones kept apart, check leaving out/ alone, books found by name, the spelling by language with words.txt and --keep, the links (headings, files, a stand-in web, kept a week, left when there's no network), the published entry in the project's log, --send to a Kindle, a Kobo, a BOOX over MTP or adb, new books started, a .docx as the text, the cloud skill made from the same files, the downloads' checksums checked"
 exit "$fail"

@@ -6,11 +6,15 @@ publish.mk:
 
   build epub     out/NAME.epub: pandoc, the e-ink table fix, epubcheck
   build pdf      out/NAME.pdf: pandoc, then Typst
-  build check    both, into a scratch folder, and the spelling: nothing
-                 is written to out/
+  build check    both, into a scratch folder, then the spelling and the
+                 links: nothing is written to out/
   build spell [--keep]
                  the words hunspell doesn't know, by chapter; --keep adds
                  them to words.txt (then read it: what's a real typo goes)
+  build links    every link and image in the text: a #heading must be in
+                 the book, a file beside the text must be there, and an
+                 address on the web must answer (asked once a week; no
+                 network, and the web's are left for next time)
 
 The project has publish.yml, pandoc's metadata (title, author, lang, and
 anything else pandoc reads) plus Vikix's own keys:
@@ -32,13 +36,18 @@ An EPUB epubcheck rejects is not kept as NAME.epub: it is left as
 NAME.epub.rejected beside the report. A PDF Typst warned about is the same.
 """
 import glob
+import json
 import os
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
+import urllib.error
+import urllib.request
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 
 import yaml
 
@@ -49,6 +58,14 @@ EPUBCHECK = os.environ.get("VIKIX_EPUBCHECK") or os.path.join(DATA, "vikix", "ep
 # LibreOffice's dictionaries, pinned (vikix publish setup).
 DICTS = os.environ.get("VIKIX_DICTS") or os.path.join(DATA, "vikix", "hunspell")
 WORDS = "words.txt"
+CACHE = os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache")
+# What the web answered to each link, kept a week (a check a day shouldn't
+# knock on every site again); a dead one is asked again every time.
+LINKS_CACHE = os.path.join(CACHE, "vikix", "publish-links.json")
+LINKS_KEEP = 7 * 24 * 3600
+# The kernel's routes: no default route is no network, and the web's links
+# are left for next time rather than called dead. The tests name a file.
+ROUTES = os.environ.get("VIKIX_NET_ROUTES") or "/proc/net/route"
 
 
 def die(msg):
@@ -263,13 +280,165 @@ def spell(m, files, keep=False):
     return False
 
 
+# --- The links -------------------------------------------------------------------
+
+def ast_walk(node):
+    """Every dict of pandoc's JSON tree, depth first."""
+    if isinstance(node, dict):
+        yield node
+        for v in node.values():
+            yield from ast_walk(v)
+    elif isinstance(node, list):
+        for v in node:
+            yield from ast_walk(v)
+
+
+def book_links(m, files):
+    """(ids, links): every id in the book (a heading's, a div's, a span's),
+    and every link and image as (target, chapter, kind), kind "link" or
+    "image", in the text's order."""
+    ids, links = set(), []
+    for f in files:
+        r = subprocess.run(["pandoc", f, "--metadata-file=publish.yml", "-t", "json"],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            die(f"pandoc, reading {f}: {r.stderr.strip()}")
+        chapter = os.path.splitext(os.path.basename(f))[0]
+        for node in ast_walk(json.loads(r.stdout)):
+            t, c = node.get("t"), node.get("c")
+            if t in ("Header", "Div", "Span", "CodeBlock", "Code", "Table", "Figure") and isinstance(c, list):
+                attr = c[1] if t == "Header" else c[0]
+                if isinstance(attr, list) and attr and isinstance(attr[0], str) and attr[0]:
+                    ids.add(attr[0])
+            if t in ("Link", "Image") and isinstance(c, list) and len(c) == 3:
+                target = c[2][0]
+                if target:
+                    links.append((target, chapter, f, t.lower()))
+    return ids, links
+
+
+def net_up():
+    """Is there a default route? Without one nothing on the web answers."""
+    try:
+        with open(ROUTES) as f:
+            for line in f.readlines()[1:]:
+                parts = line.split()
+                if len(parts) > 3 and parts[1] == "00000000" and int(parts[3], 16) & 2:
+                    return True
+    except (OSError, ValueError):
+        return True   # can't tell: ask the web, and let the answers say
+    return False
+
+
+def cache_read():
+    try:
+        with open(LINKS_CACHE, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def cache_write(cache):
+    try:
+        os.makedirs(os.path.dirname(LINKS_CACHE), exist_ok=True)
+        tmp = LINKS_CACHE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(cache, f)
+        os.replace(tmp, LINKS_CACHE)
+    except OSError:
+        pass   # a cache that can't be written only costs the next check its calls
+
+
+def ask_web(url):
+    """None when the address answers (any status but 404 and 410: a site
+    that says 403 to a script still has the page), else a few words why not."""
+    def call(method):
+        req = urllib.request.Request(url, method=method,
+                                     headers={"User-Agent": "vikix-publish link check (+https://vikix.dev)"})
+        with urllib.request.urlopen(req, timeout=15) as r:
+            return r.status
+    try:
+        try:
+            status = call("HEAD")
+        except urllib.error.HTTPError as e:
+            # A server that doesn't take HEAD (405, 501), or refuses it: GET
+            # says what it has.
+            status = e.code if e.code in (404, 410) else call("GET")
+    except urllib.error.HTTPError as e:
+        status = e.code
+    except urllib.error.URLError as e:
+        reason = e.reason
+        return f"no answer ({getattr(reason, 'strerror', None) or reason})"
+    except (OSError, ValueError) as e:
+        return f"no answer ({e})"
+    if status in (404, 410):
+        return f"gone ({status})"
+    return None
+
+
+def links(m, files):
+    """Every link in the book checked: True when all are found."""
+    ids, found = book_links(m, files)
+    if not found:
+        print("links: none in the text")
+        return True
+    bad, web, nweb, nanchors, nfiles = [], {}, 0, 0, 0
+    for target, chapter, f, kind in found:
+        if target.startswith("#"):
+            nanchors += 1
+            if target[1:] not in ids:
+                bad.append((target, chapter, f"no heading or id {target} in the book"))
+        elif re.match(r"https?://", target):
+            nweb += 1
+            web.setdefault(target, (chapter, kind))
+        elif re.match(r"[a-z][a-z0-9+.-]*:", target):
+            continue   # mailto:, tel:, data: and the like: nothing to look up
+        else:
+            nfiles += 1
+            path = os.path.join(os.path.dirname(f), target.split("#", 1)[0])
+            if not os.path.exists(path):
+                bad.append((target, chapter, f"no such {'file' if kind == 'link' else 'image'} beside the text"))
+    skipped = 0
+    if web:
+        cache = cache_read()
+        now = time.time()
+        ask = [u for u in web if not (u in cache and cache[u].get("ok") and now - cache[u].get("at", 0) < LINKS_KEEP)]
+        if ask and not net_up():
+            skipped = len(ask)
+            ask = []
+        if ask:
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                for url, why in zip(ask, pool.map(ask_web, ask)):
+                    cache[url] = {"at": now, "ok": why is None, "why": why}
+            cache_write(cache)
+        for url, (chapter, kind) in web.items():
+            if url in cache and not cache[url].get("ok") and url in ask:
+                bad.append((url, chapter, cache[url].get("why") or "no answer"))
+    kinds = []
+    if nweb:
+        kinds.append(f"{nweb - skipped} on the web" if skipped else f"{nweb} on the web")
+    if nanchors:
+        kinds.append(f"{nanchors} to headings")
+    if nfiles:
+        kinds.append(f"{nfiles} to files")
+    if bad:
+        print(f"links: {len(bad)} of {len(found)} not found")
+        for target, chapter, why in bad:
+            print(f"  {target}  {chapter}: {why}")
+    else:
+        print(f"links: {len(found)} in the text, all found ({', '.join(kinds)})")
+    if skipped:
+        print(f"links: no network, so {skipped} on the web {'is' if skipped == 1 else 'are'} left for next time")
+    return not bad
+
+
 def main(argv):
     what = argv[0] if argv else ""
     if what == "name":
         # The files' name, for vikix publish --send.
         print(name(meta()))
         return 0
-    if what not in ("epub", "pdf", "check", "spell"):
+    if what not in ("epub", "pdf", "check", "spell", "links"):
         print(__doc__.strip())
         return 0 if what in ("-h", "--help", "help") else 2
     m = meta()
@@ -281,14 +450,26 @@ def main(argv):
             return 1
     elif what == "pdf":
         pdf(m, files, "out")
+    elif what == "links":
+        if not links(m, files):
+            return 1
     else:
+        # The text first: a heading that isn't there stops Typst with a
+        # message of its own, and the chapter is named here.
+        spelt = spell(m, files)
+        linked = links(m, files)
+        if not spelt and not linked:
+            die(f"check: the spelling and the links above want a look "
+                f"(fix them, or vikix publish spell --keep for the words that are right)")
+        if not spelt:
+            die(f"check: the spelling above wants a look "
+                f"(fix it, or vikix publish spell --keep for the words that are right)")
+        if not linked:
+            die("check: the links above want a look (fix them, or take them out)")
         with tempfile.TemporaryDirectory() as tmp:
             epub(m, files, tmp)
             pdf(m, files, tmp)
-        if not spell(m, files):
-            die(f"check: {name(m)} builds, but the spelling above wants a look "
-                f"(fix it, or vikix publish spell --keep for the words that are right)")
-        print(f"check: {name(m)} builds, passes epubcheck and Typst, and its spelling ({len(files)} files of text)")
+        print(f"check: {name(m)} builds, passes epubcheck and Typst, its spelling and its links ({len(files)} files of text)")
     return 0
 
 
