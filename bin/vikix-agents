@@ -294,6 +294,27 @@
                        hand-in (status review); off by default, since a
                        review costs a model's time. --log: the last review's
                        words. --menu: the desk and the reviewer in rofi
+  vikix agents plan new TEMPLATE NAME PROJECT [--at-once N] [--gate me|none]
+                       a plan written from a template, for you to edit and run.
+                       The copy goes to ~/.config/vikix/plans/NAME.toml
+                       (NAME with a slash, or ending .toml, is the file
+                       itself) with PROJECT, and at-once and gate when
+                       given, filled in, each desk named for the plan
+                       (the template's "topic", "topic-one"... become
+                       NAME, NAME-one...), and the template's comments
+                       kept, so the file explains itself. The lines
+                       beginning EDIT: are yours to write; plan run
+                       refuses a task still holding one. Until it has
+                       run it is a draft, which plan status lists and
+                       the Office's Plans box shows with its Run. The
+                       Office's New plan… is this as a form
+  vikix agents plan templates
+                       the plan templates: Vikix's (config/plans) and yours.
+                       Yours are ~/.config/vikix/plans/templates/*.toml, a
+                       plan each whose first line is "# NAME — what it is
+                       for", with PROJECT where the project goes, topic in
+                       each desk's name and EDIT: on the lines to write;
+                       one of yours with a Vikix name stands in for it
   vikix agents plan run FILE [--here | --once]
                        a plan file's tasks run as workers at desks, in order.
                        FILE is TOML: project, at-once (workers together, 1),
@@ -327,8 +348,8 @@
   vikix agents plan status [PLAN]
                        where each plan stands: a line a desk, a line a task, what needs you.
                        PLAN is its file or its name; none: every plan that
-                       has run. A file not run yet is read and shown, which
-                       checks it
+                       has run, then the drafts not run yet. A file not
+                       run yet is read and shown, which checks it
   vikix agents plan pause PLAN
                        nothing new starts and no release goes; the workers at work carry on
   vikix agents plan stop PLAN
@@ -439,12 +460,18 @@
                        live discovery changed; leaves project files and
                        provider conversations alone
   vikix agents office --form
-                       what the Office's desk form offers, as JSON.
+                       what the Office's forms offer, as JSON.
                        The projects (name, folder, whether a repository,
                        so a topic is needed, and the next step), the
                        agents as vikix agent --list has them (yours
-                       first, which can run on a local model), and
-                       whether a terminal can open here (a display)
+                       first, which can run on a local model), whether a
+                       terminal can open here (a display), and for the
+                       New plan form the templates (plan templates) and
+                       the folder a plan goes to
+  vikix agents office --plan TEMPLATE NAME PROJECT [--at-once N] [--gate me|none]
+                       the Office's New plan: vikix agents plan new with its words.
+                       Answers with the file's path alone, which the
+                       Office opens for the tasks' words
   vikix agents office --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests]
                        the Office's New desk: vikix agents desk with its words, asking nothing.
                        PROJECT is the project's full name; a task starts
@@ -606,14 +633,15 @@ SECTIONS = (
     ("each", "A desk each: the place", ("desk", "close", "here")),
     ("workers", "Workers: an agent at a desk, on a task", ("worker", "resume", "handover", "tell", "pause", "go",
                                                           "turns", "test", "review", "dismiss")),
-    ("plans", "Plans: tasks in order, at desks, run for you", ("plan run", "plan status", "plan pause", "plan stop",
-                                                              "plan release", "plan log")),
+    ("plans", "Plans: tasks in order, at desks, run for you", ("plan new", "plan templates", "plan run", "plan status",
+                                                              "plan pause", "plan stop", "plan release", "plan log")),
     ("agent", "The agent's own, from its shell", ("sit", "handoff", "handoff check", "handoff session", "handoff list",
                                                 "handoff forget")),
     ("rules", "The house rules", ("hooks",)),
     ("scripts", "For hooks, the Office and scripts", ("desks", "place", "touch", "stopping", "left", "office --json", "office --go",
                                                       "office --close-agent", "office --forget", "office --purge-archive",
-                                                      "office --form", "office --desk", "office --worker", "office --close-desk",
+                                                      "office --form", "office --plan", "office --desk", "office --worker",
+                                                      "office --close-desk",
                                                       "--waits")),
 )
 

@@ -136,7 +136,7 @@ push = true
 P
 out=$(agents plan status "$plan")
 check "a plan file not run yet is read and shown: $(head -1 <<<"$out")" \
-  grep -q '^Plan book (.*book.toml): book, 2 workers at once, your yes before a release; not running' <<<"$out"
+  grep -q '^Plan book (.*book.toml): book, 2 workers at once, your yes before a release; not run yet' <<<"$out"
 check "its desks and tasks: $(tr '\n' '|' <<<"$out")" \
   bash -c 'grep -q "desk part-one: intro: ready to start" <<<"$1" && grep -q "desk index: index: ready to start" <<<"$1" && grep -q "desk cover: cover: after middle (part-one released), index (index released)" <<<"$1" && grep -q "^         middle               after intro" <<<"$1"' _ "$out"
 printf 'project = "book"\n[[task]]\nname = "a"\ntask = "A"\n[[task]]\nname = "b"\ndesk = "a"\nafter = ["a"]\ntask = "B"\n[[task]]\nname = "c"\ndesk = "a"\nafter = ["b"]\ntask = "C"\n' > "$t/ok.toml"
@@ -293,5 +293,73 @@ out=$(agents office --json)
 check "the Office's snapshot has the plan, its desks and what needs you: $(python3 -c 'import json,sys; p=json.load(sys.stdin)["plans"][0]; print(p["name"], p["state"], [d["topic"] for d in p["desks"]])' <<<"$out")" \
   python3 -c 'import json,sys; p=json.load(sys.stdin)["plans"][0]; assert p["name"]=="book" and p["state"]=="stopped" and [d["topic"] for d in p["desks"]]==["part-one","index","cover"] and p["desks"][0]["released"] and p["desks"][2]["tasks"][0]["state"]=="running"' <<<"$out"
 
-[ "$fail" = 0 ] && echo "plan: ok (a plan read and checked; desks made and workers started up to at-once; a hand-in tested, the worker dismissed, the chain's next task; failed rounds told, the third stops the desk under Needs you; the release at the chain's end, held for the yes, tried again after a failure; a task after other desks at a fresh one; pause, stop, run again; the event log)"
+# --- Templates, a plan written from one, drafts; the Office's New plan ---------------------------
+out=$(agents plan templates)
+for tp in one-task one-desk side-by-side; do
+  check "templates lists $tp with its line: $out" grep -q "^$tp  *[a-z].*" <<<"$out"
+  check "$tp reads as a plan" python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import plan; plan.read_plan(sys.argv[2])' "$here/lib" "$here/config/plans/$tp.toml"
+  check "$tp's first line says what it is for" grep -q "^# $tp — ." "$here/config/plans/$tp.toml"
+  check "$tp's project is the placeholder" grep -q '^project = "PROJECT"' "$here/config/plans/$tp.toml"
+  check "$tp's tasks are EDIT: lines" grep -q '^task = "EDIT: ' "$here/config/plans/$tp.toml"
+done
+check "the templates say where a copy goes" grep -q 'writes one to ~/.config/vikix/plans/NAME.toml' <<<"$out"
+out=$(agents plan new one-desk chapters book --gate none)
+check "plan new writes the copy and names the EDIT: lines: $out" grep -q 'plan chapters written to ~/.config/vikix/plans/chapters.toml from one-desk: write its EDIT: lines (build, tests, guide), then' <<<"$out"
+draft="$HOME/.config/vikix/plans/chapters.toml"
+check "the project is filled in" grep -q '^project = "book"' "$draft"
+check "the gate asked for, its comment kept" grep -q '^gate = "none" .*#' "$draft"
+check "the desks are named for the plan" bash -c '[ "$(grep -c "^desk = \"chapters\"" "$1")" = 3 ]' _ "$draft"
+check "the template's comments explain the file" grep -q '^# one-desk — ' "$draft"
+out=$(agents plan new one-desk chapters book)
+check "a plan that is there is refused: $out" grep -q 'is there already: another name, or edit that one' <<<"$out"
+out=$(agents plan new nope x book)
+check "no such template: $out" grep -q 'no template called nope' <<<"$out"
+out=$(agents plan new one-task 'Bad Name' book)
+check "a name that is no word: $out" grep -q "a plan's name is a word" <<<"$out"
+check "nothing written for the refusals" bash -c '[ "$(ls "$1"/.config/vikix/plans/*.toml | wc -l)" = 1 ]' _ "$HOME"
+out=$(agents plan new side-by-side cover book --at-once 3)
+check "at-once asked for" grep -q '^at-once = 3' "$HOME/.config/vikix/plans/cover.toml"
+check "several desks named for the plan" grep -q '^desk = "cover-together"' "$HOME/.config/vikix/plans/cover.toml"
+out=$(agents plan status)
+check "status lists the drafts not run yet: $out" grep -q 'Not run yet (~/.config/vikix/plans): \(chapters, cover\|cover, chapters\)' <<<"$out"
+out=$(agents plan status chapters)
+check "a draft's status by its name, with what it needs: $out" grep -q "still the template's words (EDIT: lines) at build, tests, guide: write them first" <<<"$out"
+out=$(agents plan run "$draft")
+check "run refuses the EDIT: lines: $out" grep -q 'build, tests, guide still hold the template.s words (EDIT: lines): write them first' <<<"$out"
+check "no note was made for it" bash -c '! ls "$1"/.local/state/vikix/office/plans/*.json 2>/dev/null | xargs grep -l chapters.toml' _ "$HOME" 2>/dev/null
+# Your own template stands in for Vikix's of the same name, and brings its own words.
+mkdir -p "$HOME/.config/vikix/plans/templates"
+printf '# one-task — mine: one task, my way\nproject = "PROJECT"\n[[task]]\nname = "it"\ndesk = "topic"\ntask = "EDIT: mine"\n' > "$HOME/.config/vikix/plans/templates/one-task.toml"
+printf '# bad — not a plan\nproject = 1\n' > "$HOME/.config/vikix/plans/templates/bad.toml"
+out=$(agents plan templates)
+check "your template stands in for Vikix's, marked yours: $out" grep -q '^one-task  *mine: one task, my way  (yours)' <<<"$out"
+check "Vikix's of that name is gone from the list" bash -c '[ "$(grep -c "^one-task " <<<"$1")" = 1 ]' _ "$out"
+check "a template that doesn't read as a plan is listed with why: $out" grep -q "^bad .*(yours)  (can't be read: .*project = \"NAME\"" <<<"$out"
+out=$(agents plan new one-task mine book)
+check "the copy is yours: $out" grep -q '^task = "EDIT: mine"' "$HOME/.config/vikix/plans/mine.toml"
+out=$(agents plan new bad worse book)
+check "a template that doesn't read as a plan is refused and the copy removed: $out" grep -q "the copy doesn't read as a plan, so it was removed again" <<<"$out"
+check "nothing left of it" test ! -e "$HOME/.config/vikix/plans/worse.toml"
+# The Office: the drafts in the snapshot with their state, and its New plan.
+out=$(agents office --json)
+check "the Office's snapshot has the drafts, each a draft with its EDIT: lines and what it needs: $(python3 -c 'import json,sys; print([(p["name"], p["state"], p["draft"], p["edit"]) for p in json.load(sys.stdin)["plans"]])' <<<"$out")" \
+  python3 -c '
+import json, sys
+plans = {p["name"]: p for p in json.load(sys.stdin)["plans"]}
+assert plans["book"]["draft"] is False and plans["book"]["edit"] == []
+c = plans["chapters"]
+assert c["draft"] and c["state"] == "draft" and c["project"] == "book" and c["edit"] == ["build", "tests", "guide"]
+assert [d["topic"] for d in c["desks"]] == ["chapters"] and c["needs"] == ["still the template'"'"'s words (EDIT: lines) at build, tests, guide: write them first"]
+assert plans["cover"]["edit"] == ["first", "second", "together"] and [d["topic"] for d in plans["cover"]["desks"]] == ["cover-one", "cover-two", "cover-together"]
+' <<<"$out"
+out=$(agents office --plan one-desk office-made book --at-once 2 --gate me)
+check "office --plan answers with the file alone: $out" test "$out" = "$HOME/.config/vikix/plans/office-made.toml"
+check "with its settings" bash -c 'grep -q "^at-once = 2" "$1" && grep -q "^gate = \"me\"" "$1"' _ "$out"
+out=$(agents office --plan one-desk office-made book)
+check "office --plan refuses what plan new refuses: $out" grep -q 'is there already' <<<"$out"
+out=$(agents office --form)
+check "the form's offer has the templates and where a plan goes: $(python3 -c 'import json,sys; d=json.load(sys.stdin); print([t["name"] for t in d["templates"]], d["plans_folder"])' <<<"$out")" \
+  python3 -c 'import json,sys,os; d=json.load(sys.stdin); assert [t["name"] for t in d["templates"]] == ["one-task", "one-desk", "side-by-side"] and d["templates"][0]["yours"] and not d["templates"][1]["yours"] and d["plans_folder"] == os.path.expanduser("~/.config/vikix/plans")' <<<"$out"
+
+[ "$fail" = 0 ] && echo "plan: ok (a plan read and checked; desks made and workers started up to at-once; a hand-in tested, the worker dismissed, the chain's next task; failed rounds told, the third stops the desk under Needs you; the release at the chain's end, held for the yes, tried again after a failure; a task after other desks at a fresh one; pause, stop, run again; the event log; templates, a plan written from one, drafts and the Office's New plan)"
 exit $fail

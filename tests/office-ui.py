@@ -410,6 +410,74 @@ class Office(unittest.TestCase):
                     office.main(A, bad)
             self.assertEqual(len(calls), n)
 
+    def test_form_new_plan_from_the_office(self):
+        # The New plan form: the offer names the templates and where a plan goes;
+        # --plan hands lib/plan.py's new_plan the form's words and answers with the
+        # file alone; what plan new refuses is refused, never written.
+        import plan
+        made = []
+        with patch.object(plan, 'templates', lambda: [{'name': 'one-desk', 'file': '/x/one-desk.toml', 'about': 'one desk', 'yours': False, 'error': ''},
+                                                      {'name': 'bad', 'file': '/x/bad.toml', 'about': '', 'yours': True, 'error': 'not TOML'}]), \
+             patch.object(plan, 'PLANS_HOME', '/home/u/.config/vikix/plans'), \
+             patch.object(plan, 'new_plan', lambda *a: made.append(a) or '/home/u/.config/vikix/plans/' + a[1] + '.toml'), \
+             patch.object(A, 'agents_offered', lambda: []):
+            class VP:
+                def discover(self): return []
+                def rows(self, projects, everything): return []
+            with patch.object(A, 'projects', lambda: VP()):
+                offer = office.form(A)
+            self.assertEqual([t['name'] for t in offer['templates']], ['one-desk'])
+            self.assertEqual(offer['plans_folder'], '/home/u/.config/vikix/plans')
+            import io
+            from contextlib import redirect_stdout
+            out = io.StringIO()
+            with redirect_stdout(out):
+                office.main(A, ['--plan', 'one-desk', ' chapters ', 'vikix', '--at-once', '2', '--gate', 'me'])
+            self.assertEqual(made[-1], ('one-desk', 'chapters', 'vikix', 2, 'me'))
+            self.assertEqual(out.getvalue(), '/home/u/.config/vikix/plans/chapters.toml\n')
+            with redirect_stdout(io.StringIO()):
+                office.main(A, ['--plan', 'one-desk', 'cover', 'vikix'])
+            self.assertEqual(made[-1], ('one-desk', 'cover', 'vikix', None, None))
+            n = len(made)
+            for bad in (['--plan'], ['--plan', 'one-desk', 'x'], ['--plan', 'one-desk', 'x', 'vikix', '--at-once', 'two'],
+                        ['--plan', 'one-desk', 'x', 'vikix', '--run'], ['--plan', 'one-desk', '', 'vikix']):
+                with self.assertRaises(ValueError, msg=bad):
+                    office.main(A, bad)
+            self.assertEqual(len(made), n)
+            # plan new's refusal (a file there, a bad template) is the backend's error, in its words.
+            def refuse(*a):
+                raise plan.PlanError('x is there already')
+            with patch.object(plan, 'new_plan', refuse), self.assertRaises(RuntimeError) as got:
+                office.main(A, ['--plan', 'one-desk', 'x', 'vikix'])
+            self.assertIn('is there already', str(got.exception))
+
+    def test_drafts_in_the_snapshot(self):
+        # A plan file not run yet (~/.config/vikix/plans) is a draft in the Office's
+        # plans: its state, its EDIT: lines as what needs you, no runner's note.
+        import plan
+        self.agents = [self.agent()]
+        home = Path(self.temp.name) / 'plans'
+        home.mkdir()
+        (home / 'chapters.toml').write_text('project = "vikix"\n[[task]]\nname = "build"\ndesk = "chapters"\ntask = "EDIT: words"\n')
+        (home / 'ready.toml').write_text('project = "vikix"\n[[task]]\nname = "build"\ndesk = "ready"\ntask = "Build it."\n')
+        (home / 'broken.toml').write_text('project = 1\n')
+        (home / 'notes.txt').write_text('not a plan')
+        fake_view = lambda api, p, note: {'views': {t: {'folder': '/w/' + t, 'line': '', 'released': False, 'tasks': []}
+                                                     for t in p['desks']}, 'needs': []}
+        with patch.object(plan, 'PLANS_HOME', str(home)), patch.object(plan, 'notes', lambda: []), \
+             patch.object(plan, 'plan_view', fake_view):
+            snap = office.snapshot(A)
+        by = {p['name']: p for p in snap['plans']}
+        self.assertEqual(set(by), {'chapters', 'ready', 'broken'})
+        self.assertTrue(all(p['draft'] and p['state'] == 'draft' and p['pid'] == 0 for p in by.values()))
+        self.assertEqual(by['chapters']['edit'], ['build'])
+        self.assertEqual(by['chapters']['needs'], ["still the template's words (EDIT: lines) at build: write them first"])
+        self.assertEqual((by['ready']['edit'], by['ready']['needs'], by['ready']['project']), ([], [], 'vikix'))
+        self.assertEqual([d['topic'] for d in by['ready']['desks']], ['ready'])
+        self.assertIn('project = "NAME"', by['broken']['error'])
+        # The desk's Plan line names a draft's desk too, by the task's state.
+        self.assertEqual(snap['desks'][0]['plan'], '')
+
     def test_close_desk_from_the_office(self):
         # The desk's folder and --force alone reach vikix agents close; anything else is refused.
         calls = []

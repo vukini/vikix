@@ -159,7 +159,7 @@ for f in "${files[@]}"; do
     # The skill's list of keys is made from these (lib/skill-keys.sh).
     config/stumpwm/vikix/why.lisp|bin/vikix-why|bin/vikix-notifications) add why mcp notifications used ;;
     config/stumpwm/vikix/agents.lisp|bin/vikix-agents|lib/agents/*|config/claude/office.json) add office titles house handoff office-ui mcp tester plan door nyxt codex ;;
-    lib/plan.py) add plan office-ui codex ;;
+    lib/plan.py|config/plans/*) add plan office-ui codex ;;
     lib/handoff.py) add office titles house handoff office-ui mcp release plan codex ;;
     bin/vikix-agent) add house agents ai codex ;;
     config/codex/*) add handoff codex ;;

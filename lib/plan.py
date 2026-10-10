@@ -57,6 +57,16 @@ looks round on its own once a minute besides.
 What it can't know: which files two desks will touch (turns and the clash
 rules handle that), and whether a worker at its prompt will ever read a
 note (it won't: that is why a worker that handed in is dismissed).
+
+A plan starts from a template (vikix agents plan new TEMPLATE NAME PROJECT;
+the Office's New plan form is the same): Vikix's are config/plans/*.toml,
+yours ~/.config/vikix/plans/templates/*.toml (one of yours with a Vikix
+name stands in for it), each a plan whose first line is "# NAME — what it
+is for", with "PROJECT" where the project goes, "topic" in each desk's
+name, which the plan's name replaces, and lines beginning "EDIT:" for the
+words that are yours to write; plan run refuses a task still holding one.
+The copy goes to ~/.config/vikix/plans/NAME.toml, and until it has run it
+is a draft there, which the Office lists with its Run.
 """
 import hashlib
 import json
@@ -71,6 +81,11 @@ import tomllib
 
 STATE = os.environ.get("XDG_STATE_HOME") or os.path.join(os.path.expanduser("~"), ".local", "state")
 PLANS = os.path.join(STATE, "vikix", "office", "plans")
+CONFIG = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+PLANS_HOME = os.path.join(CONFIG, "vikix", "plans")     # your plans: where plan new and the Office's New plan write
+MY_TEMPLATES = os.path.join(PLANS_HOME, "templates")    # your own templates, beside Vikix's
+VIKIX_TEMPLATES = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "config", "plans")
+EDIT = "EDIT:"                                           # a template's line still to be written
 POLL = int(os.environ.get("VIKIX_PLAN_POLL") or 60)       # seconds between looks when no event comes
 GRACE = int(os.environ.get("VIKIX_PLAN_GRACE") or 120)    # seconds a worker just started has to appear
 ROUNDS = 3                                                 # failed rounds that stop a desk
@@ -245,6 +260,136 @@ def told_once(note, key):
         return True
     note.setdefault("told", {})[key] = int(time.time())
     return False
+
+
+# --- Templates, and a plan written from one -------------------------------------------------
+
+def template_about(path):
+    """The template's line about itself: its first comment, after the dash
+    when it is "# NAME — about"; "" without one."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            first = f.readline().strip()
+    except OSError:
+        return ""
+    if not first.startswith("#"):
+        return ""
+    first = first.lstrip("#").strip()
+    for dash in (" — ", " - ", ": "):
+        if dash in first:
+            return first.split(dash, 1)[1].strip()
+    return first
+
+
+def templates():
+    """The plan templates, by name: yours first (~/.config/vikix/plans/templates),
+    then Vikix's (config/plans), each {name, file, about, yours, error}; one
+    of yours with a Vikix name stands in for it, and one that doesn't read
+    as a plan is listed with why (the Office's form leaves it out)."""
+    out, seen = [], set()
+    for folder, yours in ((MY_TEMPLATES, True), (VIKIX_TEMPLATES, False)):
+        try:
+            names = sorted(os.listdir(folder))
+        except OSError:
+            continue
+        for n in names:
+            if n.endswith(".toml") and n[:-5] not in seen and NAME.match(n[:-5]):
+                seen.add(n[:-5])
+                path = os.path.join(folder, n)
+                try:
+                    read_plan(path)
+                    error = ""
+                except PlanError as e:
+                    error = str(e)
+                out.append({"name": n[:-5], "file": path, "about": template_about(path), "yours": yours, "error": error})
+    return out
+
+
+def template(word):
+    """The template WORD names, or the plan file it is: its path."""
+    for t in templates():
+        if t["name"] == word:
+            return t["file"]
+    path = os.path.realpath(os.path.expanduser(word))
+    if os.path.isfile(path) and ("/" in word or word.endswith(".toml")):
+        return path
+    raise PlanError(f"no template called {word} (vikix agents plan templates lists them; a plan file is one too)")
+
+
+def new_plan(template_word, name, project, at_once=None, gate=None):
+    """A plan written from a template: ~/.config/vikix/plans/NAME.toml (NAME
+    with a slash, or ending .toml, is the file itself), the template's text
+    with PROJECT, and at-once and gate when given, filled in, and "topic" in
+    each desk's name made NAME, so its desks are named for the plan; the
+    comments stay, so the file explains itself. Refuses a file that is there,
+    and a copy that doesn't read as a plan is removed again. Returns the path."""
+    src = template(template_word)
+    if "/" in name or name.endswith(".toml"):
+        path = os.path.realpath(os.path.expanduser(name))
+        base = os.path.basename(path)
+        stem = base[:-5] if base.endswith(".toml") else base
+    else:
+        stem, path = name, os.path.join(PLANS_HOME, name + ".toml")
+    if not NAME.match(stem):
+        raise PlanError(f"a plan's name is a word (letters, digits, dashes), not '{stem}': it names its desks")
+    if not isinstance(project, str) or not project.strip():
+        raise PlanError("which project? plan new TEMPLATE NAME PROJECT")
+    if at_once is not None and (not isinstance(at_once, int) or isinstance(at_once, bool) or at_once < 1):
+        raise PlanError("at-once is a number of workers, 1 or more")
+    if gate is not None and gate not in GATES:
+        raise PlanError("gate is \"me\" (a release waits for your yes) or \"none\"")
+    if os.path.exists(path):
+        raise PlanError(f"{path} is there already: another name, or edit that one")
+    try:
+        with open(src, encoding="utf-8") as f:
+            lines = f.read().split("\n")
+    except OSError as e:
+        raise PlanError(f"{src}: {e.strerror or e}")
+    out = []
+    for line in lines:
+        if re.match(r'^project\s*=', line):
+            line = re.sub(r'^(project\s*=\s*)"[^"]*"', lambda m: m.group(1) + json.dumps(project.strip()), line)
+        elif at_once is not None and re.match(r'^at-once\s*=', line):
+            line = re.sub(r'^(at-once\s*=\s*)\d+', lambda m: m.group(1) + str(at_once), line)
+        elif gate is not None and re.match(r'^gate\s*=', line):
+            line = re.sub(r'^(gate\s*=\s*)"[^"]*"', lambda m: m.group(1) + json.dumps(gate), line)
+        elif re.match(r'^desk\s*=\s*"', line):
+            line = re.sub(r'^(desk\s*=\s*")([^"]*)"', lambda m: m.group(1) + re.sub(r"\btopic\b", stem, m.group(2)) + '"', line)
+        out.append(line)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    try:
+        with open(path, "x", encoding="utf-8") as f:
+            f.write("\n".join(out))
+    except FileExistsError:
+        raise PlanError(f"{path} is there already: another name, or edit that one")
+    try:
+        read_plan(path)
+    except PlanError as e:
+        os.unlink(path)
+        raise PlanError(f"the copy doesn't read as a plan, so it was removed again: {e}")
+    return path
+
+
+def unedited(plan):
+    """The tasks still holding a template's EDIT: lines (their words or their
+    release), by name: a plan run refuses them."""
+    return [t["name"] for t in plan["tasks"] if t["text"].startswith(EDIT) or t["release"].startswith(EDIT)]
+
+
+def drafts():
+    """Your plan files not run yet: ~/.config/vikix/plans/*.toml with no
+    note, by path, newest first."""
+    noted = {n["file"] for n in notes()}
+    out = []
+    try:
+        names = os.listdir(PLANS_HOME)
+    except OSError:
+        return out
+    for n in names:
+        path = os.path.realpath(os.path.join(PLANS_HOME, n))
+        if n.endswith(".toml") and os.path.isfile(path) and path not in noted:
+            out.append(path)
+    return sorted(out, key=lambda p: -os.path.getmtime(p))
 
 
 # --- The state of each desk and task, worked out from the records --------------------------
@@ -748,6 +893,9 @@ def find(words):
             return n, n["file"]
     if os.path.isfile(path):
         return None, path
+    draft = os.path.join(PLANS_HOME, word + ".toml")   # a draft by its name, as the Office lists it
+    if NAME.match(word) and os.path.isfile(draft):
+        return None, draft
     raise PlanError(f"no plan called {word} (vikix agents plan status lists them; a file starts one)")
 
 
@@ -757,7 +905,7 @@ def status_lines(api, state, note):
     head = f"Plan {plan['name']} ({api.short(plan['file'])}): {plan['project']}, "
     head += f"{plan['at_once']} worker{'s' if plan['at_once'] != 1 else ''} at once" + (", your yes before a release" if plan["gate"] == "me" else "")
     if not note:
-        head += "; not running (vikix agents plan run starts it)"
+        head += "; not run yet (vikix agents plan run starts it)"
     elif note.get("done"):
         head += f"; done {api.handoff_module().when(note['done'])}"
     elif note.get("stopped"):
@@ -782,9 +930,12 @@ def status_lines(api, state, note):
             else:
                 mark, words = "now ", s["words"]
             lines.append(f"    {mark} {s['task']['name']:<20} {words}" + (f"  (round {s['rounds']})" if s["rounds"] > 1 else ""))
-    if state["needs"]:
+    needs = list(state["needs"])
+    if unedited(plan):
+        needs.append("still the template's words (EDIT: lines) at " + ", ".join(unedited(plan)) + ": write them first")
+    if needs:
         lines.append("Needs you:")
-        lines += [f"  {n}" for n in state["needs"]]
+        lines += [f"  {n}" for n in needs]
     return lines
 
 
@@ -793,15 +944,23 @@ def plans_view(api):
     pid, done, desks: [{topic, line, tasks: [{name, state, words}]}],
     needs}. A plan whose file is gone or can't be read says so."""
     out = []
-    for n in notes():
+    every = [(n, False) for n in notes()]
+    # Your plan files not run yet (plan new's, the Office's New plan): drafts,
+    # with their Run; one that can't be read says so, as a plan's does.
+    for path in drafts():
+        base = os.path.basename(path)
+        every.append(({"id": plan_id(path), "name": base[:-5], "file": path, "project": "", "pid": 0}, True))
+    for n, draft in every:
         row = {"id": n["id"], "name": n["name"], "file": n["file"], "project": n["project"], "pid": n.get("pid", 0),
                "paused": bool(n.get("paused")), "stopped": bool(n.get("stopped")), "done": n.get("done") or 0,
-               "started": n.get("started") or 0, "desks": [], "needs": [], "error": ""}
-        row["state"] = ("done" if row["done"] else "stopped" if row["stopped"] else "paused" if row["paused"]
-                        else "running" if alive(row["pid"]) else "not running")
+               "started": n.get("started") or 0, "desks": [], "needs": [], "error": "", "draft": draft, "edit": []}
+        row["state"] = ("draft" if draft else "done" if row["done"] else "stopped" if row["stopped"]
+                        else "paused" if row["paused"] else "running" if alive(row["pid"]) else "not running")
         try:
             plan = read_plan(n["file"])
-            state = plan_view(api, plan, n)
+            row["project"] = plan["project"]
+            row["edit"] = unedited(plan)
+            state = plan_view(api, plan, None if draft else n)
         except PlanError as e:
             row["error"] = str(e)
             out.append(row)
@@ -812,7 +971,9 @@ def plans_view(api):
             row["desks"].append({"topic": topic, "folder": v["folder"], "line": v["line"], "released": v["released"],
                                  "tasks": [{"name": s["task"]["name"], "state": s["state"], "words": s["words"],
                                             "rounds": s["rounds"]} for s in v["tasks"]]})
-        row["needs"] = state["needs"]
+        row["needs"] = list(state["needs"])
+        if row["edit"]:
+            row["needs"].append("still the template's words (EDIT: lines) at " + ", ".join(row["edit"]) + ": write them first")
         out.append(row)
     return out
 
@@ -821,9 +982,41 @@ def main(api, argv):
     """vikix agents plan ..."""
     if not argv or argv[0] in ("-h", "--help"):
         print(__doc__.strip().split("\n\n", 1)[0])
-        print("\nvikix agents plan run FILE [--here|--once] | status [PLAN] | pause PLAN | stop PLAN | release DESK | log PLAN")
+        print("\nvikix agents plan new TEMPLATE NAME PROJECT [--at-once N] [--gate me|none] | templates | "
+              "run FILE [--here|--once] | status [PLAN] | pause PLAN | stop PLAN | release DESK | log PLAN")
         return 0
     verb, words = argv[0], argv[1:]
+    if verb == "templates":
+        for t in templates():
+            print(f"{t['name']:<16} {t['about']}" + ("  (yours)" if t["yours"] else "")
+                  + (f"  (can't be read: {t['error']})" if t["error"] else ""))
+        print(f"\nvikix agents plan new TEMPLATE NAME PROJECT writes one to {api.short(PLANS_HOME)}/NAME.toml; "
+              f"your own templates go in {api.short(MY_TEMPLATES)}/")
+        return 0
+    if verb == "new":
+        at_once, gate, rest = None, None, []
+        it = iter(words)
+        for w in it:
+            if w == "--at-once":
+                try:
+                    at_once = int(next(it))
+                except (StopIteration, ValueError):
+                    raise PlanError("--at-once takes a number of workers")
+            elif w == "--gate":
+                gate = next(it, None)
+            elif w.startswith("--"):
+                raise PlanError(f"plan new: {w}? (--at-once N, --gate me|none)")
+            else:
+                rest.append(w)
+        if len(rest) != 3:
+            raise PlanError("vikix agents plan new TEMPLATE NAME PROJECT [--at-once N] [--gate me|none]: "
+                            "plan templates lists the templates, vikix project list the projects")
+        path = new_plan(rest[0], rest[1], rest[2], at_once, gate)
+        plan = read_plan(path)
+        print(f"plan {plan['name']} written to {api.short(path)} from {rest[0]}: "
+              + (f"write its EDIT: lines ({', '.join(unedited(plan))}), then " if unedited(plan) else "")
+              + f"vikix agents plan run {api.short(path)} runs it (the Office's Plans box has it as a draft)")
+        return 0
     if verb == "run":
         here = "--here" in words
         once = "--once" in words
@@ -831,6 +1024,9 @@ def main(api, argv):
         if len(words) != 1:
             raise PlanError("vikix agents plan run FILE [--here | --once]")
         plan = read_plan(words[0])
+        if unedited(plan):
+            raise PlanError(f"{api.short(plan['file'])}: {', '.join(unedited(plan))} still "
+                            f"{'holds' if len(unedited(plan)) == 1 else 'hold'} the template's words (EDIT: lines): write them first")
         pid = plan_id(plan["file"])
         note = note_read(pid)
         if note and alive(note.get("pid")) and not (here or once):
@@ -881,8 +1077,9 @@ def main(api, argv):
     if verb == "status":
         if not words:
             every = notes()
-            if not every:
-                print("no plan has run yet: vikix agents plan run FILE starts one")
+            waiting = drafts()
+            if not every and not waiting:
+                print("no plan has run yet: vikix agents plan new TEMPLATE NAME PROJECT writes one, plan run FILE starts it")
                 return 0
             for n in every:
                 try:
@@ -891,6 +1088,9 @@ def main(api, argv):
                 except PlanError as e:
                     print(f"Plan {n['name']} ({api.short(n['file'])}): can't be read: {e}")
                 print()
+            if waiting:
+                print(f"Not run yet ({api.short(PLANS_HOME)}): " + ", ".join(os.path.basename(p)[:-5] for p in waiting)
+                      + "; plan status NAME.toml shows one, plan run starts it")
             return 0
         note, path = find(words)
         plan = read_plan(path)

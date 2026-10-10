@@ -305,6 +305,8 @@ Tasks at one desk are a chain, its workers in turn on one branch, in the file's 
 
 The runner is a script, never an agent: it edits no file, answers no prompt, never puts two workers at one desk, and never merges or pushes (the release script merges, `gup` stays yours). A worker that handed in is dismissed once its tests are in, since a worker at its prompt never reads a note. A round is one worker on a task; one whose tests failed, or that left without handing in, failed, and the next round's worker is told why in the desk's inbox; the third failure stops that desk under **Needs you**, with the desk's status set *waiting* by vikix, as a release that failed does, and a hand-in left with files uncommitted when its worker is gone. You go on from there by hand: hand the task in yourself, or fix and run the release again with `vikix agents plan release DESK`, which is also your yes when the gate is *me*.
 
+A plan starts from a template. `vikix agents plan templates` lists them: Vikix's (`config/plans/`: *one-task*, one worker on one task at one desk; *one-desk*, a chain of build, tests and guide at one desk, released once at the end; *side-by-side*, two desks at once and a task after both at a fresh desk) and your own, `~/.config/vikix/plans/templates/*.toml`, a plan each whose first line is `# NAME — what it is for`, with `PROJECT` where the project goes, `topic` in each desk's name and `EDIT:` beginning the lines that are yours to write; one of yours with a Vikix name stands in for it. `vikix agents plan new TEMPLATE NAME PROJECT [--at-once N] [--gate me|none]` writes the copy to `~/.config/vikix/plans/NAME.toml` with the project, and the two settings when given, filled in, each desk named for the plan (`topic` becomes `NAME`, `topic-one` `NAME-one`), and the template's comments kept, so the file explains itself. Then you write its `EDIT:` lines in your own words: `plan run` refuses a task still holding one, and until the plan has run it is a *draft*, which `plan status` lists and the Office's Plans box shows with its Run. The Office's **New plan…** is the same as a form (see [The Office](#the-office)).
+
 Its state is worked out each time from the plan file and the desk records (which task is the record's, what came before in its history, the checks and their freshness, who is at the desk), so a reboot loses nothing and `plan run` again carries on; only its switches are its own, in `~/.local/state/vikix/office/plans/`. It wakes on the office's event log, `~/.local/state/vikix/office/events-YYYY-MM.jsonl`, one line a hand-in, a check, a worker started, a desk closed or an agent that left, written by every record write, and looks round by itself once a minute besides. `vikix agents plan status` says where each plan stands, a line a desk and a line a task; `plan pause` starts nothing new, `plan stop` ends the runner (the workers at work carry on), `plan log` is what it did. What it can't know: which files two desks will touch; turns and the clash rules handle that.
 
 ### Dismissing a worker, and how it left
@@ -453,7 +455,7 @@ running, the same message as on the desktop, and still never a second
 Emacs. Inside Emacs, `M-x vikix-office-open-here` opens it in the frame you
 are in, and `q` then puts that frame's windows back as they were.
 
-Above the desks, a **Plans** box when a plan has run (`vikix agents plan`): a plan a group, its name, project and whether its runner runs, a line a desk saying where that desk's chain stands, and what needs you; a desk of a plan says which in its **Plan** line.
+Above the desks, a **Plans** box when a plan has run or been written (`vikix agents plan`): a plan a group, its name, project and whether its runner runs, a line a desk saying where that desk's chain stands, and what needs you; a desk of a plan says which in its **Plan** line. A plan written and not run yet (`plan new`, or **New plan…**) is a *draft* there, with the tasks still holding the template's `EDIT:` lines under *Needs you*. Each plan ends with the acts its state takes, each `vikix agents plan` from the Office: **Run** for a draft whose words are written (**Run again** for one stopped or whose runner isn't running: it carries on), **Pause** and **Stop** while it runs, **Go on** when paused, **Edit**, which opens the plan's file in the desk pane (`RET` on a desk brings the pane back), and **Log**, what the runner did.
 
 The left side groups desks into **Needs you**, **Working**, **Parked**,
 **Finished** and **Closed**, each group drawn in a box of its own, a rule between its
@@ -526,8 +528,8 @@ and a new confirmation. Project files, branches and the providers' saved
 conversations are untouched. There is no automatic age or size cutoff.
 
 Click a desk, or use `n`/`p` to select it. `RET` enters its details; `C-x o`
-moves between panes. Only available action buttons are shown. `Tab` visits buttons, `N` makes a new desk, `w` starts a worker at the selected one, `a` goes to an agent, `c` continues
-a desk, `P` pauses its agent or lets it go, `t` runs its tests, `r` has another provider review its last commit, `i` leaves its agent a note, `C` closes a desk, `g` refreshes and `q` closes the Office. A button's answer (*let go, paused 3 min; claude 48213 goes on at its next call*) stays in the header line over the refreshes that follow, until `g` or the next button, and the row is drawn again at once, so a desk let go loses its *paused by* and its Go button says Pause again. A row says when its desk is paused and by whom, when its tests run, who is reviewing it, and how many notes wait for its agent; the details say how the last agent left. Details keep the user's task,
+moves between panes. Only available action buttons are shown. `Tab` visits buttons, `N` makes a new desk, `L` writes a new plan, `w` starts a worker at the selected one, `a` goes to an agent, `c` continues
+a desk, `P` pauses its agent or lets it go, `t` runs its tests, `r` has another provider review its last commit, `i` leaves its agent a note, `C` closes a desk, `h` opens this chapter of the manual, `g` refreshes and `q` closes the Office. A button's answer (*let go, paused 3 min; claude 48213 goes on at its next call*) stays in the header line over the refreshes that follow, until `g` or the next button, and the row is drawn again at once, so a desk let go loses its *paused by* and its Go button says Pause again. A row says when its desk is paused and by whom, when its tests run, who is reviewing it, and how many notes wait for its agent; the details say how the last agent left. Details keep the user's task,
 signed agent account, observed Git state, reported checks and saved
 conversation availability separate. **Review does not mean merged.** A
 fresh check means its recorded code matches the current observation; it does
@@ -566,6 +568,23 @@ that gives no branch name, an agent at the desk already) is said in the
 form's own header line and leaves the form open to fix. A worker's
 terminal opens on the desktop, so from a terminal Office with no display
 only the desk alone can be made.
+
+**New plan…** (`L`, above the groups) is `vikix agents plan new` as a form,
+drawn where the desk forms are: the template (Vikix's and your own, each
+with its line about itself; a click or `RET` on the `[choice]` opens the
+list), the project (the repositories alone, since a plan's desks are
+worktrees), the plan's name (a word: the file's name under
+`~/.config/vikix/plans/`, and its desks'), workers at once and the gate
+(empty, the template's). Nothing is picked for you. **Write plan** writes
+the file and opens it in the desk pane for the tasks' words, the lines
+beginning `EDIT:`; saved, the Plans box has it as a draft with its **Run**.
+Nothing runs until that. A name taken, or a template that doesn't read as a
+plan, is said in the form's own header line and leaves the form open.
+
+**Guide** (`h`, above the groups) opens this chapter of the Vikix manual
+(`info vikix`, the one `vikix update core` writes to
+`~/.local/share/info/`) in the desk pane; `RET` on a desk brings the pane
+back. Without the manual installed, the button says so.
 
 **Close desk…** (`C`, in the details of a desk with nobody at it) is
 `vikix agents close` from the Office: after a yes, the worktree is removed

@@ -398,9 +398,50 @@ def form(api):
                'local': name in api.LOCAL and installed}
               for name, yours, installed, about in api.agents_offered()]
     agents.sort(key=lambda a: not a['yours'])
+    sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+    import plan
     return {'projects': projects, 'agents': agents, 'default': api.default_agent(),
             'modes': list(api.MODES), 'mode': api.default_mode(),
-            'display': bool(os.environ.get('DISPLAY'))}
+            'display': bool(os.environ.get('DISPLAY')),
+            # The New plan form's part: the templates, and where the plan goes.
+            'templates': [t for t in plan.templates() if not t['error']], 'plans_folder': plan.PLANS_HOME,
+            'guide': guide_file()}
+
+
+def guide_file():
+    """The Vikix manual as 40-config installs it, for the Office's Guide
+    button (Emacs's Info opens a file named in the node); '' when it isn't there."""
+    data = os.environ.get('XDG_DATA_HOME') or os.path.join(os.path.expanduser('~'), '.local', 'share')
+    path = os.path.join(data, 'info', 'vikix.info')
+    return path if os.path.isfile(path) else ''
+
+
+def new_plan(api, args):
+    """The Office's New plan: TEMPLATE NAME PROJECT [--at-once N] [--gate me|none],
+    handed to lib/plan.py's new_plan. Prints the file's path alone, for the
+    Office to open; the words are the form's."""
+    sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+    import plan
+    at_once, gate, rest = None, None, []
+    it = iter(args)
+    for w in it:
+        if w == '--at-once':
+            n = next(it, '')
+            if not n.isdigit():
+                raise ValueError('--at-once takes a number of workers')
+            at_once = int(n)
+        elif w == '--gate':
+            gate = next(it, None)
+        elif w.startswith('-'):
+            raise ValueError(f'vikix agents office --plan: {w}? (--at-once N, --gate me|none)')
+        else:
+            rest.append(w)
+    if len(rest) != 3 or not all(rest):
+        raise ValueError('vikix agents office --plan TEMPLATE NAME PROJECT [--at-once N] [--gate me|none]')
+    try:
+        print(plan.new_plan(rest[0], rest[1].strip(), rest[2], at_once, gate))
+    except plan.PlanError as e:
+        raise RuntimeError(str(e)) from e
 
 
 def worker_words(args, what):
@@ -609,6 +650,8 @@ def main(api, args):
         desk_action(api, 'review', args[1], args[2])
     elif args == ['--form']:
         print(json.dumps(form(api), ensure_ascii=False))
+    elif args and args[0] == '--plan':
+        new_plan(api, args[1:])
     elif args and args[0] == '--desk':
         return new_desk(api, args[1:])
     elif args and args[0] == '--worker':
@@ -618,5 +661,5 @@ def main(api, args):
     elif args in ([], ['--tty']):
         launch(api, tty=bool(args))
     else:
-        raise ValueError('vikix agents office [--tty | --json | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN | --pause DESK | --unpause DESK | --test DESK | --tell DESK TEXT | --review DESK PROVIDER | --form | --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --worker DESK ["..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --close-desk DESK [--force]]')
+        raise ValueError('vikix agents office [--tty | --json | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN | --pause DESK | --unpause DESK | --test DESK | --tell DESK TEXT | --review DESK PROVIDER | --form | --plan TEMPLATE NAME PROJECT [--at-once N] [--gate me|none] | --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --worker DESK ["..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --close-desk DESK [--force]]')
     return 0

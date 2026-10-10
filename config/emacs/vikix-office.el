@@ -279,7 +279,9 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
       (insert (propertize "The Office\n" 'face '(:inherit variable-pitch :height 1.5 :weight bold)))
       (insert "A row a desk: its task, its workers before, under it. Conversations stay in their agent terminals.\n\n")
       (unless vikix-office--archive
-        (vikix-office--button "New desk…" (lambda () (with-current-buffer owner (vikix-office-new-desk)))))
+        (vikix-office--button "New desk…" (lambda () (with-current-buffer owner (vikix-office-new-desk))))
+        (vikix-office--button "New plan…" (lambda () (with-current-buffer owner (vikix-office-new-plan)))))
+      (vikix-office--button "Guide" (lambda () (with-current-buffer owner (vikix-office-guide))))
       (vikix-office--button (if vikix-office--archive "Back to desks" (format "Archive (%d)" (length (alist-get 'archive vikix-office--data))))
                             (lambda () (with-current-buffer owner (vikix-office-toggle-archive))))
       (when (and vikix-office--archive rows (eq (alist-get 'live_known vikix-office--data) t)
@@ -315,6 +317,9 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
         ;; line a desk saying where that desk's chain stands, and what needs
         ;; you in the asks face. The desks it holds are among the desks below,
         ;; each with its Plan line.
+        ;; A plan not run yet (plan new, the New plan form; ~/.config/vikix/plans)
+        ;; is a draft among them, with its Run once its EDIT: lines are written.
+        ;; Each plan ends with the acts its state takes: Run, Pause, Stop, Edit.
         (let ((plans (alist-get 'plans vikix-office--data)))
           (when plans
             (let ((label-width (vikix-office--label-width
@@ -344,7 +349,24 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                                              (if (equal line "") "nothing yet" line))
                                            (and (eq (alist-get 'released d) t) 'shadow)))
                     (dolist (n (alist-get 'needs p))
-                      (vikix-office--field width chars label-width "Needs you" (vikix-office--one-line n) 'vikix-office-asks)))))
+                      (vikix-office--field width chars label-width "Needs you" (vikix-office--one-line n) 'vikix-office-asks))))
+                (let ((file (alist-get 'file p)) (state (alist-get 'state p)) (err (alist-get 'error p))
+                      (edit (alist-get 'edit p)))
+                  (vikix-office--line
+                   width chars
+                   (lambda ()
+                     (when (and (member err '(nil "")) (null edit) (member state '("draft" "stopped" "not running")))
+                       (vikix-office--button (if (equal state "draft") "Run" "Run again")
+                                             (lambda () (with-current-buffer owner (vikix-office-plan-act "run" file)))))
+                     (when (equal state "paused")
+                       (vikix-office--button "Go on" (lambda () (with-current-buffer owner (vikix-office-plan-act "run" file)))))
+                     (when (equal state "running")
+                       (vikix-office--button "Pause" (lambda () (with-current-buffer owner (vikix-office-plan-act "pause" file)))))
+                     (when (member state '("running" "paused"))
+                       (vikix-office--button "Stop" (lambda () (with-current-buffer owner (vikix-office-plan-act "stop" file)))))
+                     (vikix-office--button "Edit" (lambda () (with-current-buffer owner (vikix-office-show-file file))))
+                     (when (member state '("running" "paused" "stopped" "done"))
+                       (vikix-office--button "Log" (lambda () (with-current-buffer owner (vikix-office-plan-log file)))))))))
               (vikix-office--box-bottom width chars)))))
       (if (null rows) (insert (if vikix-office--archive "Archive is empty.\n" "No desks yet. vikix agents desk PROJECT TOPIC makes one, vikix agents worker TOPIC \"the task\" starts a worker at it.\n"))
         ;; Closed last: the desks closed today, newest first, nothing to do at them.
@@ -710,9 +732,12 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
         (with-current-buffer vikix-office--detail (goto-char (point-min))))
       (vikix-office--render-detail))))
 (defun vikix-office-details ()
+  "The desk pane, selected: back in its window when a file or the guide took it."
   (interactive)
   (vikix-office--track)
-  (when-let* ((window (get-buffer-window vikix-office--detail vikix-office--frame))) (select-window window)))
+  (when-let* ((window (vikix-office--pane-window)))
+    (unless (eq (window-buffer window) vikix-office--detail) (set-window-buffer window vikix-office--detail))
+    (select-window window)))
 (defun vikix-office-next (direction)
   (let* ((rows (vikix-office--rows))
          (ids (mapcar (lambda (r) (alist-get 'id r)) rows))
@@ -917,6 +942,74 @@ away only on a second, separate yes."
 ;; widget.el's, drawn in the desk pane's window, so the terminal has it as
 ;; the frame does; what it offers (the projects, the agents) comes from the
 ;; backend's office --form, asked when the form opens, never kept.
+(defun vikix-office--plan-file-p (file)
+  "FILE is a plan's file the snapshot names, never a word of anyone's."
+  (and (stringp file) (not (string-empty-p file))
+       (cl-some (lambda (p) (equal (alist-get 'file p) file)) (alist-get 'plans vikix-office--data))))
+(defun vikix-office-plan-act (verb file)
+  "VERB (run, pause, stop) on the plan FILE, through vikix agents plan; the
+answer in the header line, the Office refreshed. run starts a draft, or
+carries a paused or stopped plan on, as the command does."
+  (interactive)
+  (with-current-buffer (vikix-office--owner-buffer)
+    (unless (member verb '("run" "pause" "stop")) (user-error "A plan is run, paused or stopped"))
+    (unless (vikix-office--plan-file-p file) (user-error "Not a plan the Office knows"))
+    (vikix-office--act (list "plan" verb file) #'vikix-office-refresh)))
+(defun vikix-office-plan-log (file)
+  "What the plan FILE's runner did, in the desk pane's window."
+  (interactive)
+  (with-current-buffer (vikix-office--owner-buffer)
+    (unless (vikix-office--plan-file-p file) (user-error "Not a plan the Office knows"))
+    (let ((owner (current-buffer)))
+      (vikix-office--request
+       (list "plan" "log" file) 'vikix-office--action
+       (lambda (output error)
+         (if error (vikix-office--notice error)
+           (let ((buffer (get-buffer-create "*Office plan log*")))
+             (with-current-buffer buffer
+               (let ((inhibit-read-only t)) (erase-buffer) (insert output))
+               (special-mode)
+               (goto-char (point-max)))
+             (with-current-buffer owner (vikix-office--show-buffer buffer)))))))))
+(defun vikix-office--pane-window ()
+  "The desk pane's window in the Office's frame: the one showing it, else the
+frame's other window (a plan's file, a log or the guide was shown there),
+or nil."
+  (when (buffer-live-p vikix-office--detail)
+    (or (get-buffer-window vikix-office--detail vikix-office--frame)
+        (let ((owner (current-buffer)))
+          (cl-find-if (lambda (w) (not (eq (window-buffer w) owner)))
+                      (window-list vikix-office--frame 'no-minibuf))))))
+(defun vikix-office--show-buffer (buffer)
+  "BUFFER in the desk pane's window (the pane comes back with RET on a desk), else another window."
+  (let ((window (vikix-office--pane-window)))
+    (if (window-live-p window)
+        (progn (set-window-buffer window buffer) (select-window window))
+      (pop-to-buffer buffer))))
+(defun vikix-office-show-file (file)
+  "Open the plan FILE to edit, in the desk pane's window: its EDIT: lines
+are yours to write; saved, the Plans box offers its Run."
+  (interactive)
+  (with-current-buffer (vikix-office--owner-buffer)
+    (unless (vikix-office--plan-file-p file) (user-error "Not a plan the Office knows"))
+    (vikix-office--show-buffer (find-file-noselect file))
+    (message "The plan's file: write its EDIT: lines in your words, save (C-x C-s); Run is in the Plans box")))
+(defun vikix-office--guide-file ()
+  "The Vikix manual as 40-config installs it (vikix update core writes it)."
+  (expand-file-name "info/vikix.info" (or (getenv "XDG_DATA_HOME") "~/.local/share")))
+(defun vikix-office-guide (&optional node)
+  "The Office's chapter of the Vikix manual (info vikix), in the desk pane's
+window; NODE names another node of it (\"A plan\" for the plans)."
+  (interactive)
+  (with-current-buffer (vikix-office--owner-buffer)
+    (let ((file (vikix-office--guide-file)) (window (vikix-office--pane-window)))
+      (unless (file-readable-p file)
+        (user-error "The Vikix manual isn't installed here (%s): vikix update core writes it" (abbreviate-file-name file)))
+      (require 'info)
+      (if (window-live-p window)
+          (with-selected-window window (info (format "(%s) %s" file (or node "The Office"))))
+        (info (format "(%s) %s" file (or node "The Office")))))))
+
 (defvar-local vikix-office--form nil
   "The open form: its owner, the desk it is for (nil for a new one), what the backend offered, its widgets by name, the window it took.")
 
@@ -934,11 +1027,19 @@ away only on a second, separate yes."
       (when (alist-get 'agents r)
         (user-error "An agent is at this desk already, and a desk takes its workers one at a time: Tell leaves it a note, Close agent ends it"))
       (vikix-office--form-open r))))
+(defun vikix-office-new-plan ()
+  "Write a plan from a template, for a project: a form. The file opens here
+for its tasks' words, and the Plans box runs it."
+  (interactive)
+  (with-current-buffer (vikix-office--owner-buffer)
+    (vikix-office--form-open 'plan)))
 (defun vikix-office--form-open (desk)
-  "Ask the backend what the form offers, then draw it for DESK, a row, or a new desk with nil."
+  "Ask the backend what the form offers, then draw it for DESK, a row, a new desk with nil, or a plan with `plan'."
   (when (process-live-p vikix-office--action) (user-error "An Office action is still running"))
   (let ((owner (current-buffer)))
-    (vikix-office--notice (concat (if desk "New worker" "New desk") ": asking which projects and agents there are…"))
+    (vikix-office--notice (concat (pcase desk ('plan "New plan") ('nil "New desk") (_ "New worker"))
+                                  ": asking which projects"
+                                  (if (eq desk 'plan) " and templates" " and agents") " there are…"))
     (vikix-office--request
      '("office" "--form") 'vikix-office--action
      (lambda (output error)
@@ -954,6 +1055,92 @@ away only on a second, separate yes."
 (define-key vikix-office-form-map (kbd "C-c C-c") #'vikix-office-form-submit)
 (define-key vikix-office-form-map (kbd "C-c C-k") #'vikix-office-form-cancel)
 (defun vikix-office--form-draw (owner desk offer)
+  "Draw the form for DESK (nil: a new desk; `plan': a plan) with what the backend OFFERed, in OWNER's desk pane."
+  (if (eq desk 'plan) (vikix-office--form-draw-plan owner offer)
+    (vikix-office--form-draw-desk owner desk offer)))
+(defun vikix-office--form-place (owner buffer)
+  "Put the form BUFFER in OWNER's desk pane window, else another; that window, for the way back."
+  (let ((window (with-current-buffer owner (vikix-office--pane-window))))
+    (if (window-live-p window)
+        (progn (set-window-buffer window buffer) (select-window window))
+      (pop-to-buffer buffer))
+    window))
+(defun vikix-office--form-draw-plan (owner offer)
+  "The New plan form: a template, the project, the plan's name, and the two
+settings every template has; what the backend OFFERed names them."
+  (let* ((buffer (generate-new-buffer "*Office new plan*"))
+         (templates (alist-get 'templates offer))
+         (projects (cl-remove-if-not (lambda (p) (eq (alist-get 'repo p) t)) (alist-get 'projects offer)))
+         (folder (or (alist-get 'plans_folder offer) "~/.config/vikix/plans"))
+         widgets)
+    (with-current-buffer buffer
+      (kill-all-local-variables)
+      (let ((inhibit-read-only t)) (erase-buffer))
+      (remove-overlays)
+      (widget-insert (propertize "New plan" 'face '(:inherit variable-pitch :height 1.3 :weight bold)) "\n")
+      (widget-insert "A plan is tasks in order, each one worker's job at a desk, run for you (vikix agents plan). "
+                     "It starts as a copy of a template, with the project and the name filled in, which opens here "
+                     "for its tasks' words: the lines beginning EDIT: are yours to write. Saved, the Plans box has its Run.\n\n")
+      ;; A choice that makes something starts unpicked (Vid, 2026-10-10).
+      (push (cons 'template
+                  (apply #'widget-create 'menu-choice :tag "Template" :value ""
+                         :format "%t: %[%v%]\n" :button-prefix "[" :button-suffix "]"
+                         :help-echo "The plan's shape (vikix agents plan templates): a click or RET opens the list"
+                         '(item :tag "pick one" :format "%t" :value "")
+                         (mapcar (lambda (tp)
+                                   (list 'item :tag (concat (alist-get 'name tp) "  " (or (alist-get 'about tp) "")
+                                                            (if (eq (alist-get 'yours tp) t) "  (yours)" ""))
+                                         :format "%t" :value (alist-get 'name tp)))
+                                 templates)))
+            widgets)
+      (widget-insert (propertize (concat "          Vikix's, and your own from " (abbreviate-file-name folder) "/templates/\n") 'face 'shadow))
+      (widget-insert "\n")
+      (push (cons 'project
+                  (apply #'widget-create 'menu-choice :tag "Project" :value ""
+                         :format "%t:  %[%v%]\n" :button-prefix "[" :button-suffix "]"
+                         :help-echo "The project the plan is for: a repository, since its desks are worktrees"
+                         '(item :tag "pick one" :format "%t" :value "")
+                         (mapcar (lambda (p)
+                                   (list 'item :tag (concat (alist-get 'name p) "  " (or (alist-get 'short p) ""))
+                                         :format "%t" :value (alist-get 'name p)))
+                                 projects)))
+            widgets)
+      (widget-insert (propertize "          a repository: a plan's desks are worktrees of it\n" 'face 'shadow))
+      (widget-insert "\n")
+      (push (cons 'name (widget-create 'editable-field :size 30 :format "Name:     %v\n"
+                                       :help-echo "A word for the plan: its file's name, and its desks'" ""))
+            widgets)
+      (widget-insert (propertize (concat "          a word (letters, digits, dashes): " (abbreviate-file-name folder)
+                                         "/NAME.toml, and its desks are named for it\n")
+                                 'face 'shadow))
+      (widget-insert "\n")
+      (push (cons 'at-once (widget-create 'editable-field :size 4 :format "At once:  %v  workers running together, at most (empty: the template's)\n"
+                                          :help-echo "How many workers run together, at most" ""))
+            widgets)
+      (push (cons 'gate
+                  (widget-create 'menu-choice :tag "Gate" :value ""
+                                 :format "%t:     %[%v%]\n" :button-prefix "[" :button-suffix "]"
+                                 :help-echo "Whether a desk's release waits for your yes"
+                                 '(item :tag "the template's" :format "%t" :value "")
+                                 '(item :tag "me: a desk's release waits for your yes" :format "%t" :value "me")
+                                 '(item :tag "none: a desk is released as its chain ends" :format "%t" :value "none")))
+            widgets)
+      (widget-insert "\n")
+      (widget-create 'push-button :notify (lambda (&rest _) (vikix-office-form-submit)) "Write plan")
+      (widget-insert "  ")
+      (widget-create 'push-button :notify (lambda (&rest _) (vikix-office-form-cancel)) "Cancel")
+      (widget-insert "\n\n"
+                     (propertize "A click or RET on a [choice] opens its list; TAB moves between the fields; C-c C-c is the button, C-c C-k cancels. Nothing runs until you press Run in the Plans box."
+                                 'face 'shadow))
+      (use-local-map vikix-office-form-map)
+      (widget-setup)
+      (setq vikix-office--form (list :owner owner :desk 'plan :offer offer :widgets widgets :window nil))
+      (goto-char (point-min))
+      (widget-forward 1))
+    (let ((window (vikix-office--form-place owner buffer)))
+      (with-current-buffer buffer (setq vikix-office--form (plist-put vikix-office--form :window window))))
+    buffer))
+(defun vikix-office--form-draw-desk (owner desk offer)
   "Draw the form for DESK (nil: a new desk) with what the backend OFFERed, in OWNER's desk pane."
   (let* ((buffer (generate-new-buffer (if desk "*Office worker*" "*Office new desk*")))
          (window (with-current-buffer owner
@@ -1066,8 +1253,35 @@ away only on a second, separate yes."
   "The form's widget NAME's value in this buffer; nil without the widget."
   (let ((w (alist-get name (plist-get vikix-office--form :widgets))))
     (and w (widget-value w))))
+(defun vikix-office--form-plan-args ()
+  "The backend's words for the New plan form as it stands; a user error for what is missing."
+  (let* ((template (vikix-office--form-value 'template))
+         (project (vikix-office--form-value 'project))
+         (name (string-trim (or (vikix-office--form-value 'name) "")))
+         (at-once (string-trim (or (vikix-office--form-value 'at-once) "")))
+         (gate (vikix-office--form-value 'gate)))
+    (when (member template '(nil ""))
+      (vikix-office--form-say "Pick the template: a click or RET on [pick one] opens the list")
+      (user-error "Pick the template"))
+    (when (member project '(nil ""))
+      (vikix-office--form-say "Pick the project: a click or RET on [pick one] opens the list")
+      (user-error "Pick the project"))
+    (unless (string-match-p "\\`[a-z0-9][a-z0-9-]*\\'" name)
+      (vikix-office--form-say "The plan's name is a word: letters, digits, dashes (wifi-fix); it names the file and the desks")
+      (user-error "The plan's name is a word: letters, digits, dashes"))
+    (unless (string-match-p "\\`[0-9]*\\'" at-once)
+      (vikix-office--form-say "At once is a number of workers, or empty for the template's")
+      (user-error "At once is a number of workers"))
+    (append (list "office" "--plan" template name project)
+            (unless (string-empty-p at-once) (list "--at-once" at-once))
+            (unless (member gate '(nil "")) (list "--gate" gate)))))
 (defun vikix-office--form-args ()
   "The backend's words for this form as it stands; a user error for what is missing."
+  (unless vikix-office--form (user-error "Not a form"))
+  (if (eq (plist-get vikix-office--form :desk) 'plan) (vikix-office--form-plan-args)
+    (vikix-office--form-desk-args)))
+(defun vikix-office--form-desk-args ()
+  "The desk and worker forms' words."
   (let* ((form vikix-office--form) (desk (plist-get form :desk))
          (task (string-trim (or (vikix-office--form-value 'task) "")))
          (agent (vikix-office--form-value 'agent))
@@ -1103,7 +1317,8 @@ away only on a second, separate yes."
   (interactive)
   (let* ((args (vikix-office--form-args)) (owner (plist-get vikix-office--form :owner)) (buffer (current-buffer)))
     (unless (buffer-live-p owner) (user-error "The Office is closed"))
-    (vikix-office--form-say (if (plist-get vikix-office--form :desk) "Starting the worker…" "Making the desk…"))
+    (vikix-office--form-say (pcase (plist-get vikix-office--form :desk)
+                              ('plan "Writing the plan…") ('nil "Making the desk…") (_ "Starting the worker…")))
     (with-current-buffer owner
       (when (process-live-p vikix-office--action) (user-error "An Office action is still running"))
       (vikix-office--request
@@ -1114,8 +1329,15 @@ away only on a second, separate yes."
              (progn (vikix-office--notice error)
                     (when (buffer-live-p buffer) (with-current-buffer buffer (vikix-office--form-say error)))
                     (message "%s" (string-trim error)))
-           (vikix-office--notice (or (car (last (split-string (string-trim output) "\n" t))) "Done"))
-           (when (buffer-live-p buffer) (with-current-buffer buffer (vikix-office-form-cancel)))
+           (let ((last (or (car (last (split-string (string-trim output) "\n" t))) "Done")))
+             (when (buffer-live-p buffer) (with-current-buffer buffer (vikix-office-form-cancel)))
+             ;; A plan written: the backend answers with its file alone, which
+             ;; opens here for its tasks' words; the Plans box has it as a draft.
+             (if (and (equal (nth 1 args) "--plan") (file-name-absolute-p last) (file-readable-p last))
+                 (progn (vikix-office--notice (concat "Plan written: " (abbreviate-file-name last)
+                                                      ". Write its EDIT: lines, save; Run is in the Plans box."))
+                        (vikix-office--show-buffer (find-file-noselect last)))
+               (vikix-office--notice last)))
            (vikix-office-refresh)))))))
 (defun vikix-office-form-cancel ()
   "Close the form, the desk pane back in its window; nothing is started."
@@ -1188,6 +1410,8 @@ were."
     (define-key map (kbd "r") #'vikix-office-review)
     (define-key map (kbd "i") #'vikix-office-tell)
     (define-key map (kbd "N") #'vikix-office-new-desk)
+    (define-key map (kbd "L") #'vikix-office-new-plan)
+    (define-key map (kbd "h") #'vikix-office-guide)
     (define-key map (kbd "w") #'vikix-office-worker)
     (define-key map (kbd "A") #'vikix-office-toggle-archive)
     (define-key map (kbd "q") #'vikix-office-close)
