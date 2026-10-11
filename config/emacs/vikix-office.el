@@ -1249,12 +1249,13 @@ are the field's, to edit."
 (defun vikix-office--form-plan-empty-task ()
   "A task added by hand: nothing filled in."
   (vikix-office--form-plan-task-from '((name . "") (desk . "") (text . "EDIT: the worker's job, in your words") (release . ""))))
-(defun vikix-office--form-note (width text)
-  "TEXT in the shade under a task's field, eight columns in, its lines
+(defun vikix-office--form-note (width text &optional indent)
+  "TEXT in the shade under a field, INDENT columns in (eight), its lines
 broken to fit the box (WIDTH inside), a newline in it a new line."
-  (dolist (part (split-string text "\n"))
-    (dolist (line (vikix-office--fill part (- width 10)))
-      (widget-insert (propertize (concat "        " line "\n") 'face 'shadow)))))
+  (let ((indent (or indent 8)))
+    (dolist (part (split-string text "\n"))
+      (dolist (line (vikix-office--fill part (- width indent 2)))
+        (widget-insert (propertize (concat (make-string indent ?\s) line "\n") 'face 'shadow))))))
 (defun vikix-office--form-hint (hint)
   "A template's HINT for a field, its example (after \"E.g.\") on a line of its own."
   (replace-regexp-in-string " E\\.g\\. " "\n        e.g. " hint))
@@ -1311,10 +1312,13 @@ new buffer is made and placed. FOCUS names where point goes on a redraw."
       (widget-insert "A plan is tasks in order, each one worker's job at a desk, run for you (vikix agents plan). "
                      "Pick a template and its tasks come up below, each with what it asks you to write; "
                      "Write plan writes the file, with your words in, and the Plans box has its Run.\n\n")
+      ;; The plan's own settings in a box like the tasks' (Vid, 2026-10-12), a
+      ;; rule between: the template, the project, the name, how it runs.
+      (vikix-office--live-box width chars "Plan" (lambda ()
       ;; A choice that makes something starts unpicked (Vid, 2026-10-10).
       (push (cons 'template
                   (apply #'widget-create 'menu-choice :tag "Template" :value (or (plist-get state :template) "")
-                         :format "%t: %[%v%]\n" :button-prefix "[" :button-suffix "]"
+                         :format "  %t: %[%v%]\n" :button-prefix "[" :button-suffix "]"
                          :help-echo "The plan's shape (vikix agents plan templates): a click or RET opens the list"
                          ;; Picked, the form is drawn again with that template's tasks; the rest stays as typed.
                          :notify (lambda (w &rest _)
@@ -1330,11 +1334,11 @@ new buffer is made and placed. FOCUS names where point goes on a redraw."
                                          :format "%t" :value (alist-get 'name tp)))
                                  templates)))
             widgets)
-      (widget-insert (propertize (concat "          Vikix's, and your own from " (abbreviate-file-name folder) "/templates/\n") 'face 'shadow))
-      (widget-insert "\n")
+      (vikix-office--form-note width (concat "Vikix's, and your own from " (abbreviate-file-name folder) "/templates/") 12)
+      (vikix-office--live-rule width chars)
       (push (cons 'project
                   (apply #'widget-create 'menu-choice :tag "Project" :value (or (plist-get state :project) "")
-                         :format "%t:  %[%v%]\n" :button-prefix "[" :button-suffix "]"
+                         :format "  %t:  %[%v%]\n" :button-prefix "[" :button-suffix "]"
                          :help-echo "The project the plan is for: a repository, since its desks are worktrees"
                          '(item :tag "pick one" :format "%t" :value "")
                          (mapcar (lambda (p)
@@ -1342,27 +1346,27 @@ new buffer is made and placed. FOCUS names where point goes on a redraw."
                                          :format "%t" :value (alist-get 'name p)))
                                  projects)))
             widgets)
-      (widget-insert (propertize "          a repository: a plan's desks are worktrees of it\n" 'face 'shadow))
-      (widget-insert "\n")
-      (push (cons 'name (widget-create 'editable-field :size 30 :format "Name:     %v\n"
+      (vikix-office--form-note width "a repository: a plan's desks are worktrees of it" 12)
+      (vikix-office--live-rule width chars)
+      (push (cons 'name (widget-create 'editable-field :size 30 :format "  Name:     %v\n"
                                        :help-echo "A word for the plan: its file's name, and its desks'"
                                        (or (plist-get state :name) "")))
             widgets)
-      (widget-insert (propertize (concat "          a word (letters, digits, dashes): " (abbreviate-file-name folder)
-                                         "/NAME.toml; \"topic\" in a desk's name becomes it\n")
-                                 'face 'shadow))
-      (widget-insert "\n")
-      (push (cons 'at-once (widget-create 'editable-field :size 4 :format "At once:  %v  workers running together, at most (empty: the template's)\n"
+      (vikix-office--form-note width (concat "a word (letters, digits, dashes): " (abbreviate-file-name folder)
+                                             "/NAME.toml; \"topic\" in a desk's name becomes it")
+                               12)
+      (vikix-office--live-rule width chars)
+      (push (cons 'at-once (widget-create 'editable-field :size 4 :format "  At once:  %v  workers running together, at most (empty: the template's)\n"
                                           :help-echo "How many workers run together, at most" (or (plist-get state :at-once) "")))
             widgets)
       (push (cons 'gate
                   (widget-create 'menu-choice :tag "Gate" :value (or (plist-get state :gate) "")
-                                 :format "%t:     %[%v%]\n" :button-prefix "[" :button-suffix "]"
+                                 :format "  %t:     %[%v%]\n" :button-prefix "[" :button-suffix "]"
                                  :help-echo "Whether a desk's release waits for your yes"
                                  '(item :tag "the template's" :format "%t" :value "")
                                  '(item :tag "me: a desk's release waits for your yes" :format "%t" :value "me")
                                  '(item :tag "none: a desk is released as its chain ends" :format "%t" :value "none")))
-            widgets)
+            widgets)))
       (widget-insert "\n")
       ;; The tasks: the template's, each a worker's job, as fields; a line the
       ;; template asks you to write (EDIT:) is a hint under an empty field.

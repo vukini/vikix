@@ -601,7 +601,8 @@ terminal opens on the desktop, so from a terminal Office with no display
 only the desk alone can be made.
 
 **New plan…** (`L`, above the groups) writes a plan from a template as a
-form, drawn where the desk forms are: the template (Vikix's and your own,
+form, drawn where the desk forms are, its own settings in a box with a
+rule between them: the template (Vikix's and your own,
 each with its line about itself; a click or `RET` on the `[choice]` opens
 the list), the project (the repositories alone, since a plan's desks are
 worktrees), the plan's name (a word: the file's name under
