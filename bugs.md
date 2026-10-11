@@ -3,37 +3,23 @@
 Small known problems, not yet fixed. Each says what happens, what is known, and the next step. A fix removes its entry in the commit that ships it. (Larger planned work is in `TODO.md`; ideas in `IDEAS.md`.)
 
 
-## Esploro's iPhone under Drives needs programs no list brings
+## Esploro's iPhone under Drives: not yet tried with a phone
 
-Noted 2026-10-05, by the guides check. Esploro at the pin (b84b605).
+Noted 2026-10-05, by the guides check; the packages added 2026-10-11 (Vikix 0.72.x).
 
-**What happens.** Esploro shows an iPhone under Drives and opens it with a click, but on a machine with only Vikix's packages the programs it runs aren't there, so nothing shows. The guides say nothing of the iPhone for that reason.
+**What happens.** Esploro shows an iPhone under Drives and opens it with a click. `optional/esploro.list` now brings what its `src/phone.lisp` runs (libimobiledevice for `idevice_id`, `ideviceinfo` and `idevicepair`; ifuse; usbmuxd, whose udev rule starts the daemon when a phone is plugged in), and the README says so; no phone has been plugged into a fresh install yet.
 
-**What's known.** Esploro's `src/phone.lisp` runs `idevice_id`, `ideviceinfo`, `idevicepair` and `ifuse`; no file in `packages/` names them (`optional/esploro.list` has the thumbnails' programs, archivemount and sshfs).
+**Next step.** Plug an iPhone into a machine that has the feature, trust the computer on the phone, and see the folder open in Esploro; if it doesn't, `idevicepair pair` and `ifuse /tmp/phone` by hand say which step is missing.
 
-**Next step.** Find Void's packages for them (libimobiledevice's tools, ifuse, and usbmuxd with its service), add them to `optional/esploro.list` or to a feature of their own, try an iPhone, then a line in the README's Esploro paragraph.
+## The screen tests fail on a starved machine, and pass alone
 
-## vikix.dev's Windows card doesn't say a program can have a window of its own
+Noted 2026-10-04 for `tests/main.sh` (twice that day, in parallel runs at a load of 15 to 25); seen again 2026-10-10 for registry, viri, docs and house, in a release's run beside the tester's and another session's, each passing alone straight after.
 
-Noted 2026-10-05, by the guides check.
+**What happens.** A test that drives a real StumpWM on a hidden screen (`tests/lib/wm.sh`) is reported FAILED when the machine is full, and passes alone on the same commit. The slots (`tests/run.sh`, one test a core across every session) bound the tests' own load, and `main` hasn't failed in a parallel run since; what fills the machine now is the rest (three agents, Emacs, a tester's run of two hours).
 
-**What happens.** `site/index.html`'s card "Windows 11 in a window, installed by itself" tells of the whole Windows desktop only. `vikix windows app` and `apps` (since 0.71.178: one Windows program in a window of its own, tiled like any other) aren't on the page.
+**What's known (2026-10-11).** Reproduced on purpose: `main` under twelve busy processes on four cores fails from `Super+Shift+o` on, and the checks after it that drive the desktop through `ask` (a `vikix-layout-pick` by `run-commands`) fail too, one with *StumpWM's main thread did not answer within 10 s* (`*vikix-eval-timeout*`, swank.lisp). Making `key` wait for a read the main thread answers changed nothing, and the reason is in `socket.lisp`: a read is given to the main thread for one slice, and when the main thread used no processor time in that slice it is taken for idle (a menu open) and the client thread answers the read itself; on a starved machine the main thread used none because it wasn't scheduled, so the read comes back at once, before the key's command ran. The dialog's fixed two seconds in `main` became a poll (0.72.x), which was right in itself.
 
-**What's known.** `docs/windows.md` has the section ("One program, in a window of its own") to take the words from.
-
-**Next step.** A sentence and a command line on the card (`vikix windows app excel`), and a screenshot for the gallery when there is one.
-
-## `tests/main.sh` fails in a busy parallel run, and passes alone
-
-Noted 2026-10-04, twice the same day (`tests/run.sh` with other sessions' test runs beside it, load 15 to 25).
-
-**What happens.** In `tests/run.sh` (side by side) `main` is reported FAILED; run alone straight after (`bash tests/main.sh`), on the same commit, it passes. `times` does the same for the known reason (its limits), and is in `run.sh`'s `alone` list; `main` isn't.
-
-**What's known.** Nothing in the commits under test touched layouts or windows (a pin of Esploro; `vikix memory`). `main` drives a real StumpWM on a hidden screen, so it most likely waits a fixed time for a window or a layout that a loaded machine doesn't meet.
-
-**Since.** Every run on the machine now draws from one set of test slots (`tests/run.sh`, the slots), so several sessions' runs no longer add up to a load of 15 to 25; it may not come back. If it does:
-
-**Next step.** Run it under load (`stress-ng --cpu 16` beside it) to see which check fails, and give that wait a poll with a deadline; or add `main` to `alone` in `tests/run.sh` if it can't be made patient.
+**Next step.** Two things, either enough for the tests: tell starvation from idleness in `vikix-socket-in-main` (the main thread's state from `/proc/self/task/TID/stat`, running or waiting, beside its ticks), so a read waits for a busy-but-unscheduled main thread; or let the tests give their StumpWM a longer `*vikix-eval-timeout*` at `wm_start` and a `key` that waits for the main thread. Until then a screen test that fails in a full run and passes alone is load, not the change (`vikix-release-tests`: run the failed ones alone before releasing again).
 
 ## Alacritty sometimes fails to copy ("Failed to set new owner of XCB selection")
 

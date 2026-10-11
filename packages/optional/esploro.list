@@ -7,3 +7,9 @@ poppler             # PDFs: the first page (pdftoppm)
 ffmpegthumbnailer   # videos: a frame
 fuse-archivemount   # archives: a zip or a tarball opened like a folder, read-only
 fuse-sshfs          # servers: a server's folders over SSH, like local ones
+# An iPhone under Drives (Esploro's phone.lisp): idevice_id, ideviceinfo and
+# idevicepair come with libimobiledevice, ifuse mounts the phone, and usbmuxd's
+# udev rule starts its daemon when a phone is plugged in (no service to switch on).
+libimobiledevice
+ifuse
+usbmuxd

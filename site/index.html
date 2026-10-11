@@ -363,10 +363,11 @@ and accessing the guides"
         <div class="card full">
           <p class="eyebrow">When work needs Windows</p>
           <h3>Windows 11 in a window, installed by itself.</h3>
-          <p>Optional, for the programs that only run there. Point <code>vikix windows create</code> at the ISO from Microsoft and walk away: an answer file does the whole install, with drivers, a local account and no Microsoft account, in about 25 minutes. Its desktop tiles like any other window, the clipboard is shared, and <code>~/Windows</code> is drive <code>Z:</code>. It runs as you, with no open port, on a network kept apart from this machine's own services.</p>
+          <p>Optional, for the programs that only run there. Point <code>vikix windows create</code> at the ISO from Microsoft and walk away: an answer file does the whole install, with drivers, a local account and no Microsoft account, in about 25 minutes. Its desktop tiles like any other window, the clipboard is shared, and <code>~/Windows</code> is drive <code>Z:</code>. It runs as you, with no open port, on a network kept apart from this machine's own services. And one Windows program can have a window of its own, among yours, tiled like any other, with no Windows desktop around it: <code>vikix windows app excel</code>, or the program's name in the launcher.</p>
 <pre><span class="t-p">$</span> vikix windows setup                <span class="t-d"># once: the packages and drivers</span>
 <span class="t-p">$</span> vikix windows create Win11_x64.iso <span class="t-d"># a notification when it's ready</span>
-<span class="t-p">$</span> vikix windows                      <span class="t-d"># start it, and open its desktop</span></pre>
+<span class="t-p">$</span> vikix windows                      <span class="t-d"># start it, and open its desktop</span>
+<span class="t-p">$</span> vikix windows app excel            <span class="t-d"># one program, in a window of its own</span></pre>
         </div>
       </div>
     </div>

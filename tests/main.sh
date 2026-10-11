@@ -73,10 +73,13 @@ check "the stack shows four at most, the rest wait behind the last: $(state)" te
 check "the last one opened is at the top of the stack, focused: $(state)" grep -q '^DH.* focus=H$' <<<"$(state)"
 
 # A dialog floats (windows.lisp) and takes no frame.
+# Its window is waited for, as win waits (a loaded machine took more than the
+# two seconds this once slept: bugs.md, 2026-10-04).
 LIBGL_ALWAYS_SOFTWARE=1 alacritty --class zenity --title Ask -e sleep 300 >/dev/null 2>&1 &
 pids+=($!)
-sleep 2
-check "a dialog floats over it and takes no frame: $(state)" test "$(frames) $(shape) $(ask '(princ (count-if (function float-window-p) (group-windows (current-group))))')" = "5 1 1"
+floats() { ask '(princ (count-if (function float-window-p) (group-windows (current-group))))'; }
+for _ in $(seq 1 40); do [ "$(floats)" = 1 ] && break; sleep 0.25; done; sleep 0.3
+check "a dialog floats over it and takes no frame: $(state)" test "$(frames) $(shape) $(floats)" = "5 1 1"
 
 before=$(state)
 key super+2; key super+1
