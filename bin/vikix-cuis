@@ -8,7 +8,7 @@
 #                           ~/cuis/vikix.image, built with no window from
 #                           its base image, its core updates, Vikix's
 #                           packages (VikixServer, the door; VikixTheme;
-#                           VikixDesktop) and the Vikix font; the cuis
+#                           VikixDesktop; VikixLessons) and the Vikix font; the cuis
 #                           command and the launcher's entry (vikix add cuis)
 #   vikix cuis rebuild      a fresh image from the base and the packages,
 #                           with your own packages in ~/cuis/NewPackages
@@ -28,6 +28,11 @@
 #                           one and its window takes the focus, click a
 #                           column's name and the desktop goes there;
 #                           halos and inspectors work on the morphs
+#   vikix cuis lessons      a first course in Smalltalk, in the running
+#                           image: eight lessons down the left, each a
+#                           task, a pane to type in and Check (VikixLessons
+#                           open there); the image is the exercise book,
+#                           and a lesson done stays done in it
 #   vikix cuis status [--json]
 #                           what is installed, built and running; --json
 #                           adds what the running image shows (its theme,
@@ -361,6 +366,14 @@ cmd_desktop() {
   say "the desktop is open in Cuis: a column a workspace, a box a window, read from StumpWM once a second; drag a box to another column to move its window, click one to focus it"
 }
 
+cmd_lessons() {
+  installed || die "Cuis isn't here: vikix add cuis"
+  running || die "Cuis isn't running: cuis, then vikix cuis lessons again (or VikixLessons open in a Workspace there)"
+  [ -s "$HOME/.slime-secret" ] || die "no ~/.slime-secret, so no door into the image (vikix update makes the secret); VikixLessons open in a Workspace there"
+  python3 "$VIKIX_DIR/bin/vikix-eval" --cuis 'VikixLessons open' >/dev/null || die "the image didn't open them (an image built before VikixLessons? close Cuis, then vikix cuis rebuild)"
+  say "the lessons are open in Cuis: pick one on the left, type in the lower pane, press Check"
+}
+
 cmd_status() {
   if [ "${1:-}" = --json ]; then cmd_status_json; return; fi
   if installed; then echo "cuis      Cuis $CUIS_VERSION at Vikix's pin ($BASE)"
@@ -422,8 +435,9 @@ case ${1:-} in
   run)       shift; cmd_run "$@" ;;
   status)    shift; cmd_status "$@" ;;
   desktop)   cmd_desktop ;;
+  lessons)   cmd_lessons ;;
   doctor)    cmd_doctor ;;
   uninstall) cmd_uninstall ;;
   -h|--help|help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
-  *) die "vikix cuis: setup, rebuild, run, desktop, status, doctor, uninstall" ;;
+  *) die "vikix cuis: setup, rebuild, run, desktop, lessons, status, doctor, uninstall" ;;
 esac

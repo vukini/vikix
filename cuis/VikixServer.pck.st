@@ -189,7 +189,8 @@ serve: aClient
 			ifNotNil: [ :text | | answer |
 				"A fault in the door itself (the walker, the held list) is an error answer, never the end of the image: an error in a process of its own with no window would be."
 				answer := [ self answer: text ] on: Error do: [ :ex | { 'error'. 'the door failed: ', ex description } ].
-				aClient reply: answer first text: answer last ]] repeat
+				"A client gone before its answer (its own deadline passed) is let go: a failed send in this process would end a headless image."
+				[ aClient reply: answer first text: answer last ] on: Error do: [ :ex | ^ self ]]] repeat
 	] ensure: [ aClient close ]! !
 
 !VikixServer methodsFor: 'running' stamp: 'vikix 10/9/2026 09:30'!

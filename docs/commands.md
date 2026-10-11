@@ -357,10 +357,11 @@ Prints nothing when there is no Bluetooth, when it's switched off, or when bluet
 
 Cuis Smalltalk as a Vikix program.
 
-- `vikix cuis setup` — Cuis 7.8 (the tag #BaseForCuis7.8 of Cuis-Smalltalk-Dev, 134 MB once, checksummed) into `~/.local/opt/cuis`; your image, `~/cuis/vikix.image`, built with no window from its base image, its core updates, Vikix's packages (VikixServer, the door; VikixTheme; VikixDesktop) and the Vikix font; the cuis command and the launcher's entry (vikix add cuis)
+- `vikix cuis setup` — Cuis 7.8 (the tag #BaseForCuis7.8 of Cuis-Smalltalk-Dev, 134 MB once, checksummed) into `~/.local/opt/cuis`; your image, `~/cuis/vikix.image`, built with no window from its base image, its core updates, Vikix's packages (VikixServer, the door; VikixTheme; VikixDesktop; VikixLessons) and the Vikix font; the cuis command and the launcher's entry (vikix add cuis)
 - `vikix cuis rebuild` — a fresh image from the base and the packages, with your own packages in `~/cuis/NewPackages` loaded on top; refused while Cuis runs
 - `vikix cuis run [--headless] [--port N] [ARG...]` — what the cuis command runs: your image, with the door on 127.0.0.1:4005 (`VIKIX_CUIS_PORT`, or --port; 0 for none) when `~/.slime-secret` exists; --headless draws nothing, for a script (-s FILE.st, which must end in Smalltalk quit)
 - `vikix cuis desktop` — the desktop as objects, in the running image: a window with the bar's fields along the top, a column a workspace and a box a window, read from StumpWM once a second (VikixDesktop open, in a Workspace there); drag a box to another column and the real window moves there, click one and its window takes the focus, click a column's name and the desktop goes there; halos and inspectors work on the morphs
+- `vikix cuis lessons` — a first course in Smalltalk, in the running image: eight lessons down the left, each a task, a pane to type in and Check (VikixLessons open there); the image is the exercise book, and a lesson done stays done in it
 - `vikix cuis status [--json]` — what is installed, built and running; --json adds what the running image shows (its theme, font, packages, windows, how many expressions its door holds), for vikix mcp's `cuis_state`
 - `vikix cuis doctor` — the VM runs, the release is at the pin, the image is built with Vikix's packages, the door answers and the theme is Vikix's (when Cuis runs)
 - `vikix cuis uninstall` — removes the release, the command and the entry; `~/cuis`, your image, packages and changes, stays

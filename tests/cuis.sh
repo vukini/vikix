@@ -230,7 +230,7 @@ if cu run --port x > "$t/out" 2>&1; then echo "FAIL: a port that isn't a number 
 # --- status and doctor ----------------------------------------------------------------
 cu status > "$t/out" 2>&1 || { cat "$t/out"; echo "FAIL: status should work"; fail=1; }
 check "status should name the release" grep -q "Cuis 7.8 at Vikix's pin" "$t/out"
-check "status should name the image and its packages" grep -q "built with Vikix's packages: VikixDesktop VikixServer VikixTheme" "$t/out"
+check "status should name the image and its packages" grep -q "built with Vikix's packages: VikixDesktop VikixLessons VikixServer VikixTheme" "$t/out"
 check "status should say Cuis isn't running" grep -q "running   no" "$t/out"
 cu doctor > "$t/out" 2>&1 || { cat "$t/out"; echo "FAIL: the doctor should pass"; fail=1; }
 check "the doctor should see the VM run" grep -q "the Cuis VM runs" "$t/out"
@@ -268,11 +268,13 @@ check "status --json should be JSON saying what is there: $(head -c 200 "$t/out"
 import json, sys
 d = json.load(open(sys.argv[1]))
 assert d["installed"] and d["built"] and not d["running"] and d["door"] is None
-assert d["packages"] == ["VikixDesktop", "VikixServer", "VikixTheme"], d["packages"]
+assert d["packages"] == ["VikixDesktop", "VikixLessons", "VikixServer", "VikixTheme"], d["packages"]
 assert d["theme_file"].endswith("/cuis.st") and d["image_state"] is None
 ' "$t/out"
 if cu desktop > "$t/out" 2>&1; then echo "FAIL: desktop while Cuis isn't running should be refused"; fail=1; fi
 check "desktop should say Cuis isn't running" grep -q "Cuis isn't running" "$t/out"
+if cu lessons > "$t/out" 2>&1; then echo "FAIL: lessons while Cuis isn't running should be refused"; fail=1; fi
+check "lessons should say Cuis isn't running" grep -q "Cuis isn't running" "$t/out"
 
 # --- vikix eval --cuis without Cuis, and from an agent -----------------------------------
 # A test's shell (VIKIX_SWANK_PORT=9) that names no Cuis port of its own
@@ -322,7 +324,7 @@ if [ -x "$real_base/CuisVM.app/Contents/Linux-x86_64/squeak" ] && [ -f "$real_ba
   rm -f "$theme_st"
   if [ -f "$real_fonts/wm.ttf" ]; then export VIKIX_FONT_DIR="$real_fonts"; fi
   cu rebuild > "$t/out" 2>&1 || { cat "$t/out"; echo "FAIL: the real image should build"; fail=1; }
-  check "the real build should load the door, the theme and the desktop" grep -q "'VikixDesktop' 'VikixServer' 'VikixTheme'" "$t/out"
+  check "the real build should load the door, the theme, the desktop and the lessons" grep -q "'VikixDesktop' 'VikixLessons' 'VikixServer' 'VikixTheme'" "$t/out"
   check "the real image should be there" test -s "$cuis/vikix.image"
   if [ -f "$real_fonts/wm.ttf" ]; then
     check "the real build should read the Vikix font in: $(grep '^font:' "$VIKIX_STATE/logs/cuis-build.log")" grep -q "^font: #('" "$VIKIX_STATE/logs/cuis-build.log"
@@ -513,6 +515,34 @@ assert not any("window 1 Alacritty" in l for l in lines[:two]), "still under wor
   check "a name in your file should pass the walker (then fail as itself): $(walk "Object frobnicate")" grep -q "^1 error: MessageNotUnderstood" <<<"$(walk "Object frobnicate")"
   check "anyone's expression with --door is walked too: $(ev --cuis --door 'Smalltalk quit' 2>&1 | head -1)" grep -q "the door held it" <<<"$(ev --cuis --door 'Smalltalk quit' 2>&1)"
   check "the image should live on through all of it" kill -0 "$vm_pid"
+
+  # The lessons: opened by vikix cuis lessons at the first not done; the
+  # code tried in the image as a Workspace would (a class defined is really
+  # there, under a change set of the lessons' own, so no dialog), the lesson
+  # ticked when its check is met, a wrong answer, a slip of the keys, text
+  # that isn't Smalltalk and an error each said; done stays done in the
+  # image; reset starts over.
+  cu lessons > "$t/out" 2>&1 || { cat "$t/out"; echo "FAIL: vikix cuis lessons should open the window"; fail=1; }
+  check "lessons should say they opened" grep -q "open in Cuis" "$t/out"
+  lesson() { ev --cuis "VikixLessons window model $1" 2>&1; }
+  check "the lessons should be listed, none done, the first on: $(ev --cuis 'VikixLessons summary' 2>&1 | head -2)" grep -q "^=> '\[ \] 1 Numbers  <- here" <<<"$(ev --cuis 'VikixLessons summary' 2>&1)"
+  check "a wrong answer should be said, with the hint offered: $(lesson "try: '3 + 5'")" grep -q "answered 8, which isn..t it yet" <<<"$(lesson "try: '3 + 5'")"
+  check "a slip of the keys should be said as one: $(lesson "try: 'zork + 1'")" grep -q "know the name zork" <<<"$(lesson "try: 'zork + 1'")"
+  check "text that isn't Smalltalk should be said as such: $(lesson "try: '3 +'")" grep -q "Smalltalk the image can read" <<<"$(lesson "try: '3 +'")"
+  check "an error should be said: $(lesson "try: '1 / 0'")" grep -q "stopped with an error: ZeroDivide" <<<"$(lesson "try: '1 / 0'")"
+  check "the hint: $(lesson "hint; result")" grep -q "Hint: Just the three characters" <<<"$(lesson "hint; result")"
+  check "the right answer should tick the lesson and offer Next: $(lesson "try: '3 + 4'")" grep -q "Done! Next takes you to lesson 2" <<<"$(lesson "try: '3 + 4'")"
+  check "the list should show the tick, the lesson still on: $(ev --cuis 'VikixLessons summary' 2>&1 | head -2)" grep -q "^=> '\[x\] 1 Numbers  <- here" <<<"$(ev --cuis 'VikixLessons summary' 2>&1)"
+  lesson "next; try: '''hello'' reversed'" > /dev/null
+  lesson "next; try: '#(1 2 3) collect: [ :n | n * 2 ]'" > /dev/null
+  check "a class defined in a lesson is really in the image: $(lesson "index: 5; try: 'Object subclass: #Dog instanceVariableNames: '''' classVariableNames: '''' poolDictionaries: '''' category: ''Lessons'''")" test "$(ev --cuis '(Smalltalk includesKey: #Dog) printString' 2>&1)" = "=> 'true'"
+  check "a method taught in a lesson answers: $(lesson "next; try: 'Dog compile: ''bark ^ ''''Woof!'''''''")" test "$(ev --cuis 'Dog new bark' 2>&1)" = "=> 'Woof!'"
+  check "the last lesson opens the desktop as objects: $(lesson "index: 8; try: 'VikixDesktop open'")" grep -q "That was the last lesson" <<<"$(lesson "result")"
+  check "done should be kept in the image: $(ev --cuis 'VikixLessons done asSortedCollection asArray' 2>&1)" test "$(ev --cuis 'VikixLessons done asSortedCollection asArray' 2>&1)" = "=> #(1 2 3 5 6 8)"
+  check "a lesson's window is a window in status --json" bash -c "cu() { bash '$here/bin/vikix-cuis' \"\$@\"; }; cu status --json | grep -q '\"class\": \"VikixLessonsWindow\"'"
+  ev --cuis 'VikixLessons reset' > /dev/null 2>&1
+  check "reset should undo them all: $(ev --cuis 'VikixLessons done size' 2>&1)" test "$(ev --cuis 'VikixLessons done size' 2>&1)" = "=> 0"
+  check "the image should still live" kill -0 "$vm_pid"
 
   # The docs adapter through the door: a class opened as a Browser in the image.
   VIKIX_DOCS_SOURCES="" VIKIX_DIR="$here" VIKIX_DOCS_CUIS="$HOME/cuis" python3 "$here/bin/vikix-docs" index --quiet

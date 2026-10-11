@@ -54,7 +54,7 @@ Cuis is small (the whole image is a few megabytes), built for teaching, and ever
 
 1. **`VikixDesktop`: the desktop as objects.** In (2026-10-10, Phases 1 and 2): a `SystemWindow` with a `LinearLayoutMorph` column a workspace and a `VikixWindowMorph` a window, kept by number between answers so a halo stays, stepped once a second; the model asks in a process of its own, so Morphic never waits. Not through `vikix eval` (the image can't run a program without FFI): `VikixSwank`, a client of StumpWM's Swank in a hundred lines (the password packet, `vikix-eval-for-agent`, the printed value unquoted), the road the acts take too: a box dropped on a column (`acceptDroppingMorph:event:`; the press-and-drag through Cuis's own `waitForClicksOrDrag:event:dragSel:clkSel:`, which tells a click from a drag) sends StumpWM's own `move-window-to-group`, a click `switch-to-group` and `focus-all`, a column's click `switch-to-group`, each in a process of its own, the status line saying the answer for four seconds and the desktop asked again right after, so nothing shown is a guess. The bar's fields along the top come in the same JSON (`vikix-desktop-bar`: what.lisp's fields, asked at run time since what.lisp loads later). `vikix-desktop-json` is the function (windows.lisp), and `vikix mcp`'s `desktop` tool reads it now rather than carry the form itself.
 2. **`VikixMusic`: the sketchpad's face in Morphic.** `StepRow`, `PadGrid`, `Knob`, `Transport` and `Subtitle` morphs, talking to `vikix-music` over the same local socket the web view uses (`DESIGN-music.md`), so the two faces coexist and the protocol is settled once. The pattern language stays Lisp; a fifty-line s-expression reader in Smalltalk draws it. Built as the spike against the web view after music's Phase 0, and kept only if it wins or earns a second place.
-3. **`VikixLessons`: lessons that change the running image.** The sibling of "Learn Lisp by changing your own desktop": each lesson is a morph with a task, and the image is the exercise book. For the children's account (TODO 33) and the two-ways taster. Cuis's own class list is short enough for an eleven-year-old to read whole.
+3. **`VikixLessons`: lessons that change the running image.** In (2026-10-11, Phase 3, Vid's pick over the music face, whose Phase 0 isn't there): a window with the lessons listed, the task, a code pane and Check, Hint, Next; eight lessons as data on the class side (numbers, words, a collection, a morph on the screen, a class, a method, the Transcript, the desktop as objects); the code run as a Workspace's doIt under `ChangeSet installing: 'Lessons'` (else Cuis asks for a change set's name in a dialog when a class is made), parsed first so a slip is said as a slip; done kept in the image. Left for the children's account (TODO 33): the lessons as the account's first program, and more of them.
 4. **A docs adapter** (`DESIGN-docs.md`): in (2026-10-10): the source `cuis` of `vikix docs` reads the package files, not the image (plain text, no image needed: Vikix's in the checkout, the user's `NewPackages`, the release's `Packages`, sixty files in under a second), a row a package and a row a class with its comment and method categories; a hit opens a `BrowserWindow` on the class through the door, or the file in Emacs at the class when no image answers.
 
 ## Goals
@@ -77,7 +77,7 @@ Cuis is small (the whole image is a few megabytes), built for teaching, and ever
 - As Vid, I want `vikix theme paper` to turn Cuis light along with everything else.
 - As a learner, I want to drag a window's rectangle in Cuis and see the real window move so that I understand the desktop is objects.
 - As the agent, I want `cuis_eval` so that I can help build a Cuis package the way I help with `user.lisp`, snapshot first.
-- As a parent, I want a Cuis image with lessons on the children's account so that the child's first program changes something they can see.
+- As a parent, I want a Cuis image with lessons on the children's account so that the child's first program changes something they can see (the lessons are in, 2026-10-11; the account is TODO 33).
 - As anyone, I want `vikix undo` to cover `~/cuis/` so that trying is free.
 
 ## Requirements
@@ -100,7 +100,7 @@ Items 7 (the acting `VikixDesktop`), 8 (the walker) and 9 (the docs adapter) shi
 
 ### Later (P2)
 
-11. `VikixLessons` for the children's account, when that account exists.
+11. `VikixLessons` on the children's account, when that account exists (the lessons themselves shipped 2026-10-11, on any account).
 12. Cuis packages as a kind in `vikix plugin` (loaded into the image on `sync`), if third-party Cuis packages become a thing people want.
 13. The book: the other living image, beside the Common Lisp one.
 
@@ -127,7 +127,7 @@ Non-blocking:
 
 **Phase 2:** done 2026-10-10: the acting `VikixDesktop` with the bar, the walker and `cuis_eval`, the docs adapter; `tests/cuis.sh` drives the acts against the stand-in Swank (which now takes the three acts and changes its desktop as StumpWM would) and the move against a real StumpWM on a hidden screen.
 
-**Phase 3:** the music face as a spike (item 10), when music's Phase 0 is there; then P2.
+**Phase 3:** done 2026-10-11: `VikixLessons` (Vid chose it over the music face, which waits for music's Phase 0). Next: the music face as a spike (item 10) when music's Phase 0 is there; Cuis packages as a plugin kind (item 12) if wanted.
 
 ## Risks
 
