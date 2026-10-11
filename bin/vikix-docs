@@ -1186,7 +1186,6 @@ def random_guide(other=False):
              and os.path.isfile(path)}
     if not pages:
         die("no Vikix guide pages found")
-    name = random.choice(list(pages))
     try:
         state = os.environ.get("VIKIX_STATE") or os.path.join(HOME, ".local/state/vikix")
         folder = os.path.join(state, "docs")

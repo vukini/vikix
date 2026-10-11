@@ -42,7 +42,7 @@ and `python3 lib/man.py --guide > docs/commands.md` is run after it (the man pag
 
 ## Which pages count, and how the pick is made
 
-**The pages:** the guides `vikix docs` catalogues as source `vikix`, kind `guide`: every `docs/*.md` of the checkout except `README.md` (the table of the guides: a list, not a page to land on), and less `commands.md` (the reference made from the headers, which nobody reads at random). The main `README.md` (kind `readme`) is out too. So today: sixteen pages, from *Installing from Vikix's stick* to *When something breaks*; a guide added to `docs/` is in the next pick with no change here.
+**The pages:** the guides `vikix docs` catalogues as source `vikix`, kind `guide`: every `docs/*.md` of the checkout except `README.md` (the table of the guides: a list, not a page to land on), and less `commands.md` (the reference made from the headers, which nobody reads at random). The main `README.md` (kind `readme`) is out too. So today: sixteen pages, from *Installing from Vikix's stick* to *When something breaks*; a guide added to `docs/` joins when the next round is filled, with no change here.
 
 **The pick is a deck, not a die.** A plain `random.choice` shows the same page twice in three presses often enough to feel broken with sixteen cards. So: `~/.local/state/vikix/docs/random-deck` (`VIKIX_STATE` honoured, as `note_opened` does) holds the names of the pages not yet shown this round, one a line, as `NAME.md` (relative to `docs/`, so a moved checkout keeps its deck). A press takes one at random from the deck, writes the rest back; an empty or missing deck is filled with every page first, and a name in the deck that no longer exists on disk is dropped as it comes up. Every page is shown once before any is shown twice; the order inside a round is random. The file is the user's (600, as the day log), never a reason to fail: an unwritable state folder means a plain random pick that round.
 
@@ -79,6 +79,8 @@ Without a screen; it needs no desktop and no index, like the rest of that test. 
 `lib/skill-keys.sh --write` has nothing to change (no key, no agent command), and the site gains nothing a visitor would see.
 
 ## Decided, 2026-10-11
+
+- Review clarification, 2026-10-11: newly added guides join the next round, not a round already in progress. The deck keeps only the names still to be drawn; it does not track a separate catalogue of previously seen pages.
 
 - `vikix docs random`, not a command of its own: it is the catalogue's opener with a pick in front, and `vikix docs` already has every road.
 - A deck in a state file, every page once before any twice; not a plain random pick, and not "not the last one".

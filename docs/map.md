@@ -138,6 +138,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 | `user-last-snapshot.lisp` | The copy of your last snapshot of `user.lisp`, written when you chose to load it instead of a broken one |
 | `migrations/` | Which one-off fixes this machine has had |
 | `day/` | What had the screen, for `vikix day`: `screen-YYYY-MM.log`, a line when the workspace, project, program or folder in front changed (never a window's title; 600), and `docs.log`, the documents opened from the catalogue. To keep none of the first: `(setf *vikix-day-on* nil)` in `user.lisp` |
+| `docs/random-deck` | Guide pages still to be shown this round by `vikix docs random`, one filename per line (600). An empty or missing file starts a new round; newly added guides join that next round |
 | `welcome` | The welcome's steps you've done (`vikix welcome`); that it exists means the welcome has been shown, so it doesn't open at login again |
 | `checkout-changes/` | Changes someone made in `~/vikix`, set aside by `vikix update` as patch files (see [When something breaks](fixing.md#an-update-failed)) |
 | `diagnose/` | The last five reports `vikix diagnose` gave your agent |

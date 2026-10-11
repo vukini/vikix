@@ -2,7 +2,7 @@
 
 These pages are for someone who has installed Vikix and wants to know where things are and how to make it their own; the first two are for getting there, from a blank computer to the first hour on the desktop. The main [README](../README.md) is the full reference: every key, every package list, every test. These pages are the map.
 
-They are on your machine too, in three forms: as these files in `~/vikix/docs/`, as web pages with the diagrams drawn as pictures (`Super+m` → *Vikix guide in the browser*), and as an Info manual. Read that with `Super+m` → *Vikix guide* (in Emacs if you have it, otherwise in a terminal), `C-h i` then *Vikix* in Emacs, or `info vikix` in a terminal. `Super+m` → Help → *Vikix guide: a page at random* opens one of them you didn’t choose.
+They are on your machine too, in three forms: as these files in `~/vikix/docs/`, as web pages with the diagrams drawn as pictures (`Super+m` → *Vikix guide in the browser*), and as an Info manual. Read that with `Super+m` → *Vikix guide* (in Emacs if you have it, otherwise in a terminal), `C-h i` then *Vikix* in Emacs, or `info vikix` in a terminal. `Super+m` → Help → *Vikix guide: a page at random* opens one of them you didn't choose.
 
 Every `vikix` command has a man page as well, and so has each command of a plugin you've added: `man vikix` lists them, `man vikix-backup` or `man inbox` is the whole of one, and `man -k vikix` finds a page by a word. The page *The commands*, in the table below, is the same in one place. They say what each command's `-h` says, since both are made from the same lines.
 
