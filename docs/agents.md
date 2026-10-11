@@ -181,7 +181,7 @@ At the desk now: claude 48213
   no filesystem enforcement by Vikix: a worktree keeps copies apart, it is no sandbox
 ```
 
-Three kinds of line, kept apart and each signed. The **task** is yours, in your words: `vikix agents worker wifi-fix "..."` sets it as the worker starts and gives it to the agent as its first prompt (the task of the worker before goes into the desk's history, with how it ended), so the desk starts working at once (Claude Code, Codex, OpenCode, Gemini CLI and Antigravity CLI take one; Aider doesn't, and is told to read the record); or `vikix agents handoff --task "..."` sets it later. The **handoff** is the agent's: a status (working, waiting, review, finished), an estimate, what it changed and decided, what is left and the very next action. The **estimate** is how long the work will take from the moment it is written, assuming no major issue turns up (`--estimate "40 min, if the picker needs no new test"`: a duration first, in minutes, hours or days, and what it assumes after a comma); an agent started with a task is asked for one as soon as it knows the shape of the work. The record and `vikix agents` count it down (*28 min left of 40 min*, *10 min over its 40 min*), and once the status is finished they say how it went (*finished in 45 min against 40 min, 5 min over*). The clock is the wall's, so time spent waiting for you counts, as it would for a person; an estimate written again starts it afresh. What **Vikix read itself** is the rest: the commit and the uncommitted files at each write, and for a check the commit it ran on and whether the tree was dirty then. A check is marked *stale* the moment the code differs from what it ran on, by another commit or other uncommitted changes, so an old green never passes for a new one. The sessions are the providers' conversation ids and nothing more: no transcript is copied, and a line that looks like a key or a token is refused outright.
+Three kinds of line, kept apart and each signed. The **task** is yours, in your words: `vikix agents worker wifi-fix "..."` sets it as the worker starts and gives it to the agent as its first prompt (the task of the worker before goes into the desk's history, with how it ended), so the desk starts working at once (Claude Code, Codex, OpenCode, Gemini CLI and Antigravity CLI take one; Aider doesn't, and is told to read the record); or `vikix agents handoff --task "..."` sets it later. The **handoff** is the agent's: a status (working, waiting, review, finished, or parked: kept aside, to be started later), an estimate, what it changed and decided, what is left and the very next action. The **estimate** is how long the work will take from the moment it is written, assuming no major issue turns up (`--estimate "40 min, if the picker needs no new test"`: a duration first, in minutes, hours or days, and what it assumes after a comma); an agent started with a task is asked for one as soon as it knows the shape of the work. The record and `vikix agents` count it down (*28 min left of 40 min*, *10 min over its 40 min*), and once the status is finished they say how it went (*finished in 45 min against 40 min, 5 min over*). The clock is the wall's, so time spent waiting for you counts, as it would for a person; an estimate written again starts it afresh. What **Vikix read itself** is the rest: the commit and the uncommitted files at each write, and for a check the commit it ran on and whether the tree was dirty then. A check is marked *stale* the moment the code differs from what it ran on, by another commit or other uncommitted changes, so an old green never passes for a new one. The sessions are the providers' conversation ids and nothing more: no transcript is copied, and a line that looks like a key or a token is refused outright.
 
 The agent writes with the same command, or with the MCP tools `handoff` and `handoff_update`, whichever agent it is:
 
@@ -191,7 +191,10 @@ vikix agents handoff --status review --summary "..." --next "..."
 vikix agents handoff check "tests/run.sh wifi" --ok
 vikix agents handoff session codex 01a111e5-…      # a conversation that can be resumed here
 echo '{"status":"waiting","next":"needs the laptop"}' | vikix agents handoff --from -
+vikix agents park wifi-fix --next "once the new laptop is here"   # kept aside: Parked in the Office, not Needs you
 ```
+
+`vikix agents park [DESK]` is the status *parked* by its own name, yours or the agent's: the desk is kept aside, to be started later, and the Office lists it under **Parked** however its agent left it (a question it asked with a *waiting* status would otherwise keep it under *Needs you*); `--next "..."` replaces the next step with what to do when it is started again. Nothing is stopped by it: an agent still at the desk goes on, and the desk counts as working until it is gone (`vikix agents pause` holds one). A worker started there, or any status written, takes it up again.
 
 Given any of those settings, `handoff` writes instead of showing (`vikix agents handoff set` says the same, a word longer); from outside the desk, name it first, as for `close`: `vikix agents handoff wifi-fix --task "..."`.
 
@@ -487,8 +490,10 @@ terminal can be closed; the theme's `agent_asks`, `agent_released` and
 a palette. A waiting agent or a waiting/review handoff needs you, as does a
 terminal waiting for `gup` or to be closed;
 a live agent otherwise counts as working; a finished record whose desk
-still stands counts as finished (it is yours to release or close); the
-remaining desks are parked, on the second page. A desk closed in the last day (`vikix agents
+still stands counts as finished (it is yours to release or close); a desk
+kept aside with `vikix agents park` (the status *parked*, by you or by its
+agent) is parked, to be started later, and so are the
+remaining desks, on the second page. A desk closed in the last day (`vikix agents
 close`, or the release that removed it) is **Closed**, on the same page: newest first, its
 row saying who closed it and when, nothing to do at it, and *Forget this
 record…* in its details; after a day its record is in the Archive. When nothing

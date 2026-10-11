@@ -10,7 +10,7 @@ part of it. The record keeps three kinds of thing apart:
 
   task      what the user asked for, in their words ("by": "user")
   handoff   what the agent writes: a status (working, waiting, review,
-            finished), an estimate of how long the work will take, barring
+            finished, or parked: kept aside, to be started later), an estimate of how long the work will take, barring
             a major issue, an account of what it changed and decided, what
             is left and the next action ("by": the agent, as "claude 48213");
             and the hand-in's fields (2026-10-10, TODO 116): acceptance,
@@ -65,7 +65,7 @@ VERSION = 1
 STATE = os.environ.get("XDG_STATE_HOME") or os.path.join(os.path.expanduser("~"), ".local", "state")
 DESKS = os.path.join(STATE, "vikix", "office", "desks")
 EVENTS_DIR = os.path.join(STATE, "vikix", "office")
-STATES = ("working", "waiting", "review", "finished")
+STATES = ("working", "waiting", "review", "finished", "parked")
 PROVIDERS = ("claude", "codex", "opencode", "gemini", "antigravity", "aider", "other")
 TEXT_MAX = 4000
 LOG_MAX = 40

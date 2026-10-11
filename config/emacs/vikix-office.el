@@ -557,6 +557,8 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                   (when (and (not agents) (eq (alist-get 'exists r) t) (not (vikix-office--folder-p r)))
                     (vikix-office--button "Continue…" (lambda () (with-current-buffer owner (vikix-office-continue))))
                     (vikix-office--button "New worker…" (lambda () (with-current-buffer owner (vikix-office-worker))))
+                    (unless (equal (alist-get 'status r) "parked")
+                      (vikix-office--button "Park" (lambda () (with-current-buffer owner (vikix-office-park)))))
                     (vikix-office--button "Close desk…" (lambda () (with-current-buffer owner (vikix-office-close-desk)))))
                   (when (cl-some (lambda (a) (alist-get 'process_start a)) agents)
                     (vikix-office--button "Close agent…" (lambda () (with-current-buffer owner (vikix-office-close-agent)))))
@@ -900,6 +902,15 @@ Files, branches and saved conversations stay."
     (unless (vikix-office--worker-p r) (user-error "Not a standing desk: nothing to do here"))
     (when (eq (alist-get 'live_known vikix-office--data) :false) (user-error "Live activity unknown; refresh first"))
     r))
+(defun vikix-office-park ()
+  "Keep the selected desk aside, to be started later: its status parked
+\(vikix agents park), so it is listed under Parked however its agent left it."
+  (interactive)
+  (with-current-buffer (vikix-office--owner-buffer)
+    (let ((r (vikix-office--worker-row)))
+      (when (alist-get 'agents r) (user-error "An agent is at this desk: it counts as working until it goes"))
+      (vikix-office--act (list "office" "--park" (alist-get 'id r)) #'vikix-office-refresh))))
+
 (defun vikix-office-pause ()
   "Pause the selected desk's agent at its next tool call, or let a paused one go."
   (interactive)

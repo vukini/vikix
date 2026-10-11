@@ -95,6 +95,49 @@ def pause_folder(folder, by, hard=False):
     return said
 
 
+def park(argv):
+    """vikix agents park [DESK] [--next "..."]: the desk kept aside, to be
+    started later."""
+    next_ = None
+    words = []
+    i = 0
+    while i < len(argv):
+        if argv[i] == "--next" and i + 1 < len(argv):
+            next_ = argv[i + 1]
+            i += 2
+            continue
+        if argv[i].startswith("-"):
+            die('vikix agents park [DESK] [--next "what to do when it is started again"] (DESK as for close)')
+        words.append(argv[i])
+        i += 1
+    by, me = by_me()
+    folder, _ = desk_for(words, me)
+    say(park_folder(folder, by, next_))
+    return 0
+
+
+def park_folder(folder, by, next_=None):
+    """The desk FOLDER parked by BY: its status parked (lib/handoff.py),
+    which the Office groups under Parked however its agent left it, the
+    next step replaced when NEXT_ is given; what was done, in words.
+    Nothing is stopped: an agent at the desk goes on, and the desk counts
+    as working until it is gone."""
+    data = {"status": "parked"}
+    if next_ is not None:
+        data["next"] = next_
+    try:
+        handoff_apply(folder, data, by)
+    except handoff_module().HandoffError as e:
+        die(str(e))
+    there = agents_at(folder)
+    said = f"{short(folder)}: parked, kept aside to be started later (the Office lists it under Parked)"
+    if there:
+        said += (f"; {', '.join(who(a) for a in there)} is still at it, so it counts as working until "
+                 "it goes (vikix agents pause holds one)")
+    said += "; a worker started there, or a status written, takes it up again"
+    return said
+
+
 def go_folder(folder):
     """The desk FOLDER let go; what was done, in words: how long it was
     paused, and what its agent hears (the hook tells it, pause_hold)."""

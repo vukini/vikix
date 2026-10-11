@@ -101,6 +101,14 @@ class Office(unittest.TestCase):
         self.assertEqual(office.snapshot(A)['desks'][0]['group'], 'Needs you')
         self.rec['handoff']['status']['value'] = 'finished'
         self.assertEqual(office.snapshot(A)['desks'][0]['group'], 'Finished')
+        # Parked (vikix agents park): kept aside, whatever the agent asked before; an
+        # agent that comes and asks still needs you.
+        self.rec['handoff']['status']['value'] = 'parked'
+        self.rec['handoff']['next'] = {'text': 'Vid: say yes to the move'}
+        self.assertEqual(office.snapshot(A)['desks'][0]['group'], 'Parked')
+        self.agents = [self.agent(2, 'asks', '')]
+        self.assertEqual(office.snapshot(A)['desks'][0]['group'], 'Needs you')
+        self.agents = []
         Path(self.folder).rmdir()
         result = office.snapshot(A)
         self.assertEqual(result['desks'], [])

@@ -885,7 +885,7 @@ TOOLS = [
      schema(), READ, t_office),
     ("handoff", "A desk's task and handoff",
      "The record of a desk (vikix agents handoff): the user's task in their words, the agent's handoff (status: "
-     "working, waiting, review or finished; its estimate of how long, with where the work stands against it; "
+     "working, waiting, review, finished or parked; its estimate of how long, with where the work stands against it; "
      "what was done and decided; what is left and the next action), each signed and dated; the checks that ran, with the commit each ran on, whether the tree was dirty, and whether "
      "it is still fresh or stale since the code moved on; the git state now; the sessions that can be resumed; "
      "who is at the desk and what holds the rules for each. Read it when you join a desk. Without desk, yours." + DATA,
@@ -951,8 +951,9 @@ TOOLS = [
     ("handoff_update", "Update your desk's handoff",
      "Write your handoff on your desk (vikix agents handoff --status ...), for whoever takes the desk next, the user "
      "included: do it when you start (status working, with an estimate), when you hand work back, when you are "
-     "blocked (status waiting), when the work is ready (review) or done (finished). status: "
-     "working|waiting|review|finished; estimate: how long the work will take from now, assuming no major issue "
+     "blocked (status waiting), when the work is ready (review) or done (finished); parked keeps the desk aside, "
+     "to be started later, as vikix agents park does. status: "
+     "working|waiting|review|finished|parked; estimate: how long the work will take from now, assuming no major issue "
      "turns up (\"40 min\", \"2 h 30 min\"; what it assumes may follow after a comma), which the user sees "
      "counted down; summary: what you changed and decided, in a few lines; next: what is left and the very next "
      "action; task: the user's task, in their "
@@ -965,7 +966,7 @@ TOOLS = [
      "so the next worker doesn't reopen it. What changed and the commits are read from git at every write, "
      "never typed. No transcript, no credential: both are refused. Signed with your name.",
      schema({"desk": {"type": "string", "description": "a desk (empty: yours)"},
-             "task": {"type": "string"}, "status": {"type": "string", "enum": ["working", "waiting", "review", "finished"]},
+             "task": {"type": "string"}, "status": {"type": "string", "enum": ["working", "waiting", "review", "finished", "parked"]},
              "summary": {"type": "string"}, "next": {"type": "string"},
              "estimate": {"type": "string", "maxLength": 300,
                           "description": "how long from now, barring a major issue: \"40 min\", \"2 h 30 min\""},

@@ -229,7 +229,7 @@ def stop_reason(got, me):
         pass
     n = len(edited)
     return (f"Vikix office: this turn changed {n} file{'s' if n != 1 else ''} at your desk and the handoff hasn't been "
-            "written since. Write it now, then stop: vikix agents handoff --status working|waiting|review|finished "
+            "written since. Write it now, then stop: vikix agents handoff --status working|waiting|review|finished|parked "
             "--summary \"what you changed and decided\" --next \"what is left, the very next action\" (or the MCP tool "
             "handoff_update); review when the work is ready for the user, waiting when you need them.")
 
@@ -410,7 +410,7 @@ def handoff(argv):
             if k in opts and k != "--from":
                 data[k[2:].replace("-", "_")] = opts[k]
         if not data:
-            die("nothing to set: --task, --status (working|waiting|review|finished), --summary, --next, "
+            die("nothing to set: --task, --status (working|waiting|review|finished|parked), --summary, --next, "
                 "--estimate, --acceptance, --done N, --defect, --defect-done N, --review, --review-done N, "
                 "--decided, or --from")
         try:

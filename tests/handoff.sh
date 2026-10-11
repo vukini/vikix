@@ -189,7 +189,16 @@ check "a credential is refused, and nothing kept: $out" \
 out=$(echo '{"stat": "working"}' | VIKIX_AGENT_PID=1001 python3 "$here/bin/vikix-agents" handoff set --desk a --from - 2>&1 || true)
 check "an unknown field in --from is refused, naming the fields: $out" grep -q 'unknown field: stat (the fields: acceptance, check, decided, defect, defect_done, done, estimate, next, review, review_done, session, status, summary, task)' <<<"$out"
 out=$(agents handoff set --desk a --status 'done')
-check "a status outside the four is refused: $out" grep -q 'a status is one of working, waiting, review, finished' <<<"$out"
+check "a status outside the five is refused: $out" grep -q 'a status is one of working, waiting, review, finished, parked' <<<"$out"
+# Parked: the desk kept aside, to be started later (vikix agents park), whatever its agent asked.
+as 1001 handoff set --status waiting --next "Vid: say yes to the move" >/dev/null
+out=$(agents park a --next "once the laptop is back")
+check "vikix agents park keeps the desk aside: $out" grep -q 'book-a: parked, kept aside to be started later' <<<"$out"
+check "its status is parked, by the user" grep -q '^Status: parked (user, just now)$' <<<"$(agents handoff a)"
+check "and --next replaced the agent's question" grep -q '^  once the laptop is back$' <<<"$(agents handoff a)"
+out=$(agents park a --oops)
+check "a stray option is refused with the form: $out" grep -q 'vikix agents park \[DESK\] \[--next' <<<"$out"
+as 1001 handoff set --status working >/dev/null
 out=$(agents handoff session --desk a codex '../../etc/passwd')
 check "a session id that is a path is refused: $out" grep -q 'a session id is letters, digits, dots, dashes' <<<"$out"
 out=$(agents handoff session --desk a other 'thread-42')
