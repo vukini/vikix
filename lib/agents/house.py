@@ -227,7 +227,9 @@ def notes_for_hook():
         NOTES = ""
         me = my_agent()
         if me and me["folder"]:
-            notes = inbox_take(me["folder"])
+            # The agent's own: addressed to it, or the user's, or from its own time at the
+            # desk; a dismissal's or a handover's words for the agent before it never reach it.
+            notes = inbox_take(me["folder"], me)
             if notes:
                 NOTES = ("Vikix office, notes for you at this desk (vikix agents tell): "
                          + " ".join(f"[{n['by']}, {at(n['at'])}] {n['text']}" for n in notes))

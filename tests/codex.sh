@@ -674,28 +674,42 @@ for e in lines:
         e["at"] -= 120
 open(sys.argv[1], "w").write("".join(json.dumps(e) + "\n" for e in lines))
 PY
+# The next provider's task is never the task as it stands (the designer's "no code,
+# hand in" became Codex's orders, 2026-10-11): --task, or the record's next step, read
+# after the wait; neither, and the handover is refused with the agent left in place.
+start=$(date +%s); out=$(agents handover h --to codex --here); took=$(( $(date +%s) - start ))
+check "with no --task and no next step in the record, refused after the wait, nothing done ($took s): $out" \
+  bash -c 'grep -q "^asked claude '"$spid"' for its handoff; waiting up to 2 s for the record to move" <<<"$1" && grep -q "^vikix agents: .*book-h: what is codex to do? --task \"...\" says, or the record.s next step (vikix agents handoff --next \"...\"); the task as it stands was the last agent.s and isn.t passed on. Nothing done: its agent stays" <<<"$1" && ! grep -q "AGENT ARGS" <<<"$1" && [ "$2" -ge 2 ]' _ "$out" "$took"
+check "and its agent is still there" kill -0 "$spid"
+as "$spid" handoff --next "Implement the sort as decided" >/dev/null
+# The next step written: the task, and the agent's handoff goes into the history whole.
+sleep 1
 start=$(date +%s); out=$(agents handover h --to codex --here); took=$(( $(date +%s) - start ))
 check "the agent is asked for its handoff and waited for ($took s): $out" \
   bash -c 'grep -q "^asked claude '"$spid"' for its handoff; waiting up to 2 s for the record to move" <<<"$1" && grep -q "^no handoff came: what the record has is what the next agent gets" <<<"$1" && [ "$2" -ge 2 ] && [ "$2" -lt 15 ]' _ "$out" "$took"
-check "dismissed, with the note first" bash -c 'grep -q "book-h: dismissed claude '"$spid"'\. The desk, its branch and 2 uncommitted files stay" <<<"$1" && grep -q "user (just now): handing over to codex: write your handoff now (vikix agents handoff --status" <<<"$1" && grep -q "user (just now): dismissed by user: write your handoff if you can, then stop" <<<"$1"' _ "$out"
+check "dismissed, with the notes first, each for it alone" bash -c 'grep -q "book-h: dismissed claude '"$spid"'\. The desk, its branch and 2 uncommitted files stay" <<<"$1" && grep -q "user (just now, for claude '"$spid"'): handing over to codex: write your handoff now (vikix agents handoff --status" <<<"$1" && grep -q "user (just now, for claude '"$spid"'): dismissed by user: write your handoff if you can, then stop" <<<"$1"' _ "$out"
 for _ in 1 2 3 4 5; do kill -0 "$spid" 2>/dev/null || break; sleep 0.2; done
 check "and the process is gone" not kill -0 "$spid" 2>/dev/null
 wait "$spid" 2>/dev/null || true; rm -rf "$t/proc/$spid"
-check "then Codex is started fresh, the task, the handoff and the fields its first prompt: $out" \
-  bash -c 'grep -q "book-h: handed over, claude -> codex$" <<<"$1" && grep -q "^fresh conversation with codex at .*book-h, autonomous: a fresh conversation was asked for" <<<"$1" && grep -q "^the task and the handoff are its first prompt$" <<<"$1" && grep -q "^AGENT ARGS: --use codex --mode autonomous Sort the chapters" <<<"$1" && grep -q "^What the desk.s record holds, left by the agent before you" <<<"$1" && grep -q "^Status: review (codex 1201, just now)\.$" <<<"$1" && grep -q "^Acceptance criteria, 1 of 2 done .*: 1. \[x\] a; 2. \[ \] b$" <<<"$1" && grep -q "^Decided already (don.t reopen without the user): kept the old order under --no-sort; one; two; xxx" <<<"$1" && grep -q "^Defects open: defect 6 (codex 1201); defect 7 (codex 1201); " <<<"$1" && grep -q "^Review findings open: plain finding (codex 1201)$" <<<"$1" && grep -q "^Changed against '"$base"': 3 files: ch1.md (+1 -0), log.md (+2 -0, uncommitted), notes.md (+0 -0, uncommitted)$" <<<"$1" && grep -q "^Commits past '"$base"': 2: [0-9a-f]* log: two; [0-9a-f]* ch1 begun$" <<<"$1" && grep -q "^This is your desk.s task, as its record keeps it" <<<"$1"' _ "$out"
-check "the record logs the handover and keeps both sessions" python3 -c '
+check "then Codex is started fresh on the next step as its task, the desk's fields and the last agent's account its first prompt: $out" \
+  bash -c 'grep -q "book-h: handed over, claude -> codex; its task: Implement the sort as decided$" <<<"$1" && grep -q "^  the task before it (Sort the chapters) is in the desk.s history with its handoff$" <<<"$1" && grep -q "^fresh conversation with codex at .*book-h, autonomous: a fresh conversation was asked for" <<<"$1" && grep -q "^the task and the handoff are its first prompt$" <<<"$1" && grep -q "^AGENT ARGS: --use codex --mode autonomous Implement the sort as decided" <<<"$1" && grep -q "^What the desk.s record holds, left by the agent before you" <<<"$1" && ! grep -q "^Status: review" <<<"$1" && grep -q "^The worker before you (claude, review, just now) was on: Sort the chapters$" <<<"$1" && grep -q "^It left to do: Implement the sort as decided$" <<<"$1" && grep -q "^Acceptance criteria, 1 of 2 done .*: 1. \[x\] a; 2. \[ \] b$" <<<"$1" && grep -q "^Decided already (don.t reopen without the user): kept the old order under --no-sort; one; two; xxx" <<<"$1" && grep -q "^Defects open: defect 6 (codex 1201); defect 7 (codex 1201); " <<<"$1" && grep -q "^Review findings open: plain finding (codex 1201)$" <<<"$1" && grep -q "^Changed against '"$base"': 3 files: ch1.md (+1 -0), log.md (+2 -0, uncommitted), notes.md (+0 -0, uncommitted)$" <<<"$1" && grep -q "^Commits past '"$base"': 2: [0-9a-f]* log: two; [0-9a-f]* ch1 begun$" <<<"$1" && grep -q "^This is your desk.s task, as its record keeps it" <<<"$1"' _ "$out"
+check "the record logs the handover, keeps both sessions, has the new task and the old one's handoff in the history" python3 -c '
 import json, sys
 r = json.load(sys.stdin)
 assert "handed over: claude -> codex" in [e["what"] for e in r["log"]], r["log"][-5:]
 assert [(s["provider"], s["id"]) for s in r["sessions"]] == [("claude", "sess-claude-1")], r["sessions"]
-assert r["left"]["reason"] == "dismissed" and r["task"]["text"] == "Sort the chapters" and r["launch"]["provider"] == "codex", r' <<<"$(agents handoff h --json)"
+assert "left" not in r and r["task"]["text"] == "Implement the sort as decided" and r["task"]["by"] == "user" and r["launch"]["provider"] == "codex", r
+w = r["workers"][-1]
+assert w["task"] == "Sort the chapters" and w["status"] == "review" and w["handoff"]["next"]["text"] == "Implement the sort as decided", w
+h = r["handoff"]
+assert "status" not in h and len(h["decisions"]) == 4 and len(h["defects"]) == 50 and h["acceptance"]["items"][0]["done"], sorted(h)' <<<"$(agents handoff h --json)"
 # --now: mid-turn all the same, and the other way round, Codex's desk to Claude's hands.
 agents handoff session codex sess-codex-1 --desk h >/dev/null
 standin codex "$t/src/book-h"
 printf '{"at": %s, "kind": "shell", "agent": "codex", "pid": %s, "folder": "%s", "file": ""}\n' "$(date +%s)" "$spid" "$t/src/book-h" >> "$journal"
-out=$(agents handover h --to claude --now --here)
-check "--now hands over mid-turn, no wait, and Claude gets the first prompt: $(head -c 300 <<<"$out")" \
-  bash -c 'grep -q "^handing over now: what the record has is what the next agent gets" <<<"$1" && ! grep -q "waiting up to" <<<"$1" && grep -q "book-h: handed over, codex -> claude$" <<<"$1" && grep -q "^AGENT ARGS: --use claude Sort the chapters" <<<"$1"' _ "$out"
+out=$(agents handover h --to claude --now --here --task "Check Codex's sort against the design")
+check "--now hands over mid-turn, no wait, and Claude gets --task as its first prompt: $(head -c 300 <<<"$out")" \
+  bash -c 'grep -q "^handing over now: what the record has is what the next agent gets" <<<"$1" && ! grep -q "waiting up to" <<<"$1" && grep -q "book-h: handed over, codex -> claude; its task: Check Codex.s sort against the design$" <<<"$1" && grep -q "^AGENT ARGS: --use claude Check Codex.s sort against the design" <<<"$1"' _ "$out"
 for _ in 1 2 3 4 5; do kill -0 "$spid" 2>/dev/null || break; sleep 0.2; done
 wait "$spid" 2>/dev/null || true; rm -rf "$t/proc/$spid"
 check "both sessions stay, for resume with either" python3 -c '
@@ -729,17 +743,26 @@ if [ "$1" = -p ]; then printf '{"type":"result","is_error":false,"result":"see s
 else printf '%s\n' "$answer" > "$out"; echo "codex: reviewed (stderr words)" >&2; fi
 EOF
 chmod +x "$rev/codex"; cp "$rev/codex" "$rev/claude"
-review() { PATH="$rev:$PATH" FOO_API_KEY=secret SSH_AUTH_SOCK=/tmp/none python3 "$here/bin/vikix-agents" review "$@" 2>&1 </dev/null || true; }
+review() { PATH="$rev:$PATH" FOO_API_KEY=secret SSH_AUTH_SOCK=/tmp/none python3 "$here/bin/vikix-agents" review "$@" --here 2>&1 </dev/null || true; }
 rm -f "$REVIEWED" "$REVIEWED.prompt" "$REVIEW_HOLD" "$REVIEW_ANSWER" "$REVIEW_FAIL"
 proc 1301 claude "$t/src/book-h"     # the worker at the desk now (Claude took it in the last handover)
 head_h=$(git -C "$t/src/book-h" rev-parse --short HEAD)
+# Without --here the review runs apart from the shell (a review read from a pipe under a
+# timeout orphaned the reviewer and lost its findings, 2026-10-11): said, then the findings come.
+out=$(PATH="$rev:$PATH" python3 "$here/bin/vikix-agents" review h --use codex 2>&1 </dev/null || true)
+check "a review runs apart from the shell, and says so: $out" \
+  grep -q "book-h: codex reviews its last commit, apart from this shell; the findings go into its handoff and its agent.s inbox, and the reviewer.s words to .*reviews/[0-9a-f]*.log (vikix agents review --log book-h); --here would have waited for it" <<<"$out"
+for _ in $(seq 1 80); do grep -q "review by codex" <<<"$(agents handoff h | tail -4)" && break; sleep 0.25; done
+check "its findings came to the record by themselves: $(tail -2 <<<"$(agents handoff h)")" grep -qE "vikix \(just now\): review by codex [0-9]+ \([0-9]+ s\): 2 findings, 1 high" <<<"$(agents handoff h)"
+check "the worker at the desk, its state unknown, is said to need waking" grep -q "claude 1301 may be at its prompt (its state isn.t known): it must be woken" <<<"$(cat "$HOME/.local/state/vikix/office/reviews/"*.log.reviewer)"
+rm -f "$REVIEWED" "$REVIEWED.prompt"
 out=$(review h --use codex)
 check "a review by codex of the desk's last commit, the uncommitted left out, two findings into the handoff: $out" \
   bash -c 'grep -q "book-h: 2 uncommitted files left out: the review is of its last commit, '"$head_h"'$" <<<"$1" && grep -qE "book-h: review by codex [0-9]+ \([0-9]+ s\): 2 findings, 1 high, in your handoff.s Review \(vikix agents handoff\): address each and mark it with vikix agents handoff --review-done N\. Sound, two things to fix\.$" <<<"$1"' _ "$out"
 check "codex exec, read-only, no approvals, ephemeral, the schema as a file and the answer to one, in the throwaway worktree, no key and no SSH agent, the files of HEAD and not the uncommitted: $(cat "$REVIEWED")" \
   bash -c 'grep -q "^\[exec\] \[--cd\] \[[^]]*/vikix-review-[^]/]*/review\] \[-s\] \[read-only\] \[-c\] \[approval_policy=\"never\"\] \[--ephemeral\] \[--color\] \[never\] \[--output-schema\] \[[^]]*findings.schema.json\] \[-o\] \[[^]]*findings.json\] \[Review the work" "$1" && grep -q "^PWD=.*/vikix-review-[^/]*/review$" "$1" && grep -q "^KEYS=0$" "$1" && grep -q "^SSH=none$" "$1" && grep -q "^FILES=ch1.md log.md $" "$1" && grep -q "^SCHEMA=ok$" "$1"' _ "$REVIEWED"
 check "the prompt names the base, the task, the criteria with their ticks, the decisions and the shape: $(head -c 600 "$REVIEWED.prompt")" \
-  bash -c 'grep -q "past '"$base"'" "$1" && grep -q "^The task it was done for: Sort the chapters$" "$1" && grep -q "^The acceptance criteria, as the worker ticked them: \[x\] a; \[ \] b$" "$1" && grep -q "^Decided already, not to be reopened: kept the old order under --no-sort; one; two; xxx" "$1" && grep -q "^Answer with JSON alone, of exactly this shape: {\"type\":\"object\"" "$1"' _ "$REVIEWED.prompt"
+  bash -c 'grep -q "past '"$base"'" "$1" && grep -q "^The task it was done for: Check Codex.s sort against the design$" "$1" && grep -q "^The acceptance criteria, as the worker ticked them: \[x\] a; \[ \] b$" "$1" && grep -q "^Decided already, not to be reopened: kept the old order under --no-sort; one; two; xxx" "$1" && grep -q "^Answer with JSON alone, of exactly this shape: {\"type\":\"object\"" "$1"' _ "$REVIEWED.prompt"
 check "the reviewer's worktree is gone" test -z "$(git -C "$t/src/book" worktree list | grep vikix-review || true)"
 out=$(agents handoff h)
 check "the record: each finding signed by the reviewer, the place kept, the severity said when it isn't the middle one; the inbox line for the worker: $out" \
@@ -753,7 +776,7 @@ rv = r["handoff"]["review"]
 assert rv[-2]["where"] == "log.md:2" and rv[-2]["text"] == "[high] the second line repeats the first" and rv[-2]["open"] and rv[-1]["text"] == "[low] ch1.md has no heading", rv[-2:]' <<<"$(agents handoff h --json)"
 n_rev=$(python3 -c 'import json, sys; print(len(json.load(sys.stdin)["handoff"]["review"]))' <<<"$(agents handoff h --json)")
 out=$(as 1301 handoff --review-done "$n_rev")
-check "the worker marks one addressed: $out" grep -q "book-h: handoff updated by claude 1301, status review$" <<<"$out"
+check "the worker marks one addressed: $out" grep -q "book-h: handoff updated by claude 1301$" <<<"$out"
 check "and the page says which, by whom" grep -qE "^  addressed \[low\] ch1.md has no heading  \(codex [0-9]+, just now; addressed by claude 1301\)$" <<<"$(agents handoff h)"
 check "the reviewer's words are kept: --log" bash -c 'grep -q "^# review of .*book-h at [0-9a-f]* by codex" <<<"$1" && grep -q "^codex: reviewed (stderr words)$" <<<"$1"' _ "$(agents review --log h)"
 # Claude Code's road: -p, plan, the schema on the line, the answer under structured_output.
@@ -769,7 +792,7 @@ check "--prompt: the words go to the reviewer, before the shape: $(tail -3 "$REV
 # Reviewing, while it runs: the desk's agent says so under its row, the reviewer's own
 # process (here a made-up one in the worktree) is named for what it is, and a second is refused.
 touch "$REVIEW_HOLD"
-PATH="$rev:$PATH" python3 "$here/bin/vikix-agents" review h --use codex > "$t/review-bg.out" 2>&1 </dev/null & bg=$!
+PATH="$rev:$PATH" python3 "$here/bin/vikix-agents" review h --use codex --here > "$t/review-bg.out" 2>&1 </dev/null & bg=$!
 note=''
 for _ in $(seq 1 80); do note=$(ls "$HOME/.local/state/vikix/office/reviews/"*.reviewing 2>/dev/null | head -1 || true); [ -n "$note" ] && break; sleep 0.25; done
 check "a note of the review under way, with the reviewer's pid, the provider and its worktree: $(cat "$note" 2>/dev/null)" \
@@ -808,6 +831,49 @@ check "prose instead of the shape is one finding holding it: $out" grep -qE "boo
 check "the finding's words" grep -q "^  open      Looks fine to me, nothing to report beyond a stale heading.  (codex " <<<"$(agents handoff h)"
 rm -f "$REVIEW_ANSWER"
 check "the worktrees are all gone" test -z "$(git -C "$t/src/book" worktree list | grep vikix-review || true)"
+# A worker that handed in sits at its prompt and makes no tool call, so the findings would
+# wait unread (2026-10-11): one at its prompt (a stop let through) with a conversation its
+# provider can resume is asked to exit and resumed with the review's line as its prompt.
+rm -r "$t/proc/1301"
+standin claude "$t/src/book-h"
+printf '{"at": %s, "kind": "stop", "agent": "claude", "pid": %s, "folder": "%s", "file": ""}\n' "$(date +%s)" "$spid" "$t/src/book-h" >> "$journal"
+agents handoff session claude sess-wake-1 --desk h >/dev/null
+mkdir -p "$HOME/.claude/projects/-src-book-h"; echo '{}' > "$HOME/.claude/projects/-src-book-h/sess-wake-1.jsonl"
+printf '#!/bin/sh\nshift\n"$@" > %s 2>&1\n' "$t/term-out" > "$t/bin/term"; chmod +x "$t/bin/term"
+rm -f "$t/term-out"
+out=$(DISPLAY=:7 VIKIX_TERMINAL="$t/bin/term" review h --use codex)
+for _ in $(seq 40); do [ -f "$t/term-out" ] && break; sleep 0.1; done
+check "a worker at its prompt is woken with the findings: $out" \
+  grep -q "book-h: claude $spid was at its prompt: its conversation is resumed with the note as its prompt" <<<"$out"
+for _ in 1 2 3 4 5; do kill -0 "$spid" 2>/dev/null || break; sleep 0.2; done
+check "the process was asked to exit" not kill -0 "$spid" 2>/dev/null
+wait "$spid" 2>/dev/null || true; rm -rf "$t/proc/$spid"
+check "and its conversation resumed in a terminal at the desk, the review's line its prompt: $(cat "$t/term-out" 2>/dev/null)" \
+  grep -qE "^AGENT ARGS: --use claude --resume sess-wake-1 review by codex [0-9]+ \([0-9]+ s\): 2 findings, 1 high, in your handoff.s Review" "$t/term-out"
+check "the record logs the waking" grep -q "woken: claude [0-9]*: at its prompt, resumed with the note\|woken: claude [0-9]* at its prompt, resumed with the note" <<<"$(agents handoff h --json)"
+# tell --now: the same waking with the note; a worker at work is left to its next tool call.
+standin claude "$t/src/book-h"
+printf '{"at": %s, "kind": "edit", "agent": "claude", "pid": %s, "folder": "%s", "file": "%s/log.md"}\n' "$(date +%s)" "$spid" "$t/src/book-h" "$t/src/book-h" >> "$journal"
+out=$(agents tell h "look at the log first" --now)
+check "tell --now on a worker at work leaves the note for its next tool call: $out" \
+  bash -c 'grep -q "book-h: claude '"$spid"' is working: the note reaches it at its next tool call; the note waits in its inbox" <<<"$1" && kill -0 '"$spid"'' _ "$out"
+check "the note waits" grep -q 'user (just now): look at the log first' <<<"$(agents handoff h)"
+printf '{"at": %s, "kind": "stop", "agent": "claude", "pid": %s, "folder": "%s", "file": ""}\n' "$(($(date +%s) + 1))" "$spid" "$t/src/book-h" >> "$journal"
+rm -f "$t/term-out"
+out=$(DISPLAY=:7 VIKIX_TERMINAL="$t/bin/term" agents tell h "and the index" --now)
+for _ in $(seq 40); do [ -f "$t/term-out" ] && break; sleep 0.1; done
+check "at its prompt, tell --now wakes it with the note: $out" grep -q "book-h: claude $spid was at its prompt: its conversation is resumed with the note as its prompt" <<<"$out"
+check "as its prompt: $(cat "$t/term-out" 2>/dev/null)" grep -q "^AGENT ARGS: --use claude --resume sess-wake-1 and the index$" "$t/term-out"
+for _ in 1 2 3 4 5; do kill -0 "$spid" 2>/dev/null || break; sleep 0.2; done
+wait "$spid" 2>/dev/null || true; rm -rf "$t/proc/$spid"
+out=$(agents tell h "nobody there" --now)
+check "with no agent at the desk, tell --now leaves the note: $out" grep -q "book-h: no agent is at the desk: vikix agents resume reads the note out when one takes it up; the note waits in its inbox" <<<"$out"
+python3 - "$journal" <<'PYJ'
+import sys
+lines = [l for l in open(sys.argv[1]) if '"kind": "stop"' not in l]
+open(sys.argv[1], "w").writelines(lines)
+PYJ
+proc 1301 claude "$t/src/book-h"
 # review=codex in the office file: a hand-in starts one by itself; without it, nothing does.
 rm -f "$REVIEWED"
 VIKIX_AGENT_PID=1301 PATH="$rev:$PATH" python3 "$here/bin/vikix-agents" handoff --status working >/dev/null 2>&1 </dev/null || true

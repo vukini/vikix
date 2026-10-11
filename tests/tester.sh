@@ -78,6 +78,18 @@ check "the tester waits while a release of the project is testing, then runs: $o
 printf 'topic-x\nwaiting for its turn\n%s\n\n\n' "$(date +%s)" > "$q/$$"
 out=$(VIKIX_RELEASE_WAIT=2 agents test a)
 check "a release waiting for its turn holds nothing: $out" not grep -q "waiting for it" <<<"$out"
+# A change no test covers (a plan, a design: the project's tests/changed.sh names none)
+# doesn't wait for a release's tests either: the whole wait for a second's run was
+# "passed in 1801 s" (2026-10-11); and a wait taken is said apart from the run.
+printf 'topic-x\ntesting (quick)\n%s\n\n\n' "$(date +%s)" > "$q/$$"
+printf '#!/bin/sh\n[ -n "$TESTER_UNCOVERED" ] || echo spell\n' > "$t/src/book-a/tests/changed.sh"; chmod +x "$t/src/book-a/tests/changed.sh"
+out=$(TESTER_UNCOVERED=1 VIKIX_RELEASE_WAIT=2 agents test a)
+check "a change no test covers runs at once, no release waited for: $out" \
+  bash -c '! grep -q "waiting for it" <<<"$1" && grep -q "book-a: tests passed" <<<"$1" && ! grep -q "waited" <<<"$2"' _ "$out" "$(agents handoff a --json | python3 -c 'import json, sys; print(json.load(sys.stdin)["checks"][-1]["note"])')"
+out=$(VIKIX_RELEASE_WAIT=2 agents test a)
+check "a covered one waits, and the check says how long apart from the run: $(grep 'waited' <<<"$(agents handoff a)")" \
+  bash -c 'grep -q "waiting for it" <<<"$1" && grep -q "^    waited 2 s for a release.s tests first; passed in [0-9]* s$" <<<"$2"' _ "$out" "$(agents handoff a)"
+rm -f "$t/src/book-a/tests/changed.sh"
 rm -rf "$q"
 out=$(agents handoff a)
 check "the record has the check, by vikix, on the desk's commit: $(grep 'tests/run.sh' <<<"$out")" \

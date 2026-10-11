@@ -407,13 +407,27 @@ out=$(worker f --here "Write chapter four" --use claude)
 check "a worker at the desk: the task its first prompt, and in the record: $out" \
   bash -c 'grep -q "^a worker at .*/book-f, claude, the task its first prompt$" <<<"$1" && grep -q "^AGENT ARGS: --use claude Write chapter four$" <<<"$1" && grep -q "read the handoff before you start" <<<"$1"' _ "$out"
 check "the record has the task" grep -q '^Task (user, just now): Write chapter four$' <<<"$(agents handoff f)"
-agents handoff set --desk f --status finished --summary "Four is written" >/dev/null
+agents handoff set --desk f --status finished --summary "Four is written" --next "chapter five" --estimate "20 min" \
+  --acceptance "four reads well" --acceptance "no typos" --done 1 --decided "past tense throughout" --defect "the map is missing" \
+  --review "ch4.md:3 a dangling clause" >/dev/null
 out=$(worker f --here "Write chapter five")
 check "a second worker: the task before it goes into the desk's history, with how it ended: $out" \
   grep -q "the task its first prompt; the task before it (finished) is in the desk's history$" <<<"$out"
+check "its first prompt carries the desk's fields and the worker before: $out" \
+  bash -c 'grep -q "^The worker before you (?, finished, just now) was on: Write chapter four$" <<<"$1" && grep -q "^It did and decided: Four is written$" <<<"$1" && grep -q "^It left to do: chapter five$" <<<"$1" && grep -q "^Acceptance criteria, 1 of 2 done" <<<"$1" && grep -q "^Decided already (don.t reopen without the user): past tense throughout$" <<<"$1" && grep -q "^Defects open: the map is missing (user)$" <<<"$1" && grep -q "^Review findings open: ch4.md:3 a dangling clause (user)$" <<<"$1"' _ "$out"
 out=$(agents handoff f)
 check "the record shows the new task, a status not said, and the workers before: $out" \
   bash -c 'grep -q "^Task (user, just now): Write chapter five$" <<<"$1" && grep -q "^Status: not said$" <<<"$1" && grep -q "^Workers before this one: 1$" <<<"$1" && grep -q "^  just now  finished  Write chapter four (user)$" <<<"$1" && grep -q "^    Four is written$" <<<"$1"' _ "$out"
+check "the desk's fields stay in the live record (criteria with their ticks, the decision, the defect, the finding), and the history has the worker's handoff whole (2026-10-11: findings, defects and decisions were lost at a new worker)" python3 -c '
+import json, sys
+r = json.load(sys.stdin); h = r["handoff"]
+assert [i["text"] for i in h["acceptance"]["items"]] == ["four reads well", "no typos"] and h["acceptance"]["items"][0]["done"], h.get("acceptance")
+assert [d["text"] for d in h["decisions"]] == ["past tense throughout"] and h["defects"][0]["open"] and h["review"][0]["where"] == "ch4.md:3", h
+assert "status" not in h and "summary" not in h and "next" not in h and "estimate" not in h, sorted(h)
+w = r["workers"][-1]
+assert w["task"] == "Write chapter four" and w["status"] == "finished" and w["summary"] == "Four is written", w
+assert w["handoff"]["status"]["value"] == "finished" and w["handoff"]["next"]["text"] == "chapter five" and w["handoff"]["estimate"]["minutes"] == 20, w["handoff"]
+assert "review" not in w["handoff"] and "acceptance" not in w["handoff"], sorted(w["handoff"])' <<<"$(agents handoff f --json)"
 out=$(worker f --here)
 check "without a task, a session at the desk, the record left as it is: $out" \
   bash -c 'grep -q "^a session at .*/book-f, no task: the handoff is what it has$" <<<"$1" && grep -q "^AGENT ARGS: $" <<<"$1"' _ "$out"
@@ -430,6 +444,17 @@ check "desk --task does both, the desk and a worker at it: $out" \
   bash -c 'grep -q "^a desk, and a worker at it: in .*/book-e, a new worktree on the branch e, claude, the task its first prompt$" <<<"$1" && grep -q "^AGENT ARGS: --use claude Chapter seven$" <<<"$1"' _ "$out"
 out=$(worker)
 check "worker with no desk named says which: $out" grep -q 'which desk? (vikix agents desks lists them' <<<"$out"
+# A worker started by an agent (off a desk, or at another) is signed by it, as every
+# other write is: "user" is for nobody above (2026-10-11: a foreman's starts read as Vid's).
+proc 1013 claude "$HOME"
+out=$(VIKIX_AGENT_CMD="$t/bin/agent" VIKIX_AGENT_PID=1013 python3 "$here/bin/vikix-agents" worker f --here "Chapter six, by an agent" 2>&1 </dev/null || true)
+check "a worker started by an agent is signed by it: $out" grep -q "^AGENT ARGS: Chapter six, by an agent" <<<"$out"
+check "in the task and the log" python3 -c '
+import json, sys
+r = json.load(sys.stdin)
+assert r["task"]["by"] == "claude 1013" and r["launch"]["by"] == "claude 1013", (r["task"], r["launch"])
+assert [e["by"] for e in r["log"] if e["what"].startswith("worker started")][-1] == "claude 1013", r["log"][-3:]' <<<"$(agents handoff f --json)"
+rm -r "$t/proc/1013"
 
 # --- Pushing as the user: only when asked, by --push or the picker's last question ----------------
 printf '#!/bin/sh\necho "AGENT SSH: ${VIKIX_AGENT_SSH-unset}"\n' > "$t/bin/agent-ssh"; chmod +x "$t/bin/agent-ssh"

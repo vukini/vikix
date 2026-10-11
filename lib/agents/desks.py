@@ -187,7 +187,7 @@ def desk(argv):
         die(f"{short(folder)} isn't there")
     if top and topic:
         # --no-tests without a task is the desk's setting alone; with a task the worker sets it.
-        desk_record(folder, by="user", change=(lambda rec: tests_set(rec, False)) if notests and not task else None)
+        desk_record(folder, by=by_me()[0], change=(lambda rec: tests_set(rec, False)) if notests and not task else None)
     if not task:
         at = agents_at(folder)
         print(f"a desk: {said}" + (f"; {', '.join(who(a) for a in at)} is at it" if at else
@@ -295,25 +295,28 @@ def worker_at(folder, task, use, local, here, push, said, name, notests=False, m
         print(f"unrestricted: {provider} will run with no sandbox and no approvals at {short(folder)}, by your word")
     folded = [None]
     first = None
+    by = by_me()[0]     # an agent that starts a worker (a plan's runner under one, a foreman) signs it; the user otherwise
     if task:
         def change(rec):
-            folded[0] = H.start_worker(rec, task, "user", provider, mode)
+            folded[0] = H.start_worker(rec, task, by, provider, mode)
             tests_set(rec, not notests)
-            H.set_launch(rec, provider, mode, "user")
+            H.set_launch(rec, provider, mode, by)
             if acceptance:
-                H.set_handoff(rec, "user", acceptance=list(acceptance))
-        rec = desk_record(folder, change=change)
+                H.set_handoff(rec, by, acceptance=list(acceptance))
+        rec = desk_record(folder, by=by, change=change)
         # The task is the agent's first prompt, so a new worker never sits idle
         # with its task written only in the record (2026-10-07: one did, for
         # three minutes, until the user typed "read the handoff").
-        first = H.first_prompt_args(provider, desk_prompt(task, rec if acceptance else None))
+        # The record's desk fields (criteria, decisions, defects, findings) stay through a
+        # new worker, so they are in its first prompt; handin_text is empty without them.
+        first = H.first_prompt_args(provider, desk_prompt(task, rec))
     elif desk_of(folder) or H.load(H.desk_id(common_of(folder), folder)):
         def change(rec):
-            H._log(rec, "user", f"session: {provider}" + (f" {mode}" if mode else ""))
+            H._log(rec, by, f"session: {provider}" + (f" {mode}" if mode else ""))
             if notests:
                 tests_set(rec, False)   # a session leaves the setting alone unless told
-            H.set_launch(rec, provider, mode, "user")
-        desk_record(folder, change=change)
+            H.set_launch(rec, provider, mode, by)
+        desk_record(folder, by=by, change=change)
     start = agent_start(use, first or (), local=local, mode=mode)
     if use or local:
         said += f", {use or 'your agent'}" + (" on a model on this laptop" if local else "")
@@ -597,7 +600,7 @@ def close(argv):
         die("git couldn't remove the worktree: " + (r.stderr.strip().splitlines() or ["?"])[-1])
     said = f"the desk is closed: {short(folder)} removed"
     try:
-        handoff_module().close_record(common, folder, "user")
+        handoff_module().close_record(common, folder, by_me()[0])
     except Exception:  # noqa: BLE001  a record that can't be marked doesn't stop the closing
         pass
     if branch and (d["merged"] or force):

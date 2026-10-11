@@ -479,20 +479,30 @@ def set_task(rec, text, by):
     _log(rec, by, "task set")
 
 
+# The hand-in's fields that are the desk's, not a worker's: they stay in the
+# live record when a new worker starts (2026-10-11: four review findings,
+# three defects and the decisions were dropped at the third worker). The
+# rest of the handoff (status, summary, next, estimate) is the worker's and
+# goes into the history whole with it.
+DESK_FIELDS = ("acceptance", "decisions", "defects", "review", "changed", "commits")
+
+
 def start_worker(rec, text, by, provider="", mode=""):
-    """A new worker at the desk: the task before it, with how it ended,
-    goes into the desk's history (`workers`, oldest first), the handoff and
-    how the last agent left are cleared, and TEXT is the task. The checks
-    stay: they speak for the code, and go stale with it. Nothing is lost:
-    the history keeps the task, its status, its last summary and who
-    worked it. The entry folded, or None when the desk had no task. MODE,
-    when given, is how free the worker is, said in the log's line."""
+    """A new worker at the desk: the task before it, with how it ended and
+    the whole of its handoff, goes into the desk's history (`workers`,
+    oldest first); the handoff keeps the desk's fields (DESK_FIELDS: the
+    criteria, the decisions, the defects, the findings, what changed) and
+    loses the worker's (status, summary, next, estimate); how the last
+    agent left is cleared, and TEXT is the task. The checks stay: they
+    speak for the code, and go stale with it. The entry folded, or None
+    when the desk had no task. MODE, when given, is how free the worker
+    is, said in the log's line."""
     text = clean(text, "the task")
     if not text:
         raise HandoffError("a worker needs a task (vikix agents worker DESK \"...\"; vikix agents resume takes the conversation up without one)")
     folded = fold_worker(rec)
     rec["task"] = {"text": text, "by": by, "at": int(time.time())}
-    rec["handoff"] = {}
+    rec["handoff"] = {k: v for k, v in (rec.get("handoff") or {}).items() if k in DESK_FIELDS}
     rec.pop("left", None)
     _log(rec, by, f"worker started{', ' + provider if provider else ''}{' ' + mode if mode else ''}: {text[:80]}")
     return folded
@@ -508,7 +518,11 @@ def set_launch(rec, provider, mode, by):
 
 def fold_worker(rec):
     """The current task and handoff as one entry of the desk's history,
-    appended to `workers`; None, and nothing done, when there is no task."""
+    appended to `workers`; None, and nothing done, when there is no task.
+    The entry has the task, its status, its summary's first part and who
+    worked it, for the Office's list, and under `handoff` the worker's
+    fields whole (status, summary, next, estimate: what isn't the desk's,
+    DESK_FIELDS), so nothing a worker wrote is lost."""
     t = rec.get("task") or {}
     if not t:
         return None
@@ -518,7 +532,8 @@ def fold_worker(rec):
              "status": (h.get("status") or {}).get("value", ""),
              "summary": (h.get("summary") or {}).get("text", "")[:WORKER_SUMMARY_MAX],
              "provider": sessions[-1]["provider"] if sessions else "",
-             "left": (rec.get("left") or {}).get("reason", "")}
+             "left": (rec.get("left") or {}).get("reason", ""),
+             "handoff": {k: v for k, v in h.items() if k not in DESK_FIELDS}}
     d, n = acceptance_count(h)
     if n:
         entry["acceptance"] = f"{d} of {n}"
@@ -857,6 +872,19 @@ def handin_text(rec):
         v = h.get(key)
         if v:
             out.append(f"{label} ({v['by']}): {v['text']}")
+    workers = rec.get("workers") or []
+    if not s and workers and (workers[-1].get("handoff") or workers[-1].get("summary")):
+        # A new worker, or a handover: the last worker's fields went into the history
+        # whole (fold_worker); its account is what the next one starts from.
+        w = workers[-1]
+        wh = w.get("handoff") or {}
+        status = (wh.get("status") or {}).get("value") or w.get("status") or "no status"
+        out.append(f"The worker before you ({w.get('provider') or '?'}, {status}, {when(w.get('ended', 0))}) "
+                   f"was on: {w.get('task', '')}")
+        for key, label in (("summary", "It did and decided"), ("next", "It left to do")):
+            v = wh.get(key) or ({"text": w["summary"]} if key == "summary" and w.get("summary") else None)
+            if v and v.get("text"):
+                out.append(f"{label}: {v['text']}")
     acc = h.get("acceptance") or {}
     if acc.get("items"):
         d, n = acceptance_count(h)
@@ -1178,13 +1206,64 @@ def resume_plan(rec, provider, folder, fresh=False):
     return {"mode": "fresh", "session": s, "args": [], "why": f"{provider}'s session {s['id']} is gone from {where}"}
 
 
+# A check's width: what a run of the project's runner covered, by its name.
+# A run of named tests (tests/run.sh vk house) is nobody's whole.
+RUN_WIDTH = {"changed": 1, "quick": 2, "full": 3}
+
+
+def check_width(name):
+    """How wide the run a check names was: 1 for tests/run.sh --changed
+    (with or without a ref), 2 for --quick, 3 for the whole (tests/run.sh
+    alone, or --all); 0 for a run of named tests, or anything else."""
+    words = (name or "").split()
+    if not words or not words[0].endswith("tests/run.sh"):
+        return 0
+    rest = words[1:]
+    if not rest or rest == ["--all"]:
+        return RUN_WIDTH["full"]
+    if rest == ["--quick"]:
+        return RUN_WIDTH["quick"]
+    if rest[0] == "--changed" and len(rest) <= 2:
+        return RUN_WIDTH["changed"]
+    return 0
+
+
+def fresh_check(rec, commit, kind="changed"):
+    """The record's check that lets a release skip its own tests: one that
+    passed, on COMMIT exactly, with a clean tree, as wide as the release
+    would run (KIND: changed, quick or full) or wider. The newest such
+    check, or None; a failed check on the same commit after it counts
+    against (the code didn't change, but something did)."""
+    want = RUN_WIDTH.get(kind, 1)
+    found = None
+    for c in rec.get("checks") or []:
+        if (c.get("commit") or "") != commit or c.get("dirty"):
+            continue
+        if c.get("ok") and check_width(c.get("name")) >= want:
+            found = c
+        elif not c.get("ok") and check_width(c.get("name")) >= want and found:
+            found = None
+    return found
+
+
 if __name__ == "__main__":
     # For .claude/release, which has no desk of its own to speak from:
     #   python3 lib/handoff.py closed COMMON FOLDER [BY]
-    # marks the record of the desk (COMMON, FOLDER) closed, when there is one.
+    # marks the record of the desk (COMMON, FOLDER) closed, when there is one;
+    #   python3 lib/handoff.py fresh-check COMMON FOLDER COMMIT [changed|quick|full]
+    # prints the record's passing check on COMMIT (as wide as that kind of run
+    # or wider) and exits 0, or exits 1 when there is none.
     import sys
     if len(sys.argv) >= 4 and sys.argv[1] == "closed":
         sys.exit(0 if close_record(sys.argv[2], sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else "user",
                                    sys.argv[5] if len(sys.argv) > 5 else None) else 1)
-    sys.stderr.write("usage: python3 handoff.py closed COMMON FOLDER [BY]\n")
+    if len(sys.argv) >= 5 and sys.argv[1] == "fresh-check":
+        rec = load(desk_id(sys.argv[2], sys.argv[3])) or {}
+        c = fresh_check(rec, sys.argv[4], sys.argv[5] if len(sys.argv) > 5 else "changed")
+        if not c:
+            sys.exit(1)
+        print(f"{c['name']} passed on {c['commit'][:7]} with a clean tree ({c['by']}, {when(c['at'])}"
+              + (f": {c['note'][:120]}" if c.get("note") else "") + ")")
+        sys.exit(0)
+    sys.stderr.write("usage: python3 handoff.py closed COMMON FOLDER [BY] | fresh-check COMMON FOLDER COMMIT [KIND]\n")
     sys.exit(2)

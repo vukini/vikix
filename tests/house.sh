@@ -382,9 +382,13 @@ check "the other's commit gives the turn, said to the agent: $(head -c 100 <<<"$
 echo "two by b, again" >> "$t/src/book-b/ch1.md"
 printf '{"at": %s, "kind": "waiting", "agent": "codex", "pid": 1002, "folder": "%s", "file": "%s/ch1.md", "with": ["claude 1001"]}\n' \
   "$(($(date +%s) - 5))" "$t/src/book-b" "$t/src/book-a" >> "$journal"
-start=$(date +%s); out=$(touch_as 1001 "$t/src/book-a/ch1.md"); took=$(( $(date +%s) - start ))
-check "two waiting for each other: the later one asks at once ($took s): $(head -c 120 <<<"$out")" \
-  bash -c '[ "$1" -lt 2 ] && grep -q "\"ask\".*Turns: codex 1002 waits on you already" <<<"$2"' _ "$took" "$out"
+# At once: the hook itself takes seconds under load (4 s at a load of 5.5 on
+# 4 cores, 2026-10-11), so the bound is the wait it must not take, raised to
+# ten seconds for this call, plus a second a unit of load over the cores.
+slack=$(awk -v n="$(nproc)" '{ l = int($1 / n) + 1; print (l > 1) ? l : 1 }' /proc/loadavg)
+start=$(date +%s); out=$(VIKIX_PAUSE_LIMIT=10 touch_as 1001 "$t/src/book-a/ch1.md"); took=$(( $(date +%s) - start ))
+check "two waiting for each other: the later one asks at once ($took s, $slack s of slack for the load): $(head -c 120 <<<"$out")" \
+  bash -c '[ "$1" -lt $((5 + $3)) ] && grep -q "\"ask\".*Turns: codex 1002 waits on you already" <<<"$2"' _ "$took" "$out" "$slack"
 python3 - "$journal" <<'PY'
 import json, sys
 lines = [l for l in open(sys.argv[1]) if '"kind": "waiting"' not in l]
@@ -404,7 +408,39 @@ check "and the process is gone" not kill -0 "$spid" 2>/dev/null
 wait "$spid" 2>/dev/null || true; rm -r "$t/proc/$spid"
 out=$(agents handoff p)
 check "the record says how the last agent left: $(grep '^Left' <<<"$out")" grep -q '^Left: dismissed (user, just now), 0 uncommitted then$' <<<"$out"
-check "with a note left for it first" grep -q 'user (just now): dismissed by user: write your handoff if you can, then stop' <<<"$out"
+check "with a note left for it first, for it alone" grep -q "user (just now, for claude $spid): dismissed by user: write your handoff if you can, then stop" <<<"$out"
+# The next worker at the desk never reads it (it did, twice, 2026-10-11, and stopped);
+# nobody will, so it is dropped. A note from before a worker's time at the desk isn't
+# its either, unless the user's; one agent's note waits while an older one could read it.
+proc 1011 claude "$t/src/book-p"
+python3 - "$HOME/.local/state/vikix/office/inbox" <<'PYI'
+import glob, json, os, sys, time
+path = [f for f in glob.glob(os.path.join(sys.argv[1], "*.jsonl")) if "dismissed by user" in open(f).read()][0]
+with open(path, "a") as f:
+    f.write(json.dumps({"at": int(time.time()) - 30, "by": "vikix", "text": "tests passed (tests/run.sh --changed)"}) + "\n")
+PYI
+out=$(touch_as 1011 "$t/src/book-p/intro.md")
+check "a fresh worker at the desk isn't handed the dismissal, and is handed the tester's note from its own time there: $(head -c 160 <<<"$out")" \
+  bash -c '! grep -q dismissed <<<"$1" && grep -q "\[vikix, [0-9:]*\] tests passed (tests/run.sh --changed)" <<<"$1"' _ "$out"
+check "the dismissal, its addressee gone, is dropped: nobody reads it" not grep -q 'dismissed by user' <<<"$(agents handoff p)"
+# An agent started after the notes: a stat whose start is a few seconds from now.
+proc 1012 claude "$t/src/book-p"
+printf '1012 (claude) S 1 1012 1 34816 -1 4194560 0 0 0 0 0 0 0 0 20 0 1 0 501000 0 0\n' > "$t/proc/1012/stat"
+agents tell p "the user's word reaches whoever is there" >/dev/null
+python3 - "$HOME/.local/state/vikix/office/inbox" <<'PYI'
+import glob, json, os, sys, time
+path = [f for f in glob.glob(os.path.join(sys.argv[1], "*.jsonl")) if "reaches whoever" in open(f).read()][0]
+with open(path, "a") as f:
+    f.write(json.dumps({"at": int(time.time()) - 5, "by": "vikix", "text": "review by codex: 2 findings"}) + "\n")
+PYI
+out=$(touch_as 1012 "$t/src/book-p/intro.md")
+check "the user's note reaches the newer agent, the review's from before its time doesn't: $(head -c 200 <<<"$out")" \
+  bash -c 'grep -q "reaches whoever is there" <<<"$1" && ! grep -q "review by codex" <<<"$1"' _ "$out"
+check "which waits for the older agent at the desk" grep -q 'vikix (just now): review by codex: 2 findings' <<<"$(agents handoff p)"
+out=$(touch_as 1011 "$t/src/book-p/outro.md")
+check "and reaches it: $(head -c 120 <<<"$out")" grep -q "review by codex: 2 findings" <<<"$out"
+check "the inbox is empty then" not grep -q 'Notes waiting' <<<"$(agents handoff p)"
+rm -r "$t/proc/1011" "$t/proc/1012"
 out=$(printf '{"reason":"logout","session_id":"x"}' | VIKIX_AGENT_PID=1001 python3 "$here/bin/vikix-agents" left 2>&1)
 check "the SessionEnd hook notes how an agent left: '$out'" bash -c '[ -z "$1" ] && grep -q "^Left: logout (claude 1001, just now)" <<<"$2"' _ "$out" "$(agents handoff a)"
 out=$(printf '{"reason":"other"}' | VIKIX_AGENT_PID=1002 python3 "$here/bin/vikix-agents" left 2>&1)

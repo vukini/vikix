@@ -81,7 +81,22 @@ check "and the others ran, side by side: $(most "$t/log")" test "$(most "$t/log"
 : > "$t/log"; touch "$t/fail-b"
 out=$(VIKIX_TEST_SLOTS=2 "$t/tests/run.sh" a b 2>&1) && code=0 || code=$?
 check "a run fails as its tests do: $code $(tail -1 <<<"$out")" bash -c "[ $code = 1 ] && grep -qx 'FAILED: b' <<<\"\$1\"" _ "$out"
+check "and says the load as the run began, since a load past the cores fails a timing check alone: $(grep load <<<"$out")" \
+  grep -qE '^\(load [0-9.]+ [0-9.]+ [0-9.]+ on [0-9]+ cores as the run began\)$' <<<"$out"
 rm -f "$t/fail-b"
+# Stopped from outside (a timeout on the run) while a test waits for a slot: what passed is
+# said, with what was running and what never ran, rather than lost (two runs hit their
+# deadline waiting for the alone tests, 2026-10-11).
+cat > "$t/tests/slowb.sh" <<END
+#!/bin/sh
+sleep 20
+END
+chmod +x "$t/tests/slowb.sh"
+out=$(VIKIX_TEST_SLOTS=1 VIKIX_TEST_JOBS=1 timeout 4 "$t/tests/run.sh" a slowb c 2>&1) && code=0 || code=$?
+check "a run stopped before its end says what passed, what was stopped and what never ran: $code $(tr '\n' '|' <<<"$out")" \
+  bash -c "[ $code = 124 ] && grep -q '^stopped before the end (load .* as the run began):' <<<\"\$1\" && grep -q '^  running, stopped: slowb' <<<\"\$1\" && grep -q '^  not run: c (waiting for a slot or for the machine: other runs were testing)' <<<\"\$1\" && grep -q '^  passed: a' <<<\"\$1\"" _ "$out"
+sleep 0.5
+check "and its tests are gone with it" bash -c '! pgrep -u "$(id -u)" -f "^/bin/sh $1" >/dev/null' _ "$t/tests/slowb.sh"
 
 # Each test leaves a note of what it does, for vikix agents: with one slot
 # taken by a slow test, a run's tests all wait, and the agent above that run

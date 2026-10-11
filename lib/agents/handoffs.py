@@ -10,6 +10,7 @@ import json
 import os
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -23,19 +24,40 @@ def inbox_path(folder):
     return os.path.join(STATE, "vikix", "office", "inbox", H.desk_id(common_of(folder), folder) + ".jsonl")
 
 
-def inbox_add(folder, text, by):
-    """TEXT left for the desk's agent, signed BY; raises HandoffError for
-    text a record may not hold (a credential)."""
+def inbox_add(folder, text, by, to=None):
+    """TEXT left for the desk's agent, signed BY; for the one agent TO
+    ({agent, pid}) when it is for one alone (a dismissal, a handover's
+    request: 2026-10-11, "write your handoff, then stop" reached the next
+    fresh worker, which obeyed), else for whoever works the desk. Raises
+    HandoffError for text a record may not hold (a credential)."""
     H = handoff_module()
     text = H.clean(text, "the note").replace("\n", " ")
     if not text:
         raise H.HandoffError("a note needs words")
     path = inbox_path(folder)
     os.makedirs(os.path.dirname(path), exist_ok=True)
+    note = {"at": int(time.time()), "by": by, "text": text}
+    if to:
+        note["for"], note["pid"] = who(to), to["pid"]
     with open(path + ".lock", "w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         with open(path, "a") as f:
-            f.write(json.dumps({"at": int(time.time()), "by": by, "text": text}, ensure_ascii=False) + "\n")
+            f.write(json.dumps(note, ensure_ascii=False) + "\n")
+
+
+def note_is_for(note, me, started, others):
+    """Whether the note is ME's to read: addressed to it, or to nobody and
+    the user's, or to nobody and from ME's own time at the desk (STARTED,
+    0 when unknown: then every note). None when it is nobody's any more
+    (its addressee gone; from before every agent at the desk, OTHERS'
+    start times, and not the user's), False when it waits for another."""
+    if note.get("for"):
+        if me and note["for"] == who(me):
+            return True
+        return False if alive(note.get("pid", 0)) else None
+    if note.get("by") == "user" or not started or note.get("at", 0) >= started:
+        return True
+    return False if any(t and t <= note.get("at", 0) for t in others) else None
 
 
 def inbox_read(path):
@@ -59,22 +81,87 @@ def inbox_peek(folder):
     return inbox_read(inbox_path(folder))
 
 
-def inbox_take(folder):
-    """The notes waiting at the desk, and the inbox emptied: for the hook,
-    which hands them to the agent."""
+def inbox_take(folder, me=None):
+    """The notes waiting at the desk for the agent ME, taken out of the
+    inbox: for the hook, which hands them to the agent. A note for another
+    agent stays; one nobody will read (note_is_for) is dropped. Without ME
+    every note is taken, as before."""
     path = inbox_path(folder)
     if not os.path.exists(path):
         return []
+    started = started_at(me["pid"]) if me else 0
+    others = [started_at(a["pid"]) for a in agents_at(folder) if not me or a["pid"] != me["pid"]] if me else []
     with open(path + ".lock", "w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         notes = inbox_read(path)
-        if notes:
-            open(path, "w").close()
-    return notes
+        mine = [n for n in notes if not me or note_is_for(n, me, started, others)]
+        left = [n for n in notes if me and note_is_for(n, me, started, others) is False]
+        if len(left) != len(notes):
+            with open(path, "w") as f:
+                for n in left:
+                    f.write(json.dumps(n, ensure_ascii=False) + "\n")
+    return mine
+
+
+def note_line(n):
+    """A note as the page and resume show it: who, when, for whom when it is for one, the words."""
+    H = handoff_module()
+    return f"  {n['by']} ({H.when(n['at'])}" + (f", for {n['for']}" if n.get("for") else "") + f"): {n['text']}"
+
+
+def wake(folder, text, by):
+    """A worker at its prompt woken with TEXT as its prompt: a note reaches
+    an agent only at a tool call, and one that handed in sits at its prompt
+    making none (2026-10-11: a review's findings waited unread). The one
+    agent at the desk, at its prompt by the journal (a stop let through,
+    nothing since), with a conversation its provider can resume, is asked
+    to exit and resumed with TEXT (resume keeps its conversation). (woken,
+    what was done or why not, in a line)."""
+    H = handoff_module()
+    there = agents_at(folder)
+    if not there:
+        return False, "no agent is at the desk: vikix agents resume reads the note out when one takes it up"
+    states = {a["pid"]: a["state"] for a in journal_states([dict(a, state="running", doing="") for a in there])}
+    idle = [a for a in there if states.get(a["pid"]) == "idle"]
+    if not idle:
+        working = [a for a in there if states.get(a["pid"]) == "working"]
+        if working:
+            return False, f"{', '.join(who(a) for a in working)} is working: the note reaches it at its next tool call"
+        return False, (f"{', '.join(who(a) for a in there)} may be at its prompt (its state isn't known): it must be "
+                       "woken to read the note, by you, or vikix agents tell DESK --now once its hook has said")
+    if len(there) > 1:
+        return False, f"{', '.join(who(a) for a in there)} are at the desk: say which (vikix agents dismiss, then resume)"
+    a = idle[0]
+    rec = H.load(H.desk_id(common_of(folder), folder)) or {}
+    plan = H.resume_plan(rec, a["agent"], folder)
+    if plan["mode"] != "resumed":
+        return False, (f"{who(a)} is at its prompt and its conversation can't be resumed ({plan['why']}): "
+                       "speak to it, and it reads the note at its next tool call")
+    if not H.first_prompt_args(a["agent"], text):
+        return False, f"{who(a)} is at its prompt and {a['agent']} takes no first prompt: speak to it"
+    if not os.environ.get("DISPLAY"):
+        return False, f"{who(a)} is at its prompt, and there is no desktop here to open its terminal on: speak to it"
+    if not signal_agent(a["pid"], signal.SIGTERM):
+        return False, f"{who(a)} is at its prompt and couldn't be asked to exit: speak to it"
+    for _ in range(25):
+        if process_gone(a["pid"]):
+            break
+        time.sleep(0.2)
+    if not process_gone(a["pid"]):
+        return False, f"{who(a)} is still exiting: vikix agents resume {desk_name(folder)} --prompt \"...\" once it has gone"
+    try:
+        desk_record(folder, by=by, change=lambda r: H._log(r, by, f"woken: {who(a)} at its prompt, resumed with the note"))
+    except SystemExit:
+        pass
+    try:
+        resume([folder, "--use", a["agent"], "--prompt", text])
+    except SystemExit as e:
+        return False, f"{who(a)} was asked to exit, and resuming it failed ({e}): vikix agents resume {desk_name(folder)}"
+    return True, f"{who(a)} was at its prompt: its conversation is resumed with the note as its prompt"
 
 
 def tell(argv):
-    """vikix agents tell DESK "..." | --menu: a note for the desk's agent."""
+    """vikix agents tell DESK "..." [--now] | --menu: a note for the desk's agent."""
     if argv == ["--menu"]:
         folder = pick_desk("A note for", "The desk whose agent gets the note, at its next tool call.")
         if folder is None:
@@ -83,14 +170,27 @@ def tell(argv):
         if not text:
             return 0
         argv = [folder, text]
+    now = "--now" in argv
     words = [a for a in argv if not a.startswith("-")]
-    if len(words) != len(argv) or len(words) < 2:
-        die("vikix agents tell DESK \"the note\" (DESK as for close: the folder, the topic, the branch, or PROJECT TOPIC)")
+    if len(words) != len(argv) - (1 if now else 0) or len(words) < 2:
+        die("vikix agents tell DESK \"the note\" [--now] (DESK as for close: the folder, the topic, the branch, or PROJECT TOPIC)")
     by, me = by_me()
     folder, _ = desk_for(words[:-1], me)
     if not os.path.isdir(folder):
         die(f"{short(folder)} is gone: no agent can read a note there")
     H = handoff_module()
+    if now:
+        # An agent at its prompt is woken with the note as its prompt; else the note
+        # waits in the inbox as usual, and why is said.
+        try:
+            H.clean(words[-1], "the note")
+        except H.HandoffError as e:
+            die(str(e))
+        woken, said = wake(folder, words[-1], by)
+        if woken:
+            say(f"{short(folder)}: {said}")
+            return 0
+        print(f"{short(folder)}: {said}; the note waits in its inbox")
     try:
         inbox_add(folder, words[-1], by)
     except H.HandoffError as e:
@@ -391,7 +491,7 @@ def handoff(argv):
         if notes:
             print("Notes waiting for its agent (vikix agents tell; delivered at its next tool call):")
             for n in notes:
-                print(f"  {n['by']} ({H.when(n['at'])}): {n['text']}")
+                print(note_line(n))
         return 0
     # set names its desk as show does, before the settings; check and session
     # take their own words, so for them it is --desk.
@@ -513,11 +613,13 @@ def handoff_forget(words):
 def resume(argv):
     H = handoff_module()
     use, here, fresh, another, words, mode = None, False, False, False, [], None
-    require_saved, expect_session, menu = False, None, False
+    require_saved, expect_session, menu, prompt = False, None, False, ""
     while argv:
         a = argv.pop(0)
         if a == "--menu":
             menu = True
+        elif a == "--prompt":
+            prompt = argv.pop(0) if argv and argv[0].strip() else die("--prompt needs words: the agent's first prompt")
         elif a == "--mode":
             mode = argv.pop(0) if argv else die(f"--mode which? {', '.join(MODES)}")
         elif a == "--use":
@@ -590,29 +692,35 @@ def resume(argv):
                      "nothing is resumed unasked")
     print()
     print(said)
+    by = by_me()[0]
     if rec:
         def noted(r_):
-            H._log(r_, "user", f"{plan['mode']}: {provider}" + (f" {mode}" if mode else "")
+            H._log(r_, by, f"{plan['mode']}: {provider}" + (f" {mode}" if mode else "")
                    + (f" {plan['session']['id']}" if plan["session"] and plan["mode"] == "resumed" else ""))
-            H.set_launch(r_, provider, mode, "user")
+            H.set_launch(r_, provider, mode, by)
         try:
             H.update(common_of(folder), folder, noted)
         except H.HandoffError:
             pass
     notes = inbox_peek(folder)
     if notes:
-        print("Notes waiting for its agent (vikix agents tell), read out here since a resumed agent's hook delivers them too:")
+        print("Notes waiting at the desk (vikix agents tell), read out here; the user's reach the agent through its hook, "
+              "the rest were for the agent before it:")
         for n in notes:
-            print(f"  {n['by']} ({H.when(n['at'])}): {n['text']}")
+            print(note_line(n))
     # A fresh conversation asked for at a desk with a task (a handover): the task, the
     # handoff and the hand-in's fields are its first prompt, so nothing of the record is
-    # left for it to find; a resumed conversation has them already.
+    # left for it to find; a resumed conversation has them already. --prompt gives a
+    # resumed conversation its next words (a worker at its prompt woken with a note).
     first = ()
     task = ((rec or {}).get("task") or {}).get("text", "")
     if fresh and task:
         first = H.first_prompt_args(provider, desk_prompt(task, rec)) or ()
         print("the task and the handoff are its first prompt" if first else
               f"the task and the handoff are in the record ({provider} takes no first prompt)")
+    elif prompt:
+        first = H.first_prompt_args(provider, prompt) or ()
+        print("the words given are its first prompt" if first else f"{provider} takes no first prompt: the words are lost")
     start = agent_start(provider if provider != default_agent() or plan["args"] or first else None,
                         list(plan["args"]) + list(first), mode=mode)
     if here:
@@ -646,11 +754,13 @@ def handover(argv):
     --fresh, whose first prompt is the task, the handoff and the hand-in's
     fields. Both sessions stay in the record."""
     H = handoff_module()
-    to, mode, now, here, words = None, None, False, False, []
+    to, mode, now, here, words, task = None, None, False, False, [], ""
     while argv:
         a = argv.pop(0)
         if a == "--to":
             to = argv.pop(0) if argv else die(f"--to which provider? {', '.join(H.PROVIDERS)}")
+        elif a == "--task":
+            task = argv.pop(0) if argv and argv[0].strip() else die("--task needs words: what the next provider is to do")
         elif a == "--mode":
             mode = argv.pop(0) if argv else die(f"--mode which? {', '.join(MODES)}")
         elif a == "--now":
@@ -662,7 +772,7 @@ def handover(argv):
         else:
             words.append(a)
     if not words or not to:
-        die("vikix agents handover DESK --to NAME [--mode MODE] [--now] (DESK as for close; the provider: "
+        die("vikix agents handover DESK --to NAME [--task \"...\"] [--mode MODE] [--now] (DESK as for close; the provider: "
             f"{', '.join(p for p in H.PROVIDERS if p != 'other')})")
     if to not in H.PROVIDERS or to == "other":
         die(f"--to {to}? the providers: {', '.join(p for p in H.PROVIDERS if p != 'other')} (vikix agent --list)")
@@ -674,6 +784,15 @@ def handover(argv):
     if not rec or not rec.get("task"):
         die(f"{short(folder)} has no task in its record: nothing to hand over "
             f"(vikix agents worker {desk_name(folder)} \"...\" --use {to} starts a worker there)")
+    # The next provider's task: the words given, else what the record's next step says,
+    # read once the agent has had its chance to write it (below). Never the task as it
+    # stands: the designer's "no code, hand in" became Codex's orders (2026-10-11), and
+    # it stopped in 27 s.
+    if task:
+        try:
+            task = H.clean(task, "the task")
+        except H.HandoffError as e:
+            die(str(e))
     there = agents_at(folder)
     if me and any(a["pid"] == me["pid"] for a in there):
         die("that is your own desk: an agent doesn't hand itself over (write your handoff and end your turn; "
@@ -685,12 +804,13 @@ def handover(argv):
     from_ = ", ".join(sorted({a["agent"] for a in there})) or (
         rec["sessions"][-1]["provider"] if rec.get("sessions") else "nobody")
     if there:
-        try:
-            inbox_add(folder, f"handing over to {to}: write your handoff now (vikix agents handoff --status ... "
-                      "--summary \"what you changed and decided\" --next \"what is left\", --decided and --defect "
-                      "for the rest), then stop", by)
-        except H.HandoffError:
-            pass
+        for a in there:
+            try:
+                inbox_add(folder, f"handing over to {to}: write your handoff now (vikix agents handoff --status ... "
+                          "--summary \"what you changed and decided\" --next \"what is left\", --decided and --defect "
+                          "for the rest), then stop", by, to=a)
+            except H.HandoffError:
+                pass
         was = H.handoff_written_at(rec)
         # An agent at its prompt makes no tool call until spoken to, so the note waits
         # there unread: nothing to wait for. One with no hook never reads it either.
@@ -715,6 +835,14 @@ def handover(argv):
         else:
             print(("handing over now" if now else f"{', '.join(who(a) for a in there)} is at its prompt, or has no hook "
                    "that carries a note") + ": what the record has is what the next agent gets")
+    rec = H.load(H.desk_id(common_of(folder), folder)) or rec
+    if not task:
+        task = (((rec.get("handoff") or {}).get("next") or {}).get("text") or "").strip()
+    if not task:
+        die(f"{short(folder)}: what is {to} to do? --task \"...\" says, or the record's next step "
+            "(vikix agents handoff --next \"...\"); the task as it stands was the last agent's and isn't passed on. "
+            "Nothing done" + (": its agent stays" if there else ""))
+    if there:
         dismiss([folder])
         # Asked of the kernel, not of /proc (the tests' made-up one outlives its stand-ins).
         for _ in range(25):
@@ -726,12 +854,18 @@ def handover(argv):
             die(f"{', '.join(who(a) for a in left)} is still at the desk after the dismissal: hand over once it has gone")
 
     base = base_of(folder)[0]
+    before = (rec.get("task") or {}).get("text", "")
 
     def change(r):
         H._log(r, by, f"handed over: {from_} -> {to}")
         H.set_changes(r, folder, base)      # what the next agent is told it inherits, as git has it now
+        # The task before, with the worker's handoff whole, goes into the history; the
+        # desk's fields (criteria, decisions, defects, findings) stay for the next.
+        H.start_worker(r, task, by, to, mode)
     desk_record(folder, by=by, change=change)
-    print(f"{short(folder)}: handed over, {from_} -> {to}")
+    print(f"{short(folder)}: handed over, {from_} -> {to}; its task: {task[:100]}{'…' if len(task) > 100 else ''}"
+          + (f"\n  the task before it ({before[:60]}{'…' if len(before) > 60 else ''}) is in the desk's history with its handoff"
+             if before != task else ""))
     return resume([folder, "--use", to, "--fresh"] + (["--mode", mode] if mode else []) + (["--here"] if here else []))
 
 

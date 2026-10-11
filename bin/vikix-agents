@@ -86,9 +86,12 @@
                        the desk's record and given to the agent as its
                        first prompt (aider takes none: it reads the
                        record), on a workspace to itself. The desk's task
-                       and handoff before it go into its history (vikix
-                       agents handoff shows the workers before); the
-                       checks stay. Without a task, a session at the desk:
+                       and the worker's handoff before it go into its
+                       history whole (vikix agents handoff shows the
+                       workers before); the desk's own stay: the checks,
+                       the acceptance criteria, the decisions, the defects
+                       and the review findings, which the new worker's
+                       first prompt carries. Without a task, a session at the desk:
                        an agent to talk with, the record left as it is.
                        Refused while an agent is at the desk: vikix agents
                        tell leaves it a note, dismiss ends it first.
@@ -116,7 +119,7 @@
                        w: the desk picked in rofi, then the task typed
                        (nothing for a session), then which agent and
                        whether it may push, as desk asks them
-  vikix agents resume [DESK] [--use NAME] [--here] [--fresh] [--another] [--mode MODE]
+  vikix agents resume [DESK] [--use NAME] [--here] [--fresh] [--another] [--mode MODE] [--prompt "..."]
                        take a desk up again, its conversation resumed.
                        Its handoff, git state and checks shown, then an
                        agent started there, its conversation resumed where
@@ -134,19 +137,29 @@
                        --mode as worker's (unsaid: the last launch's for
                        the same provider, else the house default). --fresh
                        at a desk with a task gives the agent the task, the
-                       handoff and the hand-in's fields as its first prompt
-  vikix agents handover DESK --to NAME [--mode MODE] [--now] [--here]
+                       handoff and the hand-in's fields as its first prompt;
+                       --prompt "..." gives a resumed conversation its next
+                       words (what tell --now and a review use to wake a
+                       worker at its prompt)
+  vikix agents handover DESK --to NAME [--task "..."] [--mode MODE] [--now] [--here]
                        pass a desk from its agent to a fresh one of another provider.
                        Claude's design to Codex's hands, or the other way:
                        the agent at the desk is asked for its handoff in a
-                       note and given up to two minutes to write it (not
-                       one at its prompt, which reads no note), dismissed,
-                       and the next started with resume --use NAME
-                       --fresh, its first prompt the task, the handoff and
-                       the hand-in's fields (acceptance, decisions, defects,
-                       findings, what changed, the commits); the record
-                       logs "handed over: claude -> codex" and keeps both
-                       sessions, so resume with either finds its
+                       note (for it alone) and given up to two minutes to
+                       write it (not one at its prompt, which reads no
+                       note), dismissed, and the next started with resume
+                       --use NAME --fresh on a task of its own: --task, or
+                       the record's next step as the agent left it; never
+                       the task as it stood, which was the last agent's
+                       ("design, no code" became Codex's orders once), and
+                       refused when neither says. The task before, with
+                       the agent's handoff whole, goes into the desk's
+                       history; the desk's fields stay (acceptance,
+                       decisions, defects, findings, what changed, the
+                       commits), and the next agent's first prompt is its
+                       task, those, and the last agent's account; the
+                       record logs "handed over: claude -> codex" and keeps
+                       both sessions, so resume with either finds its
                        conversation. Refused while the agent is mid-turn
                        (an edit or a command in the last minute), unless
                        --now; --mode as worker's
@@ -231,12 +244,22 @@
                        file, no branch, no saved conversation. Without
                        DESK: the records that could be forgotten
 
-  vikix agents tell DESK "..." | --menu
+  vikix agents tell DESK "..." [--now] | --menu
                        a note for the desk's agent, at its next tool call.
-                       Delivered by Claude Code's hook (another agent reads
-                       it in vikix agents handoff, and resume reads it
-                       out); said when the agent is at its prompt, since it
-                       makes none until you speak to it; DESK as for close
+                       Delivered by Claude Code's and Codex's hooks (another
+                       agent reads it in vikix agents handoff, and resume
+                       reads it out); said when the agent is at its prompt,
+                       since it makes none until you speak to it. --now:
+                       an agent at its prompt is woken with the note as its
+                       prompt (asked to exit, its conversation resumed with
+                       it; the record logs "woken"), and when it can't be
+                       (working, two at the desk, no conversation to
+                       resume, no desktop) why is said and the note waits.
+                       A note is for whoever works the desk, now or next;
+                       what dismiss and handover leave is for the one
+                       agent they address, and a worker never gets a note
+                       from before it started unless it is yours. DESK as
+                       for close
   vikix agents pause DESK [--hard] | --menu
                        hold the desk's agent at its next tool call, until go.
                        It waits with its context whole and at no cost, for
@@ -283,7 +306,7 @@
                        overlapping ones each alone, told which it overlaps;
                        a merge that conflicts sends that desk to run
                        alone. --log: the last run's output
-  vikix agents review DESK [--use NAME] [--prompt "..."] [--log DESK] | --menu
+  vikix agents review DESK [--use NAME] [--prompt "..."] [--here] [--log DESK] | --menu
                        a review by another provider, read-only, its findings into the handoff.
                        The desk's last commit is checked out in a throwaway
                        worktree, and the reviewer (--use codex or claude;
@@ -292,19 +315,26 @@
                        read-only, claude -p --permission-mode plan), given
                        the task, the criteria, the decisions and the
                        worker's account, and asked for findings in one
-                       shape; the worktree is removed after. Each finding
-                       goes into the handoff's Review signed by the reviewer
-                       (codex 1234), and a line into the desk's inbox, so
-                       the worker reads them at its next tool call and
-                       marks each one addressed with handoff --review-done
-                       N; the worker is never stopped, and the reviewer
-                       never sits at the desk. vikix agents and the Office
-                       say reviewing while it runs. --prompt: more words for
-                       the reviewer (what to look at). review=codex in
-                       ~/.config/vikix/office starts one by itself at each
-                       hand-in (status review); off by default, since a
-                       review costs a model's time. --log: the last review's
-                       words. --menu: the desk and the reviewer in rofi
+                       shape; the worktree is removed after. It runs apart
+                       from this shell, as a hand-in's does (a review read
+                       here under a timeout once orphaned the reviewer and
+                       lost its findings), and says so; --here waits for
+                       it. Each finding goes into the handoff's Review
+                       signed by the reviewer (codex 1234), and a line into
+                       the desk's inbox; a worker at its prompt is woken
+                       with that line as its prompt (its conversation
+                       resumed, as tell --now does), one at work reads it
+                       at its next tool call, and when it can't be woken
+                       the desktop is told; the worker marks each finding
+                       addressed with handoff --review-done N, and the
+                       reviewer never sits at the desk. vikix agents and
+                       the Office say reviewing while it runs. --prompt:
+                       more words for the reviewer (what to look at).
+                       review=codex in ~/.config/vikix/office starts one by
+                       itself at each hand-in (status review); off by
+                       default, since a review costs a model's time. --log:
+                       the last review's words. --menu: the desk and the
+                       reviewer in rofi
   vikix agents plan new TEMPLATE NAME PROJECT [--at-once N] [--gate me|none]
                        a plan written from a template, for you to edit and run.
                        The copy goes to ~/.config/vikix/plans/NAME.toml
@@ -377,7 +407,8 @@
                        Its branch and files stay (vikix agents resume): the
                        Office's Close agent, from the terminal. A note
                        first, "dismissed: write your handoff if you can",
-                       which an agent mid-turn reads at its next call; the
+                       for that agent alone, which one mid-turn reads at
+                       its next call and no later agent ever does; the
                        record notes the dismissal and the files left
                        uncommitted. Never your own process.
                        --menu, on each of these: the desk picked in rofi,

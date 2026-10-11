@@ -219,10 +219,12 @@ def dismiss(argv):
         say(f"{short(folder)}: no agent is there to dismiss")
         return 0
     H = handoff_module()
-    try:
-        inbox_add(folder, f"dismissed by {by}: write your handoff if you can, then stop", by)
-    except H.HandoffError:
-        pass
+    for a in there:
+        # For that agent alone: the next worker at the desk must never read it (it did, twice, 2026-10-11).
+        try:
+            inbox_add(folder, f"dismissed by {by}: write your handoff if you can, then stop", by, to=a)
+        except H.HandoffError:
+            pass
     gone, left = [], []
     for a in there:
         if not signal_agent(a["pid"], signal.SIGTERM):

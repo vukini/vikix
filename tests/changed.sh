@@ -146,10 +146,20 @@ for f in "${files[@]}"; do
           *) all=1 ;;
         esac
       done < <(vikix_hunks) ;;
+    # A layer file most tests name (registry.lisp: seventeen) has its tests
+    # in the rules below; the name rule's "too many means all" cost the
+    # quick set for one Help entry (2026-10-11).
+    config/stumpwm/*) mapfile -t hits < <(naming "$(basename "$f")"); [ "${#hits[@]}" -eq 0 ] || add "${hits[@]}" ;;
     *) named "$(basename "$f")" ;;
   esac
   case $f in
-    config/stumpwm/*) add lisp errors menu rules viri main drawer keys registry maps why what gather workspaces refile office focus rescue reload resume palette used events focus-time ;;
+    # rescue (and times, soak) run alone, holding every other run on the
+    # machine back, so they come only when the change reaches them: what
+    # rescue.lisp, errors.lisp and the loader do (below), never a layer file.
+    config/stumpwm/*) add lisp errors menu rules viri main drawer keys registry maps why what gather workspaces refile office focus reload resume palette used events focus-time ;;
+  esac
+  case $f in
+    config/stumpwm/vikix/rescue.lisp|config/stumpwm/vikix/errors.lisp|config/stumpwm/init.lisp|bin/vikix-rescue|bin/vikix-lock) add rescue ;;
   esac
   case $f in
     # A command's man page is made from its header (lib/man.py).

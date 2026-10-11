@@ -737,6 +737,20 @@ def parent_of(pid):
         return 0
 
 
+def started_at(pid):
+    """When the process PID started, as a Unix time: the boot's time (now
+    less the uptime) plus its start in clock ticks (stat's 22nd field); 0
+    when it can't be read. What says whether a note is from before an
+    agent's time at the desk."""
+    try:
+        uptime = float(open(f"{PROC}/uptime").read().split()[0])
+        stat = open(f"{PROC}/{pid}/stat").read()
+        ticks = int(stat[stat.rindex(")") + 2:].split()[19])
+        return int(time.time() - uptime + ticks / os.sysconf("SC_CLK_TCK"))
+    except (OSError, ValueError, IndexError):
+        return 0
+
+
 def my_agent():
     """The agent this process runs under (a hook is the agent's child, a
     few shells down), as {agent, pid, folder}; None when there is none.

@@ -72,9 +72,17 @@ if [ "$mode" = --names ]; then
     tests+=("$t")
   done
 elif [ "$mode" = --changed ]; then
-  # From the quick set, those the changes reach.
+  # From the quick set, those the changes reach. "all" is changed.sh's guess
+  # (a file no test names): the quick set, less the tests that run alone
+  # (times, soak, rescue), which wait for the whole machine and held two
+  # runs past their deadline in a day (2026-10-11); a change that reaches
+  # one names it, and tests/run.sh rescue runs it by itself.
   mapfile -t wanted < <(./changed.sh "${2:-origin/main}")
-  if [ "${wanted[*]}" = all ]; then wanted=("${tests[@]}"); echo "(the changes reach too far to pick: the quick set)"; fi
+  if [ "${wanted[*]}" = all ]; then
+    wanted=()
+    for t in "${tests[@]}"; do [[ " times soak rescue " == *" $t "* ]] || wanted+=("$t"); done
+    echo "(the changes reach too far to pick: the quick set, less times, soak and rescue, which run alone)"
+  fi
   kept=()
   for t in "${tests[@]}"; do [[ " ${wanted[*]} " == *" $t "* ]] && kept+=("$t"); done
   tests=("${kept[@]}")
@@ -93,6 +101,10 @@ jobs=${VIKIX_TEST_JOBS:-$(nproc 2>/dev/null || echo 2)}
 logs=$(mktemp -d)
 trap 'rm -rf "$logs"' EXIT
 failed=() took=() shown=()
+# The machine as the run begins: said with a failure, since a load past the
+# cores makes a timing check fail on its own (house, at a load of 5.5 on 4
+# cores, cost a release an hour, 2026-10-11).
+load_at_start="load $(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null || echo '?') on $(nproc 2>/dev/null || echo '?') cores"
 
 # The machine's test slots. Several sessions test at once, each run side
 # by side: with no more said, five runs on four cores were twenty tests at
@@ -177,11 +189,45 @@ show_ended() {
   done
 }
 
+# Stopped from outside (a timeout on the run, Ctrl+C) while tests wait for
+# a slot or for the machine: what passed and failed so far is said, with
+# what was left waiting or running, rather than lost with the run.
+stopped() {
+  trap - TERM INT
+  show_ended
+  local waiting=() running=() t
+  for t in "${ordered[@]}"; do
+    [[ " ${shown[*]} " == *" $t "* ]] && continue
+    if [ -e "$logs/$t.out" ]; then running+=("$t"); else waiting+=("$t"); fi
+  done
+  echo
+  echo "stopped before the end ($load_at_start as the run began):"
+  [ "${#running[@]}" -eq 0 ] || echo "  running, stopped: ${running[*]}"
+  [ "${#waiting[@]}" -eq 0 ] || echo "  not run: ${waiting[*]} (waiting for a slot or for the machine: other runs were testing)"
+  [ "${#shown[@]}" -eq 0 ] || echo "  passed: $(for t in "${shown[@]}"; do [[ " ${failed[*]} " == *" $t "* ]] || printf '%s ' "$t"; done)"
+  [ "${#failed[@]}" -eq 0 ] || echo "  FAILED: ${failed[*]}"
+  # Its own jobs and what they started (a test's shell, which a subshell ended by
+  # the signal would otherwise leave running), never a process group; their
+  # notes go with them, or vikix agents would see tests still running.
+  # No wait here: bash's wait inside a trap that interrupted a wait -n spun
+  # for good (2026-10-11); the exit reaps what is left.
+  local j
+  for j in "${started[@]}"; do kill_tree "$j"; rm -f "$slots_dir/notes/$j"; done
+  exit 124
+}
+kill_tree() {   # kill_tree PID: PID's children first, then PID
+  local c
+  for c in $(pgrep -P "$1" 2>/dev/null); do kill_tree "$c"; done
+  kill "$1" 2>/dev/null
+}
+trap stopped TERM INT
+
 # Tests that can't share the machine with others (a fixed real port or
 # display) run after the rest, one at a time: times and soak, whose measures
 # others running beside it would slow, and rescue, which makes a hidden
 # desktop work flat out and counts the seconds.
 alone=(times soak rescue)
+started=()
 for t in "${ordered[@]}"; do
   [[ " ${alone[*]} " == *" $t "* ]] && continue
   while [ "$(jobs -rp | wc -l)" -ge "$jobs" ]; do
@@ -189,12 +235,17 @@ for t in "${ordered[@]}"; do
     show_ended
   done
   in_slot run_one "$t" &
+  started+=("$!")
 done
 wait
 show_ended
+# In the background and waited on, as the others: a signal reaches a wait at
+# once, where one in a foreground flock would be held until the lock came.
 for t in "${ordered[@]}"; do
   [[ " ${alone[*]} " == *" $t "* ]] || continue
-  alone_slot run_one "$t"
+  alone_slot run_one "$t" &
+  started+=("$!")
+  wait "$!" 2>/dev/null || true
   show_ended
 done
 echo
@@ -203,6 +254,7 @@ echo "slowest: $(printf '%s\n' "${took[@]}" | sort -rn | head -5 | awk '{printf 
 if [ "${#failed[@]}" -eq 0 ]; then
   echo "all passed: ${tests[*]}"
 else
+  echo "($load_at_start as the run began)"
   echo "FAILED: ${failed[*]}"
   exit 1
 fi

@@ -144,13 +144,44 @@ check "the failures are shown" grep -q 'FAIL: made to' <<<"$out"
 out=$(release f "F" --tests none) && code=0 || code=$?
 check "--tests none runs none (you ran them): $code" bash -c "[ $code = 0 ] && grep -q 'tests: not run' <<<\"\$1\"" _ "$out"
 
-topic g file-g "from g"; echo more >> "$t/vikix-g/file-g"
+# --- The record's own check vouches for the commit -------------------------------------
+# One commit was tested four times in a day (the worker's run, the tester at the hand-in,
+# the release twice; 2026-10-11): a passing run of the runner on the very commit, as wide
+# as the release's, with a clean tree, is enough; a run of named tests, a check on an older
+# commit, or a failed run after the passing one is not.
+checked() {   # checked TOPIC NAME OK [NOTE]: a check in TOPIC's record, on its worktree's commit now
+  python3 -B -c 'import sys; sys.path.insert(0, sys.argv[1]); import handoff as H
+H.update(sys.argv[2], sys.argv[3], lambda r: H.add_check(r, sys.argv[4], sys.argv[5] == "ok", "vikix", sys.argv[3], sys.argv[6]), branch=sys.argv[7])' \
+    "$r/lib" "$r/.git" "$t/vikix-$1" "$2" "$3" "${4:-}" "$1" >/dev/null
+}
+topic tg file-tg "from g"; record tg "G, tested already"; checked tg "tests/run.sh --changed abc1234" ok "passed in 9 s"
+out=$(release tg "G" --keep) && code=0 || code=$?
+check "a passing check on the very commit: the tests are skipped, and said: $code $out" \
+  bash -c "[ $code = 0 ] && grep -q 'tests: not run: the desk.s record has tests/run.sh --changed abc1234 passed on [0-9a-f]* with a clean tree (vikix, just now: passed in 9 s)' <<<\"\$1\" && ! grep -q 'tests (changed)' <<<\"\$1\" && [ ! -e '$t/vikix-tg/.git-test-calls' ]" _ "$out"
+topic tk file-tk "from k"; record tk "K"; checked tk "tests/run.sh vk house" ok "passed in 3 s"
+out=$(release tk "K" --keep) && code=0 || code=$?
+check "a run of named tests vouches for nothing: the tests run: $code" bash -c "[ $code = 0 ] && grep -q 'tests (changed)' <<<\"\$1\"" _ "$out"
+topic tl file-tl "from l"; record tl "L"; checked tl "tests/run.sh --changed" ok "passed in 4 s"
+printf 'more\n' >> "$t/vikix-tl/file-tl"; git -C "$t/vikix-tl" commit -q -am "l: more"
+out=$(release tl "L" --keep) && code=0 || code=$?
+check "a check on an older commit: the tests run: $code" bash -c "[ $code = 0 ] && grep -q 'tests (changed)' <<<\"\$1\"" _ "$out"
+topic tm file-tm "from m"; record tm "M"; checked tm "tests/run.sh --changed" ok "passed"; checked tm "tests/run.sh --changed" failed "failed: x"
+out=$(release tm "M" --keep) && code=0 || code=$?
+check "a failed run after the passing one: the tests run: $code" bash -c "[ $code = 0 ] && grep -q 'tests (changed)' <<<\"\$1\"" _ "$out"
+topic tn file-tn "from n"; record tn "N"; checked tn "tests/run.sh --quick" ok "passed in 90 s"
+out=$(release tn "N" --keep --tests full) && code=0 || code=$?
+check "a check narrower than the run asked for: the tests run: $code" bash -c "[ $code = 0 ] && grep -q 'tests (full)' <<<\"\$1\"" _ "$out"
+out=$(release tn "N again" --tests none) && code=0 || code=$?
+check "--tests none as typed: $code" bash -c "[ $code != 0 ] && grep -q \"nothing main hasn't\" <<<\"\$1\"" _ "$out"
+for x in tg tk tl tm tn; do git -C "$r" worktree remove --force "$t/vikix-$x" 2>/dev/null; git -C "$r" branch -q -D "$x" 2>/dev/null; done
+
+topic tg file-tg "from g"; echo more >> "$t/vikix-tg/file-g"
 before=$(state)
-out=$(release g "G") && code=0 || code=$?
+out=$(release tg "G") && code=0 || code=$?
 check "changes not committed in the topic stop it: $code $out" bash -c "[ $code != 0 ] && grep -q 'not committed' <<<\"\$1\"" _ "$out"
 git -C "$t/vikix-g" checkout -q -- file-g
 echo stray > "$r/stray"
-out=$(release g "G") && code=0 || code=$?
+out=$(release tg "G") && code=0 || code=$?
 check "a main folder with changes of its own stops it: $code $out" bash -c "[ $code != 0 ] && grep -q 'for merging only' <<<\"\$1\"" _ "$out"
 rm "$r/stray"
 check "and nothing changed either time: $(state)" test "$(state)" = "$before"
@@ -158,7 +189,7 @@ out=$(release g) && code=0 || code=$?
 check "no summary, no release: $code" test "$code" != 0
 out=$(release nosuch "X") && code=0 || code=$?
 check "a topic that isn't there: $out" grep -q 'no branch nosuch' <<<"$out"
-release g "G" >/dev/null
+release tg "G" >/dev/null
 git -C "$r" worktree add -q "$t/vikix-h" -b h
 out=$(release h "H") && code=0 || code=$?
 check "a topic with nothing new is refused: $out" bash -c "[ $code != 0 ] && grep -q \"nothing main hasn't\" <<<\"\$1\"" _ "$out"

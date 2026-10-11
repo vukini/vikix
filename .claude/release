@@ -11,7 +11,12 @@
 #
 #   --tests changed|quick|full|none
 #                 which tests run first (changed: tests/run.sh --changed main,
-#                 the default; none: you ran them on this very commit)
+#                 the default; none: you ran them on this very commit). A
+#                 run is skipped, and said so, when the desk's record (the
+#                 office's, lib/handoff.py) has a passing check as wide on
+#                 the very commit being merged, with a clean tree: the
+#                 worker's or the tester's run speaks for it (one commit
+#                 was tested four times in a day, 2026-10-11)
 #   --plain       only put the branch on main: no version, no tag (a change
 #                 to TODO.md or the guides alone)
 #   --middle      the middle number goes up and the last starts again
@@ -156,8 +161,20 @@ if [ "$(git -C "$main" rev-list --count "$topic..main")" -gt 0 ]; then
   fi
 fi
 
+# The record's own check first: a passing run of the runner, as wide as this
+# one, on this very commit (the rebase above changed it when main had moved,
+# so nothing stale can vouch), with nothing uncommitted. --tests none stays as typed.
+# The topic's copy of lib/handoff.py, which is at least main's (main's has no
+# fresh-check until this lands); the closing below uses main's, the worktree gone by then.
+if [ "$tests" != none ] && [ -f "$wt/lib/handoff.py" ]; then
+  if vouched=$(python3 "$wt/lib/handoff.py" fresh-check "$common" "$wt" "$(git -C "$wt" rev-parse HEAD)" "$tests" 2>/dev/null); then
+    say "tests: not run: the desk's record has $vouched"
+    tests=none
+  fi
+fi
+
 case $tests in
-  none) say "tests: not run (you said none)" ;;
+  none) [ -n "${vouched:-}" ] || say "tests: not run (you said none)" ;;
   *)
     case $tests in changed) args=(--changed main) ;; quick) args=(--quick) ;; full) args=() ;; esac
     note "testing ($tests)"

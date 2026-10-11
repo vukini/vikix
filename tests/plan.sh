@@ -226,7 +226,7 @@ check "the desk is set waiting by vikix (under Needs you), with why: $(agents ha
   grep -q 'Status: waiting (vikix, just now)' <<<"$(agents handoff part-one)"
 check "the user is told once" bash -c '[ "$(grep -c "needs you" "$1")" = 1 ]' _ "$NOTIFIED"
 check "the status says Needs you: $(agents plan status book | grep -A1 'Needs you')" grep -q '^Needs you:' <<<"$(agents plan status book)"
-check "no fourth worker" test "$(grep -c 'Write the middle' "$t/agents")" = 3
+check "no fourth worker" test "$(grep -c "^$t/src/book-part-one	Write the middle" "$t/agents")" = 3
 round >/dev/null
 check "and says it once" bash -c '[ "$(grep -c "needs you" "$1")" = 1 ]' _ "$NOTIFIED"
 # The user hands the task in; the tests pass; the chain goes on to its release, held for the yes.

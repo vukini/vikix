@@ -115,5 +115,22 @@ check "the office's front and a part map to the office's tests: '$(map)'" \
   test "$(map)" = "codex door handoff house lint man mcp nyxt office office-ui plan tester titles"
 g checkout -q -- bin lib tests
 
+# rescue runs alone (holding every run on the machine back), so a layer file
+# doesn't bring it: rescue.lisp and the loader do. And a Lisp file most tests
+# name (registry.lisp) maps to them, never to all.
+mkdir -p "$repo/config/stumpwm/vikix"
+echo ';; day' >"$repo/config/stumpwm/vikix/day.lisp"; echo ';; rescue' >"$repo/config/stumpwm/vikix/rescue.lisp"; echo ';; registry' >"$repo/config/stumpwm/vikix/registry.lisp"
+for n in lisp menu rules rescue registry a b c d e f g h i j k l m n; do printf '#!/usr/bin/env bash\n# tests/%s.sh: registry.lisp\n' "$n" >"$repo/tests/$n.sh"; done
+g add config tests; g commit -q -m 'the layer'
+echo ';; more' >>"$repo/config/stumpwm/vikix/day.lisp"
+check "a layer file maps to the Lisp tests, without rescue: '$(map)'" bash -c '[[ " $1 " == *" lisp "* && " $1 " != *" rescue "* && " $1 " != *" all "* ]]' _ "$(map)"
+reset; g checkout -q -- config
+echo ';; more' >>"$repo/config/stumpwm/vikix/rescue.lisp"
+check "rescue.lisp brings rescue: '$(map)'" bash -c '[[ " $1 " == *" rescue "* ]]' _ "$(map)"
+g checkout -q -- config
+echo ';; more' >>"$repo/config/stumpwm/vikix/registry.lisp"
+check "a Lisp file more than twelve tests name maps to them, not to all: '$(map)'" bash -c '[[ " $1 " != *" all "* && " $1 " == *" n "* && " $1 " == *" registry "* ]]' _ "$(map)"
+g checkout -q -- config
+
 [ "$fail" = 0 ] && echo "changed-map: a change to bin/vikix maps to its part's tests (header, an arm, update's and try's functions, the short forms), anything else to all"
 exit "$fail"

@@ -91,15 +91,18 @@ def test_desk(folder, note=""):
     with open(running, "w") as f:
         f.write(f"{os.getpid()} {int(time.time())}\n")
     started = time.time()
+    waited = 0
     try:
         # A release's tests and a desk's at once failed two timing checks for
         # load alone (2026-10-09), and the release is the one that merges: it
         # has the machine first. The running note is written already, so a
-        # second tester isn't started meanwhile.
-        topic = release_testing(folder)
+        # second tester isn't started meanwhile. Not for a change no test
+        # covers (a plan, a design): the whole wait, then one second's run,
+        # was "passed in 1801 s" (2026-10-11).
+        topic = release_testing(folder) if changed_covers(where, base) else ""
         if topic:
             print(f"{short(folder)}: a release of {topic} is testing; waiting for it")
-        waited, step = 0, min(5, max(1, RELEASE_WAIT))
+        step = min(5, max(1, RELEASE_WAIT))
         while topic and waited < RELEASE_WAIT:
             time.sleep(step)
             waited += step
@@ -111,7 +114,23 @@ def test_desk(folder, note=""):
         except OSError:
             pass
     name = "tests/run.sh" + (f" --changed {base[:7]}" if changed and base else "")
-    return tester_result(folder, name, ok, names, excerpt, int(time.time() - started), note)
+    if waited:
+        note = (note + "; " if note else "") + f"waited {waited} s for a release's tests first"
+    return tester_result(folder, name, ok, names, excerpt, int(time.time() - started) - waited, note)
+
+
+def changed_covers(where, base):
+    """Whether a test covers the desk's change: the project's
+    tests/changed.sh BASE (Vikix's map of files to tests) names one, or
+    says all; True when the project has no such map, or it fails."""
+    mapper = os.path.join(where or "", "tests", "changed.sh")
+    if not where or not base or not os.access(mapper, os.X_OK):
+        return True
+    try:
+        r = subprocess.run([mapper, base], cwd=where, capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired):
+        return True
+    return r.returncode != 0 or bool(r.stdout.strip())
 
 
 def test_batch(own, own_branch, batch):
@@ -463,6 +482,14 @@ def review_result(folder, provider, pid, summary, findings, took, failure=""):
     except H.HandoffError:
         pass
     print(f"{short(folder)}: {line}")
+    if n and not failure:
+        # A worker that handed in sits at its prompt and makes no tool call, so the
+        # findings would wait unread: one at its prompt is resumed with them as its prompt.
+        woken, said = wake(folder, line, "vikix")
+        print(f"{short(folder)}: {said}")
+        if not woken and os.environ.get("DISPLAY") and shutil.which("notify-send"):
+            subprocess.run(["notify-send", "-a", "Vikix", f"Review of {short(folder)}: {n} finding{'s' if n != 1 else ''}",
+                            said[:200]], check=False)
     return not failure
 
 
@@ -538,7 +565,7 @@ def review_start(folder, provider, extra=""):
     log, _ = review_paths(folder)
     os.makedirs(os.path.dirname(log), exist_ok=True)
     with open(log + ".reviewer", "w") as out:
-        subprocess.Popen([sys.executable, os.path.realpath(__file__), "review", folder, "--use", provider]
+        subprocess.Popen([sys.executable, os.path.realpath(__file__), "review", folder, "--use", provider, "--here"]
                          + (["--prompt", extra] if extra else []), cwd=folder,
                          stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT, start_new_session=True)
 
@@ -554,7 +581,7 @@ def review_auto(folder):
 
 
 def review(argv):
-    """vikix agents review DESK [--use NAME] [--prompt "..."] | --log DESK | --menu."""
+    """vikix agents review DESK [--use NAME] [--prompt "..."] [--here] | --log DESK | --menu."""
     if argv == ["--menu"]:
         folder = pick_desk("Review", "Another provider reads the desk's last commit, read-only; its findings go into the handoff and the agent's inbox.")
         if folder is None:
@@ -572,7 +599,7 @@ def review(argv):
         review_start(folder, provider)
         say(f"{short(folder)}: {provider} reviews its last commit; the findings go into its handoff and its agent's inbox")
         return 0
-    use, extra, show, words = None, "", False, []
+    use, extra, show, words, here = None, "", False, [], False
     while argv:
         a = argv.pop(0)
         if a == "--use":
@@ -581,6 +608,8 @@ def review(argv):
             extra = argv.pop(0) if argv and argv[0].strip() else die("--prompt needs words for the reviewer")
         elif a == "--log":
             show = True
+        elif a == "--here":
+            here = True
         elif a.startswith("-"):
             die(f"vikix agents review: {a}? (vikix agents help review)")
         else:
@@ -617,4 +646,17 @@ def review(argv):
             handoff_module().clean(extra, "the review's words")   # a credential in the words is refused, as in a note
         except handoff_module().HandoffError as e:
             die(str(e))
-    return 0 if review_desk(folder, provider, extra) else 1
+    if here:
+        return 0 if review_desk(folder, provider, extra) else 1
+    # Apart from this shell, as a hand-in's review runs: killed under a timeout, a review
+    # read from a pipe here orphaned the reviewer and lost its findings (2026-10-11).
+    if not reviewer_program(provider):
+        die(f"{provider} isn't installed here: vikix agent --install {provider} (the reviewers: {', '.join(REVIEWERS)})")
+    if not (git(folder, "rev-parse", "HEAD") or "").strip():
+        die(f"{short(folder)} has no commit to review")
+    review_start(folder, provider, extra)
+    log, _ = review_paths(folder)
+    print(f"{short(folder)}: {provider} reviews its last commit, apart from this shell; the findings go into its handoff "
+          f"and its agent's inbox, and the reviewer's words to {short(log)} (vikix agents review --log "
+          f"{os.path.basename(folder)}); --here would have waited for it")
+    return 0
