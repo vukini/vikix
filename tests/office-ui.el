@@ -4,7 +4,7 @@
 (defun office-test-data (&optional ids)
   `((version . 1) (at . 1791300000) (live_known . t) (errors . nil) (releases . nil) (releases_kept . :false)
     (desks . ,(mapcar (lambda (id)
-                       `((id . ,id) (title . ,(concat "Task " id)) (group . "Parked")
+                       `((id . ,id) (title . ,(concat "Task " id)) (group . "Needs you")
                          (desk . ((project . "Vikix") (worktree . "/tmp/a desk with spaces")))
                          (status . "review") (live_known . t) (exists . t) (kind . "desk")
                          (task . nil) (handoff . nil) (now . nil) (checks . nil) (sessions . nil)
@@ -282,6 +282,83 @@ is drawn again at that width."
      (vikix-office-toggle-archive)
      (should (equal vikix-office--selected "a")))))
 
+(ert-deftest office-parked-and-closed-desks-have-a-page-of-their-own ()
+  "The first page holds Needs you, Working and Finished; Parked and Closed are
+on a page of their own, reached by its button or k, with Back to desks; the
+Archive is the third. The buttons count the other pages' rows."
+  (office-test-buffer
+   (let ((parked (copy-tree (car (alist-get 'desks vikix-office--data))))
+         (closed (copy-tree (car (alist-get 'desks vikix-office--data))))
+         (finished (copy-tree (car (alist-get 'desks vikix-office--data)))))
+     (setf (alist-get 'id parked) "park" (alist-get 'title parked) "Parked task" (alist-get 'group parked) "Parked"
+           (alist-get 'id closed) "gone" (alist-get 'title closed) "Closed task" (alist-get 'group closed) "Closed"
+           (alist-get 'exists closed) :false
+           (alist-get 'id finished) "fin" (alist-get 'title finished) "Finished task" (alist-get 'group finished) "Finished"
+           (alist-get 'desks vikix-office--data) (append (alist-get 'desks vikix-office--data) (list parked finished closed))
+           (alist-get 'archive vikix-office--data) '(((id . "old") (title . "Old task") (group . "Archived") (archived . t) (exists . :false))))
+     (setq vikix-office--detail (generate-new-buffer " *Pages details*"))
+     (vikix-office--render)
+     (let ((text (buffer-string)))
+       ;; The first page: its three groups, the parked and closed desks not on it.
+       (should (string-match-p "Finished task" text))
+       (should-not (string-match-p "Parked task" text))
+       (should-not (string-match-p "Closed task" text))
+       (should-not (string-match-p "Back to desks" text))
+       (should (string-match-p "Parked and closed (2)" text))
+       (should (string-match-p "Archive (1)" text))
+       (should (string-match-p "New desk…" text)))
+     ;; k: the parked page, its first row selected, Closed after Parked, no New desk.
+     (vikix-office-toggle-parked)
+     (should (eq vikix-office--page 'parked))
+     (should (equal vikix-office--selected "park"))
+     (let ((text (buffer-string)))
+       (should (string-match-p "Parked task" text))
+       (should (string-match-p "Closed task" text))
+       (should (< (string-match "Parked task" text) (string-match "Closed task" text)))
+       (should-not (string-match-p "Finished task" text))
+       (should-not (string-match-p "Task a" text))
+       (should-not (string-match-p "New desk…" text))
+       (should (string-match-p "Back to desks" text))
+       (should (string-match-p "Archive (1)" text))
+       (should-not (string-match-p "Parked and closed (" text)))
+     ;; n moves within the page.
+     (save-window-excursion
+       (switch-to-buffer buffer)
+       (vikix-office-next 1)
+       (should (equal vikix-office--selected "gone"))
+       (vikix-office-next 1)
+       (should (equal vikix-office--selected "gone")))
+     ;; A from the parked page goes to the Archive; A again back to the desks, not to the parked page.
+     (vikix-office-toggle-archive)
+     (should (eq vikix-office--page 'archive))
+     (should (string-match-p "Parked and closed (2)" (buffer-string)))
+     (vikix-office-toggle-archive)
+     (should (eq vikix-office--page 'desks))
+     (should (equal vikix-office--selected "a"))
+     ;; k from the Archive goes to the parked page; k again back to the desks.
+     (vikix-office-toggle-archive)
+     (vikix-office-toggle-parked)
+     (should (eq vikix-office--page 'parked))
+     (vikix-office-toggle-parked)
+     (should (eq vikix-office--page 'desks))
+     ;; The desk pane has the same keys: k there changes the Office's page.
+     (with-current-buffer vikix-office--detail
+       (setq-local vikix-office--owner buffer)
+       (vikix-office-toggle-parked))
+     (should (eq vikix-office--page 'parked))
+     (vikix-office-toggle-parked)
+     ;; An empty first page says where the desks are; an empty parked page says so too.
+     (setf (alist-get 'desks vikix-office--data) (list parked closed))
+     (vikix-office--render)
+     (should (string-match-p "on the Parked and closed page (k)" (buffer-string)))
+     (setf (alist-get 'desks vikix-office--data) (list finished))
+     (vikix-office-toggle-parked)
+     (should (string-match-p "No parked or closed desks" (buffer-string)))
+     (vikix-office-toggle-parked)
+     (setf (alist-get 'desks vikix-office--data) nil)
+     (vikix-office--render)
+     (should (string-match-p "No desks yet" (buffer-string))))))
+
 (ert-deftest office-closed-desk-has-a-box-and-can-be-forgotten ()
   (office-test-buffer
    (let ((closed (copy-tree (car (alist-get 'desks vikix-office--data)))))
@@ -295,10 +372,12 @@ is drawn again at that width."
      (push (cons 'closed '((at . 1791296400) (by . "release"))) (car (last (alist-get 'desks vikix-office--data))))
      (setq vikix-office--detail (generate-new-buffer " *Closed details*"))
      (vikix-office--render)
-     ;; The Closed box comes last, after Finished, with the desk in it.
-     (should (string-match-p "Finished" (buffer-string)))
-     (should (string-match-p "Closed" (buffer-string)))
-     (should (< (string-match "Finished" (buffer-string)) (string-match "Closed task" (buffer-string))))
+     ;; The Closed box is on the Parked and closed page, after Parked, with the desk in it.
+     (should-not (string-match-p "Closed task" (buffer-string)))
+     (vikix-office-toggle-parked)
+     (should (string-match-p "Parked" (buffer-string)))
+     (should (string-match-p "Closed task" (buffer-string)))
+     (should (< (string-match "Parked" (buffer-string)) (string-match "Closed task" (buffer-string))))
      (setq vikix-office--selected "gone")
      (vikix-office--render-detail)
      (with-current-buffer vikix-office--detail

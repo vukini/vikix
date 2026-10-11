@@ -58,7 +58,28 @@ over the refreshes that follow, so it is seen; g drops it.")
         (let ((colour (or (cdr (assoc key palette)) (cdr (assoc fallback palette)))))
           (when (and colour (not (equal colour (face-foreground face nil t))))
             (set-face-attribute face nil :foreground colour)))))))
-(defvar-local vikix-office--archive nil)
+
+;; The Office's pages (2026-10-11: the first page was too long with every
+;; desk on it). The first holds the desks with something to do at them: the
+;; groups Needs you, Working and Finished (a finished desk still stands, yours
+;; to release or close). The second is Parked and Closed: the desks nobody
+;; works at and the ones closed today. The third is the Archive, the records
+;; of worktrees gone. Each is drawn from the same snapshot; the parked page's
+;; rows are the snapshot's desks of those two groups, the archive's its
+;; archive list.
+(defvar-local vikix-office--page 'desks
+  "The page shown: `desks', `parked' or `archive'.")
+(defconst vikix-office--page-groups
+  '((desks . ("Needs you" "Working" "Finished"))
+    (parked . ("Parked" "Closed"))
+    (archive . ("Archived")))
+  "Each page's groups, in the order their boxes are drawn.")
+(defun vikix-office--page-rows (page &optional data)
+  "The rows of PAGE in DATA (the buffer's data when nil)."
+  (let* ((data (or data vikix-office--data))
+         (groups (alist-get page vikix-office--page-groups)))
+    (if (eq page 'archive) (alist-get 'archive data)
+      (cl-remove-if-not (lambda (r) (member (alist-get 'group r) groups)) (alist-get 'desks data)))))
 
 (defun vikix-office--get (key object) (alist-get key object))
 (defun vikix-office--text (value) (if (stringp value) value (format "%s" (or value "unknown"))))
@@ -71,7 +92,8 @@ over the refreshes that follow, so it is seen; g drops it.")
 (defun vikix-office--owner-buffer ()
   (if (buffer-live-p vikix-office--owner) vikix-office--owner (current-buffer)))
 (defun vikix-office--rows ()
-  (alist-get (if vikix-office--archive 'archive 'desks) vikix-office--data))
+  "The rows of the page shown."
+  (vikix-office--page-rows vikix-office--page))
 (defun vikix-office--folder-p (row)
   "ROW is a plain folder agents run in (an agent started in ~), not a desk."
   (equal (alist-get 'kind row) "folder"))
@@ -278,21 +300,30 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
       (erase-buffer)
       (insert (propertize "The Office\n" 'face '(:inherit variable-pitch :height 1.5 :weight bold)))
       (insert "A row a desk: its task, its workers before, under it. Conversations stay in their agent terminals.\n\n")
-      (unless vikix-office--archive
+      (when (eq vikix-office--page 'desks)
         (vikix-office--button "New desk…" (lambda () (with-current-buffer owner (vikix-office-new-desk))))
         (vikix-office--button "New plan…" (lambda () (with-current-buffer owner (vikix-office-new-plan)))))
       (vikix-office--button "Guide" (lambda () (with-current-buffer owner (vikix-office-guide))))
-      (vikix-office--button (if vikix-office--archive "Back to desks" (format "Archive (%d)" (length (alist-get 'archive vikix-office--data))))
-                            (lambda () (with-current-buffer owner (vikix-office-toggle-archive))))
-      (when (and vikix-office--archive rows (eq (alist-get 'live_known vikix-office--data) t)
+      ;; The other pages' buttons, each with its count; on another page the
+      ;; first is Back to desks.
+      (unless (eq vikix-office--page 'desks)
+        (vikix-office--button "Back to desks" (lambda () (with-current-buffer owner (vikix-office-show-page 'desks)))))
+      (unless (eq vikix-office--page 'parked)
+        (vikix-office--button (format "Parked and closed (%d)" (length (vikix-office--page-rows 'parked)))
+                              (lambda () (with-current-buffer owner (vikix-office-show-page 'parked)))))
+      (unless (eq vikix-office--page 'archive)
+        (vikix-office--button (format "Archive (%d)" (length (alist-get 'archive vikix-office--data)))
+                              (lambda () (with-current-buffer owner (vikix-office-show-page 'archive)))))
+      (when (and (eq vikix-office--page 'archive) rows (eq (alist-get 'live_known vikix-office--data) t)
                  (not (alist-get 'errors vikix-office--data)))
         (vikix-office--button "Purge archive…" (lambda () (with-current-buffer owner (vikix-office-purge-archive)))))
       (insert "\n\n")
       ;; The releases under way (.claude/release's queue, as --queue shows
       ;; it): a box when there are any, the one whose turn it is first; a
       ;; line when a repository has released before and none is under way;
-      ;; nothing on a machine that never released.
-      (unless vikix-office--archive
+      ;; nothing on a machine that never released. Both boxes are the
+      ;; first page's alone.
+      (when (eq vikix-office--page 'desks)
         (let ((releases (alist-get 'releases vikix-office--data)))
           (cond (releases
                  (let ((label-width (vikix-office--label-width
@@ -368,9 +399,16 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                      (when (member state '("running" "paused" "stopped" "done"))
                        (vikix-office--button "Log" (lambda () (with-current-buffer owner (vikix-office-plan-log file)))))))))
               (vikix-office--box-bottom width chars)))))
-      (if (null rows) (insert (if vikix-office--archive "Archive is empty.\n" "No desks yet. vikix agents desk PROJECT TOPIC makes one, vikix agents worker TOPIC \"the task\" starts a worker at it.\n"))
+      (if (null rows)
+          (insert (pcase vikix-office--page
+                    ('archive "Archive is empty.\n")
+                    ('parked "No parked or closed desks.\n")
+                    ;; An empty first page with desks on the parked one says where they are.
+                    (_ (if (vikix-office--page-rows 'parked)
+                           "Nothing needs you and nothing is at work: the desks are on the Parked and closed page (k).\n"
+                         "No desks yet. vikix agents desk PROJECT TOPIC makes one, vikix agents worker TOPIC \"the task\" starts a worker at it.\n"))))
         ;; Closed last: the desks closed today, newest first, nothing to do at them.
-        (dolist (group (if vikix-office--archive '("Archived") '("Needs you" "Working" "Parked" "Finished" "Closed")))
+        (dolist (group (alist-get vikix-office--page vikix-office--page-groups))
           (let ((members (cl-remove-if-not (lambda (r) (equal (alist-get 'group r) group)) rows))
                 (first t))
             (vikix-office--box-top width chars group)
@@ -759,12 +797,23 @@ over the refreshes that follow; THEN, when given, after a success."
                            (vikix-office--notice (or error vikix-office--said "Done"))
                            (when (and then (not error)) (funcall then)))))
 
-(defun vikix-office-toggle-archive ()
-  (interactive)
+(defun vikix-office-show-page (page)
+  "Show PAGE (`desks', `parked' or `archive'), its first row selected."
   (with-current-buffer (vikix-office--owner-buffer)
-    (setq vikix-office--archive (not vikix-office--archive)
+    (setq vikix-office--page page
           vikix-office--selected nil)
     (vikix-office--render)))
+(defun vikix-office--page-shown ()
+  "The page the Office shows, asked of the Office's buffer (the desk pane has the same keys)."
+  (buffer-local-value 'vikix-office--page (vikix-office--owner-buffer)))
+(defun vikix-office-toggle-archive ()
+  "The Archive, or back to the desks from any other page."
+  (interactive)
+  (vikix-office-show-page (if (eq (vikix-office--page-shown) 'archive) 'desks 'archive)))
+(defun vikix-office-toggle-parked ()
+  "The Parked and closed page, or back to the desks from any other page."
+  (interactive)
+  (vikix-office-show-page (if (eq (vikix-office--page-shown) 'parked) 'desks 'parked)))
 
 (defun vikix-office-purge-archive ()
   "Permanently remove the archived handoff records shown in this snapshot."
@@ -1414,6 +1463,7 @@ were."
     (define-key map (kbd "h") #'vikix-office-guide)
     (define-key map (kbd "w") #'vikix-office-worker)
     (define-key map (kbd "A") #'vikix-office-toggle-archive)
+    (define-key map (kbd "k") #'vikix-office-toggle-parked)
     (define-key map (kbd "q") #'vikix-office-close)
     (define-key map (kbd "RET") #'vikix-office-details)
     (define-key map (kbd "TAB") #'forward-button)

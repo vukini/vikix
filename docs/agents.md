@@ -457,8 +457,11 @@ are in, and `q` then puts that frame's windows back as they were.
 
 Above the desks, a **Plans** box when a plan has run or been written (`vikix agents plan`): a plan a group, its name, project and whether its runner runs, a line a desk saying where that desk's chain stands, and what needs you; a desk of a plan says which in its **Plan** line. A plan written and not run yet (`plan new`, or **New plan…**) is a *draft* there, with the tasks still holding the template's `EDIT:` lines under *Needs you*. Each plan ends with the acts its state takes, each `vikix agents plan` from the Office: **Run** for a draft whose words are written (**Run again** for one stopped or whose runner isn't running: it carries on), **Pause** and **Stop** while it runs, **Go on** when paused, **Edit**, which opens the plan's file in the desk pane (`RET` on a desk brings the pane back), and **Log**, what the runner did.
 
-The left side groups desks into **Needs you**, **Working**, **Parked**,
-**Finished** and **Closed**, each group drawn in a box of its own, a rule between its
+The left side groups desks into **Needs you**, **Working** and **Finished**
+on its first page, and **Parked** and **Closed** on a page of their own (the
+**Parked and closed** button, or `k`; **Back to desks**, or `k` again, returns),
+so the first page holds only the desks with something to do at them. Each
+group is drawn in a box of its own, a rule between its
 desks, and a desk's lines as labelled rows (Task, Live, Handoff, Next, Before); the desk
 pane draws each of its sections (the task, the agent's claims, the Git
 state, the checks, the agents, the saved conversations) in a box the same
@@ -485,10 +488,12 @@ a palette. A waiting agent or a waiting/review handoff needs you, as does a
 terminal waiting for `gup` or to be closed;
 a live agent otherwise counts as working; a finished record whose desk
 still stands counts as finished (it is yours to release or close); the
-remaining desks are parked. A desk closed in the last day (`vikix agents
-close`, or the release that removed it) is **Closed**: newest first, its
+remaining desks are parked, on the second page. A desk closed in the last day (`vikix agents
+close`, or the release that removed it) is **Closed**, on the same page: newest first, its
 row saying who closed it and when, nothing to do at it, and *Forget this
-record…* in its details; after a day its record is in the Archive. Unavailable
+record…* in its details; after a day its record is in the Archive. When nothing
+needs you and nothing is at work, the first page says that the desks are on
+the parked page. Unavailable
 live discovery is **unknown**, never proof that an agent stopped. Desks
 without handoffs still appear. A folder an agent merely runs in (one
 started in `~`, or in a project's own folder) gets a row too, marked
@@ -514,12 +519,14 @@ release that ended is skipped, never removed. When none is under way, a
 repository that has released before gets the line *No release under way*,
 and a machine that never released shows nothing.
 
-Click **Archive** (or press `A`) to see historical tasks, handoffs and checks.
-Archived entries say no action is needed; Go to agent, Continue and Close
+Click **Archive** (or press `A`) to see historical tasks, handoffs and checks,
+the third page. Archived entries say no action is needed; Go to agent, Continue and Close
 agent are absent. Their old next actions are historical, not new instructions.
 **Forget this record…** removes that one record after confirmation (as
 `vikix agents handoff forget` does); its files, branch and saved
 conversations stay. **Back to desks** (`A` again) returns to current work.
+Each page's button counts that page's desks; the New desk and New plan
+buttons, the Releases box and the Plans box are the first page's alone.
 
 **Purge archive** permanently deletes the archived desk records after
 confirmation. It rechecks the exact records, worktree paths and live agents;
