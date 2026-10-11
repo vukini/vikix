@@ -1,11 +1,14 @@
-# one-task — one worker on one task at one desk, released when it is in
+# one-task — a single job: one worker at one desk, released when its work is in
 #
 # A plan of Vikix's: vikix agents plan new one-task NAME writes a copy of it
 # with your project filled in, for you to edit; the Office's New plan… has
 # its tasks as a form's fields and writes your words in. Every line
 # beginning EDIT: is yours to write before the plan runs (plan run refuses
-# a task still holding one). vikix agents help plan says what each key
-# does; the guide's "A plan" has the whole of it.
+# a task still holding one); the example after "E.g." in each shows the
+# shape. The release line is what the release's commit and tag say after
+# the version (Vikix 0.72.44: that line): one line, what it brings. vikix
+# agents help plan says what each key does; the guide's "A plan" has the
+# whole of it.
 
 project = "PROJECT"
 at-once = 1
@@ -14,8 +17,8 @@ gate = "none"          # "me": the desk's release waits for your yes
 [[task]]
 name = "work"
 desk = "topic"         # plan new puts the plan's name here: the worktree's ending and the branch
-task = "EDIT: what the worker builds, in your words: where it goes, what it must keep working, how you will know it is done"
-release = "EDIT: the release's line, what it brings"
+task = "EDIT: what the worker builds, in your words: where it goes, what it must keep working, how you will know it is done. E.g. The bar's clock shows the date while the pointer rests on it, in modeline.lisp; the bar keeps its width; done when tests/bar.sh checks the date and the width."
+release = "EDIT: one line, what the release brings. E.g. The bar's clock shows the date on hover"
 # agent = "codex"      # the worker's choices, as the New worker form has them
 # local = true
 # push = false

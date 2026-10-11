@@ -426,7 +426,7 @@ class Office(unittest.TestCase):
         made = []
         tasks = [{'name': 'build', 'text': 'EDIT: words', 'desk': 'topic', 'after': [], 'agent': '', 'local': False, 'push': False,
                   'no_tests': False, 'release': '', 'mode': '', 'acceptance': [], 'index': 0}]
-        with patch.object(plan, 'templates', lambda: [{'name': 'one-desk', 'file': '/x/one-desk.toml', 'about': 'one desk', 'yours': False, 'error': '',
+        with patch.object(plan, 'templates', lambda: [{'name': 'build-chain', 'file': '/x/build-chain.toml', 'about': 'one desk', 'yours': False, 'error': '',
                                                        'at_once': 1, 'gate': 'me', 'tasks': tasks},
                                                       {'name': 'bad', 'file': '/x/bad.toml', 'about': '', 'yours': True, 'error': 'not TOML',
                                                        'at_once': None, 'gate': None, 'tasks': []}]), \
@@ -438,37 +438,37 @@ class Office(unittest.TestCase):
                 def rows(self, projects, everything): return []
             with patch.object(A, 'projects', lambda: VP()):
                 offer = office.form(A)
-            self.assertEqual([t['name'] for t in offer['templates']], ['one-desk'])
+            self.assertEqual([t['name'] for t in offer['templates']], ['build-chain'])
             self.assertEqual(offer['templates'][0]['tasks'], tasks)
             self.assertEqual(offer['plans_folder'], '/home/u/.config/vikix/plans')
             import io
             from contextlib import redirect_stdout
             out = io.StringIO()
             with redirect_stdout(out):
-                office.main(A, ['--plan', 'one-desk', ' chapters ', 'vikix', '--at-once', '2', '--gate', 'me'])
-            self.assertEqual(made[-1], ('one-desk', 'chapters', 'vikix', 2, 'me', None))
+                office.main(A, ['--plan', 'build-chain', ' chapters ', 'vikix', '--at-once', '2', '--gate', 'me'])
+            self.assertEqual(made[-1], ('build-chain', 'chapters', 'vikix', 2, 'me', None))
             self.assertEqual(out.getvalue(), '/home/u/.config/vikix/plans/chapters.toml\n')
             with redirect_stdout(io.StringIO()):
-                office.main(A, ['--plan', 'one-desk', 'cover', 'vikix'])
-            self.assertEqual(made[-1], ('one-desk', 'cover', 'vikix', None, None, None))
+                office.main(A, ['--plan', 'build-chain', 'cover', 'vikix'])
+            self.assertEqual(made[-1], ('build-chain', 'cover', 'vikix', None, None, None))
             # The form's tasks: JSON on stdin with --tasks, handed on as they are.
             with redirect_stdout(io.StringIO()), patch.object(sys, 'stdin', io.StringIO('[{"name": "build", "task": "Build it.", "after": ["a"]}]')):
-                office.main(A, ['--plan', 'one-desk', 'cover', 'vikix', '--gate', 'none', '--tasks'])
-            self.assertEqual(made[-1], ('one-desk', 'cover', 'vikix', None, 'none', [{'name': 'build', 'task': 'Build it.', 'after': ['a']}]))
+                office.main(A, ['--plan', 'build-chain', 'cover', 'vikix', '--gate', 'none', '--tasks'])
+            self.assertEqual(made[-1], ('build-chain', 'cover', 'vikix', None, 'none', [{'name': 'build', 'task': 'Build it.', 'after': ['a']}]))
             n = len(made)
-            for bad in (['--plan'], ['--plan', 'one-desk', 'x'], ['--plan', 'one-desk', 'x', 'vikix', '--at-once', 'two'],
-                        ['--plan', 'one-desk', 'x', 'vikix', '--run'], ['--plan', 'one-desk', '', 'vikix']):
+            for bad in (['--plan'], ['--plan', 'build-chain', 'x'], ['--plan', 'build-chain', 'x', 'vikix', '--at-once', 'two'],
+                        ['--plan', 'build-chain', 'x', 'vikix', '--run'], ['--plan', 'build-chain', '', 'vikix']):
                 with self.assertRaises(ValueError, msg=bad):
                     office.main(A, bad)
             for text in ('not json', '{"name": "a"}'):
                 with patch.object(sys, 'stdin', io.StringIO(text)), self.assertRaises(ValueError, msg=text):
-                    office.main(A, ['--plan', 'one-desk', 'x', 'vikix', '--tasks'])
+                    office.main(A, ['--plan', 'build-chain', 'x', 'vikix', '--tasks'])
             self.assertEqual(len(made), n)
             # plan new's refusal (a file there, a bad template) is the backend's error, in its words.
             def refuse(*a):
                 raise plan.PlanError('x is there already')
             with patch.object(plan, 'new_plan', refuse), self.assertRaises(RuntimeError) as got:
-                office.main(A, ['--plan', 'one-desk', 'x', 'vikix'])
+                office.main(A, ['--plan', 'build-chain', 'x', 'vikix'])
             self.assertIn('is there already', str(got.exception))
 
     def test_drafts_in_the_snapshot(self):

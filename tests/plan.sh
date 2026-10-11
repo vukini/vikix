@@ -295,7 +295,7 @@ check "the Office's snapshot has the plan, its desks and what needs you: $(pytho
 
 # --- Templates, a plan written from one, drafts; the Office's New plan ---------------------------
 out=$(agents plan templates)
-for tp in one-task one-desk side-by-side; do
+for tp in one-task build-chain two-desks; do
   check "templates lists $tp with its line: $out" grep -q "^$tp  *[a-z].*" <<<"$out"
   check "$tp reads as a plan" python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import plan; plan.read_plan(sys.argv[2])' "$here/lib" "$here/config/plans/$tp.toml"
   check "$tp's first line says what it is for" grep -q "^# $tp — ." "$here/config/plans/$tp.toml"
@@ -303,21 +303,21 @@ for tp in one-task one-desk side-by-side; do
   check "$tp's tasks are EDIT: lines" grep -q '^task = "EDIT: ' "$here/config/plans/$tp.toml"
 done
 check "the templates say where a copy goes" grep -q 'writes one to ~/.config/vikix/plans/NAME.toml' <<<"$out"
-out=$(agents plan new one-desk chapters book --gate none)
-check "plan new writes the copy and names the EDIT: lines: $out" grep -q 'plan chapters written to ~/.config/vikix/plans/chapters.toml from one-desk: write its EDIT: lines (build, tests, guide), then' <<<"$out"
+out=$(agents plan new build-chain chapters book --gate none)
+check "plan new writes the copy and names the EDIT: lines: $out" grep -q 'plan chapters written to ~/.config/vikix/plans/chapters.toml from build-chain: write its EDIT: lines (build, tests, guide), then' <<<"$out"
 draft="$HOME/.config/vikix/plans/chapters.toml"
 check "the project is filled in" grep -q '^project = "book"' "$draft"
 check "the gate asked for, its comment kept" grep -q '^gate = "none" .*#' "$draft"
 check "the desks are named for the plan" bash -c '[ "$(grep -c "^desk = \"chapters\"" "$1")" = 3 ]' _ "$draft"
-check "the template's comments explain the file" grep -q '^# one-desk — ' "$draft"
-out=$(agents plan new one-desk chapters book)
+check "the template's comments explain the file" grep -q '^# build-chain — ' "$draft"
+out=$(agents plan new build-chain chapters book)
 check "a plan that is there is refused: $out" grep -q 'is there already: another name, or edit that one' <<<"$out"
 out=$(agents plan new nope x book)
 check "no such template: $out" grep -q 'no template called nope' <<<"$out"
 out=$(agents plan new one-task 'Bad Name' book)
 check "a name that is no word: $out" grep -q "a plan's name is a word" <<<"$out"
 check "nothing written for the refusals" bash -c '[ "$(ls "$1"/.config/vikix/plans/*.toml | wc -l)" = 1 ]' _ "$HOME"
-out=$(agents plan new side-by-side cover book --at-once 3)
+out=$(agents plan new two-desks cover book --at-once 3)
 check "at-once asked for" grep -q '^at-once = 3' "$HOME/.config/vikix/plans/cover.toml"
 check "several desks named for the plan" grep -q '^desk = "cover-together"' "$HOME/.config/vikix/plans/cover.toml"
 out=$(agents plan status)
@@ -352,26 +352,26 @@ assert c["draft"] and c["state"] == "draft" and c["project"] == "book" and c["ed
 assert [d["topic"] for d in c["desks"]] == ["chapters"] and c["needs"] == ["still the template'"'"'s words (EDIT: lines) at build, tests, guide: write them first"]
 assert plans["cover"]["edit"] == ["first", "second", "together"] and [d["topic"] for d in plans["cover"]["desks"]] == ["cover-one", "cover-two", "cover-together"]
 ' <<<"$out"
-out=$(agents office --plan one-desk office-made book --at-once 2 --gate me)
+out=$(agents office --plan build-chain office-made book --at-once 2 --gate me)
 check "office --plan answers with the file alone: $out" test "$out" = "$HOME/.config/vikix/plans/office-made.toml"
 check "with its settings" bash -c 'grep -q "^at-once = 2" "$1" && grep -q "^gate = \"me\"" "$1"' _ "$out"
-out=$(agents office --plan one-desk office-made book)
+out=$(agents office --plan build-chain office-made book)
 check "office --plan refuses what plan new refuses: $out" grep -q 'is there already' <<<"$out"
 # The form's tasks (--tasks, JSON on stdin): the plan composed from them, the template's head
 # comment kept, each desk named for the plan; a task's words left to the template still need you.
-out=$(python3 "$here/bin/vikix-agents" office --plan one-desk composed book --tasks 2>&1 <<<'[{"name":"build","desk":"topic","task":"Build the index.\nTwo lines.","release":"The index","acceptance":["a line"],"agent":"codex","local":true},{"name":"tests","desk":"topic","after":["build"],"task":"EDIT: the tests"}]' || true)
+out=$(python3 "$here/bin/vikix-agents" office --plan build-chain composed book --tasks 2>&1 <<<'[{"name":"build","desk":"topic","task":"Build the index.\nTwo lines.","release":"The index","acceptance":["a line"],"agent":"codex","local":true},{"name":"tests","desk":"topic","after":["build"],"task":"EDIT: the tests"}]' || true)
 check "office --plan --tasks composes the plan from the form's tasks: $out" test "$out" = "$HOME/.config/vikix/plans/composed.toml"
 check "with the words in, the desks named for the plan, the template's head kept: $(cat "$out" 2>/dev/null)" bash -c '
-  grep -q "^# one-desk — " "$1" && grep -q "^project = \"book\"" "$1" && grep -q "^gate = \"me\"" "$1" && grep -q "^desk = \"composed\"" "$1" &&
+  grep -q "^# build-chain — " "$1" && grep -q "^project = \"book\"" "$1" && grep -q "^gate = \"me\"" "$1" && grep -q "^desk = \"composed\"" "$1" &&
   grep -q "^task = \"\"\"" "$1" && grep -q "^Two lines.\"\"\"" "$1" && grep -q "^release = \"The index\"" "$1" && grep -q "^acceptance = \[\"a line\"\]" "$1" &&
   grep -q "^agent = \"codex\"" "$1" && grep -q "^local = true" "$1" && grep -q "^after = \[\"build\"\]" "$1" && ! grep -q "^push" "$1"' _ "$out"
 out=$(agents plan status composed)
 check "the task left to the template still needs you, the other not: $out" grep -q "(EDIT: lines) at tests: write them first" <<<"$out"
-out=$(python3 "$here/bin/vikix-agents" office --plan one-desk composed-bad book --tasks 2>&1 <<<'[{"name":"x","task":""}]' || true)
+out=$(python3 "$here/bin/vikix-agents" office --plan build-chain composed-bad book --tasks 2>&1 <<<'[{"name":"x","task":""}]' || true)
 check "a task without words is refused, in read_plan's words: $out" grep -q "is the worker's job" <<<"$out"
-out=$(python3 "$here/bin/vikix-agents" office --plan one-desk composed-bad book --tasks 2>&1 <<<'[{"name":"x","task":"ok","when":"now"}]' || true)
+out=$(python3 "$here/bin/vikix-agents" office --plan build-chain composed-bad book --tasks 2>&1 <<<'[{"name":"x","task":"ok","when":"now"}]' || true)
 check "a key no task has is refused: $out" grep -q "'when'? a task has" <<<"$out"
-out=$(python3 "$here/bin/vikix-agents" office --plan one-desk composed-bad book --tasks 2>&1 <<<'{"name":"x"}' || true)
+out=$(python3 "$here/bin/vikix-agents" office --plan build-chain composed-bad book --tasks 2>&1 <<<'{"name":"x"}' || true)
 check "the tasks are a JSON list: $out" grep -q 'are a JSON list' <<<"$out"
 check "nothing written for a refusal" test ! -e "$HOME/.config/vikix/plans/composed-bad.toml"
 out=$(agents office --form)
@@ -379,7 +379,7 @@ check "the form's offer has the templates, each with its tasks, and where a plan
   python3 -c '
 import json, sys, os
 d = json.load(sys.stdin)
-assert [t["name"] for t in d["templates"]] == ["one-task", "one-desk", "side-by-side"] and d["templates"][0]["yours"] and not d["templates"][1]["yours"]
+assert [t["name"] for t in d["templates"]] == ["one-task", "build-chain", "two-desks"] and d["templates"][0]["yours"] and not d["templates"][1]["yours"]
 assert d["plans_folder"] == os.path.expanduser("~/.config/vikix/plans")
 assert [t["name"] for t in d["templates"][1]["tasks"]] == ["build", "tests", "guide"] and d["templates"][1]["gate"] == "me" and d["templates"][1]["at_once"] == 1
 assert d["templates"][1]["tasks"][1]["after"] == ["build"] and d["templates"][1]["tasks"][0]["text"].startswith("EDIT: ")

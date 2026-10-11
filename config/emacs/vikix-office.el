@@ -1156,6 +1156,9 @@ are the field's, to edit."
 (defun vikix-office--form-plan-empty-task ()
   "A task added by hand: nothing filled in."
   (vikix-office--form-plan-task-from '((name . "") (desk . "") (text . "EDIT: the worker's job, in your words") (release . ""))))
+(defun vikix-office--form-hint (hint)
+  "A template's HINT for a field, its example (after \"E.g.\") on a line of its own."
+  (replace-regexp-in-string " E\\.g\\. " "\n        e.g. " hint))
 (defun vikix-office--form-plan-state ()
   "The New plan form's values as they stand, for a redraw to put back:
 a plist of the fields, and :tasks the tasks' values, a list of alists."
@@ -1277,15 +1280,17 @@ new buffer is made and placed. FOCUS names where point goes on a redraw."
                     tw)
               (when (equal (cons n 'task) focus) (setq at (cdr (car tw))))
               (when (alist-get 'hint task)
-                (widget-insert (propertize (concat "        " (alist-get 'hint task)
+                (widget-insert (propertize (concat "        " (vikix-office--form-hint (alist-get 'hint task))
                                                    "\n        (left empty, that line stays in the file as EDIT: for you to write there)\n")
                                            'face 'shadow)))
               (push (cons 'release (widget-create 'editable-field :size 60 :format "  Release: %v\n"
-                                                  :help-echo "The release's line, what it brings: for the last task at a desk"
+                                                  :help-echo "One line, what the release brings: what its commit and tag say after the version"
                                                   (alist-get 'release task)))
                     tw)
+              (widget-insert (propertize "        one line, what the release brings: the release's commit says it after the version (Vikix 0.72.44: that line); for the last task at a desk\n"
+                                         'face 'shadow))
               (when (alist-get 'release-hint task)
-                (widget-insert (propertize (concat "        " (alist-get 'release-hint task) " (left empty, it stays as EDIT:)\n") 'face 'shadow)))
+                (widget-insert (propertize (concat "        " (vikix-office--form-hint (alist-get 'release-hint task)) " (left empty, it stays as EDIT:)\n") 'face 'shadow)))
               (push (cons 'acceptance (widget-create 'text :format "  Acceptance, a line each (what the work is judged by):\n%v\n"
                                                      :help-echo "The criteria the work is judged by, a line each; empty for none"
                                                      (alist-get 'acceptance task)))

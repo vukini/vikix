@@ -755,7 +755,7 @@ names. The Guide: the manual's node in the desk pane, or why not."
            (should (string-match-p "Guide" (buffer-string)))
            ;; The form: templates and the repositories alone; a choice that makes something starts unpicked.
            (let* ((window (get-buffer-window vikix-office--detail))
-                  (offer (append '((templates . (((name . "one-desk") (file . "/x/one-desk.toml") (about . "one desk, in turn") (yours . :false)
+                  (offer (append '((templates . (((name . "build-chain") (file . "/x/build-chain.toml") (about . "one desk, in turn") (yours . :false)
                                                   (at_once . 1) (gate . "me")
                                                   (tasks . (((name . "build") (text . "EDIT: what to build") (desk . "topic") (after . nil) (agent . "")
                                                              (local . :false) (push . :false) (no_tests . :false) (release . "") (mode . "") (acceptance . nil))
@@ -782,7 +782,7 @@ names. The Guide: the manual's node in the desk pane, or why not."
                (should (string-match-p "Pick the template" header-line-format))
                ;; A template picked: the form drawn again with its tasks as fields, each
                ;; EDIT: line of the template a hint under an empty field, the rest filled.
-               (office-test-pick-template "one-desk")
+               (office-test-pick-template "build-chain")
                (should (string-match-p "Task 1\n  Name:  build .*Desk: topic .*After: " (buffer-string)))
                (should (string-match-p "Task 2\n  Name:  tests .*After: build" (buffer-string)))
                (should (string-match-p "what to build\n.*left empty, that line stays" (buffer-string)))
@@ -867,7 +867,7 @@ names. The Guide: the manual's node in the desk pane, or why not."
              (let ((form (vikix-office--form-draw buffer 'plan offer)))
                (set-buffer buffer)
                (with-current-buffer form
-                 (office-test-pick-template "one-desk") (office-test-form-set 'project "vikix") (office-test-form-set 'name "x")
+                 (office-test-pick-template "build-chain") (office-test-form-set 'project "vikix") (office-test-form-set 'name "x")
                  (cl-letf (((symbol-function 'vikix-office--request)
                             (lambda (_a _slot done &optional _input) (funcall done "" "Backend failed: x is there already"))))
                    (vikix-office-form-submit)
