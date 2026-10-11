@@ -527,7 +527,10 @@
                        terminal can open here (a display), and for the
                        New plan form the templates (plan templates), each
                        with its settings and tasks as read, and the
-                       folder a plan goes to
+                       folder a plan goes to; for the New project form
+                       the projects' root, the logs folder, and the
+                       GitHub account gh is signed in as (null when it
+                       can't be asked)
   vikix agents office --plan TEMPLATE NAME PROJECT [--at-once N] [--gate me|none] [--tasks]
                        the Office's New plan: vikix agents plan new with its words.
                        With --tasks, the form's tasks come as JSON on
@@ -548,6 +551,12 @@
                        DESK is the desk's folder; refused with an agent at
                        it or files uncommitted, --force throws the files
                        and an unmerged branch away
+  vikix agents office --project NAME --where public|private|local|folder [--title "..."] [--next "..."] [--description "..."] [--log-apart]
+                       the Office's New project: vikix project new with its words, asking nothing.
+                       public and private are on GitHub (--github), local
+                       a git repository here alone (--git), folder a
+                       folder with a log and no git; --log-apart keeps
+                       the log in the logs folder, out of the repository
   vikix agents --waits PID...
                        for the desktop's menu: what holds each of these agents.
                        A line each: pid, the words, the line under, from
@@ -705,7 +714,7 @@ SECTIONS = (
     ("scripts", "For hooks, the Office and scripts", ("desks", "place", "touch", "stopping", "left", "office --json", "office --go",
                                                       "office --close-agent", "office --forget", "office --purge-archive",
                                                       "office --form", "office --plan", "office --desk", "office --worker",
-                                                      "office --close-desk",
+                                                      "office --close-desk", "office --project",
                                                       "--waits")),
 )
 

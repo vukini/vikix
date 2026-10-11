@@ -1173,7 +1173,8 @@ vikix project open lambda     # on a workspace of its own: a terminal in its fol
 vikix project save            # its workspace's layout, now (leaving the workspace saves it too; vikix layout project-lambda)
 vikix project build lambda    # its build, in its folder: the log's Build line, build.sh, a Makefile, src/build.sh or package.json (-n only says which)
 vikix project check lambda    # its checks, in its folder: the log's Check line, check.sh, check, tests/run.sh, test.sh, make check or test, npm test
-vikix project new my-book     # a new project: ~/src/my-book with a log.md (--in series: inside a collection; --private: the log in ~/src/project-logs)
+vikix project new my-book     # a new project: ~/src/my-book with a log.md (--in series: inside a collection; --log-apart: the log in ~/src/project-logs)
+vikix project new my-book --github public --description "A book."   # the same as a repository on GitHub (or private; --git: here alone): a README, the log, one commit, pushed through gh's login
 vikix today                   # what was done today, project by project: the log entries and the commits, then what's next (also: yesterday, a date)
 vikix day                     # the day as the desktop saw it, kept as ~/journal/DATE.org (also: yesterday, a date, --week, --for lambda)
 vikix day log                 # the log entries the day still lacks, drafted from its commits; each written only on your yes
@@ -1192,7 +1193,7 @@ Nothing is asked of you during the day: all of it is read from records Vikix kee
 - **`vikix day log`** goes through the projects worked on that day that have no log entry for it. For each it shows an entry drafted from the day's commits, then asks for the next step and the percentage, and writes only what you say yes to.
 - **To record nothing about the screen:** `(setf *vikix-day-on* nil)` in `~/.stumpwm.d/user.lisp`. The rest of the day still works.
 
-To add a project, `vikix project new NAME` (or `vikix project new .` in a folder you already have): it writes a `log.md` with a Status and a first entry, so `vikix project` lists it at once. For a public repo, `--private` keeps the log in `~/src/project-logs/NAME/log.md` instead. It never runs `git init` or commits.
+To add a project, `vikix project new NAME` (or `vikix project new .` in a folder you already have): it writes a `log.md` with a Status and a first entry, so `vikix project` lists it at once. For a public repo, `--log-apart` (`--private`, its old name) keeps the log in `~/src/project-logs/NAME/log.md` instead. Alone it never runs `git init` or commits; `--git` makes the folder a repository (a README with the title and `--description`'s line, the log unless apart, one commit), and `--github public|private` makes it on GitHub too with `gh` and pushes once through gh's login over HTTPS, origin set, so your SSH key isn't asked for. The Office has it as a form, **New project…** (`R`).
 
 The `- Build:` and `- Check:` lines are optional: they are for a project whose build or checks aren't the usual ones. The next step is the newer of the Status' `- Next:` and the newest entry's `Next:` line. A name can be part of one (`lambda`), as long as only one project has it; otherwise it lists the ones it could be. `log` puts the new entry just above the newest one, marked `(Vid)` as the logs mark entries written by hand; from an agent (`--agent`, or anything run inside Claude Code) it leaves the mark off. It never commits: it says the `git` line that would.
 

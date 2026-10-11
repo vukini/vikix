@@ -390,6 +390,7 @@ class Office(unittest.TestCase):
             def rows(self, projects, everything):
                 return [(P('vikix', '/home/u/src/vikix'), 'vikix', '', '', 'the next step'),
                         (P('notes', '/home/u/notes'), 'notes', '', '', '')]
+            def read_config(self): return [Path('/home/u/src')], Path('/home/u/src/project-logs'), 2
         calls = []
         with patch.object(A, 'projects', lambda: VP()), \
              patch.object(A, 'git', lambda folder, *a: '/home/u/src/vikix\n' if 'vikix' in folder else None), \
@@ -429,6 +430,59 @@ class Office(unittest.TestCase):
                     office.main(A, bad)
             self.assertEqual(len(calls), n)
 
+    def test_form_new_project_from_the_office(self):
+        # The New project form: the offer says where a project goes and the GitHub
+        # account; --project hands vikix project new the words for each Where.
+        class VP:
+            def discover(self): return []
+            def rows(self, projects, everything): return []
+            def read_config(self): return [Path('/home/u/src')], Path('/home/u/src/project-logs'), 2
+        words = []
+        with patch.object(A, 'projects', lambda: VP()), patch.object(A, 'agents_offered', lambda: []), \
+             patch.object(office, 'github_account', lambda: 'tester'), \
+             patch.object(office, 'run_project', lambda api, w: words.append(w) or 0):
+            offer = office.form(A)
+            self.assertEqual((offer['root'], offer['logs'], offer['github']), ('/home/u/src', '/home/u/src/project-logs', 'tester'))
+            self.assertIsInstance(offer['gh'], bool)
+            office.main(A, ['--project', 'my-book', '--where', 'public', '--title', ' A Book ', '--next', 'an outline',
+                            '--description', 'A book.', '--log-apart'])
+            self.assertEqual(words[-1], ['new', 'my-book', '--github', 'public', '--title', 'A Book', '--next', 'an outline',
+                                         '--description', 'A book.', '--log-apart'])
+            office.main(A, ['--project', 'my-book', '--where', 'private'])
+            self.assertEqual(words[-1], ['new', 'my-book', '--github', 'private'])
+            office.main(A, ['--project', 'my-book', '--where', 'local', '--description', 'd'])
+            self.assertEqual(words[-1], ['new', 'my-book', '--git', '--description', 'd'])
+            office.main(A, ['--project', 'notes.2', '--where', 'folder', '--next', 'n'])
+            self.assertEqual(words[-1], ['new', 'notes.2', '--next', 'n'])
+            n = len(words)
+            for bad in (['--project'], ['--project', 'my-book'], ['--project', 'bad name', '--where', 'local'],
+                        ['--project', '-x', '--where', 'local'], ['--project', 'my-book', '--where', 'bare'],
+                        ['--project', 'my-book', '--where'], ['--project', 'my-book', '--where', 'local', '--title'],
+                        ['--project', 'my-book', '--where', 'local', '--push'],
+                        ['--project', 'my-book', '--where', 'folder', '--description', 'd']):
+                with self.assertRaises(ValueError, msg=bad):
+                    office.main(A, bad)
+            self.assertEqual(len(words), n)
+        # The account: gh's answer; none without gh, when it fails, or when it hangs.
+        class R:
+            def __init__(self, code, out): self.returncode, self.stdout = code, out
+        with patch.object(office.shutil, 'which', lambda c: '/usr/bin/gh'), \
+             patch.object(office.subprocess, 'run', lambda *a, **kw: R(0, 'vukini\n')):
+            self.assertEqual(office.github_account(), 'vukini')
+        with patch.object(office.shutil, 'which', lambda c: '/usr/bin/gh'), \
+             patch.object(office.subprocess, 'run', lambda *a, **kw: R(1, '')):
+            self.assertIsNone(office.github_account())
+        with patch.object(office.shutil, 'which', lambda c: None):
+            self.assertIsNone(office.github_account())
+        def hangs(*a, **kw): raise subprocess.TimeoutExpired('gh', 8)
+        with patch.object(office.shutil, 'which', lambda c: '/usr/bin/gh'), patch.object(office.subprocess, 'run', hangs):
+            self.assertIsNone(office.github_account())
+        # run_project: vikix project's words as they are, its refusal as the error the Office shows.
+        with patch.object(office.subprocess, 'run', lambda *a, **kw: type('R', (), {'returncode': 1, 'stdout': '', 'stderr': 'vikix project: x already has a log\n'})()):
+            with self.assertRaises(RuntimeError) as e:
+                office.run_project(A, ['new', 'x'])
+            self.assertIn('already has a log', str(e.exception))
+
     def test_form_new_plan_from_the_office(self):
         # The New plan form: the offer names the templates and where a plan goes;
         # --plan hands lib/plan.py's new_plan the form's words and answers with the
@@ -447,7 +501,8 @@ class Office(unittest.TestCase):
             class VP:
                 def discover(self): return []
                 def rows(self, projects, everything): return []
-            with patch.object(A, 'projects', lambda: VP()):
+                def read_config(self): return [Path('/home/u/src')], Path('/home/u/src/project-logs'), 2
+            with patch.object(A, 'projects', lambda: VP()), patch.object(office, 'github_account', lambda: None):
                 offer = office.form(A)
             self.assertEqual([t['name'] for t in offer['templates']], ['build-chain'])
             self.assertEqual(offer['templates'][0]['tasks'], tasks)

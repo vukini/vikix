@@ -406,8 +406,10 @@ for bad in (["--mode"], ["--mode", "--push"]):
         office.worker_words(bad, "worker"); raise SystemExit("--mode without a word passed")
     except ValueError as e:
         assert "mode which" in str(e), e
-A.projects = lambda: type("P", (), {"rows": staticmethod(lambda *a: []), "discover": staticmethod(lambda: [])})()
+A.projects = lambda: type("P", (), {"rows": staticmethod(lambda *a: []), "discover": staticmethod(lambda: []),
+                                   "read_config": staticmethod(lambda: (["/x/src"], "/x/src/project-logs", 2))})()
 A.agents_offered = lambda: []
+office.github_account = lambda: None   # never the real gh from a test
 offer = office.form(A)
 assert offer["modes"] == ["supervised", "autonomous", "unrestricted"] and offer["mode"] == "autonomous", offer
 p = plan.read_plan(sys.argv[2]) if len(sys.argv) > 2 else None

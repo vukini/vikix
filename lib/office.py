@@ -408,12 +408,87 @@ def form(api):
     agents.sort(key=lambda a: not a['yours'])
     sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
     import plan
+    roots, logs, _depth = vp.read_config()
     return {'projects': projects, 'agents': agents, 'default': api.default_agent(),
             'modes': list(api.MODES), 'mode': api.default_mode(),
             'display': bool(os.environ.get('DISPLAY')),
             # The New plan form's part: the templates, each with its tasks (the form's fields), and where the plan goes.
             'templates': [t for t in plan.templates() if not t['error']], 'plans_folder': plan.PLANS_HOME,
+            # The New project form's part: where a project goes, where a log kept apart goes,
+            # and GitHub's account through gh (null: gh is not installed, not signed in, or GitHub is out of reach).
+            'root': str(roots[0]), 'logs': str(logs), 'gh': bool(shutil.which('gh')), 'github': github_account(),
             'guide': guide_file()}
+
+
+def github_account():
+    """The GitHub login gh is signed in as, or None: not installed, not
+    signed in (gh auth login), or GitHub out of reach. Asked of GitHub
+    itself, since a token can have expired, with a bound: the form waits
+    on it."""
+    if not shutil.which('gh'):
+        return None
+    try:
+        r = subprocess.run(['gh', 'api', 'user', '-q', '.login'], capture_output=True, text=True, timeout=8)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    login = r.stdout.strip()
+    return login if r.returncode == 0 and login else None
+
+
+PROJECT_WHERE = ('public', 'private', 'local', 'folder')
+
+
+def new_project(api, args):
+    """The Office's New project: NAME --where public|private|local|folder
+    [--title "..."] [--next "..."] [--description "..."] [--log-apart],
+    handed to vikix project new as its words: --github public|private, --git
+    for local, nothing for a folder with a log alone."""
+    usage = ('vikix agents office --project NAME --where public|private|local|folder '
+             '[--title "..."] [--next "..."] [--description "..."] [--log-apart]')
+    rest = list(args)
+    if not rest or rest[0].startswith('-'):
+        raise ValueError(usage)
+    name = rest.pop(0).strip()
+    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', name):
+        raise ValueError("The project's name is a word: letters, digits, dots, dashes (my-book); it names the folder and the repository")
+    opts = {}
+    while rest:
+        a = rest.pop(0)
+        if a in ('--where', '--title', '--next', '--description'):
+            if not rest or not rest[0].strip():
+                raise ValueError(f'{a} needs its words' if a != '--where' else '--where which? public, private, local, folder')
+            opts[a] = rest.pop(0).strip()
+        elif a == '--log-apart':
+            opts[a] = True
+        else:
+            raise ValueError(usage)
+    where = opts.get('--where')
+    if where not in PROJECT_WHERE:
+        raise ValueError(f"--where which? {', '.join(PROJECT_WHERE)}")
+    if where == 'folder' and '--description' in opts:
+        raise ValueError('A description goes into a README, which a folder with a log alone has not: pick a repository')
+    words = ['new', name]
+    if where in ('public', 'private'):
+        words += ['--github', where]
+    elif where == 'local':
+        words.append('--git')
+    for a in ('--title', '--next', '--description'):
+        if a in opts:
+            words += [a, opts[a]]
+    if opts.get('--log-apart'):
+        words.append('--log-apart')
+    return run_project(api, words)
+
+
+def run_project(api, words):
+    """vikix project with WORDS, its output through; a RuntimeError with
+    its words when it refuses. Apart, so the tests stand in for it."""
+    r = subprocess.run([sys.executable, os.path.join(api.VIKIX_DIR, 'bin', 'vikix-project'), *words],
+                       capture_output=True, text=True)
+    sys.stdout.write(r.stdout)
+    if r.returncode != 0:
+        raise RuntimeError((r.stderr or r.stdout).strip() or f'vikix project {words[0]} failed')
+    return 0
 
 
 def guide_file():
@@ -675,8 +750,10 @@ def main(api, args):
         return new_worker(api, args[1:])
     elif args and args[0] == '--close-desk':
         return close_desk(api, args[1:])
+    elif args and args[0] == '--project':
+        return new_project(api, args[1:])
     elif args in ([], ['--tty']):
         launch(api, tty=bool(args))
     else:
-        raise ValueError('vikix agents office [--tty | --json | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN | --pause DESK | --unpause DESK | --park DESK | --test DESK | --tell DESK TEXT | --review DESK PROVIDER | --form | --plan TEMPLATE NAME PROJECT [--at-once N] [--gate me|none] [--tasks] | --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --worker DESK ["..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --close-desk DESK [--force]]')
+        raise ValueError('vikix agents office [--tty | --json | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN | --pause DESK | --unpause DESK | --park DESK | --test DESK | --tell DESK TEXT | --review DESK PROVIDER | --form | --plan TEMPLATE NAME PROJECT [--at-once N] [--gate me|none] [--tasks] | --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --worker DESK ["..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --close-desk DESK [--force] | --project NAME --where public|private|local|folder [--title "..."] [--next "..."] [--description "..."] [--log-apart]]')
     return 0

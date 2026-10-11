@@ -549,7 +549,7 @@ agent are absent. Their old next actions are historical, not new instructions.
 **Forget this record…** removes that one record after confirmation (as
 `vikix agents handoff forget` does); its files, branch and saved
 conversations stay. **Back to desks** (`A` again) returns to current work.
-Each page's button counts that page's desks; the New desk and New plan
+Each page's button counts that page's desks; the New desk, New plan and New project
 buttons, the Releases box and the Plans box are the first page's alone, the Plans done box the Archive's.
 
 **Purge archive** permanently deletes the archived desk records after
@@ -559,7 +559,7 @@ and a new confirmation. Project files, branches and the providers' saved
 conversations are untouched. There is no automatic age or size cutoff.
 
 Click a desk, or use `n`/`p` to select it. `RET` enters its details; `C-x o`
-moves between panes. Only available action buttons are shown. `Tab` visits buttons, `N` makes a new desk, `L` writes a new plan, `w` starts a worker at the selected one, `a` goes to an agent, `c` continues
+moves between panes. Only available action buttons are shown. `Tab` visits buttons, `N` makes a new desk, `L` writes a new plan, `R` makes a new project, `w` starts a worker at the selected one, `a` goes to an agent, `c` continues
 a desk, `P` pauses its agent or lets it go, `t` runs its tests, `r` has another provider review its last commit, `i` leaves its agent a note, `C` closes a desk, `h` opens this chapter of the manual, `g` refreshes and `q` closes the Office. A button's answer (*let go, paused 3 min; claude 48213 goes on at its next call*) stays in the header line over the refreshes that follow, until `g` or the next button, and the row is drawn again at once, so a desk let go loses its *paused by* and its Go button says Pause again. A row says when its desk is paused and by whom, when its tests run, who is reviewing it, and how many notes wait for its agent; the details say how the last agent left. Details keep the user's task,
 signed agent account, observed Git state, reported checks and saved
 conversation availability separate. **Review does not mean merged.** A
@@ -626,6 +626,32 @@ the file later, and the draft says so under *Needs you*. Nothing runs
 until Run. A name taken, a task without a name or words, or a template
 that doesn't read as a plan, is said in the form's own header line and
 leaves the form open.
+
+**New project…** (`R`, above the groups) makes a project from a form, drawn
+where the other forms are: `vikix project new` with its words. The name (a
+word: the folder under `~/src`, or the first `root=` of
+`~/.config/vikix/projects`, and the repository's name), where it goes
+(nothing is picked for you: *GitHub, public*; *GitHub, private*; *Here, a
+repository*, a git repository on this machine alone; *A folder*, a folder
+with a log and no git), the title (the log's heading and the README's;
+empty, the name as words), a description (one line: the README's second
+line and GitHub's About; for a repository) and the first step (the log's
+*Next* line, which the New desk form then shows), and *Log apart*, which
+keeps the log in `~/src/project-logs/NAME`, out of the repository, for a
+public one whose log is yours. A repository gets a README, the log unless
+apart, and one commit on your git's default branch (`main` when it says
+nothing). On GitHub it is made by `gh` with the description as its About,
+origin set as gh sets it, and pushed once through gh's login over HTTPS, so
+your SSH key's passphrase is never asked for; the form says which account
+gh is signed in as, and refuses the two GitHub choices, saying why, when
+gh isn't installed, isn't signed in (`gh auth login`) or GitHub is out of
+reach. The Office waits up to two and a half minutes for the push. The
+backend's last line (the GitHub URL, or where the log is) is the Office's
+header line, and the project is in the New desk form's list at once. A
+name taken on GitHub, or a folder that has a log or is in a repository
+already, is said in the form's own header line and leaves the form open;
+a GitHub refusal leaves the repository here, with the `gh repo create`
+line to run later.
 
 **Guide** (`h`, above the groups) opens this chapter of the Vikix manual
 (`info vikix`, the one `vikix update core` writes to

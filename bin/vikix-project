@@ -20,11 +20,20 @@
   vikix project check NAME [-n]  run its checks in its folder: the log's Check
                       line, check.sh, check, tests/run.sh, test.sh, make
                       check or test, npm test (-n: only say which)
-  vikix project new NAME [--in COLLECTION | --private] [--title "..."] [--next "..."]
+  vikix project new NAME [--in COLLECTION | --log-apart] [--title "..."] [--next "..."]
                       a new project: ~/src/NAME (the first root) with a log.md
                       (a Status and a first entry); --in: inside a collection;
-                      --private: the repo ~/src/NAME's log in the logs folder;
-                      a FOLDER (with a /, or .) gives that folder a log.md
+                      --log-apart (--private, its old name): the repo
+                      ~/src/NAME's log in the logs folder, out of a public
+                      repo; a FOLDER (with a /, or .) gives that folder a log.md
+  vikix project new NAME --git | --github public|private [--description "..."] [--log-apart]
+                      the same, as a git repository: a README.md (the title,
+                      the description), the log unless apart, one commit;
+                      --github makes the repository on GitHub too (gh,
+                      signed in: gh auth login), public or private, with the
+                      description as its About, origin set, and pushes once
+                      through gh's login over HTTPS, so your SSH key is not
+                      asked for (origin keeps gh's protocol for your pushes)
   vikix project today [yesterday|DATE] [--no-git]   (also: vikix today)
                       what was done that day, project by project: the log
                       entries and the commits (any branch), then what's next
@@ -664,20 +673,67 @@ def cmd_check(args):
     sys.exit(rc)
 
 
+def git_at(folder, *args, **kw):
+    """git in FOLDER; its stdout, or a die with its stderr."""
+    r = subprocess.run(["git", "-C", str(folder), *args], capture_output=True, text=True, **kw)
+    if r.returncode != 0:
+        die(f"git {args[0]} failed in {folder}: {r.stderr.strip() or r.stdout.strip()}")
+    return r.stdout
+
+
+def gh_create(folder, name, kind, description):
+    """The repository FOLDER on GitHub as NAME, public or private, origin
+    set; gh's URL for it. gh signed in is checked by the call itself: it
+    says gh auth login when not."""
+    cmd = ["gh", "repo", "create", name, f"--{kind}", "--source", str(folder), "--remote", "origin"]
+    if description:
+        cmd += ["--description", description]
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    except subprocess.TimeoutExpired:
+        die("gh repo create took over a minute: GitHub can't be reached? The repository is here, "
+            f"nothing is on GitHub; later: gh repo create {name} --{kind} --source {folder} --remote origin --push")
+    if r.returncode != 0:
+        die(f"gh repo create refused: {(r.stderr or r.stdout).strip()}\nthe repository is here, {folder}; "
+            f"later: gh repo create {name} --{kind} --source {folder} --remote origin --push")
+    url = next((w for w in (r.stdout + r.stderr).split() if w.startswith("https://")), "")
+    return url or f"https://github.com/?/{name}"
+
+
+def gh_push(folder):
+    """The first push, -u origin HEAD. An SSH origin (gh's usual) would ask
+    for the key's passphrase, which no shell of the Office's can give, so
+    that one push goes to the same repository over HTTPS through gh's
+    login (as the repos plugin pulls); origin stays as gh set it, for the
+    user's own pushes."""
+    url = git_at(folder, "remote", "get-url", "origin").strip()
+    cmd = ["push", "-u", "origin", "HEAD"]
+    m = re.match(r"^(?:git@github\.com:|ssh://git@github\.com/)(.+?)(?:\.git)?$", url)
+    if m:
+        cmd = ["-c", f"remote.origin.pushurl=https://github.com/{m.group(1)}.git",
+               "-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential", *cmd]
+    try:
+        git_at(folder, *cmd, timeout=120)
+    except subprocess.TimeoutExpired:
+        die(f"the push took over two minutes and was stopped; later, from {folder}: git push -u origin HEAD")
+
+
 def cmd_new(args):
-    usage = ('usage: vikix project new NAME|FOLDER [--in COLLECTION | --private] '
-             '[--title "..."] [--next "..."]')
+    usage = ('usage: vikix project new NAME|FOLDER [--in COLLECTION | --log-apart] '
+             '[--title "..."] [--next "..."] [--git | --github public|private [--description "..."]]')
     pos, opts = [], {}
     i = 0
     while i < len(args):
         a = args[i]
-        if a in ("--in", "--title", "--next"):
+        if a in ("--in", "--title", "--next", "--github", "--description"):
             if i + 1 >= len(args) or not args[i + 1].strip():
                 die(usage, 2)
             opts[a] = args[i + 1].strip()
             i += 2
             continue
-        if a == "--private":
+        if a in ("--private", "--log-apart"):
+            opts["--private"] = True
+        elif a == "--git":
             opts[a] = True
         elif a.startswith("--"):
             die(usage, 2)
@@ -686,14 +742,22 @@ def cmd_new(args):
         i += 1
     if len(pos) != 1 or ("--in" in opts and "--private" in opts):
         die(usage, 2)
+    if opts.get("--github") not in (None, "public", "private"):
+        die("--github takes public or private", 2)
+    if "--description" in opts and "--git" not in opts and "--github" not in opts:
+        die("--description goes with --git or --github: it is the README's line and GitHub's About", 2)
+    repo = "--git" in opts or "--github" in opts
+    if "--github" in opts and not shutil.which("gh"):
+        die("gh (GitHub's command, package github-cli) isn't installed: nothing is made; "
+            "--git makes the repository here alone, for a push later")
     arg = pos[0]
     roots, logs, depth = read_config()
     projects = discover()
 
     if "--private" in opts:
         name = Path(arg).name if ("/" in arg or arg == ".") else arg
-        repo = (Path(arg).resolve() if ("/" in arg or arg == ".") else roots[0] / name)
-        folder, log = repo, logs / name / "log.md"
+        repo_dir = (Path(arg).resolve() if ("/" in arg or arg == ".") else roots[0] / name)
+        folder, log = repo_dir, logs / name / "log.md"
     elif "--in" in opts:
         if "/" in arg:
             die("with --in, NAME is a name, not a folder", 2)
@@ -707,11 +771,16 @@ def cmd_new(args):
         folder = roots[0] / arg
         log = folder / "log.md"
     name = folder.name
+    if repo and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", name):
+        die(f"{name}: a repository's name is letters, digits, dots, dashes and underscores", 2)
 
     if log.exists() or (find_log(folder) and "--private" not in opts):
         die(f"{folder} already has a log: {log if log.exists() else find_log(folder)}")
     if "--private" not in opts and (folder / ".git").is_file():
         die(f"{folder} is a git worktree, which vikix project skips; make it in the repo itself")
+    if repo and git_top(folder):
+        die(f"{folder} is in a git repository already ({git_top(folder)}): --git and --github make a new one; "
+            f"vikix project new {arg} alone gives it a log")
 
     title = opts.get("--title") or name.replace("-", " ").replace("_", " ")
     title = title[:1].upper() + title[1:]
@@ -722,23 +791,42 @@ def cmd_new(args):
             f"- Next: {opts.get('--next') or 'the first step'}\n\n"
             f"## {d} · started (Vid)\n\nThe project begun.\n")
     made = not folder.exists()
-    if "--private" not in opts:
+    if "--private" not in opts or repo:
         folder.mkdir(parents=True, exist_ok=True)
     log.parent.mkdir(parents=True, exist_ok=True)
     log.write_text(text)
 
-    print(f"made {log}" + (f" (and the folder {folder})" if made and "--private" not in opts else ""))
+    print(f"made {log}" + (f" (and the folder {folder})" if made and ("--private" not in opts or repo) else ""))
     if "--private" in opts:
         print(f"the log is kept apart from the repo {folder}")
-        if not (folder / ".git").is_dir():
+        if not repo and not (folder / ".git").is_dir():
             print(f"it is listed once {folder} is a git repo (git init {folder})")
-    found = any(p.log.resolve() == log.resolve() for p in discover())
-    if not found:
+    if repo:
+        # The repository: the default branch the user's git makes (main when
+        # it says nothing, not git's master), the README, the log unless it
+        # is kept apart, one commit; then GitHub, then the push.
+        branch = subprocess.run(["git", "config", "--get", "init.defaultBranch"],
+                                capture_output=True, text=True).stdout.strip() or "main"
+        git_at(folder, "init", "-q", "-b", branch)
+        readme = folder / "README.md"
+        if not readme.exists():
+            readme.write_text(f"# {title}\n" + (f"\n{opts['--description']}\n" if opts.get("--description") else ""))
+        git_at(folder, "add", "--", "README.md", *(["log.md"] if "--private" not in opts else []))
+        git_at(folder, "commit", "-q", "-m", f"Begin {name}")
+        print(f"a git repository on {branch}: README.md"
+              + (" and log.md" if "--private" not in opts else "") + " committed")
+        if "--github" in opts:
+            url = gh_create(folder, name, opts["--github"], opts.get("--description"))
+            gh_push(folder)
+            print(f"on GitHub, {opts['--github']}: {url} (pushed; origin is set)")
+    else:
+        top = git_top(log.parent)
+        if top:
+            print(f"not committed; when you want to: git -C {top} add -- {os.path.relpath(log, top)}")
+    # Looked for once the repository is there: a log kept apart is listed only for a repo.
+    if not any(p.log.resolve() == log.resolve() for p in discover()):
         print(f"note: vikix project doesn't see it: {folder} isn't within {depth} levels of a root "
               f"in {CONFIG} ({', '.join(map(str, roots))})")
-    top = git_top(log.parent)
-    if top:
-        print(f"not committed; when you want to: git -C {top} add -- {os.path.relpath(log, top)}")
     print(f"edit the Status by hand; add entries with: vikix project log {name} \"what was done\"")
 
 

@@ -28,8 +28,11 @@ has it in `~/src/project-logs/NAME/log.md`. Git worktrees are skipped.
   `- Check:` line, else check.sh, check, tests/run.sh, test.sh, make
   check/test, npm test).
 - `vikix project new NAME` makes a project (`~/src/NAME` and its log.md;
-  `--in COLLECTION`, `--private` for a public repo's log, `.` for the
-  current folder): use it, don't write a new log by hand. It never commits.
+  `--in COLLECTION`, `--log-apart` for a public repo's log, `.` for the
+  current folder): use it, don't write a new log by hand. Alone it never
+  commits; `--git` makes it a repository (README, log, one commit) and
+  `--github public|private` makes it on GitHub with gh and pushes once
+  through gh's login: only when the user asked for a repository.
 - `vikix today [yesterday|DATE]`: what was done that day across all
   projects (log entries and commits) and what's next; a good first read
   when the user asks where they were.

@@ -365,7 +365,8 @@ is drawn when PLANS is empty."
       (insert "A row a desk: its task, its workers before, under it. Conversations stay in their agent terminals.\n\n")
       (when (eq vikix-office--page 'desks)
         (vikix-office--button "New desk…" (lambda () (with-current-buffer owner (vikix-office-new-desk))))
-        (vikix-office--button "New plan…" (lambda () (with-current-buffer owner (vikix-office-new-plan)))))
+        (vikix-office--button "New plan…" (lambda () (with-current-buffer owner (vikix-office-new-plan))))
+        (vikix-office--button "New project…" (lambda () (with-current-buffer owner (vikix-office-new-project)))))
       (vikix-office--button "Guide" (lambda () (with-current-buffer owner (vikix-office-guide))))
       ;; The other pages' buttons, each with its count; on another page the
       ;; first is Back to desks.
@@ -1112,13 +1113,20 @@ for its tasks' words, and the Plans box runs it."
   (interactive)
   (with-current-buffer (vikix-office--owner-buffer)
     (vikix-office--form-open 'plan)))
+(defun vikix-office-new-project ()
+  "Make a project: a folder under ~/src with a log, a repository, or one on GitHub pushed: a form."
+  (interactive)
+  (with-current-buffer (vikix-office--owner-buffer)
+    (vikix-office--form-open 'project)))
 (defun vikix-office--form-open (desk)
-  "Ask the backend what the form offers, then draw it for DESK, a row, a new desk with nil, or a plan with `plan'."
+  "Ask the backend what the form offers, then draw it for DESK, a row, a new desk with nil, a plan with `plan', a project with `project'."
   (when (process-live-p vikix-office--action) (user-error "An Office action is still running"))
   (let ((owner (current-buffer)))
-    (vikix-office--notice (concat (pcase desk ('plan "New plan") ('nil "New desk") (_ "New worker"))
-                                  ": asking which projects"
-                                  (if (eq desk 'plan) " and templates" " and agents") " there are…"))
+    (vikix-office--notice (concat (pcase desk ('plan "New plan") ('project "New project") ('nil "New desk") (_ "New worker"))
+                                  (pcase desk
+                                    ('plan ": asking which projects and templates there are…")
+                                    ('project ": asking where a project goes, and your GitHub account…")
+                                    (_ ": asking which projects and agents there are…"))))
     (vikix-office--request
      '("office" "--form") 'vikix-office--action
      (lambda (output error)
@@ -1134,9 +1142,11 @@ for its tasks' words, and the Plans box runs it."
 (define-key vikix-office-form-map (kbd "C-c C-c") #'vikix-office-form-submit)
 (define-key vikix-office-form-map (kbd "C-c C-k") #'vikix-office-form-cancel)
 (defun vikix-office--form-draw (owner desk offer)
-  "Draw the form for DESK (nil: a new desk; `plan': a plan) with what the backend OFFERed, in OWNER's desk pane."
-  (if (eq desk 'plan) (vikix-office--form-draw-plan owner offer)
-    (vikix-office--form-draw-desk owner desk offer)))
+  "Draw the form for DESK (nil: a new desk; `plan': a plan; `project': a project) with what the backend OFFERed, in OWNER's desk pane."
+  (pcase desk
+    ('plan (vikix-office--form-draw-plan owner offer))
+    ('project (vikix-office--form-draw-project owner offer))
+    (_ (vikix-office--form-draw-desk owner desk offer))))
 (defun vikix-office--form-place (owner buffer)
   "Put the form BUFFER in OWNER's desk pane window, else another; that window, for the way back."
   (let ((window (with-current-buffer owner (vikix-office--pane-window))))
@@ -1483,6 +1493,111 @@ new buffer is made and placed. FOCUS names where point goes on a redraw."
         (progn (set-window-buffer window buffer) (select-window window))
       (pop-to-buffer buffer))
     buffer))
+(defconst vikix-office--project-wheres
+  '(("public" "GitHub, public" "on GitHub for anyone to see, pushed once; origin set")
+    ("private" "GitHub, private" "on GitHub for you alone, pushed once; origin set")
+    ("local" "Here, a repository" "a git repository under the root alone, nothing on GitHub (push later, when you want)")
+    ("folder" "A folder" "a folder with a log, no git"))
+  "The New project form's Where: the backend's word, the label, what it means.")
+(defun vikix-office--form-draw-project (owner offer)
+  "The New project form: a name, where it goes (GitHub public or private,
+a repository here, a folder), its title, description and first step, and
+the log kept apart; with what the backend OFFERed (the root, the logs
+folder, the GitHub account), in OWNER's desk pane."
+  (let* ((buffer (generate-new-buffer "*Office new project*"))
+         (window (with-current-buffer owner
+                   (and (buffer-live-p vikix-office--detail)
+                        (get-buffer-window vikix-office--detail vikix-office--frame))))
+         (root (abbreviate-file-name (or (alist-get 'root offer) "~/src")))
+         (logs (abbreviate-file-name (or (alist-get 'logs offer) "~/src/project-logs")))
+         (github (alist-get 'github offer))
+         widgets)
+    (with-current-buffer buffer
+      (kill-all-local-variables)
+      (let ((inhibit-read-only t)) (erase-buffer))
+      (remove-overlays)
+      (widget-insert (propertize "New project" 'face '(:inherit variable-pitch :height 1.3 :weight bold)) "\n")
+      (widget-insert "A folder under " root " with a log, which vikix project lists (vikix project new); as a repository, with a README and a first commit; on GitHub, made there and pushed once through gh's login. Then a desk at it: New desk.\n\n")
+      (push (cons 'name (widget-create 'editable-field :size 30 :format "Name:         %v\n"
+                                       :help-echo "A word: the folder's name under the root, and the repository's" ""))
+            widgets)
+      (widget-insert (propertize (concat "              a word (letters, digits, dots, dashes): " root "/NAME, and the repository's name\n") 'face 'shadow))
+      (widget-insert "\n")
+      ;; Where it goes is always picked (Vid, 2026-10-10: a choice that makes something starts unpicked).
+      (push (cons 'where
+                  (apply #'widget-create 'menu-choice :tag "Where" :value ""
+                         :format "%t:        %[%v%]\n" :button-prefix "[" :button-suffix "]"
+                         :help-echo "On GitHub, public or private; a repository here; or a folder with a log: a click or RET opens the list"
+                         '(item :tag "pick one" :format "%t" :value "")
+                         (mapcar (lambda (w) (list 'item :tag (concat (nth 1 w) "  " (nth 2 w)) :format "%t" :value (car w)))
+                                 vikix-office--project-wheres)))
+            widgets)
+      (widget-insert (propertize (concat "              "
+                                         (cond ((stringp github) (concat "GitHub: signed in as " github " (gh), so the repository is github.com/" github "/NAME"))
+                                               ((eq (alist-get 'gh offer) t) "GitHub can't be asked: gh isn't signed in (gh auth login in a terminal), or GitHub is out of reach; the two GitHub choices are refused until it can")
+                                               (t "GitHub is out of reach: gh (the package github-cli) isn't installed; the two GitHub choices are refused until it is"))
+                                         "\n")
+                                 'face 'shadow))
+      (widget-insert "\n")
+      (push (cons 'title (widget-create 'editable-field :size 50 :format "Title:        %v\n"
+                                        :help-echo "The log's heading and the README's; empty: from the name" ""))
+            widgets)
+      (widget-insert (propertize "              the log's heading and the README's (empty: the name, as words)\n" 'face 'shadow))
+      (push (cons 'description (widget-create 'editable-field :size 50 :format "Description:  %v\n"
+                                              :help-echo "One line: the README's, and GitHub's About; for a repository" ""))
+            widgets)
+      (widget-insert (propertize "              one line: the README's second line, and GitHub's About (for a repository)\n" 'face 'shadow))
+      (push (cons 'next (widget-create 'editable-field :size 50 :format "Next:         %v\n"
+                                       :help-echo "The first step: the log's Next line, which the New desk form shows" ""))
+            widgets)
+      (widget-insert (propertize "              the first step: the log's Next line (empty: the first step)\n" 'face 'shadow))
+      (widget-insert "\n")
+      (push (cons 'log-apart (widget-create 'checkbox nil)) widgets)
+      (widget-insert (concat " Log apart: the log in " logs "/NAME, out of the repository (for a public one whose log is yours; the log is never pushed then)\n\n"))
+      (widget-create 'push-button :notify (lambda (&rest _) (vikix-office-form-submit)) "Make project")
+      (widget-insert "  ")
+      (widget-create 'push-button :notify (lambda (&rest _) (vikix-office-form-cancel)) "Cancel")
+      (widget-insert "\n\n"
+                     (propertize "A click or RET on a [choice] opens its list; TAB moves between the fields; C-c C-c is the button, C-c C-k cancels. A push can take a while: the Office waits up to two and a half minutes."
+                                 'face 'shadow))
+      (use-local-map vikix-office-form-map)
+      (widget-setup)
+      (setq vikix-office--form (list :owner owner :desk 'project :offer offer :widgets widgets :window window))
+      (goto-char (point-min))
+      (widget-forward 1))
+    (if (window-live-p window)
+        (progn (set-window-buffer window buffer) (select-window window))
+      (pop-to-buffer buffer))
+    buffer))
+(defun vikix-office--form-project-args ()
+  "The backend's words for the New project form as it stands; a user error for what is missing."
+  (let* ((offer (plist-get vikix-office--form :offer))
+         (name (string-trim (or (vikix-office--form-value 'name) "")))
+         (where (vikix-office--form-value 'where))
+         (title (string-trim (or (vikix-office--form-value 'title) "")))
+         (description (string-trim (or (vikix-office--form-value 'description) "")))
+         (next (string-trim (or (vikix-office--form-value 'next) "")))
+         (apart (vikix-office--form-value 'log-apart)))
+    (unless (string-match-p "\\`[A-Za-z0-9][A-Za-z0-9._-]*\\'" name)
+      (vikix-office--form-say "The project's name is a word: letters, digits, dots, dashes (my-book); it names the folder and the repository")
+      (user-error "The project's name is a word: letters, digits, dots, dashes"))
+    (when (member where '(nil ""))
+      (vikix-office--form-say "Pick where it goes: a click or RET on [pick one] opens the list")
+      (user-error "Pick where it goes"))
+    (when (and (member where '("public" "private")) (not (stringp (alist-get 'github offer))))
+      (vikix-office--form-say "GitHub can't be asked (gh not installed or not signed in: gh auth login); pick Here, a repository, and push later")
+      (user-error "GitHub can't be asked: gh auth login first, or a repository here"))
+    (when (and (equal where "folder") (not (string-empty-p description)))
+      (vikix-office--form-say "A description goes into a README, which a folder with a log alone has not: pick a repository, or leave it empty")
+      (user-error "A description is for a repository"))
+    (when (and (equal where "folder") apart)
+      (vikix-office--form-say "A log kept apart is for a repository: pick one, or untick Log apart")
+      (user-error "A log kept apart is for a repository"))
+    (append (list "office" "--project" name "--where" where)
+            (unless (string-empty-p title) (list "--title" title))
+            (unless (string-empty-p next) (list "--next" next))
+            (unless (string-empty-p description) (list "--description" description))
+            (and apart '("--log-apart")))))
 (defun vikix-office--form-say (text)
   "TEXT in the form's own header line, where the eye is (the Office's is in the other pane)."
   (setq header-line-format (concat "  " (replace-regexp-in-string "%" "%%" text)))
@@ -1551,8 +1666,10 @@ file later; a release left empty with none is no release."
 (defun vikix-office--form-args ()
   "The backend's words for this form as it stands; a user error for what is missing."
   (unless vikix-office--form (user-error "Not a form"))
-  (if (eq (plist-get vikix-office--form :desk) 'plan) (vikix-office--form-plan-args)
-    (vikix-office--form-desk-args)))
+  (pcase (plist-get vikix-office--form :desk)
+    ('plan (vikix-office--form-plan-args))
+    ('project (vikix-office--form-project-args))
+    (_ (vikix-office--form-desk-args))))
 (defun vikix-office--form-desk-args ()
   "The desk and worker forms' words."
   (let* ((form vikix-office--form) (desk (plist-get form :desk))
@@ -1592,9 +1709,12 @@ file later; a release left empty with none is no release."
          (input (and (member "--tasks" args) (vikix-office--form-plan-input))))
     (unless (buffer-live-p owner) (user-error "The Office is closed"))
     (vikix-office--form-say (pcase (plist-get vikix-office--form :desk)
-                              ('plan "Writing the plan…") ('nil "Making the desk…") (_ "Starting the worker…")))
+                              ('plan "Writing the plan…") ('project "Making the project…")
+                              ('nil "Making the desk…") (_ "Starting the worker…")))
     (with-current-buffer owner
       (when (process-live-p vikix-office--action) (user-error "An Office action is still running"))
+      ;; A project on GitHub is a push as well: the usual bound is for an answer in seconds.
+      (let ((vikix-office-timeout (if (equal (nth 1 args) "--project") (max vikix-office-timeout 150) vikix-office-timeout)))
       (vikix-office--request
        args 'vikix-office--action
        (lambda (output error)
@@ -1615,7 +1735,7 @@ file later; a release left empty with none is no release."
                         (vikix-office--show-buffer (find-file-noselect last)))
                (vikix-office--notice last)))
            (vikix-office-refresh)))
-       input))))
+       input)))))
 (defun vikix-office-form-cancel ()
   "Close the form, the desk pane back in its window; nothing is started."
   (interactive)
@@ -1688,6 +1808,7 @@ were."
     (define-key map (kbd "i") #'vikix-office-tell)
     (define-key map (kbd "N") #'vikix-office-new-desk)
     (define-key map (kbd "L") #'vikix-office-new-plan)
+    (define-key map (kbd "R") #'vikix-office-new-project)
     (define-key map (kbd "h") #'vikix-office-guide)
     (define-key map (kbd "w") #'vikix-office-worker)
     (define-key map (kbd "A") #'vikix-office-toggle-archive)

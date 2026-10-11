@@ -22,7 +22,11 @@
 #     tests/run.sh, make check / make test (only a target that's there),
 #     npm test, none; runs in the folder, passes on the exit status
 #   - new: a folder and log listed at once, --in a collection, --private
-#     (the log kept apart), ".", and it refuses a log or a worktree
+#     (the log kept apart), ".", and it refuses a log or a worktree;
+#     --git (a README, the log, one commit on main) and --github
+#     public|private (a stand-in gh: its words, the push to where it put
+#     origin, upstream set; a name taken, gh missing), --log-apart with
+#     them, and the one push over HTTPS for an SSH origin
 #   - today: the day's entries, commits (not the day before's) and next;
 #     yesterday, a date, --no-git; vikix today
 #   - open: a terminal in the folder and Emacs on the log, both left
@@ -275,6 +279,81 @@ expect "new: no log in the worktree" test ! -e "$src/wt2/log.md"
 expect "new: a folder outside the roots, it says so" has "doesn't see it" "$(vp new "$t/elsewhere")"
 expect "new without a name fails" bash -c '! python3 "$1" new 2>/dev/null' _ "$here/bin/vikix-project"
 expect "new --in and --private together fail" bash -c '! python3 "$1" new x --in series --private 2>/dev/null' _ "$here/bin/vikix-project"
+
+# --- new --git / --github -------------------------------------------------
+# A stand-in gh: records its words, makes a bare repository where GitHub would
+# and sets origin to it, answering with GitHub's URL as gh does; the push then
+# goes to that folder. The real gh's origin is SSH, which gh_push turns into
+# HTTPS through gh's login for the one push: checked on the words alone below.
+mkdir -p "$t/bin" "$t/remotes"
+cat > "$t/bin/gh" <<'GH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$GH_LOG"
+name=$3; src=
+args=("$@"); for ((j=0; j<${#args[@]}; j++)); do [ "${args[j]}" = --source ] && src="${args[j+1]}"; done
+[ "$name" != taken ] || { echo "GraphQL: Name already exists on this account (createRepository)" >&2; exit 1; }
+git init -q --bare "$GH_REMOTES/$name.git"
+git -C "$src" remote add origin "$GH_REMOTES/$name.git"
+echo "https://github.com/tester/$name"
+GH
+chmod +x "$t/bin/gh"
+export GH_LOG="$t/gh.log" GH_REMOTES="$t/remotes"
+export GIT_AUTHOR_NAME=T GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=T GIT_COMMITTER_EMAIL=t@t
+gn=$(PATH="$t/bin:$PATH" vp new demo-repo --github public --description "A demo" --next "write it" --title "The Demo")
+expect "new --github: says the repository: $gn" has "a git repository on main: README.md and log.md committed" "$gn"
+expect "new --github: says GitHub, pushed: $gn" has "on GitHub, public: https://github.com/tester/demo-repo (pushed; origin is set)" "$gn"
+expect "new --github: gh's words" has "repo create demo-repo --public --source $src/demo-repo --remote origin --description A demo" "$(cat "$t/gh.log")"
+expect "new --github: one commit, Begin NAME" test "$(git -C "$src/demo-repo" log --format=%s)" = "Begin demo-repo"
+expect "new --github: the README: the title and the description" test "$(cat "$src/demo-repo/README.md")" = "$(printf '# The Demo\n\nA demo')"
+expect "new --github: README and log committed" test "$(git -C "$src/demo-repo" ls-files | tr '\n' ' ')" = "README.md log.md "
+expect "new --github: pushed, upstream set" test "$(git -C "$src/demo-repo" rev-parse --abbrev-ref '@{upstream}')" = "origin/main"
+expect "new --github: the remote has the commit" test "$(git -C "$t/remotes/demo-repo.git" log --format=%s main)" = "Begin demo-repo"
+expect "new --github: listed with its next step" has "demo-repo" "$(vp list | grep "write it")"
+gp=$(PATH="$t/bin:$PATH" vp new pub-repo --github private --log-apart)
+expect "new --github private --log-apart: the log in the logs folder" test -f "$src/project-logs/pub-repo/log.md"
+expect "new --github private --log-apart: the log out of the repository" test "$(git -C "$src/pub-repo" ls-files)" = "README.md"
+expect "new --github private: gh's word" has "repo create pub-repo --private --source" "$(cat "$t/gh.log")"
+expect "new --log-apart: seen (listed, since the repository is there): $gp" lacks "doesn't see it" "$gp"
+expect "new --log-apart: listed by the repository's folder" test "$(vp path pub-repo)" = "$src/pub-repo"
+gl=$(vp new loc-repo --git)
+expect "new --git: a repository: $gl" has "README.md and log.md committed" "$gl"
+expect "new --git: nothing on GitHub: $gl" lacks "on GitHub" "$gl"
+expect "new --git: no origin" bash -c '! git -C "$1" remote get-url origin 2>/dev/null' _ "$src/loc-repo"
+expect "new --git: the log kept with the folder" test -f "$src/loc-repo/log.md"
+set +e; gt=$(PATH="$t/bin:$PATH" vp new taken --github public 2>&1); set -e
+expect "new --github: a name taken on GitHub says so: $gt" has "Name already exists" "$gt"
+expect "new --github: a name taken: the line to run later" has "later: gh repo create taken --public" "$gt"
+expect "new --github: a name taken: the repository stays here" test -d "$src/taken/.git"
+expect "new --git refuses a folder in a repository" bash -c '! python3 "$1" new "$2/gitproj-x" --git 2>/dev/null' _ "$here/bin/vikix-project" "$src/loc-repo"
+expect "new --git refuses a name no repository can have" bash -c '! python3 "$1" new "bad name" --git 2>/dev/null' _ "$here/bin/vikix-project"
+expect "new --github takes public or private" bash -c '! python3 "$1" new x --github sorta 2>/dev/null' _ "$here/bin/vikix-project"
+expect "new --description goes with a repository" bash -c '! python3 "$1" new x --description d 2>/dev/null' _ "$here/bin/vikix-project"
+mkdir -p "$t/nogh"; ln -s "$(command -v python3)" "$(command -v git)" "$t/nogh/"   # a PATH with no gh on it
+set +e; gm=$(PATH="$t/nogh" "$t/nogh/python3" "$here/bin/vikix-project" new no-gh --github public 2>&1); set -e
+expect "new --github without gh says so: $gm" has "isn't installed" "$gm"
+expect "new --github without gh makes nothing" test ! -e "$src/no-gh"
+# gh_push's words for an SSH origin: the one push over HTTPS through gh's login, origin left as it is.
+expect "gh_push: an SSH origin pushes over HTTPS through gh's login" bash -c 'cd "$2" && python3 - "$1" <<PY
+import importlib.util, sys
+from importlib.machinery import SourceFileLoader
+from unittest.mock import patch
+spec = importlib.util.spec_from_loader("vp", SourceFileLoader("vp", sys.argv[1])); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+seen = []
+def git_at(folder, *args, **kw):
+    seen.append(args)
+    return "git@github.com:tester/demo-repo.git\n" if args[:2] == ("remote", "get-url") else ""
+with patch.object(m, "git_at", git_at):
+    m.gh_push("/x")
+assert seen[1] == ("-c", "remote.origin.pushurl=https://github.com/tester/demo-repo.git", "-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential", "push", "-u", "origin", "HEAD"), seen
+seen.clear()
+def git_https(folder, *args, **kw):
+    seen.append(args)
+    return "https://github.com/tester/demo-repo.git\n" if args[:2] == ("remote", "get-url") else ""
+with patch.object(m, "git_at", git_https):
+    m.gh_push("/x")
+assert seen[1] == ("push", "-u", "origin", "HEAD"), seen
+PY' _ "$here/bin/vikix-project" "$t"
+unset GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL
 
 # --- today ----------------------------------------------------------------
 g() { git -C "$src/gitproj" -c user.name=T -c user.email=t@t -c commit.gpgsign=false "$@"; }
