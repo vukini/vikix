@@ -902,18 +902,25 @@ names. The Guide: the manual's node in the desk pane, or why not."
                ;; A template picked: the form drawn again with its tasks as fields, each
                ;; EDIT: line of the template a hint under an empty field, the rest filled.
                (office-test-pick-template "build-chain")
-               (should (string-match-p "Task 1 [─-]+\n  Name:  build .*Desk: topic .*After: " (buffer-string)))
-               (should (string-match-p "Task 2 [─-]+\n  Name:  tests .*After: build" (buffer-string)))
-               ;; Each task is a box of its own, open on the right (its fields grow):
-               ;; a top edge with its title, a rule between its parts (who and
-               ;; where, the words, the release, the acceptance, the agent), the
-               ;; bottom edge, and the left side on every line of it as an
-               ;; overlay's line-prefix, so the text itself has no side.
+               (should (string-match-p "Task 1 [─-]+[┐+]\n  Name:  build .*Desk: topic .*After: " (buffer-string)))
+               (should (string-match-p "Task 2 [─-]+[┐+]\n  Name:  tests .*After: build" (buffer-string)))
+               ;; Each task is a box of its own: a top edge with its title, a rule
+               ;; between its parts (who and where, the words, the release, the
+               ;; acceptance, the agent), the bottom edge, the left side on every
+               ;; line of it as an overlay's line-prefix, and the right side on
+               ;; every line's end as an overlay's before-string, put again as the
+               ;; fields' lines come and go; the text itself has no side.
                (let ((edges (lambda (re) (let ((n 0)) (goto-char (point-min))
-                                             (while (re-search-forward re nil t) (setq n (1+ n))) n))))
-                 (should (equal (funcall edges "^[┌+][─-] Task [0-9]+ [─-]+$") 2))
-                 (should (equal (funcall edges "^[├+][─-]+$") 8))
-                 (should (equal (funcall edges "^[└+][─-]+$") 2))
+                                             (while (re-search-forward re nil t) (setq n (1+ n))) n)))
+                     (rights (lambda () (cl-count-if (lambda (o) (overlay-get o 'vikix-office-right))
+                                                     (overlays-in (point-min) (point-max)))))
+                     (lines (lambda () (let ((n 0))
+                                         (dolist (o (overlays-in (point-min) (point-max)) n)
+                                           (when (overlay-get o 'vikix-office-side)
+                                             (setq n (+ n (count-lines (overlay-start o) (overlay-end o))))))))))
+                 (should (equal (funcall edges "^[┌+][─-] Task [0-9]+ [─-]+[┐+]$") 2))
+                 (should (equal (funcall edges "^[├+][─-]+[┤+]$") 8))
+                 (should (equal (funcall edges "^[└+][─-]+[┘+]$") 2))
                  (should-not (string-match-p "^[│|]" (buffer-string)))
                  (goto-char (point-min)) (search-forward "Task 1 ")
                  (should-not (get-char-property (point) 'line-prefix))
@@ -922,7 +929,20 @@ names. The Guide: the manual's node in the desk pane, or why not."
                  (should (member (get-char-property (widget-field-start (alist-get 'task (nth 0 (plist-get vikix-office--form :tasks)))) 'line-prefix)
                                  '("│" "|")))
                  (goto-char (point-min)) (search-forward "Add a task")
-                 (should-not (get-char-property (point) 'line-prefix)))
+                 (should-not (get-char-property (point) 'line-prefix))
+                 (should (> (funcall rights) 20))
+                 (should (equal (funcall rights) (funcall lines)))
+                 (let ((before (funcall rights)))
+                   (office-test-task-set 0 'task "one\ntwo\nthree")
+                   (vikix-office--live-sides)
+                   (should (equal (funcall rights) (+ before 2)))
+                   (should (equal (funcall rights) (funcall lines)))
+                   (goto-char (widget-field-end (alist-get 'task (nth 0 (plist-get vikix-office--form :tasks)))))
+                   (let ((o (cl-find-if (lambda (o) (overlay-get o 'vikix-office-right)) (overlays-at (point)))))
+                     (should o)
+                     (should (string-suffix-p (get-char-property (widget-field-start (alist-get 'task (nth 0 (plist-get vikix-office--form :tasks)))) 'line-prefix)
+                                              (substring-no-properties (overlay-get o 'before-string)))))
+                   (office-test-task-set 0 'task "")))
                (should (string-match-p "what to build\n.*left empty, that line stays" (buffer-string)))
                (should (string-match-p "\\[codex\\]   \\[X\\] local model" (buffer-string)))
                (should (equal (length (plist-get vikix-office--form :tasks)) 2))
@@ -969,7 +989,7 @@ names. The Guide: the manual's node in the desk pane, or why not."
                ;; Add a task: an empty one after the rest, point at its name; Remove takes one out; the words typed stay.
                (office-test-press "Add a task")
                (should (equal (length (plist-get vikix-office--form :tasks)) 2))
-               (should (string-match-p "Task 2 [─-]+\n  Name:  " (buffer-string)))
+               (should (string-match-p "Task 2 [─-]+[┐+]\n  Name:  " (buffer-string)))
                (should (equal (widget-value (alist-get 'task (nth 0 (plist-get vikix-office--form :tasks)))) " Do it.\nMy way. "))
                (should (eq (widget-at (point)) (alist-get 'name (nth 1 (plist-get vikix-office--form :tasks)))))
                (should-error (vikix-office--form-plan-input) :type 'user-error)
