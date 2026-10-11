@@ -219,9 +219,10 @@ over the refreshes that follow, so it is seen; g drops it.")
 ;; when the window is resized; a terminal that can't show the box
 ;; characters gets ASCII ones.
 (defvar-local vikix-office--width nil "The inner width the buffer was last drawn at.")
-(defun vikix-office--geometry ()
-  "The inner width to draw at and the box's characters, for this buffer's window."
-  (let ((window (get-buffer-window (current-buffer) t)))
+(defun vikix-office--geometry (&optional window)
+  "The inner width to draw at and the box's characters, for this buffer's
+WINDOW, or the window given (a form drawn before it is placed)."
+  (let ((window (or window (get-buffer-window (current-buffer) t))))
     (cons (max 40 (- (if window (window-body-width window) 80) 5))
           (if (with-selected-window (or window (selected-window)) (char-displayable-p ?│))
               "┌┐└┘─│├┤" "++++-|++"))))
@@ -243,19 +244,46 @@ over the refreshes that follow, so it is seen; g drops it.")
     (nreverse (cons line lines))))
 (defun vikix-office--edge (chars left right width title)
   "A box's horizontal edge, WIDTH wide inside, with TITLE in it when given.
-LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
+LEFT and RIGHT index the corners, or the joins of a rule, in CHARS; RIGHT
+nil is an edge open on the right, for a box whose lines have no right
+side (the New plan form's tasks, whose fields grow as you type)."
   (let* ((bar (aref chars 4))
          (label (if (member title '(nil "")) ""
                   (concat " " (truncate-string-to-width title (- width 2) nil nil "…") " "))))
     (insert (propertize (string (aref chars left) bar) 'face 'shadow)
             (propertize label 'face 'bold)
             (propertize (concat (make-string (- (1+ width) (string-width label)) bar)
-                                (string (aref chars right)))
+                                (if right (string (aref chars right)) (string bar)))
                         'face 'shadow)
             "\n")))
 (defun vikix-office--box-top (width chars title) (vikix-office--edge chars 0 1 width title))
 (defun vikix-office--box-bottom (width chars) (vikix-office--edge chars 2 3 width nil) (insert "\n"))
 (defun vikix-office--box-rule (width chars) (vikix-office--edge chars 6 7 width nil))
+(defvar vikix-office--side nil
+  "While an open box is drawn: where its lines' left side begins, and the side.")
+(defun vikix-office--side-close ()
+  "The left side over the open box's lines since it began: an overlay whose
+`line-prefix' is the side, so a field that grows (the form's) keeps it."
+  (let ((o (make-overlay (car vikix-office--side) (point))))
+    (overlay-put o 'line-prefix (cdr vikix-office--side))
+    (overlay-put o 'wrap-prefix (cdr vikix-office--side))
+    (overlay-put o 'vikix-office-side t)))
+(defun vikix-office--open-box (width chars title body)
+  "A box open on the right: its top edge with TITLE, BODY, a function that
+inserts its lines, and the bottom edge; every line of BODY gets the left
+side (`vikix-office--side-close'). BODY draws a rule between its parts
+with `vikix-office--open-rule'."
+  (vikix-office--edge chars 0 nil width title)
+  (let ((vikix-office--side (cons (point) (propertize (string (aref chars 5)) 'face 'shadow))))
+    (funcall body)
+    (vikix-office--side-close))
+  (vikix-office--edge chars 2 nil width nil))
+(defun vikix-office--open-rule (width chars)
+  "A rule across an open box, between two of its parts: the side ends above
+it and begins again below."
+  (vikix-office--side-close)
+  (vikix-office--edge chars 6 nil width nil)
+  (setcar vikix-office--side (point)))
 (defun vikix-office--line (width chars content)
   "One line of a box: CONTENT, a string or a function that inserts it, padded."
   (let ((side (propertize (string (aref chars 5)) 'face 'shadow)))
@@ -1220,6 +1248,13 @@ new buffer is made and placed. FOCUS names where point goes on a redraw."
          (folder (or (alist-get 'plans_folder offer) "~/.config/vikix/plans"))
          (tasks (plist-get state :tasks))
          (window (plist-get vikix-office--form :window))
+         ;; The width of the window the form is in, or will be placed in
+         ;; (the owner's desk pane), as the Office's boxes measure it.
+         (geometry (vikix-office--geometry
+                    (let ((w (or (and (not fresh) (get-buffer-window buffer t))
+                                 (with-current-buffer owner (vikix-office--pane-window)))))
+                      (and (window-live-p w) w))))
+         (width (car geometry)) (chars (cdr geometry))
          widgets task-widgets at)
     (with-current-buffer buffer
       (kill-all-local-variables)
@@ -1284,13 +1319,18 @@ new buffer is made and placed. FOCUS names where point goes on a redraw."
       (widget-insert "\n")
       ;; The tasks: the template's, each a worker's job, as fields; a line the
       ;; template asks you to write (EDIT:) is a hint under an empty field.
+      ;; Each task is a box of its own (2026-10-11: as prose, the tasks ran
+      ;; into one another), open on the right since its fields grow, with a
+      ;; rule between its parts: who and where, the words, the release, the
+      ;; acceptance, the agent and its switches.
       (when tasks
         (widget-insert (propertize "Tasks" 'face 'bold)
                        (propertize "  the template's, in order; tasks at one desk are a chain, at different desks they run side by side\n" 'face 'shadow))
         (let ((i 0))
           (dolist (task tasks)
             (let ((n i) tw)
-              (widget-insert "\n" (propertize (format "Task %d" (1+ n)) 'face 'bold) "\n")
+              (widget-insert "\n")
+              (vikix-office--open-box width chars (format "Task %d" (1+ n)) (lambda ()
               (push (cons 'name (widget-create 'editable-field :size 16 :format "  Name:  %v"
                                                :help-echo "A word: what after names" (alist-get 'name task)))
                     tw)
@@ -1301,6 +1341,7 @@ new buffer is made and placed. FOCUS names where point goes on a redraw."
               (push (cons 'after (widget-create 'editable-field :size 20 :format "   After: %v\n"
                                                 :help-echo "The tasks it waits for, by name, with commas" (alist-get 'after task)))
                     tw)
+              (vikix-office--open-rule width chars)
               (push (cons 'task (widget-create 'text :format "  Task:\n%v\n"
                                                :help-echo "The worker's job, in your words: its first prompt" (alist-get 'task task)))
                     tw)
@@ -1309,6 +1350,7 @@ new buffer is made and placed. FOCUS names where point goes on a redraw."
                 (widget-insert (propertize (concat "        " (vikix-office--form-hint (alist-get 'hint task))
                                                    "\n        (left empty, that line stays in the file as EDIT: for you to write there)\n")
                                            'face 'shadow)))
+              (vikix-office--open-rule width chars)
               (push (cons 'release (widget-create 'editable-field :size 60 :format "  Release: %v\n"
                                                   :help-echo "One line, what the release brings: what its commit and tag say after the version"
                                                   (alist-get 'release task)))
@@ -1317,10 +1359,12 @@ new buffer is made and placed. FOCUS names where point goes on a redraw."
                                          'face 'shadow))
               (when (alist-get 'release-hint task)
                 (widget-insert (propertize (concat "        " (vikix-office--form-hint (alist-get 'release-hint task)) " (left empty, it stays as EDIT:)\n") 'face 'shadow)))
+              (vikix-office--open-rule width chars)
               (push (cons 'acceptance (widget-create 'text :format "  Acceptance, a line each (what the work is judged by):\n%v\n"
                                                      :help-echo "The criteria the work is judged by, a line each; empty for none"
                                                      (alist-get 'acceptance task)))
                     tw)
+              (vikix-office--open-rule width chars)
               (push (cons 'agent
                           (apply #'widget-create 'menu-choice :tag "  Agent" :value (alist-get 'agent task)
                                  :format "%t: %[%v%]" :button-prefix "[" :button-suffix "]"
@@ -1354,7 +1398,7 @@ new buffer is made and placed. FOCUS names where point goes on a redraw."
                                                                           (seq-drop (plist-get state :tasks) (1+ n))))
                                           '(-1 . none))))
                              "Remove this task")
-              (widget-insert "\n")
+              (widget-insert "\n")))
               (push (nreverse tw) task-widgets)
               (setq i (1+ i)))))
         (widget-insert "\n")

@@ -607,7 +607,9 @@ the list), the project (the repositories alone, since a plan's desks are
 worktrees), the plan's name (a word: the file's name under
 `~/.config/vikix/plans/`, and its desks'), workers at once and the gate
 (empty, the template's). Nothing is picked for you. Once a template is
-picked, its tasks come up as the form's fields, in order: each task's name,
+picked, its tasks come up as the form's fields, in order, each task in a
+box of its own (open on the right, since its fields grow as you type) with
+a rule between its parts: the task's name,
 desk (`topic` becomes the plan's name) and the tasks it waits for, its
 words, its release line (one line, what the release brings: what the
 release's commit and tag say after the version, `Vikix 0.72.44: that
