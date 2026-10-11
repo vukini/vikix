@@ -20,7 +20,7 @@ Every `vikix` command has a man page as well, and so has each command of a plugi
 | [Nyxt, the browser you change in Lisp](nyxt.md) | You have Nyxt (the feature `lisp-apps`): guides opening in it, its colours, your config, Emacs connected to it, commands of your own |
 | [Plugins, one by one](plugins.md) | You want a plugin, or one isn't doing what you expect: each plugin's keys, settings, files, and what to do when it doesn't work |
 | [Your notes](notes.md) | You take notes: a key from anywhere, sorting the inbox with a model, the agenda and links in Emacs, and the same notes on an Android phone or an iPhone |
-| [Books from Markdown](publish.md) | You have a text in Markdown and want a book out of it: the folder and `publish.yml`, the EPUB for e-ink readers and the PDF, the check of spelling, links and builds, and the book onto your reader |
+| [Books from Markdown](publish.md) | You have a text in Markdown and want an EPUB for an e-reader, or a PDF, checked before it leaves |
 | [Working with AI](ai.md) | You want the agent to change something for you, a model on the laptop, `llm` in a pipe, dictation, to talk with the AI, to ask your notes, or to give the agent the desktop as tools |
 | [Agents at work](agents.md) | You run several AI agents at once: seeing who is on what, a desk (a workspace and a git worktree) for each, and the house rules when two reach for one file |
 | [Windows in a window](windows.md) | You need a program that only runs on Windows |
