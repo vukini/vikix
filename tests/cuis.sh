@@ -580,7 +580,9 @@ assert not any("window 1 Alacritty" in l for l in lines[:two]), "still under wor
     for _ in $(seq 1 40); do grep -q "moved window $number to $to" <<<"$(ev --cuis 'VikixDesktop summary' 2>&1)" && break; sleep 0.25; done
     where=$(ask "(princ (group-name (window-group (find \"one\" (screen-windows (current-screen)) :key (function window-title) :test (function equal)))))")
     check "the real window should be on the other workspace: $where" test "$where" = "$to"
-    key super+2
+    # Pressed until the workspace changes: a key sent to a busy hidden screen is
+    # sometimes lost (twice at a load of 6 on 2026-10-11, refusing a release each time).
+    for _ in $(seq 1 8); do key super+2; test "$(ask '(princ (group-name (current-group)))')" = "$to" && break; done
     check "Super+2 should show it there: $(ask '(princ (group-name (current-group)))')" test "$(ask "(princ (if (find \"one\" (group-windows (current-group)) :key (function window-title) :test (function equal)) 1 0))")" = 1
     summary=$(ev --cuis 'VikixDesktop summary' 2>&1)
     check "and the image should show it there at the next poll: $summary" python3 -c '
