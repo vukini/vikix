@@ -264,12 +264,20 @@
                        hold the desk's agent at its next tool call, until go.
                        It waits with its context whole and at no cost, for
                        ten minutes at most, after which the call is refused
-                       with why and the turn ends. --hard freezes the
-                       agent's process this instant instead (SIGSTOP; for
-                       an agent with no hook, or an emergency: a request
-                       in flight may time out)
+                       with why and the turn ends, go then waking it. --hard
+                       freezes the agent's process this instant instead
+                       (SIGSTOP; for an agent with no hook, or an emergency:
+                       a request in flight may time out)
   vikix agents go DESK  let a paused agent go on, told it was paused and to carry on
-                        where it was (SIGCONT after --hard)
+                        where it was (SIGCONT after --hard). One whose turn
+                        the pause ended at its limit sits at its prompt,
+                        making no call for the lifted pause to go through:
+                        it is woken as tell --now wakes one, asked to exit
+                        and its conversation resumed with the words to
+                        carry on where it was (the record logs "woken");
+                        when it can't be (two at the desk, no conversation
+                        to resume, no desktop) why is said and the words
+                        wait in its inbox, read at its next tool call
   vikix agents park [DESK] [--next "..."]
                        keep the desk aside, to be started later.
                        Its status becomes parked, signed by you (or by the

@@ -26,7 +26,9 @@ def pause_hold(me, tell=True):
     agent, which saw nothing of the wait, is told it was paused and to
     carry on where it was (RESUMED, which hook_output adds): the entry
     before every tool tells, the matcher's holds silently, so an edit,
-    which both hooks hold, hears it once."""
+    which both hooks hold, hears it once. The refusal at the limit is
+    noted in the pause (pause_ended), since the agent then sits at its
+    prompt, and go wakes it rather than wait for the user's words."""
     global RESUMED
     if not me or not me["folder"]:
         return False
@@ -38,10 +40,11 @@ def pause_hold(me, tell=True):
     end = held + PAUSE_LIMIT
     while os.path.exists(path):
         if time.time() >= end:
+            pause_ended(me["folder"], p)
             hook_output(permissionDecision="deny", permissionDecisionReason=(
                 f"Vikix office: your desk is paused by {p.get('by', 'the user')} since {at(p.get('at', 0))}, and the "
                 f"wait reached {PAUSE_LIMIT // 60} minutes. End this turn now, saying you are paused; nothing is lost. "
-                "The user's `vikix agents go` and their next words to you start you again."))
+                "The user's `vikix agents go` starts you again where you were."))
             return True
         time.sleep(1)
     if tell:

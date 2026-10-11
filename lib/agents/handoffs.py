@@ -109,26 +109,26 @@ def note_line(n):
     return f"  {n['by']} ({H.when(n['at'])}" + (f", for {n['for']}" if n.get("for") else "") + f"): {n['text']}"
 
 
-def wake(folder, text, by):
+def wake(folder, text, by, what="the note"):
     """A worker at its prompt woken with TEXT as its prompt: a note reaches
     an agent only at a tool call, and one that handed in sits at its prompt
     making none (2026-10-11: a review's findings waited unread). The one
     agent at the desk, at its prompt by the journal (a stop let through,
     nothing since), with a conversation its provider can resume, is asked
     to exit and resumed with TEXT (resume keeps its conversation). (woken,
-    what was done or why not, in a line)."""
+    what was done or why not, in a line; WHAT names TEXT there)."""
     H = handoff_module()
     there = agents_at(folder)
     if not there:
-        return False, "no agent is at the desk: vikix agents resume reads the note out when one takes it up"
+        return False, f"no agent is at the desk: vikix agents resume reads {what} out when one takes it up"
     states = {a["pid"]: a["state"] for a in journal_states([dict(a, state="running", doing="") for a in there])}
     idle = [a for a in there if states.get(a["pid"]) == "idle"]
     if not idle:
         working = [a for a in there if states.get(a["pid"]) == "working"]
         if working:
-            return False, f"{', '.join(who(a) for a in working)} is working: the note reaches it at its next tool call"
+            return False, f"{', '.join(who(a) for a in working)} is working: {what} reaches it at its next tool call"
         return False, (f"{', '.join(who(a) for a in there)} may be at its prompt (its state isn't known): it must be "
-                       "woken to read the note, by you, or vikix agents tell DESK --now once its hook has said")
+                       f"woken to read {what}, by you, or vikix agents tell DESK --now once its hook has said")
     if len(there) > 1:
         return False, f"{', '.join(who(a) for a in there)} are at the desk: say which (vikix agents dismiss, then resume)"
     a = idle[0]
@@ -136,7 +136,7 @@ def wake(folder, text, by):
     plan = H.resume_plan(rec, a["agent"], folder)
     if plan["mode"] != "resumed":
         return False, (f"{who(a)} is at its prompt and its conversation can't be resumed ({plan['why']}): "
-                       "speak to it, and it reads the note at its next tool call")
+                       f"speak to it, and it reads {what} at its next tool call")
     if not H.first_prompt_args(a["agent"], text):
         return False, f"{who(a)} is at its prompt and {a['agent']} takes no first prompt: speak to it"
     if not os.environ.get("DISPLAY"):
@@ -150,14 +150,14 @@ def wake(folder, text, by):
     if not process_gone(a["pid"]):
         return False, f"{who(a)} is still exiting: vikix agents resume {desk_name(folder)} --prompt \"...\" once it has gone"
     try:
-        desk_record(folder, by=by, change=lambda r: H._log(r, by, f"woken: {who(a)} at its prompt, resumed with the note"))
+        desk_record(folder, by=by, change=lambda r: H._log(r, by, f"woken: {who(a)} at its prompt, resumed with {what}"))
     except SystemExit:
         pass
     try:
         resume([folder, "--use", a["agent"], "--prompt", text])
     except SystemExit as e:
         return False, f"{who(a)} was asked to exit, and resuming it failed ({e}): vikix agents resume {desk_name(folder)}"
-    return True, f"{who(a)} was at its prompt: its conversation is resumed with the note as its prompt"
+    return True, f"{who(a)} was at its prompt: its conversation is resumed with {what} as its prompt"
 
 
 def tell(argv):

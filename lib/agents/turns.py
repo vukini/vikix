@@ -30,6 +30,19 @@ def pause_read(folder):
         return {}
 
 
+def pause_ended(folder, p):
+    """The pause of FOLDER noted as having ended its agent's turn (the
+    hook's refusal at PAUSE_LIMIT, kept with it), so go knows to wake the
+    agent, which sits at its prompt making no call for the lifted pause to
+    go through."""
+    p = dict(p, ended=int(time.time()), limit=PAUSE_LIMIT)
+    try:
+        with open(pause_path(folder), "w") as f:
+            json.dump(p, f)
+    except OSError:
+        pass
+
+
 def signal_agent(pid, sig):
     """SIG to the agent PID, pinned by a process descriptor and checked to
     be an agent still: never a bare pid, which may be another program's by
@@ -138,9 +151,15 @@ def park_folder(folder, by, next_=None):
     return said
 
 
-def go_folder(folder):
-    """The desk FOLDER let go; what was done, in words: how long it was
-    paused, and what its agent hears (the hook tells it, pause_hold)."""
+def go_folder(folder, by="user"):
+    """The desk FOLDER let go by BY; what was done, in words: how long it
+    was paused, and what its agent hears (the hook tells it, pause_hold).
+    A pause that ended the agent's turn at the limit (pause_ended) left it
+    at its prompt, where no call comes for the lifted pause to go through
+    (2026-10-11: let go, the agent sat until the user spoke to it): that
+    agent is woken as tell --now wakes one, its conversation resumed with
+    the words to carry on where it was, and when it can't be, why is said
+    and the words wait in its inbox."""
     path = pause_path(folder)
     if not os.path.exists(path):
         return f"{short(folder)} isn't paused"
@@ -152,6 +171,25 @@ def go_folder(folder):
     said = f"{short(folder)}: let go, paused {how_long(max(0, int(time.time()) - since))}"
     if woken:
         said += f"; {len(woken)} process{'es' if len(woken) != 1 else ''} continue{'' if len(woken) != 1 else 's'}"
+    elif there and p.get("ended"):
+        text = (f"Vikix office: your desk was paused by {p.get('by', 'the user')} at {at(since)} and let go just now, "
+                f"after {how_long(max(0, int(time.time()) - since))} (vikix agents go, or the Office's Go). The wait had "
+                f"reached {how_long(p.get('limit') if isinstance(p.get('limit'), int) else PAUSE_LIMIT)} and ended your "
+                "turn; this is the pause lifted, not a new task: carry "
+                "on from where you were, on the same task and plan; the pause changed nothing of yours. A note from the "
+                "user, when there is one, reaches you at your next tool call.")
+        done, how = wake(folder, text, by, what="the words to carry on")
+        if done:
+            said += f"; the pause had ended its turn: {how}"
+        else:
+            said += f"; the pause had ended its turn, and {how}"
+            if "is working" not in how:
+                # No held call will carry the words (pause_hold's RESUMED): the inbox does, at its next call.
+                try:
+                    inbox_add(folder, text, by)
+                    said += "; the words to carry on wait in its inbox"
+                except handoff_module().HandoffError:
+                    pass
     elif there:
         one = len(there) == 1
         said += (f"; {', '.join(who(a) for a in there)} {'goes' if one else 'go'} on at {'its' if one else 'their'} next "
@@ -169,7 +207,7 @@ def go(argv):
         die("vikix agents go DESK")
     by, me = by_me()
     folder, _ = desk_for(words, me)
-    print(go_folder(folder))
+    print(go_folder(folder, by))
     return 0
 
 

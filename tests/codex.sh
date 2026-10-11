@@ -868,6 +868,43 @@ for _ in 1 2 3 4 5; do kill -0 "$spid" 2>/dev/null || break; sleep 0.2; done
 wait "$spid" 2>/dev/null || true; rm -rf "$t/proc/$spid"
 out=$(agents tell h "nobody there" --now)
 check "with no agent at the desk, tell --now leaves the note: $out" grep -q "book-h: no agent is at the desk: vikix agents resume reads the note out when one takes it up; the note waits in its inbox" <<<"$out"
+# A pause past its limit ends the worker's turn (the hook's refusal), and the worker then sits
+# at its prompt, making no call for the lifted pause to go through (2026-10-11: let go, it sat
+# until the user spoke to it): go wakes it as tell --now does, with the words to carry on.
+standin claude "$t/src/book-h"
+agents pause h >/dev/null
+out=$(VIKIX_PAUSE_LIMIT=1 VIKIX_AGENT_PID=$spid python3 "$here/bin/vikix-agents" touch --pause-only 2>&1 </dev/null)
+check "the hook's refusal at the limit says go starts the agent again: $(head -c 100 <<<"$out")" \
+  grep -q '"deny".*End this turn now, saying you are paused; nothing is lost. The user.s .vikix agents go. starts you again where you were' <<<"$out"
+check "and notes in the pause that it ended the turn" grep -q '"ended": [0-9]' "$HOME/.local/state/vikix/office/pause/"*
+printf '{"at": %s, "kind": "stop", "agent": "claude", "pid": %s, "folder": "%s", "file": ""}\n' "$(date +%s)" "$spid" "$t/src/book-h" >> "$journal"
+rm -f "$t/term-out"
+out=$(DISPLAY=:7 VIKIX_TERMINAL="$t/bin/term" agents go h)
+for _ in $(seq 40); do [ -f "$t/term-out" ] && break; sleep 0.1; done
+check "go wakes the worker whose turn the pause ended: $out" \
+  grep -q "book-h: let go, paused [0-9]* s; the pause had ended its turn: claude $spid was at its prompt: its conversation is resumed with the words to carry on as its prompt" <<<"$out"
+check "its conversation resumed with the words to carry on, where it was, as its prompt: $(cat "$t/term-out" 2>/dev/null)" \
+  grep -q "^AGENT ARGS: --use claude --resume sess-wake-1 Vikix office: your desk was paused by user at [0-9:]* and let go just now, after [0-9]* s (vikix agents go, or the Office.s Go). The wait had reached 1 s and ended your turn; this is the pause lifted, not a new task: carry on from where you were, on the same task and plan; the pause changed nothing of yours. A note from the user, when there is one, reaches you at your next tool call.$" "$t/term-out"
+check "the record logs the waking" grep -q "woken: claude [0-9]* at its prompt, resumed with the words to carry on" <<<"$(agents handoff h --json)"
+check "the pause is gone" test -z "$(ls "$HOME/.local/state/vikix/office/pause/")"
+for _ in 1 2 3 4 5; do kill -0 "$spid" 2>/dev/null || break; sleep 0.2; done
+wait "$spid" 2>/dev/null || true; rm -rf "$t/proc/$spid"
+# When it can't be woken (no desktop here to open its terminal on), why is said and the words
+# wait in its inbox, for its next tool call; the agent stays.
+standin claude "$t/src/book-h"
+agents pause h >/dev/null
+VIKIX_PAUSE_LIMIT=1 VIKIX_AGENT_PID=$spid python3 "$here/bin/vikix-agents" touch --pause-only >/dev/null 2>&1 </dev/null || true
+printf '{"at": %s, "kind": "stop", "agent": "claude", "pid": %s, "folder": "%s", "file": ""}\n' "$(($(date +%s) + 1))" "$spid" "$t/src/book-h" >> "$journal"
+out=$(agents go h)
+check "with no desktop, go says why the worker wasn't woken and leaves the words: $out" \
+  grep -q "book-h: let go, paused [0-9]* s; the pause had ended its turn, and claude $spid is at its prompt, and there is no desktop here to open its terminal on: speak to it; the words to carry on wait in its inbox" <<<"$out"
+check "the words wait in the inbox" grep -q "user (just now): Vikix office: your desk was paused by user at [0-9:]* and let go just now" <<<"$(agents handoff h)"
+check "and the agent stays" kill -0 "$spid"
+agents pause h >/dev/null
+out=$(agents go h)
+check "a desk paused with its agent at its prompt, no turn ended, is left to its next call: $out" \
+  grep -q "book-h: let go, paused [0-9]* s; claude $spid goes on at its next call, told it was paused and to carry on where it was" <<<"$out"
+kill "$spid" 2>/dev/null; wait "$spid" 2>/dev/null || true; rm -rf "$t/proc/$spid"
 python3 - "$journal" <<'PYJ'
 import sys
 lines = [l for l in open(sys.argv[1]) if '"kind": "stop"' not in l]
