@@ -64,7 +64,7 @@ over the refreshes that follow, so it is seen; g drops it.")
 ;; groups Needs you, Working and Finished (a finished desk still stands, yours
 ;; to release or close). The second is Parked and Closed: the desks nobody
 ;; works at and the ones closed today. The third is the Archive, the records
-;; of worktrees gone. Each is drawn from the same snapshot; the parked page's
+;; of worktrees gone and the plans done. Each is drawn from the same snapshot; the parked page's
 ;; rows are the snapshot's desks of those two groups, the archive's its
 ;; archive list.
 (defvar-local vikix-office--page 'desks
@@ -288,6 +288,66 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
         (if (eq owner (current-buffer)) (vikix-office--render)
           (with-current-buffer owner (vikix-office--render-detail)))))))
 
+(defun vikix-office--plans-box (width chars owner plans title)
+  "The box TITLE of PLANS (the snapshot's plans or plans_done), a plan a
+group of rows: its name, project and state (a done plan says when), then
+a line a desk saying where that desk's chain stands, and what needs you
+in the asks face. A plan not run yet (plan new, the New plan form;
+~/.config/vikix/plans) is a draft among them, with its Run once its
+EDIT: lines are written. Each plan ends with the acts its state takes:
+Run, Pause, Stop, Edit, Log; a done plan has Edit and Log alone. Nothing
+is drawn when PLANS is empty."
+  (when plans
+    (let ((label-width (vikix-office--label-width
+                        (apply #'append (mapcar (lambda (p) (mapcar (lambda (d) (vikix-office--one-line (alist-get 'topic d)))
+                                                                     (alist-get 'desks p)))
+                                                plans))
+                        8))
+          (first t))
+      (vikix-office--box-top width chars title)
+      (dolist (p plans)
+        (unless first (vikix-office--box-rule width chars))
+        (setq first nil)
+        (vikix-office--line width chars
+                            (lambda ()
+                              (insert (propertize (vikix-office--one-line (alist-get 'name p)) 'face 'bold)
+                                      " · " (vikix-office--one-line (alist-get 'project p))
+                                      " · " (vikix-office--one-line (alist-get 'state p))
+                                      (let ((done (alist-get 'done p)))
+                                        (if (and (equal (alist-get 'state p) "done") (numberp done) (> done 0))
+                                            (concat " " (vikix-office--time done)) ""))
+                                      (let ((n (alist-get 'at_once p)))
+                                        (if (and n (not (eq n :null))) (format " · %s at once" n) ""))
+                                      (if (equal (alist-get 'gate p) "me") " · your yes before a release" ""))))
+        (let ((err (alist-get 'error p)))
+          (if (not (member err '(nil "")))
+              (vikix-office--field width chars label-width "" (vikix-office--one-line err) 'vikix-office-asks)
+            (dolist (d (alist-get 'desks p))
+              (vikix-office--field width chars label-width (vikix-office--one-line (alist-get 'topic d))
+                                   (let ((line (vikix-office--one-line (alist-get 'line d))))
+                                     (if (equal line "") "nothing yet" line))
+                                   (and (eq (alist-get 'released d) t) 'shadow)))
+            (dolist (n (alist-get 'needs p))
+              (vikix-office--field width chars label-width "Needs you" (vikix-office--one-line n) 'vikix-office-asks))))
+        (let ((file (alist-get 'file p)) (state (alist-get 'state p)) (err (alist-get 'error p))
+              (edit (alist-get 'edit p)))
+          (vikix-office--line
+           width chars
+           (lambda ()
+             (when (and (member err '(nil "")) (null edit) (member state '("draft" "stopped" "not running")))
+               (vikix-office--button (if (equal state "draft") "Run" "Run again")
+                                     (lambda () (with-current-buffer owner (vikix-office-plan-act "run" file)))))
+             (when (equal state "paused")
+               (vikix-office--button "Go on" (lambda () (with-current-buffer owner (vikix-office-plan-act "run" file)))))
+             (when (equal state "running")
+               (vikix-office--button "Pause" (lambda () (with-current-buffer owner (vikix-office-plan-act "pause" file)))))
+             (when (member state '("running" "paused"))
+               (vikix-office--button "Stop" (lambda () (with-current-buffer owner (vikix-office-plan-act "stop" file)))))
+             (vikix-office--button "Edit" (lambda () (with-current-buffer owner (vikix-office-show-file file))))
+             (when (member state '("running" "paused" "stopped" "done"))
+               (vikix-office--button "Log" (lambda () (with-current-buffer owner (vikix-office-plan-log file)))))))))
+      (vikix-office--box-bottom width chars))))
+
 (defun vikix-office--render ()
   (let* ((rows (vikix-office--rows))
          (owner (current-buffer))
@@ -315,7 +375,9 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
         (vikix-office--button (format "Parked and closed (%d)" (length (vikix-office--page-rows 'parked)))
                               (lambda () (with-current-buffer owner (vikix-office-show-page 'parked)))))
       (unless (eq vikix-office--page 'archive)
-        (vikix-office--button (format "Archive (%d)" (length (alist-get 'archive vikix-office--data)))
+        (vikix-office--button (let ((n (length (alist-get 'plans_done vikix-office--data))))
+                                (format "Archive (%d%s)" (length (alist-get 'archive vikix-office--data))
+                                        (cond ((= n 0) "") ((= n 1) ", 1 plan") (t (format ", %d plans" n)))))
                               (lambda () (with-current-buffer owner (vikix-office-show-page 'archive)))))
       (when (and (eq vikix-office--page 'archive) rows (eq (alist-get 'live_known vikix-office--data) t)
                  (not (alist-get 'errors vikix-office--data)))
@@ -346,65 +408,19 @@ LEFT and RIGHT index the corners, or the joins of a rule, in CHARS."
                    (vikix-office--box-bottom width chars)))
                 ((eq (alist-get 'releases_kept vikix-office--data) t)
                  (insert (propertize "No release under way.\n\n" 'face 'shadow)))))
-        ;; The plans (vikix agents plan run): a box when any has run, a plan a
-        ;; group of rows: its name, project and whether its runner runs, then a
-        ;; line a desk saying where that desk's chain stands, and what needs
-        ;; you in the asks face. The desks it holds are among the desks below,
-        ;; each with its Plan line.
-        ;; A plan not run yet (plan new, the New plan form; ~/.config/vikix/plans)
-        ;; is a draft among them, with its Run once its EDIT: lines are written.
-        ;; Each plan ends with the acts its state takes: Run, Pause, Stop, Edit.
-        (let ((plans (alist-get 'plans vikix-office--data)))
-          (when plans
-            (let ((label-width (vikix-office--label-width
-                                (apply #'append (mapcar (lambda (p) (mapcar (lambda (d) (vikix-office--one-line (alist-get 'topic d)))
-                                                                             (alist-get 'desks p)))
-                                                        plans))
-                                8))
-                  (first t))
-              (vikix-office--box-top width chars "Plans")
-              (dolist (p plans)
-                (unless first (vikix-office--box-rule width chars))
-                (setq first nil)
-                (vikix-office--line width chars
-                                    (lambda ()
-                                      (insert (propertize (vikix-office--one-line (alist-get 'name p)) 'face 'bold)
-                                              " · " (vikix-office--one-line (alist-get 'project p))
-                                              " · " (vikix-office--one-line (alist-get 'state p))
-                                              (let ((n (alist-get 'at_once p)))
-                                                (if (and n (not (eq n :null))) (format " · %s at once" n) ""))
-                                              (if (equal (alist-get 'gate p) "me") " · your yes before a release" ""))))
-                (let ((err (alist-get 'error p)))
-                  (if (not (member err '(nil "")))
-                      (vikix-office--field width chars label-width "" (vikix-office--one-line err) 'vikix-office-asks)
-                    (dolist (d (alist-get 'desks p))
-                      (vikix-office--field width chars label-width (vikix-office--one-line (alist-get 'topic d))
-                                           (let ((line (vikix-office--one-line (alist-get 'line d))))
-                                             (if (equal line "") "nothing yet" line))
-                                           (and (eq (alist-get 'released d) t) 'shadow)))
-                    (dolist (n (alist-get 'needs p))
-                      (vikix-office--field width chars label-width "Needs you" (vikix-office--one-line n) 'vikix-office-asks))))
-                (let ((file (alist-get 'file p)) (state (alist-get 'state p)) (err (alist-get 'error p))
-                      (edit (alist-get 'edit p)))
-                  (vikix-office--line
-                   width chars
-                   (lambda ()
-                     (when (and (member err '(nil "")) (null edit) (member state '("draft" "stopped" "not running")))
-                       (vikix-office--button (if (equal state "draft") "Run" "Run again")
-                                             (lambda () (with-current-buffer owner (vikix-office-plan-act "run" file)))))
-                     (when (equal state "paused")
-                       (vikix-office--button "Go on" (lambda () (with-current-buffer owner (vikix-office-plan-act "run" file)))))
-                     (when (equal state "running")
-                       (vikix-office--button "Pause" (lambda () (with-current-buffer owner (vikix-office-plan-act "pause" file)))))
-                     (when (member state '("running" "paused"))
-                       (vikix-office--button "Stop" (lambda () (with-current-buffer owner (vikix-office-plan-act "stop" file)))))
-                     (vikix-office--button "Edit" (lambda () (with-current-buffer owner (vikix-office-show-file file))))
-                     (when (member state '("running" "paused" "stopped" "done"))
-                       (vikix-office--button "Log" (lambda () (with-current-buffer owner (vikix-office-plan-log file)))))))))
-              (vikix-office--box-bottom width chars)))))
+        ;; The plans under way (vikix agents plan run): a box when any has run
+        ;; or been written, drawn by vikix-office--plans-box. A plan done is the
+        ;; Archive's box, not this one's.
+        (vikix-office--plans-box width chars owner (alist-get 'plans vikix-office--data) "Plans"))
+      ;; The Archive's plans: the ones done, every desk released (plans_done),
+      ;; with Edit and Log alone, above the archived desks.
+      (when (eq vikix-office--page 'archive)
+        (vikix-office--plans-box width chars owner (alist-get 'plans_done vikix-office--data) "Plans done"))
       (if (null rows)
           (insert (pcase vikix-office--page
-                    ('archive "Archive is empty.\n")
+                    ('archive (if (alist-get 'plans_done vikix-office--data)
+                                  "No archived desk records.\n"
+                                "Archive is empty.\n"))
                     ('parked "No parked or closed desks.\n")
                     ;; An empty first page with desks on the parked one says where they are.
                     (_ (if (vikix-office--page-rows 'parked)

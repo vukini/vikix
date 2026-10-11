@@ -277,7 +277,18 @@ class Office(unittest.TestCase):
         with patch.object(office, 'plan_rows', side_effect=OSError('no plans')):
             snap = office.snapshot(A)
         self.assertEqual(snap['plans'], [])
+        self.assertEqual(snap['plans_done'], [])
         self.assertTrue(any(e.startswith('Plans unknown') for e in snap['errors']))
+        # A plan done (every desk released) is the Archive's, plans_done, not
+        # among the plans under way; the desk's Plan line comes from either.
+        rows = [{'id': 'a', 'name': 'book', 'state': 'running', 'desks': []},
+                {'id': 'b', 'name': 'guide', 'state': 'done', 'desks': []},
+                {'id': 'c', 'name': 'cover', 'state': 'draft', 'desks': []}]
+        with patch.object(office, 'plan_rows', return_value=(rows, {os.path.realpath(self.agents[0]['folder']): 'guide: done'})):
+            snap = office.snapshot(A)
+        self.assertEqual([p['name'] for p in snap['plans']], ['book', 'cover'])
+        self.assertEqual([p['name'] for p in snap['plans_done']], ['guide'])
+        self.assertEqual(snap['desks'][0]['plan'], 'guide: done')
 
     def test_first_handoff_keeps_selection_identity(self):
         self.agents = [self.agent()]

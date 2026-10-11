@@ -135,6 +135,10 @@ def snapshot(api):
     except Exception as e:  # noqa: BLE001  a plan that can't be read never hides the desks
         plans, plan_desks = [], {}
         errors.append(f'Plans unknown: {e}')
+    # A plan done (every desk released) is the Archive's, not the first page's
+    # (2026-10-11: a finished plan sat in the Plans box among the ones under way).
+    plans_done = [p for p in plans if p['state'] == 'done']
+    plans = [p for p in plans if p['state'] != 'done']
     try:
         agents = api.desktop(strict=True)
         agents += api.elsewhere({a['pid'] for a in agents}, strict=True)
@@ -274,7 +278,7 @@ def snapshot(api):
             row['resume'] = {}
     order = ['Needs you', 'Working', 'Parked', 'Finished', 'Closed']
     return {'version': 1, 'at': int(time.time()), 'live_known': live_known, 'errors': errors,
-            'releases': releases, 'releases_kept': releases_kept, 'plans': plans,
+            'releases': releases, 'releases_kept': releases_kept, 'plans': plans, 'plans_done': plans_done,
             # Who can review a desk here (vikix agents review): the Review by… button's choices.
             'reviewers': [p for p in api.REVIEWERS if api.reviewer_program(p)],
             'desks': sorted((r for r in rows.values() if not r['archived']),

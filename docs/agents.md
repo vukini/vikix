@@ -476,7 +476,7 @@ running, the same message as on the desktop, and still never a second
 Emacs. Inside Emacs, `M-x vikix-office-open-here` opens it in the frame you
 are in, and `q` then puts that frame's windows back as they were.
 
-Above the desks, a **Plans** box when a plan has run or been written (`vikix agents plan`): a plan a group, its name, project and whether its runner runs, a line a desk saying where that desk's chain stands, and what needs you; a desk of a plan says which in its **Plan** line. A plan written and not run yet (`plan new`, or **New plan…**) is a *draft* there, with the tasks still holding the template's `EDIT:` lines under *Needs you*. Each plan ends with the acts its state takes, each `vikix agents plan` from the Office: **Run** for a draft whose words are written (**Run again** for one stopped or whose runner isn't running: it carries on), **Pause** and **Stop** while it runs, **Go on** when paused, **Edit**, which opens the plan's file in the desk pane (`RET` on a desk brings the pane back), and **Log**, what the runner did.
+Above the desks, a **Plans** box when a plan has run or been written (`vikix agents plan`): a plan a group, its name, project and whether its runner runs, a line a desk saying where that desk's chain stands, and what needs you; a desk of a plan says which in its **Plan** line. A plan written and not run yet (`plan new`, or **New plan…**) is a *draft* there, with the tasks still holding the template's `EDIT:` lines under *Needs you*. Each plan ends with the acts its state takes, each `vikix agents plan` from the Office: **Run** for a draft whose words are written (**Run again** for one stopped or whose runner isn't running: it carries on), **Pause** and **Stop** while it runs, **Go on** when paused, **Edit**, which opens the plan's file in the desk pane (`RET` on a desk brings the pane back), and **Log**, what the runner did. A plan done, every desk of it released, leaves the box for the Archive page, where a **Plans done** box lists it with when it ended and its desks released, keeping **Edit** and **Log**; the Archive button counts the plans done apart from the records (*Archive (3, 1 plan)*).
 
 The left side groups desks into **Needs you**, **Working** and **Finished**
 on its first page, and **Parked** and **Closed** on a page of their own (the
@@ -543,13 +543,13 @@ repository that has released before gets the line *No release under way*,
 and a machine that never released shows nothing.
 
 Click **Archive** (or press `A`) to see historical tasks, handoffs and checks,
-the third page. Archived entries say no action is needed; Go to agent, Continue and Close
+the third page, and above them the plans done. Archived entries say no action is needed; Go to agent, Continue and Close
 agent are absent. Their old next actions are historical, not new instructions.
 **Forget this record…** removes that one record after confirmation (as
 `vikix agents handoff forget` does); its files, branch and saved
 conversations stay. **Back to desks** (`A` again) returns to current work.
 Each page's button counts that page's desks; the New desk and New plan
-buttons, the Releases box and the Plans box are the first page's alone.
+buttons, the Releases box and the Plans box are the first page's alone, the Plans done box the Archive's.
 
 **Purge archive** permanently deletes the archived desk records after
 confirmation. It rechecks the exact records, worktree paths and live agents;
