@@ -175,13 +175,13 @@ out=$(release tn "N again" --tests none) && code=0 || code=$?
 check "--tests none as typed: $code" bash -c "[ $code != 0 ] && grep -q \"nothing main hasn't\" <<<\"\$1\"" _ "$out"
 for x in tg tk tl tm tn; do git -C "$r" worktree remove --force "$t/vikix-$x" 2>/dev/null; git -C "$r" branch -q -D "$x" 2>/dev/null; done
 
-topic tg file-tg "from g"; echo more >> "$t/vikix-tg/file-g"
+topic g file-g "from g"; echo more >> "$t/vikix-g/file-g"
 before=$(state)
-out=$(release tg "G") && code=0 || code=$?
+out=$(release g "G") && code=0 || code=$?
 check "changes not committed in the topic stop it: $code $out" bash -c "[ $code != 0 ] && grep -q 'not committed' <<<\"\$1\"" _ "$out"
 git -C "$t/vikix-g" checkout -q -- file-g
 echo stray > "$r/stray"
-out=$(release tg "G") && code=0 || code=$?
+out=$(release g "G") && code=0 || code=$?
 check "a main folder with changes of its own stops it: $code $out" bash -c "[ $code != 0 ] && grep -q 'for merging only' <<<\"\$1\"" _ "$out"
 rm "$r/stray"
 check "and nothing changed either time: $(state)" test "$(state)" = "$before"
@@ -189,7 +189,7 @@ out=$(release g) && code=0 || code=$?
 check "no summary, no release: $code" test "$code" != 0
 out=$(release nosuch "X") && code=0 || code=$?
 check "a topic that isn't there: $out" grep -q 'no branch nosuch' <<<"$out"
-release tg "G" >/dev/null
+release g "G" >/dev/null
 git -C "$r" worktree add -q "$t/vikix-h" -b h
 out=$(release h "H") && code=0 || code=$?
 check "a topic with nothing new is refused: $out" bash -c "[ $code != 0 ] && grep -q \"nothing main hasn't\" <<<\"\$1\"" _ "$out"
