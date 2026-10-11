@@ -52,6 +52,79 @@ fail=0
 check() { "${@:2}" || { echo "FAIL: $1"; fail=1; }; }
 d() { python3 "$here/bin/vikix-docs" "$@"; }
 
+# Random guides need no catalogue: a complete deck, the normal opener and
+# day log, Emacs on --other, and state that may be stale or unwritable.
+python3 - "$here/bin/vikix-docs" "$t/opened" <<'PYTEST' || fail=1
+import hashlib, importlib.machinery, importlib.util, os, pathlib, subprocess, sys, time
+loader = importlib.machinery.SourceFileLoader("random_docs", sys.argv[1])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+m = importlib.util.module_from_spec(spec); loader.exec_module(m)
+opened = pathlib.Path(sys.argv[2])
+state = pathlib.Path(os.environ["HOME"]) / ".local/state/vikix"
+deck = state / "docs/random-deck"
+guides = {p.name: p for p in pathlib.Path(m.vikix_dir(), "docs").glob("*.md")
+          if p.name not in ("README.md", "commands.md")}
+titles = {m.md_title(p.read_text(), str(p)) for p in guides.values()}
+assert not pathlib.Path(m.DB).exists(), "random must work before the first index"
+
+def draw(*args, env=None):
+    opened.write_text("")
+    result = subprocess.run([sys.executable, sys.argv[1], "random", *args],
+                            capture_output=True, text=True, timeout=20, env=env)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() in titles, result.stdout
+    for _ in range(100):
+        lines = opened.read_text().splitlines()
+        if lines:
+            assert len(lines) == 1, lines
+            return lines[0]
+        time.sleep(.02)
+    raise AssertionError("the opener was not called")
+
+seen = []
+for _ in guides:
+    line = draw()
+    assert line.startswith("browser "), line
+    seen.append(line.removeprefix("browser "))
+assert len(set(seen)) == len(guides), "a page repeated within the round"
+if m.shutil.which("pandoc") or importlib.util.find_spec("markdown"):
+    expected = {str(pathlib.Path(m.CACHE, "md", hashlib.sha1(
+        f"{p}:{p.stat().st_mtime}".encode()).hexdigest()[:16] + ".html"))
+        for p in guides.values()}
+    assert set(seen) == expected, (seen, expected)
+    assert all("guide.css" in pathlib.Path(p).read_text() for p in seen)
+else:
+    assert set(seen) == {str(p) for p in guides.values()}, seen
+assert deck.read_text() == "", "the round did not empty the deck"
+assert deck.stat().st_mode & 0o777 == 0o600, "deck is not private"
+assert not pathlib.Path(m.DB).exists(), "random created a catalogue"
+rows = (state / "day/docs.log").read_text().splitlines()
+assert {row.split("\t")[1] for row in rows} == {f"vikix:{p}" for p in guides.values()}
+draw()
+assert len(deck.read_text().splitlines()) == len(guides) - 1
+line = draw("--other")
+assert line.startswith("emacsclient -c -n "), line
+assert line.removeprefix("emacsclient -c -n ") in {str(p) for p in guides.values()}, line
+# Drop removed pages without losing the remaining live card.
+last = next(iter(guides))
+deck.write_text("gone-guide.md\n" + last + "\n")
+assert draw("--other") == "emacsclient -c -n " + str(guides[last])
+assert deck.read_text() == ""
+deck.write_text("gone-guide.md\n")
+draw()
+assert "gone-guide.md" not in deck.read_text()
+# A file in place of the state directory is unwritable even under root.
+blocked = state / "blocked"
+blocked.write_text("keep me")
+draw(env=dict(os.environ, VIKIX_STATE=str(blocked)))
+assert blocked.read_text() == "keep me"
+custom = state / "elsewhere"
+draw(env=dict(os.environ, VIKIX_STATE=str(custom)))
+assert (custom / "docs/random-deck").exists()
+assert (custom / "day/docs.log").exists()
+print("docs random: complete rounds, openers, day log, stale and unwritable state")
+PYTEST
+
 # A Cuis package of yours, in the chunk format vikix cuis rebuild reads.
 mkdir -p "$HOME/cuis/NewPackages"
 cat > "$HOME/cuis/NewPackages/Mine.pck.st" <<'ST'

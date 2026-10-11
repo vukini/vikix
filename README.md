@@ -928,6 +928,7 @@ Every document on the machine in one catalogue: Vikix's guides, the README, DESI
 ```sh
 vikix docs find runit            # the start of a word is enough; "exact words", a OR b
 vikix docs find xbps --source man
+vikix docs random                # a guide page, every one before any twice; --other in Emacs
 vikix docs read 'man:sv(8)'      # as plain text
 vikix docs status                # how many from where, and when last read
 vikix docs page runit            # the hits as a page in Nyxt

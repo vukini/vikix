@@ -13,6 +13,8 @@
                                   the other place (a terminal for a man page,
                                   Emacs for a page of Markdown)
   vikix docs open ID [--other]    open one, by the id find shows
+  vikix docs random [--other]    one of Vikix's guides at random, as open
+                                  opens it; every page once before any twice
   vikix docs read ID              one as plain text (what the agents read)
   vikix docs index [--full] [--quiet]
                                   read again what changed (--full: all of
@@ -52,6 +54,7 @@ manual and your notes in Emacs; a Cuis class in a Browser in the running
 image, through its door (vikix eval --cuis), or its package file in Emacs
 at the class when Cuis isn't running. Ctrl+Enter (or --other) opens the
 other way: Emacs, or a terminal; an ArchWiki page as it is today, on the web.
+vikix docs random opens a guide page at random, every one before any twice.
 
 Your own documents (own) are the folders named in ~/.config/vikix/docs,
 yours to make, a line each: own=~/books (every Markdown file under it), or
@@ -70,11 +73,13 @@ The catalogue is one SQLite file, ~/.local/share/vikix/docs/index.db: table
 docs (id, source, kind, title, path, excerpt, mtime) and docs_fts, its
 full-text index. Nothing in it leaves the machine.
 """
+import fcntl
 import glob
 import hashlib
 import html
 import json
 import os
+import random
 import re
 import shlex
 import shutil
@@ -1174,6 +1179,40 @@ def open_doc(doc, other=False):
         docs_open([page or doc["path"]])
 
 
+def random_guide(other=False):
+    """Draw from the guides left this round, without needing an index."""
+    pages = {os.path.basename(path): path for path, kind in files_vikix()
+             if kind == "guide" and os.path.basename(path) != "commands.md"
+             and os.path.isfile(path)}
+    if not pages:
+        die("no Vikix guide pages found")
+    name = random.choice(list(pages))
+    try:
+        state = os.environ.get("VIKIX_STATE") or os.path.join(HOME, ".local/state/vikix")
+        folder = os.path.join(state, "docs")
+        os.makedirs(folder, exist_ok=True)
+        fd = os.open(os.path.join(folder, "random-deck"), os.O_RDWR | os.O_CREAT, 0o600)
+        with os.fdopen(fd, "r+", encoding="utf-8", errors="replace") as deck:
+            # Two menu presses must draw from the same remaining round.
+            fcntl.flock(deck, fcntl.LOCK_EX)
+            os.fchmod(deck.fileno(), 0o600)
+            remaining = list(dict.fromkeys(line.strip() for line in deck
+                                          if line.strip() in pages)) or list(pages)
+            name = random.choice(remaining)
+            remaining.remove(name)
+            deck.seek(0)
+            deck.truncate()
+            deck.writelines(item + "\n" for item in remaining)
+    except OSError:
+        # State is optional: a read-only home still gets a guide.
+        name = random.choice(list(pages))
+    path = pages[name]
+    doc = {"id": f"vikix:{path}", "source": "vikix", "kind": "guide",
+           "title": md_title(read_text(path), path), "path": path}
+    open_doc(doc, other=other)
+    print(doc["title"])
+
+
 def hit_line(h):
     ex = h["excerpt"] if h["source"] in ("man", "info") else ""
     title = h["title"] if not ex or ex in h["title"] else f"{h['title']} — {ex}"
@@ -1386,6 +1425,10 @@ def main(argv):
         return pick()
     elif cmd == "page":
         return page(" ".join(args))
+    elif cmd == "random":
+        if any(arg != "--other" for arg in args):
+            die("vikix docs random [--other]")
+        random_guide(other="--other" in args)
     elif cmd in ("open", "read"):
         if not args:
             die(f"{cmd} which? the id vikix docs find shows")

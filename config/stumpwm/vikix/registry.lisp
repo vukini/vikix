@@ -544,6 +544,9 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command guide-browser "Vikix guide in the browser, with diagrams"
   :run "exec vikix-docs-open ~/.local/share/vikix/guide/index.html"
   :menu "Help" :needs "~/.local/share/vikix/guide/index.html")
+(define-vikix-command guide-random "A page of the Vikix guide at random: something you didn't know it does"
+  :run "exec vikix-docs random"
+  :menu "Help" :label "Vikix guide: a page at random")
 (define-vikix-command docs "Search every document: Vikix's guides, your projects and notes, man pages"
   :run "exec vikix-docs pick" :key "s-F2"
   :menu "Help" :label "Search every document (guides, projects, notes, man pages)")
