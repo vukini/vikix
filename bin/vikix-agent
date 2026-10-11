@@ -86,24 +86,33 @@
 # the folder, never CLAUDE.md, so a repository with only a CLAUDE.md (Vikix,
 # most projects made with Claude Code) is given it as the file to fall back
 # on, with Codex's cap raised to hold it whole; a repository with an
-# AGENTS.md is read as its author meant. A mode (--mode above): in a desk
-# (a git worktree) the house default, mode= in ~/.config/vikix/office,
-# which Vikix writes as autonomous the first time; elsewhere Codex runs as
-# your own settings say unless --mode is typed. The two sandboxed modes
-# make this folder Codex's only writable root (your writable_roots are set
-# aside for the session), so the project's own folder, ~/vikix and the
-# other desks are read-only to what Codex runs, and link Vikix's rules
-# (~/.codex/rules/vikix.rules, through vikix agents hooks codex --install)
-# which let a desk's day (git on its branch, the tests, vikix, the release)
-# out of the sandbox without a prompt once Codex asks to (inside it a
-# desk's .git and ~/.local/state are read-only, so a commit or a handoff
-# fails there; the worker's first prompt says so). And trust for the house rules' hook: Codex runs a
-# hook of yours only once you trusted it in /hooks, by its hash, which every
-# release that changes the file undoes; when ~/.codex/hooks.json is Vikix's
-# and the folder is one of your projects (vikix project list), the start
-# passes --dangerously-bypass-hook-trust, since Vikix vets that file by
-# making it; in a stranger's repository Codex's own prompt stays.
-# VIKIX_CODEX_HOOK_TRUST=ask keeps the prompt everywhere.
+# AGENTS.md is read as its author meant. A mode (--mode above): at a desk
+# (a git worktree) and in a folder of no repository (your home, where
+# Super+a's "agent here" starts) the house default, mode= in
+# ~/.config/vikix/office, which Vikix writes as autonomous the first time;
+# in a repository that isn't a desk (a project's own folder, a stranger's)
+# Codex runs as your own settings say unless --mode is typed. (Until
+# 0.72.50 the home session ran on ~/.codex/config.toml alone, and a header
+# out of place there, [section], had Codex read-only and asking for every
+# write: vikix doctor and vikix agents hooks codex now say so.) The two
+# sandboxed modes make this folder Codex's only writable root (your
+# writable_roots are set aside for the session), so from a desk the
+# project's own folder, ~/vikix and the other desks are read-only to what
+# Codex runs, and link Vikix's rules (~/.codex/rules/vikix.rules, through
+# vikix agents hooks codex --install) which let a desk's day (git on its
+# branch, the tests, vikix, the release) out of the sandbox without a
+# prompt once Codex asks to (inside it a desk's .git and ~/.local/state are
+# read-only, so a commit or a handoff fails there; the worker's first
+# prompt says so); Codex's own matching stops at the first word (timeout
+# 20s vikix snapshot ... asked each time), so the house rules' hook on each
+# step out of the sandbox (PermissionRequest) allows the same commands
+# whatever wraps them. And trust for that hook: Codex runs a hook of yours
+# only once you trusted it in /hooks, by its hash, which every release that
+# changes the file undoes; when ~/.codex/hooks.json is Vikix's and the
+# folder is one of your projects (vikix project list) or no repository at
+# all, the start passes --dangerously-bypass-hook-trust, since Vikix vets
+# that file by making it; in a stranger's repository Codex's own prompt
+# stays. VIKIX_CODEX_HOOK_TRUST=ask keeps the prompt everywhere.
 
 set -euo pipefail
 VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
@@ -609,8 +618,8 @@ codex_args() {   # codex_args MODE PLACE: the session's words for Codex, one a l
   # when CLAUDE.md outgrows it).
   printf '%s\n' -c 'project_doc_fallback_filenames=["CLAUDE.md"]' -c 'project_doc_max_bytes=262144'
   [ -n "$mode" ] && codex_mode_args "$mode"
-  if [ "${VIKIX_CODEX_HOOK_TRUST:-}" != ask ] && [ "$known" = known ] && codex_hooks_ours; then
-    echo --dangerously-bypass-hook-trust
+  if [ "${VIKIX_CODEX_HOOK_TRUST:-}" != ask ] && codex_hooks_ours; then
+    case $known in known|none) echo --dangerously-bypass-hook-trust ;; esac
   fi
   return 0
 }
@@ -680,16 +689,22 @@ start() {
     local place mode=$MODE
     place=$(codex_place)
     office_conf_write
-    # No mode typed: the house default at a desk, your own settings elsewhere.
-    # A report (vikix diagnose) is read read-only, whatever mode was typed.
-    if [ -z "$mode" ] && [ -z "$REPORT" ] && [ "${place#* }" = desk ]; then mode=$(office_mode); fi
+    # No mode typed: the house default at a desk and in a folder of no
+    # repository (Super+a's agent here, in your home); your own settings in
+    # a repository that isn't a desk. A report (vikix diagnose) is read
+    # read-only, whatever mode was typed.
+    if [ -z "$mode" ] && [ -z "$REPORT" ]; then
+      case $place in *" desk"|"none none") mode=$(office_mode) ;; esac
+    fi
     if [ -n "$REPORT" ] && [ -n "$mode" ]; then say "a report is read in Codex's read-only sandbox: --mode $mode set aside"; mode=''; fi
     if [ "$mode" = unrestricted ]; then
       [ "${place#* }" = own ] && die "unrestricted runs at a desk, in a VM or a container, never in a project's own folder ($PWD is one: vikix agents sit $(basename "$PWD") TOPIC takes a desk)"
       warn "unrestricted: Codex runs with no sandbox and no approvals here, as you; the house rules' hook still runs, the rest is on you"
       command -v notify-send >/dev/null 2>&1 && notify-send -u critical "Codex unrestricted" "No sandbox, no approvals, in $PWD (vikix agent --mode unrestricted)" 2>/dev/null || true
+    elif [ -n "$mode" ] && [ "$place" = "none none" ]; then
+      say "Codex $mode: its sandbox is this folder, $PWD (and /tmp); the house rules' hook (vikix agents hooks codex) lets vikix snapshot and the other vikix commands, git and the tests run outside it without a prompt"
     elif [ -n "$mode" ]; then
-      say "Codex $mode: its sandbox is this folder (and /tmp); Vikix's rules (vikix agents hooks codex) let git on this branch, the tests and vikix run without a prompt"
+      say "Codex $mode: its sandbox is this folder (and /tmp); Vikix's rules and the house rules' hook (vikix agents hooks codex) let git on this branch, the tests and vikix run without a prompt"
     fi
     local w; while IFS= read -r w; do args+=("$w"); done < <(codex_args "$mode" "$place")
     [ -n "$REPORT" ] || [ -z "$mode" ] || setenv+=("VIKIX_AGENT_MODE=$mode")

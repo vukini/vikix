@@ -775,6 +775,15 @@ cmd_doctor() {
   fi
   if [ -f "${XDG_DATA_HOME:-$HOME/.local/share}/vikix/AGENTS.md" ]; then say "the Vikix guide for other agents is in ~/.local/share/vikix/AGENTS.md"
   else warn "the Vikix guide for other agents, ~/.local/share/vikix/AGENTS.md, is missing (40-config writes it; vikix agent too)"; ok=0; fi
+  # Codex's config.toml is yours, so it is read, never written: a setting
+  # under a header Codex doesn't read ([section]) did nothing, and Codex
+  # asked for every write (2026-10-11). vikix agents hooks codex says the same.
+  if command -v codex >/dev/null 2>&1 || [ -x "$HOME/.local/bin/codex" ]; then
+    local cfg
+    cfg=$(python3 "$VIKIX_DIR/bin/vikix-agents" hooks codex 2>/dev/null | sed -n 's/^ *\(~\/.*config\.toml: .*\)/\1/p')
+    if [ -n "$cfg" ]; then warn "Codex: $cfg"; ok=0
+    else say "Codex's config.toml has no setting under a header it doesn't read"; fi
+  fi
   if [ -n "${DISPLAY:-}" ]; then
     if pgrep -x udiskie >/dev/null 2>&1; then
       say "udiskie is running: USB drives mount when plugged in"

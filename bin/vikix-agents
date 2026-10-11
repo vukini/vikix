@@ -430,7 +430,9 @@
                        (seen firing here, 2026-10-10) and OpenCode's as
                        adapters --install links into their folders;
                        Gemini's a snippet to merge by hand; Aider none.
-                       Instructions only, where no hook is
+                       Instructions only, where no hook is. For Codex also
+                       what is wrong in ~/.codex/config.toml, when something
+                       is: a setting under a header Codex doesn't read
 
   vikix agents desks   every desk there is, one a line, for scripts.
                        Tab-parted: its folder, its branch and the project's
@@ -471,8 +473,14 @@
                        when a command or a patch would leave its sandbox:
                        one that would write into the project's own folder,
                        ~/vikix, another desk or ~/.config/vikix/secrets/ is
-                       denied, whatever the mode, with the reason; any other
-                       is left to you, or in autonomous mode to Codex's
+                       denied, whatever the mode, with the reason; a routine
+                       one is allowed, so no prompt: the commands Vikix's
+                       rules file lets out (vikix snapshot and the other
+                       vikix commands, git on the branch, tests/run.sh,
+                       .claude/release), under timeout, env, nice, a
+                       VAR=value or bash -lc too, which Codex's own matching
+                       misses, every command of the line one of them; any
+                       other is left to you, or in autonomous mode to Codex's
                        reviewer. --turn is Codex's UserPromptSubmit hook: a
                        turn begun, noted in the journal, which is how the
                        listing says working for an agent whose title says
@@ -647,7 +655,8 @@ reason. Codex runs it from ~/.codex/hooks.json (vikix agents hooks codex
 --install; vikix agent trusts the file for you in your projects): its
 apply_patch is read for every file it names, a clash is refused once
 since its hook can't ask, a step out of its sandbox that would write off
-the desk is denied (PermissionRequest), and a turn begun and a stop let
+the desk is denied and a routine one (vikix snapshot, a commit, the tests,
+wrapped or not) allowed (PermissionRequest), and a turn begun and a stop let
 through are noted, so the listing says working and at its prompt for it
 as it does for Claude Code. OpenCode's plugin holds the edit hook alone.
 Gemini CLI and Aider have none: for them the rules hold through git

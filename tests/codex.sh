@@ -42,8 +42,16 @@
 #   session id, carries the desk's notes on additionalContext;
 #   --escalation (PermissionRequest) denies a step out of the sandbox that
 #   would write into the project's own folder, ~/vikix, another desk or
-#   ~/.config/vikix/secrets/, says nothing at the desk and writes the
-#   agent-waiting note unless the reviewer answers (autonomous); --turn
+#   ~/.config/vikix/secrets/ (from a session in the home folder too), allows
+#   a routine command (the rules file's vikix and git lines, the tests, the
+#   release; under timeout, env, nice, bash -lc or a full path, every
+#   command of the line one of them; a substitution, a redirection to a
+#   file, a PATH= in front, a pipe or sudo are not), says nothing for the
+#   rest at the desk and writes the agent-waiting note unless the reviewer
+#   answers (autonomous); the hook's lists are the rules file's lines; a
+#   folder of no repository (Super+a's here) gets the house mode and the
+#   trust flag; hooks codex reads ~/.codex/config.toml for a setting under
+#   a header Codex doesn't read ([section]) and a file it can't read; --turn
 #   (UserPromptSubmit) notes a turn, from which the listing says working;
 #   stopping --for codex asks for the handoff and writes the plugin's done
 #   note, a stop let through is "at its prompt"; left --for codex says left;
@@ -83,7 +91,7 @@ set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
 export EMACS_SOCKET_NAME=/nonexistent/emacs-server   # never the live desktop's Emacs: emacsclient from a test goes nowhere
 unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE   # the desktop session's: from an agent's shell they'd point a test at the real ~/vikix and state, and hide the keys
-unset DISPLAY XDG_STATE_HOME XDG_CONFIG_HOME VIKIX_CODEX_HOOK_TRUST VIKIX_AGENT_SSH VIKIX_AGENT_MODE
+unset DISPLAY XDG_STATE_HOME XDG_CONFIG_HOME VIKIX_CODEX_HOOK_TRUST VIKIX_AGENT_SSH VIKIX_AGENT_MODE CODEX_HOME
 here=$(cd "$(dirname "$0")/.." && pwd)
 orig_home=$HOME
 real_codex=$(command -v codex || true)
@@ -184,6 +192,23 @@ PY
   if grep -q '"left"' <<<"$rec"; then echo "   SessionEnd fired: how it left is in the record"
   else echo "   (SessionEnd not seen: codex exec ended with no 'hook: SessionEnd' line; how a Codex left is still to see in a session of its own)"; fi
 
+  # The hook's allow: a snapshot under a timeout matches no rule (Codex matches a rule from the
+  # command's first word), so it gets out of the sandbox through the hook or the reviewer; the hook
+  # notes the command in the journal when it is the one that let it out, which the reviewer never
+  # does. (codex exec forces approval never without --approve-for-me, 2026-10-11: "Escalated retry is
+  # prohibited by this environment", so the supervised row can't be probed here.) A file of
+  # yours.list in the scratch home, so the snapshot has something to commit.
+  local yours="$HOME/.local/state/vikix/yours.git"
+  mkdir -p "$HOME/.stumpwm.d"; echo ';; probe' > "$HOME/.stumpwm.d/user.lisp"
+  echo "   running: codex exec (the autonomous row) \"timeout 20s vikix snapshot 'before: probe two'\""
+  out=$(cd "$desk" && VIKIX_AGENT_MODE=autonomous timeout --kill-after=5s 300s "$real_codex" exec --cd "$desk" "${args[@]}" --skip-git-repo-check --ephemeral \
+    "One step, nothing else, asking no questions: run exactly this command, and when it fails inside the sandbox run it again escalated out of the sandbox: timeout 20s vikix snapshot 'before: probe two'. Then say what it printed." 2>&1 </dev/null) || true
+  echo "$out" | sed 's/^/   codex: /'
+  check "a snapshot under a timeout got out of the sandbox (the snapshot history: $(git --git-dir="$yours" log --format=%s -1 2>/dev/null))" \
+    bash -c 'git --git-dir="$1" log --format=%s 2>/dev/null | grep -q "before: probe two"' _ "$yours"
+  check "and the hook, not the reviewer, let it out: its allow is in the journal with the command" \
+    grep -q '"kind": "shell", "agent": "codex".*"command": "timeout 20s vikix snapshot' "$journal"
+
   # The review's Codex road, real: the desk's commit read in a throwaway worktree, the findings against
   # the schema into the record (Claude's road, claude -p, is refused from inside a Claude Code session,
   # so it stays for a day at the keyboard).
@@ -261,6 +286,9 @@ check "VIKIX_CODEX_HOOK_TRUST=ask keeps Codex's prompt" not grep -q "bypass-hook
 rm -f "$STARTED"; agent "$t/stranger" --use codex >/dev/null
 check "a repository that is no project of yours: no trust flag, and no mode" \
   bash -c '! grep -q "bypass-hook-trust\|sandbox_mode" "$1"' _ "$STARTED"
+rm -f "$STARTED"; out=$(agent "$t" --use codex)
+check "a folder of no repository (Super+a's agent here, in your home): the house default, its sandbox the folder, the trust flag, and said: $(started) / $out" \
+  bash -c 'test "$(head -1 "$1")" = "$2 $3 [-c] [sandbox_workspace_write.network_access=true] [--approve-for-me] [--dangerously-bypass-hook-trust] " && grep -q "Codex autonomous: its sandbox is this folder, .*(and /tmp); the house rules. hook (vikix agents hooks codex) lets vikix snapshot" <<<"$4"' _ "$STARTED" "$fallback" "$desk_rows" "$out"
 rm -f "$HOME/.codex/hooks.json"; echo '{}' > "$HOME/.codex/hooks.json"
 rm -f "$STARTED"; agent "$t/src/book-a" --use codex >/dev/null
 check "a hooks file of the user's own: no trust flag" not grep -q "bypass-hook-trust" "$STARTED"
@@ -339,7 +367,19 @@ check "a mode that isn't one is refused: $out" grep -q "mode which? supervised, 
 # The hooks adapter: the rules file beside the hook, and the trust said.
 out=$(agents hooks codex)
 check "hooks codex names the rules file and how the hook is trusted: $out" \
-  bash -c 'grep -q "Vikix.s rules in ~/.codex/rules/vikix.rules" <<<"$1" && grep -q "not installed (vikix agents hooks codex --install links ~/.codex/rules/vikix.rules)" <<<"$1" && grep -q "trust: vikix agent passes --dangerously-bypass-hook-trust in your projects when the hook file is Vikix.s" <<<"$1"' _ "$out"
+  bash -c 'grep -q "Vikix.s rules in ~/.codex/rules/vikix.rules" <<<"$1" && grep -q "not installed (vikix agents hooks codex --install links ~/.codex/rules/vikix.rules)" <<<"$1" && grep -q "trust: vikix agent passes --dangerously-bypass-hook-trust in your projects and in a folder of no repository (your home, Super+a.s here) when the hook file is Vikix.s" <<<"$1"' _ "$out"
+# Codex's config.toml, the user's: read for a setting under a header Codex doesn't read, never written.
+printf 'model = "x"\n\n[section]\n\nsandbox_mode = "workspace-write"\napproval_policy = "never"\n\n[sandbox_workspace_write]\nwritable_roots = ["/home"]\n' > "$HOME/.codex/config.toml"
+out=$(agents hooks codex)
+check "a setting under a header Codex doesn't read in ~/.codex/config.toml is said, with what to do: $out" \
+  grep -q "/.codex/config.toml: sandbox_mode, approval_policy stand under \[section\], a table Codex doesn.t read, so they do nothing; move the lines above the first \[...\] header (your file: Vikix doesn.t write it)" <<<"$out"
+printf 'model = "x"\nsandbox_mode = "workspace-write"\n\n[sandbox_workspace_write]\nwritable_roots = ["/home"]\n\n[profiles.fast]\napproval_policy = "never"\n' > "$HOME/.codex/config.toml"
+out=$(agents hooks codex)
+check "one in its place, or under a profile, is not: $out" not grep -q "config.toml" <<<"$out"
+printf 'model = "x\n' > "$HOME/.codex/config.toml"
+out=$(agents hooks codex)
+check "a file Codex can't read is said: $out" grep -q "/.codex/config.toml: Codex can.t read it" <<<"$out"
+rm -f "$HOME/.codex/config.toml"
 out=$(VIKIX_CODEX_HOOK_TRUST=ask agents hooks codex)
 check "with VIKIX_CODEX_HOOK_TRUST=ask it says Codex's prompt stays everywhere: $out" grep -q "trust: Codex.s own /hooks prompt everywhere" <<<"$out"
 out=$(agents hooks codex --install)
@@ -509,11 +549,58 @@ out=$(hook 1101 "$(patch "$t/src/book-a" "*** Update File: $t/src/book/log.md\n@
 check "a patch's files are judged the same: $(head -c 100 <<<"$out")" grep -q "$deny.*merging only" <<<"$out"
 check "each refusal is recorded" test "$(VIKIX_RECORDS_DB=$t/records.db python3 "$here/bin/vikix-records" list office --kind refused | grep -c "a step out of Codex.s sandbox")" -ge 4
 rm -f "$NOTED"
+allow='^{"hookSpecificOutput": {"hookEventName": "PermissionRequest", "decision": {"behavior": "allow"}}}$'
 out=$(esc 1101 "$t/src/book-a" "git commit -m x")
-check "a write at the desk says nothing (the prompt is yours, or the reviewer's): '$out'" test -z "$out"
+check "a routine command at the desk, a commit, is allowed, so no prompt: $out" grep -q "$allow" <<<"$out"
+check "and noted in the journal as a command of codex's, the hook's trace" grep -q '"kind": "shell", "agent": "codex", "pid": 1101, .*"command": "git commit -m x"' "$journal"
+check "and no plugin note: nobody waits for a yes" test ! -e "$NOTED"
+out=$(esc 1101 "$t/src/book-a" "cp log.md log2.md")
+check "a write at the desk that isn't routine says nothing (the prompt is yours, or the reviewer's): '$out'" test -z "$out"
 check "and the plugin's note says Codex waits for your yes: $(head -c 60 "$NOTED" 2>/dev/null)" bash -c 'grep -q "^permission {" "$1"' _ "$NOTED"
 rm -f "$NOTED"
-out=$(VIKIX_AGENT_MODE=autonomous esc 1101 "$t/src/book-a" "git commit -m x")
+# The routine commands as Codex types them: wrapped in timeout (which its own rules miss: the first
+# word), env, nice, bash -lc, a full path; every command of the line one of them, or nothing is said.
+while IFS='|' read -r want cmd; do
+  out=$(esc 1101 "$t/src/book-a" "$cmd")
+  case $want in
+    allow) check "escalation: $cmd -> allowed: $out" grep -q "$allow" <<<"$out" ;;
+    none)  check "escalation: $cmd -> left to you or the reviewer: '$out'" test -z "$out" ;;
+  esac
+done <<EOF
+allow|timeout 20s vikix snapshot 'before: add three wallpapers'
+allow|timeout --kill-after=5s 15s vikix agents handoff --status working --estimate '40 min'
+allow|$HOME/.local/bin/vikix snapshot x
+allow|env VIKIX_TESTER=0 tests/run.sh --changed
+allow|nice -n 5 vikix doctor
+allow|bash -lc 'vikix snapshot x && git status'
+allow|vikix agents --json 2>&1
+allow|tests/run.sh lint >/dev/null 2>&1
+allow|.claude/release topic 'a line'
+allow|git -C $t/src/book-a commit -m x
+none|git push
+none|git push --force
+none|git branch -D x
+none|git worktree add x
+none|vikix update
+none|vikix snapshot x && rm -rf x
+none|vikix eval \$(cat f)
+none|PATH=/tmp/evil vikix snapshot x
+none|tests/run.sh lint > out.txt
+none|vikix agents --json | head -3
+none|sudo xbps-install -S
+EOF
+rm -f "$NOTED"
+# A session in the home folder (Super+a's agent here): the same judgement, its folder holding everything.
+out=$(esc 1104 "$HOME" "timeout 20s vikix snapshot 'before: wallpapers'")
+check "from the home folder, a snapshot under a timeout is allowed: $out" grep -q "$allow" <<<"$out"
+out=$(esc 1104 "$HOME" "cp k $HOME/.config/vikix/secrets/anthropic")
+check "but the key store is denied there too, inside its folder as it is: $out" grep -q "$deny~/.config/vikix/secrets/ holds the user.s API keys" <<<"$out"
+out=$(esc 1104 "$HOME" "tee $HOME/vikix/x.md")
+check "and the installed checkout: $out" grep -q "$deny~/vikix is the installed Vikix" <<<"$out"
+out=$(esc 1104 "$HOME" "tee $t/src/book-a/x.md")
+check "and a project's repository, the agent being at no desk, with the way to one: $out" grep -q '"deny".*vikix agents sit book TOPIC' <<<"$out"
+rm -f "$NOTED"
+out=$(VIKIX_AGENT_MODE=autonomous esc 1101 "$t/src/book-a" "cp log.md log2.md")
 check "in autonomous mode the reviewer answers, so no note: '$out' / $(cat "$NOTED" 2>/dev/null)" bash -c '[ -z "$1" ] && [ ! -e "$2" ]' _ "$out" "$NOTED"
 out=$(esc 1101 "$t/src/book-a" "cat $t/src/book/log.md")
 check "a command that reads is left alone: '$out'" test -z "$out"
@@ -994,6 +1081,26 @@ sys.exit(1 if bad else 0)
 PY
 check "the rules file has no rule that lets sudo or a force-push through" \
   bash -c '! grep -E "\"(sudo|doas)\".*allow|--force.*allow" "$1/config/codex/vikix.rules"' _ "$here"
+# The hook allows what the rules file allows, from the same words: its vikix and git lines are the
+# hook's lists, and the git verbs that prompt (a deleting branch, tag, worktree) its exceptions.
+check "the rules file's vikix and git allow lines are the hook's ROUTINE_VIKIX and ROUTINE_GIT, its prompting git verbs GIT_ASKS" \
+  python3 - "$here" <<'PY'
+import importlib.util, re, sys
+from importlib.machinery import SourceFileLoader
+sys.dont_write_bytecode = True
+spec = importlib.util.spec_from_loader("office_agents", SourceFileLoader("office_agents", sys.argv[1] + "/bin/vikix-agents"))
+A = importlib.util.module_from_spec(spec); spec.loader.exec_module(A)
+rules = open(sys.argv[1] + "/config/codex/vikix.rules").read()
+def allowed(prog):
+    m = re.search(r'prefix_rule\(pattern=\["%s", \[([^\]]*)\]\], decision="allow"' % prog, rules)
+    return tuple(w.strip('"') for w in m.group(1).split(", ")) if m else ()
+asks = {m.group(1): set(w.strip('"') for w in m.group(2).split(", "))
+        for m in re.finditer(r'prefix_rule\(pattern=\["git", "(\w+)", \[([^\]]*)\]\], decision="prompt"', rules)}
+bad = [f"{what}: rules {a!r}, hook {b!r}" for what, a, b in (("vikix", allowed("vikix"), A.ROUTINE_VIKIX),
+                                                           ("git", allowed("git"), A.ROUTINE_GIT), ("asks", asks, A.GIT_ASKS)) if a != b]
+print("\n".join(bad))
+sys.exit(1 if bad else 0)
+PY
 
 [ "$fail" = 0 ] && echo "codex: ok"
 exit "$fail"

@@ -155,8 +155,40 @@ def codex_trust_line():
     folder is one of your projects, unless VIKIX_CODEX_HOOK_TRUST=ask."""
     if os.environ.get("VIKIX_CODEX_HOOK_TRUST") == "ask":
         return "trust: Codex's own /hooks prompt everywhere (VIKIX_CODEX_HOOK_TRUST=ask)"
-    return ("trust: vikix agent passes --dangerously-bypass-hook-trust in your projects when the hook file is "
-            "Vikix's (it vets the file by making it); elsewhere Codex's own /hooks prompt stays")
+    return ("trust: vikix agent passes --dangerously-bypass-hook-trust in your projects and in a folder of no "
+            "repository (your home, Super+a's here) when the hook file is Vikix's (it vets the file by making it); "
+            "in a repository that is no project of yours Codex's own /hooks prompt stays")
+
+
+CODEX_TOP_KEYS = ("sandbox_mode", "approval_policy", "approvals_reviewer", "model", "model_reasoning_effort", "notify")
+
+
+def codex_config_lines():
+    """What is wrong with ~/.codex/config.toml, a line each, or nothing: a
+    setting Codex reads at the top (sandbox_mode, approval_policy, ...)
+    written under a table header it doesn't read ([section], seen on
+    2026-10-11: Codex then ran read-only and asked for every write, and
+    nothing Vid set there changed that), or a file that doesn't parse. The
+    file is the user's: said, never written."""
+    path = os.path.join(os.environ.get("CODEX_HOME") or os.path.expanduser("~/.codex"), "config.toml")
+    if not os.path.isfile(path):
+        return []
+    try:
+        import tomllib
+        with open(path, "rb") as f:
+            conf = tomllib.load(f)
+    except (OSError, ValueError) as e:
+        return [f"{short(path)}: Codex can't read it ({str(e).splitlines()[0]}); it stops at the start"]
+    lines = []
+    for table, inside_ in conf.items():
+        if table == "profiles" or not isinstance(inside_, dict):
+            continue
+        lost = [k for k in CODEX_TOP_KEYS if k in inside_]
+        if lost:
+            lines.append(f"{short(path)}: {', '.join(lost)} stand under [{table}], a table Codex doesn't read, so they "
+                         f"do nothing; move the line{'s' if len(lost) > 1 else ''} above the first [...] header "
+                         "(your file: Vikix doesn't write it)")
+    return lines
 
 
 def hooks(argv):
@@ -172,6 +204,7 @@ def hooks(argv):
             states += [link_state(name, s_, d_, install, bool(words)) for s_, d_ in EXTRA_LINKS.get(name, ())]
         if name == "codex":
             states.append(codex_trust_line())
+            states += codex_config_lines()
         print(f"{name:<9} {said}" + "".join(f"\n          {state}" for state in states))
     if install and not words:
         die("say which: vikix agents hooks codex|opencode --install")
@@ -296,6 +329,138 @@ GIT_WRITERS = {"commit", "merge", "rebase", "push", "pull", "checkout", "switch"
 GIT_READS = {"list", "show", "-l", "--list", "-a", "-r", "--show-current", "--merged", "--no-merged", "--contains",
              "--points-at", "-v", "--verbose", "get-url"}
 SEPARATORS = {"&&", "||", ";", "|", "|&"}
+
+# A routine command: what Vikix's rules file (config/codex/vikix.rules) lets
+# out of Codex's sandbox without a prompt, judged here as well, since Codex's
+# own matching stops at the first word (timeout 20s vikix snapshot ... asked
+# every time, and Vid approved each snapshot's message once more). The
+# PermissionRequest hook answers allow for one of these, whatever wraps it
+# (timeout, env, nice, a VAR=value, bash -lc "..."), when every simple
+# command of the text is one; the deny of escalation_refused comes first.
+# The same lists as the rules file's, held together by tests/codex.sh.
+ROUTINE_VIKIX = ("snapshot", "changes", "history", "agents", "try", "docs", "what", "why", "rules", "eval",
+                 "project", "records", "doctor", "theme", "version")
+ROUTINE_GIT = ("add", "commit", "status", "diff", "log", "show", "rebase", "checkout", "switch", "restore",
+               "rev-parse", "fetch", "merge", "branch", "stash", "worktree", "tag", "describe", "ls-files", "blame")
+GIT_ASKS = {"branch": {"-D", "-d", "--delete"}, "tag": {"-d", "--delete"},
+            "worktree": {"add", "remove", "move", "prune"}}
+ROUTINE_SCRIPTS = ("tests/run.sh", ".claude/release")
+# A variable set in front of a command that could make it another program (PATH),
+# read another file (HOME, XDG_*, GIT_DIR) or load code (LD_*, BASH_ENV, PYTHON*).
+UNSAFE_VARS = re.compile(r"^(PATH|HOME|SHELL|IFS|CDPATH|ENV|BASH_ENV|LD_\w*|PYTHON\w*|PERL\w*|XDG_\w*|GIT_\w*|"
+                         r"CODEX\w*|VIKIX_DIR)$")
+QUIET = ((">", "/dev/null"), ("2", ">", "/dev/null"), ("2", ">&", "1"), ("&>", "/dev/null"), (">", "/dev/null", "2", ">&", "1"))
+PUNCT = re.compile(r"^[();<>|&]+$")
+SPLITS = {";", "&&", "||", "|", "&", "|&"}
+
+
+def routine_words(text, depth=0):
+    """The simple commands of TEXT, each a list of words, or None when the
+    text has a shape the judgement doesn't read: a line more, a substitution
+    ($(...), a backtick, <(...)), a redirection other than to /dev/null or
+    2>&1, a word of punctuation left over."""
+    if "\n" in text or "$(" in text or "`" in text or "<(" in text or ">(" in text:
+        return None
+    try:
+        lx = shlex.shlex(text, posix=True, punctuation_chars=True)
+        lx.whitespace_split = True
+        tokens = list(lx)
+    except ValueError:
+        return None
+    for quiet in QUIET:
+        n = len(quiet)
+        i = 0
+        while i + n <= len(tokens):
+            if tuple(tokens[i:i + n]) == quiet:
+                del tokens[i:i + n]
+            else:
+                i += 1
+    commands, current = [], []
+    for tok in tokens:
+        if tok in SPLITS:
+            commands.append(current)
+            current = []
+        elif PUNCT.match(tok):
+            return None
+        else:
+            current.append(tok)
+    commands.append(current)
+    return [c for c in commands if c] or None
+
+
+def unwrap(words):
+    """WORDS less what wraps the command: timeout's options and duration,
+    env's, nice's, command, a VAR=value that can't change what runs; None
+    when a variable could (UNSAFE_VARS) or nothing is left."""
+    i = 0
+    while i < len(words):
+        w = words[i]
+        name = os.path.basename(w)
+        if re.match(r"^[A-Za-z_]\w*=", w):
+            if UNSAFE_VARS.match(w.split("=", 1)[0]):
+                return None
+            i += 1
+        elif name == "timeout":
+            i += 1
+            while i < len(words) and words[i].startswith("-"):
+                i += 2 if words[i] in ("-k", "-s", "--kill-after", "--signal") else 1
+            if i < len(words) and re.fullmatch(r"\d+(\.\d+)?[smhd]?", words[i]):
+                i += 1
+            else:
+                return None
+        elif name == "env":
+            i += 1
+            while i < len(words) and (words[i].startswith("-") or re.match(r"^[A-Za-z_]\w*=", words[i])):
+                if re.match(r"^[A-Za-z_]\w*=", words[i]) and UNSAFE_VARS.match(words[i].split("=", 1)[0]):
+                    return None
+                i += 2 if words[i] in ("-u", "--unset", "-C", "--chdir", "-S", "--split-string") else 1
+        elif name == "nice":
+            i += 1
+            while i < len(words) and words[i].startswith("-"):
+                i += 2 if words[i] in ("-n", "--adjustment") else 1
+        elif name == "command":
+            i += 1
+        else:
+            break
+    rest = words[i:]
+    return rest or None
+
+
+def routine_command(words, depth=0):
+    """Whether one simple command, unwrapped, is a routine one: vikix with a
+    subcommand of ROUTINE_VIKIX, git with a verb of ROUTINE_GIT that isn't
+    one GIT_ASKS prompts for, tests/run.sh, .claude/release, or bash -c
+    with such a text (once)."""
+    words = unwrap(words)
+    if not words:
+        return False
+    prog = words[0]
+    name = os.path.basename(prog)
+    if name in ("bash", "sh") and depth == 0:
+        flags = [w for w in words[1:] if w.startswith("-")]
+        texts = [w for w in words[1:] if not w.startswith("-")]
+        if any(f not in ("-c", "-l", "-lc", "-cl") for f in flags) or "c" not in "".join(flags) or len(texts) != 1:
+            return False
+        return routine_text(texts[0], depth + 1)
+    if name == "vikix":
+        return len(words) > 1 and words[1] in ROUTINE_VIKIX
+    if name == "git":
+        k = 1
+        while k < len(words) and words[k].startswith("-"):
+            if words[k].startswith(("--git-dir", "--work-tree", "--namespace", "--exec-path")):
+                return False
+            k += 2 if words[k] in ("-C", "-c", "--config-env") else 1
+        if k >= len(words) or words[k] not in ROUTINE_GIT:
+            return False
+        return not (set(words[k + 1:]) & GIT_ASKS.get(words[k], set()))
+    return any(prog == script or prog == "./" + script or prog.endswith("/" + script) for script in ROUTINE_SCRIPTS)
+
+
+def routine_text(text, depth=0):
+    """Whether every simple command of TEXT is routine (routine_command)."""
+    commands = routine_words(text, depth)
+    return bool(commands) and all(routine_command(c, depth) for c in commands)
+
 
 
 def writes(tokens):
@@ -562,8 +727,8 @@ def escalation_refused(me, path):
     desk rule's own words), another desk. The desk itself is never
     refused: that prompt is the user's, or the reviewer's."""
     real = os.path.realpath(os.path.abspath(path))
-    if me["folder"] and inside(real, os.path.realpath(me["folder"])):
-        return None
+    # The key store and the installed checkout first: an agent in the home
+    # folder (Super+a's here) has both inside its own folder.
     config = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
     secrets = os.path.realpath(os.path.join(config, "vikix", "secrets"))
     if inside(real, secrets):
@@ -577,6 +742,8 @@ def escalation_refused(me, path):
     why = off_desk(me, real)
     if why:
         return why + " (This step out of the sandbox would write there.)"
+    if me["folder"] and inside(real, os.path.realpath(me["folder"])):
+        return None
     top = repo_of(real)[0]
     if top and desk_of(top) and os.path.realpath(top) != os.path.realpath(desk_of(me["folder"]) or ""):
         mine = desk_of(me["folder"])
@@ -589,9 +756,11 @@ def escalation():
     """vikix agents touch --for codex --escalation: Codex's PermissionRequest
     hook, run when a command or a patch would leave its sandbox. Denied,
     with the reason, when it would write where no agent may (escalation_
-    refused); else nothing is said, and the prompt goes where the mode
-    sends it: to the user, or in autonomous mode to Codex's reviewer, so
-    the agent-waiting plugin's note (waits for your yes) is written only
+    refused); allowed, so no prompt, when every command of the text is a
+    routine one (routine_text: vikix snapshot, git commit, the tests, under
+    a timeout or not); else nothing is said, and the prompt goes where the
+    mode sends it: to the user, or in autonomous mode to Codex's reviewer,
+    so the agent-waiting plugin's note (waits for your yes) is written only
     when the user is the one asked."""
     got, raw = hook_input()
     tool = got.get("tool_input") or {}
@@ -617,6 +786,15 @@ def escalation():
             print(json.dumps({"hookSpecificOutput": {"hookEventName": "PermissionRequest",
                                                      "decision": {"behavior": "deny", "message": why}}}))
             return 0
+    if got.get("tool_name") != "apply_patch" and "*** Begin Patch" not in command and routine_text(command):
+        # Noted as a command of the agent's, as touch_bash notes a write: the
+        # listing's "working", the Stop hook's "this turn changed files", and
+        # the one trace that the hook, not the reviewer, let it out.
+        journal_add({"at": int(time.time()), "kind": "shell", "agent": me["agent"], "pid": me["pid"],
+                     "folder": me["folder"], "file": cwd or me["folder"], "command": command[:200]})
+        print(json.dumps({"hookSpecificOutput": {"hookEventName": "PermissionRequest",
+                                                 "decision": {"behavior": "allow"}}}))
+        return 0
     if os.environ.get("VIKIX_AGENT_MODE") != "autonomous":
         plugin_note("permission", raw)
     return 0

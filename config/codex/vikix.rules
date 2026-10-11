@@ -9,6 +9,14 @@
 # git branch -D is under git branch, so the deleting verbs have lines of
 # their own. codex execpolicy check --rules config/codex/vikix.rules -- CMD
 # shows what a command gets (tests/codex.sh holds each line to its intent).
+# A prefix is matched from the command's first word, so "timeout 20s vikix
+# snapshot ..." matches nothing here and Codex asked for every snapshot
+# (2026-10-11); the house rules' hook on each step out of the sandbox
+# (PermissionRequest, vikix agents touch --for codex --escalation) allows
+# the same commands under timeout, env, nice, a VAR=value or bash -lc, from
+# the same lists (ROUTINE_VIKIX and ROUTINE_GIT in lib/agents/house.py,
+# held to these lines by tests/codex.sh). The allowed verbs, not the
+# prompting or forbidden ones: those stay Codex's to ask about or refuse.
 prefix_rule(pattern=["git", ["add", "commit", "status", "diff", "log", "show", "rebase", "checkout", "switch", "restore", "rev-parse", "fetch", "merge", "branch", "stash", "worktree", "tag", "describe", "ls-files", "blame"]], decision="allow", justification="a desk's own branch")
 prefix_rule(pattern=["git", "push"], decision="prompt", justification="pushing is the user's (gup); a worker started with --push has the key")
 prefix_rule(pattern=["git", "push", "--force"], decision="forbidden", justification="never force-push")
