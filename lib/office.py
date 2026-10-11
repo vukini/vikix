@@ -407,7 +407,7 @@ def form(api):
     return {'projects': projects, 'agents': agents, 'default': api.default_agent(),
             'modes': list(api.MODES), 'mode': api.default_mode(),
             'display': bool(os.environ.get('DISPLAY')),
-            # The New plan form's part: the templates, and where the plan goes.
+            # The New plan form's part: the templates, each with its tasks (the form's fields), and where the plan goes.
             'templates': [t for t in plan.templates() if not t['error']], 'plans_folder': plan.PLANS_HOME,
             'guide': guide_file()}
 
@@ -421,15 +421,24 @@ def guide_file():
 
 
 def new_plan(api, args):
-    """The Office's New plan: TEMPLATE NAME PROJECT [--at-once N] [--gate me|none],
-    handed to lib/plan.py's new_plan. Prints the file's path alone, for the
-    Office to open; the words are the form's."""
+    """The Office's New plan: TEMPLATE NAME PROJECT [--at-once N] [--gate me|none]
+    [--tasks], handed to lib/plan.py's new_plan; with --tasks, the plan's
+    tasks come as JSON on stdin (a list, each a task's TOML keys), the
+    form's fields, and the file is composed from them. Prints the file's
+    path alone, for the Office to open; the words are the form's."""
     sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
     import plan
-    at_once, gate, rest = None, None, []
+    at_once, gate, tasks, rest = None, None, None, []
     it = iter(args)
     for w in it:
-        if w == '--at-once':
+        if w == '--tasks':
+            try:
+                tasks = json.load(sys.stdin)
+            except ValueError as e:
+                raise ValueError(f'--tasks: the tasks on stdin are not JSON: {e}') from e
+            if not isinstance(tasks, list):
+                raise ValueError('--tasks: the tasks on stdin are a JSON list, a task each')
+        elif w == '--at-once':
             n = next(it, '')
             if not n.isdigit():
                 raise ValueError('--at-once takes a number of workers')
@@ -437,13 +446,13 @@ def new_plan(api, args):
         elif w == '--gate':
             gate = next(it, None)
         elif w.startswith('-'):
-            raise ValueError(f'vikix agents office --plan: {w}? (--at-once N, --gate me|none)')
+            raise ValueError(f'vikix agents office --plan: {w}? (--at-once N, --gate me|none, --tasks)')
         else:
             rest.append(w)
     if len(rest) != 3 or not all(rest):
-        raise ValueError('vikix agents office --plan TEMPLATE NAME PROJECT [--at-once N] [--gate me|none]')
+        raise ValueError('vikix agents office --plan TEMPLATE NAME PROJECT [--at-once N] [--gate me|none] [--tasks]')
     try:
-        print(plan.new_plan(rest[0], rest[1].strip(), rest[2], at_once, gate))
+        print(plan.new_plan(rest[0], rest[1].strip(), rest[2], at_once, gate, tasks))
     except plan.PlanError as e:
         raise RuntimeError(str(e)) from e
 
@@ -665,5 +674,5 @@ def main(api, args):
     elif args in ([], ['--tty']):
         launch(api, tty=bool(args))
     else:
-        raise ValueError('vikix agents office [--tty | --json | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN | --pause DESK | --unpause DESK | --park DESK | --test DESK | --tell DESK TEXT | --review DESK PROVIDER | --form | --plan TEMPLATE NAME PROJECT [--at-once N] [--gate me|none] | --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --worker DESK ["..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --close-desk DESK [--force]]')
+        raise ValueError('vikix agents office [--tty | --json | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN | --pause DESK | --unpause DESK | --park DESK | --test DESK | --tell DESK TEXT | --review DESK PROVIDER | --form | --plan TEMPLATE NAME PROJECT [--at-once N] [--gate me|none] [--tasks] | --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --worker DESK ["..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --close-desk DESK [--force]]')
     return 0

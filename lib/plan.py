@@ -58,15 +58,20 @@ What it can't know: which files two desks will touch (turns and the clash
 rules handle that), and whether a worker at its prompt will ever read a
 note (it won't: that is why a worker that handed in is dismissed).
 
-A plan starts from a template (vikix agents plan new TEMPLATE NAME PROJECT;
-the Office's New plan form is the same): Vikix's are config/plans/*.toml,
-yours ~/.config/vikix/plans/templates/*.toml (one of yours with a Vikix
-name stands in for it), each a plan whose first line is "# NAME — what it
-is for", with "PROJECT" where the project goes, "topic" in each desk's
-name, which the plan's name replaces, and lines beginning "EDIT:" for the
-words that are yours to write; plan run refuses a task still holding one.
-The copy goes to ~/.config/vikix/plans/NAME.toml, and until it has run it
-is a draft there, which the Office lists with its Run.
+A plan starts from a template (vikix agents plan new TEMPLATE NAME
+PROJECT): Vikix's are config/plans/*.toml, yours
+~/.config/vikix/plans/templates/*.toml (one of yours with a Vikix name
+stands in for it), each a plan whose first line is "# NAME — what it is
+for", with "PROJECT" where the project goes, "topic" in each desk's name,
+which the plan's name replaces, and lines beginning "EDIT:" for the words
+that are yours to write; plan run refuses a task still holding one. The
+copy goes to ~/.config/vikix/plans/NAME.toml, and until it has run it is a
+draft there, which the Office lists with its Run. The Office's New plan
+form writes the plan itself: the template's tasks are its fields (vikix
+agents office --plan ... --tasks, the tasks as JSON on stdin), and
+new_plan composes the file from them, the template's comments kept at its
+head; a task's words left empty keep the template's EDIT: line, for the
+file later.
 """
 import hashlib
 import json
@@ -283,9 +288,12 @@ def template_about(path):
 
 def templates():
     """The plan templates, by name: yours first (~/.config/vikix/plans/templates),
-    then Vikix's (config/plans), each {name, file, about, yours, error}; one
-    of yours with a Vikix name stands in for it, and one that doesn't read
-    as a plan is listed with why (the Office's form leaves it out)."""
+    then Vikix's (config/plans), each {name, file, about, yours, error,
+    at_once, gate, tasks} (the last three as read_plan reads them, for the
+    Office's form to show as its fields; a template that can't be read has
+    none); one of yours with a Vikix name stands in for it, and one that
+    doesn't read as a plan is listed with why (the Office's form leaves it
+    out)."""
     out, seen = [], set()
     for folder, yours in ((MY_TEMPLATES, True), (VIKIX_TEMPLATES, False)):
         try:
@@ -297,11 +305,12 @@ def templates():
                 seen.add(n[:-5])
                 path = os.path.join(folder, n)
                 try:
-                    read_plan(path)
+                    read = read_plan(path)
                     error = ""
                 except PlanError as e:
-                    error = str(e)
-                out.append({"name": n[:-5], "file": path, "about": template_about(path), "yours": yours, "error": error})
+                    read, error = {"at_once": None, "gate": None, "tasks": []}, str(e)
+                out.append({"name": n[:-5], "file": path, "about": template_about(path), "yours": yours, "error": error,
+                            "at_once": read["at_once"], "gate": read["gate"], "tasks": read["tasks"]})
     return out
 
 
@@ -316,13 +325,79 @@ def template(word):
     raise PlanError(f"no template called {word} (vikix agents plan templates lists them; a plan file is one too)")
 
 
-def new_plan(template_word, name, project, at_once=None, gate=None):
+def toml_string(text):
+    """TEXT as a TOML string: a basic string, or a multi-line one when it has
+    lines, so a task's paragraph reads as it was written."""
+    if "\n" in text and not any(ord(c) < 32 and c not in "\n\t" for c in text):
+        return '"""\n' + text.replace("\\", "\\\\").replace('"""', '""\\"') + '"""'
+    return json.dumps(text, ensure_ascii=False)
+
+
+def task_lines(task, where):
+    """TASK, a dict with a plan task's TOML keys (name, desk, after, task,
+    release, agent, local, push, no-tests, mode, acceptance), as the lines of
+    its [[task]] table, in the templates' order and only those given; a wrong
+    shape is refused here (WHERE says which task), the rest by read_plan
+    once the file is written."""
+    if not isinstance(task, dict):
+        raise PlanError(f"{where}: a task is a table of its keys")
+    for k in task:
+        if k not in TASK_KEYS:
+            raise PlanError(f"{where}: '{k}'? a task has {', '.join(TASK_KEYS)}")
+    out = ["[[task]]"]
+    for k in ("name", "desk", "after", "task", "release", "agent", "local", "push", "no-tests", "mode", "acceptance"):
+        if k not in task:
+            continue
+        v = task[k]
+        if k in ("after", "acceptance"):
+            if isinstance(v, str):
+                v = [v]
+            if not isinstance(v, list) or not all(isinstance(a, str) for a in v):
+                raise PlanError(f"{where}: {k} is a list of lines")
+            v = [a.strip() for a in v if a.strip()]
+            if v:
+                out.append(f"{k} = [{', '.join(json.dumps(a, ensure_ascii=False) for a in v)}]")
+        elif k in ("local", "push", "no-tests"):
+            if not isinstance(v, bool):
+                raise PlanError(f"{where}: {k} is true or false")
+            if v:
+                out.append(f"{k} = true")
+        else:
+            if not isinstance(v, str):
+                raise PlanError(f"{where}: {k} is text")
+            if v.strip() or k in ("name", "task"):
+                out.append(f"{k} = {toml_string(v.strip())}")
+    return out
+
+
+def template_head(lines):
+    """The template's comment at its head (the lines beginning #, up to the
+    first that doesn't), kept on a plan composed from its tasks so the file
+    explains itself."""
+    head = []
+    for line in lines:
+        if line.startswith("#"):
+            head.append(line)
+        elif line.strip():
+            break
+        elif head:
+            head.append(line)
+    while head and not head[-1].strip():
+        head.pop()
+    return head
+
+
+def new_plan(template_word, name, project, at_once=None, gate=None, tasks=None):
     """A plan written from a template: ~/.config/vikix/plans/NAME.toml (NAME
     with a slash, or ending .toml, is the file itself), the template's text
     with PROJECT, and at-once and gate when given, filled in, and "topic" in
     each desk's name made NAME, so its desks are named for the plan; the
-    comments stay, so the file explains itself. Refuses a file that is there,
-    and a copy that doesn't read as a plan is removed again. Returns the path."""
+    comments stay, so the file explains itself. With TASKS (a list of tasks
+    as task_lines takes them: the Office's form), the file is composed
+    instead: the template's head comment, the settings (at-once and gate the
+    template's when not given), then those tasks, each desk's "topic" made
+    NAME the same way. Refuses a file that is there, and a copy that doesn't
+    read as a plan is removed again. Returns the path."""
     src = template(template_word)
     if "/" in name or name.endswith(".toml"):
         path = os.path.realpath(os.path.expanduser(name))
@@ -345,6 +420,16 @@ def new_plan(template_word, name, project, at_once=None, gate=None):
             lines = f.read().split("\n")
     except OSError as e:
         raise PlanError(f"{src}: {e.strerror or e}")
+    if tasks is not None:
+        if not isinstance(tasks, list) or not tasks:
+            raise PlanError("the tasks are a list, one or more")
+        had = read_plan(src)
+        lines = template_head(lines) + ["", f"project = {json.dumps(project.strip())}",
+                                        f"at-once = {had['at_once'] if at_once is None else at_once}",
+                                        f"gate = {json.dumps(had['gate'] if gate is None else gate)}"]
+        for i, t in enumerate(tasks):
+            lines += [""] + task_lines(t, f"task {i + 1}")
+        lines.append("")
     out = []
     for line in lines:
         if re.match(r'^project\s*=', line):

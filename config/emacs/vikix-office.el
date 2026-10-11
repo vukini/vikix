@@ -114,8 +114,8 @@ over the refreshes that follow, so it is seen; g drops it.")
   "The refresh's notice: the last action's answer first, while one is kept."
   (vikix-office--notice (if vikix-office--said (concat vikix-office--said " · " text) text)))
 
-(defun vikix-office--request (args slot done)
-  "Run ARGS without a shell. DONE receives output or an error string."
+(defun vikix-office--request (args slot done &optional input)
+  "Run ARGS without a shell, INPUT on its stdin when given. DONE receives output or an error string."
   (let* ((owner (current-buffer)) (output (generate-new-buffer " *Office response*"))
          (stderr (generate-new-buffer " *Office error*")) process)
     (condition-case err
@@ -144,6 +144,9 @@ over the refreshes that follow, so it is seen; g drops it.")
              (funcall done "" (error-message-string err))))
     (when process
       (set slot process)
+      ;; The backend may end before it reads (a refusal): then the pipe is anyone's, and the sentinel says.
+      (when input
+        (ignore-errors (process-send-string process input) (process-send-eof process)))
       (process-put process 'timeout
                    (run-at-time vikix-office-timeout nil
                                 (lambda ()
@@ -1125,27 +1128,90 @@ for its tasks' words, and the Plans box runs it."
         (progn (set-window-buffer window buffer) (select-window window))
       (pop-to-buffer buffer))
     window))
-(defun vikix-office--form-draw-plan (owner offer)
-  "The New plan form: a template, the project, the plan's name, and the two
-settings every template has; what the backend OFFERed names them."
-  (let* ((buffer (generate-new-buffer "*Office new plan*"))
+(defun vikix-office--form-plan-task-from (task)
+  "A template's TASK (the backend's, as read_plan reads it) as the form's
+values: a line of the template beginning EDIT: is the field's hint, the
+field itself empty, since those words are yours to write; any other words
+are the field's, to edit."
+  (let* ((text (or (alist-get 'text task) ""))
+         (release (or (alist-get 'release task) ""))
+         (edit (lambda (s) (and (string-prefix-p "EDIT:" s) (string-trim (substring s 5))))))
+    (list (cons 'name (or (alist-get 'name task) ""))
+          (cons 'desk (or (alist-get 'desk task) ""))
+          (cons 'after (mapconcat #'identity (alist-get 'after task) ", "))
+          (cons 'task (if (funcall edit text) "" text))
+          (cons 'hint (funcall edit text))
+          (cons 'release (if (funcall edit release) "" release))
+          (cons 'release-hint (funcall edit release))
+          (cons 'acceptance (mapconcat #'identity (alist-get 'acceptance task) "\n"))
+          (cons 'agent (or (alist-get 'agent task) ""))
+          (cons 'local (eq (alist-get 'local task) t))
+          (cons 'push (eq (alist-get 'push task) t))
+          (cons 'notests (eq (alist-get 'no_tests task) t))
+          (cons 'mode (or (alist-get 'mode task) "")))))
+(defun vikix-office--form-plan-template-tasks (offer template)
+  "The tasks of TEMPLATE among what the backend OFFERed, as the form's values."
+  (let ((tp (cl-find template (alist-get 'templates offer) :key (lambda (x) (alist-get 'name x)) :test #'equal)))
+    (mapcar #'vikix-office--form-plan-task-from (alist-get 'tasks tp))))
+(defun vikix-office--form-plan-empty-task ()
+  "A task added by hand: nothing filled in."
+  (vikix-office--form-plan-task-from '((name . "") (desk . "") (text . "EDIT: the worker's job, in your words") (release . ""))))
+(defun vikix-office--form-plan-state ()
+  "The New plan form's values as they stand, for a redraw to put back:
+a plist of the fields, and :tasks the tasks' values, a list of alists."
+  (let ((tasks (plist-get vikix-office--form :tasks)))
+    (list :template (vikix-office--form-value 'template)
+          :project (vikix-office--form-value 'project)
+          :name (vikix-office--form-value 'name)
+          :at-once (vikix-office--form-value 'at-once)
+          :gate (vikix-office--form-value 'gate)
+          :tasks (mapcar (lambda (tw)
+                           (mapcar (lambda (cell)
+                                     (cons (car cell) (if (widgetp (cdr cell)) (widget-value (cdr cell)) (cdr cell))))
+                                   tw))
+                         tasks))))
+(defun vikix-office--form-plan-redraw (state focus)
+  "Draw this form again with STATE's values; point goes to FOCUS (a task's
+index and a field's name, as (1 . task)) when it is there."
+  (vikix-office--form-draw-plan (plist-get vikix-office--form :owner) (plist-get vikix-office--form :offer)
+                                state (current-buffer) focus))
+(defun vikix-office--form-draw-plan (owner offer &optional state buffer focus)
+  "The New plan form: a template, the project, the plan's name, the two
+settings every template has, and the template's tasks as fields, each with
+the words the template asks for as its hint; Add a task and Remove reshape
+it. What the backend OFFERed names them. STATE, the form's values as
+`vikix-office--form-plan-state' gives them, is what a redraw (a template
+picked, a task added or removed) puts back, into BUFFER, the form's; else a
+new buffer is made and placed. FOCUS names where point goes on a redraw."
+  (let* ((fresh (null buffer))
+         (buffer (or buffer (generate-new-buffer "*Office new plan*")))
          (templates (alist-get 'templates offer))
          (projects (cl-remove-if-not (lambda (p) (eq (alist-get 'repo p) t)) (alist-get 'projects offer)))
+         (agents (alist-get 'agents offer))
          (folder (or (alist-get 'plans_folder offer) "~/.config/vikix/plans"))
-         widgets)
+         (tasks (plist-get state :tasks))
+         (window (plist-get vikix-office--form :window))
+         widgets task-widgets at)
     (with-current-buffer buffer
       (kill-all-local-variables)
       (let ((inhibit-read-only t)) (erase-buffer))
       (remove-overlays)
       (widget-insert (propertize "New plan" 'face '(:inherit variable-pitch :height 1.3 :weight bold)) "\n")
       (widget-insert "A plan is tasks in order, each one worker's job at a desk, run for you (vikix agents plan). "
-                     "It starts as a copy of a template, with the project and the name filled in, which opens here "
-                     "for its tasks' words: the lines beginning EDIT: are yours to write. Saved, the Plans box has its Run.\n\n")
+                     "Pick a template and its tasks come up below, each with what it asks you to write; "
+                     "Write plan writes the file, with your words in, and the Plans box has its Run.\n\n")
       ;; A choice that makes something starts unpicked (Vid, 2026-10-10).
       (push (cons 'template
-                  (apply #'widget-create 'menu-choice :tag "Template" :value ""
+                  (apply #'widget-create 'menu-choice :tag "Template" :value (or (plist-get state :template) "")
                          :format "%t: %[%v%]\n" :button-prefix "[" :button-suffix "]"
                          :help-echo "The plan's shape (vikix agents plan templates): a click or RET opens the list"
+                         ;; Picked, the form is drawn again with that template's tasks; the rest stays as typed.
+                         :notify (lambda (w &rest _)
+                                   (let ((state (vikix-office--form-plan-state)))
+                                     (vikix-office--form-plan-redraw
+                                      (plist-put state :tasks (vikix-office--form-plan-template-tasks
+                                                               (plist-get vikix-office--form :offer) (widget-value w)))
+                                      '(0 . task))))
                          '(item :tag "pick one" :format "%t" :value "")
                          (mapcar (lambda (tp)
                                    (list 'item :tag (concat (alist-get 'name tp) "  " (or (alist-get 'about tp) "")
@@ -1156,7 +1222,7 @@ settings every template has; what the backend OFFERed names them."
       (widget-insert (propertize (concat "          Vikix's, and your own from " (abbreviate-file-name folder) "/templates/\n") 'face 'shadow))
       (widget-insert "\n")
       (push (cons 'project
-                  (apply #'widget-create 'menu-choice :tag "Project" :value ""
+                  (apply #'widget-create 'menu-choice :tag "Project" :value (or (plist-get state :project) "")
                          :format "%t:  %[%v%]\n" :button-prefix "[" :button-suffix "]"
                          :help-echo "The project the plan is for: a repository, since its desks are worktrees"
                          '(item :tag "pick one" :format "%t" :value "")
@@ -1168,23 +1234,108 @@ settings every template has; what the backend OFFERed names them."
       (widget-insert (propertize "          a repository: a plan's desks are worktrees of it\n" 'face 'shadow))
       (widget-insert "\n")
       (push (cons 'name (widget-create 'editable-field :size 30 :format "Name:     %v\n"
-                                       :help-echo "A word for the plan: its file's name, and its desks'" ""))
+                                       :help-echo "A word for the plan: its file's name, and its desks'"
+                                       (or (plist-get state :name) "")))
             widgets)
       (widget-insert (propertize (concat "          a word (letters, digits, dashes): " (abbreviate-file-name folder)
-                                         "/NAME.toml, and its desks are named for it\n")
+                                         "/NAME.toml; \"topic\" in a desk's name becomes it\n")
                                  'face 'shadow))
       (widget-insert "\n")
       (push (cons 'at-once (widget-create 'editable-field :size 4 :format "At once:  %v  workers running together, at most (empty: the template's)\n"
-                                          :help-echo "How many workers run together, at most" ""))
+                                          :help-echo "How many workers run together, at most" (or (plist-get state :at-once) "")))
             widgets)
       (push (cons 'gate
-                  (widget-create 'menu-choice :tag "Gate" :value ""
+                  (widget-create 'menu-choice :tag "Gate" :value (or (plist-get state :gate) "")
                                  :format "%t:     %[%v%]\n" :button-prefix "[" :button-suffix "]"
                                  :help-echo "Whether a desk's release waits for your yes"
                                  '(item :tag "the template's" :format "%t" :value "")
                                  '(item :tag "me: a desk's release waits for your yes" :format "%t" :value "me")
                                  '(item :tag "none: a desk is released as its chain ends" :format "%t" :value "none")))
             widgets)
+      (widget-insert "\n")
+      ;; The tasks: the template's, each a worker's job, as fields; a line the
+      ;; template asks you to write (EDIT:) is a hint under an empty field.
+      (when tasks
+        (widget-insert (propertize "Tasks" 'face 'bold)
+                       (propertize "  the template's, in order; tasks at one desk are a chain, at different desks they run side by side\n" 'face 'shadow))
+        (let ((i 0))
+          (dolist (task tasks)
+            (let ((n i) tw)
+              (widget-insert "\n" (propertize (format "Task %d" (1+ n)) 'face 'bold) "\n")
+              (push (cons 'name (widget-create 'editable-field :size 16 :format "  Name:  %v"
+                                               :help-echo "A word: what after names" (alist-get 'name task)))
+                    tw)
+              (push (cons 'desk (widget-create 'editable-field :size 16 :format "   Desk: %v"
+                                               :help-echo "The desk it works at: the worktree's ending and the branch; topic becomes the plan's name"
+                                               (alist-get 'desk task)))
+                    tw)
+              (push (cons 'after (widget-create 'editable-field :size 20 :format "   After: %v\n"
+                                                :help-echo "The tasks it waits for, by name, with commas" (alist-get 'after task)))
+                    tw)
+              (push (cons 'task (widget-create 'text :format "  Task:\n%v\n"
+                                               :help-echo "The worker's job, in your words: its first prompt" (alist-get 'task task)))
+                    tw)
+              (when (equal (cons n 'task) focus) (setq at (cdr (car tw))))
+              (when (alist-get 'hint task)
+                (widget-insert (propertize (concat "        " (alist-get 'hint task)
+                                                   "\n        (left empty, that line stays in the file as EDIT: for you to write there)\n")
+                                           'face 'shadow)))
+              (push (cons 'release (widget-create 'editable-field :size 60 :format "  Release: %v\n"
+                                                  :help-echo "The release's line, what it brings: for the last task at a desk"
+                                                  (alist-get 'release task)))
+                    tw)
+              (when (alist-get 'release-hint task)
+                (widget-insert (propertize (concat "        " (alist-get 'release-hint task) " (left empty, it stays as EDIT:)\n") 'face 'shadow)))
+              (push (cons 'acceptance (widget-create 'text :format "  Acceptance, a line each (what the work is judged by):\n%v\n"
+                                                     :help-echo "The criteria the work is judged by, a line each; empty for none"
+                                                     (alist-get 'acceptance task)))
+                    tw)
+              (push (cons 'agent
+                          (apply #'widget-create 'menu-choice :tag "  Agent" :value (alist-get 'agent task)
+                                 :format "%t: %[%v%]" :button-prefix "[" :button-suffix "]"
+                                 :help-echo "Which agent works the task: yours, or another"
+                                 (list 'item :tag (concat "yours (" (or (alist-get 'default offer) "claude") ")") :format "%t" :value "")
+                                 (mapcar (lambda (a) (list 'item :tag (alist-get 'name a) :format "%t" :value (alist-get 'name a))) agents)))
+                    tw)
+              (widget-insert "   ")
+              (push (cons 'local (widget-create 'checkbox (alist-get 'local task))) tw)
+              (widget-insert " local model  ")
+              (push (cons 'push (widget-create 'checkbox (alist-get 'push task))) tw)
+              (widget-insert " may push  ")
+              (push (cons 'notests (widget-create 'checkbox (alist-get 'notests task))) tw)
+              (widget-insert " no tests   ")
+              (push (cons 'mode
+                          (apply #'widget-create 'menu-choice :tag "Mode" :value (alist-get 'mode task)
+                                 :format "%t: %[%v%]\n" :button-prefix "[" :button-suffix "]"
+                                 :help-echo "How free the worker is (Codex's): the house default, supervised, autonomous or unrestricted"
+                                 '(item :tag "the house default" :format "%t" :value "")
+                                 (mapcar (lambda (m) (list 'item :tag m :format "%t" :value m))
+                                         (or (alist-get 'modes offer) '("supervised" "autonomous" "unrestricted")))))
+                    tw)
+              (push (cons 'hint (alist-get 'hint task)) tw)
+              (push (cons 'release-hint (alist-get 'release-hint task)) tw)
+              (widget-insert "  ")
+              (widget-create 'push-button
+                             :notify (lambda (&rest _)
+                                       (let ((state (vikix-office--form-plan-state)))
+                                         (vikix-office--form-plan-redraw
+                                          (plist-put state :tasks (append (seq-take (plist-get state :tasks) n)
+                                                                          (seq-drop (plist-get state :tasks) (1+ n))))
+                                          '(-1 . none))))
+                             "Remove this task")
+              (widget-insert "\n")
+              (push (nreverse tw) task-widgets)
+              (setq i (1+ i)))))
+        (widget-insert "\n")
+        (widget-create 'push-button
+                       :notify (lambda (&rest _)
+                                 (let* ((state (vikix-office--form-plan-state))
+                                        (n (length (plist-get state :tasks))))
+                                   (vikix-office--form-plan-redraw
+                                    (plist-put state :tasks (append (plist-get state :tasks) (list (vikix-office--form-plan-empty-task))))
+                                    (cons n 'name))))
+                       "Add a task")
+        (widget-insert "\n"))
       (widget-insert "\n")
       (widget-create 'push-button :notify (lambda (&rest _) (vikix-office-form-submit)) "Write plan")
       (widget-insert "  ")
@@ -1194,11 +1345,17 @@ settings every template has; what the backend OFFERed names them."
                                  'face 'shadow))
       (use-local-map vikix-office-form-map)
       (widget-setup)
-      (setq vikix-office--form (list :owner owner :desk 'plan :offer offer :widgets widgets :window nil))
-      (goto-char (point-min))
-      (widget-forward 1))
-    (let ((window (vikix-office--form-place owner buffer)))
-      (with-current-buffer buffer (setq vikix-office--form (plist-put vikix-office--form :window window))))
+      (setq vikix-office--form (list :owner owner :desk 'plan :offer offer :widgets widgets
+                                     :tasks (nreverse task-widgets) :window window))
+      (when (and (null at) focus (>= (car focus) 0))
+        (setq at (alist-get (cdr focus) (nth (car focus) (plist-get vikix-office--form :tasks)))))
+      (if (widgetp at)
+          (goto-char (widget-field-start at))
+        (goto-char (point-min))
+        (widget-forward 1)))
+    (when fresh
+      (let ((window (vikix-office--form-place owner buffer)))
+        (with-current-buffer buffer (setq vikix-office--form (plist-put vikix-office--form :window window)))))
     buffer))
 (defun vikix-office--form-draw-desk (owner desk offer)
   "Draw the form for DESK (nil: a new desk) with what the backend OFFERed, in OWNER's desk pane."
@@ -1334,7 +1491,42 @@ settings every template has; what the backend OFFERed names them."
       (user-error "At once is a number of workers"))
     (append (list "office" "--plan" template name project)
             (unless (string-empty-p at-once) (list "--at-once" at-once))
-            (unless (member gate '(nil "")) (list "--gate" gate)))))
+            (unless (member gate '(nil "")) (list "--gate" gate))
+            (and (plist-get vikix-office--form :tasks) '("--tasks")))))
+(defun vikix-office--form-plan-input ()
+  "The New plan form's tasks as the backend takes them on stdin: a JSON
+list, a task each with its TOML keys; a user error for a task without a
+name or words. Words left empty keep the template's line (EDIT:), for the
+file later; a release left empty with none is no release."
+  (let ((i 0) out)
+    (dolist (tw (plist-get vikix-office--form :tasks))
+      (setq i (1+ i))
+      (let* ((value (lambda (k) (let ((w (alist-get k tw))) (if (widgetp w) (string-trim (or (widget-value w) "")) (or w "")))))
+             (name (funcall value 'name)) (desk (funcall value 'desk)) (text (funcall value 'task))
+             (release (funcall value 'release)) (agent (funcall value 'agent)) (mode (funcall value 'mode))
+             (after (split-string (funcall value 'after) "[, ]+" t))
+             (acceptance (split-string (funcall value 'acceptance) "\n" t "[ \t]+"))
+             (hint (alist-get 'hint tw)) (release-hint (alist-get 'release-hint tw)))
+        (unless (string-match-p "\\`[a-z0-9][a-z0-9-]*\\'" name)
+          (vikix-office--form-say (format "Task %d's name is a word: letters, digits, dashes" i))
+          (user-error "Task %d's name is a word: letters, digits, dashes" i))
+        (when (and (string-empty-p text) (not hint))
+          (vikix-office--form-say (format "Task %d (%s): the worker's job, in your words" i name))
+          (user-error "Task %d (%s) has no words" i name))
+        (push (append (list (cons 'name name))
+                      (unless (string-empty-p desk) (list (cons 'desk desk)))
+                      (when after (list (cons 'after (vconcat after))))
+                      (list (cons 'task (if (string-empty-p text) (concat "EDIT: " hint) text)))
+                      (cond ((not (string-empty-p release)) (list (cons 'release release)))
+                            (release-hint (list (cons 'release (concat "EDIT: " release-hint)))))
+                      (when acceptance (list (cons 'acceptance (vconcat acceptance))))
+                      (unless (string-empty-p agent) (list (cons 'agent agent)))
+                      (and (widget-value (alist-get 'local tw)) (list (cons 'local t)))
+                      (and (widget-value (alist-get 'push tw)) (list (cons 'push t)))
+                      (and (widget-value (alist-get 'notests tw)) (list (cons 'no-tests t)))
+                      (unless (string-empty-p mode) (list (cons 'mode mode))))
+              out)))
+    (and out (json-serialize (vconcat (nreverse out))))))
 (defun vikix-office--form-args ()
   "The backend's words for this form as it stands; a user error for what is missing."
   (unless vikix-office--form (user-error "Not a form"))
@@ -1373,9 +1565,10 @@ settings every template has; what the backend OFFERed names them."
                 (unless (string-empty-p task) (list "--task" task))
                 options)))))
 (defun vikix-office-form-submit ()
-  "Make the desk, or start the worker, as the form says; the form closes once the backend has."
+  "Make the desk, start the worker or write the plan, as the form says; the form closes once the backend has."
   (interactive)
-  (let* ((args (vikix-office--form-args)) (owner (plist-get vikix-office--form :owner)) (buffer (current-buffer)))
+  (let* ((args (vikix-office--form-args)) (owner (plist-get vikix-office--form :owner)) (buffer (current-buffer))
+         (input (and (member "--tasks" args) (vikix-office--form-plan-input))))
     (unless (buffer-live-p owner) (user-error "The Office is closed"))
     (vikix-office--form-say (pcase (plist-get vikix-office--form :desk)
                               ('plan "Writing the plan…") ('nil "Making the desk…") (_ "Starting the worker…")))
@@ -1395,10 +1588,13 @@ settings every template has; what the backend OFFERed names them."
              ;; opens here for its tasks' words; the Plans box has it as a draft.
              (if (and (equal (nth 1 args) "--plan") (file-name-absolute-p last) (file-readable-p last))
                  (progn (vikix-office--notice (concat "Plan written: " (abbreviate-file-name last)
-                                                      ". Write its EDIT: lines, save; Run is in the Plans box."))
+                                                      (if (and input (not (string-match-p "EDIT: " input)))
+                                                          ". Run is in the Plans box."
+                                                        ". Write its EDIT: lines, save; Run is in the Plans box.")))
                         (vikix-office--show-buffer (find-file-noselect last)))
                (vikix-office--notice last)))
-           (vikix-office-refresh)))))))
+           (vikix-office-refresh)))
+       input))))
 (defun vikix-office-form-cancel ()
   "Close the form, the desk pane back in its window; nothing is started."
   (interactive)

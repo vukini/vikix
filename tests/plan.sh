@@ -357,9 +357,33 @@ check "office --plan answers with the file alone: $out" test "$out" = "$HOME/.co
 check "with its settings" bash -c 'grep -q "^at-once = 2" "$1" && grep -q "^gate = \"me\"" "$1"' _ "$out"
 out=$(agents office --plan one-desk office-made book)
 check "office --plan refuses what plan new refuses: $out" grep -q 'is there already' <<<"$out"
+# The form's tasks (--tasks, JSON on stdin): the plan composed from them, the template's head
+# comment kept, each desk named for the plan; a task's words left to the template still need you.
+out=$(python3 "$here/bin/vikix-agents" office --plan one-desk composed book --tasks 2>&1 <<<'[{"name":"build","desk":"topic","task":"Build the index.\nTwo lines.","release":"The index","acceptance":["a line"],"agent":"codex","local":true},{"name":"tests","desk":"topic","after":["build"],"task":"EDIT: the tests"}]' || true)
+check "office --plan --tasks composes the plan from the form's tasks: $out" test "$out" = "$HOME/.config/vikix/plans/composed.toml"
+check "with the words in, the desks named for the plan, the template's head kept: $(cat "$out" 2>/dev/null)" bash -c '
+  grep -q "^# one-desk — " "$1" && grep -q "^project = \"book\"" "$1" && grep -q "^gate = \"me\"" "$1" && grep -q "^desk = \"composed\"" "$1" &&
+  grep -q "^task = \"\"\"" "$1" && grep -q "^Two lines.\"\"\"" "$1" && grep -q "^release = \"The index\"" "$1" && grep -q "^acceptance = \[\"a line\"\]" "$1" &&
+  grep -q "^agent = \"codex\"" "$1" && grep -q "^local = true" "$1" && grep -q "^after = \[\"build\"\]" "$1" && ! grep -q "^push" "$1"' _ "$out"
+out=$(agents plan status composed)
+check "the task left to the template still needs you, the other not: $out" grep -q "(EDIT: lines) at tests: write them first" <<<"$out"
+out=$(python3 "$here/bin/vikix-agents" office --plan one-desk composed-bad book --tasks 2>&1 <<<'[{"name":"x","task":""}]' || true)
+check "a task without words is refused, in read_plan's words: $out" grep -q "is the worker's job" <<<"$out"
+out=$(python3 "$here/bin/vikix-agents" office --plan one-desk composed-bad book --tasks 2>&1 <<<'[{"name":"x","task":"ok","when":"now"}]' || true)
+check "a key no task has is refused: $out" grep -q "'when'? a task has" <<<"$out"
+out=$(python3 "$here/bin/vikix-agents" office --plan one-desk composed-bad book --tasks 2>&1 <<<'{"name":"x"}' || true)
+check "the tasks are a JSON list: $out" grep -q 'are a JSON list' <<<"$out"
+check "nothing written for a refusal" test ! -e "$HOME/.config/vikix/plans/composed-bad.toml"
 out=$(agents office --form)
-check "the form's offer has the templates and where a plan goes: $(python3 -c 'import json,sys; d=json.load(sys.stdin); print([t["name"] for t in d["templates"]], d["plans_folder"])' <<<"$out")" \
-  python3 -c 'import json,sys,os; d=json.load(sys.stdin); assert [t["name"] for t in d["templates"]] == ["one-task", "one-desk", "side-by-side"] and d["templates"][0]["yours"] and not d["templates"][1]["yours"] and d["plans_folder"] == os.path.expanduser("~/.config/vikix/plans")' <<<"$out"
+check "the form's offer has the templates, each with its tasks, and where a plan goes: $(python3 -c 'import json,sys; d=json.load(sys.stdin); print([t["name"] for t in d["templates"]], d["plans_folder"])' <<<"$out")" \
+  python3 -c '
+import json, sys, os
+d = json.load(sys.stdin)
+assert [t["name"] for t in d["templates"]] == ["one-task", "one-desk", "side-by-side"] and d["templates"][0]["yours"] and not d["templates"][1]["yours"]
+assert d["plans_folder"] == os.path.expanduser("~/.config/vikix/plans")
+assert [t["name"] for t in d["templates"][1]["tasks"]] == ["build", "tests", "guide"] and d["templates"][1]["gate"] == "me" and d["templates"][1]["at_once"] == 1
+assert d["templates"][1]["tasks"][1]["after"] == ["build"] and d["templates"][1]["tasks"][0]["text"].startswith("EDIT: ")
+' <<<"$out"
 
-[ "$fail" = 0 ] && echo "plan: ok (a plan read and checked; desks made and workers started up to at-once; a hand-in tested, the worker dismissed, the chain's next task; failed rounds told, the third stops the desk under Needs you; the release at the chain's end, held for the yes, tried again after a failure; a task after other desks at a fresh one; pause, stop, run again; the event log; templates, a plan written from one, drafts and the Office's New plan)"
+[ "$fail" = 0 ] && echo "plan: ok (a plan read and checked; desks made and workers started up to at-once; a hand-in tested, the worker dismissed, the chain's next task; failed rounds told, the third stops the desk under Needs you; the release at the chain's end, held for the yes, tried again after a failure; a task after other desks at a fresh one; pause, stop, run again; the event log; templates, a plan written from one, drafts, the Office's New plan and a plan composed from its form's tasks)"
 exit $fail

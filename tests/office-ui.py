@@ -424,8 +424,12 @@ class Office(unittest.TestCase):
         # file alone; what plan new refuses is refused, never written.
         import plan
         made = []
-        with patch.object(plan, 'templates', lambda: [{'name': 'one-desk', 'file': '/x/one-desk.toml', 'about': 'one desk', 'yours': False, 'error': ''},
-                                                      {'name': 'bad', 'file': '/x/bad.toml', 'about': '', 'yours': True, 'error': 'not TOML'}]), \
+        tasks = [{'name': 'build', 'text': 'EDIT: words', 'desk': 'topic', 'after': [], 'agent': '', 'local': False, 'push': False,
+                  'no_tests': False, 'release': '', 'mode': '', 'acceptance': [], 'index': 0}]
+        with patch.object(plan, 'templates', lambda: [{'name': 'one-desk', 'file': '/x/one-desk.toml', 'about': 'one desk', 'yours': False, 'error': '',
+                                                       'at_once': 1, 'gate': 'me', 'tasks': tasks},
+                                                      {'name': 'bad', 'file': '/x/bad.toml', 'about': '', 'yours': True, 'error': 'not TOML',
+                                                       'at_once': None, 'gate': None, 'tasks': []}]), \
              patch.object(plan, 'PLANS_HOME', '/home/u/.config/vikix/plans'), \
              patch.object(plan, 'new_plan', lambda *a: made.append(a) or '/home/u/.config/vikix/plans/' + a[1] + '.toml'), \
              patch.object(A, 'agents_offered', lambda: []):
@@ -435,22 +439,30 @@ class Office(unittest.TestCase):
             with patch.object(A, 'projects', lambda: VP()):
                 offer = office.form(A)
             self.assertEqual([t['name'] for t in offer['templates']], ['one-desk'])
+            self.assertEqual(offer['templates'][0]['tasks'], tasks)
             self.assertEqual(offer['plans_folder'], '/home/u/.config/vikix/plans')
             import io
             from contextlib import redirect_stdout
             out = io.StringIO()
             with redirect_stdout(out):
                 office.main(A, ['--plan', 'one-desk', ' chapters ', 'vikix', '--at-once', '2', '--gate', 'me'])
-            self.assertEqual(made[-1], ('one-desk', 'chapters', 'vikix', 2, 'me'))
+            self.assertEqual(made[-1], ('one-desk', 'chapters', 'vikix', 2, 'me', None))
             self.assertEqual(out.getvalue(), '/home/u/.config/vikix/plans/chapters.toml\n')
             with redirect_stdout(io.StringIO()):
                 office.main(A, ['--plan', 'one-desk', 'cover', 'vikix'])
-            self.assertEqual(made[-1], ('one-desk', 'cover', 'vikix', None, None))
+            self.assertEqual(made[-1], ('one-desk', 'cover', 'vikix', None, None, None))
+            # The form's tasks: JSON on stdin with --tasks, handed on as they are.
+            with redirect_stdout(io.StringIO()), patch.object(sys, 'stdin', io.StringIO('[{"name": "build", "task": "Build it.", "after": ["a"]}]')):
+                office.main(A, ['--plan', 'one-desk', 'cover', 'vikix', '--gate', 'none', '--tasks'])
+            self.assertEqual(made[-1], ('one-desk', 'cover', 'vikix', None, 'none', [{'name': 'build', 'task': 'Build it.', 'after': ['a']}]))
             n = len(made)
             for bad in (['--plan'], ['--plan', 'one-desk', 'x'], ['--plan', 'one-desk', 'x', 'vikix', '--at-once', 'two'],
                         ['--plan', 'one-desk', 'x', 'vikix', '--run'], ['--plan', 'one-desk', '', 'vikix']):
                 with self.assertRaises(ValueError, msg=bad):
                     office.main(A, bad)
+            for text in ('not json', '{"name": "a"}'):
+                with patch.object(sys, 'stdin', io.StringIO(text)), self.assertRaises(ValueError, msg=text):
+                    office.main(A, ['--plan', 'one-desk', 'x', 'vikix', '--tasks'])
             self.assertEqual(len(made), n)
             # plan new's refusal (a file there, a bad template) is the backend's error, in its words.
             def refuse(*a):

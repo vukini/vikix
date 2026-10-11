@@ -318,7 +318,8 @@
                        refuses a task still holding one. Until it has
                        run it is a draft, which plan status lists and
                        the Office's Plans box shows with its Run. The
-                       Office's New plan… is this as a form
+                       Office's New plan… is this as a form, with the
+                       template's tasks as its fields
   vikix agents plan templates
                        the plan templates: Vikix's (config/plans) and yours.
                        Yours are ~/.config/vikix/plans/templates/*.toml, a
@@ -477,12 +478,16 @@
                        agents as vikix agent --list has them (yours
                        first, which can run on a local model), whether a
                        terminal can open here (a display), and for the
-                       New plan form the templates (plan templates) and
-                       the folder a plan goes to
-  vikix agents office --plan TEMPLATE NAME PROJECT [--at-once N] [--gate me|none]
+                       New plan form the templates (plan templates), each
+                       with its settings and tasks as read, and the
+                       folder a plan goes to
+  vikix agents office --plan TEMPLATE NAME PROJECT [--at-once N] [--gate me|none] [--tasks]
                        the Office's New plan: vikix agents plan new with its words.
-                       Answers with the file's path alone, which the
-                       Office opens for the tasks' words
+                       With --tasks, the form's tasks come as JSON on
+                       stdin (a list, a task each with its keys as the
+                       plan file has them) and the plan is composed from
+                       them, the template's head comment kept. Answers
+                       with the file's path alone, which the Office opens
   vikix agents office --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests]
                        the Office's New desk: vikix agents desk with its words, asking nothing.
                        PROJECT is the project's full name; a task starts

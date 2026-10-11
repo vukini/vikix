@@ -1,12 +1,13 @@
 # one-desk — one desk, workers in turn: build it, then its tests and guide, released once at the end
 #
 # A plan of Vikix's: vikix agents plan new one-desk NAME writes a copy of it
-# with your project filled in, for you to edit; the Office's New plan… does
-# the same. Every line beginning EDIT: is yours to write before the plan
-# runs (plan run refuses a task still holding one). Tasks at one desk are a
-# chain: the next worker starts once the last has handed in and its tests
-# pass, and reads the handoff it left; the desk is released once, at the
-# chain's end. vikix agents help plan says what each key does.
+# with your project filled in, for you to edit; the Office's New plan… has
+# its tasks as a form's fields and writes your words in. Every line
+# beginning EDIT: is yours to write before the plan runs (plan run refuses
+# a task still holding one). Tasks at one desk are a chain: the next
+# worker starts once the last has handed in and its tests pass, and reads
+# the handoff it left; the desk is released once, at the chain's end.
+# vikix agents help plan says what each key does.
 
 project = "PROJECT"
 at-once = 1

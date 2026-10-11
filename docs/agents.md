@@ -308,7 +308,7 @@ Tasks at one desk are a chain, its workers in turn on one branch, in the file's 
 
 The runner is a script, never an agent: it edits no file, answers no prompt, never puts two workers at one desk, and never merges or pushes (the release script merges, `gup` stays yours). A worker that handed in is dismissed once its tests are in, since a worker at its prompt never reads a note. A round is one worker on a task; one whose tests failed, or that left without handing in, failed, and the next round's worker is told why in the desk's inbox; the third failure stops that desk under **Needs you**, with the desk's status set *waiting* by vikix, as a release that failed does, and a hand-in left with files uncommitted when its worker is gone. You go on from there by hand: hand the task in yourself, or fix and run the release again with `vikix agents plan release DESK`, which is also your yes when the gate is *me*.
 
-A plan starts from a template. `vikix agents plan templates` lists them: Vikix's (`config/plans/`: *one-task*, one worker on one task at one desk; *one-desk*, a chain of build, tests and guide at one desk, released once at the end; *side-by-side*, two desks at once and a task after both at a fresh desk) and your own, `~/.config/vikix/plans/templates/*.toml`, a plan each whose first line is `# NAME — what it is for`, with `PROJECT` where the project goes, `topic` in each desk's name and `EDIT:` beginning the lines that are yours to write; one of yours with a Vikix name stands in for it. `vikix agents plan new TEMPLATE NAME PROJECT [--at-once N] [--gate me|none]` writes the copy to `~/.config/vikix/plans/NAME.toml` with the project, and the two settings when given, filled in, each desk named for the plan (`topic` becomes `NAME`, `topic-one` `NAME-one`), and the template's comments kept, so the file explains itself. Then you write its `EDIT:` lines in your own words: `plan run` refuses a task still holding one, and until the plan has run it is a *draft*, which `plan status` lists and the Office's Plans box shows with its Run. The Office's **New plan…** is the same as a form (see [The Office](#the-office)).
+A plan starts from a template. `vikix agents plan templates` lists them: Vikix's (`config/plans/`: *one-task*, one worker on one task at one desk; *one-desk*, a chain of build, tests and guide at one desk, released once at the end; *side-by-side*, two desks at once and a task after both at a fresh desk) and your own, `~/.config/vikix/plans/templates/*.toml`, a plan each whose first line is `# NAME — what it is for`, with `PROJECT` where the project goes, `topic` in each desk's name and `EDIT:` beginning the lines that are yours to write; one of yours with a Vikix name stands in for it. `vikix agents plan new TEMPLATE NAME PROJECT [--at-once N] [--gate me|none]` writes the copy to `~/.config/vikix/plans/NAME.toml` with the project, and the two settings when given, filled in, each desk named for the plan (`topic` becomes `NAME`, `topic-one` `NAME-one`), and the template's comments kept, so the file explains itself. Then you write its `EDIT:` lines in your own words: `plan run` refuses a task still holding one, and until the plan has run it is a *draft*, which `plan status` lists and the Office's Plans box shows with its Run. The Office's **New plan…** is a form with the template's tasks as its fields, which writes the words in (see [The Office](#the-office)).
 
 Its state is worked out each time from the plan file and the desk records (which task is the record's, what came before in its history, the checks and their freshness, who is at the desk), so a reboot loses nothing and `plan run` again carries on; only its switches are its own, in `~/.local/state/vikix/office/plans/`. It wakes on the office's event log, `~/.local/state/vikix/office/events-YYYY-MM.jsonl`, one line a hand-in, a check, a worker started, a desk closed or an agent that left, written by every record write, and looks round by itself once a minute besides. `vikix agents plan status` says where each plan stands, a line a desk and a line a task; `plan pause` starts nothing new, `plan stop` ends the runner (the workers at work carry on), `plan log` is what it did. What it can't know: which files two desks will touch; turns and the clash rules handle that.
 
@@ -581,17 +581,28 @@ form's own header line and leaves the form open to fix. A worker's
 terminal opens on the desktop, so from a terminal Office with no display
 only the desk alone can be made.
 
-**New plan…** (`L`, above the groups) is `vikix agents plan new` as a form,
-drawn where the desk forms are: the template (Vikix's and your own, each
-with its line about itself; a click or `RET` on the `[choice]` opens the
-list), the project (the repositories alone, since a plan's desks are
+**New plan…** (`L`, above the groups) writes a plan from a template as a
+form, drawn where the desk forms are: the template (Vikix's and your own,
+each with its line about itself; a click or `RET` on the `[choice]` opens
+the list), the project (the repositories alone, since a plan's desks are
 worktrees), the plan's name (a word: the file's name under
 `~/.config/vikix/plans/`, and its desks'), workers at once and the gate
-(empty, the template's). Nothing is picked for you. **Write plan** writes
-the file and opens it in the desk pane for the tasks' words, the lines
-beginning `EDIT:`; saved, the Plans box has it as a draft with its **Run**.
-Nothing runs until that. A name taken, or a template that doesn't read as a
-plan, is said in the form's own header line and leaves the form open.
+(empty, the template's). Nothing is picked for you. Once a template is
+picked, its tasks come up as the form's fields, in order: each task's name,
+desk (`topic` becomes the plan's name) and the tasks it waits for, its
+words, its release line, its acceptance lines, the agent and its switches
+(a local model, may push, no tests) and the mode. A line the template asks
+you to write (`EDIT:`) is the hint under an empty field; any other words of
+the template are the field's, to edit. **Add a task** puts an empty task
+after the rest and **Remove this task** takes one out, what you typed
+staying. **Write plan** writes the file with your words in (`vikix agents
+office --plan … --tasks`, the tasks as JSON on its stdin; the template's
+head comment is kept, so the file still explains itself) and opens it in
+the desk pane; the Plans box has it as a draft with its **Run**. A task's words left empty keep the template's `EDIT:` line, for
+the file later, and the draft says so under *Needs you*. Nothing runs
+until Run. A name taken, a task without a name or words, or a template
+that doesn't read as a plan, is said in the form's own header line and
+leaves the form open.
 
 **Guide** (`h`, above the groups) opens this chapter of the Vikix manual
 (`info vikix`, the one `vikix update core` writes to
