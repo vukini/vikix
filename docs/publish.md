@@ -7,8 +7,8 @@ You have a text in Markdown and you want a book out of it: an EPUB that reads we
 A book is a folder. Its text is Markdown, in one of three shapes:
 
 - `chapters/*.md`, one file a chapter, taken in name order (`01-start.md`, `02-next.md`, and so on);
-- or one file, `book.md`;
-- or the files you list under `chapters:` in `publish.yml`, in that order.
+- or one file, `book.md`, when there is no `chapters/`;
+- or the files you list under `chapters:` in `publish.yml`, in that order; a list there wins over both.
 
 Beside the text sits `publish.yml`. It is pandoc's metadata file, so pandoc reads it as it is: `title`, `author`, `lang`, and anything else pandoc knows. Three keys are Vikix's own: `name` (what the built files are called; the folder's name when you leave it out), `chapters` (the order above) and `mainfont` (the PDF's face, see below). A `words.txt` beside it holds the book's own words for the spell check, one a line.
 
@@ -25,7 +25,7 @@ To start one:
 vikix publish new ~/src/a-small-book --title "Living in Lisp"
 ```
 
-`--lang LANG` sets the language (`en-GB` if you don't). `new` writes `publish.yml`, a first chapter (`chapters/01-start.md`), an empty `words.txt`, puts `out/` in `.gitignore`, and adds the make targets line to the folder's `Makefile` (added to one that is there, see *From a Makefile*). It never writes over a book that is there: a folder with a `publish.yml` is left as it is. In a git repository it commits what it wrote, those files alone; `--no-commit` leaves git alone.
+The folder is made when it isn't there. `--title` is the book's title; without it, the folder's name is used (`a-small-book` gives `A small book`). `--lang LANG` sets the language (`en-GB` if you don't), and `author` is filled from git's `user.name`, or your login name. `new` writes `publish.yml`, a first chapter (`chapters/01-start.md`), an empty `words.txt`, puts `out/` in `.gitignore`, and adds the make targets line to the folder's `Makefile` (added to one that is there, see *From a Makefile*). It never writes over a book that is there: a folder with a `publish.yml` is left as it is, and said. In a git repository it commits what it wrote, those files alone, and says so (`committed: ... your next push takes it`); `--no-commit` leaves git alone.
 
 ## Building a book
 
@@ -37,15 +37,21 @@ vikix publish a-small-book pdf    # the PDF alone
 
 The book is found three ways: by its folder's name in `~/src` (one level down too, so a book inside a collection is found), by the `name` in its `publish.yml`, or you run `vikix publish` inside the folder with no name at all. A path to the folder works as well.
 
-The files land in the book's `out/`: `out/NAME.epub` and `out/NAME.pdf`, where `NAME` is the `name` from `publish.yml`. Each is checked on the way (the next two sections say how), and a file that fails its check is never given the book's name. A build that went well ends like this:
+The files land in the book's `out/`: `out/NAME.epub` and `out/NAME.pdf`, where `NAME` is the `name` from `publish.yml`. Both get a table of contents from your headings (two levels deep in the EPUB). Each is checked on the way (the next two sections say how), and a file that fails its check is never given the book's name; the first that fails ends the run, so after a rejected EPUB the PDF isn't tried. A build that went well says:
 
 ```
 out/a-small-book.epub  (96 KB, epubcheck: no errors)
 out/a-small-book.pdf  (240 KB, Typst: no warnings)
-:: noted in /home/you/src/a-small-book/log.md
 ```
 
-If the book is a project, the one `vikix project` knows (see [Projects](customize.md#projects)), a build into `out/` writes a dated entry, `published`, in its `log.md`, with the files and their sizes, and commits it. A book that is no project gets no entry. `--no-log` (or `VIKIX_PUBLISH_LOG=0` in the environment) leaves the log alone; `--no-commit` (or `VIKIX_PUBLISH_COMMIT=0`) leaves git alone. A file that had changes of yours waiting is never committed under you: it is left to you, and said.
+If the book is a project, the one `vikix project` knows (see [Projects](customize.md#projects)), a build into `out/` writes a dated entry, `published`, in its `log.md`, with the files and their sizes, commits it, and says so after the two lines above:
+
+```
+:: noted in /home/you/src/a-small-book/log.md
+:: committed: log.md (896f4e9); your next push takes it
+```
+
+A book that is no project gets no entry. `--no-log` (or `VIKIX_PUBLISH_LOG=0` in the environment) leaves the log alone; `--no-commit` (or `VIKIX_PUBLISH_COMMIT=0`) leaves git alone. A file that had changes of yours waiting is never committed under you: it is left to you, and said; nor is anything committed while a merge or a rebase is under way.
 
 ## The EPUB, for e-ink readers
 
@@ -57,13 +63,15 @@ Last, W3C's epubcheck reads the file. One it rejects is kept as `out/NAME.epub.r
 
 ## The PDF
 
-The PDF goes through pandoc's Typst writer. The face is IBM Plex Serif, with Arabic set in Amiri: an Arabic book (`lang: ar`) is in Amiri throughout, and Arabic inside any other book is in Amiri too. Text runs right to left where you say so, with pandoc's own marking:
+The PDF goes through pandoc's Typst writer. The face is IBM Plex Serif, with Arabic set in Amiri: an Arabic book (`lang: ar`) is in Amiri throughout, and Arabic inside any other book is in Amiri too. A passage in Arabic is marked with pandoc's own marking, the same the spell check reads (see below):
 
 ```markdown
 ::: {dir=rtl lang=ar}
 ...
 :::
 ```
+
+In the EPUB the marking keeps the passage right to left. In the PDF, Typst sets the Arabic letters right to left of itself, but the marking doesn't reach it (pandoc's Typst writer drops it), so the paragraph keeps the book's alignment, with its full stop at the left.
 
 `mainfont` in `publish.yml` chooses another face for the whole book. One Typst warned about (a face that isn't installed, say) is kept as `out/NAME.pdf.rejected`, with the warnings shown, never as the book.
 
@@ -73,30 +81,36 @@ The PDF goes through pandoc's Typst writer. The face is IBM Plex Serif, with Ara
 vikix publish a-small-book check
 ```
 
-`check` does the spelling, then the links, then builds both formats into a scratch folder and keeps nothing: it says whether the book would build, and nothing in `out/` changes. It is the question to ask before you call a draft done. The text is checked first on purpose: a heading that isn't there would stop Typst with a message of its own, while the link check names the chapter. When all is well, the last line is:
+`check` does the spelling, then the links, then builds both formats into a scratch folder and keeps nothing: it says whether the book would build, and nothing in `out/` changes. It is the question to ask before you call a draft done. The text is checked first on purpose: a heading that isn't there would stop Typst with a message of its own, while the link check names the chapter. A word or a link that isn't right stops it there, before the builds, with what to do:
+
+```
+publish: check: the spelling above wants a look (fix it, or vikix publish spell --keep for the words that are right)
+```
+
+When all is well, the last line is:
 
 ```
 check: a-small-book builds, passes epubcheck and Typst, its spelling and its links (3 files of text)
 ```
 
-**Spelling.** The book's `lang` is checked against LibreOffice's dictionary: any English as British (`en_GB`), Esperanto (`eo`) and Arabic (`ar`). A passage in another language is checked in its own when you mark it, `::: {lang=eo}` around a block or `[libro]{lang=eo}` on a word. Code, raw HTML and maths aren't prose, so they are left out. Words with a digit in them (`FTS5`, `0x1000`) and words of one letter aren't checked either. The book's own words, its names and terms, go in `words.txt`, one a line.
+**Spelling.** The book's `lang` is checked against LibreOffice's dictionary: any English as British (`en_GB`), Esperanto (`eo`) and Arabic (`ar`). A book in any other language isn't spell-checked: it says so (`spelling: no de dictionary, not checked`) and goes on. A passage in another language is checked in its own when you mark it, `::: {lang=eo}` around a block or `[libro]{lang=eo}` on a word. Code, raw HTML and maths aren't prose, so they are left out. Words with a digit in them (`FTS5`, `0x1000`) and words of one letter aren't checked either. The book's own words, its names and terms, go in `words.txt`, one a line.
 
 ```sh
-vikix publish a-small-book spell          # the unknown words, by chapter
+vikix publish a-small-book spell          # the unknown words, each with its chapter
 vikix publish a-small-book spell --keep   # and all of them into words.txt
 ```
 
-`spell` lists the unknown words by chapter, each with the first chapter it is in:
+`spell` lists the unknown words in alphabetical order, each with the first chapter it is in (the file's name, without the folder or `.md`) and how many more:
 
 ```
 spelling, en_GB: 2 words not in the dictionary or words.txt
-  defun                    chapters/01-start.md and 3 more
-  teh                      chapters/02-next.md
+  defun                    01-start and 3 more
+  teh                      02-next
 ```
 
 Here `defun` is a word of the book's and `teh` a typo. `spell --keep` adds every unknown word to `words.txt` for you to read through: take out what is really a typo, and the rest stay as the book's words. In a git repository it then commits `words.txt`, that file alone; `--no-commit` leaves git alone. When nothing is unknown, it says so: `spelling: every word is known (en_GB, and words.txt)`.
 
-**Links.** `vikix publish a-small-book links` runs this part alone. A link to `#a-heading` must find that heading in the book. A file or an image beside the text must be there. An address on the web must answer: each is asked once, and the answer is kept a week in `~/.cache/vikix/publish-links.json`, so a check a day doesn't knock on every site. A page that says 403 to a script is still there; one that says 404 or doesn't answer isn't. With no network, the web's links are left for next time, and the check says so rather than failing:
+**Links.** `vikix publish a-small-book links` runs this part alone. A link to `#a-heading` must find that heading in the book. A file or an image beside the text must be there. An address on the web must answer: one that answered is noted in `~/.cache/vikix/publish-links.json` and not asked again for a week, so a check a day doesn't knock on every site; one that didn't is asked at every check. A page that says 403 to a script is still there; one that says 404 or doesn't answer isn't. A `mailto:` or `tel:` link is nothing to look up, and is left alone. With no network, the web's links are left for next time, and the check says so rather than failing:
 
 ```
 links: 14 in the text, all found (2 on the web, 9 to headings, 3 to files)
@@ -151,7 +165,7 @@ Start with what is here:
 vikix publish status
 ```
 
-It lists the tools (pandoc, typst, java), epubcheck, the three dictionaries, the Python libraries, the two fonts (IBM Plex Serif, Amiri) and the shared make targets, and says `missing` by each that isn't, with the command that brings it. `vikix publish setup` fetches epubcheck and the dictionaries and puts the shared make targets in place; it is what `vikix add publish` runs for you, and it is safe to run again.
+It lists the tools (pandoc, typst, java), epubcheck, the three dictionaries, the Python libraries, the two fonts (IBM Plex Serif, Amiri) and the shared make targets, and says `missing` by each that isn't, with the command that brings it. `vikix publish setup` installs the packages that are missing, fetches epubcheck and the dictionaries and puts the shared make targets in place; it is what `vikix add publish` runs for you, and it is safe to run again.
 
 - **No java** means epubcheck can't run, so no EPUB passes. The feature `publish` needs the feature `java`, so `vikix add publish` brings it; if it is gone, `vikix add java`.
 - **A dictionary missing** doesn't stop the build: the spelling in that language is said to be not checked, and `vikix publish setup` fetches the dictionaries.
