@@ -455,10 +455,11 @@ The Lisp agents sent that the door held, and what passes.
 - `vikix door drop N` — forget one without running it
 - `vikix door check FORM` — would the door let FORM through? "ok", or "held:" and why. For an agent, before sending; for you, to see what the list means
 - `vikix door allowed` — every name a form may call, one a line: the door's own list, the registry's commands agents may run, and `~/.config/vikix/door`
+- `vikix door used` — what agents send and what the door holds, counted since counting began (vikix used): how many forms passed and were held, the names on the list called most often, the names that held a form with how often you ran or dropped it, and the names on the list never called. What says whether the list is right: a name never called can go, one held often and always run is wanted
 
 The door (config/stumpwm/vikix/door.lisp) stands between an agent and the running desktop. An agent's Lisp (vikix eval under Claude Code or another agent, the MCP server's eval tool) is read without running anything and walked: every function it calls must be on one list, of what reads the desktop and what is put back as easily as done. A form that runs a program, touches a file, defines or changes code, sets a global or waits on the desktop is held here instead, and the agent is told why. Super+m, Door is the same list in a menu. Your own vikix eval isn't checked.
 
-Your own names go in `~/.config/vikix/door`, one a line (# for a comment): a function of your user.lisp that an agent may call.
+Your own names go in `~/.config/vikix/door`, one a line (# for a comment): a function of your user.lisp that an agent may call. The count (used) is kept with the keys' in `~/.local/state/vikix/used`: names and numbers only, never a form's text; vikix used forget starts it again.
 
 ## vikix-drives
 
@@ -1215,7 +1216,7 @@ What gets used: the keys you press and the commands you run.
 - `vikix used all` — every count, most used first, with when each was last used
 - `vikix used forget` — start counting again from now
 
-The desktop counts each key that runs a command, each entry picked in Super+m and the other menus, each pick in the palette (Super+Space), each command typed after Ctrl+t ;, each rule that runs and each command an agent runs. It keeps names and numbers only: the key, the command it is bound to, the entry's words, and when each was first and last used. Never a window's title, never what you typed into a program or after a command's name.
+The desktop counts each key that runs a command, each entry picked in Super+m and the other menus, each pick in the palette (Super+Space), each command typed after Ctrl+t ;, each rule that runs, each command an agent runs, and at the door (vikix door) the names an agent's Lisp calls, the name that held a form and whether you ran or dropped it. It keeps names and numbers only: the key, the command it is bound to, the entry's words, and when each was first and last used. Never a window's title, never what you typed into a program or after a command's name.
 
 The counts are in `~/.local/state/vikix/used`, a text file that is yours to read or delete. Nothing sends it anywhere. They are written every five minutes and when the desktop ends.
 

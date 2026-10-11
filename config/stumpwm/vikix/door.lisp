@@ -183,19 +183,20 @@ registry's :agent commands, and the user's own file."
   (find-if (lambda (entry) (member name (cddr entry) :test #'string=)) table))
 
 (defun vikix-door-problem-with-name (symbol &optional (how "calls"))
-  "NIL when a form may call SYMBOL, else (KIND . WHY)."
+  "NIL when a form may call SYMBOL, else (KIND WHY NAME): the name is what
+the count keeps (vikix door used), WHY the words for the agent."
   (let* ((name (symbol-name symbol))
          (package (and (symbol-package symbol) (package-name (symbol-package symbol))))
          (refused (vikix-door-kind-of name *vikix-door-refused*))
          (asks (vikix-door-kind-of name *vikix-door-asks*)))
     (cond ((member package *vikix-door-refused-packages* :test #'string=)
            (cons :refused (format nil "it ~a ~a:~a, which reaches the system" how package name)))
-          (refused (cons :refused (format nil "it ~a ~(~a~), which ~a" how name (second refused))))
-          (asks (cons :held (format nil "it ~a ~(~a~), which ~a" how name (second asks))))
+          (refused (list :refused (format nil "it ~a ~(~a~), which ~a" how name (second refused)) name))
+          (asks (list :held (format nil "it ~a ~(~a~), which ~a" how name (second asks)) name))
           ((member name *vikix-door-allowed* :test #'string=) nil)
           ((and (not *vikix-door-no-extras*) (member name (vikix-door-registry-names) :test #'string=)) nil)
           ((and (not *vikix-door-no-extras*) (member name (vikix-door-user-names) :test #'string=)) nil)
-          (t (cons :held (format nil "it ~a ~(~a~), which isn't on the door's list (vikix door allowed shows it)" how name))))))
+          (t (list :held (format nil "it ~a ~(~a~), which isn't on the door's list (vikix door allowed shows it)" how name) name)))))
 
 (defun vikix-door-proper-list-p (x)
   (and (listp x) (handler-case (list-length x) (error () nil)) (null (cdr (last x)))))
@@ -285,8 +286,10 @@ loop's; every list is a form."
       (when problem (return problem)))))
 
 (defun vikix-door-problem (form &optional locals)
-  "NIL when FORM may run, else (KIND . WHY): :refused for what reaches a
-shell, a file, eval or the system, :held for anything else not on the list."
+  "NIL when FORM may run, else (KIND . WHY) or (KIND WHY NAME): :refused for
+what reaches a shell, a file, eval or the system, :held for anything else
+not on the list; NAME, when there is one, is the function or the place
+that did it."
   (cond
     ((keywordp form) nil)
     ((symbolp form) nil)                     ; reading a variable
@@ -368,10 +371,11 @@ shell, a file, eval or the system, :held for anything else not on the list."
                 (cond ((and (symbolp place) (member place locals)) nil)
                       ((symbolp place)
                        (return-from vikix-door-problem
-                         (cons :held (format nil "it sets ~(~a~), which is the desktop's" place))))
+                         (list :held (format nil "it sets ~(~a~), which is the desktop's" place) (symbol-name place))))
                       ((and (consp place) (symbolp (first place)))
                        (return-from vikix-door-problem
-                         (cons :held (format nil "it changes (~(~a~) ...), which is the desktop's" (first place)))))
+                         (list :held (format nil "it changes (~(~a~) ...), which is the desktop's" (first place))
+                               (symbol-name (first place)))))
                       (t (return-from vikix-door-problem (cons :held "it sets something that isn't a place")))))
               (vikix-door-body vals locals)))
            ((is "FUNCALL" "APPLY" "MULTIPLE-VALUE-CALL")
@@ -399,11 +403,102 @@ shell, a file, eval or the system, :held for anything else not on the list."
             collect form))))
 
 (defun vikix-door-check (form)
-  "May FORM run as an agent's? T; or NIL, the reason in words, and :refused or :held."
+  "May FORM run as an agent's? T; or NIL, the reason in words, :refused or
+:held, and the name that did it (a function or a place) when there is one."
   (let ((problem (vikix-door-problem form)))
-    (if problem
-        (values nil (cdr problem) (car problem))
-        (values t nil nil))))
+    (cond ((null problem) (values t nil nil nil))
+          ((consp (cdr problem)) (values nil (second problem) (first problem) (third problem)))
+          (t (values nil (cdr problem) (car problem) nil)))))
+
+;;; --- The count: what agents send, and what the door holds ---------------------------------
+;;; Kept by used.lisp beside the keys (vikix used), kind door: "forms passed"
+;;; and "forms held" for the totals, "passed NAME" for each name on the
+;;; list a passing form called, "held NAME" for the function or place that
+;;; held one, "ran NAME" and "dropped NAME" for what the user then did. It is
+;;; what says whether the list is right: a name never called can go, a name
+;;; held often and always run is wanted. Names only, never a form's text.
+
+(defun vikix-door-note (verdict name)
+  "One count of the door's, when used.lisp is there. Never an error."
+  (when (and name (fboundp 'vikix-used-note))
+    (ignore-errors (funcall 'vikix-used-note :door (list verdict (string-downcase (string name)))))))
+
+(defun vikix-door-fields (text)
+  "TEXT split at its tabs."
+  (loop with start = 0
+        for tab = (position #\Tab text :start start)
+        collect (subseq text start tab)
+        while tab do (setf start (1+ tab))))
+
+(defun vikix-door-calls (form)
+  "The names FORM calls that are on the door's list, each once, in order:
+what the count keeps for a form that passed. Quoted data is skipped; #'name
+counts as a call."
+  (let ((allowed (vikix-door-allowed-names)) (found '()))
+    (labels ((walk (x)
+               (when (vikix-door-proper-list-p x)
+                 (let ((head (first x)))
+                   (cond ((and (symbolp head) (string= (symbol-name head) "QUOTE")))
+                         ((and (symbolp head) (string= (symbol-name head) "FUNCTION") (symbolp (second x)))
+                          (note (second x)))
+                         (t (when (symbolp head) (note head))
+                            (mapc #'walk (rest x)))))))
+             (note (symbol)
+               (when (and symbol (not (keywordp symbol))
+                          (member (symbol-name symbol) allowed :test #'string=))
+                 (pushnew (symbol-name symbol) found :test #'string=))))
+      (walk form))
+    (nreverse found)))
+
+(defun vikix-door-passed (forms)
+  "FORMS, an agent's, passed the door: counted."
+  (vikix-door-note "forms" "passed")
+  (dolist (form forms)
+    (dolist (name (vikix-door-calls form))
+      (vikix-door-note "passed" name))))
+
+(defun vikix-door-used-lines ()
+  "The count read out, for `vikix door used`: the forms, the names called
+most first, the names held with what the user did with each, and the
+names on the list never called. \"\" when nothing is counted yet."
+  (unless (and (fboundp 'vikix-used-read) (boundp '*vikix-used*))
+    (return-from vikix-door-used-lines ""))
+  (funcall 'vikix-used-read)
+  (let ((passed '()) (held '()) (ran (make-hash-table :test 'equal)) (dropped (make-hash-table :test 'equal))
+        (forms-passed 0) (forms-held 0))
+    (maphash (lambda (key value)
+               (let ((parts (vikix-door-fields key)))
+                 (when (and (= (length parts) 3) (string= (first parts) "door"))
+                   (let ((verb (second parts)) (name (third parts)) (count (first value)))
+                     (cond ((and (string= verb "forms") (string= name "passed")) (setf forms-passed count))
+                           ((and (string= verb "forms") (string= name "held")) (setf forms-held count))
+                           ((string= verb "passed") (push (cons name count) passed))
+                           ((string= verb "held") (push (cons name count) held))
+                           ((string= verb "ran") (setf (gethash name ran) count))
+                           ((string= verb "dropped") (setf (gethash name dropped) count)))))))
+             (symbol-value '*vikix-used*))
+    (when (and (zerop forms-passed) (zerop forms-held) (null held))
+      (return-from vikix-door-used-lines ""))
+    (flet ((most-first (rows) (sort (copy-list rows) (lambda (a b) (or (> (cdr a) (cdr b))
+                                                                       (and (= (cdr a) (cdr b)) (string< (car a) (car b))))))))
+      (let ((never (remove-if (lambda (name) (assoc (string-downcase name) passed :test #'string=))
+                              (vikix-door-allowed-names))))
+        (with-output-to-string (out)
+          (format out "Forms agents sent: ~d passed, ~d held.~%" forms-passed forms-held)
+          (when passed
+            (format out "~%Called, most often first (of the names on the list):~%")
+            (dolist (row (most-first passed))
+              (format out "  ~6d  ~a~%" (cdr row) (car row))))
+          (when held
+            (format out "~%Held, most often first, and what you did with each:~%")
+            (dolist (row (most-first held))
+              (let ((r (gethash (car row) ran 0)) (d (gethash (car row) dropped 0)))
+                (format out "  ~6d  ~a~a~%" (cdr row) (car row)
+                        (cond ((and (zerop r) (zerop d)) "")
+                              (t (format nil "   (you ran ~d, dropped ~d)" r d)))))))
+          (format out "~%~d of ~d names on the list never called~a~%"
+                  (length never) (length (vikix-door-allowed-names))
+                  (if never (format nil ": ~{~(~a~)~^ ~}" never) ".")))))))
 
 (defun vikix-door-check-text (text)
   "TEXT's forms, checked: \"ok\", or the reason the first one is held. For
@@ -433,14 +528,17 @@ plist of :id, :text, :why, :kind, :from and :time.")
 (defun vikix-door-held (id)
   (find id *vikix-door-held* :key (lambda (h) (getf h :id))))
 
-(defun vikix-door-hold (text why kind from)
+(defun vikix-door-hold (text why kind from &optional name)
   "Keep TEXT, an agent's, for the user to run or drop; tell the desktop.
-The number it got, or NIL when the door is full."
+NAME is the function or place that held it, for the count. The number it
+got, or NIL when the door is full (counted as held all the same)."
+  (vikix-door-note "forms" "held")
+  (vikix-door-note "held" (or name "(no name)"))
   (when (>= (length *vikix-door-held*) *vikix-door-most*)
     (return-from vikix-door-hold nil))
   (setf *vikix-door-held* (remove text *vikix-door-held* :key (lambda (h) (getf h :text)) :test #'string=))
   (let ((held (list :id (incf *vikix-door-count*) :text text :why why :kind kind
-                    :from (or from "an agent") :time (get-universal-time))))
+                    :from (or from "an agent") :time (get-universal-time) :name name)))
     (setf *vikix-door-held* (append *vikix-door-held* (list held)))
     (when (and (eq kind :refused) (fboundp 'vikix-error-report))
       (funcall 'vikix-error-report
@@ -457,12 +555,13 @@ The number it got, or NIL when the door is full."
                                                    (vikix-one-line text 200) (vikix-one-line why 200)))))))
     (getf held :id)))
 
-(defun vikix-door-drop (held)
-  (setf *vikix-door-held* (remove held *vikix-door-held*)))
+(defun vikix-door-drop (held &optional (verdict "dropped"))
+  (setf *vikix-door-held* (remove held *vikix-door-held*))
+  (vikix-door-note verdict (or (getf held :name) "(no name)")))
 
 (defun vikix-door-run (held)
   "Run HELD's forms, as the user, and forget it: what they printed and their values."
-  (vikix-door-drop held)
+  (vikix-door-drop held "ran")
   (with-output-to-string (*standard-output*)
     (if (fboundp 'vikix-eval-forms)
         (funcall 'vikix-eval-forms (getf held :text))
@@ -490,9 +589,10 @@ The number it got, or NIL when the door is full."
           while end do (format out "~%  "))))
 
 (defun vikix-door-cli (what &optional (arg ""))
-  "What `vikix door` asks: list, run N, drop N, check TEXT, allowed."
+  "What `vikix door` asks: list, run N, drop N, check TEXT, allowed, used."
   (cond ((string= what "list") (vikix-door-lines))
         ((string= what "allowed") (format nil "~{~(~a~)~^~%~}" (vikix-door-allowed-names)))
+        ((string= what "used") (vikix-door-used-lines))
         ((string= what "check") (vikix-door-check-text arg))
         ((member what '("run" "drop") :test #'string=)
          (let ((held (vikix-door-held (ignore-errors (parse-integer arg)))))

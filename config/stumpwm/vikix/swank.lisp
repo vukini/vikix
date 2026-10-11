@@ -92,10 +92,10 @@ of them calls what the door doesn't let an agent call, the whole text is
 held for the user, why is printed for the agent, and :HELD is returned;
 NIL when every form may run. Shared with socket.lisp, which asks it in a
 thread of its own."
-  (dolist (form forms nil)
-    (multiple-value-bind (ok why kind) (vikix-door-check form)
+  (dolist (form forms (progn (when (fboundp 'vikix-door-passed) (funcall 'vikix-door-passed forms)) nil))
+    (multiple-value-bind (ok why kind name) (vikix-door-check form)
       (unless ok
-        (let ((id (vikix-door-hold text why kind from)))
+        (let ((id (vikix-door-hold text why kind from name)))
           (fresh-line)
           (if id
               (format t "held ~d: ~a~%  because ~a.~%  The door lets an agent's Lisp through only when every function it calls is on its list (vikix door allowed). The user can run this as they are, from Super+m, Door, or vikix door run ~d, or drop it; nothing of it ran.~%"

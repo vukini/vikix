@@ -113,7 +113,7 @@ Menu entries
 61 of 107 keys never pressed: vikix used never
 ```
 
-`vikix used never` lists the keys you have never pressed since counting began: the ones free to take for something of your own. `vikix used all` shows every count and when each was last used; `vikix used forget` starts again. Super+m has it as *What you use*.
+`vikix used never` lists the keys you have never pressed since counting began: the ones free to take for something of your own. `vikix used all` shows every count and when each was last used; `vikix used forget` starts again. Super+m has it as *What you use*. The door's counts are in the same file, what an agent's Lisp calls and what the door holds, and `vikix door used` reads them out ([the door](ai.md#the-door)).
 
 Only names and numbers are kept: the key, the command it is bound to, a menu entry's words. Never a window's title, and nothing you type into a program. The counts are in `~/.local/state/vikix/used`, a text file you can read or delete, and nothing sends it anywhere.
 

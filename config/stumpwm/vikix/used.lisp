@@ -49,7 +49,11 @@
     (:asked (and (consp id) (eq (first id) :typed) (stringp (second id))
                  (let ((command (string-trim " " (second id))))
                    (vikix-used-plain (subseq command 0 (position #\Space command))))))
-    (:palette (and id (vikix-used-plain id)))))
+    (:palette (and id (vikix-used-plain id)))
+    ;; The door (door.lisp): a verdict and a function's or a place's name, never a form's text.
+    (:door (and (consp id) (stringp (first id)) (stringp (second id))
+                (format nil "~a~c~a" (vikix-used-plain (first id)) #\Tab
+                        (vikix-used-plain (vikix-one-line (second id) 80)))))))
 
 (defun vikix-used-read ()
   "Read the counts kept from before, once."

@@ -8,7 +8,10 @@
 #   defines or changes code, sets a global or waits is held, with why, and
 #   the forms that hide one (a quoted name to mapcar, a function in a
 #   variable, a default in a lambda list, #.) are caught too. The held
-#   forms queue: ten at most, run or dropped, a refused one reported.
+#   forms queue: ten at most, run or dropped, a refused one reported. The
+#   count (vikix door used): a passing form by the names on the list it
+#   calls, a held one by the name that held it, the user's run or drop by
+#   that name; names only.
 #   vikix eval --whose: an agent above the shell is an agent's, a script of
 #   Vikix's between is Vikix's, and the door only at the desktop's port.
 #   bin/vikix-eval's list of agents is bin/vikix-agents'.
@@ -16,7 +19,7 @@
 #   With a hidden StumpWM (Xvfb, Vikix's StumpWM; skipped without): vikix
 #   eval --door holds a shell command (nothing runs, exit 3, the errors
 #   folder has it, the desktop was told), runs a read; vikix door lists,
-#   runs and drops; the MCP eval tool goes through the door and the other
+#   runs and drops, and used reads the count out; the MCP eval tool goes through the door and the other
 #   tools don't; a desktop from before the door refuses an agent's form.
 
 set -euo pipefail
@@ -56,6 +59,8 @@ cat > "$t/door-test.lisp" <<LISP
 (defun vikix-agent-commands () '((:name titlebars :run "vikix-titlebars" :agent t) (:name gaps :run "vikix-gaps toggle" :agent t)))
 (defun vikix-eval-forms (text) (format t "ran: ~a" text) :ok)
 (defun run-shell-command-test () nil)
+(defvar *noted* '())   ; what the door counts, as used.lisp would be given it
+(defun vikix-used-note (kind id) (push (cons kind id) *noted*))
 (sb-ext:unlock-package :cl)   ; the stand-ins above only
 (load "$here/config/stumpwm/vikix/door.lisp")
 (defvar *fails* 0)
@@ -170,6 +175,37 @@ cat > "$t/door-test.lisp" <<LISP
 (vikix-door)   ; the command, with no screen: a message, no error
 (format t "~d checks failed~%" *fails*)
 (sb-ext:exit :code (if (zerop *fails*) 0 1))
+;; The count: a form that passes is counted by the names on the list it calls, each
+;; once, quoted data left out; a held one by the name that held it, which
+;; vikix-door-check gives as a fourth value; the user's run or drop by that name.
+(setf *noted* '())
+(vikix-door-passed (vikix-door-read "(progn (gselect 1) (mapcar #'window-title (group-windows (current-group))) (gselect 2) '(run-shell-command x))"))
+(let ((want '((:door "forms" "passed") (:door "passed" "progn") (:door "passed" "gselect") (:door "passed" "mapcar")
+              (:door "passed" "window-title") (:door "passed" "group-windows") (:door "passed" "current-group"))))
+  (unless (and (= (length *noted*) (length want))
+               (every (lambda (w) (member w *noted* :test #'equal)) want))
+    (fail "a passing form's names counted once each, quoted data left out: ~s" (reverse *noted*))))
+(multiple-value-bind (ok why kind name) (vikix-door-check (first (vikix-door-read "(run-shell-command \"ls\")")))
+  (declare (ignore why))
+  (unless (and (not ok) (eq kind :refused) (equal name "RUN-SHELL-COMMAND"))
+    (fail "check names the function that held the form: ~s ~s" kind name)))
+(multiple-value-bind (ok why kind name) (vikix-door-check (first (vikix-door-read "(setf *vikix-rules* nil)")))
+  (declare (ignore why))
+  (unless (and (not ok) (eq kind :held) (equal name "*VIKIX-RULES*"))
+    (fail "check names the place a form sets: ~s ~s" kind name)))
+(setf *noted* '() *vikix-door-held* '())
+(let ((id (vikix-door-hold "(sleep 9)" "it calls sleep, which waits" :held "a test" "SLEEP")))
+  (vikix-door-run (vikix-door-held id)))
+(let ((id (vikix-door-hold "(sleep 8)" "it calls sleep, which waits" :held "a test" "SLEEP")))
+  (vikix-door-drop (vikix-door-held id)))
+(let ((want '((:door "forms" "held") (:door "held" "sleep") (:door "ran" "sleep") (:door "dropped" "sleep"))))
+  (unless (every (lambda (w) (member w *noted* :test #'equal)) want)
+    (fail "a held form is counted by its name, and the run or drop after it: ~s" (reverse *noted*)))
+  (unless (= 2 (count '(:door "forms" "held") *noted* :test #'equal))
+    (fail "each held form counts once: ~s" (reverse *noted*))))
+(unless (string= (vikix-door-used-lines) "")
+  (fail "without used.lisp there is nothing to read out"))
+
 LISP
 out=$(cd "$t" && HOME=$home timeout --kill-after=5s 120s sbcl --non-interactive --no-userinit --load "$t/door-test.lisp" 2>&1) || { echo "$out" | grep -v '^; ' | tail -30; fail=1; }
 echo "$out" | grep '^FAIL' && fail=1
@@ -235,6 +271,9 @@ check "vikix door check says ok" grep -q "^ok" <<<"$(door check '(gselect 1)')"
 door check '(run-shell-command "ls")' >/dev/null && st=0 || st=$?
 check "vikix door check exits 3 for a held form (got $st)" test "$st" = 3
 check "vikix door allowed lists gselect" grep -qx gselect <<<"$(door allowed)"
+out=$(door used)
+check "vikix door used reads the count out: the forms, the names called, the names that held one with what you did, the names never called ($(tr '\n' '|' <<<"$out"))" \
+  bash -c 'grep -q "^Forms agents sent: 1 passed, 2 held\.$" <<<"$1" && grep -q "^ *1  princ$" <<<"$1" && grep -q "^ *1  +$" <<<"$1" && grep -q "^ *1  run-shell-command   (you ran 1, dropped 0)$" <<<"$1" && grep -q "^ *1  \*vikix-rules\*   (you ran 0, dropped 1)$" <<<"$1" && grep -qE "^[0-9]+ of [0-9]+ names on the list never called: .*gselect" <<<"$1"' _ "$out"
 
 # The MCP server: eval goes through the door, the other tools don't.
 call() {

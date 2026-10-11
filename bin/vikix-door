@@ -12,6 +12,15 @@
 #   vikix door allowed       every name a form may call, one a line: the
 #                            door's own list, the registry's commands agents
 #                            may run, and ~/.config/vikix/door
+#   vikix door used          what agents send and what the door holds,
+#                            counted since counting began (vikix used): how
+#                            many forms passed and were held, the names on
+#                            the list called most often, the names that
+#                            held a form with how often you ran or dropped
+#                            it, and the names on the list never called.
+#                            What says whether the list is right: a name
+#                            never called can go, one held often and always
+#                            run is wanted
 #
 # The door (config/stumpwm/vikix/door.lisp) stands between an agent and the
 # running desktop. An agent's Lisp (vikix eval under Claude Code or another
@@ -23,7 +32,9 @@
 # Door is the same list in a menu. Your own vikix eval isn't checked.
 #
 # Your own names go in ~/.config/vikix/door, one a line (# for a comment):
-# a function of your user.lisp that an agent may call.
+# a function of your user.lisp that an agent may call. The count (used) is
+# kept with the keys' in ~/.local/state/vikix/used: names and numbers only,
+# never a form's text; vikix used forget starts it again.
 
 set -euo pipefail
 VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
@@ -73,6 +84,14 @@ case ${1:-list} in
   allowed)
     [ $# -le 1 ] || die "vikix door allowed takes nothing more (vikix door help)"
     ask allowed ;;
+  used)
+    [ $# -le 1 ] || die "vikix door used takes nothing more (vikix door help)"
+    out=$(ask used)
+    if [ -z "$out" ]; then
+      echo "Nothing counted yet: no agent has sent Lisp through the door since counting began (vikix used says when)."
+    else
+      printf '%s\n' "$out"
+    fi ;;
   help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
   *) die "unknown: vikix door $1 (try: vikix door help)" ;;
 esac

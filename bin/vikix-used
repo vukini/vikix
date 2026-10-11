@@ -11,8 +11,9 @@
 
 The desktop counts each key that runs a command, each entry picked in
 Super+m and the other menus, each pick in the palette (Super+Space), each
-command typed after Ctrl+t ;, each rule that runs and each command an
-agent runs. It keeps names and numbers only: the key, the command it is
+command typed after Ctrl+t ;, each rule that runs, each command an
+agent runs, and at the door (vikix door) the names an agent's Lisp calls,
+the name that held a form and whether you ran or dropped it. It keeps names and numbers only: the key, the command it is
 bound to, the entry's words, and when each was first and last used.
 Never a window's title, never what you typed into a program or after a
 command's name.
@@ -37,6 +38,7 @@ KINDS = [
     ("asked", "Commands you typed"),
     ("rule", "Rules that ran"),
     ("agent", "Commands agents ran"),
+    ("door", "Agents' Lisp at the door (vikix door used reads it out)"),
 ]
 
 

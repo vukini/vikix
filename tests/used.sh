@@ -59,6 +59,8 @@ key${tab}2${tab}$(( now - 60 ))${tab}$(( now - 60 ))${tab}s-M-x${tab}exec someth
 menu${tab}5${tab}$(( now - 60 ))${tab}$(( now - 60 ))${tab}Reload config
 asked${tab}1${tab}$(( now - 60 ))${tab}$(( now - 60 ))${tab}vikix-gaps-toggle
 palette${tab}7${tab}$(( now - 60 ))${tab}$(( now - 60 ))${tab}window
+door${tab}9${tab}$(( now - 60 ))${tab}$(( now - 60 ))${tab}passed${tab}gselect
+door${tab}2${tab}$(( now - 60 ))${tab}$(( now - 60 ))${tab}held${tab}run-shell-command
 a broken line
 key${tab}many${tab}1${tab}1${tab}s-q${tab}delete
 END
@@ -69,6 +71,8 @@ check "it says since when it has counted: $(head -1 <<<"$out")" grep -qE '^Count
 check "the keys most used first, as the keyboard says them, with what each does" \
   test "$(grep -E '^ +[0-9]+  Super' <<<"$out" | sed -E 's/ +/ /g' | tr '\n' '|')" = " 41 Super+Return Terminal| 3 Super+f Fullscreen on/off| 2 Super+Alt+x exec something-of-mine|"
 check "then the menu entries, the palette and the typed commands" bash -c "grep -A1 '^Menu entries' <<<\"\$1\" | grep -qE '^ +5  Reload config' && grep -A1 '^Picks in the palette' <<<\"\$1\" | grep -qE '^ +7  window' && grep -A1 '^Commands you typed' <<<\"\$1\" | grep -qE '^ +1  vikix-gaps-toggle'" _ "$out"
+check "and the door's counts, a verdict and a name each: $(grep -A2 'at the door' <<<"$out" | tr '\n' '|')" \
+  bash -c "grep -A2 \"^Agents' Lisp at the door\" <<<\"\$1\" | grep -q '^ *9  passed gselect$' && grep -q '^ *2  held run-shell-command$' <<<\"\$1\"" _ "$out"
 check "and how many keys were never pressed: $(tail -1 <<<"$out")" grep -qx '2 of 4 keys never pressed: vikix used never' <<<"$out"
 check "a line that isn't a count is passed over" test -z "$(grep -E 'broken|many' <<<"$out" || true)"
 check "the desktop is asked to write its counts down first" grep -q 'vikix-used-write' "$t/asked"
