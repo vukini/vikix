@@ -16,6 +16,7 @@ The longer plans of Vikix, one file each. The queue is `../TODO.md`, the pool `.
 | `DESIGN-openclaw.md` | 2026-10-08 | OpenClaw with the office: a sixth agent in a terminal, the house rules as its plugin, its Gateway as the phone's way in; TODO 13's slot, OpenClaw or Hermes for Vid to choose. |
 | `DESIGN-phone.md` | 2026-10-08 | The phone's way into the desktop, replacing OpenClaw's gateway direction for TODO 13. |
 | `DESIGN-publish.md` | 2026-10-04 | Books, sites and EPUBs built and checked by one command (TODO 79). |
+| `DESIGN-random-guide.md` | 2026-10-11 | `vikix docs random` and a Help entry: one of the guides under `docs/` at random, opened as `vikix docs` opens it, every page once before any twice (a deck in a state file); no key. |
 | `DESIGN-remoteapp.md` | 2026-10-04 | A Windows program's own window on the desktop, through RDP's RemoteApp (TODO 82). |
 | `DESIGN-restore.md` | 2026-10-04 | Any file as it was: its versions from the backups and the snapshots, brought back as an Esploro plan (TODO 80). |
 | `DESIGN-security.md` | 2026-10-04 | The pen-tester's open findings as a dated plan: signed updates, pinned installers, the door module and allow-list, the ledger (TODO 4 and 5). |
