@@ -125,7 +125,7 @@ The everyday command.
 - `vikix day [yesterday|DATE] [--week] [--for NAME]` — the day as the desktop saw it, kept as a diary in `~/journal`: how long each project had the screen, its entries and commits, files moved, agents' sessions; day log offers the missing log entries (vikix day help)
 - `vikix learn [c]` — a course in the terminal: edit, save, it's checked (vikix learn c list, hint, go NN, reset NN)
 - `vikix hype setup|status|uninstall` — Hype: Markdown slides with a visual editor, in your theme's colours (vikix add hype)
-- `vikix publish [NAME] [epub|pdf|check]` — a book from Markdown: an EPUB checked for e-ink readers, and a PDF (vikix add publish)
+- `vikix publish [NAME] [epub|pdf|check|links]` — a book from Markdown: an EPUB checked for e-ink readers, and a PDF (vikix add publish)
 - `vikix wallpapers setup|update|status|uninstall` — Vid's wallpapers, in the Super+m picker (vikix add wallpapers)
 - `vikix obsidian [convert FOLDER...|--all] [report FOLDER]` — an Obsidian vault into Org notes, a folder at a time, links kept (`~/Dropbox/notes/vault`)
 - `vikix records search|list|get|export|forget|stats` — what plugins found and kept (flights, meetings, plan use ...), searchable (vikix records help)

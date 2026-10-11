@@ -123,7 +123,7 @@
 #   vikix hype setup|status|uninstall
 #                         Hype: Markdown slides with a visual editor, in your
 #                         theme's colours (vikix add hype)
-#   vikix publish [NAME] [epub|pdf|check]
+#   vikix publish [NAME] [epub|pdf|check|links]
 #                         a book from Markdown: an EPUB checked for e-ink
 #                         readers, and a PDF (vikix add publish)
 #   vikix wallpapers setup|update|status|uninstall

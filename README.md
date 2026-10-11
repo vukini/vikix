@@ -1024,6 +1024,7 @@ vikix publish living-in-sql --send       # the EPUB, onto the reader plugged in
 - **The `doc-to-epub` skill on claude.ai is made from the same files:** `lib/publish/skill/SKILL.md`, `fix-tables.py` and `epub.css`. `vikix publish skill` writes it as `~/Downloads/doc-to-epub.zip`, to upload in claude.ai's Settings, Capabilities, Skills, in place of the old one; the skill synced back to the laptop can't be changed here. A Word document can be a book's text too: `chapters: [../INPUT.docx]` in `publish.yml`.
 - **In a project's Makefile,** the same targets: `-include $(HOME)/.local/share/vikix/publish/publish.mk`, last, gives `make epub`, `make pdf` and `make check` (the dash keeps the project's other targets working where publish isn't installed).
 - `vikix remove publish` removes epubcheck and the shared targets; your books and their `out/` stay.
+- **The guide:** [Books from Markdown](docs/publish.md) (`info vikix`, *Books from Markdown*): what a book is, building it, the checks, the reader, the Makefile, when it doesn't build.
 
 ## Languages
 
