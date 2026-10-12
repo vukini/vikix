@@ -33,7 +33,7 @@ echo firefox > ~/.config/vikix/docs-browser
 
 Delete the file to have Nyxt again. The rest of the web is unaffected either way: links from other programs go to your default browser (`~/.config/mimeapps.list`).
 
-**Every document, as a page.** `Super+F2` searches every document on the machine (these guides, man pages, your projects' documents, your notes) and shows the hits in a list. With Nyxt the same search is also a page: `Super+m` → *Every document as a page in Nyxt*, `vikix docs page WORDS` in a terminal, or `Ctrl+Space`, then `vikix-docs`, in Nyxt itself. The hits are grouped by whose they are, each with an *Open* button and, where there is another place to read it, a second one named for it (*In Emacs*, *In a terminal*); *Find…* searches again. Nyxt is started if it isn't running, and its window comes to the front.
+**Every document, as a page.** `Super+F2` searches every document on the machine (these guides, man pages, your projects' documents and PDFs, your notes, the API references in Zeal's docsets, and links to the web, which say so) and shows the hits in a list. With Nyxt the same search is also a page: `Super+m` → *Every document as a page in Nyxt*, `vikix docs page WORDS` in a terminal, or `Ctrl+Space`, then `vikix-docs`, in Nyxt itself. The hits are grouped by whose they are, each with an *Open* button and, where there is another place to read it, a second one named for it (*In Emacs*, *In a terminal*); *Find…* searches again. Nyxt is started if it isn't running, and its window comes to the front.
 
 ## Nyxt's colours
 

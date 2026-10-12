@@ -150,14 +150,9 @@ The catalogue adds commands, so this is the moment to make every Vikix command s
 
 ### Should have (P1)
 
-8. `zeal` adapter reading `docSet.dsidx` live.
-8a. `web` adapter: homepages, the `dev/` guides' links, the user's links file; globe badge.
-8b. PDFs under `/usr/share/doc` and in repos through `pdftotext`, opened at the matching page.
-9. `note` adapter joining `note`'s index.
-10. `vikix docs ask` over chosen sources, local by default.
-11. `vikix docs watch on` with `inotifywait` on `~/src`.
-12. Esploro's "Docs" saved search.
-13. Hits from Vikix's own `--help` output: every `bin/vikix-*` usage block, indexed as `source: vikix`, kind `command`.
+Shipped 2026-10-12 but one (see Phasing): the `zeal`, `web` and PDF adapters, `vikix docs ask`, `vikix docs watch`; the `note` adapter was in since Phase 0 (the Org notes, read from the files), and the commands' help comes for nothing from the man pages `lib/man.py` makes and `docs/commands.md` (the open question below).
+
+12. Esploro's "Docs" saved search. Esploro's to build, in its own repository: a saved search whose rows are `vikix docs find --tsv`'s hits for a query, opened as any file. Esploro has no saved searches yet (2026-10-12), so this waits on that first; nothing in Vikix is needed for it beyond `--tsv`, which is there.
 
 ### Later (P2)
 
@@ -189,14 +184,22 @@ Non-blocking:
 
 **Shipped 2026-10-04: Phase 0, and of Phase 1 the man pages as styled pages (mandoc), the agents' `docs_search`/`docs_read`, reindexing at `vikix update`, `vikix docs status` and `vikix docs get`.** The key is Super+F2, not Super+h (Super+h moves the focus left now); the user's Org notes (`~/Dropbox/notes`, the converted vault) are a source of their own, `note`, read from the files, since `note`'s index covers Markdown. A first index of this laptop (12,000 man pages, 3,200 notes, 665 manuals) takes 1.3 s; nothing changed, 0.1 s. Then the same day: Markdown as pages styled like the guide (pandoc, else Python's markdown), packages (`pkg`, all 20,000, with a page each) and packages' READMEs (`pkgdoc`, their own folder's top only: below it, ImageMagick alone has thousands of HTML pages); the full index 3.6 s. Then the page in Nyxt, `vikix docs page WORDS`: a search, a section per source with counts, Open and the other way on each hit, in a Nyxt internal page (`config/nyxt/vikix.lisp`) that asks `vikix docs find --tsv`; its buttons run `vikix docs open`, so the two doors open the same way. Not done from that door: recently opened, and a page per repository. Left: TODO 73.
 
+**Shipped 2026-10-12: P1 but Esploro's search (TODO 73's rest).** What changed from the design above, each for a reason:
+
+- **`zeal` has no rows in the index.** The entries are read from each docset's `docSet.dsidx` at search time (`find_zeal`): a range of each index's own NOCASE index for the names starting with the words (a few milliseconds for all), and only when none starts with them a scan for a member of that name (`str.split` for `split`, `std::fs::read_dir` for `read_dir`), the docsets side by side. Measured on this laptop, 16 docsets and 301,696 entries: a search costs about 25 ms more than the catalogue's own. The entry named by the words stands with the documents named by them (the named tier); the rest come after the catalogue's hits, keeping a quarter of the list. Two docsets of one name (Python and Python_3) are the one whose pages are files here, else the newer. An entry opens as its page in the docs browser at its anchor (Dash's `//apple_ref/...`, or the id Sphinx gives the name), or in Zeal (`dash-plugin://keys=KEY&query=NAME`) when the docset keeps its pages in its tarix archive, which only Zeal reads; `docs_read` gives the entry's own part of the page.
+- **`web` is the installed packages' websites, not every package's.** All 20,000 would double the catalogue for links nobody has a program for; a package that isn't installed has its link on its card. The source's rows are rebuilt when xbps's state, a `~/dev` guide or the links file changes.
+- **PDFs are a row for the whole and a row a page** (`SRC:PATH#page=N`), which is what lets a hit open at its page; the text is `pdftotext -l 20`, cached by the file's time under `~/.cache/vikix/docs/pdf/`. In `own=` folders a PDF comes by a `*.pdf` pattern, never by the plain walk. `tests/docs.sh` writes its PDFs by hand.
+- **`vikix docs ask` has no vector table.** The documents for a question are the catalogue's own hits for its words (FTS5, the words OR'd, BM25), one row a document, six to the model: good enough, and no second index to drift. Local (Ollama) by default; `--claude` and a `claude-*` model are the only roads to the cloud, said before the answer; no key or no local model is said and nothing is sent. Run by an agent (`vikix-eval`'s `whose`), the user's own documents are closed as they are to `docs_search`. The answer ends with the documents it drew on, by id.
+- **The watch ends with the session.** `vikix docs watch on` starts one `inotifywait -m -r` on `~/src` under `setsid` (its pid in `~/.local/state/vikix/docs/watch.pid`), a changed `.md`, `.pdf` or `.org` file read within a second by `index_paths`, which places it by the listing it is in; `off` stops it and `status` says. It isn't a service and doesn't start at login: on by hand, as the design said "optional".
+
 **Phase 0, a day:** the `docs` table and FTS5 over `vikix`, `repo`, `dev`, `man` titles; `vikix docs find`; `Super+h` opening in the existing viewers. No rendering yet. Prove the hits are good.
 
 **Phase 1:** P0 items 1–7.
 
-**Phase 2:** P1, Zeal and notes first.
+**Phase 2:** P1, Zeal and notes first. (Shipped 2026-10-12, above.)
 
 ## Risks
 
 - **Man page HTML is ugly.** groff's HTML is dated; `guide.css` will have to work hard, or `mandoc -Thtml` produces cleaner markup. Test both on `sv(8)` and `xbps-install(1)` before deciding.
 - **Index size.** Bodies of every man page and `/usr/share/doc` could be hundreds of MB. FTS5 with `detail=none` and excerpts kept separately keeps it small; measure on a `developer` install.
-- **Two indexes drift.** `note` and `docs` are both SQLite; join, don't copy, or they will disagree.
+- **Two indexes drift.** `note` and `docs` are both SQLite; join, don't copy, or they will disagree. (2026-10-12: `note`'s index is `lib/notes.py`'s own, for `note ask`; the catalogue reads the Org files, and `vikix docs ask` searches the catalogue, so there is no second index of the documents at all.)

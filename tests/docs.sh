@@ -476,5 +476,203 @@ assert "quokka" in m.t_docs_read({"id": own_id})
 assert json.loads(m.t_docs_search({"query": "wombat"})) == [], "a folder not opened to agents was found"
 PY
 
-[ "$fail" = 0 ] && echo "docs: guides, projects, ~/dev and notes found by words, phrases and OR, Vikix's first, the one named first, only what changed read again, opened, man pages styled, tldr pages, your own documents a section at a time and closed to agents until opened and the ArchWiki from wikiman's copies, the page in Nyxt asked for, and read-only tools for the agents"
+
+# Zeal's docsets, read in place: a made-up docset whose pages are files here
+# (an entry found by its name, by a member's name, read at its anchor or at
+# the id the page gives its name, opened as a page there) and one kept
+# compressed (opened in Zeal, a stand-in); the entry named by the words
+# first; nothing of them copied into the catalogue.
+export VIKIX_DOCS_ZEAL="$t/docsets"
+python3 - "$t/docsets" <<'PY'
+import os, sqlite3, sys
+root = sys.argv[1]
+def docset(name, key, entries, pages):
+    d = os.path.join(root, name + ".docset", "Contents", "Resources"); os.makedirs(d)
+    with open(os.path.join(root, name + ".docset", "Contents", "Info.plist"), "w") as f:
+        f.write(f'<?xml version="1.0"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>{key}</string>'
+                f'<key>CFBundleName</key><string>{name}</string><key>DocSetPlatformFamily</key><string>{key}</string></dict></plist>\n')
+    db = sqlite3.connect(os.path.join(d, "docSet.dsidx"))
+    db.execute("CREATE TABLE searchIndex(id INTEGER PRIMARY KEY, name TEXT, type TEXT, path TEXT)")
+    db.execute("CREATE INDEX __zi_name0001 ON searchIndex (name COLLATE NOCASE)")
+    db.executemany("INSERT INTO searchIndex (name, type, path) VALUES (?, ?, ?)", entries); db.commit()
+    for path, text in pages.items():
+        full = os.path.join(d, "Documents", path); os.makedirs(os.path.dirname(full), exist_ok=True)
+        with open(full, "w") as f: f.write(text)
+docset("Quokka", "quokka",
+       [("str.split", "Method", "lib/strings.html#//apple_ref/Method/str.split"), ("wombatify", "Function", "lib/strings.html"),
+        ("split", "Function", "lib/misc.html#//apple_ref/Function/split"), ("Splitter", "Class", "lib/misc.html"),
+        ("Walrus.tusk", "Method", "lib/misc.html")],
+       {"lib/strings.html": '<html><body><p>Strings, an intro: the pelican words.</p>'
+                            '<a name="//apple_ref/Method/str.split"></a><dt id="str.split">str.split(sep)</dt><dd>Splits: the quoll fact.</dd>'
+                            '<dt id="wombatify">wombatify(s)</dt><dd>Makes it a wombat: the wombatify fact.</dd></body></html>',
+        "lib/misc.html": '<html><body><a name="//apple_ref/Function/split"></a><p>split: the echidna fact.</p></body></html>'})
+docset("Numbat", "numbat", [("alias", "Builtin", "x.html"), ("splitfoo", "Builtin", "y.html")], {})
+PY
+printf '#!/bin/sh\necho "zeal $*" >> %s/opened\n' "$t" > "$t/bin/zeal"; chmod +x "$t/bin/zeal"
+check "an entry named by the words comes first, with its kind and docset: $(d find str.split | head -1)" grep -q '^zeal  *str.split — Method, Quokka$' <<<"$(d find str.split | head -1)"
+check "the entry that is the word before the ones starting with it: $(d find split --source zeal | grep '^zeal' | head -3 | tr '\n' '|')" bash -c 'test "$(head -1 <<<"$1")" = "zeal   split — Function, Quokka" && grep -q "Splitter — Class, Quokka" <<<"$1" && grep -q "splitfoo — Builtin, Numbat" <<<"$1"' _ "$(d find split --source zeal | grep '^zeal' | head -3)"
+check "a member is found by its own name, when no name starts with the word: $(d find tusk --source zeal)" grep -q 'Walrus.tusk — Method, Quokka' <<<"$(d find TUSK --source zeal)"
+check "but not while names start with it (that scan is the slow part)" test "$(d find split --source zeal --limit 20 | grep -c 'str.split')" = 0
+check "a search lists the docsets' entries among the catalogue's, a share of the list" grep -q '^zeal' <<<"$(d find split --limit 8)"
+check "an entry reads as its own part of the page, from its anchor: $(d read zeal:quokka:Method:str.split)" bash -c 'grep -q "the quoll fact" <<<"$1" && ! grep -q "pelican\|wombatify fact" <<<"$1"' _ "$(d read zeal:quokka:Method:str.split)"
+check "or from the id the page gives its name" bash -c 'grep -q "the wombatify fact" <<<"$1" && ! grep -q "quoll" <<<"$1"' _ "$(d read zeal:quokka:Function:wombatify)"
+check "one kept compressed says Zeal shows it" grep -q 'kept compressed by Zeal' <<<"$(d read zeal:numbat:Builtin:alias)"
+: > "$t/opened"; d open zeal:quokka:Method:str.split; d open zeal:quokka:Function:wombatify; sleep 0.3
+check "an entry opens as its page in the docs browser, at its anchor: $(cat "$t/opened")" grep -q '^browser file://.*/Quokka.docset/Contents/Resources/Documents/lib/strings.html#//apple_ref/Method/str.split$' "$t/opened"
+check "or at the id its name has on the page" grep -q '^browser file://.*lib/strings.html#wombatify$' "$t/opened"
+: > "$t/opened"; d open zeal:numbat:Builtin:alias; d open zeal:quokka:Method:str.split --other; sleep 0.3
+check "one kept compressed opens in Zeal at the entry, and --other always does: $(cat "$t/opened")" bash -c 'grep -q "^zeal dash-plugin://keys=numbat&query=alias$" "$1" && grep -q "^zeal dash-plugin://keys=quokka&query=str.split$" "$1"' _ "$t/opened"
+check "status counts the docsets, read in place: $(d status | grep zeal)" grep -q '^  zeal  *7  in 2 docsets, read in place' <<<"$(d status)"
+check "list counts their entries" grep -qxP 'zeal\t7' <<<"$(d list)"
+check "nothing of a docset is copied into the catalogue" test -z "$(d list --source zeal)"
+check "a gone entry is said: $(d read zeal:quokka:Method:nothing 2>&1)" grep -q 'no document' <<<"$(d read zeal:quokka:Method:nothing 2>&1)"
+
+# Links to the web: the websites of the packages installed (xbps's answer),
+# the links the language guides list, your own file of links; marked, opened
+# in the browser, never fetched (a proxy nothing can reach stands guard).
+cat > "$t/bin/xbps-query" <<'X'
+#!/bin/sh
+case "$*" in
+  "-Rs ") printf '[-] ardour-9.7_1   Professional-grade digital audio workstation\n[*] ruff-0.6.9_1   An extremely fast Python linter\n' ;;
+  "-R -S ardour") printf 'pkgver: ardour-9.7_1\nshort_desc: Professional-grade digital audio workstation\nlicense: GPL-2.0-or-later\nhomepage: http://ardour.org\n' ;;
+  "-l") printf 'ii ruff-0.6.9_1   An extremely fast Python linter\n' ;;
+  "-R -p homepage -s ") printf 'ardour-9.7_1: http://ardour.org (https://mirror/current)\nruff-0.6.9_1: https://docs.astral.sh/ruff (https://mirror/current)\n' ;;
+esac
+X
+sleep 1
+printf '# Python\n\nNow with mypy too.\n\n- The tutorial: https://docs.python.org/3/tutorial/\n- ruff: https://docs.astral.sh/ruff/ · pytest: https://docs.pytest.org/\n' > "$HOME/dev/python/README.md"
+printf '# mine\nhttps://example.org/runit-book The runit book\nnot a link at all\nA page about sv https://example.org/sv  # title first works too\n' > "$XDG_CONFIG_HOME/vikix/docs-links"
+out=$(http_proxy=http://127.0.0.1:9 https_proxy=http://127.0.0.1:9 VIKIX_DOCS_SOURCES="pkg web" d index)
+check "the links are read, fetching nothing: $out" grep -q 'Read .*6 web' <<<"$out"
+check "a link of yours, marked as the web's: $(d find 'runit book' | head -1)" grep -q '^web  *🌐 The runit book — https://example.org/runit-book$' <<<"$(d find 'runit book' | head -1)"
+check "the title before the URL too" grep -q 'A page about sv — https://example.org/sv' <<<"$(d find 'page about' --source web)"
+check "a language guide's link, named for the language: $(d find pytest --source web)" grep -q 'pytest (python) — https://docs.pytest.org/' <<<"$(d find pytest --source web)"
+check "an installed package's website" grep -q 'ruff: its website — https://docs.astral.sh/ruff' <<<"$(d find ruff --source web)"
+check "not one that isn't installed (its card has the link)" test "$(d find ardour --source web)" = "nothing found"
+check "a link reads as a word that it isn't here" grep -q 'never fetches' <<<"$(d read web:own:https://example.org/runit-book)"
+: > "$t/opened"; http_proxy=http://127.0.0.1:9 d open web:own:https://example.org/runit-book; d open web:own:https://example.org/runit-book --other; sleep 0.3
+check "a link opens in the default browser, both ways: $(cat "$t/opened")" test "$(grep -c '^xdg-open https://example.org/runit-book$' "$t/opened")" = 2
+check "the web can't be asked" grep -q 'never fetched' <<<"$(d ask "what is runit" --source web 2>&1)"
+
+# PDFs: by the text they carry, a row a page within the first twenty, opened
+# at the page; a scanned one by its name alone; no pdftotext said plainly.
+if command -v pdftotext >/dev/null; then
+  python3 - "$HOME/src/music" <<'PY'
+import os, sys
+def pdf(path, pages):
+    """A PDF by hand: a page a text, "" for a page with no text (a scan's)."""
+    objs = []
+    def add(body): objs.append(body); return len(objs)
+    font = add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+    kids = []
+    for text in pages:
+        stream = f"BT /F1 12 Tf 72 720 Td ({text}) Tj ET" if text else ""
+        content = add(f"<< /Length {len(stream)} >>\nstream\n{stream}\nendstream")
+        kids.append(add(f"<< /Type /Page /Parent PAGES /MediaBox [0 0 612 792] /Contents {content} 0 R /Resources << /Font << /F1 {font} 0 R >> >> >>"))
+    pages_obj = add(f"<< /Type /Pages /Kids [{' '.join(f'{k} 0 R' for k in kids)}] /Count {len(kids)} >>")
+    objs[:] = [o.replace("PAGES", f"{pages_obj} 0 R") for o in objs]
+    catalog = add(f"<< /Type /Catalog /Pages {pages_obj} 0 R >>")
+    out = "%PDF-1.4\n"; offsets = []
+    for n, body in enumerate(objs, 1):
+        offsets.append(len(out)); out += f"{n} 0 obj\n{body}\nendobj\n"
+    xref = len(out)
+    out += f"xref\n0 {len(objs) + 1}\n0000000000 65535 f \n" + "".join(f"{o:010d} 00000 n \n" for o in offsets)
+    out += f"trailer\n<< /Size {len(objs) + 1} /Root {catalog} 0 R >>\nstartxref\n{xref}\n%%EOF\n"
+    with open(path, "w") as f: f.write(out)
+pdf(os.path.join(sys.argv[1], "docs", "manual.pdf"), ["the pelican fact, page one", "the kakapo fact, page two"] + [f"page {n}" for n in range(3, 23)] + ["the tuatara fact, past the bound", "page 24", "page 25"])
+pdf(os.path.join(sys.argv[1], "scan.pdf"), ["", ""])
+PY
+  out=$(d index)
+  check "a project's PDFs are read: $out" grep -q 'Read 2 repo' <<<"$out"
+  check "a page is a row, found by its words: $(d find kakapo | head -1)" grep -q '^repo .*manual (music/docs/manual.pdf) › page 2$' <<<"$(d find kakapo | head -1)"
+  check "the whole is a row too" grep -q '^repo .*manual (music/docs/manual.pdf)$' <<<"$(d find pelican --limit 5)"
+  check "only the first twenty pages are read" test "$(d find tuatara)" = "nothing found"
+  page=$(d find kakapo --tsv | head -1 | cut -f1)
+  check "a page reads as its text alone: $(d read "$page")" bash -c 'grep -q "the kakapo fact" <<<"$1" && ! grep -q pelican <<<"$1"' _ "$(d read "$page")"
+  check "a scanned PDF is a row by its name, saying so: $(d find scan.pdf --tsv | cut -f3-)" grep -q 'scanned PDF: no text' <<<"$(d find scan --source repo --tsv)"
+  printf '#!/bin/sh\necho "zathura $*" >> %s/opened\n' "$t" > "$t/bin/zathura"; chmod +x "$t/bin/zathura"
+  : > "$t/opened"; d open "$page"; VIKIX_TERMINAL="$t/bin/term" d open "$page" --other; sleep 0.3
+  check "a page opens in the viewer at that page: $(cat "$t/opened")" grep -q "^zathura --page=2 $HOME/src/music/docs/manual.pdf$" "$t/opened"
+  check "--other shows its text in a terminal" grep -q "^terminal -e sh -c pdftotext -l 20 .*manual.pdf - | less$" "$t/opened"
+  rm "$t/bin/zathura"
+  out=$(VIKIX_DOCS_PDFTOTEXT=no-such-pdftotext d index --full)
+  check "without pdftotext a PDF is a row by its name, saying what to install: $(d find manual.pdf --source repo --tsv | head -1)" grep -q 'pdftotext (vikix pkg add poppler-utils)' <<<"$(d find manual --source repo --tsv | head -1)"
+  check "and no page" test "$(d find kakapo)" = "nothing found"
+  check "read says it too" grep -q "pdftotext isn't installed" <<<"$(VIKIX_DOCS_PDFTOTEXT=no-such-pdftotext d read "repo:$HOME/src/music/docs/manual.pdf")"
+  d index --full >/dev/null
+  check "pages are back with pdftotext" grep -q 'page 2' <<<"$(d find kakapo | head -1)"
+  rm "$HOME/src/music/scan.pdf"; d index >/dev/null
+  check "a PDF gone is gone" test "$(d find scan --source repo)" = "nothing found"
+else
+  echo "(no pdftotext here: the PDF part is skipped)"
+fi
+
+# Asking: the documents found for the question go to the model, local
+# (Ollama, a stand-in on a port) unless --claude; the answer names them; no
+# key, no local AI: said, nothing sent; your own documents closed to an agent.
+log="$t/ai-requests"; : > "$log"
+python3 "$here/tests/fake-ai.py" "$log" > "$t/ai-port" &
+ai=$!
+for _ in $(seq 50); do [ -s "$t/ai-port" ] && break; sleep 0.1; done
+port=$(cat "$t/ai-port")
+if [ -n "$port" ]; then
+  export OLLAMA_HOST="127.0.0.1:$port"
+  # This test may itself run under an agent (a session's shell, the tester):
+  # VIKIX_EVAL_PARENT=1 is vikix-eval's "nobody above", so these are the user's.
+  export VIKIX_EVAL_PARENT=1
+  out=$(d ask "patterns sent over a websocket to the DAW" 2> "$t/err")
+  check "a local model answers, and the documents are named: $out $(cat "$t/err")" bash -c 'grep -q "^fake local answer" <<<"$1" && grep -q "^  \[1\] repo:.*DESIGN.md — Music sketchpad" <<<"$1"' _ "$out"
+  check "said to be on this laptop: $(cat "$t/err")" grep -q 'on this laptop; from vikix, repo, dev, note' "$t/err"
+  check "the documents went to the local model, in order: $(tail -1 "$log" | cut -c1-200)" bash -c 'grep -q "/api/chat" <<<"$(tail -1 "$1")" && grep -qF "n=\\\"1\\\" id=\\\"repo:" <<<"$(tail -1 "$1")" && grep -q "Patterns as Lisp" <<<"$(tail -1 "$1")"' _ "$log"
+  check "nothing went to Anthropic" bash -c '! grep -q /v1/messages "$1"' _ "$log"
+  n=$(wc -l < "$log")
+  check "no key, --claude says so and sends nothing" grep -q 'needs your key' <<<"$(d ask "websocket" --claude 2>&1)"
+  check "local AI down: said, nothing sent, no cloud instead" grep -q "isn't answering.*Nothing was sent" <<<"$(OLLAMA_HOST=127.0.0.1:9 d ask "websocket" 2>&1)"
+  check "no request was made" test "$(wc -l < "$log")" = "$n"
+  out=$(ANTHROPIC_API_KEY=test-key-123 ANTHROPIC_BASE_URL="http://127.0.0.1:$port" d ask "websocket DAW" --claude 2> "$t/err")
+  check "--claude sends the passages to Anthropic and says so: $out $(cat "$t/err")" bash -c 'grep -q "^fake claude answer" <<<"$1" && grep -q "passages go to Anthropic" "$2" && grep -q /v1/messages <<<"$(tail -1 "$3")"' _ "$out" "$t/err" "$log"
+  check "--source picks the sources: $(d ask "wombat shared bus" --source own 2>&1 | tail -2)" grep -q '^  \[1\] own:.*page.html' <<<"$(d ask "wombat shared bus" --source own 2>/dev/null)"
+  n=$(wc -l < "$log")
+  check "--show prints what would be sent, sending nothing" grep -q '<document n="1"' <<<"$(d ask "wombat shared bus" --source own --show)"
+  check "nothing was sent for it" test "$(wc -l < "$log")" = "$n"
+  unset VIKIX_EVAL_PARENT
+  printf '#!/bin/sh\npython3 "$@"\n' > "$t/bin/claude"; chmod +x "$t/bin/claude"   # an agent above the command, by name
+  out=$("$t/bin/claude" "$here/bin/vikix-docs" ask "wombat shared bus" --source own 2>&1 || true)
+  check "under an agent, your own documents stay closed (a folder not opened): $out" grep -q 'closed to agents' <<<"$out"
+  out=$("$t/bin/claude" "$here/bin/vikix-docs" ask "quokka process number" --source own 2>/dev/null)
+  check "but an opened folder's are read: $out" grep -q '^  \[1\] own:.*ch04-processes.md' <<<"$out"
+  unset OLLAMA_HOST
+fi
+kill "$ai" 2>/dev/null; wait "$ai" 2>/dev/null || true
+
+# The watch on ~/src: inotifywait (a stand-in reading a file of events)
+# started and stopped by hand, its state said; a document that changes is
+# read on its own, one gone dropped; not started twice; said when missing.
+: > "$t/events"
+printf '#!/bin/sh\nexec tail -n0 -f %s\n' "$t/events" > "$t/bin/inotifywait"; chmod +x "$t/bin/inotifywait"
+check "with no watch, status says so: $(d watch status)" grep -q '^off' <<<"$(d watch status)"
+out=$(d watch on)
+check "the watch starts and says what it does: $out" grep -q "^watching $HOME/src" <<<"$out"
+check "on again says it's there" grep -q 'already watching' <<<"$(d watch on)"
+check "status says on, with the pid: $(d watch status)" grep -q "^on $HOME/src since .*(pid [0-9]*)" <<<"$(d watch status)"
+pid=$(cat "$HOME/.local/state/vikix/docs/watch.pid")
+printf '# Fresh\n\nthe axolotl fact\n' > "$HOME/src/music/docs/fresh.md"
+echo "$HOME/src/music/docs/fresh.md" >> "$t/events"
+for _ in $(seq 60); do grep -q Fresh <<<"$(d find axolotl --source repo)" && break; sleep 0.1; done
+check "a document written is read within seconds: $(d find axolotl)" grep -q '^repo .*Fresh' <<<"$(d find axolotl --source repo)"
+rm "$HOME/src/music/docs/fresh.md"; echo "$HOME/src/music/docs/fresh.md" >> "$t/events"
+for _ in $(seq 60); do [ "$(d find axolotl --source repo)" = "nothing found" ] && break; sleep 0.1; done
+check "one deleted is dropped" test "$(d find axolotl --source repo)" = "nothing found"
+check "status says when a change was last read: $(d watch status)" grep -q 'last change read' <<<"$(d watch status)"
+out=$(d watch off)
+check "off stops it and says so: $out" grep -q 'is off' <<<"$out"
+sleep 0.3
+check "the watcher is gone" bash -c '! kill -0 "$1" 2>/dev/null' _ "$pid"
+check "and its inotifywait with it" bash -c '! pgrep -f "tail -n0 -f $1" >/dev/null' _ "$t/events"
+check "off again says there was none" grep -q '^not watching' <<<"$(d watch off)"
+mv "$t/bin/inotifywait" "$t/bin/inotifywait.away"
+check "without inotifywait, on says what to install: $(d watch on 2>&1)" grep -q 'inotify-tools' <<<"$(d watch on 2>&1)"
+check "the MCP tools offer zeal and web" bash -c 'grep -q "\"zeal\"" "$1" && grep -q "\"web\"" "$1"' _ "$here/bin/vikix-mcp"
+
+[ "$fail" = 0 ] && echo "docs: guides, projects, ~/dev and notes found by words, phrases and OR, Vikix's first, the one named first, only what changed read again, opened, man pages styled, tldr pages, your own documents a section at a time and closed to agents until opened and the ArchWiki from wikiman's copies, the page in Nyxt asked for, read-only tools for the agents, Zeal's docsets read in place, links to the web marked and never fetched, PDFs a page a row opened at the page, a question answered locally from chosen documents, and the watch on ~/src"
 exit "$fail"

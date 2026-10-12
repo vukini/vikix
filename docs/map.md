@@ -52,6 +52,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── windows            yours     where the Windows VM's disk is
 │   │   ├── webapps            yours     your web apps: NAME URL [KEY] (vikix webapp)
 │   │   ├── docs-browser       yours     the browser for guides and docs, one word (make it; Nyxt without it, when installed)
+│   │   ├── docs-links         yours     your own links for the catalogue, a URL and its title a line (make it; listed, never fetched)
 │   │   ├── wallpaper          yours     a link to the picture you chose
 │   │   ├── wallpaper-off      yours     exists if you set the wallpaper with your own tool
 │   │   ├── titlebars-off      yours     exists if you turned the title bars off (Super+Ctrl+y)
@@ -139,6 +140,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 | `migrations/` | Which one-off fixes this machine has had |
 | `day/` | What had the screen, for `vikix day`: `screen-YYYY-MM.log`, a line when the workspace, project, program or folder in front changed (never a window's title; 600), and `docs.log`, the documents opened from the catalogue. To keep none of the first: `(setf *vikix-day-on* nil)` in `user.lisp` |
 | `docs/random-deck` | Guide pages still to be shown this round by `vikix docs random`, one filename per line (600). An empty or missing file starts a new round; newly added guides join that next round |
+| `docs/watch.pid`, `docs/watch.log` | The watch on `~/src` (`vikix docs watch on`): its process, and what it read when |
 | `welcome` | The welcome's steps you've done (`vikix welcome`); that it exists means the welcome has been shown, so it doesn't open at login again |
 | `checkout-changes/` | Changes someone made in `~/vikix`, set aside by `vikix update` as patch files (see [When something breaks](fixing.md#an-update-failed)) |
 | `diagnose/` | The last five reports `vikix diagnose` gave your agent |

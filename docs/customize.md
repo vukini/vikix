@@ -362,11 +362,14 @@ The change takes effect at once: each `vikix project` reads it again. A project 
 ```
 own=~/books                       # every Markdown file under it, read a section at a time
 own=~/books site/out/*.html       # these HTML pages too (patterns from that folder)
+own=~/papers **/*.pdf             # PDFs by their text: a row a page, opened at the page
 agents=~/books/unix-by-hand       # open this folder to the AI agents; the rest of yours stays closed
 what=~/books/what                 # your pages for vikix what
 ```
 
-An `own=` folder's documents are rows of the catalogue, one for each file and one for each second-level heading (`##`, or an `<h2>` with an id or a `data-at` tag), so a search lands on the section, and so does a chapter a page names. They open in the docs browser at that section, styled as the guide is (`Ctrl+Enter`: the file in Emacs). They are closed to the agents' `docs_search` and `docs_read` until an `agents=` line opens a folder to them.
+An `own=` folder's documents are rows of the catalogue, one for each file and one for each second-level heading (`##`, or an `<h2>` with an id or a `data-at` tag), so a search lands on the section, and so does a chapter a page names. They open in the docs browser at that section, styled as the guide is (`Ctrl+Enter`: the file in Emacs). They are closed to the agents' `docs_search` and `docs_read`, and to `vikix docs ask` when an agent runs it, until an `agents=` line opens a folder to them. A PDF named by a pattern is read by the text of its first twenty pages (`pdftotext`; a scanned one is listed by its name alone) and opens at the hit's page in zathura, evince or mupdf.
+
+A second file, `~/.config/vikix/docs-links`, is your own links: a URL and its title a line, in either order (`https://example.org/sv  The sv page`, `# comments` allowed). They are hits of the source `web` beside the websites of the packages you have installed and the links the language guides in `~/dev` list, each wearing a globe in the list: the one kind of hit that opens on the web (your default browser), and nothing of them is ever fetched, not when the catalogue is read, not when it is searched, not for an answer from `vikix docs ask`.
 
 A `what=` folder holds your pages, a file a kind of thing (`process.md`, `service.md`, and `service-sshd.md` for one thing by name): a paragraph in your words, which replaces Vikix's on the card, then lines saying where to read on, yours before Vikix's:
 

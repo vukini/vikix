@@ -16,9 +16,22 @@
   vikix docs random [--other]    one of Vikix's guides at random, as open
                                   opens it; every page once before any twice
   vikix docs read ID              one as plain text (what the agents read)
+  vikix docs ask QUESTION... [--source S]... [--claude|--local] [--model M] [--limit N] [--show]
+                                  a question answered from the documents
+                                  found for it, which the answer names:
+                                  Vikix's guides, your projects, ~/dev and
+                                  your notes unless --source says which
+                                  (own, man, all...; once each, or commas);
+                                  a local model (Ollama) unless --claude,
+                                  which sends the passages found to
+                                  Anthropic and says so; --show prints what
+                                  would be sent instead
   vikix docs index [--full] [--quiet]
                                   read again what changed (--full: all of
                                   it); vikix update does it
+  vikix docs watch on|off|status  one inotifywait on ~/src, so a document
+                                  that changes there is read within a
+                                  second (until off, or the session ends)
   vikix docs status               how many from where, and when last read
   vikix docs list [--source S]    how many from each source, a line each
                                   (source, count, tab between); with
@@ -39,22 +52,48 @@ Cuis's own in ~/cuis/Packages, when Cuis is installed); every man page
 (man) and Info manual (info) on the machine; the tldr pages (tldr: a
 command's worked examples, where a man page has its options) and the
 ArchWiki (arch), the English pages of each as wikiman keeps them in
-/usr/share/doc, when they're there; the READMEs and notes packages keep in
-/usr/share/doc (doc); and every package there is, installed or not (pkg).
-Vikix's guides rank first, then yours, then tldr with the man pages, then
-the rest of the system's.
+/usr/share/doc, when they're there; the READMEs, notes and PDFs packages
+keep in /usr/share/doc (doc); every package there is, installed or not
+(pkg); the entries of Zeal's docsets (zeal: a function, a class, a method
+by name, read in place from each docset's own index, nothing copied); and
+links to the web (web: the websites of the packages installed, the links
+the language guides in ~/dev list, and your own in ~/.config/vikix/docs-links,
+a URL and its title a line). A web hit wears a globe: it is the one kind
+that opens on the web, and nothing of it is ever fetched, not when the
+catalogue is read, not when it is searched. Vikix's guides rank first,
+then yours, then tldr with the man pages, then the rest of the system's;
+a docset's entry named by the words stands with the documents named by them.
+
+A PDF (in a project's docs/ or at its top, in /usr/share/doc, or in a
+folder of yours by a *.pdf pattern) is read by the text it carries, its
+first twenty pages (pdftotext, from poppler-utils; without it a PDF is
+listed by its name, saying so), a row for the whole and a row a page, so a
+hit opens at its page (zathura, evince or mupdf take a page; another viewer
+opens the file). A scanned PDF with no text is listed by its name alone.
 
 It reads again by itself what changed, when a search finds the catalogue
 more than a day old (a few seconds); vikix update reads the man pages and
-manuals again. A man page, a tldr page or a Markdown file opens as a page
+manuals again; vikix docs watch on reads a document of ~/src the moment it
+changes. A man page, a tldr page or a Markdown file opens as a page
 in the docs browser, styled as the guide is (made by mandoc and pandoc,
 cached in ~/.cache/vikix/docs/); an ArchWiki page as the copy is; a package
 as a short page (installed or not, how to add it, its website); an Info
 manual and your notes in Emacs; a Cuis class in a Browser in the running
 image, through its door (vikix eval --cuis), or its package file in Emacs
-at the class when Cuis isn't running. Ctrl+Enter (or --other) opens the
-other way: Emacs, or a terminal; an ArchWiki page as it is today, on the web.
+at the class when Cuis isn't running; a docset's entry as its page in the
+docs browser, at the entry, or in Zeal when the docset keeps its pages
+compressed; a web link in your default browser. Ctrl+Enter (or --other)
+opens the other way: Emacs, or a terminal; an ArchWiki page as it is today,
+on the web; a docset's entry in Zeal; a PDF's text in a terminal.
 vikix docs random opens a guide page at random, every one before any twice.
+
+vikix docs ask answers a question from the documents it finds for it (the
+words they share), a local model by default, so nothing leaves the laptop
+unless --claude is said; the answer ends with the documents it drew on, by
+id. Under an agent, your own documents (own) stay closed to it as they are
+to docs_search, unless a folder is opened with agents=. The web's links
+are never read for an answer, and a docset's entries are found by name,
+not asked.
 
 Your own documents (own) are the folders named in ~/.config/vikix/docs,
 yours to make, a line each: own=~/books (every Markdown file under it), or
@@ -104,16 +143,33 @@ DEV = os.environ.get("VIKIX_DOCS_DEV") or os.path.join(HOME, "dev")
 STALE = 24 * 3600                       # a search reads again what changed, after a day
 BODY = 200_000                          # characters of a document indexed
 BOOST = {"vikix": 3.0, "own": 2.5, "repo": 2.0, "dev": 2.0, "note": 2.0, "cuis": 1.2, "tldr": 1.1, "man": 1.0, "info": 1.0,
-         "arch": 0.95, "pkgdoc": 0.9, "pkg": 0.8}
+         "arch": 0.95, "pkgdoc": 0.9, "web": 0.85, "pkg": 0.8}
 BADGE = {"vikix": "vikix", "own": "yours", "repo": "repo", "dev": "dev", "note": "note", "cuis": "cuis", "man": "man",
-         "info": "info", "tldr": "tldr", "arch": "arch", "pkgdoc": "doc", "pkg": "pkg"}
+         "info": "info", "tldr": "tldr", "arch": "arch", "pkgdoc": "doc", "pkg": "pkg", "zeal": "zeal", "web": "web"}
+# Zeal's docsets (vikix docs get puts them here; ~/dev/docsets links to it):
+# read in place through each one's docSet.dsidx at every search, never copied.
+ZEAL = os.environ.get("VIKIX_DOCS_ZEAL") or os.path.join(os.path.dirname(DATA), "Zeal", "Zeal", "docsets")
+ZEAL_SHARE = 4            # a search keeps a quarter of its list for the docsets' entries, when they have any
+LINKS_FILE = os.path.join(CONFIG, "vikix", "docs-links")   # your own links: a URL and its title a line
+PDF_PAGES = 20            # pages of a PDF read: a 400-page manual costs seconds, not minutes
+PDFTOTEXT = os.environ.get("VIKIX_DOCS_PDFTOTEXT") or "pdftotext"   # poppler's; the tests name one that isn't there
+PDF_VIEWERS = (("zathura", lambda path, page: ["zathura", f"--page={page}", path]),
+               ("evince", lambda path, page: ["evince", "-i", str(page), path]),
+               ("mupdf", lambda path, page: ["mupdf", path, str(page)]))
+ASK_SOURCES = ("vikix", "repo", "dev", "note")   # what vikix docs ask reads unless told otherwise
+ASK_LIMIT = 6             # documents given to the model for a question
+ASK_PASSAGE = 3000        # characters of each
+CLAUDE_DEFAULT = "claude-sonnet-5"       # as Super+i's (bin/vikix-ask) and note ask's
+LOCAL_DEFAULT = "llama3.2:3b"
+STOP_WORDS = {"a", "an", "the", "to", "in", "on", "of", "i", "do", "does", "how", "is", "it", "and", "for", "at",
+              "by", "what", "my", "can", "with", "are", "be", "this", "that", "from", "or", "when", "where", "why"}
 CUIS = os.environ.get("VIKIX_DOCS_CUIS") or os.path.join(HOME, "cuis")   # the user's Cuis folder (vikix cuis setup lays it out)
 PKGDOC = "/usr/share/doc"
 # wikiman's offline copies (its own download step puts them here; nothing
 # refreshes them by itself): the English pages of each.
 TLDR = os.environ.get("VIKIX_DOCS_TLDR") or "/usr/share/doc/tldr-pages/en"
 ARCH = os.environ.get("VIKIX_DOCS_ARCH") or "/usr/share/doc/arch-wiki/html/en"
-PKGDOC_FILES = re.compile(r"^(README|NEWS|CHANGES|ChangeLog|FAQ|INSTALL|USAGE|TODO)|\.(md|txt|html?|rst)$", re.I)
+PKGDOC_FILES = re.compile(r"^(README|NEWS|CHANGES|ChangeLog|FAQ|INSTALL|USAGE|TODO)|\.(md|txt|html?|rst|pdf)$", re.I)
 REPO_FILES = ("README.md", "DESIGN.md", "TODO.md", "CLAUDE.md", "IDEAS.md", "bugs.md", "log.md")
 
 
@@ -172,10 +228,12 @@ def excerpt(text):
 
 # --- Where documents come from ------------------------------------------------------------
 
-def read_text(path):
+def read_text(path, whole=False):
+    """A file's text, as much as is indexed (WHOLE: all of it, for a page
+    whose entry may be anywhere in it)."""
     try:
         with open(path, encoding="utf-8", errors="replace") as f:
-            return f.read(BODY)
+            return f.read() if whole else f.read(BODY)
     except OSError:
         return ""
 
@@ -220,6 +278,9 @@ def files_repo():
                 yield p, kind
         for p in sorted(glob.glob(os.path.join(project, "DESIGN-*.md"))):
             yield p, "design"
+        # A PDF at the top (a paper, a manual the project keeps).
+        for p in sorted(glob.glob(os.path.join(project, "*.pdf"))):
+            yield p, "pdf"
         # The longer plans of a project, in its plans/ folder (Vikix's own are there).
         for p in sorted(glob.glob(os.path.join(project, "plans", "*.md"))):
             yield p, "design"
@@ -233,6 +294,8 @@ def files_repo():
             for f in sorted(files):
                 if f.endswith(".md"):
                     yield os.path.join(root, f), "doc"
+                elif f.lower().endswith(".pdf"):
+                    yield os.path.join(root, f), "pdf"
 
 
 def files_dev():
@@ -330,9 +393,12 @@ def own_title(text, path):
 def own_rows(path, folder):
     """The rows a document of yours makes: the whole, then a row a section
     (id own:PATH#HEADING, path PATH#HEADING for Markdown, PATH#ID for HTML)."""
-    text = read_text(path)
     book = os.path.relpath(path, folder).split(os.sep)[0]
     book = "" if book == os.path.basename(path) else book
+    if path.lower().endswith(".pdf"):
+        title = pdf_title(path)
+        return pdf_rows(path, "own", f"{title} ({book})" if book else title)
+    text = read_text(path)
     title = own_title(text, path)
     said = f"{title} ({book})" if book else title
     whole = html_plain(text) if path.endswith(".html") else md_plain(text)
@@ -366,17 +432,13 @@ def index_own(db, full):
         seen.add(doc_id)
         if not full and known.get(doc_id) == mtime:
             continue
-        for old in db.execute("SELECT id FROM docs WHERE source = 'own' AND (id = ? OR id LIKE ?)",
-                              (doc_id, doc_id.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "#%")).fetchall():
-            drop(db, old[0])
+        drop_rows(db, "own", doc_id)
         for doc, body in own_rows(path, folder):
             doc["mtime"] = mtime
             put(db, doc, body)
         changed += 1
     for doc_id in set(known) - seen:
-        for old in db.execute("SELECT id FROM docs WHERE source = 'own' AND (id = ? OR id LIKE ?)",
-                              (doc_id, doc_id.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "#%")).fetchall():
-            drop(db, old[0])
+        drop_rows(db, "own", doc_id)
     return changed
 
 
@@ -486,10 +548,11 @@ def index_cuis(db, full):
 
 
 def drop_rows(db, source, doc_id):
-    """A document's row and its sections' (ID#...) gone."""
-    like = doc_id.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "#%"
-    for old in db.execute("SELECT id FROM docs WHERE source = ? AND (id = ? OR id LIKE ? ESCAPE '\\')",
-                          (source, doc_id, like)).fetchall():
+    """A document's row and its sections' (ID#...) gone. The sections are a
+    range of the ids' index ('#' then '$' in ASCII), never a LIKE, which
+    scans the table: once a file, that made a sweep of the notes take a minute."""
+    for old in db.execute("SELECT id FROM docs WHERE source = ? AND (id = ? OR (id >= ? AND id < ?))",
+                          (source, doc_id, doc_id + "#", doc_id + "$")).fetchall():
         drop(db, old[0])
 
 
@@ -626,7 +689,9 @@ def org_plain(text):
 def index_files(db, source, files, title_of, plain, full):
     """Each file read again when it changed; the gone ones dropped."""
     seen = set()
-    known = dict(db.execute("SELECT id, mtime FROM docs WHERE source = ?", (source,)).fetchall())
+    known = {}
+    for doc_id, mtime in db.execute("SELECT id, mtime FROM docs WHERE source = ?", (source,)).fetchall():
+        known.setdefault(doc_id.split("#", 1)[0], mtime)
     changed = 0
     for path, kind in files:
         try:
@@ -637,16 +702,76 @@ def index_files(db, source, files, title_of, plain, full):
         seen.add(doc_id)
         if not full and known.get(doc_id) == mtime:
             continue
-        text = read_text(path)
-        body = plain(text)
-        title = title_of(text, path)
-        if source == "repo":
-            title = f"{title} ({os.path.relpath(path, SRC)})"
-        put(db, {"id": doc_id, "source": source, "kind": kind, "title": title, "path": path,
-                 "excerpt": excerpt(body), "mtime": mtime}, body)
+        index_file(db, source, path, kind, mtime, title_of, plain)
         changed += 1
     for doc_id in set(known) - seen:
-        drop(db, doc_id)
+        drop_rows(db, source, doc_id)
+    return changed
+
+
+def index_file(db, source, path, kind, mtime, title_of, plain):
+    """One file's rows made anew: a page of text is one; a PDF is one and a
+    row a page."""
+    doc_id = f"{source}:{path}"
+    if kind == "pdf":
+        drop_rows(db, source, doc_id)
+        said = pdf_title(path)
+        if source == "repo":
+            said = f"{said} ({os.path.relpath(path, SRC)})"
+        for doc, body in pdf_rows(path, source, said):
+            doc["mtime"] = mtime
+            put(db, doc, body)
+        return
+    text = read_text(path)
+    body = plain(text)
+    title = title_of(text, path)
+    if source == "repo":
+        title = f"{title} ({os.path.relpath(path, SRC)})"
+    put(db, {"id": doc_id, "source": source, "kind": kind, "title": title, "path": path,
+             "excerpt": excerpt(body), "mtime": mtime}, body)
+
+
+FILE_SOURCES = {"vikix": (files_vikix, md_title, md_plain), "repo": (files_repo, md_title, md_plain),
+                "dev": (files_dev, md_title, md_plain), "note": (files_note, org_title, org_plain)}
+
+
+def index_paths(db, paths):
+    """The files named read again, or dropped when gone: the watch's way,
+    each one placed by the listing it is in (a project's documents, a
+    language guide, a note, one of yours); a file in no listing is nothing."""
+    # As the listings name them (never resolved: the ids are the paths as
+    # given), and resolved too for your folders, which are.
+    paths = set(paths) | {os.path.realpath(p) for p in paths}
+    changed = 0
+    for source, (files, title_of, plain) in FILE_SOURCES.items():
+        listed = dict(files())
+        for path in paths:
+            doc_id = f"{source}:{path}"
+            if path in listed:
+                try:
+                    index_file(db, source, path, listed[path], os.path.getmtime(path), title_of, plain)
+                    changed += 1
+                except OSError:
+                    continue
+            elif db.execute("SELECT 1 FROM docs WHERE id = ?", (doc_id,)).fetchone():
+                drop_rows(db, source, doc_id)
+                changed += 1
+    own = dict(files_own(own_config()))
+    for path in paths:
+        doc_id = f"own:{path}"
+        if path in own:
+            try:
+                mtime = os.path.getmtime(path)
+            except OSError:
+                continue
+            drop_rows(db, "own", doc_id)
+            for doc, body in own_rows(path, own[path]):
+                doc["mtime"] = mtime
+                put(db, doc, body)
+            changed += 1
+        elif db.execute("SELECT 1 FROM docs WHERE id = ?", (doc_id,)).fetchone():
+            drop_rows(db, "own", doc_id)
+            changed += 1
     return changed
 
 
@@ -758,6 +883,12 @@ def index_pkgdoc(db, full):
                 continue
             if f.lower().endswith((".html", ".htm")) and f.lower() not in ("index.html", "index.htm"):
                 continue
+            if f.lower().endswith(".pdf"):
+                for doc, body in pdf_rows(path, "pkgdoc", f"{pkg}: {f}"):
+                    doc["mtime"] = 0
+                    put(db, doc, f"{pkg} {body}")
+                    n += 1
+                continue
             head = read_text(path)[:2000]
             plain = md_plain(re.sub(r"<[^>]+>", " ", head))
             body = read_text(path) if f.lower().startswith("readme") else plain
@@ -768,19 +899,381 @@ def index_pkgdoc(db, full):
     return n
 
 
+# --- Zeal's docsets, read in place -----------------------------------------------------------
+
+def plist_value(text, key):
+    m = re.search(r"<key>" + re.escape(key) + r"</key>\s*<string>([^<]*)</string>", text)
+    return html.unescape(m.group(1)).strip() if m else ""
+
+
+def docsets():
+    """Each docset Zeal has: key (what Zeal's own address names it by), name,
+    folder, index (its docSet.dsidx) and whether its pages are files here
+    (else they're in its tarix archive, which only Zeal reads). Two of one
+    name (Python and Python_3, a 2012 copy beside today's) are the newer."""
+    found = {}
+    for folder in sorted(glob.glob(os.path.join(ZEAL, "*.docset"))):
+        index_path = os.path.join(folder, "Contents", "Resources", "docSet.dsidx")
+        if not os.path.isfile(index_path):
+            continue
+        plist = read_text(os.path.join(folder, "Contents", "Info.plist"))
+        name = plist_value(plist, "CFBundleName") or os.path.basename(folder)[:-len(".docset")].replace("_", " ")
+        key = (plist_value(plist, "DocSetPlatformFamily") or plist_value(plist, "CFBundleIdentifier")
+               or name.lower().replace(" ", "_"))
+        ds = {"key": key, "name": name, "folder": folder, "index": index_path,
+              "pages": os.path.isdir(os.path.join(folder, "Contents", "Resources", "Documents")),
+              "mtime": os.path.getmtime(index_path)}
+        if name not in found or (found[name]["pages"], found[name]["mtime"]) < (ds["pages"], ds["mtime"]):
+            found[name] = ds
+    return list(found.values())
+
+
+def dsidx(ds):
+    """A docset's index, read only, as it is (Zeal may have it open)."""
+    return sqlite3.connect(f"file:{urllib.parse.quote(ds['index'])}?mode=ro&immutable=1", uri=True)
+
+
+def zeal_doc(ds, name, type_, path):
+    return {"id": f"zeal:{ds['key']}:{type_}:{name}", "source": "zeal", "kind": type_.lower(),
+            "title": f"{name} — {type_}, {ds['name']}", "path": f"{ds['folder']}\t{path}",
+            "excerpt": f"{type_} in the {ds['name']} reference"}
+
+
+def find_zeal(words, limit):
+    """The entries named by the words in every docset: the name itself first,
+    then names starting with it (a range of each index's own NOCASE index,
+    a few milliseconds for all), then, only when there are none, a member
+    of that name (str.split for split, std::fs::read_dir for read_dir: a
+    scan of each docset's names, the docsets side by side), shorter names
+    first."""
+    q = re.sub(r"\s+", " ", " ".join(words).replace('"', "")).strip()
+    if not q or len(q) < 2:
+        return []
+    sets = docsets()
+
+    def prefix(ds):
+        try:
+            db = dsidx(ds)
+            rows = db.execute("SELECT name, type, path FROM searchIndex WHERE name COLLATE NOCASE >= ? "
+                              "AND name COLLATE NOCASE < ? ORDER BY length(name) LIMIT ?",
+                              (q, q + "\uffff", limit)).fetchall()
+            db.close()
+            return ds, rows
+        except sqlite3.Error:
+            return ds, []
+
+    def member(ds):
+        # GLOB minds case (a scan of lower(name) costs twice as much): the
+        # word as typed, and in lower case when that differs.
+        forms = {q, q.lower()}
+        globs = [f"*[.:]{f.replace('[', '[[]').replace('*', '[*]').replace('?', '[?]')}*" for f in forms]
+        try:
+            db = dsidx(ds)
+            rows = db.execute("SELECT name, type, path FROM searchIndex WHERE "
+                              + " OR ".join("name GLOB ?" for _ in globs) + " ORDER BY length(name) LIMIT ?",
+                              (*globs, limit)).fetchall()
+            db.close()
+            return ds, rows
+        except sqlite3.Error:
+            return ds, []
+
+    hits, seen = [], set()
+
+    def take(ds, rows):
+        for name, type_, path in rows:
+            if (ds["key"], type_, name) in seen:
+                continue
+            seen.add((ds["key"], type_, name))
+            low = name.lower()
+            rank = 0 if low == q.lower() else 1 if low.startswith(q.lower()) else 2
+            hits.append((rank, len(name), ds["name"], zeal_doc(ds, name, type_ or "Entry", path or "")))
+
+    for ds, rows in map(prefix, sets):
+        take(ds, rows)
+    if not hits and sets:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(min(8, len(sets))) as pool:
+            for ds, rows in pool.map(member, sets):
+                take(ds, rows)
+    hits.sort(key=lambda h: h[:3])
+    return [h[3] for h in hits[:limit]]
+
+
+def zeal_get(doc_id):
+    """A docset's entry by its id (zeal:KEY:TYPE:NAME), or None."""
+    parts = doc_id.split(":", 3)
+    if len(parts) < 4:
+        return None
+    _, key, type_, name = parts
+    for ds in docsets():
+        if ds["key"] != key:
+            continue
+        try:
+            db = dsidx(ds)
+            row = db.execute("SELECT name, type, path FROM searchIndex WHERE name = ? AND type = ? LIMIT 1",
+                             (name, type_)).fetchone()
+            db.close()
+        except sqlite3.Error:
+            row = None
+        if row:
+            return zeal_doc(ds, row[0], row[1] or "Entry", row[2] or "")
+    return None
+
+
+def zeal_page(doc):
+    """The entry's page as a file on this machine, with its anchor: (file,
+    anchor), or (None, anchor) when the docset keeps its pages compressed."""
+    folder, _, path = doc["path"].partition("\t")
+    # Some docsets put <dash_entry_...> notes before the path.
+    path = re.sub(r"^(<[^>]*>)+", "", path)
+    page, _, anchor = path.partition("#")
+    file = os.path.join(folder, "Contents", "Resources", "Documents", urllib.parse.unquote(page))
+    return (file if os.path.isfile(file) else None), anchor
+
+
+def zeal_key_name(doc):
+    _, key, _, name = doc["id"].split(":", 3)
+    return key, name
+
+
+def zeal_anchor(text, doc):
+    """Where the entry is on its page: the anchor its path names (Dash's
+    //apple_ref/... form), else an element whose id or name is the entry's
+    (Sphinx and most generators write one); (anchor, where it is in the
+    text), or (None, None)."""
+    _, anchor = zeal_page(doc)
+    _, name = zeal_key_name(doc)
+    for want in [a for a in (anchor, urllib.parse.unquote(anchor) if anchor else "", name) if a]:
+        m = re.search(r'(?i)<[a-z][^>]*\b(?:name|id)="' + re.escape(want) + '"', text)
+        if m:
+            return want, m.start()
+    return None, None
+
+
+def zeal_text(doc):
+    """The entry's own part of its page: from its anchor to the next entry's
+    (or the next term defined), or the page when there's no anchor; a word
+    when only Zeal can show it."""
+    file, _ = zeal_page(doc)
+    key, name = zeal_key_name(doc)
+    if not file:
+        return (f"{doc['title']}\n\nIts page is kept compressed by Zeal, so read it there: "
+                f"vikix docs open {doc['id']} (zeal, then {name}).")
+    text = read_text(file, whole=True)
+    anchor, at = zeal_anchor(text, doc)
+    if anchor:
+        # To the next entry: the next Dash anchor, or the next term defined
+        # once this one's description (its <dd>) has closed.
+        rest = text[at:]
+        ends = [m.start() for m in [re.search(r'(?i)<a\b[^>]*\bname="//apple_ref/', rest[1:])] if m]
+        closed = rest.find("</dd>")
+        if closed >= 0:
+            nxt = re.search(r"(?i)<dt\b", rest[closed:])
+            if nxt:
+                ends.append(closed + nxt.start() - 1)
+        text = rest[:min(ends) + 1] if ends else rest[:20000]
+    return html_plain(text)[:ASK_PASSAGE * 3] or doc["title"]
+
+
+def zeal_open(doc, other=False):
+    """The entry's page in the docs browser when it is a file here; else, and
+    the other way, in Zeal at the entry (its own address form)."""
+    file, anchor = zeal_page(doc)
+    if file and not other:
+        if not anchor:
+            anchor = zeal_anchor(read_text(file, whole=True), doc)[0] or ""
+        docs_open(["file://" + file + (f"#{anchor}" if anchor else "")])
+        return
+    key, name = zeal_key_name(doc)
+    if not shutil.which("zeal"):
+        die("Zeal isn't installed (vikix pkg add zeal), and this entry's page is only readable there")
+    subprocess.Popen(["setsid", "-f", "zeal",
+                      f"dash-plugin://keys={urllib.parse.quote(key)}&query={urllib.parse.quote(name)}"],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def zeal_counts():
+    """(docsets, entries) Zeal has, for status."""
+    sets, entries = 0, 0
+    for ds in docsets():
+        try:
+            db = dsidx(ds)
+            entries += db.execute("SELECT count(*) FROM searchIndex").fetchone()[0]
+            db.close()
+            sets += 1
+        except sqlite3.Error:
+            continue
+    return sets, entries
+
+
+# --- Links to the web: listed, never fetched ---------------------------------------------------
+
+def web_links():
+    """(id, title, url, words) each: the websites of the packages installed,
+    the links the language guides in ~/dev list, and your own file of
+    links. Nothing here is fetched: a hit says it leaves the machine."""
+    if shutil.which("xbps-query"):
+        installed = set()
+        for line in subprocess.run(["xbps-query", "-l"], capture_output=True, text=True).stdout.splitlines():
+            m = re.match(r"^\S+\s+(\S+?)-[^-\s]+\s", line)
+            if m:
+                installed.add(m.group(1))
+        r = subprocess.run(["xbps-query", "-R", "-p", "homepage", "-s", ""], capture_output=True, text=True)
+        for line in r.stdout.splitlines():
+            m = re.match(r"^(\S+?)-[^-\s]+: (https?://\S+)", line)
+            if m and m.group(1) in installed:
+                yield f"web:pkg:{m.group(1)}", f"{m.group(1)}: its website", m.group(2), m.group(1)
+    for path in sorted(glob.glob(os.path.join(DEV, "*", "README.md"))):
+        lang = os.path.basename(os.path.dirname(path))
+        for line in read_text(path).splitlines():
+            for part in re.split(r"\s·\s", line.strip().lstrip("-*").strip()):
+                m = re.search(r"(https?://[^\s)>\]]+)", part)
+                if not m:
+                    continue
+                label = re.sub(r"[\s:—–-]+$", "", part[:m.start()].strip()) or m.group(1)
+                yield f"web:dev:{lang}:{m.group(1)}", f"{label} ({lang})", m.group(1), lang
+    for n, line in enumerate(read_text(LINKS_FILE).splitlines(), 1):
+        line = line.split("#", 1)[0].strip()
+        words = line.split()
+        urls = [w for w in words if re.match(r"^https?://", w)]
+        if not urls:
+            continue
+        title = " ".join(w for w in words if w != urls[0]) or urls[0]
+        yield f"web:own:{urls[0]}", title, urls[0], "yours"
+
+
+def web_stamp():
+    files = glob.glob(os.path.join(DEV, "*", "README.md")) + [LINKS_FILE]
+    return xbps_stamp() + " " + " ".join(str(os.path.getmtime(f)) for f in files if os.path.exists(f))
+
+
+def index_web(db, full):
+    stamp = web_stamp()
+    if not full and meta(db, "web-stamp") == stamp:
+        return 0
+    drop_source(db, "web")
+    n = 0
+    for doc_id, title, url, words in web_links():
+        host = urllib.parse.urlsplit(url).netloc
+        put(db, {"id": doc_id, "source": "web", "kind": "link", "title": f"{title} — {url}", "path": url,
+                 "excerpt": f"on the web ({host}), not on this machine", "mtime": 0},
+            f"{title} {words} {host} {re.sub(r'[^\w]+', ' ', url)}")
+        n += 1
+    meta(db, "web-stamp", stamp)
+    return n
+
+
+# --- PDFs, by the text they carry ------------------------------------------------------------
+
+def pdf_pages(path):
+    """The text of a PDF's first pages, one string a page; None when
+    pdftotext (poppler-utils) isn't here; [] when it has no text (a scan).
+    Kept in the cache by the file's time, so a sweep doesn't read it again."""
+    if not shutil.which(PDFTOTEXT):
+        return None
+    key = hashlib.sha1(f"{path}:{os.path.getmtime(path)}".encode()).hexdigest()[:16]
+    cached = os.path.join(CACHE, "pdf", f"{key}.txt")
+    if os.path.exists(cached):
+        text = read_text(cached)
+    else:
+        try:
+            r = subprocess.run([PDFTOTEXT, "-l", str(PDF_PAGES), path, "-"], capture_output=True, text=True,
+                               timeout=120)
+        except (OSError, subprocess.SubprocessError):
+            return []
+        text = r.stdout if r.returncode == 0 else ""
+        os.makedirs(os.path.dirname(cached), exist_ok=True)
+        with open(cached, "w") as f:
+            f.write(text)
+    pages = [p.strip() for p in text.split("\f")]
+    while pages and not pages[-1]:
+        pages.pop()
+    return pages if any(pages) else []
+
+
+def pdf_title(path):
+    if shutil.which("pdfinfo"):
+        try:
+            info = subprocess.run(["pdfinfo", path], capture_output=True, text=True, timeout=30).stdout
+            m = re.search(r"^Title:\s+(.+)$", info, re.M)
+            if m and m.group(1).strip() and not m.group(1).strip().lower().endswith((".pdf", ".dvi", ".tex")):
+                return m.group(1).strip()
+        except (OSError, subprocess.SubprocessError):
+            pass
+    return os.path.basename(path)[:-4]
+
+
+def pdf_rows(path, source, said):
+    """The rows a PDF makes: the whole (id SRC:PATH, kind pdf), then a row a
+    page with text (SRC:PATH#page=N), so a hit opens at its page. A scanned
+    PDF, or one with no pdftotext to read it, is one row by its name, saying why."""
+    pages = pdf_pages(path)
+    if pages is None:
+        note, body = "its text isn't read: pdftotext (vikix pkg add poppler-utils) isn't installed", ""
+    elif not pages:
+        note, body = "a scanned PDF: no text to read in it (a later OCR step)", ""
+    else:
+        note, body = excerpt(pages[0] or next(p for p in pages if p)), "\n\n".join(pages)
+    rows = [({"id": f"{source}:{path}", "source": source, "kind": "pdf", "title": said, "path": path,
+              "excerpt": note}, body)]
+    for n, text in enumerate(pages or [], 1):
+        if text:
+            rows.append(({"id": f"{source}:{path}#page={n}", "source": source, "kind": "page",
+                          "title": f"{said} › page {n}", "path": f"{path}#page={n}", "excerpt": excerpt(text)}, text))
+    return rows
+
+
+def pdf_page_of(doc):
+    """(file, page or 0) of a PDF's row."""
+    path, _, anchor = doc["path"].partition("#")
+    m = re.match(r"^page=(\d+)$", anchor)
+    return path, int(m.group(1)) if m else 0
+
+
+def pdf_text(doc):
+    path, page = pdf_page_of(doc)
+    pages = pdf_pages(path)
+    if pages is None:
+        return f"{doc['title']}\n\npdftotext isn't installed (vikix pkg add poppler-utils), so its text can't be read."
+    if not pages:
+        return f"{doc['title']}\n\nA scanned PDF: it carries no text to read."
+    if page:
+        return pages[page - 1] if page <= len(pages) else ""
+    return "\n\n".join(pages)
+
+
+def pdf_open(doc, other=False):
+    """The PDF in the viewer at the hit's page, where the viewer takes one
+    (zathura, evince, mupdf); else as the file opens; --other: its text in
+    a terminal."""
+    path, page = pdf_page_of(doc)
+    if other:
+        if shutil.which(PDFTOTEXT):
+            terminal(["sh", "-c", f"{shlex.quote(PDFTOTEXT)} -l {PDF_PAGES} {shlex.quote(path)} - | less"])
+            return
+        print("pdftotext isn't installed, so the PDF opens as a file instead", file=sys.stderr)
+    for name, argv in PDF_VIEWERS:
+        if shutil.which(name):
+            subprocess.Popen(["setsid", "-f", *argv(path, page or 1)], stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL)
+            return
+    if page:
+        print(f"no viewer here opens at a page (zathura, evince, mupdf), so page {page} is yours to find",
+              file=sys.stderr)
+    subprocess.Popen(["setsid", "-f", "xdg-open", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def index(full=False, quiet=False):
     t0 = time.time()
     db = connect()
     counts = {}
     with db:
-        counts["vikix"] = index_files(db, "vikix", files_vikix(), md_title, md_plain, full)
-        counts["repo"] = index_files(db, "repo", files_repo(), md_title, md_plain, full)
-        counts["dev"] = index_files(db, "dev", files_dev(), md_title, md_plain, full)
-        counts["note"] = index_files(db, "note", files_note(), org_title, org_plain, full)
+        for source, (files, title_of, plain) in FILE_SOURCES.items():
+            counts[source] = index_files(db, source, files(), title_of, plain, full)
         counts["own"] = index_own(db, full)
         counts["cuis"] = index_cuis(db, full)
         # VIKIX_DOCS_SOURCES limits what's read (the tests leave the system's out).
-        only = os.environ.get("VIKIX_DOCS_SOURCES", "man info tldr arch pkg pkgdoc").split()
+        only = os.environ.get("VIKIX_DOCS_SOURCES", "man info tldr arch pkg pkgdoc web").split()
         if "man" in only:
             counts["man"] = index_man(db, full)
         if "info" in only:
@@ -793,6 +1286,8 @@ def index(full=False, quiet=False):
             counts["pkg"] = index_pkg(db, full)
         if "pkgdoc" in only:
             counts["pkgdoc"] = index_pkgdoc(db, full)
+        if "web" in only:
+            counts["web"] = index_web(db, full)
         meta(db, "indexed", int(time.time()))
     if not quiet:
         read = ", ".join(f"{n} {s}" for s, n in counts.items() if n)
@@ -835,9 +1330,29 @@ def fts_query(words):
 
 
 def find(words, source=None, limit=20):
+    """The hits, best first: the catalogue's (find_fts), with the docsets'
+    entries (find_zeal) among them: the entry named by the words with the
+    documents named by them, the rest after the catalogue's, keeping a
+    share of the list so an API reference isn't buried under man pages."""
+    if source == "zeal":
+        return find_zeal(words, limit)
+    hits, named = find_fts(words, source, limit)
+    if source:
+        return hits
+    zeal = find_zeal(words, max(2, limit // ZEAL_SHARE))
+    if not zeal:
+        return hits
+    exact = [z for z in zeal if z["title"].split(" — ")[0].lower() == " ".join(words).replace('"', "").strip().lower()]
+    rest = [z for z in zeal if z not in exact]
+    room = max(0, limit - len(zeal))
+    return (hits[:named] + exact + hits[named:room] + rest)[:limit]
+
+
+def find_fts(words, source=None, limit=20):
+    """The catalogue's hits and how many of them are named by the words."""
     q = fts_query(words)
     if not q:
-        return []
+        return [], 0
     db = connect()
     cases = " ".join(f"WHEN '{s}' THEN {b}" for s, b in BOOST.items())
     # The document named by the words themselves comes first: "tar" is
@@ -854,7 +1369,10 @@ def find(words, source=None, limit=20):
            f"(CASE WHEN {named} THEN 0 ELSE 1 END) AS tier "
            f"FROM docs_fts JOIN docs d ON d.rid = docs_fts.rowid WHERE docs_fts MATCH ?")
     args = [name, like + " — %", like + "(%", like + ": %", q]
-    if source:
+    if isinstance(source, (list, tuple)):
+        sql += " AND d.source IN (" + ",".join("?" * len(source)) + ")"
+        args += list(source)
+    elif source:
         sql += " AND d.source = ?"
         args.append(source)
     sql += " ORDER BY tier, score LIMIT ?"
@@ -862,12 +1380,14 @@ def find(words, source=None, limit=20):
     try:
         rows = db.execute(sql, args).fetchall()
     except sqlite3.OperationalError:
-        return []
+        return [], 0
     keys = ("id", "source", "kind", "title", "path", "excerpt")
-    return [dict(zip(keys, r[:6])) for r in rows]
+    return [dict(zip(keys, r[:6])) for r in rows], sum(1 for r in rows if r[7] == 0)
 
 
 def get(doc_id):
+    if doc_id.startswith("zeal:"):
+        return zeal_get(doc_id)
     db = connect()
     r = db.execute("SELECT id, source, kind, title, path, excerpt FROM docs WHERE id = ?", (doc_id,)).fetchone()
     return dict(zip(("id", "source", "kind", "title", "path", "excerpt"), r)) if r else None
@@ -880,8 +1400,19 @@ def man_args(doc):
     return section, name
 
 
+def is_pdf(doc):
+    return own_split(doc)[0].lower().endswith(".pdf") and doc["source"] not in ("man", "info", "pkg", "zeal", "web")
+
+
 def read(doc):
     """A document as plain text."""
+    if doc["source"] == "zeal":
+        return zeal_text(doc)
+    if doc["source"] == "web":
+        return (f"{doc['title']}\n\nA link to the web: nothing of it is on this machine, and the catalogue "
+                f"never fetches it. vikix docs open {doc['id']} opens it in the browser.")
+    if is_pdf(doc):
+        return pdf_text(doc)
     if doc["source"] == "man":
         section, name = man_args(doc)
         r = subprocess.run(["man", section, name], capture_output=True, text=True,
@@ -1114,7 +1645,14 @@ def note_opened(doc):
 def open_doc(doc, other=False):
     note_opened(doc)
     src = doc["source"]
-    if src == "man":
+    if src == "zeal":
+        zeal_open(doc, other)
+    elif src == "web":
+        # The default browser, both ways: this one leaves the machine.
+        subprocess.Popen(["setsid", "-f", "xdg-open", doc["path"]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    elif is_pdf(doc):
+        pdf_open(doc, other)
+    elif src == "man":
         section, name = man_args(doc)
         page = None if other else man_html(doc)
         if page:
@@ -1215,6 +1753,8 @@ def random_guide(other=False):
 def hit_line(h):
     ex = h["excerpt"] if h["source"] in ("man", "info") else ""
     title = h["title"] if not ex or ex in h["title"] else f"{h['title']} — {ex}"
+    if h["source"] == "web":
+        title = "🌐 " + title   # the globe: this one opens on the web, not on this machine
     return f"{BADGE.get(h['source'], h['source']):<5}  {title[:160]}"
 
 
@@ -1332,7 +1872,8 @@ def page(query):
 def pick():
     fresh_enough()
     r = subprocess.run(["rofi", "-dmenu", "-p", "docs", "-l", "0", "-mesg",
-                        "Words to find: Vikix's guides, your projects and notes, man and tldr pages, manuals, the ArchWiki"],
+                        "Words to find: Vikix's guides, your projects and notes, man and tldr pages, manuals, "
+                        "the ArchWiki, the API references, PDFs; a web link says so"],
                        input="", capture_output=True, text=True)
     words = r.stdout.strip()
     if r.returncode != 0 or not words:
@@ -1352,6 +1893,322 @@ def pick():
     return 0
 
 
+# --- Asking: a question answered from the documents you chose --------------------------------
+
+ASK_SYSTEM = """You answer questions from the documents on the user's machine, given below in <document> tags, each with a number.
+Use only what they say. After each fact, name the document it came from in brackets, like [2].
+If the documents don't answer the question, say so plainly rather than guessing."""
+
+
+def ai_conf():
+    """~/.config/vikix/ai, Super+i's choice: use=local|claude, model=."""
+    out = {}
+    for line in read_text(os.path.join(CONFIG, "vikix", "ai")).splitlines():
+        if "=" in line and not line.lstrip().startswith("#"):
+            k, v = line.split("=", 1)
+            out[k.strip()] = v.strip()
+    return out
+
+
+def ollama(path, body=None):
+    import urllib.error
+    import urllib.request
+    host = os.environ.get("OLLAMA_HOST", "127.0.0.1:11434")
+    base = host if host.startswith("http") else f"http://{host}"
+    data = None if body is None else json.dumps(body).encode()
+    try:
+        return urllib.request.urlopen(urllib.request.Request(base + path, data=data,
+                                                             headers={"content-type": "application/json"}), timeout=600)
+    except urllib.error.HTTPError as e:
+        die(f"Ollama said {e.code}: {e.read().decode(errors='replace').strip()}")
+    except urllib.error.URLError:
+        die("local AI isn't answering: vikix ai status (or vikix add local-ai). "
+            "Nothing was sent anywhere; --claude sends the passages found to Anthropic instead")
+
+
+def who_answers(claude=False, model=None):
+    """('local', model) or ('claude', model). Local unless --claude or a
+    Claude model is named: nothing goes to the cloud that wasn't asked for."""
+    conf = ai_conf()
+    if model and model.startswith("claude"):
+        claude = True
+    if claude:
+        named = conf.get("model", "")
+        return "claude", model or (named if named.startswith("claude") else CLAUDE_DEFAULT)
+    if model:
+        return "local", model
+    named = conf.get("model", "")
+    if named and not named.startswith("claude"):
+        return "local", named
+    names = [m["name"] for m in json.load(ollama("/api/tags"))["models"]]
+    chat = [n for n in names if "embed" not in n and "minilm" not in n]
+    if not chat:
+        die("no local model to answer with: vikix ai models downloads one "
+            "(or --claude, which sends the passages found to Anthropic)")
+    return "local", LOCAL_DEFAULT if LOCAL_DEFAULT in chat else chat[0]
+
+
+def asked_by_agent():
+    """Whether an agent is above this process: vikix-eval's judgement
+    (whose), Vikix's own scripts passed over. Then the user's own documents
+    stay closed to it, as docs_search keeps them."""
+    try:
+        import importlib.machinery
+        import importlib.util
+        loader = importlib.machinery.SourceFileLoader("vikix_eval", os.path.join(vikix_dir(), "bin", "vikix-eval"))
+        spec = importlib.util.spec_from_loader(loader.name, loader)
+        ev = importlib.util.module_from_spec(spec)
+        loader.exec_module(ev)
+        return ev.whose(past_vikix=True)[0] == "agent"
+    except Exception:   # a missing or changed script never opens the documents
+        return True
+
+
+def ask_words(question):
+    return [w for w in re.findall(r"\w+", question.lower()) if w not in STOP_WORDS and len(w) > 2]
+
+
+def ask_find(question, sources, limit):
+    """The documents that share the most words with the question, from the
+    sources chosen; one row a document (a section stands for its file)."""
+    words = ask_words(question)
+    if not words:
+        die("ask what? a question with a few words in it")
+    query = []
+    for w in words:
+        query += [w, "OR"]
+    hits, _ = find_fts(query[:-1], sources, limit * 4)
+    found, seen = [], set()
+    for h in hits:
+        base = h["id"].split("#", 1)[0]
+        if base in seen:
+            continue
+        seen.add(base)
+        found.append(h)
+        if len(found) == limit:
+            break
+    return found
+
+
+def ask_local(model, prompt):
+    with ollama("/api/chat", {"model": model, "options": {"temperature": 0.2},
+                              "messages": [{"role": "system", "content": ASK_SYSTEM},
+                                           {"role": "user", "content": prompt}]}) as r:
+        for line in r:
+            print(json.loads(line).get("message", {}).get("content", ""), end="", flush=True)
+    print()
+
+
+def ask_claude(model, prompt):
+    """The passages to Anthropic's API, said plainly first; only when asked for."""
+    import urllib.error
+    import urllib.request
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    if not key:
+        die("Claude needs your key: vikix ai key set anthropic (then a new terminal); without --claude the answer is local")
+    base = os.environ.get("ANTHROPIC_BASE_URL", "https://api.anthropic.com").rstrip("/")
+    body = {"model": model, "max_tokens": 4000, "system": ASK_SYSTEM,
+            "messages": [{"role": "user", "content": prompt}]}
+    req = urllib.request.Request(base + "/v1/messages", data=json.dumps(body).encode(),
+                                 headers={"x-api-key": key, "anthropic-version": "2023-06-01",
+                                          "content-type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=600) as r:
+            reply = json.load(r)
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            die("the key was refused: vikix ai key set anthropic")
+        die(f"the API said {e.code}: {e.read().decode(errors='replace').strip()[:300]}")
+    except urllib.error.URLError:
+        die("couldn't reach Anthropic: is the network up? (without --claude the answer is local)")
+    print("".join(c.get("text", "") for c in reply.get("content", []) if c.get("type") == "text"))
+    if reply.get("stop_reason") == "refusal":
+        print("(Claude declined to answer that.)", file=sys.stderr)
+
+
+def ask(question, sources, claude=False, model=None, limit=ASK_LIMIT, dry=False):
+    """A question answered from the documents found for it, with the
+    documents named. The web's links are never read; a docset's entries
+    are found by name (vikix docs find), not asked."""
+    for s in sources:
+        if s in ("web", "zeal"):
+            die(f"{s} can't be asked: web links are never fetched, and a docset's entries are found by name "
+                "(vikix docs find WORDS)")
+        if s not in BOOST:
+            die(f"no source {s} (vikix docs status lists them)")
+    fresh_enough()
+    found = ask_find(question, sources, limit)
+    closed = 0
+    if "own" in sources and asked_by_agent():
+        config = own_config()
+        kept = [h for h in found if h["source"] != "own" or own_open_to_agents(own_split(h)[0], config)]
+        closed = len(found) - len(kept)
+        found = kept
+    if not found:
+        die("nothing found to answer from" + (" (your own documents are closed to agents)" if closed else "")
+            + f"; sources: {', '.join(sources)}")
+    passages = []
+    for n, h in enumerate(found, 1):
+        text = " ".join(read(h).split())[:ASK_PASSAGE]
+        passages.append(f'<document n="{n}" id="{html.escape(h["id"])}" title="{html.escape(h["title"])}">\n{text}\n</document>')
+    prompt = "\n\n".join(passages) + f"\n\nQuestion: {question}"
+    if dry:
+        print(prompt)
+        return
+    kind, model = who_answers(claude, model)
+    where = "on this laptop" if kind == "local" else f"these {len(found)} passages go to Anthropic"
+    print(f"({model}, {where}; from {', '.join(sources)})", file=sys.stderr)
+    if closed:
+        print(f"({closed} of your own documents left out: closed to agents)", file=sys.stderr)
+    (ask_claude if kind == "claude" else ask_local)(model, prompt)
+    print("\nFrom:")
+    for n, h in enumerate(found, 1):
+        print(f"  [{n}] {h['id']} — {' '.join(h['title'].split())}")
+
+
+# --- The watch on ~/src ---------------------------------------------------------------------
+# One inotifywait over ~/src, started and stopped by hand; a document that
+# changes there is read within a second, instead of at the day's sweep.
+# Nothing else watches the disk.
+
+WATCH_EXTS = (".md", ".pdf", ".org")
+WATCH_SKIP = r"/(\.git|node_modules|\.cache|\.venv|__pycache__|out|build|dist)(/|$)"
+
+
+def state_dir():
+    return os.environ.get("VIKIX_STATE") or os.path.join(HOME, ".local/state/vikix")
+
+
+def watch_pid_file():
+    return os.path.join(state_dir(), "docs", "watch.pid")
+
+
+def watch_pid():
+    """The watcher's pid while one of ours is alive, else 0."""
+    try:
+        pid = int(read_text(watch_pid_file()).strip() or 0)
+    except ValueError:
+        pid = 0
+    if pid <= 0:
+        return 0
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            words = f.read().split(b"\0")
+    except OSError:
+        return 0
+    return pid if any(w.endswith(b"vikix-docs") for w in words) and b"watch" in words else 0
+
+
+def watch_state():
+    pid = watch_pid()
+    if not pid:
+        return "off (vikix docs watch on reads a change in ~/src within a second)"
+    since = time.strftime("%Y-%m-%d %H:%M", time.localtime(os.path.getmtime(watch_pid_file())))
+    try:
+        last = int(meta(connect(), "watch-last") or 0)
+    except sqlite3.Error:
+        last = 0
+    seen = f", last change read {time.strftime('%H:%M', time.localtime(last))}" if last else ""
+    return f"on {SRC} since {since} (pid {pid}){seen}"
+
+
+def watch_on():
+    if not shutil.which("inotifywait"):
+        die("inotifywait isn't installed: vikix pkg add inotify-tools")
+    if not os.path.isdir(SRC):
+        die(f"nothing to watch: {SRC} isn't there")
+    pid = watch_pid()
+    if pid:
+        print(f"already watching {SRC} (pid {pid})")
+        return
+    os.makedirs(os.path.dirname(watch_pid_file()), exist_ok=True)
+    log = os.path.join(state_dir(), "docs", "watch.log")
+    with open(log, "ab") as out:
+        subprocess.Popen(["setsid", "-f", "python3", os.path.join(vikix_dir(), "bin", "vikix-docs"), "watch", "--run"],
+                         stdin=subprocess.DEVNULL, stdout=out, stderr=out)
+    for _ in range(50):
+        if watch_pid():
+            print(f"watching {SRC}: a document that changes there is read within a second "
+                  "(vikix docs watch off stops it; it ends with the session)")
+            return
+        time.sleep(0.1)
+    die(f"the watch didn't start ({log} says why)")
+
+
+def watch_off():
+    pid = watch_pid()
+    if not pid:
+        print(f"not watching {SRC}")
+        return
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    for _ in range(30):
+        if not os.path.exists(f"/proc/{pid}"):
+            break
+        time.sleep(0.1)
+    else:
+        os.kill(pid, signal.SIGKILL)
+    try:
+        os.remove(watch_pid_file())
+    except OSError:
+        pass
+    print(f"the watch on {SRC} is off")
+
+
+def watch_run():
+    """The watcher itself: inotifywait's lines, gathered for a second, then
+    those files read again (index_paths); ends with SIGTERM, taking
+    inotifywait with it."""
+    import select
+    os.makedirs(os.path.dirname(watch_pid_file()), exist_ok=True)
+    with open(watch_pid_file(), "w") as f:
+        f.write(str(os.getpid()))
+    child = subprocess.Popen(["inotifywait", "-m", "-r", "-q", "-e", "close_write,moved_to,create,delete,moved_from",
+                              "--exclude", WATCH_SKIP, "--format", "%w%f", SRC], stdout=subprocess.PIPE)
+
+    def stop(signum, frame):
+        raise SystemExit(0)
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+    print(f"watching {SRC}", flush=True)
+    buf, pending = b"", set()
+    try:
+        while True:
+            ready, _, _ = select.select([child.stdout], [], [], 1.0 if pending else None)
+            if ready:
+                chunk = os.read(child.stdout.fileno(), 65536)
+                if not chunk:
+                    break
+                buf += chunk
+                lines = buf.split(b"\n")
+                buf = lines.pop()
+                for line in lines:
+                    path = line.decode("utf-8", "replace")
+                    if path.lower().endswith(WATCH_EXTS):
+                        pending.add(path)
+            elif pending:
+                db = connect()
+                with db:
+                    n = index_paths(db, pending)
+                    meta(db, "watch-last", int(time.time()))
+                db.close()
+                print(f"{time.strftime('%H:%M:%S')} read {n}: {' '.join(sorted(pending))[:300]}", flush=True)
+                pending.clear()
+    finally:
+        child.terminate()
+        try:
+            child.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            child.kill()
+        try:
+            if read_text(watch_pid_file()).strip() == str(os.getpid()):
+                os.remove(watch_pid_file())
+        except OSError:
+            pass
+
+
 # --- Commands -------------------------------------------------------------------------------
 
 def status():
@@ -1364,6 +2221,10 @@ def status():
         print(f"  {s:<6} {n:>6}")
     if not rows:
         print("  empty: vikix docs index")
+    sets, entries = zeal_counts()
+    if sets:
+        print(f"  zeal   {entries:>6}  in {sets} docsets, read in place ({ZEAL})")
+    print(f"  watch  {watch_state()}")
 
 
 def listing(source=None):
@@ -1371,6 +2232,9 @@ def listing(source=None):
     if not source:
         for s_, n in db.execute("SELECT source, count(*) FROM docs GROUP BY source ORDER BY count(*) DESC"):
             print(f"{s_}\t{n}")
+        sets, entries = zeal_counts()
+        if sets:
+            print(f"zeal\t{entries}")
         return
     for id_, title in db.execute("SELECT id, title FROM docs WHERE source = ? ORDER BY title COLLATE NOCASE",
                                  (source,)):
@@ -1434,12 +2298,48 @@ def main(argv):
         doc = get(args[0])
         if not doc:
             die(f"no document {args[0]} (vikix docs find WORDS shows the ids)")
-        if doc["source"] not in ("man", "info", "pkg") and not os.path.exists(own_split(doc)[0]):
+        if doc["source"] not in ("man", "info", "pkg", "zeal", "web") and not os.path.exists(own_split(doc)[0]):
             die(f"{doc['path']} is gone since the last index (vikix docs index catches up)")
         if cmd == "read":
             print(read(doc))
         else:
             open_doc(doc, other="--other" in args)
+    elif cmd == "ask":
+        sources, claude, model, limit, dry, words = [], False, None, ASK_LIMIT, False, []
+        it = iter(args)
+        for a in it:
+            if a == "--source":
+                sources += (next(it, "") or "").split(",")
+            elif a == "--claude":
+                claude = True
+            elif a == "--local":
+                claude = False
+            elif a == "--model":
+                model = next(it, None)
+            elif a == "--limit":
+                limit = int(next(it, str(ASK_LIMIT)))
+            elif a == "--show":
+                dry = True
+            else:
+                words.append(a)
+        if not words:
+            die('ask what? vikix docs ask "QUESTION"')
+        sources = [s for s in sources if s]
+        if "all" in sources:
+            sources = [s for s in BOOST if s != "web"]
+        ask(" ".join(words), sources or list(ASK_SOURCES), claude, model, limit, dry)
+    elif cmd == "watch":
+        what = args[0] if args else "status"
+        if what == "on":
+            watch_on()
+        elif what == "off":
+            watch_off()
+        elif what == "--run":
+            watch_run()
+        elif what == "status":
+            print(watch_state())
+        else:
+            die("vikix docs watch on|off|status")
     elif cmd == "index":
         index(full="--full" in args, quiet="--quiet" in args)
     elif cmd == "status":

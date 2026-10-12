@@ -933,12 +933,15 @@ TOOLS = [
      "(note), the classes of the Cuis Smalltalk image (cuis: a row a package and a row a class, its comment and "
      "method categories, from the package files), man pages (man), Info manuals (info), the tldr pages (tldr: a "
      "command's worked examples), the "
-     "ArchWiki (arch: offline copies, when wikiman keeps them), packages' READMEs (pkgdoc) and every package "
-     "there is, installed or not (pkg); the user's own documents (own) only from a folder the user has "
+     "ArchWiki (arch: offline copies, when wikiman keeps them), packages' READMEs and PDFs (pkgdoc; a PDF is "
+     "a row a page), every package there is, installed or not (pkg), the entries of Zeal's API docsets (zeal: "
+     "found by name, read in place), and links to the web (web: installed packages' websites, the language "
+     "guides' links, the user's own; listed only, never fetched: docs_read gives the URL, nothing more); "
+     "the user's own documents (own) only from a folder the user has "
      "opened to agents. Use it before answering how something on this machine "
      "works. Words, \"a phrase\", or OR; the start of a word is enough. Read only." + DATA,
      schema({"query": {"type": "string", "maxLength": 200},
-             "source": {"type": "string", "enum": ["vikix", "own", "repo", "dev", "note", "cuis", "man", "info", "tldr", "arch", "pkgdoc", "pkg"]},
+             "source": {"type": "string", "enum": ["vikix", "own", "repo", "dev", "note", "cuis", "man", "info", "tldr", "arch", "pkgdoc", "pkg", "zeal", "web"]},
              "limit": {"type": "integer", "minimum": 1, "maximum": 25}}, ["query"]),
      READ, t_docs_search),
     ("docs_read", "Read one document",

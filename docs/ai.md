@@ -338,7 +338,7 @@ vikix mcp unregister   # take it away
 | agents | The agents at work on the desktop, the asking one among them: each one's folder, branch, uncommitted files, workspace, how long, and what it is doing. So an agent can see another is at work in a folder before it changes files there |
 | handoff, handoff_update | Reads or updates a desk's handoff record: task, status, summary, next, checks with freshness, sessions |
 | doctor, history, changes, themes, version | What `vikix doctor`, `vikix history`, `vikix changes`, `vikix theme` and `vikix version` say |
-| docs_search, docs_read | Finds and reads the documents on this machine, the ones `Super+F2` searches: these guides, man pages, your projects' documents, your notes. So the agent can answer from the man page, not from memory |
+| docs_search, docs_read | Finds and reads the documents on this machine, the ones `Super+F2` searches: these guides, man pages, your projects' documents and PDFs, your notes, the entries of Zeal's docsets; a link to the web is given as its address alone, never fetched. So the agent can answer from the man page, not from memory. Your own documents (`own=` in `~/.config/vikix/docs`) stay closed to it, as they do to `vikix docs ask` run by an agent, unless an `agents=` line opens a folder |
 | records_search, records_get | Finds and reads what your plugins kept (`vikix records`): flight searches, meetings, your Claude plan's use. It can't add or change a record |
 | file_changes | Every change made to your files through Esploro (`vikix add esploro`), newest first, in words, and whether it was undone. For "where did that file go?". Nothing is undone here: that stays yours, in Esploro's Edit → Changes… |
 | notify | Shows a notification, marked as the agent's |
