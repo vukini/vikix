@@ -184,9 +184,14 @@ out=$(vl c info 2>&1)
 check "info should say the lesson and where it is: $out" grep -qx "dir=$work/$last" <<<"$out"
 vl c test 01 >/dev/null 2>&1 || true
 check "test NN shouldn't move you" test "$(cat "$VIKIX_STATE/learn/c/current")" = "$last"
-# The shell pane: its settings follow the lesson pane at each prompt.
+# The shell pane: its settings follow the lesson pane at each prompt. Its
+# bash is interactive, so it runs in a session of its own, with no terminal:
+# from a terminal (a release run by hand, 2026-10-12), the terminal stopped
+# it as a background job, an interactive bash ignores timeout's TERM, and
+# the release hung on it for half an hour. With no terminal and no input it
+# ends at once; the KILL after a second is for whatever else keeps it.
 vl c go 01 >/dev/null 2>&1
-timeout 5 bash -c "$(printf '%q ' bash "$here/bin/vikix-learn" c shell)" </dev/null >/dev/null 2>&1 || true
+setsid timeout -k 1 5 bash -c "$(printf '%q ' bash "$here/bin/vikix-learn" c shell)" </dev/null >/dev/null 2>&1 || true
 rc="$VIKIX_STATE/learn/c/shellrc"
 check "the shell pane should write its settings" test -f "$rc"
 out=$(cd / && bash -c ". '$rc'; echo \"\$_vikix_learn_at\"; echo '$second' > '$VIKIX_STATE/learn/c/current'; _vikix_learn_follow >/dev/null; pwd" 2>&1)
