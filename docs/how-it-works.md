@@ -29,6 +29,7 @@ login on tty1
               ├─ idle times, night light, the locker (xss-lock → vikix-lock)
               ├─ the Emacs daemon (with the feature emacs), the battery warner, the update checker,
               │  the polkit password box
+              ├─ the Network Office watcher: discovery at joins only for networks you enabled
               ├─ Ollama, for local AI models, once `vikix ai setup` installed it
               └─ ~/.local/bin/stumpwm             the last line; when it exits, the session ends
                   └─ ~/.stumpwm.d/init.lisp

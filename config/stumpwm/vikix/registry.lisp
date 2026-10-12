@@ -597,6 +597,8 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command network-use "Network use: which program is using it (nethogs)"
   :do (run-shell-command (format nil "~a -e sudo nethogs" *vikix-terminal*))
   :menu "System" :needs "nethogs")
+(define-vikix-command network-office "Network Office: nearby devices, ports and connections"
+  :run "exec vikix-network" :menu "System" :needs "emacsclient")
 (define-vikix-command firewall "Firewall: on or off, and what it lets in"
   :do (vikix-in-terminal "vikix firewall")
   :menu "System" :needs "ufw")

@@ -97,6 +97,7 @@ for f in "${files[@]}"; do
     TODO*.md|IDEAS.md|ARCHIVE.md|bugs.md|plans/*|NYXT-GUIDE.md|VERSION|.gitignore) continue ;;
     CLAUDE.md) add codex ;;   # Codex is given it whole, under a cap the launcher sets
     tests/office-ui*|lib/office.py|config/emacs/vikix-office.el) add office-ui codex ;;
+    tests/network*|bin/vikix-network|config/emacs/vikix-network.el) add network ;;
     tests/run.sh|tests/changed.sh) all=1 ;;
     .claude/release) add release ;;
     tests/*.sh) add "$(basename "$f" .sh)" ;;

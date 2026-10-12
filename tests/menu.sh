@@ -150,7 +150,7 @@ has "Apps=Video: edit (Shotcut)|Pictures: edit a photo (GIMP)|Dropbox|Cuis Small
   "Apps has the apps that came with features, then Dropbox, Cuis, Windows and the web apps"
 has "Windows=Overview: every workspace, drawn small|Layout: pick this workspace's (tiles, main and stack, grid, strip)|Layout: save this workspace's, by name|Layout: put this workspace back as one you saved|Strip: this workspace scrolls sideways (Viri), or tiled again|Gaps around windows on/off|Find a window, any workspace|Workspace: go to one by name, or make one|Workspace: refile them, each moved left into an empty one|Bring every window of another workspace here|Remember this window here: write the rule for where it is|Rules: the list, one off or on, why this window is where it is|Bring my windows back, as they were before the restart" \
   "Windows keeps the three layout lines together"
-has "System=Wi-Fi: pick a network (scans first)|Network: everything else (nmtui)|Network use: which program is using it (nethogs)|Firewall: on or off, and what it lets in|Bluetooth|Sound (pavucontrol)|Screens: extend, mirror, one only, arrange|Screens: arrange (arandr)|Screens: save this layout|Printers|Eject a drive|Apply keyboard settings|Firmware updates" \
+has "System=Wi-Fi: pick a network (scans first)|Network: everything else (nmtui)|Network use: which program is using it (nethogs)|Network Office: nearby devices, ports and connections|Firewall: on or off, and what it lets in|Bluetooth|Sound (pavucontrol)|Screens: extend, mirror, one only, arrange|Screens: arrange (arandr)|Screens: save this layout|Printers|Eject a drive|Apply keyboard settings|Firmware updates" \
   "System keeps the three lines for screens together"
 has "lay=[Windows        Layout: pick this workspace's (tiles, main and stack, grid, strip)    s-C-SPC SPC]" "typing finds an entry, its section before it and its key after (one inside a map: both keys)"
 has "lay=[System         Screens: save this layout]" "typing looks in every section"
@@ -177,6 +177,8 @@ while IFS= read -r need; do
              { echo "FAIL: the menu needs $need, which nothing makes"; fail=1; } ;;
     ghb) grep -qx handbrake <(sed 's/[[:space:]]*#.*//' "$here"/packages/optional/video.list) ||  # HandBrake's program
            { echo "FAIL: the menu needs ghb, but no list installs handbrake"; fail=1; } ;;
+    emacsclient) grep -qx emacs-x11 <(sed 's/[[:space:]]*#.*//' "$here"/packages/emacs.list) ||  # Void's Emacs package
+           { echo "FAIL: the menu needs emacsclient, but no list installs emacs-x11"; fail=1; } ;;
     *) grep -rqxE "$need( .*)?" <(cat "$here"/packages/*.list "$here"/packages/optional/*.list | sed 's/[[:space:]]*#.*//') ||
          { echo "FAIL: the menu needs the program $need, but no list installs a package of that name"; fail=1; } ;;
   esac

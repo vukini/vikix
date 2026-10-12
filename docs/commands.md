@@ -44,6 +44,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-mcp](#vikix-mcp): the Vikix desktop as an MCP server, for any agent that speaks MCP
 - [vikix-memory](#vikix-memory): what uses the memory, what's left over, a warning when it runs low
 - [vikix-net](#vikix-net): the network link as one short line, for the mode line
+- [vikix-network](#vikix-network): the Network Office: nearby devices, ports and connections
 - [vikix-nightlight](#vikix-nightlight): a warmer screen in the evening (gammastep)
 - [vikix-notes](#vikix-notes): ask your notes, from any terminal (`note` for short)
 - [vikix-notifications](#vikix-notifications): the notifications dunst has put away, in rofi, newest first
@@ -93,6 +94,7 @@ The everyday command.
 - `vikix doctor` — check the pieces are all there
 - `vikix screens [extend|mirror|external|laptop|pick]` — the screens: a plugged one lights up by itself; this lays them out otherwise (Super+Ctrl+p)
 - `vikix wifi [list|scan]` — Wi-Fi: pick a network from a list scanned first
+- `vikix network [status]` — Network Office: nearby devices, ports and connections
 - `vikix tray [on|off|status]` — a tray at the bar's end: network and Bluetooth icons (nm-applet, blueman-applet); alone it switches, as Super+m's Tray does
 - `vikix memory [left|clean]` — what uses the memory, biggest first, and the programs left over (hidden screens, tests nobody ended); clean ends those; a warning comes by itself when memory runs low (vikix memory help)
 - `vikix rescue [free|undo|lock]` — when the desktop is stuck: how it is and what it is doing; free = out of a loop (rules paused, focus on clicks, a fresh event loop); works from a text console too (vikix rescue help)
@@ -864,6 +866,22 @@ offline    neither
 ```
 
 Asks NetworkManager. Prints nothing when it isn't running, so the bar leaves the field out instead of showing something wrong.
+
+## vikix-network
+
+The Network Office: nearby devices, ports and connections.
+
+- `vikix network` — open the Network Office in your existing Emacs
+- `vikix network status` — local network information as JSON; no scan
+- `vikix network refresh` — apply saved discovery choices, then return status
+- `vikix network discover ID` — discover devices on the selected network
+- `vikix network ports ID ADDRESS` — check common TCP ports on a local device
+- `vikix network policy ID MODE` — remember manual, discover or ports for this network
+- `vikix network watch` — watch joins and apply each network's saved choice
+
+ID is the network id from status. New or incompletely identified networks start in manual mode. Discovery checks directly connected IPv4 subnets, at most 1024 addresses altogether; it never sweeps a VPN or an IPv6 prefix. Port checks cover common TCP services, not every port or UDP. They run as you, without sudo, and do not identify service versions. Port names are suggestions, not proof of what is listening. Devices can be hidden by a firewall or Wi-Fi isolation; a missing reply does not mean a device is off.
+
+Preferences live in `~/.config/vikix/network/preferences.json`. Results are temporary, in the session's runtime directory, and expire after ten minutes. No device history is kept. The session starts watch at login; after an update, log in again for discovery on joins while the Office is closed. Opening the Office applies saved choices too. See the guide's Network Office page.
 
 ## vikix-nightlight
 

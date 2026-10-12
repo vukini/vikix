@@ -1,0 +1,492 @@
+#!/usr/bin/env python3
+"""vikix-network — the Network Office: nearby devices, ports and connections.
+
+  vikix network                  open the Network Office in your existing Emacs
+  vikix network status           local network information as JSON; no scan
+  vikix network refresh          apply saved discovery choices, then return status
+  vikix network discover ID      discover devices on the selected network
+  vikix network ports ID ADDRESS  check common TCP ports on a local device
+  vikix network policy ID MODE   remember manual, discover or ports for this network
+  vikix network watch            watch joins and apply each network's saved choice
+
+ID is the network id from status. New or incompletely identified networks
+start in manual mode. Discovery checks directly connected IPv4 subnets, at
+most 1024 addresses altogether; it never sweeps a VPN or an IPv6 prefix.
+Port checks cover common TCP services, not every port or UDP. They run as
+you, without sudo, and do not identify service versions. Port names are
+suggestions, not proof of what is listening. Devices can be hidden by a
+firewall or Wi-Fi isolation; a missing reply does not mean a device is off.
+
+Preferences live in ~/.config/vikix/network/preferences.json. Results are
+temporary, in the session's runtime directory, and expire after ten minutes.
+No device history is kept. The session starts watch at login; after an update,
+log in again for discovery on joins while the Office is closed. Opening the
+Office applies saved choices too. See the guide's Network Office page.
+"""
+import argparse
+import contextlib
+import fcntl
+import hashlib
+import html
+import ipaddress
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+import xml.etree.ElementTree as ET
+
+ROOT = Path(__file__).resolve().parent.parent
+COMMON = '21,22,23,25,53,80,110,139,143,443,445,465,548,587,631,993,995,2049,3306,3389,5432,5900,8000,8080,8443,9090'
+MODES = ('manual', 'discover', 'ports')
+SCAN_SECONDS = 90
+
+
+class BusyError(RuntimeError):
+    """A live request owns the shared scanner; retry on the next refresh."""
+
+
+def run(args, seconds=5):
+    result = subprocess.run(args, capture_output=True, text=True, timeout=seconds,
+                            env={**os.environ, 'LC_ALL': 'C'})
+    if result.returncode:
+        raise RuntimeError(f'{args[0]} could not answer: {result.stderr.strip()[:250]}')
+    return result.stdout
+
+
+def fields(line):
+    """nmcli escapes colons and backslashes, including in connection names."""
+    parts, word, escaped = [], '', False
+    for char in line:
+        if escaped:
+            word += char
+            escaped = False
+        elif char == '\\':
+            escaped = True
+        elif char == ':':
+            parts.append(word)
+            word = ''
+        else:
+            word += char
+    return parts + [word]
+
+
+def digest(value):
+    return hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()[:24]
+
+
+def address(value):
+    try:
+        result = ipaddress.ip_address(value)
+        return result if not (result.is_multicast or result.is_unspecified or result.is_loopback) else None
+    except ValueError:
+        return None
+
+
+def networks():
+    """Read NetworkManager and kernel tables only; no probes or DNS requests."""
+    connections = run(['nmcli', '-t', '-f', 'UUID,TYPE,DEVICE,NAME,ACTIVE-PATH', 'connection', 'show', '--active'])
+    links = json.loads(run(['ip', '-j', '-4', 'address', 'show']))
+    routes = json.loads(run(['ip', '-j', '-4', 'route', 'show', 'table', 'main']))
+    neighbours = json.loads(run(['ip', '-j', '-4', 'neigh', 'show']))
+    found = []
+    for line in connections.splitlines():
+        parts = fields(line)
+        if len(parts) != 5:
+            continue
+        uuid, kind, dev, name, attachment = parts
+        if kind not in ('802-3-ethernet', '802-11-wireless') or not re.fullmatch(r'[a-zA-Z0-9_.:-]+', dev):
+            continue
+        link = next((x for x in links if x.get('ifname') == dev), {})
+        ips = [a['local'] for a in link.get('addr_info', []) if a.get('family') == 'inet' and address(a.get('local', ''))]
+        if not ips:
+            continue
+        local = []
+        for route in routes:
+            if route.get('dev') == dev and route.get('scope') == 'link' and not route.get('gateway'):
+                try:
+                    net = ipaddress.ip_network(route.get('dst', ''), strict=False)
+                    if net.version == 4 and any(ipaddress.ip_address(a) in net for a in ips):
+                        local.append(str(net))
+                except ValueError:
+                    pass
+        local = sorted(set(local))
+        gateways = sorted({r['gateway'] for r in routes if r.get('dev') == dev and r.get('dst') == 'default' and address(r.get('gateway', ''))})
+        peers = [n for n in neighbours if n.get('dev') == dev and n.get('lladdr') and
+                 address(n.get('dst', '')) and not set(n.get('state', [])) & {'FAILED', 'INCOMPLETE'}]
+        macs = [next((n['lladdr'].lower() for n in peers if n['dst'] == g), '') for g in gateways]
+        identity = [uuid, local, list(zip(gateways, macs))]
+        # No gateway evidence means no durable automatic scanning permission.
+        known = bool(uuid and local and gateways and all(macs))
+        row = dict(id=digest([dev, identity, attachment, ips]), name=name, interface=dev, uuid=uuid,
+                   attachment=digest([dev, uuid, local, gateways, attachment, ips]),
+                   subnets=local, addresses=ips, gateways=gateways, gateway_macs=macs,
+                   identifiable=known, key=digest(identity) if known else '', devices=[])
+        for ip in sorted(set(ips + gateways + [p['dst'] for p in peers]), key=ipaddress.ip_address):
+            if not on_link(row, ip):
+                continue
+            peer = next((p for p in peers if p['dst'] == ip), {})
+            row['devices'].append(dict(address=ip, role='This computer' if ip in ips else 'Gateway' if ip in gateways else 'Device',
+                                       mac=peer.get('lladdr', ''), evidence='local address' if ip in ips else 'default route' if ip in gateways else 'neighbour cache',
+                                       ports=[], checked=False))
+        found.append(row)
+    return found
+
+
+def on_link(net, ip):
+    a = address(ip)
+    prefixes = [ipaddress.ip_network(s) for s in net['subnets']]
+    return bool(a and a.version == 4 and any(a in prefix and
+                (prefix.prefixlen >= 31 or a not in (prefix.network_address, prefix.broadcast_address))
+                for prefix in prefixes))
+
+
+def private_dir(path):
+    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if path.is_symlink() or path.stat().st_uid != os.getuid():
+        raise RuntimeError('Network Office directory is not owned by you')
+    if path.stat().st_mode & 0o777 != 0o700:
+        path.chmod(0o700)
+    return path
+
+
+def runtime():
+    base = Path(os.environ.get('XDG_RUNTIME_DIR', tempfile.gettempdir()))
+    return private_dir(base / f'vikix-network-{os.getuid()}')
+
+
+def preferences():
+    path = private_dir(Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config'))) / 'vikix/network') / 'preferences.json'
+    # A user's dotfiles link keeps pointing at their file after a preference changes.
+    return path.resolve() if path.is_symlink() else path
+
+
+def read(path):
+    try:
+        return json.loads(path.read_text())
+    except FileNotFoundError:
+        return {}
+    except (ValueError, OSError) as e:
+        raise RuntimeError(f'Cannot read {path.name}: {e}') from e
+
+
+def write(path, value):
+    fd, name = tempfile.mkstemp(dir=path.parent)
+    try:
+        with os.fdopen(fd, 'w') as stream:
+            json.dump(value, stream)
+        os.replace(name, path)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
+
+
+@contextlib.contextmanager
+def lock(path, blocking=False):
+    with path.open('a') as stream:
+        try:
+            fcntl.flock(stream, fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB))
+        except BlockingIOError as e:
+            raise BusyError('Another Network Office operation is running; refresh shortly') from e
+        yield
+
+
+def cache_path(net):
+    return runtime() / (digest(net['interface']) + '.json')
+
+
+def cached(net):
+    data = read(cache_path(net))
+    if data.get('id') != net['id'] or not 0 <= time.time() - data.get('at', 0) < 600:
+        return {}
+    data['devices'] = [d for d in data.get('devices', []) if 0 <= time.time() - d.get('observed_at', 0) < 600]
+    return data
+
+
+def policy(net):
+    data = read(preferences())
+    mode = data.get(net['key'], 'manual') if net['key'] else 'manual'
+    return mode if mode in MODES else 'manual'
+
+
+def current(identity):
+    net = next((n for n in networks() if n['id'] == identity), None)
+    if not net:
+        raise RuntimeError('Network changed or disconnected; refresh before continuing')
+    return net
+
+
+def still_here(net):
+    for latest in networks():
+        if latest['id'] == net['id']:
+            return latest
+        # An explicit first discovery can fill the previously empty gateway
+        # neighbour entry. Learning that MAC is not a disconnect or a new join.
+        if not net['identifiable'] and latest['attachment'] == net['attachment']:
+            net.update(latest)
+            return latest
+    raise RuntimeError('Network changed or disconnected; scan stopped')
+
+
+def snapshot():
+    rows = networks()
+    for net in rows:
+        data = cached(net)
+        merged = {d['address']: d for d in data.get('devices', [])}
+        for device in net['devices']:
+            old = merged.get(device['address'], {})
+            merged[device['address']] = {**device, **old, 'role': device['role'], 'mac': device['mac'] or old.get('mac', '')}
+        net.update(devices=sorted(merged.values(), key=lambda d: ipaddress.ip_address(d['address'])),
+                   policy=policy(net), scanned=data.get('at'), error=data.get('error', ''))
+        net.pop('key')
+    return dict(networks=rows, nmap=bool(shutil.which('nmap')), at=time.time())
+
+
+def set_policy(identity, mode):
+    net = current(identity)
+    if not net['key']:
+        raise RuntimeError('Gateway identity is incomplete; this network stays Manual. Discover once, then refresh.')
+    path = preferences()
+    with lock(path.with_suffix('.lock')):
+        data = read(path)
+        data[net['key']] = mode
+        write(path, data)
+
+
+def scan(net, targets, ports=False, automatic=False):
+    """One bounded child, reaped on success, cancellation, signal or timeout."""
+    check_routes(net, targets)
+    initial_policy = policy(net) if automatic else None
+    args = ['nmap', '--unprivileged', '-n', '-oX', '-', '--max-retries', '1', '--host-timeout', '12s']
+    args += ['-sT', '-Pn', '-p', COMMON] if ports else ['-sn']
+    args += targets
+    with subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                          start_new_session=True) as proc:
+        end = time.monotonic() + SCAN_SECONDS
+        try:
+            while True:
+                try:
+                    output, error = proc.communicate(timeout=1)
+                    break
+                except subprocess.TimeoutExpired:
+                    latest = still_here(net)
+                    check_routes(latest, targets)
+                    if automatic and policy(latest) != initial_policy:
+                        raise RuntimeError('Discovery preference changed; scan stopped')
+                    if automatic and policy(latest) == 'manual':
+                        raise RuntimeError('Automatic discovery disabled; scan stopped')
+                    if time.monotonic() >= end:
+                        raise RuntimeError('Scan timed out; results were not saved')
+            still_here(net)
+            if automatic and policy(net) != initial_policy:
+                raise RuntimeError('Discovery preference changed; scan stopped')
+            if proc.returncode:
+                raise RuntimeError('Nmap failed: ' + error.strip()[:250])
+            return parse_scan(output, net, ports)
+        finally:
+            if proc.poll() is None:
+                os.killpg(proc.pid, signal.SIGKILL)
+            proc.wait()
+
+
+def check_routes(net, targets):
+    """Connect scans follow kernel routing. Refuse alternate policy tables and
+    overlapping routes through other interfaces rather than scanning a tunnel."""
+    rules = json.loads(run(['ip', '-j', '-4', 'rule', 'show']))
+    if any(str(r.get('table')) not in ('local', 'main', 'default', '253', '254', '255') or
+           r.get('action') not in (None, 'to_tbl') for r in rules):
+        raise RuntimeError('Custom routing or a VPN is active; discovery needs ordinary local routing')
+    wanted = [ipaddress.ip_network(t, strict=False) for t in targets]
+    routes = json.loads(run(['ip', '-j', '-4', 'route', 'show', 'table', 'main']))
+    for route in routes:
+        if route.get('dst') == 'default':
+            continue
+        try:
+            candidate = ipaddress.ip_network(route.get('dst', ''), strict=False)
+        except ValueError:
+            continue
+        if any(candidate.overlaps(t) for t in wanted) and (route.get('dev') != net['interface'] or route.get('gateway')):
+            raise RuntimeError('Another route overlaps this network; scanning is paused')
+
+
+def parse_scan(output, net, checked):
+    devices = []
+    root = ET.fromstring(output)
+    for host in root.findall('host'):
+        status = host.find('status')
+        if status is None or status.get('state') != 'up':
+            continue
+        ip = next((a.get('addr') for a in host.findall('address') if a.get('addrtype') == 'ipv4'), '')
+        if not on_link(net, ip):
+            continue
+        ports = []
+        for p in host.findall('ports/port'):
+            state, service = p.find('state'), p.find('service')
+            if state is not None and p.get('protocol') == 'tcp':
+                ports.append(dict(port=int(p.get('portid')), state=state.get('state', 'unknown'),
+                                  service=service.get('name', '') if service is not None else ''))
+        extra = [f"{e.get('count')} {e.get('state')}" for e in host.findall('ports/extraports')]
+        devices.append(dict(address=ip, role='This computer' if ip in net['addresses'] else 'Gateway' if ip in net['gateways'] else 'Device',
+                            mac=next((a.get('addr') for a in host.findall('address') if a.get('addrtype') == 'mac'), ''),
+                            evidence='TCP check' if checked else 'discovery response', ports=ports, observed_at=time.time(),
+                            checked=checked and host.find('ports') is not None,
+                            other_ports=', '.join(extra), checked_at=time.time() if checked else None))
+    return devices
+
+
+def inspect(identity, target=None, automatic=False):
+    net = current(identity)
+    with lock(runtime() / 'scan.lock'):
+        if automatic and policy(net) == 'manual':
+            return
+        if target:
+            if not on_link(net, target):
+                raise RuntimeError('Choose a device on this directly connected IPv4 network')
+            targets = [str(ipaddress.ip_address(target))]
+        else:
+            targets = net['subnets']
+            if not targets or sum(ipaddress.ip_network(s).num_addresses for s in targets) > 1024:
+                raise RuntimeError('Discovery is limited to 1024 directly connected IPv4 addresses; inspect a local address individually')
+        devices = scan(net, targets, ports=bool(target), automatic=automatic)
+        if not target and automatic and policy(net) == 'ports':
+            # One bounded sweep of common ports on responders, not one process per port.
+            hosts = [d['address'] for d in devices]
+            if hosts:
+                devices = scan(net, hosts, ports=True, automatic=True)
+        still_here(net)
+        previous = cached(net).get('devices', []) if target else []
+        merged = {d['address']: d for d in previous}
+        merged.update({d['address']: d for d in devices})
+        write(cache_path(net), dict(id=net['id'], at=time.time(), devices=list(merged.values())))
+
+
+def auto_once(seen, notify=False):
+    rows = networks()
+    active = {n['id'] for n in rows}
+    for old in list(seen):
+        if old not in active:
+            del seen[old]
+    for net in rows:
+        mode = policy(net)
+        if seen.get(net['id']) == mode:
+            continue
+        new = net['id'] not in seen
+        seen[net['id']] = mode
+        if new and notify and shutil.which('notify-send'):
+            try:
+                run(['notify-send', '-a', 'Vikix', 'Network Office',
+                     html.escape(net['name']) + ': ' + ('Manual discovery. Open Network Office from Super+m, System.'
+                                                      if mode == 'manual' else 'Applying your saved discovery preference.')])
+            except (RuntimeError, OSError, subprocess.SubprocessError):
+                pass
+        if mode == 'manual':
+            continue
+        try:
+            inspect(net['id'], automatic=True)
+        except BusyError:
+            del seen[net['id']]
+        except (RuntimeError, OSError, ValueError, ET.ParseError, subprocess.SubprocessError) as e:
+            write(cache_path(net), dict(id=net['id'], at=time.time(), devices=[], error=str(e)))
+
+
+def refresh(notify=False):
+    # The open Office and the login watcher share their join observations.
+    with lock(runtime() / 'auto.lock'):
+        path = runtime() / 'joins.json'
+        seen = read(path)
+        auto_once(seen, notify)
+        write(path, seen)
+    # Only current attachments have results; no record of departed devices.
+    with lock(runtime() / 'scan.lock'):
+        active = {cache_path(n).name: n['id'] for n in networks()}
+        for path in runtime().glob('*.json'):
+            if path.name == 'joins.json':
+                continue
+            data = read(path)
+            if data.get('id') != active.get(path.name) or time.time() - data.get('at', 0) >= 600:
+                path.unlink(missing_ok=True)
+
+
+def watch():
+    with lock(runtime() / 'watch.lock'):
+        while True:
+            try:
+                refresh(notify=True)
+            except (RuntimeError, OSError, ValueError, subprocess.SubprocessError) as e:
+                print(str(e), file=sys.stderr, flush=True)
+            time.sleep(10)
+
+
+def launch():
+    if not os.environ.get('DISPLAY'):
+        raise RuntimeError('The Network Office needs a graphical display; use vikix network status in a terminal')
+    if not shutil.which('emacsclient'):
+        raise RuntimeError('The Network Office needs Emacs; install it with vikix add emacs')
+    source = json.dumps(str(ROOT / 'config/emacs/vikix-network.el'), ensure_ascii=False)
+    display = json.dumps(os.environ['DISPLAY'], ensure_ascii=False)
+    try:
+        result = run(['emacsclient', '--alternate-editor=false', '--eval',
+                      f'(progn (load {source} nil t) (vikix-network-open {display}))'], 8)
+    except (RuntimeError, OSError, subprocess.SubprocessError) as e:
+        raise RuntimeError(f'Could not open the existing Emacs: {e}. '
+                           'Use M-x server-start there if needed, then try again. No second Emacs was started.') from e
+    found = re.fullmatch(r'"([0-9]+)"\s*', result)
+    if found:
+        try:
+            run([str(ROOT / 'bin/vikix-eval'), f'(vikix-show-window-id {int(found.group(1))})'], 5)
+        except (RuntimeError, OSError, subprocess.SubprocessError):
+            pass
+
+
+def main():
+    if any(a in ('-h', '--help', 'help') for a in sys.argv[1:]):
+        print(__doc__)
+        return
+    parser = argparse.ArgumentParser(add_help=False)
+    sub = parser.add_subparsers(dest='command')
+    sub.add_parser('status')
+    sub.add_parser('refresh')
+    sub.add_parser('watch')
+    for verb in ('discover', 'ports', 'policy'):
+        p = sub.add_parser(verb)
+        p.add_argument('id')
+        if verb == 'ports':
+            p.add_argument('address')
+        if verb == 'policy':
+            p.add_argument('mode', choices=MODES)
+    args = parser.parse_args()
+    if not args.command:
+        launch()
+        return
+    if args.command == 'watch':
+        watch()
+        return
+    if args.command == 'policy':
+        set_policy(args.id, args.mode)
+    elif args.command == 'refresh':
+        try:
+            refresh()
+        except BusyError:
+            pass  # The watcher is scanning; the UI can still read local information.
+    elif args.command in ('discover', 'ports'):
+        inspect(args.id, getattr(args, 'address', None))
+    print(json.dumps(snapshot()))
+
+
+if __name__ == '__main__':
+    # A killed UI request must also reap its scanner.
+    def interrupted(_signum, _frame):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, interrupted)
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(130)
+    except (RuntimeError, OSError, ValueError, ET.ParseError, subprocess.SubprocessError) as error:
+        print(f'Network Office: {error}', file=sys.stderr)
+        sys.exit(1)

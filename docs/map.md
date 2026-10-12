@@ -32,6 +32,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   ├── vikix/
 │   │   ├── vikix.bash         Vikix's   aliases, prompt, fzf/zoxide/atuin setup
 │   │   ├── keyboard           yours     layout and XKB options
+│   │   ├── network/preferences.json  yours  discovery choice for each network (Network Office)
 │   │   ├── plugins.list       yours     the plugins you added (vikix plugin add); "NAME from REPO at COMMIT" is one from another repository, at the commit you pinned; "#off " in front, one switched off
 │   │   ├── tray               yours     the tray in the bar: on or off (vikix tray switches it), and the applets it starts
 │   │   ├── plugins/NAME/      yours     your settings for plugin NAME (copied once)

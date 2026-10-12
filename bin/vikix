@@ -24,6 +24,7 @@
 #                         the screens: a plugged one lights up by itself;
 #                         this lays them out otherwise (Super+Ctrl+p)
 #   vikix wifi [list|scan]   Wi-Fi: pick a network from a list scanned first
+#   vikix network [status]  Network Office: nearby devices, ports and connections
 #   vikix tray [on|off|status]  a tray at the bar's end: network and
 #                         Bluetooth icons (nm-applet, blueman-applet); alone
 #                         it switches, as Super+m's Tray does
@@ -1148,6 +1149,7 @@ main() {
     records)     shift; exec "$VIKIX_DIR/bin/vikix-records" "$@" ;;
     screens)     shift; exec "$VIKIX_DIR/bin/vikix-screens" "$@" ;;
     wifi)        shift; exec "$VIKIX_DIR/bin/vikix-wifi" "$@" ;;
+    network)     shift; exec "$VIKIX_DIR/bin/vikix-network" "$@" ;;
     memory)      shift; exec "$VIKIX_DIR/bin/vikix-memory" "$@" ;;
     times)       shift; exec "$VIKIX_DIR/bin/vikix-times" "$@" ;;
     used)        shift; exec "$VIKIX_DIR/bin/vikix-used" "$@" ;;
