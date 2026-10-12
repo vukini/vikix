@@ -24,6 +24,7 @@ Every `vikix` command has a man page as well, and so has each command of a plugi
 | [Working with AI](ai.md) | You want the agent to change something for you, a model on the laptop, `llm` in a pipe, dictation, to talk with the AI, to ask your notes, or to give the agent the desktop as tools |
 | [Agents at work](agents.md) | You run several AI agents at once: seeing who is on what, a desk (a workspace and a git worktree) for each, and the house rules when two reach for one file |
 | [Windows in a window](windows.md) | You need a program that only runs on Windows |
+| [Steam](steam.md) | You want to play games, Windows ones too: one command sets Steam up with everything your graphics card needs, and what to do when a game doesn't run |
 | [The commands](commands.md) | You want to know what a command takes: every `vikix` command, its forms and the files it keeps, as its `-h` and its man page say them |
 | [When something breaks](fixing.md) | The install or the desktop didn't start, a key or a menu entry is missing, an update failed, you want a report to ask the agent or a person |
 

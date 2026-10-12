@@ -713,6 +713,7 @@ vikix remove julia         # stop keeping it, and uninstall what only it needed
 | `optional/passwords` | Feature `passwords`: KeePassXC |
 | `optional/bitwarden` | Feature `bitwarden`: rbw, rofi-rbw and pinentry-gtk. See [Passwords](#passwords) |
 | `optional/phone` | Feature `phone`: scrcpy and adb (android-tools), an Android phone's screen in a window. Switch on USB debugging on the phone first |
+| `optional/steam` | Feature `steam` (`vikix steam setup`, or `vikix add steam`): Steam from the nonfree repo, and from multilib the 32-bit libraries every card needs (libgcc, libstdc++, libdrm, libglvnd, libva, mesa-dri) and the Vulkan loader in both widths; the setup adds the graphics card's own Vulkan driver, both widths, and a higher open-files limit. See [Steam](#steam) |
 | `optional/cli-extras` | Feature `cli-extras`: pandoc, ncdu |
 | `optional/lisp-apps` | Feature `lisp-apps`: Nyxt, and SDL2 with its fonts and images (and libvterm, for the terminal inside Lem), which Lem's window is built on. See [Lisp programs](#lisp-programs-vikix-add-lisp-apps) |
 | `optional/esploro` | Feature `esploro`: ImageMagick, poppler and ffmpegthumbnailer, which make the thumbnails of Esploro's preview; archivemount, which opens an archive like a folder; sshfs, for a server's folders over SSH; and libimobiledevice, ifuse and usbmuxd, for an iPhone under Drives (Esploro itself is built by `vikix esploro setup`) |
@@ -858,6 +859,12 @@ vikix windows app excel ~/Documents/report.xlsx   # a file, opened in it
 - **Sharp, not blurred:** FreeRDP mirrors Windows' see-through layers as screen-sized windows, and picom's blur behind see-through windows would blur the whole screen; the starter `picom.conf` leaves `vikix-win-*` windows out of the blur (a `picom.conf` from before 0.71.183 needs the line `"class_g ^= 'vikix-win-'"` in `blur-background-exclude`). The picture is sent without lossy video either.
 - **Below the bar:** the desktop says where the bar is (`_NET_WORKAREA`) and FreeRDP passes it on (`/workarea`), so Windows sees a screen that starts below the bar and a maximized program's own title bar, its close button too, isn't under it. Hide the bar (Super+Ctrl+h) while a program is open and it moves up the next time it opens.
 - **One at a time:** Windows 11 Pro has one session. A program open this way takes it from the full desktop (`vikix windows`), which shows the lock screen until you go back to it.
+
+## Steam
+
+`vikix add steam` (or `vikix steam setup`) makes Steam work in one go, which on a plain Void it doesn't: Steam is a 32-bit program, Void keeps its 32-bit libraries in the multilib repository that is off by default, and the right ones depend on the graphics card. The setup switches the repository on (multilib-nonfree too, for a proprietary NVIDIA driver), installs Steam and the libraries every card needs (`packages/optional/steam.list`, which `vikix update` keeps), reads the card from `/sys/class/drm` and installs its Vulkan driver in both widths (Intel, AMD, nouveau, or the installed `nvidia` package's `-libs-32bit`), and raises your hard open-files limit to 524288 in `/etc/security/limits.d/50-vikix-steam.conf`, which Proton's esync wants (it takes effect at the next login). Game controllers need nothing: Steam's udev rules tag them for the seat, and elogind hands them to you.
+
+Then Super+m → Apps → Games (Steam), or `steam`. The first start downloads the client itself, about 500 MB, into `~/.local/share/Steam`, where the games go too. For Windows games, in Steam: Settings → Compatibility → Enable Steam Play for all other titles. `vikix steam status` says what is there, `vikix doctor` checks it, and `vikix remove steam` takes the packages, the card's 32-bit driver and the limit away; the client and your games are yours and stay. The guide: [docs/steam.md](docs/steam.md).
 
 ## Plugins
 

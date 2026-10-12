@@ -666,11 +666,12 @@ sections. Typing among the sections finds an entry of any of them."
     ("Passwords (Bitwarden): pick a login" (run-shell-command "vikix-bitwarden pick") "rbw")
     ;; In a terminal, so "no device" (USB debugging off, cable out) is seen.
     ("Phone: its screen in a window (scrcpy)" (vikix-in-terminal "scrcpy") "scrcpy")
+    ("Games (Steam)"                (run-shell-command "steam") "steam")
     ("Disk: what fills my home (ncdu)" (vikix-in-terminal "ncdu ~") "ncdu")
     ("Files: Esploro, the Lisp file explorer" vikix-esploro "~/.local/bin/esploro"))
   "The apps of Super+m's section Apps, in the same form as *vikix-menu*: the
 programs of the features video, graphics, blender, study, passwords, bitwarden, phone,
-cli-extras and esploro. Each shows once its program is here.")
+steam, cli-extras and esploro. Each shows once its program is here.")
 
 (defcommand vikix-esploro () ()
   "Esploro, the file explorer (Super+e): the one on this workspace, else a new

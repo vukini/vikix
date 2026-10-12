@@ -50,6 +50,7 @@ study       | optional/study     |          |                     |             
 passwords   | optional/passwords |          |                     |                       | KeePassXC: passwords and two-factor codes, offline in a file of your own
 bitwarden   | optional/bitwarden |          | vikix bitwarden setup | vikix bitwarden uninstall | Bitwarden: your passwords and two-factor codes from your Bitwarden account, typed into any window (Super+Alt+v)
 phone       | optional/phone     |          |                     |                       | An Android phone's screen in a window (scrcpy, over adb)
+steam       | optional/steam     |          | vikix steam setup   | vikix steam uninstall | Steam: games, Windows ones too through Proton; the 32-bit libraries and the Vulkan driver your graphics card needs come along
 wallpapers  |                    |          | vikix wallpapers setup | vikix wallpapers uninstall | Vid's wallpapers (about 40 MB): the wallpaper cycles through them, and they're in the Super+m picker; vikix update brings new ones
 cli-extras  | optional/cli-extras|          |                     |                       | More terminal tools: pandoc converts documents, ncdu shows what fills the disk
 windows     | optional/windows   |          | vikix windows setup | vikix windows remove  | Windows 11 in a window (8 GB of memory, 40 GB of disk)

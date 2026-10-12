@@ -1,0 +1,267 @@
+#!/usr/bin/env bash
+# vikix-steam — Steam, with everything a game needs on Void (`vikix steam`).
+#
+#   vikix steam setup     once: the multilib repository, Steam and its 32-bit
+#                         libraries, the Vulkan driver for your graphics card
+#                         in both widths, and a higher open-files limit for
+#                         Proton. vikix add steam runs the same
+#   vikix steam status    what is there and what isn't: the repository, the
+#                         packages, the card and its drivers, the limit, and
+#                         where Steam keeps your games
+#   vikix steam check     the same for vikix doctor: one line when all is well,
+#                         nothing when Steam isn't chosen, exit 1 otherwise
+#   vikix steam uninstall  before vikix remove steam takes the packages: the
+#                         card's 32-bit driver and the limit go; your games,
+#                         in ~/.local/share/Steam, stay
+#
+# Steam is a 32-bit program on a 64-bit machine, and that is why it was a
+# headache on Void: a plain Void has no 32-bit libraries at all, they live
+# in a repository of their own (multilib) that is off by default, and the
+# right ones depend on the graphics card, so one missing library stopped
+# the client, and the next one the first game. This script reads the card
+# from /sys/class/drm (never asks a program), and knows which packages each
+# card wants:
+#
+#   Intel (i915, xe)        mesa-vulkan-intel, mesa-vulkan-intel-32bit
+#   AMD (amdgpu, radeon)    mesa-vulkan-radeon, mesa-vulkan-radeon-32bit
+#   NVIDIA, open (nouveau)  mesa-vulkan-nouveau, mesa-vulkan-nouveau-32bit
+#   NVIDIA, proprietary     nvidia-libs-32bit (470: nvidia470-libs-32bit, 390:
+#                           nvidia390-libs-32bit), from multilib-nonfree
+#
+# What every card needs is packages/optional/steam.list, which vikix update
+# keeps. A card not in the table (a VM's) still gets Steam, and a warning:
+# games that need Vulkan won't run there.
+#
+# The limit: Proton's esync opens an eventfd for every Wine object, and Void's
+# hard limit of 4096 open files is far too few for a game, so the setup writes
+# /etc/security/limits.d/50-vikix-steam.conf with 524288 for you (the hard
+# limit only; programs raise their own soft one). It takes effect at your
+# next login. Game controllers need nothing: steam-udev-rules tags them for
+# the seat, and elogind hands them to whoever is logged in.
+#
+# Steam's own files are yours: ~/.local/share/Steam (the client, the games;
+# tens of GB) and ~/.steam. Nothing here deletes them.
+#
+# For the tests: VIKIX_DRM stands in for /sys/class/drm, VIKIX_LIMITS_DIR
+# for /etc/security/limits.d.
+
+set -euo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+export VIKIX_DIR
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+# shellcheck source=../lib/features.sh
+. "$VIKIX_DIR/lib/features.sh"
+
+DRM=${VIKIX_DRM:-/sys/class/drm}
+LIMITS_DIR=${VIKIX_LIMITS_DIR:-/etc/security/limits.d}
+LIMITS_FILE=$LIMITS_DIR/50-vikix-steam.conf
+NOFILE=524288
+STEAM_HOME=${XDG_DATA_HOME:-$HOME/.local/share}/Steam
+
+chosen() { is_chosen steam; }
+
+# cards — one line a graphics card: DRIVER VENDOR, as "i915 0x8086", from
+# /sys/class/drm. A card's outputs (card0-eDP-1) have no device of their
+# own, so only the cards match; a card with no driver bound says none.
+cards() {
+  local v dev drv
+  for v in "$DRM"/card*/device/vendor; do
+    [ -e "$v" ] || continue
+    dev=${v%/vendor}
+    if [ -L "$dev/driver" ]; then drv=$(basename "$(readlink -f "$dev/driver")"); else drv=none; fi
+    printf '%s %s\n' "$drv" "$(cat "$v")"
+  done | sort -u
+}
+
+# vendor_name VENDOR — who made it, for the messages.
+vendor_name() {
+  case $1 in
+    0x8086) echo Intel ;;
+    0x1002) echo AMD ;;
+    0x10de) echo NVIDIA ;;
+    0x1af4|0x1234|0x15ad|0x1b36) echo "a virtual machine's" ;;
+    *) echo "an unknown ($1)" ;;
+  esac
+}
+
+# nvidia_pkg — the proprietary NVIDIA driver installed here, if one is.
+nvidia_pkg() {
+  local p
+  for p in nvidia nvidia470 nvidia390; do pkg_installed "$p" && { echo "$p"; return 0; }; done
+  return 1
+}
+
+# driver_packages DRIVER — the Vulkan packages for the card the kernel
+# driver DRIVER drives, the 64-bit one first. Nothing for a card we don't
+# know. For the proprietary NVIDIA driver, the 32-bit libraries of the very
+# nvidia package installed: another version's would be the wrong ones.
+driver_packages() {
+  local nv
+  case $1 in
+    i915|xe) echo mesa-vulkan-intel mesa-vulkan-intel-32bit ;;
+    amdgpu|radeon) echo mesa-vulkan-radeon mesa-vulkan-radeon-32bit ;;
+    nouveau) echo mesa-vulkan-nouveau mesa-vulkan-nouveau-32bit ;;
+    nvidia) if nv=$(nvidia_pkg); then echo "$nv-libs-32bit"; fi ;;
+  esac
+}
+
+# repos_wanted — the repositories the cards here need: multilib for every
+# 32-bit library, multilib-nonfree for NVIDIA's.
+repos_wanted() {
+  echo void-repo-multilib
+  cards | grep -q '^nvidia ' && echo void-repo-multilib-nonfree
+  return 0
+}
+
+# card_packages — every driver package the cards here want, once each.
+card_packages() {
+  local drv _
+  while read -r drv _; do driver_packages "$drv"; done < <(cards) | tr ' ' '\n' | awk 'NF && !seen[$0]++'
+}
+
+# card_lines — one line a card for status and setup: who made it, the
+# driver, what it gets.
+card_lines() {
+  local drv vendor pkgs
+  while read -r drv vendor; do
+    pkgs=$(driver_packages "$drv")
+    if [ -n "$pkgs" ]; then
+      printf '%s card (%s): %s\n' "$(vendor_name "$vendor")" "$drv" "$pkgs"
+    elif [ "$drv" = nvidia ]; then
+      printf '%s card (nvidia): no nvidia, nvidia470 or nvidia390 package here, so no 32-bit libraries for it\n' "$(vendor_name "$vendor")"
+    else
+      printf '%s card (%s): no Vulkan driver known for it; Steam runs, games that need Vulkan (Proton) will not\n' "$(vendor_name "$vendor")" "$drv"
+    fi
+  done < <(cards)
+}
+
+# limit_ok — is the open-files limit written for this user?
+limit_ok() { grep -qs "^$(id -un)[[:space:]]\+hard[[:space:]]\+nofile[[:space:]]\+$NOFILE" "$LIMITS_FILE"; }
+
+steam_size() { [ -d "$STEAM_HOME" ] && du -sh "$STEAM_HOME" 2>/dev/null | cut -f1 || true; }
+
+# ---------------------------------------------------------------------------
+cmd_setup() {
+  local arch repo tmp hard
+  arch=$(xbps-uhelper arch 2>/dev/null || uname -m)
+  [ "$arch" = x86_64 ] || die "Steam is for x86_64 machines, and this is $arch; nothing changed"
+  [ -n "$(cards)" ] || warn "no graphics card in $DRM: Steam is installed, with no Vulkan driver"
+  card_lines | while IFS= read -r line; do say "$line"; done
+
+  # The repositories first, then a sync, so the lists can name their packages.
+  # They arrive pointed at Void's default mirror; 05-mirror chose a nearer one.
+  for repo in $(repos_wanted); do
+    pkg_installed "$repo" && continue
+    say "switching on the repository $repo"
+    run sudo xbps-install -Sy "$repo"
+  done
+  if [ -n "$(current_mirror)" ]; then use_mirror "$(current_mirror)"; fi
+
+  # The feature steam: from now on 10-packages installs its list, now and at
+  # every update (vikix remove steam undoes it).
+  record_features steam
+  DRY_RUN=$DRY_RUN VIKIX_LISTS=steam bash "$VIKIX_DIR/install/10-packages.sh"
+
+  local missing=() p
+  for p in $(card_packages); do pkg_installed "$p" || missing+=("$p"); done
+  if [ "${#missing[@]}" -gt 0 ]; then
+    say "the card's Vulkan driver: ${missing[*]}"
+    run sudo xbps-install -y "${missing[@]}"
+  fi
+
+  if ! limit_ok; then
+    say "raising the open-files limit for $(id -un) to $NOFILE ($LIMITS_FILE)"
+    tmp=$(mktemp)
+    {
+      echo "# Written by vikix steam setup. Proton's esync opens an eventfd for every"
+      echo "# Wine object, and Void's hard limit of 4096 is far too few for a game."
+      echo "# vikix steam uninstall removes this file."
+      printf '%s\thard\tnofile\t%s\n' "$(id -un)" "$NOFILE"
+    } > "$tmp"
+    run sudo install -D -m 644 "$tmp" "$LIMITS_FILE"
+    rm -f "$tmp"
+  fi
+
+  say "set up. Steam: Super+m → Apps → Games (Steam), or type steam."
+  echo "   The first start downloads the client itself, about 500 MB, into ~/.local/share/Steam."
+  echo "   Windows games: in Steam, Settings → Compatibility → Enable Steam Play for all other titles."
+  hard=$(ulimit -Hn)
+  if [ "$hard" != unlimited ] && [ "$hard" -lt "$NOFILE" ]; then
+    echo "   The open-files limit takes effect at your next login (now $hard)."
+  fi
+}
+
+# status_lines — what is there, a line each, "ok" or "no" first.
+status_lines() {
+  local repo p have=0 want=0 hard
+  for repo in $(repos_wanted); do
+    if pkg_installed "$repo"; then echo "ok repository $repo is on"; else echo "no repository $repo is off (vikix steam setup)"; fi
+  done
+  if pkg_installed steam; then echo "ok steam is installed"; else echo "no steam isn't installed"; fi
+  for p in $(read_list "$VIKIX_DIR/packages/optional/steam.list"); do
+    [ "$p" = steam ] && continue
+    want=$((want + 1)); pkg_installed "$p" && have=$((have + 1))
+  done
+  if [ "$have" = "$want" ]; then echo "ok the 32-bit libraries, all $want"; else echo "no the 32-bit libraries: $have of $want (vikix steam setup, or vikix update)"; fi
+  card_lines | while IFS= read -r line; do echo "-- $line"; done
+  for p in $(card_packages); do
+    if pkg_installed "$p"; then echo "ok $p"; else echo "no $p isn't installed (vikix steam setup)"; fi
+  done
+  hard=$(ulimit -Hn)
+  if limit_ok; then
+    if [ "$hard" = unlimited ] || [ "$hard" -ge "$NOFILE" ]; then echo "ok open files: $hard"
+    else echo "ok open files: $NOFILE from your next login (now $hard)"; fi
+  else
+    echo "no open files: $hard, and no $LIMITS_FILE (vikix steam setup)"
+  fi
+  if [ -d "$STEAM_HOME" ]; then echo "-- Steam's files: $STEAM_HOME, $(steam_size)"
+  else echo "-- Steam hasn't run yet: its client and your games will be in $STEAM_HOME"; fi
+}
+
+cmd_status() {
+  local mark rest
+  if chosen; then say "Steam is one of your features"; else say "Steam isn't chosen (vikix add steam)"; fi
+  while read -r mark rest; do
+    case $mark in ok) echo "   ok  $rest" ;; no) echo "   --  $rest" ;; *) echo "       $rest" ;; esac
+  done < <(status_lines)
+}
+
+cmd_check() {
+  chosen || return 0
+  local bad
+  bad=$(status_lines | sed -n 's/^no //p')
+  if [ -z "$bad" ]; then say "Steam has its repository, its 32-bit libraries and the card's driver"; return 0; fi
+  while IFS= read -r line; do warn "Steam: $line"; done <<<"$bad"
+  return 1
+}
+
+cmd_uninstall() {
+  local p gone=()
+  # The card's 32-bit driver was for Steam alone; its 64-bit one serves any
+  # program that draws with Vulkan, and stays.
+  for p in $(card_packages); do
+    case $p in *-32bit) pkg_installed "$p" && gone+=("$p") ;; esac
+  done
+  if [ "${#gone[@]}" -gt 0 ]; then
+    say "removing the card's 32-bit driver: ${gone[*]}"
+    run sudo xbps-remove -y "${gone[@]}"
+  fi
+  if [ -e "$LIMITS_FILE" ]; then
+    say "removing the open-files limit, $LIMITS_FILE (back to Void's at your next login)"
+    run sudo rm -f "$LIMITS_FILE"
+  fi
+  say "the multilib repository stays on; sudo xbps-remove void-repo-multilib switches it off"
+  if [ -d "$STEAM_HOME" ]; then
+    say "your games and the client, $STEAM_HOME ($(steam_size)), are yours and stay: delete that folder yourself for the disk back"
+  fi
+}
+
+case ${1:-status} in
+  setup)     shift; cmd_setup "$@" ;;
+  status)    cmd_status ;;
+  check)     cmd_check ;;
+  uninstall) cmd_uninstall ;;
+  help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) die "vikix steam: unknown command $1 (vikix steam help)" ;;
+esac

@@ -63,6 +63,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-screens](#vikix-screens): the screens: a new one lights up by itself, and a menu for the rest
 - [vikix-screenshot](#vikix-screenshot): keep a picture of an area, a window or the whole screen
 - [vikix-session](#vikix-session): everything that runs for the length of a desktop session
+- [vikix-steam](#vikix-steam): Steam, with everything a game needs on Void
 - [vikix-theme](#vikix-theme): the colour theme, everywhere
 - [vikix-times](#vikix-times): how long the desktop takes
 - [vikix-updates](#vikix-updates): what `vikix update` would bring
@@ -153,6 +154,7 @@ The everyday command.
 - `vikix ai key set|list|remove|check` — API keys (`ANTHROPIC_API_KEY` ...) kept safely, out of your dotfiles and their history
 - `vikix windows [setup|create ISO|stop|status|network|remove]` — Windows in a VM: set it up once, install it by itself, then open its desktop in a window (vikix windows help)
 - `vikix windows app NAME [FILE] | apps [setup|add NAME|remove NAME|forget]` — one Windows program in a window of its own, and the programs Windows has
+- `vikix steam [setup|status|uninstall]` — Steam, with the 32-bit libraries and the Vulkan driver your graphics card needs; Windows games too, through Proton (vikix steam help)
 
 Each command has a man page with the whole of it: man vikix-NAME (man vikix is this list; man -k vikix lists the pages).
 
@@ -1190,6 +1192,33 @@ Everything that runs for the length of a desktop session.
 - `vikix-session` — the session; `~/.xinitrc` runs it, nobody else should
 
 Started by `~/.xinitrc` inside dbus-run-session, so every program here shares one session bus. Without systemd there are no "user services": the background programs are simply started here, and they end when StumpWM (the last line) exits.
+
+## vikix-steam
+
+Steam, with everything a game needs on Void.
+
+- `vikix steam setup` — once: the multilib repository, Steam and its 32-bit libraries, the Vulkan driver for your graphics card in both widths, and a higher open-files limit for Proton. vikix add steam runs the same
+- `vikix steam status` — what is there and what isn't: the repository, the packages, the card and its drivers, the limit, and where Steam keeps your games
+- `vikix steam check` — the same for vikix doctor: one line when all is well, nothing when Steam isn't chosen, exit 1 otherwise
+- `vikix steam uninstall` — before vikix remove steam takes the packages: the card's 32-bit driver and the limit go; your games, in `~/.local/share/Steam`, stay
+
+Steam is a 32-bit program on a 64-bit machine, and that is why it was a headache on Void: a plain Void has no 32-bit libraries at all, they live in a repository of their own (multilib) that is off by default, and the right ones depend on the graphics card, so one missing library stopped the client, and the next one the first game. This script reads the card from /sys/class/drm (never asks a program), and knows which packages each card wants:
+
+```
+Intel (i915, xe)        mesa-vulkan-intel, mesa-vulkan-intel-32bit
+AMD (amdgpu, radeon)    mesa-vulkan-radeon, mesa-vulkan-radeon-32bit
+NVIDIA, open (nouveau)  mesa-vulkan-nouveau, mesa-vulkan-nouveau-32bit
+NVIDIA, proprietary     nvidia-libs-32bit (470: nvidia470-libs-32bit, 390:
+                        nvidia390-libs-32bit), from multilib-nonfree
+```
+
+What every card needs is packages/optional/steam.list, which vikix update keeps. A card not in the table (a VM's) still gets Steam, and a warning: games that need Vulkan won't run there.
+
+The limit: Proton's esync opens an eventfd for every Wine object, and Void's hard limit of 4096 open files is far too few for a game, so the setup writes /etc/security/limits.d/50-vikix-steam.conf with 524288 for you (the hard limit only; programs raise their own soft one). It takes effect at your next login. Game controllers need nothing: steam-udev-rules tags them for the seat, and elogind hands them to whoever is logged in.
+
+Steam's own files are yours: `~/.local/share/Steam` (the client, the games; tens of GB) and `~/.steam`. Nothing here deletes them.
+
+For the tests: `VIKIX_DRM` stands in for /sys/class/drm, `VIKIX_LIMITS_DIR` for /etc/security/limits.d.
 
 ## vikix-theme
 

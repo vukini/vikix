@@ -194,6 +194,9 @@
 #   vikix windows app NAME [FILE] | apps [setup|add NAME|remove NAME|forget]
 #                         one Windows program in a window of its own, and
 #                         the programs Windows has
+#   vikix steam [setup|status|uninstall]   Steam, with the 32-bit libraries and
+#                         the Vulkan driver your graphics card needs; Windows
+#                         games too, through Proton (vikix steam help)
 #
 # Each command has a man page with the whole of it: man vikix-NAME (man
 # vikix is this list; man -k vikix lists the pages).
@@ -763,6 +766,8 @@ cmd_doctor() {
   bash "$VIKIX_DIR/bin/vikix-local-ai" check || ok=0
   # The Windows VM, if there is one, on its private network.
   bash "$VIKIX_DIR/bin/vikix-windows" check || ok=0
+  # Steam, if it's chosen: its repository, 32-bit libraries and the card's driver.
+  bash "$VIKIX_DIR/bin/vikix-steam" check || ok=0
   # API keys belong in ~/.config/vikix/secrets (vikix ai key), not in your
   # files, where the snapshot history keeps them for ever.
   bash "$VIKIX_DIR/bin/vikix-ai" key check || ok=0
@@ -1184,6 +1189,7 @@ main() {
     backup)      shift; exec "$VIKIX_DIR/bin/vikix-backup" "$@" ;;
     firmware)    shift; exec "$VIKIX_DIR/bin/vikix-firmware" "$@" ;;
     windows)     shift; exec "$VIKIX_DIR/bin/vikix-windows" "$@" ;;
+    steam)       shift; exec "$VIKIX_DIR/bin/vikix-steam" "$@" ;;
     ai)          shift; exec "$VIKIX_DIR/bin/vikix-ai" "$@" ;;
     webapp|webapps) shift; exec "$VIKIX_DIR/bin/vikix-webapp" "$@" ;;
     fingerprint) shift; exec "$VIKIX_DIR/bin/vikix-fingerprint" "$@" ;;

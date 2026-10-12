@@ -14,7 +14,9 @@ list="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/webapps"
 # keys.lisp's list before that).
 keys="$VIKIX_DIR/config/stumpwm/vikix/registry.lisp"
 vikix_has() {
-  grep -v '^ *;' "$keys" | grep -qF ":key \"$1\"" ||
+  # Not grep -q on the pipe's end: under pipefail its early exit gives the
+  # first grep SIGPIPE, and a key Vikix has was called free (seen under load).
+  grep -v '^ *;' "$keys" | grep -F ":key \"$1\"" >/dev/null ||
     grep -qF "(\"$1\"" "$VIKIX_DIR/config/stumpwm/vikix/keys.lisp"
 }
 [ -f "$list" ] || { say "no web apps"; exit 0; }

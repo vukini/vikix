@@ -1,0 +1,16 @@
+# steam.list — Steam (the feature steam; `vikix steam setup`, or `vikix add
+# steam`). Steam is a 32-bit program on a 64-bit machine, and the Steam
+# client comes from Void's nonfree repository; the -32bit libraries come
+# from the multilib repository, which the setup switches on first (this
+# list alone would fail without it). Only what every graphics card needs
+# is here; the Vulkan driver for the card found in /sys (Intel, AMD, NVIDIA)
+# is installed by the setup, in both widths, since a list can't know the card.
+steam               # the Steam client's launcher: it downloads the client itself at the first start (about 500 MB), into ~/.local/share/Steam
+libgcc-32bit        # the 32-bit C runtime the client's own programs are built against
+libstdc++-32bit     # and its C++ one
+libdrm-32bit        # 32-bit direct rendering: the client's windows draw through the card
+libglvnd-32bit      # 32-bit OpenGL dispatch
+mesa-dri-32bit      # 32-bit OpenGL for Intel and AMD cards (the open drivers); an NVIDIA card's own 32-bit libraries come from the setup
+libva-32bit         # 32-bit video decoding, for the client's videos
+vulkan-loader       # Vulkan, which Proton's DXVK turns Windows games' Direct3D into; the loader finds the card's driver
+vulkan-loader-32bit # the same for 32-bit games
