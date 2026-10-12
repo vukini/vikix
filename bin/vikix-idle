@@ -8,7 +8,7 @@
 #   vikix-idle apply          set the lock and screen-off times (the session
 #                             does this at login)
 #   vikix-idle awake [on|off|toggle]
-#                             keep awake: no lock, no dark screen, no suspend,
+#                             keep awake: no idle lock, dark screen or suspend,
 #                             for a film or a talk; the bar says "awake".
 #                             Every login starts with it off.
 #   vikix-idle --watch        suspend on battery after SUSPEND minutes idle;
@@ -19,6 +19,8 @@
 #   SCREEN_OFF=11
 #   SUSPEND=20          # 0: never suspend by itself
 # Anything not set there keeps the value below.
+# Critical battery sleep is separate: vikix-battery still suspends at 5%,
+# even with keep-awake on or SUSPEND=0.
 
 LOCK=10
 SCREEN_OFF=11

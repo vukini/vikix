@@ -105,7 +105,7 @@ command -v emacs >/dev/null 2>&1 && emacs --fg-daemon >/dev/null 2>&1 &
 # a note for the bar of which model is loaded. Only once it's installed.
 [ -x "$HOME/.local/opt/ollama/bin/ollama" ] && "$HOME/.local/bin/vikix-local-ai" serve >/dev/null 2>&1 &
 
-# A warning when the battery runs low; only on machines that have one.
+# Low-battery warnings and critical sleep; only on machines with a battery.
 # And, on battery, a suspend after a while with nobody there (vikix-idle).
 for battery in /sys/class/power_supply/BAT*; do
   [ -e "$battery" ] || break

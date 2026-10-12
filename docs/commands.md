@@ -11,7 +11,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-ask](#vikix-ask): AI on the text you selected, anywhere on the desktop (Super+i)
 - [vikix-back](#vikix-back): where you were, when you come back to the laptop
 - [vikix-backup](#vikix-backup): your home folder, backed up with restic
-- [vikix-battery](#vikix-battery): a warning when the battery runs low
+- [vikix-battery](#vikix-battery): warn on low battery and suspend before it runs out
 - [vikix-bitwarden](#vikix-bitwarden): your Bitwarden vault on the desktop
 - [vikix-bt](#vikix-bt): Bluetooth as one short line, for the mode line
 - [vikix-cuis](#vikix-cuis): Cuis Smalltalk as a Vikix program
@@ -326,14 +326,14 @@ Every backup is encrypted with the password in `~/.config/vikix/backup-password`
 
 ## vikix-battery
 
-A warning when the battery runs low.
+Warn on low battery and suspend before it runs out.
 
 - `vikix-battery` — watch the battery until the session ends
-- `vikix-battery --once` — check now, print, and stop
+- `vikix-battery --once` — check now, print and warn, never suspend
 
-vikix-session starts it on machines that have a battery. Once a minute it reads the charge. While the battery is discharging it warns once at 15% and again, urgently, at 5%. Plugging in resets both warnings.
+vikix-session starts it on machines that have a battery. Once a minute it reads the first battery's charge, every 15 seconds at 15% or below. While discharging it warns at 15%, then urgently at 5% and suspends if no power supply is online. xss-lock locks before sleep in a Vikix session. After a successful request it waits two minutes before checking again, giving you time after waking to plug in. A failed request retries after one minute. Plugging in resets both warnings.
 
-`VIKIX_BATTERY_LOW` and `VIKIX_BATTERY_CRITICAL` change the two levels.
+`VIKIX_BATTERY_LOW` and `VIKIX_BATTERY_CRITICAL` change the two levels. Critical sleep also applies while keep-awake is on or idle sleep is off. Sleep still uses power: plug in before the remaining charge runs out.
 
 ## vikix-bitwarden
 
@@ -659,7 +659,7 @@ The colours: Hype's window follows `vikix theme` as it changes, and every Vikix 
 What happens when you leave the computer alone.
 
 - `vikix-idle apply` — set the lock and screen-off times (the session does this at login)
-- `vikix-idle awake [on|off|toggle]` — keep awake: no lock, no dark screen, no suspend, for a film or a talk; the bar says "awake". Every login starts with it off.
+- `vikix-idle awake [on|off|toggle]` — keep awake: no idle lock, dark screen or suspend, for a film or a talk; the bar says "awake". Every login starts with it off.
 - `vikix-idle --watch` — suspend on battery after SUSPEND minutes idle; the session runs this on machines with a battery
 
 ```
@@ -676,7 +676,7 @@ SCREEN_OFF=11
 SUSPEND=20          # 0: never suspend by itself
 ```
 
-Anything not set there keeps the value below.
+Anything not set there keeps the value below. Critical battery sleep is separate: vikix-battery still suspends at 5%, even with keep-awake on or SUSPEND=0.
 
 ## vikix-image
 

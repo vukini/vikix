@@ -1,36 +1,87 @@
 #!/bin/sh
-# vikix-battery — a warning when the battery runs low.
+# vikix-battery — warn on low battery and suspend before it runs out.
 #
 # vikix-session starts it on machines that have a battery. Once a minute
-# it reads the charge. While the battery is discharging it warns once at
-# 15% and again, urgently, at 5%. Plugging in resets both warnings.
+# it reads the first battery's charge, every 15 seconds at 15% or below.
+# While discharging it warns at 15%, then urgently at 5% and suspends if
+# no power supply is online. xss-lock locks before sleep in a Vikix session.
+# After a successful request it waits two minutes before checking again,
+# giving you time after waking to plug in. A failed request retries after
+# one minute. Plugging in resets both warnings.
 #
 #   vikix-battery          watch the battery until the session ends
-#   vikix-battery --once   check now, print, and stop
+#   vikix-battery --once   check now, print and warn, never suspend
 #
 # VIKIX_BATTERY_LOW and VIKIX_BATTERY_CRITICAL change the two levels.
+# Critical sleep also applies while keep-awake is on or idle sleep is off.
+# Sleep still uses power: plug in before the remaining charge runs out.
+
+set -eu
 
 LOW=${VIKIX_BATTERY_LOW:-15}
 CRITICAL=${VIKIX_BATTERY_CRITICAL:-5}
 POWER=${VIKIX_POWER_SUPPLY:-/sys/class/power_supply}   # a test can point this elsewhere
 
+case $LOW:$CRITICAL in
+  *[!0-9:]*|:*|*:) echo 'vikix-battery: levels must be whole percentages' >&2; exit 2 ;;
+esac
+if ! { [ "$CRITICAL" -ge 1 ] && [ "$LOW" -ge "$CRITICAL" ] && [ "$LOW" -le 100 ]; } 2>/dev/null; then
+  echo 'vikix-battery: require 1 <= CRITICAL <= LOW <= 100' >&2
+  exit 2
+fi
+
 warned=none     # none, low or critical: the warning already given on this discharge
 
+notify() {
+  # A missing notification daemon must not prevent critical sleep.
+  timeout --kill-after=2s 5s notify-send -a Vikix "$@" || true
+}
+
+plugged_in() {
+  # USB-C supplies need not be named AC or ADP.
+  for supply in "$POWER"/*; do
+    [ "$(cat "$supply/online" 2>/dev/null)" != 1 ] || return 0
+  done
+  return 1
+}
+
+read_battery() {
+  level=$(cat "$battery/capacity" 2>/dev/null) || return 1
+  status=$(cat "$battery/status" 2>/dev/null) || return 1
+  case $level in ''|*[!0-9]*) return 1 ;; esac
+  [ "$level" -le 100 ] 2>/dev/null
+}
+
 check() {
+  interval=60
   for battery in "$POWER"/BAT*; do
-    [ -r "$battery/capacity" ] || continue
-    level=$(cat "$battery/capacity")
-    status=$(cat "$battery/status")
+    read_battery || continue
     [ "$1" = print ] && echo "$(basename "$battery"): $level% ($status)"
-    if [ "$status" != Discharging ]; then
+    if [ "$status" != Discharging ] || plugged_in; then
       warned=none
-    elif [ "$level" -le "$CRITICAL" ] && [ "$warned" != critical ]; then
-      notify-send -a Vikix -u critical "Battery at $level%" \
-        "Plug in now. Or suspend: Super+m, then Suspend."
-      warned=critical
-    elif [ "$level" -le "$LOW" ] && [ "$warned" = none ]; then
-      notify-send -a Vikix "Battery at $level%" "Time to find the charger."
-      warned=low
+    else
+      [ "$level" -gt "$LOW" ] || interval=15
+      if [ "$level" -le "$CRITICAL" ]; then
+        if [ "$warned" != critical ]; then
+          notify -u critical "Battery at $level%" "Plug in now. The battery watcher suspends at $CRITICAL%."
+          warned=critical
+        fi
+        # --once stays safe to run for diagnostics. Re-read after notifying:
+        # the charger may have arrived, or the battery may have disappeared.
+        if [ "$1" != print ] && read_battery &&
+           [ "$status" = Discharging ] && [ "$level" -le "$CRITICAL" ] &&
+           ! plugged_in; then
+          if timeout --kill-after=5s 15s loginctl suspend; then
+            interval=120
+          else
+            interval=60
+            notify -u critical "Battery sleep failed" "Plug in now. Will retry in one minute."
+          fi
+        fi
+      elif [ "$level" -le "$LOW" ] && [ "$warned" = none ]; then
+        notify "Battery at $level%" "Time to find the charger."
+        warned=low
+      fi
     fi
     return            # the first battery is enough
   done
@@ -43,5 +94,5 @@ fi
 
 while :; do
   check quiet
-  sleep 60
+  sleep "$interval"
 done

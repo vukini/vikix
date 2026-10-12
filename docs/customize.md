@@ -286,11 +286,30 @@ That lasts until the next reload or login. When it does what you want, put the s
 | To change | Do |
 |---|---|
 | Keyboard layout, Caps Lock | `Super+m` → *Welcome* → *Set your keyboard layout* picks one from a list and applies it. Or edit `~/.config/vikix/keyboard` (`VIKIX_KB_LAYOUT`, options such as `ctrl:nocaps`), then `Super+m` → *Apply keyboard settings*. The starter swaps Caps Lock and Left Ctrl. |
-| When the screen locks, goes dark, suspends | Make `~/.config/vikix/idle` with any of `LOCK=10`, `SCREEN_OFF=11`, `SUSPEND=20` (minutes; `SUSPEND=0` never suspends; suspend is on battery only), then log in again |
+| When the screen locks, goes dark, suspends | Make `~/.config/vikix/idle` with any of `LOCK=10`, `SCREEN_OFF=11`, `SUSPEND=20` (minutes; `SUSPEND=0` disables idle suspend; suspend is on battery only), then log in again |
 | Night light hours and warmth | `~/.config/gammastep/config.ini`. `Super+Ctrl+l` switches it off and on. |
 | Which program opens a kind of file | `~/.config/mimeapps.list`, or `xdg-mime default org.pwmt.zathura.desktop application/pdf` |
 | Screens at a desk | A screen you plug in lights up by itself, to the right of the laptop's, and comes back the same way next time. `Super+Ctrl+p` (or the laptop's display key) for mirror, the other screen only, the laptop's only, or arranging them by hand; what you choose is remembered for those screens. |
 | What backups leave out | `~/.config/vikix/backup-exclude` |
+
+### When the battery runs low
+
+The session's `vikix-battery` watcher warns at 15% and automatically suspends
+at 5% or below while discharging, after checking that no charger is online.
+The session's xss-lock locks the screen before sleep. Critical battery sleep
+still applies with *keep awake* on or `SUSPEND=0`: those settings control idle
+sleep only. After updating to this behaviour, log out and back in to start
+the new watcher.
+
+It checks the first battery once a minute, every 15 seconds at low charge.
+After a successful sleep request it waits two minutes before checking again
+to give you time to connect power after waking. If sleep fails, it warns and
+retries after a minute. `vikix-battery --once` prints and warns without sleeping.
+The session environment's `VIKIX_BATTERY_LOW` and `VIKIX_BATTERY_CRITICAL`
+override the percentages (1 <= critical <= low <= 100).
+
+Sleep still consumes power. Plug in before the remaining charge runs out;
+this does not configure hibernation or preserve memory after total power loss.
 
 ## The shell
 
