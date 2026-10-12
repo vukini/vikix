@@ -682,17 +682,28 @@ def estimate_state(rec, now=None):
             "elapsed": elapsed, "left": left, "done": done, "line": line}
 
 
-def add_check(rec, name, ok, by, folder, note=""):
+def add_check(rec, name, ok, by, folder, note="", skipped=False):
+    """A check on the code as it stands now. SKIPPED is the user's word
+    that the desk's tests are not to be waited for (vikix agents test
+    --skip): the check is ok, so a plan's chain goes on from the hand-in,
+    and marked, so the release never takes it for a run of its own."""
     name = clean(name, "the check's name").replace("\n", " ")
     if not name:
         raise HandoffError("a check needs a name (the command that ran)")
     now = observe(folder) if os.path.isdir(folder) else {}
-    rec.setdefault("checks", []).append(
-        {"name": name[:200], "ok": bool(ok), "by": by, "at": int(time.time()), "note": clean(note, "the note")[:500],
-         "commit": now.get("commit", ""), "branch": now.get("branch", ""), "dirty": now.get("dirty"),
-         "fingerprint": now.get("fingerprint", "")})
+    check = {"name": name[:200], "ok": bool(ok), "by": by, "at": int(time.time()), "note": clean(note, "the note")[:500],
+             "commit": now.get("commit", ""), "branch": now.get("branch", ""), "dirty": now.get("dirty"),
+             "fingerprint": now.get("fingerprint", "")}
+    if skipped:
+        check["skipped"] = True
+    rec.setdefault("checks", []).append(check)
     rec["checks"] = rec["checks"][-CHECKS_MAX:]
-    _log(rec, by, f"check {'passed' if ok else 'failed'}: {name[:60]}")
+    _log(rec, by, f"check {'skipped' if skipped else 'passed' if ok else 'failed'}: {name[:60]}")
+
+
+def check_word(check):
+    """How a check ended, in a word: passed, FAILED, or skipped."""
+    return "skipped" if check.get("skipped") else "passed" if check.get("ok") else "FAILED"
 
 
 def add_session(rec, provider, sid, by, pid=0):
@@ -957,7 +968,7 @@ def render(rec, agents_at=(), protection=(), now=None):
     if checks:
         lines.append("Checks:")
         for c in checks[-5:][::-1]:
-            lines.append(f"  {'passed' if c['ok'] else 'FAILED'}  {c['name']}  ({c['by']}, {when(c['at'])}, on "
+            lines.append(f"  {check_word(c)}  {c['name']}  ({c['by']}, {when(c['at'])}, on "
                          f"{(c.get('commit') or '?')[:7]}{', tree dirty' if c.get('dirty') else ', clean tree'})"
                          f"  {freshness(c, now)}" + (f"\n    {c['note']}" if c.get("note") else ""))
     else:
@@ -1233,11 +1244,13 @@ def fresh_check(rec, commit, kind="changed"):
     passed, on COMMIT exactly, with a clean tree, as wide as the release
     would run (KIND: changed, quick or full) or wider. The newest such
     check, or None; a failed check on the same commit after it counts
-    against (the code didn't change, but something did)."""
+    against (the code didn't change, but something did). A check skipped
+    (the user's word at the desk, not a run) never counts: the release
+    runs its own."""
     want = RUN_WIDTH.get(kind, 1)
     found = None
     for c in rec.get("checks") or []:
-        if (c.get("commit") or "") != commit or c.get("dirty"):
+        if (c.get("commit") or "") != commit or c.get("dirty") or c.get("skipped"):
             continue
         if c.get("ok") and check_width(c.get("name")) >= want:
             found = c

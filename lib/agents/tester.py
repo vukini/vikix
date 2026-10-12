@@ -133,6 +133,138 @@ def changed_covers(where, base):
     return r.returncode != 0 or bool(r.stdout.strip())
 
 
+def tester_state(folder, lines=8):
+    """The tester at work on the desk FOLDER, for the Office's Testing box:
+    its pid, since when (from the running note), what it runs (the runner's
+    line, as the check will be named), the log's last LINES (the runner
+    prints each test's output whole when it ends, so the tail is the tests
+    ended so far), the log's path, and the release whose tests it waits
+    for ('' for none: the wait is the tester's own, so it is told by an
+    empty log and a release of the project testing). {} when none runs."""
+    pid = tester_running(folder)
+    if not pid:
+        return {}
+    log, running = tester_paths(folder)
+    at = 0
+    try:
+        with open(running) as f:
+            at = int(f.read().split()[1])
+    except (OSError, ValueError, IndexError):
+        pass
+    tail = []
+    try:
+        with open(log, errors="replace") as f:
+            tail = [line.rstrip("\n")[:200] for line in f.readlines()[-lines:]]
+    except OSError:
+        pass
+    _, runner, changed = runner_of(folder)
+    base = base_of(folder)[0] if runner else ""
+    name = ("tests/run.sh" + (f" --changed {base[:7]}" if changed and base else "")) if runner else ""
+    return {"pid": pid, "at": at, "name": name, "log": log, "tail": tail,
+            "waiting": release_testing(folder) if not tail else ""}
+
+
+def tester_of(pid):
+    """Whether PID is a tester: its command line, read from the kernel's
+    /proc (the pid is the kernel's, never the made-up /proc of the tests),
+    runs this script with test (the desk's running note was written by
+    that pid; this guards against the number reused since)."""
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            args = [a.decode(errors="replace") for a in f.read().split(b"\0") if a]
+    except OSError:
+        return False
+    me = os.path.basename(os.path.realpath(__file__))
+    return any(os.path.basename(a) == me and args[i + 1:i + 2] == ["test"] for i, a in enumerate(args[:-1]))
+
+
+def tree_of(pid):
+    """PID's descendants, the deepest first, from the kernel's /proc: what
+    to end after PID itself (read before it ends, since its children go
+    to init then and can't be found under it any more)."""
+    parents = {}
+    try:
+        names = os.listdir("/proc")
+    except OSError:
+        return []
+    for entry in names:
+        if not entry.isdigit():
+            continue
+        try:
+            with open(f"/proc/{entry}/stat") as f:
+                stat = f.read()
+            parents.setdefault(int(stat[stat.rindex(")") + 2:].split()[1]), []).append(int(entry))
+        except (OSError, ValueError, IndexError):
+            continue
+    out = []
+
+    def walk(p):
+        for child in parents.get(p, []):
+            walk(child)
+            out.append(child)
+    walk(pid)
+    return out
+
+
+def tester_skip(folder, by="user"):
+    """The desk's tests, running, not waited for: the tester ended (the
+    tester first, so it records no failure of a run it didn't finish,
+    then the runner and its tests under it; the runner's own trap ends
+    what it started), its running note removed, a check marked skipped in
+    the record (ok, on the commit as it stands, so a plan's chain goes on
+    from the hand-in; the release never counts a skipped check for a run
+    of its own), and a line in the inbox. What was said. Raises
+    HandoffError when no tester is at work there."""
+    import signal
+    H = handoff_module()
+    pid = tester_running(folder)
+    if not pid:
+        raise H.HandoffError(f"{short(folder)}: no tester is at work there (vikix agents test {os.path.basename(folder)} runs them)")
+    if not tester_of(pid):
+        raise H.HandoffError(f"{short(folder)}: pid {pid} in its running note isn't a tester of this desk; left alone")
+    log, running = tester_paths(folder)
+    at = 0
+    try:
+        with open(running) as f:
+            at = int(f.read().split()[1])
+    except (OSError, ValueError, IndexError):
+        pass
+    below = tree_of(pid)
+    for p in [pid] + below:
+        try:
+            os.kill(p, signal.SIGTERM)
+        except OSError:
+            pass
+    deadline = time.time() + 10
+    while time.time() < deadline and any(not process_gone(p) for p in [pid] + below):
+        time.sleep(0.1)
+    for p in [pid] + below:
+        if not process_gone(p):
+            try:
+                os.kill(p, signal.SIGKILL)
+            except OSError:
+                pass
+    try:
+        os.unlink(running)
+    except OSError:
+        pass
+    _, _, changed = runner_of(folder)
+    base = base_of(folder)[0]
+    name = "tests/run.sh" + (f" --changed {base[:7]}" if changed and base else "")
+    ran = f" after {int(time.time() - at)} s" if at else ""
+    note = f"skipped by {by}{ran}: the tests were not waited for; the release runs its own"
+
+    def change(r):
+        H.add_check(r, name, True, by, folder, note, skipped=True)
+    desk_record(folder, by=by, change=change)
+    line = f"tests skipped by {by}{ran} (vikix agents test --skip): not waited for; the release runs its own"
+    try:
+        inbox_add(folder, line, by)
+    except H.HandoffError:
+        pass
+    return f"{short(folder)}: {line}"
+
+
 def test_batch(own, own_branch, batch):
     """BATCH, desks of one project that changed no file in common, merged
     onto the project's own branch in a throwaway worktree and tested there
@@ -217,9 +349,18 @@ def test_all():
 
 
 def tester(argv):
-    """vikix agents test [DESK | --all] [--log DESK]."""
+    """vikix agents test [DESK | --all] [--log DESK] [--skip DESK]."""
     if argv == ["--all"]:
         return test_all()
+    if argv and argv[0] == "--skip":
+        H = handoff_module()
+        by, me = by_me()
+        folder, _ = desk_for(argv[1:], me)
+        try:
+            print(tester_skip(folder, by))
+        except H.HandoffError as e:
+            die(str(e))
+        return 0
     if argv == ["--menu"]:
         folder = pick_desk("Test", "Its tests run in its worktree; the result goes into its handoff and its agent's inbox.")
         if folder is None:
@@ -236,7 +377,7 @@ def tester(argv):
     show = "--log" in argv
     words = [a for a in argv if not a.startswith("-")]
     if len(words) != len(argv) - (1 if show else 0):
-        die("vikix agents test [DESK | --all] [--log DESK]")
+        die("vikix agents test [DESK | --all] [--log DESK] [--skip DESK]")
     by, me = by_me()
     folder, _ = desk_for(words, me)
     if show:

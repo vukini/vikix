@@ -296,7 +296,7 @@
                        (ten minutes at most, then it asks); two waiting for
                        each other is seen, and the later one asks you at
                        once
-  vikix agents test [DESK | --all | --menu] [--log DESK]
+  vikix agents test [DESK | --all | --menu] [--log DESK] [--skip DESK]
                        the tester: the tests a desk's changes reach, run for it.
                        Its project's tests/run.sh, --changed from where its
                        branch left the project's own, run in its worktree
@@ -313,7 +313,14 @@
                        and failing together is what a batch is for), the
                        overlapping ones each alone, told which it overlaps;
                        a merge that conflicts sends that desk to run
-                       alone. --log: the last run's output
+                       alone. --log: the last run's output. --skip: the
+                       tests running at the desk not waited for: the
+                       tester is ended, the runner and its tests with it,
+                       and the record gets a check marked skipped on the
+                       commit as it stands (a plan's chain goes on from
+                       the hand-in; the release never counts it, and runs
+                       its own); the worker is told in its inbox. The
+                       Office's Skip tests, in its Testing group
   vikix agents review DESK [--use NAME] [--prompt "..."] [--here] [--log DESK] | --menu
                        a review by another provider, read-only, its findings into the handoff.
                        The desk's last commit is checked out in a throwaway
@@ -947,7 +954,8 @@ def main(argv):
         a["testing"] = tester_running(a["folder"]) if a["folder"] else 0
         if a["testing"] and a["state"] in ("working", "running", "idle"):
             a["doing"] = "testing"
-            a["waits"] = f"its desk's tests run (vikix agents test, pid {a['testing']}); the result goes into its handoff and its inbox"
+            a["waits"] = (f"its desk's tests run (vikix agents test, pid {a['testing']}); the result goes into its handoff "
+                          f"and its inbox; vikix agents test --skip ends them")
         # A review of the desk under way (said under the agent, which goes on working), and a
         # reviewer's own process, found in /proc in its throwaway worktree: named for what it is.
         a["review"] = reviewer_running(a["folder"]) if a["desk"] else {}

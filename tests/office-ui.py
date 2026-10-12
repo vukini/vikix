@@ -604,6 +604,38 @@ class Office(unittest.TestCase):
             self.records = [H.load(H.desk_id('', self.folder))]
             self.assertFalse(office.snapshot(A)['desks'][0]['tests_off'])
 
+    def test_testing_group_and_skip(self):
+        # A desk whose tests run is in Testing, whatever else it does, with the tester's state
+        # for the Office's box; --skip ends the run through tester_skip, its refusal said.
+        self.records = [self.rec]
+        self.agents = [self.agent(1, 'idle', attention='close')]
+        state = {'pid': 4242, 'at': 1791300000, 'name': 'tests/run.sh --changed abc1234', 'log': '/tmp/x.log',
+                 'tail': ['=== lint (3s)', 'all passed: lint'], 'waiting': ''}
+        skipped = []
+        with patch.object(A, 'tester_running', lambda f: 4242), patch.object(A, 'tester_state', lambda f: state), \
+             patch.object(A, 'desk_of', lambda f: f), patch.object(A, 'tester_skip', lambda f, by: skipped.append((f, by)) or 'said'):
+            row = office.snapshot(A)['desks'][0]
+            self.assertEqual((row['group'], row['testing'], row['tester']), ('Testing', 4242, state))
+            office.main(A, ['--skip', self.folder])
+            self.assertEqual(skipped, [(self.folder, 'user')])
+        with patch.object(A, 'tester_running', lambda f: 0), patch.object(A, 'desk_of', lambda f: f):
+            row = office.snapshot(A)['desks'][0]
+            self.assertEqual((row['group'], row['tester']), ('Needs you', {}))
+            def refuse(f, by):
+                raise H.HandoffError('no tester is at work there')
+            with patch.object(A, 'tester_skip', refuse), self.assertRaises(RuntimeError):
+                office.main(A, ['--skip', self.folder])
+        # A skipped check is ok and marked: the plan takes the hand-in as checked, the release never counts it.
+        rec = {'desk': {'worktree': self.folder}, 'checks': []}
+        with patch.object(H, 'observe', lambda f: {'commit': 'c1', 'branch': 'b', 'dirty': 0, 'fingerprint': 'f'}):
+            H.add_check(rec, 'tests/run.sh --changed abc1234', True, 'user', self.folder, 'skipped by user', skipped=True)
+        self.assertEqual((rec['checks'][0]['ok'], rec['checks'][0]['skipped']), (True, True))
+        self.assertEqual(rec['log'][-1]['what'], 'check skipped: tests/run.sh --changed abc1234')
+        self.assertIsNone(H.fresh_check(rec, 'c1'))
+        self.assertEqual(H.check_word(rec['checks'][0]), 'skipped')
+        self.assertIn('  skipped  tests/run.sh --changed abc1234  (user,',
+                      H.render(dict(self.rec, task={'text': 'Fix the picker', 'by': 'user', 'at': 1791300000}, checks=rec['checks'])))
+
     def test_focus_only_integer_and_failure(self):
         with patch.object(office.subprocess, 'run') as run:
             with self.assertRaises(ValueError): office.focus(A, '1) (quit)')

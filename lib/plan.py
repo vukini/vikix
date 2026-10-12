@@ -526,7 +526,9 @@ def task_at(api, H, task, rec, folder, exists, agents, now_obs, now):
         if dirty:
             return "dirty", f"handed in ({status}), {dirty} file{'s' if dirty != 1 else ''} uncommitted" + (
                 f"; {who} told" if agents else ", the worker gone")
-        return "passed", f"handed in ({status})" + (", tests passed" if wanted else "") + (f"; {who} still at the desk" if agents else "")
+        return "passed", f"handed in ({status})" + (
+            (", tests skipped" if check.get("skipped") else ", tests passed") if wanted else "") + (
+            f"; {who} still at the desk" if agents else "")
     if status == "waiting":
         h = rec.get("handoff") or {}
         if (h.get("status") or {}).get("by") == "vikix":

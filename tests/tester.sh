@@ -14,6 +14,8 @@
 #   tests by itself, apart from the caller; a project with no tests/run.sh
 #   is said so, with no check and no note. A desk joins the batch when it
 #   changed no file the batch has, in the order they went to review.
+#   --skip ends the tests running at a desk, the runner and its tests with
+#   it, and leaves a check marked skipped that the release never counts.
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
@@ -24,7 +26,7 @@ here=$(cd "$(dirname "$0")/.." && pwd)
 t=$(mktemp -d)
 trap 'rm -rf "$t"' EXIT
 export HOME="$t/home" VIKIX_RECORDS_DB="$t/records.db" VIKIX_PROC="$t/proc"
-export TESTER_CALLS="$t/calls" TESTER_FAIL="$t/fail"
+export TESTER_CALLS="$t/calls" TESTER_FAIL="$t/fail" TESTER_SLOW="$t/slow"
 mkdir -p "$HOME/.config/vikix" "$t/src" "$t/proc"
 printf 'root=%s\n' "$t/src" > "$HOME/.config/vikix/projects"
 echo "5000.00 1.00" > "$t/proc/uptime"
@@ -49,6 +51,7 @@ cat > tests/run.sh <<'R'
 # A stand-in for a project's runner (it takes --changed REF).
 { printf '%s %s:' "$PWD" "$*"; ls *.md | tr '\n' ' '; echo; } >> "$TESTER_CALLS"
 if [ -f "$TESTER_FAIL" ]; then echo "=== spell (1s)"; echo "FAIL: the spell check found 2 words"; echo "FAILED: spell"; exit 1; fi
+if [ -f "$TESTER_SLOW" ]; then echo "=== spell (1s)"; sleep 60 & echo $! > "$TESTER_SLOW.sleep"; wait; fi
 echo "all passed: spell"
 R
 chmod +x tests/run.sh; git add log.md tests/run.sh; git commit -q -m first
@@ -138,6 +141,35 @@ check "the result reached its record and its inbox" grep -q '^  vikix (just now)
 as 1001 handoff set --summary "more" >/dev/null; sleep 1
 check "a status that stayed review runs nothing again" test ! -s "$t/calls"
 
+# --- Skipped: the tests running at a desk, not waited for ------------------------------------
+# The stub runner sleeps while the slow file stands; the tester runs apart,
+# as a hand-in's does, and --skip ends it with everything under it.
+touch "$TESTER_SLOW"
+python3 "$here/bin/vikix-agents" test "$t/src/book-a" > "$t/skip.out" 2>&1 </dev/null & bg=$!
+for _ in $(seq 1 60); do [ -e "$HOME/.local/state/vikix/office/tests/$id_a.running" ] && grep -q "=== spell" "$HOME/.local/state/vikix/office/tests/$id_a.log" 2>/dev/null && break; sleep 0.25; done
+check "the tester is at work, its note naming it" grep -q "^$bg " "$HOME/.local/state/vikix/office/tests/$id_a.running"
+out=$(agents test --skip a)
+check "--skip ends it and says so: $out" grep -qE 'book-a: tests skipped by user after [0-9]+ s \(vikix agents test --skip\): not waited for; the release runs its own$' <<<"$out"
+wait "$bg" 2>/dev/null && check "the tester ended" false
+check "its running note is gone" test ! -e "$HOME/.local/state/vikix/office/tests/$id_a.running"
+check "and nothing of the runner is left, its sleep included" \
+  bash -c '! pgrep -f "$1/tests/run.sh" >/dev/null && ! kill -0 "$(cat "$2.sleep")" 2>/dev/null' _ "$t/src/book-a" "$TESTER_SLOW"
+check "the tester recorded no run of its own: $(cat "$t/skip.out")" not grep -q "tests passed\|tests:" "$t/skip.out"
+out=$(agents handoff a)
+check "the record has a check marked skipped, by user, on the desk's commit: $(grep 'skipped' <<<"$out" | head -2 | tr '\n' '|')" \
+  bash -c 'grep -qE "^  skipped  tests/run.sh --changed [0-9a-f]{7}  \(user, just now, on [0-9a-f]{7}, clean tree\)  fresh" <<<"$1" && grep -q "^    skipped by user after [0-9]* s: the tests were not waited for; the release runs its own" <<<"$1"' _ "$out"
+check "and the inbox has the word for the worker" grep -q '^  user (just now): tests skipped by user after' <<<"$out"
+check "the check is ok and marked, so a plan takes the hand-in as checked" \
+  bash -c '[ "$(python3 "$1" handoff a --json | python3 -c "import json, sys; c = json.load(sys.stdin)[\"checks\"][-1]; print(c[\"ok\"], c.get(\"skipped\"))")" = "True True" ]' _ "$here/bin/vikix-agents"
+# The release's check (lib/handoff.py fresh-check) passes over it: the newest
+# check it finds on the commit is the run that passed before, never the skip.
+out=$(python3 "$here/lib/handoff.py" fresh-check "$t/src/book/.git" "$t/src/book-a" "$(git -C "$t/src/book-a" rev-parse HEAD)")
+check "but the release never counts it for a run of its own: $out" \
+  bash -c 'grep -q "tests/run.sh --changed .* passed on" <<<"$1" && ! grep -q "skipped" <<<"$1"' _ "$out"
+out=$(agents test --skip a)
+check "--skip with no tester at work says so: $out" grep -q 'book-a: no tester is at work there (vikix agents test book-a runs them)' <<<"$out"
+rm -f "$TESTER_SLOW"
+
 # --- A project with no tests ----------------------------------------------------------------
 git -C "$t/src" init -q -b main novel; cd "$t/src/novel"; git config user.name T; git config user.email t@example.com
 echo '# Log' > log.md; git add log.md; git commit -q -m first; git worktree add -q "$t/src/novel-x" -b x; cd "$here"
@@ -148,5 +180,5 @@ check "with no check and no note" bash -c 'grep -q "^Checks: none recorded" <<<"
 out=$(agents test --all)
 check "--all skips it the same way, after the others" grep -q 'novel-x: no tests/run.sh' <<<"$out"
 
-[ "$fail" = 0 ] && echo "tester: ok (a desk's tests in its worktree, the check and the note; --log; a batch of the disjoint desks on a throwaway worktree, the overlapping alone; a hand-in runs them by itself; no runner, no check)"
+[ "$fail" = 0 ] && echo "tester: ok (a desk's tests in its worktree, the check and the note; --log; a batch of the disjoint desks on a throwaway worktree, the overlapping alone; a hand-in runs them by itself; --skip ends a run, the check marked skipped; no runner, no check)"
 exit $fail

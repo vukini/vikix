@@ -247,13 +247,19 @@ def snapshot(api):
         row['attention'] = next((k for k in ('asks', 'gup', 'close') if k in kinds), '')
         row['paused'] = api.pause_read(path) if row['kind'] == 'desk' else {}
         row['testing'] = api.tester_running(path) if row['kind'] == 'desk' else 0
+        # The tester at work, for the Testing box: since when, what runs, the log's tail (tester_state).
+        row['tester'] = api.tester_state(path) if row['testing'] else {}
         # A review of the desk under way: who reads it, since when (vikix agents review).
         row['reviewing'] = api.reviewer_running(path) if row['kind'] == 'desk' else {}
         row['notes'] = len(api.inbox_peek(path)) if row['kind'] == 'desk' else 0
         # The user's switch on the desk: a hand-in runs no tests by itself (Test still does).
         row['tests_off'] = d.get('tests') == 'off'
         row['left'] = row.get('left') or {}
-        row['group'] = ('Needs you' if needs or row['attention'] or status in ('waiting', 'review') or not live_known
+        # A desk whose tests run is in Testing, whatever else it is doing (2026-10-12:
+        # it sat under Needs you, in review, with nothing to do at it but wait or skip).
+        row['group'] = ('Needs you' if not live_known
+                        else 'Testing' if row['testing']
+                        else 'Needs you' if needs or row['attention'] or status in ('waiting', 'review')
                         else 'Working' if row['agents'] and not row['paused']
                         else 'Finished' if status == 'finished' or d.get('closed')
                         # Kept aside: a status parked (vikix agents park, by the user or
@@ -276,7 +282,7 @@ def snapshot(api):
             row['next_action'] = 'Closed' + (f" by {row['closed']['by']}" if row['closed']['by'] else '') \
                 + f" {H.when(row['closed']['at'])}: nothing to do"
             row['resume'] = {}
-    order = ['Needs you', 'Working', 'Parked', 'Finished', 'Closed']
+    order = ['Needs you', 'Testing', 'Working', 'Parked', 'Finished', 'Closed']
     return {'version': 1, 'at': int(time.time()), 'live_known': live_known, 'errors': errors,
             'releases': releases, 'releases_kept': releases_kept, 'plans': plans, 'plans_done': plans_done,
             # Who can review a desk here (vikix agents review): the Review by… button's choices.
@@ -352,8 +358,9 @@ def forget_record(api, did):
 
 def desk_action(api, verb, path, text=''):
     """A worker's desk acted on from the Office: pause or unpause, parked
-    (vikix agents park), its tests started, a note left, a review by
-    TEXT's provider started. PATH is a desk's folder, as the row's id is."""
+    (vikix agents park), its tests started or skipped, a note left, a
+    review by TEXT's provider started. PATH is a desk's folder, as the
+    row's id is."""
     if not isinstance(path, str) or not os.path.isdir(path) or not api.desk_of(path):
         raise ValueError('Needs a desk folder (a worktree of a project)')
     if verb == 'pause':
@@ -369,6 +376,12 @@ def desk_action(api, verb, path, text=''):
             raise RuntimeError('A tester is at work there already; refresh')
         api.tester_start(path)
         print("Tests started; the result goes into the handoff and the agent's inbox.")
+    elif verb == 'skip':
+        H = api.handoff_module()
+        try:
+            print(api.tester_skip(path, 'user'))
+        except H.HandoffError as e:
+            raise RuntimeError(str(e)) from e
     elif verb == 'tell':
         H = api.handoff_module()
         try:
@@ -734,7 +747,7 @@ def main(api, args):
         purge_archive(api, args[1])
     elif len(args) == 2 and args[0] == '--forget':
         forget_record(api, args[1])
-    elif len(args) == 2 and args[0] in ('--pause', '--unpause', '--test', '--park'):
+    elif len(args) == 2 and args[0] in ('--pause', '--unpause', '--test', '--skip', '--park'):
         desk_action(api, args[0][2:], args[1])
     elif len(args) == 3 and args[0] == '--tell':
         desk_action(api, 'tell', args[1], args[2])
@@ -755,5 +768,5 @@ def main(api, args):
     elif args in ([], ['--tty']):
         launch(api, tty=bool(args))
     else:
-        raise ValueError('vikix agents office [--tty | --json | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN | --pause DESK | --unpause DESK | --park DESK | --test DESK | --tell DESK TEXT | --review DESK PROVIDER | --form | --plan TEMPLATE NAME PROJECT [--at-once N] [--gate me|none] [--tasks] | --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --worker DESK ["..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --close-desk DESK [--force] | --project NAME --where public|private|local|folder [--title "..."] [--next "..."] [--description "..."] [--log-apart]]')
+        raise ValueError('vikix agents office [--tty | --json | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN | --pause DESK | --unpause DESK | --park DESK | --test DESK | --skip DESK | --tell DESK TEXT | --review DESK PROVIDER | --form | --plan TEMPLATE NAME PROJECT [--at-once N] [--gate me|none] [--tasks] | --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --worker DESK ["..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --close-desk DESK [--force] | --project NAME --where public|private|local|folder [--title "..."] [--next "..."] [--description "..."] [--log-apart]]')
     return 0

@@ -574,6 +574,61 @@ Archive is the third. The buttons count the other pages' rows."
      (should (equal (json-parse-string output :array-type 'list)
                     '("resume" "/tmp/a desk;$(never run)" "--fresh"))))))
 
+(ert-deftest office-testing-group-and-skip ()
+  "A desk whose tests run is in the Testing group, between Needs you and
+Working, its row saying what runs and since when with Skip tests on it; its
+details have a Testing box with the release waited for, the log's tail and
+Test log, and Skip tests where Test stood; s skips, and is refused where no
+tests run."
+  (office-test-buffer
+   (let (args)
+     (cl-letf (((symbol-function 'vikix-office--act) (lambda (a &optional then) (setq args (cons then a)))))
+       (let ((testing (car (alist-get 'desks vikix-office--data))))
+         (setf (alist-get 'group testing) "Testing")
+         (nconc testing (list (cons 'testing 4242)
+                              (cons 'tester '((pid . 4242) (at . 1791300000) (name . "tests/run.sh --changed abc1234")
+                                              (log . "/tmp/never/x.log") (tail . ("=== lint (3s)" "all passed: lint"))
+                                              (waiting . "wifi-fix"))))))
+       (setq vikix-office--detail (generate-new-buffer " *Testing details*"))
+       (unwind-protect
+           (progn
+             (vikix-office--render)
+             (let ((text (buffer-string)))
+               (should (< (string-match "Needs you" text) (string-match "Testing" text) (string-match "Working" text)))
+               ;; The batch buffer is narrow: the line breaks after "the".
+               (should (string-match-p "Tests +tests/run.sh --changed abc1234 · since [0-9:]+ · waiting for the" text))
+               (should (string-match-p "release of wifi-fix" text))
+               (should (string-match-p "Skip tests" text))
+               ;; The row is in the Testing box, not Needs you's.
+               (should (< (string-match "Testing" text) (string-match "Task a" text) (string-match "Working" text))))
+             (setq vikix-office--selected "a")
+             (vikix-office--render-detail)
+             (with-current-buffer vikix-office--detail
+               (let ((text (buffer-string))
+                     (labels (let (labels) (save-excursion (goto-char (point-min))
+                                                           (while (forward-button 1 nil nil t) (push (button-label (button-at (point))) labels)))
+                               labels)))
+                 (should (member "Skip tests" labels))
+                 (should (member "Test log" labels))
+                 (should-not (member "Test" labels))
+                 (should (string-match-p "Waiting for the release of wifi-fix to finish its tests first" text))
+                 (should (string-match-p "all passed: lint" text))))
+             (vikix-office-skip-tests)
+             (should (equal args '(vikix-office-refresh "office" "--skip" "a")))
+             ;; The log that isn't there yet is said so; a desk with no tests running refuses both.
+             (should-error (vikix-office-test-log) :type 'user-error)
+             (setq vikix-office--selected "b")
+             (should-error (vikix-office-skip-tests) :type 'user-error)
+             (should-error (vikix-office-test-log) :type 'user-error)
+             ;; A skipped check in the details says so.
+             (let ((b (cadr (alist-get 'desks vikix-office--data))))
+               (setf (alist-get 'checks b) '(((name . "tests/run.sh --changed abc1234") (ok . t) (skipped . t) (by . "user")
+                                              (at . 1791300000) (commit . "abc1234") (dirty . 0) (freshness . "fresh")))))
+             (vikix-office--render-detail)
+             (with-current-buffer vikix-office--detail
+               (should (string-match-p "skipped +tests/run.sh --changed abc1234" (buffer-string)))))
+         (kill-buffer vikix-office--detail))))))
+
 (ert-deftest office-worker-actions-and-marks ()
   (office-test-buffer
    (let (args)
