@@ -501,12 +501,12 @@ def docset(name, key, entries, pages):
 docset("Quokka", "quokka",
        [("str.split", "Method", "lib/strings.html#//apple_ref/Method/str.split"), ("wombatify", "Function", "lib/strings.html"),
         ("split", "Function", "lib/misc.html#//apple_ref/Function/split"), ("Splitter", "Class", "lib/misc.html"),
-        ("Walrus.tusk", "Method", "lib/misc.html")],
+        ("Walrus.tusk", "Method", "lib/misc.html"), ("Audio.daw", "Class", "lib/misc.html"), ("Cal.2026", "Constant", "lib/misc.html")],
        {"lib/strings.html": '<html><body><p>Strings, an intro: the pelican words.</p>'
                             '<a name="//apple_ref/Method/str.split"></a><dt id="str.split">str.split(sep)</dt><dd>Splits: the quoll fact.</dd>'
                             '<dt id="wombatify">wombatify(s)</dt><dd>Makes it a wombat: the wombatify fact.</dd></body></html>',
         "lib/misc.html": '<html><body><a name="//apple_ref/Function/split"></a><p>split: the echidna fact.</p></body></html>'})
-docset("Numbat", "numbat", [("alias", "Builtin", "x.html"), ("splitfoo", "Builtin", "y.html")], {})
+docset("Numbat", "numbat", [("alias", "Builtin", "x.html"), ("splitfoo", "Builtin", "y.html"), ("websocket", "Builtin", "z.html")], {})
 PY
 printf '#!/bin/sh\necho "zeal $*" >> %s/opened\n' "$t" > "$t/bin/zeal"; chmod +x "$t/bin/zeal"
 check "an entry named by the words comes first, with its kind and docset: $(d find str.split | head -1)" grep -q '^zeal  *str.split — Method, Quokka$' <<<"$(d find str.split | head -1)"
@@ -522,10 +522,18 @@ check "an entry opens as its page in the docs browser, at its anchor: $(cat "$t/
 check "or at the id its name has on the page" grep -q '^browser file://.*lib/strings.html#wombatify$' "$t/opened"
 : > "$t/opened"; d open zeal:numbat:Builtin:alias; d open zeal:quokka:Method:str.split --other; sleep 0.3
 check "one kept compressed opens in Zeal at the entry, and --other always does: $(cat "$t/opened")" bash -c 'grep -q "^zeal dash-plugin://keys=numbat&query=alias$" "$1" && grep -q "^zeal dash-plugin://keys=quokka&query=str.split$" "$1"' _ "$t/opened"
-check "status counts the docsets, read in place: $(d status | grep zeal)" grep -q '^  zeal  *7  in 2 docsets, read in place' <<<"$(d status)"
-check "list counts their entries" grep -qxP 'zeal\t7' <<<"$(d list)"
+check "status counts the docsets, read in place: $(d status | grep zeal)" grep -q '^  zeal  *10  in 2 docsets, read in place' <<<"$(d status)"
+check "list counts their entries" grep -qxP 'zeal\t10' <<<"$(d list)"
 check "nothing of a docset is copied into the catalogue" test -z "$(d list --source zeal)"
 check "a gone entry is said: $(d read zeal:quokka:Method:nothing 2>&1)" grep -q 'no document' <<<"$(d read zeal:quokka:Method:nothing 2>&1)"
+# The scan for a member is the slow part (half a second over the real
+# docsets), so a search over every source asks for it only when the words
+# look like code or the catalogue had fewer hits than the list holds.
+check "a plain word the catalogue has pages for isn't scanned for as a member: $(d find daw --limit 1)" bash -c '! grep -q "Audio.daw" <<<"$(d find daw --limit 1)"'
+check "but it is when the list has room: $(d find daw --limit 20 | grep '^zeal')" grep -q 'Audio.daw — Class, Quokka' <<<"$(d find daw --limit 20)"
+check "an entry named by a plain word comes after the catalogue's own, not before: $(d find websocket --limit 2 | grep -v '^   ')" bash -c 'test "$(head -1 <<<"$1" | cut -c1-5)" != "zeal " && grep -q "websocket — Builtin, Numbat" <<<"$1"' _ "$(d find websocket --limit 2)"
+check "and a word written as code always is: $(d find 2026 --limit 1)" grep -q 'Cal.2026 — Constant, Quokka' <<<"$(d find 2026 --limit 1)"
+check "--source zeal always scans" grep -q 'Audio.daw' <<<"$(d find daw --source zeal --limit 2)"
 
 # Links to the web: the websites of the packages installed (xbps's answer),
 # the links the language guides list, your own file of links; marked, opened

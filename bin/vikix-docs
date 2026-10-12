@@ -62,7 +62,9 @@ a URL and its title a line). A web hit wears a globe: it is the one kind
 that opens on the web, and nothing of it is ever fetched, not when the
 catalogue is read, not when it is searched. Vikix's guides rank first,
 then yours, then tldr with the man pages, then the rest of the system's;
-a docset's entry named by the words stands with the documents named by them.
+a docset's entry named by words written as code (str.split, read_dir) stands
+with the documents named by them, and a plain word (keyboard, split) keeps
+the catalogue's own hits first, the docsets' entries after.
 
 A PDF (in a project's docs/ or at its top, in /usr/share/doc, or in a
 folder of yours by a *.pdf pattern) is read by the text it carries, its
@@ -939,13 +941,15 @@ def zeal_doc(ds, name, type_, path):
             "excerpt": f"{type_} in the {ds['name']} reference"}
 
 
-def find_zeal(words, limit):
+def find_zeal(words, limit, members=True):
     """The entries named by the words in every docset: the name itself first,
     then names starting with it (a range of each index's own NOCASE index,
-    a few milliseconds for all), then, only when there are none, a member
-    of that name (str.split for split, std::fs::read_dir for read_dir: a
-    scan of each docset's names, the docsets side by side), shorter names
-    first."""
+    a few milliseconds for all), then, only when there are none and MEMBERS
+    allows, a member of that name (str.split for split, std::fs::read_dir
+    for read_dir: a scan of each docset's names, the docsets side by side,
+    half a second over 300,000 entries, so a search over every source asks
+    for it only when the words look like code or the catalogue had little),
+    shorter names first."""
     q = re.sub(r"\s+", " ", " ".join(words).replace('"', "")).strip()
     if not q or len(q) < 2:
         return []
@@ -990,7 +994,7 @@ def find_zeal(words, limit):
 
     for ds, rows in map(prefix, sets):
         take(ds, rows)
-    if not hits and sets:
+    if not hits and sets and members:
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(min(8, len(sets))) as pool:
             for ds, rows in pool.map(member, sets):
@@ -1339,10 +1343,23 @@ def find(words, source=None, limit=20):
     hits, named = find_fts(words, source, limit)
     if source:
         return hits
-    zeal = find_zeal(words, max(2, limit // ZEAL_SHARE))
+    # The scan for a member (the slow part) only for words written as code
+    # is (an underscore, a dot, a colon, a digit, a capital inside) or when
+    # the catalogue itself had fewer hits than the list holds: "runit" or
+    # "keyboard" has its pages, and needn't wait half a second for a
+    # function of that name in a docset.
+    q = " ".join(words)
+    code_like = bool(re.search(r"[_.:0-9]|[a-z][A-Z]", q))
+    zeal = find_zeal(words, max(2, limit // ZEAL_SHARE), members=code_like or len(hits) < limit)
     if not zeal:
         return hits
-    exact = [z for z in zeal if z["title"].split(" — ")[0].lower() == " ".join(words).replace('"', "").strip().lower()]
+    # The entry named by the words stands with the documents named by them
+    # when the words are written as code, or the catalogue had little; a
+    # plain word (keyboard, split, open) keeps the catalogue's own first,
+    # as before the docsets came, the entries after.
+    exact = [z for z in zeal if z["title"].split(" — ")[0].lower() == q.replace('"', "").strip().lower()]
+    if not (code_like or len(hits) < limit):
+        exact = []
     rest = [z for z in zeal if z not in exact]
     room = max(0, limit - len(zeal))
     return (hits[:named] + exact + hits[named:room] + rest)[:limit]
