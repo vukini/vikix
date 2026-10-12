@@ -115,6 +115,12 @@ check "arranged: the editor on the right" test "$(editor_right)" = 1
 out=$(project open demo)
 check "open again while it's open goes to its workspace: $out" grep -q 'is open: its workspace' <<<"$out"
 key super+1
+# Saving follows the key event; collecting window details can outlast the
+# key helper's half-second pause when other tests are busy.
+for _ in $(seq 1 40); do
+  [ -f "$home/.config/vikix/layouts/project-demo.lisp" ] && break
+  sleep 0.25
+done
 check "leaving the workspace saves its layout" test -f "$home/.config/vikix/layouts/project-demo.lisp"
 # Closed, then opened again: placed as it was left.
 key "super+$pws"

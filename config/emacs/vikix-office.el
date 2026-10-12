@@ -213,7 +213,9 @@ over the refreshes that follow, so it is seen; g drops it.")
 (defun vikix-office--tester-line (tester)
   "The tester at work in a line: what runs, since when, waiting for a release."
   (let ((name (alist-get 'name tester)) (at (alist-get 'at tester)) (waiting (alist-get 'waiting tester)))
-    (concat (if (member name '(nil "")) "running" (vikix-office--one-line name))
+    (concat (mapconcat (lambda (run) (alist-get 'summary run)) (alist-get 'progress tester) " · ")
+            (if (alist-get 'progress tester) " · " "")
+            (if (member name '(nil "")) "running" (vikix-office--one-line name))
             (if (vikix-office--positive at) (concat " · since " (vikix-office--clock at)) "")
             (if (member waiting '(nil "")) "" (concat " · waiting for the release of " (vikix-office--one-line waiting))))))
 
@@ -612,10 +614,11 @@ is drawn when PLANS is empty."
                     (vikix-office--field width chars label-width "Tests" (vikix-office--tester-line (alist-get 'tester r)))
                     (vikix-office--line width chars
                                         (lambda ()
-                                          (vikix-office--button "Skip tests"
-                                                                (lambda () (with-current-buffer owner
-                                                                             (setq vikix-office--selected id)
-                                                                             (vikix-office-skip-tests)))))))
+                                          (unless (eq (alist-get 'direct (alist-get 'tester r)) t)
+                                            (vikix-office--button "Skip tests"
+                                                                  (lambda () (with-current-buffer owner
+                                                                               (setq vikix-office--selected id)
+                                                                               (vikix-office-skip-tests))))))))
                   ;; A standing desk with nobody at it takes a new worker: the form, for
                   ;; this row. With an agent there the button is not shown, as the
                   ;; details show only the buttons that can act (Tell speaks to it).
@@ -714,7 +717,8 @@ comma of its words; the words alone without a clock."
                     (vikix-office--button (if (alist-get 'paused r) "Go" "Pause") (lambda () (with-current-buffer owner (vikix-office-pause))))
                     ;; While the tests run, Skip tests stands where Test did (the Testing box has the log).
                     (if (vikix-office--positive (alist-get 'testing r))
-                        (vikix-office--button "Skip tests" (lambda () (with-current-buffer owner (vikix-office-skip-tests))))
+                        (unless (eq (alist-get 'direct (alist-get 'tester r)) t)
+                          (vikix-office--button "Skip tests" (lambda () (with-current-buffer owner (vikix-office-skip-tests)))))
                       (vikix-office--button "Test" (lambda () (with-current-buffer owner (vikix-office-test)))))
                     (when (alist-get 'reviewers vikix-office--data)
                       (vikix-office--button "Review by…" (lambda () (with-current-buffer owner (vikix-office-review)))))
@@ -752,23 +756,31 @@ comma of its words; the words alone without a clock."
                 (let ((tester (alist-get 'tester r)))
                   (vikix-office--box-top width chars "Testing")
                   (vikix-office--field width chars 0 "" (vikix-office--tester-line tester))
+                  (dolist (run (alist-get 'progress tester))
+                    (dolist (test (alist-get 'tests run))
+                      (vikix-office--field width chars 0 "" (alist-get 'line test)
+                                           (if (eq (alist-get 'stalled test) t) 'warning 'shadow))))
                   (let ((waiting (alist-get 'waiting tester)))
                     (unless (member waiting '(nil ""))
                       (vikix-office--field width chars 0 ""
                                            (concat "Waiting for the release of " (vikix-office--one-line waiting)
                                                    " to finish its tests first; the run starts after")
                                            'shadow)))
+                  (when (eq (alist-get 'direct tester) t)
+                    (vikix-office--field width chars 0 "" "Started by the worker; output and stopping belong to its terminal" 'shadow))
                   (let ((tail (alist-get 'tail tester)))
                     (if (null tail)
-                        (unless (and (alist-get 'waiting tester) (not (member (alist-get 'waiting tester) '(nil ""))))
+                        (unless (or (alist-get 'progress tester) (and (alist-get 'waiting tester) (not (member (alist-get 'waiting tester) '(nil "")))))
                           (vikix-office--field width chars 0 "" "No test has ended yet" 'shadow))
                       (vikix-office--note width chars "The last lines of the run: each test's output comes whole when it ends.")
                       (dolist (line tail)
                         (vikix-office--field width chars 0 "" (vikix-office--one-line line) 'shadow))))
                   (vikix-office--line width chars
                                       (lambda ()
-                                        (vikix-office--button "Skip tests" (lambda () (with-current-buffer owner (vikix-office-skip-tests))))
-                                        (vikix-office--button "Test log" (lambda () (with-current-buffer owner (vikix-office-test-log))))))
+                                        (unless (eq (alist-get 'direct (alist-get 'tester r)) t)
+                          (vikix-office--button "Skip tests" (lambda () (with-current-buffer owner (vikix-office-skip-tests)))))
+                                        (unless (eq (alist-get 'direct tester) t)
+                                          (vikix-office--button "Test log" (lambda () (with-current-buffer owner (vikix-office-test-log)))))))
                   (vikix-office--box-bottom width chars)))
               (vikix-office--box-top width chars "What the agent says")
               (vikix-office--note width chars "The agent's own account of its work, which Vikix doesn't check. A status of review asks you to look; nothing is merged by it.")
@@ -1115,6 +1127,8 @@ check is marked skipped (a plan's chain goes on; the release runs its own)."
   (with-current-buffer (vikix-office--owner-buffer)
     (let ((r (vikix-office--worker-row)))
       (unless (vikix-office--positive (alist-get 'testing r)) (user-error "No tests run at this desk now"))
+      (when (eq (alist-get 'direct (alist-get 'tester r)) t)
+        (user-error "The worker started this run directly; its terminal owns stopping it"))
       (vikix-office--act (list "office" "--skip" (alist-get 'id r)) #'vikix-office-refresh))))
 (defun vikix-office-test-log ()
   "The selected desk's test run, as it is so far, in the desk pane (read-only,

@@ -133,6 +133,82 @@ def changed_covers(where, base):
     return r.returncode != 0 or bool(r.stdout.strip())
 
 
+def test_progress(folder, now=None):
+    """Read live runner plans, including runs started directly by a worker.
+
+    Estimates use the last successful duration on this machine, excluding
+    queue time. A long runtime is a suspicion, never grounds to kill a test.
+    """
+    from pathlib import Path
+    now = time.time() if now is None else now
+    slots = Path(os.environ.get("VIKIX_TEST_SLOTS_DIR") or
+                 os.path.join(os.environ.get("XDG_RUNTIME_DIR") or "/tmp", "vikix-test-slots"))
+    runs = []
+    for note in sorted((slots / "runs").glob("*")):
+        if not note.name.isdigit():
+            continue
+        try:
+            logs = Path(note.read_text().strip())
+            where, jobs, at = (logs / "run").read_text().splitlines()
+            # A dead runner's files, or a reused pid in another folder, are stale.
+            if os.path.realpath(where) != os.path.realpath(os.path.join(folder, "tests")):
+                continue
+            if os.path.realpath(f"/proc/{note.name}/cwd") != os.path.realpath(where):
+                continue
+            jobs = max(1, int(jobs))
+            names = (logs / "plan").read_text().splitlines()
+            rows, remaining, unknown = [], [], False
+            completed = 0
+            for name in names:
+                if not re.fullmatch(r"[\w-]+", name):
+                    continue
+                def number(suffix):
+                    try:
+                        return max(0, int((logs / (name + suffix)).read_text().split()[0]))
+                    except (OSError, ValueError, IndexError):
+                        return None
+                if number(".done") is not None:
+                    completed += 1
+                    continue
+                start, expected = number(".started"), number(".expected")
+                elapsed = max(0, int(now - start)) if start is not None else 0
+                left = max(0, expected - elapsed) if expected is not None else None
+                threshold = max(300, 3 * expected) if expected is not None else 900
+                stalled = start is not None and elapsed > threshold
+                state = "running" if start is not None else "queued"
+                detail = f"{name}: {state}"
+                if start is not None:
+                    detail += f", {elapsed}s elapsed"
+                if expected is None:
+                    detail += ", estimate unknown"
+                elif start is None:
+                    detail += f", about {expected}s once started"
+                elif left:
+                    detail += f", about {left}s left"
+                else:
+                    detail += ", past estimate"
+                if stalled:
+                    detail += " — suspected stalled (long runtime)"
+                rows.append({"name": name, "state": state, "elapsed": elapsed,
+                             "remaining": left, "stalled": stalled, "line": detail})
+                unknown |= left is None or (start is not None and left == 0)
+                remaining.append((name, left or 0))
+            parallel = [seconds for name, seconds in remaining if name not in ("times", "soak", "rescue")]
+            alone = sum(seconds for name, seconds in remaining if name in ("times", "soak", "rescue"))
+            eta = None if unknown else int(max(max(parallel, default=0), sum(parallel) / jobs) + alone)
+            active = [r["name"] for r in rows if r["state"] == "running"]
+            summary = f"{completed}/{len(names)} done, {len(rows)} remaining; running: {', '.join(active) or 'none (queued)'}"
+            summary += f"; about {eta}s left, plus queue waits" if eta is not None else "; ETA unknown"
+            suspects = [r["name"] for r in rows if r["stalled"]]
+            if suspects:
+                summary += "; suspected stalled: " + ", ".join(suspects)
+            runs.append({"pid": int(note.name), "at": int(at), "total": len(names), "completed": completed,
+                         "remaining": len(rows), "eta": eta, "tests": rows, "summary": summary})
+        except (OSError, ValueError):
+            continue
+    return runs
+
+
 def tester_state(folder, lines=8):
     """The tester at work on the desk FOLDER, for the Office's Testing box:
     its pid, since when (from the running note), what it runs (the runner's
@@ -142,8 +218,10 @@ def tester_state(folder, lines=8):
     for ('' for none: the wait is the tester's own, so it is told by an
     empty log and a release of the project testing). {} when none runs."""
     pid = tester_running(folder)
+    progress = test_progress(folder)
     if not pid:
-        return {}
+        return {"pid": progress[0]["pid"], "at": progress[0]["at"], "name": "tests/run.sh",
+                "progress": progress, "direct": True} if progress else {}
     log, running = tester_paths(folder)
     at = 0
     try:
@@ -160,7 +238,7 @@ def tester_state(folder, lines=8):
     _, runner, changed = runner_of(folder)
     base = base_of(folder)[0] if runner else ""
     name = ("tests/run.sh" + (f" --changed {base[:7]}" if changed and base else "")) if runner else ""
-    return {"pid": pid, "at": at, "name": name, "log": log, "tail": tail,
+    return {"pid": pid, "at": at, "name": name, "log": log, "tail": tail, "progress": progress,
             "waiting": release_testing(folder) if not tail else ""}
 
 

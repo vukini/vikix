@@ -115,6 +115,21 @@ mkdir -p "$t/desk"   # the agent's own folder: the other run isn't under it
 ( cd "$t/desk" && exec -a claude bash -c "VIKIX_TEST_SLOTS=1 '$t/tests/run.sh' a b; exit \$?" ) > "$t/two.out" 2>&1 &
 agent=$!
 sleep 1
+# Read the actual live runner, not its completed output: two simultaneous
+# runs have separate plans, and a slot wait has no elapsed runtime.
+python3 - "$here" "$t" <<'PYTEST' || fail=1
+import importlib.util
+from importlib.machinery import SourceFileLoader
+import sys
+spec = importlib.util.spec_from_loader('progress_agents', SourceFileLoader('progress_agents', sys.argv[1] + '/bin/vikix-agents'))
+a = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(a)
+runs = a.test_progress(sys.argv[2])
+assert len(runs) == 2, runs
+rows = [row for run in runs for row in run['tests']]
+assert sorted(row['state'] for row in rows) == ['queued', 'queued', 'running'], rows
+assert all(row['elapsed'] == 0 and not row['stalled'] for row in rows if row['state'] == 'queued'), rows
+PYTEST
 states=$(cat "$t/slots/notes"/* 2>/dev/null | awk 'NR % 3 == 1' | sort | tr '\n' ' ')
 check "one test runs and two wait, each with a note: $states" test "$states" = "running waiting waiting "
 held=$(python3 "$here/bin/vikix-agents" --waits "$agent" 2>&1)
@@ -128,6 +143,8 @@ check "a process no agent is above is found by its folder, with every run's test
 kill "$bystander" 2>/dev/null; wait "$bystander" 2>/dev/null || true
 wait "$agent" || true; wait
 check "the notes are gone when the tests end: $(ls "$t/slots/notes" | tr '\n' ' ')" test -z "$(ls "$t/slots/notes")"
+
+check "run progress notes are cleaned up" test -z "$(ls "$t/slots/runs")"
 
 # Without flock (a machine that hasn't it): as before, no queue, no failure.
 mkdir -p "$t/noflock"

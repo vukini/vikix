@@ -270,6 +270,21 @@ Two workers reaching for one file are stopped at your prompt, as the house rules
 
 ### The tester: a hand-in comes back checked
 
+The Office also follows runs a worker starts directly with `tests/run.sh`.
+The desk's Testing row shows completed/total and remaining counts, the names
+running now, and a rough time left. Its Testing box lists every unfinished
+test with elapsed time and an estimate, or says the estimate is unknown.
+Estimates use each test's last successful duration on this machine; parallel
+work is accounted for, but time waiting for other runs' slots is additional.
+The first run has no history, and an overrun makes the total ETA unknown.
+A running test past three times its previous duration (and at least five
+minutes), or fifteen minutes without history, is **suspected stalled**.
+This is a long-runtime warning, not proof: quiet tests can still be working.
+Queued tests are never marked stalled, and nothing is stopped automatically.
+Direct runs keep their output and stop control in the worker's terminal;
+**Skip tests** and **Test log** belong to runs started by the Office's tester.
+
+
 When a worker sets its status to *review*, its desk's tests run by themselves: `vikix agents test wifi-fix` is what runs, a script and never an agent. It runs the project's `tests/run.sh` in the desk's worktree, `--changed` from where the branch left the project's own, through the runner's queue like any other run (and after a release's tests, when one of the project is testing: the two at once failed for load alone; not for a change no test covers, a plan or a design, which `tests/changed.sh` says and runs at once; a wait taken is said in the check apart from the run's time), and writes the result into the record as a check signed *vikix*, the failing tests named and the first failure's line kept, and into the worker's inbox, so the worker reads it at its next tool call and fixes its own failures; `vikix agents test --log wifi-fix` shows the whole run. `vikix agents` says *testing* while it runs, and the Office lists the desk under **Testing**, its row saying what runs and since when, with **Skip tests** on the row; the desk's **Testing** box has the release it waits for, the last lines of the run (each test's output comes whole when it ends) and **Test log**, the whole run so far in the desk pane. **Skip tests** (`vikix agents test --skip wifi-fix`, the key `s`) is for when you won't wait: the tester is ended, the runner and its tests with it, and the record gets a check marked *skipped* on the commit as it stands, which a plan's chain takes as the hand-in checked, so the next task starts; the worker is told in its inbox. The release never takes a skipped check for a run of its own. A project with no `tests/run.sh` is said so, with no check. The release reads the same checks: `.claude/release` skips its own run, and says so, when the record has a passing run of the runner as wide as its own on the very commit it merges, with a clean tree (one commit was tested four times in a day, 2026-10-11); a run of named tests, a check on an older commit or a failed run after the passing one vouch for nothing, and `--tests none` stays as typed. A desk made, or a worker started, with `--no-tests` (the Office's *No tests by themselves* box) runs nothing at the hand-in: the tests are yours to run, with `vikix agents test wifi-fix`, the Office's *Test* or the desk key `t`, and `vikix agents test --all` leaves such a desk out and says so. The setting is the desk's, kept in its record and shown by `vikix agents handoff` and in the Office (*tests off*); a worker started on a task without `--no-tests` has the tests again.
 
 `vikix agents test --all` takes every desk in review. In the order they went to review, a desk joins a batch when it changed no file the batch has; the batch is merged onto the project's own branch in a throwaway worktree, gone afterwards, and tested once, each desk's check saying with which, since passing alone and failing together is what a batch is for. A desk that overlaps one in the batch runs alone, in its own worktree as it stands, told which it overlaps on what. Nothing touches a desk's branch: a merge that conflicts only sends that desk to run alone.

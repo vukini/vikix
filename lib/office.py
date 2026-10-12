@@ -248,7 +248,8 @@ def snapshot(api):
         row['paused'] = api.pause_read(path) if row['kind'] == 'desk' else {}
         row['testing'] = api.tester_running(path) if row['kind'] == 'desk' else 0
         # The tester at work, for the Testing box: since when, what runs, the log's tail (tester_state).
-        row['tester'] = api.tester_state(path) if row['testing'] else {}
+        row['tester'] = api.tester_state(path) if row['kind'] == 'desk' else {}
+        row['testing'] = row['testing'] or row['tester'].get('pid', 0)
         # A review of the desk under way: who reads it, since when (vikix agents review).
         row['reviewing'] = api.reviewer_running(path) if row['kind'] == 'desk' else {}
         row['notes'] = len(api.inbox_peek(path)) if row['kind'] == 'desk' else 0

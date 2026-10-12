@@ -604,6 +604,47 @@ class Office(unittest.TestCase):
             self.records = [H.load(H.desk_id('', self.folder))]
             self.assertFalse(office.snapshot(A)['desks'][0]['tests_off'])
 
+    def test_runner_progress(self):
+        slots = Path(self.temp.name) / 'slots'
+        logs = Path(self.temp.name) / 'logs'
+        logs.mkdir()
+        (slots / 'runs').mkdir(parents=True)
+        where = str(Path(self.folder) / 'tests')
+        pid = os.getpid()
+        (slots / 'runs' / str(pid)).write_text(str(logs))
+        (logs / 'run').write_text(f'{where}\n2\n100\n')
+        (logs / 'plan').write_text('done\nactive\nqueued\nsoak\n')
+        (logs / 'done.done').write_text('0 10')
+        (logs / 'active.started').write_text('100')
+        for name, seconds in [('active', 100), ('queued', 60), ('soak', 30)]:
+            (logs / (name + '.expected')).write_text(str(seconds))
+        realpath = os.path.realpath
+        def resolve(path):
+            return where if path == f'/proc/{pid}/cwd' else realpath(path)
+        with patch.dict(os.environ, VIKIX_TEST_SLOTS_DIR=str(slots)), patch.object(A.os.path, 'realpath', resolve):
+            run = A.test_progress(self.folder, now=120)[0]
+            self.assertEqual((run['completed'], run['remaining'], run['eta']), (1, 3, 110))
+            self.assertEqual([r['state'] for r in run['tests']], ['running', 'queued', 'queued'])
+            self.assertIn('running: active', run['summary'])
+            run = A.test_progress(self.folder, now=501)[0]
+            self.assertIsNone(run['eta'])
+            self.assertTrue(run['tests'][0]['stalled'])
+            self.assertFalse(run['tests'][1]['stalled'])
+            (logs / 'active.expected').unlink()
+            self.assertFalse(A.test_progress(self.folder, now=501)[0]['tests'][0]['stalled'])
+            self.assertTrue(A.test_progress(self.folder, now=1001)[0]['tests'][0]['stalled'])
+            self.records = [self.rec]
+            with patch.object(A, 'tester_running', lambda f: 0):
+                row = office.snapshot(A)['desks'][0]
+                self.assertEqual(row['group'], 'Testing')
+                self.assertTrue(row['tester']['direct'])
+            # A second run remains separate; stale and incomplete notes vanish.
+            (slots / 'runs' / '999999999').write_text(str(logs))
+            (slots / 'runs' / '123.tmp').write_text('unfinished')
+            self.assertEqual(len(A.test_progress(self.folder)), 1)
+            (logs / 'run').write_text('partial')
+            self.assertEqual(A.test_progress(self.folder), [])
+
     def test_testing_group_and_skip(self):
         # A desk whose tests run is in Testing, whatever else it does, with the tester's state
         # for the Office's box; --skip ends the run through tester_skip, its refusal said.

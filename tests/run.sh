@@ -99,7 +99,7 @@ for t in "${tests[@]}"; do [[ " ${first[*]} " == *" $t "* ]] || ordered+=("$t");
 jobs=${VIKIX_TEST_JOBS:-$(nproc 2>/dev/null || echo 2)}
 [ "$jobs" -ge 1 ] 2>/dev/null || jobs=1
 logs=$(mktemp -d)
-trap 'rm -rf "$logs"' EXIT
+trap 'rm -rf "$logs"; [ -z "${run_note:-}" ] || rm -f "$run_note"' EXIT
 failed=() took=() shown=()
 # The machine as the run begins: said with a failure, since a load past the
 # cores makes a timing check fail on its own (house, at a load of 5.5 on 4
@@ -119,6 +119,20 @@ slots=${VIKIX_TEST_SLOTS:-$(nproc 2>/dev/null || echo 2)}
 [ "$slots" -ge 1 ] 2>/dev/null || slots=1
 queue=1
 command -v flock >/dev/null 2>&1 && mkdir -p "$slots_dir" 2>/dev/null || queue=
+
+# A run's plan and live files let the Office show progress even when a
+# worker invoked this runner directly. Durations exclude time in the queue.
+run_note=""
+if mkdir -p "$slots_dir/runs" "$slots_dir/durations" 2>/dev/null; then
+  printf '%s\n' "${ordered[@]}" > "$logs/plan"
+  printf '%s\n' "$(pwd -P)" "$jobs" "$(date +%s)" > "$logs/run"
+  for t in "${ordered[@]}"; do
+    [ ! -f "$slots_dir/durations/$t" ] || cp "$slots_dir/durations/$t" "$logs/$t.expected"
+  done
+  run_note="$slots_dir/runs/$$"
+  printf '%s\n' "$logs" > "$run_note.tmp"
+  mv "$run_note.tmp" "$run_note"
+fi
 
 # Each test leaves a note of what it is doing ($slots_dir/notes/PID: waiting
 # for a slot, waiting for the machine to itself, or running; the test; since
@@ -169,9 +183,14 @@ alone_slot() {  # alone_slot COMMAND...: run it while no other test runs anywher
 
 run_one() {
   local start=$SECONDS code=0
+  date +%s > "$logs/$1.started"
   ./"$1".sh > "$logs/$1.out" 2>&1 || code=$?
   echo "$code $((SECONDS - start))" > "$logs/$1.done.tmp"
   mv "$logs/$1.done.tmp" "$logs/$1.done"
+  if [ "$code" = 0 ] && [ -d "$slots_dir/durations" ]; then
+    printf '%s\n' "$((SECONDS - start))" > "$slots_dir/durations/$1.$BASHPID.tmp"
+    mv "$slots_dir/durations/$1.$BASHPID.tmp" "$slots_dir/durations/$1"
+  fi
 }
 
 # Prints each test that has ended and isn't printed yet, whole.

@@ -1380,3 +1380,39 @@ and q puts the windows back; the only frame is never deleted."
       (dolist (name '("*The Office*" "*Office desk*"))
         (when (get-buffer name) (kill-buffer name)))
       (set-window-configuration before))))
+
+(ert-deftest office-test-progress-line ()
+  (should (string-match-p
+           "2/5 done, 3 remaining; running: lint"
+           (vikix-office--tester-line
+            '((name . "tests/run.sh")
+              (progress . (((summary . "2/5 done, 3 remaining; running: lint; ETA unknown")))))))))
+
+(ert-deftest office-test-progress-details ()
+  (office-test-buffer
+   (let ((row (car (alist-get 'desks vikix-office--data))))
+     (nconc row
+            '((testing . 4242)
+              (tester . ((pid . 4242) (direct . t) (name . "tests/run.sh")
+                         (progress . (((summary . "1/3 done, 2 remaining; running: lint; ETA unknown")
+                                       (tests . (((line . "lint: running, 400s elapsed — suspected stalled (long runtime)") (stalled . t))
+                                                 ((line . "office: queued, about 60s once started")))))))))))
+     (setq vikix-office--detail (generate-new-buffer " *Progress details*"))
+     (unwind-protect
+         (progn
+           (setq vikix-office--selected "a")
+           (vikix-office--render-detail)
+           (with-current-buffer vikix-office--detail
+             (should (string-match-p "1/3 done, 2 remaining" (buffer-string)))
+             (should (string-match-p "suspected stalled" (buffer-string)))
+             (should (string-match-p "office: queued" (buffer-string)))
+             (should-not (string-match-p "No test has ended yet" (buffer-string)))
+             (let (labels)
+               (save-excursion
+                 (goto-char (point-min))
+                 (while (forward-button 1 nil nil t)
+                   (push (button-label (button-at (point))) labels)))
+               (should-not (member "Skip tests" labels))
+               (should-not (member "Test log" labels))))
+           (should-error (vikix-office-skip-tests) :type 'user-error))
+       (kill-buffer vikix-office--detail)))))
