@@ -25,6 +25,11 @@
 #                         this lays them out otherwise (Super+Ctrl+p)
 #   vikix wifi [list|scan]   Wi-Fi: pick a network from a list scanned first
 #   vikix network [status]  Network Office: nearby devices, ports and connections
+#   vikix nodes [--last]  your other machines as nodes of this Vikix: each
+#                         asked over SSH, online or not, what runs there
+#   vikix node add|remove|status|shell|run NAME ...   a node: a Void machine
+#                         reached by key; a shell or a command there
+#                         (vikix node help)
 #   vikix tray [on|off|status]  a tray at the bar's end: network and
 #                         Bluetooth icons (nm-applet, blueman-applet); alone
 #                         it switches, as Super+m's Tray does
@@ -1150,6 +1155,8 @@ main() {
     screens)     shift; exec "$VIKIX_DIR/bin/vikix-screens" "$@" ;;
     wifi)        shift; exec "$VIKIX_DIR/bin/vikix-wifi" "$@" ;;
     network)     shift; exec "$VIKIX_DIR/bin/vikix-network" "$@" ;;
+    nodes)       shift; exec "$VIKIX_DIR/bin/vikix-node" list "$@" ;;
+    node)        shift; exec "$VIKIX_DIR/bin/vikix-node" "$@" ;;
     memory)      shift; exec "$VIKIX_DIR/bin/vikix-memory" "$@" ;;
     times)       shift; exec "$VIKIX_DIR/bin/vikix-times" "$@" ;;
     used)        shift; exec "$VIKIX_DIR/bin/vikix-used" "$@" ;;

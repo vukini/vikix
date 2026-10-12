@@ -46,6 +46,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-net](#vikix-net): the network link as one short line, for the mode line
 - [vikix-network](#vikix-network): the Network Office: nearby devices, ports and connections
 - [vikix-nightlight](#vikix-nightlight): a warmer screen in the evening (gammastep)
+- [vikix-node](#vikix-node): a remote Void machine as a node of this Vikix
 - [vikix-notes](#vikix-notes): ask your notes, from any terminal (`note` for short)
 - [vikix-notifications](#vikix-notifications): the notifications dunst has put away, in rofi, newest first
 - [vikix-obsidian](#vikix-obsidian): an Obsidian vault, converted to Org notes, a folder at a time
@@ -95,6 +96,8 @@ The everyday command.
 - `vikix screens [extend|mirror|external|laptop|pick]` — the screens: a plugged one lights up by itself; this lays them out otherwise (Super+Ctrl+p)
 - `vikix wifi [list|scan]` — Wi-Fi: pick a network from a list scanned first
 - `vikix network [status]` — Network Office: nearby devices, ports and connections
+- `vikix nodes [--last]` — your other machines as nodes of this Vikix: each asked over SSH, online or not, what runs there
+- `vikix node add|remove|status|shell|run NAME ...` — a node: a Void machine reached by key; a shell or a command there (vikix node help)
 - `vikix tray [on|off|status]` — a tray at the bar's end: network and Bluetooth icons (nm-applet, blueman-applet); alone it switches, as Super+m's Tray does
 - `vikix memory [left|clean]` — what uses the memory, biggest first, and the programs left over (hidden screens, tests nobody ended); clean ends those; a warning comes by itself when memory runs low (vikix memory help)
 - `vikix rescue [free|undo|lock]` — when the desktop is stuck: how it is and what it is doing; free = out of a loop (rules paused, focus on clicks, a fresh event loop); works from a text console too (vikix rescue help)
@@ -895,6 +898,21 @@ A warmer screen in the evening (gammastep).
 - `vikix-nightlight status` — say whether it is on, and when it warms
 
 The times and colours are in `~/.config/gammastep/config.ini`. Switched off, gammastep ends and puts the screen's colours back; the choice lasts across logins, until you switch it on again.
+
+## vikix-node
+
+A remote Void machine as a node of this Vikix.
+
+- `vikix nodes [--last]` — the nodes, one line each: name, kind, online or not, the system, what runs there; this machine first. Each is asked over SSH (a few seconds at most); --last shows the last answers, asking none
+- `vikix node add NAME [USER@]HOST [--port N] [--kind WORD]` — a node: it is reached once now, so you confirm its host key yourself, then kept in `~/.config/vikix/nodes/NAME`; the kind is cloud unless you say (build, home, ...)
+- `vikix node remove NAME` — forget it; nothing on the machine is touched
+- `vikix node status NAME` — the system, kernel, uptime, load, memory, disk, the services and the programs running there
+- `vikix node shell NAME` — a shell there, in this terminal
+- `vikix node run NAME COMMAND...` — run it there, your input and its output passed through, its exit status yours
+
+A node is reached by SSH alone, as yourself, by key: nothing of Vikix's is on the node, and ssh HOST is the same machine. Keys only: no password is ever kept or asked after add, so a node without your key says so (ssh-copy-id puts it there). The host key is verified: add shows it for you to confirm, and from then on a changed one refuses. Nothing is sent to a node but what you ask; nothing is synchronised.
+
+The nodes are files, `~/.config/vikix/nodes/NAME` (host=, port=, kind=), yours to edit; what each answered last is `~/.local/state/vikix/nodes/NAME`, and add and remove are noted in `~/.local/state/vikix/nodes/log`.
 
 ## vikix-notes
 

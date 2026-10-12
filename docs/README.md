@@ -26,6 +26,7 @@ Every `vikix` command has a man page as well, and so has each command of a plugi
 | [Windows in a window](windows.md) | You need a program that only runs on Windows |
 | [Steam](steam.md) | You want to play games, Windows ones too: one command sets Steam up with everything your graphics card needs, and what to do when a game doesn't run |
 | [The Network Office](network.md) | You want to discover nearby devices, inspect their ports and connect, with a discovery choice for each network |
+| [Your other machines, as nodes](nodes.md) | You have a Void machine elsewhere (a VPS, a box at home) and want it to be part of this Vikix: a shell or a command there by name, and whether it is up |
 | [The commands](commands.md) | You want to know what a command takes: every `vikix` command, its forms and the files it keeps, as its `-h` and its man page say them |
 | [When something breaks](fixing.md) | The install or the desktop didn't start, a key or a menu entry is missing, an update failed, you want a report to ask the agent or a person |
 

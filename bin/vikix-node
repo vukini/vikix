@@ -1,0 +1,300 @@
+#!/usr/bin/env bash
+# vikix-node — a remote Void machine as a node of this Vikix (`vikix nodes`).
+#
+#   vikix nodes [--last]       the nodes, one line each: name, kind, online or
+#                              not, the system, what runs there; this machine
+#                              first. Each is asked over SSH (a few seconds at
+#                              most); --last shows the last answers, asking none
+#   vikix node add NAME [USER@]HOST [--port N] [--kind WORD]
+#                              a node: it is reached once now, so you confirm
+#                              its host key yourself, then kept in
+#                              ~/.config/vikix/nodes/NAME; the kind is cloud
+#                              unless you say (build, home, ...)
+#   vikix node remove NAME     forget it; nothing on the machine is touched
+#   vikix node status NAME     the system, kernel, uptime, load, memory, disk,
+#                              the services and the programs running there
+#   vikix node shell NAME      a shell there, in this terminal
+#   vikix node run NAME COMMAND...   run it there, your input and its output
+#                              passed through, its exit status yours
+#
+# A node is reached by SSH alone, as yourself, by key: nothing of Vikix's is
+# on the node, and ssh HOST is the same machine. Keys only: no password is
+# ever kept or asked after add, so a node without your key says so
+# (ssh-copy-id puts it there). The host key is verified: add shows it for
+# you to confirm, and from then on a changed one refuses. Nothing is sent
+# to a node but what you ask; nothing is synchronised.
+#
+# The nodes are files, ~/.config/vikix/nodes/NAME (host=, port=, kind=),
+# yours to edit; what each answered last is ~/.local/state/vikix/nodes/NAME,
+# and add and remove are noted in ~/.local/state/vikix/nodes/log.
+
+set -euo pipefail
+# No VIKIX_DIR: nothing of the checkout is needed here, SSH and the plain tools do it all.
+nodes="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/nodes"
+state="${XDG_STATE_HOME:-$HOME/.local/state}/vikix/nodes"
+timeout_s=${VIKIX_NODE_TIMEOUT:-8}            # how long a node has to answer
+
+c_off='' c_say='' c_warn='' c_die=''
+if [ -t 2 ]; then c_off=$'\e[0m' c_say=$'\e[32m' c_warn=$'\e[33m' c_die=$'\e[31m'; fi
+say()  { printf '%s::%s %s\n' "$c_say"  "$c_off" "$*"; }
+warn() { printf '%s!!%s %s\n' "$c_warn" "$c_off" "$*" >&2; }
+die()  { printf '%sxx%s %s\n' "$c_die"  "$c_off" "$*" >&2; exit 1; }
+
+usage() { sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+
+name_ok() {
+  case ${1:-} in
+    '') die "a node needs a name: vikix node add NAME USER@HOST" ;;
+    *[!a-z0-9-]*|-*|*-) die "a node's name is lowercase letters, digits and dashes: $1" ;;
+  esac
+  [ "${#1}" -le 32 ] || die "a node's name is 32 characters at most: $1"
+}
+
+# A node's settings: host=, port=, kind=, read from its file into these.
+host='' port='' kind=''
+load_node() {
+  local name=$1
+  [ -f "$nodes/$name" ] || die "no node $name (vikix nodes lists them; vikix node add $name USER@HOST)"
+  host=$(sed -n 's/^host=//p' "$nodes/$name" | tail -n 1)
+  port=$(sed -n 's/^port=//p' "$nodes/$name" | tail -n 1)
+  kind=$(sed -n 's/^kind=//p' "$nodes/$name" | tail -n 1)
+  [ -n "$host" ] || die "$nodes/$name has no host= line"
+  case $port in ''|*[!0-9]*) port=22 ;; esac
+  : "${kind:=cloud}"
+}
+
+note() {   # the log of what was done to the nodes, one line each
+  mkdir -p "$state"
+  printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M')" "$*" >> "$state/log"
+}
+
+# ssh to the node loaded. Batch: keys only, no prompt of any kind, a known
+# host key or nothing; interactive (add, shell): ssh's own prompts, so the
+# host key is shown and confirmed by you.
+ssh_batch() {
+  ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o "ConnectTimeout=$timeout_s" \
+      -p "$port" -- "$host" "$@"
+}
+ssh_ask() { ssh -o "ConnectTimeout=$timeout_s" -p "$port" -- "$host" "$@"; }
+
+# What a node is asked, as a POSIX sh script on its stdin: /proc, /etc and
+# the plain tools, nothing of Vikix's needed there. It prints key=value lines.
+probe=$(cat <<'PROBE'
+. /etc/os-release 2>/dev/null
+echo "system=${PRETTY_NAME:-${NAME:-unknown}}"
+echo "id=${ID:-unknown}"
+echo "hostname=$(uname -n)"
+echo "kernel=$(uname -r) $(uname -m)"
+read -r up _ < /proc/uptime 2>/dev/null && echo "up=${up%.*}"
+read -r l1 l5 l15 _ < /proc/loadavg 2>/dev/null && echo "load=$l1 $l5 $l15"
+awk '/^MemTotal:/ {t=$2} /^MemAvailable:/ {a=$2} END {if (t) printf "mem=%d %d\n", (t-a)/1024, t/1024}' /proc/meminfo 2>/dev/null
+df -P / 2>/dev/null | awk 'NR==2 {printf "disk=%d %d\n", $3/1024, $2/1024}'
+if [ -d /run/runit ] || [ -d /var/service ]; then echo init=runit
+elif [ -d /run/systemd/system ]; then echo init=systemd
+else echo init=other; fi
+echo "services=$(ls /var/service 2>/dev/null | tr '\n' ' ')"
+if pgrep -x stumpwm >/dev/null 2>&1; then echo desktop=stumpwm
+elif pgrep -x Xorg >/dev/null 2>&1 || pgrep -x Xwayland >/dev/null 2>&1; then echo desktop=other
+else echo desktop=headless; fi
+[ -f "$HOME/vikix/VERSION" ] && echo "vikix=$(cat "$HOME/vikix/VERSION")"
+echo "programs=$(ps -u "$(id -u)" -o comm= 2>/dev/null | grep -vxE 'ps|sh|bash|sshd|awk|grep|sort|uniq|head|tr' | sort | uniq -c | sort -rn | head -n 6 | awk '{printf "%s%s", (NR>1?", ":""), $2 (($1>1)?" x"$1:"")}')"
+PROBE
+)
+
+# The answer kept, with when and whether it answered.
+keep() {   # keep NAME online|offline < the probe's lines
+  mkdir -p "$state"
+  { echo "seen=$(date +%s)"; echo "status=$2"; cat; } > "$state/$1.new"
+  mv -f "$state/$1.new" "$state/$1"
+}
+
+field() { sed -n "s/^$2=//p" "$1" 2>/dev/null | tail -n 1; }
+
+ago() {   # seconds as 3d 4h, 2h 10m, 5m
+  local s=$1
+  if [ "$s" -ge 86400 ]; then echo "$((s / 86400))d $((s % 86400 / 3600))h"
+  elif [ "$s" -ge 3600 ]; then echo "$((s / 3600))h $((s % 3600 / 60))m"
+  else echo "$((s / 60))m"; fi
+}
+
+system_line() {   # "Void / StumpWM", "Void / headless", from an answer file
+  local sys desk
+  sys=$(field "$1" system); desk=$(field "$1" desktop)
+  case $(field "$1" id) in void) sys=Void ;; '') sys="?" ;; *) sys=${sys%% *} ;; esac
+  case $desk in stumpwm) desk=StumpWM ;; other) desk=a desktop ;; *) desk=headless ;; esac
+  echo "$sys / $desk"
+}
+
+# --- the commands --------------------------------------------------------------
+
+# This machine, probed the same way, so the list starts with it.
+local_answer() {
+  mkdir -p "$state"
+  printf '%s\n' "$probe" | sh -s 2>/dev/null | keep .local online
+}
+
+cmd_list() {
+  local last=0 a f name pids=() status sys what
+  for a in "$@"; do
+    case $a in --last) last=1 ;; -h|--help|help) usage; return 0 ;; *) die "vikix nodes takes --last only" ;; esac
+  done
+  mkdir -p "$nodes" "$state"
+  if [ "$last" = 0 ]; then
+    local_answer
+    for f in "$nodes"/*; do
+      [ -f "$f" ] || continue
+      name=${f##*/}
+      ( load_node "$name"
+        if out=$(printf '%s\n' "$probe" | ssh_batch sh -s 2>/dev/null); then
+          printf '%s\n' "$out" | keep "$name" online
+        else
+          # Offline: the last answer's facts stay, under a line saying so.
+          { [ -f "$state/$name" ] && grep -v '^seen=\|^status=' "$state/$name"; } | keep "$name" offline
+        fi ) &
+      pids+=($!)
+    done
+    for a in "${pids[@]}"; do wait "$a" || true; done
+  fi
+  {
+    printf 'NAME\tKIND\tSTATUS\tSYSTEM\tWHAT RUNS\n'
+    [ -f "$state/.local" ] && printf '%s\tlocal\tonline\t%s\t%s\n' \
+      "$(field "$state/.local" hostname)" "$(system_line "$state/.local")" "$(what_runs "$state/.local")"
+    for f in "$nodes"/*; do
+      [ -f "$f" ] || continue
+      name=${f##*/}
+      kind=$(sed -n 's/^kind=//p' "$f" | tail -n 1); : "${kind:=cloud}"
+      if [ -f "$state/$name" ]; then
+        status=$(field "$state/$name" status)
+        [ "$last" = 1 ] && [ -n "$(field "$state/$name" seen)" ] &&
+          status="$status $(ago $(( $(date +%s) - $(field "$state/$name" seen) ))) ago"
+        sys=$(system_line "$state/$name"); what=$(what_runs "$state/$name")
+        [ "$(field "$state/$name" status)" = offline ] && [ -z "$(field "$state/$name" id)" ] && { sys='?'; what=''; }
+      else
+        status='never asked'; sys='?'; what=''
+      fi
+      printf '%s\t%s\t%s\t%s\t%s\n' "$name" "$kind" "$status" "$sys" "$what"
+    done
+  } | column -t -s $'\t'
+  [ -n "$(ls -A "$nodes" 2>/dev/null)" ] || say "no node yet: vikix node add NAME USER@HOST"
+}
+
+what_runs() {   # a few words from an answer file: up, load, Vikix's version
+  local up load v out=''
+  up=$(field "$1" up); load=$(field "$1" load); v=$(field "$1" vikix)
+  [ -n "$up" ] && out="up $(ago "$up")"
+  [ -n "$load" ] && out="$out${out:+, }load ${load%% *}"
+  [ -n "$v" ] && out="$out${out:+, }vikix $v"
+  echo "$out"
+}
+
+cmd_add() {
+  local name=${1:-} where=${2:-} p=22 k=cloud out
+  name_ok "$name"
+  [ -n "$where" ] || die "where is $name? vikix node add $name USER@HOST"
+  case $where in -*|*' '*) die "not a host: $where" ;; esac
+  shift 2
+  while [ "$#" -gt 0 ]; do
+    case $1 in
+      --port) p=${2:-}; shift; case $p in ''|*[!0-9]*) die "--port takes a number" ;; esac ;;
+      --kind) k=${2:-}; shift; case $k in ''|*[!a-z0-9-]*) die "--kind takes a word (cloud, build, home)" ;; esac ;;
+      *) die "vikix node add: unknown option $1" ;;
+    esac
+    shift
+  done
+  [ -f "$nodes/$name" ] && die "there is a node $name already ($(sed -n 's/^host=//p' "$nodes/$name" | tail -n 1)); vikix node remove $name first"
+  host=$where port=$p kind=$k
+  say "reaching $where (confirm its host key if ssh shows one)"
+  # Interactive on purpose: the first connection shows the host key, which
+  # only you can confirm. A password prompt here means there is no key yet.
+  out=$(printf '%s\n' "$probe" | ssh_ask sh -s) || die "couldn't reach $where: not added (the address, the user, your key?)"
+  mkdir -p "$nodes" "$state"
+  chmod 700 "$nodes"
+  {
+    echo "# ~/.config/vikix/nodes/$name — a node of your Vikix (vikix node add made it; yours to edit)."
+    echo "host=$where"
+    echo "port=$p"
+    echo "kind=$k"
+    echo "added=$(date +%Y-%m-%d)"
+  } > "$nodes/$name"
+  printf '%s\n' "$out" | keep "$name" online
+  note "add $name $where port $p kind $k"
+  case $(field "$state/$name" id) in
+    void) ;;
+    *) warn "$name runs $(field "$state/$name" system), not Void: Vikix's nodes are Void machines (runit, xbps); it is kept, but what comes later may not fit it" ;;
+  esac
+  say "node $name added: $(system_line "$state/$name"), $(what_runs "$state/$name")"
+  # Keys only from here: say now if the batch road is shut.
+  ssh_batch true 2>/dev/null ||
+    warn "$name can't be reached without a prompt: put your key there (ssh-copy-id -p $p $where), or vikix nodes and vikix node run will say it is offline"
+}
+
+cmd_remove() {
+  local name=${1:-}
+  name_ok "$name"
+  [ -f "$nodes/$name" ] || die "no node $name"
+  load_node "$name"
+  rm -f "$nodes/$name" "$state/$name"
+  note "remove $name $host"
+  say "node $name forgotten ($host); nothing on it was touched"
+}
+
+cmd_status() {
+  local name=${1:-} f mem disk up out
+  name_ok "$name"
+  load_node "$name"
+  if out=$(printf '%s\n' "$probe" | ssh_batch sh -s 2>"$state/.err"); then
+    printf '%s\n' "$out" | keep "$name" online
+  else
+    { [ -f "$state/$name" ] && grep -v '^seen=\|^status=' "$state/$name"; } | keep "$name" offline
+    warn "$name ($host) doesn't answer: $(tail -n 1 "$state/.err" 2>/dev/null || true)"
+    [ -n "$(field "$state/$name" id)" ] || exit 1
+    echo "last answer, $(ago $(( $(date +%s) - $(field "$state/$name" seen) ))) ago:"
+  fi
+  rm -f "$state/.err"
+  f="$state/$name"
+  up=$(field "$f" up); mem=$(field "$f" mem); disk=$(field "$f" disk)
+  {
+    echo "node	$name ($kind), $host${port:+ port $port}"
+    echo "system	$(field "$f" system), $(field "$f" init); $(field "$f" desktop)"
+    echo "kernel	$(field "$f" kernel)"
+    [ -n "$up" ] && echo "up	$(ago "$up"), load $(field "$f" load)"
+    [ -n "$mem" ] && echo "memory	${mem%% *} of ${mem##* } MB used"
+    [ -n "$disk" ] && echo "disk	${disk%% *} of ${disk##* } MB used on /"
+    [ -n "$(field "$f" vikix)" ] && echo "vikix	$(field "$f" vikix) in ~/vikix"
+    echo "services	$(field "$f" services)"
+    echo "programs	$(field "$f" programs)"
+  } | column -t -s $'\t'
+}
+
+cmd_shell() {
+  local name=${1:-}
+  name_ok "$name"
+  load_node "$name"
+  exec ssh -t -p "$port" -- "$host"
+}
+
+cmd_run() {
+  local name=${1:-}
+  name_ok "$name"
+  load_node "$name"
+  shift
+  [ "${1:-}" = -- ] && shift
+  [ "$#" -gt 0 ] || die "what should $name run? vikix node run $name COMMAND..."
+  # The words as you wrote them, joined as ssh joins them: quote for the
+  # node's shell as you would for ssh.
+  local rc=0
+  ssh_batch "$@" || rc=$?
+  [ "$rc" = 255 ] && die "couldn't reach $name ($host): a key there, the machine on? vikix node status $name"
+  exit "$rc"
+}
+
+case ${1:-} in
+  list|nodes) shift; cmd_list "$@" ;;
+  add)        shift; cmd_add "$@" ;;
+  remove|rm)  shift; cmd_remove "$@" ;;
+  status)     shift; cmd_status "$@" ;;
+  shell)      shift; cmd_shell "$@" ;;
+  run)        shift; cmd_run "$@" ;;
+  -h|--help|help|'') usage ;;
+  *) die "vikix node: unknown command $1 (add, remove, status, shell, run; vikix nodes lists them)" ;;
+esac

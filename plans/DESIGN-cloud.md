@@ -2,6 +2,8 @@
 
 An idea of Vid's, written down 2026-10-09 and kept here as he gave it, for a design to be drawn up in the house style when it is picked. It builds on `DESIGN-machines.md` (2026-10-04: Tailscale, Syncthing, KDE Connect, `vikix machines` and `--on NAME` for the doors): that design joins the machines Vid already has; this one adds machines rented to be always on, and the product that could sell them. Where the two name the same thing differently (`vikix machines` there, `vikix nodes` here), the one that ships decides.
 
+*2026-10-12: the v0.1 scope's first half shipped as `bin/vikix-node` (`vikix nodes`, `vikix node add|remove|status|shell|run`; a node a file under `~/.config/vikix/nodes/`, its last answer under `~/.local/state/vikix/nodes/`; SSH in batch mode, keys only, host key checked; the guide `docs/nodes.md`), so `vikix nodes` is the name. Left of the milestone: sending a project and pulling it back, and the real try with a VPS.*
+
 ---
 
 ## Core idea
