@@ -104,6 +104,7 @@ vikix add codex                   # or install one as a feature (vikix remove co
 
 - **Your API keys**, and other secrets in the environment (passwords, tokens): each agent signs in its own way, so a key isn't billed without you knowing. Aider can't sign in, so it gets the model companies' keys (Anthropic, OpenAI, Google, OpenRouter, DeepSeek, Mistral, Groq, xAI), and no others. A shell the agent opens doesn't read them back either.
 - **Your SSH agent.** After your first `git push` of the day, it holds your unlocked key: an agent with it could push, as you, to anything you can. If you want the agent to push for you: `VIKIX_AGENT_SSH=1 vikix agent`; at a desk, the picker asks (the last question, no unless you say yes), or `vikix agents worker DESK "..." --push`.
+- **The session it was started from.** Claude Code marks the environment of everything it runs as its own child, and a desk opened from inside a session (by an agent running `vikix agents worker`, or the MCP server's `office` tool) would carry the marks to the new agent, which then takes itself for a child of that session and saves no transcript ("Transcript saving is off: inherited CLAUDE_CODE_CHILD_SESSION marker", and `vikix agents resume` finds nothing). `vikix agent` drops them: a desk's agent is a session of its own.
 
 This prevents accidents; it isn't a wall. The agent runs as you, and can read your files. OpenCode is set to ask before it runs a command or edits a file, as Claude Code does, unless your own OpenCode settings say otherwise.
 

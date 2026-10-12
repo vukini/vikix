@@ -66,7 +66,7 @@ fake_agent() {   # fake_agent PATH
   mkdir -p "$(dirname "$1")"
   cat > "$1" <<EOF
 #!/bin/sh
-{ echo "ran \$0 \$*"; env | grep -E '_API_KEY|_TOKEN|_PASSWORD|SSH_AUTH_SOCK|VIKIX_AGENT=|OLLAMA_API_BASE|OPENCODE_CONFIG_CONTENT|CLAUDE_CODE_EXECUTABLE|CODEX_PATH' | sort; } > "$t/started"
+{ echo "ran \$0 \$*"; env | grep -E '_API_KEY|_TOKEN|_PASSWORD|SSH_AUTH_SOCK|VIKIX_AGENT=|OLLAMA_API_BASE|OPENCODE_CONFIG_CONTENT|CLAUDE_CODE_EXECUTABLE|CODEX_PATH|^CLAUDE' | sort; } > "$t/started"
 EOF
   chmod +x "$1"
 }
@@ -208,6 +208,11 @@ check "claude shouldn't get the SSH agent (it could push as you)" test -z "$(gre
 check "the agent should know it's one (VIKIX_AGENT), so its shells don't read the keys back" grep -qx 'VIKIX_AGENT=claude' "$t/started"
 SSH_AUTH_SOCK=/tmp/agent.sock VIKIX_AGENT_SSH=1 agent >/dev/null 2>&1 || true
 check "VIKIX_AGENT_SSH=1 should keep the SSH agent" grep -q 'SSH_AUTH_SOCK=/tmp/agent.sock' "$t/started"
+# Started from inside a Claude Code session (its Bash tool, the MCP server opening a desk), the
+# marks it puts on its children would make the new session a child of it, which saves no transcript.
+CLAUDECODE=1 CLAUDE_CODE_CHILD_SESSION=1 CLAUDE_CODE_SESSION_ID=abc CLAUDE_PID=4242 CLAUDE_CODE_ENTRYPOINT=cli agent >/dev/null 2>&1 || true
+check "the marks of the Claude Code session an agent is started from stay out (it's a session of its own): $(grep CLAUDE "$t/started" 2>/dev/null)" \
+  test -z "$(grep -E '^(CLAUDECODE|CLAUDE_CODE_CHILD_SESSION|CLAUDE_CODE_SESSION_ID|CLAUDE_PID|CLAUDE_CODE_ENTRYPOINT)=' "$t/started" || true)"
 # In an agent's shell, secrets.sh exports nothing.
 mkdir -p "$HOME/.config/vikix/secrets"; chmod 700 "$HOME/.config/vikix/secrets"
 echo sk-ant-y > "$HOME/.config/vikix/secrets/ANTHROPIC_API_KEY"; chmod 600 "$HOME/.config/vikix/secrets/ANTHROPIC_API_KEY"

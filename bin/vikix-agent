@@ -72,6 +72,13 @@
 # (VIKIX_AGENT_SSH=1 keeps it). This prevents accidents; it isn't a sandbox:
 # the agent runs as you and can read your files.
 #
+# Nor the marks a running agent leaves on its children (CHILD_MARKS below):
+# an agent started from inside a Claude Code session (its Bash tool, the
+# MCP server's office tool opening a desk) would take itself for a child of
+# that session, and Claude Code then saves no transcript of it ("Transcript
+# saving is off: inherited CLAUDE_CODE_CHILD_SESSION marker"; vikix agents
+# resume finds nothing). A desk's agent is a session of its own.
+#
 # Claude Code and Antigravity CLI also get the office's house rules: a hook
 # that runs vikix agents touch before each edit, so two agents on one file
 # are caught and a crossing into another agent's folder is recorded (see
@@ -776,6 +783,7 @@ print(json.dumps(c))' "$oc")
     done
   fi
   if [ "${VIKIX_AGENT_SSH:-}" != 1 ]; then unset+=(-u SSH_AUTH_SOCK -u SSH_AGENT_PID); fi
+  for v in "${CHILD_MARKS[@]}"; do unset+=(-u "$v"); done
 
   if "$VIKIX_DIR/bin/vikix" snapshot "before an agent session ($name)"; then
     say "to see what the agent changed: vikix changes    to take it back: vikix undo"
@@ -786,6 +794,13 @@ print(json.dumps(c))' "$oc")
   [ "$EXEC" = 1 ] && exec env "${unset[@]}" "${setenv[@]}" "$exe" "${args[@]}" "$@" 1>&3 3>&-
   exec env "${unset[@]}" "${setenv[@]}" "$exe" "${args[@]}" "$@"
 }
+
+# What Claude Code sets in the environment of everything it starts, so a
+# session started there takes itself for its child (read from a Bash tool's
+# environment, Claude Code 2.1): none of it is for an agent of its own.
+CHILD_MARKS=(CLAUDECODE CLAUDE_CODE_CHILD_SESSION CLAUDE_CODE_SESSION_ID CLAUDE_CODE_SESSION_ATTENDED
+  CLAUDE_CODE_ENTRYPOINT CLAUDE_CODE_EXECPATH CLAUDE_CODE_MESSAGING_SOCKET CLAUDE_CODE_MESSAGING_TOKEN
+  CLAUDE_PID CLAUDE_EFFORT)
 
 ASK='' REPORT='' EXEC=0 ACP=0 MODE=''
 main() {
