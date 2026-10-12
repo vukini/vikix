@@ -18,6 +18,20 @@ A plugin's commands (`inbox`, `repos`, `flights` ...) are on your PATH while it'
 
 A plugin's code runs inside the desktop with all its power, like your `user.lisp`: add the ones you trust. If one ever stops the desktop from starting, log in on a text console (Ctrl+Alt+F2), run `vikix plugin safe`, log in again, and switch the culprit off.
 
+### A plugin from another repository
+
+A plugin needn't come from the plugins repository: a project of your own (or someone's you trust) that keeps a plugin folder in the plugins' shape can be added from its repository, at a commit you choose.
+
+```sh
+vikix plugin add budanth --from https://github.com/you/budanth          # at its newest commit
+vikix plugin add budanth --from ~/src/budanth --at v0.3                 # a folder on this machine, at a tag
+vikix plugin pin budanth                                                # move it to the newest commit
+vikix plugin pin budanth 7903146abc...                                  # or to one you name
+vikix plugin status                                                     # each one's repository and commit
+```
+
+The plugin is the folder named after it in that repository (`budanth/` in the budanth repository), or the repository itself when its `manifest` is at the top. Vikix fetches the repository at that commit into `~/.local/share/vikix/plugins-from/NAME` and writes a line `budanth from REPO at COMMIT` in your `plugins.list`; `vikix update` keeps the checkout at that commit, and nothing moves it but `vikix plugin pin`. Everything else is as for any plugin: `add` shows what it runs and changes and asks, its programs get man pages, its settings are yours, `off`, `on` and `remove` work the same (remove takes the checkout away; your settings stay). The difference is trust: Vikix has checked the plugins at its own pin, not these, and `add` says so. A name the plugins repository has can't be taken from elsewhere.
+
 The keys at a glance. A plugin's keys are all on Super+Alt, with Shift for a second one on the same letter: that is where everything beyond the six main apps opens ([the rule for keys](customize.md)).
 
 | Key | Plugin | What it does |

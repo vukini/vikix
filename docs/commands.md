@@ -975,17 +975,19 @@ Your skip list is `~/.config/vikix/packages-skip`, one package a line; 10-packag
 
 Small additions to Vikix, from the vikix-plugins repo.
 
-- `vikix plugin list` — the plugins there are; yours marked
+- `vikix plugin list` — the plugins there are; yours marked, those from another repository with it
 - `vikix plugin add NAME [--yes]` — shows what it runs, needs and changes, asks, then adds it (its packages, its setup)
+- `vikix plugin add NAME --from REPO [--at COMMIT] [--yes]` — the same for a plugin from another repository (an address, or a folder on this machine): the folder NAME/ in it, or the repository itself when its manifest is at the top; pinned at COMMIT (a commit, a branch or a tag; none: its newest), written in your list
+- `vikix plugin pin NAME [COMMIT]` — move one from another repository to COMMIT (none: its newest) and fetch it
 - `vikix plugin remove NAME` — runs its remove, and takes it away; your settings for it stay
 - `vikix plugin off NAME` — stop loading it, nothing else changed (from a text console too, for one that hangs the desktop); vikix plugin on NAME brings it back
 - `vikix plugin safe` — the next login loads no plugin, once
-- `vikix plugin status` — the pinned commit, and yours
-- `vikix plugin sync` — the repo to its pinned commit (vikix update does this when you have plugins)
+- `vikix plugin status` — the pinned commit, and yours; each from another repository with its own
+- `vikix plugin sync` — the repo to its pinned commit, and each plugin from another repository to its (vikix update does this when you have plugins)
 
-Small additions to Vikix, from the vikix-plugins repo (github.com/vukini/vikix-plugins): a few words in the bar, Super+m entries, keys, a program started with the desktop.
+Small additions to Vikix, from the vikix-plugins repo (github.com/vukini/vikix-plugins) or from a repository of your own: a few words in the bar, Super+m entries, keys, a program started with the desktop.
 
-Vikix keeps the repo in `~/.local/share/vikix/plugins` at the commit pinned below, one it has checked: an update can't swap a plugin's code in silently. Your plugins are named in `~/.config/vikix/plugins.list`, your settings for each in `~/.config/vikix/plugins/NAME` (copied once, yours). A plugin's programs (its bin/) are linked into `~/.local/bin` while it's added, each with its man page (man inbox). Its Lisp runs inside StumpWM (plugins.lisp loads it).
+Vikix keeps the repo in `~/.local/share/vikix/plugins` at the commit pinned below, one it has checked: an update can't swap a plugin's code in silently. Your plugins are named in `~/.config/vikix/plugins.list`, your settings for each in `~/.config/vikix/plugins/NAME` (copied once, yours). A plugin from another repository is a line "NAME from REPO at COMMIT" there: the commit is yours to move (vikix plugin pin), its checkout is `~/.local/share/vikix/plugins-from/NAME`, and Vikix hasn't checked its code. A plugin's programs (its bin/) are linked into `~/.local/bin` while it's added, each with its man page (man inbox). Its Lisp runs inside StumpWM (plugins.lisp loads it).
 
 ## vikix-project
 

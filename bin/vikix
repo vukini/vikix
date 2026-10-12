@@ -1070,9 +1070,11 @@ vikix_complete() {   # vikix __complete INDEX WORDS-BEFORE...: what may come at 
   case $cmd:$index in
     theme:2)            vikix_subcommands theme; "$VIKIX_DIR/bin/vikix-theme" names ;;
     add:2|remove:2)     awk -F'|' '!/^[[:space:]]*#/ && NF > 1 {gsub(/ /, "", $1); print $1}' "$VIKIX_DIR/features.list" ;;
-    plugin:3|plugins:3) [ "$sub" = add ] || [ "$sub" = remove ] || [ "$sub" = off ] || [ "$sub" = on ] &&
-                          for d in "${XDG_DATA_HOME:-$HOME/.local/share}"/vikix/plugins/*/manifest; do
-                            [ -e "$d" ] && basename "$(dirname "$d")"; done ;;
+    plugin:3|plugins:3) [ "$sub" = add ] || [ "$sub" = remove ] || [ "$sub" = off ] || [ "$sub" = on ] || [ "$sub" = pin ] &&
+                          { for d in "${XDG_DATA_HOME:-$HOME/.local/share}"/vikix/plugins/*/manifest; do
+                              [ -e "$d" ] && basename "$(dirname "$d")"; done
+                            for d in "${XDG_DATA_HOME:-$HOME/.local/share}"/vikix/plugins-from/*/; do
+                              [ -d "$d" ] && basename "$d"; done; } ;;
     project:3|projects:3) ls "$HOME/src" 2>/dev/null ;;
     *:2)                vikix_subcommands "$cmd" ;;
   esac

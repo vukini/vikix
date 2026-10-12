@@ -38,8 +38,11 @@ vikix-NAME, or a short name the first paragraph gives in `backticks`
 lib/flights.py) may leave its forms to that program's docstring.
 
 The plugins' commands are those of ~/.config/vikix/plugins.list, in
-~/.local/share/vikix/plugins/NAME/bin: vikix plugin runs this again when
-one is added, removed, or the pin moves.
+~/.local/share/vikix/plugins/NAME/bin, or for a plugin from another
+repository (a line "NAME from REPO at COMMIT") in its checkout,
+~/.local/share/vikix/plugins-from/NAME, the folder NAME/ there or the
+checkout itself: vikix plugin runs this again when one is added, removed,
+or a pin moves.
 """
 import ast
 import datetime
@@ -54,6 +57,7 @@ MARK = '.\\" Made by Vikix (lib/man.py) from the header of '
 TITLE = re.compile(r"^(\S+) — (\S.*)$")
 # The plugins: where vikix plugin keeps them, and the user's list of them.
 PLUGINS = os.path.join(os.path.expanduser("~"), ".local", "share", "vikix", "plugins")
+PLUGINS_FROM = os.path.join(os.path.expanduser("~"), ".local", "share", "vikix", "plugins-from")
 PLUGINS_LIST = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config"),
                             "vikix", "plugins.list")
 GAP = re.compile(r" {2,}")
@@ -75,6 +79,16 @@ def folder(path):
         return []
 
 
+def plugin_dir(name):
+    """Plugin NAME's folder, as vikix-plugin's plugin_dir finds it: in the
+    plugins repo; else in its own repository's checkout, the folder NAME/
+    there or the checkout itself."""
+    for candidate in (os.path.join(PLUGINS, name), os.path.join(PLUGINS_FROM, name, name), os.path.join(PLUGINS_FROM, name)):
+        if os.path.isfile(os.path.join(candidate, "manifest")):
+            return candidate
+    return os.path.join(PLUGINS, name)
+
+
 def plugins():
     """The user's plugins, switched off or not (as vikix-plugin's own list
     of them: their commands stay linked), each with its bin folder."""
@@ -82,9 +96,9 @@ def plugins():
     try:
         with open(PLUGINS_LIST, encoding="utf-8") as f:
             for entry in f:
-                found = re.fullmatch(r"(?:#off )?([a-z][a-z0-9-]*)", entry.strip())
+                found = re.fullmatch(r"(?:#off )?([a-z][a-z0-9-]*)(?: from \S+ at [0-9a-f]+)?", entry.strip())
                 if found and found.group(1) not in [name for name, _ in out]:
-                    out.append((found.group(1), os.path.join(PLUGINS, found.group(1), "bin")))
+                    out.append((found.group(1), os.path.join(plugin_dir(found.group(1)), "bin")))
     except OSError:
         pass
     return out
@@ -404,11 +418,14 @@ def write(directory):
     if broken:
         print("no man page for " + ", ".join(broken) + " (lib/man.py --check says why)", file=sys.stderr)
     good = {name: page for name, page in found.items() if not page.problems}
-    dates = {None: commit_date(HERE), "plugin": commit_date(PLUGINS)}
+    # A page is dated by its repository's last commit: Vikix's, or the plugin's own checkout's.
+    dates = {None: commit_date(HERE)}
+    for plugin, _ in plugins():
+        dates[plugin] = commit_date(plugin_dir(plugin))
     os.makedirs(directory, exist_ok=True)
     changed = 0
     for name, page in good.items():
-        text = roff(page, good, version(), dates["plugin" if page.plugin else None])
+        text = roff(page, good, version(), dates.get(page.plugin, dates[None]))
         path = os.path.join(directory, name + ".1")
         if os.path.exists(path) and not ours(path):
             # A page of the user's, or of another program with the same name: theirs.

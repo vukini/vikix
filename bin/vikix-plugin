@@ -1,25 +1,40 @@
 #!/usr/bin/env bash
 # vikix-plugin — small additions to Vikix, from the vikix-plugins repo
-# (github.com/vukini/vikix-plugins): a few words in the bar, Super+m
-# entries, keys, a program started with the desktop.
+# (github.com/vukini/vikix-plugins) or from a repository of your own: a few
+# words in the bar, Super+m entries, keys, a program started with the desktop.
 #
-#   vikix plugin list             the plugins there are; yours marked
+#   vikix plugin list             the plugins there are; yours marked, those
+#                                 from another repository with it
 #   vikix plugin add NAME [--yes]  shows what it runs, needs and changes, asks,
 #                                 then adds it (its packages, its setup)
+#   vikix plugin add NAME --from REPO [--at COMMIT] [--yes]
+#                                 the same for a plugin from another repository
+#                                 (an address, or a folder on this machine):
+#                                 the folder NAME/ in it, or the repository
+#                                 itself when its manifest is at the top;
+#                                 pinned at COMMIT (a commit, a branch or a
+#                                 tag; none: its newest), written in your list
+#   vikix plugin pin NAME [COMMIT]  move one from another repository to COMMIT
+#                                 (none: its newest) and fetch it
 #   vikix plugin remove NAME      runs its remove, and takes it away; your
 #                                 settings for it stay
 #   vikix plugin off NAME         stop loading it, nothing else changed (from a
 #                                 text console too, for one that hangs the
 #                                 desktop); vikix plugin on NAME brings it back
 #   vikix plugin safe             the next login loads no plugin, once
-#   vikix plugin status           the pinned commit, and yours
-#   vikix plugin sync             the repo to its pinned commit (vikix update
-#                                 does this when you have plugins)
+#   vikix plugin status           the pinned commit, and yours; each from
+#                                 another repository with its own
+#   vikix plugin sync             the repo to its pinned commit, and each
+#                                 plugin from another repository to its (vikix
+#                                 update does this when you have plugins)
 #
 # Vikix keeps the repo in ~/.local/share/vikix/plugins at the commit pinned
 # below, one it has checked: an update can't swap a plugin's code in
 # silently. Your plugins are named in ~/.config/vikix/plugins.list, your
 # settings for each in ~/.config/vikix/plugins/NAME (copied once, yours).
+# A plugin from another repository is a line "NAME from REPO at COMMIT"
+# there: the commit is yours to move (vikix plugin pin), its checkout is
+# ~/.local/share/vikix/plugins-from/NAME, and Vikix hasn't checked its code.
 # A plugin's programs (its bin/) are linked into ~/.local/bin while it's
 # added, each with its man page (man inbox). Its Lisp runs inside StumpWM
 # (plugins.lisp loads it).
@@ -35,41 +50,109 @@ VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 PLUGINS_REPO=${VIKIX_PLUGINS_REPO:-https://github.com/vukini/vikix-plugins}
 PLUGINS_COMMIT=${VIKIX_PLUGINS_COMMIT:-495474eff1859702e3f7934b76043b8b032b2e0a}   # 2026-10-07: agent-waiting sees Codex (its title while it waits, notify when a turn ends)
 DIR="$HOME/.local/share/vikix/plugins"
+FROM="$HOME/.local/share/vikix/plugins-from"
 LIST="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/plugins.list"
 SETTINGS="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/plugins"
 SAFE="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/plugins-safe"
 BIN="$HOME/.local/bin"
 GIT=${VIKIX_GIT:-git}
 
-field() { sed -n "s/^$2: *//p" "$DIR/$1/manifest" 2>/dev/null | head -1; }
-exists() { [[ $1 =~ ^[a-z][a-z0-9-]*$ ]] && [ -f "$DIR/$1/manifest" ]; }
-# Fixed strings: a name is never a pattern (remove 'r.*' once matched repos).
-added() { [ -f "$LIST" ] && grep -qxF -- "$1" "$LIST"; }
-off() { [ -f "$LIST" ] && grep -qxF -- "#off $1" "$LIST"; }
-# Each plugin once: an off one's line, once its "#off " is gone, starts
-# with a letter, so the second test mustn't see it again.
-mine() { [ -f "$LIST" ] && sed -n '/^[a-z]/p; s/^#off //p' "$LIST"; }
+# A name is small letters, digits and -: what the list's lines, the folders
+# and the patterns below take, so '' and 'r.*' are refused everywhere.
+is_name() { [[ ${1:-} =~ ^[a-z][a-z0-9-]*$ ]]; }
+# plugin_dir NAME — the plugin's folder: in the plugins repo; else in its own
+# repository's checkout, the folder NAME/ there or the checkout itself.
+plugin_dir() {
+  if [ -f "$DIR/$1/manifest" ]; then echo "$DIR/$1"
+  elif [ -f "$FROM/$1/$1/manifest" ]; then echo "$FROM/$1/$1"
+  elif [ -f "$FROM/$1/manifest" ]; then echo "$FROM/$1"
+  else echo "$DIR/$1"
+  fi
+}
+field() { sed -n "s/^$2: *//p" "$(plugin_dir "$1")/manifest" 2>/dev/null | head -1; }
+exists() { is_name "$1" && [ -f "$(plugin_dir "$1")/manifest" ]; }
+in_repo() { is_name "$1" && [ -f "$DIR/$1/manifest" ]; }
+# The list's lines: NAME, or NAME from REPO at COMMIT; "#off " in front of
+# one switched off. A name is matched whole, never as a pattern (remove
+# 'r.*' once matched repos).
+line_of() { is_name "$1" && [ -f "$LIST" ] && grep -E -m1 -- "^(#off )?$1( |\$)" "$LIST"; }
+added() { is_name "$1" && [ -f "$LIST" ] && grep -qE -- "^$1( |\$)" "$LIST"; }
+off() { is_name "$1" && [ -f "$LIST" ] && grep -qE -- "^#off $1( |\$)" "$LIST"; }
+# Each plugin once, by name: an off one's line, once its "#off " is gone,
+# starts with a letter; a comment's doesn't.
+mine() { [ -f "$LIST" ] && sed -n 's/^#off //; /^[a-z]/p' "$LIST" | awk '{print $1}'; }
+# source_of NAME — "REPO COMMIT" for a plugin from another repository; nothing for the repo's own
+source_of() { line_of "$1" | sed 's/^#off //' | awk '$2 == "from" && $4 == "at" {print $3, $5}'; }
+# the_line NAME — NAME's line as it is written when on: with its source, if it has one
+the_line() {
+  local src; src=$(source_of "$1")
+  if [ -n "$src" ]; then echo "$1 from ${src% *} at ${src#* }"; else echo "$1"; fi
+}
 # named NAME — a plugin's name, as exists() takes it: '' isn't one.
-named() { [[ ${1:-} =~ ^[a-z][a-z0-9-]*$ ]] || die "which one? vikix plugin list"; }
+named() { is_name "${1:-}" || die "which one? vikix plugin list"; }
 
 # The repo at the pinned commit; fetched only when it isn't that already.
+# Then each plugin of yours from another repository, at its own commit. The
+# programs of plugins added are linked again when anything was fetched: a
+# new commit may bring new ones.
 sync() {
-  if [ -d "$DIR/.git" ] && [ "$("$GIT" -C "$DIR" rev-parse HEAD 2>/dev/null)" = "$PLUGINS_COMMIT" ]; then
-    return 0
+  local fetched=''
+  if ! { [ -d "$DIR/.git" ] && [ "$("$GIT" -C "$DIR" rev-parse HEAD 2>/dev/null)" = "$PLUGINS_COMMIT" ]; }; then
+    if [ "$DRY_RUN" = 1 ]; then printf '   would fetch the plugins (%s) into %s\n' "${PLUGINS_COMMIT:0:7}" "$DIR"
+    else
+      say "fetching the plugins (commit ${PLUGINS_COMMIT:0:7})"
+      if [ ! -d "$DIR/.git" ]; then
+        mkdir -p "$DIR"
+        "$GIT" -C "$DIR" init -q || die "couldn't make $DIR"
+      fi
+      "$GIT" -C "$DIR" fetch -q --depth 1 "$PLUGINS_REPO" "$PLUGINS_COMMIT" || die "couldn't fetch the plugins from $PLUGINS_REPO"
+      "$GIT" -c advice.detachedHead=false -C "$DIR" checkout -q --force FETCH_HEAD || die "couldn't check out the plugins"
+      [ "$("$GIT" -C "$DIR" rev-parse HEAD)" = "$PLUGINS_COMMIT" ] || die "the plugins aren't the commit expected"
+      fetched=1
+    fi
   fi
-  [ "$DRY_RUN" = 1 ] && { printf '   would fetch the plugins (%s) into %s\n' "${PLUGINS_COMMIT:0:7}" "$DIR"; return 0; }
-  say "fetching the plugins (commit ${PLUGINS_COMMIT:0:7})"
-  if [ ! -d "$DIR/.git" ]; then
-    mkdir -p "$DIR"
-    "$GIT" -C "$DIR" init -q || die "couldn't make $DIR"
+  local name src
+  while IFS= read -r name; do
+    src=$(source_of "$name")
+    [ -z "$src" ] || ! fetch_from "$name" "${src% *}" "${src#* }" || fetched=1
+  done < <(mine)
+  if [ -n "$fetched" ]; then
+    while IFS= read -r name; do link_bins "$name"; done < <(mine)
+    man_pages
   fi
-  "$GIT" -C "$DIR" fetch -q --depth 1 "$PLUGINS_REPO" "$PLUGINS_COMMIT" || die "couldn't fetch the plugins from $PLUGINS_REPO"
-  "$GIT" -c advice.detachedHead=false -C "$DIR" checkout -q --force FETCH_HEAD || die "couldn't check out the plugins"
-  [ "$("$GIT" -C "$DIR" rev-parse HEAD)" = "$PLUGINS_COMMIT" ] || die "the plugins aren't the commit expected"
-  # Programs of plugins added, linked again: a new pin may bring new ones.
-  local name
-  while IFS= read -r name; do link_bins "$name"; done < <(mine)
-  man_pages
+  return 0
+}
+
+# fetch_from NAME REPO COMMIT — NAME's own repository at COMMIT, in its
+# checkout; fetched only when it isn't that already (then 1: nothing done).
+fetch_from() {
+  local d="$FROM/$1"
+  if [ -d "$d/.git" ] && [ "$("$GIT" -C "$d" rev-parse HEAD 2>/dev/null)" = "$3" ]; then return 1; fi
+  [ "$DRY_RUN" = 1 ] && { printf '   would fetch %s (%s) from %s into %s\n' "$1" "${3:0:7}" "$2" "$d"; return 0; }
+  say "fetching $1 (commit ${3:0:7}) from $2"
+  if [ ! -d "$d/.git" ]; then
+    mkdir -p "$d"
+    "$GIT" -C "$d" init -q || die "couldn't make $d"
+  fi
+  "$GIT" -C "$d" fetch -q --depth 1 "$2" "$3" || die "couldn't fetch $1 from $2 at ${3:0:7} (a commit the repository has, on a branch or under a tag)"
+  "$GIT" -c advice.detachedHead=false -C "$d" checkout -q --force FETCH_HEAD || die "couldn't check out $1"
+  [ "$("$GIT" -C "$d" rev-parse HEAD)" = "$3" ] || die "$1 isn't the commit expected"
+  return 0
+}
+
+# resolve_commit REPO [WHAT] — the whole commit: WHAT as given when it is one,
+# else the commit WHAT names in REPO (a branch, a tag), else REPO's newest.
+resolve_commit() {
+  local repo=$1 what=${2:-} sha
+  if [[ $what =~ ^[0-9a-f]{40}$ ]]; then echo "$what"; return 0; fi
+  if [ -n "$what" ]; then
+    sha=$("$GIT" ls-remote "$repo" "$what" "refs/heads/$what" "refs/tags/$what" 2>/dev/null | awk 'NR == 1 {print $1}')
+    [ -n "$sha" ] || die "$repo has no branch or tag called $what (a commit is its 40 characters)"
+  else
+    sha=$("$GIT" ls-remote "$repo" HEAD 2>/dev/null | awk 'NR == 1 {print $1}')
+    [ -n "$sha" ] || die "couldn't ask $repo for its newest commit (an address git can fetch from, or a folder with a repository)"
+  fi
+  echo "$sha"
 }
 
 # A man page for each command of the plugins in the list (man inbox), beside
@@ -84,7 +167,7 @@ man_pages() {
 
 link_bins() {
   local f
-  for f in "$DIR/$1"/bin/*; do
+  for f in "$(plugin_dir "$1")"/bin/*; do
     [ -f "$f" ] && link_managed "$f" "$BIN/$(basename "$f")"
   done
   return 0
@@ -92,7 +175,7 @@ link_bins() {
 
 unlink_bins() {
   local f
-  for f in "$DIR/$1"/bin/*; do
+  for f in "$(plugin_dir "$1")"/bin/*; do
     [ -f "$f" ] || continue
     [ -L "$BIN/$(basename "$f")" ] && [ "$(readlink "$BIN/$(basename "$f")")" = "$f" ] && run rm -f "$BIN/$(basename "$f")"
   done
@@ -110,7 +193,7 @@ set_line() {   # set_line NAME LINE|"" — the list with NAME's line (on or off)
   mkdir -p "$(dirname "$LIST")"
   [ -f "$LIST" ] || printf '# Your Vikix plugins (vikix plugin add/remove/off/on writes this).\n' > "$LIST"
   tmp=$(mktemp "$LIST.XXXXXX")
-  grep -vxF -e "$1" -e "#off $1" "$LIST" > "$tmp" || true
+  grep -vE -- "^(#off )?$1( |\$)" "$LIST" > "$tmp" || true
   [ -z "$2" ] || echo "$2" >> "$tmp"
   mv -f "$tmp" "$LIST"
 }
@@ -129,24 +212,55 @@ start_service() {
 
 cmd_list() {
   sync
-  local d name mark
+  local d name mark src
   for d in "$DIR"/*/; do
     name=$(basename "$d")
-    exists "$name" || continue
+    in_repo "$name" || continue
     if added "$name"; then mark="added"; elif off "$name"; then mark="off"; else mark=""; fi
     printf '%-18s %-6s %s\n' "$name" "$mark" "$(field "$name" about)"
   done
+  # Yours from other repositories, each with where it is from.
+  while IFS= read -r name; do
+    src=$(source_of "$name")
+    [ -n "$src" ] || continue
+    if added "$name"; then mark="added"; else mark="off"; fi
+    printf '%-18s %-6s %s (from %s at %s)\n' "$name" "$mark" "$(field "$name" about)" "${src% *}" "$(printf '%s' "${src#* }" | cut -c1-7)"
+  done < <(mine)
 }
 
 cmd_add() {
-  local name='' yes=''
+  local name='' yes='' repo='' at=''
   while [ $# -gt 0 ]; do
-    case $1 in --yes|-y) yes=1 ;; -*) die "vikix plugin add: unknown option $1" ;; *) name=$1 ;; esac
+    case $1 in
+      --yes|-y) yes=1 ;;
+      --from) shift; repo=${1:-}; [ -n "$repo" ] || die "vikix plugin add: --from takes a repository (an address, or a folder)" ;;
+      --at) shift; at=${1:-}; [ -n "$at" ] || die "vikix plugin add: --at takes a commit, a branch or a tag" ;;
+      -*) die "vikix plugin add: unknown option $1" ;;
+      *) name=$1 ;;
+    esac
     shift
   done
   [ -n "$name" ] || die "which one? vikix plugin list"
+  [ -z "$at" ] || [ -n "$repo" ] || die "vikix plugin add: --at goes with --from"
   sync
-  exists "$name" || die "there's no plugin called $name (vikix plugin list)"
+  local commit='' src
+  if [ -n "$repo" ]; then
+    # From another repository: fetched at the commit first, so what is shown
+    # and asked about is what will run. Refused where the plugins repo has
+    # the name (that one is a plain add), and over another repository's.
+    is_name "$name" || die "a plugin's name is small letters, digits and -"
+    in_repo "$name" && die "$name is in the plugins repo: vikix plugin add $name adds that one"
+    [ -d "$repo" ] && repo=$(cd "$repo" && pwd)
+    src=$(source_of "$name")
+    [ -z "$src" ] || [ "${src% *}" = "$repo" ] || die "$name is from ${src% *} already: vikix plugin remove $name first"
+    commit=$(resolve_commit "$repo" "$at") || exit 1
+    fetch_from "$name" "$repo" "$commit" || true
+    exists "$name" || die "$repo at ${commit:0:7} has no plugin called $name: no $name/manifest in it, and no manifest at its top"
+  else
+    exists "$name" || die "there's no plugin called $name (vikix plugin list)"
+    src=$(source_of "$name")
+    [ -z "$src" ] || die "$name is from another repository: vikix plugin add $name --from ${src% *} adds it again, vikix plugin pin $name moves its commit"
+  fi
   version_ok "$(field "$name" vikix)" || die "$name needs Vikix $(field "$name" vikix) or newer: vikix update first"
   local packages setup changes service
   packages=$(field "$name" packages); setup=$(field "$name" setup)
@@ -156,13 +270,20 @@ cmd_add() {
   [ -z "$packages" ] || echo "   installs: $packages"
   [ -z "$changes" ] || echo "   changes: $changes"
   [ -z "$service" ] || echo "   starts with the desktop: $service"
-  [ -z "$(field "$name" lisp)" ] ||
-    echo "   Its Lisp runs inside your desktop, with all of StumpWM's power (commit ${PLUGINS_COMMIT:0:7}, checked by Vikix)."
+  if [ -n "$repo" ]; then
+    echo "   From $repo at ${commit:0:7}: code Vikix hasn't checked. The commit is yours to move (vikix plugin pin $name)."
+    [ -z "$(field "$name" lisp)" ] || echo "   Its Lisp runs inside your desktop, with all of StumpWM's power."
+  else
+    [ -z "$(field "$name" lisp)" ] ||
+      echo "   Its Lisp runs inside your desktop, with all of StumpWM's power (commit ${PLUGINS_COMMIT:0:7}, checked by Vikix)."
+  fi
+  # A fetch for an add that doesn't happen goes again, unless the plugin was yours already.
+  unfetch() { [ -z "$repo" ] || added "$name" || off "$name" || rm -rf "${FROM:?}/${name:?}"; }
   if [ -z "$yes" ] && [ "$DRY_RUN" != 1 ]; then
-    [ -t 0 ] || die "add it from a terminal (it asks first), or with --yes"
+    [ -t 0 ] || { unfetch; die "add it from a terminal (it asks first), or with --yes"; }
     local answer
     read -r -p "   Add $name? [y/N] " answer
-    case $answer in y|Y|yes) ;; *) say "not added"; return 0 ;; esac
+    case $answer in y|Y|yes) ;; *) unfetch; say "not added"; return 0 ;; esac
   fi
   if [ -n "$packages" ]; then
     local p missing=()
@@ -170,19 +291,43 @@ cmd_add() {
     [ ${#missing[@]} -eq 0 ] || run sudo xbps-install -y "${missing[@]}" || die "couldn't install ${missing[*]}"
   fi
   link_bins "$name"
-  if [ -d "$DIR/$name/settings" ] && [ ! -e "$SETTINGS/$name" ]; then
+  local pdir; pdir=$(plugin_dir "$name")
+  if [ -d "$pdir/settings" ] && [ ! -e "$SETTINGS/$name" ]; then
     run mkdir -p "$SETTINGS"
-    run cp -r "$DIR/$name/settings" "$SETTINGS/$name"
+    run cp -r "$pdir/settings" "$SETTINGS/$name"
   fi
   if [ -n "$setup" ]; then
     if [ "$DRY_RUN" = 1 ]; then echo "   would run its setup"
-    else "$DIR/$name/$setup" || die "$name's setup failed: not added"
+    else "$pdir/$setup" || { unfetch; die "$name's setup failed: not added"; }
     fi
   fi
-  [ "$DRY_RUN" = 1 ] || set_line "$name" "$name"
+  if [ "$DRY_RUN" != 1 ]; then
+    if [ -n "$repo" ]; then set_line "$name" "$name from $repo at $commit"; else set_line "$name" "$name"; fi
+  fi
   man_pages
   start_service "$name"
   say "added $name"
+  reload_wm
+}
+
+cmd_pin() {
+  local name=${1:-} at=${2:-}
+  named "$name"
+  local src; src=$(source_of "$name")
+  [ -n "$src" ] || die "$name isn't one of yours from another repository (vikix plugin list)"
+  local repo=${src% *} was=${src#* } commit
+  commit=$(resolve_commit "$repo" "$at") || exit 1
+  if [ "$commit" = "$was" ]; then say "$name is at ${commit:0:7} already"; return 0; fi
+  fetch_from "$name" "$repo" "$commit" || true
+  exists "$name" || die "$repo at ${commit:0:7} has no plugin called $name any more: your list still says ${was:0:7} (vikix plugin sync fetches it back)"
+  version_ok "$(field "$name" vikix)" || die "$name at ${commit:0:7} needs Vikix $(field "$name" vikix) or newer: your list still says ${was:0:7} (vikix plugin sync fetches it back)"
+  if [ "$DRY_RUN" != 1 ]; then
+    if off "$name"; then set_line "$name" "#off $name from $repo at $commit"; else set_line "$name" "$name from $repo at $commit"; fi
+  fi
+  link_bins "$name"
+  man_pages
+  say "$name is at ${commit:0:7} (was ${was:0:7})"
+  echo "   Its setup isn't run again; vikix plugin add $name --from $repo runs it, if the new commit asks for that."
   reload_wm
 }
 
@@ -190,16 +335,19 @@ cmd_remove() {
   local name=${1:-}
   named "$name"
   added "$name" || off "$name" || die "$name isn't one of yours (vikix plugin list)"
-  local remove; remove=$(field "$name" remove)
-  if [ -n "$remove" ] && [ -x "$DIR/$name/$remove" ]; then
+  local remove pdir; remove=$(field "$name" remove); pdir=$(plugin_dir "$name")
+  if [ -n "$remove" ] && [ -x "$pdir/$remove" ]; then
     if [ "$DRY_RUN" = 1 ]; then echo "   would run its remove"
-    else "$DIR/$name/$remove" || warn "$name's remove failed; taking it away anyway"
+    else "$pdir/$remove" || warn "$name's remove failed; taking it away anyway"
     fi
   fi
   local service; service=$(field "$name" service)
   [ -z "$service" ] || run pkill -f -- "$service" 2>/dev/null || true
   unlink_bins "$name"
+  local src; src=$(source_of "$name")
   [ "$DRY_RUN" = 1 ] || set_line "$name" ""
+  # Its checkout was Vikix's copy of its repository: it goes with it.
+  if [ -n "$src" ] && [ -d "$FROM/$name" ]; then run rm -rf "${FROM:?}/${name:?}"; fi
   man_pages
   say "removed $name"
   [ ! -d "$SETTINGS/$name" ] || echo "   Your settings for it stay: $SETTINGS/$name"
@@ -211,7 +359,7 @@ cmd_off() {
   local name=${1:-}
   named "$name"
   added "$name" || die "$name isn't one of yours, or is off already (vikix plugin list)"
-  set_line "$name" "#off $name"
+  set_line "$name" "#off $(the_line "$name")"
   say "$name is off: not loaded from the next login (vikix plugin on $name brings it back)"
   reload_wm
 }
@@ -220,7 +368,7 @@ cmd_on() {
   local name=${1:-}
   named "$name"
   off "$name" || die "$name isn't off (vikix plugin list)"
-  set_line "$name" "$name"
+  set_line "$name" "$(the_line "$name")"
   say "$name is on again"
   reload_wm
 }
@@ -229,6 +377,13 @@ cmd_status() {
   echo "pinned     ${PLUGINS_COMMIT:0:7} ($PLUGINS_REPO)"
   if [ -d "$DIR/.git" ]; then echo "here       $("$GIT" -C "$DIR" rev-parse --short HEAD 2>/dev/null)"; else echo "here       not fetched yet"; fi
   echo "yours      $(mine | tr '\n' ' ')"
+  local name src here
+  while IFS= read -r name; do
+    src=$(source_of "$name")
+    [ -n "$src" ] || continue
+    if [ -d "$FROM/$name/.git" ]; then here=$("$GIT" -C "$FROM/$name" rev-parse --short HEAD 2>/dev/null); else here="not fetched yet"; fi
+    printf '  %-16s from %s at %s; here %s\n' "$name" "${src% *}" "$(printf '%s' "${src#* }" | cut -c1-7)" "$here"
+  done < <(mine)
   [ -e "$SAFE" ] && echo "safe       the next login loads no plugin"
   return 0
 }
@@ -244,6 +399,7 @@ cmd_services() {
 case ${1:-} in
   list|ls)   cmd_list ;;
   add)       shift; cmd_add "$@" ;;
+  pin)       shift; cmd_pin "$@" ;;
   remove|rm) shift; cmd_remove "$@" ;;
   off)       shift; cmd_off "$@" ;;
   on)        shift; cmd_on "$@" ;;
@@ -252,5 +408,5 @@ case ${1:-} in
   sync)      if mine | grep -q .; then sync; else say "no plugins: nothing to fetch"; fi ;;
   services)  cmd_services ;;
   -h|--help|help|'') sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
-  *) die "vikix plugin: list, add, remove, off, on, safe, status, sync" ;;
+  *) die "vikix plugin: list, add, pin, remove, off, on, safe, status, sync" ;;
 esac

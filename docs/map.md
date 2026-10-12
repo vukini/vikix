@@ -32,7 +32,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   ├── vikix/
 │   │   ├── vikix.bash         Vikix's   aliases, prompt, fzf/zoxide/atuin setup
 │   │   ├── keyboard           yours     layout and XKB options
-│   │   ├── plugins.list       yours     the plugins you added (vikix plugin add); "#off NAME" is one switched off
+│   │   ├── plugins.list       yours     the plugins you added (vikix plugin add); "NAME from REPO at COMMIT" is one from another repository, at the commit you pinned; "#off " in front, one switched off
 │   │   ├── tray               yours     the tray in the bar: on or off (vikix tray switches it), and the applets it starts
 │   │   ├── plugins/NAME/      yours     your settings for plugin NAME (copied once)
 │   │   ├── obsidian           yours     vikix obsidian's vault, where its notes go, and the folders it leaves out
@@ -101,6 +101,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   ├── share/vikix/AGENTS.md          written   the skill as a guide for Codex, Gemini, Antigravity, Aider (linked as ~/.codex/AGENTS.md, imported by ~/.gemini/GEMINI.md, included by ~/.gemini/antigravity-cli/rules/vikix.md)
 │   ├── opt/picolisp/          built     PicoLisp, from source (with the feature lisp)
 │   ├── share/vikix/plugins/   Vikix's   the plugins repo at its pinned commit (vikix plugin sync)
+│   ├── share/vikix/plugins-from/NAME/  Vikix's   a plugin from another repository: its repository at the commit you pinned (vikix plugin add NAME --from REPO, vikix plugin pin)
 │   ├── share/vikix/records.db made       what plugins found and kept (vikix records; SQLite, 600)
 │   ├── share/vikix/docs/index.db made    the docs catalogue (vikix docs, Super+F2): every document's title and words; made again from the files
 │   ├── opt/lem/               built     Lem, the editor in Common Lisp (vikix add lisp-apps)

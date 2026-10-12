@@ -1,9 +1,12 @@
 ;;;; plugins.lisp — the plugins you added (vikix plugin add NAME).
 ;;;;
 ;;;; A plugin is a folder of the vikix-plugins repo, which Vikix keeps at a
-;;;; pinned commit in ~/.local/share/vikix/plugins/; the ones you added are
-;;;; named in ~/.config/vikix/plugins.list (a line "#off NAME" is one
-;;;; switched off). Each one's Lisp is loaded here a form at a time, as
+;;;; pinned commit in ~/.local/share/vikix/plugins/, or one from a repository
+;;;; of your own, kept at the commit you pinned in
+;;;; ~/.local/share/vikix/plugins-from/NAME/ (vikix plugin add NAME --from
+;;;; REPO). The ones you added are named in ~/.config/vikix/plugins.list (a
+;;;; line "NAME from REPO at COMMIT" is one from elsewhere; "#off " in front
+;;;; is one switched off). Each one's Lisp is loaded here a form at a time, as
 ;;;; Vikix's own files are (errors.lisp): a mistake costs only that form,
 ;;;; and a menu asks what to do.
 ;;;;
@@ -33,6 +36,10 @@
 (defparameter *vikix-plugins-dir*
   (merge-pathnames ".local/share/vikix/plugins/" (user-homedir-pathname))
   "Vikix's copy of the plugins repository, at its pinned commit.")
+
+(defparameter *vikix-plugins-from-dir*
+  (merge-pathnames ".local/share/vikix/plugins-from/" (user-homedir-pathname))
+  "The checkouts of plugins from other repositories, one folder a plugin.")
 
 (defparameter *vikix-plugins-list*
   (merge-pathnames ".config/vikix/plugins.list" (user-homedir-pathname))
@@ -118,18 +125,29 @@ shows nothing: the bar is redrawn every second, so it never asks."
 ;;; --- Loading them ---------------------------------------------------------------------
 
 (defun vikix-plugin-names ()
-  "The plugins added and on, from plugins.list."
+  "The plugins added and on, from plugins.list: each line's first word (the
+rest, for one from another repository, says where from and at which commit)."
   (with-open-file (in *vikix-plugins-list* :if-does-not-exist nil)
     (when in
       (loop for line = (read-line in nil)
             while line
-            for name = (string-trim '(#\Space #\Tab) line)
+            for trimmed = (string-trim '(#\Space #\Tab) line)
+            for name = (subseq trimmed 0 (position #\Space trimmed))
             when (and (plusp (length name)) (char/= (char name 0) #\#))
               collect name))))
 
+(defun vikix-plugin-dir (name)
+  "Plugin NAME's folder: in the plugins repository; else in its own
+repository's checkout, the folder NAME/ there or the checkout itself."
+  (flet ((with-manifest (dir) (and (probe-file (merge-pathnames "manifest" dir)) dir)))
+    (or (with-manifest (merge-pathnames (format nil "~a/" name) *vikix-plugins-dir*))
+        (with-manifest (merge-pathnames (format nil "~a/~a/" name name) *vikix-plugins-from-dir*))
+        (with-manifest (merge-pathnames (format nil "~a/" name) *vikix-plugins-from-dir*))
+        (merge-pathnames (format nil "~a/" name) *vikix-plugins-dir*))))
+
 (defun vikix-plugin-manifest (name key)
   "KEY's value in plugin NAME's manifest, or nil."
-  (with-open-file (in (merge-pathnames (format nil "~a/manifest" name) *vikix-plugins-dir*)
+  (with-open-file (in (merge-pathnames "manifest" (vikix-plugin-dir name))
                       :if-does-not-exist nil)
     (when in
       (let ((prefix (format nil "~a:" key)))
@@ -172,8 +190,7 @@ many loaded."
         (t
          (prog1 (dolist (name (vikix-plugin-names) (length *vikix-plugins-loaded*))
                   (let* ((lisp (vikix-plugin-manifest name "lisp"))
-                         (file (and lisp (probe-file (merge-pathnames (format nil "~a/~a" name lisp)
-                                                                      *vikix-plugins-dir*)))))
+                         (file (and lisp (probe-file (merge-pathnames lisp (vikix-plugin-dir name))))))
                     (cond ((null (vikix-plugin-manifest name "name"))
                            (message "^1Vikix: plugin ~a isn't there^n (vikix plugin sync fetches it)" name))
                           ((null lisp))           ; a plugin with no Lisp: nothing to load here
