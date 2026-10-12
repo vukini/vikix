@@ -5,6 +5,7 @@
 (require 'button)
 (require 'subr-x)
 (require 'svg)
+(require 'color)
 (require 'tramp)
 
 (defvar vikix-network-command
@@ -160,13 +161,24 @@
   (let ((colour (face-foreground face nil t)))
     (if (and (stringp colour) (not (string= colour "unspecified-fg"))) colour fallback)))
 
+(defun vikix-network--shade (foreground background amount)
+  "Blend a little text colour into the background for a quiet selection."
+  (apply #'color-rgb-to-hex
+         (append (cl-mapcar (lambda (fg bg) (+ (* amount fg) (* (- 1 amount) bg)))
+                           (or (color-name-to-rgb foreground) '(0.8 0.8 0.8))
+                           (or (color-name-to-rgb background) '(0.1 0.1 0.1)))
+                 '(2))))
+
 (defun vikix-network--graph (net)
   "A membership graph, with one clickable SVG branch per device.
 Buttons also carry text, so keyboard navigation and a non-SVG Emacs work."
   (let* ((devices (alist-get 'devices net))
          (id (alist-get 'id net))
          (fg (vikix-network--colour 'default "#dddddd"))
-         (accent (vikix-network--colour 'font-lock-keyword-face "#77aaff")))
+         (bg (face-background 'default nil t))
+         (background (if (and (stringp bg) (color-name-to-rgb bg)) bg "#222222"))
+         (border (vikix-network--shade fg background 0.3))
+         (selection (vikix-network--shade fg background 0.1)))
     (insert (propertize "Local network\n" 'face 'bold))
     (insert "Edges mean network membership, not physical wiring.\n\n")
     (dolist (device devices)
@@ -175,17 +187,18 @@ Buttons also carry text, so keyboard navigation and a non-SVG Emacs work."
              (selected (equal ip vikix-network--device))
              (start (point)))
         (insert-text-button (concat "  ├── " label "\n") 'follow-link t
-                            'face (if selected 'highlight 'button)
+                            'face (if selected '(:inherit default :weight bold) 'default)
+                            'mouse-face '(:inherit default :underline t)
                             'action (lambda (_) (vikix-network--choose id ip)))
         (when (and (display-graphic-p) (image-type-available-p 'svg))
           (let ((svg (svg-create 420 55))
                 (short-label (truncate-string-to-width label 39 nil nil "…")))
-            (svg-line svg 16 0 16 55 :stroke fg :stroke-width 2)
-            (svg-line svg 16 27 42 27 :stroke fg :stroke-width 2)
-            (svg-rectangle svg 42 4 365 46 :rx 8 :fill (if selected accent "none")
-                           :stroke accent :stroke-width 2)
+            (svg-line svg 16 0 16 55 :stroke border :stroke-width 2)
+            (svg-line svg 16 27 42 27 :stroke border :stroke-width 2)
+            (svg-rectangle svg 42 4 365 46 :rx 8 :fill (if selected selection "none")
+                           :stroke (if selected fg border) :stroke-width (if selected 2 1))
             (svg-text svg short-label :x 54 :y 32 :font-size 15
-                      :fill (if selected (or (face-background 'default nil t) "#222222") fg))
+                      :fill fg)
             (put-text-property start (1- (point)) 'face '(:underline nil))
             (put-text-property start (1- (point)) 'display (svg-image svg :ascent 'center))))))))
 
