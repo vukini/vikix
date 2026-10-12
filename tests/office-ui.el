@@ -50,19 +50,28 @@ load of other sessions' tests that moment was missed (2026-10-08)."
          (setf (alist-get 'exists (car (alist-get 'desks vikix-office--data))) :false)
          (vikix-office--render)
          (with-current-buffer vikix-office--detail
-           (should (string-match-p "review does not mean merged" (buffer-string)))
+           (should (string-match-p "What the agent says" (buffer-string)))
+           (should (string-match-p "which Vikix doesn't check" (buffer-string)))
+           ;; No task and no handoff: a line each says so, not a Not written a row.
+           (should (string-match-p "No task given" (buffer-string)))
+           (should (string-match-p "No handoff yet" (buffer-string)))
+           (should-not (string-match-p "Not written" (buffer-string)))
            (should (string-match-p "Worktree removed" (buffer-string))))
          (should-error (vikix-office-continue) :type 'user-error))
      (kill-buffer vikix-office--detail))))
 (ert-deftest office-details-hand-in ()
-  "The hand-in's fields on the page: the criteria ticked, a decision, a
-defect open, a finding with where, what changed and the commits."
+  "The hand-in's fields on the page: the status with what it means and
+its signature at the row's end, the estimate against the clock, the
+criteria ticked, a decision, a defect open, a finding with where, what
+changed and the commits."
   (office-test-buffer
    (setq vikix-office--detail (generate-new-buffer " *Office hand-in test*"))
    (unwind-protect
        (progn
          (setf (alist-get 'handoff (car (alist-get 'desks vikix-office--data)))
                '((status . ((value . "review") (by . "codex 1") (at . 1791300000)))
+                 (estimate . ((text . "40 min, if the log needs no new test") (minutes . 40) (by . "codex 1") (at . 1791300000)))
+                 (summary . ((text . "The chapters are sorted.") (by . "codex 1") (at . 1791300000)))
                  (acceptance . ((items . (((text . "chapters in order") (done . t) (done_by . "codex 1") (done_at . 1791300000))
                                           ((text . "the log says so") (done . :false))))
                                 (by . "user") (at . 1791300000)))
@@ -74,15 +83,25 @@ defect open, a finding with where, what changed and the commits."
                              (more . 0) (by . "vikix") (at . 1791300000)))
                  (commits . ((base . "abc1234567") (list . (((hash . "77aff7b") (subject . "add b")))) (more . 0)
                              (by . "vikix") (at . 1791300000)))))
+         (setf (alist-get 'estimate (car (alist-get 'desks vikix-office--data))) "10 min over its 40 min")
          (vikix-office--render)
          (with-current-buffer vikix-office--detail
            (let ((page (buffer-string)))
-             (dolist (want '("Acceptance" "1 of 2 done · user" "\\[x\\] chapters in order · codex 1" "\\[ \\] the log says so"
-                             "Decided" "kept the old order · codex 1" "Defects *1 open of 1" "open: slow past 500"
-                             "Review *0 open of 1" "addressed: log.md:1 the heading is stale · claude 2"
+             (dolist (want '("Status +review · the agent asks you to look at its work"
+                             "Estimate +10 min over its 40 min, if the log needs no new test"
+                             "Summary +The chapters are sorted. · codex 1 · 2026-10-06 [0-9:]+ +[│|]$"
+                             "Acceptance +1 of 2 done, as the agent ticks them; the criteria are yours"
+                             "• \\[x\\] chapters in order · codex 1" "• \\[ \\] the log says so"
+                             "Decided +1 choice made by the agent" "• kept the old order · codex 1"
+                             "Defects +1 open of 1 the agent knows of" "• open: slow past 500 · codex 1"
+                             "Review +0 open of 1 finding from a review" "• addressed: log.md:1 the heading is stale"
                              "Changed *2 files against abc1234" "\\+2 -0 log.md (uncommitted)" "\\+0 -0 notes.md (new, uncommitted)"
                              "Commits *1 past abc1234" "77aff7b add b"))
-               (should (string-match-p want page))))))
+               (should (string-match-p want page)))
+             ;; The signature sits in the shade at the row's end when it fits there (the
+             ;; summary's), else on a line of its own (the status's, in this narrow buffer).
+             (should (string-match-p "^[│|] +codex 1 · 2026-10-06" page))
+             (should (eq (get-text-property (string-match "codex 1 · 2026" page) 'face page) 'shadow)))))
      (kill-buffer vikix-office--detail))))
 (ert-deftest office-folder-row-is-not-a-desk ()
   (office-test-buffer
@@ -106,7 +125,7 @@ defect open, a finding with where, what changed and the commits."
            (should (string-match-p "Go to agent" (buffer-string)))
            (should (string-match-p "Close agent" (buffer-string)))
            (should-not (string-match-p "Continue" (buffer-string)))
-           (should-not (string-match-p "Observed Git state\\|review does not mean merged\\|Saved conversations" (buffer-string)))
+           (should-not (string-match-p "Observed Git state\\|What the agent says\\|Saved conversations" (buffer-string)))
            (should (string-match-p "codex 7598 +running · workspace 2" (buffer-string))))
          (should-error (vikix-office-continue) :type 'user-error)
          ;; Without an agent left there is still no Continue: nothing to continue in a folder.

@@ -331,14 +331,36 @@ drawn, and after each command (the arguments are the hook's)."
     (let ((used (- (current-column) 2)))
       (when (< used width) (insert (make-string (- width used) ?\s))))
     (insert " " side "\n")))
-(defun vikix-office--field (width chars label-width label text &optional face)
-  "A box's row: LABEL in a column LABEL-WIDTH wide, TEXT filled beside it, in FACE."
+(defun vikix-office--field-lines (width chars label-width label lines &optional face)
+  "A box's row: LABEL in a column LABEL-WIDTH wide, LINES beside it, in FACE
+unless a line carries faces of its own."
   (let ((first t))
-    (dolist (line (vikix-office--fill text (- width label-width)))
+    (dolist (line lines)
       (vikix-office--line width chars
                           (concat (truncate-string-to-width (if first (or label "") "") label-width nil ?\s)
                                   (if face (propertize line 'face face) line)))
       (setq first nil))))
+(defun vikix-office--field (width chars label-width label text &optional face)
+  "A box's row: LABEL in a column LABEL-WIDTH wide, TEXT filled beside it, in FACE."
+  (vikix-office--field-lines width chars label-width label (vikix-office--fill text (- width label-width)) face))
+(defun vikix-office--signed-lines (width label-width text by at)
+  "TEXT filled beside a label LABEL-WIDTH wide, with who wrote it (BY) and
+when (AT) in the shade at its end: on its last line when it fits there,
+else on a line of its own. One row, however many hands the box has."
+  (let* ((room (- width label-width))
+         (lines (vikix-office--fill text room))
+         (last (car (last lines)))
+         (sig (concat (vikix-office--text by) " · " (vikix-office--time at))))
+    (if (<= (+ (string-width last) 3 (string-width sig)) room)
+        (append (butlast lines) (list (concat last (propertize (concat " · " sig) 'face 'shadow))))
+      (append lines (list (propertize sig 'face 'shadow))))))
+(defun vikix-office--bullet (label-width)
+  "A list item's label: a bullet at the label column's end, so the item's
+lines hang together under its first."
+  (concat (make-string (max 0 (- label-width 2)) ?\s) "•"))
+(defun vikix-office--signed-field (width chars label-width label text by at)
+  "A box's row of TEXT, signed BY at AT (`vikix-office--signed-lines')."
+  (vikix-office--field-lines width chars label-width label (vikix-office--signed-lines width label-width text by at)))
 (defun vikix-office--note (width chars text)
   "A line of a box that says something about the box, in the shade."
   (vikix-office--field width chars 0 "" text 'shadow))
@@ -597,14 +619,34 @@ is drawn when PLANS is empty."
         (set-window-point (car view) (point))))
     (vikix-office--render-detail)))
 
-(defun vikix-office--signed (width chars label-width label entry)
-  "A row of ENTRY's text, then who recorded it and when."
-  (vikix-office--field width chars label-width label
-                       (vikix-office--text (or (alist-get 'text entry) (alist-get 'value entry) "Not written")))
-  (when entry
-    (vikix-office--field width chars label-width ""
-                         (concat (vikix-office--text (alist-get 'by entry)) " · " (vikix-office--time (alist-get 'at entry)))
-                         'shadow)))
+(defun vikix-office--signed (width chars label-width label entry &optional text)
+  "A row of ENTRY's text (or TEXT, when given), with who recorded it and
+when at its end; \"Not written\" for no ENTRY."
+  (if entry
+      (vikix-office--signed-field width chars label-width label
+                                  (or text (vikix-office--text (or (alist-get 'text entry) (alist-get 'value entry))))
+                                  (alist-get 'by entry) (alist-get 'at entry))
+    (vikix-office--field width chars label-width label "Not written")))
+(defvar vikix-office--status-words
+  '(("working" . "the agent is on the task") ("waiting" . "the agent waits for you")
+    ("review" . "the agent asks you to look at its work") ("finished" . "the agent says the task is done")
+    ("parked" . "set aside, to be taken up later"))
+  "What each status of a handoff means, for the desk page.")
+(defun vikix-office--status-text (status)
+  "STATUS's value with what it means: \"review · the agent asks you to look at its work\"."
+  (let* ((value (vikix-office--text (alist-get 'value status)))
+         (words (alist-get value vikix-office--status-words nil nil #'equal)))
+    (if words (concat value " · " words) value)))
+(defun vikix-office--estimate-text (estimate row)
+  "The estimate's row: where the clock stands against it (ROW's line from
+Vikix, \"12 min left of 30 min\"), with what the agent assumed after the
+comma of its words; the words alone without a clock."
+  (let* ((text (vikix-office--text (alist-get 'text estimate)))
+         (clock (alist-get 'estimate row))
+         (assumed (and (string-match "," text) (string-trim (substring text (match-end 0))))))
+    (cond ((member clock '(nil "")) text)
+          ((member assumed '(nil "")) clock)
+          (t (concat clock ", " assumed)))))
 
 (defun vikix-office--render-detail ()
   (when (buffer-live-p vikix-office--detail)
@@ -665,7 +707,8 @@ is drawn when PLANS is empty."
                   (vikix-office--note width chars "An agent takes a desk with vikix agents sit PROJECT TOPIC from its own shell; vikix agents desk PROJECT TOPIC makes a desk, vikix agents worker TOPIC \"the task\" starts one at it.")
                   (vikix-office--box-bottom width chars))
               (vikix-office--box-top width chars "Task")
-              (vikix-office--signed width chars 0 "" (alist-get 'task r))
+              (if (alist-get 'task r) (vikix-office--signed width chars 0 "" (alist-get 'task r))
+                (vikix-office--field width chars 0 "" "No task given: the desk stands for a worker later (New worker… gives one)."))
               ;; How the last agent left (dismissed, exited, logged out), and the notes waiting for the next.
               (let ((gone (alist-get 'left r)))
                 (when (and gone (alist-get 'reason gone))
@@ -680,53 +723,59 @@ is drawn when PLANS is empty."
               (when (eq (alist-get 'tests_off r) t)
                 (vikix-office--field width chars 0 "" "Tests: not run by themselves when the worker hands in; Test runs them" 'shadow))
               (vikix-office--box-bottom width chars)
-              (vikix-office--box-top width chars "Agent claims")
-              (vikix-office--note width chars "The agent's own report: review does not mean merged.")
-              (let ((handoff (alist-get 'handoff r)) (label-width 10))
-                (vikix-office--signed width chars label-width "Status" (alist-get 'status handoff))
-                ;; The estimate, when the agent gave one: its words, then the clock against it.
-                (let ((estimate (alist-get 'estimate handoff)))
-                  (when estimate
-                    (vikix-office--signed width chars label-width "Estimate" estimate)
-                    (vikix-office--field width chars label-width "" (vikix-office--text (alist-get 'estimate r)))))
-                (vikix-office--signed width chars label-width "Summary" (alist-get 'summary handoff))
-                (vikix-office--signed width chars label-width "Next" (alist-get 'next handoff))
+              (vikix-office--box-top width chars "What the agent says")
+              (vikix-office--note width chars "The agent's own account of its work, which Vikix doesn't check. A status of review asks you to look; nothing is merged by it.")
+              (let ((handoff (alist-get 'handoff r)) (label-width 12))
+                ;; Where the work stands, in the agent's words: the status with what it
+                ;; means, the estimate against the clock, the summary and the next step;
+                ;; each row signed at its end. Nothing of them yet is one line, not three.
+                (if (not (or (alist-get 'status handoff) (alist-get 'summary handoff) (alist-get 'next handoff)))
+                    (vikix-office--field width chars 0 "" "No handoff yet: the agent hasn't written where its work stands.")
+                  (vikix-office--signed width chars label-width "Status" (alist-get 'status handoff)
+                                        (vikix-office--status-text (alist-get 'status handoff)))
+                  (let ((estimate (alist-get 'estimate handoff)))
+                    (when estimate
+                      (vikix-office--signed width chars label-width "Estimate" estimate (vikix-office--estimate-text estimate r))))
+                  (vikix-office--signed width chars label-width "Summary" (alist-get 'summary handoff))
+                  (vikix-office--signed width chars label-width "Next" (alist-get 'next handoff)))
                 ;; The hand-in: the criteria with their ticks, the decisions, the
                 ;; defects and the review findings, each item signed.
                 (let ((acceptance (alist-get 'acceptance handoff)))
                   (when acceptance
                     (let* ((items (alist-get 'items acceptance))
                            (done (cl-count-if (lambda (i) (eq (alist-get 'done i) t)) items)))
-                      (vikix-office--field width chars label-width "Acceptance"
-                                           (format "%d of %d done · %s · %s" done (length items)
-                                                   (vikix-office--text (alist-get 'by acceptance))
-                                                   (vikix-office--time (alist-get 'at acceptance))))
+                      (vikix-office--signed-field width chars label-width "Acceptance"
+                                                  (format "%d of %d done, as the agent ticks them; the criteria are yours"
+                                                          done (length items))
+                                                  (alist-get 'by acceptance) (alist-get 'at acceptance))
                       (dolist (i items)
-                        (vikix-office--field width chars label-width ""
-                                             (concat (if (eq (alist-get 'done i) t) "[x] " "[ ] ")
-                                                     (vikix-office--one-line (alist-get 'text i))
-                                                     (if (eq (alist-get 'done i) t)
-                                                         (concat " · " (vikix-office--text (alist-get 'done_by i))
-                                                                 " · " (vikix-office--time (alist-get 'done_at i)))
-                                                       "")))))))
-                (dolist (list '((decisions "Decided" nil) (defects "Defects" "closed") (review "Review" "addressed")))
+                        (let ((text (concat (if (eq (alist-get 'done i) t) "[x] " "[ ] ")
+                                            (vikix-office--one-line (alist-get 'text i)))))
+                          (if (eq (alist-get 'done i) t)
+                              (vikix-office--signed-field width chars label-width (vikix-office--bullet label-width) text
+                                                          (alist-get 'done_by i) (alist-get 'done_at i))
+                            (vikix-office--field width chars label-width (vikix-office--bullet label-width) text)))))))
+                ;; Each list under a line saying what it is and how it stands, its items signed.
+                (dolist (list '((decisions "Decided" nil "%d choice%s made by the agent, which the next worker keeps to")
+                                (defects "Defects" "closed" "%d open of %d the agent knows of")
+                                (review "Review" "addressed" "%d open of %d finding%s from a review")))
                   (let ((items (alist-get (car list) handoff)))
                     (when items
                       (vikix-office--field width chars label-width (nth 1 list)
                                            (if (nth 2 list)
-                                               (format "%d open of %d"
-                                                       (cl-count-if (lambda (i) (eq (alist-get 'open i) t)) items) (length items))
-                                             (format "%d" (length items))))
+                                               (format (nth 3 list)
+                                                       (cl-count-if (lambda (i) (eq (alist-get 'open i) t)) items) (length items)
+                                                       (if (= (length items) 1) "" "s"))
+                                             (format (nth 3 list) (length items) (if (= (length items) 1) "" "s"))))
                       (dolist (i items)
-                        (vikix-office--field width chars label-width ""
-                                             (concat (cond ((null (nth 2 list)) "")
-                                                           ((eq (alist-get 'open i) t) "open: ")
-                                                           (t (concat (nth 2 list) ": ")))
-                                                     (let ((where (alist-get 'where i)))
-                                                       (if (member where '(nil "")) "" (concat (vikix-office--text where) " ")))
-                                                     (vikix-office--one-line (alist-get 'text i))
-                                                     " · " (vikix-office--text (alist-get 'by i))
-                                                     " · " (vikix-office--time (alist-get 'at i)))))))))
+                        (vikix-office--signed-field width chars label-width (vikix-office--bullet label-width)
+                                                    (concat (cond ((null (nth 2 list)) "")
+                                                                  ((eq (alist-get 'open i) t) "open: ")
+                                                                  (t (concat (nth 2 list) ": ")))
+                                                            (let ((where (alist-get 'where i)))
+                                                              (if (member where '(nil "")) "" (concat (vikix-office--text where) " ")))
+                                                            (vikix-office--one-line (alist-get 'text i)))
+                                                    (alist-get 'by i) (alist-get 'at i)))))))
               (vikix-office--box-bottom width chars)
               ;; The desk's workers before this task, newest first: the record's history.
               (let ((workers (alist-get 'workers r)))

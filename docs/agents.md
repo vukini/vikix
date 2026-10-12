@@ -218,7 +218,7 @@ Commits (vikix, 20 min ago): 1 past 3a9f1c0
   7c1e0f2  wifi: scan before the list
 ```
 
-The **acceptance** criteria are yours, given with the task, a line each: `vikix agents worker wifi-fix "..." --acceptance "the picker scans before it lists" --acceptance "..."` (`desk --task` takes them the same way, a plan file as `acceptance = ["...", "..."]`, and `vikix agents handoff --acceptance "..."` later, which replaces the list whole). The worker ticks one with `vikix agents handoff --done 2`, and the record, the listing and the Office say *2 of 3*. **Decisions** (`--decided "..."`) are the choices made, so the next worker doesn't reopen them; **defects** (`--defect "..."`, closed with `--defect-done N`) are what the worker knows is wrong or missing; **review** findings (`--review "bin/vikix-wifi:88 the timeout is read twice"`, which keeps the place apart; `--review-done N` marks one addressed) are a reviewer's, or yours. What **changed** and the **commits** are never typed: Vikix reads them from git at every write of the handoff and at the tester's run, against the base, the commit where the desk's branch left the project's own, with the uncommitted files marked and a new untracked one said to be new. The MCP tool `handoff_update` takes the same fields by their names (`acceptance` as a list, `done`, `defect`, `defect_done`, `review`, `review_done`, `decided`), `--from` takes them as JSON, and the Office's desk page shows them all under *Agent claims* and *Observed Git state*.
+The **acceptance** criteria are yours, given with the task, a line each: `vikix agents worker wifi-fix "..." --acceptance "the picker scans before it lists" --acceptance "..."` (`desk --task` takes them the same way, a plan file as `acceptance = ["...", "..."]`, and `vikix agents handoff --acceptance "..."` later, which replaces the list whole). The worker ticks one with `vikix agents handoff --done 2`, and the record, the listing and the Office say *2 of 3*. **Decisions** (`--decided "..."`) are the choices made, so the next worker doesn't reopen them; **defects** (`--defect "..."`, closed with `--defect-done N`) are what the worker knows is wrong or missing; **review** findings (`--review "bin/vikix-wifi:88 the timeout is read twice"`, which keeps the place apart; `--review-done N` marks one addressed) are a reviewer's, or yours. What **changed** and the **commits** are never typed: Vikix reads them from git at every write of the handoff and at the tester's run, against the base, the commit where the desk's branch left the project's own, with the uncommitted files marked and a new untracked one said to be new. The MCP tool `handoff_update` takes the same fields by their names (`acceptance` as a list, `done`, `defect`, `defect_done`, `review`, `review_done`, `decided`), `--from` takes them as JSON, and the Office's desk page shows them all under *What the agent says* and *Observed Git state*.
 
 Claude Code's session id and Antigravity CLI's conversation id are noted by the hook itself; the others say theirs with `session`. `vikix agents handoff list` is every desk with a record, `vikix agents` shows each agent's desk status under its line, and `Super+m` → *AI* → *Agents: a desk's handoff* picks one. `vikix agents close` marks the record closed and keeps it, and so does a release that removes the desk (`.claude/release`), so a desk whose work is in shows as closed, not as waiting. A record no longer wanted, of a desk whose worktree is gone, is removed with `vikix agents handoff forget DESK` (the Office's Archive has the same, one record at a time, and *Purge archive* for all of them); without a desk named it lists the ones that could go. It refuses while the folder stands (close the desk instead) or an agent is still in it, and takes nothing else with it: no file, no branch, no saved conversation.
 
@@ -485,9 +485,15 @@ on its first page, and **Parked** and **Closed** on a page of their own (the
 so the first page holds only the desks with something to do at them. Each
 group is drawn in a box of its own, a rule between its
 desks, and a desk's lines as labelled rows (Task, Live, Handoff, Next, Before); the desk
-pane draws each of its sections (the task, the agent's claims, the Git
+pane draws each of its sections (the task, what the agent says, the Git
 state, the checks, the agents, the saved conversations) in a box the same
-way, so neither pane reads as a wall of text. The boxes are as wide as
+way, so neither pane reads as a wall of text. The box **What the agent
+says** is the handoff as the agent wrote it, which Vikix doesn't check: the
+status with what it means (*review · the agent asks you to look at its
+work*), the estimate against the clock, the summary and the next step, then
+the criteria, the decisions, the defects and the review findings as
+bulleted lists, each row signed in the shade at its end with who wrote it
+and when; a desk whose agent has written nothing yet says so in one line. The boxes are as wide as
 their window and are drawn again when it is resized; a terminal that
 can't show the box characters gets ASCII ones. A row is a desk: its title
 is the place, project / branch (the folder, for an agent in a plain
