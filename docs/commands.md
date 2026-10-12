@@ -876,12 +876,14 @@ The Network Office: nearby devices, ports and connections.
 - `vikix network refresh` — apply saved discovery choices, then return status
 - `vikix network discover ID` — discover devices on the selected network
 - `vikix network ports ID ADDRESS` — check common TCP ports on a local device
+- `vikix network identify ID ADDRESS` — probe services for names, versions and OS clues
+- `vikix network name ID ADDRESS NAME` — save a friendly name; an empty NAME clears it
 - `vikix network policy ID MODE` — remember manual, discover or ports for this network
 - `vikix network watch` — watch joins and apply each network's saved choice
 
-ID is the network id from status. New or incompletely identified networks start in manual mode. Discovery checks directly connected IPv4 subnets, at most 1024 addresses altogether; it never sweeps a VPN or an IPv6 prefix. Port checks cover common TCP services, not every port or UDP. They run as you, without sudo, and do not identify service versions. Port names are suggestions, not proof of what is listening. Devices can be hidden by a firewall or Wi-Fi isolation; a missing reply does not mean a device is off.
+ID is the network id from status. New or incompletely identified networks start in manual mode. Discovery checks directly connected IPv4 subnets, at most 1024 addresses altogether; it never sweeps a VPN or an IPv6 prefix. Port checks cover common TCP services, not every port or UDP. They run as you, without sudo. Discovery looks up DNS names and tries Avahi when available. Identify explicitly probes service versions; OS clues are tentative, not OS fingerprints. Ordinary port names are suggestions, not proof of what is listening. Devices can be hidden by a firewall or Wi-Fi isolation; a missing reply does not mean a device is off.
 
-Preferences live in `~/.config/vikix/network/preferences.json`. Results are temporary, in the session's runtime directory, and expire after ten minutes. No device history is kept. The session starts watch at login; after an update, log in again for discovery on joins while the Office is closed. Opening the Office applies saved choices too. See the guide's Network Office page.
+Preferences live in `~/.config/vikix/network/preferences.json`. Results are temporary, in the session's runtime directory, and expire after ten minutes. Friendly names use the network identity and device MAC, never its IP alone. No device history is kept. The session starts watch at login; after an update, log in again for discovery on joins while the Office is closed. Opening the Office applies saved choices too. See the guide's Network Office page.
 
 ## vikix-nightlight
 

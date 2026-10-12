@@ -6,6 +6,8 @@
   vikix network refresh          apply saved discovery choices, then return status
   vikix network discover ID      discover devices on the selected network
   vikix network ports ID ADDRESS  check common TCP ports on a local device
+  vikix network identify ID ADDRESS  probe services for names, versions and OS clues
+  vikix network name ID ADDRESS NAME  save a friendly name; an empty NAME clears it
   vikix network policy ID MODE   remember manual, discover or ports for this network
   vikix network watch            watch joins and apply each network's saved choice
 
@@ -13,12 +15,15 @@ ID is the network id from status. New or incompletely identified networks
 start in manual mode. Discovery checks directly connected IPv4 subnets, at
 most 1024 addresses altogether; it never sweeps a VPN or an IPv6 prefix.
 Port checks cover common TCP services, not every port or UDP. They run as
-you, without sudo, and do not identify service versions. Port names are
-suggestions, not proof of what is listening. Devices can be hidden by a
-firewall or Wi-Fi isolation; a missing reply does not mean a device is off.
+you, without sudo. Discovery looks up DNS names and tries Avahi when available.
+Identify explicitly probes service versions; OS clues are tentative, not
+OS fingerprints. Ordinary port names are suggestions, not proof of what is
+listening. Devices can be hidden by a firewall or Wi-Fi isolation; a missing
+reply does not mean a device is off.
 
 Preferences live in ~/.config/vikix/network/preferences.json. Results are
 temporary, in the session's runtime directory, and expire after ten minutes.
+Friendly names use the network identity and device MAC, never its IP alone.
 No device history is kept. The session starts watch at login; after an update,
 log in again for discovery on joins while the Office is closed. Opening the
 Office applies saved choices too. See the guide's Network Office page.
@@ -39,12 +44,19 @@ import subprocess
 import sys
 import tempfile
 import time
+import unicodedata
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parent.parent
 COMMON = '21,22,23,25,53,80,110,139,143,443,445,465,548,587,631,993,995,2049,3306,3389,5432,5900,8000,8080,8443,9090'
 MODES = ('manual', 'discover', 'ports')
 SCAN_SECONDS = 90
+NAME_SECONDS = 10
+
+
+def display_text(value, limit=160):
+    """Network replies are labels, never terminal controls or multiline markup."""
+    return ''.join(c for c in str(value) if not unicodedata.category(c).startswith('C')).strip()[:limit]
 
 
 class BusyError(RuntimeError):
@@ -52,11 +64,19 @@ class BusyError(RuntimeError):
 
 
 def run(args, seconds=5):
-    result = subprocess.run(args, capture_output=True, text=True, timeout=seconds,
-                            env={**os.environ, 'LC_ALL': 'C'})
-    if result.returncode:
-        raise RuntimeError(f'{args[0]} could not answer: {result.stderr.strip()[:250]}')
-    return result.stdout
+    # subprocess.run's KeyboardInterrupt path can leave its child unreaped.
+    # Cancellation must finish the helper before the Office request exits.
+    with subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                          start_new_session=True, env={**os.environ, 'LC_ALL': 'C'}) as proc:
+        try:
+            output, error = proc.communicate(timeout=seconds)
+            if proc.returncode:
+                raise RuntimeError(f'{args[0]} could not answer: {error.strip()[:250]}')
+            return output
+        finally:
+            if proc.poll() is None:
+                os.killpg(proc.pid, signal.SIGKILL)
+            proc.wait()
 
 
 def fields(line):
@@ -132,7 +152,7 @@ def networks():
                 continue
             peer = next((p for p in peers if p['dst'] == ip), {})
             row['devices'].append(dict(address=ip, role='This computer' if ip in ips else 'Gateway' if ip in gateways else 'Device',
-                                       mac=peer.get('lladdr', ''), evidence='local address' if ip in ips else 'default route' if ip in gateways else 'neighbour cache',
+                                       mac=link.get('address', '') if ip in ips else peer.get('lladdr', ''), evidence='local address' if ip in ips else 'default route' if ip in gateways else 'neighbour cache',
                                        ports=[], checked=False))
         found.append(row)
     return found
@@ -240,7 +260,12 @@ def snapshot():
         merged = {d['address']: d for d in data.get('devices', [])}
         for device in net['devices']:
             old = merged.get(device['address'], {})
+            if device['mac'] and old.get('mac') and device['mac'].lower() != old['mac'].lower():
+                old = {}  # A reassigned IP must not retain another device's service clues.
             merged[device['address']] = {**device, **old, 'role': device['role'], 'mac': device['mac'] or old.get('mac', '')}
+        names = read(preferences()).get('names', {}).get(net['key'], {})
+        for device in merged.values():
+            device['friendly_name'] = display_text(names.get(device.get('mac', '').lower(), ''))
         net.update(devices=sorted(merged.values(), key=lambda d: ipaddress.ip_address(d['address'])),
                    policy=policy(net), scanned=data.get('at'), error=data.get('error', ''))
         net.pop('key')
@@ -258,12 +283,68 @@ def set_policy(identity, mode):
         write(path, data)
 
 
-def scan(net, targets, ports=False, automatic=False):
+def set_name(identity, target, name):
+    net = current(identity)
+    if not net['key']:
+        raise RuntimeError('Gateway identity is incomplete; discover once before saving a name')
+    # Use the current kernel neighbour entry, not an old address from a scan.
+    device = next((d for d in net['devices'] if d['address'] == target), {})
+    mac = device.get('mac', '').lower()
+    if not re.fullmatch(r'(?:[0-9a-f]{2}:){5}[0-9a-f]{2}', mac):
+        raise RuntimeError('Device MAC is unknown; discover or inspect its ports, then refresh before naming it')
+    if name != display_text(name, 80):
+        raise RuntimeError('Use a friendly name of at most 80 characters, without control characters or surrounding spaces')
+    path = preferences()
+    with lock(path.with_suffix('.lock')):
+        still_here(net)
+        data = read(path)
+        names = data.setdefault('names', {}).setdefault(net['key'], {})
+        if name:
+            names[mac] = name
+        else:
+            names.pop(mac, None)
+        write(path, data)
+
+
+def resolve_names(net, devices, automatic=False):
+    """Optional Avahi fallback. A failed lookup never hides a discovered device."""
+    if not shutil.which('avahi-resolve-address'):
+        return
+    end = time.monotonic() + NAME_SECONDS
+    initial_policy = policy(net) if automatic else None
+    for device in devices:
+        if device.get('names'):
+            continue
+        latest = still_here(net)
+        if automatic and policy(latest) != initial_policy:
+            raise RuntimeError('Discovery preference changed; name lookup stopped')
+        check_routes(latest, [device['address']])
+        remaining = end - time.monotonic()
+        if remaining <= 0:
+            break
+        try:
+            reply = run(['avahi-resolve-address', '-4', device['address']], min(1, remaining))
+            for line in reply.splitlines():
+                parts = line.split('\t')
+                if len(parts) == 2 and parts[0] == device['address'] and display_text(parts[1]):
+                    device['names'] = [dict(name=display_text(parts[1]), source='Avahi (mDNS/DNS)')]
+                    break
+        except (OSError, RuntimeError, subprocess.SubprocessError):
+            pass
+    latest = still_here(net)
+    if automatic and policy(latest) != initial_policy:
+        raise RuntimeError('Discovery preference changed; name lookup stopped')
+
+
+def scan(net, targets, ports=False, automatic=False, identify=False):
     """One bounded child, reaped on success, cancellation, signal or timeout."""
     check_routes(net, targets)
     initial_policy = policy(net) if automatic else None
-    args = ['nmap', '--unprivileged', '-n', '-oX', '-', '--max-retries', '1', '--host-timeout', '12s']
+    args = ['nmap', '--unprivileged', '-oX', '-', '--max-retries', '1',
+            '--host-timeout', '60s' if identify else '12s']
     args += ['-sT', '-Pn', '-p', COMMON] if ports else ['-sn']
+    if identify:
+        args += ['-sV', '--version-light']
     args += targets
     with subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                           start_new_session=True) as proc:
@@ -287,7 +368,7 @@ def scan(net, targets, ports=False, automatic=False):
                 raise RuntimeError('Discovery preference changed; scan stopped')
             if proc.returncode:
                 raise RuntimeError('Nmap failed: ' + error.strip()[:250])
-            return parse_scan(output, net, ports)
+            return parse_scan(output, net, ports, identify)
         finally:
             if proc.poll() is None:
                 os.killpg(proc.pid, signal.SIGKILL)
@@ -314,7 +395,7 @@ def check_routes(net, targets):
             raise RuntimeError('Another route overlaps this network; scanning is paused')
 
 
-def parse_scan(output, net, checked):
+def parse_scan(output, net, checked, identified=False):
     devices = []
     root = ET.fromstring(output)
     for host in root.findall('host'):
@@ -324,22 +405,36 @@ def parse_scan(output, net, checked):
         ip = next((a.get('addr') for a in host.findall('address') if a.get('addrtype') == 'ipv4'), '')
         if not on_link(net, ip):
             continue
-        ports = []
+        ports, clues = [], []
+        names = [dict(name=display_text(h.get('name', '')), source='DNS')
+                 for h in host.findall('hostnames/hostname') if display_text(h.get('name', ''))]
         for p in host.findall('ports/port'):
             state, service = p.find('state'), p.find('service')
             if state is not None and p.get('protocol') == 'tcp':
-                ports.append(dict(port=int(p.get('portid')), state=state.get('state', 'unknown'),
-                                  service=service.get('name', '') if service is not None else ''))
+                port = dict(port=int(p.get('portid')), state=state.get('state', 'unknown'),
+                            service=display_text(service.get('name', '')) if service is not None else '')
+                if identified and service is not None and state.get('state') == 'open' and service.get('method') == 'probed':
+                    port.update(product=display_text(service.get('product', '')),
+                                version=display_text(service.get('version', '')),
+                                extra=display_text(service.get('extrainfo', '')), probed=True)
+                    ostype = display_text(service.get('ostype', ''))
+                    if ostype:
+                        clues.append(dict(name=ostype, source=f"service response on {port['port']}/tcp"))
+                    hostname = display_text(service.get('hostname', ''))
+                    if hostname:
+                        names.append(dict(name=hostname, source=f"service response on {port['port']}/tcp"))
+                ports.append(port)
         extra = [f"{e.get('count')} {e.get('state')}" for e in host.findall('ports/extraports')]
         devices.append(dict(address=ip, role='This computer' if ip in net['addresses'] else 'Gateway' if ip in net['gateways'] else 'Device',
                             mac=next((a.get('addr') for a in host.findall('address') if a.get('addrtype') == 'mac'), ''),
                             evidence='TCP check' if checked else 'discovery response', ports=ports, observed_at=time.time(),
-                            checked=checked and host.find('ports') is not None,
+                            checked=checked and host.find('ports') is not None, names=names,
+                            identified=identified, os_clues=clues,
                             other_ports=', '.join(extra), checked_at=time.time() if checked else None))
     return devices
 
 
-def inspect(identity, target=None, automatic=False):
+def inspect(identity, target=None, automatic=False, identify=False):
     net = current(identity)
     with lock(runtime() / 'scan.lock'):
         if automatic and policy(net) == 'manual':
@@ -352,13 +447,17 @@ def inspect(identity, target=None, automatic=False):
             targets = net['subnets']
             if not targets or sum(ipaddress.ip_network(s).num_addresses for s in targets) > 1024:
                 raise RuntimeError('Discovery is limited to 1024 directly connected IPv4 addresses; inspect a local address individually')
-        devices = scan(net, targets, ports=bool(target), automatic=automatic)
+        devices = scan(net, targets, ports=bool(target), automatic=automatic, identify=identify)
         if not target and automatic and policy(net) == 'ports':
             # One bounded sweep of common ports on responders, not one process per port.
             hosts = [d['address'] for d in devices]
             if hosts:
                 devices = scan(net, hosts, ports=True, automatic=True)
-        still_here(net)
+        resolve_names(net, devices, automatic)
+        latest = still_here(net)
+        for device in devices:
+            peer = next((d for d in latest['devices'] if d['address'] == device['address']), {})
+            device['mac'] = peer.get('mac') or device.get('mac', '')
         previous = cached(net).get('devices', []) if target else []
         merged = {d['address']: d for d in previous}
         merged.update({d['address']: d for d in devices})
@@ -452,11 +551,13 @@ def main():
     sub.add_parser('status')
     sub.add_parser('refresh')
     sub.add_parser('watch')
-    for verb in ('discover', 'ports', 'policy'):
+    for verb in ('discover', 'ports', 'identify', 'name', 'policy'):
         p = sub.add_parser(verb)
         p.add_argument('id')
-        if verb == 'ports':
+        if verb in ('ports', 'identify', 'name'):
             p.add_argument('address')
+        if verb == 'name':
+            p.add_argument('name')
         if verb == 'policy':
             p.add_argument('mode', choices=MODES)
     args = parser.parse_args()
@@ -468,13 +569,15 @@ def main():
         return
     if args.command == 'policy':
         set_policy(args.id, args.mode)
+    elif args.command == 'name':
+        set_name(args.id, args.address, args.name)
     elif args.command == 'refresh':
         try:
             refresh()
         except BusyError:
             pass  # The watcher is scanning; the UI can still read local information.
-    elif args.command in ('discover', 'ports'):
-        inspect(args.id, getattr(args, 'address', None))
+    elif args.command in ('discover', 'ports', 'identify'):
+        inspect(args.id, getattr(args, 'address', None), identify=args.command == 'identify')
     print(json.dumps(snapshot()))
 
 

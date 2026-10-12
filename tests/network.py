@@ -40,6 +40,8 @@ elif tool == 'ip':
         value = [{'ifname': 'wlan9', 'addr_info': [{'family': 'inet', 'local': '192.0.2.10', 'prefixlen': 24}]}]
     elif 'neigh' in args:
         value = [] if data.get('unknown') else [{'dev': 'wlan9', 'dst': '192.0.2.1', 'lladdr': data.get('mac', '00:11:22:33:44:55'), 'state': ['REACHABLE']}]
+        if data.get('peer_mac'):
+            value.append({'dev': 'wlan9', 'dst': data.get('peer_ip', '192.0.2.20'), 'lladdr': data['peer_mac'], 'state': ['REACHABLE']})
     elif 'rule' in args:
         value = [{'table': 'local'}, {'table': 'main'}, {'table': 'default'}]
         if data.get('vpn'): value.insert(0, {'table': '100'})
@@ -57,11 +59,22 @@ elif tool == 'nmap':
         data['unknown'] = False
         (base / 'network.json').write_text(json.dumps(data))
     print('<nmaprun><host><status state="up"/><address addr="192.0.2.20" addrtype="ipv4"/>')
+    if data.get('dns'):
+        print('<hostnames><hostname name="fixture-server.example" type="PTR"/></hostnames>')
     if '-sT' in args:
         print('<ports><port protocol="tcp" portid="22"><state state="open"/><service name="ssh"/></port>'
               '<port protocol="tcp" portid="443"><state state="open"/><service name="https"/></port>'
               '<extraports state="closed" count="24"/></ports>')
+    if '-sV' in args and not data.get('no_clues'):
+        print('<ports><port protocol="tcp" portid="8080"><state state="open"/>'
+              '<service name="http" method="probed" product="Fixture HTTP" version="1.2" '
+              'ostype="Linux" hostname="fixture-service"/></port></ports>')
     print('</host><host><status state="up"/><address addr="203.0.113.8" addrtype="ipv4"/></host></nmaprun>')
+elif tool == 'avahi-resolve-address':
+    (base / 'resolver.pid').write_text(str(os.getpid()))
+    if data.get('slow_names'): time.sleep(30)
+    if data.get('mdns'): print(args[-1] + '\tfixture-server.local')
+    else: sys.exit(1)
 elif tool == 'notify-send': pass
 '''
 
@@ -72,7 +85,7 @@ class Network(unittest.TestCase):
         self.base = Path(self.temp.name)
         self.bin = self.base / 'bin'
         self.bin.mkdir()
-        for name in ('ip', 'nmcli', 'nmap', 'notify-send'):
+        for name in ('ip', 'nmcli', 'nmap', 'notify-send', 'avahi-resolve-address'):
             path = self.bin / name
             path.write_text(STUB)
             path.chmod(0o755)
@@ -109,6 +122,7 @@ class Network(unittest.TestCase):
         self.assertEqual(net['policy'], 'manual')
         self.assertEqual({d['role'] for d in net['devices']}, {'Gateway', 'This computer'})
         self.assertFalse(self.calls('nmap'))
+        self.assertFalse(self.calls('avahi-resolve-address'))
         self.assertEqual(N.fields(r'a\\:b'), ['a\\', 'b'])
 
     def test_discovery_ports_and_scope(self):
@@ -125,7 +139,94 @@ class Network(unittest.TestCase):
         for ip in ('203.0.113.1', '--script=all', '127.0.0.1', '192.0.2.255', '192.0.2.20;touch /tmp/no'):
             self.cli('ports', identity, ip, ok=False)
         self.assertEqual(len(self.calls('nmap')), count)
-        self.assertTrue(all('-n' in c and '--unprivileged' in c for c in self.calls('nmap')))
+        self.assertTrue(all('-n' not in c and '--unprivileged' in c and '-sV' not in c for c in self.calls('nmap')))
+
+    def test_discovered_names_and_explicit_identification(self):
+        self.state(dns=True)
+        identity = self.identity()
+        net = json.loads(self.cli('discover', identity).stdout)['networks'][0]
+        device = next(d for d in net['devices'] if d['address'] == '192.0.2.20')
+        self.assertEqual(device['names'], [dict(name='fixture-server.example', source='DNS')])
+        self.assertFalse(device['identified'])
+        self.assertFalse(self.calls('avahi-resolve-address'))
+        net = json.loads(self.cli('identify', identity, '192.0.2.20').stdout)['networks'][0]
+        device = next(d for d in net['devices'] if d['address'] == '192.0.2.20')
+        self.assertTrue(device['identified'])
+        self.assertEqual(device['os_clues'], [dict(name='Linux', source='service response on 8080/tcp')])
+        self.assertEqual(device['ports'][-1]['product'], 'Fixture HTTP')
+        self.assertEqual(device['names'][-1]['name'], 'fixture-service')
+        command = self.calls('nmap')[-1]
+        self.assertIn('--version-light', command)
+        self.assertNotIn('-O', command)
+        self.assertNotIn('-A', command)
+        self.cli('identify', identity, '203.0.113.8', ok=False)
+        self.assertEqual(len(self.calls('nmap')), 2)
+        self.state(no_clues=True)
+        net = json.loads(self.cli('identify', identity, '192.0.2.20').stdout)['networks'][0]
+        device = next(d for d in net['devices'] if d['address'] == '192.0.2.20')
+        self.assertEqual(device['os_clues'], [])
+
+    def test_mdns_fallback_and_bounded_missing_names(self):
+        self.state(mdns=True)
+        net = json.loads(self.cli('discover', self.identity()).stdout)['networks'][0]
+        device = next(d for d in net['devices'] if d['address'] == '192.0.2.20')
+        self.assertEqual(device['names'][0]['name'], 'fixture-server.local')
+        self.assertEqual(device['names'][0]['source'], 'Avahi (mDNS/DNS)')
+        self.state(slow_names=True)
+        net = json.loads(self.cli('discover', self.identity()).stdout)['networks'][0]
+        self.assertIn('192.0.2.20', [d['address'] for d in net['devices']])
+        with self.assertRaises(ProcessLookupError):
+            os.kill(int((self.base / 'resolver.pid').read_text()), 0)
+        self.assertEqual(N.display_text('name\n\x1b\u202e'), 'name')
+
+    def test_friendly_names_follow_mac_and_network_not_ip(self):
+        self.state(peer_mac='aa:bb:cc:dd:ee:ff', dns=True)
+        identity = self.identity()
+        self.cli('name', identity, '192.0.2.20', 'Living-room NAS')
+        self.cli('identify', identity, '192.0.2.20')
+        net = json.loads(self.cli('status').stdout)['networks'][0]
+        device = next(d for d in net['devices'] if d['address'] == '192.0.2.20')
+        self.assertEqual(device['friendly_name'], 'Living-room NAS')
+        self.state(peer_mac='aa:bb:cc:dd:ee:01')
+        net = json.loads(self.cli('status').stdout)['networks'][0]
+        device = next(d for d in net['devices'] if d['address'] == '192.0.2.20')
+        self.assertEqual(device['friendly_name'], '')
+        self.assertFalse(device.get('os_clues'))
+        self.state(peer_mac='aa:bb:cc:dd:ee:ff', peer_ip='192.0.2.21', attachment=2)
+        net = json.loads(self.cli('status').stdout)['networks'][0]
+        device = next(d for d in net['devices'] if d['address'] == '192.0.2.21')
+        self.assertEqual(device['friendly_name'], 'Living-room NAS')
+        self.cli('name', net['id'], '192.0.2.21', '')
+        self.assertNotIn('Living-room NAS', N.preferences().read_text())
+        self.cli('name', net['id'], '192.0.2.21', 'NAS')
+        self.state(peer_mac='aa:bb:cc:dd:ee:ff', mac='00:11:22:33:44:99')
+        net = json.loads(self.cli('status').stdout)['networks'][0]
+        device = next(d for d in net['devices'] if d['address'] == '192.0.2.20')
+        self.assertEqual(device['friendly_name'], '')
+        for ip, name in [('192.0.2.30', 'No MAC'), ('192.0.2.20', 'x\ny'), ('192.0.2.20', 'x' * 81)]:
+            self.cli('name', net['id'], ip, name, ok=False)
+        self.assertEqual(N.preferences().stat().st_mode & 0o777, 0o600)
+
+    def test_cancel_name_lookup_reaps_resolver(self):
+        self.state(slow_names=True)
+        proc = subprocess.Popen([str(ROOT / 'bin/vikix-network'), 'discover', self.identity()],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            pid_file = self.base / 'resolver.pid'
+            end = time.monotonic() + 10
+            while not pid_file.exists() and time.monotonic() < end:
+                time.sleep(.03)
+            self.assertTrue(pid_file.exists())
+            child = int(pid_file.read_text())
+            proc.send_signal(signal.SIGTERM)
+            proc.communicate(timeout=5)
+            self.assertNotEqual(proc.returncode, 0)
+            with self.assertRaises(ProcessLookupError):
+                os.kill(child, 0)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+            proc.communicate(timeout=5)
 
     def test_preferences_rejoin_and_no_history(self):
         identity = self.identity()
@@ -147,6 +248,7 @@ class Network(unittest.TestCase):
         self.assertEqual(net['policy'], 'manual')
         self.assertEqual(len(self.calls('nmap')), 4)
         self.cli('discover', identity, ok=False)
+        self.assertTrue(all('-sV' not in command for command in self.calls('nmap')))
         prefs = N.preferences()
         self.assertEqual(prefs.stat().st_mode & 0o777, 0o600)
         self.assertNotIn('192.0.2', prefs.read_text())
@@ -299,8 +401,15 @@ class Network(unittest.TestCase):
                     self.cli()
                     count = '(length (cl-remove-if-not (lambda (f) (frame-parameter f (quote vikix-network-buffer))) (frame-list)))'
                     self.assertEqual(evaluate(count).stdout.strip(), '1')
+                    # Simulate the map left by the Office version before identification.
+                    evaluate('(progn (define-key vikix-network-mode-map (kbd "i") nil) '
+                             '(define-key vikix-network-mode-map (kbd "n") nil))')
                     self.cli()  # reuses the existing graphical frame
                     self.assertEqual(evaluate(count).stdout.strip(), '1')
+                    self.assertEqual(evaluate('(eq (lookup-key vikix-network-mode-map (kbd "i")) '
+                                              '(quote vikix-network-identify))').stdout.strip(), 't')
+                    self.assertEqual(evaluate('(eq (lookup-key vikix-network-mode-map (kbd "n")) '
+                                              '(quote vikix-network-name))').stdout.strip(), 't')
                     self.assertEqual(evaluate('(let ((frame (cl-find-if (lambda (f) (frame-parameter f (quote vikix-network-buffer))) (frame-list)))) '
                                               '(equal (vikix-network-open ' + json.dumps(display) + ') '
                                               '(frame-parameter frame (quote outer-window-id))))').stdout.strip(), 't')
@@ -326,9 +435,11 @@ class Network(unittest.TestCase):
                             if evaluate('(with-current-buffer "*Network Office*" (null vikix-network--process))').stdout.strip() == 't':
                                 break
                             time.sleep(.1)
+                        self.state(dns=True, peer_mac='aa:bb:cc:dd:ee:ff')
                         identity = self.identity()
                         self.cli('discover', identity)
-                        self.cli('ports', identity, '192.0.2.20')
+                        self.cli('identify', identity, '192.0.2.20')
+                        self.cli('name', identity, '192.0.2.20', 'Living-room NAS')
                         evaluate('(with-current-buffer "*Network Office*" (vikix-network-refresh))')
                         end = time.monotonic() + 10
                         while time.monotonic() < end:

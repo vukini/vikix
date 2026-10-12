@@ -3,12 +3,12 @@
 (load (expand-file-name "../config/emacs/vikix-network.el" (file-name-directory load-file-name)) nil t)
 
 (defun network-test-data ()
-  '((nmap . t) (networks . (((id . "a") (name . "Test LAN") (interface . "wlan9")
+  (copy-tree '((nmap . t) (networks . (((id . "a") (name . "Test LAN") (interface . "wlan9")
                             (subnets . ("192.0.2.0/24")) (policy . "manual") (identifiable . t)
                             (devices . (((address . "192.0.2.20") (role . "Device") (mac . "")
                                          (evidence . "discovery response") (checked . t)
                                          (ports . (((port . 22) (state . "open") (service . "ssh"))
-                                                   ((port . 443) (state . "filtered") (service . "https"))))))))))))
+                                                   ((port . 443) (state . "filtered") (service . "https")))))))))))))
 
 (ert-deftest network-graph-details-and-selection ()
   (let ((buffer (generate-new-buffer " *Network test*"))
@@ -56,3 +56,35 @@
       (vikix-network--connect "Browser" "192.0.2.20" 80)
       (setq vikix-network--data (network-test-data))
       (should-error (funcall vikix-network--after) :type 'user-error))))
+
+(ert-deftest network-names-clues-and-actions ()
+  (let ((detail (generate-new-buffer " *Network identity test*")))
+    (unwind-protect
+        (with-temp-buffer
+          (vikix-network-mode)
+          (setq vikix-network--detail detail vikix-network--data (network-test-data))
+          (let ((owner (current-buffer)))
+            (with-current-buffer detail (setq vikix-network--owner owner)))
+          (vikix-network--render)
+          (let ((device (vikix-network--node)) called)
+            (setf (alist-get 'names device) '(((name . "server.local") (source . "Avahi (mDNS/DNS)")))
+                  (alist-get 'friendly_name device) "Living-room NAS"
+                  (alist-get 'identified device) t
+                  (alist-get 'os_clues device) '(((name . "Linux") (source . "service response on 22/tcp"))))
+            (setf (alist-get 'devices (vikix-network--net)) (list device))
+            (vikix-network--render)
+            (should (string-match-p "Living-room NAS · 192.0.2.20" (buffer-string)))
+            (with-current-buffer detail
+              (should (string-match-p "Reported name: server.local" (buffer-string)))
+              (should (string-match-p "Likely OS: Linux" (buffer-string)))
+              (should (string-match-p "not verified" (buffer-string))))
+            (cl-letf (((symbol-function 'vikix-network--request) (lambda (&rest args) (setq called args)))
+                      ((symbol-function 'read-string) (lambda (&rest _) "-Name with spaces")))
+              (with-current-buffer detail (vikix-network-identify))
+              (should (equal called '("identify" "a" "192.0.2.20")))
+              (vikix-network-name)
+              (should (equal called '("name" "a" "192.0.2.20" "--" "-Name with spaces"))))
+            (setf (alist-get 'os_clues device) nil)
+            (vikix-network--render)
+            (with-current-buffer detail (should (string-match-p "OS: unknown" (buffer-string))))))
+      (when (buffer-live-p detail) (kill-buffer detail)))))

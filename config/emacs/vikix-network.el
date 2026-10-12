@@ -118,6 +118,31 @@
     (unless (vikix-network--node) (user-error "Select a device first"))
     (vikix-network--request "ports" vikix-network--network vikix-network--device)))
 
+(defun vikix-network-identify ()
+  "Probe the selected device's services for names, versions and OS clues."
+  (interactive)
+  (with-current-buffer (vikix-network--home)
+    (unless (vikix-network--node) (user-error "Select a device first"))
+    (vikix-network--request "identify" vikix-network--network vikix-network--device)))
+
+(defun vikix-network-name ()
+  "Save a friendly name for the selected device; empty clears it."
+  (interactive)
+  (with-current-buffer (vikix-network--home)
+    (unless (vikix-network--node) (user-error "Select a device first"))
+    (let ((name (read-string "Friendly name (empty clears): "
+                             (alist-get 'friendly_name (vikix-network--node)))))
+      (vikix-network--request "name" vikix-network--network vikix-network--device "--" name))))
+
+(defun vikix-network--label (device)
+  (let ((friendly (alist-get 'friendly_name device))
+        (reported (alist-get 'name (car (alist-get 'names device)))))
+    (format "%s · %s"
+            (cond ((and friendly (not (string-empty-p friendly))) friendly)
+                  ((and reported (not (string-empty-p reported))) reported)
+                  (t (alist-get 'role device)))
+            (alist-get 'address device))))
+
 (defun vikix-network-policy ()
   (interactive)
   (with-current-buffer (vikix-network--home)
@@ -146,19 +171,20 @@ Buttons also carry text, so keyboard navigation and a non-SVG Emacs work."
     (insert "Edges mean network membership, not physical wiring.\n\n")
     (dolist (device devices)
       (let* ((ip (alist-get 'address device))
-             (label (format "%s · %s" (alist-get 'role device) ip))
+             (label (vikix-network--label device))
              (selected (equal ip vikix-network--device))
              (start (point)))
         (insert-text-button (concat "  ├── " label "\n") 'follow-link t
                             'face (if selected 'highlight 'button)
                             'action (lambda (_) (vikix-network--choose id ip)))
         (when (and (display-graphic-p) (image-type-available-p 'svg))
-          (let ((svg (svg-create 420 55)))
+          (let ((svg (svg-create 420 55))
+                (short-label (truncate-string-to-width label 39 nil nil "…")))
             (svg-line svg 16 0 16 55 :stroke fg :stroke-width 2)
             (svg-line svg 16 27 42 27 :stroke fg :stroke-width 2)
             (svg-rectangle svg 42 4 365 46 :rx 8 :fill (if selected accent "none")
                            :stroke accent :stroke-width 2)
-            (svg-text svg label :x 54 :y 32 :font-size 15
+            (svg-text svg short-label :x 54 :y 32 :font-size 15
                       :fill (if selected (or (face-background 'default nil t) "#222222") fg))
             (put-text-property start (1- (point)) 'face '(:underline nil))
             (put-text-property start (1- (point)) 'display (svg-image svg :ascent 'center))))))))
@@ -201,7 +227,7 @@ Buttons also carry text, so keyboard navigation and a non-SVG Emacs work."
         (insert (alist-get 'error net) "\n"))
       (insert "\n")
       (vikix-network--graph net))
-    (insert "\ng refresh · d discover · p ports · c preference · s stop · q close\n")
+    (insert "\ng refresh · d discover · p ports · i identify · n name · c preference · s stop · q close\n")
     (goto-char (min old-point (point-max)))
     (vikix-network--details)))
 
@@ -213,17 +239,33 @@ Buttons also carry text, so keyboard navigation and a non-SVG Emacs work."
         (let ((inhibit-read-only t))
           (erase-buffer)
           (if (not device) (insert "Select a device in the graph.\n")
-            (insert (propertize (alist-get 'address device) 'face '(:height 1.3 :weight bold)) "\n\n")
+            (insert (propertize (vikix-network--label device) 'face '(:height 1.3 :weight bold)) "\n\n")
             (insert (format "%s\nObserved through: %s\nMAC: %s\n\n"
                             (alist-get 'role device) (alist-get 'evidence device)
                             (or (and (not (string-empty-p (alist-get 'mac device))) (alist-get 'mac device)) "unknown")))
+            (dolist (name (alist-get 'names device))
+              (insert (format "Reported name: %s (%s)\n" (alist-get 'name name) (alist-get 'source name))))
+            (cond ((alist-get 'os_clues device)
+                   (dolist (clue (alist-get 'os_clues device))
+                     (insert (format "Likely OS: %s (%s; not verified)\n"
+                                     (alist-get 'name clue) (alist-get 'source clue)))))
+                  ((alist-get 'identified device) (insert "OS: unknown — services gave no OS clue.\n"))
+                  (t (insert "OS: not inspected.\n")))
+            (insert "\n")
             (vikix-network--button "Inspect common TCP ports" #'vikix-network-ports)
+            (vikix-network--button "Identify device" #'vikix-network-identify)
+            (vikix-network--button "Friendly name" #'vikix-network-name)
             (insert "\n\n")
             (if (not (alist-get 'checked device)) (insert "Ports have not been checked.\n")
-              (insert "Port names are suggestions; the service has not been verified.\n\n")
+              (insert "Port names without a probe result are suggestions. Service and OS clues are tentative.\n\n")
               (dolist (port (alist-get 'ports device))
                 (let ((number (alist-get 'port port)))
                   (insert (format "%5d/tcp  %-9s %s\n" number (alist-get 'state port) (alist-get 'service port)))
+                  (when (alist-get 'probed port)
+                    (insert "  Service probe: "
+                            (string-join (delq nil (list (alist-get 'product port)
+                                                        (alist-get 'version port)
+                                                        (alist-get 'extra port))) " ") "\n"))
                   (when (equal (alist-get 'state port) "open")
                     (dolist (action (cond ((memq number '(80 443 8000 8080 8443 9090)) '("Browser"))
                                           ((= number 22) '("SSH terminal" "Remote files"))))
@@ -293,6 +335,9 @@ Buttons also carry text, so keyboard navigation and a non-SVG Emacs work."
     (define-key map (kbd "s") #'vikix-network-stop)
     (define-key map (kbd "q") #'vikix-network-close)
     map))
+;; The launcher reloads this file in an existing Emacs, whose map already exists.
+(define-key vikix-network-mode-map (kbd "i") #'vikix-network-identify)
+(define-key vikix-network-mode-map (kbd "n") #'vikix-network-name)
 (define-derived-mode vikix-network-mode special-mode "Network Office"
   (visual-line-mode 1)
   (add-hook 'kill-buffer-hook #'vikix-network--cleanup nil t))
