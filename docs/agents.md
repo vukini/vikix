@@ -499,7 +499,11 @@ on its first page, and **Parked** and **Closed** on a page of their own (the
 **Parked and closed** button, or `k`; **Back to desks**, or `k` again, returns),
 so the first page holds only the desks with something to do at them. Each
 group is drawn in a box of its own, a rule between its
-desks, and a desk's lines as labelled rows (Task, Live, Handoff, Next, Before); the desk
+desks. Beside the project, each live agent's name has its workspace clearly
+labelled (`codex · workspace 2`); several agents each keep their own label.
+An agent without a desktop window says so, and an unavailable workspace
+says *workspace unknown*. A desk's lines are labelled rows (Task, Live,
+Handoff, Next, Before); the desk
 pane draws each of its sections (the task, what the agent says, the Git
 state, the checks, the agents, the saved conversations) in a box the same
 way, so neither pane reads as a wall of text. The box **What the agent

@@ -375,6 +375,13 @@ lines hang together under its first."
 (defun vikix-office--note (width chars text)
   "A line of a box that says something about the box, in the shade."
   (vikix-office--field width chars 0 "" text 'shadow))
+(defun vikix-office--agent-workspace (agent)
+  "The live AGENT's workspace, without guessing for a windowless session."
+  (let ((workspace (alist-get 'workspace agent)))
+    (cond ((not (member workspace '(nil "")))
+           (concat "workspace " (vikix-office--one-line workspace)))
+          ((member (alist-get 'window agent) '(nil "")) "no desktop window")
+          (t "workspace unknown"))))
 (defun vikix-office--label-width (labels least)
   "A label column wide enough for LABELS, two spaces of air, and at least LEAST."
   (apply #'max least (mapcar (lambda (l) (+ 2 (string-width l))) labels)))
@@ -553,7 +560,14 @@ is drawn when PLANS is empty."
                   (vikix-office--note width chars
                                       (concat (if folder "Not a desk"
                                                 (vikix-office--one-line (or (alist-get 'project (alist-get 'desk r)) "Project unrecorded")))
-                                              " · " (vikix-office--one-line (alist-get 'provider r))))
+                                              " · "
+                                              (if (alist-get 'agents r)
+                                                  (mapconcat
+                                                   (lambda (a)
+                                                     (concat (vikix-office--one-line (alist-get 'agent a))
+                                                             " · " (vikix-office--agent-workspace a)))
+                                                   (alist-get 'agents r) "; ")
+                                                (vikix-office--one-line (alist-get 'provider r)))))
                   ;; The desk's task now, the user's words in a line; a desk with none
                   ;; stands for a worker later. A plain folder has no record to hold one.
                   (unless folder
@@ -921,8 +935,8 @@ comma of its words; the words alone without a clock."
                     ((null agents) (vikix-office--field width chars 0 "" "None observed")))
               (cl-mapc (lambda (a label)
                          (vikix-office--field width chars label-width label
-                                              (format "%s · workspace %s%s" (alist-get 'doing a)
-                                                      (or (alist-get 'workspace a) "unknown")
+                                              (format "%s · %s%s" (vikix-office--agent-workspace a)
+                                                      (vikix-office--one-line (alist-get 'doing a))
                                                       ;; Its window's name on the desktop: the desk and the provider.
                                                       (if (member (alist-get 'desk_title a) '(nil ""))
                                                           "" (concat " · " (vikix-office--one-line (alist-get 'desk_title a))))

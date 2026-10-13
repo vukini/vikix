@@ -119,14 +119,14 @@ changed and the commits."
                                         (workspace . "2") (process_start . "100"))))
          (vikix-office--render)
          ;; Its own rows: no handoff named (the other row, a desk, still has one).
-         (should (string-match-p "^[│|] Not a desk · codex +[│|]\n[│|] Live +running +[│|]\n[│|] Next +Go to agent +[│|]$" (buffer-string)))
+         (should (string-match-p "^[│|] Not a desk · codex · workspace 2 +[│|]\n[│|] Live +running +[│|]\n[│|] Next +Go to agent +[│|]$" (buffer-string)))
          (with-current-buffer vikix-office--detail
            (should (string-match-p "^[│|] Agents running in ~ +[│|]$" (buffer-string)))
            (should (string-match-p "Go to agent" (buffer-string)))
            (should (string-match-p "Close agent" (buffer-string)))
            (should-not (string-match-p "Continue" (buffer-string)))
            (should-not (string-match-p "Observed Git state\\|What the agent says\\|Saved conversations" (buffer-string)))
-           (should (string-match-p "codex 7598 +running · workspace 2" (buffer-string))))
+           (should (string-match-p "codex 7598 +workspace 2 · running" (buffer-string))))
          (should-error (vikix-office-continue) :type 'user-error)
          ;; Without an agent left there is still no Continue: nothing to continue in a folder.
          (setf (alist-get 'agents r) nil)
@@ -134,6 +134,27 @@ changed and the commits."
          (with-current-buffer vikix-office--detail
            (should-not (string-match-p "Continue" (buffer-string)))))
      (kill-buffer vikix-office--detail))))
+(ert-deftest office-agent-workspaces-in-list ()
+  (office-test-buffer
+   (let* ((r (car (alist-get 'desks vikix-office--data)))
+          (agents '(((agent . "codex") (window . "3") (workspace . "2"))
+                    ((agent . "claude") (window . "4") (workspace . "writing"))
+                    ((agent . "aider") (window . "") (workspace . ""))
+                    ((agent . "gemini") (window . "5")))))
+     (setf (alist-get 'agents r) agents)
+     (vikix-office--render)
+     ;; Each name stays paired with its own location, including named workspaces.
+     (dolist (label '("codex · workspace 2" "claude · workspace writing"
+                      "aider · no desktop window" "gemini · workspace unknown"))
+       (should (string-match-p
+                (regexp-quote label)
+                ;; The box can wrap a label across lines in a narrow pane.
+                (replace-regexp-in-string "[ │|\n]+" " " (buffer-string)))))
+     ;; A refresh follows the live workspace instead of the desk's first one.
+     (setf (alist-get 'workspace (car agents)) "7")
+     (vikix-office--render)
+     (should (string-match-p "codex · workspace 7" (buffer-string)))
+     (should-not (string-match-p "codex · workspace 2" (buffer-string))))))
 (ert-deftest office-attention-colours-the-desk ()
   "A desk whose terminal needs you is drawn in the colour the desktop gives it:
 its title and its Live row in the face for asks, gup or close, and in the
