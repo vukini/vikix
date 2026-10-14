@@ -38,7 +38,9 @@
 #   changed files (an edit, or a Bash command that writes) without
 #   writing its handoff since, to write it, once per turn (the stop after
 #   it is let go); at a desk without a task it asks the same until a
-#   status is written, then no more.
+#   status is written, then no more. The launcher's exit line: a worker's
+#   exit code reaches the task's events (exited, with the task named), the
+#   task is blocked on its worker and kept, and the terminal gets the code.
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
@@ -48,7 +50,7 @@ here=$(cd "$(dirname "$0")/.." && pwd)
 t=$(mktemp -d)
 trap 'rm -rf "$t"' EXIT
 export HOME="$t/home" VIKIX_RECORDS_DB="$t/records.db" VIKIX_PROC="$t/proc"
-unset XDG_STATE_HOME
+unset XDG_STATE_HOME VIKIX_TASK_ORIGIN
 mkdir -p "$HOME" "$t/src"
 fail=0
 check() { "${@:2}" || { echo "FAIL: $1"; fail=1; }; }
@@ -500,6 +502,24 @@ check "--force throws uncommitted files away, and says when the terminal was in 
   grep -q 'the desk is closed: .*/book-a removed, the branch a deleted. This terminal was in it: cd somewhere else' <<<"$out"
 out=$(close)
 check "no desk left: $out" grep -q 'no desk to close: no project has a worktree beside it' <<<"$out"
+
+# --- The launcher's exit line: the worker's exit code reaches the task's events ---------------
+# Every launcher runs under bash -c '"$@"; vikix agents exited --code $?'
+# (exit_line in lib/agents/desks.py), so a provider with no SessionEnd hook
+# still ends its launch; the code is kept for the terminal.
+git -C "$t/src/book" worktree add -q "$t/src/book-x" -b x
+mkdir -p "$t/bin"; printf '#!/bin/sh\necho "AGENT ARGS: $*"\nexit 3\n' > "$t/bin/agent-3"; chmod +x "$t/bin/agent-3"
+out=$(VIKIX_AGENT_CMD="$t/bin/agent-3" VIKIX_TESTER=0 python3 "$here/bin/vikix-agents" worker x --here "Count the chapters" --use claude 2>&1 </dev/null; echo "exit $?")
+check "the worker ran under the exit line, its words its own, and the terminal got its code: $out" \
+  bash -c 'grep -q "^AGENT ARGS: --use claude Count the chapters$" <<<"$1" && [ "$(tail -1 <<<"$1")" = "exit 3" ]' _ "$out"
+x_id=$(python3 "$here/bin/vikix-agents" handoff x --json 2>/dev/null </dev/null | python3 -c 'import json, sys; print(json.load(sys.stdin).get("task", {}).get("id", ""))')
+check "the exit line's code is in the events, exited with the task named: $(grep -c exited "$HOME"/.local/state/vikix/office/events-*.jsonl)" \
+  grep -q "\"kind\": \"exited\", \"task\": \"$x_id\".*\"code\": 3" "$HOME"/.local/state/vikix/office/events-*.jsonl
+check "and the task is blocked on its worker, kept, the code in its last launch (never completed by an exit)" python3 -c '
+import json, sys
+t = json.load(open(sys.argv[1]))
+assert (t["status"]["value"], t["blocked"]["on"], t["launches"][-1]["code"], t["done"]) == ("blocked", "worker", 3, None), (t["status"], t["blocked"], t["launches"])' "$HOME/.local/state/vikix/office/tasks/$x_id.json"
+git -C "$t/src/book" worktree remove --force "$t/src/book-x"; git -C "$t/src/book" branch -q -D x
 
 # --- tidy: the shells an agent left sleeping in a loop ----------------------------------
 # A real loop, so ending it can be seen; the made-up /proc puts it under an agent.

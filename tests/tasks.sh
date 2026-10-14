@@ -19,15 +19,21 @@
 #   release completes with the version; close completes a merged branch
 #   and cancels a forced one. Every transition in the table, and a refused
 #   one; the sequence never repeats across twenty launches at once; a
-#   credential is refused in a task's words and in a reason; an unknown
-#   key in a record is refused. Records from before are adopted with what
+#   credential is refused everywhere: every text the module takes (the
+#   words, the project, the topic, the source, who, a reason, what blocks,
+#   a launch's provider, how and mode, how a worker left, the worker's
+#   choices, the words changed under a record), the arms (handoff --task,
+#   worker, desk --task) before any record is made, and the words of a
+#   record from before, withheld at adoption; an unknown key in a record
+#   is refused. Records from before are adopted with what
 #   they knew (the handoff status read into a state, a history entry with
 #   none cancelled, a desk the release closed completed) and the rest
 #   unknown, never invented; adopted once, the ids written back into the
 #   desk record and nothing else of it touched. The worker's state is read
 #   from the agent's row and the launches, with its source and how sure.
-#   The event log has every kind the design names; a task's history is
-#   read back from it, a desk's, all, since when.
+#   The event log has every kind the design names, and by the end holds
+#   every kind phase 1 writes; a task's history is read back from it, a
+#   desk's, all, since when.
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
@@ -250,6 +256,58 @@ python3 -c 'import json, sys; p = sys.argv[1]; t = json.load(open(p)); del t["co
 out=$(agents task ../x)
 check "a task id that is a path is a desk's name, and refused as such: $out" grep -q 'no desk called' <<<"$out"
 
+# A credential is refused everywhere: every text a task record takes, from
+# the module (the words, the project, the topic, the source, who; a reason,
+# what blocks; a launch's provider, how and mode; how a worker left; the
+# worker's choices; a record's words changed under it), from the arms
+# (handoff --task, worker, desk --task: refused before any record is made),
+# and in a record from before, whose words are withheld at adoption.
+cred="sk-ant-abcdefghijklmnopqrstu"
+py '
+import os
+cred = sys.argv[1]
+t = T.new("a step", "book", "user")
+T.move(t["id"], "running", "user", "to work")
+tries = {
+    "new: the words": lambda: T.new(cred, "book", "user"),
+    "new: the project": lambda: T.new("ok", cred, "user"),
+    "new: who": lambda: T.new("ok", "book", cred),
+    "new: the topic": lambda: T.new("ok", "book", "user", topic=cred),
+    "new: the source": lambda: T.new("ok", "book", "user", kind="automation", source=cred),
+    "new: the worker choices, use": lambda: T.new("ok", "book", "user", worker={"use": cred}),
+    "new: the worker choices, mode": lambda: T.new("ok", "book", "user", worker={"mode": cred}),
+    "move: the reason": lambda: T.move(t["id"], "needs review", "user", cred),
+    "move: what blocks": lambda: T.move(t["id"], "blocked", "user", "x", blocked_on=cred),
+    "launch: the provider": lambda: T.launch(t["id"], cred, "user", "worker"),
+    "launch: how": lambda: T.launch(t["id"], "claude", "user", cred),
+    "launch: the mode": lambda: T.launch(t["id"], "claude", "user", "worker", mode=cred),
+    "launch: who": lambda: T.launch(t["id"], "claude", cred, "worker"),
+    "exited: how it left": lambda: T.exited(t["id"], reason=cred),
+    "update: the words changed under it": lambda: T.update(t["id"], lambda r: r.update(text=cred)),
+    "update: the title": lambda: T.update(t["id"], lambda r: r.update(title=cred)),
+}
+bad = []
+for name, go in tries.items():
+    try:
+        go(); bad.append(name)
+    except T.TaskError as e:
+        if "credential" not in str(e):
+            bad.append(name + " (refused for another reason: " + str(e) + ")")
+print("refused all" if not bad else "let through: " + "; ".join(bad))
+print(T.load(t["id"])["status"]["value"], T.load(t["id"])["launches"])
+os.unlink(T.path(t["id"]))' "$cred" > "$t/out"
+check "every text of the module refuses a credential: $(head -1 "$t/out")" test "$(head -1 "$t/out")" = "refused all"
+check "and nothing of the refused writes reached the record: $(tail -1 "$t/out")" test "$(tail -1 "$t/out")" = "running []"
+before=$(ls "$tasks" | wc -l)
+out=$(agents handoff c --task "the key is $cred")
+check "handoff --task refuses it before any record is made: $out" bash -c 'grep -q "looks like it holds a credential" <<<"$1" && [ "$(ls "$2" | wc -l)" = "$3" ]' _ "$out" "$tasks" "$before"
+out=$(agents worker c --here "the key is $cred")
+check "worker the same, and no agent starts: $out" bash -c 'grep -q "looks like it holds a credential" <<<"$1" && ! grep -q "AGENT ARGS" <<<"$1" && [ "$(ls "$2" | wc -l)" = "$3" ]' _ "$out" "$tasks" "$before"
+out=$(agents desk book z --task "the key is $cred" --here)
+check "desk --task the same: $out" bash -c 'grep -q "looks like it holds a credential" <<<"$1" && ! grep -q "AGENT ARGS" <<<"$1" && [ "$(ls "$2" | wc -l)" = "$3" ]' _ "$out" "$tasks" "$before"
+check "nothing of it in the events" bash -c '! grep -q "$1" <<<"$(events)"' _ "$cred"
+check "nor in the task records" bash -c '! grep -rq "$1" "$2"' _ "$cred" "$tasks"
+
 # --- Records from before, adopted ---------------------------------------------------------------
 records="$HOME/.local/state/vikix/office/desks"
 git -C "$t/src/book" worktree add -q "$t/src/book-old" -b old >/dev/null 2>&1
@@ -304,6 +362,24 @@ check "adopting is one of the office's events, and a record with a bad desk id i
 import sys; sys.path.insert(0, sys.argv[1]); import tasks as T
 assert T.adopt([{"desk": {"id": "nope"}, "task": {"text": "x", "by": "user", "at": 1}}]) == []' "$here/lib"
 
+# A record from before whose words hold a credential: adopted with its
+# words withheld and said so, the credential in no task record.
+cred_id=$(py 'print(H.desk_id(sys.argv[1], sys.argv[2]))' "$t/src/book/.git" "$t/src/book-cred")
+python3 - "$records/$cred_id.json" "$cred_id" "$t/src/book-cred" "$cred" <<'PY'
+import json, sys
+path, did, folder, cred = sys.argv[1:]
+rec = {"version": 1, "desk": {"id": did, "repo": "", "worktree": folder, "branch": "cred", "project": "book", "made": 1791000000, "closed": 0},
+       "task": {"text": "The key is " + cred, "by": "user", "at": 1791100000}, "handoff": {},
+       "checks": [], "sessions": [], "observed": {}, "log": [], "updated": 1791100000}
+json.dump(rec, open(path, "w"), indent=1)
+PY
+out=$(agents tasks adopt)
+check "adopted, one record: $out" grep -q '^1 task record made' <<<"$out"
+withheld=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["task"]["id"])' "$records/$cred_id.json")
+check "its words withheld, said in the page, the credential nowhere in the records or the log" \
+  bash -c '[ "$(field "$1" "t[\"text\"]")" = "(a task whose words look like a credential, withheld)" ] && grep -q "unknown: .*its words" <<<"$(agents task "$1")" && ! grep -rq "$2" "$3" && ! grep -q "$2" <<<"$(events)"' _ "$withheld" "$cred" "$tasks"
+rm -f "$records/$cred_id.json" "$tasks/$withheld.json"
+
 # --- The worker's state, read ----------------------------------------------------------------------
 py '
 t = {"id": "t-20261013-000000", "launch": {"at": 1, "seq": 1}, "launches": [{"at": 1, "seq": 1, "ended": None}]}
@@ -344,6 +420,21 @@ check "a task an automation makes says so: by the plan" \
   test "$(field "$g" 't["origin"]["kind"], t["origin"]["source"]')" = "('automation', 'plan chapters')"
 check "and the page words it" grep -q "^Origin: by plan chapters" <<<"$(agents task "$g")"
 unset VIKIX_TASK_ORIGIN
+
+# The log, by the end, holds every kind phase 1 writes (the design's
+# kinds that a later phase brings are in KINDS, written by nothing yet).
+py 'H.update(sys.argv[1], sys.argv[2], lambda r: H.add_check(r, "spell", False, "vikix", sys.argv[2], ""))' "$t/src/book/.git" "$t/src/book-c" >/dev/null
+check "tests done, from a check of the desk record, carries the task" bash -c 'grep -q "\"kind\": \"tests done\", \"task\": \"t-" <<<"$(events)"'
+missing=$(python3 - "$HOME/.local/state/vikix/office" <<'PY'
+import glob, json, sys
+seen = {json.loads(l)["kind"] for f in glob.glob(sys.argv[1] + "/events-*.jsonl") for l in open(f) if l.strip()}
+phase1 = {"created", "approved", "queued", "deferred", "launched", "asked", "answered", "handoff", "tests done",
+          "review asked", "accepted", "sent back", "blocked", "unblocked", "exited", "handed off", "released", "completed",
+          "cancelled", "adopted", "worker", "closed", "left"}
+print(" ".join(sorted(phase1 - seen)))
+PY
+)
+check "every kind phase 1 writes is in the log (missing: '$missing')" test -z "$missing"
 
 [ $fail = 0 ] && echo "tasks: ok (a task from each way in with its id, origin and launch number; the launcher's exit line and the hook block, never complete; the agent's words read into the table; the tester, the release and close move; every transition, the sequence at once, refusals; records from before adopted with their gaps unknown; the worker's state with how sure; the log read back)"
 exit $fail

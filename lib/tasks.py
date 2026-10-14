@@ -327,6 +327,7 @@ def event(kind, by, task=None, desk=None, data=None, seq=None):
     when a launch gives one, and data. TASK is a task record or id, DESK a
     desk record's desk dict or id. Never raises: a log that can't be
     written loses a line, not the write."""
+    by = word(by, "who", 60)
     if kind not in KINDS:
         raise TaskError(f"not an event kind: {kind}")
     H = handoff_module()
@@ -485,6 +486,7 @@ def move(tid, to, by, reason="", kind=None, data=None, blocked_on="", done=False
     holds it (another task's id, worker, tests, release, decision); DONE
     the fact that the work is in (completed from anywhere but final).
     TaskError for a transition the table refuses. The record after."""
+    by = word(by, "who", 60)
     out = {}
 
     def change(rec):
@@ -511,6 +513,7 @@ def launch(tid, provider, by, how, pid=0, mode="", numbered=True, start=""):
     and stays where a worker holds it (running, needs decision, needs
     review: a resumed conversation on a task already open). A change of
     provider from the launch before is an event handed off. The record."""
+    by = word(by, "who", 60)
     seq = next_seq() if numbered else None
     out = {}
 
@@ -544,6 +547,7 @@ def exited(tid, code=None, reason="", by="vikix", dirty=None):
     process gone); the event exited; and from running the task goes to
     blocked on worker (never completed or cancelled: the design's rule).
     The record, or None without the task."""
+    by = word(by, "who", 60)
     rec = load(tid)
     if not rec:
         return None
@@ -582,6 +586,7 @@ def handoff_move(tid, status, by, handoff=None):
     transition the table refuses, moves nothing and is noted in the task's
     log (the agent's claim stays in the handoff, which is its own). The
     record, or None without the task."""
+    by = word(by, "who", 60)
     rec = load(tid)
     if not rec:
         return None
@@ -615,6 +620,7 @@ def handoff_move(tid, status, by, handoff=None):
 def set_handoff(tid, handoff, by):
     """The desk's handoff copied into task TID at a write of it, so the
     history has the agent's words; nothing moves."""
+    by = word(by, "who", 60)
     if not load(tid):
         return None
     return update(tid, lambda rec: rec.__setitem__("handoff", copy.deepcopy(handoff or {})))
@@ -626,6 +632,7 @@ def tests_moved(tid, ok, names, worker_there, by="vikix"):
     worker still there, a task in review goes back to running (it reads
     the inbox and goes on); a check that passed moves nothing. The record,
     or None."""
+    by = word(by, "who", 60)
     rec = load(tid)
     if not rec or ok:
         return rec
@@ -891,6 +898,7 @@ def released(common, folder, version, by="release"):
     """The desk (COMMON, FOLDER) released as VERSION (.claude/release): every
     task of the desk not final gets the event released and is completed,
     since the branch is on main whatever the record said. The ids done."""
+    by = word(by, "who", 60)
     H = handoff_module()
     did = H.desk_id(common, folder)
     done = []

@@ -36,13 +36,19 @@
 #   picker's last question; the picker asks it after the agent. vikix
 #   agents help is a map, a line a command, every form of the header in a
 #   section of it; help COMMAND (and COMMAND -h) one command in full; an
-#   unknown command points at it.
+#   unknown command points at it. The task records beside the desks'
+#   (lib/tasks.py): desk --task, worker and resume each leave one the
+#   desk's record points at by id, with its origin and launch number; the
+#   Stop hook holds the agent as before and moves no task, the handoff it
+#   then writes does; a record written by hand in the old shape is adopted
+#   at tasks adopt, its id written back and nothing else of it touched, its
+#   gaps unknown, and lives on.
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
 export EMACS_SOCKET_NAME=/nonexistent/emacs-server   # never the live desktop's Emacs: emacsclient from a test goes nowhere
 unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE   # the desktop session's: from an agent's shell they'd point a test at the real ~/vikix and state, and hide the keys
-unset DISPLAY XDG_STATE_HOME XDG_CONFIG_HOME
+unset DISPLAY XDG_STATE_HOME XDG_CONFIG_HOME VIKIX_TASK_ORIGIN
 unset VIKIX_AGENT_SSH   # a desk started with --push sets it for its agent, whose tests would then see every desk push
 here=$(cd "$(dirname "$0")/.." && pwd)
 t=$(mktemp -d)
@@ -455,6 +461,97 @@ r = json.load(sys.stdin)
 assert r["task"]["by"] == "claude 1013" and r["launch"]["by"] == "claude 1013", (r["task"], r["launch"])
 assert [e["by"] for e in r["log"] if e["what"].startswith("worker started")][-1] == "claude 1013", r["log"][-3:]' <<<"$(agents handoff f --json)"
 rm -r "$t/proc/1013"
+
+# --- The task records beside the desks' (lib/tasks.py; tests/tasks.sh has the rest) ----------
+# Each way in left a task record the desk's record points at by id, with its
+# origin and launch number; the Stop hook holds the agent as before and moves
+# no task, the handoff it then writes does; a record written by hand in the
+# old shape is adopted at tasks adopt, its id written back and nothing else.
+tasks="$HOME/.local/state/vikix/office/tasks"
+tid_of() { agents handoff "$1" --json | python3 -c 'import json, sys; print(json.load(sys.stdin).get("task", {}).get("id", ""))'; }
+task_field() { python3 -c 'import json, sys; t = json.load(open(sys.argv[1])); print(eval(sys.argv[2]))' "$tasks/$1.json" "$2"; }
+events() { cat "$HOME"/.local/state/vikix/office/events-*.jsonl 2>/dev/null || true; }
+export -f tid_of task_field events; export tasks
+# The stand-in agent ends at once, so each launch here ends too: the
+# launcher's exit line blocks the task on its worker (tests/tasks.sh).
+e_id=$(tid_of e)
+check "desk --task left a task record, the desk's record pointing at it by id: '$e_id'" bash -c '[[ $1 =~ ^t-[0-9]{8}-[0-9a-f]{6}$ ]] && [ -f "$2/$1.json" ]' _ "$e_id" "$tasks"
+check "yours, launched by desk --task with a number, its words the desk's task" \
+  test "$(task_field "$e_id" 't["origin"]["kind"], t["origin"]["by"], t["launch"]["how"], t["launch"]["seq"] > 0, t["text"], t["desk"]["branch"]')" = "('user', 'user', 'desk --task', True, 'Chapter seven', 'e')"
+f_id=$(tid_of f)
+check "worker: the task an agent started is the agent's, launched by worker, after the desk's" \
+  test "$(task_field "$f_id" 't["origin"]["kind"], t["origin"]["by"], t["launch"]["how"], t["launch"]["by"]')" = "('agent', 'claude 1013', 'worker', 'claude 1013')"
+check "the numbers follow the launches" test "$(task_field "$f_id" 't["launch"]["seq"]')" -gt "$(task_field "$e_id" 't["launch"]["seq"]')"
+agents handoff f --json > "$t/f.json"
+check "the desk's history names each task before by id, a record of its own each, kept open" python3 - "$tasks" "$t/f.json" <<'PY'
+import json, sys
+r = json.load(open(sys.argv[2]))
+ids = [w.get("task_id") for w in r["workers"]]
+assert len(ids) == 2 and all(ids), r["workers"]
+for i in ids:
+    t = json.load(open(f"{sys.argv[1]}/{i}.json"))
+    assert t["status"]["value"] not in ("completed", "cancelled"), (i, t["status"])
+PY
+c_id=$(tid_of c)
+check "resume: each launch of the desk's task numbered, how resume, and a change of provider a handoff between them" python3 - "$tasks/$c_id.json" "$HOME/.local/state/vikix/office" <<'PY'
+import glob, json, sys
+t = json.load(open(sys.argv[1]))
+hows = [l["how"] for l in t["launches"]]
+assert hows and set(hows) == {"resume"} and all(l["seq"] for l in t["launches"]), hows
+providers = [l["provider"] for l in t["launches"]]
+assert providers[:2] == ["claude", "claude"] and "codex" in providers and "opencode" in providers, providers
+handed = [json.loads(l) for f in glob.glob(sys.argv[2] + "/events-*.jsonl") for l in open(f) if '"handed off"' in l]
+assert any(e["task"] == t["id"] and e["data"]["from"] == "claude" and e["data"]["to"] == "codex" for e in handed), handed
+assert (t["status"]["value"], t["blocked"]["on"]) == ("blocked", "worker"), t["status"]
+PY
+# The Stop hook, with a task record at the desk: it asks for the handoff as
+# before and moves nothing; the handoff written then moves the task.
+proc 1020 claude "$t/src/book-e"
+touch_as() { local pid=$1; shift; VIKIX_AGENT_PID=$pid python3 "$here/bin/vikix-agents" touch "$@" 2>&1 < /dev/null; }
+stop_as() { printf '%s' "$2" | VIKIX_AGENT_PID=$1 python3 "$here/bin/vikix-agents" stopping 2>&1; }
+touch_as 1020 "$t/src/book-e/ch7.md" >/dev/null
+e_before=$(task_field "$e_id" 't["status"]["value"], t["status"]["at"]')
+out=$(stop_as 1020 '{"stop_hook_active": false}')
+check "the Stop hook asks a worker that changed files for its handoff: $out" grep -q '"decision": "block".*the handoff hasn.t been written since' <<<"$out"
+check "and moves the task not at all: $e_before" test "$(task_field "$e_id" 't["status"]["value"], t["status"]["at"]')" = "$e_before"
+as 1020 handoff --status review --summary "seven is written" >/dev/null
+check "the handoff it writes then moves the task: needs review, by the agent, with the event" \
+  bash -c '[ "$(task_field "$1" "t[\"status\"][\"value\"], t[\"status\"][\"by\"]")" = "('"'"'needs review'"'"', '"'"'claude 1020'"'"')" ] && grep -q "\"kind\": \"review asked\", \"task\": \"$1\"" <<<"$(events)"' _ "$e_id"
+out=$(stop_as 1020 '{}')
+check "written, the agent stops freely: '$out'" test -z "$out"
+rm -r "$t/proc/1020"
+# A record written by hand in the old shape (before 2026-10-14: no task id).
+git -C "$t/src/book" worktree add -q "$t/src/book-g" -b g
+g_id=$(python3 -B -c 'import sys; sys.path.insert(0, sys.argv[1]); import handoff as H; print(H.desk_id(sys.argv[2], sys.argv[3]))' "$here/lib" "$t/src/book/.git" "$t/src/book-g")
+python3 - "$records/$g_id.json" "$g_id" "$t/src/book-g" <<'PY'
+import json, sys
+path, did, folder = sys.argv[1:]
+rec = {"version": 1, "desk": {"id": did, "repo": "", "worktree": folder, "branch": "g", "project": "book", "made": 1791000000, "closed": 0},
+       "task": {"text": "The old task", "by": "claude 7", "at": 1791100000},
+       "handoff": {"status": {"value": "working", "by": "claude 7", "at": 1791100500}, "summary": {"text": "half done", "by": "claude 7", "at": 1791100500}},
+       "checks": [], "sessions": [{"provider": "claude", "id": "0f1e2d3c-aaaa-bbbb-cccc-123456789abc", "at": 1791100100}], "observed": {},
+       "log": [{"at": 1791100000, "by": "claude 7", "what": "task set"}],
+       "launch": {"provider": "claude", "mode": "", "by": "user", "at": 1791100100}, "workers": [], "updated": 1791100500}
+json.dump(rec, open(path, "w"), indent=1)
+PY
+out=$(agents handoff g)
+check "the record in the old shape reads as it did: $out" bash -c 'grep -q "^Task (claude 7, .*): The old task" <<<"$1" && grep -q "^Status: working" <<<"$1"' _ "$out"
+before=$(python3 -c 'import json, sys; r = json.load(open(sys.argv[1])); r["task"].pop("id", None); print(json.dumps(r, sort_keys=True))' "$records/$g_id.json")
+out=$(agents tasks adopt)
+check "adopted: one task record made: $out" grep -q '^1 task record made' <<<"$out"
+g_task=$(tid_of g)
+check "its id written back, and nothing else of the record touched" \
+  test "$(python3 -c 'import json, sys; r = json.load(open(sys.argv[1])); r["task"].pop("id"); print(json.dumps(r, sort_keys=True))' "$records/$g_id.json")" = "$before"
+check "the task has what the record knew, the rest unknown: no origin (set by the agent), running (a launch, not left), no number" \
+  test "$(task_field "$g_task" 't["origin"]["kind"], t["origin"]["by"], t["status"]["value"], t["launch"]["seq"], t["launch"]["provider"], t["launched"], t["created"]')" = "('unknown', 'claude 7', 'running', None, 'claude', 1791100100, 1791100000)"
+check "the page says so, never a made-up number" bash -c 'grep -q "^Launch: launch order unknown claude" <<<"$1" && grep -q "^Origin: unknown (set by claude 7)" <<<"$1"' _ "$(agents task g)"
+check "the handoff shows it as before, the record whole" bash -c 'grep -q "^Task (claude 7, .*): The old task" <<<"$1" && grep -q "^Status: working" <<<"$1" && grep -q "half done" <<<"$1"' _ "$(agents handoff g)"
+proc 1021 claude "$t/src/book-g"
+as 1021 handoff --status review >/dev/null
+check "an adopted task lives on: the next handoff moves it" test "$(task_field "$g_task" 't["status"]["value"]')" = "needs review"
+rm -r "$t/proc/1021"
+out=$(agents tasks adopt)
+check "adopted once: $out" grep -q '^0 task records made' <<<"$out"
 
 # --- Pushing as the user: only when asked, by --push or the picker's last question ----------------
 printf '#!/bin/sh\necho "AGENT SSH: ${VIKIX_AGENT_SSH-unset}"\n' > "$t/bin/agent-ssh"; chmod +x "$t/bin/agent-ssh"
