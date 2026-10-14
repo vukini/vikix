@@ -276,7 +276,12 @@ check "vikix agents here starts the agent named in a terminal in the home folder
   test "$(cat "$t/desk.args")" = "--use codex --local"
 echo "codex " > "$t/agent-pick"; : > "$t/desk.args"
 out=$(PATH="$t/bin:$PATH" AGENT_CMD="$t/bin/argsaver" here)
-sleep 0.5
+# The terminal starts asynchronously; a busy test machine can take longer
+# than half a second to reach argsaver. Wait for its result, with a bound.
+for ((i=0; i<100; i++)); do
+  [ "$(cat "$t/desk.args")" != "--use codex" ] || break
+  sleep 0.1
+done
 check "without --use it asks which agent, as a desk does: '$(cat "$t/desk.args")' $out" test "$(cat "$t/desk.args")" = "--use codex"
 out=$(DISPLAY='' here)
 check "with no desktop to ask on it says how to name one: $out" grep -q 'say which agent: vikix agents here --use NAME' <<<"$out"
