@@ -662,15 +662,17 @@ class Office(unittest.TestCase):
         with patch.dict(os.environ, VIKIX_TEST_SLOTS_DIR=str(slots)), patch.object(A.os.path, 'realpath', resolve):
             run = A.test_progress(self.folder, now=120)[0]
             self.assertEqual((run['completed'], run['remaining'], run['eta']), (1, 3, 110))
-            self.assertEqual([r['state'] for r in run['tests']], ['running', 'queued', 'queued'])
+            self.assertEqual([r['state'] for r in run['tests']], ['passed', 'running', 'queued', 'queued'])
+            self.assertEqual((run['tests'][0]['elapsed'], run['tests'][1]['expected']), (10, 100))
+            self.assertIn('1/4 done, 3 remaining', run['summary'])
             self.assertIn('running: active', run['summary'])
             run = A.test_progress(self.folder, now=501)[0]
             self.assertIsNone(run['eta'])
-            self.assertTrue(run['tests'][0]['stalled'])
-            self.assertFalse(run['tests'][1]['stalled'])
+            self.assertTrue(run['tests'][1]['stalled'])
+            self.assertFalse(run['tests'][2]['stalled'])
             (logs / 'active.expected').unlink()
-            self.assertFalse(A.test_progress(self.folder, now=501)[0]['tests'][0]['stalled'])
-            self.assertTrue(A.test_progress(self.folder, now=1001)[0]['tests'][0]['stalled'])
+            self.assertFalse(A.test_progress(self.folder, now=501)[0]['tests'][1]['stalled'])
+            self.assertTrue(A.test_progress(self.folder, now=1001)[0]['tests'][1]['stalled'])
             self.records = [self.rec]
             with patch.object(A, 'tester_running', lambda f: 0):
                 row = office.snapshot(A)['desks'][0]

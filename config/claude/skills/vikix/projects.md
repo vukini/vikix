@@ -52,24 +52,23 @@ has it in `~/src/project-logs/NAME/log.md`. Git worktrees are skipped.
 
 ## A worker's day
 
-How a worker at a desk finishes (the same text is the last paragraph of a
+How a worker at a desk finishes, a step a row (the same table ends a
 worker's first prompt; `vikix agents handoff` and the hand-in's fields are
 in `~/.claude/skills/vikix/ai.md`):
 
-Understand the task and its acceptance criteria; read the handoff and the
-project's instructions. Look at the files the task touches before changing
-them. Make the change at your desk, on its branch. Run the tests the change
-reaches through the project's runner (`tests/run.sh --changed`), fix what
-fails, run them again. Update the guides the change makes wrong, in the same
-commit. Commit only the files you changed, by name. Write the hand-in: status,
-what changed and why, what is decided, what is left, the tests run, the
-defects you know of. Hand back through the office (`vikix agents handoff
---status review`); don't merge, release or push unless the task or the house
-says so. Ask when something essential is missing or an action would lose data,
-open a hole or change the design; decide the routine yourself. If your sandbox
-keeps the desk's `.git` or the office's state read-only (Codex's does), run
-git, the tests and `vikix` outside it: ask to escalate, and the house's rules
-let a desk's day through without a prompt.
+| Step       | What |
+|------------|------|
+| Understand | the task and its acceptance criteria; read the handoff and the project's instructions. |
+| Estimate   | once you know the shape of the work, say how long it will take, assuming no major issue turns up: `vikix agents handoff --status working --estimate "40 min"`, or the MCP tool `handoff_update`. |
+| Look       | at the files the task touches before changing them. |
+| Change     | at your desk, on its branch. |
+| Test       | the tests the change reaches, through the project's runner (`tests/run.sh --changed`); fix what fails, run them again. |
+| Guides     | update the ones the change makes wrong, in the same commit. |
+| Commit     | only the files you changed, by name. |
+| Hand-in    | status, what changed and why, what is decided, what is left, the tests run, the defects you know of. |
+| Hand back  | through the office (`vikix agents handoff --status review`); don't merge, release or push unless the task or the house says so. |
+| Ask        | when something essential is missing, or an action would lose data, open a hole or change the design; decide the routine yourself. |
+| Sandbox    | if yours keeps the desk's `.git` or the office's state read-only (Codex's does), run git, the tests and `vikix` outside it: ask to escalate; the house's rules let a desk's day through without a prompt. |
 
 Your task has a record of its own, apart from the desk and from you
 (`~/.local/state/vikix/office/tasks/ID.json`; the user's guide: *The work:

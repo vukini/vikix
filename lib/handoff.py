@@ -82,17 +82,30 @@ SESSIONS_MAX = 10
 # its sandbox a desk's .git and ~/.local/state are read-only, and asked to
 # commit and hand off it saw both fail and stopped, rather than ask to run
 # them outside the sandbox, where Vikix's rules let them through.
-DONE = ("Understand the task and its acceptance criteria; read the handoff and the project's instructions. "
-        "Look at the files the task touches before changing them. Make the change at your desk, on its "
-        "branch. Run the tests the change reaches through the project's runner (`tests/run.sh --changed`), "
-        "fix what fails, run them again. Update the guides the change makes wrong, in the same commit. "
-        "Commit only the files you changed, by name. Write the hand-in: status, what changed and why, what "
-        "is decided, what is left, the tests run, the defects you know of. Hand back through the office "
-        "(`vikix agents handoff --status review`); don't merge, release or push unless the task or the house "
-        "says so. Ask when something essential is missing or an action would lose data, open a hole or "
-        "change the design; decide the routine yourself. If your sandbox keeps the desk's `.git` or the "
-        "office's state read-only (Codex's does), run git, the tests and `vikix` outside it: ask to escalate, "
-        "and the house's rules let a desk's day through without a prompt.")
+# A table, a step a row, so it reads at a glance in a terminal, in the skill and in the guide
+# (a paragraph of ten sentences didn't, 2026-10-14); the estimate is its second row, which
+# every worker is asked for.
+DONE_STEPS = (
+    ("Understand", "the task and its acceptance criteria; read the handoff and the project's instructions."),
+    ("Estimate", "once you know the shape of the work, say how long it will take, assuming no major issue turns up: "
+                 "`vikix agents handoff --status working --estimate \"40 min\"`, or the MCP tool `handoff_update`."),
+    ("Look", "at the files the task touches before changing them."),
+    ("Change", "at your desk, on its branch."),
+    ("Test", "the tests the change reaches, through the project's runner (`tests/run.sh --changed`); fix what fails, "
+             "run them again."),
+    ("Guides", "update the ones the change makes wrong, in the same commit."),
+    ("Commit", "only the files you changed, by name."),
+    ("Hand-in", "status, what changed and why, what is decided, what is left, the tests run, the defects you know of."),
+    ("Hand back", "through the office (`vikix agents handoff --status review`); don't merge, release or push unless the "
+                  "task or the house says so."),
+    ("Ask", "when something essential is missing, or an action would lose data, open a hole or change the design; "
+            "decide the routine yourself."),
+    ("Sandbox", "if yours keeps the desk's `.git` or the office's state read-only (Codex's does), run git, the tests "
+                "and `vikix` outside it: ask to escalate; the house's rules let a desk's day through without a prompt."),
+)
+_W = max(len(s) for s, _ in DONE_STEPS)
+DONE = "\n".join([f"| {'Step'.ljust(_W)} | What |", f"|{'-' * (_W + 2)}|------|"]
+                 + [f"| {step.ljust(_W)} | {what} |" for step, what in DONE_STEPS])
 
 # What never goes into a record: a key, a token, a password, in any field.
 SECRET = re.compile(r"(sk-ant-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}"

@@ -1060,8 +1060,8 @@ EOF
 else
   echo "(codex isn't installed here: the rules file's lines aren't checked with codex execpolicy)"
 fi
-# The definition of done: one text (DONE in lib/handoff.py), given by desk_prompt, on the skill's
-# projects page and quoted in the guide, held to the one in the code.
+# The definition of done: one table (DONE in lib/handoff.py), given by desk_prompt, on the skill's
+# projects page and in the guide, held to the one in the code.
 check "the definition of done is in the worker's first prompt, the skill's projects.md and docs/agents.md, word for word" \
   python3 - "$here" <<'PY'
 import importlib.util, re, sys

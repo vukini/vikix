@@ -1492,8 +1492,9 @@ and q puts the windows back; the only frame is never deleted."
             '((testing . 4242)
               (tester . ((pid . 4242) (direct . t) (name . "tests/run.sh")
                          (progress . (((summary . "1/3 done, 2 remaining; running: lint; ETA unknown")
-                                       (tests . (((line . "lint: running, 400s elapsed — suspected stalled (long runtime)") (stalled . t))
-                                                 ((line . "office: queued, about 60s once started")))))))))))
+                                       (tests . (((name . "docs") (state . "passed") (elapsed . 12) (expected . 10) (remaining . :null) (stalled . :false))
+                                                 ((name . "lint") (state . "running") (elapsed . 400) (expected . 100) (remaining . 0) (stalled . t))
+                                                 ((name . "office") (state . "queued") (elapsed . 0) (expected . 60) (remaining . 60) (stalled . :false)))))))))))
      (setq vikix-office--detail (generate-new-buffer " *Progress details*"))
      (unwind-protect
          (progn
@@ -1501,8 +1502,14 @@ and q puts the windows back; the only frame is never deleted."
            (vikix-office--render-detail)
            (with-current-buffer vikix-office--detail
              (should (string-match-p "1/3 done, 2 remaining" (buffer-string)))
-             (should (string-match-p "suspected stalled" (buffer-string)))
-             (should (string-match-p "office: queued" (buffer-string)))
+             ;; A table: the columns' names, then a row a test in the plan's order,
+             ;; the stall in its last column, the estimate in words.
+             (should (string-match-p "Test +State +Time +Estimate" (buffer-string)))
+             (should (string-match-p "docs +passed +12 s" (buffer-string)))
+             (should (string-match-p "lint +running +6 min 40 s +past estimate +suspected stalled" (buffer-string)))
+             (should (string-match-p "office +queued +about 1 min" (buffer-string)))
+             (should (< (string-match "docs +passed" (buffer-string)) (string-match "lint +running" (buffer-string))
+                        (string-match "office +queued" (buffer-string))))
              (should-not (string-match-p "No test has ended yet" (buffer-string)))
              (let (labels)
                (save-excursion

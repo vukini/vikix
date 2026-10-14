@@ -263,6 +263,60 @@ whom, and the words of its data that say something."
             (if (vikix-office--positive at) (concat " · since " (vikix-office--clock at)) "")
             (if (member waiting '(nil "")) "" (concat " · waiting for the release of " (vikix-office--one-line waiting))))))
 
+(defun vikix-office--seconds (value)
+  "VALUE seconds in words: 40 s, 6 min 40 s, 1 h 5 min; \"\" for none."
+  (if (not (numberp value)) ""
+    (let* ((n (max 0 (round value))) (h (/ n 3600)) (m (/ (% n 3600) 60)) (sec (% n 60)))
+      (cond ((> h 0) (if (> m 0) (format "%d h %d min" h m) (format "%d h" h)))
+            ((> m 0) (if (> sec 0) (format "%d min %d s" m sec) (format "%d min" m)))
+            (t (format "%d s" sec))))))
+(defun vikix-office--test-cells (test)
+  "A test of a run (`test_progress' in lib/agents/tester.py) as the cells
+of its row: name, state, how long, the estimate, and a note (stalled)."
+  (let ((state (vikix-office--text (alist-get 'state test)))
+        (elapsed (alist-get 'elapsed test)) (expected (alist-get 'expected test))
+        (left (alist-get 'remaining test)))
+    (list (vikix-office--one-line (alist-get 'name test))
+          state
+          (if (equal state "queued") "" (vikix-office--seconds elapsed))
+          (cond ((member state '("passed" "failed")) "")
+                ((not (numberp expected)) "unknown")
+                ((equal state "queued") (concat "about " (vikix-office--seconds expected)))
+                ((vikix-office--positive left) (concat "about " (vikix-office--seconds left) " left"))
+                (t "past estimate"))
+          (if (eq (alist-get 'stalled test) t) "suspected stalled" ""))))
+(defun vikix-office--test-face (test)
+  "The face of a test's row: a suspected stall warns, an ended test is in the shade."
+  (cond ((eq (alist-get 'stalled test) t) 'warning)
+        ((equal (alist-get 'state test) "failed") 'error)
+        ((member (alist-get 'state test) '("passed" "queued")) 'shadow)))
+
+(defun vikix-office--table (width chars head rows &optional faces)
+  "A table inside a box: HEAD, the columns' names in the shade, then ROWS,
+each a list of strings, in FACES (one per row, or nil). Each column is as
+wide as its widest cell, two spaces apart; the last takes what is left
+of WIDTH and is cut to it, so the box's side stays where it is."
+  (let* ((cells (cons head rows))
+         (count (apply #'max (mapcar #'length cells)))
+         (widths (mapcar (lambda (i) (apply #'max 1 (mapcar (lambda (r) (string-width (or (nth i r) ""))) cells)))
+                         (number-sequence 0 (1- count))))
+         (first-width (apply #'+ (* 2 (1- count)) (butlast widths))))
+    (cl-labels ((line (row face)
+                  (let ((text "") (i 0))
+                    (dolist (w widths)
+                      (let ((cell (or (nth i row) "")))
+                        (setq text (concat text
+                                           (if (= i (1- count))
+                                               (truncate-string-to-width cell (max 1 (- width first-width)) nil nil "…")
+                                             (concat (truncate-string-to-width cell w nil ?\s) "  "))))
+                        (setq i (1+ i))))
+                    (vikix-office--line width chars (if face (propertize text 'face face) text)))))
+      (line head 'shadow)
+      (let ((rest faces))
+        (dolist (row rows)
+          (line row (car rest))
+          (setq rest (cdr rest)))))))
+
 (defun vikix-office--button (label action)
   (insert-text-button label 'follow-link t 'action (lambda (_) (funcall action)))
   (insert "  "))
@@ -852,10 +906,15 @@ comma of its words; the words alone without a clock."
                 (let ((tester (alist-get 'tester r)))
                   (vikix-office--box-top width chars "Testing")
                   (vikix-office--field width chars 0 "" (vikix-office--tester-line tester))
+                  ;; The run's tests, a row each in the plan's order: ended, running and
+                  ;; queued, with how long and the estimate (as prose lines they were a
+                  ;; wall, 2026-10-14).
                   (dolist (run (alist-get 'progress tester))
-                    (dolist (test (alist-get 'tests run))
-                      (vikix-office--field width chars 0 "" (alist-get 'line test)
-                                           (if (eq (alist-get 'stalled test) t) 'warning 'shadow))))
+                    (let ((tests (alist-get 'tests run)))
+                      (when tests
+                        (vikix-office--table width chars '("Test" "State" "Time" "Estimate" "")
+                                             (mapcar #'vikix-office--test-cells tests)
+                                             (mapcar #'vikix-office--test-face tests)))))
                   (let ((waiting (alist-get 'waiting tester)))
                     (unless (member waiting '(nil ""))
                       (vikix-office--field width chars 0 ""

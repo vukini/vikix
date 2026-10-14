@@ -153,8 +153,11 @@ def changed_covers(where, base):
 def test_progress(folder, now=None):
     """Read live runner plans, including runs started directly by a worker.
 
-    Estimates use the last successful duration on this machine, excluding
-    queue time. A long runtime is a suspicion, never grounds to kill a test.
+    A run's tests are rows in the plan's order, the ended ones too (passed
+    or failed, how long), so the Office draws the run as one table; each
+    has the fields and, for a reader without a table, a line. Estimates
+    use the last successful duration on this machine, excluding queue
+    time. A long runtime is a suspicion, never grounds to kill a test.
     """
     from pathlib import Path
     now = time.time() if now is None else now
@@ -184,10 +187,20 @@ def test_progress(folder, now=None):
                         return max(0, int((logs / (name + suffix)).read_text().split()[0]))
                     except (OSError, ValueError, IndexError):
                         return None
-                if number(".done") is not None:
-                    completed += 1
-                    continue
                 start, expected = number(".started"), number(".expected")
+                done = number(".done")
+                if done is not None:
+                    # Ended: "CODE SECONDS" in its .done; its row stays, so the table is the whole run.
+                    completed += 1
+                    try:
+                        took = max(0, int((logs / (name + ".done")).read_text().split()[1]))
+                    except (OSError, ValueError, IndexError):
+                        took = None
+                    state = "passed" if done == 0 else "failed"
+                    rows.append({"name": name, "state": state, "elapsed": took, "expected": expected,
+                                 "remaining": None, "stalled": False,
+                                 "line": f"{name}: {state}" + (f" in {took}s" if took is not None else "")})
+                    continue
                 elapsed = max(0, int(now - start)) if start is not None else 0
                 left = max(0, expected - elapsed) if expected is not None else None
                 threshold = max(300, 3 * expected) if expected is not None else 900
@@ -206,7 +219,7 @@ def test_progress(folder, now=None):
                     detail += ", past estimate"
                 if stalled:
                     detail += " — suspected stalled (long runtime)"
-                rows.append({"name": name, "state": state, "elapsed": elapsed,
+                rows.append({"name": name, "state": state, "elapsed": elapsed, "expected": expected,
                              "remaining": left, "stalled": stalled, "line": detail})
                 unknown |= left is None or (start is not None and left == 0)
                 remaining.append((name, left or 0))
@@ -214,13 +227,14 @@ def test_progress(folder, now=None):
             alone = sum(seconds for name, seconds in remaining if name in ("times", "soak", "rescue"))
             eta = None if unknown else int(max(max(parallel, default=0), sum(parallel) / jobs) + alone)
             active = [r["name"] for r in rows if r["state"] == "running"]
-            summary = f"{completed}/{len(names)} done, {len(rows)} remaining; running: {', '.join(active) or 'none (queued)'}"
+            unfinished = len(rows) - completed
+            summary = f"{completed}/{len(names)} done, {unfinished} remaining; running: {', '.join(active) or 'none (queued)'}"
             summary += f"; about {eta}s left, plus queue waits" if eta is not None else "; ETA unknown"
             suspects = [r["name"] for r in rows if r["stalled"]]
             if suspects:
                 summary += "; suspected stalled: " + ", ".join(suspects)
             runs.append({"pid": int(note.name), "at": int(at), "total": len(names), "completed": completed,
-                         "remaining": len(rows), "eta": eta, "tests": rows, "summary": summary})
+                         "remaining": unfinished, "eta": eta, "tests": rows, "summary": summary})
         except (OSError, ValueError):
             continue
     return runs
