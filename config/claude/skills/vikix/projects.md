@@ -70,3 +70,24 @@ open a hole or change the design; decide the routine yourself. If your sandbox
 keeps the desk's `.git` or the office's state read-only (Codex's does), run
 git, the tests and `vikix` outside it: ask to escalate, and the house's rules
 let a desk's day through without a prompt.
+
+Your task has a record of its own, apart from the desk and from you
+(`~/.local/state/vikix/office/tasks/ID.json`; the user's guide: *The work:
+tasks and their history* in `docs/agents.md`): an id for life
+(`t-20261014-0d2c16`), who made it, its priority, the number of each launch
+(the order the office started the workers in; none for an agent the office
+never started), and a state that moves only by a named step, your handoff's
+words among them (working is *running*, waiting *needs decision*, review
+*needs review*, finished *ready for release*; the user completes it by
+releasing). What you may run, all of it read-only:
+
+- `vikix agents tasks` (or the MCP tool `tasks`): every task, the open ones
+  in launch order, `#?` for one adopted from before the records.
+- `vikix agents task ID` (or your desk's name): one task's page, with its
+  history; *unknown* is a fact the record never had, never a guess.
+- `vikix agents events [ID | DESK | --all] [--since 2h]`: the office's log,
+  newest first, every step of every task; your desk's when nothing is named.
+
+Nothing of yours moves another agent's task: a task moves by its own
+worker's handoff, by the user, by the tester, by the release or by its
+worker's exit. `vikix agents tasks adopt` is the user's, run once by an update.

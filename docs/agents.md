@@ -181,7 +181,7 @@ At the desk now: claude 48213
   no filesystem enforcement by Vikix: a worktree keeps copies apart, it is no sandbox
 ```
 
-Three kinds of line, kept apart and each signed. The **task** is yours, in your words: `vikix agents worker wifi-fix "..."` sets it as the worker starts and gives it to the agent as its first prompt (the task of the worker before goes into the desk's history, with how it ended), so the desk starts working at once (Claude Code, Codex, OpenCode, Gemini CLI and Antigravity CLI take one; Aider doesn't, and is told to read the record); or `vikix agents handoff --task "..."` sets it later. The **handoff** is the agent's: a status (working, waiting, review, finished, or parked: kept aside, to be started later), an estimate, what it changed and decided, what is left and the very next action. The **estimate** is how long the work will take from the moment it is written, assuming no major issue turns up (`--estimate "40 min, if the picker needs no new test"`: a duration first, in minutes, hours or days, and what it assumes after a comma); an agent started with a task is asked for one as soon as it knows the shape of the work. The record and `vikix agents` count it down (*28 min left of 40 min*, *10 min over its 40 min*), and once the status is finished they say how it went (*finished in 45 min against 40 min, 5 min over*). The clock is the wall's, so time spent waiting for you counts, as it would for a person; an estimate written again starts it afresh. What **Vikix read itself** is the rest: the commit and the uncommitted files at each write, and for a check the commit it ran on and whether the tree was dirty then. A check is marked *stale* the moment the code differs from what it ran on, by another commit or other uncommitted changes, so an old green never passes for a new one. The sessions are the providers' conversation ids and nothing more: no transcript is copied, and a line that looks like a key or a token is refused outright.
+Three kinds of line, kept apart and each signed. The **task** is yours, in your words: `vikix agents worker wifi-fix "..."` sets it as the worker starts and gives it to the agent as its first prompt (the task of the worker before goes into the desk's history, with how it ended), so the desk starts working at once (Claude Code, Codex, OpenCode, Gemini CLI and Antigravity CLI take one; Aider doesn't, and is told to read the record); or `vikix agents handoff --task "..."` sets it later; each task has a record of its own as well, with an id and a launch number (*The work: tasks and their history*, below). The **handoff** is the agent's: a status (working, waiting, review, finished, or parked: kept aside, to be started later), an estimate, what it changed and decided, what is left and the very next action. The **estimate** is how long the work will take from the moment it is written, assuming no major issue turns up (`--estimate "40 min, if the picker needs no new test"`: a duration first, in minutes, hours or days, and what it assumes after a comma); an agent started with a task is asked for one as soon as it knows the shape of the work. The record and `vikix agents` count it down (*28 min left of 40 min*, *10 min over its 40 min*), and once the status is finished they say how it went (*finished in 45 min against 40 min, 5 min over*). The clock is the wall's, so time spent waiting for you counts, as it would for a person; an estimate written again starts it afresh. What **Vikix read itself** is the rest: the commit and the uncommitted files at each write, and for a check the commit it ran on and whether the tree was dirty then. A check is marked *stale* the moment the code differs from what it ran on, by another commit or other uncommitted changes, so an old green never passes for a new one. The sessions are the providers' conversation ids and nothing more: no transcript is copied, and a line that looks like a key or a token is refused outright.
 
 The agent writes with the same command, or with the MCP tools `handoff` and `handoff_update`, whichever agent it is:
 
@@ -247,6 +247,113 @@ A worker is what `vikix agents worker wifi-fix "the Wi-Fi picker should scan fir
 The Stop hook holds Claude Code and Codex to the hand-in (a worker that changed files is asked once for its handoff before it stops); a provider with no hook is held by the paragraph alone, and the handoff's protection lines say which it is.
 
 A note for a worker at work: `vikix agents tell wifi-fix "try the laptop's second card too"`. It waits at the desk, shown by `vikix agents handoff` and counted under the agent's line in `vikix agents`, and the hook hands it to the agent at its next tool call, signed and timed, so nothing types into its window. An agent at its prompt makes no tool call until you speak to it, so `tell` says when that is so: the note waits on your next question to it, not on the hook. `tell wifi-fix "..." --now` wakes it instead: an agent at its prompt (a stop let through, nothing since) whose conversation its provider can resume is asked to exit and resumed with the note as its prompt, in a terminal at the desk, and the record logs *woken*; when it can't be (the agent is working, two are at the desk, no conversation is noted, no desktop), why is said and the note waits as usual. Only Claude Code's and Codex's hooks can carry words to the agent: for the others `tell` says so, the note stays in the handoff for the agent to read there, and `resume` reads the notes out to whichever agent takes the desk up. A note is for whoever works the desk, now or next; what `dismiss` and `handover` leave (*write your handoff, then stop*) is for the one agent they address, and dropped once it is gone, and a worker is never handed a note from before it started unless it is yours (the first day with two providers delivered a dismissal to the next fresh worker, which obeyed and stopped, 2026-10-11). A note is text like the handoff's: a line that looks like a key is refused.
+
+### The work: tasks and their history
+
+A desk is a place, and a worker is whoever sits at it; the work itself is a **task**, and each one has a record of its own, apart from the desk it is done at and the agent doing it. One is made by every way work starts (`vikix agents desk vikix wifi-fix --task "..."`, `vikix agents worker`, `vikix agents sit --task`, `vikix agents handoff --task`, the Office's forms, a plan) and lives in `~/.local/state/vikix/office/tasks/`, one file a task, named by its **id**: the day it was made and six hex digits, `t-20261014-0d2c16`, which it keeps for life. Workers come and go at the desk; the task keeps its id, who made it (you, an agent, a plan), its priority, when it was created, launched and done, every launch that worked it, and the agent's handoff as it stood at the last write. The desk's record names its task by id, and the task names its desk, so `vikix agents handoff` and `vikix agents task` show the same work from two sides.
+
+Each launch has a **number**, the order the workers were started in: `#1`, `#2`, and so on from one counter for the whole office (`office/sequence`, taken under a lock, so two launches at once never share a number and it never goes down). A desk's row in the Office carries it before the project, and `vikix agents resume` takes the next one: a worker resumed is a new launch of the same task, whichever provider it is. An agent you started yourself and seated with `vikix agents sit --task`, or a task given to a desk with `handoff --task` while an agent is there, runs with no number: the office never started that agent, and no number is made up.
+
+**Two states, never one.** What the worker is doing (working, at its prompt, waiting for your yes, gone) is read from its terminal at each look, with where it was read and how sure (*reliable*, *inferred*, *unknown*). What the task is at is recorded, and moves only by a named step: *ready* when it is made, *running* when launched, *needs decision* when the agent's handoff says waiting, *needs review* when it says review, *ready for release* when it says finished (its work is done, yours is not), *blocked* on its worker when the worker's process ended, on the tests when they failed with no worker there, or on *parked* when the handoff says so; *completed* by the release, or by closing the desk with its branch merged; *cancelled* by closing it with `--force`. A word that asks for the state the task is in moves nothing. A worker's exit never completes or cancels anything: the task is blocked on its worker and stays in view, to be resumed, handed on or cancelled; a new worker at the same desk leaves the task before it blocked the same way, at the desk's back.
+
+`vikix agents tasks` lists them, the open ones in launch order, then the done ones of the last day (`--all` for every one):
+
+```
+$ vikix agents tasks
+3 tasks open; the last launch number is 2:
+  #1     blocked            vikix/bar-clock                  claude   normal   just now         the seconds, then the date on hover  [t-20261014-5ec49e]
+  #2     running            vikix/wifi-fix                   claude   normal   just now         the Wi-Fi picker should scan first, then show the list  [t-20261014-0d2c16]
+  #?     blocked            vikix/bar-clock                  ?        normal   just now         the bar's clock should show seconds  [t-20261014-0d68eb]
+```
+
+A row is the launch number, the task's state, its desk as project / branch, the provider, the priority, when something last happened to it, its words and its id. `#?` is a task with no launch number: one adopted from before the records (below), or one whose agent the office never started. `vikix agents task ID` is one task's page, with its history; a desk's name does for its task:
+
+```
+$ vikix agents task wifi-fix
+Task t-20261014-0d2c16: the Wi-Fi picker should scan first, then show the list
+Status: running (user, just now): desk --task
+Origin: yours
+Priority: normal
+Project: vikix
+Desk: ~/src/vikix-wifi-fix (branch wifi-fix)  [c23757154330]
+Launch: #2 claude · just now · by user
+Created: just now; queued: unknown; launched: just now; last activity: just now; done: unknown
+Text:
+  the Wi-Fi picker should scan first, then show the list
+Handoff (the agent's words, as the desk's record had them at the last write):
+  status working (user, just now)
+Launches: 1
+  #2  claude  just now  by user  (desk --task)  not ended
+History (4 events, newest first; vikix agents events t-20261014-0d2c16 has them all):
+  2026-10-14 07:14  handoff  by user  status working
+  2026-10-14 07:14  launched #2  by user  provider claude, how desk --task, from ready
+  2026-10-14 07:14  worker  by user  task the Wi-Fi picker should scan first, then show the list
+  2026-10-14 07:14  created  by user  title the Wi-Fi picker should scan first, then show the list
+```
+
+*Unknown* on a page is a time or a fact the record never had: this task was never queued and isn't done, so both say so, and nothing is guessed in their place. The page of the stopped worker says how it ended:
+
+```
+$ vikix agents task t-20261014-5ec49e
+Task t-20261014-5ec49e: the seconds, then the date on hover
+Status: blocked (vikix, just now): the worker stopped
+Blocked on worker: the worker stopped
+...
+Launch: #1 claude · just now · by user · ended
+...
+Launches: 1
+  #1  claude  just now  by user  (worker)  ended just now, exit 0
+History (5 events, newest first; vikix agents events t-20261014-5ec49e has them all):
+  2026-10-14 07:14  blocked  by vikix  running -> blocked, on worker, reason the worker stopped
+  2026-10-14 07:14  exited  by vikix  code 0
+  2026-10-14 07:14  launched #1  by user  provider claude, how worker, from ready
+  2026-10-14 07:14  worker  by user  task the seconds, then the date on hover
+  2026-10-14 07:14  created  by user  title the seconds, then the date on hover
+```
+
+The exit code comes from the terminal itself: every worker's terminal runs its agent under one line that notes how the process ended (`vikix agents exited`), so the task's history has it whatever the provider, with hooks or none.
+
+**The desks from before.** A desk made before the records existed has a task in its own record and no task record: the first `vikix update` with this (the migration, or `vikix agents tasks adopt` by hand, safe to run again) makes one for each desk's task and for each worker in its history, with what the desk's record knew and nothing more. Who gave the task and when it was written are there; the handoff's last status is read into a state (working is *running*, finished on a desk the release closed is *completed*, a history entry with no status at all is *cancelled*); what the record never had is left empty and shown as *unknown*: the launch order, for one, which is why such a task shows `#?` in the list and *launch order unknown* in the Office, and when it was launched. Nothing is made up to fill a gap, and the desk's record is touched in nothing but the ids written back into it. The adopted task's page says what it couldn't know:
+
+```
+$ vikix agents task bar-clock
+Task t-20261014-0d68eb: the bar's clock should show seconds
+Status: blocked (user, just now): another task started at its desk
+Blocked on worker: another task started at its desk
+Origin: yours
+Priority: normal
+Project: vikix
+Desk: ~/src/vikix-bar-clock (branch bar-clock)  [c16d6c81c1e6]
+Launch: not launched
+Created: just now; queued: unknown; launched: unknown; last activity: just now; done: unknown
+Text:
+  the bar's clock should show seconds
+Handoff (the agent's words, as the desk's record had them at the last write):
+  status working (user, just now)
+  done and decided (user): half done
+History (2 events, newest first; vikix agents events t-20261014-0d68eb has them all):
+  2026-10-14 07:14  blocked  by user  running -> blocked, on worker, reason another task started at its desk
+  2026-10-14 07:14  adopted  by vikix  status running, unknown: its launch order; when it was launched, title the bar's clock should show seconds
+```
+
+**The events.** Every step is a line in one log, `~/.local/state/vikix/office/events-YYYY-MM.jsonl`, a file a month, appended and never rewritten, which outlives the records: a task created, launched with its number, a hand-in, a check, a question asked (the handoff's waiting) and answered (work taken up again), blocked and unblocked, exited, handed off, released, completed, cancelled, adopted; a line names its task and its desk, and a record's own log keeps only the last forty, so the whole history is read back from here. `vikix agents events` shows it newest first, for the desk you sit at, a task's or a desk's by name, or all of it (`--all`), back to a time (`--since 2h`, `30 min`, `3 days`, `2026-10-10`), `--limit N` lines (a hundred), `--json` the lines as they are:
+
+```
+$ vikix agents events --all --since 1h
+2026-10-14 07:14  handoff  by user  status working
+2026-10-14 07:14  launched #2  by user  provider claude, how desk --task, from ready
+2026-10-14 07:14  worker  by user  task the Wi-Fi picker should scan first, then show the list
+2026-10-14 07:14  created  by user  title the Wi-Fi picker should scan first, then show the list
+2026-10-14 07:14  blocked  by vikix  running -> blocked, on worker, reason the worker stopped
+2026-10-14 07:14  exited  by vikix  code 0
+2026-10-14 07:14  launched #1  by user  provider claude, how worker, from ready
+2026-10-14 07:14  blocked  by user  running -> blocked, on worker, reason another task started at its desk
+2026-10-14 07:14  worker  by user  task the seconds, then the date on hover
+2026-10-14 07:14  created  by user  title the seconds, then the date on hover
+2026-10-14 07:14  adopted  by vikix  status running, unknown: its launch order; when it was launched, title the bar's clock should show seconds
+```
+
+Each line is signed, as the handoff's are: *user* for your act, *vikix* for what the office read itself (an exit, a release, an adoption), an agent by name and number for its handoff. The same records are what the Office draws (the launch number on the row, the **Task record** box and the history on a desk's page), what `vikix agents office --json` and the MCP tool `office` carry in their version 2, and what the read-only MCP tool `tasks` gives an agent; the release appends *released* and completes the desk's tasks. The task board's settings (`at_once`, `auto`, `quiet`, `delegate`, `delegate_max`) are written as comments with their defaults into `~/.config/vikix/office` by the same update; what reads them, the queue, the attention list and the scheduler, comes with the design's later phases (`plans/DESIGN-office-tasks.md`), and until then the Office keeps its groups as they are.
 
 ### Modes: how free a Codex worker is
 
@@ -499,7 +606,7 @@ Above the desks, a **Plans** box when a plan has run or been written (`vikix age
 The left side groups desks into **Needs you**, **Testing**, **Working** and **Finished**
 on its first page, and **Parked** and **Closed** on a page of their own (the
 **Parked and closed** button, or `k`; **Back to desks**, or `k` again, returns),
-so the first page holds only the desks with something to do at them. A desk whose task has a record (`vikix agents tasks`) carries its launch number before the project (`#104 · vikix · claude · workspace 2`), or *launch order unknown* for a task from before; its page has a **Task record** box (the id, the origin and priority, the state the office recorded with why, the launch, the worker's state as observed with how sure, the times) and under it the task's history from the event log, newest first. Each
+so the first page holds only the desks with something to do at them. A desk whose task has a record (*The work: tasks and their history*, above) carries its launch number before the project (`#104 · vikix · claude · workspace 2`), or *launch order unknown* for a task adopted from before the records, which had no number to keep; its page has a **Task record** box (the id, the origin and priority, the state the office recorded with why, the launch, the worker's state as observed with how sure, the times, *unknown* where the record never had one) and under it the task's history from the event log, newest first, the same lines `vikix agents task` prints. Each
 group is drawn in a box of its own, a rule between its
 desks. Beside the project, each live agent's name has its workspace clearly
 labelled (`codex · workspace 2`); several agents each keep their own label.

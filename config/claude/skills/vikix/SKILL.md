@@ -33,7 +33,7 @@ it**, rather than answer from memory:
 | `~/.claude/skills/vikix/system.md` | Features and packages, languages, `vikix update`, backups, printing, memory, the firewall, firmware, USB drives, the session |
 | `~/.claude/skills/vikix/ai.md` | API keys, the MCP tools, local models and llm, the other agents, dictation and voice, AI on the selection, `note` |
 | `~/.claude/skills/vikix/editors.md` | Neovim, Emacs and Nyxt: the user's files, and the AI in each |
-| `~/.claude/skills/vikix/projects.md` | `vikix project` and the logs, `vikix today`, `vikix day`, `vikix back`; how a worker at a desk finishes (*A worker's day*) |
+| `~/.claude/skills/vikix/projects.md` | `vikix project` and the logs, `vikix today`, `vikix day`, `vikix back`; how a worker at a desk finishes (*A worker's day*), and your task's record: `vikix agents tasks`, `task`, `events`, read-only |
 | `~/.claude/skills/vikix/fixing.md` | Something is broken: `vikix doctor`, the errors folder, `vikix rescue`, `vikix debug`; where the guides and man pages are |
 
 Every `vikix` command has a man page made from its own header (`man vikix`
