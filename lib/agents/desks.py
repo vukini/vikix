@@ -294,8 +294,10 @@ def worker_at(folder, task, use, local, here, push, said, name, notests=False, m
         # The launcher refuses it in a project's own folder and warns; the record keeps who asked.
         print(f"unrestricted: {provider} will run with no sandbox and no approvals at {short(folder)}, by your word")
     folded = [None]
+    made = [""]
     first = None
     by = by_me()[0]     # an agent that starts a worker (a plan's runner under one, a foreman) signs it; the user otherwise
+    how = "desk --task" if said.startswith("a desk,") else "worker"
     if task:
         def change(rec):
             folded[0] = H.start_worker(rec, task, by, provider, mode)
@@ -303,7 +305,12 @@ def worker_at(folder, task, use, local, here, push, said, name, notests=False, m
             H.set_launch(rec, provider, mode, by)
             if acceptance:
                 H.set_handoff(rec, by, acceptance=list(acceptance))
+            # The task's own record (lib/tasks.py): its id in the desk's record.
+            made[0] = task_make(rec, folder, task, by, {"use": use or "", "local": local, "push": push,
+                                                        "no_tests": notests, "mode": mode})
         rec = desk_record(folder, by=by, change=change)
+        task_folded(folded[0], by)
+        task_launch(made[0], provider, by, how, mode=mode)
         # The task is the agent's first prompt, so a new worker never sits idle
         # with its task written only in the record (2026-10-07: one did, for
         # three minutes, until the user typed "read the handoff").
@@ -316,8 +323,11 @@ def worker_at(folder, task, use, local, here, push, said, name, notests=False, m
             if notests:
                 tests_set(rec, False)   # a session leaves the setting alone unless told
             H.set_launch(rec, provider, mode, by)
-        desk_record(folder, by=by, change=change)
-    start = agent_start(use, first or (), local=local, mode=mode)
+        rec = desk_record(folder, by=by, change=change)
+        # A session at a desk whose task is open is a launch of that task too.
+        made[0] = (rec.get("task") or {}).get("id") or ""
+        task_launch(made[0], provider, by, "session", mode=mode)
+    start = agent_start(use, first or (), local=local, mode=mode, task=made[0])
     if use or local:
         said += f", {use or 'your agent'}" + (" on a model on this laptop" if local else "")
     if mode:
@@ -387,14 +397,29 @@ def here(argv):
     return 0
 
 
-def agent_start(use=None, extra=(), local=False, mode=None):
+def agent_start(use=None, extra=(), local=False, mode=None, task=""):
     """What starts the agent: vikix agent with its words (--use, --local,
     --mode), or the stand-in the tests name, which gets the same words;
-    EXTRA are the agent's own (a session to resume), after --."""
+    EXTRA are the agent's own (a session to resume), after --. Run under
+    the launcher's exit line (exit_line), TASK's when one is named."""
     words = (["--use", use] if use else []) + (["--local"] if local else []) + (["--mode", mode] if mode else [])
     start = ([os.environ["VIKIX_AGENT_CMD"]] if os.environ.get("VIKIX_AGENT_CMD")
              else [os.path.join(VIKIX_DIR, "bin", "vikix"), "agent"]) + words
-    return start + (["--", *extra] if extra and not os.environ.get("VIKIX_AGENT_CMD") else list(extra))
+    return exit_line(start + (["--", *extra] if extra and not os.environ.get("VIKIX_AGENT_CMD") else list(extra)), task)
+
+
+def exit_line(start, task=""):
+    """START run so that how it ended reaches the task's events whatever
+    the provider, hooks or none (Aider and Gemini have no SessionEnd):
+    bash runs it, then vikix agents exited --code with its exit code (and
+    --task TASK when the launch named one; else the desk the folder is),
+    quietly, and ends with the same code, so the terminal sees what it
+    would have."""
+    import shlex
+    exited = [sys.executable, os.path.join(VIKIX_DIR, "bin", "vikix-agents"), "exited", "--code"]
+    script = ('"$@"; c=$?; ' + shlex.join(exited) + ' "$c"' + (" " + shlex.join(["--task", task]) if task else "")
+              + ' >/dev/null 2>&1; exit "$c"')
+    return ["bash", "-c", script, "vikix-agent", *start]
 
 
 def open_here(folder, start):
@@ -484,7 +509,13 @@ def sit(argv):
     seats[me["pid"]] = {"pid": me["pid"], "agent": me["agent"], "folder": folder, "at": int(time.time())}
     seats_write(seats)
     desktop_nudge()
-    rec = desk_record(folder, task=task, by=who(me)) if (task or desk_of(folder)) else None
+    made = [""]
+    rec = (desk_record(folder, task=task, by=who(me),
+                       change=(lambda r: made.__setitem__(0, task_make(r, folder, task, who(me), {"use": me["agent"]}))) if task else None)
+           if (task or desk_of(folder)) else None)
+    # The agent sat down itself: its task runs, with no launch number, since
+    # the office never started it (the design wants no made-up one).
+    task_launch(made[0], me["agent"], who(me), "sit", numbered=False)
     if rec and (rec.get("task") or rec.get("handoff")):
         print(f"The desk has a handoff (vikix agents handoff shows it: read it before you start).")
     print(f"{who(me)} is seated at {short(folder)}: {said}. Work there (cd {short(folder)}) and commit there"
@@ -599,10 +630,22 @@ def close(argv):
     if r.returncode != 0:
         die("git couldn't remove the worktree: " + (r.stderr.strip().splitlines() or ["?"])[-1])
     said = f"the desk is closed: {short(folder)} removed"
+    by = by_me()[0]
     try:
-        handoff_module().close_record(common, folder, by_me()[0])
+        handoff_module().close_record(common, folder, by)
     except Exception:  # noqa: BLE001  a record that can't be marked doesn't stop the closing
         pass
+    # The desk's open tasks: done when the branch is in, cancelled when --force
+    # threw the work away; left as they are when the branch is kept (lib/tasks.py).
+    if d["merged"] or force:
+        T = tasks_module()
+        for t in T.tasks_of_desk(handoff_module().desk_id(common, folder), open_only=True):
+            try:
+                T.move(t["id"], "completed" if d["merged"] else "cancelled", by,
+                       "desk closed, its branch merged" if d["merged"] else "desk closed with --force, its work thrown away",
+                       done=bool(d["merged"]))
+            except T.TaskError as e:
+                sys.stderr.write(f"the task {t['id']} wasn't moved: {e}\n")
     if branch and (d["merged"] or force):
         r = subprocess.run(["git", "-C", top, "branch", "-D" if force else "-d", branch], capture_output=True, text=True)
         said += (f", the branch {branch} deleted" + (" (its work wasn't in)" if force and not d["merged"] else "")

@@ -260,9 +260,13 @@ def handoff_apply(folder, data, by):
         seen["before"] = ((rec.get("handoff") or {}).get("status") or {}).get("value")
         H.from_json(rec, data, by, folder)
         H.set_changes(rec, folder, base)
+        if "task" in data:
+            seen["new"] = not (rec.get("task") or {}).get("id")
+            task_make(rec, folder, data["task"], by)
     rec = H.update(common, folder, change, branch=(git(folder, "rev-parse", "--abbrev-ref", "HEAD") or "").strip(),
                    project=project_of(folder, common))
     status_told(folder, seen.get("before"), rec, by)
+    task_moved(folder, rec, data, by, seen.get("new"))
     status = ((rec.get("handoff") or {}).get("status") or {}).get("value")
     if (status == "review" and seen.get("before") != "review" and os.environ.get("VIKIX_TESTER") != "0"
             and rec["desk"].get("tests") != "off" and runner_of(folder)[1] and not tester_running(folder)):
@@ -273,6 +277,31 @@ def handoff_apply(folder, data, by):
         if provider and reviewer_program(provider) and not reviewer_running(folder):
             review_start(folder, provider)
     return rec
+
+
+def task_moved(folder, rec, data, by, new=False):
+    """The desk's task (lib/tasks.py) after a write of the handoff: a task
+    just made by --task at a desk with an agent at it runs, with no launch
+    number (the office never started that agent); a status given moves the
+    task through the table (working: running, waiting: needs decision,
+    review: needs review, finished: ready for release, parked: blocked), the
+    handoff copied into the task; any other field copies the handoff alone."""
+    tid = (rec.get("task") or {}).get("id")
+    if not tid:
+        return
+    T = tasks_module()
+    if new:
+        at = agents_at(folder)
+        if at:
+            task_launch(tid, at[0]["agent"], by, "handoff --task", numbered=False)
+    try:
+        if "status" in data:
+            T.handoff_move(tid, data["status"], by, rec.get("handoff") or {})
+        elif any(k in data for k in ("summary", "next", "estimate", "acceptance", "done", "defect", "defect_done",
+                                     "review", "review_done", "decided")):
+            T.set_handoff(tid, rec.get("handoff") or {}, by)
+    except (T.TaskError, OSError) as e:
+        sys.stderr.write(f"the task {tid} wasn't moved: {e}\n")
 
 
 def stopping(argv):
@@ -702,6 +731,9 @@ def resume(argv):
             H.update(common_of(folder), folder, noted)
         except H.HandoffError:
             pass
+        # The desk's task launched again (a task blocked on its worker runs;
+        # another provider is a handoff between them), with the next number.
+        task_launch((rec.get("task") or {}).get("id"), provider, by, "resume", mode=mode)
     notes = inbox_peek(folder)
     if notes:
         print("Notes waiting at the desk (vikix agents tell), read out here; the user's reach the agent through its hook, "
@@ -722,7 +754,7 @@ def resume(argv):
         first = H.first_prompt_args(provider, prompt) or ()
         print("the words given are its first prompt" if first else f"{provider} takes no first prompt: the words are lost")
     start = agent_start(provider if provider != default_agent() or plan["args"] or first else None,
-                        list(plan["args"]) + list(first), mode=mode)
+                        list(plan["args"]) + list(first), mode=mode, task=((rec or {}).get("task") or {}).get("id") or "")
     if here:
         open_here(folder, start)
     workspace = open_at(folder, start, desk_name(folder))

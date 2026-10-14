@@ -177,7 +177,7 @@ for n in agents ai day debug dictate records; do printf '#!/usr/bin/env bash\n# 
 g add bin lib tests; g commit -q -m 'the office'
 echo '# more' >>"$repo/lib/agents/turns.py"; echo '# more' >>"$repo/bin/vikix-agents"
 check "the office's front and a part map to the office's tests: '$(map)'" \
-  test "$(map)" = "codex door handoff house lint man mcp nyxt office office-ui plan tester titles"
+  test "$(map)" = "codex door handoff house lint man mcp nyxt office office-ui plan tasks tester titles"
 g checkout -q -- bin lib tests
 
 # rescue runs alone (holding every run on the machine back), so a layer file

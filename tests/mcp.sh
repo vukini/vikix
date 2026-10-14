@@ -175,7 +175,7 @@ check "not JSON should be -32700: $out" test "$(field '["error"]["code"]' <<<"$o
 # The tools: eval and undo only when switched on.
 names() { rpc "$@" -- '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python3 -c 'import json,sys; print(" ".join(t["name"] for t in json.loads(sys.stdin.readline())["result"]["tools"]))'; }
 list=$(names)
-check "the read-only tools should be there: $list" grep -q 'desktop keys commands why agents office handoff doctor history changes themes cuis_state version rules' <<<"$list"
+check "the read-only tools should be there: $list" grep -q 'desktop keys commands why agents office tasks handoff doctor history changes themes cuis_state version rules' <<<"$list"
 check "eval shouldn't be there by default: $list" test -z "$(grep -ow 'eval\|undo' <<<"$list" || true)"
 check "--allow-eval should add eval: $(names --allow-eval)" grep -qw eval <<<"$(names --allow-eval)"
 check "--allow-eval should add cuis_eval too: $(names --allow-eval)" grep -qw cuis_eval <<<"$(names --allow-eval)"
@@ -185,7 +185,7 @@ out=$(call eval '{"form":"(run-shell-command \"touch pwned\")"}')
 check "eval without --allow-eval should be refused: $out" grep -q '^ERROR: no tool' <<<"$out"
 check "a refused eval ran something" test ! -e "$t/forms"
 ro=$(rpc -- '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python3 -c 'import json,sys; print(" ".join(t["name"] for t in json.loads(sys.stdin.readline())["result"]["tools"] if t["annotations"]["readOnlyHint"]))')
-check "the read tools should say they only read: $ro" test "$ro" = "desktop keys commands why agents office handoff doctor history changes themes cuis_state version rules records_search records_get docs_search docs_read file_changes"
+check "the read tools should say they only read: $ro" test "$ro" = "desktop keys commands why agents office tasks handoff doctor history changes themes cuis_state version rules records_search records_get docs_search docs_read file_changes"
 
 # Reading the desktop.
 out=$(call desktop '{}')
@@ -238,6 +238,9 @@ mkdir -p "$t/proc"; echo "5000.00 1.00" > "$t/proc/uptime"
 out=$(VIKIX_PROC=$t/proc call office '{}')
 check "Office exposes discovery certainty: $out" grep -q '"live_known": true' <<<"$out"
 check "Office exposes desk rows: $out" grep -q '"desks":' <<<"$out"
+check "Office is version 2, with the tasks and the launch sequence: $out" python3 -c '
+import json, sys
+o = json.loads(sys.argv[1]); assert o["version"] == 2 and "tasks" in o and "sequence" in o, sorted(o)' "$out"
 
 # A desk's handoff: the record read and written through the office's own code, signed by the caller.
 mkdir -p "$t/src" "$t/proc" "$HOME/.config/vikix"; echo "5000.00 1.00" > "$t/proc/uptime"; printf 'root=%s\n' "$t/src" > "$HOME/.config/vikix/projects"
@@ -273,6 +276,17 @@ out=$(VIKIX_PROC=$t/proc VIKIX_AGENT_PID=1001 call handoff '{"desk":"nowhere"}')
 check "a desk that isn't: $out" grep -q '^ERROR: no such desk here' <<<"$out"
 out=$(VIKIX_PROC=$t/proc call handoff_update '{"task":"Fix chapter one","desk":"a"}')
 check "from no agent the writer is the user, by the desk named: $out" grep -q 'updated by user: status working; task set' <<<"$out"
+out=$(VIKIX_PROC=$t/proc call tasks '{}')
+check "tasks lists the task records, the desk's among them, with the sequence: $out" python3 -c '
+import json, sys
+o = json.loads(sys.argv[1]); assert "sequence" in o and any(t["text"] == "Fix chapter one" and t["origin"]["kind"] == "user" for t in o["open"]), o' "$out"
+tid=$(python3 -c 'import json, sys; print([t["id"] for t in json.loads(sys.argv[1])["open"] if t["text"] == "Fix chapter one"][0])' "$out")
+out=$(VIKIX_PROC=$t/proc call tasks "{\"task\":\"$tid\"}")
+check "and one task with its history: $out" python3 -c '
+import json, sys
+o = json.loads(sys.argv[1]); assert o["id"] == sys.argv[2] and any(e["kind"] == "created" for e in o["events"]), o' "$out" "$tid"
+out=$(VIKIX_PROC=$t/proc call tasks '{"task":"../x"}')
+check "a task id that isn't one is refused: $out" grep -q '^ERROR: task is a task' <<<"$out"
 rm -rf "$t/proc" "$t/src"; rm -f "$HOME/.config/vikix/projects"
 out=$(VIKIX_PROC=/nonexistent call agents '{}')
 check "agents should list the agents at work, each with its folder and what it does: $out" \

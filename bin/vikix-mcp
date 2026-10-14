@@ -27,7 +27,7 @@ The tools, a fixed set:
               desktop's rules, and why a window is where it is), why (what
               the desktop did lately, and what made it), agents (the
               agents at work on the desktop, and what each is doing),
-              office (tasks and desks), handoff (a desk's record),
+              office (tasks and desks), tasks (the task records), handoff (a desk's record),
               doctor, history, changes, themes, cuis_state (the Cuis
               image: installed, running, what it shows), version
   small acts  notify, snapshot, set_theme, switch_workspace, focus_window,
@@ -409,6 +409,27 @@ def t_office(a):
             return {k: clean(v) for k, v in value.items()}
         return value
     return json.dumps(clean(data), ensure_ascii=False)
+
+
+def t_tasks(a):
+    """The tasks (vikix agents tasks --json): every task's record, the open
+    ones first in launch order; with task, one task with its history."""
+    agents = office()
+    T = agents.tasks_module()
+    tid = a.get("task")
+    if tid is not None and (not isinstance(tid, str) or not T.task_id_ok(tid)):
+        raise ToolError("task is a task's id (t-20261013-7f3a9c), as tasks lists them")
+    if tid:
+        task = T.load(tid)
+        if not task:
+            raise ToolError(f"no task {tid} (tasks lists them)")
+        out = dict(task, events=T.events_read(task=tid, limit=100))
+        text = json.dumps(out, indent=1, ensure_ascii=False)
+    else:
+        open_, done = agents.tasks_split(T.all_tasks(), every=bool(a.get("all")))
+        text = json.dumps({"sequence": T.sequence(), "open": open_, "done": done}, indent=1, ensure_ascii=False)
+    text = scrub(text)
+    return text[:60000] + (" [cut short]" if len(text) > 60000 else "")
 
 
 def handoff_desk(a, agents):
@@ -883,6 +904,16 @@ TOOLS = [
      "topic, state, since when; each desk's release, when its branch is being released). Discovery failures "
      "mean unknown, not stopped. Read only." + DATA,
      schema(), READ, t_office),
+    ("tasks", "The tasks: a record each",
+     "Every task of the office (vikix agents tasks): a record of its own apart from its desk and its agent, with "
+     "its id, origin (yours, an agent's, a plan's, unknown for one from before), priority, state (ready, running, "
+     "needs decision, needs review, blocked on what, ready for release, completed, cancelled), the launch with its "
+     "number (the order workers were started in; null for one from before), its desk and branch, the handoff as it "
+     "stood, when it was created, launched and done; the open ones in launch order, then the done ones of the last "
+     "day (all: every one). With task, one task with its history from the event log. Read only." + DATA,
+     schema({"task": {"type": "string", "description": "a task's id, for one task with its history; empty: the list"},
+             "all": {"type": "boolean", "description": "the done tasks of every day, not the last alone"}}),
+     READ, t_tasks),
     ("handoff", "A desk's task and handoff",
      "The record of a desk (vikix agents handoff): the user's task in their words, the agent's handoff (status: "
      "working, waiting, review, finished or parked; its estimate of how long, with where the work stands against it; "

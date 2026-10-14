@@ -122,6 +122,38 @@ def plan_rows(api):
     return rows, by_folder
 
 
+def task_rows(api, events_by_task, errors):
+    """The task records (lib/tasks.py), each with its events of this
+    month and the last, newest first, forty at most; and the last launch
+    number. ({id: row}, sequence)."""
+    T = api.tasks_module()
+    rows = {}
+    try:
+        for t in T.all_tasks(strict=True):
+            t = dict(t)
+            t['events'] = events_by_task.get(t['id'], [])[:40]
+            t['origin_words'] = T.origin_words(t)
+            t['launch_words'] = T.launch_words(t)
+            rows[t['id']] = t
+    except Exception as e:  # noqa: BLE001
+        errors.append(f'Tasks unknown: {e}')
+    return rows, T.sequence()
+
+
+def events_grouped(api):
+    """This month's and the last's events (lib/tasks.py's log) by task id,
+    newest first; {} when the log can't be read."""
+    T = api.tasks_module()
+    out = {}
+    try:
+        for e in T.events_read(limit=5000):
+            if e.get('task'):
+                out.setdefault(e['task'], []).append(e)
+    except Exception:  # noqa: BLE001
+        return {}
+    return out
+
+
 def snapshot(api):
     H = api.handoff_module()
     errors = []
@@ -152,6 +184,17 @@ def snapshot(api):
         records = H.all_records(strict=True)
     except H.HandoffError as e:
         raise RuntimeError(str(e)) from e
+    # The desks' records from before adopted first (lib/tasks.py: a task record
+    # each, the ids written back), then read again, so this very snapshot has
+    # the ids and the Archive's token is the same at the next one: the only
+    # write a snapshot makes, and one that invents nothing.
+    T = api.tasks_module()
+    try:
+        if T.needs_adoption(records):
+            T.adopt(records)
+            records = H.all_records(strict=True)
+    except Exception as e:  # noqa: BLE001  a record that can't be adopted never hides the desks
+        errors.append(f'Tasks not adopted: {e}')
     rows = {os.path.realpath(r['desk']['worktree']): dict(r) for r in records
             if isinstance(r.get('desk'), dict) and r['desk'].get('worktree')}
     try:
@@ -185,6 +228,7 @@ def snapshot(api):
             a['idle_shells'] = []
     default = api.default_agent()
     archive_records = []
+    tasks, sequence = task_rows(api, events_grouped(api), errors)
     for path, row in rows.items():
         d = row['desk']
         # The path stays stable when an active desk gets its first handoff.
@@ -274,6 +318,15 @@ def snapshot(api):
         row['provider'] = ', '.join(dict.fromkeys([a['agent'] for a in row['agents']] + [s['provider'] for s in row['sessions']])) or 'unrecorded'
         # How the last worker was started: its mode (Codex's: supervised, autonomous, unrestricted), '' for none.
         row['mode'] = (row.get('launch') or {}).get('mode', '') if row['kind'] == 'desk' else ''
+        # The desk's task as its own record (lib/tasks.py): its id, origin, priority,
+        # state, the launch with its number, its history; and the worker's state as
+        # observed, with where it was read and how sure. {} for a desk with no task record.
+        task = tasks.get(((row.get('task') or {}).get('id') or ''), {})
+        row['task_record'] = task
+        row['worker_state'] = T.worker_state(row['agents'][0] if row['agents'] else None, task) if task else {}
+        if task:
+            task['worker'] = row['worker_state']
+        row['launch_seq'] = (task.get('launch') or {}).get('seq') if task else None
         if row['archived']:
             row['group'] = 'Archived'
             row['next_action'] = 'Archived — worktree removed'
@@ -284,8 +337,13 @@ def snapshot(api):
                 + f" {H.when(row['closed']['at'])}: nothing to do"
             row['resume'] = {}
     order = ['Needs you', 'Testing', 'Working', 'Parked', 'Finished', 'Closed']
-    return {'version': 1, 'at': int(time.time()), 'live_known': live_known, 'errors': errors,
+    # Version 2 (2026-10-13): tasks, the task records with their events, and
+    # sequence, the last launch number; desks as before, so a reader of version 1 still works.
+    return {'version': 2, 'at': int(time.time()), 'live_known': live_known, 'errors': errors,
             'releases': releases, 'releases_kept': releases_kept, 'plans': plans, 'plans_done': plans_done,
+            'tasks': sorted(tasks.values(), key=lambda t: (0 if (t.get('launch') or {}).get('seq') else 1,
+                                                           (t.get('launch') or {}).get('seq') or 0, t.get('created') or 0)),
+            'sequence': sequence,
             # Who can review a desk here (vikix agents review): the Review by… button's choices.
             'reviewers': [p for p in api.REVIEWERS if api.reviewer_program(p)],
             'desks': sorted((r for r in rows.values() if not r['archived']),

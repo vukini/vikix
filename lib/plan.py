@@ -747,6 +747,8 @@ def start_worker(api, view, task, plan, project, note, log, why=""):
             api.inbox_add(view["folder"], why, "vikix")
         except Exception as e:  # noqa: BLE001  a note that can't be left doesn't stop the round
             log(f"{view['topic']}: no note left: {e}")
+    # The task's record (lib/tasks.py) says the plan made it, not the user.
+    os.environ["VIKIX_TASK_ORIGIN"] = f"plan {os.path.basename(note.get('file') or plan.get('name') or '?')}"[:120]
     words = cmd + ["worker", view["folder"], task["text"]]
     words += ["--use", task["agent"]] if task["agent"] else []
     words += ["--local"] if task["local"] else []

@@ -210,6 +210,41 @@ over the refreshes that follow, so it is seen; g drops it.")
             (if (member provider '(nil "")) "" (concat " · " (vikix-office--one-line provider))))
           " · " (vikix-office--one-line (or (alist-get 'task w) ""))))
 
+(defun vikix-office--launch-words (r)
+  "The desk's task as its record numbers it: \"#104 · \" for a launch with
+a number, \"launch order unknown · \" for a task record from before, and
+nothing for a desk with no task record (vikix agents tasks)."
+  (let ((task (alist-get 'task_record r)) (seq (alist-get 'launch_seq r)))
+    (cond ((numberp seq) (format "#%d · " seq))
+          ((and task (alist-get 'id task)) "launch order unknown · ")
+          (t ""))))
+
+(defun vikix-office--worker-words (state)
+  "The worker's state as observed, with how sure: \"idle (reliable: the
+title's mark)\"; nothing for none."
+  (if (and state (alist-get 'state state))
+      (format "%s (%s: %s)" (vikix-office--one-line (alist-get 'state state))
+              (vikix-office--one-line (alist-get 'sure state)) (vikix-office--one-line (alist-get 'source state)))
+    ""))
+
+(defun vikix-office--event-line (e)
+  "One event of a task's history in a line: when, what, with its number, by
+whom, and the words of its data that say something."
+  (let* ((data (alist-get 'data e))
+         (words (delq nil (mapcar (lambda (key)
+                                    (let ((v (alist-get key data)))
+                                      (cond ((member v '(nil "" :false)) nil)
+                                            ((and (eq key 'from) (alist-get 'to data))
+                                             (format "%s -> %s" v (alist-get 'to data)))
+                                            ((eq key 'to) nil)
+                                            ((eq key 'unknown) (concat "unknown: " (mapconcat #'vikix-office--one-line v "; ")))
+                                            (t (format "%s %s" key (vikix-office--one-line v))))))
+                                  '(status provider how from to on reason code version name unknown)))))
+    (concat (vikix-office--time (alist-get 'at e)) " · " (vikix-office--one-line (alist-get 'kind e))
+            (if (numberp (alist-get 'seq e)) (format " #%d" (alist-get 'seq e)) "")
+            " · " (vikix-office--one-line (or (alist-get 'by e) "?"))
+            (if words (concat " · " (string-join words ", ")) ""))))
+
 (defun vikix-office--tester-line (tester)
   "The tester at work in a line: what runs, since when, waiting for a release."
   (let ((name (alist-get 'name tester)) (at (alist-get 'at tester)) (waiting (alist-get 'waiting tester)))
@@ -558,7 +593,8 @@ is drawn when PLANS is empty."
                                            (vikix-office--render-detail)
                                            (vikix-office-details)))))
                   (vikix-office--note width chars
-                                      (concat (if folder "Not a desk"
+                                      (concat (vikix-office--launch-words r)
+                                              (if folder "Not a desk"
                                                 (vikix-office--one-line (or (alist-get 'project (alist-get 'desk r)) "Project unrecorded")))
                                               " · "
                                               (if (alist-get 'agents r)
@@ -763,6 +799,43 @@ comma of its words; the words alone without a clock."
               (when (eq (alist-get 'tests_off r) t)
                 (vikix-office--field width chars 0 "" "Tests: not run by themselves when the worker hands in; Test runs them" 'shadow))
               (vikix-office--box-bottom width chars)
+              ;; The task's own record (lib/tasks.py): its identity and metadata, the
+              ;; state the office recorded and the worker's state as observed, apart;
+              ;; then its history from the event log, newest first.
+              (let ((task (alist-get 'task_record r)) (label-width 10))
+                (when (and task (alist-get 'id task))
+                  (vikix-office--box-top width chars (concat "Task record · " (vikix-office--text (alist-get 'id task))))
+                  (vikix-office--note width chars "The task apart from its desk and its agent: what the office recorded. The worker's state is what was observed, with how sure.")
+                  (vikix-office--field width chars label-width "Origin"
+                                       (concat (vikix-office--one-line (alist-get 'origin_words task)) " · priority "
+                                               (vikix-office--one-line (alist-get 'priority task))))
+                  (let ((status (alist-get 'status task)) (blocked (alist-get 'blocked task)))
+                    (vikix-office--signed-field width chars label-width "State"
+                                                (concat (vikix-office--one-line (alist-get 'value status))
+                                                        (let ((reason (alist-get 'reason status)))
+                                                          (if (member reason '(nil "")) "" (concat " · " (vikix-office--one-line reason))))
+                                                        (if (and blocked (alist-get 'on blocked))
+                                                            (concat " · blocked on " (vikix-office--one-line (alist-get 'on blocked))) ""))
+                                                (alist-get 'by status) (alist-get 'at status)))
+                  (vikix-office--field width chars label-width "Launch" (vikix-office--one-line (alist-get 'launch_words task)))
+                  (let ((worker (vikix-office--worker-words (alist-get 'worker_state r))))
+                    (unless (string-empty-p worker)
+                      (vikix-office--field width chars label-width "Worker" worker)))
+                  (vikix-office--field width chars label-width "Times"
+                                       (format "created %s · launched %s · done %s"
+                                               (vikix-office--time (alist-get 'created task))
+                                               (if (alist-get 'launched task) (vikix-office--time (alist-get 'launched task)) "unknown")
+                                               (if (alist-get 'done task) (vikix-office--time (alist-get 'done task)) "not yet"))
+                                       'shadow)
+                  (let ((events (alist-get 'events task)))
+                    (if (null events)
+                        (vikix-office--field width chars label-width "History" "No event of its own yet" 'shadow)
+                      (vikix-office--field width chars label-width "History"
+                                           (format "%d event%s, newest first (vikix agents events %s has them all)"
+                                                   (length events) (if (= (length events) 1) "" "s") (alist-get 'id task)))
+                      (dolist (e events)
+                        (vikix-office--field width chars label-width "" (vikix-office--event-line e) 'shadow))))
+                  (vikix-office--box-bottom width chars)))
               ;; The tester at work (vikix agents test): what runs, since when, the
               ;; release it waits for, and the log's tail, the tests ended so far;
               ;; Skip tests ends it and marks the check skipped, Test log shows the whole run.

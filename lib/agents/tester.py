@@ -65,7 +65,16 @@ def tester_result(folder, name, ok, names, excerpt, took, note=""):
     def change(r):
         H.add_check(r, name, ok, "vikix", folder, full[:480])
         H.set_changes(r, folder, base)       # what the hand-in shows as changed, read again now
-    desk_record(folder, by="vikix", change=change)
+    rec = desk_record(folder, by="vikix", change=change)
+    # The desk's task (lib/tasks.py): a failure with the worker gone blocks it
+    # on the tests; with the worker there a task in review goes back to work.
+    tid = (rec.get("task") or {}).get("id")
+    if tid:
+        T = tasks_module()
+        try:
+            T.tests_moved(tid, ok, names, bool(agents_at(folder)))
+        except (T.TaskError, OSError):
+            pass
     line = (f"tests passed ({name}, {took} s)" if ok else
             f"tests: {len(names)} failed ({', '.join(names)}); vikix agents test --log {os.path.basename(folder)} shows them")
     if note:
@@ -92,6 +101,14 @@ def test_desk(folder, note=""):
         f.write(f"{os.getpid()} {int(time.time())}\n")
     started = time.time()
     waited = 0
+    H = handoff_module()
+    drec = H.load(H.desk_id(common_of(folder), folder)) or {}
+    if (drec.get("task") or {}).get("id"):
+        try:
+            tasks_module().event("tests started", "vikix", task=drec["task"]["id"], desk=drec.get("desk"),
+                                 data={"name": "tests/run.sh" + (f" --changed {base[:7]}" if changed and base else "")})
+        except OSError:
+            pass
     try:
         # A release's tests and a desk's at once failed two timing checks for
         # load alone (2026-10-09), and the release is the one that merges: it

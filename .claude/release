@@ -230,6 +230,12 @@ if [ -z "$keep" ]; then
     python3 "$main/lib/handoff.py" closed "$common" "$wt" release "$summary" >/dev/null 2>&1
     case $? in 0|1) ;; *) say "the desk's record wasn't marked closed (vikix agents handoff list)" ;; esac
   fi
+  # The desk's tasks (lib/tasks.py): the event released, with the version,
+  # and each open one completed, since its work is on main now.
+  if [ -f "$main/lib/tasks.py" ]; then
+    python3 "$main/lib/tasks.py" released "$common" "$wt" "${new:-}" >/dev/null 2>&1
+    case $? in 0|1) ;; *) say "the desk's tasks weren't marked released (vikix agents tasks)" ;; esac
+  fi
 fi
 
 if [ -z "$plain" ]; then

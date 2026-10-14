@@ -1267,6 +1267,48 @@ the worker's form for that row."
          (vikix-office--render)
          (should (equal (cl-count "New worker…" (office-test-buttons) :test #'equal) 1)))
      (kill-buffer vikix-office--detail))))
+(ert-deftest office-task-record-on-the-row-and-the-page ()
+  "A desk's task record (lib/tasks.py) numbers its row (#104 · ...; launch
+order unknown for one from before; nothing without a record) and has a box
+of its own on the desk page: origin, state, launch, the worker's state as
+observed, the times and the history, an event a line."
+  (office-test-buffer
+   (setq vikix-office--detail (generate-new-buffer " *Office task record*"))
+   (unwind-protect
+       (progn
+         (vikix-office--render)
+         (should-not (string-match-p "#[0-9]+ · " (buffer-string)))
+         (should-not (string-match-p "launch order unknown" (buffer-string)))
+         (let ((r (vikix-office--row)))
+           (setf (alist-get 'task_record r)
+                 '((id . "t-20261013-7f3a9c") (origin_words . "yours") (priority . "normal")
+                   (status . ((value . "needs review") (by . "codex 1") (at . 1791300000) (reason . "the agent's handoff says review")))
+                   (blocked . nil) (launch_words . "#104 codex · 35 min ago · by user")
+                   (created . 1791290000) (launched . 1791291000) (done . nil)
+                   (events . (((at . 1791300000) (kind . "review asked") (by . "codex 1") (seq . nil)
+                               (data . ((status . "review") (from . "running") (to . "needs review"))))
+                              ((at . 1791291000) (kind . "launched") (by . "user") (seq . 104)
+                               (data . ((provider . "codex") (how . "worker"))))))))
+                 (alist-get 'launch_seq r) 104
+                 (alist-get 'worker_state r) '((state . "idle") (source . "the title's mark") (sure . "inferred"))))
+         (vikix-office--render)
+         (should (string-match-p "#104 · Vikix · codex" (buffer-string)))
+         (with-current-buffer vikix-office--detail
+           (should (string-match-p "Task record · t-20261013-7f3a9c" (buffer-string)))
+           (should (string-match-p "Origin +yours · priority normal" (buffer-string)))
+           (should (string-match-p "State +needs review · the agent's handoff says review" (buffer-string)))
+           (should (string-match-p "Launch +#104 codex · 35 min ago · by user" (buffer-string)))
+           (should (string-match-p "Worker +idle (inferred: the title's mark)" (buffer-string)))
+           (should (string-match-p "History +2 events, newest first" (buffer-string)))
+           (should (string-match-p "review asked · codex 1 · status review, running -> needs review" (buffer-string)))
+           (should (string-match-p "launched #104 · user · provider codex, how worker" (buffer-string))))
+         ;; A record from before: no number, and said so, never a made-up one.
+         (let ((r (vikix-office--row)))
+           (setf (alist-get 'launch_seq r) nil)
+           (setf (alist-get 'launch_words (alist-get 'task_record r)) "launch order unknown claude · 2026-10-10 10:00"))
+         (vikix-office--render)
+         (should (string-match-p "launch order unknown · Vikix · codex" (buffer-string))))
+     (kill-buffer vikix-office--detail))))
 (ert-deftest office-close-agent-confirmation-and-selection ()
   (office-test-buffer
    (vikix-office--render)

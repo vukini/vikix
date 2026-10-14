@@ -49,8 +49,10 @@ an agent that left (left). One JSON object a line: at, kind, the desk's
 id, by, and data with the worktree, branch and project and the kind's own
 fields. It is what the plan runner (lib/plan.py) waits on instead of
 polling the records (events_size, events_since), and anything else may
-read it; the task board designed in plans/DESIGN-office-tasks.md writes
-the same file.
+read it; the task board (lib/tasks.py, from 2026-10-14) writes the same
+file, and each line names the desk's task by its id (task), which the desk
+record keeps in task.id (and a folded worker in task_id), so a task's
+history is read back from the log.
 """
 import copy
 import fcntl
@@ -290,7 +292,10 @@ def event(kind, by, rec, data):
     a lock. Never raises: a log that can't be written loses a line, not the
     write."""
     d = rec.get("desk") or {}
-    line = {"at": int(time.time()), "kind": kind, "desk": d.get("id", ""), "by": by,
+    # The desk's task (lib/tasks.py gives it its id), so a task's history is
+    # read back from the log; '' for a record from before, or no task.
+    line = {"at": int(time.time()), "kind": kind, "task": str((rec.get("task") or {}).get("id") or ""),
+            "desk": d.get("id", ""), "by": by,
             "data": dict({"worktree": d.get("worktree", ""), "branch": d.get("branch", ""),
                           "project": d.get("project", "")}, **data)}
     try:
@@ -475,7 +480,12 @@ def set_task(rec, text, by):
     text = clean(text, "the task")
     if not text:
         raise HandoffError("a task needs words")
+    # The task's id (lib/tasks.py's record) stays through a change of its
+    # words: the same task, said better, not a new one.
+    tid = (rec.get("task") or {}).get("id")
     rec["task"] = {"text": text, "by": by, "at": int(time.time())}
+    if tid:
+        rec["task"]["id"] = tid
     _log(rec, by, "task set")
 
 
@@ -534,6 +544,8 @@ def fold_worker(rec):
              "provider": sessions[-1]["provider"] if sessions else "",
              "left": (rec.get("left") or {}).get("reason", ""),
              "handoff": {k: v for k, v in h.items() if k not in DESK_FIELDS}}
+    if t.get("id"):
+        entry["task_id"] = t["id"]      # the task's own record (lib/tasks.py) keeps its history whole
     d, n = acceptance_count(h)
     if n:
         entry["acceptance"] = f"{d} of {n}"

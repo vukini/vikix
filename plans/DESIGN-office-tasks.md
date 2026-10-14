@@ -2,7 +2,7 @@
 
 The Office shows agents; it should show the work. A task of its own, apart from the agent doing it and the desk it is done at, with a state that is the work's and not the worker's; what needs you, in one list, with the question itself; a queue with priorities and an order, and a scheduler that starts the next task only when you let it; the order the workers were launched in, kept; and a history of every task that outlives it.
 
-Drafted 2026-10-10 for TODO item 115, from Vid's brief ("Office task management, priorities and ergonomics"). Nothing here is built. Kept like the other designs: what ships is deleted from it, what changes is dated. Where the brief left a choice open, the choice made is marked *decided here*, for Vid to overturn.
+Drafted 2026-10-10 for TODO item 115, from Vid's brief ("Office task management, priorities and ergonomics"). *2026-10-14: phase 1 (task identity and metadata) shipped: `lib/tasks.py`, the arms `tasks`, `task`, `events` and `exited`, the snapshot's version 2, the Office's launch number and task record box, the MCP tool `tasks`, the release's `released`, the migration; the sections it built are cut to what changed. The rest is not built.* Kept like the other designs: what ships is deleted from it, what changes is dated. Where the brief left a choice open, the choice made is marked *decided here*, for Vid to overturn.
 
 ---
 
@@ -39,94 +39,15 @@ Five pieces, in the Office's words and `vikix agents`' commands:
 4. **The queue**: priority and order, kept apart; `run next`, up, down, defer, cancel; a scheduler (`vikix agents queue`) that says what runs next and why and starts it on your word, or by itself only once `auto=on` is written in your config, never past `at_once` workers, never a second time after a crash.
 5. **The Office drawn around the work**: Needs attention, Running (with the launch number and how long), Queue (with position and priority), Blocked (with why), Completed (with the release), then the desks standing empty, Closed and the Archive as today; sorting; a task's full page with its history; every act on a key.
 
-## The task record
+## The task record, the two states, the events
 
-```
-office/tasks/t-20261010-7f3a9c.json         one a task; the id is the day it was made and six hex digits
-{
- "version": 1,
- "id": "t-20261010-7f3a9c",
- "title": "the Wi-Fi picker should scan first",        first line of the text, 80 characters at most
- "text": "the Wi-Fi picker should scan first, then show the list",
- "project": "vikix",
- "desk": {"id": "3f9a1c2b7d4e", "worktree": "/home/vid/src/vikix-wifi-fix", "branch": "wifi-fix"},   or {} while none
- "topic": "wifi-fix",                                   the desk to make when none is set and the task is launched
- "origin": {"kind": "user", "by": "user", "parent": null, "worker": null, "approved": {"by": "user", "at": ...}},
- "priority": "normal",                                  critical | high | normal | low
- "status": {"value": "running", "by": "vikix", "at": ..., "reason": ""},
- "blocked": {},                                         {"on": "t-…" | "worker" | "tests" | "release" | "decision …", "why": "..."} while blocked
- "after": ["t-20261009-11ab2c"],                        the tasks this one builds on
- "worker": {"use": "claude", "local": false, "push": false, "no_tests": false},    the choices as the forms have them
- "launch": {"seq": 104, "at": ..., "by": "user", "provider": "claude", "pid": 48213, "start": "123456"},   the last launch; {} before one
- "launches": [...],                                     every launch, oldest first (seq, at, provider, ended, how)
- "created": ..., "queued": ..., "launched": ..., "activity": ..., "done": ...,     epoch seconds, null until it happened
- "handoff": {... as the desk record keeps it ...},      a copy at each write, so the history has the agent's words
- "decisions": ["d-…"],
- "children": ["t-…"],
- "log": [{"at": ..., "by": ..., "what": "..."}]         the last forty; the whole history is the event log
-}
-```
+Shipped 2026-10-14 (phase 1): the record, the rules, the sequence, adoption, the transition table and the event log are as designed, in `lib/tasks.py` (its docstring and `TRANSITIONS`, `EVENT_OF`, `KINDS` are the tables now). What changed on the way:
 
-Rules, the same as the desk record's (`lib/handoff.py`): a write takes the file's lock, reads, changes, replaces; every text goes through `clean` (no control characters, capped, never a credential); `by` is `user`, `vikix`, or an agent as `claude 48213`; an unknown key is refused. A task's `handoff` is written by the same `handoff_apply` that writes the desk's, so the agent's commands and MCP tools don't change: the desk is the agent's address, the task is what it is working on there.
-
-**Where the pieces live.** `lib/tasks.py` (the records, the sequence, the events, the transitions, the decisions), `lib/scheduler.py` (eligibility, capacity, the tick), with arms in `bin/vikix-agents` that parse and print, as `lib/office.py` is used today. New code goes in the libraries rather than the 3,400-line command (TODO item 112).
-
-**The launch sequence** is one file, `office/sequence`, a number, taken under `flock` and written back plus one at each launch; it never goes down, and a record made before this design has `launch.seq` null, shown as *launch order unknown*, never a made-up number.
-
-**Older records are adopted, not rewritten.** The first snapshot after the update (and `vikix agents tasks adopt`, run by a migration) makes a task record for each desk record's `task` (the id written back into the desk record as `task.id`) and for each entry of its `workers` history: `created` from the entry's `at`, `done` from `ended`, `origin.kind` `user` when `by` is `user`, else `unknown`; `launch` empty; `priority` normal; `status` from the entry's handoff status by the table below, `cancelled` for a history entry with no status. What isn't known is null and shown as *unknown*. Nothing is invented.
-
-**Identity through handoffs.** A task is handed from one worker to the next on the same record: `resume`, `worker` at a desk whose task is open, and a change of provider (`--use codex` at `resume`) add a launch to `launches` and keep the id, the decisions and the history. `vikix agents worker DESK "new task"` makes a new task and *completes or cancels the old one explicitly* (it asks, in the terminal and in the form: done, cancelled, or kept open at the desk's back, `blocked on worker`), instead of folding it silently.
-
-## Two states, kept apart
-
-**The worker's state** is derived at each snapshot by `worker_state(agent, task)` in `lib/tasks.py`, as a triple: the state, where it was read, and how sure (*reliable*, *inferred*, *unknown*).
-
-| Worker state | Read from | Sure? |
-|---|---|---|
-| starting | a launch intent with no process yet (`office/launching/TASK`, below), under 30 s old | reliable |
-| running | `:working` (Claude Code's turning mark), `:running` (no mark) | inferred |
-| waiting for permission | the plugin's `ask` note, Claude Code's PermissionRequest; Codex's `[ ! ] Action Required` title | reliable; the title inferred |
-| waiting for input | the plugin's `reply` note (a question in its last words), its `question` note (AskUserQuestion) | reliable |
-| idle | `:idle` (the star at its prompt), the plugin's `done` note | reliable for Claude Code, inferred from the mark alone |
-| paused | `office/pause/ID` stands | reliable |
-| held | `waits`: a test slot, a release's turn | reliable |
-| exited | the launcher's exit line (below), or SessionEnd (`left`), or the process gone | reliable with the line, inferred from the process alone |
-| failed | the launcher's exit line with a code other than 0, or a process gone within 60 s of its launch | reliable; inferred for the 60 s rule |
-
-What makes *exited* and *failed* reliable for every provider, hooks or not: the terminal a worker is started in (`open_at`, `agent_start`) runs `vikix agent ...; vikix agents exited --code $?` rather than the agent alone, so the exit code reaches the task's events whatever the provider; Aider and Gemini, which have no SessionEnd hook, are covered the same way. For an agent started by hand in a terminal the process alone says it.
-
-**The task's state** is recorded in the task's `status`, and changed only by a transition in the table; `lib/tasks.py`'s `move(task, to, by, reason)` refuses any other. Every transition is an event (below).
-
-| From | To | By what |
-|---|---|---|
-| (new) | backlog | an agent's proposal (`propose`), a task written with `--later` |
-| (new) | ready | the user makes a task (the forms, `desk --task`, `worker`, `task new`) |
-| backlog | ready | the user approves it (the Office's *Approve*, `task approve`) |
-| ready | queued | the user queues it (`queue add`, the form's *queue it*); `auto=on` queues a ready task that has a desk or a topic |
-| queued, ready | running | a launch (`queue start`, `worker`, `resume`, `desk --task`, the tick under `auto`) |
-| running | needs decision | the worker registers a blocking decision (`ask --blocks`); the agent's handoff status `waiting` |
-| running | needs review | the agent's handoff status `review` |
-| running | blocked | the launcher's exit line or `left` while the task was running (`blocked on worker`: *the worker stopped*); the tester's check failed and the worker is gone; a dependency came back open |
-| needs decision | running | the decision is answered (`answer`); the handoff status back to `working` |
-| needs review | running | the tester's check failed with the worker still there (it reads the inbox and goes on); the user sends it back (*Back to work*, with a note) |
-| needs review | ready for release | the user accepts (*Accept*), or the agent's handoff status `finished` with the branch not yet in the project's own |
-| ready for release, needs review | completed | the release that closes the desk (`.claude/release`'s `closed`), or the branch seen merged (`desk_state`) with the user's *Done* |
-| blocked | ready | the cause is gone: the dependency done, the user's *Retry*; `resume` on a task blocked on its worker puts it to running |
-| any but completed | cancelled | the user (`task cancel`, `k`); a cancelled parent cancels its backlog children with a note, never a running one |
-| completed, cancelled | (none) | final; a new task is made instead |
-
-The agent's own four words (`working`, `waiting`, `review`, `finished`, `STATES` in `lib/handoff.py`) stay the agent's vocabulary and map into the table, so no skill page, no hook and no MCP tool changes its shape. *Decided here:* `finished` from the agent means *ready for release*, never *completed*: the agent's work is done, yours is not, which is the distinction between an idle worker and an unfinished task that the brief asks for. A worker's exit never completes or cancels anything: the task goes to *blocked on worker* and stays in view until you resume it, hand it to another provider or cancel it.
-
-## The events
-
-`office/events-YYYY-MM.jsonl`, one line an event, appended under `flock`, one file a month (as `vikix day`'s screen log is kept), read newest first by `vikix agents events [TASK | DESK | --all] [--since WHEN]`, shown as a task's *History* page in the Office. Never rewritten; `vikix memory` (TODO item 96) may bound it later.
-
-```
-{"at": 1760090000, "seq": 104, "task": "t-20261010-7f3a9c", "desk": "3f9a1c2b7d4e", "kind": "launched", "by": "user",
- "data": {"provider": "claude", "pid": 48213, "how": "queue start"}}
-```
-
-Kinds: `created`, `approved`, `priority` (from, to), `ordered` (position), `queued`, `deferred`, `launched` (the sequence number is given here and nowhere else), `paused`, `resumed`, `asked` (a decision registered), `answered`, `handoff` (status, by), `tests started`, `tests done` (ok, names), `review asked`, `accepted`, `sent back`, `blocked` (on, why), `unblocked`, `exited` (code, reason), `handed off` (provider from, to), `released` (version), `completed`, `cancelled`, `proposed` (by which worker, parent), `uncertain` (first seen), `adopted` (an old record taken in, with what was unknown). Each writer of state already in the code (`handoff_apply`, `tester_result`, `left`, `pause_folder`, `go_folder`, `close`, `lib/handoff.py closed` from the release) gains one line that appends its event; the plan runner's desk (2026-10-10) asked for this log first, and reads the same file.
+- The table gained the agent's `finished` straight from *running* (no review asked first), a worker reporting from *blocked* (`waiting`, `review`, `finished` end the block: an agent that sat down itself, or was started by hand, at a blocked task), and *completed* from any open state when the work is in (`done=True`: the release, the desk closed with its branch merged), since the branch is on main whatever the record said. `parked`, the fifth handoff word (after the design), is *blocked on parked*.
+- `vikix agents worker DESK "new task"` doesn't ask yet what to do with the task before: it is left *blocked on worker* at the desk's back (the design's third choice), to be resumed, handed on or cancelled; the question in the terminal and in the form is phase 4's.
+- A task made by `sit --task` or by `handoff --task` at a desk with an agent at it runs with no launch number: the office never started that agent, and no number is made up.
+- `adopt` is idempotent by the desk, the time and the words as well as by the ids written back, so a record whose ids can't be written is never adopted twice; the live task of a desk with a launch and no `left` is read as *running*, with none as *ready*; a history entry's `finished` is *ready for release*, as the table says, except on a desk the release closed, where it is *completed*.
+- The plan runner's workers carry `origin.kind` `automation`, `source` `plan NAME`, through `VIKIX_TASK_ORIGIN` in its environment; the runner is otherwise unchanged (its `at-once` and chains stay its own until phase 3).
 
 ## Needs attention
 

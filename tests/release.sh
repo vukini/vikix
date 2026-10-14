@@ -57,7 +57,7 @@ printf '.git-test-calls\n' > "$r/.gitignore"
 # A project of vikix project's (a log, under a root): where vikix agents looks for release notes.
 printf '# Log: Vikix\n' > "$r/log.md"
 # The desks' records: the release marks a desk's closed through lib/handoff.py.
-mkdir -p "$r/lib"; cp "$here/lib/handoff.py" "$r/lib/"
+mkdir -p "$r/lib"; cp "$here/lib/handoff.py" "$here/lib/tasks.py" "$r/lib/"
 mkdir -p "$HOME/.config/vikix"; printf 'root=%s\n' "$t" > "$HOME/.config/vikix/projects"
 git -C "$r" init -q
 git -C "$r" add -A && git -C "$r" commit -q -m "Vikix 0.1.5: the start"
@@ -70,9 +70,12 @@ topic() {   # topic NAME FILE TEXT: a worktree with one commit that writes TEXT 
 }
 release() { "$r/.claude/release" "$@" 2>&1; }
 records="$HOME/.local/state/vikix/office/desks"
-record() {   # record TOPIC TASK: a desk record for the worktree of TOPIC, as vikix agents desk --task makes one
-  python3 -B -c 'import sys; sys.path.insert(0, sys.argv[1]); import handoff as H
-H.update(sys.argv[2], sys.argv[3], lambda r: H.set_task(r, sys.argv[4], "user"), branch=sys.argv[5])' \
+record() {   # record TOPIC TASK: a desk record for the worktree of TOPIC, as vikix agents desk --task makes one, its task record too
+  python3 -B -c 'import sys; sys.path.insert(0, sys.argv[1]); import handoff as H; import tasks as T
+def change(r):
+    H.set_task(r, sys.argv[4], "user")
+    r["task"]["id"] = T.new(sys.argv[4], "vikix", "user", desk=T.desk_of_record(r))["id"]
+H.update(sys.argv[2], sys.argv[3], change, branch=sys.argv[5])' \
     "$r/lib" "$r/.git" "$t/vikix-$1" "$2" "$1" >/dev/null
 }
 record_of() {   # record_of TOPIC: the record whose worktree is TOPIC's, as JSON
@@ -103,6 +106,14 @@ rec=$(record_of a)
 check "the desk's record is marked closed by the release, and kept: $rec" python3 -c 'import json, sys
 r = json.loads(sys.argv[1]); assert r["desk"]["closed"] > 0 and r["task"]["text"] == "A thing to do", r
 assert r["log"][-1]["what"] == "desk closed" and r["log"][-1]["by"] == "release", r["log"]' "$rec"
+check "the desk's task record is released and completed, with the version, in its events: $(cat "$HOME"/.local/state/vikix/office/events-*.jsonl | grep -c released)" python3 -B -c '
+import json, sys, glob
+sys.path.insert(0, sys.argv[1]); import tasks as T
+t = [t for t in T.all_tasks() if t["text"] == "A thing to do"][0]
+assert t["status"]["value"] == "completed" and t["status"]["by"] == "release" and t["done"], t["status"]
+kinds = [e["kind"] for e in T.events_read(task=t["id"])]
+assert kinds[:2] == ["completed", "released"], kinds
+assert [e for e in T.events_read(task=t["id"]) if e["kind"] == "released"][0]["data"]["version"] == "0.1.6", kinds' "$r/lib"
 check "a handoff with no status gets finished and the release's line, by release: $rec" python3 -c 'import json, sys
 h = json.loads(sys.argv[1])["handoff"]
 assert h["status"]["value"] == "finished" and h["status"]["by"] == "release", h

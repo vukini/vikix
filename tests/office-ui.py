@@ -68,6 +68,44 @@ class Office(unittest.TestCase):
         self.agents = [old]
         self.assertEqual(office.snapshot(A)['desks'][0]['attention'], '')
 
+    def test_tasks_in_the_snapshot_and_a_record_adopted(self):
+        """Version 2: the task records, the launch sequence, and each desk's
+        task record with the worker's state as observed. A desk record from
+        before, with a task and no task id, is adopted at the first snapshot
+        (its gaps unknown) and its id written back; a second snapshot adopts
+        nothing more."""
+        snap = office.snapshot(A)
+        self.assertEqual((snap['version'], 'tasks' in snap, 'sequence' in snap), (2, True, True))
+        folder = str(Path(self.temp.name) / 'book-old')
+        Path(folder).mkdir()
+        words = f'The old task of {os.getpid()} {time.time()}'     # the state is shared with the other tests' snapshots
+        rec = H.update('', folder, lambda r: H.set_task(r, words, 'claude 9'), branch='old', project='book')
+        self.records = [rec]
+        snap = office.snapshot(A)
+        mine = [t for t in snap['tasks'] if t['text'] == words]
+        self.assertEqual(len(mine), 1)
+        task = mine[0]
+        self.assertEqual((task['origin']['kind'], task['status']['value'], task['launch'], task['launch_words']),
+                         ('unknown', 'ready', {}, 'not launched'))
+        self.assertTrue(any(e['kind'] == 'adopted' for e in task['events']))
+        rec = H.load(rec['desk']['id'])
+        self.assertEqual(rec['task']['id'], task['id'])
+        self.records = [rec]
+        snap = office.snapshot(A)
+        self.assertEqual(len([t for t in snap['tasks'] if t['text'] == words]), 1)
+        row = snap['desks'][0]
+        self.assertEqual((row['task_record']['id'], row['launch_seq']), (task['id'], None))
+        self.assertEqual(row['worker_state']['sure'], 'unknown')
+        # A launch gives the number and the worker's state is read from the agent's row.
+        sys.path.insert(0, str(ROOT / 'lib'))
+        import tasks as T
+        T.launch(task['id'], 'codex', 'user', 'worker')
+        self.agents = [self.agent(1, 'idle')]
+        rec['desk']['worktree'] = self.folder
+        row = office.snapshot(A)['desks'][0]
+        self.assertEqual((row['launch_seq'], row['worker_state']['state'], row['task_record']['status']['value']),
+                         (1, 'idle', 'running'))
+
     def test_empty_and_incomplete(self):
         self.assertEqual(office.snapshot(A)['desks'], [])
         self.agents = [self.agent()]

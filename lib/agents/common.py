@@ -409,6 +409,103 @@ def handoff_module():
     return _handoff
 
 
+_tasks = None
+
+
+def tasks_module():
+    """lib/tasks.py as a module: the task records, the sequence, the
+    events (after lib/handoff.py, whose clean and event log it shares)."""
+    global _tasks
+    if _tasks is None:
+        handoff_module()
+        sys.dont_write_bytecode = True
+        loader = SourceFileLoader("vikix_tasks", os.path.join(VIKIX_DIR, "lib", "tasks.py"))
+        spec = importlib.util.spec_from_loader("vikix_tasks", loader)
+        _tasks = importlib.util.module_from_spec(spec)
+        loader.exec_module(_tasks)
+        _tasks._H = handoff_module()     # one copy of lib/handoff.py, so a test's stand-ins reach both
+    return _tasks
+
+
+def task_id_at(folder):
+    """The id of the desk FOLDER's task, from its record; '' for none."""
+    H = handoff_module()
+    rec = H.load(H.desk_id(common_of(folder), folder)) or {}
+    return str((rec.get("task") or {}).get("id") or "")
+
+
+def task_origin():
+    """Whose a task made from this shell is: (kind, by, source). An
+    automation names itself in VIKIX_TASK_ORIGIN (the plan runner: "plan
+    NAME"); an agent above this process makes it the agent's (sit --task,
+    a foreman); else it is the user's."""
+    source = (os.environ.get("VIKIX_TASK_ORIGIN") or "").strip()
+    by, me = by_me()
+    if source:
+        return "automation", by, source
+    if me:
+        return "agent", by, ""
+    return "user", by, ""
+
+
+def task_make(rec, folder, text, by, choices=None, topic=""):
+    """A task record for TEXT at the desk whose record is REC (inside the
+    record's write: the id is set in REC's task), with the worker's
+    CHOICES. The task's id, or '' when it couldn't be made (said on
+    stderr; the desk's record goes on without one)."""
+    T = tasks_module()
+    kind, _, source = task_origin()
+    tid = (rec.get("task") or {}).get("id") or ""
+    have = T.load(tid) if tid else None
+    if have and (have.get("status") or {}).get("value") not in T.FINAL:
+        # The same task, said again (handoff --task on a desk that has one):
+        # its words change, its id, history and launches stay. A task that is
+        # done (a desk made again on a released branch) is never reopened.
+        try:
+            T.update(tid, lambda t: (t.update(text=T.clean(text, "the task"), title=T.title_of(text)),
+                                     T._log(t, by, "the words changed")))
+        except T.TaskError as e:
+            sys.stderr.write(f"the task {tid} kept its words: {e}\n")
+        return tid
+    try:
+        task = T.new(text, project_of(folder, common_of(folder)), by, kind=kind, desk=T.desk_of_record(rec),
+                     topic=topic, worker=choices, source=source)
+    except T.TaskError as e:
+        sys.stderr.write(f"the task's record wasn't made: {e}\n")
+        return ""
+    if isinstance(rec.get("task"), dict):
+        rec["task"]["id"] = task["id"]
+    return task["id"]
+
+
+def task_launch(tid, provider, by, how, mode="", numbered=True):
+    """Task TID launched (lib/tasks.py's launch), its event appended;
+    nothing when the task isn't there or refuses (said on stderr)."""
+    if not tid:
+        return None
+    T = tasks_module()
+    try:
+        return T.launch(tid, provider, by, how, mode=mode, numbered=numbered)
+    except T.TaskError as e:
+        sys.stderr.write(f"the task {tid} wasn't launched in its record: {e}\n")
+        return None
+
+
+def task_folded(entry, by):
+    """The task of a folded worker ENTRY (fold_worker's) kept open at the
+    desk's back: blocked on worker, since another task starts there."""
+    tid = (entry or {}).get("task_id")
+    if not tid:
+        return
+    T = tasks_module()
+    task = T.load(tid)
+    if task and T.can_move(task, "blocked")[0]:
+        try:
+            T.move(tid, "blocked", by, "another task started at its desk", blocked_on="worker")
+        except T.TaskError:
+            pass
+
+
 def common_of(folder):
     """The repository's common git dir for FOLDER, '' for no repository."""
     common = (git(folder, "rev-parse", "--path-format=absolute", "--git-common-dir") or "").strip()
@@ -508,9 +605,18 @@ def left(argv):
             rec["left"] = {"at": int(time.time()), "by": who(me), "reason": reason, "dirty": dirty}
         H._log(rec, who(me), f"left: {reason}")
     try:
-        H.update(common, me["folder"], change)
+        rec = H.update(common, me["folder"], change)
     except (H.HandoffError, OSError):
-        pass
+        return 0
+    # The desk's task: its last launch ended, and from running it is blocked
+    # on its worker (lib/tasks.py), never completed by an exit.
+    tid = (rec.get("task") or {}).get("id")
+    if tid:
+        T = tasks_module()
+        try:
+            T.exited(tid, reason=reason, by=who(me), dirty=dirty)
+        except (T.TaskError, OSError):
+            pass
     return 0
 
 
