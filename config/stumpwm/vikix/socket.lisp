@@ -14,11 +14,12 @@
 ;;;; already doing, as it did over Swank: the key just pressed has been
 ;;;; handled. The wait is in slices (*vikix-socket-read-wait*): after a
 ;;;; slice without an answer, a main thread that used no processor time
-;;;; in it is idle without answering, which is a menu or a prompt (or a
-;;;; program it waits on), and the client's thread evaluates the read
-;;;; itself; one that was working gets another slice, up to the deadline.
+;;;; and was sleeping at both observations is waiting (a menu, a prompt,
+;;;; or a program), and the client's thread evaluates the read itself.
+;;;; A runnable thread may simply be short of CPU time; it and an unknown
+;;;; observation get another slice, up to the deadline.
 ;;;; Anything else goes to the main thread as before, with its deadline
-;;;; (*vikix-eval-timeout*), and a form given up on never runs later. An
+;;;; (*vikix-eval-timeout*), and a queued form given up on never starts later. An
 ;;;; agent's forms pass the door first (door.lisp), in the thread.
 ;;;;
 ;;;; The protocol is one request a connection: a line "eval KIND FROM..."
@@ -78,33 +79,58 @@ go to the main thread. Everything else on the door's list is a read.")
 
 (defparameter *vikix-socket-read-wait* 0.3
   "A slice of the wait for the main thread, in seconds: after one without
-an answer in which the main thread used no processor time (a menu, a
-prompt), the client's thread answers a read itself.")
+an answer in which the main thread stayed asleep without using processor
+time (a menu, a prompt), the client's thread answers a read itself.")
 
 (defun vikix-socket-in-main (text)
   "TEXT's forms in the main thread, or, when it is idle without answering,
 here. The status and what was printed."
   (let ((done (sb-thread:make-semaphore))
-        (output "") (status :error) (cancelled nil))
+        (lock (sb-thread:make-mutex :name "socket read"))
+        ;; Count elapsed time, including time this client was not scheduled.
+        (deadline (+ (get-internal-real-time)
+                     (* *vikix-eval-timeout* internal-time-units-per-second)))
+        (output "") (status :error) (state :queued))
     (call-in-main-thread
      (lambda ()
-       (unwind-protect
-            (unless cancelled
+       ;; Only one thread may claim the read. In particular, a fallback
+       ;; must not race a callback that has already begun evaluating it.
+       (when (sb-thread:with-mutex (lock)
+               (when (eq state :queued) (setf state :running)))
+         (unwind-protect
               (setf output (with-output-to-string (*standard-output*)
-                             (setf status (vikix-eval-forms text)))))
-         (sb-thread:signal-semaphore done))))
-    (loop with waited = 0
-          for ticks = (vikix-main-ticks)
-          do (when (sb-thread:wait-on-semaphore done :timeout *vikix-socket-read-wait*)
-               (return (values status output)))
-             (incf waited *vikix-socket-read-wait*)
-             (when (or (>= waited *vikix-eval-timeout*)
-                       (eql ticks (vikix-main-ticks)))   ; idle, not answering: a menu or a prompt
-               (setf cancelled t)
-               (return (values :thread
-                               (with-output-to-string (*standard-output*)
-                                 (setf status (vikix-eval-forms text)))
-                               status))))))
+                               (setf status (vikix-eval-forms text))))
+           (sb-thread:with-mutex (lock) (setf state :done))
+           (sb-thread:signal-semaphore done)))))
+    (loop
+      (multiple-value-bind (before before-state) (vikix-main-ticks)
+        (let ((remaining (/ (- deadline (get-internal-real-time))
+                            internal-time-units-per-second)))
+          (when (and (plusp remaining)
+                     (sb-thread:wait-on-semaphore
+                      done :timeout (min remaining *vikix-socket-read-wait*)))
+            (return (values status output))))
+        (multiple-value-bind (after after-state) (vikix-main-ticks)
+          (let ((expired (>= (get-internal-real-time) deadline)))
+            (when (or expired
+                      (and before after (= before after)
+                           (member before-state '(#\S #\D))
+                           (member after-state '(#\S #\D))))
+              (case (sb-thread:with-mutex (lock)
+                      (case state
+                        (:queued (setf state :cancelled))
+                        (otherwise state)))
+                (:done (return (values status output)))
+                (:cancelled
+                 (return (values :thread
+                                 (with-output-to-string (*standard-output*)
+                                   (setf status (vikix-eval-forms text)))
+                                 status)))
+                (:running
+                 (when expired
+                   (return (values :busy
+                                   (format nil "error: StumpWM's main thread did not finish the read within ~a s.~%"
+                                           *vikix-eval-timeout*)))))))))))))
 
 (defun vikix-socket-read-only-p (forms)
   "Do FORMS only read Lisp state? Then the thread answers them itself. The

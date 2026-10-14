@@ -61,14 +61,17 @@
 
 (defun vikix-main-ticks ()
   "The processor time the main thread has used, in the kernel's ticks (100
-a second), from /proc; nil when it can't be read."
+a second), and its scheduling state as a second value, from /proc; nil
+when it can't be read. R can mean runnable but not yet scheduled: no
+ticks alone does not mean the main thread is waiting."
   (ignore-errors
    (let* ((tid (sb-thread::thread-os-tid (sb-thread:main-thread)))
           (line (with-open-file (in (format nil "/proc/self/task/~d/stat" tid))
                   (read-line in)))
           ;; The name, in brackets, may hold spaces: count from after it.
           (fields (ppcre:split " " (subseq line (+ 2 (position #\) line :from-end t))))))
-     (+ (parse-integer (nth 11 fields)) (parse-integer (nth 12 fields))))))
+     (values (+ (parse-integer (nth 11 fields)) (parse-integer (nth 12 fields)))
+             (char (first fields) 0)))))
 
 (defun vikix-main-busy (&optional (seconds 1/2))
   "Percent of a processor the main thread uses, measured over SECONDS.

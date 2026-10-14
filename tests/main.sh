@@ -35,6 +35,17 @@ heights() { ask '(progn (setf *print-pretty* nil) (format t "~{~a~^ ~}" (mapcar 
 on() { ask '(princ (if (vikix-main-p) 1 0))'; }
 shape() { ask '(princ (if (vikix-main-in-shape-p (current-group)) 1 0))'; }
 frames() { ask '(princ (length (group-frames (current-group))))'; }
+# X events and socket requests arrive on separate channels. Even an
+# ordered socket read is not proof a synthetic key has been handled.
+# Wait for the state the assertion needs, within a fixed deadline.
+settled() {
+  local end=$((SECONDS + 15))
+  while (( SECONDS < end )); do
+    [ "$(ask "$1")" = "$2" ] && return 0
+    sleep 0.1
+  done
+  return 1
+}
 
 for w in A B C; do win "$w"; done
 key super+ctrl+m
@@ -100,8 +111,10 @@ check "and a split stays" test "$(frames)" = "$((n + 1))"
 ask '(run-commands "vikix-main on")' >/dev/null
 check "on again from any layout: in shape" test "$(on) $(shape)" = "1 1"
 key super+shift+o
+check "the grid key is handled" settled '(princ (list (if (vikix-main-p) 1 0) (if (member (current-group) *vikix-grid-groups*) 1 0)))' '(0 1)'
 check "grid mode takes the workspace over: one mode, never both" test "$(on) $(ask '(princ (if (member (current-group) *vikix-grid-groups*) 1 0))')" = "0 1"
 key super+ctrl+m
+check "the main key is handled after grid" settled '(princ (list (vikix-main-p) (vikix-main-in-shape-p (current-group)) (not (member (current-group) *vikix-grid-groups*))))' '(T T T)'
 check "and main and stack takes it back" test "$(on) $(shape) $(ask '(princ (if (member (current-group) *vikix-grid-groups*) 1 0))')" = "1 1 0"
 
 # The picker: Super+Ctrl+Space opens the layout keys (tests/maps.sh), and
@@ -110,9 +123,18 @@ check "and main and stack takes it back" test "$(on) $(shape) $(ask '(princ (if 
 now() { ask '(princ (vikix-layout-now))'; }
 key super+ctrl+m
 check "off: plain tiles" test "$(now)" = TILES
-key super+ctrl+space; xdotool key space; sleep 1; key Down; key Return   # a moment for the menu to open before its keys
+ask '(defvar *main-test-menu* nil) (defun main-test-menu-seen (menu) (setf *main-test-menu* (menu-selected menu))) (add-hook *menu-selection-hook* (quote main-test-menu-seen))' >/dev/null
+key super+ctrl+space
+check "the layout map is open before Space" settled '(princ *vikix-map-open*)' layout
+key space
+check "the layout menu is ready before Down" settled '(princ *main-test-menu*)' 0
+key Down
+check "the menu has selected main before Enter" settled '(princ *main-test-menu*)' 1
+key Return
+check "the selected layout has been applied" settled '(princ (vikix-layout-now))' MAIN
 check "Super+Ctrl+Space, Space, down, Enter: main and stack: $(now)" test "$(now) $(shape)" = "MAIN 1"
 key Escape   # the layout keys, still open after the menu
+ask '(remove-hook *menu-selection-hook* (quote main-test-menu-seen))' >/dev/null
 ask '(run-commands "vikix-layout-pick grid")' >/dev/null; sleep 0.5
 check "vikix-layout-pick grid: $(now)" test "$(now) $(on)" = "GRID 0"
 ask '(run-commands "vikix-layout-pick strip")' >/dev/null; sleep 0.5
