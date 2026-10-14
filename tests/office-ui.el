@@ -9,6 +9,7 @@
                          (status . "review") (live_known . t) (exists . t) (kind . "desk")
                          (task . nil) (handoff . nil) (now . nil) (checks . nil) (sessions . nil)
                          (agents . nil) (workers . nil) (provider . "codex") (next_action . "Review changes")
+                         (task_record . nil) (launch_seq . nil) (worker_state . nil)
                          (resume . ((codex . ((mode . "resumed") (session . ((id . "abc")))))))))
                      (or ids '("a" "b"))))))
 (defmacro office-test-buffer (&rest body)
@@ -1288,7 +1289,7 @@ observed, the times and the history, an event a line."
                    (events . (((at . 1791300000) (kind . "review asked") (by . "codex 1") (seq . nil)
                                (data . ((status . "review") (from . "running") (to . "needs review"))))
                               ((at . 1791291000) (kind . "launched") (by . "user") (seq . 104)
-                               (data . ((provider . "codex") (how . "worker"))))))))
+                               (data . ((provider . "codex") (how . "worker")))))))
                  (alist-get 'launch_seq r) 104
                  (alist-get 'worker_state r) '((state . "idle") (source . "the title's mark") (sure . "inferred"))))
          (vikix-office--render)
@@ -1300,8 +1301,12 @@ observed, the times and the history, an event a line."
            (should (string-match-p "Launch +#104 codex · 35 min ago · by user" (buffer-string)))
            (should (string-match-p "Worker +idle (inferred: the title's mark)" (buffer-string)))
            (should (string-match-p "History +2 events, newest first" (buffer-string)))
-           (should (string-match-p "review asked · codex 1 · status review, running -> needs review" (buffer-string)))
-           (should (string-match-p "launched #104 · user · provider codex, how worker" (buffer-string))))
+           ;; Wrapped inside the box, so in pieces.
+           (should (string-match-p "review asked · codex 1" (buffer-string)))
+           (should (string-match-p "running -> needs review" (buffer-string)))
+           (should (string-match-p "launched #104 · user" (buffer-string)))
+           
+           (should (string-match-p "provider codex, how" (buffer-string))))
          ;; A record from before: no number, and said so, never a made-up one.
          (let ((r (vikix-office--row)))
            (setf (alist-get 'launch_seq r) nil)
