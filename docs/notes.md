@@ -42,7 +42,7 @@ Everything is under **C-c n**:
 
 | Keys | What it does |
 |---|---|
-| `C-c n a` | The agenda: this week, then every TODO in your notes and their journal |
+| `C-c n a` | The agenda: this week, then every TODO in your notes, their journal and your Tracks (`tracks/`, the Budanth plugin's) |
 | `C-c n t` | Every TODO; `t` on one ticks it done |
 | `C-c n c` | A note into the inbox |
 | `C-c n o` | Open a notes file, the inbox first |

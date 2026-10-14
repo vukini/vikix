@@ -86,10 +86,12 @@ inbox.org in `vikix-notes-directory'.")
 ;;; The agenda
 
 (defun vikix-notes-agenda-files ()
-  "The notes folder and its journal: every .org file in them."
+  "The notes folder, its journal and its tracks (Budanth's Tracks, Org
+files of yours in tracks/): every .org file in those that exist."
   (seq-filter #'file-directory-p
               (list vikix-notes-directory
-                    (expand-file-name vikix-notes-journal vikix-notes-directory))))
+                    (expand-file-name vikix-notes-journal vikix-notes-directory)
+                    (expand-file-name "tracks" vikix-notes-directory))))
 
 (defvar vikix-notes--agenda-set nil
   "The org-agenda-files this file last set: while it's still that, it's
