@@ -29,7 +29,21 @@ done
 
 t=$(mktemp -d)
 pids=()
-cleanup() { for p in "${pids[@]}"; do kill "$p" 2>/dev/null || true; done; rm -rf "$t"; }
+cleanup() {
+  local p
+  for p in "${pids[@]}"; do kill "$p" 2>/dev/null || true; done
+  for _ in $(seq 1 30); do
+    local alive=0
+    for p in "${pids[@]}"; do kill -0 "$p" 2>/dev/null && alive=1; done
+    [ "$alive" = 0 ] && break
+    sleep 0.1
+  done
+  for p in "${pids[@]}"; do
+    kill -0 "$p" 2>/dev/null && kill -KILL "$p" 2>/dev/null || true
+    wait "$p" 2>/dev/null || true
+  done
+  rm -rf "$t"
+}
 trap cleanup EXIT
 fail=0
 check() { "${@:2}" || { echo "FAIL: $1"; fail=1; }; }
@@ -69,12 +83,23 @@ ask '(unmap-all-message-windows)' >/dev/null
 win() {   # win TITLE: a window, and wait till StumpWM has it
   LIBGL_ALWAYS_SOFTWARE=1 alacritty --class keystest --title "$1" -e sleep 300 >/dev/null 2>&1 &
   pids+=($!)
-  for _ in $(seq 1 40); do
-    [ "$(ask "(princ (if (find \"$1\" (screen-windows (current-screen)) :key (function window-title) :test (function equal)) 1 0))")" = 1 ] && break
-    sleep 0.25
-  done
-  sleep 0.3
+  settled "$1" focused
 }
+# X input and Swank reads arrive independently. Wait for the state a key
+# needs or produces, not for a guessed amount of time after sending it.
+settled() {
+  local expected=$1 actual='' end=$((SECONDS + 15))
+  shift
+  while (( SECONDS < end )); do
+    actual=$("$@")
+    [ "$actual" = "$expected" ] && return 0
+    sleep 0.1
+  done
+  echo "FAIL: waiting for $*: expected '$expected', got '$actual'"
+  exit 1
+}
+focused() { ask '(princ (and (current-window) (window-title (current-window))))'; }
+
 key() { xdotool key "$1"; sleep 0.5; }
 where() { ask "(princ (group-number (window-group (find \"$1\" (screen-windows (current-screen)) :key (function window-title) :test (function equal)))))"; }
 sends() { ask '(princ (format nil "~{~a~^ ~}" *vikix-workspace-send-keys*))'; }
@@ -86,30 +111,44 @@ check "Super+Ctrl+digit sends nothing any more: $(bound s-C-2)" test "$(bound s-
 
 win A; win B
 key super+shift+2
+settled 2 where B
 check "Super+Shift+2 sends the window to workspace 2: $(where B)" test "$(where B)" = 2
 check "and you stay where you were" test "$(ask '(princ (group-number (current-group)))')" = 1
 
-ask '(run-commands "hsplit")' >/dev/null; win C; sleep 0.3
+ask '(run-commands "hsplit")' >/dev/null; win C
 frame() { ask '(princ (frame-number (window-frame (current-window))))'; }
 before=$(frame)
+moved_right() { [ "$(frame)" != "$before" ] && echo 1 || echo 0; }
 key super+shift+l
+settled 1 moved_right
 check "Super+Shift+l moves the window to the frame on the right: $before, then $(frame)" test "$(frame)" != "$before"
 key super+shift+h
+settled "$before" frame
 check "Super+Shift+h moves it back left: $(frame)" test "$(frame)" = "$before"
 
 # The arrows walk the workspaces: Right from 1 is 2, Left from 1 is round
 # the end to 9; Shift takes the window along and goes with it.
 ws() { ask '(princ (group-number (current-group)))'; }
 key super+Right
+settled 2 ws
 check "Super+Right goes to the workspace on the right: $(ws)" test "$(ws)" = 2
-key super+Left; key super+Left
+key super+Left; settled 1 ws
+key super+Left; settled 9 ws
 check "Super+Left twice goes round the end to 9: $(ws)" test "$(ws)" = 9
 key super+Right
+settled 1 ws
+settled C focused
 check "and Right from the last comes round to 1: $(ws)" test "$(ws)" = 1
 key super+shift+Right
+settled 2 ws
+settled 2 where C
+settled C focused
 check "Super+Shift+Right takes the window to workspace 2 and goes with it: C on $(where C), you on $(ws)" test "$(where C) $(ws)" = "2 2"
 check "and the window has the focus there" test "$(ask '(princ (window-title (current-window)))')" = C
 key super+shift+Left
+settled 1 ws
+settled 1 where C
+settled C focused
 check "Super+Shift+Left brings it back to 1: C on $(where C), you on $(ws)" test "$(where C) $(ws)" = "1 1"
 check "Super+Up is free: $(bound s-Up)" test "$(bound s-Up)" = nothing
 
@@ -118,7 +157,9 @@ setxkbmap gb; sleep 1
 ask '(vikix-bind-workspace-keys)' >/dev/null
 check "on a British keyboard the keys follow it: $(sends)" grep -q '^s-parenright s-exclam s-quotedbl s-sterling ' <<<"$(sends)"
 check "and the US ones that differ are let go: $(bound s-at)" test "$(bound s-at)" = nothing
+settled C focused
 key super+shift+3
+settled 3 where C
 check "Super+Shift+3 there sends the window to workspace 3: $(where C)" test "$(where C)" = 3
 
 # Where the digits themselves need Shift, Shift+digit can't be the key.

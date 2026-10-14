@@ -11,14 +11,6 @@ Noted 2026-10-05, by the guides check; the packages added 2026-10-11 (Vikix 0.72
 
 **Next step.** Plug an iPhone into a machine that has the feature, trust the computer on the phone, and see the folder open in Esploro; if it doesn't, `idevicepair pair` and `ifuse /tmp/phone` by hand say which step is missing.
 
-## Some screen tests still race keyboard input under load
-
-Updated 2026-10-14. The socket now distinguishes a runnable main thread from a sleeping one, and `tests/main.sh` waits for the grid and layout picker states instead of assuming a key was handled after a fixed sleep. Both socket and main passed with six CPU workers sharing two CPUs.
-
-**What remains.** In the changed-file run (starting load 7.01 on four cores), `tests/keys.sh` reported that Super+Shift+2 left window B on workspace 1, then its window-list assertion failed too. The same commit passed `tests/run.sh keys` alone in 24 seconds. This test uses Swank, not the socket; its window and key helpers still use fixed sleeps.
-
-**Next step.** Make the keyboard test wait for the intended window to have focus before sending the key, then for the expected workspace state. Until that is covered, rerun a screen test that fails in a shared run alone before treating it as a code regression.
-
 ## Alacritty sometimes fails to copy ("Failed to set new owner of XCB selection")
 
 Noted 2026-10-02. Minor.
