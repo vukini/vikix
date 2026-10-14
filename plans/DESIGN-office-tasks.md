@@ -2,7 +2,7 @@
 
 The Office shows agents; it should show the work. A task of its own, apart from the agent doing it and the desk it is done at, with a state that is the work's and not the worker's; what needs you, in one list, with the question itself; a queue with priorities and an order, and a scheduler that starts the next task only when you let it; the order the workers were launched in, kept; and a history of every task that outlives it.
 
-Drafted 2026-10-10 for TODO item 115, from Vid's brief ("Office task management, priorities and ergonomics"). *2026-10-14: phase 1 (task identity and metadata) shipped: `lib/tasks.py`, the arms `tasks`, `task`, `events` and `exited`, the snapshot's version 2, the Office's launch number and task record box, the MCP tool `tasks`, the release's `released`, the migration; the sections it built are cut to what changed. The rest is not built.* Kept like the other designs: what ships is deleted from it, what changes is dated. Where the brief left a choice open, the choice made is marked *decided here*, for Vid to overturn.
+Drafted 2026-10-10 for TODO item 115, from Vid's brief ("Office task management, priorities and ergonomics"). *2026-10-14: phase 1 (task identity and metadata) shipped: `lib/tasks.py`, the arms `tasks`, `task`, `events` and `exited`, the snapshot's version 2, the Office's launch number and task record box, the MCP tool `tasks`, the release's `released`, the migration; the sections it built are cut to what changed. Phase 2 (attention and decisions) was implemented 2026-10-14; later phases remain.* Kept like the other designs: what ships is deleted from it, what changes is dated. Where the brief left a choice open, the choice made is marked *decided here*, for Vid to overturn.
 
 ---
 
@@ -49,55 +49,32 @@ Shipped 2026-10-14 (phase 1): the record, the rules, the sequence, adoption, the
 - `adopt` is idempotent by the desk, the time and the words as well as by the ids written back, so a record whose ids can't be written is never adopted twice; the live task of a desk with a launch and no `left` is read as *running*, with none as *ready*; a history entry's `finished` is *ready for release*, as the table says, except on a desk the release closed, where it is *completed*.
 - The plan runner's workers carry `origin.kind` `automation`, `source` `plan NAME`, through `VIKIX_TASK_ORIGIN` in its environment; the runner is otherwise unchanged (its `at-once` and chains stay its own until phase 3).
 
-## Needs attention
+## Attention and decisions (phase 2)
 
-`attention(snapshot)` in `lib/office.py` makes the list from the tasks, the agents and the notes, each item:
+Implemented 2026-10-14. The commands, storage and user workflow are in
+`docs/agents.md`, “Needs attention and decisions”; the code is `lib/tasks.py`
+(decisions), `lib/office.py` (attention and user actions), `lib/agents/work.py`
+(the CLI) and `config/emacs/vikix-office.el` (the attention box and answers).
+The snapshot remains version 2, with additive `attention` and task `questions`.
 
-```
-{"kind": "decision", "task": "t-…", "title": "the Wi-Fi picker…", "project": "vikix", "desk": "wifi-fix",
- "worker": "claude 48213", "provider": "claude", "since": 1760090000, "seq": 104,
- "why": "asks: keep the old order under --no-scan, or drop it?",
- "question": {...the decision...}, "actions": ["answer", "go", "tell"]}
-```
+Decisions are durable inbox items themselves: their answer's `delivered`
+field is acknowledged by the inbox reader under the decision lock. This
+avoids a second file that could lose an answer between two writes. The
+answer remains readable after delivery. The task lock serializes the
+limit of ten open questions; an answer leaves other blocking decisions
+open and never restarts a stopped worker. Ordinary handoff changes cannot
+clear an unanswered blocking decision.
 
-| Kind | Raised by | The line says | Acts |
-|---|---|---|---|
-| decision | a registered decision without an answer | the question, the recommended choice | Answer…, Go to agent |
-| question | the plugin's `reply` or `question` note with no decision registered (inferred) | the line it said | Go to agent, Register as decision… |
-| permission | the plugin's `ask` note; Codex's title | *waits for your yes* | Go to agent |
-| tests failed | the newest check failed and is fresh, and the worker is idle or gone | the failing tests' names, the first line | Go to agent, Test again, Tell… |
-| review | task *needs review*, its tests passed or off | the handoff's next step | Accept, Back to work…, Diff (the Git state) |
-| release | task *ready for release*; a terminal in `gup` or `close` attention | *release it*, *gup*, *close the terminal* | Release… (runs `.claude/release` in a terminal), Go to agent |
-| release stopped | a release note whose state says refused or stopped (`.claude/release` writes it: a rebase that conflicts, main behind origin) | the note's line | Go to agent, Release again… |
-| clash | the journal's `asked` or `waiting` entries (two workers on one file; the deadlock of turns) | the file, both workers | Go to agent, Turns on/off |
-| proposed | a task in *backlog* with `origin.kind` `agent` | who proposed it, under which parent | Approve, Cancel, Edit… |
-| worker stopped | task *blocked on worker* | how it left (`left.reason`, the exit code), files uncommitted then | Resume…, Hand to…, Cancel |
-| blocked by task | task *blocked* on another | which, and that one's state | Go to that task |
-| uncertain | a *running* task whose worker's state is inferred or unknown and nothing has come from it (no event, no journal edit, no title change) for `quiet` minutes (20, `~/.config/vikix/office`) | *no sign from codex for 25 min* | Go to agent, Tell… |
-| discovery unavailable | `live_known` false | the error | Refresh |
+Notifications share stable ids across the writer and the Office. Snapshot
+reads do not notify; the Office refresh opts in, as does `attention --notify`.
+Provider notes supply their timestamp; a title alone has no reliable time,
+so its item says unknown. Clashes must still be uncommitted, not merely an
+old journal entry. The desks map's `?` opens the attention menu.
 
-An idle terminal is never an item by itself, and never counts as done. When the snapshot cannot tell (discovery unavailable, a provider with no hook and no mark), the item says *status uncertain* and the row's worker column says *unknown*, as `live_known` does today. Items are ordered: decisions and permissions first (the worker stands still), then stopped workers, failed tests, clashes, reviews, releases, proposals, uncertain. `since` is the event that raised it (the note's time, the decision's `at`, the check's, the status change), so *waiting 25 min* is true. A desktop notification is sent once per item when it is raised (the report `status_told` already sends for a status; it moves here and covers the other kinds), never again while it stands.
-
-`vikix agents attention` prints the same list in a terminal; the bar's agent-waiting field keeps its one-line note (that plugin stays the detector; the Office reads its notes).
-
-## Decisions
-
-A worker that needs a choice registers it, and the Office shows it where you look:
-
-```sh
-vikix agents ask "Keep the old order under --no-scan?" \
-  --choice "keep: --no-scan stays, one more test" --choice "drop: simpler, a user of it would notice" \
-  --recommend keep --context "docs/wifi.md names --no-scan" --blocks
-# prints: decision d-20261010-2b9c41 registered; vikix agents ask --wait d-20261010-2b9c41 waits for the answer
-vikix agents ask --wait d-20261010-2b9c41          # blocks up to 10 min (VIKIX_ASK_LIMIT), prints the answer, exit 3 when none yet
-vikix agents answer d-20261010-2b9c41 keep          # the user; or free text; or from the Office
-```
-
-`office/decisions/d-…json`: id, task, desk, by (the worker), question, context, choices (label, consequence), recommended (with the agent's reason), blocks, at, and once given `answer` {choice or text, by, at, delivered at}. A decision with `--blocks` moves its task to *needs decision*; one without leaves the task running and is an item all the same. The MCP tools: `decide` (ACT: the same fields; the answer comes back through the inbox or a later `decision` call), `decision` (READ: one decision's state, so a worker can poll it). Texts go through `clean`; ten open decisions a task at most.
-
-**Delivery.** The answer is written into the decision and into the desk's inbox as a note `[decision d-… answered by user: keep]`; Claude Code's hook hands it over at the next tool call (`notes_for_hook`), and a worker waiting in `ask --wait` gets it the moment the file changes (it polls the file every two seconds; a hook-less provider has this road alone). `handoff` and `resume` read open decisions and answers out, as they read notes. Nothing types into the window.
-
-**The fallback**, for a worker that asks in prose and for providers that can't run the command: the agent-waiting plugin's `reply` note is the item, kind *question*, with the line it said and a *Register as decision…* act that makes the record for it, so the answer can be delivered the same way. Where there is neither a note nor a mark (Aider; Gemini CLI until tried), the task shows *uncertain* after `quiet` minutes, and the words say to look at its window. The skill's first page gains one rule: *a question the user must answer goes through `vikix agents ask` (or the tool `decide`), not only your last message*; the Stop hook's reminder (`stopping`) adds the same sentence when the turn ended with a question mark in its last line, which is a nudge, not detection.
+Later phases still own the queue, proposal approval and the full five-section
+board. Release-stop items can display a release note that says stopped or
+refused; retaining such notes after the release process exits belongs with
+phase 6's release recovery. The older desk groups remain below Needs attention.
 
 ## Priority, order and the queue
 
@@ -209,7 +186,7 @@ Every state is a word; colour follows it (the attention faces stay) and never ca
 ## Order
 
 1. **Task identity and metadata** (`lib/tasks.py`, the records, the sequence, the events, adoption, the exit line; `tasks`, `task`, `events`; the snapshot's `tasks`; the Office showing the launch number and the task's page with its history). The ground the rest stands on, and what the plan runner's desk asked for first. **Recommended first.**
-2. **Attention and decisions** (`attention()`, `ask`, `answer`, `decide`, `decision`, the delivery, the fallback, the *uncertain* rule, the Needs attention box, the notification per item, the skill's rule). The most visible change, and the one that answers the brief's first sentence.
+2. **Attention and decisions** implemented 2026-10-14; see the guide and the implementation note above.
 3. **Priorities and the scheduler** (`priority`, the queue file, `queue`, `lib/scheduler.py`, the config, the intent, `auto`, `bump`; the Queue and Blocked boxes, the keys).
 4. **The Office redrawn** (the five sections in full, the sort, the task form, the terminal board, the MCP `tasks`).
 5. **Proposals and handoffs between providers** (`propose`, `propose_task`, the policy, parent and child, `resume --use` on a task; the adapters' columns; the two Codex pieces verified where Codex is).

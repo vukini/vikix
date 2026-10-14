@@ -364,6 +364,10 @@ def desk_prompt(task, rec=None):
     every provider that takes a first prompt."""
     H = handoff_module()
     handin = H.handin_text(rec) if rec else ""
+    if rec:
+        questions = "\n".join(tasks_module().decision_words(d) for d in decisions_at(rec))
+        if questions:
+            handin = (handin + "\n" + questions).strip()
     return (task.rstrip()
             + (f"\n\nWhat the desk's record holds, left by the agent before you (vikix agents handoff shows it "
                f"whole):\n{handin}" if handin else "")

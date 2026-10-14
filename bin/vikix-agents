@@ -281,6 +281,20 @@
                        then its history from the event log, newest first.
                        ID is the task's, or a desk's name for the desk's
                        task
+  vikix agents office --answer ID TEXT  answer a decision (the user's action)
+  vikix agents office --accept DESK  accept a review after fresh passing tests
+  vikix agents office --back DESK TEXT  send a review back with feedback
+  vikix agents office --release DESK TEXT  open its release in a terminal
+  vikix agents ask QUESTION [--choice "label: consequence"] [--recommend LABEL]
+                           register a decision at your desk; repeat --choice;
+                           --context TEXT and --reason TEXT explain it,
+                           --blocks waits on this choice; --desk DESK for the user
+  vikix agents ask --wait ID  wait up to ten minutes for a decision's answer;
+                           VIKIX_ASK_LIMIT sets seconds (0 to 600), exit 3 if none
+  vikix agents answer ID TEXT  the user answers with a choice label or free text
+  vikix agents attention [--json | --menu | --notify]
+                           questions, failed tests, reviews and stopped workers;
+                           --notify tells each item once, --menu opens the list
   vikix agents events [TASK | DESK | --all] [--since WHEN] [--limit N] [--json]
                        the office's event log, newest first.
                        One line an act (a task created, launched with its
@@ -792,12 +806,12 @@ SECTIONS = (
                                                               "plan pause", "plan stop", "plan release", "plan log")),
     ("agent", "The agent's own, from its shell", ("sit", "handoff", "handoff check", "handoff session", "handoff list",
                                                 "handoff forget")),
-    ("work", "The work: tasks and their history", ("tasks", "tasks adopt", "task", "events")),
+    ("work", "The work: tasks and their history", ("tasks", "tasks adopt", "task", "ask", "ask --wait", "answer", "attention", "events")),
     ("rules", "The house rules", ("hooks",)),
     ("scripts", "For hooks, the Office and scripts", ("desks", "place", "touch", "stopping", "left", "exited --code", "office --json", "office --go",
                                                       "office --close-agent", "office --forget", "office --purge-archive",
                                                       "office --form", "office --plan", "office --desk", "office --worker",
-                                                      "office --close-desk", "office --project",
+                                                      "office --close-desk", "office --project", "office --answer", "office --accept", "office --back", "office --release",
                                                       "--waits")),
 )
 
@@ -919,7 +933,7 @@ def main(argv):
         import office
         try:
             return office.main(sys.modules[__name__], argv[1:])
-        except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as e:
+        except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired, tasks_module().TaskError) as e:
             die(str(e))
     if argv and argv[0] == "plan":
         sys.path.insert(0, os.path.join(VIKIX_DIR, "lib"))
@@ -952,6 +966,11 @@ def main(argv):
         return tasks_cmd(argv[1:])
     if argv and argv[0] == "task":
         return task_cmd(argv[1:])
+    if argv and argv[0] in ("ask", "answer", "attention"):
+        try:
+            return {"ask": ask_cmd, "answer": answer_cmd, "attention": attention_cmd}[argv[0]](argv[1:])
+        except (tasks_module().TaskError, OSError, ValueError) as e:
+            die(str(e))
     if argv and argv[0] == "events":
         return events_cmd(argv[1:])
     if argv and argv[0] == "exited":

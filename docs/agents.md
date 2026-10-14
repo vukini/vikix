@@ -838,3 +838,59 @@ actions wait for a successful refresh. `vikix agents office --json` exposes
 the same snapshot to scripts, including discovery errors and the release
 queue; the read-only MCP tool `office` returns it too. It is a view of
 existing desks and handoffs, not another task store.
+
+## Needs attention and decisions
+
+The Office starts with **Needs attention**: individual questions, permissions,
+failed tests, reviews, releases, stopped workers, and uncertain activity.
+Each item names its task and worker, says why it needs you, and shows how
+long it has waited when that time is known. An idle terminal alone never
+means a task is finished. Failed tests appear only while their result is
+fresh and the worker is idle or gone. A review's Accept control requires
+fresh passing tests, or the desk's explicit no-tests setting.
+
+`vikix agents attention` prints the same list; `--json` exposes its records.
+`Super+Alt+d` then `?`, or Super+m → AI → Agents: what needs you, opens its
+menu. The Office refresh and `attention --notify` notify once per item,
+including across Office restarts; a registered question notifies at once.
+Read-only snapshots and the MCP `office` tool do not notify.
+
+Workers register choices explicitly, so the question survives a restart:
+
+```sh
+vikix agents ask "Keep the old order?" \
+  --choice "keep: compatible with existing scripts" \
+  --choice "drop: simpler implementation" \
+  --recommend keep --reason "Existing scripts still use it" \
+  --context "The guide documents both orders" --blocks
+```
+
+There can be ten open questions per task. For an active task, `--blocks`
+puts it in *needs decision*; a stopped task stays blocked. Without it, the
+worker may continue independent work.
+In the Office, **Answer…** (or `D` on a question or its desk) offers the
+choices and **Other…** for your own words. No recommendation is submitted
+without your choice. You can also run `vikix agents answer ID "your answer"`.
+Agents cannot answer through the CLI or MCP. The free-text answer remains
+text; it is never executed as a command.
+
+An answer enters the task's inbox, which hooks deliver at the next call.
+Providers without hooks can run `vikix agents ask --wait ID`: it waits up to
+ten minutes, then exits 3 if still unanswered. `VIKIX_ASK_LIMIT` chooses a
+shorter deadline in seconds. MCP `decide` registers a question and `decision`
+reads it. The answer is retained in `office/decisions/ID.json`, even after
+inbox delivery, and appears in handoff and resume. Answering the last
+blocking question lets a waiting task run again; it never starts a process
+or resumes a task blocked because its worker exited.
+
+An inferred question has **Register decision…** to give it a record.
+Permission requests stay in the worker's own approval interface; **Go to
+agent** takes you there. **Accept review** marks work ready for release;
+**Back to work…** leaves feedback in the inbox. **Release…** asks for a
+summary and opens the project's release script in a terminal; it does not
+push. Other items' **Desk** button opens the existing task controls.
+
+A running task with an inferred or unknown worker state and no recent
+activity becomes *uncertain* after 20 minutes. `quiet=MINUTES` in
+`~/.config/vikix/office` changes that threshold. Unavailable discovery is
+shown explicitly; missing evidence is not a claim that a worker stopped.

@@ -129,8 +129,12 @@ def task_rows(api, events_by_task, errors):
     T = api.tasks_module()
     rows = {}
     try:
+        questions = {}
+        for d in T.decisions():
+            questions.setdefault(d['task'], []).append(d)
         for t in T.all_tasks(strict=True):
             t = dict(t)
+            t['questions'] = questions.get(t['id'], [])
             t['events'] = events_by_task.get(t['id'], [])[:40]
             t['origin_words'] = T.origin_words(t)
             t['launch_words'] = T.launch_words(t)
@@ -153,6 +157,180 @@ def events_grouped(api):
         return {}
     return out
 
+
+
+def attention(snapshot, now=None, quiet=20):
+    """Actionable items, not a guess that an idle worker finished its task.
+    Stable ids include the event time; refreshes never reset waiting time."""
+    now = int(time.time()) if now is None else now
+    items = []
+    desks = {r.get('task_record', {}).get('id'): r for r in snapshot.get('desks', [])}
+    def add(kind, task, row, why, since=None, question=None, actions=()):
+        worker = (row.get('agents') or [{}])[0]
+        item = {'id': question['id'] if question else f"{kind}:{task.get('id', row.get('id', 'office'))}:{since or 'unknown'}",
+                'kind': kind, 'task': task.get('id'), 'title': task.get('title') or row.get('title') or 'Office',
+                'project': task.get('project', ''), 'desk': row.get('id') or task.get('desk', {}).get('worktree', ''),
+                'worker': f"{worker.get('agent', '')} {worker.get('pid', '')}".strip(),
+                'provider': worker.get('agent') or task.get('launch', {}).get('provider', ''),
+                'pid': worker.get('pid'), 'since': since, 'seq': task.get('launch', {}).get('seq'),
+                'why': why, 'question': question, 'actions': list(actions)}
+        items.append(item)
+    if not snapshot.get('live_known', True):
+        add('discovery unavailable', {}, {}, '; '.join(snapshot.get('errors') or ['Live activity unknown']), actions=['refresh'])
+    work = [(t, desks.get(t['id'], {})) for t in snapshot.get('tasks', [])]
+    work += [({}, r) for r in snapshot.get('desks', []) if not r.get('task_record')]
+    for task, row in work:
+        state = task.get('status', {}).get('value')
+        if state in ('completed', 'cancelled'):
+            if row.get('attention') in ('gup', 'close'):
+                why = 'run gup to push and update' if row['attention'] == 'gup' else 'close the finished terminal'
+                add('release', task, row, why, task.get('done'), actions=['go'])
+            continue
+        status_at = task.get('status', {}).get('at')
+        questions = [d for d in task.get('questions', []) if not d.get('answer')]
+        for d in questions:
+            add('decision', task, row, d['question'], d['at'], d, ['answer', 'go'])
+        for a in row.get('agents', []):
+            # A provider's last prose question can stay on its terminal
+            # until the next turn. An answer to that very question has
+            # already resolved it; a newer question is still shown.
+            if a.get('note_kind') in ('reply', 'question') and any(
+                    d.get('answer') and d['question'].strip() == (a.get('said') or '').strip()
+                    and a.get('attention_since') and d['answer']['at'] >= a['attention_since']
+                    for d in task.get('questions', [])):
+                continue
+            s = a.get('state')
+            if s in ('permission', 'asks') or a.get('attention') == 'asks':
+                if not questions:
+                    kind = 'question' if a.get('note_kind') in ('reply', 'question') else 'permission'
+                    add(kind, task, dict(row, agents=[a]), a.get('said') or 'waits for your yes', a.get('attention_since'),
+                        actions=['go', 'register'] if kind == 'question' else ['go'])
+            elif (s in ('question', 'waiting') or a.get('note_kind') in ('reply', 'question')) and not questions:
+                add('question', task, dict(row, agents=[a]), a.get('said') or 'waiting for input', a.get('attention_since'), actions=['go', 'register'])
+        if state == 'needs decision' and not questions and not any(i['task'] == task.get('id') and i['kind'] in ('question', 'permission') for i in items):
+            add('question', task, row, row.get('next_action') or 'waiting for a decision', status_at, actions=['go', 'register'])
+        checks = row.get('checks') or []
+        latest = checks[-1] if checks else {}
+        fresh = latest.get('freshness', '') == 'fresh' and not latest.get('skipped')
+        idle = not any(a.get('state') in ('working', 'running') for a in row.get('agents', []))
+        if latest and not latest.get('ok') and fresh and idle and not row.get('testing'):
+            add('tests failed', task, row, latest.get('name', 'tests') + ': ' + latest.get('note', '').split('\n')[0], latest.get('at'), actions=['go', 'test', 'tell'])
+        if state == 'needs review' and not row.get('testing') and (row.get('tests_off') or (latest.get('ok') and fresh)):
+            add('review', task, row, row.get('next_action') or 'review the handoff', status_at, actions=['accept', 'back', 'go', 'tell'])
+        if state == 'ready for release' or row.get('attention') in ('gup', 'close'):
+            terminal = row.get('attention')
+            why = 'run gup to push and update' if terminal == 'gup' else 'close the finished terminal' if terminal == 'close' else row.get('next_action') or 'ready for release'
+            add('release', task, row, why, status_at, actions=['go'] if terminal in ('gup', 'close') else ['release', 'go'])
+        if state == 'blocked':
+            b = task.get('blocked') or {}
+            kind = 'worker stopped' if b.get('on') == 'worker' else 'blocked by task' if str(b.get('on', '')).startswith('t-') else 'blocked'
+            add(kind, task, row, b.get('why') or task.get('status', {}).get('reason') or 'blocked', status_at, actions=['go', 'tell'])
+        if state == 'backlog' and task.get('origin', {}).get('kind') == 'agent':
+            add('proposed', task, row, 'proposed by ' + task['origin'].get('by', 'an agent'), task.get('created'), actions=['go'])
+        last = max([task.get('activity') or 0] + [a.get('activity_at') or 0 for a in row.get('agents', [])])
+        worker = row.get('worker_state') or task.get('worker') or {}
+        if state == 'running' and worker.get('sure', 'unknown') in ('inferred', 'unknown') and last and now - last >= quiet * 60:
+            add('uncertain', task, row, f'no reliable activity for {(now-last)//60} min; inspect the worker', last, actions=['go', 'tell'])
+    for e in snapshot.get('clashes', []):
+        task = next((t for t in snapshot.get('tasks', []) if t.get('desk', {}).get('worktree') == e.get('folder')), {})
+        row = desks.get(task.get('id'), {})
+        add('clash', task, row, (e.get('file') or 'workers waiting on the same file') + ' — ' + ', '.join(e.get('with') or []), e.get('at'), actions=['go'])
+    for r in snapshot.get('releases', []):
+        if any(w in r.get('state', '') for w in ('refused', 'stopped')):
+            add('release stopped', {}, {'id': r.get('topic'), 'title': r.get('topic')}, r['state'], r.get('since'), actions=['go'])
+    rank = {k: i for i, k in enumerate(('decision', 'permission', 'question', 'worker stopped', 'tests failed', 'clash', 'review', 'release stopped', 'release', 'proposed', 'blocked by task', 'blocked', 'uncertain', 'discovery unavailable'))}
+    return sorted(items, key=lambda i: (rank.get(i['kind'], 99), i['since'] or now, i['id']))
+
+
+def quiet_minutes():
+    path = os.path.join(os.environ.get('XDG_CONFIG_HOME') or os.path.expanduser('~/.config'), 'vikix', 'office')
+    try:
+        with open(path) as f:
+            for line in f:
+                match = re.fullmatch(r'\s*quiet\s*=\s*(\d+)\s*(?:#.*)?', line.strip())
+                if match:
+                    return max(1, int(match[1]))
+    except OSError:
+        pass
+    return 20
+
+
+def notify_attention(items, folder):
+    """Once per stable item, including across Office restarts. Explicitly
+    called by the UI/notification command; a read-only snapshot never notifies."""
+    if not os.environ.get('DISPLAY') or not shutil.which('notify-send'):
+        return
+    os.makedirs(folder, exist_ok=True)
+    path = os.path.join(folder, 'attention-notified.json')
+    with open(path + '.lock', 'a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            with open(path) as f:
+                seen = json.load(f)
+        except (OSError, ValueError):
+            seen = {}
+        if not isinstance(seen, dict):
+            seen = {}
+        deadline = time.monotonic() + 3
+        for item in items:
+            if time.monotonic() >= deadline:
+                break
+            if item['id'] in seen:
+                continue
+            try:
+                result = subprocess.run(['notify-send', '-a', 'Vikix', item.get('notification_title') or 'Office: ' + item['kind'], item['why'][:300]], timeout=max(0.01, deadline - time.monotonic()), check=False)
+                if result.returncode == 0:
+                    seen[item['id']] = int(time.time())
+            except (OSError, subprocess.TimeoutExpired):
+                continue
+        tmp = path + '.tmp'
+        with open(tmp, 'w') as f:
+            json.dump(seen, f)
+        os.replace(tmp, path)
+
+
+def title_observations(folder):
+    try:
+        with open(os.path.join(folder, 'attention-titles.json')) as f:
+            data = json.load(f)
+            return {k: v for k, v in data.items() if isinstance(v, dict) and isinstance(v.get('digest'), str) and isinstance(v.get('at'), int)} if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def title_activity(agent, observed, now):
+    title = agent.get('title') or ''
+    if not title:
+        return 0
+    key = f"{agent['pid']}:{agent.get('process_start', '')}"
+    previous = observed.get(key)
+    digest = hashlib.sha256(title.encode()).hexdigest()
+    # A first sighting is not evidence that a title changed just now.
+    return (now if previous['digest'] != digest else previous['at']) if previous else 0
+
+
+def remember_titles(data, folder):
+    """Only the UI/explicit notifier keeps observations; reads stay read-only.
+    Hashes suffice to notice changes and do not retain terminal titles."""
+    if not data.get('live_known'):
+        return
+    os.makedirs(folder, exist_ok=True)
+    path = os.path.join(folder, 'attention-titles.json')
+    with open(path + '.lock', 'a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        before, after = title_observations(folder), {}
+        for row in data.get('desks', []):
+            for a in row.get('agents', []):
+                if not a.get('title'):
+                    continue
+                key = f"{a['pid']}:{a.get('process_start', '')}"
+                digest = hashlib.sha256(a['title'].encode()).hexdigest()
+                old = before.get(key)
+                after[key] = {'digest': digest, 'at': (old['at'] if old['digest'] == digest else data['at']) if old else 0}
+        tmp = path + '.tmp'
+        with open(tmp, 'w') as f:
+            json.dump(after, f)
+        os.replace(tmp, path)
 
 def snapshot(api):
     H = api.handoff_module()
@@ -218,7 +396,21 @@ def snapshot(api):
         table = api.process_table() if live_known else {}
     except Exception:  # noqa: BLE001  the shells left are a note, never the snapshot's failure
         table = {}
+    journal = api.journal_read()
+    observed_titles = title_observations(api.tasks_module().OFFICE)
     for a in agents:
+        events = [e for e in journal if e.get('pid') == a['pid']]
+        a['activity_at'] = max(max((e.get('at', 0) for e in events), default=0), title_activity(a, observed_titles, int(time.time())))
+        try:
+            note = os.path.join(api.STATE, 'vikix', 'agents', str(a.get('window', '')))
+            if a.get('window') and os.path.isfile(note):
+                with open(note) as f:
+                    bits = f.readline(200).split()
+                a['note_kind'] = bits[0] if bits else ''
+                a['attention_since'] = int(bits[1]) if len(bits) > 1 and bits[1].isdigit() else int(os.stat(note).st_mtime)
+                a['activity_at'] = max(a['activity_at'], a['attention_since'])
+        except OSError:
+            pass
         if a['pid'] in held and a.get('state') in ('working', 'running', 'idle'):
             a['doing'], a['waits'] = held[a['pid']]
         # Shells it left sleeping in a loop (vikix agents tidy), while at its prompt.
@@ -324,6 +516,10 @@ def snapshot(api):
         task = tasks.get(((row.get('task') or {}).get('id') or ''), {})
         row['task_record'] = task
         row['worker_state'] = T.worker_state(row['agents'][0] if row['agents'] else None, task) if task else {}
+        if task and not live_known:
+            row['worker_state'] = {'state': 'unknown', 'source': 'discovery unavailable', 'sure': 'unknown'}
+        elif task and row['paused']:
+            row['worker_state'] = {'state': 'paused', 'source': 'the pause file', 'sure': 'reliable'}
         if task:
             task['worker'] = row['worker_state']
         row['launch_seq'] = (task.get('launch') or {}).get('seq') if task else None
@@ -341,7 +537,7 @@ def snapshot(api):
     # sequence, the last launch number; desks as before. A new version goes into
     # vikix-office-snapshot-versions (config/emacs/vikix-office.el) too, or the page
     # refuses the snapshot and the Office shows nothing (0.72.68 did; tests/office-ui.el holds them together).
-    return {'version': 2, 'at': int(time.time()), 'live_known': live_known, 'errors': errors,
+    result = {'version': 2, 'at': int(time.time()), 'live_known': live_known, 'errors': errors,
             'releases': releases, 'releases_kept': releases_kept, 'plans': plans, 'plans_done': plans_done,
             'tasks': sorted(tasks.values(), key=lambda t: (0 if (t.get('launch') or {}).get('seq') else 1,
                                                            (t.get('launch') or {}).get('seq') or 0, t.get('created') or 0)),
@@ -354,6 +550,16 @@ def snapshot(api):
                                            r['title'].lower(), r['id'])),
             'archive': sorted((r for r in rows.values() if r['archived']), key=lambda r: (r['title'].lower(), r['id'])),
             'archive_token': hashlib.sha256(''.join(sorted(json.dumps(r, sort_keys=True) for r in archive_records)).encode()).hexdigest()}
+
+    result['clashes'] = []
+    for e in journal:
+        if e.get('kind') not in ('asked', 'waiting') or not any(a['pid'] == e.get('pid') for a in agents):
+            continue
+        others = [(a, 'waiting') for a in agents if api.who(a) in (e.get('with') or [])]
+        if e.get('file') and api.clash_live(e['file'], others):
+            result['clashes'].append(e)
+    result['attention'] = attention(result, quiet=quiet_minutes())
+    return result
 
 
 def workers_before(row):
@@ -797,9 +1003,65 @@ def launch(api, tty=False):
                    check=False, timeout=20)
 
 
+def release_action(api, folder, summary):
+    by, me = api.by_me()
+    if me or by != 'user':
+        raise ValueError('the user starts a release from the Office')
+    folder, rec = api.desk_for([folder])
+    script = os.path.join(folder, '.claude', 'release')
+    summary = api.tasks_module().word(summary, 'release summary', 200).strip()
+    if not summary or not rec or not os.path.isfile(script):
+        raise ValueError('this desk needs a release script and a summary')
+    branch = rec['desk'].get('branch') or ''
+    if not branch or branch.startswith('-'):
+        raise ValueError('the desk has no release branch')
+    # A terminal preserves the release workflow and its visible checks.
+    # The summary is an argv element, never shell source.
+    api.open_terminal(folder, ['bash', '-c', '"$@"; code=$?; read -r -p "Press Enter to close"; exit "$code"',
+                               'office-release', script, branch, summary])
+    print('Release opened in a terminal; nothing pushed.')
+
+
+def review_action(api, folder, accept, text=''):
+    by, me = api.by_me()
+    if me or by != 'user':
+        raise ValueError('only the user accepts a review or sends it back')
+    folder, rec = api.desk_for([folder])
+    T = api.tasks_module()
+    task = T.load((rec or {}).get('task', {}).get('id', ''))
+    if not task or task['status']['value'] != 'needs review':
+        raise ValueError('this task is no longer waiting for review; refresh first')
+    if accept:
+        checks = rec.get('checks') or []
+        latest = checks[-1] if checks else {}
+        if rec['desk'].get('tests') != 'off' and (not latest.get('ok') or latest.get('skipped') or api.handoff_module().freshness(latest, api.handoff_module().observe(folder)) != 'fresh'):
+            raise ValueError('run the tests on the current code before accepting the review')
+        api.handoff_apply(folder, {'status': 'finished', 'next': 'Review accepted by the user; ready for release.'}, by)
+        print('Review accepted; ready for release.')
+    else:
+        text = T.clean(text, 'review feedback').strip()
+        if not text:
+            raise ValueError('say what needs changing')
+        api.inbox_add(folder, text, by)
+        api.handoff_apply(folder, {'status': 'working', 'next': text}, by)
+        print('Sent back to work; feedback is in the inbox.')
+
+
 def main(api, args):
-    if args == ['--json']:
-        print(json.dumps(snapshot(api), ensure_ascii=False))
+    if args in (['--json'], ['--json', '--notify']):
+        data = snapshot(api)
+        if '--notify' in args:
+            remember_titles(data, api.tasks_module().OFFICE)
+            notify_attention(data['attention'], api.tasks_module().OFFICE)
+        print(json.dumps(data, ensure_ascii=False))
+    elif len(args) == 3 and args[0] == '--release':
+        release_action(api, args[1], args[2])
+    elif len(args) == 2 and args[0] == '--accept':
+        review_action(api, args[1], True)
+    elif len(args) == 3 and args[0] == '--back':
+        review_action(api, args[1], False, args[2])
+    elif len(args) == 3 and args[0] == '--answer':
+        return api.answer_cmd(args[1:])
     elif len(args) == 2 and args[0] == '--go':
         focus(api, args[1])
     elif len(args) == 3 and args[0] == '--close-agent':
@@ -829,5 +1091,5 @@ def main(api, args):
     elif args in ([], ['--tty']):
         launch(api, tty=bool(args))
     else:
-        raise ValueError('vikix agents office [--tty | --json | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN | --pause DESK | --unpause DESK | --park DESK | --test DESK | --skip DESK | --tell DESK TEXT | --review DESK PROVIDER | --form | --plan TEMPLATE NAME PROJECT [--at-once N] [--gate me|none] [--tasks] | --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --worker DESK ["..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --close-desk DESK [--force] | --project NAME --where public|private|local|folder [--title "..."] [--next "..."] [--description "..."] [--log-apart]]')
+        raise ValueError('vikix agents office [--tty | --json [--notify] | --answer ID TEXT | --accept DESK | --back DESK TEXT | --release DESK TEXT | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN | --pause DESK | --unpause DESK | --park DESK | --test DESK | --skip DESK | --tell DESK TEXT | --review DESK PROVIDER | --form | --plan TEMPLATE NAME PROJECT [--at-once N] [--gate me|none] [--tasks] | --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --worker DESK ["..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --close-desk DESK [--force] | --project NAME --where public|private|local|folder [--title "..."] [--next "..."] [--description "..."] [--log-apart]]')
     return 0

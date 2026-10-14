@@ -79,7 +79,7 @@ def inbox_read(path):
 
 def inbox_peek(folder):
     """The notes waiting at the desk, left where they are."""
-    return inbox_read(inbox_path(folder))
+    return inbox_read(inbox_path(folder)) + decision_inbox(folder)
 
 
 def inbox_take(folder, me=None):
@@ -89,7 +89,7 @@ def inbox_take(folder, me=None):
     every note is taken, as before."""
     path = inbox_path(folder)
     if not os.path.exists(path):
-        return []
+        return decision_inbox(folder, take=True)
     started = started_at(me["pid"]) if me else 0
     others = [started_at(a["pid"]) for a in agents_at(folder) if not me or a["pid"] != me["pid"]] if me else []
     with open(path + ".lock", "w") as lock:
@@ -101,7 +101,20 @@ def inbox_take(folder, me=None):
             with open(path, "w") as f:
                 for n in left:
                     f.write(json.dumps(n, ensure_ascii=False) + "\n")
-    return mine
+    return mine + decision_inbox(folder, take=True)
+
+
+def decision_inbox(folder, take=False):
+    H = handoff_module()
+    did = H.desk_id(common_of(folder), folder)
+    rec = H.load(did) or {}
+    tid = rec.get('task', {}).get('id')
+    return tasks_module().decision_notes(did, take=take, tid=tid) if tid else []
+
+
+def decisions_at(rec):
+    tid = (rec or {}).get('task', {}).get('id')
+    return tasks_module().decisions(tid) if tid else []
 
 
 def note_line(n):
@@ -233,7 +246,18 @@ def status_told(folder, before, rec, by):
     h = rec.get("handoff") or {}
     said = {"review": "ready for review", "waiting": "waiting for you", "finished": "finished"}[status]
     body = ((h.get("next") or h.get("summary") or {}).get("text") or "").replace("\n", " ")[:200]
-    subprocess.run(["notify-send", "-a", "Vikix", f"Agent at {short(folder)}: {said}", body or f"by {by}"], check=False)
+    T = tasks_module()
+    tid = rec.get('task', {}).get('id')
+    task = T.load(tid) if tid else None
+    if status == 'waiting' and tid and T.decisions(tid, open_only=True):
+        return
+    kind = {'review': 'review', 'waiting': 'question', 'finished': 'release'}[status]
+    since = (task or {}).get('status', {}).get('at') or h.get('status', {}).get('at')
+    sys.path.insert(0, os.path.join(VIKIX_DIR, 'lib'))
+    import office as office_view
+    office_view.notify_attention([{'id': f"{kind}:{tid or folder}:{since or 'unknown'}", 'kind': kind,
+                                   'notification_title': f"Agent at {short(folder)}: {said}",
+                                   'why': body or f"by {by}"}], T.OFFICE)
 
 
 def base_of(folder):
@@ -266,8 +290,8 @@ def handoff_apply(folder, data, by):
             task_make(rec, folder, data["task"], by)
     rec = H.update(common, folder, change, branch=(git(folder, "rev-parse", "--abbrev-ref", "HEAD") or "").strip(),
                    project=project_of(folder, common))
-    status_told(folder, seen.get("before"), rec, by)
     task_moved(folder, rec, data, by, seen.get("new"))
+    status_told(folder, seen.get("before"), rec, by)
     status = ((rec.get("handoff") or {}).get("status") or {}).get("value")
     if (status == "review" and seen.get("before") != "review" and os.environ.get("VIKIX_TESTER") != "0"
             and rec["desk"].get("tests") != "off" and runner_of(folder)[1] and not tester_running(folder)):
@@ -327,6 +351,9 @@ def stopping(argv):
     if HOOK == "codex" and me:
         plugin_note("done", raw)
     reason = stop_reason(got, me)
+    last_words = got.get('last_assistant_message') or ''
+    if reason and isinstance(last_words, str) and last_words.rstrip().endswith('?'):
+        reason += ' Register a question the user must answer with vikix agents ask (or decide), not only in your last message.'
     if reason:
         print(json.dumps({"decision": "block", "reason": reason}))
     elif me:
@@ -849,11 +876,13 @@ def handoff(argv):
             die(f"{short(folder)} has no record yet: vikix agents handoff --task \"...\" starts one")
         if as_json:
             now = H.observe(folder) if os.path.isdir(folder) else {}
-            rec = dict(rec, now=now, checks=[dict(c, freshness=H.freshness(c, now)) for c in rec.get("checks", [])])
+            rec = dict(rec, questions=decisions_at(rec), now=now, checks=[dict(c, freshness=H.freshness(c, now)) for c in rec.get("checks", [])])
             print(json.dumps(rec, indent=1, ensure_ascii=False))
             return 0
         agents_at, lines = protection_lines(folder) if os.path.isdir(folder) else ([], [])
         print(H.render(rec, [who(a) for a in agents_at], lines))
+        for d in decisions_at(rec):
+            print(tasks_module().decision_words(d))
         notes = inbox_peek(folder)
         if notes:
             print("Notes waiting for its agent (vikix agents tell; delivered at its next tool call):")
@@ -1072,6 +1101,8 @@ def resume(argv):
         # The desk's task launched again (a task blocked on its worker runs;
         # another provider is a handoff between them), with the next number.
         task_launch((rec.get("task") or {}).get("id"), provider, by, "resume", mode=mode)
+    for d in decisions_at(rec):
+        print(tasks_module().decision_words(d))
     notes = inbox_peek(folder)
     if notes:
         print("Notes waiting at the desk (vikix agents tell), read out here; the user's reach the agent through its hook, "

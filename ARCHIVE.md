@@ -4,6 +4,9 @@ What shipped, or was dropped, out of `TODO.md` and `IDEAS.md`, so those two hold
 
 ## From TODO.md
 
+115. **Office attention and decisions, phase 2** (2026-10-14). Persistent questions with choices, context and a recommendation; user answers in the Office or CLI; durable inbox delivery and read-back after restart; MCP `decide` and `decision`. The attention box shows questions, permissions, fresh failed checks, reviews, releases, stopped and uncertain workers, with source times and once-per-item notifications. Review acceptance checks test freshness; sending work back leaves feedback; a release opens the existing script in a terminal. The full task board, queue, scheduler and proposals remain in TODO 115.
+
+
 ### What's next, in order (drawn up with Vid 2026-10-03)
 
 1. **The rules language.** The rules, `vikix rules`, remembering a window, the move over of every hand-written window hook, the guide (`docs/rules.md`) and the starter `rules.lisp`. What follows it is `TODO.md`'s "After the rules language".

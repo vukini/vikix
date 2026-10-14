@@ -90,3 +90,26 @@ releasing). What you may run, all of it read-only:
 Nothing of yours moves another agent's task: a task moves by its own
 worker's handoff, by the user, by the tester, by the release or by its
 worker's exit. `vikix agents tasks adopt` is the user's, run once by an update.
+
+## Questions and attention
+
+`vikix agents attention` lists what needs the user, in priority order;
+`--json` gives the same items as the Office. Super+Alt+d then `?` opens
+its menu. The Office puts these items above the desks, with waiting time
+when its source supplied one (otherwise *time unknown*).
+
+A worker registers a question on its own task:
+
+```sh
+vikix agents ask "Keep the old order?" --choice "keep: compatible" --choice "drop: simpler" --recommend keep --reason "Existing scripts use it" --blocks
+vikix agents ask --wait d-20261014-abcdef
+```
+
+`--context` adds background, `--blocks` moves the task to *needs decision*;
+omit it to keep working on independent parts. Waiting is bounded by
+`VIKIX_ASK_LIMIT` (seconds, at most 600), and exits 3 if unanswered.
+MCP `decide` registers, `decision` reads. Only the user answers, in the
+Office or with `vikix agents answer ID TEXT`. Never answer for them.
+Answers reach the task's inbox and remain in its decision record; handoff
+and resume show them even after delivery. One answer leaves other blocking
+questions open. Answering a stopped worker's question does not launch it.

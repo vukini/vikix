@@ -5,10 +5,8 @@ description: How the Vikix desktop (Void Linux + StumpWM, vikix.dev) is put toge
 
 # Vikix
 
-This machine runs **Vikix**: an opinionated desktop layer on top of an
-ordinary **Void Linux** install, built around the **StumpWM** window
-manager (written in Common Lisp). Think of it as Void, supercharged:
-inspired by Omarchy, but its own thing.
+This machine runs **Vikix**: an opinionated desktop layer on glibc Void Linux, built around
+StumpWM (Common Lisp). Void, supercharged; inspired by Omarchy.
 
 Void is not a systemd distribution. Remember:
 
@@ -19,10 +17,8 @@ Void is not a systemd distribution. Remember:
 
 ## How this skill is laid out
 
-This page is what to know always: whose files are whose, how to change
-things safely, and what never to do. The rest is in pages beside it, one
-a subject. **Read a subject's page before you act on it or answer about
-it**, rather than answer from memory:
+This page covers ownership and safety. **Read the relevant subject page
+before acting or answering**, rather than relying on memory:
 
 | Page | What it has |
 |---|---|
@@ -131,6 +127,10 @@ let the user see it, then write the same form into `user.lisp`.
 - **A project:** read `vikix project show NAME` before working on it, and at the end of a session that changed it add one entry, `vikix project log NAME "what was done" --next "the next step"`. Don't commit the log on its own. More: `~/.claude/skills/vikix/projects.md`.
 - **Software:** a feature or a language with `vikix add NAME`, a single program with `vikix pkg add NAME`, so updates keep it. More: `~/.claude/skills/vikix/system.md`.
 - If Super+F11 started you, your replies are read aloud: keep them short and spoken, and leave details on screen.
+
+A question the user must answer goes through `vikix agents ask` (MCP `decide`),
+not only your last message. Read its answer with `decision` or `ask --wait`.
+Never answer a decision yourself; the Office's Answer control is the user's.
 
 ## Never
 

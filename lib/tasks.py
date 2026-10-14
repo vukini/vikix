@@ -47,6 +47,7 @@ or move a task), lib/office.py (the snapshot), bin/vikix-mcp (the tool
 tasks) and .claude/release (released, below).
 """
 import copy
+from contextlib import nullcontext
 import fcntl
 import importlib.util
 import json
@@ -82,6 +83,7 @@ TRANSITIONS = {
     ("queued", "running"), ("ready", "running"), ("blocked", "running"),
     ("running", "needs decision"), ("running", "needs review"), ("running", "blocked"),
     ("needs decision", "running"), ("needs decision", "needs review"), ("needs decision", "blocked"),
+    ("needs review", "needs decision"), ("ready for release", "needs decision"),
     ("needs review", "running"), ("needs review", "ready for release"), ("needs review", "blocked"),
     ("running", "ready for release"), ("ready for release", "running"),
     ("ready for release", "completed"), ("needs review", "completed"),
@@ -99,6 +101,7 @@ EVENT_OF = {
     ("running", "needs decision"): "asked", ("running", "needs review"): "review asked", ("running", "blocked"): "blocked",
     ("needs decision", "running"): "answered", ("needs decision", "needs review"): "review asked",
     ("needs decision", "blocked"): "blocked",
+    ("needs review", "needs decision"): "asked", ("ready for release", "needs decision"): "asked",
     ("needs review", "running"): "sent back", ("needs review", "ready for release"): "accepted",
     ("needs review", "blocked"): "blocked",
     ("running", "ready for release"): "accepted", ("ready for release", "running"): "sent back",
@@ -600,6 +603,9 @@ def handoff_move(tid, status, by, handoff=None):
         if not to:
             _log(rec, by, f"handoff status {status}: no state of the task's for it")
             return
+        if to != 'needs decision' and any(d['blocks'] for d in decisions(tid, open_only=True)):
+            _log(rec, by, 'handoff leaves the task waiting for its open decisions')
+            return
         ok, why = can_move(rec, to)
         if not ok:
             _log(rec, by, f"handoff status {status}: {why}")
@@ -1045,6 +1051,162 @@ def event_line(e):
             + (f" #{e['seq']}" if e.get("seq") else "") + f"  by {e.get('by') or '?'}" + ("  " + ", ".join(words) if words else "")
             + (f"  [{e['task']}]" if e.get("task") and not words else ""))
 
+
+# Decisions belong to a task, not a process: a restarted worker reads the
+# same answer. Task locks serialize the ten-open limit; decision locks
+# serialize answers and their delivery. Readers see only complete files.
+DECISION_ID = re.compile(r"^d-\d{8}-[0-9a-f]{6}$")
+
+
+def decision_path(did):
+    if not isinstance(did, str) or not DECISION_ID.fullmatch(did):
+        raise TaskError("a decision id is d-YYYYMMDD-xxxxxx")
+    return os.path.join(OFFICE, "decisions", did + ".json")
+
+
+def decision(did):
+    try:
+        with open(decision_path(did)) as f:
+            return json.load(f)
+    except FileNotFoundError:
+        raise TaskError(f"no decision {did}") from None
+
+
+def decisions(tid=None, open_only=False):
+    folder = os.path.join(OFFICE, "decisions")
+    try:
+        names = os.listdir(folder)
+    except FileNotFoundError:
+        return []
+    rows = [decision(n[:-5]) for n in sorted(names) if n.endswith('.json') and DECISION_ID.fullmatch(n[:-5])]
+    return [d for d in rows if (tid is None or d['task'] == tid) and (not open_only or not d.get('answer'))]
+
+
+def decision_write(d):
+    p = decision_path(d['id'])
+    os.makedirs(os.path.dirname(p), mode=0o700, exist_ok=True)
+    tmp = p + f'.{os.getpid()}.tmp'
+    with open(tmp, 'w') as f:
+        os.chmod(tmp, 0o600)
+        json.dump(d, f, ensure_ascii=False)
+        f.write('\n')
+    os.replace(tmp, p)
+
+
+def ask(tid, question, by, choices=None, recommended='', context='', reason='', blocks=False):
+    question, by = clean(question, 'question'), word(by, 'who', 60)
+    if not question.strip():
+        raise TaskError('a decision needs a question')
+    if not isinstance(blocks, bool):
+        raise TaskError('blocks is true or false')
+    if choices is None:
+        choices = []
+    if not isinstance(choices, list) or len(choices) > 10:
+        raise TaskError('choices is a list of at most ten choices')
+    parsed = []
+    for c in choices:
+        if not isinstance(c, dict) or set(c) - {'label', 'consequence'}:
+            raise TaskError('each choice has label and consequence only')
+        label = word(c.get('label', ''), 'choice label', 80)
+        if not label or label in [p['label'] for p in parsed]:
+            raise TaskError('choice labels must be nonempty and distinct')
+        parsed.append({'label': label, 'consequence': clean(c.get('consequence', ''), 'consequence')})
+    recommended = word(recommended, 'recommended choice', 80)
+    if recommended and recommended not in [c['label'] for c in parsed]:
+        raise TaskError('recommend one of the choice labels')
+    context, reason = clean(context, 'context'), clean(reason, 'recommendation reason')
+    d = {'version': 1, 'id': 'd-' + time.strftime('%Y%m%d') + '-' + os.urandom(3).hex(),
+         'task': tid, 'by': by, 'question': question, 'choices': parsed, 'recommended': recommended,
+         'context': context, 'reason': reason, 'blocks': blocks, 'at': now_s(), 'answer': None}
+
+    def change(t):
+        if t['status']['value'] in FINAL:
+            raise TaskError('a completed or cancelled task cannot ask a decision')
+        if len(decisions(tid, open_only=True)) >= 10:
+            raise TaskError('ten decisions already open for this task')
+        d['desk'] = dict(t.get('desk') or {})
+        if not d['desk'].get('id'):
+            raise TaskError('the task needs a desk for its answer')
+        if blocks and t['status']['value'] in ('running', 'needs review', 'ready for release'):
+            _move(t, 'needs decision', by, question)
+        while os.path.exists(decision_path(d['id'])):
+            d['id'] = 'd-' + time.strftime('%Y%m%d') + '-' + os.urandom(3).hex()
+        decision_write(d)
+        t.setdefault('decisions', []).append(d['id'])
+        _log(t, by, 'asked ' + d['id'])
+    update(tid, change)
+    event('asked', by, load(tid), data={'decision': d['id']})
+    return d
+
+
+def answer(did, text, by='user'):
+    # There is deliberately no MCP answer tool. The CLI and Office also
+    # check their caller; this check keeps the model's API honest.
+    if by != 'user':
+        raise TaskError('only the user answers a decision')
+    text = clean(text, 'answer').strip()
+    if not text:
+        raise TaskError('an answer needs words')
+    p = decision_path(did)
+    with open(p + '.lock', 'a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        d = decision(did)
+        if d.get('answer'):
+            if d['answer']['text'] != text:
+                raise TaskError('this decision already has an answer')
+            if d['answer'].get('applied'):
+                return d
+        else:
+            d['answer'] = {'text': text, 'choice': text if text in [c['label'] for c in d['choices']] else None,
+                       'by': by, 'at': now_s(), 'delivered': None}
+        decision_write(d)
+        # The answer is a durable inbox item in the decision itself. The
+        # inbox reader consumes it under this lock; no two-file delivery
+        # transaction can lose or duplicate a queued answer after a crash.
+        def change(t):
+            others = [x for x in decisions(t['id'], open_only=True) if x['blocks']]
+            if d['blocks'] and not others and t['status']['value'] == 'needs decision':
+                _move(t, 'running', by, 'decision answered')
+            _log(t, by, 'answered ' + did)
+        update(d['task'], change)
+        d['answer']['applied'] = now_s()
+        decision_write(d)
+        event('answered', by, load(d['task']), data={'decision': did})
+        return d
+
+
+def decision_notes(desk, take=False, tid=None):
+    """Pending answers, as inbox notes; TAKE acknowledges under a lock.
+    The answer stays on the decision for resume and hook-less providers."""
+    notes = []
+    for old in decisions(tid):
+        if old.get('desk', {}).get('id') != desk or not old.get('answer') or old['answer'].get('delivered'):
+            continue
+        with (open(decision_path(old['id']) + '.lock', 'a') if take else nullcontext()) as lock:
+            if take:
+                fcntl.flock(lock, fcntl.LOCK_EX)
+            d = decision(old['id'])
+            a = d['answer']
+            if a.get('delivered'):
+                continue
+            notes.append({'at': a['at'], 'by': 'user', 'decision': d['id'],
+                          'text': f"[decision {d['id']} answered by user: {a['text']}]"})
+            if take:
+                a['delivered'] = now_s()
+                decision_write(d)
+    return notes
+
+
+def decision_words(d):
+    out = [f"{d['id']}: {d['question']}"]
+    if d.get('context'):
+        out.append('  Context: ' + d['context'])
+    for c in d['choices']:
+        out.append('  ' + c['label'] + ': ' + c['consequence'])
+    if d.get('recommended'):
+        out.append('  Recommended: ' + d['recommended'] + (' — ' + d['reason'] if d.get('reason') else ''))
+    out.append('  Answer: ' + d['answer']['text'] if d.get('answer') else '  Waiting for the user' + (' (blocks the task)' if d['blocks'] else ''))
+    return '\n'.join(out)
 
 if __name__ == "__main__":
     # For .claude/release, which has no desk of its own to speak from:

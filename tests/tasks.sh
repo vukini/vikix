@@ -412,7 +412,7 @@ check "--json is the records" test "$(agents tasks --json | python3 -c 'import j
 out=$(agents task c)
 check "task by a desk's name is the desk's task, with its history: $out" \
   bash -c 'grep -q "^Task $2: Chapter two, the index" <<<"$1" && grep -q "^History (" <<<"$1" && grep -q "^Launches: 3" <<<"$1"' _ "$out" "$c2"
-check "every form of the work is in help" test "$(agents help work | grep -c '^  vikix agents')" = 4
+check "every form of the work is in help" test "$(agents help work | grep -c '^  vikix agents')" = 8
 rm -f "$HOME/.config/vikix/office"
 export VIKIX_TASK_ORIGIN="plan chapters"
 agents handoff g --task "A plan's task" >/dev/null; g=$(task_of g)
@@ -435,6 +435,38 @@ print(" ".join(sorted(phase1 - seen)))
 PY
 )
 check "every kind phase 1 writes is in the log (missing: '$missing')" test -z "$missing"
+
+# Decisions go through the public commands, and a hook takes an answer once.
+agents desk book decisions --task "Choose the picker behavior" --here --use claude >/dev/null
+proc 2099 claude "$t/src/book-decisions"
+as 2099 handoff --status working >/dev/null
+out=$(as 2099 ask "Keep the order?" --choice 'keep: compatible' --choice 'drop: simpler' --recommend keep --blocks)
+decision=$(sed -n 's/^\(d-[0-9]*-[0-9a-f]*\):.*/\1/p' <<<"$out")
+check "ask registers a persistent question: $out" test -n "$decision"
+if [ -n "$decision" ]; then
+  out=$(agents attention --json)
+  check "attention exposes the registered decision through the public command: $out" \
+    python3 -c 'import json,sys; rows=json.load(sys.stdin); assert any(r["id"] == sys.argv[1] and r["kind"] == "decision" for r in rows)' "$decision" <<<"$out"
+  check "handoff reads open decisions" grep -q 'Keep the order?' <<<"$(agents handoff decisions)"
+  check "a worker cannot answer for the user" grep -q 'only the user answers' <<<"$(as 2099 answer "$decision" keep)"
+  code=0
+  VIKIX_ASK_LIMIT=0 python3 "$here/bin/vikix-agents" ask --wait "$decision" >/dev/null 2>&1 || code=$?
+  check "waiting is bounded and unanswered exits 3" test "$code" = 3
+  agents answer "$decision" keep >/dev/null
+  check "a hook-less worker can read its answer" grep -q 'Answer: keep' <<<"$(as 2099 ask --wait "$decision")"
+  check "handoff retains the answer" grep -q 'Answer: keep' <<<"$(agents handoff decisions)"
+  python3 - "$here" "$t/src/book-decisions" <<'PY' || fail=1
+import importlib.util, sys
+from importlib.machinery import SourceFileLoader
+spec = importlib.util.spec_from_loader('decision_agents', SourceFileLoader('decision_agents', sys.argv[1]+'/bin/vikix-agents'))
+a = importlib.util.module_from_spec(spec); sys.modules[spec.name] = a; spec.loader.exec_module(a)
+notes = a.inbox_take(sys.argv[2])
+assert sum('answered by user: keep' in n['text'] for n in notes) == 1, notes
+assert not a.inbox_take(sys.argv[2])
+PY
+fi
+
+check "decisions and attention" python3 -B "$here/tests/decisions.py"
 
 [ $fail = 0 ] && echo "tasks: ok (a task from each way in with its id, origin and launch number; the launcher's exit line and the hook block, never complete; the agent's words read into the table; the tester, the release and close move; every transition, the sequence at once, refusals; records from before adopted with their gaps unknown; the worker's state with how sure; the log read back)"
 exit $fail

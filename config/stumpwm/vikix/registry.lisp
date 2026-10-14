@@ -269,6 +269,9 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command agent-handoff "A desk's handoff: the task, what the agent did and left, its checks; pick a desk"
   :run "exec vikix-agents handoff --menu" :map "desks h"
   :menu "AI" :label "Agents: a desk's handoff (task, status, what is left)")
+(define-vikix-command agents-attention "Agents: questions and work that need you"
+  :run "exec vikix-agents attention --menu" :map "desks question"
+  :menu "AI" :label "Agents: what needs you")
 (define-vikix-command office "The Office: tasks, desks and agents; continue unfinished work"
   :run "exec vikix-agents office" :map "desks o"
   :menu "AI" :label "Office: tasks, desks and agents")

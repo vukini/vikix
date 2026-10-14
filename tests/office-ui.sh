@@ -53,7 +53,9 @@ if command -v Xvfb >/dev/null && command -v emacs >/dev/null; then
   # met another server on :1 and lost the display under the daemon.
   n=$(( 4600 + RANDOM % 400 ))
   while [ -e "/tmp/.X$n-lock" ] || [ -e "/tmp/.X11-unix/X$n" ]; do n=$((n + 1)); done
-  Xvfb ":$n" -screen 0 1600x1000x24 -nolisten tcp >"$t/xvfb.log" 2>&1 &
+  # Each readiness probe and visual client disconnects before the next
+  # arrives. Keep the server from resetting in that gap.
+  Xvfb ":$n" -screen 0 1600x1000x24 -nolisten tcp -noreset >"$t/xvfb.log" 2>&1 &
   xpid=$!
   for ((i=0; i<100; i++)); do [ ! -S "/tmp/.X11-unix/X$n" ] || break; sleep 0.1; done
   if [ -S "/tmp/.X11-unix/X$n" ]; then

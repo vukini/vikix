@@ -179,7 +179,7 @@ over the refreshes that follow, so it is seen; g drops it.")
                 (process-live-p vikix-office--action))
       (vikix-office--status "Refreshing…  g refresh · RET details · N new desk · w worker · a go to agent · c continue · P pause/go · t test · i tell · x close agent · C close desk · q close Office")
       (vikix-office--request
-       '("office" "--json") 'vikix-office--process
+       '("office" "--json" "--notify") 'vikix-office--process
        (lambda (output error)
          (if error (vikix-office--failure error)
            (condition-case err
@@ -553,6 +553,93 @@ is drawn when PLANS is empty."
                (vikix-office--button "Log" (lambda () (with-current-buffer owner (vikix-office-plan-log file)))))))))
       (vikix-office--box-bottom width chars))))
 
+
+(defun vikix-office-answer (&optional decision)
+  "Answer a registered question, choosing explicitly or writing other words."
+  (interactive)
+  (setq decision (or decision (alist-get 'question (get-text-property (point) 'vikix-office-attention))))
+  (with-current-buffer (vikix-office--owner-buffer)
+    (let* ((questions (cl-remove-if (lambda (d) (alist-get 'answer d))
+                                   (alist-get 'questions (alist-get 'task_record (vikix-office--row)))))
+           (d (or decision
+                  (let* ((options (mapcar (lambda (q) (cons (concat (alist-get 'id q) ": " (alist-get 'question q)) q)) questions)))
+                    (unless options (user-error "No open decision at this desk"))
+                    (cdr (assoc (completing-read "Decision: " options nil t) options)))))
+           (choices (mapcar (lambda (c) (cons (concat (alist-get 'label c) ": " (alist-get 'consequence c))
+                                              (alist-get 'label c))) (alist-get 'choices d)))
+           (choice (if choices
+                       (completing-read (concat (alist-get 'question d) " ") (append (mapcar #'car choices) '("Other…")) nil t)
+                     "Other…"))
+           (text (if (equal choice "Other…") (read-string "Your answer: ") (cdr (assoc choice choices)))))
+      (when (and (stringp text) (not (string-empty-p (string-trim text))))
+        (vikix-office--act (list "office" "--answer" (alist-get 'id d) text) #'vikix-office-refresh)))))
+
+(defun vikix-office--attention-box (width chars owner)
+  "Actionable items above the desks, with their actual waiting time."
+  (let ((items (alist-get 'attention vikix-office--data)))
+    (vikix-office--box-top width chars "Needs attention")
+    (if (null items) (vikix-office--note width chars "nothing waiting")
+      (dolist (item items)
+        (let ((d (alist-get 'question item)) (pid (alist-get 'pid item))
+              (desk (alist-get 'desk item)) (start (point)))
+          (vikix-office--note width chars
+                              (concat (alist-get 'kind item) " · " (alist-get 'title item)
+                                      " · " (if (numberp (alist-get 'since item))
+                                                (concat (vikix-office--seconds (- (float-time) (alist-get 'since item))) " waiting")
+                                              "waiting time unknown")))
+          (vikix-office--note width chars
+                              (concat (vikix-office--text (alist-get 'project item)) " · "
+                                      (if (member (alist-get 'worker item) '(nil ""))
+                                          (concat (vikix-office--text (alist-get 'provider item)) " · no worker observed")
+                                        (alist-get 'worker item))
+                                      " · " (if (numberp (alist-get 'seq item)) (format "#%d" (alist-get 'seq item)) "launch order unknown")
+                                      " · " (vikix-office--text (alist-get 'task item))))
+          (vikix-office--note width chars (alist-get 'why item))
+          (when d
+            (unless (member (alist-get 'context d) '(nil ""))
+              (vikix-office--note width chars (concat "Context: " (alist-get 'context d))))
+            (dolist (c (alist-get 'choices d))
+              (vikix-office--note width chars (concat (alist-get 'label c) ": " (alist-get 'consequence c))))
+            (unless (member (alist-get 'recommended d) '(nil ""))
+              (vikix-office--note width chars (concat "Recommended: " (alist-get 'recommended d) " — " (alist-get 'reason d)))))
+          (vikix-office--line width chars
+           (lambda ()
+             (when d
+               (vikix-office--button "Answer…" (lambda () (with-current-buffer owner (vikix-office-answer d)))))
+             (when pid
+               (vikix-office--button "Go to agent" (lambda () (with-current-buffer owner
+                                                              (vikix-office--act (list "office" "--go" (number-to-string pid)))))))
+             (when (member "test" (alist-get 'actions item))
+               (vikix-office--button "Test again" (lambda () (with-current-buffer owner
+                                                            (vikix-office--act (list "office" "--test" desk) #'vikix-office-refresh)))))
+             (when (member "release" (alist-get 'actions item))
+               (vikix-office--button "Release…"
+                                    (lambda () (with-current-buffer owner
+                                                 (let ((summary (read-string "Release summary: ")))
+                                                   (unless (string-empty-p (string-trim summary))
+                                                     (vikix-office--act (list "office" "--release" desk summary) #'vikix-office-refresh)))))))
+             (when (member "accept" (alist-get 'actions item))
+               (vikix-office--button "Accept review"
+                                    (lambda () (with-current-buffer owner
+                                                 (vikix-office--act (list "office" "--accept" desk) #'vikix-office-refresh))))
+               (vikix-office--button "Back to work…"
+                                    (lambda () (with-current-buffer owner
+                                                 (vikix-office--act (list "office" "--back" desk (read-string "What needs changing? "))
+                                                                     #'vikix-office-refresh)))))
+             (when (member "register" (alist-get 'actions item))
+               (vikix-office--button "Register decision…"
+                                    (lambda () (with-current-buffer owner
+                                                 (vikix-office--act
+                                                  (list "ask" (read-string "Question: " (alist-get 'why item)) "--desk" desk "--blocks")
+                                                  #'vikix-office-refresh)))))
+             (when (and desk (not (string-empty-p desk)))
+               (vikix-office--button "Desk" (lambda () (with-current-buffer owner
+                                                       (setq vikix-office--selected desk)
+                                                       (vikix-office--render-detail)
+                                                       (vikix-office-details)))))))
+          (add-text-properties start (point) (list 'vikix-office-attention item)))))
+    (vikix-office--box-bottom width chars)))
+
 (defun vikix-office--render ()
   (let* ((rows (vikix-office--rows))
          (owner (current-buffer))
@@ -595,6 +682,7 @@ is drawn when PLANS is empty."
       ;; nothing on a machine that never released. Both boxes are the
       ;; first page's alone.
       (when (eq vikix-office--page 'desks)
+        (vikix-office--attention-box width chars owner)
         (let ((releases (alist-get 'releases vikix-office--data)))
           (cond (releases
                  (let ((label-width (vikix-office--label-width
@@ -890,6 +978,17 @@ comma of its words; the words alone without a clock."
                                                (if (alist-get 'launched task) (vikix-office--time (alist-get 'launched task)) "unknown")
                                                (if (alist-get 'done task) (vikix-office--time (alist-get 'done task)) "not yet"))
                                        'shadow)
+                  (dolist (d (alist-get 'questions task))
+                    (vikix-office--field width chars label-width "Decision"
+                                         (concat (alist-get 'id d) ": " (alist-get 'question d)))
+                    (if (alist-get 'answer d)
+                        (vikix-office--signed-field width chars label-width "Answer"
+                                                    (alist-get 'text (alist-get 'answer d))
+                                                    (alist-get 'by (alist-get 'answer d))
+                                                    (alist-get 'at (alist-get 'answer d)))
+                      (vikix-office--line width chars
+                                         (lambda () (vikix-office--button "Answer…"
+                                                                          (lambda () (with-current-buffer owner (vikix-office-answer d))))))))
                   (let ((events (alist-get 'events task)))
                     (if (null events)
                         (vikix-office--field width chars label-width "History" "No event of its own yet" 'shadow)
@@ -2187,6 +2286,7 @@ were."
 (defun vikix-office--bind-keys (map)
   "The Office's keys in MAP, as this file has them."
     (set-keymap-parent map special-mode-map)
+    (define-key map (kbd "D") #'vikix-office-answer)
     (define-key map (kbd "g") #'vikix-office-refresh)
     (define-key map (kbd "a") #'vikix-office-go)
     (define-key map (kbd "c") #'vikix-office-continue)

@@ -257,6 +257,7 @@ StumpWM's own `Ctrl+t` prefix keys still work too: press `Ctrl+t` and wait, and 
 | then p | Pause a desk's agent at its next tool call, or let a paused one go: pick one |
 | then i | A note for a desk's agent, delivered at its next tool call: pick the desk, type the note |
 | then x | Dismiss a desk's agent, keeping the desk and its files: pick one |
+| then question | Agents: questions and work that need you |
 | Super+F9 | Dictation: speak, then Super+F9 again types it |
 | Super+Shift+F9 | Dictation: stop listening, type nothing |
 | Super+F10 | Voice: speak, then Super+F10 again: the AI answers aloud |

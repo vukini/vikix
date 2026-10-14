@@ -88,9 +88,11 @@ def task_cmd(argv):
     task = T.load(tid) or die(f"no task {tid} (vikix agents tasks lists them)")
     events = T.events_read(task=tid, limit=200)
     if as_json:
-        print(json.dumps(dict(task, events=events), indent=1, ensure_ascii=False))
+        print(json.dumps(dict(task, events=events, questions=T.decisions(tid)), indent=1, ensure_ascii=False))
         return 0
     print(T.render(task, events[:40]))
+    for d in T.decisions(tid):
+        print(T.decision_words(d))
     return 0
 
 
@@ -176,4 +178,110 @@ def exited_cmd(argv):
         T.exited(tid, code=code if code is not None else -1, reason="" if code is not None else "exit code unknown", by="vikix")
     except Exception as e:  # noqa: BLE001  the exit line is a note; the terminal's end is not the place to fail
         sys.stderr.write(f"vikix agents exited: {e}\n")
+    return 0
+
+
+def ask_cmd(argv):
+    T = tasks_module()
+    if len(argv) == 2 and argv[0] == '--wait':
+        limit = max(0, min(600, int(os.environ.get('VIKIX_ASK_LIMIT', '600'))))
+        end = time.monotonic() + limit
+        while True:
+            d = T.decision(argv[1])
+            if d.get('answer'):
+                print(T.decision_words(d))
+                return 0
+            if time.monotonic() >= end:
+                print('No answer yet: ' + d['id'])
+                return 3
+            time.sleep(min(2, max(0, end - time.monotonic())))
+    words, opts = [], {'choices': []}
+    while argv:
+        a = argv.pop(0)
+        if a == '--blocks':
+            opts['blocks'] = True
+        elif a in ('--choice', '--recommend', '--context', '--reason', '--desk'):
+            if not argv:
+                die(a + ' needs words')
+            v = argv.pop(0)
+            if a == '--choice':
+                label, _, consequence = v.partition(':')
+                opts['choices'].append({'label': label.strip(), 'consequence': consequence.strip()})
+            else:
+                opts[{'--recommend': 'recommended'}.get(a, a[2:])] = v
+        elif a.startswith('-'):
+            die('vikix agents ask: unknown option ' + a)
+        else:
+            words.append(a)
+    if len(words) != 1:
+        die('vikix agents ask "question" [--choice "label: consequence"] [--recommend LABEL] [--context TEXT] [--reason TEXT] [--blocks]')
+    by, me = by_me()
+    named = opts.pop('desk', '')
+    folder, rec = desk_for([named] if named else [], me)
+    if me and os.path.realpath(me['folder']) != os.path.realpath(folder):
+        die('a worker registers decisions only for its own desk')
+    tid = (rec or {}).get('task', {}).get('id') or die('this desk needs a task before it can ask a decision')
+    d = T.ask(tid, words[0], by, **opts)
+    attention_notify_decision(d)
+    print(T.decision_words(d))
+    return 0
+
+
+def answer_cmd(argv):
+    by, me = by_me()
+    if me or by != 'user':
+        die('only the user answers a decision; leave it in the Office for them')
+    if len(argv) != 2:
+        die('vikix agents answer DECISION "choice or free text"')
+    d = tasks_module().answer(argv[0], argv[1], by)
+    print(tasks_module().decision_words(d))
+    return 0
+
+
+def attention_notify_decision(d):
+    # The same stable key is used by the Office's notifier, so opening the
+    # Office after an ask does not repeat its notification.
+    sys.path.insert(0, os.path.join(VIKIX_DIR, "lib"))
+    import office as office_view
+    office_view.notify_attention([{'id': d['id'], 'kind': 'decision', 'why': d['question']}], tasks_module().OFFICE)
+
+
+def attention_cmd(argv):
+    sys.path.insert(0, os.path.join(VIKIX_DIR, "lib"))
+    import office as office_view
+    if any(a not in ('--json', '--menu', '--notify') for a in argv):
+        die('vikix agents attention [--json | --menu | --notify]')
+    snap = office_view.snapshot(sys.modules[__name__])
+    rows = snap['attention']
+    if '--notify' in argv:
+        office_view.remember_titles(snap, tasks_module().OFFICE)
+        office_view.notify_attention(rows, tasks_module().OFFICE)
+    if '--json' in argv:
+        print(json.dumps(rows, ensure_ascii=False, indent=1))
+    elif '--menu' in argv:
+        labels = [f"{r['kind']}: {r['title']} — {r['why']}" for r in rows]
+        if not labels:
+            print('Nothing needs attention.')
+            return 0
+        result = subprocess.run(['rofi', '-dmenu', '-i', '-p', 'Needs attention', '-format', 'i'],
+                                input='\n'.join(labels), text=True, capture_output=True)
+        if result.returncode == 0 and result.stdout.strip().isdigit():
+            row = rows[int(result.stdout.strip())]
+            if row.get('question'):
+                d = row['question']
+                choices = [c['label'] for c in d['choices']]
+                result = subprocess.run(['rofi', '-dmenu', '-i', '-p', d['question']],
+                                        input='\n'.join(choices), text=True, capture_output=True)
+                if result.returncode == 0 and result.stdout.strip():
+                    return answer_cmd([d['id'], result.stdout.strip()])
+            elif row.get('pid'):
+                office_view.focus(sys.modules[__name__], str(row['pid']))
+    else:
+        for r in rows:
+            age = f"{max(0, (int(time.time()) - r['since']) // 60)} min" if r.get('since') else 'time unknown'
+            worker = r['worker'] or r['provider'] or 'worker unknown'
+            seq = f"#{r['seq']}" if r.get('seq') else 'launch order unknown'
+            print(f"{r['kind']}: {r['project']} · {r['title']} [{r.get('task') or 'office'}] · {worker}, {seq} — {r['why']} ({age})")
+        if not rows:
+            print('Nothing needs attention.')
     return 0

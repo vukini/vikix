@@ -423,13 +423,37 @@ def t_tasks(a):
         task = T.load(tid)
         if not task:
             raise ToolError(f"no task {tid} (tasks lists them)")
-        out = dict(task, events=T.events_read(task=tid, limit=100))
+        out = dict(task, events=T.events_read(task=tid, limit=100), questions=T.decisions(tid))
         text = json.dumps(out, indent=1, ensure_ascii=False)
     else:
         open_, done = agents.tasks_split(T.all_tasks(), every=bool(a.get("all")))
         text = json.dumps({"sequence": T.sequence(), "open": open_, "done": done}, indent=1, ensure_ascii=False)
     text = scrub(text)
     return text[:60000] + (" [cut short]" if len(text) > 60000 else "")
+
+
+def t_decide(a):
+    agents = office()
+    T = agents.tasks_module()
+    folder, rec = handoff_desk({}, agents)
+    by, me = agents.by_me()
+    if not rec or not rec.get('task', {}).get('id'):
+        raise ToolError('take a desk with a task before asking a decision')
+    try:
+        d = T.ask(rec['task']['id'], a.get('question', ''), by,
+                  **{k: a[k] for k in ('choices', 'recommended', 'reason', 'context', 'blocks') if k in a})
+        agents.attention_notify_decision(d)
+        return json.dumps(d, ensure_ascii=False)
+    except (T.TaskError, OSError) as e:
+        raise ToolError(str(e)) from e
+
+
+def t_decision(a):
+    T = office().tasks_module()
+    try:
+        return json.dumps(T.decision(a.get('id')), ensure_ascii=False)
+    except (T.TaskError, OSError, ValueError) as e:
+        raise ToolError(str(e)) from e
 
 
 def handoff_desk(a, agents):
@@ -455,7 +479,7 @@ def t_handoff(a):
                            "note": "no record yet: handoff_update with task, status, summary or next starts one"})
     now = H.observe(folder) if os.path.isdir(folder) else {}
     at, held = agents.protection_lines(folder) if os.path.isdir(folder) else ([], [])
-    out = dict(rec, now=now, checks=[dict(c, freshness=H.freshness(c, now)) for c in rec.get("checks", [])],
+    out = dict(rec, questions=agents.decisions_at(rec), now=now, checks=[dict(c, freshness=H.freshness(c, now)) for c in rec.get("checks", [])],
                at_the_desk=[agents.who(x) for x in at], protection=held)
     for key in ("task", "handoff"):
         v = out.get(key)
@@ -914,6 +938,18 @@ TOOLS = [
      schema({"task": {"type": "string", "description": "a task's id, for one task with its history; empty: the list"},
              "all": {"type": "boolean", "description": "the done tasks of every day, not the last alone"}}),
      READ, t_tasks),
+    ("decide", "Ask the user for a decision",
+     "Register a question on your own task. Choices have labels and consequences; recommended names one label, "
+     "reason explains it. With blocks, the task waits for a decision. The user answers in the Office; read "
+     "the answer with decision or your inbox. Never answer a decision yourself." + DATA,
+     schema({"question": {"type": "string"}, "context": {"type": "string"},
+             "choices": {"type": "array", "maxItems": 10, "items": {"type": "object", "properties": {
+                 "label": {"type": "string"}, "consequence": {"type": "string"}}, "required": ["label"], "additionalProperties": False}},
+             "recommended": {"type": "string"}, "reason": {"type": "string"}, "blocks": {"type": "boolean"}}, ["question"]),
+     dict(ACT, idempotentHint=False), t_decide),
+    ("decision", "Read a decision and its answer",
+     "A registered question, its choices and recommendation, and the user's answer when given. Read only." + DATA,
+     schema({"id": {"type": "string"}}, ["id"]), READ, t_decision),
     ("handoff", "A desk's task and handoff",
      "The record of a desk (vikix agents handoff): the user's task in their words, the agent's handoff (status: "
      "working, waiting, review, finished or parked; its estimate of how long, with where the work stands against it; "
