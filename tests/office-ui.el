@@ -1,8 +1,10 @@
 ;;; office-ui.el --- Fixture tests -*- lexical-binding: t; -*-
 (require 'ert)
-(load (expand-file-name "../config/emacs/vikix-office.el" (file-name-directory load-file-name)) nil t)
+(defconst office-test-here (file-name-directory load-file-name)
+  "This file's folder, noted while it loads: a test runs later, when `load-file-name' is nil.")
+(load (expand-file-name "../config/emacs/vikix-office.el" office-test-here) nil t)
 (defun office-test-data (&optional ids)
-  `((version . 1) (at . 1791300000) (live_known . t) (errors . nil) (releases . nil) (releases_kept . :false)
+  `((version . 2) (at . 1791300000) (live_known . t) (errors . nil) (releases . nil) (releases_kept . :false)
     (desks . ,(mapcar (lambda (id)
                        `((id . ,id) (title . ,(concat "Task " id)) (group . "Needs you")
                          (desk . ((project . "Vikix") (worktree . "/tmp/a desk with spaces")))
@@ -565,13 +567,40 @@ Archive is the third. The buttons count the other pages' rows."
          (vikix-office-timeout 0.05))
      (vikix-office-refresh) (office-test-wait)
      (should (string-match-p "timed out" header-line-format)))))
+(ert-deftest office-reads-the-backends-snapshot-version ()
+  "The version lib/office.py writes is one the page reads (0.72.68 wrote 2
+while the page took only 1, and the Office showed nothing), a snapshot of
+an older version is read still, and one from a newer backend is refused
+with its number, so the notice says to load the page again."
+  (let* ((source (expand-file-name "../lib/office.py" office-test-here))
+         (written (with-temp-buffer
+                    (insert-file-contents source)
+                    (goto-char (point-min))
+                    (should (re-search-forward "return {'version': \\([0-9]+\\)" nil t))
+                    (string-to-number (match-string 1))))
+         (snapshot (lambda (version)
+                     (list "python3" "-c" (format "print('{\"version\":%d,\"desks\":[],\"errors\":[]}')" version)))))
+    (should (memq written vikix-office-snapshot-versions))
+    (office-test-buffer
+     (dolist (version (list written 1))
+       (setq vikix-office--data nil)
+       (let ((vikix-office-command (funcall snapshot version)))
+         (vikix-office-refresh) (office-test-wait)
+         (should (equal (alist-get 'version vikix-office--data) version))))
+     (setq vikix-office--data nil)
+     (let ((vikix-office-command (funcall snapshot (1+ (apply #'max vikix-office-snapshot-versions)))))
+       (vikix-office-refresh) (office-test-wait)
+       (should-not vikix-office--data)
+       (should (string-match-p (format "Office snapshot version %d: this page reads"
+                                       (1+ (apply #'max vikix-office-snapshot-versions)))
+                               (if (stringp header-line-format) header-line-format "")))))))
 (ert-deftest office-success-and-unknown ()
   (office-test-buffer
    (let ((vikix-office-command
           (list "python3" "-c" (concat "print(" (json-encode (json-encode (office-test-data '("z")))) ")"))))
      (vikix-office-refresh) (office-test-wait)
      (should (equal vikix-office--selected "z")))
-   (let ((vikix-office-command '("python3" "-c" "print('{\"version\":1,\"desks\":[],\"errors\":[\"Live unknown\"]}')")))
+   (let ((vikix-office-command '("python3" "-c" "print('{\"version\":2,\"desks\":[],\"errors\":[\"Live unknown\"]}')")))
      (vikix-office-refresh) (office-test-wait)
      (should (equal vikix-office--selected "z"))
      (should (eq (alist-get 'live_known vikix-office--data) :false))

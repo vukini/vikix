@@ -338,7 +338,9 @@ def snapshot(api):
             row['resume'] = {}
     order = ['Needs you', 'Testing', 'Working', 'Parked', 'Finished', 'Closed']
     # Version 2 (2026-10-13): tasks, the task records with their events, and
-    # sequence, the last launch number; desks as before, so a reader of version 1 still works.
+    # sequence, the last launch number; desks as before. A new version goes into
+    # vikix-office-snapshot-versions (config/emacs/vikix-office.el) too, or the page
+    # refuses the snapshot and the Office shows nothing (0.72.68 did; tests/office-ui.el holds them together).
     return {'version': 2, 'at': int(time.time()), 'live_known': live_known, 'errors': errors,
             'releases': releases, 'releases_kept': releases_kept, 'plans': plans, 'plans_done': plans_done,
             'tasks': sorted(tasks.values(), key=lambda t: (0 if (t.get('launch') or {}).get('seq') else 1,

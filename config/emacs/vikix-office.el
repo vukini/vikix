@@ -14,6 +14,11 @@
   "Backend command, as an argument list; tests use a stand-in.")
 (defvar vikix-office-interval 10)
 (defvar vikix-office-timeout 45)
+(defvar vikix-office-snapshot-versions '(1 2)
+  "The versions of `vikix agents office --json' this page reads (lib/office.py
+writes the current one; 2 brought the task records, 2026-10-13). One it
+doesn't know is refused with its number: this file and the backend come
+from the same checkout, so the page is stale, and Emacs loads it again.")
 (defvar-local vikix-office--data nil)
 (defvar-local vikix-office--selected nil)
 (defvar-local vikix-office--detail nil)
@@ -181,8 +186,12 @@ over the refreshes that follow, so it is seen; g drops it.")
                (let* ((data (json-parse-string output :object-type 'alist :array-type 'list
                                                :null-object nil :false-object :false))
                       (errors (alist-get 'errors data)))
-                 (unless (and (= (or (alist-get 'version data) 0) 1) (assq 'desks data))
-                   (error "Invalid Office snapshot"))
+                 (let ((version (alist-get 'version data)))
+                   (unless (and (memq version vikix-office-snapshot-versions) (assq 'desks data))
+                     (if (and (numberp version) (assq 'desks data))
+                         (error "Office snapshot version %d: this page reads %s (vikix update brought a newer backend: M-x load-file ~/.local/share/vikix/emacs/vikix-office.el, or restart Emacs)"
+                                version (mapconcat #'number-to-string vikix-office-snapshot-versions " and "))
+                       (error "Invalid Office snapshot"))))
                  ;; A partial observation must not erase useful previous agents
                  ;; or turn them into 'stopped'. Keep the view, labelled stale.
                  (if (and errors vikix-office--data)
