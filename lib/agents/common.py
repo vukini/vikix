@@ -989,7 +989,8 @@ def journal_states(agents):
             continue
         ago = max(0, now - e.get("at", 0))
         if e["kind"] == "stop":
-            a["state"], a["doing"] = "idle", "at its prompt"
+            a["state"], a["doing"] = "idle", ("stopped by the network: taken up again when it is back"
+                                              if e.get("why") == "network" else "at its prompt")
         elif ago <= WORKING_WINDOW:
             a["state"], a["doing"] = "working", f"working ({JOURNAL_DOING[e['kind']]} {how_long(ago)} ago)"
     return agents

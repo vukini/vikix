@@ -237,7 +237,7 @@ for f in "${files[@]}"; do
   case $f in
     # The skill's list of keys is made from these (lib/skill-keys.sh).
     config/stumpwm/vikix/why.lisp|bin/vikix-why|bin/vikix-notifications) add why mcp notifications used ;;
-    config/stumpwm/vikix/agents.lisp|bin/vikix-agents|lib/agents/*|config/claude/office.json) add office titles house handoff office-ui mcp tester plan door nyxt codex tasks ;;
+    config/stumpwm/vikix/agents.lisp|bin/vikix-agents|lib/agents/*|config/claude/office.json) add office titles house handoff office-ui mcp tester plan door nyxt codex tasks reconnect ;;
     lib/plan.py|config/plans/*) add plan office-ui codex ;;
     lib/handoff.py) add office titles house handoff office-ui mcp release plan codex tasks ;;
     lib/tasks.py|migrations/1791912562.sh) add tasks handoff house office-ui mcp release plan codex ;;

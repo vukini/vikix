@@ -681,7 +681,10 @@ def touch(argv):
     if "--pause-only" in argv:
         # Before every tool (office.json's second entry): the pause alone, one stat when there
         # is none; lifted, the words that it was go with this call (RESUMED, in the front).
-        pause_hold(my_agent())
+        me = my_agent()
+        got, _ = hook_input()
+        reconnect_watch(got, me)    # the network watcher for this agent, once (one stat after)
+        pause_hold(me)
         return 0
     path = argv[0] if argv and not argv[0].startswith("-") else ""
     paths = []
@@ -704,6 +707,7 @@ def touch(argv):
             path = tool.get("file_path") or tool.get("notebook_path") or ""
             command = tool.get("command") or ""
             note_session(got.get("session_id"))
+            reconnect_watch(got, my_agent())
             if not path and (got.get("tool_name") == "apply_patch" or "*** Begin Patch" in command):
                 # Codex's edit: the patch text, every file of it an edit (a
                 # Bash heredoc that applies one is read the same).

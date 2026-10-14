@@ -8,6 +8,7 @@ their order (its header lists the commands): not a module to import.
 import fcntl
 import json
 import os
+import re
 import shlex
 import shutil
 import signal
@@ -362,6 +363,343 @@ def stop_reason(got, me):
             "--summary \"what you changed and decided\" --next \"what is left, the very next action\" (or the MCP tool "
             "handoff_update); review when the work is ready for the user, waiting when you need them.")
 
+
+# --- The network gone: a turn it ended is taken up again when it is back -----------------------
+# Claude Code gives a request up after its own retries and ends the turn with an API error as
+# the conversation's last message; its Stop hook doesn't run then (tried 2026-10-14), so the
+# office follows the transcript's tail instead: a watcher an agent's hook starts for it.
+RECONNECT_POLL = int(os.environ.get("VIKIX_RECONNECT_POLL") or 10)          # seconds between looks
+RECONNECT_SETTLE = int(os.environ.get("VIKIX_RECONNECT_SETTLE") or 5)       # seconds a link back is given to settle
+RECONNECT_LIMIT = int(os.environ.get("VIKIX_RECONNECT_LIMIT") or 24 * 3600)   # seconds the network is waited for, at most
+RECONNECT_DIR = os.path.join(STATE, "vikix", "office", "reconnect")
+# The API errors that are the network's (Claude Code's own words), never a login or the credits.
+NETWORK_ERROR = re.compile(r"reach the API server|connection (error|lost|refused|reset|closed)|network|EAI_AGAIN|"
+                           r"ECONN|ETIMEDOUT|ENETUNREACH|ENOTFOUND|EHOSTUNREACH|fetch failed|socket hang up|timed out", re.I)
+NOT_NETWORK = ("authentication_failed", "rate_limit", "invalid_request")
+API_HOST = ("api.anthropic.com", 443)
+
+
+def transcript_tail(path, size=65536):
+    """The last entries of a Claude Code transcript (JSON lines), newest
+    last: the file's last SIZE bytes read, never the whole conversation."""
+    out = []
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            end = f.tell()
+            f.seek(max(0, end - size))
+            chunk = f.read()
+    except OSError:
+        return out
+    lines = chunk.split(b"\n")
+    for line in (lines[1:] if end > size else lines):
+        try:
+            e = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(e, dict):
+            out.append(e)
+    return out
+
+
+def network_stop(path):
+    """Whether the conversation at PATH ended with the network gone: the
+    last message (the agent's or the user's; the lines after a turn, its
+    duration and the snapshots, are no message) is an API error of the
+    connection kind. (the error's words, when) or None: a message after it,
+    the user's "continue" or the agent going on, is None too."""
+    for e in reversed(transcript_tail(path)):
+        if e.get("type") not in ("assistant", "user"):
+            continue
+        m = e.get("message") or {}
+        if e.get("type") != "assistant" or not e.get("isApiErrorMessage"):
+            return None
+        if e.get("error") in NOT_NETWORK:
+            return None
+        text = " ".join(c.get("text", "") for c in (m.get("content") or []) if isinstance(c, dict)).strip()
+        if not NETWORK_ERROR.search(text):
+            return None
+        stamp = 0
+        try:
+            from datetime import datetime
+            stamp = int(datetime.fromisoformat((e.get("timestamp") or "").replace("Z", "+00:00")).timestamp())
+        except ValueError:
+            pass
+        return text[:300], stamp
+    return None
+
+
+def api_host():
+    """The API the agent reaches for: ANTHROPIC_BASE_URL's host when it is
+    set, else Anthropic's; VIKIX_API_HOST (host:port) stands in for the tests."""
+    standin = os.environ.get("VIKIX_API_HOST")
+    if standin and ":" in standin:
+        host, port = standin.rsplit(":", 1)
+        return host, int(port)
+    base = os.environ.get("ANTHROPIC_BASE_URL") or ""
+    if base:
+        from urllib.parse import urlparse
+        u = urlparse(base)
+        if u.hostname:
+            return u.hostname, u.port or (80 if u.scheme == "http" else 443)
+    return API_HOST
+
+
+def api_reachable(timeout=5):
+    """Whether the API's host answers a connection now: a name resolved and
+    a socket opened, nothing sent."""
+    import socket
+    try:
+        with socket.create_connection(api_host(), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def reconnect_path(pid):
+    return os.path.join(RECONNECT_DIR, str(pid) + ".json")
+
+
+def reconnect_read(pid):
+    try:
+        with open(reconnect_path(pid)) as f:
+            w = json.load(f)
+        return w if isinstance(w, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def reconnect_write(pid, w):
+    os.makedirs(RECONNECT_DIR, exist_ok=True)
+    tmp = reconnect_path(pid) + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(w, f)
+    os.replace(tmp, reconnect_path(pid))
+
+
+def reconnect_watcher_alive(w):
+    """Whether the watcher W names still runs, and is one."""
+    pid = w.get("watcher")
+    if not isinstance(pid, int) or process_gone(pid):
+        return False
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            return b"reconnect" in f.read()
+    except OSError:
+        return False
+
+
+def reconnect_watch(got, me):
+    """The watcher for the agent ME started from its hook, once: Claude
+    Code's hook carries the transcript's path, and a watcher that lives is
+    left as it is (one stat). Both hook entries run for an edit, at once,
+    so the look and the start are under a lock, and the hook writes the
+    watcher's file itself. Only an agent at a desk: the waking goes
+    through the desk's record and resume."""
+    path = (got or {}).get("transcript_path") or ""
+    if HOOK != "claude" or not me or not path or not desk_of(me["folder"]) or os.environ.get("VIKIX_RECONNECT") == "0":
+        return
+    if os.path.exists(reconnect_path(me["pid"])) and reconnect_read(me["pid"]).get("transcript") == path \
+            and reconnect_watcher_alive(reconnect_read(me["pid"])):
+        return
+    os.makedirs(RECONNECT_DIR, exist_ok=True)
+    with open(reconnect_path(me["pid"]) + ".lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        w = reconnect_read(me["pid"])
+        if reconnect_watcher_alive(w):
+            if w.get("transcript") == path:
+                return
+            # A new conversation under the same process (/clear): the watcher on the old
+            # file is ended, by its pid checked to be one, and one started on the new.
+            try:
+                os.kill(w["watcher"], signal.SIGTERM)
+            except OSError:
+                pass
+        with open(reconnect_path(me["pid"]) + ".log", "w") as out:
+            p = subprocess.Popen([sys.executable, os.path.realpath(__file__), "reconnect", "--watch", me["folder"],
+                                  "--pid", str(me["pid"]), "--transcript", path], cwd=me["folder"],
+                                 stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT, start_new_session=True)
+        reconnect_write(me["pid"], {"watcher": p.pid, "agent": me["pid"], "folder": me["folder"], "transcript": path,
+                                    "since": int(time.time())})
+
+
+def reconnect_note_stop(a):
+    """The agent A's turn, ended by the network with no Stop hook run,
+    noted in the journal as a stop with why, once: the listing says so,
+    and wake asks the journal whether it sits at its prompt."""
+    last = None
+    for e in journal_read():
+        if e.get("pid") == a["pid"] and e.get("kind") in ("turn", "edit", "crossing", "shell", "stop"):
+            last = e
+    if last and last.get("kind") == "stop" and last.get("why") == "network":
+        return
+    journal_add({"at": int(time.time()), "kind": "stop", "agent": a["agent"], "pid": a["pid"], "folder": a["folder"],
+                 "file": "", "why": "network"})
+
+
+def reconnect_log(folder, by, what):
+    try:
+        desk_record(folder, by=by, change=lambda r: handoff_module()._log(r, by, what))
+    except SystemExit:
+        pass
+
+
+def reconnect_wake(folder, a, path, seen, by="vikix"):
+    """The agent A at FOLDER, whose conversation at PATH ended with the
+    network gone (SEEN: the error's words, when), woken with the words to
+    carry on, as go wakes one whose pause ended its turn: its stop noted
+    in the journal first (no Stop hook ran), since wake asks the journal
+    whether it sits at its prompt. (woken, what was done, in a line)."""
+    words, at_ = seen
+    text = (f"Vikix office: your last turn ended {('at ' + at(at_)) if at_ else 'earlier'} because the network was down "
+            f"({words}). The network is back ({api_host()[0]} answers again"
+            + (f", after {how_long(max(0, int(time.time()) - at_))}" if at_ else "") + "), and this is your conversation "
+            "taken up again by Vikix, not a new task: carry on from where you were, on the same task and plan. The reply "
+            "that was cut off may be incomplete, so look at your last step and its result before going on. A note from the "
+            "user, when there is one, reaches you at your next tool call.")
+    reconnect_note_stop(a)
+    reconnect_log(folder, by, f"the network was back: {who(a)} stopped by it {('at ' + at(at_)) if at_ else ''}".rstrip())
+    woken, how = wake(folder, text, by, what="the words to carry on")
+    if not woken and "is working" not in how:
+        try:
+            inbox_add(folder, text, by)
+            how += "; the words to carry on wait in its inbox"
+        except handoff_module().HandoffError:
+            pass
+    return woken, how
+
+
+def reconnect_transcript(folder, a):
+    """The transcript of the agent A at FOLDER: the session its desk's
+    record notes for its pid, in Claude Code's store."""
+    H = handoff_module()
+    if a["agent"] != "claude":
+        return ""
+    rec = H.load(H.desk_id(common_of(folder), folder)) or {}
+    for s in reversed(rec.get("sessions", [])):
+        if s.get("provider") == "claude" and s.get("pid") == a["pid"]:
+            found, where = H.session_store("claude", s.get("id", ""))
+            if found:
+                return os.path.expanduser(where)
+    return ""
+
+
+def reconnect_watch_loop(folder, pid, path):
+    """The watcher: the transcript's tail looked at every RECONNECT_POLL
+    seconds while the agent PID lives (a stat; read when it grew), and
+    once it ends with the network gone, the API's host asked for until it
+    answers (twice, RECONNECT_SETTLE apart), the transcript looked at again
+    (the user may have gone on), and the agent woken. Ends with the agent,
+    with the waking (the new process gets a watcher of its own at its
+    first call), or at RECONNECT_LIMIT of waiting."""
+    a = {"agent": "claude", "pid": pid, "folder": folder}
+    w = {"watcher": os.getpid(), "agent": pid, "folder": folder, "transcript": path, "since": int(time.time())}
+    was = reconnect_read(pid)
+    if was.get("watcher") not in (None, os.getpid()) and reconnect_watcher_alive(was):
+        print(f"another watcher ({was['watcher']}) has {who(a)}", flush=True)
+        return 0
+    reconnect_write(pid, w)
+    print(f"watching {who(a)} at {short(folder)}: {short(path)}", flush=True)
+    rc = 1
+    try:
+        rc = reconnect_follow(folder, pid, path, a, w)
+    finally:
+        # The watcher's file goes with it; its log too after a quiet end, kept when something went wrong.
+        for name in (reconnect_path(pid),) + ((reconnect_path(pid) + ".log",) if rc == 0 else ()):
+            try:
+                os.unlink(name)
+            except OSError:
+                pass
+    return rc
+
+
+def reconnect_follow(folder, pid, path, a, w):
+    last = None
+    gone_at = None
+    while True:
+        if process_gone(pid):
+            print(f"{who(a)} has left", flush=True)
+            return 0
+        try:
+            st = os.stat(path)
+            mark = (st.st_size, st.st_mtime_ns)
+        except OSError:
+            mark = None
+        if mark != last:
+            last = mark
+            seen = network_stop(path) if mark else None
+            if seen and not gone_at:
+                gone_at = int(time.time())
+                reconnect_write(pid, dict(w, gone_at=gone_at, error=seen[0]))
+                reconnect_note_stop(a)
+                print(f"{at(gone_at)}: the network ended its turn ({seen[0]}); waiting for {api_host()[0]}", flush=True)
+            elif not seen and gone_at:
+                gone_at = None
+                reconnect_write(pid, w)
+                print(f"{at(int(time.time()))}: the conversation went on by itself", flush=True)
+        if gone_at:
+            if int(time.time()) - gone_at > RECONNECT_LIMIT:
+                print(f"waited {how_long(RECONNECT_LIMIT)}: giving up; vikix agents reconnect {desk_name(folder)} by hand", flush=True)
+                reconnect_log(folder, "vikix", f"the network stayed gone {how_long(RECONNECT_LIMIT)}: {who(a)} is left at its prompt")
+                return 1
+            if api_reachable():
+                time.sleep(RECONNECT_SETTLE)
+                if api_reachable() and network_stop(path) and not process_gone(pid):
+                    woken, how = reconnect_wake(folder, a, path, network_stop(path))
+                    print(f"{at(int(time.time()))}: {how}", flush=True)
+                    return 0 if woken else 1
+        time.sleep(RECONNECT_POLL)
+
+
+def reconnect(argv):
+    """vikix agents reconnect [DESK | --all] [--wait]: an agent whose turn the
+    network ended, taken up again; --watch FOLDER --pid N --transcript PATH
+    is the watcher the hook starts."""
+    if "--watch" in argv:
+        i = argv.index("--watch")
+        folder = argv[i + 1] if len(argv) > i + 1 else die("--watch FOLDER")
+        pid = int(argv[argv.index("--pid") + 1]) if "--pid" in argv and argv[argv.index("--pid") + 1].isdigit() else die("--pid N")
+        path = argv[argv.index("--transcript") + 1] if "--transcript" in argv else die("--transcript PATH")
+        return reconnect_watch_loop(folder, pid, path)
+    wait, every, words = "--wait" in argv, "--all" in argv, [a for a in argv if not a.startswith("-")]
+    if any(a.startswith("-") and a not in ("--wait", "--all") for a in argv):
+        die("vikix agents reconnect [DESK | --all] [--wait]")
+    by, me = by_me()
+    if every:
+        folders = sorted({os.path.realpath(a["folder"]) for a in live_agents() if a["folder"] and desk_of(a["folder"])})
+    else:
+        folders = [desk_for(words, me)[0]]
+    rc, found = 0, 0
+    for folder in folders:
+        for a in agents_at(folder):
+            path = reconnect_transcript(folder, a)
+            if not path:
+                print(f"{short(folder)}: {who(a)}: no conversation of its own is noted (a Claude Code at a desk notes one "
+                      "at its first tool call): nothing to look at")
+                continue
+            seen = network_stop(path)
+            if not seen:
+                print(f"{short(folder)}: {who(a)}: its last turn wasn't ended by the network")
+                continue
+            found += 1
+            print(f"{short(folder)}: {who(a)} was stopped by the network {('at ' + at(seen[1])) if seen[1] else ''}: {seen[0]}")
+            waited = 0
+            while not api_reachable():
+                if not wait:
+                    print(f"  {api_host()[0]} doesn't answer yet: its watcher wakes it when it does, or --wait waits here")
+                    rc = 1
+                    break
+                if waited == 0:
+                    print(f"  waiting for {api_host()[0]} ...", flush=True)
+                time.sleep(RECONNECT_POLL)
+                waited += RECONNECT_POLL
+                if waited > RECONNECT_LIMIT:
+                    die(f"waited {how_long(RECONNECT_LIMIT)} for {api_host()[0]}: giving up")
+            else:
+                woken, how = reconnect_wake(folder, a, path, seen, by)
+                print(f"  {how}")
+                rc = rc if woken else 1
+    return rc
 
 def note_session(sid):
     """The resumable session id the hook's input carries (Claude Code's
