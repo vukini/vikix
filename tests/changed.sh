@@ -22,6 +22,16 @@
 # completion) to vk. Any other line (another function, the top level, an
 # arm no test runs: doctor), rebuild-wm)) means all, and a hunk across two
 # of these maps to both: wider, never narrower.
+# A file whose tests are named in a rule of its own (a plan, a What page,
+# bin/vikix-agent, lib/publish/, a migration) is kept from the name rule, or
+# that rule made all first and the rule of its own never counted. A command's
+# own test counts for its script (bin/vikix-lazarus: lazarus), as for its arm.
+# tests/run.sh and tests/changed.sh themselves are read the same way
+# (list_names): a hunk that only puts test names into a list (a new test's
+# name in run.sh's list and in a line of the map here) maps to those tests,
+# a hunk of comments to nothing, and any other change to all, since it may
+# change how every test runs or is picked. Before, a new test cost the whole
+# quick set twice over, its name being in both files (2026-10-14).
 # tests/changed-map.sh checks this on a copy of bin/vikix.
 set -uo pipefail
 # It runs nothing of Vikix's, but lint holds every script here to the tests' rules.
@@ -43,6 +53,38 @@ naming() {   # naming WORD — the tests naming WORD, one a line
 named() {   # named WORD — the tests naming WORD, or all when none does, or too many
   mapfile -t hits < <(naming "$1")
   if [ "${#hits[@]}" -eq 0 ] || [ "${#hits[@]}" -gt 12 ]; then all=1; else add "${hits[@]}"; fi
+}
+list_names() {   # list_names FILE — the test names FILE's hunks add to its lists, one a line; "all" when a hunk does more
+  # A hunk is harmless when every line of it is a comment, and a list
+  # change when it replaces one line by the same line with test names put
+  # in (words split at blanks, brackets and commas; each new word is a test
+  # in tests/). Anything else (a new line, a changed word, a name that is no
+  # test) means all. Names are checked against the files, so a misspelt one
+  # fails to all rather than to nothing.
+  local tests t
+  tests=" "; for t in tests/*.sh; do t=${t#tests/}; tests="$tests${t%.sh} "; done
+  git diff -U0 "$ref" -- "$1" | awk -v tests="$tests" '
+    function judge(   i, j, k, n, m, o, nw, ow, extra) {
+      if (!nminus && !nplus) return
+      for (i = 1; i <= nminus; i++) if (minus[i] !~ /^[ \t]*#/) break
+      for (j = 1; j <= nplus; j++) if (plus[j] !~ /^[ \t]*#/) break
+      if (i > nminus && j > nplus) { nminus = nplus = 0; return }   # comments only
+      if (nminus != 1 || nplus != 1) { print "all"; exit }
+      n = split(minus[1], ow, /[ \t(),]+/); m = split(plus[1], nw, /[ \t(),]+/)
+      k = 1
+      for (j = 1; j <= m; j++) {
+        if (k <= n && nw[j] == ow[k]) { k++; continue }
+        if (nw[j] == "" || index(tests, " " nw[j] " ") == 0) { print "all"; exit }
+        print nw[j]
+      }
+      if (k <= n) { print "all"; exit }   # a word of the old line is gone
+      nminus = nplus = 0
+    }
+    /^(diff|index|---|\+\+\+) / { next }
+    /^@@ / { judge(); next }
+    /^-/ { minus[++nminus] = substr($0, 2); next }
+    /^\+/ { plus[++nplus] = substr($0, 2); next }
+    END { judge() }'
 }
 vikix_hunks() {   # the parts of bin/vikix the diff touches: one a line, a part once a hunk
   # The file first, each line given its part; then the diff's hunk headers,
@@ -99,7 +141,12 @@ for f in "${files[@]}"; do
     tests/office-ui*|lib/office.py|config/emacs/vikix-office.el) add office-ui codex ;;
     tests/network*|bin/vikix-network|config/emacs/vikix-network.el) add network ;;
     bin/vikix-node) add nodes man ;;
-    tests/run.sh|tests/changed.sh) all=1 ;;
+    tests/run.sh|tests/changed.sh)
+      # A new test's name put in the list or the map costs that test alone
+      # (and the map's own test); anything else here means all.
+      mapfile -t hits < <(list_names "$f")
+      if [[ " ${hits[*]} " == *" all "* ]]; then all=1; else add "${hits[@]}"; fi
+      [ "$f" = tests/changed.sh ] && add changed-map ;;
     .claude/release) add release ;;
     tests/*.sh) add "$(basename "$f" .sh)" ;;
     tests/lib/fake-swank.py) add cuis ;;   # the stand-in Swank the Cuis test drives the image against
@@ -113,6 +160,26 @@ for f in "${files[@]}"; do
     # tests name bin/vikix-agents, and none names a part by its file, which
     # the name rule would both make all).
     bin/vikix-agents|lib/agents/*) ;;
+    # The same for the plans and the What pages, whose tests are named below:
+    # no test names a plan file or a page, and the rules below were dead
+    # for them, the name rule having made all first (31 of 53 tester runs
+    # had fallen to the whole set by 2026-10-14).
+    lib/plan.py|config/plans/*|config/what/*) ;;
+    # Twenty tests name bin/vikix-agent (those naming bin/vikix-agents among
+    # them): they, never all.
+    bin/vikix-agent) mapfile -t hits < <(naming vikix-agent); add "${hits[@]}" ;;
+    # The one test of the pipeline takes the folder whole; "build" is a word
+    # most tests have, and nobody names spell.lua.
+    lib/publish/*) add publish ;;
+    # A migration's name is nobody's: the tests that run them stubbed (update,
+    # try) or read one (features), and lint for the script.
+    migrations/*) mapfile -t hits < <(naming migrations); add "${hits[@]}" ;;
+    # A command's own test counts for its script (bin/vikix-lazarus →
+    # lazarus) as it does for its arm of bin/vikix, with the tests naming it.
+    bin/vikix-*)
+      mapfile -t hits < <(naming "$(basename "$f")")
+      [ -e "tests/${f#bin/vikix-}.sh" ] && hits+=("${f#bin/vikix-}")
+      if [ "${#hits[@]}" -eq 0 ] || [ "${#hits[@]}" -gt 12 ]; then all=1; else add "${hits[@]}"; fi ;;
     # Only agents reads the repository's README.md (its table of keys, through
     # lib/skill-keys.sh --check); the name rule would add the tests that make up
     # README.md files of their own (update, try, docs, examples, what ...).

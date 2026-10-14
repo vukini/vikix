@@ -19,6 +19,13 @@
 #     uncommitted one is; a changed test is added to what bin/vikix gives
 #   - README.md alone maps to agents, the one test that reads it, not to the
 #     tests that make up README.md files of their own
+#   - a plan, a What page, bin/vikix-agent, lib/publish/ and a migration map
+#     to the tests their rules name, never to all; a script with a test of
+#     its own name maps to it; one with no test and no name is still all
+#   - a test's name put into tests/run.sh's list maps to that test, one put
+#     into a line of the map to it and changed-map; a comment in either to
+#     nothing of its own; a name that is no test, a name taken out or any
+#     other line to all
 #
 # Each case edits the copy and puts it back; nothing of Vikix's runs.
 
@@ -100,6 +107,64 @@ reset
 echo 'more' >>"$repo/README.md"
 check "README.md alone maps to 'agents': '$(map)'" test "$(map)" = agents
 reset
+
+# The runner and the map themselves: a new test's name in their lists costs
+# that test (a new test's name is in both, and once cost the quick set twice).
+cat >"$repo/tests/run.sh" <<'RUN'
+#!/usr/bin/env bash
+# tests/run.sh — the runner: lint, man and vk.
+tests=(lint)
+tests+=(man vk)
+echo "${tests[@]}"
+RUN
+g add tests/run.sh; g commit -q -m 'the runner' -- tests/run.sh
+sed -i 's/^tests+=(man vk)$/tests+=(man tray vk)/' "$repo/tests/run.sh"
+check "a test's name put in run.sh's list maps to it: '$(map)'" test "$(map)" = "lint tray"
+reset
+sed -i '2s/$/ (edited)/' "$repo/tests/run.sh"
+check "a comment in run.sh maps to nothing of its own: '$(map)'" test "$(map)" = lint
+reset
+sed -i 's/^tests+=(man vk)$/tests+=(man nosuch vk)/' "$repo/tests/run.sh"
+check "a word that is no test in run.sh's list maps to all: '$(map)'" test "$(map)" = all
+reset
+sed -i 's/^tests+=(man vk)$/tests+=(man)/' "$repo/tests/run.sh"
+check "a name taken out of run.sh's list maps to all: '$(map)'" test "$(map)" = all
+reset
+sed -i 's/^tests=(lint)$/tests=(lint)\n:/' "$repo/tests/run.sh"
+check "another line of run.sh maps to all: '$(map)'" test "$(map)" = all
+reset
+sed -i 's|^    bin/vikix-agent) add house agents ai codex ;;$|    bin/vikix-agent) add house agents ai codex tray ;;|' "$repo/tests/changed.sh"
+check "a test's name put in a line of the map maps to it and changed-map: '$(map)'" test "$(map)" = "changed-map lint tray"
+reset
+sed -i 's|^    bin/vikix-agent) add house agents ai codex ;;$|    bin/vikix-agents) add house agents ai codex ;;|' "$repo/tests/changed.sh"
+check "a changed word in a line of the map maps to all: '$(map)'" test "$(map)" = all
+reset
+
+# Files whose tests a rule names, which the name rule would have made all:
+# a plan, a What page, bin/vikix-agent, lib/publish/, a migration; a script
+# with a test of its own name; one with none is still all.
+mkdir -p "$repo/lib/publish" "$repo/config/plans" "$repo/config/what" "$repo/migrations"
+echo 'x = 1' >"$repo/lib/plan.py"; echo 'a = 1' >"$repo/config/plans/one.toml"; echo 'A page.' >"$repo/config/what/field.md"
+printf '#!/usr/bin/env bash\n' >"$repo/bin/vikix-agent"; echo '-- spell' >"$repo/lib/publish/spell.lua"
+printf '#!/usr/bin/env bash\n' >"$repo/migrations/1.sh"
+printf '#!/usr/bin/env bash\n' >"$repo/bin/vikix-lazarus"; printf '#!/usr/bin/env bash\n# tests/lazarus.sh\n' >"$repo/tests/lazarus.sh"
+printf '#!/usr/bin/env bash\n' >"$repo/bin/vikix-nobody"
+echo '# the migrations run stubbed' >>"$repo/tests/update.sh"
+g add bin lib config migrations tests; g commit -q -m 'more files'
+own() {   # own FILE EXPECTED — a line added to FILE maps to EXPECTED
+  echo '# more' >>"$repo/$1"
+  local got; got=$(map)
+  check "$1 maps to '$2', not '$got'" test "$got" = "$2"
+  g checkout -q -- "$1"
+}
+own lib/plan.py "codex lint office-ui plan"
+own config/plans/one.toml "codex office-ui plan"
+own config/what/field.md what
+own bin/vikix-agent "agents ai codex house lint man"
+own lib/publish/spell.lua "lint publish"
+own migrations/1.sh "lint update"
+own bin/vikix-lazarus "lazarus lint man"
+own bin/vikix-nobody all
 
 # The office's front and a part of it (lib/agents/) map to the office's tests,
 # never to all: fifteen tests name the front, none names a part's file.
