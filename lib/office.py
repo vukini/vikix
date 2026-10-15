@@ -332,7 +332,7 @@ def remember_titles(data, folder):
             json.dump(after, f)
         os.replace(tmp, path)
 
-def snapshot(api):
+def snapshot(api, include_queue=True):
     H = api.handoff_module()
     errors = []
     try:
@@ -559,6 +559,10 @@ def snapshot(api):
         if e.get('file') and api.clash_live(e['file'], others):
             result['clashes'].append(e)
     result['attention'] = attention(result, quiet=quiet_minutes())
+    if include_queue:
+        import scheduler
+        scheduler.T = api.tasks_module()
+        result['queue'] = scheduler.view(scheduler.world(api, result))
     return result
 
 
@@ -1092,4 +1096,6 @@ def main(api, args):
         launch(api, tty=bool(args))
     else:
         raise ValueError('vikix agents office [--tty | --json [--notify] | --answer ID TEXT | --accept DESK | --back DESK TEXT | --release DESK TEXT | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN | --pause DESK | --unpause DESK | --park DESK | --test DESK | --skip DESK | --tell DESK TEXT | --review DESK PROVIDER | --form | --plan TEMPLATE NAME PROJECT [--at-once N] [--gate me|none] [--tasks] | --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --worker DESK ["..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --close-desk DESK [--force] | --project NAME --where public|private|local|folder [--title "..."] [--next "..."] [--description "..."] [--log-apart]]')
+    if args and args[0] in ('--unpause', '--pause'):
+        api.scheduler_module().wake(os.path.join(api.VIKIX_DIR, 'bin', 'vikix-agents'))
     return 0

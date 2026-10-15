@@ -301,6 +301,8 @@ def handoff_apply(folder, data, by):
         provider = review_auto(folder)
         if provider and reviewer_program(provider) and not reviewer_running(folder):
             review_start(folder, provider)
+    if "status" in data:
+        scheduler_module().wake(os.path.join(VIKIX_DIR, "bin", "vikix-agents"))
     return rec
 
 

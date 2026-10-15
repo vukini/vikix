@@ -167,6 +167,7 @@ def go_folder(folder, by="user"):
     there = agents_at(folder)
     woken = [pid for pid in p.get("stopped", []) if isinstance(pid, int) and signal_agent(pid, signal.SIGCONT)]
     os.unlink(path)
+    scheduler_module().unpaused(sys.modules[__name__], folder)
     since = p.get("at") if isinstance(p.get("at"), int) else int(time.time())
     said = f"{short(folder)}: let go, paused {how_long(max(0, int(time.time()) - since))}"
     if woken:

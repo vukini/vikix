@@ -244,6 +244,35 @@
                        file, no branch, no saved conversation. Without
                        DESK: the records that could be forgotten
 
+  vikix agents queue [--json]
+                       queue order, capacity, the next eligible task and every blocker.
+                       Read-only. Automatic starts default off; set auto=on
+                       in ~/.config/vikix/office to opt in, at_once=2 by default
+  vikix agents queue add TASK [--first]
+                       queue a ready task, last or first within its priority
+  vikix agents queue next TASK
+                       run this queued task next, ahead of every priority
+  vikix agents queue up|down TASK
+                       move one place within its priority
+  vikix agents queue defer TASK [--later]
+                       return to ready, or backlog with --later
+  vikix agents queue start [TASK]
+                       start one eligible task now, with its recorded worker choices
+  vikix agents queue pause|go
+                       hold or resume the scheduler; workers keep their state
+  vikix agents queue bump TASK --over DESK
+                       pause DESK's worker and start TASK at a different desk
+  vikix agents queue tick
+                       process a scheduler event; starts only with auto=on
+  vikix agents task new PROJECT TOPIC "task" [--use PROVIDER] [--priority LEVEL] [--after TASK]
+                       make a ready task without opening a desk or starting a worker
+  vikix agents task priority TASK critical|high|normal|low
+                       change priority independently of queue order; user only
+  vikix agents task cancel TASK ["why"]
+                       cancel the task; a worker already running is not stopped
+  vikix agents task ready TASK
+                       make a deferred or blocked task ready and approved; no worker starts
+
   vikix agents tasks [--json] [--all]
                        every task: a record of its own, apart from its desk and its agent.
                        A task is made by every way work comes into being
@@ -806,7 +835,7 @@ SECTIONS = (
                                                               "plan pause", "plan stop", "plan release", "plan log")),
     ("agent", "The agent's own, from its shell", ("sit", "handoff", "handoff check", "handoff session", "handoff list",
                                                 "handoff forget")),
-    ("work", "The work: tasks and their history", ("tasks", "tasks adopt", "task", "ask", "ask --wait", "answer", "attention", "events")),
+    ("work", "The work: tasks and their history", ("tasks", "tasks adopt", "task", "task new", "task ready", "task priority", "task cancel", "queue", "queue add", "queue next", "queue defer", "queue start", "queue bump", "queue tick", "ask", "ask --wait", "answer", "attention", "events")),
     ("rules", "The house rules", ("hooks",)),
     ("scripts", "For hooks, the Office and scripts", ("desks", "place", "touch", "stopping", "left", "exited --code", "office --json", "office --go",
                                                       "office --close-agent", "office --forget", "office --purge-archive",
@@ -964,8 +993,11 @@ def main(argv):
         return handoff(argv[1:])
     if argv and argv[0] == "tasks":
         return tasks_cmd(argv[1:])
-    if argv and argv[0] == "task":
-        return task_cmd(argv[1:])
+    if argv and argv[0] in ("task", "queue"):
+        try:
+            return task_cmd(argv[1:]) if argv[0] == "task" else queue_cmd(argv[1:])
+        except (tasks_module().TaskError, OSError, ValueError) as e:
+            die(str(e))
     if argv and argv[0] in ("ask", "answer", "attention"):
         try:
             return {"ask": ask_cmd, "answer": answer_cmd, "attention": attention_cmd}[argv[0]](argv[1:])
@@ -1129,4 +1161,13 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    code = main(sys.argv[1:])
+    if code in (None, 0) and len(sys.argv) > 1 and sys.argv[1] in ('exited', 'left', 'handoff', 'answer', 'close', 'go', 'task', 'queue'):
+        if not (sys.argv[1] == 'queue' and 'tick' in sys.argv[2:]):
+            # Reads never trigger scheduler work.
+            read_only = (sys.argv[1] == 'task' and (len(sys.argv) < 3 or sys.argv[2] not in ('new', 'ready', 'cancel', 'priority')))
+            read_only |= sys.argv[1] == 'queue' and all(a == '--json' for a in sys.argv[2:])
+            read_only |= sys.argv[1] == 'handoff' and not any(a in sys.argv for a in ('set', '--status'))
+            if not read_only:
+                scheduler_module().wake(os.path.abspath(__file__))
+    sys.exit(code)

@@ -113,3 +113,15 @@ Office or with `vikix agents answer ID TEXT`. Never answer for them.
 Answers reach the task's inbox and remain in its decision record; handoff
 and resume show them even after delivery. One answer leaves other blocking
 questions open. Answering a stopped worker's question does not launch it.
+
+## Task queue
+
+`vikix agents queue` (or `queue --json`) reads priority, position, the next
+eligible task and every blocker; the Office snapshot has the same `queue`.
+Reading never launches. Only the user changes priorities or the queue,
+cancels tasks, or starts its workers. Do not run those acts for another
+worker. Automatic starts require the user's `auto=on` in the Office config;
+`at_once=2` by default, shared with plan workers. Paused workers do not take
+a slot. The user may explicitly `queue bump TASK --over DESK`; the scheduler
+never preempts on its own. An ambiguous launch is blocked, never retried
+by guessing. The guide's “Priorities and the task queue” has the commands.

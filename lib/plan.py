@@ -747,20 +747,23 @@ def start_worker(api, view, task, plan, project, note, log, why=""):
             api.inbox_add(view["folder"], why, "vikix")
         except Exception as e:  # noqa: BLE001  a note that can't be left doesn't stop the round
             log(f"{view['topic']}: no note left: {e}")
-    # The task's record (lib/tasks.py) says the plan made it, not the user.
-    os.environ["VIKIX_TASK_ORIGIN"] = f"plan {os.path.basename(note.get('file') or plan.get('name') or '?')}"[:120]
-    words = cmd + ["worker", view["folder"], task["text"]]
-    words += ["--use", task["agent"]] if task["agent"] else []
-    words += ["--local"] if task["local"] else []
-    words += ["--push"] if task["push"] else []
-    words += ["--no-tests"] if task["no_tests"] else []
-    words += ["--mode", task["mode"]] if task.get("mode") else []
-    for line in task.get("acceptance") or []:
-        words += ["--acceptance", line]
-    ok, last = run(words, log)
-    if not ok:
-        return fail(note, view, f"couldn't start the worker for {task['name']}: {last}", log)
-    return True
+    # The plan's own dependency and release gates still choose the step;
+    # the shared scheduler owns capacity and reserves its launch.
+    import scheduler
+    scheduler.T = api.tasks_module()
+    try:
+        started = scheduler.start_plan(api, view["folder"], task,
+                                       os.path.basename(note.get('file') or plan.get('name') or '?'), plan['project'])
+    except (scheduler.T.TaskError, RuntimeError, OSError, SystemExit) as e:
+        return fail(note, view, f"couldn't start the worker for {task['name']}: {e}", log)
+    if not started:
+        log(f"{view['topic']}: waits for shared Office capacity or worker discovery")
+    else:
+        choices = (' --use ' + task['agent'] if task['agent'] else '') + (' --local' if task['local'] else '')
+        choices += (' --push' if task['push'] else '') + (' --no-tests' if task['no_tests'] else '')
+        choices += (' --mode ' + task['mode'] if task.get('mode') else '')
+        log(f"$ worker {view['folder']} {task['text']}{choices}")
+    return started
 
 
 def fail(note, view, words, log):

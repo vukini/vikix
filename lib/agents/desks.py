@@ -267,7 +267,7 @@ def worker(argv):
                      acceptance=acceptance)
 
 
-def worker_at(folder, task, use, local, here, push, said, name, notests=False, mode=None, acceptance=()):
+def worker_at(folder, task, use, local, here, push, said, name, notests=False, mode=None, acceptance=(), task_id=None, launch_seq=None):
     """An agent started at the desk FOLDER: on TASK, the record's task
     folded into the desk's history and TASK its first prompt; without one
     a session, the record left as it is (a line in its log). SAID is how
@@ -300,17 +300,35 @@ def worker_at(folder, task, use, local, here, push, said, name, notests=False, m
     how = "desk --task" if said.startswith("a desk,") else "worker"
     if task:
         def change(rec):
-            folded[0] = H.start_worker(rec, task, by, provider, mode)
+            if task_id and (rec.get('task') or {}).get('id') == task_id:
+                # A ready task already attached to this desk is starting,
+                # not being replaced by itself in the history.
+                H.set_task(rec, task, by)
+                rec['handoff'] = {k: v for k, v in (rec.get('handoff') or {}).items() if k in H.DESK_FIELDS}
+                rec.pop('left', None)
+                H._log(rec, by, 'queued task started')
+            else:
+                folded[0] = H.start_worker(rec, task, by, provider, mode)
             tests_set(rec, not notests)
             H.set_launch(rec, provider, mode, by)
             if acceptance:
                 H.set_handoff(rec, by, acceptance=list(acceptance))
             # The task's own record (lib/tasks.py): its id in the desk's record.
-            made[0] = task_make(rec, folder, task, by, {"use": use or "", "local": local, "push": push,
-                                                        "no_tests": notests, "mode": mode})
+            if task_id:
+                queued = tasks_module().load(task_id)
+                if not queued or queued['status']['value'] != 'queued':
+                    die('the scheduled task is no longer queued')
+                rec['task']['id'] = task_id
+                made[0] = task_id
+            else:
+                made[0] = task_make(rec, folder, task, by, {"use": use or "", "local": local, "push": push,
+                                                            "no_tests": notests, "mode": mode})
         rec = desk_record(folder, by=by, change=change)
         task_folded(folded[0], by)
-        task_launch(made[0], provider, by, how, mode=mode)
+        if task_id:
+            tasks_module().launch(task_id, provider, by, 'queue', mode=mode or '', sequence=launch_seq)
+        else:
+            task_launch(made[0], provider, by, how, mode=mode)
         # The task is the agent's first prompt, so a new worker never sits idle
         # with its task written only in the record (2026-10-07: one did, for
         # three minutes, until the user typed "read the handoff").

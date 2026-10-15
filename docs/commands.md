@@ -222,6 +222,19 @@ The agents at work on this desktop, in one place.
 - `vikix agents handoff session PROVIDER ID [--desk DESK]` — a conversation that can be resumed at this desk. Claude's session id, codex's thread, opencode's session; Claude Code's is noted by the hook itself
 - `vikix agents handoff list [--json]` — every desk with a record, newest change first. --menu, from Super+m: pick one, read it in a terminal
 - `vikix agents handoff forget [DESK]` — remove the record of a desk whose worktree is gone. Released, or closed: the Office's Closed group for a day, then its Archive, one at a time. Refused while the folder stands (close it) or an agent is still in it. Nothing else goes: no file, no branch, no saved conversation. Without DESK: the records that could be forgotten
+- `vikix agents queue [--json]` — queue order, capacity, the next eligible task and every blocker. Read-only. Automatic starts default off; set auto=on in `~/.config/vikix/office` to opt in, `at_once=2` by default
+- `vikix agents queue add TASK [--first]` — queue a ready task, last or first within its priority
+- `vikix agents queue next TASK` — run this queued task next, ahead of every priority
+- `vikix agents queue up|down TASK` — move one place within its priority
+- `vikix agents queue defer TASK [--later]` — return to ready, or backlog with --later
+- `vikix agents queue start [TASK]` — start one eligible task now, with its recorded worker choices
+- `vikix agents queue pause|go` — hold or resume the scheduler; workers keep their state
+- `vikix agents queue bump TASK --over DESK` — pause DESK's worker and start TASK at a different desk
+- `vikix agents queue tick` — process a scheduler event; starts only with auto=on
+- `vikix agents task new PROJECT TOPIC "task" [--use PROVIDER] [--priority LEVEL] [--after TASK]` — make a ready task without opening a desk or starting a worker
+- `vikix agents task priority TASK critical|high|normal|low` — change priority independently of queue order; user only
+- `vikix agents task cancel TASK ["why"]` — cancel the task; a worker already running is not stopped
+- `vikix agents task ready TASK` — make a deferred or blocked task ready and approved; no worker starts
 - `vikix agents tasks [--json] [--all]` — every task: a record of its own, apart from its desk and its agent. A task is made by every way work comes into being (desk --task, worker, sit --task, handoff --task, the Office's forms, a plan) and kept for life in `~/.local/state/vikix/office/tasks/ID.json`: its id, who made it (yours, an agent's, a plan's; unknown for a record from before), its priority, when it was created, launched and done, the number of each launch (the order the workers were started in, office/sequence), the agent's handoff as it stood, and its state, which moves only by a named step: ready, running, needs decision (the agent's waiting), needs review, blocked (on its worker, when it stopped; on the tests; parked), ready for release (the agent's finished: its work is done, yours is not), completed (the release, the desk closed with its branch in) or cancelled. The open ones in launch order, the unnumbered after, then the done ones of the last day (--all: every one). --json: the records
 - `vikix agents tasks adopt` — task records for the desks from before. One for each desk record's task and for each entry of its workers history, with what the record knew: who, when, the status read into a state; what it didn't know is null and shown as unknown (the launch order, for one), never made up. Run once by an update; safe to run again
 - `vikix agents task ID [--json]` — one task's page, with its history. Its metadata (origin, priority, desk, the launch with its number, the times), its words, the handoff as the desk's record had it, every launch, then its history from the event log, newest first. ID is the task's, or a desk's name for the desk's task

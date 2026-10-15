@@ -76,35 +76,33 @@ board. Release-stop items can display a release note that says stopped or
 refused; retaining such notes after the release process exits belongs with
 phase 6's release recovery. The older desk groups remain below Needs attention.
 
-## Priority, order and the queue
+## Priority, order and the queue (phase 3)
 
-Priority is the task's (`priority`, one of four); order is the queue's (`office/queue.json`: `{"version": 1, "order": ["t-…", ...]}`, under `flock`), the tasks in *queued* in the order they run, within each priority. The two are kept apart: a high task may stand behind a critical one and be blocked while a normal one is ready, and the scheduler says so.
+Implemented 2026-10-15; pending review and release. Commands and settings are
+in `docs/agents.md`, “Priorities and the task queue”. `lib/scheduler.py`
+serializes queue edits and launches, computes eligibility, reserves launch
+numbers/capacity, and blocks ambiguous starts rather than retrying them.
+`worker_at` accepts the task id and reserved sequence so a queued task
+keeps its identity. Reads and Office refreshes never tick the scheduler.
 
-```sh
-vikix agents queue                       # the queue: position, priority, task, desk, what holds it; then: next, and why
-vikix agents queue add TASK [--first]    # ready → queued, at the end (or the head) of its priority
-vikix agents queue next TASK             # to the head of the queue, whatever its priority: "run next"
-vikix agents queue up|down TASK          # one place within its priority
-vikix agents queue defer TASK            # queued → ready (or backlog with --later), its order forgotten
-vikix agents task priority TASK critical|high|normal|low
-vikix agents task cancel TASK ["why"]
-vikix agents queue start [TASK]          # launch the next eligible task now (or TASK, if eligible), one
-vikix agents queue pause|go              # the scheduler held, by you; shown in the Office
-```
+The Office adds Queue and Blocked boxes above its existing desk groups.
+Queue keys are `!`, `+`/`-`, `M-p`/`M-n`, `d`, `k`, `S`, and `Q` to enqueue
+a ready desk task; parked desks move from `k` to `K`. Phase 4 still owns
+the full board, sorting and task creation form. A CLI `task new` creates
+ready tasks without opening a desk; `task ready` approves/retries backlog
+or blocked work after inspection.
 
-In the Office, on the selected task: `!` run next, `+`/`-` priority up and down, `M-n`/`M-p` move down and up, `d` defer, `k` cancel, `S` start it. Drag and drop: Emacs's text buffers have no decent drag of a row, and the mouse picks a row already; *decided here*: not offered, and said so, rather than half done. A task is paused or resumed through its worker (`P`, as today): a pause is the worker's, not the queue's.
+Plan workers use the shared capacity lock and launch intents through
+`start_plan`; a running plan is explicit authorization for its own steps,
+even with `auto=off`. The plan runner keeps its dependency chains, retry
+limits and release gates. Their full presentation as one board remains
+phase 4's. The per-plan `at-once` may impose a smaller limit than the Office's.
 
-## The scheduler
-
-`lib/scheduler.py`: `eligible(task, world)` and `tick(world, launch=False)`. A task is eligible when it is *queued*; every task in `after` is *completed* (or *ready for release* when the two share a desk: the next builds on the branch's commits); its desk, when it has one, stands, has nobody at it, is not paused, and has no release under way on its branch (the release notes `release_queue` reads); its provider is installed (`agents_offered`); it is approved (`origin.approved`; a user's task is approved as made); and `at_once` is not reached, counting the workers running now (agents at desks with a task in *running* or *needs review* and not paused; a paused worker holds its context, not a slot, *decided here*). The pick is the first eligible in priority order, then queue order, then `created`. `tick` prints the pick with why, and every skipped task with why (*blocked by t-…*, *its desk has claude 48213 at it*, *at_once 2 reached*, *waits for your approval*); the Office shows the same under the Queue box: *Next: … because …*.
-
-**Starting.** `launch(task)` writes the intent `office/launching/TASK` (the sequence number taken now, the time, this pid) before anything else, makes the desk when the task has a topic and no desk (`desk PROJECT TOPIC`, as the form does), starts the worker through `worker_at` with the task's own worker choices and nothing more (an auto launch never adds `--push` or `--local` the user didn't set on that task), moves the task to *running* with the launch, appends `launched`, and removes the intent. A `tick` that finds an intent younger than two minutes skips that task; one older, with no agent at the desk and no launch recorded, is cleared with an event `launch failed` and the task goes to *blocked on worker*. Two ticks at once are serialised by `office/queue.lock`; a tick that can't get the lock in a second does nothing and says so. This is what keeps a crash or a restart from launching twice.
-
-**When it runs.** By hand (`queue start`, the Office's *Start next*), and as a detached script (as `tester_start` runs the tester) after each event that frees a slot or unblocks a task: a worker's exit (`exited`, `left`), a status coming to review or finished (`handoff_apply`), a release's `closed`, a desk closed, an answer given, a task cancelled or completed. Without `auto=on` the detached tick only recomputes and notifies once when something new became eligible (*the queue has a task ready to start*); with it, the tick launches up to the free slots. Nothing runs from StumpWM's thread, and the Office's ten-second refresh runs no tick.
-
-**Config**, `~/.config/vikix/office`, `key=value` lines (read by `read_list`'s Python twin; TODO item 102 would fold it into the manifest): `at_once=2`, `auto=off`, `quiet=20`, `delegate=ask`, `delegate_max=3`. Defaults when the file is missing. `auto` off is the rule: the brief and the house rules both say nothing starts a worker but you until you say otherwise.
-
-**Preemption is an act, never the scheduler's.** `vikix agents queue bump TASK --over DESK` pauses the worker at DESK through the hook (its context whole), moves that desk's task to *blocked: paused for TASK*, and starts TASK at a fresh desk (never at the paused one: one worktree, one `git status`); `go` on the paused desk lifts the block. The scheduler itself never pauses, dismisses or signals anything because a higher task arrived.
+A reservation persists until a worker is observed or its exit is recorded;
+a later tick with reliable discovery blocks an ambiguous start after two
+minutes. No automatic retry follows. `queue bump` is explicit cooperative
+preemption at a different desk; `go` restores the paused task. The default
+`at_once=2` and `auto=off` remain unchanged; no user's config is edited.
 
 ## Agents proposing tasks
 
@@ -161,7 +159,7 @@ Every state is a word; colour follows it (the attention faces stay) and never ca
 - **`config/stumpwm/vikix/registry.lisp`**: one entry, *Agents: what needs you* (`vikix-agents attention --menu`, the items in a menu, a pick goes to the agent or answers a decision in rofi), under the desks' map as `?`. Nothing else in Lisp: the desktop keeps reading terminals, and the task model lives in files.
 - **The skill** (`config/claude/skills/vikix/SKILL.md`: the decision rule; `projects.md`: the commands), `~/.local/share/vikix/AGENTS.md` through `--write-guide`, `docs/agents.md` (a section *The work: tasks, the queue, what needs you*, and the Office's section rewritten), `docs/ai.md`'s providers' table, the man pages, the key list (`lib/skill-keys.sh --write`).
 - **A migration** that runs `vikix agents tasks adopt` once and makes the config file with its defaults as comments.
-- **The plan runner** (at work on a desk of its own since 2026-10-10) is a client of this: a plan's tasks are task records with `after` and `origin.kind` `automation`, its chains the same-desk rule of `eligible`, its `at-once` the config's `at_once`, its `gate: me` a task that waits at *ready for release*, and its state the records and the events rather than a store of its own. Which of the two ships first decides who adopts whose files; the event log is wanted by both and comes first either way.
+- **The plan runner** (at work on a desk of its own since 2026-10-10) is a client of this: a plan's tasks are task records with `after` and `origin.kind` `automation`, its chains the same-desk rule of `eligible`, its `at-once` bounded by the config's `at_once`, its `gate: me` a task that waits at *ready for release*. Phase 3 shares capacity and launch intents; the plan keeps its own dependency/retry/release state until the full board unifies their presentation. Which of the two ships first decides who adopts whose files; the event log is wanted by both and comes first either way.
 
 ## What doesn't change
 
@@ -187,7 +185,7 @@ Every state is a word; colour follows it (the attention faces stay) and never ca
 
 1. **Task identity and metadata** (`lib/tasks.py`, the records, the sequence, the events, adoption, the exit line; `tasks`, `task`, `events`; the snapshot's `tasks`; the Office showing the launch number and the task's page with its history). The ground the rest stands on, and what the plan runner's desk asked for first. **Recommended first.**
 2. **Attention and decisions** implemented 2026-10-14; see the guide and the implementation note above.
-3. **Priorities and the scheduler** (`priority`, the queue file, `queue`, `lib/scheduler.py`, the config, the intent, `auto`, `bump`; the Queue and Blocked boxes, the keys).
+3. **Priorities and the scheduler** implemented 2026-10-15, pending review/release; see the implementation note above.
 4. **The Office redrawn** (the five sections in full, the sort, the task form, the terminal board, the MCP `tasks`).
 5. **Proposals and handoffs between providers** (`propose`, `propose_task`, the policy, parent and child, `resume --use` on a task; the adapters' columns; the two Codex pieces verified where Codex is).
 6. **Recovery and the full test run** (the crash tests, the restart tests, the interplay with the tester and the release queue; `bugs.md` for what living with it shows).

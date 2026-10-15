@@ -240,6 +240,7 @@ for f in "${files[@]}"; do
     config/stumpwm/vikix/agents.lisp|bin/vikix-agents|lib/agents/*|config/claude/office.json) add office titles house handoff office-ui mcp tester plan door nyxt codex tasks reconnect ;;
     lib/plan.py|config/plans/*) add plan office-ui codex ;;
     lib/handoff.py) add office titles house handoff office-ui mcp release plan codex tasks ;;
+    lib/scheduler.py|tests/scheduler*) add scheduler tasks handoff office-ui ;;
     lib/tasks.py|migrations/1791912562.sh) add tasks handoff house office-ui mcp release plan codex ;;
     bin/vikix-agent) add house agents ai codex ;;
     config/codex/*) add handoff codex ;;

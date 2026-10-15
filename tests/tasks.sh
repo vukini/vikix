@@ -412,7 +412,7 @@ check "--json is the records" test "$(agents tasks --json | python3 -c 'import j
 out=$(agents task c)
 check "task by a desk's name is the desk's task, with its history: $out" \
   bash -c 'grep -q "^Task $2: Chapter two, the index" <<<"$1" && grep -q "^History (" <<<"$1" && grep -q "^Launches: 3" <<<"$1"' _ "$out" "$c2"
-check "every form of the work is in help" test "$(agents help work | grep -c '^  vikix agents')" = 8
+check "every form of the work is in help" test "$(agents help work | grep -c '^  vikix agents')" = 21
 rm -f "$HOME/.config/vikix/office"
 export VIKIX_TASK_ORIGIN="plan chapters"
 agents handoff g --task "A plan's task" >/dev/null; g=$(task_of g)

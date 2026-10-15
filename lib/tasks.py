@@ -87,7 +87,7 @@ TRANSITIONS = {
     ("needs review", "running"), ("needs review", "ready for release"), ("needs review", "blocked"),
     ("running", "ready for release"), ("ready for release", "running"),
     ("ready for release", "completed"), ("needs review", "completed"),
-    ("blocked", "ready"),
+    ("blocked", "ready"), ("queued", "backlog"), ("queued", "blocked"),
     # A worker reporting from a blocked task (one that sat down itself, or
     # was started by hand) ends the block: 2026-10-13, from the first run.
     ("blocked", "needs decision"), ("blocked", "needs review"), ("blocked", "ready for release"),
@@ -106,13 +106,13 @@ EVENT_OF = {
     ("needs review", "blocked"): "blocked",
     ("running", "ready for release"): "accepted", ("ready for release", "running"): "sent back",
     ("ready for release", "completed"): "completed", ("needs review", "completed"): "completed",
-    ("blocked", "ready"): "unblocked",
+    ("blocked", "ready"): "unblocked", ("queued", "backlog"): "deferred", ("queued", "blocked"): "blocked",
     ("blocked", "needs decision"): "asked", ("blocked", "needs review"): "review asked", ("blocked", "ready for release"): "accepted",
 }
 KINDS = ("created", "approved", "priority", "ordered", "queued", "deferred", "launched", "paused", "resumed",
          "asked", "answered", "handoff", "tests started", "tests done", "review asked", "accepted", "sent back",
          "blocked", "unblocked", "exited", "handed off", "released", "completed", "cancelled", "proposed",
-         "uncertain", "adopted",
+         "uncertain", "adopted", "launch failed",
          # lib/handoff.py's own, in the same file since before this design.
          "worker", "closed", "left")
 FIELDS = ("version", "id", "title", "text", "project", "desk", "topic", "origin", "priority", "status", "blocked",
@@ -506,7 +506,7 @@ def move(tid, to, by, reason="", kind=None, data=None, blocked_on="", done=False
     return rec
 
 
-def launch(tid, provider, by, how, pid=0, mode="", numbered=True, start=""):
+def launch(tid, provider, by, how, pid=0, mode="", numbered=True, start="", sequence=None):
     """Task TID launched: a worker started on it, PROVIDER's, by BY, HOW (worker,
     desk --task, resume, sit, handoff --task; the queue's start later).
     The next sequence number is taken (NUMBERED false for an agent that
@@ -517,7 +517,7 @@ def launch(tid, provider, by, how, pid=0, mode="", numbered=True, start=""):
     review: a resumed conversation on a task already open). A change of
     provider from the launch before is an event handed off. The record."""
     by = word(by, "who", 60)
-    seq = next_seq() if numbered else None
+    seq = (sequence if sequence is not None else next_seq()) if numbered else None
     out = {}
 
     def change(rec):

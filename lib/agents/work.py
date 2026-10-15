@@ -68,6 +68,8 @@ def tasks_split(tasks, every=False):
 
 def task_cmd(argv):
     """vikix agents task ID [--json]: one task's page, with its history."""
+    if argv and argv[0] in ('priority', 'cancel', 'ready', 'new'):
+        return task_change(list(argv))
     T = tasks_module()
     as_json, words = False, []
     for a in argv:
@@ -234,6 +236,7 @@ def answer_cmd(argv):
     if len(argv) != 2:
         die('vikix agents answer DECISION "choice or free text"')
     d = tasks_module().answer(argv[0], argv[1], by)
+    scheduler_module().wake(os.path.join(VIKIX_DIR, 'bin', 'vikix-agents'))
     print(tasks_module().decision_words(d))
     return 0
 
@@ -284,4 +287,104 @@ def attention_cmd(argv):
             print(f"{r['kind']}: {r['project']} · {r['title']} [{r.get('task') or 'office'}] · {worker}, {seq} — {r['why']} ({age})")
         if not rows:
             print('Nothing needs attention.')
+    return 0
+
+
+def queue_user():
+    by, me = by_me()
+    if me or by != 'user' or os.environ.get('VIKIX_AGENT'):
+        die('only the user changes the task queue or starts its workers')
+    return by
+
+
+def scheduler_module():
+    sys.path.insert(0, os.path.join(VIKIX_DIR, 'lib'))
+    import scheduler
+    # The agents loader may load tasks under a private module name. Use
+    # that same instance, including its test/state paths, everywhere.
+    scheduler.T = tasks_module()
+    return scheduler
+
+
+def task_change(argv):
+    S = scheduler_module()
+    by = queue_user()
+    action = argv.pop(0)
+    if action in ('priority', 'cancel'):
+        if not argv or len(argv) > 2 or (action == 'priority' and len(argv) != 2):
+            die('task priority TASK critical|high|normal|low; task cancel TASK [reason]')
+        S.mutate(action, argv[0], argv[1] if len(argv) > 1 else None, by)
+    elif action == 'ready':
+        if len(argv) != 1:
+            die('task ready TASK')
+        with S.locked():
+            t = tasks_module().load(argv[0])
+            if not t or t['status']['value'] not in ('backlog', 'blocked'):
+                die('only a backlog or blocked task can be made ready')
+            if agents_at(t.get('desk', {}).get('worktree', '')):
+                die('a worker is still at its desk')
+            tasks_module().update(t['id'], lambda t: t['origin'].update(approved={'by': by, 'at': int(time.time())}))
+            tasks_module().move(t['id'], 'ready', by)
+    elif action == 'new':
+        if len(argv) < 3:
+            die('task new PROJECT TOPIC "task" [--use PROVIDER] [--priority LEVEL] [--after TASK]')
+        project, topic, text = argv[:3]
+        rest, provider, priority, after = argv[3:], '', 'normal', []
+        while rest:
+            flag = rest.pop(0)
+            if flag not in ('--use', '--priority', '--after') or not rest:
+                die('task new: expected --use, --priority or --after and its value')
+            value = rest.pop(0)
+            if flag == '--use': provider = value
+            elif flag == '--priority': priority = value
+            else:
+                S.require_task(value)
+                after.append(value)
+        project = projects().match(project).full
+        t = tasks_module().new(text, project, by, topic=topic_name(topic), priority=priority, worker={'use': provider})
+        if after:
+            tasks_module().update(t['id'], lambda t: t.update(after=after))
+        print(t['id'])
+    return 0
+
+
+def queue_cmd(argv):
+    S = scheduler_module()
+    api = sys.modules[__name__]
+    as_json = '--json' in argv
+    argv = [a for a in argv if a != '--json']
+    action = argv[0] if argv else ''
+    if not action:
+        result = S.view(S.world(api))
+    elif action == 'tick' and len(argv) == 1:
+        # Internal event tick: auto=off is enforced inside the scheduler.
+        result = S.tick(api, automatic=True)
+    else:
+        queue_user()
+        if action == 'start' and len(argv) in (1, 2):
+            result = S.tick(api, start=True, tid=argv[1] if len(argv) == 2 else None)
+        elif action == 'bump' and len(argv) == 4 and argv[2] == '--over':
+            result = S.bump(api, argv[1], argv[3])
+        elif action in ('pause', 'go') and len(argv) == 1:
+            S.mutate(action)
+            result = S.view(S.world(api))
+        elif action in ('add', 'next', 'up', 'down', 'defer') and len(argv) in (2, 3):
+            extra = argv[2] if len(argv) == 3 else None
+            if extra and (action, extra) not in (('add', '--first'), ('defer', '--later')):
+                die('only add --first and defer --later take an option')
+            S.mutate(action, argv[1], extra[2:] if extra else None)
+            result = S.view(S.world(api))
+        else:
+            die('queue [add|next|up|down|defer TASK | start [TASK] | pause|go | bump TASK --over DESK]')
+    if as_json:
+        print(json.dumps(result, ensure_ascii=False))
+    else:
+        print(f"Queue: {result['active']}/{result['at_once']} workers; auto {'on' if result['auto'] else 'off'}"
+              + ('; paused' if result['paused'] else ''))
+        for r in result['rows']:
+            print(f"{r['position']:3} {r['priority']:8} {r['id']} {r['title']} — {r['why']}")
+        nxt = result['next']
+        print('Next: ' + (nxt['id'] + ' — ' + nxt['why'] if nxt else 'none eligible'))
+        for tid in result.get('launched', []):
+            print('Started: ' + tid)
     return 0

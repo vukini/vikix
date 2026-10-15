@@ -243,6 +243,15 @@ if [ -z "$plain" ]; then
 else
   say "$topic is on main, with no new version"
 fi
+# A release may unblock a dependent task. The event tick obeys auto=off.
+if [ -f "$main/lib/scheduler.py" ]; then
+  python3 - "$main" <<'PYTHON'
+import sys
+sys.path.insert(0, sys.argv[1] + '/lib')
+import scheduler
+scheduler.wake(sys.argv[1] + '/bin/vikix-agents')
+PYTHON
+fi
 say "not pushed. Vid: gup"
 exit 0
 }

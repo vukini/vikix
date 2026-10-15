@@ -367,7 +367,91 @@ $ vikix agents events --all --since 1h
 2026-10-14 07:14  adopted  by vikix  status running, unknown: its launch order; when it was launched, title the bar's clock should show seconds
 ```
 
-Each line is signed, as the handoff's are: *user* for your act, *vikix* for what the office read itself (an exit, a release, an adoption), an agent by name and number for its handoff. The same records are what the Office draws (the launch number on the row, the **Task record** box and the history on a desk's page), what `vikix agents office --json` and the MCP tool `office` carry in their version 2, and what the read-only MCP tool `tasks` gives an agent; the release appends *released* and completes the desk's tasks. The task board's settings (`at_once`, `auto`, `quiet`, `delegate`, `delegate_max`) are written as comments with their defaults into `~/.config/vikix/office` by the same update; what reads them, the queue, the attention list and the scheduler, comes with the design's later phases (`plans/DESIGN-office-tasks.md`), and until then the Office keeps its groups as they are.
+Each line is signed, as the handoff's are: *user* for your act, *vikix* for what the office read itself (an exit, a release, an adoption), an agent by name and number for its handoff. The same records are what the Office draws (the launch number on the row, the **Task record** box and the history on a desk's page), what `vikix agents office --json` and the MCP tool `office` carry in their version 2, and what the read-only MCP tool `tasks` gives an agent; the release appends *released* and completes the desk's tasks. The task board's settings (`at_once`, `auto`, `quiet`, `delegate`, `delegate_max`) are written as comments with their defaults into `~/.config/vikix/office` by the same update; the attention list and scheduler read these settings now. The full five-section task board remains a later phase (`plans/DESIGN-office-tasks.md`).
+
+### Priorities and the task queue
+
+A task's priority is `critical`, `high`, `normal` or `low`. Its position
+within that priority is separate. `vikix agents queue` shows both, the next
+eligible task, and why any task must wait. Reading the queue or refreshing
+the Office never starts a worker.
+
+Make a task without starting it, then queue it:
+
+```sh
+vikix agents task new vikix picker "Improve the picker" --use codex --priority high
+vikix agents queue add TASK
+vikix agents queue start
+```
+
+Replace `TASK` with the id printed by `task new`. Repeat `--after TASK`
+when a new task depends on other tasks. A dependency must be completed;
+when both tasks use the same desk, *ready for release* is sufficient,
+since the next task builds on that branch. The new desk is made only when
+its task starts. To queue a task already ready at an existing desk, use
+its id from `vikix agents task DESK`.
+
+- `queue add TASK --first` puts it first within its priority.
+- `queue next TASK` makes it the next eligible task across priorities.
+- `queue up TASK` and `queue down TASK` move it within its priority.
+- `task priority TASK high` changes priority without changing manual order.
+- `queue defer TASK` returns it to ready; `--later` returns it to backlog.
+- `task ready TASK` makes a deferred or blocked task ready and approves it.
+  A worker still at its desk must finish or be closed first.
+- `task cancel TASK "reason"` cancels the task. An existing worker continues;
+  cancellation is not a command to dismiss or signal it.
+- `queue start [TASK]` starts one eligible task. `queue pause` and `queue go`
+  hold and resume scheduling without pausing workers.
+
+Only the user changes priorities, orders the queue, cancels tasks, or
+starts a queued worker. Agents can read `queue --json`; its information
+also appears in the read-only Office snapshot and MCP `office` tool.
+
+The Office has **Queue** and **Blocked** boxes. Each queue row shows its
+position, priority and blocker, with buttons for its actions. On a queue
+row, `!` means run next, `+`/`-` changes priority, `M-p`/`M-n` moves up/down,
+`d` defers, `k` cancels with confirmation, and `S` starts it. On a desk's
+ready task, `Q` adds it to the queue. **Start next** chooses the first
+eligible task. `K` now shows or hides parked desks (formerly `k`).
+
+#### Capacity and automatic starts
+
+The settings are in `~/.config/vikix/office`:
+
+```text
+at_once=2
+auto=off
+```
+
+Defaults apply when these lines are absent. `auto=on` explicitly lets
+scheduler events start approved tasks up to the capacity. Nothing changes
+this setting for you. Without it, an event only announces newly eligible
+work. Events include handoffs, exits, answers, releases, queue changes and
+closing desks. `queue tick` processes an event by hand and obeys the same
+setting. There is no polling daemon or scheduler work in StumpWM's thread.
+
+The scheduler counts observed workers on running or review tasks and
+pending terminal starts. Paused workers do not use a slot. A task waits
+when discovery is unavailable, its provider is unavailable, it is not
+approved, an answer or dependency is outstanding, its desk is paused or
+occupied, or its branch is being released. It never takes missing
+observations as permission to launch. Plan workers use this same capacity
+and launch lock; a plan's own `at-once` may impose a smaller limit. A plan
+explicitly started by you still runs its approved steps with `auto=off`;
+its dependency and release gates remain the plan runner's.
+
+A start reserves its launch number and slot before opening the terminal.
+The queued task keeps its id, history and recorded worker choices. A
+reservation stays until the worker is observed or its exit is recorded.
+After two minutes, a later tick with reliable discovery marks an ambiguous
+start blocked; it never launches it again automatically. Inspect the desk
+before making that task ready again.
+
+`queue bump TASK --over DESK` is an explicit preemption: it pauses DESK's
+worker at its next tool call and starts TASK at a different desk. The old
+task records what it was paused for. `vikix agents go DESK` restores it.
+The scheduler never preempts on its own. Its pause is cooperative, so the
+old worker may finish its current tool call before it waits.
 
 ### Modes: how free a Codex worker is
 
@@ -626,7 +710,7 @@ Above the desks, a **Plans** box when a plan has run or been written (`vikix age
 
 The left side groups desks into **Needs you**, **Testing**, **Working** and **Finished**
 on its first page, and **Parked** and **Closed** on a page of their own (the
-**Parked and closed** button, or `k`; **Back to desks**, or `k` again, returns),
+**Parked and closed** button, or `K`; **Back to desks**, or `K` again, returns),
 so the first page holds only the desks with something to do at them. A desk whose task has a record (*The work: tasks and their history*, above) carries its launch number before the project (`#104 · vikix · claude · workspace 2`), or *launch order unknown* for a task adopted from before the records, which had no number to keep; its page has a **Task record** box (the id, the origin and priority, the state the office recorded with why, the launch, the worker's state as observed with how sure, the times, *unknown* where the record never had one) and under it the task's history from the event log, newest first, the same lines `vikix agents task` prints. Each
 group is drawn in a box of its own, a rule between its
 desks. Beside the project, each live agent's name has its workspace clearly

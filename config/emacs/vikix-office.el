@@ -640,6 +640,83 @@ is drawn when PLANS is empty."
           (add-text-properties start (point) (list 'vikix-office-attention item)))))
     (vikix-office--box-bottom width chars)))
 
+(defun vikix-office-queue-action (action &optional task)
+  "Apply ACTION to the queue task at point, or the selected desk's task."
+  (let ((at-point (get-text-property (point) 'vikix-office-queue-task)))
+    (with-current-buffer (vikix-office--owner-buffer)
+      (let* ((id (or task at-point (alist-get 'id (alist-get 'task_record (vikix-office--row)))))
+             (record (cl-find id (alist-get 'tasks vikix-office--data)
+                              :key (lambda (r) (alist-get 'id r)) :test #'equal))
+             (args
+              (cond
+               ((equal action "start") (append '("queue" "start") (when id (list id))))
+               ((member action '("pause" "go")) (list "queue" action))
+               ((not id) (user-error "Select a task first"))
+               ((member action '("priority-up" "priority-down"))
+                (let* ((priorities '("critical" "high" "normal" "low"))
+                       (index (or (cl-position (alist-get 'priority record) priorities :test #'equal) 2))
+                       (new (max 0 (min 3 (+ index (if (equal action "priority-up") -1 1))))))
+                  (list "task" "priority" id (nth new priorities))))
+               ((equal action "cancel")
+                (unless (yes-or-no-p "Cancel this task? Its worker, if any, keeps running. ")
+                  (user-error "Cancelled"))
+                (list "task" "cancel" id (read-string "Reason: ")))
+               ((equal action "ready") (list "task" "ready" id))
+               (t (list "queue" action id)))))
+        (vikix-office--act args #'vikix-office-refresh)))))
+
+(defun vikix-office--queue-boxes (width chars owner)
+  "Queue order and blockers, without changing the desk groups below."
+  (let* ((queue (alist-get 'queue vikix-office--data))
+         (rows (alist-get 'rows queue))
+         (next (alist-get 'next queue)))
+    (when queue
+      (vikix-office--box-top width chars "Queue")
+      (vikix-office--note width chars
+                         (format "%s/%s workers · auto %s%s"
+                                 (alist-get 'active queue) (alist-get 'at_once queue)
+                                 (if (eq (alist-get 'auto queue) t) "on" "off")
+                                 (if (eq (alist-get 'paused queue) t) " · paused" "")))
+      (vikix-office--note width chars
+                         (if next (concat "Next: " (alist-get 'title next) " — " (alist-get 'why next))
+                           "Next: none eligible"))
+      (vikix-office--line width chars
+       (lambda ()
+         (vikix-office--button "Start next" (lambda () (with-current-buffer owner
+                                                         (vikix-office--act '("queue" "start") #'vikix-office-refresh))))
+         (let ((action (if (eq (alist-get 'paused queue) t) "go" "pause")))
+           (vikix-office--button (if (equal action "go") "Resume queue" "Pause queue")
+                                (lambda () (with-current-buffer owner (vikix-office-queue-action action)))))))
+      (dolist (row rows)
+        (let ((start (point)) (id (alist-get 'id row)))
+          (vikix-office--note width chars
+                             (format "%s. %s · %s" (alist-get 'position row) (alist-get 'priority row) (alist-get 'title row)))
+          (vikix-office--note width chars (concat id " — " (alist-get 'why row)))
+          (vikix-office--line width chars
+           (lambda ()
+             (dolist (choice '(("Start" . "start") ("Run next" . "next") ("Up" . "up") ("Down" . "down")
+                               ("Priority +" . "priority-up") ("Priority −" . "priority-down") ("Defer" . "defer") ("Cancel" . "cancel")))
+               (let ((action (cdr choice)))
+                 (vikix-office--button (car choice) (lambda () (with-current-buffer owner
+                                                                  (vikix-office-queue-action action id))))))))
+          (add-text-properties start (point) (list 'vikix-office-queue-task id))))
+      (vikix-office--box-bottom width chars)
+      (vikix-office--box-top width chars "Blocked")
+      (let ((blocked (cl-remove-if-not (lambda (task) (equal (alist-get 'value (alist-get 'status task)) "blocked"))
+                                       (alist-get 'tasks vikix-office--data))))
+        (unless (or blocked (alist-get 'skipped queue))
+          (vikix-office--note width chars "nothing blocked"))
+        (dolist (row (alist-get 'skipped queue))
+          (vikix-office--note width chars (concat (alist-get 'title row) " — " (alist-get 'why row))))
+        (dolist (task blocked)
+          (let ((id (alist-get 'id task)))
+            (vikix-office--note width chars (concat (alist-get 'title task) " — "
+                                                   (vikix-office--text (alist-get 'reason (alist-get 'status task)))))
+            (vikix-office--line width chars
+             (lambda () (vikix-office--button "Make ready" (lambda () (with-current-buffer owner
+                                                                         (vikix-office-queue-action "ready" id)))))))))
+      (vikix-office--box-bottom width chars))))
+
 (defun vikix-office--render ()
   (let* ((rows (vikix-office--rows))
          (owner (current-buffer))
@@ -683,6 +760,7 @@ is drawn when PLANS is empty."
       ;; first page's alone.
       (when (eq vikix-office--page 'desks)
         (vikix-office--attention-box width chars owner)
+        (vikix-office--queue-boxes width chars owner)
         (let ((releases (alist-get 'releases vikix-office--data)))
           (cond (releases
                  (let ((label-width (vikix-office--label-width
@@ -2303,7 +2381,12 @@ were."
     (define-key map (kbd "h") #'vikix-office-guide)
     (define-key map (kbd "w") #'vikix-office-worker)
     (define-key map (kbd "A") #'vikix-office-toggle-archive)
-    (define-key map (kbd "k") #'vikix-office-toggle-parked)
+    (define-key map (kbd "K") #'vikix-office-toggle-parked)
+    (dolist (binding '(("!" . "next") ("+" . "priority-up") ("-" . "priority-down")
+                       ("M-n" . "down") ("M-p" . "up") ("d" . "defer") ("k" . "cancel")
+                       ("S" . "start") ("Q" . "add")))
+      (let ((action (cdr binding)))
+        (define-key map (kbd (car binding)) (lambda () (interactive) (vikix-office-queue-action action)))))
     (define-key map (kbd "q") #'vikix-office-close)
     (define-key map (kbd "RET") #'vikix-office-details)
     (define-key map (kbd "TAB") #'forward-button)
