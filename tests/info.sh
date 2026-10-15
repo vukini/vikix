@@ -149,7 +149,7 @@ check "a failed build should leave the old pages" cmp -s "$t/kept" "$t/old-guide
 
 # --- Emacs reads it ---------------------------------------------------------------
 if command -v emacs >/dev/null; then
-  got=$(INFOPATH="$info:" emacs -Q --batch --eval '(progn (info "vikix") (search-forward "Where everything is") (Info-follow-nearest-node) (princ Info-current-node))' 2>/dev/null)
+  got=$(INFOPATH="$info:" emacs -Q --batch --eval '(progn (info "vikix") (search-forward "note Where everything is") (backward-char 3) (Info-follow-nearest-node) (princ Info-current-node))' 2>/dev/null)
   check "Emacs didn't open the manual and follow a link (got '$got')" test "$got" = "Where everything is"
 fi
 

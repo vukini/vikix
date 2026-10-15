@@ -67,6 +67,27 @@ def node_name(text):
     return re.sub(r"\s+", " ", s).strip()
 
 
+
+def item_refs(text):
+    """An @item line may not hold an @ref (makeinfo 7.1 warns), so a link
+    in a table's first column leaves its words on the line and goes below
+    as a (see ...) after the text. Returns the line and the refs' args."""
+    term, refs, i = "", [], 0
+    while True:
+        j = text.find("@ref{", i)
+        if j < 0:
+            return term + text[i:], refs
+        term += text[i:j]
+        k, depth = j + 5, 1
+        while depth:
+            depth += {"{": 1, "}": -1}.get(text[k], 0)
+            k += 1
+        arg = text[j + 5:k - 1]
+        parts = arg.split(",,", 1)
+        term += parts[1] if len(parts) > 1 else parts[0]
+        refs.append(arg)
+        i = k
+
 class Manual:
     def __init__(self, docs):
         self.docs = docs
@@ -178,12 +199,15 @@ class Manual:
         head, body = cells[0], cells[2:]
         out = ["@table @asis"]
         for r in body:
-            out.append("@item " + self.inline(r[0], page))
+            term, refs = item_refs(self.inline(r[0], page))
+            out.append("@item " + term)
             text = self.inline(r[1], page) if len(r) > 1 else ""
             if len(head) > 2 and head[1] and text:
                 text = f"{self.inline(head[1], page)}: {text}"
             for h, c in zip(head[2:], r[2:]):
                 text += f"@*\n{self.inline(h, page)}: {self.inline(c, page)}"
+            if refs:
+                text += (" " if text else "") + " ".join(f"(@pxref{{{a}}})" for a in refs)
             out.append(text)
         out.append("@end table")
         return out
