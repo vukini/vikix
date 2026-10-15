@@ -51,11 +51,15 @@ sbcl --noinform --no-sysinit --no-userinit --non-interactive --eval '
                          count (eql (read-char in nil #\Space) #\Newline)))))
            (make-it-readable (c)
              ;; A package or an external symbol that only StumpWM has.
+             ;; Locked SBCL packages (sb-debug, ...) refuse EXPORT; ignore the
+             ;; package lock so the reader can retry (same as unlocking).
              (let ((pkg (package-error-package c))
                    (args (simple-condition-format-arguments c)))
                (if (stringp pkg)
                    (make-package pkg :use nil)
-                   (export (intern (first args) pkg) pkg))))
+                   (handler-bind ((sb-ext:package-locked-error
+                                    (lambda (c) (declare (ignore c)) (continue))))
+                     (export (intern (first args) pkg) pkg)))))
            (float-delays (form file start)
              ;; (run-with-timer 0.3 ...) stops the event loop of StumpWM: the
              ;; time it makes is a float, where a whole number is declared.
@@ -149,6 +153,19 @@ else
 (defvar *key-press-hook* '())
 (defun kbd (k) k)
 (defun define-key (map key command) (setf (gethash key map) command))
+(defun undefine-key (map key) (remhash key map))
+(defun lookup-key (map key) (gethash key map))
+(defun sync-keys () nil)
+(defun message (fmt &rest args) (declare (ignore fmt args)) nil)
+(defun split-string (string &optional (separators " \f\t\n"))
+  (loop with sep = (coerce separators 'list)
+        for start = 0 then (1+ end)
+        for end = (position-if (lambda (c) (member c sep)) string :start start)
+        collect (subseq string start end)
+        while end))
+(defun run-shell-command (cmd &optional collect-output-p)
+  (declare (ignore cmd collect-output-p))
+  "")
 (defmacro add-hook (hook fn) `(setf ,hook (adjoin ,fn ,hook)))
 (defmacro remove-hook (hook fn) `(setf ,hook (remove ,fn ,hook)))
 (defmacro defcommand (name args prompts &body body)
