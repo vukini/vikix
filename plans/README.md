@@ -29,6 +29,7 @@ The longer plans of Vikix, one file each. The queue is `../TODO.md`, the pool `.
 
 | File | Written | What it holds |
 |---|---|---|
+| [VIKIX_CLOUD_HANDOFF.md](VIKIX_CLOUD_HANDOFF.md) | 2026-10-15 (imported) | Vid’s Cloud development handoff, supplementing `DESIGN-cloud.md` and TODO 117: phased acceptance criteria, transfer safeguards, dogfooding and later product context; annotated for the node commands already shipped. |
 | `ai-desktop.md` | 2026-09-30 | The AI desktop at work (one Radeon AI PRO R9700), beside the ROG Flow Z13 (TODO 58 to 63). |
 | `TODO-editors.md` | 2026-09-29 | What is left for the editors: Neovim's config into Vikix, AI in Neovim and Emacs. |
 | `TODO-Windows.md` | 2026-10-05 | What is left for Windows programs in their own windows (`vikix windows app`). |

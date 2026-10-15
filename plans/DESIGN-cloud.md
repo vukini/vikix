@@ -4,6 +4,8 @@ An idea of Vid's, written down 2026-10-09 and kept here as he gave it, for a des
 
 *2026-10-12: the v0.1 scope's first half shipped as `bin/vikix-node` (`vikix nodes`, `vikix node add|remove|status|shell|run`; a node a file under `~/.config/vikix/nodes/`, its last answer under `~/.local/state/vikix/nodes/`; SSH in batch mode, keys only, host key checked; the guide `docs/nodes.md`), so `vikix nodes` is the name. Left of the milestone: sending a project and pulling it back, and the real try with a VPS.*
 
+*2026-10-15: added [Vid’s development handoff](VIKIX_CLOUD_HANDOFF.md), with phased acceptance criteria, project-transfer safeguards and later product context. Its initial implementation prompts predate the shipped node commands above; TODO 117 remains the current work list, with explicit project transfer and the real VPS trial still open.*
+
 ---
 
 ## Core idea
