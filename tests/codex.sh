@@ -739,7 +739,7 @@ rm -r "$t/proc/1201"
 # record between the two providers.
 agents handoff session claude sess-claude-1 --desk h >/dev/null
 standin() {   # standin NAME FOLDER: a real process the dismissal lands on, gone from the made-up /proc as it dies, as from the real one
-  bash -c 'trap "rm -rf \"$0/proc/$$\"; exit 0" TERM; sleep 300 & wait' "$t" &
+  bash -c 'trap '\''kill "$child" 2>/dev/null; wait "$child" 2>/dev/null; rm -rf "$0/proc/$$"; exit 0'\'' TERM; sleep 300 & child=$!; wait "$child"' "$t" &
   spid=$!; proc "$spid" "$1" "$2"
 }
 standin claude "$t/src/book-h"
