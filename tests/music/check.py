@@ -50,7 +50,9 @@ def engine(args):
                         stamp = struct.unpack(">Q", data[8:16])[0] / 2**32 - 2208988800
                         assert b"vikix-tone\0" in data
                         with (t / "events").open("a") as out:
-                            out.write(json.dumps({"at": stamp}) + "\n")
+                            offset = data.index(b"freq\0") + 8
+                            freq = struct.unpack(">f", data[offset:offset + 4])[0]
+                            out.write(json.dumps({"at": stamp, "freq": freq}) + "\n")
                     elif data.startswith(b"/quit\0"):
                         break
             except EOFError:
@@ -120,9 +122,10 @@ with tempfile.TemporaryDirectory(prefix="vikix-music-test-") as temp:
     data.mkdir(parents=True)
     (data / "tone.scsyndef").write_bytes(b"SCgf fixture")
     run("music", "doctor")
-    run("music", "tone", "440")
+    run("music", "tone")
     gone()
     assert len((t / "events").read_text().splitlines()) == 1
+    assert json.loads((t / "events").read_text())["freq"] == 880
     (t / "events").unlink()
     run("music", "play", str(pattern), "--bars", "2")
     gone()
@@ -143,19 +146,20 @@ with tempfile.TemporaryDirectory(prefix="vikix-music-test-") as temp:
     run("music", "tone", ok=False)
     gone()
     (t / "fail-engine").unlink()
-    child = subprocess.Popen([str(root / "bin/vikix"), "music", "play", str(pattern)],
-                             env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                             start_new_session=True)
-    try:
-        time.sleep(1)
-        child.send_signal(signal.SIGTERM)
-        child.wait(timeout=10)
-        assert child.returncode != 0
-        gone()
-    finally:
-        if child.poll() is None:
-            os.killpg(child.pid, signal.SIGKILL)
-            child.wait(timeout=5)
+    for stop_signal in (signal.SIGINT, signal.SIGTERM):
+        child = subprocess.Popen([str(root / "bin/vikix"), "music", "play", str(pattern)],
+                                 env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                 start_new_session=True)
+        try:
+            time.sleep(1)
+            child.send_signal(stop_signal)
+            child.wait(timeout=10)
+            assert child.returncode != 0
+            gone()
+        finally:
+            if child.poll() is None:
+                os.killpg(child.pid, signal.SIGKILL)
+                child.wait(timeout=5)
     (pattern.parent / "capture.wav").write_bytes(b"private recording")
     (pattern.parent / "nested").mkdir()
     (pattern.parent / "nested/patterns.lisp").write_text("not a song")
@@ -167,8 +171,33 @@ with tempfile.TemporaryDirectory(prefix="vikix-music-test-") as temp:
     assert not any("capture" in f or "nested" in f for f in files), files
     pattern.write_text("(tempo 120) (defpattern test '(c4))\n")
     run("snapshot", "music after")
-    run("undo", before, "--yes")
-    assert pattern.read_text() == original
+    # Undo reaches a running player through the same bar-boundary reload.
+    (t / "events").unlink(missing_ok=True)
+    child = subprocess.Popen([str(root / "bin/vikix"), "music", "play", str(pattern)],
+                             env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             start_new_session=True)
+    def wait_note(hz):
+        deadline = time.monotonic() + 8
+        while time.monotonic() < deadline:
+            if (t / "events").exists():
+                rows = (t / "events").read_text().splitlines()
+                if any(abs(json.loads(row)["freq"] - hz) < 0.1 for row in rows):
+                    return
+            time.sleep(0.05)
+        raise AssertionError(f"player never scheduled {hz} Hz")
+    try:
+        wait_note(261.626)
+        run("undo", before, "--yes")
+        assert pattern.read_text() == original
+        wait_note(440)
+    finally:
+        child.send_signal(signal.SIGINT)
+        try:
+            child.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            os.killpg(child.pid, signal.SIGKILL)
+            child.wait(timeout=5)
+        gone()
     test = t / "clock.lisp"
     test.write_text('(load ' + json.dumps(str(root / "lib/music/core.lisp")) + ')\n' +
       '(in-package :vikix-music)\n' +

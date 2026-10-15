@@ -234,7 +234,7 @@ def main(root, argv):
         sub.add_parser(name)
     sub.add_parser("check").add_argument("file")
     tone = sub.add_parser("tone")
-    tone.add_argument("hz", type=float, nargs="?", default=440)
+    tone.add_argument("hz", type=float, nargs="?", default=880)
     play = sub.add_parser("play")
     play.add_argument("file", nargs="?", default=str(Path.home() / "music/first-song/patterns.lisp"))
     play.add_argument("--pattern")

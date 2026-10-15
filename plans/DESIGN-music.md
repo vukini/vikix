@@ -11,9 +11,21 @@ The launcher owns an authenticated loopback TCP engine; cl-collider compiles
 the synth at setup, while a small Python supervisor carries timestamped OSC
 and reaps both children. No sample library is needed for the single sine
 sound. Use `-` for rests, since a bare `.` is Lisp dotted-list syntax.
-The guide is [music.md](../docs/music.md). Real audible playback, realtime
-priority and the install-to-sound target still need validation on the X1
-and VM; this is not a claim that those goals passed.*
+The guide is [music.md](../docs/music.md).*
+
+*2026-10-16: Vid confirmed installation, audible tones and patterns, and
+live tempo changes on the X1. The starter now uses A5/C6/E6 and the CLI
+test tone defaults to 880 Hz: the original low sine notes were difficult
+to hear on its speakers. Existing songs stay untouched. The public-launcher
+tests cover Ctrl+C, termination and snapshot undo while playing, as well
+as invalid edits retaining the last good pattern. The real engine runs at
+48 kHz with a 1024-frame block (21.3 ms per block, not measured round-trip
+latency); its PipeWire audio thread has SCHED_RR priority 20. A 300-bar,
+ten-minute play completed with exit 0: SuperCollider error counters stayed
+at zero, the device counter stayed at its initial five, and both owned
+children exited. A fresh VM
+install-to-first-sound benchmark and round-trip latency remain release
+validation work; the Void VM was shut off during this check.*
 
 ---
 

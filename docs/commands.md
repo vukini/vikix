@@ -914,7 +914,7 @@ A Lisp musical sketchpad, with SuperCollider making the sound.
 - `vikix music setup` — prepare the synth and a first pattern (vikix add music)
 - `vikix music doctor` — check the engine, PipeWire JACK and prepared synth
 - `vikix music check FILE` — check pattern data without making sound
-- `vikix music tone [HZ]` — one quiet, short tone (440 Hz by default)
+- `vikix music tone [HZ]` — one quiet, short tone (880 Hz by default)
 - `vikix music play [FILE] [--pattern NAME] [--bars N]` — repeat a pattern, loading edits at the next bar; Ctrl+C stops it and its own engine
 - `vikix music repl` — a separate Lisp REPL: (tone 440), (play "FILE"), (stop), (quit); also usable as an Emacs inferior Lisp
 - `vikix music uninstall` — remove the prepared synth; keep your music

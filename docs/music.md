@@ -19,7 +19,10 @@ vikix music play
 ```
 
 Start with the speaker volume low. The tone lasts about a third of a
-second. Play repeats the first pattern until Ctrl+C. Each invocation owns
+second, at 880 Hz by default. The starter uses higher notes that are easier
+to hear on laptop speakers; low sine notes may be faint even when browser
+audio sounds normal. Existing songs are never rewritten by an update.
+Play repeats the first pattern until Ctrl+C. Each invocation owns
 its sound engine; it does not connect to an engine you already started.
 `doctor` checks installed commands and the prepared synth, not audible
 output, latency or realtime priority. If the engine cannot start, check
@@ -33,7 +36,7 @@ steps:
 
 ```lisp
 (tempo 120)
-(defpattern bass '(c3 - e3 - g3 - e3 -))
+(defpattern melody '(a5 - c6 - e6 - c6 -))
 (defpattern pulse '(x - x -))
 ```
 
@@ -43,7 +46,7 @@ run from C0 to B8; use `cs4` for C sharp and `eb4` for E flat. Tempo is
 
 ```sh
 vikix music check ~/music/first-song/patterns.lisp
-vikix music play ~/music/first-song/patterns.lisp --pattern bass
+vikix music play ~/music/first-song/patterns.lisp --pattern melody
 vikix music play ~/music/first-song/patterns.lisp --bars 4
 ```
 
@@ -68,7 +71,7 @@ this folder can be played, but do not gain snapshot coverage automatically.
 `C-u M-x run-lisp` and enter `vikix music repl` as the command.
 
 ```lisp
-(tone 440)
+(tone 880)
 (play "/home/YOU/music/first-song/patterns.lisp")
 (stop)
 (quit)

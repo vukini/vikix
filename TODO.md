@@ -88,7 +88,7 @@ Added 2026-09-30, from a conversation with Vid about 0.52-0.65. Not yet ordered 
 
 ### Music
 
-22. **Music production as a feature** (`plans/DESIGN-music.md`). Phase 0 implemented at music-phase0 (2026-10-15): a finite tone, one repeating Lisp pattern, safe live reload and snapshot/undo. Still to validate: real audible playback on the X1 and VM, realtime priority and install-to-sound time. Later: the grid, capture, DAW export and the Cuis spike. Low-latency audio: PipeWire's JACK side, realtime priority (rtkit or limits), Ardour, Carla and a plugin set; a setting that trades battery for lower latency while recording.
+22. **Music production as a feature** (`plans/DESIGN-music.md`). Phase 0 at music-phase0 (2026-10-16): tone, repeating Lisp pattern, safe live reload and snapshot/undo; Vid confirmed audible playback and tempo edits on the X1. Starter audibility corrected; realtime audio priority verified. Still to validate before release: fresh VM install-to-sound benchmark and round-trip latency. Later: the grid, capture, DAW export and the Cuis spike. Low-latency audio: PipeWire's JACK side, realtime priority (rtkit or limits), Ardour, Carla and a plugin set; a setting that trades battery for lower latency while recording.
 
 ### Languages and reading
 
