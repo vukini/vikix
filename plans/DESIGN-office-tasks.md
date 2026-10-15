@@ -78,7 +78,7 @@ phase 6's release recovery. The older desk groups remain below Needs attention.
 
 ## Priority, order and the queue (phase 3)
 
-Implemented 2026-10-15; pending review and release. Commands and settings are
+Released in 0.72.78 (2026-10-15). Commands and settings are
 in `docs/agents.md`, “Priorities and the task queue”. `lib/scheduler.py`
 serializes queue edits and launches, computes eligibility, reserves launch
 numbers/capacity, and blocks ambiguous starts rather than retrying them.
@@ -185,7 +185,7 @@ Every state is a word; colour follows it (the attention faces stay) and never ca
 
 1. **Task identity and metadata** (`lib/tasks.py`, the records, the sequence, the events, adoption, the exit line; `tasks`, `task`, `events`; the snapshot's `tasks`; the Office showing the launch number and the task's page with its history). The ground the rest stands on, and what the plan runner's desk asked for first. **Recommended first.**
 2. **Attention and decisions** implemented 2026-10-14; see the guide and the implementation note above.
-3. **Priorities and the scheduler** implemented 2026-10-15, pending review/release; see the implementation note above.
+3. **Priorities and the scheduler** implemented 2026-10-15, released in 0.72.78; see the implementation note above.
 4. **The Office redrawn** (the five sections in full, the sort, the task form, the terminal board, the MCP `tasks`).
 5. **Proposals and handoffs between providers** (`propose`, `propose_task`, the policy, parent and child, `resume --use` on a task; the adapters' columns; the two Codex pieces verified where Codex is).
 6. **Recovery and the full test run** (the crash tests, the restart tests, the interplay with the tester and the release queue; `bugs.md` for what living with it shows).

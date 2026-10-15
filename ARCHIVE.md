@@ -4,6 +4,8 @@ What shipped, or was dropped, out of `TODO.md` and `IDEAS.md`, so those two hold
 
 ## From TODO.md
 
+115. **Office priorities and scheduling, phase 3** (0.72.78, 2026-10-15). Persistent task queue with priorities, manual order and run-next; user start, defer, cancel, pause and bump controls; shared plan/queue capacity, automatic starts only with `auto=on`, and durable launch reservations with recovery that never retries an uncertain launch automatically. Office Queue and Blocked views explain eligibility. The full board, proposals and broader resilience work remain in TODO 115.
+
 115. **Office attention and decisions, phase 2** (2026-10-14). Persistent questions with choices, context and a recommendation; user answers in the Office or CLI; durable inbox delivery and read-back after restart; MCP `decide` and `decision`. The attention box shows questions, permissions, fresh failed checks, reviews, releases, stopped and uncertain workers, with source times and once-per-item notifications. Review acceptance checks test freshness; sending work back leaves feedback; a release opens the existing script in a terminal. The full task board, queue, scheduler and proposals remain in TODO 115.
 
 
