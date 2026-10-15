@@ -93,11 +93,11 @@ def data_dir():
 
 def setup(root):
     if os.environ.get("DRY_RUN") == "1":
-        print("would enable rtkit, prepare cl-collider synth and copy first-song/patterns.lisp once")
+        print("would install music packages, enable rtkit, prepare cl-collider synth and copy first-song/patterns.lisp once")
         return 0
     if not (Path.home() / "quicklisp/setup.lisp").is_file():
         raise RuntimeError("Quicklisp is missing; complete Vikix's Lisp install first")
-    subprocess.run(["bash", str(root / "lib/music/setup.sh")], check=True, timeout=60)
+    subprocess.run(["bash", str(root / "lib/music/setup.sh")], check=True)
     folder = data_dir()
     folder.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="build-", dir=folder) as temp:

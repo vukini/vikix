@@ -200,7 +200,14 @@ with tempfile.TemporaryDirectory(prefix="vikix-music-test-") as temp:
     env["VIKIX_SERVICE_DIR"] = str(service)
     (commands / "sbcl").write_text("#!/usr/bin/env python3\nimport os\nfrom pathlib import Path\nPath(os.environ['VIKIX_MUSIC_SYNTH']).write_bytes(b'SCgf fixture')\n")
     (commands / "sbcl").chmod(0o755)
+    # Exercise the real package stage with stand-ins, never the host package manager.
+    (commands / "xbps-query").write_text("#!/bin/sh\ncase \"$1\" in -l|-R) exit 0;; *) exit 1;; esac\n")
+    (commands / "sudo").write_text("#!/bin/sh\n[ \"$1\" = xbps-install ] || exit 91\nprintf '%s\\n' \"$*\" >> \"$MUSIC_TEST/packages\"\n")
+    for name in ("xbps-query", "sudo"):
+        (commands / name).chmod(0o755)
     run("music", "setup")
+    installs = (t / "packages").read_text()
+    assert "xbps-install -y supercollider libjack-pipewire rtkit" in installs
     run("music", "setup")
     assert pattern.read_text() == saved
     pattern.unlink()
