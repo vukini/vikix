@@ -106,6 +106,21 @@ class Office(unittest.TestCase):
         self.assertEqual((row['launch_seq'], row['worker_state']['state'], row['task_record']['status']['value']),
                          (1, 'idle', 'running'))
 
+    def test_queued_desk_uses_saved_provider_not_observed_worker_state(self):
+        T = A.tasks_module()
+        rec = H.update('', self.folder, lambda r: H.set_task(r, 'Queued desk', 'user'), project='book')
+        task = T.new('Queued desk', 'book', 'user', desk=T.desk_of_record(rec), worker={'use': 'codex'})
+        rec = H.update('', self.folder, lambda r: r['task'].update(id=task['id']))
+        T.move(task['id'], 'queued', 'user')
+        self.addCleanup(lambda: T.move(task['id'], 'cancelled', 'user'))
+        self.records = [rec]
+        with patch.object(A, 'agents_offered', return_value=[('codex', True, True, '')]):
+            snap = office.snapshot(A)
+        row = next(r for r in snap['queue']['rows'] if r['id'] == task['id'])
+        self.assertTrue(row['eligible'], row)
+        self.assertEqual(T.load(task['id'])['worker']['use'], 'codex')
+        self.assertEqual(snap['desks'][0]['worker_state']['sure'], 'unknown')
+
     def test_empty_and_incomplete(self):
         self.assertEqual(office.snapshot(A)['desks'], [])
         self.agents = [self.agent()]

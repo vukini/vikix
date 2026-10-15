@@ -150,8 +150,11 @@ def world(api, snapshot=None):
     if snapshot is None:
         import office
         snapshot = office.snapshot(api, include_queue=False)
-    offered = api.agents_offered() if any(t['status']['value'] == 'queued' for t in snapshot['tasks']) else []
-    return dict(snapshot, config=config(), providers=[r[0] for r in offered if r[2]],
+    # The Office projects observed activity into task['worker']; launch
+    # choices must come from the durable task record, never that projection.
+    records = T.all_tasks(strict=True)
+    offered = api.agents_offered() if any(t['status']['value'] == 'queued' for t in records) else []
+    return dict(snapshot, tasks=records, config=config(), providers=[r[0] for r in offered if r[2]],
                 default_provider=next((r[0] for r in offered if r[1]), ''), queue=queue())
 
 
