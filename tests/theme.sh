@@ -53,6 +53,33 @@ check "vikix-dark should be dark" test "$(cat "$out/mode")" = dark
 check "vikix-dark: GTK 3's theme should be Adwaita-dark" grep -qx 'Net/ThemeName "Adwaita-dark"' "$out/xsettingsd.conf"
 vikix vikix-light >/dev/null
 
+# An agent's TUI asks the terminal its background once, as it starts, and
+# draws for that: after a switch from light to dark or back it keeps the
+# colours of the theme before (Codex under rose-pine-light, 2026-10-15: pastel
+# text on cream). The switch names such sessions. A made-up /proc with one
+# codex at a folder, and a stand-in desktop that knows no windows (vikix
+# agents then lists what /proc has).
+mkdir -p "$t/proc/4242" "$t/home/src/book"; echo "5000.00 1.00" > "$t/proc/uptime"
+printf 'codex\0' > "$t/proc/4242/cmdline"
+printf '4242 (codex) S 1 4242 1 34816 -1 4194560 0 0 0 0 0 0 0 0 20 0 1 0 100000 0 0\n' > "$t/proc/4242/stat"
+ln -sfn "$t/home/src/book" "$t/proc/4242/cwd"
+printf '#!/bin/sh\necho "=> NIL"\n' > "$t/eval"; chmod +x "$t/eval"
+with_agents() { VIKIX_PROC=$t/proc VIKIX_EVAL=$t/eval vikix "$@" 2>&1; }
+res=$(with_agents vikix-dark)
+check "light to dark should name the sessions that keep the light colours: $res" grep -q "^!! 1 agent session keeps the light theme's colours" <<<"$res"
+check "with the agent, its folder and how long it has run: $res" grep -q '^   codex at ~/src/book (1 h)$' <<<"$res"
+check "and how to put it right" grep -q 'vikix agents resume DESK' <<<"$res"
+res=$(with_agents gruvbox-dark)
+check "dark to dark should say nothing of agents: $res" test "$res" = ":: theme: gruvbox-dark"
+res=$(with_agents --refresh)
+check "--refresh (an update) should say nothing of agents: $res" test "$res" = ":: theme: gruvbox-dark"
+res=$(with_agents vikix-light)
+check "dark to light names them too: $res" grep -q "keeps the dark theme's colours" <<<"$res"
+res=$(vikix vikix-dark 2>&1)
+check "with no desktop and no agent, nothing is said: $res" test "$res" = ":: theme: vikix-dark"
+rm -r "$t/proc"
+vikix vikix-light >/dev/null
+
 vikix --refresh >/dev/null
 check "--refresh doesn't keep the saved theme" test "$(cat "$out/current")" = vikix-light
 

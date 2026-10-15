@@ -22,8 +22,11 @@
 # files include; the programs that are running pick the new colours up now
 # (StumpWM, dunst, kitty, the editors, Nyxt, GTK and Qt, Cuis), and the
 # theme's own wallpaper comes with it. Super+m → Theme is the same, with each theme shown
-# as you move to it. vikix (the everyday command) hands `vikix theme` over
-# to this script.
+# as you move to it. An agent's TUI (Codex, Claude Code) is the exception: it
+# reads the terminal's background once, as it starts, so a switch between a
+# light theme and a dark one names the agent sessions running, which keep
+# their colours until started again. vikix (the everyday command) hands
+# `vikix theme` over to this script.
 
 set -euo pipefail
 
@@ -473,6 +476,7 @@ cmd_theme() {
     say "$name is called $(theme_canonical "$name") now"
     name=$(theme_canonical "$name")
   fi
+  local was; was=$(cat "$THEME_OUT/mode" 2>/dev/null) || was=''
   theme_write "$name"
   [ "$DRY_RUN" = 1 ] && return 0
   # The programs that are running pick the new colours up now. Alacritty
@@ -497,6 +501,43 @@ cmd_theme() {
   fi
   theme_cuis_apply
   say "theme: $name"
+  theme_agents_kept "$was" "$name"
+}
+
+# theme_agents_kept WAS NAME — the agent sessions that keep the colours of
+# the theme before, once the switch to NAME crossed from light to dark or
+# back (WAS is the mode before, light or dark, from the mode file). An
+# agent's TUI (Codex, Claude Code) asks the terminal its background once, as
+# it starts, and draws for that: pastel text meant for a dark terminal on a
+# cream one after the switch, and a dark box for its prompt, until the
+# session is started again (Codex 0.162 keeps the answer for the process and
+# never asks again). Said in the terminal, and as a notification, since from
+# Super+m nothing is seen. Nothing to list (no desktop, no agent) is silent.
+theme_agents_kept() {
+  local was=$1 name=$2 now lines
+  now=$(cat "$THEME_OUT/mode" 2>/dev/null) || return 0
+  { [ -n "$was" ] && [ "$was" != "$now" ]; } || return 0
+  lines=$("$VIKIX_DIR/bin/vikix-agents" --json 2>/dev/null | python3 -c '
+import json, os, sys
+home = os.path.expanduser("~")
+def short(p): return "~" + p[len(home):] if p == home or p.startswith(home + "/") else p
+def long(s): return f"{s // 3600} h" if s >= 3600 else f"{s // 60} min" if s >= 60 else f"{s} s"
+for a in json.load(sys.stdin):
+    print(a["agent"], "at", short(a["folder"]), "(" + long(int(a["seconds"])) + ")")
+' 2>/dev/null) || return 0
+  [ -n "$lines" ] || return 0
+  local n what keep=keep
+  n=$(wc -l <<<"$lines")
+  what="$n agent sessions"
+  [ "$n" = 1 ] && { what="1 agent session"; keep=keeps; }
+  warn "$what $keep the $was theme's colours: a TUI reads the terminal's background once, as it starts."
+  printf '   %s\n' "$(tr '\n' ',' <<<"$lines" | sed 's/,$//; s/,/, /g')" >&2
+  printf '   Start them again to read well (vikix agents resume DESK takes a conversation up again).\n' >&2
+  if [ -n "${DISPLAY:-}" ] && command -v notify-send >/dev/null 2>&1; then
+    notify-send -a Vikix "Theme: $name" "$what $keep the $was colours until started again:
+$lines
+vikix agents resume DESK takes one up again." 2>/dev/null || true
+  fi
 }
 
 theme_help() {
