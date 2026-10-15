@@ -1,0 +1,4 @@
+# music.list — Phase 0: synth engine and PipeWire JACK, no DAW yet.
+supercollider
+libjack-pipewire
+rtkit

@@ -1,0 +1,32 @@
+#!/usr/bin/env python3
+"""vikix-music — a Lisp musical sketchpad, with SuperCollider making the sound.
+
+  vikix music setup                 prepare the synth and a first pattern (vikix add music)
+  vikix music doctor                check the engine, PipeWire JACK and prepared synth
+  vikix music check FILE            check pattern data without making sound
+  vikix music tone [HZ]             one quiet, short tone (440 Hz by default)
+  vikix music play [FILE] [--pattern NAME] [--bars N]
+                                    repeat a pattern, loading edits at the next bar;
+                                    Ctrl+C stops it and its own engine
+  vikix music repl                  a separate Lisp REPL: (tone 440), (play "FILE"),
+                                    (stop), (quit); also usable as an Emacs inferior Lisp
+  vikix music uninstall             remove the prepared synth; keep your music
+
+Patterns are yours, ~/music/first-song/patterns.lisp to begin with. Use
+(tempo 120) and (defpattern bass '(c4 - e4 -)); - is a rest. Files are
+read as data, never evaluated. A bad edit keeps the last good pattern.
+Snapshot before editing; vikix undo restores patterns at the next bar.
+The REPL evaluates your Lisp locally. There is no remote evaluation service.
+"""
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "lib" / "music"))
+from launcher import main  # noqa: E402
+
+if __name__ == "__main__":
+    if any(arg in ("-h", "--help", "help") for arg in sys.argv[1:]):
+        print(__doc__)
+    else:
+        sys.exit(main(ROOT, sys.argv[1:]))

@@ -49,3 +49,4 @@ cuis                          # Cuis Smalltalk (vikix add cuis): your packages (
 .Xresources
 .bashrc
 .bash_profile
+music                         # only music/*/patterns.lisp; audio and renders excluded by yours_exclude

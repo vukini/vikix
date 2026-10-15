@@ -4,6 +4,17 @@ A musical sketchpad for the Lisp desktop. Patterns are Lisp; the window is a vie
 
 Drafted 2026-10-03 with Vid, from TODO item 22 (music production as a feature) and the IDEAS entry "Live-code music from the same Lisp". This document is the plan for the first version. Like Esploro's, it is kept honest by deleting what ships and dating what changes.
 
+*2026-10-15: Phase 0 implementation at the music-phase0 desk: optional
+SuperCollider/PipeWire JACK/rtkit feature, separate SBCL pattern clock,
+finite tone and text REPL, data-only pattern reload and snapshot coverage.
+The launcher owns an authenticated loopback TCP engine; cl-collider compiles
+the synth at setup, while a small Python supervisor carries timestamped OSC
+and reaps both children. No sample library is needed for the single sine
+sound. Use `-` for rests, since a bare `.` is Lisp dotted-list syntax.
+The guide is [music.md](../docs/music.md). Real audible playback, realtime
+priority and the install-to-sound target still need validation on the X1
+and VM; this is not a claim that those goals passed.*
+
 ---
 
 ## The problem
@@ -72,8 +83,8 @@ Every form has a picture. Nothing else is in v1.
 
 | Form | Picture | What it is |
 |---|---|---|
-| `(defpattern hats '(x . x . x x . .))` | a row of cells | a rhythm; `x` hits, `.` rests; length is the bar |
-| `(defpattern bass '(c2 . . g1 . c2 eb2 .))` | a row of cells with note names | a melody or bassline |
+| `(defpattern hats '(x - x - x x - -))` | a row of cells | a rhythm; `x` hits, `.` rests; length is the bar |
+| `(defpattern bass '(c2 - - g1 - c2 eb2 -))` | a row of cells with note names | a melody or bassline |
 | `(defprogression verse '(I vi IV V) :key 'f)` | blocks in a row | chords by degree; drag to reorder, stretch to lengthen |
 | `:bpm 100` `:swing 0.3` `:gain 0.8` | a knob each | numbers |
 | `(bank 1 hats 2 bass 3 verse)` | a grid of pads, labelled with their keys | what Super+1..9 fires |

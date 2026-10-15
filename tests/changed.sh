@@ -148,6 +148,7 @@ for f in "${files[@]}"; do
       if [[ " ${hits[*]} " == *" all "* ]]; then all=1; else add "${hits[@]}"; fi
       [ "$f" = tests/changed.sh ] && add changed-map ;;
     .claude/release) add release ;;
+    lib/music/*|config/music/*|bin/vikix-music|tests/music/*) add music ;;
     tests/*.sh) add "$(basename "$f" .sh)" ;;
     tests/lib/fake-swank.py) add cuis ;;   # the stand-in Swank the Cuis test drives the image against
     tests/*) all=1 ;;

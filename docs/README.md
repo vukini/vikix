@@ -11,6 +11,7 @@ Every `vikix` command has a man page as well, and so has each command of a plugi
 | [Installing from Vikix's stick](install-stick.md) | You're starting from a blank computer and want it done in one go: the stick, its few questions, the first start |
 | [Installing Void for Vikix](install-void.md) | You're starting from a blank computer: Void's installer, screen by screen, then Vikix's |
 | [Your first hour](first-hour.md) | You've just logged in: the keys that matter, adding software, a theme, staying current |
+| [A first musical pattern](music.md) | You want to play and edit a Lisp pattern with SuperCollider |
 | [Where everything is](map.md) | You want to find a file: what Vikix put where, and whose it is |
 | [How it fits together](how-it-works.md) | You want to know what the base and the features are, what happens between logging in and the desktop, or what `vikix update` does |
 | [Making it yours](customize.md) | You want to change something: keys, startup programs, the bar, the theme, the terminal, what's installed |

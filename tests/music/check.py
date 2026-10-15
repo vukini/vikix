@@ -1,0 +1,215 @@
+"""Real Lisp and public dispatcher, with an authenticated TCP SC stand-in."""
+import json
+import os
+from pathlib import Path
+import shlex
+import shutil
+import signal
+import socket
+import struct
+import subprocess
+import sys
+import tempfile
+import time
+
+
+def engine(args):
+    assert "-u" not in args
+    assert args[args.index("-B") + 1] == "127.0.0.1"
+    assert args[args.index("-i") + 1] == "0"
+    t = Path(os.environ["MUSIC_TEST"])
+    (t / "engine.pid").write_text(str(os.getpid()))
+    if (t / "fail-engine").exists():
+        return 2
+    password = args[args.index("-p") + 1].encode() + b"\0"
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", int(args[args.index("-t") + 1])))
+        listener.listen(1)
+        listener.settimeout(10)
+        conn, _ = listener.accept()
+        with conn:
+            conn.settimeout(10)
+            def exact(n):
+                data = b""
+                while len(data) < n:
+                    part = conn.recv(n-len(data))
+                    if not part:
+                        raise EOFError
+                    data += part
+                return data
+            def packet():
+                return exact(struct.unpack(">I", exact(4))[0])
+            assert packet() == password
+            try:
+                while True:
+                    data = packet()
+                    if data.startswith(b"/sync\0"):
+                        reply = b"/synced\0,i\0\0" + struct.pack(">i", 123)
+                        conn.sendall(struct.pack(">I", len(reply)) + reply)
+                    elif data.startswith(b"#bundle\0"):
+                        stamp = struct.unpack(">Q", data[8:16])[0] / 2**32 - 2208988800
+                        assert b"vikix-tone\0" in data
+                        with (t / "events").open("a") as out:
+                            out.write(json.dumps({"at": stamp}) + "\n")
+                    elif data.startswith(b"/quit\0"):
+                        break
+            except EOFError:
+                pass
+    return 0
+
+
+if sys.argv[1] == "--engine":
+    sys.exit(engine(sys.argv[2:]))
+root = Path(sys.argv[1])
+with tempfile.TemporaryDirectory(prefix="vikix-music-test-") as temp:
+    t = Path(temp)
+    home = t / "home"
+    home.mkdir()
+    env = dict(os.environ, HOME=str(home), MUSIC_TEST=str(t),
+               DBUS_SESSION_BUS_ADDRESS="unix:path=/nonexistent", PYTHONDONTWRITEBYTECODE="1")
+    for key in ("VIKIX_DIR", "VIKIX_STATE", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"):
+        env.pop(key, None)
+    commands = t / "bin"
+    commands.mkdir()
+    real_sbcl = shutil.which("sbcl")
+    (commands / "sbcl").write_text('#!/bin/sh\necho $$ >> "$MUSIC_TEST/lisp.pids"\nexec ' + shlex.quote(real_sbcl) + ' "$@"\n')
+    (commands / "pw-jack").write_text('#!/bin/sh\nexec "$@"\n')
+    (commands / "scsynth").write_text('#!/bin/sh\nexec python3 ' + shlex.quote(__file__) + ' --engine "$@"\n')
+    (commands / "notify-send").write_text('#!/bin/sh\nexit 0\n')
+    for f in commands.iterdir():
+        f.chmod(0o755)
+    env["PATH"] = str(commands) + os.pathsep + env["PATH"]
+    def run(*args, ok=True, **kwargs):
+        child = subprocess.Popen([str(root / "bin/vikix"), *args], env=env,
+                                 text=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE, start_new_session=True)
+        try:
+            out, err = child.communicate(input=kwargs.get("input"), timeout=20)
+        finally:
+            if child.poll() is None:
+                child.terminate()
+                try:
+                    child.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    os.killpg(child.pid, signal.SIGKILL)
+                    child.wait(timeout=5)
+        result = subprocess.CompletedProcess(args, child.returncode, out, err)
+        assert (result.returncode == 0) == ok, (args, result.returncode, out, err)
+        return result
+    def gone():
+        pid = int((t / "engine.pid").read_text())
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return
+        raise AssertionError(f"engine {pid} survived launcher")
+    pattern = home / "music/first-song/patterns.lisp"
+    pattern.parent.mkdir(parents=True)
+    original = "(tempo 200)\n(defpattern test '(a4 - c5 -))\n"
+    pattern.write_text(original)
+    run("music", "check", str(pattern))
+    for text in ('#.(error "evaluated")', "(load foo)", "(tempo 0)",
+                 "(defpattern bad '(c4 . c5))", "(defpattern bad '(z9))", "(" * 30,
+                 "(defpattern bad '(c4)) (defpattern bad '(c5))",
+                 "(defpattern bad '(c4)) :end (load bad)"):
+        pattern.write_text(text)
+        run("music", "check", str(pattern), ok=False)
+    pattern.write_text(original)
+    run("music", "doctor", ok=False)
+    data = home / ".local/share/vikix/music"
+    data.mkdir(parents=True)
+    (data / "tone.scsyndef").write_bytes(b"SCgf fixture")
+    run("music", "doctor")
+    run("music", "tone", "440")
+    gone()
+    assert len((t / "events").read_text().splitlines()) == 1
+    (t / "events").unlink()
+    run("music", "play", str(pattern), "--bars", "2")
+    gone()
+    events = [json.loads(line) for line in (t / "events").read_text().splitlines()]
+    assert len(events) == 4
+    assert abs(events[2]["at"] - events[0]["at"] - 1.2) < 0.001
+    run("music", "play", str(pattern), "--pattern", "missing", "--bars", "1", ok=False)
+    gone()
+    odd = home / "a song; still data.lisp"
+    odd.write_text("(tempo 200) (defpattern low '(c0 -))")
+    run("music", "play", str(odd), "--bars", "1")
+    gone()
+    run("music", "tone", "nan", ok=False)
+    run("music", "play", "--bars", "0", ok=False)
+    run("music", "repl", input="(tone 330)\n(stop)\n(quit)\n")
+    gone()
+    (t / "fail-engine").touch()
+    run("music", "tone", ok=False)
+    gone()
+    (t / "fail-engine").unlink()
+    child = subprocess.Popen([str(root / "bin/vikix"), "music", "play", str(pattern)],
+                             env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             start_new_session=True)
+    try:
+        time.sleep(1)
+        child.send_signal(signal.SIGTERM)
+        child.wait(timeout=10)
+        assert child.returncode != 0
+        gone()
+    finally:
+        if child.poll() is None:
+            os.killpg(child.pid, signal.SIGKILL)
+            child.wait(timeout=5)
+    (pattern.parent / "capture.wav").write_bytes(b"private recording")
+    (pattern.parent / "nested").mkdir()
+    (pattern.parent / "nested/patterns.lisp").write_text("not a song")
+    run("snapshot", "music before")
+    git = ["git", "-C", str(home), "--git-dir=" + str(home / ".local/state/vikix/yours.git")]
+    before = subprocess.check_output(git + ["rev-parse", "HEAD"], env=env, text=True).strip()
+    files = subprocess.check_output(git + ["ls-files"], env=env, text=True).splitlines()
+    assert "music/first-song/patterns.lisp" in files
+    assert not any("capture" in f or "nested" in f for f in files), files
+    pattern.write_text("(tempo 120) (defpattern test '(c4))\n")
+    run("snapshot", "music after")
+    run("undo", before, "--yes")
+    assert pattern.read_text() == original
+    test = t / "clock.lisp"
+    test.write_text('(load ' + json.dumps(str(root / "lib/music/core.lisp")) + ')\n' +
+      '(in-package :vikix-music)\n' +
+      '(let ((at 0d0) (seen nil) (file ' + json.dumps(str(pattern)) + '))\n' +
+      ' (setf *clock* (lambda () (incf at 0.5d0)))\n' +
+      ' (setf *emit* (lambda (notes) (push notes seen)\n' +
+      '   (with-open-file (out file :direction :output :if-exists :supersede)\n' +
+      '     (write-line (if (= (length seen) 1) "(tempo 120) (defpattern test \'(c4))" "(load bad)") out))))\n' +
+      ' (play-loop file nil 3)\n' +
+      ' (assert (= 3 (length seen)))\n' +
+      ' (assert (= 1 (length (first seen))))\n' +
+      ' (assert (= (second (first (first seen))) (frequency \'c4)))\n' +
+      ' (assert (= (second (first (second seen))) (frequency \'c4))))\n')
+    result = subprocess.run(["sbcl", "--noinform", "--no-sysinit", "--no-userinit", "--script", str(test)],
+                            env=env, capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stderr
+    for pid in (t / "lisp.pids").read_text().splitlines():
+        try:
+            os.kill(int(pid), 0)
+        except ProcessLookupError:
+            continue
+        raise AssertionError("Lisp child survived: " + pid)
+    # Repeated setup prepares assets but does not overwrite a user's pattern.
+    saved = pattern.read_text()
+    (home / "quicklisp").mkdir()
+    (home / "quicklisp/setup.lisp").touch()
+    service = t / "services"
+    (service / "rtkit").mkdir(parents=True)
+    env["VIKIX_SERVICE_DIR"] = str(service)
+    (commands / "sbcl").write_text("#!/usr/bin/env python3\nimport os\nfrom pathlib import Path\nPath(os.environ['VIKIX_MUSIC_SYNTH']).write_bytes(b'SCgf fixture')\n")
+    (commands / "sbcl").chmod(0o755)
+    run("music", "setup")
+    run("music", "setup")
+    assert pattern.read_text() == saved
+    pattern.unlink()
+    dry = dict(env, DRY_RUN="1")
+    result = subprocess.run([str(root / "bin/vikix"), "music", "setup"], env=dry,
+                            capture_output=True, timeout=10)
+    assert result.returncode == 0 and not pattern.exists()
+    run("music", "setup")
+    assert "first-song" in pattern.read_text()
+    run("music", "uninstall")
+    assert pattern.exists() and not (data / "tone.scsyndef").exists()
+    print("music: parser, clock/reload, launcher/TCP, failures/cleanup and snapshot/undo passed")

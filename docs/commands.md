@@ -44,6 +44,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-lock](#vikix-lock): lock the screen, with only ever one locker
 - [vikix-mcp](#vikix-mcp): the Vikix desktop as an MCP server, for any agent that speaks MCP
 - [vikix-memory](#vikix-memory): what uses the memory, what's left over, a warning when it runs low
+- [vikix-music](#vikix-music): a Lisp musical sketchpad, with SuperCollider making the sound
 - [vikix-net](#vikix-net): the network link as one short line, for the mode line
 - [vikix-network](#vikix-network): the Network Office: nearby devices, ports and connections
 - [vikix-nightlight](#vikix-nightlight): a warmer screen in the evening (gammastep)
@@ -142,6 +143,7 @@ The everyday command.
 - `vikix bitwarden setup|pick|lock|sync|status|uninstall` — your Bitwarden vault: Super+Alt+v types a password into any window (vikix add bitwarden)
 - `vikix lisp-apps setup|status|uninstall` — Nyxt, Lem and McCLIM's Listener: programs in Common Lisp (vikix add lisp-apps)
 - `vikix esploro setup|status|doctor|uninstall` — Esploro, a file explorer in Common Lisp (vikix add esploro; Super+e)
+- `vikix music setup|doctor|check|tone|play|repl|uninstall` — a first musical sketchpad: Lisp patterns and a quiet SuperCollider tone (vikix add music)
 - `vikix cuis setup|rebuild|run|desktop|status|doctor|uninstall` — Cuis Smalltalk: a live image built from Vikix's packages, with a door for vikix eval --cuis (vikix add cuis)
 - `vikix mcp register|unregister|tools|status` — the desktop as an MCP server, for Claude Code and other agents
 - `vikix agent` — the AI agent, after a snapshot of your files (alias: a): Claude Code, or --use opencode|codex|gemini|antigravity|aider, --local on this laptop, --default NAME, --list; --exec [NAME] for editors (stdout is the agent's), --which
@@ -904,6 +906,20 @@ and always: its starter has gone (it belongs to nobody), it has no terminal, no 
 The last resort is earlyoom, a system service Vikix switches on: when memory is all but gone (5% free, and a quarter of the swap used) it ends one program rather than letting everything stall: a test's or a build's first (Xvfb, sbcl, compilers), then the biggest of the rest, an AI agent's session, the browser itself and a virtual machine only when nothing else is left, and never the desktop (Xorg, StumpWM, Emacs, sound, a terminal). The watcher says what it ended. /etc/sv/earlyoom/conf is Vikix's (config/earlyoom/conf).
 
 `VIKIX_MEMORY_LOW` and `VIKIX_MEMORY_CRITICAL` change the two levels (percent free), `VIKIX_MEMORY_LEFT_AFTER` the minutes; `VIKIX_MEMORY_AUTOCLEAN=0` keeps the watcher from ending anything.
+
+## vikix-music
+
+A Lisp musical sketchpad, with SuperCollider making the sound.
+
+- `vikix music setup` — prepare the synth and a first pattern (vikix add music)
+- `vikix music doctor` — check the engine, PipeWire JACK and prepared synth
+- `vikix music check FILE` — check pattern data without making sound
+- `vikix music tone [HZ]` — one quiet, short tone (440 Hz by default)
+- `vikix music play [FILE] [--pattern NAME] [--bars N]` — repeat a pattern, loading edits at the next bar; Ctrl+C stops it and its own engine
+- `vikix music repl` — a separate Lisp REPL: (tone 440), (play "FILE"), (stop), (quit); also usable as an Emacs inferior Lisp
+- `vikix music uninstall` — remove the prepared synth; keep your music
+
+Patterns are yours, `~/music/first-song/patterns.lisp` to begin with. Use (tempo 120) and (defpattern bass '(c4 - e4 -)); - is a rest. Files are read as data, never evaluated. A bad edit keeps the last good pattern. Snapshot before editing; vikix undo restores patterns at the next bar. The REPL evaluates your Lisp locally. There is no remote evaluation service.
 
 ## vikix-net
 
