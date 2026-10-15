@@ -432,13 +432,17 @@ try:
     plan.read_plan(t + "/bad.toml"); raise SystemExit("a bad mode passed")
 except plan.PlanError as e:
     assert "mode is supervised, autonomous or unrestricted, not 'fast'" in str(e), e
-ran = []
-plan.run = lambda words, log: (ran.append(words) or (True, ""))
+import scheduler, tasks
+from unittest.mock import patch
 class Api:
+    tasks_module = staticmethod(lambda: tasks)
     @staticmethod
     def inbox_add(*a): pass
-plan.start_worker(Api, {"exists": True, "folder": t + "/src/book-a", "topic": "a"}, p["tasks"][0], p, None, {}, lambda *a: None)
-assert ran[-1][-8:] == ["--use", "codex", "--mode", "supervised", "--acceptance", "in order", "--acceptance", "log says"], ran
+with patch.object(scheduler, "start_plan", return_value=True) as start:
+    assert plan.start_worker(Api, {"exists": True, "folder": t + "/src/book-a", "topic": "a"}, p["tasks"][0], p, None, {}, lambda *a: None)
+sent = start.call_args.args[2]
+assert sent["agent"] == "codex" and sent["mode"] == "supervised", sent
+assert sent["acceptance"] == ["in order", "log says"], sent
 try:
     plan.read_plan(t + "/bad-acceptance.toml"); raise SystemExit("a bad acceptance passed")
 except plan.PlanError as e:

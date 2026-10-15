@@ -606,7 +606,8 @@ check "the menu closed starts nothing: '$out'" test ! -f "$t/term-out"
 
 # vikix agents help: a map of the commands, in sections, a line each.
 out=$(agents help)
-check "help is a map, not the page ($(wc -l <<<"$out") lines)" test "$(wc -l <<<"$out")" -lt 85
+forms=$(agents -h | grep -c '^  vikix agents')
+check "help is a map, one line per form plus headings ($(wc -l <<<"$out") lines, $forms forms)" test "$(wc -l <<<"$out")" -lt "$((forms + 30))"
 for k in office clash crossings here desk worker resume close sit handoff tell pause go turns test dismiss plan hooks; do
   check "the map names $k" grep -q "^  vikix agents $k" <<<"$out"
 done
