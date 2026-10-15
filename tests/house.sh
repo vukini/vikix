@@ -456,12 +456,12 @@ out=$(VIKIX_AGENT_PID=1010 agents sit book c4)
 check "a seat taken through the agent's helper is the agent's: $out" grep -q 'claude 1007 is seated at .*/book-c4' <<<"$out"
 out=$(touch_as 1007 "$t/src/book-c4/notes.md")
 check "and the agent's own edits there pass: '$out'" test -z "$out"
-rm -r "$t/proc/1010"; close() { python3 "$here/bin/vikix-agents" close "$@" 2>&1 </dev/null || true; }
+close() { python3 "$here/bin/vikix-agents" close "$@" 2>&1 </dev/null || true; }
+rm -r "$t/proc/1010"
 rm -r "$t/proc/1007"; close c4 >/dev/null; proc 1007 claude "$HOME"
 rm -r "$t/proc/1006"
 out=$(VIKIX_AGENT_PID=1007 agents sit book c3)
 check "the seats keep only the agents still running: $(cat "$seats")" bash -c "grep -q '\"pid\": 1007' '$seats' && ! grep -q '\"pid\": 1006' '$seats'"
-close() { python3 "$here/bin/vikix-agents" close "$@" 2>&1 </dev/null || true; }
 out=$(close c3)
 check "close refuses while a seated agent works there: $out" grep -q 'claude 1007 still at work in .*/book-c3' <<<"$out"
 rm -r "$t/proc/1007"
@@ -469,7 +469,6 @@ out=$(close c3); out2=$(close c2)
 check "and takes the desks down after: $out / $out2" bash -c "[ ! -e '$t/src/book-c3' ] && [ ! -e '$t/src/book-c2' ]"
 
 # --- Closing a desk: the worktree and the branch go, once the work is in ----------------------
-close() { python3 "$here/bin/vikix-agents" close "$@" 2>&1 </dev/null || true; }
 proc 1005 claude "$t/src/book-a"   # a second agent at the first desk
 
 out=$(close book-a)
