@@ -116,6 +116,50 @@ This prevents accidents; it isn't a wall. The agent runs as you, and can read yo
 
 Agents run side by side, each in a terminal of its own, and a row of windows all called "Alacritty" doesn't say which is which. `vikix agents` (and `Super+m` → *AI* → *Agents: who is running, and go to one*) lists them: which agent, its folder with branch and uncommitted files, its workspace, how long, and what it is doing. `vikix agents desk PROJECT TOPIC` makes a desk, a git worktree of its own, `vikix agents worker TOPIC "..."` puts an agent to work at it on a workspace to itself, and the house rules say what happens when two agents reach for one file. All of it, with examples, is its own page: [Agents at work](agents.md).
 
+## Grok Bot handoffs
+
+Give Grok Bot a research brief and keep its answer in Vikix for review. `vikix grok` keeps a local task queue: you choose a brief, paste the task's prompt into Grok Bot, and approve its local commands to collect the brief and return a result. Grok Bot needs to be installed and signed in separately. Keep its **Execution on Local Computer** setting at **Ask every time**.
+
+Open it from `Super+m` → *AI* → *Grok Bot: open* (shown when `~/.local/bin/grok-bot` is installed). The neighbouring *Grok Bot: list tasks* opens the queue in a terminal.
+
+Start with a text file containing the task, the sources it may use, and what a useful answer should include. For example, `brief.txt` could ask for a comparison of two libraries using their public documentation. Then, in your terminal:
+
+```sh
+task=$(vikix grok new "Compare the libraries" --brief brief.txt --project vikix)
+vikix grok prompt "$task"
+```
+
+Copy the printed prompt into Grok Bot. Creating a task sends nothing; when Grok runs `vikix grok claim ID` **on your local computer**, the approved command gives it the chosen brief and marks the task `running`. The project name is a label for your records, not permission to read that project's files. `--brief -` reads the brief from standard input instead of a file.
+
+The prompt explains how to return the answer with `vikix grok result ID --file -`. The answer is JSON with exactly four fields:
+
+```json
+{
+  "summary": "The findings, including anything needed to assess them.",
+  "sources": [],
+  "artifacts": [],
+  "questions": []
+}
+```
+
+`summary` is text; the other fields are lists of strings. Sources and artifacts are HTTP or HTTPS links without embedded credentials. Put the findings in the summary so an answer does not depend on a file in Grok's cloud computer. Links are optional; Vikix does not fetch or execute them. `vikix grok instructions` prints the full handoff instructions on their own.
+
+When the answer arrives, the task enters `review` and Vikix sends a desktop notification. Review it in your terminal:
+
+```sh
+vikix grok list --state review
+vikix grok show "$task"
+vikix grok accept "$task"
+```
+
+If you opened a new terminal, replace `"$task"` with the ID from `list`. Accepting records that you reviewed the answer; it does not apply code, download files or start another agent. You can give the reviewed findings to a [worker at a desk](agents.md#a-desk-each) for follow-up work.
+
+If Grok cannot finish, it records the reason with `vikix grok fail ID 'reason'`; `show` keeps the brief, reason and history readable. Create a new task to retry. To withdraw a task, use `vikix grok cancel ID`. Cancellation closes the local record; it does not stop work already running in Grok Bot. Sending the same result again is safe, but a different result cannot overwrite one already returned.
+
+`vikix grok status` shows whether `grok-bot` is on your command path, the queue's location and counts by state. It does not test your account or the connection to your computer. This bridge uses approved local commands, with no remote task API or Office worker. Its instructions set the scope of the handoff; they do not sandbox Grok's other local commands.
+
+For the curious: the queue is a private SQLite database at `~/.local/share/vikix/grok/tasks.db` by default (`XDG_DATA_HOME` changes the data root; `VIKIX_GROK_DIR` chooses the queue directory directly). `list --json` and `show ID --json` provide structured records for your own tools. Claims are atomic, so two Bots cannot both claim the same queued task.
+
 ## API keys
 
 Programs find an API key in a variable such as `ANTHROPIC_API_KEY`. Don't put it in `~/.bashrc`: that file's history keeps every version for ever. Vikix has a safe place instead:

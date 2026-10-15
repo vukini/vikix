@@ -2,6 +2,8 @@
 
 One agent is a terminal you talk to. Three or four at once are a small office: each needs a place to work, you need to see who is doing what, and when two reach for the same thing somebody has to say so. This page is how that office runs on Vikix: starting an agent, seeing them all, giving each a desk, and the house rules that hold when they meet. [Working with AI](ai.md) has the rest: which agents there are, keys and models, the desktop as tools.
 
+For Grok Bot research and cloud work, use [Grok Bot handoffs](ai.md#grok-bot-handoffs): a separate local queue of briefs and answers to review. A Grok handoff does not start an Office worker; you can pass its reviewed findings to a worker here.
+
 Three habits carry the whole page:
 
 1. **Start agents with Vikix**, `Super+a` or `vikix agent`, never plain `claude`: that is how they get a snapshot of your files, the Vikix skill, no API keys, and the house rules.

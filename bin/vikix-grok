@@ -1,0 +1,325 @@
+#!/usr/bin/env python3
+"""vikix-grok — local task briefs and reviewed results for Grok Bot.
+
+  vikix grok new TITLE --brief FILE [--project NAME]
+                          queue an explicitly chosen UTF-8 brief; FILE -
+                          reads stdin; prints the task id
+  vikix grok list [--state STATE] [--json]
+                          tasks, newest first; no brief or result bodies
+  vikix grok show ID [--json]
+                          the brief, result, and transition history
+  vikix grok prompt ID     instructions to paste into Grok Bot
+  vikix grok instructions  the local handoff protocol for a Bot
+  vikix grok claim ID      atomically claim a queued task; prints its brief
+  vikix grok result ID --file FILE
+                          return JSON for a running task, for review;
+                          FILE - reads stdin; identical retries are safe
+  vikix grok fail ID REASON
+                          record why a running task could not finish
+  vikix grok accept ID     mark a result reviewed; applies no files or code
+  vikix grok cancel ID     cancel a queued, running, or failed task, or a result
+  vikix grok status        client availability and local queue counts;
+                          this does not test Grok's account or connection
+
+Tasks are local, in ~/.local/share/vikix/grok/tasks.db (private, backed up).
+VIKIX_GROK_DIR overrides that directory. Creating a task sends nothing;
+paste its prompt into Grok Bot and approve its local commands. The Bot
+returns summary, sources, artifacts, and questions as JSON. Sources and
+artifacts are HTTP(S) links, never automatically fetched or executed.
+States: queued, running, review, accepted, failed, cancelled. There is no
+automatic retry, remote API, service, or Office worker launched by this
+helper. A failed task remains readable; create a new task to retry it.
+Keep Grok's local execution policy at Ask every time. This helper is a
+handoff convention, not a sandbox around Grok's other local commands.
+"""
+import argparse
+import datetime
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import sqlite3
+import stat
+import subprocess
+import sys
+import uuid
+from urllib.parse import urlsplit
+
+
+LIMIT = 1024 * 1024
+STATES = ('queued', 'running', 'review', 'accepted', 'failed', 'cancelled')
+ID = re.compile(r'g-[0-9a-f]{16}\Z')
+
+
+class Problem(Exception):
+    pass
+
+
+def now():
+    return datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds')
+
+
+def clean(value, name, maximum=LIMIT, empty=False):
+    if not isinstance(value, str) or (not empty and not value.strip()):
+        raise Problem(f'{name} must be text' + ('' if empty else ' and not empty'))
+    if len(value.encode('utf-8')) > maximum:
+        raise Problem(f'{name} is too long (maximum {maximum} bytes)')
+    if any(ord(c) < 32 and c not in '\n\t' or ord(c) == 127 for c in value):
+        raise Problem(f'{name} contains control characters')
+    return value
+
+
+def read_input(filename):
+    if filename == '-':
+        raw = sys.stdin.buffer.read(LIMIT + 1)
+    else:
+        fd = os.open(filename, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(fd, 'rb') as stream:
+            if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                raise Problem('input must be a regular file, or - for stdin')
+            raw = stream.read(LIMIT + 1)
+    if len(raw) > LIMIT:
+        raise Problem('input exceeds 1 MiB')
+    return raw.decode('utf-8')
+
+
+def result_data(raw):
+    obj = json.loads(raw)
+    fields = {'summary', 'sources', 'artifacts', 'questions'}
+    if not isinstance(obj, dict) or set(obj) != fields:
+        raise Problem('result needs exactly summary, sources, artifacts, questions')
+    clean(obj['summary'], 'summary')
+    for field in ('sources', 'artifacts', 'questions'):
+        if not isinstance(obj[field], list) or len(obj[field]) > 100:
+            raise Problem(f'{field} must be a list of at most 100 strings')
+        for value in obj[field]:
+            clean(value, field, 8192)
+            if field != 'questions':
+                url = urlsplit(value)
+                if (url.scheme not in ('http', 'https') or not url.hostname
+                        or url.username or url.password or any(c.isspace() for c in value)):
+                    raise Problem(f'{field} must contain HTTP(S) links without credentials')
+    return obj
+
+
+def directory():
+    base = Path(os.environ.get('XDG_DATA_HOME') or Path.home() / '.local/share')
+    return Path(os.environ.get('VIKIX_GROK_DIR') or base / 'vikix/grok')
+
+
+def connect(write=False):
+    folder = directory()
+    path = folder / 'tasks.db'
+    if folder.is_symlink() or path.is_symlink():
+        raise Problem('queue directory and database must not be symbolic links')
+    if not write and not path.exists():
+        return None
+    if write:
+        folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if folder.stat().st_uid != os.getuid():
+            raise Problem('queue directory must belong to you')
+        folder.chmod(0o700)
+    uri = path.absolute().as_uri() + ('?mode=rwc' if write else '?mode=ro')
+    db = sqlite3.connect(uri, uri=True, timeout=10)
+    db.row_factory = sqlite3.Row
+    if write:
+        path.chmod(0o600)
+        db.execute('''CREATE TABLE IF NOT EXISTS tasks (
+            id TEXT PRIMARY KEY, title TEXT NOT NULL, project TEXT NOT NULL,
+            brief TEXT NOT NULL, state TEXT NOT NULL, created TEXT NOT NULL,
+            updated TEXT NOT NULL, result TEXT, reason TEXT NOT NULL DEFAULT '',
+            history TEXT NOT NULL)''')
+        db.commit()
+    return db
+
+
+def fetch(db, task_id):
+    if not ID.fullmatch(task_id):
+        raise Problem('invalid task id')
+    row = db.execute('SELECT * FROM tasks WHERE id=?', (task_id,)).fetchone() if db else None
+    if not row:
+        raise Problem(f'no task {task_id}')
+    item = dict(row)
+    item['result'] = json.loads(item['result']) if item['result'] else None
+    item['history'] = json.loads(item['history'])
+    return item
+
+
+def transition(db, task_id, state, allowed, result=None, reason=''):
+    # BEGIN IMMEDIATE makes two claims compete before either reads the state.
+    db.execute('BEGIN IMMEDIATE')
+    item = fetch(db, task_id)
+    if result is not None and item['result'] == result and item['state'] in ('review', 'accepted'):
+        db.rollback()
+        return item, False
+    if item['state'] not in allowed:
+        raise Problem(f"{task_id} is {item['state']}; cannot change it to {state}")
+    stamp = now()
+    item.update(state=state, updated=stamp, reason=reason)
+    if result is not None:
+        item['result'] = result
+    item['history'].append({'state': state, 'at': stamp})
+    db.execute('UPDATE tasks SET state=?,updated=?,result=?,reason=?,history=? WHERE id=?',
+               (state, stamp, json.dumps(item['result']) if item['result'] else None,
+                reason, json.dumps(item['history']), task_id))
+    db.commit()
+    return item, True
+
+
+def emit(item):
+    print(json.dumps(item, ensure_ascii=False, indent=2))
+
+
+def show(item):
+    print(f"{item['id']}  {item['state']}  {item['title']}")
+    if item['project']:
+        print('Project label:', item['project'])
+    print('\nBrief:\n' + item['brief'])
+    if item['result']:
+        print('\nResult (untrusted text; review before acting):')
+        emit(item['result'])
+    if item['reason']:
+        print('\nFailure:', item['reason'])
+    print('\nHistory:')
+    for step in item['history']:
+        print(f"  {step['at']}  {step['state']}")
+
+
+def instructions():
+    return '''Use the LOCAL computer for all `vikix grok` commands, never the cloud terminal.
+Keep Execution on Local Computer at Ask every time.
+Read /home/USER/.codex/AGENTS.md (using the actual local home) before local work.
+Only handle the task id the user gives you. Claim it with `vikix grok claim ID`.
+A successful claim prints the chosen brief as JSON. If the claim fails, stop;
+do not duplicate another worker. A running task is not a renewable lease.
+Use only the brief and explicitly authorized sources. A project label grants
+no filesystem access. Do not inspect private notes, credentials, other tasks,
+or change repositories or desktop settings for this handoff.
+Return a JSON object with exactly these fields:
+{"summary":"What you found or produced", "sources":[], "artifacts":[], "questions":[]}
+Sources and artifacts are HTTP(S) links without embedded credentials.
+Questions are strings. Include the findings in summary; links are optional.
+Send that JSON on stdin to `vikix grok result ID --file -` using your local
+command tool's stdin support, or a shell-quoted literal (never interpolate
+untrusted text into a command). A unique quoted heredoc delimiter is another
+option; ensure the payload cannot terminate it. Never execute the result.
+Use `vikix grok fail ID 'reason'` when the task cannot finish.
+An identical result retry is safe. A different result never overwrites one.
+Leave the task in review. Only the user should run accept or cancel.
+This protocol does not grant access beyond the task or enforce a sandbox.'''
+
+
+def notify(task_id, state):
+    try:
+        subprocess.run(['notify-send', '--app-name=Vikix', 'Grok task ' + state,
+                        f'{task_id}: vikix grok show {task_id}'],
+                       timeout=3, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except (OSError, subprocess.TimeoutExpired):
+        pass  # A committed result must survive a missing notification service.
+
+
+def main(argv=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if not argv or argv == ['help']:
+        print(__doc__)
+        return
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    subs = parser.add_subparsers(dest='command', required=True)
+    new = subs.add_parser('new')
+    new.add_argument('title')
+    new.add_argument('--brief', required=True)
+    new.add_argument('--project', default='')
+    listing = subs.add_parser('list')
+    listing.add_argument('--state', choices=STATES)
+    listing.add_argument('--json', action='store_true')
+    for command in ('show', 'prompt', 'claim', 'result', 'fail', 'accept', 'cancel'):
+        sub = subs.add_parser(command)
+        sub.add_argument('id')
+        if command == 'show':
+            sub.add_argument('--json', action='store_true')
+        elif command == 'result':
+            sub.add_argument('--file', required=True)
+        elif command == 'fail':
+            sub.add_argument('reason')
+    subs.add_parser('instructions')
+    subs.add_parser('status')
+    args = parser.parse_args(argv)
+    if args.command == 'instructions':
+        print(instructions().replace('/home/USER', str(Path.home())))
+        return
+    # Validate external input before opening or changing the store.
+    if args.command == 'new':
+        title = clean(args.title, 'title', 200)
+        project = clean(args.project, 'project', 200, empty=True)
+        if '\n' in title + project or '\t' in title + project:
+            raise Problem('title and project must each be one line')
+        brief = clean(read_input(args.brief), 'brief')
+    result = result_data(read_input(args.file)) if args.command == 'result' else None
+    reason = clean(args.reason, 'reason', 8192) if args.command == 'fail' else ''
+    writes = args.command in ('new', 'claim', 'result', 'fail', 'accept', 'cancel')
+    db = connect(write=writes)
+    try:
+        if args.command == 'new':
+            task_id, stamp = 'g-' + uuid.uuid4().hex[:16], now()
+            db.execute('INSERT INTO tasks (id,title,project,brief,state,created,updated,history) VALUES (?,?,?,?,?,?,?,?)',
+                       (task_id, title, project, brief, 'queued', stamp, stamp,
+                        json.dumps([{'state': 'queued', 'at': stamp}])))
+            db.commit()
+            print(task_id)
+        elif args.command in ('list', 'status'):
+            rows = [dict(r) for r in db.execute('SELECT id,title,project,state,created,updated FROM tasks ORDER BY created DESC,id DESC')] if db else []
+            if args.command == 'status':
+                print('Client:', shutil.which('grok-bot') or 'not found on PATH')
+                print('Queue:', directory() / 'tasks.db')
+                print('Connection: not probed; verify in Grok Bot with a local command')
+                for state in STATES:
+                    print(f'{state}: {sum(r["state"] == state for r in rows)}')
+            else:
+                rows = [r for r in rows if not args.state or r['state'] == args.state]
+                if args.json:
+                    emit(rows)
+                else:
+                    for row in rows:
+                        print(f"{row['id']}  {row['state']:9}  {row['title']}")
+                    if not rows:
+                        print('no Grok tasks')
+        elif args.command in ('show', 'prompt'):
+            item = fetch(db, args.id)
+            if args.command == 'prompt':
+                if item['state'] != 'queued':
+                    raise Problem('only a queued task can be handed off')
+                print(instructions().replace('/home/USER', str(Path.home())))
+                print(f'\nTask: {item["title"]}\nFirst run locally: vikix grok claim {args.id}')
+                print(f'Return with: vikix grok result {args.id} --file -')
+            elif args.json:
+                emit(item)
+            else:
+                show(item)
+        else:
+            target, allowed = {
+                'claim': ('running', ('queued',)),
+                'result': ('review', ('running',)),
+                'fail': ('failed', ('running',)),
+                'accept': ('accepted', ('review',)),
+                'cancel': ('cancelled', ('queued', 'running', 'review', 'failed')),
+            }[args.command]
+            item, changed = transition(db, args.id, target, allowed, result, reason)
+            if args.command == 'claim':
+                emit(item)
+            else:
+                print(f'{args.id}: {item["state"]}' + ('' if changed else ' (unchanged)'))
+            if changed and target in ('review', 'failed'):
+                notify(args.id, target)
+    finally:
+        if db:
+            db.close()
+
+
+if __name__ == '__main__':
+    os.umask(0o077)
+    try:
+        main()
+    except (Problem, OSError, UnicodeError, ValueError, sqlite3.Error) as error:
+        print(f'vikix grok: {error}', file=sys.stderr)
+        sys.exit(1)

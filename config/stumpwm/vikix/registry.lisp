@@ -275,6 +275,12 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command office "The Office: tasks, desks and agents; continue unfinished work"
   :run "exec vikix-agents office" :map "desks o"
   :menu "AI" :label "Office: tasks, desks and agents")
+(define-vikix-command grok-bot "Open Grok Bot for cloud work and approved local handoffs"
+  :run "exec grok-bot" :needs "~/.local/bin/grok-bot"
+  :menu "AI" :label "Grok Bot: open")
+(define-vikix-command grok-tasks "List local Grok Bot handoffs and results waiting for review"
+  :run "exec alacritty --hold -e vikix grok list"
+  :menu "AI" :label "Grok Bot: list tasks")
 (define-vikix-command agent-desk-test "A desk's tests run (vikix agents test): pick one; the result goes into its handoff and its agent's inbox"
   :run "exec vikix-agents test --menu" :map "desks t"
   :menu "AI" :label "Agents: test a desk's work (the result into its handoff and inbox)")

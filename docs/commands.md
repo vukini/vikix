@@ -31,6 +31,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-firmware](#vikix-firmware): firmware updates from LVFS, through fwupd
 - [vikix-font](#vikix-font): the one font file StumpWM draws its bar, menus and messages in
 - [vikix-gestures](#vikix-gestures): a three-finger swipe on the touchpad moves the focus
+- [vikix-grok](#vikix-grok): local task briefs and reviewed results for Grok Bot
 - [vikix-hype](#vikix-hype): Hype, Markdown presentations with a visual slide editor
 - [vikix-idle](#vikix-idle): what happens when you leave the computer alone
 - [vikix-image](#vikix-image): open an image in nsxiv together with the rest of its folder
@@ -135,6 +136,7 @@ The everyday command.
 - `vikix wallpapers setup|update|status|uninstall` — Vid's wallpapers, in the Super+m picker (vikix add wallpapers)
 - `vikix obsidian [convert FOLDER...|--all] [report FOLDER]` — an Obsidian vault into Org notes, a folder at a time, links kept (`~/Dropbox/notes/vault`)
 - `vikix records search|list|get|export|forget|stats` — what plugins found and kept (flights, meetings, plan use ...), searchable (vikix records help)
+- `vikix grok new|list|show|prompt|claim|result|fail|accept|cancel|status|instructions` — local briefs and reviewed results for Grok Bot
 - `vikix plugin list|add|remove|off|on|safe|status` — small additions from the vikix-plugins repo: bar words, Super+m entries, keys (vikix plugin help)
 - `vikix bitwarden setup|pick|lock|sync|status|uninstall` — your Bitwarden vault: Super+Alt+v types a password into any window (vikix add bitwarden)
 - `vikix lisp-apps setup|status|uninstall` — Nyxt, Lem and McCLIM's Listener: programs in Common Lisp (vikix add lisp-apps)
@@ -656,6 +658,24 @@ natural = no     yes: fingers to the left bring what's on the right;
 ```
 
 It listens through the X server (XInput 2.4, touchpad gestures), so it needs no group or password; a program that takes the sweep for itself keeps it. It is off while `~/.config/vikix/gestures-off` exists, and stops by itself on a machine with no touchpad.
+
+## vikix-grok
+
+Local task briefs and reviewed results for Grok Bot.
+
+- `vikix grok new TITLE --brief FILE [--project NAME]` — queue an explicitly chosen UTF-8 brief; FILE - reads stdin; prints the task id
+- `vikix grok list [--state STATE] [--json]` — tasks, newest first; no brief or result bodies
+- `vikix grok show ID [--json]` — the brief, result, and transition history
+- `vikix grok prompt ID` — instructions to paste into Grok Bot
+- `vikix grok instructions` — the local handoff protocol for a Bot
+- `vikix grok claim ID` — atomically claim a queued task; prints its brief
+- `vikix grok result ID --file FILE` — return JSON for a running task, for review; FILE - reads stdin; identical retries are safe
+- `vikix grok fail ID REASON` — record why a running task could not finish
+- `vikix grok accept ID` — mark a result reviewed; applies no files or code
+- `vikix grok cancel ID` — cancel a queued, running, or failed task, or a result
+- `vikix grok status` — client availability and local queue counts; this does not test Grok's account or connection
+
+Tasks are local, in `~/.local/share/vikix/grok/tasks.db` (private, backed up). `VIKIX_GROK_DIR` overrides that directory. Creating a task sends nothing; paste its prompt into Grok Bot and approve its local commands. The Bot returns summary, sources, artifacts, and questions as JSON. Sources and artifacts are HTTP(S) links, never automatically fetched or executed. States: queued, running, review, accepted, failed, cancelled. There is no automatic retry, remote API, service, or Office worker launched by this helper. A failed task remains readable; create a new task to retry it. Keep Grok's local execution policy at Ask every time. This helper is a handoff convention, not a sandbox around Grok's other local commands.
 
 ## vikix-hype
 
