@@ -83,20 +83,20 @@ Lisp and has your user's permissions; pattern files do not. There is no
 network REPL. The engine listens only on loopback TCP with a fresh session
 password, no UDP listener, no microphone inputs and no service advertisement.
 
-## Compare the prototype views
+## Open the music interface
 
-The Phase 1 interface comparison adds two views of one session. In one
-terminal, start the session; in another, open either or both views:
+The browser is the default Music interface. In one terminal, start the
+session; in another, open the browser view:
 
 ```sh
 vikix music serve
 vikix music web
-vikix music cuis
 ```
 
 `serve` also accepts a song's `patterns.lisp`. For editing it must be in
 `~/music/SONG/patterns.lisp`, where snapshots cover it. The browser opens
-with your default browser. The Cuis view needs `vikix add cuis`; it runs
+with your default browser. The experimental Cuis alternative opens with
+`vikix music cuis` and needs `vikix add cuis`; it runs
 in a disposable base image and does not change your saved Cuis image.
 Close its Music window to quit that disposable image.
 
@@ -129,8 +129,8 @@ not Lisp or Smalltalk evaluation. Browser audio is never used.
 
 ## What comes later
 
-This comparison has one sound. Pads, a playhead, capture, DAW integration,
-MIDI, swing, chords, variations and the final choice of interface remain. There is no new desktop key or menu entry yet.
+The current interface has one sound. Pads, a playhead, capture, DAW integration,
+MIDI, swing, chords and variations remain. There is no new desktop key or menu entry yet.
 
 `vikix remove music` removes the feature's dependencies when nothing else
 needs them and the prepared synth, keeping `~/music`. `vikix music setup`

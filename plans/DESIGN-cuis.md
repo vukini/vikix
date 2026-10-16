@@ -146,4 +146,7 @@ websocket and JSON state; the server owns Lisp parsing and file edits.
 There is no second s-expression reader in Smalltalk. Tempo, gain, transport
 and a note grid are present; pads and subtitles remain later work. The
 spike does not install a package into the user's saved image. See the dated
-interface comparison in `DESIGN-music.md` before choosing which face stays.
+interface comparison in `DESIGN-music.md`. Vid chose the browser as the
+default Music interface on 2026-10-16; Cuis stays as an experimental
+alternative. Browser subtitles are implemented; Cuis subtitles remain later
+work.

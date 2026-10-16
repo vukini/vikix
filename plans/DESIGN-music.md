@@ -47,7 +47,7 @@ The existing Python supervisor layer serves the authenticated loopback
 websocket; SBCL still reads the score and schedules notes independently.
 JSON carries display data and bounded edit operations, rather than giving
 either view a Lisp evaluator. Cuis runs in a disposable image from the
-installed base while this choice is open.
+installed base as an experimental alternative.
 
 The transport contract is deliberately small:
 
@@ -79,9 +79,10 @@ The browser offers all pitches; the Morphic spike has a small high-note
 paint palette and pages sixteen steps at a time. Both have transport,
 tempo, gain and editable steps. Still outside this spike: pads, playhead,
 recording, MIDI/WAV export, chords, progression blocks, desktop keys and
-bar integration. The recommendation from this spike is the browser as the default face,
-with the Cuis prototype kept for Vid's comparison until that choice is
-accepted. Neither face carries audio; both use the same tested file editor.
+bar integration. **Decision, 2026-10-16: Vid chose the browser as the default
+Music interface.** Cuis stays available as an experimental alternative.
+Phase 1 interface development proceeds in the browser. Neither face carries
+audio; both use the same tested file editor.
 
 | Comparison | Browser | Cuis spike |
 |---|---|---|
@@ -158,7 +159,7 @@ Three pieces, in three processes, as Esploro taught:
 
 - **`vikix-music`** runs its Common Lisp clock separately from StumpWM: a crash stops the music, never the desktop. SBCL watches `patterns.lisp` and schedules notes. The Python supervisor owns its engine and carries timestamped notes; the Phase 1 spike adds a local authenticated websocket for views (127.0.0.1, a fresh session secret).
 - **The pattern language** is small by design: if a form can't be drawn, it doesn't belong in v1. See below.
-- **The web view** is a page served by `vikix-music`, opened in Nyxt as a `vikix:` page or in Firefox. A second face, in Cuis Smalltalk's Morphic, is the spike planned in `DESIGN-cuis.md` (`VikixMusic`): it speaks the same socket protocol, so the two can coexist and the protocol is settled once; the spike after Phase 0 decides which is kept. It reuses what Living in Music already has: keyboards, fretboards, chord and scale logic. Every click is one message; the process rewrites one form; every view redraws.
+- **The web view** is a page served by `vikix-music`, opened in Nyxt as a `vikix:` page or in Firefox. A second face, in Cuis Smalltalk's Morphic, is the spike planned in `DESIGN-cuis.md` (`VikixMusic`): it speaks the same socket protocol, so the two can coexist and the protocol is settled once; Vid chose the browser as the default on 2026-10-16, retaining Cuis as an experimental alternative. It reuses what Living in Music already has: keyboards, fretboards, chord and scale logic. Every click is one message; the process rewrites one form; every view redraws.
 - **Keys and the bar** go through StumpWM as everything else does: `define-vikix-command` entries for play, stop, record, fire-pattern N, so they are on keys, in Super+m, in the key help and offered to the agent from one definition.
 - **The DAW link** is `vikix music send`: MIDI files and rendered WAVs into `~/music/<song>/render/`, and OSC transport commands (play, stop, marker, arm) that Ardour and Reaper both answer. The Lisp side does not care which is listening.
 
@@ -186,7 +187,7 @@ and external file refreshes, retaining the last good state on invalid data.
 It is generated from the same validated state as the cells, not a verbatim
 copy of the file's comments and whitespace. No protocol or audio change is
 needed. This is the bridge from the codeless user to the learner; the Cuis
-comparison remains available while the default interface choice is open.*
+view remains available as an experimental alternative.*
 
 ### The inbox
 
