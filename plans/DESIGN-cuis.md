@@ -135,3 +135,15 @@ Non-blocking:
 - **Morphic's look.** It is its own; a theme makes it match in colour and font, not in feel. Fine for a program, which is what Cuis is here.
 - **Cuis moves fast.** The pin may lag; `vikix update` moves it deliberately, as for plugins, after a try on the VM.
 - **The music face splits effort.** Two faces are one too many if both are half-done; the spike decides, and the loser is deleted from this file.
+
+
+### Music comparison, 2026-10-16
+
+The music-phase0 desk now has the Phase 1 spike under `lib/music/`:
+`vikix music cuis` opens a disposable base image with `VikixMusic`, while
+`vikix music web` opens the browser face. Both use the same authenticated
+websocket and JSON state; the server owns Lisp parsing and file edits.
+There is no second s-expression reader in Smalltalk. Tempo, gain, transport
+and a note grid are present; pads and subtitles remain later work. The
+spike does not install a package into the user's saved image. See the dated
+interface comparison in `DESIGN-music.md` before choosing which face stays.

@@ -130,7 +130,7 @@ def doctor():
     return int(bool(missing) or not ready)
 
 
-def perform(root, args):
+def perform(root, args, control=None):
     synth = data_dir() / "tone.scsyndef"
     if doctor():
         return 1
@@ -180,7 +180,11 @@ def perform(root, args):
         os.close(write_fd)
         write_fd = None
         pending = b""
+        view_gain = None
         while True:
+            if control is not None:
+                while control.poll():
+                    view_gain = float(control.recv())
             if engine.poll() is not None:
                 raise RuntimeError("sound engine exited")
             if select.select([read_fd], [], [], 0.1)[0]:
@@ -200,6 +204,8 @@ def perform(root, args):
                     if not (all(map(math.isfinite, (at, freq, dur, gain))) and
                             16 <= freq <= 20000 and 0 < dur <= 5 and 0 <= gain <= 0.1):
                         raise RuntimeError("invalid music note")
+                    if view_gain is not None:
+                        gain = max(0, min(0.1, view_gain))
                     stamp = int((at + 2208988800) * 2**32)
                     note = message("/s_new", "vikix-tone", -1, 0, 0,
                                    "freq", freq, "dur", dur, "amp", gain)
@@ -241,8 +247,15 @@ def main(root, argv):
     play.add_argument("--bars", type=int)
     repl = sub.add_parser("repl")
     repl.set_defaults(file=str(Path.home() / "music/first-song/patterns.lisp"))
+    serve = sub.add_parser("serve")
+    serve.add_argument("file", nargs="?", default=str(Path.home() / "music/first-song/patterns.lisp"))
+    for name in ("web", "cuis"):
+        sub.add_parser(name)
     args = parser.parse_args(argv)
     try:
+        if args.command in ("serve", "web", "cuis"):
+            from session import main as session_main
+            return session_main(root, args)
         if args.command == "setup":
             return setup(root)
         if args.command == "doctor":

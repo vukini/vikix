@@ -917,6 +917,9 @@ A Lisp musical sketchpad, with SuperCollider making the sound.
 - `vikix music tone [HZ]` — one quiet, short tone (880 Hz by default)
 - `vikix music play [FILE] [--pattern NAME] [--bars N]` — repeat a pattern, loading edits at the next bar; Ctrl+C stops it and its own engine
 - `vikix music repl` — a separate Lisp REPL: (tone 440), (play "FILE"), (stop), (quit); also usable as an Emacs inferior Lisp
+- `vikix music serve [FILE]` — prototype shared session; Ctrl+C ends its player
+- `vikix music web` — open the browser grid for the running session
+- `vikix music cuis` — open a disposable Cuis grid for the same session
 - `vikix music uninstall` — remove the prepared synth; keep your music
 
 Patterns are yours, `~/music/first-song/patterns.lisp` to begin with. Use (tempo 120) and (defpattern bass '(c4 - e4 -)); - is a rest. Files are read as data, never evaluated. A bad edit keeps the last good pattern. Snapshot before editing; vikix undo restores patterns at the next bar. The REPL evaluates your Lisp locally. There is no remote evaluation service.

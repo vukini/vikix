@@ -10,6 +10,9 @@
                                     Ctrl+C stops it and its own engine
   vikix music repl                  a separate Lisp REPL: (tone 440), (play "FILE"),
                                     (stop), (quit); also usable as an Emacs inferior Lisp
+  vikix music serve [FILE]          prototype shared session; Ctrl+C ends its player
+  vikix music web                   open the browser grid for the running session
+  vikix music cuis                  open a disposable Cuis grid for the same session
   vikix music uninstall             remove the prepared synth; keep your music
 
 Patterns are yours, ~/music/first-song/patterns.lisp to begin with. Use

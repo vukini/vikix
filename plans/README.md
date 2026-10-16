@@ -11,7 +11,7 @@ The longer plans of Vikix, one file each. The queue is `../TODO.md`, the pool `.
 | `DESIGN-cuis.md` | 2026-10-03 | Cuis Smalltalk as a Vikix feature, with a door for the agent. Phase 0 built 2026-10-09: `vikix cuis`, `vikix eval --cuis` (TODO 88). |
 | `DESIGN-docs.md` | 2026-10-03 | The docs catalogue and the `vk` alias. |
 | `DESIGN-machines.md` | 2026-10-04 | Your laptops, desktop and phones as one Vikix: Tailscale, Syncthing, KDE Connect, `vikix export`/`import`, `--on NAME` for the doors (TODO 16 to 19). |
-| `DESIGN-music.md` | 2026-10-03 | The musical sketchpad (TODO 22); Phase 0 at music-phase0, with audible X1 playback, live edits and fresh-home VM signal/realtime checks passed; hardware loopback latency remains. |
+| `DESIGN-music.md` | 2026-10-03 | The musical sketchpad (TODO 22); Phase 0 at music-phase0, with audible X1 playback, live edits and fresh-home VM signal/realtime checks passed; hardware loopback latency remains. Phase 1 browser/Cuis interface comparison at the desk. |
 | `DESIGN-office-tasks.md` | 2026-10-10 | The Office as a task board: a task record of its own with provenance, priority and a launch number, the worker's state apart from the task's, Needs attention with decisions a worker registers (phases 1 and 2 implemented 2026-10-14), phase 3 queue and scheduler implemented 2026-10-15, released in 0.72.78; the full board and proposals remain (TODO 115). |
 | `DESIGN-openclaw.md` | 2026-10-08 | OpenClaw with the office: a sixth agent in a terminal, the house rules as its plugin, its Gateway as the phone's way in; TODO 13's slot, OpenClaw or Hermes for Vid to choose. |
 | `DESIGN-phone.md` | 2026-10-08 | The phone's way into the desktop, replacing OpenClaw's gateway direction for TODO 13. |

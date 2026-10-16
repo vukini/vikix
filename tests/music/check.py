@@ -19,6 +19,8 @@ def engine(args):
     assert args[args.index("-i") + 1] == "0"
     t = Path(os.environ["MUSIC_TEST"])
     (t / "engine.pid").write_text(str(os.getpid()))
+    with (t / "engine.pids").open("a") as record:
+        record.write(str(os.getpid()) + "\n")
     if (t / "fail-engine").exists():
         return 2
     password = args[args.index("-p") + 1].encode() + b"\0"
@@ -52,7 +54,9 @@ def engine(args):
                         with (t / "events").open("a") as out:
                             offset = data.index(b"freq\0") + 8
                             freq = struct.unpack(">f", data[offset:offset + 4])[0]
-                            out.write(json.dumps({"at": stamp, "freq": freq}) + "\n")
+                            amp_offset = data.index(b"amp\0") + 4
+                            amp = struct.unpack(">f", data[amp_offset:amp_offset + 4])[0]
+                            out.write(json.dumps({"at": stamp, "freq": freq, "gain": amp}) + "\n")
                     elif data.startswith(b"/quit\0"):
                         break
             except EOFError:

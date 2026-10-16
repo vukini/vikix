@@ -39,6 +39,67 @@ Temporary guest files were removed and the VM returned to shut off.
 Physical round-trip latency still needs an audio loopback connection; the
 21.3 ms block size is not that measurement.*
 
+## Interface comparison at the desk (2026-10-16)
+
+The Phase 1 spike is `vikix music serve`, with `music web` and `music cuis`
+as its two views. It is a comparison, not the complete first release.
+The existing Python supervisor layer serves the authenticated loopback
+websocket; SBCL still reads the score and schedules notes independently.
+JSON carries display data and bounded edit operations, rather than giving
+either view a Lisp evaluator. Cuis runs in a disposable image from the
+installed base while this choice is open.
+
+The transport contract is deliberately small:
+
+- The first text message is `{"token":"SESSION_TOKEN"}`. The token and
+  ephemeral port are in a mode-0600 `music-view/session.json` under
+  `XDG_RUNTIME_DIR` (fallback `~/.local/state/vikix`), in a private folder.
+  Browser links carry the token in a fragment, removed from the address bar
+  immediately; it is never put in an HTTP request URL or server log.
+- Each later message is an object with `op`: `state`, `play`, `stop`,
+  `gain`, `tempo` or `note`. `play` selects `pattern`; `gain` takes `value`
+  between 0 and 0.1; `tempo` takes an integer `value` between 60 and 200.
+  `note` takes `pattern`, zero-based `step` and `note` (`a5`, `-`, etc.).
+- File edits also supply `revision`, the SHA-256 of the bytes last shown.
+  The reply is the shared state: song, revision, tempo, pattern list and
+  note tokens, selected playing pattern, playing, gain and error. Both
+  views poll state; no timing or audio crosses their connection.
+- Only a regular `~/music/SONG/patterns.lisp` can be edited. The editor
+  replaces one token, preserves comments, validates with the real Lisp
+  reader, snapshots, checks the bytes again and atomically replaces the
+  file. A failed snapshot prevents the edit. In-process edits serialize;
+  external editors do not share that lock, so the final check/rename still
+  has a small race with a simultaneous external save. The earlier snapshot
+  remains the recovery path. A general transactional editor is not claimed.
+- Closing either view only disconnects it. Stop reaps the owned player;
+  ending `serve` reaps it and removes the endpoint. Gain is session-only;
+  tempo and notes are score data. One pattern plays at a time.
+
+The browser offers all pitches; the Morphic spike has a small high-note
+paint palette and pages sixteen steps at a time. Both have transport,
+tempo, gain and editable steps. Still outside this spike: pads, playhead,
+recording, MIDI/WAV export, chords, progression blocks, desktop keys and
+bar integration. The recommendation from this spike is the browser as the default face,
+with the Cuis prototype kept for Vid's comparison until that choice is
+accepted. Neither face carries audio; both use the same tested file editor.
+
+| Comparison | Browser | Cuis spike |
+|---|---|---|
+| Note entry | All pitches in a selector; direct step buttons | Small paint palette; sixteen-step pages |
+| Tempo and gain | Number field and slider | Increment/decrement buttons |
+| Startup | Uses an existing browser | Copies the installed base and loads a disposable image |
+| Live development | Page code and browser tools | Morphs can be inspected in the image |
+| Main cost left | Musical controls, accessibility polish and playhead | Full pitch selection and more polished widgets, plus image integration |
+
+Validation uses real SBCL and an authenticated stand-in sound engine, a
+real Chromium tab, and a real Cuis image on an isolated X display. It covers
+comment preservation, snapshots and snapshot failure, stale revisions,
+external file edits, unsafe forms, token/origin checks, gain reaching the
+engine, transport, automatic refresh and window closure. Screenshots are
+inspected separately. It does not establish physical audio latency or a
+human's preference between the two faces; Phase 0's listening evidence
+still applies to the unchanged sound path.
+
 ---
 
 ## The problem
@@ -95,7 +156,7 @@ Three pieces, in three processes, as Esploro taught:
   SuperCollider (scsynth) ──► PipeWire (JACK side) ──► speakers / Ardour
 ```
 
-- **`vikix-music`** is a Common Lisp program, not part of StumpWM: a crash stops the music, never the desktop. It watches `patterns.lisp`, holds the clock, schedules notes to the engine, and serves views over a local websocket (127.0.0.1, a secret as Swank has).
+- **`vikix-music`** runs its Common Lisp clock separately from StumpWM: a crash stops the music, never the desktop. SBCL watches `patterns.lisp` and schedules notes. The Python supervisor owns its engine and carries timestamped notes; the Phase 1 spike adds a local authenticated websocket for views (127.0.0.1, a fresh session secret).
 - **The pattern language** is small by design: if a form can't be drawn, it doesn't belong in v1. See below.
 - **The web view** is a page served by `vikix-music`, opened in Nyxt as a `vikix:` page or in Firefox. A second face, in Cuis Smalltalk's Morphic, is the spike planned in `DESIGN-cuis.md` (`VikixMusic`): it speaks the same socket protocol, so the two can coexist and the protocol is settled once; the spike after Phase 0 decides which is kept. It reuses what Living in Music already has: keyboards, fretboards, chord and scale logic. Every click is one message; the process rewrites one form; every view redraws.
 - **Keys and the bar** go through StumpWM as everything else does: `define-vikix-command` entries for play, stop, record, fire-pattern N, so they are on keys, in Super+m, in the key help and offered to the agent from one definition.

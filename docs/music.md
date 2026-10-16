@@ -83,11 +83,48 @@ Lisp and has your user's permissions; pattern files do not. There is no
 network REPL. The engine listens only on loopback TCP with a fresh session
 password, no UDP listener, no microphone inputs and no service advertisement.
 
+## Compare the prototype views
+
+The Phase 1 interface comparison adds two views of one session. In one
+terminal, start the session; in another, open either or both views:
+
+```sh
+vikix music serve
+vikix music web
+vikix music cuis
+```
+
+`serve` also accepts a song's `patterns.lisp`. For editing it must be in
+`~/music/SONG/patterns.lisp`, where snapshots cover it. The browser opens
+with your default browser. The Cuis view needs `vikix add cuis`; it runs
+in a disposable base image and does not change your saved Cuis image.
+Close its Music window to quit that disposable image.
+
+Choose a pattern and press Play. Each step paints the selected note; a
+second click on that note makes a rest. The browser offers the full note
+range; the Cuis comparison cycles a small high-note palette and shows
+sixteen steps per page. Tempo and gain controls work in both. Tempo is
+saved to the song; gain is a session setting, capped at 0.1. File edits
+arrive at the next bar, and both views refresh from the same file.
+
+An edit takes a snapshot first and replaces only the changed note or tempo
+token, keeping comments and formatting. A stale revision is refused: review
+the refreshed grid and try again. Invalid file edits leave the last good
+pattern visible and audible, with an error. The prototype editor accepts
+whole-number tempos and plain pattern names made of letters, digits and
+dashes. More elaborate Lisp spellings can still be played with `play`.
+
+Closing a view leaves the player running. Stop in either view stops sound;
+Ctrl+C in the session terminal stops its player, closes the local server
+and removes its connection file. Open another view to reconnect. The
+server binds only to 127.0.0.1, checks browser origins and requires a fresh
+session token from a private connection file. It accepts music operations,
+not Lisp or Smalltalk evaluation. Browser audio is never used.
+
 ## What comes later
 
-This first slice has one sound and a text interface. The grid, capture,
-DAW integration, MIDI, swing, chords, variations and Cuis face are later
-phases. There is no new desktop key or menu entry yet.
+This comparison has one sound. Pads, a playhead, capture, DAW integration,
+MIDI, swing, chords, variations and the final choice of interface remain. There is no new desktop key or menu entry yet.
 
 `vikix remove music` removes the feature's dependencies when nothing else
 needs them and the prepared synth, keeping `~/music`. `vikix music setup`
