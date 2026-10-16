@@ -77,6 +77,10 @@ The plan was the Learning To Code project's "Vikix — C Tutorials Plan"; its de
 
 ## From IDEAS.md
 
+### Software Void doesn't have
+
+- **Distrobox** (2026-10-16). An Ubuntu or Arch system inside Vikix, sharing the home folder, for anything that only ships as a `.deb` or for Arch. It shipped as the feature `containers` (`vikix add containers`, `plans/DESIGN-containers.md`): rootless Podman from Void, Distrobox pinned because Void does not package it, and a default Ubuntu box when you ask. The shared home folder is the safety net, and it is not a wall around your files. A release on the dev machine gives it a version.
+
 ### Architecture review with Codex (2026-10-05)
 
 1. **Finish the agent office.** Starting an agent attaches it to a project, worktree, workspace and task (`vikix agents desk`, `worker`, the seats), and its desk shows what changed, which checks passed and what needs Vid's attention (the handoff record, the tester, the Office). Built on `NOVEL.md`'s idea 22, not as a second agent manager.

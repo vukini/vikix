@@ -866,7 +866,8 @@ def explanations(kind, name=None):
     return rows
 
 
-SEE_SAID = {"memory": "memory", "field": "a field of the bar", "windows-vm": "the Windows machine"}
+SEE_SAID = {"memory": "memory", "field": "a field of the bar", "windows-vm": "the Windows machine",
+           "container": "a box"}
 
 
 def chapter_file(target):
@@ -878,6 +879,48 @@ def chapter_file(target):
         if os.path.isfile(file):
             return file, heading
     return None, heading
+
+
+def container_config():
+    """BOX and IMAGE from ~/.config/vikix/containers, when that file exists."""
+    path = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"),
+                        "vikix", "containers")
+    found = {}
+    for line in (read(path) or "").splitlines():
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        found[key.strip()] = value.strip()
+    return found
+
+
+def container_card(name=None):
+    """A box: the page, and the default one's name and image when those are written."""
+    card = general_card("container")
+    if card is None:
+        return None
+    cfg = container_config()
+    box = name or cfg.get("BOX")
+    facts = []
+    if box:
+        card["name"] = box
+        card["heading"] = f"The box {box}"
+        facts.append(f"the box: {box}")
+    image = cfg.get("IMAGE")
+    if image and (not name or name == cfg.get("BOX")):
+        facts.append(f"its image: {image}")
+    # Versions only. `podman info` asks the runtime and is slow for a card.
+    ver = run(["podman", "--version"], timeout=2)
+    if ver:
+        facts.append(ver.strip().splitlines()[0])
+    home = os.environ.get("VIKIX_DISTROBOX_PREFIX") or os.path.expanduser("~/.local")
+    binary = os.path.join(home, "bin", "distrobox")
+    argv = [binary, "version"] if os.path.isfile(binary) else ["distrobox", "version"]
+    dver = run(argv, timeout=2)
+    if dver:
+        facts.append(dver.strip().splitlines()[0])
+    card["facts"] = facts
+    return card
 
 
 def general_card(kind):
@@ -892,6 +935,8 @@ def general_card(kind):
 # --- Which thing --------------------------------------------------------------------------
 
 def card_for(kind, name):
+    if kind == "container":
+        return container_card(name)
     if kind == "field":
         return field_card(name) if name else general_card("field")
     if kind in FIELDS or kind in FIELD_WORDS:
@@ -961,6 +1006,9 @@ def find(words):
         return card_for(kind, first(here, "name"))
     if len(words) > 2:
         die("vikix what [KIND] [NAME] (vikix what help)")
+    # A box is not one of the bar's kinds. The page is config/what/container.md.
+    if words[0] in ("container", "containers", "distrobox"):
+        return card_for("container", words[1] if len(words) == 2 else None)
     if len(words) == 2:
         if words[0] not in KINDS and words[0] not in FIELDS:
             die(f"{words[0]} is no kind of thing: {', '.join(KINDS)}")

@@ -205,6 +205,9 @@
 #   vikix steam [setup|status|uninstall]   Steam, with the 32-bit libraries and
 #                         the Vulkan driver your graphics card needs; Windows
 #                         games too, through Proton (vikix steam help)
+#   vikix containers [setup|create|open|list|upgrade|status|check|remove]
+#                         another Linux in a box (Ubuntu by default), with
+#                         rootless Podman (vikix containers help)
 #
 # Each command has a man page with the whole of it: man vikix-NAME (man
 # vikix is this list; man -k vikix lists the pages).
@@ -606,6 +609,11 @@ cmd_update() {
       bash "$VIKIX_DIR/bin/vikix-local-ai" llm --refresh || warn "couldn't update llm; vikix ai llm tries again"
     fi
     upgrade_user_tools
+    # Boxes (vikix add containers): distrobox upgrade --all. Not in core.
+    # core stays the fast path, and an upgrade downloads images.
+    if is_chosen containers; then
+      bash "$VIKIX_DIR/bin/vikix-containers" upgrade || failed+=("containers")
+    fi
   fi
   # So the bar stops showing the updates that were just installed.
   [ "$DRY_RUN" = 1 ] || "$VIKIX_DIR/bin/vikix-updates" >/dev/null 2>&1 || true
@@ -776,6 +784,8 @@ cmd_doctor() {
   bash "$VIKIX_DIR/bin/vikix-windows" check || ok=0
   # Steam, if it's chosen: its repository, 32-bit libraries and the card's driver.
   bash "$VIKIX_DIR/bin/vikix-steam" check || ok=0
+  # A box, if it's chosen: Podman, Distrobox and the user's subuids.
+  bash "$VIKIX_DIR/bin/vikix-containers" check || ok=0
   # API keys belong in ~/.config/vikix/secrets (vikix ai key), not in your
   # files, where the snapshot history keeps them for ever.
   bash "$VIKIX_DIR/bin/vikix-ai" key check || ok=0
@@ -1202,6 +1212,7 @@ main() {
     firmware)    shift; exec "$VIKIX_DIR/bin/vikix-firmware" "$@" ;;
     windows)     shift; exec "$VIKIX_DIR/bin/vikix-windows" "$@" ;;
     steam)       shift; exec "$VIKIX_DIR/bin/vikix-steam" "$@" ;;
+    containers)  shift; exec "$VIKIX_DIR/bin/vikix-containers" "$@" ;;
     ai)          shift; exec "$VIKIX_DIR/bin/vikix-ai" "$@" ;;
     webapp|webapps) shift; exec "$VIKIX_DIR/bin/vikix-webapp" "$@" ;;
     fingerprint) shift; exec "$VIKIX_DIR/bin/vikix-fingerprint" "$@" ;;

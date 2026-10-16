@@ -54,6 +54,7 @@ steam       | optional/steam     |          | vikix steam setup   | vikix steam 
 wallpapers  |                    |          | vikix wallpapers setup | vikix wallpapers uninstall | Vid's wallpapers (about 40 MB): the wallpaper cycles through them, and they're in the Super+m picker; vikix update brings new ones
 cli-extras  | optional/cli-extras|          |                     |                       | More terminal tools: pandoc converts documents, ncdu shows what fills the disk
 windows     | optional/windows   |          | vikix windows setup | vikix windows remove  | Windows 11 in a window (8 GB of memory, 40 GB of disk)
+containers  | optional/containers |          | vikix containers setup | vikix containers remove | A box: Ubuntu (or another Linux) inside Vikix, with rootless Podman, sharing your home folder
 local-ai    |                    |          | vikix ai setup      | vikix ai uninstall    | AI models on this laptop, with Ollama
 llm         |                    |          | vikix ai llm        | uv tool uninstall llm | llm: AI on the command line, local or Claude
 dictation   | optional/dictation |          | vikix dictate setup | vikix dictate uninstall | Dictation: speak, and it types what you said (Super+F9), on this laptop

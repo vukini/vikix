@@ -246,7 +246,7 @@ StumpWM's own `Ctrl+t` prefix keys still work too: press `Ctrl+t` and wait, and 
 | Super+= | Calculator: Enter copies the answer |
 | **AI & voice** | |
 | Super+a | AI agent: here in a terminal, or at a new desk of its own |
-| Super+Alt+d | Desk keys: n new, w a worker at one, r take up again, c close, h handoff, o the Office, t test, p pause or go, i a note, x dismiss |
+| Super+Alt+d | Desk keys: n new, w a worker at one, r take up again, c close, h handoff, o the Office, t test, p pause or go, i a note, x dismiss, b a box |
 | then n | A new desk: pick a project and a topic; a worktree to itself, and a worker at it when you give it a task |
 | then w | A worker at a desk: pick the desk, type the task; an agent on it there, on a workspace to itself |
 | then r | Take a desk up again: pick one; its handoff shown, its agent's conversation resumed where it can be |
@@ -257,6 +257,7 @@ StumpWM's own `Ctrl+t` prefix keys still work too: press `Ctrl+t` and wait, and 
 | then p | Pause a desk's agent at its next tool call, or let a paused one go: pick one |
 | then i | A note for a desk's agent, delivered at its next tool call: pick the desk, type the note |
 | then x | Dismiss a desk's agent, keeping the desk and its files: pick one |
+| then b | A terminal in the default box |
 | then question | Agents: questions and work that need you |
 | Super+F9 | Dictation: speak, then Super+F9 again types it |
 | Super+Shift+F9 | Dictation: stop listening, type nothing |
@@ -680,11 +681,11 @@ vikix add essentials       # or a bundle: essentials, developer, everything
 vikix remove julia         # stop keeping it, and uninstall what only it needed
 ```
 
-- **Features:** each language (`c`, `python`, `lisp`, `rust` …, with `devtools`, the tools every language uses, coming along), `emacs`, `neovim`, `office` (LibreOffice), `printing`, `webapps`, `dropbox`, `video`, `graphics`, `blender`, `study`, `passwords`, `bitwarden`, `phone`, `cli-extras`, `wallpapers`, `lisp-apps`, `esploro`, `cuis`, `hype`, `publish`, `windows`, `local-ai`, `llm`, `dictation`, `voice`, `notes`, and the other agents `opencode`, `codex`, `gemini`, `antigravity` and `aider`. `wallpapers` and, from `lisp-apps` on, the rest each run their own setup (`vikix wallpapers setup`, `vikix lisp-apps setup`, `vikix esploro setup`, `vikix cuis setup`, `vikix hype setup`, `vikix windows setup`, `vikix ai setup`, `vikix ai llm`, `vikix dictate setup`, `vikix voice setup`, `vikix notes setup`, `vikix agent --install NAME`), and `vikix remove` its uninstall; `voice` brings `dictation` and `llm`, and `notes` brings `local-ai`.
+- **Features:** each language (`c`, `python`, `lisp`, `rust` …, with `devtools`, the tools every language uses, coming along), `emacs`, `neovim`, `office` (LibreOffice), `printing`, `webapps`, `dropbox`, `video`, `graphics`, `blender`, `study`, `passwords`, `bitwarden`, `phone`, `cli-extras`, `wallpapers`, `lisp-apps`, `esploro`, `cuis`, `hype`, `publish`, `windows`, `containers`, `local-ai`, `llm`, `dictation`, `voice`, `notes`, and the other agents `opencode`, `codex`, `gemini`, `antigravity` and `aider`. `wallpapers` and, from `lisp-apps` on, the rest each run their own setup (`vikix wallpapers setup`, `vikix lisp-apps setup`, `vikix esploro setup`, `vikix cuis setup`, `vikix hype setup`, `vikix windows setup`, `vikix containers setup`, `vikix ai setup`, `vikix ai llm`, `vikix dictate setup`, `vikix voice setup`, `vikix notes setup`, `vikix agent --install NAME`), and `vikix remove` its uninstall; `voice` brings `dictation` and `llm`, and `notes` brings `local-ai`.
 - **Bundles** (`bundles.list`): `essentials` is Emacs, C, Python and Lisp; `developer` both editors and every language; `everything` is developer, LibreOffice and printing, which is what a full install had before 0.46. `creative` is video, graphics and Blender.
 - **Your choices** are the lines of `~/.config/vikix/features`, yours to edit. A machine installed before 0.46 had every list, so its file says `everything`, plus what it set up since (Windows, local AI). With no file at all, everything is kept. A feature you installed by hand (`xi dropbox`) shows as had in `vikix features` and the Super+m picker, and the next `vikix update` adds it to the file, so its packages are kept; one with a setup command (local AI, the agents) can't be told by its packages, so `vikix add` it.
 - **One program**, not a feature: `vikix pkg add NAME` (alone, a search of every package in Void), `vikix pkg drop NAME`. A package Vikix's lists name that you drop goes on `~/.config/vikix/packages-skip`, which `10-packages` leaves out; `vikix pkg list` shows it, and adding the package again takes it off.
-- **`vikix remove`** shows what it would uninstall and asks first (`--yes` skips the question). A package the base or another feature of yours names stays, and so does one that another installed package needs. A feature only there for the one removed goes too: `devtools`, once no language is left. Your own files are never touched: `~/dev`, `~/.emacs.d`, `~/.config/nvim`, `~/Windows`.
+- **`vikix remove`** shows what it would uninstall and asks first (`--yes` skips the question). A package the base or another feature of yours names stays, and so does one that another installed package needs. A feature only there for the one removed goes too: `devtools`, once no language is left. Your own files are never touched: `~/dev`, `~/.emacs.d`, `~/.config/nvim`, `~/Windows`, `~/.local/share/containers`.
 
 | List | Contents |
 |---|---|
@@ -715,6 +716,7 @@ vikix remove julia         # stop keeping it, and uninstall what only it needed
 | `optional/bitwarden` | Feature `bitwarden`: rbw, rofi-rbw and pinentry-gtk. See [Passwords](#passwords) |
 | `optional/phone` | Feature `phone`: scrcpy and adb (android-tools), an Android phone's screen in a window. Switch on USB debugging on the phone first |
 | `optional/steam` | Feature `steam` (`vikix steam setup`, or `vikix add steam`): Steam from the nonfree repo, and from multilib the 32-bit libraries every card needs (libgcc, libstdc++, libdrm, libglvnd, libva, mesa-dri) and the Vulkan loader in both widths; the setup adds the graphics card's own Vulkan driver, both widths, and a higher open-files limit. See [Steam](#steam) |
+| `optional/containers` | Feature `containers` (`vikix containers setup`, or `vikix add containers`): rootless Podman and aardvark-dns from Void (runc, passt, slirp4netns, fuse-overlayfs and netavark come with Podman; no root service is switched on), and Distrobox 1.8.2.5 into `~/.local`, which Void does not package. A box named `vikix` from `ubuntu:24.04` is created when you ask, and it shares your home folder. See [A box](docs/containers.md) |
 | `optional/cli-extras` | Feature `cli-extras`: pandoc, ncdu |
 | `optional/lisp-apps` | Feature `lisp-apps`: Nyxt, and SDL2 with its fonts and images (and libvterm, for the terminal inside Lem), which Lem's window is built on. See [Lisp programs](#lisp-programs-vikix-add-lisp-apps) |
 | `optional/esploro` | Feature `esploro`: ImageMagick, poppler and ffmpegthumbnailer, which make the thumbnails of Esploro's preview; archivemount, which opens an archive like a folder; sshfs, for a server's folders over SSH; and libimobiledevice, ifuse and usbmuxd, for an iPhone under Drives (Esploro itself is built by `vikix esploro setup`) |

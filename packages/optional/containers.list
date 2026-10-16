@@ -1,0 +1,12 @@
+# containers.list — rootless Podman (the feature containers; `vikix containers
+# setup`, or `vikix add containers`). Names checked against void-packages on
+# 2026-10-16: podman 5.8.8_1 depends on runc (not crun), conmon, cni-plugins,
+# slirp4netns, fuse-overlayfs, passt, netavark, containers-common,
+# containers.image and containers.storage, so those are not named again.
+# aardvark-dns 1.17.1 is not one of those dependencies, and netavark's DNS
+# needs it. Distrobox is not in Void; the setup fetches a pinned tag.
+# Podman's template installs service files and does not enable them. Vikix
+# does not enable a root daemon either: rootless Podman starts nothing
+# until a container runs.
+podman          # rootless containers; the root services stay off
+aardvark-dns    # DNS inside a container's network, which netavark runs

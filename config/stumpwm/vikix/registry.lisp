@@ -252,7 +252,7 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command agent "AI agent: here in a terminal, or at a new desk of its own"
   :run "vikix-agent-choice" :key "s-a"
   :menu "AI" :label "AI agent: here, or at a new desk")
-(define-vikix-command desks "Desk keys: n new, w a worker at one, r take up again, c close, h handoff, o the Office, t test, p pause or go, i a note, x dismiss"
+(define-vikix-command desks "Desk keys: n new, w a worker at one, r take up again, c close, h handoff, o the Office, t test, p pause or go, i a note, x dismiss, b a box"
   :run "vikix-map desks" :key "s-M-d" :card "AI & voice")
 (define-vikix-command agent-desk "A new desk: pick a project and a topic; a worktree to itself, and a worker at it when you give it a task"
   :run "exec vikix-agents desk" :map "desks n"
@@ -727,6 +727,9 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command windows-vm "Windows (the VM)"
   :do (run-shell-command (format nil "vikix-windows open || ~a -e sh -c 'vikix windows status; printf \"\\nEnter closes this window. \"; read x'" *vikix-terminal*))
   :menu "Apps" :needs "virt-viewer")
+(define-vikix-command container "A terminal in the default box"
+  :run "exec vikix containers open" :map "desks b"
+  :menu "Apps" :label "A box: a terminal in Ubuntu (distrobox)" :needs "~/.local/bin/distrobox")
 
 ;;; --- Running one, and what agents are offered -------------------------------------------------
 

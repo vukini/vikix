@@ -1,0 +1,628 @@
+#!/usr/bin/env bash
+# vikix-containers — another Linux in a box, with rootless Podman (`vikix containers`).
+#
+#   vikix containers setup [--box NAME] [--image IMAGE] [--no-box]
+#                         once: Podman from Void, subuid and subgid for you,
+#                         Distrobox into ~/.local, and, when you ask, a box.
+#                         vikix add containers runs the same
+#   vikix containers create [NAME] [--image IMAGE]
+#                         a box; the default one when NAME is left out
+#   vikix containers open [NAME]
+#                         a terminal in the box (the default when NAME is
+#                         left out). Super+Alt+d then b does it
+#   vikix containers list  the boxes
+#   vikix containers upgrade
+#                         distrobox upgrade --all. vikix update and
+#                         vikix update tools run it when the feature is on;
+#                         vikix update core does not
+#   vikix containers status
+#                         Podman, Distrobox, your subuids, the default box
+#   vikix containers check
+#                         the same for vikix doctor: one line when all is
+#                         well, nothing when containers isn't chosen, exit 1
+#                         otherwise
+#   vikix containers remove [--boxes]
+#                         Distrobox's scripts go, and the subuid lines Vikix
+#                         wrote. Your boxes and images stay unless you type
+#                         remove (or pass --boxes). The home folder is never
+#                         deleted: ~/.local/share/containers is the boxes
+#
+# A box shares your home folder. That is the point (a .deb installed where
+# your files already are) and it is not a wall: a program in the box can
+# read anything you can, including ~/.config/vikix/secrets.
+#
+# Rootless only. Podman's package ships runit service files and does not
+# enable them; this does not enable them either. Nothing listens until a
+# container runs.
+#
+# Distrobox is not in Void. The setup fetches tag 1.8.2.5 and checks the
+# archive against the SHA-256 below, taken on 2026-10-16. GitHub publishes
+# no checksum for a generated tag archive. The scripts are GPL-3, so they
+# are installed into ~/.local and not kept in this tree. Distrobox finds
+# the other scripts beside the one you ran, so they are copied, not linked.
+#
+# The default box is named vikix, from ubuntu:24.04, written in
+# ~/.config/vikix/containers. Setup creates it when you pass --box, or when
+# you say yes at a terminal. With no terminal it does not download an image.
+#
+# For the tests: VIKIX_SUBUID and VIKIX_SUBGID stand in for /etc/subuid and
+# /etc/subgid, VIKIX_SYSCTL_PROC for the userns sysctl, VIKIX_SYSCTL_FILE
+# for the file setup would write, VIKIX_FUSE for /dev/fuse,
+# VIKIX_DISTROBOX_PREFIX for ~/.local, VIKIX_DISTROBOX_TARBALL and
+# VIKIX_DISTROBOX_SHA256 for the archive.
+
+set -euo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+export VIKIX_DIR
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+# shellcheck source=../lib/features.sh
+. "$VIKIX_DIR/lib/features.sh"
+
+SUBUID=${VIKIX_SUBUID:-/etc/subuid}
+SUBGID=${VIKIX_SUBGID:-/etc/subgid}
+SUBID_COUNT=65536
+SUBID_BASE=100000
+STAMP=$VIKIX_STATE/containers-subids
+SYSCTL_PROC=${VIKIX_SYSCTL_PROC:-/proc/sys/kernel/unprivileged_userns_clone}
+SYSCTL_FILE=${VIKIX_SYSCTL_FILE:-${VIKIX_SYSCTL_D:-/etc/sysctl.d}/50-vikix-containers.conf}
+FUSE=${VIKIX_FUSE:-/dev/fuse}
+
+# Distrobox 1.8.2.5. The SHA-256 is GitHub's archive of the tag as
+# downloaded on 2026-10-16; GitHub keeps tag archives stable and publishes
+# no checksum of its own.
+DISTROBOX_VERSION=1.8.2.5
+DISTROBOX_URL=${VIKIX_DISTROBOX_URL:-https://github.com/89luca89/distrobox/archive/refs/tags/1.8.2.5.tar.gz}
+DISTROBOX_SHA256=${VIKIX_DISTROBOX_SHA256:-0c3bc4785ee3be3b89f93abb7cc0a9f60e56989e81319af140a4b60403b18f80}
+DISTROBOX_PREFIX=${VIKIX_DISTROBOX_PREFIX:-$HOME/.local}
+MANIFEST=$VIKIX_STATE/distrobox-installed
+CURL=${VIKIX_CURL:-curl}
+CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/vikix
+
+CONFIG=${XDG_CONFIG_HOME:-$HOME/.config}/vikix/containers
+BOX_DEFAULT=vikix
+IMAGE_DEFAULT=ubuntu:24.04
+
+chosen() { is_chosen containers; }
+not_root() { [ "$(id -u)" -ne 0 ] || die "rootless Podman is for your own user, not root"; }
+
+# --- subuid / subgid --------------------------------------------------------------
+
+# subid_line FILE USER — "START COUNT" when USER has a line, else nothing.
+subid_line() {
+  local file=$1 user=$2
+  [ -f "$file" ] || return 0
+  awk -F: -v u="$user" '$1 == u && $2 ~ /^[0-9]+$/ && $3 ~ /^[0-9]+$/ { print $2, $3; exit }' "$file"
+}
+
+# subid_ranges FILE — "START COUNT" for every well-formed line.
+subid_ranges() {
+  local file=$1
+  [ -f "$file" ] || return 0
+  awk -F: '$2 ~ /^[0-9]+$/ && $3 ~ /^[0-9]+$/ { print $2, $3 }' "$file"
+}
+
+# range_is_free FILE START COUNT — no line in FILE overlaps that range.
+range_is_free() {
+  local file=$1 start=$2 count=$3 s c e
+  local end=$((start + count))
+  while read -r s c; do
+    [ -n "${s:-}" ] || continue
+    e=$((s + c))
+    if [ "$start" -lt "$e" ] && [ "$s" -lt "$end" ]; then return 1; fi
+  done < <(subid_ranges "$file")
+  return 0
+}
+
+# pick_range — a COUNT-wide range free in both files, from BASE upward.
+pick_range() {
+  local start=$SUBID_BASE s c end i n free
+  local -a starts=() counts=()
+  while read -r s c; do
+    [ -n "${s:-}" ] || continue
+    starts+=("$s")
+    counts+=("$c")
+  done < <({ subid_ranges "$SUBUID"; subid_ranges "$SUBGID"; })
+  n=${#starts[@]}
+  while [ "$start" -lt 2000000000 ]; do
+    end=$((start + SUBID_COUNT))
+    free=1
+    i=0
+    while [ "$i" -lt "$n" ]; do
+      s=${starts[$i]}
+      c=${counts[$i]}
+      if [ "$start" -lt $((s + c)) ] && [ "$s" -lt "$end" ]; then free=0; break; fi
+      i=$((i + 1))
+    done
+    if [ "$free" = 1 ]; then echo "$start $SUBID_COUNT"; return 0; fi
+    start=$((start + SUBID_COUNT))
+  done
+  return 1
+}
+
+write_subid() {
+  local file=$1 line=$2
+  local dir
+  dir=$(dirname "$file")
+  if [ -w "$file" ] || { [ ! -e "$file" ] && [ -w "$dir" ]; }; then
+    if [ "$DRY_RUN" = 1 ]; then
+      printf '   would append %s to %s\n' "$line" "$file"
+      return 0
+    fi
+    printf '%s\n' "$line" >> "$file"
+  else
+    printf '%s\n' "$line" | run sudo tee -a "$file" >/dev/null
+  fi
+}
+
+# add_subid FILE WHICH USER START COUNT — append USER's line when they have
+# none and the range is free. 0 written (or already there), 1 not free.
+add_subid() {
+  local file=$1 which=$2 user=$3 start=$4 count=$5 line have
+  have=$(subid_line "$file" "$user")
+  [ -z "$have" ] || return 0
+  range_is_free "$file" "$start" "$count" || return 1
+  line="$user:$start:$count"
+  say "adding $line to $file"
+  write_subid "$file" "$line"
+  if [ "$DRY_RUN" != 1 ]; then
+    mkdir -p "$VIKIX_STATE"
+    printf '%s %s\n' "$which" "$line" >> "$STAMP"
+  fi
+}
+
+ensure_subids() {
+  not_root
+  local user have_u have_g start count s2 c2
+  user=$(id -un)
+  have_u=$(subid_line "$SUBUID" "$user")
+  have_g=$(subid_line "$SUBGID" "$user")
+  if [ -n "$have_u" ] && [ -n "$have_g" ]; then
+    say "subuid and subgid already name $user"
+    return 0
+  fi
+  if [ -n "$have_u" ]; then
+    start=${have_u%% *}
+    count=${have_u##* }
+  elif [ -n "$have_g" ]; then
+    start=${have_g%% *}
+    count=${have_g##* }
+  else
+    read -r start count < <(pick_range) || die "no free range of $SUBID_COUNT ids in $SUBUID and $SUBGID"
+  fi
+  if [ -z "$have_u" ]; then
+    if ! add_subid "$SUBUID" subuid "$user" "$start" "$count"; then
+      read -r s2 c2 < <(pick_range) || die "no free range in $SUBUID"
+      warn "the range $start:$count is taken in $SUBUID; using $s2:$c2 there"
+      add_subid "$SUBUID" subuid "$user" "$s2" "$c2" || die "couldn't write $SUBUID"
+    fi
+  fi
+  if [ -z "$have_g" ]; then
+    if ! add_subid "$SUBGID" subgid "$user" "$start" "$count"; then
+      read -r s2 c2 < <(pick_range) || die "no free range in $SUBGID"
+      warn "the range $start:$count is taken in $SUBGID; using $s2:$c2 there"
+      add_subid "$SUBGID" subgid "$user" "$s2" "$c2" || die "couldn't write $SUBGID"
+    fi
+  fi
+}
+
+drop_subids() {
+  [ -f "$STAMP" ] || return 0
+  local which line file tmp
+  while read -r which line; do
+    case $which in
+      subuid) file=$SUBUID ;;
+      subgid) file=$SUBGID ;;
+      *) continue ;;
+    esac
+    [ -n "${line:-}" ] && [ -f "$file" ] || continue
+    grep -qxF -- "$line" "$file" || continue
+    say "removing $line from $file (it is the line Vikix wrote)"
+    if [ "$DRY_RUN" = 1 ]; then
+      printf '   would remove %s from %s\n' "$line" "$file"
+      continue
+    fi
+    tmp=$(mktemp)
+    grep -vxF -- "$line" "$file" > "$tmp" || true
+    if [ -w "$file" ]; then
+      cat "$tmp" > "$file"
+    else
+      run sudo tee "$file" < "$tmp" >/dev/null
+    fi
+    rm -f "$tmp"
+  done < "$STAMP"
+  [ "$DRY_RUN" = 1 ] || rm -f "$STAMP"
+}
+
+# Void's usual kernel has no unprivileged_userns_clone. Only a kernel that
+# has the sysctl and has it switched off needs a file.
+ensure_userns() {
+  [ -f "$SYSCTL_PROC" ] || return 0
+  [ "$(tr -d '[:space:]' < "$SYSCTL_PROC")" = 0 ] || return 0
+  say "allowing unprivileged user namespaces ($SYSCTL_FILE)"
+  if [ "$DRY_RUN" = 1 ]; then
+    printf '   would write %s\n' "$SYSCTL_FILE"
+    return 0
+  fi
+  local tmp dir
+  tmp=$(mktemp)
+  printf 'kernel.unprivileged_userns_clone = 1\n' > "$tmp"
+  dir=$(dirname "$SYSCTL_FILE")
+  if [ -w "$dir" ]; then
+    install -m 644 "$tmp" "$SYSCTL_FILE"
+    if [ -w "$SYSCTL_PROC" ]; then printf '1\n' > "$SYSCTL_PROC"; fi
+  else
+    run sudo install -m 644 "$tmp" "$SYSCTL_FILE"
+    run sudo sysctl -q -p "$SYSCTL_FILE" || true
+  fi
+  rm -f "$tmp"
+}
+
+drop_sysctl() {
+  [ -f "$SYSCTL_FILE" ] || return 0
+  grep -qx 'kernel.unprivileged_userns_clone = 1' "$SYSCTL_FILE" || return 0
+  say "removing $SYSCTL_FILE"
+  if [ -w "$SYSCTL_FILE" ]; then
+    rm -f "$SYSCTL_FILE"
+  else
+    run sudo rm -f "$SYSCTL_FILE"
+  fi
+}
+
+# --- Distrobox ---------------------------------------------------------------------
+
+distrobox_bin() { printf '%s\n' "$DISTROBOX_PREFIX/bin/distrobox"; }
+
+distrobox_here() {
+  local b
+  b=$(distrobox_bin)
+  [ -x "$b" ] && "$b" version 2>/dev/null | grep -q "$DISTROBOX_VERSION"
+}
+
+list_distrobox_files() {
+  [ -d "$1" ] || return 0
+  find "$1" -name '*distrobox*' -type f | sort
+}
+
+remove_installed_files() {
+  [ -f "$MANIFEST" ] || return 0
+  local p
+  while IFS= read -r p; do
+    case $p in
+      "$DISTROBOX_PREFIX"/*) [ -f "$p" ] || [ -L "$p" ] && rm -f "$p" ;;
+    esac
+  done < "$MANIFEST"
+  rm -f "$MANIFEST"
+}
+
+install_distrobox() {
+  if distrobox_here; then
+    say "Distrobox $DISTROBOX_VERSION is in $DISTROBOX_PREFIX"
+    return 0
+  fi
+  if [ "$DRY_RUN" = 1 ]; then
+    printf '   would download Distrobox %s into %s\n' "$DISTROBOX_VERSION" "$DISTROBOX_PREFIX"
+    return 0
+  fi
+  local archive got src top before after
+  mkdir -p "$CACHE" "$VIKIX_STATE"
+  if [ -n "${VIKIX_DISTROBOX_TARBALL:-}" ]; then
+    archive=$VIKIX_DISTROBOX_TARBALL
+    [ -f "$archive" ] || die "no Distrobox archive at $archive"
+  else
+    archive=$CACHE/distrobox-$DISTROBOX_VERSION.tar.gz
+    if [ -f "$archive" ] && [ "$(sha256sum "$archive" | awk '{print $1}')" = "$DISTROBOX_SHA256" ]; then
+      say "Distrobox $DISTROBOX_VERSION: already downloaded"
+    else
+      say "downloading Distrobox $DISTROBOX_VERSION"
+      "$CURL" -fL --retry 3 -o "$archive.part" "$DISTROBOX_URL" || die "couldn't download $DISTROBOX_URL"
+      got=$(sha256sum "$archive.part" | awk '{print $1}')
+      if [ "$got" != "$DISTROBOX_SHA256" ]; then
+        rm -f "$archive.part"
+        die "the download isn't Distrobox $DISTROBOX_VERSION (its checksum doesn't match); deleted it"
+      fi
+      mv "$archive.part" "$archive"
+    fi
+  fi
+  got=$(sha256sum "$archive" | awk '{print $1}')
+  [ "$got" = "$DISTROBOX_SHA256" ] || die "the Distrobox archive's checksum doesn't match"
+  src=$(mktemp -d)
+  tar -xzf "$archive" -C "$src" || { rm -rf "$src"; die "couldn't unpack $archive"; }
+  top=$(find "$src" -mindepth 1 -maxdepth 1 -type d -name 'distrobox-*' | head -1)
+  if [ -z "$top" ] || [ ! -f "$top/install" ]; then
+    rm -rf "$src"
+    die "the archive has no install script"
+  fi
+  chmod +x "$top/install"
+  remove_installed_files
+  before=$(mktemp)
+  after=$(mktemp)
+  list_distrobox_files "$DISTROBOX_PREFIX" > "$before"
+  (cd "$top" && ./install --prefix "$DISTROBOX_PREFIX") || { rm -rf "$src"; die "Distrobox's install failed"; }
+  rm -rf "$src"
+  list_distrobox_files "$DISTROBOX_PREFIX" > "$after"
+  comm -13 "$before" "$after" > "$MANIFEST"
+  rm -f "$before" "$after"
+  [ -x "$(distrobox_bin)" ] || die "Distrobox's install left no $DISTROBOX_PREFIX/bin/distrobox"
+  say "Distrobox $DISTROBOX_VERSION is in $DISTROBOX_PREFIX/bin"
+}
+
+# --- the box -----------------------------------------------------------------------
+
+valid_box() {
+  [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] || die "a box's name is letters, digits, '.', '_' and '-': $1"
+}
+valid_image() {
+  [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9_.:/@+-]*$ ]] || die "an image is a name like ubuntu:24.04, not: $1"
+}
+
+config_get() {
+  local key=$1 default=$2 v
+  [ -f "$CONFIG" ] || { printf '%s\n' "$default"; return 0; }
+  v=$(sed -n "s/^${key}=//p" "$CONFIG" | head -1)
+  printf '%s\n' "${v:-$default}"
+}
+
+write_config() {
+  local box=$1 image=$2 tmp
+  if [ "$DRY_RUN" = 1 ]; then
+    printf '   would write %s (BOX=%s IMAGE=%s)\n' "$CONFIG" "$box" "$image"
+    return 0
+  fi
+  mkdir -p "$(dirname "$CONFIG")"
+  if [ -f "$CONFIG" ]; then
+    tmp=$(mktemp)
+    awk -v box="$box" -v image="$image" '
+      BEGIN { b = 0; i = 0 }
+      /^BOX=/ { print "BOX=" box; b = 1; next }
+      /^IMAGE=/ { print "IMAGE=" image; i = 1; next }
+      { print }
+      END {
+        if (!b) print "BOX=" box
+        if (!i) print "IMAGE=" image
+      }
+    ' "$CONFIG" > "$tmp"
+    mv "$tmp" "$CONFIG"
+  else
+    cat > "$CONFIG" <<EOF
+# The default box: vikix containers open, and Super+Alt+d then b.
+# A box shares this home folder. It is not a wall around your files.
+BOX=$box
+IMAGE=$image
+EOF
+  fi
+}
+
+box_names() {
+  local b
+  b=$(distrobox_bin)
+  [ -x "$b" ] || return 0
+  "$b" list --no-color 2>/dev/null |
+    awk -F'|' 'NR > 1 { gsub(/^[ \t]+|[ \t]+$/, "", $2); if ($2 != "") print $2 }'
+}
+
+create_box() {
+  local name=$1 image=$2 b
+  if [ "$DRY_RUN" = 1 ]; then
+    printf '   would run: distrobox create --name %s --image %s --yes\n' "$name" "$image"
+    return 0
+  fi
+  b=$(distrobox_bin)
+  [ -x "$b" ] || die "distrobox isn't installed (vikix containers setup)"
+  if box_names | grep -qx -- "$name"; then
+    say "the box $name is already there"
+    return 0
+  fi
+  say "creating the box $name from $image (downloaded once; it shares your home folder)"
+  "$b" create --name "$name" --image "$image" --yes
+}
+
+# ---------------------------------------------------------------------------
+
+cmd_setup() {
+  not_root
+  local box='' image=$IMAGE_DEFAULT no_box=0 answer
+  while [ "$#" -gt 0 ]; do
+    case $1 in
+      --box) [ "$#" -ge 2 ] || die "--box needs a name"; box=$2; shift 2 ;;
+      --image) [ "$#" -ge 2 ] || die "--image needs an image"; image=$2; shift 2 ;;
+      --no-box) no_box=1; shift ;;
+      *) die "vikix containers setup [--box NAME] [--image IMAGE] [--no-box]" ;;
+    esac
+  done
+  [ "$no_box" = 0 ] || [ -z "$box" ] || die "--no-box and --box don't go together"
+  [ -z "$box" ] || valid_box "$box"
+  valid_image "$image"
+
+  # From now on 10-packages installs the list, and every update keeps it.
+  record_features containers
+  DRY_RUN=$DRY_RUN VIKIX_LISTS=containers bash "$VIKIX_DIR/install/10-packages.sh"
+  ensure_subids
+  ensure_userns
+  install_distrobox
+  write_config "${box:-$BOX_DEFAULT}" "$image"
+
+  if [ "$no_box" = 1 ]; then
+    say "no box created. vikix containers create makes one"
+    return 0
+  fi
+  if [ -z "$box" ]; then
+    if [ -t 0 ]; then
+      echo "Create a box named $BOX_DEFAULT from $image?"
+      echo "It downloads the image once and shares your home folder. It is not a wall around your files."
+      read -r -p "Create it? [y/N] " answer
+      case $answer in
+        y|Y|yes) box=$BOX_DEFAULT ;;
+        *) say "no box created. vikix containers create makes one"; return 0 ;;
+      esac
+    else
+      say "no terminal, so no box (it would download an image). vikix containers create, or vikix containers setup --box $BOX_DEFAULT"
+      return 0
+    fi
+  fi
+  create_box "$box" "$image"
+  say "set up. A terminal in the box: vikix containers open, or Super+Alt+d then b."
+}
+
+cmd_create() {
+  not_root
+  local name='' image=''
+  while [ "$#" -gt 0 ]; do
+    case $1 in
+      --image) [ "$#" -ge 2 ] || die "--image needs an image"; image=$2; shift 2 ;;
+      --*) die "vikix containers create [NAME] [--image IMAGE]" ;;
+      *) [ -z "$name" ] || die "one box at a time"; name=$1; shift ;;
+    esac
+  done
+  name=${name:-$(config_get BOX "$BOX_DEFAULT")}
+  image=${image:-$(config_get IMAGE "$IMAGE_DEFAULT")}
+  valid_box "$name"
+  valid_image "$image"
+  write_config "$name" "$image"
+  create_box "$name" "$image"
+}
+
+cmd_open() {
+  local name=${1:-} b term
+  [ "$#" -le 1 ] || die "vikix containers open [NAME]"
+  name=${name:-$(config_get BOX "$BOX_DEFAULT")}
+  valid_box "$name"
+  b=$(distrobox_bin)
+  [ -x "$b" ] || die "distrobox isn't installed (vikix containers setup)"
+  if [ -t 1 ]; then
+    exec "$b" enter "$name"
+  fi
+  term=${VIKIX_TERMINAL:-alacritty}
+  exec "$term" -e "$b" enter "$name"
+}
+
+cmd_list() {
+  local b
+  b=$(distrobox_bin)
+  [ -x "$b" ] || die "distrobox isn't installed (vikix containers setup)"
+  "$b" list
+}
+
+cmd_upgrade() {
+  chosen || return 0
+  if [ "$DRY_RUN" = 1 ]; then
+    printf '   would run: distrobox upgrade --all\n'
+    return 0
+  fi
+  local b
+  b=$(distrobox_bin)
+  if [ ! -x "$b" ]; then
+    warn "Distrobox isn't installed (vikix containers setup)"
+    return 1
+  fi
+  "$b" upgrade --all
+}
+
+status_lines() {
+  local b user have_u have_g
+  if pkg_installed podman; then echo "ok podman is installed"
+  else echo "no podman isn't installed (vikix containers setup)"; fi
+  if pkg_installed aardvark-dns; then echo "ok aardvark-dns is installed"
+  else echo "no aardvark-dns isn't installed (vikix containers setup)"; fi
+  b=$(distrobox_bin)
+  if [ -x "$b" ] && "$b" version 2>/dev/null | grep -q "$DISTROBOX_VERSION"; then
+    echo "ok Distrobox $DISTROBOX_VERSION"
+  else
+    echo "no Distrobox $DISTROBOX_VERSION isn't in $DISTROBOX_PREFIX (vikix containers setup)"
+  fi
+  user=$(id -un)
+  have_u=$(subid_line "$SUBUID" "$user")
+  have_g=$(subid_line "$SUBGID" "$user")
+  if [ -n "$have_u" ] && [ -n "$have_g" ]; then echo "ok subuid and subgid name $user"
+  else echo "no subuid or subgid doesn't name $user (vikix containers setup)"; fi
+  if command -v newuidmap >/dev/null 2>&1 && command -v newgidmap >/dev/null 2>&1; then
+    echo "ok newuidmap and newgidmap"
+  else
+    echo "no newuidmap or newgidmap is missing (the shadow package)"
+  fi
+  if [ -e "$FUSE" ]; then
+    if [ -r "$FUSE" ] && [ -w "$FUSE" ]; then echo "ok /dev/fuse"
+    else echo "no $FUSE isn't readable and writable (rootless Podman needs it)"; fi
+  fi
+}
+
+cmd_status() {
+  local mark rest box image
+  if chosen; then say "containers is one of your features"; else say "containers isn't chosen (vikix add containers)"; fi
+  while read -r mark rest; do
+    case $mark in
+      ok) echo "   ok  $rest" ;;
+      no) echo "   --  $rest" ;;
+      *) echo "       $rest" ;;
+    esac
+  done < <(status_lines)
+  box=$(config_get BOX "$BOX_DEFAULT")
+  image=$(config_get IMAGE "$IMAGE_DEFAULT")
+  echo "       default box: $box, from $image ($CONFIG)"
+  if [ -x "$(distrobox_bin)" ]; then
+    if box_names | grep -qx -- "$box"; then echo "       the box $box exists"
+    else echo "       no box named $box yet (vikix containers create)"; fi
+  fi
+}
+
+cmd_check() {
+  chosen || return 0
+  local bad
+  bad=$(status_lines | sed -n 's/^no //p')
+  if [ -z "$bad" ]; then
+    say "Podman is rootless, and Distrobox $DISTROBOX_VERSION is installed"
+    return 0
+  fi
+  while IFS= read -r line; do warn "containers: $line"; done <<<"$bad"
+  return 1
+}
+
+cmd_remove() {
+  local boxes=0 answer b
+  if [ "${1:-}" = --boxes ]; then
+    [ "$#" -eq 1 ] || die "vikix containers remove [--boxes]"
+    boxes=1
+  elif [ "$#" -gt 0 ]; then
+    die "vikix containers remove [--boxes]"
+  fi
+  if [ "$boxes" != 1 ] && [ -t 0 ]; then
+    echo "Your boxes and their images stay, in ~/.local/share/containers."
+    echo "Type 'remove' to delete every box and the images nothing uses."
+    echo "Your home folder is never deleted."
+    read -r -p "Type 'remove' to delete them: " answer
+    [ "$answer" = remove ] && boxes=1
+  elif [ "$boxes" != 1 ]; then
+    say "your boxes and images stay (vikix containers remove --boxes deletes them)"
+  fi
+  if [ "$boxes" = 1 ]; then
+    b=$(distrobox_bin)
+    if [ -x "$b" ]; then
+      say "removing every box (the home folder stays)"
+      run "$b" rm --all --force
+    fi
+    if command -v podman >/dev/null 2>&1; then
+      say "removing images nothing uses"
+      run podman image prune --all --force
+    fi
+  fi
+  if [ -f "$MANIFEST" ]; then
+    say "removing Distrobox's scripts from $DISTROBOX_PREFIX"
+    remove_installed_files
+  fi
+  drop_subids
+  drop_sysctl
+  say "Podman's packages go with vikix remove containers; ~/.local/share/containers stays unless you deleted the boxes"
+}
+
+case ${1:-status} in
+  setup)    shift; cmd_setup "$@" ;;
+  create)   shift; cmd_create "$@" ;;
+  open)     shift; cmd_open "$@" ;;
+  list)     cmd_list ;;
+  upgrade)  cmd_upgrade ;;
+  status)   cmd_status ;;
+  check)    cmd_check ;;
+  remove)   shift; cmd_remove "$@" ;;
+  help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) die "vikix containers: unknown command $1 (vikix containers help)" ;;
+esac
