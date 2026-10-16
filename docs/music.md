@@ -107,6 +107,12 @@ sixteen steps per page. Tempo and gain controls work in both. Tempo is
 saved to the song; gain is a session setting, capped at 0.1. File edits
 arrive at the next bar, and both views refresh from the same file.
 
+The browser's **This pattern in Lisp** strip shows the selected pattern
+and tempo as Lisp forms. It follows note edits, tempo changes, pattern
+selection and external file edits. This is a readable representation of
+the grid; the file keeps its own comments and formatting. An invalid edit
+leaves the last good grid and subtitle visible together.
+
 An edit takes a snapshot first and replaces only the changed note or tempo
 token, keeping comments and formatting. A stale revision is refused: review
 the refreshed grid and try again. Invalid file edits leave the last good

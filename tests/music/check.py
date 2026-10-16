@@ -202,6 +202,36 @@ with tempfile.TemporaryDirectory(prefix="vikix-music-test-") as temp:
             os.killpg(child.pid, signal.SIGKILL)
             child.wait(timeout=5)
         gone()
+    # Stop during initial validation, before the sound engine exists.
+    wrapper = commands / 'sbcl'
+    normal_wrapper = wrapper.read_text()
+    slow = t / 'slow-check.py'
+    marker = t / 'checking.pid'
+    slow.write_text('import os, pathlib, time\n' +
+                    f'pathlib.Path({str(marker)!r}).write_text(str(os.getpid()))\n' +
+                    'time.sleep(30)\n')
+    wrapper.write_text('#!/bin/sh\nexec python3 ' + shlex.quote(str(slow)) + '\n')
+    child = subprocess.Popen([str(root / 'bin/vikix'), 'music', 'play', str(pattern)],
+                             env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             start_new_session=True)
+    try:
+        deadline = time.monotonic() + 10
+        while not marker.exists() and time.monotonic() < deadline:
+            time.sleep(.05)
+        assert marker.exists(), 'initial checker did not start'
+        checker_pid = int(marker.read_text())
+        child.terminate()
+        child.wait(timeout=5)
+        assert not Path('/proc', str(checker_pid)).exists(), 'initial checker survived Stop'
+    finally:
+        wrapper.write_text(normal_wrapper)
+        # The process group belongs to this test, including a leaked checker
+        # when this regression is exercised against the old launcher.
+        try:
+            os.killpg(child.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        child.wait(timeout=5)
     test = t / "clock.lisp"
     test.write_text('(load ' + json.dumps(str(root / "lib/music/core.lisp")) + ')\n' +
       '(in-package :vikix-music)\n' +

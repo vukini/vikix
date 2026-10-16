@@ -180,7 +180,13 @@ Sound choices (`:sound 'kick`, `:sound 'piano`) pick from a small shipped set of
 
 ### Subtitles
 
-Under the grid, a strip shows the form that just changed, as text, as you click. It can be ignored forever. It is the bridge from the codeless user to the learner, and the same idea as Esploro's "edit the plan as text".
+*2026-10-16: the browser grid now shows the selected pattern and tempo as
+Lisp forms beneath the cells. The strip follows selection, accepted edits
+and external file refreshes, retaining the last good state on invalid data.
+It is generated from the same validated state as the cells, not a verbatim
+copy of the file's comments and whitespace. No protocol or audio change is
+needed. This is the bridge from the codeless user to the learner; the Cuis
+comparison remains available while the default interface choice is open.*
 
 ### The inbox
 

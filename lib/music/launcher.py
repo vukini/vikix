@@ -134,8 +134,6 @@ def perform(root, args, control=None):
     synth = data_dir() / "tone.scsyndef"
     if doctor():
         return 1
-    if args.command == "play":
-        subprocess.run(lisp(root, "check", args.file), check=True, timeout=10)
     # Reserve a free loopback port. A competing bind causes a clean failure,
     # never attachment to that process: the random password must authenticate.
     with socket.socket() as reservation:
@@ -151,6 +149,14 @@ def perform(root, args, control=None):
     for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
         previous[sig] = signal.signal(sig, interrupted)
     try:
+        # A view can stop immediately after Play. Own the initial checker too,
+        # under the same signal handler and cleanup as the playing Lisp child.
+        if args.command == "play":
+            worker = subprocess.Popen(lisp(root, "check", args.file))
+            code = worker.wait(timeout=10)
+            if code:
+                raise subprocess.CalledProcessError(code, worker.args)
+            worker = None
         # No UDP listener, no microphone, no service advertisement, no saved synths.
         engine_env = dict(os.environ)
         engine_env.setdefault("SC_JACK_DEFAULT_OUTPUTS", "system")

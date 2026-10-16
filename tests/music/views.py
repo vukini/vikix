@@ -343,9 +343,16 @@ StdIOWriteStream stdout nextPutAll: 'MUSIC-CUIS-PASS'; newLine; flush.
                 print('browser state:', js("document.body.innerText"), flush=True)
                 raise
             assert js('location.hash') == ''
+            def subtitle():
+                return js("document.querySelector('#subtitle').textContent")
+            until(lambda: "(defpattern melody '(e6 a5 c6" in subtitle())
+            js("document.querySelector('#pattern').value='bass'; document.querySelector('#pattern').dispatchEvent(new Event('change'))")
+            assert "(defpattern bass '(a4 -))" in subtitle()
+            js("document.querySelector('#pattern').value='melody'; document.querySelector('#pattern').dispatchEvent(new Event('change'))")
             until(lambda: js("typeof busy !== 'undefined' && !busy"))
             js("document.querySelector('#tempo').value=150; document.querySelector('#tempo').dispatchEvent(new Event('change'))")
             until(lambda: '(tempo 150)' in song.read_text())
+            until(lambda: subtitle().startswith('(tempo 150)\n'))
             until(lambda: js('!busy'))
             js("document.querySelector('#play').click()")
             until(lambda: js("document.querySelector('#playing').textContent.startsWith('Playing')"))
@@ -353,8 +360,21 @@ StdIOWriteStream stdout nextPutAll: 'MUSIC-CUIS-PASS'; newLine; flush.
             js("document.querySelectorAll('.step')[3].click()")
             until(lambda: "'(e6 a5 c6 a5" in song.read_text())
             until(lambda: js("document.querySelectorAll('.step strong')[3].textContent") == 'A5')
+            assert "'(e6 a5 c6 a5" in subtitle()
             song.write_text(song.read_text().replace("'(e6 a5", "'(b5 a5"))
             until(lambda: js("document.querySelectorAll('.step strong')[0].textContent") == 'B5')
+            assert "'(b5 a5 c6 a5" in subtitle()
+            good = song.read_text()
+            last_subtitle = subtitle()
+            song.write_text('#.(quit)')
+            until(lambda: js('Boolean(state.error)'))
+            assert subtitle() == last_subtitle
+            song.write_text(good)
+            until(lambda: js('!busy'))
+            js("document.querySelector('#stop').click()")
+            until(lambda: js("document.querySelector('#playing').textContent") == 'Stopped')
+            js("document.querySelector('#play').click()")
+            until(lambda: js("document.querySelector('#playing').textContent.startsWith('Playing')"))
             artifacts = os.environ.get('MUSIC_VIEW_ARTIFACTS')
             if artifacts:
                 screenshot = cdp('Page.captureScreenshot', {'format': 'png'})
