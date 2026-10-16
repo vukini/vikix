@@ -121,6 +121,20 @@ w apps add facts >/dev/null
 desk="$HOME/.local/share/applications/vikix-win-facts.desktop"
 check "add puts it in the launcher" grep -qx "Exec=vikix windows app facts %f" "$desk"
 check "with a class of its own, for rules" grep -qx "StartupWMClass=vikix-win-facts" "$desk"
+launcher="$HOME/.local/state/vikix/windows-launcher.json"
+check "and remembered" grep -q '"facts"' "$launcher"
+rm "$desk"
+out=$(w apps restore 2>&1)
+check "restore writes an entry that went missing: $out" grep -qx "Exec=vikix windows app facts %f" "$desk"
+check "and says which" grep -q "back in the launcher: FACTS" <<<"$out"
+out=$(w apps restore 2>&1)
+check "nothing missing, nothing to say but that: $out" grep -q "every Windows program you added" <<<"$out"
+check "quiet for an update" test -z "$(w apps restore --quiet 2>&1)"
+rm "$launcher"
+w apps restore >/dev/null
+check "an entry from before the list was kept is taken into it" grep -q '"facts"' "$launcher"
+check "an entry it didn't write is not" bash -c 'echo "[Desktop Entry]" > "$1/vikix-win-other.desktop"; python3 "$2" apps restore >/dev/null; ! grep -q other "$3"' _ "$HOME/.local/share/applications" "$here/lib/windows-apps.py" "$launcher"
+rm "$HOME/.local/share/applications/vikix-win-other.desktop"
 
 # app: VM off, started; RDP waited for; the password on stdin only.
 echo "shut off" > "$t/vm/state"; : > "$t/vm/calls"
@@ -156,6 +170,8 @@ w apps remove notepad >/dev/null 2>&1 || true
 check "remove leaves an entry it didn't write" test -f "$HOME/.local/share/applications/vikix-win-notepad.desktop"
 w apps remove facts >/dev/null 2>&1 || true
 check "and takes its own" test ! -e "$desk"
+w apps restore >/dev/null
+check "restore doesn't bring back one you removed" test ! -e "$desk"
 w apps forget >/dev/null
 check "forget deletes the password" test ! -e "$HOME/.config/vikix/secrets/windows-password"
 check "forget alone keeps the list of programs" test -e "$HOME/.local/state/vikix/windows-apps.json"
@@ -164,6 +180,7 @@ check "an entry of its own, to forget" test -f "$desk"
 w apps forget --all >/dev/null
 check "forget --all deletes the list of programs" test ! -e "$HOME/.local/state/vikix/windows-apps.json"
 check "forget --all deletes the entries it wrote" test ! -e "$desk"
+check "and the list of them" test ! -e "$launcher"
 check "forget --all leaves an entry it didn't write" test -f "$HOME/.local/share/applications/vikix-win-notepad.desktop"
 out=$(w app facts 2>&1) && fail=1
 check "without it, app says to run setup: $out" grep -q "vikix windows apps setup" <<<"$out"

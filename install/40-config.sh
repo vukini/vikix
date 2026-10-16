@@ -77,6 +77,12 @@ link_managed "$VIKIX_DIR/bin/vikix" "$HOME/.local/bin/vk"
 for app in "$C"/applications/*.desktop; do
   link_managed "$app" "$HOME/.local/share/applications/${app##*/}"
 done
+# The Windows programs you put in the launcher (vikix windows apps add): an
+# entry that went missing (2026-10-16: a bot's instructions took one) is
+# written again, from the list the command keeps.
+if [ -e "$VIKIX_STATE/windows-launcher.json" ] || [ -e "$VIKIX_STATE/windows-apps.json" ]; then
+  run python3 "$VIKIX_DIR/lib/windows-apps.py" apps restore --quiet
+fi
 link_managed "$C/bash/vikix.bash"   "$HOME/.config/vikix/vikix.bash"
 link_managed "$C/claude/skills/vikix" "$HOME/.claude/skills/vikix"
 # Vikix's state folder (logs, the snapshot history, the debug reports) is

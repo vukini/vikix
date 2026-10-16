@@ -28,7 +28,11 @@ DATA = Path(os.environ.get("XDG_DATA_HOME") or HOME / ".local" / "share")
 STATE = Path(os.environ.get("VIKIX_STATE") or HOME / ".local" / "state" / "vikix")
 SECRET = CONFIG / "secrets" / "windows-password"
 APPS = STATE / "windows-apps.json"
+# The programs you put in the launcher (apps add), so an entry that goes
+# missing is written again (apps restore, which vikix update runs).
+LAUNCHER = STATE / "windows-launcher.json"
 DESKTOP = DATA / "applications"
+MARK = "vikix windows apps add"   # in every entry this writes, and only those are ever deleted
 RDP_PORT = int(os.environ.get("VIKIX_RDP_PORT", "3389"))
 USER = os.environ.get("VIKIX_WINDOWS_USER") or os.environ.get("USER", "")
 # The folders Windows sees, each a drive letter: ~/Windows was always Z:.
@@ -315,26 +319,88 @@ def find_app(name):
     die(f"Windows has no {name} that Vikix knows of (vikix windows apps reads its Start menu)")
 
 
-def cmd_add(name):
-    a = find_app(name)
+def entry_of(a):
+    return DESKTOP / f"vikix-win-{a['id']}.desktop"
+
+
+def entry_write(a):
     DESKTOP.mkdir(parents=True, exist_ok=True)
-    f = DESKTOP / f"vikix-win-{a['id']}.desktop"
+    f = entry_of(a)
     f.write_text("[Desktop Entry]\n"
-                 "# Written by vikix windows apps add: a Windows program in a window of its own.\n"
+                 f"# Written by {MARK}: a Windows program in a window of its own.\n"
                  f"Name={a['name']}\n"
                  f"Comment={a['name']}, from the Windows VM\n"
                  f"Exec=vikix windows app {a['id']} %f\n"
                  "Type=Application\nCategories=Office;\n"
                  f"StartupWMClass=vikix-win-{a['id']}\n")
+    return f
+
+
+def entry_mine(f):
+    try:
+        return MARK in f.read_text(errors="replace")
+    except OSError:
+        return False
+
+
+def launcher_read():
+    try:
+        return json.loads(LAUNCHER.read_text())
+    except (OSError, ValueError):
+        return []
+
+
+def launcher_write(apps):
+    LAUNCHER.parent.mkdir(parents=True, exist_ok=True)
+    LAUNCHER.write_text(json.dumps(apps, indent=1))
+
+
+def launcher_note(a, there=True):
+    kept = [x for x in launcher_read() if x["id"] != a["id"]]
+    launcher_write(kept + [{"id": a["id"], "name": a["name"]}] if there else kept)
+
+
+def cmd_add(name):
+    a = find_app(name)
+    f = entry_write(a)
+    launcher_note(a)
     say(f"{a['name']} is in the launcher ({f})")
 
 
 def cmd_remove_app(name):
     a = find_app(name)
-    f = DESKTOP / f"vikix-win-{a['id']}.desktop"
-    if f.exists() and "vikix windows apps add" in f.read_text(errors="replace"):
+    f = entry_of(a)
+    if f.exists() and entry_mine(f):
         f.unlink()
         say(f"{a['name']} is out of the launcher")
+    launcher_note(a, there=False)
+
+
+def cmd_restore(quiet=False):
+    """The entries you added that went missing, written again. An entry
+    written before Vikix kept this list is taken into it first, so
+    it comes back too. 40-config runs this at every vikix update."""
+    known = launcher_read()
+    ids = {a["id"] for a in known}
+    for f in sorted(DESKTOP.glob("vikix-win-*.desktop")):
+        aid = f.name[len("vikix-win-"):-len(".desktop")]
+        if aid in ids or not entry_mine(f):
+            continue
+        m = re.search(r"^Name=(.*)$", f.read_text(errors="replace"), re.M)
+        known.append({"id": aid, "name": m.group(1).strip() if m else aid})
+        ids.add(aid)
+    if known != launcher_read():
+        launcher_write(known)
+    back = [a["name"] for a in known if not entry_of(a).exists()]
+    for a in known:
+        if not entry_of(a).exists():
+            entry_write(a)
+    if back:
+        say(f"back in the launcher: {', '.join(back)}")
+    elif not quiet:
+        say("every Windows program you added is in the launcher" if known
+            else "no Windows program is in the launcher (vikix windows apps add NAME puts one there)")
+    return 0
 
 
 def windows_path(path):
@@ -406,18 +472,19 @@ def cmd_forget(everything=False):
     # programs outlives the VM.
     gone = 0
     for f in sorted(DESKTOP.glob("vikix-win-*.desktop")):
-        if "vikix windows apps add" in f.read_text(errors="replace"):
+        if entry_mine(f):
             f.unlink()
             gone += 1
-    if APPS.exists():
-        APPS.unlink()
+    for f in (APPS, LAUNCHER):
+        if f.exists():
+            f.unlink()
     say(f"the Windows password, the list of programs and {gone} launcher entr{'y' if gone == 1 else 'ies'} are forgotten")
     return 0
 
 
 def main(argv):
     if not argv:
-        die("vikix windows app NAME [FILE] | apps [setup|add NAME|remove NAME|forget]")
+        die("vikix windows app NAME [FILE] | apps [setup|add NAME|remove NAME|restore|forget]")
     if argv[0] == "app":
         if len(argv) < 2:
             die("vikix windows app NAME [FILE]")
@@ -431,7 +498,9 @@ def main(argv):
         return cmd_add(argv[2]) if sub == "add" else cmd_remove_app(argv[2])
     if sub == "forget":
         return cmd_forget(everything="--all" in argv[2:])
-    die("vikix windows apps [setup|add NAME|remove NAME|forget [--all]]")
+    if sub == "restore":
+        return cmd_restore(quiet="--quiet" in argv[2:])
+    die("vikix windows apps [setup|add NAME|remove NAME|restore|forget [--all]]")
 
 
 if __name__ == "__main__":

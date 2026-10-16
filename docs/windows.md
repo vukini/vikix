@@ -70,7 +70,7 @@ vikix windows apps add excel    # put it in the launcher (Super+d)
 - **Setup, once.** It asks twice for the password of your Windows account (the one you chose at `vikix windows create`) and keeps it, so the programs can log in by themselves. It starts Windows if it's off, and installs FreeRDP, the program that draws the windows, if you don't have it yet.
 - **What Windows has.** `vikix windows apps` prints a line for each program in Windows' Start menu: a short name, its full name, and where it is in Windows. The short name is what the other commands take; the start of it is enough when only one program begins so. Run it again after installing a program in Windows.
 - **Opening one.** If Windows is off it's started first, and a notification says the program opens in a minute or so.
-- **The launcher.** A program you added is in `Super+d` under its own name, like any other. `vikix windows apps remove excel` takes it out again.
+- **The launcher.** A program you added is in `Super+d` under its own name, like any other. `vikix windows apps remove excel` takes it out again. Vikix keeps the list of what you added (`~/.local/state/vikix/windows-launcher.json`), so an entry that goes missing, deleted by a stray command or a program's installer, is written again at the next `vikix update`, or at once by `vikix windows apps restore`.
 
 A few things to know:
 

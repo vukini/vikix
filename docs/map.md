@@ -161,6 +161,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 | `soak/` | Each `vikix times soak`'s samples, one CSV a run: StumpWM's answer time, memory, windows, timers, every ten seconds |
 | `times.log`, `times-measured.log` | How long things took: each login and Reload config on this desktop, and each `vikix times measure` ([When something breaks](fixing.md#the-desktop-feels-slow)) |
 | `windows-apps.json` | The programs in Windows' Start menu, as `vikix windows apps` last read them: where `vikix windows app NAME` finds a program |
+| `windows-launcher.json` | The Windows programs you put in the launcher (`vikix windows apps add`): an entry gone missing is written again by `vikix update` or `vikix windows apps restore` |
 | `obsidian/` | `vikix obsidian`'s record: which folders of the vault are converted, each note as it was written (so one you changed since is left alone), and each folder's report |
 
 ### `~/dev`

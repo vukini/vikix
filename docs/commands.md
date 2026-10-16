@@ -161,7 +161,7 @@ The everyday command.
 - `vikix ai use [local|claude|codex]` — the model for Super+i, AI on the selected text
 - `vikix ai key set|list|remove|check` — API keys (`ANTHROPIC_API_KEY` ...) kept safely, out of your dotfiles and their history
 - `vikix windows [setup|create ISO|stop|status|network|remove]` — Windows in a VM: set it up once, install it by itself, then open its desktop in a window (vikix windows help)
-- `vikix windows app NAME [FILE] | apps [setup|add NAME|remove NAME|forget]` — one Windows program in a window of its own, and the programs Windows has
+- `vikix windows app NAME [FILE] | apps [setup|add NAME|remove NAME|restore|forget]` — one Windows program in a window of its own, and the programs Windows has
 - `vikix vm [list|start|open|pause|resume|save|stop|off|status NAME]` — every virtual machine libvirt has, yours and the system's, in a menu: its state, start, pause, save, shut down, open its screen (Super+m, Apps)
 - `vikix steam [setup|status|uninstall]` — Steam, with the 32-bit libraries and the Vulkan driver your graphics card needs; Windows games too, through Proton (vikix steam help)
 
@@ -1514,6 +1514,7 @@ Windows in a VM, for the programs that only run there.
 - `vikix windows apps setup` — once: Windows programs in windows of their own. FreeRDP, Remote Desktop and RemoteApp switched on in Windows (through its guest agent; reachable from this machine only), your account's password kept, `~/Documents` as drive Y: in Windows
 - `vikix windows apps` — the programs in Windows' Start menu
 - `vikix windows apps add NAME` — one of them in the launcher (Super+d); remove NAME takes it out again
+- `vikix windows apps restore` — write again an entry of those that went missing (vikix update does it too)
 - `vikix windows app NAME [FILE]` — that program as a window of its own, tiled like any other (Windows started first if it's off); a FILE in `~/Windows` or `~/Documents` is opened in it
 - `vikix windows apps forget` — delete the kept password (--all: the launcher entries and the list of programs too, as remove does)
 
