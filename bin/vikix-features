@@ -204,6 +204,7 @@ cmd_remove() {
   for f in "${really[@]}"; do
     case $f in
       emacs) stays+=" ~/.emacs.d" ;; neovim) stays+=" ~/.config/nvim" ;; windows) stays+=" ~/Windows" ;;
+      containers) stays+=" ~/.local/share/containers" ;;
       *) case $(feature_field "$f" 2) in *lang-*) case $stays in *"~/dev"*) ;; *) stays+=" ~/dev" ;; esac ;; esac ;;
     esac
   done

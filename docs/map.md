@@ -51,6 +51,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── features           yours     the features you chose (vikix add, vikix remove, vikix features)
 │   │   ├── packages-skip      yours     packages you dropped (vikix pkg drop); updates leave them out
 │   │   ├── windows            yours     where the Windows VM's disk is
+│   │   ├── containers         yours     the default box: BOX and IMAGE (vikix containers)
 │   │   ├── webapps            yours     your web apps: NAME URL [KEY] (vikix webapp)
 │   │   ├── docs-browser       yours     the browser for guides and docs, one word (make it; Nyxt without it, when installed)
 │   │   ├── docs-links         yours     your own links for the catalogue, a URL and its title a line (make it; listed, never fetched)
@@ -62,6 +63,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── wallpaper-minutes  yours     how often the wallpaper changes when cycling (vikix-wallpaper cycle MINUTES; 30 without it)
 │   │   ├── themes/            yours     your own themes (NAME.theme, NAME.jpg)
 │   │   └── theme/             written   each program's colours, and `current`, the theme you chose (`vikix theme`); GTK's and Qt's too: `mode` (dark or light), xsettingsd.conf, gtk4.css, qt6ct-colors.conf
+│   ├── containers/containers.conf yours  Podman's engine on runit: cgroupfs, a file log, crun. A value you set is kept (vikix containers setup)
 │   ├── alacritty/alacritty.toml   yours  imports ../vikix/theme/alacritty.toml
 │   ├── picom/picom.conf           yours  the compositor: shadows, fading, backend
 │   ├── dunst/dunstrc              yours  notifications
@@ -206,6 +208,8 @@ What Vikix changes on the system itself. Everything else under `/` is as Void le
 | `/etc/ufw/` | The firewall's settings and rules: on, nothing comes in but SSH and the ports allowed (`vikix firewall`) | `25-network`, `vikix firewall` |
 | `/etc/polkit-1/rules.d/50-vikix-printers.rules` | With the feature printing: the `lpadmin` group manages printers without a password | `20-services` |
 | `/etc/security/limits.d/50-vikix-steam.conf` | With the feature steam: your hard limit of open files raised to 524288, for Proton's esync | `vikix steam setup` |
+| `/etc/subuid`, `/etc/subgid` | With the feature containers: a range of user and group ids for rootless Podman, written only when you had none; a line Vikix added is removed again only while it still matches | `vikix containers setup` |
+| `/etc/sysctl.d/50-vikix-containers.conf` | Only on a kernel that has `kernel.unprivileged_userns_clone` and has it off: switched on, so rootless Podman can start. Void's usual kernel has no such sysctl, and then this file is not written | `vikix containers setup` |
 | `/etc/alsa/conf.d/` | Links that send ALSA programs to PipeWire | `50-audio` |
 | `/etc/X11/xorg.conf.d/40-libinput.conf` | Touchpad: tap to click, natural scrolling | `55-hardware` |
 | `/boot/initramfs-*` | Rebuilt with the Intel microcode | `55-hardware` |

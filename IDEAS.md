@@ -37,7 +37,6 @@ Gathered on 2026-09-30, in a conversation with Vid.
 ## Software Void doesn't have
 
 - **Flatpak as a feature.** The easy route to apps Void doesn't package (Obsidian, Zoom, Spotify, Signal), each somewhat walled off from the rest of the system. `vikix update` would update them too.
-- **Distrobox.** An Ubuntu or Arch system inside Vikix, sharing the home folder, for anything that only ships as a .deb or for Arch. The safety net.
 
 ## Working on projects
 

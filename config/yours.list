@@ -25,6 +25,8 @@ learn                       # your work in vikix learn's courses (~/learn/c ...)
 .config/vikix/packages-skip   # packages you dropped (vikix pkg drop), kept out
 .config/vikix/optional        # before 0.46: the optional ones (now in features)
 .config/vikix/windows         # where the Windows VM's disk is
+.config/vikix/containers      # the default box: BOX and IMAGE (vikix containers)
+.config/containers/containers.conf  # Podman's engine on runit (vikix containers setup keeps a value you set)
 .config/vikix/webapps         # your web apps (vikix webapp)
 .config/vikix/ai              # which model AI on keys uses (Super+i)
 .config/vikix/agent           # which AI agent Super+a starts (vikix agent --default)
