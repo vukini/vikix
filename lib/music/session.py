@@ -14,6 +14,7 @@ import struct
 import subprocess
 import tempfile
 import threading
+import time
 from types import SimpleNamespace
 import webbrowser
 
@@ -156,9 +157,9 @@ class Song:
         self.refresh()
 
 
-def player(root, path, pattern, control):
+def player(root, path, pattern, control, position):
     try:
-        raise SystemExit(perform(root, SimpleNamespace(command='play', file=path, pattern=pattern, bars=None), control))
+        raise SystemExit(perform(root, SimpleNamespace(command='play', file=path, pattern=pattern, bars=None), control, position))
     except KeyboardInterrupt:
         raise SystemExit(0)
 
@@ -169,6 +170,7 @@ class Session:
         self.root = root
         self.lock = threading.Lock()
         self.worker = self.control = None
+        self.position = None
         self.gain = 0.08
         self.pattern = self.song.patterns[0][0]
         self.closing = False
@@ -184,6 +186,7 @@ class Session:
             self.worker = None
             self.control.close()
             self.control = None
+        self.position = None
 
     def request(self, command):
         with self.lock:
@@ -207,7 +210,8 @@ class Session:
                         # Spawn, never fork a process with HTTP threads and locks.
                         ctx = multiprocessing.get_context('spawn')
                         receive, self.control = ctx.Pipe(duplex=False)
-                        self.worker = ctx.Process(target=player, args=(self.root, str(self.song.path), name, receive))
+                        self.position = ctx.Array('d', 6)
+                        self.worker = ctx.Process(target=player, args=(self.root, str(self.song.path), name, receive, self.position))
                         self.worker.start()
                         receive.close()
                         self.control.send(self.gain)
@@ -230,6 +234,13 @@ class Session:
             if self.worker and not playing and self.worker.exitcode:
                 error = error or 'player exited; check the session terminal'
             state.update(playing=playing, pattern=self.pattern, gain=self.gain, error=error)
+            bars = []
+            if playing and self.position is not None:
+                with self.position.get_lock():
+                    values = self.position[:]
+                bars = [dict(start=values[i], duration=values[i+1], steps=int(values[i+2]))
+                        for i in (0, 3) if values[i+1] > 0]
+            state.update(bars=bars, now=time.time())
             return state
 
 

@@ -15,6 +15,10 @@
       (setf *silence* (lambda ()
                         (sb-thread:with-mutex (lock)
                           (write-line "stop" events) (finish-output events))))
+      (setf *bar* (lambda (start bpm steps)
+                    (sb-thread:with-mutex (lock)
+                      (format events "bar ~f ~f ~d~%" start bpm steps)
+                      (finish-output events))))
       (setf *emit*
             (lambda (notes)
               (sb-thread:with-mutex (lock)

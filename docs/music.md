@@ -100,7 +100,11 @@ with your default browser. The experimental Cuis alternative opens with
 in a disposable base image and does not change your saved Cuis image.
 Close its Music window to quit that disposable image.
 
-Choose a pattern and press Play. Each step paints the selected note; a
+Click a named pad to select and play its pattern, or choose a pattern and
+press Play. One pattern plays at a time; switching pads stops the old one
+and starts the new one from its beginning. Clicking the playing pad keeps
+it running. Pads use file order and do not yet have saved bank assignments
+or desktop keys. Each step paints the selected note; a
 second click on that note makes a rest. The browser offers the full note
 range; the Cuis comparison cycles a small high-note palette and shows
 sixteen steps per page. Tempo and gain controls work in both. Tempo is
@@ -112,6 +116,12 @@ and tempo as Lisp forms. It follows note edits, tempo changes, pattern
 selection and external file edits. This is a readable representation of
 the grid; the file keeps its own comments and formatting. An invalid edit
 leaves the last good grid and subtitle visible together.
+
+A gold outline follows the playing step, including rests, when the playing
+pattern is selected. Its timing comes from the Lisp clock, so a tempo edit
+takes effect on the playhead when the next bar is scheduled. This is a
+visual guide, not a measurement of speaker latency. A delayed connection
+can briefly hide the outline; stopping or disconnecting clears it.
 
 An edit takes a snapshot first and replaces only the changed note or tempo
 token, keeping comments and formatting. A stale revision is refused: review
@@ -129,7 +139,7 @@ not Lisp or Smalltalk evaluation. Browser audio is never used.
 
 ## What comes later
 
-The current interface has one sound. Pads, a playhead, capture, DAW integration,
+The current interface has one sound. Saved pad banks, desktop pad keys, capture, DAW integration,
 MIDI, swing, chords and variations remain. There is no new desktop key or menu entry yet.
 
 `vikix remove music` removes the feature's dependencies when nothing else

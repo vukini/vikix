@@ -77,7 +77,7 @@ The transport contract is deliberately small:
 
 The browser offers all pitches; the Morphic spike has a small high-note
 paint palette and pages sixteen steps at a time. Both have transport,
-tempo, gain and editable steps. Still outside this spike: pads, playhead,
+tempo, gain and editable steps. Still outside this spike: saved pad banks, desktop pad keys,
 recording, MIDI/WAV export, chords, progression blocks, desktop keys and
 bar integration. **Decision, 2026-10-16: Vid chose the browser as the default
 Music interface.** Cuis stays available as an experimental alternative.
@@ -102,6 +102,23 @@ human's preference between the two faces; Phase 0's listening evidence
 still applies to the unchanged sound path.
 
 ---
+
+## Browser pads and playhead (2026-10-17)
+
+The browser now has a launch pad per named pattern in file order. One
+pattern plays at a time; selecting another pad starts it from the beginning,
+while pressing the playing pad keeps it running. Saved `(bank ...)`
+assignments and desktop shortcuts remain later work.
+
+The Lisp clock emits each scheduled bar's start, tempo and step count,
+including all-rest bars. The supervisor keeps only the two latest bars in
+a fixed-size shared buffer; views never queue timing work for the clock.
+State replies add `now` (server Unix seconds) and `bars` (start, duration in
+seconds, steps). The browser polls every 100 ms and interpolates with its
+monotonic clock between replies. It highlights only known scheduled bars
+for the selected playing pattern, hiding the marker after stale data,
+stop or disconnect. This is approximate visual position, not measured
+speaker latency. Cuis ignores the additional state fields.
 
 ## The problem
 

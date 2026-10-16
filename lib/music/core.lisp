@@ -2,6 +2,7 @@
 (defpackage :vikix-music (:use :cl) (:export :tone :play :stop :check-file))
 (in-package :vikix-music)
 (defvar *emit* nil)
+(defvar *bar* (lambda (start bpm steps) (declare (ignore start bpm steps))))
 (defvar *silence* (lambda () nil))
 (defvar *clock* (lambda () (/ (get-internal-real-time) internal-time-units-per-second)))
 (defvar *worker* nil)
@@ -102,6 +103,7 @@
             (setf last-error message))))
       ;; Do not catch up missed bars in a burst after suspend or overload.
       (when (< start (funcall *clock*)) (setf start (+ (funcall *clock*) 0.1)))
+      (funcall *bar* start bpm (length last-good))
       (funcall *emit* (bar-events last-good bpm start))
       (incf start (/ 240d0 bpm))
       (let ((until (if (and bars (= (1+ bar) bars)) (+ start 0.05) (- start 0.1))))

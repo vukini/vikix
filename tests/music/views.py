@@ -182,6 +182,17 @@ with tempfile.TemporaryDirectory(prefix='music-views-test-') as temp:
         assert not a.request('state')['error']
         assert a.request('play', pattern='melody')['playing']
         until(lambda: (folder / 'events').exists())
+        until(lambda: bool(a.request('state')['bars']))
+        bar = a.state['bars'][-1]
+        assert bar['steps'] == 8 and abs(bar['duration'] - 240/180) < .001, bar
+        song.write_text(song.read_text().replace('(tempo 180)', '(tempo 120)'))
+        until(lambda: any(abs(bar['duration'] - 2) < .001 for bar in a.request('state')['bars']))
+        # Silent bars still carry position: telemetry must not depend on notes.
+        silence = song.read_text().replace("'(e6 - c6 - e6 - c6 -)", "'(- - - - - - - -)")
+        song.write_text(silence)
+        previous_start = a.state['bars'][-1]['start']
+        until(lambda: a.request('state')['bars'][-1]['start'] > previous_start)
+        song.write_bytes(good)
         a.close(); clients.remove(a)
         b.close(); clients.remove(b)
         time.sleep(.3)
@@ -191,6 +202,7 @@ with tempfile.TemporaryDirectory(prefix='music-views-test-') as temp:
         until(lambda: any(abs(json.loads(line).get('gain', 0) - .04) < .0001 for line in (folder / 'events').read_text().splitlines()))
         assert c.request('gain', value=1)['error']
         assert not c.request('stop')['playing']
+        assert c.state['bars'] == []
         c.close(); clients.remove(c)
         print('music views: auth, origin, snapshots, preservation, conflicts, external edits, disconnect and transport passed', flush=True)
 
@@ -356,6 +368,16 @@ StdIOWriteStream stdout nextPutAll: 'MUSIC-CUIS-PASS'; newLine; flush.
             until(lambda: js('!busy'))
             js("document.querySelector('#play').click()")
             until(lambda: js("document.querySelector('#playing').textContent.startsWith('Playing')"))
+            until(lambda: js("document.querySelectorAll('.step.current').length") == 1)
+            first_step = js("document.querySelector('.step.current').getAttribute('aria-label')")
+            until(lambda: js("document.querySelector('.step.current')?.getAttribute('aria-label')") not in (None, first_step))
+            assert js("document.querySelector('#pads [aria-pressed=true]').textContent") == 'melody'
+            js("document.querySelector('#pads button[data-pattern=bass]').click()")
+            until(lambda: js("document.querySelector('#pads [aria-pressed=true]')?.textContent") == 'bass')
+            until(lambda: js("document.querySelectorAll('.step.current').length") == 1)
+            assert js("document.querySelectorAll('.step').length") == 2
+            js("document.querySelector('#pads button[data-pattern=melody]').click()")
+            until(lambda: js("document.querySelector('#pads [aria-pressed=true]')?.textContent") == 'melody')
             until(lambda: js('!busy'))
             js("document.querySelectorAll('.step')[3].click()")
             until(lambda: "'(e6 a5 c6 a5" in song.read_text())
@@ -373,13 +395,19 @@ StdIOWriteStream stdout nextPutAll: 'MUSIC-CUIS-PASS'; newLine; flush.
             until(lambda: js('!busy'))
             js("document.querySelector('#stop').click()")
             until(lambda: js("document.querySelector('#playing').textContent") == 'Stopped')
+            until(lambda: js("document.querySelectorAll('.step.current').length") == 0)
             js("document.querySelector('#play').click()")
             until(lambda: js("document.querySelector('#playing').textContent.startsWith('Playing')"))
             artifacts = os.environ.get('MUSIC_VIEW_ARTIFACTS')
             if artifacts:
+                until(lambda: js("document.querySelectorAll('.step.current').length") == 1)
                 screenshot = cdp('Page.captureScreenshot', {'format': 'png'})
                 dest = Path(artifacts); dest.mkdir(parents=True, exist_ok=True)
                 (dest / 'music-web.png').write_bytes(base64.b64decode(screenshot['data']))
+            js('ws.close()')
+            until(lambda: js("document.querySelector('#playing').textContent") == 'Playback status unknown')
+            until(lambda: js("document.querySelectorAll('.step.current').length") == 0)
+            assert js("document.querySelectorAll('#pads [aria-pressed=true]').length") == 0
             ws.close()
             assert end(child) in (0, -15)
             browser_log.close()

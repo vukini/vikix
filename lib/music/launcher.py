@@ -130,7 +130,7 @@ def doctor():
     return int(bool(missing) or not ready)
 
 
-def perform(root, args, control=None):
+def perform(root, args, control=None, position=None):
     synth = data_dir() / "tone.scsyndef"
     if doctor():
         return 1
@@ -202,6 +202,18 @@ def perform(root, args, control=None):
                     raise RuntimeError("invalid music event")
                 while b"\n" in pending:
                     line, pending = pending.split(b"\n", 1)
+                    if line.startswith(b"bar "):
+                        at, bpm, steps = map(float, line.split()[1:])
+                        if not (all(map(math.isfinite, (at, bpm, steps))) and
+                                60 <= bpm <= 200 and steps.is_integer() and 1 <= steps <= 128):
+                            raise RuntimeError("invalid music bar")
+                        if position is not None:
+                            # Fixed-size shared memory: a closed or slow view
+                            # cannot fill a telemetry pipe and block the clock.
+                            with position.get_lock():
+                                position[:3] = position[3:]
+                                position[3:] = (at, 240 / bpm, steps)
+                        continue
                     if line == b"stop":
                         send(sock, message("/clearSched"))
                         send(sock, message("/g_freeAll", 0))
