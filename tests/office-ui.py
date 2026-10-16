@@ -103,8 +103,146 @@ class Office(unittest.TestCase):
         self.agents = [self.agent(1, 'idle')]
         rec['desk']['worktree'] = self.folder
         row = office.snapshot(A)['desks'][0]
+        # The number is the sequence's next (the state is shared with the other tests' launches).
         self.assertEqual((row['launch_seq'], row['worker_state']['state'], row['task_record']['status']['value']),
-                         (1, 'idle', 'running'))
+                         (T.load(task['id'])['launch']['seq'], 'idle', 'running'))
+        self.assertGreater(row['launch_seq'], 0)
+
+    def test_board_sections_from_the_snapshot(self):
+        """The board (phase 4): a row a task in the section its state says,
+        the line every view shows (number, provider, place, how long, the
+        state in a word), an idle worker on a running task said as such, a
+        ready task without a desk in the Queue as not queued, a blocked one
+        with how its worker stopped, a completed one with its release and
+        how long it took, a desk with no task standing empty, a desk with an
+        agent and no record in Running; the sorts; the text board."""
+        T = A.tasks_module()
+        rec = H.update('', self.folder, lambda r: H.set_task(r, 'Fix the picker', 'user'), project='book', branch='picker')
+        task = T.new('Fix the picker', 'book', 'user', desk=T.desk_of_record(rec), worker={'use': 'codex'})
+        rec = H.update('', self.folder, lambda r: r['task'].update(id=task['id']))
+        T.launch(task['id'], 'codex', 'user', 'worker')
+        self.records = [rec]
+        self.agents = [self.agent(1, 'idle')]
+        other = str(Path(self.temp.name) / 'empty desk')
+        Path(other).mkdir()
+        empty = H.update('', other, lambda r: None, project='book', branch='empty')
+        self.records.append(empty)
+        queued = T.new('Write the guide', 'book', 'user', topic='guide', priority='high')
+        blocked = T.new('Fix the tests', 'book', 'user', topic='tests')
+        T.launch(blocked['id'], 'claude', 'user', 'worker')
+        T.exited(blocked['id'], code=1, by='vikix')
+        done = T.new('The old one', 'book', 'user', topic='old')
+        T.launch(done['id'], 'claude', 'user', 'worker')
+        T.move(done['id'], 'ready for release', 'user')
+        T.move(done['id'], 'completed', 'release', done=True)
+        T.event('released', 'release', T.load(done['id']), data={'version': '0.72.70'})
+        for t in (queued, blocked, done):
+            self.addCleanup(lambda tid=t['id']: T.load(tid)['status']['value'] in T.FINAL or T.move(tid, 'cancelled', 'user'))
+        S = A.scheduler_module()
+        S.mutate('add', queued['id'], None, 'user')
+        with patch.object(A, 'agents_offered', return_value=[('codex', True, True, '')]):
+            snap = office.snapshot(A)
+        board = snap['board']
+        self.assertEqual([x['name'] for x in board['sections']], list(office.BOARD_SECTIONS))
+        by = {x['name']: x['rows'] for x in board['sections']}
+        running = [r for r in by['Running'] if r['task'] == task['id']]
+        self.assertEqual(len(running), 1)
+        row = running[0]
+        self.assertEqual((row['id'], row['desk'], row['seq'], row['provider'], row['state']), (self.folder, self.folder, row['seq'], 'codex', 'idle, task open'))
+        self.assertTrue(row['line'].startswith(f"#{row['seq']} codex · book/picker · just now · idle, task open · Fix the picker"), row['line'])
+        q = [r for r in by['Queue'] if r['task'] == queued['id']]
+        self.assertEqual((len(q), q[0]['status'], q[0]['position'] is not None, q[0]['id']), (1, 'queued', True, 'task:' + queued['id']))
+        self.assertIn('1. high  Write the guide · book, desk to make: guide', q[0]['line'])
+        b = [r for r in by['Blocked'] if r['task'] == blocked['id']]
+        self.assertEqual((len(b), b[0]['state']), (1, 'blocked on worker'))
+        self.assertTrue(b[0]['detail'].startswith('worker stopped just now ago: exit 1') or b[0]['detail'].startswith('worker stopped'), b[0]['detail'])
+        self.assertIn('exit 1', b[0]['detail'])
+        c = [r for r in by['Completed'] if r['task'] == done['id']]
+        self.assertEqual((len(c), c[0]['state'], c[0]['release']), (1, 'released 0.72.70', '0.72.70'))
+        self.assertIn('took', c[0]['detail'])
+        self.assertEqual([r['id'] for r in by['Desks'] if r['desk'] in (self.folder, other)], [other])
+        self.assertEqual(next(r for r in by['Desks'] if r['id'] == other)['state'], 'stands empty')
+        # An older completed task is the Archive's: not on the board unless every one is asked for.
+        T.update(done['id'], lambda t: t.update(done=int(time.time()) - 2 * 86400))
+        with patch.object(A, 'agents_offered', return_value=[('codex', True, True, '')]):
+            snap = office.snapshot(A)
+        self.assertEqual([r for r in next(x['rows'] for x in snap['board']['sections'] if x['name'] == 'Completed') if r['task'] == done['id']], [])
+        every = office.board(snap, every=True)
+        self.assertEqual(len([r for r in next(x['rows'] for x in every['sections'] if x['name'] == 'Completed') if r['task'] == done['id']]), 1)
+        # An agent at a desk with no task record is in Running, said so; the sorts hold.
+        self.records = [empty]
+        self.agents = [dict(self.agent(2, 'working'), folder=other)]
+        snap = office.snapshot(A)
+        rows = next(x['rows'] for x in snap['board']['sections'] if x['name'] == 'Running')
+        mine = next(r for r in rows if r['desk'] == other)
+        self.assertEqual((mine['kind'], mine['state']), ('desk', 'no task record'))
+        rows = [{'id': 'x', 'sort': {'launch': 2, 'created': 1, 'activity': 5, 'priority': 1, 'status': 'running', 'project': 'b', 'provider': 'codex'}},
+                {'id': 'y', 'sort': {'launch': 1, 'created': 9, 'activity': 1, 'priority': 2, 'status': 'needs review', 'project': 'a', 'provider': 'claude'}}]
+        self.assertEqual([r['id'] for r in office.board_sort(rows, 'launch')], ['y', 'x'])
+        self.assertEqual([r['id'] for r in office.board_sort(rows, 'newest')], ['x', 'y'])
+        self.assertEqual([r['id'] for r in office.board_sort(rows, 'created')], ['y', 'x'])
+        self.assertEqual([r['id'] for r in office.board_sort(rows, 'activity')], ['x', 'y'])
+        self.assertEqual([r['id'] for r in office.board_sort(rows, 'priority')], ['x', 'y'])
+        self.assertEqual([r['id'] for r in office.board_sort(rows, 'project')], ['y', 'x'])
+        self.assertEqual([r['id'] for r in office.board_sort(rows, 'provider')], ['y', 'x'])
+        with self.assertRaises(ValueError):
+            office.board_sort(rows, 'colour')
+        text = office.board_text(snap, snap['board'])
+        self.assertIn('Running (', text)
+        self.assertIn('Queue (', text)
+        self.assertIn('Desks standing empty (', text)
+
+    def test_new_task_from_the_office(self):
+        """The T form's backend: a task ready with the topic of the desk to
+        make, or at a desk that stands (its record names it, the project
+        the desk's), queued with --queue; what it refuses: no words, both a
+        desk and a topic, a repository with neither, an open task at the
+        desk, an agent."""
+        T = A.tasks_module()
+        made = []
+        self.addCleanup(lambda: [T.move(t, 'cancelled', 'user') for t in made if T.load(t)['status']['value'] not in T.FINAL])
+        class P:
+            def __init__(self, full, path): self.full, self.path = full, path
+        vp = type('VP', (), {'match': staticmethod(lambda name: P('book', self.temp.name) if name == 'book' else (_ for _ in ()).throw(SystemExit(1)))})()
+        with patch.object(A, 'projects', return_value=vp), patch.object(A, 'git', lambda folder, *a: 'top' if a[:1] == ('rev-parse',) else ''),                 patch.object(A, 'desk_of', lambda f: f == self.folder), patch.object(A, 'project_of', lambda f, c: 'book'),                 patch.object(A, 'common_of', lambda f: ''), patch.object(A, 'by_me', lambda: ('user', None)):
+            with self.assertRaisesRegex(ValueError, 'needs words'):
+                office.new_task(A, ['book', '  '])
+            with self.assertRaisesRegex(ValueError, 'topic'):
+                office.new_task(A, ['book', 'A task with no place'])
+            with self.assertRaisesRegex(ValueError, 'not both'):
+                office.new_task(A, ['book', 'Two places', '--desk', self.folder, '--topic', 'x'])
+            with self.assertRaisesRegex(ValueError, 'no project'):
+                office.new_task(A, ['nowhere', 'A task', '--topic', 'x'])
+            with self.assertRaisesRegex(ValueError, 'priority'):
+                office.new_task(A, ['book', 'A task', '--topic', 'x', '--priority', 'urgent'])
+            tid = office.new_task(A, ['book', 'Write chapter nine', '--topic', 'chapter nine', '--priority', 'high', '--use', 'codex', '--push'])
+            made.append(tid)
+            t = T.load(tid)
+            self.assertEqual((t['status']['value'], t['topic'], t['priority'], t['worker']['use'], t['worker']['push'], t['desk']),
+                             ('ready', 'chapter-nine', 'high', 'codex', True, {}))
+            tid2 = office.new_task(A, ['book', 'Write chapter ten', '--topic', 'chapter-ten', '--after', tid, '--queue'])
+            made.append(tid2)
+            t2 = T.load(tid2)
+            self.assertEqual((t2['status']['value'], t2['after']), ('queued', [tid]))
+            # At a desk that stands: the project is the desk's, the desk's record names the task.
+            tid3 = office.new_task(A, ['-', 'Sort the chapters', '--desk', self.folder])
+            made.append(tid3)
+            t3 = T.load(tid3)
+            self.assertEqual((t3['project'], t3['desk']['worktree'], t3['status']['value']), ('book', self.folder, 'ready'))
+            rec = H.load(t3['desk']['id'])
+            self.assertEqual((rec['task']['text'], rec['task']['id']), ('Sort the chapters', tid3))
+            with self.assertRaisesRegex(ValueError, 'open task already'):
+                office.new_task(A, ['-', 'Another at the same desk', '--desk', self.folder])
+            with self.assertRaisesRegex(ValueError, 'a project, or --desk'):
+                office.new_task(A, ['-', 'Nowhere'])
+            with self.assertRaisesRegex(ValueError, 'desk folder'):
+                office.new_task(A, ['-', 'Nowhere', '--desk', '/nonexistent/desk'])
+        with patch.object(A, 'by_me', lambda: ('claude 7', {'pid': 7})):
+            with self.assertRaisesRegex(ValueError, 'only the user'):
+                office.new_task(A, ['book', 'An agent tries', '--topic', 'x'])
+        # The arm of vikix agents office, with its usage.
+        with self.assertRaises(ValueError):
+            office.main(A, ['--new-task'])
 
     def test_queued_desk_uses_saved_provider_not_observed_worker_state(self):
         T = A.tasks_module()

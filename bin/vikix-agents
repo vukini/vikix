@@ -273,8 +273,8 @@
   vikix agents task ready TASK
                        make a deferred or blocked task ready and approved; no worker starts
 
-  vikix agents tasks [--json] [--all]
-                       every task: a record of its own, apart from its desk and its agent.
+  vikix agents tasks [--json] [--all] [--sort KEY]
+                       the task board in text: every task, a record of its own, apart from its desk and its agent.
                        A task is made by every way work comes into being
                        (desk --task, worker, sit --task, handoff --task, the
                        Office's forms, a plan) and kept for life in
@@ -290,10 +290,17 @@
                        when it stopped; on the tests; parked), ready for
                        release (the agent's finished: its work is done,
                        yours is not), completed (the release, the desk
-                       closed with its branch in) or cancelled. The open
-                       ones in launch order, the unnumbered after, then
-                       the done ones of the last day (--all: every one).
-                       --json: the records
+                       closed with its branch in) or cancelled. The board
+                       is the Office's sections: Needs attention, Running
+                       (a row a task: its launch number, provider, desk,
+                       how long, its state in a word, its words), Queue
+                       (in queue order, with why each waits), Blocked (on
+                       what), Completed (the last day's, with the release;
+                       --all: every one), then the desks standing empty
+                       and the ones closed today. --sort orders Running
+                       and Completed: launch (oldest first), newest,
+                       created, activity, priority, status, project,
+                       provider. --json: the board as the Office reads it
   vikix agents tasks adopt
                        task records for the desks from before.
                        One for each desk record's task and for each entry
@@ -314,6 +321,13 @@
   vikix agents office --accept DESK  accept a review after fresh passing tests
   vikix agents office --back DESK TEXT  send a review back with feedback
   vikix agents office --release DESK TEXT  open its release in a terminal
+  vikix agents office --new-task PROJECT "task" [--desk FOLDER | --topic TOPIC] [--priority LEVEL] [--after ID]... [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] [--queue]
+                       the Office's New task form: a task record, ready, at a
+                       desk that stands (--desk: its record names the task,
+                       the project is the desk's, PROJECT may be -) or with
+                       the topic of the desk to make; --queue puts it in the
+                       queue at once. Nothing is started: the scheduler does
+                       that on your word
   vikix agents ask QUESTION [--choice "label: consequence"] [--recommend LABEL]
                            register a decision at your desk; repeat --choice;
                            --context TEXT and --reason TEXT explain it,
@@ -429,7 +443,7 @@
                        commit as it stands (a plan's chain goes on from
                        the hand-in; the release never counts it, and runs
                        its own); the worker is told in its inbox. The
-                       Office's Skip tests, in its Testing group
+                       Office's Skip tests, on the row of a desk whose tests run
   vikix agents review DESK [--use NAME] [--prompt "..."] [--here] [--log DESK] | --menu
                        a review by another provider, read-only, its findings into the handoff.
                        The desk's last commit is checked out in a throwaway
@@ -841,6 +855,7 @@ SECTIONS = (
                                                       "office --close-agent", "office --forget", "office --purge-archive",
                                                       "office --form", "office --plan", "office --desk", "office --worker",
                                                       "office --close-desk", "office --project", "office --answer", "office --accept", "office --back", "office --release",
+                                                      "office --new-task",
                                                       "--waits")),
 )
 

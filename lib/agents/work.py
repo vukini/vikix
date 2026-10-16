@@ -13,10 +13,15 @@ import time
 
 # --- The tasks: a record each, apart from the desk and the agent --------------------------------
 def tasks_cmd(argv):
-    """vikix agents tasks [--json] [--all] | adopt: every task, the open ones
-    in launch order (the unnumbered after, then by when they were made), the
-    done ones of the last day after them (--all: every one); adopt makes
-    the records for the desks from before."""
+    """vikix agents tasks [--json] [--all] [--sort KEY] | adopt: the board in
+    text, in the Office's sections (Needs attention, Running, Queue, Blocked,
+    Completed, then the desks standing empty and the ones closed today), a
+    row a task with its launch number, provider, place, how long and its
+    state in a word; --sort orders Running and Completed (launch, newest,
+    created, activity, priority, status, project, provider); --all shows
+    every completed task, not the last day's; --json is the board as the
+    Office reads it (lib/office.py's board). adopt makes the records for
+    the desks from before."""
     T = tasks_module()
     H = handoff_module()
     if argv == ["adopt"]:
@@ -24,31 +29,35 @@ def tasks_cmd(argv):
         print(f"{len(made)} task record{'s' if len(made) != 1 else ''} made from the desks' records"
               + (": " + ", ".join(made[:10]) + (", …" if len(made) > 10 else "") if made else "; nothing was waiting"))
         return 0
-    as_json, every = False, False
-    for a in argv:
+    as_json, every, sort = False, False, "launch"
+    argv = list(argv)
+    while argv:
+        a = argv.pop(0)
         if a == "--json":
             as_json = True
         elif a == "--all":
             every = True
+        elif a == "--sort":
+            sort = argv.pop(0) if argv else die("--sort which? launch, newest, created, activity, priority, status, project, provider")
         else:
-            die("vikix agents tasks [--json] [--all] | adopt")
-    tasks = T.all_tasks()
+            die("vikix agents tasks [--json] [--all] [--sort KEY] | adopt")
+    sys.path.insert(0, os.path.join(VIKIX_DIR, "lib"))
+    import office as office_view
+    if sort not in office_view.SORTS:
+        die(f"--sort takes one of {', '.join(office_view.SORTS)}, not '{sort}'")
+    snap = office_view.snapshot(sys.modules[__name__])
+    board = office_view.board(snap, every=every, sort=sort)
     if as_json:
-        print(json.dumps(tasks, indent=1, ensure_ascii=False))
+        print(json.dumps(dict(board, sequence=T.sequence(), at=snap["at"], live_known=snap["live_known"], errors=snap["errors"],
+                              queue={k: v for k, v in (snap.get("queue") or {}).items() if k in ("at_once", "auto", "paused", "active", "next")}),
+                         indent=1, ensure_ascii=False))
         return 0
-    if not tasks:
-        print("No task yet: vikix agents worker DESK \"the task\" starts one at a desk, vikix agents tasks adopt "
-              "makes records for the desks from before.")
+    if not T.all_tasks() and not snap["desks"]:
+        print("No task yet: vikix agents worker DESK \"the task\" starts one at a desk, vikix agents task new makes one "
+              "for the queue, vikix agents tasks adopt makes records for the desks from before.")
         return 0
-    open_, done = tasks_split(tasks, every)
-    print(f"{len(open_)} task{'s' if len(open_) != 1 else ''} open" + (f", {len(done)} done" if done else "")
-          + f"; the last launch number is {T.sequence()}:")
-    for t in open_:
-        print("  " + T.row_words(t))
-    if done:
-        print("Done" + ("" if every else " in the last day (--all for every one)") + ":")
-        for t in done:
-            print("  " + T.row_words(t))
+    print(f"The last launch number is {T.sequence()}" + ("" if snap["live_known"] else "; live activity unknown: " + "; ".join(snap["errors"])) + ".")
+    print(office_view.board_text(snap, board))
     return 0
 
 

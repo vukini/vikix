@@ -2,7 +2,7 @@
 
 The Office shows agents; it should show the work. A task of its own, apart from the agent doing it and the desk it is done at, with a state that is the work's and not the worker's; what needs you, in one list, with the question itself; a queue with priorities and an order, and a scheduler that starts the next task only when you let it; the order the workers were launched in, kept; and a history of every task that outlives it.
 
-Drafted 2026-10-10 for TODO item 115, from Vid's brief ("Office task management, priorities and ergonomics"). *2026-10-14: phase 1 (task identity and metadata) shipped: `lib/tasks.py`, the arms `tasks`, `task`, `events` and `exited`, the snapshot's version 2, the Office's launch number and task record box, the MCP tool `tasks`, the release's `released`, the migration; the sections it built are cut to what changed. Phase 2 (attention and decisions) was implemented 2026-10-14; later phases remain.* Kept like the other designs: what ships is deleted from it, what changes is dated. Where the brief left a choice open, the choice made is marked *decided here*, for Vid to overturn.
+Drafted 2026-10-10 for TODO item 115, from Vid's brief ("Office task management, priorities and ergonomics"). *2026-10-14: phase 1 (task identity and metadata) shipped: `lib/tasks.py`, the arms `tasks`, `task`, `events` and `exited`, the snapshot's version 2, the Office's launch number and task record box, the MCP tool `tasks`, the release's `released`, the migration; the sections it built are cut to what changed. Phase 2 (attention and decisions) was implemented 2026-10-14, phase 3 (the queue) 2026-10-15, phase 4 (the Office redrawn) 2026-10-16; phases 5 and 6 remain.* Kept like the other designs: what ships is deleted from it, what changes is dated. Where the brief left a choice open, the choice made is marked *decided here*, for Vid to overturn.
 
 ---
 
@@ -104,6 +104,34 @@ minutes. No automatic retry follows. `queue bump` is explicit cooperative
 preemption at a different desk; `go` restores the paused task. The default
 `at_once=2` and `auto=off` remain unchanged; no user's config is edited.
 
+## The Office redrawn (phase 4)
+
+Implemented 2026-10-16. The board is one reading, `board` in `lib/office.py`
+(`BOARD_SECTIONS`, `board_row`, `desk_board_row`, `board_sort`, `board_text`),
+kept in the snapshot as `board`; the Emacs page, `vikix agents tasks`
+(`--sort`, `--all`, `--json`) and the MCP tool `tasks` draw from it, so the
+terminal board shows what the frame shows. What settled on the way:
+
+- A task's row goes by its state: running, needs decision and needs review
+  are *Running* (the state word on the row); ready for release, completed
+  and cancelled are *Completed* (*accepted, not yet released*, *released
+  0.72.26*, *cancelled*), the last day's unless `--all`; ready and backlog
+  wait with their desk in *Desks* when it stands, else in the Queue's tail,
+  said so (*ready, not queued*, *backlog, waits for your approval*, *its
+  desk is gone*). A desk with an agent and no task record is in Running,
+  said so; a desk with no open task and nobody at it stands empty.
+- The desk's rows (Task, Live, Handoff, Next, Before, Tests, New worker…)
+  stay under the task's line, so nothing the Office said before is lost;
+  the launch number isn't written twice.
+- The task record box is first on the page; the history is folded behind
+  `h` (the page was long enough). The guide moved from `h` to `H`; skip
+  tests lost its key (`s` is the sort) and keeps its buttons.
+- The task form (`T`) sends `office --new-task`: a record, ready or queued,
+  at a standing desk with no open task (the project is the desk's) or with
+  the topic of the desk to make; nothing starts.
+- The snapshot stays version 2; `board` is additive, and a page without it
+  reads the desks' groups into the sections.
+
 ## Agents proposing tasks
 
 ```sh
@@ -186,7 +214,7 @@ Every state is a word; colour follows it (the attention faces stay) and never ca
 1. **Task identity and metadata** (`lib/tasks.py`, the records, the sequence, the events, adoption, the exit line; `tasks`, `task`, `events`; the snapshot's `tasks`; the Office showing the launch number and the task's page with its history). The ground the rest stands on, and what the plan runner's desk asked for first. **Recommended first.**
 2. **Attention and decisions** implemented 2026-10-14; see the guide and the implementation note above.
 3. **Priorities and the scheduler** implemented 2026-10-15, released in 0.72.78; see the implementation note above.
-4. **The Office redrawn** (the five sections in full, the sort, the task form, the terminal board, the MCP `tasks`).
+4. **The Office redrawn** implemented 2026-10-16; see the implementation note above.
 5. **Proposals and handoffs between providers** (`propose`, `propose_task`, the policy, parent and child, `resume --use` on a task; the adapters' columns; the two Codex pieces verified where Codex is).
 6. **Recovery and the full test run** (the crash tests, the restart tests, the interplay with the tester and the release queue; `bugs.md` for what living with it shows).
 

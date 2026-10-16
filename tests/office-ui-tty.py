@@ -50,7 +50,8 @@ def main():
         fcntl.ioctl(0, termios.TIOCSWINSZ, struct.pack('HHHH', 40, 120, 0, 0))
         os.execvpe(sys.executable, [sys.executable, os.path.join(ROOT, 'bin', 'vikix-agents'), 'office'], env)
     # The Office's header and the desk pane, drawn on this terminal.
-    out, seen = read_until(fd, [b'The Office', b'Office desk'], time.time() + 25)
+    # The board's five sections are drawn there too, each saying it is empty.
+    out, seen = read_until(fd, [b'The Office', b'Office desk', b'Needs attention (', b'Running (0)', b'Queue (0)', b'Blocked (0)', b'Completed (0)'], time.time() + 25)
     if not seen:
         os.kill(pid, 15)
         raise SystemExit('the Office did not appear on the terminal:\n' + out[-1500:].decode('utf-8', 'replace'))

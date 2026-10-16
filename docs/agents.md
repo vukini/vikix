@@ -193,10 +193,10 @@ vikix agents handoff --status review --summary "..." --next "..."
 vikix agents handoff check "tests/run.sh wifi" --ok
 vikix agents handoff session codex 01a111e5-…      # a conversation that can be resumed here
 echo '{"status":"waiting","next":"needs the laptop"}' | vikix agents handoff --from -
-vikix agents park wifi-fix --next "once the new laptop is here"   # kept aside: Parked in the Office, not Needs you
+vikix agents park wifi-fix --next "once the new laptop is here"   # kept aside: blocked on parked in the Office, not needing you
 ```
 
-`vikix agents park [DESK]` is the status *parked* by its own name, yours or the agent's: the desk is kept aside, to be started later, and the Office lists it under **Parked** however its agent left it (a question it asked with a *waiting* status would otherwise keep it under *Needs you*); `--next "..."` replaces the next step with what to do when it is started again. Nothing is stopped by it: an agent still at the desk goes on, and the desk counts as working until it is gone (`vikix agents pause` holds one). A worker started there, or any status written, takes it up again.
+`vikix agents park [DESK]` is the status *parked* by its own name, yours or the agent's: the desk is kept aside, to be started later, and the Office lists its task under **Blocked** (*blocked on parked*) however its agent left it (a question it asked with a *waiting* status would otherwise keep it under *Needs attention*); `--next "..."` replaces the next step with what to do when it is started again. Nothing is stopped by it: an agent still at the desk goes on, and the desk counts as working until it is gone (`vikix agents pause` holds one). A worker started there, or any status written, takes it up again.
 
 Given any of those settings, `handoff` writes instead of showing (`vikix agents handoff set` says the same, a word longer); from outside the desk, name it first, as for `close`: `vikix agents handoff wifi-fix --task "..."`.
 
@@ -270,17 +270,32 @@ Each launch has a **number**, the order the workers were started in: `#1`, `#2`,
 
 **Two states, never one.** What the worker is doing (working, at its prompt, waiting for your yes, gone) is read from its terminal at each look, with where it was read and how sure (*reliable*, *inferred*, *unknown*). What the task is at is recorded, and moves only by a named step: *ready* when it is made, *running* when launched, *needs decision* when the agent's handoff says waiting, *needs review* when it says review, *ready for release* when it says finished (its work is done, yours is not), *blocked* on its worker when the worker's process ended, on the tests when they failed with no worker there, or on *parked* when the handoff says so; *completed* by the release, or by closing the desk with its branch merged; *cancelled* by closing it with `--force`. A word that asks for the state the task is in moves nothing. A worker's exit never completes or cancels anything: the task is blocked on its worker and stays in view, to be resumed, handed on or cancelled; a new worker at the same desk leaves the task before it blocked the same way, at the desk's back.
 
-`vikix agents tasks` lists them, the open ones in launch order, then the done ones of the last day (`--all` for every one):
+`vikix agents tasks` is the board in text, the same sections the Office draws (*The Office*, below): what needs you, then Running, Queue, Blocked and Completed, a row a task, then the desks standing empty and the ones closed today:
 
 ```
 $ vikix agents tasks
-3 tasks open; the last launch number is 2:
-  #1     blocked            vikix/bar-clock                  claude   normal   just now         the seconds, then the date on hover  [t-20261014-5ec49e]
-  #2     running            vikix/wifi-fix                   claude   normal   just now         the Wi-Fi picker should scan first, then show the list  [t-20261014-0d2c16]
-  #?     blocked            vikix/bar-clock                  ?        normal   just now         the bar's clock should show seconds  [t-20261014-0d68eb]
+The last launch number is 2.
+Needs attention (1):
+  worker stopped: vikix · the seconds, then the date on hover [t-20261014-5ec49e] · claude, #1 — the worker stopped: exit 1 (25 min)
+Running (1) · sorted by launch order, oldest first:
+  #2 claude · vikix/wifi-fix · 35 min · running · the Wi-Fi picker should scan first, then show the list  [t-20261014-0d2c16]
+Queue (1) · 0/2 workers · auto off:
+  1. high  the guide review · vikix, desk to make: guide-review · at_once 2 reached  [t-20261014-7f3a9c]
+  Next: the guide review — eligible in priority and queue order (vikix agents queue start)
+Blocked (2):
+  #1 claude · vikix/bar-clock · 25 min · blocked on worker · the seconds, then the date on hover  [t-20261014-5ec49e]
+      worker stopped 25 min ago: exit 1, 3 uncommitted
+  launch order unknown · vikix/bar-clock · 2 h · blocked on worker · the bar's clock should show seconds  [t-20261014-0d68eb]
+Completed (1) · sorted by launch order, oldest first · the last day:
+  #0 claude · vikix/office-ui · released 0.72.26 · 3 h ago · the Office's first page  [t-20261013-1a2b3c]
+      took 1 h 20 min · finished in 1 h 20 min against 1 h, 20 min over
+Desks standing empty (1):
+  vikix / notes · claude · stands empty
+Closed today (0):
+  none
 ```
 
-A row is the launch number, the task's state, its desk as project / branch, the provider, the priority, when something last happened to it, its words and its id. `#?` is a task with no launch number: one adopted from before the records (below), or one whose agent the office never started. `vikix agents task ID` is one task's page, with its history; a desk's name does for its task:
+A task's row is its launch number and provider, its desk as project / branch (or the desk to make, from its topic), how long it has been where it is, its state in a word (*running*; *idle, task open* for a worker at its prompt on a task still open; *needs review*; *blocked on worker*; *released 0.72.26*), its words and its id. *launch order unknown* is a task with no launch number: one adopted from before the records (below), or one whose agent the office never started. `--sort KEY` orders Running and Completed (launch, the oldest first and the default; newest; created; activity; priority; status; project; provider), the Queue is always in queue order, and `--all` shows every completed task rather than the last day's; `--json` is the board as the Office reads it. `vikix agents task ID` is one task's page, with its history; a desk's name does for its task:
 
 ```
 $ vikix agents task wifi-fix
@@ -535,7 +550,7 @@ no-tests = false
 
 Tasks at one desk are a chain, its workers in turn on one branch, in the file's order: the next starts once the last has handed in (status *review* or *finished*) and its tests pass, with the handoff the last one left to read, and the desk is released once, at the chain's end, with the project's `.claude/release`. Tasks at different desks run side by side, up to `at-once`. A task after a task at another desk waits for that desk to be released and starts at a fresh desk, made from main as it then is, which is why such a task must be the first at its desk. A task with `no-tests`, or a project with no `tests/run.sh`, goes on the hand-in alone. `desk` left out is the task's name.
 
-The runner is a script, never an agent: it edits no file, answers no prompt, never puts two workers at one desk, and never merges or pushes (the release script merges, `gup` stays yours). A worker that handed in is dismissed once its tests are in, since a worker at its prompt never reads a note. A round is one worker on a task; one whose tests failed, or that left without handing in, failed, and the next round's worker is told why in the desk's inbox; the third failure stops that desk under **Needs you**, with the desk's status set *waiting* by vikix, as a release that failed does, and a hand-in left with files uncommitted when its worker is gone. You go on from there by hand: hand the task in yourself, or fix and run the release again with `vikix agents plan release DESK`, which is also your yes when the gate is *me*.
+The runner is a script, never an agent: it edits no file, answers no prompt, never puts two workers at one desk, and never merges or pushes (the release script merges, `gup` stays yours). A worker that handed in is dismissed once its tests are in, since a worker at its prompt never reads a note. A round is one worker on a task; one whose tests failed, or that left without handing in, failed, and the next round's worker is told why in the desk's inbox; the third failure stops that desk under **Needs attention**, with the desk's status set *waiting* by vikix, as a release that failed does, and a hand-in left with files uncommitted when its worker is gone. You go on from there by hand: hand the task in yourself, or fix and run the release again with `vikix agents plan release DESK`, which is also your yes when the gate is *me*.
 
 A plan starts from a template. `vikix agents plan templates` lists them: Vikix's (`config/plans/`: *one-task*, a single job, one worker at one desk, released when its work is in; *build-chain*, build it, then its tests, then its guide, three workers in turn at one desk, released once at the end; *two-desks*, two desks at once, each its own part, then a task joining them at a fresh desk) and your own, `~/.config/vikix/plans/templates/*.toml`, a plan each whose first line is `# NAME — what it is for`, with `PROJECT` where the project goes, `topic` in each desk's name and `EDIT:` beginning the lines that are yours to write; one of yours with a Vikix name stands in for it. `vikix agents plan new TEMPLATE NAME PROJECT [--at-once N] [--gate me|none]` writes the copy to `~/.config/vikix/plans/NAME.toml` with the project, and the two settings when given, filled in, each desk named for the plan (`topic` becomes `NAME`, `topic-one` `NAME-one`), and the template's comments kept, so the file explains itself. Then you write its `EDIT:` lines in your own words: `plan run` refuses a task still holding one, and until the plan has run it is a *draft*, which `plan status` lists and the Office's Plans box shows with its Run. The Office's **New plan…** is a form with the template's tasks as its fields, which writes the words in (see [The Office](#the-office)).
 
@@ -708,60 +723,101 @@ are in, and `q` then puts that frame's windows back as they were.
 
 Above the desks, a **Plans** box when a plan has run or been written (`vikix agents plan`): a plan a group, its name, project and whether its runner runs, a line a desk saying where that desk's chain stands, and what needs you; a desk of a plan says which in its **Plan** line. A plan written and not run yet (`plan new`, or **New plan…**) is a *draft* there, with the tasks still holding the template's `EDIT:` lines under *Needs you*. Each plan ends with the acts its state takes, each `vikix agents plan` from the Office: **Run** for a draft whose words are written (**Run again** for one stopped or whose runner isn't running: it carries on), **Pause** and **Stop** while it runs, **Go on** when paused, **Edit**, which opens the plan's file in the desk pane (`RET` on a desk brings the pane back), and **Log**, what the runner did. A plan done, every desk of it released, leaves the box for the Archive page, where a **Plans done** box lists it with when it ended and its desks released, keeping **Edit** and **Log**; the Archive button counts the plans done apart from the records (*Archive (3, 1 plan)*).
 
-The left side groups desks into **Needs you**, **Testing**, **Working** and **Finished**
-on its first page, and **Parked** and **Closed** on a page of their own (the
-**Parked and closed** button, or `K`; **Back to desks**, or `K` again, returns),
-so the first page holds only the desks with something to do at them. A desk whose task has a record (*The work: tasks and their history*, above) carries its launch number before the project (`#104 · vikix · claude · workspace 2`), or *launch order unknown* for a task adopted from before the records, which had no number to keep; its page has a **Task record** box (the id, the origin and priority, the state the office recorded with why, the launch, the worker's state as observed with how sure, the times, *unknown* where the record never had one) and under it the task's history from the event log, newest first, the same lines `vikix agents task` prints. Each
-group is drawn in a box of its own, a rule between its
-desks. Beside the project, each live agent's name has its workspace clearly
-labelled (`codex · workspace 2`); several agents each keep their own label.
-An agent without a desktop window says so, and an unavailable workspace
-says *workspace unknown*. A desk's lines are labelled rows (Task, Live,
-Handoff, Next, Before); the desk
-pane draws each of its sections (the task, what the agent says, the Git
-state, the checks, the agents, the saved conversations) in a box the same
-way, so neither pane reads as a wall of text. The box **What the agent
+The left side is **the board**: five sections, numbered, a box each, a
+row a task (*The work: tasks and their history*, above), and the frame's
+title counts what needs you (*The Office (3)*):
+
+1. **Needs attention** (`1`): the items, each one thing you can do
+   something about (*Needs attention and decisions*, below), with its acts
+   as buttons.
+2. **Running** (`2`): the tasks running, waiting for a decision or in
+   review, a row each: `#104 claude · vikix/wifi-fix · 35 min · running ·
+   the Wi-Fi picker should scan first`, the launch number and the
+   provider first, so two Claude workers are told apart, then the desk,
+   how long, the state in a word, the task's words. A worker at its prompt
+   on a task still open says *idle, task open*; one paused, testing, or
+   held by the release queue says so. Under the line, the desk's rows as
+   before: the project with each live agent's workspace clearly labelled
+   (`claude · workspace 2`; several agents each keep their own label; one
+   without a desktop window says so, an unavailable workspace says
+   *workspace unknown*), **Task**, **Live** (what is observed, apart from
+   the recorded **Handoff** with the agent's estimate counted down),
+   **Release** while its branch is being released, **Plan** when it is a
+   plan's desk, **Next** and **Before** (the workers before this task,
+   newest first; three in the row, all on the page), its **Tests** with
+   **Skip tests** while they run, and **New worker…** when it stands with
+   nobody at it. A desk with an agent at it and no task record is here
+   too, said so; a folder an agent merely runs in (one started in `~`) is
+   *not a desk*.
+3. **Queue** (`3`): the scheduler's summary (workers in use of `at_once`,
+   auto on or off, *scheduler paused by you*), *Next: … because …* with
+   **Start next**, then the queued tasks in queue order, each with its
+   position, priority, the desk to make and why it waits, and its acts as
+   buttons (Start, Run next, Up, Down, Priority, Defer, Cancel); after
+   them the tasks ready but not queued (**Queue it**) and the proposals
+   waiting for your approval. The Queue keeps its order whatever the sort.
+4. **Blocked** (`4`): `#107 codex · installer tests · 2 h · blocked on
+   worker · …`, and under it why: *worker stopped 2 h ago: exit 1, 3
+   uncommitted*, *waits for t-…*, or the reason recorded; **Make ready**
+   lets the scheduler have it again.
+5. **Completed** (`5`): the last day's, with the release (*released
+   0.72.26*), *accepted, not yet released* for a task whose work is in
+   and whose release isn't, *cancelled*; under it how long it took, and
+   where it ended against the agent's estimate. Older ones are the
+   Archive's.
+
+`s` cycles the sort of Running and Completed (launch order, the oldest
+first, is the default; newest first; created; last activity; priority;
+status; project; provider), the box's title saying which. Every state is
+a word, and colour never carries alone: a desk whose terminal needs you is
+drawn in the colour the desktop gives that terminal (its line and Live
+row, and the agent's line on the page): one while the agent waits for
+you, another once its desk is released and waits for `gup`, a third once
+that is pushed and the terminal can be closed; the theme's `agent_asks`,
+`agent_released` and `agent_pushed`, or Emacs's own warning, success and
+constant faces without a palette. Each box is drawn to its window's width,
+a rule between its rows, and drawn again when the window is resized; a
+terminal that can't show the box characters gets ASCII ones. A board with
+nothing on it still draws its five sections, each saying it is empty, and
+says where to start.
+
+The **desks standing empty** (a desk with no open task and nobody at it;
+one whose task is ready and not queued says so, with **Queue it**) and the
+desks **closed today** (`vikix agents close`, or the release that removed
+it: newest first, who closed it and when, nothing to do at it, *Forget
+this record…* on its page) are on a page of their own (the **Desks and
+closed** button, or `K`; **Back to desks**, or `K` again, returns); after
+a day a closed desk's record is in the Archive, the third page (`A`).
+When nothing runs and nothing is queued, the board says the desks are on
+that page.
+
+**The task's page** (`RET` on a row, or a click) is the right pane: the
+**Task record** box first (the id; the origin and priority; the state the
+office recorded, with why, signed; the desk, or the desk to make; what it
+waits for; the launch with its number; the worker's state as observed,
+with where it was read and how sure; the times, *unknown* where the
+record never had one; the decisions open and answered, each with
+**Answer…**), then the task's words, what the agent says, the Git state,
+the checks, the workers before, the live agents and the saved
+conversations as before. **History** (`h`) unfolds the task's events on
+the page, newest first, the same lines `vikix agents task` prints, and
+folds them again. A task not yet at a desk (queued, or ready with the
+desk to make named) has a page of its own: its record and the queue's
+acts. The acts as buttons are only those that apply, as before, and
+**Go to agent** (`a`) stays one key from every row.
+
+The box **What the agent
 says** is the handoff as the agent wrote it, which Vikix doesn't check: the
 status with what it means (*review · the agent asks you to look at its
 work*), the estimate against the clock, the summary and the next step, then
 the criteria, the decisions, the defects and the review findings as
 bulleted lists, each row signed in the shade at its end with who wrote it
-and when; a desk whose agent has written nothing yet says so in one line. The boxes are as wide as
-their window and are drawn again when it is resized; a terminal that
-can't show the box characters gets ASCII ones. A row is a desk: its title
-is the place, project / branch (the folder, for an agent in a plain
-folder), and under it its **Task** now, the user's words (a desk with none
-says so: it stands for a worker later), its workers **Before** this task,
-newest first, as the record's history keeps them (how each ended, which
-agent, its task; three in the row, all of them in the desk pane under
-*Workers before this one*, each with who gave the task, when it ended and
-the agent's last word on it), and a **New worker…** button when the desk
-stands with nobody at it, which opens the worker's form for that desk.
-Each row distinguishes **Live** activity from the recorded **Handoff**,
-counts down the agent's estimate while one stands, and shows the next
-action. A desk whose terminal needs you is drawn in the colour the desktop
-gives that terminal (its title and Live row, and the agent's line in the
-details): one colour while the agent waits for you, another once its desk
-is released and waits for `gup`, a third once that is pushed and the
-terminal can be closed; the theme's `agent_asks`, `agent_released` and
-`agent_pushed`, or Emacs's own warning, success and constant faces without
-a palette. A desk whose tests run (the tester, after a hand-in or **Test**) is
-testing, whatever else it does, with **Skip tests** on its row; a waiting agent or a waiting/review handoff needs you, as does a
-terminal waiting for `gup` or to be closed;
-a live agent otherwise counts as working; a finished record whose desk
-still stands counts as finished (it is yours to release or close); a desk
-kept aside with `vikix agents park` (the status *parked*, by you or by its
-agent) is parked, to be started later, and so are the
-remaining desks, on the second page. A desk closed in the last day (`vikix agents
-close`, or the release that removed it) is **Closed**, on the same page: newest first, its
-row saying who closed it and when, nothing to do at it, and *Forget this
-record…* in its details; after a day its record is in the Archive. When nothing
-needs you and nothing is at work, the first page says that the desks are on
-the parked page. Unavailable
+and when; a desk whose agent has written nothing yet says so in one line.
+Unavailable
 live discovery is **unknown**, never proof that an agent stopped. Desks
 without handoffs still appear. A folder an agent merely runs in (one
 started in `~`, or in a project's own folder) gets a row too, marked
-**Not a desk**: its title is the folder, its details name the agents
+**not a desk**: its line is the folder, its page names the agents
 running there, and Go to agent and Close agent work as on a desk. It has
 no Git state, no handoff and no Continue, since there is no desk to
 continue; `vikix agents sit PROJECT TOPIC` from the agent's own shell
@@ -771,7 +827,7 @@ over (at once, when the worktree went without the desk being closed). A
 handoff saying "finished" alone does not archive an existing desk or
 remove any files.
 
-**Releases.** Above the groups, a **Releases** box lists the releases under
+**Releases.** Under the board, a **Releases** box lists the releases under
 way in your projects, as `.claude/release --queue` does: each one's topic,
 what it is doing (checking, testing, waiting for its turn) and since when,
 with the project and the line it brings; the one whose turn it is comes
@@ -789,7 +845,7 @@ agent are absent. Their old next actions are historical, not new instructions.
 **Forget this record…** removes that one record after confirmation (as
 `vikix agents handoff forget` does); its files, branch and saved
 conversations stay. **Back to desks** (`A` again) returns to current work.
-Each page's button counts that page's desks; the New desk, New plan and New project
+Each page's button counts that page's rows; the New task, New desk, New plan and New project
 buttons, the Releases box and the Plans box are the first page's alone, the Plans done box the Archive's.
 
 **Purge archive** permanently deletes the archived desk records after
@@ -798,9 +854,9 @@ changed records, reopened desks or unavailable discovery require a refresh
 and a new confirmation. Project files, branches and the providers' saved
 conversations are untouched. There is no automatic age or size cutoff.
 
-Click a desk, or use `n`/`p` to select it. `RET` enters its details; `C-x o`
-moves between panes. Only available action buttons are shown. `Tab` visits buttons, `N` makes a new desk, `L` writes a new plan, `R` makes a new project, `w` starts a worker at the selected one, `a` goes to an agent, `c` continues
-a desk, `P` pauses its agent or lets it go, `t` runs its tests, `s` skips them while they run, `r` has another provider review its last commit, `i` leaves its agent a note, `C` closes a desk, `h` opens this chapter of the manual, `g` refreshes and `q` closes the Office. A button's answer (*let go, paused 3 min; claude 48213 goes on at its next call*) stays in the header line over the refreshes that follow, until `g` or the next button, and the row is drawn again at once, so a desk let go loses its *paused by* and its Go button says Pause again. A row says when its desk is paused and by whom, when its tests run, who is reviewing it, and how many notes wait for its agent; the details say how the last agent left. An Office that shows no desk at all and a header line naming a *snapshot version* has a page older than its backend: Emacs loaded `vikix-office.el` before an update brought a newer `vikix agents office --json`. Load the file again (`M-x load-file ~/.local/share/vikix/emacs/vikix-office.el`) or restart Emacs. Details keep the user's task,
+Click a row, or use `n`/`p` to select it. `RET` enters its page; `C-x o`
+moves between panes; `1` to `5` go to a section of the board, its first row selected. Only available action buttons are shown. `Tab` visits buttons, `T` makes a new task, `N` a new desk, `L` writes a new plan, `R` makes a new project, `w` starts a worker at the selected desk, `a` goes to an agent, `c` continues
+a desk, `P` pauses its agent or lets it go, `t` runs its tests (**Skip tests** on the row ends them while they run), `r` has another provider review its last commit, `i` leaves its agent a note, `C` closes a desk, `s` cycles the sort, `h` unfolds the task's history, `H` opens this chapter of the manual, `g` refreshes and `q` closes the Office. On the selected task: `!` runs it next, `+` and `-` move its priority, `M-p` and `M-n` move it up and down its queue, `d` defers it, `k` cancels it, `S` starts the queue's next, `Q` queues a ready one, `D` answers its decision, `y` accepts its review and `b` sends it back with a note. A button's answer (*let go, paused 3 min; claude 48213 goes on at its next call*) stays in the header line over the refreshes that follow, until `g` or the next button, and the row is drawn again at once, so a desk let go loses its *paused by* and its Go button says Pause again. A row says when its desk is paused and by whom, when its tests run, who is reviewing it, and how many notes wait for its agent; the details say how the last agent left. An Office that shows no desk at all and a header line naming a *snapshot version* has a page older than its backend: Emacs loaded `vikix-office.el` before an update brought a newer `vikix agents office --json`. Load the file again (`M-x load-file ~/.local/share/vikix/emacs/vikix-office.el`) or restart Emacs. Details keep the user's task,
 signed agent account, observed Git state, reported checks and saved
 conversation availability separate. **Review does not mean merged.** A
 fresh check means its recorded code matches the current observation; it does
@@ -817,7 +873,20 @@ stale view cannot close a replacement process. If it is still exiting after
 three seconds, the Office says so; it does not force-kill it. `q` closes only
 the Office window.
 
-**New desk…** (`N`, above the groups) and **New worker…** (`w`, in a desk's
+**New task…** (`T`, above the board) is a form for a task of its own,
+with nothing started by it: the words; a desk that stands with nobody at
+it (its project is the task's), or the project and the topic of the desk
+the scheduler makes for it (a repository needs one); the priority (normal
+unless you say); the tasks it waits for, by id; the worker's choices as
+the desk form has them (the agent, a local model, may push, no tests by
+themselves, the mode); and **Queue it**, unticked: ticked, the task enters
+the queue at once, for **Start next** or `auto=on`; unticked, it is ready,
+and **Queue it** on its row (`Q`) queues it later. It hands its words to
+`vikix agents office --new-task` as they are, which refuses, in the form's
+own header line, a desk with an open task already, a repository with
+neither desk nor topic, and anything but the user making it.
+
+**New desk…** (`N`, above the board) and **New worker…** (`w`, in a desk's
 row and in the details of a desk that stands with nobody at it) are forms,
 drawn in the desk pane and in the terminal alike. New desk asks for the project (a menu of `vikix
 project list`'s, a click or `RET` on the `[choice]` opens it; it is always
@@ -840,7 +909,7 @@ form's own header line and leaves the form open to fix. A worker's
 terminal opens on the desktop, so from a terminal Office with no display
 only the desk alone can be made.
 
-**New plan…** (`L`, above the groups) writes a plan from a template as a
+**New plan…** (`L`, above the board) writes a plan from a template as a
 form, drawn where the desk forms are, its own settings in a box with a
 rule between them: the template (Vikix's and your own,
 each with its line about itself; a click or `RET` on the `[choice]` opens
@@ -870,7 +939,7 @@ until Run. A name taken, a task without a name or words, or a template
 that doesn't read as a plan, is said in the form's own header line and
 leaves the form open.
 
-**New project…** (`R`, above the groups) makes a project from a form, drawn
+**New project…** (`R`, above the board) makes a project from a form, drawn
 where the other forms are: `vikix project new` with its words. The name (a
 word: the folder under `~/src`, or the first `root=` of
 `~/.config/vikix/projects`, and the repository's name), where it goes
@@ -896,7 +965,7 @@ already, is said in the form's own header line and leaves the form open;
 a GitHub refusal leaves the repository here, with the `gh repo create`
 line to run later.
 
-**Guide** (`h`, above the groups) opens this chapter of the Vikix manual
+**Guide** (`H`, above the board) opens this chapter of the Vikix manual
 (`info vikix`, the one `vikix update core` writes to
 `~/.local/share/info/`) in the desk pane; `RET` on a desk brings the pane
 back. Without the manual installed, the button says so.
@@ -921,8 +990,11 @@ time and a timeout. It preserves selection and pane position, never focuses
 a window, and stops when the view closes. On failure the header says why,
 previous information stays visible and live activity becomes unknown;
 actions wait for a successful refresh. `vikix agents office --json` exposes
-the same snapshot to scripts, including discovery errors and the release
-queue; the read-only MCP tool `office` returns it too. It is a view of
+the same snapshot to scripts, including discovery errors, the release
+queue and the board (`board`: the sections with their rows, as the page
+draws them; `vikix agents tasks --json` is the same board alone); the
+read-only MCP tool `office` returns it too, and the MCP tool `tasks` the
+board, so an agent sees the office as you do. It is a view of
 existing desks and handoffs, not another task store.
 
 ## Needs attention and decisions
@@ -954,7 +1026,7 @@ vikix agents ask "Keep the old order?" \
 There can be ten open questions per task. For an active task, `--blocks`
 puts it in *needs decision*; a stopped task stays blocked. Without it, the
 worker may continue independent work.
-In the Office, **Answer…** (or `D` on a question or its desk) offers the
+In the Office, **Answer…** (or `D` on a question or its task) offers the
 choices and **Other…** for your own words. No recommendation is submitted
 without your choice. You can also run `vikix agents answer ID "your answer"`.
 Agents cannot answer through the CLI or MCP. The free-text answer remains

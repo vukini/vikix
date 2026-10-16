@@ -277,10 +277,11 @@ check "a desk that isn't: $out" grep -q '^ERROR: no such desk here' <<<"$out"
 out=$(VIKIX_PROC=$t/proc call handoff_update '{"task":"Fix chapter one","desk":"a"}')
 check "from no agent the writer is the user, by the desk named: $out" grep -q 'updated by user: status working; task set' <<<"$out"
 out=$(VIKIX_PROC=$t/proc call tasks '{}')
-check "tasks lists the task records, the desk's among them, with the sequence: $out" python3 -c '
+check "tasks is the board: the sections in order, the desk's task a row in one of them, with the sequence: $out" python3 -c '
 import json, sys
-o = json.loads(sys.argv[1]); assert "sequence" in o and any(t["text"] == "Fix chapter one" and t["origin"]["kind"] == "user" for t in o["open"]), o' "$out"
-tid=$(python3 -c 'import json, sys; print([t["id"] for t in json.loads(sys.argv[1])["open"] if t["text"] == "Fix chapter one"][0])' "$out")
+o = json.loads(sys.argv[1]); assert "sequence" in o and [s["name"] for s in o["sections"]][:5] == ["Needs attention", "Running", "Queue", "Blocked", "Completed"], o
+assert any(r["title"] == "Fix chapter one" for s in o["sections"] for r in s["rows"] if s["name"] != "Needs attention"), o' "$out"
+tid=$(python3 -c 'import json, sys; print([r["task"] for s in json.loads(sys.argv[1])["sections"] for r in s["rows"] if r.get("title") == "Fix chapter one"][0])' "$out")
 out=$(VIKIX_PROC=$t/proc call tasks "{\"task\":\"$tid\"}")
 check "and one task with its history: $out" python3 -c '
 import json, sys

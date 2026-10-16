@@ -64,29 +64,82 @@ over the refreshes that follow, so it is seen; g drops it.")
           (when (and colour (not (equal colour (face-foreground face nil t))))
             (set-face-attribute face nil :foreground colour)))))))
 
-;; The Office's pages (2026-10-11: the first page was too long with every
-;; desk on it). The first holds the desks with something to do at them: the
-;; groups Needs you, Testing (the desks whose tests run, each with Skip tests:
-;; 2026-10-12, they sat under Needs you with nothing to do but wait), Working
-;; and Finished (a finished desk still stands, yours to release or close). The
-;; second is Parked and Closed: the desks nobody
-;; works at and the ones closed today. The third is the Archive, the records
-;; of worktrees gone and the plans done. Each is drawn from the same snapshot; the parked page's
-;; rows are the snapshot's desks of those two groups, the archive's its
-;; archive list.
+;; The Office's pages. The first is the board (phase 4 of
+;; plans/DESIGN-office-tasks.md, 2026-10-16): Needs attention, Running,
+;; Queue, Blocked and Completed, a row a task, numbered so 1..5 jump to
+;; them. The second (K) is the desks standing empty and the ones closed
+;; today; the third (A) the Archive, the records of worktrees gone and the
+;; plans done. The sections and their rows come from the backend's board
+;; (`board' in the snapshot: lib/office.py's board, the one reading the
+;; text board and the MCP tool share); a snapshot without one (a page
+;; older than its backend) is read from the desks' groups instead, so the
+;; Office still works where a part isn't there.
 (defvar-local vikix-office--page 'desks
-  "The page shown: `desks', `parked' or `archive'.")
-(defconst vikix-office--page-groups
-  '((desks . ("Needs you" "Testing" "Working" "Finished"))
-    (parked . ("Parked" "Closed"))
+  "The page shown: `desks' (the board), `parked' (the desks standing empty, the closed) or `archive'.")
+(defvar-local vikix-office--sort "launch"
+  "The order of Running and Completed: one of the board's sorts (s cycles them).")
+(defvar-local vikix-office--history nil
+  "Whether the task's history is drawn on its page (h toggles it).")
+(defconst vikix-office--page-sections
+  '((desks . ("Running" "Queue" "Blocked" "Completed"))
+    (parked . ("Desks" "Closed"))
     (archive . ("Archived")))
-  "Each page's groups, in the order their boxes are drawn.")
+  "Each page's sections, in the order their boxes are drawn; Needs attention is the board's first box.")
+(defconst vikix-office--section-numbers
+  '(("Needs attention" . 1) ("Running" . 2) ("Queue" . 3) ("Blocked" . 4) ("Completed" . 5))
+  "The board's sections by their key.")
+(defconst vikix-office--sorts '("launch" "newest" "created" "activity" "priority" "status" "project" "provider"))
+(defconst vikix-office--sort-words
+  '(("launch" . "launch order, oldest first") ("newest" . "newest launch first") ("created" . "when created")
+    ("activity" . "last activity first") ("priority" . "priority") ("status" . "status") ("project" . "project")
+    ("provider" . "provider")))
+(defconst vikix-office--group-sections
+  '(("Needs you" . "Running") ("Testing" . "Running") ("Working" . "Running") ("Finished" . "Completed")
+    ("Parked" . "Desks") ("Closed" . "Closed"))
+  "A desk's group read into a section, for a snapshot without a board.")
+(defun vikix-office--board-sections (&optional data)
+  "The board's sections in DATA (the buffer's when nil): the backend's, or,
+without one, the desks' groups read into them, a row a desk."
+  (let* ((data (or data vikix-office--data)) (board (alist-get 'board data)))
+    (if board (alist-get 'sections board)
+      (mapcar (lambda (name)
+                `((name . ,name)
+                  (rows . ,(cl-loop for r in (alist-get 'desks data)
+                                    when (equal (cdr (assoc (alist-get 'group r) vikix-office--group-sections)) name)
+                                    collect `((kind . "desk") (id . ,(alist-get 'id r)) (desk . ,(alist-get 'id r))
+                                              (task . "") (section . ,name) (title . ,(alist-get 'title r)))))))
+              '("Running" "Queue" "Blocked" "Completed" "Desks" "Closed")))))
+(defun vikix-office--section-rows (name &optional data)
+  "The rows of the section NAME, in the sort chosen for Running and
+Completed; Archived's are the snapshot's archive, a row a record."
+  (let ((rows (if (equal name "Archived")
+                  (mapcar (lambda (r) `((kind . "desk") (id . ,(alist-get 'id r)) (desk . ,(alist-get 'id r)) (task . "")
+                                        (section . "Archived") (title . ,(alist-get 'title r))))
+                          (alist-get 'archive (or data vikix-office--data)))
+                (alist-get 'rows (cl-find name (vikix-office--board-sections data)
+                                          :key (lambda (x) (alist-get 'name x)) :test #'equal)))))
+    (if (and (member name '("Running" "Completed")) (not (equal vikix-office--sort "launch")))
+        (vikix-office--sorted rows vikix-office--sort)
+      rows)))
+(defun vikix-office--sorted (rows key)
+  "ROWS in KEY's order, from the sort fields the board gives each row
+\(a row without them keeps its place): launch order, newest first,
+created, last activity, priority, status, project, provider."
+  (let* ((field (lambda (r k) (alist-get (intern k) (alist-get 'sort r))))
+         (number (lambda (v) (if (numberp v) v 0)))
+         (less (pcase key
+                 ("newest" (lambda (a b) (> (funcall number (funcall field a "launch")) (funcall number (funcall field b "launch")))))
+                 ((or "created" "activity") (lambda (a b) (> (funcall number (funcall field a key)) (funcall number (funcall field b key)))))
+                 ("priority" (lambda (a b) (< (funcall number (funcall field a key)) (funcall number (funcall field b key)))))
+                 (_ (lambda (a b) (string< (format "%s" (or (funcall field a key) "")) (format "%s" (or (funcall field b key) ""))))))))
+    (if (cl-every (lambda (r) (alist-get 'sort r)) rows)
+        (sort (copy-sequence rows) less)   ; sort is stable: a tie keeps launch order
+      rows)))
 (defun vikix-office--page-rows (page &optional data)
-  "The rows of PAGE in DATA (the buffer's data when nil)."
-  (let* ((data (or data vikix-office--data))
-         (groups (alist-get page vikix-office--page-groups)))
-    (if (eq page 'archive) (alist-get 'archive data)
-      (cl-remove-if-not (lambda (r) (member (alist-get 'group r) groups)) (alist-get 'desks data)))))
+  "The rows of PAGE in DATA (the buffer's data when nil): the board's rows
+of its sections; the archive's its records."
+  (apply #'append (mapcar (lambda (name) (vikix-office--section-rows name data))
+                          (alist-get page vikix-office--page-sections))))
 
 (defun vikix-office--get (key object) (alist-get key object))
 (defun vikix-office--text (value) (if (stringp value) value (format "%s" (or value "unknown"))))
@@ -104,9 +157,25 @@ over the refreshes that follow, so it is seen; g drops it.")
 (defun vikix-office--folder-p (row)
   "ROW is a plain folder agents run in (an agent started in ~), not a desk."
   (equal (alist-get 'kind row) "folder"))
-(defun vikix-office--row ()
-  (cl-find vikix-office--selected (vikix-office--rows)
+(defun vikix-office--desk (id)
+  "The desk row ID among the snapshot's desks and archive, or nil."
+  (cl-find id (append (alist-get 'desks vikix-office--data) (alist-get 'archive vikix-office--data))
            :key (lambda (r) (alist-get 'id r)) :test #'equal))
+(defun vikix-office--row ()
+  "The desk row selected; nil for a task row with no desk (a task not yet at one)."
+  (vikix-office--desk vikix-office--selected))
+(defun vikix-office--board-row ()
+  "The board row selected, on the page shown."
+  (cl-find vikix-office--selected (vikix-office--rows) :key (lambda (r) (alist-get 'id r)) :test #'equal))
+(defun vikix-office--task ()
+  "The task record selected: the desk's, or the one the row names (task:ID)."
+  (let ((r (vikix-office--row)) (b (vikix-office--board-row)))
+    (or (and r (alist-get 'task_record r))
+        (let ((id (or (alist-get 'task b)
+                      (and (stringp vikix-office--selected) (string-prefix-p "task:" vikix-office--selected)
+                           (substring vikix-office--selected 5)))))
+          (and id (not (equal id ""))
+               (cl-find id (alist-get 'tasks vikix-office--data) :key (lambda (x) (alist-get 'id x)) :test #'equal))))))
 (defun vikix-office--position (id)
   "Find ID by value: each JSON refresh creates new string objects."
   (let ((position (point-min)))
@@ -177,7 +246,7 @@ over the refreshes that follow, so it is seen; g drops it.")
     (when (called-interactively-p 'interactive) (setq vikix-office--said nil))
     (unless (or vikix-office--closed (process-live-p vikix-office--process)
                 (process-live-p vikix-office--action))
-      (vikix-office--status "Refreshing…  g refresh · RET details · N new desk · w worker · a go to agent · c continue · P pause/go · t test · i tell · x close agent · C close desk · q close Office")
+      (vikix-office--status "Refreshing…  g refresh · RET page · 1..5 section · s sort · h history · T new task · N new desk · w worker · a go to agent · y accept · b send back · D answer · q close Office")
       (vikix-office--request
        '("office" "--json" "--notify") 'vikix-office--process
        (lambda (output error)
@@ -201,7 +270,7 @@ over the refreshes that follow, so it is seen; g drops it.")
                    (vikix-office--status
                     (if errors (string-join errors "; ")
                       (concat "Updated " (vikix-office--time (alist-get 'at data))
-                              " · g refresh · RET details · N new desk · w worker · a go to agent · c continue · P pause/go · t test · i tell · x close agent · C close desk · q close Office")))))
+                              " · g refresh · RET page · 1..5 section · s sort · h history · T new task · N new desk · w worker · a go to agent · y accept · b send back · D answer · q close Office")))))
              (error (vikix-office--failure (error-message-string err))))))))))
 
 (defun vikix-office--positive (value) (and (numberp value) (> value 0)))
@@ -577,7 +646,9 @@ is drawn when PLANS is empty."
 (defun vikix-office--attention-box (width chars owner)
   "Actionable items above the desks, with their actual waiting time."
   (let ((items (alist-get 'attention vikix-office--data)))
-    (vikix-office--box-top width chars "Needs attention")
+    (let ((start (point)))
+      (vikix-office--box-top width chars (format "1 · Needs attention (%d)" (length items)))
+      (put-text-property start (point) 'vikix-office-section "Needs attention"))
     (if (null items) (vikix-office--note width chars "nothing waiting")
       (dolist (item items)
         (let ((d (alist-get 'question item)) (pid (alist-get 'pid item))
@@ -665,57 +736,196 @@ is drawn when PLANS is empty."
                (t (list "queue" action id)))))
         (vikix-office--act args #'vikix-office-refresh)))))
 
-(defun vikix-office--queue-boxes (width chars owner)
-  "Queue order and blockers, without changing the desk groups below."
-  (let* ((queue (alist-get 'queue vikix-office--data))
-         (rows (alist-get 'rows queue))
-         (next (alist-get 'next queue)))
-    (when queue
-      (vikix-office--box-top width chars "Queue")
+(defun vikix-office--frame-title ()
+  "The Office's own frame named with the count of what needs attention: The Office (3)."
+  (when (and vikix-office--own-frame (frame-live-p vikix-office--frame)
+             (eq (frame-parameter vikix-office--frame 'vikix-office-buffer) (current-buffer)))
+    (let ((n (length (alist-get 'attention vikix-office--data))))
+      (set-frame-parameter vikix-office--frame 'name (if (> n 0) (format "The Office (%d)" n) "The Office")))))
+(defun vikix-office--section-title (name rows)
+  "The box title of the section NAME holding ROWS: its number on the board,
+its name, its count, and the sort for Running and Completed."
+  (let ((n (cdr (assoc name vikix-office--section-numbers))))
+    (concat (if n (format "%d · " n) "")
+            (pcase name ("Desks" "Desks standing empty") ("Closed" "Closed today") (_ name))
+            (format " (%d)" (length rows))
+            (if (and (member name '("Running" "Completed")) rows)
+                (concat " · " (or (cdr (assoc vikix-office--sort vikix-office--sort-words)) vikix-office--sort)) ""))))
+(defun vikix-office--section-box (width chars owner name label-width)
+  "The section NAME as a box: its rows (`vikix-office--board-row-draw'), a
+rule between them; the Queue's with the scheduler's summary and its acts
+first; an empty one says so."
+  (let* ((rows (vikix-office--section-rows name)) (first t) (start (point))
+         (queue (alist-get 'queue vikix-office--data)))
+    (vikix-office--box-top width chars (vikix-office--section-title name rows))
+    (put-text-property start (point) 'vikix-office-section name)
+    (when (and (equal name "Queue") queue)
       (vikix-office--note width chars
-                         (format "%s/%s workers · auto %s%s"
-                                 (alist-get 'active queue) (alist-get 'at_once queue)
-                                 (if (eq (alist-get 'auto queue) t) "on" "off")
-                                 (if (eq (alist-get 'paused queue) t) " · paused" "")))
-      (vikix-office--note width chars
-                         (if next (concat "Next: " (alist-get 'title next) " — " (alist-get 'why next))
-                           "Next: none eligible"))
+                          (format "%s/%s workers · auto %s%s"
+                                  (alist-get 'active queue) (alist-get 'at_once queue)
+                                  (if (eq (alist-get 'auto queue) t) "on" "off")
+                                  (if (eq (alist-get 'paused queue) t) " · scheduler paused by you" "")))
+      (let ((next (alist-get 'next queue)))
+        (vikix-office--note width chars
+                            (if next (concat "Next: " (alist-get 'title next) " — " (alist-get 'why next))
+                              "Next: none eligible")))
       (vikix-office--line width chars
        (lambda ()
          (vikix-office--button "Start next" (lambda () (with-current-buffer owner
                                                          (vikix-office--act '("queue" "start") #'vikix-office-refresh))))
          (let ((action (if (eq (alist-get 'paused queue) t) "go" "pause")))
            (vikix-office--button (if (equal action "go") "Resume queue" "Pause queue")
-                                (lambda () (with-current-buffer owner (vikix-office-queue-action action)))))))
+                                (lambda () (with-current-buffer owner (vikix-office-queue-action action))))))))
+    (if (null rows)
+        (vikix-office--note width chars (pcase name ("Running" "nothing runs") ("Queue" "nothing queued")
+                                               ("Blocked" "nothing blocked") ("Completed" "nothing completed today")
+                                               (_ "none")))
       (dolist (row rows)
-        (let ((start (point)) (id (alist-get 'id row)))
-          (vikix-office--note width chars
-                             (format "%s. %s · %s" (alist-get 'position row) (alist-get 'priority row) (alist-get 'title row)))
-          (vikix-office--note width chars (concat id " — " (alist-get 'why row)))
-          (vikix-office--line width chars
-           (lambda ()
-             (dolist (choice '(("Start" . "start") ("Run next" . "next") ("Up" . "up") ("Down" . "down")
-                               ("Priority +" . "priority-up") ("Priority −" . "priority-down") ("Defer" . "defer") ("Cancel" . "cancel")))
-               (let ((action (cdr choice)))
-                 (vikix-office--button (car choice) (lambda () (with-current-buffer owner
-                                                                  (vikix-office-queue-action action id))))))))
-          (add-text-properties start (point) (list 'vikix-office-queue-task id))))
-      (vikix-office--box-bottom width chars)
-      (vikix-office--box-top width chars "Blocked")
-      (let ((blocked (cl-remove-if-not (lambda (task) (equal (alist-get 'value (alist-get 'status task)) "blocked"))
-                                       (alist-get 'tasks vikix-office--data))))
-        (unless (or blocked (alist-get 'skipped queue))
-          (vikix-office--note width chars "nothing blocked"))
-        (dolist (row (alist-get 'skipped queue))
-          (vikix-office--note width chars (concat (alist-get 'title row) " — " (alist-get 'why row))))
-        (dolist (task blocked)
-          (let ((id (alist-get 'id task)))
-            (vikix-office--note width chars (concat (alist-get 'title task) " — "
-                                                   (vikix-office--text (alist-get 'reason (alist-get 'status task)))))
-            (vikix-office--line width chars
-             (lambda () (vikix-office--button "Make ready" (lambda () (with-current-buffer owner
-                                                                         (vikix-office-queue-action "ready" id)))))))))
-      (vikix-office--box-bottom width chars))))
+        (unless first (vikix-office--box-rule width chars))
+        (setq first nil)
+        (vikix-office--board-row-draw width chars owner name row label-width)))
+    (vikix-office--box-bottom width chars)))
+(defun vikix-office--board-row-draw (width chars owner name row label-width)
+  "One row of the board in the section NAME: its line as a button that
+selects it (the task's: number, provider, place, how long, its state in a
+word, its words; a desk's: the place), its second line when the board
+has one, the desk's fields under it when the row is at a desk, and the
+acts the section takes on a task (the queue's, Make ready, Queue it)."
+  (let* ((id (alist-get 'id row)) (task (alist-get 'task row)) (task (and (stringp task) (not (equal task "")) task))
+         (desk (vikix-office--desk (alist-get 'desk row)))
+         (line (alist-get 'line row)) (detail (alist-get 'detail row)) (status (alist-get 'status row))
+         (start (point))
+         ;; The desk's colour: what its terminal needs of you, as the desktop shows it.
+         (face (and desk (vikix-office--attention-face (alist-get 'attention desk)))))
+    (vikix-office--line
+     width chars
+     (lambda ()
+       (insert-text-button (truncate-string-to-width (vikix-office--one-line (or line (and desk (alist-get 'title desk)) (alist-get 'title row) id))
+                                                     width nil nil "…")
+                           'face (if face (list face 'button) 'button)
+                           'follow-link t 'action
+                           (lambda (button)
+                             (goto-char (button-start button))
+                             (setq vikix-office--selected id)
+                             (vikix-office--render-detail)
+                             (vikix-office-details)))))
+    (unless (member detail '(nil "")) (vikix-office--note width chars (vikix-office--one-line detail)))
+    (when desk (vikix-office--desk-fields width chars owner desk label-width (and line t)))
+    (when task
+      (cond ((equal name "Queue")
+             (vikix-office--line width chars
+              (lambda ()
+                (dolist (choice (if (equal status "queued")
+                                    '(("Start" . "start") ("Run next" . "next") ("Up" . "up") ("Down" . "down")
+                                      ("Priority +" . "priority-up") ("Priority −" . "priority-down") ("Defer" . "defer") ("Cancel" . "cancel"))
+                                  (if (equal status "backlog") '(("Approve" . "ready") ("Cancel" . "cancel"))
+                                    '(("Queue it" . "add") ("Priority +" . "priority-up") ("Priority −" . "priority-down") ("Cancel" . "cancel")))))
+                  (let ((action (cdr choice)))
+                    (vikix-office--button (car choice) (lambda () (with-current-buffer owner
+                                                                     (vikix-office-queue-action action task)))))))))
+            ((equal name "Blocked")
+             (vikix-office--line width chars
+              (lambda () (vikix-office--button "Make ready" (lambda () (with-current-buffer owner
+                                                                          (vikix-office-queue-action "ready" task)))))))
+            ((and (equal name "Desks") (equal status "ready"))
+             (vikix-office--line width chars
+              (lambda () (vikix-office--button "Queue it" (lambda () (with-current-buffer owner
+                                                                        (vikix-office-queue-action "add" task)))))))))
+    (add-text-properties start (point) (append (list 'office-id id) (and task (list 'vikix-office-queue-task task))))))
+(defun vikix-office--desk-fields (width chars owner r label-width &optional headed)
+  "The desk R's rows under its line: the project with its agents' workspaces
+\(the launch number before it, unless the row's line is HEADED with it),
+its Task, Live, Handoff, Release, Plan, Next and Before, its tests when
+they run, and New worker… when it stands with nobody at it."
+  (let ((id (alist-get 'id r)) (folder (vikix-office--folder-p r))
+        (face (vikix-office--attention-face (alist-get 'attention r))))
+    (vikix-office--note width chars
+                        (concat (if headed "" (vikix-office--launch-words r))
+                                (if folder "Not a desk"
+                                  (vikix-office--one-line (or (alist-get 'project (alist-get 'desk r)) "Project unrecorded")))
+                                " · "
+                                (if (alist-get 'agents r)
+                                    (mapconcat
+                                     (lambda (a)
+                                       (concat (vikix-office--one-line (alist-get 'agent a))
+                                               " · " (vikix-office--agent-workspace a)))
+                                     (alist-get 'agents r) "; ")
+                                  (vikix-office--one-line (alist-get 'provider r)))))
+    ;; The desk's task now, the user's words in a line; a desk with none
+    ;; stands for a worker later. A plain folder has no record to hold one.
+    (unless folder
+      (let ((task (alist-get 'text (alist-get 'task r))))
+        (vikix-office--field width chars label-width "Task"
+                             (if (member task '(nil "")) "none yet: New worker… gives it one"
+                               (truncate-string-to-width (vikix-office--one-line task)
+                                                         (* 2 (- width label-width)) nil nil "…"))
+                             (and (member task '(nil "")) 'shadow))))
+    (vikix-office--field width chars label-width "Live"
+                         (concat
+                          (if (eq (alist-get 'live_known r) :false) "unknown"
+                            (if (alist-get 'agents r)
+                                (string-join (mapcar (lambda (a) (vikix-office--one-line (alist-get 'doing a))) (alist-get 'agents r)) ", ")
+                              "none observed"))
+                          ;; A worker's state: paused (by whom), its tests running, notes waiting for it.
+                          (if (alist-get 'paused r) (concat " · paused by " (vikix-office--one-line (alist-get 'by (alist-get 'paused r)))) "")
+                          (if (vikix-office--positive (alist-get 'testing r)) " · testing" "")
+                          (let ((rv (alist-get 'reviewing r)))
+                            (if (and rv (alist-get 'provider rv))
+                                (concat " · under review by " (vikix-office--one-line (alist-get 'provider rv))) ""))
+                          (if (vikix-office--positive (alist-get 'notes r))
+                              (format " · %d note%s waiting" (alist-get 'notes r) (if (= (alist-get 'notes r) 1) "" "s")) ""))
+                         face)
+    ;; A plain folder keeps no handoff: nothing to say of one. Where
+    ;; the work stands against the agent's estimate, while one stands.
+    (unless folder
+      (let ((estimate (alist-get 'estimate r)))
+        (vikix-office--field width chars label-width "Handoff"
+                             (concat (vikix-office--one-line (alist-get 'status r))
+                                     (if (member estimate '(nil "")) "" (concat " · " (vikix-office--one-line estimate)))
+                                     (if (eq (alist-get 'tests_off r) t) " · tests off" ""))))
+      ;; .claude/release at work on this desk's branch.
+      (let ((release (alist-get 'release r)))
+        (unless (member release '(nil ""))
+          (vikix-office--field width chars label-width "Release" (vikix-office--one-line release))))
+      ;; The plan this desk is a part of (vikix agents plan), and where it has it.
+      (let ((plan (alist-get 'plan r)))
+        (unless (member plan '(nil ""))
+          (vikix-office--field width chars label-width "Plan" (vikix-office--one-line plan)))))
+    ;; Two lines of it at most here; the desk's details have it whole.
+    (vikix-office--field width chars label-width "Next"
+                         (truncate-string-to-width (vikix-office--one-line (alist-get 'next_action r))
+                                                   (* 2 (- width label-width)) nil nil "…"))
+    ;; The workers before this task, newest first, as the record's history
+    ;; keeps them: how each ended, who, and its task; three here, all in the details.
+    (let ((workers (alist-get 'workers r)))
+      (when workers
+        (vikix-office--field width chars label-width "Before"
+                             (truncate-string-to-width
+                              (concat (mapconcat #'vikix-office--worker-line (seq-take workers 3) "; ")
+                                      (if (> (length workers) 3) (format "; %d more" (- (length workers) 3)) ""))
+                              (* 2 (- width label-width)) nil nil "…")
+                             'shadow)))
+    ;; A desk whose tests run: what runs and since when, and Skip tests on
+    ;; the row itself, so no desk has to be opened for it.
+    (when (and (vikix-office--worker-p r) (vikix-office--positive (alist-get 'testing r)))
+      (vikix-office--field width chars label-width "Tests" (vikix-office--tester-line (alist-get 'tester r)))
+      (vikix-office--line width chars
+                          (lambda ()
+                            (unless (eq (alist-get 'direct (alist-get 'tester r)) t)
+                              (vikix-office--button "Skip tests"
+                                                    (lambda () (with-current-buffer owner
+                                                                 (setq vikix-office--selected id)
+                                                                 (vikix-office-skip-tests))))))))
+    ;; A standing desk with nobody at it takes a new worker: the form, for
+    ;; this row. With an agent there the button is not shown, as the
+    ;; details show only the buttons that can act (Tell speaks to it).
+    (when (and (vikix-office--worker-p r) (eq (alist-get 'live_known r) t) (not (alist-get 'agents r)))
+      (vikix-office--line width chars
+                          (lambda ()
+                            (vikix-office--button "New worker…"
+                                                  (lambda () (with-current-buffer owner
+                                                               (setq vikix-office--selected id)
+                                                               (vikix-office-worker)))))))))
 
 (defun vikix-office--render ()
   (let* ((rows (vikix-office--rows))
@@ -725,14 +935,16 @@ is drawn when PLANS is empty."
                         (get-buffer-window-list (current-buffer) nil t)))
          (geometry (vikix-office--geometry)) (width (car geometry)) (chars (cdr geometry))
          (label-width 9))
-    (unless (vikix-office--row) (setq vikix-office--selected (alist-get 'id (car rows))))
+    (unless (vikix-office--board-row) (setq vikix-office--selected (alist-get 'id (car rows))))
     (setq vikix-office--width width)
     (vikix-office--attention-colours)
+    (vikix-office--frame-title)
     (let ((inhibit-read-only t))
       (erase-buffer)
       (insert (propertize "The Office\n" 'face '(:inherit variable-pitch :height 1.5 :weight bold)))
-      (insert "A row a desk: its task, its workers before, under it. Conversations stay in their agent terminals.\n\n")
+      (insert "A row a task: its number, its worker, where it stands; its desk under it. Conversations stay in their agent terminals.\n\n")
       (when (eq vikix-office--page 'desks)
+        (vikix-office--button "New task…" (lambda () (with-current-buffer owner (vikix-office-new-task))))
         (vikix-office--button "New desk…" (lambda () (with-current-buffer owner (vikix-office-new-desk))))
         (vikix-office--button "New plan…" (lambda () (with-current-buffer owner (vikix-office-new-plan))))
         (vikix-office--button "New project…" (lambda () (with-current-buffer owner (vikix-office-new-project)))))
@@ -742,7 +954,7 @@ is drawn when PLANS is empty."
       (unless (eq vikix-office--page 'desks)
         (vikix-office--button "Back to desks" (lambda () (with-current-buffer owner (vikix-office-show-page 'desks)))))
       (unless (eq vikix-office--page 'parked)
-        (vikix-office--button (format "Parked and closed (%d)" (length (vikix-office--page-rows 'parked)))
+        (vikix-office--button (format "Desks and closed (%d)" (length (vikix-office--page-rows 'parked)))
                               (lambda () (with-current-buffer owner (vikix-office-show-page 'parked)))))
       (unless (eq vikix-office--page 'archive)
         (vikix-office--button (let ((n (length (alist-get 'plans_done vikix-office--data))))
@@ -760,7 +972,6 @@ is drawn when PLANS is empty."
       ;; first page's alone.
       (when (eq vikix-office--page 'desks)
         (vikix-office--attention-box width chars owner)
-        (vikix-office--queue-boxes width chars owner)
         (let ((releases (alist-get 'releases vikix-office--data)))
           (cond (releases
                  (let ((label-width (vikix-office--label-width
@@ -788,128 +999,21 @@ is drawn when PLANS is empty."
       ;; with Edit and Log alone, above the archived desks.
       (when (eq vikix-office--page 'archive)
         (vikix-office--plans-box width chars owner (alist-get 'plans_done vikix-office--data) "Plans done"))
-      (if (null rows)
-          (insert (pcase vikix-office--page
-                    ('archive (if (alist-get 'plans_done vikix-office--data)
-                                  "No archived desk records.\n"
-                                "Archive is empty.\n"))
-                    ('parked "No parked or closed desks.\n")
-                    ;; An empty first page with desks on the parked one says where they are.
-                    (_ (if (vikix-office--page-rows 'parked)
-                           "Nothing needs you and nothing is at work: the desks are on the Parked and closed page (k).\n"
-                         "No desks yet. vikix agents desk PROJECT TOPIC makes one, vikix agents worker TOPIC \"the task\" starts a worker at it.\n"))))
-        ;; Closed last: the desks closed today, newest first, nothing to do at them.
-        (dolist (group (alist-get vikix-office--page vikix-office--page-groups))
-          (let ((members (cl-remove-if-not (lambda (r) (equal (alist-get 'group r) group)) rows))
-                (first t))
-            (vikix-office--box-top width chars group)
-            (if (null members) (vikix-office--note width chars "none")
-              (dolist (r members)
-                (unless first (vikix-office--box-rule width chars))
-                (setq first nil)
-                (let* ((start (point)) (id (alist-get 'id r)) (folder (vikix-office--folder-p r))
-                       ;; The desk's colour: what its terminal needs of you, as the desktop shows it.
-                       (face (vikix-office--attention-face (alist-get 'attention r))))
-                  (vikix-office--line
-                   width chars
-                   (lambda ()
-                     (insert-text-button (truncate-string-to-width (vikix-office--one-line (alist-get 'title r)) width nil nil "…")
-                                         'face (if face (list face 'button) 'button)
-                                         'follow-link t 'action
-                                         (lambda (button)
-                                           (goto-char (button-start button))
-                                           (setq vikix-office--selected id)
-                                           (vikix-office--render-detail)
-                                           (vikix-office-details)))))
-                  (vikix-office--note width chars
-                                      (concat (vikix-office--launch-words r)
-                                              (if folder "Not a desk"
-                                                (vikix-office--one-line (or (alist-get 'project (alist-get 'desk r)) "Project unrecorded")))
-                                              " · "
-                                              (if (alist-get 'agents r)
-                                                  (mapconcat
-                                                   (lambda (a)
-                                                     (concat (vikix-office--one-line (alist-get 'agent a))
-                                                             " · " (vikix-office--agent-workspace a)))
-                                                   (alist-get 'agents r) "; ")
-                                                (vikix-office--one-line (alist-get 'provider r)))))
-                  ;; The desk's task now, the user's words in a line; a desk with none
-                  ;; stands for a worker later. A plain folder has no record to hold one.
-                  (unless folder
-                    (let ((task (alist-get 'text (alist-get 'task r))))
-                      (vikix-office--field width chars label-width "Task"
-                                           (if (member task '(nil "")) "none yet: New worker… gives it one"
-                                             (truncate-string-to-width (vikix-office--one-line task)
-                                                                       (* 2 (- width label-width)) nil nil "…"))
-                                           (and (member task '(nil "")) 'shadow))))
-                  (vikix-office--field width chars label-width "Live"
-                                       (concat
-                                        (if (eq (alist-get 'live_known r) :false) "unknown"
-                                          (if (alist-get 'agents r)
-                                              (string-join (mapcar (lambda (a) (vikix-office--one-line (alist-get 'doing a))) (alist-get 'agents r)) ", ")
-                                            "none observed"))
-                                        ;; A worker's state: paused (by whom), its tests running, notes waiting for it.
-                                        (if (alist-get 'paused r) (concat " · paused by " (vikix-office--one-line (alist-get 'by (alist-get 'paused r)))) "")
-                                        (if (vikix-office--positive (alist-get 'testing r)) " · testing" "")
-                                        (let ((rv (alist-get 'reviewing r)))
-                                          (if (and rv (alist-get 'provider rv))
-                                              (concat " · under review by " (vikix-office--one-line (alist-get 'provider rv))) ""))
-                                        (if (vikix-office--positive (alist-get 'notes r))
-                                            (format " · %d note%s waiting" (alist-get 'notes r) (if (= (alist-get 'notes r) 1) "" "s")) ""))
-                                       face)
-                  ;; A plain folder keeps no handoff: nothing to say of one. Where
-                  ;; the work stands against the agent's estimate, while one stands.
-                  (unless folder
-                    (let ((estimate (alist-get 'estimate r)))
-                      (vikix-office--field width chars label-width "Handoff"
-                                           (concat (vikix-office--one-line (alist-get 'status r))
-                                                   (if (member estimate '(nil "")) "" (concat " · " (vikix-office--one-line estimate)))
-                                                   (if (eq (alist-get 'tests_off r) t) " · tests off" ""))))
-                    ;; .claude/release at work on this desk's branch.
-                    (let ((release (alist-get 'release r)))
-                      (unless (member release '(nil ""))
-                        (vikix-office--field width chars label-width "Release" (vikix-office--one-line release))))
-                    ;; The plan this desk is a part of (vikix agents plan), and where it has it.
-                    (let ((plan (alist-get 'plan r)))
-                      (unless (member plan '(nil ""))
-                        (vikix-office--field width chars label-width "Plan" (vikix-office--one-line plan)))))
-                  ;; Two lines of it at most here; the desk's details have it whole.
-                  (vikix-office--field width chars label-width "Next"
-                                       (truncate-string-to-width (vikix-office--one-line (alist-get 'next_action r))
-                                                                 (* 2 (- width label-width)) nil nil "…"))
-                  ;; The workers before this task, newest first, as the record's history
-                  ;; keeps them: how each ended, who, and its task; three here, all in the details.
-                  (let ((workers (alist-get 'workers r)))
-                    (when workers
-                      (vikix-office--field width chars label-width "Before"
-                                           (truncate-string-to-width
-                                            (concat (mapconcat #'vikix-office--worker-line (seq-take workers 3) "; ")
-                                                    (if (> (length workers) 3) (format "; %d more" (- (length workers) 3)) ""))
-                                            (* 2 (- width label-width)) nil nil "…")
-                                           'shadow)))
-                  ;; A desk whose tests run (the Testing group): what runs and since when,
-                  ;; and Skip tests on the row itself, so no desk has to be opened for it.
-                  (when (and (vikix-office--worker-p r) (vikix-office--positive (alist-get 'testing r)))
-                    (vikix-office--field width chars label-width "Tests" (vikix-office--tester-line (alist-get 'tester r)))
-                    (vikix-office--line width chars
-                                        (lambda ()
-                                          (unless (eq (alist-get 'direct (alist-get 'tester r)) t)
-                                            (vikix-office--button "Skip tests"
-                                                                  (lambda () (with-current-buffer owner
-                                                                               (setq vikix-office--selected id)
-                                                                               (vikix-office-skip-tests))))))))
-                  ;; A standing desk with nobody at it takes a new worker: the form, for
-                  ;; this row. With an agent there the button is not shown, as the
-                  ;; details show only the buttons that can act (Tell speaks to it).
-                  (when (and (vikix-office--worker-p r) (eq (alist-get 'live_known r) t) (not (alist-get 'agents r)))
-                    (vikix-office--line width chars
-                                        (lambda ()
-                                          (vikix-office--button "New worker…"
-                                                                (lambda () (with-current-buffer owner
-                                                                             (setq vikix-office--selected id)
-                                                                             (vikix-office-worker)))))))
-                  (add-text-properties start (point) `(office-id ,id)))))
-            (vikix-office--box-bottom width chars)))))
+      (cond ((and (null rows) (eq vikix-office--page 'archive))
+             (insert (if (alist-get 'plans_done vikix-office--data) "No archived desk records.\n" "Archive is empty.\n")))
+            ((and (null rows) (eq vikix-office--page 'parked))
+             (insert "No desk stands empty, and none was closed today.\n"))
+            (t
+             ;; The board's sections are always drawn, each saying when it is
+             ;; empty; a board with nothing on it says where to start.
+             (when (and (null rows) (eq vikix-office--page 'desks))
+               (insert (propertize
+                        (if (vikix-office--page-rows 'parked)
+                            "Nothing runs, nothing is queued, blocked or completed today: the desks standing empty are on the Desks and closed page (K). T makes a task, N a desk.\n\n"
+                          "No task yet. T makes a task, N a desk; vikix agents desk PROJECT TOPIC makes one, vikix agents worker TOPIC \"the task\" starts a worker at it.\n\n")
+                        'face 'shadow)))
+             (dolist (section (alist-get vikix-office--page vikix-office--page-sections))
+               (vikix-office--section-box width chars owner section label-width)))))
     (let ((position (vikix-office--position vikix-office--selected)))
       (goto-char (or position (min old (point-max))))
       (when position (move-to-column column)))
@@ -949,17 +1053,106 @@ comma of its words; the words alone without a clock."
           ((member assumed '(nil "")) clock)
           (t (concat clock ", " assumed)))))
 
+(defun vikix-office--task-record-box (width chars owner task worker &optional text)
+  "The task's own record (lib/tasks.py) as a box: its identity and metadata,
+the state the office recorded and the WORKER's state as observed, apart;
+its TEXT when given (the task page's); the decisions; then its history
+from the event log, newest first, when `vikix-office--history' is on (h),
+else a line counting it."
+  (let ((label-width 10))
+    (vikix-office--box-top width chars (concat "Task record · " (vikix-office--text (alist-get 'id task))))
+    (vikix-office--note width chars "The task apart from its desk and its agent: what the office recorded. The worker's state is what was observed, with how sure.")
+    (vikix-office--field width chars label-width "Origin"
+                         (concat (vikix-office--one-line (alist-get 'origin_words task)) " · priority "
+                                 (vikix-office--one-line (alist-get 'priority task))))
+    (let ((status (alist-get 'status task)) (blocked (alist-get 'blocked task)))
+      (vikix-office--signed-field width chars label-width "State"
+                                  (concat (vikix-office--one-line (alist-get 'value status))
+                                          (let ((reason (alist-get 'reason status)))
+                                            (if (member reason '(nil "")) "" (concat " · " (vikix-office--one-line reason))))
+                                          (if (and blocked (alist-get 'on blocked))
+                                              (concat " · blocked on " (vikix-office--one-line (alist-get 'on blocked))) ""))
+                                  (alist-get 'by status) (alist-get 'at status)))
+    (let ((d (alist-get 'desk task)))
+      (vikix-office--field width chars label-width "Desk"
+                           (if (and d (alist-get 'worktree d))
+                               (concat (vikix-office--one-line (alist-get 'worktree d))
+                                       (let ((b (alist-get 'branch d))) (if (member b '(nil "")) "" (concat " · branch " b))))
+                             (let ((topic (alist-get 'topic task)))
+                               (if (member topic '(nil "")) "none" (concat "none yet: the desk to make, " topic))))))
+    (let ((after (alist-get 'after task)))
+      (when after
+        (vikix-office--field width chars label-width "After" (mapconcat #'vikix-office--text after ", "))))
+    (vikix-office--field width chars label-width "Launch" (vikix-office--one-line (alist-get 'launch_words task)))
+    (let ((w (vikix-office--worker-words worker)))
+      (unless (string-empty-p w)
+        (vikix-office--field width chars label-width "Worker" w)))
+    (vikix-office--field width chars label-width "Times"
+                         (format "created %s · launched %s · done %s"
+                                 (vikix-office--time (alist-get 'created task))
+                                 (if (alist-get 'launched task) (vikix-office--time (alist-get 'launched task)) "unknown")
+                                 (if (alist-get 'done task) (vikix-office--time (alist-get 'done task)) "not yet"))
+                         'shadow)
+    (when text
+      (vikix-office--field width chars label-width "Task" (vikix-office--text text)))
+    (dolist (d (alist-get 'questions task))
+      (vikix-office--field width chars label-width "Decision"
+                           (concat (alist-get 'id d) ": " (alist-get 'question d)))
+      (if (alist-get 'answer d)
+          (vikix-office--signed-field width chars label-width "Answer"
+                                      (alist-get 'text (alist-get 'answer d))
+                                      (alist-get 'by (alist-get 'answer d))
+                                      (alist-get 'at (alist-get 'answer d)))
+        (vikix-office--line width chars
+                            (lambda () (vikix-office--button "Answer…"
+                                                             (lambda () (with-current-buffer owner (vikix-office-answer d))))))))
+    (let ((events (alist-get 'events task)))
+      (cond ((null events)
+             (vikix-office--field width chars label-width "History" "No event of its own yet" 'shadow))
+            ((not vikix-office--history)
+             (vikix-office--field width chars label-width "History"
+                                  (format "%d event%s, newest first: h shows them here (vikix agents events %s has them all)"
+                                          (length events) (if (= (length events) 1) "" "s") (alist-get 'id task))
+                                  'shadow))
+            (t
+             (vikix-office--field width chars label-width "History"
+                                  (format "%d event%s, newest first (vikix agents events %s has them all); h hides them"
+                                          (length events) (if (= (length events) 1) "" "s") (alist-get 'id task)))
+             (dolist (e events)
+               (vikix-office--field width chars label-width "" (vikix-office--event-line e) 'shadow)))))
+    (vikix-office--box-bottom width chars)))
+(defun vikix-office--task-page (width chars owner task)
+  "The page of a task not at a desk (queued, ready, with the desk to make
+named): its title, the acts the queue takes on it, and its record."
+  (let ((id (alist-get 'id task)) (status (alist-get 'value (alist-get 'status task))))
+    (insert (propertize (vikix-office--text (alist-get 'title task)) 'face '(:inherit variable-pitch :height 1.3 :weight bold)) "\n\n")
+    (dolist (choice (cond ((equal status "queued")
+                           '(("Start" . "start") ("Run next" . "next") ("Up" . "up") ("Down" . "down")
+                             ("Priority +" . "priority-up") ("Priority −" . "priority-down") ("Defer" . "defer") ("Cancel…" . "cancel")))
+                          ((equal status "ready") '(("Queue it" . "add") ("Priority +" . "priority-up") ("Priority −" . "priority-down") ("Cancel…" . "cancel")))
+                          ((equal status "backlog") '(("Approve" . "ready") ("Cancel…" . "cancel")))
+                          ((equal status "blocked") '(("Make ready" . "ready") ("Cancel…" . "cancel")))))
+      (let ((action (cdr choice)))
+        (vikix-office--button (car choice) (lambda () (with-current-buffer owner (vikix-office-queue-action action id))))))
+    (insert "\n\n")
+    (vikix-office--task-record-box width chars owner task (alist-get 'worker_state task) (alist-get 'text task))))
+
 (defun vikix-office--render-detail ()
   (when (buffer-live-p vikix-office--detail)
-    (let ((r (vikix-office--row)) (owner (current-buffer)))
+    (let ((r (vikix-office--row)) (task (vikix-office--task)) (owner (current-buffer))
+          (history vikix-office--history))
       (with-current-buffer vikix-office--detail
+        (setq-local vikix-office--history history)
         (let* ((inhibit-read-only t) (old (point))
                (views (mapcar (lambda (w) (cons w (window-start w)))
                               (get-buffer-window-list (current-buffer) nil t)))
                (geometry (vikix-office--geometry)) (width (car geometry)) (chars (cdr geometry)))
           (setq vikix-office--width width)
           (erase-buffer)
-          (if (not r) (insert "Select a desk to see its task and handoff.\n")
+          (cond
+           ((and (not r) task) (vikix-office--task-page width chars owner task))
+           ((not r) (insert "Select a desk or a task to see its page.\n"))
+           (t
             (insert (propertize (vikix-office--text (alist-get 'title r)) 'face '(:inherit variable-pitch :height 1.3 :weight bold)) "\n\n")
             ;; A desk whose worktree is gone: closed today (the Closed group) or
             ;; archived. Nothing acts on it; its record can be forgotten.
@@ -1011,6 +1204,10 @@ comma of its words; the words alone without a clock."
                   (vikix-office--field width chars 0 "" (concat "Agents running in " (vikix-office--text (alist-get 'title r))))
                   (vikix-office--note width chars "An agent takes a desk with vikix agents sit PROJECT TOPIC from its own shell; vikix agents desk PROJECT TOPIC makes a desk, vikix agents worker TOPIC \"the task\" starts one at it.")
                   (vikix-office--box-bottom width chars))
+              ;; The task's own record first (lib/tasks.py), as the board's rows are tasks.
+              (let ((task (alist-get 'task_record r)))
+                (when (and task (alist-get 'id task))
+                  (vikix-office--task-record-box width chars owner task (alist-get 'worker_state r))))
               (vikix-office--box-top width chars "Task")
               (if (alist-get 'task r) (vikix-office--signed width chars 0 "" (alist-get 'task r))
                 (vikix-office--field width chars 0 "" "No task given: the desk stands for a worker later (New worker… gives one)."))
@@ -1028,54 +1225,6 @@ comma of its words; the words alone without a clock."
               (when (eq (alist-get 'tests_off r) t)
                 (vikix-office--field width chars 0 "" "Tests: not run by themselves when the worker hands in; Test runs them" 'shadow))
               (vikix-office--box-bottom width chars)
-              ;; The task's own record (lib/tasks.py): its identity and metadata, the
-              ;; state the office recorded and the worker's state as observed, apart;
-              ;; then its history from the event log, newest first.
-              (let ((task (alist-get 'task_record r)) (label-width 10))
-                (when (and task (alist-get 'id task))
-                  (vikix-office--box-top width chars (concat "Task record · " (vikix-office--text (alist-get 'id task))))
-                  (vikix-office--note width chars "The task apart from its desk and its agent: what the office recorded. The worker's state is what was observed, with how sure.")
-                  (vikix-office--field width chars label-width "Origin"
-                                       (concat (vikix-office--one-line (alist-get 'origin_words task)) " · priority "
-                                               (vikix-office--one-line (alist-get 'priority task))))
-                  (let ((status (alist-get 'status task)) (blocked (alist-get 'blocked task)))
-                    (vikix-office--signed-field width chars label-width "State"
-                                                (concat (vikix-office--one-line (alist-get 'value status))
-                                                        (let ((reason (alist-get 'reason status)))
-                                                          (if (member reason '(nil "")) "" (concat " · " (vikix-office--one-line reason))))
-                                                        (if (and blocked (alist-get 'on blocked))
-                                                            (concat " · blocked on " (vikix-office--one-line (alist-get 'on blocked))) ""))
-                                                (alist-get 'by status) (alist-get 'at status)))
-                  (vikix-office--field width chars label-width "Launch" (vikix-office--one-line (alist-get 'launch_words task)))
-                  (let ((worker (vikix-office--worker-words (alist-get 'worker_state r))))
-                    (unless (string-empty-p worker)
-                      (vikix-office--field width chars label-width "Worker" worker)))
-                  (vikix-office--field width chars label-width "Times"
-                                       (format "created %s · launched %s · done %s"
-                                               (vikix-office--time (alist-get 'created task))
-                                               (if (alist-get 'launched task) (vikix-office--time (alist-get 'launched task)) "unknown")
-                                               (if (alist-get 'done task) (vikix-office--time (alist-get 'done task)) "not yet"))
-                                       'shadow)
-                  (dolist (d (alist-get 'questions task))
-                    (vikix-office--field width chars label-width "Decision"
-                                         (concat (alist-get 'id d) ": " (alist-get 'question d)))
-                    (if (alist-get 'answer d)
-                        (vikix-office--signed-field width chars label-width "Answer"
-                                                    (alist-get 'text (alist-get 'answer d))
-                                                    (alist-get 'by (alist-get 'answer d))
-                                                    (alist-get 'at (alist-get 'answer d)))
-                      (vikix-office--line width chars
-                                         (lambda () (vikix-office--button "Answer…"
-                                                                          (lambda () (with-current-buffer owner (vikix-office-answer d))))))))
-                  (let ((events (alist-get 'events task)))
-                    (if (null events)
-                        (vikix-office--field width chars label-width "History" "No event of its own yet" 'shadow)
-                      (vikix-office--field width chars label-width "History"
-                                           (format "%d event%s, newest first (vikix agents events %s has them all)"
-                                                   (length events) (if (= (length events) 1) "" "s") (alist-get 'id task)))
-                      (dolist (e events)
-                        (vikix-office--field width chars label-width "" (vikix-office--event-line e) 'shadow))))
-                  (vikix-office--box-bottom width chars)))
               ;; The tester at work (vikix agents test): what runs, since when, the
               ;; release it waits for, and the log's tail, the tests ended so far;
               ;; Skip tests ends it and marks the check skipped, Test log shows the whole run.
@@ -1289,7 +1438,7 @@ comma of its words; the words alone without a clock."
                                                 (format "%s · %s" (alist-get 'by s) (vikix-office--time (alist-get 'at s)))
                                                 'shadow))
                          sessions labels))
-              (vikix-office--box-bottom width chars)))
+              (vikix-office--box-bottom width chars))))
           (goto-char (min old (point-max)))
           (dolist (v views) (when (window-live-p (car v)) (set-window-start (car v) (min (cdr v) (point-max)) t))))))))
 
@@ -1328,8 +1477,70 @@ over the refreshes that follow; THEN, when given, after a success."
                            (vikix-office--notice (or error vikix-office--said "Done"))
                            (when (and then (not error)) (funcall then)))))
 
+(defun vikix-office-sort ()
+  "The next order for Running and Completed: launch order (oldest first),
+newest first, created, last activity, priority, status, project, provider."
+  (interactive)
+  (with-current-buffer (vikix-office--owner-buffer)
+    (let* ((sorts (or (alist-get 'sorts (alist-get 'board vikix-office--data)) vikix-office--sorts))
+           (i (or (cl-position vikix-office--sort sorts :test #'equal) 0)))
+      (setq vikix-office--sort (nth (% (1+ i) (length sorts)) sorts))
+      (vikix-office--render)
+      (vikix-office--notice (concat "Running and Completed sorted by "
+                                    (or (cdr (assoc vikix-office--sort vikix-office--sort-words)) vikix-office--sort)
+                                    "; the Queue stays in queue order")))))
+(defun vikix-office-history ()
+  "Show the task's history on its page, or hide it again."
+  (interactive)
+  (with-current-buffer (vikix-office--owner-buffer)
+    (unless (vikix-office--task) (user-error "No task record here: select a task"))
+    (setq vikix-office--history (not vikix-office--history))
+    (vikix-office--render-detail)
+    (vikix-office--notice (if vikix-office--history "The task's history is on its page, newest first" "The task's history is folded; h shows it"))))
+(defun vikix-office-section (n)
+  "Go to the board's section N (1 Needs attention, 2 Running, 3 Queue, 4 Blocked, 5 Completed), its first row selected."
+  (interactive "p")
+  (with-current-buffer (vikix-office--owner-buffer)
+    (let ((name (car (rassq n vikix-office--section-numbers))))
+      (unless name (user-error "The sections are 1 to 5"))
+      (unless (eq vikix-office--page 'desks) (vikix-office-show-page 'desks))
+      (let ((position (point-min)) found)
+        (while (and (not found) (< position (point-max)))
+          (if (equal (get-text-property position 'vikix-office-section) name) (setq found position)
+            (setq position (next-single-property-change position 'vikix-office-section nil (point-max)))))
+        (unless found (user-error "No %s on this page" name))
+        (goto-char found)
+        (let ((first (car (vikix-office--section-rows name))))
+          (when first
+            (setq vikix-office--selected (alist-get 'id first))
+            (goto-char (or (vikix-office--position vikix-office--selected) found))
+            (vikix-office--render-detail)))
+        (when-let* ((window (get-buffer-window (current-buffer) t)))
+          (set-window-start window (save-excursion (goto-char found) (line-beginning-position))))))))
+(defun vikix-office--review-desk ()
+  "The selected task's desk, for accepting its review or sending it back."
+  (let* ((task (vikix-office--task)) (r (vikix-office--row)) (status (alist-get 'value (alist-get 'status task))))
+    (unless task (user-error "Select a task first"))
+    (unless (equal status "needs review") (user-error "This task is not waiting for review (it is %s)" (or status "unrecorded")))
+    (unless (and r (vikix-office--worker-p r)) (user-error "This task's desk doesn't stand: nothing to accept"))
+    (alist-get 'id r)))
+(defun vikix-office-accept ()
+  "Accept the selected task's review: ready for release (after fresh passing tests)."
+  (interactive)
+  (with-current-buffer (vikix-office--owner-buffer)
+    (let ((desk (vikix-office--review-desk)))
+      (vikix-office--act (list "office" "--accept" desk) #'vikix-office-refresh))))
+(defun vikix-office-back ()
+  "Send the selected task's review back to work, with a note of what needs changing."
+  (interactive)
+  (with-current-buffer (vikix-office--owner-buffer)
+    (let* ((desk (vikix-office--review-desk))
+           (text (string-trim (read-string "What needs changing? "))))
+      (when (string-empty-p text) (user-error "Say what needs changing"))
+      (vikix-office--act (list "office" "--back" desk text) #'vikix-office-refresh))))
+
 (defun vikix-office-show-page (page)
-  "Show PAGE (`desks', `parked' or `archive'), its first row selected."
+  "Show PAGE (`desks', the board; `parked', the desks and closed; `archive'), its first row selected."
   (with-current-buffer (vikix-office--owner-buffer)
     (setq vikix-office--page page
           vikix-office--selected nil)
@@ -1342,7 +1553,7 @@ over the refreshes that follow; THEN, when given, after a success."
   (interactive)
   (vikix-office-show-page (if (eq (vikix-office--page-shown) 'archive) 'desks 'archive)))
 (defun vikix-office-toggle-parked ()
-  "The Parked and closed page, or back to the desks from any other page."
+  "The Desks and closed page, or back to the board from any other page."
   (interactive)
   (vikix-office-show-page (if (eq (vikix-office--page-shown) 'parked) 'desks 'parked)))
 
@@ -1654,10 +1865,10 @@ for its tasks' words, and the Plans box runs it."
   (with-current-buffer (vikix-office--owner-buffer)
     (vikix-office--form-open 'project)))
 (defun vikix-office--form-open (desk)
-  "Ask the backend what the form offers, then draw it for DESK, a row, a new desk with nil, a plan with `plan', a project with `project'."
+  "Ask the backend what the form offers, then draw it for DESK, a row, a new desk with nil, a plan with `plan', a project with `project', a task with `task'."
   (when (process-live-p vikix-office--action) (user-error "An Office action is still running"))
   (let ((owner (current-buffer)))
-    (vikix-office--notice (concat (pcase desk ('plan "New plan") ('project "New project") ('nil "New desk") (_ "New worker"))
+    (vikix-office--notice (concat (pcase desk ('plan "New plan") ('project "New project") ('task "New task") ('nil "New desk") (_ "New worker"))
                                   (pcase desk
                                     ('plan ": asking which projects and templates there are…")
                                     ('project ": asking where a project goes, and your GitHub account…")
@@ -1676,11 +1887,170 @@ for its tasks' words, and the Plans box runs it."
 (set-keymap-parent vikix-office-form-map widget-keymap)
 (define-key vikix-office-form-map (kbd "C-c C-c") #'vikix-office-form-submit)
 (define-key vikix-office-form-map (kbd "C-c C-k") #'vikix-office-form-cancel)
+(defun vikix-office-new-task ()
+  "Make a task: a record of its own, ready, at a desk that stands or with
+the topic of the desk to make, queued when you say so: a form. Nothing
+is started by it: the scheduler starts the queue's next on your word."
+  (interactive)
+  (with-current-buffer (vikix-office--owner-buffer)
+    (vikix-office--form-open 'task)))
+(defun vikix-office--form-draw-task (owner offer)
+  "The New task form: the words, a desk that stands (nobody at it) or the
+project and the topic of the desk to make, the priority, the tasks it
+waits for, the worker's choices as the desk form has them, and whether it
+is queued at once (unticked: nothing picked by guessing). With what the
+backend OFFERed (the projects, the agents), in OWNER's desk pane."
+  (let* ((buffer (generate-new-buffer "*Office new task*"))
+         (window (with-current-buffer owner
+                   (and (buffer-live-p vikix-office--detail)
+                        (get-buffer-window vikix-office--detail vikix-office--frame))))
+         (agents (alist-get 'agents offer)) (projects (alist-get 'projects offer))
+         (desks (with-current-buffer owner
+                  (cl-remove-if-not (lambda (r) (and (vikix-office--worker-p r) (not (alist-get 'agents r))))
+                                    (alist-get 'desks vikix-office--data))))
+         widgets)
+    (with-current-buffer buffer
+      (kill-all-local-variables)
+      (let ((inhibit-read-only t)) (erase-buffer))
+      (remove-overlays)
+      (widget-insert (propertize "New task" 'face '(:inherit variable-pitch :height 1.3 :weight bold)) "\n")
+      (widget-insert "A task of its own, with an id for life (vikix agents tasks): ready at a desk that stands, or with the topic of the desk the scheduler makes for it; queued when the box is ticked. Nothing starts a worker but you: Start next (S), or auto=on in ~/.config/vikix/office.\n\n")
+      (push (cons 'task (widget-create 'text :format "Task:\n%v\n" :help-echo "The task, in your words: the worker's first prompt" ""))
+            widgets)
+      (widget-insert (propertize "         in your words\n" 'face 'shadow))
+      (widget-insert "\n")
+      ;; A desk that stands is one choice; a desk to make is the project and a topic.
+      (push (cons 'desk
+                  (apply #'widget-create 'menu-choice :tag "Desk" :value ""
+                         :format "%t:     %[%v%]\n" :button-prefix "[" :button-suffix "]"
+                         :help-echo "A desk that stands with nobody at it, or none: the project and topic below name the desk to make"
+                         '(item :tag "none: a desk to make, from the project and topic below" :format "%t" :value "")
+                         (mapcar (lambda (r)
+                                   (list 'item :tag (concat (vikix-office--one-line (alist-get 'title r)) "  "
+                                                            (abbreviate-file-name (alist-get 'worktree (alist-get 'desk r))))
+                                         :format "%t" :value (alist-get 'worktree (alist-get 'desk r))))
+                                 desks)))
+            widgets)
+      (widget-insert (propertize "         a desk that stands, nobody at it; its project is the task's\n" 'face 'shadow))
+      (push (cons 'project
+                  (apply #'widget-create 'menu-choice :tag "Project" :value ""
+                         :format "%t:  %[%v%]\n" :button-prefix "[" :button-suffix "]"
+                         :help-echo "The project, for a desk to make (vikix project list): a click or RET opens the list"
+                         '(item :tag "pick one" :format "%t" :value "")
+                         (mapcar (lambda (p)
+                                   (list 'item :tag (concat (alist-get 'name p) "  " (or (alist-get 'short p) "")
+                                                            (if (eq (alist-get 'repo p) t) "" "  (no repository: its own folder, no topic)"))
+                                         :format "%t" :value (alist-get 'name p)))
+                                 projects)))
+            widgets)
+      (push (cons 'topic (widget-create 'editable-field :size 40 :format "Topic:    %v\n"
+                                        :help-echo "A word or two for the work: the desk to make, its folder's ending and its branch" ""))
+            widgets)
+      (widget-insert (propertize "         for a desk to make: a word or two (wifi-fix); needed for a repository\n" 'face 'shadow))
+      (widget-insert "\n")
+      (push (cons 'priority
+                  (apply #'widget-create 'radio-button-choice :tag "Priority" :value "normal"
+                         :format "Priority: %v"
+                         :help-echo "critical and high go before normal in the queue; low after"
+                         (mapcar (lambda (p) (list 'item :tag p :format "%t  " :value p)) '("critical" "high" "normal" "low"))))
+            widgets)
+      (widget-insert "\n")
+      (push (cons 'after (widget-create 'editable-field :size 40 :format "After:    %v\n"
+                                        :help-echo "Task ids this one waits for (t-20261014-0d2c16), commas between" ""))
+            widgets)
+      (widget-insert (propertize "         the tasks it waits for, by id, commas between; empty for none\n" 'face 'shadow))
+      (widget-insert "\n")
+      (push (cons 'agent
+                  (apply #'widget-create 'menu-choice :tag "Agent"
+                         :value "" :format "%t: %[%v%]\n" :button-prefix "[" :button-suffix "]"
+                         :help-echo "Which agent works it: yours, or another (vikix agent --list)"
+                         (list 'item :tag (concat "yours (" (or (alist-get 'default offer) "claude") ")") :format "%t" :value "")
+                         (mapcar (lambda (a)
+                                   (list 'item
+                                         :tag (concat (alist-get 'name a) "  " (or (alist-get 'about a) "")
+                                                      (cond ((eq (alist-get 'yours a) t) "  (yours)")
+                                                            ((eq (alist-get 'installed a) t) "")
+                                                            (t "  (not installed yet)")))
+                                         :format "%t" :value (alist-get 'name a)))
+                                 agents)))
+            widgets)
+      (widget-insert "\n")
+      (push (cons 'local (widget-create 'checkbox nil)) widgets)
+      (widget-insert " On a model on this laptop (Ollama), offline\n")
+      (push (cons 'push (widget-create 'checkbox nil)) widgets)
+      (widget-insert " May push as you: your SSH agent goes with it\n")
+      (push (cons 'notests (widget-create 'checkbox nil)) widgets)
+      (widget-insert " No tests by themselves when it hands in (the Test button runs them still)\n\n")
+      (let ((default (or (alist-get 'mode offer) "autonomous")))
+        (push (cons 'mode
+                    (apply #'widget-create 'radio-button-choice :tag "Mode" :value default
+                           :format "Mode (Codex): how free the worker is; the house default is %v"
+                           (mapcar (lambda (m) (list 'item :tag m :format "%t\n" :value m))
+                                   (or (alist-get 'modes offer) '("supervised" "autonomous" "unrestricted")))))
+              widgets))
+      (widget-insert "\n")
+      (push (cons 'queue (widget-create 'checkbox nil)) widgets)
+      (widget-insert " Queue it: into the queue at once, for the scheduler to start on your word (unticked: ready, Q queues it later)\n\n")
+      (widget-create 'push-button :notify (lambda (&rest _) (vikix-office-form-submit)) "Make task")
+      (widget-insert "  ")
+      (widget-create 'push-button :notify (lambda (&rest _) (vikix-office-form-cancel)) "Cancel")
+      (widget-insert "\n\n"
+                     (propertize "A click or RET on a [choice] opens its list; TAB moves between the fields; C-c C-c is the button, C-c C-k cancels."
+                                 'face 'shadow))
+      (use-local-map vikix-office-form-map)
+      (widget-setup)
+      (setq vikix-office--form (list :owner owner :desk 'task :offer offer :widgets widgets :window window))
+      (goto-char (point-min))
+      (widget-forward 1))
+    (if (window-live-p window)
+        (progn (set-window-buffer window buffer) (select-window window))
+      (pop-to-buffer buffer))
+    buffer))
+(defun vikix-office--form-task-args ()
+  "The backend's words for the New task form as it stands; a user error for what is missing."
+  (let* ((form vikix-office--form)
+         (text (string-trim (or (vikix-office--form-value 'task) "")))
+         (desk (vikix-office--form-value 'desk))
+         (project (vikix-office--form-value 'project))
+         (topic (string-trim (or (vikix-office--form-value 'topic) "")))
+         (priority (or (vikix-office--form-value 'priority) "normal"))
+         (after (split-string (or (vikix-office--form-value 'after) "") "[, ]+" t))
+         (agent (vikix-office--form-value 'agent))
+         (mode (vikix-office--form-value 'mode))
+         (offered (cl-find project (alist-get 'projects (plist-get form :offer))
+                           :key (lambda (p) (alist-get 'name p)) :test #'equal))
+         (at-desk (not (member desk '(nil "")))))
+    (when (string-empty-p text)
+      (vikix-office--form-say "The task needs words")
+      (user-error "The task needs words"))
+    (when (and (not at-desk) (member project '(nil "")))
+      (vikix-office--form-say "Pick a desk that stands, or the project of the desk to make: a click or RET on [pick one] opens the list")
+      (user-error "Pick a desk, or the project"))
+    (when (and (not at-desk) (eq (alist-get 'repo offered) t) (string-empty-p topic))
+      (vikix-office--form-say "A repository's desk needs a topic: a word or two for the work")
+      (user-error "A repository's desk needs a topic"))
+    (dolist (id after)
+      (unless (string-match-p "\\`t-[0-9]\\{8\\}-[0-9a-f]\\{6\\}\\'" id)
+        (vikix-office--form-say (concat "After takes task ids (t-20261014-0d2c16), not " id))
+        (user-error "After takes task ids")))
+    (append (list "office" "--new-task" (if at-desk "-" project) text)
+            (if at-desk (list "--desk" desk) (unless (string-empty-p topic) (list "--topic" topic)))
+            (unless (equal priority "normal") (list "--priority" priority))
+            (apply #'append (mapcar (lambda (id) (list "--after" id)) after))
+            (unless (member agent '(nil "")) (list "--use" agent))
+            (and (vikix-office--form-value 'local) '("--local"))
+            (and (vikix-office--form-value 'push) '("--push"))
+            (and (vikix-office--form-value 'notests) '("--no-tests"))
+            (and mode (not (equal mode (or (alist-get 'mode (plist-get form :offer)) "autonomous")))
+                 (list "--mode" mode))
+            (and (vikix-office--form-value 'queue) '("--queue")))))
+
 (defun vikix-office--form-draw (owner desk offer)
   "Draw the form for DESK (nil: a new desk; `plan': a plan; `project': a project) with what the backend OFFERed, in OWNER's desk pane."
   (pcase desk
     ('plan (vikix-office--form-draw-plan owner offer))
     ('project (vikix-office--form-draw-project owner offer))
+    ('task (vikix-office--form-draw-task owner offer))
     (_ (vikix-office--form-draw-desk owner desk offer))))
 (defun vikix-office--form-place (owner buffer)
   "Put the form BUFFER in OWNER's desk pane window, else another; that window, for the way back."
@@ -2236,6 +2606,7 @@ file later; a release left empty with none is no release."
   (pcase (plist-get vikix-office--form :desk)
     ('plan (vikix-office--form-plan-args))
     ('project (vikix-office--form-project-args))
+    ('task (vikix-office--form-task-args))
     (_ (vikix-office--form-desk-args))))
 (defun vikix-office--form-desk-args ()
   "The desk and worker forms' words."
@@ -2276,7 +2647,7 @@ file later; a release left empty with none is no release."
          (input (and (member "--tasks" args) (vikix-office--form-plan-input))))
     (unless (buffer-live-p owner) (user-error "The Office is closed"))
     (vikix-office--form-say (pcase (plist-get vikix-office--form :desk)
-                              ('plan "Writing the plan…") ('project "Making the project…")
+                              ('plan "Writing the plan…") ('project "Making the project…") ('task "Making the task…")
                               ('nil "Making the desk…") (_ "Starting the worker…")))
     (with-current-buffer owner
       (when (process-live-p vikix-office--action) (user-error "An Office action is still running"))
@@ -2372,13 +2743,19 @@ were."
     (define-key map (kbd "C") #'vikix-office-close-desk)
     (define-key map (kbd "P") #'vikix-office-pause)
     (define-key map (kbd "t") #'vikix-office-test)
-    (define-key map (kbd "s") #'vikix-office-skip-tests)
+    (define-key map (kbd "s") #'vikix-office-sort)
+    (define-key map (kbd "h") #'vikix-office-history)
+    (define-key map (kbd "y") #'vikix-office-accept)
+    (define-key map (kbd "b") #'vikix-office-back)
+    (define-key map (kbd "T") #'vikix-office-new-task)
+    (dolist (n '(1 2 3 4 5))
+      (define-key map (kbd (number-to-string n)) (lambda () (interactive) (vikix-office-section n))))
     (define-key map (kbd "r") #'vikix-office-review)
     (define-key map (kbd "i") #'vikix-office-tell)
     (define-key map (kbd "N") #'vikix-office-new-desk)
     (define-key map (kbd "L") #'vikix-office-new-plan)
     (define-key map (kbd "R") #'vikix-office-new-project)
-    (define-key map (kbd "h") #'vikix-office-guide)
+    (define-key map (kbd "H") #'vikix-office-guide)
     (define-key map (kbd "w") #'vikix-office-worker)
     (define-key map (kbd "A") #'vikix-office-toggle-archive)
     (define-key map (kbd "K") #'vikix-office-toggle-parked)

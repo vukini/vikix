@@ -406,9 +406,15 @@ check "--since in the future finds nothing" test "$(agents events --all --since 
 out=$(agents events --since soon)
 check "--since that names no time is refused: $out" grep -q -- '--since takes a span' <<<"$out"
 out=$(agents tasks)
-check "the list: the open ones in launch order with their numbers, the unnumbered after, then the done ones: $out" \
-  bash -c 'grep -q "^  #2 " <<<"$1" && grep -q "^  #?     ready " <<<"$1" && grep -q "^Done in the last day" <<<"$1" && grep -q "completed .* Chapter four, on my own" <<<"$1"' _ "$out"
-check "--json is the records" test "$(agents tasks --json | python3 -c 'import json, sys; print(type(json.load(sys.stdin)).__name__)')" = list
+check "the board in text: the sections in order, a row a task with its number, its state in a word and its id: $out" \
+  bash -c 'for s in "Needs attention (" "Running (" "Queue (" "Blocked (" "Completed (" "Desks standing empty (" "Closed today ("; do grep -q "^$s" <<<"$1" || exit 1; done
+           grep -q "^  #2 .* blocked on worker · Chapter two  \[t-" <<<"$1" && grep -q "released .* Chapter four, on my own" <<<"$1"
+           [ "$(grep -n "^Running (" <<<"$1" | cut -d: -f1)" -lt "$(grep -n "^Queue (" <<<"$1" | cut -d: -f1)" ]' _ "$out"
+check "a blocked task says how its worker stopped" grep -q "^      worker stopped .*: exit 2" <<<"$out"
+check "--sort orders Running and Completed and says so" grep -q "^Running (.*sorted by newest launch first" <<<"$(agents tasks --sort newest)"
+check "--sort that isn't one is refused" grep -q -- "--sort takes one of" <<<"$(agents tasks --sort colour)"
+check "--json is the board: the sections with their rows, the sequence, the queue's summary" \
+  test "$(agents tasks --json | python3 -c 'import json, sys; b = json.load(sys.stdin); print([s["name"] for s in b["sections"]][:3], b["sequence"] > 0, "at_once" in b["queue"])')" = "['Needs attention', 'Running', 'Queue'] True True"
 out=$(agents task c)
 check "task by a desk's name is the desk's task, with its history: $out" \
   bash -c 'grep -q "^Task $2: Chapter two, the index" <<<"$1" && grep -q "^History (" <<<"$1" && grep -q "^Launches: 3" <<<"$1"' _ "$out" "$c2"

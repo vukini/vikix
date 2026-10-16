@@ -242,6 +242,354 @@ def attention(snapshot, now=None, quiet=20):
     return sorted(items, key=lambda i: (rank.get(i['kind'], 99), i['since'] or now, i['id']))
 
 
+# The board (phase 4 of plans/DESIGN-office-tasks.md, 2026-10-16): the Office
+# drawn around the work. Five sections, a row a task, then the desks standing
+# empty and the ones closed; the Emacs view, the text board (vikix agents
+# tasks) and the MCP tool tasks all draw from this one reading, so nothing is
+# shown in one that another can't say.
+BOARD_SECTIONS = ('Needs attention', 'Running', 'Queue', 'Blocked', 'Completed', 'Desks', 'Closed')
+SORTS = ('launch', 'newest', 'created', 'activity', 'priority', 'status', 'project', 'provider')
+SORT_WORDS = {'launch': 'launch order, oldest first', 'newest': 'newest launch first', 'created': 'when created',
+              'activity': 'last activity first', 'priority': 'priority', 'status': 'status', 'project': 'project',
+              'provider': 'provider'}
+PRIORITY_RANK = {'critical': 0, 'high': 1, 'normal': 2, 'low': 3}
+COMPLETED_SHOWN = 24 * 3600
+
+
+def span_words(seconds):
+    """SECONDS in a few words: just now, 35 min, 2 h 10 min, 3 days."""
+    n = max(0, int(seconds))
+    if n < 60:
+        return 'just now'
+    if n < 3600:
+        return f'{n // 60} min'
+    if n < 86400:
+        h, m = divmod(n // 60, 60)
+        return f'{h} h {m} min' if m else f'{h} h'
+    d = n // 86400
+    return f'{d} day' if d == 1 else f'{d} days'
+
+
+def ago_words(seconds):
+    """SECONDS back in words: just now, 35 min ago, 2 h ago."""
+    words = span_words(seconds)
+    return words if words == 'just now' else words + ' ago'
+
+
+def board_row(task, desk, now, queue_rows):
+    """One row of the board for TASK (the snapshot's record, its worker's
+    state projected) at DESK (the snapshot's row, or {} for a task with no
+    desk): where it goes (section), the one line every view shows, a
+    second line when there is more to say, and the fields a sort goes by.
+    Every state is a word; no colour carries alone."""
+    launch = task.get('launch') or {}
+    state = (task.get('status') or {}).get('value', '?')
+    status_at = (task.get('status') or {}).get('at') or task.get('created') or now
+    worker = task.get('worker_state') or {}
+    choices = task.get('worker') if 'use' in (task.get('worker') or {}) else {}
+    seq = launch.get('seq')
+    provider = launch.get('provider') or (choices or {}).get('use') or ''
+    if not provider and desk.get('agents'):
+        provider = desk['agents'][0].get('agent', '')
+    d = task.get('desk') or {}
+    if d.get('worktree'):
+        place = f"{task.get('project') or '?'}/{d.get('branch') or os.path.basename(d['worktree'])}"
+    elif desk.get('title'):
+        place = desk['title']
+    else:
+        place = f"{task.get('project') or '?'}" + (f", desk to make: {task['topic']}" if task.get('topic') else ', no desk')
+    head = (f"#{seq}" if seq else 'launch order unknown') + (f" {provider}" if provider else '')
+    title = task.get('title') or ''
+    since = launch.get('at') if state in ('running',) and launch.get('at') else status_at
+    ago = span_words(now - int(since or now))
+    q = queue_rows.get(task['id'], {})
+    detail, section, words, release = '', 'Running', state, ''
+    if state in ('running', 'needs decision', 'needs review'):
+        w = worker.get('state', '')
+        if state == 'running':
+            words = ('idle, task open' if w == 'idle' else w if w in ('starting', 'paused', 'waiting for permission', 'waiting for input')
+                     else f"held: {worker.get('why', '')}" if w == 'held' else 'running' if w == 'running'
+                     else f'running, worker {w}' if w in ('exited', 'failed') else 'running' if not w else f'running, worker {w}')
+        else:
+            words = state + (f" · worker {w}" if w and w not in ('running',) else '')
+        if desk.get('paused'):
+            words += f" · paused by {desk['paused'].get('by', '?')}"
+        if desk.get('testing'):
+            words += ' · testing'
+        line = f"{head} · {place} · {ago} · {words} · {title}"
+    elif state == 'queued':
+        section = 'Queue'
+        words = 'queued'
+        line = (f"{q.get('position', '?')}. {task.get('priority', 'normal')}  {title} · {place}"
+                + (f" · {q['why']}" if q.get('why') and not q.get('eligible') else ' · next, when a slot is free' if q.get('eligible') else ''))
+    elif state in ('ready', 'backlog'):
+        words = 'ready, not queued' if state == 'ready' else 'backlog, waits for your approval'
+        # At a desk that stands, the task waits with it; with none, or with
+        # one that is gone, it waits in the Queue's tail, said so.
+        section = 'Desks' if desk else 'Queue'
+        if d.get('worktree') and not desk:
+            words += ', its desk is gone'
+        line = (f"{task.get('priority', 'normal')}  {title} · {place} · {words}" if section == 'Queue'
+                else f"{place} · {words} · {title}")
+    elif state == 'blocked':
+        section = 'Blocked'
+        b = task.get('blocked') or {}
+        on = b.get('on') or '?'
+        words = f'blocked on {on}'
+        if on == 'worker':
+            last = (task.get('launches') or [launch])[-1] if (task.get('launches') or launch) else {}
+            ended = last.get('ended')
+            detail = 'worker stopped' + (f" {ago_words(now - int(ended))}" if ended else '') \
+                + (f": exit {last['code']}" if last.get('code') is not None else '') \
+                + (f", {desk['now']['dirty']} uncommitted" if (desk.get('now') or {}).get('dirty') else '')
+        elif str(on).startswith('t-'):
+            detail = f"waits for {on}" + (f": {b['why']}" if b.get('why') else '')
+        else:
+            detail = b.get('why') or (task.get('status') or {}).get('reason') or ''
+        line = f"{head} · {place} · {ago} · {words} · {title}"
+    elif state == 'ready for release':
+        section = 'Completed'
+        words = 'accepted, not yet released'
+        line = f"{head} · {place} · {words} · {title}"
+    elif state in ('completed', 'cancelled'):
+        section = 'Completed'
+        for e in task.get('events') or []:
+            if e.get('kind') == 'released' and (e.get('data') or {}).get('version'):
+                release = e['data']['version']
+                break
+        words = (f'released {release}' if release else state)
+        took = ((task.get('done') or 0) - (task.get('launched') or 0)) if task.get('done') and task.get('launched') else None
+        detail = (f"took {'under a minute' if took < 60 else span_words(took)}" if took is not None and took >= 0 else '')
+        if desk.get('estimate'):
+            detail += (' · ' if detail else '') + desk['estimate']
+        line = f"{head} · {place} · {words} · {ago_words(now - int(task.get('done') or status_at))} · {title}"
+    else:
+        line = f"{head} · {place} · {state} · {title}"
+    row = {'kind': 'task', 'id': desk.get('id') or f"task:{task['id']}", 'task': task['id'], 'desk': desk.get('id', ''),
+           'section': section, 'line': line, 'detail': detail, 'state': words, 'status': state, 'title': title,
+           'project': task.get('project', ''), 'place': place, 'provider': provider, 'seq': seq,
+           'priority': task.get('priority', 'normal'), 'since': since, 'ago': ago, 'release': release,
+           'position': q.get('position'), 'why': q.get('why', ''), 'eligible': bool(q.get('eligible')),
+           'sort': {'launch': seq or 10 ** 9, 'created': task.get('created') or 0,
+                    'activity': max(task.get('activity') or 0, *(a.get('activity_at') or 0 for a in desk.get('agents') or [{}])),
+                    'priority': PRIORITY_RANK.get(task.get('priority'), 2), 'status': state,
+                    'project': (task.get('project') or '').lower(), 'provider': provider}}
+    return row
+
+
+def desk_board_row(desk, section):
+    """A desk with no task of its own as a row of SECTION: the ones standing
+    empty, the ones closed, a folder an agent runs in, an agent at a desk
+    with no task record."""
+    agents = desk.get('agents') or []
+    who = '; '.join(f"{a.get('agent', '?')} · workspace {a.get('workspace') or 'unknown'}" if a.get('window') and a.get('workspace')
+                    else f"{a.get('agent', '?')} · no desktop window" if not a.get('window') else f"{a.get('agent', '?')} · workspace unknown"
+                    for a in agents)
+    words = ('not a desk' if desk.get('kind') == 'folder' else 'no task record' if agents
+             else desk.get('next_action', '') if section == 'Closed' else 'stands empty')
+    return {'kind': 'desk', 'id': desk['id'], 'task': '', 'desk': desk['id'], 'section': section,
+            'line': f"{desk.get('title', '')} · {who or desk.get('provider', '')} · {words}", 'detail': '',
+            'state': words, 'status': '', 'title': desk.get('title', ''), 'project': (desk.get('desk') or {}).get('project', ''),
+            'place': desk.get('title', ''), 'provider': desk.get('provider', ''), 'seq': desk.get('launch_seq'),
+            'priority': '', 'since': (desk.get('closed') or {}).get('at'), 'ago': '', 'release': '', 'position': None,
+            'why': '', 'eligible': False,
+            'sort': {'launch': 10 ** 9, 'created': 0, 'activity': max((a.get('activity_at') or 0 for a in agents), default=0),
+                     'priority': 9, 'status': '', 'project': (desk.get('desk') or {}).get('project', '').lower(),
+                     'provider': desk.get('provider', '')}}
+
+
+def board_sort(rows, key):
+    """ROWS in the order KEY (one of SORTS) asks: launch order (the
+    unnumbered after, then by when made), newest launch first, created,
+    last activity first, priority, status, project, provider; a tie keeps
+    launch order."""
+    if key not in SORTS:
+        raise ValueError(f"sort by one of {', '.join(SORTS)}")
+    base = sorted(rows, key=lambda r: (r['sort']['launch'], r['sort']['created'], r['id']))
+    if key == 'launch':
+        return base
+    if key == 'newest':
+        return sorted(base, key=lambda r: -r['sort']['launch'] if r['sort']['launch'] < 10 ** 9 else 1)
+    if key in ('created', 'activity'):
+        return sorted(base, key=lambda r: -(r['sort'][key] or 0))
+    return sorted(base, key=lambda r: r['sort'][key])
+
+
+def board(snapshot, now=None, every=False, sort='launch'):
+    """The Office as a task board: the sections in BOARD_SECTIONS' order,
+    each with its rows (Needs attention's are the snapshot's items, as
+    they are). A task's row goes by its state (board_row); a desk with no
+    open task stands in Desks, a closed one in Closed, and a desk with an
+    agent at it but no task record is in Running, said so. Completed holds
+    the last day's (EVERY: all); older ones are the Archive's. Running and
+    Completed are in SORT's order; the Queue is always in queue order."""
+    now = int(now or time.time())
+    desks = {r['id']: r for r in snapshot.get('desks', [])}
+    by_worktree = {os.path.realpath(r['id']): r for r in desks.values()}
+    queue_rows = {r['id']: r for r in (snapshot.get('queue') or {}).get('rows', [])}
+    sections = {name: [] for name in BOARD_SECTIONS}
+    sections['Needs attention'] = list(snapshot.get('attention') or [])
+    taken = set()
+    for task in snapshot.get('tasks', []):
+        state = (task.get('status') or {}).get('value')
+        wt = (task.get('desk') or {}).get('worktree') or ''
+        desk = by_worktree.get(os.path.realpath(wt), {}) if wt else {}
+        if state in ('completed', 'cancelled') and not every and (task.get('done') or 0) < now - COMPLETED_SHOWN:
+            continue
+        row = board_row(task, desk, now, queue_rows)
+        if desk and (state not in ('completed', 'cancelled') or desk.get('agents')):
+            if desk['id'] in taken:
+                continue      # a desk's second final task: one row for the place
+            taken.add(desk['id'])
+        sections[row['section']].append(row)
+    for desk in snapshot.get('desks', []):
+        if desk['id'] in taken:
+            continue
+        if desk.get('closed'):
+            sections['Closed'].append(desk_board_row(desk, 'Closed'))
+        elif desk.get('agents') and desk.get('live_known', True):
+            sections['Running'].append(desk_board_row(desk, 'Running'))
+        else:
+            sections['Desks'].append(desk_board_row(desk, 'Desks'))
+    order = [r['id'] for r in (snapshot.get('queue') or {}).get('rows', [])]
+    sections['Queue'].sort(key=lambda r: (0 if r['status'] == 'queued' else 1,
+                                          order.index(r['task']) if r['task'] in order else 10 ** 6, r['sort']['created']))
+    sections['Running'] = board_sort(sections['Running'], sort)
+    sections['Blocked'] = board_sort(sections['Blocked'], 'launch')
+    sections['Completed'] = board_sort(sections['Completed'], sort)
+    sections['Desks'].sort(key=lambda r: (r['status'] != 'ready', r['title'].lower(), r['id']))
+    sections['Closed'].sort(key=lambda r: -(r['since'] or 0))
+    return {'sort': sort, 'sorts': list(SORTS), 'every': bool(every),
+            'sections': [{'name': name, 'count': len(sections[name]), 'rows': sections[name]} for name in BOARD_SECTIONS]}
+
+
+def board_text(snapshot, board_, now=None):
+    """The board as text, for vikix agents tasks: a section a heading with
+    its count, a row a line (its second line indented under it), the
+    Queue with the scheduler's summary, the Completed's as the day's."""
+    now = int(now or time.time())
+    out = []
+    queue = snapshot.get('queue') or {}
+    for section in board_['sections']:
+        name, rows = section['name'], section['rows']
+        head = f"{name} ({len(rows)})"
+        if name in ('Running', 'Completed'):
+            head += f" · sorted by {SORT_WORDS[board_['sort']]}"
+        if name == 'Queue' and queue:
+            head += (f" · {queue.get('active', '?')}/{queue.get('at_once', '?')} workers · auto {'on' if queue.get('auto') else 'off'}"
+                     + (' · scheduler paused by you' if queue.get('paused') else ''))
+        if name == 'Completed':
+            head += ' · every one' if board_.get('every') else ' · the last day'
+        if name == 'Desks':
+            head = f"Desks standing empty ({len(rows)})"
+        if name == 'Closed':
+            head = f"Closed today ({len(rows)})"
+        out.append(head + ':')
+        if name == 'Needs attention':
+            for r in rows:
+                age = span_words(now - r['since']) if r.get('since') else 'time unknown'
+                worker = r.get('worker') or r.get('provider') or 'worker unknown'
+                seq = f"#{r['seq']}" if r.get('seq') else 'launch order unknown'
+                out.append(f"  {r['kind']}: {r.get('project', '')} · {r['title']} [{r.get('task') or 'office'}] · {worker}, {seq} — {r['why']} ({age})")
+        else:
+            for r in rows:
+                out.append('  ' + r['line'] + (f"  [{r['task']}]" if r['task'] else ''))
+                if r.get('detail'):
+                    out.append('      ' + r['detail'])
+        if name == 'Queue' and queue:
+            nxt = queue.get('next')
+            out.append('  Next: ' + (f"{nxt['title']} — {nxt['why']}" if nxt else 'none eligible')
+                       + ('' if nxt is None else ' (vikix agents queue start)'))
+        if not rows:
+            out.append('  none')
+    return '\n'.join(out)
+
+
+def new_task(api, args):
+    """The Office's New task (the T form): PROJECT "text" [--desk FOLDER |
+    --topic TOPIC] [--priority LEVEL] [--after ID]... [--use NAME] [--local]
+    [--push] [--no-tests] [--mode MODE] [--queue]. A task record, ready,
+    at a desk that stands (its record names the task, as desk --task would,
+    with nobody started at it) or with the topic of the desk to make; with
+    --queue it enters the queue at once. Nothing is started: the scheduler
+    does that on your word. The user's act: an agent is refused."""
+    by, me = api.by_me()
+    if me or by != 'user':
+        raise ValueError('only the user makes a task from the Office (an agent proposes, later)')
+    usage = ('vikix agents office --new-task PROJECT "task" [--desk FOLDER | --topic TOPIC] [--priority LEVEL] '
+             '[--after ID]... [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] [--queue]')
+    rest = list(args)
+    if len(rest) < 2 or (rest[0].startswith('-') and rest[0] != '-') or rest[1].startswith('-'):
+        raise ValueError(usage)
+    project, text = rest.pop(0), rest.pop(0).strip()
+    opts = {'after': [], 'worker': {}}
+    while rest:
+        a = rest.pop(0)
+        if a in ('--desk', '--topic', '--priority', '--after', '--use', '--mode'):
+            if not rest or rest[0].startswith('-'):
+                raise ValueError(f'{a} needs its words')
+            v = rest.pop(0).strip()
+            if a == '--after':
+                opts['after'].append(v)
+            elif a in ('--use', '--mode'):
+                opts['worker'][a[2:]] = v
+            else:
+                opts[a[2:]] = v
+        elif a in ('--local', '--push', '--no-tests'):
+            opts['worker'][a[2:].replace('-', '_')] = True
+        elif a == '--queue':
+            opts['queue'] = True
+        else:
+            raise ValueError(usage)
+    if not text:
+        raise ValueError('the task needs words')
+    if opts.get('desk') and opts.get('topic'):
+        raise ValueError('a desk that stands, or the topic of the desk to make: not both')
+    T = api.tasks_module()
+    S = api.scheduler_module()
+    if opts.get('priority', 'normal') not in T.PRIORITIES:
+        raise ValueError(f"a priority is one of {', '.join(T.PRIORITIES)}")
+    for tid in opts['after']:
+        S.require_task(tid)
+    desk, repo, full = {}, False, ''
+    if opts.get('desk'):
+        # A desk that stands: the task's project is the desk's (the form sends "-").
+        folder = opts['desk']
+        if not os.path.isdir(folder) or not api.desk_of(folder):
+            raise ValueError('--desk names a desk folder (a worktree of a project)')
+        full = api.project_of(folder, api.common_of(folder))
+    elif project == '-':
+        raise ValueError('a project, or --desk for a desk that stands')
+    else:
+        vp = api.projects()
+        try:
+            found = vp.match(project)
+        except SystemExit as e:
+            raise ValueError(f'no project {project}: vikix project list names them') from e
+        full = found.full
+        repo = bool((api.git(str(found.path), 'rev-parse', '--show-toplevel') or '').strip())
+    if opts.get('desk'):
+        open_ = [t for t in T.tasks_of_desk(api.handoff_module().desk_id(api.common_of(folder), folder), open_only=True)]
+        if open_:
+            raise ValueError(f"that desk has an open task already ({open_[0]['id']}): cancel it, or pick a topic for a new desk")
+        rec = api.desk_record(folder, text, by)
+        desk = T.desk_of_record(rec)
+    elif repo and not opts.get('topic'):
+        raise ValueError("a repository's task needs a desk that stands (--desk) or the topic of the desk to make (--topic)")
+    topic = api.topic_name(opts['topic']) if opts.get('topic') else ''
+    task = T.new(text, full, by, desk=desk, topic=topic, priority=opts.get('priority', 'normal'), worker=opts['worker'])
+    if opts['after']:
+        T.update(task['id'], lambda t: t.update(after=list(opts['after'])))
+    if desk:
+        api.handoff_module().update(api.common_of(folder), folder, lambda r: r['task'].update(id=task['id']))
+    if opts.get('queue'):
+        S.mutate('add', task['id'], None, by)
+    print(f"Task {task['id']} made, {'queued' if opts.get('queue') else 'ready'}"
+          + (f" at {short(folder)}" if desk else f", desk to make: {topic}" if topic else '')
+          + ('; the scheduler starts it on your word (S, or vikix agents queue start)' if opts.get('queue') else '; Q queues it'))
+    return task['id']
+
+
 def quiet_minutes():
     path = os.path.join(os.environ.get('XDG_CONFIG_HOME') or os.path.expanduser('~/.config'), 'vikix', 'office')
     try:
@@ -522,6 +870,7 @@ def snapshot(api, include_queue=True):
             row['worker_state'] = {'state': 'paused', 'source': 'the pause file', 'sure': 'reliable'}
         if task:
             task['worker'] = row['worker_state']
+            task['worker_state'] = row['worker_state']
         row['launch_seq'] = (task.get('launch') or {}).get('seq') if task else None
         if row['archived']:
             row['group'] = 'Archived'
@@ -563,6 +912,8 @@ def snapshot(api, include_queue=True):
         import scheduler
         scheduler.T = api.tasks_module()
         result['queue'] = scheduler.view(scheduler.world(api, result))
+    # The board: the five sections and the desks, from the rows above (phase 4).
+    result['board'] = board(result)
     return result
 
 
@@ -1092,10 +1443,12 @@ def main(api, args):
         return close_desk(api, args[1:])
     elif args and args[0] == '--project':
         return new_project(api, args[1:])
+    elif args and args[0] == '--new-task':
+        new_task(api, args[1:])
     elif args in ([], ['--tty']):
         launch(api, tty=bool(args))
     else:
-        raise ValueError('vikix agents office [--tty | --json [--notify] | --answer ID TEXT | --accept DESK | --back DESK TEXT | --release DESK TEXT | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN | --pause DESK | --unpause DESK | --park DESK | --test DESK | --skip DESK | --tell DESK TEXT | --review DESK PROVIDER | --form | --plan TEMPLATE NAME PROJECT [--at-once N] [--gate me|none] [--tasks] | --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --worker DESK ["..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --close-desk DESK [--force] | --project NAME --where public|private|local|folder [--title "..."] [--next "..."] [--description "..."] [--log-apart]]')
+        raise ValueError('vikix agents office [--tty | --json [--notify] | --answer ID TEXT | --accept DESK | --back DESK TEXT | --release DESK TEXT | --go PID | --close-agent PID START | --forget ID | --purge-archive TOKEN | --pause DESK | --unpause DESK | --park DESK | --test DESK | --skip DESK | --tell DESK TEXT | --review DESK PROVIDER | --form | --plan TEMPLATE NAME PROJECT [--at-once N] [--gate me|none] [--tasks] | --desk PROJECT [TOPIC] [--task "..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --worker DESK ["..."] [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] | --close-desk DESK [--force] | --project NAME --where public|private|local|folder [--title "..."] [--next "..."] [--description "..."] [--log-apart] | --new-task PROJECT "task" [--desk FOLDER | --topic TOPIC] [--priority LEVEL] [--after ID]... [--use NAME] [--local] [--push] [--no-tests] [--mode MODE] [--queue]]')
     if args and args[0] in ('--unpause', '--pause'):
         api.scheduler_module().wake(os.path.join(api.VIKIX_DIR, 'bin', 'vikix-agents'))
     return 0

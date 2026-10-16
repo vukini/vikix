@@ -330,7 +330,10 @@ is drawn again at that width."
   (office-test-buffer
    (setq vikix-office--data '((desks . nil)))
    (vikix-office--render)
-   (should (string-match-p "No desks yet" (buffer-string)))))
+   (should (string-match-p "No task yet" (buffer-string)))
+   ;; The five sections are drawn all the same, each saying it is empty.
+   (dolist (want '("1 · Needs attention (0)" "2 · Running (0)" "3 · Queue (0)" "4 · Blocked (0)" "5 · Completed (0)"))
+     (should (string-match-p (regexp-quote want) (buffer-string))))))
 
 (ert-deftest office-archive-hides-actions-and-clears-removed-selection ()
   (office-test-buffer
@@ -358,9 +361,10 @@ is drawn again at that width."
      (should (equal vikix-office--selected "a")))))
 
 (ert-deftest office-parked-and-closed-desks-have-a-page-of-their-own ()
-  "The first page holds Needs you, Working and Finished; Parked and Closed are
-on a page of their own, reached by its button or k, with Back to desks; the
-Archive is the third. The buttons count the other pages' rows."
+  "The first page holds the board; the desks standing empty (Parked, from a
+backend before the board) and Closed are on a page of their own, reached by
+its button or K, with Back to desks; the Archive is the third. The buttons
+count the other pages' rows."
   (office-test-buffer
    (let ((parked (copy-tree (car (alist-get 'desks vikix-office--data))))
          (closed (copy-tree (car (alist-get 'desks vikix-office--data))))
@@ -379,7 +383,7 @@ Archive is the third. The buttons count the other pages' rows."
        (should-not (string-match-p "Parked task" text))
        (should-not (string-match-p "Closed task" text))
        (should-not (string-match-p "Back to desks" text))
-       (should (string-match-p "Parked and closed (2)" text))
+       (should (string-match-p "Desks and closed (2)" text))
        (should (string-match-p "Archive (1)" text))
        (should (string-match-p "New desk…" text)))
      ;; k: the parked page, its first row selected, Closed after Parked, no New desk.
@@ -395,7 +399,7 @@ Archive is the third. The buttons count the other pages' rows."
        (should-not (string-match-p "New desk…" text))
        (should (string-match-p "Back to desks" text))
        (should (string-match-p "Archive (1)" text))
-       (should-not (string-match-p "Parked and closed (" text)))
+       (should-not (string-match-p "Desks and closed (" text)))
      ;; n moves within the page.
      (save-window-excursion
        (switch-to-buffer buffer)
@@ -406,7 +410,7 @@ Archive is the third. The buttons count the other pages' rows."
      ;; A from the parked page goes to the Archive; A again back to the desks, not to the parked page.
      (vikix-office-toggle-archive)
      (should (eq vikix-office--page 'archive))
-     (should (string-match-p "Parked and closed (2)" (buffer-string)))
+     (should (string-match-p "Desks and closed (2)" (buffer-string)))
      (vikix-office-toggle-archive)
      (should (eq vikix-office--page 'desks))
      (should (equal vikix-office--selected "a"))
@@ -425,14 +429,14 @@ Archive is the third. The buttons count the other pages' rows."
      ;; An empty first page says where the desks are; an empty parked page says so too.
      (setf (alist-get 'desks vikix-office--data) (list parked closed))
      (vikix-office--render)
-     (should (string-match-p "on the Parked and closed page (k)" (buffer-string)))
+     (should (string-match-p "on the Desks and closed page (K)" (buffer-string)))
      (setf (alist-get 'desks vikix-office--data) (list finished))
      (vikix-office-toggle-parked)
-     (should (string-match-p "No parked or closed desks" (buffer-string)))
+     (should (string-match-p "No desk stands empty" (buffer-string)))
      (vikix-office-toggle-parked)
      (setf (alist-get 'desks vikix-office--data) nil)
      (vikix-office--render)
-     (should (string-match-p "No desks yet" (buffer-string))))))
+     (should (string-match-p "No task yet" (buffer-string))))))
 
 (ert-deftest office-closed-desk-has-a-box-and-can-be-forgotten ()
   (office-test-buffer
@@ -450,9 +454,9 @@ Archive is the third. The buttons count the other pages' rows."
      ;; The Closed box is on the Parked and closed page, after Parked, with the desk in it.
      (should-not (string-match-p "Closed task" (buffer-string)))
      (vikix-office-toggle-parked)
-     (should (string-match-p "Parked" (buffer-string)))
+     (should (string-match-p "Desks standing empty" (buffer-string)))
      (should (string-match-p "Closed task" (buffer-string)))
-     (should (< (string-match "Parked" (buffer-string)) (string-match "Closed task" (buffer-string))))
+     (should (< (string-match "Desks standing empty" (buffer-string)) (string-match "Closed task" (buffer-string))))
      (setq vikix-office--selected "gone")
      (vikix-office--render-detail)
      (with-current-buffer vikix-office--detail
@@ -626,8 +630,8 @@ with its number, so the notice says to load the page again."
                     '("resume" "/tmp/a desk;$(never run)" "--fresh"))))))
 
 (ert-deftest office-testing-group-and-skip ()
-  "A desk whose tests run is in the Testing group, between Needs you and
-Working, its row saying what runs and since when with Skip tests on it; its
+  "A desk whose tests run is in Running, its row saying what runs and since
+when with Skip tests on it; its
 details have a Testing box with the release waited for, the log's tail and
 Test log, and Skip tests where Test stood; s skips, and is refused where no
 tests run."
@@ -645,13 +649,13 @@ tests run."
            (progn
              (vikix-office--render)
              (let ((text (buffer-string)))
-               (should (< (string-match "Needs you" text) (string-match "Testing" text) (string-match "Working" text)))
+               (should (string-match-p "2 · Running (2)" text))
                ;; The batch buffer is narrow: the line breaks after "the".
                (should (string-match-p "Tests +tests/run.sh --changed abc1234 · since [0-9:]+ · waiting for the" text))
                (should (string-match-p "release of wifi-fix" text))
                (should (string-match-p "Skip tests" text))
-               ;; The row is in the Testing box, not Needs you's.
-               (should (< (string-match "Testing" text) (string-match "Task a" text) (string-match "Working" text))))
+               ;; The row is in the Running box.
+               (should (< (string-match "2 · Running" text) (string-match "Task a" text) (string-match "3 · Queue" text))))
              (setq vikix-office--selected "a")
              (vikix-office--render-detail)
              (with-current-buffer vikix-office--detail
@@ -1200,7 +1204,7 @@ names. The Guide: the manual's node in the desk pane, or why not."
            ;; The buttons of the box, in order: chapters' Edit alone, cover's Run and
            ;; Edit, book's Pause, Stop, Edit and Log, rest's Go on, Stop, Edit and Log.
            (let ((from (save-excursion (goto-char (point-min)) (search-forward "chapters · vikix")))
-                 (to (save-excursion (goto-char (point-min)) (search-forward "Needs you" nil t 2)))
+                 (to (save-excursion (goto-char (point-min)) (search-forward "2 · Running" nil t)))
                  found)
              (save-excursion
                (goto-char from)
@@ -1237,7 +1241,8 @@ names. The Guide: the manual's node in the desk pane, or why not."
                  (should (string-suffix-p ") A plan" opened)))))
            ;; The keys.
            (should (eq (lookup-key vikix-office-mode-map (kbd "L")) #'vikix-office-new-plan))
-           (should (eq (lookup-key vikix-office-mode-map (kbd "h")) #'vikix-office-guide)))
+           (should (eq (lookup-key vikix-office-mode-map (kbd "H")) #'vikix-office-guide))
+           (should (eq (lookup-key vikix-office-mode-map (kbd "h")) #'vikix-office-history)))
        (dolist (b (buffer-list))
          (when (string-match-p "\\`\\*Office \\(new plan\\|plan log\\)\\*" (buffer-name b)) (kill-buffer b)))
        (when (buffer-live-p vikix-office--detail) (kill-buffer vikix-office--detail))
@@ -1329,13 +1334,20 @@ observed, the times and the history, an event a line."
            (should (string-match-p "State +needs review · the agent's handoff says review" (buffer-string)))
            (should (string-match-p "Launch +#104 codex · 35 min ago · by user" (buffer-string)))
            (should (string-match-p "Worker +idle (inferred: the title's mark)" (buffer-string)))
-           (should (string-match-p "History +2 events, newest first" (buffer-string)))
+           ;; The history is folded until h shows it (the page is long enough).
+           (should (string-match-p "History +2 events, newest first: h shows them" (buffer-string)))
+           (should-not (string-match-p "review asked · codex 1" (buffer-string))))
+         (vikix-office-history)
+         (with-current-buffer vikix-office--detail
+           (should (string-match-p "History +2 events, newest first (vikix agents events" (buffer-string)))
            ;; Wrapped inside the box, so in pieces.
            (should (string-match-p "review asked · codex 1" (buffer-string)))
            (should (string-match-p "running -> needs review" (buffer-string)))
            (should (string-match-p "launched #104 · user" (buffer-string)))
-           
            (should (string-match-p "provider codex, how" (buffer-string))))
+         (vikix-office-history)
+         (with-current-buffer vikix-office--detail
+           (should-not (string-match-p "review asked · codex 1" (buffer-string))))
          ;; A record from before: no number, and said so, never a made-up one.
          (let ((r (vikix-office--row)))
            (setf (alist-get 'launch_seq r) nil)
@@ -1553,6 +1565,19 @@ and q puts the windows back; the only frame is never deleted."
            (skipped . (((id . "t-two") (title . "Second task") (why . "blocked by dependency"))))))
    (setf (alist-get 'tasks vikix-office--data)
          '(((id . "t-one") (priority . "high")) ((id . "t-two") (priority . "normal"))))
+   (setf (alist-get 'board vikix-office--data)
+         '((sort . "launch") (sorts . ("launch" "newest"))
+           (sections . (((name . "Needs attention") (rows . nil))
+                        ((name . "Running") (rows . nil))
+                        ((name . "Queue")
+                         (rows . (((kind . "task") (id . "task:t-one") (task . "t-one") (desk . "") (section . "Queue") (status . "queued")
+                                   (line . "1. high  First task · book, desk to make: first · next, when a slot is free") (detail . ""))
+                                  ((kind . "task") (id . "task:t-two") (task . "t-two") (desk . "") (section . "Queue") (status . "queued")
+                                   (line . "2. normal  Second task · book, desk to make: second · blocked by dependency") (detail . "")))))
+                        ((name . "Blocked")
+                         (rows . (((kind . "task") (id . "task:t-three") (task . "t-three") (desk . "") (section . "Blocked") (status . "blocked")
+                                   (line . "#3 codex · book/third · 2 h · blocked on worker · Third task") (detail . "worker stopped 2 h ago: exit 1")))))
+                        ((name . "Completed") (rows . nil)) ((name . "Desks") (rows . nil)) ((name . "Closed") (rows . nil))))))
    (save-window-excursion
      (switch-to-buffer buffer)
      (vikix-office--render)
@@ -1560,6 +1585,8 @@ and q puts the windows back; the only frame is never deleted."
      (should (search-forward "1/2 workers · auto off" nil t))
      (should (search-forward "Next: First task" nil t))
      (should (search-forward "blocked by dependency" nil t))
+     (should (search-forward "worker stopped 2 h ago: exit 1" nil t))
+     (should (member "Make ready" (office-test-buttons)))
      (goto-char (point-min))
      (search-forward "1. high")
      (let (sent)
@@ -1571,3 +1598,157 @@ and q puts the windows back; the only frame is never deleted."
      (should (eq (lookup-key vikix-office-mode-map (kbd "K")) #'vikix-office-toggle-parked))
      (dolist (key '("!" "+" "-" "M-n" "M-p" "d" "k" "S" "Q"))
        (should (commandp (lookup-key vikix-office-mode-map (kbd key))))))))
+
+(defun office-test-board-row (section id task desk status line &optional detail seq created)
+  "A row of a board fixture, as lib/office.py's board writes one."
+  `((kind . ,(if task "task" "desk")) (id . ,id) (task . ,(or task "")) (desk . ,(or desk "")) (section . ,section)
+    (status . ,status) (line . ,line) (detail . ,(or detail "")) (title . ,line) (seq . ,seq)
+    (sort . ((launch . ,(or seq 1000000000)) (created . ,(or created 0)) (activity . ,(or created 0))
+             (priority . 2) (status . ,status) (project . "vikix") (provider . "claude")))))
+(defun office-test-board (&rest rows)
+  "A board fixture of ROWS, each in its section."
+  `((sort . "launch") (sorts . ("launch" "newest" "created" "activity" "priority" "status" "project" "provider"))
+    (sections . ,(mapcar (lambda (name)
+                           `((name . ,name) (rows . ,(cl-remove-if-not (lambda (r) (equal (alist-get 'section r) name)) rows))))
+                         '("Needs attention" "Running" "Queue" "Blocked" "Completed" "Desks" "Closed")))))
+(ert-deftest office-board-sections-rows-sort-and-keys ()
+  "The board: the five sections numbered, a row a task whose line heads its
+desk's fields (no launch words twice), an idle worker on a running task
+said so, 1..5 jumping to a section, s cycling the sort of Running and
+Completed (the Queue in its order), and y and b on a task in review."
+  (office-test-buffer
+   (setq vikix-office--detail (generate-new-buffer " *Office board*"))
+   (unwind-protect
+       (save-window-excursion
+         (switch-to-buffer buffer)
+         (let ((a (car (alist-get 'desks vikix-office--data))) (b (cadr (alist-get 'desks vikix-office--data))))
+           (setf (alist-get 'task_record a) '((id . "t-20261016-aaaaaa") (status . ((value . "needs review") (by . "codex 1") (at . 1791300000)))
+                                              (origin_words . "yours") (priority . "normal") (launch_words . "#2 codex") (events . nil))
+                 (alist-get 'launch_seq a) 2
+                 (alist-get 'task_record b) '((id . "t-20261016-bbbbbb") (status . ((value . "running") (by . "user") (at . 1791300000)))
+                                              (origin_words . "yours") (priority . "high") (launch_words . "#1 claude") (events . nil))
+                 (alist-get 'launch_seq b) 1
+                 (alist-get 'agents b) '(((agent . "claude") (pid . 7) (window . "3") (workspace . "2") (doing . "idle"))))
+           (setf (alist-get 'tasks vikix-office--data)
+                 (list (alist-get 'task_record a) (alist-get 'task_record b)
+                       '((id . "t-20261016-cccccc") (title . "The guide review") (text . "Review the guide") (status . ((value . "queued") (by . "user") (at . 1791300000)))
+                         (origin_words . "yours") (priority . "high") (launch_words . "not launched") (events . nil) (topic . "guide-review"))))
+           (setf (alist-get 'board vikix-office--data)
+                 (office-test-board
+                  (office-test-board-row "Running" "b" "t-20261016-bbbbbb" "b" "running" "#1 claude · Vikix/b · 35 min · idle, task open · Task b" nil 1 100)
+                  (office-test-board-row "Running" "a" "t-20261016-aaaaaa" "a" "needs review" "#2 codex · Vikix/a · 10 min · needs review · Task a" nil 2 200)
+                  (office-test-board-row "Queue" "task:t-20261016-cccccc" "t-20261016-cccccc" nil "queued" "1. high  The guide review · vikix, desk to make: guide-review · at_once 2 reached")
+                  (office-test-board-row "Completed" "task:t-20261016-dddddd" "t-20261016-dddddd" nil "completed" "#0 claude · vikix/old · released 0.72.70 · 2 h ago · Old task" "took 1 h 20 min" nil 50))))
+         (vikix-office--render)
+         (let ((text (buffer-string)))
+           (dolist (want '("1 · Needs attention (0)" "2 · Running (2) · launch order, oldest first" "3 · Queue (1)" "4 · Blocked (0)"
+                           "5 · Completed (1) · launch order, oldest first"
+                           "#1 claude · Vikix/b · 35 min · idle, task open · Task b" "1. high  The guide review" "took 1 h 20 min"))
+             (should (string-match-p (regexp-quote want) text)))
+           ;; The task's line heads the desk's fields: the project line without the number again, then Live and Next.
+           (should (string-match-p "idle, task open · Task b +[│|]\n[│|] Vikix · claude · workspace 2 +[│|]\n[│|] Task " text))
+           (should-not (string-match-p "#1 · Vikix" text))
+           ;; Launch order: b (#1) before a (#2); the Queue after Running.
+           (should (< (string-match "Task b" text) (string-match "Task a" text) (string-match "3 · Queue" text))))
+         ;; s: newest first turns Running round and says so; the Queue keeps its order.
+         (vikix-office-sort)
+         (should (equal vikix-office--sort "newest"))
+         (let ((text (buffer-string)))
+           (should (string-match-p "2 · Running (2) · newest launch first" text))
+           (should (< (string-match "Task a" text) (string-match "Task b" text)))
+           (should (string-match-p "newest launch first" header-line-format)))
+         (dotimes (_ 7) (vikix-office-sort))
+         (should (equal vikix-office--sort "launch"))
+         ;; 1..5 go to a section and select its first row; a task without a desk has a page of its own.
+         (vikix-office-section 3)
+         (should (equal vikix-office--selected "task:t-20261016-cccccc"))
+         (should (equal (get-text-property (point) 'office-id) "task:t-20261016-cccccc"))
+         (should-not (vikix-office--row))
+         (should (equal (alist-get 'id (vikix-office--task)) "t-20261016-cccccc"))
+         (with-current-buffer vikix-office--detail
+           (should (string-match-p "Task record · t-20261016-cccccc" (buffer-string)))
+           (should (string-match-p "Desk +none yet: the desk to make, guide-review" (buffer-string)))
+           (should (member "Run next" (office-test-buttons))))
+         (vikix-office-section 2)
+         (should (equal vikix-office--selected "b"))
+         (should-error (vikix-office-section 6) :type 'user-error)
+         ;; y and b act on a task in review at a standing desk, through the backend's own arms.
+         (let (sent)
+           (cl-letf (((symbol-function 'vikix-office--act) (lambda (args &rest _) (setq sent args)))
+                     ((symbol-function 'read-string) (lambda (&rest _) " the heading is stale ")))
+             (should-error (vikix-office-accept) :type 'user-error)   ; b runs: not in review
+             (setq vikix-office--selected "a")
+             (vikix-office-accept)
+             (should (equal sent '("office" "--accept" "a")))
+             (vikix-office-back)
+             (should (equal sent '("office" "--back" "a" "the heading is stale")))))
+         ;; The keys of the board, and the guide moved to H.
+         (dolist (key '("s" "h" "y" "b" "T" "1" "2" "3" "4" "5" "!" "+" "-" "M-n" "M-p" "d" "k" "S" "D" "H"))
+           (should (commandp (lookup-key vikix-office-mode-map (kbd key)))))
+         (should (eq (lookup-key vikix-office-mode-map (kbd "s")) #'vikix-office-sort))
+         (should (eq (lookup-key vikix-office-mode-map (kbd "T")) #'vikix-office-new-task))
+         (should (eq (lookup-key vikix-office-mode-map (kbd "y")) #'vikix-office-accept))
+         (should (eq (lookup-key vikix-office-mode-map (kbd "b")) #'vikix-office-back))
+         ;; T asks the backend what the form offers.
+         (let (args)
+           (cl-letf (((symbol-function 'vikix-office--request) (lambda (a _slot _done &optional _input) (setq args a))))
+             (vikix-office-new-task)
+             (should (equal args '("office" "--form"))))))
+     (kill-buffer vikix-office--detail))))
+(ert-deftest office-task-form ()
+  "The New task form: its words, a desk that stands or the project and
+topic of one to make, the priority, what it waits for, the worker's boxes
+and Queue it, unticked; the backend's words from it, and what it refuses."
+  (office-test-buffer
+   (setq vikix-office--detail (generate-new-buffer " *Office task form detail*"))
+   (unwind-protect
+       (save-window-excursion
+         (switch-to-buffer buffer)
+         (delete-other-windows)
+         (set-window-buffer (split-window-right) vikix-office--detail)
+         (vikix-office--render)
+         (should (string-match-p "New task…" (buffer-string)))
+         (let* ((window (get-buffer-window vikix-office--detail))
+                (form (vikix-office--form-draw buffer 'task (office-test-offer))))
+           (should (eq (current-buffer) form))
+           (set-buffer buffer)
+           (should (eq (window-buffer window) form))
+           (with-current-buffer form
+             (should (string-match-p "Desk: +\\[none: a desk to make" (buffer-string)))
+             (should (string-match-p "Project: +\\[pick one\\]" (buffer-string)))
+             (should (string-match-p "Queue it" (buffer-string)))
+             ;; Nothing typed: the words first, then a desk or a project, then a topic for a repository.
+             (should-error (vikix-office--form-args) :type 'user-error)
+             (should (string-match-p "needs words" header-line-format))
+             (office-test-form-set 'task " sort the chapters ")
+             (should-error (vikix-office--form-args) :type 'user-error)
+             (should (string-match-p "Pick a desk" header-line-format))
+             (office-test-form-set 'project "vikix")
+             (should-error (vikix-office--form-args) :type 'user-error)
+             (office-test-form-set 'topic " chapter sort ")
+             (should (equal (vikix-office--form-args)
+                            '("office" "--new-task" "vikix" "sort the chapters" "--topic" "chapter sort")))
+             (office-test-form-set 'priority "high")
+             (office-test-form-set 'after "t-20261014-0d2c16, t-20261014-0d68eb")
+             (office-test-form-set 'agent "codex")
+             (office-test-form-set 'push t)
+             (office-test-form-set 'queue t)
+             (should (equal (vikix-office--form-args)
+                            '("office" "--new-task" "vikix" "sort the chapters" "--topic" "chapter sort" "--priority" "high"
+                              "--after" "t-20261014-0d2c16" "--after" "t-20261014-0d68eb" "--use" "codex" "--push" "--queue")))
+             ;; A word that is no task id is refused; a desk that stands names the project itself.
+             (office-test-form-set 'after "yesterday")
+             (should-error (vikix-office--form-args) :type 'user-error)
+             (office-test-form-set 'after "")
+             (office-test-form-set 'desk "/tmp/a desk with spaces")
+             (office-test-form-set 'project "")
+             (should (equal (vikix-office--form-args)
+                            '("office" "--new-task" "-" "sort the chapters" "--desk" "/tmp/a desk with spaces" "--priority" "high"
+                              "--use" "codex" "--push" "--queue")))
+             (vikix-office-form-cancel))
+           (set-buffer buffer)
+           (should-not (buffer-live-p form))
+           (should (eq (window-buffer window) vikix-office--detail))))
+     (dolist (b (buffer-list))
+       (when (string-match-p "\\`\\*Office new task\\*" (buffer-name b)) (kill-buffer b)))
+     (when (buffer-live-p vikix-office--detail) (kill-buffer vikix-office--detail)))))
