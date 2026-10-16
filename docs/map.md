@@ -63,6 +63,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── wallpaper-minutes  yours     how often the wallpaper changes when cycling (vikix-wallpaper cycle MINUTES; 30 without it)
 │   │   ├── themes/            yours     your own themes (NAME.theme, NAME.jpg)
 │   │   └── theme/             written   each program's colours, and `current`, the theme you chose (`vikix theme`); GTK's and Qt's too: `mode` (dark or light), xsettingsd.conf, gtk4.css, qt6ct-colors.conf
+│   ├── containers/containers.conf yours  Podman's engine on runit: cgroupfs, a file log, crun. A value you set is kept (vikix containers setup)
 │   ├── alacritty/alacritty.toml   yours  imports ../vikix/theme/alacritty.toml
 │   ├── picom/picom.conf           yours  the compositor: shadows, fading, backend
 │   ├── dunst/dunstrc              yours  notifications

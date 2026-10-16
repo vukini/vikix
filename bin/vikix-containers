@@ -35,6 +35,18 @@
 # enable them; this does not enable them either. Nothing listens until a
 # container runs.
 #
+# runit has no systemd and no journald. Setup writes three keys into
+# ~/.config/containers/containers.conf, under [engine], and only when you
+# have not set them: cgroup_manager = "cgroupfs", events_logger = "file",
+# runtime = "crun". Then it runs podman system migrate. cgroupfs leaves a
+# rootless container with no cgroup path, which is enough for podman run.
+# Distrobox also passes --pids-limit. runc then fails with "rootless needs
+# no limits + no cgrouppath" because it cannot write /sys/fs/cgroup. crun
+# 1.30 (Void builds it with --disable-systemd) ignores that failure when
+# the path is empty, so the box starts. A box created before this still
+# uses the runtime it was made with; create it again to pick up crun.
+# That drops what was installed inside the box. The home folder stays.
+#
 # Distrobox is not in Void. The setup fetches tag 1.8.2.5 and checks the
 # archive against the SHA-256 below, taken on 2026-10-16. GitHub publishes
 # no checksum for a generated tag archive. The scripts are GPL-3, so they
@@ -49,7 +61,8 @@
 # /etc/subgid, VIKIX_SYSCTL_PROC for the userns sysctl, VIKIX_SYSCTL_FILE
 # for the file setup would write, VIKIX_FUSE for /dev/fuse,
 # VIKIX_DISTROBOX_PREFIX for ~/.local, VIKIX_DISTROBOX_TARBALL and
-# VIKIX_DISTROBOX_SHA256 for the archive.
+# VIKIX_DISTROBOX_SHA256 for the archive, VIKIX_CONTAINERS_CONF for
+# ~/.config/containers/containers.conf.
 
 set -euo pipefail
 VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
@@ -67,6 +80,8 @@ STAMP=$VIKIX_STATE/containers-subids
 SYSCTL_PROC=${VIKIX_SYSCTL_PROC:-/proc/sys/kernel/unprivileged_userns_clone}
 SYSCTL_FILE=${VIKIX_SYSCTL_FILE:-${VIKIX_SYSCTL_D:-/etc/sysctl.d}/50-vikix-containers.conf}
 FUSE=${VIKIX_FUSE:-/dev/fuse}
+CONTAINERS_CONF=${VIKIX_CONTAINERS_CONF:-${XDG_CONFIG_HOME:-$HOME/.config}/containers/containers.conf}
+ENGINE_CHANGED=0
 
 # Distrobox 1.8.2.5. The SHA-256 is GitHub's archive of the tag as
 # downloaded on 2026-10-16; GitHub keeps tag archives stable and publishes
@@ -401,6 +416,136 @@ box_names() {
     awk -F'|' 'NR > 1 { gsub(/^[ \t]+|[ \t]+$/, "", $2); if ($2 != "") print $2 }'
 }
 
+# engine_file_value KEY — the last uncommented KEY under [engine], or nothing.
+engine_file_value() {
+  local key=$1
+  [ -f "$CONTAINERS_CONF" ] || return 0
+  awk -v key="$key" '
+    /^[[:space:]]*#/ { next }
+    /^[[:space:]]*\[/ { eng = ($0 ~ /^[[:space:]]*\[engine\][[:space:]]*(#.*)?$/); next }
+    eng && $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
+      val = $0
+      sub(/^[[:space:]]*[^=]*=[[:space:]]*/, "", val)
+      sub(/[[:space:]]+#.*$/, "", val)
+      sub(/[[:space:]]+$/, "", val)
+      if (val ~ /^".*"$/ || val ~ /^'\''.*'\''$/) val = substr(val, 2, length(val) - 2)
+      found = val
+    }
+    END { if (found != "") print found }
+  ' "$CONTAINERS_CONF"
+}
+
+# engine_values — three lines, "KEY VALUE", from podman info when it answers,
+# else from the user's containers.conf. An empty VALUE is unset.
+engine_values() {
+  local live=""
+  if command -v podman >/dev/null 2>&1; then
+    live=$(podman info --format '{{.Host.CgroupManager}} {{.Host.EventLogger}} {{.Host.OCIRuntime.Name}}' 2>/dev/null || true)
+  fi
+  case $live in
+    ''|*'{{'*|*'}}'*) live='' ;;
+  esac
+  if [ -n "$live" ]; then
+    # shellcheck disable=SC2086 # three fields, no spaces inside them
+    set -- $live
+    if [ "$#" -eq 3 ]; then
+      printf 'cgroup_manager %s\nevents_logger %s\nruntime %s\n' "$1" "$2" "$3"
+      return 0
+    fi
+  fi
+  printf 'cgroup_manager %s\nevents_logger %s\nruntime %s\n' \
+    "$(engine_file_value cgroup_manager)" \
+    "$(engine_file_value events_logger)" \
+    "$(engine_file_value runtime)"
+}
+
+# ensure_engine — cgroupfs, a file log, and crun, without replacing a value
+# the user already set. Sets ENGINE_CHANGED when a key was added.
+ensure_engine() {
+  ENGINE_CHANGED=0
+  if [ "$DRY_RUN" = 1 ]; then
+    printf '   would set cgroup_manager="cgroupfs", events_logger="file" and runtime="crun" in %s, leaving a value already set\n' "$CONTAINERS_CONF"
+    printf '   would run: podman system migrate\n'
+    return 0
+  fi
+  local tmp rc=0
+  mkdir -p "$(dirname "$CONTAINERS_CONF")"
+  [ -f "$CONTAINERS_CONF" ] || : > "$CONTAINERS_CONF"
+  tmp=$(mktemp)
+  awk '
+    function is_key(line, k) { return line ~ "^[[:space:]]*" k "[[:space:]]*=" }
+    BEGIN {
+      order[1] = "cgroup_manager"; want["cgroup_manager"] = "\"cgroupfs\""
+      order[2] = "events_logger"; want["events_logger"] = "\"file\""
+      order[3] = "runtime"; want["runtime"] = "\"crun\""
+    }
+    /^[[:space:]]*($|#)/ { lines[++n] = $0; next }
+    /^[[:space:]]*\[/ {
+      in_eng = ($0 ~ /^[[:space:]]*\[engine\][[:space:]]*(#.*)?$/)
+      lines[++n] = $0
+      next
+    }
+    {
+      if (in_eng) {
+        for (j = 1; j <= 3; j++) if (is_key($0, order[j])) seen[order[j]] = 1
+      }
+      lines[++n] = $0
+    }
+    END {
+      changed = 0
+      did = 0
+      for (i = 1; i <= n; i++) {
+        print lines[i]
+        if (!did && lines[i] ~ /^[[:space:]]*\[engine\][[:space:]]*(#.*)?$/) {
+          did = 1
+          for (j = 1; j <= 3; j++) if (!seen[order[j]]) {
+            print order[j] " = " want[order[j]]
+            changed = 1
+          }
+        }
+      }
+      if (!did) {
+        if (n > 0) print ""
+        print "# vikix containers: cgroupfs, a file log, and crun, for runit."
+        print "# A value you set yourself under [engine] is left as it is."
+        print "[engine]"
+        for (j = 1; j <= 3; j++) if (!seen[order[j]]) {
+          print order[j] " = " want[order[j]]
+          changed = 1
+        }
+      }
+      if (changed) exit 2
+    }
+  ' "$CONTAINERS_CONF" > "$tmp" || rc=$?
+  if [ "$rc" -eq 2 ]; then
+    mv "$tmp" "$CONTAINERS_CONF"
+    ENGINE_CHANGED=1
+    say "Podman on runit: cgroupfs, a file log, and crun ($CONTAINERS_CONF)"
+  elif [ "$rc" -eq 0 ]; then
+    rm -f "$tmp"
+  else
+    rm -f "$tmp"
+    die "couldn't write $CONTAINERS_CONF"
+  fi
+  if command -v podman >/dev/null 2>&1; then
+    podman system migrate || die "podman system migrate failed"
+  else
+    die "podman isn't installed, so its engine was not migrated"
+  fi
+}
+
+# note_old_boxes — a box made before the engine change still runs on the
+# runtime it was created with. migrate does not switch that.
+note_old_boxes() {
+  [ "$ENGINE_CHANGED" = 1 ] || return 0
+  local old
+  old=$(box_names | tr '\n' ' ' || true)
+  old=${old% }
+  [ -n "$old" ] || return 0
+  say "these boxes were created before this engine and still use the runtime they were made with: $old"
+  say "create each again (distrobox rm NAME, then vikix containers create NAME). That drops what was installed inside the box. Your home folder stays."
+}
+
 create_box() {
   local name=$1 image=$2 b
   if [ "$DRY_RUN" = 1 ]; then
@@ -439,7 +584,9 @@ cmd_setup() {
   DRY_RUN=$DRY_RUN VIKIX_LISTS=containers bash "$VIKIX_DIR/install/10-packages.sh"
   ensure_subids
   ensure_userns
+  ensure_engine
   install_distrobox
+  note_old_boxes
   write_config "${box:-$BOX_DEFAULT}" "$image"
 
   if [ "$no_box" = 1 ]; then
@@ -524,6 +671,25 @@ status_lines() {
   else echo "no podman isn't installed (vikix containers setup)"; fi
   if pkg_installed aardvark-dns; then echo "ok aardvark-dns is installed"
   else echo "no aardvark-dns isn't installed (vikix containers setup)"; fi
+  if pkg_installed crun; then echo "ok crun is installed"
+  else echo "no crun isn't installed (vikix containers setup)"; fi
+  local key have
+  while read -r key have; do
+    case $key in
+      cgroup_manager)
+        if [ "$have" = cgroupfs ]; then echo "ok cgroup_manager is cgroupfs"
+        elif [ -z "$have" ]; then echo "no cgroup_manager is not cgroupfs (runit has no systemd to make a cgroup; vikix containers setup)"
+        else echo "no cgroup_manager is $have, not cgroupfs (runit has no systemd to make a cgroup; vikix containers setup)"; fi ;;
+      events_logger)
+        if [ "$have" = file ]; then echo "ok events_logger is file"
+        elif [ -z "$have" ]; then echo "no events_logger is not file (runit has no journald; vikix containers setup)"
+        else echo "no events_logger is $have, not file (runit has no journald; vikix containers setup)"; fi ;;
+      runtime)
+        if [ "$have" = crun ]; then echo "ok runtime is crun"
+        elif [ -z "$have" ]; then echo "no runtime is not crun (Distrobox sets a pids limit, and runc refuses that without a cgroup you can write; vikix containers setup)"
+        else echo "no runtime is $have, not crun (Distrobox sets a pids limit, and runc refuses that without a cgroup you can write; create the box again after setup)"; fi ;;
+    esac
+  done < <(engine_values)
   b=$(distrobox_bin)
   if [ -x "$b" ] && "$b" version 2>/dev/null | grep -q "$DISTROBOX_VERSION"; then
     echo "ok Distrobox $DISTROBOX_VERSION"

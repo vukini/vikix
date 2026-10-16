@@ -4,9 +4,13 @@
 # slirp4netns, fuse-overlayfs, passt, netavark, containers-common,
 # containers.image and containers.storage, so those are not named again.
 # aardvark-dns 1.17.1 is not one of those dependencies, and netavark's DNS
-# needs it. Distrobox is not in Void; the setup fetches a pinned tag.
+# needs it. crun 1.30.1 is named on purpose: Distrobox passes --pids-limit,
+# and runc refuses that when the user cannot write a cgroup. crun ignores
+# that failure when it is not using systemd, and Void builds it with
+# --disable-systemd. Distrobox is not in Void; the setup fetches a pinned tag.
 # Podman's template installs service files and does not enable them. Vikix
 # does not enable a root daemon either: rootless Podman starts nothing
 # until a container runs.
 podman          # rootless containers; the root services stay off
 aardvark-dns    # DNS inside a container's network, which netavark runs
+crun            # the runtime a box uses; runc stays, because Podman depends on it

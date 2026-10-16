@@ -2,9 +2,11 @@
 # tests/containers.sh — vikix containers, with stand-ins for xbps, sudo and
 # Distrobox:
 #
-#   the list names podman and aardvark-dns, and not crun, docker, incus,
+#   the list names podman, aardvark-dns and crun, and not docker, incus,
 #   flatpak or distrobox (those were checked against void-packages; distrobox
 #   is fetched, the others are not this feature)
+#   setup writes cgroupfs, a file log and crun into containers.conf, leaving
+#   a value already set, and runs podman system migrate
 #   setup records the feature, installs the list through 10-packages, writes
 #   a subuid and a subgid line once, installs Distrobox from the archive, and
 #   does not create a box when stdin is not a terminal
@@ -140,7 +142,8 @@ check "features.list names optional/containers with setup and remove" \
   grep -q '^containers *| *optional/containers *| *| *vikix containers setup *| *vikix containers remove *|' "$here/features.list"
 check "the list has podman" grep -q '^podman ' "$here/packages/optional/containers.list"
 check "the list has aardvark-dns" grep -q '^aardvark-dns ' "$here/packages/optional/containers.list"
-for p in crun docker incus flatpak distrobox slirp4netns passt netavark fuse-overlayfs; do
+check "the list has crun" grep -q '^crun ' "$here/packages/optional/containers.list"
+for p in docker incus flatpak distrobox slirp4netns passt netavark fuse-overlayfs; do
   check "the list does not name $p itself" bash -c "! grep -q '^$p ' '$here/packages/optional/containers.list'"
 done
 check "the script never enables a runit service" bash -c "! grep -q 'enable_service\|/var/service' '$here/bin/vikix-containers'"
@@ -154,7 +157,11 @@ check "update tools upgrades boxes" grep -q 'vikix-containers" upgrade' "$here/b
 reset
 out=$(boxes setup 2>&1) || { echo "FAIL: setup failed: $out"; fail=1; }
 check "setup records the feature" grep -qx containers "$choices"
-check "the list went in through 10-packages" grep -q '^sudo xbps-install -y podman aardvark-dns$' "$t/calls"
+check "the list went in through 10-packages" grep -q '^sudo xbps-install -y podman aardvark-dns crun$' "$t/calls"
+check "Podman is told to use cgroupfs" grep -qx 'cgroup_manager = "cgroupfs"' "$HOME/.config/containers/containers.conf"
+check "Podman logs events to a file" grep -qx 'events_logger = "file"' "$HOME/.config/containers/containers.conf"
+check "Podman uses crun" grep -qx 'runtime = "crun"' "$HOME/.config/containers/containers.conf"
+check "setup migrates Podman's store" grep -q '^podman system migrate$' "$t/calls"
 check "a subuid line was written" grep -qx "$me:100000:65536" "$t/subuid"
 check "the same line in subgid" grep -qx "$me:100000:65536" "$t/subgid"
 check "the stamp remembers both lines" grep -qx "subuid $me:100000:65536" "$VIKIX_STATE/containers-subids"
@@ -173,6 +180,7 @@ check "check says all is well" has 'Podman is rootless' "$out"
 out=$(boxes setup 2>&1) || { echo "FAIL: a second setup failed: $out"; fail=1; }
 check "a second setup installs no packages" bash -c "! grep -q 'xbps-install -y' '$t/calls'"
 check "a second setup adds no second subuid line" test "$(grep -c "^$me:" "$t/subuid")" = 1
+check "a second setup does not repeat the engine keys" test "$(grep -c '^cgroup_manager ' "$HOME/.config/containers/containers.conf")" = 1
 
 # A box, when asked. The second time it is already there.
 : > "$t/calls"
@@ -287,8 +295,46 @@ check "a dry run records no feature" test ! -e "$choices"
 check "a dry run writes no subuid" test ! -s "$t/subuid"
 check "a dry run installs no Distrobox" test ! -e "$t/prefix/bin/distrobox"
 check "a dry run would create the box" has 'would run: distrobox create --name vikix' "$out"
+check "a dry run would set the engine" has 'would set cgroup_manager="cgroupfs"' "$out"
+check "a dry run writes no containers.conf" test ! -e "$HOME/.config/containers/containers.conf"
+
+# A value already set is left, and check names a runtime that is not crun.
+reset
+mkdir -p "$HOME/.config/containers"
+cat > "$HOME/.config/containers/containers.conf" <<'EOF'
+# kept
+[containers]
+userns = "keep-id"
+
+[engine]
+runtime = "runc"
+volume_path = "/tmp/v"
+
+[network]
+dns_bind_port = 53
+EOF
+out=$(boxes setup 2>&1) || { echo "FAIL: setup with an existing engine failed: $out"; fail=1; }
+check "a comment is kept" grep -qx '# kept' "$HOME/.config/containers/containers.conf"
+check "another section is kept" grep -qx 'dns_bind_port = 53' "$HOME/.config/containers/containers.conf"
+check "a runtime the user set is kept" grep -qx 'runtime = "runc"' "$HOME/.config/containers/containers.conf"
+check "the missing engine keys are added" grep -qx 'cgroup_manager = "cgroupfs"' "$HOME/.config/containers/containers.conf"
+check "events_logger is added beside them" grep -qx 'events_logger = "file"' "$HOME/.config/containers/containers.conf"
+out=$(boxes check 2>&1) && { echo "FAIL: check should fail when the runtime is runc: $out"; fail=1; }
+check "check names the runtime" has 'runtime is runc, not crun' "$out"
+
+# A box that already exists still has its old runtime. Setup says so, and
+# does not delete it.
+reset
+echo oldbox > "$t/boxes"
+out=$(boxes setup 2>&1) || { echo "FAIL: setup with an old box failed: $out"; fail=1; }
+check "an old box is named" has 'oldbox' "$out"
+check "setup says to create it again" has 'vikix containers create NAME' "$out"
+check "the old box was not deleted" grep -qx oldbox "$t/boxes"
+out=$(boxes remove 2>&1) || { echo "FAIL: remove failed: $out"; fail=1; }
+check "remove leaves Podman's config" test -f "$HOME/.config/containers/containers.conf"
 
 # The command is reached through vikix.
+reset
 out=$(bash "$here/bin/vikix" containers status 2>&1) || { echo "FAIL: vikix containers failed: $out"; fail=1; }
 check "vikix containers status runs" has "isn't chosen" "$out"
 

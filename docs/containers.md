@@ -18,9 +18,19 @@ vikix containers setup --no-box      # Podman and Distrobox, and no box
 
 What the setup does:
 
-- **installs Podman** from Void, and aardvark-dns, which container DNS needs (`packages/optional/containers.list`). Podman brings runc, conmon, slirp4netns, passt, fuse-overlayfs, netavark and the rest. No root service is switched on: a container starts when you enter the box, and not before.
+- **installs Podman** from Void, and aardvark-dns, which container DNS needs, and crun (`packages/optional/containers.list`). Podman brings runc, conmon, slirp4netns, passt, fuse-overlayfs, netavark and the rest. No root service is switched on: a container starts when you enter the box, and not before.
+- **tells Podman this machine runs runit**, in `~/.config/containers/containers.conf`: `cgroup_manager = "cgroupfs"`, `events_logger = "file"` and `runtime = "crun"`. A value you already set is left as it is. Then it runs `podman system migrate`. cgroupfs is enough for `podman run`. A box also sets a pids limit (`--pids-limit`), and runc refuses that when you cannot write a cgroup, with `rootless needs no limits + no cgrouppath`. crun ignores that failure (Void builds it without systemd), so the box starts. runc stays installed, because Podman depends on it.
 - **gives your user a range of subuids and subgids** in `/etc/subuid` and `/etc/subgid`, if you have none. A range you already set is left as it is.
 - **installs Distrobox 1.8.2.5** into `~/.local` (Void does not package it). The checksum is the tag's archive as it was on 2026-10-16.
+
+A box created before this engine still uses the runtime it was made with. `podman system migrate` does not change that. Create it again:
+
+```sh
+distrobox rm vikix
+vikix containers create
+```
+
+That drops what was installed inside the box. Your home folder stays.
 
 The names live in `~/.config/vikix/containers` (`BOX`, `IMAGE`), which the snapshot history covers.
 
@@ -42,7 +52,7 @@ Inside it, `apt` or `pacman` install into the box, not into Void. Leaving the te
 vikix containers status
 ```
 
-says whether Podman, Distrobox and your subuids are in place. `vikix doctor` checks the same once containers is one of your features.
+says whether Podman, crun, Distrobox and your subuids are in place, and whether Podman is set for runit (cgroupfs, a file log, crun). `vikix doctor` checks the same once containers is one of your features, and names a runtime that is still runc.
 
 ## Removing it
 

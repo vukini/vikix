@@ -415,11 +415,13 @@ A box shares your home folder. That is the point (a .deb installed where your fi
 
 Rootless only. Podman's package ships runit service files and does not enable them; this does not enable them either. Nothing listens until a container runs.
 
+runit has no systemd and no journald. Setup writes three keys into `~/.config/containers/containers.conf`, under [engine], and only when you have not set them: `cgroup_manager` = "cgroupfs", `events_logger` = "file", runtime = "crun". Then it runs podman system migrate. cgroupfs leaves a rootless container with no cgroup path, which is enough for podman run. Distrobox also passes --pids-limit. runc then fails with "rootless needs no limits + no cgrouppath" because it cannot write /sys/fs/cgroup. crun 1.30 (Void builds it with --disable-systemd) ignores that failure when the path is empty, so the box starts. A box created before this still uses the runtime it was made with; create it again to pick up crun. That drops what was installed inside the box. The home folder stays.
+
 Distrobox is not in Void. The setup fetches tag 1.8.2.5 and checks the archive against the SHA-256 below, taken on 2026-10-16. GitHub publishes no checksum for a generated tag archive. The scripts are GPL-3, so they are installed into `~/.local` and not kept in this tree. Distrobox finds the other scripts beside the one you ran, so they are copied, not linked.
 
 The default box is named vikix, from ubuntu:24.04, written in `~/.config/vikix/containers`. Setup creates it when you pass --box, or when you say yes at a terminal. With no terminal it does not download an image.
 
-For the tests: `VIKIX_SUBUID` and `VIKIX_SUBGID` stand in for /etc/subuid and /etc/subgid, `VIKIX_SYSCTL_PROC` for the userns sysctl, `VIKIX_SYSCTL_FILE` for the file setup would write, `VIKIX_FUSE` for /dev/fuse, `VIKIX_DISTROBOX_PREFIX` for `~/.local`, `VIKIX_DISTROBOX_TARBALL` and `VIKIX_DISTROBOX_SHA256` for the archive.
+For the tests: `VIKIX_SUBUID` and `VIKIX_SUBGID` stand in for /etc/subuid and /etc/subgid, `VIKIX_SYSCTL_PROC` for the userns sysctl, `VIKIX_SYSCTL_FILE` for the file setup would write, `VIKIX_FUSE` for /dev/fuse, `VIKIX_DISTROBOX_PREFIX` for `~/.local`, `VIKIX_DISTROBOX_TARBALL` and `VIKIX_DISTROBOX_SHA256` for the archive, `VIKIX_CONTAINERS_CONF` for `~/.config/containers/containers.conf`.
 
 ## vikix-cuis
 
