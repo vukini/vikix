@@ -23,9 +23,21 @@ as invalid edits retaining the last good pattern. The real engine runs at
 latency); its PipeWire audio thread has SCHED_RR priority 20. A 300-bar,
 ten-minute play completed with exit 0: SuperCollider error counters stayed
 at zero, the device counter stayed at its initial five, and both owned
-children exited. A fresh VM
-install-to-first-sound benchmark and round-trip latency remain release
-validation work; the Void VM was shut off during this check.*
+children exited.*
+
+*2026-10-16, VM follow-up: the existing Void VM had no music dependencies.
+The committed package stage installed SuperCollider, PipeWire JACK and
+rtkit; public `vikix add music` then succeeded as the guest user in a fresh
+temporary home. Four bars produced 144,000 stereo PCM frames, peak
+2096/32768, with a nonzero signal observed within 3.505 s of launch and
+within 31 s of setup finishing. Both outputs connected to the virtual
+analog sink and the player exited 0. This measures generated audio, not
+a human listening through SPICE. A launch from the VM's actual StumpWM
+session retained SCHED_RR priority 20 in all three samples; launching via
+the guest agent gave normal priority and is not an equivalent session test.
+Temporary guest files were removed and the VM returned to shut off.
+Physical round-trip latency still needs an audio loopback connection; the
+21.3 ms block size is not that measurement.*
 
 ---
 
