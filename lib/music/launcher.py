@@ -279,6 +279,11 @@ def main(root, argv):
     play.add_argument("file", nargs="?", default=str(Path.home() / "music/first-song/patterns.lisp"))
     play.add_argument("--pattern")
     play.add_argument("--bars", type=int)
+    export = sub.add_parser("send")
+    export.add_argument("file", nargs="?", default=str(Path.home() / "music/first-song/patterns.lisp"))
+    export.add_argument("--pattern")
+    export.add_argument("--repeat", type=int, default=1)
+    export.add_argument("--format", choices=("both", "midi", "wav"), default="both")
     repl = sub.add_parser("repl")
     repl.set_defaults(file=str(Path.home() / "music/first-song/patterns.lisp"))
     serve = sub.add_parser("serve")
@@ -297,6 +302,9 @@ def main(root, argv):
     if args.command == "control" and args.slot is not None and args.action != "bank":
         parser.error("a slot belongs only to control bank")
     try:
+        if args.command == "send":
+            from export import send_score
+            return send_score(root, args)
         if args.command == "control":
             from session import control
             return control(args)

@@ -41,6 +41,13 @@ real desktop listening remains a manual check.*
 
 ## Executable Office plan
 
+*2026-10-18: Per-pattern MIDI and finite offline WAV implemented at music-export
+for plan review. One complete cycle by default, bounded repeats, shared validated
+score expansion, and complete new batches under song/render preserve prior exports
+and leave live playback alone. See the Music guide for timing, MIDI instrument
+limits, fixed render gain and interruption recovery. Desktop listening remains
+a manual check; DAW installation and transport belong to subsequent tasks.*
+
 [music-next.toml](music-next.toml) is the executable continuation, not a template.
 It has one worker at a time and no user gate: each desk is released by the plan
 once its tests pass (*2026-10-17: the gate and the "ask Vid before implementation"

@@ -163,6 +163,17 @@ with tempfile.TemporaryDirectory(prefix='music-views-test-') as temp:
         music_control('play')
         until(lambda: json.loads(music_control('state').stdout)['bars'])
         assert 'music ' in music_control('bar').stdout
+        before_send = json.loads(music_control('state').stdout)
+        engine_before = (folder / 'engine.pid').read_text()
+        endpoint_before = endpoint.read_bytes()
+        result = subprocess.run([str(root / 'bin/vikix'), 'music', 'send', str(song), '--format', 'midi'],
+                                env=env, capture_output=True, text=True, timeout=20)
+        assert result.returncode == 0, result.stderr
+        after_send = json.loads(music_control('state').stdout)
+        assert after_send['playing']
+        for key in ('pattern', 'revision', 'gain', 'tempo', 'pads'):
+            assert after_send[key] == before_send[key], key
+        assert endpoint.read_bytes() == endpoint_before and (folder / 'engine.pid').read_text() == engine_before
         music_control('bank', '32', ok=False)
         assert json.loads(music_control('state').stdout)['playing']
         music_control('bank', '2')

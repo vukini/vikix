@@ -9,5 +9,6 @@ here=$(cd "$(dirname "$0")/.." && pwd)
 python3 "$here/tests/music/check.py" "$here"
 python3 "$here/tests/music/views.py" "$here"
 python3 "$here/tests/music/synth.py" "$here"
+python3 "$here/tests/music/export.py" "$here"
 python3 "$here/tests/music/capture.py" "$here"
 python3 "$here/tests/music/capture-routing.py" "$here"

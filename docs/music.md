@@ -395,9 +395,88 @@ original. Finally interrupt the session while recording, restart and preview
 the preserved partial take. Isolated automated routing/source fixtures do not
 replace this human microphone and real desktop listening check.
 
+## Export a score as MIDI and WAV
+
+`send` reads the saved score once as data and exports every named pattern
+separately. It works with Music stopped or playing and never contacts, stops
+or changes the shared session. It does not export unsaved edits, session gain,
+pad performance or recordings from the capture inbox.
+
+```sh
+vikix music send ~/music/first-song/patterns.lisp
+vikix music send ~/music/first-song/patterns.lisp --pattern verse --repeat 4
+vikix music send ~/music/first-song/patterns.lisp --format midi
+```
+
+Without a file, it uses `~/music/first-song/patterns.lisp`. `--pattern NAME`
+selects one name, case insensitively; otherwise each name exports once in file
+order, including names without pads. Bank gaps and duplicate assignments do
+not alter export order or repeat a pattern. `--repeat N` repeats each complete
+pattern 1–16 times, default 1: a step pattern is one four-beat bar; a progression
+is its entire sequence, including silent bars and expanded block durations.
+The total nominal duration of a batch is limited to one hour; select fewer
+patterns or repeats for a longer score.
+
+Each successful command prints a new directory beneath the score file's sibling
+`render/`, named `send-DATE-TIME-UNIQUE`. It contains numbered pattern files
+and `export.json` listing original names, tempo, nominal duration, filenames,
+WAV duration and repeat count. Safe filenames may replace punctuation; the
+number keeps different names distinct. The default writes both `.mid` and
+`.wav`; `--format midi` or `--format wav` writes only that format. MIDI needs
+SBCL; WAV also needs SuperCollider and the palette prepared by `music setup`.
+It does not need PipeWire, JACK, a browser or an audio device.
+
+Both formats use the saved tempo (default 120), pitches, rests, swing and
+progression voicings of the player. Swing delays alternate step onsets by
+the saved fraction of a step. Note duration is the shorter of 0.3 seconds
+and 80% of a straight step; progression chords rearticulate for 0.3 seconds
+on each occupied bar, including repeated bars. They do not sustain across
+blocks. Export starts at time zero and keeps trailing silent bars. A note
+delayed past the last bar's end keeps its full duration: MIDI ends after its
+note-off, WAV after its envelope plus two 64-sample blocks (about 2.7 ms)
+for the engine's scheduling and control-rate rounding. Otherwise files end at the nominal bar
+boundary. A swung last note can therefore make a file slightly longer than
+the bar grid; use the nominal duration when arranging loops in a DAW.
+
+MIDI is a type-0 Standard MIDI File with tempo and 4/4 metadata, at 9,600 ticks
+per quarter note. Tempo rounds to the nearest microsecond per quarter and
+events to the nearest tick. Pitched notes use channel 1; melodic `x` is A3
+(MIDI 57). Drums use channel 10 with General MIDI notes 36 (kick), 38 (snare)
+and 42 (closed hat). Velocity scales pattern gain to 1–127; progression voices
+divide that gain by three. Gain zero omits note events. There are no program
+changes: **MIDI contains notes and timing, not Vikix's synthesized timbres or
+raw captured audio**. Choose instruments in the receiving application;
+its velocity response and envelopes will differ.
+
+WAV is stereo, 48,000 Hz, signed 16-bit PCM. A finite SuperCollider offline
+render uses the same prepared six-voice palette and event functions as live
+playback, at fixed session gain 0.08 multiplied by pattern gain (divided by
+three per progression voice). It ignores the live session's gain slider.
+The renderer's short silent preparation interval is removed. Each voice keeps
+its released envelope; the closed hat lasts 61 ms regardless of note duration.
+Noise-based sounds can differ between renders; timing is fixed, but identical
+audio bytes are not promised. No live sound or microphone is captured, and
+no normalization is applied.
+
+The batch becomes visible under its final name only after every requested file
+has succeeded. Earlier exports are never replaced. Invalid scores, missing
+sounds, renderer failures, full disks and Ctrl+C leave earlier batches intact;
+normal failures and handled signals reap the command's children and remove its
+temporary `.send-*` directory. A power loss or uncatchable kill can leave that
+hidden temporary directory; it is not a completed export. Keep completed batches
+backed up separately: snapshot undo covers scores, not rendered files.
+
+Manual check after installation: keep a browser pattern playing, run `send`
+with a short swung melody and a progression containing silence, and verify the
+browser keeps its selection, gain and playhead. Open the resulting MIDI in a
+DAW, choose instruments, and check notes, tempo and rests. Listen to the WAV
+and compare its timbre with live playback at session gain 0.08. Run export
+again and confirm the earlier batch remains. Automated isolated launcher and
+offline waveform checks do not establish real desktop listening quality.
+
 ## What comes later
 
-DAW integration, MIDI and variations remain.
+DAW integration, MIDI controller input and variations remain.
 
 `vikix remove music` removes the feature's dependencies when nothing else
 needs them and the prepared synth, keeping `~/music`. `vikix music setup`
