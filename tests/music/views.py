@@ -155,6 +155,62 @@ with tempfile.TemporaryDirectory(prefix='music-views-test-') as temp:
         connection.request('GET', '/', headers={'Host': 'evil.invalid'})
         assert connection.getresponse().status == 403
         connection.close()
+        assert not a.state['bank']
+        assert a.state['pads'] == [dict(slot=1, pattern='melody'), dict(slot=2, pattern='bass')]
+        initial_revision = a.state['revision']
+        assigned = a.request('assign', revision=initial_revision, slot=1, pattern='bass')
+        assert not assigned['error'], assigned
+        assert assigned['bank'] and assigned['pads'] == [dict(slot=1, pattern='bass'), dict(slot=2, pattern='bass')]
+        assert song.read_text().startswith(original)
+        assert '(bank 1 bass 2 bass)' in song.read_text()
+        assert 'song changed' in b.request('assign', revision=initial_revision, slot=2, pattern='melody')['error']
+        assert 'song changed' in b.request('play', revision=initial_revision, slot=1)['error']
+        saved = song.read_bytes()
+        for slot, name in ((0, 'bass'), (33, 'bass'), (True, 'bass'), (1, 'missing'), (1, '#.(quit)')):
+            assert a.request('assign', revision=assigned['revision'], slot=slot, pattern=name)['error']
+            assert song.read_bytes() == saved
+        # A bank is read from disk by a newly launched public session.
+        a.close(); clients.remove(a)
+        b.close(); clients.remove(b)
+        assert end(service) == 0
+        service = subprocess.Popen([str(root / 'bin/vikix-music'), 'serve'], env=env,
+                                   stdout=log, stderr=log, start_new_session=True)
+        children.append(service)
+        until(lambda: endpoint.exists() or service.poll() is not None)
+        assert service.poll() is None
+        info = json.loads(endpoint.read_text())
+        a, b = Client(info), Client(info)
+        clients += [a, b]
+        assert a.state['pads'] == assigned['pads'] and a.state['revision'] == assigned['revision']
+        snapshot_git = ['git', '-C', str(home), '--git-dir=' + str(home / '.local/state/vikix/yours.git')]
+        snapshot = subprocess.check_output(snapshot_git + ['rev-parse', 'HEAD'], env=env, text=True, timeout=5).strip()
+        undone = subprocess.run([str(root / 'bin/vikix'), 'undo', snapshot, '--yes'], env=env, capture_output=True, timeout=15)
+        assert undone.returncode == 0, undone.stderr
+        assert song.read_text() == original and not a.request('state')['bank']
+        # Preserve comments even when clearing an assignment; references are case insensitive.
+        song.write_text(original + '(bank 1 ; pad comment\n BASS 32 melody)\n')
+        state = a.request('state')
+        assert state['pads'][0]['pattern'] == 'bass'
+        cleared = a.request('assign', revision=state['revision'], slot=1, pattern=None)
+        assert not cleared['error'] and cleared['pads'] == [dict(slot=32, pattern='melody')]
+        assert '; pad comment' in song.read_text()
+        for bad in ('(bank 1 missing)', '(bank 1 bass 1 melody)', '(bank 1)', '(bank) (bank)', '(bank 33 bass)'):
+            song.write_text(original + bad)
+            invalid = a.request('state')
+            assert invalid['error'] and invalid['revision'] == cleared['revision'] and invalid['pads'] == cleared['pads']
+            assert a.request('assign', revision=cleared['revision'], slot=2, pattern='bass')['error']
+            assert song.read_text() == original + bad
+        song.write_text(original + '(bank)\n')
+        assert a.request('state')['pads'] == []
+        assert a.request('play', revision=a.state['revision'], slot=1)['error']
+        state = a.request('assign', revision=a.state['revision'], slot=32, pattern='melody')
+        assert not state['error'] and state['pads'] == [dict(slot=32, pattern='melody')]
+        state = a.request('assign', revision=state['revision'], slot=32, pattern='bass')
+        assert not state['error'] and state['pads'] == [dict(slot=32, pattern='bass')]
+        state = a.request('assign', revision=state['revision'], slot=32, pattern=None)
+        assert not state['error'] and state['bank'] and state['pads'] == []
+        song.write_text(original)
+        a.request('state')
         revision = a.state['revision']
         state = a.request('note', revision=revision, pattern='melody', step=0, note='e6')
         assert not state['error'], state
@@ -170,6 +226,8 @@ with tempfile.TemporaryDirectory(prefix='music-views-test-') as temp:
         (commands / 'git').write_text('#!/bin/sh\nexit 1\n')
         (commands / 'git').chmod(0o755)
         failed = a.request('tempo', revision=state['revision'], value=160)
+        assert 'snapshot failed' in failed['error'] and song.read_bytes() == before, failed
+        failed = a.request('assign', revision=state['revision'], slot=1, pattern='bass')
         assert 'snapshot failed' in failed['error'] and song.read_bytes() == before, failed
         (commands / 'git').unlink()
         assert a.request('tempo', revision=state['revision'], value=160)['tempo'] == 160
@@ -392,6 +450,41 @@ StdIOWriteStream stdout nextPutAll: 'MUSIC-CUIS-PASS'; newLine; flush.
             until(lambda: js('Boolean(state.error)'))
             assert subtitle() == last_subtitle
             song.write_text(good)
+            until(lambda: js('!state.error && !busy'))
+            old_revision = js('state.revision')
+            js("document.querySelector('#bank-slot').value='1'; document.querySelector('#bank-slot').dispatchEvent(new Event('change')); document.querySelector('#bank-pattern').value='bass'; document.querySelector('#assign').click()")
+            until(lambda: '(bank 1 bass 2 bass)' in song.read_text())
+            until(lambda: js('state.bank && !busy'))
+            assert js('state.pattern') == 'melody' and js('state.playing')
+            assert js("document.querySelector('#playing').textContent") == 'Playing · melody'
+            js('send({op:"assign", slot:1, pattern:"melody", revision:' + json.dumps(old_revision) + '})')
+            until(lambda: js("document.querySelector('#status').textContent.includes('song changed')"))
+            assert '(bank 1 bass 2 bass)' in song.read_text()
+            js("document.querySelector('#pads button[data-slot=\"1\"]').click()")
+            until(lambda: js('state.pattern') == 'bass')
+            until(lambda: js("document.querySelectorAll('.step.current').length") == 1)
+            assert js("document.querySelectorAll('#pads [aria-pressed=true]').length") == 2
+            # Switching joins the old worker before starting another engine.
+            until(lambda: sum(Path('/proc', pid).exists() for pid in (folder / 'engine.pids').read_text().splitlines()) == 1)
+            bank_good = song.read_text()
+            for invalid_bank in ('(bank 1 missing)', '(bank 1 bass 1 melody)', '(bank 1)'):
+                song.write_text(bank_good.replace('(bank 1 bass 2 bass)', invalid_bank))
+                until(lambda: js('Boolean(state.error)'))
+                assert js("document.querySelector('#pads button[data-slot=\"1\"]').dataset.pattern") == 'bass'
+                assert js('state.playing')
+                song.write_text(bank_good)
+                until(lambda: js('!state.error'))
+            # A new browser connection recovers saved assignments and playing identity.
+            cdp('Page.navigate', dict(url='about:blank'))
+            until(lambda: js('location.href') == 'about:blank')
+            cdp('Page.navigate', dict(url=f"http://127.0.0.1:{info['port']}/#{info['token']}"))
+            until(lambda: js("document.querySelector('#pads button[data-slot=\"1\"]')?.textContent") == '1 · bass')
+            until(lambda: js("document.querySelector('#playing').textContent") == 'Playing · bass')
+            until(lambda: js('!busy'))
+            js("document.querySelector('#bank-pattern').value=''; document.querySelector('#assign').click()")
+            until(lambda: js('state.pads.length') == 1)
+            assert js('state.pattern') == 'bass' and js('state.playing')
+            assert js("document.querySelector('#pads button[data-slot=\"1\"]')") is None
             until(lambda: js('!busy'))
             js("document.querySelector('#stop').click()")
             until(lambda: js("document.querySelector('#playing').textContent") == 'Stopped')

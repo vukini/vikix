@@ -103,8 +103,8 @@ Close its Music window to quit that disposable image.
 Click a named pad to select and play its pattern, or choose a pattern and
 press Play. One pattern plays at a time; switching pads stops the old one
 and starts the new one from its beginning. Clicking the playing pad keeps
-it running. Pads use file order and do not yet have saved bank assignments
-or desktop keys. Each step paints the selected note; a
+it running. Scores without a bank keep pads in file order. There are no
+desktop pad keys. Each step paints the selected note; a
 second click on that note makes a rest. The browser offers the full note
 range; the Cuis comparison cycles a small high-note palette and shows
 sixteen steps per page. Tempo and gain controls work in both. Tempo is
@@ -123,8 +123,9 @@ takes effect on the playhead when the next bar is scheduled. This is a
 visual guide, not a measurement of speaker latency. A delayed connection
 can briefly hide the outline; stopping or disconnecting clears it.
 
-An edit takes a snapshot first and replaces only the changed note or tempo
-token, keeping comments and formatting. A stale revision is refused: review
+An edit takes a snapshot first and replaces only the changed note, tempo or
+bank tokens, keeping existing comments and formatting. Creating a bank appends
+a new form. A stale revision is refused: review
 the refreshed grid and try again. Invalid file edits leave the last good
 pattern visible and audible, with an error. The prototype editor accepts
 whole-number tempos and plain pattern names made of letters, digits and
@@ -137,9 +138,37 @@ server binds only to 127.0.0.1, checks browser origins and requires a fresh
 session token from a private connection file. It accepts music operations,
 not Lisp or Smalltalk evaluation. Browser audio is never used.
 
+## Save pad assignments
+
+Open **Edit pad assignments**, choose a pad number and a named pattern, then
+click **Save assignment**. Choose **Unassigned** to clear a pad. The first
+assignment saves the other file-order pads too, so they stay where they were.
+All named patterns remain available in the Pattern selector, even if no pad
+refers to them. The score stores assignments as data:
+
+```lisp
+(bank 1 melody 2 pulse 8 melody)
+```
+
+There can be one bank, with slots 1 through 32. Gaps and the same pattern on
+several pads are allowed. `(bank)` leaves every pad unassigned; no bank form
+uses the original file-order pads. Names are case insensitive, and a bank may
+appear before its patterns. Duplicate pad numbers, multiple banks, unknown
+pattern names, out-of-range slots and incomplete pairs are errors, never
+silently discarded. Invalid files are refused at startup; invalid live edits
+keep the last good pads and playback, with an error shown in the view.
+
+Assignments survive closing the browser and restarting the session. They use
+the same snapshot and revision checks as grid edits: `vikix undo` restores
+them too, and stale assignment edits or pad launches are refused. Changing
+or clearing an assignment does not switch the playing pattern. Click a pad
+to switch; **Playing** names the actual pattern and all pads assigned to it
+light up. Only one pattern plays at a time. The experimental Cuis view still
+selects patterns directly; edit bank assignments in the browser or score.
+
 ## What comes later
 
-The current interface has one sound. Saved pad banks, desktop pad keys, capture, DAW integration,
+The current interface has one sound. Desktop pad keys, capture, DAW integration,
 MIDI, swing, chords and variations remain. There is no new desktop key or menu entry yet.
 
 `vikix remove music` removes the feature's dependencies when nothing else

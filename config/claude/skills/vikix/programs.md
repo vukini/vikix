@@ -32,6 +32,11 @@ A page of the Vikix skill (~/.claude/skills/vikix/SKILL.md: read that first, its
 
 ## Music sketchpad
 
+The browser can save pad assignments as `(bank 1 melody 2 bass)` in the
+score, through the same snapshot and revision checks as grid edits. Slots
+are 1–32; scores without a bank retain file-order pads. Bank edits do not
+switch playback: click a pad to play its named pattern.
+
 `vikix add music` prepares SuperCollider and a first pattern in
 `~/music/first-song/patterns.lisp` (copied once). `vikix music tone`,
 `play [FILE]`, `check FILE`, and `repl` are the first slice; the guide is

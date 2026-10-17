@@ -120,6 +120,14 @@ with tempfile.TemporaryDirectory(prefix="vikix-music-test-") as temp:
                  "(defpattern bad '(c4)) :end (load bad)"):
         pattern.write_text(text)
         run("music", "check", str(pattern), ok=False)
+    for bank in ('(bank 1)', '(bank 0 test)', '(bank 33 test)', '(bank 1.5 test)',
+                 '(bank 1 test 1 test)', '(bank 1 missing)', '(bank 1 :test)',
+                 '(bank 1 (test))', '(bank 1 test) (bank)', '(bank . test)'):
+        pattern.write_text(original + bank)
+        run("music", "check", str(pattern), ok=False)
+    for bank in ('(bank)', '(bank 1 test 32 TEST)', '(bank 2 test)'):
+        pattern.write_text(bank + '\n' + original)
+        run("music", "check", str(pattern))
     pattern.write_text(original)
     run("music", "doctor", ok=False)
     data = home / ".local/share/vikix/music"
@@ -139,7 +147,7 @@ with tempfile.TemporaryDirectory(prefix="vikix-music-test-") as temp:
     run("music", "play", str(pattern), "--pattern", "missing", "--bars", "1", ok=False)
     gone()
     odd = home / "a song; still data.lisp"
-    odd.write_text("(tempo 200) (defpattern low '(c0 -))")
+    odd.write_text("(bank 32 low) (tempo 200) (defpattern low '(c0 -))")
     run("music", "play", str(odd), "--bars", "1")
     gone()
     run("music", "tone", "nan", ok=False)

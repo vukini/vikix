@@ -22,7 +22,7 @@ from launcher import lisp, perform
 
 
 class Song:
-    """A deliberately small editor: replace only a tempo or note token."""
+    """A deliberately small editor: replace note, tempo and bank tokens without reformatting the score."""
     def __init__(self, root, path):
         self.root = root
         supplied = Path(path).absolute()
@@ -41,6 +41,7 @@ class Song:
         tokens = [(m.group(), m.start(), m.end()) for m in
                   re.finditer(r";[^\n]*|[^\s()';]+|[()']", text) if not m.group().startswith(';')]
         i, patterns, tempo = 0, [], None
+        bank, bank_span = {}, None
         def take(want=None):
             nonlocal i
             if i >= len(tokens):
@@ -51,13 +52,28 @@ class Song:
                 raise ValueError("view supports plain tempo and quoted note-list forms")
             return token
         while i < len(tokens):
-            take('(')
+            start = take('(')
             kind = take()[0].lower()
             if kind == 'tempo':
                 tempo = take()
                 if not tempo[0].isdigit():
                     raise ValueError("prototype tempo must be a whole number")
                 take(')')
+            elif kind == 'bank':
+                if bank_span is not None:
+                    raise ValueError("only one bank form is allowed")
+                while i < len(tokens) and tokens[i][0] != ')':
+                    slot, name = take(), take()
+                    if not slot[0].isdigit() or not 1 <= int(slot[0]) <= 32:
+                        raise ValueError("bank pad must be an integer from 1 to 32")
+                    number = int(slot[0])
+                    if number in bank:
+                        raise ValueError(f"duplicate bank pad {number}")
+                    if not re.fullmatch(r'[A-Za-z][A-Za-z0-9-]*', name[0]):
+                        raise ValueError("bank needs pairs of pad number and pattern name")
+                    bank[number] = (slot, name)
+                end = take(')')
+                bank_span = ('', start[1], end[1])
             elif kind == 'defpattern':
                 name = take()[0]
                 if not re.fullmatch(r'[A-Za-z][A-Za-z0-9-]*', name):
@@ -75,20 +91,24 @@ class Song:
                 patterns.append((name, notes))
             else:
                 raise ValueError("unsupported form in view")
-        return patterns, tempo
+        names = {name.lower(): name for name, _ in patterns}
+        for slot, (_, name) in bank.items():
+            if name[0].lower() not in names:
+                raise ValueError(f"unknown bank pattern {name[0]} for pad {slot}")
+        return patterns, tempo, bank, bank_span
 
     def validate(self, data):
         if len(data) > 65536:
             raise ValueError("pattern file exceeds 64 KiB")
         text = data.decode('utf-8')
-        patterns, tempo = self.parse(text)
+        patterns, tempo, bank, bank_span = self.parse(text)
         with tempfile.NamedTemporaryFile(suffix='.lisp') as test:
             test.write(data)
             test.flush()
             result = subprocess.run(lisp(self.root, 'check', test.name), capture_output=True, timeout=10)
         if result.returncode:
             raise ValueError("invalid pattern data; keeping the last good pattern")
-        return text, patterns, tempo
+        return text, patterns, tempo, bank, bank_span
 
     def read(self):
         if any(p.is_symlink() for p in (self.path, self.path.parent, self.path.parent.parent)):
@@ -103,13 +123,22 @@ class Song:
         data = self.read()
         digest = hashlib.sha256(data).hexdigest()
         if digest != self.digest:
-            text, patterns, tempo = self.validate(data)
+            text, patterns, tempo, bank, bank_span = self.validate(data)
             self.text, self.patterns, self.tempo = text, patterns, tempo
+            self.bank, self.bank_span = bank, bank_span
             self.digest = digest
         return self
 
+    def pads(self):
+        if self.bank_span is None:
+            return {i: name for i, (name, _) in enumerate(self.patterns, 1)}
+        names = {name.lower(): name for name, _ in self.patterns}
+        return {slot: names[name[0].lower()] for slot, (_, name) in sorted(self.bank.items())}
+
     def state(self):
         return dict(revision=self.digest, song=self.path.parent.name,
+                    bank=self.bank_span is not None,
+                    pads=[dict(slot=slot, pattern=name) for slot, name in self.pads().items()],
                     tempo=int(self.tempo[0]) if self.tempo else 120,
                     patterns=[dict(name=n, notes=[t[0].lower() for t in notes]) for n, notes in self.patterns])
 
@@ -117,7 +146,32 @@ class Song:
         self.refresh()
         if command.get('revision') != self.digest:
             raise ValueError("song changed; review the refreshed grid and try again")
-        if command['op'] == 'tempo':
+        if command['op'] == 'assign':
+            slot, name = command.get('slot'), command.get('pattern')
+            if type(slot) is not int or not 1 <= slot <= 32:
+                raise ValueError("bank pad must be an integer from 1 to 32")
+            if name is not None and name not in [n for n, _ in self.patterns]:
+                raise ValueError("unknown bank pattern")
+            if self.bank_span is None:
+                pads = self.pads()
+                if name is None:
+                    pads.pop(slot, None)
+                else:
+                    pads[slot] = name
+                span = ('', len(self.text), len(self.text))
+                replacement = '\n(bank' + ''.join(f' {n} {p}' for n, p in sorted(pads.items())) + ')\n'
+            elif slot in self.bank:
+                number, reference = self.bank[slot]
+                span = reference
+                replacement = name or ''
+                if name is None:
+                    # Remove only the two tokens, keeping comments between them.
+                    span = ('', number[1], reference[2])
+                    replacement = self.text[number[2]:reference[1]]
+            else:
+                span = ('', self.bank_span[2], self.bank_span[2])
+                replacement = f' {slot} {name}' if name is not None else ''
+        elif command['op'] == 'tempo':
             value = command.get('value')
             if type(value) is not int or not 60 <= value <= 200:
                 raise ValueError("tempo must be 60 to 200")
@@ -197,11 +251,18 @@ class Session:
                 if not isinstance(command, dict):
                     raise ValueError('expected an object')
                 op = command.get('op')
-                if op in ('note', 'tempo'):
+                if op in ('note', 'tempo', 'assign'):
                     self.song.edit(command)
                 elif op == 'play':
                     self.song.refresh()
                     name = command.get('pattern', self.pattern)
+                    if 'slot' in command:
+                        if command.get('revision') != self.song.digest:
+                            raise ValueError('song changed; review the refreshed pads and try again')
+                        slot = command['slot']
+                        if type(slot) is not int or slot not in self.song.pads():
+                            raise ValueError('unassigned bank pad')
+                        name = self.song.pads()[slot]
                     if name not in [n for n, _ in self.song.patterns]:
                         raise ValueError('unknown pattern')
                     if not self.worker or not self.worker.is_alive() or name != self.pattern:

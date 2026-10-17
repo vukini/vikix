@@ -11,6 +11,12 @@ Lisp subtitles and a scheduled playhead. Vid chose the browser and confirmed
 the desktop trial. Cuis remains experimental. See [the user guide](../docs/music.md)
 for the shipped behavior; this design describes the remaining work.*
 
+*2026-10-17: Banks implemented at the music-banks desk, awaiting the user
+release gate. Office decision d-20261017-017ba8 approved slots 1–32, gaps,
+repeated patterns, one bank, and rejection of duplicate slots and missing
+names. Scores without a bank retain file-order pads. See the user guide for
+assignment editing and undo; desktop pad keys remain a later task.*
+
 ## Executable Office plan
 
 [music-next.toml](music-next.toml) is the executable continuation, not a template.
@@ -171,7 +177,7 @@ The installed engine, basic patterns, next-bar reload, browser grid, transport,
 subtitles, named-pattern pads, playhead and snapshot undo are implemented.
 What remains for the first version is assigned to the first eight Office tasks:
 
-1. **Banks and sounds:** persistent assignments, sound selection, bounded swing
+1. **Sounds:** sound selection, bounded swing
    and dynamics, and rhythm hits; old scores must retain their behavior.
 2. **Progressions:** validated chord blocks with a browser representation and
    agreed voicings, keys and durations.
