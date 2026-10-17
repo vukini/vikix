@@ -50,6 +50,9 @@ for dir in "$here"/dev/*/examples/*/; do
   cp -r "$dir" "$t/$lang-$name"
   (
     cd "$t/$lang-$name"
+    # These are source copies, without their repository. Go must not infer
+    # VCS metadata from an unrelated .git directory above the temporary home.
+    if [ "$lang" = go ]; then export GOFLAGS="${GOFLAGS:-} -buildvcs=false"; fi
     make -s >/dev/null 2>&1 || { echo "FAIL: $lang/$name doesn't build"; exit 1; }
     if [ "$lang" = ai ]; then
       :   # make run would reach Claude or Ollama: tests/dev-ai.sh runs them against fakes

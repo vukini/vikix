@@ -233,9 +233,19 @@ esac
 R
 chmod +x "$t/bin/rofi"
 : > "$t/task-typed"; echo "From the menu" > "$t/topic-typed"
-printf '#!/bin/sh\necho "$*" > "%s"\necho "${VIKIX_AGENT_SSH-unset}" > "%s"\nexec "%s"\n' "$t/desk.args" "$t/desk.ssh" "$t/bin/claude" > "$t/bin/argsaver"; chmod +x "$t/bin/argsaver"
+printf '#!/bin/sh\necho "$*" > "%s"\necho "${VIKIX_AGENT_SSH-unset}" > "%s"\necho ready > "%s"\nexec "%s"\n' "$t/desk.args" "$t/desk.ssh" "$t/desk.ready" "$t/bin/claude" > "$t/bin/argsaver"; chmod +x "$t/bin/argsaver"
+# Each terminal starts asynchronously. A completion marker written after both
+# files prevents the next assertion from reading the previous launch's data.
+wait_args() {
+  for ((i=0; i<100; i++)); do
+    [ ! -e "$t/desk.ready" ] || return 0
+    sleep 0.1
+  done
+  echo "FAIL: the stand-in agent did not report its arguments"; exit 1
+}
 : > "$t/agent-pick"; echo 0 > "$t/push-pick"
 rm -f "$t/desk.args"
+rm -f "$t/desk.ready"
 out=$(PATH="$t/bin:$PATH" AGENT_CMD="$t/bin/argsaver" desk)
 check "without a project it asks which, then for a topic, then for the task; nothing typed is the desk alone: $out" \
   grep -q '^a desk: in ~/src/books-from-the-menu, a new worktree on the branch from-the-menu. Nobody sits at it' <<<"$out"
@@ -244,44 +254,45 @@ check "and no agent, no question after" test ! -e "$t/desk.args"
 # A task typed: the questions a worker needs, which agent and may it push, then a worker at the
 # desk, the task its first prompt (trimmed) and the record's.
 echo "  Fix the index from the menu  " > "$t/task-typed"; echo "menu-two" > "$t/topic-typed"
+rm -f "$t/desk.ready"
 out=$(PATH="$t/bin:$PATH" AGENT_CMD="$t/bin/argsaver" desk)
 check "a task typed starts a worker at the new desk: $out" grep -q 'a desk, and a worker at it: in ~/src/books-menu-two, a new worktree on the branch menu-two, the task its first prompt, on workspace' <<<"$out"
-sleep 0.5
+wait_args
 check "yours, the first row, adds nothing but the task, trimmed: '$(head -1 "$t/desk.args" 2>/dev/null)'" test "$(head -1 "$t/desk.args" 2>/dev/null)" = "Fix the index from the menu"
 check "no to the last question, may it push as you, keeps your SSH agent from it: '$(cat "$t/desk.ssh" 2>/dev/null)'" test "$(cat "$t/desk.ssh" 2>/dev/null)" = unset
 check "and in the record" grep -q 'books-menu-two  no status, just now: Fix the index from the menu' <<<"$(cli handoff list)"
 echo 1 > "$t/push-pick"; echo "menu-three" > "$t/topic-typed"
+rm -f "$t/desk.ready"
 out=$(PATH="$t/bin:$PATH" AGENT_CMD="$t/bin/argsaver" desk)
-sleep 0.5
+wait_args
 check "yes hands it over, and it's said: '$(cat "$t/desk.ssh" 2>/dev/null)' $out" \
   bash -c '[ "$(cat "$2")" = 1 ] && grep -q "menu-three, and it may push as you, the task its first prompt, on workspace" <<<"$1"' _ "$out" "$t/desk.ssh"
 echo 0 > "$t/push-pick"
 echo "codex " > "$t/agent-pick"; echo "menu-four" > "$t/topic-typed"
+rm -f "$t/desk.ready"
 out=$(PATH="$t/bin:$PATH" AGENT_CMD="$t/bin/argsaver" desk)
 # Codex gets the house mode too (autonomous unless ~/.config/vikix/office says; tests/codex.sh has the modes).
 check "another agent picked reaches vikix agent as --use, and is said: $out" grep -q 'menu-four, codex, autonomous, the task its first prompt, on workspace' <<<"$out"
-sleep 0.5
+wait_args
 check "... as --use codex: '$(head -1 "$t/desk.args" 2>/dev/null)'" test "$(head -1 "$t/desk.args" 2>/dev/null)" = "--use codex --mode autonomous Fix the index from the menu"
 mkdir -p "$home/.local/bin"; cp "$t/bin/codex" "$home/.local/bin/codex"     # installed: its local row is offered
 echo "codex        on a model" > "$t/agent-pick"; echo "menu-five" > "$t/topic-typed"
+rm -f "$t/desk.ready"
 out=$(PATH="$t/bin:$PATH" AGENT_CMD="$t/bin/argsaver" desk)
-sleep 0.5
+wait_args
 check "the local row adds --local: '$(head -1 "$t/desk.args" 2>/dev/null)'" test "$(head -1 "$t/desk.args" 2>/dev/null)" = "--use codex --local --mode autonomous Fix the index from the menu"
 : > "$t/task-typed"
 here() { HOME=$home VIKIX_SWANK_PORT=$port VIKIX_AGENT_CMD="${AGENT_CMD:-$t/bin/claude}" python3 "$here/bin/vikix-agents" here "$@" 2>&1 || true; }
 : > "$t/desk.args"
+rm -f "$t/desk.ready"
 out=$(AGENT_CMD="$t/bin/argsaver" here --use codex --local)
-sleep 0.5
+wait_args
 check "vikix agents here starts the agent named in a terminal in the home folder, no desk: '$(cat "$t/desk.args")' $out" \
   test "$(cat "$t/desk.args")" = "--use codex --local"
 echo "codex " > "$t/agent-pick"; : > "$t/desk.args"
+rm -f "$t/desk.ready"
 out=$(PATH="$t/bin:$PATH" AGENT_CMD="$t/bin/argsaver" here)
-# The terminal starts asynchronously; a busy test machine can take longer
-# than half a second to reach argsaver. Wait for its result, with a bound.
-for ((i=0; i<100; i++)); do
-  [ "$(cat "$t/desk.args")" != "--use codex" ] || break
-  sleep 0.1
-done
+wait_args
 check "without --use it asks which agent, as a desk does: '$(cat "$t/desk.args")' $out" test "$(cat "$t/desk.args")" = "--use codex"
 out=$(DISPLAY='' here)
 check "with no desktop to ask on it says how to name one: $out" grep -q 'say which agent: vikix agents here --use NAME' <<<"$out"
@@ -289,18 +300,21 @@ check "Super+a offers it first" yes '(equal (second (first *vikix-agent-choice-m
 check "Super+m has it, under AI" yes '(find (quote (run-shell-command "vikix-agents desk")) *vikix-menu* :key (function second) :test (function equal))'
 # --task: the task is the agent's first prompt, in the shape its provider takes; aider gets none.
 : > "$t/desk.args"
+rm -f "$t/desk.ready"
 out=$(AGENT_CMD="$t/bin/argsaver" desk books with-task --use codex --task "Fix the index")
-sleep 0.5
+wait_args
 check "--task is the agent's first prompt, after its own words, and said: $out" \
   bash -c 'grep -q "with-task, codex, autonomous, the task its first prompt, on workspace" <<<"$1" && [ "$(head -1 "$2")" = "--use codex --mode autonomous Fix the index" ] && grep -q "read the handoff before you start" "$2"' _ "$out" "$t/desk.args"
 check "and the task is in the record too" grep -q 'books-with-task  no status, just now: Fix the index' <<<"$(cli handoff list)"
 : > "$t/desk.args"
+rm -f "$t/desk.ready"
 out=$(AGENT_CMD="$t/bin/argsaver" desk books with-task-oc --use opencode --task "Fix the index")
-sleep 0.5
+wait_args
 check "opencode takes it as --prompt: '$(head -1 "$t/desk.args")'" test "$(head -1 "$t/desk.args")" = "--use opencode --prompt Fix the index"
 : > "$t/desk.args"
+rm -f "$t/desk.ready"
 out=$(AGENT_CMD="$t/bin/argsaver" desk books with-task-aider --use aider --task "Fix the index")
-sleep 0.5
+wait_args
 check "aider takes no first prompt: nothing added, and said: $out '$(cat "$t/desk.args")'" \
   bash -c 'grep -q "aider, the task in its handoff (aider takes no first prompt)" <<<"$1" && [ "$(cat "$2")" = "--use aider" ]' _ "$out" "$t/desk.args"
 # A note for a worker at work on the desktop (vikix agents tell): its state, from the desktop, says when it lands.

@@ -234,8 +234,13 @@ rm -f "$TESTER_FAIL"
 echo "middle, fixed" > "$t/src/book-part-one/middle.md"; git -C "$t/src/book-part-one" commit -q -am fixed
 agents handoff set --desk part-one --status finished >/dev/null
 round >/dev/null
-wait_for 'tests passed' agents handoff part-one || echo "FAIL: the fixed tests never came back"
-out=$(round)
+# The handoff retains earlier passing checks. Wait for this round's release
+# gate itself, rather than matching an older "tests passed" inbox entry.
+for _ in $(seq 1 60); do
+  out=$(round)
+  grep -q 'needs you: part-one: ready to release:' <<<"$out" && break
+  sleep 0.25
+done
 check "the chain's end is held for the yes (gate me): $out" grep -q 'needs you: part-one: ready to release: vikix agents plan release part-one is your yes' <<<"$out"
 check "the status says so" grep -q 'ready to release: your yes' <<<"$(agents plan status book)"
 check "nothing released yet" test ! -f "$RELEASES_LOG"
