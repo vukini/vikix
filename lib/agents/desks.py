@@ -655,16 +655,19 @@ def close(argv):
     except Exception:  # noqa: BLE001  a record that can't be marked doesn't stop the closing
         pass
     # The desk's open tasks: done when the branch is in, cancelled when --force
-    # threw the work away; left as they are when the branch is kept (lib/tasks.py).
-    if d["merged"] or force:
-        T = tasks_module()
-        for t in T.tasks_of_desk(handoff_module().desk_id(common, folder), open_only=True):
-            try:
+    # threw the work away; blocked on desk when the branch is kept, since no
+    # worker will move them from a folder that is gone (lib/tasks.py).
+    T = tasks_module()
+    for t in T.tasks_of_desk(handoff_module().desk_id(common, folder), open_only=True):
+        try:
+            if d["merged"] or force:
                 T.move(t["id"], "completed" if d["merged"] else "cancelled", by,
                        "desk closed, its branch merged" if d["merged"] else "desk closed with --force, its work thrown away",
                        done=bool(d["merged"]))
-            except T.TaskError as e:
-                sys.stderr.write(f"the task {t['id']} wasn't moved: {e}\n")
+            elif (t.get("status") or {}).get("value") != "blocked":
+                T.move(t["id"], "blocked", by, f"desk closed, its branch {branch} kept: not merged", blocked_on="desk")
+        except T.TaskError as e:
+            sys.stderr.write(f"the task {t['id']} wasn't moved: {e}\n")
     if branch and (d["merged"] or force):
         r = subprocess.run(["git", "-C", top, "branch", "-D" if force else "-d", branch], capture_output=True, text=True)
         said += (f", the branch {branch} deleted" + (" (its work wasn't in)" if force and not d["merged"] else "")

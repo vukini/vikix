@@ -28,6 +28,10 @@ def tasks_cmd(argv):
         made = T.adopt(H.all_records())
         print(f"{len(made)} task record{'s' if len(made) != 1 else ''} made from the desks' records"
               + (": " + ", ".join(made[:10]) + (", …" if len(made) > 10 else "") if made else "; nothing was waiting"))
+        gone = T.settle_gone()
+        if gone:
+            print(f"{len(gone)} open task{'s' if len(gone) != 1 else ''} whose desk is gone blocked on desk: " + ", ".join(gone[:10])
+                  + (", …" if len(gone) > 10 else "") + " (cancel each, or make it ready again)")
         return 0
     as_json, every, sort = False, False, "launch"
     argv = list(argv)

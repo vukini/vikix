@@ -16,8 +16,8 @@
 #   finished; parked blocked), a word that asks for the state it is in
 #   moves nothing; the tester's failure blocks a task whose worker is gone
 #   and sends one in review back to work while the worker is there; the
-#   release completes with the version; close completes a merged branch
-#   and cancels a forced one. Every transition in the table, and a refused
+#   release completes with the version; close completes a merged branch,
+#   cancels a forced one and blocks on desk one whose branch is kept. Every transition in the table, and a refused
 #   one; the sequence never repeats across twenty launches at once; a
 #   credential is refused everywhere: every text the module takes (the
 #   words, the project, the topic, the source, who, a reason, what blocks,
@@ -29,7 +29,9 @@
 #   they knew (the handoff status read into a state, a history entry with
 #   none cancelled, a desk the release closed completed) and the rest
 #   unknown, never invented; adopted once, the ids written back into the
-#   desk record and nothing else of it touched. The worker's state is read
+#   desk record and nothing else of it touched; one whose worktree is gone
+#   with its record never closed is blocked on desk at once (settle_gone,
+#   what each Office snapshot does too), never left running. The worker's state is read
 #   from the agent's row and the launches, with its source and how sure.
 #   The event log has every kind the design names, and by the end holds
 #   every kind phase 1 writes; a task's history is read back from it, a
@@ -196,6 +198,16 @@ echo "h" > "$t/src/book-h/h.md"; git -C "$t/src/book-h" add h.md; git -C "$t/src
 git -C "$t/src/book" merge -q h
 agents close h >/dev/null
 check "close with the branch merged completes the task" test "$(field "$h" 't["status"]["value"], t["status"]["reason"]')" = "('completed', 'desk closed, its branch merged')"
+git -C "$t/src/book" worktree add -q "$t/src/book-i" -b i >/dev/null 2>&1
+proc 1030 claude "$t/src/book-i"
+as 1030 handoff i --task "Chapter nine" >/dev/null; i=$(task_of i)     # a worker at it: running
+rm -r "$t/proc/1030"
+echo "i" > "$t/src/book-i/i.md"; git -C "$t/src/book-i" add i.md; git -C "$t/src/book-i" commit -q -m i   # work of its own, not in
+agents close i >/dev/null
+check "close with the branch kept (not merged) blocks the task on its desk, said so: no worker will move it from a folder that is gone" \
+  test "$(field "$i" 't["status"]["value"], t["blocked"]["on"], t["status"]["reason"]')" = "('blocked', 'desk', 'desk closed, its branch i kept: not merged')"
+check "the branch is still there" git -C "$t/src/book" show-ref -q --verify refs/heads/i
+check "a blocked task can be made ready again, or cancelled" test "$(py 'print(T.move(sys.argv[1], "ready", "user")["status"]["value"])' "$i")" = ready
 
 # --- The table: every transition, and a refused one ---------------------------------------------
 py '
@@ -344,6 +356,33 @@ assert rec["task"]["id"] and rec["updated"] == 1791100500 and rec["desk"]["close
 PY
 out=$(agents tasks adopt)
 check "adopted once: a second run makes nothing: $out" grep -q '^0 task records made' <<<"$out"
+# A desk from before whose worktree was removed by hand (git worktree remove,
+# a release from before the records), its record never closed: the task read
+# from it would stand in Running for ever, with a worker nobody will see.
+git -C "$t/src/book" worktree add -q "$t/src/book-lost" -b lost >/dev/null 2>&1
+lost_id=$(py 'print(H.desk_id(sys.argv[1], sys.argv[2]))' "$t/src/book/.git" "$t/src/book-lost")
+git -C "$t/src/book" worktree remove --force "$t/src/book-lost"
+python3 - "$records/$lost_id.json" "$lost_id" "$t/src/book-lost" <<'PY'
+import json, sys
+path, did, folder = sys.argv[1:]
+rec = {"version": 1, "desk": {"id": did, "repo": "", "worktree": folder, "branch": "lost", "project": "book", "made": 1791000000, "closed": 0},
+       "task": {"text": "A task whose desk went", "by": "claude 11", "at": 1791100000},
+       "handoff": {"status": {"value": "working", "by": "claude 11", "at": 1791100500}},
+       "checks": [], "sessions": [], "observed": {}, "log": [{"at": 1791100000, "by": "claude 11", "what": "task set"}],
+       "launch": {"provider": "claude", "mode": "", "by": "user", "at": 1791100100}, "workers": [], "updated": 1791100500}
+json.dump(rec, open(path, "w"), indent=1)
+PY
+out=$(agents tasks adopt)
+lost=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["task"]["id"])' "$records/$lost_id.json")
+check "a desk gone without being closed: adopted, then blocked on desk in the same breath, and said: $out" \
+  bash -c 'grep -q "^1 task record made" <<<"$1" && grep -q "^1 open task whose desk is gone blocked on desk: $2 (cancel each, or make it ready again)" <<<"$1"' _ "$out" "$lost"
+check "blocked on desk, the reason naming the folder and the branch" \
+  test "$(field "$lost" 't["status"]["value"], t["blocked"]["on"], t["status"]["reason"].endswith("book-lost is gone, its branch lost")')" = "('blocked', 'desk', True)"
+check "the event: adopted as running, then blocked on desk" bash -c 'grep -q "\"kind\": \"blocked\".*\"task\": \"$1\".*\"on\": \"desk\"" <<<"$(events)"' _ "$lost"
+check "a desk that stands is left alone (the old one, still in review)" test "$(field "$live" 't["status"]["value"]')" = "needs review"
+out=$(agents tasks adopt)
+check "settled once: a second run moves nothing: $out" not grep -q 'blocked on desk' <<<"$out"
+check "the board has it under Blocked, no worker to go to" bash -c 'grep -q "blocked on desk · A task whose desk went" <<<"$(agents tasks)"'
 # A desk the release closed, from before: its task is completed.
 closed_id=$(py 'print(H.desk_id(sys.argv[1], sys.argv[2]))' "$t/src/book/.git" "$t/src/book-gone")
 python3 - "$records/$closed_id.json" "$closed_id" "$t/src/book-gone" <<'PY'

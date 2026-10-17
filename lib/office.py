@@ -223,8 +223,11 @@ def attention(snapshot, now=None, quiet=20):
             add('release', task, row, why, status_at, actions=['go'] if terminal in ('gup', 'close') else ['release', 'go'])
         if state == 'blocked':
             b = task.get('blocked') or {}
-            kind = 'worker stopped' if b.get('on') == 'worker' else 'blocked by task' if str(b.get('on', '')).startswith('t-') else 'blocked'
-            add(kind, task, row, b.get('why') or task.get('status', {}).get('reason') or 'blocked', status_at, actions=['go', 'tell'])
+            kind = ('worker stopped' if b.get('on') == 'worker' else 'desk removed' if b.get('on') == 'desk'
+                    else 'blocked by task' if str(b.get('on', '')).startswith('t-') else 'blocked')
+            # A desk removed has no worker to go to or tell: cancel the task, or make it ready again (its page).
+            add(kind, task, row, b.get('why') or task.get('status', {}).get('reason') or 'blocked', status_at,
+                actions=[] if kind == 'desk removed' else ['go', 'tell'])
         if state == 'backlog' and task.get('origin', {}).get('kind') == 'agent':
             add('proposed', task, row, 'proposed by ' + task['origin'].get('by', 'an agent'), task.get('created'), actions=['go'])
         last = max([task.get('activity') or 0] + [a.get('activity_at') or 0 for a in row.get('agents', [])])
@@ -238,7 +241,7 @@ def attention(snapshot, now=None, quiet=20):
     for r in snapshot.get('releases', []):
         if any(w in r.get('state', '') for w in ('refused', 'stopped')):
             add('release stopped', {}, {'id': r.get('topic'), 'title': r.get('topic')}, r['state'], r.get('since'), actions=['go'])
-    rank = {k: i for i, k in enumerate(('decision', 'permission', 'question', 'worker stopped', 'tests failed', 'clash', 'review', 'release stopped', 'release', 'proposed', 'blocked by task', 'blocked', 'uncertain', 'discovery unavailable'))}
+    rank = {k: i for i, k in enumerate(('decision', 'permission', 'question', 'worker stopped', 'tests failed', 'clash', 'review', 'release stopped', 'release', 'proposed', 'blocked by task', 'desk removed', 'blocked', 'uncertain', 'discovery unavailable'))}
     return sorted(items, key=lambda i: (rank.get(i['kind'], 99), i['since'] or now, i['id']))
 
 
@@ -712,8 +715,8 @@ def snapshot(api, include_queue=True):
         raise RuntimeError(str(e)) from e
     # The desks' records from before adopted first (lib/tasks.py: a task record
     # each, the ids written back), then read again, so this very snapshot has
-    # the ids and the Archive's token is the same at the next one: the only
-    # write a snapshot makes, and one that invents nothing.
+    # the ids and the Archive's token is the same at the next one: a write
+    # a snapshot makes (with settle_gone, below), and one that invents nothing.
     T = api.tasks_module()
     try:
         if T.needs_adoption(records):
@@ -721,6 +724,13 @@ def snapshot(api, include_queue=True):
             records = H.all_records(strict=True)
     except Exception as e:  # noqa: BLE001  a record that can't be adopted never hides the desks
         errors.append(f'Tasks not adopted: {e}')
+    # The other write, of the same kind: an open task whose desk's worktree
+    # is gone goes to blocked on desk (lib/tasks.py settle_gone), so it stops
+    # standing in Running with a worker nobody will ever see again.
+    try:
+        T.settle_gone()
+    except Exception as e:  # noqa: BLE001
+        errors.append(f'Gone desks not settled: {e}')
     rows = {os.path.realpath(r['desk']['worktree']): dict(r) for r in records
             if isinstance(r.get('desk'), dict) and r['desk'].get('worktree')}
     try:

@@ -91,6 +91,9 @@ TRANSITIONS = {
     # A worker reporting from a blocked task (one that sat down itself, or
     # was started by hand) ends the block: 2026-10-13, from the first run.
     ("blocked", "needs decision"), ("blocked", "needs review"), ("blocked", "ready for release"),
+    # A desk gone from under an accepted task (its worktree removed, the
+    # record never closed) blocks it like any other: 2026-10-17, the stale rows.
+    ("ready for release", "blocked"),
 }
 # The event each transition makes, by where it goes (and where from, when
 # that decides): the kinds the design names, nothing else.
@@ -108,6 +111,7 @@ EVENT_OF = {
     ("ready for release", "completed"): "completed", ("needs review", "completed"): "completed",
     ("blocked", "ready"): "unblocked", ("queued", "backlog"): "deferred", ("queued", "blocked"): "blocked",
     ("blocked", "needs decision"): "asked", ("blocked", "needs review"): "review asked", ("blocked", "ready for release"): "accepted",
+    ("ready for release", "blocked"): "blocked",
 }
 KINDS = ("created", "approved", "priority", "ordered", "queued", "deferred", "launched", "paused", "resumed",
          "asked", "answered", "handoff", "tests started", "tests done", "review asked", "accepted", "sent back",
@@ -884,6 +888,34 @@ def needs_adoption(records):
         if any(isinstance(w, dict) and w.get("task") and not w.get("task_id") for w in rec.get("workers") or []):
             return True
     return False
+
+
+def settle_gone(by="vikix", exists=os.path.isdir):
+    """The open tasks whose desk is gone, blocked on it: a task running, in
+    decision, in review or accepted whose desk's worktree no longer EXISTS
+    (removed by hand, by a release from before the records, by the desk's
+    record purged) has no worker that could ever move it and no release
+    that will. Found at each snapshot (lib/office.py) and at tasks adopt,
+    like the adoption: a write from a fact observed, never a guess at
+    whether the work was in (the release and close say that when they
+    know; the branch may be gone, or rebased, so a commit proves little),
+    so it goes to blocked on desk, said so, for you to cancel or make
+    ready again (2026-10-17: six such rows sat in Running for ten days).
+    The ids moved."""
+    moved = []
+    for t in all_tasks():
+        state = (t.get("status") or {}).get("value")
+        wt = (t.get("desk") or {}).get("worktree") or ""
+        if state not in OPEN_AT_DESK + ("ready for release",) or not wt or exists(wt):
+            continue
+        branch = (t.get("desk") or {}).get("branch") or ""
+        why = f"desk removed: {wt.replace(os.path.expanduser('~'), '~', 1)} is gone" + (f", its branch {branch}" if branch else "")
+        try:
+            move(t["id"], "blocked", by, why, blocked_on="desk", data={"worktree": wt})
+            moved.append(t["id"])
+        except (TaskError, OSError, ValueError):
+            continue
+    return moved
 
 
 # --- The desk's task ---------------------------------------------------------------------

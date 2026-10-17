@@ -136,7 +136,11 @@ class Office(unittest.TestCase):
         T.move(done['id'], 'ready for release', 'user')
         T.move(done['id'], 'completed', 'release', done=True)
         T.event('released', 'release', T.load(done['id']), data={'version': '0.72.70'})
-        for t in (queued, blocked, done):
+        # A task running at a desk whose worktree is gone (removed by hand, its
+        # record never closed): the snapshot blocks it on desk, and says so.
+        lost = T.new('The lost one', 'book', 'user', desk={'id': '0123456789ab', 'worktree': str(Path(self.temp.name) / 'lost'), 'branch': 'lost'})
+        T.launch(lost['id'], 'claude', 'user', 'worker')
+        for t in (queued, blocked, done, lost):
             self.addCleanup(lambda tid=t['id']: T.load(tid)['status']['value'] in T.FINAL or T.move(tid, 'cancelled', 'user'))
         S = A.scheduler_module()
         S.mutate('add', queued['id'], None, 'user')
@@ -157,6 +161,12 @@ class Office(unittest.TestCase):
         self.assertEqual((len(b), b[0]['state']), (1, 'blocked on worker'))
         self.assertTrue(b[0]['detail'].startswith('worker stopped just now ago: exit 1') or b[0]['detail'].startswith('worker stopped'), b[0]['detail'])
         self.assertIn('exit 1', b[0]['detail'])
+        g = [r for r in by['Blocked'] if r['task'] == lost['id']]
+        self.assertEqual((len(g), g[0]['state'], T.load(lost['id'])['blocked']['on']), (1, 'blocked on desk', 'desk'))
+        self.assertTrue(g[0]['detail'].startswith('desk removed: ') and g[0]['detail'].endswith('lost is gone, its branch lost'), g[0]['detail'])
+        self.assertNotIn(lost['id'], [r['task'] for r in by['Running']])
+        gone = [i for i in snap['attention'] if i['task'] == lost['id']]
+        self.assertEqual([(i['kind'], i['actions']) for i in gone], [('desk removed', [])])
         c = [r for r in by['Completed'] if r['task'] == done['id']]
         self.assertEqual((len(c), c[0]['state'], c[0]['release']), (1, 'released 0.72.70', '0.72.70'))
         self.assertIn('took', c[0]['detail'])
