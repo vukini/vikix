@@ -384,3 +384,19 @@ a.shot:hover { border-color: var(--accent); }
   .cursor { animation: none; }
   * { transition: none !important; }
 }
+
+/* ---------- why: the three proofs ---------- */
+.proof { display: grid; grid-template-columns: 1fr 1.3fr; gap: 36px; align-items: start; padding: 48px 0; border-top: 1px solid var(--line); }
+.proof:first-of-type { border-top: 0; padding-top: 0; }
+.proof-text { display: grid; gap: 14px; align-content: start; }
+.proof-text h3 { margin-top: 10px; }
+.proof-text h3:first-child, .proof-text .eyebrow + h3 { margin-top: 0; }
+.proof-text p { color: var(--subtle); font-size: .98rem; }
+.proof .term pre { font-size: .82rem; line-height: 1.7; }
+.proof .term header span:last-child { color: var(--dim); }
+.proof .safe { gap: 18px; }
+@media (max-width: 860px) { .proof { grid-template-columns: 1fr; gap: 24px; padding: 36px 0; } }
+.proof.one { grid-template-columns: 1fr; gap: 28px; }
+.proof.one .safe { grid-template-columns: 1fr 1fr; gap: 22px 32px; }
+.proof .term header { flex-wrap: wrap; row-gap: 2px; }
+@media (max-width: 860px) { .proof.one .safe { grid-template-columns: 1fr; } }

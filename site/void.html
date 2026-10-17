@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Why Void: Vikix for Linux people</title>
+<meta name="description" content="Why Vikix is built on Void Linux: runit, xbps, a calm rolling release, one repository built in the open, and how Void compares with Arch, openSUSE Tumbleweed and Gentoo.">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
+<link rel="icon" type="image/png" sizes="192x192" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="canonical" href="https://vikix.dev/void.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Vikix">
+<meta property="og:url" content="https://vikix.dev/void.html">
+<meta property="og:title" content="Why Void: Vikix for Linux people">
+<meta property="og:description" content="runit, xbps, a calm rolling release, one repository built in the open, and how Void compares with Arch, Tumbleweed and Gentoo.">
+<meta property="og:image" content="https://vikix.dev/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Vikix: the agentic desktop. Linux, with an AI agent built in.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@vukini">
+<meta name="twitter:creator" content="@vukini">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;600;800&family=Schibsted+Grotesk:ital,wght@0,400;0,500;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="logo" href="./">vikix<span>.</span></a>
+    <nav aria-label="Sections">
+      <a href="./#why">Why</a>
+      <a href="./#agent">Agentic</a>
+      <a href="./#newhere">New here?</a>
+      <a href="gallery.html">Gallery</a>
+      <a href="./#rest" class="opt">Features</a>
+      <a href="./#install">Install</a>
+      <a href="guide/">Guide</a>
+      <a href="./#faq" class="opt">FAQ</a>
+      <a href="void.html" aria-current="page" style="color:var(--fg)">For Linux people</a>
+      <a href="https://github.com/vukini/vikix" class="opt">GitHub</a>
+    </nav>
+    <button class="theme-btn" id="themeBtn" type="button" aria-label="Switch theme"><span class="tb-cmd">vikix theme </span><b id="themeName">vikix-dark</b></button>
+  </div>
+</header>
+
+<main id="top">
+  <section id="void">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow void-mark">For Linux people · <b>the system underneath</b></p>
+        <h2>Why Void.</h2>
+        <p class="lede">Void Linux has been going since 2008, when Juan Romero Pardines, a former NetBSD developer, started it as a test bed for a new package manager. It is not based on Debian, Arch or anyone else: it has its own package manager and its own build system, and it uses runit instead of systemd. What you get is a rolling release that is fast, small, and simple enough to understand all the way down.</p>
+      </div>
+
+      <div class="pillars">
+        <div class="pillar">
+          <span class="k">runit</span>
+          <h3>Boots in seconds, and you can read all of it.</h3>
+          <p>Void uses runit instead of systemd. Starting the system is three short shell stages; after that, runit keeps each service alive. There are no unit files, no journal format, no dependency graph to debug.</p>
+        </div>
+        <div class="pillar">
+          <span class="k">xbps</span>
+          <h3>A package manager built for this system.</h3>
+          <p>xbps was written from scratch for Void, and it is fast and plain. Every package records which shared libraries it needs, and xbps checks the whole update first: if it would leave a program without a library, xbps stops before changing anything.</p>
+          <pre>sudo xbps-install -Su   <span class="t-d"># update all</span>
+xbps-query -Rs ripgrep  <span class="t-d"># search</span></pre>
+        </div>
+        <div class="pillar">
+          <span class="k">rolling, calmly</span>
+          <h3>New versions, no release upgrades.</h3>
+          <p>Void is a rolling release, so there is never a big-bang upgrade to a new version of the distribution. But it aims for stability, not the bleeding edge: packages follow upstream's real releases, never betas or development snapshots. Kernels come as series packages, such as <code>linux6.12</code>, so you choose when to move.</p>
+        </div>
+        <div class="pillar">
+          <span class="k">xbps-src</span>
+          <h3>One repo, built in the open.</h3>
+          <p>Every package is a short template in <a href="https://github.com/void-linux/void-packages">void-packages</a> on GitHub, built by <code>xbps-src</code> in a clean container, without root. You can build any package yourself the same way, and cross-compile it for ARM from your laptop.</p>
+        </div>
+        <div class="pillar">
+          <span class="k">glibc or musl</span>
+          <h3>Two C libraries, both official.</h3>
+          <p>Void is one of the few distributions with official binary repositories for both glibc and musl: glibc on x86_64, i686, aarch64 and 32-bit ARM, and musl on all of those except i686. Vikix uses glibc, for the widest range of software.</p>
+        </div>
+        <div class="pillar">
+          <span class="k">small base</span>
+          <h3>You start with very little.</h3>
+          <p>A fresh Void install is a shell, a network and a package manager. Nothing runs that you didn't ask for. That makes it a good floor to build a desktop on, which is exactly what Vikix does.</p>
+        </div>
+      </div>
+
+      <div class="runit">
+        <div class="runit-copy">
+          <p class="eyebrow void-mark">How a service works on <b>Void</b></p>
+          <h3 style="font-size:1.35rem">A service is a folder with a script in it.</h3>
+          <p>Each service in <code>/etc/sv/</code> has a <code>run</code> script that starts the program in the foreground. To switch a service on, link its folder into <code>/var/service/</code>. runit notices within seconds and starts it. To switch it off, remove the link.</p>
+          <p>That is the whole model. You can learn it in a coffee break, and when something goes wrong, the thing to read is a five-line shell script.</p>
+        </div>
+<pre class="tree"><span class="t-d"># the sshd service, complete</span>
+<span class="t-p">$</span> cat /etc/sv/sshd/run
+<span class="t-k">#!/bin/sh</span>
+exec 2>&1
+ssh-keygen -A >/dev/null 2>&1
+[ -r conf ] && . ./conf
+exec /usr/bin/sshd -D $OPTS
+
+<span class="t-d"># switch it on, check it, switch it off</span>
+<span class="t-p">$</span> sudo ln -s /etc/sv/sshd /var/service/
+<span class="t-p">$</span> sudo sv status sshd
+<span class="t-a">run:</span> sshd: (pid 842) 12s
+<span class="t-p">$</span> sudo rm /var/service/sshd</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= COMPARISON ================= -->
+  <section id="compare">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow void-mark">For Linux people · <b>the neighbours</b></p>
+        <h2>Void and the other rolling releases.</h2>
+        <p class="lede">Arch, openSUSE Tumbleweed and Gentoo are all good systems. Void makes different choices: fewer moving parts, one official repository, and a package manager that checks libraries before it changes anything.</p>
+      </div>
+
+      <div class="cmp-scroll">
+        <table class="cmp">
+          <thead>
+            <tr><th></th><th class="void">Void</th><th>Arch</th><th>openSUSE Tumbleweed</th><th>Gentoo</th></tr>
+          </thead>
+          <tbody>
+            <tr><th>INIT</th>
+              <td class="void">runit: a few shell scripts, and a folder per service</td>
+              <td>systemd</td><td>systemd</td><td>OpenRC, or systemd</td></tr>
+            <tr><th>PACKAGES</th>
+              <td class="void">xbps, written for Void</td>
+              <td>pacman</td><td>zypper and RPM</td><td>Portage, built on your machine; an optional binary host</td></tr>
+            <tr><th>EXTRA SOFTWARE</th>
+              <td class="void">All in one official repo, reviewed as pull requests. Software that may not be redistributed is built locally with <code>xbps-src</code>.</td>
+              <td>The AUR: build scripts anyone can upload. You read each one, or trust a helper to.</td>
+              <td>Community projects on the Open Build Service</td>
+              <td>Overlays</td></tr>
+            <tr><th>UPDATE SAFETY</th>
+              <td class="void">xbps tracks the shared libraries each package needs, and stops an update that would break one</td>
+              <td>Partial upgrades are unsupported: update everything at once, and read the news first</td>
+              <td>Snapshots tested by openQA; roll back with Btrfs and Snapper</td>
+              <td>Portage resolves and rebuilds what depends on a changed library</td></tr>
+            <tr><th>C LIBRARY</th>
+              <td class="void">glibc or musl, both with official binary repos (musl on all but i686)</td>
+              <td>glibc</td><td>glibc</td><td>glibc, or musl profiles</td></tr>
+            <tr><th>ARCHITECTURES</th>
+              <td class="void">x86_64, i686, aarch64, armv6, armv7</td>
+              <td>x86_64 (others are separate ports)</td>
+              <td>x86_64, plus ports</td>
+              <td>Many</td></tr>
+            <tr><th>FEEL</th>
+              <td class="void">Small, quick, and quiet. It stays out of your way.</td>
+              <td>Huge community, and the best wiki in Linux</td>
+              <td>Polished and tested, with company backing</td>
+              <td>Total control, if you have the time</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="fair">
+        <div>
+          <h3>Where Arch is ahead</h3>
+          <p>More software, through the AUR, and many more users writing guides. The Arch Wiki is excellent, and most of it applies on Void too. If a package you need exists only in the AUR, that matters.</p>
+        </div>
+        <div>
+          <h3>Where Void is ahead</h3>
+          <p>No init system to learn, no third-party build scripts to trust, no AUR helper. Updates are one xbps transaction that checks libraries first. And the whole system is small enough to hold in your head.</p>
+        </div>
+        <div>
+          <h3>Why that suits a desktop layer</h3>
+          <p>A layer like Vikix has to change the system in ways it can repeat and check. On Void that is plain: install from lists, link a service folder, drop a file in <code>/etc/xbps.d/</code>. Each Vikix stage does exactly that, and nothing clever.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="back">
+    <div class="wrap">
+      <div class="sec-head" style="margin-bottom:0">
+        <p class="eyebrow">And on top of it</p>
+        <h2 style="font-size:clamp(1.4rem,2.6vw,1.9rem)">Vikix: the desktop that explains itself.</h2>
+        <p class="lede">Every change Vikix makes to Void is one of the plain steps above, in a bash stage that checks before it changes anything, so running it twice is safe and <code>--dry-run</code> prints every change instead of making it. <a href="guide/How-it-fits-together.html">How it fits together</a> has the stages one by one.</p>
+        <div class="cta">
+          <a class="btn primary" href="./">Back to the front page</a>
+          <a class="btn" href="./#install">Install it</a>
+          <a class="btn" href="https://docs.voidlinux.org">Void handbook</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Vikix · made by <a href="https://thevikidtruth.substack.com/">The Vikid Truth</a> · built on <a href="https://voidlinux.org">Void Linux</a> and <a href="https://stumpwm.github.io">StumpWM</a> · inspired by <a href="https://omarchy.org">Omarchy</a><br>© 2026 The Living Studios FZE LLC, Ajman, UAE · <a href="https://github.com/vukini/vikix/blob/main/LICENSE">MIT licence</a> · <a href="mailto:vikid@vikix.dev">vikid@vikix.dev</a></span>
+    <nav><a href="https://github.com/vukini/vikix">Source</a><a href="https://github.com/vukini/vikix/discussions">Discussions</a><a href="https://github.com/vukini/vikix/issues">Issues</a><a href="https://x.com/vukini">X</a><a href="guide/">Guide</a><a href="./">Front page</a><a href="https://github.com/vukini/vikix/blob/main/README.md">README</a><a href="https://docs.voidlinux.org">Void handbook</a></nav>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+  var root = document.documentElement;
+
+  /* ---------- theme: the same switch, and the same saved choice, as the home page ---------- */
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+  function isDark() {
+    var t = root.getAttribute("data-theme");
+    if (t) return t === "dark";
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+  function paintTheme() { document.getElementById("themeName").textContent = isDark() ? "vikix-dark" : "vikix-light"; }
+  function setTheme(mode) { root.setAttribute("data-theme", mode); store("vikix-theme", mode); paintTheme(); }
+  var saved = store("vikix-theme");
+  if (saved === "dark" || saved === "light") root.setAttribute("data-theme", saved);
+  document.getElementById("themeBtn").addEventListener("click", function () { setTheme(isDark() ? "light" : "dark"); });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", paintTheme);
+  paintTheme();
+})();
+</script>
+</body>
+</html>

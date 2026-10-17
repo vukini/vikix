@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Vikix: the agentic desktop</title>
-<meta name="description" content="Vikix is a fast, keyboard-first Linux desktop with an AI agent built in: ask it to change a key, a colour or a setting, and it tries the change on the running desktop, with an undo. Free, on top of Void Linux.">
+<title>Vikix: the desktop that explains itself</title>
+<meta name="description" content="Vikix is a fast, keyboard-first Linux desktop that can tell you why anything just happened, with an AI agent built in that changes it with you, live, with an undo. Free, on top of Void Linux.">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
@@ -14,8 +14,8 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Vikix">
 <meta property="og:url" content="https://vikix.dev/">
-<meta property="og:title" content="Vikix: the agentic desktop">
-<meta property="og:description" content="A fast, keyboard-first Linux desktop with an AI agent built in. It tries changes on the running desktop, and one command takes them back.">
+<meta property="og:title" content="Vikix: the desktop that explains itself">
+<meta property="og:description" content="Press one key and the desktop says why that just happened, and which line did it. Ask its AI agent for a change and it tries it live, with an undo.">
 <meta property="og:image" content="https://vikix.dev/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -34,14 +34,15 @@
   <div class="wrap">
     <a class="logo" href="#top">vikix<span>.</span></a>
     <nav aria-label="Sections">
+      <a href="#why">Why</a>
       <a href="#agent">Agentic</a>
       <a href="#newhere">New here?</a>
       <a href="gallery.html">Gallery</a>
-      <a href="#vikix" class="opt">Features</a>
+      <a href="#rest" class="opt">Features</a>
       <a href="#install">Install</a>
       <a href="guide/">Guide</a>
       <a href="#faq" class="opt">FAQ</a>
-      <a href="#void" class="opt">For Linux people</a>
+      <a href="void.html" class="opt">For Linux people</a>
       <a href="https://github.com/vukini/vikix" class="opt">GitHub</a>
     </nav>
     <button class="theme-btn" id="themeBtn" type="button" aria-label="Switch theme"><span class="tb-cmd">vikix theme </span><b id="themeName">vikix-dark</b></button>
@@ -59,10 +60,10 @@
             <img class="on-dark" src="logo-dark.webp" alt="vikix: Void, supercharged." width="720" height="179">
           </div>
           <p class="eyebrow">Void Linux, <b>supercharged</b> · version <span id="ver">0.25.2</span></p>
-          <h1>Vikix.<br><em>The agentic desktop.</em></h1>
+          <h1>Vikix.<br><em>The desktop that explains itself.</em></h1>
         </div>
         <div class="hero-side">
-          <p class="lede">A fast, keyboard-first Linux desktop with an AI agent built in. Ask it to change a key, a colour or a setting: it tries the change on the running desktop, and one command takes it back.</p>
+          <p class="lede">A fast, keyboard-first Linux desktop. Press one key and it tells you why that just happened, and which line did it. Ask its AI agent for a change, and it tries it on the running desktop, with an undo.</p>
           <p class="fine">Free and open source. It installs on top of Void Linux, and you can try it in a virtual machine first, without touching Windows or macOS.</p>
           <div class="cta">
             <a class="btn primary" href="gallery.html">See it</a>
@@ -82,17 +83,51 @@
     </div>
   </div>
 
-  <!-- ================= AGENTIC ================= -->
-  <section id="agent">
+
+  <!-- ================= WHY ================= -->
+  <section id="why">
     <div class="wrap">
       <div class="sec-head">
-        <p class="eyebrow">The <b>agentic</b> desktop</p>
-        <h2>Ask it, and watch it happen.</h2>
-        <p class="lede">Most AI lives in a chat window and tells you what to click. On Vikix the agent does it for you: it knows how this desktop is put together, it can change the running desktop and see the result, and it saves a copy of your settings before it starts. The Lisp it sends is read and checked against a list before it runs: a form that would run a program or touch a file waits for your yes.</p>
+        <p class="eyebrow">What <b>no other desktop</b> does</p>
+        <h2>It tells you why.</h2>
+        <p class="lede">A window moved by itself, a key did something you didn't expect, the layout changed under you. On every other desktop you guess. On Vikix you press one key, and the desktop says what it did, what made it do it, and which line of which file.</p>
       </div>
 
-      <div class="agent">
-        <div class="agent-left">
+      <div class="proof">
+        <div class="proof-text">
+          <h3>Why did that happen?</h3>
+          <p><kbd>Super</kbd>+<kbd>?</kbd> lists the last things the desktop did, newest first: every key, every rule, every menu entry, every command an agent ran, each with its cause and the file and line it is written at. The same thing again is one line, counted, so nothing crowds the rest out.</p>
+          <p>Pick a line and it offers the fix: open that line in your editor, take the change back, bring the window here, switch the rule off. <code>vikix rules why</code> says the same for one window. <a href="guide/When-something-breaks.html">When something breaks</a>.</p>
+          <h3>What is this?</h3>
+          <p><kbd>Super</kbd>+<kbd>Alt</kbd>+<kbd>?</kbd> on anything, a window, a field of the bar, a workspace: a card with what that very thing is doing now, a short paragraph on what such a thing is, and where to read on. A fact it can't read is left out, never guessed.</p>
+        </div>
+        <div class="term">
+          <header><span>Super+? · Why did that happen?</span><span>what the desktop shows</span></header>
+<pre><span class="t-d">21:04:10</span>  <span class="t-y">Super+Ctrl+d</span> ran vikix-quiet <span class="t-d">(Do not disturb on/off)</span>
+          · Vikix's key: registry.lisp, line 83
+<span class="t-d">21:03:59</span>  <span class="t-y">A rule, as a window opened</span> ran
+          (when-window (:class "Firefox") (workspace 2))
+          · rules.lisp:3, for Firefox "Mozilla Firefox"
+<span class="t-d">21:03:40</span>  <span class="t-y">Super+s</span> ran user-dropterm
+          · your key: user.lisp, line 242
+
+<span class="t-a">›</span> the rule, picked:
+  <span class="t-k">Edit it</span>              rules.lisp opens at line 3
+  <span class="t-k">Bring that window here</span>
+  <span class="t-k">Switch that rule off</span>  until the next reload</pre>
+        </div>
+      </div>
+
+      <div class="proof" id="agent">
+        <div class="proof-text">
+          <p class="eyebrow">The <b>agentic</b> desktop</p>
+          <h3>An agent with hands.</h3>
+          <p>Most AI lives in a chat window and tells you what to click. On Vikix the agent does it: it knows how this desktop is put together, it changes the running desktop and sees the result. It tries a key live, and keeps it only when you like it.</p>
+          <h3>A snapshot first, an undo after.</h3>
+          <p>Your settings are saved before every session. <code>vikix changes</code> shows what the agent did; <code>vikix undo</code> takes it back.</p>
+          <h3>Several at once, in plain view.</h3>
+          <p>The Office shows each agent at its desk: what it is doing, what it changed, what it is waiting for, and the questions only you can answer. <a href="guide/Agents-at-work.html">Working with agents</a>.</p>
+        </div>
         <div class="term">
           <header><span>Super+a · Claude Code on the desktop</span><span>a real session, shortened</span></header>
 <pre><span class="t-d">:: snapshot 99e03a6: before an agent session</span>
@@ -115,43 +150,18 @@
   <span class="t-y">vikix changes</span> shows the new lines. If you want either change
   back, <span class="t-y">vikix undo</span> will reverse it.</pre>
         </div>
-        <div class="term">
-          <header><span>A terminal · llm, on a model on the laptop</span><span>a real run</span></header>
-<pre><span class="t-a">$</span> git show HEAD | llm "write the commit message"
-Here is the commit message:
-
-"Added new section to site/index.html explaining the
-Super+F10/F11 key combinations for talking to the AI
-and accessing the guides"
-
-<span class="t-d">:: llama3.2:3b, offline: nothing left the laptop.</span>
-<span class="t-d">:: the diff was this page's own change; llm logs keeps it.</span></pre>
-        </div>
-        </div>
-        <ul class="safe">
-          <li><h3>You decide how far it goes.</h3><p>By default the agent shows each command and each edit, and waits for your yes.</p></li>
-          <li><h3>A snapshot before every session.</h3><p>Your settings are saved first. <code>vikix changes</code> shows what the agent did; <code>vikix undo</code> takes it back.</p></li>
-          <li><h3>It knows the desktop.</h3><p>A guide installed with Vikix tells it where everything is, and which files are yours to change.</p></li>
-          <li><h3>Or keep it all on your laptop.</h3><p><code>vikix ai setup</code> runs AI models on the machine itself, offline, with a picker that only offers what your laptop can run.</p></li>
-          <li><h3>AI on a key, anywhere.</h3><p>Select text in any program and press <kbd>Super</kbd>+<kbd>i</kbd>: proofread it, rewrite it, translate it, explain it, or ask about it. A local model by default.</p></li>
-          <li><h3>See what needs you.</h3><p>The Office gathers questions, failed checks and pending reviews from your agents. Answer a question there; its choices and your answer stay with the task, even after a restart. <a href="guide/Agents-at-work.html">Working with agents</a>.</p></li>
-          <li><h3>Choose what runs next.</h3><p>Queue tasks by priority and see what each is waiting for. Start the next one yourself, or opt into automatic starts within a shared worker limit. A restart never silently retries an uncertain launch.</p></li>
-          <li><h3>A safe remote control.</h3><p><code>vikix mcp register</code> gives your agent tools for the desktop: look at it, switch a theme, go to a window. Checked, logged, and the risky ones off.</p></li>
-          <li><h3>Speak, and it types.</h3><p><kbd>Super</kbd>+<kbd>F9</kbd>, say it, <kbd>Super</kbd>+<kbd>F9</kbd>: what you said is typed where you are. On your laptop, never sent anywhere.</p></li>
-          <li><h3>Talk, and it answers aloud.</h3><p><kbd>Super</kbd>+<kbd>F10</kbd>, ask your question, <kbd>Super</kbd>+<kbd>F10</kbd>: the AI answers in a voice, and remembers the conversation. <kbd>Super</kbd>+<kbd>F11</kbd> sends what you said to the agent instead, and it reads the reply to you.</p></li>
-          <li><h3>"What's wrong?"</h3><p><code>vikix diagnose</code> gathers the logs, takes your keys out, and asks the agent how to fix it.</p></li>
-          <li><h3>Any agent you like.</h3><p>Claude Code, or OpenCode, Codex, Antigravity CLI, Gemini CLI or Aider: <code>vikix agent --use antigravity</code>. The same guide, the same snapshot first, and <code>--local</code> to keep it on your laptop.</p></li>
-          <li><h3>AI in your editor.</h3><p>In Neovim and Emacs: a chat about your code on the same model as <kbd>Super</kbd>+<kbd>i</kbd>, and your agent beside it, started the same careful way, snapshot first.</p></li>
-          <li><h3>And on the command line.</h3><p><code>git diff | llm "write the commit message"</code>, with a local model or Claude, and every answer kept.</p></li>
-          <li><h3>Ask your notes.</h3><p><code>note ask "what did I write about runit?"</code> answers from your Obsidian vault, naming the notes, in any terminal. On your laptop, or Claude with <code>--claude</code>, sent only the passages it found.</p></li>
-          <li><h3>AI to learn from.</h3><p><code>~/dev/ai</code>: the Claude API and a local model from Python and the shell, embeddings in SQLite, and a program that answers from your own notes. Small, to read and change, <code>make run</code> in each.</p></li>
-        </ul>
       </div>
 
-      <div class="coming">
-        <p class="eyebrow">Coming next, in this order</p>
-        <ul>
-          <li><b>Your first hour.</b> Installing Void for Vikix, then the first steps, with pictures.</li>
+      <div class="proof one">
+        <div class="proof-text">
+          <h3>A leash that holds.</h3>
+          <p>By default the agent shows each command and each edit, and waits for your yes. But your yes isn't the only guard: the desktop checks what an agent sends before any of it runs, and nothing an agent or a rule does can take the desktop down.</p>
+        </div>
+        <ul class="safe">
+          <li><h3>Every form is read before it runs.</h3><p>What an agent sends to the window manager is checked against a list of what an agent may do. A form that would run a program, touch a file or change a setting is held, you are told, and none of the text runs.</p></li>
+          <li><h3>A rule it writes is a proposal.</h3><p>It waits in <kbd>Super</kbd>+<kbd>m</kbd> → <i>Rules</i> until you add it yourself. The menu opens on the rule's own line, so Enter alone adds nothing.</p></li>
+          <li><h3>A failure costs one line, never the desktop.</h3><p>A rule that keeps failing is switched off, not the desktop. A mistake in your own config loses that one form and asks what to do. And a stuck window manager is freed by <kbd>Super</kbd>+<kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Escape</kbd>, a key it can't block.</p></li>
+          <li><h3>Keys stay out of sight.</h3><p>API keys live in a folder of their own, out of your settings' history. <code>vikix diagnose</code> takes them out of the logs before an agent reads them.</p></li>
         </ul>
       </div>
     </div>
@@ -163,33 +173,34 @@ and accessing the guides"
       <div class="sec-head">
         <p class="eyebrow">New here? <b>Start with this</b></p>
         <h2>Four words, explained.</h2>
-        <p class="lede">You don't need to know any of this to read on. But if these words are new to you, here is what they mean, and why Vikix uses them.</p>
+        <p class="lede">If these words are new to you, here is what they mean. You don't need any of it to read on.</p>
       </div>
       <div class="words">
         <div class="word">
           <span class="k">Linux</span>
           <h3>An operating system, like Windows or macOS.</h3>
-          <p>It's free, and it's yours to change. It runs most of the world's servers, and Android is built on it. On a laptop it's quick, private, and has no adverts or accounts to sign up for.</p>
+          <p>Free, and yours to change. On a laptop it's quick, private, and has no adverts or accounts to sign up for.</p>
         </div>
         <div class="word">
           <span class="k">Void</span>
           <h3>One version of Linux, small and fast.</h3>
-          <p>Linux comes in many versions, called distributions. Void is a simple, independent one that starts in seconds and keeps itself up to date. You install Void first, then Vikix on top.</p>
+          <p>Linux comes in many versions, called distributions. Void is a simple one that starts in seconds and keeps itself up to date. You install Void first, then Vikix on top.</p>
         </div>
         <div class="word">
           <span class="k">Tiling</span>
           <h3>Windows that arrange themselves.</h3>
-          <p>No overlapping windows to drag around: each new window takes its share of the screen, side by side, and you move between them with the keyboard. It feels strange for a day, and then everything else feels slow.</p>
+          <p>No overlapping windows to drag around: each new window takes its share of the screen, and you move between them with the keyboard. Strange for a day, and then everything else feels slow.</p>
         </div>
         <div class="word">
           <span class="k">StumpWM</span>
           <h3>The part that arranges the windows.</h3>
-          <p>It's the window manager Vikix uses, and you can change it while it runs. That's what lets the agent try a new key or colour at once, and lets you keep or drop it.</p>
+          <p>The window manager Vikix uses. It can be changed while it runs, which is what lets the agent try a new key or colour at once, and lets you keep or drop it.</p>
         </div>
       </div>
       <p class="also">And the <b>terminal</b>? A window where you type commands instead of clicking. Vikix uses it a lot, and the agent works there, next to you.</p>
     </div>
   </section>
+
 
   <!-- ================= TRY TILING ================= -->
   <section id="try">
@@ -222,6 +233,7 @@ and accessing the guides"
       </div>
     </div>
   </section>
+
 
   <!-- ================= IS IT FOR YOU ================= -->
   <section id="fit">
@@ -260,128 +272,59 @@ and accessing the guides"
     </div>
   </section>
 
-  <!-- ================= VIKIX ================= -->
-  <section id="vikix">
+
+  <!-- ================= THE REST ================= -->
+  <section id="rest">
     <div class="wrap">
       <div class="sec-head">
-        <p class="eyebrow">What you <b>get</b></p>
+        <p class="eyebrow">And <b>the rest</b></p>
         <h2>A whole desktop, in one piece.</h2>
-        <p class="lede">A window manager, a bar, a launcher, a terminal, editors, notifications, screenshots, themes, backups and updates, chosen to work together and set up for you. One command, <code>vikix update</code>, keeps all of it current.</p>
+        <p class="lede">A window manager, a bar, a launcher, a terminal, editors, notifications, screenshots, themes, backups and updates, chosen to work together and set up for you. One command, <code>vikix update</code>, keeps all of it current. The details are in the <a href="guide/">guide</a>.</p>
       </div>
-
-      <div class="feat" style="margin-top:0">
-        <div class="card wide">
-          <p class="eyebrow">StumpWM</p>
-          <h3>A window manager you can reprogram while it runs.</h3>
-          <p>StumpWM is written in Common Lisp. Vikix builds it with Swank inside, listening on <code>127.0.0.1:4004</code>, so Emacs can connect with SLIME and redefine anything in the running window manager. Your own settings go in <code>user.lisp</code>, which loads last, so it always wins.</p>
-          <p>And apps made the same way: <code>vikix add lisp-apps</code> brings Nyxt (a browser), Lem (an editor) and McCLIM's Listener, each written in Common Lisp and changeable in it. And <code>vikix add hype</code> brings Hype, DHH's Markdown slides, in your theme's colours.</p>
-<pre><span class="t-d">;; ~/.stumpwm.d/user.lisp</span>
-(<span class="t-k">define-key</span> *top-map* (kbd <span class="t-p">"s-t"</span>) <span class="t-p">"exec kitty"</span>)
-(<span class="t-k">setf</span> *mouse-focus-policy* <span class="t-a">:click</span>)</pre>
+      <div class="words">
+        <div class="word">
+          <span class="k">Rules</span>
+          <h3>Say once where a window goes.</h3>
+          <p>One line: <code>(when-window (:class "Firefox") (workspace 2))</code>. Or <kbd>Super</kbd>+<kbd>Shift</kbd>+<kbd>t</kbd> writes the rule for the window in front of you, from where it is now. <a href="guide/Rules-for-the-desktop.html">Rules for the desktop</a>.</p>
         </div>
-
-        <div class="card wide">
-          <p class="eyebrow">Rules</p>
-          <h3>Say once where a window goes, and it goes there.</h3>
-          <p>A rule is one line: Firefox on workspace 2, the sound mixer floating, a program started when you log in, a reminder at one o'clock. <kbd>Super</kbd>+<kbd>Shift</kbd>+<kbd>t</kbd> writes one for the window in front of you, from where it is now. <code>vikix rules why</code> says why a window went where it did, and a rule that fails is switched off, never the desktop.</p>
-<pre><span class="t-d">;; ~/.stumpwm.d/rules.lisp</span>
-(<span class="t-k">when-window</span> (<span class="t-a">:class</span> <span class="t-p">"Firefox"</span>) (workspace 2))
-(<span class="t-k">when-window</span> (<span class="t-a">:class</span> (<span class="t-a">:has</span> <span class="t-p">"pavucontrol"</span>)) (float <span class="t-a">:width</span> <span class="t-p">"50%"</span>))
-(<span class="t-k">at</span> <span class="t-p">"13:00"</span> <span class="t-a">:weekdays</span> (notify <span class="t-p">"Lunch"</span>))</pre>
-        </div>
-
-        <div class="card wide">
-          <p class="eyebrow">The AI agent</p>
-          <h3>Claude Code, set up to work on the desktop with you.</h3>
-          <p><kbd>Super</kbd>+<kbd>a</kbd> starts Claude Code. A skill tells it how Vikix is put together and which files are yours to change. With <code>vikix eval</code> it can run Lisp in the live window manager and try a key or a theme before writing it down. Your files are snapshotted before every session. API keys have a place of their own, <code>vikix ai key set anthropic</code>: every shell gets them, and your dotfiles' history never does. And for offline work, <code>vikix ai setup</code> runs models on the laptop itself (Ollama), with a picker that's honest about what a CPU can do.</p>
-<pre><span class="t-p">$</span> vikix eval '(vikix-apply-theme :vikix-light)'
-<span class="t-p">$</span> vikix eval '(loadrc)'   <span class="t-d"># reload after editing user.lisp</span></pre>
-        </div>
-
-        <div class="card">
-          <p class="eyebrow">The bar</p>
-          <h3>Each colour means one thing.</h3>
-          <div class="barline"><span><span class="t-a">[1]</span> 2 3</span><span class="r"><span class="t-r">rec</span><span class="t-d">quiet 3</span><span class="t-a">updates 12</span><span>wifi</span><span>bt</span><span>vol 40%</span><span>bat 84%</span></span></div>
-          <div class="legend">
-            <div><i class="dot" style="background:var(--alert)"></i><span><b>Alert</b>: something is watching you, like a recording</span></div>
-            <div><i class="dot" style="background:var(--accent)"></i><span><b>Accent</b>: something to act on, like updates</span></div>
-            <div><i class="dot" style="background:var(--subtle)"></i><span><b>Quiet</b>: a mode you switched on, like do not disturb</span></div>
-          </div>
-        </div>
-
-        <div class="card">
-          <p class="eyebrow">Battery</p>
-          <h3>Sleep before the battery runs out.</h3>
-          <p>Vikix warns at 15% and locks and sleeps at 5% when unplugged. Plug in after waking: sleep still uses a little power.</p>
-        </div>
-
-        <div class="card">
-          <p class="eyebrow">Themes</p>
-          <h3>One theme for the whole desktop.</h3>
-          <p>StumpWM, the bar, the terminal, rofi, notifications and the lock screen all follow one file of colours. This page uses the same two. And Omarchy's community themes come over in one line: <code>vikix theme import bjarneo/omarchy-ash-theme</code>.</p>
-          <div class="swatches" id="swatches"></div>
+        <div class="word">
+          <span class="k">Themes</span>
+          <h3>One file of colours, everywhere.</h3>
+          <p>StumpWM, the bar, the terminal, rofi, notifications and the lock screen follow it. This page uses the same two, and Omarchy's community themes come over in one line.</p>
           <div class="theme-pick">
             <button type="button" data-set="dark" aria-pressed="false">vikix theme vikix-dark</button>
             <button type="button" data-set="light" aria-pressed="false">vikix theme vikix-light</button>
           </div>
         </div>
-
-        <div class="card">
-          <p class="eyebrow">Your files stay yours</p>
-          <h3>Two kinds of file, never mixed.</h3>
-          <div class="own">
-            <div class="vk"><h4>VIKIX'S · linked</h4><ul><li>init.lisp</li><li>.xinitrc</li><li>vikix.bash</li><li>~/.local/bin/vikix*</li></ul></div>
-            <div class="yo"><h4>YOURS · copied once</h4><ul><li>user.lisp</li><li>alacritty, rofi…</li><li>keyboard</li><li>.Xresources</li></ul></div>
-          </div>
-          <p>Updates refresh Vikix's links and never touch yours. Anything in the way is moved to <code>.vikix-bak</code>, never deleted.</p>
+        <div class="word">
+          <span class="k">Your files</span>
+          <h3>Yours are copied once, never overwritten.</h3>
+          <p>Vikix's files are links an update refreshes. Yours are copied once and kept in a history of their own: <code>vikix undo</code> takes back any change. <a href="guide/Making-it-yours.html">Making it yours</a>.</p>
         </div>
-
-        <div class="card wide">
-          <p class="eyebrow">Undo</p>
-          <h3>A history of your config, with an undo.</h3>
-          <p>Vikix keeps your files in a git repository outside your home folder. It takes a snapshot after every install and update, and before every agent session.</p>
-<pre><span class="t-p">$</span> vikix snapshot "trying a new theme"
-<span class="t-p">$</span> vikix changes      <span class="t-d"># what changed since then</span>
-<span class="t-p">$</span> vikix undo         <span class="t-d"># back one snapshot; run again to redo</span></pre>
+        <div class="word">
+          <span class="k">AI on a key</span>
+          <h3>Select text, press <kbd>Super</kbd>+<kbd>i</kbd>.</h3>
+          <p>Proofread, rewrite, translate or explain it, in any program. <kbd>Super</kbd>+<kbd>F9</kbd> types what you say. A local model by default, offline. <a href="guide/Working-with-AI.html">Working with AI</a>.</p>
         </div>
-
-        <div class="card wide">
-          <p class="eyebrow">One command</p>
-          <h3><code style="font-size:.95em">vikix update</code> does the lot.</h3>
-          <p>It pulls the new Vikix, updates Void, installs new packages, switches on new services, refreshes the config links and editor configs, runs any migrations, and reloads StumpWM so new keys work at once. The bar tells you when there's something to bring in. Just one part? <code>vikix update core</code> (Vikix alone, in seconds), <code>system</code> or <code>tools</code>.</p>
-<pre><span class="t-p">$</span> vikix doctor       <span class="t-d"># check everything is in place</span>
-<span class="t-p">$</span> vikix theme vikix-light  <span class="t-d"># switch, everywhere, now</span>
-<span class="t-p">$</span> vikix firmware     <span class="t-d"># BIOS and device firmware, from LVFS</span>
-<span class="t-p">$</span> vikix firewall     <span class="t-d"># on from the start: only SSH comes in</span></pre>
+        <div class="word">
+          <span class="k">Any agent</span>
+          <h3>Claude Code, or another.</h3>
+          <p>Codex, OpenCode, Gemini CLI, Antigravity CLI or Aider: the same guide to the desktop, the same snapshot first, and <code>--local</code> to keep it all on your laptop.</p>
         </div>
-
-        <div class="card wide">
-          <p class="eyebrow">Network Office</p>
-          <h3>See the devices around you.</h3>
-          <p><code>vikix network</code> opens a local device graph in Emacs. Discovered names and your own labels make devices easier to find. Select one to check common TCP ports, identify services and tentative OS clues, open its web interface, start SSH or browse remote files. Choose discovery separately for each network; unfamiliar networks start in Manual. The graph shows observed membership, with the gateway marked, and says what has not been checked.</p>
+        <div class="word">
+          <span class="k">Languages</span>
+          <h3>Twenty of them, their docs offline.</h3>
+          <p><code>vikix add rust</code>, or all of them. A folder each in <code>~/dev</code> with small examples to build and change, and every manual searchable with no network.</p>
         </div>
-
-        <div class="card full">
-          <p class="eyebrow">Made for playing with languages</p>
-          <h3>Twenty languages, their docs offline, and a folder each in <code style="font-size:.95em">~/dev</code>.</h3>
-          <p>Add the ones you want, <code>vikix add rust</code>, or all of them, <code>vikix add developer</code>; <code>vikix remove</code> drops one again. <code>vikix docs</code> downloads the documentation for each one, and Zeal searches it all with no network. Every one also comes with a guide to its tools and free books, and small examples to build and change, <code>make run</code> in each.</p>
-          <div class="langs">
-            <span>C<em>tcc -run</em></span><span>Python<em>JupyterLab</em></span><span>Common Lisp<em>sbcl, ccl</em></span>
-            <span>Scheme<em>chez, guile</em></span><span>Racket</span><span>PicoLisp</span><span>Haskell<em>ghci</em></span>
-            <span>Forth<em>gforth</em></span><span>WebAssembly<em>wasmtime</em></span><span>JavaScript</span><span>Ruby</span>
-            <span>SQL<em>litecli</em></span><span>Lua<em>LuaJIT</em></span><span>Go</span><span>Zig</span>
-            <span>Rust<em>cargo run</em></span><span>Java<em>jshell</em></span><span>OCaml<em>dune</em></span><span>Julia<em>juliaup</em></span><span>Free Pascal<em>Lazarus</em></span>
-          </div>
-        </div>
-
-        <div class="card full">
-          <p class="eyebrow">When work needs Windows</p>
+        <div class="word">
+          <span class="k">Windows</span>
           <h3>Windows 11 in a window, installed by itself.</h3>
-          <p>Optional, for the programs that only run there. Point <code>vikix windows create</code> at the ISO from Microsoft and walk away: an answer file does the whole install, with drivers, a local account and no Microsoft account, in about 25 minutes. Its desktop tiles like any other window, the clipboard is shared, and <code>~/Windows</code> is drive <code>Z:</code>. It runs as you, with no open port, on a network kept apart from this machine's own services. And one Windows program can have a window of its own, among yours, tiled like any other, with no Windows desktop around it: <code>vikix windows app excel</code>, or the program's name in the launcher.</p>
-<pre><span class="t-p">$</span> vikix windows setup                <span class="t-d"># once: the packages and drivers</span>
-<span class="t-p">$</span> vikix windows create Win11_x64.iso <span class="t-d"># a notification when it's ready</span>
-<span class="t-p">$</span> vikix windows                      <span class="t-d"># start it, and open its desktop</span>
-<span class="t-p">$</span> vikix windows app excel            <span class="t-d"># one program, in a window of its own</span></pre>
+          <p>Point it at Microsoft's ISO and walk away. One Windows program can have a window of its own, tiled among yours. <a href="guide/Windows-in-a-window.html">Windows in a window</a>.</p>
+        </div>
+        <div class="word">
+          <span class="k">Lisp</span>
+          <h3>A window manager you can reprogram while it runs.</h3>
+          <p>StumpWM is Common Lisp with Swank inside: Emacs connects and redefines anything, live. That is what lets the agent try before it writes. <a href="guide/How-it-fits-together.html">How it fits together</a>.</p>
         </div>
       </div>
     </div>
@@ -404,6 +347,7 @@ and accessing the guides"
     </div>
   </section>
 
+
   <!-- ================= INSTALL ================= -->
   <section id="install">
     <div class="wrap">
@@ -425,7 +369,7 @@ and accessing the guides"
 <span class="t-p">$</span> bash vikix-install
 <span class="t-p">$</span> sudo reboot</pre>
           </div>
-          <p style="color:var(--subtle);font-size:.95rem">A fresh Void has no <code>curl</code>, so this uses <code>xbps-fetch</code>, which comes with it; where curl is there, <code>curl -fsSL https://vikix.dev/install | bash</code> is the same. It checks this is glibc Void, clones Vikix into <code>~/vikix</code> and runs its install. <a href="https://github.com/vukini/vikix/blob/main/site/install">Read it first</a>: it's short. Then <a href="guide/Your-first-hour.html">Your first hour</a>. Or by hand: <code>git clone https://github.com/vukini/vikix.git ~/vikix</code>, then <code>~/vikix/install.sh --dry-run</code> to see what it would do, and <code>~/vikix/install.sh</code>.</p>
+          <p style="color:var(--subtle);font-size:.95rem">A fresh Void has no <code>curl</code>, so this uses <code>xbps-fetch</code>, which comes with it. The script checks this is glibc Void, clones Vikix into <code>~/vikix</code> and runs its install. <a href="https://github.com/vukini/vikix/blob/main/site/install">Read it first</a>: it's short. Then <a href="guide/Your-first-hour.html">Your first hour</a>.</p>
           <div class="term">
             <header><span>then, in a terminal on the new desktop</span><button class="copy" type="button" data-copy="p2">Copy</button></header>
 <pre id="p2"><span class="t-p">$</span> vikix features            <span class="t-d"># what there is</span>
@@ -433,55 +377,6 @@ and accessing the guides"
           </div>
           <p style="color:var(--subtle);font-size:.95rem">Trying it first? It runs well in a VM. The README has step-by-step notes for <a href="https://github.com/vukini/vikix#trying-it-in-virt-manager-kvm-from-linux">virt-manager</a> and <a href="https://github.com/vukini/vikix#trying-it-in-virtualbox-from-windows">VirtualBox</a>.</p>
         </div>
-      </div>
-
-      <div class="sec-head" style="margin-top:72px">
-        <p class="eyebrow">Under the hood</p>
-        <h3 style="font-size:clamp(1.3rem,2.4vw,1.7rem);font-weight:800">The base, then features.</h3>
-        <p class="lede">Vikix is not a distribution. It is a set of bash scripts you run on an ordinary glibc Void install, plus the config they put in place. Every stage checks before it changes anything, so running it twice is safe, and <code>--dry-run</code> prints every change instead of making it.</p>
-      </div>
-      <div class="parts">
-        <div class="part one">
-          <header><h3>The base: the desktop</h3><span>./install.sh · then reboot</span></header>
-          <p>Everything a working desktop needs. When it is done, you log in on tty1 and the desktop starts.</p>
-          <ol class="stages">
-            <li><code>00-preflight</code><span>checks this is glibc Void, and that you are not root</span></li>
-            <li><code>05-mirror</code><span>times the mirrors and uses the fastest</span></li>
-            <li><code>10-packages</code><span>the base lists: desktop, apps, fonts, sound, laptop</span></li>
-            <li><code>20-services</code><span>links the runit services</span></li>
-            <li><code>25-network</code><span>NetworkManager, then switches off dhcpcd</span></li>
-            <li><code>30-lisp</code><span>Quicklisp, and builds StumpWM with Swank inside</span></li>
-            <li><code>40-config</code><span>links Vikix's files, copies yours</span></li>
-            <li><code>50-audio</code><span>PipeWire and WirePlumber</span></li>
-            <li><code>55-hardware</code><span>touchpad, microcode, the usual folders</span></li>
-            <li><code>60-login</code><span>X starts after login on tty1</span></li>
-          </ol>
-        </div>
-        <div class="part">
-          <header><h3>Features: what you add</h3><span>vikix add NAME · any time</span></header>
-          <p>Each is a package list, and sometimes a setup step. Add them from the desktop, or in the same run with <code>./install.sh --with essentials</code>. <code>vikix remove</code> takes one away again, with everything only it needed.</p>
-          <ol class="stages">
-            <li><code>essentials</code><span>Emacs, C, Python, Lisp</span></li>
-            <li><code>developer</code><span>both editors and every language, ~/dev</span></li>
-            <li><code>everything</code><span>developer, LibreOffice and printing</span></li>
-            <li><code>music</code><span>a Lisp musical sketchpad: browser grid, saved pattern pads, six synthesized sounds, chord blocks, swing, live edits and a moving playhead; desktop controls under Super+Alt+F8, explicit engine or microphone recording with a preserved capture inbox, and a browser that follows your theme</span></li>
-            <li><code>creative</code><span>video, pictures and 3D: Shotcut, OBS, GIMP, Inkscape, Blender</span></li>
-            <li><code>rust</code><span>or any other language, one by one</span></li>
-            <li><code>windows</code><span>Windows 11 in a window</span></li>
-            <li><code>steam</code><span>Steam, with the 32-bit libraries and the Vulkan driver your card needs</span></li>
-            <li><code>local-ai</code><span>AI models on the laptop (Ollama)</span></li>
-          </ol>
-          <p style="font-size:.92rem">It asks for your password once, at the start, then runs by itself. Everything it prints is kept in <code>~/.local/state/vikix/logs/</code>.</p>
-        </div>
-      </div>
-
-      <div class="notyet">
-        <h3>Not done yet</h3>
-        <ul>
-          <li>No system tray: StumpWM has none. <code>nmtui</code> and <code>blueman-manager</code> are in the menu instead.</li>
-          <li>GTK and Qt programs (Firefox, LibreOffice) keep their own look.</li>
-          <li>No installer ISO yet. For now it's a script on top of a plain Void install.</li>
-        </ul>
       </div>
     </div>
   </section>
@@ -500,19 +395,11 @@ and accessing the guides"
         </details>
         <details>
           <summary>Will it erase Windows?</summary>
-          <p>Vikix itself never touches your disks. Installing Void does: Void's installer asks which disk to use, and it wipes that one. So try it in a virtual machine first (a computer inside a window, on your current system), or on a spare laptop.</p>
-        </details>
-        <details>
-          <summary>Can I try it without installing anything?</summary>
-          <p>Here on this page, a little: the sketch above answers the real keys. For the real thing, a virtual machine is best. The README has step-by-step notes for <a href="https://github.com/vukini/vikix#trying-it-in-virtualbox-from-windows">VirtualBox on Windows</a> and <a href="https://github.com/vukini/vikix#trying-it-in-virt-manager-kvm-from-linux">virt-manager on Linux</a>.</p>
+          <p>Vikix itself never touches your disks. Installing Void does: Void's installer asks which disk to use, and it wipes that one. So try it in a virtual machine first (a computer inside a window, on your current system), or on a spare laptop. The README has step-by-step notes for <a href="https://github.com/vukini/vikix#trying-it-in-virtualbox-from-windows">VirtualBox on Windows</a> and <a href="https://github.com/vukini/vikix#trying-it-in-virt-manager-kvm-from-linux">virt-manager on Linux</a>; a machine with 4 GB of memory is enough for the desktop.</p>
         </details>
         <details>
           <summary>What does the AI see?</summary>
           <p>Nothing, until you start it. The agent runs in a terminal when you press <kbd>Super</kbd>+<kbd>a</kbd>, and it shows each command and edit and waits for your yes. What it reads goes to Anthropic, as with any Claude Code session. With a local model, nothing leaves your laptop. API keys have a place of their own, kept out of your settings' history.</p>
-        </details>
-        <details>
-          <summary>What computer do I need?</summary>
-          <p>A 64-bit PC or laptop (x86_64). We test in a virtual machine with 4 GB of memory, and the desktop itself is light. Local AI models want more: the picker checks your memory and only offers the ones that will run well.</p>
         </details>
         <details>
           <summary>Do I need to know Lisp, or Linux?</summary>
@@ -520,145 +407,12 @@ and accessing the guides"
         </details>
         <details>
           <summary>How is it different from Omarchy?</summary>
-          <p>Omarchy, a desktop for Arch Linux, was the inspiration: a whole desktop, set up in one go, with opinions. Vikix goes its own way: Void instead of Arch, StumpWM instead of Hyprland, and an agent built in, with snapshots and an undo.</p>
+          <p>Omarchy, a desktop for Arch Linux, was the inspiration: a whole desktop, set up in one go, with opinions. Vikix goes its own way: Void instead of Arch, StumpWM instead of Hyprland, an agent built in with snapshots and an undo, and a desktop that can say why it did what it did. <a href="void.html">Why Void</a>, for Linux people.</p>
         </details>
         <details>
           <summary>What if something breaks?</summary>
-          <p><code>vikix doctor</code> checks that everything is in place and says what to do. <code>vikix undo</code> takes back your last settings change. And you can ask in <a href="https://github.com/vukini/vikix/discussions">Discussions</a>, or <a href="https://github.com/vukini/vikix/issues">open an issue</a>.</p>
+          <p><code>vikix doctor</code> checks that everything is in place and says what to do. <code>vikix undo</code> takes back your last settings change. <kbd>Super</kbd>+<kbd>?</kbd> says what just happened. And you can ask in <a href="https://github.com/vukini/vikix/discussions">Discussions</a>, or <a href="https://github.com/vukini/vikix/issues">open an issue</a>.</p>
         </details>
-      </div>
-    </div>
-  </section>
-
-  <!-- ================= WHY VOID ================= -->
-  <section id="void">
-    <div class="wrap">
-      <div class="sec-head">
-        <p class="eyebrow void-mark">For Linux people · <b>the system underneath</b></p>
-        <h2>Why Void.</h2>
-        <p class="lede">Void Linux has been going since 2008, when Juan Romero Pardines, a former NetBSD developer, started it as a test bed for a new package manager. It is not based on Debian, Arch or anyone else: it has its own package manager and its own build system, and it uses runit instead of systemd. What you get is a rolling release that is fast, small, and simple enough to understand all the way down.</p>
-      </div>
-
-      <div class="pillars">
-        <div class="pillar">
-          <span class="k">runit</span>
-          <h3>Boots in seconds, and you can read all of it.</h3>
-          <p>Void uses runit instead of systemd. Starting the system is three short shell stages; after that, runit keeps each service alive. There are no unit files, no journal format, no dependency graph to debug.</p>
-        </div>
-        <div class="pillar">
-          <span class="k">xbps</span>
-          <h3>A package manager built for this system.</h3>
-          <p>xbps was written from scratch for Void, and it is fast and plain. Every package records which shared libraries it needs, and xbps checks the whole update first: if it would leave a program without a library, xbps stops before changing anything.</p>
-          <pre>sudo xbps-install -Su   <span class="t-d"># update all</span>
-xbps-query -Rs ripgrep  <span class="t-d"># search</span></pre>
-        </div>
-        <div class="pillar">
-          <span class="k">rolling, calmly</span>
-          <h3>New versions, no release upgrades.</h3>
-          <p>Void is a rolling release, so there is never a big-bang upgrade to a new version of the distribution. But it aims for stability, not the bleeding edge: packages follow upstream's real releases, never betas or development snapshots. Kernels come as series packages, such as <code>linux6.12</code>, so you choose when to move.</p>
-        </div>
-        <div class="pillar">
-          <span class="k">xbps-src</span>
-          <h3>One repo, built in the open.</h3>
-          <p>Every package is a short template in <a href="https://github.com/void-linux/void-packages">void-packages</a> on GitHub, built by <code>xbps-src</code> in a clean container, without root. You can build any package yourself the same way, and cross-compile it for ARM from your laptop.</p>
-        </div>
-        <div class="pillar">
-          <span class="k">glibc or musl</span>
-          <h3>Two C libraries, both official.</h3>
-          <p>Void is one of the few distributions with official binary repositories for both glibc and musl: glibc on x86_64, i686, aarch64 and 32-bit ARM, and musl on all of those except i686. Vikix uses glibc, for the widest range of software.</p>
-        </div>
-        <div class="pillar">
-          <span class="k">small base</span>
-          <h3>You start with very little.</h3>
-          <p>A fresh Void install is a shell, a network and a package manager. Nothing runs that you didn't ask for. That makes it a good floor to build a desktop on, which is exactly what Vikix does.</p>
-        </div>
-      </div>
-
-      <div class="runit">
-        <div class="runit-copy">
-          <p class="eyebrow void-mark">How a service works on <b>Void</b></p>
-          <h3 style="font-size:1.35rem">A service is a folder with a script in it.</h3>
-          <p>Each service in <code>/etc/sv/</code> has a <code>run</code> script that starts the program in the foreground. To switch a service on, link its folder into <code>/var/service/</code>. runit notices within seconds and starts it. To switch it off, remove the link.</p>
-          <p>That is the whole model. You can learn it in a coffee break, and when something goes wrong, the thing to read is a five-line shell script.</p>
-        </div>
-<pre class="tree"><span class="t-d"># the sshd service, complete</span>
-<span class="t-p">$</span> cat /etc/sv/sshd/run
-<span class="t-k">#!/bin/sh</span>
-exec 2>&1
-ssh-keygen -A >/dev/null 2>&1
-[ -r conf ] && . ./conf
-exec /usr/bin/sshd -D $OPTS
-
-<span class="t-d"># switch it on, check it, switch it off</span>
-<span class="t-p">$</span> sudo ln -s /etc/sv/sshd /var/service/
-<span class="t-p">$</span> sudo sv status sshd
-<span class="t-a">run:</span> sshd: (pid 842) 12s
-<span class="t-p">$</span> sudo rm /var/service/sshd</pre>
-      </div>
-    </div>
-  </section>
-
-  <!-- ================= COMPARISON ================= -->
-  <section id="compare">
-    <div class="wrap">
-      <div class="sec-head">
-        <p class="eyebrow void-mark">For Linux people · <b>the neighbours</b></p>
-        <h2>Void and the other rolling releases.</h2>
-        <p class="lede">Arch, openSUSE Tumbleweed and Gentoo are all good systems. Void makes different choices: fewer moving parts, one official repository, and a package manager that checks libraries before it changes anything.</p>
-      </div>
-
-      <div class="cmp-scroll">
-        <table class="cmp">
-          <thead>
-            <tr><th></th><th class="void">Void</th><th>Arch</th><th>openSUSE Tumbleweed</th><th>Gentoo</th></tr>
-          </thead>
-          <tbody>
-            <tr><th>INIT</th>
-              <td class="void">runit: a few shell scripts, and a folder per service</td>
-              <td>systemd</td><td>systemd</td><td>OpenRC, or systemd</td></tr>
-            <tr><th>PACKAGES</th>
-              <td class="void">xbps, written for Void</td>
-              <td>pacman</td><td>zypper and RPM</td><td>Portage, built on your machine; an optional binary host</td></tr>
-            <tr><th>EXTRA SOFTWARE</th>
-              <td class="void">All in one official repo, reviewed as pull requests. Software that may not be redistributed is built locally with <code>xbps-src</code>.</td>
-              <td>The AUR: build scripts anyone can upload. You read each one, or trust a helper to.</td>
-              <td>Community projects on the Open Build Service</td>
-              <td>Overlays</td></tr>
-            <tr><th>UPDATE SAFETY</th>
-              <td class="void">xbps tracks the shared libraries each package needs, and stops an update that would break one</td>
-              <td>Partial upgrades are unsupported: update everything at once, and read the news first</td>
-              <td>Snapshots tested by openQA; roll back with Btrfs and Snapper</td>
-              <td>Portage resolves and rebuilds what depends on a changed library</td></tr>
-            <tr><th>C LIBRARY</th>
-              <td class="void">glibc or musl, both with official binary repos (musl on all but i686)</td>
-              <td>glibc</td><td>glibc</td><td>glibc, or musl profiles</td></tr>
-            <tr><th>ARCHITECTURES</th>
-              <td class="void">x86_64, i686, aarch64, armv6, armv7</td>
-              <td>x86_64 (others are separate ports)</td>
-              <td>x86_64, plus ports</td>
-              <td>Many</td></tr>
-            <tr><th>FEEL</th>
-              <td class="void">Small, quick, and quiet. It stays out of your way.</td>
-              <td>Huge community, and the best wiki in Linux</td>
-              <td>Polished and tested, with company backing</td>
-              <td>Total control, if you have the time</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="fair">
-        <div>
-          <h3>Where Arch is ahead</h3>
-          <p>More software, through the AUR, and many more users writing guides. The Arch Wiki is excellent, and most of it applies on Void too. If a package you need exists only in the AUR, that matters.</p>
-        </div>
-        <div>
-          <h3>Where Void is ahead</h3>
-          <p>No init system to learn, no third-party build scripts to trust, no AUR helper. Updates are one xbps transaction that checks libraries first. And the whole system is small enough to hold in your head.</p>
-        </div>
-        <div>
-          <h3>Why that suits a desktop layer</h3>
-          <p>A layer like Vikix has to change the system in ways it can repeat and check. On Void that is plain: install from lists, link a service folder, drop a file in <code>/etc/xbps.d/</code>. Each Vikix stage does exactly that, and nothing clever.</p>
-        </div>
       </div>
     </div>
   </section>
@@ -687,7 +441,7 @@ exec /usr/bin/sshd -D $OPTS
 <footer>
   <div class="wrap">
     <span>Vikix · made by <a href="https://thevikidtruth.substack.com/">The Vikid Truth</a> · built on <a href="https://voidlinux.org">Void Linux</a> and <a href="https://stumpwm.github.io">StumpWM</a> · inspired by <a href="https://omarchy.org">Omarchy</a><br>© 2026 The Living Studios FZE LLC, Ajman, UAE · <a href="https://github.com/vukini/vikix/blob/main/LICENSE">MIT licence</a> · <a href="mailto:vikid@vikix.dev">vikid@vikix.dev</a></span>
-    <nav><a href="https://github.com/vukini/vikix">Source</a><a href="https://github.com/vukini/vikix/discussions">Discussions</a><a href="https://github.com/vukini/vikix/issues">Issues</a><a href="https://x.com/vukini">X</a><a href="guide/">Guide</a><a href="https://github.com/vukini/vikix/blob/main/README.md">README</a><a href="https://docs.voidlinux.org">Void handbook</a></nav>
+    <nav><a href="https://github.com/vukini/vikix">Source</a><a href="https://github.com/vukini/vikix/discussions">Discussions</a><a href="https://github.com/vukini/vikix/issues">Issues</a><a href="https://x.com/vukini">X</a><a href="guide/">Guide</a><a href="void.html">Why Void</a><a href="https://github.com/vukini/vikix/blob/main/README.md">README</a><a href="https://docs.voidlinux.org">Void handbook</a></nav>
   </div>
 </footer>
 
@@ -714,7 +468,8 @@ exec /usr/bin/sshd -D $OPTS
     document.querySelectorAll(".theme-pick button").forEach(function (b) {
       b.setAttribute("aria-pressed", String((b.dataset.set === "dark") === isDark()));
     });
-    document.getElementById("swatches").innerHTML = PALETTES[name].map(function (c) {
+    var sw = document.getElementById("swatches");
+    if (sw) sw.innerHTML = PALETTES[name].map(function (c) {
       return '<span class="sw"><i style="background:' + c + '"></i>' + c + "</span>";
     }).join("");
   }
