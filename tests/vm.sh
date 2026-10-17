@@ -79,7 +79,7 @@ vm_make() {   # vm_make WHOSE NAME STATE MEM_KIB CPUS [saved]
 state_of() { cat "$t/vms/$1/$2/state"; }
 vm() { : > "$log"; rm -f "$t"/offered.*; bash "$here/bin/vikix-vm" "$@"; }
 # As the menu runs it: no terminal on stdout, so what it says is a notification.
-vm_menu() { : > "$log"; rm -f "$t"/offered.*; bash "$here/bin/vikix-vm" "$@" > "$t/out"; }
+vm_menu() { : > "$log"; rm -f "$t"/offered.*; bash "$here/bin/vikix-vm" > "$t/out"; }
 
 vm_make yours windows 'shut off' 6291456 2 saved
 vm_make system void-vm 'shut off' 4194304 2
