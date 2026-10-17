@@ -2,9 +2,12 @@
 # Prepared 2026-10-17; start only after the music-phase0 release.
 # Each next desk starts from released main; final planning shares the performance desk.
 # The existing design is context; each task states its narrower scope.
+# 2026-10-17: no user gate and no questions before implementation; a plan runs on its own.
+# Workers decide, record each decision in the handoff, and ask only when a choice would
+# change released behaviour.
 project = "vikix"
 at-once = 1
-gate = "me"
+gate = "none"
 
 [[task]]
 name = "banks"
@@ -19,12 +22,13 @@ playhead; otherwise hand back waiting for that release.
 Read the desk handoff, project instructions and plans/DESIGN-music.md first. Preserve
 the released browser interface, separate SBCL clock, authenticated loopback control and
 data-only reader. Inspect the current implementation before estimating. Implement only
-this task; use an Office question for unresolved product decisions. Update affected
+this task; decide unresolved product choices yourself, record each in the handoff, and
+ask through Office only when a choice would change released behaviour. Update affected
 guides and generated command documentation in the same commit. Run tests/run.sh
 --changed, plus the relevant isolated public-launcher checks; report real desktop
 listening separately. Commit only your changed files by name. Hand in as review with
 decisions, defects, checks and short manual test instructions.
-Leave release to the plan's user gate; do not push. Implement persistent named pad
+The plan releases the desk once its tests pass; do not push. Implement persistent named pad
 assignments using the proposed bank form, preserving existing scores without a bank.
 Resolve malformed, missing and duplicate references explicitly; the browser must edit
 assignments using the existing snapshot/revision path and show which pattern is playing.
@@ -37,6 +41,8 @@ acceptance = [
 ]
 release = "Saved Music pad banks"
 
+# sounds keeps its first words: its desk was at work when the plan changed, and the
+# runner knows a desk's task by its text. Its question is answered (d-20261017-4e5f91).
 [[task]]
 name = "sounds"
 desk = "music-sounds"
@@ -86,19 +92,20 @@ playhead; otherwise hand back waiting for that release.
 Read the desk handoff, project instructions and plans/DESIGN-music.md first. Preserve
 the released browser interface, separate SBCL clock, authenticated loopback control and
 data-only reader. Inspect the current implementation before estimating. Implement only
-this task; use an Office question for unresolved product decisions. Update affected
+this task; decide unresolved product choices yourself, record each in the handoff, and
+ask through Office only when a choice would change released behaviour. Update affected
 guides and generated command documentation in the same commit. Run tests/run.sh
 --changed, plus the relevant isolated public-launcher checks; report real desktop
 listening separately. Commit only your changed files by name. Hand in as review with
 decisions, defects, checks and short manual test instructions.
-Leave release to the plan's user gate; do not push. Implement the design's progression
-blocks and chord voicings as a bounded extension of the score reader. Present a concrete
-voicing, key and block-duration proposal through Office before selecting those musical
-semantics. Round-trip accepted forms between the file, browser blocks and subtitles.
+The plan releases the desk once its tests pass; do not push. Implement the design's progression
+blocks and chord voicings as a bounded extension of the score reader. Choose concrete
+voicing, key and block-duration semantics from the design, record them in the handoff
+and document them in the guide. Round-trip accepted forms between the file, browser blocks and subtitles.
 Retain last-good playback on invalid edits; keep scheduling outside the browser.
 """
 acceptance = [
-  "Major/minor degrees, key changes and block durations have documented semantics approved by Vid.",
+  "Major/minor degrees, key changes and block durations have semantics documented in the guide.",
   "Browser reordering and duration edits snapshot and preserve unrelated source text.",
   "Deterministic engine-event tests validate pitches and bar boundaries, including silent bars.",
 ]
@@ -118,17 +125,19 @@ playhead; otherwise hand back waiting for that release.
 Read the desk handoff, project instructions and plans/DESIGN-music.md first. Preserve
 the released browser interface, separate SBCL clock, authenticated loopback control and
 data-only reader. Inspect the current implementation before estimating. Implement only
-this task; use an Office question for unresolved product decisions. Update affected
+this task; decide unresolved product choices yourself, record each in the handoff, and
+ask through Office only when a choice would change released behaviour. Update affected
 guides and generated command documentation in the same commit. Run tests/run.sh
 --changed, plus the relevant isolated public-launcher checks; report real desktop
 listening separately. Commit only your changed files by name. Hand in as review with
 decisions, defects, checks and short manual test instructions.
-Leave release to the plan's user gate; do not push. Add nonblocking desktop play/stop
+The plan releases the desk once its tests pass; do not push. Add nonblocking desktop play/stop
 and bank selection commands, Music menu entries and a quiet beat/tempo indicator; follow
 Vikix theme in the browser. All commands belong in registry.lisp. Audit existing
 bindings: Super+digits select workspaces, so the design's pad-key sketch is not an
-available binding. Propose a conflict-free key/prefix scheme to Vid before binding. Do
-not put process waits or audio scheduling into StumpWM. Recording controls belong to the
+available binding. Bind only under one Music prefix that is free today, following the
+registry's key rule (Super everyday, +Shift moves, +Alt opens, +Ctrl switches), and
+record the scheme in the handoff. Do not put process waits or audio scheduling into StumpWM. Recording controls belong to the
 capture task.
 """
 acceptance = [
@@ -152,15 +161,16 @@ playhead; otherwise hand back waiting for that release.
 Read the desk handoff, project instructions and plans/DESIGN-music.md first. Preserve
 the released browser interface, separate SBCL clock, authenticated loopback control and
 data-only reader. Inspect the current implementation before estimating. Implement only
-this task; use an Office question for unresolved product decisions. Update affected
+this task; decide unresolved product choices yourself, record each in the handoff, and
+ask through Office only when a choice would change released behaviour. Update affected
 guides and generated command documentation in the same commit. Run tests/run.sh
 --changed, plus the relevant isolated public-launcher checks; report real desktop
 listening separately. Commit only your changed files by name. Hand in as review with
 decisions, defects, checks and short manual test instructions.
-Leave release to the plan's user gate; do not push. Implement explicit start/stop
-recording and an inbox for preserved captures. Ask Vid to choose mic-only, engine-only
-or mixed defaults, source selection and filing behavior before implementation;
-microphone capture must start only from the user's recording action. Avoid overwriting
+The plan releases the desk once its tests pass; do not push. Implement explicit start/stop
+recording and an inbox for preserved captures. Default to engine-only capture, with
+microphone and mixed as explicit source choices; file each take under the song by date
+and take number; document these defaults in the guide. Microphone capture must start only from the user's recording action. Avoid overwriting
 captures and preserve recoverable partial audio on interruption or disk failure. Add
 recording state and commands through the registry, and list/preview/loop/file actions
 through the shared control path. No automatic deletion or background recording.
@@ -187,12 +197,13 @@ playhead; otherwise hand back waiting for that release.
 Read the desk handoff, project instructions and plans/DESIGN-music.md first. Preserve
 the released browser interface, separate SBCL clock, authenticated loopback control and
 data-only reader. Inspect the current implementation before estimating. Implement only
-this task; use an Office question for unresolved product decisions. Update affected
+this task; decide unresolved product choices yourself, record each in the handoff, and
+ask through Office only when a choice would change released behaviour. Update affected
 guides and generated command documentation in the same commit. Run tests/run.sh
 --changed, plus the relevant isolated public-launcher checks; report real desktop
 listening separately. Commit only your changed files by name. Hand in as review with
 decisions, defects, checks and short manual test instructions.
-Leave release to the plan's user gate; do not push. Implement vikix music send for per-
+The plan releases the desk once its tests pass; do not push. Implement vikix music send for per-
 pattern MIDI and rendered WAV output under the song render directory, including the
 score features released by prior tasks. Use finite offline rendering independent of the
 playing session. Preserve existing exports on failure and define repeat, duration,
@@ -221,16 +232,17 @@ playhead; otherwise hand back waiting for that release.
 Read the desk handoff, project instructions and plans/DESIGN-music.md first. Preserve
 the released browser interface, separate SBCL clock, authenticated loopback control and
 data-only reader. Inspect the current implementation before estimating. Implement only
-this task; use an Office question for unresolved product decisions. Update affected
+this task; decide unresolved product choices yourself, record each in the handoff, and
+ask through Office only when a choice would change released behaviour. Update affected
 guides and generated command documentation in the same commit. Run tests/run.sh
 --changed, plus the relevant isolated public-launcher checks; report real desktop
 listening separately. Commit only your changed files by name. Hand in as review with
 decisions, defects, checks and short manual test instructions.
-Leave release to the plan's user gate; do not push. Add the optional Ardour feature and
+The plan releases the desk once its tests pass; do not push. Add the optional Ardour feature and
 the design's song-opening/import workflow on top of exported MIDI/WAV. Inspect current
-Void packages and supported Ardour entry points before choosing integration. Ask Vid
-before changing the proposed session layout or adopting an import mechanism that would
-edit an existing session. Preserve user sessions and exports. Exercise package changes
+Void packages and supported Ardour entry points before choosing integration. Keep the
+proposed session layout; never adopt an import mechanism that edits an existing session.
+Preserve user sessions and exports. Exercise package changes
 in a VM; use the project full release checks when required.
 """
 acceptance = [
@@ -254,16 +266,18 @@ playhead; otherwise hand back waiting for that release.
 Read the desk handoff, project instructions and plans/DESIGN-music.md first. Preserve
 the released browser interface, separate SBCL clock, authenticated loopback control and
 data-only reader. Inspect the current implementation before estimating. Implement only
-this task; use an Office question for unresolved product decisions. Update affected
+this task; decide unresolved product choices yourself, record each in the handoff, and
+ask through Office only when a choice would change released behaviour. Update affected
 guides and generated command documentation in the same commit. Run tests/run.sh
 --changed, plus the relevant isolated public-launcher checks; report real desktop
 listening separately. Commit only your changed files by name. Hand in as review with
 decisions, defects, checks and short manual test instructions.
-Leave release to the plan's user gate; do not push. Add read-only music_state and a
+The plan releases the desk once its tests pass; do not push. Add read-only music_state and a
 propose-and-review music_edit path using the same data validator, revision checks and
 snapshots as the browser. Inspect the existing proposal mechanism before integration.
-Only the user can apply a proposal; expose no evaluator or auto-approval tool. Ask for a
-design decision if no existing review surface can carry these proposals.
+Only the user can apply a proposal; expose no evaluator or auto-approval tool. Use the
+Office decision path per proposal if no existing review surface can carry them, rather
+than building a new surface.
 """
 acceptance = [
   "State reads reveal no session tokens or unrelated private files.",
@@ -287,16 +301,18 @@ playhead; otherwise hand back waiting for that release.
 Read the desk handoff, project instructions and plans/DESIGN-music.md first. Preserve
 the released browser interface, separate SBCL clock, authenticated loopback control and
 data-only reader. Inspect the current implementation before estimating. Implement only
-this task; use an Office question for unresolved product decisions. Update affected
+this task; decide unresolved product choices yourself, record each in the handoff, and
+ask through Office only when a choice would change released behaviour. Update affected
 guides and generated command documentation in the same commit. Run tests/run.sh
 --changed, plus the relevant isolated public-launcher checks; report real desktop
 listening separately. Commit only your changed files by name. Hand in as review with
 decisions, defects, checks and short manual test instructions.
-Leave release to the plan's user gate; do not push. Add MIDI controller input and
+The plan releases the desk once its tests pass; do not push. Add MIDI controller input and
 browser learn mode for bank pads and bounded controls, using PipeWire/ALSA facilities
 appropriate to the implementation. Persist mappings separately from transient device
-identifiers. Clarify the controller Vid will test, and mapping/reconnect semantics,
-through Office. Devices do not gain arbitrary command execution.
+identifiers. Target a generic class-compliant USB MIDI controller; persist mappings
+by device name and port, restore them on reconnect and clear stuck notes; document the
+semantics in the guide. Devices do not gain arbitrary command execution.
 """
 acceptance = [
   "Synthetic MIDI tests cover learning, triggering, bounded knob values and malformed events.",
@@ -319,14 +335,16 @@ playhead; otherwise hand back waiting for that release.
 Read the desk handoff, project instructions and plans/DESIGN-music.md first. Preserve
 the released browser interface, separate SBCL clock, authenticated loopback control and
 data-only reader. Inspect the current implementation before estimating. Implement only
-this task; use an Office question for unresolved product decisions. Update affected
+this task; decide unresolved product choices yourself, record each in the handoff, and
+ask through Office only when a choice would change released behaviour. Update affected
 guides and generated command documentation in the same commit. Run tests/run.sh
 --changed, plus the relevant isolated public-launcher checks; report real desktop
 listening separately. Commit only your changed files by name. Hand in as review with
 decisions, defects, checks and short manual test instructions.
-Leave release to the plan's user gate; do not push. Implement the bounded variations and
+The plan releases the desk once its tests pass; do not push. Implement the bounded variations and
 every-bar choose forms from the design, with deterministic seeded tests and browser
-audition/pick controls. Confirm the exact first transformation set with Vid. Audition
+audition/pick controls. The first transformation set is the design's (invert, shift
+and the ones its examples name); record the exact set in the guide. Audition
 must not overwrite the source pattern; accepting a variation snapshots and creates or
 replaces only the explicitly chosen pattern.
 """
@@ -351,17 +369,18 @@ playhead; otherwise hand back waiting for that release.
 Read the desk handoff, project instructions and plans/DESIGN-music.md first. Preserve
 the released browser interface, separate SBCL clock, authenticated loopback control and
 data-only reader. Inspect the current implementation before estimating. Implement only
-this task; use an Office question for unresolved product decisions. Update affected
+this task; decide unresolved product choices yourself, record each in the handoff, and
+ask through Office only when a choice would change released behaviour. Update affected
 guides and generated command documentation in the same commit. Run tests/run.sh
 --changed, plus the relevant isolated public-launcher checks; report real desktop
 listening separately. Commit only your changed files by name. Hand in as review with
 decisions, defects, checks and short manual test instructions.
-Leave release to the plan's user gate; do not push. Add explicit play/stop/marker/arm
+The plan releases the desk once its tests pass; do not push. Add explicit play/stop/marker/arm
 control for Ardour and optional Reaper using documented local transport interfaces.
 Inspect authentication and loopback capabilities before implementation; do not expose a
-network listener. Ask Vid before installing Reaper or choosing an integration that
-requires a changed security design. If Reaper is selected, its optional download must be
-version-pinned and checksummed; leave license purchase to the user.
+network listener. Ardour first; add Reaper only if its integration needs no change to
+the security design, with its optional download version-pinned and checksummed; leave
+license purchase to the user.
 """
 acceptance = [
   "Absent DAWs and timeout responses are bounded and do not block Music or StumpWM.",
@@ -384,12 +403,13 @@ playhead; otherwise hand back waiting for that release.
 Read the desk handoff, project instructions and plans/DESIGN-music.md first. Preserve
 the released browser interface, separate SBCL clock, authenticated loopback control and
 data-only reader. Inspect the current implementation before estimating. Implement only
-this task; use an Office question for unresolved product decisions. Update affected
+this task; decide unresolved product choices yourself, record each in the handoff, and
+ask through Office only when a choice would change released behaviour. Update affected
 guides and generated command documentation in the same commit. Run tests/run.sh
 --changed, plus the relevant isolated public-launcher checks; report real desktop
 listening separately. Commit only your changed files by name. Hand in as review with
 decisions, defects, checks and short manual test instructions.
-Leave release to the plan's user gate; do not push. Add optional tempo/key analysis to
+The plan releases the desk once its tests pass; do not push. Add optional tempo/key analysis to
 the inbox using verified available tools. Treat results as estimates with confidence or
 unknown state, never rename or retune audio automatically. Preserve original captures;
 bound analysis work and cancel/reap owned processes. Keep sample-library sorting for the
@@ -416,17 +436,18 @@ playhead; otherwise hand back waiting for that release.
 Read the desk handoff, project instructions and plans/DESIGN-music.md first. Preserve
 the released browser interface, separate SBCL clock, authenticated loopback control and
 data-only reader. Inspect the current implementation before estimating. Implement only
-this task; use an Office question for unresolved product decisions. Update affected
+this task; decide unresolved product choices yourself, record each in the handoff, and
+ask through Office only when a choice would change released behaviour. Update affected
 guides and generated command documentation in the same commit. Run tests/run.sh
 --changed, plus the relevant isolated public-launcher checks; report real desktop
 listening separately. Commit only your changed files by name. Hand in as review with
 decisions, defects, checks and short manual test instructions.
-Leave release to the plan's user gate; do not push. Implement a recording latency mode
-only after measuring the current behavior. Show a concrete quantum/governor change and
-restoration design to Vid first. Preserve and restore prior settings after normal stop,
+The plan releases the desk once its tests pass; do not push. Implement a recording latency mode
+only after measuring the current behavior. Record the concrete quantum/governor change
+and its restoration design in the handoff before changing settings. Preserve and restore prior settings after normal stop,
 errors and interruption; do not claim block size is physical round-trip latency. If
-measurement requires unavailable loopback hardware, record that limitation and ask
-through Office rather than inventing a result.
+measurement requires unavailable loopback hardware, record that limitation in the
+handoff and the guide rather than inventing a result.
 """
 acceptance = [
   "Latency mode is explicit and visibly indicated, with previous settings restored.",
@@ -449,14 +470,15 @@ playhead; otherwise hand back waiting for that release.
 Read the desk handoff, project instructions and plans/DESIGN-music.md first. Preserve
 the released browser interface, separate SBCL clock, authenticated loopback control and
 data-only reader. Inspect the current implementation before estimating. Implement only
-this task; use an Office question for unresolved product decisions. Update affected
+this task; decide unresolved product choices yourself, record each in the handoff, and
+ask through Office only when a choice would change released behaviour. Update affected
 guides and generated command documentation in the same commit. Run tests/run.sh
 --changed, plus the relevant isolated public-launcher checks; report real desktop
 listening separately. Commit only your changed files by name. Hand in as review with
 decisions, defects, checks and short manual test instructions.
-Leave release to the plan's user gate; do not push. Add a fullscreen performance view
-that disables score editing and gives clear bank/play state plus a panic action. Confirm
-the panic scope and key with Vid: it must stop only Music-owned sounds and recording
+The plan releases the desk once its tests pass; do not push. Add a fullscreen performance view
+that disables score editing and gives clear bank/play state plus a panic action. The
+panic key is Escape in the performance view, with no global binding: it must stop only Music-owned sounds and recording
 safely, not the user's other audio applications. Keep existing editing view available.
 """
 acceptance = [
@@ -480,24 +502,24 @@ playhead; otherwise hand back waiting for that release.
 Read the desk handoff, project instructions and plans/DESIGN-music.md first. Preserve
 the released browser interface, separate SBCL clock, authenticated loopback control and
 data-only reader. Inspect the current implementation before estimating. Implement only
-this task; use an Office question for unresolved product decisions. Update affected
+this task; decide unresolved product choices yourself, record each in the handoff, and
+ask through Office only when a choice would change released behaviour. Update affected
 guides and generated command documentation in the same commit. Run tests/run.sh
 --changed, plus the relevant isolated public-launcher checks; report real desktop
 listening separately. Commit only your changed files by name. Hand in as review with
 decisions, defects, checks and short manual test instructions.
-Leave release to the plan's user gate; do not push. Review the shipped Music
-implementation and remaining P2 ideas with Vid: Esploro sample cataloguing, shared-
+The plan releases the desk once its tests pass; do not push. Review the shipped Music
+implementation and remaining P2 ideas: Esploro sample cataloguing, shared-
 syllabus music lessons, pattern history beyond snapshots, and Incudine only if measured
 SuperCollider limitations justify it. Create the next executable Office plan, with
-separate tasks, acceptance, dependencies and user release gates, based on those
-decisions. Do not read private books or syllabuses without access authorization,
+separate tasks, acceptance and dependencies, no user gate and no questions before
+implementation, based on recorded decisions. Do not read private books or syllabuses without access authorization,
 duplicate Esploro machinery, or implement another audio engine speculatively. Update
 DESIGN-music.md and its index to remove shipped work and identify deferred ideas. This
-planning task shares the performance desk and its release; leave release to the plan
-gate.
+planning task shares the performance desk and its release.
 """
 acceptance = [
-  "Each remaining idea is either an executable task with concrete scope or explicitly deferred with Vid's decision.",
+  "Each remaining idea is either an executable task with concrete scope or explicitly deferred, with the reason recorded.",
   "The follow-up TOML passes lib/plan.py validation and appears in Office as a draft without launching workers.",
   "Links, shipped status and manual run instructions are current.",
 ]

@@ -12,7 +12,7 @@ The longer plans of Vikix, one file each. The queue is `../TODO.md`, the pool `.
 | `DESIGN-docs.md` | 2026-10-03 | The docs catalogue and the `vk` alias. |
 | `DESIGN-machines.md` | 2026-10-04 | Your laptops, desktop and phones as one Vikix: Tailscale, Syncthing, KDE Connect, `vikix export`/`import`, `--on NAME` for the doors (TODO 16 to 19). |
 | `DESIGN-music.md` | 2026-10-17 | Remaining Music design after the 0.72.85 browser sketchpad; executable continuation in `music-next.toml`. |
-| `music-next.toml` | 2026-10-17 | Executable Office plan: banks through performance, dependencies, acceptance checks and user release gates; one worker at a time. |
+| `music-next.toml` | 2026-10-17 | Executable Office plan: banks through performance, dependencies and acceptance checks; one worker at a time, released by the plan, no user gate (2026-10-17). |
 | `DESIGN-office-tasks.md` | 2026-10-10 | The Office as a task board: a task record of its own with provenance, priority and a launch number, the worker's state apart from the task's, Needs attention with decisions a worker registers (phases 1 and 2 implemented 2026-10-14), phase 3 queue and scheduler implemented 2026-10-15, released in 0.72.78; the full board and proposals remain (TODO 115). |
 | `DESIGN-openclaw.md` | 2026-10-08 | OpenClaw with the office: a sixth agent in a terminal, the house rules as its plugin, its Gateway as the phone's way in; TODO 13's slot, OpenClaw or Hermes for Vid to choose. |
 | `DESIGN-phone.md` | 2026-10-08 | The phone's way into the desktop, replacing OpenClaw's gateway direction for TODO 13. |

@@ -20,20 +20,24 @@ assignment editing and undo; desktop pad keys remain a later task.*
 ## Executable Office plan
 
 [music-next.toml](music-next.toml) is the executable continuation, not a template.
-It has one worker at a time and a user release gate at each desk. A later desk
-starts from released main; the final planning task shares the performance desk.
-The task descriptions narrow the proposals below and require an Office question
-for unresolved product choices. Starting the plan authorizes its task sequence;
-releases still wait for the user's approval, and pushing remains the user's.
+It has one worker at a time and no user gate: each desk is released by the plan
+once its tests pass (*2026-10-17: the gate and the "ask Vid before implementation"
+lines were removed after the plan stopped four times in its first day; Vid: a plan
+runs without his approvals*). A later desk starts from released main; the final
+planning task shares the performance desk. The task descriptions narrow the
+proposals below and settle the product choices; a worker decides what is left,
+records it in the handoff, and asks through Office only when a choice would
+change released behaviour. Starting the plan authorizes its task sequence;
+pushing remains the user's.
 
 On Vid's machine the Office draft is
 `~/.config/vikix/plans/music-next.toml`, a copy of the committed plan. In Office, open **Plans**, choose **music-next**, and **Run**.
 The CLI equivalent is `vikix agents plan run ~/.config/vikix/plans/music-next.toml`.
-Use the release gate after trying the handoff's manual checks. The draft does not
+The handoff's manual checks are for after the release, on the desktop. The draft does not
 start workers until Run is chosen. `vikix agents plan pause music-next` prevents new starts and releases;
 workers already running carry on.
 
-| Order | Task | Result at its release gate |
+| Order | Task | Result at its release |
 |---|---|---|
 | 1 | Banks | Persistent pad assignments with undo |
 | 2 | Sounds | Original sound palette, bounded dynamics and swing |
