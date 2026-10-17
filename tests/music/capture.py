@@ -170,6 +170,7 @@ with tempfile.TemporaryDirectory(prefix='music-capture-') as temp:
         child.wait(timeout=3)
         child = None
         until(lambda: all(not Path('/proc', pid).exists() for pid in (folder/'audio-pids').read_text().splitlines()))
+        until(lambda: all(not Path('/proc', pid).exists() for pid in (folder/'guard-pids').read_text().splitlines()))
         partial = home/'music/inbox'/latest
         assert (partial/'audio.pcm').stat().st_size > 0
         assert (partial/'take.json').exists() and not (partial/'stopped.json').exists()

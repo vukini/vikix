@@ -17,8 +17,8 @@ Void is not a systemd distribution. Remember:
 
 ## How this skill is laid out
 
-This page covers ownership and safety. **Read the relevant subject page
-before acting or answering**, rather than relying on memory:
+**Read the relevant subject page before acting or answering.** This page
+covers ownership and safety:
 
 | Page | What it has |
 |---|---|
@@ -32,9 +32,8 @@ before acting or answering**, rather than relying on memory:
 | `~/.claude/skills/vikix/projects.md` | `vikix project` and the logs, `vikix today`, `vikix day`, `vikix back`; how a worker at a desk finishes (*A worker's day*), and your task's record: `vikix agents tasks`, `task`, `events`, read-only |
 | `~/.claude/skills/vikix/fixing.md` | Something is broken: `vikix doctor`, the errors folder, `vikix rescue`, `vikix debug`; where the guides and man pages are |
 
-Every `vikix` command has a man page made from its own header (`man vikix`
-lists them, `man vikix-NAME` is one): read it before telling the user how
-a command works. The user's guides are `<checkout>/docs/` (`info vikix`).
+Read `man vikix-NAME` before explaining a command; `man vikix` lists them.
+User guides: `<checkout>/docs/` (`info vikix`).
 
 ## The one rule: change the user's files, never Vikix's
 
@@ -154,7 +153,7 @@ The desktop:
 
 The user's things:
 
-- Never start Music microphone or mixed capture without the user's explicit recording action, including for diagnostics. Never automatically delete captures; see `programs.md`.
+- Music: microphone/mixed capture needs the user's recording action, never a diagnostic. Never auto-delete captures (`programs.md`).
 
 - Don't run `vikix undo`, `vikix resume now`, `vikix rescue free` or `vikix rescue undo` without telling the user first; undo only when they ask.
 - Don't start the Windows VM without asking (it takes 6 GB), don't remove it, don't open a firewall port, and don't write to or forget from the record store, the notes inbox or `~/.local/state/vikix/used`, unless the user asks.

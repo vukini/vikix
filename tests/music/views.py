@@ -552,6 +552,11 @@ StdIOWriteStream stdout nextPutAll: 'MUSIC-CUIS-PASS'; newLine; flush.
                   {op:'record', source:'microphone', device:'fixture-mic'}, {op:'inbox'}, {op:'preview-stop'}]);
               } finally { send = original; $('record-source').value = 'engine'; $('record-device').value = ''; }
             })()""")
+            assert js("""(() => {
+              const saved = state;
+              render({...saved, filed:'/fixture/captures/take-0001'}); render(saved);
+              return $('status').textContent.includes('Filed copy: /fixture/captures/take-0001');
+            })()""")
             palette = home / '.config/vikix/theme/palette'
             palette.parent.mkdir(parents=True, exist_ok=True)
             palette.write_text('bg=#ffffff\nfg=#111111\naccent=#123456\n')
