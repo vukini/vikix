@@ -295,7 +295,14 @@ def handoff_apply(folder, data, by):
     status = ((rec.get("handoff") or {}).get("status") or {}).get("value")
     if (status == "review" and seen.get("before") != "review" and os.environ.get("VIKIX_TESTER") != "0"
             and rec["desk"].get("tests") != "off" and runner_of(folder)[1] and not tester_running(folder)):
-        tester_start(folder)
+        why = tests_not_again(folder, rec)
+        if why:
+            try:
+                inbox_add(folder, why, "vikix")
+            except H.HandoffError:
+                pass
+        else:
+            tester_start(folder)
     if status == "review" and seen.get("before") != "review":
         # A review by the provider the office file names (review=codex), when it does: off by default.
         provider = review_auto(folder)
@@ -304,6 +311,23 @@ def handoff_apply(folder, data, by):
     if "status" in data:
         scheduler_module().wake(os.path.join(VIKIX_DIR, "bin", "vikix-agents"))
     return rec
+
+
+def tests_not_again(folder, rec):
+    """Why the tester needn't run at this hand-in: a run of the runner is
+    going at the desk (tests/run.sh records its result when it ends), or
+    one passed on this very commit already (the worker's, recorded by the
+    runner; the release skips the same way, fresh_check). '' when it
+    should run. One commit was tested three times in an hour (2026-10-16)."""
+    H = handoff_module()
+    pid = tests_running_at(folder)
+    if pid:
+        return f"tests not started again: a run is going at the desk (pid {pid}); its result goes in the record when it ends"
+    commit = (H.observe(folder) if os.path.isdir(folder) else {}).get("commit", "")
+    c = H.fresh_check(rec, commit) if commit else None
+    if c:
+        return f"tests not run again: {c['name']} passed on this commit ({H.when(c['at'])})"
+    return ""
 
 
 def task_moved(folder, rec, data, by, new=False):

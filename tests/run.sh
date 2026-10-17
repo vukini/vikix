@@ -11,7 +11,8 @@
 #                         one corner: packages and dry-run (Void's mirror,
 #                         over the network), examples (builds every
 #                         language's examples) and lazarus. For changes that
-#                         touch none of install/, packages/, features.list, dev/
+#                         don't touch what the stages install (packages/,
+#                         features.list, dev/, install/10-packages.sh)
 #   tests/run.sh --all    those, plus editors (several minutes, network)
 #   tests/run.sh --changed [REF]
 #                         only the tests for what changed since REF (default:
@@ -40,6 +41,9 @@ unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE   # the desktop session's: from an agent
 export VIKIX_FASL_DIR=${VIKIX_FASL_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/vikix/test-fasl}
 unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME
 cd "$(dirname "$0")" || exit 1
+# A run started by a test of a run (queue, changed-map) is nobody's to record.
+nested=${VIKIX_TEST_RUN:-}
+export VIKIX_TEST_RUN=1
 mode=${1:-}
 case $mode in
   ''|--quick|--all|--changed) ;;
@@ -77,7 +81,8 @@ elif [ "$mode" = --changed ]; then
   # (times, soak, rescue), which wait for the whole machine and held two
   # runs past their deadline in a day (2026-10-11); a change that reaches
   # one names it, and tests/run.sh rescue runs it by itself.
-  mapfile -t wanted < <(./changed.sh "${2:-origin/main}")
+  changed_ref=${2:-origin/main}
+  mapfile -t wanted < <(./changed.sh "$changed_ref")
   if [ "${wanted[*]}" = all ]; then
     wanted=()
     for t in "${tests[@]}"; do [[ " times soak rescue " == *" $t "* ]] || wanted+=("$t"); done
@@ -270,10 +275,33 @@ done
 echo
 # The slow ones, so a run that takes long says why.
 echo "slowest: $(printf '%s\n' "${took[@]}" | sort -rn | head -5 | awk '{printf "%s %ss  ", $2, $1}')"
+
+# The run into the desk's record (vikix agents handoff check), when it ran
+# at a desk: the tester at the hand-in and the release then see a run that
+# passed on this very commit and don't run it again (one commit was tested
+# three times in an hour, 2026-10-16). Not a run a test started (VIKIX_TEST_RUN
+# was set as it began); nothing said, and a folder that is no desk is refused
+# by the command itself.
+record_run() {
+  [ -z "$nested" ] || return 0
+  local top; top=$(cd .. && pwd -P)
+  [ -x "$top/bin/vikix-agents" ] || return 0
+  local name="tests/run.sh" state=--ok
+  case $mode in
+    --names) name="tests/run.sh ${tests[*]}" ;;
+    --changed) name="tests/run.sh --changed $changed_ref" ;;
+    '') ;;
+    *) name="tests/run.sh $mode" ;;
+  esac
+  [ "${#failed[@]}" -eq 0 ] || state=--failed
+  timeout 20 "$top/bin/vikix-agents" handoff check "$name" "$state" --note "$1" --desk "$top" >/dev/null 2>&1 || true
+}
 if [ "${#failed[@]}" -eq 0 ]; then
   echo "all passed: ${tests[*]}"
+  record_run "${#tests[@]} tests in $SECONDS s ($load_at_start as the run began)"
 else
   echo "($load_at_start as the run began)"
   echo "FAILED: ${failed[*]}"
+  record_run "failed: ${failed[*]} ($load_at_start as the run began)"
   exit 1
 fi

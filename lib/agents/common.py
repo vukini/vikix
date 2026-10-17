@@ -202,6 +202,31 @@ def test_notes():
     return read_notes(os.path.join(folder, "notes"), 3)
 
 
+def tests_running_at(folder):
+    """The pid of a tests/run.sh going in FOLDER (its note in the slots'
+    runs/ names its log folder, whose run file names the folder), or 0."""
+    slots = os.environ.get("VIKIX_TEST_SLOTS_DIR") or os.path.join(os.environ.get("XDG_RUNTIME_DIR") or "/tmp",
+                                                                     "vikix-test-slots")
+    want = os.path.realpath(folder)
+    try:
+        names = os.listdir(os.path.join(slots, "runs"))
+    except OSError:
+        return 0
+    for name in names:
+        try:
+            pid = int(name)
+            with open(os.path.join(slots, "runs", name)) as f:
+                logs = f.readline().strip()
+            with open(os.path.join(logs, "run")) as f:
+                where = f.readline().strip()
+            os.kill(pid, 0)
+        except (OSError, ValueError):
+            continue
+        if os.path.realpath(where) == want:
+            return pid
+    return 0
+
+
 def release_notes():
     """.claude/release's notes, in each project repository: (pid, [topic,
     state, since, kind, summary]) each."""

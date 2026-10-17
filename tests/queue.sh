@@ -155,5 +155,21 @@ done
 out=$(PATH="$t/noflock" VIKIX_TEST_SLOTS=1 "$t/tests/run.sh" a b 2>&1) && code=0 || code=$?
 check "without flock a run goes on as before: $code $(tail -1 <<<"$out")" bash -c "[ $code = 0 ] && grep -q '^all passed: a b' <<<\"\$1\"" _ "$out"
 
-[ "$fail" = 0 ] && echo "queue: runs on one machine share the test slots, a test that wants the machine alone has it, each leaves a note vikix agents reads, and a run passes or fails as before"
+# A run at a desk records itself in the desk's record (vikix agents handoff
+# check), passed or failed, by the words it was run with; not a run a test
+# started (VIKIX_TEST_RUN set as it began), and nothing said either way.
+mkdir -p "$t/bin"
+printf '#!/bin/sh\necho "$@" >> "%s/agents-calls"\n' "$t" > "$t/bin/vikix-agents"; chmod +x "$t/bin/vikix-agents"
+: > "$t/agents-calls"
+env -u VIKIX_TEST_RUN VIKIX_TEST_SLOTS=1 "$t/tests/run.sh" a b > "$t/rec.out" 2>&1
+check "a run that passed is recorded at the desk, by its words: $(cat "$t/agents-calls")" \
+  grep -q "^handoff check tests/run.sh a b --ok --note 2 tests in [0-9]* s (load .* as the run began) --desk $t$" "$t/agents-calls"
+: > "$t/agents-calls"; touch "$t/fail-b"
+env -u VIKIX_TEST_RUN VIKIX_TEST_SLOTS=1 "$t/tests/run.sh" a b > "$t/rec.out" 2>&1 || true
+check "a failed one too, naming the tests: $(cat "$t/agents-calls")" grep -q "^handoff check tests/run.sh a b --failed --note failed: b (load" "$t/agents-calls"
+rm -f "$t/fail-b"; : > "$t/agents-calls"
+VIKIX_TEST_RUN=1 VIKIX_TEST_SLOTS=1 "$t/tests/run.sh" a > /dev/null 2>&1
+check "a run a test started (VIKIX_TEST_RUN set) records nothing" test ! -s "$t/agents-calls"
+
+[ "$fail" = 0 ] && echo "queue: runs on one machine share the test slots, a test that wants the machine alone has it, each leaves a note vikix agents reads, a run at a desk records itself, and a run passes or fails as before"
 exit "$fail"

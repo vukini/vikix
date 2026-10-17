@@ -783,7 +783,9 @@ Read too, so a pause takes hold at the next thing it does; and with turns
 on (vikix agents turns) it waits at a clash for the other agent's commit
 rather than asking you. A hand-in (status review) runs the desk's tests
 (vikix agents test): a script, never an agent, whose result lands in the
-record and the worker's inbox.
+record and the worker's inbox; not again after a run of tests/run.sh that
+passed at the desk on that very commit (a run at a desk records itself),
+nor beside one still going.
 
 The house rules: the office keeps a journal of what each agent edits
 (~/.local/state/vikix/office/journal.jsonl, pruned to the agents still

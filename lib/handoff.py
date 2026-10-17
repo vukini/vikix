@@ -92,14 +92,16 @@ DONE_STEPS = (
     ("Look", "at the files the task touches before changing them."),
     ("Change", "at your desk, on its branch."),
     ("Test", "the tests the change reaches, through the project's runner (`tests/run.sh --changed`); fix what fails, "
-             "run them again."),
+             "run them again. When the map picks the whole set, say so and what the alternative costs before running; "
+             "a run at a desk is recorded, so neither the tester nor the release runs it again."),
     ("Guides", "update the ones the change makes wrong, in the same commit."),
     ("Commit", "only the files you changed, by name."),
     ("Hand-in", "status, what changed and why, what is decided, what is left, the tests run, the defects you know of."),
     ("Hand back", "through the office (`vikix agents handoff --status review`); don't merge, release or push unless the "
                   "task or the house says so."),
     ("Ask", "when something essential is missing, or an action would lose data, open a hole or change the design; "
-            "decide the routine yourself."),
+            "decide the routine yourself. A repair (something put back on the desktop) is done and reported first; "
+            "a change that would make Vikix do it by itself is offered as a question, with its test cost."),
     ("Sandbox", "if yours keeps the desk's `.git` or the office's state read-only (Codex's does), run git, the tests "
                 "and `vikix` outside it: ask to escalate; the house's rules let a desk's day through without a prompt."),
 )

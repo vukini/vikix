@@ -166,6 +166,16 @@ own migrations/1.sh "lint update"
 own bin/vikix-lazarus "lazarus lint man"
 own bin/vikix-nobody all
 
+# A stage of install/ maps to the tests naming it; 10-packages (what gets
+# installed) and a stage no test names are still all.
+mkdir -p "$repo/install"
+for s in 10-packages 40-config 55-hardware; do printf '#!/usr/bin/env bash\n' >"$repo/install/$s.sh"; done
+echo '# runs install/40-config.sh in a made-up home' >>"$repo/tests/home.sh"
+g add install tests; g commit -q -m 'stages'
+own install/40-config.sh "home lint"
+own install/10-packages.sh all
+own install/55-hardware.sh all
+
 # The office's front and a part of it (lib/agents/) map to the office's tests,
 # never to all: fifteen tests name the front, none names a part's file.
 mkdir -p "$repo/lib/agents"

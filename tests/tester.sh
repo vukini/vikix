@@ -141,6 +141,27 @@ check "the result reached its record and its inbox" grep -q '^  vikix (just now)
 as 1001 handoff set --summary "more" >/dev/null; sleep 1
 check "a status that stayed review runs nothing again" test ! -s "$t/calls"
 
+# --- A run that passed on this very commit, or one going at the desk: nothing runs again ------
+# The tester's own run just put a passing check on the commit as it stands; a
+# worker's tests/run.sh at a desk records its run the same way.
+as 1001 handoff set --status working >/dev/null
+: > "$t/calls"
+as 1001 handoff set --status review >/dev/null; sleep 1
+check "a hand-in after a run that passed on this commit runs nothing again" test ! -s "$t/calls"
+check "and the inbox says why: $(agents handoff a | grep 'not run again' | tail -1)" \
+  grep -q 'vikix (just now): tests not run again: tests/run.sh --changed .* passed on this commit' <<<"$(agents handoff a)"
+# A run going at the desk: the runner's note in the slots names its log folder, whose run file names the folder.
+mkdir -p "$t/slots/runs" "$t/slots/logs"
+printf '%s\n' "$t/slots/logs" > "$t/slots/runs/$$"; printf '%s\n4\n0\n' "$t/src/book-a" > "$t/slots/logs/run"
+# A run going is seen before any check, so the passing one on this commit changes nothing here.
+as 1001 handoff set --status working >/dev/null
+: > "$t/calls"
+VIKIX_TEST_SLOTS_DIR="$t/slots" as 1001 handoff set --status review >/dev/null; sleep 1
+check "a hand-in while a run is going at the desk starts no second one" test ! -s "$t/calls"
+check "and says so: $(agents handoff a | grep 'not started again' | tail -1)" \
+  grep -q "vikix (just now): tests not started again: a run is going at the desk (pid $$)" <<<"$(agents handoff a)"
+rm -rf "$t/slots"
+
 # --- Skipped: the tests running at a desk, not waited for ------------------------------------
 # The stub runner sleeps while the slow file stands; the tester runs apart,
 # as a hand-in's does, and --skip ends it with everything under it.

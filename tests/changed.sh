@@ -185,7 +185,13 @@ for f in "${files[@]}"; do
     # README.md files of their own (update, try, docs, examples, what ...).
     README.md) add agents ;;
     # What the full run's slow tests cover: the quick set can't vouch for it.
-    install/*|packages/*|features.list|bundles.list|dev/*) all=1 ;;
+    # A stage of install/ maps to the tests naming it (40-config: home,
+    # update, man, info ...; one no test names is all, as named says);
+    # 10-packages, the lists and the features stay all, being what gets
+    # installed. Six lines in 40-config once cost the whole set (2026-10-16).
+    packages/*|features.list|bundles.list|dev/*|install/10-packages.sh) all=1 ;;
+    install/*.sh) named "$(basename "$f" .sh)" ;;
+    install/*) all=1 ;;
     bin/vikix)
       while read -r kind name scripts; do
         case "$kind $name" in
