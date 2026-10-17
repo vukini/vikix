@@ -3,6 +3,7 @@ import base64
 import fcntl
 import hashlib
 import http.server
+import http.client
 import json
 import math
 import multiprocessing
@@ -20,6 +21,23 @@ from types import SimpleNamespace
 import webbrowser
 
 from launcher import lisp, perform
+
+
+def theme(root):
+    """Read only palette data; a missing or partial theme uses Vikix dark."""
+    palette = {}
+    paths = [root / 'themes/vikix-dark.theme',
+             Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config'))) / 'vikix/theme/palette']
+    for path in paths:
+        try:
+            with path.open() as source:
+                data = source.read(65536)
+            for key, value in re.findall(r'^([a-z_]+)=(#[0-9a-fA-F]{6})(?=\s|$)', data, re.M):
+                if key in ('bg', 'fg', 'subtle', 'dim', 'accent', 'alert', 'sel'):
+                    palette[key] = value
+        except (OSError, UnicodeError):
+            pass
+    return palette
 
 
 class Song:
@@ -427,7 +445,7 @@ class Session:
                 bars = [dict(start=values[i], duration=values[i+1], steps=max(0, int(values[i+2])), swing=values[i+3],
                              progression_bar=-int(values[i+2])-1 if values[i+2] < 0 else None)
                         for i in (0, 4) if values[i+1] > 0]
-            state.update(bars=bars, now=time.time())
+            state.update(bars=bars, now=time.time(), theme=theme(self.root))
             return state
 
 
@@ -461,6 +479,32 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def setup(self):
         super().setup()
         self.connection.settimeout(5)
+
+    def do_POST(self):
+        origin = f'http://127.0.0.1:{self.server.server_port}'
+        if (self.path != '/control' or self.headers.get('Host') != origin[7:] or
+                self.headers.get('Origin', origin) != origin or
+                not secrets.compare_digest(self.headers.get('Authorization', '').encode(),
+                                           ('Bearer ' + self.server.token).encode())):
+            self.send_error(403)
+            return
+        try:
+            count = int(self.headers.get('Content-Length', '0'))
+            if not 0 < count <= 4096:
+                raise ValueError()
+            command = json.loads(self.exact(count))
+            if not isinstance(command, dict) or command.get('op') not in ('state', 'play', 'stop'):
+                raise ValueError()
+        except (ValueError, EOFError, UnicodeError):
+            self.send_error(400)
+            return
+        data = json.dumps(self.server.session.request(command)).encode()
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(data)))
+        self.send_header('Cache-Control', 'no-store')
+        self.end_headers()
+        self.wfile.write(data)
 
     def do_GET(self):
         origin = f'http://127.0.0.1:{self.server.server_port}'
@@ -547,6 +591,65 @@ def location():
     if folder.is_symlink() or folder.stat().st_uid != os.getuid() or folder.stat().st_mode & 0o077:
         raise ValueError('music session directory must be private (0700)')
     return folder
+
+
+def control(args):
+    """A bounded local client; never launch or attach to a different engine."""
+    endpoint = location() / 'session.json'
+    try:
+        if endpoint.is_symlink() or endpoint.stat().st_uid != os.getuid() or endpoint.stat().st_mode & 0o077:
+            raise ValueError('music connection file must be private (0600)')
+        info = json.loads(endpoint.read_text())
+    except FileNotFoundError:
+        raise ValueError('start vikix music serve first') from None
+    if (not isinstance(info, dict) or type(info.get('port')) is not int or
+            not 1 <= info['port'] <= 65535 or not isinstance(info.get('token'), str) or
+            not re.fullmatch(r'[a-f0-9]{48}', info['token'])):
+        raise ValueError('invalid music connection file')
+    def request(command):
+        conn = http.client.HTTPConnection('127.0.0.1', info['port'], timeout=0.7 if args.action == 'bar' else 2)
+        try:
+            conn.request('POST', '/control', json.dumps(command),
+                         {'Authorization': 'Bearer ' + info['token'], 'Content-Type': 'application/json'})
+            reply = conn.getresponse()
+            if reply.status != 200:
+                raise ValueError('music session refused control; reopen the session')
+            state = json.loads(reply.read(65537))
+            if not isinstance(state, dict):
+                raise ValueError('invalid music session response')
+            if state.get('error') and command['op'] != 'state':
+                raise ValueError(state['error'])
+            return state
+        except (OSError, http.client.HTTPException):
+            raise ValueError('music session unavailable or busy; check its terminal') from None
+        finally:
+            conn.close()
+    state = request({'op': 'state'}) if args.action in ('bank', 'bar', 'state') else request({'op': args.action})
+    if args.action == 'bank':
+        slot = args.slot
+        if slot is None:
+            pads = state['pads']
+            if not pads:
+                raise ValueError('no assigned bank pads')
+            choice = subprocess.run(['rofi', '-dmenu', '-i', '-p', 'Music pad', '-format', 'i'],
+                                    input='\n'.join(f"{p['slot']} · {p['pattern']}" for p in pads),
+                                    text=True, capture_output=True, timeout=120)
+            if choice.returncode:
+                return 0
+            index = int(choice.stdout.strip())
+            if not 0 <= index < len(pads):
+                raise ValueError('unknown pad selection')
+            slot = pads[index]['slot']
+        state = request({'op': 'play', 'slot': slot, 'revision': state['revision']})
+    if args.action == 'bar':
+        if state['playing']:
+            bar = next((b for b in state['bars'] if b['start'] <= state['now'] < b['start'] + b['duration']), None)
+            beat = str(1 + int((state['now'] - bar['start']) * 4 / bar['duration'])) if bar else '–'
+            tempo = round(240 / bar['duration']) if bar else state['tempo']
+            print(f'music {beat}/4 · {tempo}')
+    elif args.action == 'state':
+        print(json.dumps(state))
+    return 0
 
 
 def main(root, args):

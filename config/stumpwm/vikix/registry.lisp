@@ -56,7 +56,7 @@
 (in-package :stumpwm)
 
 (defparameter *vikix-menu-groups*
-  '("Start" "Help" "Vikix" "AI" "Work" "Notifications" "Desktop" "Windows" "System" "Apps" "Power")
+  '("Start" "Help" "Vikix" "AI" "Work" "Music" "Notifications" "Desktop" "Windows" "System" "Apps" "Power")
   "The sections of Super+m, in the order it shows them (commands.lisp:
 vikix-menu-sections). Power is last: an Enter pressed by mistake never
 lands on it. A section these don't name (a plugin's, Plugins, Yours) comes
@@ -347,6 +347,36 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
   :menu "Work" :needs "~/dev/python/.venv/bin/jupyter")
 
 ;;; Notifications
+
+;;; Music controls use one audited prefix; workspace digits stay on Super.
+(define-vikix-command music "Music controls: p play, s stop, 1, 2, 3, 4, 5, 6, 7, 8, 9 pads, 0 pick a pad, o open the browser"
+  :run "vikix-map music" :key "s-M-F8" :card "Apps" :menu "Music")
+(define-vikix-command music-play "Music: play the selected pattern"
+  :run "exec vikix-music control play --notify" :map "music p" :menu "Music")
+(define-vikix-command music-stop "Music: stop playback"
+  :run "exec vikix-music control stop --notify" :map "music s" :menu "Music")
+(define-vikix-command music-bank "Music: choose an assigned pad"
+  :run "exec vikix-music control bank --notify" :map "music 0" :menu "Music")
+(define-vikix-command music-browser "Music: open the browser for the running session"
+  :run "exec vikix-music web" :map "music o" :menu "Music")
+(define-vikix-command music-pad-1 "Music: play bank pad 1"
+  :run "exec vikix-music control bank 1 --notify" :map "music 1" :menu "Music")
+(define-vikix-command music-pad-2 "Music: play bank pad 2"
+  :run "exec vikix-music control bank 2 --notify" :map "music 2" :menu "Music")
+(define-vikix-command music-pad-3 "Music: play bank pad 3"
+  :run "exec vikix-music control bank 3 --notify" :map "music 3" :menu "Music")
+(define-vikix-command music-pad-4 "Music: play bank pad 4"
+  :run "exec vikix-music control bank 4 --notify" :map "music 4" :menu "Music")
+(define-vikix-command music-pad-5 "Music: play bank pad 5"
+  :run "exec vikix-music control bank 5 --notify" :map "music 5" :menu "Music")
+(define-vikix-command music-pad-6 "Music: play bank pad 6"
+  :run "exec vikix-music control bank 6 --notify" :map "music 6" :menu "Music")
+(define-vikix-command music-pad-7 "Music: play bank pad 7"
+  :run "exec vikix-music control bank 7 --notify" :map "music 7" :menu "Music")
+(define-vikix-command music-pad-8 "Music: play bank pad 8"
+  :run "exec vikix-music control bank 8 --notify" :map "music 8" :menu "Music")
+(define-vikix-command music-pad-9 "Music: play bank pad 9"
+  :run "exec vikix-music control bank 9 --notify" :map "music 9" :menu "Music")
 
 (define-vikix-command notification-last "Notifications: the last one again"
   :run "exec dunstctl history-pop" :key "s-n"

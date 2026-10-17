@@ -4,6 +4,7 @@
 ;;;;   %J   workspaces in use, the current one in [brackets]
 ;;;;   %W   the current workspace's windows, the focused one in the accent colour
 ;;;;   ^>   everything after this goes on the right
+;;;;   %L   music: sampled beat and tempo while the shared Music session plays
 ;;;;   %P   the plugins' few words (plugins.lisp; vikix plugin add)
 ;;;;   %R   rec: the screen is being recorded (vikix-record); mic: dictation listens
 ;;;;   %F   focus 24: focus time, the minutes left (Super+Ctrl+f); break 5 after it
@@ -289,7 +290,7 @@ from *vikix-recording* and *vikix-dictating* (commands.lisp)."
       (vikix-ml-what "ai" (format nil "^(:push)^(:fg \"~a\")ai^(:pop)  " (vikix-colour :subtle)))
       ""))
 
-;; %J, %V, %O, %T, %U, %A, %D, %Q, %K, %X, %Y, %G, %R, %E, %Z and %P (plugins.lisp) are free: neither StumpWM nor its
+;; %L, %J, %V, %O, %T, %U, %A, %D, %Q, %K, %X, %Y, %G, %R, %E, %Z and %P (plugins.lisp) are free: neither StumpWM nor its
 ;; contrib modules use them. %d is StumpWM's, taken over below to give the clock its area.
 (add-screen-mode-line-formatter #\J 'vikix-mode-line-groups)
 (add-screen-mode-line-formatter #\V 'vikix-mode-line-volume)
@@ -625,6 +626,33 @@ bar isn't under ours. StumpWM doesn't set it."
   (toggle-mode-line (current-screen) (current-head))
   (vikix-publish-workarea))
 
+(defvar *vikix-music* "")
+
+(defun vikix-music-refresh ()
+  "Sample the independent Music clock from the bar worker, never the main thread."
+  (unless (in-main-thread-p)
+    (let* ((testing (getenv "VIKIX_SWANK_PORT"))
+           (folder (or (and (not testing) (getenv "XDG_RUNTIME_DIR"))
+                       (namestring (merge-pathnames ".local/state/vikix" (user-homedir-pathname)))))
+           (new (if (probe-file (format nil "~a/music-view/session.json" folder))
+                    (vikix-shell-line (concatenate 'string
+                      (if testing "export XDG_RUNTIME_DIR=\"$HOME/.local/state/vikix\"; " "")
+                      "timeout --kill-after=1s 1s vikix-music control bar"))
+                    "")))
+      (unless (equal new *vikix-music*)
+        (setf *vikix-music* new)
+        (vikix-bar-redraw)))))
+
+(defun vikix-mode-line-music (ml)
+  "A quiet sampled beat and tempo, absent when stopped or unavailable."
+  (declare (ignore ml))
+  (if (equal *vikix-music* "") ""
+      (vikix-ml-what "music"
+        (format nil "^(:push)^(:fg \"~a\")~a^(:pop)  "
+                (vikix-colour :subtle) *vikix-music*))))
+
+(add-screen-mode-line-formatter #\L 'vikix-mode-line-music)
+
 (defparameter *vikix-bar-refreshers*
   '(vikix-volume-refresh vikix-net-refresh vikix-bt-refresh vikix-dropbox-refresh
     vikix-updates-refresh vikix-backup-refresh vikix-usb-refresh vikix-quiet-refresh
@@ -646,14 +674,19 @@ makes the rounds (vikix-bar-kick asks it for one)."
   "Signalled to have a round now, not at the next ten seconds.")
 (defvar *vikix-bar-rounds* 0 "How many rounds the bar's thread has made.")
 
+(defvar *vikix-bar-next-round* 0)
+
 (defun vikix-bar-round ()
-  "One round by the bar's thread: every refresher, then one redraw by the
-main thread if anything changed."
+  "Sample Music on each wake; keep the other fields' ten-second cadence."
   (let ((*vikix-bar-in-worker* t)
         (*vikix-bar-changed* nil))
-    (dolist (refresh *vikix-bar-refreshers*)
-      (ignore-errors (funcall refresh)))
-    (incf *vikix-bar-rounds*)
+    (ignore-errors (vikix-music-refresh))
+    (when (>= (get-internal-real-time) *vikix-bar-next-round*)
+      (dolist (refresh *vikix-bar-refreshers*)
+        (ignore-errors (funcall refresh)))
+      (setf *vikix-bar-next-round*
+            (+ (get-internal-real-time) (* 10 internal-time-units-per-second)))
+      (incf *vikix-bar-rounds*))
     (when (and *vikix-bar-changed* *request-channel*)
       (ignore-errors (call-in-main-thread 'update-all-mode-lines)))))
 
@@ -663,8 +696,18 @@ main thread if anything changed."
         (sb-thread:wait-on-semaphore *vikix-bar-wake* :timeout 10)))
 
 (defun vikix-bar-kick ()
-  "Ask the bar's thread for a round now."
+  "Ask the bar's thread for a full round now."
+  (setf *vikix-bar-next-round* 0)
   (sb-thread:signal-semaphore *vikix-bar-wake*))
+
+(defun vikix-music-wake ()
+  ;; Only wake the existing worker. This also reaches a thread started
+  ;; before Music was installed, without replacing a running thread.
+  (sb-thread:signal-semaphore *vikix-bar-wake*))
+
+(defvar *vikix-music-timer* nil)
+(when *vikix-music-timer* (cancel-timer *vikix-music-timer*))
+(setf *vikix-music-timer* (run-with-timer 1 1 'vikix-music-wake))
 
 ;; The volume keys update the bar at once (vikix-volume); the rounds catch
 ;; everything else: pavucontrol, a new Wi-Fi network, a cable. The timer
@@ -690,7 +733,7 @@ main thread if anything changed."
       ;; The window's number and title. StumpWM's default adds * + - marks,
       ;; which say again what the accent colour already shows.
       *window-format*        "%n %30t"
-      *screen-mode-line-format* "%J  %W^>%P%R%F%K%X%Y%G%Q%U%A%D%Z%O%T%V%E%d%S")
+      *screen-mode-line-format* "%J  %W^>%L%P%R%F%K%X%Y%G%Q%U%A%D%Z%O%T%V%E%d%S")
 
 ;; Turn the bar on for every screen and head (monitor).
 (dolist (screen *screen-list*)

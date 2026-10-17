@@ -83,7 +83,7 @@ VIKIX_PAGES = os.environ.get("VIKIX_WHAT_PAGES") or os.path.join(VIKIX_DIR, "con
 MAX_FACTS = 6
 MAX_WORDS = 60
 
-FIELDS = ("battery", "network", "bluetooth", "volume", "memory", "updates", "backup", "drive",
+FIELDS = ("music", "battery", "network", "bluetooth", "volume", "memory", "updates", "backup", "drive",
           "dropbox", "quiet", "awake", "windows-vm", "ai", "recording", "dictation", "clock")
 # What the bar itself writes, and other everyday words, for a field's name.
 FIELD_WORDS = {"bat": "battery", "net": "network", "wifi": "network", "bt": "bluetooth", "vol": "volume",

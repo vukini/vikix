@@ -32,6 +32,13 @@ source comments; the separate Lisp clock schedules chords and silent bars.
 See the music guide for exact voicing, gain, reload and duration semantics.
 Real desktop listening remains a manual release check.*
 
+*2026-10-18: Desktop controls implemented at music-desktop for plan review:
+Super+Alt+F8 opens the audited Music prefix; play/stop and bank-pad selection
+control the existing session, the bar samples beat/tempo without scheduling
+sound, and the browser follows the generated Vikix palette. Workspace and
+application keys remain intact. See the guide for controls and sampling limits;
+real desktop listening remains a manual check.*
+
 ## Executable Office plan
 
 [music-next.toml](music-next.toml) is the executable continuation, not a template.
@@ -201,8 +208,9 @@ What remains for the first version is assigned to the first eight Office tasks:
 1. **Sounds:** sound selection, bounded swing
    and dynamics, and rhythm hits; old scores must retain their behavior.
 2. **Progressions:** implemented at the desk, awaiting plan review/release.
-3. **Desktop integration:** registry commands, conflict-free keys, a nonblocking
-   beat/tempo display, and theme integration.
+3. **Desktop integration:** implemented at music-desktop for plan review;
+   one audited Music prefix, shared-session controls, sampled beat/tempo and
+   live browser palette. Desktop listening remains a manual check.
 4. **Capture inbox:** explicit source selection, preserved recordings, preview,
    loop and filing, with interruption recovery.
 5. **Export and Ardour:** deterministic MIDI/WAV output, optional DAW installation,

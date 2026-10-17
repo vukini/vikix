@@ -152,6 +152,39 @@ with tempfile.TemporaryDirectory(prefix='music-views-test-') as temp:
         until(lambda: endpoint.exists() or service.poll() is not None)
         assert service.poll() is None, (folder / 'server.log').read_text()
         info = json.loads(endpoint.read_text())
+        def music_control(*args, ok=True):
+            result = subprocess.run([str(root / 'bin/vikix'), 'music', 'control', *args],
+                                    env=env, capture_output=True, text=True, timeout=8)
+            assert (result.returncode == 0) == ok, result.stderr
+            return result
+        assert json.loads(music_control('state').stdout)['playing'] is False
+        assert music_control('bar').stdout == ''
+        music_control('bank', '32', ok=False)
+        music_control('play')
+        until(lambda: json.loads(music_control('state').stdout)['bars'])
+        assert 'music ' in music_control('bar').stdout
+        music_control('bank', '32', ok=False)
+        assert json.loads(music_control('state').stdout)['playing']
+        music_control('bank', '2')
+        assert json.loads(music_control('state').stdout)['pattern'] == 'bass'
+        music_control('stop')
+        assert music_control('bar').stdout == ''
+        # This endpoint uses the same private credential and origin policy.
+        conn = http.client.HTTPConnection('127.0.0.1', info['port'], timeout=3)
+        conn.request('POST', '/control', '{"op":"play"}', {'Content-Type': 'application/json'})
+        response = conn.getresponse()
+        assert response.status == 403
+        response.read(); conn.close()
+        for command, headers, expected in [
+                ({'op': 'play'}, {'Origin': 'https://elsewhere.invalid'}, 403),
+                ({'op': 'eval', 'form': '(quit)'}, {}, 400)]:
+            conn = http.client.HTTPConnection('127.0.0.1', info['port'], timeout=3)
+            conn.request('POST', '/control', json.dumps(command),
+                         dict({'Authorization': 'Bearer ' + info['token']}, **headers))
+            response = conn.getresponse()
+            assert response.status == expected
+            response.read(); conn.close()
+        music_control('bank', '1'); music_control('stop')
         duplicate = subprocess.run([str(root / 'bin/vikix-music'), 'serve'], env=env, capture_output=True, timeout=10)
         assert duplicate.returncode and b'already running' in duplicate.stderr
         assert endpoint.exists()
@@ -244,6 +277,17 @@ with tempfile.TemporaryDirectory(prefix='music-views-test-') as temp:
         assert not state['error'] and state['pads'] == [dict(slot=32, pattern='melody')]
         state = a.request('assign', revision=state['revision'], slot=32, pattern='bass')
         assert not state['error'] and state['pads'] == [dict(slot=32, pattern='bass')]
+        music_control('bank', '32')
+        assert json.loads(music_control('state').stdout)['pattern'] == 'bass'
+        music_control('stop')
+        (commands / 'rofi').write_text('#!/bin/sh\ncat > "$MUSIC_TEST/picker-rows"\necho 0\n')
+        (commands / 'rofi').chmod(0o755)
+        music_control('bank')
+        assert (folder / 'picker-rows').read_text() == '32 · bass'
+        assert json.loads(music_control('state').stdout)['pattern'] == 'bass'
+        music_control('stop')
+        a.close(); clients.remove(a)
+        a = Client(info); clients.append(a)
         state = a.request('assign', revision=state['revision'], slot=32, pattern=None)
         assert not state['error'] and state['bank'] and state['pads'] == []
         song.write_text(original)
@@ -492,6 +536,14 @@ StdIOWriteStream stdout nextPutAll: 'MUSIC-CUIS-PASS'; newLine; flush.
             except AssertionError:
                 print('browser state:', js("document.body.innerText"), flush=True)
                 raise
+            palette = home / '.config/vikix/theme/palette'
+            palette.parent.mkdir(parents=True, exist_ok=True)
+            palette.write_text('bg=#ffffff\nfg=#111111\naccent=#123456\n')
+            until(lambda: js("getComputedStyle(document.documentElement).backgroundColor") == 'rgb(255, 255, 255)')
+            assert js("getComputedStyle(document.documentElement).colorScheme") == 'light'
+            palette.write_text('bg=#101020\nfg=#eeeeee\naccent=#abcdef\n')
+            until(lambda: js("getComputedStyle(document.documentElement).backgroundColor") == 'rgb(16, 16, 32)')
+            assert js("getComputedStyle(document.documentElement).colorScheme") == 'dark'
             assert js('location.hash') == ''
             def subtitle():
                 return js("document.querySelector('#subtitle').textContent")
@@ -645,7 +697,7 @@ StdIOWriteStream stdout nextPutAll: 'MUSIC-CUIS-PASS'; newLine; flush.
             until(lambda: js('state.revision') == hashlib.sha256(song.read_bytes()).hexdigest())
             before_invalid = song.read_text()
             js("send({op:'duration', pattern:'verse', step:0, value:17, revision:state.revision})")
-            until(lambda: js('Boolean(state.error)'))
+            until(lambda: js("$('status').textContent.includes('block duration must be')"))
             assert song.read_text() == before_invalid
             until(lambda: js('!busy'))
             js("send({op:'move-block', pattern:'verse', step:0, target:1, revision:'stale'})")
@@ -657,6 +709,11 @@ StdIOWriteStream stdout nextPutAll: 'MUSIC-CUIS-PASS'; newLine; flush.
                 screenshot = cdp('Page.captureScreenshot', {'format': 'png'})
                 dest = Path(artifacts); dest.mkdir(parents=True, exist_ok=True)
                 (dest / 'music-web.png').write_bytes(base64.b64decode(screenshot['data']))
+            music_control('stop')
+            until(lambda: js("document.querySelector('#playing').textContent") == 'Stopped')
+            until(lambda: js("document.querySelectorAll('.step.current').length") == 0)
+            music_control('play')
+            until(lambda: js("document.querySelector('#playing').textContent.startsWith('Playing')"))
             js('ws.close()')
             until(lambda: js("document.querySelector('#playing').textContent") == 'Playback status unknown')
             until(lambda: js("document.querySelectorAll('.step.current').length") == 0)
@@ -680,6 +737,34 @@ StdIOWriteStream stdout nextPutAll: 'MUSIC-CUIS-PASS'; newLine; flush.
         if service.returncode:
             print((folder / 'server.log').read_text())
     assert not endpoint.exists()
+    started = time.monotonic()
+    music_control('play', ok=False)
+    assert time.monotonic() - started < 3
+    # A stale endpoint must not attach elsewhere or wait without a bound.
+    endpoint.write_text(json.dumps(info)); endpoint.chmod(0o600)
+    started = time.monotonic()
+    music_control('stop', ok=False)
+    assert time.monotonic() - started < 4
+    endpoint.unlink()
+    # A listening but unresponsive service is bounded too.
+    with socket.socket() as stalled:
+        stalled.bind(('127.0.0.1', 0)); stalled.listen(1); stalled.settimeout(5)
+        release = threading.Event()
+        def hold_connection():
+            with stalled.accept()[0]:
+                release.wait(5)
+        holder = threading.Thread(target=hold_connection)
+        endpoint.write_text(json.dumps(dict(info, port=stalled.getsockname()[1])))
+        endpoint.chmod(0o600)
+        holder.start()
+        try:
+            started = time.monotonic()
+            music_control('stop', ok=False)
+            assert time.monotonic() - started < 4
+        finally:
+            release.set(); holder.join(timeout=6)
+            assert not holder.is_alive()
+            endpoint.unlink()
     for name in ('engine.pids', 'lisp.pids'):
         for pid in (folder / name).read_text().splitlines():
             assert not Path('/proc', pid).exists(), f'owned music child {pid} still exists'

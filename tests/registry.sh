@@ -41,10 +41,43 @@ cat > "$home/.stumpwm.d/user.lisp" <<'L'
     (dolist (row (menu-table menu)) (format o "row=~a~%" (first row)))))
 (add-hook *menu-selection-hook* 'test-menu-log)
 L
+# A bounded stand-in lets the hidden desktop prove it never waits on Music.
+mkdir -p "$t/bin" "$home/.local/state/vikix/music-view"
+touch "$home/.local/state/vikix/music-view/session.json"
+cat > "$t/bin/vikix-music" <<'S'
+#!/bin/sh
+if [ "$2" = bar ]; then
+    cat "$HOME/music-bar" 2>/dev/null
+else
+    echo "$$" > "$HOME/music-control-pid"
+    echo "$*" > "$HOME/music-control"
+    exec sleep 2
+fi
+S
+chmod +x "$t/bin/vikix-music"
+export PATH="$t/bin:$PATH"
 wm_start
 
 yes() { test "$(ask "(princ (if $1 1 0))")" = 1; }
 said() { ask '(princ (first (first (screen-last-msg (current-screen)))))'; }   # the last message's first line
+
+key super+alt+F8
+check "Music prefix opens without replacing workspace or application keys" \
+  yes '(and (equal *vikix-map-open* "music") (equal (lookup-key *top-map* (kbd "s-1")) "gselect 1") (equal (lookup-key *top-map* (kbd "s-w")) "exec firefox"))'
+key p
+for _ in $(seq 1 20); do [ -f "$home/music-control-pid" ] && break; sleep .1; done
+music_pid=$(cat "$home/music-control-pid")
+check "Music public launcher got play" grep -qx 'control play --notify' "$home/music-control"
+check "Music control is still running while the desktop answers" kill -0 "$music_pid"
+check "Music's external control closes the map and leaves the desktop responsive" yes '(null *vikix-map-open*)'
+for _ in $(seq 1 40); do [ ! -e "/proc/$music_pid" ] && break; sleep .1; done
+check "owned Music control process exited" test ! -e "/proc/$music_pid"
+echo 'music 2/4 · 120' > "$home/music-bar"
+for _ in $(seq 1 40); do [ "$(ask '(princ *vikix-music*)')" = 'music 2/4 · 120' ] && break; sleep .1; done
+check "Music beat/tempo reaches the bar from the worker" yes '(search "music 2/4" (vikix-mode-line-music nil))'
+rm "$home/music-bar"
+for _ in $(seq 1 40); do [ "$(ask '(princ *vikix-music*)')" = '' ] && break; sleep .1; done
+check "stopped or missing Music clears the bar" yes '(equal (vikix-mode-line-music nil) "")'
 
 keys=$("$here/lib/registry.sh" keys | wc -l)
 check "Vikix's keys are its commands', and yours after them: $(ask '(princ (length *vikix-bindings*))') of $keys and 1" \

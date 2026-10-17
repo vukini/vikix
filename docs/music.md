@@ -158,7 +158,7 @@ key and sound; it normalizes a one-bar block to a bare degree.
 Live edits take effect at the next unscheduled bar, keeping the scheduled bar
 index modulo the new progression length. Changing the key transposes that
 next bar. Invalid edits keep the last good playback, blocks and subtitle.
-The gold outline follows the bar reported by the separate Lisp clock,
+The accent outline follows the bar reported by the separate Lisp clock,
 including silent bars; no music is scheduled in the browser. The experimental
 Cuis view does not edit chord blocks: use the browser or score file.
 
@@ -200,8 +200,8 @@ Close its Music window to quit that disposable image.
 Click a named pad to select and play its pattern, or choose a pattern and
 press Play. One pattern plays at a time; switching pads stops the old one
 and starts the new one from its beginning. Clicking the playing pad keeps
-it running. Scores without a bank keep pads in file order. There are no
-desktop pad keys. Each step paints the selected note; a
+it running. Scores without a bank keep pads in file order. Desktop controls
+use their own Music prefix (below). Each step paints the selected note; a
 second click on that note makes a rest. The browser offers the full note
 range; the Cuis comparison cycles a small high-note palette and shows
 sixteen steps per page. Tempo and gain controls work in both. Tempo is
@@ -215,7 +215,7 @@ selection and external file edits. This is a readable representation of
 the grid; the file keeps its own comments and formatting. An invalid edit
 leaves the last good grid and subtitle visible together.
 
-A gold outline follows the playing step, including rests, when the playing
+An accent outline follows the playing step, including rests, when the playing
 pattern is selected. Its timing comes from the Lisp clock, so a tempo edit
 takes effect on the playhead when the next bar is scheduled. This is a
 visual guide, not a measurement of speaker latency. A delayed connection
@@ -264,10 +264,46 @@ to switch; **Playing** names the actual pattern and all pads assigned to it
 light up. Only one pattern plays at a time. The experimental Cuis view still
 selects patterns directly; edit bank assignments in the browser or score.
 
+## Desktop controls
+
+Start `vikix music serve` as before. **Super+Alt+F8** opens the Music
+controls: **p** plays the selected pattern, **s** stops, **1–9** plays that
+bank pad, **0** picks from all assigned slots (1–32), and **o** opens the
+browser. Each action closes the prefix; Escape cancels. The same choices
+are in **Super+m → Music**. Super+digits still select workspaces and
+existing application keys stay unchanged. An empty pad reports a failure
+without changing playback. There is still only one bank; this selects
+its assigned pads, not a second bank or a new song.
+
+These commands control only the running shared session. They never start
+an engine or service on their own. A missing, stopped or busy session
+returns promptly and desktop controls show a notification; check its
+terminal. The standalone `vikix music play` still owns its own player and
+is not controlled by the shared session's Stop.
+
+```sh
+vikix music control play
+vikix music control stop
+vikix music control bank 12
+vikix music control bank
+vikix music control state
+```
+
+The bar quietly shows `music 2/4 · 120` while playing: a beat sampled
+about once a second and the tempo of the scheduled bar. It can skip beat
+numbers and is not a flashing metronome or a measurement of audio latency.
+It disappears after Stop or loss of the connection at the next sample.
+A starting player shows a dash until its clock supplies a bar.
+Neither StumpWM nor the browser schedules sound.
+
+The browser follows Vikix's palette, including light themes, on its next
+state refresh. Cells, pads and the playhead retain their existing behavior;
+the playhead and focus outline use the theme accent. A missing palette
+uses Vikix dark. Switching themes needs no Music restart or page reload.
+
 ## What comes later
 
-Desktop pad keys, capture, DAW integration,
-MIDI and variations remain. There is no new desktop key or menu entry yet.
+Capture, DAW integration, MIDI and variations remain.
 
 `vikix remove music` removes the feature's dependencies when nothing else
 needs them and the prepared synth, keeping `~/music`. `vikix music setup`

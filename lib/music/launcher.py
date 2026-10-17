@@ -285,8 +285,17 @@ def main(root, argv):
     serve.add_argument("file", nargs="?", default=str(Path.home() / "music/first-song/patterns.lisp"))
     for name in ("web", "cuis"):
         sub.add_parser(name)
+    control_parser = sub.add_parser("control")
+    control_parser.add_argument("action", choices=("play", "stop", "bank", "state", "bar"))
+    control_parser.add_argument("--notify", action="store_true", help="notify on a control failure")
+    control_parser.add_argument("slot", nargs="?", type=int, choices=range(1, 33))
     args = parser.parse_args(argv)
+    if args.command == "control" and args.slot is not None and args.action != "bank":
+        parser.error("a slot belongs only to control bank")
     try:
+        if args.command == "control":
+            from session import control
+            return control(args)
         if args.command in ("serve", "web", "cuis"):
             from session import main as session_main
             return session_main(root, args)
@@ -311,6 +320,11 @@ def main(root, argv):
         return 130
     except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
         # Never include subprocess argv: the engine command contains its password.
+        if getattr(args, 'notify', False):
+            try:
+                subprocess.run(['notify-send', 'Music', 'Control unavailable; check the Music session terminal.'], timeout=2)
+            except (OSError, subprocess.SubprocessError):
+                pass
         print("vikix music: " + ("child command failed or timed out" if isinstance(exc, subprocess.SubprocessError)
                                 else str(exc)), file=sys.stderr)
         return 1

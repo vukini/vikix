@@ -131,7 +131,7 @@ $fns
 EOF
 out=$("$sbcl" --script "$t/sections.lisp" 2>&1) || { echo "FAIL: the menu's sections didn't run: $(tail -5 <<<"$out")"; exit 1; }
 has() { grep -qxF -- "$1" <<<"$out" || { echo "FAIL: $2: no line '$1' in: $(grep "^${1%%=*}=" <<<"$out" | tr '\n' ' ')"; fail=1; }; }
-has "sections=Start,Help,Vikix,AI,Work,Notifications,Desktop,Windows,System,Apps,Plugins,Sailing,Yours,Power" \
+has "sections=Start,Help,Vikix,AI,Work,Music,Notifications,Desktop,Windows,System,Apps,Plugins,Sailing,Yours,Power" \
   "the sections come in Vikix's order, a plugin's own, Plugins and Yours after them, Power last"
 has "top=[Start          Welcome, Add software, Install a program, Remove a program]" "a section's row says what it holds"
 has "top=[Notifications  Notifications, Do not disturb, Focus time]" "a section's row names each thing once"
@@ -139,7 +139,7 @@ has "top=[Plugins        Flights]" "a plugin's entry that names no section is in
 has "top=[Tides: today's]" "a section of one entry is that entry, at the top"
 has "top=[iPhone]" "an entry of yours that names no section is in Yours: alone there, it is at the top"
 has "top=[Power: lock, suspend, log out, reboot, power off  s-S-ESC]" "Power is the last row, with its key"
-[ "$(grep -c '^top=' <<<"$out")" = 14 ] || { echo "FAIL: the top of the menu should have 14 rows: $(grep -c '^top=' <<<"$out")"; fail=1; }
+[ "$(grep -c '^top=' <<<"$out")" = 15 ] || { echo "FAIL: the top of the menu should have 15 rows: $(grep -c '^top=' <<<"$out")"; fail=1; }
 [ "$(grep '^top=' <<<"$out" | tail -1)" = "top=[Power: lock, suspend, log out, reboot, power off  s-S-ESC]" ] ||
   { echo "FAIL: Power should be the menu's last row: $(grep '^top=' <<<"$out" | tail -1)"; fail=1; }
 longest=$(sed -n 's/^longest=//p' <<<"$out")
@@ -152,10 +152,13 @@ has "Windows=Overview: every workspace, drawn small|Layout: pick this workspace'
   "Windows keeps the three layout lines together"
 has "System=Wi-Fi: pick a network (scans first)|Network: everything else (nmtui)|Network use: which program is using it (nethogs)|Network Office: nearby devices, ports and connections|Firewall: on or off, and what it lets in|Bluetooth|Sound (pavucontrol)|Screens: extend, mirror, one only, arrange|Screens: arrange (arandr)|Screens: save this layout|Printers|Eject a drive|Apply keyboard settings|Firmware updates" \
   "System keeps the three lines for screens together"
-has "lay=[Windows        Layout: pick this workspace's (tiles, main and stack, grid, strip)    s-C-SPC SPC]" "typing finds an entry, its section before it and its key after (one inside a map: both keys)"
+# Matching Music's "play" can widen this column; alignment is tested above.
+grep -Fqx "lay=[Windows Layout: pick this workspace's (tiles, main and stack, grid, strip) s-C-SPC SPC]" <<< "$(tr -s ' ' <<< "$out")" || {
+  echo "FAIL: typing finds the layout entry with its section and map keys"; fail=1;
+}
 has "lay=[System         Screens: save this layout]" "typing looks in every section"
 has "kinds=found" "while something is typed, no section's row shows"
-has "spaces=14" "spaces alone are nothing typed"
+has "spaces=15" "spaces alone are nothing typed"
 has "words=Layout: pick this workspace's (tiles, main and stack, grid, strip)" "every word typed is looked for, in any case, a key's name too"
 has "plus=Sums: a+b, and (more" "what is typed is plain letters, not a pattern"
 has "none=0" "a word that is nowhere finds nothing"
