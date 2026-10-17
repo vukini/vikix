@@ -44,7 +44,7 @@
 (defvar *vikix-beat-timer* nil)
 (defvar *vikix-watch-thread* nil)
 (defvar *vikix-rescue-key-thread* nil)
-(defvar *vikix-watch* (list :at nil :ticks nil :said nil :eased nil :looped nil)
+(defvar *vikix-watch* (list :at nil :ticks nil :busy-since nil :said nil :eased nil :looped nil)
   "What the watcher remembers between its looks.")
 (defvar *vikix-rescue-did* '()
   "What easing changed, to put back: (:rules) and (:focus OLD-POLICY).")
@@ -237,39 +237,51 @@ program, and shows it though StumpWM is stuck."
     ;; reason alone; look again next time.
     (when (and elapsed (< elapsed 10))
       (destructuring-bind (&key state age &allow-other-keys) (vikix-rescue-state busy)
-        (case state
-          (:stuck
-           (when (and (>= age *vikix-stuck-after*) (not (getf *vikix-watch* :said)))
-             (setf (getf *vikix-watch* :said) t)
-             (let ((backtrace (vikix-main-backtrace)))
-               (vikix-error-report
-                (make-condition 'simple-error
-                                :format-control "The desktop's main loop hadn't come round for ~d seconds, working at ~d% of a processor."
-                                :format-arguments (list age busy))
-                "the watcher found the desktop stuck (rescue.lisp)" backtrace))
-             (vikix-rescue-notify
-              "The desktop is stuck"
-              (format nil "Its loop hasn't come round for ~d seconds. Super+Ctrl+Alt+Escape frees it; so does `vikix rescue free` in a terminal, or on a text console (Ctrl+Alt+F2).~:[~; It eases itself in ~d seconds.~]"
-                      age *vikix-rescue-auto* (max 0 (- *vikix-stuck-ease-after* age)))))
-           (when (and *vikix-rescue-auto* (>= age *vikix-stuck-ease-after*) (not (getf *vikix-watch* :eased)))
-             (setf (getf *vikix-watch* :eased) t)
-             (let ((did (vikix-rescue-ease)))
-               (vikix-rescue-notify "Still stuck: eased"
-                                    (format nil "~a `vikix rescue undo` or Reload config puts it back." (vikix-rescue-words did)))))
-           (when (and *vikix-rescue-auto* (>= age *vikix-stuck-loop-after*) (not (getf *vikix-watch* :looped)))
-             (setf (getf *vikix-watch* :looped) t)
-             (vikix-rescue-fresh-loop)
-             (vikix-rescue-notify "Still stuck: a fresh event loop"
-                                  "Your windows and settings stay as they are. `vikix rescue` says how it is now.")))
-          (:fine
-           (when (getf *vikix-watch* :said)
-             (vikix-rescue-notify "The desktop is coming round again"
-                                  (format nil "~:[~;Rules are paused and focus follows clicks until `vikix rescue undo` or Reload config. ~]What it was doing is written in ~~/.local/state/vikix/errors/."
-                                          *vikix-rescue-did*)
-                                  "normal"))
-           (setf (getf *vikix-watch* :said) nil
-                 (getf *vikix-watch* :eased) nil
-                 (getf *vikix-watch* :looped) nil)))))))
+        ;; How long the main thread has been busy without a beat, counted
+        ;; from the first busy look, not from the last beat: a menu open for
+        ;; three minutes and then one busy look (the user typing in it, a
+        ;; thread of the socket's asking for the processor) was once taken
+        ;; for three minutes stuck, and thrown into a fresh loop at once.
+        (let ((since (if (eq state :stuck)
+                         (or (getf *vikix-watch* :busy-since)
+                             (setf (getf *vikix-watch* :busy-since) now))
+                         (setf (getf *vikix-watch* :busy-since) nil)))
+              (stuck-for 0))
+          (when since
+            (setf stuck-for (round (- now since) internal-time-units-per-second)))
+          (case state
+            (:stuck
+             (when (and (>= stuck-for *vikix-stuck-after*) (not (getf *vikix-watch* :said)))
+               (setf (getf *vikix-watch* :said) t)
+               (let ((backtrace (vikix-main-backtrace)))
+                 (ignore-errors
+                  (vikix-error-report (make-condition 'simple-error
+                                                      :format-control "The desktop's main loop hadn't come round for ~d seconds, working at ~d% of a processor for ~d of them."
+                                                      :format-arguments (list age busy stuck-for))
+                                      "the watcher found the desktop stuck (rescue.lisp)" backtrace))
+                 (vikix-rescue-notify
+                  "The desktop is stuck"
+                  (format nil "Its loop hasn't come round for ~d seconds. Super+Ctrl+Alt+Escape frees it; so does `vikix rescue free` in a terminal, or on a text console (Ctrl+Alt+F2).~:[~; It eases itself in ~d seconds.~]"
+                          age *vikix-rescue-auto* (max 0 (- *vikix-stuck-ease-after* stuck-for))))))
+             (when (and *vikix-rescue-auto* (>= stuck-for *vikix-stuck-ease-after*) (not (getf *vikix-watch* :eased)))
+               (setf (getf *vikix-watch* :eased) t)
+               (let ((did (vikix-rescue-ease)))
+                 (vikix-rescue-notify "Still stuck: eased"
+                                      (format nil "~a `vikix rescue undo` or Reload config puts it back." (vikix-rescue-words did)))))
+             (when (and *vikix-rescue-auto* (>= stuck-for *vikix-stuck-loop-after*) (not (getf *vikix-watch* :looped)))
+               (setf (getf *vikix-watch* :looped) t)
+               (vikix-rescue-fresh-loop)
+               (vikix-rescue-notify "Still stuck: a fresh event loop"
+                                    "Your windows and settings stay as they are. `vikix rescue` says how it is now.")))
+            (:fine
+             (when (getf *vikix-watch* :said)
+               (vikix-rescue-notify "The desktop is coming round again"
+                                    (format nil "~:[~;Rules are paused and focus follows clicks until `vikix rescue undo` or Reload config. ~]What it was doing is written in ~~/.local/state/vikix/errors/."
+                                            *vikix-rescue-did*)
+                                    "normal"))
+             (setf (getf *vikix-watch* :said) nil
+                   (getf *vikix-watch* :eased) nil
+                   (getf *vikix-watch* :looped) nil))))))))
 
 (defun vikix-watch-loop ()
   ;; The step by name each time round, so a reload's new one is used.

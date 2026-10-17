@@ -173,7 +173,10 @@ bin/vikix-agents, which asks the notes itself."
                                  (append (remove-if #'hidden-p groups) (remove-if-not #'hidden-p groups)))
                   append (loop for window in (sort (copy-list (group-windows group)) #'< :key #'window-number)
                                for agent = (vikix-window-agent window)
-                               do (vikix-agent-mark window (getf agent :name))
+                               ;; The mark is an X request: from the main thread only, where
+                               ;; the title pass and the ticker call this; a socket thread's
+                               ;; listing leaves it as it is.
+                               do (when (in-main-thread-p) (vikix-agent-mark window (getf agent :name)))
                                when agent collect agent)))))
     ;; Each one's window named for its desk, the others unnamed (below).
     (ignore-errors (vikix-agent-titles-name (all-windows) agents))

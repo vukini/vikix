@@ -69,8 +69,16 @@
   "A terminal running one of these was only a shell: its folder is enough.")
 
 (defun vikix-window-pid (window)
-  (let ((pid (first (ignore-errors (xlib:get-property (window-xwin window) :_net_wm_pid)))))
-    (and (integerp pid) (plusp pid) pid)))
+  "The process behind WINDOW (_NET_WM_PID), asked of the X server once and
+kept on the window. Off the main thread (a thread of the socket's answering
+a read while a menu is open) it is the kept answer or nil, never a request:
+a worker waiting on the main thread's X input spins (socket.lisp)."
+  (let ((kept (gethash :vikix-pid (window-plist window))))
+    (cond (kept kept)
+          ((not (in-main-thread-p)) nil)
+          (t (let ((pid (first (ignore-errors (xlib:get-property (window-xwin window) :_net_wm_pid)))))
+               (when (and (integerp pid) (plusp pid))
+                 (setf (gethash :vikix-pid (window-plist window)) pid)))))))
 
 (defun vikix-proc-file (pid name)
   (format nil "/proc/~d/~a" pid name))

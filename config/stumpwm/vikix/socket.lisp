@@ -21,6 +21,10 @@
 ;;;; Anything else goes to the main thread as before, with its deadline
 ;;;; (*vikix-eval-timeout*), and a queued form given up on never starts later. An
 ;;;; agent's forms pass the door first (door.lisp), in the thread.
+;;;; The thread never waits on the X server: while it answers, CLX's wait for
+;;;; another thread's reading of the display (process-block) is refused, and
+;;;; the read goes back to the main thread for what is left of the deadline
+;;;; (vikix-x-guard below; the pid of a window is kept on it for that reason).
 ;;;;
 ;;;; The protocol is one request a connection: a line "eval KIND FROM..."
 ;;;; (KIND door or me), then the forms until the client shuts its writing
@@ -82,50 +86,116 @@ go to the main thread. Everything else on the door's list is a read.")
 an answer in which the main thread stayed asleep without using processor
 time (a menu, a prompt), the client's thread answers a read itself.")
 
-(defun vikix-socket-in-main (text)
-  "TEXT's forms in the main thread, or, when it is idle without answering,
-here. The status and what was printed."
-  (let ((done (sb-thread:make-semaphore))
-        (lock (sb-thread:make-mutex :name "socket read"))
-        ;; Count elapsed time, including time this client was not scheduled.
-        (deadline (+ (get-internal-real-time)
-                     (* *vikix-eval-timeout* internal-time-units-per-second)))
-        (output "") (status :error) (state :queued))
+(defvar *vikix-socket-no-x* nil
+  "True in a thread of the socket's while it answers a read itself: a wait
+on the X server there is refused (vikix-x-off-thread) instead of made.")
+
+(define-condition vikix-x-off-thread (serious-condition) ()
+  (:report (lambda (c s) (declare (ignore c))
+             (format s "a read reached the X server from a thread of the socket's")))
+  (:documentation "Not an error, on purpose: a read that wraps its X request in
+ignore-errors (the pid of a window) would otherwise answer with less and
+never say so; this passes those handlers and reaches the thread's own."))
+
+(defun vikix-x-guard (fn &rest args)
+  "Around CLX's process-block, where a thread waits for another's reading of
+the display: with the main thread in a menu (read-key, reading its input)
+a thread of the socket's waiting there spins on sched_yield for ever, and
+one a poll of the Office's (every 10 s) soon made dozens, which starved the
+main thread of its own replies: the desktop froze (2026-10-17)."
+  (when *vikix-socket-no-x* (error 'vikix-x-off-thread))
+  (apply fn args))
+
+(when (fboundp 'xlib::process-block)
+  (sb-int:unencapsulate 'xlib::process-block 'vikix-socket)
+  (sb-int:encapsulate 'xlib::process-block 'vikix-socket #'vikix-x-guard))
+
+(defun vikix-socket-queue (text)
+  "TEXT's forms queued for the main thread. A plist: :done (a semaphore,
+signalled when the forms ran), :lock, :state (:queued, :running, :done,
+:cancelled), then :status and :output once done."
+  (let* ((done (sb-thread:make-semaphore))
+         (lock (sb-thread:make-mutex :name "socket read"))
+         (job (list :done done :lock lock :state :queued :status :error :output "")))
     (call-in-main-thread
      (lambda ()
        ;; Only one thread may claim the read. In particular, a fallback
        ;; must not race a callback that has already begun evaluating it.
        (when (sb-thread:with-mutex (lock)
-               (when (eq state :queued) (setf state :running)))
+               (when (eq (getf job :state) :queued) (setf (getf job :state) :running)))
          (unwind-protect
-              (setf output (with-output-to-string (*standard-output*)
-                               (setf status (vikix-eval-forms text))))
-           (sb-thread:with-mutex (lock) (setf state :done))
+              (setf (getf job :output)
+                    (with-output-to-string (*standard-output*)
+                      (setf (getf job :status) (vikix-eval-forms text))))
+           (sb-thread:with-mutex (lock) (setf (getf job :state) :done))
            (sb-thread:signal-semaphore done)))))
+    job))
+
+(defun vikix-socket-cancel (job)
+  "JOB cancelled when still queued; its state after."
+  (sb-thread:with-mutex ((getf job :lock))
+    (when (eq (getf job :state) :queued) (setf (getf job :state) :cancelled))
+    (getf job :state)))
+
+(defun vikix-socket-read-here (text)
+  "TEXT's forms in this thread, the X server out of reach: (values STATUS
+OUTPUT), or (values nil nil t) when a form reached for it."
+  (let ((status :error) (output ""))
+    (handler-case
+        (setf output (with-output-to-string (*standard-output*)
+                       (let ((*vikix-socket-no-x* t))
+                         (setf status (vikix-eval-forms text)))))
+      (vikix-x-off-thread () (return-from vikix-socket-read-here (values nil nil t))))
+    (values status output nil)))
+
+(defun vikix-socket-in-main-only (text deadline)
+  "TEXT's forms in the main thread or not at all: wait for them until
+DEADLINE (internal real time), then :busy."
+  (let ((job (vikix-socket-queue text)))
+    (loop
+      (let ((remaining (/ (- deadline (get-internal-real-time)) internal-time-units-per-second)))
+        (when (and (plusp remaining)
+                   (sb-thread:wait-on-semaphore (getf job :done) :timeout (min remaining 1)))
+          (return (values (getf job :status) (getf job :output))))
+        (unless (plusp remaining)
+          (return
+            (case (vikix-socket-cancel job)
+              (:done (values (getf job :status) (getf job :output)))
+              (t (values :busy
+                         (format nil "error: this read needs the X server, and StumpWM's main thread did not answer within ~a s (a menu or a prompt open?).~%"
+                                 *vikix-eval-timeout*))))))))))
+
+(defun vikix-socket-in-main (text)
+  "TEXT's forms in the main thread, or, when it is idle without answering,
+here. The status and what was printed."
+  (let (;; Count elapsed time, including time this client was not scheduled.
+        (deadline (+ (get-internal-real-time)
+                     (* *vikix-eval-timeout* internal-time-units-per-second)))
+        (job (vikix-socket-queue text)))
     (loop
       (multiple-value-bind (before before-state) (vikix-main-ticks)
         (let ((remaining (/ (- deadline (get-internal-real-time))
                             internal-time-units-per-second)))
           (when (and (plusp remaining)
                      (sb-thread:wait-on-semaphore
-                      done :timeout (min remaining *vikix-socket-read-wait*)))
-            (return (values status output))))
+                      (getf job :done) :timeout (min remaining *vikix-socket-read-wait*)))
+            (return (values (getf job :status) (getf job :output)))))
         (multiple-value-bind (after after-state) (vikix-main-ticks)
           (let ((expired (>= (get-internal-real-time) deadline)))
             (when (or expired
                       (and before after (= before after)
                            (member before-state '(#\S #\D))
                            (member after-state '(#\S #\D))))
-              (case (sb-thread:with-mutex (lock)
-                      (case state
-                        (:queued (setf state :cancelled))
-                        (otherwise state)))
-                (:done (return (values status output)))
+              (case (vikix-socket-cancel job)
+                (:done (return (values (getf job :status) (getf job :output))))
                 (:cancelled
-                 (return (values :thread
-                                 (with-output-to-string (*standard-output*)
-                                   (setf status (vikix-eval-forms text)))
-                                 status)))
+                 (multiple-value-bind (status output needs-x) (vikix-socket-read-here text)
+                   (unless needs-x
+                     (return (values :thread output status)))
+                   ;; The read reached for the X server, which this thread never
+                   ;; waits on: back to the main thread, for what is left of the
+                   ;; deadline (over Swank it always waited; so does this).
+                   (return (vikix-socket-in-main-only text deadline))))
                 (:running
                  (when expired
                    (return (values :busy

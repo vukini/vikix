@@ -12,7 +12,7 @@
 #   focus back. Super+Ctrl+Alt+Escape frees it too, read on its own
 #   connection while StumpWM's keys are dead. Left alone, the watcher eases
 #   it and then starts the fresh loop by itself. A menu left open is
-#   waiting, not stuck: nothing is said or done. A reload keeps one beat,
+#   waiting, not stuck: nothing is said or done, one busy look included. A reload keeps one beat,
 #   one watcher, one key thread. And with a compositor running, the lock
 #   screen comes back in front of a window raised over it.
 #
@@ -136,12 +136,25 @@ ask '(setf *vikix-rescue-auto* t *vikix-stuck-ease-after* 1000 *vikix-stuck-loop
 sleep 4; : > "$t/notes"
 
 # --- A menu open: waiting, not stuck ------------------------------------------------
+# And one busy look while it is open (the user typing in the menu, a thread
+# asking for the processor) is counted from that look, not from the last
+# beat: 12 seconds in, the main thread's ticks jump by 10 seconds' worth.
+ask '(defvar *rescue-test-ticks* (symbol-function (quote vikix-main-ticks)))
+     (defvar *rescue-test-bump* (+ (get-internal-real-time) (* 12 internal-time-units-per-second)))
+     (setf (symbol-function (quote vikix-main-ticks))
+           (lambda () (multiple-value-bind (ticks state) (funcall *rescue-test-ticks*)
+                        (values (if (and ticks (> (get-internal-real-time) *rescue-test-bump*)) (+ ticks 1000) ticks) state))))' >/dev/null
 xdotool key super+m; sleep 9
 check "a menu left open sets nothing off: $(cat "$t/notes")" test ! -s "$t/notes"
 out=$(rescue) && code=0 || code=$?
 check "vikix rescue calls it waiting, not stuck: $code $(head -1 <<<"$out")" bash -c "[ $code = 1 ] && grep -q 'waiting, not stuck' <<<\"\$1\"" _ "$out"
+sleep 9
+check "one busy look with the menu open sets nothing off either: $(cat "$t/notes")" test ! -s "$t/notes"
+out=$(rescue) || true
+check "and rules stay on: $(grep Rules <<<"$out")" grep -q 'Rules: on' <<<"$out"
 xdotool key Escape
 check "Escape, and it answers" answers 10
+ask '(setf (symbol-function (quote vikix-main-ticks)) *rescue-test-ticks*)' >/dev/null
 
 # --- A reload ---------------------------------------------------------------------------
 ask '(loadrc)' >/dev/null; answers 60 || true

@@ -13,7 +13,10 @@
 #   serves the desktop's own path, and a test's vikix eval never asks it.
 #   A read waits for preceding work when the main thread is runnable or
 #   its observations are unknown; a sleeping thread still answers through
-#   the client. A read is claimed once, including at its deadline.
+#   the client. A read is claimed once, including at its deadline. A read
+#   that needs the X server is never waited on in the thread: it goes back
+#   to the main thread and says so at the deadline; the menu closed, it is
+#   answered, with no thread left waiting.
 #
 # Needs what tests/lib/wm.sh needs (Xvfb, xdotool, alacritty, Vikix's
 # StumpWM); skipped without.
@@ -148,11 +151,26 @@ t0=$(now); out=$(ev --socket '(princ (length (screen-groups (current-screen))))'
 check "a read is answered with the menu open, in ${took}s (exit $st): $out" test "$st" = 0
 check "and quickly" python3 -c 'import sys; sys.exit(0 if float(sys.argv[1]) < 1.5 else 1)' "$took"
 check "by the client's thread, since the main one is busy: $(ev --socket '(princ (if (in-main-thread-p) :main :thread))')" grep -q '^THREAD' <<<"$(ev --socket '(princ (if (in-main-thread-p) :main :thread))')"
+# A read that needs the X server (screen-width asks for the root window's
+# geometry) is never waited on in the thread: with the main thread reading
+# its input, a thread waiting there spins for ever (CLX's process-block
+# yields in a loop). It goes back to the main thread, which is in the menu,
+# and says so at the deadline.
+t0=$(now); out=$(ev --socket '(princ (screen-width (current-screen)))') && st=0 || st=$?; took=$(secs "$t0" "$(now)")
+check "a read that needs the X server is not answered by the thread but waits for the main one (exit $st, ${took}s): $out" test "$st" = 1
+check "and says why" grep -q "needs the X server" <<<"$out"
+check "within the deadline (${took}s)" python3 -c 'import sys; sys.exit(0 if 1.5 <= float(sys.argv[1]) < 4 else 1)' "$took"
 t0=$(now); out=$(ev --socket '(message "late act")') && st=0 || st=$?; took=$(secs "$t0" "$(now)")
 check "an act with the menu open is given up on within the deadline, in ${took}s (exit $st): $out" test "$st" = 1
 check "and says so" grep -q "did not answer within" <<<"$out"
 key Escape
 sleep 1
+out=$(ev --socket '(princ (screen-width (current-screen)))') && st=0 || st=$?
+check "the menu closed, the same read is answered (exit $st): $out" bash -c '[ "$1" = 0 ] && [[ "$2" =~ ^[0-9]+ ]]' _ "$st" "$out"
+# Asked over Swank: a request over the socket is a thread of the socket's itself.
+sleep 0.5
+clients=$(HOME=$home VIKIX_SWANK_PORT=$port python3 "$here/bin/vikix-eval" --swank '(princ (count "vikix-socket-client" (sb-thread:list-all-threads) :key (function sb-thread:thread-name) :test (function equal)))' 2>&1 | grep -v '^=> ')
+check "and no thread of the socket's is left waiting: $clients" test "$clients" = 0
 check "a form given up on never runs later: $(ask '(princ (first (first (screen-last-msg (current-screen)))))')" bash -c "[ \"\$(HOME=$home VIKIX_SWANK_PORT=$port VIKIX_SOCKET=$wm_socket python3 '$here/bin/vikix-eval' '(princ (first (first (screen-last-msg (current-screen)))))' 2>&1 | head -1)\" != 'late act' ]"
 ask '(setf *vikix-eval-timeout* 10)' >/dev/null
 
