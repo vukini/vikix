@@ -138,6 +138,17 @@ with tempfile.TemporaryDirectory(prefix="vikix-music-test-") as temp:
         run("music", "check", str(pattern), ok=False)
     pattern.write_text("(defpattern test '(x - x) :swing 0.2)")
     run("music", "check", str(pattern), ok=False)
+    for score in ("(defprogression verse '(I vi IV V) :key 'f)",
+                  "(defprogression verse '((i 2) (- 3) VII) :key 'bb :sound 'bell :gain .5)",
+                  "(BANK 32 VERSE) (DEFPROGRESSION verse '(I ii))"):
+        pattern.write_text(score)
+        run('music', 'check', str(pattern))
+    for body in ("'(I) :key 'h", "'(I) :key f", "'(Iv)", "'((I 0))", "'((I 17))",
+                 "'((I 1.5))", "'((I 2 3))", "'(VIII)", "'(:I)", "'(I . V)", "'()",
+                 "'(I) :swing 0", "'(I) :sound 'kick", "'(I) :key 'c :key 'd",
+                 "'(" + ' '.join(['I'] * 33) + ")", "'(" + ' '.join(['(I 16)'] * 9) + ")"):
+        pattern.write_text('(defprogression verse ' + body + ')')
+        run('music', 'check', str(pattern), ok=False)
     pattern.write_text(original)
     run("music", "doctor", ok=False)
     data = home / ".local/share/vikix/music"
@@ -168,6 +179,25 @@ with tempfile.TemporaryDirectory(prefix="vikix-music-test-") as temp:
         for index, row in enumerate(rows):
             expected = (index // 4) * 1.2 + ((index % 4) + (0.5 if index % 2 else 0)) * .3
             assert abs(row['at'] - rows[0]['at'] - expected) < .001
+    # Real public launcher: major/minor triads, two-bar block, silence and loop.
+    pattern.write_text("(tempo 200) (defprogression verse '((I 2) - vi) :key 'f :sound 'bell :gain .6)")
+    (t / 'events').unlink()
+    run('music', 'play', str(pattern), '--pattern', 'verse', '--bars', '5')
+    gone()
+    rows = [json.loads(line) for line in (t / 'events').read_text().splitlines()]
+    assert len(rows) == 12, rows
+    for group, (bar, pitches) in enumerate(((0, (53, 57, 60)), (1, (53, 57, 60)),
+                                           (3, (62, 65, 69)), (4, (53, 57, 60)))):
+        for voice, midi in enumerate(pitches):
+            event = rows[group * 3 + voice]
+            assert abs(event['freq'] - 440 * 2 ** ((midi - 69) / 12)) < .001
+            assert abs(event['at'] - rows[0]['at'] - bar * 1.2) < .001
+            assert abs(event['gain'] - .016) < 1e-6 and event['sound'] == 'bell'
+    pattern.write_text("(tempo 200) (defprogression quiet '((- 2)))")
+    (t / 'events').unlink()
+    run('music', 'play', str(pattern), '--bars', '2')
+    gone()
+    assert not (t / 'events').exists(), 'silent progression emitted sound'
     pattern.write_text(original)
     run("music", "play", str(pattern), "--pattern", "missing", "--bars", "1", ok=False)
     gone()
@@ -308,6 +338,31 @@ with tempfile.TemporaryDirectory(prefix="vikix-music-test-") as temp:
                             env=env, capture_output=True, text=True, timeout=10)
     assert result.returncode == 0, result.stderr
 
+    pattern.write_text("(tempo 120) (defprogression verse '(I - vi) :key 'c)")
+    test.write_text(f"""(load {json.dumps(str(root / 'lib/music/core.lisp'))})
+(in-package :vikix-music)
+(let ((now 0d0) (seen nil) (positions nil) (file {json.dumps(str(pattern))}))
+  (setf *clock* (lambda () (incf now 0.1d0)))
+  (setf *bar* (lambda (start bpm steps swing)
+               (declare (ignore swing)) (push (list start bpm steps) positions)))
+  (setf *emit* (lambda (notes)
+    (push notes seen)
+    (with-open-file (out file :direction :output :if-exists :supersede)
+      (write-line (if (= (length seen) 1)
+        "(tempo 200) (defprogression verse '(I - vi) :key 'd)"
+        "(defprogression verse '(VIII))") out))))
+  (play-loop file "verse" 4)
+  (setf seen (reverse seen) positions (reverse positions))
+  (assert (equal (mapcar #'length seen) '(3 0 3 3)))
+  (assert (equal (mapcar #'third positions) '(-1 -2 -3 -1)))
+  (loop for events in seen for pitches in '((c3 e3 g3) nil (b3 d4 fs4) (d3 fs3 a3)) do
+    (loop for event in events for pitch in pitches do
+      (assert (< (abs (- (second event) (frequency pitch))) .001)))))
+""")
+    result = subprocess.run(['sbcl', '--noinform', '--no-sysinit', '--no-userinit', '--script', str(test)],
+                            env=env, capture_output=True, text=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+
     # The bridge rejects malformed/unbounded events even if its child misbehaves.
     wrapper = commands / 'sbcl'
     normal_wrapper = wrapper.read_text()
@@ -315,7 +370,8 @@ with tempfile.TemporaryDirectory(prefix="vikix-music-test-") as temp:
     try:
         for event in ('0 440 .3 .08 unknown 1', '0 440 .3 .08 sine nan',
                       '0 440 .3 .11 sine 1', '0 440 .3 .08 sine 1.1',
-                      'bar 0 120 3 .5', 'bar 0 120 4 nan'):
+                      'bar 0 120 3 .5', 'bar 0 120 4 nan',
+                      'bar 0 120 -129 0', 'bar 0 120 -1 .2'):
             fake.write_text("import os\n" +
                             f"os.write(int(os.environ['VIKIX_MUSIC_FD']), {event.encode() + bytes([10])!r})\n")
             wrapper.write_text('#!/bin/sh\nexec python3 ' + shlex.quote(str(fake)) + '\n')

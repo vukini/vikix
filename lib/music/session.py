@@ -52,6 +52,14 @@ class Song:
             if want is not None and token[0].lower() != want:
                 raise ValueError("view supports plain tempo and quoted note-list forms")
             return token
+        def quote_start():
+            if i < len(tokens) and tokens[i][0] == "'":
+                take("'")
+                return False
+            take('(')
+            take('quote')
+            return True
+
         while i < len(tokens):
             start = take('(')
             kind = take()[0].lower()
@@ -75,27 +83,47 @@ class Song:
                     bank[number] = (slot, name)
                 end = take(')')
                 bank_span = ('', start[1], end[1])
-            elif kind == 'defpattern':
+            elif kind in ('defpattern', 'defprogression'):
                 name = take()[0]
                 if not re.fullmatch(r'[A-Za-z][A-Za-z0-9-]*', name):
                     raise ValueError("prototype pattern names use letters, digits and dashes")
-                take("'")
+                long_quote = quote_start()
                 take('(')
                 notes = []
+                blocks = []
                 while i < len(tokens) and tokens[i][0] != ')':
                     note = take()
+                    if kind == 'defprogression':
+                        begin = note[1]
+                        pair = note[0] == '('
+                        degree = take() if pair else note
+                        duration = take() if pair else None
+                        end = take(')')[2] if pair else note[2]
+                        if not re.fullmatch(r'I|II|III|IV|V|VI|VII|i|ii|iii|iv|v|vi|vii|-', degree[0]):
+                            raise ValueError('use I–VII, i–vii or -')
+                        if duration and (not re.fullmatch(r'[+]?\d+\.?', duration[0]) or not 1 <= int(duration[0].rstrip('.')) <= 16):
+                            raise ValueError('block duration must be 1 to 16 bars')
+                        blocks.append(dict(degree=degree[0], bars=int(duration[0].rstrip('.')) if duration else 1,
+                                           span=('', begin, end), degree_span=degree, duration_span=duration))
+                        notes.append((degree[0], begin, end))
+                        continue
                     if not re.fullmatch(r'(?i)(?:[a-g][sb]?[0-8]|x|-)', note[0]):
                         raise ValueError("unsupported note in view")
                     notes.append(note)
                 take(')')
-                options = dict(sound='sine', gain=1.0, swing=0.0, spans={})
+                if long_quote:
+                    take(')')
+                options = dict(sound='sine', gain=1.0, swing=0.0, key='c', spans={},
+                               kind=kind, blocks=blocks)
                 while i < len(tokens) and tokens[i][0] != ')':
                     key = take()[0].lower().removeprefix(':')
-                    if key not in ('sound', 'gain', 'swing') or key in options['spans']:
+                    if key not in (('key', 'sound', 'gain') if kind == 'defprogression' else ('sound', 'gain', 'swing')) or key in options['spans']:
                         raise ValueError("unknown or duplicate pattern option")
-                    if key == 'sound':
-                        take("'")
+                    if key in ('sound', 'key'):
+                        long_value = quote_start()
                         value = take()
+                        if long_value:
+                            take(')')
                         options[key] = value[0].lower()
                         options['spans'][key] = value
                     else:
@@ -158,13 +186,57 @@ class Song:
                     pads=[dict(slot=slot, pattern=name) for slot, name in self.pads().items()],
                     tempo=int(self.tempo[0]) if self.tempo else 120,
                     patterns=[dict(name=n, notes=[t[0].lower() for t in notes],
-                                   **{key: self.settings[n][key] for key in ('sound', 'gain', 'swing')}) for n, notes in self.patterns])
+                                   **{key: self.settings[n][key] for key in ('sound', 'gain', 'swing', 'key', 'kind')},
+                                   blocks=[dict(degree=b['degree'], bars=b['bars']) for b in self.settings[n]['blocks']]) for n, notes in self.patterns])
 
     def edit(self, command):
         self.refresh()
         if command.get('revision') != self.digest:
             raise ValueError("song changed; review the refreshed grid and try again")
-        if command['op'] == 'assign':
+        if command['op'] in ('duration', 'degree', 'move-block'):
+            name, index = command.get('pattern'), command.get('step')
+            options = self.settings.get(name) if isinstance(name, str) else None
+            blocks = options['blocks'] if options else []
+            if type(index) is not int or not 0 <= index < len(blocks):
+                raise ValueError('unknown progression block')
+            block = blocks[index]
+            if command['op'] == 'duration':
+                value = command.get('value')
+                if type(value) is not int or not 1 <= value <= 16:
+                    raise ValueError('block duration must be 1 to 16 bars')
+                span = block['duration_span'] or block['span']
+                replacement = str(value) if block['duration_span'] else f"({block['degree']} {value})"
+            elif command['op'] == 'degree':
+                value = command.get('value')
+                if not isinstance(value, str) or not re.fullmatch(r'I|II|III|IV|V|VI|VII|i|ii|iii|iv|v|vi|vii|-', value):
+                    raise ValueError('use I–VII, i–vii or -')
+                span, replacement = block['degree_span'], value
+            else:
+                target = command.get('target')
+                if type(target) is not int or not 0 <= target < len(blocks):
+                    raise ValueError('unknown destination block')
+                # Move musical values among existing token slots; comments and
+                # whitespace stay exactly where the author wrote them.
+                order = list(blocks)
+                order.insert(target, order.pop(index))
+                changed_text = self.text
+                for old, new in reversed(list(zip(blocks, order))):
+                    if old['degree'] == new['degree'] and old['bars'] == new['bars']:
+                        continue
+                    if old['duration_span']:
+                        edits = []
+                        if old['bars'] != new['bars']:
+                            edits.append((old['duration_span'], str(new['bars'])))
+                        if old['degree'] != new['degree']:
+                            edits.append((old['degree_span'], new['degree']))
+                        for token, value in edits:
+                            changed_text = changed_text[:token[1]] + value + changed_text[token[2]:]
+                    else:
+                        token = old['degree_span']
+                        value = new['degree'] if new['bars'] == 1 else f"({new['degree']} {new['bars']})"
+                        changed_text = changed_text[:token[1]] + value + changed_text[token[2]:]
+                span, replacement = ('', 0, len(self.text)), changed_text
+        elif command['op'] == 'assign':
             slot, name = command.get('slot'), command.get('pattern')
             if type(slot) is not int or not 1 <= slot <= 32:
                 raise ValueError("bank pad must be an integer from 1 to 32")
@@ -189,14 +261,18 @@ class Song:
             else:
                 span = ('', self.bank_span[2], self.bank_span[2])
                 replacement = f' {slot} {name}' if name is not None else ''
-        elif command['op'] in ('sound', 'pattern-gain', 'swing'):
+        elif command['op'] in ('sound', 'pattern-gain', 'swing', 'key'):
             name = command.get('pattern')
             options = self.settings.get(name) if isinstance(name, str) else None
             if options is None:
                 raise ValueError("unknown pattern")
             key = 'gain' if command['op'] == 'pattern-gain' else command['op']
             value = command.get('value')
-            if key == 'sound':
+            if key == 'key':
+                if options['kind'] != 'defprogression' or not isinstance(value, str) or not re.fullmatch(r'(?i)[a-g][sb]?', value):
+                    raise ValueError('progression key must be c through b with s/b accidental')
+                replacement = value.lower() if key in options['spans'] else "'" + value.lower()
+            elif key == 'sound':
                 if not isinstance(value, str) or value not in ('sine', 'kick', 'snare', 'closed-hat', 'bass', 'bell'):
                     raise ValueError("unknown sound")
                 notes = next(notes for pattern, notes in self.patterns if pattern == name)
@@ -204,6 +280,8 @@ class Song:
                     raise ValueError("Drums need X hits and rests; replace pitched notes first")
                 replacement = value if key in options['spans'] else "'" + value
             else:
+                if key == 'swing' and options['kind'] == 'defprogression':
+                    raise ValueError('progressions do not use swing')
                 limit = 1 if key == 'gain' else .5
                 if type(value) not in (int, float) or not 0 <= value <= limit or not math.isfinite(value):
                     raise ValueError(f"{key} must be 0 to {limit}")
@@ -229,6 +307,8 @@ class Song:
                 raise ValueError("use c4, cs4, eb4, x or -")
             if self.settings[pattern]['sound'] in ('kick', 'snare', 'closed-hat') and note.lower() not in ('x', '-'):
                 raise ValueError("Drums need X hits and rests")
+            if self.settings[pattern]['kind'] == 'defprogression':
+                raise ValueError('use progression block controls')
             span, replacement = notes[step], note.lower()
         changed = (self.text[:span[1]] + replacement + self.text[span[2]:]).encode()
         self.validate(changed)
@@ -296,7 +376,7 @@ class Session:
                 if not isinstance(command, dict):
                     raise ValueError('expected an object')
                 op = command.get('op')
-                if op in ('note', 'tempo', 'assign', 'sound', 'pattern-gain', 'swing'):
+                if op in ('note', 'tempo', 'assign', 'sound', 'pattern-gain', 'swing', 'key', 'duration', 'degree', 'move-block'):
                     self.song.edit(command)
                 elif op == 'play':
                     self.song.refresh()
@@ -344,7 +424,8 @@ class Session:
             if playing and self.position is not None:
                 with self.position.get_lock():
                     values = self.position[:]
-                bars = [dict(start=values[i], duration=values[i+1], steps=int(values[i+2]), swing=values[i+3])
+                bars = [dict(start=values[i], duration=values[i+1], steps=max(0, int(values[i+2])), swing=values[i+3],
+                             progression_bar=-int(values[i+2])-1 if values[i+2] < 0 else None)
                         for i in (0, 4) if values[i+1] > 0]
             state.update(bars=bars, now=time.time())
             return state

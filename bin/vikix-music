@@ -25,6 +25,9 @@ Patterns optionally take :sound 'sine|kick|snare|closed-hat|bass|bell,
 Drums use x hits and - rests; melodic x remains 220 Hz. The browser edits
 these data fields with undo. Session gain stays at 0.08 by default, capped
 at 0.1. Run setup again to compile the palette after an older Music install.
+Progressions use (defprogression verse '(I (vi 2) - V) :key 'f): major
+uppercase/minor lowercase triads, whole-bar blocks and silent rests. The
+browser edits degrees, key, durations and order with undo; see the Music guide.
 Snapshot before editing; vikix undo restores patterns at the next bar.
 The REPL evaluates your Lisp locally. There is no remote evaluation service.
 """

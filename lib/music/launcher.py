@@ -204,9 +204,12 @@ def perform(root, args, control=None, position=None):
                     line, pending = pending.split(b"\n", 1)
                     if line.startswith(b"bar "):
                         at, bpm, steps, swing = map(float, line.split()[1:])
+                        # Negative counts encode progression bar index + 1;
+                        # positive counts retain the released step-grid protocol.
                         if not (all(map(math.isfinite, (at, bpm, steps, swing))) and
                                 0 <= swing <= 0.5 and (swing == 0 or steps % 2 == 0) and
-                                60 <= bpm <= 200 and steps.is_integer() and 1 <= steps <= 128):
+                                60 <= bpm <= 200 and steps.is_integer() and
+                                (1 <= steps <= 128 or (-128 <= steps <= -1 and swing == 0))):
                             raise RuntimeError("invalid music bar")
                         if position is not None:
                             # Fixed-size shared memory: a closed or slow view

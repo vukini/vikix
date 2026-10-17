@@ -3,3 +3,5 @@
 .subtitle{border-left:3px solid #75a794;padding:0 18px;margin-top:28px}.subtitle p{margin:8px 0}.subtitle pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:.9rem;color:#b3e7d4}
 
 #pads{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}#pads button{min-width:110px;padding:14px}#pads [aria-pressed=true]{background:#b3e7d4;color:#152820}.step.current{outline:3px solid #e8ca89;outline-offset:-4px}
+
+#grid.blocks{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}.step.block{height:auto;gap:12px}.block input{width:70px}.block button{margin-right:8px}

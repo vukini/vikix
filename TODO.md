@@ -88,7 +88,7 @@ Added 2026-09-30, from a conversation with Vid about 0.52-0.65. Not yet ordered 
 
 ### Music
 
-22. **Music production as a feature** (`plans/DESIGN-music.md`; executable Office plan: `plans/music-next.toml`). Phase 0 and the first browser interface are shipped (`ARCHIVE.md`): Lisp patterns, safe live edits, pads, subtitles and playhead; Cuis remains experimental. Left: saved pad banks and desktop keys, more sounds, capture, MIDI/WAV export and DAW integration, swing, chords and variations. Physical round-trip latency still needs a loopback measurement; low-latency recording settings and the Ardour/Carla/plugin feature set remain.
+22. **Music production as a feature** (`plans/DESIGN-music.md`; executable Office plan: `plans/music-next.toml`). Phase 0 and the first browser interface are shipped (`ARCHIVE.md`): Lisp patterns, safe live edits, pads, subtitles and playhead; Cuis remains experimental. Left: saved pad banks and desktop keys, more sounds, capture, MIDI/WAV export and DAW integration, swing and variations. Chord blocks are implemented at music-progressions for plan review; their semantics are in docs/music.md. Physical round-trip latency still needs a loopback measurement; low-latency recording settings and the Ardour/Carla/plugin feature set remain.
 
 ### Languages and reading
 

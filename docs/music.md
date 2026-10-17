@@ -109,6 +109,59 @@ pitched drum notes and odd-length swung patterns are rejected as data.
 The experimental Cuis view retains its existing controls; use the browser
 or score file for these new fields.
 
+## Chord progressions
+
+A progression is another named pattern: select it or assign it to a pad.
+The browser shows chord blocks instead of note cells. Add its form to your
+score file to create one:
+
+```lisp
+(defprogression verse '(I (vi 2) - IV V) :key 'f :sound 'bell :gain 0.6)
+```
+
+Each bare degree lasts one four-beat bar. `(vi 2)` lasts two bars; `-` is
+a silent bar and `(- 2)` is two silent bars. There are 1–32 blocks, each
+1–16 whole bars, and at most 128 bars in total. The sequence loops; selecting
+its pad starts at the first bar. `play --bars N` counts bars, including silence,
+not whole sequences. Patterns and progressions share the 32-name limit.
+
+Degree spelling is case sensitive: `I II III IV V VI VII` are major triads;
+`i ii iii iv v vi vii` are minor triads. Their roots use the major scale's
+semitone offsets 0, 2, 4, 5, 7, 9, 11 from the key. Lowercase changes the
+third, not the scale: `vi` in C is A minor; `i` in C is C minor. There is
+no inferred minor mode, diminished chord, seventh or inversion. Mixed case
+such as `Iv` is refused. Other score names and options remain case insensitive.
+
+`:key 'f` sets the tonic for the entire progression; the default is C.
+Use a letter C–B with optional `s` for sharp or `b` for flat (`fs`, `bb`).
+The root starts at that written tonic in octave 3 (so C-flat is B2), and
+degrees rise from there. Major triads add 4 and 7 semitones; minor triads
+add 3 and 7. In F, `I` plays F3–A3–C4 and `vi` plays D4–F4–A4.
+These are close, root-position voicings, with no voice-leading adjustment.
+
+Each occupied bar rearticulates all three notes together, using the existing
+short note envelope (0.3 seconds); lengthening a block repeats that chord
+on each bar, rather than sustaining it. The three voices divide pattern gain
+equally, then multiply by session gain. Sine, bass and bell are available;
+drums and swing are refused for progressions. Existing note patterns keep
+their timing and levels.
+
+Choose each block's degree and **Bars**, drag it to a new position or use
+its left/right arrows, and choose **Key** to transpose the progression.
+Sound and Pattern gain work as before. Each edit validates the whole score,
+takes a snapshot and changes only the necessary tokens. Reordering moves
+musical values among the existing positions; comments and whitespace stay
+in their original positions. Unrelated forms are preserved. A stale edit
+is refused. The Lisp subtitle represents the same accepted blocks, durations,
+key and sound; it normalizes a one-bar block to a bare degree.
+
+Live edits take effect at the next unscheduled bar, keeping the scheduled bar
+index modulo the new progression length. Changing the key transposes that
+next bar. Invalid edits keep the last good playback, blocks and subtitle.
+The gold outline follows the bar reported by the separate Lisp clock,
+including silent bars; no music is scheduled in the browser. The experimental
+Cuis view does not edit chord blocks: use the browser or score file.
+
 ## Lisp from a terminal or Emacs
 
 `vikix music repl` opens a separate local Lisp REPL. In Emacs, use
@@ -214,7 +267,7 @@ selects patterns directly; edit bank assignments in the browser or score.
 ## What comes later
 
 Desktop pad keys, capture, DAW integration,
-MIDI, chords and variations remain. There is no new desktop key or menu entry yet.
+MIDI and variations remain. There is no new desktop key or menu entry yet.
 
 `vikix remove music` removes the feature's dependencies when nothing else
 needs them and the prepared synth, keeping `~/music`. `vikix music setup`

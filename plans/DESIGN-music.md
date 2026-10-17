@@ -25,6 +25,13 @@ delaying alternate steps in even-length patterns. X triggers the selected
 drum or a 220 Hz melodic note. No samples. See the guide for syntax and
 browser controls; the score remains data, never evaluated.*
 
+*2026-10-18: Progression blocks implemented at music-progressions for plan
+review: case-sensitive major/minor triads on major-scale roots, quoted tonic,
+1–16 whole bars per block, silence and a 128-bar bound. Browser edits preserve
+source comments; the separate Lisp clock schedules chords and silent bars.
+See the music guide for exact voicing, gain, reload and duration semantics.
+Real desktop listening remains a manual release check.*
+
 ## Executable Office plan
 
 [music-next.toml](music-next.toml) is the executable continuation, not a template.
@@ -193,8 +200,7 @@ What remains for the first version is assigned to the first eight Office tasks:
 
 1. **Sounds:** sound selection, bounded swing
    and dynamics, and rhythm hits; old scores must retain their behavior.
-2. **Progressions:** validated chord blocks with a browser representation and
-   agreed voicings, keys and durations.
+2. **Progressions:** implemented at the desk, awaiting plan review/release.
 3. **Desktop integration:** registry commands, conflict-free keys, a nonblocking
    beat/tempo display, and theme integration.
 4. **Capture inbox:** explicit source selection, preserved recordings, preview,
@@ -262,7 +268,6 @@ Decided by this check:
 Decide through Office when the relevant task starts:
 
 - Any future sample source and license (the original synthesized palette and gain semantics are settled).
-- Chord voicings, keys and progression-block durations.
 - Pad and recording keys after auditing the registry: Super+digits belong to workspaces.
 - Recording sources and defaults, capture filing and recovery behavior.
 - The controller available for a real MIDI trial and its learn/reconnect behavior.

@@ -1,6 +1,7 @@
 """Shared protocol, filesystem safety, real browser and disposable Cuis clients."""
 import base64
 import http.client
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -593,6 +594,63 @@ StdIOWriteStream stdout nextPutAll: 'MUSIC-CUIS-PASS'; newLine; flush.
             assert js("document.querySelector('#note option[value=a5]').disabled")
             assert js("document.querySelector('#note').value") == 'x'
             assert js("document.querySelectorAll('.step.current').length") <= 1
+            # Chord blocks share the released browser and snapshot path.
+            untouched = song.read_text()
+            song.write_text(untouched + "\n; progression comment\n(defprogression verse '(I ; hold this place\n (vi ; length note\n 2) - V) :key 'f :sound 'bell)\n")
+            until(lambda: js("state.patterns.some(p => p.name === 'verse')"))
+            js("$('pattern').value='verse'; $('pattern').dispatchEvent(new Event('change'))")
+            assert "(defprogression verse '(I (vi 2) - V) :key 'f :sound 'bell)" in subtitle()
+            assert js("$('grid').children.length") == 4
+            until(lambda: js('!busy'))
+            js("document.querySelector('.block input').value=2; document.querySelector('.block input').dispatchEvent(new Event('change'))")
+            until(lambda: "'((I 2)" in song.read_text())
+            snapshot = subprocess.check_output(['git', '--git-dir=' + str(home / '.local/state/vikix/yours.git'),
+                                                'show', 'HEAD:music/first-song/patterns.lisp'], env=env, text=True, timeout=5)
+            assert "'(I ; hold this place" in snapshot
+            until(lambda: js('!busy'))
+            js("document.querySelector('.block button:last-child').click()")
+            until(lambda: "'((vi 2)" in song.read_text())
+            assert "; hold this place\n (I ; length note\n 2)" in song.read_text()
+            assert song.read_text().startswith(untouched)
+            until(lambda: js('!busy'))
+            js("document.querySelector('.block select').value='ii'; document.querySelector('.block select').dispatchEvent(new Event('change'))")
+            until(lambda: "'((ii 2)" in subtitle())
+            until(lambda: js('!busy'))
+            js("$('key').value='d'; $('key').dispatchEvent(new Event('change'))")
+            until(lambda: ":key 'd" in subtitle())
+            until(lambda: js('!busy'))
+            js("$('play').click()")
+            until(lambda: js("state.playing && state.pattern === 'verse' && state.bars.some(b => b.progression_bar === 0)"))
+            until(lambda: js("document.querySelectorAll('.block.current').length") == 1)
+            until(lambda: js("state.bars.some(b => b.progression_bar === 4)"), 12)
+            # The silent block has its own scheduled position despite no notes.
+            until(lambda: js("document.querySelectorAll('.block')[2].classList.contains('current')"), 12)
+            accepted = song.read_text()
+            accepted_subtitle = subtitle()
+            song.write_text(accepted.replace("'((ii 2)", "'((VIII 2)"))
+            until(lambda: js('Boolean(state.error)'))
+            assert subtitle() == accepted_subtitle and js('state.playing')
+            song.write_text(accepted)
+            until(lambda: js('!state.error && !busy'))
+            # A subtitle is accepted score data, and long QUOTE spellings
+            # normalize back to the same blocks without losing degree case.
+            song.write_text(untouched + '\n' + accepted_subtitle + '\n')
+            until(lambda: js('!state.error && !busy') and subtitle() == accepted_subtitle)
+            check = subprocess.run([str(root / 'bin/vikix'), 'music', 'check', str(song)],
+                                   env=env, capture_output=True, text=True, timeout=10)
+            assert check.returncode == 0, check.stderr
+            song.write_text(untouched + "\n(defprogression verse (quote ((ii +2) (I 2.) - V)) :key (quote d) :sound (quote bell))\n")
+            until(lambda: js('!state.error && !busy') and subtitle() == accepted_subtitle)
+            # Wait for the actual new revision, not merely equal old content.
+            until(lambda: js('state.revision') == hashlib.sha256(song.read_bytes()).hexdigest())
+            before_invalid = song.read_text()
+            js("send({op:'duration', pattern:'verse', step:0, value:17, revision:state.revision})")
+            until(lambda: js('Boolean(state.error)'))
+            assert song.read_text() == before_invalid
+            until(lambda: js('!busy'))
+            js("send({op:'move-block', pattern:'verse', step:0, target:1, revision:'stale'})")
+            until(lambda: js("$('status').textContent.includes('song changed')"))
+            assert song.read_text() == before_invalid
             artifacts = os.environ.get('MUSIC_VIEW_ARTIFACTS')
             if artifacts:
                 until(lambda: js("document.querySelectorAll('.step.current').length") == 1)

@@ -32,6 +32,16 @@ A page of the Vikix skill (~/.claude/skills/vikix/SKILL.md: read that first, its
 
 ## Music sketchpad
 
+`(defprogression verse '(I (vi 2) - V) :key 'f)` adds chord blocks to the
+same score and pads. Uppercase degrees are major triads, lowercase minor,
+on major-scale roots above the written tonic in octave 3. Each block lasts
+1–16 whole four-beat bars (default 1), up to 32 blocks and 128 bars; `-`
+is silence. Chords rearticulate each bar, sharing pattern gain among three
+voices; sine, bass and bell only, no swing. Browser degree/key/duration and
+reorder edits preserve unrelated tokens and comments, with snapshot undo.
+The Lisp clock owns all scheduling; bad edits retain last-good playback.
+The guide documents exact voicings and bar-index behavior during edits.
+
 The browser also saves optional per-pattern `:sound 'sine|kick|snare|closed-hat|bass|bell`,
 `:gain` (0–1 multiplier) and `:swing` (0–0.5, even step count when nonzero).
 Drums accept X hits and rests only; melodic X remains 220 Hz. Session
