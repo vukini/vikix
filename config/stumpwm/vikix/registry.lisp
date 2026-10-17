@@ -727,6 +727,9 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command windows-vm "Windows (the VM)"
   :do (run-shell-command (format nil "vikix-windows open || ~a -e sh -c 'vikix windows status; printf \"\\nEnter closes this window. \"; read x'" *vikix-terminal*))
   :menu "Apps" :needs "virt-viewer")
+(define-vikix-command vms "Virtual machines: each one's state; start, open, pause, save, shut down"
+  :run "exec vikix-vm"
+  :menu "Apps" :needs "virsh")
 
 ;;; --- Running one, and what agents are offered -------------------------------------------------
 

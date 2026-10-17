@@ -202,6 +202,10 @@
 #   vikix windows app NAME [FILE] | apps [setup|add NAME|remove NAME|forget]
 #                         one Windows program in a window of its own, and
 #                         the programs Windows has
+#   vikix vm [list|start|open|pause|resume|save|stop|off|status NAME]
+#                         every virtual machine libvirt has, yours and the
+#                         system's, in a menu: its state, start, pause, save,
+#                         shut down, open its screen (Super+m, Apps)
 #   vikix steam [setup|status|uninstall]   Steam, with the 32-bit libraries and
 #                         the Vulkan driver your graphics card needs; Windows
 #                         games too, through Proton (vikix steam help)
@@ -1201,6 +1205,7 @@ main() {
     backup)      shift; exec "$VIKIX_DIR/bin/vikix-backup" "$@" ;;
     firmware)    shift; exec "$VIKIX_DIR/bin/vikix-firmware" "$@" ;;
     windows)     shift; exec "$VIKIX_DIR/bin/vikix-windows" "$@" ;;
+    vm|vms)      shift; exec "$VIKIX_DIR/bin/vikix-vm" "$@" ;;
     steam)       shift; exec "$VIKIX_DIR/bin/vikix-steam" "$@" ;;
     ai)          shift; exec "$VIKIX_DIR/bin/vikix-ai" "$@" ;;
     webapp|webapps) shift; exec "$VIKIX_DIR/bin/vikix-webapp" "$@" ;;

@@ -53,6 +53,7 @@ Four commands, in a terminal.
 - **The window** tiles like any other: split the screen, move it, make it full screen with Super+f. Windows changes its screen size to fit.
 - **Shutting it down.** Shut Windows down from its own Start menu, or run `vikix windows stop`. Reboot and Power off in Super+Shift+Escape shut Windows down properly first. Logging out leaves it running.
 - **Is it on?** `vikix windows status` says whether it's installed and running, and where its parts are.
+- **With the other VMs.** **Super+m** → *Apps* → *Virtual machines* (`vikix vm`) lists every VM libvirt has, yours and the system's, with its state, memory and CPUs. Enter on one offers what fits: open its screen, start, pause (it keeps its memory and uses no processor), save (its memory goes to disk and it switches off; the next start takes it up where it was), shut down, or switch off. From a shell: `vikix vm pause windows`, `vikix vm save windows`, `vikix vm start windows`.
 
 ## One program, in a window of its own
 

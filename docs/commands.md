@@ -71,6 +71,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-times](#vikix-times): how long the desktop takes
 - [vikix-updates](#vikix-updates): what `vikix update` would bring
 - [vikix-used](#vikix-used): what gets used: the keys you press and the commands you run
+- [vikix-vm](#vikix-vm): virtual machines: every one libvirt has, in a menu
 - [vikix-voice](#vikix-voice): talk to the AI, and it talks back
 - [vikix-wallpaper](#vikix-wallpaper): the picture behind the windows
 - [vikix-wallpapers](#vikix-wallpapers): more wallpapers: Vid's collection, a git repository
@@ -161,6 +162,7 @@ The everyday command.
 - `vikix ai key set|list|remove|check` — API keys (`ANTHROPIC_API_KEY` ...) kept safely, out of your dotfiles and their history
 - `vikix windows [setup|create ISO|stop|status|network|remove]` — Windows in a VM: set it up once, install it by itself, then open its desktop in a window (vikix windows help)
 - `vikix windows app NAME [FILE] | apps [setup|add NAME|remove NAME|forget]` — one Windows program in a window of its own, and the programs Windows has
+- `vikix vm [list|start|open|pause|resume|save|stop|off|status NAME]` — every virtual machine libvirt has, yours and the system's, in a menu: its state, start, pause, save, shut down, open its screen (Super+m, Apps)
 - `vikix steam [setup|status|uninstall]` — Steam, with the 32-bit libraries and the Vulkan driver your graphics card needs; Windows games too, through Proton (vikix steam help)
 
 Each command has a man page with the whole of it: man vikix-NAME (man vikix is this list; man -k vikix lists the pages).
@@ -1352,6 +1354,18 @@ What gets used: the keys you press and the commands you run.
 The desktop counts each key that runs a command, each entry picked in Super+m and the other menus, each pick in the palette (Super+Space), each command typed after Ctrl+t ;, each rule that runs, each command an agent runs, and at the door (vikix door) the names an agent's Lisp calls, the name that held a form and whether you ran or dropped it. It keeps names and numbers only: the key, the command it is bound to, the entry's words, and when each was first and last used. Never a window's title, never what you typed into a program or after a command's name.
 
 The counts are in `~/.local/state/vikix/used`, a text file that is yours to read or delete. Nothing sends it anywhere. They are written every five minutes and when the desktop ends.
+
+## vikix-vm
+
+Virtual machines: every one libvirt has, in a menu.
+
+- `vikix vm` — the VMs in rofi: yours (qemu:///session, where vikix windows keeps Windows) and the system's (qemu:///system), each with its state, memory and CPUs. Enter on one offers what fits its state: open its screen, start, pause, resume, save (its memory to disk, then off: the next start takes it up where it was), shut down, switch off. After an act the list is shown again, with the new state. Super+m, Apps, Virtual machines opens the same
+- `vikix vm list` — the same lines, no menu
+- `vikix vm start|open|pause|resume|save|stop|off NAME` — one VM from a shell, by the name the list shows. open shows its screen (virt-viewer), starting it first when it's off; stop asks it to shut down, off switches it off as pulling the plug would
+- `vikix vm fresh NAME` — start a saved VM afresh, its saved state thrown away
+- `vikix vm status NAME` — one VM: state, memory, CPUs, and which libvirt it's in
+
+A VM that is paused keeps its memory but uses no processor; a saved one uses neither, and starts where it was. The Windows VM (vikix windows) opens as `vikix windows` does, so its checks run. The system's libvirt answers when you are in the libvirt group; when it doesn't, only yours are listed. Nothing here needs sudo.
 
 ## vikix-voice
 

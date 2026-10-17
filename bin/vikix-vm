@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+# vikix-vm — virtual machines: every one libvirt has, in a menu (`vikix vm`).
+#
+#   vikix vm              the VMs in rofi: yours (qemu:///session, where
+#                         vikix windows keeps Windows) and the system's
+#                         (qemu:///system), each with its state, memory and
+#                         CPUs. Enter on one offers what fits its state:
+#                         open its screen, start, pause, resume, save (its
+#                         memory to disk, then off: the next start takes it
+#                         up where it was), shut down, switch off. After an
+#                         act the list is shown again, with the new state.
+#                         Super+m, Apps, Virtual machines opens the same
+#   vikix vm list         the same lines, no menu
+#   vikix vm start|open|pause|resume|save|stop|off NAME
+#                         one VM from a shell, by the name the list shows.
+#                         open shows its screen (virt-viewer), starting it
+#                         first when it's off; stop asks it to shut down,
+#                         off switches it off as pulling the plug would
+#   vikix vm fresh NAME   start a saved VM afresh, its saved state thrown away
+#   vikix vm status NAME  one VM: state, memory, CPUs, and which libvirt it's in
+#
+# A VM that is paused keeps its memory but uses no processor; a saved one
+# uses neither, and starts where it was. The Windows VM (vikix windows)
+# opens as `vikix windows` does, so its checks run. The system's libvirt
+# answers when you are in the libvirt group; when it doesn't, only yours
+# are listed. Nothing here needs sudo.
+
+set -euo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+
+# Where to look, in order (tests point this elsewhere); the first is yours.
+URIS=${VIKIX_VM_URIS:-"qemu:///session qemu:///system"}
+WINDOWS_CMD=${VIKIX_VM_WINDOWS:-$VIKIX_DIR/bin/vikix-windows}
+
+vsh() { command virsh -q -c "$1" "${@:2}"; }   # vsh URI ARGS...
+notify() { command -v notify-send >/dev/null 2>&1 && notify-send -a Vikix "$@" 2>/dev/null || true; }
+escape() { sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'; }
+# Said on the terminal from a shell, as a notification from the menu.
+MENU=''
+tell() { if [ -n "$MENU" ]; then notify "$1" "${2:-}"; else say "$*"; fi; }
+fail() { if [ -n "$MENU" ]; then notify -u critical "$1" "${2:-}"; exit 1; else die "$*"; fi; }
+
+whose() { if [ "$1" = "${URIS%% *}" ]; then echo yours; else echo "the system's"; fi; }
+
+# Every VM of one libvirt: URI, name, state, memory in GB, CPUs, tab-parted;
+# a libvirt that doesn't answer (not yours, or not running) lists nothing.
+vms_of() {   # vms_of URI
+  local uri=$1 name info state mem cpus saved
+  { vsh "$uri" list --all --name 2>/dev/null || true; } | sed '/^$/d' | while IFS= read -r name; do
+    info=$(vsh "$uri" dominfo "$name" 2>/dev/null) || continue
+    state=$(sed -n 's/^State: *//p' <<<"$info")
+    saved=$(sed -n 's/^Managed save: *//p' <<<"$info")
+    mem=$(sed -n 's/^Max memory: *\([0-9]*\) KiB/\1/p' <<<"$info" | awk '{ printf "%.3g", $1 / 1048576 }')
+    cpus=$(sed -n 's/^CPU(s): *//p' <<<"$info")
+    case $state in
+      'shut off') if [ "$saved" = yes ]; then state=saved; else state=off; fi ;;
+      'in shutdown') state=stopping ;;
+    esac
+    printf '%s\t%s\t%s\t%s\t%s\n' "$uri" "$name" "$state" "${mem:-?}" "${cpus:-?}"
+  done
+}
+vms() { local uri; for uri in $URIS; do vms_of "$uri"; done; }
+
+line() {   # line URI NAME STATE MEM CPUS — as the list shows it
+  printf '%-16s %-9s %s GB, %s CPUs   %s\n' "$2" "$3" "$4" "$5" "$(whose "$1")"
+}
+
+# find_vm NAME — the line of the VM called NAME, yours first.
+# (awk reads to the end: an early exit would close the pipe on vms, and pipefail would call that a failure.)
+find_vm() { vms | awk -F'\t' -v n="$1" '$2 == n && !found { print; found = 1 }' | grep . || fail "No VM called $1" "vikix vm list shows them"; }
+
+# ---------------------------------------------------------------------------
+# The acts. Each takes URI NAME [STATE]; virsh's complaint is passed on.
+
+act() {   # act URI VERB NAME — one virsh command, its error said
+  local out
+  out=$(vsh "$1" "$2" "$3" 2>&1) || fail "Couldn't $2 $3" "$(tail -1 <<<"$out" | sed 's/^error: //' | escape)"
+}
+do_start() { act "$1" start "$2"; tell "$2 is starting" ""; }
+do_pause() { act "$1" suspend "$2"; tell "$2 is paused" "it keeps its memory, and uses no processor until it's resumed"; }
+do_resume() { act "$1" resume "$2"; tell "$2 goes on" ""; }
+do_save() {
+  tell "Saving $2" "its memory to disk, then off; a moment"
+  act "$1" managedsave "$2"
+  tell "$2 is saved" "the next start takes it up where it was"
+}
+do_fresh() { act "$1" managedsave-remove "$2"; do_start "$1" "$2"; }
+do_stop() { act "$1" shutdown "$2"; tell "$2 is shutting down" "asked to; Switch off when it won't"; }
+do_off() { act "$1" destroy "$2"; tell "$2 is switched off" ""; }
+do_open() {   # the screen, started first when it's off or saved
+  local uri=$1 name=$2 state=${3:-}
+  if [ "$name" = windows ] && [ "$uri" = "${URIS%% *}" ] && [ -x "$WINDOWS_CMD" ]; then
+    exec "$WINDOWS_CMD" open
+  fi
+  case $state in off|saved) do_start "$uri" "$name" ;; paused) do_resume "$uri" "$name" ;; esac
+  command -v virt-viewer >/dev/null || fail "virt-viewer is missing" "vikix pkg add virt-viewer brings it"
+  setsid virt-viewer --connect "$uri" --attach --auto-resize=always "$name" >/dev/null 2>&1 </dev/null &
+}
+
+# What a VM in STATE can have done to it: label, then the act, tab-parted.
+offers() {   # offers STATE
+  case $1 in
+    running) printf '%s\t%s\n' 'Open its screen' open 'Pause (keeps its memory, uses no processor)' pause \
+               'Save and switch off (memory to disk; starts where it was)' save \
+               'Shut down' stop 'Switch off, as pulling the plug' off ;;
+    paused)  printf '%s\t%s\n' 'Resume' resume 'Open its screen' open \
+               'Save and switch off (memory to disk; starts where it was)' save 'Switch off, as pulling the plug' off ;;
+    saved)   printf '%s\t%s\n' 'Start, where it was saved' start 'Open its screen (starts it where it was)' open \
+               'Start afresh, the saved state thrown away' fresh ;;
+    off)     printf '%s\t%s\n' 'Start' start 'Open its screen (starts it)' open ;;
+    *)       printf '%s\t%s\n' 'Switch off, as pulling the plug' off ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# The menu: the VMs, then what can be done with the one picked, then the
+# VMs again. The picks come back as line numbers: a name can hold anything.
+
+menu() {
+  local rows pick uri name state mem cpus offered labels acts n
+  MENU=1
+  while :; do
+    mapfile -t rows < <(vms)
+    if [ "${#rows[@]}" -eq 0 ]; then
+      fail "No virtual machines" "none in yours (qemu:///session) or the system's libvirt. vikix windows makes one"
+    fi
+    menu_lines=$(for r in "${rows[@]}"; do IFS=$'\t' read -r uri name state mem cpus <<<"$r"; line "$uri" "$name" "$state" "$mem" "$cpus"; done)
+    pick=$(rofi -dmenu -i -no-custom -format i -p "VMs" \
+             -mesg "Yours and the system's. Enter on one: what can be done with it" <<<"$menu_lines") || return 0
+    [[ $pick =~ ^[0-9]+$ ]] && [ "$pick" -lt "${#rows[@]}" ] || return 0
+    IFS=$'\t' read -r uri name state mem cpus <<<"${rows[$pick]}"
+    mapfile -t offered < <(offers "$state")
+    labels=(); acts=()
+    for n in "${offered[@]}"; do labels+=("${n%%$'\t'*}"); acts+=("${n#*$'\t'}"); done
+    pick=$(rofi -dmenu -i -no-custom -format i -p "$name" \
+             -mesg "$(escape <<<"$name: $state, $mem GB, $cpus CPUs, $(whose "$uri")")" \
+             < <(printf '%s\n' "${labels[@]}")) || continue
+    [[ $pick =~ ^[0-9]+$ ]] && [ "$pick" -lt "${#acts[@]}" ] || continue
+    case ${acts[$pick]} in
+      open) do_open "$uri" "$name" "$state"; return 0 ;;
+      *) ( "do_${acts[$pick]}" "$uri" "$name" ) || true ;;   # a refusal is notified; the list comes back
+    esac
+  done
+}
+
+one() {   # one VERB NAME — from a shell
+  local verb=$1 name=${2:-} row uri state mem cpus
+  [ -n "$name" ] || die "vikix vm $verb NAME (vikix vm list shows them)"
+  row=$(find_vm "$name") || exit 1
+  IFS=$'\t' read -r uri name state mem cpus <<<"$row"
+  case $verb in
+    status) printf 'VM:            %s (%s)\nstate:         %s\nmemory, CPUs:  %s GB, %s CPUs\nlibvirt:       %s\n' \
+              "$name" "$(whose "$uri")" "$state" "$mem" "$cpus" "$uri" ;;
+    open) do_open "$uri" "$name" "$state" ;;
+    *) "do_$verb" "$uri" "$name" ;;
+  esac
+}
+
+case ${1:-} in
+  '')   menu ;;
+  list) vms | while IFS=$'\t' read -r uri name state mem cpus; do line "$uri" "$name" "$state" "$mem" "$cpus"; done ;;
+  start|open|pause|resume|save|fresh|stop|off|status) one "$1" "${2:-}" ;;
+  help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) die "vikix vm [list|start|open|pause|resume|save|fresh|stop|off|status NAME] (vikix vm help)" ;;
+esac
