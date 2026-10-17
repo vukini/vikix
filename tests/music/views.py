@@ -252,6 +252,10 @@ with tempfile.TemporaryDirectory(prefix='music-views-test-') as temp:
         assert not state['error'], state
         assert song.read_text() == original.replace("'(a5", "'(e6")
         assert (home / '.local/state/vikix/yours.git').exists()
+        # The bank checks can exceed the server's five-second idle timeout
+        # under parallel test load. Start a fresh second client for this edit.
+        b.close(); clients.remove(b)
+        b = Client(info); clients.append(b)
         assert b.request('state')['revision'] == state['revision']
         conflict = b.request('note', revision=revision, pattern='melody', step=1, note='a5')
         assert 'song changed' in conflict['error'], conflict
