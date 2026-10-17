@@ -68,6 +68,7 @@ import shutil
 import subprocess
 import tempfile
 import sys
+import time
 
 VIKIX_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 VIKIX = os.path.join(VIKIX_DIR, "bin", "vikix")
@@ -87,6 +88,11 @@ SORTING = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("
 SORTING_MAX = 4000
 VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"]
 MAX_OUT = 20000
+OFFICE_OUT = 8 << 20        # the Office's snapshot (every task and desk, the archive) runs to megabytes; it is read whole, then made small
+OFFICE_TEXT = 1500          # a row's text longer than this is cut short
+OFFICE_LAST = 3             # of a row's events, log lines and checks, the last ones kept
+OFFICE_DONE = ("status", "estimate", "summary", "next", "acceptance")   # of a done task's handoff, what stays
+OFFICE_DAY = 86400          # a task done longer ago than this is left out of tasks (tasks with all has it)
 MAX_LINE = 1 << 20          # a request longer than 1 MB isn't one
 FLAGS = ("--allow-eval", "--allow-undo")
 
@@ -391,18 +397,56 @@ def t_agents(a):
 
 
 def t_office(a):
-    """The same read-only projection used by the Office's Emacs frame."""
+    """The same read-only projection used by the Office's Emacs frame, made
+    small enough to read whole: the archive's rows are left out (archive_count
+    says how many; tasks --all and handoff DESK have them), so are the tasks
+    done more than a day ago (tasks_omitted counts them), a desk row's task
+    record is its id alone, a done task's handoff keeps its status, summary
+    and next alone, a row's events, log and checks are their last few with a
+    count, and a text is cut short at OFFICE_TEXT. Whole, the snapshot ran
+    past the output cap and was no JSON at all."""
     out, ok = run([sys.executable, os.path.join(os.path.dirname(os.path.realpath(__file__)), "vikix-agents"),
-                   "office", "--json"], timeout=45)
+                   "office", "--json"], timeout=45, cap=OFFICE_OUT)
     if not ok:
         raise ToolError(scrub(out)[:300] or "Office snapshot failed")
     try:
         data = json.loads(out)
     except ValueError:
         raise ToolError("Office returned invalid JSON")
+    if isinstance(data, dict):
+        archive = data.get("archive")
+        data["archive_count"] = len(archive) if isinstance(archive, list) else 0
+        data["archive"] = []
+        tasks, kept, omitted = data.get("tasks"), [], 0
+        if isinstance(tasks, list):
+            for row in tasks:
+                status = row.get("status") if isinstance(row, dict) else None
+                value = status.get("value") if isinstance(status, dict) else status
+                if value in ("completed", "cancelled") and (row.get("activity") or 0) < time.time() - OFFICE_DAY:
+                    omitted += 1
+                else:
+                    kept.append(row)
+            data["tasks"], data["tasks_omitted"] = kept, omitted
+        for name in ("tasks", "desks"):
+            for row in data.get(name) or []:
+                if not isinstance(row, dict):
+                    continue
+                rec = row.get("task_record")
+                if isinstance(rec, dict):
+                    row["task_record"] = {"id": rec.get("id")}
+                status = row.get("status")
+                done = (status.get("value") if isinstance(status, dict) else status) in ("completed", "cancelled")
+                if done and isinstance(row.get("handoff"), dict):
+                    row["handoff"] = {k: v for k, v in row["handoff"].items() if k in OFFICE_DONE}
+                for key in ("events", "log", "checks", "workers", "sessions"):
+                    items = row.get(key)
+                    if isinstance(items, list) and len(items) > OFFICE_LAST:
+                        row[key + "_count"] = len(items)
+                        row[key] = items[-OFFICE_LAST:]
     def clean(value):
         if isinstance(value, str):
-            return scrub(value)
+            value = scrub(value)
+            return value if len(value) <= OFFICE_TEXT else value[:OFFICE_TEXT] + " […]"
         if isinstance(value, list):
             return [clean(v) for v in value]
         if isinstance(value, dict):
@@ -932,7 +976,10 @@ TOOLS = [
      "from signed handoff claims and observed Git state. Includes retained desks, reported check freshness, "
      "saved conversation availability, and the releases under way in the projects (.claude/release's queue: "
      "topic, state, since when; each desk's release, when its branch is being released). Discovery failures "
-     "mean unknown, not stopped. Read only." + DATA,
+     "mean unknown, not stopped. Made small enough to read: the archive's rows and the tasks done more than "
+     "a day ago are left out (archive_count and tasks_omitted count them; tasks with all, or handoff with a "
+     "desk, has one), a row keeps the last few of its events, log lines and checks with their count, and a "
+     "long text is cut short. Read only." + DATA,
      schema(), READ, t_office),
     ("tasks", "The task board",
      "The office's tasks as the Office shows them (vikix agents tasks): the sections Needs attention (the items that "

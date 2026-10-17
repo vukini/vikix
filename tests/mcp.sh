@@ -241,6 +241,9 @@ check "Office exposes desk rows: $out" grep -q '"desks":' <<<"$out"
 check "Office is version 2, with the tasks and the launch sequence: $out" python3 -c '
 import json, sys
 o = json.loads(sys.argv[1]); assert o["version"] == 2 and "tasks" in o and "sequence" in o, sorted(o)' "$out"
+check "Office leaves the archive's rows out and counts them: $out" python3 -c '
+import json, sys
+o = json.loads(sys.argv[1]); assert o["archive"] == [] and isinstance(o["archive_count"], int), (o["archive"], o.get("archive_count"))' "$out"
 
 # A desk's handoff: the record read and written through the office's own code, signed by the caller.
 mkdir -p "$t/src" "$t/proc" "$HOME/.config/vikix"; echo "5000.00 1.00" > "$t/proc/uptime"; printf 'root=%s\n' "$t/src" > "$HOME/.config/vikix/projects"

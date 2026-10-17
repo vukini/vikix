@@ -7,9 +7,11 @@
 #   A plan file is read and checked (a mistake named with its task); a task
 #   after one at another desk needs a desk of its own. The first round makes
 #   the desks and starts a worker at each, up to at-once, each worker's task
-#   its first prompt and the record's task. A hand-in (status review) has
+#   its first prompt and the record's task (a queue lock held by another is
+#   tried again next round, not a stopped desk). A hand-in (status review) has
 #   its tests run, and once they pass and the worker is dismissed the next
-#   task of the chain starts at the same desk with the handoff before it; a
+#   task of the chain starts at the same desk with the handoff before it (a
+#   worker seated there again by the user holds it under Needs you); a
 #   failed round's next worker is told why in the inbox, and the third
 #   failure stops the desk under Needs you (status waiting by vikix). The
 #   chain's end releases the desk with the project's .claude/release, held
@@ -31,7 +33,7 @@ export TESTER_CALLS="$t/calls" TESTER_FAIL="$t/fail" RELEASE_FAIL="$t/release-fa
 # A made-up display, so a worker's terminal opens: the terminal, the eval and
 # the agent are stand-ins, and notify-send is one too (never the real desktop's).
 export DISPLAY=:7 VIKIX_TERMINAL="$t/bin/term" VIKIX_EVAL="$t/bin/eval" VIKIX_AGENT_CMD="$t/bin/agent"
-export VIKIX_PLAN_GRACE=30 VIKIX_PLAN_POLL=4
+export VIKIX_PLAN_GRACE=30 VIKIX_PLAN_POLL=4 VIKIX_PLAN_BUSY_WAIT=0.1
 mkdir -p "$HOME/.config/vikix" "$t/src" "$t/proc" "$t/bin"
 printf 'root=%s\n' "$t/src" > "$HOME/.config/vikix/projects"
 echo "5000.00 1.00" > "$t/proc/uptime"
@@ -155,10 +157,27 @@ printf 'project = "book"\n[[task]]\nname = "a"\n' > "$t/bad.toml"
 check "a task needs its words" grep -q 'task 1 (a): task = "..." is the worker'"'"'s job' <<<"$(agents plan status "$t/bad.toml")"
 check "no plan has run yet" grep -q 'no plan has run yet' <<<"$(agents plan status)"
 
+# --- A busy queue: the round starts nothing, says so, and the desk isn't stopped --------------
+# The queue's lock is held a moment by a launch, a release closing its desk
+# or a snapshot (the music-sounds desk of 2026-10-17 was called stopped over
+# one): the runner tries again within the round, then leaves it to the next.
+mkdir -p "$HOME/.local/state/vikix/office"
+flock "$HOME/.local/state/vikix/office/queue.lock" sleep 60 & lockpid=$!
+sleep 0.3
+out=$(round)
+check "a busy queue is said, with the round count, the desks made first: $(tr '\n' '|' <<<"$out" | cut -c1-300)" \
+  bash -c 'grep -q "\$ desk book part-one" <<<"$1" && grep -q "part-one: the queue is busy (round 1 of 5); intro is tried again next round" <<<"$1"' _ "$out"
+check "no worker started" test ! -s "$t/agents"
+check "the desk isn't stopped: $(agents plan status book | grep 'desk part-one')" bash -c '! grep -q "stopped" <<<"$1"' _ "$(agents plan status book)"
+check "the note counts the busy round" python3 -c '
+import glob, json, sys
+n = json.load(open(glob.glob(sys.argv[1] + "/.local/state/vikix/office/plans/*.json")[0])); assert n["busy"] == {"part-one": 1, "index": 1}, n' "$HOME"
+pkill -P "$lockpid" 2>/dev/null; kill "$lockpid" 2>/dev/null; wait "$lockpid" 2>/dev/null || true   # flock's sleep holds the lock's fd too
+
 # --- The first round: the desks made, a worker at each, up to at-once --------------------------
 out=$(round)
 check "the first round says what it did: $(tr '\n' '|' <<<"$out" | cut -c1-300)" \
-  bash -c 'grep -q "runner started" <<<"$1" && grep -q "\$ desk book part-one" <<<"$1" && grep -q "\$ worker .*/book-part-one Write the intro. Short and warm." <<<"$1" && grep -q "\$ worker .*/book-index Make the index. --no-tests" <<<"$1"' _ "$out"
+  bash -c 'grep -q "runner started" <<<"$1" && grep -q "\$ worker .*/book-part-one Write the intro. Short and warm." <<<"$1" && grep -q "\$ worker .*/book-index Make the index. --no-tests" <<<"$1"' _ "$out"
 check "two worktrees, two workers started in them, the task each one's first prompt: $(cat "$t/agents")" \
   bash -c '[ -d "$1/src/book-part-one" ] && [ -d "$1/src/book-index" ] && grep -q "^$1/src/book-part-one	Write the intro. Short and warm." "$1/agents" && grep -q "^$1/src/book-index	Make the index." "$1/agents" && [ "$(grep -c "	" "$1/agents")" = 2 ]' _ "$t"
 check "the cover's desk waits (its befores at other desks)" test ! -d "$t/src/book-cover"
@@ -189,6 +208,15 @@ out=$(round)
 check "tests passed: the worker is dismissed: $out" grep -q "part-one: intro is in; its worker dismissed, the desk goes on" <<<"$out"
 check "it was asked to exit (SIGTERM)" bash -c 'for i in $(seq 1 20); do kill -0 "$1" 2>/dev/null || exit 0; sleep 0.1; done; exit 1' _ "$spid"
 gone "$spid"
+# Someone seated again after the dismissal (resume, a terminal by hand) is
+# the user's and stays; the desk waits under Needs you instead of going quiet.
+proc 1008 claude "$t/src/book-part-one"
+out=$(round)
+check "a worker back at a finished desk is Needs you, not dismissed again: $(tr '\n' '|' <<<"$out" | cut -c1-300)" \
+  grep -q "needs you: part-one: intro is in, but claude 1008 sits at the desk again: the next task waits until the desk is free (vikix agents dismiss $t/src/book-part-one)" <<<"$out"
+check "nothing started meanwhile" test "$(grep -c "	" "$t/agents")" = 2
+check "the status says so: $(agents plan status book | grep -A1 'part-one' | head -2 | tr '\n' '|')" grep -q 'desk part-one: intro is in; waits for claude 1008 to leave the desk' <<<"$(agents plan status book)"
+gone 1008
 out=$(round)
 check "the next task of the chain starts at the same desk: $out" grep -q '\$ worker .*/book-part-one Write the middle, after the intro.' <<<"$out"
 check "the record's history has the intro, and the task is the middle" \
@@ -224,11 +252,11 @@ out=$(round)
 check "the third failure stops the desk: $out" grep -q 'needs you: part-one: middle failed 3 rounds' <<<"$out"
 check "the desk is set waiting by vikix (under Needs you), with why: $(agents handoff part-one | grep -i 'status')" \
   grep -q 'Status: waiting (vikix, just now)' <<<"$(agents handoff part-one)"
-check "the user is told once" bash -c '[ "$(grep -c "needs you" "$1")" = 1 ]' _ "$NOTIFIED"
+check "the user is told once (the worker back at the desk, above, was the other)" bash -c '[ "$(grep -c "needs you" "$1")" = 2 ]' _ "$NOTIFIED"
 check "the status says Needs you: $(agents plan status book | grep -A1 'Needs you')" grep -q '^Needs you:' <<<"$(agents plan status book)"
 check "no fourth worker" test "$(grep -c "^$t/src/book-part-one	Write the middle" "$t/agents")" = 3
 round >/dev/null
-check "and says it once" bash -c '[ "$(grep -c "needs you" "$1")" = 1 ]' _ "$NOTIFIED"
+check "and says it once" bash -c '[ "$(grep -c "needs you" "$1")" = 2 ]' _ "$NOTIFIED"
 # The user hands the task in; the tests pass; the chain goes on to its release, held for the yes.
 rm -f "$TESTER_FAIL"
 echo "middle, fixed" > "$t/src/book-part-one/middle.md"; git -C "$t/src/book-part-one" commit -q -am fixed
@@ -390,5 +418,5 @@ assert [t["name"] for t in d["templates"][1]["tasks"]] == ["build", "tests", "gu
 assert d["templates"][1]["tasks"][1]["after"] == ["build"] and d["templates"][1]["tasks"][0]["text"].startswith("EDIT: ")
 ' <<<"$out"
 
-[ "$fail" = 0 ] && echo "plan: ok (a plan read and checked; desks made and workers started up to at-once; a hand-in tested, the worker dismissed, the chain's next task; failed rounds told, the third stops the desk under Needs you; the release at the chain's end, held for the yes, tried again after a failure; a task after other desks at a fresh one; pause, stop, run again; the event log; templates, a plan written from one, drafts, the Office's New plan and a plan composed from its form's tasks)"
+[ "$fail" = 0 ] && echo "plan: ok (a plan read and checked; desks made and workers started up to at-once, a busy queue tried again next round; a hand-in tested, the worker dismissed, a worker back at the desk Needs you, the chain's next task; failed rounds told, the third stops the desk under Needs you; the release at the chain's end, held for the yes, tried again after a failure; a task after other desks at a fresh one; pause, stop, run again; the event log; templates, a plan written from one, drafts, the Office's New plan and a plan composed from its form's tasks)"
 exit $fail

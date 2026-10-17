@@ -94,6 +94,9 @@ EDIT = "EDIT:"                                           # a template's line sti
 POLL = int(os.environ.get("VIKIX_PLAN_POLL") or 60)       # seconds between looks when no event comes
 GRACE = int(os.environ.get("VIKIX_PLAN_GRACE") or 120)    # seconds a worker just started has to appear
 ROUNDS = 3                                                 # failed rounds that stop a desk
+BUSY_WAIT = float(os.environ.get("VIKIX_PLAN_BUSY_WAIT") or 1)  # seconds before the queue's lock is tried again
+BUSY_TRIES = 3                                             # tries of the lock within a round
+BUSY_ROUNDS = 5                                            # rounds the queue may stay busy before the desk stops
 KEYS = ("project", "at-once", "gate", "task")
 TASK_KEYS = ("name", "task", "desk", "after", "agent", "local", "push", "no-tests", "release", "mode", "acceptance")
 NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}$")
@@ -657,7 +660,19 @@ def plan_view(api, plan, note, now=None):
                 running += 1
                 v["act"] = ("tell-dirty", t)
             elif s["state"] == "passed":
-                if v["agents"]:
+                if v["agents"] and note and f"dismiss:{topic}:{s['rounds']}:{t['name']}:done" in note.get("told", {}):
+                    # Dismissed once already: whoever sits there now was seated by
+                    # the user (resume, or a terminal opened by hand) and is left
+                    # alone; the desk waits, and says so under Needs you instead
+                    # of falling silent.
+                    who = ", ".join(api.who(a) for a in v["agents"])
+                    last = cur + 1 >= len(v["tasks"])
+                    v["needs"] = (f"{topic}: {t['name']} is in, but {who} sits at the desk again: "
+                                  f"{'its release' if last else 'the next task'} waits until the desk is free "
+                                  f"(vikix agents dismiss {api.short(v['folder'])})"
+                                  + (f"; vikix agents plan release {topic} is your yes" if last and plan["gate"] == "me" and topic not in yes else ""))
+                    v["line"] = f"{t['name']} is in; waits for {who} to leave the desk"
+                elif v["agents"]:
                     running += 1
                     v["act"] = ("dismiss", t)
                 elif cur + 1 < len(v["tasks"]):
@@ -751,11 +766,33 @@ def start_worker(api, view, task, plan, project, note, log, why=""):
     # the shared scheduler owns capacity and reserves its launch.
     import scheduler
     scheduler.T = api.tasks_module()
-    try:
-        started = scheduler.start_plan(api, view["folder"], task,
-                                       os.path.basename(note.get('file') or plan.get('name') or '?'), plan['project'])
-    except (scheduler.T.TaskError, RuntimeError, OSError, SystemExit) as e:
-        return fail(note, view, f"couldn't start the worker for {task['name']}: {e}", log)
+    tries = 0
+    while True:
+        try:
+            started = scheduler.start_plan(api, view["folder"], task,
+                                           os.path.basename(note.get('file') or plan.get('name') or '?'), plan['project'])
+            break
+        except scheduler.T.TaskError as e:
+            # The queue's lock is held a moment by a launch, a release closing
+            # its desk or a snapshot: tried again shortly, then left to the
+            # next round; only a queue busy for rounds on end stops the desk.
+            if "the queue is busy" not in str(e):
+                return fail(note, view, f"couldn't start the worker for {task['name']}: {e}", log)
+            tries += 1
+            if tries < BUSY_TRIES:
+                time.sleep(BUSY_WAIT * tries)
+                continue
+            rounds = note.setdefault("busy", {}).get(view["topic"], 0) + 1
+            if rounds >= BUSY_ROUNDS:
+                note["busy"].pop(view["topic"], None)
+                return fail(note, view, f"couldn't start the worker for {task['name']}: the queue stayed busy "
+                                        f"for {rounds} rounds (vikix agents queue says what holds it)", log)
+            note["busy"][view["topic"]] = rounds
+            log(f"{view['topic']}: the queue is busy (round {rounds} of {BUSY_ROUNDS}); {task['name']} is tried again next round")
+            return False
+        except (RuntimeError, OSError, SystemExit) as e:
+            return fail(note, view, f"couldn't start the worker for {task['name']}: {e}", log)
+    note.get("busy", {}).pop(view["topic"], None)
     if not started:
         log(f"{view['topic']}: waits for shared Office capacity or worker discovery")
     else:
@@ -768,7 +805,8 @@ def start_worker(api, view, task, plan, project, note, log, why=""):
 
 def fail(note, view, words, log):
     """Something the runner couldn't do at a desk, kept in the note (the
-    desk is under Needs you until plan run or plan release clears it)."""
+    desk is under Needs you until plan run, which tries it again, or plan
+    release clears it)."""
     note.setdefault("failed", {})[view["topic"]] = words[:300]
     log(f"{view['topic']}: {words}")
     return False
@@ -1122,9 +1160,12 @@ def main(api, argv):
         pid = plan_id(plan["file"])
         note = note_read(pid)
         if note and alive(note.get("pid")) and not (here or once):
-            if note.get("paused") or note.get("stopped"):
-                note_change(pid, lambda n: n.update(paused=False, stopped=False))
-                print(f"plan {plan['name']} carries on (its runner, pid {note['pid']}, was {'paused' if note.get('paused') else 'stopping'})")
+            failed = sorted(note.get("failed", {}))
+            if note.get("paused") or note.get("stopped") or failed:
+                note_change(pid, lambda n: n.update(paused=False, stopped=False, failed={}, busy={}))
+                was = ("paused" if note.get("paused") else "stopping" if note.get("stopped")
+                       else "stopped at " + ", ".join(failed) + ": tried again")
+                print(f"plan {plan['name']} carries on (its runner, pid {note['pid']}, was {was})")
             else:
                 print(f"plan {plan['name']} is running already (pid {note['pid']}); vikix agents plan status {plan['name']} says where it stands")
             return 0
