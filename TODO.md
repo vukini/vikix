@@ -88,7 +88,7 @@ Added 2026-09-30, from a conversation with Vid about 0.52-0.65. Not yet ordered 
 
 ### Music
 
-22. **Music production as a feature** (`plans/DESIGN-music.md`). Phase 0 at music-phase0 (2026-10-16): tone, repeating Lisp pattern, safe live reload and snapshot/undo; Vid confirmed audible playback and tempo edits on the X1. Starter audibility corrected; realtime audio priority verified. Void VM dependency install and fresh-home setup passed; generated audio within 31 s of setup, desktop audio thread at realtime priority 20. Physical round-trip latency needs a loopback connection; VM audibility through SPICE was not listening-tested. Phase 1 browser/Cuis grid comparison at the desk: shared session, note edits, tempo, gain and transport. Browser chosen as the default (2026-10-16), with Lisp subtitles; Cuis retained as experimental. Browser launch pads and a clock-driven playhead added at the desk (2026-10-17); saved pad banks and desktop keys remain. Next: capture and DAW export. Low-latency audio: PipeWire's JACK side, realtime priority (rtkit or limits), Ardour, Carla and a plugin set; a setting that trades battery for lower latency while recording.
+22. **Music production as a feature** (`plans/DESIGN-music.md`). Phase 0 and the first browser interface are shipped (`ARCHIVE.md`): Lisp patterns, safe live edits, pads, subtitles and playhead; Cuis remains experimental. Left: saved pad banks and desktop keys, more sounds, capture, MIDI/WAV export and DAW integration, swing, chords and variations. Physical round-trip latency still needs a loopback measurement; low-latency recording settings and the Ardour/Carla/plugin feature set remain.
 
 ### Languages and reading
 
