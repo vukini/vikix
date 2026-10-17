@@ -536,6 +536,22 @@ StdIOWriteStream stdout nextPutAll: 'MUSIC-CUIS-PASS'; newLine; flush.
             except AssertionError:
                 print('browser state:', js("document.body.innerText"), flush=True)
                 raise
+            assert js("document.querySelector('#record-source').value") == 'engine'
+            assert js("document.querySelector('#record-stop').disabled")
+            # Exercise the browser's explicit action wiring without opening any
+            # physical source; public backend sources have separate fixtures.
+            assert js("""(() => {
+              const original = send, commands = []; send = value => commands.push(value);
+              try {
+                $('record-source').value = 'microphone';
+                $('record-source').dispatchEvent(new Event('change'));
+                if (commands.length) return false;
+                $('record-device').value = 'fixture-mic'; $('record').click();
+                $('inbox').click(); $('preview-stop').click();
+                return JSON.stringify(commands) === JSON.stringify([
+                  {op:'record', source:'microphone', device:'fixture-mic'}, {op:'inbox'}, {op:'preview-stop'}]);
+              } finally { send = original; $('record-source').value = 'engine'; $('record-device').value = ''; }
+            })()""")
             palette = home / '.config/vikix/theme/palette'
             palette.parent.mkdir(parents=True, exist_ok=True)
             palette.write_text('bg=#ffffff\nfg=#111111\naccent=#123456\n')

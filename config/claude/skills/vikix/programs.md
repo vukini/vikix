@@ -61,6 +61,12 @@ switch playback: click a pad to play its named pattern.
 `<checkout>/docs/music.md`. Pattern files are data, never evaluated; edits
 and snapshot undo are picked up at a bar boundary. Snapshot before editing.
 Only `~/music/SONG/patterns.lisp` joins the history, never recordings.
+`music control record` explicitly captures the playing engine; microphone and
+mixed need an explicit source choice on the user's recording action. Never
+start microphone recording as a diagnostic or in the background. `record-stop`
+releases the recorder. The browser inbox and `control inbox|preview|loop|file`
+share authenticated control. Dated numbered takes retain raw PCM on failure;
+filing keeps the inbox original. See the music guide for recovery and raw format.
 The local REPL evaluates Lisp with the user's permissions; it is separate
 from StumpWM and has no network evaluation service.
 `vikix music serve [FILE]` starts the prototype view session; `music web`

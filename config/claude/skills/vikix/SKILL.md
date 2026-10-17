@@ -154,6 +154,8 @@ The desktop:
 
 The user's things:
 
+- Never start Music microphone or mixed capture without the user's explicit recording action, including for diagnostics. Never automatically delete captures; see `programs.md`.
+
 - Don't run `vikix undo`, `vikix resume now`, `vikix rescue free` or `vikix rescue undo` without telling the user first; undo only when they ask.
 - Don't start the Windows VM without asking (it takes 6 GB), don't remove it, don't open a firewall port, and don't write to or forget from the record store, the notes inbox or `~/.local/state/vikix/used`, unless the user asks.
 - After tests of your own, end what you started (hidden X servers, daemons, servers); when the machine is slow, look with `vikix memory` before starting anything heavy.

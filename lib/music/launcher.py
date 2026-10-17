@@ -161,7 +161,7 @@ def perform(root, args, control=None, position=None):
         engine_env = dict(os.environ)
         engine_env.setdefault("SC_JACK_DEFAULT_OUTPUTS", "system")
         engine = subprocess.Popen(["pw-jack", "scsynth", "-t", str(port), "-B", "127.0.0.1",
-                                   "-p", password, "-R", "0", "-D", "0", "-i", "0", "-o", "2"],
+                                   "-H", f"vikix-music-{os.getpid()}", "-p", password, "-R", "0", "-D", "0", "-i", "0", "-o", "2"],
                                   stdin=subprocess.DEVNULL, stdout=sys.stderr, stderr=sys.stderr, env=engine_env)
         deadline = time.monotonic() + 15
         while sock is None:
@@ -286,9 +286,13 @@ def main(root, argv):
     for name in ("web", "cuis"):
         sub.add_parser(name)
     control_parser = sub.add_parser("control")
-    control_parser.add_argument("action", choices=("play", "stop", "bank", "state", "bar"))
+    control_parser.add_argument("action", choices=("play", "stop", "bank", "state", "bar", "record-state", "record", "record-stop", "inbox", "preview", "loop", "preview-stop", "file"))
     control_parser.add_argument("--notify", action="store_true", help="notify on a control failure")
     control_parser.add_argument("slot", nargs="?", type=int, choices=range(1, 33))
+    control_parser.add_argument("--source", choices=("engine", "microphone", "mixed"), default="engine")
+    control_parser.add_argument("--device", default="")
+    control_parser.add_argument("--take")
+    control_parser.add_argument("--song")
     args = parser.parse_args(argv)
     if args.command == "control" and args.slot is not None and args.action != "bank":
         parser.error("a slot belongs only to control bank")

@@ -244,7 +244,7 @@ StumpWM's own `Ctrl+t` prefix keys still work too: press `Ctrl+t` and wait, and 
 | Super+c | Clipboard history: pick to paste again |
 | Super+. | Emoji: pick one to type it (Ctrl+c copies) |
 | Super+= | Calculator: Enter copies the answer |
-| Super+Alt+F8 | Music controls: p play, s stop, 1, 2, 3, 4, 5, 6, 7, 8, 9 pads, 0 pick a pad, o open the browser |
+| Super+Alt+F8 | Music controls: p play, s stop, 1, 2, 3, 4, 5, 6, 7, 8, 9 pads, 0 pick a pad, r record engine, R stop recording, o open the browser |
 | then p | Music: play the selected pattern |
 | then s | Music: stop playback |
 | then 1 | Music: play bank pad 1 |
@@ -257,7 +257,9 @@ StumpWM's own `Ctrl+t` prefix keys still work too: press `Ctrl+t` and wait, and 
 | then 8 | Music: play bank pad 8 |
 | then 9 | Music: play bank pad 9 |
 | then 0 | Music: choose an assigned pad |
+| then r | Music: start engine recording |
 | then o | Music: open the browser for the running session |
+| then Shift+r | Music: stop recording and preserve take |
 | **AI & voice** | |
 | Super+a | AI agent: here in a terminal, or at a new desk of its own |
 | Super+Alt+d | Desk keys: n new, w a worker at one, r take up again, c close, h handoff, o the Office, t test, p pause or go, i a note, x dismiss |

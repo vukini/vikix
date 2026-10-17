@@ -649,7 +649,7 @@ bar isn't under ours. StumpWM doesn't set it."
   (if (equal *vikix-music* "") ""
       (vikix-ml-what "music"
         (format nil "^(:push)^(:fg \"~a\")~a^(:pop)  "
-                (vikix-colour :subtle) *vikix-music*))))
+                (vikix-colour (if (search "REC · " *vikix-music*) :alert :subtle)) *vikix-music*))))
 
 (add-screen-mode-line-formatter #\L 'vikix-mode-line-music)
 

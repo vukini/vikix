@@ -21,6 +21,7 @@ from types import SimpleNamespace
 import webbrowser
 
 from launcher import lisp, perform
+from capture import Captures
 
 
 def theme(root):
@@ -371,6 +372,7 @@ class Session:
         self.gain = 0.08
         self.pattern = self.song.patterns[0][0]
         self.closing = False
+        self.captures = Captures(self.song.path)
 
     def stop(self):
         if self.worker:
@@ -388,6 +390,8 @@ class Session:
     def request(self, command):
         with self.lock:
             error = ''
+            filed = None
+            captures = None
             try:
                 if self.closing:
                     raise ValueError('music session is closing')
@@ -421,6 +425,23 @@ class Session:
                         self.control.send(self.gain)
                 elif op == 'stop':
                     self.stop()
+                elif op == 'record':
+                    engine = f'vikix-music-{self.worker.pid}' if self.worker and self.worker.is_alive() else ''
+                    self.captures.start(command.get('source', 'engine'), engine, command.get('device', ''))
+                elif op == 'record-stop':
+                    self.captures.stop()
+                elif op in ('preview', 'loop'):
+                    if self.captures.state()['active']:
+                        raise ValueError('stop recording before previewing')
+                    self.captures.listen(command.get('take'), op == 'loop')
+                elif op == 'preview-stop':
+                    self.captures.stop_preview()
+                elif op == 'file':
+                    if self.captures.state()['active']:
+                        raise ValueError('stop recording before filing')
+                    filed = self.captures.file(command.get('take'), command.get('song'))
+                elif op == 'inbox':
+                    captures = self.captures.listing()
                 elif op == 'gain':
                     value = command.get('value')
                     if type(value) not in (int, float) or not 0 <= value <= 0.1:
@@ -445,7 +466,11 @@ class Session:
                 bars = [dict(start=values[i], duration=values[i+1], steps=max(0, int(values[i+2])), swing=values[i+3],
                              progression_bar=-int(values[i+2])-1 if values[i+2] < 0 else None)
                         for i in (0, 4) if values[i+1] > 0]
-            state.update(bars=bars, now=time.time(), theme=theme(self.root))
+            state.update(bars=bars, now=time.time(), theme=theme(self.root), recording=self.captures.state())
+            if captures is not None:
+                state['captures'] = captures
+            if filed is not None:
+                state['filed'] = filed
             return state
 
 
@@ -493,7 +518,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not 0 < count <= 4096:
                 raise ValueError()
             command = json.loads(self.exact(count))
-            if not isinstance(command, dict) or command.get('op') not in ('state', 'play', 'stop'):
+            if not isinstance(command, dict) or command.get('op') not in ('state', 'play', 'stop', 'record', 'record-stop', 'inbox', 'preview', 'loop', 'preview-stop', 'file'):
                 raise ValueError()
         except (ValueError, EOFError, UnicodeError):
             self.send_error(400)
@@ -607,7 +632,7 @@ def control(args):
             not re.fullmatch(r'[a-f0-9]{48}', info['token'])):
         raise ValueError('invalid music connection file')
     def request(command):
-        conn = http.client.HTTPConnection('127.0.0.1', info['port'], timeout=0.7 if args.action == 'bar' else 2)
+        conn = http.client.HTTPConnection('127.0.0.1', info['port'], timeout=(0.7 if args.action == 'bar' else 20 if args.action in ('record', 'record-stop', 'preview-stop', 'file', 'inbox', 'preview', 'loop') else 2))
         try:
             conn.request('POST', '/control', json.dumps(command),
                          {'Authorization': 'Bearer ' + info['token'], 'Content-Type': 'application/json'})
@@ -624,7 +649,7 @@ def control(args):
             raise ValueError('music session unavailable or busy; check its terminal') from None
         finally:
             conn.close()
-    state = request({'op': 'state'}) if args.action in ('bank', 'bar', 'state') else request({'op': args.action})
+    state = request({'op': 'state'}) if args.action in ('bank', 'bar', 'state', 'record-state') else request({'op': args.action, 'source': args.source, 'device': args.device, 'take': args.take, 'song': args.song})
     if args.action == 'bank':
         slot = args.slot
         if slot is None:
@@ -642,12 +667,24 @@ def control(args):
             slot = pads[index]['slot']
         state = request({'op': 'play', 'slot': slot, 'revision': state['revision']})
     if args.action == 'bar':
-        if state['playing']:
+        recording = state.get('recording', {})
+        if recording.get('active'):
+            print('REC · ' + recording['take']['source'])
+        elif state['playing']:
             bar = next((b for b in state['bars'] if b['start'] <= state['now'] < b['start'] + b['duration']), None)
             beat = str(1 + int((state['now'] - bar['start']) * 4 / bar['duration'])) if bar else '–'
             tempo = round(240 / bar['duration']) if bar else state['tempo']
             print(f'music {beat}/4 · {tempo}')
-    elif args.action == 'state':
+    elif args.action == 'record-state':
+        recording = state['recording']
+        text = ('Recording ' + recording['take']['source'] + ': ' + recording['take']['id']) if recording['active'] else (recording['error'] or 'Not recording; captures preserved')
+        if args.notify:
+            subprocess.run(['notify-send', 'Music recording', text], timeout=2, check=True)
+        else:
+            print(text)
+    elif args.action == 'file':
+        print(state['filed'])
+    elif args.action in ('state', 'inbox'):
         print(json.dumps(state))
     return 0
 
@@ -696,6 +733,8 @@ def main(root, args):
                 server.server_close()
                 with session.lock:
                     session.closing = True
+                    session.captures.stop()
+                    session.captures.stop_preview()
                     session.stop()
                 endpoint.unlink(missing_ok=True)
             finally:

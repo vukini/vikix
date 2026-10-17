@@ -56,6 +56,7 @@ A page of the Vikix skill (~/.claude/skills/vikix/SKILL.md: read that first, its
 
 Music uses one control prefix (see keys.md) and Super+m → Music, for the
 running `vikix music serve` session: play, stop, assigned bank pads and the
-browser. Standalone `vikix music play` keeps its own player. The quiet bar
+browser, plus explicit engine recording and recording stop. The bar names the
+active recording source in alert colour. Standalone `vikix music play` keeps its own player. The quiet bar
 beat/tempo is sampled about once a second, never an audio clock; the browser
 follows the current theme. See `docs/music.md` for the controls and limits.

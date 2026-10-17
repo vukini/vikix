@@ -75,6 +75,10 @@ check "owned Music control process exited" test ! -e "/proc/$music_pid"
 echo 'music 2/4 · 120' > "$home/music-bar"
 for _ in $(seq 1 40); do [ "$(ask '(princ *vikix-music*)')" = 'music 2/4 · 120' ] && break; sleep .1; done
 check "Music beat/tempo reaches the bar from the worker" yes '(search "music 2/4" (vikix-mode-line-music nil))'
+echo 'REC · microphone' > "$home/music-bar"
+for _ in $(seq 1 40); do [ "$(ask '(princ *vikix-music*)')" = 'REC · microphone' ] && break; sleep .1; done
+check "recording source reaches the bar in alert colour" yes '(and (search "REC · microphone" (vikix-mode-line-music nil)) (search (vikix-colour :alert) (vikix-mode-line-music nil)))'
+check "Music has separate explicit record and stop bindings" yes '(and (find "music r" *vikix-commands* :key (lambda (entry) (getf entry :map)) :test (function equal)) (find "music R" *vikix-commands* :key (lambda (entry) (getf entry :map)) :test (function equal)))'
 rm "$home/music-bar"
 for _ in $(seq 1 40); do [ "$(ask '(princ *vikix-music*)')" = '' ] && break; sleep .1; done
 check "stopped or missing Music clears the bar" yes '(equal (vikix-mode-line-music nil) "")'

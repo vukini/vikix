@@ -173,7 +173,12 @@ needed. The user guide describes this shipped behavior.*
 
 ### The inbox
 
-A conflict-free recording command starts the approved source (mic, engine, or mixed; decide before implementation) into `~/music/inbox/2026-10-03-0734.wav`; the bar shows the alert colour while it runs; the same key stops it. An open-view command opens the last pattern; assign a key only after checking the registry. `vikix music inbox` lists captures with a waveform each; "loop this", "send to <song>", "file under…" as the notes inbox does. Captures are never deleted by Vikix; filing moves them.
+*2026-10-18: implemented at music-capture for plan review. Explicit start/stop,
+engine-only by default, microphone/mixed only on a recording action. The shared
+control path lists, previews, loops and files preserved dated takes; filing
+keeps the inbox original. Raw PCM and prewritten metadata retain recoverable
+partials. See the music guide for defaults, recovery and manual listening checks.
+Waveforms and DAW sending remain for later work.*
 
 ## User stories
 
@@ -277,7 +282,7 @@ Decide through Office when the relevant task starts:
 
 - Any future sample source and license (the original synthesized palette and gain semantics are settled).
 - Pad and recording keys after auditing the registry: Super+digits belong to workspaces.
-- Recording sources and defaults, capture filing and recovery behavior.
+- Capture defaults and recovery are documented in the music guide (music-capture review).
 - The controller available for a real MIDI trial and its learn/reconnect behavior.
 - The initial variation operations, DAW session layout and optional Reaper adoption.
 - Quantum/governor changes and restoration before adding recording latency mode.

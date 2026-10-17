@@ -349,12 +349,20 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 ;;; Notifications
 
 ;;; Music controls use one audited prefix; workspace digits stay on Super.
-(define-vikix-command music "Music controls: p play, s stop, 1, 2, 3, 4, 5, 6, 7, 8, 9 pads, 0 pick a pad, o open the browser"
+(define-vikix-command music "Music controls: p play, s stop, 1, 2, 3, 4, 5, 6, 7, 8, 9 pads, 0 pick a pad, r record engine, R stop recording, o open the browser"
   :run "vikix-map music" :key "s-M-F8" :card "Apps" :menu "Music")
 (define-vikix-command music-play "Music: play the selected pattern"
   :run "exec vikix-music control play --notify" :map "music p" :menu "Music")
 (define-vikix-command music-stop "Music: stop playback"
   :run "exec vikix-music control stop --notify" :map "music s" :menu "Music")
+(define-vikix-command music-record "Music: start engine recording"
+  :run "exec vikix-music control record --notify" :map "music r" :menu "Music")
+(define-vikix-command music-record-stop "Music: stop recording and preserve take"
+  :run "exec vikix-music control record-stop --notify" :map "music R" :menu "Music")
+(define-vikix-command music-record-state "Music: recording status"
+  :run "exec vikix-music control record-state --notify" :menu "Music")
+(define-vikix-command music-captures "Music: captures and recording source in browser"
+  :run "exec vikix-music web" :menu "Music")
 (define-vikix-command music-bank "Music: choose an assigned pad"
   :run "exec vikix-music control bank --notify" :map "music 0" :menu "Music")
 (define-vikix-command music-browser "Music: open the browser for the running session"

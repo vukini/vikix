@@ -269,7 +269,7 @@ selects patterns directly; edit bank assignments in the browser or score.
 Start `vikix music serve` as before. **Super+Alt+F8** opens the Music
 controls: **p** plays the selected pattern, **s** stops, **1–9** plays that
 bank pad, **0** picks from all assigned slots (1–32), and **o** opens the
-browser. Each action closes the prefix; Escape cancels. The same choices
+browser. **r** starts engine recording and **Shift+r** stops recording. Each action closes the prefix; Escape cancels. The same choices
 are in **Super+m → Music**. Super+digits still select workspaces and
 existing application keys stay unchanged. An empty pad reports a failure
 without changing playback. There is still only one bank; this selects
@@ -301,9 +301,103 @@ state refresh. Cells, pads and the playhead retain their existing behavior;
 the playhead and focus outline use the theme accent. A missing palette
 uses Vikix dark. Switching themes needs no Music restart or page reload.
 
+## Record and preserve a take
+
+Recording is always explicit. In the browser choose **Record source**, then
+**Start recording**; **Stop recording** ends the take and releases its recorder.
+The browser and bar name the active source in the alert colour. The Music
+prefix's **r** starts **engine only**; **Shift+r** stops recording. Recording
+state is also in `vikix music control state` or **Super+m → Music → Recording status**
+(`vikix music control record-state`). Merely opening Music, choosing a
+source or playing a pattern never opens a microphone.
+
+```sh
+vikix music control record
+vikix music control record-stop
+vikix music control record --source microphone
+vikix music control record --source mixed
+```
+
+The default captures only this session's engine outputs, not other desktop
+sound. Start a pattern first. Microphone captures one mono or stereo PipeWire
+`Audio/Source`; with multiple sources, name one explicitly using
+`--device NODE` (the browser has the same field). Find node names with
+`pw-dump`. Mixed connects the engine and that microphone to the recorder;
+mono inputs feed both channels and mixed inputs are summed, so leave headroom
+to avoid clipping. Microphone audio is never monitored to speakers by Music.
+A missing or ambiguous source is refused. Devices with more than two ports
+are refused rather than guessing a channel pair.
+
+Playback Stop still stops playback; **Stop recording** is separate. Changing
+pads replaces the engine, so an engine/mixed take ends as partial when its
+source disappears. Stop recording before changing pads. Closing a browser
+leaves an explicitly started take running: reconnect to stop it, or press
+Ctrl+C in the session terminal. A session exit stops recording and preview.
+No recording starts on its own, and no captures are automatically deleted.
+
+Each take is reserved exclusively under
+`~/music/inbox/SONG/YYYY-MM-DD/take-NNNN/`, using the active song's folder
+name and the local date at recording start. Repeated takes advance the number;
+existing directories are never reused. `audio.pcm` is headerless stereo,
+48,000 Hz, signed 16-bit little-endian PCM. `take.json` records source and
+format before audio starts; `stopped.json` records a normal stop or a known
+partial failure. Missing or unreadable stop metadata means interrupted, never
+complete. The listing reports source, status, duration and ID. Raw audio
+avoids a final WAV header being lost on interruption. It uses about 11 MB/minute.
+
+Open **Capture inbox** and **Refresh captures**, then **Preview**, **Loop**,
+**Stop preview / loop**, or enter a song name and choose **File copy**. Preview
+uses PipeWire, not browser audio, and requires a stopped take. Starting a
+recording stops preview first. CLI operations use the same authenticated path:
+
+```sh
+vikix music control inbox
+vikix music control preview --take SONG/YYYY-MM-DD/take-0001
+vikix music control loop --take SONG/YYYY-MM-DD/take-0001
+vikix music control preview-stop
+vikix music control file --take SONG/YYYY-MM-DD/take-0001 --song another-song
+```
+
+Filing makes a new exclusive take directory under
+`~/music/another-song/captures/YYYY-MM-DD/` and keeps the inbox original as a
+recovery copy. Repeating File copy creates another take number; it never
+replaces an earlier copy. Song names use letters, digits, underscores and
+dashes. Capture operations refuse symlink paths. Audio is outside snapshot
+undo: back it up separately. Vikix does not delete either copy.
+
+### Recover and check recording
+
+On device loss, recorder failure or a full disk, the recorder stops and any
+bytes already written remain. The browser/state reports the failure; a disk
+failure may also prevent writing the stop marker. After freeing space, use
+**Refresh captures** and preview the partial take. A filing failure can leave
+an incomplete destination directory; keep it and retry to a new take number,
+using the intact inbox original. A successful copy has `filed.json` with
+`complete: true`; a missing marker means copying did not complete. Do not treat a partial destination as a backup.
+
+If Music cannot run, a preserved take can be heard directly:
+
+```sh
+pw-play --raw --rate 48000 --channels 2 --format s16 ~/music/inbox/SONG/DATE/TAKE/audio.pcm
+```
+
+An audio editor can import the same raw format; ignore a trailing incomplete
+four-byte stereo frame. A hard power failure can lose unflushed data; Music
+syncs audio chunks as they arrive but cannot recover bytes the device never
+wrote. Keep the original raw file while recovering or converting it.
+
+Manual check after installation: play a pattern, record engine-only for a few
+seconds, stop and preview it. Verify other desktop audio is absent. Explicitly
+select Microphone, record a short spoken phrase, stop, and confirm the microphone
+is released. Repeat Mixed with headphones and check both sources. Loop a take,
+stop the loop, file it twice and check both numbered copies and the inbox
+original. Finally interrupt the session while recording, restart and preview
+the preserved partial take. Isolated automated routing/source fixtures do not
+replace this human microphone and real desktop listening check.
+
 ## What comes later
 
-Capture, DAW integration, MIDI and variations remain.
+DAW integration, MIDI and variations remain.
 
 `vikix remove music` removes the feature's dependencies when nothing else
 needs them and the prepared synth, keeping `~/music`. `vikix music setup`

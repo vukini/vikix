@@ -923,6 +923,13 @@ A Lisp musical sketchpad, with SuperCollider making the sound.
 - `vikix music control bank [1..32]` — play an assigned pad; without a slot, pick one
 - `vikix music control state` — print shared session state as JSON
 - `vikix music control bar` — quiet sampled beat/tempo text; empty when stopped
+- `vikix music control record [--source engine|microphone|mixed] [--device NODE]` — explicitly start a take (default engine only; play first)
+- `vikix music control record-stop` — stop recording, preserving partial audio on failure
+- `vikix music control record-state [--notify]` — show the active recording source or last capture error
+- `vikix music control inbox` — list preserved takes as JSON
+- `vikix music control preview|loop --take ID` — listen once or loop a stopped take
+- `vikix music control preview-stop` — stop capture preview or looping
+- `vikix music control file --take ID --song NAME` — copy a take under a song; keep the inbox original
 - `vikix music cuis` — open a disposable Cuis grid for the same session
 - `vikix music uninstall` — remove the prepared sounds; keep your music
 
