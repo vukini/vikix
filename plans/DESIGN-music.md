@@ -2,123 +2,55 @@
 
 A musical sketchpad for the Lisp desktop. Patterns are Lisp; the window is a view of them; the DAW gets the result.
 
-Drafted 2026-10-03 with Vid, from TODO item 22 (music production as a feature) and the IDEAS entry "Live-code music from the same Lisp". This document is the plan for the first version. Like Esploro's, it is kept honest by deleting what ships and dating what changes.
+Drafted 2026-10-03 with Vid, from TODO item 22 (music production as a feature) and the IDEAS entry "Live-code music from the same Lisp". This document records the design; music-next.toml schedules the remaining work. Like Esploro's, it is kept honest by deleting what ships and dating what changes.
 
-*2026-10-15: Phase 0 implementation at the music-phase0 desk: optional
-SuperCollider/PipeWire JACK/rtkit feature, separate SBCL pattern clock,
-finite tone and text REPL, data-only pattern reload and snapshot coverage.
-The launcher owns an authenticated loopback TCP engine; cl-collider compiles
-the synth at setup, while a small Python supervisor carries timestamped OSC
-and reaps both children. No sample library is needed for the single sine
-sound. Use `-` for rests, since a bare `.` is Lisp dotted-list syntax.
-The guide is [music.md](../docs/music.md).*
+*2026-10-17: Phase 0 and the first browser sketchpad shipped in 0.72.85: optional
+SuperCollider/PipeWire JACK/rtkit setup, independent SBCL timing, validated
+patterns, safe live edits and undo, transport, tempo/gain, named-pattern pads,
+Lisp subtitles and a scheduled playhead. Vid chose the browser and confirmed
+the desktop trial. Cuis remains experimental. See [the user guide](../docs/music.md)
+for the shipped behavior; this design describes the remaining work.*
 
-*2026-10-16: Vid confirmed installation, audible tones and patterns, and
-live tempo changes on the X1. The starter now uses A5/C6/E6 and the CLI
-test tone defaults to 880 Hz: the original low sine notes were difficult
-to hear on its speakers. Existing songs stay untouched. The public-launcher
-tests cover Ctrl+C, termination and snapshot undo while playing, as well
-as invalid edits retaining the last good pattern. The real engine runs at
-48 kHz with a 1024-frame block (21.3 ms per block, not measured round-trip
-latency); its PipeWire audio thread has SCHED_RR priority 20. A 300-bar,
-ten-minute play completed with exit 0: SuperCollider error counters stayed
-at zero, the device counter stayed at its initial five, and both owned
-children exited.*
+## Executable Office plan
 
-*2026-10-16, VM follow-up: the existing Void VM had no music dependencies.
-The committed package stage installed SuperCollider, PipeWire JACK and
-rtkit; public `vikix add music` then succeeded as the guest user in a fresh
-temporary home. Four bars produced 144,000 stereo PCM frames, peak
-2096/32768, with a nonzero signal observed within 3.505 s of launch and
-within 31 s of setup finishing. Both outputs connected to the virtual
-analog sink and the player exited 0. This measures generated audio, not
-a human listening through SPICE. A launch from the VM's actual StumpWM
-session retained SCHED_RR priority 20 in all three samples; launching via
-the guest agent gave normal priority and is not an equivalent session test.
-Temporary guest files were removed and the VM returned to shut off.
-Physical round-trip latency still needs an audio loopback connection; the
-21.3 ms block size is not that measurement.*
+[music-next.toml](music-next.toml) is the executable continuation, not a template.
+It has one worker at a time and a user release gate at each desk. A later desk
+starts from released main; the final planning task shares the performance desk.
+The task descriptions narrow the proposals below and require an Office question
+for unresolved product choices. Starting the plan authorizes its task sequence;
+releases still wait for the user's approval, and pushing remains the user's.
 
-## Interface comparison at the desk (2026-10-16)
+On Vid's machine the Office draft is
+`~/.config/vikix/plans/music-next.toml`, a copy of the committed plan. In Office, open **Plans**, choose **music-next**, and **Run**.
+The CLI equivalent is `vikix agents plan run ~/.config/vikix/plans/music-next.toml`.
+Use the release gate after trying the handoff's manual checks. The draft does not
+start workers until Run is chosen. `vikix agents plan pause music-next` prevents new starts and releases;
+workers already running carry on.
 
-The Phase 1 spike is `vikix music serve`, with `music web` and `music cuis`
-as its two views. It is a comparison, not the complete first release.
-The existing Python supervisor layer serves the authenticated loopback
-websocket; SBCL still reads the score and schedules notes independently.
-JSON carries display data and bounded edit operations, rather than giving
-either view a Lisp evaluator. Cuis runs in a disposable image from the
-installed base as an experimental alternative.
-
-The transport contract is deliberately small:
-
-- The first text message is `{"token":"SESSION_TOKEN"}`. The token and
-  ephemeral port are in a mode-0600 `music-view/session.json` under
-  `XDG_RUNTIME_DIR` (fallback `~/.local/state/vikix`), in a private folder.
-  Browser links carry the token in a fragment, removed from the address bar
-  immediately; it is never put in an HTTP request URL or server log.
-- Each later message is an object with `op`: `state`, `play`, `stop`,
-  `gain`, `tempo` or `note`. `play` selects `pattern`; `gain` takes `value`
-  between 0 and 0.1; `tempo` takes an integer `value` between 60 and 200.
-  `note` takes `pattern`, zero-based `step` and `note` (`a5`, `-`, etc.).
-- File edits also supply `revision`, the SHA-256 of the bytes last shown.
-  The reply is the shared state: song, revision, tempo, pattern list and
-  note tokens, selected playing pattern, playing, gain and error. Both
-  views poll state; no timing or audio crosses their connection.
-- Only a regular `~/music/SONG/patterns.lisp` can be edited. The editor
-  replaces one token, preserves comments, validates with the real Lisp
-  reader, snapshots, checks the bytes again and atomically replaces the
-  file. A failed snapshot prevents the edit. In-process edits serialize;
-  external editors do not share that lock, so the final check/rename still
-  has a small race with a simultaneous external save. The earlier snapshot
-  remains the recovery path. A general transactional editor is not claimed.
-- Closing either view only disconnects it. Stop reaps the owned player;
-  ending `serve` reaps it and removes the endpoint. Gain is session-only;
-  tempo and notes are score data. One pattern plays at a time.
-
-The browser offers all pitches; the Morphic spike has a small high-note
-paint palette and pages sixteen steps at a time. Both have transport,
-tempo, gain and editable steps. Still outside this spike: saved pad banks, desktop pad keys,
-recording, MIDI/WAV export, chords, progression blocks, desktop keys and
-bar integration. **Decision, 2026-10-16: Vid chose the browser as the default
-Music interface.** Cuis stays available as an experimental alternative.
-Phase 1 interface development proceeds in the browser. Neither face carries
-audio; both use the same tested file editor.
-
-| Comparison | Browser | Cuis spike |
+| Order | Task | Result at its release gate |
 |---|---|---|
-| Note entry | All pitches in a selector; direct step buttons | Small paint palette; sixteen-step pages |
-| Tempo and gain | Number field and slider | Increment/decrement buttons |
-| Startup | Uses an existing browser | Copies the installed base and loads a disposable image |
-| Live development | Page code and browser tools | Morphs can be inspected in the image |
-| Main cost left | Musical controls, accessibility polish and playhead | Full pitch selection and more polished widgets, plus image integration |
+| 1 | Banks | Persistent pad assignments with undo |
+| 2 | Sounds | Original sound palette, bounded dynamics and swing |
+| 3 | Progressions | Chord blocks with approved voicing semantics |
+| 4 | Desktop | Conflict-free controls, beat/tempo display and theme |
+| 5 | Capture | Explicit recording and a preserved capture inbox |
+| 6 | Export | Per-pattern MIDI and offline WAV |
+| 7 | Ardour | Optional DAW installation and a safe import workflow |
+| 8 | Agent access | Read state and user-reviewed proposals |
+| 9 | MIDI input | Controller learning and reconnect handling |
+| 10 | Variations | Audition, accept and bounded bar choices |
+| 11 | DAW transport | Local Ardour and optional Reaper control |
+| 12 | Analysis | Honest tempo/key estimates on captures |
+| 13 | Latency mode | Measured, reversible recording settings |
+| 14 | Performance + next plan | Fullscreen pads/panic and an Office plan for selected later ideas |
 
-Validation uses real SBCL and an authenticated stand-in sound engine, a
-real Chromium tab, and a real Cuis image on an isolated X display. It covers
-comment preservation, snapshots and snapshot failure, stale revisions,
-external file edits, unsafe forms, token/origin checks, gain reaching the
-engine, transport, automatic refresh and window closure. Screenshots are
-inspected separately. It does not establish physical audio latency or a
-human's preference between the two faces; Phase 0's listening evidence
-still applies to the unchanged sound path.
-
----
-
-## Browser pads and playhead (2026-10-17)
-
-The browser now has a launch pad per named pattern in file order. One
-pattern plays at a time; selecting another pad starts it from the beginning,
-while pressing the playing pad keeps it running. Saved `(bank ...)`
-assignments and desktop shortcuts remain later work.
-
-The Lisp clock emits each scheduled bar's start, tempo and step count,
-including all-rest bars. The supervisor keeps only the two latest bars in
-a fixed-size shared buffer; views never queue timing work for the clock.
-State replies add `now` (server Unix seconds) and `bars` (start, duration in
-seconds, steps). The browser polls every 100 ms and interpolates with its
-monotonic clock between replies. It highlights only known scheduled bars
-for the selected playing pattern, hiding the marker after stale data,
-stop or disconnect. This is approximate visual position, not measured
-speaker latency. Cuis ignores the additional state fields.
+Each task owns implementation, regression coverage, guides, commits and handoff.
+The tests must use the project runner and isolated launchers. Browser/engine
+fixtures are distinct from a human listening or operating a MIDI controller.
+Physical round-trip latency still needs an audio loopback connection; a JACK
+block duration is not that measurement. Remaining P2 ideas are reconsidered in
+the last task rather than automatically turning a speculative engine or private
+syllabus into implementation work.
 
 ## The problem
 
@@ -166,7 +98,7 @@ Three pieces, in three processes, as Esploro taught:
      ┌────┼─────────────┬──────────────┐
      ▼    ▼             ▼              ▼
   Emacs  web view    StumpWM keys    agent (vikix mcp)
-  (text) (grid, pads, (Super+5 fires  (edits the file,
+  (text) (grid, pads, (pad keys fire  (edits the file,
           knobs,       a pattern;      snapshot first)
           transport)   bar shows beat)
           │
@@ -176,7 +108,7 @@ Three pieces, in three processes, as Esploro taught:
 
 - **`vikix-music`** runs its Common Lisp clock separately from StumpWM: a crash stops the music, never the desktop. SBCL watches `patterns.lisp` and schedules notes. The Python supervisor owns its engine and carries timestamped notes; the Phase 1 spike adds a local authenticated websocket for views (127.0.0.1, a fresh session secret).
 - **The pattern language** is small by design: if a form can't be drawn, it doesn't belong in v1. See below.
-- **The web view** is a page served by `vikix-music`, opened in Nyxt as a `vikix:` page or in Firefox. A second face, in Cuis Smalltalk's Morphic, is the spike planned in `DESIGN-cuis.md` (`VikixMusic`): it speaks the same socket protocol, so the two can coexist and the protocol is settled once; Vid chose the browser as the default on 2026-10-16, retaining Cuis as an experimental alternative. It reuses what Living in Music already has: keyboards, fretboards, chord and scale logic. Every click is one message; the process rewrites one form; every view redraws.
+- **The web view** is a page served by `vikix-music`, opened in the user's default browser. A second face, in Cuis Smalltalk's Morphic, is the experimental spike described in `DESIGN-cuis.md` (`VikixMusic`): it speaks the same socket protocol, so the two can coexist and the protocol is settled once; Vid chose the browser as the default on 2026-10-16, retaining Cuis as an experimental alternative. Future musical controls may reuse the shared chord and scale logic where its scope and access permit. Every click is one message; the process rewrites one form; every view redraws.
 - **Keys and the bar** go through StumpWM as everything else does: `define-vikix-command` entries for play, stop, record, fire-pattern N, so they are on keys, in Super+m, in the key help and offered to the agent from one definition.
 - **The DAW link** is `vikix music send`: MIDI files and rendered WAVs into `~/music/<song>/render/`, and OSC transport commands (play, stop, marker, arm) that Ardour and Reaper both answer. The Lisp side does not care which is listening.
 
@@ -186,11 +118,11 @@ Every form has a picture. Nothing else is in v1.
 
 | Form | Picture | What it is |
 |---|---|---|
-| `(defpattern hats '(x - x - x x - -))` | a row of cells | a rhythm; `x` hits, `.` rests; length is the bar |
+| `(defpattern hats '(x - x - x x - -))` | a row of cells | a rhythm; `x` hits, `-` rests; length is the bar |
 | `(defpattern bass '(c2 - - g1 - c2 eb2 -))` | a row of cells with note names | a melody or bassline |
 | `(defprogression verse '(I vi IV V) :key 'f)` | blocks in a row | chords by degree; drag to reorder, stretch to lengthen |
 | `:bpm 100` `:swing 0.3` `:gain 0.8` | a knob each | numbers |
-| `(bank 1 hats 2 bass 3 verse)` | a grid of pads, labelled with their keys | what Super+1..9 fires |
+| `(bank 1 hats 2 bass 3 verse)` | a grid of pads, labelled with their keys | persistent pad assignments; desktop keys require a binding audit |
 | `(every-bar (choose hats-a hats-b))` | a pad with a dice | chance, the one generative form |
 | `(variations bass :invert :shift 2)` | a list of candidates with a play button each | audition, pick one, it becomes a pattern |
 
@@ -203,12 +135,11 @@ Lisp forms beneath the cells. The strip follows selection, accepted edits
 and external file refreshes, retaining the last good state on invalid data.
 It is generated from the same validated state as the cells, not a verbatim
 copy of the file's comments and whitespace. No protocol or audio change is
-needed. This is the bridge from the codeless user to the learner; the Cuis
-view remains available as an experimental alternative.*
+needed. The user guide describes this shipped behavior.*
 
 ### The inbox
 
-`Super+Ctrl+m` starts recording the mic (and the engine's output, if playing) into `~/music/inbox/2026-10-03-0734.wav`; the bar shows the alert colour while it runs; the same key stops it. `Super+Alt+l` opens the last pattern running in the view. `vikix music inbox` lists captures with a waveform each; "loop this", "send to <song>", "file under…" as the notes inbox does. Captures are never deleted by Vikix; filing moves them.
+A conflict-free recording command starts the approved source (mic, engine, or mixed; decide before implementation) into `~/music/inbox/2026-10-03-0734.wav`; the bar shows the alert colour while it runs; the same key stops it. An open-view command opens the last pattern; assign a key only after checking the registry. `vikix music inbox` lists captures with a waveform each; "loop this", "send to <song>", "file under…" as the notes inbox does. Captures are never deleted by Vikix; filing moves them.
 
 ## User stories
 
@@ -236,22 +167,25 @@ view remains available as an experimental alternative.*
 
 ### Must have (P0)
 
-1. **`vikix add music`**: PipeWire's JACK side, realtime priority that works under runit (rtkit with D-Bus and polkit, or `limits.conf`), SuperCollider, `vikix-music`, the shipped sounds, Ardour. `vikix doctor` reports latency class and that the engine answers.
-   - [ ] On the VM and the X1: `(tone 440)` heard within 60 s of install end
-   - [ ] `vikix music doctor` prints quantum, sample rate, xruns in the last minute
-2. **The clock and the engine link**: patterns play in time at 60–200 bpm, change on the next bar when edited, no dropout when a view connects or disconnects.
-   - [ ] Edit `patterns.lisp` in Emacs, save: the change is heard at the next bar boundary
-   - [ ] Close the web view while playing: no audible change
-3. **The pattern language, as tabled above**, with a reader that refuses anything else and says why (as Esploro's `step-shape-problem` does).
-   - [ ] A form outside the table is refused with a one-line reason; the music keeps playing
-4. **The web view**: grid, progression blocks, knobs, pads, transport, sound dropdown, subtitles strip; follows `vikix theme`.
-   - [ ] Click a cell: the form in the file changes and the subtitle shows it within one frame
-   - [ ] Edit the file: the grid redraws without a reload
-5. **Keys and bar**: play/stop, record, fire pad 1–9 as `define-vikix-command` entries; beat and bpm in the bar in the quiet colour while playing, alert colour while recording.
-6. **The inbox**: capture key, stop, list, loop-this, file-under; captures never deleted.
-7. **`vikix music send <song>`**: MIDI per pattern and a rendered WAV per pattern into `render/`; `vikix music ardour open` opens the song's Ardour session (creating it on first use) with `render/` as a region list.
-8. **Undo**: `~/music/*/patterns.lisp` in the snapshot set; `vikix undo` after a music edit restores the previous file and the engine picks it up.
-9. **Agent access**: the pattern file is editable by the agent through the existing propose-and-review route (snapshot first, diff shown); `vikix mcp` gains `music_state` (read) and `music_edit` (a form, checked by the same reader). No `eval` into the music process.
+The installed engine, basic patterns, next-bar reload, browser grid, transport,
+subtitles, named-pattern pads, playhead and snapshot undo are implemented.
+What remains for the first version is assigned to the first eight Office tasks:
+
+1. **Banks and sounds:** persistent assignments, sound selection, bounded swing
+   and dynamics, and rhythm hits; old scores must retain their behavior.
+2. **Progressions:** validated chord blocks with a browser representation and
+   agreed voicings, keys and durations.
+3. **Desktop integration:** registry commands, conflict-free keys, a nonblocking
+   beat/tempo display, and theme integration.
+4. **Capture inbox:** explicit source selection, preserved recordings, preview,
+   loop and filing, with interruption recovery.
+5. **Export and Ardour:** deterministic MIDI/WAV output, optional DAW installation,
+   and a safe workflow that preserves existing user sessions.
+6. **Agent access:** read-only state and proposals reviewed and applied by the
+   user, with the same validator and undo path; no evaluator into Music.
+
+The executable tasks carry the acceptance checks. Physical round-trip latency
+is still an evidence gap; finish it only with suitable measurement equipment.
 
 ### Should have (P1)
 
@@ -305,29 +239,34 @@ Decided by this check:
 
 ## Open questions
 
-Blocking:
-- **Where the shipped sounds come from.** (Vid) A small set of CC0 samples and a dozen synthdefs; which, and the licence file.
-- **Does Void's `supercollider` pull Qt6 in?** (one command on the laptop: `xbps-query -Rx supercollider`) The template puts Qt6 behind a build option, so probably not; if it does, the package list still works, it is just heavier.
-- **Does rtkit grant RT over D-Bus on Void?** (one VM test) Start the service, run `scsynth`, check `chrt -p` on its threads.
+Decide through Office when the relevant task starts:
 
-Non-blocking:
-- Nyxt `vikix:` page or Firefox as the default home for the view? Both work; Nyxt keeps it in Lisp.
-- Should the inbox also take the engine's output while playing, or only the mic? Default proposed: both, mixed, with the mic alone a setting.
-- Note names in patterns: `c2 eb2` (short) or `(c 2)` (readable to a parser)? Proposed: short names, since the view shows them.
+- The first sound palette, any sample source and license, and gain semantics.
+- Chord voicings, keys and progression-block durations.
+- Pad and recording keys after auditing the registry: Super+digits belong to workspaces.
+- Recording sources and defaults, capture filing and recovery behavior.
+- The controller available for a real MIDI trial and its learn/reconnect behavior.
+- The initial variation operations, DAW session layout and optional Reaper adoption.
+- Quantum/governor changes and restoration before adding recording latency mode.
+- The syllabus, catalogue scope and evidence for an alternative engine in the later plan.
+
+Already settled: SuperCollider is the engine, the browser is the default view,
+short note names and `-` rests are the accepted notation, and realtime scheduling
+was observed on the X1 and in the VM's desktop session. Physical round-trip
+latency remains unmeasured.
 
 ## Phasing
 
-**Phase 0, a weekend:** `vikix add music` installs the engine; `(tone 440)` from Emacs; one `defpattern` playing in time; `vikix undo` works on the file. Nothing else. If this isn't fun, stop.
-
-**Phase 1, the first release:** P0 items 1–9. The web view ships with the grid, pads, knobs, transport and subtitles; progression blocks may follow in a point release.
-
-**Phase 2:** P1 items, MIDI first.
-
-**Phase 3:** `vikix learn music`, when the Music Theory app's syllabus is settled enough to share.
+The implemented baseline is described in the user guide. The executable plan
+above replaces the old weekend/first-release milestones: small releases let Vid
+try one addition before the next starts. Banks through reviewed agent access
+complete the remaining first-version work; MIDI through performance cover the
+next stage. The final task turns selected P2 ideas into a subsequent executable
+plan with current evidence and explicit scope.
 
 ## Risks
 
-- **SuperCollider on Void.** Checked: 3.14.1 in the repo, so no source build. The risk left is the Qt question above.
+- **SuperCollider on Void.** Installation and realtime scheduling were exercised; new sounds and recording paths still need their own validation.
 - **Timing over a websocket.** None: the view never carries timing. But if someone puts audio in the browser later, this document should stop them.
 - **The language grows.** Every new form needs a picture before it is accepted. A form without a picture is a sign the feature is becoming a programming environment, which Emacs already is.
 - **Two curricula drift.** The React app and `vikix learn music` share a syllabus file, checked in one place, or they will diverge.
