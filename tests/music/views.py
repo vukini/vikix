@@ -13,6 +13,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 root = Path(sys.argv[1])
@@ -28,6 +29,41 @@ def until(test, seconds=15):
             return value
         time.sleep(.1)
     raise AssertionError('condition timed out')
+
+
+def display_number(read_fd):
+    # Xvfb can write the number and newline separately. Closing after one
+    # read can break its second write and kill the server.
+    reply = b''
+    deadline = time.monotonic() + 10
+    while not reply.endswith(b'\n'):
+        remaining = deadline - time.monotonic()
+        assert remaining > 0 and select.select([read_fd], [], [], remaining)[0], 'Xvfb did not start'
+        part = os.read(read_fd, 30)
+        assert part and len(reply) + len(part) <= 30, 'invalid Xvfb display reply'
+        reply += part
+    number = reply.decode().strip()
+    assert number.isdigit(), number
+    return number
+
+
+# Exercise fragmentation deterministically, independent of server scheduling.
+read_fd, write_fd = os.pipe()
+def fragmented_display():
+    try:
+        os.write(write_fd, b'12')
+        time.sleep(.05)
+        os.write(write_fd, b'3\n')
+    finally:
+        os.close(write_fd)
+writer = threading.Thread(target=fragmented_display)
+writer.start()
+try:
+    assert display_number(read_fd) == '123'
+finally:
+    writer.join(timeout=2)
+    os.close(read_fd)
+    assert not writer.is_alive()
 
 
 class Client:
@@ -90,7 +126,7 @@ with tempfile.TemporaryDirectory(prefix='music-views-test-') as temp:
     song.parent.mkdir(parents=True)
     original = "; keep my comment\n(tempo 120) ; the pace\n(defpattern melody '(a5 - c6 - e6 - c6 -))\n(defpattern bass '(a4 -))\n"
     song.write_text(original)
-    synth = home / '.local/share/vikix/music/tone.scsyndef'
+    synth = home / '.local/share/vikix/music/palette-v1.scsyndef'
     synth.parent.mkdir(parents=True)
     synth.write_bytes(b'test synth')
     commands = folder / 'bin'
@@ -251,6 +287,36 @@ with tempfile.TemporaryDirectory(prefix='music-views-test-') as temp:
         previous_start = a.state['bars'][-1]['start']
         until(lambda: a.request('state')['bars'][-1]['start'] > previous_start)
         song.write_bytes(good)
+        # Saved sound/dynamics options use the same snapshot and revision path.
+        assert not a.request('stop')['playing']
+        saved_options_test = song.read_text()
+        for op, value, key in [('sound', 'bell', 'sound'), ('pattern-gain', .5, 'gain'), ('swing', .5, 'swing')]:
+            state = a.request(op, pattern='melody', value=value, revision=a.request('state')['revision'])
+            assert not state['error'], state
+            assert state['patterns'][0][key] == value
+        assert "; keep my comment" in song.read_text() and ":sound 'bell" in song.read_text()
+        song.write_text(song.read_text().replace(":sound 'bell", ":sound ' ; keep sound comment\n bell"))
+        revision = a.request('state')['revision']
+        state = a.request('sound', pattern='melody', value='bass', revision=revision)
+        assert not state['error'] and "; keep sound comment\n bass" in song.read_text()
+        state = a.request('sound', pattern='melody', value='bell', revision=state['revision'])
+        assert not state['error'] and "; keep sound comment\n bell" in song.read_text()
+        for op, value in [('sound', 'kick'), ('sound', 'unknown'), ('sound', ['bell']),
+                          ('pattern-gain', 1.1), ('pattern-gain', float('nan')),
+                          ('pattern-gain', True), ('swing', float('inf')), ('swing', -.1)]:
+            before = song.read_bytes()
+            state = a.request(op, pattern='melody', value=value, revision=a.state['revision'])
+            assert state['error'] and song.read_bytes() == before, (op, value, state)
+        assert a.request('sound', pattern=[], value='bell', revision=a.state['revision'])['error']
+        assert a.request('pattern-gain', pattern='melody', value=10**1000, revision=a.state['revision'])['error']
+        assert a.request('play', pattern='melody')['playing']
+        until(lambda: any(bar['swing'] == .5 for bar in a.request('state')['bars']))
+        until(lambda: any(json.loads(line).get('sound') == 'bell' and
+                          abs(json.loads(line)['gain'] - .04) < .0001
+                          for line in (folder / 'events').read_text().splitlines()))
+        assert not a.request('stop')['playing']
+        song.write_text(saved_options_test)
+        assert a.request('play', pattern='melody')['playing']
         a.close(); clients.remove(a)
         b.close(); clients.remove(b)
         time.sleep(.3)
@@ -310,7 +376,7 @@ StdIOWriteStream stdout nextPutAll: 'MUSIC-CUIS-PASS'; newLine; flush.
       ifFalse: [ StdIOWriteStream stdout nextPutAll: 'MUSIC-CUIS-REFRESH-FAIL ', window statusText; newLine; flush ].
     window delete. Smalltalk quit ] ] fork.
 """.replace('PACKAGE', quote(root / 'lib/music/VikixMusic.pck.st')).replace('ENDPOINT', quote(endpoint)))
-            graphical = bool(shutil.which('Xvfb') and shutil.which('import'))
+            graphical = bool(shutil.which('Xvfb') and shutil.which('import') and shutil.which('xdpyinfo'))
             cu_env = dict(env, SQUEAK_DISPLAY_PER_MONITOR_SCALE='1')
             if graphical:
                 read_fd, write_fd = os.pipe()
@@ -320,9 +386,7 @@ StdIOWriteStream stdout nextPutAll: 'MUSIC-CUIS-PASS'; newLine; flush.
                                                pass_fds=(write_fd,), stdout=display_log, stderr=display_log, start_new_session=True)
                     children.append(display)
                     os.close(write_fd); write_fd = None
-                    assert select.select([read_fd], [], [], 10)[0], 'Xvfb did not start'
-                    number = os.read(read_fd, 30).decode().strip()
-                    assert number.isdigit(), number
+                    number = display_number(read_fd)
                     cu_env['DISPLAY'] = ':' + number
                 finally:
                     os.close(read_fd)
@@ -330,12 +394,23 @@ StdIOWriteStream stdout nextPutAll: 'MUSIC-CUIS-PASS'; newLine; flush.
                         os.close(write_fd)
             else:
                 command.insert(1, '-vm-display-null')
+            if graphical:
+                # Check that this owned display accepts clients before the VM
+                # opens it, so a display failure has its own diagnostic.
+                def display_ready():
+                    if display.poll() is not None:
+                        raise AssertionError((folder / 'display.log').read_text())
+                    return subprocess.run(['xdpyinfo'], env=cu_env, stdout=subprocess.DEVNULL,
+                                          stderr=subprocess.DEVNULL, timeout=2).returncode == 0
+                until(display_ready, 10)
             cu_log = (folder / 'cuis.log').open('w')
             image = subprocess.Popen(command, cwd=cu, env=cu_env, stdout=cu_log, stderr=cu_log, start_new_session=True)
             children.append(image)
             until(lambda: 'MUSIC-CUIS-' in (folder / 'cuis.log').read_text() or image.poll() is not None, 30)
             output = (folder / 'cuis.log').read_text()
-            assert 'MUSIC-CUIS-PASS' in output, output
+            assert 'MUSIC-CUIS-PASS' in output, (output,
+                (folder / 'display.log').read_text() if graphical else 'null display',
+                display.poll() if graphical else None)
             song.write_text(song.read_text().replace('(tempo 170)', '(tempo 175)'))
             artifacts = os.environ.get('MUSIC_VIEW_ARTIFACTS')
             if graphical and artifacts:
@@ -491,6 +566,29 @@ StdIOWriteStream stdout nextPutAll: 'MUSIC-CUIS-PASS'; newLine; flush.
             until(lambda: js("document.querySelectorAll('.step.current').length") == 0)
             js("document.querySelector('#play').click()")
             until(lambda: js("document.querySelector('#playing').textContent.startsWith('Playing')"))
+            for control, value, fragment in [('sound', 'bell', ":sound 'bell"),
+                                               ('pattern-gain', '0.5', ':gain 0.5'),
+                                               ('swing', '0.5', ':swing 0.5')]:
+                until(lambda: js('!busy'))
+                js(f"document.getElementById('{control}').value='{value}'; document.getElementById('{control}').dispatchEvent(new Event('change'))")
+                until(lambda: fragment in subtitle())
+            until(lambda: js('state.bars.some(b => b.swing === 0.5)'))
+            until(lambda: js('!busy'))
+            before_bad_sound = song.read_bytes()
+            js("document.querySelector('#sound').value='kick'; document.querySelector('#sound').dispatchEvent(new Event('change'))")
+            until(lambda: js("document.querySelector('#status').textContent.includes('Drums need X')"))
+            assert song.read_bytes() == before_bad_sound
+            assert js("document.querySelector('#sound').value") == 'bell'
+            # Paint X, then select a drum; the browser restricts the paint palette.
+            until(lambda: js('!busy'))
+            js("document.querySelector('#note').value='x'; document.querySelectorAll('.step')[0].click()")
+            until(lambda: js("state.patterns.find(p => p.name === 'bass').notes[0]") == 'x')
+            until(lambda: js('!busy'))
+            js("document.querySelector('#sound').value='kick'; document.querySelector('#sound').dispatchEvent(new Event('change'))")
+            until(lambda: ":sound 'kick" in subtitle())
+            assert js("document.querySelector('#note option[value=a5]').disabled")
+            assert js("document.querySelector('#note').value") == 'x'
+            assert js("document.querySelectorAll('.step.current').length") <= 1
             artifacts = os.environ.get('MUSIC_VIEW_ARTIFACTS')
             if artifacts:
                 until(lambda: js("document.querySelectorAll('.step.current').length") == 1)

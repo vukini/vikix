@@ -8,3 +8,4 @@ unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME
 here=$(cd "$(dirname "$0")/.." && pwd)
 python3 "$here/tests/music/check.py" "$here"
 python3 "$here/tests/music/views.py" "$here"
+python3 "$here/tests/music/synth.py" "$here"

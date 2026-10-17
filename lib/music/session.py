@@ -4,6 +4,7 @@ import fcntl
 import hashlib
 import http.server
 import json
+import math
 import multiprocessing
 import os
 from pathlib import Path
@@ -41,7 +42,7 @@ class Song:
         tokens = [(m.group(), m.start(), m.end()) for m in
                   re.finditer(r";[^\n]*|[^\s()';]+|[()']", text) if not m.group().startswith(';')]
         i, patterns, tempo = 0, [], None
-        bank, bank_span = {}, None
+        bank, bank_span, settings = {}, None, {}
         def take(want=None):
             nonlocal i
             if i >= len(tokens):
@@ -87,7 +88,23 @@ class Song:
                         raise ValueError("unsupported note in view")
                     notes.append(note)
                 take(')')
-                take(')')
+                options = dict(sound='sine', gain=1.0, swing=0.0, spans={})
+                while i < len(tokens) and tokens[i][0] != ')':
+                    key = take()[0].lower().removeprefix(':')
+                    if key not in ('sound', 'gain', 'swing') or key in options['spans']:
+                        raise ValueError("unknown or duplicate pattern option")
+                    if key == 'sound':
+                        take("'")
+                        value = take()
+                        options[key] = value[0].lower()
+                        options['spans'][key] = value
+                    else:
+                        value = take()
+                        options[key] = float(re.sub(r'(?i)([0-9.])[defsl]([+-]?[0-9]+)$',
+                                                    r'\1e\2', value[0]))
+                        options['spans'][key] = value
+                options['end'] = take(')')[1]
+                settings[name] = options
                 patterns.append((name, notes))
             else:
                 raise ValueError("unsupported form in view")
@@ -95,20 +112,20 @@ class Song:
         for slot, (_, name) in bank.items():
             if name[0].lower() not in names:
                 raise ValueError(f"unknown bank pattern {name[0]} for pad {slot}")
-        return patterns, tempo, bank, bank_span
+        return patterns, tempo, bank, bank_span, settings
 
     def validate(self, data):
         if len(data) > 65536:
             raise ValueError("pattern file exceeds 64 KiB")
         text = data.decode('utf-8')
-        patterns, tempo, bank, bank_span = self.parse(text)
+        patterns, tempo, bank, bank_span, settings = self.parse(text)
         with tempfile.NamedTemporaryFile(suffix='.lisp') as test:
             test.write(data)
             test.flush()
             result = subprocess.run(lisp(self.root, 'check', test.name), capture_output=True, timeout=10)
         if result.returncode:
             raise ValueError("invalid pattern data; keeping the last good pattern")
-        return text, patterns, tempo, bank, bank_span
+        return text, patterns, tempo, bank, bank_span, settings
 
     def read(self):
         if any(p.is_symlink() for p in (self.path, self.path.parent, self.path.parent.parent)):
@@ -123,9 +140,9 @@ class Song:
         data = self.read()
         digest = hashlib.sha256(data).hexdigest()
         if digest != self.digest:
-            text, patterns, tempo, bank, bank_span = self.validate(data)
+            text, patterns, tempo, bank, bank_span, settings = self.validate(data)
             self.text, self.patterns, self.tempo = text, patterns, tempo
-            self.bank, self.bank_span = bank, bank_span
+            self.bank, self.bank_span, self.settings = bank, bank_span, settings
             self.digest = digest
         return self
 
@@ -140,7 +157,8 @@ class Song:
                     bank=self.bank_span is not None,
                     pads=[dict(slot=slot, pattern=name) for slot, name in self.pads().items()],
                     tempo=int(self.tempo[0]) if self.tempo else 120,
-                    patterns=[dict(name=n, notes=[t[0].lower() for t in notes]) for n, notes in self.patterns])
+                    patterns=[dict(name=n, notes=[t[0].lower() for t in notes],
+                                   **{key: self.settings[n][key] for key in ('sound', 'gain', 'swing')}) for n, notes in self.patterns])
 
     def edit(self, command):
         self.refresh()
@@ -171,6 +189,31 @@ class Song:
             else:
                 span = ('', self.bank_span[2], self.bank_span[2])
                 replacement = f' {slot} {name}' if name is not None else ''
+        elif command['op'] in ('sound', 'pattern-gain', 'swing'):
+            name = command.get('pattern')
+            options = self.settings.get(name) if isinstance(name, str) else None
+            if options is None:
+                raise ValueError("unknown pattern")
+            key = 'gain' if command['op'] == 'pattern-gain' else command['op']
+            value = command.get('value')
+            if key == 'sound':
+                if not isinstance(value, str) or value not in ('sine', 'kick', 'snare', 'closed-hat', 'bass', 'bell'):
+                    raise ValueError("unknown sound")
+                notes = next(notes for pattern, notes in self.patterns if pattern == name)
+                if value in ('kick', 'snare', 'closed-hat') and any(n[0].lower() not in ('x', '-') for n in notes):
+                    raise ValueError("Drums need X hits and rests; replace pitched notes first")
+                replacement = value if key in options['spans'] else "'" + value
+            else:
+                limit = 1 if key == 'gain' else .5
+                if type(value) not in (int, float) or not 0 <= value <= limit or not math.isfinite(value):
+                    raise ValueError(f"{key} must be 0 to {limit}")
+                if key == 'swing' and value and any(len(notes) % 2 for pattern, notes in self.patterns if pattern == name):
+                    raise ValueError("Swing needs an even number of steps")
+                replacement = str(value)
+            span = options['spans'].get(key)
+            if span is None:
+                span = ('', options['end'], options['end'])
+                replacement = f' :{key} {replacement}'
         elif command['op'] == 'tempo':
             value = command.get('value')
             if type(value) is not int or not 60 <= value <= 200:
@@ -184,6 +227,8 @@ class Song:
                 raise ValueError("unknown pattern or step")
             if not isinstance(note, str) or not re.fullmatch(r'(?i)(?:[a-g][sb]?[0-8]|x|-)', note):
                 raise ValueError("use c4, cs4, eb4, x or -")
+            if self.settings[pattern]['sound'] in ('kick', 'snare', 'closed-hat') and note.lower() not in ('x', '-'):
+                raise ValueError("Drums need X hits and rests")
             span, replacement = notes[step], note.lower()
         changed = (self.text[:span[1]] + replacement + self.text[span[2]:]).encode()
         self.validate(changed)
@@ -251,7 +296,7 @@ class Session:
                 if not isinstance(command, dict):
                     raise ValueError('expected an object')
                 op = command.get('op')
-                if op in ('note', 'tempo', 'assign'):
+                if op in ('note', 'tempo', 'assign', 'sound', 'pattern-gain', 'swing'):
                     self.song.edit(command)
                 elif op == 'play':
                     self.song.refresh()
@@ -271,7 +316,7 @@ class Session:
                         # Spawn, never fork a process with HTTP threads and locks.
                         ctx = multiprocessing.get_context('spawn')
                         receive, self.control = ctx.Pipe(duplex=False)
-                        self.position = ctx.Array('d', 6)
+                        self.position = ctx.Array('d', 8)
                         self.worker = ctx.Process(target=player, args=(self.root, str(self.song.path), name, receive, self.position))
                         self.worker.start()
                         receive.close()
@@ -299,8 +344,8 @@ class Session:
             if playing and self.position is not None:
                 with self.position.get_lock():
                     values = self.position[:]
-                bars = [dict(start=values[i], duration=values[i+1], steps=int(values[i+2]))
-                        for i in (0, 3) if values[i+1] > 0]
+                bars = [dict(start=values[i], duration=values[i+1], steps=int(values[i+2]), swing=values[i+3])
+                        for i in (0, 4) if values[i+1] > 0]
             state.update(bars=bars, now=time.time())
             return state
 

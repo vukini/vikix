@@ -50,13 +50,15 @@ def engine(args):
                         conn.sendall(struct.pack(">I", len(reply)) + reply)
                     elif data.startswith(b"#bundle\0"):
                         stamp = struct.unpack(">Q", data[8:16])[0] / 2**32 - 2208988800
-                        assert b"vikix-tone\0" in data
+                        sound = next((name for name in ('tone', 'kick', 'snare', 'closed-hat', 'bass', 'bell')
+                                      if ('vikix-' + name).encode() + b'\0' in data), None)
+                        assert sound
                         with (t / "events").open("a") as out:
                             offset = data.index(b"freq\0") + 8
                             freq = struct.unpack(">f", data[offset:offset + 4])[0]
                             amp_offset = data.index(b"amp\0") + 4
                             amp = struct.unpack(">f", data[amp_offset:amp_offset + 4])[0]
-                            out.write(json.dumps({"at": stamp, "freq": freq, "gain": amp}) + "\n")
+                            out.write(json.dumps({"at": stamp, "freq": freq, "gain": amp, "sound": sound}) + "\n")
                     elif data.startswith(b"/quit\0"):
                         break
             except EOFError:
@@ -128,11 +130,19 @@ with tempfile.TemporaryDirectory(prefix="vikix-music-test-") as temp:
     for bank in ('(bank)', '(bank 1 test 32 TEST)', '(bank 2 test)'):
         pattern.write_text(bank + '\n' + original)
         run("music", "check", str(pattern))
+    for options in (":sound 'unknown", ":sound kick", ":sound '(kick)",
+                    ":sound '#.(quit)", ":gain -0.1", ":gain 1.01", ":gain nil",
+                    ":gain 1e999", ":gain 0.5 :gain 1", ":swing -0.1", ":swing .51",
+                    ":swing nan", ":sound 'kick", ":unknown 1", ":gain"):
+        pattern.write_text("(defpattern test '(c4 -) " + options + ")")
+        run("music", "check", str(pattern), ok=False)
+    pattern.write_text("(defpattern test '(x - x) :swing 0.2)")
+    run("music", "check", str(pattern), ok=False)
     pattern.write_text(original)
     run("music", "doctor", ok=False)
     data = home / ".local/share/vikix/music"
     data.mkdir(parents=True)
-    (data / "tone.scsyndef").write_bytes(b"SCgf fixture")
+    (data / "palette-v1.scsyndef").write_bytes(b"SCgf fixture")
     run("music", "doctor")
     run("music", "tone")
     gone()
@@ -143,7 +153,22 @@ with tempfile.TemporaryDirectory(prefix="vikix-music-test-") as temp:
     gone()
     events = [json.loads(line) for line in (t / "events").read_text().splitlines()]
     assert len(events) == 4
+    assert all(abs(row["gain"] - .08) < 1e-6 for row in events)
     assert abs(events[2]["at"] - events[0]["at"] - 1.2) < 0.001
+    # All palette choices pass through the public dispatcher and authenticated engine.
+    for sound in ('sine', 'kick', 'snare', 'closed-hat', 'bass', 'bell'):
+        pattern.write_text(f"(tempo 200) (defpattern test '(x x x x) :sound '{sound} :gain 0.5 :swing 0.5)")
+        (t / "events").unlink()
+        run("music", "play", str(pattern), "--bars", "2")
+        gone()
+        rows = [json.loads(line) for line in (t / "events").read_text().splitlines()]
+        assert len(rows) == 8
+        assert all(row['sound'] == ('tone' if sound == 'sine' else sound) and
+                   abs(row['gain'] - .04) < 1e-6 and row['freq'] == 220 for row in rows)
+        for index, row in enumerate(rows):
+            expected = (index // 4) * 1.2 + ((index % 4) + (0.5 if index % 2 else 0)) * .3
+            assert abs(row['at'] - rows[0]['at'] - expected) < .001
+    pattern.write_text(original)
     run("music", "play", str(pattern), "--pattern", "missing", "--bars", "1", ok=False)
     gone()
     odd = home / "a song; still data.lisp"
@@ -256,6 +281,50 @@ with tempfile.TemporaryDirectory(prefix="vikix-music-test-") as temp:
     result = subprocess.run(["sbcl", "--noinform", "--no-sysinit", "--no-userinit", "--script", str(test)],
                             env=env, capture_output=True, text=True, timeout=10)
     assert result.returncode == 0, result.stderr
+    pattern.write_text("(tempo 120) (defpattern test '(x x) :sound 'kick :gain 0.5 :swing 0.5)")
+    clock_source = f'''(load {json.dumps(str(root / "lib/music/core.lisp"))})
+(in-package :vikix-music)
+(let ((at 0d0) (seen nil) (bars nil) (file {json.dumps(str(pattern))}))
+  (setf *clock* (lambda () (incf at 0.5d0)))
+  (setf *bar* (lambda (start bpm steps swing)
+               (push (list start bpm steps swing) bars)))
+  (setf *emit*
+    (lambda (notes)
+      (push notes seen)
+      (with-open-file (out file :direction :output :if-exists :supersede)
+        (write-line (if (= (length seen) 1)
+                        "(tempo 120) (defpattern test '(x x) :sound 'bell :gain 0.25 :swing 0)"
+                        "(defpattern test '(c4) :sound 'kick)") out))))
+  (play-loop file nil 3)
+  (setf seen (reverse seen) bars (reverse bars))
+  (assert (equal (mapcar (lambda (bar) (fifth (first bar))) seen) '(kick bell bell)))
+  (assert (equal (mapcar (lambda (bar) (sixth (first bar))) seen) '(0.5 0.25 0.25)))
+  (assert (equal (mapcar #'fourth bars) '(0.5 0 0)))
+  (loop for notes in seen for spacing in '(1.5 1 1) do
+    (assert (< (abs (- (- (first (second notes)) (first (first notes))) spacing)) 0.001))))
+'''
+    test.write_text(clock_source)
+    result = subprocess.run(["sbcl", "--noinform", "--no-sysinit", "--no-userinit", "--script", str(test)],
+                            env=env, capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stderr
+
+    # The bridge rejects malformed/unbounded events even if its child misbehaves.
+    wrapper = commands / 'sbcl'
+    normal_wrapper = wrapper.read_text()
+    fake = t / 'bad-event.py'
+    try:
+        for event in ('0 440 .3 .08 unknown 1', '0 440 .3 .08 sine nan',
+                      '0 440 .3 .11 sine 1', '0 440 .3 .08 sine 1.1',
+                      'bar 0 120 3 .5', 'bar 0 120 4 nan'):
+            fake.write_text("import os\n" +
+                            f"os.write(int(os.environ['VIKIX_MUSIC_FD']), {event.encode() + bytes([10])!r})\n")
+            wrapper.write_text('#!/bin/sh\nexec python3 ' + shlex.quote(str(fake)) + '\n')
+            (t / 'events').unlink(missing_ok=True)
+            run('music', 'tone', ok=False)
+            gone()
+            assert not (t / 'events').exists()
+    finally:
+        wrapper.write_text(normal_wrapper)
     for pid in (t / "lisp.pids").read_text().splitlines():
         try:
             os.kill(int(pid), 0)
@@ -289,5 +358,5 @@ with tempfile.TemporaryDirectory(prefix="vikix-music-test-") as temp:
     run("music", "setup")
     assert "first-song" in pattern.read_text()
     run("music", "uninstall")
-    assert pattern.exists() and not (data / "tone.scsyndef").exists()
+    assert pattern.exists() and not (data / "palette-v1.scsyndef").exists()
     print("music: parser, clock/reload, launcher/TCP, failures/cleanup and snapshot/undo passed")

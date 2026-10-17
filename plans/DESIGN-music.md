@@ -17,6 +17,14 @@ repeated patterns, one bank, and rejection of duplicate slots and missing
 names. Scores without a bank retain file-order pads. See the user guide for
 assignment editing and undo; desktop pad keys remain a later task.*
 
+*2026-10-17: Sounds implemented at the music-sounds desk, awaiting review and
+the user release gate. Office decision d-20261017-4e5f91 approved original
+sine/kick/snare/closed-hat/bass/bell synthesis, per-pattern gain 0–1 multiplying
+the existing session amplitude (default 0.08, ceiling 0.1), and swing 0–0.5
+delaying alternate steps in even-length patterns. X triggers the selected
+drum or a 220 Hz melodic note. No samples. See the guide for syntax and
+browser controls; the score remains data, never evaluated.*
+
 ## Executable Office plan
 
 [music-next.toml](music-next.toml) is the executable continuation, not a template.
@@ -136,7 +144,9 @@ Every form has a picture. Nothing else is in v1.
 | `(every-bar (choose hats-a hats-b))` | a pad with a dice | chance, the one generative form |
 | `(variations bass :invert :shift 2)` | a list of candidates with a play button each | audition, pick one, it becomes a pattern |
 
-Sound choices (`:sound 'kick`, `:sound 'piano`) pick from a small shipped set of SuperCollider synthdefs and samples; a dropdown in the view.
+Sound selection, relative gain and swing are implemented as documented in
+[the music guide](../docs/music.md); they are awaiting the Sounds release gate.
+Sample sources and redistribution remain unapproved; none are included.
 
 ### Subtitles
 
@@ -251,7 +261,7 @@ Decided by this check:
 
 Decide through Office when the relevant task starts:
 
-- The first sound palette, any sample source and license, and gain semantics.
+- Any future sample source and license (the original synthesized palette and gain semantics are settled).
 - Chord voicings, keys and progression-block durations.
 - Pad and recording keys after auditing the registry: Super+digits belong to workspaces.
 - Recording sources and defaults, capture filing and recovery behavior.

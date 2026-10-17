@@ -32,6 +32,14 @@ A page of the Vikix skill (~/.claude/skills/vikix/SKILL.md: read that first, its
 
 ## Music sketchpad
 
+The browser also saves optional per-pattern `:sound 'sine|kick|snare|closed-hat|bass|bell`,
+`:gain` (0–1 multiplier) and `:swing` (0–0.5, even step count when nonzero).
+Drums accept X hits and rests only; melodic X remains 220 Hz. Session
+gain stays capped at 0.1, default 0.08. Old sine scores retain their sound.
+`vikix music setup` compiles the original MIT-licensed palette; an older
+installation needs setup again. No samples are downloaded. These fields
+are data only and have browser controls and subtitles, never evaluation.
+
 The browser can save pad assignments as `(bank 1 melody 2 bass)` in the
 score, through the same snapshot and revision checks as grid edits. Slots
 are 1–32; scores without a bank retain file-order pads. Bank edits do not

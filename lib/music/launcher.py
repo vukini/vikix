@@ -101,11 +101,11 @@ def setup(root):
     folder = data_dir()
     folder.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="build-", dir=folder) as temp:
-        output = Path(temp) / "tone.scsyndef"
+        output = Path(temp) / "palette-v1.scsyndef"
         env = dict(os.environ, VIKIX_MUSIC_SYNTH=str(output))
         subprocess.run(["sbcl", "--noinform", "--no-sysinit", "--no-userinit", "--non-interactive",
                         "--load", str(root / "lib/music/synth.lisp")], env=env, check=True, timeout=180)
-        os.replace(output, folder / "tone.scsyndef")
+        os.replace(output, folder / "palette-v1.scsyndef")
     starter = Path.home() / "music/first-song/patterns.lisp"
     starter.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -124,14 +124,14 @@ def doctor():
         print(f"{name}: {found or 'missing (vikix add music)'}")
         if not found:
             missing.append(name)
-    ready = (data_dir() / "tone.scsyndef").is_file()
+    ready = (data_dir() / "palette-v1.scsyndef").is_file()
     print("synth: " + ("prepared" if ready else "missing (vikix music setup)"))
     print("Audio and realtime scheduling: verify with vikix music tone; not measured by this check.")
     return int(bool(missing) or not ready)
 
 
 def perform(root, args, control=None, position=None):
-    synth = data_dir() / "tone.scsyndef"
+    synth = data_dir() / "palette-v1.scsyndef"
     if doctor():
         return 1
     # Reserve a free loopback port. A competing bind causes a clean failure,
@@ -203,29 +203,42 @@ def perform(root, args, control=None, position=None):
                 while b"\n" in pending:
                     line, pending = pending.split(b"\n", 1)
                     if line.startswith(b"bar "):
-                        at, bpm, steps = map(float, line.split()[1:])
-                        if not (all(map(math.isfinite, (at, bpm, steps))) and
+                        at, bpm, steps, swing = map(float, line.split()[1:])
+                        if not (all(map(math.isfinite, (at, bpm, steps, swing))) and
+                                0 <= swing <= 0.5 and (swing == 0 or steps % 2 == 0) and
                                 60 <= bpm <= 200 and steps.is_integer() and 1 <= steps <= 128):
                             raise RuntimeError("invalid music bar")
                         if position is not None:
                             # Fixed-size shared memory: a closed or slow view
                             # cannot fill a telemetry pipe and block the clock.
                             with position.get_lock():
-                                position[:3] = position[3:]
-                                position[3:] = (at, 240 / bpm, steps)
+                                position[:4] = position[4:]
+                                position[4:] = (at, 240 / bpm, steps, swing)
                         continue
                     if line == b"stop":
                         send(sock, message("/clearSched"))
                         send(sock, message("/g_freeAll", 0))
                         continue
-                    at, freq, dur, gain = map(float, line.split())
+                    fields = line.split()
+                    if len(fields) != 6:
+                        raise RuntimeError("invalid music note")
+                    at, freq, dur, gain = map(float, fields[:4])
+                    sound = fields[4].decode('ascii')
+                    relative = float(fields[5])
+                    sounds = {'sine': 'tone', 'kick': 'kick', 'snare': 'snare',
+                              'closed-hat': 'closed-hat', 'bass': 'bass', 'bell': 'bell'}
+                    if sound not in sounds or not math.isfinite(relative) or not 0 <= relative <= 1:
+                        raise RuntimeError("invalid music sound or relative gain")
                     if not (all(map(math.isfinite, (at, freq, dur, gain))) and
                             16 <= freq <= 20000 and 0 < dur <= 5 and 0 <= gain <= 0.1):
                         raise RuntimeError("invalid music note")
                     if view_gain is not None:
-                        gain = max(0, min(0.1, view_gain))
+                        if not math.isfinite(view_gain) or not 0 <= view_gain <= 0.1:
+                            raise RuntimeError("invalid session gain")
+                        gain = view_gain
+                    gain *= relative
                     stamp = int((at + 2208988800) * 2**32)
-                    note = message("/s_new", "vikix-tone", -1, 0, 0,
+                    note = message("/s_new", "vikix-" + sounds[sound], -1, 0, 0,
                                    "freq", freq, "dur", dur, "amp", gain)
                     send(sock, b"#bundle\0" + struct.pack(">Q", stamp) + struct.pack(">I", len(note)) + note)
             elif worker.poll() is not None:
@@ -280,6 +293,7 @@ def main(root, argv):
             return doctor()
         if args.command == "uninstall":
             if os.environ.get("DRY_RUN") != "1":
+                (data_dir() / "palette-v1.scsyndef").unlink(missing_ok=True)
                 (data_dir() / "tone.scsyndef").unlink(missing_ok=True)
             print("Prepared synth removed; ~/music kept.")
             return 0

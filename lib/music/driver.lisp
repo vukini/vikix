@@ -15,16 +15,16 @@
       (setf *silence* (lambda ()
                         (sb-thread:with-mutex (lock)
                           (write-line "stop" events) (finish-output events))))
-      (setf *bar* (lambda (start bpm steps)
+      (setf *bar* (lambda (start bpm steps swing)
                     (sb-thread:with-mutex (lock)
-                      (format events "bar ~f ~f ~d~%" start bpm steps)
+                      (format events "bar ~f ~f ~d ~f~%" start bpm steps swing)
                       (finish-output events))))
       (setf *emit*
             (lambda (notes)
               (sb-thread:with-mutex (lock)
                 (dolist (note notes)
-                  (destructuring-bind (at freq dur gain) note
-                    (format events "~f ~f ~f ~f~%" at freq dur gain)))
+                  (destructuring-bind (at freq dur gain &optional (sound 'sine) (relative 1)) note
+                    (format events "~f ~f ~f ~f ~(~a~) ~f~%" at freq dur gain sound relative)))
                 (finish-output events))))
       (unwind-protect
            (cond ((equal command "tone")

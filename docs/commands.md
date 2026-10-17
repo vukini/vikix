@@ -911,8 +911,8 @@ The last resort is earlyoom, a system service Vikix switches on: when memory is 
 
 A Lisp musical sketchpad, with SuperCollider making the sound.
 
-- `vikix music setup` — prepare the synth and a first pattern (vikix add music)
-- `vikix music doctor` — check the engine, PipeWire JACK and prepared synth
+- `vikix music setup` — compile the sound palette and prepare a first pattern (vikix add music)
+- `vikix music doctor` — check the engine, PipeWire JACK and prepared palette
 - `vikix music check FILE` — check pattern data without making sound
 - `vikix music tone [HZ]` — one quiet, short tone (880 Hz by default)
 - `vikix music play [FILE] [--pattern NAME] [--bars N]` — repeat a pattern, loading edits at the next bar; Ctrl+C stops it and its own engine
@@ -920,9 +920,9 @@ A Lisp musical sketchpad, with SuperCollider making the sound.
 - `vikix music serve [FILE]` — prototype shared session; Ctrl+C ends its player
 - `vikix music web` — open the browser grid for the running session
 - `vikix music cuis` — open a disposable Cuis grid for the same session
-- `vikix music uninstall` — remove the prepared synth; keep your music
+- `vikix music uninstall` — remove the prepared sounds; keep your music
 
-Patterns are yours, `~/music/first-song/patterns.lisp` to begin with. Use (tempo 120) and (defpattern bass '(c4 - e4 -)); - is a rest. Files are read as data, never evaluated. A bad edit keeps the last good pattern. Optional (bank 1 bass) saves pad assignments (slots 1–32); without a bank, pads use file order. Edit assignments in the browser, with snapshot undo. Snapshot before editing; vikix undo restores patterns at the next bar. The REPL evaluates your Lisp locally. There is no remote evaluation service.
+Patterns are yours, `~/music/first-song/patterns.lisp` to begin with. Use (tempo 120) and (defpattern bass '(c4 - e4 -)); - is a rest. Files are read as data, never evaluated. A bad edit keeps the last good pattern. Optional (bank 1 bass) saves pad assignments (slots 1–32); without a bank, pads use file order. Edit assignments in the browser, with snapshot undo. Patterns optionally take :sound 'sine|kick|snare|closed-hat|bass|bell, :gain 0..1 (relative to session gain), and :swing 0..0.5 (even step counts). Drums use x hits and - rests; melodic x remains 220 Hz. The browser edits these data fields with undo. Session gain stays at 0.08 by default, capped at 0.1. Run setup again to compile the palette after an older Music install. Snapshot before editing; vikix undo restores patterns at the next bar. The REPL evaluates your Lisp locally. There is no remote evaluation service.
 
 ## vikix-net
 
