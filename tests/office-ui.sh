@@ -5,6 +5,7 @@ set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop
 export EMACS_SOCKET_NAME=/nonexistent/emacs-server
 unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE   # never the live session settings
+export VIKIX_SCHEDULER=0   # no queue ticks: four children of up to a minute outlived the test
 here=$(cd "$(dirname "$0")/.." && pwd)
 t=$(mktemp -d)
 xpid=''

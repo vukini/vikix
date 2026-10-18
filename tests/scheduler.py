@@ -13,6 +13,9 @@ import unittest
 from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'tests/lib'))
+import own_home
+own_home.claim()   # never the real office: run by hand, these once wrote fixture tasks into it
 sys.path.insert(0, str(ROOT / 'lib'))
 import tasks as T
 import handoff as H
