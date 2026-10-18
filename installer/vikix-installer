@@ -210,7 +210,7 @@ ask_all() {
     essentials "Plus Emacs, C, Python and Lisp" \
     developer "Plus Neovim and every language" \
     everything "Plus LibreOffice and printing")
-  [ "$VI_WITH" = base ] && VI_WITH=""
+  [ "$VI_WITH" != base ] || VI_WITH=""
 }
 
 confirm() {

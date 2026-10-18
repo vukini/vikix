@@ -67,6 +67,54 @@ if [ "$(id -u)" -ne 0 ]; then
   check "refuses to run for real as a user" has 'run it as root' "$out"
 fi
 
+# --- the questions, answered by a stand-in dialog ------------------------------------
+# 2026-10-18, the first real boot (the Z13): choosing anything but the base ended
+# the installer silently at the feature question, because ask_all's last line was
+# `[ ... = base ] && VI_WITH=""`, which returns 1 under set -e. The answers file
+# skips the questions, so only a run through them catches that.
+mkdir -p "$t/qbin"
+cat > "$t/qbin/dialog" <<'EOF'
+#!/usr/bin/env bash
+# dialog's answer goes to stderr; the installer swaps the streams to capture it.
+title= kind= text=
+while [ $# -gt 0 ]; do
+  case $1 in
+    --title) title=$2; shift ;;
+    --menu|--inputbox|--passwordbox|--yesno|--msgbox) kind=$1; text=$2; shift ;;
+  esac
+  shift
+done
+case $kind in
+  --menu) case $title in
+            Disk) echo /dev/sda ;; "Time zone") echo UTC ;; Keyboard) echo us ;;
+            Vikix) echo "${DIALOG_WITH:-essentials}" ;; *) echo "?" ;;
+          esac >&2 ;;
+  --inputbox) case $text in
+            *login*) echo tester ;; *"Your name"*) echo "Test Person" ;;
+            *"name for this computer"*) echo box ;; *erase*) echo erase ;; *) echo "?" ;;
+          esac >&2 ;;
+  --passwordbox) echo vikix-test >&2 ;;
+esac
+exit 0
+EOF
+printf '#!/bin/sh\ncase "$*" in *NAME,SIZE*) echo "sda 20G sata Fake" ;; *SIZE*) echo 20G ;; *MODEL*) echo Fake ;; esac\n' > "$t/qbin/lsblk"
+printf '#!/bin/sh\nexit 0\n' > "$t/qbin/curl"
+printf '#!/bin/sh\nexit 0\n' > "$t/qbin/clear"
+printf '#!/bin/sh\nexit 1\n' > "$t/qbin/findmnt"
+chmod +x "$t/qbin"/*
+questions() {   # questions WITH: the dry run through the questions, choosing WITH
+  DIALOG_WITH=$1 VI_LOG="$t/log" PATH="$t/qbin:$PATH" TERM=dumb \
+    bash "$here/installer/vikix-installer" --dry-run </dev/null 2>&1
+}
+out=$(questions essentials) || { fail=1; echo "the questions with essentials ended early: $(printf '%s' "$out" | tail -n 3)"; }
+check "questions: essentials reaches the install" has 'sgdisk -n1:0:+1G' "$out"
+check "questions: essentials in the marker"       has 'VIKIX_WITH=essentials' "$out"
+check "questions: the disk chosen"                has 'mkfs.vfat -F32 -n EFI /dev/sda1' "$out"
+check "questions: the user"                       has 'useradd' "$out"
+check "questions: the password never printed"     lacks 'vikix-test' "$out"
+out=$(questions base) || { fail=1; echo "the questions with base ended early"; }
+check "questions: base means no features"         has 'VIKIX_WITH=$' "$out"
+
 # --- firstboot ------------------------------------------------------------------
 mkdir -p "$t/home/vikix" "$t/home/.local/state/vikix" "$t/bin"
 printf '#!/bin/sh\necho "sudo $*" >> %q\n' "$t/calls" > "$t/bin/sudo"
