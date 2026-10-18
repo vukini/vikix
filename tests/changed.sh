@@ -151,6 +151,9 @@ for f in "${files[@]}"; do
     lib/music/*|config/music/*|bin/vikix-music|tests/music/*) add music ;;
     tests/*.sh) add "$(basename "$f" .sh)" ;;
     tests/lib/fake-swank.py) add cuis ;;   # the stand-in Swank the Cuis test drives the image against
+    tests/lib/own_home.py) add office-ui tasks scheduler ;;   # the test home the office's Python tests claim
+    tests/decisions.py) add tasks ;;   # run by tests/tasks.sh
+    tests/scheduler.py) add scheduler ;;
     tests/*) all=1 ;;
     docs/*|lib/md2texi.py|lib/build-guide.sh) add info docs-open docs ;;   # the catalogue (vikix docs) reads the guides too
     # The agents' guide is made from the skill.
