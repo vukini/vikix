@@ -829,15 +829,25 @@ remove any files.
 
 **Releases.** Under the board, a **Releases** box lists the releases under
 way in your projects, as `.claude/release --queue` does: each one's topic,
-what it is doing (checking, testing, waiting for its turn) and since when,
-with the project and the line it brings; the one whose turn it is comes
-first, the ones waiting for the lock after it. A desk whose branch is being
-released says so too, a **Release** row under its Handoff, and in its Git
-state. The box is read from the notes each release keeps of itself
-(`.git/vikix-release-queue/`, one file a running release); a note of a
-release that ended is skipped, never removed. When none is under way, a
-repository that has released before gets the line *No release under way*,
-and a machine that never released shows nothing.
+its step of the seven (*step 4 of 7: testing (changed)*), since when, and
+how long is left, with the project and the line it brings; the one whose
+turn it is comes first, the ones waiting for the lock after it, each saying
+whom it is behind. Under the line, the seven steps as a strip, *checking ›
+origin › onto main › testing › merging › version › desk*, the one under way
+in bold and the ones done in the shade (a step that doesn't apply, no
+origin or nothing to rebase, is passed through, so the numbers are the same
+in every release). While a release tests, its tests follow as a table, a
+row each, as the Testing box draws a run: ended, running and queued, how
+long each has taken and its estimate, from the last time it passed on this
+machine. The estimate of the whole is the tests' plus the steps after
+(*about 3 min left*); before the tests start it says the tests decide, past
+them *under a minute*. A desk whose branch is being released says the same
+line in a **Release** row under its Handoff, and in its Git state. The box
+is read from the notes each release keeps of itself
+(`.git/vikix-release-queue/`, one file a running release, eight lines);
+a note of a release that ended is skipped, never removed. When none is
+under way, a repository that has released before gets the line *No release
+under way*, and a machine that never released shows nothing.
 
 Click **Archive** (or press `A`) to see historical tasks, handoffs and checks,
 the third page, and above them the plans done. Archived entries say no action is needed; Go to agent, Continue and Close

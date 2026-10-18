@@ -233,24 +233,47 @@ is drawn again at that width."
    (setq vikix-office--detail (generate-new-buffer " *Office release test*"))
    (unwind-protect
        (progn
+         ;; As lib/office.py's release_queue gives them: the line, the step of the
+         ;; seven, and the tests' rows (test_progress) while a release tests.
          (setf (alist-get 'releases vikix-office--data)
-               '(((project . "vikix") (topic . "wifi") (state . "testing (quick)") (since . 1791300000) (kind . "") (summary . "the bar") (waiting . :false))
-                 ((project . "vikix") (topic . "docs") (state . "waiting for its turn") (since . 1791300100) (kind . "no version") (summary . "a guide") (waiting . t))))
-         (setf (alist-get 'release (car (alist-get 'desks vikix-office--data))) "testing (quick) · since 10:00")
+               '(((project . "vikix") (topic . "wifi") (state . "testing (quick)") (since . 1791300000) (kind . "") (summary . "the bar") (waiting . :false)
+                  (step . 4) (steps . 7) (step_since . 1791300030) (behind . nil) (left . 140) (left_words . "about 2 min left")
+                  (line . "step 4 of 7: testing (quick) · since 10:00 · about 2 min left")
+                  (tests . (((name . "done") (state . "passed") (elapsed . 10) (expected . 12) (remaining . nil) (stalled . :false))
+                            ((name . "active") (state . "running") (elapsed . 20) (expected . 80) (remaining . 60) (stalled . :false))
+                            ((name . "queued") (state . "queued") (elapsed . 0) (expected . 60) (remaining . 60) (stalled . :false)))))
+                 ((project . "vikix") (topic . "docs") (state . "waiting for its turn") (since . 1791300100) (kind . "no version") (summary . "a guide") (waiting . t)
+                  (step . 0) (steps . 7) (step_since . 1791300100) (behind . ("wifi")) (left . nil) (left_words . "after wifi, which has about 2 min left")
+                  (line . "waiting for its turn · since 10:01 · no version · behind wifi · after wifi, which has about 2 min left") (tests . nil))))
+         (setf (alist-get 'release (car (alist-get 'desks vikix-office--data))) "step 4 of 7: testing (quick) · since 10:00 · about 2 min left")
          (vikix-office--render)
          (let ((text (buffer-string)))
            (should (string-match-p "Releases" text))
            (should (< (string-match "wifi" text) (string-match "docs" text)))
-           (should (string-match-p "waiting for its turn · since [0-9][0-9]:[0-9][0-9] · no version" text))
+           ;; The line as given, the strip with the step under way in bold and the
+           ;; ones done in the shade, and the tests' table under it.
+           (should (string-match-p "wifi +step 4 of 7: testing (quick) · since 10:00 · about 2 min left" text))
+           (should (string-match "checking › origin › onto main › testing › merging › version › desk" text))
+           (let ((strip (match-beginning 0)))
+             (should (eq (get-text-property strip 'face text) 'shadow))
+             (should (eq (get-text-property (+ strip (length "checking › origin › onto main › ")) 'face text) 'bold))
+             (should-not (get-text-property (+ strip (length "checking › origin › onto main › testing › ")) 'face text)))
+           (should (string-match-p "Test +State +Time +Estimate" text))
+           (should (string-match-p "active +running +20 s +about 1 min left" text))
+           (should (string-match-p "queued +queued +about 1 min" text))
+           ;; The waiting one: no strip, whom it is behind and how long after.
+           (should (string-match-p "docs +waiting for its turn · since 10:01 · no version · behind wifi" text))
+           (should (string-match-p "after wifi, which has about 2 min left" text))
+           (should (= 2 (length (split-string text "checking › origin › onto main"))))
            (should (string-match-p "vikix · a guide" text))
-           (should (string-match-p "Release +testing (quick) · since 10:00" text)))
+           (should (string-match-p "Release +step 4 of 7: testing (quick) · since 10:00 · about 2 min left" text)))
          ;; The archive view has no queue; the desk's details say it in the Git state.
          (vikix-office-toggle-archive)
          (should-not (string-match-p "Releases" (buffer-string)))
          (vikix-office-toggle-archive)
          (setq vikix-office--selected "a")
          (vikix-office--render)
-         (should (string-match-p "Release +testing (quick)" (with-current-buffer vikix-office--detail (buffer-string))))
+         (should (string-match-p "Release +step 4 of 7: testing (quick)" (with-current-buffer vikix-office--detail (buffer-string))))
          ;; Nothing under way: a line when a repository has released before, nothing otherwise.
          (setf (alist-get 'releases vikix-office--data) nil)
          (setf (alist-get 'releases_kept vikix-office--data) t)

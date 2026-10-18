@@ -229,10 +229,11 @@ def tests_running_at(folder):
 
 def release_notes():
     """.claude/release's notes, in each project repository: (pid, [topic,
-    state, since, kind, summary]) each."""
+    state, since, kind, summary, step_since, step, worktree]) each; the last
+    three empty for a note of five lines (a release script from before)."""
     notes = []
     for common in known_repos():
-        notes += read_notes(os.path.join(common, "vikix-release-queue"), 5)
+        notes += read_notes(os.path.join(common, "vikix-release-queue"), 8)
     return notes
 
 
@@ -286,14 +287,17 @@ def waits(agents):
             tests.setdefault(a, []).append((state, name, since))
     releases = {}
     all_releases = release_notes()
-    for pid, (topic, state, since, kind, summary) in all_releases:
+    for pid, (topic, state, since, kind, summary, _, step, _) in all_releases:
         a = under(pid, agents)
         if a:
-            releases[a] = (pid, topic, state, since, kind, summary)
+            releases[a] = (pid, topic, state, since, kind, summary, step)
     for a in set(tests) | set(releases):
         words = line = None
         if a in releases:
-            pid, topic, state, since, kind, summary = releases[a]
+            pid, topic, state, since, kind, summary, step = releases[a]
+            # Its step of the seven (the script's note), when the note has one.
+            if step.isdigit() and int(step) > 0:
+                state = f"step {step} of 7: {state}"
             if state.startswith("waiting"):
                 # Ahead of it: the one whose turn it is, then those that came before it.
                 ahead = [t for p, (t, st, s, *_) in sorted(all_releases, key=lambda n: (n[1][1].startswith("waiting"), n[1][2]))

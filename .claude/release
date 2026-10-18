@@ -27,8 +27,8 @@
 #
 #   .claude/release --queue
 #       the releases under way, the one whose turn it is first: each one's
-#       topic, what it is doing (testing, waiting for its turn) and since
-#       when, and its summary. Nothing is changed.
+#       topic, its step (step 4 of 7: testing, waiting for its turn) and
+#       since when, and its summary. Nothing is changed.
 #
 # One release at a time: a second waits for the first (a lock in the
 # repository), so two sessions can't take the same number, and main can't
@@ -63,25 +63,33 @@ while [ $# -gt 0 ]; do
 done
 case $tests in changed|quick|full|none) ;; *) die "--tests is changed, quick, full or none" ;; esac
 
-# Each release keeps a note of itself while it runs (its topic, what it
-# is doing, since when), in the repository beside the lock: what --queue
-# reads, and what the Office shows as its Releases box (release_queue in
-# lib/office.py reads the same five lines; change one, change both). A
-# note whose process has ended is nobody's, and is cleared away here.
+# Each release keeps a note of itself while it runs, in the repository
+# beside the lock: what --queue reads, and what the Office shows as its
+# Releases box (release_queue in lib/office.py reads the same lines; change
+# one, change both). Eight lines: the topic; its step in words (checking,
+# testing (quick), waiting for its turn, ...); when the release began
+# (epoch seconds); "no version" for --plain, else nothing; the summary;
+# when this step began; the step's number of the seven (0 while waiting
+# for its turn: see steps below); the worktree the tests run in (so the
+# Office finds the run's plan, tests/run.sh's, and says how long is left).
+# A note whose process has ended is nobody's, and is cleared away here.
 notes_dir() { printf '%s/vikix-release-queue' "$(cd "$(dirname "$0")/.." && cd "$(git rev-parse --git-common-dir)" && pwd)"; }
+steps=7   # checking, looking at origin, onto main, testing, merging, version and tag, closing the desk
 show_queue() {
-  local dir f pid topic state since summary kind rows
+  local dir f pid topic state since summary kind step rows
   dir=$(notes_dir) || die "this isn't a git repository"
   rows=$(for f in "$dir"/*; do
     [ -f "$f" ] || continue
     pid=${f##*/}
     kill -0 "$pid" 2>/dev/null || { rm -f "$f"; continue; }
-    { IFS= read -r topic; IFS= read -r state; IFS= read -r since; IFS= read -r kind; IFS= read -r summary; } < "$f" || true
+    step=''
+    { IFS= read -r topic; IFS= read -r state; IFS= read -r since; IFS= read -r kind; IFS= read -r summary; IFS= read -r _; IFS= read -r step; } < "$f" || true
+    case $step in [1-9]|[1-9][0-9]) state="step $step of $steps: $state" ;; esac
     # The one whose turn it is sorts first, then the waiting by when they came.
     case $state in waiting*) printf '1 %s' "$since" ;; *) printf '0 %s' "$since" ;; esac
     printf '\t%s\t%s\t%s\t%s\n' "$topic" "$state" "$(date -d "@$since" +%H:%M 2>/dev/null || echo '?')" "$summary${kind:+ ($kind)}"
   done | sort | while IFS=$'\t' read -r _ topic state since summary; do
-    printf '  %-12s %-22s since %s   %s\n' "$topic" "$state" "$since" "$summary" | cut -c1-"${COLUMNS:-160}"
+    printf '  %-12s %-34s since %s   %s\n' "$topic" "$state" "$since" "$summary" | cut -c1-"${COLUMNS:-160}"
   done)
   if [ -n "$rows" ]; then
     printf 'Releases under way, the one whose turn it is first:\n%s\n' "$rows"
@@ -109,23 +117,26 @@ git -C "$main" rev-parse --verify -q "refs/heads/$topic" >/dev/null || die "ther
 [ -n "$wt" ] || die "the branch $topic has no worktree (git worktree add ~/src/vikix-$topic $topic)"
 [ "$wt" != "$main" ] || die "$topic is checked out in the main folder: that one is for merging only"
 
-# This release's note, for --queue: gone when this ends, however it ends.
+# This release's note, for --queue and the Office: gone when this ends,
+# however it ends. Each step is numbered as it comes, skipped or not, so
+# "step 4 of 7" is the same step in every release.
 note_file="$common/vikix-release-queue/$$"
 came=$(date +%s)
-note() {   # note STATE: what this release is doing now
+note() {   # note STEP STATE: what this release is doing now (STEP 0 to 7)
   mkdir -p "$common/vikix-release-queue" 2>/dev/null || return 0
-  printf '%s\n%s\n%s\n%s\n%s\n' "$topic" "$1" "$came" "${plain:+no version}" "$summary" > "$note_file" 2>/dev/null || true
+  printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n' "$topic" "$2" "$came" "${plain:+no version}" "$summary" "$(date +%s)" "$1" "$wt" > "$note_file.tmp" 2>/dev/null &&
+    mv -f "$note_file.tmp" "$note_file" 2>/dev/null || true
 }
-trap 'rm -f "$note_file"' EXIT
+trap 'rm -f "$note_file" "$note_file.tmp"' EXIT
 
 # One at a time.
 exec 9>"$common/vikix-release.lock" || die "the lock can't be made"
 if ! flock -n 9; then
-  note "waiting for its turn"
+  note 0 "waiting for its turn"
   say "another session is releasing: waiting for it (.claude/release --queue shows the queue)"
   flock -w 3600 9 || die "waited an hour for the other release; nothing done"
 fi
-note "checking"
+note 1 "checking"
 
 [ "$(git -C "$main" symbolic-ref -q --short HEAD)" = main ] || die "the main folder ($main) isn't on main"
 [ -z "$(git -C "$main" status --porcelain)" ] || die "the main folder ($main) has changes of its own: it is for merging only. Nothing done"
@@ -139,7 +150,7 @@ note "checking"
 # repository has an origin. Unreachable: said, and the release goes on.
 origin=$(git -C "$main" remote get-url origin 2>/dev/null || true)
 if [ -n "$origin" ]; then
-  note "looking at origin"
+  note 2 "looking at origin"
   case $origin in git@github.com:*) origin="https://github.com/${origin#git@github.com:}" ;; esac
   if timeout 30 git -C "$main" fetch -q --no-tags "$origin" main >/dev/null 2>&1; then
     behind=$(git -C "$main" rev-list --count main..FETCH_HEAD 2>/dev/null || echo 0)
@@ -152,7 +163,7 @@ fi
 
 # On top of main as it is now.
 if [ "$(git -C "$main" rev-list --count "$topic..main")" -gt 0 ]; then
-  note "onto main"
+  note 3 "onto main"
   say "main has moved on: putting $topic on top of it"
   if ! git -C "$wt" rebase -q main >/dev/null 2>&1; then
     files=$(git -C "$wt" diff --name-only --diff-filter=U | tr '\n' ' ')
@@ -177,7 +188,7 @@ case $tests in
   none) [ -n "${vouched:-}" ] || say "tests: not run (you said none)" ;;
   *)
     case $tests in changed) args=(--changed main) ;; quick) args=(--quick) ;; full) args=() ;; esac
-    note "testing ($tests)"
+    note 4 "testing ($tests)"
     say "tests (${tests}), in $wt ..."
     log=$(mktemp)
     # 9>&-: the tests don't inherit the lock's descriptor, or a program a test
@@ -192,13 +203,14 @@ case $tests in
 esac
 
 # From here main changes. Each step only after the one before.
-note "merging"
+note 5 "merging"
 git -C "$main" merge -q --ff-only "$topic" >/dev/null 2>&1 ||
   die "main wouldn't fast-forward to $topic. Nothing merged"
 merged=$(git -C "$main" rev-parse --short HEAD)
 say "main is at $merged ($topic)"
 
 if [ -z "$plain" ]; then
+  note 6 "version and tag"
   old=$(cat "$main/VERSION" 2>/dev/null)
   [[ $old =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] ||
     die "VERSION says '$old', not a number like 0.71.189. $topic is merged ($merged); the version and tag are not made"
@@ -218,6 +230,7 @@ if [ -z "$plain" ]; then
 fi
 
 if [ -z "$keep" ]; then
+  note 7 "closing the desk"
   git -C "$main" worktree remove "$wt" >/dev/null 2>&1 || say "the worktree $wt wasn't removed (something in it git doesn't know?)"
   git -C "$main" branch -q -d "$topic" >/dev/null 2>&1 || say "the branch $topic wasn't removed"
   # The desk's record (the office's, ~/.local/state/vikix/office/desks/) is

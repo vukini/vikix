@@ -246,9 +246,14 @@ p2=$!
 for _ in $(seq 1 50); do grep -q waiting <<<"$(release --queue)" && break; sleep 0.2; done
 mkdir -p "$r/.git/vikix-release-queue"; printf 'ghost\ntesting (quick)\n1\n\na release that died\n' > "$r/.git/vikix-release-queue/999999"
 out=$(release --queue)
-check "--queue: the one whose turn it is first, testing, with its summary: $(sed -n 2p <<<"$out")" \
-  grep -qE '^  q1 +testing \(changed\) +since [0-9]{2}:[0-9]{2}   the first of two$' <<<"$(sed -n 2p <<<"$out")"
-check "then the one waiting, and that it brings no version: $(sed -n 3p <<<"$out")" \
+check "--queue: the one whose turn it is first, at its step, testing, with its summary: $(sed -n 2p <<<"$out")" \
+  grep -qE '^  q1 +step 4 of 7: testing \(changed\) +since [0-9]{2}:[0-9]{2}   the first of two$' <<<"$(sed -n 2p <<<"$out")"
+# The note itself, as the Office reads it (release_queue in lib/office.py): eight
+# lines, the step's number and its start among them, and the worktree the tests run in.
+note=$(grep -l '^q1$' "$r"/.git/vikix-release-queue/* 2>/dev/null | head -1)
+check "the release's note has eight lines: the step since when, its number of 7, the worktree: $(tr '\n' '|' < "${note:-/dev/null}")" \
+  bash -c '[ "$(wc -l < "$1")" = 8 ] && [ "$(sed -n 2p "$1")" = "testing (changed)" ] && [ "$(sed -n 7p "$1")" = 4 ] && [ "$(sed -n 8p "$1")" = "$2" ] && sed -n 6p "$1" | grep -qE "^[0-9]{10}$"' _ "${note:-/dev/null}" "$t/vikix-q1"
+check "then the one waiting (step 0: no step said), and that it brings no version: $(sed -n 3p <<<"$out")" \
   grep -qE '^  q2 +waiting for its turn +since [0-9]{2}:[0-9]{2}    ?\(no version\)$' <<<"$(sed -n 3p <<<"$out")"
 check "a note left by a release that died isn't listed, and is cleared away: $(wc -l <<<"$out") lines" \
   bash -c "[ \"\$(wc -l <<<\"\$1\")\" = 3 ] && [ ! -e '$r/.git/vikix-release-queue/999999' ]" _ "$out"
@@ -258,8 +263,8 @@ check "the one waiting is told how to see the queue" grep -q 'release --queue sh
 held=$(python3 "$here/bin/vikix-agents" --waits "$p1" "$p2" 2>&1)
 check "vikix agents: the one waiting is waiting for a release, behind the first: $(grep "^$p2" <<<"$held")" \
   grep -qE "^$p2	waiting for a release	its release q2 waits for its turn since [0-9]{2}:[0-9]{2}, behind q1 \(.claude/release --queue\)\$" <<<"$held"
-check "and the first is releasing, at its step: $(grep "^$p1" <<<"$held")" \
-  grep -qE "^$p1	releasing: testing \(changed\)	its release q1: testing \(changed\) since [0-9]{2}:[0-9]{2}; the first of two\$" <<<"$held"
+check "and the first is releasing, at its step of the seven: $(grep "^$p1" <<<"$held")" \
+  grep -qE "^$p1	releasing: step 4 of 7: testing \(changed\)	its release q1: step 4 of 7: testing \(changed\) since [0-9]{2}:[0-9]{2}; the first of two\$" <<<"$held"
 rm -f "$t/hold"
 wait "$p1" || true; wait "$p2" || true
 check "both land once the first is done: $(tail -1 "$t/q1.out"); $(tail -2 "$t/q2.out" | head -1)" bash -c "[ -e '$r/file-q1' ] && [ -e '$r/file-q2' ]"
@@ -287,5 +292,5 @@ out=$(release y "Y") && code=0 || code=$?
 check "an origin that can't be reached is said, and the release goes on: $code $out" \
   bash -c "[ $code = 0 ] && grep -q \"origin couldn't be reached\" <<<\"\$1\"" _ "$out"
 
-[ "$fail" = 0 ] && echo "release: merged, numbered and tagged; rebased when main moved; refused, with nothing changed, on a clash, failing tests or uncommitted work; two at once land in turn; --queue shows who is testing and who waits"
+[ "$fail" = 0 ] && echo "release: merged, numbered and tagged; rebased when main moved; refused, with nothing changed, on a clash, failing tests or uncommitted work; two at once land in turn; --queue shows who is testing, at which of the seven steps, and who waits"
 exit "$fail"

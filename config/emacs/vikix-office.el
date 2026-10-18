@@ -332,6 +332,37 @@ whom, and the words of its data that say something."
             (if (vikix-office--positive at) (concat " · since " (vikix-office--clock at)) "")
             (if (member waiting '(nil "")) "" (concat " · waiting for the release of " (vikix-office--one-line waiting))))))
 
+(defconst vikix-office--release-step-names '("checking" "origin" "onto main" "testing" "merging" "version" "desk")
+  "The seven steps of a release, short, in the script's order.
+RELEASE_STEPS in lib/office.py has them in full.")
+
+(defun vikix-office--release-line (release)
+  "RELEASE in a line, as lib/office.py says it: its step of how many, what
+it does, since when, whom it is behind, how long is left. A snapshot from
+before has no line: then the step's words, since when, and its kind."
+  (let ((line (alist-get 'line release)))
+    (if (not (member line '(nil "")))
+        (vikix-office--one-line line)
+      (concat (vikix-office--one-line (alist-get 'state release))
+              " · since " (vikix-office--clock (alist-get 'since release))
+              (let ((kind (alist-get 'kind release)))
+                (if (member kind '(nil "")) "" (concat " · " (vikix-office--one-line kind))))))))
+
+(defun vikix-office--release-steps (release width)
+  "The steps of RELEASE as a strip, the one under way in bold, the ones
+done in the shade, the ones to come plain; nil while it waits for its
+turn, for a note without a step, or when the strip is wider than WIDTH."
+  (let ((step (alist-get 'step release)) (i 0) (parts nil))
+    (when (and (numberp step) (> step 0))
+      (dolist (name vikix-office--release-step-names)
+        (setq i (1+ i))
+        (push (cond ((< i step) (propertize name 'face 'shadow))
+                    ((= i step) (propertize name 'face 'bold))
+                    (t name))
+              parts))
+      (let ((strip (mapconcat #'identity (nreverse parts) (propertize " › " 'face 'shadow))))
+        (and (<= (string-width strip) width) strip)))))
+
 (defun vikix-office--seconds (value)
   "VALUE seconds in words: 40 s, 6 min 40 s, 1 h 5 min; \"\" for none."
   (if (not (numberp value)) ""
@@ -977,17 +1008,24 @@ they run, and New worker… when it stands with nobody at it."
                  (let ((label-width (vikix-office--label-width
                                      (mapcar (lambda (r) (vikix-office--one-line (alist-get 'topic r))) releases) 8)))
                    (vikix-office--box-top width chars "Releases")
-                   (vikix-office--note width chars "The one whose turn it is first; the others wait for it.")
+                   (vikix-office--note width chars "The one whose turn it is first; the others wait for it. Seven steps each; how long is left comes from the tests' estimates.")
                    (dolist (r releases)
+                     ;; Its step of the seven, what it does, since when, how long is left.
                      (vikix-office--field width chars label-width (vikix-office--one-line (alist-get 'topic r))
-                                          (concat (vikix-office--one-line (alist-get 'state r))
-                                                  " · since " (vikix-office--clock (alist-get 'since r))
-                                                  (let ((kind (alist-get 'kind r)))
-                                                    (if (member kind '(nil "")) "" (concat " · " (vikix-office--one-line kind))))))
+                                          (vikix-office--release-line r))
+                     ;; The steps as a strip, the one under way marked.
+                     (let ((strip (vikix-office--release-steps r (- width label-width))))
+                       (when strip (vikix-office--field-lines width chars label-width "" (list strip))))
                      (vikix-office--field width chars label-width ""
                                           (concat (vikix-office--one-line (alist-get 'project r)) " · "
                                                   (vikix-office--one-line (alist-get 'summary r)))
-                                          'shadow))
+                                          'shadow)
+                     ;; Its tests while it tests: a row each, as the Testing box draws a run.
+                     (let ((tests (alist-get 'tests r)))
+                       (when tests
+                         (vikix-office--table width chars '("Test" "State" "Time" "Estimate" "")
+                                              (mapcar #'vikix-office--test-cells tests)
+                                              (mapcar #'vikix-office--test-face tests)))))
                    (vikix-office--box-bottom width chars)))
                 ((eq (alist-get 'releases_kept vikix-office--data) t)
                  (insert (propertize "No release under way.\n\n" 'face 'shadow)))))

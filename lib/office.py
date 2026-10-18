@@ -57,19 +57,32 @@ def short(path):
 
 
 # .claude/release's notes: one file a release under way, named by its pid,
-# beside its lock in the repository's common git dir. Five lines: the topic,
-# what it is doing (checking, testing (quick), waiting for its turn, ...),
-# since when (epoch seconds), "no version" for a --plain release or nothing,
-# and the summary. The script's --queue reads them the same way.
+# beside its lock in the repository's common git dir. Eight lines: the topic,
+# its step in words (checking, testing (quick), waiting for its turn, ...),
+# when the release began (epoch seconds), "no version" for a --plain release
+# or nothing, the summary, when the step began, the step's number (0 while
+# it waits for its turn, else 1 to 7 of RELEASE_STEPS, skipped ones counted),
+# and the worktree the tests run in. A note of five lines (a release script
+# from before) has no step. The script's --queue reads them the same way.
 QUEUE_DIR = 'vikix-release-queue'
+# The steps of a release, in the script's order: the note's number is one of
+# these. The Office draws them as a strip, the one under way marked.
+RELEASE_STEPS = ('checking', 'looking at origin', 'onto main', 'testing', 'merging', 'version and tag', 'closing the desk')
+RELEASE_TESTS_STEP = 4
+# What the steps after the tests take together, about: a merge, a commit and
+# a tag, a worktree removed. Seconds, so the estimate can say "under a minute".
+RELEASE_TAIL_SECONDS = 20
 
 
 def release_queue(api):
     """The releases under way in the projects' repositories, the one whose
     turn it is first, then the waiting by when they came; and whether any
     repository has the notes' folder at all (so an empty queue can be told
-    from a machine that never released). Read only: a note whose process
-    has ended is skipped and left for the script, which clears it."""
+    from a machine that never released). Each one's step, of how many, and
+    since when; while it tests, the run's tests (tests/run.sh's plan in the
+    worktree: test_progress) and how long is left; waiting, whom it is
+    behind. Read only: a note whose process has ended is skipped and left
+    for the script, which clears it."""
     rows, kept = [], False
     for common, name in sorted(api.known_repos().items()):
         folder = os.path.join(common, QUEUE_DIR)
@@ -88,23 +101,87 @@ def release_queue(api):
                 pass   # another user's: alive, we can't signal it
             try:
                 with open(os.path.join(folder, entry), encoding='utf-8', errors='replace') as f:
-                    lines = (f.read().split('\n') + [''] * 5)[:5]
+                    lines = (f.read().split('\n') + [''] * 8)[:8]
             except OSError:
                 continue
-            topic, state, since, kind, summary = (l.strip() for l in lines)
+            topic, state, since, kind, summary, step_since, step, worktree = (l.strip() for l in lines)
             if not topic:
                 continue
-            rows.append({'project': name, 'common': common, 'pid': pid, 'topic': topic, 'state': state or 'unknown',
-                         'since': int(since) if since.isdigit() else None, 'kind': kind, 'summary': summary,
-                         'waiting': state.startswith('waiting')})
+            row = {'project': name, 'common': common, 'pid': pid, 'topic': topic, 'state': state or 'unknown',
+                   'since': int(since) if since.isdigit() else None, 'kind': kind, 'summary': summary,
+                   'waiting': state.startswith('waiting'),
+                   'step': int(step) if step.isdigit() else None, 'steps': len(RELEASE_STEPS),
+                   'step_since': int(step_since) if step_since.isdigit() else None, 'worktree': worktree}
+            row.update(release_tests(api, row))
+            rows.append(row)
     rows.sort(key=lambda r: (r['waiting'], r['since'] or 0, r['topic']))
+    # A waiting release is behind the one whose turn it is and those that came before it.
+    for i, r in enumerate(rows):
+        r['behind'] = [a['topic'] for a in rows[:i] if a['common'] == r['common']] if r['waiting'] else []
+        r['left'], r['left_words'] = release_left(r, rows[:i])
+        r['line'] = release_line(r)
     return rows, kept
 
 
+def release_tests(api, release):
+    """The tests a RELEASE runs now, from the runner's plan in its worktree
+    (test_progress, the Testing box's reader): the run's rows, its summary
+    and how long is left (None when a test has no estimate); nothing while
+    it isn't testing, or when the worktree or the plan can't be found."""
+    none = {'tests': [], 'tests_summary': '', 'tests_left': None}
+    if not release['state'].startswith('testing') or not release['worktree'] or not hasattr(api, 'test_progress'):
+        return none
+    try:
+        runs = api.test_progress(release['worktree'])
+    except (OSError, ValueError):
+        return none
+    if not runs:
+        return none
+    run = runs[0]
+    return {'tests': run['tests'], 'tests_summary': run['summary'], 'tests_left': run['eta']}
+
+
+def release_left(release, ahead):
+    """How long a RELEASE has left, about, and the words for it: while it
+    tests, the run's estimate plus the steps after; past the tests, under a
+    minute; before them, the tests decide (their estimate comes as they
+    start); waiting its turn, after the one AHEAD of it (the rows before it
+    in the queue), with that one's estimate when it has one. (seconds or
+    None, words)."""
+    step = release['step']
+    if release['waiting']:
+        mine = [a for a in ahead if a['common'] == release['common']]
+        first = mine[0] if mine else None
+        if first and first.get('left') is not None:
+            return None, f"after {first['topic']}, which has about {left_words(first['left'])} left"
+        return None, (f"after {first['topic']}" if first else 'after the release whose turn it is')
+    if step is None:
+        return None, ''
+    if step < RELEASE_TESTS_STEP:
+        return None, 'how long: the tests decide; their estimate comes as they start'
+    if step == RELEASE_TESTS_STEP:
+        if release['tests_left'] is None:
+            return None, ('tests running, estimate unknown' if release['tests'] else 'tests starting')
+        left = release['tests_left'] + RELEASE_TAIL_SECONDS
+        return left, f'about {left_words(left)} left'
+    return RELEASE_TAIL_SECONDS, 'under a minute left'
+
+
+def left_words(seconds):
+    """SECONDS ahead in a few words: 40 s, 3 min, 1 h 5 min."""
+    n = max(0, int(seconds))
+    return f'{n} s' if n < 60 else span_words(n)
+
+
 def release_line(release):
-    """One release as the desk's row says it: what it does, since when."""
+    """One release as the desk's row says it: its step of how many, what it
+    does, since when, and how long is left."""
     since = time.strftime('%H:%M', time.localtime(release['since'])) if release['since'] else '?'
-    return f"{release['state']} · since {since}" + (f" · {release['kind']}" if release['kind'] else '')
+    step = release.get('step')
+    head = f"step {step} of {release['steps']}: " if step else ''
+    return (f"{head}{release['state']} · since {since}" + (f" · {release['kind']}" if release['kind'] else '')
+            + (f" · behind {', '.join(release['behind'])}" if release.get('behind') else '')
+            + (f" · {release['left_words']}" if release.get('left_words') else ''))
 
 
 def plan_rows(api):

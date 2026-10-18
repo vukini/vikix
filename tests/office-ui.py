@@ -437,22 +437,75 @@ class Office(unittest.TestCase):
         snap = office.snapshot(A)
         self.assertEqual((snap['releases'], snap['releases_kept']), ([], True))
         now = int(time.time())
-        (queue / str(os.getppid())).write_text(f'docs\nwaiting for its turn\n{now - 120}\nno version\na guide\n')
-        (queue / str(os.getpid())).write_text(f'wifi\ntesting (quick)\n{now - 60}\n\nthe bar\n')
+        # Eight lines a note (the script's since 0.72.95): the step's start, its
+        # number of the seven (0 waiting), the worktree the tests run in.
+        (queue / str(os.getppid())).write_text(f'docs\nwaiting for its turn\n{now - 120}\nno version\na guide\n{now - 120}\n0\n/tmp/vikix-docs\n')
+        (queue / str(os.getpid())).write_text(f'wifi\ntesting (quick)\n{now - 60}\n\nthe bar\n{now - 30}\n4\n{self.folder}\n')
         (queue / '999999').write_text('ghost\ntesting (quick)\n1\n\na release that died\n')
         (queue / 'lock').write_text('')
         snap = office.snapshot(A)
         self.assertEqual([(r['topic'], r['state'], r['kind'], r['summary'], r['project']) for r in snap['releases']],
                          [('wifi', 'testing (quick)', '', 'the bar', 'vikix'),
                           ('docs', 'waiting for its turn', 'no version', 'a guide', 'vikix')])
-        self.assertEqual(snap['releases'][0]['since'], now - 60)
+        testing, waiting = snap['releases']
+        self.assertEqual((testing['since'], testing['step'], testing['steps'], testing['step_since'], testing['worktree']),
+                         (now - 60, 4, 7, now - 30, self.folder))
+        # No run of the runner in the worktree yet: the tests are starting, no estimate.
+        self.assertEqual((testing['tests'], testing['tests_left'], testing['left'], testing['left_words'], testing['behind']),
+                         ([], None, None, 'tests starting', []))
+        self.assertTrue(testing['line'].startswith('step 4 of 7: testing (quick) · since '), testing['line'])
+        self.assertTrue(testing['line'].endswith(' · tests starting'), testing['line'])
+        # The waiting one is behind the one whose turn it is, and says so.
+        self.assertEqual((waiting['step'], waiting['behind'], waiting['left'], waiting['left_words']), (0, ['wifi'], None, 'after wifi'))
+        self.assertTrue(waiting['line'].endswith(' · no version · behind wifi · after wifi'), waiting['line'])
         self.assertTrue((queue / '999999').exists())
         self.assertEqual(snap['errors'], [])
-        # The desk whose branch is being released says so; another repository's branch of the same name doesn't.
+        # The runner at work in the worktree (its plan, as test_runner_progress
+        # fakes one): the release's tests, a row each, and how long is left,
+        # the run's estimate plus the steps after; the waiting one says it too.
+        slots = Path(self.temp.name) / 'slots'
+        logs = Path(self.temp.name) / 'logs'
+        logs.mkdir()
+        (slots / 'runs').mkdir(parents=True)
+        where = str(Path(self.folder) / 'tests')
+        pid = os.getpid()
+        (slots / 'runs' / str(pid)).write_text(str(logs))
+        (logs / 'run').write_text(f'{where}\n2\n{now - 30}\n')
+        (logs / 'plan').write_text('done\nactive\nqueued\n')
+        (logs / 'done.done').write_text('0 10')
+        (logs / 'active.started').write_text(str(now - 20))
+        for name, seconds in [('active', 80), ('queued', 60)]:
+            (logs / (name + '.expected')).write_text(str(seconds))
+        realpath = os.path.realpath
+        def resolve(path):
+            return where if path == f'/proc/{pid}/cwd' else realpath(path)
+        with patch.dict(os.environ, VIKIX_TEST_SLOTS_DIR=str(slots)), patch.object(A.os.path, 'realpath', resolve):
+            testing, waiting = office.snapshot(A)['releases']
+        self.assertEqual([(t['name'], t['state']) for t in testing['tests']], [('done', 'passed'), ('active', 'running'), ('queued', 'queued')])
+        self.assertIn('1/3 done, 2 remaining', testing['tests_summary'])
+        self.assertIsNotNone(testing['tests_left'])
+        self.assertEqual(testing['left'], testing['tests_left'] + office.RELEASE_TAIL_SECONDS)
+        self.assertTrue(testing['line'].endswith(f" · about {testing['left'] // 60} min left"), testing['line'])
+        self.assertTrue(waiting['left_words'].startswith('after wifi, which has about '), waiting['left_words'])
+        # Past the tests: under a minute; before them, the tests decide; a note of
+        # five lines (a release script from before) has no step and says nothing of time.
+        (queue / str(os.getpid())).write_text(f'wifi\nmerging\n{now - 60}\n\nthe bar\n{now - 1}\n5\n{self.folder}\n')
+        r = office.snapshot(A)['releases'][0]
+        self.assertEqual((r['left'], r['left_words'], r['tests']), (office.RELEASE_TAIL_SECONDS, 'under a minute left', []))
+        (queue / str(os.getpid())).write_text(f'wifi\nlooking at origin\n{now - 60}\n\nthe bar\n{now - 1}\n2\n{self.folder}\n')
+        r = office.snapshot(A)['releases'][0]
+        self.assertEqual((r['left'], r['left_words']), (None, 'how long: the tests decide; their estimate comes as they start'))
+        (queue / str(os.getpid())).write_text(f'wifi\ntesting (quick)\n{now - 60}\n\nthe bar\n')
+        r = office.snapshot(A)['releases'][0]
+        self.assertEqual((r['step'], r['step_since'], r['worktree'], r['tests'], r['left_words']), (None, None, '', [], ''))
+        self.assertTrue(r['line'].startswith('testing (quick) · since '), r['line'])
+        (queue / str(os.getpid())).write_text(f'wifi\ntesting (quick)\n{now - 60}\n\nthe bar\n{now - 30}\n4\n{self.folder}\n')
+        # The desk whose branch is being released says so, step and all; another
+        # repository's branch of the same name doesn't.
         self.desks = [{'folder': self.folder, 'branch': 'wifi', 'top': str(Path(self.temp.name) / 'repo')}]
         self.common = str(common)
         row = office.snapshot(A)['desks'][0]
-        self.assertTrue(row['release'].startswith('testing (quick) · since '), row['release'])
+        self.assertTrue(row['release'].startswith('step 4 of 7: testing (quick) · since '), row['release'])
         self.common = '/elsewhere/.git'
         self.assertEqual(office.snapshot(A)['desks'][0]['release'], '')
         self.desks[0]['branch'] = 'other'
