@@ -6,9 +6,12 @@ The longer plans of Vikix, one file each. The queue is `../TODO.md`, the pool `.
 
 | File | Drafted | What it works out |
 |---|---|---|
+| `DESIGN-accelerators.md` | 2026-10-18 | Groki's handover: the loop from idea to release run hands-off for Vid, a desk on one key, a release queue that runs itself, the morning brief (TODO 100), the Office's inbox as a popup, a bug caught from anywhere, a fast Lisp reload, learning from use, daily drivers; 1 to 3 first. |
+| `DESIGN-ci.md` | 2026-10-18 | Groki's handover after 0.72.97's five tries: CI that shows every failure (and the red `man` step), pinned shellcheck, tests that hold under load (weighted slots, a load gate, wait-until helpers, once more alone), releases that don't stall, hermetic tests, more of the suite in CI, the budgets, housekeeping. |
 | `DESIGN-cloud.md` | 2026-10-09 | Vid's idea, as he wrote it: rented always-on machines as nodes of the one Vikix (`vikix nodes`, `--on NAME` over SSH first, projects sent by git, jobs that outlive the laptop), and the product that could sell such nodes (TODO 117, its v0.1; its first four parts shipped 2026-10-12 as `bin/vikix-node`). |
 | `DESIGN-codex-integration.md` | 2026-10-10 | Codex as a first-class worker: `CLAUDE.md` as its instructions, three modes set by the launcher with the desk as the sandbox's only root, its hooks in Codex's shape with an escalation denied off the desk, the hand-in's fields, a review by another provider and a handover between them (TODO 116, shipped in five releases on 2026-10-10; left: Vid's day with the two providers, the commands in `docs/agents.md`). |
 | `DESIGN-cuis.md` | 2026-10-03 | Cuis Smalltalk as a Vikix feature, with a door for the agent. Phase 0 built 2026-10-09: `vikix cuis`, `vikix eval --cuis` (TODO 88). |
+| `DESIGN-dependable.md` | 2026-10-18 | Groki's handover: the laptop to depend on, a known-good update channel, system rollback (TODO 6), the Lisp toolchain pinned, signed updates (To look into 4), an update doctor, a hardware check, test tiers, keys only where needed, desks enforced by the system, the ledger (TODO 81), one view of releases and agents, caps on what grows (TODO 96). |
 | `DESIGN-docs.md` | 2026-10-03 | The docs catalogue and the `vk` alias. |
 | `DESIGN-machines.md` | 2026-10-04 | Your laptops, desktop and phones as one Vikix: Tailscale, Syncthing, KDE Connect, `vikix export`/`import`, `--on NAME` for the doors (TODO 16 to 19). |
 | `DESIGN-music.md` | 2026-10-17 | Remaining Music design after the 0.72.85 browser sketchpad; executable continuation in `music-next.toml`. |

@@ -1,0 +1,34 @@
+# Vikix Dependable — design
+
+The laptop Vid works on as something to depend on: updates to trust and undo, breakage caught before it costs time, agents left running unattended in safety, and a machine that stays fast.
+
+Drafted 2026-10-18 from Groki's handover (its "Distro-level improvements"), from reading the code at 0.72.95 and not yet checked on the machine. Written for Vid alone: Vikix has no other users yet, so the aim is less time lost to a broken machine, a stuck release or an agent to babysit, not a promise to anyone else. Where an item is already a TODO, it is named and not repeated; the notes marked *2026-10-18* are what Vikix already has, from the code. Kept honest like the other designs: what ships is deleted here, what changes is dated.
+
+---
+
+## Updates to trust and undo
+
+Do these first: they make every other change safer.
+
+1. **A known-good channel for the laptop.** Main moves about twenty times a day, and agents release with no gate (`plans/music-next.toml` releases by the plan, no user gate). `vikix update` follows a `good` tag that moves only after CI is green, plus a quick local smoke test. Development stays on main; the machine Vid works on takes only green releases. *2026-10-18:* `gup` (`repos ship`) pushes and then runs `vikix update core` at once, before CI has run, so this changes the usual step after a release too.
+2. **System rollback** (TODO 6, *Whole-system undo*, widened). `vikix undo` covers the user's files only. Before `vikix update`, a root snapshot (btrfs and snapper where the disk allows), or at least a record of the xbps package set and the StumpWM binary, so `vikix update --back` brings the last good state back in one step.
+3. **The Lisp toolchain pinned.** Void has no StumpWM package: `install/30-lisp.sh` and `lib/build-stumpwm.lisp` build it from Quicklisp. Pin the Quicklisp dist and the SBCL version; keep the previous `~/.local/bin/stumpwm` as `stumpwm.prev`, and let `vikix-session` start that when the new image fails to load. (The pins belong beside `DESIGN-security.md` item 2's; TODO 92's dumped core will want the same fallback.)
+4. **Signed updates** (To look into 4; `DESIGN-security.md` item 1; TODO "What's next" 3). `vikix update` verifies a signed tag before running any stage with sudo. On 2026-10-04 Vid put this off until the first outside user; the handover argues it matters now because agents can land on main without him. Less urgent than 1 to 3. **For Vid to decide** whether that changes the 2026-10-04 call.
+
+## Catch breakage before it costs time
+
+5. **An update doctor.** After `vikix update`, and when asked: the runit services, that the StumpWM image loads, PipeWire, the network and the battery, then one notification: all well, or exactly what broke and the fix. (`vikix doctor` checks much of this already; TODO 103's `--fix` is the mending half.)
+6. **A hardware check for this laptop.** `vikix-hwreport` and a small script for suspend and resume, the lid, the brightness keys, sound out and in, and the touchpad, to run after an update or a kernel change. *2026-10-18:* `vikix-hwreport` is the stick's (`installer/vikix-hwreport`), not in `bin/`; it would come over.
+7. **Feedback in tiers.** A set that finishes in under five minutes before a release (tighter than today's `tests/run.sh --quick`), with the full set run at night while the laptop is idle and failures reported in the morning. Goes with `DESIGN-ci.md` item 3: the load gate, the weighted slots, once more alone.
+
+## Run more agents unattended, safely
+
+8. **Keys only where needed.** `lib/secrets.sh` and `vikix.bash` export the API keys into every shell; that is what broke `tests/docs.sh` (`DESIGN-ci.md`). Instead `vikix key run CMD`, or a wrapper a tool, giving each tool only the key it needs. (Gap E of `DESIGN-security.md` is the same folder.)
+9. **Desks enforced by the system.** The house rules are hooks only (Claude Code, Codex, OpenCode, Antigravity), and `protection_lines` says so: no filesystem enforcement. Run an agent's session under bubblewrap or Landlock with only its desk and scratch folders writable; then any agent, and anything it starts, is held, and Vid can leave more of them running overnight. (Beside TODO 97's permission list and TODO 99's advisory locks; IDEAS has bubblewrap for `vikix try PROGRAM`.)
+10. **The outbound ledger** (TODO 81, `DESIGN-security.md` item 8): what left the machine, when and to whom, for a quick look each morning.
+11. **Releases and agents in one view.** A bar field or an Office pane: the release queue, which desk holds the release lock, who holds the test slots, the load, CI's state for the last push, and the GitHub branches not on main. It replaces asking "what is running?". *2026-10-18:* `.claude/release --queue` (`gq`) and the Office's Releases box show the queue and the steps already; the rest is new. (TODO 43, build status in the bar, is the CI part as a plugin.)
+
+## Keep the machine fast over time
+
+12. **Caps on what grows for ever** (TODO 96): the office's journal and events, `records.db` and `vikix used` rotated or compacted.
+13. **The budgets before they bite.** Trim `config/claude/skills/vikix/SKILL.md` (2 bytes left of 16,000), and decide what happens when the key card is full (it is: `vikix agents desk` has no key for that reason). `DESIGN-ci.md` item 7.
