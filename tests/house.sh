@@ -380,7 +380,10 @@ check "with turns on a clash waits for the commit, and asks when it doesn't come
 check "the wait is gone from the journal after" not grep -q '"kind": "waiting"' "$journal"
 (sleep 1; git -C "$t/src/book-b" commit -q -am "b: ch1 done") &
 out=$(touch_as 1001 "$t/src/book-a/ch1.md"); wait
-check "the other's commit gives the turn, said to the agent: $(head -c 100 <<<"$out")" grep -q '"additionalContext": "Vikix office: your turn on .*ch1.md: the other agent.s change there is committed now."' <<<"$out"
+# Either of the hook's two wordings: under load its first look can come after
+# the commit (a release run on 2026-10-18, load 7 on 4 cores), and then the
+# turn is given at once, without a wait.
+check "the other's commit gives the turn, said to the agent: $(head -c 100 <<<"$out")" grep -Eq '"additionalContext": "Vikix office: your turn on .*ch1.md: (the other agent.s change there is committed now|what the other agent changed there is committed)\."' <<<"$out"
 echo "two by b, again" >> "$t/src/book-b/ch1.md"
 printf '{"at": %s, "kind": "waiting", "agent": "codex", "pid": 1002, "folder": "%s", "file": "%s/ch1.md", "with": ["claude 1001"]}\n' \
   "$(($(date +%s) - 5))" "$t/src/book-b" "$t/src/book-a" >> "$journal"
