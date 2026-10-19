@@ -79,7 +79,9 @@ check "a new window opens right of the focused one and takes the focus: $(state)
 ask '(delete-window (current-window))' >/dev/null; sleep 1
 check "closing it focuses the one that took its place: $(state)" test "$(state)" = "BACD left=1 focus=C"
 
-zenity --info --title=ViriDialog --text=x >/dev/null 2>&1 &
+# A dialog by its class (zenity is in *vikix-dialog-classes*), as main.sh
+# makes one: the real zenity isn't on every machine (the Z13, 2026-10-19).
+LIBGL_ALWAYS_SOFTWARE=1 alacritty --class zenity --title ViriDialog -e sleep 300 >/dev/null 2>&1 &
 pids+=($!)
 for _ in $(seq 1 40); do [ "$(ask '(princ (if (equal (window-title (current-window)) "ViriDialog") 1 0))')" = 1 ] && break; sleep 0.25; done
 check "a dialog floats, not as a column: $(state)" test "$(state)" = "BACD left=1 focus=ViriDialog"
