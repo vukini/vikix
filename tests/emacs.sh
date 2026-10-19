@@ -178,7 +178,8 @@ out=$(env -u OPENAI_API_KEY bash -c "$(declare -f el); here='$here' gptel='$gpte
 check "the menu should start with Claude and Local, and leave out what has no key: $out" has '^menu ("Claude" "Local" "Mine")' "$out"
 check "Claude's retired models shouldn't be offered: $out" has '^retired nil' "$out"
 out=$(OPENAI_API_KEY=sk-x bash -c "$(declare -f el); here='$here' gptel='$gptel' el '$menu'")
-check "with its key, a backend should be back in the menu: $out" has '^menu ("Claude" "Local" "Mine" "OpenAI" "ChatGPT")' "$out"
+# gptel's own "ChatGPT" backend went in October 2026; either listing is right.
+check "with its key, a backend should be back in the menu: $out" has '^menu ("Claude" "Local" "Mine" "OpenAI"\( "ChatGPT"\)\{0,1\})' "$out"
 
 # A check that fails leaves the default as it was.
 out=$(el "(progn (vikix-ai-sync) (say \"before %s\" gptel-model)

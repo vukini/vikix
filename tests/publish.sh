@@ -307,8 +307,8 @@ X
   out=$(bash "$here/bin/vikix-publish" new "$repo/book-a" 2>&1) || fail=1
   check "in a git repository, new commits what it wrote: $out" \
     test "$(git -C "$repo" log -1 --format=%s)" = "book-a: a book for vikix publish (publish.yml, a first chapter, words.txt)"
-  check "those files alone: $(git -C "$repo" show --name-only --format= HEAD | sort | tr '\n' ' ')" \
-    test "$(git -C "$repo" show --name-only --format= HEAD | sort | tr '\n' ' ')" = "book-a/.gitignore book-a/Makefile book-a/chapters/01-start.md book-a/publish.yml book-a/words.txt "
+  check "those files alone: $(git -C "$repo" show --name-only --format= HEAD | LC_ALL=C sort | tr '\n' ' ')" \
+    test "$(git -C "$repo" show --name-only --format= HEAD | LC_ALL=C sort | tr '\n' ' ')" = "book-a/.gitignore book-a/Makefile book-a/chapters/01-start.md book-a/publish.yml book-a/words.txt "
   check "what else was changed or staged stays as it was: $(git -C "$repo" status --porcelain | tr '\n' '|')" \
     test "$(git -C "$repo" status --porcelain | tr '\n' '|')" = " M other.txt|A  staged.txt|"
   check "and it says so: $out" grep -q 'committed: .*words.txt.*your next push takes it' <<<"$out"

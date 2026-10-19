@@ -104,6 +104,16 @@ Asked each time (a second at most), so a model you just got is there."
       (let ((tags (ignore-errors (json-parse-buffer :object-type 'alist :array-type 'list))))
         (mapcar (lambda (m) (intern (alist-get 'name m))) (alist-get 'models tags))))))
 
+(defun vikix-ai--model-name (m)
+  "The name of gptel's model M: a symbol, or the head of an alist entry."
+  (if (consp m) (car m) m))
+
+(defun vikix-ai--model-get (m prop)
+  "PROP of gptel's model M.
+gptel keeps a model's description as properties of its symbol (from
+October 2026), before that as an alist entry's plist: both are read."
+  (if (consp m) (plist-get (cdr m) prop) (get m prop)))
+
 (defun vikix-ai--claude-models (model)
   "Claude's models for the menu: MODEL and Vikix's default first."
   (let ((known (bound-and-true-p gptel--anthropic-models))
@@ -111,15 +121,16 @@ Asked each time (a second at most), so a model you just got is there."
     ;; What gptel knows of its newest Sonnet (images, tools, caching)
     ;; holds for the models it doesn't know yet; not its price.
     (append (mapcar (lambda (m)
-                      (let ((newest (cdr (car known))))
-                        (cons m (list :capabilities (plist-get newest :capabilities)
-                                      :mime-types (plist-get newest :mime-types)
-                                      :context-window (plist-get newest :context-window)))))
+                      (let ((newest (car known)))
+                        (cons m (list :capabilities (vikix-ai--model-get newest :capabilities)
+                                      :mime-types (vikix-ai--model-get newest :mime-types)
+                                      :context-window (vikix-ai--model-get newest :context-window)))))
                     first)
             ;; Not the retired ones (Claude 2 and 3): they no longer answer.
             (seq-remove (lambda (m)
-                          (or (memq (car-safe m) first)
-                              (string-match-p "\\`claude-\\(2\\|3\\|instant\\)" (symbol-name (car-safe m)))))
+                          (let ((name (vikix-ai--model-name m)))
+                            (or (memq name first)
+                                (string-match-p "\\`claude-\\(2\\|3\\|instant\\)" (symbol-name name)))))
                         known))))
 
 (defun vikix-ai--set-models (backend models)
