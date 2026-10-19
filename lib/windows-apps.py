@@ -326,12 +326,11 @@ def entry_of(a):
 def entry_write(a):
     DESKTOP.mkdir(parents=True, exist_ok=True)
     f = entry_of(a)
-    how = " --desktop" if a.get("desktop") else ""
     f.write_text("[Desktop Entry]\n"
                  f"# Written by {MARK}: a Windows program in a window of its own.\n"
                  f"Name={a['name']}\n"
                  f"Comment={a['name']}, from the Windows VM\n"
-                 f"Exec=vikix windows app {a['id']}{how} %f\n"
+                 f"Exec=vikix windows app {a['id']} %f\n"
                  "Type=Application\nCategories=Office;\n"
                  f"StartupWMClass=vikix-win-{a['id']}\n")
     return f
@@ -358,16 +357,11 @@ def launcher_write(apps):
 
 def launcher_note(a, there=True):
     kept = [x for x in launcher_read() if x["id"] != a["id"]]
-    mine = {"id": a["id"], "name": a["name"]}
-    if a.get("desktop"):
-        mine["desktop"] = True
-    launcher_write(kept + [mine] if there else kept)
+    launcher_write(kept + [{"id": a["id"], "name": a["name"]}] if there else kept)
 
 
-def cmd_add(name, desktop=False):
-    a = dict(find_app(name))
-    if desktop:
-        a["desktop"] = True
+def cmd_add(name):
+    a = find_app(name)
     f = entry_write(a)
     launcher_note(a)
     say(f"{a['name']} is in the launcher ({f})")
@@ -392,12 +386,8 @@ def cmd_restore(quiet=False):
         aid = f.name[len("vikix-win-"):-len(".desktop")]
         if aid in ids or not entry_mine(f):
             continue
-        text = f.read_text(errors="replace")
-        m = re.search(r"^Name=(.*)$", text, re.M)
-        a = {"id": aid, "name": m.group(1).strip() if m else aid}
-        if re.search(r"^Exec=.* --desktop( |$)", text, re.M):
-            a["desktop"] = True
-        known.append(a)
+        m = re.search(r"^Name=(.*)$", f.read_text(errors="replace"), re.M)
+        known.append({"id": aid, "name": m.group(1).strip() if m else aid})
         ids.add(aid)
     if known != launcher_read():
         launcher_write(known)
@@ -425,7 +415,7 @@ def windows_path(path):
     die(f"Windows can't see {path}: only ~/Windows (Z:) and ~/Documents (Y:) are shared with it")
 
 
-def cmd_app(name, file=None, desktop=False):
+def cmd_app(name, file=None):
     if not shutil.which("xfreerdp3"):
         die("no FreeRDP: vikix windows apps setup")
     if not SECRET.exists():
@@ -433,36 +423,22 @@ def cmd_app(name, file=None, desktop=False):
     a = find_app(name)
     target = windows_path(file) if file else None
     ip = up(for_rdp=True)
+    program = f"program:{a['path']}" + (f',cmd:"{target}"' if target else "")
     password = SECRET.read_text().rstrip("\n")
     # Every argument on FreeRDP's input, one a line (/args-from:stdin), the
     # password with them: never on a command line (ps shows those) nor in
     # the environment. (/from-stdin read only the password, and only from a
     # terminal: started from the launcher there is none.)
-    args = [f"/v:{ip}:{RDP_PORT}", f"/u:{USER}", f"/p:{password}",
+    args = [f"/v:{ip}:{RDP_PORT}", f"/u:{USER}", f"/p:{password}", f"/app:{program}",
             "/cert:tofu", "+clipboard", "/sound", f"/wm-class:vikix-win-{a['id']}", "/log-level:ERROR",
             # Sharp text: the VM is on this machine, so a fast local link,
             # full colour, and no H.264 (lossy video, which blurs text); the
             # progressive codec sharpens to the exact picture once it's still.
-            "/network:lan", "/bpp:32", "/gfx:progressive:on,AVC420:off,AVC444:off"]
-    if desktop:
-        # Windows' whole desktop in one window, with the program as the
-        # session's shell (RDP's alternate shell: no Explorer, no taskbar; the
-        # session ends when it closes, and the window with it). Windows draws
-        # everything itself there, so a box RemoteApp can't carry across (a
-        # per-pixel layered window: FACTS's "are you sure?") shows. Each line
-        # is one argument, so the quotes reach Windows as they are: that is
-        # how it reads a path with spaces. The window's size is Windows'
-        # resolution as StumpWM tiles it.
-        shell = f'"{a["path"]}"' + (f' "{target}"' if target else "")
-        folder = a["path"].rsplit("\\", 1)[0]
-        args += [f"/shell:{shell}", f"/shell-dir:{folder}", "+dynamic-resolution", f"/t:{a['name']} (Windows)"]
-    else:
-        program = f"program:{a['path']}" + (f',cmd:"{target}"' if target else "")
-        args += [f"/app:{program}",
-                 # The screen as the desktop leaves it free (_NET_WORKAREA, which
-                 # modeline.lisp sets): Windows sees it start below the bar, so a
-                 # maximized program's own title bar isn't under ours.
-                 "/workarea"]
+            "/network:lan", "/bpp:32", "/gfx:progressive:on,AVC420:off,AVC444:off",
+            # The screen as the desktop leaves it free (_NET_WORKAREA, which
+            # modeline.lisp sets): Windows sees it start below the bar, so a
+            # maximized program's own title bar isn't under ours.
+            "/workarea"]
     log = STATE / "logs" / "windows-app.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     with open(log, "a") as out:
@@ -508,24 +484,23 @@ def cmd_forget(everything=False):
 
 def main(argv):
     if not argv:
-        die("vikix windows app NAME [FILE] [--desktop] | apps [setup|add NAME [--desktop]|remove NAME|restore|forget]")
+        die("vikix windows app NAME [FILE] | apps [setup|add NAME|remove NAME|restore|forget]")
     if argv[0] == "app":
-        words = [x for x in argv[1:] if x != "--desktop"]
-        if not words:
-            die("vikix windows app NAME [FILE] [--desktop]")
-        return cmd_app(words[0], words[1] if len(words) > 1 else None, desktop="--desktop" in argv)
+        if len(argv) < 2:
+            die("vikix windows app NAME [FILE]")
+        return cmd_app(argv[1], argv[2] if len(argv) > 2 else None)
     sub = argv[1] if len(argv) > 1 else ""
     if sub == "":
         return cmd_apps()
     if sub == "setup":
         return cmd_setup()
     if sub in ("add", "remove") and len(argv) > 2:
-        return cmd_add(argv[2], desktop="--desktop" in argv[3:]) if sub == "add" else cmd_remove_app(argv[2])
+        return cmd_add(argv[2]) if sub == "add" else cmd_remove_app(argv[2])
     if sub == "forget":
         return cmd_forget(everything="--all" in argv[2:])
     if sub == "restore":
         return cmd_restore(quiet="--quiet" in argv[2:])
-    die("vikix windows apps [setup|add NAME [--desktop]|remove NAME|restore|forget [--all]]")
+    die("vikix windows apps [setup|add NAME|remove NAME|restore|forget [--all]]")
 
 
 if __name__ == "__main__":

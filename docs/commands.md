@@ -1550,9 +1550,9 @@ Windows in a VM, for the programs that only run there.
 - `vikix windows remove` — delete the VM and its disk (asks first)
 - `vikix windows apps setup` — once: Windows programs in windows of their own. FreeRDP, Remote Desktop and RemoteApp switched on in Windows (through its guest agent; reachable from this machine only), your account's password kept, `~/Documents` as drive Y: in Windows
 - `vikix windows apps` — the programs in Windows' Start menu
-- `vikix windows apps add NAME [--desktop]` — one of them in the launcher (Super+d), opened as app does; remove NAME takes it out again
+- `vikix windows apps add NAME` — one of them in the launcher (Super+d); remove NAME takes it out again
 - `vikix windows apps restore` — write again an entry of those that went missing (vikix update does it too)
-- `vikix windows app NAME [FILE] [--desktop]` — that program as a window of its own, tiled like any other (Windows started first if it's off); a FILE in `~/Windows` or `~/Documents` is opened in it. --desktop: Windows' whole screen in that one window instead, with the program as its only shell (no taskbar; closing it closes the window), for a program whose boxes don't show in a window of its own
+- `vikix windows app NAME [FILE]` — that program as a window of its own, tiled like any other (Windows started first if it's off); a FILE in `~/Windows` or `~/Documents` is opened in it
 - `vikix windows apps forget` — delete the kept password (--all: the launcher entries and the list of programs too, as remove does)
 
 The VM runs as you (libvirt's qemu:///session), so its disk, its TPM and its shared folder are all yours, in your home. `~/Windows` is drive Z: in Windows, and `vikix backup` covers it; the VM's disk it leaves out. The display is SPICE with no network port: only this user can open it.

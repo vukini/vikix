@@ -20,19 +20,14 @@
 #                         from this machine only), your account's password
 #                         kept, ~/Documents as drive Y: in Windows
 #   vikix windows apps    the programs in Windows' Start menu
-#   vikix windows apps add NAME [--desktop]   one of them in the launcher
-#                         (Super+d), opened as app does; remove NAME takes
-#                         it out again
+#   vikix windows apps add NAME   one of them in the launcher (Super+d);
+#                         remove NAME takes it out again
 #   vikix windows apps restore   write again an entry of those that went
 #                         missing (vikix update does it too)
-#   vikix windows app NAME [FILE] [--desktop]   that program as a window
-#                         of its own, tiled like any other (Windows started
-#                         first if it's off); a FILE in ~/Windows or
-#                         ~/Documents is opened in it. --desktop: Windows'
-#                         whole screen in that one window instead, with the
-#                         program as its only shell (no taskbar; closing it
-#                         closes the window), for a program whose boxes
-#                         don't show in a window of its own
+#   vikix windows app NAME [FILE]   that program as a window of its own,
+#                         tiled like any other (Windows started first if
+#                         it's off); a FILE in ~/Windows or ~/Documents is
+#                         opened in it
 #   vikix windows apps forget   delete the kept password (--all: the launcher
 #                         entries and the list of programs too, as remove does)
 #

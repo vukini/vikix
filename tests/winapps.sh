@@ -133,15 +133,6 @@ check "quiet for an update" test -z "$(w apps restore --quiet 2>&1)"
 rm "$launcher"
 w apps restore >/dev/null
 check "an entry from before the list was kept is taken into it" grep -q '"facts"' "$launcher"
-w apps add facts --desktop >/dev/null
-check "add --desktop: the entry opens it as the whole desktop" grep -qx "Exec=vikix windows app facts --desktop %f" "$desk"
-check "and the list remembers how" python3 -c 'import json,sys; a=[x for x in json.load(open(sys.argv[1])) if x["id"]=="facts"]; sys.exit(0 if a and a[0].get("desktop") else 1)' "$launcher"
-rm "$desk"; w apps restore >/dev/null
-check "restore keeps how it opens" grep -qx "Exec=vikix windows app facts --desktop %f" "$desk"
-rm "$launcher"; w apps restore >/dev/null
-check "an entry taken into the list keeps it too" python3 -c 'import json,sys; a=[x for x in json.load(open(sys.argv[1])) if x["id"]=="facts"]; sys.exit(0 if a and a[0].get("desktop") else 1)' "$launcher"
-w apps add facts >/dev/null
-check "add without it goes back to a window of its own" grep -qx "Exec=vikix windows app facts %f" "$desk"
 check "an entry it didn't write is not" bash -c 'echo "[Desktop Entry]" > "$1/vikix-win-other.desktop"; python3 "$2" apps restore >/dev/null; ! grep -q other "$3"' _ "$HOME/.local/share/applications" "$here/lib/windows-apps.py" "$launcher"
 rm "$HOME/.local/share/applications/vikix-win-other.desktop"
 
@@ -165,18 +156,6 @@ check "a file in ~/Windows is on Z:" grep -qF 'cmd:"Z:\sub\a.txt"' "$t/rdp-args"
 pkill -f "$t/bin/xfreerdp3" 2>/dev/null || true
 out=$(w app facts "$t/elsewhere.txt" 2>&1) && fail=1
 check "a file Windows can't see is refused: $out" grep -q "Windows can't see" <<<"$out"
-# --desktop: Windows' whole screen in one window, the program as its shell.
-out=$(w app facts "$HOME/Documents/report.xlsx" --desktop 2>&1) || true
-check "--desktop runs the program as the session's shell, the file after it, quoted as Windows reads them: $out" \
-  grep -qxF '/shell:"C:\Program Files (x86)\FACTS\facts.exe" "Y:\report.xlsx"' "$t/rdp-args"
-check "in the program's own folder" grep -qxF '/shell-dir:C:\Program Files (x86)\FACTS' "$t/rdp-args"
-check "the window's size is Windows' resolution, as StumpWM tiles it" grep -qx "+dynamic-resolution" "$t/rdp-args"
-check "no RemoteApp then, and no work area (Windows draws the whole screen)" bash -c '! grep -q "^/app:" "$1" && ! grep -qx /workarea "$1"' _ "$t/rdp-args"
-check "the same class, so the same rule places it" grep -qx "/wm-class:vikix-win-facts" "$t/rdp-args"
-check "the password still on its input only" bash -c 'grep -qx /p:hunter2 "$1" && ! grep -q hunter2 "$2"' _ "$t/rdp-args" "$t/rdp-argv"
-pkill -f "$t/bin/xfreerdp3" 2>/dev/null || true
-out=$(w app --desktop 2>&1) && fail=1
-check "--desktop alone names no program: $out" grep -q "vikix windows app NAME" <<<"$out"
 touch "$t/rdp-refuse"
 out=$(w app facts 2>&1) && fail=1
 check "FreeRDP giving up at once is said: $out" grep -q "didn't open" <<<"$out"
@@ -206,5 +185,5 @@ check "forget --all leaves an entry it didn't write" test -f "$HOME/.local/share
 out=$(w app facts 2>&1) && fail=1
 check "without it, app says to run setup: $out" grep -q "vikix windows apps setup" <<<"$out"
 
-[ "$fail" = 0 ] && echo "winapps: setup (the password kept and never exported, RemoteApp on through the guest agent, Z: and Y: by tag, ~/Documents shared once), the Start menu read, launcher entries (--desktop remembered), app starting the VM and passing its arguments, the password with them, on FreeRDP's input only, files by their drive, --desktop as the whole screen with the program as its shell, refusals said"
+[ "$fail" = 0 ] && echo "winapps: setup (the password kept and never exported, RemoteApp on through the guest agent, Z: and Y: by tag, ~/Documents shared once), the Start menu read, launcher entries, app starting the VM and passing its arguments, the password with them, on FreeRDP's input only, files by their drive, refusals said"
 exit "$fail"
