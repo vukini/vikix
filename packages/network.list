@@ -1,6 +1,7 @@
 # network.list — NetworkManager (switched on by install/25-network.sh).
 NetworkManager          # includes nmtui, a text interface for Wi-Fi
 wpa_supplicant          # NetworkManager drives Wi-Fi through it
+wireless-regdb          # regulatory.db: every Wi-Fi channel the country allows, not the cautious world set (docs/hardware.md)
 network-manager-applet  # nm-connection-editor, the GUI for connections
 ufw                     # the firewall (vikix firewall; switched on by 25-network)
 nethogs                 # network use per program, like top (Super+m, Network use)

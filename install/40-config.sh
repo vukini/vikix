@@ -8,7 +8,8 @@
 #     ~/.stumpwm.d/vikix/      keys, mode line, theme, commands, Swank
 #     ~/.xinitrc                 starts the session
 #     ~/.local/bin/vikix*      the vikix command and its helpers, all of bin/
-#                                (but vikix-eval and vikix-session)
+#                                (but vikix-eval and vikix-session), and
+#                                installer/vikix-hwreport, the hardware report
 #     ~/.local/share/applications/*.desktop   JupyterLab in the launcher,
 #                                vikix-image, which opens images, and
 #                                Lazarus (the docked IDE, vikix-lazarus)
@@ -74,6 +75,8 @@ for cmd in "$VIKIX_DIR"/bin/vikix*; do
 done
 # vk, a second name for vikix: less to type (vk upd, vk docs f runit, Tab).
 link_managed "$VIKIX_DIR/bin/vikix" "$HOME/.local/bin/vk"
+# The stick's hardware report, on the installed machine too (docs/hardware.md).
+link_managed "$VIKIX_DIR/installer/vikix-hwreport" "$HOME/.local/bin/vikix-hwreport"
 for app in "$C"/applications/*.desktop; do
   link_managed "$app" "$HOME/.local/share/applications/${app##*/}"
 done
