@@ -44,7 +44,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 │   │   ├── secrets/           yours     API keys, one file each (vikix ai key), and windows-password, your Windows account's (vikix windows apps); never in snapshots
 │   │   ├── ai                 yours     which model Super+i uses: use=local, claude or codex, model=, translate_model=, effort=, languages=
 │   │   ├── agent              yours     which agent Super+a starts (vikix agent --default NAME)
-│   │   ├── dictation          yours     dictation's model: base.en or small (vikix dictate models)
+│   │   ├── dictation          yours     dictation's model: base.en, small or large-v3-turbo (vikix dictate models)
 │   │   ├── voice              yours     how the AI talks back: voice=, speak=, idle= (vikix voice)
 │   │   ├── notes              yours     the folder `note` reads: folder=, skip=, embed= (note index)
 │   │   ├── projects           yours     where `vikix project` looks: root=, depth=, logs= (copied once, all comments)

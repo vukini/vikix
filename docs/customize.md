@@ -410,7 +410,7 @@ Each of these is one of your files, so it has an undo too. [Working with AI](ai.
 |---|---|
 | The model Super+i uses (and the editors' chats, Super+F10 and `note`) | `vikix ai use local`, `vikix ai use claude` or `vikix ai use codex` (Super+i and Super+F10 only); `vikix ai use` alone says which. The model and the languages to translate into are in `~/.config/vikix/ai` ([Local or Claude](ai.md#local-or-claude)) |
 | The agent Super+a starts (and the editors, and Super+F11) | `vikix agent --default opencode`; `vikix agent --which` says which ([Another agent](ai.md#another-agent)) |
-| Dictation's language | `vikix dictate models small` for many languages, `base.en` for English ([Dictation](ai.md#dictation)) |
+| Dictation's language | `vikix dictate models small` (or `large-v3-turbo`, the best) for many languages, `base.en` for English ([Dictation](ai.md#dictation)) |
 | The voice that answers, or no voice at all | `vikix voice voices alan`; `speak=no` or `idle=` in `~/.config/vikix/voice` ([Talking with the AI](ai.md#talking-with-the-ai)) |
 | The notes `note` reads | `note index FOLDER --skip A,B` once; `folder=`, `skip=`, `embed=` in `~/.config/vikix/notes` ([Asking your notes](ai.md#asking-your-notes-note)) |
 | What the agent may do on the desktop without asking | `vikix mcp register` gives it the desktop as tools; `--allow-eval` and `--allow-undo` add the two risky ones, and registering again without them takes them away ([The desktop as tools](ai.md#the-desktop-as-tools-mcp)) |

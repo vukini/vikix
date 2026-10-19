@@ -220,6 +220,14 @@ check "models small should be the choice" grep -qx 'model=small' "$HOME/.config/
 echo 'Bonjour.' > "$t/said"
 press; sleep 0.8; press
 check "small should let whisper find the language: $(grep '^whisper' "$calls" | tail -1)" grep -q -- '-l auto ' "$calls"
+# large-v3-turbo: a name with digits and dashes, read back from the file.
+d models large-v3-turbo >/dev/null 2>&1
+check "models large-v3-turbo should download it" grep -q 'ggml-large-v3-turbo.bin' "$calls"
+check "models large-v3-turbo should be the choice" grep -qx 'model=large-v3-turbo' "$HOME/.config/vikix/dictation"
+out=$(d models 2>&1)
+check "models should mark large-v3-turbo as used: $out" grep -q '^\* large-v3-turbo *here' <<<"$out"
+out=$(d models tiny 2>&1 || true)
+check "a model it doesn't have should name the three: $out" grep -q 'base.en, small, large-v3-turbo' <<<"$out"
 
 # Uninstall: the program goes, the models stay unless asked.
 d uninstall >/dev/null 2>&1

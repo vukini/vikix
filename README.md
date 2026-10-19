@@ -608,7 +608,7 @@ Why, when the agent can run commands: each command needs your yes, and these too
 
 - **Fast enough:** on this X1's i7-7500U, a sentence takes two or three seconds, loading included, and a minute of speech about ten.
 - **Only speech is typed:** the voice detector keeps whisper from hearing silence as "you" or "(crickets chirping)" (this laptop's microphone hiss is as loud as speech), and bracketed descriptions of sounds are dropped.
-- **Languages:** `base.en` (English, 150 MB) to start; `vikix dictate models small` for many (490 MB, slower, the language found by itself).
+- **Languages:** `base.en` (English, 150 MB) to start; `vikix dictate models small` for many (490 MB, slower, the language found by itself); `large-v3-turbo` is whisper's best (1.6 GB, many languages, a few seconds on a big CPU).
 - `vikix dictate file WAV` prints what a recording says (any format ffmpeg reads; it fails when there's no speech); `vikix dictate status`; `vikix remove dictation` (the models stay unless `vikix dictate uninstall --models`).
 
 ### Voice (`s-F10`, `s-F11`)

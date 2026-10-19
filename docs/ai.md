@@ -474,12 +474,13 @@ vikix add dictation          # or: vikix dictate setup
 
 That builds [whisper.cpp](https://github.com/ggml-org/whisper.cpp) for this computer, into `~/.local/opt/whisper.cpp`, and downloads its model (150 MB) and a voice detector (1 MB) into `~/.local/share/vikix/whisper/`, each checked against its published checksum. Everything runs on the laptop: your voice never leaves it, and the recording is deleted once it's written down.
 
-**English, or many languages.** The model it starts with, `base.en`, knows English only, and writes down a sentence in about a second. `small` knows many languages (French, Spanish, Arabic, Hindi and more; not Esperanto) and takes a few seconds:
+**English, or many languages.** The model it starts with, `base.en`, knows English only, and writes down a sentence in about a second. `small` knows many languages (French, Spanish, Arabic, Hindi and more; not Esperanto, which whisper doesn't know) and takes a few seconds. `large-v3-turbo` is whisper's best, the large model made several times faster, with the same languages: it hears accents and names that the others get wrong, takes 1.6 GB, and on a laptop with many cores still answers in a few seconds:
 
 ```sh
-vikix dictate models          # which is used
-vikix dictate models small    # many languages (490 MB)
-vikix dictate models base.en  # back to English
+vikix dictate models                 # which is used
+vikix dictate models small           # many languages (490 MB)
+vikix dictate models large-v3-turbo  # the best, many languages (1.6 GB)
+vikix dictate models base.en         # back to English
 ```
 
 **Silence and noise aren't typed.** The voice detector passes only speech to whisper, and whisper's notes about sounds, such as "(music)", are left out: anything it writes in brackets goes, so a spoken aside in brackets would too. A very short clip (a second or so) can come out as a word or two nobody said.

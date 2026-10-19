@@ -452,7 +452,7 @@ Speak, and it types what you said.
 - `vikix dictate toggle ask | agent` — the same, but what you said goes to the AI, which answers aloud (vikix voice: Super+F10 the chat model, Super+F11 the agent)
 - `vikix dictate start [ask|agent] | stop`
 - `vikix dictate cancel` — stop listening, type nothing (Super+Shift+F9)
-- `vikix dictate models [base.en|small]` — which model: base.en, English (150 MB, a second or two a sentence), or small, many languages (490 MB, a few seconds)
+- `vikix dictate models [base.en|small|large-v3-turbo]` — which model: base.en, English (150 MB, a second or two a sentence); small, many languages (490 MB, a few seconds); large-v3-turbo, the best, many languages (1.6 GB, a few seconds on a big CPU)
 - `vikix dictate file WAV` — print what a recording says
 - `vikix dictate status`
 - `vikix dictate uninstall [--models]`

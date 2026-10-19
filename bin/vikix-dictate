@@ -13,10 +13,12 @@
 #                            chat model, Super+F11 the agent)
 #   vikix dictate start [ask|agent] | stop
 #   vikix dictate cancel     stop listening, type nothing (Super+Shift+F9)
-#   vikix dictate models [base.en|small]
+#   vikix dictate models [base.en|small|large-v3-turbo]
 #                            which model: base.en, English (150 MB, a second
-#                            or two a sentence), or small, many languages
-#                            (490 MB, a few seconds)
+#                            or two a sentence); small, many languages
+#                            (490 MB, a few seconds); large-v3-turbo, the
+#                            best, many languages (1.6 GB, a few seconds
+#                            on a big CPU)
 #   vikix dictate file WAV   print what a recording says
 #   vikix dictate status
 #   vikix dictate uninstall [--models]
@@ -41,14 +43,16 @@ MODEL_URL=https://huggingface.co/ggerganov/whisper.cpp/resolve/main
 declare -A MODEL_SHA=(
   [base.en]=a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002
   [small]=1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b
+  [large-v3-turbo]=1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69
 )
+MODEL_NAMES="base.en small large-v3-turbo"   # in the order models lists them
 # Voice activity detection (Silero, 865 KB): only speech reaches whisper,
 # which would otherwise hear silence as "you" or "(crickets chirping)",
 # and a microphone's hiss is as loud as speech on some laptops.
 VAD_URL=https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v6.2.0.bin
 VAD_SHA=2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987
 # tests/dictate.sh's stand-in downloads can't match the real checksums.
-if [ -n "${VIKIX_TEST_SHA:-}" ]; then MODEL_SHA[base.en]=$VIKIX_TEST_SHA; MODEL_SHA[small]=$VIKIX_TEST_SHA; VAD_SHA=$VIKIX_TEST_SHA; fi
+if [ -n "${VIKIX_TEST_SHA:-}" ]; then for m in $MODEL_NAMES; do MODEL_SHA[$m]=$VIKIX_TEST_SHA; done; VAD_SHA=$VIKIX_TEST_SHA; fi
 OPT="$HOME/.local/opt/whisper.cpp"
 WHISPER=${VIKIX_WHISPER:-$OPT/build/bin/whisper-cli}
 MODELS="${XDG_DATA_HOME:-$HOME/.local/share}/vikix/whisper"
@@ -69,7 +73,7 @@ bar() { python3 "$VIKIX_DIR/bin/vikix-eval" '(vikix-record-refresh)' >/dev/null 
 
 model_name() {
   local m=''
-  [ -r "$CONF" ] && m=$(sed -n 's/^[[:space:]]*model[[:space:]]*=[[:space:]]*\([a-z.]*\).*/\1/p' "$CONF" | tail -1)
+  [ -r "$CONF" ] && m=$(sed -n 's/^[[:space:]]*model[[:space:]]*=[[:space:]]*\([a-z0-9.-]*\).*/\1/p' "$CONF" | tail -1)
   [ -n "$m" ] && [ -n "${MODEL_SHA[$m]:-}" ] && echo "$m" || echo base.en
 }
 model_file() { echo "$MODELS/ggml-$1.bin"; }
@@ -144,21 +148,21 @@ cmd_setup() {
   name=$(model_name)
   fetch_model "$name"
   fetch_model vad
-  [ -r "$CONF" ] || { mkdir -p "$(dirname "$CONF")"; printf '# Dictation (Super+F9): base.en (English) or small (many languages)\nmodel=%s\n' "$name" > "$CONF"; }
+  [ -r "$CONF" ] || { mkdir -p "$(dirname "$CONF")"; printf '# Dictation (Super+F9): base.en (English), small or large-v3-turbo (many languages)\nmodel=%s\n' "$name" > "$CONF"; }
   say "dictation is ready: Super+F9 starts listening, Super+F9 again types what you said"
 }
 
 cmd_models() {
   local want=${1:-} m
   if [ -z "$want" ]; then
-    for m in base.en small; do
-      printf '%s %-8s %s\n' "$([ "$m" = "$(model_name)" ] && echo '*' || echo ' ')" "$m" \
+    for m in $MODEL_NAMES; do
+      printf '%s %-14s %s\n' "$([ "$m" = "$(model_name)" ] && echo '*' || echo ' ')" "$m" \
         "$([ -s "$(model_file "$m")" ] && echo here || echo '(downloads when chosen)')"
     done
-    echo "* is used. base.en: English, fast. small: many languages, slower. vikix dictate models NAME"
+    echo "* is used. base.en: English, fast. small: many languages, slower. large-v3-turbo: the best, many languages, 1.6 GB. vikix dictate models NAME"
     return
   fi
-  [ -n "${MODEL_SHA[$want]:-}" ] || die "no model called $want: base.en or small"
+  [ -n "${MODEL_SHA[$want]:-}" ] || die "no model called $want: ${MODEL_NAMES// /, }"
   fetch_model "$want"
   mkdir -p "$(dirname "$CONF")"
   if [ -f "$CONF" ] && grep -q '^[[:space:]]*model[[:space:]]*=' "$CONF"; then
@@ -226,7 +230,7 @@ stop_recording() {
 # hardly ever has brackets, and typing them into a window would be wrong.
 transcribe() {   # transcribe WAV
   local lang=en m; m=$(model_name)
-  [ "$m" = small ] && lang=auto
+  [ "$m" != base.en ] && lang=auto   # the others know many languages: let whisper find it
   "$WHISPER" -m "$(model_file "$m")" -f "$1" -l "$lang" -nt -np --vad -vm "$(vad_file)" -t "$(nproc)" 2>/dev/null |
     sed -E 's/\[[^]]*\]//g; s/\([^)]*\)//g; s/\*[^*]*\*//g; s/♪+//g' |
     tr '\n' ' ' | sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//'
