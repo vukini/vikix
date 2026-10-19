@@ -19,6 +19,12 @@
 #                         5 minutes unused)
 #   vikix ai restart      start Ollama again (after a change of graphics= in
 #                         ~/.config/vikix/ai)
+#   vikix ai share [most|half]   how much of the memory the graphics chip may
+#                         take (a Ryzen AI Max): the kernel gives it half
+#                         at first; most leaves the rest of the machine
+#                         16 GB, half puts the kernel's half back. It
+#                         changes how the machine boots (sudo), and the
+#                         next boot applies it
 #   vikix ai uninstall [--models]   take Ollama away; --models deletes the
 #                         downloaded models too
 #   vikix ai llm [--default MODEL]   Simon Willison's llm on the command line
@@ -54,8 +60,17 @@
 # (LLAMA_ARG_FIT_TARGET) is no help on such a chip: what it moves to "the
 # CPU" is memory the chip maps all the same, and it only cost speed (44).
 # The 120B leaves the desktop about 3 GB there until the kernel's share is
-# raised (TODO 60). The picker counts that memory and rates the models
-# that fit in it by the parameters at work on each word (lib/ai-models.tsv).
+# raised. The picker counts that memory and rates the models that fit in
+# it by the parameters at work on each word (lib/ai-models.tsv).
+#
+# The kernel lets such a chip take half of the memory (TTM's page limit)
+# until told otherwise. `share most` writes a block into /etc/default/grub
+# (ttm.pages_limit and ttm.page_pool_size in 4 KiB pages, amdgpu.gttsize
+# in MiB: all but 16 GB) and runs update-grub, so from the next boot the
+# chip may take most of it, which the biggest models need; `half` takes
+# the block out. `setup` offers it on such a machine, asking first, since
+# it changes how the machine boots. The picker reads the chip's share as
+# the kernel gives it, so it follows the next boot by itself.
 
 set -euo pipefail
 VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
@@ -79,6 +94,8 @@ API="http://$HOST/api"
 AI_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/ai"   # the user's AI settings (vikix-ask makes it)
 DRM="${VIKIX_DRM:-/sys/class/drm}"                     # the graphics chips, as the kernel shows them
 KEEP_GB=8                                              # kept from Ollama's sums of the chip's memory (the header)
+GRUB_DEFAULT="${VIKIX_GRUB_DEFAULT:-/etc/default/grub}"   # the kernel's line, where share most writes
+SHARE_KEEP_GB=16                                       # what share most leaves the rest of the machine
 
 conf() {   # conf KEY — its value in ~/.config/vikix/ai, without comments or spaces
   sed -n "s/^[[:space:]]*$1[[:space:]]*=//p" "$AI_CONF" 2>/dev/null | tail -1 |
@@ -193,7 +210,79 @@ $HOME/.ollama/models'
     setsid "$0" serve >/dev/null 2>&1 < /dev/null &
     say "Ollama is starting (from now on, with the desktop)"
   fi
+  share_offer
   echo "   Next, choose a model: vikix ai models (or Super+m, Local AI: choose a model)"
+}
+
+# --- the chip's share of the memory ----------------------------------------------
+# The kernel's line has the block share most wrote (its half of the memory
+# otherwise); the chip's share follows at the next boot.
+share_set() { grep -qxF '# >>> vikix ai-share >>>' "$GRUB_DEFAULT" 2>/dev/null; }
+share_most_gb() { echo $(( $(mem_gb) - SHARE_KEEP_GB )); }
+
+# share_write most|half: the kernel's line with the block, or without it,
+# put in place through sudo, then update-grub.
+share_write() {
+  local mode=$1 tmp pages
+  tmp=$(mktemp)
+  cat "$GRUB_DEFAULT" > "$tmp" 2>/dev/null || true
+  if [ "$mode" = most ]; then
+    pages=$(( $(share_most_gb) * 262144 ))       # 4 KiB pages
+    ensure_block "$tmp" ai-share "# The graphics chip may take most of the memory, for AI models (vikix ai share).
+GRUB_CMDLINE_LINUX_DEFAULT=\"\$GRUB_CMDLINE_LINUX_DEFAULT ttm.pages_limit=$pages ttm.page_pool_size=$pages amdgpu.gttsize=$(( $(share_most_gb) * 1024 ))\""
+  else
+    awk '/^# >>> vikix ai-share >>>$/ { skip = 1; next } /^# <<< vikix ai-share <<<$/ { skip = 0; next } !skip' "$GRUB_DEFAULT" > "$tmp"
+  fi
+  say "writing the kernel's line ($GRUB_DEFAULT) and running update-grub: sudo asks for your password"
+  run sudo install -m 644 "$tmp" "$GRUB_DEFAULT"
+  run sudo update-grub
+  rm -f "$tmp"
+}
+
+cmd_share() {
+  local mode=${1:-status} g mem most
+  case $mode in status|most|half) ;; *) die "vikix ai share [most|half]" ;; esac
+  g=$(graphics_gb); mem=$(mem_gb); most=$(share_most_gb)
+  if [ "$g" -eq 0 ]; then
+    [ "$mode" = status ] && { echo "share:   no graphics chip shares the memory"; return 0; }
+    die "no graphics chip shares the memory here: nothing to share"
+  fi
+  case $mode in
+    status)
+      if share_set && [ "$g" -lt "$most" ]; then
+        echo "share:   most of the memory ($most of $mem GB) for the graphics chip from the next boot; now it may take $g GB"
+      elif share_set; then
+        echo "share:   most of the memory, $g of $mem GB, for the graphics chip (vikix ai share half puts the kernel's half back)"
+      else
+        echo "share:   the kernel's half, $g of $mem GB, for the graphics chip (vikix ai share most lets it take all but $SHARE_KEEP_GB GB)"
+      fi ;;
+    most)
+      [ "$mem" -ge 32 ] || die "with $mem GB of memory there isn't enough to share out: the chip keeps the kernel's half"
+      if share_set; then say "set already: the chip may take $most of $mem GB (from the next boot, if it doesn't yet)"; return 0; fi
+      say "Letting the graphics chip take most of the memory, $most of $mem GB; the rest of the machine keeps $SHARE_KEEP_GB."
+      share_write most
+      say "done: the next boot applies it (vikix ai share says which it is)" ;;
+    half)
+      if ! share_set; then say "the kernel's half it is already: $g of $mem GB"; return 0; fi
+      say "Putting the kernel's half of the memory back for the graphics chip."
+      share_write half
+      say "done: the next boot applies it" ;;
+  esac
+}
+
+# At setup, on a chip that shares the memory and still has the kernel's
+# half: offer the rest, asking first, since it changes how the machine boots.
+share_offer() {
+  local g mem answer
+  g=$(graphics_gb); mem=$(mem_gb)
+  { [ "$g" -gt 0 ] && [ "$mem" -ge 32 ] && ! share_set; } || return 0
+  if [ ! -t 0 ]; then
+    echo "   The graphics chip may take $g of the $mem GB; most of it, for the big models: vikix ai share most"
+    return 0
+  fi
+  printf '   The graphics chip may take %s of the %s GB. Let it take most (%s GB), for the big models?\n   It changes how the machine boots (sudo; the next boot applies it) [y/N] ' "$g" "$mem" "$(share_most_gb)"
+  read -r answer
+  case $answer in y|Y|yes) cmd_share most ;; *) echo "   later, if you like: vikix ai share most" ;; esac
 }
 
 # --- serving, for the session --------------------------------------------------------
@@ -600,6 +689,7 @@ case ${1:-help} in
   status) cmd_status ;;
   stop)   shift; cmd_stop "${1:-}" ;;
   restart) cmd_restart ;;
+  share) shift; cmd_share "$@" ;;
   chat)   shift; cmd_chat "$@" ;;
   uninstall) shift; cmd_uninstall "${1:-}" ;;
   check)  cmd_check ;;

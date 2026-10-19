@@ -33,7 +33,7 @@ shared by the processor and the graphics, a 13.4-inch 2560×1600 touch screen.
 | Part | On Void's 6.18 |
 |---|---|
 | Processor and memory | Works; 121 GiB seen by the kernel |
-| Graphics (Radeon 8060S, `amdgpu`) | Works: 2560×1600 at 180 Hz, 40 compute units, video decoding. The firmware sets 4 GB aside as graphics memory and the rest (62 GB) is shared on demand; giving models most of the 128 GB is TODO 60 |
+| Graphics (Radeon 8060S, `amdgpu`) | Works: 2560×1600 at 180 Hz, 40 compute units, video decoding. The firmware sets 4 GB aside as graphics memory and the rest (62 GB) is shared on demand, the kernel's half; `vikix ai share most` lets the chip take all but 16 GB from the next boot |
 | Wi-Fi 7 (MediaTek MT7925, `mt7925e`) | Works, firmware of June 2026. Needs `wireless-regdb` for every channel (see above) |
 | Bluetooth (MediaTek, `btusb`) | Seen with its driver; not tried yet |
 | Speakers (two Cirrus CS35L41 amplifiers) | Work: both amplifiers load their firmware (`cs35l41-hda`, gain 15). Quieter than under Windows, as other owners report; headphones work |

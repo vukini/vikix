@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # vikix-ai — AI services on Vikix (`vikix ai`): keys, and local models.
 #
-#   vikix ai setup | models | chat | list | remove | status | stop | restart | uninstall
+#   vikix ai setup | models | chat | list | remove | status | stop | restart | share | uninstall
 #                             models that run on this machine, with Ollama
 #                             (vikix ai help-local tells more)
 #   vikix ai llm [--default MODEL]   the llm command, with your local models
@@ -309,7 +309,7 @@ case ${1:-help} in
       check)  cmd_check ;;
       *) die "vikix ai key: set NAME, list, remove NAME or check (vikix ai help)" ;;
     esac ;;
-  setup|serve|models|pull|chat|list|remove|rm|status|stop|restart|uninstall|llm)
+  setup|serve|models|pull|chat|list|remove|rm|status|stop|restart|share|uninstall|llm)
     exec "$VIKIX_DIR/bin/vikix-local-ai" "$@" ;;
   use)    shift; exec "$VIKIX_DIR/bin/vikix-ask" use "$@" ;;
   help-local) exec "$VIKIX_DIR/bin/vikix-local-ai" help ;;

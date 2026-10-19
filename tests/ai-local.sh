@@ -271,5 +271,50 @@ check "the Super+m entry, before setup, should say how to set it up" grep -q 'no
 ai chat --rofi >/dev/null 2>&1 || true
 check "talk to a model from Super+m, before setup, should say how to set it up" grep -q 'notify-send .*vikix ai setup' "$calls"
 
-[ "$fail" = 0 ] && echo "ai-local: setup installs only what this machine uses, checked; models fit the memory; the bar's note; stop"
+# --- the chip's share of the memory (vikix ai share) --------------------------------
+# A kernel line of the test's own, sudo that runs what it's given and notes it,
+# and an update-grub that only notes itself.
+grub="$t/grub"
+printf 'GRUB_DEFAULT=0\nGRUB_CMDLINE_LINUX_DEFAULT="loglevel=4 rd.luks.uuid=abc"\n' > "$grub"
+printf '#!/bin/sh\necho "sudo $*" >> %q\nexec "$@"\n' "$calls" > "$t/bin/sudo"
+printf '#!/bin/sh\necho "update-grub" >> %q\n' "$calls" > "$t/bin/update-grub"
+chmod +x "$t/bin/sudo" "$t/bin/update-grub"
+out=$(VIKIX_GRUB_DEFAULT="$grub" VIKIX_MEMINFO="$t/mem128" VIKIX_DRM="$t/drm-none" ai share 2>&1)
+check "share without a chip should say so: $out" grep -q 'no graphics chip shares' <<<"$out"
+out=$(VIKIX_GRUB_DEFAULT="$grub" VIKIX_MEMINFO="$t/mem128" VIKIX_DRM="$t/drm-none" ai share most 2>&1) && { echo "FAIL: share most without a chip should refuse"; fail=1; }
+out=$(VIKIX_GRUB_DEFAULT="$grub" VIKIX_MEMINFO="$t/mem128" VIKIX_DRM="$t/drm" ai share 2>&1)
+check "share should say the kernel's half: $out" grep -q "the kernel's half, 69 of 121 GB" <<<"$out"
+out=$(VIKIX_GRUB_DEFAULT="$grub" VIKIX_MEMINFO="$t/mem16" VIKIX_DRM="$t/drm-small" ai share most 2>&1) && { echo "FAIL: share most with 16 GB should refuse"; fail=1; }
+check "16 GB should be said as too little: $out" grep -q "isn't enough" <<<"$out"
+: > "$calls"
+out=$(VIKIX_GRUB_DEFAULT="$grub" VIKIX_MEMINFO="$t/mem128" VIKIX_DRM="$t/drm" ai share most 2>&1) || { echo "FAIL: share most failed: $out"; fail=1; }
+check "share most should say what it does, and sudo: $out" grep -q 'sudo asks for your password' <<<"$out"
+check "share most should say the next boot applies it: $out" grep -q 'next boot applies' <<<"$out"
+check "share most should install the line through sudo: $(cat "$calls")" grep -q "sudo install -m 644 .* $grub" "$calls"
+check "share most should run update-grub through sudo" grep -q 'sudo update-grub' "$calls"
+check "the block should be in the kernel's line: $(cat "$grub")" grep -qx '# >>> vikix ai-share >>>' "$grub"
+# 121 GB of memory less 16 = 105 GB: 27525120 pages of 4 KiB, 107520 MiB.
+check "the block should add the limits to the kernel's own line: $(grep ttm "$grub")" grep -qF 'GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT ttm.pages_limit=27525120 ttm.page_pool_size=27525120 amdgpu.gttsize=107520"' "$grub"
+check "the kernel's own line should stay" grep -qx 'GRUB_CMDLINE_LINUX_DEFAULT="loglevel=4 rd.luks.uuid=abc"' "$grub"
+out=$(VIKIX_GRUB_DEFAULT="$grub" VIKIX_MEMINFO="$t/mem128" VIKIX_DRM="$t/drm" ai share 2>&1)
+check "share should say most, from the next boot: $out" grep -q 'most of the memory (105 of 121 GB) for the graphics chip from the next boot' <<<"$out"
+out=$(VIKIX_GRUB_DEFAULT="$grub" VIKIX_MEMINFO="$t/mem128" VIKIX_DRM="$t/drm-big" ai share 2>&1)
+check "share after that boot should say most: $out" grep -q 'most of the memory, 124 of 121 GB' <<<"$out"
+: > "$calls"
+out=$(VIKIX_GRUB_DEFAULT="$grub" VIKIX_MEMINFO="$t/mem128" VIKIX_DRM="$t/drm" ai share most 2>&1)
+check "share most twice should say it is set: $out" grep -q 'set already' <<<"$out"
+check "share most twice shouldn't write" test ! -s "$calls"
+out=$(VIKIX_GRUB_DEFAULT="$grub" VIKIX_MEMINFO="$t/mem128" VIKIX_DRM="$t/drm" ai share half 2>&1) || { echo "FAIL: share half failed: $out"; fail=1; }
+check "share half should take the block out: $(cat "$grub")" bash -c "! grep -q 'vikix ai-share' '$grub'"
+check "share half should keep the kernel's own line" grep -qx 'GRUB_CMDLINE_LINUX_DEFAULT="loglevel=4 rd.luks.uuid=abc"' "$grub"
+check "share half should run update-grub" grep -q 'sudo update-grub' "$calls"
+out=$(VIKIX_GRUB_DEFAULT="$grub" VIKIX_MEMINFO="$t/mem128" VIKIX_DRM="$t/drm" ai share half 2>&1)
+check "share half twice should say so: $out" grep -q "the kernel's half it is already" <<<"$out"
+# Setup, off a terminal, says how to get most of the memory instead of asking.
+out=$(VIKIX_GRUB_DEFAULT="$grub" VIKIX_MEMINFO="$t/mem128" VIKIX_DRM="$t/drm" ai setup 2>&1 < /dev/null)
+check "setup on such a chip should point to share most: $out" grep -q 'vikix ai share most' <<<"$out"
+out=$(VIKIX_GRUB_DEFAULT="$grub" VIKIX_MEMINFO="$t/mem128" VIKIX_DRM="$t/drm-none" ai setup 2>&1 < /dev/null)
+check "setup without such a chip shouldn't mention the share: $out" bash -c "! grep -q 'share most' <<<'$out'"
+
+[ "$fail" = 0 ] && echo "ai-local: setup installs only what this machine uses, checked; models fit the memory; the chip's share; the bar's note; stop"
 exit "$fail"

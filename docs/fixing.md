@@ -209,7 +209,7 @@ First see whether it's the connection or one program. `ping -c 5 1.1.1.1` should
 
 ## Local AI doesn't answer
 
-`vikix ai status` says whether Ollama is running and which model is loaded. Not running: `vikix ai setup` starts it (it starts with the desktop from then on), and its log is `~/.local/state/vikix/ollama.log`. Slow: that's the CPU; a smaller model (`vikix ai models`) answers faster, and `vikix ai stop` frees the memory a big one holds. On a machine whose graphics chip shares the memory (a Ryzen AI Max), `vikix ai status` says whether the chip is used, and how much of the loaded model sits on it: a model too big for the chip's share runs partly on the CPU.
+`vikix ai status` says whether Ollama is running and which model is loaded. Not running: `vikix ai setup` starts it (it starts with the desktop from then on), and its log is `~/.local/state/vikix/ollama.log`. Slow: that's the CPU; a smaller model (`vikix ai models`) answers faster, and `vikix ai stop` frees the memory a big one holds. On a machine whose graphics chip shares the memory (a Ryzen AI Max), `vikix ai status` says whether the chip is used, and how much of the loaded model sits on it: a model too big for the chip's share runs partly on the CPU; `vikix ai share` says how much the kernel lets the chip take, and `vikix ai share most` raises it for the next boot. The screen going black while a big model loads is the X server losing its graphics memory to the model, not the machine going down: Ctrl+Alt+F2 gives a console, `vikix ai stop` unloads the model, and logging in on tty1 again starts the desktop; no need for the power button.
 
 ## `llm` doesn't answer
 
