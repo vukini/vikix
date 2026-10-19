@@ -61,6 +61,28 @@ def chunks(text, limit=12000):
     return parts
 
 
+def final_answer(text):
+    """Accept plain Ollama text or the final channel of a raw Harmony reply."""
+    if not isinstance(text, str):
+        raise ValueError("Ollama returned no translation")
+    if "<|channel|>" in text:
+        marker = "<|channel|>final<|message|>"
+        if marker not in text:
+            raise ValueError("Ollama returned reasoning without a final answer")
+        text = text.rsplit(marker, 1)[1]
+        text = re.sub(r"(?:<\|(?:fim_suffix|end|im_end)\|>\s*)+$", "", text)
+        if re.search(r"<\|(?:channel|message|start|end|fim_suffix|im_end)\|>", text):
+            raise ValueError("Ollama returned malformed final-answer markers")
+    # Some local models expose reasoning as a leading think block instead.
+    if text.lstrip().startswith("<think>"):
+        if "</think>" not in text:
+            raise ValueError("Ollama returned unfinished reasoning")
+        text = text.split("</think>", 1)[1].lstrip()
+    if not text.strip():
+        raise ValueError("Ollama returned an empty final answer")
+    return text
+
+
 def main():
     repo = Path(sys.argv.pop(1))
     parser = argparse.ArgumentParser(description=__doc__ or
@@ -96,6 +118,10 @@ def main():
     for src in files:
         dst = output / src.relative_to(source)
         if dst.exists() and not args.overwrite:
+            existing = dst.read_text(encoding="utf-8")
+            if "<|channel|>" in existing or existing.lstrip().startswith("<think>"):
+                raise ValueError(f"existing translation contains model reasoning: {dst}; "
+                                 "rerun with --overwrite to replace it")
             print(f"Skipping existing: {dst}", flush=True)
             skipped += 1
             continue
@@ -136,7 +162,7 @@ def main():
                 raise ValueError(f"Ollama returned no translation for {src.name}")
             if data.get("done") is not True or data.get("done_reason") == "length":
                 raise ValueError(f"Ollama did not finish {src.name}; the document may need splitting")
-            translations.append(text)
+            translations.append(final_answer(text))
         text = "\n\n".join(t.rstrip("\r\n") for t in translations) + "\n"
         dst.parent.mkdir(parents=True, exist_ok=True)
         temp = None

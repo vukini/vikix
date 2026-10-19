@@ -252,6 +252,10 @@ context and an HTTP timeout of 1800 seconds per request. Fenced code blocks are
 copied directly, without sending them to the model. A single prose line larger
 than the chunk limit needs splitting by hand.
 Each file is saved only after all its chunks succeed.
+Raw model replies with reasoning channels or a leading `<think>` block are
+reduced to the final answer; missing or empty final answers stop the run.
+If a previous translation contains those reasoning markers, a normal resumed
+run reports it instead of skipping it: use `--overwrite` to regenerate it.
 Review the result:
 model output can change commands, formatting or meaning despite the prompt.
 This produces Markdown copies; it does not rebuild the browser or Info guides.
