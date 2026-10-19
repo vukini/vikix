@@ -309,7 +309,10 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
 ;;; the root window's ConfigureNotify, its only way, never reached it
 ;;; (2026-09-10). RANDR's own events do, once asked for; one change sends
 ;;; several, and a passing one can have no screens at all, so a change is
-;;; taken only when it differs and isn't empty.
+;;; taken only when it differs and isn't empty. The wallpaper is painted
+;;; on the root window at the size it had, so a screen that joins is black
+;;; until it is painted again (a TV on 2026-10-19 looked dead for it):
+;;; every change paints it anew, across all of them.
 
 (defun vikix-screens-refresh ()
   "The screens (heads) as X has them now, when they changed."
@@ -318,6 +321,7 @@ the same monitors are plugged in again. Use \"default\" for the usual one."
     (when (and new (not (equalp new (screen-heads screen))))
       (head-force-refresh screen new)
       (update-mode-lines screen)
+      (run-shell-command "vikix-wallpaper")
       t)))
 
 (setf (gethash :rr-screen-change-notify *event-fn-table*)

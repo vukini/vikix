@@ -104,6 +104,9 @@ check "the hook should be executable" test -x "$here/config/autorandr/predetect.
 check "40-config should link the hook" grep -q 'autorandr/predetect.d/vikix' "$here/install/40-config.sh"
 check "Super+Ctrl+p should be the screens menu" grep -q ':run "vikix-screens-pick" :key "s-C-p"' "$here/config/stumpwm/vikix/registry.lisp"
 check "and the laptop's display key" grep -q ':run "vikix-screens-pick" :key "XF86Display"' "$here/config/stumpwm/vikix/registry.lisp"
+# The wallpaper is painted at the root window's size, so a screen that joins
+# would stay black: the head refresh paints it again.
+check "a change of screens should paint the wallpaper again" grep -A9 '^(defun vikix-screens-refresh' "$here/config/stumpwm/vikix/commands.lisp" | grep -q '(run-shell-command "vikix-wallpaper")'
 
-[ "$fail" = 0 ] && echo "screens: a new screen extended at its best fast mode and saved, a saved one left to autorandr, unplugged back to the laptop, mirror, one only, the hook and the keys"
+[ "$fail" = 0 ] && echo "screens: a new screen extended at its best fast mode and saved, a saved one left to autorandr, unplugged back to the laptop, mirror, one only, the hook, the keys and the wallpaper painted again"
 exit "$fail"
