@@ -158,6 +158,31 @@ check "a model name with shell in it should be refused: $(notes)" grep -q 'looks
 check "a model name with shell in it ran" test ! -e pwned
 sed -i 's/^model=.*/model=/' "$conf"
 
+# translate_model=: Translate's own model; the rest keep model=.
+printf 'translate_model=gemma3:1b\n' >> "$conf"
+printf 'Translate\nFrench\n' > "$t/rofi"; echo "Le chat." > "$t/answer"
+try
+check "translate should ask translate_model's gemma3:1b: $(cat "$t/llm.args" 2>/dev/null)" \
+  grep -q -- '-m gemma3:1b -s Translate the text into French' "$t/llm.args"
+check "the working note should name Translate's model: $(notes)" grep -q 'gemma3:1b, on this laptop' <<<"$(notes)"
+printf 'Proofread\n' > "$t/rofi"; printf 'The cat sat.' > "$t/answer"
+try
+check "proofread should stay on model= (llama3.2:3b): $(cat "$t/llm.args" 2>/dev/null)" grep -q -- '-m llama3.2:3b' "$t/llm.args"
+check "which should give model=: $(bash "$here/bin/vikix-ask" which)" \
+  test "$(bash "$here/bin/vikix-ask" which | cut -f1)" = llama3.2:3b
+check "which translate should give translate_model=: $(bash "$here/bin/vikix-ask" which translate)" \
+  test "$(bash "$here/bin/vikix-ask" which translate | cut -f1)" = gemma3:1b
+sed -i 's/^translate_model=.*/translate_model=qwen9:9b/' "$conf"
+printf 'Translate\nFrench\n' > "$t/rofi"
+try
+check "a translate_model you don't have should be said, naming its line: $(notes)" \
+  grep -q "You don't have the model qwen9:9b.*translate_model= in" <<<"$(notes)"
+sed -i 's/^translate_model=.*/translate_model=$(touch pwned2)/' "$conf"
+try
+check "a translate_model with shell in it should be refused: $(notes)" grep -q 'translate_model= in .* looks wrong' <<<"$(notes)"
+check "a translate_model with shell in it ran" test ! -e pwned2
+sed -i '/^translate_model=/d' "$conf"
+
 # Ask: the question with the selection; short answer as a notification,
 # a long one in a terminal.
 printf 'Ask about it\nwhat animal?\n' > "$t/rofi"; echo "A cat." > "$t/answer"

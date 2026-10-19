@@ -6,7 +6,8 @@
 #                         rewrite, translate, explain): for keys of your own
 #                         in user.lisp
 #   vikix-ask use [local|claude|codex]  which model answers (vikix ai use); alone, says which
-#   vikix-ask which       the model, where the text goes, which of the
+#   vikix-ask which [translate]
+#                         the model (Translate's with translate), where the text goes, which of the
 #                         three it is and Codex's effort, tab-separated
 #                         (for vikix-voice: Super+F10 asks the same model)
 #
@@ -70,6 +71,10 @@ use=local
 # One line for all three: empty it before switching to another.
 model=
 
+# Translate only: a model of its own, under the same use= (translategemma:27b
+# is made for it; vikix ai models gets it). Empty: model= translates too.
+translate_model=
+
 # Codex only: how hard it thinks (low, medium, high). Empty: Codex's own
 # setting, in ~/.codex/config.toml. Low answers soonest.
 effort=
@@ -89,12 +94,13 @@ conf() {   # conf KEY — its value in the file, without comments or spaces
     sed -e 's/#.*//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
 }
 
-# The model, from the file; says what's missing, instead of guessing.
-pick_model() {
-  local use model names
-  use=$(conf use); use=${use,,}; model=$(conf model)
+# The model, from the file (its model= line, or the one KEY names: Translate
+# has translate_model=); says what's missing, instead of guessing.
+pick_model() {   # pick_model [KEY]
+  local use model names key=${1:-model}
+  use=$(conf use); use=${use,,}; model=$(conf "$key")
   [ "$use" = codex ] || [ -x "$LLM" ] || fail "Super+i needs llm" "In a terminal: vikix ai llm"
-  case $model in [!A-Za-z0-9]*|*[!A-Za-z0-9._:/-]*) fail "The model in ~/.config/vikix/ai looks wrong" "$(escape <<<"$model")" ;; esac
+  case $model in [!A-Za-z0-9]*|*[!A-Za-z0-9._:/-]*) fail "$key= in ~/.config/vikix/ai looks wrong" "$(escape <<<"$model")" ;; esac
   case ${use:-local} in
     local)
       names=$(curl -fsS --max-time 3 "$API/tags" 2>/dev/null |
@@ -106,7 +112,7 @@ pick_model() {
       }
       if [ -n "$model" ]; then
         grep -qxF -- "$model" <<<"$names" ||
-          fail "You don't have the model $model" "vikix ai models gets it, or change model= in ~/.config/vikix/ai"
+          fail "You don't have the model $model" "vikix ai models gets it, or change $key= in ~/.config/vikix/ai"
       elif grep -qx 'llama3.2:3b' <<<"$names"; then model=llama3.2:3b
       else model=$(head -1 <<<"$names")
       fi
@@ -224,9 +230,15 @@ print(t, end="")
 make_conf
 if [ "${1:-}" = use ]; then set_use "${2:-}"; exit; fi
 pick_model
+# Translate's own model, when the file names one.
+translate_model() { [ -z "$(conf translate_model)" ] || pick_model translate_model; }
 # The model, where the words go, which of the three it is and Codex's
-# effort (last: it may be empty), tab-separated (vikix-voice asks the same one).
-if [ "${1:-}" = which ]; then printf '%s\t%s\t%s\t%s\n' "$MODEL" "$WHERE" "$USE" "${CODEX_EFFORT:-}"; exit 0; fi
+# effort (last: it may be empty), tab-separated (vikix-voice asks the same one);
+# which translate: Translate's.
+if [ "${1:-}" = which ]; then
+  [ "${2:-}" = translate ] && translate_model
+  printf '%s\t%s\t%s\t%s\n' "$MODEL" "$WHERE" "$USE" "${CODEX_EFFORT:-}"; exit 0
+fi
 TEXT=$(selection)
 if [ "${#TEXT}" -gt "$MAX" ]; then TEXT=${TEXT:0:$MAX}; CUT=1; else CUT=0; fi
 
@@ -274,6 +286,7 @@ case $ACTION in
     # Any language you type (Português, 日本語); only one line of it.
     lang=${lang//[$'\r\t']/ }; lang=${lang%%$'\n'*}; lang=${lang:0:40}
     [ -n "${lang//[[:space:]]/}" ] || exit 0
+    translate_model
     system="Translate the text into $lang. Reply with the translation only: no introduction, no notes, no quotes around it."
     title="In $lang" ;;
   explain)

@@ -347,8 +347,11 @@ To switch, pick *Use Claude instead* (or *Use the local model instead*) at the e
 ```sh
 use=local          # free, offline, the text stays on this laptop
 model=             # empty: llama3.2:3b, or your first local model
+translate_model=   # Translate only; empty: model= translates too
 languages=English Esperanto French Spanish Arabic Hindi
 ```
+
+Translate can have a model of its own, `translate_model=`, under the same `use=` as the rest: `translate_model=translategemma:27b` (`vikix ai models` gets it; a model made for translation, and poor at the other four) leaves Ask, Proofread, Rewrite and Explain on `model=`. `vikix-ask which translate` says which one Translate has.
 
 For better answers, above all translations into Esperanto, which small models get wrong, use Claude. Then each use costs a little and the text you selected goes to Anthropic, so it needs your key first: `vikix ai key set anthropic`. Super+i never switches to Claude by itself, and its menu always names the model and where the text goes.
 
@@ -542,7 +545,7 @@ To take it away: `vikix remove voice` (the voices stay; `vikix voice uninstall -
 | Super+F9 says "Heard nothing" | The microphone: `pavucontrol`, *Input devices*, check it isn't muted and moves when you speak |
 | Super+F9 types in the wrong place | It types where the focus is when you press the second Super+F9; the text is on the clipboard too |
 | Super+i says "AI is still working on the last one" | Wait for its answer: one at a time |
-| Super+i says "You don't have the model …" | `vikix ai models` gets it, or empty `model=` in `~/.config/vikix/ai` |
+| Super+i says "You don't have the model …" | `vikix ai models` gets it, or empty the line it names (`model=` or `translate_model=`) in `~/.config/vikix/ai` |
 | Super+i says "Claude needs your Anthropic key" | `vikix ai key set anthropic`, or back to local: `vikix ai use local` |
 | Super+i says "AI didn't answer" | The notification says why; a local model: `vikix ai status` |
 | Super+i says "Codex isn't installed" or "isn't signed in" | `vikix add codex`, then `codex login`; or back to local: `vikix ai use local` |
