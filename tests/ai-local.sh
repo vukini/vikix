@@ -216,6 +216,15 @@ out=$(VIKIX_DRM="$t/drm" ai status)
 check "status with the chip should say so: $out" grep -q 'graphics: used, 69 GB of the memory for it' <<<"$out"
 check "status should say how much of the model is on the chip: $out" grep -q 'holding 65.0 GB of memory, 65.0 GB of it on the graphics' <<<"$out"
 echo '{"models": [{"name": "llama3.2:3b", "size": 2560000000, "expires_at": "2099-01-01T12:05:00+00:00"}]}' > "$t/ps"
+# A serve started before the chip was wanted: status says to restart.
+rm -f "$t/running"
+ai serve >/dev/null 2>&1 &
+for _ in $(seq 20); do [ -e "$VIKIX_STATE/ollama-serve.pid" ] && break; sleep 0.1; done
+out=$(VIKIX_DRM="$t/drm" ai status)
+check "status should say the running Ollama was started without the chip: $out" grep -q 'graphics: wanted (69 GB of the memory for it), but the running Ollama was started without it: vikix ai restart' <<<"$out"
+kill "$(cat "$VIKIX_STATE/ollama-serve.pid" 2>/dev/null)" 2>/dev/null || true
+wait
+touch "$t/running"
 : > "$calls"
 out=$(ai stop 2>&1)
 check "stop should unload through the API (keep_alive 0): $(grep generate "$calls")" grep -q 'api/generate .*"keep_alive": 0' "$calls"

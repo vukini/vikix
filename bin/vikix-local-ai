@@ -86,6 +86,14 @@ graphics_gb() {
   done
   echo "$total"
 }
+# Whether the desktop's running serve asked Ollama for the chip (the note
+# it leaves): 0 yes, 1 no, 2 no serve of this desktop to ask.
+GRAPHICS_NOTE="$VIKIX_STATE/ollama-graphics"
+graphics_live() {
+  local pid; pid=$(cat "$VIKIX_STATE/ollama-serve.pid" 2>/dev/null) || return 2
+  kill -0 "$pid" 2>/dev/null || return 2
+  [ "$(cat "$GRAPHICS_NOTE" 2>/dev/null)" = 1 ]
+}
 # Whether Ollama should use the graphics chip: graphics= in the settings
 # (on, off), or auto: a chip that may take 32 GB or more is built for it.
 graphics_on() {
@@ -188,6 +196,7 @@ cmd_serve() {
   # Ollama drops an integrated graphics chip unless asked: ask on a
   # machine whose chip shares enough of the memory to be worth it.
   if graphics_on; then export OLLAMA_IGPU_ENABLE=1; else unset OLLAMA_IGPU_ENABLE; fi
+  echo "${OLLAMA_IGPU_ENABLE:-0}" > "$GRAPHICS_NOTE"
   OLLAMA_HOST=$HOST "$OLLAMA" serve >> "$VIKIX_STATE/ollama.log" 2>&1 &
   # Global, not local: the EXIT trap runs after this function has returned.
   SERVE_PID=$!
@@ -203,7 +212,7 @@ cmd_serve() {
 # serve's (a restart's new one may have written them already).
 serve_end() {
   kill "${SERVE_PID:-}" 2>/dev/null || true
-  [ "$(cat "$VIKIX_STATE/ollama-serve.pid" 2>/dev/null)" = "$$" ] && rm -f "$LOADED" "$VIKIX_STATE/ollama-serve.pid"
+  [ "$(cat "$VIKIX_STATE/ollama-serve.pid" 2>/dev/null)" = "$$" ] && rm -f "$LOADED" "$GRAPHICS_NOTE" "$VIKIX_STATE/ollama-serve.pid"
   return 0
 }
 
@@ -380,8 +389,11 @@ cmd_status() {
   else
     echo "running: no (it starts with the desktop; vikix ai setup starts it now)"
   fi
-  local g; g=$(graphics_gb)
-  if graphics_on; then
+  local g live=2; g=$(graphics_gb)
+  if running; then graphics_live && live=0 || live=$?; fi
+  if graphics_on && [ "$live" = 1 ]; then
+    echo "graphics: wanted ($g GB of the memory for it), but the running Ollama was started without it: vikix ai restart"
+  elif graphics_on; then
     echo "graphics: used, $g GB of the memory for it (graphics=$(conf graphics || true) in ~/.config/vikix/ai; off keeps the CPU)"
   elif [ "$g" -gt 0 ]; then
     echo "graphics: not used, the CPU runs the models ($g GB for the chip; graphics=on in ~/.config/vikix/ai tries it)"
