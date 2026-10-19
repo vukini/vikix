@@ -233,17 +233,19 @@ From the checkout, preview the files, then translate:
 
 ```sh
 ./translate-guides-to-epo.sh --dry-run
-./translate-guides-to-epo.sh --model gpt-oss:120b
+./translate-guides-to-epo.sh
 ```
 
 Ollama must already be running and the model installed. The default model is
-`gpt-oss:120b` (or the exported `OLLAMA_MODEL`); the default server is
+`translategemma:27b` (or the exported `OLLAMA_MODEL`); the default server is
 `http://127.0.0.1:11434`. Nothing is downloaded automatically.
 The output goes to `~/vikix-guides-eo`, outside the checkout, with the same
 relative filenames. Existing translations are skipped so an interrupted run
 can resume; use `--overwrite` to translate them again. `--source`, `--output`,
 `--host` and `--timeout` override those settings; `--help` lists the options.
 Keep the source and output directories separate.
+TranslateGemma requests include the source English (`en`) and target Esperanto
+(`eo`) in the prompt, following the model's prompt format.
 
 A failed request stops the script with an error and keeps the previous output
 for that file. Large documents are split into text chunks of at most 12000

@@ -7,6 +7,7 @@ unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE   # the desktop session's
 here=$(cd "$(dirname "$0")/.." && pwd)
 python3 - "$here/translate-guides-to-epo.sh" <<'PY'
 import json
+import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import subprocess
@@ -69,6 +70,19 @@ try:
         assert (output / "nested" / "space name.MD").exists()
         run()
         assert len(requests) == 2, "existing files should be skipped"
+        # No model option or environment override selects TranslateGemma, with
+        # explicit language codes and two blank lines before the document.
+        default_command = base.copy()
+        index = default_command.index("--model")
+        del default_command[index:index + 2]
+        test_env = os.environ.copy()
+        test_env.pop("OLLAMA_MODEL", None)
+        result = subprocess.run(default_command + ["--overwrite"], env=test_env,
+                                capture_output=True, text=True, timeout=15)
+        assert result.returncode == 0, result.stderr
+        assert requests[-2]["model"] == "translategemma:27b"
+        assert "English (en) to Esperanto (eo)" in requests[-2]["prompt"]
+        assert requests[-2]["prompt"].endswith("\n\n\n" + original)
         expected = "# Gvidilo\n\nSaluton, mondo!\n"
         for answer in (
             "<|channel|>analysis<|message|>Private reasoning."

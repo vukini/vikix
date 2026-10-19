@@ -89,7 +89,7 @@ def main():
         "Translate Vikix Markdown guides into Esperanto with Ollama.")
     parser.add_argument("--source", type=Path, default=repo / "docs")
     parser.add_argument("--output", type=Path, default=Path.home() / "vikix-guides-eo")
-    parser.add_argument("--model", default=os.environ.get("OLLAMA_MODEL", "gpt-oss:120b"))
+    parser.add_argument("--model", default=os.environ.get("OLLAMA_MODEL", "translategemma:27b"))
     parser.add_argument("--host", default="http://127.0.0.1:11434")
     parser.add_argument("--timeout", type=float, default=1800,
                         help="HTTP timeout in seconds (default: 1800)")
@@ -143,6 +143,14 @@ def main():
                       "Translate prose, headings and link labels. Output only the translated "
                       "document, without commentary or an enclosing code fence.\n\n---\n"
                       + part)
+            if args.model.split(":", 1)[0].rsplit("/", 1)[-1] == "translategemma":
+                # Language names/codes and two blank lines follow Ollama's prompt guide:
+                # https://ollama.com/library/translategemma
+                prompt = ("You are a professional English (en) to Esperanto (eo) translator. "
+                          "Render the source faithfully in natural Esperanto. Keep Markdown "
+                          "structure, inline code, commands, paths, URLs and link destinations "
+                          "unchanged; translate headings and link labels. Return the translated "
+                          "text alone.\nTranslate this English text into Esperanto:\n\n\n" + part)
             payload = json.dumps({"model": args.model, "prompt": prompt, "stream": False,
                                   "options": {"num_ctx": 32768}}).encode("utf-8")
             request = urllib.request.Request(args.host.rstrip("/") + "/api/generate",
