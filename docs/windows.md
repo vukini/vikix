@@ -64,12 +64,14 @@ vikix windows apps setup        # once: asks for your Windows password
 vikix windows apps              # what Windows has, from its Start menu
 vikix windows app excel         # open one ...
 vikix windows app excel ~/Documents/report.xlsx   # ... on a file
+vikix windows app facts --desktop   # Windows' whole screen in one window, that program alone in it
 vikix windows apps add excel    # put it in the launcher (Super+d)
 ```
 
 - **Setup, once.** It asks twice for the password of your Windows account (the one you chose at `vikix windows create`) and keeps it, so the programs can log in by themselves. It starts Windows if it's off, and installs FreeRDP, the program that draws the windows, if you don't have it yet.
 - **What Windows has.** `vikix windows apps` prints a line for each program in Windows' Start menu: a short name, its full name, and where it is in Windows. The short name is what the other commands take; the start of it is enough when only one program begins so. Run it again after installing a program in Windows.
 - **Opening one.** If Windows is off it's started first, and a notification says the program opens in a minute or so.
+- **The whole screen, for one program.** Some programs draw a box in a way RemoteApp can't carry across: the box never shows, and the program waits for an answer it can't get (FACTS's "are you sure?" on closing is one). `vikix windows app facts --desktop` opens Windows' whole screen in one window instead, tiled like any other, with that program as the session's only shell: no taskbar and no Start menu, Windows drawing everything itself, so every box shows; the window's size is Windows' resolution, and closing the program ends the session and closes the window. `vikix windows apps add facts --desktop` makes the launcher open it that way.
 - **The launcher.** A program you added is in `Super+d` under its own name, like any other. `vikix windows apps remove excel` takes it out again. Vikix keeps the list of what you added (`~/.local/state/vikix/windows-launcher.json`), so an entry that goes missing, deleted by a stray command or a program's installer, is written again at the next `vikix update`, or at once by `vikix windows apps restore`.
 
 A few things to know:
@@ -81,7 +83,7 @@ A few things to know:
 - **A rule can place it.** Each program's windows have a class of their own, `vikix-win-` and the short name, so `(when-window (:class "vikix-win-excel") (workspace 4))` in your `rules.lisp` sends Excel to workspace 4 ([Rules for the desktop](rules.md)).
 - **The full desktop and a program take turns.** Windows 11 Pro allows one session at a time. A program open this way takes it from the full desktop (`vikix windows`), which shows Windows' lock screen until you go back to it.
 
-For the curious: this is RDP's RemoteApp, which sends one program's windows where Remote Desktop would send the whole screen. FreeRDP (`xfreerdp3`) draws each as an ordinary X window, and StumpWM tiles it. `lib/windows-apps.py` does the work. Everything it changes inside Windows goes through the VM's guest agent, which the install put there, so no network service of Windows is trusted with it. The password reaches FreeRDP on its input with the other arguments (`/args-from:stdin`), never on a command line or in the environment, where other programs could read it. And the bar: `vikix-publish-workarea` in `modeline.lisp` writes the screen less the bar on the root window (`_NET_WORKAREA`, as other desktops do), and FreeRDP passes it to Windows (`/workarea`).
+For the curious: this is RDP's RemoteApp, which sends one program's windows where Remote Desktop would send the whole screen. FreeRDP (`xfreerdp3`) draws each as an ordinary X window, and StumpWM tiles it. `lib/windows-apps.py` does the work. Everything it changes inside Windows goes through the VM's guest agent, which the install put there, so no network service of Windows is trusted with it. The password reaches FreeRDP on its input with the other arguments (`/args-from:stdin`), never on a command line or in the environment, where other programs could read it. `--desktop` is a plain Remote Desktop session with RDP's alternate shell (`/shell:`) naming the program, and `+dynamic-resolution`, so Windows' resolution follows the window as StumpWM resizes it. And the bar: `vikix-publish-workarea` in `modeline.lisp` writes the screen less the bar on the root window (`_NET_WORKAREA`, as other desktops do), and FreeRDP passes it to Windows (`/workarea`).
 
 ## What it can reach
 
@@ -120,6 +122,7 @@ It asks first, then deletes the VM and its disk, and with them the password kept
 | Windows won't shut down | `vikix windows stop --force` switches it off, like pulling the plug |
 | A notification says a Windows program *didn't open* | It shows FreeRDP's last lines; the rest is in `~/.local/state/vikix/logs/windows-app.log`. If you changed your Windows password: `vikix windows apps forget`, then `vikix windows apps setup` |
 | `vikix windows app` says Remote Desktop doesn't answer | Run `vikix windows apps setup` again: it switches it back on |
+| A Windows program waits on a box that never shows (closing FACTS, its activation wizard) | The box is drawn in a way RemoteApp can't carry. Open the program with `vikix windows app NAME --desktop` instead: Windows' whole screen in one window, where every box shows. `vikix windows apps add NAME --desktop` makes the launcher do so |
 | `vikix windows app` says Windows has no such program | `vikix windows apps` reads the Start menu again, for a program installed since |
 | The whole screen blurs while a Windows program is open | Your `~/.config/picom/picom.conf` is from before Vikix 0.71.183: add the line `"class_g ^= 'vikix-win-'"` to its `blur-background-exclude` list |
 
