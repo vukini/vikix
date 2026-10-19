@@ -252,6 +252,37 @@ check "a running Nyxt is sent the call over its socket" grep -qx -- '--remote' "
 check "and isn't left reading stdin" grep -qx -- '--quit' "$t/calls"
 check "the call is vikix-theme-apply, only where it's defined" grep -q 'VIKIX-THEME-APPLY' "$t/calls"
 
+# --- The guide's page tools: the file reads as Lisp, and defines its table ---
+# docs/nyxt.md holds ~/.config/nyxt/page-tools.lisp whole, as the user copies
+# it. Bare SBCL has none of Nyxt's packages, so each prefix is read as a
+# package of that name made for the purpose, with :: so no export is asked.
+python3 - "$here/docs/nyxt.md" "$t" <<'PY'
+import re, sys
+s = open(sys.argv[1]).read()
+blocks = [b for b in re.findall(r'```lisp\n(.*?)```', s, re.S) if ';;; Page tools:' in b]
+open(sys.argv[2] + '/page-tools.lisp', 'w').write(blocks[0] if len(blocks) == 1 else '')
+prefixes = sorted(set(re.findall(r'(?<![\w-])([a-z][a-z0-9-]*):(?=[a-z*+@])', blocks[0] if blocks else '')))
+open(sys.argv[2] + '/prefixes', 'w').write('\n'.join(prefixes) + '\n')
+rows = re.findall(r'^\| `([a-z-]+)` \|', s, re.M)
+open(sys.argv[2] + '/table', 'w').write('\n'.join(rows) + '\n')
+PY
+check "docs/nyxt.md has the page tools file, once" test -s "$t/page-tools.lisp"
+if command -v sbcl >/dev/null 2>&1 && [ -s "$t/page-tools.lisp" ]; then
+  sed -E 's/(^|[^A-Za-z0-9-])([a-z][a-z0-9-]*):([a-z*+@])/\1\2::\3/g' "$t/page-tools.lisp" > "$t/page-tools-read.lisp"
+  out=$(sbcl --noinform --no-sysinit --no-userinit --non-interactive --eval '(require :asdf)' \
+    --eval "(dolist (p (uiop:read-file-lines \"$t/prefixes\")) (unless (find-package (string-upcase p)) (make-package (string-upcase p) :use nil)))" \
+    --eval '(defpackage :nyxt-user (:use :cl))' \
+    --eval "(with-open-file (in \"$t/page-tools-read.lisp\") (let ((*package* (find-package :nyxt-user)) (*read-eval* nil) (names nil)) (handler-case (loop for form = (read in nil :eof) until (eq form :eof) when (and (consp form) (symbolp (car form)) (string= (symbol-name (car form)) \"DEFINE-COMMAND-GLOBAL\")) do (push (string-downcase (symbol-name (second form))) names) finally (format t \"commands ~{~a~^ ~}~%\" (reverse names))) (error (e) (format t \"READ ERROR ~a~%\" e)))))" 2>&1 | grep '^commands \|^READ ERROR' || true)
+  check "the page tools file reads as Lisp: $out" grep -q '^commands ' <<<"$out"
+  for name in $(cat "$t/table"); do
+    [ "$name" = show-url-qrcode ] && continue   # Nyxt's own, the table says so
+    check "the table's $name is defined in the file" grep -qw "$name" <<<"$out"
+  done
+  for name in ${out#commands }; do
+    check "the file's $name is in the table" grep -qx "$name" "$t/table"
+  done
+fi
+
 # --- The starter loads it from where it's linked -----------------------------
 check "40-config links vikix.lisp where config.lisp looks" grep -q 'vikix/nyxt/vikix.lisp"$' "$here/install/40-config.sh"
 check "lisp-apps setup links it there too" grep -q 'vikix/nyxt/vikix.lisp"$' "$here/bin/vikix-lisp-apps"

@@ -157,16 +157,25 @@ Then each is in `Ctrl+Space`:
 | Command | What you get | Where it goes |
 |---|---|---|
 | `save-page-images` | Every picture on the page, in the page's order, each once | `~/Pictures/Nyxt/<page title>/` |
+| `save-page-tables` | Every table on the page as CSV, one file each, for a spreadsheet | `~/Documents/Nyxt/<page title>/table-N.csv` |
+| `save-page-code` | Every code block on the page as a file, the extension from the language the page names | `~/Documents/Nyxt/<page title>/code-N.py` (`.sh`, `.lisp`, …, `.txt`) |
+| `copy-page-code` | One code block, picked from a list (its first line, language and length), copied | The clipboard |
+| `jump-to-heading` | The page's headings as a list; pick one and the page scrolls there | The page |
+| `reader-view` | The page's article alone, in Nyxt's own style, links still working | A page of its own in Nyxt |
 | `page-to-markdown` | The page's article (no menus or footers, when the page marks its article) as Markdown, links still working | `~/Documents/Nyxt/<page title>.md`, and the clipboard |
 | `page-to-epub` | The page as an e-book, pictures inside, for an e-reader | `~/Documents/Nyxt/<page title>.epub` |
 | `tabs-to-epub` | Every open tab as one e-book, a chapter each: a reading list | `~/Documents/Nyxt/Reading list <date>.epub` |
 | `clip-selection` | The selected text as a quote, with the date, the page's title and its link | The end of `~/Documents/Nyxt/clips.md`, and the clipboard |
+| `clip-to-project-log` | The selected text as a quote, with the page's title and link, as today's entry in a project's log (the project picked from your list); nothing selected: the title and link alone | The project's `log.md`, through `vikix project log` |
+| `add-page-to-notes` | The page as Markdown among your notes, and indexed, so `note ask` and `note find` see it | `Web/<page title>.md` in the folder `note index` reads |
 | `summarize-page` | A short summary in bullet points, and who the page is for | A page of its own in Nyxt, kept until Nyxt quits |
 | `show-url-qrcode` | The page's address as a QR code, to open it on a phone | A page of its own (Nyxt's own command: nothing to add) |
 
 Things to know about them:
 
-- **They need pandoc** for Markdown and e-books (`vikix add cli-extras`), and **`llm`** for the summary (`vikix add llm`).
+- **They need pandoc** for Markdown, e-books, the reader view and the quotes (`vikix add cli-extras`), **`llm`** for the summary (`vikix add llm`), **`vikix notes`** for the page into your notes (`vikix add notes`, then `note index ~/Notes` once: the page goes into that folder's `Web/`, and `note index` runs again by itself, in the background), and **a project** for the log (`vikix project new NAME`).
+- **The tables come as the page shows them:** a cell's text on one line, quotes doubled, a field in quotes when it holds a comma; a table inside a table is read as part of the outer one.
+- **A code block's language** comes from a class like `language-python` on its `<pre>` or `<code>`, as most sites write it; a block with no language is `.txt`.
 - **The summary goes to Claude.** `summarize-page` sends the page's text to Anthropic through `llm`, with the key from `vikix ai key set anthropic`, and takes seconds. To keep pages on the machine, set `*summary-model*` to `nil` in `config.lisp`, after the page tools' line: `llm`'s default model then answers (a local one, if that's what you chose), free and private, but it can take minutes on a long page and says less. For a small local model, set `*summary-max-chars*` near 6000 too.
 - **Pictures behind a login don't come.** `save-page-images` fetches pictures itself, without the browser's cookies.
 - **Pages that mark no article** (`<article>` or `<main>`) come whole, menus and all.
@@ -179,8 +188,10 @@ The file:
 ```lisp
 (in-package #:nyxt-user)
 
-;;; Page tools: a page's images, the page as Markdown or an e-book (or all
-;;; open pages as one), the selection clipped to a notes file, and a summary
+;;; Page tools: a page's images, tables (as CSV) and code blocks (as files,
+;;; or one copied), the page as Markdown or an e-book (or all open pages as
+;;; one), a reader view, a jump to a heading, the selection clipped to a notes
+;;; file or a project's log, the page into your notes' index, and a summary
 ;;; by llm. The QR code of a page is Nyxt's own: show-url-qrcode.
 
 (defvar *page-tools-folder* (merge-pathnames "Documents/Nyxt/" (user-homedir-pathname))
@@ -363,22 +374,11 @@ included."
   "Add the selected text, as a Markdown quote with the page's title and
 address, to ~/Documents/Nyxt/clips.md, and copy it."
   (let* ((buffer (current-buffer))
-         (html (ps-eval :buffer buffer
-                 (let ((selection (ps:chain window (get-selection))))
-                   (if (> (ps:@ selection range-count) 0)
-                       (let ((div (ps:chain document (create-element "div"))))
-                         (ps:chain div (append-child (ps:chain selection (get-range-at 0)
-                                                               (clone-contents))))
-                         (ps:@ div inner-h-t-m-l))
-                       "")))))
-    (if (or (null html) (string= (string-trim '(#\Space #\Newline) html) ""))
+         (quote (selection-quote buffer)))
+    (if (null quote)
         (echo "Select some text first")
-        (let* ((html (plump:serialize (make-addresses-whole buffer (plump:parse html)) nil))
-               (markdown (string-trim '(#\Newline #\Space)
-                                      (pandoc html "-f" "html" "-t" "gfm-raw_html" "--wrap=none")))
-               (quote (format nil "~{> ~a~^~%~}" (str:lines markdown)))
-               (clip (format nil "## ~a, [~a](~a)~%~%~a~%~%"
-                             (today) (title buffer) (render-url (url buffer)) quote)))
+        (let ((clip (format nil "## ~a, [~a](~a)~%~%~a~%~%"
+                            (today) (title buffer) (render-url (url buffer)) quote)))
           (ensure-directories-exist *clips-file*)
           (with-open-file (out *clips-file* :direction :output
                                             :if-exists :append :if-does-not-exist :create)
@@ -420,6 +420,278 @@ a page of its own."
       (setf (gethash id *page-summaries*)
             (list (title buffer) (render-url (url buffer)) summary *summary-model*))
       (buffer-load-internal-page-focus 'page-summary :id id))))
+
+;;; --- Tables and code blocks -------------------------------------------------
+
+(defun page-folder (buffer)
+  "~/Documents/Nyxt/<page title>/: for what a page gives several of."
+  (merge-pathnames (format nil "~a/" (page-file-name (title buffer))) *page-tools-folder*))
+
+(defun one-line (text)
+  "TEXT with its runs of spaces and line breaks made one space: a cell or
+a heading as the page shows it, not as its HTML was indented."
+  (string-trim " " (str:join " " (str:split-omit-nulls " " (substitute #\Space #\Tab (substitute #\Space #\Newline text))))))
+
+(defun csv-field (text)
+  "TEXT as one CSV field: in quotes when it holds a comma or a quote."
+  (let ((text (one-line text)))
+    (if (find-if (lambda (c) (find c ",\"")) text)
+        (format nil "\"~a\"" (str:replace-all "\"" "\"\"" text))
+        text)))
+
+(defun table-rows (table)
+  "TABLE's rows, each the text of its cells."
+  (loop for tr across (clss:select "tr" table)
+        collect (loop for cell across (clss:select "th, td" tr)
+                      collect (plump:text cell))))
+
+(define-command-global save-page-tables ()
+  "Save every table on the page as CSV, a file each, in
+~/Documents/Nyxt/<page title>/table-N.csv, for a spreadsheet."
+  (let* ((buffer (current-buffer))
+         (tables (clss:select "table" (document-model buffer)))
+         (folder (page-folder buffer)))
+    (if (zerop (length tables))
+        (echo "No tables on this page")
+        (progn
+          (ensure-directories-exist folder)
+          (loop for table across tables
+                for n from 1
+                do (with-open-file (out (merge-pathnames (format nil "table-~d.csv" n) folder)
+                                        :direction :output :if-exists :supersede)
+                     (dolist (row (table-rows table))
+                       (format out "~{~a~^,~}~%" (mapcar #'csv-field row)))))
+          (echo "~d table~:p saved to ~a" (length tables) (namestring folder))))))
+
+(defvar *code-extensions*
+  '(("python" . "py") ("py" . "py") ("lisp" . "lisp") ("common-lisp" . "lisp") ("elisp" . "el")
+    ("shell" . "sh") ("bash" . "sh") ("sh" . "sh") ("console" . "sh")
+    ("javascript" . "js") ("js" . "js") ("typescript" . "ts") ("c" . "c") ("cpp" . "cpp")
+    ("c++" . "cpp") ("rust" . "rs") ("go" . "go") ("ruby" . "rb") ("html" . "html")
+    ("css" . "css") ("json" . "json") ("yaml" . "yaml") ("toml" . "toml") ("sql" . "sql")
+    ("markdown" . "md") ("lua" . "lua") ("java" . "java") ("kotlin" . "kt"))
+  "A file extension for the language a page names on a code block; .txt otherwise.")
+
+(defclass code-block ()
+  ((number :initarg :number :reader block-number)
+   (text :initarg :text :reader block-text)
+   (language :initarg :language :reader block-language))
+  (:documentation "One <pre> of a page, in Ctrl+Space as its number, first line, language and length."))
+
+(defmethod prompter:object-attributes ((block code-block) (source prompter:source))
+  `(("Block" ,(block-number block))
+    ("First line" ,(one-line (first (str:lines (block-text block)))))
+    ("Language" ,(or (block-language block) ""))
+    ("Lines" ,(length (str:lines (block-text block))))))
+
+(defun code-blocks (buffer)
+  "The page's code blocks (each <pre>, as code-block objects), with the
+language a class like language-python names."
+  (loop for pre across (clss:select "pre" (document-model buffer))
+        for code = (let ((inner (clss:select "code" pre))) (if (plusp (length inner)) (elt inner 0) pre))
+        for text = (string-right-trim '(#\Newline #\Space) (plump:text code))
+        for classes = (format nil "~a ~a" (or (plump:attribute code "class") "") (or (plump:attribute pre "class") ""))
+        for language = (loop for word in (str:split-omit-nulls " " classes)
+                             for name = (cond ((str:starts-with-p "language-" word) (subseq word 9))
+                                              ((str:starts-with-p "lang-" word) (subseq word 5)))
+                             when name return (string-downcase name))
+        for n from 1
+        when (plusp (length text))
+          collect (make-instance 'code-block :number n :text text :language language)))
+
+(define-command-global save-page-code ()
+  "Save every code block on the page as a file,
+~/Documents/Nyxt/<page title>/code-N.EXT, the extension from the language
+the page names (.txt when it names none)."
+  (let* ((buffer (current-buffer))
+         (blocks (code-blocks buffer))
+         (folder (page-folder buffer)))
+    (if (null blocks)
+        (echo "No code blocks on this page")
+        (progn
+          (ensure-directories-exist folder)
+          (dolist (block blocks)
+            (let ((file (merge-pathnames
+                         (format nil "code-~d.~a" (block-number block)
+                                 (or (cdr (assoc (block-language block) *code-extensions* :test #'equal)) "txt"))
+                         folder)))
+              (alexandria:write-string-into-file (format nil "~a~%" (block-text block)) file :if-exists :supersede)))
+          (echo "~d code block~:p saved to ~a" (length blocks) (namestring folder))))))
+
+(define-command-global copy-page-code ()
+  "Pick one of the page's code blocks and copy it, to paste into a
+terminal or an editor."
+  (let ((blocks (code-blocks (current-buffer))))
+    (if (null blocks)
+        (echo "No code blocks on this page")
+        (let ((block (prompt1 :prompt "Copy which code block"
+                              :sources (make-instance 'prompter:source
+                                                      :name "Code blocks"
+                                                      :constructor blocks))))
+          (copy-code-block block)))))
+
+(defun copy-code-block (block)
+  (copy-to-clipboard (format nil "~a~%" (block-text block)))
+  (echo "Block ~d copied (~d lines)" (block-number block) (length (str:lines (block-text block)))))
+
+;;; --- Headings ---------------------------------------------------------------
+
+(defclass heading ()
+  ((index :initarg :index :reader heading-index)
+   (level :initarg :level :reader heading-level)
+   (text :initarg :text :reader heading-text))
+  (:documentation "One heading of the page: its place among all of them (what the
+page is scrolled to), its level and its words."))
+
+(defmethod prompter:object-attributes ((heading heading) (source prompter:source))
+  `(("Heading" ,(format nil "~a~a" (make-string (* 2 (1- (heading-level heading))) :initial-element #\Space) (heading-text heading)))
+    ("Level" ,(format nil "h~d" (heading-level heading)))))
+
+(defparameter *headings-selector* "h1, h2, h3, h4, h5, h6")
+
+(defun page-headings (buffer)
+  "The page's headings in its order, as heading objects."
+  (loop for node across (clss:select *headings-selector* (document-model buffer))
+        for i from 0
+        collect (make-instance 'heading :index i
+                                        :level (digit-char-p (char (plump:tag-name node) 1))
+                                        :text (one-line (plump:text node)))))
+
+(define-command-global jump-to-heading ()
+  "Scroll the page to one of its headings, picked from a list of them."
+  (let* ((buffer (current-buffer))
+         (headings (page-headings buffer)))
+    (if (null headings)
+        (echo "No headings on this page")
+        (let ((heading (prompt1 :prompt "Jump to heading"
+                                :sources (make-instance 'prompter:source
+                                                        :name "Headings"
+                                                        :constructor headings))))
+          (scroll-to-heading buffer heading)))))
+
+(defun scroll-to-heading (buffer heading)
+  ;; The same selector in the page: the Nth of Nyxt's parsed copy is the
+  ;; Nth there.
+  (ps-eval :buffer buffer
+    (let ((all (ps:chain document (query-selector-all (ps:lisp *headings-selector*)))))
+      (ps:chain (aref all (ps:lisp (heading-index heading))) (scroll-into-view))))
+  (echo "~a" (heading-text heading)))
+
+;;; --- Reader view ------------------------------------------------------------
+
+(defvar *reader-pages* (make-hash-table :test #'equal)
+  "Reader views made this session, by id: (title url markdown).")
+
+(define-internal-page page-reader (&key id)
+    (:title "*Reader*")
+  "The page's article alone, as reader-view shows it."
+  (destructuring-bind (&optional title address markdown) (gethash id *reader-pages*)
+    (spinneret:with-html-string
+      (:div :style "max-width: 42em; margin: 0 auto; line-height: 1.5"
+            (:h1 (or title "Reader"))
+            (:p (:small (:a :href address address)))
+            (:raw (if markdown
+                      (pandoc markdown "-f" "gfm" "-t" "html")
+                      "<p>Gone: open the reader view again.</p>"))))))
+
+(define-command-global reader-view ()
+  "The page's article alone (no menus, no footers, when the page marks
+its article), as a clean page in Nyxt's own style, links still working."
+  (let* ((buffer (current-buffer))
+         (id (princ-to-string (get-universal-time))))
+    (setf (gethash id *reader-pages*)
+          (list (title buffer) (render-url (url buffer)) (page-markdown buffer)))
+    (buffer-load-internal-page-focus 'page-reader :id id)))
+
+;;; --- Into your notes, and a project's log -----------------------------------
+
+(defun notes-folder ()
+  "The folder `note index` reads (folder= in ~/.config/vikix/notes), or nil."
+  (let ((file (uiop:xdg-config-home "vikix/notes")))
+    (when (uiop:file-exists-p file)
+      (loop for line in (uiop:read-file-lines file)
+            when (str:starts-with-p "folder=" line)
+              return (let ((folder (string-trim " " (subseq line 7))))
+                       (when (plusp (length folder))
+                         (uiop:ensure-directory-pathname
+                          (if (str:starts-with-p "~/" folder)
+                              (merge-pathnames (subseq folder 2) (user-homedir-pathname))
+                              folder))))))))
+
+(define-command-global add-page-to-notes ()
+  "Save the page as Markdown into your notes folder, Web/<page title>.md,
+and index it, so `note ask` and `note find` see it beside your notes."
+  (let ((folder (notes-folder)))
+    (if (null folder)
+        (echo "No notes folder yet: note index ~~/Notes, in a terminal")
+        (let* ((buffer (current-buffer))
+               (file (merge-pathnames (format nil "Web/~a.md" (page-file-name (title buffer))) folder))
+               (markdown (format nil "# ~a~%~%Source: <~a>, saved ~a~%~%~a"
+                                 (title buffer) (render-url (url buffer)) (today) (page-markdown buffer))))
+          (ensure-directories-exist file)
+          (alexandria:write-string-into-file markdown file :if-exists :supersede)
+          (echo "Saved to ~a; indexing..." (namestring file))
+          ;; The index takes a while (the model reads the page): a thread, so
+          ;; Nyxt isn't held.
+          (run-thread "note index"
+            (handler-case
+                (progn (uiop:run-program '("vikix" "notes" "index") :output nil :error-output nil)
+                       (echo "~a is in your notes' index" (title buffer)))
+              (error () (echo "Saved to ~a, but note index failed: run it in a terminal" (namestring file)))))))))
+
+(defun selection-html (buffer)
+  "What is selected in BUFFER, as HTML; an empty string when nothing is."
+  (or (ps-eval :buffer buffer
+        (let ((selection (ps:chain window (get-selection))))
+          (if (> (ps:@ selection range-count) 0)
+              (let ((div (ps:chain document (create-element "div"))))
+                (ps:chain div (append-child (ps:chain selection (get-range-at 0)
+                                                      (clone-contents))))
+                (ps:@ div inner-h-t-m-l))
+              "")))
+      ""))
+
+(defun selection-quote (buffer)
+  "The selection as a Markdown quote (links made whole), or nil with
+nothing selected."
+  (let ((html (selection-html buffer)))
+    (unless (string= (string-trim '(#\Space #\Newline) html) "")
+      (let* ((html (plump:serialize (make-addresses-whole buffer (plump:parse html)) nil))
+             (markdown (string-trim '(#\Newline #\Space)
+                                    (pandoc html "-f" "html" "-t" "gfm-raw_html" "--wrap=none"))))
+        (format nil "~{> ~a~^~%~}" (str:lines markdown))))))
+
+(defun project-names ()
+  "Your projects' names, as `vikix project list` gives them (its first word a line)."
+  (let ((out (ignore-errors (uiop:run-program '("vikix" "project" "list") :output :string :error-output nil))))
+    (when out
+      (loop for line in (str:lines out)
+            for name = (first (str:split-omit-nulls " " line))
+            when name collect name))))
+
+(define-command-global clip-to-project-log ()
+  "Add the selected text as a quote, with the page's title and address, to
+a project's log (vikix project log), the project picked from your list;
+with nothing selected, the title and address alone: read today."
+  (let* ((buffer (current-buffer))
+         (names (project-names)))
+    (if (null names)
+        (echo "No projects: vikix project new NAME, in a terminal")
+        (let* ((name (prompt1 :prompt "Into which project's log"
+                              :sources (make-instance 'prompter:source
+                                                      :name "Projects"
+                                                      :constructor names)))
+               (quote (selection-quote buffer)))
+          (log-to-project buffer name quote)))))
+
+(defun log-to-project (buffer name quote)
+  "An entry in NAME's log: the page, and QUOTE (its selection) when there is one."
+  (let ((entry (format nil "Read [~a](~a)~@[:~%~%~a~]" (title buffer) (render-url (url buffer)) quote)))
+    (handler-case
+        (progn
+          (uiop:run-program (list "vikix" "project" "log" name entry "--vid") :output nil :error-output :string)
+          (echo "Logged in ~a~@[, with the selection~]" name quote))
+      (error (e) (echo "vikix project log failed: ~a" e)))))
 ```
 
 A few things learned while writing it, in case you write your own:
@@ -428,12 +700,14 @@ A few things learned while writing it, in case you write your own:
 - An empty result from `clss:select` is an empty vector, not `nil`, so `(or (clss:select "main" dom) ...)` never falls through: test its length.
 - `show-url-qrcode` isn't in `nyxt-user`: from Lisp it's `nyxt/mode/document:show-url-qrcode`; from `Ctrl+Space`, its name is enough.
 - `llm` takes the Anthropic key from the environment. A Nyxt started from the desktop has it.
+- A class's reader can't be called `number` or `text`: those are Common Lisp's own symbols, and SBCL's package lock refuses a function on them. Hence `block-number`, `heading-text`.
+- `Ctrl+Space` shows an object by `prompter:object-attributes`: a method on your class gives it columns (the code blocks' first line, language and length), and the pick comes back as the object.
 
 ## Ideas for your own
 
 Some directions, from small to big, none of them built yet:
 
-- **Commands that join Nyxt to the desktop:** add the page to a project's log (`vikix project log NAME "read: <title> <url>"`), open the site as a web app (`vikix webapp`), send the window to another workspace (`vikix eval`).
+- **Commands that join Nyxt to the desktop:** open the site as a web app (`vikix webapp`), send the window to another workspace (`vikix eval`); `clip-to-project-log` above is the shape of it.
 - **How pages load:** rewrite addresses (to a lighter front end of a site), block domains, switch scripts off on one site.
 - **Your own `Ctrl+Space` sources:** every doc under `~/dev`, your project folders.
 - **Pages of your own:** `define-internal-page`, as `summarize-page` uses, builds a page from Lisp when it's opened: a start page with your projects, say.
