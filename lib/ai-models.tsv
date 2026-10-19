@@ -22,5 +22,5 @@ gpt-oss:20b	21	3.6	14	thinks and uses tools: a strong all-rounder from 32 GB
 qwen3:30b	30	3.3	19	all-round, thinks: the best under 20 GB
 qwen3-coder:30b	30	3.3	19	code and coding agents (opencode, aider): the one for them
 gemma3:27b	27	27	17	long writing, other languages; reads images
-gpt-oss:120b	117	5.1	65	the best here, from 128 GB: thinks, uses tools, answers fast on the graphics
+gpt-oss:120b	117	5.1	65	the best here, from 128 GB: thinks, uses tools; 51 words a second on the graphics chip
 nemotron-3-super:120b	120	12	87	coding agents with long context, from 128 GB; slower than gpt-oss

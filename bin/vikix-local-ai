@@ -41,15 +41,21 @@
 # CPU, and holds ones a CPU can't: Ollama leaves such a chip out unless
 # asked (OLLAMA_IGPU_ENABLE=1), so `serve` asks when graphics= in
 # ~/.config/vikix/ai says on, or says nothing (auto) and the chip may take
-# 32 GB or more; off keeps the CPU. Ollama would give a model all of that
-# memory, and the desktop, refused its share, ended (2026-10-19, three
-# times): `serve` keeps 8 GB of it for the desktop (LLAMA_ARG_FIT_TARGET,
-# the margin llama-server leaves on the chip, the rest of a model going to
-# the CPU; OLLAMA_GPU_OVERHEAD, the same for Ollama's own sums) and sets a
-# 32k context (OLLAMA_CONTEXT_LENGTH: Ollama's own choice there is the
-# model's longest, 4.6 GB for gpt-oss-120b). The picker then counts
-# that memory, less the 8 GB, and rates the models that fit in it by the
-# parameters at work on each word (lib/ai-models.tsv).
+# 32 GB or more; off keeps the CPU. Measured on the Ryzen AI Max+ 395
+# (2026-10-19, Ollama 0.34.4): gpt-oss-120b answers at 51 words a second
+# through Vulkan, 35 through ROCm (which sees 61 of the chip's 65 GB and
+# leaves 9 GB of the model on the CPU), so Vulkan it stays. Ollama's own
+# context there is the model's longest (4.6 GB more for gpt-oss-120b),
+# which once took the whole of the chip's memory: the X server, refused
+# its share, ended the session (three times that day). So `serve` sets a
+# 32k context (OLLAMA_CONTEXT_LENGTH; a request may still ask for more)
+# and keeps 8 GB from Ollama's sums (OLLAMA_GPU_OVERHEAD), which stop it
+# loading a second model beside. llama-server's own margin
+# (LLAMA_ARG_FIT_TARGET) is no help on such a chip: what it moves to "the
+# CPU" is memory the chip maps all the same, and it only cost speed (44).
+# The 120B leaves the desktop about 3 GB there until the kernel's share is
+# raised (TODO 60). The picker counts that memory and rates the models
+# that fit in it by the parameters at work on each word (lib/ai-models.tsv).
 
 set -euo pipefail
 VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
@@ -72,7 +78,7 @@ MODELS_TABLE="$VIKIX_DIR/lib/ai-models.tsv"
 API="http://$HOST/api"
 AI_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/ai"   # the user's AI settings (vikix-ask makes it)
 DRM="${VIKIX_DRM:-/sys/class/drm}"                     # the graphics chips, as the kernel shows them
-KEEP_GB=8                                              # of the chip's memory, left to the desktop (the header)
+KEEP_GB=8                                              # kept from Ollama's sums of the chip's memory (the header)
 
 conf() {   # conf KEY — its value in ~/.config/vikix/ai, without comments or spaces
   sed -n "s/^[[:space:]]*$1[[:space:]]*=//p" "$AI_CONF" 2>/dev/null | tail -1 |
@@ -204,9 +210,9 @@ cmd_serve() {
   # machine whose chip shares enough of the memory to be worth it.
   if graphics_on; then
     export OLLAMA_IGPU_ENABLE=1 OLLAMA_GPU_OVERHEAD=$((KEEP_GB * 1024 * 1024 * 1024))
-    export LLAMA_ARG_FIT_TARGET=$((KEEP_GB * 1024)) OLLAMA_CONTEXT_LENGTH="${OLLAMA_CONTEXT_LENGTH:-32768}"
+    export OLLAMA_CONTEXT_LENGTH="${OLLAMA_CONTEXT_LENGTH:-32768}"
   else
-    unset OLLAMA_IGPU_ENABLE OLLAMA_GPU_OVERHEAD LLAMA_ARG_FIT_TARGET
+    unset OLLAMA_IGPU_ENABLE OLLAMA_GPU_OVERHEAD
   fi
   echo "$$ ${OLLAMA_IGPU_ENABLE:-0}" > "$GRAPHICS_NOTE"   # whose: a crash leaves no note a later serve would wear
   OLLAMA_HOST=$HOST "$OLLAMA" serve >> "$VIKIX_STATE/ollama.log" 2>&1 &
