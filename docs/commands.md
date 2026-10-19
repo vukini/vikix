@@ -158,7 +158,7 @@ The everyday command.
 - `vikix fingerprint [on|off|enrol]` — a finger for sudo and the lock screen, where fprintd supports the reader
 - `vikix firewall [on|off|allow PORT|close PORT]` — the firewall (ufw): nothing comes in but SSH and the ports you allow
 - `vikix webapp add|open|list|remove` — a website as a program of its own (presets: fastmail, gmail, outlook, outlook-live, superhuman)
-- `vikix ai setup|models|chat|list|remove|status|stop|restart|uninstall` — AI models that run on this laptop (Ollama; on a graphics chip that shares the memory, when there is one)
+- `vikix ai setup|models|chat|list|remove|status|stop|uninstall` — AI models that run on this laptop (Ollama)
 - `vikix ai llm` — the llm command, with those models and your keys
 - `vikix ai use [local|claude|codex]` — the model for Super+i, AI on the selected text
 - `vikix ai key set|list|remove|check` — API keys (`ANTHROPIC_API_KEY` ...) kept safely, out of your dotfiles and their history
@@ -311,7 +311,7 @@ The house rules: the office keeps a journal of what each agent edits (`~/.local/
 
 AI services on Vikix: keys, and local models.
 
-- `vikix ai setup | models | chat | list | remove | status | stop | uninstall` — models that run on this machine, with Ollama (vikix ai help-local tells more)
+- `vikix ai setup | models | chat | list | remove | status | stop | restart | uninstall` — models that run on this machine, with Ollama (vikix ai help-local tells more)
 - `vikix ai llm [--default MODEL]` — the llm command, with your local models and your keys: cat notes.md | llm "summarise"
 - `vikix ai use [local|claude|codex]` — which model Super+i (AI on the selected text) uses; alone, says which (one word)
 - `vikix ai key set NAME` — ask for a key (it isn't shown as you paste it) and keep it. NAME is a service (anthropic, openai, gemini, perplexity, openrouter, groq, mistral, deepseek, xai, huggingface, github ...) or the variable itself (`MY_SERVICE_API_KEY`). Piped in, the key comes from stdin: pass show api/openai | vikix ai key set openai
@@ -808,18 +808,21 @@ Commands: nyxt, lem, clim-listener; all three are in the launcher (Super+d).
 AI models that run on this machine, with Ollama.
 
 - `vikix ai setup` — install Ollama (its CPU and Vulkan parts, as you, in `~/.local/opt/ollama`; no password) and start it. It starts with the desktop from then on
-- `vikix ai models` — pick a model to download: each says what it's for, its size, and how it runs on this machine (fast, well, slowly); ones too big aren't offered
+- `vikix ai models` — pick a model to download: each says what it's for, its size, and how it runs on this machine (fast, well, slowly: on the CPU, or on a graphics chip that shares the memory); ones too big aren't offered
 - `vikix ai chat [MODEL]` — talk to one, in the terminal (/bye or Ctrl+D to leave); Super+m, Local AI: talk to a model
 - `vikix ai list` — the models you have, and their sizes
 - `vikix ai remove MODEL` — delete one (it can be downloaded again)
-- `vikix ai status` — installed? running? which model is loaded, how much memory it holds and until when
+- `vikix ai status` — installed? running? on the graphics? which model is loaded, how much memory it holds and until when
 - `vikix ai stop` — unload the model now (it unloads by itself after 5 minutes unused)
+- `vikix ai restart` — start Ollama again (after a change of graphics= in `~/.config/vikix/ai`)
 - `vikix ai uninstall [--models]` — take Ollama away; --models deletes the downloaded models too
 - `vikix ai llm [--default MODEL]` — Simon Willison's llm on the command line (with its Ollama and Anthropic plugins), so that cat notes.md | llm "summarise" works. Its default is a local model if you have one, else Claude when `ANTHROPIC_API_KEY` is set (vikix ai key)
 
 Its API is on http://127.0.0.1:11434 (only this machine; the Windows VM can't reach it). The bar says "ai" while a model is loaded in memory. Models are big: they're in `~/.ollama/models`, and backups leave them out.
 
 Honest about a laptop without a graphics card. Measured on an i7-7500U with llama3.2:3b: about 4 s to load, then about 11 s for two sentences. Models of 1-2 billion parameters are about twice as quick, 7-8 billion about three times as slow; bigger ones don't fit.
+
+A graphics chip that shares the main memory (AMD's Ryzen AI Max: 128 GB, of which the chip may take 65) runs a model many times faster than the CPU, and holds ones a CPU can't: Ollama leaves such a chip out unless asked (`OLLAMA_IGPU_ENABLE=1`), so `serve` asks when graphics= in `~/.config/vikix/ai` says on, or says nothing (auto) and the chip may take 32 GB or more; off keeps the CPU. The picker then counts that memory, and rates the models that fit in it by the parameters at work on each word (lib/ai-models.tsv).
 
 ## vikix-lock
 
