@@ -11,3 +11,5 @@ xorg-server-xvfb
 xdpyinfo
 xprop
 xterm
+xwininfo        # tests/rescue.sh
+xwd             # tests/windows-live, by hand

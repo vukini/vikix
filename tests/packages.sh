@@ -14,8 +14,9 @@ cd "$(dirname "$0")/.."
 . lib/common.sh
 
 command -v xbps-query >/dev/null || { echo "FAIL: needs xbps (run on Void)"; exit 1; }
-nonfree=0
+nonfree=0 multilib=0
 [ -e /usr/share/xbps.d/10-repository-nonfree.conf ] && nonfree=1
+[ -e /usr/share/xbps.d/10-repository-multilib.conf ] && multilib=1
 
 # One query for the whole repository (a query per package reloads the
 # index each time: 163 of them took almost two minutes).
@@ -31,6 +32,12 @@ for list in packages/*.list packages/optional/*.list; do
     [ -n "${avail[$pkg]:-}" ] && continue
     if [ "$pkg" = intel-ucode ] && [ "$nonfree" = 0 ]; then
       echo "note: $pkg is in the nonfree repository, not enabled here"
+      continue
+    fi
+    # Steam's 32-bit libraries are in the multilib repository, which vikix
+    # steam setup switches on; a machine without it can't see them.
+    if [ "${pkg%-32bit}" != "$pkg" ] && [ "$multilib" = 0 ]; then
+      echo "note: $pkg is in the multilib repository, not enabled here"
       continue
     fi
     echo "FAIL $list: no package called '$pkg'"
