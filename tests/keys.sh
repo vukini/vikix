@@ -196,7 +196,18 @@ xdotool mousemove 640 400; sleep 0.5
 xdotool key super+m; sleep 1; xdotool type "What does"; sleep 0.5; key Return; key super+ctrl+a; sleep 1
 check "the answer of What does a key do? stays on the screen" test "$(ask '(princ (xlib:window-map-state (screen-message-window (current-screen))))')" = VIEWABLE
 key Escape
+# Shift+Print: the Print key's keycode carries Print and Sys_Req, and
+# StumpWM reads Shift on it as Sys_Req, so a binding written S-Print never
+# matched the press. vikix-bind binds the twin too, and the press arrives.
+check "a binding with Shift and Print has a Sys_Req twin: $(bound Sys_Req), $(bound C-Sys_Req), $(bound s-Sys_Req)" \
+  test "$(bound Sys_Req)|$(bound C-Sys_Req)|$(bound s-Sys_Req)" = "exec vikix-screenshot area file|exec vikix-screenshot window file|exec vikix-screenshot screen file"
+check "and a key without Shift or Print has none: $(bound C-Sys_Req), $(ask '(princ (list (vikix-key-twin "C-Print") (vikix-key-twin "s-S-a")))')" \
+  test "$(ask '(princ (list (vikix-key-twin "C-Print") (vikix-key-twin "s-S-a") (vikix-key-twin "s-C-S-Print")))')" = "(NIL NIL s-C-Sys_Req)"
+ask '(vikix-bind "s-S-Print" "gselect 3")' >/dev/null
+key super+shift+Print
+settled 3 ws
+check "Super+Shift+Print, pressed, runs what was bound to it: workspace $(ws)" test "$(ws)" = 3
 check "nothing failed on the way" test -z "$(ls "$home/.local/state/vikix/errors/" 2>/dev/null)"
 
-[ "$fail" = 0 ] && echo "keys: Super+Shift+digit by the keyboard's layout (US, British, French), Super+Shift moves the window, the old keys let go at a reload, the window list, the key help's answer stays"
+[ "$fail" = 0 ] && echo "keys: Super+Shift+digit by the keyboard's layout (US, British, French), Super+Shift moves the window, the old keys let go at a reload, the window list, the key help's answer stays, Shift+Print arrives"
 exit "$fail"

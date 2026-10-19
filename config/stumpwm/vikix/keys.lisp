@@ -68,22 +68,39 @@ tools. Every other program a key starts is on Super+Alt.")
 (defvar *vikix-bind-later* nil
   "True inside vikix-binding-keys: X hears of the keys once, at its end.")
 
+(defun vikix-key-twin (key)
+  "The second name a key with Shift and Print has, or NIL: \"S-Print\" is
+\"Sys_Req\", \"s-C-S-Print\" is \"s-C-Sys_Req\". The Print key's keycode
+carries two symbols, Print and Sys_Req, and StumpWM reads Shift on a key
+with two as the second symbol without the Shift, so a binding written
+S-Print never matched the key; the twin is what the press arrives as. A
+keyboard whose Print has one symbol (the kernel's KEY_PRINT, a remapped
+F6) sends S-Print itself, and the twin is harmless there."
+  (let* ((dash (position #\- key :from-end t))
+         (mods (if dash (subseq key 0 (1+ dash)) ""))
+         (shift (search "S-" mods)))
+    (when (and shift (string= (subseq key (length mods)) "Print"))
+      (concatenate 'string (subseq mods 0 shift) (subseq mods (+ shift 2)) "Sys_Req"))))
+
 (defun vikix-bind (key command)
   "Bind KEY (a key name like \"s-RET\") to COMMAND (a command string). A
-key inside a map (\"s-C-SPC m\") is only noted: the map reads it itself."
+key inside a map (\"s-C-SPC m\") is only noted: the map reads it itself.
+A key with Shift and Print is bound under its twin too (vikix-key-twin)."
   ;; Where it was written, for "why did that happen?" (why.lisp).
   (when (and (or (and (boundp '*vikix-loading-file*) (symbol-value '*vikix-loading-file*)) *load-truename*) (boundp '*vikix-key-sources*))
-    (setf (gethash key (symbol-value '*vikix-key-sources*))
-          (cons (namestring (or (and (boundp '*vikix-loading-file*) (symbol-value '*vikix-loading-file*)) *load-truename*))
-                (and (boundp '*vikix-load-line*) (symbol-value '*vikix-load-line*)))))
-  (cond
-    ((find #\Space key))
-    (*vikix-bind-later*
-     ;; define-key tells X when the map is *top-map*: not this time.
-     (let ((map *top-map*))
-       (let ((*top-map* nil))
-         (define-key map (kbd key) command))))
-    (t (define-key *top-map* (kbd key) command))))
+    (let ((source (cons (namestring (or (and (boundp '*vikix-loading-file*) (symbol-value '*vikix-loading-file*)) *load-truename*))
+                        (and (boundp '*vikix-load-line*) (symbol-value '*vikix-load-line*)))))
+      (setf (gethash key (symbol-value '*vikix-key-sources*)) source)
+      (when (vikix-key-twin key)
+        (setf (gethash (vikix-key-twin key) (symbol-value '*vikix-key-sources*)) source))))
+  (unless (find #\Space key)
+    (dolist (name (if (vikix-key-twin key) (list key (vikix-key-twin key)) (list key)))
+      (if *vikix-bind-later*
+          ;; define-key tells X when the map is *top-map*: not this time.
+          (let ((map *top-map*))
+            (let ((*top-map* nil))
+              (define-key map (kbd name) command)))
+          (define-key *top-map* (kbd name) command)))))
 
 (defmacro vikix-binding-keys (&body body)
   "Run BODY, which binds keys with vikix-bind, and tell X about them once.
