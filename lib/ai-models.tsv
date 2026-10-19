@@ -1,16 +1,26 @@
 # ai-models.tsv — the local models `vikix ai models` offers (Ollama names).
-# MODEL<TAB>BILLIONS<TAB>GB<TAB>WHAT IT'S FOR
-# GB is the download (Ollama's registry, 2026-09-28); memory in use is a
-# little more. BILLIONS decides how it runs on a CPU: up to 2 fast, up to
-# 4 well, up to 8 slowly; bigger isn't offered. A line is a model: add or
-# remove one here, and the picker follows.
-gemma3:1b	1	0.82	tiny and fast: short answers, quick rewrites
-qwen2.5-coder:1.5b	1.5	0.99	code, fastest: completions, small fixes
-llama3.2:1b	1	1.32	tiny and fast: summaries, simple questions
-llama3.2:3b	3	2.02	a good all-rounder: questions, writing, summaries
-qwen2.5-coder:3b	3	1.93	code: explaining and writing small programs
-qwen3:4b	4	2.50	all-round, and thinks step by step (slower to answer)
-gemma3:4b	4	3.34	all-round, good at other languages; reads images
-qwen2.5:7b	7	4.68	better answers, slowly: long writing, harder questions
-llama3.1:8b	8	4.92	better answers, slowly: general knowledge
-qwen3:8b	8	5.23	the best here, slowly: reasoning, harder questions
+# MODEL<TAB>BILLIONS<TAB>ACTIVE<TAB>GB<TAB>WHAT IT'S FOR
+# GB is the download (Ollama's registry, 2026-10-19); memory in use is a
+# little more. ACTIVE is the billions of parameters at work on each word:
+# all of them in a plain model, a few of many in a mixture of experts
+# (gpt-oss, qwen3-coder, nemotron), and that is what decides the speed.
+# On a CPU: up to 2 fast, up to 4 well, up to 8 slowly, bigger not
+# offered. On a graphics chip the model fits in whole: up to 8 fast, up
+# to 32 well, bigger slowly. A line is a model: add or remove one here,
+# and the picker follows.
+gemma3:1b	1	1	0.82	tiny and fast: short answers, quick rewrites
+qwen2.5-coder:1.5b	1.5	1.5	0.99	code, fastest: completions, small fixes
+llama3.2:1b	1	1	1.32	tiny and fast: summaries, simple questions
+llama3.2:3b	3	3	2.02	a good all-rounder: questions, writing, summaries
+qwen2.5-coder:3b	3	3	1.93	code: explaining and writing small programs
+qwen3:4b	4	4	2.50	all-round, and thinks step by step (slower to answer)
+gemma3:4b	4	4	3.34	all-round, good at other languages; reads images
+qwen2.5:7b	7	7	4.68	better answers, slowly: long writing, harder questions
+llama3.1:8b	8	8	4.92	better answers, slowly: general knowledge
+qwen3:8b	8	8	5.23	the best of the small ones: reasoning, harder questions
+gpt-oss:20b	21	3.6	14	thinks and uses tools: a strong all-rounder from 32 GB
+qwen3:30b	30	3.3	19	all-round, thinks: the best under 20 GB
+qwen3-coder:30b	30	3.3	19	code and coding agents (opencode, aider): the one for them
+gemma3:27b	27	27	17	long writing, other languages; reads images
+gpt-oss:120b	117	5.1	65	the best here, from 128 GB: thinks, uses tools, answers fast on the graphics
+nemotron-3-super:120b	120	12	87	coding agents with long context, from 128 GB; slower than gpt-oss

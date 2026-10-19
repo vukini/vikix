@@ -6,15 +6,19 @@
 #                         It starts with the desktop from then on
 #   vikix ai models       pick a model to download: each says what it's
 #                         for, its size, and how it runs on this machine
-#                         (fast, well, slowly); ones too big aren't offered
+#                         (fast, well, slowly: on the CPU, or on a
+#                         graphics chip that shares the memory); ones too
+#                         big aren't offered
 #   vikix ai chat [MODEL]  talk to one, in the terminal (/bye or Ctrl+D to
 #                         leave); Super+m, Local AI: talk to a model
 #   vikix ai list         the models you have, and their sizes
 #   vikix ai remove MODEL  delete one (it can be downloaded again)
-#   vikix ai status       installed? running? which model is loaded, how
-#                         much memory it holds and until when
+#   vikix ai status       installed? running? on the graphics? which model
+#                         is loaded, how much memory it holds and until when
 #   vikix ai stop         unload the model now (it unloads by itself after
 #                         5 minutes unused)
+#   vikix ai restart      start Ollama again (after a change of graphics= in
+#                         ~/.config/vikix/ai)
 #   vikix ai uninstall [--models]   take Ollama away; --models deletes the
 #                         downloaded models too
 #   vikix ai llm [--default MODEL]   Simon Willison's llm on the command line
@@ -31,6 +35,15 @@
 # with llama3.2:3b: about 4 s to load, then about 11 s for two sentences.
 # Models of 1-2 billion parameters are about twice as quick, 7-8 billion
 # about three times as slow; bigger ones don't fit.
+#
+# A graphics chip that shares the main memory (AMD's Ryzen AI Max: 128 GB,
+# of which the chip may take 65) runs a model many times faster than the
+# CPU, and holds ones a CPU can't: Ollama leaves such a chip out unless
+# asked (OLLAMA_IGPU_ENABLE=1), so `serve` asks when graphics= in
+# ~/.config/vikix/ai says on, or says nothing (auto) and the chip may take
+# 32 GB or more; off keeps the CPU. The picker then counts that memory,
+# and rates the models that fit in it by the parameters at work on each
+# word (lib/ai-models.tsv).
 
 set -euo pipefail
 VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
@@ -51,6 +64,37 @@ HOST=127.0.0.1:11434
 LOADED="$VIKIX_STATE/ai-loaded"         # the bar's "ai": the loaded models, one a line
 MODELS_TABLE="$VIKIX_DIR/lib/ai-models.tsv"
 API="http://$HOST/api"
+AI_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/ai"   # the user's AI settings (vikix-ask makes it)
+DRM="${VIKIX_DRM:-/sys/class/drm}"                     # the graphics chips, as the kernel shows them
+
+conf() {   # conf KEY — its value in ~/.config/vikix/ai, without comments or spaces
+  sed -n "s/^[[:space:]]*$1[[:space:]]*=//p" "$AI_CONF" 2>/dev/null | tail -1 |
+    sed -e 's/#.*//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+}
+
+# The memory an AMD graphics chip may take, in GB: its own, and the share
+# of the main memory the kernel lets it map (GTT; TTM's page limit, about
+# half of the memory unless raised). 0 without one.
+graphics_gb() {
+  local d total=0 vram gtt
+  for d in "$DRM"/card*/device; do
+    [ -f "$d/mem_info_gtt_total" ] || continue
+    [ "$(cat "$d/vendor" 2>/dev/null)" = 0x1002 ] || continue
+    vram=$(cat "$d/mem_info_vram_total" 2>/dev/null || echo 0)
+    gtt=$(cat "$d/mem_info_gtt_total")
+    total=$(( total + (vram + gtt) / 1000000000 ))
+  done
+  echo "$total"
+}
+# Whether Ollama should use the graphics chip: graphics= in the settings
+# (on, off), or auto: a chip that may take 32 GB or more is built for it.
+graphics_on() {
+  case $(conf graphics) in
+    on) return 0 ;;
+    off) return 1 ;;
+    *) [ "$(graphics_gb)" -ge 32 ] ;;
+  esac
+}
 
 installed() { [ -x "$OLLAMA" ]; }
 running() { curl -fsS --max-time 2 "$API/version" >/dev/null 2>&1; }
@@ -141,15 +185,45 @@ cmd_serve() {
   # Ollama logs every request: keep one old log, not a growing one.
   local log="$VIKIX_STATE/ollama.log"
   if [ -f "$log" ] && [ "$(stat -c %s "$log")" -gt 1048576 ]; then mv -f "$log" "$log.old"; fi
+  # Ollama drops an integrated graphics chip unless asked: ask on a
+  # machine whose chip shares enough of the memory to be worth it.
+  if graphics_on; then export OLLAMA_IGPU_ENABLE=1; else unset OLLAMA_IGPU_ENABLE; fi
   OLLAMA_HOST=$HOST "$OLLAMA" serve >> "$VIKIX_STATE/ollama.log" 2>&1 &
   # Global, not local: the EXIT trap runs after this function has returned.
   SERVE_PID=$!
-  echo $$ > "$VIKIX_STATE/ollama-serve.pid"       # for uninstall: this one, not any by name
-  trap 'kill "${SERVE_PID:-}" 2>/dev/null || true; rm -f "$LOADED" "$VIKIX_STATE/ollama-serve.pid"' EXIT INT TERM
+  echo $$ > "$VIKIX_STATE/ollama-serve.pid"       # for uninstall and restart: this one, not any by name
+  trap serve_end EXIT
+  trap 'exit 143' INT TERM
   while kill -0 "$SERVE_PID" 2>/dev/null; do
     note_loaded
-    sleep 15
+    sleep 15 & wait $! || true            # in the background, so a signal ends the wait at once
   done
+}
+# Ollama ends with its serve; the files go only when they are still this
+# serve's (a restart's new one may have written them already).
+serve_end() {
+  kill "${SERVE_PID:-}" 2>/dev/null || true
+  [ "$(cat "$VIKIX_STATE/ollama-serve.pid" 2>/dev/null)" = "$$" ] && rm -f "$LOADED" "$VIKIX_STATE/ollama-serve.pid"
+  return 0
+}
+
+# Start Ollama again: the desktop's serve ends, with its Ollama, and a new
+# one starts, reading graphics= afresh.
+cmd_restart() {
+  need_installed
+  local pidfile="$VIKIX_STATE/ollama-serve.pid" pid
+  pid=$(cat "$pidfile" 2>/dev/null || true)
+  if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+    kill "$pid" 2>/dev/null || true
+    for _ in $(seq 50); do kill -0 "$pid" 2>/dev/null || break; sleep 0.2; done
+  fi
+  for _ in $(seq 100); do running || break; sleep 0.2; done     # Ollama lets go of the port, and the memory
+  running && die "Ollama is still running, and not from this desktop's serve ($pidfile): end it yourself, then vikix ai setup"
+  setsid "$0" serve >/dev/null 2>&1 < /dev/null &
+  for _ in $(seq 100); do running && break; sleep 0.2; done
+  running || die "Ollama didn't come back: see $VIKIX_STATE/ollama.log"
+  if graphics_on; then say "Ollama started again, with the graphics chip ($(graphics_gb) GB of the memory for it)"
+  else say "Ollama started again, on the CPU"; fi
 }
 
 note_loaded() {
@@ -161,21 +235,30 @@ note_loaded() {
 
 # --- models -------------------------------------------------------------------------
 # The table, for this machine: MODEL GB SPEED WHAT, with SPEED one of
-# fast, well, slowly, or "too big" when it wouldn't fit in memory.
+# fast, well, slowly, or "too big" when it wouldn't fit in memory. The
+# speed goes by the parameters at work on each word (ACTIVE in the
+# table): on the graphics chip, when the model fits in its memory whole;
+# else on the CPU, where a model past 8 billion is too slow to offer.
 mem_gb() { awk '/^MemTotal:/ { printf "%.0f", $2 / 1048576 }' "${VIKIX_MEMINFO:-/proc/meminfo}"; }
+graphics_used() { if graphics_on; then graphics_gb; else echo 0; fi; }
 offer() {
-  local mem
-  mem=$(mem_gb)
-  read_list "$MODELS_TABLE" | awk -F'\t' -v mem="$mem" '
-    { b = $2 + 0; gb = $3 + 0
-      # In memory it takes a little more than its download, and the
-      # desktop needs room too.
-      if (gb * 1.3 + 3 > mem) speed = "too big"
-      else if (b <= 2) speed = "fast"
-      else if (b <= 4) speed = "well"
-      else if (b <= 8) speed = "slowly"
+  local mem g
+  mem=$(mem_gb); g=$(graphics_used)
+  read_list "$MODELS_TABLE" | awk -F'\t' -v mem="$mem" -v g="$g" '
+    { a = $3 + 0; gb = $4 + 0
+      # In memory it takes a little more than its download (the text it
+      # works on), and the desktop needs room too. On the chip it must fit
+      # whole, with a few GB for the text: part on the CPU runs at CPU speed.
+      if (g > 0 && gb + 3 <= g) {
+        if (a <= 8) speed = "fast"
+        else if (a <= 32) speed = "well"
+        else speed = "slowly" }
+      else if (gb * 1.3 + 3 > mem) speed = "too big"
+      else if (a <= 2) speed = "fast"
+      else if (a <= 4) speed = "well"
+      else if (a <= 8) speed = "slowly"
       else speed = "too big"
-      printf "%s\t%s\t%s\t%s\n", $1, $3, speed, $4 }'
+      printf "%s\t%s\t%s\t%s\n", $1, $4, speed, $5 }'
 }
 
 have_models() { running && ollama list 2>/dev/null | awk 'NR > 1 { print $1 }' || true; }
@@ -204,9 +287,16 @@ cmd_models() {
     local choices; choices=$(menu)
     line=$(rofi -dmenu -i -p "Model to download ($(mem_gb) GB of memory here)" -no-custom <<<"$choices") || exit 0
   else
-    echo "Models for this machine ($(mem_gb) GB of memory, $(nproc) CPU threads, no graphics card used):"
-    echo "✓ = you have it. Bigger answers better, and slower. Roughly, on a laptop like this:"
-    echo "  fast: a short answer in 5-10 s   well: 10-20 s   slowly: a minute or more"
+    local g; g=$(graphics_used)
+    if [ "$g" -gt 0 ]; then
+      echo "Models for this machine ($(mem_gb) GB of memory, $g GB of it for the graphics chip, which runs them):"
+      echo "✓ = you have it. Bigger answers better, and slower. Roughly, on the graphics:"
+      echo "  fast: 30 words a second or more   well: 10-30   slowly: under 10"
+    else
+      echo "Models for this machine ($(mem_gb) GB of memory, $(nproc) CPU threads, no graphics card used):"
+      echo "✓ = you have it. Bigger answers better, and slower. Roughly, on a laptop like this:"
+      echo "  fast: a short answer in 5-10 s   well: 10-20 s   slowly: a minute or more"
+    fi
     menu | nl -w2 -s') '
     local n
     read -r -p "Number to download (Enter for none): " n
@@ -259,7 +349,7 @@ for m in json.load(sys.stdin).get("models", []):
         until = datetime.datetime.fromisoformat(m["expires_at"]).astimezone().strftime("%H:%M")
     except Exception:
         pass
-    print("%s\t%.1f\t%s" % (m["name"], m.get("size", 0) / 1e9, until))' 2>/dev/null || true
+    print("%s\t%.1f\t%s\t%.1f" % (m["name"], m.get("size", 0) / 1e9, until, m.get("size_vram", 0) / 1e9))' 2>/dev/null || true
 }
 
 cmd_remove() {
@@ -281,12 +371,22 @@ cmd_status() {
     if [ -z "$loaded" ]; then
       echo "loaded:  none (a model loads when it's asked something)"
     else
-      while IFS=$'\t' read -r name gb until; do
-        echo "loaded:  $name, holding $gb GB of memory${until:+, until $until} (vikix ai stop frees it now)"
+      while IFS=$'\t' read -r name gb until vram; do
+        local where=""
+        case ${vram:-0} in 0|0.0) ;; *) where=", $vram GB of it on the graphics" ;; esac
+        echo "loaded:  $name, holding $gb GB of memory$where${until:+, until $until} (vikix ai stop frees it now)"
       done <<<"$loaded"
     fi
   else
     echo "running: no (it starts with the desktop; vikix ai setup starts it now)"
+  fi
+  local g; g=$(graphics_gb)
+  if graphics_on; then
+    echo "graphics: used, $g GB of the memory for it (graphics=$(conf graphics || true) in ~/.config/vikix/ai; off keeps the CPU)"
+  elif [ "$g" -gt 0 ]; then
+    echo "graphics: not used, the CPU runs the models ($g GB for the chip; graphics=on in ~/.config/vikix/ai tries it)"
+  else
+    echo "graphics: none that shares the memory; the CPU runs the models"
   fi
   [ -d "$HOME/.ollama/models" ] && echo "models:  $(du -sh "$HOME/.ollama/models" 2>/dev/null | cut -f1) on disk in ~/.ollama/models (not backed up; vikix ai list)"
   echo "log:     $VIKIX_STATE/ollama.log"
@@ -456,6 +556,7 @@ case ${1:-help} in
   remove|rm) shift; cmd_remove "${1:-}" ;;
   status) cmd_status ;;
   stop)   shift; cmd_stop "${1:-}" ;;
+  restart) cmd_restart ;;
   chat)   shift; cmd_chat "$@" ;;
   uninstall) shift; cmd_uninstall "${1:-}" ;;
   check)  cmd_check ;;

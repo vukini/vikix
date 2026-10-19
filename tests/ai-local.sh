@@ -23,6 +23,9 @@ here=$(cd "$(dirname "$0")/.." && pwd)
 t=$(mktemp -d)
 trap 'pkill -f "$t/" 2>/dev/null || true; rm -rf "$t"' EXIT
 export HOME="$t/home" VIKIX_STATE="$t/state"
+# The graphics chips: none, unless a check says otherwise (the real
+# /sys/class/drm would make the dev machine's chip part of every check).
+mkdir -p "$t/drm-none"; export VIKIX_DRM="$t/drm-none"
 mkdir -p "$HOME/.config/vikix" "$t/bin"
 calls="$t/calls"; : > "$calls"
 fail=0
@@ -40,7 +43,8 @@ cat > "$t/rel/bin/ollama" <<EOF
 #!/bin/sh
 echo "ollama \$*" >> "$calls"
 case \$1 in
-  serve) sleep 2 ;;
+  serve) echo "serve igpu=\${OLLAMA_IGPU_ENABLE:-}" >> "$calls"
+         touch "$t/running"; trap 'rm -f "$t/running"; exit 0' TERM; sleep 2; rm -f "$t/running" ;;
   run) : ;;
   list) printf 'NAME ID SIZE MODIFIED\nllama3.2:3b abc 2.0GB now\n' ;;
 esac
@@ -112,6 +116,49 @@ out=$(VIKIX_MEMINFO="$t/mem8" ai models --print)
 check "8 GB offered an 8B model that won't fit: $out" bash -c "! grep -q 'qwen3:8b' <<<'$out'"
 check "8 GB should still offer a 3B model" grep -q 'llama3.2:3b' <<<"$out"
 
+# A graphics chip that shares the memory (a Ryzen AI Max: 128 GB, 65 for
+# the chip): the big models, rated by the parameters at work on each word.
+printf 'MemTotal:      127000000 kB\n' > "$t/mem128"
+mkdir -p "$t/drm/card0/device" "$t/drm/card1/device"
+printf '0x1002\n' > "$t/drm/card0/device/vendor"
+printf '4294967296\n' > "$t/drm/card0/device/mem_info_vram_total"
+printf '65284079616\n' > "$t/drm/card0/device/mem_info_gtt_total"
+printf '0x10de\n' > "$t/drm/card1/device/vendor"          # another maker's card: not counted
+printf '99999999999\n' > "$t/drm/card1/device/mem_info_gtt_total"
+out=$(VIKIX_MEMINFO="$t/mem128" VIKIX_DRM="$t/drm" ai models --print)
+check "128 GB with the chip should offer gpt-oss:120b, fast (5B at work on each word): $out" grep -qE 'gpt-oss:120b .*runs fast' <<<"$out"
+check "a plain 27B model should run well on the chip: $out" grep -qE 'gemma3:27b .*runs well' <<<"$out"
+check "nemotron-3-super (87 GB) doesn't fit a 69 GB chip whole, and 12B at work is too slow for the CPU: $out" bash -c "! grep -q 'nemotron-3-super' <<<'$out'"
+# The kernel's share raised (TODO 60): the chip may take 120 GB, and nemotron fits.
+mkdir -p "$t/drm-big/card0/device"
+printf '0x1002\n' > "$t/drm-big/card0/device/vendor"
+printf '4294967296\n' > "$t/drm-big/card0/device/mem_info_vram_total"
+printf '120000000000\n' > "$t/drm-big/card0/device/mem_info_gtt_total"
+out=$(VIKIX_MEMINFO="$t/mem128" VIKIX_DRM="$t/drm-big" ai models --print)
+check "nemotron-3-super (12B at work) should run well on a 124 GB chip: $out" grep -qE 'nemotron-3-super:120b .*runs well' <<<"$out"
+out=$(printf '\n' | VIKIX_MEMINFO="$t/mem128" VIKIX_DRM="$t/drm" ai models 2>&1)
+check "the list should say the chip runs them: $out" grep -q '69 GB of it for the graphics chip' <<<"$out"
+# The same memory with no chip: the CPU, where 5B at work is slow and 12B too much.
+out=$(VIKIX_MEMINFO="$t/mem128" ai models --print)
+check "128 GB on the CPU: gpt-oss:120b slowly: $out" grep -qE 'gpt-oss:120b .*runs slowly' <<<"$out"
+check "128 GB on the CPU shouldn't offer nemotron-3-super: $out" bash -c "! grep -q 'nemotron-3-super' <<<'$out'"
+# graphics=off keeps the CPU; graphics=on uses a small chip too.
+mkdir -p "$HOME/.config/vikix"
+printf 'graphics=off\n' > "$HOME/.config/vikix/ai"
+out=$(VIKIX_MEMINFO="$t/mem128" VIKIX_DRM="$t/drm" ai models --print)
+check "graphics=off should rate for the CPU: $out" grep -qE 'gpt-oss:120b .*runs slowly' <<<"$out"
+mkdir -p "$t/drm-small/card0/device"
+printf '0x1002\n' > "$t/drm-small/card0/device/vendor"
+printf '536870912\n' > "$t/drm-small/card0/device/mem_info_vram_total"
+printf '8000000000\n' > "$t/drm-small/card0/device/mem_info_gtt_total"
+out=$(VIKIX_MEMINFO="$t/mem16" VIKIX_DRM="$t/drm-small" ai models --print)
+check "a small chip isn't used unasked (auto under 32 GB): $out" grep -qE 'qwen3:8b .*runs slowly' <<<"$out"
+printf 'graphics=on\n' > "$HOME/.config/vikix/ai"
+out=$(VIKIX_MEMINFO="$t/mem16" VIKIX_DRM="$t/drm-small" ai models --print)
+check "graphics=on: a 3B model fits an 8 GB chip whole, so fast: $out" grep -qE 'llama3.2:3b .*runs fast' <<<"$out"
+check "graphics=on: an 8B model (5.2 GB) doesn't fit an 8 GB chip whole, so the CPU's slowly: $out" grep -qE 'qwen3:8b .*runs slowly' <<<"$out"
+rm -f "$HOME/.config/vikix/ai"
+
 # Choosing: by number in a terminal, or in rofi; with or without the ✓.
 : > "$calls"
 printf '4\n' | VIKIX_MEMINFO="$t/mem16" ai models >/dev/null 2>&1 || true
@@ -129,11 +176,33 @@ check "a model picked in rofi should download in a terminal, by its name: $(cat 
 # --- serve: the bar's note ---------------------------------------------------------
 rm -f "$t/running"
 echo '{"models": [{"name": "llama3.2:3b"}]}' > "$t/ps"
+: > "$calls"
 ai serve >/dev/null 2>&1 &
 for _ in $(seq 20); do [ -e "$VIKIX_STATE/ai-loaded" ] && break; sleep 0.1; done
 check "serve didn't note the loaded model for the bar" grep -qx 'llama3.2:3b' "$VIKIX_STATE/ai-loaded"
 wait
 check "serve left the note behind when Ollama ended" test ! -e "$VIKIX_STATE/ai-loaded"
+check "serve without a chip shouldn't ask Ollama for one: $(grep serve "$calls")" grep -qx 'serve igpu=' "$calls"
+# With the chip, serve asks Ollama for it; restart ends the old serve and starts one afresh.
+: > "$calls"
+VIKIX_DRM="$t/drm" ai serve >/dev/null 2>&1 &
+for _ in $(seq 20); do [ -e "$VIKIX_STATE/ollama-serve.pid" ] && break; sleep 0.1; done
+check "serve with the chip should ask Ollama for it: $(grep serve "$calls")" grep -qx 'serve igpu=1' "$calls"
+old=$(cat "$VIKIX_STATE/ollama-serve.pid")
+# setsid that runs what it's given (the stand-in above only notes it), so
+# the new serve really starts; the noting one comes back after.
+printf '#!/bin/sh\necho "setsid $*" >> %q\n"$@" &\n' "$calls" > "$t/bin/setsid"
+out=$(VIKIX_DRM="$t/drm" ai restart 2>&1)
+printf '#!/bin/sh\necho "setsid $*" >> %q\n' "$calls" > "$t/bin/setsid"
+check "restart should say it started again, with the chip: $out" grep -q 'started again, with the graphics chip (69 GB' <<<"$out"
+check "restart should have ended the old serve" bash -c "! kill -0 $old 2>/dev/null"
+check "restart should have started a second serve: $(grep -c 'serve igpu=1' "$calls")" test "$(grep -c 'serve igpu=1' "$calls")" = 2
+check "the new serve should hold the pid file" test "$(cat "$VIKIX_STATE/ollama-serve.pid")" != "$old"
+kill "$(cat "$VIKIX_STATE/ollama-serve.pid" 2>/dev/null)" 2>/dev/null || true
+wait
+for _ in $(seq 30); do [ -e "$VIKIX_STATE/ollama-serve.pid" ] || break; sleep 0.1; done
+check "the serve's end should take its pid file" test ! -e "$VIKIX_STATE/ollama-serve.pid"
+rm -f "$t/running"
 
 # --- status, stop, chat, remove ----------------------------------------------------
 touch "$t/running"
@@ -141,6 +210,12 @@ echo '{"models": [{"name": "llama3.2:3b", "size": 2560000000, "expires_at": "209
 out=$(ai status)
 check "status should say how much memory the loaded model holds, and until when: $out" \
   grep -qE 'loaded: +llama3.2:3b, holding 2.6 GB of memory, until [0-9]{2}:[0-9]{2}' <<<"$out"
+check "status without a chip should say the CPU runs the models: $out" grep -q 'graphics: none that shares the memory' <<<"$out"
+echo '{"models": [{"name": "gpt-oss:120b", "size": 65000000000, "size_vram": 65000000000, "expires_at": "2099-01-01T12:05:00+00:00"}]}' > "$t/ps"
+out=$(VIKIX_DRM="$t/drm" ai status)
+check "status with the chip should say so: $out" grep -q 'graphics: used, 69 GB of the memory for it' <<<"$out"
+check "status should say how much of the model is on the chip: $out" grep -q 'holding 65.0 GB of memory, 65.0 GB of it on the graphics' <<<"$out"
+echo '{"models": [{"name": "llama3.2:3b", "size": 2560000000, "expires_at": "2099-01-01T12:05:00+00:00"}]}' > "$t/ps"
 : > "$calls"
 out=$(ai stop 2>&1)
 check "stop should unload through the API (keep_alive 0): $(grep generate "$calls")" grep -q 'api/generate .*"keep_alive": 0' "$calls"

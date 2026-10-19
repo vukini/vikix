@@ -199,6 +199,8 @@ vikix ai models      # choose a model to download
 
 On a laptop without a graphics card, a 3B model takes a few seconds to load, then about ten seconds to write a couple of sentences.
 
+On a machine whose graphics chip shares the main memory (AMD's Ryzen AI Max, with 128 GB), the chip runs the models instead of the CPU: many times faster, and big ones too. Ollama leaves such a chip out unless asked, so Vikix asks when the chip may take 32 GB or more; `graphics=` in `~/.config/vikix/ai` makes that `on` or `off` (`vikix ai restart` applies it), and `vikix ai status` says whether the chip is used. The picker then offers the big models, rated by the parameters at work on each word rather than their size: `gpt-oss:120b` (65 GB) answers fast there, since only 5 billion of its 117 work on each word. A model that doesn't fit the chip's memory whole runs partly on the CPU, at the CPU's speed, and the kernel lets the chip take only about half of the memory at first.
+
 ### Talking to it
 
 ```sh
@@ -215,6 +217,7 @@ While a model is loaded, the bar says **ai**. It holds a few GB of memory, and l
 vikix ai status      # running? which model is loaded, and for how long
 vikix ai list        # the models you have
 vikix ai remove llama3.2:3b
+vikix ai restart     # start Ollama again (after changing graphics= in ~/.config/vikix/ai)
 vikix ai uninstall   # take Ollama away (add --models to delete the models too)
 ```
 

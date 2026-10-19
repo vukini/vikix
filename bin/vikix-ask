@@ -76,6 +76,11 @@ effort=
 
 # The languages Translate offers, first to last (you can also type another).
 languages=English Esperanto French Spanish Arabic Hindi
+
+# Local models only: run them on a graphics chip that shares the memory
+# (AMD's Ryzen AI Max)? Empty or auto: yes when the chip may take 32 GB or
+# more; on: always; off: the CPU runs them. vikix ai restart applies it.
+graphics=
 EOF
 }
 

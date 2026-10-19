@@ -158,7 +158,7 @@ The everyday command.
 - `vikix fingerprint [on|off|enrol]` — a finger for sudo and the lock screen, where fprintd supports the reader
 - `vikix firewall [on|off|allow PORT|close PORT]` — the firewall (ufw): nothing comes in but SSH and the ports you allow
 - `vikix webapp add|open|list|remove` — a website as a program of its own (presets: fastmail, gmail, outlook, outlook-live, superhuman)
-- `vikix ai setup|models|chat|list|remove|status|stop|uninstall` — AI models that run on this laptop (Ollama)
+- `vikix ai setup|models|chat|list|remove|status|stop|restart|uninstall` — AI models that run on this laptop (Ollama; on a graphics chip that shares the memory, when there is one)
 - `vikix ai llm` — the llm command, with those models and your keys
 - `vikix ai use [local|claude|codex]` — the model for Super+i, AI on the selected text
 - `vikix ai key set|list|remove|check` — API keys (`ANTHROPIC_API_KEY` ...) kept safely, out of your dotfiles and their history
