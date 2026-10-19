@@ -47,7 +47,7 @@ case \$1 in
   serve) echo "serve igpu=\${OLLAMA_IGPU_ENABLE:-} keep=\${OLLAMA_GPU_OVERHEAD:-} ctx=\${OLLAMA_CONTEXT_LENGTH:-}" >> "$calls"
          touch "$t/running"; trap 'rm -f "$t/running"; exit 0' TERM; sleep 2; rm -f "$t/running" ;;
   run) : ;;
-  list) printf 'NAME ID SIZE MODIFIED\nllama3.2:3b abc 2.0GB now\n' ;;
+  list) printf 'NAME ID SIZE MODIFIED\nllama3.2:3b abc 2.0GB now\n'; [ ! -f "$t/extra-models" ] || cat "$t/extra-models" ;;
 esac
 EOF
 chmod +x "$t/rel/bin/ollama"
@@ -116,6 +116,14 @@ check "a model you have should be marked ✓: $out" grep -qE '^✓ llama3.2:3b '
 out=$(VIKIX_MEMINFO="$t/mem8" ai models --print)
 check "8 GB offered an 8B model that won't fit: $out" bash -c "! grep -q 'qwen3:8b' <<<'$out'"
 check "8 GB should still offer a 3B model" grep -q 'llama3.2:3b' <<<"$out"
+
+# Installed models stay visible even outside the catalog or hardware advice.
+printf 'translategemma:27b xyz 17GB now\nqwen3:8b def 5GB now\n' > "$t/extra-models"
+out=$(VIKIX_MEMINFO="$t/mem8" ai models --print)
+check "an uncatalogued installed model should be marked" grep -qE '^✓ translategemma:27b .*runs unknown' <<<"$out"
+check "an installed model filtered by hardware should stay visible" grep -qE '^✓ qwen3:8b .*runs too big' <<<"$out"
+check "a catalogued installed model should appear once" test "$(grep -c 'llama3.2:3b ' <<<"$out")" = 1
+rm "$t/extra-models"
 
 # A graphics chip that shares the memory (a Ryzen AI Max: 128 GB, 65 for
 # the chip, counted as the memory is, in binary GB; the models' sizes are

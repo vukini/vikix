@@ -808,7 +808,7 @@ Commands: nyxt, lem, clim-listener; all three are in the launcher (Super+d).
 AI models that run on this machine, with Ollama.
 
 - `vikix ai setup` — install Ollama (its CPU and Vulkan parts, as you, in `~/.local/opt/ollama`; no password) and start it. It starts with the desktop from then on
-- `vikix ai models` — pick a model to download: each says what it's for, its size, and how it runs on this machine (fast, well, slowly: on the CPU, or on a graphics chip that shares the memory); ones too big aren't offered
+- `vikix ai models` — pick a model to download: each says what it's for, its size, and how it runs on this machine (fast, well, slowly: on the CPU, or on a graphics chip that shares the memory); ones too big aren't offered unless already installed
 - `vikix ai chat [MODEL]` — talk to one, in the terminal (/bye or Ctrl+D to leave); Super+m, Local AI: talk to a model
 - `vikix ai list` — the models you have, and their sizes
 - `vikix ai remove MODEL` — delete one (it can be downloaded again)

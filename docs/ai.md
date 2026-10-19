@@ -192,7 +192,7 @@ vikix ai models      # choose a model to download
 
 `vikix add local-ai` does the same as `vikix ai setup`, and `vikix remove local-ai` the same as `vikix ai uninstall`: local AI is one of the features.
 
-`vikix ai models` (or **Super+m** → *Local AI: choose a model*) looks at this laptop's memory and says how each model will run here: fast, well, or slowly. Bigger ones it doesn't offer. Good first choices:
+`vikix ai models` (or **Super+m** → *Local AI: choose a model*) looks at this laptop's memory and says how each model will run here: fast, well, or slowly. Bigger ones it doesn't offer for download, but every installed model stays visible with a ✓. Installed models outside the catalog show an unknown size and speed estimate. Good first choices:
 
 - `llama3.2:3b` (2 GB), for questions and writing
 - `qwen2.5-coder:3b` (1.9 GB), for code
