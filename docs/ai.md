@@ -225,6 +225,37 @@ vikix ai uninstall   # take Ollama away (add --models to delete the models too)
 
 The models are in `~/.ollama/models`. They're big, so backups leave them out; you can download them again.
 
+## Translating the guides into Esperanto
+
+The checkout includes `translate-guides-to-epo.sh`, a standalone Bash/Python 3
+script that sends the Markdown files under `docs/` to your local Ollama model.
+From the checkout, preview the files, then translate:
+
+```sh
+./translate-guides-to-epo.sh --dry-run
+./translate-guides-to-epo.sh --model gpt-oss:120b
+```
+
+Ollama must already be running and the model installed. The default model is
+`gpt-oss:120b` (or the exported `OLLAMA_MODEL`); the default server is
+`http://127.0.0.1:11434`. Nothing is downloaded automatically.
+The output goes to `~/vikix-guides-eo`, outside the checkout, with the same
+relative filenames. Existing translations are skipped so an interrupted run
+can resume; use `--overwrite` to translate them again. `--source`, `--output`,
+`--host` and `--timeout` override those settings; `--help` lists the options.
+Keep the source and output directories separate.
+
+A failed request stops the script with an error and keeps the previous output
+for that file. Large documents are split into text chunks of at most 12000
+characters at blank lines (or line boundaries in long paragraphs), with a 32k
+context and an HTTP timeout of 1800 seconds per request. Fenced code blocks are
+copied directly, without sending them to the model. A single prose line larger
+than the chunk limit needs splitting by hand.
+Each file is saved only after all its chunks succeed.
+Review the result:
+model output can change commands, formatting or meaning despite the prompt.
+This produces Markdown copies; it does not rebuild the browser or Info guides.
+
 ## `llm` on the command line
 
 `llm` sends text to a model and prints the answer, so it fits in a pipe with other commands. The same command works with a local model and with Claude.
