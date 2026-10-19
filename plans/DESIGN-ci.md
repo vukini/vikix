@@ -9,7 +9,7 @@ Drafted 2026-10-18 from Groki's handover after the 0.72.97 release night (studie
 ## Where things stand (2026-10-18)
 
 - **0.72.97** (`55cbc56`, tag `v0.72.97`) made CI green again for `void` and `editors`, for the first time since 2026-10-15: the `editors` job runs under `shell: bash` and installs `packages/emacs.list`, `neovim.list` and `editor-tools.list`; `tests/house.sh` defines `close()` once, before its first use (shellcheck SC2218); `tests/lint.sh` uses `grep -d skip`; the Void jobs install `void-repo-nonfree`, `void-repo-multilib` and `void-repo-multilib-nonfree`, then `xbps-install -S`. `tests/lisp.sh` goes on past `sb-ext:package-locked-error` with stand-ins for StumpWM's functions, and `lib/md2texi.py` moves a link in a table's first column off the `@item` line, since makeinfo 7.1 warns.
-- **`lint` is still red** (run 39132865581), at `tests/ci.sh man`: `FAIL: man doesn't show vikix-backup's prose` (`tests/man.sh`, the grep for `Every backup is encrypted` in `MANWIDTH=80 man -M … vikix-backup | col -b`). Not looked into. Likely: Ubuntu's man-db and groff justify or hyphenate that line differently from the laptop, so the fixed-string grep misses. The lint steps run one after another, so more may be hidden behind it. (Also in `bugs.md`.)
+- **`lint` is still red** (run 39132865581), at `tests/ci.sh man`: `FAIL: man doesn't show vikix-backup's prose` (`tests/man.sh`, the grep for `Every backup is encrypted` in `MANWIDTH=80 man -M … vikix-backup | col -b`). Not looked into. Likely: Ubuntu's man-db and groff justify or hyphenate that line differently from the laptop, so the fixed-string grep misses. The lint steps run one after another, so more may be hidden behind it. (Also in `bugs.md`.) *2026-10-20: fixed. groff justified the paragraph with tabs and hyphenated the password file's path; the page now asks for ragged right and no hyphenation (`.ds AD l`, `.ad l`, `.nh` after `.TH` in `lib/man.py`), and `tests/man.sh` renders with groff as well when it is installed.*
 - **`packages/repos.list` lacks the multilib repositories**: only CI was changed.
 - 0.72.97 went out with `.claude/release --tests none`, Vid's call. Every failure in the five tries was a load or timing flake that passed alone (queue, main, viri, what, house, plan, music, vm), except `info`, which was real and is fixed.
 
@@ -30,7 +30,7 @@ In order of value. Each is small enough for one commit and a test.
 - `install-info` on the apt line: `tests/info.sh` needed it on Debian.
 - `on: push: branches: ['**']`, so a tag push doesn't run the whole workflow again. Keep `workflow_dispatch`.
 - One version of `actions/checkout` (`pages.yml` has `@v4`, `test.yml` `@v5`).
-- Fix the `man` failure: reproduce on Ubuntu first, then squeeze the whitespace before the grep (`tr -s ' \n' ' '`) or grep a shorter phrase.
+- ~~Fix the `man` failure~~ (done 2026-10-20, see above).
 
 ### 2. One version of each tool, said aloud (`tests/lint.sh`)
 

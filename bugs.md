@@ -3,16 +3,6 @@
 Small known problems, not yet fixed. Each says what happens, what is known, and the next step. A fix removes its entry in the commit that ships it. (Larger planned work is in `TODO.md`; ideas in `IDEAS.md`.)
 
 
-## CI's lint: man doesn't show vikix-backup's prose on Ubuntu
-
-Noted 2026-10-18, from Groki's handover (main run 39132865581, Vikix 0.72.97).
-
-**What happens.** The `lint` job fails at `tests/ci.sh man`: `FAIL: man doesn't show vikix-backup's prose` (`tests/man.sh`, a grep for `Every backup is encrypted` in `MANWIDTH=80 man -M … vikix-backup | col -b`). It passes on the laptop. Lint's steps run one after another, so more may be hidden behind it.
-
-**What's known.** Not looked into. Likely Ubuntu's man-db and groff justify or hyphenate that line differently from the laptop (extra spaces, a line break), so the fixed-string grep misses.
-
-**Next step.** Reproduce on Ubuntu (`gh run view 39132865581 -R vukini/vikix --log-failed`), then squeeze the whitespace before grepping (`tr -s ' \n' ' '`) or grep a shorter phrase. Part of `plans/DESIGN-ci.md` item 1.
-
 ## Esploro's iPhone under Drives: not yet tried with a phone
 
 Noted 2026-10-05, by the guides check; the packages added 2026-10-11 (Vikix 0.72.x).

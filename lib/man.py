@@ -306,6 +306,12 @@ def roff(page, pages, version, date):
     source = f"Vikix plugin {page.plugin}" if page.plugin else f"Vikix {version}"
     out = [MARK + page.origin,
            f'.TH "{page.name.upper()}" 1 "{date}" "{source}" "Vikix"',
+           # groff (Ubuntu's man) justifies a paragraph with tabs and double
+           # spaces and hyphenates, so a path in the prose broke across two
+           # lines; mandoc (Void's) does neither. Ragged right and no
+           # hyphenation, then: AD is what groff 1.23's man macros set the
+           # adjustment back to at each section, .ad l is for older groffs.
+           ".ds AD l", ".ad l", ".nh",
            ".SH NAME",
            f"{esc(page.name)} \\- {esc(page.summary)}",
            ".SH SYNOPSIS"]

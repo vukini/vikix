@@ -68,6 +68,17 @@ if command -v man >/dev/null; then
 else
   echo "(man isn't here: showing a page left out)"
 fi
+# Ubuntu's man renders with groff, which justified the prose with tabs and
+# hyphenated the password file's path (CI's lint, 2026-10-18); Void's mandoc
+# does neither, so the page itself asks for ragged right and no hyphenation.
+if command -v groff >/dev/null; then
+  shown=$(groff -man -Tutf8 -rLL=80n "$t/real/man1/vikix-backup.1" 2>/dev/null | col -b || true)
+  check "groff justifies vikix-backup's prose (Ubuntu's man)" grep -q 'Every backup is encrypted with the password in' <<<"$shown"
+  # shellcheck disable=SC2088  # the ~ is what the rendered page shows, not a path to expand
+  check "groff hyphenates the password file's path" grep -q '~/.config/vikix/backup-password,' <<<"$shown"
+else
+  echo "(groff isn't here: its rendering left out)"
+fi
 
 # --- made-up scripts: what goes where -------------------------------------------
 v="$t/v"
