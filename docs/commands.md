@@ -328,7 +328,7 @@ AI on the text you selected, anywhere on the desktop (Super+i).
 - `vikix-ask` — a menu: Ask, Proofread, Rewrite, Translate, Explain
 - `vikix-ask ACTION` — one of those straight away (ask, proofread, rewrite, translate, explain): for keys of your own in user.lisp
 - `vikix-ask use [local|claude|codex]` — which model answers (vikix ai use); alone, says which
-- `vikix-ask which` — the model, where the text goes, which of the three it is and Codex's effort, tab-separated (for vikix-voice: Super+F10 asks the same model)
+- `vikix-ask which [translate]` — the model (Translate's with translate), where the text goes, which of the three it is and Codex's effort, tab-separated (for vikix-voice: Super+F10 asks the same model)
 
 The text is what you last highlighted (X keeps it after the highlight is gone), else the clipboard: the notification while it works shows it. Proofread, Rewrite and Translate put their result on the clipboard, to paste where you want it; Ask and Explain show the answer, in a notification when it's short, else in a terminal. A local model and Claude answer through llm (vikix ai llm), so it's all in llm logs too.
 
