@@ -5,3 +5,9 @@ valgrind
 libsanitizer-devel  # gcc's -fsanitize=address,undefined: vikix learn c checks with them
 strace          # the system calls a program makes (vikix learn c, later tracks)
 rlwrap          # line editing and history for the bare sbcl REPL: rlwrap sbcl
+# Vikix's own tests on a hidden screen (tests/run.sh): without these the
+# screen tests skip, saying so, and a run passes having proved little.
+xorg-server-xvfb
+xdpyinfo
+xprop
+xterm

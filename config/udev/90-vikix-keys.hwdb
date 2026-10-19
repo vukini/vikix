@@ -1,0 +1,12 @@
+# 90-vikix-keys.hwdb — keys Vikix puts right. 55-hardware installs it into
+# /etc/udev/hwdb.d/ and compiles it with the system's (udevadm hwdb
+# --update); a machine without the keyboards named here is unchanged.
+#
+# ASUS ROG Flow Z13 (2025) keyboard, USB 0b05:1a30: its F6 wears a "snip"
+# picture, but on Linux sends a plain F6 (Windows' software did the rest).
+# Made Print, so every screenshot key works with F6 in Print's place: Shift
+# keeps a file, Ctrl takes the window, Super the screen. The kernel's
+# KEY_PRINT (print), not sysrq: that one lands on X's keycode 107, which
+# carries Print and Sys_Req, and Shift+F6 would arrive as Sys_Req.
+evdev:input:b0003v0B05p1A30*
+ KEYBOARD_KEY_7003f=print

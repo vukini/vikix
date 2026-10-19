@@ -209,6 +209,7 @@ What Vikix changes on the system itself. Everything else under `/` is as Void le
 | `/etc/security/limits.d/50-vikix-steam.conf` | With the feature steam: your hard limit of open files raised to 524288, for Proton's esync | `vikix steam setup` |
 | `/etc/alsa/conf.d/` | Links that send ALSA programs to PipeWire | `50-audio` |
 | `/etc/X11/xorg.conf.d/40-libinput.conf` | Touchpad: tap to click, natural scrolling | `55-hardware` |
+| `/etc/udev/hwdb.d/90-vikix-keys.hwdb` | Keys put right: the ROG Flow Z13's F6 is Print (`config/udev/90-vikix-keys.hwdb` says which keyboards and why) | `55-hardware` |
 | `/boot/initramfs-*` | Rebuilt with the Intel microcode | `55-hardware` |
 | `/etc/udev/rules.d/60-vboxguest.rules` | VirtualBox only: the shared clipboard | `70-vm` |
 | Groups | You are added to `video`, `network`, `lpadmin` (and `vboxsf` in VirtualBox) | `20-services`, `25-network`, `70-vm` |

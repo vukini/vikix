@@ -3,6 +3,8 @@
 #
 #   - touchpad: tap to click, natural scrolling (config/x11/40-libinput.conf
 #     into /etc/X11/xorg.conf.d; takes effect at the next X start)
+#   - keys put right in udev's hardware database (config/udev/90-vikix-keys.hwdb
+#     into /etc/udev/hwdb.d: the ROG Flow Z13's F6 made Print)
 #   - Intel microcode: intel-ucode (installed by 10-packages from the
 #     nonfree repo) only takes effect once the initramfs is rebuilt with
 #     it inside, so the kernel package is reconfigured once per
@@ -20,6 +22,25 @@ if cmp -s "$VIKIX_DIR/config/x11/40-libinput.conf" "$conf"; then
 else
   say "installing touchpad settings (tap to click, natural scrolling)"
   run sudo install -Dm644 "$VIKIX_DIR/config/x11/40-libinput.conf" "$conf"
+fi
+
+# --- keys put right (udev's hardware database) ------------------------------
+# The file says which keyboards and why; a machine without them compiles a
+# line that never matches. The change reaches a keyboard that is plugged in
+# through a change event for every keyboard, after which X rebuilds its
+# keymap and drops the layout's options, so on a running desktop the
+# keyboard settings (~/.config/vikix/keyboard) are applied again.
+hwdb=/etc/udev/hwdb.d/90-vikix-keys.hwdb
+if cmp -s "$VIKIX_DIR/config/udev/90-vikix-keys.hwdb" "$hwdb"; then
+  say "udev's keys file already in place"
+else
+  say "installing udev's keys file (the ROG Flow Z13's F6 as Print)"
+  run sudo install -Dm644 "$VIKIX_DIR/config/udev/90-vikix-keys.hwdb" "$hwdb"
+  run sudo udevadm hwdb --update
+  run sudo udevadm trigger --subsystem-match=input --property-match=ID_INPUT_KEYBOARD=1 --action=change
+  if [ -n "${DISPLAY:-}" ]; then
+    run "$VIKIX_DIR/bin/vikix-keyboard"
+  fi
 fi
 
 # --- microcode in the initramfs --------------------------------------------

@@ -39,7 +39,7 @@ shared by the processor and the graphics, a 13.4-inch 2560×1600 touch screen.
 | Speakers (two Cirrus CS35L41 amplifiers) | Work: both amplifiers load their firmware (`cs35l41-hda`, gain 15). Quieter than under Windows, as other owners report; headphones work |
 | Camera (ASUS 5M, `uvcvideo`) | Seen with its driver; not tried yet |
 | Touch screen and pen (ELAN 9008) | Touch works in X; the pen is seen. Turning the screen round: not yet (TODO 59) |
-| Keyboard and touchpad (detachable) | Work, with tap to click and natural scrolling from the base |
+| Keyboard and touchpad (detachable) | Work, with tap to click and natural scrolling from the base. F6 wears a "snip" picture but sends a plain F6 on Linux; Vikix makes it Print (udev's keys file, `55-hardware`, from 0.72.102), so F6 takes a screenshot, Shift+F6 keeps it as a file, Ctrl+F6 the window, Super+F6 the screen |
 | Suspend | Modern standby (`s2idle`) only. Keys pressed while asleep did not wake it (tried 2026-10-19), so no sleep hook is needed on this kernel |
 | Battery and charging | Seen (BAT0, two USB-C sources) |
 | Fan and power modes | The kernel offers `quiet`, `balanced` and `performance` in `/sys/firmware/acpi/platform_profile`; Void has no asusctl. A choice from Super+m is TODO 63 |

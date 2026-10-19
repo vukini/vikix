@@ -43,7 +43,7 @@ Vid often has several Claude sessions on Vikix at once. So that none disturbs an
 
 ## Checking changes
 
-**Tests queue across sessions.** Every `tests/run.sh` on the machine draws from one set of slots, as many as there are cores, so several sessions' runs don't add up (a load of 70 to 100 once made tests fail for slowness alone); a test in the `alone` list (`times`, `soak`, `rescue`) runs while no other test runs anywhere. So run tests through the runner, a single one too (`tests/run.sh rules`, not `tests/rules.sh`), and don't start a second run to "save time": it only waits.
+**Tests queue across sessions.** Every `tests/run.sh` on the machine draws from one set of slots, as many as there are cores, so several sessions' runs don't add up (a load of 70 to 100 once made tests fail for slowness alone); a test in the `alone` list (`times`, `soak`, `rescue`) runs while no other test runs anywhere. So run tests through the runner, a single one too (`tests/run.sh rules`, not `tests/rules.sh`), and don't start a second run to "save time": it only waits. The screen tests need Xvfb, xdpyinfo, xprop and xterm (in `packages/dev.list` from 0.72.102); without them each skips, saying so, and the run passes having proved little (on the Z13, 2026-10-19, twenty tests skipped that way).
 
 No build step. The tests are scripts in `tests/`, and `.github/workflows/test.yml` runs the same scripts on GitHub (on each push and weekly):
 
