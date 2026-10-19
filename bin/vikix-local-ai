@@ -43,9 +43,11 @@
 # ~/.config/vikix/ai says on, or says nothing (auto) and the chip may take
 # 32 GB or more; off keeps the CPU. Ollama would give a model all of that
 # memory, and the desktop, refused its share, ended (2026-10-19, three
-# times): `serve` keeps 8 GB of it from Ollama (OLLAMA_GPU_OVERHEAD) and
-# sets a 32k context (OLLAMA_CONTEXT_LENGTH: Ollama's own choice there is
-# the model's longest, 4.6 GB for gpt-oss-120b). The picker then counts
+# times): `serve` keeps 8 GB of it for the desktop (LLAMA_ARG_FIT_TARGET,
+# the margin llama-server leaves on the chip, the rest of a model going to
+# the CPU; OLLAMA_GPU_OVERHEAD, the same for Ollama's own sums) and sets a
+# 32k context (OLLAMA_CONTEXT_LENGTH: Ollama's own choice there is the
+# model's longest, 4.6 GB for gpt-oss-120b). The picker then counts
 # that memory, less the 8 GB, and rates the models that fit in it by the
 # parameters at work on each word (lib/ai-models.tsv).
 
@@ -202,15 +204,16 @@ cmd_serve() {
   # machine whose chip shares enough of the memory to be worth it.
   if graphics_on; then
     export OLLAMA_IGPU_ENABLE=1 OLLAMA_GPU_OVERHEAD=$((KEEP_GB * 1024 * 1024 * 1024))
-    export OLLAMA_CONTEXT_LENGTH="${OLLAMA_CONTEXT_LENGTH:-32768}"
+    export LLAMA_ARG_FIT_TARGET=$((KEEP_GB * 1024)) OLLAMA_CONTEXT_LENGTH="${OLLAMA_CONTEXT_LENGTH:-32768}"
   else
-    unset OLLAMA_IGPU_ENABLE OLLAMA_GPU_OVERHEAD
+    unset OLLAMA_IGPU_ENABLE OLLAMA_GPU_OVERHEAD LLAMA_ARG_FIT_TARGET
   fi
   echo "$$ ${OLLAMA_IGPU_ENABLE:-0}" > "$GRAPHICS_NOTE"   # whose: a crash leaves no note a later serve would wear
   OLLAMA_HOST=$HOST "$OLLAMA" serve >> "$VIKIX_STATE/ollama.log" 2>&1 &
   # Global, not local: the EXIT trap runs after this function has returned.
   SERVE_PID=$!
   echo $$ > "$VIKIX_STATE/ollama-serve.pid"       # for uninstall and restart: this one, not any by name
+  echo "$SERVE_PID" > "$VIKIX_STATE/ollama.pid"   # Ollama itself, for restart when the serve's end didn't take it
   trap serve_end EXIT
   trap 'exit 143' INT TERM
   while kill -0 "$SERVE_PID" 2>/dev/null; do
@@ -221,8 +224,12 @@ cmd_serve() {
 # Ollama ends with its serve; the files go only when they are still this
 # serve's (a restart's new one may have written them already).
 serve_end() {
-  kill "${SERVE_PID:-}" 2>/dev/null || true
-  [ "$(cat "$VIKIX_STATE/ollama-serve.pid" 2>/dev/null)" = "$$" ] && rm -f "$LOADED" "$GRAPHICS_NOTE" "$VIKIX_STATE/ollama-serve.pid"
+  if [ -n "${SERVE_PID:-}" ] && kill "$SERVE_PID" 2>/dev/null; then
+    for _ in $(seq 50); do kill -0 "$SERVE_PID" 2>/dev/null || break; sleep 0.2; done
+    kill -9 "$SERVE_PID" 2>/dev/null || true     # a loaded model once kept it (2026-10-19)
+  fi
+  [ "$(cat "$VIKIX_STATE/ollama-serve.pid" 2>/dev/null)" = "$$" ] &&
+    rm -f "$LOADED" "$GRAPHICS_NOTE" "$VIKIX_STATE/ollama-serve.pid" "$VIKIX_STATE/ollama.pid"
   return 0
 }
 
@@ -230,11 +237,19 @@ serve_end() {
 # one starts, reading graphics= afresh.
 cmd_restart() {
   need_installed
-  local pidfile="$VIKIX_STATE/ollama-serve.pid" pid
+  local pidfile="$VIKIX_STATE/ollama-serve.pid" pid opid
   pid=$(cat "$pidfile" 2>/dev/null || true)
+  opid=$(cat "$VIKIX_STATE/ollama.pid" 2>/dev/null || true)
   if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
     kill "$pid" 2>/dev/null || true
     for _ in $(seq 50); do kill -0 "$pid" 2>/dev/null || break; sleep 0.2; done
+  fi
+  # The serve's end takes Ollama with it; when it didn't (a loaded model
+  # once kept it, 2026-10-19), Ollama is ended by its own number.
+  if [ -n "$opid" ] && kill -0 "$opid" 2>/dev/null && running; then
+    kill "$opid" 2>/dev/null || true
+    for _ in $(seq 50); do kill -0 "$opid" 2>/dev/null || break; sleep 0.2; done
+    kill -9 "$opid" 2>/dev/null || true
   fi
   for _ in $(seq 100); do running || break; sleep 0.2; done     # Ollama lets go of the port, and the memory
   running && die "Ollama is still running, and not from this desktop's serve ($pidfile): end it yourself, then vikix ai setup"

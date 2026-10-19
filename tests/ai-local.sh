@@ -19,7 +19,7 @@ export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a 
 export EMACS_SOCKET_NAME=/nonexistent/emacs-server   # never the live desktop's Emacs: emacsclient from a test goes nowhere
 unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE   # the desktop session's: from an agent's shell they'd point a test at the real ~/vikix and state, and hide the keys
 unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME
-unset OLLAMA_IGPU_ENABLE OLLAMA_GPU_OVERHEAD OLLAMA_CONTEXT_LENGTH   # the shell's own would pass through serve
+unset OLLAMA_IGPU_ENABLE OLLAMA_GPU_OVERHEAD LLAMA_ARG_FIT_TARGET OLLAMA_CONTEXT_LENGTH   # the shell's own would pass through serve
 here=$(cd "$(dirname "$0")/.." && pwd)
 t=$(mktemp -d)
 trap 'pkill -f "$t/" 2>/dev/null || true; rm -rf "$t"' EXIT
@@ -44,7 +44,7 @@ cat > "$t/rel/bin/ollama" <<EOF
 #!/bin/sh
 echo "ollama \$*" >> "$calls"
 case \$1 in
-  serve) echo "serve igpu=\${OLLAMA_IGPU_ENABLE:-} keep=\${OLLAMA_GPU_OVERHEAD:-} ctx=\${OLLAMA_CONTEXT_LENGTH:-}" >> "$calls"
+  serve) echo "serve igpu=\${OLLAMA_IGPU_ENABLE:-} keep=\${OLLAMA_GPU_OVERHEAD:-} fit=\${LLAMA_ARG_FIT_TARGET:-} ctx=\${OLLAMA_CONTEXT_LENGTH:-}" >> "$calls"
          touch "$t/running"; trap 'rm -f "$t/running"; exit 0' TERM; sleep 2; rm -f "$t/running" ;;
   run) : ;;
   list) printf 'NAME ID SIZE MODIFIED\nllama3.2:3b abc 2.0GB now\n' ;;
@@ -183,12 +183,12 @@ for _ in $(seq 20); do [ -e "$VIKIX_STATE/ai-loaded" ] && break; sleep 0.1; done
 check "serve didn't note the loaded model for the bar" grep -qx 'llama3.2:3b' "$VIKIX_STATE/ai-loaded"
 wait
 check "serve left the note behind when Ollama ended" test ! -e "$VIKIX_STATE/ai-loaded"
-check "serve without a chip shouldn't ask Ollama for one: $(grep serve "$calls")" grep -qx 'serve igpu= keep= ctx=' "$calls"
+check "serve without a chip shouldn't ask Ollama for one: $(grep serve "$calls")" grep -qx 'serve igpu= keep= fit= ctx=' "$calls"
 # With the chip, serve asks Ollama for it; restart ends the old serve and starts one afresh.
 : > "$calls"
 VIKIX_DRM="$t/drm" ai serve >/dev/null 2>&1 &
 for _ in $(seq 20); do [ -e "$VIKIX_STATE/ollama-serve.pid" ] && break; sleep 0.1; done
-check "serve with the chip should ask Ollama for it: $(grep serve "$calls")" grep -qx 'serve igpu=1 keep=8589934592 ctx=32768' "$calls"
+check "serve with the chip should ask Ollama for it: $(grep serve "$calls")" grep -qx 'serve igpu=1 keep=8589934592 fit=8192 ctx=32768' "$calls"
 old=$(cat "$VIKIX_STATE/ollama-serve.pid")
 # setsid that runs what it's given (the stand-in above only notes it), so
 # the new serve really starts; the noting one comes back after.
