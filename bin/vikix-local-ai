@@ -102,9 +102,10 @@ conf() {   # conf KEY — its value in ~/.config/vikix/ai, without comments or s
     sed -e 's/#.*//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
 }
 
-# The memory an AMD graphics chip may take, in GB: its own, and the share
-# of the main memory the kernel lets it map (GTT; TTM's page limit, about
-# half of the memory unless raised). 0 without one.
+# The memory an AMD graphics chip may take, in GB (binary, as mem_gb counts
+# the memory): its own, and the share of the main memory the kernel lets
+# it map (GTT; TTM's page limit, about half of the memory unless raised).
+# 0 without one.
 graphics_gb() {
   local d total=0 vram gtt
   for d in "$DRM"/card*/device; do
@@ -112,9 +113,9 @@ graphics_gb() {
     [ "$(cat "$d/vendor" 2>/dev/null)" = 0x1002 ] || continue
     vram=$(cat "$d/mem_info_vram_total" 2>/dev/null || echo 0)
     gtt=$(cat "$d/mem_info_gtt_total")
-    total=$(( total + (vram + gtt) / 1000000000 ))
+    total=$(( total + vram + gtt ))
   done
-  echo "$total"
+  awk -v b="$total" 'BEGIN { printf "%.0f", b / 1073741824 }'
 }
 # Whether the desktop's running serve asked Ollama for the chip (the note
 # it leaves): 0 yes, 1 no, 2 no serve of this desktop to ask.
@@ -374,7 +375,10 @@ offer() {
   local mem g
   mem=$(mem_gb); g=$(graphics_used)
   read_list "$MODELS_TABLE" | awk -F'\t' -v mem="$mem" -v g="$g" '
-    { a = $3 + 0; gb = $4 + 0
+    { a = $3 + 0
+      # The sizes in the table are decimal GB, as Ollama counts; the memory and the
+      # chip are counted in binary GB, so the sums are made in those.
+      gb = $4 / 1.074
       # In memory it takes a little more than its download (the text it
       # works on), and the desktop needs room too. On the chip it must fit
       # whole, with a few GB for the text: part on the CPU runs at CPU speed.

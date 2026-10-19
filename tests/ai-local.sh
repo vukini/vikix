@@ -118,7 +118,8 @@ check "8 GB offered an 8B model that won't fit: $out" bash -c "! grep -q 'qwen3:
 check "8 GB should still offer a 3B model" grep -q 'llama3.2:3b' <<<"$out"
 
 # A graphics chip that shares the memory (a Ryzen AI Max: 128 GB, 65 for
-# the chip): the big models, rated by the parameters at work on each word.
+# the chip, counted as the memory is, in binary GB; the models' sizes are
+# Ollama's decimal ones): the big models, rated by the parameters at work on each word.
 printf 'MemTotal:      127000000 kB\n' > "$t/mem128"
 mkdir -p "$t/drm/card0/device" "$t/drm/card1/device"
 printf '0x1002\n' > "$t/drm/card0/device/vendor"
@@ -129,16 +130,16 @@ printf '99999999999\n' > "$t/drm/card1/device/mem_info_gtt_total"
 out=$(VIKIX_MEMINFO="$t/mem128" VIKIX_DRM="$t/drm" ai models --print)
 check "128 GB with the chip should offer gpt-oss:120b, fast (5B at work on each word): $out" grep -qE 'gpt-oss:120b .*runs fast' <<<"$out"
 check "a plain 27B model should run well on the chip: $out" grep -qE 'gemma3:27b .*runs well' <<<"$out"
-check "nemotron-3-super (87 GB) doesn't fit a 69 GB chip whole, and 12B at work is too slow for the CPU: $out" bash -c "! grep -q 'nemotron-3-super' <<<'$out'"
-# The kernel's share raised (TODO 60): the chip may take 120 GB, and nemotron fits.
+check "nemotron-3-super (87 GB) doesn't fit a 65 GB chip whole, and 12B at work is too slow for the CPU: $out" bash -c "! grep -q 'nemotron-3-super' <<<'$out'"
+# The kernel's share raised (TODO 60): the chip may take 116 GB, and nemotron fits.
 mkdir -p "$t/drm-big/card0/device"
 printf '0x1002\n' > "$t/drm-big/card0/device/vendor"
 printf '4294967296\n' > "$t/drm-big/card0/device/mem_info_vram_total"
 printf '120000000000\n' > "$t/drm-big/card0/device/mem_info_gtt_total"
 out=$(VIKIX_MEMINFO="$t/mem128" VIKIX_DRM="$t/drm-big" ai models --print)
-check "nemotron-3-super (12B at work) should run well on a 124 GB chip: $out" grep -qE 'nemotron-3-super:120b .*runs well' <<<"$out"
+check "nemotron-3-super (12B at work) should run well on a 116 GB chip: $out" grep -qE 'nemotron-3-super:120b .*runs well' <<<"$out"
 out=$(printf '\n' | VIKIX_MEMINFO="$t/mem128" VIKIX_DRM="$t/drm" ai models 2>&1)
-check "the list should say the chip runs them: $out" grep -q '69 GB of it for the graphics chip' <<<"$out"
+check "the list should say the chip runs them: $out" grep -q '65 GB of it for the graphics chip' <<<"$out"
 # The same memory with no chip: the CPU, where 5B at work is slow and 12B too much.
 out=$(VIKIX_MEMINFO="$t/mem128" ai models --print)
 check "128 GB on the CPU: gpt-oss:120b slowly: $out" grep -qE 'gpt-oss:120b .*runs slowly' <<<"$out"
@@ -151,13 +152,13 @@ check "graphics=off should rate for the CPU: $out" grep -qE 'gpt-oss:120b .*runs
 mkdir -p "$t/drm-small/card0/device"
 printf '0x1002\n' > "$t/drm-small/card0/device/vendor"
 printf '536870912\n' > "$t/drm-small/card0/device/mem_info_vram_total"
-printf '8000000000\n' > "$t/drm-small/card0/device/mem_info_gtt_total"
+printf '7000000000\n' > "$t/drm-small/card0/device/mem_info_gtt_total"
 out=$(VIKIX_MEMINFO="$t/mem16" VIKIX_DRM="$t/drm-small" ai models --print)
 check "a small chip isn't used unasked (auto under 32 GB): $out" grep -qE 'qwen3:8b .*runs slowly' <<<"$out"
 printf 'graphics=on\n' > "$HOME/.config/vikix/ai"
 out=$(VIKIX_MEMINFO="$t/mem16" VIKIX_DRM="$t/drm-small" ai models --print)
-check "graphics=on: a 3B model fits an 8 GB chip whole, so fast: $out" grep -qE 'llama3.2:3b .*runs fast' <<<"$out"
-check "graphics=on: an 8B model (5.2 GB) doesn't fit an 8 GB chip whole, so the CPU's slowly: $out" grep -qE 'qwen3:8b .*runs slowly' <<<"$out"
+check "graphics=on: a 3B model fits a 7 GB chip whole, so fast: $out" grep -qE 'llama3.2:3b .*runs fast' <<<"$out"
+check "graphics=on: an 8B model (5.2 GB) doesn't fit a 7 GB chip whole, so the CPU's slowly: $out" grep -qE 'qwen3:8b .*runs slowly' <<<"$out"
 rm -f "$HOME/.config/vikix/ai"
 
 # Choosing: by number in a terminal, or in rofi; with or without the ✓.
@@ -195,7 +196,7 @@ old=$(cat "$VIKIX_STATE/ollama-serve.pid")
 printf '#!/bin/sh\necho "setsid $*" >> %q\n"$@" &\n' "$calls" > "$t/bin/setsid"
 out=$(VIKIX_DRM="$t/drm" ai restart 2>&1)
 printf '#!/bin/sh\necho "setsid $*" >> %q\n' "$calls" > "$t/bin/setsid"
-check "restart should say it started again, with the chip: $out" grep -q 'started again, with the graphics chip (69 GB' <<<"$out"
+check "restart should say it started again, with the chip: $out" grep -q 'started again, with the graphics chip (65 GB' <<<"$out"
 check "restart should have ended the old serve" bash -c "! kill -0 $old 2>/dev/null"
 check "restart should have started a second serve: $(grep -c 'serve igpu=1 keep=' "$calls")" test "$(grep -c 'serve igpu=1 keep=' "$calls")" = 2
 check "the new serve should hold the pid file" test "$(cat "$VIKIX_STATE/ollama-serve.pid")" != "$old"
@@ -214,7 +215,7 @@ check "status should say how much memory the loaded model holds, and until when:
 check "status without a chip should say the CPU runs the models: $out" grep -q 'graphics: none that shares the memory' <<<"$out"
 echo '{"models": [{"name": "gpt-oss:120b", "size": 65000000000, "size_vram": 65000000000, "expires_at": "2099-01-01T12:05:00+00:00"}]}' > "$t/ps"
 out=$(VIKIX_DRM="$t/drm" ai status)
-check "status with the chip should say so: $out" grep -q 'graphics: used, 69 GB of the memory for it' <<<"$out"
+check "status with the chip should say so: $out" grep -q 'graphics: used, 65 GB of the memory for it' <<<"$out"
 check "status should say how much of the model is on the chip: $out" grep -q 'holding 65.0 GB of memory, 65.0 GB of it on the graphics' <<<"$out"
 echo '{"models": [{"name": "llama3.2:3b", "size": 2560000000, "expires_at": "2099-01-01T12:05:00+00:00"}]}' > "$t/ps"
 # A serve started before the chip was wanted: status says to restart.
@@ -222,7 +223,7 @@ rm -f "$t/running"
 ai serve >/dev/null 2>&1 &
 for _ in $(seq 20); do [ -e "$VIKIX_STATE/ollama-serve.pid" ] && break; sleep 0.1; done
 out=$(VIKIX_DRM="$t/drm" ai status)
-check "status should say the running Ollama was started without the chip: $out" grep -q 'graphics: wanted (69 GB of the memory for it), but the running Ollama was started without it: vikix ai restart' <<<"$out"
+check "status should say the running Ollama was started without the chip: $out" grep -q 'graphics: wanted (65 GB of the memory for it), but the running Ollama was started without it: vikix ai restart' <<<"$out"
 kill "$(cat "$VIKIX_STATE/ollama-serve.pid" 2>/dev/null)" 2>/dev/null || true
 wait
 touch "$t/running"
@@ -283,7 +284,7 @@ out=$(VIKIX_GRUB_DEFAULT="$grub" VIKIX_MEMINFO="$t/mem128" VIKIX_DRM="$t/drm-non
 check "share without a chip should say so: $out" grep -q 'no graphics chip shares' <<<"$out"
 out=$(VIKIX_GRUB_DEFAULT="$grub" VIKIX_MEMINFO="$t/mem128" VIKIX_DRM="$t/drm-none" ai share most 2>&1) && { echo "FAIL: share most without a chip should refuse"; fail=1; }
 out=$(VIKIX_GRUB_DEFAULT="$grub" VIKIX_MEMINFO="$t/mem128" VIKIX_DRM="$t/drm" ai share 2>&1)
-check "share should say the kernel's half: $out" grep -q "the kernel's half, 69 of 121 GB" <<<"$out"
+check "share should say the kernel's half: $out" grep -q "the kernel's half, 65 of 121 GB" <<<"$out"
 out=$(VIKIX_GRUB_DEFAULT="$grub" VIKIX_MEMINFO="$t/mem16" VIKIX_DRM="$t/drm-small" ai share most 2>&1) && { echo "FAIL: share most with 16 GB should refuse"; fail=1; }
 check "16 GB should be said as too little: $out" grep -q "isn't enough" <<<"$out"
 : > "$calls"
@@ -299,7 +300,7 @@ check "the kernel's own line should stay" grep -qx 'GRUB_CMDLINE_LINUX_DEFAULT="
 out=$(VIKIX_GRUB_DEFAULT="$grub" VIKIX_MEMINFO="$t/mem128" VIKIX_DRM="$t/drm" ai share 2>&1)
 check "share should say most, from the next boot: $out" grep -q 'most of the memory (105 of 121 GB) for the graphics chip from the next boot' <<<"$out"
 out=$(VIKIX_GRUB_DEFAULT="$grub" VIKIX_MEMINFO="$t/mem128" VIKIX_DRM="$t/drm-big" ai share 2>&1)
-check "share after that boot should say most: $out" grep -q 'most of the memory, 124 of 121 GB' <<<"$out"
+check "share after that boot should say most: $out" grep -q 'most of the memory, 116 of 121 GB' <<<"$out"
 : > "$calls"
 out=$(VIKIX_GRUB_DEFAULT="$grub" VIKIX_MEMINFO="$t/mem128" VIKIX_DRM="$t/drm" ai share most 2>&1)
 check "share most twice should say it is set: $out" grep -q 'set already' <<<"$out"
