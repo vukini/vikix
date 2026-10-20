@@ -37,7 +37,7 @@ Emacs's config is a separate repository, the author's own ([emacs-void](https://
 | Where | Whose | What |
 |---|---|---|
 | `~/.emacs.d` | a git clone | The config, `config.org`. `vikix update` pulls it; a change of yours there can stop the pull (the update says so and carries on) |
-| `~/.local/share/vikix/emacs` | Vikix's | `vikix-ai.el`, the AI setup, `vikix-theme.el`, which makes Emacs follow `vikix theme`, and `vikix-notes.el`, your Org notes in `~/Dropbox/notes` under `C-c n` (the agenda, the journal, org-roam's links and graph). A link into `~/vikix`, kept current by `vikix update`; the config loads them when they're there |
+| `~/.local/share/vikix/emacs` | Vikix's | `vikix-ai.el`, the AI setup, `vikix-theme.el`, which makes Emacs follow `vikix theme`, `vikix-notes.el`, your Org notes in `~/Dropbox/notes` under `C-c n` (the agenda, the journal, org-roam's links and graph), and `vikix-python.el`, Python as an IDE under `C-c p` (below). A link into `~/vikix`, kept current by `vikix update`; the config loads them when they're there |
 
 Both are in [Where everything is](map.md), with the rest of your files.
 
@@ -54,6 +54,26 @@ The plugins are installed at the versions Vikix tested, and `vikix update` moves
 Emacs's config is organised in `~/.emacs.d/config.org`, one section per concern (completion, Org, Lisp, languages, tools), and each section explains itself. Emacs reads it at start. SLIME in it talks to the running window manager on port 4004 (see [How it fits together](how-it-works.md)).
 
 To change it, edit `config.org` and run `emacs-restart`. `vikix update` brings Vikix's new AI setup into an Emacs that's running, with your chats left open; an Emacs started without it (before Vikix 0.59) is told to restart, and `vikix doctor` says which you have. The clone is yours to change, but a change there can stop `vikix update` from pulling the author's newer version: keep your changes in a commit of your own, or in a config of your own (below).
+
+## Python in Emacs
+
+With `vikix add python` and `vikix add emacs`, a `.py` file opens as an IDE: the mode line says `Py[.venv]`, and everything started from the file uses that venv. The venv is found by itself: the nearest `.venv` up from the file (the one `uv venv` makes in a project), else `~/dev/python/.venv`, the shared one JupyterLab runs on (`Py[dev]`), else none (`Py[no venv]`, and `C-c p v` offers to make one). The language server (pyright, through eglot) sees the venv's packages, the REPL is the venv's ipython (its python when ipython isn't in it), ruff's findings are shown beside pyright's as you type, and the buffer is formatted with ruff when you save it.
+
+| Key | What |
+|---|---|
+| `C-c p t` | Test the function at point: `pytest FILE::name` |
+| `C-c p T` | Test this file |
+| `C-c p P` | Test the project |
+| `C-c p r` | Run this file |
+| `C-c p s` | The REPL, from the venv |
+| `C-c p f` | Format the buffer with ruff |
+| `C-c p F` | Format on save: on or off, for this buffer (on to begin with) |
+| `C-c p c` | ruff check the project |
+| `C-c p v` | Which venv this buffer uses; none, offers `uv venv` |
+| `C-c p i` | The IDE: code left, the REPL top right, the tests' output below it |
+| `C-c p d` | The offline Python docs, in the browser |
+
+Tests and runs go to a compilation buffer, where a failing line is a link: `Enter` on it opens the file there, `M-g M-n` goes to the next. A key for something that isn't installed says what to do (`uv pip install pytest` in the project, say) instead of failing. Nothing of this changes your own `python.el` or eglot settings: the venv is given to each buffer, so two projects open at once each keep theirs. `C-c p F` turns formatting on save off for a buffer; `(setq vikix-python-format-on-save nil)` in your config turns it off everywhere. A debugger isn't part of it yet.
 
 ## Language servers
 

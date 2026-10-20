@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# tests/emacs.sh — Emacs's AI setup (config/emacs/vikix-ai.el), without the network.
+# tests/emacs.sh — Emacs's AI setup (config/emacs/vikix-ai.el) and Python as an
+# IDE (config/emacs/vikix-python.el), without the network.
 #
 #   45-editors links Vikix's part for Emacs (and not for Neovim alone), and
 #   in a running Emacs reloads it when it changed, or says to restart when
@@ -15,7 +16,12 @@
 #   adapter; Aider to C-c A), with your agent from ~/.config/vikix/agent;
 #   vikix-notes.el's C-c n: the agenda over the notes and their journal
 #   (your own org-agenda-files kept), C-c n c into the inbox plugin's file,
-#   and no notes folder said plainly.
+#   and no notes folder said plainly;
+#   vikix-python.el: a .py file gets the project's .venv (else the shared
+#   one) for the language server, the REPL, pytest and ruff, the keys under
+#   C-c p (the function, file or project under pytest in the project, the
+#   run, ruff format now and on save, the venv made with uv), ruff's
+#   findings beside eglot's, and what isn't installed said plainly.
 #
 # curl is a stand-in answering as Ollama would ($HOME/ollama: the JSON, or
 # absent for "not running"). gptel and agent-shell come from the package
@@ -89,6 +95,9 @@ if emacs -Q --daemon="$sock" >/dev/null 2>&1; then
   check "and then have it: $(live vikix-ai--sum)" test "$(live vikix-ai--sum)" = "\"$(sha256sum < "$here/config/emacs/vikix-ai.el" | cut -d' ' -f1)\""
   out=$(EMACS_SOCKET_NAME=$sock bash "$here/install/45-editors.sh" 2>&1)
   check "an Emacs with the current one should be left alone, quietly: $out" test -z "$(grep -i 'emacs.*ai setup' <<<"$out" || true)"
+  printf '#+begin_src emacs-lisp\n  (load (expand-file-name "~/.local/share/vikix/emacs/vikix-python") t t)\n#+end_src\n' > "$HOME/.emacs.d/config.org"
+  out=$(EMACS_SOCKET_NAME=$sock bash "$here/install/45-editors.sh" 2>&1)
+  check "an Emacs whose config loads the Python setup should get it without a restart: $out $(live "(featurep 'vikix-python)")" test "$(live "(featurep 'vikix-python)")" = t
   emacsclient -s "$sock" -e "(kill-emacs)" >/dev/null 2>&1 || true
   trap 'rm -rf "$t"' EXIT
 else
@@ -307,5 +316,138 @@ rm -rf "$n/Dropbox"
 out=$(notes '(progn (princ (format "key %S\n" (key-binding (kbd "C-c n a")))) (condition-case e (vikix-notes-agenda) (user-error (princ (cadr e)))))')
 check "without the notes folder, C-c n a should say so: $out" has 'No notes yet in' "$out"
 
-[ "$fail" = 0 ] && echo "emacs: Vikix's part is linked, gptel follows vikix ai use, agents start through vikix agent, and the notes' agenda, capture and refile targets"
+# --- vikix-python.el ----------------------------------------------------------
+# A project with a venv of its own (stand-ins: its python says whether
+# pytest is in it, by $HOME/has-pytest; ruff formats "x=1" and finds one
+# unused import), and a file in no project.
+export HOME="$t/py-home"
+mkdir -p "$HOME/proj/.venv/bin" "$HOME/proj/pkg" "$HOME/loose" "$HOME/dev/python/.venv/bin"
+touch "$HOME/proj/pyproject.toml"
+cat > "$HOME/proj/.venv/bin/python" <<'EOF'
+#!/bin/sh
+[ "$1 $2" = "-c import pytest" ] && { [ -f "$HOME/has-pytest" ]; exit; }
+exit 0
+EOF
+cp "$HOME/proj/.venv/bin/python" "$HOME/dev/python/.venv/bin/python"
+cat > "$t/bin/ruff" <<'EOF'
+#!/bin/sh
+case $1 in
+  format) sed 's/^x=1$/x = 1/' ;;
+  check)  cat >/dev/null; name=$(echo "$@" | sed 's/.*--stdin-filename \([^ ]*\).*/\1/'); echo "$name:1:8: F401 \`os\` imported but unused"; exit 1 ;;
+esac
+EOF
+cat > "$t/bin/pyright-langserver" <<'EOF'
+#!/bin/sh
+printf 'PATH=%s\nVIRTUAL_ENV=%s\n' "$PATH" "$VIRTUAL_ENV" > "$HOME/pyright-env"
+exec cat
+EOF
+chmod +x "$t/bin/ruff" "$t/bin/pyright-langserver" "$HOME/proj/.venv/bin/python" "$HOME/dev/python/.venv/bin/python"
+printf 'import os\n\ndef test_a():\n    assert 1\n\nclass TestX:\n    def test_b(self):\n        assert 1\n' > "$HOME/proj/pkg/test_a.py"
+printf 'x=1\n' > "$HOME/loose/l.py"
+touch "$HOME/has-pytest"
+out=$(emacs -Q --batch -l "$here/config/emacs/vikix-python.el" 2>&1)
+check "vikix-python.el should load clean in a bare Emacs: $out" test -z "$out"
+# py FORMS — run in an Emacs with vikix-python.el, compile standing in; prints what they say.
+py() {
+  "$TIMEOUT" --kill-after=2s 20s "$EMACS" -Q --batch -l "$here/config/emacs/vikix-python.el" --eval "(progn (setq print-escape-newlines t)
+    (defun say (&rest a) (princ (concat (apply #'format a) \"\\n\")))
+    (defun compile (cmd &rest _) (say \"compile [%s] %s\" (abbreviate-file-name default-directory) cmd))
+    (defmacro stopped (form) (list 'condition-case 'e form (list 'user-error (list 'say \"stopped: %s\" (list 'apply (quote #'format) (list 'cdr 'e))))))
+    $1)" 2>&1 | grep -v 'python-indent-offset\|^$' || true
+}
+TIMEOUT=$(command -v timeout); EMACS=$(command -v emacs)
+mkdir -p "$t/bare"; ln -s "$(command -v grep)" "$t/bare/grep"   # a PATH with neither ruff nor uv
+open='(find-file (expand-file-name "proj/pkg/test_a.py" "~"))'
+out=$(py "(progn $open
+  (say \"mode %s venv %s lighter %s\" vikix-python-mode (abbreviate-file-name vikix-python--venv) (vikix-python--venv-name))
+  (say \"path %s\" (abbreviate-file-name (car (split-string (getenv \"PATH\") \":\"))))
+  (say \"virtual_env %s\" (abbreviate-file-name (getenv \"VIRTUAL_ENV\")))
+  (say \"exec %s\" (abbreviate-file-name (car exec-path)))
+  (say \"repl %s %s %s\" (abbreviate-file-name python-shell-virtualenv-root) python-shell-interpreter python-shell-interpreter-args)
+  (say \"key %S\" (key-binding (kbd \"C-c p t\")))
+  (with-temp-buffer (say \"elsewhere %s\" (car (split-string (getenv \"PATH\") \":\")))))")
+check "a .py file in a project should get the mode, its .venv, and the mode line saying so: $out" has '^mode t venv ~/proj/.venv lighter .venv$' "$out"
+check "the venv's bin should be first on the buffer's PATH: $out" has '^path ~/proj/.venv/bin$' "$out"
+check "and VIRTUAL_ENV set: $out" has '^virtual_env ~/proj/.venv$' "$out"
+check "and first in exec-path: $out" has '^exec ~/proj/.venv/bin$' "$out"
+check "the REPL should run the venv's python (it has no ipython): $out" has '^repl ~/proj/.venv python -i$' "$out"
+check "C-c p t should be the test key: $out" has '^key vikix-python-test' "$out"
+check "another buffer's PATH should be as it was: $out" has "^elsewhere $t/bin$" "$out"
+touch "$HOME/proj/.venv/bin/ipython"; chmod +x "$HOME/proj/.venv/bin/ipython"
+out=$(py "(progn (setq python-shell-interpreter \"ipython\" python-shell-interpreter-args \"-i --simple-prompt\") $open (say \"repl %s %s\" python-shell-interpreter python-shell-interpreter-args))")
+check "your interpreter should stay when the venv has it: $out" has '^repl ipython -i --simple-prompt$' "$out"
+rm "$HOME/proj/.venv/bin/ipython"
+out=$(py '(progn (find-file (expand-file-name "loose/l.py" "~")) (say "venv %s %s" (abbreviate-file-name vikix-python--venv) (vikix-python--venv-name)))')
+check "a file in no project should get the shared venv: $out" has '^venv ~/dev/python/.venv dev$' "$out"
+rm -r "${HOME:?}/dev"
+out=$(PATH="$t/bare" py '(progn (find-file (expand-file-name "loose/l.py" "~")) (say "venv %S %s" vikix-python--venv (vikix-python--venv-name)) (say "repl %s" python-shell-interpreter) (stopped (vikix-python-venv-command)))')
+check "no venv at all should be said, and the REPL left as yours: $out" has '^venv nil no venv' "$out"
+check "the REPL left as it was: $out" has '^repl python3$' "$out"
+check "C-c p v without uv should say so: $out" has "stopped: No venv, and uv isn.t installed to make one: in a terminal, vikix add python" "$out"
+cat > "$t/bin/uv" <<'EOF'
+#!/bin/sh
+[ "$1" = venv ] && mkdir -p .venv/bin && printf '#!/bin/sh\nexit 0\n' > .venv/bin/python && chmod +x .venv/bin/python
+EOF
+chmod +x "$t/bin/uv"
+out=$(py '(progn (find-file (expand-file-name "loose/l.py" "~")) (defun y-or-n-p (&rest _) t) (vikix-python-venv-command) (say "venv %s %s" (abbreviate-file-name vikix-python--venv) (vikix-python--venv-name)))')
+check "C-c p v with uv should make the venv there and use it: $out" has '^venv ~/loose/.venv .venv$' "$out"
+check "saying so: $out" has 'venv made: .*/loose/.venv; the next REPL and language server use it' "$out"
+rm "$t/bin/uv"
+
+# The tests and the run: pytest on the function, the class's method, the
+# file, the project; in a compilation buffer, in the project.
+out=$(py "(progn $open
+  (goto-char (point-min)) (search-forward \"assert 1\") (vikix-python-test)
+  (search-forward \"assert 1\") (vikix-python-test)
+  (goto-char (point-min)) (stopped (vikix-python-test))
+  (vikix-python-test-file) (vikix-python-test-project) (vikix-python-run))")
+check "C-c p t should run pytest on the function at point, in the project, with the venv's python: $out" has '^compile \[~/proj/\] .*/proj/.venv/bin/python -m pytest pkg/test_a.py::test_a$' "$out"
+check "a method by its class: $out" has 'pytest pkg/test_a.py::TestX::test_b$' "$out"
+check "outside a function, said: $out" has 'stopped: Not inside a function' "$out"
+check "C-c p T the file: $out" has 'pytest pkg/test_a.py$' "$out"
+check "C-c p P the project: $out" has 'pytest$' "$out"
+check "C-c p r runs the file: $out" has '^compile \[~/proj/\] .*/proj/.venv/bin/python pkg/test_a.py$' "$out"
+rm "$HOME/has-pytest" 2>/dev/null || true
+out=$(py "(progn $open (stopped (vikix-python-test-file)))")
+check "without pytest in the venv, said with how to add it: $out" has 'stopped: pytest isn.t in this venv: in a terminal, uv pip install pytest (in .*/proj/)' "$out"
+touch "$HOME/has-pytest"
+
+# ruff: the format (point kept), on save unless turned off, and the findings.
+out=$(py "(progn (find-file (expand-file-name \"loose/l.py\" \"~\")) (goto-char (point-max)) (vikix-python-format) (say \"text %S point %d\" (buffer-string) (point))
+  (erase-buffer) (insert \"x=1\\n\") (save-buffer) (say \"saved %S\" (buffer-string))
+  (vikix-python-format-on-save) (erase-buffer) (insert \"x=1\\n\") (save-buffer) (say \"saved %S\" (buffer-string)))")
+check "C-c p f should format with ruff, point kept: $out" has '^text "x = 1\\n" point 7$' "$out"
+check "a save should format: $out" has '^saved "x = 1\\n"' "$out"
+check "C-c p F should turn that off here, saying so: $out" has 'ruff format on save: off, in this buffer' "$out"
+check "and the save then leave the text alone: $out" has '^saved "x=1\\n"' "$out"
+out=$(py "(progn $open (setq-local flymake-diagnostic-functions '(eglot-flymake-backend)) (run-hooks 'eglot-managed-mode-hook)
+  (say \"backends %S\" flymake-diagnostic-functions)
+  (let (got) (vikix-python--ruff-flymake (lambda (d &rest _) (setq got (or d 'none))))
+    (with-timeout (5 (say \"no answer\")) (while (not got) (accept-process-output nil 0.1)))
+    (dolist (d (and (listp got) got)) (say \"found %s at %d: %s\" (flymake-diagnostic-type d) (flymake-diagnostic-beg d) (flymake-diagnostic-text d)))))")
+check "ruff's backend should stand beside eglot's after eglot takes the buffer: $out" has '^backends (vikix-python--ruff-flymake eglot-flymake-backend)' "$out"
+check "ruff's findings should be flymake's: $out" has '^found :warning at 8: F401 `os` imported but unused' "$out"
+out=$(PATH="$t/bare" py "(progn $open (say \"backends %S\" flymake-diagnostic-functions) (stopped (vikix-python-format)) (erase-buffer) (insert \"x=1\\n\") (save-buffer) (say \"saved %S\" (buffer-string)))")
+check "without ruff, C-c p f should say so: $out" has "stopped: ruff isn.t installed: in a terminal, vikix add python" "$out"
+check "a save be plain: $out" has '^saved "x=1\\n"' "$out"
+check "and python.el's own backend left as it was: $out" has '^backends (python-flymake t)' "$out"
+printf 'import os\n\ndef test_a():\n    assert 1\n\nclass TestX:\n    def test_b(self):\n        assert 1\n' > "$HOME/proj/pkg/test_a.py"
+
+# The language server starts with the venv's PATH (a stand-in records it).
+out=$(py "(progn (require 'eglot) (setq eglot-connect-timeout 2 eglot-autoshutdown t) $open (eglot-ensure) (run-hooks 'post-command-hook) (sit-for 3) (say \"done\"))")
+check "eglot's server should start with the venv first on PATH: $(cat "$HOME/pyright-env" 2>&1)" grep -q "^PATH=$HOME/proj/.venv/bin:" "$HOME/pyright-env"
+check "and VIRTUAL_ENV set" grep -q "^VIRTUAL_ENV=$HOME/proj/.venv$" "$HOME/pyright-env"
+
+# The IDE layout: code left, the REPL top right, the tests' output below.
+out=$(py "(progn (defun run-python (&rest _) (get-buffer-create \"*Python*\")) (defun python-shell-get-buffer () (get-buffer \"*Python*\")) $open (vikix-python-ide)
+  (say \"windows %d selected %s\" (length (window-list)) (buffer-name (window-buffer (selected-window))))
+  (say \"right %s below %s\" (buffer-name (window-buffer (window-in-direction 'right))) (buffer-name (window-buffer (window-in-direction 'below (window-in-direction 'right)))))
+  (say \"mode %s\" (with-current-buffer \"*compilation*\" major-mode)))")
+check "C-c p i should give three windows with the code selected: $out" has '^windows 3 selected test_a.py' "$out"
+check "the REPL right and the compilation buffer below it: $out" has '^right \*Python\* below \*compilation\*' "$out"
+check "ready for the first test: $out" has '^mode compilation-mode' "$out"
+out=$(py "(progn $open (stopped (vikix-python-docs)))")
+check "C-c p d without the docs should say so: $out" has "stopped: The offline docs aren.t here: vikix add python puts them in ~/dev/python/docs" "$out"
+
+[ "$fail" = 0 ] && echo "emacs: Vikix's part is linked, gptel follows vikix ai use, agents start through vikix agent, the notes' agenda, capture and refile targets, and Python's venv, tests, ruff and layout"
 exit "$fail"

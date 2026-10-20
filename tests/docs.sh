@@ -40,7 +40,7 @@ printf '# Music sketchpad\n\nPatterns as Lisp, sent over a websocket to the DAW.
 printf '# Notes on the bridge\n\nOSC transport.\n' > "$HOME/src/music/docs/bridge.md"
 mkdir -p "$HOME/src/music/plans"; printf '# Cloud nodes\n\nThe sketchpad on a quorumless server.\n' > "$HOME/src/music/plans/DESIGN-cloud.md"
 printf '# Worktree copy\n\nwebsocket\n' > "$HOME/src/music-wt/README.md"
-printf '# Python\n\nThe tools for python on this machine: uv, ruff.\n' > "$HOME/dev/python/README.md"
+printf '# Python\n\nThe tools for python on this machine: uv, ruff, pyquux.\n' > "$HOME/dev/python/README.md"
 printf '#+title: Inbox\n\n* Buy a websocket book\n:PROPERTIES:\n:CREATED:  [2026-10-03 Sat 10:00]\n:END:\n' > "$HOME/notes/inbox.org"
 printf ':PROPERTIES:\n:ID: x\n:END:\n#+title: The service manager\n\nsv down NAME stops a service, in runit.\n' > "$HOME/notes/vault/Books/runit.org"
 mkdir -p "$XDG_CONFIG_HOME/vikix/plugins/inbox"
@@ -182,14 +182,15 @@ check "a worktree isn't a project" bash -c "! grep -q 'Worktree copy' <<<\"\$1\"
 check "a note is found" grep -q 'note .*Inbox' <<<"$(d find websocket)"
 check "a plan in a project's plans/ folder is a design page: $(d find quorumless | head -1)" grep -q '^repo .*Cloud nodes' <<<"$(d find quorumless)"
 check "a project's docs/ too" grep -q 'Notes on the bridge' <<<"$(d find transport)"
-check "a language guide" grep -q 'dev .*Python' <<<"$(d find ruff)"
+# pyquux: a word only the stand-in README has (ruff is in the editors guide too).
+check "a language guide" grep -q 'dev .*Python' <<<"$(d find pyquux)"
 check "a phrase" grep -q 'service manager' <<<"$(d find '"sv down"')"
-check "OR" test "$(d find ruff OR transport | grep -c '^[a-z]')" = 2
+check "OR" test "$(d find pyquux OR transport | grep -c '^[a-z]')" = 2
 check "Vikix's guide should come first for a word it shares: $(d find runit | head -1)" grep -q '^vikix ' <<<"$(d find runit | head -1)"
 check "a Vikix checkout's guides aren't counted twice" bash -c "! grep -q '^repo .*vikix/docs' <<<\"\$1\"" _ "$(d find runit --limit 40)"
 check "--source keeps to one" bash -c "! grep -qv '^note\\|^  ' <<<\"\$1\"" _ "$(d find websocket --source note)"
 check "punctuation alone finds nothing, without an error" test "$(d find '***')" = "nothing found"
-id=$(d find ruff --json | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["id"])')
+id=$(d find pyquux --json | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["id"])')
 check "read gives the text" grep -q 'uv, ruff' <<<"$(d read "$id")"
 
 # The Cuis image's classes: a row a package (whose it is), a row a class with

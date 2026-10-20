@@ -49,6 +49,7 @@ Shipped in 0.59.0 and 0.60.0, in `config/emacs/vikix-ai.el` (linked to `~/.local
 
 ## 5. Afterwards, in Vikix
 
+- [ ] **A debugger for Python in Emacs:** dape with debugpy, the one piece `vikix-python.el` (Python as an IDE under `C-c p`, 2026-10-20) left for later; breakpoints and stepping in the same layout, `C-c p D`.
 
 - [ ] **vikix.dev: screenshots of AI in each editor** (void and paper), for the gallery. The page has a line for it, "AI in your editor", since 0.61.0.
 - [ ] **The Vikix MCP server** (`vikix mcp`, since 0.54.0): registered for the agents the editors start too.

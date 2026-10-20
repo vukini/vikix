@@ -16,7 +16,8 @@
 # agent-shell through `vikix agent --acp`), which the config loads when it
 # is there:
 #   ~/.local/share/vikix/emacs   a link to config/emacs (vikix-ai.el; and
-#                                vikix-theme.el, vikix-notes.el: the notes, C-c n)
+#                                vikix-theme.el, vikix-notes.el: the notes, C-c n,
+#                                vikix-python.el: Python as an IDE, C-c p)
 #
 # Then the pieces the configs assume are on the machine:
 #   - language servers: Void's come with each language's list (ccls in
@@ -88,12 +89,16 @@ emacs_live() {
          warn "couldn't reload Emacs's AI setup: emacs-restart when your chats are done"
        fi ;;
   esac
-  # The notes' keys (C-c n, vikix-notes.el): an Emacs started before its
-  # config loaded them gets them now, when the config does load them.
-  if [ -n "$loaded" ] && [ -f "$EMACS_LAYER/vikix-notes.el" ] &&
-     grep -qsF vikix-notes "$HOME/.emacs.d/config.org"; then
-    run timeout 5 emacsclient -e "(unless (featurep 'vikix-notes) (load \"$EMACS_LAYER/vikix-notes\" nil t))" >/dev/null 2>&1 || true
-  fi
+  # The notes' keys (C-c n, vikix-notes.el) and Python's (C-c p,
+  # vikix-python.el): an Emacs started before its config loaded them gets
+  # them now, when the config does load them.
+  local part
+  for part in vikix-notes vikix-python; do
+    if [ -n "$loaded" ] && [ -f "$EMACS_LAYER/$part.el" ] &&
+       grep -qsF "$part" "$HOME/.emacs.d/config.org"; then
+      run timeout 5 emacsclient -e "(unless (featurep '$part) (load \"$EMACS_LAYER/$part\" nil t))" >/dev/null 2>&1 || true
+    fi
+  done
 }
 
 # The starter Vikix copied: its init.lua loads Vikix's part.
