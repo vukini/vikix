@@ -222,9 +222,9 @@
 #
 # vk is the same command, shorter. A command can be given by the start of its
 # name when only one begins so (vk upd), and so can the word after it (vk
-# docs f runit); a start that fits several says which, unless the shortest
-# of them starts all the others (vk vers is version, not versions). Tab
-# completes them.
+# docs f runit); a command's start that fits several says which, unless the
+# shortest of them starts all the others (vk vers is version, not
+# versions). Tab completes them.
 
 set -euo pipefail
 
@@ -1080,19 +1080,25 @@ vikix_subcommands() {   # the words a command takes next, from the headers' usag
     grep -E '^[a-z][a-z0-9-]*$' | sort -u
 }
 
-vikix_resolve() {   # vikix_resolve WORD CANDIDATES...: the one WORD names, or why not
-  local word=$1 c hits=()
+vikix_resolve() {   # vikix_resolve [--nested] WORD CANDIDATES...: the one WORD names, or why not
+  # --nested: version and versions both fit "vers"; the shorter is meant,
+  # when it starts every other hit, since the longer can still be typed
+  # whole. For a command's name only: a word after it that fits several
+  # may be a name of the user's, and is left alone (vikix_expand).
+  local nested=0 word c hits=()
+  [ "$1" = --nested ] && { nested=1; shift; }
+  word=$1
   shift
   for c in "$@"; do [ "$c" = "$word" ] && { echo "$word"; return 0; }; done
   for c in "$@"; do [[ $c == "$word"* ]] && hits+=("$c"); done
   if [ "${#hits[@]}" -eq 1 ]; then echo "${hits[0]}"; return 0; fi
   if [ "${#hits[@]}" -gt 1 ]; then
-    # version and versions: the shorter, when it starts every other hit,
-    # since the longer can still be typed whole.
-    local shortest=${hits[0]} nested=1
-    for c in "${hits[@]}"; do [ "${#c}" -lt "${#shortest}" ] && shortest=$c; done
-    for c in "${hits[@]}"; do [[ $c == "$shortest"* ]] || nested=0; done
-    [ "$nested" = 1 ] && { echo "$shortest"; return 0; }
+    if [ "$nested" = 1 ]; then
+      local shortest=${hits[0]} all=1
+      for c in "${hits[@]}"; do [ "${#c}" -lt "${#shortest}" ] && shortest=$c; done
+      for c in "${hits[@]}"; do [[ $c == "$shortest"* ]] || all=0; done
+      [ "$all" = 1 ] && { echo "$shortest"; return 0; }
+    fi
     echo "${hits[*]}"; return 2
   fi
   return 1
@@ -1104,7 +1110,7 @@ vikix_complete() {   # vikix __complete INDEX WORDS-BEFORE...: what may come at 
   if [ "$index" -le 1 ]; then vikix_commands; return; fi
   local all words
   mapfile -t all < <(vikix_commands)
-  cmd=$(vikix_resolve "$1" "${all[@]}") || return 0
+  cmd=$(vikix_resolve --nested "$1" "${all[@]}") || return 0
   sub=${2:-}
   mapfile -t words < <(vikix_subcommands "$cmd")
   [ -n "$sub" ] && [ "$index" -ge 3 ] && sub=$(vikix_resolve "$sub" "${words[@]}") || true
@@ -1126,7 +1132,7 @@ vikix_expand() {   # the arguments, a command's and a subcommand's names made wh
   [ "$#" -gt 0 ] || return 0
   case $1 in -*|__complete) printf '%s\0' "$@"; return ;; esac
   mapfile -t all < <(vikix_commands)
-  if whole=$(vikix_resolve "$1" "${all[@]}"); then
+  if whole=$(vikix_resolve --nested "$1" "${all[@]}"); then
     cmd=$whole
   elif [ $? = 2 ]; then
     echo "vikix: \"$1\" could be: $whole" >&2; exit 2
