@@ -87,6 +87,8 @@ key Escape
 # A map of your own, from user.lisp.
 check "a map written in user.lisp is a key of the help: Super+Alt+F11, then x and then p under it" \
   yes '(let ((entries (vikix-key-entries))) (equal (mapcar (function first) (member "Super+Alt+F11" entries :key (function first) :test (function equal))) (list "Super+Alt+F11" "then x" "then p" "Super+1 ... Super+9" "Super+Shift+1 ... 9" "Ctrl+t then ?" "Super+Ctrl+Alt+Escape")))'
+check "the help says the prefix as it is: Ctrl+t now, Super+; once user.lisp moves it" \
+  yes '(and (equal (vikix-prefix-said) "Ctrl+t") (let ((*escape-key* (kbd "s-semicolon"))) (and (equal (vikix-prefix-said) "Super+;") (find "Super+; then ?" (vikix-key-entries) :key (function first) :test (function equal)) t)))'
 key super+alt+F11
 check "it opens: $(open)" test "$(open)" = tmap
 key x

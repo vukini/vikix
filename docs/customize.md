@@ -69,6 +69,15 @@ The card puts each key in a group by what it runs: a program started with `exec`
 
 After `Ctrl+t`, StumpWM's prefix, the keys that can follow appear if you wait (StumpWM's which-key-mode, which Vikix turns on). To have it off, put `(vikix-which-key nil)` in user.lisp. Don't call `(which-key-mode)` there: it switches on and off, so every reload would flip it.
 
+The prefix can move, since many programs want `Ctrl+t` for themselves (a new tab, a transposition). In user.lisp:
+
+```lisp
+(set-prefix-key (kbd "s-semicolon"))          ; the prefix is Super+;
+(define-key *root-map* (kbd ";") "colon")     ; and Super+; then ; is still the command prompt
+```
+
+The second line matters: StumpWM gives the plain key after the prefix (here `;`) to "send this key through to the program", which is where the command prompt (`colon`) sat. The key card, `Super+F1`, the menu and `vikix why` all say the prefix as it is now.
+
 `Super+m` → *What does a key do?* tells you what any key is bound to now.
 
 ### The rule for keys

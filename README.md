@@ -222,7 +222,7 @@ If you already had a StumpWM config, it becomes your `user.lisp`. Anything else 
 
 Keys without Super keep their own ways: Print (Shift keeps a file, Ctrl is the window, Super the screen) and the laptop's own keys. `vikix doctor` names a key that breaks the rule, and Vikix's tests fail on one of its own.
 
-StumpWM's own `Ctrl+t` prefix keys still work too: press `Ctrl+t` and wait, and StumpWM lists the keys that can follow (its which-key-mode). Focus follows the mouse: pointing at a window focuses it, without a click. Only the mouse moving does that: a window that comes under a pointer you haven't moved (one raised over another) doesn't take the focus, so a window you went to with a key keeps it. To click instead, put `(setf *mouse-focus-policy* :click)` in `user.lisp`.
+StumpWM's own `Ctrl+t` prefix keys still work too: press `Ctrl+t` and wait, and StumpWM lists the keys that can follow (its which-key-mode). The prefix can move when programs want `Ctrl+t` (see [docs/customize.md](docs/customize.md)). Focus follows the mouse: pointing at a window focuses it, without a click. Only the mouse moving does that: a window that comes under a pointer you haven't moved (one raised over another) doesn't take the focus, so a window you went to with a key keeps it. To click instead, put `(setf *mouse-focus-policy* :click)` in `user.lisp`.
 
 <!-- readme-keys: made by lib/skill-keys.sh from registry.lisp; don't edit, run it with --write -->
 | Key | What it does |

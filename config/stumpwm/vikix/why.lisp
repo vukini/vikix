@@ -177,7 +177,8 @@ as StumpWM has them, first pressed first."
            (vikix-why-note :asked (list :typed command)
                            :what "A command you typed"
                            :does (format nil "ran ~a~@[ (~a)~]" command (vikix-why-command-words command))
-                           :from "after Ctrl+t ; or from a menu of commands"
+                           :from (format nil "after ~a ; or from a menu of commands"
+                                         (if (fboundp 'vikix-prefix-said) (funcall 'vikix-prefix-said) "Ctrl+t"))
                            :command command))
           (t
            (vikix-why-note :asked (list :outside command)

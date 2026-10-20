@@ -57,6 +57,7 @@ plugin_keys() {
   echo "(load \"$registry\")"
   echo '(defparameter *vikix-bindings* (vikix-registry-bindings))'
   awk '/^\(defparameter \*vikix-key-names\*/,/^$/; /^\(defun vikix-pretty-key/,/^$/;
+       /^\(defun vikix-prefix-said/,/^$/;
        /^\(defparameter \*vikix-extra-keys\*/,/^$/; /^\(defparameter \*vikix-key-groups\*/,/^$/;
        /^\(defun vikix-command-word/,/^$/; /^\(defun vikix-key-group/,/^$/;
        /^\(defun vikix-map-sorted/,/^$/; /^\(defun vikix-key-entries/,/^$/' "$help"

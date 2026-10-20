@@ -9,10 +9,11 @@
 ;;;;   vikix-keys-card (s-/)   every Vikix key on one card, grouped
 ;;;;   vikix-keys      (s-F1)  every Vikix key, searchable; pick one to run it
 ;;;;   vikix-commands          every StumpWM command, with its description
-;;;;   vikix-prefix-keys       StumpWM's own keys, after the prefix Ctrl+t
+;;;;   vikix-prefix-keys       StumpWM's own keys, after the prefix (Ctrl+t,
+;;;;                           or the one user.lisp set: vikix-prefix-said)
 ;;;;   describe-key      (StumpWM's own) press a key, see what it does
 ;;;;
-;;;; And which-key-mode: after Ctrl+t, StumpWM shows the keys that can follow.
+;;;; And which-key-mode: after the prefix, StumpWM shows the keys that can follow.
 
 (in-package :stumpwm)
 
@@ -49,12 +50,21 @@ a map, the two keys with a space between (\"s-C-SPC m\"), reads
     (concatenate 'string mods
                  (or (cdr (assoc rest *vikix-key-names* :test #'string=)) rest))))
 
+(defun vikix-prefix-said ()
+  "StumpWM's prefix key as the keyboard says it: \"Ctrl+t\", or the one
+user.lisp set with set-prefix-key (\"Super+;\"). Read each time, since
+user.lisp loads after this file."
+  (if (and (boundp '*escape-key*) (fboundp 'print-key))
+      (vikix-pretty-key (funcall 'print-key (symbol-value '*escape-key*)))
+      "Ctrl+t"))
+
 ;; Keys bound some other way than from *vikix-bindings* (the workspace
-;; keys are bound in a loop in keys.lisp), as the help writes them.
+;; keys are bound in a loop in keys.lisp), as the help writes them. The
+;; label :prefix is StumpWM's prefix key, read when the entries are made.
 (defparameter *vikix-extra-keys*
   '(("Super+1 ... Super+9" "Go to workspace 1-9 (Super+0: the named ones, a letter each; / types one, new or not)" "grouplist")
     ("Super+Shift+1 ... 9" "Send window to workspace 1-9, 0 the named ones, a letter each (on a strip: its whole column)" "vikix-send")
-    ("Ctrl+t then ?" "StumpWM's own keys (after the prefix)" "vikix-prefix-keys")
+    (:prefix "StumpWM's own keys (after the prefix)" "vikix-prefix-keys")
     ;; Not one of StumpWM's keys: rescue.lisp reads it on a connection of
     ;; its own, so it works when these don't.
     ("Super+Ctrl+Alt+Escape" "Free a stuck desktop (it works when no other key does)" "vikix-rescue"))
@@ -211,7 +221,8 @@ room for them, and the opener's words name them."
                            (vikix-key-group command)))
        (mapcar (lambda (e)
                  (destructuring-bind (label description command) e
-                   (list label description command (vikix-key-group command))))
+                   (list (if (eq label :prefix) (format nil "~a then ?" (vikix-prefix-said)) label)
+                         description command (vikix-key-group command))))
                *vikix-extra-keys*)))))
 
 (defun vikix-keys-table ()
@@ -226,7 +237,8 @@ is as wide as the longest key, so no key runs into its description."
             rows)))
 
 (defcommand vikix-prefix-keys () ()
-  "Show StumpWM's own keys: the ones pressed after the prefix key (Ctrl+t)."
+  "Show StumpWM's own keys: the ones pressed after the prefix key (Ctrl+t,
+or the one user.lisp set with set-prefix-key)."
   (display-bindings-for-keymaps (list *escape-key*) *root-map*))
 
 (defcommand vikix-keys () ()
@@ -419,7 +431,7 @@ the columns, the key width and the description width."
                                        columns)))
          (list ""
                (concatenate 'string hint "Super+F1 searches these and runs one.  "
-                            "Ctrl+t, then wait: StumpWM's own keys.^n")))))))
+                            (vikix-prefix-said) ", then wait: StumpWM's own keys.^n")))))))
 
 (defun vikix-card-size ()
   "How many lines and characters of the message font fit on the monitor
