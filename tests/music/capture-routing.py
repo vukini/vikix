@@ -64,10 +64,18 @@ with tempfile.TemporaryDirectory(prefix='music-private-audio-') as temp:
             until(lambda: any(x.get('info', {}).get('props', {}).get('node.name', '').startswith('vikix-music-') for x in graph()))
             command('record')
             assert command('state')['recording']['take']['source'] == 'engine'
-            time.sleep(.6)
+            take_id = command('state')['recording']['take']['id']
+            audio = folder/'music/inbox'/take_id/'audio.pcm'
+            # Starting the graph and scheduling its first audible block are
+            # asynchronous; observe PCM instead of assuming 600 ms is enough.
+            try:
+                until(lambda: audio.exists() and any(audio.read_bytes()), seconds=10)
+            except AssertionError:
+                raise AssertionError('real engine capture was silent: ' + log.name + '\n' +
+                                     Path(log.name).read_text()[-4000:] + '\n' +
+                                     json.dumps(graph()))
             command('record-stop')
             take = command('inbox')['captures'][0]
-            audio = folder/'music/inbox'/take['id']/'audio.pcm'
             assert take['bytes'] > 0 and any(audio.read_bytes()), 'real engine capture was silent'
             command('stop')
             end(children.pop())

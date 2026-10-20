@@ -80,7 +80,12 @@ with tempfile.TemporaryDirectory(prefix="vikix-music-test-") as temp:
     commands = t / "bin"
     commands.mkdir()
     real_sbcl = shutil.which("sbcl")
-    (commands / "sbcl").write_text('#!/bin/sh\necho $$ >> "$MUSIC_TEST/lisp.pids"\nexec ' + shlex.quote(real_sbcl) + ' "$@"\n')
+    (commands / "sbcl").write_text('#!/usr/bin/env python3\n' +
+        'import os, pathlib, sys\n' +
+        'stamp = pathlib.Path("/proc/self/stat").read_text().rsplit(")", 1)[1].split()[19]\n' +
+        'with (pathlib.Path(os.environ["MUSIC_TEST"]) / "lisp.pids").open("a") as out:\n' +
+        '    out.write(f"{os.getpid()} {stamp}\\n")\n' +
+        f'os.execv({real_sbcl!r}, [{real_sbcl!r}, *sys.argv[1:]])\n')
     (commands / "pw-jack").write_text('#!/bin/sh\nexec "$@"\n')
     (commands / "scsynth").write_text('#!/bin/sh\nexec python3 ' + shlex.quote(__file__) + ' --engine "$@"\n')
     (commands / "notify-send").write_text('#!/bin/sh\nexit 0\n')
@@ -381,12 +386,15 @@ with tempfile.TemporaryDirectory(prefix="vikix-music-test-") as temp:
             assert not (t / 'events').exists()
     finally:
         wrapper.write_text(normal_wrapper)
-    for pid in (t / "lisp.pids").read_text().splitlines():
+    # A long test can wrap the PID space while other suites run. Compare
+    # start times too, so a new process is never mistaken for our old child.
+    for record in (t / "lisp.pids").read_text().splitlines():
+        pid, stamp = record.split()
         try:
-            os.kill(int(pid), 0)
-        except ProcessLookupError:
+            current = Path('/proc', pid, 'stat').read_text().rsplit(')', 1)[1].split()
+        except FileNotFoundError:
             continue
-        raise AssertionError("Lisp child survived: " + pid)
+        assert current[19] != stamp, f"Lisp child survived: {pid} ({current[0]})"
     # Repeated setup prepares assets but does not overwrite a user's pattern.
     saved = pattern.read_text()
     (home / "quicklisp").mkdir()
