@@ -24,7 +24,14 @@ unset ANTHROPIC_API_KEY
 export ANTHROPIC_BASE_URL=http://127.0.0.1:9
 here=$(cd "$(dirname "$0")/.." && pwd)
 t=$(mktemp -d)
-trap 'rm -rf "$t"' EXIT
+ui_pids=()
+cleanup_ui() {
+  local pid
+  for pid in "${ui_pids[@]}"; do kill "$pid" 2>/dev/null || true; done
+  for pid in "${ui_pids[@]}"; do wait "$pid" 2>/dev/null || true; done
+  ui_pids=()
+}
+trap 'cleanup_ui; rm -rf "$t"' EXIT
 export HOME="$t/home" XDG_CONFIG_HOME="$t/home/.config" XDG_DATA_HOME="$t/home/.local/share" XDG_CACHE_HOME="$t/home/.cache"
 export VIKIX_DOCS_SOURCES="" VIKIX_DIR="$here" VIKIX_DOCS_CUIS="$t/home/cuis"
 mkdir -p "$HOME/src/music/.git" "$HOME/src/music/docs" "$HOME/src/music-wt" "$HOME/dev/python" "$HOME/notes/vault/Books" "$t/bin"
@@ -313,26 +320,75 @@ if command -v Xvfb >/dev/null && command -v rofi >/dev/null && command -v xdotoo
   while [ -e "/tmp/.X$n-lock" ] || [ -e "/tmp/.X11-unix/X$n" ]; do n=$((n + 1)); done
   Xvfb ":$n" -screen 0 1024x768x24 -nolisten tcp >/dev/null 2>&1 &
   xvfb=$!
-  sleep 1
+  ui_pids+=("$xvfb")
+  for _ in $(seq 1 50); do
+    xdpyinfo -display ":$n" >/dev/null 2>&1 && break
+    sleep .1
+  done
   printf '#!/bin/sh\necho "browser $*" >> %s/opened\n' "$t" > "$t/bin/notify-send"; chmod +x "$t/bin/notify-send"
-  # rofi's process, not the clock: on a busy machine the menu isn't up when
-  # the keys come. Not its window: asking X for it (xdotool search) beside
-  # rofi's keyboard grab stalled the display until the pick's timeout. Each
-  # rofi is known by its own words (the first's prompt, the second's), and a
-  # second after it is seen its window has the keyboard.
-  rofi_wait() { for _ in $(seq 1 150); do pgrep -f -- "$1" >/dev/null && return; sleep 0.1; done; }
+  # Other desks can have the same rofi prompt open. Only this pick's child
+  # counts as ready; a machine-wide pgrep sent keys before our menu existed.
+  # Stay off X while rofi grabs the keyboard: window searches stalled it.
+  rofi_wait() {
+    python3 - "$pick" "$@" <<'PYROFI'
+from pathlib import Path
+import os
+import sys
+import time
+root, wanted = int(sys.argv[1]), sys.argv[2:]
+def parent(pid):
+    text = (Path("/proc") / str(pid) / "stat").read_text()
+    return int(text[text.rindex(")") + 2:].split()[1])
+def ours(pid):
+    seen = set()
+    while pid > 1 and pid not in seen:
+        if pid == root:
+            return True
+        seen.add(pid)
+        pid = parent(pid)
+    return False
+end = time.monotonic() + 15
+while time.monotonic() < end:
+    for path in Path("/proc").iterdir():
+        if not path.name.isdigit():
+            continue
+        try:
+            args = [os.fsdecode(a) for a in (path / "cmdline").read_bytes().split(b"\0") if a]
+            if args:
+                args[0] = os.path.basename(args[0])
+            if args[:len(wanted)] == wanted and ours(int(path.name)):
+                sys.exit(0)
+        except (OSError, ValueError):
+            continue
+    time.sleep(.1)
+sys.exit("this document pick did not open its expected rofi prompt")
+PYROFI
+  }
   for way in Return ctrl+Return; do
     : > "$t/opened"
-    ( rofi_wait "rofi -dmenu -p docs"; sleep 1
-      DISPLAY=":$n" xdotool type mypy; DISPLAY=":$n" xdotool key Return
-      rofi_wait "rofi -dmenu -i -p mypy"; sleep 1; DISPLAY=":$n" xdotool key "$way" ) &
-    keys=$!
-    DISPLAY=":$n" timeout 20 python3 "$here/bin/vikix-docs" pick || true
-    wait "$keys" || true; sleep 0.5
+    DISPLAY=":$n" timeout --kill-after=3s 30s python3 "$here/bin/vikix-docs" pick >"$t/pick-out" 2>"$t/pick-errors" &
+    pick=$!
+    ui_pids+=("$pick")
+    if rofi_wait rofi -dmenu -p docs; then
+      sleep 1
+      DISPLAY=":$n" xdotool type mypy
+      DISPLAY=":$n" xdotool key Return
+      if rofi_wait rofi -dmenu -i -p mypy; then
+        sleep 1
+        DISPLAY=":$n" xdotool key "$way"
+      else
+        fail=1
+      fi
+    else
+      fail=1
+    fi
+    wait "$pick" || { cat "$t/pick-errors"; fail=1; }
+    ui_pids=("$xvfb")
+    sleep .5
     if [ "$way" = Return ]; then want='^browser .*/md/.*\.html'; else want="emacsclient -c -n .*dev/python/README.md"; fi
     check "Super+F2's menus: $way should open the hit its way: $(cat "$t/opened")" grep -q "$want" "$t/opened"
   done
-  kill "$xvfb" 2>/dev/null || true
+  cleanup_ui
 fi
 
 # The page in Nyxt: the hits as id, source, title, excerpt; the page asked of
