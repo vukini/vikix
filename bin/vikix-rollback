@@ -1,0 +1,218 @@
+#!/usr/bin/env bash
+# vikix-rollback — the system as it was before the last update, in one step (`vikix rollback`).
+#
+#   vikix rollback            what is kept, newest first, and what a restore
+#                               would do; whether / takes snapshots (btrfs)
+#   vikix rollback keep       write a record of the system as it is now:
+#                               Vikix's commit and version, the package set,
+#                               the StumpWM binary (vikix update does this
+#                               before it pulls); on btrfs with snapper, a
+#                               snapshot of / too
+#   vikix rollback keep packages
+#                               add to the newest record the packages an
+#                               update is about to change, with their files
+#                               from xbps's cache (vikix update does this
+#                               before it updates Void)
+#   vikix rollback restore [ID]   back to the newest record (or ID): ~/vikix
+#                               at its commit with its links put back, the
+#                               packages that changed reinstalled from the
+#                               record (sudo), the StumpWM binary back; then
+#                               log out and in. vikix update --back is the same
+#   vikix rollback forget     drop the records
+#
+# `vikix undo` is for your files; this is for the system under them: what
+# `vikix update` changes. Each record is a folder in ~/.local/state/vikix/
+# rollback/, named by its time: commit, version, packages (xbps-query -l),
+# changes (what the update was about to do, from xbps-install -un), pkgs/
+# (those packages' files as they were, copied from /var/cache/xbps, where
+# they still are at that moment), stumpwm (the binary, when it differs from
+# the record before), and snapshot (snapper's number, on btrfs). The two
+# newest records are kept.
+#
+# A restore puts ~/vikix at the record's commit (off main: the next vikix
+# update goes forward again from there), runs 40-config so the links point
+# where they did, copies the StumpWM binary back, and reinstalls the
+# recorded packages from the record's files (xbps-rindex makes it a
+# repository; xbps-install -f takes a version down as well as up). A
+# package whose file wasn't in the cache stays at the new version and is
+# named. Your files aren't touched: vikix undo is theirs. StumpWM runs the
+# old binary and config at the next login.
+#
+# On btrfs, with snapper set up for / (snapper list-configs names root),
+# keep also takes a read-only snapshot, and restore says the snapper
+# rollback line (a reboot applies it) rather than doing it: whole-system
+# rollback is snapper's, and reboots. On ext4 nothing of that is said
+# unless asked (vikix rollback).
+
+set -euo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+
+checkout=${VIKIX_ROLLBACK_CHECKOUT:-$VIKIX_DIR}     # tests: a made-up checkout
+cache=${VIKIX_ROLLBACK_CACHE:-/var/cache/xbps}      # tests: a made-up cache
+SUDO=${VIKIX_ROLLBACK_SUDO-sudo}                    # tests: "" does without
+state=${VIKIX_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/vikix}
+records="$state/rollback"
+wm_bin="$HOME/.local/bin/stumpwm"
+keep_records=2
+
+# The records, oldest first; none is no error (pipefail would make it one).
+list_records() { ls -1d "$records"/20* 2>/dev/null | sort || true; }
+newest() { list_records | tail -1; }
+
+record_of() {   # record_of [ID]: the record's folder, or dies
+  local id=${1:-}
+  if [ -z "$id" ]; then
+    newest
+  elif [ -d "$records/$id" ]; then
+    echo "$records/$id"
+  else
+    die "no record $id (vikix rollback lists them)"
+  fi
+}
+
+root_is_btrfs() { [ "$(findmnt -n -o FSTYPE / 2>/dev/null)" = btrfs ]; }
+
+snapper_root() {   # whether snapper is here with a config for /
+  command -v snapper >/dev/null 2>&1 && $SUDO snapper list-configs 2>/dev/null | awk 'NR > 2 {print $1}' | grep -qx root
+}
+
+cmd_keep() {
+  local what=${1:-}
+  if [ "$what" = packages ]; then keep_packages; return; fi
+  [ -z "$what" ] || die "vikix rollback keep [packages]"
+  local stamp dir
+  stamp=$(date +%Y%m%d-%H%M%S)
+  dir="$records/$stamp"
+  mkdir -p "$dir/pkgs"
+  git -C "$checkout" rev-parse HEAD > "$dir/commit" 2>/dev/null || die "$checkout isn't a git checkout"
+  cat "$checkout/VERSION" > "$dir/version" 2>/dev/null || echo "?" > "$dir/version"
+  xbps-query -l > "$dir/packages" 2>/dev/null || : > "$dir/packages"
+  # The StumpWM binary, once per version of it: the record before holds
+  # the same one when its hash is the same, and says so.
+  if [ -f "$wm_bin" ]; then
+    local sum prev
+    sum=$(sha256sum < "$wm_bin" | cut -d' ' -f1)
+    prev=$(list_records | grep -v -x "$dir" | tail -1 || true)
+    if [ -n "$prev" ] && [ "$(cat "$prev/stumpwm.sha256" 2>/dev/null)" = "$sum" ] && [ -f "$prev/stumpwm" ]; then
+      ln "$prev/stumpwm" "$dir/stumpwm" 2>/dev/null || cp "$prev/stumpwm" "$dir/stumpwm"
+    else
+      cp "$wm_bin" "$dir/stumpwm"
+    fi
+    echo "$sum" > "$dir/stumpwm.sha256"
+  fi
+  if root_is_btrfs && snapper_root; then
+    local number
+    number=$($SUDO snapper -c root create --read-only --print-number -d "before vikix update $(cat "$dir/version")" 2>/dev/null || true)
+    [ -n "$number" ] && echo "$number" > "$dir/snapshot"
+  fi
+  # The two newest stay.
+  local old
+  for old in $(list_records | head -n -"$keep_records"); do rm -rf "$old"; done
+  say "kept the system as it is: Vikix $(cat "$dir/version") at $(cut -c1-7 "$dir/commit")$([ -f "$dir/stumpwm" ] && echo ", the StumpWM binary")$([ -f "$dir/snapshot" ] && echo ", snapshot $(cat "$dir/snapshot") of /") ($dir)"
+}
+
+keep_packages() {
+  local dir arch pkgver action name installed file n=0 kept=0
+  dir=$(newest)
+  [ -n "$dir" ] || die "no record to add to: vikix rollback keep first"
+  arch=$(xbps-uhelper arch 2>/dev/null || echo x86_64)
+  : > "$dir/changes"
+  # What the update is about to do: pkgver and the action, a line each.
+  while read -r pkgver action _; do
+    case $action in update|remove|install) ;; *) continue ;; esac
+    name=$(xbps-uhelper getpkgname "$pkgver" 2>/dev/null || echo "${pkgver%-*}")
+    installed=$(xbps-query -p pkgver "$name" 2>/dev/null || true)
+    [ -n "$installed" ] || continue      # new to the machine: nothing to go back to
+    n=$((n + 1))
+    file="$cache/$installed.$arch.xbps"
+    if [ -f "$file" ]; then
+      cp "$file" "$dir/pkgs/"
+      [ -f "$file.sig2" ] && cp "$file.sig2" "$dir/pkgs/" || true
+      kept=$((kept + 1))
+      printf '%s %s kept\n' "$installed" "$action" >> "$dir/changes"
+    else
+      printf '%s %s not-in-cache\n' "$installed" "$action" >> "$dir/changes"
+    fi
+  done < <($SUDO xbps-install -Sun 2>/dev/null || true)
+  if [ "$n" = 0 ]; then say "no package of Void's is about to change"
+  else say "kept $kept of the $n packages about to change, as they are now"; fi
+}
+
+cmd_status() {
+  local dir n
+  if root_is_btrfs; then
+    if snapper_root; then echo "/ is btrfs with snapper: keep takes a snapshot of / too, and restore says the rollback line"
+    else echo "/ is btrfs, without snapper for /: no snapshot of / (xbps-install snapper, snapper create-config /)"; fi
+  else
+    echo "/ is $(findmnt -n -o FSTYPE / 2>/dev/null || echo '?'): no snapshot of /; a restore puts back what vikix update changed"
+  fi
+  n=$(list_records | wc -l)
+  if [ "$n" = 0 ]; then echo "nothing kept yet: vikix update keeps a record before it starts"; return 0; fi
+  echo "kept, newest first (vikix rollback restore [ID]):"
+  for dir in $(list_records | sort -r); do
+    local id changes kept
+    id=$(basename "$dir")
+    changes=$(wc -l < "$dir/changes" 2>/dev/null || echo 0)
+    kept=$(grep -c ' kept$' "$dir/changes" 2>/dev/null || echo 0)
+    printf '  %s  Vikix %s at %s  %s packages changed (%s kept)%s%s\n' "$id" "$(cat "$dir/version")" "$(cut -c1-7 "$dir/commit")" \
+      "$changes" "$kept" "$([ -f "$dir/stumpwm" ] && echo ', the StumpWM binary')" "$([ -f "$dir/snapshot" ] && echo ", snapshot $(cat "$dir/snapshot")")"
+  done
+}
+
+cmd_restore() {
+  local dir commit pkgs=() missing=() pkgver action how
+  dir=$(record_of "${1:-}")
+  [ -n "$dir" ] || die "nothing kept yet: a vikix update keeps a record before it starts"
+  commit=$(cat "$dir/commit")
+  say "back to Vikix $(cat "$dir/version") ($(basename "$dir"))"
+  # ~/vikix at its commit, off main; the links put back where they pointed.
+  if [ "$(git -C "$checkout" rev-parse HEAD)" != "$commit" ]; then
+    run git -C "$checkout" checkout -q "$commit" || die "$checkout couldn't go to $commit"
+    say "$checkout is at $(cut -c1-7 <<<"$commit"), off main: the next vikix update goes forward again"
+  fi
+  if [ -f "$checkout/install/40-config.sh" ]; then
+    run bash "$checkout/install/40-config.sh" || warn "40-config failed; the links may point at newer files"
+  fi
+  if [ -f "$dir/stumpwm" ]; then
+    if [ -f "$wm_bin" ] && [ "$(sha256sum < "$wm_bin" | cut -d' ' -f1)" = "$(cat "$dir/stumpwm.sha256")" ]; then
+      say "the StumpWM binary is the record's already"
+    else
+      run cp "$dir/stumpwm" "$wm_bin.back" && run mv "$wm_bin.back" "$wm_bin"
+      say "the StumpWM binary is back as it was"
+    fi
+  fi
+  while read -r pkgver action how; do
+    case $how in
+      kept) pkgs+=("$pkgver") ;;
+      *) missing+=("$pkgver") ;;
+    esac
+  done < "$dir/changes" 2>/dev/null || true
+  if [ "${#pkgs[@]}" -gt 0 ]; then
+    say "reinstalling ${#pkgs[@]} packages as they were (your sudo password, for xbps)"
+    run $SUDO xbps-rindex -a "$dir"/pkgs/*.xbps >/dev/null || die "couldn't index the kept packages"
+    run $SUDO xbps-install -y -f --repository="$dir/pkgs" "${pkgs[@]}" || die "xbps couldn't put the packages back (above)"
+  fi
+  if [ "${#missing[@]}" -gt 0 ]; then
+    warn "${#missing[@]} packages had no file in xbps's cache when the record was made, so they stay at the new version: ${missing[*]}"
+  fi
+  if [ -f "$dir/snapshot" ]; then
+    say "/ has snapshot $(cat "$dir/snapshot") from before that update: sudo snapper -c root rollback $(cat "$dir/snapshot"), then reboot, takes all of / back to it"
+  fi
+  say "done: log out and in, so StumpWM runs the binary and config of before"
+}
+
+cmd_forget() {
+  rm -rf "$records"
+  say "the records are gone"
+}
+
+case ${1:-} in
+  '')        cmd_status ;;
+  keep)      shift; cmd_keep "$@" ;;
+  restore)   shift; cmd_restore "$@" ;;
+  forget)    cmd_forget ;;
+  -h|--help|help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *)         die "vikix rollback [keep [packages]|restore [ID]|forget] (vikix rollback --help)" ;;
+esac

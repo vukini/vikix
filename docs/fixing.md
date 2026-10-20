@@ -50,7 +50,7 @@ StumpWM is a Lisp program, and Lisp doesn't have to give up when something fails
 
 When a `(` is never closed, the file can't be read past it, so only the last three are offered.
 
-An error in one of Vikix's own files (`keys.lisp` …) is a bug in Vikix. `vikix update` may already have the fix. If not, please report it.
+An error in one of Vikix's own files (`keys.lisp` …) is a bug in Vikix. `vikix update` may already have the fix. If not, please report it. And if an update brought the trouble, `vikix update --back` puts the system as it was before it: Vikix at its last commit, the packages that changed, the StumpWM binary (`vikix rollback` says what is kept).
 
 **Something failed that StumpWM doesn't catch** (an error in a timer, or while handling a window). StumpWM's answer used to be to restart: set everything up again and reload every file. The menu offers first:
 

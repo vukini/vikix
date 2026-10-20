@@ -64,6 +64,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-rescue](#vikix-rescue): a way out when the desktop is stuck
 - [vikix-resume](#vikix-resume): your windows back after a restart
 - [vikix-rofi](#vikix-rofi): rofi's plugin modes, set up the Vikix way
+- [vikix-rollback](#vikix-rollback): the system as it was before the last update, in one step
 - [vikix-rules](#vikix-rules): the desktop's rules, seen and steered
 - [vikix-screens](#vikix-screens): the screens: a new one lights up by itself, and a menu for the rest
 - [vikix-screenshot](#vikix-screenshot): keep a picture of an area, a window or the whole screen
@@ -93,6 +94,8 @@ The everyday command.
 - `vikix update core|system|tools` — one part: Vikix only (seconds), Void's packages only, or the editors, languages and tools
 - `vikix try [DESK]` — the desktop runs a desk's work before it is released: `~/vikix` is put at the desk's last commit and the core update's steps run; DESK is a desk's folder, topic or branch, none the desk this shell is in (vikix try help)
 - `vikix try off|status` — back to main now; what the desktop runs
+- `vikix update --back` — the system as it was before the last update: Vikix's commit and links, the packages that changed, the StumpWM binary (vikix rollback: what is kept)
+- `vikix rollback [keep|restore [ID]|forget]` — the records vikix update keeps before it starts, and a restore by hand (vikix rollback --help)
 - `vikix migrate` — run only the migrations not yet applied
 - `vikix rebuild-wm` — rebuild the StumpWM executable (after a Quicklisp update)
 - `vikix docs find WORDS` — every document on the machine, searched: Vikix's guides, your projects and notes, man pages, manuals (Super+F2; vikix docs help for the rest)
@@ -1269,6 +1272,22 @@ Rofi's plugin modes, set up the Vikix way.
 - `vikix-rofi calc` — a calculator that answers as you type (qalculate): 340 `*` 12%, 5 ft to cm, 100 USD to EUR, today + 30 days. (Not "12% of 340": qalculate reads that % as a remainder.) Enter copies the answer to the clipboard; Ctrl+Enter keeps it in the list below instead.
 
 Both are rofi plugins (rofi-emoji, rofi-calc in packages/desktop.list). Without one, a notification says what to install instead of rofi failing silently.
+
+## vikix-rollback
+
+The system as it was before the last update, in one step.
+
+- `vikix rollback` — what is kept, newest first, and what a restore would do; whether / takes snapshots (btrfs)
+- `vikix rollback keep` — write a record of the system as it is now: Vikix's commit and version, the package set, the StumpWM binary (vikix update does this before it pulls); on btrfs with snapper, a snapshot of / too
+- `vikix rollback keep packages` — add to the newest record the packages an update is about to change, with their files from xbps's cache (vikix update does this before it updates Void)
+- `vikix rollback restore [ID]` — back to the newest record (or ID): `~/vikix` at its commit with its links put back, the packages that changed reinstalled from the record (sudo), the StumpWM binary back; then log out and in. vikix update --back is the same
+- `vikix rollback forget` — drop the records
+
+`vikix undo` is for your files; this is for the system under them: what `vikix update` changes. Each record is a folder in `~/.local/state/vikix/` rollback/, named by its time: commit, version, packages (xbps-query -l), changes (what the update was about to do, from xbps-install -un), pkgs/ (those packages' files as they were, copied from /var/cache/xbps, where they still are at that moment), stumpwm (the binary, when it differs from the record before), and snapshot (snapper's number, on btrfs). The two newest records are kept.
+
+A restore puts `~/vikix` at the record's commit (off main: the next vikix update goes forward again from there), runs 40-config so the links point where they did, copies the StumpWM binary back, and reinstalls the recorded packages from the record's files (xbps-rindex makes it a repository; xbps-install -f takes a version down as well as up). A package whose file wasn't in the cache stays at the new version and is named. Your files aren't touched: vikix undo is theirs. StumpWM runs the old binary and config at the next login.
+
+On btrfs, with snapper set up for / (snapper list-configs names root), keep also takes a read-only snapshot, and restore says the snapper rollback line (a reboot applies it) rather than doing it: whole-system rollback is snapper's, and reboots. On ext4 nothing of that is said unless asked (vikix rollback).
 
 ## vikix-rules
 

@@ -12,6 +12,11 @@
 #                         update's steps run; DESK is a desk's folder, topic or
 #                         branch, none the desk this shell is in (vikix try help)
 #   vikix try off|status   back to main now; what the desktop runs
+#   vikix update --back   the system as it was before the last update: Vikix's
+#                         commit and links, the packages that changed, the
+#                         StumpWM binary (vikix rollback: what is kept)
+#   vikix rollback [keep|restore [ID]|forget]   the records vikix update keeps
+#                         before it starts, and a restore by hand (vikix rollback --help)
 #   vikix migrate       run only the migrations not yet applied
 #   vikix rebuild-wm    rebuild the StumpWM executable (after a Quicklisp update)
 #   vikix docs find WORDS  every document on the machine, searched: Vikix's
@@ -375,6 +380,10 @@ vikix update system   Void's packages only (xbps-install -Su)
 vikix update tools    the editors' plugins and servers, the languages built
                         from source, ~/dev, llm, and your own pipx, uv and
                         cargo programs
+vikix update --back   the system as it was before the last update: Vikix at
+                        its commit with its links, the packages that changed
+                        reinstalled from the record, the StumpWM binary back
+                        (vikix rollback shows what is kept)
 EOF
 }
 
@@ -501,6 +510,7 @@ cmd_update() {
     a=$1; shift
     case $a in
       --pulled) pulled=1 ;;
+      --back) exec "$VIKIX_DIR/bin/vikix-rollback" restore "$@" ;;
       --from) from=${1:-}; [ "$#" -gt 0 ] && shift; [ -n "$from" ] || die "--from needs a folder: vikix update core --from ~/src/vikix" ;;
       --from=*) from=${a#--from=} ;;
       ''|all) ;;
@@ -540,6 +550,8 @@ cmd_update() {
     if [ -z "$pulled" ]; then
       set_aside_local_changes "$VIKIX_DIR"
       try_back
+      # The system as it is, before anything changes: vikix update --back.
+      bash "$VIKIX_DIR/bin/vikix-rollback" keep || warn "no record of the system as it is (vikix rollback); carrying on"
       if [ -n "$from" ]; then
         # Your own repository's main, without GitHub: commits you haven't
         # pushed yet. Only a fast-forward, so ~/vikix stays a step of the
@@ -563,6 +575,13 @@ cmd_update() {
     say "updating Void"
     # xbps refuses every other install until xbps itself is current.
     run sudo xbps-install -Syu xbps
+    # The packages about to change, as they are, into the record (vikix
+    # update --back puts them back from there). A system-only update has
+    # no record of its own yet: one is made first.
+    if [ "$part" = system ]; then
+      bash "$VIKIX_DIR/bin/vikix-rollback" keep || warn "no record of the system as it is (vikix rollback); carrying on"
+    fi
+    bash "$VIKIX_DIR/bin/vikix-rollback" keep packages || warn "the packages about to change weren't kept (vikix rollback); carrying on"
     run sudo xbps-install -Su
   fi
   # One failed stage (a network hiccup in 45-editors, say) must not keep
@@ -1173,6 +1192,7 @@ main() {
     __complete)  shift; vikix_complete "$@" ;;
     update)      shift; cmd_update "$@" ;;
     try)         shift; cmd_try "$@" ;;
+    rollback)    shift; exec "$VIKIX_DIR/bin/vikix-rollback" "$@" ;;
     migrate)     cmd_migrate ;;
     rebuild-wm)  VIKIX_REBUILD_WM=1 bash "$VIKIX_DIR/install/30-lisp.sh" ;;
     docs)        shift; exec python3 "$VIKIX_DIR/bin/vikix-docs" "$@" ;;

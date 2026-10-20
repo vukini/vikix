@@ -653,6 +653,8 @@ A snapshot is taken after every install or `vikix update`, and before every agen
 
 This history is for your settings, on this machine. For everything else, and for a lost laptop, see [Backups](#backups).
 
+**Undo for the system.** Before it starts, `vikix update` keeps a record of the system as it is: Vikix's commit and version, the package set, the StumpWM binary, and, just before it updates Void, the files of the packages about to change, copied from xbps's cache while they are still there. `vikix update --back` (or `vikix rollback restore`) is the way back in one step: `~/vikix` at that commit with its links put back, those packages reinstalled as they were, the binary back; then log out and in. `vikix rollback` shows what is kept (the two newest records) and says which packages had no file to keep. On btrfs with snapper set up for `/`, the record takes a snapshot of `/` too, and the restore names snapper's rollback line, which a reboot applies; on ext4 the restore covers what `vikix update` itself changed, and nothing else.
+
 ## Passwords
 
 Two ways, as features:
