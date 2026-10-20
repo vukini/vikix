@@ -27,7 +27,8 @@
 #     ~/.config/vikix/backup-exclude   what vikix backup leaves out
 #
 #   Made from the checkout (again when it changes)
-#     ~/.local/share/info/vikix.info   the guides in docs/, as an Info manual
+#     ~/.local/share/info/vikix.info   the English guides, as an Info manual
+#     ~/.local/share/info/vikix-eo.info   the Esperanto guides
 #     ~/.local/share/vikix/guide/      the same guides as web pages, with diagrams
 #
 # Last, a snapshot of your files (config/yours.list), so from here on
@@ -180,7 +181,7 @@ guide_dir="$HOME/.local/share/vikix/guide"
 if ! command -v makeinfo >/dev/null || ! command -v install-info >/dev/null; then
   warn "makeinfo is missing (the texinfo package), so no Info manual or web pages of the guides"
 elif [ "$DRY_RUN" = 1 ]; then
-  printf '   would run: %s\n' "build $info_dir/vikix.info and $guide_dir/ from docs/ (lib/md2texi.py, makeinfo)"
+  printf '   would run: %s\n' "build $info_dir/vikix.info and $guide_dir/ from docs/, including Esperanto (lib/md2texi.py, makeinfo)"
 else
   tmp=$(mktemp -d)
   if python3 "$VIKIX_DIR/lib/md2texi.py" "$VIKIX_DIR/docs" > "$tmp/vikix.texi" &&
@@ -194,6 +195,17 @@ else
       warn "couldn't build the guide's web pages: $(head -3 "$tmp/errors")"
   else
     warn "couldn't build the Info manual of the guides: $(head -3 "$tmp/errors")"
+  fi
+  if [ -d "$VIKIX_DIR/docs/eo" ]; then
+    if python3 "$VIKIX_DIR/lib/md2texi.py" "$VIKIX_DIR/docs/eo" eo > "$tmp/vikix-eo.texi" &&
+       makeinfo --no-split -I "$VIKIX_DIR/docs" -o "$tmp/vikix-eo.info" "$tmp/vikix-eo.texi" 2>"$tmp/errors"; then
+      mkdir -p "$info_dir"
+      cmp -s "$tmp/vikix-eo.info" "$info_dir/vikix-eo.info" || cp "$tmp/vikix-eo.info" "$info_dir/vikix-eo.info"
+      install-info --info-dir="$info_dir" "$info_dir/vikix-eo.info" 2>/dev/null ||
+        warn "couldn't add the Esperanto manual to $info_dir/dir"
+    else
+      warn "couldn't build the Esperanto manual: $(head -3 "$tmp/errors")"
+    fi
   fi
   rm -rf "$tmp"
 fi

@@ -60,3 +60,5 @@ browser, plus explicit engine recording and recording stop. The bar names the
 active recording source in alert colour. Standalone `vikix music play` keeps its own player. The quiet bar
 beat/tempo is sampled about once a second, never an audio clock; the browser
 follows the current theme. See `docs/music.md` for the controls and limits.
+
+- **Guides in Esperanto:** Super+m → Help offers *Vikix guide: Esperanto (Emacs or terminal)* and *Vikix guide: Esperanto in the browser*. Emacs lists *Vikix Esperanto* in `C-h i`; `info vikix-eo` reads it in a terminal. HTML has language links, with Esperanto under `~/.local/share/vikix/guide/eo/` and `vikix.dev/guide/eo/`. The sources are `docs/eo/`; English remains the default.

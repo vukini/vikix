@@ -260,7 +260,16 @@ If a previous translation contains those reasoning markers, a normal resumed
 run reports it instead of skipping it: use `--overwrite` to regenerate it.
 Review the result:
 model output can change commands, formatting or meaning despite the prompt.
-This produces Markdown copies; it does not rebuild the browser or Info guides.
+This produces Markdown copies; it does not install them. Vikix ships the
+Esperanto edition in `docs/eo/`: `40-config` builds `vikix-eo.info` and the
+HTML pages under `guide/eo/` from it, alongside English. The Help menu and
+Emacs's Info directory offer both editions; the HTML guide links between them.
+To update the shipped translation, review the output before copying it to
+`docs/eo/`, repair links to translated headings, and run `tests/run.sh info`.
+Keep `docs/eo/commands.md` as the short introduction: its build appends the
+current generated English command reference automatically. Screenshots and
+diagrams are shared with English. `docs/eo/TRANSLATION.txt` records the source
+and the review status.
 
 ## `llm` on the command line
 

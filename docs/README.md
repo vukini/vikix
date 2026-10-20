@@ -4,6 +4,15 @@ These pages are for someone who has installed Vikix and wants to know where thin
 
 They are on your machine too, in three forms: as these files in `~/vikix/docs/`, as web pages with the diagrams drawn as pictures (`Super+m` → *Vikix guide in the browser*), and as an Info manual. Read that with `Super+m` → *Vikix guide* (in Emacs if you have it, otherwise in a terminal), `C-h i` then *Vikix* in Emacs, or `info vikix` in a terminal. `Super+m` → Help → *Vikix guide: a page at random* opens one of them you didn't choose.
 
+The [Esperanto guides](eo/README.md) are included too. In `Super+m` → Help,
+choose *Vikix guide: Esperanto (Emacs or terminal)*, or *Vikix guide: Esperanto
+in the browser*. In Emacs, `C-h i` lists **Vikix Esperanto** alongside **Vikix**;
+`M-x info RET (vikix-eo) RET` opens it directly. In a terminal, use
+`info vikix-eo`. The HTML pages have English and Esperanto links at the top;
+the online Esperanto guide is at [vikix.dev/guide/eo/](https://vikix.dev/guide/eo/).
+English remains the default. The command reference is generated in English
+inside both manuals, so command names and syntax stay current.
+
 Every `vikix` command has a man page as well, and so has each command of a plugin you've added: `man vikix` lists them, `man vikix-backup` or `man inbox` is the whole of one, and `man -k vikix` finds a page by a word. The page *The commands*, in the table below, is the same in one place. They say what each command's `-h` says, since both are made from the same lines.
 
 | Page | Read it when |

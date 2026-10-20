@@ -1,0 +1,19 @@
+Esperanto guide edition
+
+Imported on 2026-10-20 from the user's ~/vikix-guides-eo/ output.
+Integration base: 7336959 (English may have changed since translation).
+Generated with the local Ollama translator; a full linguistic review is pending.
+English docs/*.md remain the reference when the editions differ.
+
+Integration repairs: heading links and repository-relative paths, a translated
+image path, a malformed link, one stray code fence, and an accidental heading.
+The translated command reference changed/duplicated command names, so its
+commands.md is an Esperanto introduction followed at build time by the current
+generated English docs/commands.md. Never copy translator output over this
+introduction. Shared pictures and diagram text remain in English.
+
+For upkeep, review changed English chapters and update their Esperanto copies.
+Keep filenames and executable code unchanged, but make heading links point to
+the translated headings. Preserve links outside docs/eo/ relative to that folder.
+Run tests/run.sh info before handing in updates. Do not regenerate translations
+as part of installation or CI: builds use the reviewed repository files only.

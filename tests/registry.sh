@@ -54,6 +54,17 @@ else
     exec sleep 2
 fi
 S
+# Guide launchers use stand-ins so they never contact the user's Emacs.
+cat > "$t/bin/emacsclient" <<'S'
+#!/bin/sh
+printf '%s\n' "$@" > "$HOME/guide-emacs-args"
+[ ! -f "$HOME/guide-emacs-unavailable" ]
+S
+cat > "$t/bin/guide-terminal" <<'S'
+#!/bin/sh
+printf '%s\n' "$@" > "$HOME/guide-terminal-args"
+S
+chmod +x "$t/bin/emacsclient" "$t/bin/guide-terminal"
 chmod +x "$t/bin/vikix-music"
 export PATH="$t/bin:$PATH"
 wm_start
@@ -82,6 +93,27 @@ check "Music has separate explicit record and stop bindings" yes '(and (find "mu
 rm "$home/music-bar"
 for _ in $(seq 1 40); do [ "$(ask '(princ *vikix-music*)')" = '' ] && break; sleep .1; done
 check "stopped or missing Music clears the bar" yes '(equal (vikix-mode-line-music nil) "")'
+
+# Launch the installed menu action, including failure through to terminal Info.
+mkdir -p "$home/.local/share/info"
+touch "$home/.local/share/info/vikix-eo.info"
+ask '(setf *vikix-terminal* "guide-terminal")' >/dev/null
+check "Esperanto guide is offered when its manual exists" \
+  yes '(vikix-menu-entry-here-p (assoc "Vikix guide: Esperanto (Emacs or terminal)" *vikix-menu* :test (function equal)))'
+ask '(vikix-menu-do (assoc "Vikix guide: Esperanto (Emacs or terminal)" *vikix-menu* :test (function equal)))' >/dev/null
+for _ in $(seq 1 30); do [ -s "$home/guide-emacs-args" ] && break; sleep .1; done
+check "Esperanto menu asks Emacs for a frame and the correct manual" \
+  test "$(cat "$home/guide-emacs-args")" = "$(printf '%s\n' -c -a '' -e '(info "~/.local/share/info/vikix-eo.info")')"
+check "successful Emacs launch needs no terminal" test ! -e "$home/guide-terminal-args"
+touch "$home/guide-emacs-unavailable"
+ask '(vikix-menu-do (assoc "Vikix guide: Esperanto (Emacs or terminal)" *vikix-menu* :test (function equal)))' >/dev/null
+for _ in $(seq 1 30); do [ -s "$home/guide-terminal-args" ] && break; sleep .1; done
+check "unavailable Emacs falls back to terminal Info with the Esperanto path" \
+  test "$(cat "$home/guide-terminal-args")" = "$(printf '%s\n' -e info -f "$home/.local/share/info/vikix-eo.info")"
+rm "$home/.local/share/info/vikix-eo.info"
+check "missing Esperanto manual hides its menu entry" \
+  yes '(not (vikix-menu-entry-here-p (assoc "Vikix guide: Esperanto (Emacs or terminal)" *vikix-menu* :test (function equal))))'
+ask '(setf *vikix-terminal* "alacritty")' >/dev/null
 
 keys=$("$here/lib/registry.sh" keys | wc -l)
 check "Vikix's keys are its commands', and yours after them: $(ask '(princ (length *vikix-bindings*))') of $keys and 1" \

@@ -52,6 +52,17 @@ check "docs/README.md links a page before its row in the table, which moves it i
 check "Markdown links left in the manual" bash -c "! awk '/^@example/ { code = 1 } /^@end example/ { code = 0 } !code && /\\]\\(/' '$t/vikix.texi' | grep -q ."
 check "Markdown bold left in the manual" bash -c "! awk '/^@example/ { code = 1 } /^@end example/ { code = 0 } !code && /\\*\\*/' '$t/vikix.texi' | grep -q ."
 
+# Esperanto has its own identity and shares English pictures, not node names.
+python3 "$here/lib/md2texi.py" "$here/docs/eo" eo > "$t/vikix-eo.texi"
+makeinfo --no-split -I "$here/docs" -o "$t/vikix-eo.info" "$t/vikix-eo.texi" 2> "$t/errors" ||
+  { echo "FAIL: Esperanto makeinfo failed:"; cat "$t/errors"; exit 1; }
+check "Esperanto makeinfo warned" test ! -s "$t/errors"
+check "Esperanto Info has its own filename" grep -q '@setfilename vikix-eo.info' "$t/vikix-eo.texi"
+check "Esperanto prose survives UTF-8 conversion" grep -q 'Kiel navigi en Vikix' "$t/vikix-eo.info"
+check "English command syntax is included in Esperanto" grep -q 'vikix snapshot' "$t/vikix-eo.info"
+check "repository links still target the root README" grep -q 'blob/main/README.md' "$t/vikix-eo.texi"
+check "Esperanto uses the release version" bash -c "! grep -q 'version unknown' '$t/vikix-eo.texi'"
+
 # --- broken guides stop the build ---------------------------------------------
 cp -r "$here/docs" "$t/docs"
 cp "$here/VERSION" "$t/VERSION"
@@ -102,11 +113,13 @@ bash "$here/install/40-config.sh" >/dev/null 2>"$t/stage-errors" || { echo "FAIL
 info="$HOME/.local/share/info"
 check "40-config didn't install vikix.info" test -s "$info/vikix.info"
 check "vikix.info isn't in the info dir" grep -q '(vikix)' "$info/dir"
-first=$(sha1sum "$info/vikix.info" "$info/dir"; stat -c %Y "$info/vikix.info")
+check "40-config didn't install Esperanto" test -s "$info/vikix-eo.info"
+check "Esperanto isn't in the Info directory" grep -q '(vikix-eo)' "$info/dir"
+first=$(sha1sum "$info/vikix.info" "$info/vikix-eo.info" "$info/dir"; stat -c %Y "$info/vikix.info" "$info/vikix-eo.info")
 first_guide=$(stat -c %Y "$HOME/.local/share/vikix/guide/index.html" 2>/dev/null || true)
 sleep 1
 bash "$here/install/40-config.sh" >/dev/null 2>&1
-second=$(sha1sum "$info/vikix.info" "$info/dir"; stat -c %Y "$info/vikix.info")
+second=$(sha1sum "$info/vikix.info" "$info/vikix-eo.info" "$info/dir"; stat -c %Y "$info/vikix.info" "$info/vikix-eo.info")
 check "a second 40-config wrote the manual again" test "$first" = "$second"
 check "the dir lists Vikix twice" test "$(grep -c '(vikix)' "$info/dir")" = 1
 guide="$HOME/.local/share/vikix/guide"
@@ -141,6 +154,45 @@ for f in $(grep -oh 'href="guide/[A-Za-z0-9-]*\.html' "$here"/site/*.html | sed 
   check "the site links to guide/$f, which the guide should have" test -f "$t/site-guide/$f"
 done
 check "the website's workflow should build the guide" grep -q 'lib/build-guide.sh site/guide --site' "$here/.github/workflows/pages.yml"
+check "installed Esperanto HTML is missing" test -s "$guide/eo/index.html"
+check "English HTML offers Esperanto" grep -q 'href="eo/index.html" lang="eo"' "$t/site-guide/index.html"
+check "Esperanto HTML offers English" grep -q 'href="../index.html" lang="en"' "$t/site-guide/eo/index.html"
+check "Esperanto site bar reaches the site" grep -q 'href="../../#install"' "$t/site-guide/eo/index.html"
+check "Esperanto HTML is marked with its language" grep -q 'lang="eo"' "$t/site-guide/eo/index.html"
+check "Esperanto shares diagrams" test -s "$t/site-guide/eo/diagrams/strip.svg"
+# Check every local HTML target, including fragment IDs and shared pictures.
+python3 - "$t/site-guide" <<'PYHTML'
+from html.parser import HTMLParser
+from pathlib import Path
+from urllib.parse import unquote, urlsplit
+import sys
+class Page(HTMLParser):
+    def __init__(self, path):
+        super().__init__()
+        self.ids, self.links = set(), []
+        self.feed(path.read_text())
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if "id" in attrs:
+            self.ids.add(attrs["id"])
+        for key in ("href", "src"):
+            if key in attrs:
+                self.links.append(attrs[key])
+root = Path(sys.argv[1]).resolve()
+pages = {p: Page(p) for p in root.rglob("*.html")}
+for path, page in pages.items():
+    for link in page.links:
+        url = urlsplit(link)
+        if url.scheme or url.netloc:
+            continue
+        target = (path.parent / unquote(url.path)).resolve() if url.path else path
+        if not target.is_relative_to(root):  # the site's home/install links
+            continue
+        assert target.exists(), (path, link)
+        if url.fragment and target in pages:
+            assert unquote(url.fragment) in pages[target].ids, (path, link)
+print("English and Esperanto HTML: local pages, images and anchors resolve")
+PYHTML
 # A failed build leaves the old pages: md2texi can't read a missing docs/.
 mkdir -p "$t/fake/lib" "$t/fake/docs"; cp "$here/lib/build-guide.sh" "$here/lib/md2texi.py" "$t/fake/lib/"
 echo old > "$t/kept"; mkdir -p "$t/old-guide"; cp "$t/kept" "$t/old-guide/index.html"
@@ -151,6 +203,11 @@ check "a failed build should leave the old pages" cmp -s "$t/kept" "$t/old-guide
 if command -v emacs >/dev/null; then
   got=$(INFOPATH="$info:" emacs -Q --batch --eval '(progn (info "vikix") (search-forward "note Where everything is") (backward-char 3) (Info-follow-nearest-node) (princ Info-current-node))' 2>/dev/null)
   check "Emacs didn't open the manual and follow a link (got '$got')" test "$got" = "Where everything is"
+fi
+
+if command -v emacs >/dev/null; then
+  got=$(INFOPATH="$info:" emacs -Q --batch --eval '(progn (info "(vikix-eo)") (search-forward "note Kie ĉio troviĝas") (backward-char 3) (Info-follow-nearest-node) (princ Info-current-node))' 2>/dev/null)
+  check "Emacs didn't follow an Esperanto chapter: $got" test "$got" = "Kien ĉio estas"
 fi
 
 [ "$fail" = 0 ] && echo "info: the guides make a clean Info manual and web pages, the diagrams are drawn from their sources, 40-config installs both, vikix.dev/guide/ is the same pages with a bar back to the site, and Emacs reads the manual"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""md2texi.py DOCS_DIR — the guides in docs/ as one Texinfo manual, on stdout.
+"""md2texi.py DOCS_DIR [eo] — the guides in docs/ as one Texinfo manual, on stdout.
 
 40-config runs it and makeinfo on the result, so the guides can be read
 in Emacs (C-h i, Vikix) and with `info vikix`. The Markdown stays the
@@ -89,7 +89,11 @@ def item_refs(text):
         i = k
 
 class Manual:
-    def __init__(self, docs):
+    def __init__(self, docs, language="en"):
+        docs = os.path.abspath(docs)
+        self.language = language
+        self.root = os.path.dirname(docs) if language == "en" else os.path.dirname(os.path.dirname(docs))
+        self.assets = docs if language == "en" else os.path.dirname(docs)
         self.docs = docs
         self.pages = self.page_order()
         self.nodes = {}      # (page, slug) -> node name; slug "" is the page itself
@@ -114,7 +118,12 @@ class Manual:
         if not os.path.exists(path):
             die(f"docs/{page} is linked but doesn't exist")
         with open(path, encoding="utf-8") as f:
-            return f.read()
+            text = f.read()
+        # Command names and syntax come from the generated English reference.
+        if self.language == "eo" and page == "commands.md":
+            with open(os.path.join(self.assets, page), encoding="utf-8") as f:
+                text += "\n" + f.read().split("\n", 1)[1]
+        return text
 
     def unique(self, name, page):
         if name in self.used:
@@ -183,8 +192,8 @@ class Manual:
             if node is None:
                 die(f"docs/{page}: the link '{target}' goes to no heading")
             return f"@ref{{{node}}}" if plain(label) == node else f"@ref{{{node},,{arg}}}"
-        path = os.path.normpath(os.path.join("docs", file))
-        if not os.path.exists(os.path.join(self.docs, "..", path)):
+        path = os.path.normpath(os.path.join(os.path.relpath(self.docs, self.root), file))
+        if not os.path.exists(os.path.join(self.root, path)):
             die(f"docs/{page}: the link '{target}' goes to no file")
         url = REPO_URL + path + ("#" + anchor if anchor else "")
         return f"@uref{{{escape(url)},{arg}}}"
@@ -214,13 +223,13 @@ class Manual:
 
     def diagram(self, name, alt, page):
         for ext in ("mmd", "svg", "txt"):
-            if not os.path.exists(os.path.join(self.docs, "diagrams", f"{name}.{ext}")):
+            if not os.path.exists(os.path.join(self.assets, "diagrams", f"{name}.{ext}")):
                 die(f"docs/{page}: the diagram '{name}' has no docs/diagrams/{name}.{ext}")
         alt = escape(plain(alt)).replace(",", "@comma{}")
         return [f"@image{{diagrams/{name},,,{alt},svg}}"]
 
     def shot(self, name, alt, page):
-        if not os.path.exists(os.path.join(self.docs, "shots", f"{name}.png")):
+        if not os.path.exists(os.path.join(self.assets, "shots", f"{name}.png")):
             die(f"docs/{page}: the screenshot docs/shots/{name}.png isn't there")
         words = escape(plain(alt))
         return ["@ifinfo", f"[Screenshot: {words}]", "@end ifinfo",
@@ -374,7 +383,7 @@ class Manual:
 
     def version(self):
         try:
-            with open(os.path.join(self.docs, "..", "VERSION")) as f:
+            with open(os.path.join(self.root, "VERSION")) as f:
                 return f.read().strip()
         except OSError:
             return "(version unknown)"
@@ -382,13 +391,15 @@ class Manual:
     def texinfo(self):
         out = [
             "\\input texinfo",
-            "@setfilename vikix.info",
+            f"@setfilename {'vikix-eo' if self.language == 'eo' else 'vikix'}.info",
             "@documentencoding UTF-8",
-            "@settitle Vikix",
+            f"@settitle Vikix{' — Esperanto' if self.language == 'eo' else ''}",
+            f"@documentlanguage {self.language}",
             "",
             "@dircategory Vikix",
             "@direntry",
-            "* Vikix: (vikix).               Where things are, making it yours, fixing it.",
+            ("* Vikix Esperanto: (vikix-eo).  La gvidiloj en Esperanto." if self.language == "eo" else
+             "* Vikix: (vikix).               Where things are, making it yours, fixing it."),
             "@end direntry",
             "",
             "@node Top",
@@ -406,9 +417,9 @@ class Manual:
 
 
 def main():
-    if len(sys.argv) != 2:
-        die("usage: md2texi.py DOCS_DIR")
-    sys.stdout.write(Manual(sys.argv[1]).texinfo())
+    if len(sys.argv) not in (2, 3) or (len(sys.argv) == 3 and sys.argv[2] != "eo"):
+        die("usage: md2texi.py DOCS_DIR [eo]")
+    sys.stdout.write(Manual(sys.argv[1], sys.argv[2] if len(sys.argv) == 3 else "en").texinfo())
 
 
 if __name__ == "__main__":

@@ -591,6 +591,12 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command guide-browser "Vikix guide in the browser, with diagrams"
   :run "exec vikix-docs-open ~/.local/share/vikix/guide/index.html"
   :menu "Help" :needs "~/.local/share/vikix/guide/index.html")
+(define-vikix-command guide-esperanto "Vikix guide: Esperanto (Emacs or terminal)"
+  :do (run-shell-command (format nil "emacsclient -c -a '' -e '(info \"~~/.local/share/info/vikix-eo.info\")' || ~a -e info -f ~~/.local/share/info/vikix-eo.info" *vikix-terminal*))
+  :menu "Help" :needs "~/.local/share/info/vikix-eo.info")
+(define-vikix-command guide-browser-esperanto "Vikix guide: Esperanto in the browser"
+  :run "exec vikix-docs-open ~/.local/share/vikix/guide/eo/index.html"
+  :menu "Help" :needs "~/.local/share/vikix/guide/eo/index.html")
 (define-vikix-command guide-random "A page of the Vikix guide at random: something you didn't know it does"
   :run "exec vikix-docs random"
   :menu "Help" :label "Vikix guide: a page at random")
