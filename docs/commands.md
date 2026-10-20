@@ -39,6 +39,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-keyboard](#vikix-keyboard): apply the layout and options in `~/.config/vikix/keyboard`
 - [vikix-lazarus](#vikix-lazarus): start Lazarus: the docked IDE that 65-languages builds in `~/.lazarus`
 - [vikix-learn](#vikix-learn): courses in the terminal
+- [vikix-ledger](#vikix-ledger): what left this laptop, by program and destination: the outbound ledger
 - [vikix-lisp-apps](#vikix-lisp-apps): programs written in Common Lisp, and programmable in it, as StumpWM is
 - [vikix-local-ai](#vikix-local-ai): AI models that run on this machine, with Ollama
 - [vikix-lock](#vikix-lock): lock the screen, with only ever one locker
@@ -160,6 +161,7 @@ The everyday command.
 - `vikix firmware [update]` — firmware updates from LVFS (BIOS, Thunderbolt, ...): what's waiting, or install it (on AC power)
 - `vikix fingerprint [on|off|enrol]` — a finger for sudo and the lock screen, where fprintd supports the reader
 - `vikix firewall [on|off|allow PORT|close PORT]` — the firewall (ufw): nothing comes in but SSH and the ports you allow
+- `vikix ledger [today|DATE|PROGRAM|on|off|status]` — what left the laptop, by program and destination (vikix ledger --help)
 - `vikix webapp add|open|list|remove` — a website as a program of its own (presets: fastmail, gmail, outlook, outlook-live, superhuman)
 - `vikix ai setup|models|chat|list|remove|status|stop|uninstall` — AI models that run on this laptop (Ollama)
 - `vikix ai llm` — the llm command, with those models and your keys
@@ -793,6 +795,20 @@ In the lesson pane: the arrows, PgUp/PgDn and Space scroll; n or Right the next 
 The course comes from Vikix (learn/COURSE/ in the checkout). Its lessons are copied to `~/learn/COURSE/` the first time: those are your files, never overwritten (but lesson.md, the text, which follows Vikix's), and in your snapshot history (vikix undo). The checks stay Vikix's, so a fix to one reaches you with vikix update. Your progress is in `~/.local/state/vikix/learn/COURSE/`.
 
 This knows nothing about any language: a course is a folder with a course.conf (TITLE, and WORK, the files you work in) and lessons NN-name/, each with lesson.md, the files to copy, a check.sh and hints.md; a lesson whose work is in other files names them in its own file "work". A course that renames lessons lists them in "renames" (OLD NEW a line): your folders and progress move with them.
+
+## vikix-ledger
+
+What left this laptop, by program and destination: the outbound ledger.
+
+- `vikix ledger [today|yesterday|DATE|PROGRAM] [--json]` — the page: every connection a program opened out of this machine that day (today unless said), by program, each destination with its port, how many times, the first and the last; a PROGRAM alone: its days
+- `vikix ledger on` — switch it on: a log rule for new outbound connections in the firewall's rules (sudo once; the firewall must be on), and the watcher that reads the log
+- `vikix ledger off` — take the rule out; what was recorded stays
+- `vikix ledger status` — on or off, the watcher, today's count
+- `vikix ledger watch` — what the session runs: read the kernel log and record each connection (--log FILE --once reads a file through, for tests)
+
+The site says nothing leaves the laptop unless you ask; this is how anyone checks. The firewall (ufw) logs every new outbound connection, not on the loopback, with the user id, into the kernel log socklog keeps (/var/log/socklog/kernel/current, readable by you). The watcher tails that log and, for each line, asks `ss` which program holds the socket's port (its name, its executable, its folder, and whether it is an agent or an agent's child: claude, codex), then records the connection in the records store (`vikix records`, plugin ledger, kind connection): one record a day for each program, destination and port, with a count and the first and last time. Who talked to whom and when: no payload is ever kept, and a destination is an address and its name when one resolves.
+
+A program that is gone before `ss` is asked (a quick DNS query) is recorded as "?" with its user. The rule is a block in /etc/ufw/after.rules and after6.rules, before their COMMIT, as `vikix firewall` keeps ufw's own; it logs at most a hundred new connections a second. `~/.config/vikix/ledger` says it is on; the session starts the watcher when it is.
 
 ## vikix-lisp-apps
 

@@ -744,6 +744,9 @@ of registry.lisp says what each is). A mistake is an error as the file loads."
 (define-vikix-command undo "Undo: my files back one snapshot"
   :run "vikix-undo"
   :menu "Vikix")
+(define-vikix-command ledger "What left the laptop today (the outbound ledger)"
+  :do (vikix-in-terminal "vikix ledger")
+  :menu "Vikix")
 (define-vikix-command memory "Memory: what uses it, and what's left over"
   :do (vikix-in-terminal "vikix memory")
   :menu "Vikix")

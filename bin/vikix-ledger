@@ -1,0 +1,566 @@
+#!/usr/bin/env python3
+"""vikix-ledger — what left this laptop, by program and destination: the outbound ledger.
+
+  vikix ledger [today|yesterday|DATE|PROGRAM] [--json]
+                                  the page: every connection a program opened
+                                  out of this machine that day (today unless
+                                  said), by program, each destination with
+                                  its port, how many times, the first and the
+                                  last; a PROGRAM alone: its days
+  vikix ledger on                 switch it on: a log rule for new outbound
+                                  connections in the firewall's rules (sudo
+                                  once; the firewall must be on), and the
+                                  watcher that reads the log
+  vikix ledger off                take the rule out; what was recorded stays
+  vikix ledger status             on or off, the watcher, today's count
+  vikix ledger watch              what the session runs: read the kernel log
+                                  and record each connection (--log FILE
+                                  --once reads a file through, for tests)
+
+The site says nothing leaves the laptop unless you ask; this is how anyone
+checks. The firewall (ufw) logs every new outbound connection, not on the
+loopback, with the user id, into the kernel log socklog keeps
+(/var/log/socklog/kernel/current, readable by you). The watcher tails
+that log and, for each line, asks `ss` which program holds the socket's
+port (its name, its executable, its folder, and whether it is an agent or
+an agent's child: claude, codex), then records the connection in the
+records store (`vikix records`, plugin ledger, kind connection): one
+record a day for each program, destination and port, with a count and
+the first and last time. Who talked to whom and when: no payload is ever
+kept, and a destination is an address and its name when one resolves.
+
+A program that is gone before `ss` is asked (a quick DNS query) is
+recorded as "?" with its user. The rule is a block in /etc/ufw/after.rules
+and after6.rules, before their COMMIT, as `vikix firewall` keeps ufw's
+own; it logs at most a hundred new connections a second. ~/.config/vikix/ledger
+says it is on; the session starts the watcher when it is.
+"""
+
+import ipaddress
+import json
+import os
+import re
+import select
+import shutil
+import socket
+import subprocess
+import sys
+import threading
+import time
+from datetime import datetime, timedelta, timezone
+
+HOME = os.path.expanduser("~")
+VIKIX_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+CONFIG = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config"), "vikix")
+RUNTIME = os.environ.get("XDG_RUNTIME_DIR") or f"/tmp/vikix-{os.getuid()}"
+SETTINGS = os.path.join(CONFIG, "ledger")
+KERNEL_LOG = os.environ.get("VIKIX_LEDGER_LOG") or "/var/log/socklog/kernel/current"
+RULES = {"/etc/ufw/after.rules": "ufw-after-output", "/etc/ufw/after6.rules": "ufw6-after-output"}
+RULES_DIR = os.environ.get("VIKIX_LEDGER_RULES_DIR")    # tests: a folder with made-up after.rules
+SUDO = os.environ.get("VIKIX_LEDGER_SUDO", "sudo")       # tests: "" does without
+PREFIX = "[VIKIX OUT] "
+AGENTS = {"claude", "codex", "claude-code", "gemini", "antigravity"}
+NO_NAMES = os.environ.get("VIKIX_LEDGER_NO_NAMES")      # tests: no reverse lookups
+FLUSH_SECONDS = 5
+
+
+def die(msg):
+    sys.stderr.write(f"xx {msg}\n")
+    sys.exit(1)
+
+
+def say(msg):
+    print(f":: {msg}", flush=True)
+
+
+def warn(msg):
+    sys.stderr.write(f"!! {msg}\n")
+
+
+def vikix(*args, input=None):
+    """vikix ARGS, the dispatcher beside this file: its output."""
+    r = subprocess.run([os.path.join(VIKIX_DIR, "bin", "vikix"), *args], capture_output=True, text=True, input=input)
+    if r.returncode != 0:
+        raise RuntimeError(r.stderr.strip() or f"vikix {' '.join(args)} failed")
+    return r.stdout
+
+
+# --- the setting ----------------------------------------------------------------
+
+def is_on():
+    try:
+        with open(SETTINGS) as f:
+            return any(line.strip() == "on=yes" for line in f)
+    except OSError:
+        return False
+
+
+def set_on(on):
+    os.makedirs(CONFIG, exist_ok=True)
+    with open(SETTINGS, "w") as f:
+        f.write("# Written by vikix ledger on|off. on=yes: the session starts the watcher.\n")
+        f.write(f"on={'yes' if on else 'no'}\nsince={int(time.time())}\n")
+
+
+# --- the rule in ufw's files ------------------------------------------------------
+
+def rule_block(chain):
+    return "\n".join([
+        "# >>> vikix ledger >>>",
+        "# Every new connection out of this machine, not on the loopback, with its",
+        "# user, to the kernel log: vikix ledger reads it. No payload. At most a",
+        "# hundred a second, so a storm can't fill the log.",
+        f"-A {chain} ! -o lo -m conntrack --ctstate NEW -m limit --limit 100/sec --limit-burst 500"
+        f" -j LOG --log-prefix \"{PREFIX}\" --log-uid --log-level info",
+        "# <<< vikix ledger <<<",
+    ])
+
+
+def rules_files():
+    if RULES_DIR:
+        return {os.path.join(RULES_DIR, os.path.basename(p)): chain for p, chain in RULES.items()}
+    return RULES
+
+
+def read_root(path):
+    cmd = ([SUDO] if SUDO else []) + ["cat", path]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        die(f"couldn't read {path}: {r.stderr.strip()}")
+    return r.stdout
+
+
+def write_root(path, text):
+    cmd = ([SUDO] if SUDO else []) + ["tee", path]
+    r = subprocess.run(cmd, capture_output=True, text=True, input=text)
+    if r.returncode != 0:
+        die(f"couldn't write {path}: {r.stderr.strip()}")
+
+
+def with_block(text, chain, on):
+    """TEXT, ufw's after.rules, with the ledger's block before the filter
+    table's COMMIT (on), or without it (off)."""
+    lines = text.split("\n")
+    start = next((i for i, l in enumerate(lines) if l == "# >>> vikix ledger >>>"), None)
+    if start is not None:
+        end = next(i for i, l in enumerate(lines) if l == "# <<< vikix ledger <<<")
+        del lines[start:end + 1]
+    if on:
+        commits = [i for i, l in enumerate(lines) if l.strip() == "COMMIT"]
+        if not commits:
+            die("ufw's rules file has no COMMIT line: is it ufw's?")
+        if f":{chain}" not in text:
+            die(f"ufw's rules file has no chain {chain}: is it ufw's?")
+        lines[commits[-1]:commits[-1]] = rule_block(chain).split("\n")
+    return "\n".join(lines)
+
+
+def firewall_on():
+    try:
+        with open("/etc/ufw/ufw.conf") as f:
+            return any(l.strip() == "ENABLED=yes" for l in f)
+    except OSError:
+        return RULES_DIR is not None
+
+
+def reload_firewall():
+    if RULES_DIR or not shutil.which("ufw"):
+        return
+    cmd = ([SUDO] if SUDO else []) + ["ufw", "reload"]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        warn(f"ufw reload: {r.stderr.strip() or r.stdout.strip()}; the rule is in for the next boot")
+
+
+def cmd_on():
+    if not shutil.which("ufw") and not RULES_DIR:
+        die("ufw isn't installed: the ledger reads the firewall's log (vikix firewall on)")
+    if not firewall_on():
+        die("the firewall is off, so no connection is logged: vikix firewall on first")
+    if SUDO:
+        say("the log rule goes into the firewall's rules (your sudo password, to write them)")
+    for path, chain in rules_files().items():
+        if RULES_DIR and not os.path.exists(path):
+            continue
+        write_root(path, with_block(read_root(path), chain, True))
+    reload_firewall()
+    set_on(True)
+    start_watcher()
+    say("on: every new connection out of this machine is recorded; vikix ledger shows today's")
+
+
+def cmd_off():
+    for path, chain in rules_files().items():
+        if RULES_DIR and not os.path.exists(path):
+            continue
+        write_root(path, with_block(read_root(path), chain, False))
+    reload_firewall()
+    set_on(False)
+    stop_watcher()
+    say("off: nothing more is recorded; what was stays (vikix ledger DATE)")
+
+
+# --- the watcher ----------------------------------------------------------------------
+
+def lock_path():
+    return os.path.join(RUNTIME, "vikix-ledger.pid")
+
+
+def watcher_pid():
+    try:
+        with open(lock_path()) as f:
+            pid = int(f.read().strip())
+        os.kill(pid, 0)
+        return pid
+    except (OSError, ValueError):
+        return None
+
+
+def start_watcher():
+    if watcher_pid() or RULES_DIR:
+        return
+    subprocess.Popen(["setsid", "-f", sys.executable, os.path.realpath(__file__), "watch"],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def stop_watcher():
+    pid = watcher_pid()
+    if pid:
+        try:
+            os.kill(pid, 15)
+        except OSError:
+            pass
+
+
+LINE = re.compile(r"\[VIKIX OUT\] (.*)$")
+
+
+def parse(line):
+    """A kernel log line with the ledger's prefix as a dict, or None."""
+    m = LINE.search(line)
+    if not m:
+        return None
+    fields = dict(part.split("=", 1) for part in m.group(1).split() if "=" in part)
+    if "DST" not in fields or "PROTO" not in fields:
+        return None
+    # socklog's stamp is UTC (svlogd -tt); a line without one is now.
+    stamp = line.split(" ", 1)[0]
+    try:
+        at = int(datetime.fromisoformat(stamp[:19]).replace(tzinfo=timezone.utc).timestamp())
+    except ValueError:
+        at = int(time.time())
+    return {"at": at, "dst": fields["DST"], "proto": fields["PROTO"].lower(),
+            "sport": fields.get("SPT"), "dport": fields.get("DPT", ""), "uid": fields.get("UID", "")}
+
+
+def sockets():
+    """Local port → (program, pid), from ss, for sockets this user may see."""
+    out = subprocess.run(["ss", "-Htunp"], capture_output=True, text=True).stdout
+    found = {}
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) < 6:
+            continue
+        local = parts[4]
+        port = local.rsplit(":", 1)[-1]
+        m = re.search(r'users:\(\("([^"]+)",pid=(\d+)', line)
+        if m:
+            found[(parts[0], port)] = (m.group(1), int(m.group(2)))
+    return found
+
+
+def proc_read(pid, name):
+    try:
+        with open(f"/proc/{pid}/{name}") as f:
+            return f.read()
+    except OSError:
+        return ""
+
+
+def process_details(pid):
+    """The executable, the folder and the agent above a process, from /proc."""
+    try:
+        exe = os.readlink(f"/proc/{pid}/exe")
+    except OSError:
+        exe = ""
+    try:
+        folder = os.readlink(f"/proc/{pid}/cwd")
+    except OSError:
+        folder = ""
+    agent = None
+    p, hops = pid, 0
+    while p and p > 1 and hops < 8:
+        comm = proc_read(p, "comm").strip()
+        if comm in AGENTS:
+            agent = comm
+            break
+        m = re.search(r"^PPid:\s+(\d+)", proc_read(p, "status"), re.M)
+        p = int(m.group(1)) if m else 0
+        hops += 1
+    return exe, folder, agent
+
+
+def private(dst):
+    try:
+        ip = ipaddress.ip_address(dst)
+        return ip.is_private or ip.is_link_local or ip.is_loopback
+    except ValueError:
+        return False
+
+
+class Names:
+    """Addresses' names, looked up aside so a slow resolver never holds the watcher."""
+
+    def __init__(self):
+        self.known = {}
+        self.lock = threading.Lock()
+
+    def ask(self, dst):
+        if NO_NAMES:
+            return ""
+        with self.lock:
+            if dst in self.known:
+                return self.known[dst]
+            self.known[dst] = None
+        threading.Thread(target=self.lookup, args=(dst,), daemon=True).start()
+        return None
+
+    def lookup(self, dst):
+        try:
+            name = socket.gethostbyaddr(dst)[0]
+        except (OSError, UnicodeError):
+            name = ""
+        with self.lock:
+            self.known[dst] = name
+
+
+class Ledger:
+    """Connections folded by day, program, destination and port, flushed to the records store."""
+
+    def __init__(self):
+        self.rows = {}
+        self.names = Names()
+        self.last_flush = time.time()
+
+    def take(self, conn, socks):
+        who = socks.get((conn["proto"], conn["sport"])) if conn["sport"] else None
+        if who:
+            program, pid = who
+            exe, folder, agent = process_details(pid)
+        else:
+            program, exe, folder, agent = "?", "", "", None
+        day = datetime.fromtimestamp(conn["at"]).strftime("%Y-%m-%d")
+        key = f"{day}|{program}|{conn['dst']}|{conn['proto']}/{conn['dport']}"
+        row = self.rows.get(key)
+        if row is None:
+            row = self.rows[key] = {"day": day, "program": program, "exe": exe, "folder": folder, "agent": agent,
+                                    "uid": conn["uid"], "dst": conn["dst"], "proto": conn["proto"],
+                                    "port": conn["dport"], "count": 0, "first": conn["at"], "last": conn["at"],
+                                    "private": private(conn["dst"]), "name": None}
+        row["count"] += 1
+        row["last"] = max(row["last"], conn["at"])
+        if row["program"] == "?" and program != "?":
+            row.update(program=program, exe=exe, folder=folder, agent=agent)
+        if not row["private"]:
+            row["name"] = self.names.ask(conn["dst"]) or row["name"]
+
+    def flush(self, force=False):
+        if not self.rows or (not force and time.time() - self.last_flush < FLUSH_SECONDS):
+            return
+        records = []
+        for key, row in self.rows.items():
+            if row["name"] is None and not row["private"]:
+                row["name"] = self.names.known.get(row["dst"]) or ""
+            where = row["name"] or row["dst"]
+            records.append({"plugin": "ledger", "kind": "connection", "key": key, "at": row["last"],
+                            "title": f"{row['program']} → {where}:{row['port']}",
+                            "body": f"{row['count']} on {row['day']}, {row['proto']} to {row['dst']}"
+                                    + (" (this network)" if row["private"] else ""),
+                            "data": dict(row)})
+        try:
+            vikix("records", "add", input=json.dumps(records))
+        except RuntimeError as e:
+            warn(str(e))
+            return
+        self.last_flush = time.time()
+        # Yesterday's rows are done with once the day has turned.
+        today = datetime.now().strftime("%Y-%m-%d")
+        for key in [k for k, r in self.rows.items() if r["day"] != today]:
+            del self.rows[key]
+
+
+def follow(path):
+    """The lines added to PATH from now on, by name (socklog rotates the
+    file); None when nothing came for a while, so what is pending is written."""
+    proc = subprocess.Popen(["tail", "-F", "-n", "0", path], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    try:
+        while True:
+            ready, _, _ = select.select([proc.stdout], [], [], FLUSH_SECONDS)
+            if not ready:
+                yield None
+                continue
+            line = proc.stdout.readline()
+            if not line:
+                return
+            yield line.rstrip("\n")
+    finally:
+        proc.terminate()
+
+
+def cmd_watch(args):
+    log = KERNEL_LOG
+    once = "--once" in args
+    if "--log" in args:
+        log = args[args.index("--log") + 1]
+    if not once and not is_on():
+        return 0
+    os.makedirs(RUNTIME, exist_ok=True)
+    if not once:
+        if watcher_pid():
+            return 0
+        with open(lock_path(), "w") as f:
+            f.write(str(os.getpid()))
+    ledger = Ledger()
+    try:
+        if once:
+            with open(log) as f:
+                lines = [l.rstrip("\n") for l in f]
+        else:
+            lines = follow(log)
+        socks, asked = {}, 0.0
+        for line in lines:
+            conn = parse(line) if line else None
+            if conn:
+                # One look at the sockets for a burst of lines, not one each.
+                if time.time() - asked > 0.3:
+                    socks, asked = sockets(), time.time()
+                ledger.take(conn, socks)
+            ledger.flush()
+        ledger.flush(force=True)
+    finally:
+        if not once:
+            try:
+                os.remove(lock_path())
+            except OSError:
+                pass
+    return 0
+
+
+# --- the page -------------------------------------------------------------------------
+
+def records_for(day=None, program=None):
+    out = vikix("records", "list", "ledger", "--kind", "connection", "--since", "400d", "--limit", "100000", "--json")
+    rows = [r["data"] for r in json.loads(out or "[]") if isinstance(r.get("data"), dict)]
+    if day:
+        rows = [r for r in rows if r.get("day") == day]
+    if program:
+        rows = [r for r in rows if r.get("program") == program]
+    return rows
+
+
+def hhmm(t):
+    return datetime.fromtimestamp(t).strftime("%H:%M")
+
+
+def print_page(day, rows, program=None):
+    on = is_on()
+    label = {datetime.now().strftime("%Y-%m-%d"): "today", (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d"): "yesterday"}.get(day, day)
+    if program and not day:
+        days = sorted({r["day"] for r in rows}, reverse=True)
+        if not days:
+            print(f"{program}: nothing recorded (vikix ledger shows today's programs)")
+            return
+        print(f"{program}: on {len(days)} day{'s' if len(days) != 1 else ''}, newest first")
+        for d in days:
+            todays = [r for r in rows if r["day"] == d]
+            print(f"  {d}  {sum(r['count'] for r in todays)} connections to {len({r['dst'] for r in todays})} places")
+        return
+    if not rows:
+        if not on:
+            print(f"Nothing recorded {label}: the ledger is off (vikix ledger on).")
+        else:
+            print(f"Nothing left this machine {label}, as far as the ledger saw" + (" (since it was switched on)." if label == "today" else "."))
+        return
+    total = sum(r["count"] for r in rows)
+    programs = {}
+    for r in rows:
+        programs.setdefault(r["program"], []).append(r)
+    print(f"What left this laptop {label}: {total} connections from {len(programs)} programs, to {len({r['dst'] for r in rows})} places."
+          + ("" if on else " The ledger is off now (vikix ledger on)."))
+    for name in sorted(programs, key=lambda p: -sum(r["count"] for r in programs[p])):
+        prows = sorted(programs[name], key=lambda r: -r["count"])
+        tag = ""
+        if prows[0].get("agent"):
+            tag = f"  (an agent's: {prows[0]['agent']}" + (f", in {prows[0]['folder']}" if prows[0].get("folder") else "") + ")"
+        elif prows[0].get("exe"):
+            tag = f"  ({prows[0]['exe']})"
+        if name == "?":
+            tag = "  (gone before it could be named; uid " + (prows[0].get("uid") or "?") + ")"
+        print(f"\n{name}{tag}")
+        for r in prows[:40]:
+            where = r.get("name") or r["dst"]
+            if r.get("private"):
+                where += " (this network)"
+            print(f"  {r['count']:>5}  {where}:{r['port']} {r['proto']}  {hhmm(r['first'])}–{hhmm(r['last'])}")
+        if len(prows) > 40:
+            print(f"  ... and {len(prows) - 40} more places")
+
+
+def cmd_status():
+    on = is_on()
+    pid = watcher_pid()
+    print("the ledger is " + ("on" if on else "off (vikix ledger on)"))
+    if on:
+        print("the watcher is " + (f"running (pid {pid})" if pid else "not running: the next login starts it, or vikix ledger on now"))
+    today = datetime.now().strftime("%Y-%m-%d")
+    rows = records_for(today)
+    print(f"today: {sum(r['count'] for r in rows)} connections from {len({r['program'] for r in rows})} programs")
+    return 0 if (not on or pid) else 1
+
+
+# --- main ---------------------------------------------------------------------------------
+
+def usage(code=0):
+    print("\n\n".join(__doc__.strip().split("\n\n")[:2]))
+    sys.exit(code)
+
+
+def main(argv):
+    if argv and argv[0] in ("-h", "--help", "help"):
+        usage()
+    cmd = argv[0] if argv else "today"
+    if cmd == "on":
+        return cmd_on()
+    if cmd == "off":
+        return cmd_off()
+    if cmd == "status":
+        return cmd_status()
+    if cmd == "watch":
+        return cmd_watch(argv[1:])
+    as_json = "--json" in argv
+    word = [a for a in argv if not a.startswith("--")]
+    word = word[0] if word else "today"
+    day, program = None, None
+    if word == "today":
+        day = datetime.now().strftime("%Y-%m-%d")
+    elif word == "yesterday":
+        day = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    elif re.fullmatch(r"\d{4}-\d{2}-\d{2}", word):
+        day = word
+    else:
+        program = word
+    rows = records_for(day, program)
+    if as_json:
+        print(json.dumps({"day": day, "program": program, "on": is_on(), "connections": rows}))
+    else:
+        print_page(day, rows, program)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except RuntimeError as e:
+        die(str(e))
+    except KeyboardInterrupt:
+        sys.exit(130)

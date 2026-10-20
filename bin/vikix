@@ -195,6 +195,8 @@
 #                         where fprintd supports the reader
 #   vikix firewall [on|off|allow PORT|close PORT]   the firewall (ufw): nothing
 #                         comes in but SSH and the ports you allow
+#   vikix ledger [today|DATE|PROGRAM|on|off|status]   what left the laptop,
+#                         by program and destination (vikix ledger --help)
 #   vikix webapp add|open|list|remove    a website as a program of its own
 #                         (presets: fastmail, gmail, outlook, outlook-live, superhuman)
 #   vikix ai setup|models|chat|list|remove|status|stop|uninstall
@@ -709,6 +711,17 @@ cmd_doctor() {
   # Off can be your choice (vikix firewall off), so it's said, not counted.
   if grep -qx 'ENABLED=yes' /etc/ufw/ufw.conf 2>/dev/null; then say "the firewall is on"
   elif command -v ufw >/dev/null 2>&1; then warn "the firewall is off: anything may connect in (vikix firewall on)"; fi
+  # The outbound ledger: off is a choice too, so it's said, not counted;
+  # on without its watcher is a fault.
+  if grep -qsx 'on=yes' "${XDG_CONFIG_HOME:-$HOME/.config}/vikix/ledger"; then
+    if kill -0 "$(cat "${XDG_RUNTIME_DIR:-/tmp/vikix-$(id -u)}/vikix-ledger.pid" 2>/dev/null)" 2>/dev/null; then
+      say "the outbound ledger is on (vikix ledger shows today's)"
+    else
+      warn "the outbound ledger is on but nothing is reading the log: vikix ledger on starts the watcher"; ok=0
+    fi
+  else
+    say "the outbound ledger is off: what leaves the laptop isn't recorded (vikix ledger on)"
+  fi
   for d in "${dirs[@]}"; do
     if [ -d "$d/.git" ]; then say "$d is a git clone"
     else warn "$d is not a git clone (45-editors did not set it up)"; ok=0; fi
@@ -1248,6 +1261,7 @@ main() {
     learn)       shift; exec "$VIKIX_DIR/bin/vikix-learn" "$@" ;;
     wallpapers)  shift; exec "$VIKIX_DIR/bin/vikix-wallpapers" "$@" ;;
     firewall)    shift; exec "$VIKIX_DIR/bin/vikix-firewall" "$@" ;;
+    ledger)      shift; exec "$VIKIX_DIR/bin/vikix-ledger" "$@" ;;
     help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
     *)           die "unknown command: $1 (try: vikix help)" ;;
   esac

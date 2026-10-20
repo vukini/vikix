@@ -121,6 +121,7 @@ done
 
 # Discovery on joins only for networks the user enabled in the Network Office.
 "$HOME/.local/bin/vikix-network" watch >/dev/null 2>&1 &
+"$HOME/.local/bin/vikix-ledger" watch >/dev/null 2>&1 &   # the outbound ledger, when it's on (vikix ledger on)
 
 # Updates waiting, for the bar: checked a minute after login and then every
 # 6 hours, in the background (bin/vikix-updates).

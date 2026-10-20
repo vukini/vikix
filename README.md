@@ -818,6 +818,8 @@ vikix firewall close 8000/tcp       # take it out again
 vikix firewall off         # switch it off; vikix firewall on brings the same rules back
 ```
 
+**The outbound ledger.** What left this laptop, by program and destination, so the claim that nothing leaves it unless you ask can be checked by anyone. `vikix ledger on` (once; your sudo password) puts a log rule for every new outbound connection into the firewall's rules, and a watcher the session starts reads the kernel log and records each connection by the program that opened it, its destination and port: who talked to whom and when, never what was said. `vikix ledger` is today's page by program (a right-click on the bar's network field, or `Super+m` → *What left the laptop today*); `vikix ledger yesterday`, a date, or a program's name for its days; an agent's child (a `curl` under Claude) is said to be the agent's, with the folder it worked in. `vikix ledger off` takes the rule out; what was recorded stays in `vikix records` (plugin `ledger`).
+
 - **Programs others connect to** need a rule. `vikix firewall on` gives one to those Vikix knows about, when they're installed: LocalSend (53317, tcp and udp). Anything else, a server you're writing, a game, gets `vikix firewall allow PORT`.
 - **Already let in, without a rule:** printers and other devices that announce themselves on the network (mDNS, which avahi uses, and UPnP), by ufw's own rules; the VMs on libvirt's network (Windows, `void-vm`), by libvirt's.
 - **Where it lives:** `/etc/ufw` (ufw's own files; `sudo ufw ...` works too), and the runit service `ufw`, which puts the rules back at boot. `s-m` → *Firewall* shows the same as `vikix firewall`, and `vikix doctor` says whether it's on.

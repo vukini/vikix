@@ -29,7 +29,7 @@ Nothing shows a file's versions beside the file; nothing says, before restoring,
                                                                    └── journal entry, undo
 ```
 
-**`vikix versions` and `vikix restore`** shipped on 2026-10-20 (Vikix 0.72.117, `bin/vikix-versions`; `ARCHIVE.md` 80 says how). Two things differ from the plan here: a backup's content is told by size and time rather than a hash, which restic doesn't give, and a backup's "what changed" is bytes, not `restic diff` (seconds a row); a snapshot's is lines.
+**`vikix versions` and `vikix restore`** shipped on 2026-10-20 (Vikix 0.72.118, `bin/vikix-versions`; `ARCHIVE.md` 80 says how). Two things differ from the plan here: a backup's content is told by size and time rather than a hash, which restic doesn't give, and a backup's "what changed" is bytes, not `restic diff` (seconds a row); a snapshot's is lines.
 
 **Esploro** (its own repo):
 
