@@ -871,13 +871,23 @@ workspace made tiles and a strip again left them all afloat.)"
 
 (defun vikix-dialog-size (win head)
   "The size a dialog asked for. Tiled first, it was stretched to its frame
-and its own size is lost, but its smallest size (WM_NORMAL_HINTS) is what
-GTK and Qt dialogs are drawn at; without one, a modest box."
+and its own size is lost; but WM_NORMAL_HINTS keeps what it asked for. First
+the size it was made with (the hints' width and height, which Qt and most
+toolkits write: Anki's first box asked for 800 by 600 and was given its
+smallest, 204 by 300, 2026-10-20), else its smallest size, what GTK dialogs
+are drawn at; without either, a modest box. Never under its smallest, never
+past the screen."
   (let* ((hints (window-normal-hints win))
-         (w (and hints (xlib:wm-size-hints-min-width hints)))
-         (h (and hints (xlib:wm-size-hints-min-height hints))))
-    (values (min (if (and w (> w 50)) w 480) (- (head-width head) 40))
-            (min (if (and h (> h 50)) h 240) (- (head-height head) 40)))))
+         (own-w (and hints (xlib:wm-size-hints-width hints)))
+         (own-h (and hints (xlib:wm-size-hints-height hints)))
+         (min-w (and hints (xlib:wm-size-hints-min-width hints)))
+         (min-h (and hints (xlib:wm-size-hints-min-height hints))))
+    (flet ((asked (own least usual room)
+             (let ((own (and own (> own 50) own))
+                   (least (and least (> least 50) least)))
+               (min (max (or own least usual) (or least 0)) room))))
+      (values (asked own-w min-w 480 (- (head-width head) 40))
+              (asked own-h min-h 240 (- (head-height head) 40))))))
 
 (defun vikix-centre-window (win)
   "Give a floating dialog its own size, in the middle of its screen."

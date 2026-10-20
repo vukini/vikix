@@ -92,6 +92,13 @@ floats() { ask '(princ (count-if (function float-window-p) (group-windows (curre
 for _ in $(seq 1 40); do [ "$(floats)" = 1 ] && break; sleep 0.25; done; sleep 0.3
 check "a dialog floats over it and takes no frame: $(state)" test "$(frames) $(shape) $(floats)" = "5 1 1"
 
+# At the size it asked for (its hints' width and height; alacritty writes
+# its first size there), not its smallest: Anki's first box, which asked
+# for 800 by 600, opened at its smallest 204 by 300 (2026-10-20).
+read -r dw dh hw hh <<<"$(ask '(let* ((w (find-if (function float-window-p) (group-windows (current-group)))) (h (window-normal-hints w))) (format t "~a ~a ~a ~a" (xlib:drawable-width (window-xwin w)) (xlib:drawable-height (window-xwin w)) (xlib:wm-size-hints-width h) (xlib:wm-size-hints-height h)))')"
+check "the dialog asked for a size in its hints: ${hw:-none}x${hh:-none}" test "${hw:-0}" -gt 50
+check "and is given that size, not its smallest: ${dw}x${dh} for ${hw}x${hh}" test "$dw $dh" = "$hw $hh"
+
 before=$(state)
 key super+2; key super+1
 # The frames, not the focus: back on the workspace, focus follows the mouse.
