@@ -16,7 +16,7 @@
   vikix docs random [--other]    one of Vikix's guides at random, as open
                                   opens it; every page once before any twice
   vikix docs read ID              one as plain text (what the agents read)
-  vikix docs ask QUESTION... [--source S]... [--claude|--local] [--model M] [--limit N] [--show]
+  vikix docs ask QUESTION... [--source S]... [--claude|--cloud|--local] [--model M] [--limit N] [--show]
                                   a question answered from the documents
                                   found for it, which the answer names:
                                   Vikix's guides, your projects, ~/dev and
@@ -162,6 +162,8 @@ ASK_SOURCES = ("vikix", "repo", "dev", "note")   # what vikix docs ask reads unl
 ASK_LIMIT = 6             # documents given to the model for a question
 ASK_PASSAGE = 3000        # characters of each
 CLAUDE_DEFAULT = "claude-sonnet-5"       # as Super+i's (bin/vikix-ask) and note ask's
+CLOUD_URL_DEFAULT = "https://openrouter.ai/api/v1"   # --cloud: use=cloud's service (lib/cloud-ask.sh's rules)
+CLOUD_MODEL_DEFAULT = "openai/gpt-4o-mini"
 LOCAL_DEFAULT = "llama3.2:3b"
 STOP_WORDS = {"a", "an", "the", "to", "in", "on", "of", "i", "do", "does", "how", "is", "it", "and", "for", "at",
               "by", "what", "my", "can", "with", "are", "be", "this", "that", "from", "or", "when", "where", "why"}
@@ -1943,10 +1945,36 @@ def ollama(path, body=None):
             "Nothing was sent anywhere; --claude sends the passages found to Anthropic instead")
 
 
-def who_answers(claude=False, model=None):
-    """('local', model) or ('claude', model). Local unless --claude or a
-    Claude model is named: nothing goes to the cloud that wasn't asked for."""
+def cloud_settings(conf):
+    """The cloud service's address, its key's name and variable, and its host
+    (use=cloud: cloud_url=, cloud_key=; OpenRouter unless said)."""
+    url = (conf.get("cloud_url") or CLOUD_URL_DEFAULT).rstrip("/")
+    name = conf.get("cloud_key") or "openrouter"
+    var = {"huggingface": "HF_TOKEN", "github": "GITHUB_TOKEN"}.get(name) or \
+        (name if re.fullmatch(r"[A-Z][A-Z0-9_]*", name) else name.upper() + "_API_KEY")
+    host = re.sub(r"^[a-z]+://", "", url).split("/")[0].split(":")[0]
+    return url, name, var, host
+
+
+def cloud_key(var):
+    """The key: from the session, or from `vikix ai key set` since login."""
+    key = os.environ.get(var, "")
+    if not key:
+        try:
+            with open(os.path.join(CONFIG, "vikix", "secrets", var)) as f:
+                key = f.read().strip()
+        except OSError:
+            key = ""
+    return key
+
+
+def who_answers(claude=False, model=None, cloud=False):
+    """('local', model), ('claude', model) or ('cloud', model). Local unless
+    --claude, --cloud or a Claude model is named: nothing goes to the cloud
+    that wasn't asked for."""
     conf = ai_conf()
+    if cloud:
+        return "cloud", model or conf.get("model") or CLOUD_MODEL_DEFAULT
     if model and model.startswith("claude"):
         claude = True
     if claude:
@@ -2016,6 +2044,30 @@ def ask_local(model, prompt):
     print()
 
 
+def ask_cloud(model, prompt, url, name, var, host):
+    """The passages to the cloud service (use=cloud's), in OpenAI's chat format; only when asked for."""
+    import urllib.error
+    import urllib.request
+    key = cloud_key(var)
+    if not key:
+        die(f"the cloud service needs its key: vikix ai key set {name} (then a new terminal); without --cloud the answer is local")
+    body = {"model": model, "messages": [{"role": "system", "content": ASK_SYSTEM}, {"role": "user", "content": prompt}],
+            "stream": False}
+    req = urllib.request.Request(url + "/chat/completions", data=json.dumps(body).encode(),
+                                 headers={"authorization": "Bearer " + key, "content-type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=300) as r:
+            reply = json.load(r)
+    except urllib.error.HTTPError as e:
+        text = e.read().decode(errors="replace").strip()
+        if e.code in (401, 403):
+            die(f"{host} refused the key ({e.code}): vikix ai key set {name} again; {text[:200]}")
+        die(f"{host} said {e.code}: {text[:300]}")
+    except urllib.error.URLError:
+        die(f"couldn't reach {host}: is the network up? Nothing else was sent; without --cloud the answer is local")
+    print((reply.get("choices") or [{}])[0].get("message", {}).get("content", "").strip())
+
+
 def ask_claude(model, prompt):
     """The passages to Anthropic's API, said plainly first; only when asked for."""
     import urllib.error
@@ -2043,7 +2095,7 @@ def ask_claude(model, prompt):
         print("(Claude declined to answer that.)", file=sys.stderr)
 
 
-def ask(question, sources, claude=False, model=None, limit=ASK_LIMIT, dry=False):
+def ask(question, sources, claude=False, model=None, limit=ASK_LIMIT, dry=False, cloud=False):
     """A question answered from the documents found for it, with the
     documents named. The web's links are never read; a docset's entries
     are found by name (vikix docs find), not asked."""
@@ -2072,12 +2124,17 @@ def ask(question, sources, claude=False, model=None, limit=ASK_LIMIT, dry=False)
     if dry:
         print(prompt)
         return
-    kind, model = who_answers(claude, model)
-    where = "on this laptop" if kind == "local" else f"these {len(found)} passages go to Anthropic"
+    kind, model = who_answers(claude, model, cloud)
+    service = cloud_settings(ai_conf()) if kind == "cloud" else None
+    where = ("on this laptop" if kind == "local" else f"these {len(found)} passages go to {service[3]}" if service
+             else f"these {len(found)} passages go to Anthropic")
     print(f"({model}, {where}; from {', '.join(sources)})", file=sys.stderr)
     if closed:
         print(f"({closed} of your own documents left out: closed to agents)", file=sys.stderr)
-    (ask_claude if kind == "claude" else ask_local)(model, prompt)
+    if service:
+        ask_cloud(model, prompt, *service)
+    else:
+        (ask_claude if kind == "claude" else ask_local)(model, prompt)
     print("\nFrom:")
     for n, h in enumerate(found, 1):
         print(f"  [{n}] {h['id']} — {' '.join(h['title'].split())}")
@@ -2322,15 +2379,17 @@ def main(argv):
         else:
             open_doc(doc, other="--other" in args)
     elif cmd == "ask":
-        sources, claude, model, limit, dry, words = [], False, None, ASK_LIMIT, False, []
+        sources, claude, cloud, model, limit, dry, words = [], False, False, None, ASK_LIMIT, False, []
         it = iter(args)
         for a in it:
             if a == "--source":
                 sources += (next(it, "") or "").split(",")
             elif a == "--claude":
-                claude = True
+                claude, cloud = True, False
+            elif a == "--cloud":
+                cloud, claude = True, False
             elif a == "--local":
-                claude = False
+                claude = cloud = False
             elif a == "--model":
                 model = next(it, None)
             elif a == "--limit":
@@ -2344,7 +2403,7 @@ def main(argv):
         sources = [s for s in sources if s]
         if "all" in sources:
             sources = [s for s in BOOST if s != "web"]
-        ask(" ".join(words), sources or list(ASK_SOURCES), claude, model, limit, dry)
+        ask(" ".join(words), sources or list(ASK_SOURCES), claude, model, limit, dry, cloud)
     elif cmd == "watch":
         what = args[0] if args else "status"
         if what == "on":

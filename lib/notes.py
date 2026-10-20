@@ -8,7 +8,7 @@ Markdown notes a question. ~/dev/ai/examples/ask-notes is the same idea
 made small, to read and learn from; this is the one to use every day.
 
     index [FOLDER] [--skip A,B]   read the notes that changed into the index
-    ask QUESTION [--local|--claude]
+    ask QUESTION [--local|--claude|--cloud]
     find QUESTION                 the nearest notes, with no answer
     status
 
@@ -17,7 +17,7 @@ The folder and what to skip are the user's, in ~/.config/vikix/notes
 ~/.local/share/vikix/notes/index.db: passages of the notes and their
 embeddings (all-minilm, on this laptop, through Ollama). Who answers
 follows Super+i (~/.config/vikix/ai: use=local or use=claude, model=);
---local and --claude choose for one question. Locally nothing leaves the
+--local, --claude and --cloud choose for one question. Locally nothing leaves the
 laptop; with Claude, the passages found (never the whole folder) go to
 Anthropic.
 """
@@ -44,6 +44,8 @@ HOST = os.environ.get("OLLAMA_HOST", "127.0.0.1:11434")
 BASE = HOST if HOST.startswith("http") else f"http://{HOST}"
 CLAUDE_DEFAULT = "claude-sonnet-5"        # as Super+i's (bin/vikix-ask)
 LOCAL_DEFAULT = "llama3.2:3b"
+CLOUD_URL_DEFAULT = "https://openrouter.ai/api/v1"   # use=cloud (lib/cloud-ask.sh's rules)
+CLOUD_MODEL_DEFAULT = "openai/gpt-4o-mini"
 PASSAGE = 1000                            # characters: about what all-minilm reads at once
 NEAREST = 6                               # passages given to the model for each question
 
@@ -293,13 +295,38 @@ def cmd_find(question):
     show_sources(found, sys.stdout)
 
 
+def cloud_settings(ai):
+    """The cloud service's address, its key's name and variable, and its host
+    (use=cloud: cloud_url=, cloud_key=; OpenRouter unless said)."""
+    url = (ai.get("cloud_url") or CLOUD_URL_DEFAULT).rstrip("/")
+    name = ai.get("cloud_key") or "openrouter"
+    var = {"huggingface": "HF_TOKEN", "github": "GITHUB_TOKEN"}.get(name) or \
+        (name if re.fullmatch(r"[A-Z][A-Z0-9_]*", name) else name.upper() + "_API_KEY")
+    host = re.sub(r"^[a-z]+://", "", url).split("/")[0].split(":")[0]
+    return url, name, var, host
+
+
+def cloud_key(var):
+    """The key: from the session, or from `vikix ai key set` since login."""
+    key = os.environ.get(var, "")
+    if not key:
+        try:
+            with open(os.path.join(os.path.dirname(AI_CONF), "secrets", var)) as f:
+                key = f.read().strip()
+        except OSError:
+            key = ""
+    return key
+
+
 def who_answers(force):
-    """('local', model) or ('claude', model): Super+i's choice unless forced."""
+    """('local', model), ('claude', model) or ('cloud', model): Super+i's choice unless forced."""
     ai = read_conf(AI_CONF)
     use = force or (ai.get("use") or "local").lower()
     model = ai.get("model", "")
     if use == "claude":
         return "claude", model if model.startswith("claude") else CLAUDE_DEFAULT
+    if use == "cloud":
+        return "cloud", model or CLOUD_MODEL_DEFAULT
     if model and not model.startswith("claude"):
         return "local", model
     names = [m["name"] for m in json.load(ollama("/api/tags"))["models"]]
@@ -313,12 +340,19 @@ def cmd_ask(question, force):
     kind, model = who_answers(force)
     if kind == "claude" and not os.environ.get("ANTHROPIC_API_KEY"):
         die("Claude needs your key: vikix ai key set anthropic (then a new terminal), or note ask --local")
+    cloud = cloud_settings(read_conf(AI_CONF)) if kind == "cloud" else None
+    if cloud and not cloud_key(cloud[2]):
+        die(f"the cloud service needs its key: vikix ai key set {cloud[1]}, or note ask --local")
     found = nearest(question)
     notes = "\n\n".join(f'<note name="{p}" heading="{h}">\n{t}\n</note>' for p, h, t, _ in found)
     prompt = f"{notes}\n\nQuestion: {question}"
-    where = "on this laptop" if kind == "local" else f"these {len(found)} passages went to Anthropic"
+    where = ("on this laptop" if kind == "local" else f"these {len(found)} passages went to {cloud[3]}" if cloud
+             else f"these {len(found)} passages went to Anthropic")
     print(f"({model}, {where})\n", file=sys.stderr)
-    (ask_claude if kind == "claude" else ask_local)(model, prompt)
+    if cloud:
+        ask_cloud(model, prompt, cloud[0], cloud_key(cloud[2]), cloud[3])
+    else:
+        (ask_claude if kind == "claude" else ask_local)(model, prompt)
     print("\nFrom:", file=sys.stderr)
     show_sources(found, sys.stderr)
 
@@ -330,6 +364,27 @@ def ask_local(model, prompt):
         for line in r:
             print(json.loads(line).get("message", {}).get("content", ""), end="", flush=True)
     print()
+
+
+def ask_cloud(model, prompt, url, key, host):
+    """The passages to the cloud service, in OpenAI's chat format."""
+    import urllib.error
+    import urllib.request
+    body = {"model": model, "messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
+            "stream": False}
+    req = urllib.request.Request(url + "/chat/completions", data=json.dumps(body).encode(),
+                                 headers={"authorization": "Bearer " + key, "content-type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=300) as r:
+            reply = json.load(r)
+    except urllib.error.HTTPError as e:
+        text = e.read().decode(errors="replace").strip()
+        if e.code in (401, 403):
+            die(f"{host} refused the key ({e.code}): vikix ai key set names it again; {text[:200]}")
+        die(f"{host} said {e.code}: {text[:300]}")
+    except urllib.error.URLError:
+        die(f"couldn't reach {host}: is the network up? (note ask --local works offline)")
+    print((reply.get("choices") or [{}])[0].get("message", {}).get("content", "").strip())
 
 
 def ask_claude(model, prompt):
@@ -390,6 +445,7 @@ def main():
             g = a.add_mutually_exclusive_group()
             g.add_argument("--claude", action="store_const", const="claude", dest="force")
             g.add_argument("--local", action="store_const", const="local", dest="force")
+            g.add_argument("--cloud", action="store_const", const="cloud", dest="force")
     sub.add_parser("status")
     args = ap.parse_args()
     if args.cmd == "index":

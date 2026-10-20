@@ -351,7 +351,7 @@ It needs `llm` (`vikix ai llm`) and a local model. A small one takes some second
 
 ### Local or Claude
 
-To switch, pick *Use Claude instead* (or *Use the local model instead*) at the end of the Super+i menu, or type `vikix ai use claude` or `vikix ai use local`. A third choice, Codex, is below. The choice is kept in `~/.config/vikix/ai`, which starts as:
+To switch, pick *Use Claude instead* (or *Use the local model instead*) at the end of the Super+i menu, or type `vikix ai use claude` or `vikix ai use local`. A third choice, Codex, and a fourth, a cloud service such as OpenRouter, are below. The choice is kept in `~/.config/vikix/ai`, which starts as:
 
 ```sh
 use=local          # free, offline, the text stays on this laptop
@@ -382,13 +382,35 @@ Codex is an agent, not a chat model: by itself it runs commands, searches the we
 
 Super+F10 follows, one question at a time: Codex doesn't carry the conversation on. The editors' chats and `note` know only local and Claude, and stay on the local model while Super+i is on Codex.
 
+### A cloud service (OpenRouter and the like)
+
+A fourth choice, `vikix ai use cloud`, is any service that speaks OpenAI's API: [OpenRouter](https://openrouter.ai) unless you say another. One key, hundreds of models, paid per use; the text you select goes to that service and on to whoever hosts the model, so this is the choice for a model Anthropic doesn't offer, or a cheaper one. Set up once:
+
+```sh
+vikix ai key set openrouter        # the key from openrouter.ai/keys; becomes OPENROUTER_API_KEY
+vikix ai use cloud                 # Super+i, the voice key, the editors' chats and note follow
+```
+
+In `~/.config/vikix/ai`, `model=` names the service's model (`openai/gpt-4o-mini` unless said; OpenRouter's names are at openrouter.ai/models), and two lines are the cloud's alone:
+
+```sh
+use=cloud
+model=anthropic/claude-sonnet-4.5   # the service's own name for it
+cloud_url=                          # empty: https://openrouter.ai/api/v1; any OpenAI-compatible address
+cloud_key=                          # empty: openrouter; another key's name from vikix ai key list (groq, mistral, deepseek, xai ...)
+```
+
+So Groq is `cloud_url=https://api.groq.com/openai/v1`, `cloud_key=groq` and one of its models in `model=`, after `vikix ai key set groq`. Only an `https` address is taken, or `http` on this machine itself (a proxy of your own). The menu at the end of Super+i offers *Use the cloud service instead* once the key is there, and says where the text goes.
+
+Through `llm`, the service is the model `vikix-cloud`, an entry Vikix keeps in `~/.config/io.datasette.llm/extra-openai-models.yaml` (yours there stay): `llm -m vikix-cloud "..."` in a terminal needs the key as `OPENAI_API_KEY` for that call, since llm reads an OpenAI-compatible model's key from there: `OPENAI_API_KEY=$OPENROUTER_API_KEY llm -m vikix-cloud "..."`. Super+i, the voice key and `note` hand it over that way themselves, for one call at a time: the key is never on a command line, and never copied into llm's own key file.
+
 ## AI in Neovim
 
 Vikix's Neovim has [CodeCompanion](https://codecompanion.olimorris.dev), under **Space A**:
 
 | Keys | What they do |
 |---|---|
-| `Space A c` | A chat beside your code, on the model Super+i uses: a local one, or Claude |
+| `Space A c` | A chat beside your code, on the model Super+i uses: a local one, Claude, or the cloud service |
 | `Space A q` | Ask about the selection (or the file), or ask for a change to it |
 | `Space A a` | Add the selection to the chat |
 | `Space A g` | A chat with your agent (the one Super+a starts), which can read and change your files |

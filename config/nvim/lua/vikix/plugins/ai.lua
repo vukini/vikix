@@ -1,5 +1,6 @@
 -- AI in Neovim: CodeCompanion, on the model Super+i uses (`vikix ai use`:
--- Claude, or a model on this laptop), and your agent (Claude Code, Codex,
+-- Claude, a model on this laptop, or a cloud service that speaks OpenAI's
+-- API, OpenRouter unless ~/.config/vikix/ai says another), and your agent (Claude Code, Codex,
 -- Gemini CLI, OpenCode) in a chat, over ACP, or in a terminal. Agents start
 -- through `vikix agent`, as Super+a's do: the guide, no API keys, and a
 -- snapshot first, so `vikix changes` shows what they did.
@@ -42,6 +43,29 @@ end
 local function use() return (setting("ai", "use") or "local"):lower() end
 local function model() return setting("ai", "model") end
 
+-- The cloud service (use=cloud): its address, its key by the name `vikix ai
+-- key set` gave it (lib/cloud-ask.sh's rules), and the model.
+local cloud_url_default, cloud_model_default = "https://openrouter.ai/api/v1", "openai/gpt-4o-mini"
+local function cloud_url() return (setting("ai", "cloud_url") or cloud_url_default):gsub("/$", "") end
+local function cloud_host() return cloud_url():gsub("^%w+://", ""):gsub("[/:].*$", "") end
+local function cloud_key_name() return setting("ai", "cloud_key") or "openrouter" end
+local function cloud_key_var()
+  local name = cloud_key_name()
+  if name == "huggingface" then return "HF_TOKEN" elseif name == "github" then return "GITHUB_TOKEN" end
+  if name:match "^[A-Z][A-Z0-9_]*$" then return name end
+  return name:upper() .. "_API_KEY"
+end
+local function cloud_key()
+  local var = cloud_key_var()
+  local key = vim.env[var]
+  if key and key ~= "" then return key end
+  local f = io.open(config .. "/secrets/" .. var)
+  if not f then return nil end
+  key = vim.trim(f:read "*a")
+  f:close()
+  return key ~= "" and key or nil
+end
+
 -- Your agent (Super+a's), and its CodeCompanion adapter.
 local agents = { claude = "claude_code", codex = "codex", gemini = "gemini_cli", opencode = "opencode" }
 local function agent() return setting("agent", "agent") or "claude" end
@@ -53,6 +77,11 @@ local function model_ready()
   if use() == "claude" then
     if anthropic_key() then return true end
     say "Claude needs your Anthropic key: in a terminal, vikix ai key set anthropic.\nOr a model on this laptop: vikix ai use local"
+    return false
+  end
+  if use() == "cloud" then
+    if cloud_key() then return true end
+    say("The cloud service needs its key: in a terminal, vikix ai key set " .. cloud_key_name() .. ".\nOr a model on this laptop: vikix ai use local")
     return false
   end
   local ok = vim.system({ "curl", "-fsS", "--max-time", "1", ollama .. "/api/version" }):wait().code == 0
@@ -93,6 +122,7 @@ local own_login = function() return true end
 -- look alike, and one may be paid (Claude), the other free (local).
 local function where(adapter)
   if adapter.type == "acp" then return "your agent, started by vikix agent" end
+  if adapter.name == "cloud" then return "sent to " .. cloud_host() end
   return adapter.name == "ollama" and "on this laptop" or "sent to " .. (adapter.formatted_name or adapter.name)
 end
 local function chat_bar(bufnr, model)
@@ -139,9 +169,11 @@ return {
     "olimorris/codecompanion.nvim",
     opts = function(_, opts)
       -- Super+i's model= when set; else each adapter's own (Claude's is
-      -- claude-sonnet-5, as Super+i's; Ollama's the first you have).
-      local http = use() == "claude" and "anthropic" or "ollama"
+      -- claude-sonnet-5, as Super+i's; Ollama's the first you have; the
+      -- cloud's openai/gpt-4o-mini).
+      local http = ({ claude = "anthropic", cloud = "cloud" })[use()] or "ollama"
       local chat = model() and { name = http, model = model() } or http
+      if http == "cloud" and not model() then chat = { name = "cloud", model = cloud_model_default } end
       return vim.tbl_deep_extend("force", opts, {
         adapters = {
           http = {
@@ -150,6 +182,15 @@ return {
             end,
             ollama = function()
               return require("codecompanion.adapters").extend("ollama", { env = { url = ollama } })
+            end,
+            -- The cloud service: OpenAI's API at its address, your key by name.
+            cloud = function()
+              return require("codecompanion.adapters").extend("openai_compatible", {
+                name = "cloud",
+                formatted_name = "Cloud",
+                env = { url = cloud_url(), api_key = cloud_key, chat_url = "/chat/completions" },
+                schema = { model = { default = model() or cloud_model_default } },
+              })
             end,
           },
           acp = {
@@ -192,7 +233,7 @@ return {
       for _, mode in ipairs { "n", "v" } do
         maps[mode][p .. "c"] = {
           function() if model_ready() then vim.cmd "CodeCompanionChat Toggle" end end,
-          desc = "Chat (vikix ai use: Claude or local)",
+          desc = "Chat (vikix ai use: Claude, local or the cloud)",
         }
         maps[mode][p .. "q"] = {
           function() if model_ready() then vim.cmd "CodeCompanion" end end,

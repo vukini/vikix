@@ -123,6 +123,11 @@ EOF
     out=$(ANTHROPIC_API_KEY=sk-test PATH="$t/stand-in:$PATH" timeout 60 nvim --headless -c "luafile $t/bar.lua" 2>&1 || true)
     grep -q 'BAR Anthropic .*(sent to Anthropic)' <<<"$out" || { echo "FAIL nvim: the chat's bar should say who answers: $(grep -o 'BAR.*' <<<"$out" || tail -3 <<<"$out")"; fail=1; }
     grep -q 'CLI ft=codecompanion_cli mode=t number=false' <<<"$out" || { echo "FAIL nvim: the agent's terminal should be ready to type, no numbers: $(grep -o 'CLI.*' <<<"$out" || tail -3 <<<"$out")"; fail=1; }
+    # The cloud: the chat on the openai_compatible adapter, the bar saying where.
+    echo use=cloud > "$HOME/.config/vikix/ai"
+    out=$(OPENROUTER_API_KEY=sk-or PATH="$t/stand-in:$PATH" timeout 60 nvim --headless -c "luafile $t/bar.lua" 2>&1 || true)
+    grep -q 'BAR Cloud  openai/gpt-4o-mini  (sent to openrouter.ai)' <<<"$out" || { echo "FAIL nvim: the chat's bar should say the cloud answers: $(grep -o 'BAR.*' <<<"$out" || tail -3 <<<"$out")"; fail=1; }
+    echo use=claude > "$HOME/.config/vikix/ai"
     rm "$HOME/.config/vikix/ai"
   fi
   # Open files of a few languages; the Markdown one is where 0.12 broke.

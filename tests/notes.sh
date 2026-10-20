@@ -125,6 +125,23 @@ printf 'use=local\nmodel=\n' > "$HOME/.config/vikix/ai"
 out=$(note ask --claude "loaf")
 check "--claude should have Claude answer, whatever ai says: $out" has "fake claude answer" "$out"
 
+# The cloud: an OpenAI-compatible service, the stand-in on this port.
+printf 'use=cloud\nmodel=\ncloud_url=http://127.0.0.1:%s/v1\n' "$port" > "$HOME/.config/vikix/ai"
+out=$(OPENROUTER_API_KEY='' note ask "loaf" 2>&1)
+check "the cloud without a key should say how to set one: $out" has "vikix ai key set openrouter" "$out"
+out=$(OPENROUTER_API_KEY=or-key note ask "How long does the loaf bake?" 2>&1)
+check "use=cloud should have the service answer: $out" has "fake cloud answer" "$out"
+check "and say the passages went to it: $out" has "went to 127.0.0.1" "$out"
+check "the service should get OpenAI's chat call with the key: $(last | cut -c1-120)" test "$(jq -r '.path + " " + .auth + " " + .body.model' <<<"$(last)")" = "/v1/chat/completions Bearer or-key openai/gpt-4o-mini"
+check "with the rule as the system message" has "Use only what the notes say" "$(jq -r '.body.messages[0].content' <<<"$(last)")"
+printf 'use=cloud\nmodel=llama-3.3-70b\ncloud_url=http://127.0.0.1:%s/v1\ncloud_key=groq\n' "$port" > "$HOME/.config/vikix/ai"
+out=$(GROQ_API_KEY=gsk-test note ask "loaf" 2>&1)
+check "another key by name, and model=: $(jq -r '.auth + " " + .body.model' <<<"$(last)")" test "$(jq -r '.auth + " " + .body.model' <<<"$(last)")" = "Bearer gsk-test llama-3.3-70b"
+printf 'use=local\nmodel=\ncloud_url=http://127.0.0.1:%s/v1\n' "$port" > "$HOME/.config/vikix/ai"
+out=$(OPENROUTER_API_KEY=or-key note ask --cloud "loaf" 2>&1)
+check "--cloud should have the service answer, whatever ai says: $out" has "fake cloud answer" "$out"
+printf 'use=local\nmodel=\n' > "$HOME/.config/vikix/ai"
+
 out=$(note status)
 check "status should show the folder: $out" has "folder:  $v" "$out"
 check "status should count the notes (void.md was deleted): $out" has "2 notes" "$out"

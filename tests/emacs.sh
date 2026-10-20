@@ -150,6 +150,21 @@ out=$(ANTHROPIC_API_KEY=sk-env el "$chat (say \"first %s, images %S\" (car (gpte
 check "Claude's model= should be first in the menu, with what gptel knows of Sonnet: $out" has '^first claude-opus-5, images (media' "$out"
 check "and be the default: $out" has '^claude-opus-5 on Claude' "$out"
 
+# The cloud: a backend at the address in the file, the key by name.
+ai 'use=cloud\n'
+out=$(el "$chat")
+check "the cloud with no key should say how to set one: $out" has 'stopped: The cloud service needs its key: in a terminal, vikix ai key set openrouter' "$out"
+echo 'sk-or' > "$HOME/.config/vikix/secrets/OPENROUTER_API_KEY"
+out=$(el "$chat (say \"key %s host %s\" (gptel--get-api-key) (gptel-backend-host gptel-backend))")
+check "the cloud should be OpenRouter's gpt-4o-mini unless said: $out" has '^openai/gpt-4o-mini on Cloud' "$out"
+check "with the key set since login, at openrouter.ai: $out" has '^key sk-or host openrouter.ai' "$out"
+rm "$HOME/.config/vikix/secrets/OPENROUTER_API_KEY"
+ai 'use=cloud\nmodel=llama-3.3-70b\ncloud_url=https://api.groq.com/openai/v1\ncloud_key=groq\n'
+out=$(GROQ_API_KEY=gsk-env el "$chat (say \"key %s host %s\" (gptel--get-api-key) (gptel-backend-host gptel-backend))")
+check "another service, its key by name and model=: $out" has '^llama-3.3-70b on Cloud' "$out"
+check "at its address: $out" has '^key gsk-env host api.groq.com' "$out"
+ai 'use=claude\nmodel=claude-opus-5\n'
+
 # In one Emacs: a pick of yours stays, until the file changes.
 models '{"name":"llama3.2:3b"}'
 out=$(ANTHROPIC_API_KEY=sk-env el "(progn $chat

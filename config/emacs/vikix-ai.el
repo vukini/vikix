@@ -1,6 +1,7 @@
 ;;; vikix-ai.el --- AI in Emacs, on Vikix's settings  -*- lexical-binding: t; -*-
 
-;; gptel on the model Super+i uses (`vikix ai use'): Claude, or a model on
+;; gptel on the model Super+i uses (`vikix ai use'): Claude, a cloud
+;; service that speaks OpenAI's API (OpenRouter unless said), or a model on
 ;; this laptop through Ollama. Vikix keeps this file current: it is
 ;; ~/.local/share/vikix/emacs/vikix-ai.el, a link into the Vikix checkout,
 ;; and your config loads it when it's there, after its own gptel setup:
@@ -29,6 +30,7 @@
 (defvar gptel-model)
 (declare-function gptel-make-anthropic "gptel-anthropic")
 (declare-function gptel-make-ollama "gptel-ollama")
+(declare-function gptel-make-openai "gptel-openai")
 (declare-function gptel-backend-name "gptel-openai")
 (declare-function gptel--process-models "gptel-openai")
 
@@ -51,6 +53,9 @@
 
 (defvar vikix-ai-claude nil "The Claude backend.")
 (defvar vikix-ai-local nil "The backend for the models on this laptop.")
+(defvar vikix-ai-cloud nil "The backend for the cloud service (use=cloud).")
+(defconst vikix-ai-cloud-url "https://openrouter.ai/api/v1" "The service unless cloud_url= says another.")
+(defconst vikix-ai-cloud-default 'openai/gpt-4o-mini "Its model unless model= says one.")
 (defvar vikix-ai--applied :none
   "The (use . model) last made the default, so a change is noticed.")
 
@@ -91,6 +96,28 @@ A key set after login isn't in this Emacs's environment yet."
     (if (and key (not (string-empty-p key)))
         key
       (vikix-ai--read (expand-file-name "secrets/ANTHROPIC_API_KEY" vikix-ai-config)))))
+
+(defun vikix-ai--cloud-url ()
+  "The cloud service's address, without a trailing slash (cloud_url=, else OpenRouter)."
+  (string-remove-suffix "/" (or (vikix-ai--setting "cloud_url") vikix-ai-cloud-url)))
+
+(defun vikix-ai--cloud-key-var ()
+  "The variable the cloud's key is in: cloud_key= by `vikix ai key set''s names
+\(openrouter is OPENROUTER_API_KEY; a name in capitals is itself)."
+  (let ((name (or (vikix-ai--setting "cloud_key") "openrouter"))
+        (case-fold-search nil))                ; capitals mean capitals
+    (cond ((equal name "huggingface") "HF_TOKEN")
+          ((equal name "github") "GITHUB_TOKEN")
+          ((string-match-p "\\`[A-Z][A-Z0-9_]*\\'" name) name)
+          (t (concat (upcase name) "_API_KEY")))))
+
+(defun vikix-ai--cloud-key ()
+  "The cloud service's key: from the session, or from `vikix ai key set' since."
+  (let* ((var (vikix-ai--cloud-key-var))
+         (key (getenv var)))
+    (if (and key (not (string-empty-p key)))
+        key
+      (vikix-ai--read (expand-file-name (concat "secrets/" var) vikix-ai-config)))))
 
 (defun vikix-ai--local-models ()
   "The models Ollama has, as symbols; `down' when it isn't running.
@@ -159,6 +186,23 @@ already on it stays on it."
             (gptel-make-ollama "Local"
               :host vikix-ai-ollama :stream t :models local)))))
 
+(defun vikix-ai--cloud-backend (model)
+  "The Cloud backend, made afresh for the address in the file, with MODEL.
+The service speaks OpenAI's API at cloud_url= (OpenRouter unless said);
+the key is yours by name (cloud_key=), read when a chat starts."
+  (let* ((url (vikix-ai--cloud-url))
+         (parts (url-generic-parse-url url))
+         (host (url-host parts))
+         (path (string-remove-suffix "/" (or (url-filename parts) ""))))
+    (setq vikix-ai-cloud
+          (gptel-make-openai "Cloud"
+            :host (if (url-port-if-non-default parts) (format "%s:%d" host (url-port parts)) host)
+            :protocol (or (url-type parts) "https")
+            :endpoint (concat path "/chat/completions")
+            :key #'vikix-ai--cloud-key
+            :stream t
+            :models (list (or model vikix-ai-cloud-default))))))
+
 (defvar gptel--known-backends)
 (defvar gptel--openai)
 (declare-function gptel-backend-key "gptel-openai")
@@ -175,7 +219,7 @@ for its passphrase) is taken on trust, except for gptel's built-in
 ChatGPT, which counts only with OPENAI_API_KEY set."
   (let ((key (gptel-backend-key backend))
         (text (lambda (k) (and (stringp k) (not (string-empty-p (string-trim k)))))))
-    (cond ((memq backend (list vikix-ai-claude vikix-ai-local)) t)
+    (cond ((memq backend (list vikix-ai-claude vikix-ai-local vikix-ai-cloud)) t)
           ((and (boundp 'gptel--openai) (eq backend gptel--openai))
            (funcall text (getenv "OPENAI_API_KEY")))
           ((null key) t)                        ; Ollama's and the like need none
@@ -186,7 +230,8 @@ ChatGPT, which counts only with OPENAI_API_KEY set."
 (defun vikix-ai--menu ()
   "gptel's menu: Claude and Local first, then the others that can answer here.
 The one in use stays, whatever its key."
-  (let ((ours (list (cons "Claude" vikix-ai-claude) (cons "Local" vikix-ai-local)))
+  (let ((ours (delq nil (list (cons "Claude" vikix-ai-claude) (cons "Local" vikix-ai-local)
+                              (and vikix-ai-cloud (cons "Cloud" vikix-ai-cloud)))))
         (current (default-value 'gptel-backend))
         seen shown hidden)
     (dolist (e (append gptel--known-backends vikix-ai--hidden))
@@ -205,21 +250,28 @@ With FORCE (interactively), make it the default again anyway."
   (require 'gptel)
   (require 'gptel-anthropic)            ; not every gptel is autoloaded
   (require 'gptel-ollama)
+  (require 'gptel-openai)
   (let* ((use (downcase (or (vikix-ai--setting "use") "local")))
          (model (let ((m (vikix-ai--setting "model"))) (and m (intern m))))
          (models (vikix-ai--local-models))
-         (now (cons use model)))
+         (now (list use model (and (equal use "cloud") (vikix-ai--cloud-url)))))
     (vikix-ai--backends (and (equal use "claude") model) models)
+    (when (equal use "cloud") (vikix-ai--cloud-backend model))
     (when (or force (not (equal now vikix-ai--applied)))
       (setq vikix-ai--applied now)
-      (if (equal use "claude")
-          (setq-default gptel-backend vikix-ai-claude
-                        gptel-model (or model vikix-ai-claude-default))
+      (cond
+       ((equal use "claude")
+        (setq-default gptel-backend vikix-ai-claude
+                      gptel-model (or model vikix-ai-claude-default)))
+       ((equal use "cloud")
+        (setq-default gptel-backend vikix-ai-cloud
+                      gptel-model (or model vikix-ai-cloud-default)))
+       (t
         (setq-default gptel-backend vikix-ai-local
                       gptel-model (cond (model)
                                         ((and (listp models) (memq 'llama3.2:3b models)) 'llama3.2:3b)
                                         ((and (listp models) (car models)))
-                                        (t 'llama3.2:3b)))))
+                                        (t 'llama3.2:3b))))))
     (vikix-ai--menu)                     ; after the default: the one in use stays
     (when (called-interactively-p 'interactive)
       (message "gptel: %s on %s" gptel-model (gptel-backend-name gptel-backend)))
@@ -234,6 +286,9 @@ backends are checked: one of yours is yours."
     (cond
      ((and (eq backend vikix-ai-claude) (not (vikix-ai--anthropic-key)))
       (user-error "Claude needs your Anthropic key: in a terminal, vikix ai key set anthropic.  Or a model on this laptop: vikix ai use local"))
+     ((and vikix-ai-cloud (eq backend vikix-ai-cloud) (not (vikix-ai--cloud-key)))
+      (user-error "The cloud service needs its key: in a terminal, vikix ai key set %s.  Or a model on this laptop: vikix ai use local"
+                  (or (vikix-ai--setting "cloud_key") "openrouter")))
      ((not (eq backend vikix-ai-local)))
      ((eq models 'down)
       (user-error "Local AI isn't running: in a terminal, vikix ai setup.  Or Claude: vikix ai use claude"))

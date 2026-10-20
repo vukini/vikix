@@ -37,6 +37,8 @@ VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 . "$VIKIX_DIR/lib/features.sh"
 # shellcheck source=../lib/codex-ask.sh
 . "$VIKIX_DIR/lib/codex-ask.sh"
+# shellcheck source=../lib/cloud-ask.sh
+. "$VIKIX_DIR/lib/cloud-ask.sh"
 
 # Pinned, like llm: a new version is a new line here. uv installs it as
 # you, in its own environment, with `piper` in ~/.local/bin.
@@ -69,6 +71,7 @@ CURL=${VIKIX_CURL:-curl}
 TERMINAL=${VIKIX_TERMINAL:-alacritty}
 VOICES="${XDG_DATA_HOME:-$HOME/.local/share}/vikix/piper"
 CONF="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/voice"
+AI_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/ai"   # Super+i's: cloud_key= for use=cloud
 RUN="${XDG_RUNTIME_DIR:-/tmp}"
 SPEAKING="$RUN/vikix-voice.speaking"      # the speaking pipeline's process group
 CHAT="$VIKIX_STATE/voice-chat"            # llm's conversation id, and when it was last used
@@ -95,6 +98,10 @@ idle=5
 EOF
 }
 
+conf_ai() {   # conf_ai KEY — a value from Super+i's file (lib/cloud-ask.sh's names)
+  sed -n "s/^[[:space:]]*$1[[:space:]]*=//p" "$AI_CONF" 2>/dev/null | tail -1 |
+    sed -e 's/#.*//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+}
 conf() {   # conf KEY — its value, without comments or spaces
   sed -n "s/^[[:space:]]*$1[[:space:]]*=//p" "$CONF" 2>/dev/null | tail -1 |
     sed -e 's/#.*//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
@@ -256,7 +263,13 @@ cmd_ask() {
   local args=(-m "$model" -s "$system")
   [ -n "$cid" ] && args+=(--cid "$cid")
   err="$RUN/vikix-voice.err"
-  if [ "$use" = codex ]; then
+  if [ "$use" = cloud ]; then
+    # The service's entry in llm, the key in its environment only (lib/cloud-ask.sh).
+    local key; key=$(vikix_cloud_key_value "$(conf_ai cloud_key)") || key=''
+    [ -n "$key" ] || { note "The cloud service needs its key" "In a terminal: vikix ai key set $(conf_ai cloud_key)"; return 1; }
+    args[1]=vikix-cloud
+    out=$(OPENAI_API_KEY=$key timeout 300 "$LLM" "${args[@]}" "$question" </dev/null 2>"$err"); rc=$?
+  elif [ "$use" = codex ]; then
     # Codex keeps no conversation here (nothing of the session is kept):
     # each question is asked on its own. No name: Codex's own model.
     cid=''; [ "$model" = codex ] && model=''

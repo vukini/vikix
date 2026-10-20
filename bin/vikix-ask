@@ -5,7 +5,7 @@
 #   vikix-ask ACTION      one of those straight away (ask, proofread,
 #                         rewrite, translate, explain): for keys of your own
 #                         in user.lisp
-#   vikix-ask use [local|claude|codex]  which model answers (vikix ai use); alone, says which
+#   vikix-ask use [local|claude|codex|cloud]  which model answers (vikix ai use); alone, says which
 #   vikix-ask which [translate]
 #                         the model (Translate's with translate), where the text goes, which of the
 #                         three it is and Codex's effort, tab-separated
@@ -19,9 +19,13 @@
 #
 # Which model answers is yours to choose, in ~/.config/vikix/ai (made on
 # first use): a local one (free, offline, the text stays on this laptop),
-# Claude (better, paid, the text goes to Anthropic), or Codex (the Codex
+# Claude (better, paid, the text goes to Anthropic), Codex (the Codex
 # you installed and signed in to with codex login; the text goes to
-# OpenAI). It never leaves the local model by itself.
+# OpenAI), or a cloud service that speaks OpenAI's API (use=cloud:
+# OpenRouter unless cloud_url= says another, with a key of yours by name,
+# cloud_key=, and the service's model in model=; the text goes to that
+# service and the model's host; lib/cloud-ask.sh). It never leaves the
+# local model by itself.
 #
 # Codex is an agent, so Super+i asks it with its tools switched off: no
 # commands, no web search, none of the apps connected to your ChatGPT
@@ -36,6 +40,8 @@ set -uo pipefail
 VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
 # shellcheck source=../lib/codex-ask.sh
 . "$VIKIX_DIR/lib/codex-ask.sh"
+# shellcheck source=../lib/cloud-ask.sh
+. "$VIKIX_DIR/lib/cloud-ask.sh"
 CONF="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/ai"
 LLM=${VIKIX_LLM:-$HOME/.local/bin/llm}   # tests name their stand-in
 TERMINAL=${VIKIX_TERMINAL:-alacritty}
@@ -64,12 +70,23 @@ make_conf() {
 #                (vikix ai key set anthropic first)
 #   use=codex    Codex, with its tools off: the text goes to OpenAI
 #                (install it and codex login first)
+#   use=cloud    a service that speaks OpenAI's API: OpenRouter unless
+#                cloud_url= says another; paid, the text goes there and to
+#                the model's host (vikix ai key set openrouter first)
 use=local
 
 # A model by name (llm models lists them). Empty: llama3.2:3b, or your
-# first local model; claude-sonnet-5 for Claude; Codex's own for Codex.
-# One line for all three: empty it before switching to another.
+# first local model; claude-sonnet-5 for Claude; Codex's own for Codex;
+# openai/gpt-4o-mini for the cloud (the service's own names:
+# openrouter.ai/models). One line for all four: empty it before switching.
 model=
+
+# Cloud only (use=cloud): the service's address, any that speaks OpenAI's
+# API (empty: https://openrouter.ai/api/v1), and which key of yours, by
+# the name vikix ai key set gave it (empty: openrouter; groq, mistral,
+# deepseek, xai ... or the variable itself, MY_SERVICE_API_KEY).
+cloud_url=
+cloud_key=
 
 # Translate only: a model of its own, under the same use= (translategemma:27b
 # is made for it; vikix ai models gets it). Empty: model= translates too.
@@ -122,6 +139,11 @@ pick_model() {   # pick_model [KEY]
         fail "Claude needs your Anthropic key" "In a terminal: vikix ai key set anthropic. Or back to local: vikix ai use local"
       model=${model:-$CLAUDE_DEFAULT}
       WHERE="sent to Anthropic" ;;
+    cloud)
+      cloud_ready || fail "$CLOUD_MISSING" "$CLOUD_FIX. Or back to local: vikix ai use local"
+      model=${model:-$VIKIX_CLOUD_MODEL_DEFAULT}
+      vikix_cloud_llm_entry "$CLOUD_URL" "$model"
+      WHERE="sent to $(vikix_cloud_host "$CLOUD_URL")" ;;
     codex)
       codex_ready || fail "$CODEX_MISSING" "$CODEX_FIX. Or back to local: vikix ai use local"
       # No name: the model Codex itself is set to (~/.codex/config.toml).
@@ -129,9 +151,20 @@ pick_model() {   # pick_model [KEY]
       CODEX_EFFORT=$(conf effort); CODEX_EFFORT=${CODEX_EFFORT,,}
       case $CODEX_EFFORT in *[!a-z]*) fail "effort= in ~/.config/vikix/ai looks wrong" "A word such as low, medium or high: $(escape <<<"$CODEX_EFFORT")" ;; esac
       WHERE="sent to OpenAI" ;;
-    *) fail "use= in ~/.config/vikix/ai should be local, claude or codex" "$(escape <<<"$use")" ;;
+    *) fail "use= in ~/.config/vikix/ai should be local, claude, codex or cloud" "$(escape <<<"$use")" ;;
   esac
   MODEL=$model; USE=${use:-local}
+}
+
+# The cloud service's address and key are there (CLOUD_URL, CLOUD_KEY);
+# else what's missing, and what to do.
+cloud_ready() {
+  local url name
+  url=$(conf cloud_url); name=$(conf cloud_key); name=${name:-$VIKIX_CLOUD_KEY_DEFAULT}
+  CLOUD_URL=$(vikix_cloud_url "$url") || { CLOUD_MISSING="cloud_url= in ~/.config/vikix/ai isn't an address"; CLOUD_FIX="https://... (empty: OpenRouter)"; return 1; }
+  CLOUD_KEY=$(vikix_cloud_key_value "$name") || { CLOUD_MISSING="cloud_key= in ~/.config/vikix/ai isn't a key's name"; CLOUD_FIX="a name from vikix ai key list, such as openrouter"; return 1; }
+  [ -n "$CLOUD_KEY" ] || { CLOUD_MISSING="The cloud service needs its key"; CLOUD_FIX="In a terminal: vikix ai key set $name"; return 1; }
+  return 0
 }
 
 # Codex is there and signed in; else what's missing, and what to do.
@@ -159,7 +192,7 @@ set_use() {
   local to=${1:-}
   # Without one: which it is now, one word (editors read it).
   if [ -z "$to" ]; then local use; use=$(conf use); use=${use,,}; echo "${use:-local}"; exit 0; fi
-  case $to in local|claude|codex) ;; *) echo "usage: vikix ai use local|claude|codex" >&2; exit 2 ;; esac
+  case $to in local|claude|codex|cloud) ;; *) echo "usage: vikix ai use local|claude|codex|cloud" >&2; exit 2 ;; esac
   if [ "$to" = claude ] && ! have_key; then
     echo "Claude needs your Anthropic key first: vikix ai key set anthropic" >&2
     note "Claude needs your Anthropic key" "In a terminal: vikix ai key set anthropic"; exit 1
@@ -168,6 +201,10 @@ set_use() {
     echo "$CODEX_MISSING. $CODEX_FIX" >&2
     note "$CODEX_MISSING" "$CODEX_FIX"; exit 1
   fi
+  if [ "$to" = cloud ] && ! cloud_ready; then
+    echo "$CLOUD_MISSING. $CLOUD_FIX" >&2
+    note "$CLOUD_MISSING" "$CLOUD_FIX"; exit 1
+  fi
   if grep -q '^[[:space:]]*use[[:space:]]*=' "$CONF"; then
     sed --follow-symlinks -i "s/^[[:space:]]*use[[:space:]]*=.*/use=$to/" "$CONF"
   else
@@ -175,6 +212,7 @@ set_use() {
   fi
   local what="a model on this laptop: free, offline, the text stays here"
   [ "$to" = claude ] && what="Claude: better, paid, the text you select goes to Anthropic"
+  [ "$to" = cloud ] && what="the cloud service at $(vikix_cloud_host "$CLOUD_URL"): paid, the text you select goes there and to the model's host"
   if [ "$to" = codex ]; then
     # The editors' chats and note know only local and Claude.
     what="Codex, with its tools off: the text you select goes to OpenAI"
@@ -257,13 +295,15 @@ if [ -z "$ACTION" ]; then
   # The other two, each only when it could answer.
   [ "$USE" = local ] || menu+=$'\nUse the local model instead (free; the text stays here)'
   [ "$USE" = claude ] || menu+=$'\nUse Claude instead (paid; the text goes to Anthropic)'
+  if [ "$USE" != cloud ] && cloud_ready 2>/dev/null; then menu+="
+Use the cloud service instead (paid; the text goes to $(vikix_cloud_host "$CLOUD_URL"))"; fi
   if [ "$USE" != codex ] && vikix_codex_ready; then menu+=$'\nUse Codex instead (the text goes to OpenAI)'; fi
   pick=$(rofi -dmenu -i -no-custom -p "AI ($MODEL, $WHERE)" -mesg "$(preview)" <<<"$menu") || exit 0
   case $pick in
     Ask*) ACTION=ask ;; Proofread*) ACTION=proofread ;; Rewrite*) ACTION=rewrite ;;
     Translate*) ACTION=translate ;; Explain*) ACTION=explain ;;
     "Use Claude"*) set_use claude; exit ;; "Use the local"*) set_use local; exit ;;
-    "Use Codex"*) set_use codex; exit ;;
+    "Use Codex"*) set_use codex; exit ;; "Use the cloud"*) set_use cloud; exit ;;
     *) exit 0 ;;
   esac
 fi
@@ -314,7 +354,13 @@ answer() {
   else
     local args=(-m "$MODEL" -s "$system")
     [ "$ACTION" = ask ] && args+=("$question")
-    timeout 300 "$LLM" "${args[@]}"
+    if [ "$USE" = cloud ]; then
+      # llm's entry for the service, with the key in its environment only.
+      args[1]=vikix-cloud
+      OPENAI_API_KEY=$CLOUD_KEY timeout 300 "$LLM" "${args[@]}"
+    else
+      timeout 300 "$LLM" "${args[@]}"
+    fi
   fi
 }
 if [ -n "$TEXT" ]; then

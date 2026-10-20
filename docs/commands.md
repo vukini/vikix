@@ -168,7 +168,7 @@ The everyday command.
 - `vikix webapp add|open|list|remove` — a website as a program of its own (presets: fastmail, gmail, outlook, outlook-live, superhuman)
 - `vikix ai setup|models|chat|list|remove|status|stop|uninstall` — AI models that run on this laptop (Ollama)
 - `vikix ai llm` — the llm command, with those models and your keys
-- `vikix ai use [local|claude|codex]` — the model for Super+i, AI on the selected text
+- `vikix ai use [local|claude|codex|cloud]` — the model for Super+i, AI on the selected text
 - `vikix ai key set|list|remove|check` — API keys (`ANTHROPIC_API_KEY` ...) kept safely, out of your dotfiles and their history
 - `vikix windows [setup|create ISO|stop|status|network|remove]` — Windows in a VM: set it up once, install it by itself, then open its desktop in a window (vikix windows help)
 - `vikix windows app NAME [FILE] | apps [setup|add NAME|remove NAME|restore|forget]` — one Windows program in a window of its own, and the programs Windows has
@@ -321,7 +321,7 @@ AI services on Vikix: keys, and local models.
 
 - `vikix ai setup | models | chat | list | remove | status | stop | restart | share | uninstall` — models that run on this machine, with Ollama (vikix ai help-local tells more)
 - `vikix ai llm [--default MODEL]` — the llm command, with your local models and your keys: cat notes.md | llm "summarise"
-- `vikix ai use [local|claude|codex]` — which model Super+i (AI on the selected text) uses; alone, says which (one word)
+- `vikix ai use [local|claude|codex|cloud]` — which model Super+i (AI on the selected text) uses; alone, says which (one word); cloud is any service that speaks OpenAI's API, OpenRouter unless said (vikix ai key set openrouter; vikix-ask --help)
 - `vikix ai key set NAME` — ask for a key (it isn't shown as you paste it) and keep it. NAME is a service (anthropic, openai, gemini, perplexity, openrouter, groq, mistral, deepseek, xai, huggingface, github ...) or the variable itself (`MY_SERVICE_API_KEY`). Piped in, the key comes from stdin: pass show api/openai | vikix ai key set openai
 - `vikix ai key list` — the keys kept: names and a fingerprint, never the key
 - `vikix ai key remove NAME` — forget one
@@ -335,12 +335,12 @@ AI on the text you selected, anywhere on the desktop (Super+i).
 
 - `vikix-ask` — a menu: Ask, Proofread, Rewrite, Translate, Explain
 - `vikix-ask ACTION` — one of those straight away (ask, proofread, rewrite, translate, explain): for keys of your own in user.lisp
-- `vikix-ask use [local|claude|codex]` — which model answers (vikix ai use); alone, says which
+- `vikix-ask use [local|claude|codex|cloud]` — which model answers (vikix ai use); alone, says which
 - `vikix-ask which [translate]` — the model (Translate's with translate), where the text goes, which of the three it is and Codex's effort, tab-separated (for vikix-voice: Super+F10 asks the same model)
 
 The text is what you last highlighted (X keeps it after the highlight is gone), else the clipboard: the notification while it works shows it. Proofread, Rewrite and Translate put their result on the clipboard, to paste where you want it; Ask and Explain show the answer, in a notification when it's short, else in a terminal. A local model and Claude answer through llm (vikix ai llm), so it's all in llm logs too.
 
-Which model answers is yours to choose, in `~/.config/vikix/ai` (made on first use): a local one (free, offline, the text stays on this laptop), Claude (better, paid, the text goes to Anthropic), or Codex (the Codex you installed and signed in to with codex login; the text goes to OpenAI). It never leaves the local model by itself.
+Which model answers is yours to choose, in `~/.config/vikix/ai` (made on first use): a local one (free, offline, the text stays on this laptop), Claude (better, paid, the text goes to Anthropic), Codex (the Codex you installed and signed in to with codex login; the text goes to OpenAI), or a cloud service that speaks OpenAI's API (use=cloud: OpenRouter unless `cloud_url=` says another, with a key of yours by name, `cloud_key=`, and the service's model in model=; the text goes to that service and the model's host; lib/cloud-ask.sh). It never leaves the local model by itself.
 
 Codex is an agent, so Super+i asks it with its tools switched off: no commands, no web search, none of the apps connected to your ChatGPT account, and nothing kept of the session. What you select can come from any page, and a line in it written for an agent finds nothing to act with. It takes some ten seconds an answer, fewer with a faster model (model=) and effort=low in that file, which leave Codex in the terminal as it was; the editors' chats and note know only local and Claude, and stay on the local model meanwhile.
 
@@ -479,7 +479,7 @@ Every document on the machine in one catalogue, found from one key.
 - `vikix docs open ID [--other]` — open one, by the id find shows
 - `vikix docs random [--other]` — one of Vikix's guides at random, as open opens it; every page once before any twice
 - `vikix docs read ID` — one as plain text (what the agents read)
-- `vikix docs ask QUESTION... [--source S]... [--claude|--local] [--model M] [--limit N] [--show]` — a question answered from the documents found for it, which the answer names: Vikix's guides, your projects, `~/dev` and your notes unless --source says which (own, man, all...; once each, or commas); a local model (Ollama) unless --claude, which sends the passages found to Anthropic and says so; --show prints what would be sent instead
+- `vikix docs ask QUESTION... [--source S]... [--claude|--cloud|--local] [--model M] [--limit N] [--show]` — a question answered from the documents found for it, which the answer names: Vikix's guides, your projects, `~/dev` and your notes unless --source says which (own, man, all...; once each, or commas); a local model (Ollama) unless --claude, which sends the passages found to Anthropic and says so; --show prints what would be sent instead
 - `vikix docs index [--full] [--quiet]` — read again what changed (--full: all of it); vikix update does it
 - `vikix docs watch on|off|status` — one inotifywait on `~/src`, so a document that changes there is read within a second (until off, or the session ends)
 - `vikix docs status` — how many from where, and when last read

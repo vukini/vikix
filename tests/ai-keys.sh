@@ -70,6 +70,7 @@ EOF
 cat > "$t/llm" <<EOF
 #!/bin/sh
 echo "\$*" > "$t/llm.args"
+echo "\${OPENAI_API_KEY:-}" > "$t/llm.key"
 cat > "$t/llm.in"
 [ -e "$t/llm.fail" ] && { echo "Error: No key found - add one using 'llm keys set anthropic'" >&2; exit 1; }
 cat "$t/answer"
@@ -228,6 +229,49 @@ ANTHROPIC_API_KEY=sk-ant-test try
 check "the menu's switch should write use=local: $(grep '^use' "$conf")" grep -qx 'use=local' "$conf"
 check "the switch shouldn't ask llm" test ! -e "$t/llm.args"
 : > "$t/rofi"
+
+# The cloud: use=cloud needs the key, by its name; the question goes to
+# llm's vikix-cloud entry, the key in llm's environment and nowhere on the
+# line; the entry names the service and the model, OpenRouter's unless
+# said; other entries in llm's file stay; a wrong address is refused.
+export LLM_USER_PATH="$t/llm-user"
+mkdir -p "$LLM_USER_PATH"
+printf -- '- model_id: mine\n  model_name: m\n  api_base: https://x/v1\n' > "$LLM_USER_PATH/extra-openai-models.yaml"
+sed -i 's/^use=.*/use=cloud/' "$conf"
+try rewrite
+check "the cloud without a key should say how to set one: $(notes)" grep -q 'vikix ai key set openrouter' <<<"$(notes)"
+check "the cloud without a key shouldn't ask llm" test ! -e "$t/llm.args"
+OPENROUTER_API_KEY=sk-or-test try rewrite
+check "use=cloud should ask llm's vikix-cloud: $(cat "$t/llm.args" 2>/dev/null)" grep -q -- '-m vikix-cloud' "$t/llm.args"
+check "the key should reach llm as OPENAI_API_KEY: $(cat "$t/llm.key" 2>/dev/null)" test "$(cat "$t/llm.key" 2>/dev/null)" = sk-or-test
+check "and nowhere on llm's line" bash -c '! grep -q sk-or-test "$1"' _ "$t/llm.args"
+check "the working note should say the model and where: $(notes)" grep -q 'openai/gpt-4o-mini, sent to openrouter.ai' <<<"$(notes)"
+check "llm's entry should name OpenRouter and the model" bash -c 'grep -q "api_base: https://openrouter.ai/api/v1" "$1" && grep -q "model_name: openai/gpt-4o-mini" "$1"' _ "$LLM_USER_PATH/extra-openai-models.yaml"
+check "and keep the entry that was there" grep -q 'model_id: mine' "$LLM_USER_PATH/extra-openai-models.yaml"
+check "vikix ai use alone should say cloud: $(bash "$here/bin/vikix-ai" use 2>&1)" test "$(bash "$here/bin/vikix-ai" use 2>&1)" = cloud
+sed -i -e 's/^cloud_url=.*/cloud_url=https:\/\/api.groq.com\/openai\/v1/' -e 's/^cloud_key=.*/cloud_key=groq/' -e 's/^model=.*/model=llama-3.3-70b/' "$conf"
+OPENROUTER_API_KEY=sk-or-test try rewrite
+check "another service's key should be asked for by its name: $(notes)" grep -q 'vikix ai key set groq' <<<"$(notes)"
+GROQ_API_KEY=gsk-test try rewrite
+check "another service: its key, its model, its name: $(cat "$t/llm.key" 2>/dev/null) $(notes)" bash -c '[ "$(cat "$1")" = gsk-test ] && grep -q "llama-3.3-70b, sent to api.groq.com" <<<"$2"' _ "$t/llm.key" "$(notes)"
+check "llm's entry should follow" bash -c 'grep -q "api_base: https://api.groq.com/openai/v1" "$1" && grep -q "model_name: llama-3.3-70b" "$1" && [ "$(grep -c model_id: "$1")" = 2 ]' _ "$LLM_USER_PATH/extra-openai-models.yaml"
+sed -i 's/^cloud_url=.*/cloud_url=http:\/\/example.org\/v1/' "$conf"
+GROQ_API_KEY=gsk-test try rewrite
+check "a plain http address elsewhere should be refused: $(notes)" grep -q "isn't an address" <<<"$(notes)"
+check "and not asked" test ! -e "$t/llm.args"
+sed -i -e 's/^cloud_url=.*/cloud_url=/' -e 's/^cloud_key=.*/cloud_key=/' -e 's/^model=.*/model=/' -e 's/^use=.*/use=local/' "$conf"
+bash "$here/bin/vikix-ai" use cloud >/dev/null 2>&1 && { echo "FAIL: vikix ai use cloud worked without a key"; fail=1; }
+check "use cloud without a key changed the file: $(grep '^use' "$conf")" grep -qx 'use=local' "$conf"
+OPENROUTER_API_KEY=sk-or-test bash "$here/bin/vikix-ai" use cloud >/dev/null 2>&1
+check "vikix ai use cloud should write use=cloud: $(grep '^use' "$conf")" grep -qx 'use=cloud' "$conf"
+printf 'Use the local model instead (free; the text stays here)\n' > "$t/rofi"
+OPENROUTER_API_KEY=sk-or-test try
+check "the menu's switch back should write use=local: $(grep '^use' "$conf")" grep -qx 'use=local' "$conf"
+: > "$t/rofi"; OPENROUTER_API_KEY=sk-or-test try
+check "the menu should offer the cloud when its key is there: $(cat "$t/rofi.menu" 2>/dev/null)" grep -q 'Use the cloud service instead (paid; the text goes to openrouter.ai)' "$t/rofi.menu"
+try
+check "and not without the key" bash -c '! grep -q "cloud service" "$1"' _ "$t/rofi.menu"
+unset LLM_USER_PATH
 
 # Claude: only with use=claude, and a key; llm's error is said, with the fix.
 sed -i 's/^use=.*/use=claude/' "$conf"

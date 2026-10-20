@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""tests/fake-ai.py — a made-up Claude API and Ollama on one port, for the
-tests of the AI examples and `note` (tests/dev-ai.sh, tests/notes.sh).
-Prints its port, then logs each POST (path, key, beta header, body) to
+"""tests/fake-ai.py — a made-up Claude API, Ollama and an OpenAI-compatible
+cloud (/v1/chat/completions) on one port, for the tests of the AI examples,
+`note` and `vikix docs ask` (tests/dev-ai.sh, tests/notes.sh, tests/docs.sh).
+Prints its port, then logs each POST (path, key, beta header, auth, body) to
 the file named first, one JSON line each. Its embeddings count words
 (hashed into 64 numbers), so text sharing words is nearest.
 
@@ -37,7 +38,8 @@ class H(BaseHTTPRequestHandler):
         body = json.loads(self.rfile.read(int(self.headers["content-length"])))
         with open(LOG, "a") as f:
             f.write(json.dumps({"path": self.path, "key": self.headers.get("x-api-key"),
-                                "beta": self.headers.get("anthropic-beta"), "body": body}) + "\n")
+                                "beta": self.headers.get("anthropic-beta"),
+                                "auth": self.headers.get("authorization"), "body": body}) + "\n")
         if self.path == "/api/embed":
             if body["model"] == "missing-model":
                 return self.send(404, {"error": f"model \"{body['model']}\" not found, try pulling it first"})
@@ -48,6 +50,13 @@ class H(BaseHTTPRequestHandler):
             lines = [{"message": {"content": "fake local "}},
                      {"message": {"content": "answer"}, "done": True, "eval_count": 2, "eval_duration": 1e9}]
             return self.send(200, "".join(json.dumps(l) + "\n" for l in lines).encode(), "application/x-ndjson")
+        if self.path == "/v1/chat/completions":
+            if not (self.headers.get("authorization") or "").startswith("Bearer "):
+                return self.send(401, {"error": {"message": "No auth credentials found", "type": "invalid_request_error"}})
+            return self.send(200, {"id": "chatcmpl-1", "object": "chat.completion", "model": body["model"],
+                                   "choices": [{"index": 0, "message": {"role": "assistant", "content": "fake cloud answer"},
+                                                "finish_reason": "stop"}],
+                                   "usage": {"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8}})
         if self.path == "/v1/messages":
             if self.headers.get("x-api-key") != "test-key-123":
                 return self.send(401, {"type": "error", "error": {"type": "authentication_error", "message": "invalid x-api-key"}})
