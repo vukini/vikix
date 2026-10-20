@@ -700,7 +700,7 @@ if [ -n "$port" ]; then
   out=$(ANTHROPIC_API_KEY=test-key-123 ANTHROPIC_BASE_URL="http://127.0.0.1:$port" d ask "websocket DAW" --claude 2> "$t/err")
   check "--claude sends the passages to Anthropic and says so: $out $(cat "$t/err")" bash -c 'grep -q "^fake claude answer" <<<"$1" && grep -q "passages go to Anthropic" "$2" && grep -q /v1/messages <<<"$(tail -1 "$3")"' _ "$out" "$t/err" "$log"
   mkdir -p "$HOME/.config/vikix"; printf 'cloud_url=http://127.0.0.1:%s/v1\n' "$port" >> "$HOME/.config/vikix/ai"
-  check "no key, --cloud says so and sends nothing" grep -q 'vikix ai key set openrouter' <<<"$(OPENROUTER_API_KEY= d ask "websocket" --cloud 2>&1)"
+  check "no key, --cloud says so and sends nothing" grep -q 'vikix ai key set openrouter' <<<"$(OPENROUTER_API_KEY='' d ask "websocket" --cloud 2>&1)"
   out=$(OPENROUTER_API_KEY=or-key d ask "websocket DAW" --cloud 2> "$t/err")
   check "--cloud sends the passages to the service and says so: $out $(cat "$t/err")" bash -c 'grep -q "^fake cloud answer" <<<"$1" && grep -q "passages go to 127.0.0.1" "$2" && grep -q "/v1/chat/completions" <<<"$(tail -1 "$3")" && grep -q "Bearer or-key" <<<"$(tail -1 "$3")"' _ "$out" "$t/err" "$log"
   sed -i '/^cloud_url=/d' "$HOME/.config/vikix/ai"
