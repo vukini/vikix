@@ -72,6 +72,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-times](#vikix-times): how long the desktop takes
 - [vikix-updates](#vikix-updates): what `vikix update` would bring
 - [vikix-used](#vikix-used): what gets used: the keys you press and the commands you run
+- [vikix-versions](#vikix-versions): every version of a file, from both histories, and one brought back
 - [vikix-vm](#vikix-vm): virtual machines: every one libvirt has, in a menu
 - [vikix-voice](#vikix-voice): talk to the AI, and it talks back
 - [vikix-wallpaper](#vikix-wallpaper): the picture behind the windows
@@ -153,6 +154,8 @@ The everyday command.
 - `vikix changes [ID]` — what changed since the last snapshot (or in snapshot ID)
 - `vikix history` — the snapshots, newest first
 - `vikix undo [ID]` — put your files back as they were one snapshot ago (or at ID)
+- `vikix versions PATH` — every version of a file or folder, from the backups and the snapshots, newest first (vikix versions --help)
+- `vikix restore PATH ID [--beside|--replace]` — bring one back beside the file as NAME (DATE).ext, or in its place through the Trash
 - `vikix backup [now]` — back up your home folder with restic (vikix backup help: setup, status, list, restore, check, off)
 - `vikix firmware [update]` — firmware updates from LVFS (BIOS, Thunderbolt, ...): what's waiting, or install it (on AC power)
 - `vikix fingerprint [on|off|enrol]` — a finger for sudo and the lock screen, where fprintd supports the reader
@@ -169,7 +172,7 @@ The everyday command.
 
 Each command has a man page with the whole of it: man vikix-NAME (man vikix is this list; man -k vikix lists the pages).
 
-vk is the same command, shorter. A command can be given by the start of its name when only one begins so (vk upd), and so can the word after it (vk docs f runit); a start that fits several says which. Tab completes them.
+vk is the same command, shorter. A command can be given by the start of its name when only one begins so (vk upd), and so can the word after it (vk docs f runit); a start that fits several says which, unless the shortest of them starts all the others (vk vers is version, not versions). Tab completes them.
 
 ## vikix-agent
 
@@ -356,7 +359,7 @@ Your home folder, backed up with restic.
 - `vikix backup status` — where, when the last one was, what is left out
 - `vikix backup list` — the backups, newest last
 - `vikix backup restore PATH [ID]` — bring back PATH (a file or folder) from the latest backup, or backup ID, into `~/Restored/<time>/`; nothing is overwritten
-- `vikix backup check` — make sure the backups can be read back
+- `vikix backup check` — make sure the backups can be read back (vikix versions PATH lists a file's versions from the backups and the snapshots together, and vikix restore PATH ID brings one back beside it: vikix versions --help)
 - `vikix backup off` — stop the reminder; the backups stay where they are
 
 Every backup is encrypted with the password in `~/.config/vikix/backup-password`, made at setup and readable only by you. Keep a copy somewhere else: without it, a lost laptop means backups nobody can read. Old backups thin out after each run: one a day for a week, one a week for a month, one a month for a year. The bar says "backup 9d" once the last backup is older than DAYS (7) in `~/.config/vikix/backup`; nothing runs by itself.
@@ -1391,6 +1394,18 @@ What gets used: the keys you press and the commands you run.
 The desktop counts each key that runs a command, each entry picked in Super+m and the other menus, each pick in the palette (Super+Space), each command typed after Ctrl+t ;, each rule that runs, each command an agent runs, and at the door (vikix door) the names an agent's Lisp calls, the name that held a form and whether you ran or dropped it. It keeps names and numbers only: the key, the command it is bound to, the entry's words, and when each was first and last used. Never a window's title, never what you typed into a program or after a command's name.
 
 The counts are in `~/.local/state/vikix/used`, a text file that is yours to read or delete. Nothing sends it anywhere. They are written every five minutes and when the desktop ends.
+
+## vikix-versions
+
+Every version of a file, from both histories, and one brought back.
+
+- `vikix versions PATH [--json] [--limit N]` — every version of a file or folder, newest first, from the backups (vikix backup, restic) and the snapshots (vikix snapshot, the history of your settings): when, where it comes from, the size, what changed. One list; --json for Esploro
+- `vikix restore PATH ID [--beside|--replace] [--json]` — bring one back, by the ID the list shows (its start is enough): beside the file as NAME (DATE).ext, or in its place, the current one going to the Trash first
+- `vikix versions --help`
+
+Vikix keeps two histories of your files. `vikix backup` holds daily, weekly and monthly versions of all of ~ (restic, encrypted, on a drive or a remote); `vikix snapshot` holds every change to your settings, the files `~/.config/vikix/yours.list` names (git, in `~/.local/state/vikix/yours.git`). This is the one window onto both: the list, from the file, and a restore that never overwrites unless you say --replace, and then only through the Trash. The list is kept for a minute in `~/.cache/vikix/versions/`, since restic takes a few seconds over a year of backups on a USB drive. A backup whose content is the one before it (same size and time) is folded into that row, which then says from when to when; a snapshot is one row per change. A folder's version is everything under it (its size is theirs together), folded the same way.
+
+A restore beside writes NAME (Mon 29 Sep).ext next to the file, or NAME (Mon 29 Sep, 2).ext when that is taken; a folder comes back as NAME (Mon 29 Sep)/. --replace puts the current one in the Trash (gio trash), then the version in its place; what the Trash holds comes back from there (Esploro, or gio trash --restore).
 
 ## vikix-vm
 

@@ -182,6 +182,10 @@
 #   vikix changes [ID]  what changed since the last snapshot (or in snapshot ID)
 #   vikix history       the snapshots, newest first
 #   vikix undo [ID]     put your files back as they were one snapshot ago (or at ID)
+#   vikix versions PATH   every version of a file or folder, from the backups
+#                         and the snapshots, newest first (vikix versions --help)
+#   vikix restore PATH ID [--beside|--replace]   bring one back beside the
+#                         file as NAME (DATE).ext, or in its place through the Trash
 #
 #   vikix backup [now]  back up your home folder with restic (vikix backup help:
 #                         setup, status, list, restore, check, off)
@@ -218,7 +222,9 @@
 #
 # vk is the same command, shorter. A command can be given by the start of its
 # name when only one begins so (vk upd), and so can the word after it (vk
-# docs f runit); a start that fits several says which. Tab completes them.
+# docs f runit); a start that fits several says which, unless the shortest
+# of them starts all the others (vk vers is version, not versions). Tab
+# completes them.
 
 set -euo pipefail
 
@@ -1080,7 +1086,15 @@ vikix_resolve() {   # vikix_resolve WORD CANDIDATES...: the one WORD names, or w
   for c in "$@"; do [ "$c" = "$word" ] && { echo "$word"; return 0; }; done
   for c in "$@"; do [[ $c == "$word"* ]] && hits+=("$c"); done
   if [ "${#hits[@]}" -eq 1 ]; then echo "${hits[0]}"; return 0; fi
-  [ "${#hits[@]}" -gt 1 ] && { echo "${hits[*]}"; return 2; }
+  if [ "${#hits[@]}" -gt 1 ]; then
+    # version and versions: the shorter, when it starts every other hit,
+    # since the longer can still be typed whole.
+    local shortest=${hits[0]} nested=1
+    for c in "${hits[@]}"; do [ "${#c}" -lt "${#shortest}" ] && shortest=$c; done
+    for c in "${hits[@]}"; do [[ $c == "$shortest"* ]] || nested=0; done
+    [ "$nested" = 1 ] && { echo "$shortest"; return 0; }
+    echo "${hits[*]}"; return 2
+  fi
   return 1
 }
 
@@ -1214,6 +1228,8 @@ main() {
       esac ;;
     theme)       shift; exec "$VIKIX_DIR/bin/vikix-theme" "$@" ;;
     backup)      shift; exec "$VIKIX_DIR/bin/vikix-backup" "$@" ;;
+    versions)    shift; exec "$VIKIX_DIR/bin/vikix-versions" "$@" ;;
+    restore)     shift; exec "$VIKIX_DIR/bin/vikix-versions" restore "$@" ;;
     firmware)    shift; exec "$VIKIX_DIR/bin/vikix-firmware" "$@" ;;
     windows)     shift; exec "$VIKIX_DIR/bin/vikix-windows" "$@" ;;
     vm|vms)      shift; exec "$VIKIX_DIR/bin/vikix-vm" "$@" ;;

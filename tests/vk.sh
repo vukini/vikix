@@ -18,6 +18,7 @@ check() { "${@:2}" || { echo "FAIL: $1"; fail=1; }; }
 vk() { bash "$here/bin/vikix" "$@"; }
 
 check "vk vers is vikix version" test "$(vk vers)" = "$(cat "$here/VERSION")"
+check "vk versions, whole, is its own command" grep -q 'vikix restore PATH ID' <<<"$(vk versions --help)"
 check "vikix -v and vikix --version say the same" test "$(vk -v)" = "$(cat "$here/VERSION")" -a "$(vk --version)" = "$(cat "$here/VERSION")"
 check "vk upd --help is vikix update's help" grep -q 'vikix update core' <<<"$(vk upd --help)"
 set +e; out=$(vk d 2>&1); code=$?; set -e

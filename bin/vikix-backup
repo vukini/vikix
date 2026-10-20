@@ -12,6 +12,10 @@
 #                                the latest backup, or backup ID, into
 #                                ~/Restored/<time>/; nothing is overwritten
 #   vikix backup check         make sure the backups can be read back
+#                                (vikix versions PATH lists a file's versions
+#                                from the backups and the snapshots together,
+#                                and vikix restore PATH ID brings one back
+#                                beside it: vikix versions --help)
 #   vikix backup off           stop the reminder; the backups stay where they are
 #
 # Every backup is encrypted with the password in ~/.config/vikix/backup-password,

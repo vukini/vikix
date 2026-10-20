@@ -29,14 +29,7 @@ Nothing shows a file's versions beside the file; nothing says, before restoring,
                                                                    └── journal entry, undo
 ```
 
-**`vikix versions`** (in `bin/vikix-backup`, with a new verb, or its own `bin/vikix-versions` calling both histories):
-
-- Backups: `restic find --json PATH` lists the snapshots that hold the path with its size and modification time; versions with the same content hash are folded into one row with a date range ("Mon 29 Sep to Thu 2 Oct"), so a file unchanged for a month is one line, not thirty.
-- Snapshots: for a path under `yours.list`, `git -C yours.git log --follow -- PATH` gives commits and dates; the same folding.
-- Output: a table for people (`date · where · size · what changed`, the last from `restic diff` or `git diff --stat` against the next-older version), `--json` for Esploro.
-- Time: `restic find` over a year of snapshots is seconds on a USB drive; the list is cached per path for a minute.
-
-**`vikix restore PATH ID`**: by default `--beside`, writing `NAME (DATE).ext` next to the file (restic `dump` for a file, `restore --include` into a temporary folder then a move for a folder; `git show` for the snapshot history). `--replace` puts the current file in the Trash first (the freedesktop Trash, as Esploro does), then restores in place. Nothing is ever overwritten without a copy in the Trash. `~/Restored/` stays for `vikix backup restore`, which remains for scripts and the old habit.
+**`vikix versions` and `vikix restore`** shipped on 2026-10-20 (Vikix 0.72.117, `bin/vikix-versions`; `ARCHIVE.md` 80 says how). Two things differ from the plan here: a backup's content is told by size and time rather than a hash, which restic doesn't give, and a backup's "what changed" is bytes, not `restic diff` (seconds a row); a snapshot's is lines.
 
 **Esploro** (its own repo):
 

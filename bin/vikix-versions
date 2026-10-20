@@ -1,0 +1,439 @@
+#!/usr/bin/env python3
+"""vikix-versions — every version of a file, from both histories, and one brought back.
+
+  vikix versions PATH [--json] [--limit N]
+                                  every version of a file or folder, newest
+                                  first, from the backups (vikix backup,
+                                  restic) and the snapshots (vikix snapshot,
+                                  the history of your settings): when, where
+                                  it comes from, the size, what changed. One
+                                  list; --json for Esploro
+  vikix restore PATH ID [--beside|--replace] [--json]
+                                  bring one back, by the ID the list shows
+                                  (its start is enough): beside the file as
+                                  NAME (DATE).ext, or in its place, the
+                                  current one going to the Trash first
+  vikix versions --help
+
+Vikix keeps two histories of your files. `vikix backup` holds daily, weekly
+and monthly versions of all of ~ (restic, encrypted, on a drive or a
+remote); `vikix snapshot` holds every change to your settings, the files
+`~/.config/vikix/yours.list` names (git, in ~/.local/state/vikix/yours.git).
+This is the one window onto both: the list, from the file, and a restore
+that never overwrites unless you say --replace, and then only through the
+Trash. The list is kept for a minute in ~/.cache/vikix/versions/, since
+restic takes a few seconds over a year of backups on a USB drive. A backup
+whose content is the one before it (same size and time) is folded into
+that row, which then says from when to when; a snapshot is one row per
+change. A folder's version is everything under it (its size is theirs
+together), folded the same way.
+
+A restore beside writes NAME (Mon 29 Sep).ext next to the file, or
+NAME (Mon 29 Sep, 2).ext when that is taken; a folder comes back as
+NAME (Mon 29 Sep)/. --replace puts the current one in the Trash (gio trash),
+then the version in its place; what the Trash holds comes back from
+there (Esploro, or gio trash --restore).
+"""
+
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from datetime import datetime
+
+HOME = os.path.expanduser("~")
+CONFIG = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config"), "vikix")
+STATE = os.environ.get("VIKIX_STATE") or os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.join(HOME, ".local/state"), "vikix")
+CACHE = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.join(HOME, ".cache"), "vikix", "versions")
+YOURS_GIT = os.path.join(STATE, "yours.git")
+CACHE_SECONDS = 60
+
+
+def die(msg):
+    sys.stderr.write(f"xx {msg}\n")
+    sys.exit(1)
+
+
+def say(msg):
+    print(f":: {msg}")
+
+
+# --- the backups (restic) ------------------------------------------------------
+
+def backup_setting(key):
+    """KEY= from ~/.config/vikix/backup, or None."""
+    try:
+        with open(os.path.join(CONFIG, "backup")) as f:
+            value = None
+            for line in f:
+                if line.startswith(key + "="):
+                    value = line[len(key) + 1:].strip()
+            return value
+    except OSError:
+        return None
+
+
+def restic_ready():
+    """Why the backups can't be read, or None when they can."""
+    if shutil.which("restic") is None:
+        return "restic isn't installed"
+    repo = backup_setting("REPO")
+    if not repo:
+        return "backups aren't set up (vikix backup setup PLACE)"
+    if not os.path.exists(os.path.join(CONFIG, "backup-password")):
+        return "the backup password is missing"
+    if repo.startswith("/") and not os.path.isdir(repo):
+        return f"the backup drive isn't plugged in ({repo})"
+    return None
+
+
+def restic(*args, text=True):
+    cmd = ["restic", "-r", backup_setting("REPO"), "--password-file", os.path.join(CONFIG, "backup-password"),
+           "--no-lock", "-q", *args]
+    r = subprocess.run(cmd, capture_output=True, text=text)
+    if r.returncode != 0:
+        err = (r.stderr if text else r.stderr.decode(errors="replace")).strip().splitlines()
+        die(f"restic: {err[-1] if err else 'failed'}")
+    return r.stdout
+
+
+def restic_time(stamp):
+    """restic's time (nanoseconds, a zone) as Unix seconds."""
+    stamp = re.sub(r"\.\d+", "", stamp)
+    return int(datetime.fromisoformat(stamp).timestamp())
+
+
+def backup_versions(path):
+    """The backups' versions of PATH, newest first, same content folded."""
+    found = json.loads(restic("find", "--json", path) or "[]")
+    if not found:
+        return []
+    times = {s["id"]: (s.get("short_id", s["id"][:8]), restic_time(s["time"]))
+             for s in json.loads(restic("snapshots", "--json") or "[]")}
+    rows = []
+    for hit in found:
+        if hit["snapshot"] not in times:
+            continue
+        matches = hit.get("matches", [])
+        own = [m for m in matches if m.get("path") == path]
+        if not own:
+            continue
+        short, when = times[hit["snapshot"]]
+        if own[0].get("type") == "dir":
+            # find lists everything under a folder too: the folder's
+            # content is all of it, each file's size and time.
+            inside = [m for m in matches if m.get("path", "").startswith(path + "/") and m.get("type") == "file"]
+            rows.append({"id": short, "source": "backup", "time": when, "time_end": None, "type": "dir",
+                         "size": sum(m.get("size") or 0 for m in inside),
+                         "same": tuple(sorted((m["path"], m.get("size"), m.get("mtime")) for m in inside))})
+        else:
+            rows.append({"id": short, "source": "backup", "time": when, "time_end": None, "type": "file",
+                         "size": own[0].get("size"), "same": (own[0].get("size"), own[0].get("mtime"))})
+    rows.sort(key=lambda r: r["time"])
+    folded = []
+    for row in rows:
+        if folded and folded[-1]["same"] == row["same"]:
+            # The same content, backed up again: the row keeps the first
+            # time and the ID of the newest, and says until when.
+            folded[-1]["time_end"] = row["time"]
+            folded[-1]["id"] = row["id"]
+        else:
+            folded.append(row)
+    for row in folded:
+        del row["same"]
+    folded.reverse()
+    return folded
+
+
+# --- the snapshots (yours.git) ---------------------------------------------------
+
+def git(*args, check=True):
+    r = subprocess.run(["git", "--no-optional-locks", f"--git-dir={YOURS_GIT}", f"--work-tree={HOME}", *args],
+                       capture_output=True, text=True, cwd=HOME)
+    if check and r.returncode != 0:
+        die(f"git: {r.stderr.strip().splitlines()[-1] if r.stderr.strip() else 'failed'}")
+    return r.stdout
+
+
+def snapshot_versions(path):
+    """The snapshots' versions of PATH, newest first, one per change."""
+    if not os.path.isdir(YOURS_GIT) or not (path == HOME or path.startswith(HOME + "/")):
+        return []
+    rel = os.path.relpath(path, HOME)
+    log = git("log", "--follow", "--format=%H%x09%ct", "--", rel, check=False)
+    rows = []
+    for line in log.splitlines():
+        commit, when = line.split("\t")
+        entry = git("ls-tree", commit, "--", rel, check=False).split()
+        if len(entry) < 3:
+            continue   # the commit that removed it
+        kind, obj = entry[1], entry[2]
+        if kind == "blob":
+            size = int(git("cat-file", "-s", obj).strip())
+        else:   # a folder: its files' sizes, from the tree's long listing
+            size = sum(int(l.split()[3]) for l in git("ls-tree", "-r", "-l", obj).splitlines() if l.split()[3] != "-")
+        rows.append({"id": commit[:7], "source": "snapshot", "time": int(when), "time_end": None,
+                     "type": "dir" if kind == "tree" else "file", "size": size, "same": obj, "commit": commit})
+    folded = []
+    for row in rows:
+        if folded and folded[-1]["same"] == row["same"]:
+            folded[-1]["time_end"] = folded[-1]["time"]
+            folded[-1]["time"] = row["time"]
+        else:
+            folded.append(row)
+    for a, b in zip(folded, folded[1:]):
+        stat = git("diff", "--shortstat", b["commit"], a["commit"], "--", rel, check=False).strip()
+        a["change"] = shortstat_words(stat)
+    for row in folded:
+        del row["same"]
+        del row["commit"]
+    return folded
+
+
+def shortstat_words(stat):
+    """git's " 1 file changed, 3 insertions(+), 1 deletion(-)" as "+3 −1 lines"."""
+    ins = re.search(r"(\d+) insertion", stat)
+    dels = re.search(r"(\d+) deletion", stat)
+    files = re.search(r"(\d+) files? changed", stat)
+    parts = []
+    if ins:
+        parts.append(f"+{ins.group(1)}")
+    if dels:
+        parts.append(f"−{dels.group(1)}")
+    if not parts:
+        return None
+    words = " ".join(parts) + " lines"
+    if files and int(files.group(1)) > 1:
+        words += f" in {files.group(1)} files"
+    return words
+
+
+# --- the list ---------------------------------------------------------------------
+
+def human_size(n):
+    if n is None:
+        return ""
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024 or unit == "GB":
+            return f"{n} {unit}" if unit == "B" else f"{n:.1f} {unit}".replace(".0 ", " ")
+        n /= 1024
+    return ""
+
+
+def when_words(t, now=None):
+    """Mon 29 Sep 2026 09:12, the year left out when it's this one."""
+    d = datetime.fromtimestamp(t)
+    year = "" if d.year == datetime.fromtimestamp(now or time.time()).year else f" {d.year}"
+    return f"{d.strftime('%a')} {d.day} {d.strftime('%b')}{year} {d.strftime('%H:%M')}"
+
+
+def date_words(t):
+    """Mon 29 Sep, for a restored file's name."""
+    d = datetime.fromtimestamp(t)
+    return f"{d.strftime('%a')} {d.day} {d.strftime('%b')}"
+
+
+def size_change(rows):
+    """For backups: how the size changed against the next-older version."""
+    for a, b in zip(rows, rows[1:]):
+        if a.get("change") is None and a["size"] is not None and b["size"] is not None:
+            diff = a["size"] - b["size"]
+            a["change"] = "same size" if diff == 0 else f"{'+' if diff > 0 else '−'}{human_size(abs(diff))}"
+
+
+def versions(path, fresh=False):
+    """Both histories' versions of PATH, newest first, with where the backups'
+    list came from; kept for a minute."""
+    os.makedirs(CACHE, exist_ok=True)
+    cache = os.path.join(CACHE, hashlib.sha1(path.encode()).hexdigest() + ".json")
+    if not fresh:
+        try:
+            if time.time() - os.path.getmtime(cache) < CACHE_SECONDS:
+                with open(cache) as f:
+                    return json.load(f)
+        except (OSError, ValueError):
+            pass
+    notes = []
+    why = restic_ready()
+    backups = []
+    if why:
+        notes.append(f"the backups weren't read: {why}")
+    else:
+        backups = backup_versions(path)
+    snapshots = snapshot_versions(path)
+    if not os.path.isdir(YOURS_GIT):
+        notes.append("your files have no snapshot history yet (vikix snapshot)")
+    size_change(backups)
+    for row in backups + snapshots:
+        row["when"] = when_words(row["time"])
+        row["until"] = when_words(row["time_end"]) if row["time_end"] else None
+        row.setdefault("change", None)
+    rows = sorted(backups + snapshots, key=lambda r: r["time"], reverse=True)
+    result = {"path": path, "exists": os.path.exists(path), "versions": rows, "notes": notes}
+    try:
+        with open(cache, "w") as f:
+            json.dump(result, f)
+    except OSError:
+        pass
+    return result
+
+
+def print_versions(result, limit):
+    path, rows = result["path"], result["versions"]
+    name = os.path.basename(path.rstrip("/")) or path
+    for note in result["notes"]:
+        print(f"!! {note}")
+    if not rows:
+        print(f"{name}: no version kept yet (vikix backup keeps one; vikix snapshot does for your settings)")
+        return
+    gone = "" if result["exists"] else ", gone now"
+    print(f"{name}: {len(rows)} version{'s' if len(rows) != 1 else ''}{gone}, newest first. "
+          "vikix restore PATH ID brings one back beside it.")
+    shown = rows[:limit] if limit else rows
+    widest = max(len(r["when"] + (f" to {r['until']}" if r["until"] else "")) for r in shown)
+    print(f"  {'ID':<8}  {'WHEN':<{widest}}  {'FROM':<8}  {'SIZE':>8}  CHANGE")
+    for r in shown:
+        when = r["when"] + (f" to {r['until']}" if r["until"] else "")
+        print(f"  {r['id']:<8}  {when:<{widest}}  {r['source']:<8}  {human_size(r['size']):>8}  {r['change'] or ''}".rstrip())
+    if limit and len(rows) > limit:
+        print(f"  ... and {len(rows) - limit} older (--limit 0 shows all)")
+
+
+# --- a restore --------------------------------------------------------------------
+
+def beside_name(path, when):
+    """NAME (Mon 29 Sep).ext beside PATH, or NAME (Mon 29 Sep, 2).ext when taken."""
+    folder, name = os.path.split(path.rstrip("/"))
+    stem, ext = os.path.splitext(name)
+    if os.path.isdir(path):
+        stem, ext = name, ""
+    n = 1
+    while True:
+        tag = date_words(when) + (f", {n}" if n > 1 else "")
+        candidate = os.path.join(folder, f"{stem} ({tag}){ext}")
+        if not os.path.lexists(candidate):
+            return candidate
+        n += 1
+
+
+def fetch_version(path, row, dest):
+    """Write the version ROW of PATH to DEST (a file, or a folder made there)."""
+    if row["source"] == "backup":
+        if row["type"] == "file":
+            data = restic("dump", row["id"], path, text=False)
+            with open(dest, "wb") as f:
+                f.write(data)
+        else:
+            with tempfile.TemporaryDirectory(dir=os.path.dirname(dest)) as tmp:
+                restic("restore", row["id"], "--target", tmp, "--include", path)
+                got = os.path.join(tmp, path.lstrip("/"))
+                if not os.path.isdir(got):
+                    die(f"{path} isn't in backup {row['id']}")
+                shutil.move(got, dest)
+    else:
+        rel = os.path.relpath(path, HOME)
+        if row["type"] == "file":
+            data = subprocess.run(["git", f"--git-dir={YOURS_GIT}", "show", f"{row['commit']}:{rel}"],
+                                  capture_output=True, cwd=HOME)
+            if data.returncode != 0:
+                die(f"{path} isn't in snapshot {row['id']}")
+            with open(dest, "wb") as f:
+                f.write(data.stdout)
+        else:
+            os.makedirs(dest)
+            archive = subprocess.run(["git", f"--git-dir={YOURS_GIT}", "archive", f"{row['commit']}:{rel}"],
+                                     capture_output=True, cwd=HOME)
+            if archive.returncode != 0:
+                os.rmdir(dest)
+                die(f"{path} isn't in snapshot {row['id']}")
+            subprocess.run(["tar", "-x", "-C", dest], input=archive.stdout, check=True)
+
+
+def find_row(result, wanted):
+    rows = [r for r in result["versions"] if r["id"].startswith(wanted)]
+    if not rows:
+        die(f"no version {wanted} of {os.path.basename(result['path'])} (vikix versions PATH shows them)")
+    if len(rows) > 1:
+        die(f"{wanted} fits {len(rows)} versions ({', '.join(r['id'] for r in rows)}): more of the ID")
+    row = rows[0]
+    if row["source"] == "snapshot":
+        row["commit"] = git("rev-parse", row["id"]).strip()
+    return row
+
+
+def restore(path, wanted, replace, as_json):
+    result = versions(path)
+    row = find_row(result, wanted)
+    trashed = None
+    if replace:
+        dest = path
+        if os.path.lexists(path):
+            if shutil.which("gio") is None:
+                die("gio isn't here to put the current one in the Trash (glib); restore beside instead")
+            r = subprocess.run(["gio", "trash", path], capture_output=True, text=True)
+            if r.returncode != 0:
+                die(f"couldn't put the current one in the Trash: {r.stderr.strip()}")
+            trashed = path
+    else:
+        dest = beside_name(path, row["time"])
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    fetch_version(path, row, dest)
+    if as_json:
+        print(json.dumps({"restored": dest, "trashed": trashed, "id": row["id"], "source": row["source"]}))
+    else:
+        if trashed:
+            say(f"the current one is in the Trash; {os.path.basename(path)} is now as {row['source']} {row['id']} ({row['when']})")
+        else:
+            say(f"it's beside the file: {dest} ({row['source']} {row['id']}, {row['when']})")
+
+
+# --- main -------------------------------------------------------------------------
+
+def usage(exit_code=0):
+    print("\n\n".join(__doc__.strip().split("\n\n")[:2]))
+    sys.exit(exit_code)
+
+
+def main(argv):
+    if not argv or argv[0] in ("-h", "--help", "help"):
+        usage(0 if argv else 1)
+    if argv[0] == "restore":
+        args = argv[1:]
+        replace = "--replace" in args
+        as_json = "--json" in args
+        rest = [a for a in args if a not in ("--replace", "--beside", "--json")]
+        if len(rest) != 2:
+            die("what, and which version? vikix restore PATH ID  (vikix versions PATH shows the IDs)")
+        path = os.path.realpath(os.path.expanduser(rest[0]))
+        restore(path, rest[1], replace, as_json)
+        return 0
+    args = argv
+    as_json = "--json" in args
+    fresh = "--fresh" in args
+    limit = 20
+    if "--limit" in args:
+        i = args.index("--limit")
+        try:
+            limit = int(args[i + 1])
+        except (IndexError, ValueError):
+            die("--limit takes a number (0 for all)")
+        args = args[:i] + args[i + 2:]
+    rest = [a for a in args if a not in ("--json", "--fresh")]
+    if len(rest) != 1:
+        die("which file? vikix versions PATH")
+    path = os.path.realpath(os.path.expanduser(rest[0]))
+    result = versions(path, fresh)
+    if as_json:
+        print(json.dumps(result))
+    else:
+        print_versions(result, limit)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
