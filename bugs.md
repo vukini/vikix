@@ -25,6 +25,16 @@ Noted 2026-10-02. Minor.
 
 **Next step.** Note whether the VM window is open when it happens; or run a small logger (clipnotify, then the selection owner's window and its client, via `vikix eval` and `xlib:selection-owner`) until the next warning names the client. If it's SPICE: switch off clipboard sharing in the viewer, or accept a rare second copy.
 
+## tests/docs.sh: the Super+F2 pick fails when another session's docs test runs at the same time
+
+Noted 2026-10-20, from three desks' runs in one morning.
+
+**What happens.** "Super+F2's menus: Return should open the hit its way:" fails with nothing opened, and the office's tester says "this document pick did not open its expected rofi prompt"; the same test passes alone a minute later.
+
+**What's known.** The test waits for its rofi with `pgrep -f "rofi -dmenu -p docs"`, which matches any session's rofi on any display: when another agent's run (the tester's, another desk's) has its docs test up at the same moment, each one's keys go to the wrong display and both fail. Three such collisions were seen on 2026-10-20; the test never failed alone.
+
+**Next step.** In `rofi_wait`, take only a rofi whose `/proc/PID/environ` has this run's DISPLAY; or give each run's rofi a prompt word of its own to match.
+
 ## agent-waiting: a question with choices may arrive late (to confirm)
 
 Noted 2026-10-04, with the plugin's rewrite (Vikix 0.71.160).
