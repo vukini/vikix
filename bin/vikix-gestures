@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""vikix-gestures — a three-finger swipe on the touchpad moves the focus (`vikix gestures`).
+"""vikix-gestures — a three-finger swipe on the touchpad moves the focus; two fingers on a touchscreen walk a strip (`vikix gestures`).
 
   vikix gestures          whether it's listening, and what a swipe does
   vikix gestures on       listen from now on, and at each login (and again,
                           after you changed a setting)
   vikix gestures off      stop listening, and don't start at login
-  vikix gestures --watch  listen for swipes (the session starts this)
+  vikix gestures --watch  listen for swipes and pans (the session starts this)
 
 Three fingers swept left or right go to the window that way, as Super+h
 and Super+l do: along a strip (vikix viri), a column at a time, and between
@@ -17,9 +17,23 @@ to the left to the window on the left; where it is, they bring the next
 window on the right, as they move a page. (Two fingers swept sideways walk
 along a strip too: that is the strip's own, `*viri-scroll-walks*`.)
 
+On a touchscreen, two fingers dragged sideways over a strip walk it, a
+column for each stretch, the way they drag: fingers to the left bring
+what's on the right. The X server hands every touch to this listener
+first (a passive touch grab on the root window), which decides at once:
+a two-finger sideways drag over a strip is its own, and the program under
+it sees nothing; one finger, three, fingers going up or down, a tap, or
+anything over a tiled workspace goes to the program as if nothing were
+listening (one finger held still for 0.15 s goes too, so a long press
+reaches it). StumpWM says which it is in _VIKIX_STRIP on the root window
+(viri.lisp). Stylus touches aren't taken.
+
 Settings are yours, in ~/.config/vikix/gestures, one a line:
 
     fingers = 3      how many fingers make the sweep (3 or 4)
+    pan = 150        on a touchscreen, over a strip: a column for each PAN
+                     pixels two fingers drag sideways; pan = no leaves the
+                     screen alone
     distance = 120   how far they go for each step: less is quicker
     natural = no     yes: fingers to the left bring what's on the right;
                      not said, it is as your touchpad scrolls
@@ -31,7 +45,9 @@ by itself on a machine with no touchpad.
 """
 import ctypes
 import os
+import select
 import subprocess
+import time
 import sys
 
 HERE = os.path.dirname(os.path.realpath(__file__))
@@ -45,7 +61,7 @@ SWIPE_BEGIN, SWIPE_UPDATE, SWIPE_END = 30, 31, 32
 
 def settings():
     """What ~/.config/vikix/gestures says, over the defaults."""
-    values = {"fingers": 3, "distance": 120.0, "natural": None}
+    values = {"fingers": 3, "distance": 120.0, "natural": None, "pan": 150.0}
     try:
         with open(SETTINGS, encoding="utf-8") as f:
             for line in f:
@@ -62,6 +78,14 @@ def settings():
                         pass
                 elif key == "natural":
                     values["natural"] = value.lower() not in ("no", "off", "false", "0")
+                elif key == "pan":
+                    if value.lower() in ("no", "off", "false", "0"):
+                        values["pan"] = 0.0
+                    else:
+                        try:
+                            values["pan"] = max(40.0, min(2000.0, float(value)))
+                        except ValueError:
+                            pass
     except OSError:
         pass
     if values["natural"] is None:
@@ -125,6 +149,97 @@ class Sweep:
         self.on = False
 
 
+class Pan:
+    """Two fingers on a touchscreen, over a strip, dragged sideways: the
+    strip goes with them, a column for each DISTANCE of the way (fingers to
+    the left bring what's on the right, as a page dragged does). The X
+    server hands every touch to the listener first (a passive touch grab on
+    the root); each is decided, and told through DECIDE(touch, "accept" or
+    "reject"): a pan is accepted, and the program under it sees nothing;
+    anything else, one finger, three, fingers going up or down, a tap, or
+    anything over a workspace that isn't a strip, is rejected at once, and
+    the program gets it as if the listener weren't there. One finger alone
+    is given WAIT seconds for a second before it is let go, so a press that
+    is held still reaches the program then."""
+
+    WAIT = 0.15
+
+    def __init__(self, distance, act, decide):
+        self.distance, self.act, self.decide = distance, act, decide
+        self.reset()
+
+    def reset(self):
+        self.touches = {}          # id → [x0, y0, x, y]
+        self.on = False            # two fingers over a strip, undecided or panning
+        self.panning = False
+        self.first_at = None
+        self.walked = 0.0
+
+    def begin(self, touch, x, y, strip, now):
+        if self.panning or len(self.touches) >= 2:
+            # A third finger: the whole lot is theirs (a pan under way stops).
+            self.let_go([touch] + list(self.touches))
+            self.reset()
+            return
+        if not self.distance or not strip or (self.touches and not self.on and self.first_at is None):
+            self.decide(touch, "reject")
+            return
+        self.touches[touch] = [x, y, x, y]
+        if len(self.touches) == 1:
+            self.first_at = now
+        else:
+            self.on, self.first_at = True, None
+
+    def update(self, touch, x, y):
+        t = self.touches.get(touch)
+        if t is None:
+            return
+        t[2], t[3] = x, y
+        if not self.on:
+            # One finger moving on its own is a drag or a scroll of the program's.
+            if abs(x - t[0]) >= self.distance / 2 or abs(y - t[1]) >= self.distance / 2:
+                self.let_go(list(self.touches))
+                self.reset()
+            return
+        dx = sum(f[2] - f[0] for f in self.touches.values()) / len(self.touches)
+        dy = sum(f[3] - f[1] for f in self.touches.values()) / len(self.touches)
+        if not self.panning:
+            if abs(dy) >= self.distance / 2 and abs(dy) > abs(dx):
+                self.let_go(list(self.touches))    # fingers going up or down: the program's scrolling
+                self.reset()
+                return
+            if abs(dx) >= self.distance / 2 and abs(dx) > abs(dy):
+                self.panning = True
+                for t_id in list(self.touches):
+                    self.decide(t_id, "accept")
+        if self.panning:
+            while abs(dx - self.walked) >= self.distance:
+                left = dx < self.walked
+                self.act("right" if left else "left")
+                self.walked += -self.distance if left else self.distance
+
+    def end(self, touch):
+        if touch not in self.touches:
+            return
+        if not self.panning:
+            self.let_go(list(self.touches))        # a tap, or a two-finger tap: theirs
+            self.reset()
+            return
+        del self.touches[touch]
+        if not self.touches:
+            self.reset()
+
+    def tick(self, now):
+        """Time passing: a single finger held for WAIT goes to the program."""
+        if self.touches and not self.on and self.first_at is not None and now - self.first_at >= self.WAIT:
+            self.let_go(list(self.touches))
+            self.reset()
+
+    def let_go(self, touches):
+        for t_id in touches:
+            self.decide(t_id, "reject")
+
+
 def focus(direction):
     """Go that way: Super+h/j/k/l's command, in the running StumpWM."""
     try:
@@ -135,20 +250,33 @@ def focus(direction):
         pass
 
 
-def touchpads():
-    """The names of the touchpads X knows: the devices libinput gives tapping to."""
-    found = []
+def touch_devices():
+    """The names of the touchpads and the touchscreens X knows: libinput gives
+    tapping to a touchpad, a calibration matrix and no tapping to a screen
+    (a stylus has one too, and isn't a screen)."""
+    pads, screens = [], []
     try:
         ids = subprocess.run(["xinput", "list", "--id-only"], capture_output=True, text=True,
                              timeout=10, check=False).stdout.split()
         for device in ids:
             props = subprocess.run(["xinput", "list-props", device], capture_output=True, text=True,
                                    timeout=10, check=False).stdout
+            name = props.splitlines()[0].replace("Device", "").strip(" ':") if props else ""
             if "libinput Tapping Enabled" in props:
-                found.append(props.splitlines()[0].replace("Device", "").strip(" ':"))
+                pads.append(name)
+            elif "libinput Calibration Matrix" in props and "Stylus" not in name and "Pen" not in name:
+                screens.append(name)
     except (OSError, subprocess.TimeoutExpired):
         pass
-    return found
+    return pads, screens
+
+
+def touchpads():
+    return touch_devices()[0]
+
+
+def touchscreens():
+    return touch_devices()[1]
 
 
 class Cookie(ctypes.Structure):          # XGenericEventCookie
@@ -170,15 +298,36 @@ class SwipeEvent(ctypes.Structure):      # XIGestureSwipeEvent
                 ("mods", ctypes.c_int * 4), ("group", ctypes.c_int * 4), ("flags", ctypes.c_int)]
 
 
+class TouchEvent(ctypes.Structure):      # XIDeviceEvent, as far as a touch needs
+    _fields_ = [("type", ctypes.c_int), ("serial", ctypes.c_ulong), ("send_event", ctypes.c_int),
+                ("display", ctypes.c_void_p), ("extension", ctypes.c_int), ("evtype", ctypes.c_int),
+                ("time", ctypes.c_ulong), ("deviceid", ctypes.c_int), ("sourceid", ctypes.c_int),
+                ("detail", ctypes.c_int),            # the touch's id
+                ("root", ctypes.c_ulong), ("event", ctypes.c_ulong), ("child", ctypes.c_ulong),
+                ("root_x", ctypes.c_double), ("root_y", ctypes.c_double),
+                ("event_x", ctypes.c_double), ("event_y", ctypes.c_double),
+                ("flags", ctypes.c_int)]
+
+
+class GrabModifiers(ctypes.Structure):   # XIGrabModifiers
+    _fields_ = [("modifiers", ctypes.c_int), ("status", ctypes.c_int)]
+
+
+TOUCH_BEGIN, TOUCH_UPDATE, TOUCH_END = 18, 19, 20
+ACCEPT_TOUCH, REJECT_TOUCH = 6, 7
+ALL_MASTER_DEVICES, ANY_MODIFIER, GRAB_MODE_TOUCH, GRAB_MODE_ASYNC = 1, -(1 << 31), 2, 1
+
+
 class EventMask(ctypes.Structure):       # XIEventMask
     _fields_ = [("deviceid", ctypes.c_int), ("mask_len", ctypes.c_int),
                 ("mask", ctypes.POINTER(ctypes.c_ubyte))]
 
 
-def listen(sweep, once=False):
-    """Hear the X server's swipe events on the root window, and feed SWEEP.
-    Returns a line to say when it can't; with ONCE, returns None as soon as
-    it is listening (for --check)."""
+def listen(sweep, once=False, pan=None):
+    """Hear the X server's swipe events on the root window, and feed SWEEP;
+    with PAN (a Pan without its decide), take every touch first and feed
+    it, deciding each as PAN says. Returns a line to say when it can't;
+    with ONCE, returns None as soon as it is listening (for --check)."""
     try:
         x11 = ctypes.CDLL("libX11.so.6")
         xi = ctypes.CDLL("libXi.so.6")
@@ -210,34 +359,95 @@ def listen(sweep, once=False):
         return "this X server doesn't pass touchpad gestures on (it has XInput %d.%d; 2.4 does)" \
             % (major.value, minor.value)
 
+    root = x11.XDefaultRootWindow(display)
     bits = (ctypes.c_ubyte * 5)()
     for event in (SWIPE_BEGIN, SWIPE_UPDATE, SWIPE_END):
         bits[event >> 3] |= 1 << (event & 7)
-    mask = EventMask(1, 5, bits)           # 1: every master device
-    xi.XISelectEvents(display, x11.XDefaultRootWindow(display), ctypes.byref(mask), 1)
+    mask = EventMask(ALL_MASTER_DEVICES, 5, bits)
+    xi.XISelectEvents(display, root, ctypes.byref(mask), 1)
+
+    devices = {}                           # a touch's id → the device it came on
+    if pan is not None:
+        # Every touch, first: a passive grab on the root, let go or kept
+        # touch by touch (XIAllowTouchEvents) as the pan decides.
+        xi.XIGrabTouchBegin.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_ulong, ctypes.c_int,
+                                        ctypes.POINTER(EventMask), ctypes.c_int, ctypes.POINTER(GrabModifiers)]
+        xi.XIAllowTouchEvents.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_uint, ctypes.c_ulong, ctypes.c_int]
+        x11.XInternAtom.restype = ctypes.c_ulong
+        x11.XInternAtom.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int]
+        x11.XGetWindowProperty.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_long, ctypes.c_long,
+                                           ctypes.c_int, ctypes.c_ulong, ctypes.POINTER(ctypes.c_ulong),
+                                           ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_ulong),
+                                           ctypes.POINTER(ctypes.c_ulong), ctypes.POINTER(ctypes.c_void_p)]
+        x11.XFree.argtypes = [ctypes.c_void_p]
+        touch_bits = (ctypes.c_ubyte * 5)()
+        for event in (TOUCH_BEGIN, TOUCH_UPDATE, TOUCH_END):
+            touch_bits[event >> 3] |= 1 << (event & 7)
+        touch_mask = EventMask(ALL_MASTER_DEVICES, 5, touch_bits)
+        modifiers = GrabModifiers(ANY_MODIFIER, 0)
+        if xi.XIGrabTouchBegin(display, ALL_MASTER_DEVICES, root, 0, ctypes.byref(touch_mask), 1, ctypes.byref(modifiers)):
+            return "the touchscreen's touches are taken by another program already"
+        strip_atom = x11.XInternAtom(display, b"_VIKIX_STRIP", 0)
+
+        def strip_now():
+            """Whether the current workspace is a strip: _VIKIX_STRIP on the root (viri.lisp)."""
+            kind, fmt, n, after, data = (ctypes.c_ulong(), ctypes.c_int(), ctypes.c_ulong(), ctypes.c_ulong(),
+                                         ctypes.c_void_p())
+            if x11.XGetWindowProperty(display, root, strip_atom, 0, 1, 0, 0, ctypes.byref(kind), ctypes.byref(fmt),
+                                      ctypes.byref(n), ctypes.byref(after), ctypes.byref(data)) != 0 or not data.value:
+                return False
+            try:
+                return fmt.value == 32 and n.value >= 1 and ctypes.cast(data, ctypes.POINTER(ctypes.c_long))[0] == 1
+            finally:
+                x11.XFree(data)
+
+        def decide(touch, verdict):
+            device = devices.pop(touch, None)
+            if device is not None:
+                xi.XIAllowTouchEvents(display, device, touch, root, ACCEPT_TOUCH if verdict == "accept" else REJECT_TOUCH)
+                x11.XFlush(display)
+
+        pan.decide = decide
     x11.XFlush(display)
     if once:
         return None
 
+    x11.XPending.argtypes = [ctypes.c_void_p]
+    x11.XConnectionNumber.argtypes = [ctypes.c_void_p]
+    fd = x11.XConnectionNumber(display)
     event = ctypes.create_string_buffer(256)   # an XEvent is 192 bytes
     cookie = ctypes.cast(event, ctypes.POINTER(Cookie))
     while True:
-        x11.XNextEvent(display, event)
-        if cookie.contents.type != 35 or cookie.contents.extension != opcode.value:   # GenericEvent
-            continue
-        if not x11.XGetEventData(display, cookie):
-            continue
-        try:
-            swipe = ctypes.cast(cookie.contents.data, ctypes.POINTER(SwipeEvent)).contents
-            kind = cookie.contents.evtype
-            if kind == SWIPE_BEGIN:
-                sweep.begin(swipe.detail)
-            elif kind == SWIPE_UPDATE:
-                sweep.update(swipe.delta_x, swipe.delta_y)
-            elif kind == SWIPE_END:
-                sweep.end()
-        finally:
-            x11.XFreeEventData(display, cookie)
+        while x11.XPending(display) > 0:
+            x11.XNextEvent(display, event)
+            if cookie.contents.type != 35 or cookie.contents.extension != opcode.value:   # GenericEvent
+                continue
+            if not x11.XGetEventData(display, cookie):
+                continue
+            try:
+                kind = cookie.contents.evtype
+                if kind == SWIPE_BEGIN:
+                    sweep.begin(ctypes.cast(cookie.contents.data, ctypes.POINTER(SwipeEvent)).contents.detail)
+                elif kind == SWIPE_UPDATE:
+                    swipe = ctypes.cast(cookie.contents.data, ctypes.POINTER(SwipeEvent)).contents
+                    sweep.update(swipe.delta_x, swipe.delta_y)
+                elif kind == SWIPE_END:
+                    sweep.end()
+                elif pan is not None and kind in (TOUCH_BEGIN, TOUCH_UPDATE, TOUCH_END):
+                    touch = ctypes.cast(cookie.contents.data, ctypes.POINTER(TouchEvent)).contents
+                    if kind == TOUCH_BEGIN:
+                        devices[touch.detail] = touch.deviceid
+                        pan.begin(touch.detail, touch.root_x, touch.root_y, strip_now(), time.monotonic())
+                    elif kind == TOUCH_UPDATE:
+                        pan.update(touch.detail, touch.root_x, touch.root_y)
+                    else:
+                        pan.end(touch.detail)
+                        devices.pop(touch.detail, None)
+            finally:
+                x11.XFreeEventData(display, cookie)
+        if pan is not None:
+            pan.tick(time.monotonic())
+        select.select([fd], [], [], 0.05)
 
 
 def surroundings(pid=None):
@@ -316,6 +526,11 @@ def status():
         s["distance"], "fingers to the left bring the next on the right" if s["natural"]
         else "the focus goes the way the fingers do, left for left"))
     print("  touchpad: %s" % (", ".join(pads) if pads else "none found"))
+    screens = touchscreens()
+    if screens:
+        print("  touchscreen: %s; two fingers dragged sideways over a strip %s" % (
+            ", ".join(screens),
+            "walk it, a column each %g" % s["pan"] if s["pan"] else "do nothing (pan = no)"))
     print("  settings: %s%s" % (SETTINGS.replace(os.path.expanduser("~"), "~"),
                                 "" if os.path.exists(SETTINGS) else " (not there: the defaults)"))
 
@@ -330,11 +545,15 @@ def main(argv):
     if argv[0] == "on":
         if os.path.exists(OFF):
             os.remove(OFF)
-        if not touchpads():
-            print("No touchpad found: nothing to listen to.")
+        pads, screens = touch_devices()
+        if not pads and not screens:
+            print("No touchpad or touchscreen found: nothing to listen to.")
             return 0
         start()
-        print("Touchpad sweeps on: %d fingers left, right, up or down move the focus." % settings()["fingers"])
+        if pads:
+            print("Touchpad sweeps on: %d fingers left, right, up or down move the focus." % settings()["fingers"])
+        if screens:
+            print("Touchscreen on: two fingers dragged sideways over a strip walk it.")
         return 0
     if argv[0] == "off":
         os.makedirs(CONFIG, exist_ok=True)
@@ -344,24 +563,34 @@ def main(argv):
         print("Touchpad sweeps off.")
         return 0
     if argv[0] == "--watch":
-        if os.path.exists(OFF) or not touchpads():
+        if os.path.exists(OFF):
+            return 0
+        pads, screens = touch_devices()
+        if not pads and not screens:
             return 0
         s = settings()
-        problem = listen(Sweep(s["fingers"], s["distance"], s["natural"], focus))
+        pan = Pan(s["pan"], focus, None) if screens and s["pan"] else None
+        problem = listen(Sweep(s["fingers"], s["distance"], s["natural"], focus), pan=pan)
         if problem:
             print("vikix gestures: " + problem, file=sys.stderr)
             return 1
         return 0
     if argv[0] == "--check":
         # Can it listen here? Says so, and leaves.
-        problem = listen(Sweep(3, 200.0, True, focus), once=True)
-        print(problem or "listening for touchpad sweeps works here")
+        problem = listen(Sweep(3, 200.0, True, focus), once=True,
+                         pan=Pan(150.0, focus, None) if touchscreens() else None)
+        print(problem or ("listening for touchpad sweeps and touchscreen pans works here" if touchscreens()
+                          else "listening for touchpad sweeps works here"))
         return 1 if problem else 0
     if argv[0] == "--feed":
         # For the tests: "begin N", "update DX DY", "end" on stdin; the
-        # steps they make, one a line.
+        # steps they make, one a line. And a touchscreen's: "touch ID X Y
+        # strip|tiles", "move ID X Y", "lift ID", "wait SECONDS"; the steps
+        # and each touch's verdict ("accept 1", "reject 1").
         s = settings()
         sweep = Sweep(s["fingers"], s["distance"], s["natural"], print)
+        clock = [0.0]
+        pan = Pan(s["pan"], print, lambda touch, verdict: print(verdict, touch))
         for line in sys.stdin:
             words = line.split()
             if not words:
@@ -372,6 +601,15 @@ def main(argv):
                 sweep.update(float(words[1]), float(words[2]))
             elif words[0] == "end":
                 sweep.end()
+            elif words[0] == "touch":
+                pan.begin(int(words[1]), float(words[2]), float(words[3]), words[4] == "strip", clock[0])
+            elif words[0] == "move":
+                pan.update(int(words[1]), float(words[2]), float(words[3]))
+            elif words[0] == "lift":
+                pan.end(int(words[1]))
+            elif words[0] == "wait":
+                clock[0] += float(words[1])
+                pan.tick(clock[0])
         return 0
     print("vikix gestures: on, off, or nothing to see how it is (-h for more)", file=sys.stderr)
     return 2

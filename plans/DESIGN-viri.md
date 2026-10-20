@@ -138,7 +138,7 @@ Everything is in one file, `config/stumpwm/vikix/viri.lisp`, loaded through `err
 
 ### Later (P2)
 
-12. Two-finger pan on the Z13's touchscreen (libinput gestures → `vikix eval`).
+12. ~~Two-finger pan on the Z13's touchscreen (libinput gestures → `vikix eval`).~~ *2026-10-20 (0.72.120):* in `bin/vikix-gestures`, not libinput: a passive XI 2.2 touch grab on the root takes every touch first, a two-finger sideways drag over a strip is kept and walks it (`vikix-focus`, a column each `pan` pixels), everything else is given back to the program at once (one finger after 0.15 s); viri.lisp says which workspace is in front in `_VIKIX_STRIP` on the root, since asking over the socket at each touch is too slow.
 13. Columns that span two monitors; today a strip belongs to one head.
 14. A Viri lesson in "Learn Lisp by changing your own desktop": a group type is a good second chapter after a key.
 

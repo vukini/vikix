@@ -8,6 +8,10 @@
 #   natural = yes fingers to the left bring what's on the right; two
 #   fingers do nothing here (they are the strip's, in viri.lisp); the
 #   settings file is read (fingers, distance), and nonsense in it ignored;
+#   a touchscreen's two fingers dragged sideways over a strip are taken and
+#   walk it a column each stretch, and one finger, a tap, fingers going up,
+#   a third finger, or anything over tiles goes to the program (pan = no,
+#   pan = 80 read);
 #   off and on are a file, and off stops this desktop's listener only (a
 #   test's "off" once stopped the real one); the command's page is in shape. Whether it can
 #   listen is tried on a hidden X server, where there is one. No touchpad
@@ -48,6 +52,25 @@ check "up and down the same way, and the axis it started on is kept" \
 check "a short one does nothing" test -z "$(steps 'begin 3' 'update -150 0' end)"
 check "two fingers scroll, as always: nothing here" test -z "$(steps 'begin 2' 'update -900 0' end)"
 check "each sweep starts afresh" test "$(steps 'begin 3' 'update -150 0' end 'begin 3' 'update -150 0' end)" = ""
+
+# A touchscreen's pan: two fingers over a strip, dragged sideways, are
+# taken and walk it a column each 150; everything else goes to the program.
+pan=$(steps 'touch 1 500 400 strip' 'touch 2 540 400 strip' 'move 1 420 402' 'move 2 460 402' 'move 1 300 405' 'move 2 340 405' 'move 1 100 405' 'move 2 140 405' 'lift 1' 'lift 2')
+check "two fingers dragged left over a strip aren't taken and walked, a column each 150: $pan" test "$pan" = "accept 1 accept 2 right right"
+check "dragged right, the other way" test "$(steps 'touch 1 100 400 strip' 'touch 2 140 400 strip' 'move 1 300 400' 'move 2 340 400' 'lift 1' 'lift 2')" = "accept 1 accept 2 left"
+check "over tiles they go to the program" test "$(steps 'touch 1 500 400 tiles' 'touch 2 540 400 tiles' 'move 1 300 400' 'move 2 340 400')" = "reject 1 reject 2"
+check "one finger held 0.15 s goes to the program" test "$(steps 'touch 1 500 400 strip' 'wait 0.1' 'wait 0.1')" = "reject 1"
+check "one finger dragged alone goes too" test "$(steps 'touch 1 500 400 strip' 'move 1 400 400')" = "reject 1"
+check "a tap goes" test "$(steps 'touch 1 500 400 strip' 'lift 1')" = "reject 1"
+check "two fingers going up go (the program's scrolling)" test "$(steps 'touch 1 500 400 strip' 'touch 2 540 400 strip' 'move 1 500 300' 'move 2 540 300')" = "reject 1 reject 2"
+check "a two-finger tap goes" test "$(steps 'touch 1 500 400 strip' 'touch 2 540 400 strip' 'lift 1' 'lift 2')" = "reject 1 reject 2"
+check "a third finger gives the lot to the program, a pan under way too" test "$(steps 'touch 1 500 400 strip' 'touch 2 540 400 strip' 'move 1 400 400' 'move 2 440 400' 'touch 3 600 400 strip')" = "accept 1 accept 2 reject 3 reject 1 reject 2"
+check "and the next two fingers start afresh" test "$(steps 'touch 1 500 400 strip' 'touch 2 540 400 strip' 'touch 3 600 400 strip' 'touch 4 500 400 strip' 'touch 5 540 400 strip' 'move 4 300 400' 'move 5 340 400')" = "reject 3 reject 1 reject 2 accept 4 accept 5 right"
+printf 'pan = no\n' > "$XDG_CONFIG_HOME/vikix/gestures"
+check "pan = no leaves the screen alone" test "$(steps 'touch 1 500 400 strip' 'touch 2 540 400 strip' 'move 1 300 400' 'move 2 340 400')" = "reject 1 reject 2"
+printf 'pan = 80\n' > "$XDG_CONFIG_HOME/vikix/gestures"
+check "pan = 80: a column each 80" test "$(steps 'touch 1 500 400 strip' 'touch 2 540 400 strip' 'move 1 330 400' 'move 2 370 400')" = "accept 1 accept 2 right right"
+rm -f "$XDG_CONFIG_HOME/vikix/gestures"
 
 printf 'fingers = 4\ndistance = 100   # quicker\nnatural = no\nnonsense = 7\ndistance = many\n' > "$XDG_CONFIG_HOME/vikix/gestures"
 check "the settings: four fingers, a shorter stretch, the focus going the fingers' way" \

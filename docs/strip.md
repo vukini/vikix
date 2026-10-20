@@ -98,12 +98,15 @@ Two commands have no key of their own, for a key in `user.lisp` if you want one:
 | Hold `Super` and turn the wheel over the strip | you walk along it, as `Super+h` and `Super+l` do |
 | Turn the wheel over the bar's window names | the same |
 | Sweep two fingers sideways on the touchpad, over the strip | the same: the strip scrolls as a wide page would |
+| Drag two fingers sideways on a touchscreen, over the strip | the strip goes with them, a column for each short stretch |
 | Drag a window's title bar (or hold `Super` and drag anywhere in it) | its column goes with the pointer, and stays where you let it go |
 | Drag a column's side edge (or hold `Super` and drag with the right button) | the column gets wider or narrower, a twentieth of the screen at a time |
 | Drag the edge between two windows stacked in a column | the one grows and the other shrinks |
 | Click a window's name in the bar | you go to it |
 
 The touchpad's two fingers are the quick way: swept sideways over a strip they walk along it, a column for each short stretch, the way everything else scrolls under them (as yours is set: fingers to the left go to the column on the left, or bring the one on the right where scrolling is "natural"). Up and down they scroll the program, as always, and a little drift sideways while you do walks nowhere. Three fingers do the same on any workspace, and up or down go through a column's windows: `vikix gestures` says how they are set, and `vikix gestures off` stops them ([The commands](commands.md) has the settings). A strip takes sideways scrolling for itself, so a program on one that scrolls sideways (a wide sheet, a long line) is scrolled with its scroll bar, or with `Shift` and the wheel; the setting below gives it back.
+
+On a touchscreen (the Z13's), two fingers dragged sideways over a strip take it with them: fingers to the left bring what's on the right, a column for each 150 pixels (`pan = 150` in `~/.config/vikix/gestures`; `pan = no` leaves the screen alone). `vikix gestures` listens for it beside the touchpad's sweep, and takes only that: one finger, a tap, fingers going up or down, three fingers, or anything over a tiled workspace reaches the program under them as if nothing were listening.
 
 A width set by dragging can be any twentieth of the screen; `Super+r` then takes the column to the next of its four widths.
 

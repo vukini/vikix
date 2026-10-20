@@ -1322,9 +1322,28 @@ windows, in the order they stood. GROUP must be the current one."
     (cond ((eq on (viri-group-p group))
            (message "This workspace is ~:[tiled~;a strip~] already." on))
           (on (viri-replace-group group 'viri-group)
+              (viri-tell-strip)
               (message "Workspace ~a is a strip: Super+h and Super+l move along it." (group-name (current-group))))
           (t (viri-replace-group group 'tile-group)
+             (viri-tell-strip)
              (message "Workspace ~a is tiled again." (group-name (current-group)))))))
+;;; What's under the fingers: the touchscreen's listener (vikix-gestures)
+;;; takes every touch first and must know at once whether a two-finger
+;;; drag is over a strip; too slow to ask over the socket, so the root
+;;; window carries it.
+
+(defun viri-tell-strip (&rest args)
+  "_VIKIX_STRIP on the root window: 1 while the current workspace is a
+strip, else 0. Set as a workspace comes to the front and as one turns into
+a strip or back (vikix-viri)."
+  (declare (ignore args))
+  (ignore-errors
+   (xlib:change-property (screen-root (current-screen)) :_VIKIX_STRIP
+                         (list (if (viri-group-p (current-group)) 1 0)) :cardinal 32)))
+
+(add-hook *focus-group-hook* 'viri-tell-strip)
+(viri-tell-strip)
+
 ;;; Where you are: the bar's window list (%W) shows a strip as a strip.
 
 (defun viri-ml-click (code id &rest rest)

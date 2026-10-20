@@ -49,6 +49,8 @@ xs() { ask '(progn (setf *print-pretty* nil) (format t "~{~a~^ ~}" (mapcar (lamb
 for w in A B C D; do win "$w"; done
 ask '(run-commands "vikix-viri")' >/dev/null; sleep 0.5
 check "a strip keeps the windows in the order they stood, the focused one shown: $(state)" test "$(state)" = "ABCD left=2 focus=D"
+strip_prop() { ask '(princ (xlib:get-property (screen-root (current-screen)) :_VIKIX_STRIP))'; }
+check "the root window doesn't say a strip is in front (for the touchscreen's listener): $(strip_prop)" test "$(strip_prop)" = "(1)"
 check "two columns of half the screen show, the rest past the edges: $(xs)" test "$(xs)" = "-1280 -640 0 640"
 bar() { ask '(princ (viri-mode-line-windows (head-mode-line (current-head))))' | head -1; }
 plain_bar() { bar | sed 's/\^([^)]*)//g; s/[0-9]* //g'; }
@@ -96,6 +98,7 @@ key super+u
 check "layout undo's recording says nothing on a strip (no menu waits)" test "$(ask '(princ 1)')" = 1
 
 ask '(run-commands "vikix-viri off")' >/dev/null; sleep 0.5
+check "the root window still says a strip after tiles again: $(strip_prop)" test "$(strip_prop)" = "(0)"
 check "off: tiles again, with all four windows: $(state)" test "$(state)" = "tiles focus=C"
 check "each in a frame, none afloat" test "$(ask '(princ (count-if (lambda (w) (typep w (quote tile-window))) (group-windows (current-group))))')" = 4
 ask '(run-commands "vikix-viri on")' >/dev/null; sleep 0.5
