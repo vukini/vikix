@@ -14,6 +14,7 @@ Nyxt is in the launcher (`Super+d`). Everything below is safe to try: your confi
 
 ## What Vikix sets up in Nyxt
 
+- **It opens on a home page of Vikix's.** The logo and the keys that matter most, in the desktop's colours: Nyxt starts on it, every new tab (`Ctrl+t`) does, and `vikix-home` by name brings it back. See [The home page](#the-home-page).
 - **Guides and docs open in it.** `Super+m` → *Vikix guide in the browser* and *Programming docs*, and `docs` in a terminal, open in Nyxt once it's installed.
 - **It wears the desktop's colours.** Its status bar, prompts and messages take the theme's colours, and `vikix theme NAME` repaints a running Nyxt at once.
 - **Emacs can reach into it.** A Lisp prompt inside the browser, on `127.0.0.1:4006`, with the same password as the desktop's.
@@ -47,12 +48,25 @@ To keep Nyxt's own colours, take the line that loads Vikix's part out of your `c
 nyxt's colours follow vikix theme (~/.config/nyxt/config.lisp loads Vikix's part)
 ```
 
+## The home page
+
+Nyxt starts on a page of Vikix's, and `Ctrl+t` opens a new tab on it: the logo, buttons to the Nyxt guide, the docs catalogue, Nyxt's manual, the list of every key and its settings, and the keys that matter most in Nyxt's default scheme (the Firefox-like one Vikix leaves on), each with the name of its command, since `Ctrl+Space` takes names. `Ctrl+Space`, then `vikix-home`, brings it back from anywhere. The logo is the site's, light or dark for the theme's background, read from `~/vikix`.
+
+To have Nyxt's own page instead, in `config.lisp` after the line that loads Vikix's part:
+
+```lisp
+(define-configuration browser
+  ((default-new-buffer-url (quri:uri "nyxt:new"))))
+```
+
+Any address does there: `(quri:uri "https://example.org")`.
+
 ## Your Nyxt config
 
 | Where | Whose | What |
 |---|---|---|
 | `~/.config/nyxt/config.lisp` | yours | Your settings, keys and commands, in Lisp (package `nyxt-user`). Copied once from Vikix's starter |
-| `~/.local/share/vikix/nyxt/vikix.lisp` | Vikix's | The colours, the remote calls `vikix theme` makes, and Swank. A link into `~/vikix`, kept current by `vikix update`: don't edit it |
+| `~/.local/share/vikix/nyxt/vikix.lisp` | Vikix's | The colours, the remote calls `vikix theme` makes, Swank, the docs catalogue's page and the home page. A link into `~/vikix`, kept current by `vikix update`: don't edit it |
 
 The starter `config.lisp` is a few lines: the `in-package` line, the load of Vikix's part, and room for yours below. A line of yours placed after the load wins over Vikix's. Two you may want:
 

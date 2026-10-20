@@ -101,6 +101,7 @@ The plan was the Learning To Code project's "Vikix — C Tutorials Plan"; its de
 
 ### Lisp apps for the Lisp desktop
 
+- **A `nyxt:` page of Vikix's as the start page** (0.72.116, 2026-10-20, Vid's ask). `vikix-home` in `config/nyxt/vikix.lisp`: the site's logo (light or dark for the palette's background, as a `data:` address, since a page of Nyxt's own can't show a `file:` one), buttons to the guide, the docs catalogue, Nyxt's manual, every key and its settings, and the keys that matter most in Nyxt's default scheme with each command's name; Nyxt starts on it and `Ctrl+t` opens on it (`default-new-buffer-url`), and `config.lisp` can set any other after the load. `tests/nyxt.sh` looks each key of the table up in Nyxt's source. The projects and `vikix today` on it stay in `IDEAS.md`.
 - **First, what already exists** (0.69.0, `vikix add lisp-apps`): Lem (an editor written in Common Lisp, Emacs-like, graphical and terminal), Nyxt (a web browser written in Common Lisp, programmable as StumpWM is), McCLIM (a toolkit for windowed apps in Common Lisp, drawing through the same X11 library as StumpWM) with its inspector (Clouseau) and listener. The file explorer of the list became Esploro, its own project (TODO 64).
 
 ### Areas looked at (2026-10-03)

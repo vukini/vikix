@@ -54,7 +54,8 @@ P
   (:export #:browser #:*browser* #:theme #:window-list #:status-buffer
            #:customize-instance #:define-configuration #:remote-execution-p
            #:define-internal-page #:define-command-global #:run-thread #:echo-warning
-           #:buffer-load-internal-page-focus #:prompt1))
+           #:buffer-load-internal-page-focus #:prompt1
+           #:define-internal-page-command-global #:nyxt-url))
 (in-package :nyxt)
 (defclass browser () ())
 (defvar *browser* nil)
@@ -72,9 +73,15 @@ P
 (defun echo-warning (fmt &rest args) (push (apply #'format nil fmt args) *echoed*))
 (defmacro define-internal-page (name &rest r) (declare (ignore r)) `',name)
 (defmacro define-command-global (name &rest r) (declare (ignore r)) `',name)
+(defmacro define-internal-page-command-global (name &rest r) (declare (ignore r)) `',name)
+(defun nyxt-url (&rest r) (format nil "~{~a~^ ~}" r))
 (defun buffer-load-internal-page-focus (&rest r) r)
 (defun prompt1 (&rest r) (declare (ignore r)) "")
 (defpackage :prompter (:use) (:export #:raw-source))
+(defpackage :quri (:use) (:export #:uri))
+;; The home page: the logo's bytes are counted, not encoded.
+(defpackage :cl-base64 (:use :cl) (:export #:usb8-array-to-base64-string))
+(defun cl-base64:usb8-array-to-base64-string (bytes) (format nil "~d bytes" (length bytes)))
 (defpackage :spinneret (:use :cl) (:export #:with-html-string))
 (defmacro spinneret:with-html-string (&body b) (declare (ignore b)) "")
 (defpackage :str (:use :cl) (:export #:blankp #:emptyp #:lines #:split #:trim))
@@ -169,6 +176,15 @@ L
         (loop for s in '("vikix" "repo" "dev" "pkgdoc" "man" "info" "pkg" "tldr" "arch" "note" "new") collect s collect (vikix-docs-other-way s)))
 (vikix-docs-open-id "gone")
 (format t "echoed ~a~%" (first nyxt::*echoed*))
+;; The home page: the keys in words, the logo for the background, the table.
+(format t "key words ~a | ~a | ~a | ~a | ~a~%" (vikix-key-words "C-l") (vikix-key-words "C-shift-tab")
+        (vikix-key-words "C-T") (vikix-key-words "M-c l") (vikix-key-words "C-space"))
+(format t "dark ~a ~a ~a~%" (vikix-dark-colour-p "#1e1e2e") (vikix-dark-colour-p "#eff1f5") (vikix-dark-colour-p nil))
+(format t "logo ~a ~a~%" (pathname-name (vikix-logo-file t)) (pathname-name (vikix-logo-file nil)))
+(format t "logo url ~a~%" (vikix-home-logo))
+(let ((*vikix-palette-file* "$t/palette")) (format t "logo url dark ~a~%" (vikix-home-logo)))
+(dolist (group *vikix-home-keys*)
+  (dolist (row (cdr group)) (format t "binding~c~a~c~a~%" #\Tab (first row) #\Tab (second row))))
 L
   mkdir -p "$t/home" "$t/bin"
   cat > "$t/bin/vikix" <<'V'
@@ -208,6 +224,22 @@ V
   check "(setf *vikix-swank-port* nil) means no Swank" grep -qx 'off calls 0' <<<"$out"
   check "the docs page reads vikix docs find's lines of four, the rest skipped: $(grep "^hits" <<<"$out")" grep -qx 'hits (("man:sv(8)" "man" "sv(8)" "control a service") ("vikix:/g.md" "vikix" "Guide" ""))' <<<"$out"
   check "and asks nothing without words" grep -qx 'no words NIL' <<<"$out"
+  check "the home page writes Nyxt's keys in words" grep -qx 'key words Ctrl+l | Ctrl+Shift+Tab | Ctrl+Shift+t | Alt+c l | Ctrl+Space' <<<"$out"
+  check "a dark background is told from a light one" grep -qx 'dark T NIL NIL' <<<"$out"
+  check "the logo is the site's, for the background" grep -qx 'logo logo-dark logo-light' <<<"$out"
+  check "and goes into the page as data:, the light one without a palette" \
+    grep -qx "logo url data:image/webp;base64,$(stat -c %s "$here/site/logo-light.webp") bytes" <<<"$out"
+  check "the dark one for a dark palette" \
+    grep -qx "logo url dark data:image/webp;base64,$(stat -c %s "$here/site/logo-dark.webp") bytes" <<<"$out"
+  if [ -d /usr/share/nyxt/source ]; then
+    # Each key on the home page is bound to that command in Nyxt's own source
+    # (its default, CUA, scheme), as "C-l" 'set-url there.
+    while IFS=$'\t' read -r _ key command; do
+      check "the home page's $key is $command in Nyxt's source" grep -rqF "\"$key\" '$command" /usr/share/nyxt/source
+    done < <(grep '^binding ' <<<"$out")
+  else
+    echo "(Nyxt's source isn't here: the home page's keys not looked up)"
+  fi
   check "without words, the short lists in full" grep -qx 'overview (("Vikix.s guides (1)" ("vikix:/a.md" "vikix" "A guide" "")))' <<<"$out"
   check "and how many from each source" grep -qx "overview line Here: 12 Man pages, 2 Vikix's guides. Find searches them all; below, the short lists in full." <<<"$out"
   check "the second button says where it opens; a note, opening one way, has none: $(grep "^other ways" <<<"$out")" grep -qx 'other ways vikix: In Emacs, repo: In Emacs, dev: In Emacs, pkgdoc: In Emacs, man: In a terminal, info: In a terminal, pkg: In a terminal, tldr: In a terminal, arch: On the web, as it is today, note: NIL, new: NIL' <<<"$out"

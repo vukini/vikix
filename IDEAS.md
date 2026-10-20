@@ -117,7 +117,7 @@ From the Nyxt work of 2026-10-02 (the guide is `docs/nyxt.md`; the page tools th
 - **Ask a question about the page**: summarize-page's route, with a prompt for the question.
 - **Play the page's video in mpv** (with `yt-dlp`).
 - **A QR code of a link or of the selection**, not only the page: `cl-qrencode` as `show-url-qrcode` uses it.
-- **Bigger:** commands joining Nyxt to the desktop (a site as a web app, show a file in Esploro, the window to a workspace); address rewrites and blocked domains (Nyxt's request hook); Ctrl+Space sources for `~/dev`'s docs, `vikix project` folders and links from notes; Lisp-made `nyxt:` pages (a start page with the projects, `vikix today`, the key card from StumpWM); a `vikix learn c` lesson page with a **Check** button that runs the checker beside the lesson.
+- **Bigger:** commands joining Nyxt to the desktop (a site as a web app, show a file in Esploro, the window to a workspace); address rewrites and blocked domains (Nyxt's request hook); Ctrl+Space sources for `~/dev`'s docs, `vikix project` folders and links from notes; more on the home page Nyxt opens on (`vikix-home`, 0.72.116: the logo and the keys; it could show the projects and `vikix today`); a `vikix learn c` lesson page with a **Check** button that runs the checker beside the lesson.
 
 ## Gathered on 2026-10-03, in a conversation with Vid
 

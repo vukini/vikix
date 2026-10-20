@@ -1,4 +1,6 @@
-;;;; vikix.lisp — Vikix's part of Nyxt's config: Nyxt in the desktop's colours.
+;;;; vikix.lisp — Vikix's part of Nyxt's config: Nyxt in the desktop's
+;;;; colours, Swank, the docs catalogue as a page, and the home page it
+;;;; opens on (the end of this file).
 ;;;;
 ;;;; Linked to ~/.local/share/vikix/nyxt/vikix.lisp; your
 ;;;; ~/.config/nyxt/config.lisp loads it (the starter Vikix copies there
@@ -327,3 +329,148 @@ Without words: how many there are from each source, then the short lists
                                                         :sources 'prompter:raw-source)))
   "Search every document on this machine (vikix docs), as a page."
   (vikix-docs-show query))
+
+;;; The home page: what Nyxt starts on and a new tab (C-t) opens on, and
+;;; M-x vikix-home. The logo, and the keys that matter most in Nyxt's
+;;; default scheme (CUA: Firefox's keys, the one Vikix leaves on), each
+;;; with its command's name, since C-space takes names. The logo is the
+;;; site's, read from the checkout this file is linked from. To keep Nyxt's
+;;; own page, in config.lisp after the load:
+;;;   (define-configuration browser ((default-new-buffer-url (quri:uri "nyxt:new"))))
+
+(defvar *vikix-dir*
+  (and *load-truename*
+       (uiop:pathname-parent-directory-pathname
+        (uiop:pathname-parent-directory-pathname
+         (uiop:pathname-directory-pathname *load-truename*))))
+  "The checkout this file is in (~/vikix: the link in ~/.local/share is
+followed), where the logo is.")
+
+(defparameter *vikix-home-keys*
+  '(("Go"
+     ("C-l" "set-url" "An address, or words to search for")
+     ("C-space" "execute-command" "Any command by name: type a few letters of it, Enter")
+     ("M-left" "history-backwards" "Back; Alt+Right forward")
+     ("C-r" "reload-current-buffer" "Reload (F5 too)")
+     ("C-f" "search-buffer" "Find on the page, the hits as a list; Alt+f clears the marks"))
+    ("Tabs (Nyxt says buffers)"
+     ("C-t" "make-buffer-focus" "A new one, on this page")
+     ("C-w" "delete-current-buffer" "Close it")
+     ("C-T" "reopen-buffer" "Reopen the one closed last")
+     ("C-tab" "switch-buffer-next" "The next; Ctrl+Shift+Tab the one before")
+     ("M-down" "switch-buffer" "Pick one from a list")
+     ("C-`" "switch-buffer-last" "The one you were on before this"))
+    ("On the page"
+     ("C-j" "follow-hint" "A link by keyboard: type the letters shown on it; Ctrl+Shift+j opens it in a new tab")
+     ("C-h" "jump-to-heading" "A heading, from a list")
+     ("C-+" "zoom-page" "Larger; Ctrl+- smaller, Ctrl+0 as it was")
+     ("C-c" "copy" "Copy; Ctrl+v paste, Ctrl+x cut, Ctrl+a select all")
+     ("M-c l" "copy-url" "Copy the address; Alt+c t the title"))
+    ("Keep and find again"
+     ("C-d" "bookmark-current-url" "Bookmark this page")
+     ("C-m o" "set-url-from-bookmark" "Open a bookmark")
+     ("C-shift-h" "history-all-query" "All of the history, searchable")
+     ("C-o" "nyxt/mode/file-manager:open-file" "A file on this machine")
+     ("C-q" "quit" "Quit")))
+  "The home page's table: for each heading, (KEY COMMAND WHAT), KEY as
+Nyxt's source writes it (tests/nyxt.sh looks each up there).")
+
+(defparameter *vikix-key-modifiers*
+  '(("C-" . "Ctrl") ("M-" . "Alt") ("s-" . "Super") ("shift-" . "Shift"))
+  "Nyxt's prefixes and their words.")
+
+(defparameter *vikix-key-names*
+  '(("space" . "Space") ("tab" . "Tab") ("return" . "Enter") ("escape" . "Escape")
+    ("left" . "Left") ("right" . "Right") ("up" . "Up") ("down" . "Down")
+    ("pageup" . "PgUp") ("pagedown" . "PgDn"))
+  "Nyxt's names for keys and the words on the keyboard.")
+
+(defun vikix-key-words (key)
+  "KEY as Nyxt's source writes it, in words: C-l is Ctrl+l, C-shift-tab
+Ctrl+Shift+Tab, C-T Ctrl+Shift+t, M-c l Alt+c l."
+  (flet ((chord (chord)
+           (let ((mods '()) (rest chord))
+             (loop for hit = (find-if (lambda (m) (and (> (length rest) (length (car m)))
+                                                       (string= (car m) rest :end2 (length (car m)))))
+                                      *vikix-key-modifiers*)
+                   while hit
+                   do (push (cdr hit) mods)
+                      (setf rest (subseq rest (length (car hit)))))
+             (when (and (= (length rest) 1) (upper-case-p (char rest 0)))
+               (push "Shift" mods)
+               (setf rest (string-downcase rest)))
+             (format nil "~{~a+~}~a" (reverse mods)
+                     (or (cdr (assoc rest *vikix-key-names* :test #'string=)) rest)))))
+    (format nil "~{~a~^ ~}" (mapcar #'chord (str:split " " key :omit-nulls t)))))
+
+(defun vikix-dark-colour-p (colour)
+  "Whether #rrggbb COLOUR is dark enough for light text and the light logo."
+  (and colour (vikix-colour-p colour)
+       (let ((r (parse-integer colour :start 1 :end 3 :radix 16))
+             (g (parse-integer colour :start 3 :end 5 :radix 16))
+             (b (parse-integer colour :start 5 :end 7 :radix 16)))
+         (< (+ (* 0.299 r) (* 0.587 g) (* 0.114 b)) 128))))
+
+(defun vikix-logo-file (dark)
+  "The site's logo for a dark or a light background, or nil without the checkout."
+  (and *vikix-dir*
+       (probe-file (merge-pathnames (if dark "site/logo-dark.webp" "site/logo-light.webp")
+                                    *vikix-dir*))))
+
+(defun vikix-logo-data-url (file)
+  "FILE's bytes as a data: address, which a page of Nyxt's own can show
+(a file: address inside one, it can't)."
+  (with-open-file (in file :element-type '(unsigned-byte 8))
+    (let ((bytes (make-array (file-length in) :element-type '(unsigned-byte 8))))
+      (read-sequence bytes in)
+      (format nil "data:image/webp;base64,~a" (cl-base64:usb8-array-to-base64-string bytes)))))
+
+(defun vikix-home-logo ()
+  "The logo for the palette's background as a data: address, or nil."
+  (let ((file (vikix-logo-file (vikix-dark-colour-p (cdr (assoc "bg" (vikix-palette) :test #'string=))))))
+    (and file (vikix-logo-data-url file))))
+
+(define-internal-page-command-global vikix-home ()
+    (buffer "*Home*")
+  "Vikix's home page: the logo, and the keys that matter most."
+  (let ((logo (vikix-home-logo))
+        (guide (and *vikix-dir* (format nil "vikix:~a" (namestring (merge-pathnames "docs/nyxt.md" *vikix-dir*))))))
+    (spinneret:with-html-string
+      (:nstyle '(body :max-width "76ch" :margin "0 auto" :padding "2em 1.5em")
+               '(.logo :margin "1.5em 0 0.5em")
+               '(nav :margin "1em 0 2em")
+               '(.button :margin-right "0.5em")
+               '(table :border-collapse "collapse" :width "100%" :margin-bottom "1.5em" :table-layout "fixed")
+               '(td :padding "0.3em 0.8em 0.3em 0" :vertical-align "top")
+               '(.key :width "9em" :font-weight "bold")
+               '(.command :width "15em" :opacity "0.7" :font-size "0.9em")
+               '(h2 :margin-top "1.5em"))
+      (:div :class "logo"
+            (if logo
+                (:img :src logo :alt "Vikix: Void, supercharged." :width "360")
+                (:h1 "Vikix")))
+      (:nav
+       (when guide (:nbutton :text "The Nyxt guide" `(nyxt-user::vikix-docs-open-id ,guide)))
+       (:a :class "button" :href (nyxt-url 'nyxt-user::vikix-docs-page) "Every document")
+       (:a :class "button" :href (nyxt-url 'manual) "Nyxt's manual")
+       (:a :class "button" :href (nyxt-url 'describe-bindings) "Every key")
+       (:a :class "button" :href (nyxt-url 'common-settings) "Settings"))
+      (:p (:b "Ctrl+Space") " asks for any command by name; the right column is the name. "
+          (:b "Escape") " leaves any prompt. In a prompt, Up and Down move, Enter picks, "
+          "Tab copies the highlighted entry into the input, Ctrl+Enter marks several.")
+      (dolist (group *vikix-home-keys*)
+        (:h2 (car group))
+        (:table
+         (dolist (row (cdr group))
+           (destructuring-bind (key command what) row
+             (:tr (:td :class "key" (vikix-key-words key))
+                  (:td what)
+                  (:td :class "command" command))))))
+      (:p "Vikix's own, by name: " (:code "vikix-docs") " searches every document on the machine; "
+          "the page tools from the guide (clip-selection, reader-view, save-page-tables, copy-page-code, "
+          "add-page-to-notes, clip-to-project-log) once their file is in " (:code "~/.config/nyxt") "; "
+          (:code "vikix-home") " is this page."))))
+
+;; A new tab, and Nyxt's first, open on it.
+(define-configuration browser
+  ((default-new-buffer-url (quri:uri "nyxt:nyxt-user:vikix-home"))))
