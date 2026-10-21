@@ -76,6 +76,27 @@ With `vikix add python` and `vikix add emacs`, a `.py` file opens as an IDE: the
 
 Tests and runs go to a compilation buffer, where a failing line is a link: `Enter` on it opens the file there, `M-g M-n` goes to the next. A key for something that isn't installed says what to do (`uv pip install pytest` in the project, say) instead of failing. Nothing of this changes your own `python.el` or eglot settings: the venv is given to each buffer, so two projects open at once each keep theirs. `C-c p F` turns formatting on save off for a buffer; `(setq vikix-python-format-on-save nil)` in your config turns it off everywhere. A debugger isn't part of it yet.
 
+### A project, start to finish
+
+Say a project of yours at `~/src/pub`: a `pyproject.toml` that lists its packages, a `uv.lock`, `pub.py` and `tests/test_pub.py`, and no venv yet.
+
+1. **Open it:** `e ~/src/pub/pub.py`. The mode line says `Py[no venv]`: the project declares its packages but has no `.venv`, so the shared venv is not used. pyright starts on the system Python meanwhile and marks the project's imports as unresolved: that is the sign to make the venv.
+2. **Make the venv:** `C-c p v`, then `y`. uv makes `.venv` in the project, fetching the Python the pyproject asks for if it isn't on the machine. Then, in a terminal in the folder, bring the packages and pytest in:
+
+   ```sh
+   uv sync
+   uv pip install pytest
+   ```
+
+   Reopen the file (`C-x C-v Enter`). The mode line reads `Py[.venv]`, and pyright sees the packages. For the ipython prompt, `uv pip install ipython` the same way; plain `python -i` otherwise.
+3. **Lay it out:** `C-c p i`. The code stays left, the REPL opens top right, and the tests' window waits below it. In the REPL the project is importable as it is: `from pub import load`, since it starts in the project's folder. `C-c C-c` sends the buffer to it, as always in Emacs.
+4. **Change and test:** edit, save. The save runs `ruff format`, and ruff's findings (an unused import, a name that isn't defined) are underlined beside pyright's. Put point inside a test in `tests/test_pub.py` and press `C-c p t`: the window below runs pytest on that one function, by its class when it has one. A failure's `tests/test_pub.py:36:` line is a link; `Enter` on it goes there. `C-c p T` runs the file, `C-c p P` the whole suite.
+5. **Check before committing:** `C-c p c` runs `ruff check` over the project in the same window, a clickable line per finding. `C-c p r` runs the file as a script. Then magit (`C-x g`) as usual.
+6. **Stuck on the language:** `C-c p d` opens the offline Python docs in the browser.
+7. **Put it away:** `C-c p q`. A changed file is asked about, then the project's buffers, the REPL and pyright go, and the frame closes, so the terminal that ran `e` gets its prompt back. Files of another project in the same Emacs stay.
+
+Two projects open at once each keep their own venv, so you can read one while the other's REPL runs. A file that shouldn't be reformatted gets `C-c p F` once.
+
 ## Language servers
 
 A language server is what lets the editor complete names, jump to a definition and underline mistakes as you type. Each comes with its language, so `vikix add c` brings C's, and both editors find them on PATH:
