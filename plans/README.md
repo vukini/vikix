@@ -2,6 +2,10 @@
 
 The longer plans of Vikix, one file each. The queue is `../TODO.md`, the pool `../IDEAS.md`, the big ideas `../NOVEL.md`, what shipped out of the first two `../ARCHIVE.md`; a design here moves into `TODO.md` when work on it starts, and what ships is deleted from it, what changes dated.
 
+## Active release priority
+
+**[Desktop 1.0 critical path](DESKTOP-1.0.md)** (2026-10-21) — overrides the order of optional TODOs: reliability/security and rollback; autonomous checked agents; personal-machine continuity; installation and 30-day validation. Excludes Vikix Cloud. Acceptance evidence is required before calling a phase complete.
+
 ## Designs
 
 | File | Drafted | What it works out |
