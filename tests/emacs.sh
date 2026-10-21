@@ -455,6 +455,20 @@ out=$(py "(progn (defun run-python (&rest _) (get-buffer-create \"*Python*\")) (
 check "C-c p i should give three windows with the code selected: $out" has '^windows 3 selected test_a.py' "$out"
 check "the REPL right and the compilation buffer below it: $out" has '^right \*Python\* below \*compilation\*' "$out"
 check "ready for the first test: $out" has '^mode compilation-mode' "$out"
+# Closing the project: its files, the REPL and its process, the tests' window, pyright; the frame when Emacs is the daemon.
+out=$(py "(progn (require 'eglot) (defun daemonp () t) (defun delete-frame (&rest _) (say \"frame closed\"))
+  $open (find-file (expand-file-name \"loose/l.py\" \"~\")) $open
+  (start-process \"py\" \"*Python*\" \"cat\") (with-current-buffer \"*Python*\" (setq default-directory (expand-file-name \"proj/\" \"~\")))
+  (vikix-python--compilation-buffer) (with-current-buffer \"*compilation*\" (setq default-directory (expand-file-name \"proj/\" \"~\")))
+  (defun eglot-current-server () 'pyright) (defun eglot-shutdown (s &rest _) (say \"shutdown %s\" s))   ; stood in only now: eglot asks the server of every file opened
+  (vikix-python-quit)
+  (say \"left %S\" (seq-filter (lambda (n) (string-match-p \"py\\\\|Python\\\\|compilation\" n)) (mapcar #'buffer-name (buffer-list))))
+  (say \"processes %S\" (mapcar #'process-name (process-list))))")
+check "C-c p q should stop pyright for the project: $out" has '^shutdown pyright' "$out"
+check "say what it closed: $out" has '^closed proj: 1 file, the REPL, pyright' "$out"
+check "leave only the other project's file: $out" has '^left ("l.py")' "$out"
+check "with the REPL's process gone: $out" has '^processes nil' "$out"
+check "and close the frame when Emacs is the daemon: $out" has '^frame closed' "$out"
 out=$(py "(progn $open (stopped (vikix-python-docs)))")
 check "C-c p d without the docs should say so: $out" has "stopped: The offline docs aren.t here: vikix add python puts them in ~/dev/python/docs" "$out"
 

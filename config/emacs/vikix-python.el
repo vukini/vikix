@@ -30,6 +30,8 @@
 ;;   C-c p v   the venv: which one; none, offers to make it (uv venv)
 ;;   C-c p i   the IDE: code left, the REPL and the tests' output right
 ;;   C-c p d   the offline docs (~/dev/python/docs, in the browser)
+;;   C-c p q   close the project: its files (saved first, if you say so),
+;;             the REPL, the tests' window and pyright; then the frame
 ;;
 ;; The tests and runs go to a compilation buffer, so a failing line is a
 ;; link (Enter on it, M-g M-n for the next). A key for what isn't
@@ -391,6 +393,51 @@ A test or a run then shows in its window, and the REPL keeps its own."
     (set-window-buffer below (vikix-python--compilation-buffer))
     (select-window code)))
 
+(defun vikix-python--under (root buffer)
+  "Whether BUFFER is the project's at ROOT: its file, or its folder, is under it."
+  (let ((file (or (buffer-file-name buffer)
+                  (buffer-local-value 'default-directory buffer))))
+    (and file (string-prefix-p root (file-name-as-directory (expand-file-name file))))))
+
+(defun vikix-python--kill-with-process (buffer)
+  "Kill BUFFER and the process in it, asking nothing."
+  (when (buffer-live-p buffer)
+    (let ((proc (get-buffer-process buffer)))
+      (when proc
+        (set-process-query-on-exit-flag proc nil)
+        (delete-process proc)))
+    (kill-buffer buffer)))
+
+(declare-function eglot-current-server "eglot")
+(declare-function eglot-shutdown "eglot")
+
+(defun vikix-python-quit ()
+  "Close the project: its files, the REPL, the tests' window, pyright, the frame.
+A changed file is asked about first, as C-x s does. pyright is stopped
+for the project (eglot keeps it otherwise). The frame goes when Emacs is
+the daemon's (`e FILE' gets its terminal back); a lone Emacs stays."
+  (interactive)
+  (let* ((root (or vikix-python--root (vikix-python-root)))
+         (name (file-name-nondirectory (directory-file-name root)))
+         (repl (let ((name (python-shell-get-buffer)))   ; a name, not a buffer
+                 (and name (get-buffer name))))
+         (compilation (get-buffer "*compilation*"))
+         (files (seq-filter (lambda (b) (and (buffer-file-name b) (vikix-python--under root b)))
+                            (buffer-list)))
+         (server (and (featurep 'eglot) (eglot-current-server))))
+    (save-some-buffers nil (lambda () (memq (current-buffer) files)))
+    (when server
+      (ignore-errors (eglot-shutdown server nil)))
+    (when (and repl (vikix-python--under root repl))
+      (vikix-python--kill-with-process repl))
+    (when (and compilation (vikix-python--under root compilation))
+      (vikix-python--kill-with-process compilation))
+    (dolist (b files) (kill-buffer b))
+    (message "closed %s: %d file%s%s%s" name (length files) (if (= (length files) 1) "" "s")
+             (if repl ", the REPL" "") (if server ", pyright" ""))
+    (when (daemonp)
+      (ignore-errors (delete-frame)))))
+
 ;; --- the mode ---------------------------------------------------------------
 
 (defvar vikix-python-mode-map
@@ -407,6 +454,7 @@ A test or a run then shows in its window, and the REPL keeps its own."
     (define-key p "v" #'vikix-python-venv-command)
     (define-key p "i" #'vikix-python-ide)
     (define-key p "d" #'vikix-python-docs)
+    (define-key p "q" #'vikix-python-quit)
     (define-key map (kbd "C-c p") p)
     map)
   "The keys of `vikix-python-mode', under C-c p.")

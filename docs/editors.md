@@ -72,6 +72,7 @@ With `vikix add python` and `vikix add emacs`, a `.py` file opens as an IDE: the
 | `C-c p v` | Which venv this buffer uses; none, offers `uv venv` |
 | `C-c p i` | The IDE: code left, the REPL top right, the tests' output below it |
 | `C-c p d` | The offline Python docs, in the browser |
+| `C-c p q` | Close the project: its files (a changed one is asked about), the REPL, the tests' window and pyright; then the frame, so a terminal's `e FILE` gets its prompt back |
 
 Tests and runs go to a compilation buffer, where a failing line is a link: `Enter` on it opens the file there, `M-g M-n` goes to the next. A key for something that isn't installed says what to do (`uv pip install pytest` in the project, say) instead of failing. Nothing of this changes your own `python.el` or eglot settings: the venv is given to each buffer, so two projects open at once each keep theirs. `C-c p F` turns formatting on save off for a buffer; `(setq vikix-python-format-on-save nil)` in your config turns it off everywhere. A debugger isn't part of it yet.
 
