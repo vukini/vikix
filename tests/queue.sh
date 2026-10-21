@@ -171,5 +171,64 @@ rm -f "$t/fail-b"; : > "$t/agents-calls"
 VIKIX_TEST_RUN=1 VIKIX_TEST_SLOTS=1 "$t/tests/run.sh" a > /dev/null 2>&1
 check "a run a test started (VIKIX_TEST_RUN set) records nothing" test ! -s "$t/agents-calls"
 
-[ "$fail" = 0 ] && echo "queue: runs on one machine share the test slots, a test that wants the machine alone has it, each leaves a note vikix agents reads, a run at a desk records itself, and a run passes or fails as before"
+# Once more, alone: a screen test (one naming tests/lib/wm.sh or Xvfb) that
+# fails runs again by itself, once; passing then it counts as passed, said,
+# and noted in the flakes log with its first FAIL lines; failing again it
+# fails. A plain test isn't tried again, nor is a screen test with
+# VIKIX_TEST_RETRY=0, nor a single named test; a retry runs with the
+# machine to itself (no other test of any run beside it).
+# x: a stand-in screen test that fails once (its marker removed as it fails), then passes.
+cat > "$t/tests/x.sh" <<END
+#!/bin/sh
+# a stand-in for a test that starts an Xvfb
+echo "x start \$(date +%s.%N)" >> "$t/log"
+sleep 0.6
+echo "x end \$(date +%s.%N)" >> "$t/log"
+[ -e "$t/fail-x" ] && { rm "$t/fail-x"; echo "FAIL: typed too soon"; exit 1; }
+exit 0
+END
+chmod +x "$t/tests/x.sh"
+export VIKIX_TEST_FLAKES="$t/flakes.log"
+: > "$t/log"; touch "$t/fail-x"
+out=$(VIKIX_TEST_SLOTS=2 "$t/tests/run.sh" a x b 2>&1) && code=0 || code=$?
+check "a screen test that fails once passes on its second run alone: $code" test "$code" = 0
+check "and the run says so: $(grep -c 'once more alone' <<<"$out")" \
+  bash -c "grep -q '^=== x, once more alone' <<<\"\$1\" && grep -q '^=== x passed once more alone' <<<\"\$1\" && grep -q '^(passed only once more alone, a timing flake: x;' <<<\"\$1\" && grep -q '^all passed: a x b' <<<\"\$1\"" _ "$out"
+check "the first failure is still shown whole" grep -q '^FAIL: typed too soon' <<<"$out"
+check "the flake is noted with its FAIL line: $(cat "$t/flakes.log" 2>/dev/null)" grep -qP '^\S+\t\S+\tx\tload .*\tFAIL: typed too soon' "$t/flakes.log"
+check "the retry ran alone: $(overlaps "$t/log" x) others beside it on its second run" test "$(python3 - "$t/log" <<'PY2'
+import sys
+spans=[]
+for line in open(sys.argv[1]):
+    name, what, at = line.split()
+    if name == "x" and what == "start": spans.append({})
+    if name == "x": spans[-1][what] = float(at)
+me = spans[-1]
+others=[]
+cur={}
+for line in open(sys.argv[1]):
+    name, what, at = line.split()
+    if name == "x": continue
+    cur.setdefault(name, {})[what] = float(at)
+print(sum(1 for n, s in cur.items() if s["start"] < me["end"] and me["start"] < s["end"]))
+PY2
+)" = 0
+touch "$t/fail-x"
+out=$(VIKIX_TEST_RETRY=0 VIKIX_TEST_SLOTS=2 "$t/tests/run.sh" a x 2>&1) && code=0 || code=$?
+check "VIKIX_TEST_RETRY=0 keeps the first answer: $code" bash -c "[ $code != 0 ] && ! grep -q 'once more alone' <<<\"\$1\" && grep -q '^FAILED: x' <<<\"\$1\"" _ "$out"
+touch "$t/fail-x"
+out=$(VIKIX_TEST_SLOTS=2 "$t/tests/run.sh" x 2>&1) && code=0 || code=$?
+check "a single named test isn't tried again: $code" bash -c "[ $code != 0 ] && ! grep -q 'once more alone' <<<\"\$1\"" _ "$out"
+touch "$t/fail-b"
+out=$(VIKIX_TEST_SLOTS=2 "$t/tests/run.sh" a b 2>&1) && code=0 || code=$?
+check "a plain test that fails isn't tried again: $code" bash -c "[ $code != 0 ] && ! grep -q 'once more alone' <<<\"\$1\" && grep -q '^FAILED: b' <<<\"\$1\"" _ "$out"
+rm -f "$t/fail-b"
+# y: a screen test that fails every time.
+printf '#!/bin/sh\n# starts an Xvfb\necho "FAIL: always"; exit 1\n' > "$t/tests/y.sh"; chmod +x "$t/tests/y.sh"
+out=$(VIKIX_TEST_SLOTS=2 "$t/tests/run.sh" a y 2>&1) && code=0 || code=$?
+check "a screen test that fails again alone fails the run: $code" \
+  bash -c "[ $code != 0 ] && grep -q '^=== y failed again alone' <<<\"\$1\" && grep -q '^FAILED: y' <<<\"\$1\" && ! grep -q 'passed only once more' <<<\"\$1\"" _ "$out"
+check "and isn't noted as a flake" test "$(grep -c . "$t/flakes.log")" = 1
+
+[ "$fail" = 0 ] && echo "queue: runs on one machine share the test slots, a test that wants the machine alone has it, each leaves a note vikix agents reads, a run at a desk records itself, a screen test that fails runs once more alone and is noted as a flake when it passes then, and a run passes or fails as before"
 exit "$fail"

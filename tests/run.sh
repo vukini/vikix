@@ -25,8 +25,10 @@
 # it; 1 is one after another), and no more than that over every run on the
 # machine together (the slots, below; `tests/run.sh NAME` queues one test), each one's output printed whole when it
 # ends, so a failure reads as it would alone. A test must therefore keep
-# to its own temporary folder, display and ports. GitHub runs them too:
-# .github/workflows/test.yml.
+# to its own temporary folder, display and ports. A screen test that fails
+# runs once more with the machine to itself, and counts as passed when it
+# passes then (noted in ~/.local/state/vikix/test-flakes.log; see below).
+# GitHub runs them too: .github/workflows/test.yml.
 
 set -uo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
@@ -272,6 +274,51 @@ for t in "${ordered[@]}"; do
   wait "$!" 2>/dev/null || true
   show_ended
 done
+
+# Once more, alone. A test that drives a hidden desktop (it sources
+# tests/lib/wm.sh, or starts an Xvfb of its own) types against deadlines,
+# and fails for slowness alone when the machine is full: on 2026-10-22
+# three releases in a row were refused, each by a screen test that passed
+# on its own right after (palette, docs, workspaces). So each such test
+# that failed runs again, once, with the machine to itself; one that
+# passes then counts as passed, is said so, and goes into
+# ~/.local/state/vikix/test-flakes.log (when, the commit, the test, the
+# load as the run began, its FAIL lines), so one that does it often is
+# seen and mended rather than forgiven for ever. Any other test's failure
+# stands, as does a screen test's second. VIKIX_TEST_RETRY=0 keeps the
+# first answer (for a test being fixed), and a single named test, which
+# ran as good as alone, isn't tried again.
+flakes_log=${VIKIX_TEST_FLAKES:-$HOME/.local/state/vikix/test-flakes.log}
+screen_test() { grep -qE 'lib/wm\.sh|Xvfb' "./$1.sh" 2>/dev/null; }
+note_flake() {   # note_flake TEST FIRST-OUTPUT
+  mkdir -p "$(dirname "$flakes_log")" 2>/dev/null || return 0
+  printf '%s\t%s\t%s\t%s\t%s\n' "$(date +%Y-%m-%dT%H:%M)" "$(git rev-parse --short HEAD 2>/dev/null || echo '?')" \
+    "$1" "$load_at_start" "$(grep '^FAIL' "$2" | head -3 | tr '\n' ' ' | cut -c1-300)" >> "$flakes_log" 2>/dev/null || true
+}
+flaky=()
+if [ "${VIKIX_TEST_RETRY:-1}" != 0 ] && { [ "$mode" != --names ] || [ "${#tests[@]}" -gt 1 ]; }; then
+  for t in "${failed[@]}"; do
+    screen_test "$t" || continue
+    echo "=== $t, once more alone (it drives a hidden desktop; the machine may have been full)"
+    mv "$logs/$t.out" "$logs/$t.first"; rm -f "$logs/$t.done"
+    alone_slot run_one "$t" &
+    started+=("$!")
+    wait "$!" 2>/dev/null || true
+    read -r code secs < "$logs/$t.done"
+    cat "$logs/$t.out"
+    if [ "$code" = 0 ]; then
+      echo "=== $t passed once more alone (${secs}s): a timing flake, noted in $flakes_log"
+      flaky+=("$t"); note_flake "$t" "$logs/$t.first"
+    else
+      echo "=== $t failed again alone (${secs}s)"
+    fi
+  done
+  if [ "${#flaky[@]}" -gt 0 ]; then
+    kept=()
+    for t in "${failed[@]}"; do [[ " ${flaky[*]} " == *" $t "* ]] || kept+=("$t"); done
+    failed=("${kept[@]}")
+  fi
+fi
 echo
 # The slow ones, so a run that takes long says why.
 echo "slowest: $(printf '%s\n' "${took[@]}" | sort -rn | head -5 | awk '{printf "%s %ss  ", $2, $1}')"
@@ -296,9 +343,10 @@ record_run() {
   [ "${#failed[@]}" -eq 0 ] || state=--failed
   timeout 20 "$top/bin/vikix-agents" handoff check "$name" "$state" --note "$1" --desk "$top" >/dev/null 2>&1 || true
 }
+[ "${#flaky[@]}" -eq 0 ] || echo "(passed only once more alone, a timing flake: ${flaky[*]}; noted in $flakes_log)"
 if [ "${#failed[@]}" -eq 0 ]; then
   echo "all passed: ${tests[*]}"
-  record_run "${#tests[@]} tests in $SECONDS s ($load_at_start as the run began)"
+  record_run "${#tests[@]} tests in $SECONDS s ($load_at_start as the run began)${flaky[0]:+; passed only once more alone: ${flaky[*]}}"
 else
   echo "($load_at_start as the run began)"
   echo "FAILED: ${failed[*]}"

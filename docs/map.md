@@ -155,6 +155,7 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 | `dictating` | Only while dictation listens (Super+F9): the recorder's process, so the next press can stop it |
 | `jupyter.log` | JupyterLab's messages (`jlab`) |
 | `ollama.log` | Local AI's log (vikix ai); one old one is kept as `ollama.log.old` |
+| `test-flakes.log` | Each screen test that failed in a run of `tests/run.sh` and passed once more alone: when, the commit, the test, the load, its first FAIL lines (a test often here is one to mend) |
 | `updates` | What the bar's `updates` field shows, written by `vikix-updates` every 6 hours: the counts, and on the `main` channel GitHub's verdict on the commit this machine runs |
 | `tests-told` | The commit whose failed tests were told in a notification, so it is said once |
 | `mimeapps-offered` | The starter's default programs already offered to your `~/.config/mimeapps.list` (added, or yours kept), so each is offered once |

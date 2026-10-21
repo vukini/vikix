@@ -26,10 +26,7 @@ In order of value. Each is small enough for one commit and a test.
 
 ### 1. CI shows every failure, and runs once (`.github/workflows/test.yml`)
 
-- `if: ${{ !cancelled() }}` on each test step, or a matrix over the test names, so one red step doesn't hide the rest.
-- `install-info` on the apt line: `tests/info.sh` needed it on Debian.
-- `on: push: branches: ['**']`, so a tag push doesn't run the whole workflow again. Keep `workflow_dispatch`.
-- One version of `actions/checkout` (`pages.yml` has `@v4`, `test.yml` `@v5`).
+- ~~`if: ${{ !cancelled() }}` on each test step; `install-info`; `on: push: branches: ['**']`; one version of `actions/checkout`~~ (done 2026-10-22: every `tests/ci.sh` step runs after a failed one, a tag push runs nothing, `pages.yml` at `@v5`).
 - ~~Fix the `man` failure~~ (done 2026-10-20, see above).
 
 ### 2. One version of each tool, said aloud (`tests/lint.sh`)
@@ -42,16 +39,14 @@ In order of value. Each is small enough for one commit and a test.
 - **Weighted slots:** a test that sources `wm.sh` (Xvfb, SBCL, Alacritty) takes two slots, or draws from an X pool of its own, `max(1, nproc/2)`.
 - **A load gate** before the heavy tests, with a bound: wait up to about 120 seconds for the one-minute load to fall below the cores.
 - **Waiting for what is expected, not for a time:** `key(){ xdotool key; sleep 0.5; }` becomes `wait_for FORM EXPECTED [TIMEOUT]` and `key_until`; `win` fails loudly when a window never comes; deadlines scale by `VIKIX_TEST_SLACK`.
-- **Once more, alone:** a timing test that fails runs again by itself, once; a line goes into `flakes.jsonl` (test, commit, load, the FAIL lines) and the run says *passed on retry (flaky)*.
+- ~~**Once more, alone**~~ (done 2026-10-22: a test that sources `tests/lib/wm.sh` or starts an Xvfb and fails runs again by itself, once, through the `alone` slot; passing then it counts as passed, the run says *passed once more alone* and names it, and a tab-separated line goes into `~/.local/state/vikix/test-flakes.log`: when, commit, test, the load as the run began, its first FAIL lines. A plain test, a single named test and `VIKIX_TEST_RETRY=0` keep the first answer. `tests/queue.sh`.) Left: looking at the flakes log after some weeks, to mend the tests that are in it most.
 - **`tests/queue.sh` with slots of its own** (a private slots folder), so other runs' waiting doesn't reach it.
 - earlyoom prefers to end Xvfb and sbcl: consider exempting test sessions.
 
 ### 4. Releases that don't stall (`.claude/release`)
 
 - **For Vid to decide:** test before taking the global release lock (rebase at the desk, test, then lock), and when `main` moved only in files the desk doesn't touch, run just the changed delta again.
-- One log a release, `.git/vikix-release-tests/TOPIC-TIME.log`, instead of one file written over.
-- The load and who holds the test slots, at the start of the release's output.
-- The retry once alone, from item 3.
+- ~~One log a release; the load and the other runs' tests at the start; the retry once alone~~ (done 2026-10-22: `.git/vikix-release-tests/TOPIC-TIME.log`, kept whether the run passed or not; the load and how many tests of other runs are on the machine, said as the tests begin; the flaky line after a pass).
 
 ### 5. Hermetic tests (`tests/run.sh`, `tests/ci.sh`)
 

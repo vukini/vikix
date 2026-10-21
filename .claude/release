@@ -189,17 +189,26 @@ case $tests in
   *)
     case $tests in changed) args=(--changed main) ;; quick) args=(--quick) ;; full) args=() ;; esac
     note 4 "testing ($tests)"
-    say "tests (${tests}), in $wt ..."
-    log=$(mktemp)
+    # The machine as the tests begin: the load, and how many tests of other
+    # runs are going or waiting (the runner's notes), since a run lost to
+    # slowness is explained by them, not by the change.
+    others=$(ls "${XDG_RUNTIME_DIR:-/tmp}/vikix-test-slots/notes" 2>/dev/null | wc -l)
+    say "tests (${tests}), in $wt (load $(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null || echo '?') on $(nproc 2>/dev/null || echo '?') cores; $others test(s) of other runs on the machine) ..."
+    # One log a release, kept whether it passed or not (a failed one used to
+    # write over the last), named for the topic and the time.
+    mkdir -p "$common/vikix-release-tests"
+    log="$common/vikix-release-tests/$topic-$(date +%Y%m%d-%H%M%S).log"
     # 9>&-: the tests don't inherit the lock's descriptor, or a program a test
     # leaves behind (an Xvfb, 2026-10-08) holds the queue for everyone after.
     if ! (cd "$wt" && tests/run.sh "${args[@]}" 9>&-) >"$log" 2>&1; then
       grep -E '^FAIL|^FAILED' "$log" | head -20 >&2
-      kept="$common/vikix-release-tests.log"; cp "$log" "$kept"; rm -f "$log"
-      die "the tests failed (all they said: $kept). Nothing merged"
+      die "the tests failed (all they said: $log). Nothing merged"
     fi
+    # A screen test that passed only once more alone is said here too, so
+    # the one that does it often is seen (tests/run.sh notes it as well).
+    grep '^(passed only once more alone' "$log" | cut -c1-300
     tail -1 "$log" | cut -c1-300
-    rm -f "$log" ;;
+    say "the run's log: $log" ;;
 esac
 
 # From here main changes. Each step only after the one before.

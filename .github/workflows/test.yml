@@ -2,6 +2,8 @@
 # can also be run on your own machine: tests/run.sh (or tests/run.sh --all).
 # tests/ci.sh wraps each one so a failure's last lines show up as a public
 # annotation (job logs need a GitHub login; annotations don't).
+# Every test step runs even after one failed (if: !cancelled()), so one red
+# step doesn't hide the rest; a job is still red when any step is.
 #
 #   lint     every script parses, is executable where it should be, and
 #            passes shellcheck; every Lisp file reads; the battery warner
@@ -22,6 +24,7 @@ name: test
 
 on:
   push:
+    branches: ['**']     # not a tag: a release's tag would run the whole workflow again on the same commit
   pull_request:
   workflow_dispatch:
   schedule:
@@ -33,96 +36,140 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: lint
+        if: ${{ !cancelled() }}
         run: tests/ci.sh lint
-      - name: sbcl, to read the Lisp files, restic for the backup test, texinfo for the info test, mandoc (Void's man) for the man test
-        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends sbcl restic texinfo mandoc
+      - name: sbcl, to read the Lisp files, restic for the backup test, texinfo and install-info for the info test, mandoc (Void's man) for the man test
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends sbcl restic texinfo install-info mandoc
       - name: lisp
+        if: ${{ !cancelled() }}
         run: tests/ci.sh lisp
       - name: battery
+        if: ${{ !cancelled() }}
         run: tests/ci.sh battery
       - name: home
+        if: ${{ !cancelled() }}
         run: tests/ci.sh home
       - name: services
+        if: ${{ !cancelled() }}
         run: tests/ci.sh services
       - name: backup
+        if: ${{ !cancelled() }}
         run: tests/ci.sh backup
       - name: image
+        if: ${{ !cancelled() }}
         run: tests/ci.sh image
       - name: theme
+        if: ${{ !cancelled() }}
         run: tests/ci.sh theme
       - name: theme-import
+        if: ${{ !cancelled() }}
         run: tests/ci.sh theme-import
       - name: bar
+        if: ${{ !cancelled() }}
         run: tests/ci.sh bar
       - name: examples
+        if: ${{ !cancelled() }}
         run: tests/ci.sh examples
       - name: uv, which the AI examples run with (pipx is on the runner)
         run: command -v uv || pipx install uv
       - name: dev-ai
+        if: ${{ !cancelled() }}
         run: tests/ci.sh dev-ai
       - name: notes
+        if: ${{ !cancelled() }}
         run: tests/ci.sh notes
       - name: project
+        if: ${{ !cancelled() }}
         run: tests/ci.sh project
       - name: drives
+        if: ${{ !cancelled() }}
         run: tests/ci.sh drives
       - name: firmware
+        if: ${{ !cancelled() }}
         run: tests/ci.sh firmware
       - name: fingerprint
+        if: ${{ !cancelled() }}
         run: tests/ci.sh fingerprint
       - name: rofi
+        if: ${{ !cancelled() }}
         run: tests/ci.sh rofi
       - name: wallpaper
+        if: ${{ !cancelled() }}
         run: tests/ci.sh wallpaper
       - name: updates
+        if: ${{ !cancelled() }}
         run: tests/ci.sh updates
       - name: notifications
+        if: ${{ !cancelled() }}
         run: tests/ci.sh notifications
       - name: idle
+        if: ${{ !cancelled() }}
         run: tests/ci.sh idle
       - name: capture
+        if: ${{ !cancelled() }}
         run: tests/ci.sh capture
       - name: nightlight
+        if: ${{ !cancelled() }}
         run: tests/ci.sh nightlight
       - name: update
+        if: ${{ !cancelled() }}
         run: tests/ci.sh update
       - name: windows
+        if: ${{ !cancelled() }}
         run: tests/ci.sh windows
       - name: ai
+        if: ${{ !cancelled() }}
         run: tests/ci.sh ai
       - name: ai-local
+        if: ${{ !cancelled() }}
         run: tests/ci.sh ai-local
       - name: llm
+        if: ${{ !cancelled() }}
         run: tests/ci.sh llm
       - name: ai-keys
+        if: ${{ !cancelled() }}
         run: tests/ci.sh ai-keys
       - name: agents
+        if: ${{ !cancelled() }}
         run: tests/ci.sh agents
       - name: debug
+        if: ${{ !cancelled() }}
         run: tests/ci.sh debug
       - name: dictate
+        if: ${{ !cancelled() }}
         run: tests/ci.sh dictate
       - name: mcp
+        if: ${{ !cancelled() }}
         run: tests/ci.sh mcp
       - name: swank
+        if: ${{ !cancelled() }}
         run: tests/ci.sh swank
       - name: webapp
+        if: ${{ !cancelled() }}
         run: tests/ci.sh webapp
       - name: features
+        if: ${{ !cancelled() }}
         run: tests/ci.sh features
       - name: welcome
+        if: ${{ !cancelled() }}
         run: tests/ci.sh welcome
       - name: menu
+        if: ${{ !cancelled() }}
         run: tests/ci.sh menu
       - name: pkg
+        if: ${{ !cancelled() }}
         run: tests/ci.sh pkg
       - name: oneline
+        if: ${{ !cancelled() }}
         run: tests/ci.sh oneline
       - name: info
+        if: ${{ !cancelled() }}
         run: tests/ci.sh info
       - name: man
+        if: ${{ !cancelled() }}
         run: tests/ci.sh man
       - name: changed-map
+        if: ${{ !cancelled() }}
         run: tests/ci.sh changed-map
 
   void:
@@ -150,8 +197,10 @@ jobs:
           echo 'tester ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/tester
           chown -R tester: "$GITHUB_WORKSPACE"
       - name: packages
+        if: ${{ !cancelled() }}
         run: su tester -c "cd '$GITHUB_WORKSPACE' && GITHUB_ACTIONS=true tests/ci.sh packages"
       - name: dry-run
+        if: ${{ !cancelled() }}
         run: su tester -c "cd '$GITHUB_WORKSPACE' && GITHUB_ACTIONS=true tests/ci.sh dry-run"
 
   editors:
@@ -181,6 +230,7 @@ jobs:
           useradd -m tester
           chown -R tester: "$GITHUB_WORKSPACE"
       - name: editors
+        if: ${{ !cancelled() }}
         run: su tester -c "cd '$GITHUB_WORKSPACE' && GITHUB_ACTIONS=true tests/ci.sh editors"
 
   # The good tag: the last commit of main whose three jobs all passed here.

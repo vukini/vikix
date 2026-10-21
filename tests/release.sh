@@ -152,6 +152,9 @@ out=$(release f "F") && code=0 || code=$?
 check "tests that fail stop it: $code $out" bash -c "[ $code != 0 ] && grep -q 'the tests failed' <<<\"\$1\" && grep -q 'Nothing merged' <<<\"\$1\"" _ "$out"
 check "with nothing merged: $(state)" test "$(state)" = "$before"
 check "the failures are shown" grep -q 'FAIL: made to' <<<"$out"
+check "the run's log is kept, one a release, named for the topic: $(ls "$r/.git/vikix-release-tests/" 2>/dev/null | tr '\n' ' ')" \
+  bash -c "ls '$r/.git/vikix-release-tests/'f-*.log >/dev/null 2>&1 && grep -q 'all they said: $r/.git/vikix-release-tests/f-' <<<\"\$1\"" _ "$out"
+check "and the machine's state is said as the tests begin" grep -qE 'tests \(changed\), in .* \(load .* on [0-9?]+ cores; [0-9]+ test\(s\) of other runs on the machine\)' <<<"$out"
 out=$(release f "F" --tests none) && code=0 || code=$?
 check "--tests none runs none (you ran them): $code" bash -c "[ $code = 0 ] && grep -q 'tests: not run' <<<\"\$1\"" _ "$out"
 
