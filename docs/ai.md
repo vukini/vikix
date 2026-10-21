@@ -400,7 +400,7 @@ cloud_key=                          # empty: openrouter; another key's name from
 cloud_model=                        # empty: openai/gpt-4o-mini; the service's own name (openrouter.ai/models), say anthropic/claude-sonnet-4.5
 ```
 
-So Groq is `cloud_url=https://api.groq.com/openai/v1`, `cloud_key=groq` and one of its models in `cloud_model=`, after `vikix ai key set groq`. Only an `https` address is taken, or `http` on this machine itself (a proxy of your own). The menu at the end of Super+i offers *Use the cloud service instead* once the key is there, and says where the text goes.
+So Groq is `cloud_url=https://api.groq.com/openai/v1`, `cloud_key=groq` and one of its models in `cloud_model=`, after `vikix ai key set groq`. For a model of your own in the cloud, a card rented by the hour or a server that wakes when asked, and what each way costs and keeps: [Your own model in the cloud](cloud-model.md). Only an `https` address is taken, or `http` on this machine itself (a proxy of your own). The menu at the end of Super+i offers *Use the cloud service instead* once the key is there, and says where the text goes.
 
 Through `llm`, the service is the model `vikix-cloud`, an entry Vikix keeps in `~/.config/io.datasette.llm/extra-openai-models.yaml` (yours there stay): `llm -m vikix-cloud "..."` in a terminal needs the key as `OPENAI_API_KEY` for that call, since llm reads an OpenAI-compatible model's key from there: `OPENAI_API_KEY=$OPENROUTER_API_KEY llm -m vikix-cloud "..."`. Super+i, the voice key and `note` hand it over that way themselves, for one call at a time: the key is never on a command line, and never copied into llm's own key file.
 

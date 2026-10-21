@@ -33,6 +33,7 @@ Every `vikix` command has a man page as well, and so has each command of a plugi
 | [Your notes](notes.md) | You take notes: a key from anywhere, sorting the inbox with a model, the agenda and links in Emacs, and the same notes on an Android phone or an iPhone |
 | [Books from Markdown](publish.md) | You have a text in Markdown and want an EPUB for an e-reader, or a PDF, checked before it leaves |
 | [Working with AI](ai.md) | You want the agent to change something for you, a model on the laptop, `llm` in a pipe, dictation, to talk with the AI, to ask your notes, or to give the agent the desktop as tools |
+| [Your own model in the cloud](cloud-model.md) | The model you want doesn't fit the laptop: OpenRouter, a GPU by the hour, serverless, or a box of yours, what each costs and where the text goes, which model fits which card, and the two lines that point Vikix at it |
 | [Agents at work](agents.md) | You run several AI agents at once: seeing who is on what, a desk (a workspace and a git worktree) for each, and the house rules when two reach for one file |
 | [Windows in a window](windows.md) | You need a program that only runs on Windows |
 | [Steam](steam.md) | You want to play games, Windows ones too: one command sets Steam up with everything your graphics card needs, and what to do when a game doesn't run |
