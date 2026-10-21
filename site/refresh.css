@@ -185,3 +185,7 @@
   .refresh .top nav { gap: 10px; justify-content: space-between; }
   .refresh .top nav a { font-size: .73rem; }
 }
+
+/* Keep the chosen headline readable as a whole phrase at every width. */
+.refresh .intro h1 { font-size: clamp(2.4rem, 4.4vw, 4.4rem); }
+@media (max-width: 560px) { .refresh .intro h1 { font-size: clamp(1.9rem, 9.4vw, 2.8rem); } }
