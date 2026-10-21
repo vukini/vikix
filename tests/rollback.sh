@@ -68,6 +68,12 @@ check "keep didn't say what it kept: $out" grep -q "kept the system as it is: Vi
 check "the commit isn't recorded" test "$(cat "$records/$rec/commit")" = "$old"
 check "the package set isn't recorded" grep -q '^ii sbcl-2.4.0_1' "$records/$rec/packages"
 check "the StumpWM binary isn't kept" test "$(cat "$records/$rec/stumpwm")" = "binary one"
+# Before keep packages there is no changes file (a `vikix update core` never writes one):
+# status lists the record as 0 packages, with no error (the first real record said
+# "changes: No such file or directory" for each record, 2026-10-21).
+out=$(vr 2>&1)
+check "status without a changes file errs or miscounts: $out" grep -q "^  $rec  Vikix 0.72.100 at ${old:0:7}  0 packages changed (0 kept), the StumpWM binary" <<<"$out"
+check "status without a changes file prints an error: $out" bash -c '! grep -q "No such file" <<<"$1"' _ "$out"
 out=$(vr keep packages 2>&1)
 check "keep packages didn't count 2 of 3 (the new package isn't one to go back to): $out" grep -q 'kept 1 of the 2 packages about to change' <<<"$out"
 check "firefox's file wasn't copied" test "$(cat "$records/$rec/pkgs/firefox-130.0_1.x86_64.xbps")" = "firefox as it was"

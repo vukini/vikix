@@ -154,8 +154,12 @@ cmd_status() {
   for dir in $(list_records | sort -r); do
     local id changes kept
     id=$(basename "$dir")
-    changes=$(wc -l < "$dir/changes" 2>/dev/null || echo 0)
-    kept=$(grep -c ' kept$' "$dir/changes" 2>/dev/null || echo 0)
+    # A record kept before a plain `vikix update core` has no changes file:
+    # keep packages writes it, before the system update only.
+    changes=0; kept=0
+    if [ -f "$dir/changes" ]; then
+      changes=$(wc -l < "$dir/changes"); kept=$(grep -c ' kept$' "$dir/changes" || true)
+    fi
     printf '  %s  Vikix %s at %s  %s packages changed (%s kept)%s%s\n' "$id" "$(cat "$dir/version")" "$(cut -c1-7 "$dir/commit")" \
       "$changes" "$kept" "$([ -f "$dir/stumpwm" ] && echo ', the StumpWM binary')" "$([ -f "$dir/snapshot" ] && echo ", snapshot $(cat "$dir/snapshot")")"
   done
@@ -188,7 +192,7 @@ cmd_restore() {
       kept) pkgs+=("$pkgver") ;;
       *) missing+=("$pkgver") ;;
     esac
-  done < "$dir/changes" 2>/dev/null || true
+  done < <([ -f "$dir/changes" ] && cat "$dir/changes" || true)
   if [ "${#pkgs[@]}" -gt 0 ]; then
     say "reinstalling ${#pkgs[@]} packages as they were (your sudo password, for xbps)"
     run $SUDO xbps-rindex -a "$dir"/pkgs/*.xbps >/dev/null || die "couldn't index the kept packages"
