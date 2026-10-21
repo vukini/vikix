@@ -209,6 +209,14 @@ show_ended() {
     read -r code secs < "$logs/$t.done"
     echo "=== $t (${secs}s)"
     cat "$logs/$t.out"
+    # A test that died before any check failed shows nothing (a check prints
+    # only when it fails), so its exit says what there is: a signal (killed:
+    # earlyoom, a timeout), or a set -e exit (its own ERR trap, if it has one,
+    # names the line).
+    if [ "$code" != 0 ]; then
+      [ -s "$logs/$t.out" ] || echo "(no output)"
+      if [ "$code" -gt 128 ]; then echo "(exit $code: killed by signal $((code - 128)))"; else echo "(exit $code)"; fi
+    fi
     [ "$code" = 0 ] || failed+=("$t")
     took+=("$secs $t")
     shown+=("$t")

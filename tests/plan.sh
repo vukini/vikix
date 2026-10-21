@@ -21,6 +21,10 @@
 #   wait on is a line of the month's event log.
 
 set -euo pipefail
+# set -e ends the test without a word when a command outside a check fails;
+# under load it has ended within nine seconds, twice, with nothing to go on
+# (2026-10-22). So the line is named.
+trap 'echo "FAIL: tests/plan.sh ended at line $LINENO (exit $?), outside a check"' ERR
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
 export EMACS_SOCKET_NAME=/nonexistent/emacs-server
 unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE   # the desktop session's: from an agent's shell they'd point a test at the real ~/vikix and state, and hide the keys
