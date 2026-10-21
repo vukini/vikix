@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# tests/lisp-stage.sh — install/30-lisp never stops to ask for a key.
+# tests/lisp-stage.sh — install/30-lisp never stops to ask for a key, and a
+# rebuild keeps the old image, checks the new one, and notes the build.
 #
 # A fresh install (bash vikix-install, with the terminal as its input)
 # stopped in 30-lisp at Quicklisp's "Press Enter to continue", which
@@ -8,7 +9,10 @@
 # Quicklisp, StumpWM, clx-truetype and the contrib modules already in
 # place, an sbcl that fails if it's called, and a terminal-like input it
 # must not read; it adds Quicklisp to ~/.sbclrc once, keeps what was there,
-# and a dry run writes nothing.
+# and a dry run writes nothing. Then a rebuild (VIKIX_REBUILD_WM=1) with an
+# sbcl that stands in for lib/build-stumpwm.lisp: the one before stays as
+# stumpwm.prev, the new one is asked whether it starts (VIKIX_WM_CHECK) and
+# thrown away when it doesn't, and the build is noted for vikix doctor.
 
 set -euo pipefail
 export VIKIX_SWANK_PORT=9   # never the live desktop's Swank: vikix eval from a test goes nowhere
@@ -45,5 +49,46 @@ if [ -n "$real_sbcl" ]; then
     --eval "(with-open-file (in \"$HOME/.sbclrc\") (loop for f = (read in nil :eof) until (eq f :eof)))"
 fi
 
-[ "$fail" = 0 ] && echo "lisp-stage: 30-lisp adds Quicklisp to ~/.sbclrc once, without stopping for a key"
+
+# A rebuild. The stand-in sbcl writes VIKIX_WM_OUTPUT as its build would: an
+# image that answers the check, or (BAD_IMAGE=1) one that doesn't start.
+cat > "$t/bin/sbcl" <<'SH'
+#!/bin/sh
+case " $* " in *" --version "*) echo "SBCL 9.9.9.stub"; exit 0 ;; esac
+[ -n "$VIKIX_WM_OUTPUT" ] || { echo "sbcl: no VIKIX_WM_OUTPUT" >&2; exit 1; }
+echo "dist=$VIKIX_QL_DIST" > "$VIKIX_WM_OUTPUT.env"
+if [ "${BAD_IMAGE:-0}" = 1 ]; then printf '#!/bin/sh\necho "core mismatch" >&2; exit 1\n' > "$VIKIX_WM_OUTPUT"
+else printf '#!/bin/sh\n[ -n "$VIKIX_WM_CHECK" ] && { echo "stumpwm image ok"; exit 0; }\necho new\n' > "$VIKIX_WM_OUTPUT"; fi
+chmod +x "$VIKIX_WM_OUTPUT"
+SH
+chmod +x "$t/bin/sbcl"
+printf '#!/bin/sh\necho old\n' > "$HOME/.local/bin/stumpwm"
+state="$HOME/.local/state/vikix"
+VIKIX_REBUILD_WM=1 DRY_RUN=1 stage > "$t/out" 2>&1 || { cat "$t/out"; echo "FAIL: a dry rebuild should work"; fail=1; }
+check "a dry rebuild should say it would keep the old image" grep -q 'mv -f .*stumpwm .*stumpwm.prev' "$t/out"
+check "a dry rebuild should build nothing" test "$("$HOME/.local/bin/stumpwm")" = old
+check "a dry rebuild should keep no previous image" test ! -e "$HOME/.local/bin/stumpwm.prev"
+check "a dry rebuild should note no build" test ! -e "$state/stumpwm-built"
+VIKIX_REBUILD_WM=1 stage > "$t/out" 2>&1 || { cat "$t/out"; echo "FAIL: a rebuild should work"; fail=1; }
+check "the rebuild should give the build the pinned dist" grep -q "^dist=$(sed -n 's/^QL_DIST="\(.*\)"$/\1/p' "$here/install/30-lisp.sh")$" "$HOME/.local/bin/stumpwm.new.env"
+check "the pin should be a dated Quicklisp release" grep -q '^QL_DIST="20[0-9][0-9]-[01][0-9]-[0-3][0-9]"$' "$here/install/30-lisp.sh"
+check "the new image should be in place" test "$("$HOME/.local/bin/stumpwm")" = new
+check "the one before should stay as stumpwm.prev" test "$("$HOME/.local/bin/stumpwm.prev")" = old
+check "nothing should be left as stumpwm.new" test ! -e "$HOME/.local/bin/stumpwm.new"
+check "the build should be noted" grep -q '^sbcl=SBCL 9.9.9.stub$' "$state/stumpwm-built"
+check "the note should name the dist" grep -q '^quicklisp=20' "$state/stumpwm-built"
+check "the note should say when" grep -q '^built=20' "$state/stumpwm-built"
+# A build whose image doesn't start: thrown away, the desktop's image untouched.
+if BAD_IMAGE=1 VIKIX_REBUILD_WM=1 stage > "$t/out" 2>&1; then echo "FAIL: a rebuild whose image doesn't start should fail"; fail=1; fi
+check "the stage should say the new image doesn't start" grep -q "doesn't start" "$t/out"
+check "an image that doesn't start should be thrown away" test ! -e "$HOME/.local/bin/stumpwm.new"
+check "the desktop's image should stay as it was" test "$("$HOME/.local/bin/stumpwm")" = new
+check "the previous image should stay as it was" test "$("$HOME/.local/bin/stumpwm.prev")" = old
+# lib/build-stumpwm.lisp, what the stand-in stood for, has the pin and the
+# check; it names Quicklisp's packages, so bare SBCL can't even read it,
+# and the real build is minutes: not here.
+check "the build script should move Quicklisp to the pin" grep -q 'VIKIX_QL_DIST' "$here/lib/build-stumpwm.lisp"
+check "the build script should answer the check" grep -q 'VIKIX_WM_CHECK' "$here/lib/build-stumpwm.lisp"
+
+[ "$fail" = 0 ] && echo "lisp-stage: 30-lisp adds Quicklisp to ~/.sbclrc once without a key; a rebuild keeps the old image, checks the new one and notes the build"
 exit "$fail"

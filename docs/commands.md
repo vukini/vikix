@@ -97,7 +97,7 @@ The everyday command.
 - `vikix update --back` — the system as it was before the last update: Vikix's commit and links, the packages that changed, the StumpWM binary (vikix rollback: what is kept)
 - `vikix rollback [keep|restore [ID]|forget]` — the records vikix update keeps before it starts, and a restore by hand (vikix rollback --help)
 - `vikix migrate` — run only the migrations not yet applied
-- `vikix rebuild-wm` — rebuild the StumpWM executable (after a Quicklisp update)
+- `vikix rebuild-wm` — rebuild the StumpWM executable at the Quicklisp dist Vikix pins; the one before stays as stumpwm.prev, and a new image that won't start is thrown away
 - `vikix docs find WORDS` — every document on the machine, searched: Vikix's guides, your projects and notes, man pages, manuals (Super+F2; vikix docs help for the rest)
 - `vikix docs get` — download the offline programming docs into `~/dev` (a few GB, slow; update and the installer skip them)
 - `vikix doctor` — check the pieces are all there

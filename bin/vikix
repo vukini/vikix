@@ -18,7 +18,8 @@
 #   vikix rollback [keep|restore [ID]|forget]   the records vikix update keeps
 #                         before it starts, and a restore by hand (vikix rollback --help)
 #   vikix migrate       run only the migrations not yet applied
-#   vikix rebuild-wm    rebuild the StumpWM executable (after a Quicklisp update)
+#   vikix rebuild-wm    rebuild the StumpWM executable at the Quicklisp dist Vikix pins; the one
+#                       before stays as stumpwm.prev, and a new image that won't start is thrown away
 #   vikix docs find WORDS  every document on the machine, searched: Vikix's
 #                         guides, your projects and notes, man pages, manuals
 #                         (Super+F2; vikix docs help for the rest)
@@ -723,6 +724,17 @@ cmd_doctor() {
       warn "missing $c"; ok=0
     fi
   done
+  # The StumpWM image: whether this login had to fall back to the one
+  # before (vikix-session), and what the image was built with (30-lisp).
+  if [ -f "$VIKIX_STATE/stumpwm-fallback" ]; then
+    warn "the desktop runs the StumpWM from before: the new image died at login ($(sed -n 's/^at=//p' "$VIKIX_STATE/stumpwm-fallback"), $VIKIX_STATE/session.log says how); vikix rebuild-wm makes a new one"; ok=0
+  fi
+  if [ -f "$VIKIX_STATE/stumpwm-built" ]; then
+    local pin; pin=$(sed -n 's/^QL_DIST="\(.*\)"$/\1/p' "$VIKIX_DIR/install/30-lisp.sh")
+    local dist; dist=$(sed -n 's/^quicklisp=//p' "$VIKIX_STATE/stumpwm-built")
+    say "StumpWM was built $(sed -n 's/^built=//p' "$VIKIX_STATE/stumpwm-built" | cut -c1-16) with $(sed -n 's/^sbcl=//p' "$VIKIX_STATE/stumpwm-built"), Quicklisp $dist$([ -n "$pin" ] && [ "$pin" != "$dist" ] && echo " (Vikix now pins $pin: vikix rebuild-wm)")"
+  fi
+  [ -x "$HOME/.local/bin/stumpwm.prev" ] && say "the StumpWM from before is kept as stumpwm.prev (the session starts it when a new one dies)"
   while IFS= read -r sv; do
     if [ -e "/var/service/$sv" ]; then say "service $sv enabled"
     else warn "service $sv not enabled"; ok=0; fi

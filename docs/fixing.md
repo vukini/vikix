@@ -32,7 +32,8 @@ You'll be left at the text console, or with a black screen.
 1. Go to another console: **Ctrl+Alt+F2**, and log in there.
 2. Read what the session printed: `less ~/.local/state/vikix/session.log` (the one before is `session.log.old`). Every command it ran is there, followed by any error.
 3. Some usual causes:
-   - **`stumpwm: not found`**, or a Lisp error before StumpWM starts: rebuild it with `vikix rebuild-wm`.
+   - **`stumpwm: not found`**, or a Lisp error before StumpWM starts: rebuild it with `vikix rebuild-wm`. It builds at the Quicklisp release Vikix pins (`QL_DIST` in `install/30-lisp.sh`), asks the new image whether it starts before putting it in place, and keeps the one before as `~/.local/bin/stumpwm.prev`.
+   - **The new StumpWM died at login** (after a rebuild): you shouldn't see this one. When the image exits within seconds, the session starts the one before, `stumpwm.prev`, tells you in a notification, and `vikix doctor` names it until a login runs the new one. `vikix rebuild-wm` makes a new image; what went wrong is in `session.log`.
    - **A problem in a file you changed** (`.bash_profile`, `.bashrc`, `.Xresources`): `vikix changes` shows what's different since the last snapshot, and `vikix undo` puts it back.
    - **X itself failed**: its log is `/var/log/Xorg.0.log` (look for lines starting `(EE)`).
 4. Log out of this console (`exit`), go back with **Ctrl+Alt+F1**, and log in there again.

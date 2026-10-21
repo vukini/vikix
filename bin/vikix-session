@@ -144,8 +144,25 @@ command -v spice-vdagent >/dev/null 2>&1 && spice-vdagent
 set +x
 echo "starting StumpWM"
 # When the session began: StumpWM notes, once ready, how long it took (vikix times).
-VIKIX_SESSION_START=$session_start "$HOME/.local/bin/stumpwm"
-echo "StumpWM exited with status $?"
+# A rebuilt image may not start at all (30-lisp checks that it loads, not
+# that it runs a desktop): the one before is kept as stumpwm.prev, and when
+# the new one dies within seconds the session starts that instead, tells
+# you (dunst is up by now) and leaves a note for vikix doctor; vikix
+# rebuild-wm makes a new one. A desktop that ran and then ended, whatever
+# its status, is not started again.
+wm_dir="$HOME/.local/bin"
+rm -f "$log_dir/stumpwm-fallback"
+wm_began=$(date +%s)
+VIKIX_SESSION_START=$session_start "$wm_dir/stumpwm"
+wm_status=$?
+echo "StumpWM exited with status $wm_status"
+if [ "$wm_status" != 0 ] && [ $(( $(date +%s) - wm_began )) -lt "${VIKIX_WM_FAIL_SECONDS:-20}" ] && [ -x "$wm_dir/stumpwm.prev" ]; then
+  echo "StumpWM died within seconds: starting the one before, $wm_dir/stumpwm.prev"
+  (umask 077; printf 'status=%s\nat=%s\n' "$wm_status" "$(date -Is)" > "$log_dir/stumpwm-fallback")
+  notify-send -u critical "Vikix" "The new StumpWM didn't start: this is the one before. vikix doctor says what it knows; vikix rebuild-wm makes a new one."
+  VIKIX_SESSION_START=$session_start "$wm_dir/stumpwm.prev"
+  echo "the StumpWM before exited with status $?"
+fi
 [ -n "${vikix_ssh_agent:-}" ] && ssh-agent -k >/dev/null
 # shellcheck disable=SC2046  # split on purpose: one argument per job
 kill $(jobs -p) 2>/dev/null

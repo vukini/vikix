@@ -5,7 +5,9 @@
 #   1. install Quicklisp into ~/quicklisp (skipped if already there),
 #      and clone clx-truetype (TrueType fonts for the bar) next to it
 #   2. build ~/.local/bin/stumpwm from Quicklisp with Swank inside
-#      (skipped if it exists; `VIKIX_REBUILD_WM=1` forces a rebuild)
+#      (skipped if it exists; `VIKIX_REBUILD_WM=1` forces a rebuild),
+#      at the Quicklisp dist pinned below; the new image must start before
+#      it replaces the old one, which stays as stumpwm.prev
 #   3. clone stumpwm-contrib into ~/.stumpwm.d/modules (battery etc.)
 
 set -euo pipefail
@@ -13,6 +15,13 @@ set -euo pipefail
 . "$(dirname "$0")/../lib/common.sh"
 
 QL_DIR="$HOME/quicklisp"
+# The Quicklisp dist the build takes: one dated release of every library,
+# so a rebuild is the same build on every machine, and a library moving
+# under StumpWM can't break the next vikix rebuild-wm. A fresh install
+# gets this dist; a build moves ~/quicklisp to it when it is at another
+# (lib/build-stumpwm.lisp). Moving the pin is a release, after a rebuild
+# at the new one has run the desktop for a few days.
+QL_DIST="2026-01-01"
 WM_BIN="$HOME/.local/bin/stumpwm"
 MODULES="$HOME/.stumpwm.d/modules"
 
@@ -24,7 +33,7 @@ else
   tmp=$(mktemp -d)
   run curl -fsSL -o "$tmp/quicklisp.lisp" https://beta.quicklisp.org/quicklisp.lisp
   run sbcl --non-interactive --load "$tmp/quicklisp.lisp" \
-           --eval '(quicklisp-quickstart:install)'
+           --eval "(quicklisp-quickstart:install :dist-url \"http://beta.quicklisp.org/dist/quicklisp/$QL_DIST/distinfo.txt\")"
   rm -rf "$tmp"
 fi
 # Make ql:quickload available in your own `sbcl` too, not only in the build.
@@ -72,9 +81,30 @@ else
   # Built beside the old one, then moved over it: the running StumpWM is
   # that file, and Linux won't let a running program's file be written.
   # The move leaves it running from the old copy until the next login.
-  run env VIKIX_WM_OUTPUT="$WM_BIN.new" \
+  run env VIKIX_WM_OUTPUT="$WM_BIN.new" VIKIX_QL_DIST="$QL_DIST" \
       sbcl --non-interactive --load "$VIKIX_DIR/lib/build-stumpwm.lisp"
+  # The new image is asked whether it starts (VIKIX_WM_CHECK: it loads,
+  # says so and exits, no X needed) before it takes the old one's place.
+  # A build that went wrong (an SBCL that moved, a library's new version)
+  # is thrown away here, with the desktop still on the old one.
+  if [ "$DRY_RUN" != 1 ] && ! VIKIX_WM_CHECK=1 timeout --kill-after=5s 60s "$WM_BIN.new" >/dev/null 2>&1; then
+    rm -f "$WM_BIN.new"
+    die "the new StumpWM image doesn't start; the one at $WM_BIN is kept"
+  fi
+  # The one before stays as stumpwm.prev: when the new one dies at login,
+  # vikix-session starts that instead. The running StumpWM is the moved
+  # file, and keeps running from it until the next login.
+  [ -f "$WM_BIN" ] && run mv -f "$WM_BIN" "$WM_BIN.prev"
   run mv -f "$WM_BIN.new" "$WM_BIN"
+  # What it was built with, for vikix doctor and for a bug report.
+  if [ "$DRY_RUN" = 1 ]; then
+    printf '   would note the build in %s\n' "$VIKIX_STATE/stumpwm-built"
+  else
+    mkdir -p "$VIKIX_STATE"
+    printf 'built=%s\nvikix=%s\nsbcl=%s\nquicklisp=%s\n' "$(date -Is)" \
+      "$(git -C "$VIKIX_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)" \
+      "$(sbcl --version 2>/dev/null || echo unknown)" "$QL_DIST" > "$VIKIX_STATE/stumpwm-built"
+  fi
 fi
 
 # 3. contrib modules

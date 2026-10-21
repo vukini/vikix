@@ -11,6 +11,20 @@
 
 (load (merge-pathnames "quicklisp/setup.lisp" (user-homedir-pathname)))
 
+;; The dist install/30-lisp.sh pins (VIKIX_QL_DIST, a dated Quicklisp
+;; release): when ~/quicklisp is at another, it is moved to the pin first,
+;; so every build takes the same libraries. Quicklisp's own fetcher speaks
+;; plain HTTP, which is why the address isn't https.
+(let ((pin (sb-ext:posix-getenv "VIKIX_QL_DIST"))
+      (dist (ql-dist:find-dist "quicklisp")))
+  (when (and pin (plusp (length pin))
+             (or (null dist) (string/= (ql-dist:version dist) pin)))
+    (format t "~&;; Quicklisp is at ~a; moving it to Vikix's pin, ~a~%"
+            (if dist (ql-dist:version dist) "no dist") pin)
+    (ql-dist:install-dist
+     (format nil "http://beta.quicklisp.org/dist/quicklisp/~a/distinfo.txt" pin)
+     :replace t :prompt nil)))
+
 ;; StumpWM itself, plus Swank for live editing from Emacs.
 (ql:quickload '(:stumpwm :swank) :silent t)
 
@@ -30,5 +44,11 @@
   (sb-ext:save-lisp-and-die output
                             :executable t
                             :toplevel (lambda ()
+                                        ;; 30-lisp asks the new image whether it
+                                        ;; starts before it replaces the old one:
+                                        ;; loaded this far, it says so and leaves.
+                                        (when (sb-ext:posix-getenv "VIKIX_WM_CHECK")
+                                          (format t "stumpwm image ok~%")
+                                          (sb-ext:exit :code 0))
                                         (stumpwm:stumpwm)
                                         (sb-ext:exit))))

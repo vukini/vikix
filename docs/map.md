@@ -81,7 +81,8 @@ What Vikix put on your machine, where, and whose it is. Three kinds of file:
 ├── .local/
 │   ├── bin/
 │   │   ├── vikix, vikix-*     Vikix's   the command and its helpers
-│   │   ├── stumpwm            built     the window manager, built by 30-lisp (`vikix rebuild-wm`)
+│   │   ├── stumpwm            built     the window manager, built by 30-lisp (`vikix rebuild-wm`) at the Quicklisp release it pins
+│   │   ├── stumpwm.prev       built     the one before: the session starts it when a new image dies at login
 │   │   └── pil, claude, ...   installed by 65-languages, the npm language servers, Claude Code
 │   ├── share/applications/*.desktop   Vikix's   JupyterLab, vikix-image, Lazarus in the launcher (Super+d); your web apps' too, Lem's and the Listener's (lisp-apps), Esploro's, and the Windows programs you added (vikix-win-NAME.desktop, vikix windows apps add)
 │   ├── share/vikix/fonts/wm.ttf       built     the bar's font, made by vikix-font
