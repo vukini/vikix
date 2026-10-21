@@ -373,6 +373,8 @@ check "and first in exec-path: $out" has '^exec ~/proj/.venv/bin$' "$out"
 check "the REPL should run the venv's python (it has no ipython): $out" has '^repl ~/proj/.venv python -i$' "$out"
 check "C-c p t should be the test key: $out" has '^key vikix-python-test' "$out"
 check "another buffer's PATH should be as it was: $out" has "^elsewhere $t/bin$" "$out"
+out=$(py "(progn (define-key vikix-python-prefix-map \"q\" nil) (define-key vikix-python-mode-map (kbd \"C-c p\") nil) (load \"$here/config/emacs/vikix-python.el\" nil t) $open (say \"key %S\" (key-binding (kbd \"C-c p q\"))))")
+check "a key should come back when the file is loaded again (vikix update into a running Emacs): $out" has '^key vikix-python-quit' "$out"
 touch "$HOME/proj/.venv/bin/ipython"; chmod +x "$HOME/proj/.venv/bin/ipython"
 out=$(py "(progn (setq python-shell-interpreter \"ipython\" python-shell-interpreter-args \"-i --simple-prompt\") $open (say \"repl %s %s\" python-shell-interpreter python-shell-interpreter-args))")
 check "your interpreter should stay when the venv has it: $out" has '^repl ipython -i --simple-prompt$' "$out"

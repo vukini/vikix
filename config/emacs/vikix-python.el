@@ -440,24 +440,30 @@ the daemon's (`e FILE' gets its terminal back); a lone Emacs stays."
 
 ;; --- the mode ---------------------------------------------------------------
 
-(defvar vikix-python-mode-map
-  (let ((map (make-sparse-keymap))
-        (p (make-sparse-keymap)))
-    (define-key p "t" #'vikix-python-test)
-    (define-key p "T" #'vikix-python-test-file)
-    (define-key p "P" #'vikix-python-test-project)
-    (define-key p "r" #'vikix-python-run)
-    (define-key p "s" #'vikix-python-repl)
-    (define-key p "f" #'vikix-python-format)
-    (define-key p "F" #'vikix-python-format-on-save)
-    (define-key p "c" #'vikix-python-check)
-    (define-key p "v" #'vikix-python-venv-command)
-    (define-key p "i" #'vikix-python-ide)
-    (define-key p "d" #'vikix-python-docs)
-    (define-key p "q" #'vikix-python-quit)
-    (define-key map (kbd "C-c p") p)
-    map)
+(defvar vikix-python-prefix-map (make-sparse-keymap)
   "The keys of `vikix-python-mode', under C-c p.")
+
+(defvar vikix-python-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "C-c p") vikix-python-prefix-map)
+    map)
+  "`vikix-python-mode''s map: C-c p, then `vikix-python-prefix-map'.")
+
+;; Bound outside the defvars, so a key added here reaches a running Emacs
+;; when `vikix update' loads the file again (a defvar keeps its first value).
+(define-key vikix-python-mode-map (kbd "C-c p") vikix-python-prefix-map)
+(define-key vikix-python-prefix-map "t" #'vikix-python-test)
+(define-key vikix-python-prefix-map "T" #'vikix-python-test-file)
+(define-key vikix-python-prefix-map "P" #'vikix-python-test-project)
+(define-key vikix-python-prefix-map "r" #'vikix-python-run)
+(define-key vikix-python-prefix-map "s" #'vikix-python-repl)
+(define-key vikix-python-prefix-map "f" #'vikix-python-format)
+(define-key vikix-python-prefix-map "F" #'vikix-python-format-on-save)
+(define-key vikix-python-prefix-map "c" #'vikix-python-check)
+(define-key vikix-python-prefix-map "v" #'vikix-python-venv-command)
+(define-key vikix-python-prefix-map "i" #'vikix-python-ide)
+(define-key vikix-python-prefix-map "d" #'vikix-python-docs)
+(define-key vikix-python-prefix-map "q" #'vikix-python-quit)
 
 ;;;###autoload
 (define-minor-mode vikix-python-mode
