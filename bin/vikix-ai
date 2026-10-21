@@ -10,6 +10,11 @@
 #                             alone, says which (one word); cloud is any service
 #                             that speaks OpenAI's API, OpenRouter unless said
 #                             (vikix ai key set openrouter; vikix-ask --help)
+#   vikix ai log [N] [WORD]   the last N questions and answers (10 unless said;
+#                             0: all), newest first, from llm's log: Super+i's,
+#                             Super+F10's, and your own llm calls; with WORD,
+#                             those with the word. Codex's aren't kept
+#                             (it answers without llm). llm logs off stops it.
 #
 #   vikix ai key set NAME     ask for a key (it isn't shown as you paste it)
 #                             and keep it. NAME is a service (anthropic,
@@ -174,6 +179,51 @@ cmd_set() {
   fi
 }
 
+# vikix ai log [N] [WORD]: the last N questions and answers from llm's
+# log (list --json), newest first, times local. Codex answers without llm,
+# so its aren't there.
+cmd_log() {
+  local n=10 words=() a
+  for a in "$@"; do
+    case $a in
+      -h|--help) echo "usage: vikix ai log [N] [WORD]..."; return 0 ;;
+      *[!0-9]*) words+=("$a") ;;
+      *) n=$a ;;
+    esac
+  done
+  local llm=${VIKIX_LLM:-$HOME/.local/bin/llm}
+  [ -x "$llm" ] || die "llm isn't installed, so nothing is kept yet: vikix ai llm"
+  local args=(logs list -n "$n" --json)
+  [ ${#words[@]} -eq 0 ] || args+=(-q "${words[*]}")
+  # The log on a file descriptor: the heredoc is python's stdin.
+  python3 - "${words[*]}" <("$llm" "${args[@]}") <<'PY'
+import json, sys
+from datetime import datetime
+rows = json.load(open(sys.argv[2]))
+if not rows:
+    word = sys.argv[1]
+    print(f"nothing asked with {word!r} yet" if word else "nothing asked yet (Super+i, Super+F10)")
+    sys.exit(0)
+rows.sort(key=lambda r: r.get("datetime_utc") or "", reverse=True)
+out = []
+for r in rows:
+    when = r.get("datetime_utc") or ""
+    try:
+        when = datetime.fromisoformat(when).astimezone().strftime("%a %-d %b %H:%M")
+    except ValueError:
+        pass
+    model = r.get("model") or "?"
+    if model == "vikix-cloud":
+        model = "the cloud service"
+    ms = r.get("duration_ms")
+    took = f", {round(int(ms) / 1000)} s" if ms not in (None, "None", "") else ""
+    prompt = (r.get("prompt") or "").strip()
+    quoted = "\n".join("> " + line for line in prompt.splitlines()) or "> (nothing)"
+    out.append(f"{when}  {model}{took}\n{quoted}\n\n{(r.get('response') or '').strip()}\n")
+print("\n".join(out), end="")
+PY
+}
+
 cmd_list() {
   local f n any=''
   if [ -d "$SECRETS" ]; then
@@ -314,6 +364,7 @@ case ${1:-help} in
   setup|serve|models|pull|chat|list|remove|rm|status|stop|restart|share|uninstall|llm)
     exec "$VIKIX_DIR/bin/vikix-local-ai" "$@" ;;
   use)    shift; exec "$VIKIX_DIR/bin/vikix-ask" use "$@" ;;
+  log)    shift; cmd_log "$@" ;;
   help-local) exec "$VIKIX_DIR/bin/vikix-local-ai" help ;;
   help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
   *) die "vikix ai: unknown command ${1} (vikix ai help)" ;;

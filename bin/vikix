@@ -208,6 +208,7 @@
 #                         AI models that run on this laptop (Ollama)
 #   vikix ai llm          the llm command, with those models and your keys
 #   vikix ai use [local|claude|codex|cloud]  the model for Super+i, AI on the selected text
+#   vikix ai log [N] [WORD]  the last questions and answers (Super+i, Super+F10, llm)
 #   vikix ai key set|list|remove|check   API keys (ANTHROPIC_API_KEY ...)
 #                         kept safely, out of your dotfiles and their history
 #   vikix windows [setup|create ISO|stop|status|network|remove]   Windows in a VM:

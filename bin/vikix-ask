@@ -15,7 +15,9 @@
 # is gone), else the clipboard: the notification while it works shows it. Proofread, Rewrite and Translate put their result on the
 # clipboard, to paste where you want it; Ask and Explain show the answer,
 # in a notification when it's short, else in a terminal. A local model and
-# Claude answer through llm (vikix ai llm), so it's all in llm logs too.
+# Claude answer through llm (vikix ai llm), so it's all kept: vikix ai log
+# shows the last questions and answers (Codex's aren't, it answers
+# without llm).
 #
 # Which model answers is yours to choose, in ~/.config/vikix/ai (made on
 # first use): a local one (free, offline, the text stays on this laptop),
@@ -412,7 +414,7 @@ case $ACTION in
       { printf '%s (%s, %s)%s\n\n' "$title" "$MODEL" "$WHERE" "$cut_note"; printf '%s\n' "$out"; } > "$answer"
       # 9>&-: the terminal mustn't keep the lock, or Super+i would say
       # "still working" for as long as the answer is open.
-      kept=", llm logs keeps it"; [ "$USE" = codex ] && kept=''
+      kept=", vikix ai log keeps it"; [ "$USE" = codex ] && kept=''
       exec "$TERMINAL" -e less -P "AI answer: q closes, /word searches$kept" "$answer" 9>&-
     fi ;;
 esac

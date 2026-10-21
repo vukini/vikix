@@ -71,6 +71,7 @@ cat > "$t/llm" <<EOF
 #!/bin/sh
 echo "\$*" > "$t/llm.args"
 echo "\${OPENAI_API_KEY:-}" > "$t/llm.key"
+[ "\$1" = logs ] && { cat "$t/llm.logs"; exit 0; }
 cat > "$t/llm.in"
 [ -e "$t/llm.fail" ] && { echo "Error: No key found - add one using 'llm keys set anthropic'" >&2; exit 1; }
 cat "$t/answer"
@@ -369,5 +370,26 @@ printf 'Use the local model instead (free; the text stays here)\n' > "$t/rofi"; 
 try
 check "the menu should switch back from Codex: $(grep '^use' "$conf")" grep -qx 'use=local' "$conf"
 
-[ "$fail" = 0 ] && echo "ai-keys: Super+i works on the selection with the model you chose, local first, never Claude by itself, Codex with its tools off"
+# vikix ai log: the last questions and answers from llm's log (the stand-in
+# serves $t/llm.logs), newest first, times local, the cloud entry named;
+# a word searches; nothing kept is said; no llm is said.
+cat > "$t/llm.logs" <<'EOF'
+[{"id": "a", "model": "llama3.2:3b", "duration_ms": "2400", "datetime_utc": "2026-10-21T04:00:00+00:00",
+  "prompt": "teh cat sat\nwhat animal?", "response": "A cat."},
+ {"id": "b", "model": "vikix-cloud", "duration_ms": "900", "datetime_utc": "2026-10-21T05:30:00+00:00",
+  "prompt": "a makefile please", "response": "CC=gcc\nall: main"}]
+EOF
+out=$(TZ=Asia/Dubai bash "$here/bin/vikix-ai" log 2>&1)
+check "log should ask llm for the last ten as JSON: $(cat "$t/llm.args")" test "$(cat "$t/llm.args")" = "logs list -n 10 --json"
+check "newest first, the cloud named, the time local (+04): $out" test "$(head -1 <<<"$out")" = "Wed 21 Oct 09:30  the cloud service, 1 s"
+check "the question quoted, the answer below: $out" bash -c 'grep -qx "> a makefile please" <<<"$1" && grep -qx "all: main" <<<"$1"' _ "$out"
+check "the older one after, on its model: $out" bash -c 'tail -5 <<<"$1" | grep -q "^Wed 21 Oct 08:00  llama3.2:3b, 2 s" && grep -qx "> what animal?" <<<"$1"' _ "$out"
+bash "$here/bin/vikix-ai" log 3 cat sat >/dev/null 2>&1
+check "a number and words: the number is the count, the words the search: $(cat "$t/llm.args")" test "$(cat "$t/llm.args")" = "logs list -n 3 --json -q cat sat"
+echo '[]' > "$t/llm.logs"
+check "nothing kept should be said: $(bash "$here/bin/vikix-ai" log 2>&1)" grep -q 'nothing asked yet' <<<"$(bash "$here/bin/vikix-ai" log 2>&1)"
+check "nothing with the word neither" grep -q "nothing asked with 'loaf' yet" <<<"$(bash "$here/bin/vikix-ai" log loaf 2>&1)"
+check "without llm it should say vikix ai llm: $(VIKIX_LLM=/nonexistent bash "$here/bin/vikix-ai" log 2>&1)" grep -q 'vikix ai llm' <<<"$(VIKIX_LLM=/nonexistent bash "$here/bin/vikix-ai" log 2>&1)"
+
+[ "$fail" = 0 ] && echo "ai-keys: Super+i works on the selection with the model you chose, local first, never Claude by itself, Codex with its tools off; vikix ai log shows what was asked"
 exit "$fail"

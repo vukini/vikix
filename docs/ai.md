@@ -286,7 +286,7 @@ llm -m claude-sonnet-5 "..."               # Claude, with your API key
 
 Its default model is a local one if you have one, otherwise Claude if you've set an Anthropic key. To choose: `vikix ai llm --default MODEL`.
 
-Everything you ask is logged: `llm logs -n 5` shows the last five, and `llm logs off` stops the logging.
+Everything you ask is logged, Super+i's and Super+F10's questions too: `vikix ai log` shows the last ten questions and answers, newest first, `vikix ai log 30` more, `vikix ai log makefile` those with a word (Codex's answers aren't there: it answers without llm). Underneath, `llm logs -n 5` shows the last five, and `llm logs off` stops the logging.
 
 ## Asking your notes: `note`
 

@@ -169,6 +169,7 @@ The everyday command.
 - `vikix ai setup|models|chat|list|remove|status|stop|uninstall` — AI models that run on this laptop (Ollama)
 - `vikix ai llm` — the llm command, with those models and your keys
 - `vikix ai use [local|claude|codex|cloud]` — the model for Super+i, AI on the selected text
+- `vikix ai log [N] [WORD]` — the last questions and answers (Super+i, Super+F10, llm)
 - `vikix ai key set|list|remove|check` — API keys (`ANTHROPIC_API_KEY` ...) kept safely, out of your dotfiles and their history
 - `vikix windows [setup|create ISO|stop|status|network|remove]` — Windows in a VM: set it up once, install it by itself, then open its desktop in a window (vikix windows help)
 - `vikix windows app NAME [FILE] | apps [setup|add NAME|remove NAME|restore|forget]` — one Windows program in a window of its own, and the programs Windows has
@@ -322,6 +323,7 @@ AI services on Vikix: keys, and local models.
 - `vikix ai setup | models | chat | list | remove | status | stop | restart | share | uninstall` — models that run on this machine, with Ollama (vikix ai help-local tells more)
 - `vikix ai llm [--default MODEL]` — the llm command, with your local models and your keys: cat notes.md | llm "summarise"
 - `vikix ai use [local|claude|codex|cloud]` — which model Super+i (AI on the selected text) uses; alone, says which (one word); cloud is any service that speaks OpenAI's API, OpenRouter unless said (vikix ai key set openrouter; vikix-ask --help)
+- `vikix ai log [N] [WORD]` — the last N questions and answers (10 unless said; 0: all), newest first, from llm's log: Super+i's, Super+F10's, and your own llm calls; with WORD, those with the word. Codex's aren't kept (it answers without llm). llm logs off stops it.
 - `vikix ai key set NAME` — ask for a key (it isn't shown as you paste it) and keep it. NAME is a service (anthropic, openai, gemini, perplexity, openrouter, groq, mistral, deepseek, xai, huggingface, github ...) or the variable itself (`MY_SERVICE_API_KEY`). Piped in, the key comes from stdin: pass show api/openai | vikix ai key set openai
 - `vikix ai key list` — the keys kept: names and a fingerprint, never the key
 - `vikix ai key remove NAME` — forget one
@@ -338,7 +340,7 @@ AI on the text you selected, anywhere on the desktop (Super+i).
 - `vikix-ask use [local|claude|codex|cloud]` — which model answers (vikix ai use); alone, says which
 - `vikix-ask which [translate]` — the model (Translate's with translate), where the text goes, which of the three it is and Codex's effort, tab-separated (for vikix-voice: Super+F10 asks the same model)
 
-The text is what you last highlighted (X keeps it after the highlight is gone), else the clipboard: the notification while it works shows it. Proofread, Rewrite and Translate put their result on the clipboard, to paste where you want it; Ask and Explain show the answer, in a notification when it's short, else in a terminal. A local model and Claude answer through llm (vikix ai llm), so it's all in llm logs too.
+The text is what you last highlighted (X keeps it after the highlight is gone), else the clipboard: the notification while it works shows it. Proofread, Rewrite and Translate put their result on the clipboard, to paste where you want it; Ask and Explain show the answer, in a notification when it's short, else in a terminal. A local model and Claude answer through llm (vikix ai llm), so it's all kept: vikix ai log shows the last questions and answers (Codex's aren't, it answers without llm).
 
 Which model answers is yours to choose, in `~/.config/vikix/ai` (made on first use): a local one (free, offline, the text stays on this laptop), Claude (better, paid, the text goes to Anthropic), Codex (the Codex you installed and signed in to with codex login; the text goes to OpenAI), or a cloud service that speaks OpenAI's API (use=cloud: OpenRouter unless `cloud_url=` says another, with a key of yours by name, `cloud_key=`, and the service's model in `cloud_model=`; the text goes to that service and the model's host; lib/cloud-ask.sh). It never leaves the local model by itself.
 
