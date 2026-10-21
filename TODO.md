@@ -1,5 +1,10 @@
 # To do
 
+## Current priority: Desktop 1.0 (2026-10-21)
+
+**Desktop 1.0 is now the overriding development priority.** Follow [the critical path and acceptance gates](plans/DESKTOP-1.0.md): **A. trust/release/rollback/security -> B. autonomous checked Office -> C. personal machines as one desktop -> D. hardware/installer/30-day validation** (D can run in parallel after A's baseline). Vikix Cloud is explicitly outside scope. Keep existing numbered TODOs/designs for details, but new optional features and experiments should not displace the release gates. Do not declare a gate complete without recorded tests/evidence.
+
+
 What's left to add or clean up, most valuable first within each section. An item that ships moves to `ARCHIVE.md`, with what it became and the version that brought it; one half done leaves there only what is left. The first list was drawn up on 2026-09-26, from a review of 0.15.0. The editors (Neovim into Vikix, AI in Neovim and Emacs) have their own list: `plans/TODO-editors.md`.
 
 ## Vikix Remote — Zog + X1 across networks (2026-10-21)
