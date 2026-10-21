@@ -43,3 +43,5 @@ The longer plans of Vikix, one file each. The queue is `../TODO.md`, the pool `.
 | `TODO-Windows.md` | 2026-10-05 | What is left for Windows programs in their own windows (`vikix windows app`). |
 | `TUTORIALS.md` | 2026-09-28 | The courses of `vikix learn`, C first: the plan and the rules for a lesson. |
 | `APP-IDEAS.md` | 2026-10-03 | Programs worth trying on Vikix, and whether Void packages them. |
+
+| [website-refresh.md](website-refresh.md) | 2026-10-21 | Value-led homepage, wallpaper gallery and the original site’s recovery branch. |

@@ -3,828 +3,99 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Vikix: the desktop that explains itself</title>
-<meta name="description" content="Vikix is a fast, keyboard-first Linux desktop that can tell you why anything just happened, with an AI agent built in that changes it with you, live, with an undo. Free, on top of Void Linux.">
+<title>Vikix — Build more. Understand more. Make it yours.</title>
+<meta name="description" content="A living Linux workspace for independent developers. Bring your projects and AI workers together, learn from your tools, and become more self-sufficient.">
 <link rel="icon" href="favicon.ico" sizes="any">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
-<link rel="icon" type="image/png" sizes="192x192" href="favicon.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="canonical" href="https://vikix.dev/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Vikix">
 <meta property="og:url" content="https://vikix.dev/">
-<meta property="og:title" content="Vikix: the desktop that explains itself">
-<meta property="og:description" content="Press one key and the desktop says why that just happened, and which line did it. Ask its AI agent for a change and it tries it live, with an undo.">
-<meta property="og:image" content="https://vikix.dev/og.png">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Vikix: the agentic desktop. Linux, with an AI agent built in.">
+<meta property="og:title" content="Vikix — Big ideas. One person.">
+<meta property="og:description" content="Build more. Understand more. Make it yours. A living workspace for your projects, tools and AI workers.">
+<meta property="og:image" content="https://vikix.dev/wallpapers/anime-stars.webp">
+<meta property="og:image:alt" content="A Vikix wallpaper: a village beneath a sky full of stars.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:site" content="@vukini">
-<meta name="twitter:creator" content="@vukini">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;600;800&family=Schibsted+Grotesk:ital,wght@0,400;0,500;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="site.css">
+<link rel="stylesheet" href="refresh.css">
+<script src="site.js" defer></script>
 </head>
-<body>
-
-<header class="top">
-  <div class="wrap">
-    <a class="logo" href="#top">vikix<span>.</span></a>
-    <nav aria-label="Sections">
-      <a href="#why">Why</a>
-      <a href="#agent">Agentic</a>
-      <a href="#newhere">New here?</a>
-      <a href="gallery.html">Gallery</a>
-      <a href="#rest" class="opt">Features</a>
-      <a href="#install">Install</a>
-      <a href="guide/">Guide</a>
-      <a href="#faq" class="opt">FAQ</a>
-      <a href="void.html" class="opt">For Linux people</a>
-      <a href="https://github.com/vukini/vikix" class="opt">GitHub</a>
-    </nav>
-    <button class="theme-btn" id="themeBtn" type="button" aria-label="Switch theme"><span class="tb-cmd">vikix theme </span><b id="themeName">vikix-dark</b></button>
+<body class="refresh">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap">
+  <a class="logo" href="./" aria-label="Vikix home">vikix<span>.</span></a>
+  <nav aria-label="Main navigation"><a href="#why">Why Vikix</a><a href="#agent">How it works</a><a href="gallery.html">Gallery</a><a href="guide/">Guide</a><a href="#install">Get started</a></nav>
+  <button class="theme-btn" id="themeBtn" type="button" aria-label="Switch colour theme"><b id="themeName">Theme</b></button>
+</div></header>
+<main id="main">
+<section class="intro" id="top"><div class="wrap intro-grid">
+  <div class="intro-copy">
+    <p class="eyebrow">An independent developer’s <b>workshop</b></p>
+    <h1>Big ideas.<br><em>One person.</em></h1>
+    <p class="intro-promise">Build more. Understand more.<br>Make it yours.</p>
+    <p class="lede">Vikix brings your projects, tools and AI workers into one living workspace. Take on bigger ideas, learn from the machine you use, and grow more capable with every project.</p>
+    <div class="cta"><a class="btn primary" href="#agent">See the workflow <span aria-hidden="true">↗</span></a><a class="btn" href="#install">Try Vikix</a></div>
+    <p class="fine">Free &amp; open source · A Linux desktop · Built by one person, shared with you</p>
   </div>
-</header>
-
-<main id="top">
-  <!-- ================= HERO ================= -->
-  <div class="hero">
-    <div class="wrap">
-      <div class="hero-head">
-        <div style="display:grid;gap:18px">
-          <div class="hero-logo">
-            <img class="on-light" src="logo-light.webp" alt="vikix: Void, supercharged." width="720" height="188">
-            <img class="on-dark" src="logo-dark.webp" alt="vikix: Void, supercharged." width="720" height="179">
-          </div>
-          <p class="eyebrow">Void Linux, <b>supercharged</b> · version <span id="ver">0.25.2</span></p>
-          <h1>Vikix.<br><em>The desktop that explains itself.</em></h1>
-        </div>
-        <div class="hero-side">
-          <p class="lede">A fast, keyboard-first Linux desktop. Press one key and it tells you why that just happened, and which line did it. Ask its AI agent for a change, and it tries it on the running desktop, with an undo.</p>
-          <p class="fine">Free and open source. It installs on top of Void Linux, and you can try it in a virtual machine first, without touching Windows or macOS.</p>
-          <div class="cta">
-            <a class="btn primary" href="gallery.html">See it</a>
-            <a class="btn" href="#install">Install it</a>
-            <a class="btn" href="https://github.com/vukini/vikix">GitHub</a>
-          </div>
-        </div>
-      </div>
-
-      <figure class="hero-shot">
-        <a class="shot" href="gallery.html" aria-label="Open the gallery">
-          <img class="on-light" src="shots/work-vikix-light.webp" width="1920" height="1080" fetchpriority="high" alt="The Vikix desktop in its light theme: Emacs on the left, a Python program and a system monitor on the right, tiled side by side, with the bar along the top.">
-          <img class="on-dark" src="shots/work-vikix-dark.webp" width="1920" height="1080" alt="The Vikix desktop in its dark theme: Emacs on the left, a Python program and a system monitor on the right, tiled side by side, with the bar along the top.">
-        </a>
-        <figcaption>A real screenshot, not a mock-up: three windows side by side, none overlapping. <a href="gallery.html">More in the gallery</a></figcaption>
-      </figure>
+  <figure class="intro-art">
+    <img src="wallpapers/anime-stars.webp" width="1600" height="900" fetchpriority="high" alt="A quiet village under a vast, star-filled sky, from the Vikix wallpaper collection.">
+    <figcaption><span>A little space for your next big idea.</span><a href="gallery.html#wallpapers">Explore the wallpapers ↗</a></figcaption>
+  </figure>
+</div></section>
+<section id="why" class="why-section"><div class="wrap">
+  <div class="section-heading"><p class="eyebrow">Why bother switching?</p><h2>Your ambition can outgrow<br>your pair of hands.</h2><p class="lede">Writing code is only part of building something. There’s research, testing, documentation, decisions—and remembering where you left off. Vikix gives that work a home.</p></div>
+  <div class="benefits">
+    <article><span class="number">01 / CAPACITY</span><h3>Take on more.</h3><p>Put AI workers on separate tasks while you focus on yours. See who is working, what needs your attention, and what is ready to review.</p><a href="#agent">A small office, on your computer ↗</a></article>
+    <article><span class="number">02 / UNDERSTANDING</span><h3>Learn as you build.</h3><p>Ask what something is, why it happened and where its behaviour comes from. Follow the answer into the guides, settings and code.</p><a href="#understand">A desktop you can inspect ↗</a></article>
+    <article><span class="number">03 / INDEPENDENCE</span><h3>Make it your own.</h3><p>Try changes on the running desktop. Keep what works, inspect what changed and restore saved settings when you need a way back.</p><a href="#ownership">Tools you can grow into ↗</a></article>
+  </div>
+</div></section>
+<section id="agent" class="workflow-section"><div class="wrap">
+  <div class="section-heading"><p class="eyebrow">From an idea to work you can review</p><h2>More hands.<br><em>Still your direction.</em></h2><p class="lede">The Office brings AI work into view: tasks, progress, questions, changes and checks. Each piece of development work gets a separate copy of the project. You decide what is good enough to bring back.</p></div>
+  <div class="workflow-layout">
+    <div class="workflow-controls" role="group" aria-label="Explore an example workflow">
+      <button type="button" data-step="0" aria-pressed="true"><span>01</span><strong>Give the work a place.</strong><small>One worker researches. Another builds. You keep working.</small></button>
+      <button type="button" data-step="1" aria-pressed="false"><span>02</span><strong>Make the decisions.</strong><small>Questions wait in one place, with the task they belong to.</small></button>
+      <button type="button" data-step="2" aria-pressed="false"><span>03</span><strong>Review and carry on.</strong><small>Read the changes and checks. Keep the next step with the work.</small></button>
+    </div>
+    <div class="office-example"><div class="example-bar"><span class="status-dot"></span> The Office <span>Illustrative workflow</span></div>
+      <div id="workflowContent" aria-live="polite" aria-atomic="true"><p class="example-title">Your next project: a reading app</p><div class="example-task"><span class="task-status">Working</span><h3>Build the reading list</h3><p>A worker develops the feature in its own project copy.</p></div><div class="example-task"><span class="task-status">Working</span><h3>Explore import formats</h3><p>A second worker researches options for you to review.</p></div><div class="example-you">You → working on the design</div></div>
+      <p class="example-note">An example of the process, not a live task board. <a href="guide/Agents-at-work.html">Read how the Office works ↗</a></p>
     </div>
   </div>
-
-
-  <!-- ================= WHY ================= -->
-  <section id="why">
-    <div class="wrap">
-      <div class="sec-head">
-        <p class="eyebrow">What <b>no other desktop</b> does</p>
-        <h2>It tells you why.</h2>
-        <p class="lede">A window moved by itself, a key did something you didn't expect, the layout changed under you. On every other desktop you guess. On Vikix you press one key, and the desktop says what it did, what made it do it, and which line of which file.</p>
-      </div>
-
-      <div class="proof">
-        <div class="proof-text">
-          <h3>Why did that happen?</h3>
-          <p><kbd>Super</kbd>+<kbd>?</kbd> lists the last things the desktop did, newest first: every key, every rule, every menu entry, every command an agent ran, each with its cause and the file and line it is written at. The same thing again is one line, counted, so nothing crowds the rest out.</p>
-          <p>Pick a line and it offers the fix: open that line in your editor, take the change back, bring the window here, switch the rule off. <code>vikix rules why</code> says the same for one window. <a href="guide/When-something-breaks.html">When something breaks</a>.</p>
-          <h3>What is this?</h3>
-          <p><kbd>Super</kbd>+<kbd>Alt</kbd>+<kbd>?</kbd> on anything, a window, a field of the bar, a workspace: a card with what that very thing is doing now, a short paragraph on what such a thing is, and where to read on. A fact it can't read is left out, never guessed.</p>
-        </div>
-        <div class="term">
-          <header><span>Super+? · Why did that happen?</span><span>what the desktop shows</span></header>
-<pre><span class="t-d">21:04:10</span>  <span class="t-y">Super+Ctrl+d</span> ran vikix-quiet <span class="t-d">(Do not disturb on/off)</span>
-          · Vikix's key: registry.lisp, line 83
-<span class="t-d">21:03:59</span>  <span class="t-y">A rule, as a window opened</span> ran
-          (when-window (:class "Firefox") (workspace 2))
-          · rules.lisp:3, for Firefox "Mozilla Firefox"
-<span class="t-d">21:03:40</span>  <span class="t-y">Super+s</span> ran user-dropterm
-          · your key: user.lisp, line 242
-
-<span class="t-a">›</span> the rule, picked:
-  <span class="t-k">Edit it</span>              rules.lisp opens at line 3
-  <span class="t-k">Bring that window here</span>
-  <span class="t-k">Switch that rule off</span>  until the next reload</pre>
-        </div>
-      </div>
-
-      <div class="proof" id="agent">
-        <div class="proof-text">
-          <p class="eyebrow">The <b>agentic</b> desktop</p>
-          <h3>An agent with hands.</h3>
-          <p>Most AI lives in a chat window and tells you what to click. On Vikix the agent does it: it knows how this desktop is put together, it changes the running desktop and sees the result. It tries a key live, and keeps it only when you like it.</p>
-          <h3>A snapshot first, an undo after.</h3>
-          <p>Your settings are saved before every session. <code>vikix changes</code> shows what the agent did; <code>vikix undo</code> takes it back.</p>
-          <h3>Several at once, in plain view.</h3>
-          <p>The Office shows each agent at its desk: what it is doing, what it changed, what it is waiting for, and the questions only you can answer. <a href="guide/Agents-at-work.html">Working with agents</a>.</p>
-        </div>
-        <div class="term">
-          <header><span>Super+a · Claude Code on the desktop</span><span>a real session, shortened</span></header>
-<pre><span class="t-d">:: snapshot 99e03a6: before an agent session</span>
-<span class="t-d">:: to see what the agent changed: vikix changes</span>
-<span class="t-d">:: to take it back: vikix undo</span>
-
-<span class="t-a">you ›</span> Switch the desktop to the vikix-dark theme, and make Super+t open
-      a second terminal. Try the key live first, then keep it in
-      my user.lisp.
-
-<span class="t-k">●</span> Skill(vikix)  <span class="t-d">loaded: how this desktop is put together</span>
-<span class="t-k">●</span> Super+t is live now. I'll save it to user.lisp so it
-  survives a reload.
-<span class="t-k">●</span> Both changes are in place.
-  - <b>Theme:</b> the desktop is on vikix-dark now. <span class="t-c">vikix theme</span> saved the
-    choice, so it will still be vikix-dark after you log in again.
-  - <b>Super+t:</b> I bound it live first (<span class="t-c">vikix-bind "s-t" "vikix-terminal"</span>),
-    then added it to <span class="t-c">~/.stumpwm.d/user.lisp</span> and reloaded.
-    It also shows up in the Super+F1 key help.
-  <span class="t-y">vikix changes</span> shows the new lines. If you want either change
-  back, <span class="t-y">vikix undo</span> will reverse it.</pre>
-        </div>
-      </div>
-
-      <div class="proof one">
-        <div class="proof-text">
-          <h3>A leash that holds.</h3>
-          <p>By default the agent shows each command and each edit, and waits for your yes. But your yes isn't the only guard: the desktop checks what an agent sends before any of it runs, and nothing an agent or a rule does can take the desktop down.</p>
-        </div>
-        <ul class="safe">
-          <li><h3>Every form is read before it runs.</h3><p>What an agent sends to the window manager is checked against a list of what an agent may do. A form that would run a program, touch a file or change a setting is held, you are told, and none of the text runs.</p></li>
-          <li><h3>A rule it writes is a proposal.</h3><p>It waits in <kbd>Super</kbd>+<kbd>m</kbd> → <i>Rules</i> until you add it yourself. The menu opens on the rule's own line, so Enter alone adds nothing.</p></li>
-          <li><h3>A failure costs one line, never the desktop.</h3><p>A rule that keeps failing is switched off, not the desktop. A mistake in your own config loses that one form and asks what to do. And a stuck window manager is freed by <kbd>Super</kbd>+<kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Escape</kbd>, a key it can't block.</p></li>
-          <li><h3>Keys stay out of sight.</h3><p>API keys live in a folder of their own, out of your settings' history. <code>vikix diagnose</code> takes them out of the logs before an agent reads them.</p></li>
-        </ul>
-      </div>
-    </div>
-  </section>
-
-  <!-- ================= NEW HERE ================= -->
-  <section id="newhere">
-    <div class="wrap">
-      <div class="sec-head">
-        <p class="eyebrow">New here? <b>Start with this</b></p>
-        <h2>Four words, explained.</h2>
-        <p class="lede">If these words are new to you, here is what they mean. You don't need any of it to read on.</p>
-      </div>
-      <div class="words">
-        <div class="word">
-          <span class="k">Linux</span>
-          <h3>An operating system, like Windows or macOS.</h3>
-          <p>Free, and yours to change. On a laptop it's quick, private, and has no adverts or accounts to sign up for.</p>
-        </div>
-        <div class="word">
-          <span class="k">Void</span>
-          <h3>One version of Linux, small and fast.</h3>
-          <p>Linux comes in many versions, called distributions. Void is a simple one that starts in seconds and keeps itself up to date. You install Void first, then Vikix on top.</p>
-        </div>
-        <div class="word">
-          <span class="k">Tiling</span>
-          <h3>Windows that arrange themselves.</h3>
-          <p>No overlapping windows to drag around: each new window takes its share of the screen, and you move between them with the keyboard. Strange for a day, and then everything else feels slow.</p>
-        </div>
-        <div class="word">
-          <span class="k">StumpWM</span>
-          <h3>The part that arranges the windows.</h3>
-          <p>The window manager Vikix uses. It can be changed while it runs, which is what lets the agent try a new key or colour at once, and lets you keep or drop it.</p>
-        </div>
-      </div>
-      <p class="also">And the <b>terminal</b>? A window where you type commands instead of clicking. Vikix uses it a lot, and the agent works there, next to you.</p>
-    </div>
-  </section>
-
-
-  <!-- ================= TRY TILING ================= -->
-  <section id="try">
-    <div class="wrap">
-      <div class="sec-head">
-        <p class="eyebrow">Try it <b>here</b></p>
-        <h2>Tiling, in your browser.</h2>
-        <p class="lede">A sketch of the desktop that answers the real keys. Click it, then press Return for a terminal, b or v to split the screen, and 1 to 3 to change workspace.</p>
-      </div>
-
-      <div class="desk-wrap">
-        <div class="desk" id="desk" tabindex="0" role="application" aria-label="A sketch of the Vikix desktop. Focus it, then press keys to tile windows.">
-          <div class="bar" id="bar"></div>
-          <div class="screen" id="screen"></div>
-          <div class="flash" id="flash"></div>
-        </div>
-        <div class="desk-hint">
-          <span class="state" id="deskState">Click the desktop, then press keys. Super is held for you.</span>
-          <div class="pad" id="pad">
-            <button type="button" data-k="Enter">Return<span>terminal</span></button>
-            <button type="button" data-k="b">b<span>split side by side</span></button>
-            <button type="button" data-k="v">v<span>split stacked</span></button>
-            <button type="button" data-k="Tab">h j k l<span>focus</span></button>
-            <button type="button" data-k="q">q<span>close</span></button>
-            <button type="button" data-k="r">r<span>remove split</span></button>
-            <button type="button" data-k="u">u<span>undo layout</span></button>
-            <button type="button" data-k="2">1–3<span>workspace</span></button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-
-  <!-- ================= IS IT FOR YOU ================= -->
-  <section id="fit">
-    <div class="wrap">
-      <div class="sec-head">
-        <p class="eyebrow">Honestly</p>
-        <h2>Is Vikix for you?</h2>
-      </div>
-      <div class="fit">
-        <div class="yes">
-          <h3>Yes, if you…</h3>
-          <ul>
-            <li>want an AI that does things on your computer, not only talks about them</li>
-            <li>spend your day in a browser, an editor and a terminal</li>
-            <li>want to learn how a computer works, or learn to program: twenty languages are a command away</li>
-            <li>have a spare laptop, or are happy to try it in a virtual machine first</li>
-            <li>like a fast machine that does only what you asked</li>
-          </ul>
-        </div>
-        <div class="no">
-          <h3>Not yet, if you…</h3>
-          <ul>
-            <li>never want to type a command: installing takes a few, and so do some settings</li>
-            <li>need an installer you can click through: for now you install Void, then run two scripts</li>
-            <li>rely on Adobe or Office (a Windows window helps with some of that), or play games whose anti-cheat refuses Linux (Steam and Proton run the rest: <code>vikix add steam</code>)</li>
-            <li>want every program to match: Firefox, LibreOffice and Emacs keep their own look</li>
-          </ul>
-        </div>
-      </div>
-      <div class="teaser">
-        <a class="shot" href="gallery.html#launcher"><img class="on-light" src="shots/small/launcher-vikix-light.webp" width="960" height="540" loading="lazy" alt="The launcher: type a few letters of a program's name."><img class="on-dark" src="shots/small/launcher-vikix-dark.webp" width="960" height="540" loading="lazy" alt="The launcher: type a few letters of a program's name."></a>
-        <a class="shot" href="gallery.html#agent"><img src="shots/small/agent.webp" width="960" height="540" loading="lazy" alt="Claude Code on the desktop, after switching the theme and adding a key."></a>
-        <a class="shot" href="gallery.html#keys"><img class="on-light" src="shots/small/keys-vikix-light.webp" width="960" height="540" loading="lazy" alt="Every key, in a searchable list."><img class="on-dark" src="shots/small/keys-vikix-dark.webp" width="960" height="540" loading="lazy" alt="Every key, in a searchable list."></a>
-      </div>
-      <p class="also"><a href="gallery.html">See the whole gallery</a>, in both themes, or <a href="gallery.html#video">watch the video</a>.</p>
-    </div>
-  </section>
-
-
-  <!-- ================= THE REST ================= -->
-  <section id="rest">
-    <div class="wrap">
-      <div class="sec-head">
-        <p class="eyebrow">And <b>the rest</b></p>
-        <h2>A whole desktop, in one piece.</h2>
-        <p class="lede">A window manager, a bar, a launcher, a terminal, editors, notifications, screenshots, themes, backups and updates, chosen to work together and set up for you. One command, <code>vikix update</code>, keeps all of it current. The details are in the <a href="guide/">guide</a>.</p>
-      </div>
-      <div class="words">
-        <div class="word">
-          <span class="k">Rules</span>
-          <h3>Say once where a window goes.</h3>
-          <p>One line: <code>(when-window (:class "Firefox") (workspace 2))</code>. Or <kbd>Super</kbd>+<kbd>Shift</kbd>+<kbd>t</kbd> writes the rule for the window in front of you, from where it is now. <a href="guide/Rules-for-the-desktop.html">Rules for the desktop</a>.</p>
-        </div>
-        <div class="word">
-          <span class="k">Themes</span>
-          <h3>One file of colours, everywhere.</h3>
-          <p>StumpWM, the bar, the terminal, rofi, notifications and the lock screen follow it. This page uses the same two, and Omarchy's community themes come over in one line.</p>
-          <div class="theme-pick">
-            <button type="button" data-set="dark" aria-pressed="false">vikix theme vikix-dark</button>
-            <button type="button" data-set="light" aria-pressed="false">vikix theme vikix-light</button>
-          </div>
-        </div>
-        <div class="word">
-          <span class="k">Your files</span>
-          <h3>Yours are copied once, never overwritten.</h3>
-          <p>Vikix's files are links an update refreshes. Yours are copied once and kept in a history of their own: <code>vikix undo</code> takes back any change. <a href="guide/Making-it-yours.html">Making it yours</a>.</p>
-        </div>
-        <div class="word">
-          <span class="k">AI on a key</span>
-          <h3>Select text, press <kbd>Super</kbd>+<kbd>i</kbd>.</h3>
-          <p>Proofread, rewrite, translate or explain it, in any program. <kbd>Super</kbd>+<kbd>F9</kbd> types what you say. A local model by default, offline. <a href="guide/Working-with-AI.html">Working with AI</a>.</p>
-        </div>
-        <div class="word">
-          <span class="k">Any agent</span>
-          <h3>Claude Code, or another.</h3>
-          <p>Codex, OpenCode, Gemini CLI, Antigravity CLI or Aider: the same guide to the desktop, the same snapshot first, and <code>--local</code> to keep it all on your laptop.</p>
-        </div>
-        <div class="word">
-          <span class="k">Languages</span>
-          <h3>Twenty of them, their docs offline.</h3>
-          <p><code>vikix add rust</code>, or all of them. A folder each in <code>~/dev</code> with small examples to build and change, and every manual searchable with no network.</p>
-        </div>
-        <div class="word">
-          <span class="k">Windows</span>
-          <h3>Windows 11 in a window, installed by itself.</h3>
-          <p>Point it at Microsoft's ISO and walk away. One Windows program can have a window of its own, tiled among yours. <a href="guide/Windows-in-a-window.html">Windows in a window</a>.</p>
-        </div>
-        <div class="word">
-          <span class="k">Lisp</span>
-          <h3>A window manager you can reprogram while it runs.</h3>
-          <p>StumpWM is Common Lisp with Swank inside: Emacs connects and redefines anything, live. That is what lets the agent try before it writes. <a href="guide/How-it-fits-together.html">How it fits together</a>.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ================= KEYS ================= -->
-  <section id="keys">
-    <div class="wrap">
-      <div class="sec-head">
-        <p class="eyebrow">The <b>keys</b></p>
-        <h2>Everything is a key away.</h2>
-        <p class="lede">Super is the Vikix key. On the desktop, <kbd>Super</kbd>+<kbd>/</kbd> shows every key at a glance, <kbd>Super</kbd>+<kbd>F1</kbd> searches them and runs the one you pick, and <kbd>Super</kbd>+<kbd>m</kbd> opens the menu for everything else.</p>
-      </div>
-      <div class="keys-tools">
-        <label for="keySearch" class="eyebrow">Find a key</label>
-        <input id="keySearch" type="search" placeholder="screenshot, workspace, emoji…" autocomplete="off">
-        <span id="keyCount"></span>
-      </div>
-      <div class="keys" id="keyList"></div>
-    </div>
-  </section>
-
-
-  <!-- ================= INSTALL ================= -->
-  <section id="install">
-    <div class="wrap">
-      <div class="sec-head">
-        <p class="eyebrow">Get it</p>
-        <h2>From plain Void to Vikix.</h2>
-      </div>
-      <div class="install">
-        <ol class="steps">
-          <li><div><h3>Install glibc Void</h3><p>A plain base install from the <a href="https://voidlinux.org/download/">Void download page</a>, with a normal user who can use sudo. <a href="guide/Installing-Void-for-Vikix.html">Installing Void for Vikix</a> walks you through its installer, screen by screen.</p></div></li>
-          <li><div><h3>Run the install, and reboot</h3><p>One line. It asks for your password once, then runs by itself, from the fastest mirror it finds.</p></div></li>
-          <li><div><h3>Log in on tty1</h3><p>The desktop starts. Open a terminal with <kbd>Super</kbd>+<kbd>Return</kbd>.</p></div></li>
-          <li><div><h3>Add what you want</h3><p>A welcome opens at your first login: pick languages, editors, LibreOffice, Windows or local AI from a list, set your keyboard and a theme. Or type it: <code>vikix features</code> lists them, and <code>vikix add</code> installs them. From then on, <code>vikix update</code> keeps everything current.</p></div></li>
-        </ol>
-        <div style="display:grid;gap:16px">
-          <div class="term">
-            <header><span>on the fresh Void install</span><button class="copy" type="button" data-copy="p1">Copy</button></header>
-<pre id="p1"><span class="t-p">$</span> xbps-fetch -o vikix-install https://vikix.dev/install
-<span class="t-p">$</span> bash vikix-install
-<span class="t-p">$</span> sudo reboot</pre>
-          </div>
-          <p style="color:var(--subtle);font-size:.95rem">A fresh Void has no <code>curl</code>, so this uses <code>xbps-fetch</code>, which comes with it. The script checks this is glibc Void, clones Vikix into <code>~/vikix</code> and runs its install. <a href="https://github.com/vukini/vikix/blob/main/site/install">Read it first</a>: it's short. Then <a href="guide/Your-first-hour.html">Your first hour</a>.</p>
-          <div class="term">
-            <header><span>then, in a terminal on the new desktop</span><button class="copy" type="button" data-copy="p2">Copy</button></header>
-<pre id="p2"><span class="t-p">$</span> vikix features            <span class="t-d"># what there is</span>
-<span class="t-p">$</span> vikix add essentials      <span class="t-d"># Emacs, C, Python, Lisp</span></pre>
-          </div>
-          <p style="color:var(--subtle);font-size:.95rem">Trying it first? It runs well in a VM. The README has step-by-step notes for <a href="https://github.com/vukini/vikix#trying-it-in-virt-manager-kvm-from-linux">virt-manager</a> and <a href="https://github.com/vukini/vikix#trying-it-in-virtualbox-from-windows">VirtualBox</a>.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ================= FAQ ================= -->
-  <section id="faq">
-    <div class="wrap">
-      <div class="sec-head">
-        <p class="eyebrow">Questions</p>
-        <h2>Before you try it.</h2>
-      </div>
-      <div class="faq">
-        <details>
-          <summary>Is it free?</summary>
-          <p>Yes. Vikix is open source under the MIT licence, and Void Linux is free too. The one thing that can cost money is the AI: Claude Code needs a Claude subscription or an API key from Anthropic. The local models from <code>vikix ai setup</code> are free, and run on your own laptop, only more slowly.</p>
-        </details>
-        <details>
-          <summary>Will it erase Windows?</summary>
-          <p>Vikix itself never touches your disks. Installing Void does: Void's installer asks which disk to use, and it wipes that one. So try it in a virtual machine first (a computer inside a window, on your current system), or on a spare laptop. The README has step-by-step notes for <a href="https://github.com/vukini/vikix#trying-it-in-virtualbox-from-windows">VirtualBox on Windows</a> and <a href="https://github.com/vukini/vikix#trying-it-in-virt-manager-kvm-from-linux">virt-manager on Linux</a>; a machine with 4 GB of memory is enough for the desktop.</p>
-        </details>
-        <details>
-          <summary>What does the AI see?</summary>
-          <p>Nothing, until you start it. The agent runs in a terminal when you press <kbd>Super</kbd>+<kbd>a</kbd>, and it shows each command and edit and waits for your yes. What it reads goes to Anthropic, as with any Claude Code session. With a local model, nothing leaves your laptop. API keys have a place of their own, kept out of your settings' history.</p>
-        </details>
-        <details>
-          <summary>Do I need to know Lisp, or Linux?</summary>
-          <p>No. Keys and menus cover the everyday things: <kbd>Super</kbd>+<kbd>/</kbd> shows every key, and <kbd>Super</kbd>+<kbd>m</kbd> opens a menu for the rest. When you want something changed, you can ask the agent in plain words. Lisp is there when you're curious. And the guides come with it: <code>info vikix</code> in a terminal or in Emacs, or <kbd>Super</kbd>+<kbd>m</kbd> → <i>Vikix guide in the browser</i>, with diagrams.</p>
-        </details>
-        <details>
-          <summary>How is it different from Omarchy?</summary>
-          <p>Omarchy, a desktop for Arch Linux, was the inspiration: a whole desktop, set up in one go, with opinions. Vikix goes its own way: Void instead of Arch, StumpWM instead of Hyprland, an agent built in with snapshots and an undo, and a desktop that can say why it did what it did. <a href="void.html">Why Void</a>, for Linux people.</p>
-        </details>
-        <details>
-          <summary>What if something breaks?</summary>
-          <p><code>vikix doctor</code> checks that everything is in place and says what to do. <code>vikix undo</code> takes back your last settings change. <kbd>Super</kbd>+<kbd>?</kbd> says what just happened. And you can ask in <a href="https://github.com/vukini/vikix/discussions">Discussions</a>, or <a href="https://github.com/vukini/vikix/issues">open an issue</a>.</p>
-        </details>
-      </div>
-    </div>
-  </section>
-
-  <!-- ================= MAKER ================= -->
-  <section id="maker">
-    <div class="wrap">
-      <div class="maker">
-        <span class="mono" aria-hidden="true">V</span>
-        <div class="txt">
-          <p class="eyebrow">Made by</p>
-          <h2 style="font-size:clamp(1.4rem,2.6vw,1.9rem)">Hi, I am The Vikid Truth.</h2>
-          <p>I build Vikix for my own laptop, and share it so you can have it too. I also write on Substack. If you like Vikix, follow me there.</p>
-          <p>Questions or ideas? Ask in <a href="https://github.com/vukini/vikix/discussions">Discussions</a>. Something broken? <a href="https://github.com/vukini/vikix/issues">Open an issue</a>. Or just say hi on X, <a href="https://x.com/vukini">@vukini</a>. For anything else, and security problems you'd rather not post in public, write to <a href="mailto:vikid@vikix.dev">vikid@vikix.dev</a>.</p>
-        </div>
-        <div class="cta">
-          <a class="btn primary" href="https://thevikidtruth.substack.com/">Follow on Substack</a>
-          <a class="btn" href="https://x.com/vukini">@vukini on X</a>
-          <a class="btn" href="https://github.com/vukini">@vukini on GitHub</a>
-        </div>
-      </div>
-    </div>
-  </section>
+</div></section>
+<section id="understand"><div class="wrap learn-grid">
+  <div><p class="eyebrow">The desktop is alive</p><h2>A computer you<br>can question.</h2><p class="lede">Your desktop becomes part of your education. It can inspect its own state, explain its actions and point you to the documentation behind them.</p><p>When a window moves, you can find out what moved it. When a setting interests you, you can find the file that controls it. The guides live alongside the tools they explain, and command documentation is generated from the commands themselves.</p><p>Build the habit of investigating, experimenting and understanding. AI helps you act; the explanations help you learn what the action means.</p><a class="text-link" href="guide/">Open the guides ↗</a></div>
+  <div class="inspection"><p class="number">THREE QUESTIONS. A WAY INTO THE SYSTEM.</p><article><span>?</span><div><h3>Why did that happen?</h3><p>See recent desktop actions, what caused them and where they were configured.</p></div></article><article><span>↗</span><div><h3>What am I looking at?</h3><p>Inspect a window, workspace or bar item, with current facts and places to read on.</p></div></article><article><span>⌘</span><div><h3>How could I change it?</h3><p>Explore the relevant settings and source. Try an adjustment while the desktop runs.</p></div></article></div>
+</div></section>
+<section id="ownership" class="ownership-section"><div class="wrap ownership-grid">
+  <figure class="landscape"><img src="wallpapers/forest.webp" width="1600" height="900" loading="lazy" alt="Sunlight finding its way through a deep green forest, a Vikix wallpaper."><figcaption>Room to explore. A way back.</figcaption></figure>
+  <div><p class="eyebrow">Become more self-sufficient</p><h2>Your tools.<br>Your understanding.</h2><p class="lede">A useful workspace should grow your ability along with your output.</p><p>Vikix is open source, with readable settings and guides to making it yours. Ask an agent for help, inspect its changes and gradually learn to make those decisions yourself.</p><p>Settings snapshots give you a way back. Development workers use separate project copies. Desktop automation proposals wait for your approval. The Office keeps questions and review in view.</p><a class="text-link" href="guide/Making-it-yours.html">See how to make it yours ↗</a></div>
+</div></section>
+<section id="rest"><div class="wrap"><div class="section-heading"><p class="eyebrow">A place for the whole day</p><h2>Stay with the work.</h2></div>
+  <figure class="desktop-feature"><a class="shot" href="gallery.html#work"><img class="on-dark" src="shots/work-vikix-dark.webp" width="1920" height="1080" loading="lazy" alt="A real Vikix desktop with an editor, a running program and a system monitor arranged side by side."><img class="on-light" src="shots/work-vikix-light.webp" width="1920" height="1080" loading="lazy" alt="A real Vikix desktop in the light theme, with an editor and two terminals arranged side by side."></a><figcaption>A real desktop screenshot. <a href="gallery.html">Explore the gallery ↗</a></figcaption></figure>
+  <div class="daily-grid"><article><h3>Projects with a memory.</h3><p>Keep tasks, decisions, handoffs and next steps with the work. Return to the context you need to continue.</p></article><article><h3>Less window juggling.</h3><p>Arrange windows side by side, keep projects on their own workspaces and reach everyday tools from the keyboard.</p></article><article><h3>A space that feels like yours.</h3><p>Choose your tools, colours and wallpaper. Shape a workspace you want to spend time in.</p></article></div>
+</div></section>
+<section class="wallpaper-strip"><div class="wrap"><div class="strip-heading"><div><p class="eyebrow">Make room for a little wonder</p><h2>Choose your atmosphere.</h2></div><a class="text-link" href="gallery.html#wallpapers">The wallpaper collection ↗</a></div><div class="wallpaper-preview"><a href="gallery.html#wallpaper-cafe"><img src="wallpapers/impr-cafe.webp" width="1600" height="900" loading="lazy" alt="A warmly lit café beneath a painted night sky."></a><a href="gallery.html#wallpaper-shrine"><img src="wallpapers/anime-shrine.webp" width="1600" height="900" loading="lazy" alt="A quiet woodland path through red shrine gates."></a><a href="gallery.html#wallpaper-mountains"><img src="wallpapers/mountains.webp" width="1600" height="900" loading="lazy" alt="A full moon over layers of blue mountains."></a></div></div></section>
+<section id="newhere"><div class="wrap fit-grid"><div><p class="eyebrow">Is this for you?</p><h2>A different way<br>to work. Worth learning.</h2></div><div><p class="lede">If you build things independently and want to work with AI while deepening your own understanding, Vikix is made with you in mind.</p><p>You can build great things on Windows, macOS or another Linux desktop. The reason to try Vikix is the way it brings the work together: AI workers, project continuity, a desktop you can inspect and tools you can change.</p><p>It is a small, actively developed project. Expect a learning curve, a keyboard-focused workflow and some time in the terminal. The guides help you begin; curiosity will take you further.</p><p class="fine">Underneath: Void Linux and StumpWM. <a href="void.html">Explore the technical foundations ↗</a></p></div></div></section>
+<section id="future" class="future-section"><div class="wrap future-grid"><p class="eyebrow">On the horizon<br><b>In development</b></p><div><h2>The workshop is growing.</h2><p class="lede">A cloud-based solution is being worked on. The ambition is to take this way of working further.</p><p>Today, Vikix is a desktop you install and run on your own computer. The cloud direction is future work, not a service available from this site.</p><a class="text-link" href="https://github.com/vukini/vikix/discussions">Follow the conversation ↗</a></div></div></section>
+<section id="install"><div class="wrap"><div class="section-heading"><p class="eyebrow">Start with curiosity</p><h2>Give your next idea<br>a different workspace.</h2><p class="lede">Try Vikix in a virtual machine—a computer inside a window—or on a spare machine. Get a feel for the workflow before changing your everyday setup.</p></div><div class="start-grid"><article><span class="number">01 / GET ORIENTED</span><h3>Take a look around.</h3><p>See real screenshots, explore the guides and decide whether this way of working suits you.</p><div class="cta"><a class="btn" href="gallery.html">View the gallery</a><a class="btn" href="guide/Your-first-hour.html">Your first hour</a></div></article><article><span class="number">02 / TRY IT YOURSELF</span><h3>Set up your workshop.</h3><p>Vikix installs on glibc Void Linux. The installation guide walks you through the base system and the desktop. Installing an operating system can erase the selected disk; use a virtual machine or spare machine for your first look.</p><a class="btn primary" href="guide/Installing-Void-for-Vikix.html">Follow the installation guide ↗</a></article></div>
+<details class="install-details"><summary>Already have a fresh glibc Void install?</summary><p>Read the <a href="https://github.com/vukini/vikix/blob/main/site/install">installer</a>, then run these commands in your new Void system. The installer checks the system, downloads Vikix and runs its setup.</p><div class="term"><header><span>On the fresh Void installation</span><button class="copy" type="button" data-copy="installCommand">Copy</button></header><pre id="installCommand">xbps-fetch -o vikix-install https://vikix.dev/install
+bash vikix-install
+sudo reboot</pre></div></details></div></section>
+<section id="faq"><div class="wrap"><div class="section-heading"><p class="eyebrow">A few practical questions</p><h2>Before you begin.</h2></div><div class="faq">
+<details><summary>Is Vikix free?</summary><p>Yes. Vikix is free and open source under the MIT licence. Your chosen AI service may require a subscription or charge for usage. Local AI models are also supported; performance depends on your hardware.</p></details>
+<details><summary>Do I need to be a Linux expert?</summary><p>You need a willingness to learn. The installation involves setting up Linux, and the workflow uses the keyboard and terminal. Menus and guides cover everyday tasks, and you can explore the code when you are ready.</p></details>
+<details><summary>Why not just use an AI coding tool on my current computer?</summary><p>You can. Vikix adds a shared place for workers, tasks, questions, checks and handoffs, plus a desktop that can explain its own behaviour. Its value is in making those pieces work together throughout your day.</p></details>
+<details><summary>How does Omarchy fit into the story?</summary><p>Omarchy inspired the idea of a complete, opinionated development desktop. Vikix follows its own direction: coordinating independent work, helping you inspect and understand the system, and making the workspace yours. <a href="void.html">Read about its foundations.</a></p></details>
+<details><summary>Does AI run everything automatically?</summary><p>You choose when to use AI and how much freedom to give it. The Office shows progress and questions, and keeps review attached to the work. Read the <a href="guide/Agents-at-work.html">agents guide</a> for the permissions and limits of each setup.</p></details>
+</div></div></section>
+<section id="maker"><div class="wrap maker-story"><p class="eyebrow">Built from a real need</p><h2>One person’s workshop.<br>Yours to build on.</h2><p class="lede">I’m The Vikid Truth. I build Vikix for my own work: a place to develop ideas, work with AI and keep learning. I share it so you can shape a workshop of your own.</p><div class="cta"><a class="btn primary" href="https://github.com/vukini/vikix">Explore the source ↗</a><a class="btn" href="https://thevikidtruth.substack.com/">Follow the journey</a><a class="btn" href="https://github.com/vukini/vikix/discussions">Join the discussion</a></div></div></section>
 </main>
-
-<footer>
-  <div class="wrap">
-    <span>Vikix · made by <a href="https://thevikidtruth.substack.com/">The Vikid Truth</a> · built on <a href="https://voidlinux.org">Void Linux</a> and <a href="https://stumpwm.github.io">StumpWM</a> · inspired by <a href="https://omarchy.org">Omarchy</a><br>© 2026 The Living Studios FZE LLC, Ajman, UAE · <a href="https://github.com/vukini/vikix/blob/main/LICENSE">MIT licence</a> · <a href="mailto:vikid@vikix.dev">vikid@vikix.dev</a></span>
-    <nav><a href="https://github.com/vukini/vikix">Source</a><a href="https://github.com/vukini/vikix/discussions">Discussions</a><a href="https://github.com/vukini/vikix/issues">Issues</a><a href="https://x.com/vukini">X</a><a href="guide/">Guide</a><a href="void.html">Why Void</a><a href="https://github.com/vukini/vikix/blob/main/README.md">README</a><a href="https://docs.voidlinux.org">Void handbook</a></nav>
-  </div>
-</footer>
-
-<script>
-(function () {
-  "use strict";
-  var root = document.documentElement;
-  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  /* ---------- theme: vikix-dark / vikix-light ---------- */
-  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
-  function isDark() {
-    var t = root.getAttribute("data-theme");
-    if (t) return t === "dark";
-    return window.matchMedia("(prefers-color-scheme: dark)").matches;
-  }
-  var PALETTES = {
-    void: ["#1e1e2e", "#cdd6f4", "#89b4fa", "#f38ba8", "#a6e3a1", "#f9e2af", "#f5c2e7", "#94e2d5"],
-    paper: ["#eff1f5", "#4c4f69", "#1c5bd6", "#d20f39", "#327a1f", "#8a5d06", "#a33a91", "#107077"]
-  };
-  function paintTheme() {
-    var name = isDark() ? "vikix-dark" : "vikix-light";
-    document.getElementById("themeName").textContent = name;
-    document.querySelectorAll(".theme-pick button").forEach(function (b) {
-      b.setAttribute("aria-pressed", String((b.dataset.set === "dark") === isDark()));
-    });
-    var sw = document.getElementById("swatches");
-    if (sw) sw.innerHTML = PALETTES[name].map(function (c) {
-      return '<span class="sw"><i style="background:' + c + '"></i>' + c + "</span>";
-    }).join("");
-  }
-  function setTheme(mode) { root.setAttribute("data-theme", mode); store("vikix-theme", mode); paintTheme(); }
-  var saved = store("vikix-theme");
-  if (saved === "dark" || saved === "light") root.setAttribute("data-theme", saved);
-  document.getElementById("themeBtn").addEventListener("click", function () { setTheme(isDark() ? "light" : "dark"); });
-  document.querySelectorAll(".theme-pick button").forEach(function (b) {
-    b.addEventListener("click", function () { setTheme(b.dataset.set); });
-  });
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", paintTheme);
-  new MutationObserver(paintTheme).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
-  paintTheme();
-
-  /* ---------- copy buttons ---------- */
-  document.querySelectorAll(".copy").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var pre = document.getElementById(btn.dataset.copy);
-      var text = pre.textContent.split("\n").map(function (l) {
-        return l.replace(/^\$ /, "").replace(/\s+#.*$/, "");
-      }).join("\n");
-      function done(msg) { btn.textContent = msg; setTimeout(function () { btn.textContent = "Copy"; }, 1600); }
-      function select() { var r = document.createRange(); r.selectNodeContents(pre); var s = getSelection(); s.removeAllRanges(); s.addRange(r); done("Selected"); }
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(function () { done("Copied"); }, select);
-      } else select();
-    });
-  });
-
-  /* ---------- keys ---------- */
-  var KEYS = [
-    [["s-M-F8"], "Music controls: play, stop, bank pads and browser"], [["s-Return"], "Terminal"], [["s-d"], "Launcher"], [["s-Space"], "Everything in one box: windows, commands, projects, web apps, layouts, programs"], [["s-w"], "Browser (Firefox)"], [["s-e"], "Files (Esploro, in Emacs)"], [["s-M-e"], "Files in PCManFM"], [["s-M-E"], "A new Esploro window"], [["s-M-r"], "Reveal this window's file, in Esploro"], [["s-M-x"], "Esploro's commands for this window's file"], [["s-M-p"], "Projects: a terminal in one, its log in the editor"],
-    [["s-a"], "AI agent: Claude Code in a terminal"], [["s-i"], "AI on the selected text: proofread, translate, explain"], [["s-F9"], "Dictation: speak, and it types"], [["s-F10"], "Voice: talk to the AI, and it answers aloud"], [["s-x"], "Emacs, in a new window"],
-    [["s-c"], "Clipboard history: pick something copied earlier"], [["s-."], "Emoji picker: search by name"],
-    [["s-="], "Calculator that answers as you type: 5 ft to cm, today + 30 days"],
-    [["s-n", "s-N"], "Notifications: the last one again, or pick an earlier one"],
-    [["s-C-d"], "Do not disturb, on and off"], [["s-q"], "Close window"], [["s-f"], "Fullscreen"],
-    [["s-Tab"], "The last window again"], [["s-`", "s-S-`"], "Next / previous window on this workspace, through all of them"],
-    [["s-h", "s-j", "s-k", "s-l"], "Move focus left, down, up, right"],
-    [["s-H", "s-J", "s-K", "s-L"], "Move the window (Shift moves)"],
-    [["s-Left", "s-Right"], "The workspace on the left, on the right; Shift takes the window along"],
-    [["s-b"], "Split side by side"], [["s-v"], "Split one above the other"], [["s-r"], "Remove the split"],
-    [["s-o"], "Every workspace drawn small on one card, each window a box: pick one"], [["s-O"], "Grid mode: windows stay in a grid as they open and close"], [["s-C-m"], "Main and stack: one main window, the rest in a column beside it"], [["s-\\"], "On a strip: pin this column to the left edge, the others scroll beside it"], [["s-C-Space"], "Pick the workspace's layout: tiles, main and stack, grid, strip, or one you saved"],
-    [["s-u", "s-U"], "Undo / redo the last layout change on this workspace"],
-    [["s-C-g"], "Gaps around windows, on or off"], [["s-g"], "Go to any window, on any workspace"],
-    [["s-G"], "Bring any window here, from any workspace"],
-    [["s-t"], "Float the window, or tile it again"], [["s-T"], "Remember this window here: its rule, written for you"], [["s-C-y"], "Title bars on or off"], [["s-\""], "Rename the window"],
-    [["s-1…9"], "Go to a workspace"], [["s-S-1…9"], "Send the window to a workspace"],
-    [["s-m"], "Vikix menu: themes, network, screens, update, power"], [["s-/"], "Every key at a glance, grouped"], [["s-F1"], "Every key, searchable"],
-    [["s-Escape"], "Lock the screen"], [["s-S-Escape"], "Power: lock, suspend, log out, reboot, power off"], [["s-C-e"], "Eject a USB drive, safely"], [["s-C-a"], "Keep awake: no lock or suspend while you present"],
-    [["s-C-l"], "Night light on and off"], [["Print"], "Screenshot an area to the clipboard"],
-    [["C-Print"], "Screenshot the focused window"], [["s-Print"], "Screenshot the whole screen"],
-    [["s-C-v"], "Record a video of an area or a window; press again to stop"],
-    [["s-C-Print"], "Screenshot or record, the text in an area (OCR), or pick a colour"],
-    [["s-M-m"], "Mail: your mail web app (Superhuman, Fastmail, Outlook, Gmail) to the front"]
-  ];
-  function kbd(k) {
-    return k.split("-").map(function (p, i, a) {
-      var name = { s: "Super", C: "Ctrl", M: "Alt", S: "Shift" }[p];
-      return "<kbd>" + ((i < a.length - 1 && name) ? name : p) + "</kbd>";
-    }).join("+");
-  }
-  var keyList = document.getElementById("keyList"), keyCount = document.getElementById("keyCount");
-  function renderKeys(q) {
-    q = (q || "").toLowerCase().trim();
-    var hits = KEYS.filter(function (k) { return !q || (k[0].join(" ") + " " + k[1]).toLowerCase().indexOf(q) !== -1; });
-    keyList.innerHTML = hits.map(function (k) {
-      return '<div class="key"><span>' + k[0].map(kbd).join(" ") + "</span><span>" + k[1] + "</span></div>";
-    }).join("") || '<p style="color:var(--subtle)">No key for that yet. On the desktop, Super+m has the rest.</p>';
-    keyCount.textContent = hits.length + " of " + KEYS.length;
-  }
-  document.getElementById("keySearch").addEventListener("input", function (e) { renderKeys(e.target.value); });
-  renderKeys("");
-
-  /* ---------- the desktop sketch: a tiny tiling model ---------- */
-  var desk = document.getElementById("desk"), screen = document.getElementById("screen");
-  var bar = document.getElementById("bar"), flashEl = document.getElementById("flash");
-  var nextId = 1, winSeq = 0;
-  function leaf(win) { return { id: nextId++, win: win || null }; }
-
-  function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
-
-  // Programs the demo can open. Each script is typed out: ["$", cmd] or ["o", html].
-  var P = "<span class='t-p'>$</span> ";
-  var PROGRAMS = {
-    update: { name: "alacritty", script: [
-      ["$", "vikix update"],
-      ["o", function () { return "<span class='t-a'>==></span> Pulling Vikix <span class='t-d'>→ " + document.getElementById("ver").textContent + "</span>"; }],
-      ["o", "<span class='t-a'>==></span> xbps: 12 packages to update"],
-      ["o", "   10-packages   <span class='t-p'>ok</span>"],
-      ["o", "   20-services   <span class='t-p'>ok</span>"],
-      ["o", "   40-config     <span class='t-p'>ok</span>"],
-      ["o", "   45-editors    <span class='t-p'>ok</span>"],
-      ["o", "   67-dev        <span class='t-p'>ok</span>"],
-      ["o", "<span class='t-a'>==></span> Migrations: 1 applied"],
-      ["o", "<span class='t-a'>==></span> Reloading StumpWM <span class='t-p'>done</span>"]
-    ] },
-    xbps: { name: "alacritty", script: [
-      ["$", "xi ripgrep"],
-      ["o", "<span class='t-d'>[*] Updating repository `repo-default.voidlinux.org'</span>"],
-      ["o", "Name     Action   Version\nripgrep  install  15.2.0_1"],
-      ["o", "Do you want to continue? [Y/n] Y"],
-      ["o", "<span class='t-d'>[*] Downloading packages\n[*] Verifying package integrity\n[*] Unpacking packages</span>"],
-      ["o", "ripgrep-15.2.0_1: <span class='t-p'>installed successfully.</span>"]
-    ] },
-    runit: { name: "alacritty", script: [
-      ["$", "sudo sv status /var/service/*"],
-      ["o", "<span class='t-a'>run:</span> /var/service/NetworkManager: (pid 902) 5417s"],
-      ["o", "<span class='t-a'>run:</span> /var/service/dbus: (pid 887) 5417s"],
-      ["o", "<span class='t-a'>run:</span> /var/service/elogind: (pid 893) 5417s"],
-      ["o", "<span class='t-a'>run:</span> /var/service/sshd: (pid 910) 5417s"]
-    ] },
-    eval: { name: "alacritty", script: [
-      ["$", "vikix eval '(length (screen-windows (current-screen)))'"],
-      ["o", function () { return String(countWindows()); }],
-      ["$", "vikix theme"],
-      ["o", function () { return "<span class='t-a'>" + (isDark() ? "vikix-dark" : "vikix-light") + "</span> (current)\nvikix-light  vikix-dark  contrast-dark  gruvbox-dark  nord-dark  tokyo-night-dark"; }]
-    ] },
-    emacs: { name: "emacs", top: true, static:
-      "<span class='t-d'>;;; user.lisp — loads last, so it wins</span>\n\n" +
-      "(<span class='t-k'>define-key</span> *top-map*\n  (kbd <span class='t-p'>\"s-t\"</span>) <span class='t-p'>\"exec kitty\"</span>)\n\n" +
-      "(<span class='t-k'>defcommand</span> <span class='t-a'>hello</span> () ()\n  (message <span class='t-p'>\"Hi from Lisp\"</span>))\n\n" +
-      "<span class='t-d'>;; C-c C-c sends it to the running WM\n;; over Swank on 127.0.0.1:4004</span>"
-    }
-  };
-  var CYCLE = ["xbps", "runit", "eval"];
-
-  function makeWin(kind) {
-    var p = PROGRAMS[kind];
-    return { wid: ++winSeq, kind: kind, name: p.name, html: p.static || "", step: 0, done: !!p.static };
-  }
-
-  var workspaces = [
-    { tree: { dir: "row", kids: [leaf(makeWin("update")), leaf(makeWin("emacs"))] }, focus: null, undo: [] },
-    { tree: leaf(), focus: null, undo: [] },
-    { tree: leaf(), focus: null, undo: [] }
-  ];
-  workspaces[0].focus = workspaces[0].tree.kids[0].id;
-  workspaces[1].focus = workspaces[1].tree.id;
-  workspaces[2].focus = workspaces[2].tree.id;
-  var cur = 0;
-
-  function leaves(n, out) {
-    out = out || [];
-    if (n.kids) { leaves(n.kids[0], out); leaves(n.kids[1], out); } else out.push(n);
-    return out;
-  }
-  function parentOf(n, id, p) {
-    if (!n.kids) return n.id === id ? (p || null) : undefined;
-    for (var i = 0; i < 2; i++) { var r = parentOf(n.kids[i], id, n); if (r !== undefined) return r; }
-    return undefined;
-  }
-  function findLeaf(id) { return leaves(ws().tree).filter(function (l) { return l.id === id; })[0]; }
-  function ws() { return workspaces[cur]; }
-  function countWindows() {
-    return workspaces.reduce(function (n, w) { return n + leaves(w.tree).filter(function (l) { return l.win; }).length; }, 0);
-  }
-
-  // Undo keeps the tree shape and which window sits where; window objects are shared.
-  var registry = {};
-  function snapshot(n) { return n.kids ? { dir: n.dir, kids: [snapshot(n.kids[0]), snapshot(n.kids[1])] } : { id: n.id, wid: n.win ? n.win.wid : 0 }; }
-  function restore(s) { return s.kids ? { dir: s.dir, kids: [restore(s.kids[0]), restore(s.kids[1])] } : { id: s.id, win: s.wid ? registry[s.wid] : null }; }
-  function pushUndo() { var w = ws(); w.undo.push({ tree: snapshot(w.tree), focus: w.focus }); if (w.undo.length > 30) w.undo.shift(); }
-
-  function renderNode(n, w) {
-    if (n.kids) {
-      var d = document.createElement("div");
-      d.className = "node" + (n.dir === "col" ? " col" : "");
-      d.appendChild(renderNode(n.kids[0], w)); d.appendChild(renderNode(n.kids[1], w));
-      return d;
-    }
-    var f = document.createElement("div");
-    f.className = "frame" + (n.id === w.focus ? " on" : "") + (n.win ? "" : " empty");
-    f.dataset.leaf = n.id;
-    if (n.win) {
-      registry[n.win.wid] = n.win;
-      f.innerHTML = '<span class="tag">' + n.win.name + '</span><div class="win' + (PROGRAMS[n.win.kind].top ? " top-align" : "") +
-        '" data-win="' + n.win.wid + '"><pre>' + n.win.html + (n.win.done && !PROGRAMS[n.win.kind].static ? P + '<span class="cursor"></span>' : "") + "</pre></div>";
-    } else {
-      f.innerHTML = '<div class="empty-note">empty frame<br>Return opens a terminal here</div>';
-    }
-    f.addEventListener("mousedown", function () { if (w.focus !== n.id) { w.focus = n.id; render(); } });
-    return f;
-  }
-  function renderBar() {
-    var w = ws(), wins = leaves(w.tree).filter(function (l) { return l.win; });
-    var used = workspaces.map(function (x, i) {
-      var any = leaves(x.tree).some(function (l) { return l.win; });
-      if (i === cur) return '<span class="ws-on">[' + (i + 1) + "]</span>";
-      return any ? "<span>" + (i + 1) + "</span>" : "";
-    }).join(" ");
-    var names = wins.map(function (l, i) {
-      return '<span class="' + (l.id === w.focus ? "f" : "") + '">' + (i + 1) + " " + l.win.name + "</span>";
-    }).join(" ");
-    var now = new Date();
-    var time = now.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }) + " " +
-      now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-    bar.innerHTML = '<span class="l"><span>' + used + '</span><span class="wins hide-s">' + names + "</span></span>" +
-      '<span class="r"><span class="upd">updates 12</span><span class="hide-s">wifi home</span><span class="hide-s">vol 40%</span><span>bat 84%</span><span>' + time + "</span></span>";
-  }
-  function render() {
-    var w = ws();
-    screen.innerHTML = "";
-    screen.appendChild(renderNode(w.tree, w));
-    renderBar();
-    screen.querySelectorAll(".win").forEach(function (el) { el.scrollTop = el.scrollHeight; });
-  }
-  function flash(msg) {
-    flashEl.textContent = msg; flashEl.classList.add("show");
-    clearTimeout(flash.t); flash.t = setTimeout(function () { flashEl.classList.remove("show"); }, 1300);
-  }
-
-  // Typing: every live terminal advances its script a little each tick.
-  function tick() {
-    var active = false;
-    workspaces.forEach(function (w) {
-      leaves(w.tree).forEach(function (l) {
-        var win = l.win; if (!win || win.done) return;
-        active = true;
-        var script = PROGRAMS[win.kind].script, line = script[win.step];
-        if (!line) { win.done = true; if (w === ws()) render(); return; }
-        if (line[0] === "$") {
-          win.typed = (win.typed || 0) + 1;
-          var shown = line[1].slice(0, win.typed);
-          var base = win.base === undefined ? (win.base = win.html) : win.base;
-          win.html = base + P + esc(shown) + (win.typed < line[1].length ? '<span class="cursor"></span>' : "");
-          if (win.typed >= line[1].length) { win.html = base + P + esc(line[1]) + "\n"; win.step++; win.typed = 0; win.base = undefined; win.wait = 5; }
-        } else {
-          if (win.wait > 0) { win.wait--; return; }
-          var text = typeof line[1] === "function" ? line[1]() : line[1];
-          win.html += text + "\n"; win.step++; win.wait = 3;
-        }
-        if (w === ws()) {
-          var el = screen.querySelector('.win[data-win="' + win.wid + '"]');
-          if (el) { el.querySelector("pre").innerHTML = win.html + (win.done ? P + '<span class="cursor"></span>' : ""); el.scrollTop = el.scrollHeight; }
-        }
-      });
-    });
-    return active;
-  }
-  function finishAll() { while (tick()) {} render(); }
-  var timer = null;
-  function run() {
-    if (reduce) { finishAll(); return; }
-    if (timer) return;
-    timer = setInterval(function () { if (!tick()) { clearInterval(timer); timer = null; } }, 45);
-  }
-
-  // Layout commands.
-  function split(dir) {
-    var w = ws(), l = findLeaf(w.focus);
-    if (leaves(w.tree).length >= 8) { flash("That's enough frames for a sketch"); return; }
-    pushUndo();
-    var p = parentOf(w.tree, l.id), node = { dir: dir, kids: [l, leaf()] };
-    if (!p) w.tree = node; else p.kids[p.kids[0] === l ? 0 : 1] = node;
-    render(); flash(dir === "row" ? "hsplit" : "vsplit");
-  }
-  function openTerm() {
-    var w = ws(), l = findLeaf(w.focus);
-    if (l.win) {
-      var empty = leaves(w.tree).filter(function (x) { return !x.win; })[0];
-      if (empty) { l = empty; }
-      else {
-        var el = screen.querySelector('[data-leaf="' + l.id + '"]'), r = el.getBoundingClientRect();
-        split(r.width >= r.height * 1.3 ? "row" : "col");
-        l = leaves(w.tree).filter(function (x) { return !x.win; })[0];
-        if (!l) return;
-      }
-    } else pushUndo();
-    l.win = makeWin(CYCLE[winSeq % CYCLE.length]);
-    w.focus = l.id; render(); run();
-  }
-  function closeWin() {
-    var w = ws(), l = findLeaf(w.focus);
-    if (!l.win) { flash("No window here"); return; }
-    pushUndo(); l.win = null; render(); flash("window closed");
-  }
-  function removeSplit() {
-    var w = ws(), l = findLeaf(w.focus), p = parentOf(w.tree, l.id);
-    if (!p) { flash("Only one frame"); return; }
-    pushUndo();
-    var sib = p.kids[p.kids[0] === l ? 1 : 0];
-    // Replace the parent node with the sibling.
-    (function replace(n, parent) {
-      if (n === p) { if (!parent) w.tree = sib; else parent.kids[parent.kids[0] === p ? 0 : 1] = sib; return true; }
-      if (n.kids) return replace(n.kids[0], n) || replace(n.kids[1], n);
-      return false;
-    })(w.tree, null);
-    var sl = leaves(sib);
-    if (l.win) { var emptySib = sl.filter(function (x) { return !x.win; })[0]; if (emptySib) emptySib.win = l.win; }
-    w.focus = sl[0].id; render(); flash("remove-split");
-  }
-  function undo() {
-    var w = ws(), s = w.undo.pop();
-    if (!s) { flash("Nothing to undo"); return; }
-    w.tree = restore(s.tree); w.focus = s.focus;
-    if (!findLeaf(w.focus)) w.focus = leaves(w.tree)[0].id;
-    render(); flash("undo");
-  }
-  function move(dx, dy) {
-    var w = ws(), el = screen.querySelector('[data-leaf="' + w.focus + '"]');
-    if (!el) return;
-    var a = el.getBoundingClientRect(), best = null, bestD = Infinity;
-    screen.querySelectorAll(".frame").forEach(function (f) {
-      if (f === el) return;
-      var b = f.getBoundingClientRect();
-      var ok = dx > 0 ? b.left >= a.right - 2 : dx < 0 ? b.right <= a.left + 2 : dy > 0 ? b.top >= a.bottom - 2 : b.bottom <= a.top + 2;
-      var overlap = dx ? Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) : Math.min(a.right, b.right) - Math.max(a.left, b.left);
-      if (!ok || overlap <= 0) return;
-      var d = dx ? Math.abs((dx > 0 ? b.left - a.right : a.left - b.right)) : Math.abs((dy > 0 ? b.top - a.bottom : a.top - b.bottom));
-      if (d < bestD) { bestD = d; best = f; }
-    });
-    if (best) { w.focus = Number(best.dataset.leaf); render(); }
-  }
-  function cycle() {
-    var w = ws(), ls = leaves(w.tree), i = ls.findIndex(function (l) { return l.id === w.focus; });
-    w.focus = ls[(i + 1) % ls.length].id; render();
-  }
-  function gotoWs(i) { if (i === cur) return; cur = i; render(); flash("workspace " + (i + 1)); }
-
-  function handle(k) {
-    switch (k) {
-      case "Enter": openTerm(); break;
-      case "b": split("row"); break;
-      case "v": split("col"); break;
-      case "r": removeSplit(); break;
-      case "q": closeWin(); break;
-      case "u": undo(); break;
-      case "h": case "ArrowLeft": move(-1, 0); break;
-      case "l": case "ArrowRight": move(1, 0); break;
-      case "k": case "ArrowUp": move(0, -1); break;
-      case "j": case "ArrowDown": move(0, 1); break;
-      case "Tab": cycle(); break;
-      case "1": case "2": case "3": gotoWs(Number(k) - 1); break;
-      default: return false;
-    }
-    return true;
-  }
-  desk.addEventListener("keydown", function (e) {
-    if (e.ctrlKey || e.key === "Tab") return;
-    var k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-    if (handle(k)) e.preventDefault();
-  });
-  desk.addEventListener("focus", function () { document.getElementById("deskState").textContent = "Keys go to the desktop now. Tab away to leave."; });
-  desk.addEventListener("blur", function () { document.getElementById("deskState").textContent = "Click the desktop, then press keys. Super is held for you."; });
-  document.getElementById("pad").addEventListener("click", function (e) {
-    var b = e.target.closest("button"); if (!b) return;
-    var k = b.dataset.k;
-    if (k === "2") k = String((cur + 1) % 3 + 1);
-    handle(k);
-  });
-
-  render(); run();
-  setInterval(renderBar, 30000);
-})();
-</script>
+<footer><div class="wrap"><span>vikix. · Free, open source, and always becoming.<br>© 2026 The Living Studios FZE LLC, Ajman, UAE · <a href="https://github.com/vukini/vikix/blob/main/LICENSE">MIT licence</a><br>Version <span id="ver">0.72.130</span> · Built on <a href="https://voidlinux.org">Void Linux</a> and <a href="https://stumpwm.github.io">StumpWM</a> · Inspired by <a href="https://omarchy.org">Omarchy</a></span><nav aria-label="Footer"><a href="guide/">Guide</a><a href="void.html">For Linux people</a><a href="https://github.com/vukini/vikix/issues">Report an issue</a><a href="mailto:vikid@vikix.dev">Say hello</a><a href="https://x.com/vukini">X / @vukini</a></nav></div></footer>
 </body>
 </html>

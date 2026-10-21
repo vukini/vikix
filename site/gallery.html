@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Vikix gallery</title>
-<meta name="description" content="Real screenshots of Vikix, the agentic desktop: the AI agent at work, tiled windows, the launcher, the menu, notifications, in its dark and light themes.">
+<meta name="description" content="Explore the Vikix workspace: real desktop screenshots, light and dark themes, and a wallpaper collection to make your workshop your own.">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
@@ -14,7 +14,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Vikix">
 <meta property="og:url" content="https://vikix.dev/gallery.html">
-<meta property="og:title" content="Vikix gallery: the agentic desktop, in pictures">
+<meta property="og:title" content="Vikix gallery: your workshop, your atmosphere">
 <meta property="og:description" content="Real screenshots of Vikix: the AI agent at work, tiled windows, the launcher and the menu, in both themes.">
 <meta property="og:image" content="https://vikix.dev/og.png">
 <meta property="og:image:width" content="1200">
@@ -26,6 +26,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;600;800&family=Schibsted+Grotesk:ital,wght@0,400;0,500;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="site.css">
+<link rel="stylesheet" href="refresh.css">
 <style>
 /* The gallery's own parts; the rest is site.css. */
 .gal-head { display: grid; grid-template-columns: 1.3fr 1fr; gap: 32px; align-items: end; padding-block: 64px 40px; }
@@ -61,42 +62,37 @@ dialog.lb::backdrop { background: rgba(10, 10, 18, .82); }
 .lb button:hover { border-color: var(--accent); }
 </style>
 </head>
-<body>
+<body class="refresh gallery-page">
+<a class="skip" href="#main">Skip to content</a>
 
 <header class="top">
   <div class="wrap">
     <a class="logo" href="./">vikix<span>.</span></a>
-    <nav aria-label="Sections">
-      <a href="./#why">Why</a>
-      <a href="./#agent">Agentic</a>
-      <a href="./#newhere">New here?</a>
-      <a href="gallery.html" aria-current="page" style="color:var(--fg)">Gallery</a>
-      <a href="./#rest" class="opt">Features</a>
-      <a href="./#install">Install</a>
-      <a href="guide/">Guide</a>
-      <a href="./#faq" class="opt">FAQ</a>
-      <a href="void.html" class="opt">For Linux people</a>
-      <a href="https://github.com/vukini/vikix" class="opt">GitHub</a>
+    <nav aria-label="Main navigation">
+      <a href="./#why">Why Vikix</a><a href="./#agent">How it works</a>
+      <a href="gallery.html" aria-current="page">Gallery</a><a href="guide/">Guide</a><a href="./#install">Get started</a>
     </nav>
-    <button class="theme-btn" id="themeBtn" type="button" aria-label="Switch theme"><span class="tb-cmd">vikix theme </span><b id="themeName">vikix-dark</b></button>
+    <button class="theme-btn" id="themeBtn" type="button" aria-label="Switch theme"><b id="themeName">Theme</b></button>
   </div>
 </header>
 
-<main>
+<main id="main">
   <div class="wrap">
     <div class="gal-head">
       <div style="display:grid;gap:18px">
-        <p class="eyebrow">Gallery · <b>real screenshots</b></p>
-        <h1>See it.<br><em>Then try it.</em></h1>
+        <p class="eyebrow">A space to <b>make your own</b></p>
+        <h1>Your workshop.<br><em>Your atmosphere.</em></h1>
       </div>
       <div style="display:grid;gap:16px">
-        <p class="lede">Vikix as it is, taken in a virtual machine at 1920×1080. Each picture comes in both themes: <b>vikix-dark</b> and <b>vikix-light</b>. Switch them all here, or with the button at the top.</p>
+        <p class="lede">Explore real desktop screenshots and a selection from the Vikix wallpaper collection. Switch between light and dark to see the desktop in both themes. Screenshots show an earlier version; details may differ in today’s desktop.</p>
         <div class="theme-pick">
-          <button type="button" data-set="dark" aria-pressed="false">vikix theme vikix-dark</button>
-          <button type="button" data-set="light" aria-pressed="false">vikix theme vikix-light</button>
+          <button type="button" data-set="dark" aria-pressed="false">Dark desktop</button>
+          <button type="button" data-set="light" aria-pressed="false">Light desktop</button>
         </div>
       </div>
     </div>
+
+    <nav class="gallery-jump" aria-label="Gallery collections"><a class="btn primary" href="#wallpapers">Explore wallpapers ↗</a><a class="btn" href="#gallery">Desktop screenshots ↓</a></nav>
 
     <!-- A video goes here: put its YouTube id in data-youtube and the section shows itself.
          Only the still picture comes from YouTube until the visitor presses play. -->
@@ -114,8 +110,8 @@ dialog.lb::backdrop { background: rgba(10, 10, 18, .82); }
           <img src="shots/agent.webp" width="1920" height="1080" loading="lazy" alt="Claude Code in a terminal filling the screen. It loaded the Vikix skill, bound Super+t live, saved it to user.lisp, switched the theme to void, and says vikix undo will reverse it.">
         </button>
         <figcaption>
-          <h3>The agent at work. <kbd>Super</kbd>+<kbd>a</kbd></h3>
-          <p>Asked to switch to the dark theme and make Super+t open a second terminal, Claude Code loaded the Vikix skill, tried the key on the running desktop, saved it to <code>user.lisp</code>, and pointed to <code>vikix undo</code>. Your settings were saved before it started, in the first two lines.</p>
+          <h3>Ask for a workspace that suits you.</h3>
+          <p>An earlier session: an agent adjusts the theme and a keyboard shortcut. Today, the Office also brings workers, tasks, questions and review together. <a href="guide/Agents-at-work.html">Explore the current workflow.</a></p>
         </figcaption>
       </figure>
 
@@ -211,12 +207,27 @@ dialog.lb::backdrop { background: rgba(10, 10, 18, .82); }
     <div class="cta" style="padding-bottom:88px">
       <a class="btn primary" href="./#install">Install it</a>
       <a class="btn" href="./#faq">Questions first</a>
-      <a class="btn" href="./#try">Try tiling in the browser</a>
+      <a class="btn" href="./#agent">Explore the workflow</a>
     </div>
   </div>
+
+  <section id="wallpapers"><div class="wrap">
+    <div class="section-heading"><p class="eyebrow">From the Vikix wallpaper collection</p><h2>A little wonder.<br>Every time you sit down.</h2><p class="lede">Forests, distant skies, painted streets. Choose an atmosphere for your work. These are wallpapers, shown on their own; the desktop screenshots above show the working environment.</p></div>
+    <div class="wallpaper-gallery">
+      <figure id="wallpaper-stars"><button class="shot" type="button" data-full="wallpapers/anime-stars.webp" aria-label="Enlarge wallpaper: A sky full of possibilities"><img src="wallpapers/anime-stars.webp" width="1600" height="900" loading="lazy" alt="A village beneath a brilliant, star-filled night sky."></button><figcaption><h3>A sky full of possibilities</h3><p>Wallpaper / <a href="wallpapers/anime-stars.webp" download>Save image ↗</a></p></figcaption></figure>
+      <figure id="wallpaper-forest"><button class="shot" type="button" data-full="wallpapers/forest.webp" aria-label="Enlarge wallpaper: Find your focus"><img src="wallpapers/forest.webp" width="1600" height="900" loading="lazy" alt="Soft sunlight through a deep green forest."></button><figcaption><h3>Find your focus</h3><p>Wallpaper / <a href="wallpapers/forest.webp" download>Save image ↗</a></p></figcaption></figure>
+      <figure id="wallpaper-cafe"><button class="shot" type="button" data-full="wallpapers/impr-cafe.webp" aria-label="Enlarge wallpaper: A little late-night inspiration"><img src="wallpapers/impr-cafe.webp" width="1600" height="900" loading="lazy" alt="A brightly painted café terrace under a swirling night sky."></button><figcaption><h3>A little late-night inspiration</h3><p>Wallpaper / <a href="wallpapers/impr-cafe.webp" download>Save image ↗</a></p></figcaption></figure>
+      <figure id="wallpaper-shrine"><button class="shot" type="button" data-full="wallpapers/anime-shrine.webp" aria-label="Enlarge wallpaper: Take the quiet path"><img src="wallpapers/anime-shrine.webp" width="1600" height="900" loading="lazy" alt="Red shrine gates along a woodland path."></button><figcaption><h3>Take the quiet path</h3><p>Wallpaper / <a href="wallpapers/anime-shrine.webp" download>Save image ↗</a></p></figcaption></figure>
+      <figure id="wallpaper-mountains"><button class="shot" type="button" data-full="wallpapers/mountains.webp" aria-label="Enlarge wallpaper: A wider perspective"><img src="wallpapers/mountains.webp" width="1600" height="900" loading="lazy" alt="A full moon above layers of blue mountains."></button><figcaption><h3>A wider perspective</h3><p>Wallpaper / <a href="wallpapers/mountains.webp" download>Save image ↗</a></p></figcaption></figure>
+      <figure id="wallpaper-aurora"><button class="shot" type="button" data-full="wallpapers/aurora.webp" aria-label="Enlarge wallpaper: Stay curious"><img src="wallpapers/aurora.webp" width="1600" height="900" loading="lazy" alt="Northern lights reflected in a still lake."></button><figcaption><h3>Stay curious</h3><p>Wallpaper / <a href="wallpapers/aurora.webp" download>Save image ↗</a></p></figcaption></figure>
+      <figure id="wallpaper-desert"><button class="shot" type="button" data-full="wallpapers/desert.webp" aria-label="Enlarge wallpaper: Room to think"><img src="wallpapers/desert.webp" width="1600" height="900" loading="lazy" alt="Warm evening light across a desert canyon."></button><figcaption><h3>Room to think</h3><p>Wallpaper / <a href="wallpapers/desert.webp" download>Save image ↗</a></p></figcaption></figure>
+      <figure id="wallpaper-garden"><button class="shot" type="button" data-full="wallpapers/impr-garden.webp" aria-label="Enlarge wallpaper: Let ideas grow"><img src="wallpapers/impr-garden.webp" width="1600" height="900" loading="lazy" alt="A painted garden path surrounded by flowers."></button><figcaption><h3>Let ideas grow</h3><p>Wallpaper / <a href="wallpapers/impr-garden.webp" download>Save image ↗</a></p></figcaption></figure>
+      <figure id="wallpaper-snow"><button class="shot" type="button" data-full="wallpapers/anime-snow.webp" aria-label="Enlarge wallpaper: Settle into the work"><img src="wallpapers/anime-snow.webp" width="1600" height="900" loading="lazy" alt="Warmly lit houses along a snowy evening street."></button><figcaption><h3>Settle into the work</h3><p>Wallpaper / <a href="wallpapers/anime-snow.webp" download>Save image ↗</a></p></figcaption></figure>
+    </div><p class="wallpaper-credit">A selection from <a href="https://github.com/vukini/wallpapers">the Vikix wallpaper collection</a>, prepared for the web. Explore the collection for the original images.</p>
+  </div></section>
 </main>
 
-<dialog class="lb" id="lb" aria-label="Screenshot">
+<dialog class="lb" id="lb" aria-label="Enlarged gallery image">
   <img id="lbImg" alt="">
   <div class="bar2">
     <span id="lbCap"></span>
@@ -248,7 +259,7 @@ dialog.lb::backdrop { background: rgba(10, 10, 18, .82); }
     return window.matchMedia("(prefers-color-scheme: dark)").matches;
   }
   function paintTheme() {
-    document.getElementById("themeName").textContent = isDark() ? "vikix-dark" : "vikix-light";
+    document.getElementById("themeName").textContent = isDark() ? "Light mode" : "Dark mode";
     document.querySelectorAll(".theme-pick button").forEach(function (b) {
       b.setAttribute("aria-pressed", String((b.dataset.set === "dark") === isDark()));
     });
@@ -264,7 +275,7 @@ dialog.lb::backdrop { background: rgba(10, 10, 18, .82); }
   paintTheme();
 
   /* ---------- the big view: full size, in the theme showing now ---------- */
-  var shots = Array.prototype.slice.call(document.querySelectorAll("#gallery button.shot"));
+  var shots = Array.prototype.slice.call(document.querySelectorAll("#gallery button.shot, #wallpapers button.shot"));
   var lb = document.getElementById("lb"), lbImg = document.getElementById("lbImg"), lbCap = document.getElementById("lbCap");
   var at = 0;
   function fullSrc(btn) {
