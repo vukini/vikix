@@ -1973,8 +1973,8 @@ def who_answers(claude=False, model=None, cloud=False):
     --claude, --cloud or a Claude model is named: nothing goes to the cloud
     that wasn't asked for."""
     conf = ai_conf()
-    if cloud:
-        return "cloud", model or conf.get("model") or CLOUD_MODEL_DEFAULT
+    if cloud:   # its own line: model= is the local model's, or Claude's
+        return "cloud", model or conf.get("cloud_model") or CLOUD_MODEL_DEFAULT
     if model and model.startswith("claude"):
         claude = True
     if claude:

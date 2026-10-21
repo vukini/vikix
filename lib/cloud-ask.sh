@@ -4,7 +4,8 @@
 # for use=cloud in ~/.config/vikix/ai: any OpenAI-compatible address
 # (cloud_url=, OpenRouter unless said), a key of yours by its name
 # (cloud_key=, openrouter unless said: vikix ai key set openrouter), and
-# the service's model (model=, openai/gpt-4o-mini unless said). The text
+# the service's model (cloud_model=, openai/gpt-4o-mini unless said; model=
+# is the local model's, or Claude's, and doesn't apply). The text
 # goes to that service and whoever hosts the model behind it.
 #
 # The questions go through llm, as Claude's do, under the model id

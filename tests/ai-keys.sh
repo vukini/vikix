@@ -249,7 +249,13 @@ check "the working note should say the model and where: $(notes)" grep -q 'opena
 check "llm's entry should name OpenRouter and the model" bash -c 'grep -q "api_base: https://openrouter.ai/api/v1" "$1" && grep -q "model_name: openai/gpt-4o-mini" "$1"' _ "$LLM_USER_PATH/extra-openai-models.yaml"
 check "and keep the entry that was there" grep -q 'model_id: mine' "$LLM_USER_PATH/extra-openai-models.yaml"
 check "vikix ai use alone should say cloud: $(bash "$here/bin/vikix-ai" use 2>&1)" test "$(bash "$here/bin/vikix-ai" use 2>&1)" = cloud
-sed -i -e 's/^cloud_url=.*/cloud_url=https:\/\/api.groq.com\/openai\/v1/' -e 's/^cloud_key=.*/cloud_key=groq/' -e 's/^model=.*/model=llama-3.3-70b/' "$conf"
+# A local model in model= (the usual case: it was chosen for use=local) must
+# not go to the service, which doesn't know it: the cloud's line is cloud_model=.
+sed -i 's/^model=.*/model=gpt-oss:120b/' "$conf"
+OPENROUTER_API_KEY=sk-or-test try rewrite
+check "model= (the local model's) should not reach the service: $(notes)" grep -q 'openai/gpt-4o-mini, sent to openrouter.ai' <<<"$(notes)"
+check "llm's entry neither" bash -c '! grep -q "gpt-oss" "$1" && grep -q "model_name: openai/gpt-4o-mini" "$1"' _ "$LLM_USER_PATH/extra-openai-models.yaml"
+sed -i -e 's/^cloud_url=.*/cloud_url=https:\/\/api.groq.com\/openai\/v1/' -e 's/^cloud_key=.*/cloud_key=groq/' -e 's/^cloud_model=.*/cloud_model=llama-3.3-70b/' "$conf"
 OPENROUTER_API_KEY=sk-or-test try rewrite
 check "another service's key should be asked for by its name: $(notes)" grep -q 'vikix ai key set groq' <<<"$(notes)"
 GROQ_API_KEY=gsk-test try rewrite
@@ -259,7 +265,7 @@ sed -i 's/^cloud_url=.*/cloud_url=http:\/\/example.org\/v1/' "$conf"
 GROQ_API_KEY=gsk-test try rewrite
 check "a plain http address elsewhere should be refused: $(notes)" grep -q "isn't an address" <<<"$(notes)"
 check "and not asked" test ! -e "$t/llm.args"
-sed -i -e 's/^cloud_url=.*/cloud_url=/' -e 's/^cloud_key=.*/cloud_key=/' -e 's/^model=.*/model=/' -e 's/^use=.*/use=local/' "$conf"
+sed -i -e 's/^cloud_url=.*/cloud_url=/' -e 's/^cloud_key=.*/cloud_key=/' -e 's/^cloud_model=.*/cloud_model=/' -e 's/^model=.*/model=/' -e 's/^use=.*/use=local/' "$conf"
 bash "$here/bin/vikix-ai" use cloud >/dev/null 2>&1 && { echo "FAIL: vikix ai use cloud worked without a key"; fail=1; }
 check "use cloud without a key changed the file: $(grep '^use' "$conf")" grep -qx 'use=local' "$conf"
 OPENROUTER_API_KEY=sk-or-test bash "$here/bin/vikix-ai" use cloud >/dev/null 2>&1

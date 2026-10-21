@@ -42,6 +42,8 @@ end
 
 local function use() return (setting("ai", "use") or "local"):lower() end
 local function model() return setting("ai", "model") end
+-- The cloud's model is its own line: model= names a local one, or Claude's.
+local function cloud_model() return setting("ai", "cloud_model") end
 
 -- The cloud service (use=cloud): its address, its key by the name `vikix ai
 -- key set` gave it (lib/cloud-ask.sh's rules), and the model.
@@ -168,12 +170,12 @@ return {
   {
     "olimorris/codecompanion.nvim",
     opts = function(_, opts)
-      -- Super+i's model= when set; else each adapter's own (Claude's is
-      -- claude-sonnet-5, as Super+i's; Ollama's the first you have; the
-      -- cloud's openai/gpt-4o-mini).
+      -- Super+i's model= when set (the cloud's cloud_model=); else each
+      -- adapter's own (Claude's is claude-sonnet-5, as Super+i's; Ollama's
+      -- the first you have; the cloud's openai/gpt-4o-mini).
       local http = ({ claude = "anthropic", cloud = "cloud" })[use()] or "ollama"
       local chat = model() and { name = http, model = model() } or http
-      if http == "cloud" and not model() then chat = { name = "cloud", model = cloud_model_default } end
+      if http == "cloud" then chat = { name = "cloud", model = cloud_model() or cloud_model_default } end
       return vim.tbl_deep_extend("force", opts, {
         adapters = {
           http = {
@@ -189,7 +191,7 @@ return {
                 name = "cloud",
                 formatted_name = "Cloud",
                 env = { url = cloud_url(), api_key = cloud_key, chat_url = "/chat/completions" },
-                schema = { model = { default = model() or cloud_model_default } },
+                schema = { model = { default = cloud_model() or cloud_model_default } },
               })
             end,
           },

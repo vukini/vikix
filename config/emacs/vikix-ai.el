@@ -55,7 +55,7 @@
 (defvar vikix-ai-local nil "The backend for the models on this laptop.")
 (defvar vikix-ai-cloud nil "The backend for the cloud service (use=cloud).")
 (defconst vikix-ai-cloud-url "https://openrouter.ai/api/v1" "The service unless cloud_url= says another.")
-(defconst vikix-ai-cloud-default 'openai/gpt-4o-mini "Its model unless model= says one.")
+(defconst vikix-ai-cloud-default 'openai/gpt-4o-mini "Its model unless cloud_model= says one.")
 (defvar vikix-ai--applied :none
   "The (use . model) last made the default, so a change is noticed.")
 
@@ -252,7 +252,9 @@ With FORCE (interactively), make it the default again anyway."
   (require 'gptel-ollama)
   (require 'gptel-openai)
   (let* ((use (downcase (or (vikix-ai--setting "use") "local")))
-         (model (let ((m (vikix-ai--setting "model"))) (and m (intern m))))
+         ;; The cloud's model is its own line: model= names a local one, or Claude's.
+         (model (let ((m (vikix-ai--setting (if (equal use "cloud") "cloud_model" "model"))))
+                  (and m (intern m))))
          (models (vikix-ai--local-models))
          (now (list use model (and (equal use "cloud") (vikix-ai--cloud-url)))))
     (vikix-ai--backends (and (equal use "claude") model) models)

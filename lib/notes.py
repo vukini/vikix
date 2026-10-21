@@ -325,8 +325,8 @@ def who_answers(force):
     model = ai.get("model", "")
     if use == "claude":
         return "claude", model if model.startswith("claude") else CLAUDE_DEFAULT
-    if use == "cloud":
-        return "cloud", model or CLOUD_MODEL_DEFAULT
+    if use == "cloud":   # its own line: model= is the local model's, or Claude's
+        return "cloud", ai.get("cloud_model") or CLOUD_MODEL_DEFAULT
     if model and not model.startswith("claude"):
         return "local", model
     names = [m["name"] for m in json.load(ollama("/api/tags"))["models"]]
