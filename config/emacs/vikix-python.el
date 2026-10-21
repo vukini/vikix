@@ -12,7 +12,9 @@
 ;; project's venv by itself (the nearest .venv up from the file, as uv
 ;; makes it; else ~/dev/python/.venv, the one JupyterLab runs on) and
 ;; gives it to everything started from the buffer: the language server
-;; (pyright, through eglot), the REPL, the tests, ruff. The mode line
+;; (pyright, through eglot), the REPL, the tests, ruff. A project that
+;; declares its dependencies (pyproject.toml, requirements.txt) and has no
+;; .venv gets none, not the shared one: C-c p v makes its own. The mode line
 ;; says which: Py[.venv], Py[dev], or Py[no venv]. ruff's findings are
 ;; shown beside pyright's (flymake), and the buffer is formatted with
 ;; ruff when saved (C-c p F turns that off here). Under C-c p:
@@ -63,6 +65,10 @@
   '(".venv" "pyproject.toml" "setup.py" "setup.cfg" "requirements.txt" ".git")
   "What marks a project's root: the nearest folder up with one of these.")
 
+(defconst vikix-python-project-files
+  '("pyproject.toml" "uv.lock" "setup.py" "setup.cfg" "requirements.txt")
+  "What says a project wants a venv of its own: the shared one isn't used then.")
+
 (defconst vikix-python--sum
   (when load-file-name
     (with-temp-buffer
@@ -87,13 +93,22 @@ The folder itself when nothing up from it marks a project."
   "Whether DIR is a venv: it has bin/python."
   (and dir (file-executable-p (expand-file-name "bin/python" dir))))
 
+(defun vikix-python--project-p (root)
+  "Whether ROOT declares its dependencies (see `vikix-python-project-files')."
+  (cl-some (lambda (f) (file-exists-p (expand-file-name f root)))
+           vikix-python-project-files))
+
 (defun vikix-python-venv (&optional root)
   "The venv for ROOT (the buffer's project).
-ROOT/.venv, else the shared one, else nil."
-  (let ((own (expand-file-name ".venv" (or root (vikix-python-root))))
-        (shared (expand-file-name vikix-python-shared-venv)))
+ROOT/.venv; else, for a folder that declares no dependencies (a script,
+the examples), the shared one; else nil, since a project's packages
+aren't in the shared venv and C-c p v makes its own."
+  (let* ((root (or root (vikix-python-root)))
+         (own (expand-file-name ".venv" root))
+         (shared (expand-file-name vikix-python-shared-venv)))
     (cond ((vikix-python--venv-p own) (directory-file-name own))
-          ((vikix-python--venv-p shared) (directory-file-name shared)))))
+          ((and (not (vikix-python--project-p root)) (vikix-python--venv-p shared))
+           (directory-file-name shared)))))
 
 (defvar-local vikix-python--venv nil "The buffer's venv, as the mode found it.")
 (defvar-local vikix-python--root nil "The buffer's project root, as the mode found it.")
@@ -322,14 +337,19 @@ So the compilation buffer shows pytest pkg/test_a.py::test_a as typed."
   (run-python nil nil t))
 
 (defun vikix-python-venv-command ()
-  "Say which venv the buffer uses; with none, offer to make one (uv venv)."
+  "Say which venv the buffer uses.
+Without one of the project's own, offer to make it (uv venv)."
   (interactive)
-  (if vikix-python--venv
-      (message "venv: %s (%s)" vikix-python--venv (vikix-python--venv-name))
+  (if (equal (vikix-python--venv-name) ".venv")
+      (message "venv: %s" vikix-python--venv)
     (let ((root (or vikix-python--root (vikix-python-root))))
       (unless (executable-find "uv")
-        (user-error "No venv, and uv isn't installed to make one: in a terminal, vikix add python"))
-      (when (y-or-n-p (format "No venv for %s. Make one there with uv venv? "
+        (user-error "%s, and uv isn't installed to make one: in a terminal, vikix add python"
+                    (if vikix-python--venv "The shared venv" "No venv")))
+      (when (y-or-n-p (format "%s for %s. Make one there with uv venv? "
+                              (if vikix-python--venv
+                                  (format "The shared venv (%s)" (abbreviate-file-name vikix-python--venv))
+                                "No venv")
                               (abbreviate-file-name root)))
         (let ((default-directory root))
           (with-temp-buffer
@@ -417,8 +437,11 @@ Turned on for every Python buffer when this file is loaded."
     (kill-local-variable 'python-shell-interpreter-args)))
 
 (defun vikix-python--turn-on ()
-  "Turn the mode on for a file's buffer (not for the REPL or a scratch)."
-  (when (or (derived-mode-p 'python-base-mode) (derived-mode-p 'python-mode))
+  "Turn the mode on for a file's buffer.
+Not for a scratch, the REPL, or the hidden buffers markdown-mode makes to
+colour a code block (flymake would run ruff on every snippet)."
+  (when (and (buffer-file-name)
+             (or (derived-mode-p 'python-base-mode) (derived-mode-p 'python-mode)))
     (vikix-python-mode 1)))
 
 ;; python-base-mode (Emacs 29) is python-mode's and python-ts-mode's
@@ -430,8 +453,7 @@ Turned on for every Python buffer when this file is loaded."
 ;; Loaded again (vikix update), or after the files were opened: the mode for them too.
 (dolist (b (buffer-list))
   (with-current-buffer b
-    (when (and (or (derived-mode-p 'python-base-mode) (derived-mode-p 'python-mode))
-               (not (bound-and-true-p vikix-python-mode)))
+    (unless (bound-and-true-p vikix-python-mode)
       (vikix-python--turn-on))))
 
 (provide 'vikix-python)

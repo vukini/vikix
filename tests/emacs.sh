@@ -379,6 +379,15 @@ check "your interpreter should stay when the venv has it: $out" has '^repl ipyth
 rm "$HOME/proj/.venv/bin/ipython"
 out=$(py '(progn (find-file (expand-file-name "loose/l.py" "~")) (say "venv %s %s" (abbreviate-file-name vikix-python--venv) (vikix-python--venv-name)))')
 check "a file in no project should get the shared venv: $out" has '^venv ~/dev/python/.venv dev$' "$out"
+mv "$HOME/proj/.venv" "$HOME/proj/venv-aside"
+out=$(py "(progn $open (say \"venv %S %s\" vikix-python--venv (vikix-python--venv-name)) (defun y-or-n-p (q) (say \"asked %s\" q) nil) (vikix-python-venv-command))")
+check "a project without its own venv should get none, not the shared one (its packages aren't there): $out" has '^venv nil no venv' "$out"
+check "and C-c p v should offer to make it: $out" has '^asked No venv for ~/proj/. Make one there with uv venv? ' "$out"
+mv "$HOME/proj/venv-aside" "$HOME/proj/.venv"
+out=$(py "(progn (find-file (expand-file-name \"loose/l.py\" \"~\")) (defun y-or-n-p (q) (say \"asked %s\" q) nil) (vikix-python-venv-command))")
+check "on the shared venv, C-c p v should say so and offer one of the folder's own: $out" has '^asked The shared venv (~/dev/python/.venv) for ~/loose/. Make one there with uv venv? ' "$out"
+out=$(py "(progn (with-current-buffer (get-buffer-create \" *markdown-code-fontification:python-mode*\") (python-mode)) $open (say \"hidden %S\" (buffer-local-value 'vikix-python-mode (get-buffer \" *markdown-code-fontification:python-mode*\"))))")
+check "a buffer without a file (markdown's hidden ones) shouldn't get the mode: $out" has '^hidden nil' "$out"
 rm -r "${HOME:?}/dev"
 out=$(PATH="$t/bare" py '(progn (find-file (expand-file-name "loose/l.py" "~")) (say "venv %S %s" vikix-python--venv (vikix-python--venv-name)) (say "repl %s" python-shell-interpreter) (stopped (vikix-python-venv-command)))')
 check "no venv at all should be said, and the REPL left as yours: $out" has '^venv nil no venv' "$out"

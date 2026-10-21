@@ -57,7 +57,7 @@ To change it, edit `config.org` and run `emacs-restart`. `vikix update` brings V
 
 ## Python in Emacs
 
-With `vikix add python` and `vikix add emacs`, a `.py` file opens as an IDE: the mode line says `Py[.venv]`, and everything started from the file uses that venv. The venv is found by itself: the nearest `.venv` up from the file (the one `uv venv` makes in a project), else `~/dev/python/.venv`, the shared one JupyterLab runs on (`Py[dev]`), else none (`Py[no venv]`, and `C-c p v` offers to make one). The language server (pyright, through eglot) sees the venv's packages, the REPL is the venv's ipython (its python when ipython isn't in it), ruff's findings are shown beside pyright's as you type, and the buffer is formatted with ruff when you save it.
+With `vikix add python` and `vikix add emacs`, a `.py` file opens as an IDE: the mode line says `Py[.venv]`, and everything started from the file uses that venv. The venv is found by itself: the nearest `.venv` up from the file (the one `uv venv` makes in a project); for a loose script or the examples, `~/dev/python/.venv`, the shared one JupyterLab runs on (`Py[dev]`); and for a project that declares its dependencies (`pyproject.toml`, `requirements.txt`) but has no `.venv` yet, none (`Py[no venv]`), since its packages aren't in the shared venv: `C-c p v` offers to make its own. The language server (pyright, through eglot) sees the venv's packages, the REPL is the venv's ipython (its python when ipython isn't in it), ruff's findings are shown beside pyright's as you type, and the buffer is formatted with ruff when you save it.
 
 | Key | What |
 |---|---|
