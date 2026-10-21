@@ -1,18 +1,18 @@
 /* The workshop pages share the desktop's light/dark choice, with warmer surfaces. */
 .refresh {
-  --bg: #f7f5f0; --bg2: #eeece5; --bg3: #e6e4dc; --fg: #242b29;
-  --subtle: #5c655f; --line: #d5d8ce; --accent: #245c48; --green: #245c48;
+  --bg: #f7f5f0; --bg2: #eeece5; --bg3: #e6e4dc; --fg: #252a35;
+  --subtle: #606574; --line: #d5d7df; --accent: #365bc7; --green: #365bc7;
   --display: "Schibsted Grotesk", system-ui, sans-serif;
   --wrap: 1240px; background: var(--bg); color: var(--fg);
 }
 :root[data-theme="dark"] .refresh {
-  --bg: #101a19; --bg2: #172321; --bg3: #20312b; --fg: #f0eee5;
-  --subtle: #b1beb5; --line: #34453e; --accent: #c8df9b; --green: #c8df9b;
+  --bg: #11141d; --bg2: #191e2a; --bg3: #242c3b; --fg: #eff1f7;
+  --subtle: #b5bed0; --line: #354058; --accent: #a8bfff; --green: #a8bfff;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .refresh {
-    --bg: #101a19; --bg2: #172321; --bg3: #20312b; --fg: #f0eee5;
-    --subtle: #b1beb5; --line: #34453e; --accent: #c8df9b; --green: #c8df9b;
+    --bg: #11141d; --bg2: #191e2a; --bg3: #242c3b; --fg: #eff1f7;
+    --subtle: #b5bed0; --line: #354058; --accent: #a8bfff; --green: #a8bfff;
   }
 }
 .refresh { font-size: 17px; }
@@ -41,7 +41,7 @@
 .intro-copy .cta { margin-block: 30px 22px; }
 .refresh .btn { font: 500 .87rem var(--body); border-radius: 100px; padding: 13px 22px; gap: 22px; }
 .refresh .btn.primary { color: var(--bg); }
-.intro-art { margin: 0; align-self: stretch; position: relative; min-height: 550px; border-radius: 180px 180px 8px 8px; overflow: hidden; background: #151e39; }
+.intro-art { margin: 0; align-self: stretch; position: relative; min-height: 550px; border-radius: 100px; overflow: hidden; background: #151e39; }
 .intro-art > img { height: 100%; width: 100%; object-fit: cover; position: absolute; object-position: 48% center; }
 .intro-art::after { content: ""; position: absolute; inset: 45% 0 0; background: linear-gradient(transparent, #090f1bd9); pointer-events: none; }
 .intro-art figcaption { position: absolute; inset: auto 30px 28px; display: grid; gap: 8px; z-index: 1; color: #fff; font-size: .9rem; }
@@ -84,7 +84,7 @@
 .inspection article > span { flex: none; width: 35px; color: var(--accent); font: 1.8rem var(--mono); }
 .inspection h3 { font-size: 1.15rem; }
 .inspection article p { font-size: .94rem; margin-top: 10px; }
-.landscape { margin: 0; position: relative; height: 570px; overflow: hidden; border-radius: 8px 140px 8px 8px; background: #23362c; }
+.landscape { margin: 0; position: relative; height: 570px; overflow: hidden; border-radius: 70px; background: #202b3b; }
 .landscape img { width: 100%; height: 100%; object-fit: cover; }
 .landscape figcaption { position: absolute; inset: auto 25px 25px; color: #fff; text-shadow: 0 2px 8px #000; font-size: .9rem; }
 .desktop-feature { margin: 0; }
@@ -149,7 +149,7 @@
   .refresh .wrap { width: calc(100% - 40px); }
   .refresh section { padding-block: 65px; } .refresh .intro { padding-block: 45px; }
   .intro-grid, .learn-grid, .ownership-grid, .workflow-layout, .fit-grid, .future-grid { grid-template-columns: 1fr; gap: 40px; }
-  .intro-copy .lede { max-width: 58ch; } .intro-art { min-height: 420px; border-radius: 140px 140px 8px 8px; }
+  .intro-copy .lede { max-width: 58ch; } .intro-art { min-height: 420px; border-radius: 70px; }
   .intro-art > img { object-position: center; } .landscape { height: 400px; }
   .benefits { gap: 24px; } .benefits h3 { font-size: 1.5rem; }
   .refresh .top .wrap { height: 65px; gap: 18px; }
