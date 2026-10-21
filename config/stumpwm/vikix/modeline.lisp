@@ -67,7 +67,7 @@ clicked. The caller doubles any ^ in TEXT already, as the fields do."
   (format nil "^(:on-click ~s ~s)~a^(:on-click-end)" id arg text))
 
 (defun vikix-ml-click (button what &rest rest)
-  "A click on the volume, network or Bluetooth field. Never signals: it
+  "A click on the volume, network, Bluetooth, memory or backup field. Never signals: it
 runs from the event loop, where an error would reach the top level."
   (declare (ignore rest))
   (handler-case
@@ -87,7 +87,10 @@ runs from the event loop, where an error would reach the top level."
         (:bt (when (member button '(1 3))
                (run-shell-command "blueman-manager")))
         (:memory (when (member button '(1 3))
-                   (vikix-in-terminal "vikix memory"))))
+                   (vikix-in-terminal "vikix memory")))
+        ;; The backup note: a menu in rofi (bin/vikix-backup menu).
+        (:backup (when (member button '(1 3))
+                   (run-shell-command "vikix-backup menu"))))
     (error (e) (message "The bar: ~a" e))))
 
 (register-ml-on-click-id :vikix-ml-click 'vikix-ml-click)
@@ -233,12 +236,14 @@ colour; nothing when there are none."
 
 (defun vikix-mode-line-backup (ml)
   "The backup reminder, from *vikix-backup* (commands.lisp), in the accent
-colour; nothing while backups are recent, or not set up."
+colour; nothing while backups are recent, or not set up. A click is
+vikix-backup's menu: back up now, status, the card, check."
   (declare (ignore ml))
   (if (string= *vikix-backup* "")
       ""
-      (vikix-ml-what "backup" (format nil "^(:push)^(:fg \"~a\")~a^(:pop)  "
-                                      (vikix-colour :accent) *vikix-backup*))))
+      (vikix-ml-clickable :vikix-ml-click :backup
+                          (format nil "^(:push)^(:fg \"~a\")~a^(:pop)  "
+                                  (vikix-colour :accent) *vikix-backup*))))
 
 (defun vikix-mode-line-quiet (ml)
   "\"quiet\" while notifications are paused, from *vikix-quiet* (commands.lisp)."

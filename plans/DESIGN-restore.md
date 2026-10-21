@@ -37,7 +37,7 @@ Nothing shows a file's versions beside the file; nothing says, before restoring,
 - "Bring back" is a plan step, `(:restore-version PATH ID DEST)`, added to `*plan-operations*` with its inverse (a `:trash` of the restored file for `--beside`; a `:restore` from the Trash for `--replace`), so the review panel, the journal and `undo` work as for a move. The step runs `vikix restore`.
 - A folder's "Versions…" lists the folder's versions, and "Bring back" restores it beside as `NAME (DATE)/`.
 
-**Setup, for someone who hasn't read anything:**
+**Setup, for someone who hasn't read anything** (in since 0.72.131, 2026-10-21, as below; the card is a one-page PDF through typst when the publish feature is there, else text, and `lp` prints it; `vikix backup card --kept` is how the user says it is kept):
 
 - `vikix backup setup` with no place: lists the mounted drives (udiskie knows them) and asks which; the password is generated and shown once with "print this card" (a one-page PDF through the publish pipeline's `pdf` when present, else plain text to the printer).
 - The bar's "backup 9d" note opens a menu on click: back up now, or set up if never set up.

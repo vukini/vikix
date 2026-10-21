@@ -671,7 +671,8 @@ Two ways, as features:
 **Once: set up a drive.** Plug in a USB drive (it mounts by itself, under `/run/media/$USER`), then:
 
 ```sh
-vikix backup setup /run/media/$USER/DRIVE
+vikix backup setup                      # the drive plugged in (it asks when there are several)
+vikix backup setup /run/media/$USER/DRIVE   # or name it
 ```
 
 It makes a `vikix-backup` folder on the drive and a password for the backups, and shows the password once. **Write it down, away from the laptop:** the backups can't be read without it, and the copy in `~/.config/vikix/backup-password` is lost with the laptop. Any place restic knows works too, like `sftp:you@server:/backups` or a cloud bucket.
@@ -687,6 +688,8 @@ vikix backup restore ~/Pictures 3f2a1bc       # ... or from an earlier one
 ```
 
 A restore goes into `~/Restored/<time>/`, beside your files, never over them; move back what you want.
+
+**The password card.** `vikix backup card` shows the password, where the backups go and how to read them on another machine, as a one-page PDF (text without the `publish` feature's typst) in the session's runtime folder, or at a file you name; `vikix backup card --print` sends it to the printer. Put it in a drawer, then say so, `vikix backup card --kept`: until then `vikix doctor` reminds you. The doctor also says where the backups go, whether the drive is plugged in, when the last backup was, and whether the backups were ever read back (`vikix backup check`). The bar's "backup 9d" note is a menu when clicked: back up now, status, the card, check; or set up, when nothing is.
 
 **Any file, as it was.** `vikix versions PATH` is the one list of a file's or a folder's versions from both histories, the backups and the snapshots of your settings (`vikix snapshot`), newest first, each with when, where it comes from, its size and what changed; a run of backups with the same content is one line that says from when to when. `vikix restore PATH ID` brings one back beside the file as `NAME (Tue 29 Sep).ext` (a folder as `NAME (Tue 29 Sep)/`); `--replace` puts the current one in the Trash first, then the version in its place. `vikix versions --help` has the rest. **Plug in to back up:** when the backup drive is plugged in and a backup is due (none yet, or the last is older than the reminder's days), it starts by itself and says when it's done. Otherwise nothing runs by itself: the bar says `backup 9d` once the last backup is more than a week old, as a reminder to plug the drive in. Change the days with `DAYS=` in `~/.config/vikix/backup`, or stop the reminder with `vikix backup off` (the backups stay on the drive). Old backups thin out as new ones come: one a day for a week, one a week for a month, one a month for a year. `vikix backup check` reads them back to make sure they are sound.
 

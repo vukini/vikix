@@ -14,7 +14,7 @@
 (in-package :stumpwm)
 
 (defparameter *vikix-what-click-kinds*
-  '((:volume . "volume") (:net . "network") (:bt . "bluetooth") (:memory . "memory"))
+  '((:volume . "volume") (:net . "network") (:bt . "bluetooth") (:memory . "memory") (:backup . "backup"))
   "The bar's fields with a click of their own (modeline.lisp's
 vikix-ml-click), by the name vikix what knows each under.")
 

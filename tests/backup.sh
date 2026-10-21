@@ -4,7 +4,10 @@
 # read; a backup leaves out what backup-exclude names; restore brings a
 # file back beside the original, never over it; an unplugged drive, a
 # wrong password and a missing setup each stop with a message; and the
-# bar's reminder says the right thing (read from commands.lisp, run in sbcl).
+# bar's reminder says the right thing (read from commands.lisp, run in sbcl);
+# setup with no place takes the drive plugged in (vikix-drives on a made-up
+# mounts file); the password card is written, shown and printed; doctor
+# warns until a backup, a check and the card put away; the bar's menu backs up.
 #
 # Needs restic (tests/run.sh skips this test without it).
 
@@ -96,6 +99,66 @@ vb off >/dev/null
 check "off left the reminder on" test ! -e "$bar"
 check "off removed the backups" test -f "$repo/config"
 
+# --- setup with no place: the drive plugged in --------------------------------
+# vikix-drives lists the mounts under VIKIX_MEDIA from VIKIX_MOUNTS.
+mkdir -p "$t/media/STICK" "$t/media/OTHER"
+export VIKIX_MEDIA="$t/media" VIKIX_MOUNTS="$t/mounts"
+: > "$t/mounts"
+out=$(vb setup 2>&1 </dev/null || true)
+check "no drive: setup should say to plug one in: $out" grep -q "no USB drive is plugged in" <<<"$out"
+printf '/dev/sdb1 %s/media/STICK vfat rw 0 0\n/dev/sdc1 %s/media/OTHER vfat rw 0 0\n' "$t" "$t" > "$t/mounts"
+out=$(vb setup 2>&1 </dev/null || true)
+check "two drives, no terminal: setup should name them and stop: $out" bash -c 'grep -q "several drives" <<<"$1" && grep -q "STICK" <<<"$1" && grep -q "OTHER" <<<"$1"' _ "$out"
+check "and set nothing up" bash -c '! grep -q "media/" "$1" 2>/dev/null' _ "$cfg/backup"
+printf '/dev/sdb1 %s/media/STICK vfat rw 0 0\n' "$t" > "$t/mounts"
+out=$(vb setup 2>&1)
+check "one drive: setup should take it: $out" grep -q "the drive plugged in: $t/media/STICK" <<<"$out"
+check "and make the store on it" test -f "$t/media/STICK/vikix-backup/config"
+check "and point the settings at it" grep -qx "REPO=$t/media/STICK/vikix-backup" "$cfg/backup"
+
+# --- the password card ---------------------------------------------------------
+out=$(VIKIX_BACKUP_CARD_TEXT=1 vb card "$t/card" 2>&1)
+check "the card should show the password: $out" grep -qF "$pw" <<<"$out"
+check "and where the backups go" grep -q "Backups go to: $t/media/STICK/vikix-backup" <<<"$out"
+check "the card should be written where asked" test -f "$t/card.txt"
+check "for you alone" test "$(stat -c %a "$t/card.txt")" = 600
+if command -v typst >/dev/null; then
+  vb card "$t/card2" >/dev/null 2>&1
+  check "with typst the card should be a PDF" bash -c 'head -c 4 "$1" | grep -q "%PDF"' _ "$t/card2.pdf"
+fi
+printf '#!/bin/sh\necho "no system default destination"\n' > "$t/bin/lpstat"; chmod +x "$t/bin/lpstat"
+out=$(VIKIX_BACKUP_CARD_TEXT=1 vb card --print 2>&1 || true)
+check "--print without a printer should say so, and where the card is: $out" bash -c 'grep -q "no printer is set up" <<<"$1" && grep -q "vikix-backup-card.txt" <<<"$1"' _ "$out"
+printf '#!/bin/sh\necho "system default destination: office"\n' > "$t/bin/lpstat"
+printf '#!/bin/sh\necho "$*" > "%s/printed"\n' "$t" > "$t/bin/lp"; chmod +x "$t/bin/lpstat" "$t/bin/lp"
+out=$(VIKIX_BACKUP_CARD_TEXT=1 vb card --print 2>&1)
+check "--print should send the card to lp: $(cat "$t/printed" 2>/dev/null)" grep -q "vikix-backup-card.txt" "$t/printed"
+
+# --- doctor ----------------------------------------------------------------------
+out=$(vb doctor 2>&1 || true); rc=0; vb doctor >/dev/null 2>&1 || rc=$?
+check "doctor before a backup should warn three ways and fail: $out" bash -c 'grep -q "no backup yet" <<<"$1" && grep -q "never read back" <<<"$1" && grep -q "card isn.t put away" <<<"$1"' _ "$out"
+check "and exit 1" test "$rc" = 1
+vb card --kept >/dev/null
+check "--kept should be written down" grep -qx "CARD=kept" "$cfg/backup"
+vb now >/dev/null 2>&1; vb check >/dev/null 2>&1
+check "check should note its time" test -s "$HOME/.local/state/vikix/backup-check"
+out=$(vb doctor 2>&1); rc=0; vb doctor >/dev/null 2>&1 || rc=$?
+check "doctor after all three should be content: $out" bash -c 'grep -q "last backup was today" <<<"$1" && grep -q "checked today" <<<"$1" && grep -q "card is kept" <<<"$1" && ! grep -q "^!!" <<<"$1"' _ "$out"
+check "and exit 0" test "$rc" = 0
+out=$(vb setup "$t/media/STICK" 2>&1)
+check "setup again should keep the card noted" grep -qx "CARD=kept" "$cfg/backup"
+mv "$t/media/STICK" "$t/media/GONE"
+out=$(vb doctor 2>&1 || true)
+check "doctor with the drive unplugged should say so: $out" grep -q "drive isn.t plugged in" <<<"$out"
+mv "$t/media/GONE" "$t/media/STICK"
+
+# --- the bar's menu ------------------------------------------------------------
+# rofi is a stand-in that picks the line $t/rofi names.
+printf '#!/bin/sh\ncat > /dev/null; cat "%s/rofi"\n' "$t" > "$t/bin/rofi"; chmod +x "$t/bin/rofi"
+rm -f "$t/notes"; echo "Back up now" > "$t/rofi"
+vb menu >/dev/null 2>&1
+check "the menu's Back up now should back up and say so: $(cat "$t/notes" 2>/dev/null)" grep -q "Backup done" "$t/notes"
+
 # --- the bar's words (vikix-backup-text, from commands.lisp) ---------------------
 if command -v sbcl >/dev/null; then
   fn=$(awk '/^\(defun vikix-backup-text/,/^$/' "$here/config/stumpwm/vikix/commands.lisp")
@@ -111,5 +174,5 @@ if command -v sbcl >/dev/null; then
     test "$words" = '"" "backup" "" "backup 9d" "backup 7d"'
 fi
 
-[ "$fail" = 0 ] && echo "backup: setup, backup without the left-out folders, restore beside the original, and the bar's reminder"
+[ "$fail" = 0 ] && echo "backup: setup (a place, or the drive plugged in), backup without the left-out folders, restore beside the original, the password card, doctor's lines, the bar's menu and its reminder"
 exit "$fail"

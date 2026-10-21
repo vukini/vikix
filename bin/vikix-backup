@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
 # vikix-backup — your home folder, backed up with restic (`vikix backup`).
 #
-#   vikix backup setup PLACE   once: where backups go, usually a USB drive
+#   vikix backup setup [PLACE] once: where backups go. With no PLACE, the
+#                                USB drive plugged in (it asks when there are
+#                                several); or a drive's folder
 #                                (/run/media/you/DRIVE), or any restic place
 #                                (sftp:host:/path, b2:bucket:path, ...)
+#   vikix backup card [--print] [--kept] [FILE]
+#                              the password as a card to print and put in a
+#                                drawer (a one-page PDF when typst is here,
+#                                else text); --kept says it is put away
 #   vikix backup [now]         back up now: all of ~, minus what
 #                                ~/.config/vikix/backup-exclude leaves out
 #   vikix backup status        where, when the last one was, what is left out
@@ -12,6 +18,8 @@
 #                                the latest backup, or backup ID, into
 #                                ~/Restored/<time>/; nothing is overwritten
 #   vikix backup check         make sure the backups can be read back
+#   vikix backup doctor        the lines vikix doctor shows: where, when, the
+#                                drive, the last check, the card
 #                                (vikix versions PATH lists a file's versions
 #                                from the backups and the snapshots together,
 #                                and vikix restore PATH ID brings one back
@@ -23,7 +31,8 @@
 # it, a lost laptop means backups nobody can read. Old backups thin out
 # after each run: one a day for a week, one a week for a month, one a month
 # for a year. The bar says "backup 9d" once the last backup is older than
-# DAYS (7) in ~/.config/vikix/backup; nothing runs by itself.
+# DAYS (7) in ~/.config/vikix/backup; nothing runs by itself. A click on
+# that note is a menu: back up now, status, the card, check; or set up.
 
 set -euo pipefail
 VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
@@ -64,9 +73,25 @@ notify() { [ -n "${notify:-}" ] && command -v notify-send >/dev/null 2>&1 && not
 write_bar() { mkdir -p "$state"; echo "$1 $(days)" > "$bar_file"; }
 
 cmd_setup() {
-  local place=${1:-} repo
-  [ -n "$place" ] || die "where to? vikix backup setup PLACE, e.g. /run/media/$(id -un)/DRIVE"
+  local place=${1:-} repo drives=() n i
   need_restic
+  if [ -z "$place" ]; then
+    # No place named: the USB drive plugged in (vikix-drives knows them).
+    mapfile -t drives < <("$VIKIX_DIR/bin/vikix-drives" list 2>/dev/null)
+    case ${#drives[@]} in
+      0) die "no USB drive is plugged in: plug one in (it mounts by itself) and run vikix backup setup again; or name a place: vikix backup setup PLACE (a folder, sftp:host:/path, b2:bucket:path ...)" ;;
+      1) place=${drives[0]}; say "the drive plugged in: $place" ;;
+      *) if [ -t 0 ]; then
+           echo "Several drives are plugged in. Which one for the backups?"
+           for i in "${!drives[@]}"; do printf '  %d. %s\n' "$((i + 1))" "${drives[$i]}"; done
+           read -r -p "  [1-${#drives[@]}] " n
+           [[ $n =~ ^[0-9]+$ ]] && [ "$n" -ge 1 ] && [ "$n" -le "${#drives[@]}" ] || die "not a number from the list; run vikix backup setup again"
+           place=${drives[$((n - 1))]}
+         else
+           die "several drives are plugged in; name one: vikix backup setup PLACE, one of: ${drives[*]}"
+         fi ;;
+    esac
+  fi
   if is_local "$place"; then
     [ -d "$place" ] || die "$place isn't there; plug in the drive (it mounts by itself) and try again"
     place=$(cd "$place" && pwd)
@@ -97,7 +122,8 @@ cmd_setup() {
   { echo "# Where vikix backup puts your backups, and after how many days"
     echo "# without one the bar starts reminding you. Written by vikix backup setup."
     echo "REPO=$repo"
-    echo "DAYS=$(days)"; } > "$settings.new"
+    echo "DAYS=$(days)"
+    [ "$(setting CARD)" = kept ] && echo "CARD=kept"; } > "$settings.new"
   mv "$settings.new" "$settings"
   [ -f "$exclude" ] || cp "$VIKIX_DIR/config/backup/exclude" "$exclude"
   [ -f "$bar_file" ] || write_bar 0
@@ -109,12 +135,161 @@ cmd_setup() {
     echo
     echo "      $(cat "$password")"
     echo
-    echo "  Write it down, or keep it in a password manager, away from this laptop."
-    echo "  It is also in $password,"
-    echo "  but if the laptop is lost, that copy goes with it."
+    echo "  Keep it away from this laptop: it is also in $password,"
+    echo "  but if the laptop is lost, that copy goes with it. As a card to print"
+    echo "  and put in a drawer:  vikix backup card --print  (vikix backup card shows it);"
+    echo "  once it is put away:  vikix backup card --kept"
     echo
   fi
   say "back up now with: vikix backup"
+}
+
+# The password card: what to print and put in a drawer. REPO is where the
+# backups go, for someone reading the card on another machine.
+card_text() {
+  local repo=$1
+  cat <<EOF
+VIKIX BACKUP: THE PASSWORD
+
+Made on $(date '+%A %-d %B %Y') for $(id -un) on $(hostname 2>/dev/null || cat /etc/hostname 2>/dev/null || echo "this laptop").
+
+The password:
+
+    $(cat "$password")
+
+Backups go to: $repo
+
+Everything in the backups is encrypted with this password. Without it
+they can't be read, by anyone, so keep this card away from the laptop:
+the copy on it, ~/.config/vikix/backup-password, is lost with it.
+
+To read the backups on another machine: put the password, alone, in
+~/.config/vikix/backup-password there, then
+    vikix backup setup PLACE
+(or, without Vikix: restic -r PLACE snapshots, and restic asks for it).
+EOF
+}
+
+# vikix backup card [--print] [--kept] [FILE]: the card as a one-page PDF
+# (typst, when the publish feature brought it) or plain text, at FILE or
+# in the session's runtime folder (gone at logout); shown too. --print
+# sends it to the printer; --kept notes that the card is put away, which
+# vikix doctor asks about until then.
+cmd_card() {
+  local print='' kept='' file='' a text out
+  for a in "$@"; do
+    case $a in
+      --print) print=1 ;;
+      --kept) kept=1 ;;
+      -h|--help) echo "usage: vikix backup card [--print] [--kept] [FILE]"; return 0 ;;
+      -*) die "vikix backup card: unknown option $a (--print, --kept, or a FILE to write)" ;;
+      *) file=$a ;;
+    esac
+  done
+  if [ -n "$kept" ]; then
+    [ -f "$settings" ] || die "backups aren't set up yet: vikix backup setup first"
+    set_setting CARD kept
+    say "noted: the password card is kept away from the laptop (vikix doctor stops asking)"
+    return 0
+  fi
+  [ -s "$password" ] || die "there is no backup password yet: vikix backup setup first"
+  text=$(card_text "$(setting REPO)")
+  out=${file:-${XDG_RUNTIME_DIR:-/tmp}/vikix-backup-card}
+  if command -v typst >/dev/null 2>&1 && [ -z "${VIKIX_BACKUP_CARD_TEXT:-}" ] && card_pdf "$text" "${out%.pdf}.pdf"; then
+    out=${out%.pdf}.pdf
+  else
+    out=${out%.txt}.txt
+    (umask 077; printf '%s\n' "$text" > "$out")
+  fi
+  chmod 600 "$out" 2>/dev/null || true
+  printf '%s\n\n' "$text"
+  say "the card is at $out"
+  if [ -n "$print" ]; then
+    lpstat -d 2>/dev/null | grep -q ': ' ||
+      die "no printer is set up yet (vikix add printing, then the printer in its settings); print $out from another machine, or copy the password by hand"
+    lp -s "$out" || die "the printer didn't take it; the card is at $out"
+    say "sent to the printer: put the card in a drawer, then vikix backup card --kept"
+  fi
+}
+
+# card_pdf TEXT FILE: TEXT as a one-page PDF through typst; fails quietly.
+card_pdf() {
+  local text=$1 out=$2 src body
+  src=$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/vikix-card-XXXX.typ") || return 1
+  # Typst's markup is kept out: the text goes in as raw blocks, line by line.
+  body=$(printf '%s\n' "$text" | sed -e 's/`/'"'"'/g')
+  { echo '#set page(paper: "a5", margin: 1.6cm)'
+    echo '#set text(size: 11pt)'
+    echo '#show raw.where(block: true): set text(size: 11pt)'
+    echo '```'
+    printf '%s\n' "$body"
+    echo '```'; } > "$src"
+  (umask 077; typst compile "$src" "$out" >/dev/null 2>&1); local rc=$?
+  rm -f "$src"
+  return $rc
+}
+
+# set_setting KEY VALUE: one line of the settings file, kept or added.
+set_setting() {
+  if grep -q "^$1=" "$settings" 2>/dev/null; then
+    sed -i "s|^$1=.*|$1=$2|" "$settings"
+  else
+    echo "$1=$2" >> "$settings"
+  fi
+}
+
+# The bar's "backup" note was clicked: a small menu in rofi.
+cmd_menu() {
+  local term=${VIKIX_TERMINAL:-${TERMINAL:-alacritty}} lines pick
+  if [ -f "$settings" ] && [ -n "$(setting REPO)" ]; then
+    lines=$'Back up now\nWhere and when: status\nThe password card\nThe backups, read back: check'
+  else
+    lines=$'Set up backups (plug in a USB drive first)'
+  fi
+  pick=$(printf '%s\n' "$lines" | rofi -dmenu -i -p backup -no-custom 2>/dev/null) || return 0
+  case $pick in
+    "Back up now") notify=1; cmd_now ;;
+    "Where and when"*) exec "$term" -e sh -c 'vikix backup status; echo; echo "Press Enter to close."; read x' ;;
+    "The password card") exec "$term" -e sh -c 'vikix backup card; echo "To print it: vikix backup card --print. Put away: vikix backup card --kept"; echo; echo "Press Enter to close."; read x' ;;
+    "The backups, read back"*) exec "$term" -e sh -c 'vikix backup check; echo; echo "Press Enter to close."; read x' ;;
+    "Set up backups"*) exec "$term" -e sh -c 'vikix backup setup; echo; echo "Press Enter to close."; read x' ;;
+  esac
+}
+
+# vikix backup doctor: the lines vikix doctor shows. Not set up is a
+# choice, said; the rest counted (exit 1 when something wants doing).
+cmd_doctor() {
+  local ok=1 repo last age checked
+  if [ ! -f "$settings" ] || [ -z "$(setting REPO)" ]; then
+    say "backups aren't set up: plug in a USB drive and run vikix backup setup"
+    return 0
+  fi
+  repo=$(setting REPO)
+  if [ -r "$password" ] && [ -s "$password" ]; then say "backups go to $repo, encrypted with the password in $password"
+  else warn "the backup password is missing ($password): put your copy of it there"; ok=0; fi
+  if is_local "$repo"; then
+    if [ -d "$repo" ]; then say "the backup drive is plugged in"
+    else say "the backup drive isn't plugged in (the backup runs when it is, if one is due)"; fi
+  fi
+  last=$(cut -d' ' -f1 "$bar_file" 2>/dev/null || echo 0)
+  if [ "${last:-0}" -gt 0 ] 2>/dev/null; then
+    age=$(( ($(date +%s) - last) / 86400 ))
+    if [ "$age" -ge "$(days)" ]; then warn "the last backup was $age days ago, past the reminder's $(days) (vikix backup)"; ok=0
+    elif [ "$age" = 0 ]; then say "the last backup was today"
+    else say "the last backup was $age days ago"; fi
+  else
+    warn "no backup yet (vikix backup, with the drive plugged in)"; ok=0
+  fi
+  checked=$(cat "$state/backup-check" 2>/dev/null || echo 0)
+  if [ "${checked:-0}" -gt 0 ] 2>/dev/null; then
+    age=$(( ($(date +%s) - checked) / 86400 ))
+    say "the backups were read back and checked $([ "$age" = 0 ] && echo today || echo "$age days ago")"
+  else
+    warn "the backups were never read back (vikix backup check makes sure they can be)"; ok=0
+  fi
+  if [ "$(setting CARD)" = kept ]; then say "the password card is kept away from the laptop"
+  else warn "the password card isn't put away yet: vikix backup card --print, a drawer, then vikix backup card --kept"; ok=0; fi
+  [ "$ok" = 1 ]
 }
 
 cmd_now() {
@@ -173,7 +348,7 @@ cmd_status() {
 }
 
 cmd_list() { need_restic; need_setup; r snapshots; }
-cmd_check() { need_restic; need_setup; r check; }
+cmd_check() { need_restic; need_setup; r check && { mkdir -p "$state"; date +%s > "$state/backup-check"; }; }
 
 cmd_restore() {
   local path=${1:-} id=${2:-latest} target
@@ -206,6 +381,9 @@ case ${1:-now} in
   list)    cmd_list ;;
   restore) shift; cmd_restore "$@" ;;
   check)   cmd_check ;;
+  card)    shift; cmd_card "$@" ;;
+  menu)    cmd_menu ;;
+  doctor)  cmd_doctor ;;
   off)     cmd_off ;;
   help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
   *)       die "unknown: vikix backup $1 (try: vikix backup help)" ;;
