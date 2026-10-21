@@ -62,7 +62,7 @@ make_conf() {
   mkdir -p "$(dirname "$CONF")"
   cat > "$CONF" <<'EOF'
 # Vikix AI on the selected text (Super+i): which model answers.
-# vikix ai use local|claude|codex switches, or edit it here.
+# vikix ai use local|claude|codex|cloud switches, or edit it here.
 #
 #   use=local    a model on this laptop: free, offline, the text stays here
 #                (vikix ai models gets one)
@@ -332,7 +332,7 @@ case $ACTION in
   explain)
     system="Explain the text in plain language, in at most three short sentences, without lists, headings or Markdown. If it is code or a command, say what it does. If it is an error message, say what it means and how to fix it. Don't suggest fixes for anything that isn't wrong."
     title="Explained" ;;
-  *) echo "usage: vikix-ask [ask|proofread|rewrite|translate|explain] | use local|claude|codex" >&2
+  *) echo "usage: vikix-ask [ask|proofread|rewrite|translate|explain] | use local|claude|codex|cloud" >&2
      fail "vikix-ask doesn't know \"$(escape <<<"${ACTION:0:40}")\"" "It knows ask, proofread, rewrite, translate, explain" ;;
 esac
 if [ -z "$TEXT" ] && [ "$ACTION" != ask ]; then
