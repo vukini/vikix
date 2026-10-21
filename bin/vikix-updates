@@ -4,11 +4,18 @@
 # (`vikix firmware update` installs those). The bar shows it (modeline.lisp).
 #
 #   vikix-updates          check now, print the result, and save it
-#   vikix-updates --watch  check a minute from now, then every 6 hours;
-#                          vikix-session runs this for the whole session
+#   vikix-updates --watch  check a minute from now, then every 6 hours (every
+#                          10 minutes while GitHub's tests run on the commit
+#                          this machine runs); vikix-session runs this for
+#                          the whole session
 #
-# The result goes to ~/.local/state/vikix/updates as "PACKAGES COMMITS FIRMWARE",
-# with ? for a count that couldn't be checked (offline, say). Checking
+# The result goes to ~/.local/state/vikix/updates as "PACKAGES COMMITS
+# FIRMWARE TESTS", with ? for a count that couldn't be checked (offline,
+# say). TESTS is GitHub's verdict on the commit this machine runs: ok,
+# failed, running, ? when it couldn't be asked, or - on the good channel,
+# where what runs has passed by definition. A machine on main takes every
+# commit before its tests, so the bar says "tests failed" when they do,
+# within ten minutes, and a notification says it once per commit. Checking
 # takes a few seconds of network, so it happens here, in the background,
 # and the bar only reads the file.
 
@@ -53,7 +60,48 @@ check() {
   # Devices with a firmware update (0 without fwupd; ? if it couldn't tell).
   firmware=$("$vikix_dir/bin/vikix-firmware" count 2>/dev/null || echo '?')
   mkdir -p "$state"
-  echo "$packages $commits $firmware" > "$out.tmp" && mv "$out.tmp" "$out"
+  if [ "$channel" = main ]; then
+    sha=$(git -C "$vikix_dir" rev-parse HEAD 2>/dev/null || echo none)
+    tests=$(verdict)
+    # Said once per commit, as it is a thing to act on (wait for the fix,
+    # or vikix update --back), and the bar is easy to miss.
+    if [ "$tests" = failed ] && [ "$(cat "$state/tests-told" 2>/dev/null)" != "$sha" ] &&
+       [ -n "${DISPLAY:-}" ] && command -v notify-send >/dev/null 2>&1; then
+      echo "$sha" > "$state/tests-told"
+      notify-send -u critical "Vikix" "GitHub's tests failed on the commit this machine runs ($(printf '%.7s' "$sha")). The bar says 'tests failed' until a commit that passed is installed; vikix update --back puts the one before back." || true
+    fi
+  else
+    tests=-
+  fi
+  echo "$packages $commits $firmware $tests" > "$out.tmp" && mv "$out.tmp" "$out"
+}
+
+# GitHub's verdict on the commit this checkout runs, from its public API
+# (no key; sixty asks an hour from one address, plenty): ok when a run of
+# the test workflow on it passed, failed when every run ended and one
+# failed, running while one is still going, ? when it couldn't be told
+# (offline, no run yet, a remote that isn't GitHub). The repository is
+# the remote's, so a fork asks about itself.
+verdict() {
+  [ "$sha" != none ] || { echo '?'; return; }
+  repo=$(git -C "$vikix_dir" ls-remote --get-url origin 2>/dev/null |
+           sed -n 's#^\(https://github\.com/\|git@github\.com:\|ssh://git@github\.com/\)\([^/]*/[^/]*\)$#\2#p' | sed 's/\.git$//')
+  [ -n "$repo" ] || { echo '?'; return; }
+  curl -fsS -m 20 -H 'Accept: application/vnd.github+json' \
+    "https://api.github.com/repos/$repo/actions/runs?head_sha=$sha&per_page=30" 2>/dev/null |
+    python3 -c '
+import json, sys
+try:
+    runs = json.load(sys.stdin).get("workflow_runs", [])
+except ValueError:
+    sys.exit(1)
+runs = [r for r in runs if r.get("path") == ".github/workflows/test.yml" or r.get("name") == "test"]
+ended = [r.get("conclusion") for r in runs if r.get("status") == "completed"]
+if "success" in ended: print("ok")
+elif len(ended) < len(runs): print("running")
+elif any(c in ("failure", "timed_out", "startup_failure") for c in ended): print("failed")
+else: print("?")
+' 2>/dev/null || echo '?'
 }
 
 if [ "${1:-}" = --watch ]; then
@@ -64,12 +112,13 @@ if [ "${1:-}" = --watch ]; then
   sleep 60                      # let the network come up after login
   while :; do
     check
-    case "$packages $commits" in
-      *'?'*) sleep 900 ;;       # couldn't check: try again in 15 minutes
-      *)     sleep 21600 ;;
+    case "$packages $commits $tests" in
+      *'?'*)     sleep 900 ;;   # couldn't check: try again in 15 minutes
+      *running*) sleep 600 ;;   # GitHub's tests are running on this commit: the verdict within 10 minutes
+      *)         sleep 21600 ;;
     esac
   done
 fi
 
 check
-echo "packages: $packages  Vikix commits: $commits"
+echo "packages: $packages  Vikix commits: $commits  tests on this commit: $tests"

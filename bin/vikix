@@ -7,6 +7,9 @@
 #                         upgrade your pipx, uv and cargo programs
 #   vikix update core|system|tools   one part: Vikix only (seconds), Void's
 #                         packages only, or the editors, languages and tools
+#   vikix update check  what a core update ends with, by itself: the StumpWM
+#                         image starts, Vikix's links point into ~/vikix,
+#                         and what vikix doctor finds
 #   vikix try [DESK]    the desktop runs a desk's work before it is released:
 #                         ~/vikix is put at the desk's last commit and the core
 #                         update's steps run; DESK is a desk's folder, topic or
@@ -416,6 +419,9 @@ vikix update --back   the system as it was before the last update: Vikix at
                         its commit with its links, the packages that changed
                         reinstalled from the record, the StumpWM binary back
                         (vikix rollback shows what is kept)
+vikix update check    what a core update ends with, by itself: the StumpWM
+                        image starts (asked, without a screen), Vikix's links
+                        point into the checkout, and what vikix doctor finds
 EOF
 }
 
@@ -546,11 +552,59 @@ cmd_update() {
       --from) from=${1:-}; [ "$#" -gt 0 ] && shift; [ -n "$from" ] || die "--from needs a folder: vikix update core --from ~/src/vikix" ;;
       --from=*) from=${a#--from=} ;;
       ''|all) ;;
-      core|system|tools) part=$a ;;
+      core|system|tools|check) part=$a ;;
       -h|--help|help) update_help; return 0 ;;
-      *) die "vikix update [core|system|tools] [--from DIR] (vikix update help)" ;;
+      *) die "vikix update [core|system|tools|check] [--from DIR] (vikix update help)" ;;
     esac
   done
+  # The check a core update ends with, and vikix update check by itself:
+  # that the StumpWM image starts (asked without a screen, as 30-lisp asks a
+  # new one; the next login would find out otherwise), that Vikix's links
+  # point into this checkout, and what the doctor finds. The first two are
+  # the update's own doing, so they fail it; the doctor's findings can be
+  # older than the update, so they are said, counted, and left to it.
+  # DESIGN-dependable.md 1 and 5; Desktop 1.0's gate A.
+  update_check() {
+    local image="$HOME/.local/bin/stumpwm" bad=0 links=0 l out found n
+    if [ "$DRY_RUN" = 1 ]; then
+      printf '   would check: %s\n' "the StumpWM image starts, the links point into $VIKIX_DIR, vikix doctor"
+      return 0
+    fi
+    if [ ! -x "$image" ]; then
+      warn "no StumpWM image at $image (vikix rebuild-wm builds it)"; bad=1
+    elif [ ! -f "$VIKIX_STATE/stumpwm-built" ]; then
+      # An image from before 0.72.134 doesn't know the question and would
+      # try to start a desktop; it is left alone, and the next one knows.
+      say "the StumpWM image is from before Vikix could ask it whether it starts: vikix rebuild-wm, once, and every update after that asks"
+    elif out=$(env -u DISPLAY VIKIX_WM_CHECK=1 timeout --kill-after=5s 60s "$image" 2>&1) && grep -q 'stumpwm image ok' <<<"$out"; then
+      say "the StumpWM image starts"
+    else
+      warn "the StumpWM image at $image doesn't start: vikix rebuild-wm makes a new one$([ -x "$image.prev" ] && echo '; the one before is kept as stumpwm.prev, and the session starts it when this one dies at login')"; bad=1
+    fi
+    for l in "$HOME/.stumpwm.d/init.lisp" "$HOME/.local/bin/vikix" "$HOME/.xinitrc"; do
+      case $(readlink -f -- "$l" 2>/dev/null) in
+        "$VIKIX_DIR"/*) ;;
+        *) warn "$l isn't Vikix's link into $VIKIX_DIR (40-config makes it: vikix update core)"; links=1 ;;
+      esac
+    done
+    [ "$links" = 1 ] && bad=1 || say "Vikix's links point into $VIKIX_DIR"
+    # VIKIX_DOCTOR: a stand-in for the tests, which have no desktop to ask.
+    local -a doctor=("$VIKIX_DIR/bin/vikix" doctor)
+    [ -n "${VIKIX_DOCTOR:-}" ] && doctor=("$VIKIX_DOCTOR")
+    if out=$(timeout --kill-after=5s 120s "${doctor[@]}" 2>&1); then
+      say "the doctor finds all good"
+    else
+      found=$(printf '%s\n' "$out" | sed 's/\x1b\[[0-9;]*m//g' | sed -n 's/^!! //p' | grep -vx 'see above' || true)
+      n=$(printf '%s\n' "$found" | grep -c . || true)
+      warn "the doctor finds $n thing(s) to see to (vikix doctor):"
+      printf '%s\n' "$found" | sed 's/^/     /'
+    fi
+    [ "$bad" = 0 ]
+  }
+  if [ "$part" = check ]; then
+    update_check
+    return
+  fi
   if [ -n "$from" ]; then
     [ "$part" = core ] || die "--from goes with core: vikix update core --from $from"
     git -C "$from" rev-parse --verify -q main >/dev/null 2>&1 ||
@@ -697,9 +751,19 @@ cmd_update() {
   # The docs catalogue (vikix docs, Super+F2) reads again what changed: the
   # man pages and manuals of the packages this update brought, the guides.
   [ "$DRY_RUN" = 1 ] || python3 "$VIKIX_DIR/bin/vikix-docs" index --quiet >/dev/null 2>&1 || true
+  # Before the update is called a success: the image, the links, the doctor.
+  local checked=1
+  if [ "$part" = all ] || [ "$part" = core ]; then
+    say "checking the update"
+    update_check || checked=0
+  fi
   if [ "${#failed[@]}" -gt 0 ]; then
     warn "these stages failed: ${failed[*]}. Fix them, then: vikix $what (log: $VIKIX_UPDATE_LOG)"
     echo "   Not sure how? vikix diagnose asks your AI agent; vikix debug writes a report to attach to an issue."
+    return 1
+  fi
+  if [ "$checked" = 0 ]; then
+    warn "Vikix $(cat "$VIKIX_DIR/VERSION") is installed, but the check found a problem (above). vikix update --back puts the system back as it was; log: $VIKIX_UPDATE_LOG"
     return 1
   fi
   case $part in

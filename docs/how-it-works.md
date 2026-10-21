@@ -106,13 +106,15 @@ For the curious: `vikix mcp register` gives your agent the desktop as tools ([Wo
 5. **Brings `llm` to its pinned version**, if you have it (`vikix ai llm`).
 6. **Upgrades your own programs**: what you installed with `pipx` (`pipx upgrade-all`), with `uv tool install` (each one but Vikix's pinned `llm` and Piper), and with `cargo install` (when `cargo install-update` is there: `cargo install cargo-update`, once). Go can't upgrade everything it installed; run `go install NAME@latest` again for each.
 7. **Reloads StumpWM**, so new keys, the bar and the menu work at once; the screen says which version runs now (`Super+m` → *Reload config* says the same).
+8. **Checks the update** before calling it a success: asks the StumpWM image whether it starts (without a screen, as a rebuild asks a new one), that Vikix's links point into `~/vikix`, and what `vikix doctor` finds. An image that doesn't start or a link gone astray ends the update in failure, with `vikix update --back` as the way back; the doctor's findings are counted and listed, since they may be older than the update. `vikix update check` runs the same by itself.
 
 ### One part at a time
 
 `vikix update` does all of the above. When you only want one part:
 
 ```sh
-vikix update core     # Vikix only: steps 1, 3 (10-packages, 20-services, 40-config), 4 and 7. Seconds.
+vikix update core     # Vikix only: steps 1, 3 (10-packages, 20-services, 40-config), 4, 7 and 8. Seconds.
+vikix update check    # step 8 alone
 vikix update system   # Void's packages only: step 2
 vikix update tools    # 45-editors, 65-languages, 67-dev, then steps 5 and 6
 ```
@@ -125,7 +127,7 @@ A stage that fails doesn't stop the rest; they are named at the end. The whole r
 
 It asks for your sudo password once. It never asks for anything else, and it never changes your files: only Vikix's links, the files it writes for you, and the marked blocks in `~/.bashrc` and `~/.bash_profile`.
 
-The bar says `updates 12` (Void packages), `Vikix update`, or both, when there is something to bring. `vikix-updates` checks a minute after login and then every 6 hours.
+The bar says `updates 12` (Void packages), `Vikix update`, or both, when there is something to bring. `vikix-updates` checks a minute after login and then every 6 hours. On the `main` channel it also asks GitHub how its tests went on the commit this machine runs (every ten minutes while they run): the bar says `tests failed` when they failed, and a notification says it once, since a `main` machine took that commit before its tests. It clears when a commit that passed is installed, or with `vikix update --back`. On `good` nothing is asked: what runs has passed.
 
 ## Whose file is it
 

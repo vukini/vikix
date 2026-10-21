@@ -92,6 +92,7 @@ The everyday command.
 
 - `vikix update` — pull Vikix, update Void, add new packages and their services, refresh config links, pull the editor configs, run new migrations, reload StumpWM, and upgrade your pipx, uv and cargo programs
 - `vikix update core|system|tools` — one part: Vikix only (seconds), Void's packages only, or the editors, languages and tools
+- `vikix update check` — what a core update ends with, by itself: the StumpWM image starts, Vikix's links point into `~/vikix`, and what vikix doctor finds
 - `vikix try [DESK]` — the desktop runs a desk's work before it is released: `~/vikix` is put at the desk's last commit and the core update's steps run; DESK is a desk's folder, topic or branch, none the desk this shell is in (vikix try help)
 - `vikix try off|status` — back to main now; what the desktop runs
 - `vikix update --back` — the system as it was before the last update: Vikix's commit and links, the packages that changed, the StumpWM binary (vikix rollback: what is kept)
@@ -1422,11 +1423,11 @@ The limits are lib/times.limits; tests/times.sh fails above them.
 What `vikix update` would bring.
 
 - `vikix-updates` — check now, print the result, and save it
-- `vikix-updates --watch` — check a minute from now, then every 6 hours; vikix-session runs this for the whole session
+- `vikix-updates --watch` — check a minute from now, then every 6 hours (every 10 minutes while GitHub's tests run on the commit this machine runs); vikix-session runs this for the whole session
 
 What `vikix update` would bring: Void packages with a newer version, and new Vikix commits; and firmware updates waiting on LVFS (`vikix firmware update` installs those). The bar shows it (modeline.lisp).
 
-The result goes to `~/.local/state/vikix/updates` as "PACKAGES COMMITS FIRMWARE", with ? for a count that couldn't be checked (offline, say). Checking takes a few seconds of network, so it happens here, in the background, and the bar only reads the file.
+The result goes to `~/.local/state/vikix/updates` as "PACKAGES COMMITS FIRMWARE TESTS", with ? for a count that couldn't be checked (offline, say). TESTS is GitHub's verdict on the commit this machine runs: ok, failed, running, ? when it couldn't be asked, or - on the good channel, where what runs has passed by definition. A machine on main takes every commit before its tests, so the bar says "tests failed" when they do, within ten minutes, and a notification says it once per commit. Checking takes a few seconds of network, so it happens here, in the background, and the bar only reads the file.
 
 ## vikix-used
 

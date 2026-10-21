@@ -178,6 +178,9 @@ find ~ -name '*.vikix-bak.*' 2>/dev/null
 
 ## An update failed
 
+- **"the check found a problem"** at the end: the update itself went through, but the StumpWM image doesn't start, or a link of Vikix's points elsewhere; the lines above say which. `vikix update --back` puts the system back as it was; `vikix rebuild-wm` makes a new image, `vikix update core` the links again. `vikix update check` runs the check alone.
+- **The bar says `tests failed`:** this machine follows `main` (`~/.config/vikix/channel`), took a commit before GitHub's tests ran, and they failed on it. Nothing is broken for certain: wait for the fix (the next `vikix update` takes it), or `vikix update --back`. A machine on `good` never sees this.
+
 The end of the run names the stages that failed, and the whole run is in `~/.local/state/vikix/logs/update-<time>.log`. The other stages still ran. Most failures are the network; run `vikix update` again.
 
 **Changes made in the checkout** (`~/vikix`: an edit by hand, or by another program) would stop the pull, so the update sets them aside first, and says so, at the start and again at the end. Nothing is deleted. They're in a patch file you can read:

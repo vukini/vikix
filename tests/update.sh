@@ -15,6 +15,10 @@ here=$(cd "$(dirname "$0")/.." && pwd)
 t=$(mktemp -d)
 trap 'rm -rf "$t"' EXIT
 git_q() { git -c user.name=test -c user.email=test@example.org "$@"; }
+# The doctor the update's check runs, as a stand-in: what it says and
+# its status are this test's (VIKIX_DOCTOR_SAYS, VIKIX_DOCTOR_STATUS).
+printf '#!/bin/sh\n[ -n "${VIKIX_DOCTOR_SAYS:-}" ] && cat "$VIKIX_DOCTOR_SAYS"; exit "${VIKIX_DOCTOR_STATUS:-0}"\n' > "$t/doctor"
+chmod +x "$t/doctor"; export VIKIX_DOCTOR="$t/doctor"
 
 # upstream: this working tree (committed or not), then a "newer release"
 mkdir "$t/upstream"
@@ -267,4 +271,86 @@ git -C "$t/upstream" tag -d good >/dev/null
 [ "$fail" = 0 ] && echo "update: the channel: good takes the good tag and counts what main has past it, main the tip, no tag main with a warning"
 
 [ "$fail" = 0 ] && echo "update: core, system and tools each do only their part; plain update does all three; core --from pulls a local main, fast-forward only"
+
+# The check a core update ends with, and vikix update check by itself: the
+# StumpWM image is asked whether it starts, without a screen; the links
+# must point into the checkout; the doctor's findings are counted and said
+# but don't fail it. A stand-in image in a home of this test's.
+h="$t/home6"; st="$t/state6"
+mkdir -p "$h/.local/bin" "$h/.stumpwm.d" "$st"
+image() {  # image ok|dies [DIR] — the stand-in ~/.local/bin/stumpwm (a screen given is a fault)
+  mkdir -p "${2:-$h}/.local/bin"
+  case $1 in
+    ok)   printf '#!/bin/sh\n[ -n "${DISPLAY:-}" ] && { echo "a screen was given"; exit 3; }\n[ -n "${VIKIX_WM_CHECK:-}" ] && { echo "stumpwm image ok"; exit 0; }\nexit 2\n' ;;
+    dies) printf '#!/bin/sh\necho "fatal: no such package"; exit 1\n' ;;
+  esac > "${2:-$h}/.local/bin/stumpwm"
+  chmod +x "${2:-$h}/.local/bin/stumpwm"
+}
+links() {  # links HOME DIR — Vikix's three links, into DIR
+  mkdir -p "$1/.local/bin" "$1/.stumpwm.d"
+  ln -sfn "$2/config/stumpwm/init.lisp" "$1/.stumpwm.d/init.lisp"
+  ln -sfn "$2/bin/vikix" "$1/.local/bin/vikix"
+  ln -sfn "$2/config/x11/xinitrc" "$1/.xinitrc"
+}
+image ok; echo "built=2026-10-22T10:00:00+0400" > "$st/stumpwm-built"; links "$h" "$t/machine"
+chk() { HOME="$h" VIKIX_STATE="$st" DISPLAY=:7 bash "$t/machine/bin/vikix" update check 2>&1; }
+out=$(chk) && code=0 || code=$?
+[ "$code" = 0 ] && grep -q 'the StumpWM image starts' <<<"$out" && grep -q "links point into $t/machine" <<<"$out" && grep -q 'the doctor finds all good' <<<"$out" ||
+  { echo "FAIL: with everything in place the check should pass, saying each: $code: $out"; fail=1; }
+printf ':: found sbcl\n!! missing restic\n!! service foo not enabled\n!! see above\n' > "$t/doctor-says"
+out=$(VIKIX_DOCTOR_SAYS="$t/doctor-says" VIKIX_DOCTOR_STATUS=1 chk) && code=0 || code=$?
+[ "$code" = 0 ] || { echo "FAIL: the doctor's findings shouldn't fail the check: $code: $out"; fail=1; }
+grep -q 'the doctor finds 2 thing(s) to see to' <<<"$out" && grep -q '^     missing restic' <<<"$out" && grep -q '^     service foo not enabled' <<<"$out" ||
+  { echo "FAIL: the doctor's findings should be counted and listed: $out"; fail=1; }
+grep -q 'see above' <<<"$out" && { echo "FAIL: the doctor's closing line isn't a finding: $out"; fail=1; }
+image dies
+out=$(chk) && code=0 || code=$?
+[ "$code" != 0 ] && grep -q "the StumpWM image at $h/.local/bin/stumpwm doesn't start: vikix rebuild-wm" <<<"$out" ||
+  { echo "FAIL: an image that doesn't start should fail the check: $code: $out"; fail=1; }
+grep -q 'stumpwm.prev' <<<"$out" && { echo "FAIL: no stumpwm.prev, so none to name: $out"; fail=1; }
+cp "$h/.local/bin/stumpwm" "$h/.local/bin/stumpwm.prev"
+out=$(chk) || true
+grep -q 'kept as stumpwm.prev, and the session starts it' <<<"$out" || { echo "FAIL: with stumpwm.prev there, the check should say the session falls back to it: $out"; fail=1; }
+rm "$h/.local/bin/stumpwm.prev"; image ok
+mv "$st/stumpwm-built" "$st/stumpwm-built.away"
+out=$(chk) && code=0 || code=$?
+[ "$code" = 0 ] && grep -q 'from before Vikix could ask it' <<<"$out" ||
+  { echo "FAIL: an image from before the check should be left alone, said: $code: $out"; fail=1; }
+mv "$st/stumpwm-built.away" "$st/stumpwm-built"
+ln -sfn /etc/hostname "$h/.xinitrc"
+out=$(chk) && code=0 || code=$?
+[ "$code" != 0 ] && grep -q "$h/.xinitrc isn't Vikix's link into $t/machine" <<<"$out" ||
+  { echo "FAIL: a link pointing elsewhere should fail the check, named: $code: $out"; fail=1; }
+links "$h" "$t/machine"
+out=$(DRY_RUN=1 chk) || true
+grep -q 'would check: the StumpWM image starts' <<<"$out" || { echo "FAIL: a dry check should only say what it would check: $out"; fail=1; }
+out=$(part core)
+grep -q 'would check: the StumpWM image starts' <<<"$out" || { echo "FAIL: a core update should end with the check: $out"; fail=1; }
+out=$(part system)
+grep -q 'would check' <<<"$out" && { echo "FAIL: a system update has nothing to check: $out"; fail=1; }
+[ "$fail" = 0 ] && echo "update: the check asks the image whether it starts, wants the links into the checkout, counts the doctor's findings; a core update ends with it"
+
+# The whole way, for real: a core update after the pull, with the stages,
+# the migrations and the programs it runs swapped for stubs, ends in
+# failure with the way back when the image doesn't start, and says it is
+# up to date when it does.
+git clone -q "$t/upstream" "$t/m4"
+cp "$here/bin/vikix" "$t/m4/bin/vikix"
+for s in "$t"/m4/install/[0-9]*.sh; do printf '#!/bin/sh\necho "STUB %s"\n' "$(basename "$s" .sh)" > "$s"; done
+for s in "$t"/m4/migrations/*.sh; do printf '#!/bin/sh\necho "STUB migration"\n' > "$s"; done
+for p in vikix-plugin vikix-updates vikix-docs vikix-eval vikix-wallpapers vikix-esploro vikix-cuis; do
+  printf '#!/bin/sh\nexit 0\n' > "$t/m4/bin/$p"
+done
+h7="$t/home7"; mkdir -p "$h7/.config/vikix"; : > "$h7/.config/vikix/features"   # nothing chosen: no feature's setup runs
+image ok "$h7"; links "$h7" "$t/m4"; mkdir -p "$t/state7"; echo "built=2026-10-22T10:00:00+0400" > "$t/state7/stumpwm-built"
+core4() { HOME="$h7" VIKIX_STATE="$t/state7" VIKIX_SUDO_KEPT=1 DISPLAY=:7 bash "$t/m4/bin/vikix" update --pulled core 2>&1; }
+out=$(core4) && code=0 || code=$?
+[ "$code" = 0 ] && grep -q 'checking the update' <<<"$out" && grep -q 'the StumpWM image starts' <<<"$out" && grep -q 'is up to date' <<<"$out" ||
+  { echo "FAIL: a core update with a good image should check it and end up to date: $code: $out"; fail=1; }
+image dies "$h7"
+out=$(core4) && code=0 || code=$?
+[ "$code" != 0 ] && grep -q "doesn't start" <<<"$out" && grep -q 'but the check found a problem (above). vikix update --back' <<<"$out" ||
+  { echo "FAIL: a core update whose image doesn't start should end in failure with the way back: $code: $out"; fail=1; }
+grep -q 'is up to date' <<<"$out" && { echo "FAIL: an update that failed its check isn't up to date: $out"; fail=1; }
+[ "$fail" = 0 ] && echo "update: a core update ends up to date when its check passes, and in failure with vikix update --back when the image doesn't start"
 exit "$fail"

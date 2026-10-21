@@ -42,6 +42,15 @@ echo '# Log' > "$t/upstream/log.md"
 ( cd "$t/upstream" && git init -q -b main && git add -A && git commit -qm current )
 git clone -q "$t/upstream" "$t/machine"
 printf 'root=%s\n' "$t" > "$HOME/.config/vikix/projects"
+# What the core update's check wants in the home: an image that answers,
+# the links into the machine's checkout, and a doctor (a stand-in).
+mkdir -p "$HOME/.local/bin" "$HOME/.stumpwm.d" "$t/state"
+printf '#!/bin/sh\n[ -n "${VIKIX_WM_CHECK:-}" ] && echo "stumpwm image ok"\n' > "$HOME/.local/bin/stumpwm"; chmod +x "$HOME/.local/bin/stumpwm"
+echo "built=2026-10-22T10:00:00+0400" > "$t/state/stumpwm-built"
+ln -s "$t/machine/config/stumpwm/init.lisp" "$HOME/.stumpwm.d/init.lisp"
+ln -s "$t/machine/bin/vikix" "$HOME/.local/bin/vikix"
+ln -s "$t/machine/config/x11/xinitrc" "$HOME/.xinitrc"
+printf '#!/bin/sh\nexit 0\n' > "$t/doctor"; chmod +x "$t/doctor"; export VIKIX_DOCTOR="$t/doctor"
 git -C "$t/upstream" worktree add -q "$t/upstream-feature" -b feature
 echo "from the desk" >> "$t/upstream-feature/README.md"
 git -C "$t/upstream-feature" commit -qam "feature: README"
@@ -63,6 +72,7 @@ check "a desk by its folder: the checkout takes its commit, detached: $code $(he
 check "and says so: $(grep 'the desktop takes' <<<"$out")" grep -q "the desktop takes $t/upstream-feature: feature at ${desk_commit:0:7}, not main" <<<"$out"
 check "the core update's steps ran, from the desk's copy of the script" \
   bash -c "grep -q 'STUB 10-packages' <<<\"\$1\" && grep -q 'STUB 40-config' <<<\"\$1\" && grep -q 'STUB migration' <<<\"\$1\"" _ "$out"
+check "and the update's check ran at the end: $(grep -c 'the StumpWM image starts' <<<"$out")" grep -q 'the StumpWM image starts' <<<"$out"
 check "the desk's change is on the machine" grep -q 'from the desk' "$t/machine/README.md"
 check "the try is noted: $(head -1 "$t/state/try" 2>/dev/null)" \
   bash -c "[ \"\$(sed -n 1p '$t/state/try')\" = '$t/upstream-feature' ] && [ \"\$(sed -n 3p '$t/state/try')\" = feature ]"

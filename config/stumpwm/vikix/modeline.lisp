@@ -14,7 +14,8 @@
 ;;;;   %G   mem 91%: memory is low, or nearly full (bin/vikix-memory watches); left 5:
 ;;;;        programs nobody uses have piled up (vikix memory clean)
 ;;;;   %Q   quiet: notifications paused (do not disturb), and how many wait
-;;;;   %U   updates waiting (bin/vikix-updates checks every 6 hours)
+;;;;   %U   updates waiting (bin/vikix-updates checks every 6 hours); tests failed: GitHub's
+;;;;        tests failed on the commit this machine runs (the main channel takes them untested)
 ;;;;   %A   backup 9d: the last backup is older than the reminder's days
 ;;;;   %D   usb: a drive is mounted; eject it (Super+Ctrl+e) before pulling it out
 ;;;;   %Z   Dropbox: files left to sync, paused, off, or a problem (bin/vikix-dropbox)
