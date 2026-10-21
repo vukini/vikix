@@ -2,6 +2,10 @@
 
 What's left to add or clean up, most valuable first within each section. An item that ships moves to `ARCHIVE.md`, with what it became and the version that brought it; one half done leaves there only what is left. The first list was drawn up on 2026-09-26, from a review of 0.15.0. The editors (Neovim into Vikix, AI in Neovim and Emacs) have their own list: `plans/TODO-editors.md`.
 
+## Vikix Remote — Zog + X1 across networks (2026-10-21)
+
+- [ ] **Build integrated remote-node access** (`plans/DESIGN-remote.md`): connect from ROG Z13 (zog) to Lenovo X1 (x1), using existing `vikix node` framework and Network Office. Cover SSH across LAN and different networks (overlay VPN), control of the existing StumpWM desktop, lid-closed/headless operation, and an experimental *true* extended display with x1 as the sink. Implement sequentially per R0–R5 acceptance checks; do not treat desktop mirroring as extension. Secure defaults, no exposed VNC/public SSH ports, and real hardware testing required.
+
 ## What's next, in order (drawn up with Vid 2026-10-03)
 
 From a review of 0.71.71 against one aim: the best desktop for a power user. Vikix has no users but Vid yet, so what only matters once others arrive (a promise about what won't change, opening the plugin repo, signed updates, items 19 and 20) waits for the first of them. Until then, in this order:
