@@ -42,7 +42,8 @@ fake_xbps() {   # fake_xbps LINES|fail
   chmod +x "$t/bin/xbps-install"
 }
 # VIKIX_FWUPDMGR: the stand-in outright, never a real fwupdmgr on PATH.
-counts() { PATH="$t/bin:$PATH" XDG_STATE_HOME="$t/state" VIKIX_FWUPDMGR="$t/bin/fwupdmgr" \
+# XDG_CONFIG_HOME: the channel file of this test's, never the real ~/.config.
+counts() { PATH="$t/bin:$PATH" XDG_STATE_HOME="$t/state" XDG_CONFIG_HOME="$t/config" VIKIX_FWUPDMGR="$t/bin/fwupdmgr" \
              sh "$t/vikix/bin/vikix-updates" >/dev/null; cat "$t/state/vikix/updates"; }
 
 fake_xbps 3
@@ -80,11 +81,26 @@ exec "$real" "\${opts[@]}" "\$@"
 SPY
   chmod +x "$1/git"
 }
+# The channel: good (the default) counts to the good tag, main to the tip; a
+# tag that moved is followed (a plain fetch wouldn't move it).
+git -C "$t/vikix" remote set-url origin "$t/upstream"
+fake_xbps 0
+git -C "$t/upstream" tag -f good HEAD~1 >/dev/null
+[ "$(counts)" = "0 1 0" ] || { echo "FAIL: on the good channel the count should stop at the good tag (1): $(counts)"; fail=1; }
+git -C "$t/upstream" tag -f good HEAD >/dev/null
+[ "$(counts)" = "0 2 0" ] || { echo "FAIL: a moved good tag wasn't followed: $(counts)"; fail=1; }
+mkdir -p "$t/config/vikix"; echo main > "$t/config/vikix/channel"
+git -C "$t/upstream" tag -f good HEAD~1 >/dev/null
+[ "$(counts)" = "0 2 0" ] || { echo "FAIL: on the main channel the count should reach the tip (2): $(counts)"; fail=1; }
+rm "$t/config/vikix/channel"
+git -C "$t/upstream" tag -d good >/dev/null
+[ "$(counts)" = "0 2 0" ] || { echo "FAIL: with no good tag the count should reach the tip (2): $(counts)"; fail=1; }
+
 spy_git "$t/spy" "$t/fetched-from"
 git -C "$t/vikix" remote set-url origin git@github.com:vukini/vikix.git
 PATH="$t/spy:$t/bin:$PATH" XDG_STATE_HOME="$t/state" sh "$t/vikix/bin/vikix-updates" >/dev/null
-[ "$(cat "$t/fetched-from")" = https://github.com/vukini/vikix.git ] ||
+[ "$(sort -u "$t/fetched-from")" = https://github.com/vukini/vikix.git ] ||
   { echo "FAIL: with an SSH remote, vikix-updates fetches from: $(cat "$t/fetched-from")"; fail=1; }
 
-[ "$fail" = 0 ] && echo "updates: packages and Vikix commits counted; ? when a check fails; SSH remotes read over HTTPS"
+[ "$fail" = 0 ] && echo "updates: packages and Vikix commits counted, to the good tag or main's tip by the channel; ? when a check fails; SSH remotes read over HTTPS"
 exit "$fail"

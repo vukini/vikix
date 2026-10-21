@@ -93,7 +93,7 @@ For the curious: `vikix mcp register` gives your agent the desktop as tools ([Wo
 
 ## What `vikix update` does
 
-1. **Pulls Vikix** into `~/vikix` (`git pull --ff-only`), then starts again from the new version of itself.
+1. **Pulls Vikix** into `~/vikix`, then starts again from the new version of itself. Which commits it takes is the *channel*, one word in `~/.config/vikix/channel`: `good` (the default) is the tag GitHub's tests move to the last commit of main they passed on, so a machine never takes an untested commit and lags main by one test run (about ten minutes); `main` takes every commit as it lands, for the machine Vikix is developed on. On `good` the update says how many commits of main are still waiting for their tests. The bar's update count (`vikix-updates`) counts to the same place.
 2. **Updates Void**: `xbps-install -Su`, xbps itself first.
 3. **Runs six install stages again**, each safe to repeat:
    - `10-packages`: installs anything new in the base's lists and your features' lists, leaving out your skip list

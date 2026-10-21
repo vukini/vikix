@@ -29,10 +29,24 @@ check() {
   # GitHub over HTTPS even when the checkout's remote is SSH, as
   # `vikix update` pulls (git_pull in lib/common.sh): this runs with no
   # terminal, so an SSH remote with a passphrase would always give ?.
-  if GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND='ssh -o BatchMode=yes' \
-       git -C "$vikix_dir" -c 'url.https://github.com/.insteadOf=git@github.com:' \
-         -c 'url.https://github.com/.insteadOf=ssh://git@github.com/' fetch -q 2>/dev/null; then
-    commits=$(git -C "$vikix_dir" rev-list --count 'HEAD..@{upstream}' 2>/dev/null || echo '?')
+  # The commits are counted to what vikix update would take: the good tag on
+  # the good channel (~/.config/vikix/channel, the default; vikix_channel in
+  # lib/common.sh), main's tip on main. A moved tag needs its own fetch: a
+  # plain fetch refuses to move a tag it has.
+  channel=$(sed -n '1{s/#.*//;s/[[:space:]]//g;p;}' "${XDG_CONFIG_HOME:-$HOME/.config}/vikix/channel" 2>/dev/null)
+  [ "$channel" = main ] || channel=good
+  gitq() {
+    GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND='ssh -o BatchMode=yes' \
+      git -C "$vikix_dir" -c 'url.https://github.com/.insteadOf=git@github.com:' \
+        -c 'url.https://github.com/.insteadOf=ssh://git@github.com/' "$@" 2>/dev/null
+  }
+  if gitq fetch -q; then
+    if [ "$channel" = good ] && gitq fetch -q origin '+refs/tags/good:refs/tags/good' &&
+       git -C "$vikix_dir" rev-parse -q --verify refs/tags/good >/dev/null 2>&1; then
+      commits=$(git -C "$vikix_dir" rev-list --count 'HEAD..good' 2>/dev/null || echo '?')
+    else
+      commits=$(git -C "$vikix_dir" rev-list --count 'HEAD..@{upstream}' 2>/dev/null || echo '?')
+    fi
   else
     commits='?'
   fi

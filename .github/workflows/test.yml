@@ -182,3 +182,21 @@ jobs:
           chown -R tester: "$GITHUB_WORKSPACE"
       - name: editors
         run: su tester -c "cd '$GITHUB_WORKSPACE' && GITHUB_ACTIONS=true tests/ci.sh editors"
+
+  # The good tag: the last commit of main whose three jobs all passed here.
+  # A machine on the good channel (~/.config/vikix/channel, the default)
+  # updates to it and never to an untested commit; one on main takes every
+  # commit as it lands (plans/DESIGN-dependable.md item 1). The tag is
+  # pushed with the workflow's own token, which starts no second run.
+  good:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [lint, void, editors]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - name: move the good tag to this commit
+        run: |
+          git tag -f good "$GITHUB_SHA"
+          git push -f origin refs/tags/good

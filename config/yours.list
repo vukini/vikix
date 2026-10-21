@@ -14,6 +14,7 @@ learn                       # your work in vikix learn's courses (~/learn/c ...)
 .config/rofi
 .config/vikix/keyboard
 .config/vikix/gestures
+.config/vikix/channel        # which commits vikix update takes: good (tested on GitHub) or main
 .config/vikix/wallpaper      # the wallpaper you chose (a link to it)
 .config/gammastep            # night light times and colours
 .config/mimeapps.list

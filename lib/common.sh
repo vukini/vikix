@@ -248,3 +248,32 @@ git_pull() {
   run git -C "$1" "${GIT_HTTPS_GITHUB[@]}" pull --ff-only 2>/dev/null ||
     run env GIT_SSH_COMMAND='ssh -o BatchMode=yes' git -C "$1" pull --ff-only
 }
+# The channel vikix update follows (~/.config/vikix/channel, one word):
+# `good`, the default: the tag CI moves to the last commit of main whose
+# tests passed on GitHub, so a machine never takes an untested commit;
+# `main`: every commit as it lands, for the machine Vikix is developed on
+# (gup pushes and updates in one go there). plans/DESIGN-dependable.md 1.
+vikix_channel() {
+  local f="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/channel" c
+  c=$(sed -n '1{s/#.*//;s/[[:space:]]//g;p;}' "$f" 2>/dev/null || true)
+  case $c in
+    main|good) echo "$c" ;;
+    '')        echo good ;;
+    *)         warn "$f says '$c': the channel is good or main; taking good" >&2; echo good ;;
+  esac
+}
+# git_fetch_good DIR: the branches and the good tag from GitHub, over HTTPS as
+# git_pull. Prints has-good or no-good; fails when GitHub can't be reached.
+git_fetch_good() {
+  local dir=$1 rc=0
+  run git -C "$dir" "${GIT_HTTPS_GITHUB[@]}" fetch -q origin 2>/dev/null ||
+    run env GIT_SSH_COMMAND='ssh -o BatchMode=yes' git -C "$dir" fetch -q origin || return 1
+  git -C "$dir" "${GIT_HTTPS_GITHUB[@]}" ls-remote --exit-code -q --tags origin good >/dev/null 2>&1 || rc=$?
+  case $rc in
+    0) run git -C "$dir" "${GIT_HTTPS_GITHUB[@]}" fetch -q origin '+refs/tags/good:refs/tags/good' 2>/dev/null ||
+         run env GIT_SSH_COMMAND='ssh -o BatchMode=yes' git -C "$dir" fetch -q origin '+refs/tags/good:refs/tags/good' || return 1
+       echo has-good ;;
+    2) echo no-good ;;        # the tag isn't there (CI hasn't passed on main since it was added)
+    *) return 1 ;;
+  esac
+}

@@ -233,5 +233,38 @@ out=$(HOME="$t/home" VIKIX_STATE="$t/state4" bash "$t/m2/bin/vikix" update --fro
   { echo "FAIL: --from without core should be refused"; fail=1; }
 grep -q 'goes with core' <<<"$out" || { echo "FAIL: --from without core should say so: $out"; fail=1; }
 
+# The channel (~/.config/vikix/channel): good, the default, fast-forwards to the
+# good tag and says how far main is past it; main takes the tip; a remote with
+# no good tag yet gives main, with a warning; a wrong word is good, said.
+git clone -q "$t/upstream" "$t/m3"
+tip=$(git -C "$t/upstream" rev-parse HEAD)
+behind() { git -C "$t/m3" reset -q --hard HEAD~3; }
+upd3() { HOME="$t/home5" VIKIX_STATE="$t/state5" VIKIX_SUDO_KEPT=1 bash "$t/m3/bin/vikix" update 2>&1; }
+mkdir -p "$t/home5/.config/vikix"
+behind; out=$(upd3) || true
+grep -q 'no good tag yet' <<<"$out" || { echo "FAIL: with no good tag on the remote, the update should say so: $out"; fail=1; }
+[ "$(git -C "$t/m3" rev-parse HEAD)" = "$tip" ] || { echo "FAIL: with no good tag the update should take main"; fail=1; }
+git -C "$t/upstream" tag -f good HEAD~1 >/dev/null
+behind; out=$(upd3) || true
+grep -q 'channel good' <<<"$out" || { echo "FAIL: the update should name the good channel: $out"; fail=1; }
+[ "$(git -C "$t/m3" rev-parse HEAD)" = "$(git -C "$t/upstream" rev-parse good)" ] || { echo "FAIL: the good channel should stop at the good tag, HEAD is $(git -C "$t/m3" rev-parse --short HEAD)"; fail=1; }
+grep -q 'main is 1 commit(s) past good' <<<"$out" || { echo "FAIL: the update should count main's untested commits: $out"; fail=1; }
+grep -q 'NEW VERSION STEPS' <<<"$out" || { echo "FAIL: the good channel didn't restart into the pulled version: $out"; fail=1; }
+git -C "$t/upstream" tag -f good HEAD >/dev/null     # the tag moved: the next update takes it along
+out=$(upd3) || true
+[ "$(git -C "$t/m3" rev-parse HEAD)" = "$tip" ] || { echo "FAIL: a moved good tag wasn't followed"; fail=1; }
+grep -q 'past good' <<<"$out" && { echo "FAIL: at good, nothing is past it: $out"; fail=1; }
+echo main > "$t/home5/.config/vikix/channel"
+behind; out=$(upd3) || true
+grep -q 'channel main' <<<"$out" || { echo "FAIL: the update should name the main channel: $out"; fail=1; }
+[ "$(git -C "$t/m3" rev-parse HEAD)" = "$tip" ] || { echo "FAIL: the main channel should take the tip"; fail=1; }
+echo "nightly  # a word it doesn't know" > "$t/home5/.config/vikix/channel"
+git -C "$t/upstream" tag -f good HEAD~1 >/dev/null
+behind; out=$(upd3) || true
+grep -q "the channel is good or main; taking good" <<<"$out" || { echo "FAIL: a wrong channel word should be said and read as good: $out"; fail=1; }
+[ "$(git -C "$t/m3" rev-parse HEAD)" = "$(git -C "$t/upstream" rev-parse good)" ] || { echo "FAIL: a wrong channel word should give good"; fail=1; }
+git -C "$t/upstream" tag -d good >/dev/null
+[ "$fail" = 0 ] && echo "update: the channel: good takes the good tag and counts what main has past it, main the tip, no tag main with a warning"
+
 [ "$fail" = 0 ] && echo "update: core, system and tools each do only their part; plain update does all three; core --from pulls a local main, fast-forward only"
 exit "$fail"

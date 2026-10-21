@@ -342,6 +342,31 @@ pull_failed() {
   exit 1
 }
 
+# pull_channel DIR: the Vikix checkout brought to its channel (vikix_channel in
+# lib/common.sh): main as a plain pull; good as a fast-forward to the good tag,
+# with main's untested commits counted so the wait is seen, not wondered about.
+pull_channel() {
+  local dir=$1 channel tag ahead
+  channel=$(vikix_channel)
+  if [ "$channel" = main ]; then
+    say "pulling Vikix (channel main: every commit as it lands)"
+    git_pull "$dir" || pull_failed "$dir"
+    return 0
+  fi
+  say "pulling Vikix (channel good: the last commit whose tests passed on GitHub)"
+  tag=$(git_fetch_good "$dir") || pull_failed "$dir"
+  if [ "$tag" = no-good ]; then
+    warn "GitHub has no good tag yet (its tests haven't passed on main since the tag was added): taking main this once"
+    git_pull "$dir" || pull_failed "$dir"
+    return 0
+  fi
+  run git -C "$dir" merge -q --ff-only good || pull_failed "$dir"
+  ahead=$(git -C "$dir" rev-list --count 'good..@{u}' 2>/dev/null || echo 0)
+  if [ "${ahead:-0}" -gt 0 ]; then
+    say "main is $ahead commit(s) past good: GitHub's tests haven't passed on them yet (or failed); they come when they do. To take every commit as it lands: echo main > ~/.config/vikix/channel"
+  fi
+}
+
 # Programs you installed yourself with pipx, uv or cargo, brought up to date.
 # uv's llm and Piper are left alone: they're Vikix's, pinned, and brought
 # to their pins by vikix ai llm and vikix voice. Go has no way to upgrade
@@ -379,6 +404,10 @@ vikix update core --from DIR
                       the same, pulling from the Vikix repository in DIR (its
                         main) instead of GitHub: for trying your own commits
                         before you push them; only ever a fast-forward
+                      Which commits: ~/.config/vikix/channel says good (the
+                        default: the last commit of main whose tests passed on
+                        GitHub, the tag CI moves) or main (every commit as it
+                        lands, for the machine you develop Vikix on)
 vikix update system   Void's packages only (xbps-install -Su)
 vikix update tools    the editors' plugins and servers, the languages built
                         from source, ~/dev, llm, and your own pipx, uv and
@@ -564,8 +593,7 @@ cmd_update() {
         run git -C "$VIKIX_DIR" pull --ff-only -q "$from" main ||
           die "$VIKIX_DIR can't fast-forward to $from's main (was main rewritten?); a plain vikix update core pulls from GitHub"
       else
-        say "pulling Vikix"
-        git_pull "$VIKIX_DIR" || pull_failed "$VIKIX_DIR"
+        pull_channel "$VIKIX_DIR"
       fi
       # The pull may have replaced this very script, but bash goes on running
       # the copy it already opened: the steps below would be the OLD version's,
