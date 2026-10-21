@@ -72,13 +72,13 @@ plug /run/media/me/BACKUPS
 check "the last backup 9 days old, due after 7: it should start" grep -qx 'backup now --notify' "$log"
 echo "$(( $(date +%s) - 2 * 86400 )) 7" > "$last"
 plug /run/media/me/BACKUPS
-check "a backup 2 days old isn't due: nothing should start" test -z "$(grep backup "$log" || true)"
+check "a backup 2 days old isn't due: nothing should start" test -z "$(grep "^backup " "$log" || true)"
 rm -f "$last"
 plug "/run/media/me/VIKIX TEST"
-check "another drive shouldn't start the backup" test -z "$(grep backup "$log" || true)"
+check "another drive shouldn't start the backup" test -z "$(grep "^backup " "$log" || true)"
 rm -f "$settings"
 plug /run/media/me/BACKUPS
-check "with no backup set up, nothing should start" test -z "$(grep backup "$log" || true)"
+check "with no backup set up, nothing should start" test -z "$(grep "^backup " "$log" || true)"
 check "a mount should ask the bar to look now" grep -q 'eval .*(vikix-usb-refresh)' "$log"
 
 # --- udiskie's settings ---------------------------------------------------------

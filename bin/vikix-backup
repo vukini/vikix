@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # vikix-backup — your home folder, backed up with restic (`vikix backup`).
 #
-#   vikix backup setup [PLACE] once: where backups go. With no PLACE, the
+#   vikix backup setup [PLACE]  once: where backups go. With no PLACE, the
 #                                USB drive plugged in (it asks when there are
 #                                several); or a drive's folder
 #                                (/run/media/you/DRIVE), or any restic place

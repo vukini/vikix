@@ -10,6 +10,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-ai](#vikix-ai): AI services on Vikix: keys, and local models
 - [vikix-ask](#vikix-ask): AI on the text you selected, anywhere on the desktop (Super+i)
 - [vikix-back](#vikix-back): where you were, when you come back to the laptop
+- [vikix-backup](#vikix-backup): your home folder, backed up with restic
 - [vikix-battery](#vikix-battery): warn on low battery and suspend before it runs out
 - [vikix-bitwarden](#vikix-bitwarden): your Bitwarden vault on the desktop
 - [vikix-bt](#vikix-bt): Bluetooth as one short line, for the mode line
@@ -355,6 +356,22 @@ Where you were, when you come back to the laptop.
 Everything is read from what is kept anyway: the desktop's screen log (vikix day: the workspace, project, program and folder that had the screen, and when nobody was at the keyboard), the project's log and its git history (vikix project), Emacs (asked over its socket, for two seconds at most), your shell history (atuin's, for the project's folder, when you use atuin; else the end of `~/.bash_history`) and the inbox's file (the inbox plugin). Nothing is written.
 
 The card comes when the desktop sees you back (day.lisp, every 30 seconds), so not when the screen log is off ((setf `*vikix-day-on*` nil)). Another wait: (setf `*vikix-back-after*` 1800) in `~/.stumpwm.d/user.lisp`, in seconds; nil, never.
+
+## vikix-backup
+
+Your home folder, backed up with restic.
+
+- `vikix backup setup [PLACE]` — once: where backups go. With no PLACE, the USB drive plugged in (it asks when there are several); or a drive's folder (/run/media/you/DRIVE), or any restic place (sftp:host:/path, b2:bucket:path, ...)
+- `vikix backup card [--print] [--kept] [FILE]` — the password as a card to print and put in a drawer (a one-page PDF when typst is here, else text); --kept says it is put away
+- `vikix backup [now]` — back up now: all of ~, minus what `~/.config/vikix/backup-exclude` leaves out
+- `vikix backup status` — where, when the last one was, what is left out
+- `vikix backup list` — the backups, newest last
+- `vikix backup restore PATH [ID]` — bring back PATH (a file or folder) from the latest backup, or backup ID, into `~/Restored/<time>/`; nothing is overwritten
+- `vikix backup check` — make sure the backups can be read back
+- `vikix backup doctor` — the lines vikix doctor shows: where, when, the drive, the last check, the card (vikix versions PATH lists a file's versions from the backups and the snapshots together, and vikix restore PATH ID brings one back beside it: vikix versions --help)
+- `vikix backup off` — stop the reminder; the backups stay where they are
+
+Every backup is encrypted with the password in `~/.config/vikix/backup-password`, made at setup and readable only by you. Keep a copy somewhere else: without it, a lost laptop means backups nobody can read. Old backups thin out after each run: one a day for a week, one a week for a month, one a month for a year. The bar says "backup 9d" once the last backup is older than DAYS (7) in `~/.config/vikix/backup`; nothing runs by itself. A click on that note is a menu: back up now, status, the card, check; or set up.
 
 ## vikix-battery
 
