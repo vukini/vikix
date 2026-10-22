@@ -20,6 +20,7 @@ Every `vikix` command: its forms, what each does, and the files it keeps. This p
 - [vikix-dictate](#vikix-dictate): speak, and it types what you said
 - [vikix-docs](#vikix-docs): every document on the machine in one catalogue, found from one key
 - [vikix-docs-open](#vikix-docs-open): open guides, tutorials and offline docs in the docs browser
+- [vikix-doctor](#vikix-doctor): check the pieces are all there, and mend the plain faults
 - [vikix-door](#vikix-door): the Lisp agents sent that the door held, and what passes
 - [vikix-drives](#vikix-drives): USB drives: mounted when plugged in, ejected from a menu
 - [vikix-dropbox](#vikix-dropbox): Dropbox as one short line, for the mode line
@@ -101,7 +102,7 @@ The everyday command.
 - `vikix rebuild-wm` — rebuild the StumpWM executable at the Quicklisp dist Vikix pins; the one before stays as stumpwm.prev, and a new image that won't start is thrown away
 - `vikix docs find WORDS` — every document on the machine, searched: Vikix's guides, your projects and notes, man pages, manuals (Super+F2; vikix docs help for the rest)
 - `vikix docs get` — download the offline programming docs into `~/dev` (a few GB, slow; update and the installer skip them)
-- `vikix doctor` — check the pieces are all there
+- `vikix doctor [--fix]` — check the pieces are all there; --fix mends the plain faults (vikix doctor help)
 - `vikix screens [extend|mirror|external|laptop|pick]` — the screens: a plugged one lights up by itself; this lays them out otherwise (Super+Ctrl+p)
 - `vikix wifi [list|scan]` — Wi-Fi: pick a network from a list scanned first
 - `vikix network [status]` — Network Office: nearby devices, ports and connections
@@ -514,6 +515,17 @@ The docs browser is Nyxt when it's installed (the feature lisp-apps): a browser 
 `~/.config/vikix/docs-browser`, if you make it, names another program to use instead: one word on a line, such as firefox, chromium or xdg-open.
 
 A running Nyxt takes the pages as new buffers in its window (Nyxt hands them over through its socket), and StumpWM then brings that window forward, from whichever workspace it's on.
+
+## vikix-doctor
+
+Check the pieces are all there, and mend the plain faults.
+
+- `vikix doctor` — check the pieces are all there: the programs, the services, Vikix's links, the StumpWM image, Swank's password, your keys' folder, the manual and man pages, the plugins at their pin, the records an update kept, and the running desktop (vikix eval, the keys, the rules, the watcher). A fault with one safe answer ends with what --fix would do
+- `vikix doctor --fix [--yes]` — the same, mending each such fault as it is found: asked first, one by one (--yes answers yes to all); `DRY_RUN=1` prints what it would do instead of doing it
+
+What --fix mends is what has one safe answer and is Vikix's own: a link Vikix made that is broken, gone or points elsewhere (made again, what was there moved to NAME.vikix-bak.TIME), a runit service of services.list not enabled (sudo), `~/.slime-secret` or `~/.config/vikix/secrets` with the wrong mode (chmod, nothing read), the Info manual or the man pages older than the guides or the commands (install/40-config.sh run again, which makes them), and the plugins behind the pin (vikix plugin sync). Each check says so itself as it fails, so the plain run's last lines list exactly what --fix would do on this machine. Nothing of yours is touched beyond its mode: a missing program is vikix update's, a key in the wrong place is yours to move (vikix ai key), and a fault it only names is left to you.
+
+It exits 1 when anything is wrong, fixed or not: run it again after --fix to see it clean. vikix update ends with it (vikix update check), and the MCP tool doctor is it too.
 
 ## vikix-door
 

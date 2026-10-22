@@ -6,7 +6,9 @@ Start with:
 vikix doctor
 ```
 
-It checks the programs, services, links, the snapshot history, Swank's password and `vikix eval`, the agent's guide, USB drives, and the editors you chose (whether Emacs has Vikix's AI setup loaded, whether Neovim's plugins are installed and whose versions they are), and says what's missing.
+It checks the programs, services, links, the snapshot history, Swank's password and `vikix eval`, the agent's guide, USB drives, the manual and man pages, the plugins at their pin, what the last update kept to go back to, and the editors you chose (whether Emacs has Vikix's AI setup loaded, whether Neovim's plugins are installed and whose versions they are), and says what's missing.
+
+A fault with one safe answer ends with what `vikix doctor --fix` would do about it, and the last lines list them all. `--fix` mends them one by one, asking first (`--yes` answers yes to all); `DRY_RUN=1 vikix doctor --fix` prints instead. What it mends is Vikix's own: a link Vikix made that is broken, gone or points elsewhere (made again, what was there moved to `NAME.vikix-bak.TIME`), a service of `services.list` not enabled (sudo), `~/.slime-secret` or `~/.config/vikix/secrets` with the wrong mode (chmod, nothing read), the manual and man pages from another Vikix (40-config run again), the plugins behind the pin (`vikix plugin sync`). A missing program is `vikix update`'s, a key in the wrong place is yours to move (`vikix ai key`), and anything else it names is left to you. It exits 1 whenever it found a fault, fixed or not: run it again after `--fix`.
 
 ## The install stopped
 

@@ -78,7 +78,7 @@ edit "the screens arm, through the test naming vikix-screens" "capture lint vk" 
 edit "cmd_update" "lint try update" 's/^cmd_update() {$/cmd_update() {\n  :/'
 edit "try_back" "lint try update" 's/^try_back() {$/try_back() {\n  :/'
 edit "vikix_expand, the short forms" "lint vk" 's/^vikix_expand() {.*$/&\n  :/'
-edit "cmd_doctor, a function with no test of its own" all 's/^cmd_doctor() {$/cmd_doctor() {\n  :/'
+edit "yours_init, a function with no test of its own" all 's/^yours_init() {$/yours_init() {\n  :/'
 edit "the version arm, which vk runs by hand" "lint vk" 's#^    version|-v|--version) cat#    version|-v|--version)  cat#'
 edit "the help arm, the same" "lint vk" 's#^    help|-h|--help) sed#    help|-h|--help)  sed#'
 edit "the layout arm, run by layouts" "layouts lint vk" 's|^    layout)      shift; cmd_layout|    layout)      shift;  cmd_layout|'

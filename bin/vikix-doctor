@@ -1,0 +1,407 @@
+#!/usr/bin/env bash
+# vikix-doctor — check the pieces are all there, and mend the plain faults (`vikix doctor`).
+#
+#   vikix doctor               check the pieces are all there: the programs,
+#                                the services, Vikix's links, the StumpWM
+#                                image, Swank's password, your keys' folder,
+#                                the manual and man pages, the plugins at
+#                                their pin, the records an update kept, and
+#                                the running desktop (vikix eval, the keys,
+#                                the rules, the watcher). A fault with one
+#                                safe answer ends with what --fix would do
+#   vikix doctor --fix [--yes]  the same, mending each such fault as it is
+#                                found: asked first, one by one (--yes
+#                                answers yes to all); DRY_RUN=1 prints what
+#                                it would do instead of doing it
+#
+# What --fix mends is what has one safe answer and is Vikix's own: a link
+# Vikix made that is broken, gone or points elsewhere (made again, what was
+# there moved to NAME.vikix-bak.TIME), a runit service of services.list not
+# enabled (sudo), ~/.slime-secret or ~/.config/vikix/secrets with the wrong
+# mode (chmod, nothing read), the Info manual or the man pages older than
+# the guides or the commands (install/40-config.sh run again, which makes
+# them), and the plugins behind the pin (vikix plugin sync). Each check says
+# so itself as it fails, so the plain run's last lines list exactly what
+# --fix would do on this machine. Nothing of yours is touched beyond its
+# mode: a missing program is vikix update's, a key in the wrong place is
+# yours to move (vikix ai key), and a fault it only names is left to you.
+#
+# It exits 1 when anything is wrong, fixed or not: run it again after --fix
+# to see it clean. vikix update ends with it (vikix update check), and the
+# MCP tool doctor is it too.
+
+set -euo pipefail
+VIKIX_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+# shellcheck source=../lib/common.sh
+. "$VIKIX_DIR/lib/common.sh"
+# shellcheck source=../lib/features.sh
+. "$VIKIX_DIR/lib/features.sh"
+
+YOURS_GIT="$VIKIX_STATE/yours.git"
+FIX=0 YES=0
+fixes=()   # what --fix would do, or did: one line each
+fixed=0
+
+# fixable WHAT CMD... — the fault just warned of has one safe answer: WHAT,
+# done by CMD (which goes through run, so DRY_RUN=1 prints it). A plain run
+# says it and lists it at the end; --fix asks, unless --yes, and does it.
+fixable() {
+  local what=$1 a; shift
+  fixes+=("$what")
+  if [ "$FIX" != 1 ]; then echo "   vikix doctor --fix would: $what"; return 0; fi
+  if [ "$YES" != 1 ] && [ "$DRY_RUN" != 1 ]; then
+    read -rp "   $what? [y/N] " a </dev/tty 2>/dev/null || a=n
+    case $a in y|Y|yes) ;; *) echo "   left as it is"; return 0 ;; esac
+  fi
+  say "fixing: $what"
+  if "$@"; then fixed=$((fixed + 1)); else warn "that didn't work: $what (above says why)"; fi
+}
+
+# A Vikix checkout: where a link of Vikix's may point. Another checkout
+# than this one (a desk's doctor looking at a desktop on ~/vikix) is said,
+# never counted or relinked: vikix update core from the right one does that.
+vikix_checkout_of() {   # vikix_checkout_of PATH — the checkout PATH is in, or nothing
+  local p; p=$(readlink -f -- "$1" 2>/dev/null) || return 0
+  while [ "$p" != / ] && [ -n "$p" ]; do
+    if [ -f "$p/VERSION" ] && [ -x "$p/bin/vikix" ] && [ -d "$p/config/stumpwm" ]; then echo "$p"; return 0; fi
+    p=$(dirname "$p")
+  done
+}
+
+fix_secret_modes() {
+  local s="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/secrets" f
+  run chmod 700 "$s" || return 1
+  for f in "$s"/* "$s"/.[!.]*; do
+    [ -f "$f" ] && [ ! -L "$f" ] || continue
+    run chmod 600 "$f" || return 1
+  done
+}
+
+doctor() {
+  local ok=1 c sv
+  # pam_elogind creates this at login; pipewire and dbus-run-session need it.
+  if [ -n "${XDG_RUNTIME_DIR:-}" ]; then say "XDG_RUNTIME_DIR is set"
+  else warn "XDG_RUNTIME_DIR is not set (pam_elogind isn't creating sessions)"; ok=0; fi
+  # The editors only when chosen (vikix add emacs); the rest is the base.
+  local progs=(sbcl stumpwm alacritty rofi picom dunst pipewire i3lock firefox nmtui clipmenu maim restic) dirs=()
+  is_chosen emacs  && { progs+=(emacs); dirs+=("$HOME/.emacs.d"); }
+  is_chosen neovim && progs+=(nvim)
+  for c in "${progs[@]}"; do
+    if command -v "$c" >/dev/null 2>&1 || [ -x "$HOME/.local/bin/$c" ]; then
+      say "found $c"
+    else
+      warn "missing $c"; ok=0
+    fi
+  done
+  # The StumpWM image: whether this login had to fall back to the one
+  # before (vikix-session), and what the image was built with (30-lisp).
+  if [ -f "$VIKIX_STATE/stumpwm-fallback" ]; then
+    warn "the desktop runs the StumpWM from before: the new image died at login ($(sed -n 's/^at=//p' "$VIKIX_STATE/stumpwm-fallback"), $VIKIX_STATE/session.log says how); vikix rebuild-wm makes a new one"; ok=0
+  fi
+  if [ -f "$VIKIX_STATE/stumpwm-built" ]; then
+    local pin; pin=$(sed -n 's/^QL_DIST="\(.*\)"$/\1/p' "$VIKIX_DIR/install/30-lisp.sh")
+    local dist; dist=$(sed -n 's/^quicklisp=//p' "$VIKIX_STATE/stumpwm-built")
+    say "StumpWM was built $(sed -n 's/^built=//p' "$VIKIX_STATE/stumpwm-built" | cut -c1-16) with $(sed -n 's/^sbcl=//p' "$VIKIX_STATE/stumpwm-built"), Quicklisp $dist$([ -n "$pin" ] && [ "$pin" != "$dist" ] && echo " (Vikix now pins $pin: vikix rebuild-wm)")"
+  fi
+  [ -x "$HOME/.local/bin/stumpwm.prev" ] && say "the StumpWM from before is kept as stumpwm.prev (the session starts it when a new one dies)"
+  # The services: Void's runit, a link each in /var/service. NetworkManager
+  # is 25-network's, not services.list's, but enabled the same way.
+  while IFS= read -r sv; do
+    if [ -e "$VIKIX_SERVICE_DIR/$sv" ]; then say "service $sv enabled"
+    else
+      warn "service $sv not enabled"; ok=0
+      [ -e "$VIKIX_SV_DIR/$sv" ] && fixable "enable the service $sv (sudo)" enable_service "$sv"
+    fi
+  done < <(read_list "$VIKIX_DIR/services.list")
+  if [ -e "$VIKIX_SERVICE_DIR/NetworkManager" ]; then say "service NetworkManager enabled"
+  else
+    warn "service NetworkManager not enabled"; ok=0
+    [ -e "$VIKIX_SV_DIR/NetworkManager" ] && fixable "enable the service NetworkManager (sudo)" enable_service NetworkManager
+  fi
+  # Vikix's links into this checkout (40-config makes them: link_managed).
+  # One that is gone, broken, or points to something that isn't a Vikix
+  # checkout is made again; one into another checkout is said.
+  local src dest target other=0 wrong=0
+  while read -r src dest; do
+    src="$VIKIX_DIR/$src"; dest="${dest/#\~/$HOME}"
+    if [ -L "$dest" ] && [ "$(readlink -- "$dest")" = "$src" ] && [ -e "$dest" ]; then continue; fi
+    target=$(vikix_checkout_of "$dest")
+    if [ -n "$target" ] && [ "$target" != "$VIKIX_DIR" ] && [ -e "$dest" ]; then
+      other=$target; continue
+    fi
+    wrong=1; ok=0
+    if [ ! -e "$dest" ] && [ ! -L "$dest" ]; then warn "$dest is missing (Vikix's link to $src)"
+    elif [ -L "$dest" ] && [ ! -e "$dest" ]; then warn "$dest is a broken link (to $(readlink -- "$dest")), not Vikix's to $src"
+    else warn "$dest isn't Vikix's link to $src"; fi
+    fixable "link $dest to $src (what is there moves to $dest.vikix-bak.TIME)" link_managed "$src" "$dest"
+  done <<EOF
+config/stumpwm/init.lisp ~/.stumpwm.d/init.lisp
+config/stumpwm/vikix ~/.stumpwm.d/vikix
+config/x11/xinitrc ~/.xinitrc
+bin/vikix ~/.local/bin/vikix
+config/bash/vikix.bash ~/.config/vikix/vikix.bash
+config/claude/skills/vikix ~/.claude/skills/vikix
+EOF
+  if [ "$other" != 0 ]; then say "Vikix's links point into $other, not this checkout ($VIKIX_DIR): the desktop runs that one (vikix update core from it relinks)"
+  elif [ "$wrong" = 0 ]; then say "Vikix's links point into $VIKIX_DIR (init.lisp, the layer, .xinitrc, vikix, vikix.bash, the skill)"; fi
+  # Backups: not set up is a choice, said; set up, what wants doing is counted.
+  "$VIKIX_DIR/bin/vikix-backup" doctor || ok=0
+  # Off can be your choice (vikix firewall off), so it's said, not counted.
+  if grep -qx 'ENABLED=yes' /etc/ufw/ufw.conf 2>/dev/null; then say "the firewall is on"
+  elif command -v ufw >/dev/null 2>&1; then warn "the firewall is off: anything may connect in (vikix firewall on)"; fi
+  # The outbound ledger: off is a choice too, so it's said, not counted;
+  # on without its watcher is a fault.
+  if grep -qsx 'on=yes' "${XDG_CONFIG_HOME:-$HOME/.config}/vikix/ledger"; then
+    if kill -0 "$(cat "${XDG_RUNTIME_DIR:-/tmp/vikix-$(id -u)}/vikix-ledger.pid" 2>/dev/null)" 2>/dev/null; then
+      say "the outbound ledger is on (vikix ledger shows today's)"
+    else
+      warn "the outbound ledger is on but nothing is reading the log: vikix ledger on starts the watcher"; ok=0
+    fi
+  else
+    say "the outbound ledger is off: what leaves the laptop isn't recorded (vikix ledger on)"
+  fi
+  for d in "${dirs[@]}"; do
+    if [ -d "$d/.git" ]; then say "$d is a git clone"
+    else warn "$d is not a git clone (45-editors did not set it up)"; ok=0; fi
+  done
+  # Emacs: Vikix's AI setup, in the running Emacs too.
+  if is_chosen emacs; then
+    local el="${XDG_DATA_HOME:-$HOME/.local/share}/vikix/emacs/vikix-ai.el" live
+    if [ ! -f "$el" ]; then
+      warn "$el, Vikix's AI setup for Emacs, is missing (vikix update links it)"; ok=0
+    else
+      live=$(emacs_ai)
+      case $live in
+        '')  say "Emacs's AI setup is there (the next Emacs loads it)" ;;
+        old) warn "the running Emacs doesn't have Vikix's AI setup (C-c g, C-c a): emacs-restart when your chats are done" ;;
+        "$(sha256sum < "$el" | cut -d' ' -f1)") say "Emacs has Vikix's AI setup loaded" ;;
+        *)   warn "the running Emacs has an older AI setup: vikix update reloads it, or emacs-restart" ;;
+      esac
+    fi
+  fi
+  # Neovim: Vikix's starter with Vikix's part, or a config of your own.
+  if is_chosen neovim; then
+    local nv="$HOME/.config/nvim" layer="${XDG_DATA_HOME:-$HOME/.local/share}/vikix/nvim"
+    if grep -qsF 'require, "vikix"' "$nv/init.lua"; then
+      local saved="$VIKIX_STATE/nvim-lock.json" whose="versions of your own (:Lazy update)"
+      if [ -f "$saved" ]; then
+        python3 "$VIKIX_DIR/lib/nvim-lock.py" untouched "$saved" "$nv/lazy-lock.json" 2>/dev/null && whose="the versions Vikix tested"
+      elif [ -f "$VIKIX_STATE/nvim-lock" ] && [ -f "$nv/lazy-lock.json" ]; then
+        # 0.55.0's two checksums, until the next update replaces them.
+        local sums; sums=$(cat "$VIKIX_STATE/nvim-lock")
+        [ "${sums#* }" = "$(sha256sum < "$nv/lazy-lock.json" | cut -d' ' -f1)" ] && whose="the versions Vikix tested"
+      fi
+      if [ ! -f "$layer/lua/vikix/init.lua" ]; then
+        warn "$layer, Vikix's part of Neovim, is missing (vikix update links it)"; ok=0
+      elif [ ! -d "${XDG_DATA_HOME:-$HOME/.local/share}/nvim/lazy/lazy.nvim" ]; then
+        warn "Neovim's plugins aren't installed (vikix update installs them)"; ok=0
+      else say "Neovim is Vikix's, with your part in $nv; its plugins are at $whose"; fi
+      local old
+      for old in "$nv".vikix-bak.*; do
+        if [ -d "$old" ]; then say "your Neovim config from before is kept in $old"; fi
+      done
+    elif [ -d "$nv/.git" ]; then say "$nv is a git clone (a Neovim config of your own)"
+    elif [ -e "$nv/init.lua" ] || [ -e "$nv/init.vim" ]; then say "$nv is a Neovim config of your own"
+    else warn "$nv has no Neovim config (vikix update puts Vikix's starter there)"; ok=0; fi
+  fi
+  # Esploro, the file manager (vikix add esploro): built, answering.
+  if is_chosen esploro; then
+    bash "$VIKIX_DIR/bin/vikix-esploro" doctor || ok=0
+  fi
+  if is_chosen music; then
+    "$VIKIX_DIR/bin/vikix-music" doctor || ok=0
+  fi
+  # Cuis Smalltalk (vikix add cuis): at the pin, the image built, the door.
+  if is_chosen cuis; then
+    bash "$VIKIX_DIR/bin/vikix-cuis" doctor || ok=0
+  fi
+  # The guides as an Info manual, and a man page a command, both made by
+  # 40-config at an update's end, each saying which Vikix made it: another
+  # version than this one means the stage didn't run to its end (or a
+  # checkout moved by hand). One fix for both. Not their times: 40-config
+  # leaves a file alone when the new one is the same.
+  local version info_file="${XDG_DATA_HOME:-$HOME/.local/share}/info/vikix.info" man_page="${XDG_DATA_HOME:-$HOME/.local/share}/man/man1/vikix.1" stale="" made
+  version=$(cat "$VIKIX_DIR/VERSION")
+  if command -v makeinfo >/dev/null 2>&1; then
+    if [ ! -f "$info_file" ]; then stale="the Info manual of the guides is missing"
+    else
+      made=$(grep -o -m1 'For Vikix [^ ]*\.' "$info_file" | sed 's/^For Vikix //; s/\.$//' || true)
+      [ "$made" = "$version" ] || stale="the Info manual is from Vikix ${made:-before it said}, not $version"
+    fi
+  fi
+  if [ ! -f "$man_page" ]; then stale="${stale:+$stale; }the man pages are missing"
+  else
+    made=$(sed -n 's/^\.TH .* "Vikix \([^"]*\)" .*/\1/p' "$man_page" | head -1)
+    [ "$made" = "$version" ] || stale="${stale:+$stale; }the man pages are from Vikix ${made:-before they said}, not $version"
+  fi
+  if [ -n "$stale" ]; then
+    warn "$stale (40-config makes them: vikix update core)"; ok=0
+    fixable "run install/40-config.sh again, which makes the manual and the man pages" run bash "$VIKIX_DIR/install/40-config.sh"
+  else
+    say "the Info manual and the man pages are this Vikix's ($version)"
+  fi
+  # The plugins: the repository Vikix keeps, at the commit bin/vikix-plugin pins.
+  local pdir="${XDG_DATA_HOME:-$HOME/.local/share}/vikix/plugins" pinned here
+  if [ -d "$pdir/.git" ]; then
+    pinned=${VIKIX_PLUGINS_COMMIT:-$(sed -n 's/^PLUGINS_COMMIT=\${VIKIX_PLUGINS_COMMIT:-\([0-9a-f]*\)}.*/\1/p' "$VIKIX_DIR/bin/vikix-plugin")}
+    here=$(git -C "$pdir" rev-parse HEAD 2>/dev/null || true)
+    if [ -z "$pinned" ] || [ -z "$here" ]; then :
+    elif [ "$here" = "$pinned" ]; then say "the plugins are at the pin (${pinned:0:7})"
+    else
+      warn "the plugins are at ${here:0:7}, the pin is ${pinned:0:7} (vikix plugin sync)"; ok=0
+      fixable "vikix plugin sync: the plugins to the pin ${pinned:0:7}" run "$VIKIX_DIR/bin/vikix-plugin" sync
+    fi
+  fi
+  # What an update kept to go back to (vikix rollback), and whether this
+  # checkout is on a branch: after vikix update --back it isn't, and the
+  # next vikix update core goes forward again; a desk's commit being tried
+  # (vikix try) is the other reason, and is said as such.
+  local recs=() rec
+  shopt -s nullglob; recs=("$VIKIX_STATE"/rollback/20*); shopt -u nullglob
+  if [ "${#recs[@]}" -gt 0 ]; then
+    rec=${recs[-1]}
+    say "${#recs[@]} record(s) of the system before an update, the newest $(basename "$rec") (Vikix $(cat "$rec/version" 2>/dev/null || echo '?')): vikix update --back goes back to it (vikix rollback lists them)"
+  fi
+  if [ -d "$VIKIX_DIR/.git" ] || [ -f "$VIKIX_DIR/.git" ]; then
+    if git -C "$VIKIX_DIR" symbolic-ref -q HEAD >/dev/null 2>&1; then :
+    elif [ -f "$VIKIX_STATE/try" ]; then
+      say "$VIKIX_DIR runs a desk's commit, $(head -n 1 "$VIKIX_STATE/try") (vikix try status; vikix try off puts main back)"
+    else
+      warn "$VIKIX_DIR is on no branch (after vikix update --back, or a checkout by hand): it follows no updates until vikix update core, which puts it on main and goes forward again"; ok=0
+    fi
+  fi
+  # The AI side. Claude Code itself is optional: Super+a offers to install it.
+  if [ -d "$YOURS_GIT" ]; then say "your files have a snapshot history"
+  else warn "no snapshot history of your files yet (40-config starts it)"; ok=0; fi
+  # Without it, anything that reaches 127.0.0.1:4004 (the Windows VM, too)
+  # runs code in StumpWM as you.
+  if [ -s "$HOME/.slime-secret" ] && [ "$(stat -c %a "$HOME/.slime-secret")" = 600 ]; then
+    say "Swank asks for a password (~/.slime-secret)"
+  elif [ -s "$HOME/.slime-secret" ]; then
+    warn "Swank's password, ~/.slime-secret, is $(stat -c %a "$HOME/.slime-secret"), not 600: others on this machine can read it"; ok=0
+    fixable "chmod 600 ~/.slime-secret" run chmod 600 "$HOME/.slime-secret"
+  else
+    warn "Swank lets anyone on 127.0.0.1 in: no ~/.slime-secret (vikix update makes it)"; ok=0
+  fi
+  # Vikix's own socket (socket.lisp): there, yours alone, answering.
+  local sock
+  sock=${VIKIX_SOCKET:-${XDG_RUNTIME_DIR:-}/vikix.sock}
+  if [ -S "$sock" ]; then
+    if [ "$(stat -c %a "$sock")" != 600 ]; then warn "Vikix's socket $sock isn't 600 (others could talk to the desktop)"; ok=0
+    elif [ "$(timeout 5 python3 "$VIKIX_DIR/bin/vikix-eval" --socket '(princ 1)' 2>/dev/null | head -1)" = 1 ]; then say "Vikix's socket answers ($sock)"
+    else warn "Vikix's socket $sock doesn't answer (vikix eval falls back to Swank; a reload makes it anew)"; ok=0; fi
+  elif [ -n "${XDG_RUNTIME_DIR:-}" ]; then
+    warn "no socket of Vikix's at $sock (an older desktop: reload it; vikix eval uses Swank meanwhile)"; ok=0
+  fi
+  # Local AI, if it's set up: running?
+  bash "$VIKIX_DIR/bin/vikix-local-ai" check || ok=0
+  # The Windows VM, if there is one, on its private network.
+  bash "$VIKIX_DIR/bin/vikix-windows" check || ok=0
+  # Steam, if it's chosen: its repository, 32-bit libraries and the card's driver.
+  bash "$VIKIX_DIR/bin/vikix-steam" check || ok=0
+  # API keys belong in ~/.config/vikix/secrets (vikix ai key), not in your
+  # files, where the snapshot history keeps them for ever. The folder's
+  # mode is the one thing of that check with a fix: vikix ai key check
+  # says it, and the fix is offered here, after its words.
+  bash "$VIKIX_DIR/bin/vikix-ai" key check || ok=0
+  local secrets="${XDG_CONFIG_HOME:-$HOME/.config}/vikix/secrets"
+  if [ -d "$secrets" ] && [ ! -L "$secrets" ] && [ -O "$secrets" ] && [ -n "$(find "$secrets" -maxdepth 1 -perm /077 2>/dev/null)" ]; then
+    fixable "chmod 700 $secrets and 600 its files (nothing in them is read)" fix_secret_modes
+  fi
+  if [ -f "${XDG_DATA_HOME:-$HOME/.local/share}/vikix/AGENTS.md" ]; then say "the Vikix guide for other agents is in ~/.local/share/vikix/AGENTS.md"
+  else warn "the Vikix guide for other agents, ~/.local/share/vikix/AGENTS.md, is missing (40-config writes it; vikix agent too)"; ok=0; fi
+  if command -v claude >/dev/null 2>&1 || [ -x "$HOME/.local/bin/claude" ]; then
+    say "found claude"
+  else
+    say "claude is not installed (optional: Super+a or 'vikix agent' offers to install it)"
+  fi
+  # Codex's config.toml is yours, so it is read, never written: a setting
+  # under a header Codex doesn't read ([section]) did nothing, and Codex
+  # asked for every write (2026-10-11). vikix agents hooks codex says the same.
+  if command -v codex >/dev/null 2>&1 || [ -x "$HOME/.local/bin/codex" ]; then
+    local cfg
+    cfg=$(python3 "$VIKIX_DIR/bin/vikix-agents" hooks codex 2>/dev/null | sed -n 's/^ *\(~\/.*config\.toml: .*\)/\1/p')
+    if [ -n "$cfg" ]; then warn "Codex: $cfg"; ok=0
+    else say "Codex's config.toml has no setting under a header it doesn't read"; fi
+  fi
+  if [ -n "${DISPLAY:-}" ]; then
+    if pgrep -x udiskie >/dev/null 2>&1; then
+      say "udiskie is running: USB drives mount when plugged in"
+    else
+      warn "udiskie isn't running, so USB drives won't mount by themselves (log in again, or: setsid -f vikix-drives start)"; ok=0
+    fi
+    if python3 "$VIKIX_DIR/bin/vikix-eval" '(+ 1 1)' >/dev/null 2>&1; then
+      say "vikix eval reaches the running StumpWM"
+      # Keys two owners wanted (a plugin or a web app over another's): the
+      # newer one has it, and the older is left with no key.
+      local clashes
+      clashes=$(python3 "$VIKIX_DIR/bin/vikix-eval" '(when (boundp (quote *vikix-key-clashes*)) (dolist (c (reverse *vikix-key-clashes*)) (format t "~a: ~a, and ~a~%" (vikix-pretty-key (first c)) (second c) (third c))))' 2>/dev/null | grep -v '^=> ' || true)
+      if [ -n "$clashes" ]; then
+        warn "a key with two owners (the second has it; give one another key):"
+        printf '%s\n' "$clashes" | sed 's/^/     /'; ok=0
+      else
+        say "no key has two owners"
+      fi
+      # The way out when the desktop is stuck: its watcher and its key are
+      # threads of StumpWM's (rescue.lisp); one that has ended isn't watching.
+      case $(python3 "$VIKIX_DIR/bin/vikix-eval" '(princ (if (fboundp (quote vikix-thread-alive-p)) (list (vikix-thread-alive-p *vikix-watch-thread*) (vikix-thread-alive-p *vikix-rescue-key-thread*)) "old"))' 2>/dev/null | grep -v '^=> ') in
+        "(T T)") say "the watcher for a stuck desktop is up, and its key (Super+Ctrl+Alt+Escape)" ;;
+        old)     : ;;      # a StumpWM from before it; the next reload brings it
+        "(T NIL)") warn "the key that frees a stuck desktop (Super+Ctrl+Alt+Escape) isn't being read; vikix rescue free still works. Log in again to have the key back"; ok=0 ;;
+        *)       warn "the watcher for a stuck desktop isn't running (Super+m, Reload config starts it)"; ok=0 ;;
+      esac
+      # The rule for keys (each modifier means one thing): a key of a
+      # plugin, a web app or yours that breaks it. Said, not counted as a
+      # fault: the key still works.
+      local offrule
+      offrule=$(python3 "$VIKIX_DIR/bin/vikix-eval" '(when (fboundp (quote vikix-key-problems)) (dolist (p (vikix-key-problems)) (format t "~a (~a): ~a~%" (first p) (second p) (third p))))' 2>/dev/null | grep -v '^=> ' || true)
+      if [ -n "$offrule" ]; then
+        warn "a key that breaks the rule for keys (Super: everyday, +Shift: move the window, +Alt: open something else, +Ctrl: switch something):"
+        printf '%s\n' "$offrule" | sed 's/^/     /'
+      else
+        say "every key keeps the rule for keys"
+      fi
+      # The rules (rules.lisp): one that failed three times is switched off
+      # until the next reload, which is easy to miss. One naming a workspace
+      # that isn't there is said, not counted: a project's workspace is only
+      # there while the project is open.
+      local rules_off rules_nowhere
+      rules_off=$(python3 "$VIKIX_DIR/bin/vikix-eval" '(when (fboundp (quote vikix-rules-problems)) (dolist (l (vikix-rules-problems)) (format t "~a~%" l)))' 2>/dev/null | grep -v '^=> ' || true)
+      rules_nowhere=$(python3 "$VIKIX_DIR/bin/vikix-eval" '(when (fboundp (quote vikix-rules-problems)) (dolist (l (nth-value 1 (vikix-rules-problems))) (format t "~a~%" l)))' 2>/dev/null | grep -v '^=> ' || true)
+      if [ -n "$rules_off" ]; then
+        warn "a rule is switched off after failing three times (vikix rules on N tries it again; what failed: ~/.local/state/vikix/errors/):"
+        printf '%s\n' "$rules_off" | sed 's/^/     /'; ok=0
+      else
+        say "no rule is switched off after failing"
+      fi
+      if [ -n "$rules_nowhere" ]; then
+        warn "a rule names a workspace that isn't there now:"
+        printf '%s\n' "$rules_nowhere" | sed 's/^/     /'
+      fi
+    else
+      warn "vikix eval can't reach StumpWM (is it running? reload it: Super+m, Reload config)"; ok=0
+    fi
+  fi
+  if [ "$ok" = 1 ]; then say "all good"; return 0; fi
+  warn "see above"
+  local f
+  if [ "${#fixes[@]}" -gt 0 ] && [ "$FIX" != 1 ]; then
+    echo "   vikix doctor --fix would mend ${#fixes[@]} of these (asking first; --yes says yes to all; DRY_RUN=1 only prints):"
+    for f in "${fixes[@]}"; do echo "     $f"; done
+  elif [ "$FIX" = 1 ] && [ "${#fixes[@]}" -gt 0 ]; then
+    if [ "$DRY_RUN" = 1 ]; then echo "   ${#fixes[@]} fix(es) printed, none done (DRY_RUN)"
+    else echo "   fixed $fixed of ${#fixes[@]}: vikix doctor again sees whether that was all"; fi
+  fi
+  echo "   Stuck? vikix diagnose asks your AI agent; vikix debug writes a report to attach to an issue."
+  return 1
+}
+
+for a in "$@"; do
+  case $a in
+    --fix) FIX=1 ;;
+    --yes|-y) YES=1 ;;
+    -h|--help|help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) die "vikix doctor [--fix [--yes]] (vikix doctor help)" ;;
+  esac
+done
+doctor
