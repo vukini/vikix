@@ -89,7 +89,7 @@ class Decisions(unittest.TestCase):
         (folder / '.claude' / 'release').write_text('# stand-in')
         api = SimpleNamespace(by_me=lambda: ('user', None),
                               desk_for=lambda _: (str(folder), {'desk': {'branch': 'topic'}}),
-                              tasks_module=lambda: T, open_terminal=Mock())
+                              tasks_module=lambda: T, open_terminal=Mock(), release_conflicts=lambda _: ('main', []))
         office.release_action(api, str(folder), 'literal $(touch bad); words')
         where, argv = api.open_terminal.call_args.args
         self.assertEqual(where, str(folder))
@@ -98,6 +98,16 @@ class Decisions(unittest.TestCase):
         api.by_me = lambda: ('codex 42', {'pid': 42})
         with self.assertRaises(ValueError): office.release_action(api, str(folder), 'summary')
         self.assertEqual(api.open_terminal.call_count, 1)
+        # A branch that changed the same lines as main is refused before any
+        # terminal opens, with the script's own words; git unable to say is no refusal.
+        api.by_me = lambda: ('user', None)
+        api.release_conflicts = lambda _: ('main', ['lib/man.py'])
+        with self.assertRaisesRegex(ValueError, r'topic and main changed the same lines \(lib/man.py\): in .* run git rebase main'):
+            office.release_action(api, str(folder), 'summary')
+        self.assertEqual(api.open_terminal.call_count, 1)
+        api.release_conflicts = lambda _: None
+        office.release_action(api, str(folder), 'summary')
+        self.assertEqual(api.open_terminal.call_count, 2)
 
     def test_validation_and_user_only(self):
         for kw in ({'recommended': 'missing'}, {'choices': [{'label': 'a'}, {'label': 'a'}]},
@@ -157,6 +167,15 @@ class Decisions(unittest.TestCase):
         row['attention'] = 'gup'
         self.assertEqual([(i['kind'], i['why'], i['actions']) for i in office.attention(snap, now=5000)],
                          [('release', 'run gup to push and update', ['go'])])
+        # A branch main would conflict with (the row's conflicts, from merge-tree)
+        # has no Release button: the item and the row say to rebase at the desk first.
+        row['attention'], row['release'] = '', ''
+        row['conflicts'] = 'conflicts with main in lib/man.py'
+        self.assertEqual([(i['kind'], i['why'], i['actions']) for i in office.attention(snap, now=5000)],
+                         [('release', 'conflicts with main in lib/man.py: rebase at the desk first (git rebase there), then release', ['go'])])
+        self.assertEqual(office.board_row(t, row, 5000, {})['state'], 'accepted, conflicts with main in lib/man.py: rebase at the desk first')
+        row['attention'] = 'gup'
+        self.assertEqual([i['why'] for i in office.attention(snap, now=5000)], ['run gup to push and update'])
 
     def test_mcp_register_read_and_no_answer_tool(self):
         from types import SimpleNamespace

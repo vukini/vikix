@@ -271,6 +271,30 @@ def base_of(folder):
     return base, own, own_branch
 
 
+def release_conflicts(folder):
+    """The files the desk's branch and the project's own branch changed on
+    the same lines, as git's merge sees them (merge-tree, nothing checked
+    out or written): what a release's rebase would stop on. (the own
+    branch, the files), the files [] when the two merge; None when git
+    can't say (no repository, no own branch, a git without merge-tree
+    --write-tree). The Office asks only for a desk ready for release
+    (2026-10-22: a Release link led to 'changed the same lines')."""
+    base, _own, own_branch = base_of(folder)
+    if not base:
+        return None
+    try:
+        r = subprocess.run(["git", "-C", folder, "merge-tree", "--write-tree", "--name-only", "--no-messages",
+                            own_branch, "HEAD"], capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if r.returncode == 0:
+        return own_branch, []
+    if r.returncode != 1:   # 1 is a conflict; anything else is git refusing
+        return None
+    files = [l for l in r.stdout.splitlines()[1:] if l.strip()]   # the tree's id first, then the files
+    return own_branch, files or ["?"]
+
+
 def handoff_apply(folder, data, by):
     """DATA (the fields --from takes) applied to the desk's record, signed
     BY, the user told of a status worth telling; what changed against the

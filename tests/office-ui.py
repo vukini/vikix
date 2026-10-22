@@ -596,6 +596,52 @@ class Office(unittest.TestCase):
         self.assertFalse(row['sessions'][0]['available'])
         self.assertEqual(row['resume']['codex']['mode'], 'fresh')
 
+    def test_conflicts_asked_only_of_a_desk_ready_for_release(self):
+        """The row's conflicts (merge-tree, through release_conflicts) are
+        asked for a standing desk whose task is ready for release and no
+        release runs on; '' for every other desk, and when git can't say."""
+        T = A.tasks_module()
+        asked = []
+        def conflicts(folder):
+            asked.append(folder)
+            return ('main', ['lib/man.py'])
+        self.records = [self.rec]
+        with patch.object(A, 'release_conflicts', conflicts), patch.object(A, 'desk_of', lambda f: f):
+            self.assertEqual(office.snapshot(A)['desks'][0]['conflicts'], '')
+            self.assertEqual(asked, [])
+            task = T.new('Fix the picker', 'Vikix', 'user', desk={'id': 'abc', 'worktree': self.folder, 'branch': 'wifi'})
+            self.rec['task'] = {'text': 'Fix the picker', 'id': task['id']}
+            T.move(task['id'], 'running', 'user'); T.move(task['id'], 'ready for release', 'user')
+            row = office.snapshot(A)['desks'][0]
+            self.assertEqual((row['conflicts'], asked), ('conflicts with main in lib/man.py', [os.path.realpath(self.folder)]))
+            self.assertEqual([(i['kind'], i['actions']) for i in office.attention(office.snapshot(A)) if i['kind'] == 'release'],
+                             [('release', ['go'])])
+            with patch.object(A, 'release_conflicts', lambda f: ('main', [])):
+                self.assertEqual(office.snapshot(A)['desks'][0]['conflicts'], '')
+            with patch.object(A, 'release_conflicts', lambda f: None):
+                self.assertEqual(office.snapshot(A)['desks'][0]['conflicts'], '')
+
+    def test_release_conflicts_from_git(self):
+        """release_conflicts against a repository: the desk's branch and the
+        own folder's main changing the same lines names the file; a branch
+        that merges names none; a folder that is no desk of a repository is None."""
+        repo = Path(self.temp.name) / 'repo'
+        desk = Path(self.temp.name) / 'repo-topic'
+        def git(where, *args):
+            subprocess.run(['git', '-C', str(where), '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', *args],
+                           check=True, capture_output=True)
+        repo.mkdir()
+        git(repo, 'init', '-q', '-b', 'main')
+        (repo / 'f').write_text('a\nb\n'); (repo / 'g').write_text('z\n')
+        git(repo, 'add', 'f', 'g'); git(repo, 'commit', '-q', '-m', 'base')
+        git(repo, 'worktree', 'add', '-q', '-b', 'topic', str(desk))
+        (repo / 'f').write_text('A\nb\n'); git(repo, 'commit', '-q', '-am', 'main moved on')
+        (desk / 'g').write_text('q\n'); git(desk, 'commit', '-q', '-am', 'another file')
+        self.assertEqual(A.release_conflicts(str(desk)), ('main', []))
+        (desk / 'f').write_text('AA\nb\n'); git(desk, 'commit', '-q', '-am', 'the same lines')
+        self.assertEqual(A.release_conflicts(str(desk)), ('main', ['f']))
+        self.assertIsNone(A.release_conflicts(self.folder))
+
     def test_unreadable_working_tree_is_not_fresh(self):
         self.assertTrue(H.freshness({'commit': 'same', 'dirty': 0},
                                    {'commit': 'same', 'dirty': None}).startswith('unknown'))

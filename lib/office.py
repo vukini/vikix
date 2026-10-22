@@ -302,8 +302,16 @@ def attention(snapshot, now=None, quiet=20):
         terminal = row.get('attention')
         releasing = bool(row.get('release')) and terminal not in ('gup', 'close')
         if (state == 'ready for release' and not releasing) or terminal in ('gup', 'close'):
-            why = 'run gup to push and update' if terminal == 'gup' else 'close the finished terminal' if terminal == 'close' else row.get('next_action') or 'ready for release'
-            add('release', task, row, why, status_at, actions=['go'] if terminal in ('gup', 'close') else ['release', 'go'])
+            # A branch that can't go on top of the project's own (the row's
+            # conflicts, from merge-tree) gets no Release button: the rebase
+            # at the desk comes first, and the item says where.
+            if terminal in ('gup', 'close'):
+                why, actions = 'run gup to push and update' if terminal == 'gup' else 'close the finished terminal', ['go']
+            elif row.get('conflicts'):
+                why, actions = row['conflicts'] + ': rebase at the desk first (git rebase there), then release', ['go']
+            else:
+                why, actions = row.get('next_action') or 'ready for release', ['release', 'go']
+            add('release', task, row, why, status_at, actions=actions)
         if state == 'blocked':
             b = task.get('blocked') or {}
             kind = ('worker stopped' if b.get('on') == 'worker' else 'desk removed' if b.get('on') == 'desk'
@@ -436,7 +444,9 @@ def board_row(task, desk, now, queue_rows):
     elif state == 'ready for release':
         section = 'Completed'
         # Under release: the step the release is at, from the desk's row.
-        words = f"under release: {desk['release']}" if desk.get('release') else 'accepted, not yet released'
+        words = (f"under release: {desk['release']}" if desk.get('release')
+                 else f"accepted, {desk['conflicts']}: rebase at the desk first" if desk.get('conflicts')
+                 else 'accepted, not yet released')
         line = f"{head} · {place} · {words} · {title}"
     elif state in ('completed', 'cancelled'):
         section = 'Completed'
@@ -972,6 +982,18 @@ def snapshot(api, include_queue=True):
             task['worker'] = row['worker_state']
             task['worker_state'] = row['worker_state']
         row['launch_seq'] = (task.get('launch') or {}).get('seq') if task else None
+        # A desk ready for release whose branch and the project's own changed
+        # the same lines: the release's rebase would stop on them, so the
+        # Office says so instead of offering Release (2026-10-22: a Release
+        # link ended in 'changed the same lines' in a terminal). Git is asked
+        # (merge-tree, nothing written) only for such a desk, standing, with
+        # no release under way on it; '' otherwise, or when git can't say.
+        row['conflicts'] = ''
+        if (task and (task.get('status') or {}).get('value') == 'ready for release'
+                and row['kind'] == 'desk' and row['exists'] and not row['release']):
+            found = api.release_conflicts(path)
+            if found and found[1]:
+                row['conflicts'] = f"conflicts with {found[0]} in {', '.join(found[1])}"
         if row['archived']:
             row['group'] = 'Archived'
             row['next_action'] = 'Archived — worktree removed'
@@ -1470,6 +1492,10 @@ def release_action(api, folder, summary):
     branch = rec['desk'].get('branch') or ''
     if not branch or branch.startswith('-'):
         raise ValueError('the desk has no release branch')
+    found = api.release_conflicts(folder)
+    if found and found[1]:
+        raise ValueError(f"{branch} and {found[0]} changed the same lines ({', '.join(found[1])}): "
+                         f"in {folder} run git rebase {found[0]}, settle them, and release again")
     # A terminal preserves the release workflow and its visible checks.
     # The summary is an argv element, never shell source.
     api.open_terminal(folder, ['bash', '-c', '"$@"; code=$?; read -r -p "Press Enter to close"; exit "$code"',

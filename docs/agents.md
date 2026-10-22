@@ -1062,7 +1062,10 @@ Permission requests stay in the worker's own approval interface; **Go to
 agent** takes you there. **Accept review** marks work ready for release;
 **Back to work…** leaves feedback in the inbox. **Release…** asks for a
 summary and opens the project's release script in a terminal; it does not
-push. Once a release runs on the desk's branch, started here or in the
+push. A desk whose branch and the project's own changed the same lines
+(what the release's rebase would stop on, asked of git without touching
+either) has no **Release…**: the item says *conflicts with main in
+lib/man.py: rebase at the desk first*, and so does the task's row. Once a release runs on the desk's branch, started here or in the
 agent's terminal, the item goes: nothing is asked of you until it ends,
 and the Releases box and the task's row under **Completed** say which
 step it is at. Other items' **Desk** button opens the existing task controls.
