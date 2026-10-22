@@ -177,7 +177,7 @@ class Office(unittest.TestCase):
         self.assertTrue(row['line'].startswith(f"#{row['seq']} codex · book/picker · just now · idle, task open · Fix the picker"), row['line'])
         q = [r for r in by['Queue'] if r['task'] == queued['id']]
         self.assertEqual((len(q), q[0]['status'], q[0]['position'] is not None, q[0]['id']), (1, 'queued', True, 'task:' + queued['id']))
-        self.assertIn('1. high  Write the guide · book, desk to make: guide', q[0]['line'])
+        self.assertIn('1. Write the guide · book, desk to make: guide · priority high', q[0]['line'])
         b = [r for r in by['Blocked'] if r['task'] == blocked['id']]
         self.assertEqual((len(b), b[0]['state']), (1, 'blocked on worker'))
         self.assertTrue(b[0]['detail'].startswith('worker stopped just now ago: exit 1') or b[0]['detail'].startswith('worker stopped'), b[0]['detail'])
@@ -222,6 +222,15 @@ class Office(unittest.TestCase):
         self.assertIn('Running (', text)
         self.assertIn('Queue (', text)
         self.assertIn('Desks standing empty (', text)
+        # The Queue's count says what it counts: queued, ready to queue and proposals apart (2026-10-22).
+        self.assertEqual(office.queue_count_words([]), 'empty')
+        self.assertEqual(office.queue_count_words([{'status': 'ready'}]), 'none queued, 1 ready to queue')
+        self.assertEqual(office.queue_count_words([{'status': 'queued'}, {'status': 'queued'}, {'status': 'backlog'}]),
+                         '2 queued, 1 waiting for your approval')
+        self.assertEqual(office.queue_words({'active': 2, 'at_once': 2, 'auto': False}),
+                         '2 workers running, up to 2 at once · auto off: nothing starts by itself, queue start does')
+        self.assertEqual(office.queue_words({'active': 0, 'at_once': 2, 'auto': True, 'paused': True}),
+                         '0 workers running, up to 2 at once · auto on: the next starts when a slot is free · scheduler paused by you')
 
     def test_new_task_from_the_office(self):
         """The T form's backend: a task ready with the topic of the desk to

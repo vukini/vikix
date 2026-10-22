@@ -392,12 +392,12 @@ def queue_cmd(argv):
     if as_json:
         print(json.dumps(result, ensure_ascii=False))
     else:
-        print(f"Queue: {result['active']}/{result['at_once']} workers; auto {'on' if result['auto'] else 'off'}"
-              + ('; paused' if result['paused'] else ''))
+        import office as office_view
+        print('Queue: ' + office_view.queue_words(result))
         for r in result['rows']:
             print(f"{r['position']:3} {r['priority']:8} {r['id']} {r['title']} — {r['why']}")
         nxt = result['next']
-        print('Next: ' + (nxt['id'] + ' — ' + nxt['why'] if nxt else 'none eligible'))
+        print('Next to start: ' + (nxt['id'] + ' — ' + nxt['why'] if nxt else 'none can start now'))
         for tid in result.get('launched', []):
             print('Started: ' + tid)
     return 0

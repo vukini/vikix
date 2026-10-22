@@ -279,9 +279,9 @@ Needs attention (1):
   worker stopped: vikix · the seconds, then the date on hover [t-20261014-5ec49e] · claude, #1 — the worker stopped: exit 1 (25 min)
 Running (1) · sorted by launch order, oldest first:
   #2 claude · vikix/wifi-fix · 35 min · running · the Wi-Fi picker should scan first, then show the list  [t-20261014-0d2c16]
-Queue (1) · 0/2 workers · auto off:
-  1. high  the guide review · vikix, desk to make: guide-review · at_once 2 reached  [t-20261014-7f3a9c]
-  Next: the guide review — eligible in priority and queue order (vikix agents queue start)
+Queue (1 queued) · 0 workers running, up to 2 at once · auto off: nothing starts by itself, queue start does:
+  1. the guide review · vikix, desk to make: guide-review · priority high · next, when a slot is free  [t-20261014-7f3a9c]
+  Next to start: the guide review — eligible in priority and queue order (vikix agents queue start)
 Blocked (2):
   #1 claude · vikix/bar-clock · 25 min · blocked on worker · the seconds, then the date on hover  [t-20261014-5ec49e]
       worker stopped 25 min ago: exit 1, 3 uncommitted
@@ -725,13 +725,16 @@ are in, and `q` then puts that frame's windows back as they were.
 
 Above the desks, a **Plans** box when a plan has run or been written (`vikix agents plan`): a plan a group, its name, project and whether its runner runs, a line a desk saying where that desk's chain stands, and what needs you; a desk of a plan says which in its **Plan** line. A plan written and not run yet (`plan new`, or **New plan…**) is a *draft* there, with the tasks still holding the template's `EDIT:` lines under *Needs you*. Each plan ends with the acts its state takes, each `vikix agents plan` from the Office: **Run** for a draft whose words are written (**Run again** for one stopped or whose runner isn't running: it carries on), **Pause** and **Stop** while it runs, **Go on** when paused, **Edit**, which opens the plan's file in the desk pane (`RET` on a desk brings the pane back), and **Log**, what the runner did. A plan done, every desk of it released, leaves the box for the Archive page, where a **Plans done** box lists it with when it ended and its desks released, keeping **Edit** and **Log**; the Archive button counts the plans done apart from the records (*Archive (3, 1 plan)*).
 
-The left side is **the board**: five sections, numbered, a box each, a
-row a task (*The work: tasks and their history*, above), and the frame's
-title counts what needs you (*The Office (3)*):
+The left side is **the board**: five sections, a box each, a row a task
+(*The work: tasks and their history*, above), and the frame's title
+counts what needs you (*The Office (3)*). Each box's title says in words
+what it holds and the key that goes to it: *Queue: none queued, 1 ready
+to queue · press 3*; *Running: 3 tasks · launch order, oldest first ·
+press 2*; an empty one says so (*Blocked: none · press 4*).
 
 1. **Needs attention** (`1`): the items, each one thing you can do
    something about (*Needs attention and decisions*, below), with its acts
-   as buttons.
+   as buttons; the title counts them as *things to do*.
 2. **Running** (`2`): the tasks running, waiting for a decision or in
    review, a row each: `#104 claude · vikix/wifi-fix · 35 min · running ·
    the Wi-Fi picker should scan first`, the launch number and the
@@ -751,13 +754,18 @@ title counts what needs you (*The Office (3)*):
    nobody at it. A desk with an agent at it and no task record is here
    too, said so; a folder an agent merely runs in (one started in `~`) is
    *not a desk*.
-3. **Queue** (`3`): the scheduler's summary (workers in use of `at_once`,
-   auto on or off, *scheduler paused by you*), *Next: … because …* with
-   **Start next**, then the queued tasks in queue order, each with its
-   position, priority, the desk to make and why it waits, and its acts as
-   buttons (Start, Run next, Up, Down, Priority, Defer, Cancel); after
-   them the tasks ready but not queued (**Queue it**) and the proposals
-   waiting for your approval. The Queue keeps its order whatever the sort.
+3. **Queue** (`3`): the tasks waiting for a worker. Its title counts
+   them apart, since not every task here is queued: *2 queued, 1 ready to
+   queue, 1 waiting for your approval*, or *empty*. Then the scheduler's
+   summary in words (*1 workers running, up to 2 at once · auto off: nothing
+   starts by itself, Start next does*, or *auto on: the next starts when a
+   slot is free*; *scheduler paused by you*), *Next to start: … — why*
+   (*none can start now*) with **Start next**, then the queued tasks in
+   queue order, each with its position, the desk to make, its priority and
+   why it waits, and its acts as buttons (Start, Run next, Up, Down,
+   Priority, Defer, Cancel); after them the tasks ready but not queued
+   (**Queue it**), each saying so, and the proposals waiting for your
+   approval. The Queue keeps its order whatever the sort.
 4. **Blocked** (`4`): `#107 codex · installer tests · 2 h · blocked on
    worker · …`, and under it why: *worker stopped 2 h ago: exit 1, 3
    uncommitted*, *waits for t-…*, or the reason recorded; **Make ready**

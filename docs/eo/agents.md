@@ -279,9 +279,9 @@ Needs attention (1):
   worker stopped: vikix · the seconds, then the date on hover [t-20261014-5ec49e] · claude, #1 — the worker stopped: exit 1 (25 min)
 Running (1) · sorted by launch order, oldest first:
   #2 claude · vikix/wifi-fix · 35 min · running · the Wi-Fi picker should scan first, then show the list  [t-20261014-0d2c16]
-Queue (1) · 0/2 workers · auto off:
-  1. high  the guide review · vikix, desk to make: guide-review · at_once 2 reached  [t-20261014-7f3a9c]
-  Next: the guide review — eligible in priority and queue order (vikix agents queue start)
+Queue (1 queued) · 0 workers running, up to 2 at once · auto off: nothing starts by itself, queue start does:
+  1. the guide review · vikix, desk to make: guide-review · priority high · next, when a slot is free  [t-20261014-7f3a9c]
+  Next to start: the guide review — eligible in priority and queue order (vikix agents queue start)
 Blocked (2):
   #1 claude · vikix/bar-clock · 25 min · blocked on worker · the seconds, then the date on hover  [t-20261014-5ec49e]
       worker stopped 25 min ago: exit 1, 3 uncommitted

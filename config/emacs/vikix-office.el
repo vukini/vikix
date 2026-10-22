@@ -683,7 +683,7 @@ is drawn when PLANS is empty."
   "Actionable items above the desks, with their actual waiting time."
   (let ((items (alist-get 'attention vikix-office--data)))
     (let ((start (point)))
-      (vikix-office--box-top width chars (format "1 · Needs attention (%d)" (length items)))
+      (vikix-office--box-top width chars (vikix-office--section-title "Needs attention" items))
       (put-text-property start (point) 'vikix-office-section "Needs attention"))
     (if (null items) (vikix-office--note width chars "nothing waiting")
       (dolist (item items)
@@ -778,15 +778,42 @@ is drawn when PLANS is empty."
              (eq (frame-parameter vikix-office--frame 'vikix-office-buffer) (current-buffer)))
     (let ((n (length (alist-get 'attention vikix-office--data))))
       (set-frame-parameter vikix-office--frame 'name (if (> n 0) (format "The Office (%d)" n) "The Office")))))
+(defun vikix-office--count-words (name rows)
+  "What the section NAME holds, in words: the Queue's queued tasks, ready
+ones and proposals apart, so a count never says queued of a task that
+isn't."
+  (let ((n (length rows)))
+    (pcase name
+      ("Needs attention" (cond ((= n 0) "nothing waiting") ((= n 1) "1 thing to do") (t (format "%d things to do" n))))
+      ("Queue" (let* ((queued (seq-count (lambda (r) (equal (alist-get 'status r) "queued")) rows))
+                      (proposed (seq-count (lambda (r) (equal (alist-get 'status r) "backlog")) rows))
+                      (ready (- n queued proposed)))
+                 (if (= n 0) "empty"
+                   (string-join (delq nil (list (if (> queued 0) (format "%d queued" queued) "none queued")
+                                                (and (> ready 0) (format "%d ready to queue" ready))
+                                                (and (> proposed 0) (format "%d waiting for your approval" proposed))))
+                                ", "))))
+      ("Completed" (if (= n 0) "none today" (format "%d today" n)))
+      (_ (cond ((= n 0) "none") ((= n 1) "1 task") (t (format "%d tasks" n)))))))
 (defun vikix-office--section-title (name rows)
-  "The box title of the section NAME holding ROWS: its number on the board,
-its name, its count, and the sort for Running and Completed."
+  "The box title of the section NAME holding ROWS: its name, what it holds
+in words (`vikix-office--count-words'), the sort for Running and
+Completed, and the key that goes to it (press 3). The two sections of
+the desks' page have no key and count plainly."
   (let ((n (cdr (assoc name vikix-office--section-numbers))))
-    (concat (if n (format "%d · " n) "")
-            (pcase name ("Desks" "Desks standing empty") ("Closed" "Closed today") (_ name))
-            (format " (%d)" (length rows))
+    (concat (pcase name ("Desks" "Desks standing empty") ("Closed" "Closed today") (_ name))
+            (if n (concat ": " (vikix-office--count-words name rows)) (format " (%d)" (length rows)))
             (if (and (member name '("Running" "Completed")) rows)
-                (concat " · " (or (cdr (assoc vikix-office--sort vikix-office--sort-words)) vikix-office--sort)) ""))))
+                (concat " · " (or (cdr (assoc vikix-office--sort vikix-office--sort-words)) vikix-office--sort)) "")
+            (if n (format " · press %d" n) ""))))
+(defun vikix-office--queue-words (queue)
+  "The scheduler's summary in words: the workers running and at_once,
+whether it starts the next by itself (auto), and whether you paused it."
+  (format "%s workers running, up to %s at once · %s%s"
+          (alist-get 'active queue) (alist-get 'at_once queue)
+          (if (eq (alist-get 'auto queue) t) "auto on: the next starts when a slot is free"
+            "auto off: nothing starts by itself, Start next does")
+          (if (eq (alist-get 'paused queue) t) " · scheduler paused by you" "")))
 (defun vikix-office--section-box (width chars owner name label-width)
   "The section NAME as a box: its rows (`vikix-office--board-row-draw'), a
 rule between them; the Queue's with the scheduler's summary and its acts
@@ -796,15 +823,11 @@ first; an empty one says so."
     (vikix-office--box-top width chars (vikix-office--section-title name rows))
     (put-text-property start (point) 'vikix-office-section name)
     (when (and (equal name "Queue") queue)
-      (vikix-office--note width chars
-                          (format "%s/%s workers · auto %s%s"
-                                  (alist-get 'active queue) (alist-get 'at_once queue)
-                                  (if (eq (alist-get 'auto queue) t) "on" "off")
-                                  (if (eq (alist-get 'paused queue) t) " · scheduler paused by you" "")))
+      (vikix-office--note width chars (vikix-office--queue-words queue))
       (let ((next (alist-get 'next queue)))
         (vikix-office--note width chars
-                            (if next (concat "Next: " (alist-get 'title next) " — " (alist-get 'why next))
-                              "Next: none eligible")))
+                            (if next (concat "Next to start: " (alist-get 'title next) " — " (alist-get 'why next))
+                              "Next to start: none can start now")))
       (vikix-office--line width chars
        (lambda ()
          (vikix-office--button "Start next" (lambda () (with-current-buffer owner

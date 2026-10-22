@@ -414,7 +414,7 @@ def board_row(task, desk, now, queue_rows):
     elif state == 'queued':
         section = 'Queue'
         words = 'queued'
-        line = (f"{q.get('position', '?')}. {task.get('priority', 'normal')}  {title} · {place}"
+        line = (f"{q.get('position', '?')}. {title} · {place} · priority {task.get('priority', 'normal')}"
                 + (f" · {q['why']}" if q.get('why') and not q.get('eligible') else ' · next, when a slot is free' if q.get('eligible') else ''))
     elif state in ('ready', 'backlog'):
         words = 'ready, not queued' if state == 'ready' else 'backlog, waits for your approval'
@@ -423,7 +423,7 @@ def board_row(task, desk, now, queue_rows):
         section = 'Desks' if desk else 'Queue'
         if d.get('worktree') and not desk:
             words += ', its desk is gone'
-        line = (f"{task.get('priority', 'normal')}  {title} · {place} · {words}" if section == 'Queue'
+        line = (f"{title} · {place} · priority {task.get('priority', 'normal')} · {words}" if section == 'Queue'
                 else f"{place} · {words} · {title}")
     elif state == 'blocked':
         section = 'Blocked'
@@ -565,6 +565,33 @@ def board(snapshot, now=None, every=False, sort='launch'):
             'sections': [{'name': name, 'count': len(sections[name]), 'rows': sections[name]} for name in BOARD_SECTIONS]}
 
 
+def queue_count_words(rows):
+    """What the Queue holds, in words: the queued tasks, the ready ones not
+    queued and the proposals waiting for approval apart, so the count never
+    says queued of a task that isn't (the Office's box said *Queue (1)* of
+    a task ready and not queued, 2026-10-22)."""
+    queued = sum(1 for r in rows if r.get('status') == 'queued')
+    proposed = sum(1 for r in rows if r.get('status') == 'backlog')
+    ready = len(rows) - queued - proposed
+    if not rows:
+        return 'empty'
+    parts = [f'{queued} queued' if queued else 'none queued']
+    if ready:
+        parts.append(f'{ready} ready to queue')
+    if proposed:
+        parts.append(f'{proposed} waiting for your approval')
+    return ', '.join(parts)
+
+
+def queue_words(queue):
+    """The scheduler's summary in words: the workers running and at_once,
+    whether it starts the next by itself (auto), and whether it is paused."""
+    return (f"{queue.get('active', '?')} workers running, up to {queue.get('at_once', '?')} at once · "
+            + ('auto on: the next starts when a slot is free' if queue.get('auto')
+               else 'auto off: nothing starts by itself, queue start does')
+            + (' · scheduler paused by you' if queue.get('paused') else ''))
+
+
 def board_text(snapshot, board_, now=None):
     """The board as text, for vikix agents tasks: a section a heading with
     its count, a row a line (its second line indented under it), the
@@ -574,12 +601,11 @@ def board_text(snapshot, board_, now=None):
     queue = snapshot.get('queue') or {}
     for section in board_['sections']:
         name, rows = section['name'], section['rows']
-        head = f"{name} ({len(rows)})"
+        head = f"{name} ({queue_count_words(rows) if name == 'Queue' else len(rows)})"
         if name in ('Running', 'Completed'):
             head += f" · sorted by {SORT_WORDS[board_['sort']]}"
         if name == 'Queue' and queue:
-            head += (f" · {queue.get('active', '?')}/{queue.get('at_once', '?')} workers · auto {'on' if queue.get('auto') else 'off'}"
-                     + (' · scheduler paused by you' if queue.get('paused') else ''))
+            head += ' · ' + queue_words(queue)
         if name == 'Completed':
             head += ' · every one' if board_.get('every') else ' · the last day'
         if name == 'Desks':
@@ -600,8 +626,8 @@ def board_text(snapshot, board_, now=None):
                     out.append('      ' + r['detail'])
         if name == 'Queue' and queue:
             nxt = queue.get('next')
-            out.append('  Next: ' + (f"{nxt['title']} — {nxt['why']}" if nxt else 'none eligible')
-                       + ('' if nxt is None else ' (vikix agents queue start)'))
+            out.append('  Next to start: ' + (f"{nxt['title']} — {nxt['why']} (vikix agents queue start)" if nxt
+                                               else 'none can start now'))
         if not rows:
             out.append('  none')
     return '\n'.join(out)

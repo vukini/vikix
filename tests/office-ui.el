@@ -443,7 +443,8 @@ is drawn again at that width."
    (vikix-office--render)
    (should (string-match-p "No task yet" (buffer-string)))
    ;; The five sections are drawn all the same, each saying it is empty.
-   (dolist (want '("1 · Needs attention (0)" "2 · Running (0)" "3 · Queue (0)" "4 · Blocked (0)" "5 · Completed (0)"))
+   (dolist (want '("Needs attention: nothing waiting · press 1" "Running: none · press 2" "Queue: empty · press 3"
+                   "Blocked: none · press 4" "Completed: none today · press 5"))
      (should (string-match-p (regexp-quote want) (buffer-string))))))
 
 (ert-deftest office-archive-hides-actions-and-clears-removed-selection ()
@@ -777,13 +778,13 @@ tests run."
            (progn
              (vikix-office--render)
              (let ((text (buffer-string)))
-               (should (string-match-p "2 · Running (2)" text))
+               (should (string-match-p "Running: 2 tasks" text))
                ;; The batch buffer is narrow: the line breaks after "the".
                (should (string-match-p "Tests +tests/run.sh --changed abc1234 · since [0-9:]+ · waiting for the" text))
                (should (string-match-p "release of wifi-fix" text))
                (should (string-match-p "Skip tests" text))
                ;; The row is in the Running box.
-               (should (< (string-match "2 · Running" text) (string-match "Task a" text) (string-match "3 · Queue" text))))
+               (should (< (string-match "Running: " text) (string-match "Task a" text) (string-match "Queue: " text))))
              (setq vikix-office--selected "a")
              (vikix-office--render-detail)
              (with-current-buffer vikix-office--detail
@@ -1332,7 +1333,7 @@ names. The Guide: the manual's node in the desk pane, or why not."
            ;; The buttons of the box, in order: chapters' Edit alone, cover's Run and
            ;; Edit, book's Pause, Stop, Edit and Log, rest's Go on, Stop, Edit and Log.
            (let ((from (save-excursion (goto-char (point-min)) (search-forward "chapters · vikix")))
-                 (to (save-excursion (goto-char (point-min)) (search-forward "2 · Running" nil t)))
+                 (to (save-excursion (goto-char (point-min)) (search-forward "Running: " nil t)))
                  found)
              (save-excursion
                (goto-char from)
@@ -1710,8 +1711,8 @@ and q puts the windows back; the only frame is never deleted."
      (switch-to-buffer buffer)
      (vikix-office--render)
      (goto-char (point-min))
-     (should (search-forward "1/2 workers · auto off" nil t))
-     (should (search-forward "Next: First task" nil t))
+     (should (search-forward "1 workers running, up to 2 at once · auto off: nothing starts by itself" nil t))
+     (should (search-forward "Next to start: First task" nil t))
      (should (search-forward "blocked by dependency" nil t))
      (should (search-forward "worker stopped 2 h ago: exit 1" nil t))
      (should (member "Make ready" (office-test-buttons)))
@@ -1769,20 +1770,21 @@ Completed (the Queue in its order), and y and b on a task in review."
                   (office-test-board-row "Completed" "task:t-20261016-dddddd" "t-20261016-dddddd" nil "completed" "#0 claude · vikix/old · released 0.72.70 · 2 h ago · Old task" "took 1 h 20 min" nil 50))))
          (vikix-office--render)
          (let ((text (buffer-string)))
-           (dolist (want '("1 · Needs attention (0)" "2 · Running (2) · launch order, oldest first" "3 · Queue (1)" "4 · Blocked (0)"
-                           "5 · Completed (1) · launch order, oldest first"
+           (dolist (want '("Needs attention: nothing waiting · press 1" "Running: 2 tasks · launch order, oldest first · press 2"
+                           "Queue: 1 queued · press 3" "Blocked: none · press 4"
+                           "Completed: 1 today · launch order, oldest first · press 5"
                            "#1 claude · Vikix/b · 35 min · idle, task open · Task b" "1. high  The guide review" "took 1 h 20 min"))
              (should (string-match-p (regexp-quote want) text)))
            ;; The task's line heads the desk's fields: the project line without the number again, then Live and Next.
            (should (string-match-p "idle, task open · Task b +[│|]\n[│|] Vikix · claude · workspace 2 +[│|]\n[│|] Task " text))
            (should-not (string-match-p "#1 · Vikix" text))
            ;; Launch order: b (#1) before a (#2); the Queue after Running.
-           (should (< (string-match "Task b" text) (string-match "Task a" text) (string-match "3 · Queue" text))))
+           (should (< (string-match "Task b" text) (string-match "Task a" text) (string-match "Queue: " text))))
          ;; s: newest first turns Running round and says so; the Queue keeps its order.
          (vikix-office-sort)
          (should (equal vikix-office--sort "newest"))
          (let ((text (buffer-string)))
-           (should (string-match-p "2 · Running (2) · newest launch first" text))
+           (should (string-match-p "Running: 2 tasks · newest launch first" text))
            (should (< (string-match "Task a" text) (string-match "Task b" text)))
            (should (string-match-p "newest launch first" header-line-format)))
          (dotimes (_ 7) (vikix-office-sort))
