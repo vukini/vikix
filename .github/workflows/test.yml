@@ -14,6 +14,13 @@
 #            both install parts run through with --dry-run
 #   editors  the Emacs and Neovim configs install from scratch and start
 #            without errors
+#   office   the office and the tests around it that need no screen (the
+#            tasks, the handoff, the house rules, the tester, the scheduler,
+#            the release, the slots, the plans, the door, the stand-in
+#            agents): python3, git and flock, which the runner has, and
+#            sbcl for the door. The screen tests, a StumpWM on Xvfb, stay
+#            on the laptop (tests/run.sh); lint holds every step here to a
+#            test that is in tests/ and in tests/run.sh's list
 #
 # Weekly as well as on every push: the editor configs pull packages from
 # MELPA, GitHub and the Treesitter grammars, which can break with no change
@@ -233,14 +240,66 @@ jobs:
         if: ${{ !cancelled() }}
         run: su tester -c "cd '$GITHUB_WORKSPACE' && GITHUB_ACTIONS=true tests/ci.sh editors"
 
-  # The good tag: the last commit of main whose three jobs all passed here.
+  office:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: sbcl, for the door's reading of an agent's forms
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends sbcl
+      - name: tasks
+        if: ${{ !cancelled() }}
+        run: tests/ci.sh tasks
+      - name: handoff
+        if: ${{ !cancelled() }}
+        run: tests/ci.sh handoff
+      - name: house
+        if: ${{ !cancelled() }}
+        run: tests/ci.sh house
+      - name: tester
+        if: ${{ !cancelled() }}
+        run: tests/ci.sh tester
+      - name: scheduler
+        if: ${{ !cancelled() }}
+        run: tests/ci.sh scheduler
+      - name: release
+        if: ${{ !cancelled() }}
+        run: tests/ci.sh release
+      - name: queue
+        if: ${{ !cancelled() }}
+        run: tests/ci.sh queue
+      - name: plan
+        if: ${{ !cancelled() }}
+        run: tests/ci.sh plan
+      - name: door
+        if: ${{ !cancelled() }}
+        run: tests/ci.sh door
+      - name: grok
+        if: ${{ !cancelled() }}
+        run: tests/ci.sh grok
+      - name: codex
+        if: ${{ !cancelled() }}
+        run: tests/ci.sh codex
+      - name: reconnect
+        if: ${{ !cancelled() }}
+        run: tests/ci.sh reconnect
+      - name: try
+        if: ${{ !cancelled() }}
+        run: tests/ci.sh try
+      - name: vk
+        if: ${{ !cancelled() }}
+        run: tests/ci.sh vk
+      - name: records
+        if: ${{ !cancelled() }}
+        run: tests/ci.sh records
+
+  # The good tag: the last commit of main whose four jobs all passed here.
   # A machine on the good channel (~/.config/vikix/channel, the default)
   # updates to it and never to an untested commit; one on main takes every
   # commit as it lands (plans/DESIGN-dependable.md item 1). The tag is
   # pushed with the workflow's own token, which starts no second run.
   good:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [lint, void, editors]
+    needs: [lint, void, editors, office]
     runs-on: ubuntu-latest
     permissions:
       contents: write

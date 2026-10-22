@@ -33,6 +33,7 @@ export EMACS_SOCKET_NAME=/nonexistent/emacs-server   # never the live desktop's 
 unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE   # the desktop session's: from an agent's shell they'd point a test at the real ~/vikix and state, and hide the keys
 cd "$(dirname "$0")/.."
 command -v sbcl >/dev/null || { echo "FAIL no sbcl (xbps-install sbcl, or apt install sbcl)"; exit 1; }
+echo "with $(sbcl --version)"   # said, since a reading can differ by version (plans/DESIGN-ci.md 2)
 
 if [ "$#" -gt 0 ]; then
   files=("$@")

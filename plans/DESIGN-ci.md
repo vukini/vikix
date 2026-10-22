@@ -31,8 +31,8 @@ In order of value. Each is small enough for one commit and a test.
 
 ### 2. One version of each tool, said aloud (`tests/lint.sh`)
 
-- SC2218 fires with shellcheck 0.10 and older but not 0.11, which the laptop has. Pin one version for both (`uvx --from shellcheck-py==0.11.0.1 shellcheck`) and print it.
-- Print `sbcl --version` and `makeinfo --version` in the lisp and info tests.
+- ~~SC2218 fires with shellcheck 0.10 and older but not 0.11, which the laptop has. Pin one version for both and print it~~ (done 2026-10-22: `tests/lint.sh` takes the shellcheck on PATH when it is 0.11, else `uvx --from shellcheck-py==0.11.0.1 shellcheck`, else PATH's with a word of warning, and says which and its version).
+- ~~Print `sbcl --version` and `makeinfo --version` in the lisp and info tests~~ (done 2026-10-22).
 
 ### 3. Tests that hold under load (`tests/run.sh`, `tests/lib/wm.sh`)
 
@@ -50,13 +50,12 @@ In order of value. Each is small enough for one commit and a test.
 
 ### 5. Hermetic tests (`tests/run.sh`, `tests/ci.sh`)
 
-- Unset `*_API_KEY`, `*_KEY`, `*_TOKEN`, `*_SECRET`, `CLAUDE_CODE_*`, `CLAUDECODE`, `OLLAMA_HOST` and `ANTHROPIC_BASE_URL` for every test, as `drop_keys` in `lib/common.sh` does for the installer and `vikix update`.
-- A lint check that requires it, as lint already requires `VIKIX_SWANK_PORT=9` and the `unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE` line.
+- ~~Unset `*_API_KEY`, `*_KEY`, `*_TOKEN`, `*_SECRET`, `CLAUDE_CODE_*`, `CLAUDECODE`, `OLLAMA_HOST` and `ANTHROPIC_BASE_URL` for every test; a lint check that requires it~~ (done 2026-10-22, in the runner rather than a line in every test: `tests/run.sh` and `tests/ci.sh` drop them before any test, lint holds both to the line, `tests/queue.sh` has the case. Every run goes through the runner; a test run by hand, `bash tests/NAME.sh`, sees the shell's, as before).
 
 ### 6. CI runs more of the suite
 
-- CI runs 45 of about 127 tests. An `office` job for the tests without a screen (office, tasks, handoff, house, tester, scheduler, release, queue, plan, door, socket, grok, codex); they need python3, git and flock.
-- CI's list made from one file (say `tests/ci-list.txt`) and checked against `run.sh`'s, so the two can't drift.
+- ~~CI runs 45 of about 127 tests. An `office` job for the tests without a screen~~ (done 2026-10-22: the `office` job runs tasks, handoff, house, tester, scheduler, release, queue, plan, door, grok, codex, reconnect, try, vk and records, with sbcl for the door; `office` and `socket` drive a StumpWM and stay on the laptop; the `good` tag waits for the job. Written at the desk and passed there; its first run on Ubuntu comes with the push).
+- ~~CI's list made from one file and checked against `run.sh`'s~~ (done 2026-10-22, as a check instead of a file: lint reads every `tests/ci.sh NAME` in the workflow and fails when `tests/NAME.sh` isn't there or NAME isn't in `run.sh`'s list).
 
 ### 7. Budgets about to bite
 

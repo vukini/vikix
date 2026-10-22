@@ -15,6 +15,8 @@ unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE   # the desktop session's: from an agent
 # where they are set; GitHub's runners set XDG_CONFIG_HOME, which would
 # send a test's files into the runner's real config instead.
 unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME
+# No key or agent setting of the runner's reaches a test (tests/run.sh says why).
+for v in $(compgen -e); do case $v in *_API_KEY|*_KEY|*_TOKEN|*_SECRET|CLAUDE_CODE_*|CLAUDECODE|OLLAMA_HOST|ANTHROPIC_BASE_URL) unset "$v" ;; esac; done
 cd "$(dirname "$0")" || exit 1
 name=$1; shift
 out=$(mktemp)

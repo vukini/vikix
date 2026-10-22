@@ -42,6 +42,12 @@ unset VIKIX_AGENT VIKIX_DIR VIKIX_STATE   # the desktop session's: from an agent
 # named by what it was made from, so runs of different branches don't mix.
 export VIKIX_FASL_DIR=${VIKIX_FASL_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/vikix/test-fasl}
 unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME
+# None of the machine's keys or agent settings reaches a test: lib/secrets.sh
+# and vikix.bash export the API keys into every shell, and tests/docs.sh
+# failed on one ("no key, --claude says so"), the way round being env -u at
+# the release (plans/DESIGN-ci.md 5). The same line in tests/ci.sh; lint
+# holds both to it. A test run by hand sees the shell's.
+for v in $(compgen -e); do case $v in *_API_KEY|*_KEY|*_TOKEN|*_SECRET|CLAUDE_CODE_*|CLAUDECODE|OLLAMA_HOST|ANTHROPIC_BASE_URL) unset "$v" ;; esac; done
 cd "$(dirname "$0")" || exit 1
 # A run started by a test of a run (queue, changed-map) is nobody's to record.
 nested=${VIKIX_TEST_RUN:-}

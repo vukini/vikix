@@ -28,6 +28,7 @@ check() { "${@:2}" || { echo "FAIL: $1"; fail=1; }; }
 
 # --- the manual from the real guides ------------------------------------------
 python3 "$here/lib/md2texi.py" "$here/docs" > "$t/vikix.texi"
+echo "with $(makeinfo --version | head -1)"   # said, since its warnings differ by version (plans/DESIGN-ci.md 2)
 makeinfo --no-split -I "$here/docs" -o "$t/vikix.info" "$t/vikix.texi" 2> "$t/errors" ||
   { echo "FAIL: makeinfo failed:"; sed 's/^/  /' "$t/errors"; exit 1; }
 [ -s "$t/errors" ] && { echo "FAIL: makeinfo warned:"; sed 's/^/  /' "$t/errors" | head -20; fail=1; }

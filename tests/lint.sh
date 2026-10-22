@@ -49,13 +49,22 @@ for f in install.sh install-*.sh install/*.sh bin/* tests/*.sh installer/vikix-i
 done
 echo "executable bits checked"
 
-if command -v shellcheck >/dev/null; then
+# One shellcheck for the laptop and CI, said aloud: 0.11. SC2218 fires with
+# 0.10 and older but not 0.11, which left CI red and the laptop green
+# (2026-10-18, plans/DESIGN-ci.md 2). The one on PATH when it is 0.11, else
+# the pinned one through uvx, else PATH's with a word of warning.
+sc_want=0.11
+sc_version() { "$@" --version 2>/dev/null | sed -n 's/^version: //p' | head -1; }
+if command -v shellcheck >/dev/null && [[ $(sc_version shellcheck) == "$sc_want".* ]]; then
   sc=(shellcheck)
 elif command -v uvx >/dev/null; then
-  sc=(uvx --from shellcheck-py shellcheck)
+  sc=(uvx --from shellcheck-py==0.11.0.1 shellcheck)
+elif command -v shellcheck >/dev/null; then
+  sc=(shellcheck); echo "(shellcheck $(sc_version shellcheck) on PATH is not $sc_want, and no uvx brings it: its warnings may differ from CI's)"
 else
   echo "FAIL no shellcheck (install it, or uv for uvx)"; exit 1
 fi
+echo "shellcheck $(sc_version "${sc[@]}"): ${sc[*]}"
 if "${sc[@]}" -x -S warning "${scripts[@]}"; then
   echo "shellcheck: no warnings"
 else
@@ -100,6 +109,33 @@ if [ -n "$missing" ]; then
   echo "$missing" | sed 's/^/  /'; fail=1
 else
   echo "isolation: every test starts without the desktop session's settings"
+fi
+# The runner and CI's wrapper drop the machine's keys and agent settings
+# before any test (the line in tests/run.sh says why); one of them without
+# the line would hand every test the shell's keys again.
+hermetic='for v in $(compgen -e); do case $v in *_API_KEY|*_KEY|*_TOKEN|*_SECRET|CLAUDE_CODE_*|CLAUDECODE|OLLAMA_HOST|ANTHROPIC_BASE_URL) unset "$v" ;; esac; done'
+missing=$(grep -LF -- "$hermetic" tests/run.sh tests/ci.sh || true)
+if [ -n "$missing" ]; then
+  echo "FAIL isolation: these should drop the machine's keys before a test (the line in tests/run.sh):"
+  echo "$missing" | sed 's/^/  /'; fail=1
+else
+  echo "isolation: the runner and tests/ci.sh drop the machine's keys before a test"
+fi
+
+# CI's steps name tests that are there and in tests/run.sh's list (the Void
+# ones, packages, dry-run and editors, are in it too): a test renamed or
+# dropped would otherwise be a red step, or one running nothing, found at
+# the next push (plans/DESIGN-ci.md 6).
+in_run=$(grep -oE 'tests\+?=\([^)]*\)' tests/run.sh | tr ' ()' '\n\n\n' | sed 's/^tests+\?=//' | grep -v '^$' || true)
+bad=""
+for n in $(grep -oE 'ci\.sh [a-z-]+"?$' .github/workflows/test.yml | awk '{print $2}' | tr -d '"' | sort -u); do   # the run: lines, not the prose about tests/ci.sh
+  [ -x "tests/$n.sh" ] || bad="$bad $n (no tests/$n.sh)"
+  grep -qx -- "$n" <<<"$in_run" || bad="$bad $n (not in tests/run.sh's list)"
+done
+if [ -n "$bad" ]; then
+  echo "FAIL ci: .github/workflows/test.yml names a test the runner doesn't have:$bad"; fail=1
+else
+  echo "ci: every test the workflow runs is in tests/ and in tests/run.sh's list"
 fi
 
 # `vikix what`'s pages are public, and a user's books may not be: Vikix's

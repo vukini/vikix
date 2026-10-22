@@ -230,5 +230,11 @@ check "a screen test that fails again alone fails the run: $code" \
   bash -c "[ $code != 0 ] && grep -q '^=== y failed again alone' <<<\"\$1\" && grep -q '^FAILED: y' <<<\"\$1\" && ! grep -q 'passed only once more' <<<\"\$1\"" _ "$out"
 check "and isn't noted as a flake" test "$(grep -c . "$t/flakes.log")" = 1
 
+# k: a test that would see the machine's keys and agent settings; the
+# runner drops them first (plans/DESIGN-ci.md 5), and keeps its own.
+printf '#!/bin/sh\necho "k sees ${ANTHROPIC_API_KEY:-none} ${GITHUB_TOKEN:-none} ${CLAUDECODE:-none} ${OLLAMA_HOST:-none} ${VIKIX_TEST_RUN:-none}"\n' > "$t/tests/k.sh"; chmod +x "$t/tests/k.sh"
+out=$(ANTHROPIC_API_KEY=sk-test GITHUB_TOKEN=ghp-test CLAUDECODE=1 OLLAMA_HOST=127.0.0.1:1 VIKIX_TEST_SLOTS=2 "$t/tests/run.sh" k 2>&1) && code=0 || code=$?
+check "a test sees none of the machine's keys or agent settings: $code: $out" grep -q '^k sees none none none none 1$' <<<"$out"
+
 [ "$fail" = 0 ] && echo "queue: runs on one machine share the test slots, a test that wants the machine alone has it, each leaves a note vikix agents reads, a run at a desk records itself, a screen test that fails runs once more alone and is noted as a flake when it passes then, and a run passes or fails as before"
 exit "$fail"
