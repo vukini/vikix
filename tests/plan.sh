@@ -176,7 +176,10 @@ check "the desk isn't stopped: $(agents plan status book | grep 'desk part-one')
 check "the note counts the busy round" python3 -c '
 import glob, json, sys
 n = json.load(open(glob.glob(sys.argv[1] + "/.local/state/vikix/office/plans/*.json")[0])); assert n["busy"] == {"part-one": 1, "index": 1}, n' "$HOME"
-pkill -P "$lockpid" 2>/dev/null; kill "$lockpid" 2>/dev/null; wait "$lockpid" 2>/dev/null || true   # flock's sleep holds the lock's fd too
+# flock's sleep holds the lock's fd too. Each kill may find its process gone
+# already (flock ends as soon as its sleep is killed), and under set -e that
+# ended the test outside a check, twice under a loaded run on 2026-10-22.
+pkill -P "$lockpid" 2>/dev/null || true; kill "$lockpid" 2>/dev/null || true; wait "$lockpid" 2>/dev/null || true
 
 # --- The first round: the desks made, a worker at each, up to at-once --------------------------
 out=$(round)
