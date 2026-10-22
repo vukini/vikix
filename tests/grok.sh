@@ -207,7 +207,8 @@ with tempfile.TemporaryDirectory(prefix='vikix-grok-test-') as temp:
         manifest.write_text(json.dumps({'version': version, 'debUrl': path.as_uri(), 'commitSha': 'c' * 40}))
         return manifest.as_uri()
 
-    env.update(HOME=str(home), VIKIX_GROK_DIR=str(store))
+    # PATH without the real ~/.local/bin: a Grok Bot installed on this machine must not show.
+    env.update(HOME=str(home), VIKIX_GROK_DIR=str(store), PATH=f'{fakebin}:/usr/bin:/bin')
     for name in ('XDG_DATA_HOME', 'XDG_CONFIG_HOME', 'DRY_RUN'):
         env.pop(name, None)
     data = home / '.local/share'
@@ -237,6 +238,7 @@ with tempfile.TemporaryDirectory(prefix='vikix-grok-test-') as temp:
     assert not (home / 'etc').exists() and not list(app.rglob('*.sources')), 'the apt source is never unpacked'
     assert not (app / 'app/grok-bot.desktop').exists() and not list(app.rglob('changelog.gz'))
     assert entry.read_text().startswith('[Desktop Entry]') and f'Exec={exe} %U' in entry.read_text()
+    assert stat.S_IMODE(entry.stat().st_mode) == 0o644 and stat.S_IMODE(app.stat().st_mode) == 0o755, 'plain files, not the queue\'s 600'
     assert icon.read_bytes() == b'PNG16' and (data / 'icons/hicolor/512x512/apps/grok-bot.png').exists()
     release = json.loads((app / 'release.json').read_text())
     assert release['version'] == '0.75.0' and release['commit'] == 'c' * 40 and len(release['sha512']) == 128

@@ -459,6 +459,7 @@ def place():
 
 
 def install(force=False):
+    os.umask(0o022)   # the queue is private (main's umask); the program, its entry and icons are plain files
     home_app, parent = app_dir(), app_dir().parent
     if dry_run():
         print(f':: would ask {MANIFEST.format(arch=arch())} for the current Grok Bot, download its .deb,'
