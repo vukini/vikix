@@ -329,11 +329,13 @@ if command -v Xvfb >/dev/null && command -v rofi >/dev/null && command -v xdotoo
   printf '#!/bin/sh\necho "browser $*" >> %s/opened\n' "$t" > "$t/bin/notify-send"; chmod +x "$t/bin/notify-send"
   # Other desks can have the same rofi prompt open. Only this pick's child
   # counts as ready; a machine-wide pgrep sent keys before our menu existed.
-  # Stay off X while rofi grabs the keyboard: window searches stalled it.
+  # A process can exist before its menu is mapped. Wait for that window
+  # with bounded X requests; ordinary focus needs a window manager.
   rofi_wait() {
-    python3 - "$pick" "$@" <<'PYROFI'
+    DISPLAY=":$n" timeout --kill-after=2s 20s python3 - "$pick" "$@" <<'PYROFI'
 from pathlib import Path
 import os
+import subprocess
 import sys
 import time
 root, wanted = int(sys.argv[1]), sys.argv[2:]
@@ -358,11 +360,17 @@ while time.monotonic() < end:
             if args:
                 args[0] = os.path.basename(args[0])
             if args[:len(wanted)] == wanted and ours(int(path.name)):
-                sys.exit(0)
+                try:
+                    mapped = subprocess.run(["xdotool", "search", "--onlyvisible", "--pid", path.name,
+                                             "--class", "Rofi"], timeout=1, capture_output=True)
+                    if mapped.returncode == 0 and mapped.stdout.strip():
+                        sys.exit(0)
+                except subprocess.TimeoutExpired:
+                    pass
         except (OSError, ValueError):
             continue
     time.sleep(.1)
-sys.exit("this document pick did not open its expected rofi prompt")
+sys.exit(f"this document pick did not map its expected rofi prompt: {wanted}")
 PYROFI
   }
   for way in Return ctrl+Return; do
@@ -371,12 +379,10 @@ PYROFI
     pick=$!
     ui_pids+=("$pick")
     if rofi_wait rofi -dmenu -p docs; then
-      sleep 1
-      DISPLAY=":$n" xdotool type mypy
-      DISPLAY=":$n" xdotool key Return
+      DISPLAY=":$n" xdotool type --clearmodifiers --delay 80 mypy
+      DISPLAY=":$n" xdotool key --clearmodifiers Return
       if rofi_wait rofi -dmenu -i -p mypy; then
-        sleep 1
-        DISPLAY=":$n" xdotool key "$way"
+        DISPLAY=":$n" xdotool key --clearmodifiers "$way"
       else
         fail=1
       fi
@@ -385,9 +391,17 @@ PYROFI
     fi
     wait "$pick" || { cat "$t/pick-errors"; fail=1; }
     ui_pids=("$xvfb")
-    sleep .5
+    # Opening the browser is detached: the picker can exit before the
+    # stand-in writes its result. Wait for that result, not a fixed delay.
+    for _ in $(seq 1 100); do
+      [ ! -s "$t/opened" ] || break
+      sleep .1
+    done
     if [ "$way" = Return ]; then want='^browser .*/md/.*\.html'; else want="emacsclient -c -n .*dev/python/README.md"; fi
     check "Super+F2's menus: $way should open the hit its way: $(cat "$t/opened")" grep -q "$want" "$t/opened"
+    if ! grep -q "$want" "$t/opened"; then
+      cat "$t/pick-out" "$t/pick-errors"
+    fi
   done
   cleanup_ui
 fi
@@ -590,7 +604,7 @@ check "a gone entry is said: $(d read zeal:quokka:Method:nothing 2>&1)" grep -q 
 # The scan for a member is the slow part (half a second over the real
 # docsets), so a search over every source asks for it only when the words
 # look like code or the catalogue had fewer hits than the list holds.
-check "a plain word the catalogue has pages for isn't scanned for as a member: $(d find daw --limit 1)" bash -c '! grep -q "Audio.daw" <<<"$(d find daw --limit 1)"'
+check "a plain word the catalogue has pages for isn't scanned for as a member: $(d find daw --limit 1)" bash -c 'test -n "$1" && ! grep -q "Audio.daw" <<<"$1"' _ "$(d find daw --limit 1)"
 check "but it is when the list has room: $(d find daw --limit 20 | grep '^zeal')" grep -q 'Audio.daw — Class, Quokka' <<<"$(d find daw --limit 20)"
 check "an entry named by a plain word comes after the catalogue's own, not before: $(d find websocket --limit 2 | grep -v '^   ')" bash -c 'test "$(head -1 <<<"$1" | cut -c1-5)" != "zeal " && grep -q "websocket — Builtin, Numbat" <<<"$1"' _ "$(d find websocket --limit 2)"
 check "and a word written as code always is: $(d find 2026 --limit 1)" grep -q 'Cal.2026 — Constant, Quokka' <<<"$(d find 2026 --limit 1)"
