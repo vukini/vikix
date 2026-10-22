@@ -294,8 +294,14 @@ def attention(snapshot, now=None, quiet=20):
             add('tests failed', task, row, latest.get('name', 'tests') + ': ' + latest.get('note', '').split('\n')[0], latest.get('at'), actions=['go', 'test', 'tell'])
         if state == 'needs review' and not row.get('testing') and (row.get('tests_off') or (latest.get('ok') and fresh)):
             add('review', task, row, row.get('next_action') or 'review the handoff', status_at, actions=['accept', 'back', 'go', 'tell'])
-        if state == 'ready for release' or row.get('attention') in ('gup', 'close'):
-            terminal = row.get('attention')
+        # A release already under way on the desk's branch (the row's release
+        # line, from .claude/release's note) asks nothing of you: the item goes
+        # when the release is started, in the Office or in the agent's terminal
+        # (2026-10-22: three desks kept their Release link through their
+        # releases); the Releases box and the task's row say where it is.
+        terminal = row.get('attention')
+        releasing = bool(row.get('release')) and terminal not in ('gup', 'close')
+        if (state == 'ready for release' and not releasing) or terminal in ('gup', 'close'):
             why = 'run gup to push and update' if terminal == 'gup' else 'close the finished terminal' if terminal == 'close' else row.get('next_action') or 'ready for release'
             add('release', task, row, why, status_at, actions=['go'] if terminal in ('gup', 'close') else ['release', 'go'])
         if state == 'blocked':
@@ -429,7 +435,8 @@ def board_row(task, desk, now, queue_rows):
         line = f"{head} · {place} · {ago} · {words} · {title}"
     elif state == 'ready for release':
         section = 'Completed'
-        words = 'accepted, not yet released'
+        # Under release: the step the release is at, from the desk's row.
+        words = f"under release: {desk['release']}" if desk.get('release') else 'accepted, not yet released'
         line = f"{head} · {place} · {words} · {title}"
     elif state in ('completed', 'cancelled'):
         section = 'Completed'

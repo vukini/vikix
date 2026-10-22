@@ -141,6 +141,23 @@ class Decisions(unittest.TestCase):
         snap['live_known'] = False
         self.assertIn('discovery unavailable', [i['kind'] for i in office.attention(snap)])
 
+    def test_release_under_way_asks_nothing(self):
+        """A task ready for release has a Release item until the release is
+        started, in the Office or by the agent: under way, the item goes and
+        the board's row says the step; released and not pushed, gup is yours."""
+        t = T.load(self.tid)
+        t['status'] = {'value': 'ready for release', 'by': 'user', 'at': 10}
+        row = {'id': '/test/desk', 'task_record': t, 'agents': [], 'release': ''}
+        snap = {'tasks': [t], 'desks': [row], 'live_known': True}
+        self.assertEqual([(i['kind'], i['actions']) for i in office.attention(snap, now=5000)], [('release', ['release', 'go'])])
+        self.assertEqual(office.board_row(t, row, 5000, {})['state'], 'accepted, not yet released')
+        row['release'] = 'step 4 of 7: testing (changed) · since 07:07'
+        self.assertEqual([i['kind'] for i in office.attention(snap, now=5000)], [])
+        self.assertEqual(office.board_row(t, row, 5000, {})['state'], 'under release: step 4 of 7: testing (changed) · since 07:07')
+        row['attention'] = 'gup'
+        self.assertEqual([(i['kind'], i['why'], i['actions']) for i in office.attention(snap, now=5000)],
+                         [('release', 'run gup to push and update', ['go'])])
+
     def test_mcp_register_read_and_no_answer_tool(self):
         from types import SimpleNamespace
         spec = importlib.util.spec_from_loader('decision_mcp', SourceFileLoader('decision_mcp', str(ROOT / 'bin/vikix-mcp')))

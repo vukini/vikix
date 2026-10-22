@@ -764,7 +764,8 @@ title counts what needs you (*The Office (3)*):
    lets the scheduler have it again.
 5. **Completed** (`5`): the last day's, with the release (*released
    0.72.26*), *accepted, not yet released* for a task whose work is in
-   and whose release isn't, *cancelled*; under it how long it took, and
+   and whose release isn't, *under release: step 4 of 7: testing* while
+   `.claude/release` runs on its branch, *cancelled*; under it how long it took, and
    where it ended against the agent's estimate. Older ones are the
    Archive's.
 
@@ -1061,7 +1062,10 @@ Permission requests stay in the worker's own approval interface; **Go to
 agent** takes you there. **Accept review** marks work ready for release;
 **Back to work…** leaves feedback in the inbox. **Release…** asks for a
 summary and opens the project's release script in a terminal; it does not
-push. Other items' **Desk** button opens the existing task controls.
+push. Once a release runs on the desk's branch, started here or in the
+agent's terminal, the item goes: nothing is asked of you until it ends,
+and the Releases box and the task's row under **Completed** say which
+step it is at. Other items' **Desk** button opens the existing task controls.
 
 A running task with an inferred or unknown worker state and no recent
 activity becomes *uncertain* after 20 minutes. `quiet=MINUTES` in
